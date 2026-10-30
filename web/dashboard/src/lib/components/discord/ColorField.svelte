@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import Input from '@bagel/ui/svelte/Input.svelte';
+  import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { LIVE_COLOR_HEX, getI18n, normalizeHex, type DiscordConfig } from '@bagel/kit';
   import type { ModuleDraft } from '#lib/discord/module-draft.svelte';
@@ -36,12 +36,7 @@
         onclick={() => draft.set(field, swatch)}
       ></button>
     {/each}
-    <Input
-      id="dc-{field}"
-      type="color"
-      value={color}
-      oninput={(e: Event & { currentTarget: HTMLInputElement }) => draft.set(field, normalizeHex(e.currentTarget.value))}
-    />
+    <ColorPicker id="dc-{field}" value={color} onValueChange={(hex) => draft.set(field, normalizeHex(hex))} />
   </span>
   <FieldNote invalid={draft.invalid} {field} />
 </div>

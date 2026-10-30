@@ -1,0 +1,8 @@
+{
+  "label": "Farbe wählen",
+  "plane": "Sättigung und Helligkeit",
+  "planeValue": "Sättigung {saturation}, Helligkeit {brightness}",
+  "hue": "Farbton",
+  "hex": "Hex-Farbe",
+  "swatch": "{hex} verwenden"
+}

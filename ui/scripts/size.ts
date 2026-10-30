@@ -306,6 +306,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/var-card", budget: 1060 }, // 807 B: script-built variable cards
   { name: "elements/row-body", budget: 1000 }, // 858 B: shared list-row body, device and module variants (2026-10-29)
   { name: "elements/swatch", budget: 350 }, // 194 B: recessed colour chip (2026-10-29)
+  { name: "elements/color-picker", budget: 1560 }, // 1375 B: trigger, plane, hue rail, hex field, swatches, light theme (2026-10-30)
   { name: "elements/well", budget: 230 }, // 151 B: inset surface
   { name: "elements/json-tree", budget: 470 }, // 360 B: tree rails and neutral picked row
   { name: "elements/window", budget: 420 }, // 314 B: window frame with title bar

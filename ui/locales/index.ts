@@ -5,6 +5,7 @@
 
 import de_action from './de/action.json';
 import de_choice from './de/choice.json';
+import de_color from './de/color.json';
 import de_data from './de/data.json';
 import de_nav from './de/nav.json';
 import de_profile from './de/profile.json';
@@ -14,6 +15,7 @@ import de_status from './de/status.json';
 import de_steps from './de/steps.json';
 import en_action from './en/action.json';
 import en_choice from './en/choice.json';
+import en_color from './en/color.json';
 import en_data from './en/data.json';
 import en_nav from './en/nav.json';
 import en_profile from './en/profile.json';
@@ -23,6 +25,7 @@ import en_status from './en/status.json';
 import en_steps from './en/steps.json';
 import es_action from './es/action.json';
 import es_choice from './es/choice.json';
+import es_color from './es/color.json';
 import es_data from './es/data.json';
 import es_nav from './es/nav.json';
 import es_profile from './es/profile.json';
@@ -32,6 +35,7 @@ import es_status from './es/status.json';
 import es_steps from './es/steps.json';
 import fr_action from './fr/action.json';
 import fr_choice from './fr/choice.json';
+import fr_color from './fr/color.json';
 import fr_data from './fr/data.json';
 import fr_nav from './fr/nav.json';
 import fr_profile from './fr/profile.json';
@@ -41,6 +45,7 @@ import fr_status from './fr/status.json';
 import fr_steps from './fr/steps.json';
 import pt_br_action from './pt-br/action.json';
 import pt_br_choice from './pt-br/choice.json';
+import pt_br_color from './pt-br/color.json';
 import pt_br_data from './pt-br/data.json';
 import pt_br_nav from './pt-br/nav.json';
 import pt_br_profile from './pt-br/profile.json';
@@ -50,6 +55,7 @@ import pt_br_status from './pt-br/status.json';
 import pt_br_steps from './pt-br/steps.json';
 import ru_action from './ru/action.json';
 import ru_choice from './ru/choice.json';
+import ru_color from './ru/color.json';
 import ru_data from './ru/data.json';
 import ru_nav from './ru/nav.json';
 import ru_profile from './ru/profile.json';
@@ -62,6 +68,7 @@ export const CATALOG_FILES = {
   'de': {
     action: de_action,
     choice: de_choice,
+    color: de_color,
     data: de_data,
     nav: de_nav,
     profile: de_profile,
@@ -73,6 +80,7 @@ export const CATALOG_FILES = {
   'en': {
     action: en_action,
     choice: en_choice,
+    color: en_color,
     data: en_data,
     nav: en_nav,
     profile: en_profile,
@@ -84,6 +92,7 @@ export const CATALOG_FILES = {
   'es': {
     action: es_action,
     choice: es_choice,
+    color: es_color,
     data: es_data,
     nav: es_nav,
     profile: es_profile,
@@ -95,6 +104,7 @@ export const CATALOG_FILES = {
   'fr': {
     action: fr_action,
     choice: fr_choice,
+    color: fr_color,
     data: fr_data,
     nav: fr_nav,
     profile: fr_profile,
@@ -106,6 +116,7 @@ export const CATALOG_FILES = {
   'pt-br': {
     action: pt_br_action,
     choice: pt_br_choice,
+    color: pt_br_color,
     data: pt_br_data,
     nav: pt_br_nav,
     profile: pt_br_profile,
@@ -117,6 +128,7 @@ export const CATALOG_FILES = {
   'ru': {
     action: ru_action,
     choice: ru_choice,
+    color: ru_color,
     data: ru_data,
     nav: ru_nav,
     profile: ru_profile,

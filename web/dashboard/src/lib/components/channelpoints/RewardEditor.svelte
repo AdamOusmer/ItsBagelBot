@@ -6,6 +6,7 @@
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
+  import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -95,7 +96,7 @@
     </div>
     <div class="color-field">
       <Field label={t('channelpoints.fieldColor')}>
-        <Input type="color" bind:value={draft.backgroundColor} />
+        <ColorPicker bind:value={draft.backgroundColor} />
       </Field>
     </div>
   </div>
@@ -273,7 +274,7 @@
 
   .field-row { display: flex; gap: 12px; }
   .cost-field { flex: 1; min-width: 0; }
-  .color-field { flex: none; width: 110px; }
+  .color-field { flex: none; }
 
   .check { margin: 4px 0 14px; --bb-check-align: center; }
 

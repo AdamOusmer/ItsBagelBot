@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **127** blocks;
+Every block the library ships, by family. **128** blocks;
 **110** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 127 times
+omitted: nearly every block takes both, and listing them 128 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -60,6 +60,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Button** | `variant`: ButtonVariant<br>`tone`: ButtonTone<br>`size`: ButtonSize<br>`block`: boolean<br>`as`: 'button' \| 'span'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`busy`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | stable | `styles/elements/button.css` |
 | **ButtonLink** | `href*`: string<br>`variant`: ButtonVariant<br>`tone`: ButtonTone<br>`size`: ButtonSize<br>`block`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | stable | `styles/elements/button.css` |
 | **Checkbox** | `checked`: boolean | svelte + astro | stable | `styles/elements/input.css` |
+| **ColorPicker** | `value`: string<br>`swatches`: readonly string[]<br>`label`: string<br>`id`: string<br>`name`: string<br>`form`: string<br>`disabled`: boolean<br>`invalid`: boolean<br>`onValueChange`: (value: string) => void | svelte<br>*Svelte only: the plane, hue rail and open panel need a client; Astro pages use `Input type="color"`.* | svelte-only | `styles/elements/color-picker.css` |
 | **CopySurface** | `text*`: string<br>`copiedLabel`: string<br>`announce`: string<br>`variant`: 'card' \| 'row' \| 'well' \| 'chip'<br>`label`: string<br>`hint`: string<br>`flashMs`: number<br>`legacyFallback`: boolean<br>`onCopy`: (copied: boolean) => void | svelte + astro | stable | `styles/elements/copy-surface.css` |
 | **Field** | `label*`: string<br>`tag`: string<br>`hint`: string<br>`error`: string<br>`hintId`: string<br>`errorId`: string<br>`for`: string | svelte + astro | stable | `styles/elements/field.css, styles/elements/tag.css` |
 | **FieldError** | — | svelte<br>*Svelte only: it renders only when a form action has returned an error, which a static page has not.* | svelte-only | `styles/elements/field.css` |

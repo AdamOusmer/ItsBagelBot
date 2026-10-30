@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export const NAMED_CONTROLS = ['Checkbox', 'Input', 'Select', 'Slider', 'Textarea'];
+export const NAMED_CONTROLS = ['Checkbox', 'ColorPicker', 'Input', 'Select', 'Slider', 'Textarea'];
 
 const IMPORT = /import\s+(\w+)\s+from\s+['"]@bagel\/ui\/(?:svelte|astro)\/(\w+)\.(?:svelte|astro)['"]/g;
 const NAME_ATTRIBUTE = /(?:^|\s)(?:aria-label|aria-labelledby|label)\s*=/;

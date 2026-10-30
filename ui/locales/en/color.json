@@ -1,0 +1,8 @@
+{
+  "label": "Pick a color",
+  "plane": "Saturation and brightness",
+  "planeValue": "Saturation {saturation}, brightness {brightness}",
+  "hue": "Hue",
+  "hex": "Hex color",
+  "swatch": "Use {hex}"
+}
