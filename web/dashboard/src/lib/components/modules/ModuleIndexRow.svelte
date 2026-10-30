@@ -2,14 +2,9 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance, type SubmitFunction } from '$app/forms';
-  import '@bagel/ui/styles/elements/row-body.css';
-  import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Icon from '@bagel/ui/svelte/Icon.svelte';
-  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import {
     getI18n,
@@ -41,61 +36,133 @@
   const locked = $derived(module.locked === true);
 </script>
 
-<ManagementRow as="article" {href} label="{t('modules.openSettings')}: {tModuleLabel(t, def)}">
-  {#snippet primary()}
-    <span class="bb-row-body--main">
-      <span class="bb-row-body__copy">
-        <Heading level={6} as="span">
-          {tModuleLabel(t, def)}
-          {#if beta}<span class="beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
-        </Heading>
-        <span class="bb-row-body__tagline"><Text as="span" size="xs" tone="muted">{tModuleTagline(t, def)}</Text></span>
-        {#if chips.chips.length}
-          <span class="bb-row-body__cmds">
-            {#each chips.chips as chip (chip)}
-              <Tag bare literal>{chip}</Tag>
-            {/each}
-            {#if chips.extra}
-              <Tag bare literal>{t('modules.moreCommands', { n: chips.extra })}</Tag>
-            {/if}
-          </span>
-        {/if}
-      </span>
-      <span class="bb-row-body__go" aria-hidden="true" title={t('modules.openSettings')}>
-        <Icon name="gear" size={16} />
-      </span>
+<article class="mrow" class:mrow--on={module.enabled}>
+  <a class="mrow__main" {href} aria-label="{t('modules.openSettings')}: {tModuleLabel(t, def)}">
+    <span class="mrow__name">
+      {tModuleLabel(t, def)}
+      {#if beta}<span class="mrow__beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
     </span>
-  {/snippet}
-  {#snippet actions()}
-    <span class="bb-row-body__side">
-      <SaveStatus state={status} compact />
-      {#if locked}
-        <TextLink href="/billing" label={t('modules.betaPremium')} />
-      {:else if toggleable}
-        {#if module.enabled}
-          <Tag tone="live" mark="solid">{t('modules.statusOn')}</Tag>
-        {/if}
-        <form method="POST" action="?/toggle" use:enhance={toggleSubmit}>
-          <input type="hidden" name="name" value={def.id} />
-          <input type="hidden" name="is_enabled" value={module.enabled ? '' : 'on'} />
-          <Switch
-            type="submit"
-            checked={module.enabled}
-            label={module.enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
-            busy={status === 'saving'}
-          />
-        </form>
-      {:else}
-        <Tag tone="pre" data-fit-box><span data-fit="">{t('modules.alwaysOn')}</span></Tag>
+    <span class="mrow__tagline">{tModuleTagline(t, def)}</span>
+  </a>
+  {#if chips.chips.length}
+    <span class="mrow__cmds" aria-hidden="true">
+      {#each chips.chips as chip (chip)}
+        <code class="mrow__cmd">{chip}</code>
+      {/each}
+      {#if chips.extra}
+        <code class="mrow__cmd mrow__cmd--more">{t('modules.moreCommands', { n: chips.extra })}</code>
       {/if}
     </span>
-  {/snippet}
-</ManagementRow>
+  {/if}
+  <span class="mrow__side">
+    <SaveStatus state={status} compact />
+    {#if locked}
+      <TextLink href="/billing" label={t('modules.betaPremium')} />
+    {:else if toggleable}
+      <form method="POST" action="?/toggle" use:enhance={toggleSubmit}>
+        <input type="hidden" name="name" value={def.id} />
+        <input type="hidden" name="is_enabled" value={module.enabled ? '' : 'on'} />
+        <Switch
+          type="submit"
+          checked={module.enabled}
+          label={module.enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
+          busy={status === 'saving'}
+        />
+      </form>
+    {:else}
+      <Tag tone="pre" data-fit-box><span data-fit="">{t('modules.alwaysOn')}</span></Tag>
+    {/if}
+  </span>
+</article>
 
 <style>
-  .beta {
+  .mrow {
+    display: grid;
+    grid-template-areas: 'main cmds side';
+    grid-template-columns: minmax(0, 1fr) minmax(0, 15rem) 8.5rem;
+    align-items: center;
+    gap: var(--bb-space-4);
+    min-height: 68px;
+    padding: var(--bb-space-2) var(--bb-space-3);
+    border-radius: var(--bb-radius-sm);
+    transition: background var(--bb-dur-fast) ease, box-shadow var(--bb-dur-fast) ease;
+  }
+
+  .mrow:hover {
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-1);
+  }
+
+  .mrow__main {
+    grid-area: main;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .mrow__main:focus-visible {
+    outline: 2px solid var(--bb-focus);
+    outline-offset: 4px;
+    border-radius: var(--bb-radius-xs);
+  }
+
+  .mrow__name {
+    font-weight: 600;
+    color: var(--bb-paper);
+    transition: color var(--bb-dur-fast) ease;
+  }
+
+  .mrow--on .mrow__name { color: var(--bb-tier-free); }
+  .mrow__main:hover .mrow__name { color: var(--bb-tan-light); }
+
+  .mrow__beta {
     display: inline-flex;
+    margin-left: var(--bb-space-2);
     vertical-align: 1px;
-    margin-left: 8px;
+  }
+
+  .mrow__tagline {
+    overflow: hidden;
+    font-size: var(--bb-text-sm);
+    color: var(--bb-muted-light);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mrow__cmds {
+    grid-area: cmds;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--bb-space-1);
+  }
+
+  .mrow__cmd {
+    padding: 2px 6px;
+    border-radius: var(--bb-radius-xs);
+    background: rgba(var(--bb-white-rgb), 0.06);
+    font: var(--bb-text-xs)/1.4 var(--bb-font-mono);
+    color: var(--bb-tan-light);
+  }
+
+  .mrow__cmd--more { color: var(--bb-muted); }
+
+  .mrow__side {
+    grid-area: side;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--bb-space-3);
+  }
+
+  @media (max-width: 760px) {
+    .mrow {
+      grid-template-areas: 'main side';
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .mrow__cmds { display: none; }
   }
 </style>
