@@ -60,7 +60,6 @@
   ]);
   const seededOn = $derived(new Set((data.modules ?? []).filter((m) => m.enabled).map((m) => m.id)));
 
-  const activeCount = $derived(items.filter((m) => m.enabled).length);
   const filtered = $derived(
     filterModuleIndex(items, { q: searchQuery, category: '', status: 'all' }, (def) =>
       [tModuleLabel(t, def), tModuleTagline(t, def), tModuleDescription(t, def)].join('\n')
@@ -71,10 +70,6 @@
   function catLabel(name: string): string {
     const keys = MODULE_CATEGORY_I18N[name];
     return keys ? t(keys.label) : name;
-  }
-  function catHint(name: string): string {
-    const keys = MODULE_CATEGORY_I18N[name];
-    return keys ? t(keys.hint) : '';
   }
 
   const groupActive = (modules: ModuleState[]): number => modules.filter((m) => m.enabled).length;
@@ -155,8 +150,7 @@
 <section class="screen active mods">
   <header class="mods__hero">
     <span class="mods__eyebrow"><span class="mods__beacon" aria-hidden="true"></span>{t('modules.eyebrow')}</span>
-    <h1 class="mods__title"><span class="mods__word">{t('modules.titlePre')}</span><span class="mods__word mods__word--em">{t('modules.titleEm')}</span></h1>
-    <p class="mods__lede">{t('modules.description', { active: activeCount, total: items.length })}</p>
+    <h1 class="mods__title"><span class="mods__word">{t('modules.titlePre')}</span><span class="mods__word">{t('modules.titleEm')}</span></h1>
   </header>
 
   {#if data.degraded}
@@ -166,7 +160,7 @@
   <div class="mods__toolbar">
     <div class="mods__find">
       <SearchInput id="module-search" bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
-        aria-label={t('modules.searchLabel')} aria-describedby="module-search-hint" clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
+        aria-label={t('modules.searchLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
       {#if !searchQuery}<span class="mods__keys" aria-hidden="true"><Kbd>/</Kbd></span>{/if}
     </div>
     <SegmentedControl
@@ -177,7 +171,6 @@
   </div>
 
   <div class="mods__help">
-    <span id="module-search-hint">{t('modules.openHint')}</span>
     <span aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</span>
   </div>
 
@@ -196,10 +189,7 @@
         >
           <Card class="mods__lane">
             <header class="mods__lane-head">
-              <div class="mods__lane-intro">
-                <h2 class="mods__lane-title" id="family-{categoryAnchorId(group.name)}">{catLabel(group.name)}</h2>
-                {#if catHint(group.name)}<p class="mods__lane-hint">{catHint(group.name)}</p>{/if}
-              </div>
+              <h2 class="mods__lane-title" id="family-{categoryAnchorId(group.name)}">{catLabel(group.name)}</h2>
               <span class="mods__lane-count">{groupActive(group.modules)} / {group.modules.length} {t('modules.statusOn')}</span>
             </header>
             <div class="mods__rows">
@@ -265,20 +255,6 @@
     color: transparent;
   }
 
-  .mods__word--em {
-    background: linear-gradient(180deg, var(--bb-tan-pale) 30%, var(--bb-tan));
-    background-clip: text;
-    -webkit-background-clip: text;
-  }
-
-  .mods__lede {
-    margin: 0;
-    max-width: 60ch;
-    font-size: var(--bb-text-md);
-    line-height: 1.6;
-    color: var(--bb-muted-light);
-  }
-
   .mods__toolbar {
     position: sticky;
     top: calc(var(--bb-topbar-height) + 4px);
@@ -308,9 +284,7 @@
 
   .mods__help {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: var(--bb-space-1) var(--bb-space-5);
+    justify-content: flex-end;
     font-size: var(--bb-text-sm);
     color: var(--bb-muted);
   }
@@ -336,16 +310,9 @@
 
   .mods__lane-head {
     display: flex;
-    align-items: flex-start;
+    align-items: baseline;
     justify-content: space-between;
     gap: var(--bb-space-3);
-  }
-
-  .mods__lane-intro {
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-1);
-    min-width: 0;
   }
 
   .mods__lane-title {
@@ -358,13 +325,6 @@
   }
 
   .mods__group:target .mods__lane-title { color: var(--bb-tan-pale); }
-
-  .mods__lane-hint {
-    max-width: 60ch;
-    margin: 0;
-    font-size: var(--bb-text-sm);
-    color: var(--bb-muted);
-  }
 
   .mods__lane-count {
     flex: none;

@@ -249,7 +249,7 @@
   <header class="hero">
     <div class="hero-text">
       <span class="hero-eyebrow"><span class="beacon" aria-hidden="true"></span>{t('billing.eyebrow')}</span>
-      <h1 class="hero-title"><span class="hero-word">{isPaid ? t('billing.managePre') : t('billing.choosePre')}</span><span class="hero-word hero-word--em">{t('billing.planEm')}</span></h1>
+      <h1 class="hero-title"><span class="hero-word">{isPaid ? t('billing.managePre') : t('billing.choosePre')}</span><span class="hero-word">{t('billing.planEm')}</span></h1>
       <p class="hero-lede">{isPaid ? t('billing.descManage') : t('billing.descChoose')}</p>
     </div>
     <div class="gift-trail">
@@ -626,9 +626,6 @@
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
-  }
-  .hero-word--em {
-    background-image: linear-gradient(180deg, var(--bb-tan-pale) 30%, var(--bb-tan));
   }
   .hero-lede {
     margin: 0;

@@ -2,18 +2,12 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance, type SubmitFunction } from '$app/forms';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
-  import {
-    getI18n,
-    moduleCommandChips,
-    moduleHref,
-    tModuleLabel,
-    tModuleTagline,
-    type ModuleState
-  } from '@bagel/kit';
+  import { getI18n, moduleHref, tModuleLabel, type ModuleState } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -30,7 +24,6 @@
 
   const def = $derived(module.def);
   const href = $derived(moduleHref(def));
-  const chips = $derived(moduleCommandChips(def));
   const toggleable = $derived(def.toggleable !== false);
   const beta = $derived(def.beta === true);
   const locked = $derived(module.locked === true);
@@ -38,22 +31,15 @@
 
 <article class="mrow" class:mrow--on={module.enabled}>
   <a class="mrow__main" {href} aria-label="{t('modules.openSettings')}: {tModuleLabel(t, def)}">
-    <span class="mrow__name">
-      {tModuleLabel(t, def)}
+    <span class="mrow__label">
+      <span class="mrow__name">{tModuleLabel(t, def)}</span>
       {#if beta}<span class="mrow__beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
     </span>
-    <span class="mrow__tagline">{tModuleTagline(t, def)}</span>
-  </a>
-  {#if chips.chips.length}
-    <span class="mrow__cmds" aria-hidden="true">
-      {#each chips.chips as chip (chip)}
-        <code class="mrow__cmd">{chip}</code>
-      {/each}
-      {#if chips.extra}
-        <code class="mrow__cmd mrow__cmd--more">{t('modules.moreCommands', { n: chips.extra })}</code>
-      {/if}
+    <span class="mrow__go" aria-hidden="true">
+      <span class="mrow__go-text" data-fit-box><span data-fit="">{t('modules.openSettings')}</span></span>
+      <Icon name="chevron" size={14} class="mrow__chev" />
     </span>
-  {/if}
+  </a>
   <span class="mrow__side">
     <SaveStatus state={status} compact />
     {#if locked}
@@ -78,12 +64,11 @@
 <style>
   .mrow {
     display: grid;
-    grid-template-areas: 'main cmds side';
-    grid-template-columns: minmax(0, 1fr) minmax(0, 15rem) 8.5rem;
+    grid-template-columns: minmax(0, 1fr) 8.5rem;
     align-items: center;
     gap: var(--bb-space-4);
-    min-height: 68px;
-    padding: var(--bb-space-2) var(--bb-space-3);
+    min-height: 56px;
+    padding: 0 var(--bb-space-3) 0 0;
     border-radius: var(--bb-radius-sm);
     transition: background var(--bb-dur-fast) ease, box-shadow var(--bb-dur-fast) ease;
   }
@@ -94,64 +79,70 @@
   }
 
   .mrow__main {
-    grid-area: main;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 9.5rem;
+    align-items: center;
+    gap: var(--bb-space-4);
+    align-self: stretch;
     min-width: 0;
+    padding: var(--bb-space-2) 0 var(--bb-space-2) var(--bb-space-3);
+    border-radius: var(--bb-radius-sm);
     color: inherit;
     text-decoration: none;
   }
 
   .mrow__main:focus-visible {
     outline: 2px solid var(--bb-focus);
-    outline-offset: 4px;
-    border-radius: var(--bb-radius-xs);
+    outline-offset: 2px;
+  }
+
+  .mrow__label {
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-2);
+    min-width: 0;
   }
 
   .mrow__name {
-    font-weight: 600;
-    color: var(--bb-paper);
-    transition: color var(--bb-dur-fast) ease;
-  }
-
-  .mrow--on .mrow__name { color: var(--bb-tier-free); }
-  .mrow__main:hover .mrow__name { color: var(--bb-tan-light); }
-
-  .mrow__beta {
-    display: inline-flex;
-    margin-left: var(--bb-space-2);
-    vertical-align: 1px;
-  }
-
-  .mrow__tagline {
     overflow: hidden;
-    font-size: var(--bb-text-sm);
-    color: var(--bb-muted-light);
+    font-weight: 600;
+    color: var(--bb-tier-inactive);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .mrow__cmds {
-    grid-area: cmds;
+  .mrow--on .mrow__name { color: var(--bb-tier-free); }
+
+  .mrow__beta { display: inline-flex; }
+
+  .mrow__go {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
     gap: var(--bb-space-1);
+    font-size: var(--bb-text-sm);
+    color: var(--bb-muted);
+    transition: color var(--bb-dur-fast) ease;
   }
 
-  .mrow__cmd {
-    padding: 2px 6px;
-    border-radius: var(--bb-radius-xs);
-    background: rgba(var(--bb-white-rgb), 0.06);
-    font: var(--bb-text-xs)/1.4 var(--bb-font-mono);
+  .mrow__go-text {
+    display: block;
+    width: 8rem;
+    overflow: hidden;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .mrow__go :global(.mrow__chev) {
+    flex: none;
+    transform: rotate(-90deg);
+  }
+
+  .mrow:hover .mrow__go {
     color: var(--bb-tan-light);
   }
 
-  .mrow__cmd--more { color: var(--bb-muted); }
-
   .mrow__side {
-    grid-area: side;
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -159,10 +150,8 @@
   }
 
   @media (max-width: 760px) {
-    .mrow {
-      grid-template-areas: 'main side';
-      grid-template-columns: minmax(0, 1fr) auto;
-    }
-    .mrow__cmds { display: none; }
+    .mrow { grid-template-columns: minmax(0, 1fr) auto; }
+    .mrow__main { grid-template-columns: minmax(0, 1fr) auto; }
+    .mrow__go-text { display: none; }
   }
 </style>
