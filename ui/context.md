@@ -86,9 +86,11 @@ Svelte `setUiI18n` and Astro `uiI18n(Astro)` resolve locale without product-spec
 - CSS side-effect declarations permit unused adapters to tree-shake while preserving imported contract styles.
 - A web install gives ui production dependencies only; missing local dev tools requires an install in `ui/`.
 - Astro adapters have render parity tests but no standalone Astro type-check script; consumer build is a gate.
-- `styles/elements/fit.css` + `lib/text-fit.ts`: a `data-fit` span scales its font down to its box (parent or
-  `data-fit-box` ancestor); the box owns geometry. Fit text stays hidden until fitted, so a consumer must mount
-  the engine on every page that uses the attribute.
+- `styles/elements/fit.css` + `lib/text-fit.ts`: a `<bb-fit mode="line|block" group="name">` element scales its font
+  down to its box (parent or `.bb-fit-box` ancestor, a hook class with no style); the box owns geometry. The
+  consumer calls `defineTextFit()` once and the element registers itself on connect. Legacy `data-fit` spans
+  (`data-fit-group`, `data-fit-box`) still fit through `mountTextFit` until the consumers convert. Fit text stays
+  hidden until fitted.
 
 ## Focused commands
 

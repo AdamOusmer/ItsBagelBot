@@ -15,7 +15,7 @@
   import { getI18n, setI18n } from '../lib/i18n/context';
   import { setUiI18n } from '@bagel/ui/svelte/i18n';
   import '@bagel/ui/styles/elements/fit.css';
-  import { mountTextFit } from '@bagel/ui/lib/text-fit';
+  import { defineTextFit, mountTextFit } from '@bagel/ui/lib/text-fit';
   import { DEFAULT_LOCALE, translate, type Locale } from '../lib/i18n/messages';
 
   let {
@@ -56,6 +56,8 @@
       onUndo: () => location.reload()
     });
   });
+
+  defineTextFit();
 
   onMount(() => {
     let teardown: (() => void) | undefined;

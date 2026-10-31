@@ -42,4 +42,4 @@
   );
 </script>
 
-<div class={classes} {...rest}>{#if fit}<dt class="bb-fact__term"><span data-fit>{term}</span></dt><dd class="bb-fact__value"><span data-fit="block">{#if children}{@render children()}{/if}</span></dd>{:else}<dt class="bb-fact__term">{term}</dt><dd class="bb-fact__value">{#if children}{@render children()}{/if}</dd>{/if}</div>
+<div class={classes} {...rest}>{#if fit}<dt class="bb-fact__term"><bb-fit>{term}</bb-fit></dt><dd class="bb-fact__value"><bb-fit mode="block">{#if children}{@render children()}{/if}</bb-fit></dd>{:else}<dt class="bb-fact__term">{term}</dt><dd class="bb-fact__value">{#if children}{@render children()}{/if}</dd>{/if}</div>

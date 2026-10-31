@@ -11,8 +11,9 @@ type FitTarget = {
     tracking: number;
 };
 
+const TAG = 'bb-fit';
 const SELECTOR = '[data-fit]';
-const BOX_SELECTOR = '[data-fit-box]';
+const BOX_SELECTOR = '.bb-fit-box, [data-fit-box]';
 const PROPERTY = '--bb-fit';
 const FLOOR = 0.5;
 const LINE_SAFETY = 0.99;
@@ -103,10 +104,17 @@ function fitAll(targets: readonly FitTarget[]): void {
     });
 }
 
+export function fitSlotOf(el: HTMLElement): { block: boolean; group: string | undefined } {
+    if (el.localName === TAG) {
+        return { block: el.getAttribute('mode') === 'block', group: el.getAttribute('group') || undefined };
+    }
+    return { block: el.dataset.fit === 'block', group: el.dataset.fitGroup || undefined };
+}
+
 function targetOf(el: HTMLElement): FitTarget | null {
     const box = el.parentElement?.closest<HTMLElement>(BOX_SELECTOR) ?? el.parentElement;
     if (!box) return null;
-    return { el, box, block: el.dataset.fit === 'block', group: el.dataset.fitGroup || undefined, tracking: 0 };
+    return { el, box, ...fitSlotOf(el), tracking: 0 };
 }
 
 function collect(root: ParentNode): FitTarget[] {
@@ -118,20 +126,58 @@ function collect(root: ParentNode): FitTarget[] {
 type FitRegistry = {
     targets: Map<HTMLElement, FitTarget>;
     boxes: Map<HTMLElement, Set<FitTarget>>;
+    pending: Set<FitTarget>;
     resizer: ResizeObserver;
-    active: boolean;
+    texts: MutationObserver;
 };
 
-function touchedTargets(records: MutationRecord[], registry: FitRegistry): FitTarget[] {
+function touchedTargets(records: MutationRecord[], registry: FitRegistry, selector: string): FitTarget[] {
     const touched = new Set<FitTarget>();
     for (const record of records) {
         const node = record.target;
         const owner = node instanceof Element ? node : node.parentElement;
-        const el = owner?.closest<HTMLElement>(SELECTOR);
+        const el = owner?.closest<HTMLElement>(selector);
         const target = el ? registry.targets.get(el) : undefined;
         if (target) touched.add(target);
     }
     return Array.from(touched);
+}
+
+const claims = new Map<HTMLElement, number>();
+const sections = new Map<Element, Set<FitTarget>>();
+const parked = new Map<FitTarget, Element>();
+
+// A content-visibility:auto subtree that is skipped would be forced through style and layout by any measurement.
+function skippedSection(el: HTMLElement): Element | null {
+    if (typeof el.checkVisibility !== 'function' || el.checkVisibility({ contentVisibilityAuto: true })) return null;
+    return el.closest('.bb-section--page') ?? el.closest('section');
+}
+
+function unpark(target: FitTarget): void {
+    const section = parked.get(target);
+    if (!section) return;
+    parked.delete(target);
+    const members = sections.get(section);
+    members?.delete(target);
+    if (!members?.size) sections.delete(section);
+}
+
+function park(target: FitTarget, section: Element): void {
+    if (parked.get(target) === section) return;
+    unpark(target);
+    parked.set(target, section);
+    const members = sections.get(section);
+    if (members) members.add(target);
+    else sections.set(section, new Set([target]));
+}
+
+function measurable(targets: FitTarget[]): FitTarget[] {
+    return targets.filter((target) => {
+        const section = skippedSection(target.el);
+        if (section) park(target, section);
+        else unpark(target);
+        return !section;
+    });
 }
 
 // Group members share one ratio, so refitting a member alone would drop the smallest of its group.
@@ -173,6 +219,8 @@ function prune(registry: FitRegistry): void {
     for (const [el, target] of registry.targets) {
         if (el.isConnected) continue;
         registry.targets.delete(el);
+        claims.delete(el);
+        unpark(target);
         unbindBox(registry, target);
     }
 }
@@ -184,10 +232,11 @@ function rebox(registry: FitRegistry, known: FitTarget, box: HTMLElement): void 
 }
 
 // Registers new fit elements and rebinds known ones that moved into another box.
-function adoptAdded(registry: FitRegistry, records: MutationRecord[]): FitTarget[] {
+function adoptAdded(registry: FitRegistry, records: MutationRecord[], claim: (el: HTMLElement) => void): FitTarget[] {
     const changed = new Map<HTMLElement, FitTarget>();
     const roots = records.flatMap((record) => Array.from(record.addedNodes));
     for (const found of roots.filter((node) => node instanceof HTMLElement).flatMap(collect)) {
+        claim(found.el);
         const known = registry.targets.get(found.el);
         if (!known) {
             register(registry, [found]);
@@ -201,52 +250,159 @@ function adoptAdded(registry: FitRegistry, records: MutationRecord[]): FitTarget
 }
 
 function refit(registry: FitRegistry, subset: FitTarget[]): void {
-    if (subset.length) fitAll(withGroupPeers(registry, Array.from(new Set(subset))));
+    if (subset.length === 0) return;
+    const ready = measurable(withGroupPeers(registry, Array.from(new Set(subset))));
+    if (ready.length) fitAll(ready);
 }
 
 function boxTargets(registry: FitRegistry, entries: ResizeObserverEntry[]): FitTarget[] {
     return entries.flatMap((entry) => Array.from(registry.boxes.get(entry.target as HTMLElement) ?? []));
 }
 
-export function mountTextFit(root: ParentNode = document): () => void {
+let shared: FitRegistry | null = null;
+
+function sharedRegistry(): FitRegistry {
+    if (shared) return shared;
     const registry: FitRegistry = {
         targets: new Map(),
         boxes: new Map(),
+        pending: new Set(),
         resizer: new ResizeObserver((entries) => {
-            if (!registry.active) return;
             prune(registry);
             refit(registry, boxTargets(registry, entries));
         }),
-        active: true,
+        texts: new MutationObserver((records) => {
+            prune(registry);
+            refit(registry, touchedTargets(records, registry, TAG));
+        }),
     };
     const refitAll = () => {
-        if (!registry.active) return;
         prune(registry);
-        fitAll(Array.from(registry.targets.values()));
+        fitAll(measurable(Array.from(registry.targets.values())));
+    };
+    void document.fonts.ready.then(refitAll);
+    document.fonts.addEventListener('loadingdone', refitAll);
+    shared = registry;
+    return registry;
+}
+
+// A parser connects the element before its text exists, so connects are fitted together once the tick ends.
+function queueFit(registry: FitRegistry, target: FitTarget): void {
+    if (registry.pending.size === 0) queueMicrotask(() => refit(registry, takePending(registry)));
+    registry.pending.add(target);
+}
+
+function takePending(registry: FitRegistry): FitTarget[] {
+    const batch = Array.from(registry.pending).filter((queued) => registry.targets.get(queued.el) === queued);
+    registry.pending.clear();
+    return batch;
+}
+
+// One pass in tree order: fits read the layout earlier fits left behind, so split passes settle differently.
+function inTreeOrder(targets: FitTarget[]): FitTarget[] {
+    return targets.sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
+function connectFit(el: HTMLElement): void {
+    const target = targetOf(el);
+    if (!target) return;
+    const registry = sharedRegistry();
+    register(registry, [target]);
+    registry.texts.observe(el, { childList: true, characterData: true, subtree: true });
+    queueFit(registry, target);
+}
+
+function disconnectFit(el: HTMLElement): void {
+    const target = shared?.targets.get(el);
+    if (!shared || !target) return;
+    shared.targets.delete(el);
+    shared.pending.delete(target);
+    unpark(target);
+    unbindBox(shared, target);
+}
+
+function onSectionState(event: Event): void {
+    const root = event.target as Element | null;
+    if (!shared || (event as Event & { skipped?: boolean }).skipped !== false || typeof root?.contains !== 'function') return;
+    const arrived: FitTarget[] = [];
+    for (const [section, members] of sections) {
+        if (root.contains(section)) arrived.push(...members);
+    }
+    refit(shared, arrived);
+}
+
+function reslotFit(el: HTMLElement): void {
+    const target = shared?.targets.get(el);
+    if (!shared || !target) return;
+    Object.assign(target, fitSlotOf(el));
+    queueFit(shared, target);
+}
+
+export function defineTextFit(): void {
+    if (typeof customElements === 'undefined' || customElements.get(TAG)) return;
+    // Declared here because HTMLElement does not exist where the module is imported for SSR or tests.
+    class BbFit extends HTMLElement {
+        static observedAttributes = ['mode', 'group'];
+
+        connectedCallback(): void {
+            connectFit(this);
+        }
+
+        disconnectedCallback(): void {
+            disconnectFit(this);
+        }
+
+        attributeChangedCallback(): void {
+            reslotFit(this);
+        }
+    }
+    customElements.define(TAG, BbFit);
+    document.addEventListener('contentvisibilityautostatechange', onSectionState, true);
+}
+
+// Legacy `[data-fit]` spans; `bb-fit` elements fit themselves once defined.
+export function mountTextFit(root: ParentNode = document): () => void {
+    const registry = sharedRegistry();
+    let active = true;
+    const owned = new Set<HTMLElement>();
+    const claim = (el: HTMLElement) => {
+        if (owned.has(el)) return;
+        owned.add(el);
+        claims.set(el, (claims.get(el) ?? 0) + 1);
     };
     // Fit targets are HTML, and animated SVG rewrites its children every frame.
     const onMutations = (all: MutationRecord[]) => {
-        if (!registry.active) return;
+        if (!active) return;
         const records = all.filter((record) => !(record.target instanceof SVGElement));
         if (records.length === 0) return;
         prune(registry);
-        refit(registry, [...touchedTargets(records, registry), ...adoptAdded(registry, records)]);
+        refit(registry, [...touchedTargets(records, registry, SELECTOR), ...adoptAdded(registry, records, claim)]);
     };
 
     const initial = collect(root);
-    register(registry, initial);
-    fitAll(initial);
+    for (const found of initial) claim(found.el);
+    register(registry, initial.filter((found) => !registry.targets.has(found.el)));
+    const starting = initial.map((found) => registry.targets.get(found.el) ?? found);
+    refit(registry, inTreeOrder([...takePending(registry), ...starting]));
     const adder = new MutationObserver(onMutations);
     adder.observe(root, { childList: true, characterData: true, subtree: true });
-    void document.fonts.ready.then(refitAll);
-    document.fonts.addEventListener('loadingdone', refitAll);
 
+    // Another mount may share a span, so it leaves the registry only when its last owner goes.
     return () => {
-        registry.active = false;
-        registry.resizer.disconnect();
+        active = false;
         adder.disconnect();
-        registry.targets.clear();
-        registry.boxes.clear();
-        document.fonts.removeEventListener('loadingdone', refitAll);
+        for (const el of owned) {
+            const left = (claims.get(el) ?? 1) - 1;
+            if (left > 0) {
+                claims.set(el, left);
+                continue;
+            }
+            claims.delete(el);
+            const target = registry.targets.get(el);
+            if (!target) continue;
+            registry.targets.delete(el);
+            unpark(target);
+            unbindBox(registry, target);
+        }
     };
 }

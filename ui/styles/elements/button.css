@@ -68,7 +68,7 @@
     gap: 8px;
   }
 
-  .bb-btn__content:has(> [data-fit]) {
+  .bb-btn__content:has(> :is([data-fit], bb-fit)) {
     flex: 1 1 0;
     justify-content: var(--btn-justify, flex-start);
     min-width: 0;
@@ -188,8 +188,8 @@
   }
 
   /* Label fills the rest so the glyph holds its spot in every locale. */
-  .bb-btn--twitch .bb-btn__content > [data-fit],
-  .bb-btn--twitch > .bb-nav-link__label[data-fit] {
+  .bb-btn--twitch .bb-btn__content > :is([data-fit], bb-fit),
+  .bb-btn--twitch > .bb-nav-link__label:is([data-fit], bb-fit) {
     flex: 1 1 0;
     justify-content: safe center;
   }

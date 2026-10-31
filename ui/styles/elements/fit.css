@@ -5,18 +5,22 @@
 
 @layer bb.elements {
     /* A font-size transition (even the 0.01ms reduced-motion one) makes the fitter read stale widths. */
-    [data-fit] {
+    [data-fit],
+    bb-fit {
         font-size: calc(1em * var(--bb-fit, 1));
     }
 
     [data-fit],
-    [data-fit] * {
+    [data-fit] *,
+    bb-fit,
+    bb-fit * {
         transition: none;
     }
 
     /* 1lh here is the scaled line box; dividing by the ratio keeps the nominal height so the box never shrinks. */
     [data-fit=""],
-    [data-fit="line"] {
+    [data-fit="line"],
+    bb-fit:not([mode="block"]) {
         display: inline-flex;
         align-items: center;
         vertical-align: top;
@@ -25,7 +29,8 @@
         max-width: none;
     }
 
-    [data-fit="block"] {
+    [data-fit="block"],
+    bb-fit[mode="block"] {
         display: block;
     }
 }

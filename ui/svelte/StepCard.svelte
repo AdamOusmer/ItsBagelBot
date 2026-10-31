@@ -27,4 +27,4 @@
   const classes = $derived(['bb-step-card', className || null].filter(Boolean).join(' '));
 </script>
 
-<li><Card atmo hover class={classes} {...rest}><Eyebrow aria-hidden="true">{String(index).padStart(2, '0')}</Eyebrow>{#if title}<Heading level={5} as="h3" class="bb-step-card__title"><span data-fit="block">{title}</span></Heading>{/if}<Text size="sm" tone="muted" class="bb-step-card__body"><span data-fit="block">{@render children()}</span></Text></Card></li>
+<li><Card atmo hover class={classes} {...rest}><Eyebrow aria-hidden="true">{String(index).padStart(2, '0')}</Eyebrow>{#if title}<Heading level={5} as="h3" class="bb-step-card__title"><bb-fit mode="block">{title}</bb-fit></Heading>{/if}<Text size="sm" tone="muted" class="bb-step-card__body"><bb-fit mode="block">{@render children()}</bb-fit></Text></Card></li>

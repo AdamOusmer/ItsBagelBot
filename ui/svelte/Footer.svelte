@@ -32,12 +32,12 @@
       ><span class="bb-footer__band"></span><span class="bb-footer__band"></span><span class="bb-footer__band"></span></span
     ></div
   ><div class="bb-footer__top"
-    ><div class="bb-footer__id">{#if studio}<p class="bb-footer__studio"><span data-fit>{studio}</span></p>{/if}</div
+    ><div class="bb-footer__id">{#if studio}<p class="bb-footer__studio"><bb-fit>{studio}</bb-fit></p>{/if}</div
     ><div class="bb-footer__cols"
       >{#each columns as column, i (column.title)}<div
           class="bb-footer__col"
           ><div class="bb-footer__group"
-            ><p class="bb-footer__col-title"><span data-fit data-fit-group="bb-footer-titles">{column.title}</span></p>{#each column.links as link (link.href)}<NavLink
+            ><p class="bb-footer__col-title"><bb-fit group="bb-footer-titles">{column.title}</bb-fit></p>{#each column.links as link (link.href)}<NavLink
                 href={link.href}
                 label={link.label}
                 external={link.external}
@@ -66,8 +66,8 @@
           fitGroup="bb-footer-legal"
         />{/each}</div
     ><p class="bb-footer__fine"
-      ><span data-fit="block"><span>{copyright}</span>{#if note}<span class="bb-footer__sep" aria-hidden="true">·</span
-        ><span>{note}</span>{/if}</span
+      ><bb-fit mode="block"><span>{copyright}</span>{#if note}<span class="bb-footer__sep" aria-hidden="true">·</span
+        ><span>{note}</span>{/if}</bb-fit
       ></p
     >{#if colophon}<div class="bb-footer__colophon">{@render colophon()}</div>{/if}</div
   ><div class="bb-footer__crew" aria-hidden="true"

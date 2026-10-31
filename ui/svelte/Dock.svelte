@@ -74,7 +74,7 @@
 {/if}
 
 {#snippet caption(text: string)}<span class="bb-dock-item__label"
-    ><span data-fit="block" data-fit-group="dock">{text}</span></span
+    ><bb-fit mode="block" group="dock">{text}</bb-fit></span
   >{/snippet}
 
 {#snippet link(item: UiNavLink, fold: boolean)}<a

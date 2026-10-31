@@ -80,17 +80,17 @@
       text-overflow: ellipsis;
     }
 
-    .bb-nav-link:has(> .bb-nav-link__label[data-fit]) {
+    .bb-nav-link:has(> .bb-nav-link__label:is([data-fit], bb-fit)) {
       flex-shrink: 0;
       max-width: 100%;
     }
 
-    :is(.bb-nav-link--block, .bb-nav-link--cta):has(> .bb-nav-link__label[data-fit]) {
+    :is(.bb-nav-link--block, .bb-nav-link--cta):has(> .bb-nav-link__label:is([data-fit], bb-fit)) {
       overflow: hidden;
     }
 
     /* The fitter reads the overflow on the link, so a fit label must keep its text width. */
-    .bb-nav-link__label[data-fit] {
+    .bb-nav-link__label:is([data-fit], bb-fit) {
       flex-shrink: 0;
       overflow: visible;
     }

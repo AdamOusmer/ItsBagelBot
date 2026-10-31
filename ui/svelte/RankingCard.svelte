@@ -51,7 +51,7 @@
       {#each items as item, index (item.id)}
         <li class="bb-ranking-card__row">
           <div class="bb-ranking-card__leading">
-            <span class="bb-ranking-card__position">{#if item.position}<span data-fit="">{item.position}</span>{:else}{String(index + 1).padStart(2, '0')}{/if}</span>
+            <span class="bb-ranking-card__position">{#if item.position}<bb-fit>{item.position}</bb-fit>{:else}{String(index + 1).padStart(2, '0')}{/if}</span>
             {#if leading}<span class="bb-ranking-card__artwork" aria-hidden="true">{@render leading(item, index)}</span>{/if}
           </div>
           <div class="bb-ranking-card__content">

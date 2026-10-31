@@ -22,4 +22,4 @@
   const classes = $derived(['bb-link-row', className || null].filter(Boolean).join(' '));
 </script>
 
-<nav class={classes} aria-label={title} {...rest}>{#if title}<Heading level={5} as="h2" class="bb-link-row__title"><span data-fit>{title}</span></Heading>{/if}<ul class="bb-link-row__list">{#each links as link (link.href)}<li><TextLink href={link.href} label={link.label} external={link.external} fit /></li>{/each}</ul></nav>
+<nav class={classes} aria-label={title} {...rest}>{#if title}<Heading level={5} as="h2" class="bb-link-row__title"><bb-fit>{title}</bb-fit></Heading>{/if}<ul class="bb-link-row__list">{#each links as link (link.href)}<li><TextLink href={link.href} label={link.label} external={link.external} fit /></li>{/each}</ul></nav>

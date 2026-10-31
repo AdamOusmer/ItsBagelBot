@@ -47,8 +47,8 @@
     >{/if}<span class="bb-brand__id"
     >{#if parts}<span class="bb-brand__name" role="img" aria-label={title}
         >{parts[0]}<img class="bb-brand__o" src={logoSrc} alt="" width={px} height={px} />{parts[1]}</span
-      >{:else}<span class="bb-brand__name">{title}</span>{/if}{#if sub}<span
-        class="bb-brand__sub" data-fit={fit ? '' : undefined}>{sub}</span
+      >{:else}<span class="bb-brand__name">{title}</span>{/if}{#if sub}<svelte:element this={fit ? 'bb-fit' : 'span'}
+        class="bb-brand__sub">{sub}</svelte:element
       >{/if}</span
   >{/snippet}
 

@@ -323,7 +323,9 @@ const contentSecurityPolicy = [
     </script>
 
     <script>
-        import { mountTextFit } from '@bagel/ui/lib/text-fit';
+        import { defineTextFit, mountTextFit } from '@bagel/ui/lib/text-fit';
+
+        defineTextFit();
 
         let disposeTextFit: (() => void) | null = null;
 

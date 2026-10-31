@@ -47,7 +47,7 @@
     overflow: hidden;
   }
 
-  .bb-text-link__mask[data-fit] {
+  .bb-text-link__mask:is([data-fit], bb-fit) {
     display: inline-flex;
   }
 

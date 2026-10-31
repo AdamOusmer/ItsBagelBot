@@ -46,6 +46,7 @@ const {
 } = Astro.props;
 const arrow = variant === 'arrow';
 const glyphs = Array.from(label);
+const Mask = fit ? 'bb-fit' : 'span';
 const classes = [
     ROOT[variant],
     arrow && tone ? `bb-link--${tone}` : null,
@@ -61,7 +62,7 @@ const quietIcon = variant === 'quiet' ? icon : undefined;
 ---
 
 {variant === 'roll' ? (
-<a class={classes} href={href} aria-label={label} aria-current={current ? 'page' : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} style={size ? `--text-link-size: ${size};` : undefined} {...rest}>{icon && <Icon name={icon} size={14} class="bb-text-link__icon" />}<span class="bb-text-link__mask" aria-hidden="true" data-fit={fit ? '' : undefined}><span class="bb-text-link__row bb-text-link__row--rest">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span><span class="bb-text-link__row bb-text-link__row--over">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span></span></a>
+<a class={classes} href={href} aria-label={label} aria-current={current ? 'page' : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} style={size ? `--text-link-size: ${size};` : undefined} {...rest}>{icon && <Icon name={icon} size={14} class="bb-text-link__icon" />}<Mask class="bb-text-link__mask" aria-hidden="true"><span class="bb-text-link__row bb-text-link__row--rest">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span><span class="bb-text-link__row bb-text-link__row--over">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span></Mask></a>
 ) : (
 <a class={classes} href={href} aria-current={current ? 'page' : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} {...rest}>{quietIcon && <Icon name={quietIcon} size={14} class="bb-link__icon" />}{hasChildren ? <slot /> : label}{arrow && <span class="bb-link__arrow" aria-hidden="true">→</span>}</a>
 )}
