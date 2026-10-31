@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { createSmoothScroll } from '@bagel/ui/lib/lenis';
 import { subscribe, wake } from '@bagel/ui/lib/raf-loop';
+import { initLenis, onSmoothScroll } from '@bagel/ui/lib/smooth-scroll';
 import { getLangSwitchScrollY } from '../i18n/route-transition';
 
-const smooth = createSmoothScroll();
+let smooth = null;
 
 const nativeScroll = {
     get scroll() {
@@ -32,7 +32,7 @@ const nativeScroll = {
     off() {},
 };
 
-const scrollController = smooth?.lenis ?? nativeScroll;
+const controller = () => smooth ?? nativeScroll;
 
 // Kept off :root, where a per-frame custom property restyles every element on the page.
 let hero = document.querySelector('[data-hero-progress]');
@@ -96,14 +96,24 @@ function heroTick() {
 
 const wakeHero = () => wake(heroTick);
 window.addEventListener('scroll', wakeHero, {passive: true});
-scrollController.on('scroll', wakeHero);
 
 function startHero() {
     if (unsubscribeHero) return;
     unsubscribeHero = subscribe(heroTick);
 }
 
-if (loaderOwnsViewport()) smooth?.lenis.stop();
+onSmoothScroll((lenis) => {
+    smooth = lenis;
+    lenis.on('scroll', wakeHero);
+    if (loaderOwnsViewport()) lenis.stop();
+});
+
+function mountSmoothScroll() {
+    void initLenis();
+}
+
+if (document.readyState === 'complete') mountSmoothScroll();
+else window.addEventListener('load', mountSmoothScroll, {once: true});
 
 function stampCurrentHistoryPosition(left = 0, top = 0) {
     if (!history.state) return;
@@ -117,8 +127,8 @@ function stampCurrentHistoryPosition(left = 0, top = 0) {
 }
 
 function jumpToPageTop() {
-    scrollController.resize?.();
-    scrollController.scrollTo(0, {immediate: true, force: true});
+    controller().resize?.();
+    controller().scrollTo(0, {immediate: true, force: true});
     window.scrollTo({left: 0, top: 0, behavior: 'instant'});
     stampCurrentHistoryPosition(0, 0);
     updateViewportHeight();
@@ -132,8 +142,8 @@ function clampScroll(top) {
 
 function restoreRouteScroll(top) {
     const clamped = clampScroll(top);
-    scrollController.resize?.();
-    scrollController.scrollTo(clamped, {immediate: true, force: true});
+    controller().resize?.();
+    controller().scrollTo(clamped, {immediate: true, force: true});
     window.scrollTo({left: 0, top: clamped, behavior: 'instant'});
     stampCurrentHistoryPosition(0, clamped);
     updateViewportHeight();
@@ -177,7 +187,7 @@ function settleRouteScroll(settle) {
     routeFrame = requestAnimationFrame(() => {
         if (!scrolledSinceSwap) settle();
         updateHeroProgress();
-        scrollController.resize?.();
+        controller().resize?.();
     });
 }
 
@@ -207,7 +217,7 @@ window.addEventListener('pageshow', refreshHero);
 document.addEventListener('itsbagelbot:loader-complete', () => {
     updateViewportHeight();
     updateHeroProgress();
-    smooth?.lenis.start();
+    smooth?.start();
     startHero();
 }, {once: true});
 updateHeroProgress();
@@ -216,4 +226,4 @@ if (!loaderOwnsViewport()) {
     startHero();
 }
 
-export default scrollController;
+export default controller;
