@@ -56,7 +56,7 @@
 
 <section class={classes} aria-labelledby="{id}-title">
   <div class="bb-setup-step__kicker" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}><Eyebrow as="p" tone="go">{kicker}</Eyebrow></div>
-  <h1 id="{id}-title" class="bb-setup-step__title" class:is-shown={shown} tabindex="-1" bind:this={heading} out:depart={{ i: 1 }}><span data-fit="block" data-fit-ready>{title}</span></h1>
+  <h1 id="{id}-title" class="bb-setup-step__title" class:is-shown={shown} tabindex="-1" bind:this={heading} out:depart={{ i: 1 }}><bb-fit mode="block">{title}</bb-fit></h1>
   <div class="bb-setup-step__body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}>{#if body}<Text tone="muted">{body}</Text>{/if}</div>
   <div class="bb-setup-step__controls" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>{@render children?.()}</div>
   <div class="bb-setup-step__status" data-reserve={status ? '' : undefined} in:arrive={{ i: 4 }} out:depart={{ i: 4 }}>{@render status?.()}</div>

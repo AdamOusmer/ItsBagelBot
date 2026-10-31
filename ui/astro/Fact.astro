@@ -29,4 +29,4 @@ const classes = [
     .join(' ');
 ---
 
-<div class={classes} {...rest}>{fit ? (<Fragment><dt class="bb-fact__term"><span data-fit>{term}</span></dt><dd class="bb-fact__value"><span data-fit="block"><slot /></span></dd></Fragment>) : (<Fragment><dt class="bb-fact__term">{term}</dt><dd class="bb-fact__value"><slot /></dd></Fragment>)}</div>
+<div class={classes} {...rest}>{fit ? (<Fragment><dt class="bb-fact__term"><bb-fit>{term}</bb-fit></dt><dd class="bb-fact__value"><bb-fit mode="block"><slot /></bb-fit></dd></Fragment>) : (<Fragment><dt class="bb-fact__term">{term}</dt><dd class="bb-fact__value"><slot /></dd></Fragment>)}</div>

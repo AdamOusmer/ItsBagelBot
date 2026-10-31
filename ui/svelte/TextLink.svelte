@@ -72,10 +72,10 @@
     rel={external ? 'noopener noreferrer' : undefined}
     style={size ? `--text-link-size: ${size};` : undefined}
     {...rest}
-    >{#if icon}<Icon name={icon} size={14} class="bb-text-link__icon" />{/if}<span
+    >{#if icon}<Icon name={icon} size={14} class="bb-text-link__icon" />{/if}<svelte:element
+      this={fit ? 'bb-fit' : 'span'}
       class="bb-text-link__mask"
       aria-hidden="true"
-      data-fit={fit ? '' : undefined}
       ><span class="bb-text-link__row bb-text-link__row--rest"
         >{#each glyphs as glyph, index}<span class="bb-text-link__glyph" style="--gi: {index};"
             >{glyph}</span
@@ -84,7 +84,7 @@
         >{#each glyphs as glyph, index}<span class="bb-text-link__glyph" style="--gi: {index};"
             >{glyph}</span
           >{/each}</span
-      ></span
+      ></svelte:element
     ></a
   >{:else}<a
     class={classes}

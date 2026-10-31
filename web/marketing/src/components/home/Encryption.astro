@@ -25,18 +25,18 @@ const CODE_LINES = [
 ];
 ---
 
-<Section size="page" class="enc" id="enc-section" data-motion>
+<Section size="page" class="enc" id="enc-section">
     <div class="enc__grid">
         <HaloPanel as="article" tone="green" class="enc__card">
-            <div class="enc__inner" data-reveal style="--reveal-i: 0">
+            <div class="enc__inner reveal-in" style="--reveal-i: 0">
                 <div class="enc__demo enc__demo--lock" aria-hidden="true">
                     <span class="lock__ring lock__ring--outer"></span>
                     <span class="lock__ring lock__ring--inner"></span>
                     <svg class="lock__glyph" viewBox="0 0 40 48"><path d="M10 21v-7a10 10 0 0 1 20 0v7" /><rect x="5" y="21" width="30" height="23" rx="5" /><circle cx="20" cy="31" r="2.5" /><path d="M20 33.5v4" /></svg>
                 </div>
-                <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p1Eyebrow')}</span></Eyebrow>
-                <Heading level={5} as="h3" variant="title" class="enc__title"><span data-fit="block">{t('encryption.p1Title')}</span></Heading>
-                <Text class="enc__desc"><span data-fit="block">{t('encryption.p1Desc')}</span></Text>
+                <Eyebrow tone="go" class="enc__eyebrow"><bb-fit mode="block">{t('encryption.p1Eyebrow')}</bb-fit></Eyebrow>
+                <Heading level={5} as="h3" variant="title" class="enc__title"><bb-fit mode="block">{t('encryption.p1Title')}</bb-fit></Heading>
+                <Text class="enc__desc"><bb-fit mode="block">{t('encryption.p1Desc')}</bb-fit></Text>
             </div>
         </HaloPanel>
 
@@ -48,7 +48,7 @@ const CODE_LINES = [
             class="enc__card enc__card--link"
             data-cursor="quiet"
         >
-            <div class="enc__inner" data-reveal style="--reveal-i: 1">
+            <div class="enc__inner reveal-in" style="--reveal-i: 1">
                 <div class="enc__demo enc__demo--code" aria-hidden="true">
                     <div class="code__win">
                         <span class="code__bar">
@@ -61,9 +61,9 @@ const CODE_LINES = [
                         <span class="code__caret"></span>
                     </div>
                 </div>
-                <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p3Eyebrow')}</span></Eyebrow>
-                <Heading level={5} as="h3" variant="title" class="enc__title"><span data-fit="block">{t('encryption.p3Title')}</span></Heading>
-                <Text class="enc__desc"><span data-fit="block">{t('encryption.p3Desc')}</span></Text>
+                <Eyebrow tone="go" class="enc__eyebrow"><bb-fit mode="block">{t('encryption.p3Eyebrow')}</bb-fit></Eyebrow>
+                <Heading level={5} as="h3" variant="title" class="enc__title"><bb-fit mode="block">{t('encryption.p3Title')}</bb-fit></Heading>
+                <Text class="enc__desc"><bb-fit mode="block">{t('encryption.p3Desc')}</bb-fit></Text>
             </div>
         </HaloPanel>
     </div>
@@ -97,7 +97,7 @@ const CODE_LINES = [
         min-width: 0;
     }
 
-    .enc__inner :where(h3, p, span) {
+    .enc__inner :where(h3, p, span, bb-fit) {
         overflow-wrap: normal;
         word-break: normal;
         hyphens: none;

@@ -128,12 +128,12 @@
 
 <main class="qp">
   <header class="qp-head">
-    <span class="qp-eyebrow"><span class="qp-beacon" aria-hidden="true"></span><span class="qp-eyebrow__label"><span data-fit="">{t('queuePage.eyebrow')}</span></span></span>
+    <span class="qp-eyebrow"><span class="qp-beacon" aria-hidden="true"></span><span class="qp-eyebrow__label"><bb-fit>{t('queuePage.eyebrow')}</bb-fit></span></span>
     <h1 class="qp-title{titleSize ? ` qp-title--${titleSize}` : ''}">
       {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="qp-word">{word}</span>{/each}
     </h1>
-    <p class="qp-tagline"><span data-fit="block">{t('queuePage.tagline')}</span></p>
-    <p class="qp-hint"><span data-fit="block">{t('queuePage.joinHint')}</span></p>
+    <p class="qp-tagline"><bb-fit mode="block">{t('queuePage.tagline')}</bb-fit></p>
+    <p class="qp-hint"><bb-fit mode="block">{t('queuePage.joinHint')}</bb-fit></p>
   </header>
 
   <section class="qp-spots">
@@ -142,20 +142,20 @@
         {#if upNext}<Bolota name={upNext.login} size={110} motionState="idle" active gate />{/if}
       </div>
       <Card class="qp-spot__card" tone="accent" raised>
-        <span class="qp-spot__label"><span data-fit="">{t('queuePage.upNext')}</span></span>
-        <div class="qp-spot__value"><span data-fit="">{upNextName}</span></div>
+        <span class="qp-spot__label"><bb-fit>{t('queuePage.upNext')}</bb-fit></span>
+        <div class="qp-spot__value"><bb-fit>{upNextName}</bb-fit></div>
         <div class="qp-spot__rule"></div>
-        <div class="qp-spot__meta"><span data-fit="">{upNextDetail}</span></div>
+        <div class="qp-spot__meta"><bb-fit>{upNextDetail}</bb-fit></div>
       </Card>
     </div>
     <div class="qp-spot">
       <Card class="qp-spot__card">
-        <span class="qp-spot__label"><span data-fit="">{t('queuePage.inLine')}</span></span>
-        <div class="qp-spot__value"><span data-fit="">{countFmt.format(snapshot.total)}</span></div>
+        <span class="qp-spot__label"><bb-fit>{t('queuePage.inLine')}</bb-fit></span>
+        <div class="qp-spot__value"><bb-fit>{countFmt.format(snapshot.total)}</bb-fit></div>
         <div class="qp-spot__rule"></div>
         <div class="qp-spot__meta" role="status">
           <span class="qp-dot" class:qp-dot--open={joinsOpen} aria-hidden="true"></span>
-          <span class="qp-spot__status"><span data-fit="">{statusText}</span></span>
+          <span class="qp-spot__status"><bb-fit>{statusText}</bb-fit></span>
         </div>
       </Card>
     </div>
@@ -164,8 +164,8 @@
   <Card class="qp-board">
     <div class="qp-board__head">
       <div class="qp-board__intro">
-        <h2 class="qp-board__title"><span data-fit="">{t('queuePage.boardTitle')}</span></h2>
-        <p class="qp-board__note"><span data-fit="">{t('queuePage.boardNote', { max: countFmt.format(MAX_QUEUE_ENTRIES) })}</span></p>
+        <h2 class="qp-board__title"><bb-fit>{t('queuePage.boardTitle')}</bb-fit></h2>
+        <p class="qp-board__note"><bb-fit>{t('queuePage.boardNote', { max: countFmt.format(MAX_QUEUE_ENTRIES) })}</bb-fit></p>
       </div>
       <form class="qp-search" role="search" onsubmit={(event) => event.preventDefault()}>
         <SearchInput
@@ -185,8 +185,8 @@
       <div class="qp-table" role="table" aria-label={t('queuePage.boardTitle')}>
         <div class="qp-row qp-row--head" role="row">
           <span class="qp-cell qp-cell--rank" role="columnheader">#</span>
-          <span class="qp-cell" role="columnheader"><span data-fit="">{t('queuePage.colViewer')}</span></span>
-          <span class="qp-cell qp-cell--wait" role="columnheader"><span data-fit="">{t('queuePage.colWaited')}</span></span>
+          <span class="qp-cell" role="columnheader"><bb-fit>{t('queuePage.colViewer')}</bb-fit></span>
+          <span class="qp-cell qp-cell--wait" role="columnheader"><bb-fit>{t('queuePage.colWaited')}</bb-fit></span>
         </div>
         {#each visibleRows as row (row.login)}
           <div class="qp-row" class:qp-row--next={row.position === 1} role="row" style="--share: {row.share}">
@@ -204,12 +204,12 @@
       </div>
     {:else}
       <div class="qp-empty">
-        <p class="qp-empty__title"><span data-fit="">{emptyCopy.title}</span></p>
-        <p class="qp-empty__body"><span data-fit="block">{emptyCopy.body}</span></p>
+        <p class="qp-empty__title"><bb-fit>{emptyCopy.title}</bb-fit></p>
+        <p class="qp-empty__body"><bb-fit mode="block">{emptyCopy.body}</bb-fit></p>
       </div>
     {/if}
 
-    <p class="qp-status" role="status" aria-live="polite"><span data-fit="">{statusLine}</span></p>
+    <p class="qp-status" role="status" aria-live="polite"><bb-fit>{statusLine}</bb-fit></p>
   </Card>
 </main>
 

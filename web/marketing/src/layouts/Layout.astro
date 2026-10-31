@@ -10,6 +10,8 @@ import '../lib/contentGuards';
 
 import syneLatinWoff2 from '@bagel/ui/fonts/syne-latin.woff2?url';
 import dmSansLatinWoff2 from '@bagel/ui/fonts/dm-sans-latin.woff2?url';
+import dmMono400Woff2 from '@bagel/ui/fonts/dm-mono-400.woff2?url';
+import dmMono500Woff2 from '@bagel/ui/fonts/dm-mono-500.woff2?url';
 
 import { ClientRouter } from 'astro:transitions';
 import { getImage } from 'astro:assets';
@@ -244,6 +246,8 @@ const contentSecurityPolicy = [
 
     <link rel="preload" href={syneLatinWoff2} as="font" type="font/woff2" crossorigin/>
     <link rel="preload" href={dmSansLatinWoff2} as="font" type="font/woff2" crossorigin/>
+    <link rel="preload" href={dmMono400Woff2} as="font" type="font/woff2" crossorigin/>
+    <link rel="preload" href={dmMono500Woff2} as="font" type="font/woff2" crossorigin/>
 
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=bot-1">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=bot-1">
@@ -306,8 +310,8 @@ const contentSecurityPolicy = [
     <Brackets/>
     <Footer {...footer}>
         {isHome && <div slot="colophon" id="about">
-            <p><span data-fit="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</span></p>
-            <p><span data-fit="block">{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</span></p>
+            <p><bb-fit mode="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</bb-fit></p>
+            <p><bb-fit mode="block">{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</bb-fit></p>
         </div>}
     </Footer>
     <Cursor/>
@@ -315,31 +319,16 @@ const contentSecurityPolicy = [
     <script>
         import '../script/scroll.js';
         import '../script/reveal.js';
-        import '../script/motion.js';
+        import '../script/offstage.js';
         import '../script/interactions.js';
         import '../script/decode.js';
         import '../script/easter-egg';
     </script>
 
     <script>
-        import { mountTextFit } from '@bagel/ui/lib/text-fit';
+        import { defineTextFit } from '@bagel/ui/lib/text-fit';
 
-        let disposeTextFit: (() => void) | null = null;
-
-        function teardownTextFit() {
-            disposeTextFit?.();
-            disposeTextFit = null;
-        }
-
-        function setupTextFit() {
-            teardownTextFit();
-            disposeTextFit = mountTextFit(document);
-        }
-
-        setupTextFit();
-        document.addEventListener('astro:page-load', setupTextFit);
-        document.addEventListener('astro:before-swap', teardownTextFit);
-        window.addEventListener('pagehide', teardownTextFit);
+        defineTextFit();
     </script>
 
 </body>

@@ -21,6 +21,7 @@ const ALLOWED = new Map([
   ['bb-error-rise', 'one-shot entrance'],
   ['bb-code-in', 'one-shot entrance'],
   ['bb-page-hero-in', 'one-shot entrance'],
+  ['hero-word-in', 'one-shot entrance, fill-mode both'],
   ['drawLeaf', 'one-shot draw, iteration count 1'],
   ['draw-circle', 'one-shot draw, fill-mode forwards'],
   ['draw-check', 'one-shot draw, fill-mode forwards'],

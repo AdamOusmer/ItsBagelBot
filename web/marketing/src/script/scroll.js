@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { createSmoothScroll } from '@bagel/ui/lib/lenis';
 import { subscribe, wake } from '@bagel/ui/lib/raf-loop';
+import { initLenis, onSmoothScroll } from '@bagel/ui/lib/smooth-scroll';
 import { getLangSwitchScrollY } from '../i18n/route-transition';
 
-const smooth = createSmoothScroll();
+let smooth = null;
 
 const nativeScroll = {
     get scroll() {
@@ -32,11 +32,17 @@ const nativeScroll = {
     off() {},
 };
 
-const scrollController = smooth?.lenis ?? nativeScroll;
+const controller = () => smooth ?? nativeScroll;
 
-// Kept off :root, where a per-frame custom property restyles every element on the page.
+// --hero-p is registered non-inherited and written on each reader: a per-frame write on the hero root restyled the whole crowd.
+const HERO_PROGRESS_READERS = '.material, .starfield, .orb, .crowd';
 let hero = document.querySelector('[data-hero-progress]');
+let heroReaders = readersOf(hero);
 let viewportHeight = Math.max(1, window.innerHeight);
+
+function readersOf(root) {
+    return root ? Array.from(root.querySelectorAll(HERO_PROGRESS_READERS)) : [];
+}
 let lastHeroProgress = -1;
 let lastHeroUiHidden = null;
 let lastHeroComplete = null;
@@ -55,9 +61,9 @@ function updateViewportHeight() {
 
 const HERO_COMPLETE_HINTS = [
     ['--hero-animation-state', 'paused', 'running'],
-    ['--hero-content-will-change', 'auto', 'opacity, transform, filter'],
+    ['--hero-content-will-change', 'auto', 'opacity, transform'],
     ['--hero-orb-will-change', 'auto', 'opacity, transform'],
-    ['--hero-decor-display', 'none', 'block'],
+    ['--hero-decor-visibility', 'hidden', 'visible'],
 ];
 
 function applyHeroComplete(complete) {
@@ -73,7 +79,8 @@ function updateHeroProgress() {
     const heroComplete = heroProgress >= 1;
 
     if (Math.abs(heroProgress - lastHeroProgress) > 0.0005) {
-        hero.style.setProperty('--hero-p', heroProgress.toFixed(4));
+        const value = heroProgress.toFixed(4);
+        for (const reader of heroReaders) reader.style.setProperty('--hero-p', value);
         lastHeroProgress = heroProgress;
     }
 
@@ -96,14 +103,24 @@ function heroTick() {
 
 const wakeHero = () => wake(heroTick);
 window.addEventListener('scroll', wakeHero, {passive: true});
-scrollController.on('scroll', wakeHero);
 
 function startHero() {
     if (unsubscribeHero) return;
     unsubscribeHero = subscribe(heroTick);
 }
 
-if (loaderOwnsViewport()) smooth?.lenis.stop();
+onSmoothScroll((lenis) => {
+    smooth = lenis;
+    lenis.on('scroll', wakeHero);
+    if (loaderOwnsViewport()) lenis.stop();
+});
+
+function mountSmoothScroll() {
+    void initLenis();
+}
+
+if (document.readyState === 'complete') mountSmoothScroll();
+else window.addEventListener('load', mountSmoothScroll, {once: true});
 
 function stampCurrentHistoryPosition(left = 0, top = 0) {
     if (!history.state) return;
@@ -117,8 +134,8 @@ function stampCurrentHistoryPosition(left = 0, top = 0) {
 }
 
 function jumpToPageTop() {
-    scrollController.resize?.();
-    scrollController.scrollTo(0, {immediate: true, force: true});
+    controller().resize?.();
+    controller().scrollTo(0, {immediate: true, force: true});
     window.scrollTo({left: 0, top: 0, behavior: 'instant'});
     stampCurrentHistoryPosition(0, 0);
     updateViewportHeight();
@@ -132,8 +149,8 @@ function clampScroll(top) {
 
 function restoreRouteScroll(top) {
     const clamped = clampScroll(top);
-    scrollController.resize?.();
-    scrollController.scrollTo(clamped, {immediate: true, force: true});
+    controller().resize?.();
+    controller().scrollTo(clamped, {immediate: true, force: true});
     window.scrollTo({left: 0, top: clamped, behavior: 'instant'});
     stampCurrentHistoryPosition(0, clamped);
     updateViewportHeight();
@@ -143,6 +160,7 @@ function restoreRouteScroll(top) {
 // The swap brings a new hero without inline style, so the cached values no longer match what is on the page.
 function forgetHeroState() {
     hero = document.querySelector('[data-hero-progress]');
+    heroReaders = readersOf(hero);
     lastHeroProgress = -1;
     lastHeroUiHidden = null;
     lastHeroComplete = null;
@@ -172,10 +190,12 @@ for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) {
 // The follow-up frame can land late on a busy main thread, after the reader already moved.
 function settleRouteScroll(settle) {
     settle();
+    updateHeroProgress();
     scrolledSinceSwap = false;
     routeFrame = requestAnimationFrame(() => {
         if (!scrolledSinceSwap) settle();
-        scrollController.resize?.();
+        updateHeroProgress();
+        controller().resize?.();
     });
 }
 
@@ -192,10 +212,20 @@ window.addEventListener('resize', () => {
 }, {passive: true});
 
 document.addEventListener('astro:after-swap', resetRouteScroll);
+
+function refreshHero() {
+    updateViewportHeight();
+    updateHeroProgress();
+}
+
+// iOS Safari did not deliver a scroll event after the swap's jump to top, so the hero stayed at the previous
+// page's progress until the first touch; the progress is written from scrollY directly after every settle and page load.
+document.addEventListener('astro:page-load', refreshHero);
+window.addEventListener('pageshow', refreshHero);
 document.addEventListener('itsbagelbot:loader-complete', () => {
     updateViewportHeight();
     updateHeroProgress();
-    smooth?.lenis.start();
+    smooth?.start();
     startHero();
 }, {once: true});
 updateHeroProgress();
@@ -204,4 +234,4 @@ if (!loaderOwnsViewport()) {
     startHero();
 }
 
-export default scrollController;
+export default controller;

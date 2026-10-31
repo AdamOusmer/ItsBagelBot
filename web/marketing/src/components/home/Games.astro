@@ -21,7 +21,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
 ---
 
 <Container class="games-wrap">
-<Section size="page" class="games" id="integrations" data-motion>
+<Section size="page" class="games" id="integrations">
     <SectionHeading eyebrow={t('games.eyebrow')} title={t('games.title')} />
 
     <BentoGrid cols={4}>
@@ -29,7 +29,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             <div slot="demo" class="games__demo games__demo--mc">
                 <div class="games-mc__group games-mc__group--bw">
                     <span class="games-mc__line games-mc__line--bw">!bwstats player123</span>
-                    <span class="games__value fcard-value games-mc__value"><span data-fit>4.82</span></span>
+                    <span class="games__value fcard-value games-mc__value"><bb-fit>4.82</bb-fit></span>
                     <div class="games-mc__stats games-mc__stats--bw">
                         <span class="games-mc__stat"><b class="games-stat__key">Level</b> 402</span>
                         <span class="games-mc__stat"><b class="games-stat__key">Wins</b> 2,541</span>
@@ -65,7 +65,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                         <path d="M184 28 h16 l4 4 v6 l-4 4 h-12 Z" />
                         <path d="M190 32 v8 M196 32 v8" stroke-width="1.5" />
                     </svg>
-                <span class="games__value fcard-value games-fn__value"><span data-fit>1,200</span></span>
+                <span class="games__value fcard-value games-fn__value"><bb-fit>1,200</bb-fit></span>
                 <div class="games-fn__meta">
                     <span class="games-fn__rarity">Legendary</span>
                 </div>
@@ -76,7 +76,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         <FeatureCard index={2} tone="gold" label={t('games.valCh')} href={localizePath('/valorant-stats', lang)}>
             <div slot="demo" class="games__demo games__demo--val">
                 <span class="games-val__line">!valrank Frosty#EUW1</span>
-                <span class="games__value fcard-value games-val__value"><span data-fit>Immortal 2</span></span>
+                <span class="games__value fcard-value games-val__value"><bb-fit>Immortal 2</bb-fit></span>
                 <div class="games-val__stats">
                     <span class="games-val__stat"><b class="games-stat__key">RR</b> 67</span>
                     <span class="games-val__stat"><b class="games-stat__key">Peak</b> Immortal 1</span>
@@ -88,7 +88,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         <FeatureCard index={3} tone="green" label={t('games.crCh')} href={localizePath('/clash-royale-stats', lang)}>
             <div slot="demo" class="games__demo games__demo--cr">
                 <span class="games-cr__line">!cr #P2LQ0GR</span>
-                <span class="games__value fcard-value games-cr__value"><span data-fit>60%</span></span>
+                <span class="games__value fcard-value games-cr__value"><bb-fit>60%</bb-fit></span>
                 <div class="games-cr__stats">
                     <span class="games-cr__stat"><b class="games-stat__key">Level</b> 62</span>
                     <span class="games-cr__stat"><b class="games-stat__key">W/L</b> 600/300</span>
@@ -105,11 +105,11 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             href={`${SITE.github}/issues/new`}
             target="_blank"
             rel="noopener noreferrer"
-        ><span data-fit>{t('games.reqTitle')}</span></ButtonLink>
-        <Text size="xs" mono tone="muted" class="games__legal"><span data-fit="block">{legalShortBefore}<TextLink
+        ><bb-fit>{t('games.reqTitle')}</bb-fit></ButtonLink>
+        <Text size="xs" mono tone="muted" class="games__legal"><bb-fit mode="block">{legalShortBefore}<TextLink
             variant="inline"
             href={localizePath('/terms', lang)}
-        >{t('games.legalTermsLabel')}</TextLink>{legalShortAfter}</span></Text>
+        >{t('games.legalTermsLabel')}</TextLink>{legalShortAfter}</bb-fit></Text>
     </div>
 </Section>
 </Container>

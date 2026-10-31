@@ -79,7 +79,7 @@
     animation: bb-page-hero-in 760ms 1200ms var(--bb-ease-out-expo) forwards;
   }
 
-  .bb-page-hero__title > [data-fit],
+  .bb-page-hero__title > bb-fit,
   .bb-page-hero__line > span {
     background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55)) 0 0 / 100% 1lh;
     background-clip: text;

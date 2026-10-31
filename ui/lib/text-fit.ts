@@ -11,8 +11,8 @@ type FitTarget = {
     tracking: number;
 };
 
-const SELECTOR = '[data-fit]';
-const BOX_SELECTOR = '[data-fit-box]';
+const TAG = 'bb-fit';
+const BOX_SELECTOR = '.bb-fit-box';
 const PROPERTY = '--bb-fit';
 const FLOOR = 0.5;
 const LINE_SAFETY = 0.99;
@@ -99,39 +99,81 @@ function fitAll(targets: readonly FitTarget[]): void {
     });
     groupMin(ratios).forEach((ratio, i) => {
         setRatio(targets[i], ratio);
-        targets[i].el.dataset.fitReady = '';
+        targets[i].el.classList.add('is-fit');
     });
+}
+
+export function fitSlotOf(el: HTMLElement): { block: boolean; group: string | undefined } {
+    return { block: el.getAttribute('mode') === 'block', group: el.getAttribute('group') || undefined };
 }
 
 function targetOf(el: HTMLElement): FitTarget | null {
     const box = el.parentElement?.closest<HTMLElement>(BOX_SELECTOR) ?? el.parentElement;
     if (!box) return null;
-    return { el, box, block: el.dataset.fit === 'block', group: el.dataset.fitGroup || undefined, tracking: 0 };
-}
-
-function collect(root: ParentNode): FitTarget[] {
-    const found = Array.from(root.querySelectorAll<HTMLElement>(SELECTOR));
-    if (root instanceof HTMLElement && root.matches(SELECTOR)) found.unshift(root);
-    return found.map(targetOf).filter((target): target is FitTarget => target !== null);
+    return { el, box, ...fitSlotOf(el), tracking: 0 };
 }
 
 type FitRegistry = {
     targets: Map<HTMLElement, FitTarget>;
     boxes: Map<HTMLElement, Set<FitTarget>>;
+    pending: Set<FitTarget>;
+    fontsWatched: boolean;
     resizer: ResizeObserver;
-    active: boolean;
+    texts: MutationObserver;
 };
 
-function touchedTargets(records: MutationRecord[], registry: FitRegistry): FitTarget[] {
+function touchedTargets(records: MutationRecord[], registry: FitRegistry, selector: string): FitTarget[] {
     const touched = new Set<FitTarget>();
     for (const record of records) {
         const node = record.target;
         const owner = node instanceof Element ? node : node.parentElement;
-        const el = owner?.closest<HTMLElement>(SELECTOR);
+        const el = owner?.closest<HTMLElement>(selector);
         const target = el ? registry.targets.get(el) : undefined;
         if (target) touched.add(target);
     }
     return Array.from(touched);
+}
+
+const sections = new Map<Element, Set<FitTarget>>();
+const parked = new Map<FitTarget, Element>();
+
+// A content-visibility:auto subtree that is skipped would be forced through style and layout by any measurement.
+function skippedSection(el: HTMLElement): Element | null {
+    if (typeof el.checkVisibility !== 'function' || el.checkVisibility({ contentVisibilityAuto: true })) return null;
+    return el.closest('.bb-section--page') ?? el.closest('section');
+}
+
+function unpark(target: FitTarget): void {
+    const section = parked.get(target);
+    if (!section) return;
+    parked.delete(target);
+    const members = sections.get(section);
+    members?.delete(target);
+    if (!members?.size) sections.delete(section);
+}
+
+function park(target: FitTarget, section: Element): void {
+    if (parked.get(target) === section) return;
+    unpark(target);
+    parked.set(target, section);
+    const members = sections.get(section);
+    if (members) members.add(target);
+    else sections.set(section, new Set([target]));
+}
+
+// An unrendered box never fits, so a block fit would bottom out at the floor and descendants would inherit it.
+function rendered(box: HTMLElement): boolean {
+    const rect = box.getBoundingClientRect();
+    return rect.width > 0 || rect.height > 0;
+}
+
+function measurable(targets: FitTarget[]): FitTarget[] {
+    return targets.filter((target) => {
+        const section = skippedSection(target.el);
+        if (section) park(target, section);
+        else unpark(target);
+        return !section && rendered(target.box);
+    });
 }
 
 // Group members share one ratio, so refitting a member alone would drop the smallest of its group.
@@ -173,80 +215,134 @@ function prune(registry: FitRegistry): void {
     for (const [el, target] of registry.targets) {
         if (el.isConnected) continue;
         registry.targets.delete(el);
+        unpark(target);
         unbindBox(registry, target);
     }
 }
 
-function rebox(registry: FitRegistry, known: FitTarget, box: HTMLElement): void {
-    unbindBox(registry, known);
-    known.box = box;
-    bindBox(registry, known);
-}
-
-// Registers new fit elements and rebinds known ones that moved into another box.
-function adoptAdded(registry: FitRegistry, records: MutationRecord[]): FitTarget[] {
-    const changed = new Map<HTMLElement, FitTarget>();
-    const roots = records.flatMap((record) => Array.from(record.addedNodes));
-    for (const found of roots.filter((node) => node instanceof HTMLElement).flatMap(collect)) {
-        const known = registry.targets.get(found.el);
-        if (!known) {
-            register(registry, [found]);
-            changed.set(found.el, found);
-        } else if (known.box !== found.box) {
-            rebox(registry, known, found.box);
-            changed.set(known.el, known);
-        }
-    }
-    return Array.from(changed.values());
-}
-
 function refit(registry: FitRegistry, subset: FitTarget[]): void {
-    if (subset.length) fitAll(withGroupPeers(registry, Array.from(new Set(subset))));
+    if (subset.length === 0) return;
+    const ready = measurable(withGroupPeers(registry, Array.from(new Set(subset))));
+    if (ready.length === 0) return;
+    fitAll(ready);
+    watchFonts(registry);
 }
 
-function boxTargets(registry: FitRegistry, entries: ResizeObserverEntry[]): FitTarget[] {
-    return entries.flatMap((entry) => Array.from(registry.boxes.get(entry.target as HTMLElement) ?? []));
+function refitEverything(registry: FitRegistry): void {
+    prune(registry);
+    fitAll(measurable(Array.from(registry.targets.values())));
 }
 
-export function mountTextFit(root: ParentNode = document): () => void {
+function watchFonts(registry: FitRegistry): void {
+    if (registry.fontsWatched) return;
+    registry.fontsWatched = true;
+    const refitAll = () => refitEverything(registry);
+    if (document.fonts.status !== 'loaded') void document.fonts.ready.then(refitAll);
+    document.fonts.addEventListener('loadingdone', refitAll);
+}
+
+function resizedTargets(registry: FitRegistry, entries: ResizeObserverEntry[]): FitTarget[] {
+    const targets: FitTarget[] = [];
+    for (const { target } of entries) targets.push(...(registry.boxes.get(target as HTMLElement) ?? []));
+    return targets;
+}
+
+let shared: FitRegistry | null = null;
+
+function sharedRegistry(): FitRegistry {
+    if (shared) return shared;
     const registry: FitRegistry = {
         targets: new Map(),
         boxes: new Map(),
+        pending: new Set(),
+        fontsWatched: false,
         resizer: new ResizeObserver((entries) => {
-            if (!registry.active) return;
             prune(registry);
-            refit(registry, boxTargets(registry, entries));
+            refit(registry, resizedTargets(registry, entries));
         }),
-        active: true,
+        texts: new MutationObserver((records) => {
+            prune(registry);
+            refit(registry, touchedTargets(records, registry, TAG));
+        }),
     };
-    const refitAll = () => {
-        if (!registry.active) return;
-        prune(registry);
-        fitAll(Array.from(registry.targets.values()));
-    };
-    // Fit targets are HTML, and animated SVG rewrites its children every frame.
-    const onMutations = (all: MutationRecord[]) => {
-        if (!registry.active) return;
-        const records = all.filter((record) => !(record.target instanceof SVGElement));
-        if (records.length === 0) return;
-        prune(registry);
-        refit(registry, [...touchedTargets(records, registry), ...adoptAdded(registry, records)]);
-    };
+    shared = registry;
+    return registry;
+}
 
-    const initial = collect(root);
-    register(registry, initial);
-    fitAll(initial);
-    const adder = new MutationObserver(onMutations);
-    adder.observe(root, { childList: true, characterData: true, subtree: true });
-    void document.fonts.ready.then(refitAll);
-    document.fonts.addEventListener('loadingdone', refitAll);
+// A parser connects the element before its text exists, so connects are fitted together once the tick ends.
+function queueFit(registry: FitRegistry, target: FitTarget): void {
+    if (registry.pending.size === 0) queueMicrotask(() => refit(registry, takePending(registry)));
+    registry.pending.add(target);
+}
 
-    return () => {
-        registry.active = false;
-        registry.resizer.disconnect();
-        adder.disconnect();
-        registry.targets.clear();
-        registry.boxes.clear();
-        document.fonts.removeEventListener('loadingdone', refitAll);
-    };
+function takePending(registry: FitRegistry): FitTarget[] {
+    const batch = Array.from(registry.pending).filter((queued) => registry.targets.get(queued.el) === queued);
+    registry.pending.clear();
+    return batch;
+}
+
+function connectFit(el: HTMLElement): void {
+    const target = targetOf(el);
+    if (!target) return;
+    const registry = sharedRegistry();
+    register(registry, [target]);
+    registry.texts.observe(el, { childList: true, characterData: true, subtree: true });
+    queueFit(registry, target);
+}
+
+function disconnectFit(el: HTMLElement): void {
+    const target = shared?.targets.get(el);
+    if (!shared || !target) return;
+    shared.targets.delete(el);
+    shared.pending.delete(target);
+    unpark(target);
+    unbindBox(shared, target);
+}
+
+function arrivedRoot(event: Event): Element | null {
+    if ((event as Event & { skipped?: boolean }).skipped !== false) return null;
+    const root = event.target as Element | null;
+    return typeof root?.contains === 'function' ? root : null;
+}
+
+function targetsWithin(root: Element): FitTarget[] {
+    const arrived: FitTarget[] = [];
+    for (const [section, members] of sections) {
+        if (root.contains(section)) arrived.push(...members);
+    }
+    return arrived;
+}
+
+function onSectionState(event: Event): void {
+    const root = arrivedRoot(event);
+    if (shared && root) refit(shared, targetsWithin(root));
+}
+
+function reslotFit(el: HTMLElement): void {
+    const target = shared?.targets.get(el);
+    if (!shared || !target) return;
+    Object.assign(target, fitSlotOf(el));
+    queueFit(shared, target);
+}
+
+export function defineTextFit(): void {
+    if (typeof customElements === 'undefined' || customElements.get(TAG)) return;
+    // Declared here because HTMLElement does not exist where the module is imported for SSR or tests.
+    class BbFit extends HTMLElement {
+        static observedAttributes = ['mode', 'group'];
+
+        connectedCallback(): void {
+            connectFit(this);
+        }
+
+        disconnectedCallback(): void {
+            disconnectFit(this);
+        }
+
+        attributeChangedCallback(): void {
+            reslotFit(this);
+        }
+    }
+    customElements.define(TAG, BbFit);
+    document.addEventListener('contentvisibilityautostatechange', onSectionState, true);
 }

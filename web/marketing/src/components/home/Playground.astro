@@ -47,23 +47,23 @@ const playStrings = {
 <Section size="page" class="play" id="playground">
     <script type="application/json" data-play-i18n set:html={JSON.stringify(playStrings)}></script>
     <div class="play__copy">
-        <Eyebrow class="play__eyebrow" data-reveal><span data-fit>{t('playground.eyebrow')}</span></Eyebrow>
-        <Heading level={2} class="play__title" data-reveal><span data-fit="block">{t('playground.title')}</span></Heading>
-        <Lead class="play__sub" data-reveal><span data-fit="block">{t('playground.sub')}</span></Lead>
+        <Eyebrow class="play__eyebrow reveal-in"><bb-fit>{t('playground.eyebrow')}</bb-fit></Eyebrow>
+        <Heading level={2} class="play__title reveal-in"><bb-fit mode="block">{t('playground.title')}</bb-fit></Heading>
+        <Lead class="play__sub reveal-in"><bb-fit mode="block">{t('playground.sub')}</bb-fit></Lead>
 
-        <div class="play__chips" data-reveal>
+        <div class="play__chips reveal-in">
             {chips.map((chip) => (
-                <Chip class="play__chip" data-play-cmd={chip.cmd}><span class="play__chip-label"><span data-fit>{chip.label}</span></span></Chip>
+                <Chip class="play__chip" data-play-cmd={chip.cmd}><span class="play__chip-label"><bb-fit>{chip.label}</bb-fit></span></Chip>
             ))}
-            <Chip tone="danger" class="play__chip play__chip--spam" data-play-spam><span class="play__chip-label"><span data-fit>{t('playground.sendSpam')}<span class="play__skull" aria-hidden="true">&nbsp;☠</span></span></span></Chip>
+            <Chip tone="danger" class="play__chip play__chip--spam" data-play-spam><span class="play__chip-label"><bb-fit>{t('playground.sendSpam')}<span class="play__skull" aria-hidden="true">&nbsp;☠</span></bb-fit></span></Chip>
         </div>
 
-        <Text size="xs" mono tone="muted" class="play__hint" data-reveal><span data-fit="block">{t('playground.hint')}</span></Text>
+        <Text size="xs" mono tone="muted" class="play__hint reveal-in"><bb-fit mode="block">{t('playground.hint')}</bb-fit></Text>
 
-        <ButtonLink class="play__cta" href={dashLoginHref(lang)} variant="twitch" data-reveal><span data-fit>{t('nav.cta')}</span></ButtonLink>
+        <ButtonLink class="play__cta reveal-in" href={dashLoginHref(lang)} variant="twitch"><bb-fit>{t('nav.cta')}</bb-fit></ButtonLink>
     </div>
 
-    <div class="play__stage" data-reveal data-playground>
+    <div class="play__stage reveal-in" data-playground>
         <HaloPanel tone="green" class="play__window">
             <div class="play__bar">
                 <span class="play__channel">your_channel</span>

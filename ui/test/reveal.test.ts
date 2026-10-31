@@ -5,20 +5,26 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 
 type Stub = {
   classes: Set<string>;
-  dataset: Record<string, string | undefined>;
-  classList: { add(name: string): void };
+  classList: {
+    add(name: string): void;
+    remove(name: string): void;
+    contains(name: string): boolean;
+  };
   matches(selector: string): boolean;
   querySelectorAll(selector: string): Stub[];
   getBoundingClientRect(): { top: number; bottom: number };
 };
 
-function el(top: number, nested: Stub[] = []): Stub {
-  const classes = new Set<string>();
+function el(top: number, nested: Stub[] = [], initial: string[] = ["reveal-in"]): Stub {
+  const classes = new Set<string>(initial);
   return {
     classes,
-    dataset: {},
-    classList: { add: (name: string) => void classes.add(name) },
-    matches: (selector: string) => selector === "[data-reveal]",
+    classList: {
+      add: (name: string) => void classes.add(name),
+      remove: (name: string) => void classes.delete(name),
+      contains: (name: string) => classes.has(name),
+    },
+    matches: (selector: string) => selector === ".reveal-in",
     querySelectorAll: () => nested,
     getBoundingClientRect: () => ({ top, bottom: top + 100 }),
   };
@@ -48,10 +54,7 @@ beforeEach(() => {
     }
     disconnect() {
       this.#live = false;
-      observed = observed.filter((t) => !this.#owns(t));
-    }
-    #owns(target: Stub) {
-      return observed.includes(target);
+      observed = [];
     }
   };
 });
@@ -63,13 +66,22 @@ afterEach(() => {
 
 const { observeReveal } = await import("../lib/reveal");
 
-test("below-fold elements are observed, above-fold ones reveal immediately", () => {
+test("nothing is hidden before observeReveal runs", () => {
+  const below = el(4000);
+
+  expect(below.classes.has("is-pending")).toBe(false);
+  expect(below.classes.has("is-revealed")).toBe(false);
+});
+
+test("below-fold elements turn pending only at setup and are observed, on-screen ones go straight to revealed", () => {
   const above = el(200);
   const below = el(4000);
   observeReveal(root([above, below]));
 
   expect(above.classes.has("is-revealed")).toBe(true);
+  expect(above.classes.has("is-pending")).toBe(false);
   expect(below.classes.has("is-revealed")).toBe(false);
+  expect(below.classes.has("is-pending")).toBe(true);
   expect(observed).toEqual([below]);
 });
 
@@ -88,15 +100,16 @@ function intersect(...targets: Stub[]): Stub[] {
   return unobserved;
 }
 
-test("an intersecting entry reveals; only a non-repeating one is unobserved", () => {
+test("an intersecting entry swaps pending for revealed; only a non-repeating one is unobserved", () => {
   const once = el(4000);
-  const repeat = el(4000);
-  repeat.dataset.revealRepeat = "true";
+  const repeat = el(4000, [], ["reveal-in", "reveal-in--repeat"]);
   observeReveal(root([once, repeat]));
 
   expect(intersect(once, repeat)).toEqual([once]);
   expect(once.classes.has("is-revealed")).toBe(true);
+  expect(once.classes.has("is-pending")).toBe(false);
   expect(repeat.classes.has("is-revealed")).toBe(true);
+  expect(repeat.classes.has("is-pending")).toBe(false);
 });
 
 test("revealing a parent reveals its nested items with it, not one by one", () => {
@@ -106,14 +119,16 @@ test("revealing a parent reveals its nested items with it, not one by one", () =
 
   expect(intersect(card)).toEqual([card, item]);
   expect(item.classes.has("is-revealed")).toBe(true);
+  expect(item.classes.has("is-pending")).toBe(false);
 });
 
-test("a parent on screen at load reveals nested items that hang below the fold", () => {
+test("a parent on screen at load reveals nested items that hang below the fold, never pending", () => {
   const item = el(1200);
   const card = el(800, [item]);
   observeReveal(root([card, item]));
 
   expect(item.classes.has("is-revealed")).toBe(true);
+  expect(item.classes.has("is-pending")).toBe(false);
   expect(observed).toEqual([]);
 });
 
@@ -139,15 +154,39 @@ test("every rect is read before any class is written", () => {
   };
   observeReveal(root([spy("a", 200), spy("b", 300), spy("c", 4000)]));
 
-  expect(log).toEqual(["read a", "read b", "read c", "write a is-revealed", "write b is-revealed"]);
+  expect(log).toEqual([
+    "read a",
+    "read b",
+    "read c",
+    "write a is-revealed",
+    "write b is-revealed",
+    "write c is-pending",
+  ]);
 });
 
-test("dispose releases the ready flag so a re-scan re-wires", () => {
+test("a target in a skipped section is observed without reading its rect", () => {
+  const reads: string[] = [];
+  const inSkipped = el(200) as Stub & { checkVisibility?: () => boolean };
+  inSkipped.checkVisibility = () => false;
+  inSkipped.getBoundingClientRect = () => {
+    reads.push("skipped");
+    return { top: 200, bottom: 300 };
+  };
+  const shown = el(200) as Stub & { checkVisibility?: () => boolean };
+  shown.checkVisibility = () => true;
+  observeReveal(root([inSkipped, shown]));
+
+  expect(reads).toEqual([]);
+  expect(inSkipped.classes.has("is-pending")).toBe(true);
+  expect(shown.classes.has("is-revealed")).toBe(true);
+  expect(observed).toEqual([inSkipped]);
+});
+
+test("dispose releases the handled set so a re-scan re-wires", () => {
   const below = el(4000);
   const dispose = observeReveal(root([below]));
   dispose();
 
-  expect(below.dataset.revealReady).toBeUndefined();
   expect(observed).toEqual([]);
 
   observeReveal(root([below]));

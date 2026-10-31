@@ -8,16 +8,19 @@
         --bb-entrance: bb-slide-in;
     }
 
-    [data-reveal] {
-        opacity: 0;
-        transform: translateY(var(--bb-reveal-distance, 24px));
+    .reveal-in {
         transition:
             opacity var(--bb-reveal-duration, 760ms) var(--bb-ease-out-expo),
             transform var(--bb-reveal-duration, 760ms) var(--bb-ease-out-expo);
         transition-delay: calc(var(--reveal-i, 0) * var(--bb-reveal-step, 80ms));
     }
 
-    [data-reveal].is-revealed {
+    .reveal-in.is-pending {
+        opacity: 0;
+        transform: translateY(var(--bb-reveal-distance, 24px));
+    }
+
+    .reveal-in.is-revealed {
         opacity: 1;
         transform: none;
     }
@@ -38,7 +41,8 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-        [data-reveal] {
+        .reveal-in,
+        .reveal-in.is-pending {
             opacity: 1;
             transform: none;
             transition: none;

@@ -37,12 +37,13 @@ const classes = ['bb-brand', `bb-brand--${size}`, wordmark ? 'bb-brand--wordmark
   .filter(Boolean)
   .join(' ');
 
-const px = size === 'sm' ? 26 : size === 'lg' ? 55 : 30;
+const Sub = fit ? 'bb-fit' : 'span';
+const px =size === 'sm' ? 26 : size === 'lg' ? 55 : 30;
 const parts = wordmark && logoSrc ? splitWordmark(title) : null;
 ---
 
 {href ? (
-  <a class={classes} href={href} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && !parts && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id">{parts ? <span class="bb-brand__name" role="img" aria-label={title}>{parts[0]}<img class="bb-brand__o" src={logoSrc} alt="" width={px} height={px} />{parts[1]}</span> : <span class="bb-brand__name">{title}</span>}{sub && <span class="bb-brand__sub" data-fit={fit ? '' : undefined}>{sub}</span>}</span></a>
+  <a class={classes} href={href} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && !parts && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id">{parts ? <span class="bb-brand__name" role="img" aria-label={title}>{parts[0]}<img class="bb-brand__o" src={logoSrc} alt="" width={px} height={px} />{parts[1]}</span> : <span class="bb-brand__name">{title}</span>}{sub && <Sub class="bb-brand__sub">{sub}</Sub>}</span></a>
 ) : (
-  <div class={classes} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && !parts && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id">{parts ? <span class="bb-brand__name" role="img" aria-label={title}>{parts[0]}<img class="bb-brand__o" src={logoSrc} alt="" width={px} height={px} />{parts[1]}</span> : <span class="bb-brand__name">{title}</span>}{sub && <span class="bb-brand__sub" data-fit={fit ? '' : undefined}>{sub}</span>}</span></div>
+  <div class={classes} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && !parts && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id">{parts ? <span class="bb-brand__name" role="img" aria-label={title}>{parts[0]}<img class="bb-brand__o" src={logoSrc} alt="" width={px} height={px} />{parts[1]}</span> : <span class="bb-brand__name">{title}</span>}{sub && <Sub class="bb-brand__sub">{sub}</Sub>}</span></div>
 )}

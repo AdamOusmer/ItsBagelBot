@@ -76,7 +76,7 @@ const tiers: Tier[] = [
 
 <div class="tiers">
     {tiers.map((tier, i) => (
-        <div class:list={['tier', `tier--${tier.key}`]} data-reveal style={`--reveal-i: ${i}`}>
+        <div class:list={['tier', 'reveal-in', `tier--${tier.key}`]} style={`--reveal-i: ${i}`}>
             <div class="tier__faces" aria-hidden="true">
                 {tier.faces.map((face) => (
                     <BolotaSvg bolota={face} class="tier__face" style={`--s: ${face.size}px`} />
@@ -84,19 +84,19 @@ const tiers: Tier[] = [
             </div>
             <Card class="tier__card" tone={tier.primary ? 'accent' : undefined} raised={tier.primary}>
                 <h3 class="tier__head">
-                    <span class="tier__name"><span data-fit>{tier.name}</span></span>
-                    {tier.badge && <span class="tier__badge"><span data-fit>{tier.badge}</span></span>}
+                    <span class="tier__name"><bb-fit>{tier.name}</bb-fit></span>
+                    {tier.badge && <span class="tier__badge"><bb-fit>{tier.badge}</bb-fit></span>}
                 </h3>
                 <div class="tier__price">
-                    <span class="tier__amount"><span data-fit>{tier.price}</span></span>
-                    {tier.suffix && <span class="tier__suffix"><span data-fit>{tier.suffix}</span></span>}
+                    <span class="tier__amount"><bb-fit>{tier.price}</bb-fit></span>
+                    {tier.suffix && <span class="tier__suffix"><bb-fit>{tier.suffix}</bb-fit></span>}
                 </div>
-                <p class="tier__desc"><span data-fit="block">{tier.desc}</span></p>
+                <p class="tier__desc"><bb-fit mode="block">{tier.desc}</bb-fit></p>
                 <div class="tier__rule"></div>
-                <p class="tier__lead">{tier.lead && <span data-fit>{tier.lead}</span>}</p>
+                <p class="tier__lead">{tier.lead && <bb-fit>{tier.lead}</bb-fit>}</p>
                 <ul class="tier__features">
                     {tier.features.map((feature) => (
-                        <li class="tier__feature"><Icon name="check" size={14} class="tier__check" /><span class="tier__feat"><span data-fit="block">{feature}</span></span></li>
+                        <li class="tier__feature"><Icon name="check" size={14} class="tier__check" /><span class="tier__feat"><bb-fit mode="block">{feature}</bb-fit></span></li>
                     ))}
                 </ul>
                 <ButtonLink
@@ -104,8 +104,8 @@ const tiers: Tier[] = [
                     href={tier.href}
                     variant={tier.primary ? 'primary' : 'secondary'}
                     {...(tier.external ? external : {})}
-                ><span data-fit>{tier.cta}</span></ButtonLink>
-                <p class="tier__note">{tier.note && <span data-fit>{tier.note}</span>}</p>
+                ><bb-fit>{tier.cta}</bb-fit></ButtonLink>
+                <p class="tier__note">{tier.note && <bb-fit>{tier.note}</bb-fit>}</p>
             </Card>
         </div>
     ))}

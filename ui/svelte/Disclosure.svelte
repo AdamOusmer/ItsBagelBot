@@ -56,6 +56,6 @@
 
 <details class={classes} bind:this={details} {open} ontoggle={toggled} {...rest}><summary class="bb-disclosure__summary"
     >{#if index}<span class="bb-disclosure__index" aria-hidden="true">{index}</span>{/if}<span
-      class="bb-disclosure__label"><span data-fit="block">{summary}</span></span
+      class="bb-disclosure__label"><bb-fit mode="block">{summary}</bb-fit></span
     ><span class="bb-disclosure__icon" aria-hidden="true"></span></summary
   ><div class="bb-disclosure__body"><div class="bb-disclosure__content">{#if children}{@render children()}{/if}</div></div></details>

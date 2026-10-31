@@ -19,4 +19,4 @@ const { index, title, class: className = '', ...rest } = Astro.props;
 const classes = ['bb-step-card', className].filter(Boolean).join(' ');
 ---
 
-<li><Card atmo hover class={classes} {...rest}><Eyebrow aria-hidden="true">{String(index).padStart(2, '0')}</Eyebrow>{title && <Heading level={5} as="h3" class="bb-step-card__title"><span data-fit="block">{title}</span></Heading>}<Text size="sm" tone="muted" class="bb-step-card__body"><span data-fit="block"><slot /></span></Text></Card></li>
+<li><Card atmo hover class={classes} {...rest}><Eyebrow aria-hidden="true">{String(index).padStart(2, '0')}</Eyebrow>{title && <Heading level={5} as="h3" class="bb-step-card__title"><bb-fit mode="block">{title}</bb-fit></Heading>}<Text size="sm" tone="muted" class="bb-step-card__body"><bb-fit mode="block"><slot /></bb-fit></Text></Card></li>

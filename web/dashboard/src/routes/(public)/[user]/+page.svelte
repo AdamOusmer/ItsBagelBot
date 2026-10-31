@@ -111,14 +111,14 @@
 
 <main class="lb">
   <header class="lb-head">
-    <span class="lb-eyebrow"><span data-fit="">{t('leaderboard.eyebrow')}</span></span>
+    <span class="lb-eyebrow"><bb-fit>{t('leaderboard.eyebrow')}</bb-fit></span>
     <h1 class="lb-title{titleSize ? ` lb-title--${titleSize}` : ''}">
       {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="lb-word">{word}</span>{/each}
     </h1>
-    <p class="lb-tagline"><span data-fit="block">{t('leaderboard.tagline')}</span></p>
+    <p class="lb-tagline"><bb-fit mode="block">{t('leaderboard.tagline')}</bb-fit></p>
     <div class="lb-visit" aria-hidden={!data.commandsPage}>
       {#if data.commandsPage}
-        <TextLink variant="arrow" tone="go" href={channelHref} label={t('leaderboard.visitChannel')}><span data-fit="">{t('leaderboard.visitChannel')}</span></TextLink>
+        <TextLink variant="arrow" tone="go" href={channelHref} label={t('leaderboard.visitChannel')}><bb-fit>{t('leaderboard.visitChannel')}</bb-fit></TextLink>
       {/if}
     </div>
   </header>
@@ -139,11 +139,11 @@
               <span class="lb-spot__rank">{spot.rank}</span>
               <span class="lb-spot__name">{rowName(spot.viewer)}</span>
             </div>
-            <div class="lb-spot__points"><span data-fit="">{formatPointValue(spot.viewer.points, locale)}</span></div>
-            <div class="lb-spot__unit"><span data-fit="">{data.currencyName}</span></div>
+            <div class="lb-spot__points"><bb-fit>{formatPointValue(spot.viewer.points, locale)}</bb-fit></div>
+            <div class="lb-spot__unit"><bb-fit>{data.currencyName}</bb-fit></div>
             <div class="lb-spot__rule"></div>
             <div class="lb-spot__meta">
-              <span class="lb-spot__meta-label"><span data-fit="">{t('leaderboard.colWatched')}</span></span>
+              <span class="lb-spot__meta-label"><bb-fit>{t('leaderboard.colWatched')}</bb-fit></span>
               <span class="lb-spot__meta-value">{hoursFmt(spot.viewer.watchSeconds)} {t('leaderboard.watchUnit')}</span>
             </div>
           </Card>
@@ -155,8 +155,8 @@
   <Card class="lb-board">
     <div class="lb-board__head">
       <div class="lb-board__intro">
-        <h2 class="lb-board__title"><span data-fit="">{t('leaderboard.boardTitle')}</span></h2>
-        <p class="lb-board__note"><span data-fit="">{t('leaderboard.boardNote')}</span></p>
+        <h2 class="lb-board__title"><bb-fit>{t('leaderboard.boardTitle')}</bb-fit></h2>
+        <p class="lb-board__note"><bb-fit>{t('leaderboard.boardNote')}</bb-fit></p>
       </div>
       <form class="lb-search" method="GET" role="search" onsubmit={submitSearch}>
         <SearchInput
@@ -180,9 +180,9 @@
       <div class="lb-table" role="table" aria-label={t('leaderboard.boardTitle')}>
         <div class="lb-row lb-row--head" role="row">
           <span class="lb-cell lb-cell--rank" role="columnheader">#</span>
-          <span class="lb-cell lb-cell--viewer" role="columnheader"><span data-fit="">{t('leaderboard.colViewer')}</span></span>
-          <span class="lb-cell lb-cell--hours" role="columnheader"><span data-fit="">{t('leaderboard.colWatched')}</span></span>
-          <span class="lb-cell lb-cell--points" role="columnheader"><span data-fit="">{data.currencyName}</span></span>
+          <span class="lb-cell lb-cell--viewer" role="columnheader"><bb-fit>{t('leaderboard.colViewer')}</bb-fit></span>
+          <span class="lb-cell lb-cell--hours" role="columnheader"><bb-fit>{t('leaderboard.colWatched')}</bb-fit></span>
+          <span class="lb-cell lb-cell--points" role="columnheader"><bb-fit>{data.currencyName}</bb-fit></span>
         </div>
         {#each data.rows as viewer, i (viewer.viewerId)}
           <div class="lb-row" role="row" style="--share: {shareOf(viewer.points)}">
@@ -201,13 +201,13 @@
       </div>
     {:else if emptyCopy}
       <div class="lb-empty">
-        {#if emptyCopy.title}<p class="lb-empty__title"><span data-fit="">{emptyCopy.title}</span></p>{/if}
-        <p class="lb-empty__body"><span data-fit="block">{emptyCopy.body}</span></p>
+        {#if emptyCopy.title}<p class="lb-empty__title"><bb-fit>{emptyCopy.title}</bb-fit></p>{/if}
+        <p class="lb-empty__body"><bb-fit mode="block">{emptyCopy.body}</bb-fit></p>
       </div>
     {/if}
 
     <div class="lb-board__foot">
-      <p class="lb-results" role="status" aria-live="polite"><span data-fit="">{resultsLine}</span></p>
+      <p class="lb-results" role="status" aria-live="polite"><bb-fit>{resultsLine}</bb-fit></p>
       <Pager
         fixed
         data-sveltekit-reset="false"
@@ -221,7 +221,7 @@
     </div>
   </Card>
 
-  <p class="lb-earn"><span data-fit="block">{t('leaderboard.earnNote')}</span></p>
+  <p class="lb-earn"><bb-fit mode="block">{t('leaderboard.earnNote')}</bb-fit></p>
 
   <DonateCard
     class="lb-donate"

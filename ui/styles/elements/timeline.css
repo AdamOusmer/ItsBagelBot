@@ -41,12 +41,11 @@
   }
 
   .bb-timeline--draw::before {
-    transform: scaleY(0);
     transform-origin: top;
     transition: transform 1400ms var(--bb-ease-out-expo) 200ms;
   }
 
-  .bb-timeline--draw.is-revealed::before { transform: scaleY(1); }
+  .bb-timeline--draw.is-pending::before { transform: scaleY(0); }
 
   .bb-timeline__item {
     position: relative;

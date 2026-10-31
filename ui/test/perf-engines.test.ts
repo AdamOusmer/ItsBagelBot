@@ -31,11 +31,54 @@ const win = Object.assign(target(), { innerWidth: 1000, innerHeight: 500, matchM
 const doc = Object.assign(target(), {
   hidden: false,
   documentElement: { classList: { toggle() {}, remove() {} } },
-  createElement: () => ({
-    style: {} as Record<string, string>,
-    animate: () => ({ cancel() {}, onfinish: null }),
-  }),
+  createElement: (tag: string) => {
+    if (tag === 'div') return { style: {} as Record<string, string>, className: '', append() {}, remove: () => removed.push('div') };
+    const canvas: StubCanvas = {
+      style: {},
+      className: '',
+      width: 0,
+      height: 0,
+      setAttribute() {},
+      remove() {},
+      getContext: () => ctx,
+    };
+    const ctx: StubContext = {
+      fills: [],
+      fillStyle: '',
+      setTransform() {},
+      clearRect() {},
+      beginPath() {},
+      arc() {},
+      fill() {
+        ctx.fills.push(ctx.fillStyle);
+      },
+      canvas,
+    };
+    contexts.push(ctx);
+    return canvas;
+  },
 });
+type StubCanvas = {
+  style: Record<string, string>;
+  className: string;
+  width: number;
+  height: number;
+  setAttribute(): void;
+  remove(): void;
+  getContext: () => StubContext;
+};
+type StubContext = {
+  fills: string[];
+  fillStyle: string;
+  setTransform(): void;
+  clearRect(): void;
+  beginPath(): void;
+  arc(): void;
+  fill(): void;
+  canvas: StubCanvas;
+};
+const contexts: StubContext[] = [];
+const removed: string[] = [];
 
 let frames: Array<(now: number) => void> = [];
 let timers = new Map<number, () => void>();
@@ -293,48 +336,91 @@ describe('magnetic', () => {
 describe('light field', () => {
   function host(width: number) {
     const children: unknown[] = [];
-    const el = {
+    return {
       clientWidth: width,
       clientHeight: 400,
-      animate: () => ({ cancel() {}, onfinish: null }),
-      append: (child: unknown) => void children.push(child),
-      replaceChildren: () => void (children.length = 0),
+      children,
+      replaceChildren: (...nodes: unknown[]) => children.splice(0, children.length, ...nodes),
     };
-    return { el, children };
   }
 
-  const backgrounds = (children: unknown[]) => children.map((c) => (c as { style: { background: string } }).style.background);
+  const mount = (el: ReturnType<typeof host>, options?: { warmth: number }) => {
+    const before = contexts.length;
+    const stop = field(el as unknown as HTMLElement, options);
+    return { stop, layers: contexts.slice(before) };
+  };
+
+  const dots = (layers: Array<{ fills: string[] }>) => layers.reduce((n, l) => n + l.fills.length, 0) / 3;
 
   test('mote colours come from the custom properties once, with the literals as fallback', () => {
     computed = { getPropertyValue: (name: string) => (name === '--bb-tan-rgb' ? ' 10, 20, 30 ' : '') };
-    const warm = host(1000);
-    field(warm.el as unknown as HTMLElement, { warmth: 1 });
-    observers.intersection[0]([{ isIntersecting: true }]);
-    expect(backgrounds(warm.children).every((b) => b.startsWith('rgba(10, 20, 30, '))).toBe(true);
+    const warm = mount(host(1000), { warmth: 1 });
+    const warmFills = warm.layers.flatMap((l) => l.fills);
+    expect(dots(warm.layers)).toBe(70);
+    expect(warmFills.every((f) => f.startsWith('rgba(10, 20, 30, '))).toBe(true);
 
-    const cool = host(1000);
-    field(cool.el as unknown as HTMLElement, { warmth: 0 });
-    observers.intersection[1]([{ isIntersecting: true }]);
-    expect(backgrounds(cool.children).every((b) => b.startsWith('rgba(98, 165, 147, '))).toBe(true);
+    const cool = mount(host(1000), { warmth: 0 });
+    expect(cool.layers.flatMap((l) => l.fills).every((f) => f.startsWith('rgba(98, 165, 147, '))).toBe(true);
     expect(styleReads).toBe(4);
+    warm.stop?.();
+    cool.stop?.();
   });
 
-  test('a burst of resizes rebuilds once, after the trailing debounce', () => {
+  test('three layers are drawn once, never touch the frame loop, and drift at height over speed', () => {
     computed = { getPropertyValue: () => '' };
-    const { el, children } = host(1000);
-    const dispose = field(el as unknown as HTMLElement);
-    observers.intersection[0]([{ isIntersecting: true }]);
-    expect(children).toHaveLength(70);
+    const el = host(1000);
+    const { stop, layers } = mount(el);
+    expect(layers).toHaveLength(3);
+    expect(el.children).toHaveLength(3);
+    expect(dots(layers)).toBe(70);
+    expect(layers.map((l) => l.fills.length / 3)).toEqual([24, 23, 23]);
+    expect(frames).toHaveLength(0);
+    expect(isRunning()).toBe(false);
+    flush(1016);
+    flush(1032);
+    expect(dots(layers)).toBe(70);
+
+    const seconds = layers.map((l) => parseFloat(l.canvas.style.animationDuration));
+    expect(seconds).toEqual([0.07, 0.14, 0.24].map((v) => Number((400 / v / 60).toFixed(2))));
+    expect(layers.every((l) => parseFloat(l.canvas.style.animationDelay) <= 0)).toBe(true);
+    expect(layers.every((l) => l.canvas.height === 800 && l.canvas.width === 1000)).toBe(true);
+    stop?.();
+  });
+
+  test('narrow hosts get 40 motes', () => {
+    computed = { getPropertyValue: () => '' };
+    const { stop, layers } = mount(host(500));
+    expect(dots(layers)).toBe(40);
+    stop?.();
+  });
+
+  test('a burst of resizes redraws once, after the trailing debounce, and recomputes durations', () => {
+    computed = { getPropertyValue: () => '' };
+    const el = host(1000);
+    const { stop, layers } = mount(el);
+    expect(dots(layers)).toBe(70);
 
     el.clientWidth = 500;
-    for (let i = 0; i < 5; i++) observers.resize[0]();
+    el.clientHeight = 800;
+    for (let i = 0; i < 5; i++) observers.resize[observers.resize.length - 1]();
     expect(timers.size).toBe(1);
-    expect(children).toHaveLength(70);
     fireTimers();
-    expect(children).toHaveLength(40);
+    expect(dots(layers)).toBe(70 + 40);
+    expect(parseFloat(layers[0].canvas.style.animationDuration)).toBe(Number((800 / 0.07 / 60).toFixed(2)));
 
-    observers.resize[0]();
-    dispose?.();
+    observers.resize[observers.resize.length - 1]();
+    stop?.();
+    expect(timers.size).toBe(0);
+  });
+
+  test('stop removes every layer and cancels a pending redraw', () => {
+    computed = { getPropertyValue: () => '' };
+    const { stop } = mount(host(1000));
+    removed.length = 0;
+    observers.resize[observers.resize.length - 1]();
+    expect(timers.size).toBe(1);
+    stop?.();
+    expect(removed).toHaveLength(3);
     expect(timers.size).toBe(0);
   });
 });
