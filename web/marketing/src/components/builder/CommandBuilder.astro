@@ -294,7 +294,7 @@ for (const surface of builderData(defaultLang).surfaces) {
         };
         const setFitText = (sel: string, text: string) => {
             const node = $<HTMLElement>(sel);
-            if (node.textContent === text && node.hasAttribute('data-fit-ready')) return;
+            if (node.textContent === text && node.classList.contains('is-fit')) return;
             node.textContent = text;
             fitWithin(node.parentElement!);
         };

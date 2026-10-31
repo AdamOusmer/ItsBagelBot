@@ -68,7 +68,7 @@ function fitOverflow(el) {
 }
 
 function fitProblemOf(el, minRatio) {
-    if (!el.hasAttribute('data-fit-ready')) return 'not fitted';
+    if (!el.classList.contains('is-fit')) return 'not fitted';
     const ratio = parseFloat(getComputedStyle(el).getPropertyValue('--bb-fit'));
     if (ratio < minRatio) return `ratio ${ratio.toFixed(2)}`;
     return hasSize(el.getBoundingClientRect()) ? fitOverflow(el) : null;

@@ -53,16 +53,16 @@ function fillLines(layer: HTMLElement, lines: string[]): HTMLElement {
 }
 
 function whenFitted(source: HTMLElement, run: () => void): () => void {
-    if (source.hasAttribute('data-fit-ready')) {
+    if (source.classList.contains('is-fit')) {
         run();
         return () => {};
     }
     const observer = new MutationObserver(() => {
-        if (!source.hasAttribute('data-fit-ready')) return;
+        if (!source.classList.contains('is-fit')) return;
         observer.disconnect();
         run();
     });
-    observer.observe(source, { attributes: true, attributeFilter: ['data-fit-ready'] });
+    observer.observe(source, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
 }
 

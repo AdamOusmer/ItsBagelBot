@@ -28,10 +28,4 @@
     [data-fit="block"] {
         display: block;
     }
-
-    @media (scripting: enabled) {
-        [data-fit]:not([data-fit-ready]) {
-            visibility: hidden;
-        }
-    }
 }

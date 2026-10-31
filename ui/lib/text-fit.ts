@@ -99,7 +99,7 @@ function fitAll(targets: readonly FitTarget[]): void {
     });
     groupMin(ratios).forEach((ratio, i) => {
         setRatio(targets[i], ratio);
-        targets[i].el.dataset.fitReady = '';
+        targets[i].el.classList.add('is-fit');
     });
 }
 
