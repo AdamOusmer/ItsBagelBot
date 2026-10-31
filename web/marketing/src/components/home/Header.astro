@@ -141,6 +141,20 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'excited'];
     const EXPRESSION_MIN_MS = 2600;
     const EXPRESSION_SPREAD_MS = 3400;
+    const PHONE = '(hover: none) and (pointer: coarse)';
+    // One awake engine is enough to keep the shared frame loop producing a full main frame every
+    // vsync (~10 ms at 6x CPU on a phone profile), and a morph keeps its engine awake ~1.3 s. With 17
+    // independent timers the loop never slept: ~74% of the main thread at rest, the same with 3
+    // morphs at a time. Bursts with gaps between them are what buy silence.
+    const BURST_MS = 5000;
+    const BURST_STAGGER_MS = 600;
+    // `excited` holds a tremor the engine runs frame by frame, so an engine wearing it never sleeps.
+    const PHONE_EXPRESSIONS = EXPRESSIONS.filter((name) => name !== 'excited');
+    const SEAT_ORDER = ['seat--hero', 'seat--front', 'seat--mid', 'seat--back'];
+    const MOUNT_CHUNK = 4;
+    const IDLE_TIMEOUT_MS = 1500;
+    const IDLE_FALLBACK_MS = 200;
+    type MountEngine = typeof import('@luzir/bolota/engine').mountEngine;
 
     function titleIntro(): void {
         const h1 = document.querySelector<HTMLElement>('[data-hero-title]');
@@ -169,7 +183,12 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     let engines: Live[] = [];
     let observer: IntersectionObserver | null = null;
+    let phone = false;
+    let burst: ReturnType<typeof setInterval> | null = null;
+    let waiting: Live[] = [];
     let mounting = false;
+    let mountRun = 0;
+    let crowdMounted = false;
     let crowdVisible = false;
     let crowdFaded = false;
     let heroEl: HTMLElement | null = null;
@@ -182,49 +201,122 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     const loadEngine = () => (enginePromise ??= import('@luzir/bolota/engine'));
 
     function leastUsedExpression(live: Live): string {
-        const counts = new Map(EXPRESSIONS.map((name) => [name, 0]));
+        const names = phone ? PHONE_EXPRESSIONS : EXPRESSIONS;
+        const counts = new Map(names.map((name) => [name, 0]));
         engines.forEach((other) => {
             if (other !== live && other.expression) counts.set(other.expression, (counts.get(other.expression) ?? 0) + 1);
         });
-        const options = EXPRESSIONS.filter((name) => name !== live.expression);
+        const options = names.filter((name) => name !== live.expression);
         const fewest = Math.min(...options.map((name) => counts.get(name) ?? 0));
         const pool = options.filter((name) => counts.get(name) === fewest);
         return pool[Math.floor(Math.random() * pool.length)];
     }
 
+    function morph(live: Live): void {
+        live.expression = leastUsedExpression(live);
+        live.handle.setExpression(live.expression);
+        scheduleExpression(live, EXPRESSION_MIN_MS + Math.random() * EXPRESSION_SPREAD_MS);
+    }
+
     function scheduleExpression(live: Live, delayMs: number): void {
         live.timer = setTimeout(() => {
-            live.expression = leastUsedExpression(live);
-            live.handle.setExpression(live.expression);
-            scheduleExpression(live, EXPRESSION_MIN_MS + Math.random() * EXPRESSION_SPREAD_MS);
+            live.timer = null;
+            if (phone) waiting.push(live);
+            else morph(live);
         }, delayMs);
     }
 
-    async function mountCrowd(crowd: HTMLElement): Promise<void> {
-        if (engines.length || mounting) return;
-        mounting = true;
-        const { mountEngine } = await loadEngine();
-        if (!mounting) return;
-
-        const visible = Array.from(crowd.querySelectorAll<SVGSVGElement>('[data-bolota]'))
-            .filter((svg) => svg.getClientRects().length > 0);
-
-        visible.forEach((svg) => {
-            const handle = mountEngine(svg, svg.dataset.bolota ?? 'chatter', {
-                size: Number(svg.dataset.size) || 100,
-                palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
-                background: false,
-            });
-            handle.loop('idle');
-            engines.push({ svg, handle, expression: null, timer: null });
+    function fireBurst(): void {
+        const due = waiting;
+        waiting = [];
+        due.forEach((live) => {
+            live.timer = setTimeout(() => {
+                live.timer = null;
+                morph(live);
+            }, Math.random() * BURST_STAGGER_MS);
         });
+    }
 
-        engines.forEach((live) => scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS));
+    function startBursts(): void {
+        if (!phone || burst) return;
+        burst = setInterval(fireBurst, BURST_MS);
+    }
+
+    function stopBursts(): void {
+        if (burst) clearInterval(burst);
+        burst = null;
+        waiting = [];
+    }
+
+    function whenLoaded(callback: () => void): void {
+        if (document.readyState === 'complete') callback();
+        else window.addEventListener('load', callback, { once: true });
+    }
+
+    function whenIdle(callback: () => void): void {
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(callback, { timeout: IDLE_TIMEOUT_MS });
+        else setTimeout(callback, IDLE_FALLBACK_MS);
+    }
+
+    function seatRank(svg: SVGSVGElement): number {
+        const seat = svg.closest('.seat');
+        const rank = SEAT_ORDER.findIndex((name) => seat?.classList.contains(name));
+        return rank < 0 ? SEAT_ORDER.length : rank;
+    }
+
+    function unmountedSeats(crowd: HTMLElement): SVGSVGElement[] {
+        const mounted = new Set(engines.map((live) => live.svg));
+        return Array.from(crowd.querySelectorAll<SVGSVGElement>('[data-bolota]'))
+            .filter((svg) => !mounted.has(svg) && svg.getClientRects().length > 0)
+            .sort((a, b) => seatRank(a) - seatRank(b));
+    }
+
+    function mountOne(svg: SVGSVGElement, mountEngine: MountEngine): void {
+        const handle = mountEngine(svg, svg.dataset.bolota ?? 'chatter', {
+            size: Number(svg.dataset.size) || 100,
+            palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
+            background: false,
+        });
+        handle.loop('idle');
+        const live: Live = { svg, handle, expression: null, timer: null };
+        engines.push(live);
+        scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
+    }
+
+    function finishMount(): void {
         mounting = false;
+        crowdMounted = true;
         if (!crowdActive()) pauseCrowd();
     }
 
+    function mountChunk(run: number, crowd: HTMLElement, pending: SVGSVGElement[], mountEngine: MountEngine): void {
+        if (run !== mountRun || !crowd.isConnected) return;
+        pending.splice(0, MOUNT_CHUNK).forEach((svg) => mountOne(svg, mountEngine));
+        if (pending.length) whenIdle(() => mountChunk(run, crowd, pending, mountEngine));
+        else finishMount();
+    }
+
+    async function startMount(run: number, crowd: HTMLElement): Promise<void> {
+        const { mountEngine } = await loadEngine();
+        if (run !== mountRun || !crowd.isConnected) return;
+        phone = matchMedia(PHONE).matches;
+        startBursts();
+        mountChunk(run, crowd, unmountedSeats(crowd), mountEngine);
+    }
+
+    function mountCrowd(crowd: HTMLElement): void {
+        if (mounting) return;
+        mounting = true;
+        const run = ++mountRun;
+        whenLoaded(() => whenIdle(() => {
+            if (run === mountRun && crowd.isConnected) startMount(run, crowd);
+        }));
+    }
+
     function pauseCrowd(): void {
+        mountRun++;
+        mounting = false;
+        stopBursts();
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.timer = null;
@@ -233,6 +325,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function resumeCrowd(): void {
+        startBursts();
         engines.forEach((live) => {
             live.handle.loop('idle');
             if (!live.timer) scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
@@ -241,8 +334,10 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     function syncCrowd(crowd: HTMLElement): void {
         if (!crowdActive()) pauseCrowd();
-        else if (engines.length) resumeCrowd();
-        else mountCrowd(crowd);
+        else {
+            if (engines.length) resumeCrowd();
+            if (!crowdMounted) mountCrowd(crowd);
+        }
     }
 
     function onCrowdVisibility(crowd: HTMLElement, visible: boolean): void {
@@ -271,7 +366,10 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function unmountCrowd(): void {
+        mountRun++;
         mounting = false;
+        crowdMounted = false;
+        stopBursts();
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.handle.destroy();
