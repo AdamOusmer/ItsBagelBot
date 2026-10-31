@@ -122,8 +122,8 @@ func TestTailscaleOperatorIsPatchedRelease(t *testing.T) {
 
 func TestNewRelicBundleKeepsControlPlaneToleration(t *testing.T) {
 	c := loadHelmCharts(t)["newrelic-bundle"]
-	require.Equal(t, 5, strings.Count(c.Spec.ValuesContent, "value: cp"),
-		"controlplane, ksm, kubelet, kube-state-metrics and prometheus-agent must tolerate the cp1 taint")
+	require.Equal(t, 6, strings.Count(c.Spec.ValuesContent, "value: cp"),
+		"controlplane, ksm, kubelet, kube-state-metrics, logging and prometheus-agent must tolerate the cp1 taint")
 }
 
 func TestFalcoUIStaysOff(t *testing.T) {
