@@ -22,7 +22,6 @@
     "./lib/light-field": "./lib/light-field.ts",
     "./lib/line-series": "./lib/line-series.ts",
     "./lib/live-poll": "./lib/live-poll.ts",
-    "./lib/motion-gate": "./lib/motion-gate.ts",
     "./lib/motion-query": "./lib/motion-query.ts",
     "./lib/nav-types": "./lib/nav-types.ts",
     "./lib/offstage": "./lib/offstage.ts",

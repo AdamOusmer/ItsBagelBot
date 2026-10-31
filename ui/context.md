@@ -54,8 +54,7 @@ Svelte `setUiI18n` and Astro `uiI18n(Astro)` resolve locale without product-spec
 - [lib/raf-loop.ts](lib/raf-loop.ts): shared animation subscription/wake scheduling.
 - `lib/lenis.ts`, `scroll-spy.ts`, `reading-progress.ts`, `glide.ts`: navigation/scroll engines.
 - `lib/icons.ts`, `line-series.ts`, `csv.ts`, `clipboard.ts`: shared symbols/data/utility primitives.
-- `lib/motion-gate.ts`, `tilt.ts`, `nested-scroll.ts`, `roving-focus.ts`: motion ownership/visibility,
-  pointer effects, nested scroll and keyboard navigation. Inspect these before adding new listeners.
+- `tilt.ts`, `nested-scroll.ts`, `roving-focus.ts`: pointer effects, nested scroll and keyboard navigation. Inspect these before adding new listeners.
 - `svelte/forms.ts`: shared form enhancements; `locales/index.ts` is generated UI catalog data.
 - `fonts/`: local WOFF2 assets; consumers can import URLs for selective preloads. `caveat-latin.woff2` holds only the
   glyphs in `caveat-glyphs.txt` (derived from locale sign-off strings; `test/caveat-glyphs.test.ts` fails when a copy edit

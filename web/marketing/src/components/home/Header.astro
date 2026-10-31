@@ -380,6 +380,12 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 </script>
 
 <style>
+    @property --hero-p {
+        syntax: '<number>';
+        inherits: false;
+        initial-value: 0;
+    }
+
     .hero {
         --hero-pad-x: 40px;
         --crowd-h: 360px;
@@ -420,7 +426,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .starfield {
-        display: var(--hero-decor-display, block);
+        visibility: var(--hero-decor-visibility, visible);
         position: absolute;
         inset: 0;
         z-index: -1;
@@ -430,7 +436,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .bg {
-        display: var(--hero-decor-display, block);
+        visibility: var(--hero-decor-visibility, visible);
         position: absolute;
         inset: 0;
         pointer-events: none;
@@ -581,7 +587,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .crowd {
-        display: var(--hero-decor-display, block);
+        visibility: var(--hero-decor-visibility, visible);
         position: absolute;
         left: 0;
         right: 0;

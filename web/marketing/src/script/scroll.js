@@ -34,9 +34,15 @@ const nativeScroll = {
 
 const controller = () => smooth ?? nativeScroll;
 
-// Kept off :root, where a per-frame custom property restyles every element on the page.
+// --hero-p is registered non-inherited and written on each reader: a per-frame write on the hero root restyled the whole crowd.
+const HERO_PROGRESS_READERS = '.material, .starfield, .orb, .crowd';
 let hero = document.querySelector('[data-hero-progress]');
+let heroReaders = readersOf(hero);
 let viewportHeight = Math.max(1, window.innerHeight);
+
+function readersOf(root) {
+    return root ? Array.from(root.querySelectorAll(HERO_PROGRESS_READERS)) : [];
+}
 let lastHeroProgress = -1;
 let lastHeroUiHidden = null;
 let lastHeroComplete = null;
@@ -57,7 +63,7 @@ const HERO_COMPLETE_HINTS = [
     ['--hero-animation-state', 'paused', 'running'],
     ['--hero-content-will-change', 'auto', 'opacity, transform'],
     ['--hero-orb-will-change', 'auto', 'opacity, transform'],
-    ['--hero-decor-display', 'none', 'block'],
+    ['--hero-decor-visibility', 'hidden', 'visible'],
 ];
 
 function applyHeroComplete(complete) {
@@ -73,7 +79,8 @@ function updateHeroProgress() {
     const heroComplete = heroProgress >= 1;
 
     if (Math.abs(heroProgress - lastHeroProgress) > 0.0005) {
-        hero.style.setProperty('--hero-p', heroProgress.toFixed(4));
+        const value = heroProgress.toFixed(4);
+        for (const reader of heroReaders) reader.style.setProperty('--hero-p', value);
         lastHeroProgress = heroProgress;
     }
 
@@ -153,6 +160,7 @@ function restoreRouteScroll(top) {
 // The swap brings a new hero without inline style, so the cached values no longer match what is on the page.
 function forgetHeroState() {
     hero = document.querySelector('[data-hero-progress]');
+    heroReaders = readersOf(hero);
     lastHeroProgress = -1;
     lastHeroUiHidden = null;
     lastHeroComplete = null;
