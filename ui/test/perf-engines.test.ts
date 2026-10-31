@@ -31,11 +31,33 @@ const win = Object.assign(target(), { innerWidth: 1000, innerHeight: 500, matchM
 const doc = Object.assign(target(), {
   hidden: false,
   documentElement: { classList: { toggle() {}, remove() {} } },
-  createElement: () => ({
-    style: {} as Record<string, string>,
-    animate: () => ({ cancel() {}, onfinish: null }),
-  }),
+  createElement: () => {
+    const ctx = {
+      fills: [] as string[],
+      fillStyle: '',
+      setTransform() {},
+      clearRect() {},
+      beginPath() {},
+      arc() {},
+      fill() {
+        ctx.fills.push(ctx.fillStyle);
+      },
+      canvas: null as unknown,
+    };
+    const canvas = {
+      style: {} as Record<string, string>,
+      width: 0,
+      height: 0,
+      setAttribute() {},
+      remove() {},
+      getContext: () => ctx,
+    };
+    ctx.canvas = canvas;
+    contexts.push(ctx);
+    return canvas;
+  },
 });
+const contexts: Array<{ fills: string[] }> = [];
 
 let frames: Array<(now: number) => void> = [];
 let timers = new Map<number, () => void>();
@@ -292,48 +314,65 @@ describe('magnetic', () => {
 
 describe('light field', () => {
   function host(width: number) {
-    const children: unknown[] = [];
-    const el = {
-      clientWidth: width,
-      clientHeight: 400,
-      animate: () => ({ cancel() {}, onfinish: null }),
-      append: (child: unknown) => void children.push(child),
-      replaceChildren: () => void (children.length = 0),
-    };
-    return { el, children };
+    return { clientWidth: width, clientHeight: 400, replaceChildren() {} };
   }
 
-  const backgrounds = (children: unknown[]) => children.map((c) => (c as { style: { background: string } }).style.background);
+  const show = () => observers.intersection[observers.intersection.length - 1]([{ isIntersecting: true }]);
 
   test('mote colours come from the custom properties once, with the literals as fallback', () => {
     computed = { getPropertyValue: (name: string) => (name === '--bb-tan-rgb' ? ' 10, 20, 30 ' : '') };
-    const warm = host(1000);
-    field(warm.el as unknown as HTMLElement, { warmth: 1 });
-    observers.intersection[0]([{ isIntersecting: true }]);
-    expect(backgrounds(warm.children).every((b) => b.startsWith('rgba(10, 20, 30, '))).toBe(true);
+    const stopWarm = field(host(1000) as unknown as HTMLElement, { warmth: 1 });
+    show();
+    flush(1000);
+    const warm = contexts[contexts.length - 1].fills;
+    expect(warm).toHaveLength(70);
+    expect(warm.every((f) => f.startsWith('rgba(10, 20, 30, '))).toBe(true);
 
-    const cool = host(1000);
-    field(cool.el as unknown as HTMLElement, { warmth: 0 });
-    observers.intersection[1]([{ isIntersecting: true }]);
-    expect(backgrounds(cool.children).every((b) => b.startsWith('rgba(98, 165, 147, '))).toBe(true);
+    const stopCool = field(host(1000) as unknown as HTMLElement, { warmth: 0 });
+    show();
+    flush(1000);
+    const cool = contexts[contexts.length - 1].fills;
+    expect(cool.every((f) => f.startsWith('rgba(98, 165, 147, '))).toBe(true);
     expect(styleReads).toBe(4);
+    stopWarm?.();
+    stopCool?.();
+  });
+
+  test('draws once per frame while visible and stops scheduling when it leaves the viewport', () => {
+    computed = { getPropertyValue: () => '' };
+    const dispose = field(host(1000) as unknown as HTMLElement);
+    const { fills } = contexts[contexts.length - 1];
+    flush(1000);
+    expect(fills).toHaveLength(0);
+    show();
+    flush(1016);
+    expect(fills).toHaveLength(70);
+    flush(1032);
+    expect(fills).toHaveLength(140);
+    observers.intersection[observers.intersection.length - 1]([{ isIntersecting: false }]);
+    flush(1048);
+    expect(fills).toHaveLength(140);
+    expect(frames).toHaveLength(0);
+    dispose?.();
   });
 
   test('a burst of resizes rebuilds once, after the trailing debounce', () => {
     computed = { getPropertyValue: () => '' };
-    const { el, children } = host(1000);
+    const el = host(1000);
     const dispose = field(el as unknown as HTMLElement);
-    observers.intersection[0]([{ isIntersecting: true }]);
-    expect(children).toHaveLength(70);
+    const { fills } = contexts[contexts.length - 1];
+    show();
+    flush(1000);
+    expect(fills).toHaveLength(70);
 
     el.clientWidth = 500;
-    for (let i = 0; i < 5; i++) observers.resize[0]();
+    for (let i = 0; i < 5; i++) observers.resize[observers.resize.length - 1]();
     expect(timers.size).toBe(1);
-    expect(children).toHaveLength(70);
     fireTimers();
-    expect(children).toHaveLength(40);
+    flush(1016);
+    expect(fills).toHaveLength(70 + 40);
 
-    observers.resize[0]();
+    observers.resize[observers.resize.length - 1]();
     dispose?.();
     expect(timers.size).toBe(0);
   });
