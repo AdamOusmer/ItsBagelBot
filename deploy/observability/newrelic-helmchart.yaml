@@ -140,7 +140,26 @@ spec:
     newrelic-k8s-metrics-adapter:
       enabled: false
     newrelic-logging:
-      enabled: false
+      enabled: true
+      lowDataMode: true
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 10m
+          memory: 64Mi
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
+      - key: role
+        operator: Equal
+        value: cp
+        effect: NoSchedule
     newrelic-pixie:
       enabled: false
     newrelic-prometheus-agent:

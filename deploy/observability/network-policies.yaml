@@ -86,7 +86,7 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: In
-        values: [newrelic-infrastructure, newrelic-prometheus-agent]
+        values: [newrelic-infrastructure, newrelic-logging, newrelic-prometheus-agent]
   policyTypes: [Egress]
   egress:
     - ports:
@@ -147,7 +147,7 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: In
-        values: [newrelic-infrastructure, newrelic-prometheus-agent, kube-state-metrics]
+        values: [newrelic-infrastructure, newrelic-logging, newrelic-prometheus-agent, kube-state-metrics]
   egress:
     - toEntities: [kube-apiserver]
       toPorts:
