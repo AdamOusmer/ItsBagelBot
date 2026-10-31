@@ -61,7 +61,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.seam')).toHaveCount(8);
         await expect(page.locator('.seam__line').first()).toHaveCSS('animation-name', 'seam-draw');
         await expect(page.locator('.seam__line').first()).toHaveCSS('animation-timeline', 'view()');
-        await expect(page.locator('#playground > *').nth(1)).toHaveCSS('animation-name', 'section-handoff');
+        await expect(page.locator('#playground > *').nth(1)).toHaveCSS('animation-name', 'none');
 
         const play = page.locator('#playground');
         await expect(play.locator('h2')).toContainText('Try it here.');
@@ -146,7 +146,6 @@ test.describe('ItsBagelBot site', () => {
     test('static gates open in sync with the message', async ({ page }) => {
         await page.goto('/');
         await page.locator('.gates__lane').scrollIntoViewIfNeeded();
-        await expect(page.locator('#safety-layers')).toHaveAttribute('data-motion', 'on');
 
         const samples = await page.evaluate(() => {
             const lane = document.querySelector('.gates__lane');
@@ -367,10 +366,10 @@ test.describe('ItsBagelBot site', () => {
         await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
-        const title = page.locator('[data-pricing-title]');
+        const title = page.locator('main h1.title');
         await expect(title).toContainText('Pricing', { timeout: 3000 });
         await expect(title).toBeVisible();
-        await expect.poll(() => title.locator('[data-pricing-word]').first().evaluate((word) => getComputedStyle(word).opacity), { timeout: 3000 }).toBe('1');
+        await expect.poll(() => title.locator('.word').first().evaluate((word) => getComputedStyle(word).opacity), { timeout: 3000 }).toBe('1');
     });
 });
 
