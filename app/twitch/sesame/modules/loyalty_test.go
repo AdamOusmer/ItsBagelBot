@@ -14,7 +14,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
@@ -446,41 +445,9 @@ func TestLeaderboard(t *testing.T) {
 	}
 }
 
-func TestCounterCommand(t *testing.T) {
-	cases := []struct {
-		name     string
-		args     string
-		contains string
-		bumps    []bumpCall
-		sets     int
-		deleted  []string
-	}{
-		{name: "no arguments prints usage", args: "", contains: "usage"},
-		{name: "a bare name shows the value", args: "deaths", contains: "42"},
-		{name: "add bumps by the amount", args: "add deaths 3", contains: "3", bumps: []bumpCall{{2, "deaths", 7, "", 3}}},
-		{name: "set writes the value", args: "set deaths 10", contains: "10", sets: 1},
-		{name: "reset reports the reset", args: "reset deaths", contains: "reset", sets: 1},
-		{name: "delete removes the counter", args: "delete deaths", contains: "deleted", deleted: []string{"deaths"}},
-		{name: "list names the counters", args: "list", contains: "deaths"},
-		{name: "an unknown counter is not found", args: "nosuch", contains: "not found"},
-		{name: "create defaults to the channel scope", args: "create wins", contains: "channel"},
-		{name: "create accepts a per user scope", args: "create wins user", contains: "per user"},
-		{name: "create accepts a per user and command scope", args: "create hugs user+command", contains: "per user+command"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			fake := &fakeLoyalty{
-				counters: map[string]loyaltyrpc.Counter{"deaths": {Name: "deaths", Scope: data.CounterScopeChannel, Value: 42}},
-				setFound: true,
-			}
-			out := runLoyaltyChat(t, fake, loyaltyChat(viewer, ""), strings.TrimSpace("!counter "+tc.args))
-			require.Len(t, out, 1)
-			assert.Contains(t, strings.ToLower(out[0].Text), tc.contains)
-			assert.Equal(t, tc.bumps, fake.bumps)
-			assert.Equal(t, tc.sets, fake.setCalls)
-			assert.Equal(t, tc.deleted, fake.deleted)
-		})
-	}
+func TestCounterIsNotABuiltinCommand(t *testing.T) {
+	_, _, ok := engine.NewRegistry(zap.NewNop(), Loyalty(loyaltyDeps(&fakeLoyalty{}))).ResolveCommand("counter")
+	assert.False(t, ok, "!counter is free for a channel's own custom command")
 }
 
 type variableLoyaltyBalance struct {

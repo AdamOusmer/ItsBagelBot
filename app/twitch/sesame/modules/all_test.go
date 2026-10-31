@@ -143,7 +143,7 @@ var shippedContract = map[string]moduleSpec{
 	}},
 	"quotes": {module.KindOptIn, []commandSpec{command("quote", roleEveryone, "quotes"), command("quoteadd", roleEveryone, "addquote")}},
 	"loyalty": {module.KindOptIn, []commandSpec{
-		command("points", roleEveryone), command("setpoints", roleModerator), command("watchtime", roleEveryone), command("leaderboard", roleEveryone, "top"), command("counter", roleModerator),
+		command("points", roleEveryone), command("setpoints", roleModerator), command("watchtime", roleEveryone), command("leaderboard", roleEveryone, "top"),
 	}},
 	"gamble": {module.KindOptIn, []commandSpec{command("gamble", roleEveryone)}},
 	"duel":   {module.KindOptIn, []commandSpec{command("duel", roleEveryone)}},

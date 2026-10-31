@@ -532,6 +532,35 @@ func TestCommandBumpCounterOption(t *testing.T) {
 	}
 }
 
+func TestCommandBumpCounterStep(t *testing.T) {
+	cases := []struct {
+		name      string
+		text      string
+		badge     string
+		wantDelta int64
+	}{
+		{name: "a moderator's number adds that many", text: "!so 5", badge: "moderator", wantDelta: 5},
+		{name: "a moderator's plus sign is accepted", text: "!so +3", badge: "moderator", wantDelta: 3},
+		{name: "a moderator's negative number removes", text: "!so -1", badge: "moderator", wantDelta: -1},
+		{name: "the broadcaster may set the step", text: "!so -2", badge: "broadcaster", wantDelta: -2},
+		{name: "a viewer's number is ignored", text: "!so 50", wantDelta: 1},
+		{name: "a vip's number is ignored", text: "!so -1", badge: "vip", wantDelta: 1},
+		{name: "a moderator's zero falls back to one", text: "!so 0", badge: "moderator", wantDelta: 1},
+		{name: "a moderator's out of range number falls back to one", text: "!so 1000001", badge: "moderator", wantDelta: 1},
+		{name: "a moderator's non number falls back to one", text: "!so @bob", badge: "moderator", wantDelta: 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			loyalty := &stubLoyalty{}
+			cmd := projection.Command{Name: "so", Response: "hi", IsActive: true, Perm: "everyone", BumpCounter: "deaths"}
+			replies(t, customCommandPipeline(cmd, loyalty), chatEnv(tc.text, tc.badge))
+
+			require.Len(t, loyalty.bumps, 1)
+			assert.Equal(t, tc.wantDelta, loyalty.bumps[0].Delta)
+		})
+	}
+}
+
 func TestCommandBumpCounterOptionRedeliveryDoesNotDoubleCount(t *testing.T) {
 	store := newRecordingStore()
 	loyalty := &stubLoyalty{}
