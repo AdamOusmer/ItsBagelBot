@@ -70,7 +70,6 @@
   "catalog.b1.props.modules.10.start": "Desactivado por defecto",
   "catalog.b1.props.modules.10.tagline": "Los espectadores ganan una moneda del canal por subs, cheers y tiempo de visionado.",
   "catalog.b1.props.modules.11.cat": "Puntos",
-  "catalog.b1.props.modules.11.commands": "!counter",
   "catalog.b1.props.modules.11.name": "Contadores",
   "catalog.b1.props.modules.11.start": "Siempre activado",
   "catalog.b1.props.modules.11.tagline": "Cuenta victorias, muertes, abrazos, canjes, todo lo que el chat pueda contar.",

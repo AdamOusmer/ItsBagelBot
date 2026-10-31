@@ -46,7 +46,7 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 - An active raffle takes `!join` priority. Use `!queue join` explicitly when both features are in use.
 - The viewer queue is first come, first served. Closing joins preserves the waiting line. Listing shows ten entries with a 5-second cooldown.
 - Quote add/edit permissions default to moderators. Reads have a 5-second cooldown; deleted numbers are retired.
-- Counter scopes: channel, per viewer, per command, and per viewer plus command. Custom responses and channel-points rewards can increment them.
+- Counter scopes: channel, per viewer, per command, and per viewer plus command. Custom commands with "{{console:commandEditor.bumpCounter}}" and channel-points rewards can increment them; there is no built-in chat command for counters.
 - A new timer defaults to 600 seconds, at least 15 chat lines within 10 minutes, enabled, and live only.
 - Timers support an offline option, a per-stream firing cap, and an end date. A firing cap of 0 is unlimited.
 - Timers, counters in the dashboard, and automatic raid shoutouts do not need viewer chat commands.
@@ -177,15 +177,15 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 
 </command>
 
-<command name="!counter">
+<command name="Counting from chat">
 
-### `!counter`
+### Counting from chat
 
-- Syntax: `!counter <name>`, `!counter create <name> [user|command|user+command]`, `!counter add <name> [value]`, `!counter set <name> <value>`, `!counter reset <name>`, `!counter delete <name>`, `!counter list`
-- Aliases: None registered.
-- Who can run it: Moderators, lead moderators, and the broadcaster. Chat counter commands are registered with loyalty and require it to be enabled.
-- Behaviour: Reads or manages counters. Add defaults to 1; delete also accepts `del` or `remove`.
-- Example reply template: "{{chat:loyalty.counter.show}}".
+- Syntax: a custom command such as `!deaths` with "{{console:commandEditor.bumpCounter}}" turned on and a counter chosen. A moderator may add a signed number: `!deaths 5` or `!deaths +5` adds 5, `!deaths -1` removes 1.
+- Aliases: None. There is no built-in `!counter` command; a channel may create its own custom command with that name.
+- Who can run it: Anyone triggers the custom command and adds 1. Only moderators, lead moderators, and the broadcaster can set the step; a number typed by anyone else is ignored and the command still adds 1.
+- Behaviour: Each use adds 1 unless a moderator gives a step. A zero, a non-number, or a number beyond 1,000,000 in either direction falls back to 1. `{counter:name}` and `{count:name}` in a reply only read the value and never change it.
+- Dashboard: Create, set, reset, rename, and delete counters on the [{{console:nav.counters}}](https://dashboard.itsbagelbot.com/counters) page. Channel-point rewards can also bump a counter from the Channel Points page.
 
 </command>
 

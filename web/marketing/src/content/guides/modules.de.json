@@ -70,7 +70,6 @@
   "catalog.b1.props.modules.10.start": "Standardmäßig inaktiv",
   "catalog.b1.props.modules.10.tagline": "Zuschauer verdienen Kanalwährung für Subs, Cheers und Sehzeit.",
   "catalog.b1.props.modules.11.cat": "Punkte",
-  "catalog.b1.props.modules.11.commands": "!counter",
   "catalog.b1.props.modules.11.name": "Zähler",
   "catalog.b1.props.modules.11.start": "Immer aktiv",
   "catalog.b1.props.modules.11.tagline": "Zähle Siege, Tode, Umarmungen, Trades, alles, was der Chat zählen kann.",

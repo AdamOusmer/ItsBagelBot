@@ -17,35 +17,35 @@ const guide: GuideContent = {
     card: {
       title: 'Counters',
       description:
-        'Numbers the bot remembers forever: the {counter:name} token, the four scopes (channel, per user, per command, per user + command), and binding one to a channel-point reward.',
+        'Numbers the bot remembers forever: counting from a command, the {counter:name} token, the four scopes (channel, per user, per command, per user + command), and binding one to a channel-point reward.',
       meta: '8 min · 4 steps',
-      chips: ['{counter:…}', 'scopes', '!counter', 'channel points'],
+      chips: ['{counter:…}', 'scopes', 'Bump a counter', 'channel points'],
     },
   },
   sections: [
     {
       id: 'basics',
       heading: 'Counters: numbers that remember',
-      note: 'One token, {counter:name}, adds 1 and shows the total. The count survives every stream.',
+      note: 'A command bumps the counter, the {counter:name} token shows it. The count survives every stream.',
       blocks: [
         {
           kind: 'prose',
           html: `
             <p>
-                A counter is a named number the bot remembers between streams. Write
-                <code>&#123;counter:deaths&#125;</code> in a command's response, and every time the
-                command runs, the bot adds 1 to a counter called "deaths" and shows the new total
-                right there in its reply. No spreadsheet, no manual tally, just a token.
+                A counter is a named number the bot remembers between streams. Create one on the
+                Counters page, then turn on <strong>Bump a counter</strong> in a custom command such as
+                <code>!death</code> and pick the counter. Every use adds 1. Write
+                <code>&#123;counter:deaths&#125;</code> in any response to show the current total.
             </p>`,
         },
         {
           kind: 'chat',
           title: '#your_channel',
-          caption: 'Two runs of the same !death command, one counter remembering both.',
+          caption: '!death adds 1 to the counter, and !deaths reads the total back with the token.',
           lines: [
             { who: 'viewer', name: 'MikanMeerkat', text: '!death' },
-            { who: 'bot', text: 'your_channel has died 47 times.' },
-            { who: 'viewer', name: 'SnackPackPanda', text: '!death' },
+            { who: 'bot', text: 'The boss wins again.' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!deaths' },
             { who: 'bot', text: 'your_channel has died 48 times.' },
           ],
         },
@@ -75,12 +75,12 @@ const guide: GuideContent = {
         },
         {
           kind: 'table',
-          head: ['Scope', 'Chat word', "What's counted"],
+          head: ['Scope', "What's counted"],
           rows: [
-            ['Whole channel', '<em>(default)</em>', 'One shared total, everyone adds to the same number.'],
-            ['Per user', '<code>user</code>', 'Each viewer gets their own number.'],
-            ['Per command or reward', '<code>command</code>', 'One shared total for a single command or reward, every viewer pooled together.'],
-            ['Per user + command or reward', '<code>user+command</code>', 'Each viewer gets a separate number for each command or reward.'],
+            ['Whole channel', 'One shared total, everyone adds to the same number.'],
+            ['Per user', 'Each viewer gets their own number.'],
+            ['Per command or reward', 'One shared total for a single command or reward, every viewer pooled together.'],
+            ['Per user + command or reward', 'Each viewer gets a separate number for each command or reward.'],
           ],
         },
         {
@@ -95,11 +95,11 @@ const guide: GuideContent = {
         {
           kind: 'chat',
           title: '#your_channel',
-          caption: "Doesn't matter who types !death, the channel's total keeps climbing.",
+          caption: 'Whoever asks, the channel shows one shared total.',
           lines: [
-            { who: 'viewer', name: 'MikanMeerkat', text: '!death' },
-            { who: 'bot', text: 'your_channel has died 47 times.' },
-            { who: 'viewer', name: 'Lotti', text: '!death' },
+            { who: 'viewer', name: 'MikanMeerkat', text: '!deaths' },
+            { who: 'bot', text: 'your_channel has died 48 times.' },
+            { who: 'viewer', name: 'Lotti', text: '!deaths' },
             { who: 'bot', text: 'your_channel has died 48 times.' },
           ],
         },
@@ -118,9 +118,9 @@ const guide: GuideContent = {
           title: '#your_channel',
           caption: 'Same command, two viewers, two totally separate counts.',
           lines: [
-            { who: 'viewer', name: 'SnackPackPanda', text: '!hug' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!hugs' },
             { who: 'bot', text: 'SnackPackPanda has given 12 hugs.' },
-            { who: 'viewer', name: 'MikanMeerkat', text: '!hug' },
+            { who: 'viewer', name: 'MikanMeerkat', text: '!hugs' },
             { who: 'bot', text: 'MikanMeerkat has given 1 hug.' },
           ],
         },
@@ -137,11 +137,11 @@ const guide: GuideContent = {
         {
           kind: 'chat',
           title: '#your_channel',
-          caption: "Two different viewers, the reward's own running total either way.",
+          caption: "Every redemption adds to the reward's own total, and any viewer can read it back.",
           lines: [
             { who: 'system', text: 'channel points · SnackPackPanda redeemed Hydrate!' },
-            { who: 'bot', text: 'Hydrate! has been redeemed 301 times.' },
-            { who: 'system', text: 'channel points · MikanMeerkat redeemed Hydrate!' },
+            { who: 'bot', text: 'Thanks for hydrating, SnackPackPanda!' },
+            { who: 'viewer', name: 'MikanMeerkat', text: '!hydrations' },
             { who: 'bot', text: 'Hydrate! has been redeemed 302 times.' },
           ],
         },
@@ -158,11 +158,11 @@ const guide: GuideContent = {
         {
           kind: 'chat',
           title: '#your_channel',
-          caption: "MikanMeerkat's count for !hug and their count for !highfive don't mix, even though both use the same counter.",
+          caption: "MikanMeerkat's count for !hugs and their count for !highfives don't mix, even though both use the same counter.",
           lines: [
-            { who: 'viewer', name: 'MikanMeerkat', text: '!hug' },
+            { who: 'viewer', name: 'MikanMeerkat', text: '!hugs' },
             { who: 'bot', text: 'MikanMeerkat has hugged 3 times.' },
-            { who: 'viewer', name: 'MikanMeerkat', text: '!highfive' },
+            { who: 'viewer', name: 'MikanMeerkat', text: '!highfives' },
             { who: 'bot', text: 'MikanMeerkat has high-fived 1 time.' },
           ],
         },
@@ -172,56 +172,54 @@ const guide: GuideContent = {
           html: `
                 <b>Locked once created</b>
                 A counter's scope can't be changed afterward. Picked the wrong one? Delete it
-                (<code>!counter delete name</code>, or the dashboard) and create it again; the old
-                values don't carry over.`,
+                on the Counters page and create it again; the old values don't carry over.`,
         },
       ],
     },
     {
       id: 'chat',
-      heading: 'Managing counters from chat',
-      note: 'Create, bump, set, reset, delete, or just ask, all without leaving chat.',
+      heading: 'Counting from chat',
+      note: 'A command with Bump a counter adds 1, and moderators can type a number to add or remove several.',
       blocks: [
         {
           kind: 'prose',
           html: `
             <p>
-                You and your moderators can create and manage counters without leaving chat, all
-                under <code>!counter</code>:
+                Counters are made on the Counters page (next section). To count from chat, create a
+                custom command such as <code>!death</code>, turn on its <strong>Bump a counter</strong>
+                option and pick the counter. Moderators can then choose the step:
             </p>`,
         },
         {
           kind: 'table',
           head: ['Command', 'What it does'],
           rows: [
-            ['<code>!counter create &lt;name&gt; [scope]</code>', 'Creates a counter. Scope word is <code>user</code>, <code>command</code> or <code>user+command</code>; leave it out for the whole channel.'],
-            ['<code>!counter add &lt;name&gt; [amount]</code>', 'Adds 1, or the amount you give. Negative numbers subtract.'],
-            ['<code>!counter set &lt;name&gt; &lt;value&gt;</code>', 'Sets the total outright.'],
-            ['<code>!counter reset &lt;name&gt;</code>', 'Clears it back to zero. For per-user or per-command counters, this wipes every stored bucket.'],
-            ['<code>!counter delete &lt;name&gt;</code>', 'Removes the counter entirely.'],
-            ['<code>!counter list</code>', 'Lists every counter on the channel and its scope.'],
-            ['<code>!counter &lt;name&gt;</code>', 'Shows the current value, same as reading it in chat.'],
+            ['<code>!death</code>', 'Adds 1 to the counter, whoever types it.'],
+            ['<code>!death 5</code> or <code>!death +5</code>', 'Adds 5. Only moderators, lead moderators and the broadcaster can pick the amount.'],
+            ['<code>!death -1</code>', 'Removes 1 (a negative number subtracts), for the same roles.'],
+            ['<code>!death 5</code> from a viewer', "The number is ignored, the counter still adds 1."],
+            ['<code>!death 0</code>, <code>!death abc</code>, or a number past 1,000,000', 'Falls back to adding 1.'],
           ],
         },
         {
           kind: 'chat',
           title: '#your_channel',
-          caption: 'Creating and bumping a counter, start to finish, without touching the dashboard.',
+          caption: 'The same command: a viewer adds 1, a moderator adds 5 in one go.',
           lines: [
-            { who: 'mod', name: 'Ayshacinder', text: '!counter create deaths' },
-            { who: 'bot', text: 'Counter deaths created (channel).' },
-            { who: 'mod', name: 'Ayshacinder', text: '!counter add deaths 5' },
-            { who: 'bot', text: 'Counter deaths is now 5.' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!death' },
+            { who: 'bot', text: 'The boss wins again.' },
+            { who: 'mod', name: 'Ayshacinder', text: '!death 5' },
+            { who: 'bot', text: 'The boss wins again.' },
           ],
         },
         {
           kind: 'callout',
           tone: 'tip',
           html: `
-                <b>Command scope, from chat</b>
-                <code>!counter create hydrations command</code> makes a pooled per-command counter in
-                one line, ready to drop into a command's response, or bind to a channel-point reward,
-                as <code>&#123;counter:hydrations&#125;</code>.`,
+                <b>Set, reset and delete</b>
+                Changing the total itself happens on the Counters page: set it to any number, reset
+                it to zero, rename it or delete it. In a response, <code>&#123;counter:deaths&#125;</code>
+                only shows the value and never changes it.`,
         },
         {
           kind: 'widget',
@@ -230,13 +228,13 @@ const guide: GuideContent = {
             heading: 'Try it: bump the counter',
             windowTitle: '#your_channel',
             modName: 'Ayshacinder',
-            addOne: '!counter add deaths',
-            subOne: '!counter add deaths -1',
-            setTen: '!counter set deaths 10',
+            addOne: '!death',
+            subOne: '!death -1',
+            addFive: '!death 5',
             viewerName: 'SnackPackPanda',
-            viewerCommand: '!death',
+            viewerCommand: '!deaths',
             viewerReplyTemplate: 'Oh no, {value} deaths so far.',
-            modReplyTemplate: 'Counter deaths is now {value}.',
+            modReplyTemplate: 'The boss wins again.',
           },
           props: { counterName: 'deaths', start: 12 },
         },
@@ -252,8 +250,8 @@ const guide: GuideContent = {
           html: `
             <p>
                 The <a href="https://dashboard.itsbagelbot.com/counters" target="_blank" rel="noopener noreferrer">Counters</a>
-                page lists every counter on your channel and lets you create, adjust, and delete them
-                by clicking instead of typing.
+                page lists every counter on your channel. It is where you create, set, reset, rename
+                and delete them.
             </p>`,
         },
         {
@@ -275,7 +273,7 @@ const guide: GuideContent = {
                 Every <a href="/guides/modules">Channel Points</a> reward can optionally keep a
                 counter of its own, right from the reward's editor: type a counter name (new or
                 existing), pick its scope, and every redemption bumps it. Use
-                <code>&#123;counter&#125;</code> in the reward's chat reply to show the new total.
+                <code>&#123;counter&#125;</code> in the reward's chat reply to show the current total.
             </p>`,
         },
         {

@@ -27,7 +27,7 @@
   "scopeViewer": "Por usuário",
   "scopeCommand": "Por comando ou recompensa, somando todos os usuários",
   "scopeViewerCommand": "Por usuário, por comando ou recompensa",
-  "scopeHint": "Incremente em uma resposta de comando com {counter:name}, em uma recompensa na página Pontos do canal ou com !counter add.",
+  "scopeHint": "Incremente em uma recompensa na página Pontos do canal ou em um comando com \"Incrementar um contador\" ativado, que soma 1 a cada uso. Um moderador pode digitar um número depois dele para somar ou subtrair essa quantidade.",
   "scopeLocked": "O escopo fica fixo após a criação. Para alterá-lo, exclua o contador e recrie-o.",
   "create": "Criar contador",
   "creating": "Criando…",

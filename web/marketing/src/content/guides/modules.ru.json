@@ -70,7 +70,6 @@
   "catalog.b1.props.modules.10.start": "Выключен по умолчанию",
   "catalog.b1.props.modules.10.tagline": "Зрители получают валюту канала за подписки, биты и время просмотра.",
   "catalog.b1.props.modules.11.cat": "Баллы",
-  "catalog.b1.props.modules.11.commands": "!counter",
   "catalog.b1.props.modules.11.name": "Counters",
   "catalog.b1.props.modules.11.start": "Всегда включён",
   "catalog.b1.props.modules.11.tagline": "Считайте победы, смерти, объятия, награды, всё, что может посчитать чат.",

@@ -5,7 +5,6 @@ package modules
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -15,7 +14,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
@@ -25,8 +23,6 @@ import (
 )
 
 const loyaltyTickTimeout = 5 * time.Second
-
-const counterAddMax = 1_000_000
 
 const (
 	defaultLeaderboardLimit = 5
@@ -97,8 +93,6 @@ func Loyalty(d engine.Deps) module.Module {
 	m.Command("watchtime").Everyone().Cooldown(5 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.watchtimeShow))
 
 	m.Command("leaderboard").Everyone().Cooldown(10 * time.Second).Aliases("top").Run(loyaltyRun(d, log, loyaltyCmd.leaderboardShow))
-
-	m.Command("counter").Mod().Run(loyaltyRun(d, log, loyaltyCmd.runCounter))
 
 	return m.Build()
 }
@@ -530,252 +524,6 @@ func (a accrual) earn(ctx context.Context, d engine.Deps, c *module.Context, cfg
 		return
 	}
 	d.Loyalty.Earn(engine.PointEarning{BroadcasterID: c.BroadcasterID, ViewerID: viewerID, Login: a.login, Name: a.name, Points: a.points})
-}
-
-func (lc loyaltyCmd) runCounter(ctx context.Context, args string) error {
-	fields := strings.Fields(args)
-	if len(fields) == 0 {
-		lc.reply("loyalty.counter.usage")
-		return nil
-	}
-
-	verb := strings.ToLower(fields[0])
-	rest := fields[1:]
-	switch verb {
-	case "create":
-		return lc.counterCreate(ctx, rest)
-	case "add":
-		return lc.counterAdd(ctx, rest)
-	case "set":
-		return lc.counterSet(ctx, rest)
-	case "reset":
-		return lc.counterReset(ctx, rest)
-	case "delete", "del", "remove":
-		return lc.counterDelete(ctx, rest)
-	case "list":
-		return lc.counterList(ctx)
-	default:
-		return lc.counterShow(ctx, verb, strings.Join(rest, " "))
-	}
-}
-
-func (lc loyaltyCmd) counterCreate(ctx context.Context, rest []string) error {
-	if len(rest) == 0 {
-		lc.reply("loyalty.counter.usage")
-		return nil
-	}
-	scope := data.CounterScopeChannel
-	if len(rest) > 1 {
-		scope = createScope(rest[1])
-	}
-	counter, err := lc.d.Loyalty.CounterCreate(ctx, lc.c.BroadcasterID, rest[0], scope)
-	if err != nil {
-		return lc.fail("create", err)
-	}
-	lc.reply("loyalty.counter.created", "counter", counter.Name, "scope", scopeLabel(counter.Scope))
-	return nil
-}
-
-func createScope(word string) string {
-	switch strings.ToLower(word) {
-	case "user", "viewer", "per-viewer", "perviewer":
-		return data.CounterScopeViewer
-	case "command", "per-command", "percommand", "reward":
-		return data.CounterScopeCommand
-	case "user+command", "user-command", "usercommand", "viewer+command":
-		return data.CounterScopeViewerCommand
-	default:
-		return data.CounterScopeChannel
-	}
-}
-
-func scopeLabel(scope string) string {
-	switch scope {
-	case data.CounterScopeViewer:
-		return "per user"
-	case data.CounterScopeCommand:
-		return "per command"
-	case data.CounterScopeViewerCommand:
-		return "per user+command"
-	default:
-		return "channel"
-	}
-}
-
-type counterAddArgs struct {
-	name    string
-	delta   int64
-	command string
-}
-
-type counterAddLine []string
-
-func (l counterAddLine) parse() (counterAddArgs, bool) {
-	if len(l) == 0 {
-		return counterAddArgs{}, false
-	}
-	delta, ok := l.delta()
-	if !ok {
-		return counterAddArgs{}, false
-	}
-	return counterAddArgs{name: l[0], delta: delta, command: l.bucket()}, true
-}
-
-func (l counterAddLine) delta() (int64, bool) {
-	if len(l) < 2 {
-		return 1, true
-	}
-	n, err := strconv.ParseInt(l[1], 10, 64)
-	if err != nil || n == 0 {
-		return 0, false
-	}
-	if n > counterAddMax || n < -counterAddMax {
-		return 0, false
-	}
-	return n, true
-}
-
-func (l counterAddLine) bucket() string {
-	if len(l) > 2 {
-		return strings.Join(l[2:], " ")
-	}
-	return ""
-}
-
-func (lc loyaltyCmd) counterAdd(ctx context.Context, rest []string) error {
-	args, ok := counterAddLine(rest).parse()
-	if !ok {
-		lc.reply("loyalty.counter.usage")
-		return nil
-	}
-	viewerID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
-	viewer := engine.Viewer{ID: viewerID, Login: lc.c.Env.ChatterUserLogin, Name: lc.c.Env.ChatterUserName}
-	value, err := lc.d.Loyalty.CounterBump(ctx, engine.CounterBump{
-		BroadcasterID: lc.c.BroadcasterID,
-		Name:          args.name,
-		Viewer:        viewer,
-		Command:       args.command,
-		Delta:         args.delta,
-	})
-	if errors.Is(err, engine.ErrReservedCounter) {
-		lc.reply("loyalty.counter.not_found", "counter", engine.NormalizeCounterName(args.name))
-		return nil
-	}
-	if err != nil {
-		return lc.fail("add", err)
-	}
-	lc.reply("loyalty.counter.set",
-		"counter", engine.NormalizeCounterName(args.name), "value", strconv.FormatInt(value, 10))
-	return nil
-}
-
-func (lc loyaltyCmd) counterSet(ctx context.Context, rest []string) error {
-	if len(rest) < 2 {
-		lc.reply("loyalty.counter.usage")
-		return nil
-	}
-	value, err := strconv.ParseInt(rest[1], 10, 64)
-	if err != nil {
-		lc.reply("loyalty.counter.usage")
-		return nil
-	}
-	found, err := lc.d.Loyalty.CounterSet(ctx, lc.c.BroadcasterID, rest[0], 0, "", value)
-	if err != nil {
-		return lc.fail("set", err)
-	}
-	if !found {
-		lc.reply("loyalty.counter.not_found", "counter", engine.NormalizeCounterName(rest[0]))
-		return nil
-	}
-	lc.reply("loyalty.counter.set",
-		"counter", engine.NormalizeCounterName(rest[0]), "value", strconv.FormatInt(value, 10))
-	return nil
-}
-
-func (lc loyaltyCmd) counterReset(ctx context.Context, rest []string) error {
-	if len(rest) == 0 {
-		lc.reply("loyalty.counter.usage")
-		return nil
-	}
-	found, err := lc.d.Loyalty.CounterSet(ctx, lc.c.BroadcasterID, rest[0], 0, "", 0)
-	if err != nil {
-		return lc.fail("reset", err)
-	}
-	if !found {
-		lc.reply("loyalty.counter.not_found", "counter", engine.NormalizeCounterName(rest[0]))
-		return nil
-	}
-	lc.reply("loyalty.counter.reset", "counter", engine.NormalizeCounterName(rest[0]))
-	return nil
-}
-
-func (lc loyaltyCmd) counterDelete(ctx context.Context, rest []string) error {
-	if len(rest) == 0 {
-		lc.reply("loyalty.counter.usage")
-		return nil
-	}
-	if err := lc.d.Loyalty.CounterDelete(ctx, lc.c.BroadcasterID, rest[0]); err != nil {
-		return lc.fail("delete", err)
-	}
-	lc.reply("loyalty.counter.deleted", "counter", engine.NormalizeCounterName(rest[0]))
-	return nil
-}
-
-func (lc loyaltyCmd) counterList(ctx context.Context) error {
-	counters, err := lc.d.Loyalty.CounterList(ctx, lc.c.BroadcasterID)
-	if err != nil {
-		return lc.fail("list", err)
-	}
-	if len(counters) == 0 {
-		lc.reply("loyalty.counter.list.empty")
-		return nil
-	}
-	var b strings.Builder
-	for i, counter := range counters {
-		if i > 0 {
-			b.WriteString(", ")
-		}
-		b.WriteString(counter.Name)
-		switch counter.Scope {
-		case data.CounterScopeViewer, data.CounterScopeCommand, data.CounterScopeViewerCommand:
-			b.WriteString(" (" + scopeLabel(counter.Scope) + ")")
-		default:
-			b.WriteString(" (")
-			b.WriteString(strconv.FormatInt(counter.Value, 10))
-			b.WriteString(")")
-		}
-	}
-	lc.reply("loyalty.counter.list", "list", b.String())
-	return nil
-}
-
-func (lc loyaltyCmd) counterShow(ctx context.Context, name, command string) error {
-	viewerID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
-	counter, found, err := lc.d.Loyalty.CounterPeek(ctx, engine.CounterTarget{
-		BroadcasterID: lc.c.BroadcasterID,
-		Name:          name,
-		ViewerID:      viewerID,
-		Command:       command,
-	})
-	if err != nil {
-		return lc.fail("show", err)
-	}
-	if !found {
-		lc.reply("loyalty.counter.not_found", "counter", engine.NormalizeCounterName(name))
-		return nil
-	}
-	key := replyKey("loyalty.counter.show")
-	if counter.Scope == data.CounterScopeViewer || counter.Scope == data.CounterScopeViewerCommand {
-		key = "loyalty.counter.show.viewer"
-	}
-	lc.reply(key, "counter", counter.Name, "value", strconv.FormatInt(counter.Value, 10))
-	return nil
-}
-
-func (lc loyaltyCmd) fail(op string, err error) error {
-	lc.log.Warn("loyalty: counter "+op+" failed", lc.c.BID(), zap.Error(err))
-	lc.reply("loyalty.counter.err")
-	return nil
 }
 
 func (lc loyaltyCmd) reply(key replyKey, kv ...string) {

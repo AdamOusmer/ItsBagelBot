@@ -2411,7 +2411,7 @@
     ],
     "name": "Counter",
     "hint": "shows a counter's current value; {count:…} is the same read (Loyalty)",
-    "description": "Shows a counter's current value without changing it. To add to a counter, turn on \"Bump a counter\" on the command itself; this only reads whatever that option (or !counter) has produced. {counter:target:name} reads the mentioned viewer's own count instead of the channel's. Needs the Loyalty Points module.",
+    "description": "Shows a counter's current value without changing it. To add to a counter, turn on \"Bump a counter\" on the command itself; this only reads whatever that option has produced. {counter:target:name} reads the mentioned viewer's own count instead of the channel's. Needs the Loyalty Points module.",
     "group": "data",
     "groups": [
       "data"

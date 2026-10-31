@@ -27,7 +27,7 @@
   "scopeViewer": "Pro Benutzer",
   "scopeCommand": "Pro Befehl oder Belohnung, alle Benutzer zusammen",
   "scopeViewerCommand": "Pro Benutzer, pro Befehl oder Belohnung",
-  "scopeHint": "Erhöhe ihn in einer Befehlsantwort mit {counter:name}, über eine Belohnung auf der Kanalpunkte-Seite oder mit !counter add.",
+  "scopeHint": "Erhöhe ihn über eine Belohnung auf der Kanalpunkte-Seite oder über einen Befehl mit aktivem „Zähler erhöhen“, der pro Nutzung 1 dazuzählt. Ein Moderator kann dahinter eine Zahl eingeben, um so viel zu addieren oder abzuziehen.",
   "scopeLocked": "Der Bereich steht nach der Erstellung fest. Um ihn zu ändern, lösche den Zähler und erstelle ihn neu.",
   "create": "Zähler erstellen",
   "creating": "Wird erstellt…",

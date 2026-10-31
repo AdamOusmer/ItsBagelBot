@@ -208,18 +208,41 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 
 	p.recordUse(ctx, c, cc.Name)
 	p.analytics.Count(catalog.CommandUses, catalog.CustomCommand)
-	p.bumpCommandCounter(ctx, c, cc)
+	p.bumpCommandCounter(ctx, c, cc, args)
 	c.Engaged = true
 	return nil
 }
 
-func (p *Pipeline) bumpCommandCounter(ctx context.Context, c *module.Context, cc projection.Command) {
+func (p *Pipeline) bumpCommandCounter(ctx context.Context, c *module.Context, cc projection.Command, args string) {
 	if cc.BumpCounter == "" || p.loyalty == nil {
 		return
 	}
 	senderID, _ := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
 	sender := Viewer{ID: senderID, Login: c.Env.ChatterUserLogin, Name: c.Env.ChatterUserName}
-	p.claimedCounterValue(ctx, c, cc.BumpCounter, sender, cc.Name)
+	p.claimedCounterValue(ctx, c, CounterBump{
+		BroadcasterID: c.BroadcasterID,
+		Name:          cc.BumpCounter,
+		Viewer:        sender,
+		Command:       cc.Name,
+		Delta:         counterStep(c, args),
+	})
+}
+
+const counterStepMax = 1_000_000
+
+func counterStep(c *module.Context, args string) int64 {
+	if !c.Chatter().Allows(module.RoleModerator) {
+		return 1
+	}
+	n, err := strconv.ParseInt(firstArg(args), 10, 64)
+	if err != nil || !validCounterStep(n) {
+		return 1
+	}
+	return n
+}
+
+func validCounterStep(n int64) bool {
+	return n != 0 && n <= counterStepMax && n >= -counterStepMax
 }
 
 func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string) {
@@ -331,20 +354,14 @@ func (p *Pipeline) chatLines(o *module.Output) []module.Output {
 	return outputs
 }
 
-func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, name string, viewer Viewer, command string) string {
+func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, b CounterBump) string {
 	bump := func() (int64, error) {
-		return p.loyalty.CounterBump(ctx, CounterBump{
-			BroadcasterID: c.BroadcasterID,
-			Name:          name,
-			Viewer:        viewer,
-			Command:       command,
-			Delta:         1,
-		})
+		return p.loyalty.CounterBump(ctx, b)
 	}
 	fail := func(err error) string {
 		p.log.Warn("counter token bump failed",
 			module.BIDField(c.BroadcasterID),
-			zap.String("counter", name),
+			zap.String("counter", b.Name),
 			zap.Error(err),
 		)
 		return ""
@@ -356,13 +373,13 @@ func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, n
 		}
 		return strconv.FormatInt(value, 10)
 	}
-	dup, release := p.dedup.Claim(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: CounterEffect(name)})
+	dup, release := p.dedup.Claim(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: CounterEffect(b.Name)})
 	if dup {
 		return CounterPeekValue(ctx, p.loyalty, CounterTarget{
-			BroadcasterID: c.BroadcasterID,
-			Name:          name,
-			ViewerID:      viewer.ID,
-			Command:       command,
+			BroadcasterID: b.BroadcasterID,
+			Name:          b.Name,
+			ViewerID:      b.Viewer.ID,
+			Command:       b.Command,
 		})
 	}
 	value, err := bump()
