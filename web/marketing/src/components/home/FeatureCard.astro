@@ -26,7 +26,7 @@ const { label, href, tone = 'gold', span = 1, index = 0, class: cls = '' } = Ast
     data-card
     data-cursor={href ? 'quiet' : undefined}
 >
-    <div class="fcard__inner" data-reveal style={`--reveal-i: ${index}`}>
+    <div class="fcard__inner reveal-in" style={`--reveal-i: ${index}`}>
         {(label || href) && (
             <div class="fcard__top">
                 {label && <span class="fcard__label"><span data-fit>{label}</span></span>}

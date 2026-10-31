@@ -31,9 +31,9 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
 
         <Tiers />
 
-        <p class="oath" data-reveal><Icon name="check" size={14} class="oath__check" /><span class="oath__text"><span data-fit>{t('pricingTiers.oath')}</span></span></p>
+        <p class="oath reveal-in"><Icon name="check" size={14} class="oath__check" /><span class="oath__text"><span data-fit>{t('pricingTiers.oath')}</span></span></p>
 
-        <div class="donate" data-reveal>
+        <div class="donate reveal-in">
             <div class="donate__crowd" aria-hidden="true">
                 {donors.map((donor) => (
                     <BolotaSvg bolota={donor} class="donate__face" style={`--s: ${donor.size}px`} expression="happy" />

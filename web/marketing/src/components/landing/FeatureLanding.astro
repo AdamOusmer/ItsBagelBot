@@ -115,7 +115,7 @@ const {
     <Section size="band" class="fltbl">
       <Container>
         <SectionHeading eyebrow={table.eyebrow} title={table.title} />
-        <Card flush class="fltbl__card" data-reveal>
+        <Card flush class="fltbl__card reveal-in">
             <Table roomy label={table.title} minWidth="52rem" style={`--fltbl-lines: ${table.rowLines ?? 2}`}>
                 <colgroup>{table.widths.map((width) => <col style={`width: ${width}`} />)}</colgroup>
                 <thead>
@@ -140,7 +140,7 @@ const {
                 </tbody>
             </Table>
         </Card>
-        {table.note && <Text size="sm" tone="muted" class="flsec__note" data-reveal><span data-fit="block">{table.note}</span></Text>}
+        {table.note && <Text size="sm" tone="muted" class="flsec__note reveal-in"><span data-fit="block">{table.note}</span></Text>}
       </Container>
     </Section>
 )}
@@ -159,7 +159,7 @@ const {
 {prereq && (
     <Section size="band" class="flprereq">
       <Container>
-        <Card class="flprereq__card" data-reveal>
+        <Card class="flprereq__card reveal-in">
             <Heading level={5} as="h2" class="flprereq__title"><span data-fit>{prereq.title}</span></Heading>
             <ul class="flprereq__list">
                 {prereq.items.map((item) => (
@@ -176,16 +176,16 @@ const {
       <Container>
         <SectionHeading eyebrow={convert.eyebrow} title={convert.title} />
         <Grid cols={2} gap={5} stackAt="md" class="flconv__pair">
-            <div class="flconv__side" data-reveal>
+            <div class="flconv__side reveal-in">
                 <Eyebrow><span data-fit>{convert.beforeLabel}</span></Eyebrow>
                 <Code block wrap class="flconv__code">{convert.before}</Code>
             </div>
-            <div class="flconv__side" data-reveal style="--reveal-i: 1">
+            <div class="flconv__side reveal-in" style="--reveal-i: 1">
                 <Eyebrow><span data-fit>{convert.afterLabel}</span></Eyebrow>
                 <Code block wrap class="flconv__code">{convert.after}</Code>
             </div>
         </Grid>
-        <Text size="sm" tone="muted" class="flsec__note" data-reveal><span data-fit="block">{convert.note}</span></Text>
+        <Text size="sm" tone="muted" class="flsec__note reveal-in"><span data-fit="block">{convert.note}</span></Text>
       </Container>
     </Section>
 )}
@@ -195,7 +195,7 @@ const {
     <SectionHeading eyebrow={howEyebrow} title={howTitle} />
     <Grid as="ol" cols={3} gap={5} stackAt="md">
         {steps.map((step, i) => (
-            <StepCard index={i + 1} title={step.title} data-reveal style={`--reveal-i: ${i}`}>{step.desc}</StepCard>
+            <StepCard index={i + 1} title={step.title} class="reveal-in" style={`--reveal-i: ${i}`}>{step.desc}</StepCard>
         ))}
     </Grid>
   </Container>
@@ -206,10 +206,10 @@ const {
     <SectionHeading eyebrow={listEyebrow} title={listTitle} />
     <FactList layout="list" class="fllist__list">
         {listItems.map((item, i) => (
-            <Fact term={item.name ?? ''} fit data-reveal style={`--reveal-i: ${i}`}>{item.desc}</Fact>
+            <Fact term={item.name ?? ''} fit class="reveal-in" style={`--reveal-i: ${i}`}>{item.desc}</Fact>
         ))}
     </FactList>
-    {listNote && <Text size="sm" tone="muted" class="fllist__note" data-reveal><span data-fit="block">{listNote}</span></Text>}
+    {listNote && <Text size="sm" tone="muted" class="fllist__note reveal-in"><span data-fit="block">{listNote}</span></Text>}
   </Container>
 </Section>
 
@@ -226,7 +226,7 @@ const {
 <Section size="band" class="flcta">
   <Container>
     <SectionHeading title={ctaTitle} class="flcta__title" />
-    <Cluster justify="center" gap={3} class="flcta__actions" data-reveal>
+    <Cluster justify="center" gap={3} class="flcta__actions reveal-in">
         <ButtonLink href={ctaPrimary.href} class="flcta__btn" variant="twitch"><span data-fit>{ctaPrimary.label}</span></ButtonLink>
         {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href} class="flcta__btn"><span data-fit>{ctaSecondary.label}</span></ButtonLink>}
     </Cluster>

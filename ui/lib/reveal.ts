@@ -3,8 +3,11 @@
 
 import { prefersReducedMotion } from './motion-query';
 
-const SELECTOR = '[data-reveal]';
+const SELECTOR = '.reveal-in';
+const BASE = 'reveal-in';
+const PENDING = 'is-pending';
 const REVEALED = 'is-revealed';
+const REPEAT = 'reveal-in--repeat';
 
 export type RevealOptions = {
     rootMargin?: string;
@@ -18,28 +21,31 @@ const DEFAULTS: Required<RevealOptions> = {
     instant: false,
 };
 
+const handled = new WeakSet<HTMLElement>();
+
 function nestedIn(el: HTMLElement): HTMLElement[] {
     return Array.from(el.querySelectorAll<HTMLElement>(SELECTOR));
 }
 
-function reveal(el: HTMLElement, observer: IntersectionObserver): void {
+function show(el: HTMLElement, observer: IntersectionObserver): void {
+    el.classList.remove(PENDING);
     el.classList.add(REVEALED);
-    if (el.dataset.revealRepeat !== 'true') observer.unobserve(el);
+    if (!el.classList.contains(REPEAT)) observer.unobserve(el);
 }
 
 function onIntersect(entries: IntersectionObserverEntry[], observer: IntersectionObserver): void {
     for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         const el = entry.target as HTMLElement;
-        reveal(el, observer);
-        for (const nested of nestedIn(el)) reveal(nested, observer);
+        show(el, observer);
+        for (const nested of nestedIn(el)) show(nested, observer);
     }
 }
 
 function targetsIn(root: ParentNode): HTMLElement[] {
     const found = Array.from(root.querySelectorAll<HTMLElement>(SELECTOR));
     if (root instanceof HTMLElement && root.matches(SELECTOR)) found.unshift(root);
-    return found.filter((el) => el.dataset.revealReady !== 'true');
+    return found.filter((el) => !handled.has(el));
 }
 
 function revealsInstantly(instant: boolean): boolean {
@@ -51,14 +57,36 @@ function onScreen(el: HTMLElement): boolean {
     return rect.top < window.innerHeight && rect.bottom > 0;
 }
 
+function shownAtSetup(targets: HTMLElement[]): Set<HTMLElement> {
+    const visible = targets.map(onScreen);
+    const shown = new Set(targets.filter((_, i) => visible[i]));
+    for (const el of [...shown]) nestedIn(el).forEach((nested) => shown.add(nested));
+    return shown;
+}
+
+function settle(targets: HTMLElement[], observer: IntersectionObserver): void {
+    const shown = shownAtSetup(targets);
+    for (const el of targets) {
+        if (shown.has(el)) {
+            el.classList.add(REVEALED);
+            continue;
+        }
+        el.classList.add(PENDING);
+        observer.observe(el);
+    }
+}
+
+function claim(targets: HTMLElement[]): () => void {
+    for (const el of targets) handled.add(el);
+    return () => {
+        for (const el of targets) handled.delete(el);
+    };
+}
+
 export function observeReveal(root: ParentNode, options: RevealOptions = {}): () => void {
     const { rootMargin, threshold, instant } = { ...DEFAULTS, ...options };
     const targets = targetsIn(root);
-    for (const el of targets) el.dataset.revealReady = 'true';
-
-    const release = (): void => {
-        for (const el of targets) delete el.dataset.revealReady;
-    };
+    const release = claim(targets);
 
     if (revealsInstantly(instant)) {
         for (const el of targets) el.classList.add(REVEALED);
@@ -66,16 +94,53 @@ export function observeReveal(root: ParentNode, options: RevealOptions = {}): ()
     }
 
     const observer = new IntersectionObserver(onIntersect, { rootMargin, threshold });
-    const visible = targets.map(onScreen);
-    const shown = new Set(targets.filter((_, i) => visible[i]));
-    for (const el of [...shown]) nestedIn(el).forEach((nested) => shown.add(nested));
-    targets.forEach((el) => {
-        if (shown.has(el)) el.classList.add(REVEALED);
-        else observer.observe(el);
-    });
+    settle(targets, observer);
 
     return () => {
         observer.disconnect();
         release();
+    };
+}
+
+type Shared = { observer: IntersectionObserver; users: number };
+
+const shared = new WeakMap<Document, Shared>();
+
+function sharedFor(doc: Document): Shared {
+    let entry = shared.get(doc);
+    if (!entry) {
+        const { rootMargin, threshold } = DEFAULTS;
+        entry = { observer: new IntersectionObserver(onIntersect, { rootMargin, threshold }), users: 0 };
+        shared.set(doc, entry);
+    }
+    return entry;
+}
+
+function leave(doc: Document, node: HTMLElement): void {
+    const entry = shared.get(doc);
+    if (!entry) return;
+    entry.observer.unobserve(node);
+    if (--entry.users > 0) return;
+    entry.observer.disconnect();
+    shared.delete(doc);
+}
+
+export function reveal(node: HTMLElement, options: Pick<RevealOptions, 'instant'> = {}): { destroy(): void } {
+    node.classList.add(BASE);
+    if (handled.has(node)) return { destroy() {} };
+    const release = claim([node]);
+    if (revealsInstantly(options.instant ?? false)) {
+        node.classList.add(REVEALED);
+        return { destroy: release };
+    }
+    const doc = node.ownerDocument;
+    const entry = sharedFor(doc);
+    entry.users++;
+    settle([node], entry.observer);
+    return {
+        destroy() {
+            leave(doc, node);
+            release();
+        },
     };
 }

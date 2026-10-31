@@ -15,7 +15,7 @@ interface Props {
 const { title = '#your_channel', lines, caption } = Astro.props;
 ---
 
-<figure class="cmock" data-reveal>
+<figure class="cmock reveal-in">
     <ChatWindow title={title} label={caption ?? title} lines={lines} class="cmock__win" />
     {caption && <figcaption class="cmock__caption"><Text as="span" size="xs" mono tone="muted">{caption}</Text></figcaption>}
 </figure>

@@ -32,7 +32,7 @@ const { group, label, entries, copy, revealIndex } = Astro.props;
 const aliasTokens = [...new Set(entries.flatMap((entry) => entry.aliasTokens))];
 ---
 
-<section id={group} class="vref-group" data-reveal style={`--reveal-i: ${revealIndex}`}>
+<section id={group} class="vref-group reveal-in" style={`--reveal-i: ${revealIndex}`}>
     <Heading level={3} as="h2" class="vref-group__heading">{label}</Heading>
     <Table label={label} class="vref-table">
         <thead>

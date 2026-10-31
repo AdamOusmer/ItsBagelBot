@@ -29,6 +29,7 @@
       'bb-section',
       size === 'default' ? null : `bb-section--${size}`,
       anchor ? 'bb-section--anchor' : null,
+      reveal ? 'reveal-in' : null,
       className || null,
     ]
       .filter(Boolean)
@@ -36,6 +37,6 @@
   );
 </script>
 
-<svelte:element this={tag} class={classes} data-reveal={reveal ? '' : undefined} {...rest}
+<svelte:element this={tag} class={classes} {...rest}
   >{@render children()}</svelte:element
 >

@@ -779,9 +779,9 @@ const REMAINING: {
     props: { eyebrow: 'Safety', title: 'Layers', align: 'left' },
     html:
       '<div class="bb-section-heading bb-section-heading--left">' +
-      '<div class="bb-section-heading__meta" data-reveal>' +
+      '<div class="bb-section-heading__meta reveal-in">' +
       '<span class="bb-section-heading__eyebrow"><span data-fit>Safety</span></span></div>' +
-      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1"><span data-fit="block">Layers</span></h2></div>',
+      '<h2 class="bb-section-heading__title reveal-in" style="--reveal-i: 1"><span data-fit="block">Layers</span></h2></div>',
   },
   {
     name: 'SectionHeading: bare',
@@ -790,7 +790,7 @@ const REMAINING: {
     props: { title: 'Games' },
     html:
       '<div class="bb-section-heading bb-section-heading--center">' +
-      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1"><span data-fit="block">Games</span></h2></div>',
+      '<h2 class="bb-section-heading__title reveal-in" style="--reveal-i: 1"><span data-fit="block">Games</span></h2></div>',
   },
   {
     name: 'TextLink: default',
@@ -1151,7 +1151,7 @@ const PRIMITIVES: {
     astro: AstroSection,
     props: {"size":"lg","anchor":true,"reveal":true},
     slot: "x",
-    html: "<section class=\"bb-section bb-section--lg bb-section--anchor\" data-reveal>x</section>",
+    html: "<section class=\"bb-section bb-section--lg bb-section--anchor reveal-in\">x</section>",
   },
   {
     name: "Stack",

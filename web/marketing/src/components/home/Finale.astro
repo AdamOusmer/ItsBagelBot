@@ -20,18 +20,18 @@ const titleWords = t('finale.title').split(' ');
 <section class="finale" data-motion>
     <div class="finale__glow" aria-hidden="true"></div>
     <div class="finale__inner">
-        <Eyebrow class="finale__eyebrow" data-reveal><span data-fit>{t('finale.eyebrow')}</span></Eyebrow>
+        <Eyebrow class="finale__eyebrow reveal-in"><span data-fit>{t('finale.eyebrow')}</span></Eyebrow>
         <Heading level={2} class="finale__title" aria-label={titleWords.join(' ')}>
             <span class="finale__title-text" data-fit="block">{titleWords.map((word, i) => (
-                <Fragment><span class="finale__word" aria-hidden="true" data-reveal style={`--reveal-i: ${i + 1}`}>{word}</span>{i < titleWords.length - 1 ? ' ' : ''}</Fragment>
+                <Fragment><span class="finale__word reveal-in" aria-hidden="true" style={`--reveal-i: ${i + 1}`}>{word}</span>{i < titleWords.length - 1 ? ' ' : ''}</Fragment>
             ))}</span>
         </Heading>
-        <Lead class="finale__sub" data-reveal><span data-fit="block">{t('finale.sub')}</span></Lead>
-        <Cluster gap={4} justify="center" class="finale__actions" data-reveal>
+        <Lead class="finale__sub reveal-in"><span data-fit="block">{t('finale.sub')}</span></Lead>
+        <Cluster gap={4} justify="center" class="finale__actions reveal-in">
             <ButtonLink class="finale__cta" href={dashLoginHref(lang)} variant="twitch"><span data-fit>{t('nav.cta')}</span></ButtonLink>
             <ButtonLink class="finale__cta" variant="secondary" href={localizePath('/pricing', lang)}><span data-fit>{t('finale.seePricing')}</span></ButtonLink>
         </Cluster>
-        <Text as="span" size="xs" mono tone="muted" class="finale__honesty" data-reveal><span data-fit="block">{t('finale.honesty')}</span></Text>
+        <Text as="span" size="xs" mono tone="muted" class="finale__honesty reveal-in"><span data-fit="block">{t('finale.honesty')}</span></Text>
     </div>
 </section>
 

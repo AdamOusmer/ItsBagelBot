@@ -57,7 +57,7 @@ const faqLd = {
     {lanes ? (
         <dl class="faq__lanes">
             {faqs.map((faq, i) => (
-                <div class="faq__lane" data-reveal style={`--reveal-i: ${i}`}>
+                <div class="faq__lane reveal-in" style={`--reveal-i: ${i}`}>
                     <dt class="faq__question">
                         <span class="faq__index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
                         <span class="faq__question-text"><span data-fit="block">{faq.question}</span></span>
@@ -69,7 +69,7 @@ const faqLd = {
     ) : (
         <div class="faq__list">
             {faqs.map((faq, i) => (
-                <Disclosure summary={faq.question} index={String(i + 1).padStart(2, '0')} data-reveal style={`--reveal-i: ${i}`}>
+                <Disclosure summary={faq.question} index={String(i + 1).padStart(2, '0')} class="reveal-in" style={`--reveal-i: ${i}`}>
                     <Text size="sm" tone="muted" class="faq__answer"><span data-fit="block">{faq.answer}</span></Text>
                 </Disclosure>
             ))}

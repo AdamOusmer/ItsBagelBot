@@ -76,7 +76,7 @@ const tiers: Tier[] = [
 
 <div class="tiers">
     {tiers.map((tier, i) => (
-        <div class:list={['tier', `tier--${tier.key}`]} data-reveal style={`--reveal-i: ${i}`}>
+        <div class:list={['tier', 'reveal-in', `tier--${tier.key}`]} style={`--reveal-i: ${i}`}>
             <div class="tier__faces" aria-hidden="true">
                 {tier.faces.map((face) => (
                     <BolotaSvg bolota={face} class="tier__face" style={`--s: ${face.size}px`} />

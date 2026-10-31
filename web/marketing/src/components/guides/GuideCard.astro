@@ -28,9 +28,8 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
     as="a"
     href={href}
     label={index}
-    class:list={['gcard', { 'gcard--wide': wide }]}
+    class:list={['gcard', 'reveal-in', { 'gcard--wide': wide }]}
     data-cursor="quiet"
-    data-reveal
     style={`--reveal-i: ${revealIndex}`}
 >
     <span class="gcard__chips" slot="band" aria-hidden="true">

@@ -38,9 +38,9 @@ const steps = [
     <Section size="page" class="steps" id="how">
         <SectionHeading eyebrow={t('steps.eyebrow')} title={t('steps.title')} />
 
-        <Timeline rail="bridge" draw class="steps__list" data-reveal>
+        <Timeline rail="bridge" draw class="steps__list reveal-in">
             {steps.map((step, i) => (
-                <TimelineItem dot={false} class="step" data-badge-host data-reveal style={`--reveal-i: ${i + 2}`}>
+                <TimelineItem dot={false} class="step reveal-in" data-badge-host style={`--reveal-i: ${i + 2}`}>
                     <RoundBadge size="lg" solid class="step__num" aria-hidden="true">{step.num}</RoundBadge>
                     <div class="step__body">
                         <Heading level={4} as="h3" class="step__title"><span data-fit="block">{step.title}</span></Heading>
