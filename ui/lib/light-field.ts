@@ -20,6 +20,18 @@ type Layer = {
     swayS: number;
 };
 
+type Size = {
+    width: number;
+    height: number;
+    dpr: number;
+};
+
+type Palette = {
+    warmth: number;
+    warmRgb: string;
+    coolRgb: string;
+};
+
 export type FieldOptions = {
     warmth?: number;
 };
@@ -56,8 +68,9 @@ export function field(host: HTMLElement, options: FieldOptions = {}): (() => voi
         height = host.clientHeight;
         if (!width || !height) return;
         const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-        const motes = makeMotes(width, height, warmth, warmRgb, coolRgb);
-        all.forEach((layer, i) => paintLayer(layer, motes.filter((_, n) => n % all.length === i), width, height, dpr));
+        const size = { width, height, dpr };
+        const motes = makeMotes(size, { warmth, warmRgb, coolRgb });
+        all.forEach((layer, i) => paintLayer(layer, motes.filter((_, n) => n % all.length === i), size));
     }
 
     const resizer = new ResizeObserver(() => {
@@ -89,7 +102,7 @@ function createLayer(speed: number): Layer | null {
     return { sway, canvas, ctx, speed, driftSeed: Math.random(), swaySeed: Math.random(), swayS: SWAY_MIN_S + Math.random() * SWAY_SPAN_S };
 }
 
-function paintLayer(layer: Layer, motes: Mote[], width: number, height: number, dpr: number) {
+function paintLayer(layer: Layer, motes: Mote[], { width, height, dpr }: Size) {
     const { canvas, ctx } = layer;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * 2 * dpr);
@@ -112,7 +125,7 @@ function dot(ctx: CanvasRenderingContext2D, mote: Mote, offset: number) {
     ctx.fill();
 }
 
-function makeMotes(width: number, height: number, warmth: number, warmRgb: string, coolRgb: string): Mote[] {
+function makeMotes({ width, height }: Size, { warmth, warmRgb, coolRgb }: Palette): Mote[] {
     const count = width < 700 ? 40 : 70;
     return Array.from({ length: count }, () => ({
         x: Math.random() * width,

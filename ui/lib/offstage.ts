@@ -3,51 +3,63 @@
 
 const DEFAULT_SELECTOR = 'main > header, main > section, main > div > section, main > .seam, footer';
 
+type Registry = {
+    ours: WeakSet<Animation>;
+    paused: Map<Element, Animation[]>;
+};
+
+function isPausable(animation: Animation, timeline: AnimationTimeline): boolean {
+    return (
+        animation.timeline === timeline &&
+        animation.effect?.getTiming().iterations === Infinity &&
+        animation.playState === 'running'
+    );
+}
+
+function pausableAnimations(el: Element): Animation[] {
+    if (typeof el.getAnimations !== 'function') return [];
+    const timeline = el.ownerDocument.timeline;
+    return el.getAnimations({ subtree: true }).filter((animation) => isPausable(animation, timeline));
+}
+
+function playTarget(registry: Registry, el: Element): void {
+    for (const animation of registry.paused.get(el) ?? []) {
+        if (registry.ours.delete(animation)) animation.play();
+    }
+    registry.paused.delete(el);
+}
+
+function pauseTarget(registry: Registry, el: Element): void {
+    playTarget(registry, el);
+    const list = pausableAnimations(el);
+    for (const animation of list) {
+        animation.pause();
+        registry.ours.add(animation);
+    }
+    registry.paused.set(el, list);
+}
+
+function onIntersections(registry: Registry, entries: IntersectionObserverEntry[]): void {
+    for (const entry of entries) {
+        if (entry.isIntersecting) playTarget(registry, entry.target);
+        else pauseTarget(registry, entry.target);
+    }
+}
+
 export function watchOffstage(root: ParentNode = document, selector = DEFAULT_SELECTOR): () => void {
     if (typeof IntersectionObserver === 'undefined') return () => {};
 
     const targets = Array.from(root.querySelectorAll<HTMLElement>(selector));
     if (!targets.some((el) => typeof el.getAnimations === 'function')) return () => {};
 
-    const ours = new WeakSet<Animation>();
-    const paused = new Map<Element, Animation[]>();
-
-    const resume = (el: Element) => {
-        for (const animation of paused.get(el) ?? []) {
-            if (ours.delete(animation)) animation.play();
-        }
-        paused.delete(el);
-    };
-
-    const suspend = (el: Element) => {
-        resume(el);
-        if (typeof el.getAnimations !== 'function') return;
-        const timeline = el.ownerDocument.timeline;
-        const list: Animation[] = [];
-        for (const animation of el.getAnimations({ subtree: true })) {
-            if (animation.timeline !== timeline) continue;
-            if (animation.effect?.getTiming().iterations !== Infinity) continue;
-            if (animation.playState !== 'running') continue;
-            animation.pause();
-            ours.add(animation);
-            list.push(animation);
-        }
-        paused.set(el, list);
-    };
-
-    const observer = new IntersectionObserver(
-        (entries) => {
-            for (const entry of entries) {
-                if (entry.isIntersecting) resume(entry.target);
-                else suspend(entry.target);
-            }
-        },
-        { rootMargin: '25% 0px 25% 0px' },
-    );
+    const registry: Registry = { ours: new WeakSet(), paused: new Map() };
+    const observer = new IntersectionObserver((entries) => onIntersections(registry, entries), {
+        rootMargin: '25% 0px 25% 0px',
+    });
     for (const el of targets) observer.observe(el);
 
     return () => {
         observer.disconnect();
-        for (const el of Array.from(paused.keys())) resume(el);
+        for (const el of Array.from(registry.paused.keys())) playTarget(registry, el);
     };
 }

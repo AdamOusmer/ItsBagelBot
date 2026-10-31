@@ -33,8 +33,17 @@ const doc = Object.assign(target(), {
   documentElement: { classList: { toggle() {}, remove() {} } },
   createElement: (tag: string) => {
     if (tag === 'div') return { style: {} as Record<string, string>, className: '', append() {}, remove: () => removed.push('div') };
-    const ctx = {
-      fills: [] as string[],
+    const canvas: StubCanvas = {
+      style: {},
+      className: '',
+      width: 0,
+      height: 0,
+      setAttribute() {},
+      remove() {},
+      getContext: () => ctx,
+    };
+    const ctx: StubContext = {
+      fills: [],
       fillStyle: '',
       setTransform() {},
       clearRect() {},
@@ -43,23 +52,32 @@ const doc = Object.assign(target(), {
       fill() {
         ctx.fills.push(ctx.fillStyle);
       },
-      canvas: null as unknown,
+      canvas,
     };
-    const canvas = {
-      style: {} as Record<string, string>,
-      className: '',
-      width: 0,
-      height: 0,
-      setAttribute() {},
-      remove() {},
-      getContext: () => ctx,
-    };
-    ctx.canvas = canvas;
     contexts.push(ctx);
     return canvas;
   },
 });
-const contexts: Array<{ fills: string[]; canvas: { style: Record<string, string>; width: number; height: number } }> = [];
+type StubCanvas = {
+  style: Record<string, string>;
+  className: string;
+  width: number;
+  height: number;
+  setAttribute(): void;
+  remove(): void;
+  getContext: () => StubContext;
+};
+type StubContext = {
+  fills: string[];
+  fillStyle: string;
+  setTransform(): void;
+  clearRect(): void;
+  beginPath(): void;
+  arc(): void;
+  fill(): void;
+  canvas: StubCanvas;
+};
+const contexts: StubContext[] = [];
 const removed: string[] = [];
 
 let frames: Array<(now: number) => void> = [];

@@ -299,14 +299,23 @@ function disconnectFit(el: HTMLElement): void {
     unbindBox(shared, target);
 }
 
-function onSectionState(event: Event): void {
+function arrivedRoot(event: Event): Element | null {
+    if ((event as Event & { skipped?: boolean }).skipped !== false) return null;
     const root = event.target as Element | null;
-    if (!shared || (event as Event & { skipped?: boolean }).skipped !== false || typeof root?.contains !== 'function') return;
+    return typeof root?.contains === 'function' ? root : null;
+}
+
+function targetsWithin(root: Element): FitTarget[] {
     const arrived: FitTarget[] = [];
     for (const [section, members] of sections) {
         if (root.contains(section)) arrived.push(...members);
     }
-    refit(shared, arrived);
+    return arrived;
+}
+
+function onSectionState(event: Event): void {
+    const root = arrivedRoot(event);
+    if (shared && root) refit(shared, targetsWithin(root));
 }
 
 function reslotFit(el: HTMLElement): void {

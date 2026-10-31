@@ -25,11 +25,15 @@ const BUDGETS: Record<string, Budget> = {
   // css raised from 21900 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 21873, ~2% room.
   // css raised from 22300 (2026-10-31) for the halo orb pulse layer that keeps the blur off the per-frame path:
   // measured 22319 (CI 22318), ~2% room.
-  '/(public)/login': { js: 97700, css: 22800, catalog: 2900, lazy: 0 },
+  // js raised from 97700 (2026-10-31) for the bb-fit element with content-visibility parking and the WAAPI off-stage
+  // pause in the shared ui lib: measured 98318, ~0.5% room.
+  '/(public)/login': { js: 98800, css: 22800, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
   // css raised from 45200 (2026-10-29) for the shared .bb-prose style in typography.css (+213 B gzip there): CI measured 45295, ~1% room.
-  '/(app)': { js: 121000, css: 45700, catalog: 5000, lazy: 0 },
+  // js raised from 121000 (2026-10-31) for the bb-fit element with content-visibility parking and the WAAPI off-stage
+  // pause in the shared ui lib: measured 121030, ~0.4% room.
+  '/(app)': { js: 121500, css: 45700, catalog: 5000, lazy: 0 },
   // js raised from 138900 (2026-10-29): main already measured 138945, Glide adds 131 B for 139076, ~2% room.
   // css raised from 46000 (2026-10-29): main measured 45607, the aurora footer adds 413 B for 46020, ~1% room.
   // css raised from 46500 (2026-10-29) for the shared .bb-prose style in typography.css: CI measured 46697, ~1% room.
