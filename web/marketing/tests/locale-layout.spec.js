@@ -143,6 +143,7 @@ function topMostDifferences(page, english, other) {
 async function snapshotLocale(page, locale, path) {
     await page.goto(localeUrl(locale, path), { waitUntil: 'networkidle' });
     await page.evaluate(() => document.fonts.ready);
+    await page.addStyleTag({ content: '.bb-section--page { content-visibility: visible; }' });
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(250);
     return page.evaluate(measure, { skip: SKIP, minRatio: MIN_FIT_RATIO });

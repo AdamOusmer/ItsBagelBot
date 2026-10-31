@@ -52,7 +52,12 @@ function revealsInstantly(instant: boolean): boolean {
     return instant || prefersReducedMotion() || typeof IntersectionObserver === 'undefined';
 }
 
+function skipped(el: HTMLElement): boolean {
+    return typeof el.checkVisibility === 'function' && !el.checkVisibility({ contentVisibilityAuto: true });
+}
+
 function onScreen(el: HTMLElement): boolean {
+    if (skipped(el)) return false;
     const rect = el.getBoundingClientRect();
     return rect.top < window.innerHeight && rect.bottom > 0;
 }

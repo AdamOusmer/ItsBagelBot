@@ -164,6 +164,24 @@ test("every rect is read before any class is written", () => {
   ]);
 });
 
+test("a target in a skipped section is observed without reading its rect", () => {
+  const reads: string[] = [];
+  const inSkipped = el(200) as Stub & { checkVisibility?: () => boolean };
+  inSkipped.checkVisibility = () => false;
+  inSkipped.getBoundingClientRect = () => {
+    reads.push("skipped");
+    return { top: 200, bottom: 300 };
+  };
+  const shown = el(200) as Stub & { checkVisibility?: () => boolean };
+  shown.checkVisibility = () => true;
+  observeReveal(root([inSkipped, shown]));
+
+  expect(reads).toEqual([]);
+  expect(inSkipped.classes.has("is-pending")).toBe(true);
+  expect(shown.classes.has("is-revealed")).toBe(true);
+  expect(observed).toEqual([inSkipped]);
+});
+
 test("dispose releases the handled set so a re-scan re-wires", () => {
   const below = el(4000);
   const dispose = observeReveal(root([below]));

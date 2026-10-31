@@ -117,6 +117,7 @@ type FitRegistry = {
     targets: Map<HTMLElement, FitTarget>;
     boxes: Map<HTMLElement, Set<FitTarget>>;
     pending: Set<FitTarget>;
+    fontsWatched: boolean;
     resizer: ResizeObserver;
     texts: MutationObserver;
 };
@@ -160,12 +161,18 @@ function park(target: FitTarget, section: Element): void {
     else sections.set(section, new Set([target]));
 }
 
+// An unrendered box never fits, so a block fit would bottom out at the floor and descendants would inherit it.
+function rendered(box: HTMLElement): boolean {
+    const rect = box.getBoundingClientRect();
+    return rect.width > 0 || rect.height > 0;
+}
+
 function measurable(targets: FitTarget[]): FitTarget[] {
     return targets.filter((target) => {
         const section = skippedSection(target.el);
         if (section) park(target, section);
         else unpark(target);
-        return !section;
+        return !section && rendered(target.box);
     });
 }
 
@@ -216,11 +223,28 @@ function prune(registry: FitRegistry): void {
 function refit(registry: FitRegistry, subset: FitTarget[]): void {
     if (subset.length === 0) return;
     const ready = measurable(withGroupPeers(registry, Array.from(new Set(subset))));
-    if (ready.length) fitAll(ready);
+    if (ready.length === 0) return;
+    fitAll(ready);
+    watchFonts(registry);
 }
 
-function boxTargets(registry: FitRegistry, entries: ResizeObserverEntry[]): FitTarget[] {
-    return entries.flatMap((entry) => Array.from(registry.boxes.get(entry.target as HTMLElement) ?? []));
+function refitEverything(registry: FitRegistry): void {
+    prune(registry);
+    fitAll(measurable(Array.from(registry.targets.values())));
+}
+
+function watchFonts(registry: FitRegistry): void {
+    if (registry.fontsWatched) return;
+    registry.fontsWatched = true;
+    const refitAll = () => refitEverything(registry);
+    if (document.fonts.status !== 'loaded') void document.fonts.ready.then(refitAll);
+    document.fonts.addEventListener('loadingdone', refitAll);
+}
+
+function resizedTargets(registry: FitRegistry, entries: ResizeObserverEntry[]): FitTarget[] {
+    const targets: FitTarget[] = [];
+    for (const { target } of entries) targets.push(...(registry.boxes.get(target as HTMLElement) ?? []));
+    return targets;
 }
 
 let shared: FitRegistry | null = null;
@@ -231,21 +255,16 @@ function sharedRegistry(): FitRegistry {
         targets: new Map(),
         boxes: new Map(),
         pending: new Set(),
+        fontsWatched: false,
         resizer: new ResizeObserver((entries) => {
             prune(registry);
-            refit(registry, boxTargets(registry, entries));
+            refit(registry, resizedTargets(registry, entries));
         }),
         texts: new MutationObserver((records) => {
             prune(registry);
             refit(registry, touchedTargets(records, registry, TAG));
         }),
     };
-    const refitAll = () => {
-        prune(registry);
-        fitAll(measurable(Array.from(registry.targets.values())));
-    };
-    void document.fonts.ready.then(refitAll);
-    document.fonts.addEventListener('loadingdone', refitAll);
     shared = registry;
     return registry;
 }

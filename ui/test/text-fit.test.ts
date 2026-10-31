@@ -57,7 +57,7 @@ class StubElement {
   clientWidth = 0;
   parentElement = {
     closest: () => null,
-    getBoundingClientRect: () => ({ left: 0, right: 100, bottom: 20 }),
+    getBoundingClientRect: () => ({ left: 0, right: 100, bottom: 20, width: 100, height: 20 }),
   };
   style = {
     letterSpacing: '',
@@ -82,7 +82,12 @@ class StubElement {
   attributeChangedCallback?(): void;
 }
 
+const resizeCallbacks: ((entries: { target: unknown }[]) => void)[] = [];
+
 class StubResizeObserver {
+  constructor(callback: (entries: { target: unknown }[]) => void) {
+    resizeCallbacks.push(callback);
+  }
   observe = (box: unknown) => void observed.push(`observe:${(box as { tag?: string }).tag ?? 'box'}`);
   unobserve = () => void observed.push('unobserve');
   disconnect = () => {};
@@ -167,4 +172,17 @@ test('a visible element fits without any section event', async () => {
   await Promise.resolve();
   expect(stateListeners.length).toBe(1);
   expect(element.classes.has('is-fit')).toBe(true);
+});
+
+test('a resize notification refits the box', async () => {
+  installStubs();
+  const Ctor = defined.get('bb-fit') as { new (): StubElement };
+  const element = new Ctor();
+  element.connectedCallback?.();
+  await Promise.resolve();
+  expect(element.props.get('--bb-fit')).toBe('0.5');
+
+  element.props.delete('--bb-fit');
+  resizeCallbacks[0]([{ target: element.parentElement }]);
+  expect(element.props.get('--bb-fit')).toBe('0.5');
 });
