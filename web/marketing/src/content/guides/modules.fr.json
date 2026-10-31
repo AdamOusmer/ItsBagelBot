@@ -70,7 +70,6 @@
   "catalog.b1.props.modules.10.start": "Inactif par défaut",
   "catalog.b1.props.modules.10.tagline": "Les viewers gagnent une monnaie de chaîne pour les subs, cheers et le temps de visionnage.",
   "catalog.b1.props.modules.11.cat": "Points",
-  "catalog.b1.props.modules.11.commands": "!counter",
   "catalog.b1.props.modules.11.name": "Counters",
   "catalog.b1.props.modules.11.start": "Toujours actif",
   "catalog.b1.props.modules.11.tagline": "Comptez les victoires, morts, câlins, échanges, tout ce que le chat peut dénombrer.",

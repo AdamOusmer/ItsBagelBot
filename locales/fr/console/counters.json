@@ -27,7 +27,7 @@
   "scopeViewer": "Par utilisateur",
   "scopeCommand": "Par commande ou récompense, tous utilisateurs confondus",
   "scopeViewerCommand": "Par utilisateur, par commande ou récompense",
-  "scopeHint": "Incrémentez-le depuis une réponse de commande avec {counter:nom}, depuis une récompense sur la page Channel Points, ou avec !counter add.",
+  "scopeHint": "Incrémentez-le depuis une récompense sur la page Channel Points ou depuis une commande avec « Incrémenter un compteur » activé, qui ajoute 1 à chaque utilisation. Un modérateur peut taper un nombre à la suite pour en ajouter ou en retirer autant.",
   "scopeLocked": "Le comptage est fixé à la création. Pour le changer, supprimez le compteur et recréez-le.",
   "create": "Créer le compteur",
   "creating": "Création…",

@@ -70,7 +70,6 @@
   "catalog.b1.props.modules.10.start": "Inativo por padrão",
   "catalog.b1.props.modules.10.tagline": "Os espectadores ganham moeda do canal por inscrições, cheers e tempo assistindo.",
   "catalog.b1.props.modules.11.cat": "Pontos",
-  "catalog.b1.props.modules.11.commands": "!counter",
   "catalog.b1.props.modules.11.name": "Contadores",
   "catalog.b1.props.modules.11.start": "Sempre ativo",
   "catalog.b1.props.modules.11.tagline": "Conte vitórias, mortes, abraços, resgates, tudo o que o chat puder contar.",

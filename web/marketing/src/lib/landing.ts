@@ -29,7 +29,12 @@ const chatTables = import.meta.glob<Record<string, string>>(
     { eager: true, import: 'default' },
 );
 
-const SLOT = /\{(?:[a-z]+:)?([a-z_.]+)(?:\|[^}]*)?\}/g;
+const deathCounterCopy = import.meta.glob<Record<string, string>>(
+    '../../../../locales/*/website/deathCounter.json',
+    { eager: true, import: 'default' },
+);
+
+const SLOT =/\{(?:[a-z]+:)?([a-z_.]+)(?:\|[^}]*)?\}/g;
 const VIEWER = 'PrincessBarney';
 const SONG = { title: 'One More Time', artist: 'Daft Punk', pos: '3' };
 
@@ -383,7 +388,6 @@ function moduleCommands(id: string): FeatureCommand[] {
 }
 
 export function featureCommands(id: FeatureId): FeatureCommand[] {
-    if (id === 'deathCounter') return moduleCommands('loyalty').filter((command) => command.trigger === '!counter');
     return FEATURES[id].modules.flatMap(moduleCommands);
 }
 
@@ -394,11 +398,16 @@ function featureWho(command: FeatureCommand, k: Translate): string {
 }
 
 function featureReply(command: FeatureCommand, lang: Lang): string {
-    if (command.trigger === '!counter') return chatLine(lang, 'loyalty', 'counter.usage', {});
     const examples: Record<string, string> = { '!gamble <amount>': 'won', '!gamble half|all': 'won', '!duel <stake>': 'opened', '!duel @user <stake>': 'challenge' };
     const reply = moduleOf(command.module).replies.find((reply) => reply.key === examples[command.trigger] || command.trigger === reply.event || command.trigger.startsWith(reply.event + ' '));
     return reply ? catalogReplyText(lang, command.module, reply) : command.summary;
 }
+
+const DEATH_COUNTER_ROWS = [
+    ['!death', 'whoEveryone', 'row1Outcome'],
+    ['!death 5', 'whoMods', 'row2Outcome'],
+    ['!death -1', 'whoMods', 'row3Outcome'],
+] as const;
 
 export function featureRows(id: FeatureId, lang: Lang, t: Translate): CommandRow[] {
     const spec = FEATURES[id];
@@ -409,6 +418,7 @@ export function featureRows(id: FeatureId, lang: Lang, t: Translate): CommandRow
     if (id === 'discordBot') return guildModuleTiles(blankDiscordConfig()).map((tile) => ({
         cells: [k('tiles.' + tile.id + '.label'), k('tiles.' + tile.id + '.configure'), k('tiles.' + tile.id + '.outcome')],
     }));
+    if (id === 'deathCounter') return DEATH_COUNTER_ROWS.map(([trigger, who, outcome]) => ({ cells: [trigger, k(who), k(outcome)], copy: trigger }));
     return featureCommands(id).map((command) => ({
         cells: [command.trigger, featureWho(command, k), featureReply(command, lang)],
         copy: command.trigger === '!raffle [amount] [seconds]' ? command.trigger.split(' [')[0] + ' 1000 60' : command.trigger,
@@ -417,13 +427,13 @@ export function featureRows(id: FeatureId, lang: Lang, t: Translate): CommandRow
 
 export function featureExampleLines(id: FeatureId, lang: Lang) {
     if (id === 'deathCounter') {
-        const prefix = featureCommands(id)[0].trigger;
-        const samples = { counter: 'deaths', scope: 'channel', value: '1', user: VIEWER };
+        const at = (code: Lang) => deathCounterCopy[`../../../../locales/${code}/website/deathCounter.json`];
+        const reply = (at(lang) ?? at(defaultLang)).demoReply;
         return [
-            { who: 'mod' as const, name: 'lead_mod', text: `${prefix} create deaths` },
-            { who: 'bot' as const, text: chatLine(lang, 'loyalty', 'counter.created', samples) },
-            { who: 'mod' as const, name: 'lead_mod', text: `${prefix} add deaths 1` },
-            { who: 'bot' as const, text: chatLine(lang, 'loyalty', 'counter.set', samples) },
+            { who: 'viewer' as const, name: VIEWER, text: '!death' },
+            { who: 'bot' as const, text: reply },
+            { who: 'mod' as const, name: 'lead_mod', text: '!death 5' },
+            { who: 'bot' as const, text: reply },
         ];
     }
     const demos: Partial<Record<FeatureId, { module: string; keys: string[] }>> = {

@@ -107,7 +107,7 @@ python3 scripts/translations.py check --strict fr --strict-catalogs all
 - **Same paths as English.** Every file in your language needs an English file at the same path, and may only contain keys that English file has. If a key sits in the wrong file, the error names the file where it belongs.
 - **One home per key.** Each full key is defined by exactly one file. In console files, a key cannot be both a sentence and a group of keys.
 - **Plain names.** File and folder names start with a lowercase letter and use only letters, digits, and `_`, like `timers` or `channel_points`. Only `.json` files belong in `locales/`.
-- **Flat chat files.** Files in `chat/` are single-level `"key": "text"` pairs kept directly in `chat/`, without subfolders. Write deeper keys with dots, like `"counter.created"`.
+- **Flat chat files.** Files in `chat/` are single-level `"key": "text"` pairs kept directly in `chat/`, without subfolders. Write deeper keys with dots, like `"points.give.usage"`.
 - **Valid values.** Each file is a JSON object without duplicate keys. Values are text; console files may also use lists of text.
 - **Intact placeholders.** Named placeholders, printf placeholders in chat files, and list lengths must match English. The next section explains them.
 

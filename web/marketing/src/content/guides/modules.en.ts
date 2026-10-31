@@ -88,7 +88,6 @@ const modules = [
     tagline: 'Track wins, deaths, hugs, redeems, anything your chat can count.',
     cat: 'Points',
     start: 'Always on',
-    commands: '!counter',
   },
   {
     name: 'Gamble',

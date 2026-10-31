@@ -98,7 +98,7 @@ Two conventions inside a section:
   the browser: `Checklist` (first-hour tasks kept in `localStorage`),
   `Rehearsal` (expands the response tokens as you type), `PathPicker`,
   `FetchBudget` and `FetchOutcomes` (data sources), `ModuleCatalog` (filterable
-  module grid) and `CounterPlay` (replays `!counter`). Same `labels` rule. Client
+  module grid) and `CounterPlay` (replays `!death` and `!death 5`). Same `labels` rule. Client
   code is an Astro `<script>` (the CSP has no inline allowance) that binds through
   `src/script/bind.ts` on `astro:page-load` behind a `data-ready` guard, so the page transition router
   re-wires a widget after a navigation without binding it twice.

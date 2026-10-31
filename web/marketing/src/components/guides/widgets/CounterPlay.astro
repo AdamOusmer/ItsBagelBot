@@ -16,13 +16,13 @@ const L = {
     heading: 'Try it: bump the counter',
     windowTitle: '#your_channel',
     modName: 'Ayshacinder',
-    addOne: '!counter add deaths',
-    subOne: '!counter add deaths -1',
-    setTen: '!counter set deaths 10',
+    addOne: '!death',
+    subOne: '!death -1',
+    addFive: '!death 5',
     viewerName: 'SnackPackPanda',
-    viewerCommand: '!death',
+    viewerCommand: '!deaths',
     viewerReplyTemplate: 'Oh no, {value} deaths so far.',
-    modReplyTemplate: 'Counter deaths is now {value}.',
+    modReplyTemplate: 'The boss wins again.',
     ...labels,
 };
 const counterName = typeof props.counterName === 'string' ? props.counterName : 'deaths';
@@ -37,7 +37,7 @@ const lines = [
 const actions = [
     { kind: 'add', command: L.addOne },
     { kind: 'sub', command: L.subOne },
-    { kind: 'set10', command: L.setTen },
+    { kind: 'add5', command: L.addFive },
 ];
 ---
 
@@ -72,7 +72,7 @@ const actions = [
     const STEP: Record<string, (value: number) => number> = {
         add: (value) => value + 1,
         sub: (value) => value - 1,
-        set10: () => 10,
+        add5: (value) => value + 5,
     };
 
     function swap(el: HTMLElement | null, text: string) {

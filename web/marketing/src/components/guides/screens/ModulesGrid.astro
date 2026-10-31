@@ -54,7 +54,7 @@ const L = {
     row4Cmds: '!points, !leaderboard',
     row5Name: 'Counters',
     row5Desc: 'Track wins, deaths, hugs, redeems, anything your chat can count.',
-    row5Cmds: '!counter',
+    row5Cmds: '',
     row5State: 'Always on',
     statusOn: 'On',
     beta: 'Beta',
@@ -172,7 +172,7 @@ const categoryTabs = categories.map((cat, i) => ({ href: '#', label: cat.label, 
                         <span class="gs-copy">
                             <span class="gs-name">{L.row5Name}</span>
                             <span class="gs-grow">{L.row5Desc}</span>
-                            <span class="gs-cmds"><Tag tone="bare">{L.row5Cmds}</Tag></span>
+                            {L.row5Cmds && <span class="gs-cmds"><Tag tone="bare">{L.row5Cmds}</Tag></span>}
                         </span>
                         <Fragment slot="actions">
                             <Tag tone="quiet">{L.row5State}</Tag>

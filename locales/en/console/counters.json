@@ -27,7 +27,7 @@
   "scopeViewer": "Per user",
   "scopeCommand": "Per command or reward, all users pooled",
   "scopeViewerCommand": "Per user, per command or reward",
-  "scopeHint": "Bump it from a command response with {counter:name}, from a reward on the Channel Points page, or with !counter add.",
+  "scopeHint": "Bump it from a reward on the Channel Points page, or from a command with \"Bump a counter\" turned on, which adds 1 per use. A moderator can type a number after it to add or remove that many.",
   "scopeLocked": "The scope is fixed once created. To change it, delete the counter and recreate it.",
   "create": "Create counter",
   "creating": "Creating…",
