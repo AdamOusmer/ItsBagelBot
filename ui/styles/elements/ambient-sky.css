@@ -86,19 +86,17 @@
   }
 
   /* Stops are the 80px blur of the 500px and 400px orbs; a new size or blur needs new stops. */
-  .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo {
-    filter: none;
-    background: none;
-  }
-
   .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::before,
   .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::after {
     inset: -240px;
     border-radius: 0;
+    filter: none;
   }
 
   .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::before {
-    animation-name: bb-ambient-orb-pulse;
+    animation: bb-ambient-orb-pulse 5s ease-in-out infinite;
+    animation-delay: var(--bb-orb-pulse-delay, 0s);
+    animation-play-state: var(--bb-orb-play-state, running);
   }
 
   .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::after {

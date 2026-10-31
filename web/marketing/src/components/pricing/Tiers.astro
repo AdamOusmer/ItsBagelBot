@@ -143,6 +143,9 @@ const tiers: Tier[] = [
         width: var(--s);
         height: var(--s);
         overflow: visible;
+        /* One transform, not scale + translate: Chrome runs independent transform properties on an svg on the main thread. */
+        scale: none;
+        transform: scale(0.9);
         animation: bob 6.5s ease-in-out infinite alternate;
     }
 
@@ -292,8 +295,8 @@ const tiers: Tier[] = [
     }
 
     @keyframes bob {
-        from { translate: 0 0; }
-        to { translate: 0 -7px; }
+        from { transform: translate(0, 0) scale(0.9); }
+        to { transform: translate(0, -7px) scale(0.9); }
     }
 
     @media (prefers-reduced-motion: reduce) {

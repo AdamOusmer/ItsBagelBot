@@ -85,8 +85,8 @@
   </div>
 
   <div class="bg" aria-hidden="true">
-    <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"></div>
-    <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"></div>
+    <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"><i class="bb-orb__pulse"></i></div>
+    <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"><i class="bb-orb__pulse"></i></div>
   </div>
 
   <div class="material">

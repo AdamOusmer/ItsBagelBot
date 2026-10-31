@@ -105,8 +105,8 @@
 
 <div class="sky" aria-hidden="true">
   <LightField />
-  <div class="bb-orb bb-orb--halo bb-orb--green orb orb--green"></div>
-  <div class="bb-orb bb-orb--halo bb-orb--tan orb orb--tan"></div>
+  <div class="bb-orb bb-orb--halo bb-orb--green orb orb--green"><i class="bb-orb__pulse"></i></div>
+  <div class="bb-orb bb-orb--halo bb-orb--tan orb orb--tan"><i class="bb-orb__pulse"></i></div>
 </div>
 
 <main class="lb">
