@@ -169,6 +169,7 @@
     --bb-nav-link-transform: none;
     --bb-nav-link-pad: 4px 0;
     --bb-nav-link-rest: var(--footer-link);
+    --bb-nav-link-hover-bg: transparent;
 
     line-height: 1.43;
   }
