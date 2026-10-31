@@ -93,8 +93,8 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
             <Brand title="ItsBagelBot" logoSrc={heroLogo.src} wordmark size="lg" class="eyebrow__brand" />
         </div>
 
-        <h1 data-hero-title><span data-fit="block">{titleWords.map((word, i) => (
-            <>{i > 0 && ' '}<span class="word" data-hero-word>{word}</span></>
+        <h1><span data-fit="block">{titleWords.map((word, i) => (
+            <>{i > 0 && ' '}<span class="word" style={`--w: ${i}`}>{word}</span></>
         ))}</span></h1>
 
         <Text tone="muted-soft" size="md" class="lede"><span data-fit="block">{t('hero.lede')}</span></Text>
@@ -131,13 +131,8 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 <script>
     import '@luzir/bolota/motion.css';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
-    import { animate, stagger, cubicBezier } from 'motion';
     import type { EngineHandle } from '@luzir/bolota/engine';
 
-    const easeOutQuint = cubicBezier(0.22, 1, 0.36, 1);
-
-    const TITLE_DELAY = 0.3;
-    const TITLE_WORD_STAGGER = 0.11;
     const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'excited'];
     const EXPRESSION_MIN_MS = 2600;
     const EXPRESSION_SPREAD_MS = 3400;
@@ -150,24 +145,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     const IDLE_TIMEOUT_MS = 1500;
     const IDLE_FALLBACK_MS = 200;
     type MountEngine = typeof import('@luzir/bolota/engine').mountEngine;
-
-    function titleIntro(): void {
-        const h1 = document.querySelector<HTMLElement>('[data-hero-title]');
-        if (!h1 || h1.dataset.heroMotionReady === 'true') return;
-        h1.dataset.heroMotionReady = 'true';
-        if (prefersReducedMotion()) return;
-
-        const words = h1.querySelectorAll<HTMLElement>('[data-hero-word]');
-        animate(
-            words,
-            {
-                transform: ['translateY(112%) rotate(3deg)', 'translateY(0%) rotate(0deg)'],
-                opacity: [0, 1],
-                filter: ['blur(8px)', 'blur(0px)'],
-            },
-            { delay: stagger(TITLE_WORD_STAGGER, { startDelay: TITLE_DELAY }), duration: 0.9, ease: easeOutQuint },
-        );
-    }
 
     interface Live {
         svg: SVGSVGElement;
@@ -393,7 +370,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function setup(): void {
-        titleIntro();
         crowdSetup();
     }
 
@@ -557,6 +533,21 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         display: inline-block;
         transform-origin: 20% 90%;
         transition: none;
+        animation: hero-word-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: calc(0.3s + var(--w, 0) * 0.11s);
+    }
+
+    @keyframes hero-word-in {
+        from {
+            transform: translateY(112%) rotate(3deg);
+            opacity: 0;
+            filter: blur(8px);
+        }
+        to {
+            transform: none;
+            opacity: 1;
+            filter: blur(0);
+        }
     }
 
     .lede {
@@ -651,14 +642,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         scale: 0.9;
     }
 
-    @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-        .word {
-            opacity: 0;
-            transform: translateY(112%) rotate(3deg);
-        }
-    }
-
     @media (prefers-reduced-motion: reduce) {
+        .word {
+            animation: none;
+        }
+
         .eyebrow,
         .lede,
         .actions {

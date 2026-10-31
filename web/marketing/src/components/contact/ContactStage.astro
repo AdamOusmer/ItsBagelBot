@@ -86,8 +86,8 @@ const titleWords = t('contact.title').split(' ');
         <div class="top">
             <div class="head">
                 <span class="glow"><span data-fit>{t('contact.eyebrow')}</span></span>
-                <h1 class="title" data-contact-title><span data-fit="block">{titleWords.map((word, i) => (
-                    <>{i > 0 && ' '}<span class="word" data-contact-word>{word}</span></>
+                <h1 class="title"><span data-fit="block">{titleWords.map((word, i) => (
+                    <>{i > 0 && ' '}<span class="word" style={`--w: ${i}`}>{word}</span></>
                 ))}</span></h1>
                 <p class="lede rise" style="--i: 1"><span data-fit="block">{t('contact.desc')}</span></p>
             </div>
@@ -166,7 +166,6 @@ const titleWords = t('contact.title').split(' ');
 <script>
     import '@luzir/bolota/motion.css';
     import '@luzir/bolota/gaze.css';
-    import { animate, stagger, cubicBezier } from 'motion';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
     import type { EngineHandle } from '@luzir/bolota/engine';
 
@@ -175,7 +174,6 @@ const titleWords = t('contact.title').split(' ');
     const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'excited'];
     const EXPRESSION_MIN_MS = 2600;
     const EXPRESSION_SPREAD_MS = 3400;
-    const easeOutQuint = cubicBezier(0.22, 1, 0.36, 1);
 
     interface Live {
         svg: SVGSVGElement;
@@ -185,22 +183,6 @@ const titleWords = t('contact.title').split(' ');
 
     let engines: Live[] = [];
     let mounting = false;
-
-    function titleIntro(): void {
-        const h1 = document.querySelector<HTMLElement>('[data-contact-title]');
-        if (!h1 || h1.dataset.motionReady === 'true') return;
-        h1.dataset.motionReady = 'true';
-        if (prefersReducedMotion()) return;
-        animate(
-            h1.querySelectorAll<HTMLElement>('[data-contact-word]'),
-            {
-                transform: ['translateY(112%) rotate(3deg)', 'translateY(0%) rotate(0deg)'],
-                opacity: [0, 1],
-                filter: ['blur(8px)', 'blur(0px)'],
-            },
-            { delay: stagger(0.11, { startDelay: 0.3 }), duration: 0.9, ease: easeOutQuint },
-        );
-    }
 
     function scheduleExpression(live: Live, delayMs: number): void {
         live.timer = setTimeout(() => {
@@ -263,7 +245,6 @@ const titleWords = t('contact.title').split(' ');
     }
 
     function setup(): void {
-        titleIntro();
         void mountBolotas();
         void loadStatus();
     }
@@ -358,6 +339,8 @@ const titleWords = t('contact.title').split(' ');
     .word {
         display: inline-block;
         transform-origin: 20% 90%;
+        animation: hero-word-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: calc(0.3s + var(--w, 0) * 0.11s);
         background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
         background-clip: text;
         -webkit-background-clip: text;
@@ -558,14 +541,24 @@ const titleWords = t('contact.title').split(' ');
         animation: fadeUp 0.9s calc(0.45s + var(--i, 0) * 0.12s) var(--bb-ease-out-expo) forwards;
     }
 
-    @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-        .word {
-            opacity: 0;
+    @keyframes hero-word-in {
+        from {
             transform: translateY(112%) rotate(3deg);
+            opacity: 0;
+            filter: blur(8px);
+        }
+        to {
+            transform: none;
+            opacity: 1;
+            filter: blur(0);
         }
     }
 
     @media (prefers-reduced-motion: reduce) {
+        .word {
+            animation: none;
+        }
+
         .glow,
         .rise,
         .mascot {
