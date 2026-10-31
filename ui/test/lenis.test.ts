@@ -35,13 +35,20 @@ class StubLenis {
 mock.module("lenis", () => ({ default: StubLenis }));
 
 let reduced = false;
+let touchOnly = false;
 
 mock.module(new URL("../lib/motion-query.ts", import.meta.url).pathname, () => ({
   prefersReducedMotion: () => reduced,
   hasFinePointer: () => true,
   reduceMotion: { matches: false, addEventListener() {}, removeEventListener() {} },
   finePointer: { matches: true, addEventListener() {}, removeEventListener() {} },
-  mediaQuery: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  mediaQuery: () => ({
+    get matches() {
+      return touchOnly;
+    },
+    addEventListener() {},
+    removeEventListener() {},
+  }),
 }));
 
 let subscriptions = 0;
@@ -81,6 +88,7 @@ beforeEach(() => {
   ticks = [];
   wakes = 0;
   reduced = false;
+  touchOnly = false;
   lastOptions = undefined;
   delete (globalThis as unknown as LenisWindow).__lenis;
 });
@@ -157,6 +165,15 @@ describe("createSmoothScroll", () => {
 
   test("returns null under reduced motion, and constructs nothing", () => {
     reduced = true;
+
+    expect(createSmoothScroll()).toBeNull();
+    expect(constructed).toBe(0);
+    expect(subscriptions).toBe(0);
+    expect(getSmoothScroll()).toBeUndefined();
+  });
+
+  test("returns null on touch-only devices, so touch scrolling never waits on Lenis", () => {
+    touchOnly = true;
 
     expect(createSmoothScroll()).toBeNull();
     expect(constructed).toBe(0);
