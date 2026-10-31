@@ -12,8 +12,9 @@ type Mote = {
 
 type Layer = {
     sway: HTMLElement;
-    canvas: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
+    image: HTMLElement;
+    url: string | null;
+    paints: number;
     speed: number;
     driftSeed: number;
     swaySeed: number;
@@ -39,9 +40,7 @@ function channel(host: HTMLElement, name: string, fallback: string): string {
 
 export function field(host: HTMLElement, options: FieldOptions = {}): (() => void) | null {
     if (prefersReducedMotion()) return null;
-    const layers = SPEEDS_PX_PER_FRAME.map(createLayer);
-    if (layers.some((layer) => !layer)) return null;
-    const all = layers as Layer[];
+    const all = SPEEDS_PX_PER_FRAME.map(createLayer);
     host.replaceChildren(...all.map((layer) => layer.sway));
 
     const warmth = options.warmth ?? 0.7;
@@ -73,37 +72,55 @@ export function field(host: HTMLElement, options: FieldOptions = {}): (() => voi
     return () => {
         resizer.disconnect();
         clearTimeout(rebuild);
-        all.forEach((layer) => layer.sway.remove());
+        all.forEach((layer) => {
+            layer.paints++;
+            setImage(layer, null);
+            layer.sway.remove();
+        });
     };
 }
 
-function createLayer(speed: number): Layer | null {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext?.('2d') ?? null;
-    if (!ctx) return null;
+function createLayer(speed: number): Layer {
     const sway = document.createElement('div');
+    const image = document.createElement('div');
     sway.className = 'bb-light-field__layer';
-    canvas.className = 'bb-light-field__canvas';
-    canvas.setAttribute('aria-hidden', 'true');
-    sway.append(canvas);
-    return { sway, canvas, ctx, speed, driftSeed: Math.random(), swaySeed: Math.random(), swayS: SWAY_MIN_S + Math.random() * SWAY_SPAN_S };
+    image.className = 'bb-light-field__image';
+    image.setAttribute?.('aria-hidden', 'true');
+    sway.append(image);
+    return { sway, image, url: null, paints: 0, speed, driftSeed: Math.random(), swaySeed: Math.random(), swayS: SWAY_MIN_S + Math.random() * SWAY_SPAN_S };
+}
+
+function setImage(layer: Layer, url: string | null) {
+    if (layer.url) URL.revokeObjectURL(layer.url);
+    layer.url = url;
+    layer.image.style.backgroundImage = url ? `url("${url}")` : '';
 }
 
 function paintLayer(layer: Layer, motes: Mote[], width: number, height: number, dpr: number) {
-    const { canvas, ctx } = layer;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * 2 * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height * 2);
-    for (const mote of motes) {
-        ctx.fillStyle = mote.fill;
-        for (const offset of [-height, 0, height]) dot(ctx, mote, offset);
-    }
     const drift = height / layer.speed / FPS;
-    canvas.style.animationDuration = `${drift.toFixed(2)}s`;
-    canvas.style.animationDelay = `${(-layer.driftSeed * drift).toFixed(2)}s`;
+    layer.image.style.animationDuration = `${drift.toFixed(2)}s`;
+    layer.image.style.animationDelay = `${(-layer.driftSeed * drift).toFixed(2)}s`;
     layer.sway.style.animationDuration = `${layer.swayS.toFixed(2)}s`;
     layer.sway.style.animationDelay = `${(-layer.swaySeed * layer.swayS).toFixed(2)}s`;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    const ctx = canvas.getContext?.('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    for (const mote of motes) {
+        ctx.fillStyle = mote.fill;
+        dot(ctx, mote, 0);
+        if (mote.y + mote.r > height) dot(ctx, mote, -height);
+        if (mote.y - mote.r < 0) dot(ctx, mote, height);
+    }
+    const paint = ++layer.paints;
+    if (!canvas.toBlob) return setImage(layer, canvas.toDataURL());
+    canvas.toBlob((blob) => {
+        if (paint === layer.paints && blob) setImage(layer, URL.createObjectURL(blob));
+    });
 }
 
 function dot(ctx: CanvasRenderingContext2D, mote: Mote, offset: number) {
