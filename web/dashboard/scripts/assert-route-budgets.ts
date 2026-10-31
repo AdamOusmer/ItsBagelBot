@@ -23,7 +23,9 @@ interface Budget {
 // reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
   // css raised from 21900 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 21873, ~2% room.
-  '/(public)/login': { js: 97700, css: 22300, catalog: 2900, lazy: 0 },
+  // css raised from 22300 (2026-10-31) for the halo orb pulse layer that keeps the blur off the per-frame path:
+  // measured 22319 (CI 22318), ~2% room.
+  '/(public)/login': { js: 97700, css: 22800, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
   // css raised from 45200 (2026-10-29) for the shared .bb-prose style in typography.css (+213 B gzip there): CI measured 45295, ~1% room.
