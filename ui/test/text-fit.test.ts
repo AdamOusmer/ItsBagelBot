@@ -33,15 +33,11 @@ test('groupMin gives every member of a group its smallest ratio', () => {
 
 type Slot = Parameters<typeof fitSlotOf>[0];
 
-test('fitSlotOf reads bb-fit attributes and legacy spans from their dataset', () => {
-  const element = { localName: 'bb-fit', getAttribute: (name: string) => ({ mode: 'block', group: 'dock' })[name] ?? null, dataset: {} };
+test('fitSlotOf reads bb-fit attributes', () => {
+  const element = { getAttribute: (name: string) => ({ mode: 'block', group: 'dock' })[name] ?? null };
   expect(fitSlotOf(element as unknown as Slot)).toEqual({ block: true, group: 'dock' });
-  const line = { localName: 'bb-fit', getAttribute: () => null, dataset: {} };
+  const line = { getAttribute: () => null };
   expect(fitSlotOf(line as unknown as Slot)).toEqual({ block: false, group: undefined });
-  const legacy = { localName: 'span', getAttribute: () => null, dataset: { fit: 'block', fitGroup: 'hero' } };
-  expect(fitSlotOf(legacy as unknown as Slot)).toEqual({ block: true, group: 'hero' });
-  const legacyLine = { localName: 'span', getAttribute: () => null, dataset: { fit: '' } };
-  expect(fitSlotOf(legacyLine as unknown as Slot)).toEqual({ block: false, group: undefined });
 });
 
 // bun test has no DOM, so the element runs against stubs of the platform calls the engine makes.

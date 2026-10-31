@@ -306,8 +306,8 @@ const contentSecurityPolicy = [
     <Brackets/>
     <Footer {...footer}>
         {isHome && <div slot="colophon" id="about">
-            <p><span data-fit="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</span></p>
-            <p><span data-fit="block">{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</span></p>
+            <p><bb-fit mode="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</bb-fit></p>
+            <p><bb-fit mode="block">{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</bb-fit></p>
         </div>}
     </Footer>
     <Cursor/>
@@ -323,26 +323,9 @@ const contentSecurityPolicy = [
     </script>
 
     <script>
-        import { defineTextFit, mountTextFit } from '@bagel/ui/lib/text-fit';
+        import { defineTextFit } from '@bagel/ui/lib/text-fit';
 
         defineTextFit();
-
-        let disposeTextFit: (() => void) | null = null;
-
-        function teardownTextFit() {
-            disposeTextFit?.();
-            disposeTextFit = null;
-        }
-
-        function setupTextFit() {
-            teardownTextFit();
-            disposeTextFit = mountTextFit(document);
-        }
-
-        setupTextFit();
-        document.addEventListener('astro:page-load', setupTextFit);
-        document.addEventListener('astro:before-swap', teardownTextFit);
-        window.addEventListener('pagehide', teardownTextFit);
     </script>
 
 </body>

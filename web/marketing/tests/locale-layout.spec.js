@@ -14,7 +14,7 @@ const VIEWPORTS = [
 const SKIP = [
     'script', 'style', 'svg *', 'canvas', '[popover]', '.bb-mobile-menu *', '.play__feed *', '.bb-skip-link',
     '[data-chat] .bb-chat__line', '[data-chat] .bb-chat__line *',
-    '[data-fit]', '[data-fit] *', 'bb-fit', 'bb-fit *',
+    'bb-fit', 'bb-fit *',
 ].join(', ');
 const TOLERANCE_PX = 1;
 const MIN_FIT_RATIO = 0.6;
@@ -39,7 +39,7 @@ function pathOf(el) {
 }
 
 function hugsText(el) {
-    return el.children.length > 0 && Array.from(el.children).every((child) => child.hasAttribute('data-fit') || child.localName === 'bb-fit' || hugsText(child));
+    return el.children.length > 0 && Array.from(el.children).every((child) => child.localName === 'bb-fit' || hugsText(child));
 }
 
 function hasSize(rect) {
@@ -57,7 +57,7 @@ function boxesOf(skip) {
 }
 
 function fitOverflow(el) {
-    const box = el.parentElement.closest('[data-fit-box], .bb-fit-box') ?? el.parentElement;
+    const box = el.parentElement.closest('.bb-fit-box') ?? el.parentElement;
     const x = el.scrollWidth - box.clientWidth;
     if (x > 1) return `overflows x by ${x}px (ratio ${el.style.getPropertyValue('--bb-fit') || '1'}, text ${el.scrollWidth}, box ${box.clientWidth})`;
     if (el.dataset.fit !== 'block' && el.getAttribute('mode') !== 'block') return null;
@@ -76,7 +76,7 @@ function fitProblemOf(el, minRatio) {
 
 function fitProblemsOf(minRatio) {
     const problems = [];
-    for (const el of document.querySelectorAll('[data-fit], bb-fit')) {
+    for (const el of document.querySelectorAll('bb-fit')) {
         if (!el.checkVisibility()) continue;
         const problem = fitProblemOf(el, minRatio);
         if (problem) problems.push(`${problem}: ${pathOf(el)} "${(el.textContent ?? '').trim().slice(0, 40)}"`);
@@ -192,7 +192,7 @@ test.describe('locale-stable layout', () => {
         const closed = page.locator('details:not([open]) > summary:visible');
         while (await closed.count()) await closed.first().click();
         await expect.poll(() => page.evaluate(() => {
-            const inside = Array.from(document.querySelectorAll('details [data-fit], details bb-fit')).filter((el) => el.checkVisibility());
+            const inside = Array.from(document.querySelectorAll('details bb-fit')).filter((el) => el.checkVisibility());
             return inside.length > 0 && window.__localeLayout.fitProblemsOf(0.6);
         })).toEqual([]);
         await context.close();

@@ -71,7 +71,7 @@ function canRise(title: HTMLElement, source: HTMLElement | null): source is HTML
 }
 
 export function riseLines(title: HTMLElement): () => void {
-    const source = title.querySelector<HTMLElement>('[data-fit], bb-fit');
+    const source = title.querySelector<HTMLElement>('bb-fit');
     if (!canRise(title, source)) return () => {};
 
     let layer: HTMLElement | null = null;

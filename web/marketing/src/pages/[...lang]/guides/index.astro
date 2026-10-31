@@ -35,15 +35,15 @@ const [first, ...rest] = guides;
     <Section size="flush" class="ghub">
         <Card atmo hover as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool reveal-in" data-cursor="quiet" style="--reveal-i: 1">
             <span class="ghub__tool-demo" slot="band" aria-hidden="true">
-                <span class="ghub__tool-line"><span data-fit="block" set:html={hub.tool.demoIn}></span></span>
-                <span class="ghub__tool-line ghub__tool-line--out"><span data-fit="block" set:html={hub.tool.demoOut}></span></span>
+                <span class="ghub__tool-line"><bb-fit mode="block" set:html={hub.tool.demoIn}></bb-fit></span>
+                <span class="ghub__tool-line ghub__tool-line--out"><bb-fit mode="block" set:html={hub.tool.demoOut}></bb-fit></span>
             </span>
             <span class="ghub__tool-body">
                 <span class="ghub__tool-copy">
-                    <Heading level={3} variant="card" as="span" class="ghub__tool-name"><span data-fit>{hub.tool.name}</span></Heading>
-                    <Text as="span" tone="muted-light" class="ghub__tool-desc"><span data-fit="block">{hub.tool.description}</span></Text>
+                    <Heading level={3} variant="card" as="span" class="ghub__tool-name"><bb-fit>{hub.tool.name}</bb-fit></Heading>
+                    <Text as="span" tone="muted-light" class="ghub__tool-desc"><bb-fit mode="block">{hub.tool.description}</bb-fit></Text>
                 </span>
-                <Button as="span" class="ghub__tool-btn" data-cursor><span data-fit>{hub.tool.cta}</span></Button>
+                <Button as="span" class="ghub__tool-btn" data-cursor><bb-fit>{hub.tool.cta}</bb-fit></Button>
             </span>
         </Card>
 
@@ -53,10 +53,10 @@ const [first, ...rest] = guides;
             </span>
             <span class="ghub__variables-body">
                 <span class="ghub__variables-copy">
-                    <Heading level={4} as="span" class="ghub__variables-name"><span data-fit>{t('guide.variablesTitle')}</span></Heading>
-                    <Text as="span" tone="muted-light" class="ghub__variables-desc"><span data-fit="block">{t('guide.variablesDescription')}</span></Text>
+                    <Heading level={4} as="span" class="ghub__variables-name"><bb-fit>{t('guide.variablesTitle')}</bb-fit></Heading>
+                    <Text as="span" tone="muted-light" class="ghub__variables-desc"><bb-fit mode="block">{t('guide.variablesDescription')}</bb-fit></Text>
                 </span>
-                <Button as="span" variant="secondary" class="ghub__variables-btn" data-cursor><span data-fit>{t('guide.variablesCta')}</span></Button>
+                <Button as="span" variant="secondary" class="ghub__variables-btn" data-cursor><bb-fit>{t('guide.variablesCta')}</bb-fit></Button>
             </span>
         </Card>
 
@@ -71,14 +71,14 @@ const [first, ...rest] = guides;
         </div>
 
         <div class="ghub__help ghub__compare reveal-in" style="--reveal-i: 6">
-            <Text tone="muted" class="ghub__help-prompt"><span data-fit>{t('compare.guidesPrompt')}</span></Text>
+            <Text tone="muted" class="ghub__help-prompt"><bb-fit>{t('compare.guidesPrompt')}</bb-fit></Text>
             <div class="ghub__help-links">
                 <TextLink href={localizePath('/vs', lang)} label={t('compare.allComparisons')} fit />
             </div>
         </div>
 
         <div class="ghub__help reveal-in" style="--reveal-i: 6">
-            <Text tone="muted" class="ghub__help-prompt"><span data-fit>{hub.help.prompt}</span></Text>
+            <Text tone="muted" class="ghub__help-prompt"><bb-fit>{hub.help.prompt}</bb-fit></Text>
             <div class="ghub__help-links">
                 {hub.help.links.map((link) => (
                     <TextLink href={link.href} label={link.label} external={link.external} fit />

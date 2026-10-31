@@ -75,15 +75,15 @@ const schema: Record<string, unknown>[] = [
             {pages.map((page, i) => (
                 <li>
                     <Card atmo hover as="a" href={page.href} label={page.name} class="vshub__card reveal-in" data-cursor="quiet" style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
-                        <Heading level={4} as="span" class="vshub__title"><span data-fit>{page.title}</span></Heading>
-                        <Text as="span" tone="muted-light" class="vshub__desc"><span data-fit="block">{page.description}</span></Text>
+                        <Heading level={4} as="span" class="vshub__title"><bb-fit>{page.title}</bb-fit></Heading>
+                        <Text as="span" tone="muted-light" class="vshub__desc"><bb-fit mode="block">{page.description}</bb-fit></Text>
                     </Card>
                 </li>
             ))}
         </ul>
         <Cluster justify="center" gap={3} class="vshub__actions reveal-in">
-            <ButtonLink href={localizePath('/import', lang)}><span data-fit>{t('landing.relImport')}</span></ButtonLink>
-            <ButtonLink variant="secondary" href={dashLoginHref(lang)}><span data-fit>{t('nav.cta')}</span></ButtonLink>
+            <ButtonLink href={localizePath('/import', lang)}><bb-fit>{t('landing.relImport')}</bb-fit></ButtonLink>
+            <ButtonLink variant="secondary" href={dashLoginHref(lang)}><bb-fit>{t('nav.cta')}</bb-fit></ButtonLink>
         </Cluster>
     </Section>
 </Layout>

@@ -17,20 +17,20 @@ const t = useTranslations(lang);
         <Icon name="leaf" size={96} strokeWidth={1.5} class="eco__leaf" />
     </div>
     <div class="eco__body">
-        <Eyebrow tone="go" class="eco__eyebrow reveal-in"><span data-fit>{t('ecoFriendly.eyebrow')}</span></Eyebrow>
-        <Heading level={2} variant="title" class="eco__title reveal-in"><span data-fit="block">{t('ecoFriendly.title')}</span></Heading>
-        <p class="eco__lead reveal-in"><span data-fit="block">{t('ecoFriendly.statsLead')}</span></p>
+        <Eyebrow tone="go" class="eco__eyebrow reveal-in"><bb-fit>{t('ecoFriendly.eyebrow')}</bb-fit></Eyebrow>
+        <Heading level={2} variant="title" class="eco__title reveal-in"><bb-fit mode="block">{t('ecoFriendly.title')}</bb-fit></Heading>
+        <p class="eco__lead reveal-in"><bb-fit mode="block">{t('ecoFriendly.statsLead')}</bb-fit></p>
         <div class="eco__stats reveal-in">
             <span class="eco__stat">
-                <span class="eco__value"><span data-fit>92%</span></span>
-                <span class="eco__key"><span data-fit>{t('ecoFriendly.statSite')}</span></span>
+                <span class="eco__value"><bb-fit>92%</bb-fit></span>
+                <span class="eco__key"><bb-fit>{t('ecoFriendly.statSite')}</bb-fit></span>
             </span>
             <span class="eco__stat">
-                <span class="eco__value"><span data-fit>95%</span></span>
-                <span class="eco__key"><span data-fit>{t('ecoFriendly.statDash')}</span></span>
+                <span class="eco__value"><bb-fit>95%</bb-fit></span>
+                <span class="eco__key"><bb-fit>{t('ecoFriendly.statDash')}</bb-fit></span>
             </span>
         </div>
-        <TextLink variant="arrow" tone="go" class="eco__more reveal-in" href={localizePath('/green-hosting', lang)}><span class="eco__more-text"><span data-fit>{t('ecoFriendly.more')}</span></span></TextLink>
+        <TextLink variant="arrow" tone="go" class="eco__more reveal-in" href={localizePath('/green-hosting', lang)}><span class="eco__more-text"><bb-fit>{t('ecoFriendly.more')}</bb-fit></span></TextLink>
     </div>
 </section>
 

@@ -85,11 +85,11 @@ const titleWords = t('contact.title').split(' ');
     <div class="wrap">
         <div class="top">
             <div class="head">
-                <span class="glow"><span data-fit>{t('contact.eyebrow')}</span></span>
-                <h1 class="title"><span data-fit="block">{titleWords.map((word, i) => (
+                <span class="glow"><bb-fit>{t('contact.eyebrow')}</bb-fit></span>
+                <h1 class="title"><bb-fit mode="block">{titleWords.map((word, i) => (
                     <>{i > 0 && ' '}<span class="word" style={`--w: ${i}`}>{word}</span></>
-                ))}</span></h1>
-                <p class="lede rise" style="--i: 1"><span data-fit="block">{t('contact.desc')}</span></p>
+                ))}</bb-fit></h1>
+                <p class="lede rise" style="--i: 1"><bb-fit mode="block">{t('contact.desc')}</bb-fit></p>
             </div>
             <div class="mascot" aria-hidden="true">
                 <svg
@@ -122,12 +122,12 @@ const titleWords = t('contact.title').split(' ');
                                 />
                             ))}
                         </span>
-                        <span class="label__text"><span data-fit>{t(`contact.${lane.key}Label`)}</span></span>
+                        <span class="label__text"><bb-fit>{t(`contact.${lane.key}Label`)}</bb-fit></span>
                     </span>
-                    <p class="say"><span data-fit="block">{t(`contact.${lane.key}Text`)}</span></p>
+                    <p class="say"><bb-fit mode="block">{t(`contact.${lane.key}Text`)}</bb-fit></p>
                     <ButtonLink class="cta" href={lane.href} {...(lane.external ? ext : {})}>
                         {lane.icon && <Icon name={lane.icon} size={15} />}
-                        <span data-fit>{t(`contact.${lane.key}Cta`)}</span>
+                        <bb-fit>{t(`contact.${lane.key}Cta`)}</bb-fit>
                     </ButtonLink>
                 </div>
             ))}
@@ -136,24 +136,24 @@ const titleWords = t('contact.title').split(' ');
         <div class="more rise" style="--i: 4">
             {items.map((item) => (
                 <div class="item">
-                    <span class="label"><Icon name={item.icon} size={14} /><span class="label__text"><span data-fit>{t(`contact.${item.key}Label`)}</span></span></span>
-                    <p class="item__text"><span data-fit="block">{t(`contact.${item.key}Text`)}</span></p>
+                    <span class="label"><Icon name={item.icon} size={14} /><span class="label__text"><bb-fit>{t(`contact.${item.key}Label`)}</bb-fit></span></span>
+                    <p class="item__text"><bb-fit mode="block">{t(`contact.${item.key}Text`)}</bb-fit></p>
                     <ButtonLink class="cta cta--sm" variant="secondary" size="sm" href={item.href} {...(item.external ? ext : {})}>
-                        <span data-fit>{t(`contact.${item.key}Cta`)}</span>
+                        <bb-fit>{t(`contact.${item.key}Cta`)}</bb-fit>
                     </ButtonLink>
                 </div>
             ))}
             <div class="item" data-contact-status data-state="unknown" {...stateText}>
-                <span class="label"><span class="beacon" aria-hidden="true"></span><span class="label__text"><span data-fit>{t('contact.statusLabel')}</span></span></span>
-                <p class="item__text" aria-live="polite"><span data-fit="block" data-contact-status-text>{t('contact.statusUnknown')}</span></p>
+                <span class="label"><span class="beacon" aria-hidden="true"></span><span class="label__text"><bb-fit>{t('contact.statusLabel')}</bb-fit></span></span>
+                <p class="item__text" aria-live="polite"><bb-fit mode="block" data-contact-status-text>{t('contact.statusUnknown')}</bb-fit></p>
                 <ButtonLink class="cta cta--sm" variant="secondary" size="sm" href={SITE.status} {...ext}>
-                    <span data-fit>{t('contact.statusCta')}</span>
+                    <bb-fit>{t('contact.statusCta')}</bb-fit>
                 </ButtonLink>
             </div>
         </div>
 
         <div class="socials rise" style="--i: 5">
-            <span class="label label--follow"><span class="label__text"><span data-fit>{t('contact.followLabel')}</span></span></span>
+            <span class="label label--follow"><span class="label__text"><bb-fit>{t('contact.followLabel')}</bb-fit></span></span>
             <ul class="socials__row">
                 {socials.map((link) => (
                     <li><a class="social" href={link.href} {...ext}><Icon name={link.icon} size={16} /><span>{link.label}</span></a></li>

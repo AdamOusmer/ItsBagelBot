@@ -36,7 +36,7 @@
       {#if beta}<span class="mrow__beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
     </span>
     <span class="mrow__go" aria-hidden="true">
-      <span class="mrow__go-text" data-fit-box><span data-fit="">{t('modules.openSettings')}</span></span>
+      <span class="mrow__go-text bb-fit-box"><bb-fit>{t('modules.openSettings')}</bb-fit></span>
       <Icon name="chevron" size={14} class="mrow__chev" />
     </span>
   </a>
@@ -56,7 +56,7 @@
         />
       </form>
     {:else}
-      <Tag tone="pre" data-fit-box><span data-fit="">{t('modules.alwaysOn')}</span></Tag>
+      <Tag tone="pre" class="bb-fit-box"><bb-fit>{t('modules.alwaysOn')}</bb-fit></Tag>
     {/if}
   </span>
 </article>

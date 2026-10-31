@@ -33,14 +33,14 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
     style={`--reveal-i: ${revealIndex}`}
 >
     <span class="gcard__chips" slot="band" aria-hidden="true">
-        {chips.map((chip) => <Chip as="span" class="bb-chip--cell"><span data-fit>{chip}</span></Chip>)}
+        {chips.map((chip) => <Chip as="span" class="bb-chip--cell"><bb-fit>{chip}</bb-fit></Chip>)}
     </span>
     <span class="gcard__body">
-        <Heading level={4} as="span" class="gcard__title"><span data-fit>{title}</span></Heading>
-        <Text as="span" tone="muted-light" class="gcard__desc"><span data-fit="block">{description}</span></Text>
+        <Heading level={4} as="span" class="gcard__title"><bb-fit>{title}</bb-fit></Heading>
+        <Text as="span" tone="muted-light" class="gcard__desc"><bb-fit mode="block">{description}</bb-fit></Text>
         <Cluster as="span" gap={3} justify="between" class="gcard__foot">
-            <Text as="span" size="xs" mono tone="muted" class="gcard__meta"><span data-fit>{meta}</span></Text>
-            <Button as="span" variant="secondary" class="gcard__cta" data-cursor><span data-fit>{cta}</span></Button>
+            <Text as="span" size="xs" mono tone="muted" class="gcard__meta"><bb-fit>{meta}</bb-fit></Text>
+            <Button as="span" variant="secondary" class="gcard__cta" data-cursor><bb-fit>{cta}</bb-fit></Button>
         </Cluster>
     </span>
 </Card>

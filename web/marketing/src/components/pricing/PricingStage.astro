@@ -25,13 +25,13 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
     </div>
 
     <div class="wrap">
-        <h1 class="title"><span data-fit>{titleWords.map((word, i) => (
+        <h1 class="title"><bb-fit>{titleWords.map((word, i) => (
             <>{i > 0 && ' '}<span class="word" style={`--w: ${i}`}>{word}</span></>
-        ))}</span></h1>
+        ))}</bb-fit></h1>
 
         <Tiers />
 
-        <p class="oath reveal-in"><Icon name="check" size={14} class="oath__check" /><span class="oath__text"><span data-fit>{t('pricingTiers.oath')}</span></span></p>
+        <p class="oath reveal-in"><Icon name="check" size={14} class="oath__check" /><span class="oath__text"><bb-fit>{t('pricingTiers.oath')}</bb-fit></span></p>
 
         <div class="donate reveal-in">
             <div class="donate__crowd" aria-hidden="true">
@@ -39,11 +39,11 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
                     <BolotaSvg bolota={donor} class="donate__face" style={`--s: ${donor.size}px`} expression="happy" />
                 ))}
             </div>
-            <span class="donate__label"><span data-fit>{t('pricing.donateLabel')}</span></span>
-            <h2 class="donate__title"><span data-fit="block">{t('pricing.donateTitle')}</span></h2>
-            <p class="donate__text"><span data-fit="block">{t('pricing.donateText')}</span></p>
-            <ButtonLink class="donate__cta" href={KOFI_URL} target="_blank" rel="noopener noreferrer"><span data-fit>{t('pricing.donateCta')}</span></ButtonLink>
-            <span class="donate__note"><span data-fit>{t('pricing.donateNote')}</span></span>
+            <span class="donate__label"><bb-fit>{t('pricing.donateLabel')}</bb-fit></span>
+            <h2 class="donate__title"><bb-fit mode="block">{t('pricing.donateTitle')}</bb-fit></h2>
+            <p class="donate__text"><bb-fit mode="block">{t('pricing.donateText')}</bb-fit></p>
+            <ButtonLink class="donate__cta" href={KOFI_URL} target="_blank" rel="noopener noreferrer"><bb-fit>{t('pricing.donateCta')}</bb-fit></ButtonLink>
+            <span class="donate__note"><bb-fit>{t('pricing.donateNote')}</bb-fit></span>
         </div>
     </div>
 </section>

@@ -29,12 +29,12 @@ const { label, href, tone = 'gold', span = 1, index = 0, class: cls = '' } = Ast
     <div class="fcard__inner reveal-in" style={`--reveal-i: ${index}`}>
         {(label || href) && (
             <div class="fcard__top">
-                {label && <span class="fcard__label"><span data-fit>{label}</span></span>}
+                {label && <span class="fcard__label"><bb-fit>{label}</bb-fit></span>}
                 {href && <RoundBadge size="md" muted class="fcard__go" data-cursor aria-hidden="true">→</RoundBadge>}
             </div>
         )}
         <div class="fcard__demo" aria-hidden="true"><slot name="demo" /></div>
-        <Heading level={5} as="h3" variant="title" class="fcard__title"><span data-fit="block"><slot /></span></Heading>
+        <Heading level={5} as="h3" variant="title" class="fcard__title"><bb-fit mode="block"><slot /></bb-fit></Heading>
     </div>
 </HaloPanel>
 

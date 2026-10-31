@@ -97,17 +97,17 @@
     {/if}
 
     <div class="eyebrow">
-      <span class="eyebrow__beta"><span class="eyebrow__beta-label"><span data-fit>{t('login.badge')}</span></span></span>
+      <span class="eyebrow__beta"><span class="eyebrow__beta-label"><bb-fit>{t('login.badge')}</bb-fit></span></span>
       <Brand title="ItsBagelBot" logoSrc="/logo-320.webp" wordmark size="lg" class="eyebrow__brand" />
     </div>
 
-    <h1 data-hero-title aria-label={titleWords.join(' ')}><span data-fit="block" aria-hidden="true">{#each titleWords as word, i (i)}{#if i > 0}{' '}{/if}<span class="word" data-hero-word>{word}</span>{/each}</span></h1>
+    <h1 data-hero-title aria-label={titleWords.join(' ')}><bb-fit mode="block" aria-hidden="true">{#each titleWords as word, i (i)}{#if i > 0}{' '}{/if}<span class="word" data-hero-word>{word}</span>{/each}</bb-fit></h1>
 
-    <Text tone="muted-soft" size="md" class="lede"><span data-fit="block">{t('login.lede')}</span></Text>
+    <Text tone="muted-soft" size="md" class="lede"><bb-fit mode="block">{t('login.lede')}</bb-fit></Text>
 
     <div class="actions">
-      <ButtonLink class="cta" href={loginHref} variant="twitch" data-sveltekit-reload><span data-fit>{t('login.cta')}</span></ButtonLink>
-      <ButtonLink class="cta" variant="secondary" href={SITE.web}><span data-fit>{t('login.back')}</span></ButtonLink>
+      <ButtonLink class="cta" href={loginHref} variant="twitch" data-sveltekit-reload><bb-fit>{t('login.cta')}</bb-fit></ButtonLink>
+      <ButtonLink class="cta" variant="secondary" href={SITE.web}><bb-fit>{t('login.back')}</bb-fit></ButtonLink>
     </div>
 
     <p class="consent">{@html t('login.consent')}</p>

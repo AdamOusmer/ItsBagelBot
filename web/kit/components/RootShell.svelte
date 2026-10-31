@@ -15,7 +15,7 @@
   import { getI18n, setI18n } from '../lib/i18n/context';
   import { setUiI18n } from '@bagel/ui/svelte/i18n';
   import '@bagel/ui/styles/elements/fit.css';
-  import { defineTextFit, mountTextFit } from '@bagel/ui/lib/text-fit';
+  import { defineTextFit } from '@bagel/ui/lib/text-fit';
   import { DEFAULT_LOCALE, translate, type Locale } from '../lib/i18n/messages';
 
   let {
@@ -62,7 +62,6 @@
   onMount(() => {
     let teardown: (() => void) | undefined;
     initLenis().then((fn) => (teardown = fn));
-    const disposeTextFit = mountTextFit(document);
 
     // bfcache guard: Safari restores the previous page's DOM even with no-store, so force a real load.
     const onPageShow = (e: PageTransitionEvent) => {
@@ -72,7 +71,6 @@
 
     return () => {
       teardown?.();
-      disposeTextFit();
       window.removeEventListener('pageshow', onPageShow);
     };
   });

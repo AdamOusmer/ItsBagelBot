@@ -39,7 +39,7 @@
     animation: none;
   }
 
-  .bb-setup-step__title :is([data-fit], bb-fit),
+  .bb-setup-step__title bb-fit,
   .bb-setup-step__title .bb-page-hero__line > span {
     background: var(--setup-title-fill);
     -webkit-background-clip: text;
@@ -47,7 +47,7 @@
     -webkit-text-fill-color: transparent;
   }
 
-  .bb-setup-step__title :is([data-fit], bb-fit) {
+  .bb-setup-step__title bb-fit {
     display: block;
   }
 

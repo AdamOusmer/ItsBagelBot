@@ -28,13 +28,13 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 <Container class="safe-wrap">
 <Section size="page" class="safe" id="safety-layers" data-motion>
     <SectionHeading eyebrow={t('safetyLayers.eyebrow')} title={t('safetyLayers.title')}>
-        <span slot="badge" class="safe__beta"><span class="safe__beta-label"><span data-fit>{t('badge.beta')}</span></span></span>
+        <span slot="badge" class="safe__beta"><span class="safe__beta-label"><bb-fit>{t('badge.beta')}</bb-fit></span></span>
     </SectionHeading>
 
     <BentoGrid cols={3}>
         <FeatureCard tone="green" index={0}>
             <div slot="demo" class="safe__demo safe__demo--jury">
-                <span class="jury__case"><span data-fit>{t('safetyLayers.spam')} / {t('safetyLayers.hate')}</span></span>
+                <span class="jury__case"><bb-fit>{t('safetyLayers.spam')} / {t('safetyLayers.hate')}</bb-fit></span>
                 <div class="jury__table">
                     <span class="jury__evidence">msg</span>
                     <span class="jury__seat jury__seat--tl" style="--jury-i: 0"><i></i><em>block</em></span>
@@ -44,7 +44,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
                     <span class="jury__seat jury__seat--bl" style="--jury-i: 4"><i></i><em>block</em></span>
                     <span class="jury__seat jury__seat--br" style="--jury-i: 5"><i></i><em>block</em></span>
                     <span class="jury__tally">
-                        <small class="jury__verdict"><span data-fit>{t('safetyLayers.juryVerdict')}</span></small>
+                        <small class="jury__verdict"><bb-fit>{t('safetyLayers.juryVerdict')}</bb-fit></small>
                         <b class="jury__count fcard-value">5-1</b>
                         <em>block</em>
                     </span>
@@ -57,16 +57,16 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
             <div slot="demo" class="safe__demo safe__demo--gates">
                 <div class="gates__lane bb-track">
                     <span class="gates__packet bb-layers"><span>MSG</span><span class="gates__packet-ok">MSG</span></span>
-                    <span class="gates__gate" style="--gate-i: 0"><i></i><b class="gates__name"><span data-fit>{t('safetyLayers.gateRate')}</span></b></span>
-                    <span class="gates__gate" style="--gate-i: 1"><i></i><b class="gates__name"><span data-fit>{t('safetyLayers.gateShape')}</span></b></span>
-                    <span class="gates__gate" style="--gate-i: 2"><i></i><b class="gates__name"><span data-fit>{t('safetyLayers.gateLink')}</span></b></span>
+                    <span class="gates__gate" style="--gate-i: 0"><i></i><b class="gates__name"><bb-fit>{t('safetyLayers.gateRate')}</bb-fit></b></span>
+                    <span class="gates__gate" style="--gate-i: 1"><i></i><b class="gates__name"><bb-fit>{t('safetyLayers.gateShape')}</bb-fit></b></span>
+                    <span class="gates__gate" style="--gate-i: 2"><i></i><b class="gates__name"><bb-fit>{t('safetyLayers.gateLink')}</bb-fit></b></span>
                     <span class="gates__exit">✓</span>
                 </div>
                 <div class="gates__receipt">
-                    <span class="gates__check"><span data-fit>{t('safetyLayers.gateRate')}&nbsp;<b class="gates__ok">✓</b></span></span>
-                    <span class="gates__check"><span data-fit>{t('safetyLayers.gateShape')}&nbsp;<b class="gates__ok">✓</b></span></span>
-                    <span class="gates__check"><span data-fit>{t('safetyLayers.gateLink')}&nbsp;<b class="gates__ok">✓</b></span></span>
-                    <em><span data-fit>{t('safetyLayers.gatesPassed')}</span></em>
+                    <span class="gates__check"><bb-fit>{t('safetyLayers.gateRate')}&nbsp;<b class="gates__ok">✓</b></bb-fit></span>
+                    <span class="gates__check"><bb-fit>{t('safetyLayers.gateShape')}&nbsp;<b class="gates__ok">✓</b></bb-fit></span>
+                    <span class="gates__check"><bb-fit>{t('safetyLayers.gateLink')}&nbsp;<b class="gates__ok">✓</b></bb-fit></span>
+                    <em><bb-fit>{t('safetyLayers.gatesPassed')}</bb-fit></em>
                 </div>
             </div>
             {t('safetyLayers.gatesTitle')}
@@ -104,8 +104,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
                         <circle class="network__dot" cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="8" />
                     </svg>
                 </div>
-                <span class="network__alert"><span data-fit>{t('safetyLayers.networkAlert')}</span></span>
-                <span class="network__status"><span data-fit>{t('safetyLayers.networkStatus')}</span></span>
+                <span class="network__alert"><bb-fit>{t('safetyLayers.networkAlert')}</bb-fit></span>
+                <span class="network__status"><bb-fit>{t('safetyLayers.networkStatus')}</bb-fit></span>
             </div>
             {t('safetyLayers.networkTitle')}
         </FeatureCard>

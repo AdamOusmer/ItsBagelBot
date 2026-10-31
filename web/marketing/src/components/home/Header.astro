@@ -89,19 +89,19 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     <div class="material">
         <div class="eyebrow">
-            <span class="eyebrow__beta"><span class="eyebrow__beta-label"><span data-fit>{t('hero.devBadge')}</span></span></span>
+            <span class="eyebrow__beta"><span class="eyebrow__beta-label"><bb-fit>{t('hero.devBadge')}</bb-fit></span></span>
             <Brand title="ItsBagelBot" logoSrc={heroLogo.src} wordmark size="lg" class="eyebrow__brand" />
         </div>
 
-        <h1><span data-fit="block">{titleWords.map((word, i) => (
+        <h1><bb-fit mode="block">{titleWords.map((word, i) => (
             <>{i > 0 && ' '}<span class="word" style={`--w: ${i}`}>{word}</span></>
-        ))}</span></h1>
+        ))}</bb-fit></h1>
 
-        <Text tone="muted-soft" size="md" class="lede"><span data-fit="block">{t('hero.lede')}</span></Text>
+        <Text tone="muted-soft" size="md" class="lede"><bb-fit mode="block">{t('hero.lede')}</bb-fit></Text>
 
         <div class="actions">
-            <ButtonLink class="cta" href={dashLoginHref(lang)} variant="twitch"><span data-fit>{t('nav.cta')}</span></ButtonLink>
-            <ButtonLink class="cta" variant="secondary" href={localizePath('/import', lang)}><span data-fit>{t('hero.importCta')}</span></ButtonLink>
+            <ButtonLink class="cta" href={dashLoginHref(lang)} variant="twitch"><bb-fit>{t('nav.cta')}</bb-fit></ButtonLink>
+            <ButtonLink class="cta" variant="secondary" href={localizePath('/import', lang)}><bb-fit>{t('hero.importCta')}</bb-fit></ButtonLink>
         </div>
     </div>
 
