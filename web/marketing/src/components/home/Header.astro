@@ -141,16 +141,10 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'excited'];
     const EXPRESSION_MIN_MS = 2600;
     const EXPRESSION_SPREAD_MS = 3400;
-    // On coarse pointers a continuous breath cost ~10% of the main thread at 6x for 17 bolotas, invisible at these sizes: phones get none, desktop keeps the engine's.
-    const PHONE = '(hover: none) and (pointer: coarse)';
-    // One awake engine is enough to keep the shared frame loop producing a full main frame every
-    // vsync (~10 ms at 6x CPU on a phone profile), and a morph keeps its engine awake ~1.3 s. With 17
-    // independent timers the loop never slept: ~74% of the main thread at rest, the same with 3
-    // morphs at a time. Bursts with gaps between them are what buy silence.
+    // One awake engine keeps the shared frame loop producing a main frame every vsync, and a morph keeps
+    // an engine awake ~0.85 s. Independent timers across 17 bolotas never let the loop sleep; bursts with gaps do.
     const BURST_MS = 5000;
     const BURST_STAGGER_MS = 600;
-    // `excited` holds a tremor the engine runs frame by frame, so an engine wearing it never sleeps.
-    const PHONE_EXPRESSIONS = EXPRESSIONS.filter((name) => name !== 'excited');
     const SEAT_ORDER = ['seat--hero', 'seat--front', 'seat--mid', 'seat--back'];
     const MOUNT_CHUNK = 4;
     const IDLE_TIMEOUT_MS = 1500;
@@ -184,7 +178,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     let engines: Live[] = [];
     let observer: IntersectionObserver | null = null;
-    let phone = false;
     let burst: ReturnType<typeof setInterval> | null = null;
     let waiting: Live[] = [];
     let mounting = false;
@@ -202,12 +195,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     const loadEngine = () => (enginePromise ??= import('@luzir/bolota/engine'));
 
     function leastUsedExpression(live: Live): string {
-        const names = phone ? PHONE_EXPRESSIONS : EXPRESSIONS;
-        const counts = new Map(names.map((name) => [name, 0]));
+        const counts = new Map(EXPRESSIONS.map((name) => [name, 0]));
         engines.forEach((other) => {
             if (other !== live && other.expression) counts.set(other.expression, (counts.get(other.expression) ?? 0) + 1);
         });
-        const options = names.filter((name) => name !== live.expression);
+        const options = EXPRESSIONS.filter((name) => name !== live.expression);
         const fewest = Math.min(...options.map((name) => counts.get(name) ?? 0));
         const pool = options.filter((name) => counts.get(name) === fewest);
         return pool[Math.floor(Math.random() * pool.length)];
@@ -222,8 +214,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     function scheduleExpression(live: Live, delayMs: number): void {
         live.timer = setTimeout(() => {
             live.timer = null;
-            if (phone) waiting.push(live);
-            else morph(live);
+            waiting.push(live);
         }, delayMs);
     }
 
@@ -239,7 +230,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function startBursts(): void {
-        if (!phone || burst) return;
+        if (burst) return;
         burst = setInterval(fireBurst, BURST_MS);
     }
 
@@ -273,7 +264,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function mountOne(svg: SVGSVGElement, mountEngine: MountEngine): void {
-        if (phone) svg.setAttribute('data-mo-breath', 'host');
         const handle = mountEngine(svg, svg.dataset.bolota ?? 'chatter', {
             size: Number(svg.dataset.size) || 100,
             palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
@@ -301,7 +291,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     async function startMount(run: number, crowd: HTMLElement): Promise<void> {
         const { mountEngine } = await loadEngine();
         if (run !== mountRun || !crowd.isConnected) return;
-        phone = matchMedia(PHONE).matches;
         startBursts();
         mountChunk(run, crowd, unmountedSeats(crowd), mountEngine);
     }
@@ -375,7 +364,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.handle.destroy();
-            live.svg.removeAttribute('data-mo-breath');
         });
         engines = [];
     }
