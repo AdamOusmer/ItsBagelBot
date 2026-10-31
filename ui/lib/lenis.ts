@@ -3,11 +3,16 @@
 
 import Lenis, { type LenisOptions } from 'lenis';
 
-import { prefersReducedMotion } from './motion-query';
+import { mediaQuery, prefersReducedMotion } from './motion-query';
 import { createNestedScrollGate } from './nested-scroll';
 import { subscribe, wake, type Tick } from './raf-loop';
 
 const LERP = 0.1;
+
+// Lenis binds non-passive touch listeners even with syncTouch off, so every touch scroll would wait on the main thread.
+const touchOnly = mediaQuery('(hover: none) and (pointer: coarse)');
+
+const smoothingOff = (): boolean => prefersReducedMotion() || touchOnly.matches;
 
 const SHARED_OPTIONS = { lerp: LERP, smoothWheel: true, syncTouch: false } satisfies LenisOptions;
 
@@ -64,7 +69,7 @@ export function createSmoothScroll(options: SmoothScrollOptions = {}): SmoothScr
     const existing = (window as LenisWindow).__lenis;
     if (existing) return { lenis: existing, destroy: () => {} };
 
-    if (prefersReducedMotion()) return null;
+    if (smoothingOff()) return null;
 
     const gate = createNestedScrollGate(options);
     const lenis = new Lenis({
@@ -89,7 +94,7 @@ export function createSmoothScroll(options: SmoothScrollOptions = {}): SmoothScr
 }
 
 export function createPaneScroll(wrapper: HTMLElement): SmoothScroll | null {
-    if (typeof window === 'undefined' || prefersReducedMotion()) return null;
+    if (typeof window === 'undefined' || smoothingOff()) return null;
 
     const gate = createNestedScrollGate({ virtualScroll: () => lenis.limit > 0 });
     const lenis: Lenis = new Lenis({

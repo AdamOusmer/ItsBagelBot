@@ -204,12 +204,27 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
 
     .bb-orb--fixed { position: fixed; pointer-events: none; }
 
-    .bb-orb--halo::before {
+    /* Each blur sits on a layer that never animates, so it is rasterized once. Anything that
+       animates inside a blurred element makes the GPU re-run the blur every frame. */
+    .bb-orb--halo {
+        filter: none;
+        will-change: var(--bb-orb-will-change, auto);
+    }
+
+    .bb-orb--halo::before,
+    .bb-orb__pulse::before {
         content: "";
         position: absolute;
         inset: 0;
         border-radius: inherit;
-        background: inherit;
+        background: var(--bb-orb-fill);
+        filter: blur(var(--bb-orb-blur, 80px));
+    }
+
+    .bb-orb__pulse {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
         animation: bb-orb-pulse 5s ease-in-out infinite;
         animation-delay: var(--bb-orb-pulse-delay, 0s);
         animation-play-state: var(--bb-orb-play-state, running);
@@ -226,26 +241,27 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
             var(--bb-orb-soft) 48%,
             transparent 72%
         );
+        filter: blur(calc(var(--bb-orb-blur, 80px) / var(--bb-orb-core-scale, 0.42)));
         opacity: var(--bb-orb-core-opacity, 0.45);
         transform: scale(var(--bb-orb-core-scale, 0.42));
         transform-origin: center;
-        will-change: opacity, transform;
+        will-change: var(--bb-orb-core-will-change, auto);
     }
 
     .bb-orb--green {
-        background: var(--bb-green);
+        --bb-orb-fill: var(--bb-green);
         --bb-orb-core: rgba(var(--bb-mint-glow-rgb), 0.85);
         --bb-orb-soft: rgba(var(--bb-green-glow-rgb), 0.34);
     }
 
     .bb-orb--tan {
-        background: rgba(var(--bb-tan-rgb), 0.35);
+        --bb-orb-fill: rgba(var(--bb-tan-rgb), 0.35);
         --bb-orb-core: rgba(var(--bb-tan-pale-rgb), 0.27);
         --bb-orb-soft: rgba(var(--bb-tan-rgb), 0.11);
     }
 
     :root[data-theme="light"] .bb-orb--green {
-        background: var(--bb-green-light);
+        --bb-orb-fill: var(--bb-green-light);
         opacity: 0.1;
     }
 
@@ -288,7 +304,7 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
 
     @media (prefers-reduced-motion: reduce) {
         .bb-orb,
-        .bb-orb--halo::before { animation: none; }
+        .bb-orb__pulse { animation: none; }
     }
 }
 
@@ -319,7 +335,6 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
         top: 0;
         left: 0;
         border-radius: 50%;
-        mix-blend-mode: plus-lighter;
     }
 
     .bb-light-field--bleed {

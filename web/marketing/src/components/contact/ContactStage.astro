@@ -78,8 +78,8 @@ const titleWords = t('contact.title').split(' ');
 <section class="stage">
     <div class="starfield" aria-hidden="true"><LightField class="bb-light-field--bleed" /></div>
     <div class="bg" aria-hidden="true">
-        <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"></div>
-        <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"></div>
+        <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"><i class="bb-orb__pulse"></i></div>
+        <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"><i class="bb-orb__pulse"></i></div>
     </div>
 
     <div class="wrap">
@@ -384,7 +384,8 @@ const titleWords = t('contact.title').split(' ');
     .face {
         display: block;
         overflow: visible;
-        scale: 0.9;
+        /* One transform, not scale + translate: Chrome runs independent transform properties on an svg on the main thread. */
+        transform: scale(0.9);
     }
 
     .bolota {
@@ -589,8 +590,8 @@ const titleWords = t('contact.title').split(' ');
     }
 
     @keyframes bob {
-        from { translate: 0 0; }
-        to { translate: 0 -7px; }
+        from { transform: translate(0, 0) scale(0.9); }
+        to { transform: translate(0, -7px) scale(0.9); }
     }
 
     @keyframes ping {

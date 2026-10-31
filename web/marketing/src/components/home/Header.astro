@@ -83,8 +83,8 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     </div>
 
     <div class="bg" aria-hidden="true">
-        <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"></div>
-        <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"></div>
+        <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"><i class="bb-orb__pulse"></i></div>
+        <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"><i class="bb-orb__pulse"></i></div>
     </div>
 
     <div class="material">
@@ -361,7 +361,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         z-index: -1;
         pointer-events: none;
         opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
-        will-change: var(--hero-content-will-change, opacity);
+        will-change: opacity;
     }
 
     .bg {
@@ -379,6 +379,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         --bb-orb-will-change: var(--hero-orb-will-change, opacity, transform);
         --bb-orb-core-opacity: min(calc(var(--hero-p, 0) * 1.2), calc((1 - var(--hero-p, 0)) * 1.1));
         --bb-orb-core-scale: calc(0.42 + var(--hero-p, 0) * 1.35);
+        --bb-orb-core-will-change: var(--hero-orb-will-change, opacity, transform);
         --bb-orb-play-state: var(--hero-animation-state, running);
     }
 
@@ -510,7 +511,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         pointer-events: none;
         opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
         transform: translateY(calc(var(--hero-p, 0) * 40vh));
-        will-change: var(--hero-content-will-change, opacity, transform);
+        will-change: opacity, transform;
     }
 
     .seat {

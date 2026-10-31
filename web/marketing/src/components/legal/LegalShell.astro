@@ -37,8 +37,8 @@ const reader = staticBolota('sesame_sam', 84, 'green');
 
 <div class="lsky" aria-hidden="true">
     <LightField class="bb-light-field--bleed" />
-    <div class="bb-orb bb-orb--halo bb-orb--green lorb lorb--green"></div>
-    <div class="bb-orb bb-orb--halo bb-orb--tan lorb lorb--tan"></div>
+    <div class="bb-orb bb-orb--halo bb-orb--green lorb lorb--green"><i class="bb-orb__pulse"></i></div>
+    <div class="bb-orb bb-orb--halo bb-orb--tan lorb lorb--tan"><i class="bb-orb__pulse"></i></div>
 </div>
 
 <div class="lshell">
@@ -168,6 +168,9 @@ const reader = staticBolota('sesame_sam', 84, 'green');
         width: 84px;
         height: 84px;
         overflow: visible;
+        /* One transform, not scale + translate: Chrome runs independent transform properties on an svg on the main thread. */
+        scale: none;
+        transform: scale(0.9);
         animation: lshell-bob 6.5s ease-in-out infinite alternate;
     }
 
@@ -235,8 +238,8 @@ const reader = staticBolota('sesame_sam', 84, 'green');
     .lshell__body { max-width: 68ch; }
 
     @keyframes lshell-bob {
-        from { translate: 0 0; }
-        to { translate: 0 -6px; }
+        from { transform: translate(0, 0) scale(0.9); }
+        to { transform: translate(0, -6px) scale(0.9); }
     }
 
     @media (prefers-reduced-motion: reduce) {

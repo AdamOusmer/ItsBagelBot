@@ -65,8 +65,8 @@
   <LightField class="bb-light-field--bleed" />
 
   <div class="bb-error-scene__orbs" aria-hidden="true">
-    <span class="bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb"></span>
-    <span class="bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two"></span>
+    <span class="bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb"><i class="bb-orb__pulse"></i></span>
+    <span class="bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two"><i class="bb-orb__pulse"></i></span>
   </div>
 
   <div class="bb-error-scene__content">
