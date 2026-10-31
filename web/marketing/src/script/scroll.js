@@ -172,9 +172,11 @@ for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) {
 // The follow-up frame can land late on a busy main thread, after the reader already moved.
 function settleRouteScroll(settle) {
     settle();
+    updateHeroProgress();
     scrolledSinceSwap = false;
     routeFrame = requestAnimationFrame(() => {
         if (!scrolledSinceSwap) settle();
+        updateHeroProgress();
         scrollController.resize?.();
     });
 }
@@ -192,6 +194,16 @@ window.addEventListener('resize', () => {
 }, {passive: true});
 
 document.addEventListener('astro:after-swap', resetRouteScroll);
+
+function refreshHero() {
+    updateViewportHeight();
+    updateHeroProgress();
+}
+
+// iOS Safari did not deliver a scroll event after the swap's jump to top, so the hero stayed at the previous
+// page's progress until the first touch; the progress is written from scrollY directly after every settle and page load.
+document.addEventListener('astro:page-load', refreshHero);
+window.addEventListener('pageshow', refreshHero);
 document.addEventListener('itsbagelbot:loader-complete', () => {
     updateViewportHeight();
     updateHeroProgress();
