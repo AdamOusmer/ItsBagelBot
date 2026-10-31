@@ -431,11 +431,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         width: min(100%, 1160px);
         position: relative;
         z-index: 2;
+        /* An exit blur re-rasterised the hero every scroll frame (250 ms hitch, half the GPU time on a 4x-throttled sweep); opacity and scale compose on the compositor. */
         opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
         transform: scale(calc(1 - var(--hero-p, 0) * 0.15));
-        filter: blur(calc(var(--hero-p, 0) * 12px));
         transform-origin: center;
-        will-change: var(--hero-content-will-change, opacity, transform, filter);
+        will-change: var(--hero-content-will-change, opacity, transform);
     }
 
     .eyebrow,

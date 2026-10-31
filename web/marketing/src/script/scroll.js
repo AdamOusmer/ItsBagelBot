@@ -55,7 +55,7 @@ function updateViewportHeight() {
 
 const HERO_COMPLETE_HINTS = [
     ['--hero-animation-state', 'paused', 'running'],
-    ['--hero-content-will-change', 'auto', 'opacity, transform, filter'],
+    ['--hero-content-will-change', 'auto', 'opacity, transform'],
     ['--hero-orb-will-change', 'auto', 'opacity, transform'],
     ['--hero-decor-display', 'none', 'block'],
 ];
