@@ -16,21 +16,20 @@
 
     .bb-orb--fixed { position: fixed; pointer-events: none; }
 
-    /* Each blur sits on a layer that never animates, so it is rasterized once. Anything that
-       animates inside a blurred element makes the GPU re-run the blur every frame. */
+    /* No filter on a halo layer: blur on iOS is re-rasterized per frame. The stops bake an 80px
+       gaussian into the gradient; a different size or blur needs new stops. */
     .bb-orb--halo {
         filter: none;
         will-change: var(--bb-orb-will-change, auto);
     }
 
     .bb-orb--halo::before,
-    .bb-orb__pulse::before {
+    .bb-orb__pulse::before,
+    .bb-orb--halo::after {
         content: "";
         position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        background: var(--bb-orb-fill);
-        filter: blur(var(--bb-orb-blur, 80px));
+        inset: var(--bb-orb-halo-inset, -48%);
+        border-radius: 0;
     }
 
     .bb-orb__pulse {
@@ -43,17 +42,6 @@
     }
 
     .bb-orb--halo::after {
-        content: "";
-        position: absolute;
-        inset: 8%;
-        border-radius: inherit;
-        background: radial-gradient(
-            circle,
-            var(--bb-orb-core) 0 24%,
-            var(--bb-orb-soft) 48%,
-            transparent 72%
-        );
-        filter: blur(calc(var(--bb-orb-blur, 80px) / var(--bb-orb-core-scale, 0.42)));
         opacity: var(--bb-orb-core-opacity, 0.45);
         transform: scale(var(--bb-orb-core-scale, 0.42));
         transform-origin: center;
@@ -61,24 +49,102 @@
     }
 
     .bb-orb--green {
-        --bb-orb-fill: var(--bb-green);
-        --bb-orb-core: rgba(var(--bb-mint-glow-rgb), 0.85);
-        --bb-orb-soft: rgba(var(--bb-green-glow-rgb), 0.34);
+        --bb-orb-fill-rgb: var(--bb-green-rgb);
     }
 
     .bb-orb--tan {
-        --bb-orb-fill: rgba(var(--bb-tan-rgb), 0.35);
-        --bb-orb-core: rgba(var(--bb-tan-pale-rgb), 0.27);
-        --bb-orb-soft: rgba(var(--bb-tan-rgb), 0.11);
+        --bb-orb-fill-rgb: var(--bb-tan-rgb);
+        --bb-orb-halo-inset: -60%;
     }
 
     :root[data-theme="light"] .bb-orb--green {
-        --bb-orb-fill: var(--bb-green-light);
+        --bb-orb-fill-rgb: var(--bb-green-light-rgb);
         opacity: 0.1;
     }
 
     :root[data-theme="light"] .bb-orb--tan {
         opacity: 0.12;
+    }
+
+    .bb-orb--halo.bb-orb--green::before,
+    .bb-orb--green .bb-orb__pulse::before {
+        background: radial-gradient(circle closest-side,
+            rgba(var(--bb-orb-fill-rgb), .99) 0%,
+            rgba(var(--bb-orb-fill-rgb), .99) 6.5%,
+            rgba(var(--bb-orb-fill-rgb), .98) 13%,
+            rgba(var(--bb-orb-fill-rgb), .95) 19.6%,
+            rgba(var(--bb-orb-fill-rgb), .90) 26.1%,
+            rgba(var(--bb-orb-fill-rgb), .82) 32.7%,
+            rgba(var(--bb-orb-fill-rgb), .70) 39.2%,
+            rgba(var(--bb-orb-fill-rgb), .56) 45.7%,
+            rgba(var(--bb-orb-fill-rgb), .41) 52.2%,
+            rgba(var(--bb-orb-fill-rgb), .27) 58.8%,
+            rgba(var(--bb-orb-fill-rgb), .15) 65.3%,
+            rgba(var(--bb-orb-fill-rgb), .08) 71.8%,
+            rgba(var(--bb-orb-fill-rgb), .04) 78.4%,
+            rgba(var(--bb-orb-fill-rgb), .01) 84.9%,
+            transparent 98%);
+    }
+
+    .bb-orb--halo.bb-orb--green::after {
+        background:
+            radial-gradient(circle closest-side,
+            rgba(var(--bb-green-glow-rgb), .04) 0%,
+            rgba(var(--bb-green-glow-rgb), .04) 6.5%,
+            rgba(var(--bb-green-glow-rgb), .03) 13%,
+            rgba(var(--bb-green-glow-rgb), .03) 19.6%,
+            rgba(var(--bb-green-glow-rgb), .02) 26.1%,
+            rgba(var(--bb-green-glow-rgb), .01) 32.7%,
+            rgba(var(--bb-green-glow-rgb), .01) 39.2%,
+            transparent 52.2%),
+            radial-gradient(circle closest-side,
+            rgba(var(--bb-mint-glow-rgb), .08) 0%,
+            rgba(var(--bb-mint-glow-rgb), .07) 6.5%,
+            rgba(var(--bb-mint-glow-rgb), .06) 13%,
+            rgba(var(--bb-mint-glow-rgb), .04) 19.6%,
+            rgba(var(--bb-mint-glow-rgb), .03) 26.1%,
+            rgba(var(--bb-mint-glow-rgb), .01) 32.7%,
+            rgba(var(--bb-mint-glow-rgb), .01) 39.2%,
+            transparent 52.2%);
+    }
+
+    .bb-orb--halo.bb-orb--tan::before,
+    .bb-orb--tan .bb-orb__pulse::before {
+        background: radial-gradient(circle closest-side,
+            rgba(var(--bb-orb-fill-rgb), .96) 0%,
+            rgba(var(--bb-orb-fill-rgb), .94) 7.3%,
+            rgba(var(--bb-orb-fill-rgb), .91) 14.5%,
+            rgba(var(--bb-orb-fill-rgb), .84) 21.8%,
+            rgba(var(--bb-orb-fill-rgb), .74) 29.1%,
+            rgba(var(--bb-orb-fill-rgb), .61) 36.4%,
+            rgba(var(--bb-orb-fill-rgb), .46) 43.6%,
+            rgba(var(--bb-orb-fill-rgb), .31) 50.9%,
+            rgba(var(--bb-orb-fill-rgb), .19) 58.2%,
+            rgba(var(--bb-orb-fill-rgb), .10) 65.5%,
+            rgba(var(--bb-orb-fill-rgb), .05) 72.7%,
+            rgba(var(--bb-orb-fill-rgb), .02) 80%,
+            rgba(var(--bb-orb-fill-rgb), .01) 87.3%,
+            transparent 94.5%);
+    }
+
+    .bb-orb--halo.bb-orb--tan::after {
+        background:
+            radial-gradient(circle closest-side,
+            rgba(var(--bb-tan-rgb), .03) 0%,
+            rgba(var(--bb-tan-rgb), .03) 7.3%,
+            rgba(var(--bb-tan-rgb), .02) 14.5%,
+            rgba(var(--bb-tan-rgb), .02) 21.8%,
+            rgba(var(--bb-tan-rgb), .01) 29.1%,
+            rgba(var(--bb-tan-rgb), .01) 36.4%,
+            transparent 58.2%),
+            radial-gradient(circle closest-side,
+            rgba(var(--bb-tan-pale-rgb), .05) 0%,
+            rgba(var(--bb-tan-pale-rgb), .04) 7.3%,
+            rgba(var(--bb-tan-pale-rgb), .04) 14.5%,
+            rgba(var(--bb-tan-pale-rgb), .02) 21.8%,
+            rgba(var(--bb-tan-pale-rgb), .01) 29.1%,
+            rgba(var(--bb-tan-pale-rgb), .01) 36.4%,
+            transparent 58.2%);
     }
 
     @keyframes bb-orb-pulse {
