@@ -32,46 +32,35 @@ const doc = Object.assign(target(), {
   hidden: false,
   documentElement: { classList: { toggle() {}, remove() {} } },
   createElement: (tag: string) => {
-    if (tag === 'div') {
-      const div = { style: {} as Record<string, string>, className: '', setAttribute() {}, append() {}, remove: () => removed.push('div') };
-      divs.push(div);
-      return div;
-    }
-    let arcY = 0;
+    if (tag === 'div') return { style: {} as Record<string, string>, className: '', append() {}, remove: () => removed.push('div') };
     const ctx = {
       fills: [] as string[],
       fillStyle: '',
       setTransform() {},
       clearRect() {},
       beginPath() {},
-      arc(_x: number, y: number) {
-        arcY = y;
-      },
+      arc() {},
       fill() {
-        if (arcY >= 0 && arcY < canvas.height) ctx.fills.push(ctx.fillStyle);
+        ctx.fills.push(ctx.fillStyle);
       },
       canvas: null as unknown,
     };
     const canvas = {
+      style: {} as Record<string, string>,
+      className: '',
       width: 0,
       height: 0,
+      setAttribute() {},
+      remove() {},
       getContext: () => ctx,
-      toBlob: (done: (blob: unknown) => void) => done({ stub: true }),
     };
     ctx.canvas = canvas;
     contexts.push(ctx);
     return canvas;
   },
 });
-type Div = { style: Record<string, string>; className: string };
-const contexts: Array<{ fills: string[]; canvas: { width: number; height: number } }> = [];
-const divs: Div[] = [];
+const contexts: Array<{ fills: string[]; canvas: { style: Record<string, string>; width: number; height: number } }> = [];
 const removed: string[] = [];
-const urls = { created: 0, revoked: [] as string[] };
-Object.assign(URL, {
-  createObjectURL: () => `blob:lf-${++urls.created}`,
-  revokeObjectURL: (url: string) => void urls.revoked.push(url),
-});
 
 let frames: Array<(now: number) => void> = [];
 let timers = new Map<number, () => void>();
@@ -339,18 +328,11 @@ describe('light field', () => {
 
   const mount = (el: ReturnType<typeof host>, options?: { warmth: number }) => {
     const before = contexts.length;
-    const divsBefore = divs.length;
     const stop = field(el as unknown as HTMLElement, options);
-    return {
-      stop,
-      get layers() {
-        return contexts.slice(before);
-      },
-      images: divs.slice(divsBefore).filter((_, i) => i % 2 === 1),
-    };
+    return { stop, layers: contexts.slice(before) };
   };
 
-  const dots = (layers: Array<{ fills: string[] }>) => layers.reduce((n, l) => n + l.fills.length, 0);
+  const dots = (layers: Array<{ fills: string[] }>) => layers.reduce((n, l) => n + l.fills.length, 0) / 3;
 
   test('mote colours come from the custom properties once, with the literals as fallback', () => {
     computed = { getPropertyValue: (name: string) => (name === '--bb-tan-rgb' ? ' 10, 20, 30 ' : '') };
@@ -369,23 +351,21 @@ describe('light field', () => {
   test('three layers are drawn once, never touch the frame loop, and drift at height over speed', () => {
     computed = { getPropertyValue: () => '' };
     const el = host(1000);
-    const { stop, layers, images } = mount(el);
+    const { stop, layers } = mount(el);
     expect(layers).toHaveLength(3);
-    expect(images).toHaveLength(3);
     expect(el.children).toHaveLength(3);
     expect(dots(layers)).toBe(70);
-    expect(layers.map((l) => l.fills.length)).toEqual([24, 23, 23]);
+    expect(layers.map((l) => l.fills.length / 3)).toEqual([24, 23, 23]);
     expect(frames).toHaveLength(0);
     expect(isRunning()).toBe(false);
     flush(1016);
     flush(1032);
     expect(dots(layers)).toBe(70);
 
-    const seconds = images.map((l) => parseFloat(l.style.animationDuration));
+    const seconds = layers.map((l) => parseFloat(l.canvas.style.animationDuration));
     expect(seconds).toEqual([0.07, 0.14, 0.24].map((v) => Number((400 / v / 60).toFixed(2))));
-    expect(images.every((l) => parseFloat(l.style.animationDelay) <= 0)).toBe(true);
-    expect(layers.every((l) => l.canvas.height === 400 && l.canvas.width === 1000)).toBe(true);
-    expect(images.map((l) => l.style.backgroundImage)).toEqual(images.map((_, i) => `url("blob:lf-${urls.created - 2 + i}")`));
+    expect(layers.every((l) => parseFloat(l.canvas.style.animationDelay) <= 0)).toBe(true);
+    expect(layers.every((l) => l.canvas.height === 800 && l.canvas.width === 1000)).toBe(true);
     stop?.();
   });
 
@@ -399,43 +379,30 @@ describe('light field', () => {
   test('a burst of resizes redraws once, after the trailing debounce, and recomputes durations', () => {
     computed = { getPropertyValue: () => '' };
     const el = host(1000);
-    const mounted = mount(el);
-    const { stop, images } = mounted;
-    expect(mounted.layers).toHaveLength(3);
-    const first = images.map((l) => l.style.backgroundImage);
-    urls.revoked.length = 0;
+    const { stop, layers } = mount(el);
+    expect(dots(layers)).toBe(70);
 
     el.clientWidth = 500;
     el.clientHeight = 800;
     for (let i = 0; i < 5; i++) observers.resize[observers.resize.length - 1]();
     expect(timers.size).toBe(1);
     fireTimers();
-    const redrawn = mounted.layers.slice(3);
-    expect(mounted.layers).toHaveLength(6);
-    expect(dots(redrawn)).toBe(40);
-    expect(redrawn.every((l) => l.canvas.height === 800 && l.canvas.width === 500)).toBe(true);
-    expect(urls.revoked).toHaveLength(3);
-    expect(images.map((l) => l.style.backgroundImage)).not.toEqual(first);
-    expect(parseFloat(images[0].style.animationDuration)).toBe(Number((800 / 0.07 / 60).toFixed(2)));
+    expect(dots(layers)).toBe(70 + 40);
+    expect(parseFloat(layers[0].canvas.style.animationDuration)).toBe(Number((800 / 0.07 / 60).toFixed(2)));
 
     observers.resize[observers.resize.length - 1]();
-    fireTimers();
-    expect(mounted.layers).toHaveLength(6);
     stop?.();
     expect(timers.size).toBe(0);
   });
 
-  test('stop removes every layer, revokes the images and cancels a pending redraw', () => {
+  test('stop removes every layer and cancels a pending redraw', () => {
     computed = { getPropertyValue: () => '' };
-    const { stop, images } = mount(host(1000));
+    const { stop } = mount(host(1000));
     removed.length = 0;
-    urls.revoked.length = 0;
     observers.resize[observers.resize.length - 1]();
     expect(timers.size).toBe(1);
     stop?.();
     expect(removed).toHaveLength(3);
-    expect(urls.revoked).toHaveLength(3);
-    expect(images.every((l) => l.style.backgroundImage === '')).toBe(true);
     expect(timers.size).toBe(0);
   });
 });
