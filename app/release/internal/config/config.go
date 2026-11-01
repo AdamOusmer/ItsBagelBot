@@ -67,6 +67,7 @@ func loadDeploy() ports.Config {
 		ImageRepo:         env.Get("DEPLOY_IMAGE_REPO", "ghcr.io/adamousmer/itsbagelbot"),
 		Workflow:          ports.Workflow(env.Get("DEPLOY_WORKFLOW", "publish-images.yml")),
 		CodeSceneCheck:    env.Get("DEPLOY_CODESCENE_CHECK", "CodeScene Code Health Review (main)"),
+		SelfRunID:         int64(env.GetInt("GITHUB_RUN_ID", 0)),
 		ManifestDir:       "deploy/k8s",
 		ChangelogDir:      "web/marketing/src/content/changelog",
 		UpdateBranchLimit: env.GetInt("DEPLOY_UPDATE_BRANCH_LIMIT", 3),
