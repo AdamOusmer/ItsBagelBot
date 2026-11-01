@@ -206,4 +206,18 @@ func TestAdapterAgainstEmbeddedCluster(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, decoded.Exports, 1, "Lookup returns the pushed export")
 	})
+
+	t.Run("Servers leaves a long sync deadline for the push that follows", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		start := time.Now()
+		names, err := adapter.Servers(ctx, aclpush.ClusterHub)
+		require.NoError(t, err)
+		assert.Len(t, names, 3)
+		assert.Less(t, time.Since(start), 5*time.Second, "the ping must not wait out the caller's whole deadline")
+
+		replies, err := adapter.Push(ctx, aclpush.ClusterHub, accountJWT(t, chain.opKp, accountPub, "TESTACC", nil), len(names))
+		require.NoError(t, err)
+		assert.Len(t, replies, 3)
+	})
 }
