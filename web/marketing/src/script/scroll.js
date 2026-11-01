@@ -219,6 +219,12 @@ window.addEventListener('resize', () => {
     wakeHero();
 }, {passive: true});
 
+// Pages swap without a view transition: iOS Safari aborts one when the jump to top expands the address bar mid-swap.
+document.addEventListener('astro:before-swap', (event) => {
+    event.viewTransition?.ready.catch(() => {});
+    event.viewTransition?.skipTransition();
+});
+
 document.addEventListener('astro:after-swap', resetRouteScroll);
 
 function refreshHero() {
