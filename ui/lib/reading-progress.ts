@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { subscribe } from './raf-loop';
+import { subscribe, wake } from './raf-loop';
 
 const FALLBACK_REMEASURE_EVERY = 20;
 
@@ -15,26 +15,14 @@ function readFraction(scrollY: number, total: number): number {
 }
 
 function createFrameQueue(run: () => void): FrameQueue {
-    let queued = false;
-    let unsubscribe: (() => void) | null = null;
-
     const frame = (): boolean => {
-        queued = false;
-        unsubscribe = null;
         run();
         return false;
     };
 
     return {
-        enqueue() {
-            if (queued) return;
-            queued = true;
-            unsubscribe = subscribe(frame);
-        },
-        cancel() {
-            unsubscribe?.();
-            queued = false;
-        },
+        enqueue: () => wake(frame),
+        cancel: subscribe(frame),
     };
 }
 
