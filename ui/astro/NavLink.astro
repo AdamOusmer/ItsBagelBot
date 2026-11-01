@@ -37,6 +37,7 @@ const {
 } = Astro.props;
 
 const twitch = variant === 'twitch';
+const Label = fit ? 'bb-fit' : 'span';
 const classes = [
   'bb-nav-link',
   variant !== 'rail' ? 'bb-nav-link--cta' : null,
@@ -50,7 +51,7 @@ const classes = [
 ---
 
 {disabled ? (
-  <span class={classes} aria-disabled="true" {...rest}><slot name="leading" /><span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}><slot>{label}</slot></span><slot name="trailing" />{hint && <span class="bb-nav-link__hint">{hint}</span>}</span>
+  <span class={classes} aria-disabled="true" {...rest}><slot name="leading" /><Label class="bb-nav-link__label" group={fit ? fitGroup : undefined}><slot>{label}</slot></Label><slot name="trailing" />{hint && <span class="bb-nav-link__hint">{hint}</span>}</span>
 ) : (
   <a
     class={classes}
@@ -59,5 +60,5 @@ const classes = [
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     {...rest}
-  >{twitch && <Icon name="twitch" />}<slot name="leading" /><span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}><slot>{label}</slot></span><slot name="trailing" /></a>
+  >{twitch && <Icon name="twitch" />}<slot name="leading" /><Label class="bb-nav-link__label" group={fit ? fitGroup : undefined}><slot>{label}</slot></Label><slot name="trailing" /></a>
 )}

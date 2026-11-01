@@ -35,7 +35,7 @@
   {#snippet actions()}
     <span class="bb-row-body__side">
       {#if status === 'core'}
-        <Tag tone="pre" data-fit-box><span data-fit="">{t('discord.module.alwaysOn')}</span></Tag>
+        <Tag tone="pre" class="bb-fit-box"><bb-fit>{t('discord.module.alwaysOn')}</bb-fit></Tag>
       {:else if status === 'on'}
         <Tag tone="live" mark="solid">{t('discord.module.statusOn')}</Tag>
       {:else}

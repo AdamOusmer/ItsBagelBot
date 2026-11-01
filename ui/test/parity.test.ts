@@ -756,9 +756,9 @@ const REMAINING: {
       LIGHT_FIELD +
       '<div class="bb-page-hero__glow" aria-hidden="true"></div>' +
       '<div class="bb-page-hero__inner">' +
-      '<span class="bb-page-hero__eyebrow"><span data-fit>Pricing</span></span>' +
-      '<h1 class="bb-page-hero__title"><span data-fit="block">Simple pricing</span></h1>' +
-      '<p class="bb-page-hero__desc"><span data-fit="block">One plan.</span></p></div></header>',
+      '<span class="bb-page-hero__eyebrow"><bb-fit>Pricing</bb-fit></span>' +
+      '<h1 class="bb-page-hero__title"><bb-fit mode="block">Simple pricing</bb-fit></h1>' +
+      '<p class="bb-page-hero__desc"><bb-fit mode="block">One plan.</bb-fit></p></div></header>',
   },
   {
     name: 'PageHero: title only',
@@ -770,7 +770,7 @@ const REMAINING: {
       LIGHT_FIELD +
       '<div class="bb-page-hero__glow" aria-hidden="true"></div>' +
       '<div class="bb-page-hero__inner">' +
-      '<h1 class="bb-page-hero__title"><span data-fit="block">Contact</span></h1></div></header>',
+      '<h1 class="bb-page-hero__title"><bb-fit mode="block">Contact</bb-fit></h1></div></header>',
   },
   {
     name: 'SectionHeading: left with eyebrow',
@@ -779,9 +779,9 @@ const REMAINING: {
     props: { eyebrow: 'Safety', title: 'Layers', align: 'left' },
     html:
       '<div class="bb-section-heading bb-section-heading--left">' +
-      '<div class="bb-section-heading__meta" data-reveal>' +
-      '<span class="bb-section-heading__eyebrow"><span data-fit>Safety</span></span></div>' +
-      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1"><span data-fit="block">Layers</span></h2></div>',
+      '<div class="bb-section-heading__meta reveal-in">' +
+      '<span class="bb-section-heading__eyebrow"><bb-fit>Safety</bb-fit></span></div>' +
+      '<h2 class="bb-section-heading__title reveal-in" style="--reveal-i: 1"><bb-fit mode="block">Layers</bb-fit></h2></div>',
   },
   {
     name: 'SectionHeading: bare',
@@ -790,7 +790,7 @@ const REMAINING: {
     props: { title: 'Games' },
     html:
       '<div class="bb-section-heading bb-section-heading--center">' +
-      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1"><span data-fit="block">Games</span></h2></div>',
+      '<h2 class="bb-section-heading__title reveal-in" style="--reveal-i: 1"><bb-fit mode="block">Games</bb-fit></h2></div>',
   },
   {
     name: 'TextLink: default',
@@ -1151,7 +1151,7 @@ const PRIMITIVES: {
     astro: AstroSection,
     props: {"size":"lg","anchor":true,"reveal":true},
     slot: "x",
-    html: "<section class=\"bb-section bb-section--lg bb-section--anchor\" data-reveal>x</section>",
+    html: "<section class=\"bb-section bb-section--lg bb-section--anchor reveal-in\">x</section>",
   },
   {
     name: "Stack",
@@ -1243,7 +1243,7 @@ const PRIMITIVES: {
     astro: AstroDonateCard,
     props: {"label":"L","title":"T","text":"X","cta":"C","href":"/k","note":"N","class":"d"},
     slot: "x",
-    html: "<section class=\"bb-donate-card d\"><div class=\"bb-donate-card__crowd\" aria-hidden=\"true\">x</div><span class=\"bb-donate-card__label\"><span data-fit>L</span></span><h2 class=\"bb-donate-card__title\"><span data-fit=\"block\">T</span></h2><p class=\"bb-donate-card__text\"><span data-fit=\"block\">X</span></p><a class=\"bb-btn bb-btn--primary bb-donate-card__cta\" href=\"/k\" data-mark target=\"_blank\" rel=\"noopener noreferrer\"><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\"><span data-fit>C</span></span></a><span class=\"bb-donate-card__note\"><span data-fit>N</span></span></section>",
+    html: "<section class=\"bb-donate-card d\"><div class=\"bb-donate-card__crowd\" aria-hidden=\"true\">x</div><span class=\"bb-donate-card__label\"><bb-fit>L</bb-fit></span><h2 class=\"bb-donate-card__title\"><bb-fit mode=\"block\">T</bb-fit></h2><p class=\"bb-donate-card__text\"><bb-fit mode=\"block\">X</bb-fit></p><a class=\"bb-btn bb-btn--primary bb-donate-card__cta\" href=\"/k\" data-mark target=\"_blank\" rel=\"noopener noreferrer\"><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\"><bb-fit>C</bb-fit></span></a><span class=\"bb-donate-card__note\"><bb-fit>N</bb-fit></span></section>",
   },
   {
     name: "StepCard",
@@ -1251,14 +1251,14 @@ const PRIMITIVES: {
     astro: AstroStepCard,
     props: {"index":3,"title":"Go"},
     slot: "x",
-    html: "<li><div class=\"bb-card bb-step-card\" data-card data-atmo data-hover><div class=\"bb-card-atmo\" aria-hidden=\"true\"><span class=\"bb-card-atmo__ring\"></span><span class=\"bb-card-atmo__sheen\"></span></div><span class=\"bb-eyebrow\" aria-hidden=\"true\">03</span><h3 class=\"bb-h bb-h--l5 bb-step-card__title\"><span data-fit=\"block\">Go</span></h3><p class=\"bb-text bb-text--sm bb-text--muted bb-step-card__body\"><span data-fit=\"block\">x</span></p></div></li>",
+    html: "<li><div class=\"bb-card bb-step-card\" data-card data-atmo data-hover><div class=\"bb-card-atmo\" aria-hidden=\"true\"><span class=\"bb-card-atmo__ring\"></span><span class=\"bb-card-atmo__sheen\"></span></div><span class=\"bb-eyebrow\" aria-hidden=\"true\">03</span><h3 class=\"bb-h bb-h--l5 bb-step-card__title\"><bb-fit mode=\"block\">Go</bb-fit></h3><p class=\"bb-text bb-text--sm bb-text--muted bb-step-card__body\"><bb-fit mode=\"block\">x</bb-fit></p></div></li>",
   },
   {
     name: "LinkRow",
     svelte: SvelteLinkRow,
     astro: AstroLinkRow,
     props: {"title":"See also","links":[{"href":"https://b.test","label":"B","external":true}]},
-    html: "<nav class=\"bb-link-row\" aria-label=\"See also\"><h2 class=\"bb-h bb-h--l5 bb-link-row__title\"><span data-fit>See also</span></h2><ul class=\"bb-link-row__list\"><li><a class=\"bb-text-link\" href=\"https://b.test\" aria-label=\"B\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"bb-text-link__mask\" aria-hidden=\"true\" data-fit><span class=\"bb-text-link__row bb-text-link__row--rest\"><span class=\"bb-text-link__glyph\" style=\"--gi: 0;\">B</span></span><span class=\"bb-text-link__row bb-text-link__row--over\"><span class=\"bb-text-link__glyph\" style=\"--gi: 0;\">B</span></span></span></a></li></ul></nav>",
+    html: "<nav class=\"bb-link-row\" aria-label=\"See also\"><h2 class=\"bb-h bb-h--l5 bb-link-row__title\"><bb-fit>See also</bb-fit></h2><ul class=\"bb-link-row__list\"><li><a class=\"bb-text-link\" href=\"https://b.test\" aria-label=\"B\" target=\"_blank\" rel=\"noopener noreferrer\"><bb-fit class=\"bb-text-link__mask\" aria-hidden=\"true\"><span class=\"bb-text-link__row bb-text-link__row--rest\"><span class=\"bb-text-link__glyph\" style=\"--gi: 0;\">B</span></span><span class=\"bb-text-link__row bb-text-link__row--over\"><span class=\"bb-text-link__glyph\" style=\"--gi: 0;\">B</span></span></bb-fit></a></li></ul></nav>",
   },
   {
     name: "Spacer",
@@ -1363,7 +1363,7 @@ const PRIMITIVES: {
     svelte: SvelteSegmentedControl,
     astro: AstroSegmentedControl,
     props: {"options":["All","Live"],"value":"Live"},
-    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><span class=\"bb-glide\" aria-hidden=\"true\"></span><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" tabindex=\"-1\" value=\"All\"><span data-fit>All</span></button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" tabindex=\"0\" value=\"Live\"><span data-fit>Live</span></button></div>",
+    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><span class=\"bb-glide\" aria-hidden=\"true\"></span><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" tabindex=\"-1\" value=\"All\"><bb-fit>All</bb-fit></button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" tabindex=\"0\" value=\"Live\"><bb-fit>Live</bb-fit></button></div>",
   },
   {
     name: "RadioGroup",

@@ -252,7 +252,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/tabs", budget: 1440 }, // 1169 B: split from tags.css (2026-09-29)
   { name: "elements/page", budget: 830 }, // 604 B: page head, toolbar, scroller, split from shell.css (2026-09-29)
   { name: "reveal", budget: 520 },
-  { name: "orbs", budget: 1000 },
+  { name: "orbs", budget: 1400 }, // 1130 B: filter-free halo, baked gaussian stops for green and tan (2026-10-31), room ~10% over variance
   { name: "a11y", budget: 560 },
   { name: "elements/nav-link", budget: 1350 },
   { name: "elements/button", budget: 2000 }, // 1919 B: tonal depth on primary, twitch and go-solid (2026-10-29)
@@ -291,7 +291,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/step-list", budget: 2050 }, // 1712 B: navigable checklist form
   { name: "elements/log-tail", budget: 440 },
   // Stats contracts, macOS/arm64: measured gzip bytes +150 B platform variance and ~10% room.
-  { name: "elements/ambient-sky", budget: 1680 }, // 1510 B: pre-blurred orb gradient stops, room ~10%
+  { name: "elements/ambient-sky", budget: 1400 }, // 1144 B: orb gradient stops moved to orbs.css (2026-10-31)
   { name: "elements/counter-card", budget: 1180 }, // 917 B
   { name: "elements/community-card", budget: 1020 }, // 773 B
   { name: "elements/ranking-card", budget: 1350 }, // 1227 B: tonal row divider, room ~10%

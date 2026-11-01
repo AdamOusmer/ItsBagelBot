@@ -53,16 +53,16 @@ function fillLines(layer: HTMLElement, lines: string[]): HTMLElement {
 }
 
 function whenFitted(source: HTMLElement, run: () => void): () => void {
-    if (source.hasAttribute('data-fit-ready')) {
+    if (source.classList.contains('is-fit')) {
         run();
         return () => {};
     }
     const observer = new MutationObserver(() => {
-        if (!source.hasAttribute('data-fit-ready')) return;
+        if (!source.classList.contains('is-fit')) return;
         observer.disconnect();
         run();
     });
-    observer.observe(source, { attributes: true, attributeFilter: ['data-fit-ready'] });
+    observer.observe(source, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
 }
 
@@ -71,7 +71,7 @@ function canRise(title: HTMLElement, source: HTMLElement | null): source is HTML
 }
 
 export function riseLines(title: HTMLElement): () => void {
-    const source = title.querySelector<HTMLElement>('[data-fit]');
+    const source = title.querySelector<HTMLElement>('bb-fit');
     if (!canRise(title, source)) return () => {};
 
     let layer: HTMLElement | null = null;

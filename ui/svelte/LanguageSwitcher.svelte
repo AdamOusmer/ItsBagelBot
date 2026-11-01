@@ -61,8 +61,8 @@
     class="bb-lang-switch__trigger"
     popovertarget={popoverId}
     aria-label="{label}: {current?.title ?? current?.label}"
-    >{@render flag(current?.flag)}<span class="bb-lang-switch__label" data-fit={variant === 'field' ? undefined : ''}
-      >{variant === 'field' ? (current?.title ?? current?.label) : current?.label}</span
+    >{@render flag(current?.flag)}<svelte:element this={variant === 'field' ? 'span' : 'bb-fit'} class="bb-lang-switch__label"
+      >{variant === 'field' ? (current?.title ?? current?.label) : current?.label}</svelte:element
     ><Icon name="chevron" size={12} class="bb-lang-switch__chevron" /></button
   ><ul class="bb-lang-switch__menu" id={popoverId} popover="auto" role="list" aria-label={label}
     >{#each options as option (option.code)}<li

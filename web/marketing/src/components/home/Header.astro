@@ -95,19 +95,19 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     <div class="material">
         <div class="eyebrow">
-            <span class="eyebrow__beta"><span class="eyebrow__beta-label"><span data-fit>{t('hero.devBadge')}</span></span></span>
+            <span class="eyebrow__beta"><span class="eyebrow__beta-label"><bb-fit>{t('hero.devBadge')}</bb-fit></span></span>
             <Brand title="ItsBagelBot" logoSrc={heroLogo.src} wordmark size="lg" class="eyebrow__brand" />
         </div>
 
-        <h1 data-hero-title><span data-fit="block">{titleWords.map((word, i) => (
-            <>{i > 0 && ' '}<span class="word" data-hero-word>{word}</span></>
-        ))}</span></h1>
+        <h1><bb-fit mode="block">{titleWords.map((word, i) => (
+            <>{i > 0 && ' '}<span class="word" style={`--w: ${i}`}>{word}</span></>
+        ))}</bb-fit></h1>
 
-        <Text tone="muted-soft" size="md" class="lede"><span data-fit="block">{t('hero.lede')}</span></Text>
+        <Text tone="muted-soft" size="md" class="lede"><bb-fit mode="block">{t('hero.lede')}</bb-fit></Text>
 
         <div class="actions">
-            <ButtonLink class="cta" href={dashLoginHref(lang)} variant="twitch"><span data-fit>{t('nav.cta')}</span></ButtonLink>
-            <ButtonLink class="cta" variant="secondary" href={localizePath('/import', lang)}><span data-fit>{t('hero.importCta')}</span></ButtonLink>
+            <ButtonLink class="cta" href={dashLoginHref(lang)} variant="twitch"><bb-fit>{t('nav.cta')}</bb-fit></ButtonLink>
+            <ButtonLink class="cta" variant="secondary" href={localizePath('/import', lang)}><bb-fit>{t('hero.importCta')}</bb-fit></ButtonLink>
         </div>
     </div>
 
@@ -141,34 +141,20 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 <script>
     import '@luzir/bolota/motion.css';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
-    import { animate, stagger, cubicBezier } from 'motion';
     import type { EngineHandle } from '@luzir/bolota/engine';
 
-    const easeOutQuint = cubicBezier(0.22, 1, 0.36, 1);
-
-    const TITLE_DELAY = 0.3;
-    const TITLE_WORD_STAGGER = 0.11;
     const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'excited'];
     const EXPRESSION_MIN_MS = 2600;
     const EXPRESSION_SPREAD_MS = 3400;
-
-    function titleIntro(): void {
-        const h1 = document.querySelector<HTMLElement>('[data-hero-title]');
-        if (!h1 || h1.dataset.heroMotionReady === 'true') return;
-        h1.dataset.heroMotionReady = 'true';
-        if (prefersReducedMotion()) return;
-
-        const words = h1.querySelectorAll<HTMLElement>('[data-hero-word]');
-        animate(
-            words,
-            {
-                transform: ['translateY(112%) rotate(3deg)', 'translateY(0%) rotate(0deg)'],
-                opacity: [0, 1],
-                filter: ['blur(8px)', 'blur(0px)'],
-            },
-            { delay: stagger(TITLE_WORD_STAGGER, { startDelay: TITLE_DELAY }), duration: 0.9, ease: easeOutQuint },
-        );
-    }
+    // One awake engine keeps the shared frame loop producing a main frame every vsync, and a morph keeps
+    // an engine awake ~0.85 s. Independent timers across 17 bolotas never let the loop sleep; bursts with gaps do.
+    const BURST_MS = 5000;
+    const BURST_STAGGER_MS = 600;
+    const SEAT_ORDER = ['seat--hero', 'seat--front', 'seat--mid', 'seat--back'];
+    const MOUNT_CHUNK = 4;
+    const IDLE_TIMEOUT_MS = 1500;
+    const IDLE_FALLBACK_MS = 200;
+    type MountEngine = typeof import('@luzir/bolota/engine').mountEngine;
 
     interface Live {
         svg: SVGSVGElement;
@@ -179,7 +165,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     let engines: Live[] = [];
     let observer: IntersectionObserver | null = null;
+    let burst: ReturnType<typeof setInterval> | null = null;
+    let waiting: Live[] = [];
     let mounting = false;
+    let mountRun = 0;
+    let crowdMounted = false;
     let crowdVisible = false;
     let crowdFaded = false;
     let heroEl: HTMLElement | null = null;
@@ -202,39 +192,109 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         return pool[Math.floor(Math.random() * pool.length)];
     }
 
+    function morph(live: Live): void {
+        live.expression = leastUsedExpression(live);
+        live.handle.setExpression(live.expression);
+        scheduleExpression(live, EXPRESSION_MIN_MS + Math.random() * EXPRESSION_SPREAD_MS);
+    }
+
     function scheduleExpression(live: Live, delayMs: number): void {
         live.timer = setTimeout(() => {
-            live.expression = leastUsedExpression(live);
-            live.handle.setExpression(live.expression);
-            scheduleExpression(live, EXPRESSION_MIN_MS + Math.random() * EXPRESSION_SPREAD_MS);
+            live.timer = null;
+            waiting.push(live);
         }, delayMs);
     }
 
-    async function mountCrowd(crowd: HTMLElement): Promise<void> {
-        if (engines.length || mounting) return;
-        mounting = true;
-        const { mountEngine } = await loadEngine();
-        if (!mounting) return;
-
-        const visible = Array.from(crowd.querySelectorAll<SVGSVGElement>('[data-bolota]'))
-            .filter((svg) => svg.getClientRects().length > 0);
-
-        visible.forEach((svg) => {
-            const handle = mountEngine(svg, svg.dataset.bolota ?? 'chatter', {
-                size: Number(svg.dataset.size) || 100,
-                palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
-                background: false,
-            });
-            handle.loop('idle');
-            engines.push({ svg, handle, expression: null, timer: null });
+    function fireBurst(): void {
+        const due = waiting;
+        waiting = [];
+        due.forEach((live) => {
+            live.timer = setTimeout(() => {
+                live.timer = null;
+                morph(live);
+            }, Math.random() * BURST_STAGGER_MS);
         });
+    }
 
-        engines.forEach((live) => scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS));
+    function startBursts(): void {
+        if (burst) return;
+        burst = setInterval(fireBurst, BURST_MS);
+    }
+
+    function stopBursts(): void {
+        if (burst) clearInterval(burst);
+        burst = null;
+        waiting = [];
+    }
+
+    function whenLoaded(callback: () => void): void {
+        if (document.readyState === 'complete') callback();
+        else window.addEventListener('load', callback, { once: true });
+    }
+
+    function whenIdle(callback: () => void): void {
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(callback, { timeout: IDLE_TIMEOUT_MS });
+        else setTimeout(callback, IDLE_FALLBACK_MS);
+    }
+
+    function seatRank(svg: SVGSVGElement): number {
+        const seat = svg.closest('.seat');
+        const rank = SEAT_ORDER.findIndex((name) => seat?.classList.contains(name));
+        return rank < 0 ? SEAT_ORDER.length : rank;
+    }
+
+    function unmountedSeats(crowd: HTMLElement): SVGSVGElement[] {
+        const mounted = new Set(engines.map((live) => live.svg));
+        return Array.from(crowd.querySelectorAll<SVGSVGElement>('[data-bolota]'))
+            .filter((svg) => !mounted.has(svg) && svg.getClientRects().length > 0)
+            .sort((a, b) => seatRank(a) - seatRank(b));
+    }
+
+    function mountOne(svg: SVGSVGElement, mountEngine: MountEngine): void {
+        const handle = mountEngine(svg, svg.dataset.bolota ?? 'chatter', {
+            size: Number(svg.dataset.size) || 100,
+            palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
+            background: false,
+        });
+        handle.loop('idle');
+        const live: Live = { svg, handle, expression: null, timer: null };
+        engines.push(live);
+        scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
+    }
+
+    function finishMount(): void {
         mounting = false;
+        crowdMounted = true;
         if (!crowdActive()) pauseCrowd();
     }
 
+    function mountChunk(run: number, crowd: HTMLElement, pending: SVGSVGElement[], mountEngine: MountEngine): void {
+        if (run !== mountRun || !crowd.isConnected) return;
+        pending.splice(0, MOUNT_CHUNK).forEach((svg) => mountOne(svg, mountEngine));
+        if (pending.length) whenIdle(() => mountChunk(run, crowd, pending, mountEngine));
+        else finishMount();
+    }
+
+    async function startMount(run: number, crowd: HTMLElement): Promise<void> {
+        const { mountEngine } = await loadEngine();
+        if (run !== mountRun || !crowd.isConnected) return;
+        startBursts();
+        mountChunk(run, crowd, unmountedSeats(crowd), mountEngine);
+    }
+
+    function mountCrowd(crowd: HTMLElement): void {
+        if (mounting) return;
+        mounting = true;
+        const run = ++mountRun;
+        whenLoaded(() => whenIdle(() => {
+            if (run === mountRun && crowd.isConnected) startMount(run, crowd);
+        }));
+    }
+
     function pauseCrowd(): void {
+        mountRun++;
+        mounting = false;
+        stopBursts();
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.timer = null;
@@ -243,6 +303,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function resumeCrowd(): void {
+        startBursts();
         engines.forEach((live) => {
             live.handle.loop('idle');
             if (!live.timer) scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
@@ -251,8 +312,10 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     function syncCrowd(crowd: HTMLElement): void {
         if (!crowdActive()) pauseCrowd();
-        else if (engines.length) resumeCrowd();
-        else mountCrowd(crowd);
+        else {
+            if (engines.length) resumeCrowd();
+            if (!crowdMounted) mountCrowd(crowd);
+        }
     }
 
     function onCrowdVisibility(crowd: HTMLElement, visible: boolean): void {
@@ -281,7 +344,10 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function unmountCrowd(): void {
+        mountRun++;
         mounting = false;
+        crowdMounted = false;
+        stopBursts();
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.handle.destroy();
@@ -314,7 +380,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function setup(): void {
-        titleIntro();
         crowdSetup();
     }
 
@@ -325,6 +390,12 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 </script>
 
 <style>
+    @property --hero-p {
+        syntax: '<number>';
+        inherits: false;
+        initial-value: 0;
+    }
+
     .hero {
         --hero-pad-x: 40px;
         --crowd-h: 360px;
@@ -352,11 +423,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         width: min(100%, 1160px);
         position: relative;
         z-index: 2;
+        /* An exit blur re-rasterised the hero every scroll frame (250 ms hitch, half the GPU time on a 4x-throttled sweep); opacity and scale compose on the compositor. */
         opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
         transform: scale(calc(1 - var(--hero-p, 0) * 0.15));
-        filter: blur(calc(var(--hero-p, 0) * 12px));
         transform-origin: center;
-        will-change: var(--hero-content-will-change, opacity, transform, filter);
+        will-change: var(--hero-content-will-change, opacity, transform);
     }
 
     .eyebrow,
@@ -365,7 +436,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .starfield {
-        display: var(--hero-decor-display, block);
+        visibility: var(--hero-decor-visibility, visible);
         position: absolute;
         inset: 0;
         z-index: -1;
@@ -375,7 +446,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .bg {
-        display: var(--hero-decor-display, block);
+        visibility: var(--hero-decor-visibility, visible);
         position: absolute;
         inset: 0;
         pointer-events: none;
@@ -501,6 +572,21 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         display: inline-block;
         transform-origin: 20% 90%;
         transition: none;
+        animation: hero-word-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: calc(0.3s + var(--w, 0) * 0.11s);
+    }
+
+    @keyframes hero-word-in {
+        from {
+            transform: translateY(112%) rotate(3deg);
+            opacity: 0;
+            filter: blur(8px);
+        }
+        to {
+            transform: none;
+            opacity: 1;
+            filter: blur(0);
+        }
     }
 
     .lede {
@@ -534,7 +620,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .crowd {
-        display: var(--hero-decor-display, block);
+        visibility: var(--hero-decor-visibility, visible);
         position: absolute;
         left: 0;
         right: 0;
@@ -618,14 +704,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         scale: 0.9;
     }
 
-    @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-        .word {
-            opacity: 0;
-            transform: translateY(112%) rotate(3deg);
-        }
-    }
-
     @media (prefers-reduced-motion: reduce) {
+        .word {
+            animation: none;
+        }
+
         .eyebrow,
         .lede,
         .actions {

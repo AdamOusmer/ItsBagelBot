@@ -64,7 +64,7 @@ const columns = [
     <SectionHeading title={labels.suitsTitle} />
     <Grid cols={2} gap={5} stackAt="md" class="vs__suits">
         {columns.map((column, i) => (
-            <Card class="vs__suit" data-reveal style={`--reveal-i: ${i}`}>
+            <Card class="vs__suit reveal-in" style={`--reveal-i: ${i}`}>
                 <Heading level={5} as="h3">{column.heading}</Heading>
                 <ul class="vs__list">
                     {column.items.map((item) => <li><Text size="sm" tone="muted" as="span">{item}</Text></li>)}
@@ -78,7 +78,7 @@ const columns = [
 <Section size="band">
   <Container>
     <SectionHeading eyebrow={labels.tableEyebrow} title={labels.tableTitle} />
-    <Card flush class="vs__table" data-reveal>
+    <Card flush class="vs__table reveal-in">
         <Table roomy label={labels.title} minWidth="52rem">
             <thead>
                 <tr>
@@ -108,10 +108,10 @@ const columns = [
     <SectionHeading eyebrow={labels.migrateEyebrow} title={migrate.title} />
     <Grid as="ol" cols={3} gap={5} stackAt="md">
         {migrate.steps.map((step, i) => (
-            <StepCard index={i + 1} data-reveal style={`--reveal-i: ${i}`}>{step}</StepCard>
+            <StepCard index={i + 1} class="reveal-in" style={`--reveal-i: ${i}`}>{step}</StepCard>
         ))}
     </Grid>
-    <Cluster justify="center" gap={3} class="vs__actions" data-reveal>
+    <Cluster justify="center" gap={3} class="vs__actions reveal-in">
         <ButtonLink href={importHref}>{migrate.cta}</ButtonLink>
         <ButtonLink variant="secondary" href={loginHref}>{labels.cta}</ButtonLink>
         <ButtonLink variant="secondary" href={other.href}>{other.label}</ButtonLink>
@@ -124,7 +124,7 @@ const columns = [
     <SectionHeading eyebrow={labels.faqEyebrow} title={labels.faqTitle} />
     <div class="vs__faq">
         {faq.map((item, i) => (
-            <Disclosure summary={item.q} index={String(i + 1).padStart(2, '0')} data-reveal style={`--reveal-i: ${i}`}>
+            <Disclosure summary={item.q} index={String(i + 1).padStart(2, '0')} class="reveal-in" style={`--reveal-i: ${i}`}>
                 <Text size="sm" tone="muted">{item.a}</Text>
             </Disclosure>
         ))}

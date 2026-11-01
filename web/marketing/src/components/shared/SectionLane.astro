@@ -12,10 +12,10 @@ interface Props {
 
 const { id, num, heading, revealIndex, class: className } = Astro.props;
 const reveal = Math.min(revealIndex, 6);
-const classes = ['slane', className].filter(Boolean).join(' ');
+const classes = ['slane', 'reveal-in', className].filter(Boolean).join(' ');
 ---
 
-<section class={classes} id={id} data-reveal style={`--reveal-i: ${reveal}`}>
+<section class={classes} id={id} style={`--reveal-i: ${reveal}`}>
     <div class="slane__side">
         <span class="slane__num">{num}</span>
         <h2 class="slane__heading">{heading}</h2>

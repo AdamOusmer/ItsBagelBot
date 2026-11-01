@@ -108,18 +108,18 @@ const {
 <PageHero eyebrow={eyebrow} title={title} description={lead} style="--page-hero-title-lines: 3" />
 
 {updated && (
-    <Text size="xs" mono tone="muted" class="flupd"><span data-fit><time datetime={updated.iso}>{updated.text}</time></span></Text>
+    <Text size="xs" mono tone="muted" class="flupd"><bb-fit><time datetime={updated.iso}>{updated.text}</time></bb-fit></Text>
 )}
 
 {table && (
     <Section size="band" class="fltbl">
       <Container>
         <SectionHeading eyebrow={table.eyebrow} title={table.title} />
-        <Card flush class="fltbl__card" data-reveal>
+        <Card flush class="fltbl__card reveal-in">
             <Table roomy label={table.title} minWidth="52rem" style={`--fltbl-lines: ${table.rowLines ?? 2}`}>
                 <colgroup>{table.widths.map((width) => <col style={`width: ${width}`} />)}</colgroup>
                 <thead>
-                    <tr>{table.columns.map((column) => <th scope="col"><span data-fit>{column}</span></th>)}</tr>
+                    <tr>{table.columns.map((column) => <th scope="col"><bb-fit>{column}</bb-fit></th>)}</tr>
                 </thead>
                 <tbody>
                     {table.rows.map((row) => (
@@ -130,7 +130,7 @@ const {
                                         <CopySurface variant="well" text={row.copy} class="fltbl__copy" aria-label={`${table.copyLabel ?? ''} ${row.copy}`.trim()}>{cell}</CopySurface>
                                     ) : (
                                         <div class:list={['fltbl__cell', table.monoColumns?.includes(i) && 'fltbl__cell--mono']}>
-                                            <span data-fit="block">{cell}</span>
+                                            <bb-fit mode="block">{cell}</bb-fit>
                                         </div>
                                     )}
                                 </td>
@@ -140,7 +140,7 @@ const {
                 </tbody>
             </Table>
         </Card>
-        {table.note && <Text size="sm" tone="muted" class="flsec__note" data-reveal><span data-fit="block">{table.note}</span></Text>}
+        {table.note && <Text size="sm" tone="muted" class="flsec__note reveal-in"><bb-fit mode="block">{table.note}</bb-fit></Text>}
       </Container>
     </Section>
 )}
@@ -159,11 +159,11 @@ const {
 {prereq && (
     <Section size="band" class="flprereq">
       <Container>
-        <Card class="flprereq__card" data-reveal>
-            <Heading level={5} as="h2" class="flprereq__title"><span data-fit>{prereq.title}</span></Heading>
+        <Card class="flprereq__card reveal-in">
+            <Heading level={5} as="h2" class="flprereq__title"><bb-fit>{prereq.title}</bb-fit></Heading>
             <ul class="flprereq__list">
                 {prereq.items.map((item) => (
-                    <li class="flprereq__item"><Text size="sm" tone="muted" as="span"><span data-fit="block">{item}</span></Text></li>
+                    <li class="flprereq__item"><Text size="sm" tone="muted" as="span"><bb-fit mode="block">{item}</bb-fit></Text></li>
                 ))}
             </ul>
         </Card>
@@ -176,16 +176,16 @@ const {
       <Container>
         <SectionHeading eyebrow={convert.eyebrow} title={convert.title} />
         <Grid cols={2} gap={5} stackAt="md" class="flconv__pair">
-            <div class="flconv__side" data-reveal>
-                <Eyebrow><span data-fit>{convert.beforeLabel}</span></Eyebrow>
+            <div class="flconv__side reveal-in">
+                <Eyebrow><bb-fit>{convert.beforeLabel}</bb-fit></Eyebrow>
                 <Code block wrap class="flconv__code">{convert.before}</Code>
             </div>
-            <div class="flconv__side" data-reveal style="--reveal-i: 1">
-                <Eyebrow><span data-fit>{convert.afterLabel}</span></Eyebrow>
+            <div class="flconv__side reveal-in" style="--reveal-i: 1">
+                <Eyebrow><bb-fit>{convert.afterLabel}</bb-fit></Eyebrow>
                 <Code block wrap class="flconv__code">{convert.after}</Code>
             </div>
         </Grid>
-        <Text size="sm" tone="muted" class="flsec__note" data-reveal><span data-fit="block">{convert.note}</span></Text>
+        <Text size="sm" tone="muted" class="flsec__note reveal-in"><bb-fit mode="block">{convert.note}</bb-fit></Text>
       </Container>
     </Section>
 )}
@@ -195,7 +195,7 @@ const {
     <SectionHeading eyebrow={howEyebrow} title={howTitle} />
     <Grid as="ol" cols={3} gap={5} stackAt="md">
         {steps.map((step, i) => (
-            <StepCard index={i + 1} title={step.title} data-reveal style={`--reveal-i: ${i}`}>{step.desc}</StepCard>
+            <StepCard index={i + 1} title={step.title} class="reveal-in" style={`--reveal-i: ${i}`}>{step.desc}</StepCard>
         ))}
     </Grid>
   </Container>
@@ -206,10 +206,10 @@ const {
     <SectionHeading eyebrow={listEyebrow} title={listTitle} />
     <FactList layout="list" class="fllist__list">
         {listItems.map((item, i) => (
-            <Fact term={item.name ?? ''} fit data-reveal style={`--reveal-i: ${i}`}>{item.desc}</Fact>
+            <Fact term={item.name ?? ''} fit class="reveal-in" style={`--reveal-i: ${i}`}>{item.desc}</Fact>
         ))}
     </FactList>
-    {listNote && <Text size="sm" tone="muted" class="fllist__note" data-reveal><span data-fit="block">{listNote}</span></Text>}
+    {listNote && <Text size="sm" tone="muted" class="fllist__note reveal-in"><bb-fit mode="block">{listNote}</bb-fit></Text>}
   </Container>
 </Section>
 
@@ -226,11 +226,11 @@ const {
 <Section size="band" class="flcta">
   <Container>
     <SectionHeading title={ctaTitle} class="flcta__title" />
-    <Cluster justify="center" gap={3} class="flcta__actions" data-reveal>
-        <ButtonLink href={ctaPrimary.href} class="flcta__btn" variant="twitch"><span data-fit>{ctaPrimary.label}</span></ButtonLink>
-        {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href} class="flcta__btn"><span data-fit>{ctaSecondary.label}</span></ButtonLink>}
+    <Cluster justify="center" gap={3} class="flcta__actions reveal-in">
+        <ButtonLink href={ctaPrimary.href} class="flcta__btn" variant="twitch"><bb-fit>{ctaPrimary.label}</bb-fit></ButtonLink>
+        {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href} class="flcta__btn"><bb-fit>{ctaSecondary.label}</bb-fit></ButtonLink>}
     </Cluster>
-    {legal && <Text size="xs" mono tone="muted" class="flcta__legal"><span data-fit="block">{legal}</span></Text>}
+    {legal && <Text size="xs" mono tone="muted" class="flcta__legal"><bb-fit mode="block">{legal}</bb-fit></Text>}
   </Container>
 </Section>
 

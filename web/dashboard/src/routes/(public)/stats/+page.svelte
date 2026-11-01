@@ -240,9 +240,9 @@
 <main class="st">
   <header class="st-head">
     <div class="st-head__text">
-      <span class="st-live"><span class="st-beacon" aria-hidden="true"></span><span class="st-live__label"><span data-fit="">{t('stats.liveNote')}</span></span></span>
-      <h1 class="st-title"><span class="st-title__fit"><span data-fit=""><span class="st-word">{t('stats.pageHeadline')}</span></span></span></h1>
-      <p class="st-tagline"><span data-fit="block">{t('stats.pageTagline')}</span></p>
+      <span class="st-live"><span class="st-beacon" aria-hidden="true"></span><span class="st-live__label"><bb-fit>{t('stats.liveNote')}</bb-fit></span></span>
+      <h1 class="st-title"><span class="st-title__fit"><bb-fit><span class="st-word">{t('stats.pageHeadline')}</span></bb-fit></span></h1>
+      <p class="st-tagline"><bb-fit mode="block">{t('stats.pageTagline')}</bb-fit></p>
     </div>
     <div class="st-crew" aria-hidden="true">
       {#each crewNames as name, i (`${i}:${name}`)}
@@ -263,15 +263,15 @@
         <div class="st-counter__face" aria-hidden="true"><Bolota name={tile.id} size={92} palette={tilePalette[tile.tone]} motionState="idle" active gate /></div>
         <Card class="st-counter__card">
           <div class="st-counter__top">
-            <span class="st-counter__label"><span data-fit="">{tile.label}</span></span>
-            <span class="st-counter__period"><span data-fit="">{t('stats.allTime')}</span></span>
+            <span class="st-counter__label"><bb-fit>{tile.label}</bb-fit></span>
+            <span class="st-counter__period"><bb-fit>{t('stats.allTime')}</bb-fit></span>
           </div>
           <div class="st-counter__value">{tile.value}<span class="st-counter__unit">{tile.unit}</span></div>
-          <div class="st-counter__exact"><span data-fit="">{tile.detail}</span></div>
+          <div class="st-counter__exact"><bb-fit>{tile.detail}</bb-fit></div>
           <div class="st-rule"></div>
           <div class="st-counter__rate">
             <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden>{tile.rate}{#if tile.rate !== PENDING}<small class="st-counter__per">{t('stats.perSecond')}</small>{/if}</span>
-            <span class="st-counter__avg"><span data-fit="block">{tile.average === null ? t('stats.rightNow') : `${t('stats.rightNow')} · ${t('stats.minuteAverage', { rate: tile.average })}`}</span></span>
+            <span class="st-counter__avg"><bb-fit mode="block">{tile.average === null ? t('stats.rightNow') : `${t('stats.rightNow')} · ${t('stats.minuteAverage', { rate: tile.average })}`}</bb-fit></span>
           </div>
         </Card>
       </div>
@@ -288,19 +288,19 @@
       <Card class="st-board__card">
         <div class="st-board__head">
           <div class="st-board__intro">
-            <span class="st-board__eyebrow"><span data-fit="">{t('stats.boardsEyebrow')}</span></span>
-            <h2 class="st-board__title"><span data-fit="">{t('stats.trafficBoardTitle')}</span></h2>
+            <span class="st-board__eyebrow"><bb-fit>{t('stats.boardsEyebrow')}</bb-fit></span>
+            <h2 class="st-board__title"><bb-fit>{t('stats.trafficBoardTitle')}</bb-fit></h2>
           </div>
           <SegmentedControl options={[t('stats.colMessages'), t('stats.colEvents')]} bind:value={rankBy} label={t('stats.rankBy')} />
         </div>
         {#if rankingItems.length === 0}
-          <p class="st-empty"><span data-fit="block">{t('stats.boardEmpty')}</span></p>
+          <p class="st-empty"><bb-fit mode="block">{t('stats.boardEmpty')}</bb-fit></p>
         {:else}
           <div class="st-table" role="table" aria-label={t('stats.trafficBoardTitle')}>
             <div class="st-row st-row--head" role="row">
               <span class="st-cell st-cell--rank" role="columnheader">{t('stats.colRank')}</span>
-              <span class="st-cell" role="columnheader"><span data-fit="">{t('stats.colChannel')}</span></span>
-              <span class="st-cell st-cell--num" role="columnheader"><span data-fit="">{rankBy}</span></span>
+              <span class="st-cell" role="columnheader"><bb-fit>{t('stats.colChannel')}</bb-fit></span>
+              <span class="st-cell st-cell--num" role="columnheader"><bb-fit>{rankBy}</bb-fit></span>
             </div>
             {#each rankingItems as item, i (item.id)}
               <div class="st-row" role="row" style="--share: {share(item.value, rankingTop)}">
@@ -329,22 +329,22 @@
       <Card class="st-board__card" tone="accent">
         <div class="st-board__head">
           <div class="st-board__intro">
-            <span class="st-board__eyebrow st-board__eyebrow--tan"><span data-fit="">{t('stats.feedBoardTitle')}</span></span>
-            <h2 class="st-board__title"><span data-fit="">{t('stats.feedingsTitle')}</span></h2>
+            <span class="st-board__eyebrow st-board__eyebrow--tan"><bb-fit>{t('stats.feedBoardTitle')}</bb-fit></span>
+            <h2 class="st-board__title"><bb-fit>{t('stats.feedingsTitle')}</bb-fit></h2>
           </div>
           <div class="st-feed-total">
             <span class="st-feed-total__num">{formatCounterValue(feed.total, locale)}</span>
-            <span class="st-feed-total__sub"><span data-fit="">{t('stats.allTime')}</span></span>
+            <span class="st-feed-total__sub"><bb-fit>{t('stats.allTime')}</bb-fit></span>
           </div>
         </div>
         {#if feed.entries.length === 0}
-          <p class="st-empty"><span data-fit="block">{t('stats.feedBoardEmpty')}</span></p>
+          <p class="st-empty"><bb-fit mode="block">{t('stats.feedBoardEmpty')}</bb-fit></p>
         {:else}
           <div class="st-table" role="table" aria-label={t('stats.feedingsTitle')}>
             <div class="st-row st-row--head" role="row">
               <span class="st-cell st-cell--rank" role="columnheader">{t('stats.colRank')}</span>
-              <span class="st-cell" role="columnheader"><span data-fit="">{t('stats.topFeeders')}</span></span>
-              <span class="st-cell st-cell--num" role="columnheader"><span data-fit="">{t('stats.feedings')}</span></span>
+              <span class="st-cell" role="columnheader"><bb-fit>{t('stats.topFeeders')}</bb-fit></span>
+              <span class="st-cell st-cell--num" role="columnheader"><bb-fit>{t('stats.feedings')}</bb-fit></span>
             </div>
             {#each feed.entries as row, i (row.id)}
               <div class="st-row" role="row" style="--share: {share(Number(row.count), feedTop)}">
@@ -360,7 +360,7 @@
               </div>
             {/each}
           </div>
-          <p class="st-feed-note"><span data-fit="">{t('stats.feedRankedNote', { count: formatCounterValue(feed.ranked, locale) })}</span></p>
+          <p class="st-feed-note"><bb-fit>{t('stats.feedRankedNote', { count: formatCounterValue(feed.ranked, locale) })}</bb-fit></p>
         {/if}
       </Card>
     </div>

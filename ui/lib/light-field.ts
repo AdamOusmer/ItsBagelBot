@@ -4,20 +4,44 @@
 import { prefersReducedMotion } from './motion-query';
 
 type Mote = {
+    x: number;
+    y: number;
     r: number;
-    vx: number;
-    vy: number;
-    alpha: number;
-    warm: boolean;
+    fill: string;
+};
+
+type Layer = {
+    sway: HTMLElement;
+    canvas: HTMLCanvasElement;
+    ctx: CanvasRenderingContext2D;
+    speed: number;
+    driftSeed: number;
+    swaySeed: number;
+    swayS: number;
+};
+
+type Size = {
+    width: number;
+    height: number;
+    dpr: number;
+};
+
+type Palette = {
+    warmth: number;
+    warmRgb: string;
+    coolRgb: string;
 };
 
 export type FieldOptions = {
     warmth?: number;
 };
 
-const FRAME_MS = 1000 / 60;
-const EDGE_PX = 10;
+const SPEEDS_PX_PER_FRAME = [0.07, 0.14, 0.24];
+const FPS = 60;
+const MAX_DPR = 2;
 const RESIZE_DEBOUNCE_MS = 150;
+const SWAY_MIN_S = 20;
+const SWAY_SPAN_S = 20;
 const TAN_RGB = '216, 191, 145';
 const GREEN_GLOW_RGB = '98, 165, 147';
 
@@ -27,95 +51,86 @@ function channel(host: HTMLElement, name: string, fallback: string): string {
 
 export function field(host: HTMLElement, options: FieldOptions = {}): (() => void) | null {
     if (prefersReducedMotion()) return null;
-    if (typeof host.animate !== 'function') return null;
+    const layers = SPEEDS_PX_PER_FRAME.map(createLayer);
+    if (layers.some((layer) => !layer)) return null;
+    const all = layers as Layer[];
+    host.replaceChildren(...all.map((layer) => layer.sway));
 
     const warmth = options.warmth ?? 0.7;
-    let width = 0;
-    let height = 0;
-    let visible = false;
-    const animations = new Set<Animation>();
     const warmRgb = channel(host, '--bb-tan-rgb', TAN_RGB);
     const coolRgb = channel(host, '--bb-green-glow-rgb', GREEN_GLOW_RGB);
+    let width = 0;
+    let height = 0;
     let rebuild: ReturnType<typeof setTimeout> | undefined;
 
-    function clear() {
-        for (const animation of animations) animation.cancel();
-        animations.clear();
-        host.replaceChildren();
-    }
-
-    function fly(dot: HTMLElement, mote: Mote, fromY: number) {
-        const x = Math.random() * width - mote.r;
-        const frames = (fromY + EDGE_PX) / mote.vy;
-        const animation = dot.animate(
-            [
-                { transform: `translate(${x}px, ${fromY - mote.r}px)` },
-                { transform: `translate(${x + mote.vx * frames}px, ${-EDGE_PX - mote.r}px)` },
-            ],
-            { duration: frames * FRAME_MS, easing: 'linear' },
-        );
-        animations.add(animation);
-        animation.onfinish = () => {
-            animations.delete(animation);
-            fly(dot, mote, height + EDGE_PX);
-        };
-    }
-
     function build() {
-        clear();
         width = host.clientWidth;
         height = host.clientHeight;
         if (!width || !height) return;
-        for (const mote of makeMotes(width, warmth)) {
-            const dot = document.createElement('span');
-            dot.style.width = dot.style.height = `${mote.r * 2}px`;
-            dot.style.background = `rgba(${mote.warm ? warmRgb : coolRgb}, ${mote.alpha.toFixed(3)})`;
-            host.append(dot);
-            fly(dot, mote, Math.random() * height);
-        }
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        const size = { width, height, dpr };
+        const motes = makeMotes(size, { warmth, warmRgb, coolRgb });
+        all.forEach((layer, i) => paintLayer(layer, motes.filter((_, n) => n % all.length === i), size));
     }
-
-    const resized = () => host.clientWidth !== width || host.clientHeight !== height;
-
-    function setPlaying(playing: boolean) {
-        for (const animation of animations) {
-            if (playing) animation.play();
-            else animation.pause();
-        }
-    }
-
-    const observer = new IntersectionObserver(([entry]) => {
-        visible = entry.isIntersecting;
-        if (!visible) setPlaying(false);
-        else if (animations.size === 0 || resized()) build();
-        else setPlaying(true);
-    }, { rootMargin: '150px' });
 
     const resizer = new ResizeObserver(() => {
         clearTimeout(rebuild);
         rebuild = setTimeout(() => {
-            if (visible && resized()) build();
+            if (host.clientWidth !== width || host.clientHeight !== height) build();
         }, RESIZE_DEBOUNCE_MS);
     });
 
-    observer.observe(host);
+    build();
     resizer.observe(host);
 
     return () => {
-        observer.disconnect();
         resizer.disconnect();
         clearTimeout(rebuild);
-        clear();
+        all.forEach((layer) => layer.sway.remove());
     };
 }
 
-function makeMotes(width: number, warmth: number): Mote[] {
+function createLayer(speed: number): Layer | null {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext?.('2d') ?? null;
+    if (!ctx) return null;
+    const sway = document.createElement('div');
+    sway.className = 'bb-light-field__layer';
+    canvas.className = 'bb-light-field__canvas';
+    canvas.setAttribute('aria-hidden', 'true');
+    sway.append(canvas);
+    return { sway, canvas, ctx, speed, driftSeed: Math.random(), swaySeed: Math.random(), swayS: SWAY_MIN_S + Math.random() * SWAY_SPAN_S };
+}
+
+function paintLayer(layer: Layer, motes: Mote[], { width, height, dpr }: Size) {
+    const { canvas, ctx } = layer;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * 2 * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height * 2);
+    for (const mote of motes) {
+        ctx.fillStyle = mote.fill;
+        for (const offset of [-height, 0, height]) dot(ctx, mote, offset);
+    }
+    const drift = height / layer.speed / FPS;
+    canvas.style.animationDuration = `${drift.toFixed(2)}s`;
+    canvas.style.animationDelay = `${(-layer.driftSeed * drift).toFixed(2)}s`;
+    layer.sway.style.animationDuration = `${layer.swayS.toFixed(2)}s`;
+    layer.sway.style.animationDelay = `${(-layer.swaySeed * layer.swayS).toFixed(2)}s`;
+}
+
+function dot(ctx: CanvasRenderingContext2D, mote: Mote, offset: number) {
+    ctx.beginPath();
+    ctx.arc(mote.x, mote.y + offset, mote.r, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function makeMotes({ width, height }: Size, { warmth, warmRgb, coolRgb }: Palette): Mote[] {
     const count = width < 700 ? 40 : 70;
     return Array.from({ length: count }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
         r: 0.6 + Math.random() * 2,
-        vy: 0.05 + Math.random() * 0.2,
-        vx: (Math.random() - 0.5) * 0.1,
-        alpha: 0.12 + Math.random() * 0.45,
-        warm: Math.random() < warmth,
+        fill: `rgba(${Math.random() < warmth ? warmRgb : coolRgb}, ${(0.12 + Math.random() * 0.45).toFixed(3)})`,
     }));
 }

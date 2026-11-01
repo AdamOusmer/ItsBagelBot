@@ -33,7 +33,7 @@
     class="bb-page-hero__glow"
     aria-hidden="true"
   ></div><div class="bb-page-hero__inner"
-  >{#if eyebrow}<span class="bb-page-hero__eyebrow"><span data-fit="">{eyebrow}</span></span>{/if}<h1
-      class="bb-page-hero__title" bind:this={heading}><span data-fit="block">{title}</span></h1
-    >{#if description}<p class="bb-page-hero__desc"><span data-fit="block">{description}</span></p>{/if}</div
+  >{#if eyebrow}<span class="bb-page-hero__eyebrow"><bb-fit>{eyebrow}</bb-fit></span>{/if}<h1
+      class="bb-page-hero__title" bind:this={heading}><bb-fit mode="block">{title}</bb-fit></h1
+    >{#if description}<p class="bb-page-hero__desc"><bb-fit mode="block">{description}</bb-fit></p>{/if}</div
   ></header>

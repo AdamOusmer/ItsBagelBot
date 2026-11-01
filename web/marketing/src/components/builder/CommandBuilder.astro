@@ -90,18 +90,18 @@ for (const surface of builderData(defaultLang).surfaces) {
                     </Field>
                     <Text as="small" size="xs" tone="muted" class="response__count"><b data-count>0</b>/{LIMITS.lineMax}</Text>
                 </div>
-                <div class="recipes" data-recipes><Label mono as="span" class="recipes__label"><span data-fit>{ui.recipesLabel}</span></Label></div>
+                <div class="recipes" data-recipes><Label mono as="span" class="recipes__label"><bb-fit>{ui.recipesLabel}</bb-fit></Label></div>
 
                 <section class="palette">
                     <Divider />
                     <div class="palette__head">
-                        <Heading level={5} as="h3" class="palette__title"><span data-fit>{ui.step3Title}</span></Heading>
-                        <Tag tone="live" bare class="palette__scope"><span data-fit data-scope></span></Tag>
+                        <Heading level={5} as="h3" class="palette__title"><bb-fit>{ui.step3Title}</bb-fit></Heading>
+                        <Tag tone="live" bare class="palette__scope"><bb-fit data-scope></bb-fit></Tag>
                     </div>
-                    <Text size="sm" tone="muted-light" class="palette__sub"><span data-fit="block">{ui.step3Sub}</span></Text>
+                    <Text size="sm" tone="muted-light" class="palette__sub"><bb-fit mode="block">{ui.step3Sub}</bb-fit></Text>
                     <div class="vars" data-vars></div>
                     <Disclosure size="sm" summary={ui.bracesSummary} class="palette__braces">
-                        <Text size="xs" tone="muted-light" class="palette__braces-body"><span data-fit="block">{ui.bracesBody}</span></Text>
+                        <Text size="xs" tone="muted-light" class="palette__braces-body"><bb-fit mode="block">{ui.bracesBody}</bb-fit></Text>
                     </Disclosure>
                 </section>
 
@@ -134,31 +134,31 @@ for (const surface of builderData(defaultLang).surfaces) {
         <aside>
             <Card>
                 <div class="card-head">
-                    <Label mono as="span" class="card-head__start"><i class="bb-mark card-head__rec" aria-hidden="true"></i><span data-fit>{ui.previewTitle}</span></Label>
-                    <Label mono as="span" class="card-head__end"><span data-fit data-context></span></Label>
+                    <Label mono as="span" class="card-head__start"><i class="bb-mark card-head__rec" aria-hidden="true"></i><bb-fit>{ui.previewTitle}</bb-fit></Label>
+                    <Label mono as="span" class="card-head__end"><bb-fit data-context></bb-fit></Label>
                 </div>
                 <ChatPreview title={ui.rehearsal} class="bb-chat--fixed" data-chat data-avatar={avatarImage.src}>
-                    <span slot="heading" data-fit data-chat-tag-text>{ui.rehearsal}</span>
+                    <bb-fit slot="heading" data-chat-tag-text>{ui.rehearsal}</bb-fit>
                 </ChatPreview>
-                <Text as="small" size="xs" tone="muted-light" class="preview__note"><span data-fit="block" data-preview-note></span></Text>
+                <Text as="small" size="xs" tone="muted-light" class="preview__note"><bb-fit mode="block" data-preview-note></bb-fit></Text>
             </Card>
 
             <Card>
                 <div class="card-head">
-                    <Label mono as="span" class="card-head__start"><span data-fit data-action-title>{ui.sendTitle}</span></Label>
-                    <Text as="span" size="xs" tone="danger" class="card-head__end"><span data-fit data-valid aria-live="polite"></span></Text>
+                    <Label mono as="span" class="card-head__start"><bb-fit data-action-title>{ui.sendTitle}</bb-fit></Label>
+                    <Text as="span" size="xs" tone="danger" class="card-head__end"><bb-fit data-valid aria-live="polite"></bb-fit></Text>
                 </div>
                 <div class="send" data-send-wrap>
                     <ButtonLink block data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'} tone="success">
-                        <span data-fit>{ui.sendCta}{' '}<span aria-hidden="true">→</span></span>
+                        <bb-fit>{ui.sendCta}{' '}<span aria-hidden="true">→</span></bb-fit>
                     </ButtonLink>
-                    <Text size="xs" tone="muted" class="send__help"><span data-fit="block">{ui.sendHelp}</span></Text>
+                    <Text size="xs" tone="muted" class="send__help"><bb-fit mode="block">{ui.sendHelp}</bb-fit></Text>
                 </div>
                 <div class="copyw" data-copy-wrap>
                     <Divider />
-                    <Label mono as="span" class="copyw__label"><span data-fit="block" data-copy-title>{ui.copyTitleCustom}</span></Label>
+                    <Label mono as="span" class="copyw__label"><bb-fit mode="block" data-copy-title>{ui.copyTitleCustom}</bb-fit></Label>
                     <Code block wrap maxHeight="150px" data-output />
-                    <Chip class="copyw__btn" data-copy-cta><span data-fit data-copy-label>{ui.copyCta}</span></Chip>
+                    <Chip class="copyw__btn" data-copy-cta><bb-fit data-copy-label>{ui.copyCta}</bb-fit></Chip>
                     <div class="copyw__module" data-module-wrap hidden>
                         <TextLink variant="quiet" href={data.dashboardOrigin} external data-module-link>{ui.openModule} →</TextLink>
                     </div>
@@ -167,7 +167,7 @@ for (const surface of builderData(defaultLang).surfaces) {
         </aside>
     </div>
 
-    <Text size="sm" tone="muted-light" class="learn"><span data-fit="block">{ui.learnMore}{' '}<TextLink variant="inline" href={guideHref}>{ui.learnMoreCta} →</TextLink></span></Text>
+    <Text size="sm" tone="muted-light" class="learn"><bb-fit mode="block">{ui.learnMore}{' '}<TextLink variant="inline" href={guideHref}>{ui.learnMoreCta} →</TextLink></bb-fit></Text>
 
     <script type="application/json" is:inline data-builder-json set:html={JSON.stringify({
         data,
@@ -204,7 +204,6 @@ for (const surface of builderData(defaultLang).surfaces) {
 <script>
     import { bindOnce } from '../../script/bind';
     import { copyFlash } from '@bagel/ui/lib/clipboard';
-    import { mountTextFit } from '@bagel/ui/lib/text-fit';
 
     type CounterScope = { id: string; label: string; hint: string };
     type Var = { token: string; sample: string; name: string; desc: string; scopes?: CounterScope[]; pinned?: boolean };
@@ -287,16 +286,9 @@ for (const surface of builderData(defaultLang).surfaces) {
         const avatarSrc = $<HTMLElement>('[data-chat]').dataset.avatar ?? '';
         const chat = $<HTMLElement>('[data-chat] .bb-chat__feed');
 
-        const fitted = new Map<Element, () => void>();
-        const fitWithin = (box: Element) => {
-            fitted.get(box)?.();
-            fitted.set(box, mountTextFit(box));
-        };
         const setFitText = (sel: string, text: string) => {
             const node = $<HTMLElement>(sel);
-            if (node.textContent === text && node.hasAttribute('data-fit-ready')) return;
-            node.textContent = text;
-            fitWithin(node.parentElement!);
+            if (node.textContent !== text) node.textContent = text;
         };
 
         let mode: 'custom' | 'module' = 'custom';
@@ -376,8 +368,8 @@ for (const surface of builderData(defaultLang).surfaces) {
 
         const fitIn = (tag: string, text: string, mode: '' | 'block') => {
             const box = el(tag, '');
-            const label = el('span', '', text);
-            label.dataset.fit = mode;
+            const label = el('bb-fit', '', text);
+            if (mode) label.setAttribute('mode', mode);
             box.append(label);
             return box;
         };
@@ -584,8 +576,8 @@ for (const surface of builderData(defaultLang).surfaces) {
             insertBtn.append(tokenCode, el('i', 'bb-var-card__plus', '+'));
 
             const hint = el('small', 'bb-var-card__hint');
-            const hintText = el('span', '');
-            hintText.dataset.fit = 'block';
+            const hintText = el('bb-fit', '');
+            hintText.setAttribute('mode', 'block');
             hint.append(hintText);
             const row = el('div', 'bb-var-card__row');
             row.append(inputShell(nameInput), inputShell(scopeSelect), insertBtn);
@@ -599,7 +591,6 @@ for (const surface of builderData(defaultLang).surfaces) {
             const syncHint = () => {
                 const scope = scopes.find((s) => s.id === scopeSelect.value) ?? scopes[0];
                 hintText.textContent = scope?.hint ?? '';
-                if (hint.isConnected) fitWithin(hint);
             };
 
             nameInput.addEventListener('input', syncToken);
@@ -628,7 +619,6 @@ for (const surface of builderData(defaultLang).surfaces) {
             for (const item of shown) {
                 box.append(item.scopes?.length ? buildCounterVar(item) : buildSimpleVar(item));
             }
-            fitWithin(box);
         }
 
         const recipesBox = $<HTMLElement>('[data-recipes]');
@@ -636,16 +626,13 @@ for (const surface of builderData(defaultLang).surfaces) {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'bb-chip bb-chip--muted';
-            const label = el('span', '', recipe.label);
-            label.dataset.fit = '';
-            btn.append(label);
+            btn.append(el('bb-fit', '', recipe.label));
             btn.addEventListener('click', () => {
                 ta.value = recipe.text;
                 update();
             });
             recipesBox.append(btn);
         }
-        fitWithin(recipesBox);
 
         function problem(): string | null {
             const out = lines();

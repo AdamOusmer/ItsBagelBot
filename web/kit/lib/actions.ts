@@ -5,18 +5,4 @@ export { magnetic } from '@bagel/ui/svelte/actions';
 
 export { countUp } from '@bagel/ui/lib/count-up';
 
-export async function initLenis(): Promise<() => void> {
-  if (typeof window === 'undefined') return () => {};
-  const { createSmoothScroll } = await import('@bagel/ui/lib/lenis');
-  return createSmoothScroll()?.destroy ?? (() => {});
-}
-
-export async function resetSmoothScroll(): Promise<void> {
-  const { getSmoothScroll } = await import('@bagel/ui/lib/lenis');
-  getSmoothScroll()?.scrollTo(0, { immediate: true });
-}
-
-export async function syncSmoothScroll(): Promise<void> {
-  const { getSmoothScroll } = await import('@bagel/ui/lib/lenis');
-  getSmoothScroll()?.scrollTo(window.scrollY, { immediate: true });
-}
+export { initLenis, resetSmoothScroll, syncSmoothScroll } from '@bagel/ui/lib/smooth-scroll';

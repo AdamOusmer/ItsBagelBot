@@ -17,4 +17,4 @@ const { title, links, class: className = '', ...rest } = Astro.props;
 const classes = ['bb-link-row', className].filter(Boolean).join(' ');
 ---
 
-<nav class={classes} aria-label={title} {...rest}>{title && <Heading level={5} as="h2" class="bb-link-row__title"><span data-fit>{title}</span></Heading>}<ul class="bb-link-row__list">{links.map((link) => (<li><TextLink href={link.href} label={link.label} external={link.external} fit /></li>))}</ul></nav>
+<nav class={classes} aria-label={title} {...rest}>{title && <Heading level={5} as="h2" class="bb-link-row__title"><bb-fit>{title}</bb-fit></Heading>}<ul class="bb-link-row__list">{links.map((link) => (<li><TextLink href={link.href} label={link.label} external={link.external} fit /></li>))}</ul></nav>

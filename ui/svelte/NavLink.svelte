@@ -59,8 +59,8 @@
 
 {#if disabled}
   <span class={classes} aria-disabled="true" {...rest}
-    >{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}
-      >{#if children}{@render children()}{:else}{label}{/if}</span
+    >{#if leading}{@render leading()}{/if}<svelte:element this={fit ? 'bb-fit' : 'span'} class="bb-nav-link__label" group={fit ? fitGroup : undefined}
+      >{#if children}{@render children()}{:else}{label}{/if}</svelte:element
     >{#if trailing}{@render trailing()}{/if}{#if hint}<span class="bb-nav-link__hint"
       >{hint}</span
     >{/if}</span
@@ -73,8 +73,8 @@
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     {...rest}
-    >{#if twitch}<Icon name="twitch" />{/if}{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}
-      >{#if children}{@render children()}{:else}{label}{/if}</span
+    >{#if twitch}<Icon name="twitch" />{/if}{#if leading}{@render leading()}{/if}<svelte:element this={fit ? 'bb-fit' : 'span'} class="bb-nav-link__label" group={fit ? fitGroup : undefined}
+      >{#if children}{@render children()}{:else}{label}{/if}</svelte:element
     >{#if trailing}{@render trailing()}{/if}</a
   >
 {/if}

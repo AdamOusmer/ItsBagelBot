@@ -228,7 +228,7 @@
 <main class="page">
   <header class="hero">
     <div class="hero__text">
-      <span class="eyebrow"><span data-fit="">{t('public.commands.eyebrow')}</span></span>
+      <span class="eyebrow"><bb-fit>{t('public.commands.eyebrow')}</bb-fit></span>
       <h1 class="title{titleSize ? ` title--${titleSize}` : ''}">
         {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="word">{word}</span>{/each}
       </h1>

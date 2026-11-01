@@ -32,7 +32,6 @@
 </script>
 
 <div class={classes} {...rest}>{#if eyebrow || badge}<div
-    class="bb-section-heading__meta"
-    data-reveal
-  >{#if eyebrow}<span class="bb-section-heading__eyebrow"><span data-fit="">{eyebrow}</span></span>{/if}{#if badge}{@render badge()}{/if}</div
-  >{/if}<svelte:element this={`h${headingLevel}`} class="bb-section-heading__title" data-reveal style="--reveal-i: 1"><span data-fit="block">{title}</span></svelte:element></div>
+    class="bb-section-heading__meta reveal-in"
+  >{#if eyebrow}<span class="bb-section-heading__eyebrow"><bb-fit>{eyebrow}</bb-fit></span>{/if}{#if badge}{@render badge()}{/if}</div
+  >{/if}<svelte:element this={`h${headingLevel}`} class="bb-section-heading__title reveal-in" style="--reveal-i: 1"><bb-fit mode="block">{title}</bb-fit></svelte:element></div>

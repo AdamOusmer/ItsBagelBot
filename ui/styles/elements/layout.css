@@ -31,6 +31,11 @@
     .bb-section--flush { --section-pad: 0; }
     .bb-section--page { --section-pad: var(--bb-space-section); }
 
+    .bb-section--page {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 100svh;
+    }
+
     @media (max-width: 640px) {
         .bb-section--page { --section-pad: var(--bb-space-section-sm); }
     }

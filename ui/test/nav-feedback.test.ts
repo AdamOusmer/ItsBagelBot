@@ -301,7 +301,7 @@ describe('SkipLink and LanguageSwitcher', () => {
   const FLAG = '<span class="bb-lang-switch__flag" aria-hidden="true"></span>';
   const CHEVRON = icon('chevron', 12, 'bb-lang-switch__chevron');
   const CHECK = icon('check', 14, 'bb-lang-switch__check');
-  const TRIGGER_EN = `<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English">${FLAG}<span class="bb-lang-switch__label" data-fit>EN</span>${CHEVRON}</button>`;
+  const TRIGGER_EN = `<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English">${FLAG}<bb-fit class="bb-lang-switch__label">EN</bb-fit>${CHEVRON}</button>`;
   const MENU = '<ul class="bb-lang-switch__menu" id="lang" popover="auto" role="list" aria-label="Language">';
   const options = [
     { code: 'en', label: 'EN', current: true, title: 'English' },
@@ -416,7 +416,7 @@ describe('Dock grouping', () => {
     expect([...html.matchAll(/href="\/(\w)" (?:data-active )?(?:aria-current="page" )?data-dock-fold/g)].map((m) => m[1])).toEqual(['e', 'f']);
     expect(html).toContain('<div class="bb-dock__group bb-dock__more">');
     expect(buttons(html)).toEqual([expect.stringContaining('data-active')]);
-    expect(html).toContain('>Menu</span>');
+    expect(html).toContain('>Menu</bb-fit>');
   });
 
   test('a single extra page stays in the dock instead of hiding behind a menu', async () => {

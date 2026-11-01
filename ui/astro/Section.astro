@@ -25,10 +25,11 @@ const classes = [
     'bb-section',
     size === 'default' ? null : `bb-section--${size}`,
     anchor ? 'bb-section--anchor' : null,
+    reveal ? 'reveal-in' : null,
     className,
 ]
     .filter(Boolean)
     .join(' ');
 ---
 
-<Tag class={classes} data-reveal={reveal ? '' : undefined} {...rest}><slot /></Tag>
+<Tag class={classes} {...rest}><slot /></Tag>

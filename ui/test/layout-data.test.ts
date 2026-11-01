@@ -257,7 +257,7 @@ describe('Disclosure', () => {
       html:
         '<details class="bb-disclosure bb-disclosure--indexed" open>' +
         '<summary class="bb-disclosure__summary"><span class="bb-disclosure__index" aria-hidden="true">01</span>' +
-        '<span class="bb-disclosure__label"><span data-fit="block">Can I cancel?</span></span>' +
+        '<span class="bb-disclosure__label"><bb-fit mode="block">Can I cancel?</bb-fit></span>' +
         '<span class="bb-disclosure__icon" aria-hidden="true"></span></summary>' +
         '<div class="bb-disclosure__body"><div class="bb-disclosure__content"><p>Yes.</p></div></div></details>',
     },
@@ -267,7 +267,7 @@ describe('Disclosure', () => {
       slots: { default: '<ul></ul>' },
       html:
         '<details class="bb-disclosure bb-disclosure--sm">' +
-        '<summary class="bb-disclosure__summary"><span class="bb-disclosure__label"><span data-fit="block">12 commits</span></span>' +
+        '<summary class="bb-disclosure__summary"><span class="bb-disclosure__label"><bb-fit mode="block">12 commits</bb-fit></span>' +
         '<span class="bb-disclosure__icon" aria-hidden="true"></span></summary>' +
         '<div class="bb-disclosure__body"><div class="bb-disclosure__content"><ul></ul></div></div></details>',
     },

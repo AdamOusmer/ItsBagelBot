@@ -68,7 +68,7 @@
       onclick={() => pick(opt.value)}
       {...opt.attrs}
     >
-      <span data-fit="">{opt.label}</span>{#if opt.count !== undefined}<span class="bb-tab__count">{opt.count}</span>{/if}
+      <bb-fit>{opt.label}</bb-fit>{#if opt.count !== undefined}<span class="bb-tab__count">{opt.count}</span>{/if}
     </button>
   {/each}
 </div>

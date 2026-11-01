@@ -39,7 +39,7 @@ import SvelteFieldControl from './fixtures/field-control.svelte';
 import AstroFieldControl from './fixtures/field-control.astro';
 
 const headingTag = (html: string, className: string) =>
-  new RegExp(`<(h[1-6])[^>]*class="${className}"`).exec(html)?.[1];
+  new RegExp(`<(h[1-6])[^>]*class="${className}[ "]`).exec(html)?.[1];
 
 const ITEMS = [{ id: 'a', label: 'Alpha', value: 3, valueLabel: '3' }];
 
