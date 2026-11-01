@@ -30,16 +30,28 @@ export function mountReadingProgress(fill: HTMLElement): () => void {
     if (typeof window === 'undefined') return () => {};
 
     const doc = document.documentElement;
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => onResize());
+    let docHeight = doc.scrollHeight;
     let total = 0;
     let updates = 0;
 
     const measure = (): void => {
-        total = doc.scrollHeight - window.innerHeight;
+        total = docHeight - window.innerHeight;
     };
 
+    // Resize must not read layout: iOS fires it on every step of the address bar animation.
+    const observer =
+        typeof ResizeObserver === 'undefined'
+            ? null
+            : new ResizeObserver(([entry]) => {
+                  docHeight = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+                  onResize();
+              });
+
     const paint = (): void => {
-        if (!observer && updates++ % FALLBACK_REMEASURE_EVERY === 0) measure();
+        if (!observer && updates++ % FALLBACK_REMEASURE_EVERY === 0) {
+            docHeight = doc.scrollHeight;
+            measure();
+        }
         fill.style.setProperty('--read', readFraction(window.scrollY, total).toFixed(4));
     };
 

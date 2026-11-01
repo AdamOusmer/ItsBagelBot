@@ -17,10 +17,14 @@ Reflect.deleteProperty(globalThis, 'ResizeObserver');
 
 const win = Object.assign(eventTarget(), { innerHeight: 500, scrollY: 0 });
 (globalThis as { window?: unknown }).window = win;
-(globalThis as { document?: unknown }).document = Object.assign(eventTarget(), {
-  hidden: false,
-  documentElement: { scrollHeight: 1500 },
-});
+let heightReads = 0;
+const root = {
+  get scrollHeight() {
+    heightReads += 1;
+    return 1500;
+  },
+};
+(globalThis as { document?: unknown }).document = Object.assign(eventTarget(), { hidden: false, documentElement: root });
 
 const lib = isolatedLib('reading-progress', ['reading-progress.ts', 'raf-loop.ts']);
 afterAll(() => {
@@ -65,4 +69,36 @@ test('a disposed progress bar is never painted again, even when the shared loop 
   expect(old.writes.length).toBe(painted);
   expect(current.writes.at(-1)).toBe('0.5000');
   disposeCurrent();
+});
+
+test('an address bar resize reads no layout: the page height comes from the resize observer', () => {
+  let notify: ((entries: unknown[]) => void) | null = null;
+  globalThis.ResizeObserver = class {
+    constructor(callback: (entries: unknown[]) => void) {
+      notify = callback;
+    }
+    observe() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  try {
+    const bar = fill();
+    const dispose = mountReadingProgress(bar as unknown as HTMLElement);
+    notify!([{ borderBoxSize: [{ blockSize: 2000 }], contentRect: { height: 2000 } }]);
+    frames();
+    const reads = heightReads;
+
+    win.scrollY = 600;
+    for (const height of [520, 560, 600]) {
+      win.innerHeight = height;
+      win.dispatch('resize');
+      frames(1);
+    }
+
+    expect(heightReads).toBe(reads);
+    expect(bar.writes.at(-1)).toBe('0.4286');
+    dispose();
+  } finally {
+    Reflect.deleteProperty(globalThis, 'ResizeObserver');
+    win.innerHeight = 500;
+  }
 });
