@@ -3,7 +3,7 @@
 
 defmodule Ingress.NatsHubFailback do
   @moduledoc false
-  # Hub (BUS plane) twin of pkg/bus/failback.go. The gnat_bus_pub_* pool is left alone: a recycle fails its in-flight batches.
+  # Hub (BUS plane) twin of pkg/bus/failback.go, for :gnat_bus and the gnat_bus_pub_* publisher pool.
 
   use GenServer
   require Logger
@@ -11,6 +11,7 @@ defmodule Ingress.NatsHubFailback do
   import Bitwise
 
   alias Ingress.Config
+  alias Ingress.Nats.{Publisher, PublisherPool}
 
   @connection :gnat_bus
   @max_backoff_shift 4
@@ -36,7 +37,7 @@ defmodule Ingress.NatsHubFailback do
         end)
 
       state = %{
-        connection: Keyword.get(opts, :connection, @connection),
+        connections: Keyword.get(opts, :connections, &connections/0),
         probe_settings:
           Keyword.get_lazy(opts, :probe_settings, fn -> probe_settings(timeout) end),
         interval: interval,
@@ -44,7 +45,7 @@ defmodule Ingress.NatsHubFailback do
           Keyword.get_lazy(opts, :required, fn -> positive_env("NATS_FAILBACK_SUCCESSES", 3) end),
         local_name: nil,
         checked_at: nil,
-        streak: new_streak()
+        streaks: %{}
       }
 
       Process.send_after(self(), :check, :rand.uniform(interval))
@@ -56,22 +57,54 @@ defmodule Ingress.NatsHubFailback do
 
   @impl true
   def handle_info(:check, state) do
-    {locality, state} = locality(state)
-    {recycle?, streak} = observe(state.streak, locality, state.required)
+    {state, streaks, candidate} =
+      Enum.reduce(state.connections.(), {state, %{}, nil}, fn {name, recycle},
+                                                              {state, streaks, candidate} ->
+        {locality, state} = locality(state, name)
+        streak = Map.get(state.streaks, name, new_streak())
 
-    if recycle? do
+        case observe(streak, locality, state.required) do
+          # One move per check, so the shards never all drain at once; the rest keep their streak.
+          {true, _next} when not is_nil(candidate) ->
+            {state, Map.put(streaks, name, streak), candidate}
+
+          {true, next} ->
+            {state, Map.put(streaks, name, next), {name, recycle}}
+
+          {false, next} ->
+            {state, Map.put(streaks, name, next), candidate}
+        end
+      end)
+
+    with {name, recycle} <- candidate do
       Logger.info(
-        "NatsHubFailback: recycling #{state.connection} from #{server_name(state.connection)} back to node-local hub #{state.local_name}"
+        "NatsHubFailback: moving #{name} from #{server_name(name)} back to node-local hub #{state.local_name}"
       )
 
-      stop_connection(state.connection)
+      recycle.()
     end
 
     Process.send_after(self(), :check, state.interval)
-    {:noreply, %{state | streak: streak}}
+    {:noreply, %{state | streaks: streaks}}
   end
 
   def handle_info({:EXIT, _pid, _reason}, state), do: {:noreply, state}
+
+  @doc false
+  # A single publisher shard has nowhere to spill while it drains, so it is left in place.
+  def connections do
+    pool =
+      case :persistent_term.get({Publisher, :n}, 0) do
+        n when n > 1 ->
+          for index <- 0..(n - 1),
+              do: {PublisherPool.connection_name(index), fn -> Publisher.failback(index) end}
+
+        _ ->
+          []
+      end
+
+    [{@connection, fn -> stop_connection(@connection) end} | pool]
+  end
 
   @doc false
   def new_streak, do: %{consecutive: 0, failbacks: 0}
@@ -92,8 +125,8 @@ defmodule Ingress.NatsHubFailback do
     end
   end
 
-  defp locality(state) do
-    case server_name(state.connection) do
+  defp locality(state, name) do
+    case server_name(name) do
       nil ->
         {:unknown, state}
 

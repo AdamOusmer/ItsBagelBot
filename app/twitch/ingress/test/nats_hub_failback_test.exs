@@ -2,7 +2,7 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.NatsHubFailbackTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Ingress.NatsHubFailback
 
@@ -40,13 +40,13 @@ defmodule Ingress.NatsHubFailbackTest do
     end
   end
 
-  describe "failback loop" do
-    setup do
-      remote = fake_hub("nats-0")
-      local = fake_hub("nats-1")
-      [remote: remote, local: local]
-    end
+  setup do
+    remote = fake_hub("nats-0")
+    local = fake_hub("nats-1")
+    [remote: remote, local: local]
+  end
 
+  describe "failback loop" do
     test "a connection on a remote hub is recycled", %{remote: remote, local: local} do
       {conn, pid} = connect(remote)
       start_failback(conn, local)
@@ -72,6 +72,47 @@ defmodule Ingress.NatsHubFailbackTest do
     end
   end
 
+  test "only one displaced connection moves per check", %{remote: remote, local: local} do
+    {one, one_pid} = connect(remote)
+    {two, two_pid} = connect(remote)
+    test = self()
+
+    start_supervised!(
+      {NatsHubFailback,
+       name: :hub_failback_one_at_a_time,
+       enabled: true,
+       connections: fn ->
+         [{one, fn -> send(test, {:moved, one}) end}, {two, fn -> send(test, {:moved, two}) end}]
+       end,
+       probe_settings: %{host: "127.0.0.1", port: local, connection_timeout: 200},
+       interval: 50,
+       required: 2}
+    )
+
+    assert_receive {:moved, ^one}, 1_000
+    refute_receive {:moved, ^two}, 30
+    assert_receive {:moved, ^two}, 200
+    assert Process.alive?(one_pid) and Process.alive?(two_pid)
+  end
+
+  describe "default connections" do
+    setup do
+      on_exit(fn -> :persistent_term.erase({Ingress.Nats.Publisher, :n}) end)
+    end
+
+    test "a single publisher shard stays in place" do
+      :persistent_term.put({Ingress.Nats.Publisher, :n}, 1)
+      assert [:gnat_bus] = Enum.map(NatsHubFailback.connections(), &elem(&1, 0))
+    end
+
+    test "every publisher shard is covered when the pool can spill" do
+      :persistent_term.put({Ingress.Nats.Publisher, :n}, 3)
+
+      assert [:gnat_bus, :gnat_bus_pub_0, :gnat_bus_pub_1, :gnat_bus_pub_2] =
+               Enum.map(NatsHubFailback.connections(), &elem(&1, 0))
+    end
+  end
+
   test "it stays off without a node name or hub host" do
     assert :ignore = NatsHubFailback.init(enabled: false)
   end
@@ -90,7 +131,7 @@ defmodule Ingress.NatsHubFailbackTest do
       {NatsHubFailback,
        name: :"#{conn}_failback",
        enabled: true,
-       connection: conn,
+       connections: fn -> [{conn, fn -> Gnat.stop(conn) end}] end,
        probe_settings: %{host: "127.0.0.1", port: local_port, connection_timeout: 200},
        interval: 30,
        required: 2}
