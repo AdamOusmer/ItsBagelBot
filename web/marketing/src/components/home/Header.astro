@@ -73,6 +73,12 @@ const poses = SEATS.map((seat, i) => ({
     inner: parts(seat.name, { size: seat.size, palette: PALETTES[seat.palette], background: false }).inner,
 }));
 
+const LAYERS: Row[][] = [['back'], ['mid'], ['front', 'hero']];
+const layers = LAYERS.map((rows) => ({
+    name: rows[0],
+    poses: poses.filter(({ seat }) => rows.includes(seat.row)),
+}));
+
 const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 ---
 
@@ -106,22 +112,26 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     </div>
 
     <div class="crowd" aria-hidden="true" data-crowd>
-        {poses.map(({ seat, delay, inner }) => (
-            <div
-                class:list={['seat', `seat--${seat.row}`, seat.wide && 'seat--wide']}
-                style={`--x: ${seat.x}%; --s: ${seat.size}px; --d: ${delay}`}
-            >
-                <div class="bob">
-                    <svg
-                        class="bolota"
-                        viewBox="0 0 100 100"
-                        data-bolota={seat.name}
-                        data-size={seat.size}
-                        data-head={PALETTES[seat.palette].head}
-                        data-eye={PALETTES[seat.palette].eye}
-                        set:html={inner}
-                    />
-                </div>
+        {layers.map((layer) => (
+            <div class={`row row--${layer.name}`}>
+                {layer.poses.map(({ seat, delay, inner }) => (
+                    <div
+                        class:list={['seat', `seat--${seat.row}`, seat.wide && 'seat--wide']}
+                        style={`--x: ${seat.x}%; --s: ${seat.size}px; --d: ${delay}`}
+                    >
+                        <div class="bob">
+                            <svg
+                                class="bolota"
+                                viewBox="0 0 100 100"
+                                data-bolota={seat.name}
+                                data-size={seat.size}
+                                data-head={PALETTES[seat.palette].head}
+                                data-eye={PALETTES[seat.palette].eye}
+                                set:html={inner}
+                            />
+                        </div>
+                    </div>
+                ))}
             </div>
         ))}
     </div>
@@ -595,9 +605,34 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         height: var(--crowd-h);
         z-index: 1;
         pointer-events: none;
-        opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
-        transform: translateY(calc(var(--hero-p, 0) * 40vh));
+    }
+
+    .row {
+        position: absolute;
+        inset: 0;
+        --row-out: min(1, calc(var(--hero-p, 0) / var(--row-exit)));
+        --row-travel: calc(var(--row-bottom) + var(--row-reach) * var(--crowd-scale) + 12px);
+        opacity: calc(1 - var(--row-out));
+        transform: translate3d(0, calc(var(--row-out) * var(--row-travel)), 0);
         will-change: opacity, transform;
+    }
+
+    .row--back {
+        --row-bottom: 60%;
+        --row-reach: 74px;
+        --row-exit: 0.3;
+    }
+
+    .row--mid {
+        --row-bottom: 30%;
+        --row-reach: 122px;
+        --row-exit: 0.5;
+    }
+
+    .row--front {
+        --row-bottom: -8%;
+        --row-reach: 290px;
+        --row-exit: 0.7;
     }
 
     .seat {
@@ -608,17 +643,16 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         height: calc(var(--s) * var(--crowd-scale));
         transform: translateX(-50%);
         opacity: var(--row-opacity, 1);
-        /* Do not inherit the scroll variable: it restyles every animated bolota subtree per frame. */
+        /* Do not inherit the scroll variables: they restyle every animated bolota subtree per frame. */
         --hero-p: 0;
+        --row-out: 0;
     }
 
     .seat--back {
-        --row-bottom: 60%;
         --row-opacity: 0.5;
     }
 
     .seat--mid {
-        --row-bottom: 30%;
         --row-opacity: 0.8;
     }
 
@@ -627,7 +661,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .seat--hero {
-        --row-bottom: -8%;
         z-index: 2;
     }
 
@@ -751,11 +784,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         .seat--wide {
             display: none;
         }
-        .seat--back {
+        .row--back {
             --row-bottom: 78%;
         }
 
-        .seat--mid {
+        .row--mid {
             --row-bottom: 45%;
         }
     }
