@@ -35,7 +35,7 @@ const nativeScroll = {
 const controller = () => smooth ?? nativeScroll;
 
 // --hero-p is registered non-inherited and written on each reader: a per-frame write on the hero root restyled the whole crowd.
-const HERO_PROGRESS_READERS = '.material, .starfield, .orb, .crowd';
+const HERO_PROGRESS_READERS = '.material, .starfield, .orb, .crowd .row';
 let hero = document.querySelector('[data-hero-progress]');
 let heroReaders = readersOf(hero);
 let viewportHeight = Math.max(1, window.innerHeight);
