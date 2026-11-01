@@ -81,32 +81,45 @@ func runFailback(nc *nats.Conn, cfg failbackConfig, place func(*nats.Conn) local
 	ticker := time.NewTicker(cfg.interval)
 	defer ticker.Stop()
 
-	consecutive, failbacks := 0, 0
+	streak := failbackStreak{successes: cfg.successes}
 	for range ticker.C {
 		if nc.IsClosed() {
 			return
 		}
-		if nc.Status() != nats.CONNECTED {
-			consecutive = 0
-			continue
+		current := localityUnknown
+		if nc.Status() == nats.CONNECTED {
+			current = place(nc)
 		}
-
-		switch place(nc) {
-		case localityLocal:
-			consecutive, failbacks = 0, 0
-		case localityUnknown:
-			consecutive = 0
-		case localityDisplaced:
-			consecutive++
-			// A failback that lands remote again backs off instead of recycling every few intervals.
-			if consecutive < cfg.successes<<min(failbacks, maxFailbackBackoffShift) {
-				continue
-			}
-			consecutive = 0
-			failbacks++
+		if streak.observe(current) {
 			_ = nc.ForceReconnect()
 		}
 	}
+}
+
+type failbackStreak struct {
+	successes   int
+	consecutive int
+	failbacks   int
+}
+
+func (s *failbackStreak) observe(current locality) bool {
+	switch current {
+	case localityLocal:
+		s.consecutive, s.failbacks = 0, 0
+		return false
+	case localityUnknown:
+		s.consecutive = 0
+		return false
+	}
+
+	s.consecutive++
+	// A failback that lands remote again backs off instead of recycling every few intervals.
+	if s.consecutive < s.successes<<min(s.failbacks, maxFailbackBackoffShift) {
+		return false
+	}
+	s.consecutive = 0
+	s.failbacks++
+	return true
 }
 
 func leafLocality(nc *nats.Conn, cfg failbackConfig) locality {
