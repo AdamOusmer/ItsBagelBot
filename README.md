@@ -185,16 +185,6 @@ Cloudflare is used for DNS management and DDoS protection.
 
 ***
 
-## Contributors
-
-This project exists thanks to the people who contribute.
-
-<a href="https://github.com/AdamOusmer/ItsBagelBot/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=AdamOusmer/ItsBagelBot" />
-</a>
-
-***
-
 ## Contributing
 
 If you have suggestions for how ItsBagelBot could be improved, or want to report a bug, please open an issue! I'd love
