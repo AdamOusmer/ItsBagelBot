@@ -73,6 +73,12 @@ const poses = SEATS.map((seat, i) => ({
     inner: parts(seat.name, { size: seat.size, palette: PALETTES[seat.palette], background: false }).inner,
 }));
 
+const LAYERS: Row[][] = [['back'], ['mid'], ['front', 'hero']];
+const layers = LAYERS.map((rows) => ({
+    name: rows[0],
+    poses: poses.filter(({ seat }) => rows.includes(seat.row)),
+}));
+
 const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 ---
 
@@ -106,22 +112,26 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     </div>
 
     <div class="crowd" aria-hidden="true" data-crowd>
-        {poses.map(({ seat, delay, inner }) => (
-            <div
-                class:list={['seat', `seat--${seat.row}`, seat.wide && 'seat--wide']}
-                style={`--x: ${seat.x}%; --s: ${seat.size}px; --d: ${delay}`}
-            >
-                <div class="bob">
-                    <svg
-                        class="bolota"
-                        viewBox="0 0 100 100"
-                        data-bolota={seat.name}
-                        data-size={seat.size}
-                        data-head={PALETTES[seat.palette].head}
-                        data-eye={PALETTES[seat.palette].eye}
-                        set:html={inner}
-                    />
-                </div>
+        {layers.map((layer) => (
+            <div class={`row row--${layer.name}`}>
+                {layer.poses.map(({ seat, delay, inner }) => (
+                    <div
+                        class:list={['seat', `seat--${seat.row}`, seat.wide && 'seat--wide']}
+                        style={`--x: ${seat.x}%; --s: ${seat.size}px; --d: ${delay}`}
+                    >
+                        <div class="bob">
+                            <svg
+                                class="bolota"
+                                viewBox="0 0 100 100"
+                                data-bolota={seat.name}
+                                data-size={seat.size}
+                                data-head={PALETTES[seat.palette].head}
+                                data-eye={PALETTES[seat.palette].eye}
+                                set:html={inner}
+                            />
+                        </div>
+                    </div>
+                ))}
             </div>
         ))}
     </div>
@@ -383,7 +393,27 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         --bb-orb-play-state: var(--hero-animation-state, running);
     }
 
+    /* Blur is baked into the gradients: a filter here re-rasterizes on every scroll frame (5 fps on phones). */
+    .orb::before,
+    .orb .bb-orb__pulse::before,
+    .orb::after {
+        inset: -240px;
+        filter: none;
+    }
+
+    .orb::before,
+    .orb .bb-orb__pulse::before {
+        background: var(--orb-halo);
+    }
+
+    .orb::after {
+        background: var(--orb-core);
+    }
+
     .orb-1 {
+        --orb-halo: radial-gradient(circle, color-mix(in srgb, var(--bb-orb-fill) 99.5%, transparent) 0px, color-mix(in srgb, var(--bb-orb-fill) 99.4%, transparent) 20px, color-mix(in srgb, var(--bb-orb-fill) 96%, transparent) 100px, color-mix(in srgb, var(--bb-orb-fill) 90.1%, transparent) 140px, color-mix(in srgb, var(--bb-orb-fill) 79.1%, transparent) 180px, color-mix(in srgb, var(--bb-orb-fill) 62.9%, transparent) 220px, color-mix(in srgb, var(--bb-orb-fill) 43.7%, transparent) 260px, color-mix(in srgb, var(--bb-orb-fill) 25.9%, transparent) 300px, color-mix(in srgb, var(--bb-orb-fill) 12.8%, transparent) 340px, color-mix(in srgb, var(--bb-orb-fill) 5.1%, transparent) 380px, color-mix(in srgb, var(--bb-orb-fill) 1.7%, transparent) 420px, color-mix(in srgb, var(--bb-orb-fill) 0.1%, transparent) 500px);
+        --orb-core: radial-gradient(circle, color-mix(in srgb, var(--bb-orb-core) 52.7%, var(--bb-orb-soft) 34.2%) 0px, color-mix(in srgb, var(--bb-orb-core) 49.4%, var(--bb-orb-soft) 34.9%) 41px, color-mix(in srgb, var(--bb-orb-core) 40.4%, var(--bb-orb-soft) 36.1%) 82px, color-mix(in srgb, var(--bb-orb-core) 28.8%, var(--bb-orb-soft) 35.2%) 123px, color-mix(in srgb, var(--bb-orb-core) 17.7%, var(--bb-orb-soft) 30.8%) 164px, color-mix(in srgb, var(--bb-orb-core) 9.4%, var(--bb-orb-soft) 23.3%) 205px, color-mix(in srgb, var(--bb-orb-core) 4.2%, var(--bb-orb-soft) 15%) 246px, color-mix(in srgb, var(--bb-orb-core) 1.6%, var(--bb-orb-soft) 8.2%) 287px, color-mix(in srgb, var(--bb-orb-core) 0.5%, var(--bb-orb-soft) 3.7%) 328px, color-mix(in srgb, var(--bb-orb-core) 0.1%, var(--bb-orb-soft) 1.4%) 369px, color-mix(in srgb, var(--bb-orb-core) 0%, var(--bb-orb-soft) 0.4%) 410px, color-mix(in srgb, var(--bb-orb-core) 0%, var(--bb-orb-soft) 0.1%) 451px, transparent 492px);
+
         width: 520px;
         height: 520px;
         top: -140px;
@@ -391,6 +421,9 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .orb-2 {
+        --orb-halo: radial-gradient(circle, color-mix(in srgb, var(--bb-orb-fill) 96.9%, transparent) 0px, color-mix(in srgb, var(--bb-orb-fill) 94.5%, transparent) 50px, color-mix(in srgb, var(--bb-orb-fill) 88.5%, transparent) 90px, color-mix(in srgb, var(--bb-orb-fill) 77.3%, transparent) 130px, color-mix(in srgb, var(--bb-orb-fill) 61%, transparent) 170px, color-mix(in srgb, var(--bb-orb-fill) 42.2%, transparent) 210px, color-mix(in srgb, var(--bb-orb-fill) 24.8%, transparent) 250px, color-mix(in srgb, var(--bb-orb-fill) 12.2%, transparent) 290px, color-mix(in srgb, var(--bb-orb-fill) 4.9%, transparent) 330px, color-mix(in srgb, var(--bb-orb-fill) 1.6%, transparent) 370px, color-mix(in srgb, var(--bb-orb-fill) 0.1%, transparent) 450px);
+        --orb-core: radial-gradient(circle, color-mix(in srgb, var(--bb-orb-core) 39.2%, var(--bb-orb-soft) 34.9%) 0px, color-mix(in srgb, var(--bb-orb-core) 36.8%, var(--bb-orb-soft) 34.4%) 37px, color-mix(in srgb, var(--bb-orb-core) 30.3%, var(--bb-orb-soft) 32.7%) 75px, color-mix(in srgb, var(--bb-orb-core) 21.9%, var(--bb-orb-soft) 29.1%) 112px, color-mix(in srgb, var(--bb-orb-core) 13.8%, var(--bb-orb-soft) 23.6%) 150px, color-mix(in srgb, var(--bb-orb-core) 7.6%, var(--bb-orb-soft) 16.9%) 187px, color-mix(in srgb, var(--bb-orb-core) 3.6%, var(--bb-orb-soft) 10.6%) 225px, color-mix(in srgb, var(--bb-orb-core) 1.5%, var(--bb-orb-soft) 5.8%) 262px, color-mix(in srgb, var(--bb-orb-core) 0.5%, var(--bb-orb-soft) 2.7%) 300px, color-mix(in srgb, var(--bb-orb-core) 0.2%, var(--bb-orb-soft) 1.1%) 337px, color-mix(in srgb, var(--bb-orb-core) 0%, var(--bb-orb-soft) 0.4%) 375px, color-mix(in srgb, var(--bb-orb-core) 0%, var(--bb-orb-soft) 0.1%) 412px, transparent 450px);
+
         width: 420px;
         height: 420px;
         bottom: -120px;
@@ -509,9 +542,34 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         height: var(--crowd-h);
         z-index: 1;
         pointer-events: none;
-        opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
-        transform: translateY(calc(var(--hero-p, 0) * 40vh));
+    }
+
+    .row {
+        position: absolute;
+        inset: 0;
+        --row-out: min(1, calc(var(--hero-p, 0) / var(--row-exit)));
+        --row-travel: calc(var(--row-bottom) + var(--row-reach) * var(--crowd-scale) + 12px);
+        opacity: calc(1 - var(--row-out));
+        transform: translate3d(0, calc(var(--row-out) * var(--row-travel)), 0);
         will-change: opacity, transform;
+    }
+
+    .row--back {
+        --row-bottom: 60%;
+        --row-reach: 74px;
+        --row-exit: 0.3;
+    }
+
+    .row--mid {
+        --row-bottom: 30%;
+        --row-reach: 122px;
+        --row-exit: 0.5;
+    }
+
+    .row--front {
+        --row-bottom: -8%;
+        --row-reach: 290px;
+        --row-exit: 0.7;
     }
 
     .seat {
@@ -522,17 +580,16 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         height: calc(var(--s) * var(--crowd-scale));
         transform: translateX(-50%);
         opacity: var(--row-opacity, 1);
-        /* Do not inherit the scroll variable: it restyles every animated bolota subtree per frame. */
+        /* Do not inherit the scroll variables: they restyle every animated bolota subtree per frame. */
         --hero-p: 0;
+        --row-out: 0;
     }
 
     .seat--back {
-        --row-bottom: 60%;
         --row-opacity: 0.5;
     }
 
     .seat--mid {
-        --row-bottom: 30%;
         --row-opacity: 0.8;
     }
 
@@ -541,7 +598,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     .seat--hero {
-        --row-bottom: -8%;
         z-index: 2;
     }
 
@@ -668,11 +724,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         .seat--wide {
             display: none;
         }
-        .seat--back {
+        .row--back {
             --row-bottom: 78%;
         }
 
-        .seat--mid {
+        .row--mid {
             --row-bottom: 45%;
         }
     }
