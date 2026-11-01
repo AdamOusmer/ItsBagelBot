@@ -231,8 +231,12 @@ async function localHubName(
   return localHub.inflight;
 }
 
+function dialsTheHubFromANode(): boolean {
+  return !!process.env.NODE_NAME && !!process.env.NATS_HUB_URL;
+}
+
 export function enableHubFailback(nc: NatsConnection, base: ConnectionOptions): void {
-  if (!process.env.NODE_NAME || !process.env.NATS_HUB_URL || failbackEnabled.has(nc)) return;
+  if (!dialsTheHubFromANode() || failbackEnabled.has(nc)) return;
   failbackEnabled.add(nc);
 
   const settings = failbackSettings();
