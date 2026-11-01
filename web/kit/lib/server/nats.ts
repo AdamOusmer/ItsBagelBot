@@ -63,45 +63,81 @@ export async function localLeafReady(
   }
 }
 
-export function enableLeafFailback(nc: NatsConnection): void {
-  const nodeName = process.env.NODE_NAME;
-  if (!nodeName || failbackEnabled.has(nc)) return;
-  failbackEnabled.add(nc);
+const MAX_FAILBACK_BACKOFF_SHIFT = 4;
 
-  const intervalMs = positiveNumber(process.env.NATS_FAILBACK_INTERVAL_MS, 30_000);
-  const required = positiveNumber(process.env.NATS_FAILBACK_SUCCESSES, 3);
-  const timeoutMs = positiveNumber(process.env.NATS_FAILBACK_PROBE_TIMEOUT_MS, 1_000);
-  const healthURL =
-    process.env.NATS_LOCAL_LEAF_HEALTH_URL || 'https://nats-leaf-local.messaging:8222/healthz';
-  let consecutive = 0;
+export type Locality = 'local' | 'displaced' | 'unknown';
+
+// Mirrors pkg/bus/failback.go: a failback that lands remote again doubles the streak it needs next time, capped at 16x.
+export class FailbackStreak {
+  private consecutive = 0;
+  private failbacks = 0;
+
+  constructor(private readonly required: number) {}
+
+  observe(current: Locality): boolean {
+    if (current === 'local') {
+      this.consecutive = 0;
+      this.failbacks = 0;
+      return false;
+    }
+    if (current === 'unknown') {
+      this.consecutive = 0;
+      return false;
+    }
+    this.consecutive++;
+    if (this.consecutive < this.required * 2 ** Math.min(this.failbacks, MAX_FAILBACK_BACKOFF_SHIFT)) {
+      return false;
+    }
+    this.consecutive = 0;
+    this.failbacks++;
+    return true;
+  }
+}
+
+interface FailbackSettings {
+  intervalMs: number;
+  required: number;
+  timeoutMs: number;
+}
+
+function failbackSettings(): FailbackSettings {
+  return {
+    intervalMs: positiveNumber(process.env.NATS_FAILBACK_INTERVAL_MS, 30_000),
+    required: positiveNumber(process.env.NATS_FAILBACK_SUCCESSES, 3),
+    timeoutMs: positiveNumber(process.env.NATS_FAILBACK_PROBE_TIMEOUT_MS, 1_000)
+  };
+}
+
+function runFailback(
+  nc: NatsConnection,
+  settings: FailbackSettings,
+  place: (nc: NatsConnection) => Promise<Locality>,
+  isLocal: (nc: NatsConnection) => boolean
+): void {
+  const streak = new FailbackStreak(settings.required);
   let running = false;
+  let timer: ReturnType<typeof setInterval> | undefined;
 
   const check = async () => {
-    if (running || nc.isClosed()) return;
+    if (nc.isClosed()) {
+      if (timer) clearInterval(timer);
+      return;
+    }
+    if (running) return;
     running = true;
     try {
-      const serverName = nc.info?.server_name ?? '';
-      if (serverName.startsWith(`${nodeName}--`)) {
-        consecutive = 0;
-        return;
-      }
-      if (!(await localLeafReady(healthURL, timeoutMs))) {
-        consecutive = 0;
-        return;
-      }
-      consecutive++;
-      if (consecutive < required) return;
-      consecutive = 0;
+      let current: Locality = 'unknown';
+      try {
+        current = await place(nc);
+      } catch {}
+      if (!streak.observe(current)) return;
       failbackQueue = failbackQueue.then(async () => {
         try {
-          if (!nc.isClosed() && !nc.info?.server_name?.startsWith(`${nodeName}--`)) {
-            await nc.reconnect();
-          }
+          // A queued failback can find the connection already back home.
+          if (!nc.isClosed() && !isLocal(nc)) await nc.reconnect();
         } catch {}
       });
       await failbackQueue;
-    } catch {
-      consecutive = 0;
     } finally {
       running = false;
     }
@@ -109,10 +145,112 @@ export function enableLeafFailback(nc: NatsConnection): void {
 
   const initial = setTimeout(() => {
     void check();
-    const timer = setInterval(() => void check(), intervalMs);
+    timer = setInterval(() => void check(), settings.intervalMs);
     timer.unref();
-  }, Math.random() * intervalMs);
+  }, Math.random() * settings.intervalMs);
   initial.unref();
+}
+
+export function enableLeafFailback(nc: NatsConnection): void {
+  const nodeName = process.env.NODE_NAME;
+  if (!nodeName || failbackEnabled.has(nc)) return;
+  failbackEnabled.add(nc);
+
+  const settings = failbackSettings();
+  const healthURL =
+    process.env.NATS_LOCAL_LEAF_HEALTH_URL || 'https://nats-leaf-local.messaging:8222/healthz';
+
+  const isLocal = (nc: NatsConnection) => (nc.info?.server_name ?? '').startsWith(`${nodeName}--`);
+
+  runFailback(
+    nc,
+    settings,
+    async (nc) => {
+      if (isLocal(nc)) return 'local';
+      return (await localLeafReady(healthURL, settings.timeoutMs)) ? 'displaced' : 'unknown';
+    },
+    isLocal
+  );
+}
+
+interface HubProbeState {
+  name: string;
+  checkedAt: number;
+  inflight: Promise<string> | null;
+}
+
+const localHub: HubProbeState = { name: '', checkedAt: Number.NEGATIVE_INFINITY, inflight: null };
+
+export function resetLocalHubProbe(): void {
+  localHub.name = '';
+  localHub.checkedAt = Number.NEGATIVE_INFINITY;
+  localHub.inflight = null;
+}
+
+// The hub's monitor port stays closed to app namespaces, so locality is read from a client handshake.
+export async function probeHubName(base: ConnectionOptions, url: string, timeoutMs: number): Promise<string> {
+  let probe: NatsConnection | undefined;
+  try {
+    probe = await connect({
+      ...base,
+      servers: [url],
+      name: 'hub-failback-probe',
+      reconnect: false,
+      maxReconnectAttempts: 0,
+      timeout: timeoutMs
+    });
+    return probe.info?.server_name ?? '';
+  } catch {
+    return '';
+  } finally {
+    await probe?.close().catch(() => {});
+  }
+}
+
+// One probe per process per interval, shared by every hub connection.
+async function localHubName(
+  connected: string,
+  base: ConnectionOptions,
+  url: string,
+  settings: FailbackSettings
+): Promise<string> {
+  if (connected && connected === localHub.name) return localHub.name;
+  if (localHub.inflight) return localHub.inflight;
+  if (Date.now() - localHub.checkedAt < settings.intervalMs) return localHub.name;
+
+  localHub.checkedAt = Date.now();
+  localHub.name = '';
+  localHub.inflight = probeHubName(base, url, settings.timeoutMs)
+    .then((name) => {
+      localHub.name = name;
+      return name;
+    })
+    .finally(() => {
+      localHub.inflight = null;
+    });
+  return localHub.inflight;
+}
+
+export function enableHubFailback(nc: NatsConnection, base: ConnectionOptions): void {
+  if (!process.env.NODE_NAME || !process.env.NATS_HUB_URL || failbackEnabled.has(nc)) return;
+  failbackEnabled.add(nc);
+
+  const settings = failbackSettings();
+  // Coupled to the nats-local Service (internalTrafficPolicy: Local) in deploy/messaging/nats.yaml.
+  const url = process.env.NATS_LOCAL_HUB_URL || 'tls://nats-local.messaging:4222';
+
+  runFailback(
+    nc,
+    settings,
+    async (nc) => {
+      const connected = nc.info?.server_name ?? '';
+      if (!connected) return 'unknown';
+      const local = await localHubName(connected, base, url, settings);
+      if (!local) return 'unknown';
+      return local === connected ? 'local' : 'displaced';
+    },
+    (nc) => !!localHub.name && nc.info?.server_name === localHub.name
+  );
 }
 
 function fallbackServer(override: string | undefined): string {
@@ -198,6 +336,7 @@ async function get(role: Role): Promise<NatsConnection> {
         jsManager = null;
       }
       if (role === 'rpc') enableLeafFailback(c);
+      if (role === 'bus') enableHubFailback(c, options('bus'));
       return c;
     })
     .finally(() => {

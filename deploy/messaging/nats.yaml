@@ -249,7 +249,7 @@ spec:
     - {name: client, port: 4222, targetPort: client}
     - {name: https, port: 8222, targetPort: monitor}
 ---
-# Coupled to pkg/bus failback.go: hub clients read the node-local hub's name here and never fall back across nodes.
+# Coupled to pkg/bus/failback.go, web/kit/lib/server/nats.ts and Ingress.NatsHubFailback: hub clients read the node-local hub's name here and never fall back across nodes.
 apiVersion: v1
 kind: Service
 metadata:

@@ -5,7 +5,7 @@ defmodule Ingress.NatsFailback do
   use GenServer
   require Logger
 
-  # Never :gnat_bus: it dials the hub directly, so it would be recycled forever as displaced.
+  # Never :gnat_bus: it dials the hub directly, so it would be recycled forever as displaced. Ingress.NatsHubFailback covers it.
   @connections [:gnat]
 
   def start_link(opts \\ []) do
