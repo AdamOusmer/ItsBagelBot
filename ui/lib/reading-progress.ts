@@ -26,46 +26,59 @@ function createFrameQueue(run: () => void): FrameQueue {
     };
 }
 
+function timelineDrivesProgress(): boolean {
+    return typeof CSS !== 'undefined' && CSS.supports?.('animation-timeline: scroll()') === true;
+}
+
+function entryHeight(entry: ResizeObserverEntry): number {
+    return entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+}
+
+// Resize must not read layout: iOS fires it on every step of the address bar animation.
+function watchPageHeight(page: HTMLElement, onHeight: (height: number) => void): ResizeObserver | null {
+    if (typeof ResizeObserver === 'undefined') return null;
+    const observer = new ResizeObserver(([entry]) => onHeight(entryHeight(entry)));
+    observer.observe(page);
+    return observer;
+}
+
 export function mountReadingProgress(fill: HTMLElement): () => void {
-    if (typeof window === 'undefined') return () => {};
-    if (typeof CSS !== 'undefined' && CSS.supports?.('animation-timeline: scroll()')) return () => {};
+    if (typeof window === 'undefined' || timelineDrivesProgress()) return () => {};
 
     const doc = document.documentElement;
     let docHeight = doc.scrollHeight;
     let total = 0;
     let updates = 0;
+    let observer: ResizeObserver | null = null;
 
     const measure = (): void => {
         total = docHeight - window.innerHeight;
     };
 
-    // Resize must not read layout: iOS fires it on every step of the address bar animation.
-    const observer =
-        typeof ResizeObserver === 'undefined'
-            ? null
-            : new ResizeObserver(([entry]) => {
-                  docHeight = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
-                  onResize();
-              });
+    const remeasureUnobserved = (): void => {
+        if (observer || updates++ % FALLBACK_REMEASURE_EVERY !== 0) return;
+        docHeight = doc.scrollHeight;
+        measure();
+    };
 
     const paint = (): void => {
-        if (!observer && updates++ % FALLBACK_REMEASURE_EVERY === 0) {
-            docHeight = doc.scrollHeight;
-            measure();
-        }
+        remeasureUnobserved();
         fill.style.setProperty('--read', readFraction(window.scrollY, total).toFixed(4));
     };
 
     const queue = createFrameQueue(paint);
 
-    function onResize(): void {
+    const onResize = (): void => {
         measure();
         queue.enqueue();
-    }
+    };
 
     window.addEventListener('scroll', queue.enqueue, { passive: true });
     window.addEventListener('resize', onResize, { passive: true });
-    observer?.observe(doc);
+    observer = watchPageHeight(doc, (height) => {
+        docHeight = height;
+        onResize();
+    });
     measure();
     paint();
 
