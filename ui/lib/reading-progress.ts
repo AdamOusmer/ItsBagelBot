@@ -28,6 +28,7 @@ function createFrameQueue(run: () => void): FrameQueue {
 
 export function mountReadingProgress(fill: HTMLElement): () => void {
     if (typeof window === 'undefined') return () => {};
+    if (typeof CSS !== 'undefined' && CSS.supports?.('animation-timeline: scroll()')) return () => {};
 
     const doc = document.documentElement;
     let docHeight = doc.scrollHeight;

@@ -23,4 +23,20 @@
     transform: scaleX(var(--read, 0));
     transform-origin: left;
   }
+
+  /* On the page's scroll timeline where there is one; `mountReadingProgress` writes --read elsewhere. Longhands only:
+     a minifier folds them into a shorthand Chrome drops. */
+  @supports (animation-timeline: scroll()) {
+    .bb-reading-progress__fill {
+      animation-name: bb-reading-progress;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: scroll(root block);
+    }
+  }
+
+  @keyframes bb-reading-progress {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
 }

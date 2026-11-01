@@ -4,7 +4,7 @@
 import { afterAll, expect, test } from 'bun:test';
 import { eventTarget, isolatedLib, snapshotGlobals } from './dom-fakes';
 
-const restoreGlobals = snapshotGlobals(['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame', 'ResizeObserver']);
+const restoreGlobals = snapshotGlobals(['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame', 'ResizeObserver', 'CSS']);
 
 let queue: Array<(time: number) => void> = [];
 let now = 0;
@@ -100,5 +100,24 @@ test('an address bar resize reads no layout: the page height comes from the resi
   } finally {
     Reflect.deleteProperty(globalThis, 'ResizeObserver');
     win.innerHeight = 500;
+  }
+});
+
+test('where the stylesheet has a scroll timeline, script never touches the bar', () => {
+  (globalThis as { CSS?: unknown }).CSS = { supports: (query: string) => query.includes('animation-timeline') };
+  try {
+    const bar = fill();
+    const dispose = mountReadingProgress(bar as unknown as HTMLElement);
+    win.scrollY = 400;
+    win.dispatch('scroll');
+    win.dispatch('resize');
+    frames();
+
+    expect(bar.writes).toEqual([]);
+    expect(win.count('scroll')).toBe(0);
+    expect(win.count('resize')).toBe(0);
+    dispose();
+  } finally {
+    Reflect.deleteProperty(globalThis, 'CSS');
   }
 });
