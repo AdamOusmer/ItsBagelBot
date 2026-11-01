@@ -21,7 +21,7 @@
   "ignorePaths": [
     ".claude/**",
     ".worktrees/**",
-    "deploy/flux/clusters/production/flux-system/gotk-components.yaml"
+    "deploy/flux/system/gotk-components.yaml"
   ],
   "kubernetes": {
     "managerFilePatterns": [
