@@ -56,6 +56,7 @@
     logoSrc={brand.logoSrc}
     logoAlt={brand.logoAlt}
     logoShape={brand.logoShape}
+    data-cursor="quiet"
   /><Glide /><div bind:this={navEl} class="bb-rail__nav"
     >{#each groups as group (group.label ?? '')}{#if group.label}<div
           class="bb-rail__label">{group.label}</div
