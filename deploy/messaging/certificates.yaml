@@ -23,6 +23,10 @@ spec:
     - nats.messaging
     - nats.messaging.svc
     - nats.messaging.svc.cluster.local
+    - nats-local
+    - nats-local.messaging
+    - nats-local.messaging.svc
+    - nats-local.messaging.svc.cluster.local
     - nats-headless
     - nats-headless.messaging.svc.cluster.local
     - nats-0.nats-headless.messaging.svc.cluster.local

@@ -176,7 +176,15 @@ func TestLeafServicesKeepPublishedClientPorts(t *testing.T) {
 	}
 }
 
-var jetStreamTrigger = regexp.MustCompile(`(?m)^    - type: nats-jetstream\n((?:      .*\n)+)`)
+func TestHubFailbackProbeStaysOnTheNode(t *testing.T) {
+	manifest := readText(t, "nats.yaml")
+
+	assert.Regexp(t, regexp.MustCompile(`(?s)kind: Service\nmetadata:.*?\n  name: nats-local\n.*?internalTrafficPolicy: Local\n.*?- \{name: client, port: 4222, targetPort: client\}`), manifest,
+		"nats-local must route only to the hub on the caller's node, or a displaced client can fail back to another remote hub")
+	assert.Contains(t, readText(t, "certificates.yaml"), "- nats-local.messaging\n", "the probe dials tls://nats-local.messaging and verifies the hub certificate")
+}
+
+var jetStreamTrigger =regexp.MustCompile(`(?m)^    - type: nats-jetstream\n((?:      .*\n)+)`)
 
 func TestScaledObjectsTargetTheBusAccountByID(t *testing.T) {
 	compiled, err := natsacl.Compile(committedACL(t), committedKeys(t))
