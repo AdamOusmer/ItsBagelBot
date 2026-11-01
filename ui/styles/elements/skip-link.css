@@ -21,10 +21,14 @@
     font-family: var(--bb-font-mono);
     font-size: var(--bb-text-sm);
     text-decoration: none;
-    transition: transform var(--bb-dur-fast) ease;
+    /* opacity, not visibility: hidden links cannot take focus. iOS overscroll shows the parked link otherwise. */
+    opacity: 0;
+    transition: transform var(--bb-dur-fast) ease, opacity 0s var(--bb-dur-fast);
   }
 
   .bb-skip-link:focus {
     transform: translateY(0);
+    opacity: 1;
+    transition-delay: 0s;
   }
 }
