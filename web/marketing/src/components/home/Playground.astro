@@ -426,7 +426,7 @@ const playStrings = {
         return Object.values(parts).every(Boolean) ? (parts as PlayParts) : null;
     }
 
-    function setupPlayground(root: HTMLElement) {
+    function setupPlayground(root: HTMLElement): (() => void) | undefined {
         if (root.dataset.playReady === 'true') return;
         root.dataset.playReady = 'true';
 
@@ -434,6 +434,7 @@ const playStrings = {
         if (!parts) return;
         const { feed, form, input, section } = parts;
 
+        let alive = true;
         let visible = false;
         let ambientTimer = 0;
         let quietNoteShown = false;
@@ -525,7 +526,7 @@ const playStrings = {
 
         function scheduleAmbient() {
             window.clearTimeout(ambientTimer);
-            if (!visible || document.hidden) return;
+            if (!alive || !visible || document.hidden) return;
             const wait = 2600 + Math.random() * 2600;
             ambientTimer = window.setTimeout(() => {
                 const name = VIEWERS[Math.floor(Math.random() * VIEWERS.length)];
@@ -559,12 +560,30 @@ const playStrings = {
         });
 
         section.querySelector<HTMLButtonElement>('[data-play-spam]')?.addEventListener('click', () => addSpam());
+
+        return () => {
+            alive = false;
+            window.clearTimeout(ambientTimer);
+            io.disconnect();
+            document.removeEventListener('visibilitychange', scheduleAmbient);
+        };
+    }
+
+    let cleanups: Array<() => void> = [];
+
+    function teardown() {
+        cleanups.forEach((cleanup) => cleanup());
+        cleanups = [];
     }
 
     function setup() {
-        document.querySelectorAll<HTMLElement>('[data-playground]').forEach(setupPlayground);
+        document.querySelectorAll<HTMLElement>('[data-playground]').forEach((root) => {
+            const cleanup = setupPlayground(root);
+            if (cleanup) cleanups.push(cleanup);
+        });
     }
 
     setup();
     document.addEventListener('astro:page-load', setup);
+    document.addEventListener('astro:before-swap', teardown);
 </script>

@@ -169,7 +169,9 @@ export function mountTopDownMenu(
   const onViewport = (event: MediaQueryListEvent) => {
     if (!event.matches) setOpen(false, false);
   };
-  const onResize = () => renderPath(menu, curvePath, open ? 1 : 0, config);
+  const onResize = () => {
+    if (open) renderPath(menu, curvePath, 1, config);
+  };
   const onPageHide = () => setOpen(false, false);
 
   const links = Array.from(menu.querySelectorAll('a'));

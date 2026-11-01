@@ -635,6 +635,73 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         --row-exit: 0.7;
     }
 
+    /* Script-driven --hero-p lagged native scroll whenever the main thread dropped frames (every iOS address bar
+       collapse); the keyframes are its formulas at their breakpoints. Longhands only: a minifier folds them into a
+       shorthand Chrome drops. */
+    @supports (animation-timeline: scroll()) {
+        .material,
+        .starfield,
+        .orb,
+        .orb::after,
+        .row {
+            animation-timing-function: linear;
+            animation-fill-mode: both;
+            animation-timeline: scroll(root block);
+            animation-range: 0px 100svh;
+        }
+
+        .material {
+            animation-name: hero-material-out;
+        }
+
+        .starfield {
+            animation-name: hero-fade-out;
+        }
+
+        .orb {
+            animation-name: hero-orb-out;
+        }
+
+        .orb::after {
+            animation-name: hero-orb-core;
+        }
+
+        .row {
+            animation-name: hero-row-out;
+            animation-range: 0px calc(var(--row-exit) * 100svh);
+        }
+    }
+
+    @keyframes hero-material-out {
+        0% { opacity: 1; transform: scale(1); }
+        66.667% { opacity: 0; transform: scale(0.9); }
+        100% { opacity: 0; transform: scale(0.85); }
+    }
+
+    @keyframes hero-fade-out {
+        0% { opacity: 1; }
+        66.667% { opacity: 0; }
+        100% { opacity: 0; }
+    }
+
+    @keyframes hero-orb-out {
+        0% { opacity: 0.16; transform: scale(1); }
+        40% { opacity: 0.096; transform: scale(0.672); }
+        53.846% { opacity: 0.1292; transform: scale(0.5585); }
+        100% { opacity: 0; transform: scale(0.18); }
+    }
+
+    @keyframes hero-orb-core {
+        0% { opacity: 0; transform: scale(0.42); }
+        47.826% { opacity: 0.5739; transform: scale(1.0657); }
+        100% { opacity: 0; transform: scale(1.77); }
+    }
+
+    @keyframes hero-row-out {
+        from { opacity: 1; transform: translate3d(0, 0, 0); }
+        to { opacity: 0; transform: translate3d(0, var(--row-travel), 0); }
+    }
+
     .seat {
         position: absolute;
         left: var(--x);

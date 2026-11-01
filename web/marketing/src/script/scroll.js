@@ -36,12 +36,16 @@ const controller = () => smooth ?? nativeScroll;
 
 // --hero-p is registered non-inherited and written on each reader: a per-frame write on the hero root restyled the whole crowd.
 const HERO_PROGRESS_READERS = '.material, .starfield, .orb, .crowd .row';
+// Where the stylesheet runs the hero exit on the scroll timeline, writing --hero-p would only restyle it per frame.
+const heroOnScrollTimeline = typeof CSS !== 'undefined' && CSS.supports('animation-timeline: scroll()');
 let hero = document.querySelector('[data-hero-progress]');
 let heroReaders = readersOf(hero);
 let viewportHeight = Math.max(1, window.innerHeight);
+let viewportWidth = window.innerWidth;
+const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
 
 function readersOf(root) {
-    return root ? Array.from(root.querySelectorAll(HERO_PROGRESS_READERS)) : [];
+    return root && !heroOnScrollTimeline ? Array.from(root.querySelectorAll(HERO_PROGRESS_READERS)) : [];
 }
 let lastHeroProgress = -1;
 let lastHeroUiHidden = null;
@@ -57,6 +61,7 @@ function loaderOwnsViewport() {
 
 function updateViewportHeight() {
     viewportHeight = Math.max(1, window.innerHeight);
+    viewportWidth = window.innerWidth;
 }
 
 const HERO_COMPLETE_HINTS = [
@@ -206,10 +211,19 @@ function resetRouteScroll() {
     else settleRouteScroll(jumpToPageTop);
 }
 
+// A height-only resize on a touch device is the address bar collapsing or expanding, one event per animation
+// step; following it restyled the whole hero on every step.
 window.addEventListener('resize', () => {
+    if (touchOnly.matches && window.innerWidth === viewportWidth) return;
     updateViewportHeight();
-    wake();
+    wakeHero();
 }, {passive: true});
+
+// Pages swap without a view transition: iOS Safari aborts one when the jump to top expands the address bar mid-swap.
+document.addEventListener('astro:before-swap', (event) => {
+    event.viewTransition?.ready.catch(() => {});
+    event.viewTransition?.skipTransition();
+});
 
 document.addEventListener('astro:after-swap', resetRouteScroll);
 

@@ -167,8 +167,10 @@ const ENTRIES: {
              globalThis.x = riseLines;`,
   },
   {
+    // 828 B gzip measured 2026-11-01, ~10% room: the scroll-timeline opt-out and the ResizeObserver page height that
+    // keeps address bar resizes from reading layout.
     name: "reading-progress",
-    budget: 740,
+    budget: 910,
     external: [],
     source: `import { mountReadingProgress } from "../../lib/reading-progress";
              globalThis.x = mountReadingProgress;`,
