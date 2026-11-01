@@ -89,7 +89,10 @@ func (a *Adapter) Servers(ctx context.Context, cluster aclpush.ClusterName) ([]s
 	if err != nil {
 		return nil, err
 	}
-	msgs, err := gather(ctx, nc, request{subject: sysServerPingSubj}, 0)
+	// The ping has no reply count to stop at, so it collects until its deadline: never hand it the caller's.
+	window, cancel := context.WithTimeout(ctx, defaultGatherWindow)
+	defer cancel()
+	msgs, err := gather(window, nc, request{subject: sysServerPingSubj}, 0)
 	if err != nil {
 		return nil, err
 	}
