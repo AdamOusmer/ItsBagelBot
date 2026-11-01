@@ -54,6 +54,7 @@ type Config struct {
 	ImageRepo      string
 	Workflow       Workflow
 	CodeSceneCheck string
+	SelfRunID      int64
 
 	ManifestDir  FilePath
 	ChangelogDir FilePath

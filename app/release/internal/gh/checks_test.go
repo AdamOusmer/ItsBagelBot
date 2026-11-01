@@ -30,6 +30,7 @@ type ghRun struct {
 	Status     string    `json:"status"`
 	Conclusion string    `json:"conclusion,omitempty"`
 	Output     *ghOutput `json:"output,omitempty"`
+	DetailsURL string    `json:"details_url,omitempty"`
 }
 
 type ghOutput struct {
@@ -146,6 +147,28 @@ func TestChecks(t *testing.T) {
 			sum, err := c.Checks(t.Context(), "abc")
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, observeChecks(sum))
+		})
+	}
+}
+
+func TestChecksIgnoreTheTrainsOwnJobs(t *testing.T) {
+	ownPreflight := ghRun{Name: "preflight", Status: "in_progress", DetailsURL: "https://github.com/o/r/actions/runs/77/job/1"}
+	otherQueued := ghRun{Name: "preflight", Status: "queued", DetailsURL: "https://github.com/o/r/actions/runs/78/job/2"}
+	cases := []struct {
+		name string
+		runs []ghRun
+		want deploy.CheckState
+	}{
+		{"its own running job does not hold main back", []ghRun{unitGreen, ownPreflight}, deploy.ChecksSuccess},
+		{"another run's job still gates", []ghRun{unitGreen, otherQueued}, deploy.ChecksPending},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _, _ := newClient(t, checksFixture{Runs: tc.runs}.routes())
+			c.cfg.Deploy.SelfRunID = 77
+			sum, err := c.Checks(t.Context(), "abc")
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, sum.State)
 		})
 	}
 }
