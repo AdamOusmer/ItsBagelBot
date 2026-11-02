@@ -160,8 +160,6 @@ const alternates = hasAlternates
 const xDefaultHref = new URL(localizePath(basePath, defaultLang), Astro.site).href;
 
 const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
-const isActive = (href: string) =>
-    href.startsWith("/") && href.replace(/\/+$/, "") === currentPath;
 
 const langQuery = lang === defaultLang ? '' : `?lang=${lang}`;
 
@@ -169,7 +167,7 @@ const navContext = {
     path: (path: string, only?: readonly string[]) => localizePath(path, linkLocale(lang, only)),
     label: (key: string) => t(`nav.${key}` as Parameters<typeof t>[0]),
     langQuery,
-    isActive,
+    url: Astro.url,
 } satisfies SiteLinkContext;
 
 const footerContext = {
