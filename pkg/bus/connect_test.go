@@ -146,6 +146,68 @@ func TestLeafFailbackReconnectsOnlyWhenTheLocalLeafIsHealthyAndNotAlreadyConnect
 	}
 }
 
+func TestHubFailbackReconnectsOnlyAwayFromARemoteHubWhileTheLocalHubAnswers(t *testing.T) {
+	remote, local := coreServer(t, "nats-0"), coreServer(t, "nats-1")
+
+	for _, tc := range []struct {
+		name       string
+		connectTo  string
+		localURL   string
+		hubURL     string
+		nodeName   string
+		reconnects bool
+	}{
+		{"a connection on a remote hub fails back", remote.ClientURL(), local.ClientURL(), "set", "node1", true},
+		{"a connection already on the local hub stays put", local.ClientURL(), local.ClientURL(), "set", "node1", false},
+		{"an unreachable local hub keeps the connection", remote.ClientURL(), "nats://127.0.0.1:1", "set", "node1", false},
+		{"without a node name the hub plane never fails back", remote.ClientURL(), local.ClientURL(), "set", "", false},
+		{"a connection that does not dial the hub never fails back", remote.ClientURL(), local.ClientURL(), "", "node1", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			localHub = &hubProbe{}
+			t.Setenv("NATS_CA_PEM", "")
+			t.Setenv("NODE_NAME", tc.nodeName)
+			t.Setenv("NATS_HUB_URL", tc.hubURL)
+			t.Setenv("NATS_LOCAL_HUB_URL", tc.localURL)
+			t.Setenv("NATS_FAILBACK_INTERVAL", "30ms")
+			t.Setenv("NATS_FAILBACK_SUCCESSES", "2")
+			t.Setenv("NATS_FAILBACK_PROBE_TIMEOUT", "50ms")
+			nc, err := nats.Connect(tc.connectTo, busOptions("hub-failback-test")...)
+			require.NoError(t, err)
+			defer nc.Close()
+
+			deadline := time.Now().Add(500 * time.Millisecond)
+			for nc.Stats().Reconnects == 0 && time.Now().Before(deadline) {
+				time.Sleep(10 * time.Millisecond)
+			}
+
+			assert.Equal(t, tc.reconnects, nc.Stats().Reconnects > 0)
+		})
+	}
+}
+
+func TestHubFailbackBacksOffWhenReconnectsKeepLandingRemote(t *testing.T) {
+	remote, local := coreServer(t, "nats-0"), coreServer(t, "nats-1")
+	localHub = &hubProbe{}
+	t.Setenv("NATS_CA_PEM", "")
+	t.Setenv("NODE_NAME", "node1")
+	t.Setenv("NATS_HUB_URL", "set")
+	t.Setenv("NATS_LOCAL_HUB_URL", local.ClientURL())
+	t.Setenv("NATS_FAILBACK_INTERVAL", "20ms")
+	t.Setenv("NATS_FAILBACK_SUCCESSES", "1")
+	t.Setenv("NATS_FAILBACK_PROBE_TIMEOUT", "50ms")
+	nc, err := nats.Connect(remote.ClientURL(), busOptions("hub-failback-backoff-test")...)
+	require.NoError(t, err)
+	defer nc.Close()
+
+	time.Sleep(700 * time.Millisecond)
+
+	// 35 ticks: a fixed cadence would recycle ~35 times, the doubling backoff recycles at ticks 1, 3, 7, 15, 31.
+	reconnects := nc.Stats().Reconnects
+	assert.GreaterOrEqual(t, reconnects, uint64(2))
+	assert.LessOrEqual(t, reconnects, uint64(6))
+}
+
 func TestLocalLeafProbeVerifiesTheLeafAgainstTheFleetCA(t *testing.T) {
 	leaf := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer leaf.Close()

@@ -7,7 +7,7 @@ import {
   type NatsConnection,
   type Subscription
 } from '@nats-io/transport-node';
-import { credentialAuth, tlsOptions } from '@bagel/kit/server/nats';
+import { credentialAuth, enableHubFailback, tlsOptions } from '@bagel/kit/server/nats';
 
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;
@@ -42,6 +42,7 @@ async function get(): Promise<NatsConnection> {
   dialing = connect(feedOptions())
     .then((c) => {
       conn = c;
+      enableHubFailback(c, feedOptions());
       return c;
     })
     .finally(() => {

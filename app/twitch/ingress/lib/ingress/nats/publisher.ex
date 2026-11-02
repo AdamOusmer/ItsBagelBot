@@ -14,6 +14,7 @@ defmodule Ingress.Nats.Publisher do
 
   @sweep_interval_ms 500
   @gauge_interval_ms 5_000
+  @failback_poll_ms 100
 
   @spec enqueue(String.t(), iodata(), Gnat.headers()) :: :ok | {:error, term()}
   def enqueue(subject, json, trace_headers \\ []) do
@@ -50,6 +51,9 @@ defmodule Ingress.Nats.Publisher do
     end
   end
 
+  # A draining shard admits nothing, so enqueue/3 spills to the next shard.
+  defp admit(%{draining: true}, _subject, _json, _trace_headers), do: {:error, :not_connected}
+
   defp admit(
          %{pid: pid, conn: conn, counter: counter, max_pending: max_pending},
          subject,
@@ -75,6 +79,14 @@ defmodule Ingress.Nats.Publisher do
 
   defp enqueue_cast(pid, subject, json, trace_headers),
     do: GenServer.cast(pid, {:enqueue, subject, json, trace_headers})
+
+  @doc """
+  Moves this shard's BUS connection back to the node-local hub without failing a publish:
+  stops admitting, waits until every admitted entry is settled, then stops the connection
+  so its supervisor redials. Gives up and resumes if the shard has not drained in time.
+  """
+  @spec failback(non_neg_integer()) :: :ok
+  def failback(index), do: GenServer.cast(process_name(index), :failback)
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -126,7 +138,8 @@ defmodule Ingress.Nats.Publisher do
       batch_inflight_cap: PublishConfig.batch_inflight(),
       queues: %{},
       queue_count: 0,
-      flush_token: nil
+      flush_token: nil,
+      failback_deadline: nil
     }
   end
 
@@ -139,12 +152,24 @@ defmodule Ingress.Nats.Publisher do
         prefix: state.wire.prefix,
         table: state.wire.table,
         conn: state.wire.conn,
-        max_pending: state.max_pending
+        max_pending: state.max_pending,
+        draining: not is_nil(state.failback_deadline)
       }
     )
   end
 
   @impl true
+  def handle_cast(:failback, %{failback_deadline: nil} = state) do
+    # Worst case for an admitted entry: a held batch, then every attempt timing out.
+    budget = state.batch_hold_ms + state.ack_timeout_ms * state.wire.max_attempts
+    state = %{state | failback_deadline: Pending.now_ms() + budget}
+    publish_context(state)
+    send(self(), :failback_check)
+    {:noreply, state}
+  end
+
+  def handle_cast(:failback, state), do: {:noreply, state}
+
   def handle_cast({:enqueue, subject, json}, state) do
     enqueue_entry({subject, json, nil}, state)
   end
@@ -190,6 +215,33 @@ defmodule Ingress.Nats.Publisher do
   def handle_info({:msg, %{topic: topic, body: body}}, state),
     do: {:noreply, apply_reply(topic, body, state)}
 
+  def handle_info(:failback_check, %{failback_deadline: nil} = state), do: {:noreply, state}
+
+  def handle_info(:failback_check, state) do
+    state = state |> flush_queue() |> drain_replies()
+
+    cond do
+      state.queue_count == 0 and Pending.pending(state.wire.counter) == 0 ->
+        Logger.info(
+          "nats cohort publisher #{state.index} drained, reconnecting toward the node-local hub"
+        )
+
+        stop_conn(state.wire.conn)
+        {:noreply, end_failback(state)}
+
+      Pending.now_ms() >= state.failback_deadline ->
+        Logger.warning(
+          "nats cohort publisher #{state.index} did not drain in time, keeping its hub"
+        )
+
+        {:noreply, end_failback(state)}
+
+      true ->
+        schedule(:failback_check, @failback_poll_ms)
+        {:noreply, state}
+    end
+  end
+
   def handle_info(:sweep, state) do
     state = drain_replies(state)
     now = Pending.now_ms()
@@ -214,6 +266,18 @@ defmodule Ingress.Nats.Publisher do
     Metrics.event("Nats/PublishInflight", inflight_gauge(state))
     schedule(:gauge, @gauge_interval_ms)
     {:noreply, state}
+  end
+
+  defp end_failback(state) do
+    state = %{state | failback_deadline: nil}
+    publish_context(state)
+    state
+  end
+
+  defp stop_conn(conn) do
+    Gnat.stop(conn)
+  catch
+    :exit, _ -> :ok
   end
 
   defp ensure_flush_scheduled(%{flush_token: token} = state) when not is_nil(token), do: state
