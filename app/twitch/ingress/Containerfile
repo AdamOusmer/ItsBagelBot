@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-FROM docker.io/library/elixir:1.20-otp-28@sha256:e0ea48e598d926c46ac4f03d7025e73bfa132b887469bc2d79196849a5e01f61 AS build
+FROM docker.io/library/elixir:1.20-otp-28@sha256:d974bbda306220023bb684d895f846b0774f5ef0536274c5a6794a02b9312bc9 AS build
 
 ENV MIX_ENV=prod
 WORKDIR /src
@@ -18,7 +18,7 @@ COPY lib lib
 RUN mix compile && mix release
 
 # Must match the builder's base distro: the release links against its glibc.
-FROM docker.io/library/debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+FROM docker.io/library/debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libssl3 libncurses6 ca-certificates \
