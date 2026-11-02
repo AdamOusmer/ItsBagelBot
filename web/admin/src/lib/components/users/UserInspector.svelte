@@ -301,7 +301,10 @@
             aria-label={t('admin.users.viewAsLinkLabel')}
           />
           <Button variant="ghost" type="button" onclick={copyViewAs}>
-            {viewAsCopied ? t('common.copied') : t('common.copy')}
+            <span class="copy-label">
+              <span class:off={viewAsCopied}>{t('common.copy')}</span>
+              <span class:off={!viewAsCopied}>{t('common.copied')}</span>
+            </span>
           </Button>
         </div>
         <Text size="xs" tone="muted">{t('admin.users.viewAsNote')}</Text>
@@ -401,6 +404,16 @@
   .inline {
     display: flex;
     gap: var(--bb-space-2);
+  }
+
+  .copy-label {
+    display: inline-grid;
+  }
+  .copy-label > span {
+    grid-area: 1 / 1;
+  }
+  .copy-label > .off {
+    visibility: hidden;
   }
 
   .hist {
