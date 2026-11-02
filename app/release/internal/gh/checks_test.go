@@ -151,21 +151,27 @@ func TestChecks(t *testing.T) {
 	}
 }
 
-func TestChecksIgnoreTheTrainsOwnJobs(t *testing.T) {
-	ownPreflight := ghRun{Name: "preflight", Status: "in_progress", DetailsURL: "https://github.com/o/r/actions/runs/77/job/1"}
-	otherQueued := ghRun{Name: "preflight", Status: "queued", DetailsURL: "https://github.com/o/r/actions/runs/78/job/2"}
+func TestChecksIgnoreReleaseWorkflowJobs(t *testing.T) {
+	runningRelease := ghRun{Name: "preflight", Status: "in_progress", DetailsURL: "https://github.com/o/r/actions/runs/77/job/1"}
+	failedRelease := ghRun{Name: "merge_prs", Status: "completed", Conclusion: "failure", DetailsURL: "https://github.com/o/r/actions/runs/76/job/9"}
+	otherQueued := ghRun{Name: "Run Unit Tests", Status: "queued", DetailsURL: "https://github.com/o/r/actions/runs/78/job/2"}
 	cases := []struct {
 		name string
 		runs []ghRun
 		want deploy.CheckState
 	}{
-		{"its own running job does not hold main back", []ghRun{unitGreen, ownPreflight}, deploy.ChecksSuccess},
-		{"another run's job still gates", []ghRun{unitGreen, otherQueued}, deploy.ChecksPending},
+		{"a running release job does not hold main back", []ghRun{unitGreen, runningRelease}, deploy.ChecksSuccess},
+		{"an earlier failed release does not block the next", []ghRun{unitGreen, failedRelease}, deploy.ChecksSuccess},
+		{"another workflow's job still gates", []ghRun{unitGreen, otherQueued}, deploy.ChecksPending},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, _, _ := newClient(t, checksFixture{Runs: tc.runs}.routes())
-			c.cfg.Deploy.SelfRunID = 77
+			rt := checksFixture{Runs: tc.runs}.routes()
+			rt["GET /repos/o/r/actions/runs/76"] = reply(http.StatusOK, `{"id":76,"path":".github/workflows/release.yml"}`)
+			rt["GET /repos/o/r/actions/runs/77"] = reply(http.StatusOK, `{"id":77,"path":".github/workflows/release.yml"}`)
+			rt["GET /repos/o/r/actions/runs/78"] = reply(http.StatusOK, `{"id":78,"path":".github/workflows/main.yml"}`)
+			c, _, _ := newClient(t, rt)
+			c.cfg.Deploy.ReleaseWorkflow = "release.yml"
 			sum, err := c.Checks(t.Context(), "abc")
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, sum.State)

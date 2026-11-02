@@ -5,11 +5,12 @@ package gh
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"net/http"
+	"path"
+	"regexp"
 	"slices"
-	"strings"
+	"strconv"
 
 	"github.com/google/go-github/v92/github"
 
@@ -140,7 +141,8 @@ func (c *Client) reported(ctx context.Context, sha deploy.SHA, req requirement) 
 		return nil, apiErr(resp, err)
 	}
 	checks := make([]ports.Check, 0, len(runs)+len(combined.GetStatuses()))
-	for _, run := range slices.DeleteFunc(runs, c.ownJob) {
+	trainJob := func(run *github.CheckRun) bool { return c.trainJob(ctx, run) }
+	for _, run := range slices.DeleteFunc(runs, trainJob) {
 		checks = append(checks, ports.Check{
 			Name: run.GetName(), State: runState(run), URL: run.GetHTMLURL(),
 			Required: req.gates(run.GetName(), run.GetConclusion() == "skipped"),
@@ -156,10 +158,25 @@ func (c *Client) reported(ctx context.Context, sha deploy.SHA, req requirement) 
 	return checks, nil
 }
 
-// The release workflow runs on main's head, so its own preflight job would otherwise wait on itself.
-func (c *Client) ownJob(run *github.CheckRun) bool {
-	id := c.cfg.Deploy.SelfRunID
-	return id != 0 && strings.Contains(run.GetDetailsURL(), fmt.Sprintf("/actions/runs/%d/", id))
+var actionsRunID = regexp.MustCompile(`/actions/runs/(\d+)/`)
+
+// Release runs report jobs on main's head: a running one would make preflight wait on itself, a failed one would block every later release.
+func (c *Client) trainJob(ctx context.Context, run *github.CheckRun) bool {
+	m := actionsRunID.FindStringSubmatch(run.GetDetailsURL())
+	if m == nil {
+		return false
+	}
+	id, _ := strconv.ParseInt(m[1], 10, 64)
+	if known, ok := c.trainRuns.Load(id); ok {
+		return known.(bool)
+	}
+	wr, _, err := c.gh.Actions.GetWorkflowRunByID(ctx, c.owner, c.repo, id)
+	if err != nil {
+		return false
+	}
+	train := path.Base(wr.GetPath()) == string(c.cfg.Deploy.ReleaseWorkflow)
+	c.trainRuns.Store(id, train)
+	return train
 }
 
 var passing = map[string]bool{"success": true, "neutral": true, "skipped": true}

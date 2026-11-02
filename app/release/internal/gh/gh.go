@@ -50,6 +50,8 @@ type Client struct {
 	checks   *ttlCache[deploy.SHA, ports.CheckSummary]
 	required *ttlCache[ports.Branch, requirement]
 	blobs    *cache.Cache[[]byte]
+
+	trainRuns sync.Map
 }
 
 var _ ports.GitHub = (*Client)(nil)
