@@ -66,26 +66,35 @@ func (p pullPodSpec) firstParty() bool {
 
 // The packages are private: a pod on its own service account pulls nothing unless that account carries ghcr-pull.
 func TestOwnServiceAccountsCarryThePullSecret(t *testing.T) {
-	pulls := map[string]bool{}
 	var manifests []pullManifest
 	for _, filename := range manifestFilenames(t) {
-		for _, m := range decodeFile[pullManifest](t, filename) {
-			manifests = append(manifests, m)
-			if m.Kind == "ServiceAccount" {
-				pulls[m.Metadata.Namespace+"/"+m.Metadata.Name] = m.carriesPullSecret()
-			}
-		}
+		manifests = append(manifests, decodeFile[pullManifest](t, filename)...)
 	}
+	pulls := pullingAccounts(manifests)
 
 	var missing []string
 	for _, m := range manifests {
-		pod := m.pod()
-		if pod.ServiceAccountName == "" || !pod.firstParty() {
-			continue
-		}
-		if key := m.Metadata.Namespace + "/" + pod.ServiceAccountName; !pulls[key] {
-			missing = append(missing, m.Kind+" "+m.Metadata.Namespace+"/"+m.Metadata.Name+" runs as "+key)
+		if account, needs := m.ownAccount(); needs && !pulls[account] {
+			missing = append(missing, m.Kind+" "+m.Metadata.Namespace+"/"+m.Metadata.Name+" runs as "+account)
 		}
 	}
 	assert.Empty(t, missing, "first-party images need ghcr-pull on the service account they run as")
+}
+
+func pullingAccounts(manifests []pullManifest) map[string]bool {
+	pulls := map[string]bool{}
+	for _, m := range manifests {
+		if m.Kind == "ServiceAccount" {
+			pulls[m.Metadata.Namespace+"/"+m.Metadata.Name] = m.carriesPullSecret()
+		}
+	}
+	return pulls
+}
+
+func (m pullManifest) ownAccount() (string, bool) {
+	pod := m.pod()
+	if pod.ServiceAccountName == "" {
+		return "", false
+	}
+	return m.Metadata.Namespace + "/" + pod.ServiceAccountName, pod.firstParty()
 }
