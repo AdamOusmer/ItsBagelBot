@@ -45,6 +45,9 @@
   const POOL = ['wander', 'attentive', 'surprised', 'excited', 'curious', 'confused', 'unimpressed'];
   const CYCLE_MS = 2600;
 
+  const uid = $props.id();
+  const plateGradientId = `bolota-plate-${uid}`;
+
   const label = $derived(title || name);
   const BACKDROP_MAX = 48;
   const BODY_FILL = 0.66;
@@ -234,7 +237,15 @@
   role="img"
   aria-label={label}
 >
-  {#if pose.bg}<path d={pose.bg.d} fill={pose.bg.fill} />{/if}
+  {#if pose.bg}
+    <defs>
+      <linearGradient id={plateGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="var(--bb-green-light)" />
+        <stop offset="100%" stop-color="var(--bb-tan)" />
+      </linearGradient>
+    </defs>
+    <path d={pose.bg.d} fill={`url(#${plateGradientId})`} />
+  {/if}
   {@html pose.inner}
 </svg>
 
