@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import newrelic from 'newrelic';
 import type { RequestHandler } from './$types';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
@@ -32,5 +33,7 @@ export const GET: RequestHandler = ({ locals, request }) => {
   const s = locals.session;
   const boardId = s && !s.delegate_of ? s.user_id : DEMO ? 'demo' : null;
   if (!boardId) return new Response('unauthorized', { status: 401 });
+  // Duration is the tab's open time, not work: APM would score it as the slowest transaction.
+  newrelic.getTransaction().ignore();
   return broadcastResponse(request, overview, boardId);
 };

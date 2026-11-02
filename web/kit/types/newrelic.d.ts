@@ -13,6 +13,7 @@ declare module 'newrelic' {
     startSegment<T>(name: string, record: boolean, handler: () => T, callback?: () => void): T;
     getBrowserTimingHeader(options?: { nonce?: string; hasToRemoveScriptWrapper?: boolean }): string;
     getLinkingMetadata(omitSupportability?: boolean): Record<string, string>;
+    getTransaction(): { ignore(): void };
   }
 
   const api: NewRelicApi;
