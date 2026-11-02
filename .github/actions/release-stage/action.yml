@@ -2,36 +2,35 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 name: Release stage
-description: Run one release train stage against the run state shared through the cache.
+description: Run one release train stage against the run state shared through the run's artifacts.
 
 inputs:
   stage:
     description: Stage id to run
     required: true
 
+# Artifacts, not the Actions cache: the repo cache sits over its size limit and evicts entries between jobs.
 runs:
   using: composite
   steps:
-    - name: Restore release CLI
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    - name: Fetch release CLI
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
-        path: release
-        key: release-bin-${{ github.run_id }}
-        fail-on-cache-miss: true
+        name: release-cli
 
-    # The newest state under the run prefix is the previous stage's, or this stage's failed attempt on a re-run.
-    - name: Restore run state
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    # Absent only before the first stage; on a re-run it is the failed attempt's state.
+    - name: Fetch run state
+      continue-on-error: true
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
-        path: run.json
-        key: release-state-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.stage }}
-        restore-keys: release-state-${{ github.run_id }}-
+        name: release-state
 
     - name: Run ${{ inputs.stage }}
       shell: bash
       env:
         STAGE: ${{ inputs.stage }}
       run: |
+        chmod +x release
         changelog=""
         if [ -n "$CHANGELOG" ]; then printf '%s' "$CHANGELOG" > changelog.json; changelog=changelog.json; fi
         ./release -state run.json -stage "$STAGE" -kind "$KIND" -version "$VERSION" \
@@ -40,7 +39,10 @@ runs:
 
     - name: Save run state
       if: always()
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
+        name: release-state
         path: run.json
-        key: release-state-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.stage }}
+        overwrite: true
+        if-no-files-found: ignore
+        retention-days: 14
