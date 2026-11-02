@@ -7,6 +7,7 @@
   import Footer from '@bagel/ui/svelte/Footer.svelte';
   import LanguageSwitcher from '@bagel/ui/svelte/LanguageSwitcher.svelte';
   import Nav from '@bagel/ui/svelte/Nav.svelte';
+  import ReadingProgress from '@bagel/ui/svelte/ReadingProgress.svelte';
   import { getI18n } from '@bagel/kit';
   import { LOCALES } from '@bagel/kit/i18n';
   import { reveal } from '@bagel/ui/svelte/actions';
@@ -33,15 +34,11 @@
 
   const showFooter = $derived(page.route.id !== '/(public)/login');
 
-  const isActive = $derived((href: string) =>
-    href === SITE.stats ? page.url.pathname === '/stats' : false
-  );
-
   const navContext = $derived({
     path: webPath,
     label: (key: string) => t(`public.nav.${key}`),
     langQuery,
-    isActive
+    url: page.url
   } satisfies SiteLinkContext);
 
   const footerContext = $derived({
@@ -85,6 +82,7 @@
     </div>
   {/snippet}
 </Nav>
+<ReadingProgress />
 
 {@render children()}
 
