@@ -51,6 +51,7 @@ defmodule Ingress.Application do
       connection_child(:nats_connection, :gnat, Config.nats()),
       connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
       Ingress.NatsFailback,
+      Ingress.NatsHubFailback,
       Ingress.Metrics,
       # Must start before the Dispatcher and Squash, which publish through it.
       Ingress.Nats.PublisherPool,

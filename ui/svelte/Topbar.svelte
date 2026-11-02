@@ -53,6 +53,7 @@
     logoAlt={brand.logoAlt}
     size="sm"
     logoShape={brand.logoShape}
+    data-cursor="quiet"
   />{#if crumbs.length}<nav class="bb-topbar__crumb" aria-label={crumbLabel}
       ><ol
         >{#each crumbs as crumb, i (crumb.label)}<li

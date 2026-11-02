@@ -20,6 +20,8 @@ defmodule Ingress.FakeGnat do
   end
 
   @impl true
+  def handle_call(:stop, _from, state), do: {:stop, :normal, :ok, state}
+
   def handle_call({:sub, _receiver, _topic, _opts}, _from, state) do
     {:reply, {:ok, state.sid + 1}, %{state | sid: state.sid + 1}}
   end

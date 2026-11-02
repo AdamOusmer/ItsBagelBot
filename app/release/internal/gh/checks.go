@@ -5,9 +5,11 @@ package gh
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/google/go-github/v92/github"
 
@@ -138,7 +140,7 @@ func (c *Client) reported(ctx context.Context, sha deploy.SHA, req requirement) 
 		return nil, apiErr(resp, err)
 	}
 	checks := make([]ports.Check, 0, len(runs)+len(combined.GetStatuses()))
-	for _, run := range runs {
+	for _, run := range slices.DeleteFunc(runs, c.ownJob) {
 		checks = append(checks, ports.Check{
 			Name: run.GetName(), State: runState(run), URL: run.GetHTMLURL(),
 			Required: req.gates(run.GetName(), run.GetConclusion() == "skipped"),
@@ -152,6 +154,12 @@ func (c *Client) reported(ctx context.Context, sha deploy.SHA, req requirement) 
 		})
 	}
 	return checks, nil
+}
+
+// The release workflow runs on main's head, so its own preflight job would otherwise wait on itself.
+func (c *Client) ownJob(run *github.CheckRun) bool {
+	id := c.cfg.Deploy.SelfRunID
+	return id != 0 && strings.Contains(run.GetDetailsURL(), fmt.Sprintf("/actions/runs/%d/", id))
 }
 
 var passing = map[string]bool{"success": true, "neutral": true, "skipped": true}

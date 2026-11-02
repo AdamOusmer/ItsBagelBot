@@ -202,6 +202,64 @@ defmodule Ingress.Nats.PublisherTest do
     end
   end
 
+  describe "failback/1" do
+    setup do
+      put_env(publish_batch_wait_ms: 60_000)
+      conn = :gnat_bus_pub_failback_test
+      gnat = start_fake_gnat(conn)
+      Process.monitor(gnat)
+      Map.put(start_publisher(conn), :gnat, gnat)
+    end
+
+    test "stops admitting, waits for every admitted entry, then drops the connection", %{
+      ctx: ctx,
+      gnat: gnat
+    } do
+      :atomics.put(ctx.counter, @idx_pending, 1)
+
+      Publisher.failback(0)
+
+      assert eventually(fn -> :persistent_term.get({Publisher, :ctx, 0}).draining end)
+      assert Publisher.enqueue("twitch.ingress.event.standard", "{}") == {:error, :not_connected}
+      assert :atomics.get(ctx.counter, @idx_pending) == 1
+      refute_receive {:DOWN, _, :process, ^gnat, _}, 300
+
+      :atomics.put(ctx.counter, @idx_pending, 0)
+
+      assert_receive {:DOWN, _, :process, ^gnat, _}, 500
+      assert eventually(fn -> not :persistent_term.get({Publisher, :ctx, 0}).draining end)
+    end
+
+    test "flushes entries still queued for a batch before it drops the connection", %{gnat: gnat} do
+      assert Publisher.enqueue("twitch.ingress.event.standard", "{}") == :ok
+
+      Publisher.failback(0)
+
+      assert_receive {:pub, "twitch.ingress.event.standard", "{}", _opts}, 500
+      refute_receive {:DOWN, _, :process, ^gnat, _}, 200
+    end
+  end
+
+  describe "failback/1 that cannot drain" do
+    setup do
+      put_env(publish_ack_timeout_ms: 50, publish_batch_hold_ms: 50, publish_attempts: 1)
+      conn = :gnat_bus_pub_failback_stuck_test
+      gnat = start_fake_gnat(conn)
+      Process.monitor(gnat)
+      Map.put(start_publisher(conn), :gnat, gnat)
+    end
+
+    test "gives up after its budget and keeps the connection", %{ctx: ctx, gnat: gnat} do
+      :atomics.put(ctx.counter, @idx_pending, 1)
+
+      Publisher.failback(0)
+
+      assert eventually(fn -> :persistent_term.get({Publisher, :ctx, 0}).draining end)
+      assert eventually(fn -> not :persistent_term.get({Publisher, :ctx, 0}).draining end, 50)
+      refute_receive {:DOWN, _, :process, ^gnat, _}, 100
+    end
+  end
+
   describe "connection monitors" do
     test "the monitor is taken only by the path that stores it" do
       conn = :gnat_bus_pub_monitor_test
