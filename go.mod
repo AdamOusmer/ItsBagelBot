@@ -32,7 +32,7 @@ require (
 	github.com/tink-crypto/tink-go/v2 v2.8.0
 	github.com/valkey-io/valkey-go v1.0.78
 	go.uber.org/zap v1.28.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/text v0.43.0
 	golang.org/x/time v0.16.0
