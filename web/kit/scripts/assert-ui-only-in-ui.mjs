@@ -13,6 +13,10 @@ const ALLOWLIST = new Map([
     'Bolota.svelte',
     'wraps the third-party @luzir/bolota engine and its own class namespace',
   ],
+  [
+    'LoginHero.svelte',
+    'the sign-in page itself, rendered verbatim by the dashboard and admin login routes',
+  ],
 ]);
 
 async function componentFiles() {
