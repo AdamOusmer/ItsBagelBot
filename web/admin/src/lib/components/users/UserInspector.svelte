@@ -21,6 +21,7 @@
   import type { GiveawayWinnerWire } from '#lib/server/giveaways';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
+  import ChannelLink from './ChannelLink.svelte';
   import { stateOf } from './user-state';
   import { actionLabel, actionsFor, type UserActionDef } from './user-actions';
 
@@ -127,6 +128,7 @@
           })}
         </Text>
       </div>
+      <ChannelLink login={user.username} label={t('admin.users.channelLink', { login: user.username })} />
       <span class="ident-mark">
         <StatePill tone={state}>{state}</StatePill>
       </span>
