@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-FROM docker.io/library/golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS build
+FROM docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS build
 
 ENV GOTOOLCHAIN=local GOFLAGS=-mod=readonly
 WORKDIR /src
@@ -19,7 +19,7 @@ RUN if [ "$(go env GOARCH)" = "amd64" ]; then export GOAMD64=v3; fi; \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /nats-server . \
  && /nats-server --version | grep -qx 'nats-server: v2.15.1-bench'
 
-FROM docker.io/library/alpine:3.22@sha256:d406446bc05b82480756ce8f1287964d28768c23955fa9480d2a74a2eae7a654
+FROM docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 
 RUN apk add --no-cache 'ca-certificates>=20261020' tzdata \
  && printf '%s\n' '#!/bin/sh' 'set -e' 'if [ "$#" -eq 0 ] || [ "${1#-}" != "$1" ]; then' '    set -- nats-server "$@"' 'fi' 'exec "$@"' > /usr/local/bin/docker-entrypoint.sh \

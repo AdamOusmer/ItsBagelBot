@@ -148,7 +148,7 @@ spec:
               hostPath: {path: /etc/rancher/k3s/config.yaml, type: File}
           initContainers:
             - name: snapshot
-              image: alpine/sqlite:3.53.4@sha256:7d1599487ead0a5fe7399bb66c6803ae47b46bfa6a1e05db797d907796e4524d
+              image: alpine/sqlite:3.53.4@sha256:8df11342ae10bd360896a1f721d6e9e0a606520b58289e8a0398854d513b6555
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/snapshot.sh"]
               volumeMounts:
@@ -168,7 +168,7 @@ spec:
                 requests: {cpu: 50m, memory: 128Mi}
                 limits: {memory: 512Mi}
             - name: encrypt
-              image: alpine/openssl:3.5.8@sha256:3f25da71f70eba788067daac3f3df03bd1de7a7c52ed89fa93b94ad2c92d986b
+              image: alpine/openssl:3.5.9@sha256:96e53bf9b9041fdc8a33ea61356688506bbddc368c70d6e8a9acdd28475e8537
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/encrypt.sh"]
               envFrom:
@@ -186,7 +186,7 @@ spec:
                 limits: {memory: 512Mi}
           containers:
             - name: upload
-              image: rclone/rclone:1.75.1@sha256:45401ad7410db1d67ffdb58e19059ad20b0d8e0285a60e38bbec55cc1019c7a5
+              image: rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/upload.sh"]
               env:
