@@ -50,7 +50,7 @@ export interface SiteLinkContext {
   path(path: string, locales?: readonly Locale[]): string;
   label(key: string): string;
   langQuery: string;
-  isActive?(href: string): boolean;
+  url?: Pick<URL, 'href' | 'origin' | 'pathname'>;
 }
 
 export const COMPARE_LOCALES: readonly Locale[] = ['de', 'en', 'es', 'fr', 'pt-br', 'ru'];
@@ -102,6 +102,14 @@ export const SITE_LEGAL: readonly SiteLinkDef[] = [
   { path: '/creator-terms', key: 'creatorTerms' },
 ];
 
+const trimPath = (path: string) => path.replace(/\/+$/, '') || '/';
+
+function isCurrentHref(href: string, url: SiteLinkContext['url']): boolean {
+  if (!url) return false;
+  const target = new URL(href, url.href);
+  return target.origin === url.origin && trimPath(target.pathname) === trimPath(url.pathname);
+}
+
 export function resolveSiteLink(def: SiteLinkDef, ctx: SiteLinkContext): SiteLink {
   const external = def.url !== undefined;
   const base = def.url ?? ctx.path(def.path ?? '/', def.locales);
@@ -109,7 +117,7 @@ export function resolveSiteLink(def: SiteLinkDef, ctx: SiteLinkContext): SiteLin
   return {
     href,
     label: def.label ?? ctx.label(def.key ?? ''),
-    current: ctx.isActive?.(href) ?? false,
+    current: isCurrentHref(href, ctx.url),
     external,
   };
 }

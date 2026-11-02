@@ -27,7 +27,9 @@ const BUDGETS: Record<string, Budget> = {
   // measured 22319 (CI 22318), ~2% room.
   // js raised from 97700 (2026-10-31) for the bb-fit element with content-visibility parking and the WAAPI off-stage
   // pause in the shared ui lib: measured 98318, ~0.5% room.
-  '/(public)/login': { js: 98800, css: 22800, catalog: 2900, lazy: 0 },
+  // js raised from 98800 (2026-11-02) for the public reading progress bar: measured 98358 before and 98903 after
+  // (+545 B) on macOS, ~2% room.
+  '/(public)/login': { js: 100900, css: 22800, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
   // css raised from 45200 (2026-10-29) for the shared .bb-prose style in typography.css (+213 B gzip there): CI measured 45295, ~1% room.
@@ -41,7 +43,9 @@ const BUDGETS: Record<string, Budget> = {
   // js and css raised from 100000 / 21500 (2026-10-29) for the aurora footer: CI measured main at 99484 / 21152 and
   // this change at 100323 / 21571 (+839 / +419 B), ~1-2% room.
   // css raised from 22000 (2026-10-30) for the leaderboard-style title and orbs: measured 22146 B, ~1.6% room.
-  '/(public)/user/[channel]': { js: 101500, css: 22500, catalog: 2800, lazy: 0 }
+  // js and css raised from 101500 / 22500 (2026-11-02) for the public reading progress bar: measured 101025 / 22271
+  // before and 101572 / 22597 after (+547 / +326 B) on macOS, ~2% room for CI's larger linux gzip.
+  '/(public)/user/[channel]': { js: 103600, css: 23050, catalog: 2800, lazy: 0 }
 };
 
 interface RouteEntry {
