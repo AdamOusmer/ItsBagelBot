@@ -217,6 +217,31 @@ function pageChunkTransform(locale: Locale): NonNullable<ResolveOptions['transfo
   };
 }
 
+const SCRIPT_TAG = /<script(?=[\s>])/g;
+
+// Cloudflare Rocket Loader re-runs inline scripts without their CSP nonce, so the browser blocks them.
+// Rewritten on the body stream because SvelteKit's streamed-promise scripts skip transformPageChunk.
+function optOutOfRocketLoader(res: Response): Response {
+  if (!res.body || !isHtml(res)) return res;
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const body = res.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        const html = decoder.decode(chunk, { stream: true });
+        controller.enqueue(encoder.encode(html.replace(SCRIPT_TAG, '<script data-cfasync="false"')));
+      },
+      flush(controller) {
+        const rest = decoder.decode();
+        if (rest) controller.enqueue(encoder.encode(rest));
+      }
+    })
+  );
+  const headers = new Headers(res.headers);
+  headers.delete('content-length');
+  return new Response(body, { status: res.status, statusText: res.statusText, headers });
+}
+
 function isHtml(res: Response): boolean {
   return (res.headers.get('content-type') ?? '').includes('text/html');
 }
@@ -250,7 +275,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   preloadSlices(res.headers, locale);
   harden(res, PERMISSIONS_POLICY);
   applyEdgeCache(event, res);
-  return res;
+  return optOutOfRocketLoader(res);
 };
 
 export const handleError: HandleServerError = ({ kind, error, event }) => {

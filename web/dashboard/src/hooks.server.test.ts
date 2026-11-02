@@ -200,6 +200,30 @@ describe('handle edge caching', () => {
   });
 });
 
+test('every script, streamed ones included, opts out of Rocket Loader so its CSP nonce survives', async () => {
+  const parts = ['<html><script nonce="n1">boot()</script></html>\n', '<script nonce="n1">resolve(1)</script>', '<scripts-not-a-tag>'];
+  const encoder = new TextEncoder();
+  const streamed = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const part of parts) controller.enqueue(encoder.encode(part));
+      controller.close();
+    }
+  });
+  const res = new Response(streamed, { status: 200, headers: { 'content-type': 'text/html', 'content-length': '999' } });
+  const response = await handle({ event: makeEvent({ routeId: '/(app)/commands' }) as never, resolve: async () => res });
+  expect(response.headers.get('content-length')).toBeNull();
+  expect(await response.text()).toBe(
+    '<html><script data-cfasync="false" nonce="n1">boot()</script></html>\n' +
+      '<script data-cfasync="false" nonce="n1">resolve(1)</script><scripts-not-a-tag>'
+  );
+});
+
+test('a JSON response passes through untouched', async () => {
+  const res = new Response('{"html":"<script>x</script>"}', { headers: { 'content-type': 'application/json' } });
+  const response = await handle({ event: makeEvent({}) as never, resolve: async () => res });
+  expect(await response.text()).toBe('{"html":"<script>x</script>"}');
+});
+
 test.each(['/(app)/discord', '/(app)/discord/[guildId]/settings', '/(app)/discord/connect', '/(app)/discord/callback'])(
   'offline route %s answers 404 before any load or endpoint runs',
   async (routeId) => {
