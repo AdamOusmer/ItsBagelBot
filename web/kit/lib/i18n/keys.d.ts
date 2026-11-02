@@ -920,6 +920,7 @@ export type KnownMessageKey =
   | 'admin.users.active'
   | 'admin.users.activeSetDemo'
   | 'admin.users.ban'
+  | 'admin.users.channelLink'
   | 'admin.users.clearToken'
   | 'admin.users.confirmBanBody'
   | 'admin.users.confirmBanTitle'
