@@ -15,6 +15,7 @@
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
   import { ago, fmtDate } from '@bagel/kit';
+  import { copyFlash } from '@bagel/ui/lib/clipboard';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AccessKey } from '#lib/access';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
@@ -62,8 +63,22 @@
   const { t } = getI18n();
 
   const TIERS = ['free', 'paid', 'vip'] as const;
-  const state = $derived(stateOf(user));
+  const pillState = $derived(stateOf(user));
   const locked = $derived(busy !== null);
+
+  let viewAsCopied = $state(false);
+  let viewAsMinted = '';
+
+  function copyViewAs() {
+    void copyFlash(viewAsUrl, (on) => (viewAsCopied = on));
+  }
+
+  $effect(() => {
+    if (viewAsUrl && viewAsUrl !== viewAsMinted) {
+      viewAsMinted = viewAsUrl;
+      copyViewAs();
+    }
+  });
 
   const servingTone = $derived<StatusTone>(
     user.banned ? statusTone('reauth_required') : statusTone(user.is_active ? 'online' : 'disabled')
@@ -130,7 +145,7 @@
       </div>
       <ChannelLink login={user.username} label={t('admin.users.channelLink', { login: user.username })} />
       <span class="ident-mark">
-        <StatePill tone={state}>{state}</StatePill>
+        <StatePill tone={pillState}>{pillState}</StatePill>
       </span>
     </Cluster>
 
@@ -285,6 +300,9 @@
             value={viewAsUrl}
             aria-label={t('admin.users.viewAsLinkLabel')}
           />
+          <Button variant="ghost" type="button" onclick={copyViewAs}>
+            {viewAsCopied ? t('common.copied') : t('common.copy')}
+          </Button>
         </div>
         <Text size="xs" tone="muted">{t('admin.users.viewAsNote')}</Text>
       {/if}
