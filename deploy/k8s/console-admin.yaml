@@ -313,6 +313,8 @@ kind: ServiceAccount
 metadata:
   name: console-admin
   namespace: app
+imagePullSecrets:
+  - name: ghcr-pull
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

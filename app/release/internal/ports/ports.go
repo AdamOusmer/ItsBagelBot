@@ -47,14 +47,14 @@ type (
 type Files map[FilePath][]byte
 
 type Config struct {
-	Owner          string
-	Repo           string
-	MainBranch     Branch
-	DeployBranch   Branch
-	ImageRepo      string
-	Workflow       Workflow
-	CodeSceneCheck string
-	SelfRunID      int64
+	Owner           string
+	Repo            string
+	MainBranch      Branch
+	DeployBranch    Branch
+	ImageRepo       string
+	Workflow        Workflow
+	ReleaseWorkflow Workflow
+	CodeSceneCheck  string
 
 	ManifestDir  FilePath
 	ChangelogDir FilePath
