@@ -8,6 +8,7 @@
   "schedule": [
     "* 0-4 1 * *"
   ],
+  "updateNotScheduled": false,
   "dependencyDashboard": false,
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
@@ -21,7 +22,7 @@
   "ignorePaths": [
     ".claude/**",
     ".worktrees/**",
-    "deploy/flux/clusters/production/flux-system/gotk-components.yaml"
+    "deploy/flux/system/gotk-components.yaml"
   ],
   "kubernetes": {
     "managerFilePatterns": [
@@ -39,10 +40,17 @@
       "* 0-4 1 * *"
     ]
   },
+  "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "enabled": true,
     "schedule": [
       "at any time"
+    ],
+    "updateNotScheduled": true,
+    "prHourlyLimit": 0,
+    "prConcurrentLimit": 0,
+    "labels": [
+      "security"
     ]
   },
   "packageRules": [
@@ -114,6 +122,30 @@
         "cookie"
       ],
       "allowedVersions": "<1"
+    },
+    {
+      "description": "Hold the web workspace's @opentelemetry/core override on 2.x. Every OpenTelemetry SDK, exporter and transformer package in web/bun.lock pins core 2.x, and core 3 needs @opentelemetry/api >=1.10 while the workspace runs 1.9; forcing 3 through the override would push it under all of them. Lift this when the SDK packages move to core 3.",
+      "matchManagers": [
+        "bun"
+      ],
+      "matchFileNames": [
+        "web/package.json"
+      ],
+      "matchPackageNames": [
+        "@opentelemetry/core"
+      ],
+      "allowedVersions": "<3"
+    },
+    {
+      "description": "Let k8s.io/kube-openapi and the kustomize modules follow k8s.io/apimachinery. Newer kube-openapi pseudo-versions (and kustomize 0.21.3, which requires one) build on structured-merge-diff/v7 while apimachinery v0.37 still uses v6, which breaks the clusterops build. Lift this when apimachinery moves to structured-merge-diff/v7.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "k8s.io/kube-openapi",
+        "sigs.k8s.io/kustomize/**"
+      ],
+      "enabled": false
     },
     {
       "description": "Hold the console and the ui library on TypeScript 6. svelte-check refuses to run against TypeScript 7 unless both 6 and 7 are installed and --tsgo is passed, and that mode resolves .svelte imports to the ambient module declaration -- component props degrade to any and a string passed to a boolean prop goes unreported. Lift this when svelte-check supports 7 outside its experimental path.",
