@@ -11,7 +11,11 @@
     width: var(--avatar-plate-size, 32px);
     height: var(--avatar-plate-size, 32px);
     border-radius: var(--bb-radius-pill);
-    background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
+    background:
+      radial-gradient(circle at 22% 18%, rgba(var(--bb-green-glow-rgb), 0.7), transparent 62%),
+      radial-gradient(circle at 84% 40%, rgba(var(--bb-mint-glow-rgb), 0.32), transparent 55%),
+      radial-gradient(circle at 50% 100%, rgba(var(--bb-tan-rgb), 0.55), transparent 60%),
+      var(--bb-black);
   }
 
   .bb-avatar-plate > * { grid-area: 1 / 1; }
