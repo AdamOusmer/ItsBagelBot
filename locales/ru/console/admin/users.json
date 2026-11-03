@@ -26,6 +26,7 @@
   "pagerLabel": "страница {page} / {max}",
   "rowMeta": "#{id} · Регистрация: {joined}",
   "rowCode": "код",
+  "channelLink": "Открыть канал @{login} на Twitch",
   "inspectorTitle": "@{login}",
   "inspectorIdle": "Выберите пользователя, чтобы посмотреть его аккаунт, состояние бота и тариф.",
   "identityTitle": "Личность",

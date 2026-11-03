@@ -17,14 +17,12 @@
   .bb-ov-row__main,
   .bb-ov-row__side {
     min-width: 0;
-  }
-
-  .bb-ov-row__side {
     display: flex;
     flex-direction: column;
     gap: var(--ov-gap);
   }
 
+  .bb-ov-row__main > section,
   .bb-ov-row__side > section {
     margin-bottom: 0;
   }

@@ -7,6 +7,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AdminUserWire } from '#lib/server/services';
   import StatePill from '../StatePill.svelte';
+  import ChannelLink from './ChannelLink.svelte';
   import { stateOf } from './user-state';
 
   let {
@@ -47,6 +48,9 @@
         <StatePill tone="neutral">{t('admin.users.rowCode')}</StatePill>
       {/if}
     </span>
+  {/snippet}
+  {#snippet actions()}
+    <ChannelLink login={user.username} label={t('admin.users.channelLink', { login: user.username })} />
   {/snippet}
 </ManagementRow>
 

@@ -15,12 +15,14 @@
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
   import { ago, fmtDate } from '@bagel/kit';
+  import { copyFlash } from '@bagel/ui/lib/clipboard';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AccessKey } from '#lib/access';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
   import type { GiveawayWinnerWire } from '#lib/server/giveaways';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
+  import ChannelLink from './ChannelLink.svelte';
   import { stateOf } from './user-state';
   import { actionLabel, actionsFor, type UserActionDef } from './user-actions';
 
@@ -61,8 +63,22 @@
   const { t } = getI18n();
 
   const TIERS = ['free', 'paid', 'vip'] as const;
-  const state = $derived(stateOf(user));
+  const pillState = $derived(stateOf(user));
   const locked = $derived(busy !== null);
+
+  let viewAsCopied = $state(false);
+  let viewAsMinted = '';
+
+  function copyViewAs() {
+    void copyFlash(viewAsUrl, (on) => (viewAsCopied = on));
+  }
+
+  $effect(() => {
+    if (viewAsUrl && viewAsUrl !== viewAsMinted) {
+      viewAsMinted = viewAsUrl;
+      copyViewAs();
+    }
+  });
 
   const servingTone = $derived<StatusTone>(
     user.banned ? statusTone('reauth_required') : statusTone(user.is_active ? 'online' : 'disabled')
@@ -127,8 +143,9 @@
           })}
         </Text>
       </div>
+      <ChannelLink login={user.username} label={t('admin.users.channelLink', { login: user.username })} />
       <span class="ident-mark">
-        <StatePill tone={state}>{state}</StatePill>
+        <StatePill tone={pillState}>{pillState}</StatePill>
       </span>
     </Cluster>
 
@@ -283,6 +300,12 @@
             value={viewAsUrl}
             aria-label={t('admin.users.viewAsLinkLabel')}
           />
+          <Button variant="ghost" type="button" onclick={copyViewAs}>
+            <span class="copy-label">
+              <span class:off={viewAsCopied}>{t('common.copy')}</span>
+              <span class:off={!viewAsCopied}>{t('common.copied')}</span>
+            </span>
+          </Button>
         </div>
         <Text size="xs" tone="muted">{t('admin.users.viewAsNote')}</Text>
       {/if}
@@ -381,6 +404,16 @@
   .inline {
     display: flex;
     gap: var(--bb-space-2);
+  }
+
+  .copy-label {
+    display: inline-grid;
+  }
+  .copy-label > span {
+    grid-area: 1 / 1;
+  }
+  .copy-label > .off {
+    visibility: hidden;
   }
 
   .hist {
