@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **128** blocks;
-**110** ship both adapters.
+Every block the library ships, by family. **129** blocks;
+**111** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 128 times
+omitted: nearly every block takes both, and listing them 129 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -137,6 +137,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
 | **AreaSeries** | `values*`: readonly number[]<br>`ticks`: readonly number[]<br>`label*`: string<br>`height`: number<br>`uid`: string | svelte + astro | stable | `styles/elements/area-series.css` |
+| **AvatarPlate** | `size`: number | svelte + astro | stable | `styles/elements/avatar-plate.css` |
 | **Card** | `as`: T<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`raised`: boolean<br>`stat`: boolean<br>`glass`: boolean<br>`hover`: boolean<br>`flush`: boolean<br>`dashed`: boolean<br>`tone`: 'accent' \| 'danger'<br>`label`: string<br>`band`: Snippet | svelte + astro | stable | `styles/elements/card.css` |
 | **CardHead** | — | svelte + astro | stable | `styles/elements/card.css` |
 | **ChatPreview** | `title*`: string<br>`label`: string<br>`kind`: string<br>`note`: string<br>`onpointerenter`: (event: PointerEvent) => void<br>`onpointerleave`: (event: PointerEvent) => void | svelte + astro | stable | `styles/elements/chat-preview.css` |

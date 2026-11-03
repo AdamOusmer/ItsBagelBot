@@ -317,6 +317,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/action-bar", budget: 540 }, // 337 B
   { name: "elements/mark-badge", budget: 530 }, // 330 B
   { name: "elements/round-badge", budget: 630 }, // 418 B: shared circle badge and var-card plus (2026-10-28)
+  { name: "elements/avatar-plate", budget: 500 }, // 295 B: aurora circle behind small bolotas (2026-11-03)
   { name: "elements/timeline", budget: 960 }, // 720 B: rail, drawn rail and marker dot (2026-10-28)
   { name: "elements/radio-group", budget: 1700 }, // 1395 B: fixed columns, rails and card height hook (2026-09-29)
   { name: "elements/slider", budget: 380 }, // 191 B
