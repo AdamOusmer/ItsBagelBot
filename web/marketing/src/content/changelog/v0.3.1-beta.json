@@ -1,0 +1,28 @@
+{
+  "tag": "beta",
+  "version": "v0.3.1-beta",
+  "date": "2026-11-03",
+  "title": {
+    "en": "Improved counters and site redesigns",
+    "fr": "Compteurs améliorés et refontes du site"
+  },
+  "highlights": {
+    "en": [
+      "Custom commands with Bump a counter now move the counter by the signed number a moderator puts first, like !deaths 5 or !deaths -1. Numbers from anyone else are ignored and the step stays 1. Zero, non-numbers and values past 1,000,000 also fall back to 1.",
+      "The built-in !counter command is removed, so a channel can use the name \"counter\" for its own command or counter. Counters are managed on the dashboard Counters page.",
+      "Redesigned website pages: pricing with donations and an FAQ, contact with live status and socials, legal pages, guides and the changelog, plus a full-height footer with peeking bolotas. Public stats and leaderboard pages are redesigned too, and the public commands and queue pages use the leaderboard layout.",
+      "In the dashboard, billing has new plan cards and a new hero, Modules rows show the name and a cue to open settings, and a new color picker replaces the browser's native one. Mobile fixes too.",
+      "When a broadcaster renames their Twitch channel, ItsBagelBot picks up the new name and public pages follow it.",
+      "The homepage has a new chat window playground, with smoother scrolling and a faster first load on phones. Bolotas run on a new animation engine and keep their own colors, plus stability fixes on the platform."
+    ],
+    "fr": [
+      "Les commandes personnalisées avec « Incrémenter un compteur » modifient désormais le compteur selon le nombre signé qu’un modérateur place en premier, comme !deaths 5 ou !deaths -1. Les nombres provenant de toute autre personne sont ignorés et le pas reste à 1. Le zéro, les entrées non numériques et les valeurs dépassant 1 000 000 reviennent aussi à 1.",
+      "La commande intégrée !counter est retirée, afin qu’une chaîne puisse utiliser le nom « counter » pour sa propre commande ou son propre compteur. Les compteurs sont gérés sur la page Compteurs du tableau de bord.",
+      "Pages du site repensées : les tarifs avec dons et FAQ, le contact avec état en direct et réseaux sociaux, les pages juridiques, les guides et le journal des modifications, ainsi qu’un pied de page pleine hauteur avec des bolotas qui apparaissent. Les pages publiques de statistiques et de classement sont aussi repensées, et les pages publiques de commandes et de file d’attente utilisent la mise en page du classement.",
+      "Dans le tableau de bord, la facturation a de nouvelles cartes de forfaits et un nouvel en-tête, les rangées de Modules affichent le nom et une indication pour ouvrir les paramètres, et un nouveau sélecteur de couleurs remplace celui du navigateur. Des correctifs pour mobile aussi.",
+      "Lorsqu’un diffuseur renomme sa chaîne Twitch, ItsBagelBot prend en compte le nouveau nom et les pages publiques le suivent.",
+      "La page d’accueil propose une nouvelle fenêtre de clavardage à essayer, avec un défilement plus fluide et un premier chargement plus rapide sur téléphone. Les bolotas fonctionnent sur un nouveau moteur d’animation et conservent leurs propres couleurs, et la plateforme reçoit des correctifs de stabilité."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.3.1-beta"
+}
