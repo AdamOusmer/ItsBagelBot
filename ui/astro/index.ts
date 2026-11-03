@@ -97,6 +97,7 @@ export { default as NavProgress } from './NavProgress.astro';
 
 export { default as StatusDot } from './StatusDot.astro';
 export { default as RoundBadge } from './RoundBadge.astro';
+export { default as AvatarPlate } from './AvatarPlate.astro';
 export { default as Timeline } from './Timeline.astro';
 export { default as TimelineItem } from './TimelineItem.astro';
 

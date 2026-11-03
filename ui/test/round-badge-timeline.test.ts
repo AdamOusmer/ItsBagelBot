@@ -11,6 +11,24 @@ import SvelteTimelineItem from '../svelte/TimelineItem.svelte';
 import AstroTimelineItem from '../astro/TimelineItem.astro';
 import SvelteContainer from '../svelte/Container.svelte';
 import AstroContainer from '../astro/Container.astro';
+import SvelteAvatarPlate from '../svelte/AvatarPlate.svelte';
+import AstroAvatarPlate from '../astro/AvatarPlate.astro';
+
+describe('AvatarPlate', () => {
+  contracts(SvelteAvatarPlate, AstroAvatarPlate, [
+    {
+      name: 'default plate sizes from the stylesheet',
+      slots: { default: '<svg></svg>' },
+      html: '<span class="bb-avatar-plate"><svg></svg></span>',
+    },
+    {
+      name: 'size and class',
+      props: { size: 44, class: 'face' },
+      slots: { default: '<svg></svg>' },
+      html: '<span class="bb-avatar-plate face" style="--avatar-plate-size: 44px"><svg></svg></span>',
+    },
+  ]);
+});
 
 describe('RoundBadge', () => {
   contracts(SvelteRoundBadge, AstroRoundBadge, [

@@ -1,0 +1,17 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import type { HTMLAttributes } from 'astro/types';
+import '../styles/elements/avatar-plate.css';
+
+interface Props extends Omit<HTMLAttributes<'span'>, 'size' | 'class'> {
+    size?: number;
+    class?: string;
+}
+
+const { size, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-avatar-plate', className].filter(Boolean).join(' ');
+---
+
+<span class={classes} style={size === undefined ? undefined : `--avatar-plate-size: ${size}px`} {...rest}><slot /></span>

@@ -1,0 +1,18 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+  .bb-avatar-plate {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: var(--avatar-plate-size, 32px);
+    height: var(--avatar-plate-size, 32px);
+    border-radius: var(--bb-radius-pill);
+    background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
+  }
+
+  .bb-avatar-plate > * { grid-area: 1 / 1; }
+}

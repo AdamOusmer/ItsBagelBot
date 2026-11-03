@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onDestroy } from 'svelte';
+  import AvatarPlate from '@bagel/ui/svelte/AvatarPlate.svelte';
   import { prefersReducedMotion as reducedMotion } from '@bagel/ui/lib/motion-query';
   import { parts, type Palette } from '@luzir/bolota';
   import type { EngineHandle } from '@luzir/bolota/engine';
@@ -45,14 +46,11 @@
   const POOL = ['wander', 'attentive', 'surprised', 'excited', 'curious', 'confused', 'unimpressed'];
   const CYCLE_MS = 2600;
 
-  const uid = $props.id();
-  const plateGradientId = `bolota-plate-${uid}`;
-
   const label = $derived(title || name);
-  const BACKDROP_MAX = 48;
+  const PLATE_MAX = 48;
   const BODY_FILL = 0.66;
-  const backdrop = $derived(plate && size <= BACKDROP_MAX ? ('circle' as const) : false);
-  const pose = $derived(parts(name, { size, palette, background: backdrop, title: label }));
+  const plated = $derived(plate && size <= PLATE_MAX);
+  const pose = $derived(parts(name, { size, palette, background: false, title: label }));
 
   function viewBoxOf(inner: string): string {
     const body = inner.match(/<g[^>]*>(.*?)<\/g>/)?.[1] ?? '';
@@ -85,7 +83,7 @@
     const side = Math.max(x1 - x0, y1 - y0) / BODY_FILL;
     return `${(x0 + x1 - side) / 2} ${(y0 + y1 - side) / 2} ${side} ${side}`;
   }
-  const viewBox = $derived(backdrop ? '0 0 100 100' : viewBoxOf(pose.inner));
+  const viewBox = $derived(viewBoxOf(pose.inner));
   const styleVars = $derived(
     pose.vars
       ? Object.entries(pose.vars)
@@ -136,6 +134,7 @@
   }
 
   let mounting = false;
+  let mountedName = '';
 
   async function startEngine() {
     if (handle || mounting || !el || reducedMotion()) return;
@@ -145,7 +144,8 @@
       mounting = false;
       return;
     }
-    const h = mountEngine(el, name, { size, palette, background: backdrop });
+    const h = mountEngine(el, name, { size, palette, background: false });
+    mountedName = name;
     h.loop(motionState);
     if (follow) h.follow('window');
     step = 0;
@@ -192,8 +192,9 @@
   });
 
   $effect(() => {
-    if (!visible) destroyEngine();
-    else if (active) resumeEngine();
+    if (!visible || (handle && mountedName !== name)) destroyEngine();
+    if (!visible) return;
+    if (active) resumeEngine();
     else pauseEngine();
   });
 
@@ -227,27 +228,28 @@
   });
 </script>
 
-<svg
-  bind:this={el}
-  class="bolota {pose.cls ?? ''} {klass}"
-  style={styleVars}
-  {viewBox}
-  width={size}
-  height={size}
-  role="img"
-  aria-label={label}
->
-  {#if pose.bg}
-    <defs>
-      <linearGradient id={plateGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="var(--bb-green-light)" />
-        <stop offset="100%" stop-color="var(--bb-tan)" />
-      </linearGradient>
-    </defs>
-    <path d={pose.bg.d} fill={`url(#${plateGradientId})`} />
-  {/if}
-  {@html pose.inner}
-</svg>
+{#snippet face()}
+  {#key name}
+    <svg
+      bind:this={el}
+      class="bolota {pose.cls ?? ''} {klass}"
+      style={styleVars}
+      {viewBox}
+      width={size}
+      height={size}
+      role="img"
+      aria-label={label}
+    >
+      {@html pose.inner}
+    </svg>
+  {/key}
+{/snippet}
+
+{#if plated}
+  <AvatarPlate {size}>{@render face()}</AvatarPlate>
+{:else}
+  {@render face()}
+{/if}
 
 <style>
   .bolota { display: block; overflow: visible; }
