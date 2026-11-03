@@ -29,13 +29,17 @@ const BUDGETS: Record<string, Budget> = {
   // pause in the shared ui lib: measured 98318, ~0.5% room.
   // js raised from 98800 (2026-11-02) for the public reading progress bar: measured 98358 before and 98903 after
   // (+545 B) on macOS, ~2% room.
-  '/(public)/login': { js: 100900, css: 22800, catalog: 2900, lazy: 0 },
+  // css raised from 22800 (2026-11-03) for the shared avatar plate stylesheet (aurora circle behind small bolotas):
+  // CI measured 22849, ~2% room.
+  '/(public)/login': { js: 100900, css: 23300, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
   // css raised from 45200 (2026-10-29) for the shared .bb-prose style in typography.css (+213 B gzip there): CI measured 45295, ~1% room.
   // js raised from 121000 (2026-10-31) for the bb-fit element with content-visibility parking and the WAAPI off-stage
   // pause in the shared ui lib: measured 121030, ~0.4% room.
-  '/(app)': { js: 121500, css: 45700, catalog: 5000, lazy: 0 },
+  // js and css raised from 121500 / 45700 (2026-11-03) for the shared AvatarPlate block and its stylesheet: CI measured
+  // 121501 / 45712, ~0.4% / ~1% room.
+  '/(app)': { js: 122000, css: 46200, catalog: 5000, lazy: 0 },
   // js raised from 138900 (2026-10-29): main already measured 138945, Glide adds 131 B for 139076, ~2% room.
   // css raised from 46000 (2026-10-29): main measured 45607, the aurora footer adds 413 B for 46020, ~1% room.
   // css raised from 46500 (2026-10-29) for the shared .bb-prose style in typography.css: CI measured 46697, ~1% room.
