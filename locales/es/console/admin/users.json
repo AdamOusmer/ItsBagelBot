@@ -26,6 +26,7 @@
   "pagerLabel": "página {page} / {max}",
   "rowMeta": "#{id} · registro: {joined}",
   "rowCode": "código",
+  "channelLink": "Abrir el canal de @{login} en Twitch",
   "inspectorTitle": "@{login}",
   "inspectorIdle": "Selecciona un usuario para inspeccionar su cuenta, el estado del bot y su nivel.",
   "identityTitle": "Identidad",
