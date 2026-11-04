@@ -10,7 +10,6 @@ import type * as T from './types';
 
 const ANNOUNCE_COLORS = ['', 'primary', 'blue', 'green', 'orange', 'purple'];
 const COMMERCIAL_LENGTHS = [30, 60, 90, 120, 150, 180];
-const SNOWFLAKE_PATTERN = /^[0-9]{5,25}$/;
 const LIGHTS_MODES = ['color', 'scene'];
 const LIGHTS_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const MAX_AMOUNT =1000000;
@@ -59,12 +58,6 @@ function checkCounterAdd(c: Chk, p: Wide<T.CounterAddAction>): void {
   counterName(c, 'name', p.name);
   c.inRange('amount', p.amount, -MAX_AMOUNT, MAX_AMOUNT);
   c.nonZero('amount', p.amount);
-}
-
-function checkDiscordPost(c: Chk, p: Wide<T.DiscordPostAction>): void {
-  c.format('guild_id', p.guild_id, SNOWFLAKE_PATTERN);
-  c.format('channel_id', p.channel_id, SNOWFLAKE_PATTERN);
-  c.text('text', p.text, 1, 2000);
 }
 
 function fetchUrlRejected(url: string): boolean {
@@ -130,7 +123,6 @@ export const SIMPLE_ACTIONS: Table = {
   redemption: register<Wide<T.RedemptionAction>>({ status: 'string' }, (c, p) => c.oneOf('status', p.status, ['fulfill', 'cancel'])),
   delay: register<Wide<T.DelayAction>>({ ms: 'int' }, (c, p) => c.inRange('ms', p.ms, 1, MAX_DELAY_MS)),
   run: register<Wide<T.RunAction>>({ automation_id: 'string' }, (c, p) => void c.text('automation_id', p.automation_id, 1, 64)),
-  discord_post: register<Wide<T.DiscordPostAction>>({ guild_id: 'string', channel_id: 'string', text: 'string' }, checkDiscordPost),
   http_post: register<Wide<T.HTTPPostAction>>({ url: 'string', body: 'string' }, checkHttpPost),
   lights: register<Wide<T.LightsAction>>(
     {

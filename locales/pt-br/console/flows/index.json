@@ -120,24 +120,20 @@
   },
   "choose": {
     "reward": "Escolha uma recompensa",
-    "channel": "Escolha um canal",
     "counter": "Escolha um contador",
     "scene": "Escolha uma cena",
     "light": "Escolha uma luz primeiro"
   },
   "choiceEmpty": {
     "rewards": "Ainda não há recompensas de pontos do canal. Crie uma em Pontos do canal.",
-    "discordChannels": "O bot não tem um canal de texto onde possa postar.",
     "counters": "Ainda não há contadores. Crie um em Contadores.",
     "scenes": "Esta luz não tem cenas."
   },
   "choiceProblem": {
     "rewards": "Não foi possível carregar suas recompensas.",
-    "discordChannels": "Não foi possível carregar seus canais do Discord.",
     "counters": "Não foi possível carregar seus contadores.",
     "scenes": "Não foi possível carregar as cenas desta luz.",
-    "keyRejected": "A Govee não aceitou sua chave de API.",
-    "notConnected": "Conecte o Discord e adicione o bot a um servidor para escolher um canal."
+    "keyRejected": "A Govee não aceitou sua chave de API."
   },
   "choiceMissing": "\"{name}\" não está mais na lista.",
   "choiceRetry": "Tentar novamente",

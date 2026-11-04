@@ -1,7 +1,7 @@
 {
   "exportOpen": "Exporter",
   "exportTitle": "Exporter des recettes",
-  "exportBody": "Choisissez les recettes à enregistrer dans un fichier. Les récompenses, les salons Discord, les requêtes web et les viewers nommés ne sont pas inclus dans le fichier, afin que la personne qui l’importe puisse les configurer sur sa propre chaîne.",
+  "exportBody": "Choisissez les recettes à enregistrer dans un fichier. Les récompenses, les requêtes web et les viewers nommés ne sont pas inclus dans le fichier, afin que la personne qui l’importe puisse les configurer sur sa propre chaîne.",
   "exportSelectAll": "Tout sélectionner",
   "exportSelectNone": "Effacer",
   "exportSelected": "{n} sélectionnée(s)",
@@ -43,7 +43,6 @@
     "event_filter": "Un filtre d’événement désignait le viewer ou la récompense de quelqu’un d’autre. Configurez-le à nouveau.",
     "users_list": "Une liste de viewers autorisés ou bloqués a été effacée. Configurez-la à nouveau.",
     "login_target": "Une étape ciblant un viewer spécifique a été désactivée. Choisissez qui elle cible.",
-    "discord_target": "Une publication Discord a été désactivée. Choisissez votre serveur et votre salon.",
     "http_target": "Une requête web a été désactivée et son adresse supprimée. Ajoutez la vôtre.",
     "lights_target": "Une étape d’éclairage a été désactivée et son appareil retiré. Choisissez votre propre lumière.",
     "slash_command":"Une étape qui exécutait une commande de chat a été désactivée et vidée. Réécrivez-la si vous souhaitez l’utiliser.",

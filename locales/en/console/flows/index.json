@@ -120,24 +120,20 @@
   },
   "choose": {
     "reward": "Choose a reward",
-    "channel": "Choose a channel",
     "counter": "Choose a counter",
     "scene": "Choose a scene",
     "light": "Choose a light first"
   },
   "choiceEmpty": {
     "rewards": "No channel point rewards yet. Create one in Channel points.",
-    "discordChannels": "The bot has no text channel it can post in.",
     "counters": "No counters yet. Create one in Counters.",
     "scenes": "This light has no scenes."
   },
   "choiceProblem": {
     "rewards": "Could not load your rewards.",
-    "discordChannels": "Could not load your Discord channels.",
     "counters": "Could not load your counters.",
     "scenes": "Could not load the scenes for this light.",
-    "keyRejected": "Govee did not accept your API key.",
-    "notConnected": "Connect Discord and add the bot to a server to choose a channel."
+    "keyRejected": "Govee did not accept your API key."
   },
   "choiceMissing": "\"{name}\" is no longer in the list.",
   "choiceRetry": "Try again",

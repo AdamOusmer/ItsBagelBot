@@ -9,7 +9,7 @@ export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
 
 export type FlowKind = 'trigger' | 'condition' | 'reply';
 
-export type StepGroup = 'twitch' | 'discord' | 'modules' | 'basics';
+export type StepGroup = 'twitch' | 'modules' | 'basics';
 
 type Typed = { key: string; placeholder?: true };
 
@@ -198,17 +198,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     group: 'twitch',
     icon: 'send',
     fields: [{ key: 'message', type: 'template', placeholder: true }]
-  },
-  {
-    type: 'reply.discord',
-    slug: 'discord',
-    kind: 'reply',
-    group: 'discord',
-    icon: 'discord',
-    fields: [
-      { key: 'channel', type: 'choice', source: 'discordChannels', nameKey: 'channelName' },
-      { key: 'message', type: 'template', placeholder: true }
-    ]
   },
   {
     type: 'reply.points',

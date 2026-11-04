@@ -23,7 +23,6 @@
   "random_pick": "Elegir uno al azar",
   "run": "Ejecutar otra automatización",
   "if": "Si, entonces, si no",
-  "discord_post": "Publicar en Discord",
   "http_post": "Enviar una solicitud HTTP",
   "lights": "Ajustar las luces",
   "stop": "Detener aquí"

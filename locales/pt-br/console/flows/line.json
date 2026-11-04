@@ -25,8 +25,6 @@
   "chance": "Passa {percent}% das vezes",
   "chanceYes": "{percent}% das vezes",
   "chanceNo": "Caso contrário",
-  "discordPost": "Enviar para {channel}",
-  "discordSay": "{channel}: {message}",
   "pointsGive": "Dar {amount}",
   "pointsTake": "Tirar {amount}",
   "counter": "Adicionar um ao contador {counter}",

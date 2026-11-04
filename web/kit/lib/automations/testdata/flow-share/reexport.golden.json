@@ -31,15 +31,6 @@
             }
           },
           {
-            "type": "discord_post",
-            "params": {
-              "guild_id": "00000",
-              "channel_id": "00000",
-              "text": "hype"
-            },
-            "enabled": false
-          },
-          {
             "type": "http_post",
             "params": {
               "url": "https://example.com/setup-required"

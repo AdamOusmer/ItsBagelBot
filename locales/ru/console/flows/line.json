@@ -25,8 +25,6 @@
   "chance": "Срабатывает в {percent}% случаев",
   "chanceYes": "В {percent}% случаев",
   "chanceNo": "Иначе",
-  "discordPost": "Отправить в {channel}",
-  "discordSay": "{channel}: {message}",
   "pointsGive": "Начислить {amount}",
   "pointsTake": "Списать {amount}",
   "counter": "Увеличить счётчик {counter} на 1",

@@ -120,24 +120,20 @@
   },
   "choose": {
     "reward": "Choisir une récompense",
-    "channel": "Choisir un salon",
     "counter": "Choisir un compteur",
     "scene": "Choisir une scène",
     "light": "Choisir d’abord une lumière"
   },
   "choiceEmpty": {
     "rewards": "Aucune récompense de points de chaîne pour le moment. Créez-en une dans Points de chaîne.",
-    "discordChannels": "Le bot n’a aucun salon textuel dans lequel publier.",
     "counters": "Aucun compteur pour le moment. Créez-en un dans Compteurs.",
     "scenes": "Cette lumière n’a aucune scène."
   },
   "choiceProblem": {
     "rewards": "Impossible de charger vos récompenses.",
-    "discordChannels": "Impossible de charger vos salons Discord.",
     "counters": "Impossible de charger vos compteurs.",
     "scenes": "Impossible de charger les scènes de cette lumière.",
-    "keyRejected": "Govee n’a pas accepté votre clé API.",
-    "notConnected": "Connectez Discord et ajoutez le bot à un serveur pour choisir un salon."
+    "keyRejected": "Govee n’a pas accepté votre clé API."
   },
   "choiceMissing": "\"{name}\" n’est plus dans la liste.",
   "choiceRetry": "Réessayer",

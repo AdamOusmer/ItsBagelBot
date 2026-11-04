@@ -25,7 +25,6 @@
   "noStepsMatchSearch": "По этому запросу шагов не найдено.",
   "group": {
     "twitch": "Twitch",
-    "discord": "Discord",
     "modules": "Модули",
     "basics": "Базовые"
   },

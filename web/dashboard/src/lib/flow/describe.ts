@@ -113,13 +113,6 @@ function conditionLine(t: Translate, n: FlowNode): string {
   }
 }
 
-function discordLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
-  const channel = optionLabel(t, spec, n, 'channel');
-  const message = text(n, 'message');
-  if (!message) return given(channel, (name) => t('flows.line.discordPost', { channel: name }));
-  return channel ? t('flows.line.discordSay', { channel, message }) : message;
-}
-
 function pointsLine(t: Translate, n: FlowNode): string {
   const amount = Number(n.config.amount);
   if (!Number.isFinite(amount) || amount === 0) return '';
@@ -136,8 +129,6 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.chat':
       return text(n, 'message');
-    case 'reply.discord':
-      return discordLine(t, n, spec);
     case 'reply.points':
       return pointsLine(t, n);
     case 'reply.counter':

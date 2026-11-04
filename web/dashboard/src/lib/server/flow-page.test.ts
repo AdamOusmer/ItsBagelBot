@@ -51,7 +51,6 @@ describe('lowerSaveRequest', () => {
   });
 
   test.each([
-    ['a Discord post with no server', node('b', 'reply.discord', { channel: '223456789012345678', message: 'hi' }), 'nodes.b.params.guild_id'],
     ['lights with no light chosen', node('b', 'reply.lights', { mode: 'color', color: '#f5a524' }), 'nodes.b.params.device'],
     ['a comparison with no value', node('b', 'cond.compare', { left: '', op: 'gte', right: '1' }), 'nodes.b.params.left']
   ])('selects the step when validation refuses %s', (_name, step, path) => {

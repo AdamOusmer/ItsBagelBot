@@ -93,7 +93,6 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Commands:       engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
 		Quotes:         engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
 		Gossip:         gossipRPC,
-		Discord:        engine.NewDiscordRPC(in.nc, cfg.DiscordRPCPrefix),
 		CustomFetch:    gossipRPC,
 		Followage:      engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
 		AccountAge:     accountsRPC,

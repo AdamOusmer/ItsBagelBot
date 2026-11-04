@@ -23,7 +23,6 @@
   "random_pick": "Pick one at random",
   "run": "Run another automation",
   "if": "If, then otherwise",
-  "discord_post": "Post to Discord",
   "http_post": "Send an HTTP request",
   "lights": "Set the lights",
   "stop": "Stop here"

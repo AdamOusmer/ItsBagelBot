@@ -10,13 +10,11 @@ import (
 
 	"ItsBagelBot/internal/domain/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 )
 
 const (
-	discordMessageRunes  = 2000
 	customPostEndpoint   = "post"
 	goveeProvider        = "govee"
 	goveeControlEndpoint = "control"
@@ -178,29 +176,6 @@ func (x *actionExec) sendLights(req gossiprpc.Request) error {
 		return failure("gossip_outdated")
 	}
 	return nil
-}
-
-func (x *actionExec) discordPost(s step, p automation.DiscordPostAction) error {
-	if x.p.discord == nil {
-		return failure("no_discord")
-	}
-	text := truncateRunes(x.expand(p.Text), discordMessageRunes)
-	if strings.TrimSpace(text) == "" {
-		return skipped("empty")
-	}
-	req := outgressrpc.DiscordPostRequest{UserID: x.bid, GuildID: p.GuildID, ChannelID: p.ChannelID, Content: text}
-	return x.once(s, func() error {
-		reply, err := x.p.discord.Post(x.ctx, req)
-		switch {
-		case err != nil:
-			return failure("discord_error")
-		case reply.Code != outgressrpc.CodeOK:
-			return failure(string(reply.Code))
-		case !reply.Checked:
-			return failure("outgress_outdated")
-		}
-		return nil
-	})
 }
 
 func lightsRequest(channelID string, p automation.LightsAction) gossiprpc.Request {

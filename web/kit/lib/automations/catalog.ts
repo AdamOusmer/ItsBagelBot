@@ -128,11 +128,6 @@ export const ACTION_TYPES: TypeDef[] = [
     f('then', 'actions'),
     f('else', 'actions'),
   ]),
-  action('discord_post', [
-    f('guild_id', 'text', { required: true }),
-    f('channel_id', 'text', { required: true }),
-    f('text', 'template', { required: true, min: 1, max: 2000 }),
-  ]),
   action('http_post', [
     f('url', 'text', { required: true, min: 1, max: 512 }),
     f('body', 'template', { max: 2000 }),

@@ -27,25 +27,22 @@
 
   const chooseText = (source: ChoiceSource) => {
     if (source === 'rewards') return t('flows.choose.reward');
-    if (source === 'discordChannels') return t('flows.choose.channel');
     return source === 'counters' ? t('flows.choose.counter') : t('flows.choose.scene');
   };
 
   const emptyText = (source: ChoiceSource) => {
     if (source === 'rewards') return t('flows.choiceEmpty.rewards');
-    if (source === 'discordChannels') return t('flows.choiceEmpty.discordChannels');
     return source === 'counters' ? t('flows.choiceEmpty.counters') : t('flows.choiceEmpty.scenes');
   };
 
   const failedText = (source: ChoiceSource) => {
     if (source === 'rewards') return t('flows.choiceProblem.rewards');
-    if (source === 'discordChannels') return t('flows.choiceProblem.discordChannels');
     return source === 'counters' ? t('flows.choiceProblem.counters') : t('flows.choiceProblem.scenes');
   };
 
   const problemText = (source: ChoiceSource, problem: ChoiceProblem) => {
     if (problem === 'keyRejected') return t('flows.choiceProblem.keyRejected');
-    return problem === 'notConnected' ? t('flows.choiceProblem.notConnected') : failedText(source);
+    return failedText(source);
   };
 
   async function fetchScenes(light: string, model: string): Promise<ChoiceList> {

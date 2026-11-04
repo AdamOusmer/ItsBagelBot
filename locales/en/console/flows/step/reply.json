@@ -6,14 +6,6 @@
       "message": { "label": "Message", "placeholder": "Thanks {user}!" }
     }
   },
-  "discord": {
-    "label": "Post to Discord",
-    "summary": "Announce in a channel",
-    "field": {
-      "channel": { "label": "Channel" },
-      "message": { "label": "Message", "placeholder": "{user} just raided!" }
-    }
-  },
   "points": {
     "label": "Give loyalty points",
     "summary": "Add or remove points",

@@ -9,7 +9,6 @@ type Config = Record<string, string | number | boolean>;
 
 const CHOICES: Record<ChoiceSource, { value: string; label: string; meta?: Record<string, string> }> = {
   rewards: { value: 'reward-1', label: 'Hydrate' },
-  discordChannels: { value: '223456789012345678', label: '#announcements', meta: { guildId: '123456789012345678' } },
   counters: { value: 'deaths', label: 'deaths' },
   scenes: {
     value: 'snapshot:4:9',
@@ -22,7 +21,7 @@ const LIGHT: Config = { device: 'AA:BB:CC:DD:EE:FF:00:11', sku: 'H6008', deviceN
 
 const TEXT: Record<string, string> = { trigger: '!hug', word: 'bagel', message: 'Thanks {user}!', left: '{bits}', right: '1000', color: '#f5a524' };
 
-const SHOWN_NOT_SAVED = new Set(['login', 'rewardTitle', 'channelName']);
+const SHOWN_NOT_SAVED = new Set(['login', 'rewardTitle']);
 
 const withinRange = (field: Extract<FieldSpec, { type: 'number' }>) => Math.min(field.max ?? Infinity, Math.max(field.min ?? 0, 7));
 

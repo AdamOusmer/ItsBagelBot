@@ -16,7 +16,6 @@ import (
 var (
 	announceColors   = []string{"", "primary", "blue", "green", "orange", "purple"}
 	commercialLength = []int{30, 60, 90, 120, 150, 180}
-	snowflakePattern = regexp.MustCompile(`^[0-9]{5,25}$`)
 
 	lightsModes        = enum{LightsModeColor, LightsModeScene}
 	lightsColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -120,12 +119,6 @@ type IfAction struct {
 	Condition Condition `json:"condition"`
 	Then      []Action  `json:"then"`
 	Else      []Action  `json:"else"`
-}
-
-type DiscordPostAction struct {
-	GuildID   string `json:"guild_id"`
-	ChannelID string `json:"channel_id"`
-	Text      string `json:"text"`
 }
 
 type HTTPPostAction struct {
@@ -236,12 +229,6 @@ func checkRedemption(c chk, p RedemptionAction) {
 func checkDelay(c chk, p DelayAction) { inRange(c, "ms", p.Ms, between(1, MaxDelayMS)) }
 
 func checkRun(c chk, p RunAction) { c.text("automation_id", p.AutomationID, nonEmpty(64)) }
-
-func checkDiscordPost(c chk, p DiscordPostAction) {
-	c.format("guild_id", p.GuildID, snowflakePattern)
-	c.format("channel_id", p.ChannelID, snowflakePattern)
-	c.text("text", p.Text, nonEmpty(2000))
-}
 
 func checkHTTPPost(c chk, p HTTPPostAction) {
 	if c.text("url", p.URL, nonEmpty(validate.MaxFetchURLLength)) && validate.FetchURL(p.URL) != nil {

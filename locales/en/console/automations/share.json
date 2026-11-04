@@ -1,7 +1,7 @@
 {
   "exportOpen": "Export",
   "exportTitle": "Export recipes",
-  "exportBody": "Pick recipes to save as a file. Rewards, Discord channels, web requests and named viewers stay out of the file, so whoever imports it sets those up on their own channel.",
+  "exportBody": "Pick recipes to save as a file. Rewards, web requests and named viewers stay out of the file, so whoever imports it sets those up on their own channel.",
   "exportSelectAll": "Select all",
   "exportSelectNone": "Clear",
   "exportSelected": "{n} selected",
@@ -43,7 +43,6 @@
     "event_filter": "An event filter named someone else's viewer or reward. Set it again.",
     "users_list": "A list of allowed or blocked viewers was cleared. Set it again.",
     "login_target": "A step aimed at a specific viewer was turned off. Pick who it targets.",
-    "discord_target": "A Discord post was turned off. Pick your server and channel.",
     "http_target": "A web request was turned off and its address removed. Add your own.",
     "lights_target": "A lights step was turned off and its device removed. Pick your own light.",
     "slash_command": "A step that ran a chat command was turned off and blanked. Rewrite it if you want it.",

@@ -86,7 +86,7 @@ describe('FlowHistory', () => {
 
   test('different fields do not coalesce', () => {
     const flow = fresh();
-    flow.nodes.push({ id: 'r', type: 'reply.discord', x: 368, y: 0, config: {} });
+    flow.nodes.push({ id: 'r', type: 'reply.chat', x: 368, y: 0, config: {} });
     const h = new FlowHistory(flow);
     flow.nodes[1].config.channel = 'general';
     h.sync(flow, 100);
