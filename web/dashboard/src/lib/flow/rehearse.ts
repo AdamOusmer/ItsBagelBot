@@ -148,11 +148,17 @@ type Walk = {
   done: boolean;
 };
 
-function visit(walk: Walk, id: string, via?: string): void {
+function unvisited(walk: Walk, id: string): { node: FlowNode; spec: NodeSpec } | undefined {
+  if (walk.done || walk.seen.has(id)) return undefined;
   const node = walk.flow.nodes.find((n) => n.id === id);
   const spec = node && specFor(node.type);
-  if (walk.done || walk.seen.has(id)) return;
-  if (!node || !spec) return;
+  return node && spec ? { node, spec } : undefined;
+}
+
+function visit(walk: Walk, id: string, via?: string): void {
+  const found = unvisited(walk, id);
+  if (!found) return;
+  const { node, spec } = found;
   walk.seen.add(id);
   provide(spec, walk.samples);
   const step = toStep(contextFor(node, spec, walk.samples, walk.modules), walk.forced[id] ?? walk.decisions[id], via);
