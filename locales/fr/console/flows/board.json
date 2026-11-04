@@ -25,7 +25,6 @@
   "noStepsMatchSearch": "Aucune étape ne correspond à cette recherche.",
   "group": {
     "twitch": "Twitch",
-    "discord": "Discord",
     "modules": "Modules",
     "basics": "Bases"
   },

@@ -238,12 +238,6 @@ export interface IfAction {
   else?: Action[];
 }
 
-export interface DiscordPostAction {
-  guild_id: string;
-  channel_id: string;
-  text: string;
-}
-
 export interface HTTPPostAction {
   url: string;
   body?: string;

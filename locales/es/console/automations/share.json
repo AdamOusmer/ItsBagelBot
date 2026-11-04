@@ -1,7 +1,7 @@
 {
   "exportOpen": "Exportar",
   "exportTitle": "Exportar recetas",
-  "exportBody": "Elige las recetas que quieres guardar en un archivo. Las recompensas, los canales de Discord, las solicitudes web y los espectadores con nombre no se incluyen, así que quien lo importe los configura en su propio canal.",
+  "exportBody": "Elige las recetas que quieres guardar en un archivo. Las recompensas, las solicitudes web y los espectadores con nombre no se incluyen, así que quien lo importe los configura en su propio canal.",
   "exportSelectAll": "Seleccionar todo",
   "exportSelectNone": "Borrar",
   "exportSelected": "{n} seleccionada(s)",
@@ -43,7 +43,6 @@
     "event_filter": "Un filtro de evento nombraba al espectador o la recompensa de otra persona. Vuelve a configurarlo.",
     "users_list": "Se borró una lista de espectadores permitidos o bloqueados. Vuelve a configurarla.",
     "login_target": "Se desactivó un paso dirigido a un espectador concreto. Elige a quién se dirige.",
-    "discord_target": "Se desactivó una publicación de Discord. Elige tu servidor y canal.",
     "http_target": "Se desactivó una solicitud web y se quitó su dirección. Añade la tuya.",
     "lights_target": "Se desactivó un paso de luces y se quitó su dispositivo. Elige tu propia luz.",
     "slash_command": "Se desactivó y vació un paso que ejecutaba un comando de chat. Reescríbelo si lo quieres.",

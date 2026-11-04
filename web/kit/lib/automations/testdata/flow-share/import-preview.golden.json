@@ -14,20 +14,16 @@
         "path": "conditions[0]"
       },
       {
-        "code": "discord_target",
+        "code": "http_target",
         "path": "actions[1]"
       },
       {
-        "code": "http_target",
+        "code": "lights_target",
         "path": "actions[2]"
       },
       {
-        "code": "lights_target",
-        "path": "actions[3]"
-      },
-      {
         "code": "run_removed",
-        "path": "actions[5]"
+        "path": "actions[4]"
       }
     ],
     "status": "ready",
@@ -46,12 +42,12 @@
       },
       {
         "code": "counter",
-        "path": "actions[6]",
+        "path": "actions[5]",
         "detail": "deaths"
       },
       {
         "code": "run_linked",
-        "path": "actions[4]",
+        "path": "actions[3]",
         "detail": "Mod helper"
       }
     ]

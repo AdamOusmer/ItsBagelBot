@@ -68,7 +68,6 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.modules.personality.feed.board", "app/twitch/sesame/engine/personality_rpc.go"},
 		{"bagel.rpc.gossip.custom.fetch", "app/twitch/sesame/engine/gossip_rpc.go"},
 		{"bagel.rpc.gossip.custom.post", "app/twitch/sesame/engine/automation_action_effects.go"},
-		{"bagel.rpc.dingress.discord.post", "app/twitch/sesame/engine/discord_rpc.go"},
 		{"bagel.rpc.internal.projection.modules.automations.get", "internal/projection/client_automations.go"},
 		{"bagel.rpc.loyalty.balance.get", "app/twitch/sesame/engine/loyalty_rpc.go"},
 		{"bagel.rpc.loyalty.balance.add", "app/twitch/sesame/engine/loyalty_rpc.go"},

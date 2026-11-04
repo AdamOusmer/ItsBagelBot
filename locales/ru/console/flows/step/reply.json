@@ -9,19 +9,6 @@
       }
     }
   },
-  "discord": {
-    "label": "Отправить в Discord",
-    "summary": "Опубликовать в канале",
-    "field": {
-      "channel": {
-        "label": "Канал"
-      },
-      "message": {
-        "label": "Сообщение",
-        "placeholder": "{user} устроил рейд!"
-      }
-    }
-  },
   "points": {
     "label": "Начислить баллы лояльности",
     "summary": "Добавить или списать баллы",

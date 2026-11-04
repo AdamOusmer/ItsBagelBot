@@ -1,7 +1,7 @@
 {
   "exportOpen": "Export",
   "exportTitle": "Rezepte exportieren",
-  "exportBody": "Wähle Rezepte, die in einer Datei gespeichert werden sollen. Belohnungen, Discord-Kanäle, Web-Anfragen und namentlich genannte Zuschauer bleiben außen vor, sodass die Person, die importiert, sie in ihrem eigenen Kanal einrichtet.",
+  "exportBody": "Wähle Rezepte, die in einer Datei gespeichert werden sollen. Belohnungen, Web-Anfragen und namentlich genannte Zuschauer bleiben außen vor, sodass die Person, die importiert, sie in ihrem eigenen Kanal einrichtet.",
   "exportSelectAll": "Alle auswählen",
   "exportSelectNone": "Leeren",
   "exportSelected": "{n} ausgewählt",
@@ -43,7 +43,6 @@
     "event_filter": "Ein Ereignisfilter nannte den Zuschauer oder die Belohnung einer anderen Person. Richte ihn neu ein.",
     "users_list": "Eine Liste erlaubter oder gesperrter Zuschauer wurde geleert. Richte sie neu ein.",
     "login_target": "Ein Schritt für einen bestimmten Zuschauer wurde deaktiviert. Wähle, wen er betrifft.",
-    "discord_target": "Ein Discord-Beitrag wurde deaktiviert. Wähle deinen Server und Kanal.",
     "http_target": "Eine Web-Anfrage wurde deaktiviert und ihre Adresse entfernt. Füge deine eigene hinzu.",
     "lights_target": "Ein Licht-Schritt wurde deaktiviert und sein Gerät entfernt. Wähle dein eigenes Licht.",
     "slash_command": "Ein Schritt, der einen Chat-Befehl ausführte, wurde deaktiviert und geleert. Schreibe ihn neu, wenn du ihn willst.",

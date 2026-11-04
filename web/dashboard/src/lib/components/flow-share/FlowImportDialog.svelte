@@ -75,8 +75,6 @@
         return t('automations.share.setup.users_list');
       case 'login_target':
         return t('automations.share.setup.login_target');
-      case 'discord_target':
-        return t('automations.share.setup.discord_target');
       case 'http_target':
         return t('automations.share.setup.http_target');
       case 'lights_target':

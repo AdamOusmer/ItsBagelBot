@@ -9,19 +9,6 @@
       }
     }
   },
-  "discord": {
-    "label": "In Discord posten",
-    "summary": "In einem Kanal ankündigen",
-    "field": {
-      "channel": {
-        "label": "Kanal"
-      },
-      "message": {
-        "label": "Nachricht",
-        "placeholder": "{user} hat gerade geraidet!"
-      }
-    }
-  },
   "points": {
     "label": "Treuepunkte vergeben",
     "summary": "Punkte hinzufügen oder abziehen",

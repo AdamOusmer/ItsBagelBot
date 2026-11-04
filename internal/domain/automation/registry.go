@@ -204,7 +204,6 @@ func init() {
 		"random_pick":    registerNested(checkRandomPick, randomPickBranches),
 		"run":            register(checkRun),
 		"if":             registerNested(checkIf, ifBranches),
-		"discord_post":   register(checkDiscordPost),
 		"http_post":      register(checkHTTPPost),
 		"lights":         register(checkLights),
 		"stop":           register(checkEmpty),

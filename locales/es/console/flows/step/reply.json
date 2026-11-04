@@ -9,19 +9,6 @@
       }
     }
   },
-  "discord": {
-    "label": "Publicar en Discord",
-    "summary": "Anunciar en un canal",
-    "field": {
-      "channel": {
-        "label": "Canal"
-      },
-      "message": {
-        "label": "Mensaje",
-        "placeholder": "¡{user} acaba de hacer raid!"
-      }
-    }
-  },
   "points": {
     "label": "Dar puntos de fidelidad",
     "summary": "Añadir o quitar puntos",

@@ -47,7 +47,6 @@ type Deps struct {
 	Pub            bus.Publisher
 	Commands       CommandManager
 	Gossip         GossipCaller
-	Discord        DiscordPoster
 	CustomFetch    UrlFetchCaller
 	Followage      FollowageLookup
 	AccountAge     AccountAgeLookup

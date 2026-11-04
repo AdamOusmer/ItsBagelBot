@@ -19,14 +19,6 @@ export type DemoSystem = {
   flow: Flow;
 };
 
-const DEMO_GUILD_ID = '123456789012345678';
-
-const DEMO_ANNOUNCEMENTS: ChoiceOption = {
-  value: '567890123456789013',
-  label: '#announcements (demo channel)',
-  meta: { guildId: DEMO_GUILD_ID }
-};
-
 const DEMO_STRIP = { device: 'AB:CD:EF:12:34:56', sku: 'H6159', name: 'Desk strip' };
 
 type FlowId = Flow['id'];
@@ -109,15 +101,9 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
       [
         node('r1', 'twitch.raid', { minViewers: 1 }),
         node('r2', 'cond.compare', { left: '{viewers}', op: 'gte', right: '5' }),
-        node('r3', 'reply.chat', { message: 'Welcome raiders! {user} brought {viewers} friends.' }),
-        node('r4', 'reply.discord', {
-          channel: DEMO_ANNOUNCEMENTS.value,
-          channelName: DEMO_ANNOUNCEMENTS.label,
-          guildId: DEMO_GUILD_ID,
-          message: '{user} just raided with {viewers} viewers!'
-        })
+        node('r3', 'reply.chat', { message: 'Welcome raiders! {user} brought {viewers} friends.' })
       ],
-      [edge('re1', 'r1', 'next', 'r2'), edge('re2', 'r2', 'yes', 'r3'), edge('re3', 'r2', 'yes', 'r4')]
+      [edge('re1', 'r1', 'next', 'r2'), edge('re2', 'r2', 'yes', 'r3')]
     )
   },
   {
@@ -241,11 +227,6 @@ const DEMO_REWARDS: ChoiceOption[] = [
   { value: 'song', label: 'Song request (demo reward)' }
 ];
 
-const DEMO_CHANNELS: ChoiceOption[] = [
-  DEMO_ANNOUNCEMENTS,
-  { value: '890123456789012345', label: '#chat (demo channel)', meta: { guildId: DEMO_GUILD_ID } }
-];
-
 const DEMO_COUNTERS: ChoiceOption[] = [
   { value: 'deaths', label: 'deaths' },
   { value: 'hugs', label: 'hugs' }
@@ -274,7 +255,6 @@ function demoList(options: ChoiceOption[], mode: DemoChoiceMode): ChoiceList {
 export function demoChoices(mode: DemoChoiceMode) {
   return {
     rewards: demoList(DEMO_REWARDS, mode),
-    discordChannels: demoList(DEMO_CHANNELS, mode),
     counters: demoList(DEMO_COUNTERS, mode)
   };
 }

@@ -59,7 +59,6 @@ type Pipeline struct {
 	customFetch   UrlFetchCaller
 	quotes        QuotesStore
 	gossip        GossipCaller
-	discord       DiscordPoster
 	accounts      TwitchAccountLookup
 	emotes        scope.EmoteSource
 	roster        *chatterRoster
@@ -117,7 +116,6 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		customFetch:       d.CustomFetch,
 		quotes:            d.Quotes,
 		gossip:            d.Gossip,
-		discord:           d.Discord,
 		accounts:          d.TwitchAccounts,
 		botID:             cfg.BotID,
 		botUserID:         parseBotUserID(cfg.BotID),

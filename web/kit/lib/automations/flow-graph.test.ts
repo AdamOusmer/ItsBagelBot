@@ -64,10 +64,9 @@ const DEMO = {
     [
       node('r1', 'twitch.raid', { minViewers: 1 }),
       node('r2', 'cond.compare', { left: '{viewers}', op: 'gte', right: '5' }),
-      node('r3', 'reply.chat', { message: 'Welcome raiders! {user} brought {viewers} friends.' }),
-      node('r4', 'reply.discord', { channel: '223456789012345678', guildId: '123456789012345678', message: '{user} just raided with {viewers} viewers!' })
+      node('r3', 'reply.chat', { message: 'Welcome raiders! {user} brought {viewers} friends.' })
     ],
-    [edge('r1', 'next', 'r2'), edge('r2', 'yes', 'r3'), edge('r2', 'yes', 'r4')]
+    [edge('r1', 'next', 'r2'), edge('r2', 'yes', 'r3')]
   ),
   hydrate: flow(
     [
@@ -484,34 +483,11 @@ describe('set lights step', () => {
   });
 });
 
-describe('post to Discord step', () => {
-  const trigger = node('t', 'twitch.raid', { minViewers: 5 });
-  const post = node('d', 'reply.discord', { channel: '223456789012345678', guildId: '123456789012345678', message: '{user} raided with {viewers}' });
-  const drawn = flow([trigger, post], [edge('t', 'next', 'd')]);
-
-  test('the server, channel and message map to the engine action with event tokens', () => {
-    const definition = lowered(drawn);
-    expect(definition.actions).toEqual([
-      { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: '{user} raided with {event.viewers}' } }
-    ]);
-    expect(validateDefinition(definition)).toEqual([]);
-  });
-
-  test('it reopens with the builder tokens', () => {
-    expect(rebuilt(lowered(drawn)).nodes[1]).toMatchObject({ type: 'reply.discord', config: post.config });
-  });
-
-  test('a channel with no server is refused by validation', () => {
-    const lonely = flow([trigger, node('d', 'reply.discord', { channel: '223456789012345678', message: 'x' })], [edge('t', 'next', 'd')]);
-    expect(validateDefinition(lowered(lonely))).toEqual([{ path: 'actions[0].params.guild_id', code: 'required' }]);
-  });
-});
-
 describe('locating validation issues on steps', () => {
   const trigger = node('t', 'twitch.raid', { minViewers: 5 });
   const gate = node('g', 'cond.role', { level: 'mod' });
   const check = node('c', 'cond.compare', { left: '', op: 'gte', right: '5' });
-  const post = node('d', 'reply.discord', { channel: '223456789012345678', message: 'x' });
+  const post = node('d', 'reply.lights', { sku: 'H6008', mode: 'color', color: '#f5a524' });
   const wait = (id: FlowNode['id']) => node(id, 'reply.wait', { seconds: 6 });
 
   const refused = (input: Flow) => {
@@ -527,7 +503,7 @@ describe('locating validation issues on steps', () => {
 
   test('a step inside a branch is found by its nested path', () => {
     const drawn = flow([trigger, gate, post, node('n', 'reply.chat', { message: 'no' })], [edge('t', 'next', 'g'), edge('g', 'yes', 'd'), edge('g', 'no', 'n')]);
-    expect(refused(drawn)).toEqual([{ path: 'nodes.d.params.guild_id', code: 'required' }]);
+    expect(refused(drawn)).toEqual([{ path: 'nodes.d.params.device', code: 'required' }]);
   });
 
   test('the condition of a branch is found through the if step', () => {
@@ -597,6 +573,16 @@ describe('compare value step', () => {
 });
 
 describe('reading stored definitions', () => {
+  test('a stored Discord post, an action that no longer exists, cannot be drawn', () => {
+    const stored: Definition = {
+      version: 1,
+      trigger: { type: 'event', params: { kind: 'channel.raid' } },
+      actions: [chat('a'), { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: 'hi' } }]
+    };
+    expect(definitionToFlow(stored, meta)).toEqual({ ok: false, issues: [{ path: 'actions[1]', code: 'unsupported_action' }] });
+    expect(validateDefinition(stored)).toEqual([{ path: 'actions[1].type', code: 'unknown_type' }]);
+  });
+
   test('a definition the builder cannot draw reports where', () => {
     const result = definitionToFlow(
       { version: 1, trigger: { type: 'manual', params: {} }, actions: [] },

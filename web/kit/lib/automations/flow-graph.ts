@@ -134,7 +134,6 @@ const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = 
 
 const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.chat': ['message'],
-  'reply.discord': ['message'],
   'cond.compare': ['left', 'right']
 };
 
@@ -173,10 +172,6 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
 
 const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
-  'reply.discord': (config) => ({
-    type: 'discord_post',
-    params: { guild_id: str(config.guildId), channel_id: str(config.channel), text: str(config.message) }
-  }),
   'reply.lights': lightsAction,
   'reply.points': (config) => ({ type: 'points_add', params: { amount: num(config.amount) } }),
   'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
@@ -598,10 +593,6 @@ function lightsNode(params: Params): { type: string; config: FlowConfig } | null
 
 const ACTION_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig } | null> = {
   chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text) } }),
-  discord_post: (params) => ({
-    type: 'reply.discord',
-    config: { channel: str(params.channel_id), guildId: str(params.guild_id), message: str(params.text) }
-  }),
   lights: lightsNode,
   points_add: (params) => (params.login ? null : { type: 'reply.points', config: { amount: num(params.amount) } }),
   counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),

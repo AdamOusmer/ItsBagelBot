@@ -9,19 +9,6 @@
       }
     }
   },
-  "discord": {
-    "label": "Publier sur Discord",
-    "summary": "Annoncer dans un salon",
-    "field": {
-      "channel": {
-        "label": "Salon"
-      },
-      "message": {
-        "label": "Message",
-        "placeholder": "{user} vient de lancer un raid !"
-      }
-    }
-  },
   "points": {
     "label": "Donner des points de fidélité",
     "summary": "Ajouter ou retirer des points",

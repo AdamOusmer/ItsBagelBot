@@ -9,8 +9,6 @@ process.env.NEW_RELIC_ENABLED = 'false';
 
 let rewards: { id: string; title: string }[] = [];
 let counters: { name: string }[] = [];
-let guilds: { guildId: string; name: string; botPresent: boolean; needsReauth: boolean }[] = [];
-let channels: Record<string, { id: string; name: string; type: number; botCanSend?: boolean }[]> = {};
 let scenes: { scenes: { id: string; name: string; type: string; instance: string; value: unknown }[]; code?: 'key_rejected' | 'unreachable' } = { scenes: [] };
 let failing = false;
 
@@ -30,22 +28,13 @@ mock.module('./loyalty-store', () => ({
     return counters;
   }
 }));
-mock.module('./discord-store', () => ({
-  listGuilds: async () => {
-    refuse();
-    return guilds;
-  },
-  guildLayout: async ({ guildId }: { guildId: string }) => ({ channels: channels[guildId] ?? [] })
-}));
 mock.module('./govee-store', () => ({ goveeStore: () => ({ listScenes: async () => scenes }) }));
 
-const { attachChoiceNames, counterChoices, discordChoices, rewardChoices, sceneChoices } = await import('./flow-choices');
+const { attachChoiceNames, counterChoices, rewardChoices, sceneChoices } = await import('./flow-choices');
 
 beforeEach(() => {
   rewards = [];
   counters = [];
-  guilds = [];
-  channels = {};
   scenes = { scenes: [] };
   failing = false;
 });
@@ -64,32 +53,6 @@ describe('flow choices', () => {
     expect(await counterChoices('1')).toEqual({ options: [{ value: 'deaths', label: 'deaths' }] });
   });
 
-  test('offers only text channels the bot can post in, with their server', async () => {
-    guilds = [{ guildId: 'g1', name: 'Home', botPresent: true, needsReauth: false }];
-    channels.g1 = [
-      { id: 'c1', name: 'chat', type: 0 },
-      { id: 'c2', name: 'voice', type: 2 },
-      { id: 'c3', name: 'locked', type: 0, botCanSend: false }
-    ];
-    expect(await discordChoices('1')).toEqual({ options: [{ value: 'c1', label: '#chat', meta: { guildId: 'g1' } }] });
-  });
-
-  test('names the server when more than one is connected', async () => {
-    guilds = [
-      { guildId: 'g1', name: 'Home', botPresent: true, needsReauth: false },
-      { guildId: 'g2', name: 'Club', botPresent: true, needsReauth: false }
-    ];
-    channels.g1 = [{ id: 'c1', name: 'chat', type: 0 }];
-    channels.g2 = [{ id: 'c9', name: 'chat', type: 5 }];
-    const { options } = await discordChoices('1');
-    expect(options.map((option) => option.label)).toEqual(['#chat (Home)', '#chat (Club)']);
-  });
-
-  test('says Discord is not connected when the bot is in no server', async () => {
-    guilds = [{ guildId: 'g1', name: 'Home', botPresent: false, needsReauth: false }];
-    expect(await discordChoices('1')).toEqual({ options: [], problem: 'notConnected' });
-  });
-
   test('keeps what a scene needs to be played next to its id', async () => {
     scenes = { scenes: [{ id: '7', name: 'Aurora', type: 'devices.capabilities.dynamic_scene', instance: 'lightScene', value: 7 }] };
     expect(await sceneChoices('1', { device: 'AA:BB', sku: 'H6159' })).toEqual({
@@ -104,20 +67,17 @@ describe('flow choices', () => {
     expect(await sceneChoices('1', { device: 'AA:BB', sku: 'H6159' })).toEqual({ options: [], problem: 'unavailable' });
   });
 
-  test('names a saved reward and channel again from the live lists', async () => {
+  test('names a saved reward again from the live list', async () => {
     rewards = [{ id: 'r1', title: 'Hydrate' }];
-    guilds = [{ guildId: 'g1', name: 'Home', botPresent: true, needsReauth: false }];
-    channels.g1 = [{ id: 'c1', name: 'chat', type: 0 }];
     const nodes: { type: string; config: Record<string, string> }[] = [
       { type: 'twitch.reward', config: { reward: 'r1' } },
-      { type: 'reply.discord', config: { channel: 'c1', guildId: 'g1', message: 'hi' } },
-      { type: 'reply.discord', config: { channel: 'gone', guildId: 'g1', message: 'hi' } },
-      { type: 'reply.discord', config: { channel: 'c1', channelName: '#kept', message: 'hi' } },
+      { type: 'twitch.reward', config: { reward: 'gone' } },
+      { type: 'twitch.reward', config: { reward: 'r1', rewardTitle: 'Kept' } },
       { type: 'reply.chat', config: { message: 'hi' } }
     ];
     await attachChoiceNames('1', nodes);
-    const names: (string | undefined)[] = nodes.map((node) => node.config.rewardTitle ?? node.config.channelName);
-    expect(names).toEqual(['Hydrate', '#chat', undefined, '#kept', undefined]);
+    const names: (string | undefined)[] = nodes.map((node) => node.config.rewardTitle);
+    expect(names).toEqual(['Hydrate', undefined, 'Kept', undefined]);
   });
 
   test('a flow with nothing to name asks for no lists', async () => {
@@ -136,7 +96,7 @@ describe('flow choices', () => {
 
   test('a failed read becomes an unavailable list instead of an error', async () => {
     failing = true;
-    for (const list of [await rewardChoices('1'), await counterChoices('1'), await discordChoices('1')]) {
+    for (const list of [await rewardChoices('1'), await counterChoices('1')]) {
       expect(list).toEqual({ options: [], problem: 'unavailable' });
     }
   });

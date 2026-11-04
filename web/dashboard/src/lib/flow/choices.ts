@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export const CHOICE_SOURCES = ['rewards', 'discordChannels', 'counters', 'scenes'] as const;
+export const CHOICE_SOURCES = ['rewards', 'counters', 'scenes'] as const;
 
 export type ChoiceSource = (typeof CHOICE_SOURCES)[number];
 
 export type ChoiceOption = { value: string; label: string; meta?: Record<string, string> };
 
-export type ChoiceProblem = 'unavailable' | 'notConnected' | 'keyRejected';
+export type ChoiceProblem = 'unavailable' | 'keyRejected';
 
 export type ChoiceList = { options: ChoiceOption[]; problem?: ChoiceProblem };
 

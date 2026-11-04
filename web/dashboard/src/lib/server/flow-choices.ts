@@ -2,19 +2,13 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { logger } from '@bagel/kit/server/logger';
-import { unavailable, type ChoiceList, type ChoiceOption, type ChoiceSource } from '#lib/flow/choices';
+import { unavailable, type ChoiceList, type ChoiceSource } from '#lib/flow/choices';
 import { specFor } from '#lib/flow/model';
 import { readRewards } from './channelpoints-store';
-import { guildLayout, listGuilds, type DiscordEntry, type DiscordGuildSummary } from './discord-store';
 import { goveeStore, type GoveeTarget } from './govee-store';
 import { listCounters } from './loyalty-store';
 
-const TEXT_CHANNEL_TYPES = new Set([0, 5]);
-const MAX_GUILDS = 3;
-
 type BroadcasterId = string;
-
-type GuildListing = { guild: DiscordGuildSummary; several: boolean };
 
 async function settled(source: ChoiceSource, load: () => Promise<ChoiceList>): Promise<ChoiceList> {
   try {
@@ -33,29 +27,6 @@ export const rewardChoices = (userId: BroadcasterId) =>
 
 export const counterChoices = (userId: BroadcasterId) =>
   settled('counters', async () => ({ options: (await listCounters(userId)).map((counter) => ({ value: counter.name, label: counter.name })) }));
-
-const canPost = (channel: DiscordEntry) => TEXT_CHANNEL_TYPES.has(channel.type) && channel.botCanSend !== false;
-
-function channelOptions(channels: DiscordEntry[], { guild, several }: GuildListing): ChoiceOption[] {
-  return channels.filter(canPost).map((channel) => ({
-    value: channel.id,
-    label: `#${channel.name}${several ? ` (${guild.name})` : ''}`,
-    meta: { guildId: guild.guildId }
-  }));
-}
-
-async function guildChannels(userId: BroadcasterId, listing: GuildListing): Promise<ChoiceOption[]> {
-  const layout = await guildLayout({ userId, guildId: listing.guild.guildId });
-  return channelOptions(layout.channels, listing);
-}
-
-export const discordChoices = (userId: BroadcasterId) =>
-  settled('discordChannels', async () => {
-    const guilds = (await listGuilds({ userId })).filter((guild) => guild.botPresent && !guild.needsReauth).slice(0, MAX_GUILDS);
-    if (guilds.length === 0) return unavailable('notConnected');
-    const lists = await Promise.all(guilds.map((guild) => guildChannels(userId, { guild, several: guilds.length > 1 })));
-    return { options: lists.flat() };
-  });
 
 export const sceneChoices = (userId: BroadcasterId, target: GoveeTarget) =>
   settled('scenes', async () => {
@@ -76,8 +47,7 @@ type Named = { type: string; config: Record<string, string | number | boolean> }
 type Lookup = { node: Named; value: string; nameKey: string };
 
 const NAMED_SOURCES: Partial<Record<ChoiceSource, (userId: BroadcasterId) => Promise<ChoiceList>>> = {
-  rewards: rewardChoices,
-  discordChannels: discordChoices
+  rewards: rewardChoices
 };
 
 function lookupsFor(node: Named): [ChoiceSource, Lookup][] {

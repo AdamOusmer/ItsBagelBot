@@ -16,7 +16,6 @@ export const SETUP_FILTER_VALUE = 'setup-required';
 export const SETUP_RUN_TARGET = 'setup-required';
 // A leading underscore is not a legal Twitch login, so this can never match a real account.
 export const SETUP_LOGIN = '_setup_required';
-export const SETUP_SNOWFLAKE = '00000';
 export const SETUP_URL = 'https://example.com/setup-required';
 export const SETUP_TEXT = 'setup-required';
 export const SETUP_SCENE_VALUE = '"setup-required"';
@@ -40,7 +39,6 @@ export type SetupCode =
   | 'event_filter'
   | 'users_list'
   | 'login_target'
-  | 'discord_target'
   | 'http_target'
   | 'lights_target'
   | 'slash_command'
@@ -292,10 +290,6 @@ function neutralExternal(action: Action, path: string, notes: Notes): Action {
     notes.push({ code: 'lights_target', path });
     return disabled(action, neutralLights(params));
   }
-  if (action.type === 'discord_post') {
-    notes.push({ code: 'discord_target', path });
-    return disabled(action, { ...params, guild_id: SETUP_SNOWFLAKE, channel_id: SETUP_SNOWFLAKE });
-  }
   if (action.type === 'http_post') {
     notes.push({ code: 'http_target', path });
     return disabled(action, { url: SETUP_URL });
@@ -433,8 +427,8 @@ function parseJson(text: string): { value?: unknown; issues: Issue[] } {
   }
 }
 
-// The shared decoder folds field case the way Go does, so {"GUILD_ID": ...} would validate and then slip past
-// every rule here that reads params.guild_id. Definitions are all lowercase, so anything else is refused.
+// The shared decoder folds field case the way Go does, so {"URL": ...} would validate and then slip past
+// every rule here that reads params.url. Definitions are all lowercase, so anything else is refused.
 const unsafeKey = (key: string) => !SAFE_KEY.test(key) || FORBIDDEN_KEYS.has(key);
 
 function childrenOf(value: unknown): unknown[] {

@@ -881,10 +881,6 @@ accounts:
               from: MODULES_RPC
             - service: bagel.rpc.internal.projection.modules.automations.get.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.dingress.discord.post
-              from: DISCORD_OUTGRESS_RPC
-            - service: bagel.rpc.dingress.discord.post.node.*
-              from: DISCORD_OUTGRESS_RPC
             - service: bagel.rpc.internal.users.lifecycle
               from: USERS_RPC
             - service: bagel.rpc.internal.users.lifecycle.node.*
