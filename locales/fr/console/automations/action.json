@@ -21,6 +21,7 @@
   "redemption": "Traiter l’échange",
   "delay": "Attendre",
   "random_pick": "Choisir au hasard",
+  "parallel": "Exécuter les chemins en parallèle",
   "run": "Lancer une autre automatisation",
   "if": "Si, alors sinon",
   "http_post": "Envoyer une requête HTTP",

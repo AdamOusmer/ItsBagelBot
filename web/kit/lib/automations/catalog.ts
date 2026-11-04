@@ -122,6 +122,7 @@ export const ACTION_TYPES: TypeDef[] = [
   action('redemption', [f('status', 'enum', { required: true, values: ['fulfill', 'cancel'] })]),
   action('delay', [f('ms', 'int', { required: true, min: 1, max: 60000 })]),
   action('random_pick', [f('branches', 'branches', { required: true, min: 2, max: 5 })]),
+  action('parallel', [f('branches', 'branches', { required: true, min: 2, max: 10 })]),
   action('run', [f('automation_id', 'text', { required: true, min: 1, max: 64 })]),
   action('if', [
     f('condition', 'condition', { required: true }),

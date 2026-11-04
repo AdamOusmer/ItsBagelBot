@@ -46,6 +46,27 @@ func TestAutomationDelayInsideBranchResumesOuterActions(t *testing.T) {
 	assert.Equal(t, []string{`chat {"broadcaster_id":"1","message":"inner"}`, `chat {"broadcaster_id":"1","message":"outer"}`}, fx.described(t))
 }
 
+func TestAutomationParallelPathDoesNotWaitForAPausedPath(t *testing.T) {
+	path := func(actions ...automation.Action) obj { return obj{"weight": 1, "actions": actions} }
+	fork := act("parallel", obj{"branches": []obj{
+		path(act("delay", obj{"ms": 200}), act("chat", obj{"text": "late"})),
+		path(act("chat", obj{"text": "now"})),
+	}})
+	fx := newAutoFixture(manual("main", fork))
+	rec := fx.run(t, "main", "req-parallel", nil)
+	assert.Contains(t, statuses(rec), "0:chat:ok:")
+	assert.Equal(t, []string{`chat {"broadcaster_id":"1","message":"now"}`}, fx.described(t))
+}
+
+func TestAutomationParallelPathsPauseOnTheirOwnBudget(t *testing.T) {
+	path := func(actions ...automation.Action) obj { return obj{"weight": 1, "actions": actions} }
+	fork := act("parallel", obj{"branches": []obj{
+		path(act("delay", obj{"ms": 40000})),
+		path(act("delay", obj{"ms": 40000})),
+	}})
+	assert.Empty(t, automation.Validate(manual("main", fork).Definition))
+}
+
 func TestAutomationDelayWithoutContinuationCapacityLimitsTheRest(t *testing.T) {
 	fx := newAutoFixture(manual("main", act("delay", obj{"ms": 10}), act("delay", obj{"ms": 10}), act("chat", obj{"text": "x"})))
 	fx.p.autoExec.running.Store(maxContinuations)

@@ -86,6 +86,7 @@ func flowActions(b *actionTableBuilder) *actionTableBuilder {
 	return b.
 		Step("delay", typed((*actionExec).delay)).
 		Step("random_pick", typed((*actionExec).randomPick)).
+		Step("parallel", typed((*actionExec).parallel)).
 		Step("run", typed((*actionExec).runOther)).
 		Step("if", typed((*actionExec).ifElse)).
 		Step("stop", typed((*actionExec).stop))

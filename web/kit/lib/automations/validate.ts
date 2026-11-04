@@ -43,16 +43,18 @@ function flatten(list: ActionNode[], depth: number): ActionNode[] {
   return out;
 }
 
-function totalDelayMs(flat: ActionNode[]): number {
-  return flat
-    .filter((a) => a.type === 'delay')
-    .reduce((sum, a) => sum + decodeParams<{ ms: number }>({ ms: 'int' }, {}, a.params).value.ms, 0);
+function pathDelayMs(list: ActionNode[], depth: number): number {
+  return list.reduce((sum, a) => {
+    if (a.type === 'delay') return sum + decodeParams<{ ms: number }>({ ms: 'int' }, {}, a.params).value.ms;
+    if (depth >= MAX_FLATTEN_DEPTH) return sum;
+    return sum + Math.max(0, ...nestedActions(a).map((branch) => pathDelayMs(branch, depth + 1)));
+  }, 0);
 }
 
 function checkBudgets(c: Chk, list: ActionNode[]): void {
   const flat = flatten(list, 0);
   c.count('actions', flat.length, 0, MAX_ACTIONS);
-  if (totalDelayMs(flat) > MAX_DELAY_MS) c.add('actions', CODE.delayBudget);
+  if (pathDelayMs(list, 0) > MAX_DELAY_MS) c.add('actions', CODE.delayBudget);
 }
 
 function finish(issues: Issue[]): Issue[] {

@@ -1086,6 +1086,7 @@ export type KnownMessageKey =
   | 'automations.action.if'
   | 'automations.action.lights'
   | 'automations.action.marker'
+  | 'automations.action.parallel'
   | 'automations.action.points_add'
   | 'automations.action.points_set'
   | 'automations.action.random_pick'

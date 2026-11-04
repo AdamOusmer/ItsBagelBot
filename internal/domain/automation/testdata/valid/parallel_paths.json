@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!hi" } },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": { "type": "live", "params": { "state": "live" } },
+        "then": [
+          {
+            "type": "parallel",
+            "params": {
+              "branches": [
+                { "weight": 1, "actions": [{ "type": "delay", "params": { "ms": 40000 } }, { "type": "chat", "params": { "text": "late" } }] },
+                { "weight": 1, "actions": [{ "type": "delay", "params": { "ms": 40000 } }, { "type": "chat", "params": { "text": "also late" } }] }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
