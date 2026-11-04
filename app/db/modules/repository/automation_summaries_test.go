@@ -4,7 +4,6 @@
 package repository_test
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func TestAutomationPreviewOnlyReachesSummaries(t *testing.T) {
 
 	listed, err := repo.List(ctx, 1001)
 	require.NoError(t, err)
-	body, err := json.Marshal(listed)
+	body, err := codec.Marshal(listed)
 	require.NoError(t, err)
 	assert.NotContains(t, string(body), `"n":[[`)
 	assert.Contains(t, string(body), "!one")

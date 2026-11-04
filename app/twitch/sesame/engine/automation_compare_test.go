@@ -4,13 +4,13 @@
 package engine
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,12 +30,12 @@ func loadCompareCases(t *testing.T) []compareCase {
 	raw, err := os.ReadFile(compareCasesPath)
 	require.NoError(t, err)
 	var cases []compareCase
-	require.NoError(t, json.Unmarshal(raw, &cases))
+	require.NoError(t, codec.Unmarshal(raw, &cases))
 	return cases
 }
 
 func compareCondition(left, op, right string) automation.Condition {
-	raw, err := json.Marshal(obj{"left": left, "op": op, "right": right})
+	raw, err := codec.Marshal(obj{"left": left, "op": op, "right": right})
 	if err != nil {
 		panic(err)
 	}

@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -192,7 +191,7 @@ func newAutoFixture(autos ...automation.Automation) *autoFixture {
 }
 
 func act(typ string, params any) automation.Action {
-	raw, err := json.Marshal(params)
+	raw, err := codec.Marshal(params)
 	if err != nil {
 		panic(err)
 	}
@@ -210,7 +209,7 @@ func manual(id string, actions ...automation.Action) automation.Automation {
 		ID: id, UserID: 1, Name: id, Enabled: true,
 		Definition: automation.Definition{
 			Version: 1, Actions: actions,
-			Trigger: automation.Trigger{Type: "manual", Params: json.RawMessage(`{}`)},
+			Trigger: automation.Trigger{Type: "manual", Params: codec.RawMessage(`{}`)},
 		},
 	}
 }

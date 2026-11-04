@@ -62,23 +62,25 @@ export function defaultParams(def: TypeDef): Params {
   return { ...params, ...structuredClone(TYPE_OVERRIDES[def.type] ?? {}) };
 }
 
-const find = (defs: TypeDef[], type: string): TypeDef | undefined => defs.find((d) => d.type === type);
+type TypeName = TypeDef['type'];
 
-export const triggerDef = (type: string) => find(TRIGGER_TYPES, type);
-export const conditionDef = (type: string) => find(CONDITION_TYPES, type);
-export const actionDef = (type: string) => find(ACTION_TYPES, type);
+const find = (defs: TypeDef[], type: TypeName): TypeDef | undefined => defs.find((d) => d.type === type);
 
-export function makeTrigger(type: string): Trigger {
+export const triggerDef = (type: TypeName) => find(TRIGGER_TYPES, type);
+export const conditionDef = (type: TypeName) => find(CONDITION_TYPES, type);
+export const actionDef = (type: TypeName) => find(ACTION_TYPES, type);
+
+export function makeTrigger(type: TypeName): Trigger {
   const def = triggerDef(type) ?? TRIGGER_TYPES[0];
   return { type: def.type, params: defaultParams(def) };
 }
 
-export function makeCondition(type: string): Condition {
+export function makeCondition(type: TypeName): Condition {
   const def = conditionDef(type) ?? CONDITION_TYPES[0];
   return { type: def.type, params: defaultParams(def) };
 }
 
-export function makeAction(type: string): Action {
+export function makeAction(type: TypeName): Action {
   const def = actionDef(type) ?? ACTION_TYPES[0];
   return { type: def.type, enabled: true, params: defaultParams(def) };
 }
@@ -87,7 +89,7 @@ export function blankDefinition(): Definition {
   return { version: VERSION, trigger: makeTrigger('manual'), conditions: [], actions: [] };
 }
 
-export function issueExact(index: IssueIndex, path: string): string | undefined {
+export function issueExact(index: IssueIndex, path: IssuePath): string | undefined {
   return index.get(path)?.[0];
 }
 
@@ -99,7 +101,7 @@ export function issueIndex(issues: readonly Issue[]): IssueIndex {
   return index;
 }
 
-export function issueAt(index: IssueIndex, path: string): string | undefined {
+export function issueAt(index: IssueIndex, path: IssuePath): string | undefined {
   const exact = index.get(path)?.[0];
   if (exact) return exact;
   for (const [at, codes] of index) if (at.startsWith(`${path}[`)) return codes[0];
@@ -112,17 +114,17 @@ function isUnder(path: IssuePath, prefix: IssuePath): boolean {
   return path === prefix || path.startsWith(`${prefix}.`) || path.startsWith(`${prefix}[`);
 }
 
-export function countUnder(index: IssueIndex, prefix: string): number {
+export function countUnder(index: IssueIndex, prefix: IssuePath): number {
   let n = 0;
   for (const [path, codes] of index) if (isUnder(path, prefix)) n += codes.length;
   return n;
 }
 
-export function eventFieldNames(kind: string): string[] {
+export function eventFieldNames(kind: ReturnType<typeof eventKinds>[number]['kind']): string[] {
   return eventKinds().find((k) => k.kind === kind)?.fields.map((f) => f.name) ?? [];
 }
 
-export function movedWithin<T>(list: T[], from: number, to: number): T[] {
+export function movedWithin<T>(list: T[], { from, to }: { from: number; to: number }): T[] {
   const outOfRange = to < 0 || to >= list.length;
   if (outOfRange || from === to) return list;
   const next = [...list];

@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"testing"
 	"time"
@@ -51,12 +50,12 @@ func automationOn() map[string]projection.ModuleView {
 }
 
 func chatAutomation(id, name, trigger string, params string) automation.Automation {
-	action, _ := json.Marshal(map[string]any{"text": "hello from " + name})
+	action, _ := codec.Marshal(map[string]any{"text": "hello from " + name})
 	return automation.Automation{
 		ID: id, UserID: 1, Name: name, Enabled: true,
 		Definition: automation.Definition{
 			Version: 1,
-			Trigger: automation.Trigger{Type: trigger, Params: json.RawMessage(params)},
+			Trigger: automation.Trigger{Type: trigger, Params: codec.RawMessage(params)},
 			Actions: []automation.Action{{Type: "chat", Params: action}},
 		},
 	}

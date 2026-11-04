@@ -5,7 +5,6 @@ package custom
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -75,7 +75,7 @@ func (p *api) sendPost(ctx context.Context, fl *flight, body string) error {
 }
 
 func postContentType(body string) string {
-	if json.Valid([]byte(body)) {
+	if codec.Valid([]byte(body)) {
 		return contentTypeJSON
 	}
 	return contentTypeText

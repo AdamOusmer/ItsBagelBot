@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"entgo.io/ent/dialect"
 	"github.com/google/uuid"
@@ -65,7 +65,7 @@ func NewAutomations(client *ent.Client, pub bus.Publisher, log *zap.Logger) *Aut
 
 func automationView(row *ent.Automation) (automation.Automation, error) {
 	var def automation.Definition
-	if err := json.Unmarshal([]byte(row.Definition), &def); err != nil {
+	if err := codec.Unmarshal([]byte(row.Definition), &def); err != nil {
 		return automation.Automation{}, err
 	}
 	return automation.Automation{
@@ -221,7 +221,7 @@ func writeAutomation(ctx context.Context, tx *ent.Tx, draft automationDraft) (*e
 	if err := checkAutomationRules(ctx, tx.Automation, draft, capCheckFor(existing, draft.in)); err != nil {
 		return nil, err
 	}
-	canonical, err := json.Marshal(draft.def)
+	canonical, err := codec.Marshal(draft.def)
 	if err != nil {
 		return nil, err
 	}

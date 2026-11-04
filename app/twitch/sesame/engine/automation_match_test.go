@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -151,8 +150,8 @@ func (r autoRig) pipeline() (*Pipeline, *recordingRunLog) {
 	return p, runs
 }
 
-func rawJSON(v any) json.RawMessage {
-	b, err := json.Marshal(v)
+func rawJSON(v any) codec.RawMessage {
+	b, err := codec.Marshal(v)
 	if err != nil {
 		panic(err)
 	}

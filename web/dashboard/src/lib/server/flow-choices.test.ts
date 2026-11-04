@@ -92,16 +92,16 @@ describe('flow choices', () => {
 
   test('keeps what a scene needs to be played next to its id', async () => {
     scenes = { scenes: [{ id: '7', name: 'Aurora', type: 'devices.capabilities.dynamic_scene', instance: 'lightScene', value: 7 }] };
-    expect(await sceneChoices('1', 'AA:BB', 'H6159')).toEqual({
+    expect(await sceneChoices('1', { device: 'AA:BB', sku: 'H6159' })).toEqual({
       options: [{ value: '7', label: 'Aurora', meta: { sceneType: 'devices.capabilities.dynamic_scene', sceneInstance: 'lightScene', sceneValue: '7' } }]
     });
   });
 
   test('tells a rejected Govee key from an unreachable service', async () => {
     scenes = { scenes: [], code: 'key_rejected' };
-    expect(await sceneChoices('1', 'AA:BB', 'H6159')).toEqual({ options: [], problem: 'keyRejected' });
+    expect(await sceneChoices('1', { device: 'AA:BB', sku: 'H6159' })).toEqual({ options: [], problem: 'keyRejected' });
     scenes = { scenes: [], code: 'unreachable' };
-    expect(await sceneChoices('1', 'AA:BB', 'H6159')).toEqual({ options: [], problem: 'unavailable' });
+    expect(await sceneChoices('1', { device: 'AA:BB', sku: 'H6159' })).toEqual({ options: [], problem: 'unavailable' });
   });
 
   test('names a saved reward and channel again from the live lists', async () => {

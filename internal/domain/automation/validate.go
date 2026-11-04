@@ -6,6 +6,8 @@ package automation
 import (
 	"sort"
 	"strings"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const maxFlattenDepth = 4
@@ -15,9 +17,9 @@ func Parse(raw []byte) (Definition, []Issue) {
 		return Definition{}, []Issue{{Code: CodeTooLong}}
 	}
 	var def Definition
-	if err := decodeStrict(raw, &def); err != nil {
+	if err := codec.UnmarshalStrict(raw, &def); err != nil {
 		code := CodeInvalidJSON
-		if isUnknownField(err) {
+		if codec.IsUnknownField(err) {
 			code = CodeUnknownField
 		}
 		return Definition{}, []Issue{{Code: code}}

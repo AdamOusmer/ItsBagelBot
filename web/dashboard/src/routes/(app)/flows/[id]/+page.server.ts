@@ -62,7 +62,7 @@ const DEVICE_PATTERN = /^[A-Za-z0-9:_-]{1,64}$/;
 
 async function scenesFor(locals: App.Locals, device: string, sku: string): Promise<ChoiceList> {
   if (DEMO) return (await import('#lib/flow/demo')).demoScenes(device);
-  return sceneChoices(effectiveId(locals.session), device, sku);
+  return sceneChoices(effectiveId(locals.session), { device, sku });
 }
 
 function demoResolve(login: string) {

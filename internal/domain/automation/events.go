@@ -5,11 +5,12 @@ package automation
 
 import (
 	"bytes"
-	"encoding/json"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 type EventField struct {
@@ -101,7 +102,7 @@ func (k EventKind) field(name string) (EventField, bool) {
 
 func (k EventKind) Extract(event []byte) map[string]string {
 	out := make(map[string]string, len(k.Fields))
-	dec := json.NewDecoder(bytes.NewReader(event))
+	dec := codec.NewDecoder(bytes.NewReader(event))
 	dec.UseNumber()
 	var root any
 	if err := dec.Decode(&root); err != nil {
@@ -132,13 +133,13 @@ func render(v any) (string, bool) {
 		return t, true
 	case bool:
 		return strconv.FormatBool(t), true
-	case json.Number:
+	case codec.Number:
 		return renderNumber(t), true
 	}
 	return "", false
 }
 
-func renderNumber(n json.Number) string {
+func renderNumber(n codec.Number) string {
 	if i, err := strconv.ParseInt(n.String(), 10, 64); err == nil {
 		return strconv.FormatInt(i, 10)
 	}

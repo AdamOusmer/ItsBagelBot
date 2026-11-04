@@ -6,13 +6,17 @@ import { unavailable, type ChoiceList, type ChoiceOption, type ChoiceSource } fr
 import { specFor } from '#lib/flow/model';
 import { readRewards } from './channelpoints-store';
 import { guildLayout, listGuilds, type DiscordEntry, type DiscordGuildSummary } from './discord-store';
-import { goveeStore } from './govee-store';
+import { goveeStore, type GoveeTarget } from './govee-store';
 import { listCounters } from './loyalty-store';
 
 const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 const MAX_GUILDS = 3;
 
-async function settled(source: string, load: () => Promise<ChoiceList>): Promise<ChoiceList> {
+type BroadcasterId = string;
+
+type GuildListing = { guild: DiscordGuildSummary; several: boolean };
+
+async function settled(source: ChoiceSource, load: () => Promise<ChoiceList>): Promise<ChoiceList> {
   try {
     return await load();
   } catch (err) {
@@ -21,18 +25,18 @@ async function settled(source: string, load: () => Promise<ChoiceList>): Promise
   }
 }
 
-export const rewardChoices = (userId: string) =>
+export const rewardChoices = (userId: BroadcasterId) =>
   settled('rewards', async () => {
     const { rewards } = await readRewards(userId);
     return { options: rewards.filter((reward) => reward.id).map((reward) => ({ value: reward.id, label: reward.title || reward.id })) };
   });
 
-export const counterChoices = (userId: string) =>
+export const counterChoices = (userId: BroadcasterId) =>
   settled('counters', async () => ({ options: (await listCounters(userId)).map((counter) => ({ value: counter.name, label: counter.name })) }));
 
 const canPost = (channel: DiscordEntry) => TEXT_CHANNEL_TYPES.has(channel.type) && channel.botCanSend !== false;
 
-function channelOptions(channels: DiscordEntry[], guild: DiscordGuildSummary, several: boolean): ChoiceOption[] {
+function channelOptions(channels: DiscordEntry[], { guild, several }: GuildListing): ChoiceOption[] {
   return channels.filter(canPost).map((channel) => ({
     value: channel.id,
     label: `#${channel.name}${several ? ` (${guild.name})` : ''}`,
@@ -40,22 +44,22 @@ function channelOptions(channels: DiscordEntry[], guild: DiscordGuildSummary, se
   }));
 }
 
-async function guildChannels(userId: string, guild: DiscordGuildSummary, several: boolean): Promise<ChoiceOption[]> {
-  const layout = await guildLayout({ userId, guildId: guild.guildId });
-  return channelOptions(layout.channels, guild, several);
+async function guildChannels(userId: BroadcasterId, listing: GuildListing): Promise<ChoiceOption[]> {
+  const layout = await guildLayout({ userId, guildId: listing.guild.guildId });
+  return channelOptions(layout.channels, listing);
 }
 
-export const discordChoices = (userId: string) =>
+export const discordChoices = (userId: BroadcasterId) =>
   settled('discordChannels', async () => {
     const guilds = (await listGuilds({ userId })).filter((guild) => guild.botPresent && !guild.needsReauth).slice(0, MAX_GUILDS);
     if (guilds.length === 0) return unavailable('notConnected');
-    const lists = await Promise.all(guilds.map((guild) => guildChannels(userId, guild, guilds.length > 1)));
+    const lists = await Promise.all(guilds.map((guild) => guildChannels(userId, { guild, several: guilds.length > 1 })));
     return { options: lists.flat() };
   });
 
-export const sceneChoices = (userId: string, device: string, sku: string) =>
+export const sceneChoices = (userId: BroadcasterId, target: GoveeTarget) =>
   settled('scenes', async () => {
-    const result = await goveeStore(userId).listScenes({ device, sku });
+    const result = await goveeStore(userId).listScenes(target);
     if (result.code === 'key_rejected') return unavailable('keyRejected');
     if (result.code) return unavailable();
     return {
@@ -71,7 +75,7 @@ type Named = { type: string; config: Record<string, string | number | boolean> }
 
 type Lookup = { node: Named; value: string; nameKey: string };
 
-const NAMED_SOURCES: Partial<Record<ChoiceSource, (userId: string) => Promise<ChoiceList>>> = {
+const NAMED_SOURCES: Partial<Record<ChoiceSource, (userId: BroadcasterId) => Promise<ChoiceList>>> = {
   rewards: rewardChoices,
   discordChannels: discordChoices
 };
@@ -90,7 +94,7 @@ function unnamed(nodes: readonly Named[]): Map<ChoiceSource, Lookup[]> {
   return wanted;
 }
 
-export async function attachChoiceNames(userId: string, nodes: readonly Named[]): Promise<void> {
+export async function attachChoiceNames(userId: BroadcasterId, nodes: readonly Named[]): Promise<void> {
   await Promise.all(
     [...unnamed(nodes)].map(async ([source, lookups]) => {
       const { options } = await NAMED_SOURCES[source]!(userId);

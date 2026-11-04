@@ -4,10 +4,10 @@
 package automation_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -15,7 +15,7 @@ import (
 func compiled(id, name, typ, params string) automation.Automation {
 	return automation.Automation{
 		ID: id, Name: name, Enabled: true,
-		Definition: automation.Definition{Version: 1, Trigger: automation.Trigger{Type: typ, Params: json.RawMessage(params)}},
+		Definition: automation.Definition{Version: 1, Trigger: automation.Trigger{Type: typ, Params: codec.RawMessage(params)}},
 	}
 }
 

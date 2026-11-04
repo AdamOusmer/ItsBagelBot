@@ -4,10 +4,18 @@
 export const COMPARE_OPS = ['gte', 'lt', 'eq', 'contains'];
 
 const DECIMAL = /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
-const EDGE_SPACE = /^[ \t\r\n]+|[ \t\r\n]+$/g;
+const EDGE_SPACE = new Set([' ', '\t', '\r', '\n']);
+
+function trimEdgeSpace(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && EDGE_SPACE.has(text[start]!)) start++;
+  while (end > start && EDGE_SPACE.has(text[end - 1]!)) end--;
+  return text.slice(start, end);
+}
 
 function decimalValue(text: string): number | null {
-  const trimmed = text.replace(EDGE_SPACE, '');
+  const trimmed = trimEdgeSpace(text);
   const value = DECIMAL.test(trimmed) ? Number(trimmed) : NaN;
   return Number.isFinite(value) ? value : null;
 }

@@ -4,14 +4,15 @@
 package automation
 
 import (
-	"encoding/json"
 	"slices"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 type entry struct {
-	check  func(c chk, raw json.RawMessage)
-	decode func(raw json.RawMessage) (any, error)
-	nested func(raw json.RawMessage) [][]Action
+	check  func(c chk, raw codec.RawMessage)
+	decode func(raw codec.RawMessage) (any, error)
+	nested func(raw codec.RawMessage) [][]Action
 	plan   func(params any) nesting
 }
 
@@ -41,7 +42,7 @@ var actionRole = map[string]int{
 
 func register[T any](check func(chk, T)) entry {
 	return entry{
-		check: func(c chk, raw json.RawMessage) {
+		check: func(c chk, raw codec.RawMessage) {
 			p, err := DecodeParams[T](raw)
 			if err != nil {
 				c.add("", paramsCode(err))
@@ -49,7 +50,7 @@ func register[T any](check func(chk, T)) entry {
 			}
 			check(c, p)
 		},
-		decode: func(raw json.RawMessage) (any, error) {
+		decode: func(raw codec.RawMessage) (any, error) {
 			p, err := DecodeParams[T](raw)
 			if pr, ok := any(&p).(preparer); ok && err == nil {
 				pr.prepare()
@@ -61,7 +62,7 @@ func register[T any](check func(chk, T)) entry {
 
 func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
 	e := register(check)
-	e.nested = func(raw json.RawMessage) [][]Action {
+	e.nested = func(raw codec.RawMessage) [][]Action {
 		p, err := DecodeParams[T](raw)
 		if err != nil {
 			return nil
@@ -73,7 +74,7 @@ func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
 }
 
 func paramsCode(err error) issueCode {
-	if isUnknownField(err) {
+	if codec.IsUnknownField(err) {
 		return CodeUnknownField
 	}
 	return CodeInvalidFormat
@@ -81,7 +82,7 @@ func paramsCode(err error) issueCode {
 
 type typedParams struct {
 	Type   string
-	Params json.RawMessage
+	Params codec.RawMessage
 }
 
 func (c chk) typed(reg map[string]entry, t typedParams) {

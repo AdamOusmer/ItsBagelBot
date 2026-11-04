@@ -5,7 +5,6 @@ package automation_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/pkg/codec"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -44,7 +44,7 @@ func readFile(t *testing.T, path string) []byte {
 
 func indented(t *testing.T, v any) []byte {
 	t.Helper()
-	raw, err := json.MarshalIndent(v, "", "  ")
+	raw, err := codec.MarshalIndent(v, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestValidFixturesRoundTrip(t *testing.T) {
 	for _, f := range fixtures(t, "valid") {
 		t.Run(filepath.Base(f), func(t *testing.T) {
 			def, _ := automation.Parse(readFile(t, f))
-			first, err := json.Marshal(def)
+			first, err := codec.Marshal(def)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -98,7 +98,7 @@ func TestValidFixturesRoundTrip(t *testing.T) {
 			if issues != nil {
 				t.Fatalf("reparse issues: %v", issues)
 			}
-			second, _ := json.Marshal(again)
+			second, _ := codec.Marshal(again)
 			if !bytes.Equal(first, second) {
 				t.Fatalf("round trip drifted:\n%s\n%s", first, second)
 			}
@@ -171,11 +171,11 @@ func TestFlattenWalksNestedBranches(t *testing.T) {
 }
 
 func TestDecodeParamsAppliesDefaults(t *testing.T) {
-	p, err := automation.DecodeParams[automation.CommandTrigger](json.RawMessage(`{"name":"!hi"}`))
+	p, err := automation.DecodeParams[automation.CommandTrigger](codec.RawMessage(`{"name":"!hi"}`))
 	if err != nil || !hasCommandDefaults(p) {
 		t.Fatalf("got %+v, %v", p, err)
 	}
-	if _, err := automation.DecodeParams[automation.CommandTrigger](json.RawMessage(`{"nope":1}`)); err == nil {
+	if _, err := automation.DecodeParams[automation.CommandTrigger](codec.RawMessage(`{"nope":1}`)); err == nil {
 		t.Fatal("expected unknown field error")
 	}
 }

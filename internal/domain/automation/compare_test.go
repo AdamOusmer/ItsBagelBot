@@ -4,11 +4,11 @@
 package automation_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/pkg/codec"
 )
 
 type compareCase struct {
@@ -20,7 +20,7 @@ type compareCase struct {
 
 func TestComparePassesMatchesSharedTable(t *testing.T) {
 	var cases []compareCase
-	if err := json.Unmarshal(readFile(t, "testdata/compare_cases.json"), &cases); err != nil {
+	if err := codec.Unmarshal(readFile(t, "testdata/compare_cases.json"), &cases); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range cases {

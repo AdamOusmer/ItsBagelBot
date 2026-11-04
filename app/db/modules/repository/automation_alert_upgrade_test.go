@@ -5,7 +5,6 @@ package repository_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/app/db/modules/ent"
@@ -56,7 +55,7 @@ func (r alertRig) alertConfig(t *testing.T) map[string]any {
 	require.NoError(t, err)
 	require.Len(t, views, 1)
 	var cfg map[string]any
-	require.NoError(t, json.Unmarshal(views[0].Configs, &cfg))
+	require.NoError(t, codec.Unmarshal(views[0].Configs, &cfg))
 	return cfg
 }
 

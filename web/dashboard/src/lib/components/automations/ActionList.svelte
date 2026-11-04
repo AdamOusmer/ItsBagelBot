@@ -63,7 +63,7 @@
   }
 
   function move(i: number, to: number) {
-    actions = movedWithin(actions, i, to);
+    actions = movedWithin(actions, { from: i, to });
   }
 
   function changeType(action: Action, type: string) {

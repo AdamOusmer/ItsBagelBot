@@ -4,7 +4,6 @@
 package rpc
 
 import (
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/app/db/modules/ent"
@@ -15,6 +14,7 @@ import (
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/pkg/bus/bustest"
+	"ItsBagelBot/pkg/codec"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
@@ -32,7 +32,7 @@ func newAutomationsRPC(t *testing.T, name testdb.Name) *automationsRPC {
 func TestAutomationSummaryAndToggleVerbs(t *testing.T) {
 	a := newAutomationsRPC(t, "rpc-automation-summaries")
 	ctx := t.Context()
-	created, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "first", Enabled: true, Definition: json.RawMessage(manualDef), Preview: `{"n":[]}`}, 1001)
+	created, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "first", Enabled: true, Definition: codec.RawMessage(manualDef), Preview: `{"n":[]}`}, 1001)
 	require.NoError(t, err)
 	require.Empty(t, created.Code)
 
@@ -60,7 +60,7 @@ func TestAutomationVerbsRoundTrip(t *testing.T) {
 	a := newAutomationsRPC(t, "rpc-automation-roundtrip")
 	ctx := t.Context()
 
-	created, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "first", Enabled: true, Definition: json.RawMessage(manualDef)}, 1001)
+	created, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "first", Enabled: true, Definition: codec.RawMessage(manualDef)}, 1001)
 	require.NoError(t, err)
 	require.Empty(t, created.Code)
 	require.NotNil(t, created.Automation)
@@ -90,39 +90,39 @@ func TestAutomationVerbsRoundTrip(t *testing.T) {
 func TestAutomationUpsertRefusals(t *testing.T) {
 	a := newAutomationsRPC(t, "rpc-automation-refusals")
 	ctx := t.Context()
-	created, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "taken", Definition: json.RawMessage(manualDef)}, 1001)
+	created, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "taken", Definition: codec.RawMessage(manualDef)}, 1001)
 	require.NoError(t, err)
 
-	dup, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "TAKEN", Definition: json.RawMessage(manualDef)}, 1001)
+	dup, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "TAKEN", Definition: codec.RawMessage(manualDef)}, 1001)
 	require.NoError(t, err)
 	require.Equal(t, domainrpc.CodeConflict, dup.Code)
 	require.True(t, dup.Conflict)
 	require.Equal(t, []automation.Issue{{Path: "name", Code: "duplicate"}}, dup.Issues)
 
 	stale := int64(9)
-	conflict, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{ID: created.Automation.ID, Name: "taken", Definition: json.RawMessage(manualDef), ExpectedRevision: &stale}, 1001)
+	conflict, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{ID: created.Automation.ID, Name: "taken", Definition: codec.RawMessage(manualDef), ExpectedRevision: &stale}, 1001)
 	require.NoError(t, err)
 	require.Equal(t, domainrpc.CodeConflict, conflict.Code)
 	require.True(t, conflict.Conflict)
 
-	invalid, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "broken", Definition: json.RawMessage(`{`)}, 1001)
+	invalid, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{Name: "broken", Definition: codec.RawMessage(`{`)}, 1001)
 	require.NoError(t, err)
 	require.Equal(t, domainrpc.CodeInvalid, invalid.Code)
 	require.Contains(t, invalid.Issues, automation.Issue{Path: "", Code: "invalid_json"})
 
-	unknown, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{ID: "nope", Name: "x", Definition: json.RawMessage(manualDef)}, 1001)
+	unknown, err := a.handleUpsert(ctx, automationrpc.UpsertRequest{ID: "nope", Name: "x", Definition: codec.RawMessage(manualDef)}, 1001)
 	require.NoError(t, err)
 	require.Equal(t, domainrpc.CodeNotFound, unknown.Code)
 }
 
 func TestAutomationValidateVerb(t *testing.T) {
 	a := newAutomationsRPC(t, "rpc-automation-validate")
-	ok, err := a.handleValidate(t.Context(), automationrpc.ValidateRequest{Name: "fine", Definition: json.RawMessage(manualDef)}, 1001)
+	ok, err := a.handleValidate(t.Context(), automationrpc.ValidateRequest{Name: "fine", Definition: codec.RawMessage(manualDef)}, 1001)
 	require.NoError(t, err)
 	require.Empty(t, ok.Issues)
 	require.Empty(t, ok.Code)
 
-	bad, err := a.handleValidate(t.Context(), automationrpc.ValidateRequest{Name: "fine", Definition: json.RawMessage(`[`)}, 1001)
+	bad, err := a.handleValidate(t.Context(), automationrpc.ValidateRequest{Name: "fine", Definition: codec.RawMessage(`[`)}, 1001)
 	require.NoError(t, err)
 	require.NotEmpty(t, bad.Issues)
 }

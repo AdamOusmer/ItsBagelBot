@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
-	"strings"
 
 	"ItsBagelBot/pkg/tmpl"
 )
@@ -164,11 +163,8 @@ func (pl *planner) lexFields(v reflect.Value) {
 }
 
 func (pl *planner) lexTemplate(text string) {
-	if !strings.Contains(text, "{") {
-		return
-	}
 	toks := tmpl.Lex(text)
-	if len(toks) == 0 {
+	if !slices.ContainsFunc(toks, func(t tmpl.Token) bool { return t.Kind == tmpl.KindVar }) {
 		return
 	}
 	if pl.templates == nil {

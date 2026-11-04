@@ -4,13 +4,13 @@
 package engine
 
 import (
-	"encoding/json"
 	"maps"
 	"slices"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +32,7 @@ func TestAutomationEveryConditionTypeMatchesDomainParams(t *testing.T) {
 	for _, typ := range slices.Sorted(maps.Keys(conditionChecks)) {
 		t.Run(typ, func(t *testing.T) {
 			auto := manual("main", act("stop", obj{}))
-			auto.Definition.Conditions = []automation.Condition{{Type: typ, Params: json.RawMessage(`{}`)}}
+			auto.Definition.Conditions = []automation.Condition{{Type: typ, Params: codec.RawMessage(`{}`)}}
 			fx := newAutoFixture(auto)
 			rec := fx.run(t, "main", "req-"+typ, nil)
 			assert.NotEqual(t, errConditionParams.Error(), rec.Reason)
@@ -90,7 +90,7 @@ func TestAutomationTemplateExpansion(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.template, func(t *testing.T) {
-			want, err := json.Marshal(tc.want)
+			want, err := codec.Marshal(tc.want)
 			require.NoError(t, err)
 			assert.Equal(t, []string{`chat {"broadcaster_id":"123","message":` + string(want) + `}`},
 				expandedChat(t, tc.template, "!hi Bob two {user}"))

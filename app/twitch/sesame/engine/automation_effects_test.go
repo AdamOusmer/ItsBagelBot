@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -173,7 +172,7 @@ func TestAutomationLightsSceneCarriesTheStoredScene(t *testing.T) {
 		ChannelID: "1", Device: "AA:BB", SKU: "H6008",
 		Scene: &gossiprpc.GoveeScene{
 			ID: "snapshot:4:9", Name: "Sunset", Type: "devices.capabilities.dynamic_scene",
-			Instance: "snapshot", Value: json.RawMessage(`{"paramId":4,"id":9}`),
+			Instance: "snapshot", Value: codec.RawMessage(`{"paramId":4,"id":9}`),
 		},
 	}, fx.gossip.req)
 }

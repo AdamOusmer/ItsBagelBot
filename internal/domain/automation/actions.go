@@ -4,13 +4,13 @@
 package automation
 
 import (
-	"encoding/json"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/pkg/codec"
 )
 
 var (
@@ -267,7 +267,7 @@ func checkLightsScene(c chk, p LightsAction) {
 	c.text("scene_name", p.SceneName, upTo(100))
 	c.text("scene_type", p.SceneType, nonEmpty(64))
 	c.text("scene_instance", p.SceneInstance, nonEmpty(64))
-	if c.text("scene_value", p.SceneValue, nonEmpty(200)) && !json.Valid([]byte(p.SceneValue)) {
+	if c.text("scene_value", p.SceneValue, nonEmpty(200)) && !codec.Valid([]byte(p.SceneValue)) {
 		c.add("scene_value", CodeInvalidFormat)
 	}
 }

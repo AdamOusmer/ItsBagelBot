@@ -4,8 +4,9 @@
 package automation
 
 import (
-	"encoding/json"
 	"time"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const Version = 1
@@ -41,19 +42,19 @@ type Definition struct {
 }
 
 type Trigger struct {
-	Type   string          `json:"type"`
-	Params json.RawMessage `json:"params,omitempty"`
+	Type   string           `json:"type"`
+	Params codec.RawMessage `json:"params,omitempty"`
 }
 
 type Condition struct {
-	Type   string          `json:"type"`
-	Params json.RawMessage `json:"params,omitempty"`
+	Type   string           `json:"type"`
+	Params codec.RawMessage `json:"params,omitempty"`
 }
 
 type Action struct {
-	Type    string          `json:"type"`
-	Enabled *bool           `json:"enabled,omitempty"`
-	Params  json.RawMessage `json:"params,omitempty"`
+	Type    string           `json:"type"`
+	Enabled *bool            `json:"enabled,omitempty"`
+	Params  codec.RawMessage `json:"params,omitempty"`
 }
 
 func (a Action) IsEnabled() bool { return a.Enabled == nil || *a.Enabled }

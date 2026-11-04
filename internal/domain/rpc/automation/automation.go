@@ -4,17 +4,17 @@
 package automationrpc
 
 import (
-	"encoding/json"
 	"time"
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
 	AutomationPrefix          = "bagel.rpc.modules.automation"
 	ProjectionAutomationsSubj = "bagel.rpc.internal.projection.modules.automations.get"
-	RunsSubject              = "bagel.rpc.automations.runs"
+	RunsSubject               = "bagel.rpc.automations.runs"
 )
 
 const (
@@ -77,23 +77,23 @@ type GetReply struct {
 }
 
 type UpsertRequest struct {
-	UserID           string          `json:"user_id"`
-	ID               string          `json:"id,omitempty"`
-	Name             string          `json:"name"`
-	Enabled          bool            `json:"enabled"`
-	Definition       json.RawMessage `json:"definition"`
-	Preview          string          `json:"preview,omitempty"`
-	ExpectedRevision *int64          `json:"expected_revision,omitempty"`
+	UserID           string           `json:"user_id"`
+	ID               string           `json:"id,omitempty"`
+	Name             string           `json:"name"`
+	Enabled          bool             `json:"enabled"`
+	Definition       codec.RawMessage `json:"definition"`
+	Preview          string           `json:"preview,omitempty"`
+	ExpectedRevision *int64           `json:"expected_revision,omitempty"`
 }
 
 type UpgradeAlertRequest struct {
-	UserID            string          `json:"user_id"`
-	Name              string          `json:"name"`
-	Enabled           bool            `json:"enabled"`
-	Definition        json.RawMessage `json:"definition"`
-	Preview           string          `json:"preview,omitempty"`
-	EnableKey         string          `json:"enable_key"`
-	ExpectedModuleRev *int            `json:"expected_module_rev,omitempty"`
+	UserID            string           `json:"user_id"`
+	Name              string           `json:"name"`
+	Enabled           bool             `json:"enabled"`
+	Definition        codec.RawMessage `json:"definition"`
+	Preview           string           `json:"preview,omitempty"`
+	EnableKey         string           `json:"enable_key"`
+	ExpectedModuleRev *int             `json:"expected_module_rev,omitempty"`
 }
 
 type DowngradeAlertRequest struct {
@@ -129,9 +129,9 @@ type DeleteReply struct {
 }
 
 type ValidateRequest struct {
-	UserID     string          `json:"user_id"`
-	Name       string          `json:"name"`
-	Definition json.RawMessage `json:"definition"`
+	UserID     string           `json:"user_id"`
+	Name       string           `json:"name"`
+	Definition codec.RawMessage `json:"definition"`
 }
 
 type ValidateReply struct {

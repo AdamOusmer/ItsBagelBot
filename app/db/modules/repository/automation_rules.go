@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -13,6 +12,7 @@ import (
 	entautomation "ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/pkg/codec"
 )
 
 const actionRun = "run"
@@ -114,7 +114,7 @@ func unknownRunTargets(def automation.Definition, known map[string]bool) []autom
 		var params struct {
 			AutomationID string `json:"automation_id"`
 		}
-		_ = json.Unmarshal(action.Params, &params)
+		_ = codec.Unmarshal(action.Params, &params)
 		if !known[params.AutomationID] {
 			issues = append(issues, automation.Issue{Path: path + ".params.automation_id", Code: "unknown_automation"})
 		}
@@ -135,7 +135,7 @@ func walkActions(actions []automation.Action, prefix string, visit func(path str
 		path := fmt.Sprintf("%s[%d]", prefix, i)
 		visit(path, action)
 		var nested nestedActions
-		if json.Unmarshal(action.Params, &nested) != nil {
+		if codec.Unmarshal(action.Params, &nested) != nil {
 			continue
 		}
 		walkActions(nested.Then, path+".params.then", visit)

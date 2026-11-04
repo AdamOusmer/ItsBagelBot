@@ -4,9 +4,10 @@
 package automation_test
 
 import (
-	"encoding/json"
 	"regexp"
 	"testing"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 type regexCase struct {
@@ -16,7 +17,7 @@ type regexCase struct {
 
 func TestRegexTableMatchesGoCompiler(t *testing.T) {
 	var cases []regexCase
-	if err := json.Unmarshal(readFile(t, "testdata/regex_cases.json"), &cases); err != nil {
+	if err := codec.Unmarshal(readFile(t, "testdata/regex_cases.json"), &cases); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range cases {

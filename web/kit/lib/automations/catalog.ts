@@ -27,14 +27,18 @@ export interface TypeDef {
 
 type FieldOpts = Partial<Omit<FieldDef, 'name' | 'kind' | 'labelKey'>>;
 
-const f = (name: string, kind: FieldKind, opts: FieldOpts = {}): FieldDef => ({
+type FieldName = FieldDef['name'];
+
+type TypeName = TypeDef['type'];
+
+const f = (name: FieldName, kind: FieldKind, opts: FieldOpts = {}): FieldDef => ({
   name,
   kind,
   ...opts,
   labelKey: `automations.field.${name}`,
 });
 
-const def = (group: 'trigger' | 'condition' | 'action', type: string, fields: FieldDef[] = [], supported = true): TypeDef => ({
+const def = (group: TypeDef['group'], type: TypeName, fields: FieldDef[] = [], supported = true): TypeDef => ({
   group,
   type,
   supported,
@@ -42,9 +46,9 @@ const def = (group: 'trigger' | 'condition' | 'action', type: string, fields: Fi
   fields,
 });
 
-const trigger = (type: string, fields?: FieldDef[]) => def('trigger', type, fields);
-const condition = (type: string, fields?: FieldDef[]) => def('condition', type, fields);
-const action = (type: string, fields?: FieldDef[]) => def('action', type, fields);
+const trigger = (type: TypeName, fields?: FieldDef[]) => def('trigger', type, fields);
+const condition = (type: TypeName, fields?: FieldDef[]) => def('condition', type, fields);
+const action = (type: TypeName, fields?: FieldDef[]) => def('action', type, fields);
 
 const counterName = f('name', 'text', { required: true, min: 1, max: 64 });
 const reasonOpt = f('reason', 'template', { max: 500 });
@@ -52,9 +56,9 @@ const loginReq = f('login', 'login', { required: true, min: 1, max: 100 });
 const loginOpt = f('login', 'login', { min: 0, max: 100 });
 const textReq = f('text', 'template', { required: true, min: 1, max: 500 });
 const op = f('op', 'enum', { required: true, values: CMP_OPS });
-const listLogin = (name: string) => f(name, 'list', { max: 100 });
-const listUserId = (name: string) => f(name, 'list', { max: 100 });
-const listCategory = (name: string) => f(name, 'list', { max: 50 });
+const listLogin = (name: FieldName) => f(name, 'list', { max: 100 });
+const listUserId = (name: FieldName) => f(name, 'list', { max: 100 });
+const listCategory = (name: FieldName) => f(name, 'list', { max: 50 });
 
 export const TRIGGER_TYPES: TypeDef[] = [
   trigger('command', [

@@ -7,11 +7,13 @@ import { classifyFlow } from './flow-layer';
 import { validateDefinition } from './validate';
 import type { Definition } from './types';
 
-const node = (id: string, type: string, config: FlowConfig = {}): FlowNode => ({ id, type, x: 0, y: 0, config });
-const edge = (from: string, port: string, to: string): FlowEdge => ({ id: `${from}-${port}-${to}`, from, port, to });
+const node = (id: FlowNode['id'], type: FlowNode['type'], config: FlowConfig = {}): FlowNode => ({ id, type, x: 0, y: 0, config });
+const edge = (from: FlowEdge['from'], port: FlowEdge['port'], to: FlowEdge['to']): FlowEdge => ({ id: `${from}-${port}-${to}`, from, port, to });
 const flow = (nodes: FlowNode[], edges: FlowEdge[]): Flow => ({ id: 'f', name: 'flow', enabled: true, nodes, edges });
 const meta = { id: 'f', name: 'flow', enabled: true };
-const chat = (text: string) => ({ type: 'chat', params: { text } });
+type Label = string;
+
+const chat = (text: Label) => ({ type: 'chat', params: { text } });
 
 function lowered(input: Flow): Definition {
   const result = flowToDefinition(input);
@@ -193,8 +195,8 @@ describe('lowering rules', () => {
 });
 
 describe('reply tokens', () => {
-  const line = (message: string) => node('a', 'reply.chat', { message });
-  const after = (trigger: FlowNode, message: string) => flow([trigger, line(message)], [edge(trigger.id, 'next', 'a')]);
+  const line = (message: Label) => node('a', 'reply.chat', { message });
+  const after = (trigger: FlowNode, message: Label) => flow([trigger, line(message)], [edge(trigger.id, 'next', 'a')]);
   const text = (definition: Definition) => definition.actions?.[0]?.params?.text;
 
   test.each([
@@ -229,7 +231,7 @@ describe('reply tokens', () => {
     });
   });
 
-  const bump = (id: string, counter: string) => node(id, 'reply.counter', { counter });
+  const bump = (id: FlowNode['id'], counter: Label) => node(id, 'reply.counter', { counter });
 
   test('{count} after one counter reads that counter and draws back as {count}', () => {
     const definition = lowered(
@@ -276,7 +278,7 @@ describe('reply tokens', () => {
 });
 
 describe('refusals', () => {
-  const chatNode = (id: string) => node(id, 'reply.chat', { message: id });
+  const chatNode = (id: FlowNode['id']) => node(id, 'reply.chat', { message: id });
 
   test('no trigger', () => {
     expect(issueCodes(flow([chatNode('a')], []))).toEqual(['no_trigger']);
@@ -314,9 +316,9 @@ describe('refusals', () => {
 });
 
 describe('chat word trigger', () => {
-  const wordFlow = (word: string) => flow([node('t', 'twitch.chat.word', { word }), node('r', 'reply.chat', { message: 'hi' })], [edge('t', 'next', 'r')]);
-  const pattern = (word: string) => lowered(wordFlow(word)).trigger.params!.name as string;
-  const fires = (word: string, text: string) => new RegExp(pattern(word), 'iu').test(text);
+  const wordFlow = (word: Label) => flow([node('t', 'twitch.chat.word', { word }), node('r', 'reply.chat', { message: 'hi' })], [edge('t', 'next', 'r')]);
+  const pattern = (word: Label) => lowered(wordFlow(word)).trigger.params!.name as string;
+  const fires = (word: Label, text: Label) => new RegExp(pattern(word), 'iu').test(text);
 
   test.each(['bagel', 'café', 'hi!', 'good morning', 'a.b*c', '(x)', '[y]', '{z}', '^$|', 'c\\1'])('%s validates and round trips', (word) => {
     const definition = lowered(wordFlow(word));
@@ -327,6 +329,8 @@ describe('chat word trigger', () => {
   });
 
   test.each([
+    ['c\\1', 'say c\\1 now', true],
+    ['c\\1', 'say c1 now', false],
     ['hi', 'hi there', true],
     ['hi', 'oh hi', true],
     ['hi', 'HI!', true],
@@ -508,7 +512,7 @@ describe('locating validation issues on steps', () => {
   const gate = node('g', 'cond.role', { level: 'mod' });
   const check = node('c', 'cond.compare', { left: '', op: 'gte', right: '5' });
   const post = node('d', 'reply.discord', { channel: '223456789012345678', message: 'x' });
-  const wait = (id: string) => node(id, 'reply.wait', { seconds: 6 });
+  const wait = (id: FlowNode['id']) => node(id, 'reply.wait', { seconds: 6 });
 
   const refused = (input: Flow) => {
     const result = flowToDefinition(input);
