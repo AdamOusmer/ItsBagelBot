@@ -105,8 +105,12 @@ func apiErr(resp *github.Response, err error) error {
 	if err == nil {
 		return nil
 	}
-	if sentinel, ok := sentinels[statusOf(resp)]; ok {
+	status := statusOf(resp)
+	if sentinel, ok := sentinels[status]; ok {
 		return fmt.Errorf("%w: %w", sentinel, err)
+	}
+	if status >= http.StatusInternalServerError {
+		return fmt.Errorf("%w: %w", ports.ErrTransient, err)
 	}
 	return err
 }

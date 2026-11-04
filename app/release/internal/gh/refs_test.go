@@ -87,9 +87,9 @@ func TestTag(t *testing.T) {
 			want: tagOutcome{},
 		},
 		{
-			name: "server error surfaces",
+			name: "server error is transient",
 			rt:   routes{tagRefPath: reply(http.StatusBadGateway, `{"message":"bad gateway"}`)},
-			want: tagOutcome{Kind: errOther},
+			want: tagOutcome{Kind: ports.ErrTransient},
 		},
 	}
 	for _, tc := range cases {

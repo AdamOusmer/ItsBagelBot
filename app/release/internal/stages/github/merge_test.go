@@ -122,6 +122,32 @@ func TestMergePRs(t *testing.T) {
 			mergeResult{Code: deploy.FailNotMergeable, Target: "base"},
 		},
 		{
+			"merges once GitHub's silence on mergeability outlasts the limit",
+			withOpenPR(func(p *fakePR) { p.Mergeable = nil }),
+			merged,
+		},
+		{
+			"stops when mergeability stays unknown and GitHub refuses the merge",
+			withOpenPR(func(p *fakePR) { p.Mergeable, p.conflict = nil, true }),
+			mergeResult{Code: deploy.FailNotMergeable, Target: "base"},
+		},
+		{
+			"rides out a GitHub 5xx",
+			func(f *fixture) {
+				withOpenPR(nil)(f)
+				f.gh.flakes["pr"] = 2
+			},
+			merged,
+		},
+		{
+			"fails once GitHub keeps answering 5xx",
+			func(f *fixture) {
+				withOpenPR(nil)(f)
+				f.gh.flakes["pr"] = 99
+			},
+			mergeResult{Code: deploy.FailGitHub, Target: "base"},
+		},
+		{
 			"merge ahead of the target moves it",
 			withMergedPR("base", "c2"),
 			mergeResult{Done: true, Target: "c2", Merged: []int{5}},

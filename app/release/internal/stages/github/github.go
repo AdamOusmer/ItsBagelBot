@@ -15,6 +15,8 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
+const transientRetries = 5
+
 func All() []stage.Stage {
 	return []stage.Stage{
 		ghStage{deploy.StagePreflight, preflightDone, runPreflight},
@@ -38,11 +40,44 @@ type ghStage struct {
 func (s ghStage) ID() deploy.StageID { return s.id }
 
 func (s ghStage) Done(ctx context.Context, rc *stage.RunCtx) (bool, error) {
-	return s.done(ctx, rc)
+	done, err := s.done(ctx, rc)
+	err = retryTransient(ctx, rc, err, func() (again error) {
+		done, again = s.done(ctx, rc)
+		return again
+	})
+	if errors.Is(err, ports.ErrTransient) {
+		return false, githubFailure(err)
+	}
+	return done, err
 }
 
 func (s ghStage) Run(ctx context.Context, rc *stage.RunCtx) error {
-	return githubFailure(s.run(ctx, rc))
+	err := s.run(ctx, rc)
+	return githubFailure(retryTransient(ctx, rc, err, func() error { return s.resume(ctx, rc) }))
+}
+
+// GitHub can apply a write and still answer 5xx, so a retry looks for the landed work first.
+func (s ghStage) resume(ctx context.Context, rc *stage.RunCtx) error {
+	done, err := s.done(ctx, rc)
+	if err != nil || done {
+		return err
+	}
+	return s.run(ctx, rc)
+}
+
+func retryTransient(ctx context.Context, rc *stage.RunCtx, err error, again func() error) error {
+	wait := rc.Deps.Config.PollEvery
+	for range transientRetries {
+		if !errors.Is(err, ports.ErrTransient) {
+			return err
+		}
+		if sleepErr := sleep(ctx, wait); sleepErr != nil {
+			return sleepErr
+		}
+		err = again()
+		wait *= 2
+	}
+	return err
 }
 
 var passThrough = []error{stage.ErrSkipped, stage.ErrCancelled, context.Canceled, context.DeadlineExceeded, ports.ErrInvalid}
