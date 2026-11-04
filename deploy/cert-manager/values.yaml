@@ -1,0 +1,23 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+crds: {enabled: true, keep: true}
+resources:
+  requests: {cpu: 25m, memory: 128Mi}
+  limits: {cpu: 250m, memory: 256Mi}
+nodeSelector: {role: cp}
+tolerations:
+  - {key: role, operator: Equal, value: cp, effect: NoSchedule}
+cainjector:
+  resources:
+    requests: {cpu: 10m, memory: 64Mi}
+    limits: {cpu: 200m, memory: 256Mi}
+  nodeSelector: {role: cp}
+  tolerations:
+    - {key: role, operator: Equal, value: cp, effect: NoSchedule}
+webhook:
+  resources:
+    requests: {cpu: 10m, memory: 96Mi}
+    limits: {cpu: 200m, memory: 128Mi}
+  nodeSelector: {role: cp}
+  tolerations:
+    - {key: role, operator: Equal, value: cp, effect: NoSchedule}
