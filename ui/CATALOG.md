@@ -162,7 +162,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Table** | `label*`: string<br>`zebra`: boolean<br>`compact`: boolean<br>`roomy`: boolean<br>`minWidth`: string | svelte + astro | stable | `styles/elements/table.css` |
 | **Timeline** | `rail`: 'fade' \| 'bridge'<br>`draw`: boolean<br>`as`: 'ol' \| 'ul' \| 'div' | svelte + astro | stable | `styles/elements/timeline.css` |
 | **TimelineItem** | `dot`: boolean<br>`as`: 'li' \| 'div' | svelte + astro | stable | `styles/elements/timeline.css` |
-| **VarCard** | `token*`: string<br>`hint`: string<br>`title`: string<br>`onclick`: () => void<br>`onfocus`: () => void | svelte<br>*Svelte only: the compact list form of the variable card; Astro pages build the full card from the `bb-var-card` classes.* | svelte-only | `styles/elements/var-card.css` |
+| **VarCard** | `token*`: string<br>`hint`: string<br>`title`: string<br>`onclick`: () => void<br>`onfocus`: () => void<br>`stacked`: boolean | svelte<br>*Svelte only: the compact list form of the variable card; Astro pages build the full card from the `bb-var-card` classes.* | svelte-only | `styles/elements/var-card.css` |
 
 ## Motion
 

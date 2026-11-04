@@ -54,63 +54,67 @@ function columns(flow: Flow): Map<string, number> {
 type Pos = { x: number; y: number };
 type Board = { flow: Flow; byId: Map<string, FlowNode>; centerY: Map<string, number>; result: Map<string, Pos> };
 
-const specOf = (board: Board, id: string) => specFor(board.byId.get(id)?.type ?? '');
-const heightOf = (board: Board, id: string) => nodeHeight(specOf(board, id));
+type Layer = { ids: string[]; column: number };
+
+const specOf = (node: FlowNode | undefined) => specFor(node?.type ?? '');
+const heightOf = (board: Board, id: string) => nodeHeight(specOf(board.byId.get(id)));
 
 function portIndex(board: Board, edge: FlowEdge): number {
-  const spec = specOf(board, edge.from);
+  const spec = specOf(board.byId.get(edge.from));
   const ports = spec ? outputsFor(spec) : [];
   return Math.max(0, ports.findIndex((p) => p.id === edge.port));
 }
 
-function layersOf(flow: Flow, col: Map<string, number>): string[][] {
+function layersOf(flow: Flow, col: Map<string, number>): Layer[] {
   const maxCol = Math.max(0, ...col.values());
-  const layers: string[][] = Array.from({ length: maxCol + 1 }, () => []);
-  for (const n of flow.nodes) layers[col.get(n.id) as number].push(n.id);
+  const layers: Layer[] = Array.from({ length: maxCol + 1 }, (_, column) => ({ ids: [], column }));
+  for (const n of flow.nodes) layers[col.get(n.id) as number].ids.push(n.id);
   return layers;
 }
 
-function orderKey(board: Board, id: string, index: number, column: number): number {
+function orderKey(board: Board, layer: Layer, index: number): number {
+  const id = layer.ids[index];
   const incoming = board.flow.edges.filter((e) => e.to === id && board.centerY.has(e.from));
-  if (column === 0 || incoming.length === 0) return index;
+  if (layer.column === 0 || incoming.length === 0) return index;
   const total = incoming.reduce((sum, e) => sum + (board.centerY.get(e.from) as number) + portIndex(board, e) * 0.001, 0);
   return total / incoming.length;
 }
 
-function sortLayer(board: Board, layer: string[], column: number): void {
-  const key = new Map(layer.map((id, i) => [id, orderKey(board, id, i, column)]));
-  layer.sort((a, b) => (key.get(a) as number) - (key.get(b) as number));
+function sortLayer(board: Board, layer: Layer): void {
+  const key = new Map(layer.ids.map((id, i) => [id, orderKey(board, layer, i)]));
+  layer.ids.sort((a, b) => (key.get(a) as number) - (key.get(b) as number));
 }
 
-function feedsInto(board: Board, layer: string[]): number[] {
+function feedsInto(board: Board, layer: Layer): number[] {
   return board.flow.edges.flatMap((e) => {
     const from = board.result.get(e.from);
-    return from && layer.includes(e.to) ? [from.y + portY(specOf(board, e.from), e.port)] : [];
+    return from && layer.ids.includes(e.to) ? [from.y + portY(specOf(board.byId.get(e.from)), e.port)] : [];
   });
 }
 
-function startY(board: Board, layer: string[]): number {
-  const total = layer.reduce((sum, id) => sum + heightOf(board, id), 0) + ROW_GAP * Math.max(0, layer.length - 1);
+function startY(board: Board, layer: Layer): number {
+  const { ids } = layer;
+  const total = ids.reduce((sum, id) => sum + heightOf(board, id), 0) + ROW_GAP * Math.max(0, ids.length - 1);
   const feeds = feedsInto(board, layer);
   const feed = feeds.length ? feeds.reduce((sum, v) => sum + v, 0) / feeds.length : 0;
-  return layer.length === 1 && feeds.length ? feed - inputY : snap(feed - total / 2);
+  return ids.length === 1 && feeds.length ? feed - inputY : snap(feed - total / 2);
 }
 
-function placeLayer(board: Board, layer: string[], column: number): void {
+function placeLayer(board: Board, layer: Layer): void {
   let y = startY(board, layer);
-  for (const id of layer) {
+  for (const id of layer.ids) {
     const h = heightOf(board, id);
     board.centerY.set(id, y + h / 2);
-    board.result.set(id, { x: snap(column * (NODE_W + COLUMN_GAP)), y });
+    board.result.set(id, { x: snap(layer.column * (NODE_W + COLUMN_GAP)), y });
     y = Math.ceil((y + h + ROW_GAP) / GRID) * GRID;
   }
 }
 
 export function tidy(flow: Flow): Map<string, Pos> {
   const board: Board = { flow, byId: new Map(flow.nodes.map((n) => [n.id, n])), centerY: new Map(), result: new Map() };
-  layersOf(flow, columns(flow)).forEach((layer, column) => {
-    sortLayer(board, layer, column);
-    placeLayer(board, layer, column);
-  });
+  for (const layer of layersOf(flow, columns(flow))) {
+    sortLayer(board, layer);
+    placeLayer(board, layer);
+  }
   return board.result;
 }

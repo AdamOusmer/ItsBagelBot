@@ -177,7 +177,7 @@
   @media (max-width: 760px) {
     .gate {
       --gate-top: calc(var(--bb-topbar-height) + 10px);
-      padding-bottom: calc(var(--bb-dock-clearance, 0px) + 12px);
+      padding-bottom: calc(var(--bb-dock-clearance) + 12px);
     }
   }
   @media (prefers-reduced-motion: reduce) {

@@ -162,10 +162,14 @@ export function neighborAfterRemove(g: Graph, id: string): string | null {
   return near ?? readingOrder(g).find((n) => n.id !== id)?.id ?? null;
 }
 
+const FOCUS_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End']);
+const EDGE_KEYS = new Set(['Home', 'End']);
+
 export function stepFocus(e: KeyboardEvent, items: readonly HTMLElement[]): boolean {
   const target = e.target as HTMLElement;
-  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key) || items.length === 0) return false;
-  if ((e.key === 'Home' || e.key === 'End') && target.matches('input, textarea')) return false;
+  if (!FOCUS_KEYS.has(e.key)) return false;
+  if (items.length === 0) return false;
+  if (EDGE_KEYS.has(e.key) && target.matches('input, textarea')) return false;
   e.preventDefault();
   items[stepIndex(items.indexOf(target), items.length, e.key)]?.focus();
   return true;

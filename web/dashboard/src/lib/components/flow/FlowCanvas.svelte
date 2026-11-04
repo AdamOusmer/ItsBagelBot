@@ -346,7 +346,7 @@
     const { port, node, edge } = tapped;
     if (connecting) {
       if (node && targetFor(node)) {
-        const made = connect(flow, connecting.from, connecting.port, node);
+        const made = connect(flow, { from: connecting.from, port: connecting.port, to: node });
         connecting = null;
         if (made && autoTidy) runTidy(true);
       } else if (!node) {
@@ -505,7 +505,7 @@
     if (!start.moved) return;
     const under = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-node-id]');
     if (under) {
-      if (connect(flow, w.from, w.port, under.dataset.nodeId as string) && autoTidy) runTidy(true);
+      if (connect(flow, { from: w.from, port: w.port, to: under.dataset.nodeId as string }) && autoTidy) runTidy(true);
       return;
     }
     const r = (host as HTMLElement).getBoundingClientRect();
@@ -569,7 +569,7 @@
     if (!link) return;
     const existing = flow.edges.find((e) => e.from === link.from && e.port === link.port && e.to === id);
     if (existing) removeEdge(flow, existing.id);
-    else if (!connect(flow, link.from, link.port, id)) return;
+    else if (!connect(flow, { from: link.from, port: link.port, to: id })) return;
     announce(existing ? t('flows.noteDisconnected') : t('flows.noteConnected'));
     closeMenu();
     if (autoTidy) runTidy(true);

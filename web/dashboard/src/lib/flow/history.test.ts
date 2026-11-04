@@ -27,7 +27,7 @@ describe('FlowHistory', () => {
 
     const reply = addNode(flow, 'reply.chat', { x: 368, y: 0 });
     h.sync(flow, (t += COALESCE_MS * 2));
-    step(() => void connect(flow, 't', 'next', reply.id));
+    step(() => void connect(flow, { from: 't', port: 'next', to: reply.id }));
     step(() => removeEdge(flow, flow.edges[0].id));
     step(() => void duplicateNode(flow, reply.id));
     step(() => removeNode(flow, reply.id));
