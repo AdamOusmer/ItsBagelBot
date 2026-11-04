@@ -397,19 +397,39 @@ func sceneCapabilityAllowed(capType, instance string) bool {
 	return false
 }
 
-func parseSceneValue(instance string, raw codec.RawMessage) (value any, id string, ok bool) {
-	var number *int64
-	if err := codec.Unmarshal(raw, &number); err == nil && number != nil && *number >= 0 {
-		return *number, instance + ":" + strconv.FormatInt(*number, 10), true
+func parseSceneValue(instance string, raw codec.RawMessage) (any, string, bool) {
+	if value, id, ok := parseSceneNumber(instance, raw); ok {
+		return value, id, true
 	}
+	return parseScenePair(instance, raw)
+}
+
+func nonNegative(values ...*int64) bool {
+	for _, n := range values {
+		if n == nil || *n < 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func parseSceneNumber(instance string, raw codec.RawMessage) (any, string, bool) {
+	var number *int64
+	if err := codec.Unmarshal(raw, &number); err != nil || !nonNegative(number) {
+		return nil, "", false
+	}
+	return *number, instance + ":" + strconv.FormatInt(*number, 10), true
+}
+
+func parseScenePair(instance string, raw codec.RawMessage) (any, string, bool) {
 	var pair struct {
 		ParamID *int64 `json:"paramId"`
 		ID      *int64 `json:"id"`
 	}
-	if err := codec.Unmarshal(raw, &pair); err != nil || pair.ParamID == nil || pair.ID == nil || *pair.ParamID < 0 || *pair.ID < 0 {
+	if err := codec.Unmarshal(raw, &pair); err != nil || !nonNegative(pair.ParamID, pair.ID) {
 		return nil, "", false
 	}
-	id = instance + ":" + strconv.FormatInt(*pair.ParamID, 10) + ":" + strconv.FormatInt(*pair.ID, 10)
+	id := instance + ":" + strconv.FormatInt(*pair.ParamID, 10) + ":" + strconv.FormatInt(*pair.ID, 10)
 	return scenePair{ParamID: *pair.ParamID, ID: *pair.ID}, id, true
 }
 

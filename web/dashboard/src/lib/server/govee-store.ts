@@ -112,6 +112,21 @@ function deviceLookupFailure(e: unknown): { devices: GoveeDevice[]; error: strin
   return { devices: [], ...lookupFailure(e, 'device lookup failed') };
 }
 
+type GoveeListReply = { key_rejected?: boolean; error?: string } & Record<string, unknown>;
+
+// Just over gossip's 8 s handler budget.
+const GOVEE_LIST_TIMEOUT_MS = 9000;
+
+async function cachedList<T>(cacheKey: string, route: string, field: string, payload: Record<string, string>): Promise<T[]> {
+  return fabric.readKey(cacheKey, POLICY.govee, async () => {
+    const r = await rpcReply<GoveeListReply>(`${SUB.gossip}.govee.${route}`, payload, GOVEE_LIST_TIMEOUT_MS);
+    if (r.key_rejected === true) throw Object.assign(new Error(r.error ?? 'key rejected'), { keyRejected: true });
+    if (r.error) throw new Error(r.error);
+    const list = r[field];
+    return Array.isArray(list) ? (list as T[]) : [];
+  });
+}
+
 export function goveeStore(userId: string): GoveeStore {
   async function keyPresent(): Promise<boolean> {
     try {
@@ -170,17 +185,7 @@ export function goveeStore(userId: string): GoveeStore {
 
   async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' }> {
     try {
-      const devices = await fabric.readKey(devicesCacheKey(userId), POLICY.govee, async () => {
-        const r = await rpcReply<{ devices?: GoveeDevice[]; key_rejected?: boolean; error?: string }>(
-          `${SUB.gossip}.govee.devices`,
-          { channel_id: userId },
-          // Just over gossip's 8 s devices handler budget.
-          9000
-        );
-        if (r.key_rejected === true) throw Object.assign(new Error(r.error ?? 'key rejected'), { keyRejected: true });
-        else if (r.error) throw new Error(r.error);
-        else return Array.isArray(r.devices) ? r.devices : [];
-      });
+      const devices = await cachedList<GoveeDevice>(devicesCacheKey(userId), 'devices', 'devices', { channel_id: userId });
       return { devices };
     } catch (e) {
       return deviceLookupFailure(e);
@@ -189,16 +194,10 @@ export function goveeStore(userId: string): GoveeStore {
 
   async function listScenes(device: string, sku: string): Promise<GoveeScenesResult> {
     try {
-      const scenes = await fabric.readKey(scenesCacheKey(userId, device, sku), POLICY.govee, async () => {
-        const r = await rpcReply<{ scenes?: GoveeScene[]; key_rejected?: boolean; error?: string }>(
-          `${SUB.gossip}.govee.scenes`,
-          { channel_id: userId, device, sku },
-          // Just over gossip's 8 s scenes handler budget.
-          9000
-        );
-        if (r.key_rejected === true) throw Object.assign(new Error(r.error ?? 'key rejected'), { keyRejected: true });
-        else if (r.error) throw new Error(r.error);
-        else return Array.isArray(r.scenes) ? r.scenes : [];
+      const scenes = await cachedList<GoveeScene>(scenesCacheKey(userId, device, sku), 'scenes', 'scenes', {
+        channel_id: userId,
+        device,
+        sku
       });
       return { scenes };
     } catch (e) {
