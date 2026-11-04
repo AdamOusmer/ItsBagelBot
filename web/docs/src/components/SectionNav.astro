@@ -1,0 +1,82 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Label from '@bagel/ui/astro/Label.astro';
+import { docsI18n } from '../i18n/ui';
+import type { DocPage } from '../lib/pages';
+import type { Space } from '../lib/spaces';
+
+interface Props {
+  space: Space;
+  pages: Map<string, DocPage>;
+  current: string;
+  locale: string;
+  label: string;
+}
+
+const { space, pages, current, locale, label } = Astro.props;
+const { t } = docsI18n(locale);
+---
+
+<nav class="doc-section" aria-label={label}>
+  {space.groups.map((group) => (
+    <div class="doc-section__group">
+      {group.label && <Label mono as="span" class="doc-section__title">{t(group.label)}</Label>}
+      <ul class="doc-section__list">
+        {group.pages.map((id) => {
+          const page = pages.get(id)!;
+          return (
+            <li>
+              <a class="doc-section__link" href={page.href} aria-current={id === current ? 'page' : undefined}>{page.label}</a>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  ))}
+</nav>
+
+<style>
+  .doc-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-5);
+  }
+
+  .doc-section__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-2);
+  }
+
+  .doc-section__title {
+    padding-inline: 12px;
+  }
+
+  .doc-section__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .doc-section__link {
+    display: block;
+    padding: 6px 12px;
+    border-radius: var(--bb-radius-sm);
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--bb-muted-light);
+    transition: color var(--bb-dur-fast) var(--bb-ease-out-expo), background-color var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .doc-section__link:hover {
+    color: var(--bb-white);
+  }
+
+  .doc-section__link[aria-current='page'] {
+    color: var(--bb-white);
+    font-weight: 500;
+    background: rgba(var(--bb-tan-rgb), 0.1);
+  }
+</style>

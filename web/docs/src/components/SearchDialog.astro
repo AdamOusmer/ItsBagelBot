@@ -1,0 +1,200 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Modal from '@bagel/ui/astro/Modal.astro';
+import SearchInput from '@bagel/ui/astro/SearchInput.astro';
+import { docsI18n } from '../i18n/ui';
+
+interface Props {
+  locale: string;
+}
+
+const { t } = docsI18n(Astro.props.locale);
+---
+
+<Modal open={false} label={t('chrome.search')} closeLabel={t('diagram.close')} data-doc-search data-empty={t('chrome.searchEmpty')}>
+  <div class="doc-search">
+    <SearchInput fill placeholder={t('chrome.searchPlaceholder')} data-doc-search-input autocomplete="off" />
+    <ul class="doc-search__results" data-doc-search-results aria-live="polite"></ul>
+  </div>
+</Modal>
+
+<style is:global>
+  .doc-search {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+    width: min(640px, 100%);
+  }
+
+  .doc-search__results {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: min(60dvh, 480px);
+    overflow-y: auto;
+  }
+
+  .doc-search__empty {
+    padding: 12px;
+    color: var(--bb-muted);
+    font-size: 0.875rem;
+  }
+
+  .doc-search__link {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: var(--bb-radius-sm);
+  }
+
+  .doc-search__link:hover,
+  .doc-search__link:focus-visible {
+    background: rgba(var(--bb-tan-rgb), 0.1);
+  }
+
+  .doc-search__title {
+    color: var(--bb-white);
+    font-size: 0.9375rem;
+    font-weight: 500;
+  }
+
+  .doc-search__excerpt {
+    color: var(--bb-muted);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  .doc-search__excerpt mark {
+    background: none;
+    color: var(--bb-tan-light);
+  }
+</style>
+
+<script>
+  import { pushOverlay, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
+
+  interface PagefindResult {
+    data: () => Promise<{ url: string; excerpt: string; meta: { title?: string } }>;
+  }
+  interface Pagefind {
+    init: () => Promise<void>;
+    debouncedSearch: (query: string) => Promise<{ results: PagefindResult[] } | null>;
+  }
+
+  const MAX_RESULTS = 8;
+  const PAGEFIND_URL = '/pagefind/pagefind.js';
+
+  let pagefind: Promise<Pagefind> | null = null;
+  let overlayId: number | null = null;
+  let focusTrap: ReturnType<typeof trapFocus> | null = null;
+
+  const dialog = () => document.querySelector<HTMLElement>('[data-doc-search]');
+  const input = () => document.querySelector<HTMLInputElement>('[data-doc-search-input]');
+  const list = () => document.querySelector<HTMLElement>('[data-doc-search-results]');
+
+  function loadPagefind(): Promise<Pagefind> {
+    pagefind ??= import(/* @vite-ignore */ PAGEFIND_URL).then(async (module: Pagefind) => {
+      await module.init();
+      return module;
+    });
+    return pagefind;
+  }
+
+  function renderItem(data: Awaited<ReturnType<PagefindResult['data']>>): HTMLElement {
+    const item = document.createElement('li');
+    const link = document.createElement('a');
+    link.className = 'doc-search__link';
+    link.href = data.url;
+    const title = document.createElement('span');
+    title.className = 'doc-search__title';
+    title.textContent = data.meta.title ?? data.url;
+    const excerpt = document.createElement('span');
+    excerpt.className = 'doc-search__excerpt';
+    excerpt.innerHTML = data.excerpt;
+    link.append(title, excerpt);
+    item.append(link);
+    return item;
+  }
+
+  function renderEmpty(): HTMLElement {
+    const item = document.createElement('li');
+    item.className = 'doc-search__empty';
+    item.textContent = dialog()?.dataset.empty ?? '';
+    return item;
+  }
+
+  async function runSearch(query: string) {
+    const target = list();
+    if (!target) return;
+    if (!query.trim()) {
+      target.replaceChildren();
+      return;
+    }
+    const engine = await loadPagefind();
+    const search = await engine.debouncedSearch(query);
+    if (!search) return;
+    const data = await Promise.all(search.results.slice(0, MAX_RESULTS).map((result) => result.data()));
+    target.replaceChildren(...(data.length ? data.map(renderItem) : [renderEmpty()]));
+  }
+
+  function open() {
+    const root = dialog();
+    if (!root?.hidden) return;
+    root.hidden = false;
+    overlayId = pushOverlay();
+    focusTrap = trapFocus(root.querySelector<HTMLElement>('.bb-modal__card') ?? root);
+    input()?.focus();
+    void loadPagefind();
+  }
+
+  function close() {
+    const root = dialog();
+    if (!root || root.hidden) return;
+    root.hidden = true;
+    if (overlayId !== null) removeOverlay(overlayId);
+    overlayId = null;
+    focusTrap?.destroy();
+    focusTrap = null;
+  }
+
+  function moveFocus(step: number) {
+    const links = [...(list()?.querySelectorAll<HTMLElement>('a') ?? [])];
+    if (!links.length) return;
+    const at = links.indexOf(document.activeElement as HTMLElement);
+    const next = at + step;
+    if (next < 0) input()?.focus();
+    else links[Math.min(next, links.length - 1)]?.focus();
+  }
+
+  const isTyping = (target: EventTarget | null) =>
+    target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+
+  document.addEventListener('keydown', (event) => {
+    if ((event.key === 'k' && (event.metaKey || event.ctrlKey)) || (event.key === '/' && !isTyping(event.target))) {
+      event.preventDefault();
+      open();
+      return;
+    }
+    if (overlayId === null || !isTopmost(overlayId)) return;
+    if (event.key === 'Escape') close();
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveFocus(event.key === 'ArrowDown' ? 1 : -1);
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement;
+    if (target.closest('[data-doc-search-open]')) open();
+    if (dialog()?.contains(target) && target.closest('.bb-modal__backdrop, .doc-search__link')) close();
+  });
+
+  document.addEventListener('input', (event) => {
+    if (event.target === input()) void runSearch(input()?.value ?? '');
+  });
+
+  document.addEventListener('astro:before-swap', close);
+</script>

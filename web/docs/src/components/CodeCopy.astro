@@ -1,0 +1,73 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Icon from '@bagel/ui/astro/Icon.astro';
+import IconButton from '@bagel/ui/astro/IconButton.astro';
+import { docsI18n } from '../i18n/ui';
+
+interface Props {
+  locale: string;
+}
+
+const { t } = docsI18n(Astro.props.locale);
+---
+
+<template data-code-copy>
+  <span class="doc-code-copy"><IconButton label={t('chrome.copy')} size="sm"><Icon name="copy" size={14} /></IconButton></span>
+</template>
+
+<style is:global>
+  .doc-code {
+    position: relative;
+  }
+
+  .doc-code-copy {
+    position: absolute;
+    top: 8px;
+    inset-inline-end: 8px;
+    opacity: 0;
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .doc-code:hover .doc-code-copy,
+  .doc-code-copy:focus-within,
+  .doc-code-copy[data-copied] {
+    opacity: 1;
+  }
+
+  @media (hover: none) {
+    .doc-code-copy {
+      opacity: 1;
+    }
+  }
+</style>
+
+<script>
+  import { copyText } from '@bagel/ui/lib/clipboard';
+
+  const FLASH_MS = 1200;
+
+  function wrap(block: HTMLElement, control: HTMLElement) {
+    const frame = document.createElement('div');
+    frame.className = 'doc-code';
+    block.replaceWith(frame);
+    frame.append(block, control);
+    control.addEventListener('click', async () => {
+      await copyText(block.textContent ?? '');
+      control.dataset.copied = '';
+      setTimeout(() => delete control.dataset.copied, FLASH_MS);
+    });
+  }
+
+  function enhance() {
+    const template = document.querySelector<HTMLTemplateElement>('template[data-code-copy]');
+    if (!template) return;
+    document.querySelectorAll<HTMLElement>('.doc-prose pre.astro-code').forEach((block) => {
+      const control = template.content.firstElementChild?.cloneNode(true);
+      if (control instanceof HTMLElement) wrap(block, control);
+    });
+  }
+
+  document.addEventListener('astro:page-load', enhance);
+</script>

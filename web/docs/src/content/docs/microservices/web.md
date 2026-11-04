@@ -11,4 +11,4 @@ The Web project (`web/marketing/`) is an Astro application that builds the publi
 
 - **Technology**: Built with [Astro](https://astro.build/) into static, localized pages, in the `web/` Bun workspace. English is unprefixed; other locales use `/<code>/`.
 - **Separation of Concerns**: Kept intentionally separate from the [Console](/microservices/console/) and [Admin](/microservices/admin/) (SvelteKit apps that need server-side rendering and NATS access). The marketing site does not store broadcaster settings or run bot commands. The command builder rehearses templates in the browser and links to the dashboard.
-- **Documentation**: The documentation itself (which you are reading now) is built with Astro's Starlight template in `web/docs/`, a separate package in the same workspace.
+- **Documentation**: The documentation itself (which you are reading now) is built with Astro in `web/docs/`, a separate package in the same workspace.

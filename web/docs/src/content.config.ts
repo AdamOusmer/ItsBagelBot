@@ -2,9 +2,16 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { defineCollection } from 'astro:content';
-import { docsLoader } from '@astrojs/starlight/loaders';
-import { docsSchema } from '@astrojs/starlight/schema';
+import { glob } from 'astro/loaders';
+import { z } from 'astro/zod';
 
 export const collections = {
-	docs: defineCollection({ loader: docsLoader(), schema: docsSchema() }),
+  docs: defineCollection({
+    loader: glob({ pattern: '**/*.md', base: './src/content/docs' }),
+    schema: z.object({
+      title: z.string(),
+      description: z.string().optional(),
+      sidebar: z.object({ label: z.string().optional(), order: z.number().optional() }).optional(),
+    }),
+  }),
 };

@@ -108,7 +108,7 @@ data centers are located in a region where hydroelectric power is abundant, maki
 The web workspace is an integral part of the multi-tenant Twitch automation platform, specifically focusing on:
 
 - `marketing/` — the public Astro site (Cloudflare Pages).
-- `docs/` — the Astro Starlight documentation site (Cloudflare Pages).
+- `docs/` — the Astro documentation site (Cloudflare Pages).
 - `dashboard/` — the broadcaster-facing SvelteKit SSR console (`console-dashboard` image).
 - `admin/` — the operator-facing SvelteKit SSR console (`console-admin` image).
 - `kit/` — `@bagel/kit`: the server code, catalog, i18n, nav registries, Go-engine mirrors, styles and Svelte components the four apps share.

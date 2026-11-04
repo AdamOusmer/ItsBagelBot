@@ -1,0 +1,122 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+:root {
+    --doc-code-bg: var(--bb-elev-1);
+    --doc-code-fg: var(--bb-muted-light);
+    --doc-code-comment: var(--bb-muted);
+    --doc-code-keyword: var(--bb-tan-light);
+    --doc-code-string: var(--bb-green-glow);
+    --doc-code-title: var(--bb-white);
+    --doc-code-constant: var(--bb-tan);
+}
+
+.doc-prose h2,
+.doc-prose h3,
+.doc-prose h4 {
+    color: var(--bb-white);
+    scroll-margin-top: calc(var(--doc-nav-offset) + 24px);
+}
+
+.doc-prose h2 {
+    padding-top: var(--bb-space-7);
+    padding-bottom: var(--bb-space-3);
+    font-family: var(--bb-font-display);
+    font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+}
+
+.doc-prose > h2:first-child {
+    padding-top: 0;
+}
+
+.doc-prose h3 {
+    padding-top: var(--bb-space-5);
+    padding-bottom: var(--bb-space-2);
+    font-family: var(--bb-font-display);
+    font-size: 1.125rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.doc-prose h4 {
+    padding-top: var(--bb-space-4);
+    padding-bottom: var(--bb-space-1);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.doc-prose p,
+.doc-prose ul,
+.doc-prose ol,
+.doc-prose blockquote,
+.doc-prose hr {
+    margin-bottom: 1.1em;
+}
+
+.doc-prose table {
+    display: block;
+    max-width: 100%;
+    margin-block: var(--bb-space-4) var(--bb-space-5);
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bb-border-strong) transparent;
+}
+
+.doc-prose th,
+.doc-prose td {
+    padding: 10px 14px 10px 0;
+    text-align: start;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(var(--bb-white-pure-rgb), 0.06);
+}
+
+.doc-prose th {
+    font-family: var(--bb-font-mono);
+    font-size: var(--bb-text-xs);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--bb-muted);
+    white-space: nowrap;
+}
+
+.doc-prose td code {
+    overflow-wrap: normal;
+}
+
+.doc-prose pre.astro-code {
+    margin: 0;
+    padding: 16px 18px;
+    overflow-x: auto;
+    background: var(--doc-code-bg) !important;
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-md);
+    font-family: var(--bb-font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bb-border-strong) transparent;
+}
+
+.doc-prose pre.astro-code code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    overflow-wrap: normal;
+}
+
+.doc-prose .doc-code,
+.doc-prose > pre.astro-code {
+    margin-block: var(--bb-space-4) var(--bb-space-5);
+}
+
+.doc-notice {
+    width: 100%;
+}

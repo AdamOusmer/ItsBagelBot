@@ -59,7 +59,7 @@ The [web workspace guide](web/context.md) explains app/package boundaries and wo
 | Dashboard (SvelteKit) | Broadcaster onboarding, bot configuration, account management, and public commands pages. | [web/dashboard](web/dashboard/context.md) |
 | Admin (SvelteKit) | Staff operations, fleet/channel views, account management, trials, and promotions. | [web/admin](web/admin/context.md) |
 | Marketing (Astro) | Public product site, localized marketing content, and marketing interactions. | [web/marketing](web/marketing/context.md) |
-| Docs (Astro/Starlight) | Guides, variable references, and architecture decisions. | [web/docs](web/docs/context.md) |
+| Docs (Astro) | Guides, variable references, and architecture decisions. | [web/docs](web/docs/context.md) |
 | Kit (`@bagel/kit`) | Shared product catalogs, variable manifests, validation, server integration, and console composition. | [web/kit](web/kit/context.md) |
 | UI (`@bagel/ui`) | Shared design tokens, styles, Astro/Svelte components, and interaction primitives; outside the Bun web workspace. | [ui](ui/context.md) |
 | Mail templates | Static templates for human email replies. Automated transactional email is in Transactions. | [mail](mail/context.md) |
