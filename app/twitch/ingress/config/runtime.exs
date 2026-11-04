@@ -73,6 +73,7 @@ config :ingress,
   lane_subject_standard:
     System.get_env("NATS_SUBJECT_LANE_STANDARD", "twitch.ingress.event.standard"),
   lane_subject_stream: System.get_env("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
+  automod_trial_subject: System.get_env("NATS_SUBJECT_AUTOMOD_TRIAL"),
   invalidation_subject:
     System.get_env("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.status"),
   admin_subject: System.get_env("NATS_ADMIN_SUBJECT", "twitch.ingress.admin.shards.get"),
