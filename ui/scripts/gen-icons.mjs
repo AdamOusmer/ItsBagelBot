@@ -61,7 +61,8 @@ const ICONS = {
   tiktok: 'simple-icons:tiktok',
   youtube: 'simple-icons:youtube',
   github: 'simple-icons:github',
-  twitch: 'simple-icons:twitch'
+  twitch: 'simple-icons:twitch',
+  branch: 'lucide:git-branch'
 };
 
 const STRIP = /\s(?:fill="none"|stroke="currentColor"|stroke-linecap="round"|stroke-linejoin="round"|stroke-width="2")/g;

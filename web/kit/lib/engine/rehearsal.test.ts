@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { expandSegments, rehearseCommand, rehearseReply, rehearseTimer, resolvedWithoutSample, timerOwns, type ChainKind, type Seg, type SegKind, type Token } from './rehearsal';
+import { expandSegments, rehearseAutomation, rehearseCommand, rehearseReply, rehearseTimer, resolvedWithoutSample, timerOwns, type ChainKind, type Seg, type SegKind, type Token } from './rehearsal';
 
 function textOf(segments: Seg[]): string {
   return segments.map((s) => s.text).join('');
@@ -337,5 +337,47 @@ describe('module state (engine/namespaced_vars.go mirror)', () => {
   test('timers apply the same gate', () => {
     const [line] = rehearseTimer('{valorant:tier}', { valorant: false });
     expect(line.segments).toEqual([{ text: '{valorant:tier}', kind: 'unknown' }]);
+  });
+
+  test('automations apply the same gate', () => {
+    const [line] = rehearseAutomation('{valorant:tier}', {}, { valorant: false });
+    expect(line.segments).toEqual([{ text: '{valorant:tier}', kind: 'unknown' }]);
+  });
+});
+
+describe('automation rehearsal (engine automationScope mirror)', () => {
+  const text = (template: string, samples = {}) => textOf(rehearseAutomation(template, samples)[0].segments);
+
+  test('event fields answer by name and with the event prefix', () => {
+    expect(text('{bits} and {event.bits}', { bits: '500' })).toBe('500 and 500');
+  });
+
+  test('an event field the trigger lacks is empty, like the engine', () => {
+    expect(text('[{event.nope}|]', {})).toBe('[|]');
+    expect(text('{event.nope|none}', {})).toBe('none');
+  });
+
+  test('event samples win over the command chain', () => {
+    expect(text('{count}', { count: '17' })).toBe('17');
+    expect(text('{count}')).toBe('317');
+  });
+
+  test('the whole command chain still resolves', () => {
+    expect(text('{user} {uptime} {game} {random}', { user: 'Lotti' })).toBe('Lotti 2 hours, 15 minutes Just Chatting 57');
+  });
+
+  test('an unknown token stays literal and marked', () => {
+    const [line] = rehearseAutomation('{nope}');
+    expect(line.segments).toEqual([{ text: '{nope}', kind: 'unknown' }]);
+  });
+
+  test('slash verbs route like every other surface', () => {
+    const [line] = rehearseAutomation('/announce hi {user}', { user: 'Lotti' });
+    expect(line.mode).toBe('announce');
+    expect(textOf(line.segments)).toBe('hi Lotti');
+  });
+
+  test('an empty message rehearses to nothing', () => {
+    expect(rehearseAutomation('   ')).toEqual([]);
   });
 });

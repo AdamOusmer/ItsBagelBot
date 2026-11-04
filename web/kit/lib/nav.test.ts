@@ -37,12 +37,31 @@ describe('nav registry', () => {
     expect(DASHBOARD_SECTIONS.map((def) => def.href)).toEqual([
       '/',
       '/commands',
+      '/flows',
       '/modules',
       '/songqueue',
       '/discord',
       '/billing',
       '/settings'
     ]);
+  });
+
+  test('a demo-only section stays hidden unless demo sections are on', () => {
+    const base = { isDelegate: false, sections: [], section: 'flows', moduleLinks: [] } as const;
+    expect(clientNavItems(base).map((i) => i.href)).not.toContain('/flows');
+    expect(clientNavItems({ ...base, showDemoSections: true }).find((i) => i.href === '/flows')?.current).toBe(true);
+  });
+
+  test('a beta section carries its label and no other section does', () => {
+    const items = clientNavItems({
+      isDelegate: false,
+      sections: [],
+      section: 'flows',
+      moduleLinks: [],
+      showDemoSections: true,
+      t: (key) => `en:${key}`
+    });
+    expect(items.filter((i) => i.count !== undefined).map((i) => [i.href, i.count])).toEqual([['/flows', 'en:nav.beta']]);
   });
 
   test('an owner sees all seven entries with active following the section', () => {

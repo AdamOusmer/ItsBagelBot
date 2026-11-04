@@ -9,13 +9,14 @@ import { navGroups, navItems, resolveSection, type SectionDef } from './nav-core
 export const GRANTABLE_SECTIONS = ['commands', 'modules', 'discord', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'modules' | 'songqueue' | 'discord' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'songqueue' | 'discord' | 'billing' | 'settings';
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
   labelKey:
     | 'nav.overview'
     | 'nav.commands'
+    | 'nav.flows'
     | 'nav.modules'
     | 'nav.songqueue'
     | 'nav.discord'
@@ -29,6 +30,8 @@ export interface DashboardSectionDef extends SectionDef {
   /** Visible when any of these existing delegation grants opens the page. */
   grantsAny?: readonly GrantSection[];
   offline?: boolean;
+  demoOnly?: boolean;
+  beta?: boolean;
 }
 
 export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
@@ -47,6 +50,16 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     href: '/commands',
     match: ['/commands'],
     grant: 'commands'
+  },
+  {
+    id: 'flows',
+    labelKey: 'nav.flows',
+    icon: 'branch',
+    href: '/flows',
+    match: ['/flows'],
+    ownerOnly: true,
+    demoOnly: true,
+    beta: true
   },
   {
     id: 'modules',
@@ -95,27 +108,39 @@ export function sectionForPath(path: string): SectionId {
   return resolveSection(DASHBOARD_SECTIONS, path, 'overview');
 }
 
-export function dashboardNavItems(opts: {
+type NavOpts = {
   isDelegate: boolean;
   sections: readonly string[];
   section: SectionId;
   t?: (key: MessageKey) => string;
   moduleLinks: readonly NavChild[];
-}): NavLink[] {
-  const { isDelegate, sections, section } = opts;
-  return navItems({
+  showDemoSections?: boolean;
+};
+
+function grantedTo(def: DashboardSectionDef, sections: readonly string[]): boolean {
+  if (def.grantsAny) return def.grantsAny.some((grant) => sections.includes(grant));
+  return !def.grant || sections.includes(def.grant);
+}
+
+function sectionVisible(def: DashboardSectionDef, opts: NavOpts): boolean {
+  if (def.offline) return false;
+  if (def.demoOnly && opts.showDemoSections !== true) return false;
+  if (!opts.isDelegate) return true;
+  return !def.ownerOnly && grantedTo(def, opts.sections);
+}
+
+export function dashboardNavItems(opts: NavOpts): NavLink[] {
+  const { section } = opts;
+  const betaHrefs = new Set(DASHBOARD_SECTIONS.filter((def) => def.beta).map((def) => def.href));
+  const betaLabel = opts.t ? opts.t('nav.beta') : 'nav.beta';
+  const links = navItems({
     sections: DASHBOARD_SECTIONS,
-    visible: (def) =>
-      !def.offline &&
-      !(def.ownerOnly && isDelegate) &&
-      (!isDelegate ||
-        (def.grantsAny
-          ? def.grantsAny.some((grant) => sections.includes(grant))
-          : !def.grant || sections.includes(def.grant))),
+    visible: (def) => sectionVisible(def, opts),
     current: (def) => section === def.id,
     children: (def) => (def.id === 'modules' ? [...opts.moduleLinks] : undefined),
     t: opts.t
   });
+  return links.map((link) => (betaHrefs.has(link.href) ? { ...link, count: betaLabel } : link));
 }
 
 export function dashboardNavGroups(
