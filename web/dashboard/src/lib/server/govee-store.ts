@@ -3,18 +3,21 @@
 
 import { rpc, rpcReply } from '@bagel/kit/server/nats';
 import { POLICY } from '@bagel/kit/server/cache-keys';
-import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/kit';
+import { type GoveeOnRedeem, type GoveeDevice, type GoveeScene, type GoveeReward, type GoveeBinding, MOD } from '@bagel/kit';
 import { SUB, fabric, invalidate } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
 import { deleteRemoteReward, saveRewardFlow, type MirroredReward } from './reward-wire';
 import type { RewardCore } from './reward-form';
 
-export type { GoveeOnRedeem, GoveeDevice, GoveeReward, GoveeBinding };
+export type { GoveeOnRedeem, GoveeDevice, GoveeScene, GoveeReward, GoveeBinding };
 
 const GOVEE_MODULE = MOD.govee;
 
 const devicesCacheKey = (userId: string) => `govee-devices:${userId}`;
+
+const scenesCachePrefix = (userId: string) => `govee-scenes:${userId}`;
+const scenesCacheKey = (userId: string, device: string, sku: string) => `${scenesCachePrefix(userId)}:${sku}:${device}`;
 
 const REWARD_PROMPT = 'Type a colour: a name like blue, or a hex code like #00ccff';
 
@@ -84,18 +87,29 @@ function bindingFromReply(device: GoveeDevice, draft: RewardDraft, reward: Mirro
   };
 }
 
+export interface GoveeScenesResult {
+  scenes: GoveeScene[];
+  error?: string;
+  code?: 'key_rejected' | 'unreachable';
+}
+
 export interface GoveeStore {
   read(): Promise<GoveeView>;
   setKey(key: string): Promise<GoveeResult>;
   clearKey(): Promise<GoveeResult>;
   listDevices(): Promise<{ devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' }>;
+  listScenes(device: string, sku: string): Promise<GoveeScenesResult>;
   setEnabled(enabled: boolean): Promise<GoveeResult>;
   saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult>;
   deleteReward(deviceId: string): Promise<GoveeResult>;
 }
 
+function lookupFailure(e: unknown, fallback: string): { error: string; code: 'key_rejected' | 'unreachable' } {
+  return { error: e instanceof Error ? e.message : fallback, code: (e as { keyRejected?: boolean } | null)?.keyRejected === true ? 'key_rejected' : 'unreachable' };
+}
+
 function deviceLookupFailure(e: unknown): { devices: GoveeDevice[]; error: string; code: 'key_rejected' | 'unreachable' } {
-  return { devices: [], error: e instanceof Error ? e.message : 'device lookup failed', code: (e as { keyRejected?: boolean } | null)?.keyRejected === true ? 'key_rejected' : 'unreachable' };
+  return { devices: [], ...lookupFailure(e, 'device lookup failed') };
 }
 
 export function goveeStore(userId: string): GoveeStore {
@@ -123,7 +137,7 @@ export function goveeStore(userId: string): GoveeStore {
   async function setKey(key: string): Promise<GoveeResult> {
     const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
     if (r.error) return { ok: false, error: r.error };
-    invalidate(devicesCacheKey(userId));
+    invalidate(devicesCacheKey(userId), scenesCachePrefix(userId));
     const status = await keyWorks();
     if (status === 'rejected') {
       await rpcReply(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000).catch(() => undefined);
@@ -150,7 +164,7 @@ export function goveeStore(userId: string): GoveeStore {
   async function clearKey(): Promise<GoveeResult> {
     const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000);
     if (r.error) return { ok: false, error: r.error };
-    invalidate(devicesCacheKey(userId));
+    invalidate(devicesCacheKey(userId), scenesCachePrefix(userId));
     return { ok: true };
   }
 
@@ -170,6 +184,25 @@ export function goveeStore(userId: string): GoveeStore {
       return { devices };
     } catch (e) {
       return deviceLookupFailure(e);
+    }
+  }
+
+  async function listScenes(device: string, sku: string): Promise<GoveeScenesResult> {
+    try {
+      const scenes = await fabric.readKey(scenesCacheKey(userId, device, sku), POLICY.govee, async () => {
+        const r = await rpcReply<{ scenes?: GoveeScene[]; key_rejected?: boolean; error?: string }>(
+          `${SUB.gossip}.govee.scenes`,
+          { channel_id: userId, device, sku },
+          // Just over gossip's 8 s scenes handler budget.
+          9000
+        );
+        if (r.key_rejected === true) throw Object.assign(new Error(r.error ?? 'key rejected'), { keyRejected: true });
+        else if (r.error) throw new Error(r.error);
+        else return Array.isArray(r.scenes) ? r.scenes : [];
+      });
+      return { scenes };
+    } catch (e) {
+      return { scenes: [], ...lookupFailure(e, 'scene lookup failed') };
     }
   }
 
@@ -202,6 +235,7 @@ export function goveeStore(userId: string): GoveeStore {
     setKey,
     clearKey,
     listDevices,
+    listScenes,
     setEnabled: async (enabled: boolean) => {
       await setModuleEnabled(userId, GOVEE_MODULE, enabled);
       return { ok: true };

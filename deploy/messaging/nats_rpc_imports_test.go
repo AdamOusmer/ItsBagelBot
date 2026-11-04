@@ -159,6 +159,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.loyalty.counter.get", "web/dashboard SUB.loyalty"},
 		{"bagel.rpc.loyalty.counter.board", "web/dashboard SUB.loyalty"},
 		{"bagel.rpc.gossip.govee.devices", "web/dashboard SUB.gossip"},
+		{"bagel.rpc.gossip.govee.scenes", "web/dashboard SUB.gossip"},
 		{"bagel.rpc.gossip.spotify.exchange", "web/dashboard SUB.gossip"},
 		{"bagel.rpc.gossip.spotify.playerqueue", "web/dashboard SUB.gossip"},
 		{"bagel.rpc.gossip.spotify.next", "web/dashboard SUB.gossip"},

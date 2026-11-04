@@ -502,6 +502,10 @@ accounts:
               from: GOSSIP_RPC
             - service: bagel.rpc.gossip.govee.devices.node.*
               from: GOSSIP_RPC
+            - service: bagel.rpc.gossip.govee.scenes
+              from: GOSSIP_RPC
+            - service: bagel.rpc.gossip.govee.scenes.node.*
+              from: GOSSIP_RPC
             - service: bagel.rpc.gossip.spotify.exchange
               from: GOSSIP_RPC
             - service: bagel.rpc.gossip.spotify.exchange.node.*

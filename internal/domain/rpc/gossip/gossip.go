@@ -3,6 +3,8 @@
 
 package gossiprpc
 
+import "encoding/json"
+
 type Request struct {
 	Account   string `json:"account"`
 	ChannelID string `json:"channel_id,omitempty"`
@@ -15,6 +17,8 @@ type Request struct {
 	SKU      string `json:"sku,omitempty"`
 	ColorRGB int    `json:"color_rgb,omitempty"`
 	PowerOff bool   `json:"power_off,omitempty"`
+
+	Scene *GoveeScene `json:"scene,omitempty"`
 
 	Query    string `json:"query,omitempty"`
 	TrackID  string `json:"track_id,omitempty"`
@@ -195,6 +199,20 @@ type GoveeDevicesReply struct {
 	Devices     []GoveeDevice `json:"devices"`
 	Error       string        `json:"error,omitempty"`
 	KeyRejected bool          `json:"key_rejected,omitempty"`
+}
+
+type GoveeScene struct {
+	ID       string          `json:"id,omitempty"`
+	Name     string          `json:"name,omitempty"`
+	Type     string          `json:"type"`
+	Instance string          `json:"instance"`
+	Value    json.RawMessage `json:"value"`
+}
+
+type GoveeScenesReply struct {
+	Scenes      []GoveeScene `json:"scenes"`
+	Error       string       `json:"error,omitempty"`
+	KeyRejected bool         `json:"key_rejected,omitempty"`
 }
 
 type GoveeControlReply struct {
