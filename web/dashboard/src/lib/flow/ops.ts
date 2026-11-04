@@ -16,8 +16,13 @@ export function addNode(
   return node;
 }
 
+function isTrigger(flow: Flow, id: string): boolean {
+  return specFor(flow.nodes.find((n) => n.id === id)?.type ?? '')?.kind === 'trigger';
+}
+
 export function connect(flow: Flow, from: string, port: string, to: string): FlowEdge | null {
-  if (from === to || specFor(flow.nodes.find((n) => n.id === to)?.type ?? '')?.kind === 'trigger') return null;
+  if (from === to) return null;
+  if (isTrigger(flow, to)) return null;
   if (flow.edges.some((e) => e.from === from && e.port === port && e.to === to)) return null;
   const edge: FlowEdge = { id: uid('e'), from, port, to };
   flow.edges.push(edge);

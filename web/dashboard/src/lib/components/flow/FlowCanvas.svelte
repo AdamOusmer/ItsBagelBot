@@ -199,7 +199,7 @@
     const room = insets?.(true);
     if (!n || !room || !host) return;
     const box = { x0: n.x, y0: n.y, x1: n.x + NODE_W + ADD_ROOM, y1: n.y + nodeHeight(specFor(n.type)) };
-    const target = revealBox(view, box, host.clientWidth, host.clientHeight, room, READABLE_ZOOM);
+    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: room }, READABLE_ZOOM);
     if (target !== view) glideTo(target);
   }
 
@@ -221,7 +221,7 @@
     }
     const inset = insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight };
     cancelAnimationFrame(glide);
-    view = fitBox({ x0, y0, x1, y1 }, host.clientWidth, host.clientHeight, inset, minZoom(), MAX_ZOOM);
+    view = fitBox({ x0, y0, x1, y1 }, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM });
   }
 
   function zoomAt(factor: number, px: number, py: number) {
@@ -458,7 +458,7 @@
       fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (mode === 'pinch') {
         const [a, b] = fingers.values();
-        if (pinch) view = pinchView(pinch, a, b, minZoom(), MAX_ZOOM);
+        if (pinch) view = pinchView(pinch, a, b, { min: minZoom(), max: MAX_ZOOM });
         return;
       }
     }
@@ -619,7 +619,7 @@
       return;
     }
     const box = { x0: n.x, y0: n.y, x1: n.x + NODE_W + ADD_ROOM, y1: n.y + nodeHeight(specFor(n.type)) };
-    const target = revealBox(view, box, host.clientWidth, host.clientHeight, { ...KEY_INSET, right: KEY_INSET.right + room }, view.k);
+    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: { ...KEY_INSET, right: KEY_INSET.right + room } }, view.k);
     if (target !== view) view = target;
   }
 
