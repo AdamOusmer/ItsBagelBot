@@ -31,6 +31,7 @@
   "importTooLarge": "A importação interpretada é grande demais para verificar.",
   "importDecode": "Não foi possível decodificar a importação interpretada. Execute a prévia novamente.",
   "fileTooLarge": "Esse arquivo é grande demais. As configurações exportadas de bots devem ficar bem abaixo de 20 MB.",
+  "flowFileTooLarge": "Esse arquivo de receita é grande demais.",
   "fileRead": "Não foi possível ler esse arquivo.",
   "importSource": "Escolha uma fonte de importação.",
   "importService": "O serviço de importação não respondeu. Tente novamente em instantes.",

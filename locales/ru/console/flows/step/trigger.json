@@ -1,0 +1,74 @@
+{
+  "chatCommand": {
+    "label": "Команда в чате",
+    "summary": "Кто-то пишет команду в чате",
+    "field": {
+      "trigger": {
+        "label": "Команда",
+        "placeholder": "!hug"
+      }
+    }
+  },
+  "chatWord": {
+    "label": "Слово в чате",
+    "summary": "Кто-то пишет слово в чате",
+    "field": {
+      "word": {
+        "label": "Слово",
+        "placeholder": "bagel"
+      }
+    }
+  },
+  "follow": {
+    "label": "Новый фолловер",
+    "summary": "Кто-то отслеживает канал"
+  },
+  "sub": {
+    "label": "Подписка",
+    "summary": "Новая подписка, переподписка или подарок",
+    "field": {
+      "variant": {
+        "label": "Тип",
+        "option": {
+          "any": "Любая",
+          "new": "Новая",
+          "resub": "Переподписка",
+          "gift": "Подарок"
+        }
+      }
+    }
+  },
+  "cheer": {
+    "label": "Cheer",
+    "summary": "Отправлены биты",
+    "field": {
+      "minBits": {
+        "label": "Минимум битов",
+        "unit": "бит"
+      }
+    }
+  },
+  "raid": {
+    "label": "Рейд",
+    "summary": "Другой канал рейдит вас",
+    "field": {
+      "minViewers": {
+        "label": "Минимум зрителей",
+        "unit": "зрителей"
+      }
+    }
+  },
+  "reward": {
+    "label": "Награда за баллы канала",
+    "summary": "Награда активирована",
+    "field": {
+      "reward": {
+        "label": "Награда"
+      }
+    }
+  },
+  "streamOnline": {
+    "label": "Запуск стрима",
+    "summary": "Ваш стрим начинается"
+  }
+}

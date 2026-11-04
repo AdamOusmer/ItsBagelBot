@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hello",
+      "aliases": [
+        "!hey",
+        "!yo"
+      ],
+      "match": "exact",
+      "case_sensitive": true,
+      "sources": [
+        "chat",
+        "sub_message"
+      ]
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "reply",
+      "params": {
+        "text": "hi"
+      }
+    }
+  ]
+}

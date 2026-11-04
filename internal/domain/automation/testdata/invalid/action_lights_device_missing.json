@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!lights"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "lights",
+      "params": {
+        "sku": "H6008",
+        "color": "#f5a524"
+      }
+    }
+  ]
+}

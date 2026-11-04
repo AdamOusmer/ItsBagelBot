@@ -476,7 +476,7 @@ func (p *api) control(ctx context.Context, req gossiprpc.Request) any {
 			return gossiprpc.GoveeControlReply{Error: controlStepError(req, err)}
 		}
 	}
-	return gossiprpc.GoveeControlReply{OK: true}
+	return gossiprpc.GoveeControlReply{OK: true, SceneApplied: req.Scene != nil}
 }
 
 func validateControlInput(req gossiprpc.Request) string {

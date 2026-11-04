@@ -26,18 +26,16 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const moduleFlags = $derived((page.data.moduleFlags as Record<string, boolean> | undefined) ?? {});
-  const steps = $derived(rehearseFlow(flow, { decisions, modules: moduleFlags }));
+  const steps = $derived(rehearseFlow(flow, t, { decisions, modules: moduleFlags }));
   const unknownTitle = $derived(t('chatPreview.unknownVar'));
   const reached = $derived(steps.slice(0, shown));
   const finished = $derived(shown >= steps.length);
   const pathKey = $derived(steps.map((s) => `${s.id}:${s.kind === 'check' ? s.taken : ''}`).join());
-  const status = $derived(
-    steps.length === 0
-      ? 'Add a When step to run this system.'
-      : finished
-        ? `Finished, ${steps.length} ${steps.length === 1 ? 'step' : 'steps'} ran. Nothing was sent to chat.`
-        : `Running step ${shown} of ${steps.length}. Nothing is sent to chat.`
-  );
+  const status = $derived.by(() => {
+    if (steps.length === 0) return t('flows.board.statusEmpty');
+    if (!finished) return t('flows.board.statusRunning', { shown, total: steps.length });
+    return steps.length === 1 ? t('flows.board.statusDoneOne') : t('flows.board.statusDoneMany', { count: steps.length });
+  });
 
   function advance() {
     if (shown >= steps.length) return;
@@ -74,19 +72,19 @@
   });
 
   function detail(step: RehearsalStep): Seg[] {
-    if (step.kind === 'viewer') return [{ text: `${step.name} typed ${step.text}`, kind: 'plain' }];
-    if (step.kind === 'bot') return step.lines[0]?.segments ?? [{ text: 'Nothing to send yet', kind: 'plain' }];
+    if (step.kind === 'viewer') return [{ text: t('flows.board.viewerTyped', { name: step.name, text: step.text }), kind: 'plain' }];
+    if (step.kind === 'bot') return step.lines[0]?.segments ?? [{ text: t('flows.board.nothingToSend'), kind: 'plain' }];
     return step.segments;
   }
 </script>
 
-<aside class="panel" aria-label="Test run">
+<aside class="panel" aria-label={t('flows.board.testRun')}>
   <header class="head">
     <div class="titles">
-      <h2 class="name">Test run</h2>
+      <h2 class="name">{t('flows.board.testRun')}</h2>
       <p class="sentence" aria-live="polite">{status}</p>
     </div>
-    <IconButton label="Close test run" size="sm" onclick={onClose}><Icon name="x" size={14} /></IconButton>
+    <IconButton label={t('flows.board.closeTestRun')} size="sm" onclick={onClose}><Icon name="x" size={14} /></IconButton>
   </header>
 
   <div class="scroll">
@@ -99,8 +97,8 @@
             <span class="bb-chat__msg step-detail"><RehearsedSegments segments={detail(step)} {unknownTitle} /></span>
             {#if step.kind === 'check'}
               <div class="branch">
-                <span class="branch-label">Goes to</span>
-                <div class="choices" role="radiogroup" aria-label="Branch for {step.label}">
+                <span class="branch-label">{t('flows.board.goesTo')}</span>
+                <div class="choices" role="radiogroup" aria-label={t('flows.board.branchFor', { label: step.label })}>
                   {#each step.choices as choice (choice.id)}
                     <button
                       class="choice"
@@ -122,9 +120,9 @@
 
     {#if steps.length}
       <div class="actions">
-        <Button variant="ghost" onclick={run}><Icon name="play" size={14} /> Run again</Button>
+        <Button variant="ghost" onclick={run}><Icon name="play" size={14} /> {t('flows.board.runAgain')}</Button>
       </div>
-      <FlowRehearsal steps={reached} title="Test chat" />
+      <FlowRehearsal steps={reached} title={t('flows.board.testChat')} />
     {/if}
   </div>
 </aside>

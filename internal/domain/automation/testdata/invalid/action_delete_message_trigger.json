@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "manual",
+    "params": {}
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "delete_message",
+      "params": {}
+    }
+  ]
+}

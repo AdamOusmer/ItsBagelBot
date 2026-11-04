@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    }
+  ]
+}

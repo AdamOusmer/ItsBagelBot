@@ -1,0 +1,95 @@
+{
+  "role": {
+    "label": "Nível de usuário",
+    "summary": "Apenas certos espectadores passam",
+    "field": {
+      "level": {
+        "label": "No mínimo",
+        "option": {
+          "everyone": "Todos",
+          "sub": "Inscrito",
+          "vip": "VIP",
+          "mod": "Moderador",
+          "lead_mod": "Moderador líder",
+          "broadcaster": "Streamer"
+        }
+      }
+    },
+    "out": {
+      "yes": "Permitido",
+      "no": "Bloqueado"
+    }
+  },
+  "user": {
+    "label": "Usuário específico",
+    "summary": "Apenas este espectador passa",
+    "field": {
+      "login": {
+        "label": "Nome de usuário",
+        "placeholder": "itsbagelbot"
+      }
+    },
+    "out": {
+      "yes": "Este usuário",
+      "no": "Qualquer outro"
+    }
+  },
+  "cooldown": {
+    "label": "Intervalo de espera",
+    "summary": "Aguardar entre execuções",
+    "field": {
+      "seconds": {
+        "label": "Intervalo de espera",
+        "unit": "segundos"
+      },
+      "perUser": {
+        "label": "Por espectador"
+      }
+    },
+    "out": {
+      "yes": "Pronto",
+      "no": "Em espera"
+    }
+  },
+  "compare": {
+    "label": "Comparar valor",
+    "summary": "Verificar uma variável",
+    "field": {
+      "left": {
+        "label": "Valor",
+        "placeholder": "{bits}"
+      },
+      "op": {
+        "label": "É",
+        "option": {
+          "gte": "no mínimo",
+          "lt": "menor que",
+          "eq": "igual a",
+          "contains": "contém"
+        }
+      },
+      "right": {
+        "label": "Este valor",
+        "placeholder": "1000"
+      }
+    },
+    "out": {
+      "yes": "Sim",
+      "no": "Não"
+    }
+  },
+  "chance": {
+    "label": "Chance aleatória",
+    "summary": "Passar às vezes",
+    "field": {
+      "percent": {
+        "label": "Chance",
+        "unit": "%"
+      }
+    },
+    "out": {
+      "yes": "Acerto",
+      "no": "Erro"
+    }
+  }
+}

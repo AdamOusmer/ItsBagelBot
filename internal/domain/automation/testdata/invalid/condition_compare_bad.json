@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "manual"
+  },
+  "conditions": [
+    {
+      "type": "compare",
+      "params": {
+        "left": "",
+        "op": "gt",
+        "right": "1"
+      }
+    },
+    {
+      "type": "compare",
+      "params": {
+        "left": "{user}",
+        "right": "x"
+      }
+    },
+    {
+      "type": "compare",
+      "params": {
+        "left": "{user}",
+        "op": "eq",
+        "right": "x",
+        "extra": 1
+      }
+    }
+  ]
+}

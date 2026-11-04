@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	discapi "ItsBagelBot/internal/discordapi"
@@ -108,27 +109,61 @@ func workerFor(d *fakeDiscord, store discordstore.Store, offline bool) *setup.Wo
 	return newWorker(d, store)
 }
 
+func TestPostDiscordCachesTheChannelCheckUntilDiscordSays404(t *testing.T) {
+	d := &fakeDiscord{}
+	w := workerFor(d, boundStore(owners{"guild-1": "42", "guild-2": "42"}), false)
+	post := setup.PostRequest{BroadcasterID: "42", GuildID: "guild-1", ChannelID: "chan", Content: "hi"}
+	ctx := context.Background()
+
+	require.NoError(t, w.PostDiscord(ctx, post))
+	require.Eventually(t, func() bool {
+		reads := d.channelReads
+		return w.PostDiscord(ctx, post) == nil && d.channelReads == reads
+	}, 2*time.Second, 5*time.Millisecond, "a repeat post reuses the positive check")
+
+	other := post
+	other.GuildID = "guild-2"
+	require.ErrorIs(t, w.PostDiscord(ctx, other), discapi.ErrForbidden, "a cached channel still refuses another guild")
+
+	d.chatErr = discapi.ErrChannelNotFound
+	require.ErrorIs(t, w.PostDiscord(ctx, post), discapi.ErrChannelNotFound)
+	d.chatErr = nil
+	reads := d.channelReads
+	require.NoError(t, w.PostDiscord(ctx, post))
+	require.Equal(t, reads+1, d.channelReads, "a 404 forgets the channel")
+}
+
 func TestPostDiscord(t *testing.T) {
 	longest := strings.Repeat("é", 2000)
+	mine := func(channel, content string) setup.PostRequest {
+		return setup.PostRequest{BroadcasterID: "42", GuildID: "guild-1", ChannelID: channel, Content: content}
+	}
 	cases := []struct {
-		name    string
-		post    discapi.ChatPost
-		offline bool
-		wantErr error
-		want    []discapi.ChatPost
+		name          string
+		post          setup.PostRequest
+		offline       bool
+		channelGuilds map[string]string
+		wantErr       error
+		want          []discapi.ChatPost
 	}{
-		{name: "posts content up to the 2000 rune limit", post: discapi.ChatPost{ChannelID: "chan", Content: longest},
-			want: []discapi.ChatPost{{ChannelID: "chan", Content: longest}}},
-		{name: "requires a channel", post: discapi.ChatPost{Content: "hi"}, wantErr: discapi.ErrBadRequest},
-		{name: "requires content", post: discapi.ChatPost{ChannelID: "chan"}, wantErr: discapi.ErrBadRequest},
-		{name: "refuses content past the rune limit", post: discapi.ChatPost{ChannelID: "chan", Content: longest + "é"}, wantErr: discapi.ErrBadRequest},
-		{name: "requires a discord client", post: discapi.ChatPost{ChannelID: "chan", Content: "hi"}, offline: true, wantErr: discapi.ErrAuth},
+		{name: "posts content up to the 2000 rune limit with every mention off", post: mine("chan", longest),
+			want: []discapi.ChatPost{{ChannelID: "chan", Content: longest, NoMentions: true}}},
+		{name: "requires a channel", post: mine("", "hi"), wantErr: discapi.ErrBadRequest},
+		{name: "requires content", post: mine("chan", ""), wantErr: discapi.ErrBadRequest},
+		{name: "refuses content past the rune limit", post: mine("chan", longest+"é"), wantErr: discapi.ErrBadRequest},
+		{name: "requires a discord client", post: mine("chan", "hi"), offline: true, wantErr: discapi.ErrAuth},
+		{name: "refuses a guild the broadcaster does not own",
+			post: setup.PostRequest{BroadcasterID: "7", GuildID: "guild-1", ChannelID: "chan", Content: "hi"}, wantErr: setup.ErrNotBound},
+		{name: "refuses a guild nobody bound",
+			post: setup.PostRequest{BroadcasterID: "42", GuildID: "guild-9", ChannelID: "chan", Content: "hi"}, wantErr: setup.ErrNotBound},
+		{name: "refuses a channel of another guild", post: mine("elsewhere", "hi"),
+			channelGuilds: map[string]string{"elsewhere": "guild-2"}, wantErr: discapi.ErrForbidden},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := &fakeDiscord{}
+			d := &fakeDiscord{channelGuilds: tc.channelGuilds}
 
-			err := workerFor(d, discordstore.NewMem(), tc.offline).PostDiscord(context.Background(), tc.post.ChannelID, tc.post.Content)
+			err := workerFor(d, boundStore(owners{"guild-1": "42"}), tc.offline).PostDiscord(context.Background(), tc.post)
 
 			require.ErrorIs(t, err, tc.wantErr)
 			require.Equal(t, tc.want, d.chats)

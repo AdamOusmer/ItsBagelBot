@@ -7,6 +7,7 @@ import type { ReplyToken } from '../catalog/module-def';
 import { intactSpan } from '../engine/tmpl';
 import { HINT_KEYS } from './hint-keys';
 import { timerOwns } from '../engine/rehearsal';
+import { lookupEventKind } from '../automations/event-kinds';
 import type { VariableDef, VariableForm, VariableGroup } from './types';
 import { VARIABLES } from './variables';
 
@@ -29,6 +30,8 @@ export type VariableSurface =
   | 'reward:channelpoints'
   | 'reward:spotify'
   | 'reward:govee'
+  | 'automation'
+  | { readonly automation: string }
   | { readonly module: string; readonly reply: string }
   | { readonly builtin: string };
 
@@ -43,6 +46,26 @@ const MANIFEST_SURFACE_SETS: Record<'custom' | 'timer' | 'triggers', ReadonlySet
   timer: TIMER_SET,
   triggers: TRIGGERS_VARIABLE_IDS
 };
+
+type AutomationSurface = 'automation' | { readonly automation: string };
+
+function isAutomationSurface(surface: VariableSurface): surface is AutomationSurface {
+  return surface === 'automation' || (typeof surface === 'object' && 'automation' in surface);
+}
+
+const AUTOMATION_BASE_CHIPS: readonly VariableChip[] = [
+  { token: '{user}', hintKey: 'automations.chip.user', pinned: true, replyOnly: true },
+  { token: '{args}', hintKey: 'automations.chip.args', pinned: true, replyOnly: true },
+  { token: '{arg:key}', hintKey: 'automations.chip.arg', replyOnly: true }
+];
+
+function automationChips(surface: AutomationSurface): readonly VariableChip[] {
+  const kind = surface === 'automation' ? undefined : lookupEventKind(surface.automation);
+  const event = (kind?.fields ?? []).map(
+    (f): VariableChip => ({ token: `{event.${f.name}}`, hintKey: `automations.chip.event.${f.name}`, pinned: true, replyOnly: true })
+  );
+  return [...AUTOMATION_BASE_CHIPS, ...event];
+}
 
 function isManifestSurface(surface: VariableSurface): surface is 'custom' | 'timer' | 'triggers' {
   return typeof surface === 'string' && Object.hasOwn(MANIFEST_SURFACE_SETS, surface);
@@ -87,6 +110,7 @@ function replyTokensFor(target: { module: string; reply: string } | { builtin: s
 }
 
 export function chipsFor(surface: VariableSurface): readonly VariableChip[] {
+  if (isAutomationSurface(surface)) return automationChips(surface);
   if (isManifestSurface(surface)) {
     const chips = forSurface(surface).flatMap(chipsOfVariable);
     return surface === 'triggers' ? chips.map((chip) => chip.id === 'user' || chip.id === 'channel' ? { ...chip, token: `{triggers:${chip.id}}`, requires: 'triggers' } : chip) : chips;
@@ -127,6 +151,7 @@ const REPLY_MANIFEST_CHIPS: readonly VariableChip[] = VARIABLES.filter((v) => RE
 
 export function sheetFor(surface: VariableSurface): readonly VariableChip[] {
   const own = chipsFor(surface);
+  if (isAutomationSurface(surface)) return own;
   if (surface === 'custom') return own.filter((c) => !c.id || !PICKER_OWNED_IDS.has(c.id));
   if (surface === 'timer') return own;
   const ownIds = new Set(own.map((c) => c.id).filter((id): id is string => !!id));

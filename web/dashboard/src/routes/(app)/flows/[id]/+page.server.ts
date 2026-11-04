@@ -5,9 +5,12 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { error, fail, redirect } from '@sveltejs/kit';
-import { newFlow } from '#lib/flow/model';
+import { NEW_FLOW_ID } from '#lib/flow/ref';
+import type { ChoiceList } from '#lib/flow/choices';
 import { effectiveId } from '#lib/server/board';
-import { lookupLogin } from '#lib/server/channel-lookup';
+import { lookupTwitchUser } from '#lib/server/identity-heal';
+import { counterChoices, discordChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
+import { flowDenial, liveEditor, liveSave, lowerSaveRequest, newEditor, type EditorData } from '#lib/server/flow-page';
 import { goveeStore, type GoveeDevice } from '#lib/server/govee-store';
 import { broadcasterPremium } from '#lib/server/module-gate';
 
@@ -27,24 +30,40 @@ async function goveeLights(locals: App.Locals, url: URL): Promise<GoveeLights> {
   return { keyPresent, devices, code };
 }
 
-async function flowFor(id: string) {
-  if (id === 'new') return newFlow();
-  const { DEMO_SYSTEMS } = await import('#lib/flow/demo');
-  const system = DEMO_SYSTEMS.find((s) => s.id === id);
-  if (!system) throw error(404);
-  return system.flow;
+async function editorFor(locals: App.Locals, routeId: string): Promise<EditorData | null> {
+  if (!DEMO) return liveEditor(locals, routeId);
+  return routeId === NEW_FLOW_ID ? newEditor() : (await import('#lib/flow/demo')).demoEditor(routeId);
+}
+
+type Choices = { rewards: Promise<ChoiceList>; discordChannels: Promise<ChoiceList>; counters: Promise<ChoiceList> };
+
+async function choicesFor(locals: App.Locals, url: URL): Promise<Choices> {
+  if (DEMO) {
+    const demo = await import('#lib/flow/demo');
+    const lists = demo.demoChoices(demo.demoChoiceMode(url.searchParams.get('choices')));
+    return { rewards: Promise.resolve(lists.rewards), discordChannels: Promise.resolve(lists.discordChannels), counters: Promise.resolve(lists.counters) };
+  }
+  const uid = effectiveId(locals.session);
+  return { rewards: rewardChoices(uid), discordChannels: discordChoices(uid), counters: counterChoices(uid) };
 }
 
 export const load: PageServerLoad = async ({ params, locals, url, depends }) => {
-  if (!DEMO) throw error(404);
   if (!(await broadcasterPremium(locals))) throw redirect(303, '/flows');
-  depends('flows:govee');
+  depends('flows:govee', 'flows:choices');
+  const editor = await editorFor(locals, params.id);
+  if (!editor) throw error(404);
   const govee = goveeLights(locals, url).catch((): GoveeLights => ({ keyPresent: true, devices: [], code: 'unreachable' }));
-  return { flow: await flowFor(params.id), govee };
+  return { ...editor, govee, ...(await choicesFor(locals, url)) };
 };
 
 const LOGIN_PATTERN = /^[a-z0-9_]{1,25}$/;
 const DEMO_MISSING_LOGIN = 'nosuchuser';
+const DEVICE_PATTERN = /^[A-Za-z0-9:_-]{1,64}$/;
+
+async function scenesFor(locals: App.Locals, device: string, sku: string): Promise<ChoiceList> {
+  if (DEMO) return (await import('#lib/flow/demo')).demoScenes(device);
+  return sceneChoices(effectiveId(locals.session), device, sku);
+}
 
 function demoResolve(login: string) {
   if (login === DEMO_MISSING_LOGIN) return fail(404, { ok: false, code: 'missing' });
@@ -52,14 +71,29 @@ function demoResolve(login: string) {
 }
 
 async function twitchResolve(login: string) {
-  const found = await lookupLogin(login);
-  if (found === 'missing' || found === 'failed') return fail(found === 'missing' ? 404 : 502, { ok: false, code: found });
-  return { ok: true, userId: found.userId, login: found.username };
+  const found = await lookupTwitchUser(login);
+  if (found.kind === 'missing') return fail(404, { ok: false, code: 'missing' });
+  if (found.kind !== 'found') return fail(502, { ok: false, code: 'failed' });
+  return { ok: true, userId: found.value.id, login: found.value.login };
 }
 
 export const actions: Actions = {
+  save: async ({ request, locals }) => {
+    const denied = await flowDenial(locals);
+    if (denied) return denied;
+    const lowered = lowerSaveRequest(String((await request.formData()).get('payload') ?? ''));
+    if (!lowered.ok) return lowered.reply;
+    return DEMO ? (await import('#lib/flow/demo')).demoSave(lowered.lowered) : liveSave(locals, lowered.lowered);
+  },
+  scenes: async ({ request, locals }) => {
+    if (!(await broadcasterPremium(locals))) return fail(403, { ok: false });
+    const form = await request.formData();
+    const device = String(form.get('device') ?? '');
+    const sku = String(form.get('sku') ?? '');
+    if (!DEVICE_PATTERN.test(device) || !DEVICE_PATTERN.test(sku)) return fail(400, { ok: false });
+    return { ok: true, list: await scenesFor(locals, device, sku) };
+  },
   resolveUser: async ({ request, locals }) => {
-    if (!DEMO) throw error(404);
     if (!(await broadcasterPremium(locals))) return fail(403, { ok: false, code: 'failed' });
     const login = String((await request.formData()).get('login') ?? '');
     if (!LOGIN_PATTERN.test(login)) return fail(400, { ok: false, code: 'missing' });

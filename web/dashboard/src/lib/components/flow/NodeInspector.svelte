@@ -19,8 +19,10 @@
   import { portLabel } from '#lib/flow/describe';
   import { rehearseFlow } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
+  import { fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
   import { fieldVisible, outputsFor, specFor, variablesFor, type Flow, type FlowKind } from '#lib/flow/model';
   import { duplicateNode, removeNode } from '#lib/flow/ops';
+  import ChoiceField from './ChoiceField.svelte';
   import FlowRehearsal from './FlowRehearsal.svelte';
   import GoveeLightField from './GoveeLightField.svelte';
   import UserField from './UserField.svelte';
@@ -55,7 +57,7 @@
   const spec = $derived(node ? specFor(node.type) : undefined);
   const tokens = $derived(node ? variablesFor(flow, node.id) : []);
   const moduleFlags = $derived((page.data.moduleFlags as Record<string, boolean> | undefined) ?? {});
-  const rehearsal = $derived(node ? rehearseFlow(flow, { until: node.id, modules: moduleFlags }) : []);
+  const rehearsal = $derived(node ? rehearseFlow(flow, t, { until: node.id, modules: moduleFlags }) : []);
 
   const compareExample = $derived.by(() => {
     if (node?.type !== 'cond.compare') return null;
@@ -63,7 +65,7 @@
     if (step?.kind !== 'check') return null;
     const sentence = step.segments.map((seg) => seg.text).join('');
     const taken = step.choices.find((c) => c.id === step.taken)?.label;
-    return taken ?`With sample values, ${sentence}: goes to ${taken}.` : null;
+    return taken ? t('flows.board.compareExample', { sentence, branch: taken }) : null;
   });
 
   const caret = new Map<string, number>();
@@ -78,11 +80,11 @@
 
   const flowVars = $derived(
     tokens
-      .map((v) => ({ token: v.token, hint: `${v.label}, for example ${v.sample}` }))
+      .map((v) => ({ token: v.token, hint: t('flows.board.variableHint', { label: variableLabel(t, v), sample: v.sample }) }))
       .filter((v) => matches(v.token, v.hint))
   );
 
-  const catalogHint = (c: VariableChip) => chipHint(t, c) ?? (c.sample ? `For example ${c.sample}` : undefined);
+  const catalogHint = (c: VariableChip) => chipHint(t, c) ?? (c.sample ? t('flows.board.variableSample', { sample: c.sample }) : undefined);
 
   const channelVars = $derived.by(() => {
     const own = new Set(tokens.map((v) => v.token));
@@ -130,9 +132,13 @@
 
   const branches = $derived(
     node && spec?.kind === 'condition'
-      ? outputsFor(spec).map((o) => ({ ...o, label: portLabel(node, o), count: reach(node.id, o.id) }))
+      ? outputsFor(spec).map((o) => ({ ...o, label: portLabel(t, node, o.id), count: reach(node.id, o.id) }))
       : []
   );
+
+  const countText = (count: number) =>
+    count === 0 ? t('flows.board.branchNone') : count === 1 ? t('flows.board.branchOne') : t('flows.board.branchMany', { count });
+  const hintTitle = (token: string, hint: string | undefined) => (hint ? t('flows.board.variableTitle', { token, hint }) : token);
 
   function duplicate() {
     if (!node) return;
@@ -149,22 +155,24 @@
 </script>
 
 {#if node && spec}
-  <aside class="panel" aria-label="{spec.label} settings" tabindex="-1" bind:this={panel}>
+  <aside class="panel" aria-label={t('flows.board.settings', { label: stepLabel(t, spec) })} tabindex="-1" bind:this={panel}>
     <header class="head">
       <IconTile style="--tile: 40px; color: {KIND_TINT[spec.kind]}"><Icon name={spec.icon} size={20} /></IconTile>
       <div class="titles">
-        <h2 class="name">{spec.label}</h2>
-        <p class="sentence">{spec.summary}.</p>
+        <h2 class="name">{stepLabel(t, spec)}</h2>
+        <p class="sentence">{t('flows.board.settingsSentence', { summary: stepSummary(t, spec) })}</p>
       </div>
-      <IconButton label="Close settings" size="sm" onclick={() => (onclose ? onclose() : (selectedId = null))}><Icon name="x" size={14} /></IconButton>
+      <IconButton label={t('flows.board.closeSettings')} size="sm" onclick={() => (onclose ? onclose() : (selectedId = null))}><Icon name="x" size={14} /></IconButton>
     </header>
 
     <div class="scroll">
       {#if spec.fields.length}
         <div class="fields">
           {#each spec.fields.filter((f) => fieldVisible(spec, node, f)) as field (field.key)}
+            {@const label = fieldLabel(t, spec, field)}
+            {@const placeholder = fieldPlaceholder(t, spec, field)}
             {#if field.type === 'color'}
-              <Field label={field.label} for="{uid}-{field.key}">
+              <Field {label} for="{uid}-{field.key}">
                 <ColorPicker
                   id="{uid}-{field.key}"
                   value={textOf(field.key) || '#ffffff'}
@@ -173,24 +181,24 @@
               </Field>
             {:else if field.type === 'toggle'}
               <div class="toggle">
-                <span class="toggle-label">{field.label}</span>
+                <span class="toggle-label">{label}</span>
                 <Switch
-                  label={field.label}
+                  {label}
                   checked={Boolean(node.config[field.key])}
                   onCheckedChange={(v) => (node.config[field.key] = v)}
                 />
               </div>
             {:else if field.type === 'select'}
-              <Field label={field.label} for="{uid}-{field.key}">
+              <Field {label} for="{uid}-{field.key}">
                 <Select
                   id="{uid}-{field.key}"
-                  options={field.options}
-                  value={String(node.config[field.key] ?? field.options[0]?.value ?? '')}
+                  options={fieldOptions(t, spec, field)}
+                  value={String(node.config[field.key] ?? field.options[0] ?? '')}
                   onchange={(e) => (node.config[field.key] = e.currentTarget.value)}
                 />
               </Field>
             {:else if field.type === 'number'}
-              <Field label={field.label} for="{uid}-{field.key}">
+              <Field {label} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
                   type="number"
@@ -203,14 +211,14 @@
                     else node.config[field.key] = Number(raw);
                   }}
                 >
-                  {#snippet trailing()}{#if field.unit}<span class="unit">{field.unit}</span>{/if}{/snippet}
+                  {#snippet trailing()}{#if field.unit}<span class="unit">{fieldUnit(t, spec, field)}</span>{/if}{/snippet}
                 </Input>
               </Field>
             {:else if field.type === 'template' && field.singleLine}
-              <Field label={field.label} for="{uid}-{field.key}">
+              <Field {label} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
-                  placeholder={field.placeholder}
+                  {placeholder}
                   value={textOf(field.key)}
                   oninput={(e) => {
                     node.config[field.key] = e.currentTarget.value;
@@ -223,11 +231,11 @@
                 />
               </Field>
             {:else if field.type === 'template'}
-              <Field label={field.label} for="{uid}-{field.key}">
+              <Field {label} for="{uid}-{field.key}">
                 <Textarea
                   id="{uid}-{field.key}"
                   rows={4}
-                  placeholder={field.placeholder}
+                  {placeholder}
                   value={textOf(field.key)}
                   oninput={(e) => {
                     node.config[field.key] = e.currentTarget.value;
@@ -239,17 +247,19 @@
                   onkeyup={(e) => trackCaret(field.key, e.currentTarget)}
                 />
               </Field>
+            {:else if field.type === 'choice'}
+              <ChoiceField {node} {field} {label} id="{uid}-{field.key}" />
             {:else if field.type === 'goveeLight'}
               <GoveeLightField {node} id="{uid}-{field.key}" />
             {:else if field.type === 'login'}
               {#key node.id}
-                <UserField {node} id="{uid}-{field.key}" label={field.label} placeholder={field.placeholder} />
+                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} />
               {/key}
             {:else}
-              <Field label={field.label} for="{uid}-{field.key}">
+              <Field {label} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
-                  placeholder={field.placeholder}
+                  {placeholder}
                   value={textOf(field.key)}
                   oninput={(e) => (node.config[field.key] = e.currentTarget.value)}
                 />
@@ -265,7 +275,7 @@
 
       {#if branches.length}
         <section class="group">
-          <h3 class="group-title">What happens next</h3>
+          <h3 class="group-title">{t('flows.board.branchesTitle')}</h3>
           {#if compareExample}
             <p class="note">{compareExample}</p>
           {/if}
@@ -273,7 +283,7 @@
             {#each branches as b (b.id)}
               <li data-port={b.id}>
                 <span class="branch-name">{b.label}</span>
-                <span class="branch-count">{b.count === 0 ? 'Nothing yet' : b.count === 1 ? '1 step' : `${b.count} steps`}</span>
+                <span class="branch-count">{countText(b.count)}</span>
               </li>
             {/each}
           </ul>
@@ -282,36 +292,36 @@
 
       {#if insertKey}
         <section class="group">
-          <h3 class="group-title">Variables</h3>
-          <SearchInput fill bind:value={query} placeholder="Search variables" />
+          <h3 class="group-title">{t('flows.board.variables')}</h3>
+          <SearchInput fill bind:value={query} placeholder={t('flows.board.searchVariables')} />
           {#if flowVars.length}
-            <h4 class="subgroup-title">From this flow</h4>
+            <h4 class="subgroup-title">{t('flows.board.variablesFlow')}</h4>
             <ul class="vars">
               {#each flowVars as v (v.token)}
-                <li><VarCard stacked token={v.token} hint={v.hint} title={v.hint ? `${v.token}: ${v.hint}` : v.token} onclick={() => insertToken(insertKey, v.token)} /></li>
+                <li><VarCard stacked token={v.token} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
               {/each}
             </ul>
           {:else if !tokens.length && !needle}
-            <p class="note">Connect a trigger to see its variables here.</p>
+            <p class="note">{t('flows.board.variablesConnect')}</p>
           {/if}
           {#if channelVars.length}
-            <h4 class="subgroup-title">{needle ? 'Everywhere' : 'Popular everywhere'}</h4>
+            <h4 class="subgroup-title">{needle ? t('flows.board.variablesAll') : t('flows.board.variablesPopular')}</h4>
             <ul class="vars">
               {#each channelVars as v (v.token)}
-                <li><VarCard stacked token={v.token} hint={v.hint} title={v.hint ? `${v.token}: ${v.hint}` : v.token} onclick={() => insertToken(insertKey, v.token)} /></li>
+                <li><VarCard stacked token={v.token} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
               {/each}
             </ul>
           {/if}
           {#if needle && !flowVars.length && !channelVars.length}
-            <p class="note">No variables match "{query.trim()}".</p>
+            <p class="note">{t('flows.board.variablesNone', { query: query.trim() })}</p>
           {/if}
         </section>
       {/if}
     </div>
 
     <footer class="foot">
-      <Button variant="ghost" onclick={duplicate}>Duplicate</Button>
-      <Button tone="danger" onclick={remove}>Remove step</Button>
+      <Button variant="ghost" onclick={duplicate}>{t('flows.board.duplicate')}</Button>
+      <Button tone="danger" onclick={remove}>{t('flows.board.removeStep')}</Button>
     </footer>
   </aside>
 {/if}

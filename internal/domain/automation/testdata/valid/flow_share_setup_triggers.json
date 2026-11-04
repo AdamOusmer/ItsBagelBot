@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "trigger": { "type": "reward", "params": { "reward_id": "setup-required" } },
+  "actions": [{ "type": "chat", "params": { "text": "hi" } }]
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "path": "conditions[0].params.left",
+    "code": "required"
+  },
+  {
+    "path": "conditions[0].params.op",
+    "code": "invalid_enum"
+  },
+  {
+    "path": "conditions[1].params.op",
+    "code": "required"
+  },
+  {
+    "path": "conditions[2].params",
+    "code": "unknown_field"
+  }
+]

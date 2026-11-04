@@ -147,3 +147,14 @@ func TestCurrentDeletionRemovesCapturedRowsAndCredentials(t *testing.T) {
 	require.Zero(t, client.GoveeCredential.Query().CountX(ctx))
 	require.Zero(t, client.SpotifyCredential.Query().CountX(ctx))
 }
+
+func TestCurrentDeletionRemovesAutomations(t *testing.T) {
+	client, _, repo := setup(t)
+	defer repo.Close(t.Context())
+	ctx := t.Context()
+	client.Automation.Create().SetID("a1").SetUserID(1001).SetName("n").SetNameKey("n").SetTriggerType("manual").SetDefinition("{}").SaveX(ctx)
+	client.Automation.Create().SetID("a2").SetUserID(2002).SetName("n").SetNameKey("n").SetTriggerType("manual").SetDefinition("{}").SaveX(ctx)
+	repo.SetAccountInstanceResolver(func(context.Context, uint64) (int64, error) { return 0, nil })
+	require.NoError(t, repo.DeleteAccount(ctx, 1001, 100))
+	require.Equal(t, 1, client.Automation.Query().CountX(ctx))
+}

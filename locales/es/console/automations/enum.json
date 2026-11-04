@@ -1,0 +1,71 @@
+{
+  "match": {
+    "start": "Empieza por",
+    "exact": "Exacto",
+    "anywhere": "En cualquier parte del mensaje",
+    "regex": "Expresión regular"
+  },
+  "sources": {
+    "chat": "Chat",
+    "sub_message": "Mensajes de suscripción"
+  },
+  "color": {
+    "none": "Predeterminado",
+    "primary": "Principal",
+    "blue": "Azul",
+    "green": "Verde",
+    "orange": "Naranja",
+    "purple": "Morado"
+  },
+  "level": {
+    "everyone": "Todos",
+    "sub": "Suscriptores",
+    "vip": "VIP",
+    "mod": "Moderadores",
+    "lead_mod": "Moderadores principales",
+    "broadcaster": "Streamer"
+  },
+  "state": {
+    "live": "En directo",
+    "offline": "Desconectado"
+  },
+  "op": {
+    "contains": "contiene",
+    "eq": "es igual a",
+    "ne": "no es",
+    "gt": "mayor que",
+    "gte": "al menos",
+    "lt": "menor que",
+    "lte": "como máximo"
+  },
+  "status": {
+    "fulfill": "Completar",
+    "cancel": "Cancelar y reembolsar"
+  },
+  "mode": {
+    "color": "Color",
+    "scene": "Escena"
+  },
+  "kind": {
+    "channel": {
+      "follow": "Nuevo seguidor",
+      "subscribe": "Nueva suscripción",
+      "subscription": {
+        "message": "Mensaje de resuscripción",
+        "gift": "Suscripciones regaladas"
+      },
+      "cheer": "Cheer",
+      "raid": "Raid entrante",
+      "ad_break": {
+        "begin": "Empieza una pausa publicitaria"
+      },
+      "channel_points_custom_reward_redemption": {
+        "add": "Recompensa canjeada"
+      }
+    },
+    "stream": {
+      "online": "El stream empieza",
+      "offline": "El stream termina"
+    }
+  }
+}

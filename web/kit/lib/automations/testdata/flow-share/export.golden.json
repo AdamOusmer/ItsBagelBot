@@ -1,0 +1,150 @@
+{
+  "format": "itsbagelbot.flows",
+  "version": 1,
+  "flows": [
+    {
+      "ref": "f1",
+      "name": "Hype redeem",
+      "definition": {
+        "version": 1,
+        "trigger": {
+          "type": "reward",
+          "params": {
+            "reward_id": "setup-required"
+          }
+        },
+        "conditions": [
+          {
+            "type": "users",
+            "params": {
+              "allow": [
+                "_setup_required"
+              ]
+            }
+          }
+        ],
+        "actions": [
+          {
+            "type": "chat",
+            "params": {
+              "text": "{user} redeemed, deaths at {counter:deaths}, {urlfetch:weather}"
+            }
+          },
+          {
+            "type": "discord_post",
+            "params": {
+              "guild_id": "00000",
+              "channel_id": "00000",
+              "text": "hype"
+            },
+            "enabled": false
+          },
+          {
+            "type": "http_post",
+            "params": {
+              "url": "https://example.com/setup-required"
+            },
+            "enabled": false
+          },
+          {
+            "type": "lights",
+            "params": {
+              "device": "setup-required",
+              "sku": "setup-required",
+              "device_name": "setup-required",
+              "mode": "scene",
+              "scene_id": "setup-required",
+              "scene_name": "setup-required",
+              "scene_type": "setup-required",
+              "scene_instance": "setup-required",
+              "scene_value": "\"setup-required\""
+            },
+            "enabled": false
+          },
+          {
+            "type": "run",
+            "params": {
+              "automation_id": "f2"
+            }
+          },
+          {
+            "type": "run",
+            "params": {
+              "automation_id": "setup-required"
+            },
+            "enabled": false
+          },
+          {
+            "type": "counter_add",
+            "params": {
+              "name": "deaths",
+              "amount": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ref": "f2",
+      "name": "Mod helper",
+      "definition": {
+        "version": 1,
+        "trigger": {
+          "type": "event",
+          "params": {
+            "kind": "channel.follow",
+            "filters": {
+              "user_id": "setup-required"
+            }
+          }
+        },
+        "actions": [
+          {
+            "type": "if",
+            "params": {
+              "condition": {
+                "type": "users",
+                "params": {
+                  "deny": [
+                    "_setup_required"
+                  ]
+                }
+              },
+              "then": [
+                {
+                  "type": "points_add",
+                  "params": {
+                    "login": "_setup_required",
+                    "amount": 500
+                  },
+                  "enabled": false
+                },
+                {
+                  "type": "shoutout",
+                  "params": {
+                    "login": "{user}"
+                  }
+                }
+              ],
+              "else": [
+                {
+                  "type": "chat",
+                  "params": {
+                    "text": "setup-required"
+                  },
+                  "enabled": false
+                },
+                {
+                  "type": "run",
+                  "params": {
+                    "automation_id": "f1"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

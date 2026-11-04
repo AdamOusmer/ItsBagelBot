@@ -1,0 +1,76 @@
+{
+  "chat": {
+    "label": "Отправить сообщение в чат",
+    "summary": "Бот отвечает в чате",
+    "field": {
+      "message": {
+        "label": "Сообщение",
+        "placeholder": "Спасибо, {user}!"
+      }
+    }
+  },
+  "discord": {
+    "label": "Отправить в Discord",
+    "summary": "Опубликовать в канале",
+    "field": {
+      "channel": {
+        "label": "Канал"
+      },
+      "message": {
+        "label": "Сообщение",
+        "placeholder": "{user} устроил рейд!"
+      }
+    }
+  },
+  "points": {
+    "label": "Начислить баллы лояльности",
+    "summary": "Добавить или списать баллы",
+    "field": {
+      "amount": {
+        "label": "Количество",
+        "unit": "баллов"
+      }
+    }
+  },
+  "counter": {
+    "label": "Увеличить счётчик",
+    "summary": "Увеличить счётчик",
+    "field": {
+      "counter": {
+        "label": "Счётчик"
+      }
+    }
+  },
+  "lights": {
+    "label": "Настроить свет",
+    "summary": "Установить цвет или сцену Govee",
+    "field": {
+      "device": {
+        "label": "Свет"
+      },
+      "mode": {
+        "label": "Режим",
+        "option": {
+          "color": "Цвет",
+          "scene": "Сцена"
+        }
+      },
+      "color": {
+        "label": "Цвет"
+      },
+      "scene": {
+        "label": "Сцена"
+      }
+    }
+  },
+  "wait": {
+    "label": "Ожидание",
+    "summary": "Пауза перед следующим шагом",
+    "field": {
+      "seconds": {
+        "label": "Задержка",
+        "unit": "секунд, макс. {max}"
+      }
+    }
+  }
+}

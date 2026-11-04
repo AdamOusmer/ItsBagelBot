@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "everyone"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": {
+          "type": "live",
+          "params": {
+            "state": "live"
+          }
+        },
+        "then": [
+          {
+            "type": "ban",
+            "params": {
+              "login": "x"
+            }
+          }
+        ],
+        "else": []
+      }
+    },
+    {
+      "type": "random_pick",
+      "params": {
+        "branches": [
+          {
+            "weight": 1,
+            "actions": [
+              {
+                "type": "shield",
+                "params": {
+                  "on": true
+                }
+              }
+            ]
+          },
+          {
+            "weight": 1,
+            "actions": [
+              {
+                "type": "chat",
+                "params": {
+                  "text": "x"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

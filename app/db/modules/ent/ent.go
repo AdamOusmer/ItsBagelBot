@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
@@ -79,6 +80,7 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			automation.Table:         automation.ValidColumn,
 			channelfeedcounter.Table: channelfeedcounter.ValidColumn,
 			feedcounter.Table:        feedcounter.ValidColumn,
 			feedreceipt.Table:        feedreceipt.ValidColumn,

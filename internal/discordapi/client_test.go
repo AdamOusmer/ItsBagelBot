@@ -140,6 +140,13 @@ func messageEndpoints() []endpoint {
 		},
 		sent: sentRequest{Method: "POST", URI: "/channels/1/messages", Body: `{"content":"hi"}`},
 	}, {
+		name:  "a chat post can switch every mention off",
+		reply: `{}`,
+		call: func(ctx context.Context, c *api.Client) (any, error) {
+			return nil, c.SendChat(ctx, api.ChatPost{ChannelID: "1", Content: "@everyone hi", NoMentions: true})
+		},
+		sent: sentRequest{Method: "POST", URI: "/channels/1/messages", Body: `{"allowed_mentions":{"parse":[]},"content":"@everyone hi"}`},
+	}, {
 		name: "a message page clamps its limit and decodes authors, attachments and timestamps",
 		reply: `[
 		  {"id":"m2","content":"bye","timestamp":"2026-01-02T03:04:05.000000+00:00",

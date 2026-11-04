@@ -8,6 +8,7 @@ export const SUB = {
   dashboard: process.env.NATS_DASHBOARD_SUBJECT_PREFIX || 'bagel.rpc.dashboard',
   commands: process.env.NATS_COMMANDS_SUBJECT_PREFIX || 'bagel.rpc.commands',
   modules: process.env.NATS_MODULES_SUBJECT_PREFIX || 'bagel.rpc.modules',
+  automations: process.env.NATS_AUTOMATIONS_SUBJECT_PREFIX || 'bagel.rpc.automations',
   projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX || 'bagel.rpc.projector.dashboard',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT || 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',

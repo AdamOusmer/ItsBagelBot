@@ -42,7 +42,12 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if c.Env.Origin == "trial" {
 		return nil
 	}
-	return p.runCustom(ctx, c, name, args, emit)
+	claimed, err := p.runCustom(ctx, c, name, args, emit)
+	if claimed || err != nil {
+		return err
+	}
+	p.runAutomationCommand(ctx, c, views, name, args, emit)
+	return nil
 }
 
 func trialCommand(owners []BoundCommand, name string) bool {
@@ -169,13 +174,18 @@ func configurableBuiltin(name string) bool {
 	}
 }
 
-func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args string, emit module.Emit) error {
+func (p *Pipeline) activeCustom(ctx context.Context, c *module.Context, name string) (projection.Command, bool, error) {
 	cc, found, err := p.proj.Command(ctx, c.BroadcasterID, name)
-	if err != nil || !found || !cc.IsActive {
-		return err
+	if err != nil || !found {
+		return cc, false, err
 	}
-	if cc.Response == "" {
-		return nil
+	return cc, cc.IsActive && cc.Response != "", nil
+}
+
+func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args string, emit module.Emit) (bool, error) {
+	cc, ok, err := p.activeCustom(ctx, c, name)
+	if err != nil || !ok {
+		return false, err
 	}
 
 	pass, err := p.gate(ctx, c, gateRule{
@@ -187,7 +197,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		userCooldown:  time.Duration(cc.UserCooldown) * time.Second,
 	})
 	if err != nil || !pass {
-		return err
+		return true, err
 	}
 
 	p.log.Debug("command matched",
@@ -203,14 +213,14 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		Text:          cc.Response,
 	}, emit)
 	if err != nil || !emitted {
-		return err
+		return true, err
 	}
 
 	p.recordUse(ctx, c, cc.Name)
 	p.analytics.Count(catalog.CommandUses, catalog.CustomCommand)
 	p.bumpCommandCounter(ctx, c, cc, args)
 	c.Engaged = true
-	return nil
+	return true, nil
 }
 
 func (p *Pipeline) bumpCommandCounter(ctx context.Context, c *module.Context, cc projection.Command, args string) {
@@ -332,7 +342,10 @@ func hasVarToken(toks []tmpl.Token) bool {
 }
 
 func (p *Pipeline) chatLines(o *module.Output) []module.Output {
-	outputs := make([]module.Output, 0, validate.MaxResponseLines)
+	return p.appendChatLines(make([]module.Output, 0, validate.MaxResponseLines), o)
+}
+
+func (p *Pipeline) appendChatLines(dst []module.Output, o *module.Output) []module.Output {
 	lines := 0
 	for line := range strings.SplitSeq(o.Text, "\n") {
 		if blankLine(line) {
@@ -347,11 +360,11 @@ func (p *Pipeline) chatLines(o *module.Output) []module.Output {
 		out.BroadcasterID = o.BroadcasterID
 		out.Text = line
 		if p.prepareCommand(out) {
-			outputs = append(outputs, *out)
+			dst = append(dst, *out)
 		}
 		PutOutput(out)
 	}
-	return outputs
+	return dst
 }
 
 func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, b CounterBump) string {

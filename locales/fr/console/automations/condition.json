@@ -1,0 +1,12 @@
+{
+  "perm": "Rôle du spectateur",
+  "users": "Spectateurs précis",
+  "live": "État du stream",
+  "cooldown": "Délai de récupération",
+  "chance": "Probabilité aléatoire",
+  "counter": "Valeur du compteur",
+  "points": "Points du spectateur",
+  "arg_regex": "Arguments correspondant à un motif",
+  "category": "Catégorie du stream",
+  "compare": "Comparer deux valeurs"
+}

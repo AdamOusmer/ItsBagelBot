@@ -6,17 +6,20 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getI18n } from '@bagel/kit';
   import FlowAddButton from './FlowAddButton.svelte';
   import Icon from './FlowIcon.svelte';
 
   let { x, y, empty = false, onadd }: { x: number; y: number; empty?: boolean; onadd?: (byKey: boolean) => void } = $props();
+
+  const { t } = getI18n();
 </script>
 
 <div class="start" class:empty data-flow-ui data-pan-through style:transform="translate({x}px, {y}px)" style:width="{START_W}px" style:height="{START_H}px">
   <Icon name="play" size={12} />
-  <span>Start</span>
+  <span>{t('flows.board.start')}</span>
   <span class="add">
-    <FlowAddButton label="Add a trigger" onclick={(e) => onadd?.(e.detail === 0)} />
+    <FlowAddButton label={t('flows.board.addTrigger')} onclick={(e) => onadd?.(e.detail === 0)} />
   </span>
 </div>
 

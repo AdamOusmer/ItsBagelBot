@@ -151,13 +151,16 @@ type DiscordUnbindReply struct {
 }
 
 type DiscordPostRequest struct {
+	UserID    string `json:"user_id"`
+	GuildID   string `json:"guild_id"`
 	ChannelID string `json:"channel_id"`
 	Content   string `json:"content"`
 }
 
 type DiscordPostReply struct {
-	Error string   `json:"error,omitempty"`
-	Code  rpc.Code `json:"code"`
+	Error   string   `json:"error,omitempty"`
+	Code    rpc.Code `json:"code"`
+	Checked bool     `json:"checked,omitempty"`
 }
 
 type DiscordStatusRequest struct {

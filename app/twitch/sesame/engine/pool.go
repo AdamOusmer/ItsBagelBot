@@ -75,3 +75,24 @@ func PutBuf(b []byte) {
 	b = b[:0]
 	bufPool.Put(&b)
 }
+
+var execPool = sync.Pool{New: func() any { return new(actionExec) }}
+
+func getActionExec() *actionExec { return execPool.Get().(*actionExec) }
+
+func releaseActionExec(x *actionExec) {
+	PutContext(x.tctx)
+	pending, buf := x.pending, x.buf
+	clear(pending[:cap(pending)])
+	*x = actionExec{pending: pending[:0], buf: buf}
+	execPool.Put(x)
+}
+
+var runPool = sync.Pool{New: func() any { return new(AutomationRun) }}
+
+func getRun() *AutomationRun { return runPool.Get().(*AutomationRun) }
+
+func putRun(r *AutomationRun) {
+	*r = AutomationRun{}
+	runPool.Put(r)
+}

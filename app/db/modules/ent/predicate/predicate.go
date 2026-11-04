@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Automation is the predicate function for automation builders.
+type Automation func(*sql.Selector)
+
 // ChannelFeedCounter is the predicate function for channelfeedcounter builders.
 type ChannelFeedCounter func(*sql.Selector)
 

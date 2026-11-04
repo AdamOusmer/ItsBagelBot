@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "discord_post",
+      "params": {
+        "guild_id": "abc",
+        "channel_id": "987654321098765432",
+        "text": "x"
+      }
+    }
+  ]
+}

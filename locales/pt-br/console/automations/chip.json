@@ -1,0 +1,26 @@
+{
+  "user": "O espectador que disparou",
+  "args": "Tudo que foi digitado depois do comando",
+  "arg": "Um argumento nomeado: substitua key",
+  "event": {
+    "user": "Nome de exibição do espectador",
+    "login": "Nome de login do espectador",
+    "user_id": "ID de usuário da Twitch",
+    "tier": "Nível da assinatura",
+    "is_gift": "Se a assinatura é um presente",
+    "months": "Total de meses de assinatura",
+    "streak": "Sequência atual em meses",
+    "message": "Texto da mensagem",
+    "amount": "Quantidade de bits ou presentes",
+    "total": "Total presenteado até agora",
+    "anonymous": "Se foi anônimo",
+    "viewers": "Espectadores na raid",
+    "seconds": "Duração do anúncio em segundos",
+    "automatic": "Se o intervalo foi automático",
+    "reward": "Título da recompensa",
+    "reward_id": "ID da recompensa",
+    "cost": "Custo da recompensa",
+    "input": "Texto digitado pelo espectador",
+    "type": "Tipo de live"
+  }
+}

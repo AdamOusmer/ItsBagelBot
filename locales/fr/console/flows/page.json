@@ -1,0 +1,14 @@
+{
+  "eyebrow": "Tableau · {name}",
+  "description": "Choisissez ce qui se passe sur le stream, puis définissez ce que fait votre bot ensuite.",
+  "new": "Nouveau",
+  "search": "Rechercher par nom ou déclencheur",
+  "stepOne": "1 étape",
+  "stepMany": "{count} étapes",
+  "turnOff": "Désactiver {name}",
+  "turnOn": "Activer {name}",
+  "emptyTitle": "Aucun résultat",
+  "emptyBody": "Essayez un autre nom ou déclencheur.",
+  "untitled": "Sans titre",
+  "save": "Enregistrer"
+}

@@ -8,6 +8,18 @@ import (
 	"fmt"
 )
 
+// The AutomationFunc type is an adapter to allow the use of ordinary
+// function as Automation mutator.
+type AutomationFunc func(context.Context, *ent.AutomationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AutomationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AutomationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AutomationMutation", m)
+}
+
 // The ChannelFeedCounterFunc type is an adapter to allow the use of ordinary
 // function as ChannelFeedCounter mutator.
 type ChannelFeedCounterFunc func(context.Context, *ent.ChannelFeedCounterMutation) (ent.Value, error)

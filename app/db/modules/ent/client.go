@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent/migrate"
 
+	"ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
@@ -29,6 +30,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Automation is the client for interacting with the Automation builders.
+	Automation *AutomationClient
 	// ChannelFeedCounter is the client for interacting with the ChannelFeedCounter builders.
 	ChannelFeedCounter *ChannelFeedCounterClient
 	// FeedCounter is the client for interacting with the FeedCounter builders.
@@ -54,6 +57,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Automation = NewAutomationClient(c.config)
 	c.ChannelFeedCounter = NewChannelFeedCounterClient(c.config)
 	c.FeedCounter = NewFeedCounterClient(c.config)
 	c.FeedReceipt = NewFeedReceiptClient(c.config)
@@ -153,6 +157,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:                ctx,
 		config:             cfg,
+		Automation:         NewAutomationClient(cfg),
 		ChannelFeedCounter: NewChannelFeedCounterClient(cfg),
 		FeedCounter:        NewFeedCounterClient(cfg),
 		FeedReceipt:        NewFeedReceiptClient(cfg),
@@ -179,6 +184,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:                ctx,
 		config:             cfg,
+		Automation:         NewAutomationClient(cfg),
 		ChannelFeedCounter: NewChannelFeedCounterClient(cfg),
 		FeedCounter:        NewFeedCounterClient(cfg),
 		FeedReceipt:        NewFeedReceiptClient(cfg),
@@ -192,7 +198,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		ChannelFeedCounter.
+//		Automation.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -215,8 +221,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.ChannelFeedCounter, c.FeedCounter, c.FeedReceipt, c.GoveeCredential,
-		c.Modules, c.Quote, c.SpotifyCredential,
+		c.Automation, c.ChannelFeedCounter, c.FeedCounter, c.FeedReceipt,
+		c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential,
 	} {
 		n.Use(hooks...)
 	}
@@ -226,8 +232,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.ChannelFeedCounter, c.FeedCounter, c.FeedReceipt, c.GoveeCredential,
-		c.Modules, c.Quote, c.SpotifyCredential,
+		c.Automation, c.ChannelFeedCounter, c.FeedCounter, c.FeedReceipt,
+		c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -236,6 +242,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *AutomationMutation:
+		return c.Automation.mutate(ctx, m)
 	case *ChannelFeedCounterMutation:
 		return c.ChannelFeedCounter.mutate(ctx, m)
 	case *FeedCounterMutation:
@@ -252,6 +260,139 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.SpotifyCredential.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// AutomationClient is a client for the Automation schema.
+type AutomationClient struct {
+	config
+}
+
+// NewAutomationClient returns a client for the Automation from the given config.
+func NewAutomationClient(c config) *AutomationClient {
+	return &AutomationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `automation.Hooks(f(g(h())))`.
+func (c *AutomationClient) Use(hooks ...Hook) {
+	c.hooks.Automation = append(c.hooks.Automation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `automation.Intercept(f(g(h())))`.
+func (c *AutomationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Automation = append(c.inters.Automation, interceptors...)
+}
+
+// Create returns a builder for creating a Automation entity.
+func (c *AutomationClient) Create() *AutomationCreate {
+	mutation := newAutomationMutation(c.config, OpCreate)
+	return &AutomationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Automation entities.
+func (c *AutomationClient) CreateBulk(builders ...*AutomationCreate) *AutomationCreateBulk {
+	return &AutomationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AutomationClient) MapCreateBulk(slice any, setFunc func(*AutomationCreate, int)) *AutomationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AutomationCreateBulk{err: fmt.Errorf("calling to AutomationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AutomationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AutomationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Automation.
+func (c *AutomationClient) Update() *AutomationUpdate {
+	mutation := newAutomationMutation(c.config, OpUpdate)
+	return &AutomationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AutomationClient) UpdateOne(_m *Automation) *AutomationUpdateOne {
+	mutation := newAutomationMutation(c.config, OpUpdateOne, withAutomation(_m))
+	return &AutomationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AutomationClient) UpdateOneID(id string) *AutomationUpdateOne {
+	mutation := newAutomationMutation(c.config, OpUpdateOne, withAutomationID(id))
+	return &AutomationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Automation.
+func (c *AutomationClient) Delete() *AutomationDelete {
+	mutation := newAutomationMutation(c.config, OpDelete)
+	return &AutomationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AutomationClient) DeleteOne(_m *Automation) *AutomationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AutomationClient) DeleteOneID(id string) *AutomationDeleteOne {
+	builder := c.Delete().Where(automation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AutomationDeleteOne{builder}
+}
+
+// Query returns a query builder for Automation.
+func (c *AutomationClient) Query() *AutomationQuery {
+	return &AutomationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAutomation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Automation entity by its id.
+func (c *AutomationClient) Get(ctx context.Context, id string) (*Automation, error) {
+	return c.Query().Where(automation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AutomationClient) GetX(ctx context.Context, id string) *Automation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AutomationClient) Hooks() []Hook {
+	return c.hooks.Automation
+}
+
+// Interceptors returns the client interceptors.
+func (c *AutomationClient) Interceptors() []Interceptor {
+	return c.inters.Automation
+}
+
+func (c *AutomationClient) mutate(ctx context.Context, m *AutomationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AutomationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AutomationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AutomationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AutomationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Automation mutation op: %q", m.Op())
 	}
 }
 
@@ -1189,11 +1330,11 @@ func (c *SpotifyCredentialClient) mutate(ctx context.Context, m *SpotifyCredenti
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		ChannelFeedCounter, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
-		SpotifyCredential []ent.Hook
+		Automation, ChannelFeedCounter, FeedCounter, FeedReceipt, GoveeCredential,
+		Modules, Quote, SpotifyCredential []ent.Hook
 	}
 	inters struct {
-		ChannelFeedCounter, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
-		SpotifyCredential []ent.Interceptor
+		Automation, ChannelFeedCounter, FeedCounter, FeedReceipt, GoveeCredential,
+		Modules, Quote, SpotifyCredential []ent.Interceptor
 	}
 )

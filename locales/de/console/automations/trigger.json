@@ -1,0 +1,7 @@
+{
+  "command": "Chat-Befehl",
+  "event": "Twitch-Ereignis",
+  "timer": "Timer",
+  "reward": "Kanalpunkte-Belohnung",
+  "manual": "Manuell"
+}

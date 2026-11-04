@@ -1,0 +1,76 @@
+{
+  "chat": {
+    "label": "Enviar mensaje de chat",
+    "summary": "El bot responde en el chat",
+    "field": {
+      "message": {
+        "label": "Mensaje",
+        "placeholder": "¡Gracias, {user}!"
+      }
+    }
+  },
+  "discord": {
+    "label": "Publicar en Discord",
+    "summary": "Anunciar en un canal",
+    "field": {
+      "channel": {
+        "label": "Canal"
+      },
+      "message": {
+        "label": "Mensaje",
+        "placeholder": "¡{user} acaba de hacer raid!"
+      }
+    }
+  },
+  "points": {
+    "label": "Dar puntos de fidelidad",
+    "summary": "Añadir o quitar puntos",
+    "field": {
+      "amount": {
+        "label": "Cantidad",
+        "unit": "puntos"
+      }
+    }
+  },
+  "counter": {
+    "label": "Aumentar contador",
+    "summary": "Aumentar un contador",
+    "field": {
+      "counter": {
+        "label": "Contador"
+      }
+    }
+  },
+  "lights": {
+    "label": "Ajustar luces",
+    "summary": "Ajustar un color o escena de Govee",
+    "field": {
+      "device": {
+        "label": "Luz"
+      },
+      "mode": {
+        "label": "Ajustar",
+        "option": {
+          "color": "Color",
+          "scene": "Escena"
+        }
+      },
+      "color": {
+        "label": "Color"
+      },
+      "scene": {
+        "label": "Escena"
+      }
+    }
+  },
+  "wait": {
+    "label": "Esperar",
+    "summary": "Pausar antes del siguiente paso",
+    "field": {
+      "seconds": {
+        "label": "Retardo",
+        "unit": "segundos, máximo {max}"
+      }
+    }
+  }
+}

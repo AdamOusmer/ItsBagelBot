@@ -1,0 +1,17 @@
+{
+  "then": "Ensuite",
+  "variable": {
+    "user": "Nom d’affichage",
+    "userId": "ID utilisateur",
+    "args": "Arguments",
+    "touser": "Premier argument",
+    "tier": "Niveau",
+    "months": "Mois",
+    "bits": "Bits",
+    "viewers": "Viewers",
+    "input": "Saisie du viewer",
+    "title": "Titre du stream",
+    "game": "Catégorie",
+    "count": "Nouveau total"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "chat": {
+    "label": "Enviar mensagem no chat",
+    "summary": "Bot responde no chat",
+    "field": {
+      "message": {
+        "label": "Mensagem",
+        "placeholder": "Obrigado, {user}!"
+      }
+    }
+  },
+  "discord": {
+    "label": "Postar no Discord",
+    "summary": "Anunciar em um canal",
+    "field": {
+      "channel": {
+        "label": "Canal"
+      },
+      "message": {
+        "label": "Mensagem",
+        "placeholder": "{user} acabou de fazer uma raid!"
+      }
+    }
+  },
+  "points": {
+    "label": "Dar pontos de fidelidade",
+    "summary": "Adicionar ou remover pontos",
+    "field": {
+      "amount": {
+        "label": "Quantidade",
+        "unit": "pontos"
+      }
+    }
+  },
+  "counter": {
+    "label": "Aumentar contador",
+    "summary": "Aumentar um contador",
+    "field": {
+      "counter": {
+        "label": "Contador"
+      }
+    }
+  },
+  "lights": {
+    "label": "Ajustar luzes",
+    "summary": "Definir uma cor ou cena Govee",
+    "field": {
+      "device": {
+        "label": "Luz"
+      },
+      "mode": {
+        "label": "Definir",
+        "option": {
+          "color": "Cor",
+          "scene": "Cena"
+        }
+      },
+      "color": {
+        "label": "Cor"
+      },
+      "scene": {
+        "label": "Cena"
+      }
+    }
+  },
+  "wait": {
+    "label": "Aguardar",
+    "summary": "Pausar antes da próxima etapa",
+    "field": {
+      "seconds": {
+        "label": "Atraso",
+        "unit": "segundos, máximo {max}"
+      }
+    }
+  }
+}

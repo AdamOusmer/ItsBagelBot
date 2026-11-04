@@ -1,0 +1,6 @@
+[
+  {
+    "path": "conditions[0].params.deny_ids[0]",
+    "code": "out_of_range"
+  }
+]

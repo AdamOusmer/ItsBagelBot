@@ -11,7 +11,7 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-const claimValue = "1"
+const ClaimValue = "1"
 
 // A plain DEL would free a lock another replica took after our TTL lapsed.
 const releaseIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`
@@ -54,7 +54,7 @@ func (l OwnerLock) ReleaseCall() ScriptCall {
 }
 
 func ClaimOnce(ctx context.Context, client valkey_go.Client, key string, ttl time.Duration) (bool, error) {
-	cmd := client.B().Set().Key(key).Value(claimValue).Nx().PxMilliseconds(ttl.Milliseconds()).Build()
+	cmd := client.B().Set().Key(key).Value(ClaimValue).Nx().PxMilliseconds(ttl.Milliseconds()).Build()
 	return wonClaim(client.Do(ctx, cmd))
 }
 

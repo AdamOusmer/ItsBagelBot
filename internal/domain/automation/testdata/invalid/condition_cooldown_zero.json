@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "cooldown",
+      "params": {
+        "global_s": 0,
+        "user_s": 0
+      }
+    }
+  ]
+}

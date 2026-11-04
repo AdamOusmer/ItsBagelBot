@@ -47,6 +47,7 @@ type Deps struct {
 	Pub            bus.Publisher
 	Commands       CommandManager
 	Gossip         GossipCaller
+	Discord        DiscordPoster
 	CustomFetch    UrlFetchCaller
 	Followage      FollowageLookup
 	AccountAge     AccountAgeLookup
@@ -76,6 +77,8 @@ type Deps struct {
 	Dedup          *EventDedup
 	Seq            *Sequencer
 	Nuke           *Nuke
+	Automations    AutomationDeps
+	AutomationHook *AutomationHook
 	Analytics      *analytics.Recorder
 
 	LeaderboardBaseURL string
@@ -158,6 +161,14 @@ type CounterBump struct {
 	Delta         int64
 }
 
+type CounterAssignment struct {
+	BroadcasterID uint64
+	Name          string
+	ViewerID      uint64
+	Command       string
+	Value         int64
+}
+
 type BalanceAdjustment struct {
 	BroadcasterID uint64
 	ViewerID      uint64
@@ -217,7 +228,7 @@ type LoyaltyStore interface {
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)
-	CounterSet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, value int64) (bool, error)
+	CounterSet(ctx context.Context, set CounterAssignment) (bool, error)
 	CounterDelete(ctx context.Context, broadcasterID uint64, name string) error
 	CounterList(ctx context.Context, broadcasterID uint64) ([]loyaltyrpc.Counter, error)
 }

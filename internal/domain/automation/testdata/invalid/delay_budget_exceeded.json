@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "delay",
+      "params": {
+        "ms": 6000
+      }
+    },
+    {
+      "type": "delay",
+      "params": {
+        "ms": 5000
+      }
+    }
+  ]
+}

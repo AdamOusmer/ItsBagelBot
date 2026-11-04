@@ -1,0 +1,6 @@
+[
+  {
+    "path": "conditions[0].params.name",
+    "code": "invalid_format"
+  }
+]

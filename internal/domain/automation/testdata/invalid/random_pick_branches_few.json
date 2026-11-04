@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "random_pick",
+      "params": {
+        "branches": [
+          {
+            "weight": 1,
+            "actions": []
+          }
+        ]
+      }
+    }
+  ]
+}

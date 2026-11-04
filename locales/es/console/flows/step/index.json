@@ -1,0 +1,17 @@
+{
+  "then": "Luego",
+  "variable": {
+    "user": "Nombre visible",
+    "userId": "ID de usuario",
+    "args": "Argumentos",
+    "touser": "Primer argumento",
+    "tier": "Nivel",
+    "months": "Meses",
+    "bits": "Bits",
+    "viewers": "Espectadores",
+    "input": "Entrada del espectador",
+    "title": "Título del stream",
+    "game": "Categoría",
+    "count": "Nuevo conteo"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "mod"
+      }
+    },
+    {
+      "type": "users",
+      "params": {
+        "allow": [
+          "alice"
+        ],
+        "deny": [
+          "bob_1"
+        ]
+      }
+    },
+    {
+      "type": "live",
+      "params": {
+        "state": "live"
+      }
+    },
+    {
+      "type": "cooldown",
+      "params": {
+        "global_s": 30,
+        "user_s": 60
+      }
+    },
+    {
+      "type": "chance",
+      "params": {
+        "percent": 50
+      }
+    },
+    {
+      "type": "counter",
+      "params": {
+        "name": "deaths",
+        "op": "gte",
+        "value": 3
+      }
+    },
+    {
+      "type": "points",
+      "params": {
+        "op": "gt",
+        "value": 100
+      }
+    },
+    {
+      "type": "arg_regex",
+      "params": {
+        "pattern": "^[a-z]+$"
+      }
+    },
+    {
+      "type": "category",
+      "params": {
+        "allow": [
+          "Just Chatting"
+        ],
+        "deny": [
+          "Slots"
+        ]
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "hello {user}"
+      }
+    }
+  ]
+}

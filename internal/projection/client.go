@@ -98,10 +98,11 @@ type Reader interface {
 }
 
 type Subjects struct {
-	Users    string
-	Modules  string
-	Commands string
-	Fetches  string
+	Users       string
+	Modules     string
+	Commands    string
+	Fetches     string
+	Automations string
 }
 
 type Client struct {
@@ -115,6 +116,8 @@ type Client struct {
 	moduleOutages *cache.Cache[error]
 	commands      *cache.Cache[commandEntry]
 	fetches       *cache.Cache[fetchEntry]
+
+	automations *automationLists
 
 	commandLookup perName[CommandView, commandEntry]
 	fetchLookup   perName[FetchView, fetchEntry]
@@ -145,6 +148,7 @@ func NewClient(cfg Config) *Client {
 
 		moduleOutages: cache.New[error](modulesCacheCapacity, moduleOutageBackoff),
 	}
+	c.automations = newAutomationCache(cfg.TTL)
 	c.commandLookup = perName[CommandView, commandEntry]{
 		entries: c.commands,
 		key:     cmdKey,
@@ -171,6 +175,7 @@ func (c *Client) Close() {
 	c.moduleOutages.Close()
 	c.commands.Close()
 	c.fetches.Close()
+	c.automations.Close()
 }
 
 func (c *Client) StartOccupancyLogger(ctx context.Context, interval time.Duration) {
@@ -206,28 +211,47 @@ func (c *Client) onInvalidation(msg *nats.Msg) {
 	}
 
 	parts := strings.Split(msg.Subject, ".")
-	c.evictScope(parts[len(parts)-1], id, payload.Keys)
+	c.evictScope(invalidation{scope: parts[len(parts)-1], id: id, keys: payload.Keys})
 }
 
-func (c *Client) evictScope(scope string, id uint64, keys []string) {
-	switch scope {
+type invalidation struct {
+	scope string
+	id    uint64
+	keys  []string
+}
+
+func (c *Client) evictScope(inv invalidation) {
+	switch inv.scope {
 	case "commands":
-		for _, name := range keys {
-			c.commands.Invalidate(cmdKey(id, strings.ToLower(name)))
+		for _, name := range inv.keys {
+			c.commands.Invalidate(cmdKey(inv.id, strings.ToLower(name)))
 		}
 	case "fetches":
-		for _, name := range keys {
-			c.fetches.Invalidate(fetchKey(id, strings.ToLower(name)))
+		for _, name := range inv.keys {
+			c.fetches.Invalidate(fetchKey(inv.id, strings.ToLower(name)))
 		}
+	case "delegation":
+	default:
+		if !c.evictChannel(inv) {
+			c.log.Debug("projection: cache invalidation: unknown scope", zap.String("scope", inv.scope))
+		}
+	}
+}
+
+func (c *Client) evictChannel(inv invalidation) bool {
+	id := inv.id
+	switch inv.scope {
 	case "modules":
 		c.modules.Invalidate(key("modules", id))
 		c.moduleOutages.Invalidate(key("modules", id))
+	case "automations":
+		c.automations.Invalidate(key("automations", id))
 	case "status", "grant", "live", "locale", "commands_page", "leaderboard_page":
 		c.users.Invalidate(key("user", id))
-	case "delegation":
 	default:
-		c.log.Debug("projection: cache invalidation: unknown scope", zap.String("scope", scope))
+		return false
 	}
+	return true
 }
 
 func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
