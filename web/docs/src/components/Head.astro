@@ -11,7 +11,7 @@ import SmoothScroll from './SmoothScroll.astro';
 import SidebarState from './SidebarState.astro';
 import MermaidStyles from './MermaidStyles.astro';
 
-const ogImage = new URL('/og-image.png', Astro.site).href;
+const ogImage = new URL('/og-image.png?v=2', Astro.site).href;
 const { entry } = Astro.locals.starlightRoute ?? {};
 const { t, locale, path } = docsI18n(Astro.locals.starlightRoute?.locale);
 const pageTitle = entry?.data.title ?? t('title');
