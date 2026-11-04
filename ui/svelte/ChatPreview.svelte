@@ -3,7 +3,6 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
   import '../styles/elements/chat-preview.css';
-  import StatusDot from './StatusDot.svelte';
 
   let {
     title,
@@ -28,7 +27,6 @@
 
 <div class="bb-chat{className ? ' ' + className : ''}" role={label ? 'img' : 'group'} aria-label={label} {onpointerenter} {onpointerleave}>
   <div class="bb-chat__bar">
-    <StatusDot tone="success" />
     <span class="bb-chat__title">{title}</span>
     {#if kind}<b class="bb-chat__kind">{kind}</b>{/if}
   </div>

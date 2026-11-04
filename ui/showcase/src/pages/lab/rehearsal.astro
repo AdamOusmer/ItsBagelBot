@@ -1,0 +1,70 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import Showcase from '../../layouts/Showcase.astro';
+import ChatPreview from '../../../../astro/ChatPreview.astro';
+import '../../../../styles/elements/mark.css';
+
+const bot = '<span class="bb-chat__name bb-chat__name--bot"><span class="bb-chat__avatar" aria-hidden="true"><span class="lab-avatar"></span></span>ItsBagelBot</span>';
+const viewer = (text: string, cmd = true) =>
+  `<div class="bb-chat__line"><span class="bb-chat__name bb-chat__name--viewer">PrincessBarney</span><span class="bb-chat__msg${cmd ? ' bb-chat__msg--cmd' : ''}">${text}</span></div>`;
+const reply = (text: string) =>
+  `<div class="bb-chat__line">${bot}<span class="bb-chat__msg bb-chat__reply">${text}</span></div>`;
+const stack = (inner: string) => `<div class="bb-chat__line bb-chat__line--stack">${bot}${inner}</div>`;
+
+const scenes = [
+  { name: 'Short reply', title: 'Chat rehearsal', html: viewer('!bagel') + reply('@<mark>PrincessBarney</mark> one warm bagel, fresh from the oven.') },
+  {
+    name: 'Long reply with samples',
+    title: 'Chat rehearsal',
+    html: viewer('!points') + reply('@<mark>PrincessBarney</mark> you have <mark>1,240</mark> bagels and rank <mark>#12</mark> on the board. Keep watching <mark>dressedbagel</mark> to earn more every ten minutes.'),
+  },
+  { name: 'Unknown variable', title: 'Chat rehearsal', html: viewer('!song') + reply('Now playing <mark class="bb-chat__unknown" title="Unknown variable">$(spotfy.track)</mark> for @<mark>PrincessBarney</mark>.') },
+  {
+    name: 'Announcement',
+    title: 'Chat rehearsal',
+    html: viewer('!raid') + stack('<div class="bb-chat__announce bb-chat__acc--blue"><span class="bb-chat__head"><span class="bb-chat__via">Twitch /announce (blue)</span>Announcement</span><span class="bb-chat__msg bb-chat__reply">Raid in five minutes. Get your bagels ready.</span></div>'),
+  },
+  {
+    name: 'Pin',
+    title: 'Chat rehearsal',
+    html: viewer('!rules') + stack('<div class="bb-chat__pin"><span class="bb-chat__head"><span class="bb-chat__via">Twitch /pin</span>Pinned until the stream ends</span><span class="bb-chat__msg bb-chat__reply">Be kind, no spoilers, and keep the bagels warm.</span></div>'),
+  },
+  {
+    name: 'Shoutout',
+    title: 'Chat rehearsal',
+    html: viewer('!so dressedbagel') + stack('<div class="bb-chat__shoutout"><span class="bb-chat__via">Twitch /shoutout</span><span class="bb-chat__msg bb-chat__reply">Shouts out <strong>@dressedbagel</strong></span></div>'),
+  },
+  {
+    name: 'Action (/me)',
+    title: 'Chat rehearsal',
+    html: viewer('!wave') + `<div class="bb-chat__line bb-chat__line--bare">${bot}<span class="bb-chat__via bb-chat__via--inline">Twitch /me</span><span class="bb-chat__msg bb-chat__reply bb-chat__msg--action">waves at <mark>PrincessBarney</mark></span></div>`,
+  },
+  { name: 'Typing', title: 'Chat rehearsal', html: viewer('!bagel') + `<div class="bb-chat__line">${bot}<span class="bb-chat__msg bb-chat__msg--typing" aria-label="Bot is typing"><span class="bb-drawline" aria-hidden="true"></span></span></div>` },
+  { name: 'Nothing to say', title: 'Chat rehearsal', html: viewer('!bagel') + `<div class="bb-chat__line">${bot}<span class="bb-chat__msg bb-chat__msg--empty">…the bot has nothing to say yet</span></div>` },
+  { name: 'Timer, two lines, no viewer', title: 'Chat rehearsal', html: reply('Follow so you never miss a bake.') + reply('Bagels drop every ten minutes while you watch.') },
+  { name: 'Viewer message, custom tag', title: 'Redeem reply', kind: 'reward', html: viewer('play something chill please', false) + reply('@<mark>PrincessBarney</mark> added your request to the queue.') },
+];
+---
+
+<Showcase title="Chat rehearsal" lead="Every state of the shared ChatPreview. The avatar is a stand-in for the live Bolota.">
+  <section class="sc-block">
+    <div class="rh-grid">
+      {scenes.map((scene) => (
+        <figure class="rh-scene">
+          <figcaption>{scene.name}</figcaption>
+          <ChatPreview title={scene.title} kind={scene.kind}><Fragment set:html={scene.html} /></ChatPreview>
+        </figure>
+      ))}
+    </div>
+  </section>
+</Showcase>
+
+<style is:global>
+  @layer bb.app {
+    .rh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 24px 16px; align-items: start; }
+    .rh-scene { display: grid; gap: 8px; margin: 0; min-width: 0; }
+    .rh-scene figcaption { color: var(--bb-muted); font-size: 12px; }
+    .lab-avatar { display: block; width: 100%; height: 100%; background: var(--bb-tan-light); }
+  }
+</style>
