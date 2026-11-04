@@ -17,7 +17,7 @@
   "unknown_filter": "Filtro desconhecido",
   "too_many": "Itens demais",
   "nesting": "Não pode ser aninhado aqui",
-  "delay_budget": "As esperas somam mais de 10 segundos",
+  "delay_budget": "As esperas somam mais de 60 segundos",
   "trigger_mismatch": "Não combina com este gatilho",
   "invalid_json": "Dados inválidos",
   "unsupported_version": "Versão não compatível",

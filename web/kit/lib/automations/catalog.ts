@@ -120,7 +120,7 @@ export const ACTION_TYPES: TypeDef[] = [
   action('counter_add', [counterName, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
   action('counter_set', [counterName, f('value', 'int', { required: true })]),
   action('redemption', [f('status', 'enum', { required: true, values: ['fulfill', 'cancel'] })]),
-  action('delay', [f('ms', 'int', { required: true, min: 1, max: 10000 })]),
+  action('delay', [f('ms', 'int', { required: true, min: 1, max: 60000 })]),
   action('random_pick', [f('branches', 'branches', { required: true, min: 2, max: 5 })]),
   action('run', [f('automation_id', 'text', { required: true, min: 1, max: 64 })]),
   action('if', [

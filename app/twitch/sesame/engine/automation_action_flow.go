@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	maxContinuations    = 64
+	maxContinuations    = 512
 	continuationTimeout = 30 * time.Second
 )
 
@@ -164,7 +164,7 @@ type continuation struct {
 func (p *Pipeline) continueRun(ctx context.Context, c continuation) {
 	run, budget := c.run, c.budget
 	defer p.autoExec.release()
-	ctx, cancel := context.WithTimeout(ctx, continuationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, c.wait+continuationTimeout)
 	defer cancel()
 	if !sleepContext(ctx, c.wait) {
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeFailed, "canceled"

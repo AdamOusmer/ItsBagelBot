@@ -310,7 +310,7 @@ describe('refusals', () => {
   });
 
   test('a wait over the delay budget', () => {
-    expect(issueCodes(flow([node('t', 'twitch.follow'), node('w', 'reply.wait', { seconds: 11 })], [edge('t', 'next', 'w')]))).toEqual(['wait_too_long']);
+    expect(issueCodes(flow([node('t', 'twitch.follow'), node('w', 'reply.wait', { seconds: 61 })], [edge('t', 'next', 'w')]))).toEqual(['wait_too_long']);
   });
 });
 
@@ -488,7 +488,7 @@ describe('locating validation issues on steps', () => {
   const gate = node('g', 'cond.role', { level: 'mod' });
   const check = node('c', 'cond.compare', { left: '', op: 'gte', right: '5' });
   const post = node('d', 'reply.lights', { sku: 'H6008', mode: 'color', color: '#f5a524' });
-  const wait = (id: FlowNode['id']) => node(id, 'reply.wait', { seconds: 6 });
+  const wait = (id: FlowNode['id']) => node(id, 'reply.wait', { seconds: 31 });
 
   const refused = (input: Flow) => {
     const result = flowToDefinition(input);
