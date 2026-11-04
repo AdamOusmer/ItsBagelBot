@@ -171,6 +171,9 @@ func subscriptionSpecContains(specs []twitch.SubSpec, kind string) bool {
 	return false
 }
 func (w *Worker) createControlListener(ctx context.Context, e enrollment, spec twitch.SubSpec) error {
+	if e.live[spec.Type] {
+		return nil
+	}
 	if !w.recoveryListenersAllowed(ctx, e) {
 		return errLifecycleStopped
 	}
