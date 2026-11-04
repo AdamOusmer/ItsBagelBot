@@ -67,6 +67,36 @@ func (x *actionExec) randomPick(s step, p automation.RandomPickAction) error {
 	return nil
 }
 
+// Each path pauses alone: its remaining steps move to their own continuation, so the next path starts right away.
+func (x *actionExec) parallel(s step, _ automation.ParallelAction) error {
+	spent := x.budget.delayMS
+	for i := range s.Branches {
+		x.budget.delayMS = spent
+		x.execList(s.Branches[i])
+		x.settlePath(i)
+	}
+	x.budget.delayMS = spent
+	return nil
+}
+
+func (x *actionExec) settlePath(path int) {
+	paused := x.signal == signalDelay && len(x.rest) > 0
+	if paused && !x.schedulePath(path) {
+		x.limitRest()
+	}
+	x.signal, x.rest = signalNone, nil
+}
+
+func (x *actionExec) schedulePath(path int) bool {
+	if !x.p.autoExec.acquire() {
+		return false
+	}
+	cont := detachRun(x.run)
+	cont.ID = cont.ID + "#" + strconv.Itoa(path)
+	x.startContinuation(cont)
+	return true
+}
+
 func (x *actionExec) pickBranch(branches []automation.Branch) int {
 	total := 0
 	for _, b := range branches {
@@ -146,12 +176,15 @@ func (x *actionExec) scheduleRest() bool {
 	if !x.p.autoExec.acquire() {
 		return false
 	}
-	cont := detachRun(x.run)
+	x.startContinuation(detachRun(x.run))
+	return true
+}
+
+func (x *actionExec) startContinuation(cont *AutomationRun) {
 	budget := x.budget
 	budget.segment++
 	wait := time.Duration(x.delayMS) * time.Millisecond
 	go x.p.continueRun(context.WithoutCancel(x.ctx), continuation{run: cont, budget: budget, rest: x.rest, wait: wait})
-	return true
 }
 
 type continuation struct {

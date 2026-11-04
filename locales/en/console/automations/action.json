@@ -21,6 +21,7 @@
   "redemption": "Resolve the redemption",
   "delay": "Wait",
   "random_pick": "Pick one at random",
+  "parallel": "Run paths side by side",
   "run": "Run another automation",
   "if": "If, then otherwise",
   "http_post": "Send an HTTP request",

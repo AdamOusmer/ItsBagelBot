@@ -111,6 +111,10 @@ type RandomPickAction struct {
 	Branches []Branch `json:"branches"`
 }
 
+type ParallelAction struct {
+	Branches []Branch `json:"branches"`
+}
+
 type RunAction struct {
 	AutomationID string `json:"automation_id"`
 }
@@ -276,6 +280,19 @@ func randomPickBranches(p RandomPickAction) nesting {
 		n.lists[i], n.labels[i] = b.Actions, "b"+strconv.Itoa(i)
 	}
 	return n
+}
+
+func checkParallel(c chk, p ParallelAction) {
+	if !c.count("branches", quantity(len(p.Branches)), between(2, 10)) {
+		return
+	}
+	for i, b := range p.Branches {
+		c.sub("branches").elem(index(i)).sub("actions").nest().actions(b.Actions)
+	}
+}
+
+func parallelBranches(p ParallelAction) nesting {
+	return randomPickBranches(RandomPickAction(p))
 }
 
 func checkIf(c chk, p IfAction) {

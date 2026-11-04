@@ -141,14 +141,16 @@ describe('lowering rules', () => {
     ]);
   });
 
-  test('fan-out runs branches in edge order, one after another', () => {
+  test('fan-out lowers to parallel paths in edge order', () => {
     const definition = lowered(
       flow(
         [trigger, node('b', 'reply.chat', { message: 'second' }), node('a', 'reply.chat', { message: 'first' })],
         [edge('t', 'next', 'a'), edge('t', 'next', 'b')]
       )
     );
-    expect(definition.actions).toEqual([chat('first'), chat('second')]);
+    expect(definition.actions).toEqual([
+      { type: 'parallel', params: { branches: [{ weight: 1, actions: [chat('first')] }, { weight: 1, actions: [chat('second')] }] } }
+    ]);
   });
 
   test('a clean merge lowers to if then the shared step and rebuilds as a join', () => {
@@ -307,6 +309,39 @@ describe('refusals', () => {
       [edge('t', 'next', 'g'), edge('g', 'yes', 'a'), edge('g', 'yes', 'c'), edge('g', 'no', 'b'), edge('a', 'next', 's'), edge('b', 'next', 's')]
     );
     expect(issueCodes(input)).toEqual(['unstructured_merge']);
+  });
+
+  test('a step after a pausing fork is refused, since it would not wait for that path', () => {
+    const drawn = flow(
+      [node('t', 'twitch.follow'), node('w', 'reply.wait', { seconds: 5 }), node('a', 'reply.chat', { message: 'a' }), node('j', 'reply.chat', { message: 'j' })],
+      [edge('t', 'next', 'w'), edge('t', 'next', 'a'), edge('w', 'next', 'j'), edge('a', 'next', 'j')]
+    );
+    expect(issueCodes(drawn)).toEqual(['unstructured_merge']);
+  });
+
+  test('a fork saves as parallel paths and reopens as a fork', () => {
+    const drawn = flow(
+      [node('t', 'twitch.follow'), node('w', 'reply.wait', { seconds: 5 }), node('l', 'reply.chat', { message: 'late' }), node('n', 'reply.chat', { message: 'now' })],
+      [edge('t', 'next', 'w'), edge('w', 'next', 'l'), edge('t', 'next', 'n')]
+    );
+    const lowered = flowToDefinition(drawn);
+    if (!lowered.ok) throw new Error('refused');
+    expect(lowered.value.actions).toEqual([
+      {
+        type: 'parallel',
+        params: {
+          branches: [
+            { weight: 1, actions: [{ type: 'delay', params: { ms: 5000 } }, { type: 'chat', params: { text: 'late' } }] },
+            { weight: 1, actions: [{ type: 'chat', params: { text: 'now' } }] }
+          ]
+        }
+      }
+    ]);
+    expect(validateDefinition(lowered.value)).toEqual([]);
+    const reopened = definitionToFlow(lowered.value, { id: 'x', name: 'x', enabled: true });
+    if (!reopened.ok) throw new Error('did not reopen');
+    const triggerId = reopened.value.nodes.find((n) => n.type === 'twitch.follow')!.id;
+    expect(reopened.value.edges.filter((e) => e.from === triggerId)).toHaveLength(2);
   });
 
   test('a wait over the delay budget', () => {

@@ -340,11 +340,29 @@ function writeAction(ctx: Lowering, node: FlowNode): Action {
   return owned(ctx, node, node.config.disabled === true ? { ...action, enabled: false } : action);
 }
 
+const nestedLists = (action: Action): Action[][] => {
+  const params = action.params ?? {};
+  const branches = (params.branches ?? []) as { actions?: Action[] }[];
+  return [(params.then ?? []) as Action[], (params.else ?? []) as Action[], ...branches.map((b) => b.actions ?? [])];
+};
+
+const waits = (list: Action[]): boolean => list.some((a) => a.type === 'delay' || nestedLists(a).some(waits));
+
+const forkPauses = (paths: Action[][]) => paths.length > 1 && paths.some(waits);
+
+function fork(paths: Action[][]): Action[] {
+  if (paths.length < 2) return paths[0] ?? [];
+  return [{ type: 'parallel', params: { branches: paths.map((actions) => ({ weight: 1, actions })) } }];
+}
+
 function lowerEntries(ctx: Lowering, entries: string[], stop: string | null): Action[] {
   const join = commonJoin(ctx, entries);
   const bound = join ?? stop;
-  const branches = entries.flatMap((id) => lowerFrom(ctx, id, bound));
-  return join && join !== stop ? [...branches, ...lowerFrom(ctx, join, stop)] : branches;
+  const paths = entries.map((id) => lowerFrom(ctx, id, bound)).filter((path) => path.length > 0);
+  // A later step would not wait for a path that paused, so it would run before that path finished.
+  if (bound && forkPauses(paths)) ctx.issues.push({ path: nodePath(bound), code: FLOW_ISSUE.unstructuredMerge });
+  const forked = fork(paths);
+  return join && join !== stop ? [...forked, ...lowerFrom(ctx, join, stop)] : forked;
 }
 
 function lowerFrom(ctx: Lowering, id: string, stop: string | null): Action[] {
@@ -431,8 +449,14 @@ function walkSteps(owners: Map<object, string>, list: Action[], base: string, in
     const id = owners.get(action);
     if (id) into.byPath.set(path, id);
     if (id && action.type === 'delay') into.lastDelay = id;
-    if (action.type !== 'if') return;
     const params = action.params ?? {};
+    if (action.type === 'parallel') {
+      ((params.branches ?? []) as { actions?: Action[] }[]).forEach((branch, b) => {
+        walkSteps(owners, branch.actions ?? [], `${path}.params.branches[${b}].actions`, into);
+      });
+      return;
+    }
+    if (action.type !== 'if') return;
     const gate = owners.get(params.condition as object);
     if (gate) into.byPath.set(`${path}.params.condition`, gate);
     walkSteps(owners, (params.then ?? []) as Action[], `${path}.params.then`, into);
@@ -615,8 +639,14 @@ function placeIf(b: Building, action: Action, path: string, tails: Tail[]): Tail
   return [...yes, ...no];
 }
 
+function placeParallel(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
+  const branches = (action.params?.branches ?? []) as { actions?: Action[] }[];
+  return branches.flatMap((branch, i) => placeActions(b, branch.actions ?? [], `${path}.params.branches[${i}].actions`, tails));
+}
+
 function placeAction(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
   if (action.type === 'if') return placeIf(b, action, path, tails);
+  if (action.type === 'parallel') return placeParallel(b, action, path, tails);
   const node = ACTION_READERS[action.type]?.(action.params ?? {});
   if (!node) {
     b.issues.push({ path, code: FLOW_ISSUE.unsupportedAction });

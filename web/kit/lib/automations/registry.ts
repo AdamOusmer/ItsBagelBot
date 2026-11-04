@@ -48,6 +48,13 @@ function checkRandomPick(c: Chk, p: RandomPickParams): void {
   });
 }
 
+function checkParallel(c: Chk, p: RandomPickParams): void {
+  if (!c.count('branches', p.branches.length, 2, 10)) return;
+  p.branches.forEach((b, i) => {
+    actions(c.sub('branches').elem(i).sub('actions').nest(), b.actions);
+  });
+}
+
 const NESTED: Table = {
   if: registerNested<IfParams>(
     { condition: 'typed', then: 'actions', else: 'actions' },
@@ -55,6 +62,9 @@ const NESTED: Table = {
     (p) => [p.then, p.else],
   ),
   random_pick: registerNested<RandomPickParams>({ branches: 'branches' }, checkRandomPick, (p) =>
+    p.branches.map((b) => b.actions),
+  ),
+  parallel: registerNested<RandomPickParams>({ branches: 'branches' }, checkParallel, (p) =>
     p.branches.map((b) => b.actions),
   ),
 };

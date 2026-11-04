@@ -205,7 +205,7 @@ function mapIf(params: Params, path: string, visit: ActionVisit): Params {
 function mapNested(action: Action, path: string, visit: ActionVisit): Action {
   const params = action.params ?? {};
   if (action.type === 'if') return { ...action, params: mapIf(params, path, visit) };
-  if (action.type === 'random_pick') return { ...action, params: mapBranches(params, path, visit) };
+  if (action.type === 'random_pick' || action.type === 'parallel') return { ...action, params: mapBranches(params, path, visit) };
   return action;
 }
 
