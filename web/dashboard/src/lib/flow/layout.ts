@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { COLUMN_GAP, GRID, NODE_W, ROW_GAP, outputsFor, specFor, type Flow, type NodeSpec } from './model';
+import { COLUMN_GAP, GRID, NODE_W, ROW_GAP, outputsFor, specFor, type Flow, type FlowEdge, type FlowNode, type NodeSpec } from './model';
 
 export const HEADER_H = 84;
 export const ROW_H = 32;
@@ -22,75 +22,95 @@ export function portY(spec: NodeSpec | undefined, port: string): number {
   return HEADER_H + index * ROW_H + ROW_H / 2;
 }
 
-function columns(flow: Flow): Map<string, number> {
-  const col = new Map<string, number>();
-  const isTrigger = (type: string) => specFor(type)?.kind === 'trigger';
-  for (const n of flow.nodes) if (isTrigger(n.type)) col.set(n.id, 0);
-  for (let pass = 0; pass < flow.nodes.length; pass++) {
-    let changed = false;
-    for (const e of flow.edges) {
-      const from = col.get(e.from);
-      if (from === undefined) continue;
-      const target = flow.nodes.find((n) => n.id === e.to);
-      if (!target || isTrigger(target.type)) continue;
-      if ((col.get(e.to) ?? -1) < from + 1) {
-        col.set(e.to, from + 1);
-        changed = true;
-      }
-    }
-    if (!changed) break;
-  }
+const isTriggerType = (type: string) => specFor(type)?.kind === 'trigger';
+
+function relax(flow: Flow, col: Map<string, number>, edge: FlowEdge): boolean {
+  const from = col.get(edge.from);
+  if (from === undefined) return false;
+  const target = flow.nodes.find((n) => n.id === edge.to);
+  if (!target || isTriggerType(target.type)) return false;
+  if ((col.get(edge.to) ?? -1) >= from + 1) return false;
+  col.set(edge.to, from + 1);
+  return true;
+}
+
+function settleColumns(flow: Flow, col: Map<string, number>): Map<string, number> {
   const deepest = Math.max(-1, ...col.values());
   const bound = flow.nodes.length;
-  for (const n of flow.nodes) {
-    if (!col.has(n.id)) col.set(n.id, deepest + 1);
-    else if ((col.get(n.id) as number) > bound) col.set(n.id, bound);
-  }
+  for (const n of flow.nodes) col.set(n.id, col.has(n.id) ? Math.min(col.get(n.id) as number, bound) : deepest + 1);
   return col;
 }
 
-export function tidy(flow: Flow): Map<string, { x: number; y: number }> {
-  const col = columns(flow);
-  const byId = new Map(flow.nodes.map((n) => [n.id, n]));
-  const heightOf = (id: string) => nodeHeight(specFor(byId.get(id)?.type ?? ''));
+function columns(flow: Flow): Map<string, number> {
+  const col = new Map<string, number>();
+  for (const n of flow.nodes) if (isTriggerType(n.type)) col.set(n.id, 0);
+  for (let pass = 0; pass < flow.nodes.length; pass++) {
+    const changed = flow.edges.map((e) => relax(flow, col, e)).some(Boolean);
+    if (!changed) break;
+  }
+  return settleColumns(flow, col);
+}
+
+type Pos = { x: number; y: number };
+type Board = { flow: Flow; byId: Map<string, FlowNode>; centerY: Map<string, number>; result: Map<string, Pos> };
+
+const specOf = (board: Board, id: string) => specFor(board.byId.get(id)?.type ?? '');
+const heightOf = (board: Board, id: string) => nodeHeight(specOf(board, id));
+
+function portIndex(board: Board, edge: FlowEdge): number {
+  const spec = specOf(board, edge.from);
+  const ports = spec ? outputsFor(spec) : [];
+  return Math.max(0, ports.findIndex((p) => p.id === edge.port));
+}
+
+function layersOf(flow: Flow, col: Map<string, number>): string[][] {
   const maxCol = Math.max(0, ...col.values());
   const layers: string[][] = Array.from({ length: maxCol + 1 }, () => []);
   for (const n of flow.nodes) layers[col.get(n.id) as number].push(n.id);
+  return layers;
+}
 
-  const centerY = new Map<string, number>();
-  const result = new Map<string, { x: number; y: number }>();
+function orderKey(board: Board, id: string, index: number, column: number): number {
+  const incoming = board.flow.edges.filter((e) => e.to === id && board.centerY.has(e.from));
+  if (column === 0 || incoming.length === 0) return index;
+  const total = incoming.reduce((sum, e) => sum + (board.centerY.get(e.from) as number) + portIndex(board, e) * 0.001, 0);
+  return total / incoming.length;
+}
 
-  layers.forEach((layer, c) => {
-    const key = new Map<string, number>();
-    layer.forEach((id, i) => {
-      const incoming = flow.edges.filter((e) => e.to === id && centerY.has(e.from));
-      if (c === 0 || incoming.length === 0) {
-        key.set(id, i);
-        return;
-      }
-      const total = incoming.reduce((sum, e) => {
-        const spec = specFor(byId.get(e.from)?.type ?? '');
-        const ports = spec ? outputsFor(spec) : [];
-        const idx = Math.max(0, ports.findIndex((p) => p.id === e.port));
-        return sum + (centerY.get(e.from) as number) + idx * 0.001;
-      }, 0);
-      key.set(id, total / incoming.length);
-    });
-    layer.sort((a, b) => (key.get(a) as number) - (key.get(b) as number));
+function sortLayer(board: Board, layer: string[], column: number): void {
+  const key = new Map(layer.map((id, i) => [id, orderKey(board, id, i, column)]));
+  layer.sort((a, b) => (key.get(a) as number) - (key.get(b) as number));
+}
 
-    const total = layer.reduce((sum, id) => sum + heightOf(id), 0) + ROW_GAP * Math.max(0, layer.length - 1);
-    const feeds = flow.edges.flatMap((e) => {
-      const from = result.get(e.from);
-      return from && layer.includes(e.to) ? [from.y + portY(specFor(byId.get(e.from)?.type ?? ''), e.port)] : [];
-    });
-    const feed = feeds.length ? feeds.reduce((sum, v) => sum + v, 0) / feeds.length : 0;
-    let y = layer.length === 1 && feeds.length ? feed - inputY : snap(feed - total / 2);
-    for (const id of layer) {
-      const h = heightOf(id);
-      centerY.set(id, y + h / 2);
-      result.set(id, { x: snap(c * (NODE_W + COLUMN_GAP)), y });
-      y = Math.ceil((y + h + ROW_GAP) / GRID) * GRID;
-    }
+function feedsInto(board: Board, layer: string[]): number[] {
+  return board.flow.edges.flatMap((e) => {
+    const from = board.result.get(e.from);
+    return from && layer.includes(e.to) ? [from.y + portY(specOf(board, e.from), e.port)] : [];
   });
-  return result;
+}
+
+function startY(board: Board, layer: string[]): number {
+  const total = layer.reduce((sum, id) => sum + heightOf(board, id), 0) + ROW_GAP * Math.max(0, layer.length - 1);
+  const feeds = feedsInto(board, layer);
+  const feed = feeds.length ? feeds.reduce((sum, v) => sum + v, 0) / feeds.length : 0;
+  return layer.length === 1 && feeds.length ? feed - inputY : snap(feed - total / 2);
+}
+
+function placeLayer(board: Board, layer: string[], column: number): void {
+  let y = startY(board, layer);
+  for (const id of layer) {
+    const h = heightOf(board, id);
+    board.centerY.set(id, y + h / 2);
+    board.result.set(id, { x: snap(column * (NODE_W + COLUMN_GAP)), y });
+    y = Math.ceil((y + h + ROW_GAP) / GRID) * GRID;
+  }
+}
+
+export function tidy(flow: Flow): Map<string, Pos> {
+  const board: Board = { flow, byId: new Map(flow.nodes.map((n) => [n.id, n])), centerY: new Map(), result: new Map() };
+  layersOf(flow, columns(flow)).forEach((layer, column) => {
+    sortLayer(board, layer, column);
+    placeLayer(board, layer, column);
+  });
+  return board.result;
 }

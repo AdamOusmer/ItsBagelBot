@@ -37,6 +37,8 @@ const num = (node: FlowNode, key: string) => {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+const given = <T>(value: T, make: (value: T) => string): string => (value ? make(value) : '');
+
 export function optionLabel(spec: NodeSpec, node: FlowNode, key: string): string {
   const field = spec.fields.find((f) => f.key === key);
   const value = text(node, key);
@@ -44,92 +46,61 @@ export function optionLabel(spec: NodeSpec, node: FlowNode, key: string): string
   return field.options.find((o) => o.value === value)?.label ?? (value || field.options[0]?.label || '');
 }
 
-function triggerLine(node: FlowNode, spec: NodeSpec): string {
-  switch (node.type) {
-    case 'twitch.chat.command':
-      return text(node, 'trigger') ? `Someone types ${text(node, 'trigger')} in chat` : '';
-    case 'twitch.chat.word':
-      return text(node, 'word') ? `Someone says ${text(node, 'word')} in chat` : '';
-    case 'twitch.sub':
-      return SUBS[text(node, 'variant')] ?? '';
-    case 'twitch.cheer': {
-      const bits = num(node, 'minBits');
-      return bits ? `Someone cheers ${bits} bits or more` : '';
-    }
-    case 'twitch.raid': {
-      const viewers = num(node, 'minViewers');
-      return viewers ? `Raid with ${viewers}+ viewers` : '';
-    }
-    case 'twitch.reward': {
-      const reward = optionLabel(spec, node, 'reward');
-      return reward ? `${reward} is redeemed` : '';
-    }
-    default:
-      return '';
-  }
-}
+type Line = (node: FlowNode, spec: NodeSpec) => string;
 
-function conditionLine(node: FlowNode): string {
-  switch (node.type) {
-    case 'cond.role':
-      return ROLES[text(node, 'level')] ?? '';
-    case 'cond.user':
-      return text(node, 'login') ? `Only ${text(node, 'login')}` : '';
-    case 'cond.cooldown': {
-      const seconds = num(node, 'seconds');
-      if (!seconds) return '';
-      return `Wait ${plural(seconds, 'second', 'seconds')} between runs${node.config.perUser ? ', per viewer' : ''}`;
-    }
-    case 'cond.compare': {
-      const left = text(node, 'left');
-      const right = text(node, 'right');
-      return left && right ? `${left} ${OPS[text(node, 'op')] ?? 'is'} ${right}` : '';
-    }
-    case 'cond.chance': {
-      const percent = num(node, 'percent');
-      return percent ? `Passes ${percent}% of the time` : '';
-    }
-    default:
-      return '';
-  }
-}
+const TRIGGERS: Record<string, Line> = {
+  'twitch.chat.command': (n) => given(text(n, 'trigger'), (v) => `Someone types ${v} in chat`),
+  'twitch.chat.word': (n) => given(text(n, 'word'), (v) => `Someone says ${v} in chat`),
+  'twitch.sub': (n) => SUBS[text(n, 'variant')] ?? '',
+  'twitch.cheer': (n) => given(num(n, 'minBits'), (v) => `Someone cheers ${v} bits or more`),
+  'twitch.raid': (n) => given(num(n, 'minViewers'), (v) => `Raid with ${v}+ viewers`),
+  'twitch.reward': (n, spec) => given(optionLabel(spec, n, 'reward'), (v) => `${v} is redeemed`)
+};
 
-function replyLine(node: FlowNode, spec: NodeSpec): string {
-  switch (node.type) {
-    case 'reply.chat':
-      return text(node, 'message');
-    case 'reply.discord': {
-      const channel = optionLabel(spec, node, 'channel');
-      const message = text(node, 'message');
-      if (!message) return channel ? `Post to ${channel}` : '';
-      return channel ? `${channel}: ${message}` : message;
-    }
-    case 'reply.points': {
-      const amount = Number(node.config.amount);
-      if (!Number.isFinite(amount) || amount === 0) return '';
-      return amount > 0 ? `Give ${plural(amount, 'point', 'points')}` : `Take ${plural(-amount, 'point', 'points')}`;
-    }
-    case 'reply.counter': {
-      const counter = optionLabel(spec, node, 'counter');
-      return counter ? `Add one to the ${counter} counter` : '';
-    }
-    case 'reply.lights': {
-      const light = text(node, 'deviceName') || 'the lights';
-      if (text(node, 'mode') !== 'scene') {
-        const color = text(node, 'color');
-        return color ? `Set ${light} to ${color}` : '';
-      }
-      const scene = optionLabel(spec, node, 'scene');
-      return scene ? `Play the ${scene} scene on ${light}` : '';
-    }
-    case 'reply.wait': {
-      const seconds = num(node, 'seconds');
-      return seconds ? `Pause ${plural(seconds, 'second', 'seconds')}` : '';
-    }
-    default:
-      return '';
-  }
-}
+const compareLine: Line = (n) => {
+  const left = text(n, 'left');
+  const right = text(n, 'right');
+  return left && right ? `${left} ${OPS[text(n, 'op')] ?? 'is'} ${right}` : '';
+};
+
+const CONDITIONS: Record<string, Line> = {
+  'cond.role': (n) => ROLES[text(n, 'level')] ?? '',
+  'cond.user': (n) => given(text(n, 'login'), (v) => `Only ${v}`),
+  'cond.cooldown': (n) =>
+    given(num(n, 'seconds'), (v) => `Wait ${plural(v, 'second', 'seconds')} between runs${n.config.perUser ? ', per viewer' : ''}`),
+  'cond.compare': compareLine,
+  'cond.chance': (n) => given(num(n, 'percent'), (v) => `Passes ${v}% of the time`)
+};
+
+const discordLine: Line = (n, spec) => {
+  const channel = optionLabel(spec, n, 'channel');
+  const message = text(n, 'message');
+  if (!message) return given(channel, (v) => `Post to ${v}`);
+  return channel ? `${channel}: ${message}` : message;
+};
+
+const pointsLine: Line = (n) => {
+  const amount = Number(n.config.amount);
+  if (!Number.isFinite(amount) || amount === 0) return '';
+  return amount > 0 ? `Give ${plural(amount, 'point', 'points')}` : `Take ${plural(-amount, 'point', 'points')}`;
+};
+
+const lightsLine: Line = (n, spec) => {
+  const light = text(n, 'deviceName') || 'the lights';
+  if (text(n, 'mode') !== 'scene') return given(text(n, 'color'), (v) => `Set ${light} to ${v}`);
+  return given(optionLabel(spec, n, 'scene'), (v) => `Play the ${v} scene on ${light}`);
+};
+
+const REPLIES: Record<string, Line> = {
+  'reply.chat': (n) => text(n, 'message'),
+  'reply.discord': discordLine,
+  'reply.points': pointsLine,
+  'reply.counter': (n, spec) => given(optionLabel(spec, n, 'counter'), (v) => `Add one to the ${v} counter`),
+  'reply.lights': lightsLine,
+  'reply.wait': (n) => given(num(n, 'seconds'), (v) => `Pause ${plural(v, 'second', 'seconds')}`)
+};
+
+const BY_KIND: Record<string, Record<string, Line>> = { trigger: TRIGGERS, condition: CONDITIONS };
 
 export function portLabel(node: FlowNode, port: { id: string; label: string }): string {
   if (node.type !== 'cond.chance') return port.label;
@@ -141,7 +112,6 @@ export function portLabel(node: FlowNode, port: { id: string; label: string }): 
 export function describe(node: FlowNode): string {
   const spec = specFor(node.type);
   if (!spec) return '';
-  const line =
-    spec.kind === 'trigger' ? triggerLine(node, spec) : spec.kind === 'condition' ? conditionLine(node) : replyLine(node, spec);
-  return line || spec.summary;
+  const table = BY_KIND[spec.kind] ?? REPLIES;
+  return table[node.type]?.(node, spec) || spec.summary;
 }

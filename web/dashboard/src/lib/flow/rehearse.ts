@@ -136,26 +136,35 @@ export type RehearsalOptions = {
   modules?: ModuleFlags;
 };
 
+type Walk = {
+  flow: Flow;
+  decisions: Decisions;
+  forced: Record<string, string>;
+  until?: string;
+  modules: ModuleFlags;
+  samples: Record<string, string>;
+  steps: RehearsalStep[];
+  seen: Set<string>;
+  done: boolean;
+};
+
+function visit(walk: Walk, id: string, via?: string): void {
+  const node = walk.flow.nodes.find((n) => n.id === id);
+  const spec = node && specFor(node.type);
+  if (walk.done || walk.seen.has(id)) return;
+  if (!node || !spec) return;
+  walk.seen.add(id);
+  provide(spec, walk.samples);
+  const step = toStep(contextFor(node, spec, walk.samples, walk.modules), walk.forced[id] ?? walk.decisions[id], via);
+  walk.steps.push(step);
+  walk.done = id === walk.until;
+  const port = nextPort(step, spec);
+  for (const e of walk.flow.edges) if (e.from === id && e.port === port) visit(walk, e.to, e.id);
+}
+
 export function rehearseFlow(flow: Flow, { decisions = {}, until, modules = {} }: RehearsalOptions = {}): RehearsalStep[] {
   const traced = until ? traceBack(flow, until) : { root: firstTrigger(flow), forced: {} as Record<string, string> };
-  const samples: Record<string, string> = {};
-  const steps: RehearsalStep[] = [];
-  const seen = new Set<string>();
-  let done = false;
-
-  const visit = (id: string, via?: string) => {
-    const node = flow.nodes.find((n) => n.id === id);
-    const spec = node && specFor(node.type);
-    if (done || !node || !spec || seen.has(id)) return;
-    seen.add(id);
-    provide(spec, samples);
-    const step = toStep(contextFor(node, spec, samples, modules), traced.forced[id] ?? decisions[id], via);
-    steps.push(step);
-    done = id === until;
-    const port = nextPort(step, spec);
-    for (const e of flow.edges) if (e.from === id && e.port === port) visit(e.to, e.id);
-  };
-
-  if (traced.root) visit(traced.root);
-  return steps;
+  const walk: Walk = { flow, decisions, forced: traced.forced, until, modules, samples: {}, steps: [], seen: new Set(), done: false };
+  if (traced.root) visit(walk, traced.root);
+  return walk.steps;
 }

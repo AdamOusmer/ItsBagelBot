@@ -29,20 +29,24 @@ const flow: Flow = {
 };
 
 describe('resolveShortcut', () => {
-  test('maps the documented keys', () => {
-    expect(resolveShortcut(key('Delete'))?.id).toBe('delete');
-    expect(resolveShortcut(key('Backspace'))?.id).toBe('delete');
-    expect(resolveShortcut(key('Escape'))?.id).toBe('escape');
-    expect(resolveShortcut(key('ArrowRight'))).toMatchObject({ id: 'walk', dir: 'right' });
-    expect(resolveShortcut(key('ArrowUp', { shiftKey: true }))).toMatchObject({ id: 'nudge', dir: 'up' });
-    expect(resolveShortcut(key('Enter'))?.id).toBe('open');
-    expect(resolveShortcut(key(' '))?.id).toBe('open');
-    expect(resolveShortcut(key('+', { shiftKey: true }))?.id).toBe('zoom-in');
-    expect(resolveShortcut(key('='))?.id).toBe('zoom-in');
-    expect(resolveShortcut(key('-'))?.id).toBe('zoom-out');
-    expect(resolveShortcut(key('0'))?.id).toBe('fit');
-    expect(resolveShortcut(key('a'))?.id).toBe('add');
-    expect(resolveShortcut(key('A', { shiftKey: true }))?.id).toBe('add-other');
+  const documented: [string, Partial<KeyLike>, Record<string, string>][] = [
+    ['Delete', {}, { id: 'delete' }],
+    ['Backspace', {}, { id: 'delete' }],
+    ['Escape', {}, { id: 'escape' }],
+    ['ArrowRight', {}, { id: 'walk', dir: 'right' }],
+    ['ArrowUp', { shiftKey: true }, { id: 'nudge', dir: 'up' }],
+    ['Enter', {}, { id: 'open' }],
+    [' ', {}, { id: 'open' }],
+    ['+', { shiftKey: true }, { id: 'zoom-in' }],
+    ['=', {}, { id: 'zoom-in' }],
+    ['-', {}, { id: 'zoom-out' }],
+    ['0', {}, { id: 'fit' }],
+    ['a', {}, { id: 'add' }],
+    ['A', { shiftKey: true }, { id: 'add-other' }]
+  ];
+
+  test.each(documented)('maps %j with %j', (k, mods, expected) => {
+    expect(resolveShortcut(key(k, mods))).toMatchObject(expected);
   });
 
   test('undo, redo, duplicate and save accept Cmd or Ctrl', () => {

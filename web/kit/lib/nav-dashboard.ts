@@ -108,27 +108,34 @@ export function sectionForPath(path: string): SectionId {
   return resolveSection(DASHBOARD_SECTIONS, path, 'overview');
 }
 
-export function dashboardNavItems(opts: {
+type NavOpts = {
   isDelegate: boolean;
   sections: readonly string[];
   section: SectionId;
   t?: (key: MessageKey) => string;
   moduleLinks: readonly NavChild[];
   showDemoSections?: boolean;
-}): NavLink[] {
-  const { isDelegate, sections, section } = opts;
+};
+
+function grantedTo(def: DashboardSectionDef, sections: readonly string[]): boolean {
+  if (def.grantsAny) return def.grantsAny.some((grant) => sections.includes(grant));
+  return !def.grant || sections.includes(def.grant);
+}
+
+function sectionVisible(def: DashboardSectionDef, opts: NavOpts): boolean {
+  if (def.offline) return false;
+  if (def.demoOnly && opts.showDemoSections !== true) return false;
+  if (!opts.isDelegate) return true;
+  return !def.ownerOnly && grantedTo(def, opts.sections);
+}
+
+export function dashboardNavItems(opts: NavOpts): NavLink[] {
+  const { section } = opts;
   const betaHrefs = new Set(DASHBOARD_SECTIONS.filter((def) => def.beta).map((def) => def.href));
   const betaLabel = opts.t ? opts.t('nav.beta') : 'nav.beta';
   const links = navItems({
     sections: DASHBOARD_SECTIONS,
-    visible: (def) =>
-      !def.offline &&
-      (!def.demoOnly || opts.showDemoSections === true) &&
-      !(def.ownerOnly && isDelegate) &&
-      (!isDelegate ||
-        (def.grantsAny
-          ? def.grantsAny.some((grant) => sections.includes(grant))
-          : !def.grant || sections.includes(def.grant))),
+    visible: (def) => sectionVisible(def, opts),
     current: (def) => section === def.id,
     children: (def) => (def.id === 'modules' ? [...opts.moduleLinks] : undefined),
     t: opts.t

@@ -16,6 +16,8 @@ export function addNode(
   return node;
 }
 
+const EDGE_ENDS = ['from', 'port', 'to'] as const;
+
 function isTrigger(flow: Flow, id: string): boolean {
   return specFor(flow.nodes.find((n) => n.id === id)?.type ?? '')?.kind === 'trigger';
 }
@@ -23,8 +25,9 @@ function isTrigger(flow: Flow, id: string): boolean {
 export function connect(flow: Flow, from: string, port: string, to: string): FlowEdge | null {
   if (from === to) return null;
   if (isTrigger(flow, to)) return null;
-  if (flow.edges.some((e) => e.from === from && e.port === port && e.to === to)) return null;
-  const edge: FlowEdge = { id: uid('e'), from, port, to };
+  const probe = { from, port, to };
+  if (flow.edges.some((e) => EDGE_ENDS.every((end) => e[end] === probe[end]))) return null;
+  const edge: FlowEdge = { id: uid('e'), ...probe };
   flow.edges.push(edge);
   return edge;
 }

@@ -78,18 +78,29 @@ export function isTyping(t: Target): boolean {
   return Boolean(t?.closest(TYPING));
 }
 
-export function allowed(s: Shortcut, t: Target): boolean {
-  if (t?.closest('[data-overlay]')) return false;
-  if (isTyping(t) && !s.typing) return false;
-  if (s.scope === 'node') return Boolean(t?.closest('[data-node-id]')) && !t?.closest('button, a');
-  if (isBody(t)) return true;
-  return Boolean(t?.closest(s.scope === 'canvas' ? '[data-flow-canvas]' : '[data-flow-editor]'));
+const within = (t: Target, selector: string) => Boolean(t?.closest(selector));
+
+const SCOPE_HOST = { canvas: '[data-flow-canvas]', editor: '[data-flow-editor]' } as const;
+
+function inScope(s: Shortcut, t: Target): boolean {
+  if (s.scope === 'node') return within(t, '[data-node-id]') && !within(t, 'button, a');
+  return isBody(t) || within(t, SCOPE_HOST[s.scope]);
 }
 
-export const stepDelta = (dir: Dir) => ({
-  dx: dir === 'left' ? -GRID : dir === 'right' ? GRID : 0,
-  dy: dir === 'up' ? -GRID : dir === 'down' ? GRID : 0
-});
+export function allowed(s: Shortcut, t: Target): boolean {
+  if (within(t, '[data-overlay]')) return false;
+  if (isTyping(t) && !s.typing) return false;
+  return inScope(s, t);
+}
+
+const DELTAS: Record<Dir, { dx: number; dy: number }> = {
+  left: { dx: -GRID, dy: 0 },
+  right: { dx: GRID, dy: 0 },
+  up: { dx: 0, dy: -GRID },
+  down: { dx: 0, dy: GRID }
+};
+
+export const stepDelta = (dir: Dir) => ({ ...DELTAS[dir] });
 
 type Graph = Pick<Flow, 'nodes' | 'edges'>;
 
@@ -132,14 +143,18 @@ function siblingsOf(g: Graph, node: FlowNode): FlowNode[] {
   return g.nodes.filter((n) => Math.abs(n.x - node.x) < GRID).sort(byPosition);
 }
 
+function siblingAt(g: Graph, node: FlowNode, step: number): string | null {
+  const sibs = siblingsOf(g, node);
+  const at = sibs.findIndex((n) => n.id === node.id);
+  return at < 0 ? null : (sibs[at + step]?.id ?? null);
+}
+
 export function neighbor(g: Graph, id: string, dir: Dir): string | null {
   const node = find(g, id);
   if (!node) return null;
   if (dir === 'right') return childrenOf(g, id)[0]?.id ?? null;
   if (dir === 'left') return parentsOf(g, id)[0]?.id ?? null;
-  const sibs = siblingsOf(g, node);
-  const at = sibs.findIndex((n) => n.id === id);
-  return at < 0 ? null : (sibs[at + (dir === 'down' ? 1 : -1)]?.id ?? null);
+  return siblingAt(g, node, dir === 'down' ? 1 : -1);
 }
 
 export function neighborAfterRemove(g: Graph, id: string): string | null {
@@ -156,11 +171,14 @@ export function stepFocus(e: KeyboardEvent, items: readonly HTMLElement[]): bool
   return true;
 }
 
+const INDEX_STEPS = new Map<string, (current: number, count: number) => number>([
+  ['Home', () => 0],
+  ['End', (_, count) => count - 1],
+  ['ArrowDown', (current, count) => (current + 1) % count],
+  ['ArrowUp', (current, count) => (current <= 0 ? count - 1 : current - 1)]
+]);
+
 export function stepIndex(current: number, count: number, key: string): number {
   if (count <= 0) return -1;
-  if (key === 'Home') return 0;
-  if (key === 'End') return count - 1;
-  if (key === 'ArrowDown') return (current + 1) % count;
-  if (key === 'ArrowUp') return current <= 0 ? count - 1 : current - 1;
-  return current;
+  return INDEX_STEPS.get(key)?.(current, count) ?? current;
 }
