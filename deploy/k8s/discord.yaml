@@ -517,7 +517,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: discord-outgress
-          image: ghcr.io/adamousmer/itsbagelbot/discord-outgress:v0.3.1-beta@sha256:244514cdbde9d83e285110e2bc38e3cdc5de01be733b7a3809d383ec0e2412f7
+          image: ghcr.io/adamousmer/itsbagelbot/discord-outgress:sha-bdaeb76d7c68@sha256:21789521a00804d0a610d20f222c78fa41e7e43b1b01ded50d3db90d85d43556
           imagePullPolicy: IfNotPresent
           env:
             - name: VALKEY_TLS_CA_PEM
