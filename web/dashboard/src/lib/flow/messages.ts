@@ -76,7 +76,6 @@ export const isStale = (reply: Extract<SaveReply, { ok: false }>) => reply.reaso
 
 function warningTexts(t: Translate): Record<FlowWarning, string> {
   return {
-    automations_module_off: t('flows.warnAutomationsOff'),
     shadowed_by_command: t('flows.warnShadowed'),
     command_delete_failed: t('flows.warnCommandDelete'),
     automation_delete_failed: t('flows.warnAutomationDelete'),

@@ -142,6 +142,11 @@
     busy = false;
   }
 
+  function close() {
+    open = false;
+    reset();
+  }
+
   function refusal(reply: { error?: string; issues?: Issue[] } | null): string[] {
     if (reply?.issues?.length) return uniqueTexts(reply.issues.map(fileIssue));
     return [reply?.error ?? t('automations.share.importError')];
@@ -228,7 +233,7 @@
 
 <Button variant="secondary" onclick={() => (open = true)}>{t('automations.share.importOpen')}</Button>
 
-<Modal bind:open title={t('automations.share.importTitle')} onClose={reset} {busy}>
+<Modal bind:open title={t('automations.share.importTitle')} onClose={close} {busy}>
   <div class="body">
     {#if stage === 'choose'}
       <p>{t('automations.share.importBody')}</p>
@@ -236,6 +241,9 @@
       <div class="state" aria-live="polite">
         {#if busy}<Spinner /> <span>{t('automations.share.importChecking')}</span>{/if}
         {#each problem as text (text)}<Text as="p" tone="danger">{text}</Text>{/each}
+      </div>
+      <div class="foot">
+        <Button variant="ghost" disabled={busy} onclick={close}>{t('common.cancel')}</Button>
       </div>
     {:else if stage === 'preview'}
       <p>{t('automations.share.importCount', { ready: ready.length, setup: needSetup, blocked })}</p>
@@ -272,7 +280,7 @@
         {/each}
       </ul>
       <div class="foot">
-        <Button onclick={() => (open = false)}>{t('automations.share.importClose')}</Button>
+        <Button onclick={close}>{t('automations.share.importClose')}</Button>
       </div>
     {/if}
   </div>

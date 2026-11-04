@@ -70,10 +70,12 @@ const savedAutomation = (id: string, definition: Definition, revision = 1) => ({
 const hugSimple = { name: 'hug', aliases: ['cuddle'], response: 'hi {user}', perm: 'mod' as const, cooldown: 30, userCooldown: 5 };
 
 const callsTo = (subject: string) => calls.filter((c) => c.subject === subject);
+const moduleWrites = () => callsTo('bagel.rpc.modules.upsert').map((c) => ({ name: c.body.name, is_enabled: c.body.is_enabled }));
 
 function stubStorage(commands: CommandView[], modules: unknown[]) {
   replies['bagel.rpc.commands.list'] = { commands };
   replies['bagel.rpc.modules.list'] = { modules };
+  replies['bagel.rpc.modules.upsert'] = { modules };
   replies['bagel.rpc.projector.dashboard.modules.get'] = { modules };
   replies['bagel.rpc.projector.dashboard.commands.get'] = { commands };
   replies['bagel.rpc.projector.dashboard.commands.replace'] = { commands };
@@ -250,11 +252,27 @@ describe('saving to the row a flow came from', () => {
 });
 
 describe('automation rows', () => {
-  test('a new complex flow inserts an automation and flags a switched off module', async () => {
+  test('saving an enabled recipe turns on the module the engine requires', async () => {
     stubStorage([], []);
     replies[`${AUTO}.upsert`] = { automation: savedAutomation('new', followFlow) };
     const res = await store.saveFlow(premium,{ ref: null, name: 'Flow', enabled: true, definition: followFlow });
-    expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'automation', id: 'new' }, revision: '1' }, warnings: ['automations_module_off'] });
+    expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'automation', id: 'new' }, revision: '1' }, warnings: [] });
+    expect(moduleWrites()).toEqual([{ name: 'automations', is_enabled: true }]);
+  });
+
+  test('saving a disabled recipe leaves the module alone', async () => {
+    stubStorage([], []);
+    replies[`${AUTO}.upsert`] = { automation: savedAutomation('new', followFlow) };
+    await store.saveFlow(premium,{ ref: null, name: 'Flow', enabled: false, definition: followFlow });
+    expect(moduleWrites()).toEqual([]);
+  });
+
+  test('a recipe converted to a command opens right away, before the commands service flushes', async () => {
+    stubStorage([], [automationsOn]);
+    replies['bagel.rpc.commands.upsert'] = {};
+    const res = await store.saveFlow(premium,{ ref: null, name: 'Flow', enabled: true, definition: commandDefinition(hugSimple) });
+    expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'command', name: 'hug' } } });
+    expect(await store.loadFlow('7', { layer: 'command', name: 'hug' })).not.toBeNull();
   });
 
   test('expected revision reaches the owner and a stale one is a conflict', async () => {
@@ -331,7 +349,8 @@ describe('landing list and toggles', () => {
     replies[`${AUTO}.set_enabled`] = { code: 'not_found', error: 'missing' };
     expect(await store.setFlowEnabled(premium,ref, true)).toEqual({ ok: false, reason: 'not_found' });
     replies[`${AUTO}.set_enabled`] = { automation: savedAutomation('a', followFlow, 4) };
-    expect(await store.setFlowEnabled(premium,ref, true)).toMatchObject({ ok: true, warnings: ['automations_module_off'] });
+    expect(await store.setFlowEnabled(premium,ref, true)).toMatchObject({ ok: true, warnings: [] });
+    expect(moduleWrites()).toEqual([{ name: 'automations', is_enabled: true }]);
   });
 
   test('toggling a command changes only is_active on its row', async () => {
