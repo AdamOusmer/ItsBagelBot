@@ -3,7 +3,7 @@
 
 import { decodeStrict, type DecodeError, type Schema } from './decode';
 import { Chk } from './check';
-import { CODE, MAX_CONDITIONS, MAX_NESTING } from './limits';
+import { CODE } from './limits';
 import { PERM_LEVELS } from './values';
 
 export type Widen<V> = V extends string ? string : V extends (infer U)[] ? Widen<U>[] : V;
@@ -85,7 +85,6 @@ export function typed(c: Chk, reg: Map<string, Entry>, node: TypedNode): void {
 }
 
 export function conditions(c: Chk, list: TypedNode[]): void {
-  if (!c.count('conditions', list.length, 0, MAX_CONDITIONS)) return;
   list.forEach((cond, i) => typed(c.sub('conditions').elem(i), conditionRegistry, cond));
 }
 
@@ -116,10 +115,6 @@ export function permRank(list: TypedNode[]): number {
 function action(at: Chk, a: ActionNode): void {
   if (triggerMismatch(at, a.type)) at.add('type', CODE.triggerMismatch);
   if (permMissing(at, a.type)) at.add('type', CODE.permRequired);
-  if (at.depth >= MAX_NESTING && actionRegistry.get(a.type)?.nested) {
-    at.add('type', CODE.nesting);
-    return;
-  }
   typed(at, actionRegistry, a);
 }
 

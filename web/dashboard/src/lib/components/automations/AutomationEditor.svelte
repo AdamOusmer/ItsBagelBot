@@ -17,7 +17,6 @@
   import { actionPayload, getI18n, type MessageKey } from '@bagel/kit';
   import {
     CONDITION_TYPES,
-    MAX_CONDITIONS,
     TRIGGER_TYPES,
     validateDefinition,
     validateName,
@@ -207,7 +206,7 @@
       {/each}
       <div class="add-row">
         <div class="add-type"><Select fill label={t('automations.addConditionType')} options={CONDITION_TYPES.map((d) => ({ value: d.type, label: t(`automations.condition.${d.type}` as MessageKey) }))} bind:value={addCondition} /></div>
-        <Button variant="add" disabled={(definition.conditions?.length ?? 0) >= MAX_CONDITIONS} onclick={addConditionRow}>+ {t('automations.addCondition')}</Button>
+        <Button variant="add" onclick={addConditionRow}>+ {t('automations.addCondition')}</Button>
         <span class="slot"><Text as="span" size="xs" tone="danger">{issueAt(issues, 'conditions') ? t(`automations.issue.${issueAt(issues, 'conditions')}` as MessageKey) : ''}</Text></span>
       </div>
     </section>

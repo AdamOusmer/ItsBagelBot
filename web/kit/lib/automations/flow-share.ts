@@ -149,7 +149,6 @@ export interface FlowCommitDeps {
 const REF_PATTERN = /^f[0-9]{1,3}$/;
 const ENTRY_KEYS = new Set(['ref', 'name', 'definition']);
 const FILE_KEYS = new Set(['format', 'version', 'flows']);
-const MAX_KEY_DEPTH = 16;
 const SAFE_KEY = /^[a-z0-9_]+$/;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const FILTERS_WITH_CHANNEL_VALUES = new Set(['user', 'login', 'user_id', 'reward', 'reward_id']);
@@ -436,11 +435,10 @@ function childrenOf(value: unknown): unknown[] {
   return isObject(value) ? Object.values(value) : [];
 }
 
-function keyIssue(value: unknown, depth: number): Issue | null {
-  if (depth > MAX_KEY_DEPTH) return { path: 'definition', code: CODE.nesting };
+function keyIssue(value: unknown): Issue | null {
   if (isObject(value) && Object.keys(value).some(unsafeKey)) return { path: 'definition', code: CODE.unknownField };
   for (const child of childrenOf(value)) {
-    const hit = keyIssue(child, depth + 1);
+    const hit = keyIssue(child);
     if (hit) return hit;
   }
   return null;
@@ -448,9 +446,10 @@ function keyIssue(value: unknown, depth: number): Issue | null {
 
 function definitionIssues(definition: unknown): Issue[] {
   if (!isObject(definition)) return [{ path: 'definition', code: CODE.required }];
-  const key = keyIssue(definition, 0);
-  if (key) return [key];
+  // Size comes first: it bounds how deep the walks below can recurse on a hostile file.
   if (byteLength(JSON.stringify(definition) ?? '') > MAX_DEFINITION_BYTES) return [{ path: 'definition', code: CODE.tooLong }];
+  const key = keyIssue(definition);
+  if (key) return [key];
   return validateDefinition(definition).map((issue) => ({ ...issue, path: issue.path ? `definition.${issue.path}` : 'definition' }));
 }
 

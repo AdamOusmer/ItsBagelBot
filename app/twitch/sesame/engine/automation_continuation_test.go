@@ -58,6 +58,21 @@ func TestAutomationParallelPathDoesNotWaitForAPausedPath(t *testing.T) {
 	assert.Equal(t, []string{`chat {"broadcaster_id":"1","message":"now"}`}, fx.described(t))
 }
 
+func TestAutomationRunsDeepNestingAndManyBranchesInARow(t *testing.T) {
+	step := act("chat", obj{"text": "deep"})
+	live := obj{"type": "live", "params": obj{"state": "live"}}
+	for range 40 {
+		step = act("if", obj{"condition": live, "then": []automation.Action{step}})
+	}
+	row := make([]automation.Action, 0, automation.MaxActions+6)
+	for range automation.MaxActions + 5 {
+		row = append(row, act("if", obj{"condition": live}))
+	}
+	fx := newAutoFixture(manual("main", append(row, step)...))
+	fx.run(t, "main", "req-deep", nil)
+	assert.Equal(t, []string{`chat {"broadcaster_id":"1","message":"deep"}`}, fx.described(t))
+}
+
 func TestAutomationParallelPathsPauseOnTheirOwnBudget(t *testing.T) {
 	path := func(actions ...automation.Action) obj { return obj{"weight": 1, "actions": actions} }
 	fork := act("parallel", obj{"branches": []obj{

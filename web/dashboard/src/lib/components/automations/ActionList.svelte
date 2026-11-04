@@ -18,7 +18,6 @@
 
   const MAX_BRANCHES = 5;
   const MIN_BRANCHES = 2;
-  const NESTING_TYPES = new Set(['if', 'random_pick']);
 
   let {
     actions = $bindable(),
@@ -41,7 +40,7 @@
   let addType = $state('chat');
 
   const typeOptions = $derived(
-    ACTION_TYPES.filter((d) => depth === 0 || !NESTING_TYPES.has(d.type)).map((d) => ({
+    ACTION_TYPES.map((d) => ({
       value: d.type,
       label: d.supported ? t(`automations.action.${d.type}` as MessageKey) : `${t(`automations.action.${d.type}` as MessageKey)} (${t('automations.comingSoon')})`,
       disabled: !d.supported
@@ -121,16 +120,16 @@
         <TypeFields {def} bind:params={action.params} path={`${at(i)}.params`} {issues} {surface} {runTargets} disabled={!def.supported} />
       {/if}
 
-      {#if action.type === 'if' && depth === 0 && action.params}
+      {#if action.type === 'if' && action.params}
         <div class="nest">
           <Text as="span" size="xs" tone="muted">{t('automations.ifCondition')}</Text>
           <TypedNodeEditor bind:node={() => action.params!.condition as Condition, (v) => (action.params!.condition = v)} defs={CONDITION_TYPES} make={makeCondition} path={`${at(i)}.params.condition`} {issues} {surface} />
           <Text as="span" size="xs" tone="muted">{t('automations.ifThen')}</Text>
-          <ActionList bind:actions={() => listOf(action, 'then'), (v) => (action.params!.then = v)} path={`${at(i)}.params.then`} depth={1} {issues} {surface} {others} />
+          <ActionList bind:actions={() => listOf(action, 'then'), (v) => (action.params!.then = v)} path={`${at(i)}.params.then`} depth={depth + 1} {issues} {surface} {others} />
           <Text as="span" size="xs" tone="muted">{t('automations.ifElse')}</Text>
-          <ActionList bind:actions={() => listOf(action, 'else'), (v) => (action.params!.else = v)} path={`${at(i)}.params.else`} depth={1} {issues} {surface} {others} />
+          <ActionList bind:actions={() => listOf(action, 'else'), (v) => (action.params!.else = v)} path={`${at(i)}.params.else`} depth={depth + 1} {issues} {surface} {others} />
         </div>
-      {:else if action.type === 'random_pick' && depth === 0 && action.params}
+      {:else if (action.type === 'random_pick' || action.type === 'parallel') && action.params}
         <div class="nest">
           {#each branchesOf(action) as branch, b (branch)}
             {@const weightCode = issueAt(issues, `${at(i)}.params.branches[${b}].weight`)}
@@ -144,7 +143,7 @@
                 <Icon name="trash" size={15} />
               </IconButton>
             </div>
-            <ActionList bind:actions={() => branch.actions ?? [], (v) => (branch.actions = v)} path={`${at(i)}.params.branches[${b}].actions`} depth={1} {issues} {surface} {others} />
+            <ActionList bind:actions={() => branch.actions ?? [], (v) => (branch.actions = v)} path={`${at(i)}.params.branches[${b}].actions`} depth={depth + 1} {issues} {surface} {others} />
           {/each}
           <div class="br-add">
             <Button variant="add" disabled={branchesOf(action).length >= MAX_BRANCHES} onclick={() => addBranch(action)}>+ {t('automations.addBranch')}</Button>

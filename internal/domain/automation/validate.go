@@ -10,11 +10,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-const (
-	maxNesting      = 4
-	maxFlattenDepth = maxNesting
-)
-
 func Parse(raw []byte) (Definition, []Issue) {
 	if len(raw) > MaxDefinitionBytes {
 		return Definition{}, []Issue{{Code: CodeTooLong}}
@@ -44,47 +39,50 @@ func Validate(def Definition) []Issue {
 }
 
 func (c chk) budgets(def Definition) {
-	flat := def.Flatten()
-	c.count("actions", quantity(len(flat)), upTo(MaxActions))
-	if pathDelayMS(def.Actions, 0) > MaxDelayMS {
+	c.count("actions", quantity(countEffects(def.Flatten())), upTo(MaxActions))
+	if pathDelayMS(def.Actions) > MaxDelayMS {
 		c.add("actions", CodeDelayBudget)
 	}
 }
 
-func pathDelayMS(actions []Action, depth int) int {
+func countEffects(flat []Action) int {
+	n := 0
+	for _, a := range flat {
+		if !IsBranching(a.Type) {
+			n++
+		}
+	}
+	return n
+}
+
+func pathDelayMS(actions []Action) int {
 	total := 0
 	for _, a := range actions {
-		total += actionDelayMS(a, depth)
+		total += actionDelayMS(a)
 	}
 	return total
 }
 
-func actionDelayMS(a Action, depth int) int {
+func actionDelayMS(a Action) int {
 	if a.Type == "delay" {
 		p, _ := DecodeParams[DelayAction](a.Params)
 		return p.Ms
 	}
-	if depth >= maxFlattenDepth {
-		return 0
-	}
 	longest := 0
 	for _, branch := range a.Nested() {
-		longest = max(longest, pathDelayMS(branch, depth+1))
+		longest = max(longest, pathDelayMS(branch))
 	}
 	return longest
 }
 
-func (d Definition) Flatten() []Action { return flatten(d.Actions, 0) }
+func (d Definition) Flatten() []Action { return flatten(d.Actions) }
 
-func flatten(list []Action, depth int) []Action {
+func flatten(list []Action) []Action {
 	out := make([]Action, 0, len(list))
 	for _, a := range list {
 		out = append(out, a)
-		if depth >= maxFlattenDepth {
-			continue
-		}
 		for _, branch := range a.Nested() {
-			out = append(out, flatten(branch, depth+1)...)
+			out = append(out, flatten(branch)...)
 		}
 	}
 	return out

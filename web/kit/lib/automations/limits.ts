@@ -2,9 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 export const MAX_ACTIONS = 20;
-export const MAX_CONDITIONS = 10;
 export const MAX_DELAY_MS = 60000;
-export const MAX_NESTING = 4;
 export const MAX_CHAT_MESSAGES_PER_RUN = 3;
 export const MAX_RECURSION_DEPTH = 2;
 export const MAX_NAME_LENGTH = 64;
@@ -40,7 +38,6 @@ export const CODE = {
   unknownEventKind: 'unknown_event_kind',
   unknownFilter: 'unknown_filter',
   tooMany: 'too_many',
-  nesting: 'nesting',
   delayBudget: 'delay_budget',
   triggerMismatch: 'trigger_mismatch',
   permRequired: 'perm_required',
