@@ -44,8 +44,9 @@ const points = (t: Translate, count: number) => (count === 1 ? t('flows.line.poi
 
 const given = <T>(value: T, make: (value: T) => string): string => (value ? make(value) : '');
 
-const named = (t: Translate, keys: Readonly<Record<string, MessageKey>>, value: string): string =>
-  Object.hasOwn(keys, value) ? t(keys[value]!) : '';
+const roleLine = (t: Translate, level: string): string => (Object.hasOwn(ROLES, level) ? t(ROLES[level]!) : '');
+
+const subLine = (t: Translate, variant: string): string => (Object.hasOwn(SUBS, variant) ? t(SUBS[variant]!) : '');
 
 type SelectField = Extract<FieldSpec, { type: 'select' }>;
 
@@ -62,67 +63,98 @@ export function optionLabel(t: Translate, spec: NodeSpec, node: FlowNode, key: s
   return field?.type === 'select' ? selectLabel(t, spec, field, value) : value;
 }
 
-type Line = (t: Translate, node: FlowNode, spec: NodeSpec) => string;
+function triggerLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  switch (n.type) {
+    case 'twitch.chat.command':
+      return given(text(n, 'trigger'), (trigger) => t('flows.line.command', { trigger }));
+    case 'twitch.chat.word':
+      return given(text(n, 'word'), (word) => t('flows.line.word', { word }));
+    case 'twitch.sub':
+      return subLine(t, text(n, 'variant'));
+    case 'twitch.cheer':
+      return given(num(n, 'minBits'), (bits) => t('flows.line.cheer', { bits }));
+    case 'twitch.raid':
+      return given(num(n, 'minViewers'), (viewers) => t('flows.line.raid', { viewers }));
+    case 'twitch.reward':
+      return given(optionLabel(t, spec, n, 'reward'), (reward) => t('flows.line.reward', { reward }));
+    default:
+      return '';
+  }
+}
 
-const TRIGGERS: Readonly<Record<string, Line>> = {
-  'twitch.chat.command': (t, n) => given(text(n, 'trigger'), (trigger) => t('flows.line.command', { trigger })),
-  'twitch.chat.word': (t, n) => given(text(n, 'word'), (word) => t('flows.line.word', { word })),
-  'twitch.sub': (t, n) => named(t, SUBS, text(n, 'variant')),
-  'twitch.cheer': (t, n) => given(num(n, 'minBits'), (bits) => t('flows.line.cheer', { bits })),
-  'twitch.raid': (t, n) => given(num(n, 'minViewers'), (viewers) => t('flows.line.raid', { viewers })),
-  'twitch.reward': (t, n, spec) => given(optionLabel(t, spec, n, 'reward'), (reward) => t('flows.line.reward', { reward }))
-};
-
-const compareLine: Line = (t, n) => {
+function compareLine(t: Translate, n: FlowNode): string {
   const left = text(n, 'left');
   const right = text(n, 'right');
   if (!left || !right) return '';
   const op = text(n, 'op');
   return Object.hasOwn(COMPARISONS, op) ? t(COMPARISONS[op]!, { left, right }) : t('flows.line.compareIs', { left, right });
-};
+}
 
-const cooldownLine: Line = (t, n) =>
-  given(num(n, 'seconds'), (count) =>
+function cooldownLine(t: Translate, n: FlowNode): string {
+  return given(num(n, 'seconds'), (count) =>
     t(n.config.perUser ? 'flows.line.cooldownViewer' : 'flows.line.cooldown', { amount: seconds(t, count) })
   );
+}
 
-const CONDITIONS: Readonly<Record<string, Line>> = {
-  'cond.role': (t, n) => named(t, ROLES, text(n, 'level')),
-  'cond.user': (t, n) => given(text(n, 'login') || text(n, 'userId'), (user) => t('flows.line.userOnly', { user })),
-  'cond.cooldown': cooldownLine,
-  'cond.compare': compareLine,
-  'cond.chance': (t, n) => given(num(n, 'percent'), (percent) => t('flows.line.chance', { percent }))
-};
+function conditionLine(t: Translate, n: FlowNode): string {
+  switch (n.type) {
+    case 'cond.role':
+      return roleLine(t, text(n, 'level'));
+    case 'cond.user':
+      return given(text(n, 'login') || text(n, 'userId'), (user) => t('flows.line.userOnly', { user }));
+    case 'cond.cooldown':
+      return cooldownLine(t, n);
+    case 'cond.compare':
+      return compareLine(t, n);
+    case 'cond.chance':
+      return given(num(n, 'percent'), (percent) => t('flows.line.chance', { percent }));
+    default:
+      return '';
+  }
+}
 
-const discordLine: Line = (t, n, spec) => {
+function discordLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   const channel = optionLabel(t, spec, n, 'channel');
   const message = text(n, 'message');
   if (!message) return given(channel, (name) => t('flows.line.discordPost', { channel: name }));
   return channel ? t('flows.line.discordSay', { channel, message }) : message;
-};
+}
 
-const pointsLine: Line = (t, n) => {
+function pointsLine(t: Translate, n: FlowNode): string {
   const amount = Number(n.config.amount);
   if (!Number.isFinite(amount) || amount === 0) return '';
   return amount > 0 ? t('flows.line.pointsGive', { amount: points(t, amount) }) : t('flows.line.pointsTake', { amount: points(t, -amount) });
-};
+}
 
-const lightsLine: Line = (t, n, spec) => {
+function lightsLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   const light = text(n, 'deviceName') || t('flows.line.lightsFallback');
   if (text(n, 'mode') !== 'scene') return given(text(n, 'color'), (color) => t('flows.line.lightsColor', { light, color }));
   return given(optionLabel(t, spec, n, 'scene'), (scene) => t('flows.line.lightsScene', { light, scene }));
-};
+}
 
-const REPLIES: Readonly<Record<string, Line>> = {
-  'reply.chat': (_t, n) => text(n, 'message'),
-  'reply.discord': discordLine,
-  'reply.points': pointsLine,
-  'reply.counter': (t, n, spec) => given(optionLabel(t, spec, n, 'counter'), (counter) => t('flows.line.counter', { counter })),
-  'reply.lights': lightsLine,
-  'reply.wait': (t, n) => given(num(n, 'seconds'), (count) => t('flows.line.pause', { amount: seconds(t, count) }))
-};
+function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  switch (n.type) {
+    case 'reply.chat':
+      return text(n, 'message');
+    case 'reply.discord':
+      return discordLine(t, n, spec);
+    case 'reply.points':
+      return pointsLine(t, n);
+    case 'reply.counter':
+      return given(optionLabel(t, spec, n, 'counter'), (counter) => t('flows.line.counter', { counter }));
+    case 'reply.lights':
+      return lightsLine(t, n, spec);
+    case 'reply.wait':
+      return given(num(n, 'seconds'), (count) => t('flows.line.pause', { amount: seconds(t, count) }));
+    default:
+      return '';
+  }
+}
 
-const BY_KIND: Readonly<Record<string, Readonly<Record<string, Line>>>> = { trigger: TRIGGERS, condition: CONDITIONS };
+function lineFor(t: Translate, node: FlowNode, spec: NodeSpec): string {
+  if (spec.kind === 'trigger') return triggerLine(t, node, spec);
+  return spec.kind === 'condition' ? conditionLine(t, node) : replyLine(t, node, spec);
+}
 
 export function portLabel(t: Translate, node: FlowNode, id: string): string {
   const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
@@ -134,6 +166,5 @@ export function portLabel(t: Translate, node: FlowNode, id: string): string {
 export function describe(t: Translate, node: FlowNode): string {
   const spec = specFor(node.type);
   if (!spec) return '';
-  const table = BY_KIND[spec.kind] ?? REPLIES;
-  return table[node.type]?.(t, node, spec) || stepSummary(t, spec);
+  return lineFor(t, node, spec) || stepSummary(t, spec);
 }
