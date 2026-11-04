@@ -183,7 +183,6 @@ export type RehearsalOptions = {
 
 type Walk = {
   flow: Flow;
-  t: Translate;
   decisions: Decisions;
   forced: Record<string, string>;
   until?: string;
@@ -201,24 +200,24 @@ function unvisited(walk: Walk, id: string): { node: FlowNode; spec: NodeSpec } |
   return node && spec ? { node, spec } : undefined;
 }
 
-function visit(walk: Walk, id: string, via?: string): void {
+function visit(t: Translate, walk: Walk, id: string, via?: string): void {
   const found = unvisited(walk, id);
   if (!found) return;
   const { node, spec } = found;
   walk.seen.add(id);
   provide(spec, walk.samples);
-  const context = contextFor({ node, spec, words: wordsFor(walk.t, spec, node) }, walk.samples, walk.modules);
+  const context = contextFor({ node, spec, words: wordsFor(t, spec, node) }, walk.samples, walk.modules);
   const step = toStep(context, walk.forced[id] ?? walk.decisions[id], via);
   walk.steps.push(step);
   walk.done = id === walk.until;
   const port = nextPort(step, spec);
-  for (const e of walk.flow.edges) if (e.from === id && e.port === port) visit(walk, e.to, e.id);
+  for (const e of walk.flow.edges) if (e.from === id && e.port === port) visit(t, walk, e.to, e.id);
 }
 
 export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalStep[] {
   const { decisions = {}, until, modules = {} } = options;
   const traced = until ? traceBack(flow, until) : { root: firstTrigger(flow), forced: {} as Record<string, string> };
-  const walk: Walk = { flow, t, decisions, forced: traced.forced, until, modules, samples: {}, steps: [], seen: new Set(), done: false };
-  if (traced.root) visit(walk, traced.root);
+  const walk: Walk = { flow, decisions, forced: traced.forced, until, modules, samples: {}, steps: [], seen: new Set(), done: false };
+  if (traced.root) visit(t, walk, traced.root);
   return walk.steps;
 }

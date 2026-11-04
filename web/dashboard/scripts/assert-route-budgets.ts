@@ -39,7 +39,8 @@ const BUDGETS: Record<string, Budget> = {
   // pause in the shared ui lib: measured 121030, ~0.4% room.
   // js and css raised from 121500 / 45700 (2026-11-03) for the shared AvatarPlate block and its stylesheet: CI measured
   // 121501 / 45712, ~0.4% / ~1% room.
-  '/(app)': { js: 122000, css: 46200, catalog: 5000, lazy: 0 },
+  // js raised from 122000 (2026-11-04): shipping the Recipes pages moves shared code into the shell, main 121861 to 122132, ~0.4% room.
+  '/(app)': { js: 122600, css: 46200, catalog: 5000, lazy: 0 },
   // js raised from 138900 (2026-10-29): main already measured 138945, Glide adds 131 B for 139076, ~2% room.
   // css raised from 46000 (2026-10-29): main measured 45607, the aurora footer adds 413 B for 46020, ~1% room.
   // css raised from 46500 (2026-10-29) for the shared .bb-prose style in typography.css: CI measured 46697, ~1% room.
