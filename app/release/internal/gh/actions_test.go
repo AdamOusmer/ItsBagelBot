@@ -182,7 +182,7 @@ func TestAttestationExists(t *testing.T) {
 		{
 			name: "api failure",
 			h:    reply(http.StatusInternalServerError, `{"message":"boom"}`),
-			want: attestOutcome{Query: query, Kind: errOther},
+			want: attestOutcome{Query: query, Kind: ports.ErrTransient},
 		},
 	}
 	for _, tc := range cases {

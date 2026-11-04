@@ -29,7 +29,7 @@ func testConfig() ports.Config {
 	return ports.Config{
 		Owner: "AdamOusmer", Repo: "ItsBagelBot", MainBranch: "main", ImageRepo: testRepo,
 		Workflow: "publish-images.yml", ManifestDir: "deploy/k8s", ChangelogDir: "web/marketing/src/content/changelog",
-		UpdateBranchLimit: 3, LogTailLines: 50, PollEvery: time.Microsecond,
+		UpdateBranchLimit: 3, MergeablePollLimit: 3, LogTailLines: 50, PollEvery: time.Microsecond,
 	}
 }
 
@@ -136,8 +136,9 @@ func loadManifests(t *testing.T) ports.Files {
 
 type fakePR struct {
 	ports.PullRequest
-	files  ports.Files
-	behind int
+	files    ports.Files
+	behind   int
+	conflict bool
 }
 
 type fakeGitHub struct {
@@ -158,6 +159,15 @@ type fakeGitHub struct {
 	attested map[deploy.Digest]bool
 	calls    []string
 	seq      int
+	flakes   map[string]int
+}
+
+func (g *fakeGitHub) flake(op string) error {
+	if g.flakes[op] == 0 {
+		return nil
+	}
+	g.flakes[op]--
+	return fmt.Errorf("%w: 502 on %s", ports.ErrTransient, op)
 }
 
 type runStep struct {
@@ -172,6 +182,7 @@ func newFakeGitHub() *fakeGitHub {
 		tags: map[deploy.Version]ports.TagRef{}, releases: map[deploy.Version]ports.Release{},
 		notes: map[deploy.Version]string{}, checks: map[deploy.SHA][]ports.CheckSummary{},
 		steps: map[int64][]runStep{}, logs: map[int64][]string{}, attested: map[deploy.Digest]bool{},
+		flakes: map[string]int{},
 	}
 }
 
@@ -266,6 +277,9 @@ func (g *fakeGitHub) OpenPRs(context.Context) ([]deploy.PRInfo, error) { return 
 func (g *fakeGitHub) PR(_ context.Context, number int) (ports.PullRequest, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if err := g.flake("pr"); err != nil {
+		return ports.PullRequest{}, err
+	}
 	pr, ok := g.prs[number]
 	if !ok {
 		return ports.PullRequest{}, ports.ErrNotFound
@@ -296,7 +310,7 @@ func (g *fakeGitHub) CreatePR(_ context.Context, spec ports.PRSpec) (ports.PullR
 	}, files: g.trees[g.branches[spec.Head]]}
 	g.prs[n] = pr
 	g.log("pr #%d %s: %s", n, spec.Head, spec.Title)
-	return pr.PullRequest, nil
+	return pr.PullRequest, g.flake("create-pr")
 }
 
 func (g *fakeGitHub) UpdateBranch(_ context.Context, number int) error {
@@ -314,7 +328,7 @@ func (g *fakeGitHub) SquashMerge(_ context.Context, number int, expectHead deplo
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	pr := g.prs[number]
-	if pr.HeadSHA != expectHead {
+	if pr.HeadSHA != expectHead || pr.conflict {
 		return "", ports.ErrConflict
 	}
 	sha := deploy.SHA(fmt.Sprintf("merge%d", number))

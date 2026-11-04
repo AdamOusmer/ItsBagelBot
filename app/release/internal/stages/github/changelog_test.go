@@ -35,6 +35,19 @@ func TestChangelogStageWritesTheHandWrittenFiles(t *testing.T) {
 	}
 }
 
+func TestChangelogStageAdoptsAPRWhoseCreateAnswered5xx(t *testing.T) {
+	run := newRun(deploy.KindRelease)
+	run.Version, run.Changelog = "v0.2.3-beta", validEntry()
+	f := newFixture(t, run)
+	f.gh.flakes["create-pr"] = 1
+
+	_, err := f.runStage(t, deploy.StageChangelog)
+
+	require.NoError(t, err)
+	assert.Contains(t, f.gh.trees[f.gh.head()], ports.FilePath(changelogFilePath))
+	assert.Len(t, f.gh.prs, 1, "the retry reuses the PR GitHub created")
+}
+
 func validEntry() *deploy.ChangelogEntry {
 	return &deploy.ChangelogEntry{
 		Title:      map[string]string{"en": "Deploys page", "fr": "Page des déploiements"},

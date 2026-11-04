@@ -18,6 +18,7 @@ var (
 	ErrNotFound       = errors.New("not found")
 	ErrInvalid        = errors.New("invalid request")
 	ErrConflict       = errors.New("conflict")
+	ErrTransient      = errors.New("transient upstream error")
 )
 
 type Fail struct {
@@ -59,9 +60,10 @@ type Config struct {
 	ManifestDir  FilePath
 	ChangelogDir FilePath
 
-	UpdateBranchLimit int
-	LogTailLines      int
-	PollEvery         time.Duration
+	UpdateBranchLimit  int
+	MergeablePollLimit int
+	LogTailLines       int
+	PollEvery          time.Duration
 }
 
 type Clock interface {
