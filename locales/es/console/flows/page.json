@@ -9,6 +9,8 @@
   "turnOn": "Activar {name}",
   "emptyTitle": "No hay coincidencias",
   "emptyBody": "Prueba con otro nombre o disparador.",
+  "noneTitle": "Aún no hay nada aquí",
+  "noneBody": "Los comandos y los módulos siguen en sus propias páginas. Elige Nuevo para crear el primero.",
   "untitled": "Sin título",
   "save": "Guardar"
 }

@@ -2640,6 +2640,8 @@ export type KnownMessageKey =
   | 'flows.page.emptyTitle'
   | 'flows.page.eyebrow'
   | 'flows.page.new'
+  | 'flows.page.noneBody'
+  | 'flows.page.noneTitle'
   | 'flows.page.save'
   | 'flows.page.search'
   | 'flows.page.stepMany'

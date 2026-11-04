@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { alertDefinition, commandDefinition, simpleFlowPreview, type Definition } from '@bagel/kit/automations';
+import { alertDefinition, commandDefinition, type Definition } from '@bagel/kit/automations';
 import type { CommandView } from '@bagel/kit';
 
 import { stubSvelteKit } from '../../../test/sveltekit';
@@ -288,7 +288,7 @@ describe('automation rows', () => {
 describe('landing list and toggles', () => {
   const summary = (id: string, preview?: string) => ({ id, name: 'Flow', enabled: true, revision: 3, trigger_type: 'event', preview, updated_at: '' });
 
-  test('summaries read previews without the definition verbs', async () => {
+  test('the landing list holds saved recipes only, never commands or modules', async () => {
     stubStorage([hugRow], [alerts({})]);
     replies[`${AUTO}.summaries`] = { automations: [summary('a', '{"n":[],"e":[]}'), summary('b')] };
 
@@ -298,11 +298,7 @@ describe('landing list and toggles', () => {
     expect(callsTo(`${AUTO}.get`)).toEqual([]);
     expect(flows[0]).toEqual({ ref: { layer: 'automation', id: 'a' }, name: 'Flow', enabled: true, revision: '3', preview: '{"n":[],"e":[]}' });
     expect(flows[1]!.preview).toBeNull();
-    const command = flows.find((f) => f.ref.layer === 'command')!;
-    expect(command.preview).toBe(simpleFlowPreview(commandDefinition(hugSimple)));
-    const alert = flows.find((f) => f.ref.layer === 'alert')!;
-    expect(JSON.parse(alert.preview!).n).toHaveLength(2);
-    expect(flows.filter((f) => f.ref.layer === 'alert')).toHaveLength(5);
+    expect(flows.map((f) => f.ref.layer)).toEqual(['automation', 'automation']);
     for (const flow of flows) expect(flow).not.toHaveProperty('definition');
   });
 
@@ -658,7 +654,7 @@ describe('premium beta', () => {
 
   test('reads stay open and writes work again with Premium', async () => {
     stubStorage([hugRow], []);
-    replies[`${AUTO}.summaries`] = { automations: [] };
+    replies[`${AUTO}.summaries`] = { automations: [{ id: 'a', name: 'Flow', enabled: true, revision: 3, trigger_type: 'event', updated_at: '' }] };
     expect((await store.listFlowSummaries('7')).length).toBeGreaterThan(0);
     expect(await store.loadFlow('7', { layer: 'command', name: 'hug' })).not.toBeNull();
     expect(await store.setFlowEnabled(localsFor('vip'), { layer: 'command', name: 'hug' }, true)).toMatchObject({ ok: true });

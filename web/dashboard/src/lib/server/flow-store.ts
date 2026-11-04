@@ -8,7 +8,6 @@ import {
   classifyFlow,
   commandDefinition,
   plainAlertLine,
-  simpleFlowPreview,
   validateDefinition,
   type AlertKey,
   type Automation,
@@ -218,29 +217,17 @@ export async function listFlows(userId: UserId): Promise<StoredFlow[]> {
   ];
 }
 
-const generatedSummary = ({ ref, name, enabled, revision, definition }: StoredFlow): FlowSummary => ({
-  ref,
-  name,
-  enabled,
-  revision,
-  preview: simpleFlowPreview(definition)
-});
-
 export async function listFlowSummaries(userId: UserId): Promise<FlowSummary[]> {
-  const [automations, commands, alerts] = await Promise.all([listAutomationSummaries(userId), ownerCommands(userId), alertsRow(userId)]);
-  return [
-    ...automations.map(
-      (row): FlowSummary => ({
-        ref: { layer: 'automation', id: row.id },
-        name: row.name,
-        enabled: row.enabled,
-        revision: String(row.revision),
-        preview: row.preview ?? null
-      })
-    ),
-    ...commands.filter(drawableCommand).map(commandFlow).map(generatedSummary),
-    ...ALERT_KEYS.map((alert) => generatedSummary(alertFlow(alert, alerts)))
-  ];
+  const automations = await listAutomationSummaries(userId);
+  return automations.map(
+    (row): FlowSummary => ({
+      ref: { layer: 'automation', id: row.id },
+      name: row.name,
+      enabled: row.enabled,
+      revision: String(row.revision),
+      preview: row.preview ?? null
+    })
+  );
 }
 
 export async function loadFlow(userId: UserId, ref: FlowRef): Promise<StoredFlow | null> {

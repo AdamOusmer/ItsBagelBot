@@ -9,6 +9,8 @@
   "turnOn": "Ativar {name}",
   "emptyTitle": "Nenhum resultado",
   "emptyBody": "Tente outro nome ou gatilho.",
+  "noneTitle": "Nada aqui ainda",
+  "noneBody": "Comandos e módulos continuam em suas próprias páginas. Escolha Novo para criar o primeiro.",
   "untitled": "Sem título",
   "save": "Salvar"
 }

@@ -3,13 +3,10 @@
 import type { FlowPreview } from './thumb';
 import { flowRouteId, type FlowRef } from './ref';
 
-export type FlowSection = 'commands' | 'alerts' | 'rewards' | 'automations';
-
 export type FlowCard = {
   id: string;
   ref: FlowRef;
   name: string;
-  section: FlowSection;
   description: string;
   when: string;
   enabled: boolean;
@@ -22,8 +19,6 @@ export type FlowCard = {
 export type CardSource = { ref: FlowRef; name: string; enabled: boolean; revision: string; preview: string | null };
 
 const EMPTY_PREVIEW: FlowPreview = { n: [], e: [] };
-
-const SECTION_OF: Record<FlowRef['layer'], FlowSection> = { command: 'commands', alert: 'alerts', automation: 'automations' };
 
 function readPreview(text: string | null): FlowPreview {
   if (!text) return EMPTY_PREVIEW;
@@ -41,7 +36,6 @@ export function cardFromSummary(source: CardSource): FlowCard {
     id: flowRouteId(source.ref),
     ref: source.ref,
     name: source.name,
-    section: SECTION_OF[source.ref.layer],
     description: '',
     when: '',
     enabled: source.enabled,

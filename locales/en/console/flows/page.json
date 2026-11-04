@@ -9,6 +9,8 @@
   "turnOn": "Turn on {name}",
   "emptyTitle": "Nothing matches",
   "emptyBody": "Try another name or trigger.",
+  "noneTitle": "Nothing here yet",
+  "noneBody": "Commands and modules stay on their own pages. Choose New to build your first one.",
   "untitled": "Untitled",
   "save": "Save"
 }
