@@ -26,3 +26,10 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/args/-
         value: --concurrent=4
+      - op: add
+        path: /spec/template/spec/nodeSelector/role
+        value: cp
+      - op: add
+        path: /spec/template/spec/tolerations
+        value:
+          - {key: role, operator: Equal, value: cp, effect: NoSchedule}
