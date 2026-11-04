@@ -88,11 +88,12 @@ func mergePR(ctx context.Context, rc *stage.RunCtx, number int) (ports.PullReque
 }
 
 type merger struct {
-	rc          *stage.RunCtx
-	number      int
-	pr          ports.PullRequest
-	updates     int
-	updatedFrom deploy.SHA
+	rc           *stage.RunCtx
+	number       int
+	pr           ports.PullRequest
+	updates      int
+	updatedFrom  deploy.SHA
+	unknownPolls int
 }
 
 func (m *merger) step(ctx context.Context) (bool, error) {
@@ -175,20 +176,36 @@ func checksFailed(pr ports.PullRequest, sum ports.CheckSummary) *stage.Fail {
 }
 
 func (m *merger) merge(ctx context.Context) (bool, error) {
-	if m.pr.Mergeable == nil {
-		m.report(ctx, deploy.StateWaiting, "GitHub is computing mergeability")
+	if m.awaitingMergeability(ctx) {
 		return false, nil
 	}
 	m.report(ctx, deploy.StateRunning, "merging")
 	sha, err := m.rc.Deps.GitHub.SquashMerge(ctx, m.number, m.pr.HeadSHA)
 	if errors.Is(err, ports.ErrConflict) {
-		return false, nil
+		return false, m.refusedUnknown()
 	}
 	if err != nil {
 		return false, err
 	}
 	m.pr.Merged, m.pr.MergeSHA = true, sha
 	return true, m.deleteBranch(ctx)
+}
+
+// GitHub can leave mergeable null on a clean PR for good, so past the limit the merge call decides.
+func (m *merger) awaitingMergeability(ctx context.Context) bool {
+	if m.pr.Mergeable != nil || m.unknownPolls >= m.rc.Deps.Config.MergeablePollLimit {
+		return false
+	}
+	m.unknownPolls++
+	m.report(ctx, deploy.StateWaiting, "GitHub is computing mergeability")
+	return true
+}
+
+func (m *merger) refusedUnknown() error {
+	if m.pr.Mergeable != nil {
+		return nil
+	}
+	return fail(deploy.FailNotMergeable, "PR #%d: GitHub refused the merge and never computed mergeability", m.number)
 }
 
 func (m *merger) deleteBranch(ctx context.Context) error {

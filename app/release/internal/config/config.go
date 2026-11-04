@@ -60,18 +60,19 @@ func (c *Config) missing() []string {
 
 func loadDeploy() ports.Config {
 	return ports.Config{
-		Owner:             env.Get("DEPLOY_GITHUB_OWNER", "AdamOusmer"),
-		Repo:              env.Get("DEPLOY_GITHUB_REPO", "ItsBagelBot"),
-		MainBranch:        ports.Branch(env.Get("DEPLOY_MAIN_BRANCH", "main")),
-		DeployBranch:      ports.Branch(env.Get("DEPLOY_BRANCH", "deploy")),
-		ImageRepo:         env.Get("DEPLOY_IMAGE_REPO", "ghcr.io/adamousmer/itsbagelbot"),
-		Workflow:          ports.Workflow(env.Get("DEPLOY_WORKFLOW", "publish-images.yml")),
-		ReleaseWorkflow:   ports.Workflow(env.Get("DEPLOY_RELEASE_WORKFLOW", "release.yml")),
-		CodeSceneCheck:    env.Get("DEPLOY_CODESCENE_CHECK", "CodeScene Code Health Review (main)"),
-		ManifestDir:       "deploy/k8s",
-		ChangelogDir:      "web/marketing/src/content/changelog",
-		UpdateBranchLimit: env.GetInt("DEPLOY_UPDATE_BRANCH_LIMIT", 3),
-		LogTailLines:      env.GetInt("DEPLOY_LOG_TAIL_LINES", 50),
-		PollEvery:         env.GetDuration("DEPLOY_POLL_EVERY", 5*time.Second),
+		Owner:              env.Get("DEPLOY_GITHUB_OWNER", "AdamOusmer"),
+		Repo:               env.Get("DEPLOY_GITHUB_REPO", "ItsBagelBot"),
+		MainBranch:         ports.Branch(env.Get("DEPLOY_MAIN_BRANCH", "main")),
+		DeployBranch:       ports.Branch(env.Get("DEPLOY_BRANCH", "deploy")),
+		ImageRepo:          env.Get("DEPLOY_IMAGE_REPO", "ghcr.io/adamousmer/itsbagelbot"),
+		Workflow:           ports.Workflow(env.Get("DEPLOY_WORKFLOW", "publish-images.yml")),
+		ReleaseWorkflow:    ports.Workflow(env.Get("DEPLOY_RELEASE_WORKFLOW", "release.yml")),
+		CodeSceneCheck:     env.Get("DEPLOY_CODESCENE_CHECK", "CodeScene Code Health Review (main)"),
+		ManifestDir:        "deploy/k8s",
+		ChangelogDir:       "web/marketing/src/content/changelog",
+		UpdateBranchLimit:  env.GetInt("DEPLOY_UPDATE_BRANCH_LIMIT", 3),
+		MergeablePollLimit: env.GetInt("DEPLOY_MERGEABLE_POLL_LIMIT", 24),
+		LogTailLines:       env.GetInt("DEPLOY_LOG_TAIL_LINES", 50),
+		PollEvery:          env.GetDuration("DEPLOY_POLL_EVERY", 5*time.Second),
 	}
 }

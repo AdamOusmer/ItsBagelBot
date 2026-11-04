@@ -124,7 +124,7 @@ func reply(status int, body string) http.HandlerFunc {
 }
 
 func kindOf(err error) error {
-	for _, kind := range []error{ports.ErrNotFound, ports.ErrConflict, ports.ErrInvalid} {
+	for _, kind := range []error{ports.ErrNotFound, ports.ErrConflict, ports.ErrInvalid, ports.ErrTransient} {
 		if errors.Is(err, kind) {
 			return kind
 		}
