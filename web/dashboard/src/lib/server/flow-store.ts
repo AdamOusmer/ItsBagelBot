@@ -34,6 +34,7 @@ import {
 } from './automations-store';
 import {
   deleteCommand,
+  listCommands,
   listModules,
   listModulesForEditing,
   patchModule,
@@ -41,6 +42,7 @@ import {
   type ModuleView
 } from './commands-store';
 import { effectiveId } from './board';
+import { setModuleEnabled } from './module-blob';
 import { moduleWriteDenial } from './module-gate';
 import { SUB } from './services';
 
@@ -98,7 +100,6 @@ export type AlertUpgradeReport = {
 export type UpgradeReport = CommandUpgradeReport | AlertUpgradeReport;
 
 export type FlowWarning =
-  | 'automations_module_off'
   | 'shadowed_by_command'
   | 'command_delete_failed'
   | 'automation_delete_failed'
@@ -197,10 +198,8 @@ function automationFlow(row: Automation): StoredFlow {
   return { ref: { layer: 'automation', id: row.id }, name: row.name, enabled: row.enabled, revision: String(row.revision), definition: row.definition };
 }
 
-async function ownerCommands(userId: UserId): Promise<CommandView[]> {
-  const reply = await rpc<{ commands?: CommandView[] }>(`${SUB.commands}.list`, { user_id: userId });
-  return reply.commands ?? [];
-}
+// The commands service buffers writes, so its own list misses a command saved a moment ago. This read holds the saved row.
+const ownerCommands = (userId: UserId): Promise<CommandView[]> => listCommands(userId);
 
 async function alertsRow(userId: UserId): Promise<ModuleView | undefined> {
   return (await listModulesForEditing(userId)).find((row) => row.name === MOD.alerts);
@@ -360,13 +359,15 @@ function triggerNames(definition: Definition): string[] {
   return [params.name, ...((params.aliases ?? []) as string[])].map((n) => String(n).replace(/^!/, '').toLowerCase());
 }
 
-async function automationWarnings(userId: UserId, definition: Definition, enabled: Enabled, dropping?: CommandName): Promise<FlowWarning[]> {
-  const [modules, commands] = await Promise.all([listModules(userId), ownerCommands(userId)]);
-  const warnings: FlowWarning[] = [];
-  if (enabled && modules.find((row) => row.name === MOD.automations)?.is_enabled !== true) warnings.push('automations_module_off');
+async function automationWarnings(userId: UserId, definition: Definition, dropping?: CommandName): Promise<FlowWarning[]> {
+  const commands = await ownerCommands(userId);
   const names = triggerNames(definition);
-  if (commands.some((row) => row.name !== dropping && names.includes(row.name.toLowerCase()))) warnings.push('shadowed_by_command');
-  return warnings;
+  return commands.some((row) => row.name !== dropping && names.includes(row.name.toLowerCase())) ? ['shadowed_by_command'] : [];
+}
+
+async function turnOnAutomations(userId: UserId): Promise<void> {
+  const modules = await listModules(userId);
+  if (modules.find((row) => row.name === MOD.automations)?.is_enabled !== true) await setModuleEnabled(userId, MOD.automations, true);
 }
 
 async function writeAutomation(userId: UserId, input: SaveFlowInput, id?: FlowId, dropping?: CommandName): Promise<SaveFlowResult> {
@@ -375,7 +376,8 @@ async function writeAutomation(userId: UserId, input: SaveFlowInput, id?: FlowId
   const expected = id && input.expectedRevision !== undefined ? Number(input.expectedRevision) : undefined;
   const result = await upsertAutomation(userId, { id, name: input.name, enabled: input.enabled, definition: input.definition, preview: input.preview, expectedRevision: expected });
   if (!result.ok) return upsertFailure(result);
-  return { ok: true, flow: automationFlow(result.automation), warnings: await automationWarnings(userId, input.definition, input.enabled, dropping) };
+  if (input.enabled) await turnOnAutomations(userId);
+  return { ok: true, flow: automationFlow(result.automation), warnings: await automationWarnings(userId, input.definition, dropping) };
 }
 
 const asNewFlow = (input: SaveFlowInput): SaveFlowInput => ({ ...input, ref: null, expectedRevision: undefined });
@@ -480,7 +482,8 @@ async function moveAlert(userId: UserId, alert: AlertKey, target: FlowLayer, inp
     expectedModuleRev: row?.revision ?? 0
   });
   if (!result.ok) return upsertFailure(result);
-  return { ok: true, flow: automationFlow(result.automation), upgrade, warnings: await automationWarnings(userId, input.definition, input.enabled) };
+  if (input.enabled) await turnOnAutomations(userId);
+  return { ok: true, flow: automationFlow(result.automation), upgrade, warnings: await automationWarnings(userId, input.definition) };
 }
 
 function saveExistingCommand(userId: UserId, ref: { name: CommandName }, target: FlowLayer, input: SaveFlowInput) {
@@ -517,9 +520,8 @@ async function toggleAutomation(userId: UserId, id: FlowId, enabled: Enabled, ex
     if (result.code === 'not_found') return TOGGLE_NOT_FOUND;
     return { ok: false, reason: 'failed', error: result.error ?? result.code ?? 'toggle failed' };
   }
-  const modules = await listModules(userId);
-  const moduleOff = enabled && modules.find((row) => row.name === MOD.automations)?.is_enabled !== true;
-  return { ok: true, enabled, revision: String(result.automation.revision), warnings: moduleOff ? ['automations_module_off'] : [] };
+  if (enabled) await turnOnAutomations(userId);
+  return { ok: true, enabled, revision: String(result.automation.revision), warnings: [] };
 }
 
 async function toggleCommand(userId: UserId, name: CommandName, enabled: Enabled, expected?: Revision): Promise<SetFlowEnabledResult> {

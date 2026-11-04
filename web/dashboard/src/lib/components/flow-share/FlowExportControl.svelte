@@ -53,7 +53,8 @@
     summary = reply;
   }
 
-  function reset() {
+  function close() {
+    open = false;
     selected = new Set();
     summary = null;
   }
@@ -61,13 +62,16 @@
 
 <Button variant="secondary" onclick={() => (open = true)}>{t('automations.share.exportOpen')}</Button>
 
-<Modal bind:open title={t('automations.share.exportTitle')} onClose={reset} {busy}>
+<Modal bind:open title={t('automations.share.exportTitle')} onClose={close} {busy}>
   <div class="body">
     {#if summary}
       <p>{t('automations.share.exportDone', { n: summary.exported ?? 0 })}</p>
       {#if summary.needSetup}<p>{t('automations.share.exportNeedSetup', { n: summary.needSetup })}</p>{/if}
       {#if summary.missing}<p>{t('automations.share.exportMissing', { n: summary.missing })}</p>{/if}
       {#if summary.failed?.length}<p>{t('automations.share.exportFailed', { names: summary.failed.join(', ') })}</p>{/if}
+      <div class="foot">
+        <Button onclick={close}>{t('automations.share.importClose')}</Button>
+      </div>
     {:else}
       <p>{t('automations.share.exportBody')}</p>
       <div class="tools">
@@ -83,6 +87,7 @@
         {/each}
       </ul>
       <div class="foot">
+        <Button variant="ghost" disabled={busy} onclick={close}>{t('common.cancel')}</Button>
         <Button {busy} disabled={picked.length === 0} onclick={run}>{t('automations.share.exportCta')}</Button>
       </div>
     {/if}

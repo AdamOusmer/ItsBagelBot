@@ -85,7 +85,7 @@ function classifyCommand(definition: Definition): FlowLayer {
   const gates = readGates(definition.conditions ?? []);
   if (response === null || !gates) return AUTOMATION;
   if (!plainChatCommand(params)) return AUTOMATION;
-  const bare = (s: string) => s.replace(/^!/, '');
+  const bare = (s: string) => s.replace(/^!/, '').toLowerCase();
   const aliases = ((params.aliases ?? []) as string[]).map(bare);
   return { layer: 'command', command: { name: bare(params.name as string), aliases, response, ...gates } };
 }
