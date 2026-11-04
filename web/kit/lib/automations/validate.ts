@@ -15,9 +15,12 @@ import {
   typed,
 } from './engine';
 import { CODE, MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_DELAY_MS, MAX_NAME_LENGTH, VERSION } from './limits';
-import './registry';
+import { fillRegistries } from './registry';
 import { byteLength, compareBytes, isNameChar, trimSpace } from './text';
 import type { Definition, Issue } from './types';
+
+// Called, not a bare import: the package's sideEffects list lets production bundles drop a bare one, emptying every registry.
+fillRegistries();
 
 const MAX_FLATTEN_DEPTH = 4;
 

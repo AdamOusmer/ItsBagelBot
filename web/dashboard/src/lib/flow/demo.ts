@@ -3,7 +3,7 @@
 import { dev } from '$app/env';
 import { flowToDefinition, type FlowExportRow } from '@bagel/kit/automations';
 import type { EditorData, Lowered } from '#lib/server/flow-page';
-import { cardFromSummary, type FlowCard, type FlowSection } from './cards';
+import { cardFromSummary, type FlowCard } from './cards';
 import { unavailable, type ChoiceList, type ChoiceOption } from './choices';
 import { MAX_WAIT_SECONDS, specFor, type Flow } from './model';
 import { flowRouteId, parseFlowRouteId, type FlowRef } from './ref';
@@ -15,7 +15,6 @@ if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 export type DemoSystem = {
   id: string;
   name: string;
-  section: string;
   description: string;
   flow: Flow;
 };
@@ -56,7 +55,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'hug',
     name: '!hug command',
-    section: 'Commands',
     description: 'Hugs someone, most of the time',
     flow: flowOf(
       'hug',
@@ -73,7 +71,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'follow',
     name: 'Follow alert',
-    section: 'Alerts',
     description: 'Welcomes every new follower',
     flow: flowOf(
       'follow',
@@ -89,7 +86,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'sub',
     name: 'Sub alert',
-    section: 'Alerts',
     description: 'Thanks subs, with extra love for long ones',
     flow: flowOf(
       'sub',
@@ -106,7 +102,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'raid',
     name: 'Raid shoutout',
-    section: 'Alerts',
     description: 'Shouts out raids of five viewers or more',
     flow: flowOf(
       'raid',
@@ -128,7 +123,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'hydrate',
     name: 'Hydrate reward',
-    section: 'Channel point rewards',
     description: 'Water break reminder with a follow-up',
     flow: flowOf(
       'hydrate',
@@ -145,7 +139,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'cheer',
     name: 'Big cheer celebration',
-    section: 'Automations',
     description: 'Lights and thanks for big bit cheers',
     flow: flowOf(
       'cheer',
@@ -162,19 +155,12 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   }
 ];
 
-type DemoRow = { name: string; section: FlowSection; description: string; flow: Flow; enabled: boolean; revision: number };
-
-const SECTIONS: Record<string, FlowSection> = {
-  Commands: 'commands',
-  Alerts: 'alerts',
-  'Channel point rewards': 'rewards',
-  Automations: 'automations'
-};
+type DemoRow = { name: string; description: string; flow: Flow; enabled: boolean; revision: number };
 
 const rows = new Map<string, DemoRow>(
   DEMO_SYSTEMS.map((system) => [
     system.id,
-    { name: system.name, section: SECTIONS[system.section] ?? 'automations', description: system.description, flow: system.flow, enabled: true, revision: 1 }
+    { name: system.name, description: system.description, flow: system.flow, enabled: true, revision: 1 }
   ])
 );
 
@@ -196,7 +182,6 @@ const triggerLabel = (flow: Flow) => TRIGGER_LABELS[specFor(flow.nodes.find((n) 
 export function demoCards(): FlowCard[] {
   return [...rows].map(([id, row]) => ({
     ...cardFromSummary({ ref: { layer: 'automation', id }, name: row.name, enabled: row.enabled, revision: String(row.revision), preview: JSON.stringify(flowPreview(row.flow)) }),
-    section: row.section,
     description: row.description,
     when: triggerLabel(row.flow)
   }));
@@ -212,7 +197,7 @@ export function demoEditor(routeId: string): EditorData | null {
 function demoCreate(lowered: Lowered): SaveReply {
   const id = `demo-${++created}`;
   const name = lowered.flow.name || 'Untitled';
-  rows.set(id, { name, section: 'automations', description: '', flow: structuredClone(lowered.flow), enabled: lowered.flow.enabled, revision: 1 });
+  rows.set(id, { name, description: '', flow: structuredClone(lowered.flow), enabled: lowered.flow.enabled, revision: 1 });
   return { ok: true, id: flowRouteId({ layer: 'automation', id }), name, enabled: lowered.flow.enabled, revision: '1', warnings: [] };
 }
 

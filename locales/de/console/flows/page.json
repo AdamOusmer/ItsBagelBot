@@ -9,6 +9,8 @@
   "turnOn": "{name} einschalten",
   "emptyTitle": "Keine Treffer",
   "emptyBody": "Versuche es mit einem anderen Namen oder Auslöser.",
+  "noneTitle": "Noch nichts hier",
+  "noneBody": "Befehle und Module bleiben auf ihren eigenen Seiten. Wähle Neu, um dein erstes zu erstellen.",
   "untitled": "Ohne Titel",
   "save": "Speichern"
 }

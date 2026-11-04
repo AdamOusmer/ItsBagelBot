@@ -18,7 +18,7 @@
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
   import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
-  import type { FlowCard, FlowSection } from '#lib/flow/cards';
+  import type { FlowCard } from '#lib/flow/cards';
   import { deleteMessage, toggleMessage, warningMessages } from '#lib/flow/messages';
   import type { DeleteReply, ToggleReply } from '#lib/flow/replies';
   import type { PageData } from './$types';
@@ -26,14 +26,6 @@
   let { data }: { data: PageData } = $props();
 
   const { t } = getI18n();
-
-  const SECTIONS: readonly FlowSection[] = ['commands', 'alerts', 'rewards', 'automations'];
-
-  const sectionTitle = (section: FlowSection) => {
-    if (section === 'commands') return t('flows.sectionCommands');
-    if (section === 'alerts') return t('flows.sectionAlerts');
-    return section === 'rewards' ? t('flows.sectionRewards') : t('flows.sectionAutomations');
-  };
 
   let introDismissed = $state(false);
   const showIntro = $derived(!data.introSeen && !introDismissed);
@@ -57,12 +49,7 @@
 
   let query = $state('');
   const needle = $derived(query.trim().toLowerCase());
-  const groups = $derived(
-    SECTIONS.map((section) => ({
-      section,
-      flows: cards.filter((f) => f.section === section && (!needle || `${f.name} ${f.description} ${f.when}`.toLowerCase().includes(needle)))
-    })).filter((g) => g.flows.length > 0)
-  );
+  const shown = $derived(cards.filter((f) => !needle || `${f.name} ${f.description} ${f.when}`.toLowerCase().includes(needle)));
 
   const stepCount = (count: number) => (count === 1 ? t('flows.page.stepOne') : t('flows.page.stepMany', { count }));
   const facts = (flow: FlowCard) => [flow.when, stepCount(flow.steps)].filter(Boolean).join(', ');
@@ -127,37 +114,36 @@
 
   <div class="search"><SearchInput bind:value={query} placeholder={t('flows.page.search')} fill /></div>
 
-  {#each groups as group (group.section)}
-    <section class="group">
-      <h2 class="group-title">{sectionTitle(group.section)}</h2>
-      <ul class="cards">
-        {#each group.flows as flow (flow.id)}
-          <li class="card" class:off={!flow.enabled}>
-            <a class="open" href="/flows/{flow.id}">
-              <span class="diagram"><FlowThumb preview={flow.preview} /></span>
-              <span class="name">{flow.name}</span>
-              {#if flow.description}<span class="description">{flow.description}</span>{/if}
-            </a>
-            <div class="meta">
-              <span class="facts">{facts(flow)}</span>
-              <span class="controls">
-                {#if flow.deletable}
-                  <RowDeleteButton label={t('flows.deleteLabel', { name: flow.name })} onclick={() => (pending = flow)} />
-                {/if}
-                <Switch
-                  checked={flow.enabled}
-                  label={flow.enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
-                  onCheckedChange={(next) => void toggle(flow, next)}
-                />
-              </span>
-            </div>
-          </li>
-        {/each}
-      </ul>
-    </section>
-  {:else}
+  {#if shown.length > 0}
+    <ul class="cards">
+      {#each shown as flow (flow.id)}
+        <li class="card" class:off={!flow.enabled}>
+          <a class="open" href="/flows/{flow.id}">
+            <span class="diagram"><FlowThumb preview={flow.preview} /></span>
+            <span class="name">{flow.name}</span>
+            {#if flow.description}<span class="description">{flow.description}</span>{/if}
+          </a>
+          <div class="meta">
+            <span class="facts">{facts(flow)}</span>
+            <span class="controls">
+              {#if flow.deletable}
+                <RowDeleteButton label={t('flows.deleteLabel', { name: flow.name })} onclick={() => (pending = flow)} />
+              {/if}
+              <Switch
+                checked={flow.enabled}
+                label={flow.enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
+                onCheckedChange={(next) => void toggle(flow, next)}
+              />
+            </span>
+          </div>
+        </li>
+      {/each}
+    </ul>
+  {:else if needle}
     <EmptyState title={t('flows.page.emptyTitle')} body={t('flows.page.emptyBody')} />
-  {/each}
+  {:else}
+    <EmptyState title={t('flows.page.noneTitle')} body={t('flows.page.noneBody')} />
+  {/if}
 </div>
 
 <ConfirmDialog
@@ -187,18 +173,6 @@
   }
   .search {
     max-width: 420px;
-  }
-  .group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .group-title {
-    margin: 0;
-    font-family: var(--bb-font-body);
-    font-size: 15px;
-    font-weight: 600;
-    color: rgba(var(--bb-white-rgb), 0.92);
   }
   .cards {
     list-style: none;

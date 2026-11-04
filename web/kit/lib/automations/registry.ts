@@ -63,6 +63,8 @@ function fill(target: Map<string, Entry>, table: Table): void {
   for (const [name, entry] of Object.entries(table)) target.set(name, entry);
 }
 
-fill(triggerRegistry, TRIGGERS);
-fill(conditionRegistry, CONDITIONS);
-fill(actionRegistry, { ...SIMPLE_ACTIONS, ...NESTED });
+export function fillRegistries(): void {
+  fill(triggerRegistry, TRIGGERS);
+  fill(conditionRegistry, CONDITIONS);
+  fill(actionRegistry, { ...SIMPLE_ACTIONS, ...NESTED });
+}

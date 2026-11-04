@@ -9,6 +9,8 @@
   "turnOn": "Activer {name}",
   "emptyTitle": "Aucun résultat",
   "emptyBody": "Essayez un autre nom ou déclencheur.",
+  "noneTitle": "Rien ici pour l’instant",
+  "noneBody": "Les commandes et les modules restent sur leurs propres pages. Choisissez Nouveau pour créer votre première.",
   "untitled": "Sans titre",
   "save": "Enregistrer"
 }
