@@ -35,7 +35,6 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     invalid_enum: t('flows.issue.invalidEnum'),
     invalid_format: t('flows.issue.invalidFormat'),
     invalid_regex: t('flows.issue.invalidRegex'),
-    nesting: t('flows.issue.nesting'),
     delay_budget: t('flows.issue.delayBudget')
   };
 }
