@@ -3,7 +3,7 @@
 
 package gossiprpc
 
-import "encoding/json"
+import "ItsBagelBot/pkg/codec"
 
 type Request struct {
 	Account   string `json:"account"`
@@ -202,11 +202,11 @@ type GoveeDevicesReply struct {
 }
 
 type GoveeScene struct {
-	ID       string          `json:"id,omitempty"`
-	Name     string          `json:"name,omitempty"`
-	Type     string          `json:"type"`
-	Instance string          `json:"instance"`
-	Value    json.RawMessage `json:"value"`
+	ID       string           `json:"id,omitempty"`
+	Name     string           `json:"name,omitempty"`
+	Type     string           `json:"type"`
+	Instance string           `json:"instance"`
+	Value    codec.RawMessage `json:"value"`
 }
 
 type GoveeScenesReply struct {

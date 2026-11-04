@@ -14,10 +14,12 @@ export type { GoveeOnRedeem, GoveeDevice, GoveeScene, GoveeReward, GoveeBinding 
 
 const GOVEE_MODULE = MOD.govee;
 
+export type GoveeTarget = Pick<GoveeDevice, 'device' | 'sku'>;
+
 const devicesCacheKey = (userId: string) => `govee-devices:${userId}`;
 
 const scenesCachePrefix = (userId: string) => `govee-scenes:${userId}`;
-const scenesCacheKey = (userId: string, device: string, sku: string) => `${scenesCachePrefix(userId)}:${sku}:${device}`;
+const scenesCacheKey = (userId: string, target: GoveeTarget) => `${scenesCachePrefix(userId)}:${target.sku}:${target.device}`;
 
 const REWARD_PROMPT = 'Type a colour: a name like blue, or a hex code like #00ccff';
 
@@ -98,7 +100,7 @@ export interface GoveeStore {
   setKey(key: string): Promise<GoveeResult>;
   clearKey(): Promise<GoveeResult>;
   listDevices(): Promise<{ devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' }>;
-  listScenes(device: string, sku: string): Promise<GoveeScenesResult>;
+  listScenes(target: GoveeTarget): Promise<GoveeScenesResult>;
   setEnabled(enabled: boolean): Promise<GoveeResult>;
   saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult>;
   deleteReward(deviceId: string): Promise<GoveeResult>;
@@ -117,12 +119,18 @@ type GoveeListReply = { key_rejected?: boolean; error?: string } & Record<string
 // Just over gossip's 8 s handler budget.
 const GOVEE_LIST_TIMEOUT_MS = 9000;
 
-async function cachedList<T>(cacheKey: string, route: string, field: string, payload: Record<string, string>): Promise<T[]> {
-  return fabric.readKey(cacheKey, POLICY.govee, async () => {
-    const r = await rpcReply<GoveeListReply>(`${SUB.gossip}.govee.${route}`, payload, GOVEE_LIST_TIMEOUT_MS);
+interface GoveeListCall {
+  cacheKey: string;
+  kind: 'devices' | 'scenes';
+  payload: Record<string, string>;
+}
+
+async function cachedList<T>(call: GoveeListCall): Promise<T[]> {
+  return fabric.readKey(call.cacheKey, POLICY.govee, async () => {
+    const r = await rpcReply<GoveeListReply>(`${SUB.gossip}.govee.${call.kind}`, call.payload, GOVEE_LIST_TIMEOUT_MS);
     if (r.key_rejected === true) throw Object.assign(new Error(r.error ?? 'key rejected'), { keyRejected: true });
     if (r.error) throw new Error(r.error);
-    const list = r[field];
+    const list = r[call.kind];
     return Array.isArray(list) ? (list as T[]) : [];
   });
 }
@@ -185,19 +193,23 @@ export function goveeStore(userId: string): GoveeStore {
 
   async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' }> {
     try {
-      const devices = await cachedList<GoveeDevice>(devicesCacheKey(userId), 'devices', 'devices', { channel_id: userId });
+      const devices = await cachedList<GoveeDevice>({
+        cacheKey: devicesCacheKey(userId),
+        kind: 'devices',
+        payload: { channel_id: userId }
+      });
       return { devices };
     } catch (e) {
       return deviceLookupFailure(e);
     }
   }
 
-  async function listScenes(device: string, sku: string): Promise<GoveeScenesResult> {
+  async function listScenes(target: GoveeTarget): Promise<GoveeScenesResult> {
     try {
-      const scenes = await cachedList<GoveeScene>(scenesCacheKey(userId, device, sku), 'scenes', 'scenes', {
-        channel_id: userId,
-        device,
-        sku
+      const scenes = await cachedList<GoveeScene>({
+        cacheKey: scenesCacheKey(userId, target),
+        kind: 'scenes',
+        payload: { channel_id: userId, device: target.device, sku: target.sku }
       });
       return { scenes };
     } catch (e) {

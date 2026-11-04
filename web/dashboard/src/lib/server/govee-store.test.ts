@@ -42,29 +42,29 @@ describe('listScenes', () => {
 
   test('asks gossip for that device and returns its scenes', async () => {
     reply = { scenes: [sunrise] };
-    expect(await goveeStore('1').listScenes('AB:CD', 'H6159')).toEqual({ scenes: [sunrise] });
+    expect(await goveeStore('1').listScenes({ device: 'AB:CD', sku: 'H6159' })).toEqual({ scenes: [sunrise] });
     expect(calls).toEqual([{ subject: expect.stringMatching(/\.govee\.scenes$/), payload: { channel_id: '1', device: 'AB:CD', sku: 'H6159' } }]);
   });
 
   test('never reads the module state, so a recipe works with the module off', async () => {
     reply = { scenes: [sunrise] };
-    await goveeStore('1').listScenes('AB:CD', 'H6159');
+    await goveeStore('1').listScenes({ device: 'AB:CD', sku: 'H6159' });
     expect(moduleReads).not.toHaveBeenCalled();
   });
 
   test('caches per device', async () => {
     reply = { scenes: [sunrise] };
     const store = goveeStore('1');
-    await store.listScenes('AB:CD', 'H6159');
-    await store.listScenes('AB:CD', 'H6159');
+    await store.listScenes({ device: 'AB:CD', sku: 'H6159' });
+    await store.listScenes({ device: 'AB:CD', sku: 'H6159' });
     expect(calls).toHaveLength(1);
-    await store.listScenes('EF:01', 'H6159');
+    await store.listScenes({ device: 'EF:01', sku: 'H6159' });
     expect(calls).toHaveLength(2);
   });
 
   test('a rejected key comes back coded', async () => {
     reply = { scenes: [], error: 'Govee did not accept this API key', key_rejected: true };
-    expect(await goveeStore('1').listScenes('AB:CD', 'H6159')).toEqual({
+    expect(await goveeStore('1').listScenes({ device: 'AB:CD', sku: 'H6159' })).toEqual({
       scenes: [],
       error: 'Govee did not accept this API key',
       code: 'key_rejected'
@@ -73,20 +73,20 @@ describe('listScenes', () => {
 
   test('a gossip refusal is unreachable', async () => {
     reply = { scenes: [], error: 'scene lookup failed' };
-    expect(await goveeStore('1').listScenes('AB:CD', 'H6159')).toEqual({ scenes: [], error: 'scene lookup failed', code: 'unreachable' });
+    expect(await goveeStore('1').listScenes({ device: 'AB:CD', sku: 'H6159' })).toEqual({ scenes: [], error: 'scene lookup failed', code: 'unreachable' });
   });
 
   test('a transport failure does not throw', async () => {
     reply = new Error('no responders');
-    expect(await goveeStore('1').listScenes('AB:CD', 'H6159')).toEqual({ scenes: [], error: 'no responders', code: 'unreachable' });
+    expect(await goveeStore('1').listScenes({ device: 'AB:CD', sku: 'H6159' })).toEqual({ scenes: [], error: 'no responders', code: 'unreachable' });
   });
 
   test('clearing the key drops cached scenes', async () => {
     reply = { scenes: [sunrise] };
     const store = goveeStore('1');
-    await store.listScenes('AB:CD', 'H6159');
+    await store.listScenes({ device: 'AB:CD', sku: 'H6159' });
     await store.clearKey();
-    await store.listScenes('AB:CD', 'H6159');
+    await store.listScenes({ device: 'AB:CD', sku: 'H6159' });
     expect(calls.filter((c) => c.subject.endsWith('.govee.scenes'))).toHaveLength(2);
   });
 });
