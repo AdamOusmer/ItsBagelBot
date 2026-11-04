@@ -11,13 +11,13 @@
     {
       "type": "delay",
       "params": {
-        "ms": 6000
+        "ms": 40000
       }
     },
     {
       "type": "delay",
       "params": {
-        "ms": 5000
+        "ms": 21000
       }
     }
   ]

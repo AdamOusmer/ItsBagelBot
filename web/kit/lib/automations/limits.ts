@@ -3,7 +3,7 @@
 
 export const MAX_ACTIONS = 20;
 export const MAX_CONDITIONS = 10;
-export const MAX_DELAY_MS = 10000;
+export const MAX_DELAY_MS = 60000;
 export const MAX_CHAT_MESSAGES_PER_RUN = 3;
 export const MAX_RECURSION_DEPTH = 2;
 export const MAX_NAME_LENGTH = 64;

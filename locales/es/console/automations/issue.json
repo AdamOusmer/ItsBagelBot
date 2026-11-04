@@ -17,7 +17,7 @@
   "unknown_filter": "Filtro desconocido",
   "too_many": "Demasiados",
   "nesting": "No se puede anidar aquí",
-  "delay_budget": "Las esperas suman más de 10 segundos",
+  "delay_budget": "Las esperas suman más de 60 segundos",
   "trigger_mismatch": "No encaja con este disparador",
   "invalid_json": "Datos no válidos",
   "unsupported_version": "Versión no compatible",

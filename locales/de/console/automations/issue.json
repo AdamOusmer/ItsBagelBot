@@ -17,7 +17,7 @@
   "unknown_filter": "Unbekannter Filter",
   "too_many": "Zu viele",
   "nesting": "Hier nicht verschachtelbar",
-  "delay_budget": "Wartezeiten ergeben mehr als 10 Sekunden",
+  "delay_budget": "Wartezeiten ergeben mehr als 60 Sekunden",
   "trigger_mismatch": "Passt nicht zu diesem Auslöser",
   "invalid_json": "Ungültige Daten",
   "unsupported_version": "Nicht unterstützte Version",

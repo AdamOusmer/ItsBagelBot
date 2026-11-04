@@ -6,7 +6,7 @@ package automation
 const (
 	MaxActions               = 20
 	MaxConditions            = 10
-	MaxDelayMS               = 10000
+	MaxDelayMS               = 60000
 	MaxChatMessagesPerRun    = 3
 	MaxRecursionDepth        = 2
 	MaxNameLength            = 64
