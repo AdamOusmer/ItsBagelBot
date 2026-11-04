@@ -1,0 +1,14 @@
+{
+  "eyebrow": "Board · {name}",
+  "description": "Wähle aus, was im Stream passiert, und lege fest, was dein Bot als Nächstes tut.",
+  "new": "Neu",
+  "search": "Nach Name oder Auslöser suchen",
+  "stepOne": "1 Schritt",
+  "stepMany": "{count} Schritte",
+  "turnOff": "{name} ausschalten",
+  "turnOn": "{name} einschalten",
+  "emptyTitle": "Keine Treffer",
+  "emptyBody": "Versuche es mit einem anderen Namen oder Auslöser.",
+  "untitled": "Ohne Titel",
+  "save": "Speichern"
+}

@@ -1,0 +1,51 @@
+{
+  "chat": {
+    "label": "Send chat message",
+    "summary": "Bot replies in chat",
+    "field": {
+      "message": { "label": "Message", "placeholder": "Thanks {user}!" }
+    }
+  },
+  "discord": {
+    "label": "Post to Discord",
+    "summary": "Announce in a channel",
+    "field": {
+      "channel": { "label": "Channel" },
+      "message": { "label": "Message", "placeholder": "{user} just raided!" }
+    }
+  },
+  "points": {
+    "label": "Give loyalty points",
+    "summary": "Add or remove points",
+    "field": {
+      "amount": { "label": "Amount", "unit": "points" }
+    }
+  },
+  "counter": {
+    "label": "Bump counter",
+    "summary": "Increase a counter",
+    "field": {
+      "counter": { "label": "Counter" }
+    }
+  },
+  "lights": {
+    "label": "Set lights",
+    "summary": "Set a Govee color or scene",
+    "field": {
+      "device": { "label": "Light" },
+      "mode": {
+        "label": "Set",
+        "option": { "color": "Color", "scene": "Scene" }
+      },
+      "color": { "label": "Color" },
+      "scene": { "label": "Scene" }
+    }
+  },
+  "wait": {
+    "label": "Wait",
+    "summary": "Pause before the next step",
+    "field": {
+      "seconds": { "label": "Delay", "unit": "seconds, max {max}" }
+    }
+  }
+}

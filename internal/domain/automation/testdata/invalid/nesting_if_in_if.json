@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": {
+          "type": "perm",
+          "params": {
+            "level": "mod"
+          }
+        },
+        "then": [
+          {
+            "type": "if",
+            "params": {
+              "condition": {
+                "type": "perm",
+                "params": {
+                  "level": "mod"
+                }
+              },
+              "then": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

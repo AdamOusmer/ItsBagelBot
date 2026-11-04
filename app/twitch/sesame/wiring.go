@@ -67,6 +67,8 @@ type engineRuntime struct {
 	seq      *engine.Sequencer
 	emotes   *automod.EmoteFetcher
 	chatters *engine.ValkeyChatters
+	runs     *engine.ValkeyRunLog
+	limiter  *engine.ValkeyRunLimiter
 }
 
 func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
@@ -74,7 +76,13 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	accountsRPC := engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix)
 	return engine.Deps{
+		AutomationHook: &engine.AutomationHook{},
 		Runtime:        newRuntime(w),
+		Automations: engine.AutomationDeps{
+			Source:  rt.proj,
+			Runs:    rt.runs,
+			Limiter: rt.limiter,
+		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,
 		Live:           rt.live,
@@ -85,6 +93,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Commands:       engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
 		Quotes:         engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
 		Gossip:         gossipRPC,
+		Discord:        engine.NewDiscordRPC(in.nc, cfg.DiscordRPCPrefix),
 		CustomFetch:    gossipRPC,
 		Followage:      engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
 		AccountAge:     accountsRPC,
@@ -186,6 +195,7 @@ func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore)
 		Expiry:                   w.expiry,
 		NC:                       w.in.nc,
 		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
+		AutomationsInvalidate:    w.cfg.CacheInvalidationPrefix + ".automations",
 		Log:                      w.log,
 	})
 }
@@ -278,4 +288,13 @@ func newConsumer(sub bus.Subscriber, nrApp *newrelic.Application, cfg *config.Co
 		},
 		PremiumReserve: cfg.PremiumReserve,
 	}, log)
+}
+
+func registerAutomationRPC(w wireCtx, pipe *engine.Pipeline, app *newrelic.Application) error {
+	return engine.SubscribeAutomationRPC(w.in.nc, queueGroup, engine.AutomationRPCDeps{
+		Pipeline: pipe,
+		Client:   w.in.vc,
+		App:      app,
+		Log:      w.log,
+	})
 }

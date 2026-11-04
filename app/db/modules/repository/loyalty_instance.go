@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/modules/ent"
+	entautomation "ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/predicate"
@@ -144,10 +145,11 @@ func (r *Modules) createLoyaltyAttempt(ctx context.Context, item data.ModuleChan
 }
 
 type accountCleanupSnapshot struct {
-	modules []*ent.Modules
-	govee   []*ent.GoveeCredential
-	spotify []*ent.SpotifyCredential
-	quotes  []*ent.Quote
+	modules     []*ent.Modules
+	govee       []*ent.GoveeCredential
+	spotify     []*ent.SpotifyCredential
+	quotes      []*ent.Quote
+	automations []*ent.Automation
 }
 
 func (r *Modules) captureAccountCleanup(ctx context.Context, id uint64) (accountCleanupSnapshot, error) {
@@ -166,6 +168,10 @@ func (r *Modules) captureAccountCleanup(ctx context.Context, id uint64) (account
 		return snapshot, err
 	}
 	snapshot.quotes, err = r.client.Quote.Query().Where(quote.UserIDEQ(id)).All(ctx)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.automations, err = r.client.Automation.Query().Where(entautomation.UserID(id)).All(ctx)
 	return snapshot, err
 }
 
@@ -235,7 +241,19 @@ func (s accountCleanupSnapshot) deleteCapturedRows(ctx context.Context, tx *ent.
 	if err := s.deleteSpotify(ctx, tx); err != nil {
 		return err
 	}
-	return s.deleteQuotes(ctx, tx)
+	if err := s.deleteQuotes(ctx, tx); err != nil {
+		return err
+	}
+	return s.deleteAutomations(ctx, tx)
+}
+
+func (s accountCleanupSnapshot) deleteAutomations(ctx context.Context, tx *ent.Tx) error {
+	for _, row := range s.automations {
+		if _, err := tx.Automation.Delete().Where(entautomation.ID(row.ID), entautomation.Revision(row.Revision)).Exec(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s accountCleanupSnapshot) deleteModules(ctx context.Context, tx *ent.Tx) error {

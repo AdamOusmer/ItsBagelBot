@@ -1,0 +1,12 @@
+{
+  "perm": "Cargo do espectador",
+  "users": "Espectadores específicos",
+  "live": "Estado da live",
+  "cooldown": "Intervalo de uso",
+  "chance": "Chance aleatória",
+  "counter": "Valor do contador",
+  "points": "Pontos do espectador",
+  "arg_regex": "Argumentos seguem um padrão",
+  "category": "Categoria da live",
+  "compare": "Comparar dois valores"
+}

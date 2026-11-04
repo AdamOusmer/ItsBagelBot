@@ -1,39 +1,107 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
+  import FlowShareTools from '#lib/components/flow/FlowShareTools.svelte';
   import FlowThumb from '#lib/components/flow/FlowThumb.svelte';
   import FlowsIntro from '#lib/components/flow/FlowsIntro.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
-  import { savedEnabled, savedPreviews } from '#lib/flow/session.svelte';
+  import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
+  import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
+  import type { FlowCard, FlowSection } from '#lib/flow/cards';
+  import { deleteMessage, toggleMessage, warningMessages } from '#lib/flow/messages';
+  import type { DeleteReply, ToggleReply } from '#lib/flow/replies';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
 
   const { t } = getI18n();
 
-  const SECTIONS = ['Commands', 'Alerts', 'Channel point rewards', 'Automations'];
+  const SECTIONS: readonly FlowSection[] = ['commands', 'alerts', 'rewards', 'automations'];
+
+  const sectionTitle = (section: FlowSection) => {
+    if (section === 'commands') return t('flows.sectionCommands');
+    if (section === 'alerts') return t('flows.sectionAlerts');
+    return section === 'rewards' ? t('flows.sectionRewards') : t('flows.sectionAutomations');
+  };
 
   let introDismissed = $state(false);
   const showIntro = $derived(!data.introSeen && !introDismissed);
 
+  let changes = $state<Record<string, { enabled: boolean; revision: string }>>({});
+  let gone = $state<string[]>([]);
+  let pending = $state<FlowCard | null>(null);
+  let deleting = $state(false);
+
+  reseedOnChange(
+    () => data.flows,
+    () => {
+      changes = {};
+      gone = [];
+    }
+  );
+
+  const cards = $derived(
+    data.flows.filter((flow) => !gone.includes(flow.id)).map((flow) => ({ ...flow, ...changes[flow.id] }))
+  );
+
   let query = $state('');
   const needle = $derived(query.trim().toLowerCase());
   const groups = $derived(
-    SECTIONS.map((title) => ({
-      title,
-      flows: data.flows.filter(
-        (f) => f.section === title && (!needle || `${f.name} ${f.description} ${f.when}`.toLowerCase().includes(needle))
-      )
+    SECTIONS.map((section) => ({
+      section,
+      flows: cards.filter((f) => f.section === section && (!needle || `${f.name} ${f.description} ${f.when}`.toLowerCase().includes(needle)))
     })).filter((g) => g.flows.length > 0)
   );
+
+  const stepCount = (count: number) => (count === 1 ? t('flows.page.stepOne') : t('flows.page.stepMany', { count }));
+  const facts = (flow: FlowCard) => [flow.when, stepCount(flow.steps)].filter(Boolean).join(', ');
+
+  async function toggle(flow: FlowCard, next: boolean) {
+    const before = { enabled: flow.enabled, revision: flow.revision };
+    changes[flow.id] = { enabled: next, revision: flow.revision };
+    const body = new FormData();
+    body.set('id', flow.id);
+    body.set('enabled', next ? '1' : '0');
+    body.set('revision', flow.revision);
+    const reply = await postAction<ToggleReply>('toggle', body);
+    if (reply?.ok) {
+      changes[flow.id] = { enabled: reply.enabled, revision: reply.revision };
+      for (const text of warningMessages(t, reply.warnings)) toast('info', text, { ttlMs: 7000 });
+      return;
+    }
+    changes[flow.id] = before;
+    toast('danger', reply ? toggleMessage(t, reply) : t('flows.toggleFailed'));
+    if (reply && !reply.ok && reply.reason !== 'failed') await invalidateAll();
+  }
+
+  async function remove() {
+    const flow = pending;
+    if (!flow || deleting) return;
+    deleting = true;
+    const body = new FormData();
+    body.set('id', flow.id);
+    const reply = await postAction<DeleteReply>('remove', body);
+    deleting = false;
+    pending = null;
+    if (reply?.ok) {
+      gone = [...gone, flow.id];
+      toast('success', t('flows.deleted', { name: flow.name }));
+      return;
+    }
+    toast('danger', reply ? deleteMessage(t, reply) : t('flows.deleteFailed'));
+    if (reply && !reply.ok && reply.reason === 'not_found') await invalidateAll();
+  }
 </script>
 
 <svelte:head><title>{data.navLabels['nav.flows']} · ItsBagelBot</title></svelte:head>
@@ -47,45 +115,61 @@
 {:else}
 <div class="landing" data-sveltekit-preload-code="eager">
   <PageHead
-    eyebrow="Board · {data.navLabels['nav.flows']}"
-    description="Pick what happens on stream, then lay out what your bot does next."
+    eyebrow={t('flows.page.eyebrow', { name: data.navLabels['nav.flows'] })}
+    description={t('flows.page.description')}
   >
     <span class="title">{data.navLabels['nav.flows']} {@render betaChip()}</span>
     {#snippet trailing()}
-      <ButtonLink variant="primary" href="/flows/new"><Icon name="plus" size={16} /> New</ButtonLink>
+      <FlowShareTools flows={data.flows.map(({ ref, name }) => ({ ref, name }))} onImported={() => void invalidateAll()} />
+      <ButtonLink variant="primary" href="/flows/new"><Icon name="plus" size={16} /> {t('flows.page.new')}</ButtonLink>
     {/snippet}
   </PageHead>
 
-  <div class="search"><SearchInput bind:value={query} placeholder="Search by name or trigger" fill /></div>
+  <div class="search"><SearchInput bind:value={query} placeholder={t('flows.page.search')} fill /></div>
 
-  {#each groups as group (group.title)}
+  {#each groups as group (group.section)}
     <section class="group">
-      <h2 class="group-title">{group.title}</h2>
+      <h2 class="group-title">{sectionTitle(group.section)}</h2>
       <ul class="cards">
         {#each group.flows as flow (flow.id)}
-          {@const enabled = savedEnabled.get(flow.id) ?? flow.enabled}
-          <li class="card" class:off={!enabled}>
+          <li class="card" class:off={!flow.enabled}>
             <a class="open" href="/flows/{flow.id}">
-              <span class="diagram"><FlowThumb preview={savedPreviews.get(flow.id) ?? flow.preview} /></span>
+              <span class="diagram"><FlowThumb preview={flow.preview} /></span>
               <span class="name">{flow.name}</span>
-              <span class="description">{flow.description}</span>
+              {#if flow.description}<span class="description">{flow.description}</span>{/if}
             </a>
             <div class="meta">
-              <span class="facts">{flow.when}, {flow.steps} {flow.steps === 1 ? 'step' : 'steps'}</span>
-              <Switch
-                checked={enabled}
-                label={enabled ? `Turn off ${flow.name}` : `Turn on ${flow.name}`}
-                onCheckedChange={(next) => savedEnabled.set(flow.id, next)}
-              />
+              <span class="facts">{facts(flow)}</span>
+              <span class="controls">
+                {#if flow.deletable}
+                  <RowDeleteButton label={t('flows.deleteLabel', { name: flow.name })} onclick={() => (pending = flow)} />
+                {/if}
+                <Switch
+                  checked={flow.enabled}
+                  label={flow.enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
+                  onCheckedChange={(next) => void toggle(flow, next)}
+                />
+              </span>
             </div>
           </li>
         {/each}
       </ul>
     </section>
   {:else}
-    <EmptyState title="Nothing matches" body="Try another name or trigger." />
+    <EmptyState title={t('flows.page.emptyTitle')} body={t('flows.page.emptyBody')} />
   {/each}
 </div>
+
+<ConfirmDialog
+  open={pending !== null}
+  title={t('flows.deleteTitle', { name: pending?.name ?? '' })}
+  body={t('flows.deleteBody')}
+  confirmLabel={t('flows.deleteConfirm')}
+  tone="danger"
+  busy={deleting}
+  onConfirm={remove}
+  onCancel={() => (pending = null)}
+/>
 {/if}
 
 <style>
@@ -180,6 +264,11 @@
   }
   .facts {
     min-width: 0;
+  }
+  .controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
   }
   @media (prefers-reduced-motion: reduce) {
     .card,

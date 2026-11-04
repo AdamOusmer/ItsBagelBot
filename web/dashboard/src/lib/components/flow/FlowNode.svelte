@@ -7,6 +7,8 @@
   import { NODE_W, outputsFor, specFor, type FlowNode } from '../../flow/model';
   import { HEADER_H, ROW_H, inputY, nodeHeight, portY } from '../../flow/layout';
   import { describe, portLabel } from '../../flow/describe';
+  import { stepLabel } from '../../flow/copy';
+  import { getI18n, type MessageKey } from '@bagel/kit';
 
   let {
     node,
@@ -24,9 +26,10 @@
   const outputs = $derived(spec ? outputsFor(spec) : []);
   const isTrigger = $derived(spec?.kind === 'trigger');
   const branching = $derived(Boolean(spec?.outputs));
-  const line = $derived(describe(node));
-
-  const KIND_LABEL = { trigger: 'Trigger', condition: 'Condition', reply: 'Action' } as const;
+  const { t } = getI18n();
+  const line = $derived(describe(t, node));
+  const title = $derived(spec ? stepLabel(t, spec) : '');
+  const kindLabel = $derived(spec ? t(`flows.board.kind.${spec.kind}` as MessageKey) : '');
 </script>
 
 {#snippet outPort(id: string, label: string, y: number, tone: 'yes' | 'no')}
@@ -34,7 +37,7 @@
     <span class="port port--out" data-port={id} data-tone={tone}></span>
     <span class="add" data-tone={tone}>
       <FlowAddButton
-        label="Add step after {label}"
+        {label}
         tabindex={tabbable ? 0 : -1}
         onclick={(e) => {
           e.stopPropagation();
@@ -55,7 +58,7 @@
     role="button"
     tabindex={tabbable ? 0 : -1}
     aria-pressed={selected}
-    aria-label="{spec.label}, {KIND_LABEL[spec.kind]}: {line}"
+    aria-label={t('flows.board.nodeLabel', { label: title, kind: kindLabel, line })}
   >
     {#if !isTrigger}
       <span class="port port--in" data-in style:top="{inputY}px"></span>
@@ -67,7 +70,7 @@
       </IconTile>
       <div class="text">
         <div class="title-row">
-          <span class="title">{spec.label}</span>
+          <span class="title">{title}</span>
         </div>
         <span class="line">{line}</span>
       </div>
@@ -77,15 +80,15 @@
       <div class="rows" style:top="{HEADER_H}px">
         {#each outputs as out, i (out.id)}
           <div class="row" style:height="{ROW_H}px" data-tone={i === 0 ? 'yes' : 'no'}>
-            <span class="row-label">{portLabel(node, out)}</span>
+            <span class="row-label">{portLabel(t, node, out.id)}</span>
           </div>
         {/each}
       </div>
       {#each outputs as out, i (out.id)}
-        {@render outPort(out.id, out.label, portY(spec, out.id), i === 0 ? 'yes' : 'no')}
+        {@render outPort(out.id, t('flows.board.addAfter', { label: portLabel(t, node, out.id) }), portY(spec, out.id), i === 0 ? 'yes' : 'no')}
       {/each}
     {:else}
-      {@render outPort(outputs[0]?.id ?? 'next', 'this step', HEADER_H / 2, 'yes')}
+      {@render outPort(outputs[0]?.id ?? 'next', t('flows.board.addAfterThis'), HEADER_H / 2, 'yes')}
     {/if}
   </div>
 {/if}

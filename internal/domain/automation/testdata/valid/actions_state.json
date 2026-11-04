@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "lead_mod"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "points_add",
+      "params": {
+        "login": "",
+        "amount": 10
+      }
+    },
+    {
+      "type": "points_set",
+      "params": {
+        "login": "{user}",
+        "amount": 0
+      }
+    },
+    {
+      "type": "counter_add",
+      "params": {
+        "name": "deaths",
+        "amount": 1
+      }
+    },
+    {
+      "type": "counter_set",
+      "params": {
+        "name": "deaths",
+        "value": 0
+      }
+    },
+    {
+      "type": "delay",
+      "params": {
+        "ms": 2000
+      }
+    },
+    {
+      "type": "run",
+      "params": {
+        "automation_id": "01ABC"
+      }
+    },
+    {
+      "type": "discord_post",
+      "params": {
+        "guild_id": "123456789012345678",
+        "channel_id": "987654321098765432",
+        "text": "live now"
+      }
+    },
+    {
+      "type": "http_post",
+      "params": {
+        "url": "https://example.com/hook",
+        "body": "{\"u\":\"{user}\"}"
+      }
+    },
+    {
+      "type": "stop",
+      "params": {}
+    }
+  ]
+}

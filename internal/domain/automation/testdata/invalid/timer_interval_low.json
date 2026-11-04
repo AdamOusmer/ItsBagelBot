@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "timer",
+    "params": {
+      "interval_s": 10
+    }
+  }
+}

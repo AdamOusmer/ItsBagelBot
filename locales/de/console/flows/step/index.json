@@ -1,0 +1,17 @@
+{
+  "then": "Dann",
+  "variable": {
+    "user": "Anzeigename",
+    "userId": "Nutzer-ID",
+    "args": "Argumente",
+    "touser": "Erstes Argument",
+    "tier": "Tier",
+    "months": "Monate",
+    "bits": "Bits",
+    "viewers": "Zuschauer",
+    "input": "Zuschauereingabe",
+    "title": "Stream-Titel",
+    "game": "Kategorie",
+    "count": "Neuer Zählerstand"
+  }
+}

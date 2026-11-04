@@ -104,6 +104,7 @@ func main() {
 		Hydrator:              hydrator,
 		Loyalty:               newLoyaltyCounters(nc, topics.loyalty),
 		Live:                  valkeyStore,
+		Owner:                 newAutomationOwner(nc),
 		Log:                   log,
 		Analytics:             recorder,
 	})
@@ -166,6 +167,7 @@ func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Proje
 		{data.SubjectUserDeleted, projector.HandleUserDeleted},
 		{data.SubjectModuleChanged, projector.HandleModuleChanged},
 		{data.SubjectCommandChanged, projector.HandleCommandChanged},
+		{data.SubjectAutomationChanged, projector.HandleAutomationChanged},
 		{data.SubjectLoyaltyCounters, projector.HandleCounterBumps},
 		{streamTopic, projector.HandleStreamEvent},
 	}

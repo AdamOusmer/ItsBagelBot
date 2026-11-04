@@ -39,6 +39,7 @@
   import { neighbor, neighborAfterRemove, readingOrder, stepDelta, stepFocus } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
   import { describe } from '../../flow/describe';
+  import { stepLabel, stepSummary } from '../../flow/copy';
   import { inputY, nodeHeight, portY, tidy } from '../../flow/layout';
   import { wirePath } from '../../flow/wire';
   import { beginPinch, fitBox, pinchView, revealBox, type Inset, type Pinch } from '../../flow/touch';
@@ -85,10 +86,7 @@
   const ADD_ROOM = 48;
   const GLIDE_MS = 240;
   const ARROW_GAP = 8;
-  const MENU_KINDS: { kind: FlowKind; title: string }[] = [
-    { kind: 'condition', title: 'Only if' },
-    { kind: 'reply', title: 'Do' }
-  ];
+  const MENU_KINDS: FlowKind[] = ['condition', 'reply'];
   const MENU_TINT: Record<FlowKind, { color: string; rgb: string }> = {
     trigger: { color: 'var(--bb-green-glow)', rgb: 'var(--bb-green-glow-rgb)' },
     condition: { color: 'var(--bb-tan)', rgb: 'var(--bb-tan-rgb)' },
@@ -148,10 +146,10 @@
     finishTween();
     const from = new Map(flow.nodes.map((n) => [n.id, { x: disp[n.id]?.x ?? n.x, y: disp[n.id]?.y ?? n.y }]));
     for (const n of flow.nodes) {
-      const t = targets.get(n.id);
-      if (t) {
-        n.x = t.x;
-        n.y = t.y;
+      const target = targets.get(n.id);
+      if (target) {
+        n.x = target.x;
+        n.y = target.y;
       }
     }
     if (!animate || reduced()) {
@@ -755,10 +753,11 @@
 
   const needle = $derived(query.trim().toLowerCase());
   const groups = $derived(
-    MENU_KINDS.map((g) => ({
-      ...g,
+    MENU_KINDS.map((kind) => ({
+      kind,
+      title: kind === 'condition' ? t('flows.board.onlyIf') : t('flows.board.do'),
       specs: NODE_SPECS.filter(
-        (s) => s.kind !== 'trigger' && s.kind === g.kind && (!needle || `${s.label} ${s.summary}`.toLowerCase().includes(needle))
+        (s) => s.kind === kind && (!needle || `${stepLabel(t, s)} ${stepSummary(t, s)}`.toLowerCase().includes(needle))
       )
     })).filter((g) => g.specs.length > 0)
   );
@@ -769,8 +768,8 @@
     return flow.nodes.flatMap((n) => {
       const spec = specFor(n.type);
       if (!spec || spec.kind === 'trigger' || n.id === link.from) return [];
-      const line = describe(n);
-      if (needle && !`${spec.label} ${line}`.toLowerCase().includes(needle)) return [];
+      const line = describe(t, n);
+      if (needle && !`${stepLabel(t, spec)} ${line}`.toLowerCase().includes(needle)) return [];
       return [{ id: n.id, spec, line, linked: flow.edges.some((e) => e.from === link.from && e.port === link.port && e.to === n.id) }];
     });
   });
@@ -786,7 +785,7 @@
   style:background-position="{view.x}px {view.y}px"
   bind:this={host}
   role="application"
-  aria-label="Flow board"
+  aria-label={t('flows.board.boardLabel')}
   data-flow-canvas
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
@@ -848,7 +847,7 @@
           onpointerenter={(e) => holdEdge(e, edge.id)}
           onpointerleave={leaveEdge}
         >
-          <IconButton label="Remove connection" size="sm" tone="danger" onclick={() => deleteEdge(edge.id)}>
+          <IconButton label={t('flows.board.removeConnection')} size="sm" tone="danger" onclick={() => deleteEdge(edge.id)}>
             <Icon name="x" size={12} />
           </IconButton>
         </span>
@@ -884,7 +883,7 @@
 
   {#if menu}
     <span class="menu-anchor" bind:this={menuAnchor} style:left="{menu.sx}px" style:top="{menu.sy}px"></span>
-    <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label="Add a step" width={300} maxHeight={380} onClose={() => closeMenu(true)}>
+    <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label={t('flows.board.addStep')} width={300} maxHeight={380} onClose={() => closeMenu(true)}>
       <div class="menu" role="presentation" onkeydown={onMenuKey}>
         {#if touch && menu.link}
           <PickerOption onclick={connectFromMenu}>
@@ -894,7 +893,7 @@
             </span>
           </PickerOption>
         {/if}
-        <SearchInput value={query} onValueChange={(v) => (query = v)} placeholder="Search steps" fill />
+        <SearchInput value={query} onValueChange={(v) => (query = v)} placeholder={t('flows.board.searchSteps')} fill />
         {#each groups as g (g.kind)}
           <span class="menu-title">{g.title}</span>
           {#each g.specs as s (s.type)}
@@ -902,14 +901,14 @@
               <span class="menu-row" style:--tint={MENU_TINT[s.kind].color} style:--tint-rgb={MENU_TINT[s.kind].rgb}>
                 <IconTile class="menu-tile"><Icon name={s.icon} size={16} /></IconTile>
                 <span class="menu-text">
-                  <span class="menu-name">{s.label}</span>
-                  <span class="menu-sum">{s.summary}</span>
+                  <span class="menu-name">{stepLabel(t, s)}</span>
+                  <span class="menu-sum">{stepSummary(t, s)}</span>
                 </span>
               </span>
             </PickerOption>
           {/each}
         {:else}
-          {#if links.length === 0}<span class="menu-sum menu-empty">No steps match.</span>{/if}
+          {#if links.length === 0}<span class="menu-sum menu-empty">{t('flows.board.noStepsMatch')}</span>{/if}
         {/each}
         {#if links.length}
           <span class="menu-title">{t('flows.linkTitle')}</span>
@@ -918,7 +917,7 @@
               <span class="menu-row" style:--tint={MENU_TINT[l.spec.kind].color} style:--tint-rgb={MENU_TINT[l.spec.kind].rgb}>
                 <IconTile class="menu-tile"><Icon name={l.spec.icon} size={16} /></IconTile>
                 <span class="menu-text">
-                  <span class="menu-name">{l.spec.label}</span>
+                  <span class="menu-name">{stepLabel(t, l.spec)}</span>
                   <span class="menu-sum">{l.linked ? t('flows.linkedRemove') : l.line}</span>
                 </span>
               </span>
@@ -943,16 +942,16 @@
 
   <div class="zoom" data-flow-ui>
     <Cluster gap={2} align="stretch" nowrap>
-      <IconButton label="Zoom out" size="sm" tooltip onclick={() => zoomCenter(1 / 1.2)}><Icon name="minus" size={14} /></IconButton>
+      <IconButton label={t('flows.board.zoomOut')} size="sm" tooltip onclick={() => zoomCenter(1 / 1.2)}><Icon name="minus" size={14} /></IconButton>
       <span class="zoom-pct">{Math.round(shownK * 100)}%</span>
-      <IconButton label="Zoom in" size="sm" tooltip onclick={() => zoomCenter(1.2)}><Icon name="plus" size={14} /></IconButton>
-      <IconButton label="Fit to view" size="sm" tooltip onclick={() => fitView()}><Icon name="expand" size={14} /></IconButton>
+      <IconButton label={t('flows.board.zoomIn')} size="sm" tooltip onclick={() => zoomCenter(1.2)}><Icon name="plus" size={14} /></IconButton>
+      <IconButton label={t('flows.board.fitView')} size="sm" tooltip onclick={() => fitView()}><Icon name="expand" size={14} /></IconButton>
     </Cluster>
     <span class="zoom-gap" aria-hidden="true"></span>
-    <IconButton label="Clean up" size="sm" tooltip onclick={tidyNow}><Icon name="tidy" size={14} /></IconButton>
+    <IconButton label={t('flows.board.cleanUp')} size="sm" tooltip onclick={tidyNow}><Icon name="tidy" size={14} /></IconButton>
     <label class="auto">
-      <span>Auto tidy</span>
-      <Switch bind:checked={autoTidy} label="Auto tidy" />
+      <span>{t('flows.board.autoTidy')}</span>
+      <Switch bind:checked={autoTidy} label={t('flows.board.autoTidy')} />
     </label>
   </div>
 

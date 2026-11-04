@@ -39,13 +39,9 @@ func (Pure) Owns(v Var) bool {
 	return ok
 }
 
-func (p Pure) Plan(context.Context, []Var) (Values, error) {
-	return pureValues{p: p}, nil
-}
+func (p Pure) Plan(context.Context, []Var) (Values, error) { return p, nil }
 
-type pureValues struct{ p Pure }
-
-func (v pureValues) Get(tok Var) (string, bool) {
+func (p Pure) Get(tok Var) (string, bool) {
 	util, ok := pureUtils[tok.Name]
 	if !ok {
 		return tmpl.Dynamic(tok)
@@ -53,7 +49,7 @@ func (v pureValues) Get(tok Var) (string, bool) {
 	if !tok.HasPayload {
 		return "", false
 	}
-	return util(v.p, tok.Payload), true
+	return util(p, tok.Payload), true
 }
 
 const (

@@ -15,7 +15,8 @@
   const { t } = getI18n();
 
   const login = $derived(String(node.config.login ?? ''));
-  const matched = $derived(Boolean(node.config.userId));
+  const userId = $derived(String(node.config.userId ?? ''));
+  const matched = $derived(userId !== '');
   let problem = $state<'' | 'missing' | 'failed'>('');
   let checking = $state(false);
 
@@ -55,7 +56,7 @@
     {placeholder}
     autocomplete="off"
     spellcheck="false"
-    value={login}
+    value={login || userId}
     oninput={(e) => onInput(e.currentTarget.value)}
     onblur={resolve}
     onkeydown={(e) => {
@@ -70,6 +71,8 @@
     <Text size="sm" tone="danger">{t('flows.userFailed')}</Text>
   {:else if checking}
     <Text size="sm" tone="muted">{t('flows.userChecking')}</Text>
+  {:else if matched && !login}
+    <Text size="sm" tone="muted">{t('flows.userIdOnly')}</Text>
   {:else if matched}
     <Text size="sm" tone="muted">{t('flows.userFound')}</Text>
   {/if}

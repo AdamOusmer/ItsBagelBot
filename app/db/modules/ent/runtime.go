@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
@@ -18,6 +19,102 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	automationFields := schema.Automation{}.Fields()
+	_ = automationFields
+	// automationDescName is the schema descriptor for name field.
+	automationDescName := automationFields[2].Descriptor()
+	// automation.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	automation.NameValidator = func() func(string) error {
+		validators := automationDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// automationDescNameKey is the schema descriptor for name_key field.
+	automationDescNameKey := automationFields[3].Descriptor()
+	// automation.NameKeyValidator is a validator for the "name_key" field. It is called by the builders before save.
+	automation.NameKeyValidator = func() func(string) error {
+		validators := automationDescNameKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name_key string) error {
+			for _, fn := range fns {
+				if err := fn(name_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// automationDescEnabled is the schema descriptor for enabled field.
+	automationDescEnabled := automationFields[4].Descriptor()
+	// automation.DefaultEnabled holds the default value on creation for the enabled field.
+	automation.DefaultEnabled = automationDescEnabled.Default.(bool)
+	// automationDescRevision is the schema descriptor for revision field.
+	automationDescRevision := automationFields[5].Descriptor()
+	// automation.DefaultRevision holds the default value on creation for the revision field.
+	automation.DefaultRevision = automationDescRevision.Default.(int64)
+	// automationDescTriggerType is the schema descriptor for trigger_type field.
+	automationDescTriggerType := automationFields[6].Descriptor()
+	// automation.TriggerTypeValidator is a validator for the "trigger_type" field. It is called by the builders before save.
+	automation.TriggerTypeValidator = func() func(string) error {
+		validators := automationDescTriggerType.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(trigger_type string) error {
+			for _, fn := range fns {
+				if err := fn(trigger_type); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// automationDescDefinition is the schema descriptor for definition field.
+	automationDescDefinition := automationFields[7].Descriptor()
+	// automation.DefinitionValidator is a validator for the "definition" field. It is called by the builders before save.
+	automation.DefinitionValidator = automationDescDefinition.Validators[0].(func(string) error)
+	// automationDescCreatedAt is the schema descriptor for created_at field.
+	automationDescCreatedAt := automationFields[9].Descriptor()
+	// automation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	automation.DefaultCreatedAt = automationDescCreatedAt.Default.(func() time.Time)
+	// automationDescUpdatedAt is the schema descriptor for updated_at field.
+	automationDescUpdatedAt := automationFields[10].Descriptor()
+	// automation.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	automation.DefaultUpdatedAt = automationDescUpdatedAt.Default.(func() time.Time)
+	// automation.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	automation.UpdateDefaultUpdatedAt = automationDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// automationDescID is the schema descriptor for id field.
+	automationDescID := automationFields[0].Descriptor()
+	// automation.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	automation.IDValidator = func() func(string) error {
+		validators := automationDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	channelfeedcounterFields := schema.ChannelFeedCounter{}.Fields()
 	_ = channelfeedcounterFields
 	// channelfeedcounterDescCount is the schema descriptor for count field.

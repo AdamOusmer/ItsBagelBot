@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "timer",
+    "params": {
+      "interval_s": 300,
+      "random_jitter_s": 30,
+      "min_chat_lines": 5,
+      "offline_ok": true
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "hello {user}"
+      }
+    }
+  ]
+}

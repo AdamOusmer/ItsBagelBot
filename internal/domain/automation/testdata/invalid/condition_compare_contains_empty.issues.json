@@ -1,0 +1,6 @@
+[
+  {
+    "path": "conditions[0].params.right",
+    "code": "required"
+  }
+]

@@ -1,0 +1,76 @@
+{
+  "chat": {
+    "label": "Chatnachricht senden",
+    "summary": "Bot antwortet im Chat",
+    "field": {
+      "message": {
+        "label": "Nachricht",
+        "placeholder": "Danke {user}!"
+      }
+    }
+  },
+  "discord": {
+    "label": "In Discord posten",
+    "summary": "In einem Kanal ankündigen",
+    "field": {
+      "channel": {
+        "label": "Kanal"
+      },
+      "message": {
+        "label": "Nachricht",
+        "placeholder": "{user} hat gerade geraidet!"
+      }
+    }
+  },
+  "points": {
+    "label": "Treuepunkte vergeben",
+    "summary": "Punkte hinzufügen oder abziehen",
+    "field": {
+      "amount": {
+        "label": "Menge",
+        "unit": "Punkte"
+      }
+    }
+  },
+  "counter": {
+    "label": "Zähler erhöhen",
+    "summary": "Einen Zähler erhöhen",
+    "field": {
+      "counter": {
+        "label": "Zähler"
+      }
+    }
+  },
+  "lights": {
+    "label": "Lichter einstellen",
+    "summary": "Eine Govee-Farbe oder -Szene einstellen",
+    "field": {
+      "device": {
+        "label": "Licht"
+      },
+      "mode": {
+        "label": "Einstellen",
+        "option": {
+          "color": "Farbe",
+          "scene": "Szene"
+        }
+      },
+      "color": {
+        "label": "Farbe"
+      },
+      "scene": {
+        "label": "Szene"
+      }
+    }
+  },
+  "wait": {
+    "label": "Warten",
+    "summary": "Pause vor dem nächsten Schritt",
+    "field": {
+      "seconds": {
+        "label": "Verzögerung",
+        "unit": "Sekunden, max. {max}"
+      }
+    }
+  }
+}

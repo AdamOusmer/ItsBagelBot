@@ -1,0 +1,95 @@
+{
+  "role": {
+    "label": "Niveau utilisateur",
+    "summary": "Seuls certains viewers passent",
+    "field": {
+      "level": {
+        "label": "Au moins",
+        "option": {
+          "everyone": "Tout le monde",
+          "sub": "Abonné",
+          "vip": "VIP",
+          "mod": "Modérateur",
+          "lead_mod": "Modérateur principal",
+          "broadcaster": "Diffuseur"
+        }
+      }
+    },
+    "out": {
+      "yes": "Autorisé",
+      "no": "Bloqué"
+    }
+  },
+  "user": {
+    "label": "Utilisateur spécifique",
+    "summary": "Seul ce viewer passe",
+    "field": {
+      "login": {
+        "label": "Nom d’utilisateur",
+        "placeholder": "itsbagelbot"
+      }
+    },
+    "out": {
+      "yes": "Cet utilisateur",
+      "no": "Tout autre utilisateur"
+    }
+  },
+  "cooldown": {
+    "label": "Délai de recharge",
+    "summary": "Attendre entre chaque exécution",
+    "field": {
+      "seconds": {
+        "label": "Délai de recharge",
+        "unit": "secondes"
+      },
+      "perUser": {
+        "label": "Par viewer"
+      }
+    },
+    "out": {
+      "yes": "Prêt",
+      "no": "En recharge"
+    }
+  },
+  "compare": {
+    "label": "Comparer une valeur",
+    "summary": "Vérifier une variable",
+    "field": {
+      "left": {
+        "label": "Valeur",
+        "placeholder": "{bits}"
+      },
+      "op": {
+        "label": "Est",
+        "option": {
+          "gte": "au moins",
+          "lt": "inférieur à",
+          "eq": "égal à",
+          "contains": "contient"
+        }
+      },
+      "right": {
+        "label": "Cette valeur",
+        "placeholder": "1000"
+      }
+    },
+    "out": {
+      "yes": "Oui",
+      "no": "Non"
+    }
+  },
+  "chance": {
+    "label": "Chance aléatoire",
+    "summary": "Passe une partie du temps",
+    "field": {
+      "percent": {
+        "label": "Chance",
+        "unit": "%"
+      }
+    },
+    "out": {
+      "yes": "Succès",
+      "no": "Échec"
+    }
+  }
+}

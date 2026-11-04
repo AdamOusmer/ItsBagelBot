@@ -1,29 +1,32 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { specFor, type FlowNode, type NodeSpec } from './model';
+import type { MessageKey } from '@bagel/kit';
+import { optionText, outputLabel, stepSummary } from './copy';
+import type { Translate } from './messages';
+import { specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
 
-export const OPS: Record<string, string> = {
-  gte: 'is at least',
-  lt: 'is less than',
-  eq: 'is equal to',
-  contains: 'contains'
-};
+const COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
+  gte: 'flows.line.compareGte',
+  lt: 'flows.line.compareLt',
+  eq: 'flows.line.compareEq',
+  contains: 'flows.line.compareContains'
+});
 
-const ROLES: Record<string, string> = {
-  everyone: 'Everyone',
-  sub: 'Subscribers and up',
-  vip: 'VIPs and up',
-  mod: 'Moderators and up',
-  lead_mod: 'Lead moderators and up',
-  broadcaster: 'Only the broadcaster'
-};
+const ROLES: Readonly<Record<string, MessageKey>> = Object.freeze({
+  everyone: 'flows.line.roleEveryone',
+  sub: 'flows.line.roleSub',
+  vip: 'flows.line.roleVip',
+  mod: 'flows.line.roleMod',
+  lead_mod: 'flows.line.roleLeadMod',
+  broadcaster: 'flows.line.roleBroadcaster'
+});
 
-const SUBS: Record<string, string> = {
-  any: 'Someone subscribes, resubscribes or gifts',
-  new: 'Someone subscribes for the first time',
-  resub: 'Someone resubscribes',
-  gift: 'Someone gifts a subscription'
-};
+const SUBS: Readonly<Record<string, MessageKey>> = Object.freeze({
+  any: 'flows.line.subAny',
+  new: 'flows.line.subNew',
+  resub: 'flows.line.subResub',
+  gift: 'flows.line.subGift'
+});
 
 const text = (node: FlowNode, key: string) => {
   const v = node.config[key];
@@ -35,83 +38,102 @@ const num = (node: FlowNode, key: string) => {
   return Number.isFinite(v) && v > 0 ? v : 0;
 };
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const seconds = (t: Translate, count: number) => (count === 1 ? t('flows.line.secondsOne', { count }) : t('flows.line.secondsMany', { count }));
+
+const points = (t: Translate, count: number) => (count === 1 ? t('flows.line.pointsOne', { count }) : t('flows.line.pointsMany', { count }));
 
 const given = <T>(value: T, make: (value: T) => string): string => (value ? make(value) : '');
 
-export function optionLabel(spec: NodeSpec, node: FlowNode, key: string): string {
+const named = (t: Translate, keys: Readonly<Record<string, MessageKey>>, value: string): string =>
+  Object.hasOwn(keys, value) ? t(keys[value]!) : '';
+
+type SelectField = Extract<FieldSpec, { type: 'select' }>;
+
+function selectLabel(t: Translate, spec: NodeSpec, field: SelectField, value: string): string {
+  if (field.options.includes(value)) return optionText(t, spec, field, value);
+  const first = field.options[0];
+  return value || (first ? optionText(t, spec, field, first) : '');
+}
+
+export function optionLabel(t: Translate, spec: NodeSpec, node: FlowNode, key: string): string {
   const field = spec.fields.find((f) => f.key === key);
   const value = text(node, key);
-  if (!field || field.type !== 'select') return value;
-  return field.options.find((o) => o.value === value)?.label ?? (value || field.options[0]?.label || '');
+  if (field?.type === 'choice') return text(node, field.nameKey ?? key) || value;
+  return field?.type === 'select' ? selectLabel(t, spec, field, value) : value;
 }
 
-type Line = (node: FlowNode, spec: NodeSpec) => string;
+type Line = (t: Translate, node: FlowNode, spec: NodeSpec) => string;
 
-const TRIGGERS: Record<string, Line> = {
-  'twitch.chat.command': (n) => given(text(n, 'trigger'), (v) => `Someone types ${v} in chat`),
-  'twitch.chat.word': (n) => given(text(n, 'word'), (v) => `Someone says ${v} in chat`),
-  'twitch.sub': (n) => SUBS[text(n, 'variant')] ?? '',
-  'twitch.cheer': (n) => given(num(n, 'minBits'), (v) => `Someone cheers ${v} bits or more`),
-  'twitch.raid': (n) => given(num(n, 'minViewers'), (v) => `Raid with ${v}+ viewers`),
-  'twitch.reward': (n, spec) => given(optionLabel(spec, n, 'reward'), (v) => `${v} is redeemed`)
+const TRIGGERS: Readonly<Record<string, Line>> = {
+  'twitch.chat.command': (t, n) => given(text(n, 'trigger'), (trigger) => t('flows.line.command', { trigger })),
+  'twitch.chat.word': (t, n) => given(text(n, 'word'), (word) => t('flows.line.word', { word })),
+  'twitch.sub': (t, n) => named(t, SUBS, text(n, 'variant')),
+  'twitch.cheer': (t, n) => given(num(n, 'minBits'), (bits) => t('flows.line.cheer', { bits })),
+  'twitch.raid': (t, n) => given(num(n, 'minViewers'), (viewers) => t('flows.line.raid', { viewers })),
+  'twitch.reward': (t, n, spec) => given(optionLabel(t, spec, n, 'reward'), (reward) => t('flows.line.reward', { reward }))
 };
 
-const compareLine: Line = (n) => {
+const compareLine: Line = (t, n) => {
   const left = text(n, 'left');
   const right = text(n, 'right');
-  return left && right ? `${left} ${OPS[text(n, 'op')] ?? 'is'} ${right}` : '';
+  if (!left || !right) return '';
+  const op = text(n, 'op');
+  return Object.hasOwn(COMPARISONS, op) ? t(COMPARISONS[op]!, { left, right }) : t('flows.line.compareIs', { left, right });
 };
 
-const CONDITIONS: Record<string, Line> = {
-  'cond.role': (n) => ROLES[text(n, 'level')] ?? '',
-  'cond.user': (n) => given(text(n, 'login'), (v) => `Only ${v}`),
-  'cond.cooldown': (n) =>
-    given(num(n, 'seconds'), (v) => `Wait ${plural(v, 'second', 'seconds')} between runs${n.config.perUser ? ', per viewer' : ''}`),
+const cooldownLine: Line = (t, n) =>
+  given(num(n, 'seconds'), (count) =>
+    t(n.config.perUser ? 'flows.line.cooldownViewer' : 'flows.line.cooldown', { amount: seconds(t, count) })
+  );
+
+const CONDITIONS: Readonly<Record<string, Line>> = {
+  'cond.role': (t, n) => named(t, ROLES, text(n, 'level')),
+  'cond.user': (t, n) => given(text(n, 'login') || text(n, 'userId'), (user) => t('flows.line.userOnly', { user })),
+  'cond.cooldown': cooldownLine,
   'cond.compare': compareLine,
-  'cond.chance': (n) => given(num(n, 'percent'), (v) => `Passes ${v}% of the time`)
+  'cond.chance': (t, n) => given(num(n, 'percent'), (percent) => t('flows.line.chance', { percent }))
 };
 
-const discordLine: Line = (n, spec) => {
-  const channel = optionLabel(spec, n, 'channel');
+const discordLine: Line = (t, n, spec) => {
+  const channel = optionLabel(t, spec, n, 'channel');
   const message = text(n, 'message');
-  if (!message) return given(channel, (v) => `Post to ${v}`);
-  return channel ? `${channel}: ${message}` : message;
+  if (!message) return given(channel, (name) => t('flows.line.discordPost', { channel: name }));
+  return channel ? t('flows.line.discordSay', { channel, message }) : message;
 };
 
-const pointsLine: Line = (n) => {
+const pointsLine: Line = (t, n) => {
   const amount = Number(n.config.amount);
   if (!Number.isFinite(amount) || amount === 0) return '';
-  return amount > 0 ? `Give ${plural(amount, 'point', 'points')}` : `Take ${plural(-amount, 'point', 'points')}`;
+  return amount > 0 ? t('flows.line.pointsGive', { amount: points(t, amount) }) : t('flows.line.pointsTake', { amount: points(t, -amount) });
 };
 
-const lightsLine: Line = (n, spec) => {
-  const light = text(n, 'deviceName') || 'the lights';
-  if (text(n, 'mode') !== 'scene') return given(text(n, 'color'), (v) => `Set ${light} to ${v}`);
-  return given(optionLabel(spec, n, 'scene'), (v) => `Play the ${v} scene on ${light}`);
+const lightsLine: Line = (t, n, spec) => {
+  const light = text(n, 'deviceName') || t('flows.line.lightsFallback');
+  if (text(n, 'mode') !== 'scene') return given(text(n, 'color'), (color) => t('flows.line.lightsColor', { light, color }));
+  return given(optionLabel(t, spec, n, 'scene'), (scene) => t('flows.line.lightsScene', { light, scene }));
 };
 
-const REPLIES: Record<string, Line> = {
-  'reply.chat': (n) => text(n, 'message'),
+const REPLIES: Readonly<Record<string, Line>> = {
+  'reply.chat': (_t, n) => text(n, 'message'),
   'reply.discord': discordLine,
   'reply.points': pointsLine,
-  'reply.counter': (n, spec) => given(optionLabel(spec, n, 'counter'), (v) => `Add one to the ${v} counter`),
+  'reply.counter': (t, n, spec) => given(optionLabel(t, spec, n, 'counter'), (counter) => t('flows.line.counter', { counter })),
   'reply.lights': lightsLine,
-  'reply.wait': (n) => given(num(n, 'seconds'), (v) => `Pause ${plural(v, 'second', 'seconds')}`)
+  'reply.wait': (t, n) => given(num(n, 'seconds'), (count) => t('flows.line.pause', { amount: seconds(t, count) }))
 };
 
-const BY_KIND: Record<string, Record<string, Line>> = { trigger: TRIGGERS, condition: CONDITIONS };
+const BY_KIND: Readonly<Record<string, Readonly<Record<string, Line>>>> = { trigger: TRIGGERS, condition: CONDITIONS };
 
-export function portLabel(node: FlowNode, port: { id: string; label: string }): string {
-  if (node.type !== 'cond.chance') return port.label;
-  const percent = num(node, 'percent');
-  if (!percent) return port.label;
-  return port.id === 'yes' ? `${percent}% of the time` : 'Otherwise';
+export function portLabel(t: Translate, node: FlowNode, id: string): string {
+  const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
+  if (percent) return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
+  const spec = specFor(node.type);
+  return spec ? outputLabel(t, spec, id) : '';
 }
 
-export function describe(node: FlowNode): string {
+export function describe(t: Translate, node: FlowNode): string {
   const spec = specFor(node.type);
   if (!spec) return '';
   const table = BY_KIND[spec.kind] ?? REPLIES;
-  return table[node.type]?.(node, spec) || spec.summary;
+  return table[node.type]?.(t, node, spec) || stepSummary(t, spec);
 }

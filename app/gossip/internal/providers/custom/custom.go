@@ -31,6 +31,7 @@ import (
 const (
 	providerName  = "custom"
 	fetchEndpoint = "fetch"
+	postEndpoint  = "post"
 
 	// Must stay below sesame's customFetchRPCTimeout so a timeout still arrives as a reply.
 	fetchTimeout   = 3 * time.Second
@@ -96,6 +97,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d)
 	p := newAPI(cfg, d, b)
 	b.Endpoint(fetchEndpoint).Timeout(fetchTimeout).Handle(p.fetch)
+	b.Endpoint(postEndpoint).Timeout(fetchTimeout).Handle(p.post)
 	return b.Build()
 }
 
@@ -384,16 +386,16 @@ func (p *api) fetchUpstream(ctx context.Context, fl *flight) ([]byte, error) {
 		Path:    fl.def.URL,
 		Headers: headers,
 	})
-	if err != nil {
-		if breakerClass(err) {
-			p.recordFailure(ctx, fl.host)
-		} else {
-			p.resetFailure(fl.host)
-		}
-		return nil, err
+	p.noteOutcome(ctx, fl.host, err)
+	return body, err
+}
+
+func (p *api) noteOutcome(ctx context.Context, host string, err error) {
+	if err != nil && breakerClass(err) {
+		p.recordFailure(ctx, host)
+		return
 	}
-	p.resetFailure(fl.host)
-	return body, nil
+	p.resetFailure(host)
 }
 
 func (p *api) authHeaders(ctx context.Context, channelID, label string) (map[string]string, error) {

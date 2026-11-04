@@ -193,12 +193,11 @@ func (w *Worker) logMissingGuild(guildID string, err error) {
 		zap.String("guild_id", guildID), zap.Error(err))
 }
 
+func (r GuildSetupRequest) identified() bool { return r.GuildID != "" && r.BroadcasterID != "" }
+
 // Every dashboard-facing verb must use this: a cached binding can outlive an unbind.
 func (w *Worker) requireOwnerStrict(ctx context.Context, req GuildSetupRequest, check ownerCheck) error {
-	if w.store == nil {
-		return nil
-	}
-	if req.GuildID == "" || req.BroadcasterID == "" {
+	if w.store == nil || !req.identified() {
 		return ErrNotBound
 	}
 	owner, source, ok := w.store.BindingOf(ctx, discordstore.Guild{ID: req.GuildID})

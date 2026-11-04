@@ -1,33 +1,43 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
+import { MAX_DELAY_MS } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
+
+export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
 
 export type FlowKind = 'trigger' | 'condition' | 'reply';
 
+export type StepGroup = 'twitch' | 'discord' | 'modules' | 'basics';
+
+type Typed = { key: string; placeholder?: true };
+
 export type FieldSpec = { when?: { key: string; value: string } } & (
-  | { key: string; label: string; type: 'text'; placeholder?: string }
-  | { key: string; label: string; type: 'template'; placeholder?: string; singleLine?: boolean }
-  | { key: string; label: string; type: 'number'; min?: number; max?: number; unit?: string }
-  | { key: string; label: string; type: 'select'; options: readonly { value: string; label: string }[] }
-  | { key: string; label: string; type: 'toggle' }
-  | { key: string; label: string; type: 'color' }
-  | { key: string; label: string; type: 'login'; placeholder?: string }
-  | { key: string; label: string; type: 'goveeLight' }
+  | (Typed & { type: 'text' })
+  | (Typed & { type: 'template'; singleLine?: boolean })
+  | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
+  | { key: string; type: 'select'; options: readonly string[] }
+  | { key: string; type: 'toggle' }
+  | { key: string; type: 'color' }
+  | (Typed & { type: 'login' })
+  | { key: string; type: 'goveeLight' }
+  | { key: string; type: 'choice'; source: ChoiceSource; nameKey?: string }
 );
 
-export type VariableSpec = { token: string; label: string; sample: string };
+export type VariableSpec = { token: string; name: string; sample: string };
+
+export type OutputSpec = { id: string };
 
 export type NodeSpec = {
   type: string;
+  slug: string;
   kind: FlowKind;
-  label: string;
-  summary: string;
+  group: StepGroup;
   icon: IconName;
-  source: string;
   fields: readonly FieldSpec[];
   provides?: readonly VariableSpec[];
-  outputs?: readonly { id: string; label: string }[];
+  outputs?: readonly OutputSpec[];
 };
 
 export type FlowNode = {
@@ -48,262 +58,208 @@ export const COLUMN_GAP = 80;
 export const ROW_GAP = 28;
 
 const user: VariableSpec[] = [
-  { token: '{user}', label: 'Display name', sample: USER_SAMPLE },
-  { token: '{user.id}', label: 'User ID', sample: USERID_SAMPLE }
+  { token: '{user}', name: 'user', sample: USER_SAMPLE },
+  { token: '{user.id}', name: 'userId', sample: USERID_SAMPLE }
 ];
 
-export const newFlow = (): Flow => ({ id: 'new', name: 'Untitled', enabled: true, nodes: [], edges: [] });
+const yesNo: OutputSpec[] = [{ id: 'yes' }, { id: 'no' }];
+
+export const newFlow = (name: string): Flow => ({ id: 'new', name, enabled: true, nodes: [], edges: [] });
 
 export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.chat.command',
+    slug: 'chatCommand',
     kind: 'trigger',
-    label: 'Chat command',
-    summary: 'Someone types a command in chat',
+    group: 'twitch',
     icon: 'commands',
-    source: 'Twitch chat',
-    fields: [{ key: 'trigger', label: 'Command', type: 'text', placeholder: '!hug' }],
-    provides: [...user, { token: '{args}', label: 'Arguments', sample: ARGS_SAMPLE }, { token: '{touser}', label: 'First argument', sample: TOUSER_SAMPLE }]
+    fields: [{ key: 'trigger', type: 'text', placeholder: true }],
+    provides: [...user, { token: '{args}', name: 'args', sample: ARGS_SAMPLE }, { token: '{touser}', name: 'touser', sample: TOUSER_SAMPLE }]
   },
   {
     type: 'twitch.chat.word',
+    slug: 'chatWord',
     kind: 'trigger',
-    label: 'Chat word',
-    summary: 'Someone says a word in chat',
+    group: 'twitch',
     icon: 'messageSquare',
-    source: 'Twitch chat',
-    fields: [{ key: 'word', label: 'Word', type: 'text', placeholder: 'bagel' }],
+    fields: [{ key: 'word', type: 'text', placeholder: true }],
     provides: user
   },
   {
     type: 'twitch.follow',
+    slug: 'follow',
     kind: 'trigger',
-    label: 'New follower',
-    summary: 'Someone follows the channel',
+    group: 'twitch',
     icon: 'heart',
-    source: 'Twitch EventSub',
     fields: [],
     provides: user
   },
   {
     type: 'twitch.sub',
+    slug: 'sub',
     kind: 'trigger',
-    label: 'Subscription',
-    summary: 'New sub, resub or gift',
+    group: 'twitch',
     icon: 'star',
-    source: 'Twitch EventSub',
-    fields: [
-      {
-        key: 'variant',
-        label: 'Kind',
-        type: 'select',
-        options: [
-          { value: 'any', label: 'Any' },
-          { value: 'new', label: 'New' },
-          { value: 'resub', label: 'Resub' },
-          { value: 'gift', label: 'Gift' }
-        ]
-      }
-    ],
-    provides: [...user, { token: '{tier}', label: 'Tier', sample: '1' }, { token: '{months}', label: 'Months', sample: '14' }]
+    fields: [{ key: 'variant', type: 'select', options: ['any', 'new', 'resub', 'gift'] }],
+    provides: [...user, { token: '{tier}', name: 'tier', sample: '1' }, { token: '{months}', name: 'months', sample: '14' }]
   },
   {
     type: 'twitch.cheer',
+    slug: 'cheer',
     kind: 'trigger',
-    label: 'Cheer',
-    summary: 'Bits are cheered',
+    group: 'twitch',
     icon: 'gem',
-    source: 'Twitch EventSub',
-    fields: [{ key: 'minBits', label: 'Minimum bits', type: 'number', min: 1, unit: 'bits' }],
-    provides: [...user, { token: '{bits}', label: 'Bits', sample: '500' }]
+    fields: [{ key: 'minBits', type: 'number', min: 1, unit: true }],
+    provides: [...user, { token: '{bits}', name: 'bits', sample: '500' }]
   },
   {
     type: 'twitch.raid',
+    slug: 'raid',
     kind: 'trigger',
-    label: 'Raid',
-    summary: 'Another channel raids you',
+    group: 'twitch',
     icon: 'swords',
-    source: 'Twitch EventSub',
-    fields: [{ key: 'minViewers', label: 'Minimum viewers', type: 'number', min: 1, unit: 'viewers' }],
-    provides: [...user, { token: '{viewers}', label: 'Viewers', sample: '42' }]
+    fields: [{ key: 'minViewers', type: 'number', min: 1, unit: true }],
+    provides: [...user, { token: '{viewers}', name: 'viewers', sample: '42' }]
   },
   {
     type: 'twitch.reward',
+    slug: 'reward',
     kind: 'trigger',
-    label: 'Channel point reward',
-    summary: 'A reward is redeemed',
+    group: 'modules',
     icon: 'ticket',
-    source: 'Channel points module',
-    fields: [{ key: 'reward', label: 'Reward', type: 'select', options: [{ value: 'hydrate', label: 'Hydrate' }, { value: 'song', label: 'Song request' }] }],
-    provides: [...user, { token: '{input}', label: 'Viewer input', sample: 'lofi beats' }]
+    fields: [{ key: 'reward', type: 'choice', source: 'rewards', nameKey: 'rewardTitle' }],
+    provides: [...user, { token: '{input}', name: 'input', sample: 'lofi beats' }]
   },
   {
     type: 'twitch.stream.online',
+    slug: 'streamOnline',
     kind: 'trigger',
-    label: 'Stream goes live',
-    summary: 'Your stream starts',
+    group: 'twitch',
     icon: 'radio',
-    source: 'Twitch EventSub',
     fields: [],
-    provides: [{ token: '{title}', label: 'Stream title', sample: TITLE_SAMPLE }, { token: '{game}', label: 'Category', sample: GAME_SAMPLE }]
+    provides: [{ token: '{title}', name: 'title', sample: TITLE_SAMPLE }, { token: '{game}', name: 'game', sample: GAME_SAMPLE }]
   },
   {
     type: 'cond.role',
+    slug: 'role',
     kind: 'condition',
-    label: 'User level',
-    summary: 'Only certain viewers pass',
+    group: 'basics',
     icon: 'moderation',
-    source: 'Core',
-    fields: [
-      {
-        key: 'level',
-        label: 'At least',
-        type: 'select',
-        options: [
-          { value: 'everyone', label: 'Everyone' },
-          { value: 'sub', label: 'Subscriber' },
-          { value: 'vip', label: 'VIP' },
-          { value: 'mod', label: 'Moderator' },
-          { value: 'lead_mod', label: 'Lead moderator' },
-          { value: 'broadcaster', label: 'Broadcaster' }
-        ]
-      }
-    ],
-    outputs: [{ id: 'yes', label: 'Allowed' }, { id: 'no', label: 'Blocked' }]
+    fields: [{ key: 'level', type: 'select', options: ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'] }],
+    outputs: yesNo
   },
   {
     type: 'cond.user',
+    slug: 'user',
     kind: 'condition',
-    label: 'Specific user',
-    summary: 'Only this viewer passes',
+    group: 'basics',
     icon: 'users',
-    source: 'Core',
-    fields: [{ key: 'login', label: 'Username', type: 'login', placeholder: 'itsbagelbot' }],
-    outputs: [{ id: 'yes', label: 'This user' }, { id: 'no', label: 'Anyone else' }]
+    fields: [{ key: 'login', type: 'login', placeholder: true }],
+    outputs: yesNo
   },
   {
     type: 'cond.cooldown',
+    slug: 'cooldown',
     kind: 'condition',
-    label: 'Cooldown',
-    summary: 'Wait between runs',
+    group: 'basics',
     icon: 'hourglass',
-    source: 'Core',
     fields: [
-      { key: 'seconds', label: 'Cooldown', type: 'number', min: 1, unit: 'seconds' },
-      { key: 'perUser', label: 'Per viewer', type: 'toggle' }
+      { key: 'seconds', type: 'number', min: 1, unit: true },
+      { key: 'perUser', type: 'toggle' }
     ],
-    outputs: [{ id: 'yes', label: 'Ready' }, { id: 'no', label: 'Cooling down' }]
+    outputs: yesNo
   },
   {
     type: 'cond.compare',
+    slug: 'compare',
     kind: 'condition',
-    label: 'Compare value',
-    summary: 'Check a variable',
+    group: 'basics',
     icon: 'scale',
-    source: 'Core',
     fields: [
-      { key: 'left', label: 'Value', type: 'template', placeholder: '{bits}', singleLine: true },
-      {
-        key: 'op',
-        label: 'Is',
-        type: 'select',
-        options: [
-          { value: 'gte', label: 'at least' },
-          { value: 'lt', label: 'less than' },
-          { value: 'eq', label: 'equal to' },
-          { value: 'contains', label: 'contains' }
-        ]
-      },
-      { key: 'right', label: 'This value', type: 'template', placeholder: '1000', singleLine: true }
+      { key: 'left', type: 'template', placeholder: true, singleLine: true },
+      { key: 'op', type: 'select', options: ['gte', 'lt', 'eq', 'contains'] },
+      { key: 'right', type: 'template', placeholder: true, singleLine: true }
     ],
-    outputs: [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }]
+    outputs: yesNo
   },
   {
     type: 'cond.chance',
+    slug: 'chance',
     kind: 'condition',
-    label: 'Random chance',
-    summary: 'Pass some of the time',
+    group: 'basics',
     icon: 'dice',
-    source: 'Core',
-    fields: [{ key: 'percent', label: 'Chance', type: 'number', min: 1, max: 100, unit: '%' }],
-    outputs: [{ id: 'yes', label: 'Hit' }, { id: 'no', label: 'Miss' }]
+    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, unit: true }],
+    outputs: yesNo
   },
   {
     type: 'reply.chat',
+    slug: 'chat',
     kind: 'reply',
-    label: 'Send chat message',
-    summary: 'Bot replies in chat',
+    group: 'twitch',
     icon: 'send',
-    source: 'Twitch chat',
-    fields: [{ key: 'message', label: 'Message', type: 'template', placeholder: 'Thanks {user}!' }]
+    fields: [{ key: 'message', type: 'template', placeholder: true }]
   },
   {
     type: 'reply.discord',
+    slug: 'discord',
     kind: 'reply',
-    label: 'Post to Discord',
-    summary: 'Announce in a channel',
+    group: 'discord',
     icon: 'discord',
-    source: 'Discord module',
     fields: [
-      { key: 'channel', label: 'Channel', type: 'select', options: [{ value: 'announcements', label: '#announcements' }, { value: 'general', label: '#general' }] },
-      { key: 'message', label: 'Message', type: 'template', placeholder: '{user} just raided!' }
+      { key: 'channel', type: 'choice', source: 'discordChannels', nameKey: 'channelName' },
+      { key: 'message', type: 'template', placeholder: true }
     ]
   },
   {
     type: 'reply.points',
+    slug: 'points',
     kind: 'reply',
-    label: 'Give loyalty points',
-    summary: 'Add or remove points',
+    group: 'modules',
     icon: 'coins',
-    source: 'Loyalty module',
-    fields: [{ key: 'amount', label: 'Amount', type: 'number', unit: 'points' }]
+    fields: [{ key: 'amount', type: 'number', unit: true }]
   },
   {
     type: 'reply.counter',
+    slug: 'counter',
     kind: 'reply',
-    label: 'Bump counter',
-    summary: 'Increase a counter',
+    group: 'modules',
     icon: 'hash',
-    source: 'Counters module',
-    fields: [{ key: 'counter', label: 'Counter', type: 'select', options: [{ value: 'deaths', label: 'deaths' }, { value: 'hugs', label: 'hugs' }] }],
-    provides: [{ token: '{count}', label: 'New count', sample: '17' }]
+    fields: [{ key: 'counter', type: 'choice', source: 'counters' }],
+    provides: [{ token: '{count}', name: 'count', sample: '17' }]
   },
   {
     type: 'reply.lights',
+    slug: 'lights',
     kind: 'reply',
-    label: 'Set lights',
-    summary: 'Set a Govee color or scene',
+    group: 'modules',
     icon: 'bulb',
-    source: 'Govee module',
     fields: [
-      { key: 'device', label: 'Light', type: 'goveeLight' },
-      { key: 'mode', label: 'Set', type: 'select', options: [{ value: 'color', label: 'Color' }, { value: 'scene', label: 'Scene' }] },
-      { key: 'color', label: 'Color', type: 'color', when: { key: 'mode', value: 'color' } },
-      { key: 'scene', label: 'Scene', type: 'select', options: [{ value: 'party', label: 'Party' }, { value: 'alert', label: 'Alert' }], when: { key: 'mode', value: 'scene' } }
+      { key: 'device', type: 'goveeLight' },
+      { key: 'mode', type: 'select', options: ['color', 'scene'] },
+      { key: 'color', type: 'color', when: { key: 'mode', value: 'color' } },
+      { key: 'scene', type: 'choice', source: 'scenes', nameKey: 'sceneName', when: { key: 'mode', value: 'scene' } }
     ]
   },
   {
     type: 'reply.wait',
+    slug: 'wait',
     kind: 'reply',
-    label: 'Wait',
-    summary: 'Pause before the next step',
+    group: 'basics',
     icon: 'timer',
-    source: 'Core',
-    fields: [{ key: 'seconds', label: 'Delay', type: 'number', min: 1, max: 600, unit: 'seconds' }]
+    fields: [{ key: 'seconds', type: 'number', min: 1, max: MAX_WAIT_SECONDS, unit: true }]
   }
 ];
 
 export function fieldVisible(spec: NodeSpec, node: FlowNode, field: FieldSpec): boolean {
   if (!field.when) return true;
   const gate = spec.fields.find((f) => f.key === field.when?.key);
-  const fallback = gate?.type === 'select' ? gate.options[0]?.value : undefined;
+  const fallback = gate?.type === 'select' ? gate.options[0] : undefined;
   return (node.config[field.when.key] ?? fallback) === field.when.value;
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);
 
-export const outputsFor = (spec: NodeSpec): readonly { id: string; label: string }[] =>
-  spec.outputs ?? [{ id: 'next', label: 'Then' }];
+export const outputsFor = (spec: NodeSpec): readonly OutputSpec[] => spec.outputs ?? [{ id: 'next' }];
 
 export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
   const seen = new Map<string, VariableSpec>();
@@ -319,4 +275,3 @@ export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
   visit(nodeId, new Set([nodeId]));
   return [...seen.values()];
 }
-

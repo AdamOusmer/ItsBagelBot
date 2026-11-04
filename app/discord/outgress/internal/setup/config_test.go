@@ -295,6 +295,18 @@ func TestEveryDashboardVerbRefusesACacheOnlyBinding(t *testing.T) {
 	}
 }
 
+func TestPostWithoutAStoreIsRefusedAndSendsNothing(t *testing.T) {
+	d := &fakeDiscord{}
+	w := newWorker(d, nil)
+
+	err := w.PostDiscord(context.Background(), setup.PostRequest{
+		BroadcasterID: "42", GuildID: "guild-1", ChannelID: "chan-1", Content: "hi",
+	})
+
+	require.ErrorIs(t, err, setup.ErrNotBound)
+	require.Empty(t, d.chats)
+}
+
 func TestSetGuildConfigKeepsStoredChannelsThatNoLongerExist(t *testing.T) {
 	store := boundStore(owners{"guild-1": "42"})
 	store.PutGuildConfig(discordstore.Guild{ID: "guild-1"}, ddiscord.Config{LiveChannelID: "deleted"})

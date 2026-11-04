@@ -412,12 +412,12 @@ func (s *ValkeyLoyaltyStore) CounterCreate(ctx context.Context, broadcasterID ui
 	return c, nil
 }
 
-func (s *ValkeyLoyaltyStore) CounterSet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, value int64) (bool, error) {
-	found, err := s.rpc.CounterSet(ctx, broadcasterID, name, viewerID, command, value)
+func (s *ValkeyLoyaltyStore) CounterSet(ctx context.Context, set CounterAssignment) (bool, error) {
+	found, err := s.rpc.CounterSet(ctx, set)
 	if err != nil || !found {
 		return found, err
 	}
-	s.CounterInvalidate(ctx, broadcasterID, name)
+	s.CounterInvalidate(ctx, set.BroadcasterID, set.Name)
 	return true, nil
 }
 

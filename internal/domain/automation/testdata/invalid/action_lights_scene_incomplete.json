@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!lights"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "lights",
+      "params": {
+        "device": "AA:BB:CC:DD:EE:FF:00:11",
+        "sku": "H6008",
+        "mode": "scene"
+      }
+    },
+    {
+      "type": "lights",
+      "params": {
+        "device": "AA:BB:CC:DD:EE:FF:00:11",
+        "sku": "H6008",
+        "mode": "scene",
+        "scene_type": "devices.capabilities.dynamic_scene",
+        "scene_instance": "lightScene",
+        "scene_value": "{nope"
+      }
+    },
+    {
+      "type": "lights",
+      "params": {
+        "device": "AA:BB:CC:DD:EE:FF:00:11",
+        "sku": "H6008",
+        "mode": "party",
+        "color": "#f5a524"
+      }
+    }
+  ]
+}

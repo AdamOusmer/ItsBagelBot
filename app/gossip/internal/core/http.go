@@ -415,6 +415,15 @@ func (e *SSRFError) Error() string { return "url rejected: " + e.Reason }
 const customMaxBody = 1<<20 + 1
 
 func (c *HTTPClient) FetchBounded(ctx context.Context, r Request) ([]byte, error) {
+	resp, err := c.openChecked(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return vetBoundedResponse(resp)
+}
+
+func (c *HTTPClient) openChecked(ctx context.Context, r Request) (*http.Response, error) {
 	req, err := c.newRequest(ctx, r)
 	if err != nil {
 		return nil, err
@@ -422,13 +431,23 @@ func (c *HTTPClient) FetchBounded(ctx context.Context, r Request) ([]byte, error
 	if err := SSRFCheck(req.URL); err != nil {
 		return nil, err
 	}
+	return c.roundTrip(ctx, req, r.NoRedirects)
+}
 
-	resp, err := c.roundTrip(ctx, req, r.NoRedirects)
+func (c *HTTPClient) SendDiscard(ctx context.Context, r Request, drainBytes int64) error {
+	resp, err := c.openChecked(ctx, r)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	return vetBoundedResponse(resp)
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, drainBytes))
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return &UpstreamError{
+			Status:     resp.StatusCode,
+			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+		}
+	}
+	return nil
 }
 
 func vetBoundedResponse(resp *http.Response) ([]byte, error) {

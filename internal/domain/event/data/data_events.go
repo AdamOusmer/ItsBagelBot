@@ -6,6 +6,7 @@ package data
 import (
 	"time"
 
+	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/pkg/codec"
 )
@@ -43,8 +44,8 @@ type UserChangedDTO struct {
 	// CommandsPageHidden mirrors the inverted flag (D2): a publisher that lacks
 	// this field zero-values to false, so a projector still on the old shape
 	// folds "visible", the pre-feature behaviour.
-	CommandsPageHidden bool `json:"commands_page_hidden"`
-	LeaderboardPageHidden bool `json:"leaderboard_page_hidden"`
+	CommandsPageHidden    bool   `json:"commands_page_hidden"`
+	LeaderboardPageHidden bool   `json:"leaderboard_page_hidden"`
 	CreatorCode           string `json:"creator_code,omitempty"`
 }
 
@@ -92,6 +93,15 @@ type FetchChangedDTO struct {
 	KeyLabel string   `json:"key_label,omitempty"`
 	IsActive bool     `json:"is_active"`
 	Deleted  bool     `json:"deleted"`
+}
+
+const SubjectAutomationChanged = "data.modules.automations.changed"
+
+type AutomationChangedDTO struct {
+	UserID     uint64                 `json:"user_id"`
+	ID         string                 `json:"id"`
+	Deleted    bool                   `json:"deleted"`
+	Automation *automation.Automation `json:"automation,omitempty"`
 }
 
 type CommandUsedDTO struct {

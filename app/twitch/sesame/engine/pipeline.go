@@ -5,25 +5,17 @@ package engine
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"strconv"
-	"strings"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/automod"
-	"ItsBagelBot/app/twitch/sesame/confcache"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/monitor"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -67,6 +59,8 @@ type Pipeline struct {
 	customFetch   UrlFetchCaller
 	quotes        QuotesStore
 	gossip        GossipCaller
+	discord       DiscordPoster
+	accounts      TwitchAccountLookup
 	emotes        scope.EmoteSource
 	roster        *chatterRoster
 
@@ -78,8 +72,10 @@ type Pipeline struct {
 	automod        *automod.Gate
 	automodEnforce bool
 	automodBeta    bool
-	reputation     Reputation
-	campaign       Campaign
+
+	automationsBeta bool
+	reputation      Reputation
+	campaign        Campaign
 
 	shieldEnabled   bool
 	adaptiveEnabled bool
@@ -95,6 +91,10 @@ type Pipeline struct {
 	analytics *analytics.Recorder
 
 	chatLineCounter ChatLineCounter
+
+	automations AutomationDeps
+	autoIntN    func(int) int
+	autoExec    autoExecState
 }
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
@@ -117,13 +117,16 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		customFetch:       d.CustomFetch,
 		quotes:            d.Quotes,
 		gossip:            d.Gossip,
+		discord:           d.Discord,
+		accounts:          d.TwitchAccounts,
 		botID:             cfg.BotID,
 		botUserID:         parseBotUserID(cfg.BotID),
 		outgressPremium:   cfg.OutgressPremium,
 		outgressStandard:  cfg.OutgressStandard,
 		automod:           d.Automod,
 		automodEnforce:    cfg.AutomodEnforce,
-		automodBeta:       automodBeta(registry),
+		automodBeta:       moduleBeta(registry, automodModuleName),
+		automationsBeta:   moduleBeta(registry, AutomationsModuleName),
 		reputation:        d.Reputation,
 		campaign:          d.Campaign,
 		shieldEnabled:     cfg.ShieldEnabled,
@@ -135,6 +138,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		special:           d.Special,
 		autoRefundChannel: cfg.AutoRefundChannel,
 		chatLineCounter:   d.ChatLines,
+		automations:       withAutomationDefaults(d.Automations),
 		analytics:         d.Analytics,
 	}
 	p.localeLookup = p.readLocale
@@ -337,67 +341,6 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 	return mctx
 }
 
-type emitState struct {
-	admission  channelruntime.Snapshot
-	subject    string
-	replayBase string
-	locale     string
-	mctx       *module.Context
-	env        *lane.Envelope
-	baseDone   bool
-	ordinal    int
-	needsFlush bool
-	err        error
-}
-
-func (s *emitState) replayID() string {
-	if !s.baseDone {
-		s.replayBase = outputReplayBase(s.env)
-		s.baseDone = true
-	}
-	return replayOutputID(s.replayBase, s.ordinal)
-}
-
-func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitState) module.Emit {
-	ctx = bus.WithPublishPartition(ctx, partition)
-	return func(o *module.Output) {
-		if state.err != nil {
-			return
-		}
-		if o == nil {
-			return
-		}
-		if o.Type == "" {
-			return
-		}
-		Translate(o)
-		applyOutputLocale(o, state.outputLocale(ctx))
-		if isEmptyAction(o) {
-			return
-		}
-		capEmitText(o)
-		if p.floorSuppressed(o) {
-			return
-		}
-		state.countOutput()
-		replayID := state.replayID()
-		if err := p.publishOutput(ctx, state, replayID, o); err != nil {
-			state.err = err
-			return
-		}
-		if replayID == "" {
-			state.needsFlush = true
-		}
-	}
-}
-
-func applyOutputLocale(o *module.Output, locale string) {
-	o.Locale = locale
-	for i := range o.Items {
-		applyOutputLocale(&o.Items[i], locale)
-	}
-}
-
 func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
 	env := &mctx.Env
 	soloChat := env.Type == chatType && len(env.Senders) == 0
@@ -410,85 +353,11 @@ func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views ma
 	if soloChat && !consumed {
 		p.dispatch(ctx, mctx, views, emit)
 	}
-	if len(p.registry.For(env.Type)) > 0 && !consumed {
+	if !consumed && len(p.registry.For(env.Type)) > 0 {
 		p.ensureHandlerLocale(ctx, mctx)
-		p.runHandlers(ctx, views, mctx, emit)
+		p.runHandlers(ctx, views, mctx, emit, env.Type)
 	}
-}
-
-func (p *Pipeline) laneSubject(regress module.Regress) string {
-	if regress.IsPremium() {
-		return p.outgressPremium
-	}
-	return p.outgressStandard
-}
-
-func (p *Pipeline) floorSuppressed(o *module.Output) bool {
-	if o.Text == "" {
-		return false
-	}
-	switch o.Type {
-	case outgress.TypeChat, outgress.TypeAnnounce, outgress.TypePin:
-	default:
-		return false
-	}
-	term, hit := moderation.CheckFloor(o.Text)
-	if hit {
-		p.log.Warn("suppressed outgoing message carrying floor content",
-			zap.String("term", term),
-			zap.String("broadcaster_id", o.BroadcasterID))
-	}
-	return hit
-}
-
-func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID string, o *module.Output) error {
-	allowed, err := p.wakeForOutput(ctx, state)
-	if err != nil || !allowed {
-		return err
-	}
-	body, err := p.encodeOutput(ctx, state, o)
-	if err != nil {
-		return err
-	}
-	return publishWithin(ctx, p.pub, bus.Publication{Subject: state.subject, ID: replayID, Payload: body})
-}
-
-func (p *Pipeline) encodeOutput(ctx context.Context, state *emitState, o *module.Output) ([]byte, error) {
-	encodeSegment := startStage(ctx, "sesame.output.encode")
-	output, err := buildOutgressMessage(o)
-	if err != nil {
-		endStage(encodeSegment, "error")
-		return nil, err
-	}
-	if state.env != nil && state.env.Origin == "trial" {
-		p.addTrial(ctx, state.env.BroadcasterUserID, "blocked", int64(markTrialOutput(&output, state.env.TrialGeneration)))
-	}
-	if state.admission.Registered {
-		output.AccountCreatedAt = state.admission.AccountCreatedAt
-		output.AdmissionGeneration = state.admission.State.AdmissionGeneration
-	}
-	body, err := codec.Marshal(&output)
-	if err != nil {
-		endStage(encodeSegment, "error")
-		return nil, err
-	}
-	endStage(encodeSegment, "ok")
-	return body, nil
-}
-
-func outputReplayBase(env *lane.Envelope) string {
-	if env == nil || env.EventID == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(env.BroadcasterUserID + "\x00" + env.EventID))
-	return "sesame:" + hex.EncodeToString(sum[:16])
-}
-
-func replayOutputID(base string, ordinal int) string {
-	if base == "" {
-		return ""
-	}
-	return base + ":" + strconv.Itoa(ordinal)
+	p.runAutomationStage(ctx, mctx, views, consumed, emit)
 }
 
 func (p *Pipeline) dropPoison(ctx context.Context, msgID string, err error) error {
@@ -507,164 +376,4 @@ func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcaste
 	}
 	// The projection cache's shared map: stages must never write or recycle it.
 	return p.proj.Modules(ctx, broadcasterID)
-}
-
-const automodModuleName = "automod"
-
-func automodBeta(reg *Registry) bool {
-	for _, m := range reg.For(chatType) {
-		if m.Name == automodModuleName {
-			return m.Beta
-		}
-	}
-	return false
-}
-
-func automodConfigFrom(views map[string]projection.ModuleView, locked bool) *automod.Config {
-	mv, ok := views[automodModuleName]
-	if !ok && !locked {
-		return nil
-	}
-	var cfg *automod.Config
-	if ok {
-		cfg = automodConfigs.Get(mv.Configs, parseAutomodConfig)
-	}
-	if locked || !mv.IsEnabled {
-		return disabledConfig(cfg)
-	}
-	return cfg
-}
-
-var automodConfigs = confcache.New[*automod.Config]()
-
-func parseAutomodConfig(raw []byte) *automod.Config { return automod.ParseConfig(raw) }
-
-// Copy: cfg is shared through confcache by every channel with the same blob.
-func disabledConfig(cfg *automod.Config) *automod.Config {
-	if cfg == nil {
-		return &automod.Config{Disabled: true}
-	}
-	c := *cfg
-	c.Disabled = true
-	return &c
-}
-
-func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
-	if err := p.dispatchCommand(ctx, mctx, views, emit); err != nil {
-		p.log.Error("command dispatch failed", module.BIDField(mctx.BroadcasterID), zap.Error(err))
-		notice(ctx, err)
-	}
-}
-
-func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit) {
-	eventType := mctx.Env.Type
-	for _, m := range p.registry.For(eventType) {
-		if !p.enabled(m, views, mctx) {
-			continue
-		}
-		p.runHandler(ctx, mctx, m, emit)
-	}
-}
-
-func (p *Pipeline) runHandler(ctx context.Context, mctx *module.Context, m module.Module, emit module.Emit) {
-	handle := m.Events[mctx.Env.Type]
-	if handle == nil {
-		return
-	}
-	before := mctx.Emitted
-	started := time.Now()
-	if err := handle(ctx, mctx, emit); err != nil {
-		p.handlerFailed(ctx, mctx, m, err)
-		return
-	}
-	p.recordHandled(mctx, m, before, time.Since(started))
-	if engagedBy(mctx, m, before) {
-		mctx.Engaged = true
-	}
-}
-
-func engagedBy(mctx *module.Context, m module.Module, emittedBefore int) bool {
-	if !viewerEngagement(mctx.Env.Type) {
-		return false
-	}
-	return mctx.Emitted > emittedBefore || m.Kind == module.KindOptIn
-}
-
-func (s *emitState) countOutput() {
-	s.ordinal++
-	if s.mctx != nil {
-		s.mctx.Emitted++
-	}
-}
-
-func viewerEngagement(eventType string) bool {
-	if eventType == chatType || strings.HasPrefix(eventType, "channel.ad_break.") {
-		return false
-	}
-	return strings.HasPrefix(eventType, "channel.")
-}
-
-func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m module.Module, err error) {
-	p.log.Error("module handler failed",
-		zap.String("module", moduleLabel(m)),
-		zap.String("type", mctx.Env.Type),
-		module.BIDField(mctx.BroadcasterID),
-		zap.Error(err))
-	p.recordFailure(m, err)
-	if txn := newrelic.FromContext(ctx); txn != nil {
-		txn.AddAttribute("module.failed", moduleLabel(m))
-		monitor.NoticeError(txn, err)
-	}
-}
-
-func notice(ctx context.Context, err error) {
-	if txn := newrelic.FromContext(ctx); txn != nil {
-		monitor.NoticeError(txn, err)
-	}
-}
-
-func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleView, mctx *module.Context) bool {
-	if m.Trial {
-		mctx.Config = nil
-		return mctx.Env.Origin == "trial"
-	}
-	if m.Beta && !mctx.Regress.IsPremium() {
-		return false
-	}
-	switch m.Kind {
-	case module.KindCore:
-		mctx.Config = nil
-		return true
-	case module.KindDefault:
-		mv, ok := views[m.Name]
-		return enabledByDefault(mv, ok, mctx)
-	case module.KindOptIn:
-		mv, ok := views[m.Name]
-		return enabledOptIn(mv, ok, mctx)
-	default:
-		return false
-	}
-}
-
-func enabledByDefault(mv projection.ModuleView, ok bool, mctx *module.Context) bool {
-	if !ok {
-		mctx.Config = nil
-		return true
-	}
-	if !mv.IsEnabled {
-		return false
-	}
-	mctx.Config = mv.Configs
-	return true
-}
-
-func enabledOptIn(mv projection.ModuleView, ok bool, mctx *module.Context) bool {
-	if mctx.Env.Origin == "trial" {
-		return false
-	}
-	if !ok || !mv.IsEnabled {
-		return false
-	}
-	mctx.Config = mv.Configs
-	return true
 }

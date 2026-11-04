@@ -30,7 +30,7 @@ mock.module('./services', () => ({
   }
 }));
 
-const { healLogin } = await import('./identity-heal');
+const { healLogin, lookupTwitchUser } = await import('./identity-heal');
 const { BUCKET_CAPACITY } = await import('./viewer-resolver');
 
 let n = 0;
@@ -111,5 +111,39 @@ describe('healLogin', () => {
     twitchCalls.length = 0;
     expect(await healLogin(fresh())).toEqual({ kind: 'busy' });
     expect(twitchCalls).toEqual([]);
+  });
+});
+
+describe('lookupTwitchUser', () => {
+  test('names an unregistered viewer without touching identity_sync', async () => {
+    const login = fresh();
+    expect(await lookupTwitchUser(login)).toEqual({ kind: 'found', value: { id: '42', login, displayName: 'NewName' } });
+    expect(syncCalls).toEqual([]);
+  });
+
+  test('a reply for a different login is missing', async () => {
+    twitch = async () => onTwitch('someoneelse');
+    expect(await lookupTwitchUser(fresh())).toEqual({ kind: 'missing' });
+  });
+
+  test('user_found false is missing and an outgress failure is an error', async () => {
+    twitch = async () => ({ user_found: false });
+    expect(await lookupTwitchUser(fresh())).toEqual({ kind: 'missing' });
+    twitch = async () => {
+      throw new Error('outgress down');
+    };
+    expect(await lookupTwitchUser(fresh())).toEqual({ kind: 'error' });
+  });
+
+  test('repeat probes share one Twitch lookup', async () => {
+    const login = fresh();
+    await Promise.all([lookupTwitchUser(login), lookupTwitchUser(login)]);
+    await lookupTwitchUser(login);
+    expect(twitchCalls).toHaveLength(1);
+  });
+
+  test('a flood of distinct logins answers busy', async () => {
+    for (let i = 0; i < BUCKET_CAPACITY; i++) await lookupTwitchUser(fresh());
+    expect(await lookupTwitchUser(fresh())).toEqual({ kind: 'busy' });
   });
 });

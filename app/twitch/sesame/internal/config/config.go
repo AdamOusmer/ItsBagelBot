@@ -62,6 +62,7 @@ type Config struct {
 	GossipRPCPrefix         string
 	LoyaltyRPCPrefix        string
 	OutgressRPCPrefix       string
+	DiscordRPCPrefix        string
 }
 
 func Load() *Config {
@@ -123,5 +124,7 @@ func Load() *Config {
 		LoyaltyRPCPrefix: env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
 
 		OutgressRPCPrefix: env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
+
+		DiscordRPCPrefix: env.Get("NATS_DINGRESS_RPC_PREFIX", "bagel.rpc.dingress"),
 	}
 }

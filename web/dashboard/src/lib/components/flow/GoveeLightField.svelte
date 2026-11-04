@@ -13,9 +13,12 @@
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { FlowNode } from '#lib/flow/model';
-  import { goveeKey } from '#lib/flow/session.svelte';
 
-  type GoveeLights = { keyPresent: boolean; devices: GoveeDevice[]; code?: 'key_rejected' | 'unreachable' };
+  let keySaved = $state(false);
+
+  const SCENE_KEYS = ['scene', 'sceneName', 'sceneType', 'sceneInstance', 'sceneValue'];
+
+  type GoveeLights ={ keyPresent: boolean; devices: GoveeDevice[]; code?: 'key_rejected' | 'unreachable' };
 
   let { node, id }: { node: FlowNode; id: string } = $props();
 
@@ -38,6 +41,9 @@
   function choose(devices: GoveeDevice[], id: string) {
     const light = devices.find((d) => d.device === id);
     if (!light) return;
+    if (node.config.device !== light.device) {
+      for (const key of SCENE_KEYS) delete node.config[key];
+    }
     node.config.device = light.device;
     node.config.sku = light.sku;
     node.config.deviceName = light.name || light.sku;
@@ -64,7 +70,7 @@
         return;
       }
       if (payload?.code === 'key_unchecked') notice = t('govee.keyUnchecked');
-      goveeKey.saved = true;
+      keySaved = true;
       await invalidate('flows:govee');
     };
   };
@@ -73,7 +79,7 @@
 {#await lights}
   <div class="row"><Spinner /><Text size="sm" tone="muted">{t('flows.lightField')}</Text></div>
 {:then { keyPresent, devices, code }}
-  {#if (!keyPresent && !goveeKey.saved) || code === 'key_rejected'}
+  {#if (!keyPresent && !keySaved) || code === 'key_rejected'}
     <form class="key" method="POST" action="/govee?/saveKey" use:enhance={submit}>
       {#if code === 'key_rejected'}
         <AlertBanner tone="warning">{t('goveeSetup.devicesKeyRejected')}</AlertBanner>

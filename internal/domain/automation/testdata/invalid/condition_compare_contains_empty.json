@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "manual"
+  },
+  "conditions": [
+    {
+      "type": "compare",
+      "params": {
+        "left": "{args}",
+        "op": "contains",
+        "right": ""
+      }
+    },
+    {
+      "type": "compare",
+      "params": {
+        "left": "{args}",
+        "op": "eq",
+        "right": ""
+      }
+    }
+  ]
+}

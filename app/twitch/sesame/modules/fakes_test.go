@@ -448,7 +448,7 @@ func (f *fakeLoyalty) CounterCreate(_ context.Context, _ uint64, name, scope str
 	return loyaltyrpc.Counter{Name: engine.NormalizeCounterName(name), Scope: scope}, nil
 }
 
-func (f *fakeLoyalty) CounterSet(context.Context, uint64, string, uint64, string, int64) (bool, error) {
+func (f *fakeLoyalty) CounterSet(context.Context, engine.CounterAssignment) (bool, error) {
 	f.setCalls++
 	return f.setFound, nil
 }

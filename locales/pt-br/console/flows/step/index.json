@@ -1,0 +1,17 @@
+{
+  "then": "Então",
+  "variable": {
+    "user": "Nome de exibição",
+    "userId": "ID do usuário",
+    "args": "Argumentos",
+    "touser": "Primeiro argumento",
+    "tier": "Tier",
+    "months": "Meses",
+    "bits": "Bits",
+    "viewers": "Espectadores",
+    "input": "Entrada do espectador",
+    "title": "Título da transmissão",
+    "game": "Categoria",
+    "count": "Nova contagem"
+  }
+}

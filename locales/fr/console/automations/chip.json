@@ -1,0 +1,26 @@
+{
+  "user": "Le spectateur à l’origine du déclenchement",
+  "args": "Tout ce qui suit la commande",
+  "arg": "Un argument nommé : remplacez key",
+  "event": {
+    "user": "Nom d’affichage du spectateur",
+    "login": "Pseudo du spectateur",
+    "user_id": "ID utilisateur Twitch",
+    "tier": "Niveau d’abonnement",
+    "is_gift": "Indique si l’abonnement est un cadeau",
+    "months": "Nombre total de mois d’abonnement",
+    "streak": "Série en cours, en mois",
+    "message": "Texte du message",
+    "amount": "Nombre de bits ou de cadeaux",
+    "total": "Total offert jusqu’ici",
+    "anonymous": "Indique si c’était anonyme",
+    "viewers": "Spectateurs du raid",
+    "seconds": "Durée de la pub en secondes",
+    "automatic": "Indique si la coupure était automatique",
+    "reward": "Titre de la récompense",
+    "reward_id": "ID de la récompense",
+    "cost": "Coût de la récompense",
+    "input": "Texte saisi par le spectateur",
+    "type": "Type de stream"
+  }
+}

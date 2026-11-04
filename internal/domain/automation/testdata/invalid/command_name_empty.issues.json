@@ -1,0 +1,6 @@
+[
+  {
+    "path": "trigger.params.name",
+    "code": "required"
+  }
+]

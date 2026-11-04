@@ -40,6 +40,7 @@ func All(d engine.Deps) []module.Module {
 		Triggers(d),
 		EmotePlay(d),
 		SongQueue(d),
+		Automations(d),
 		TrialTemplate(),
 	}
 	registered := make(map[string]bool, len(mods))

@@ -7,7 +7,9 @@
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
-  import { NODE_SPECS, type FlowKind, type NodeSpec } from '#lib/flow/model';
+  import { getI18n } from '@bagel/kit';
+  import { groupLabel, stepLabel, stepSummary } from '#lib/flow/copy';
+  import { NODE_SPECS, type FlowKind, type NodeSpec, type StepGroup } from '#lib/flow/model';
   import { stepFocus } from '#lib/flow/keyboard';
 
   export type LibraryMode = FlowKind | 'search';
@@ -19,20 +21,19 @@
     onClose
   }: { mode: LibraryMode; focusToken?: number; onAdd: (type: string) => void; onClose: () => void } = $props();
 
-  const HEADINGS: Record<FlowKind, { title: string; hint: string }> = {
-    trigger: { title: 'When', hint: 'What starts this system' },
-    condition: { title: 'Only if', hint: 'Keep going only when this is true' },
-    reply: { title: 'Do', hint: 'What happens next' }
+  const { t } = getI18n();
+
+  const headings = (kind: FlowKind) => {
+    if (kind === 'trigger') return { title: t('flows.board.when'), hint: t('flows.board.whenHint') };
+    if (kind === 'condition') return { title: t('flows.board.onlyIf'), hint: t('flows.board.onlyIfHint') };
+    return { title: t('flows.board.do'), hint: t('flows.board.doHint') };
   };
   const TINTS: Record<FlowKind, string> = {
     trigger: 'var(--bb-green-glow)',
     condition: 'var(--bb-tan)',
     reply: 'var(--bb-muted-light)'
   };
-  const SOURCE_ORDER = ['Twitch', 'Discord', 'Modules', 'Basics'];
-
-  const sourceGroup = (source: string) =>
-    source.includes('Twitch') ? 'Twitch' : source.includes('Discord') ? 'Discord' : source.includes('Core') ? 'Basics' : 'Modules';
+  const GROUP_ORDER: readonly StepGroup[] = ['twitch', 'discord', 'modules', 'basics'];
 
   let query = $state('');
   let searchEl = $state<HTMLInputElement>();
@@ -53,9 +54,9 @@
     const pool = NODE_SPECS.filter(
       (s) =>
         (mode === 'search' || s.kind === mode) &&
-        (!q || `${s.label} ${s.summary} ${s.source}`.toLowerCase().includes(q))
+        (!q || `${stepLabel(t, s)} ${stepSummary(t, s)} ${groupLabel(t, s.group)}`.toLowerCase().includes(q))
     );
-    return SOURCE_ORDER.map((title) => ({ title, specs: pool.filter((s) => sourceGroup(s.source) === title) })).filter(
+    return GROUP_ORDER.map((group) => ({ group, title: groupLabel(t, group), specs: pool.filter((s) => s.group === group) })).filter(
       (g) => g.specs.length > 0
     );
   });
@@ -72,19 +73,19 @@
   <header class="head">
     {#if mode === 'search'}
       <div class="search">
-        <SearchInput bind:value={query} bind:element={searchEl} placeholder="Search all steps" fill />
+        <SearchInput bind:value={query} bind:element={searchEl} placeholder={t('flows.board.searchAll')} fill />
       </div>
     {:else}
       <div class="titles">
-        <span class="title">{HEADINGS[mode].title}</span>
-        <span class="hint">{HEADINGS[mode].hint}</span>
+        <span class="title">{headings(mode).title}</span>
+        <span class="hint">{headings(mode).hint}</span>
       </div>
     {/if}
-    <IconButton label="Close library" size="sm" onclick={onClose}><Icon name="x" size={14} /></IconButton>
+    <IconButton label={t('flows.board.closeLibrary')} size="sm" onclick={onClose}><Icon name="x" size={14} /></IconButton>
   </header>
 
   <Scroller fill padding="0 8px 16px" smooth>
-    {#each sections as group (group.title)}
+    {#each sections as group (group.group)}
       <section class="group">
         <h3 class="group-title">{group.title}</h3>
         {#each group.specs as spec (spec.type)}
@@ -97,14 +98,14 @@
           >
             <IconTile size="sm" style="--tile: 32px; color: {TINTS[spec.kind]}"><Icon name={spec.icon} size={16} /></IconTile>
             <span class="copy">
-              <span class="name">{spec.label}</span>
-              <span class="summary">{spec.summary}</span>
+              <span class="name">{stepLabel(t, spec)}</span>
+              <span class="summary">{stepSummary(t, spec)}</span>
             </span>
           </button>
         {/each}
       </section>
     {:else}
-      <p class="empty">No steps match that search.</p>
+      <p class="empty">{t('flows.board.noStepsMatchSearch')}</p>
     {/each}
   </Scroller>
 </div>

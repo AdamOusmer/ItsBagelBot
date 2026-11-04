@@ -1,0 +1,74 @@
+{
+  "chatCommand": {
+    "label": "Comando de chat",
+    "summary": "Alguien escribe un comando en el chat",
+    "field": {
+      "trigger": {
+        "label": "Comando",
+        "placeholder": "!hug"
+      }
+    }
+  },
+  "chatWord": {
+    "label": "Palabra de chat",
+    "summary": "Alguien dice una palabra en el chat",
+    "field": {
+      "word": {
+        "label": "Palabra",
+        "placeholder": "bagel"
+      }
+    }
+  },
+  "follow": {
+    "label": "Nuevo follow",
+    "summary": "Alguien hace follow al canal"
+  },
+  "sub": {
+    "label": "Suscripción",
+    "summary": "Nueva suscripción, resub o regalo",
+    "field": {
+      "variant": {
+        "label": "Tipo",
+        "option": {
+          "any": "Cualquiera",
+          "new": "Nueva",
+          "resub": "Resub",
+          "gift": "Regalo"
+        }
+      }
+    }
+  },
+  "cheer": {
+    "label": "Cheer",
+    "summary": "Se hace un cheer con bits",
+    "field": {
+      "minBits": {
+        "label": "Mínimo de bits",
+        "unit": "bits"
+      }
+    }
+  },
+  "raid": {
+    "label": "Raid",
+    "summary": "Otro canal te hace raid",
+    "field": {
+      "minViewers": {
+        "label": "Mínimo de espectadores",
+        "unit": "espectadores"
+      }
+    }
+  },
+  "reward": {
+    "label": "Recompensa de puntos del canal",
+    "summary": "Se canjea una recompensa",
+    "field": {
+      "reward": {
+        "label": "Recompensa"
+      }
+    }
+  },
+  "streamOnline": {
+    "label": "El stream empieza",
+    "summary": "Empieza tu stream"
+  }
+}

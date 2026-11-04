@@ -11,7 +11,7 @@ import * as liveHub from '../live-hub';
 import { dashboardL1CacheCapacity } from '../config-sanity';
 
 export function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `state:${id}`, `tier:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `govee-devices:${id}`, `govee-scenes:${id}`, `fetches:${id}`];
+  return [`grant:${id}`, `state:${id}`, `tier:${id}`, `commands:${id}`, `modules:${id}`, `automations:${id}`, `delegations:${id}`, `govee-devices:${id}`, `govee-scenes:${id}`, `fetches:${id}`];
 }
 
 const stateKeys = (id: string) => [`state:${id}`];
@@ -28,6 +28,7 @@ export const SCOPES: ScopeMap = {
   status: (id) => [`state:${id}`, `tier:${id}`, `ban:${id}`],
   commands: (id) => [`commands:${id}`],
   modules: (id) => [`modules:${id}`],
+  automations: (id) => [`automations:${id}`],
   delegation: (id) => [`delegations:${id}`],
   notifications: (id) => [id === '*' ? 'notifications:' : `notifications:${id}`],
   locale: stateKeys,

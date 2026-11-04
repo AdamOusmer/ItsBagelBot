@@ -30,7 +30,6 @@ export interface DashboardSectionDef extends SectionDef {
   /** Visible when any of these existing delegation grants opens the page. */
   grantsAny?: readonly GrantSection[];
   offline?: boolean;
-  demoOnly?: boolean;
   beta?: boolean;
 }
 
@@ -58,7 +57,6 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     href: '/flows',
     match: ['/flows'],
     ownerOnly: true,
-    demoOnly: true,
     beta: true
   },
   {
@@ -66,7 +64,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     labelKey: 'nav.modules',
     icon: 'modules',
     href: '/modules',
-    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty'],
+    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/automations', '/loyalty'],
     grant: 'modules'
   },
   {
@@ -114,7 +112,6 @@ type NavOpts = {
   section: SectionId;
   t?: (key: MessageKey) => string;
   moduleLinks: readonly NavChild[];
-  showDemoSections?: boolean;
 };
 
 function grantedTo(def: DashboardSectionDef, sections: readonly string[]): boolean {
@@ -124,7 +121,6 @@ function grantedTo(def: DashboardSectionDef, sections: readonly string[]): boole
 
 function sectionVisible(def: DashboardSectionDef, opts: NavOpts): boolean {
   if (def.offline) return false;
-  if (def.demoOnly && opts.showDemoSections !== true) return false;
   if (!opts.isDelegate) return true;
   return !def.ownerOnly && grantedTo(def, opts.sections);
 }

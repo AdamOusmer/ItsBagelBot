@@ -2,19 +2,29 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { onMount, tick, untrack } from 'svelte';
+  import { beforeNavigate, goto } from '$app/navigation';
+  import { page } from '$app/state';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Icon from '#lib/components/flow/FlowIcon.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import Tooltip from '@bagel/ui/svelte/Tooltip.svelte';
+  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { toast } from '@bagel/ui/svelte/toast';
   import { getI18n } from '@bagel/kit';
   import FlowCanvas, { type FlowCanvasApi, type FlowTrace } from '#lib/components/flow/FlowCanvas.svelte';
   import type { LibraryMode } from '#lib/components/flow/StepLibrary.svelte';
+  import { postAction } from '#lib/client-actions.svelte';
   import { FlowHistory } from '#lib/flow/history';
   import { allowed, resolveShortcut, type Shortcut } from '#lib/flow/keyboard';
+  import { isStale, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
   import { addNode } from '#lib/flow/ops';
-  import { outputsFor, specFor, type Flow } from '#lib/flow/model';
-  import { savedEnabled, savedPreviews } from '#lib/flow/session.svelte';
-  import { flowPreview } from '#lib/flow/thumb';
+  import { newFlow, outputsFor, specFor, type Flow } from '#lib/flow/model';
+  import { flowRouteId, parseFlowRouteId } from '#lib/flow/ref';
+  import type { SaveReply, ToggleReply } from '#lib/flow/replies';
+  import type { UpgradeReport } from '#lib/server/flow-store';
   import { SHEET_QUERY, sheetDrag } from '#lib/flow/sheet';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import type { PageData } from './$types';
@@ -22,10 +32,15 @@
   let { data }: { data: PageData } = $props();
 
   const TOOLS = [
-    { mode: 'trigger', label: 'When', icon: 'bolt' },
-    { mode: 'condition', label: 'Only if', icon: 'branch' },
-    { mode: 'reply', label: 'Do', icon: 'messageSquare' }
+    { mode: 'trigger', icon: 'bolt' },
+    { mode: 'condition', icon: 'branch' },
+    { mode: 'reply', icon: 'messageSquare' }
   ] as const;
+
+  const toolLabel = (mode: (typeof TOOLS)[number]['mode']) => {
+    if (mode === 'trigger') return t('flows.board.when');
+    return mode === 'condition' ? t('flows.board.onlyIf') : t('flows.board.do');
+  };
 
   const PANEL_ROOM = 392;
   const SHEET_SHARE = 0.56;
@@ -37,17 +52,28 @@
   const loadLibrary = () => import('#lib/components/flow/StepLibrary.svelte');
   const loadTestRun = () => import('#lib/components/flow/TestRunPanel.svelte');
 
-  let flow = $state<Flow>(structuredClone(untrack(() => data.flow)));
+  const { t } = getI18n();
+
+  const opened = untrack(() => structuredClone(data.flow ?? newFlow('')));
+  let flow = $state<Flow>({ ...opened, name: opened.name || t('flows.page.untitled') });
   const contentOf = (f: Flow) =>
     JSON.stringify({ name: f.name, edges: f.edges, nodes: f.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config })) });
 
-  let baseline = $state(contentOf(untrack(() => data.flow)));
+  let baseline = $state(contentOf(untrack(() => flow)));
+  const drawable = untrack(() => data.flow !== null);
+  let ref = $state(untrack(() => data.ref));
+  let revision = $state(untrack(() => data.revision));
+  let enabled = $state(untrack(() => flow.enabled));
+  let saving = $state(false);
+  let staleLatest = $state<string | null>(null);
+  let upgrade = $state<UpgradeReport | null>(null);
+  let leaving = false;
   let selectedId = $state<string | null>(null);
   let testRunOpen = $state(false);
   let trace = $state<FlowTrace | null>(null);
   let autoTidy = $state(true);
   let canvas = $state<FlowCanvasApi>();
-  let libMode = $state<LibraryMode | null>(untrack(() => (data.flow.nodes.length === 0 ? 'trigger' : null)));
+  let libMode = $state<LibraryMode | null>(untrack(() => (data.flow?.nodes.length === 0 ? 'trigger' : null)));
   let flyoutEl = $state<HTMLElement>();
   let editorEl = $state<HTMLElement>();
   let barEl = $state<HTMLElement>();
@@ -60,7 +86,6 @@
   let libReturn: HTMLElement | null = null;
   let runReturn: HTMLElement | null = null;
 
-  const { t } = getI18n();
   const edits = new FlowHistory(untrack(() => flow));
   const dirty = $derived(contentOf(flow) !== baseline);
   const panelRoom = $derived((inspecting && selectedId) || testRunOpen ? PANEL_ROOM : 0);
@@ -209,7 +234,7 @@
       case 'duplicate':
         return canvas?.duplicateSelected() ?? false;
       case 'save':
-        if (dirty) save();
+        if (dirty) void save();
         return true;
       case 'zoom-in':
       case 'zoom-out':
@@ -256,12 +281,86 @@
     if (libMode && flyoutEl && !flyoutEl.contains(e.target as Node)) libMode = null;
   }
 
-  const enabled = $derived(savedEnabled.get(flow.id) ?? flow.enabled);
+  const discard = createDiscardGuard(() => dirty && !leaving);
 
-  function save() {
-    baseline = contentOf(flow);
-    savedPreviews.set(flow.id, flowPreview(flow));
-    toast('success', `Saved changes to "${flow.name}".`);
+  beforeNavigate(({ cancel, to, type }) => {
+    if (!dirty || leaving) return;
+    cancel();
+    if (type === 'leave' || !to) return;
+    const target = to.url;
+    discard.guard(() => {
+      leaving = true;
+      void goto(target);
+    });
+  });
+
+  function focusStep(id: string) {
+    selectedId = id;
+    inspecting = true;
+    inspectFocus++;
+    canvas?.focusNode(id);
+  }
+
+  function announceWarnings(warnings: Extract<SaveReply, { ok: true }>['warnings']) {
+    for (const text of warningMessages(t, warnings)) toast('info', text, { ttlMs: 8000 });
+  }
+
+  function saved(reply: Extract<SaveReply, { ok: true }>, sent: Flow) {
+    ref = parseFlowRouteId(reply.id);
+    revision = reply.revision;
+    enabled = reply.enabled;
+    flow.name = reply.name;
+    flow.enabled = reply.enabled;
+    baseline = contentOf({ ...sent, name: reply.name });
+    toast('success', t('flows.saved', { name: reply.name }));
+    announceWarnings(reply.warnings);
+    if (reply.id !== page.params.id) void goto(`/flows/${reply.id}`, { replaceState: true });
+  }
+
+  function refused(reply: Extract<SaveReply, { ok: false }>) {
+    if (reply.reason === 'needs_upgrade' && reply.upgrade) {
+      upgrade = reply.upgrade;
+    } else if (isStale(reply) && reply.latestRevision) {
+      staleLatest = reply.latestRevision;
+    } else {
+      const step = stepOf(reply.issues ?? [], flow.nodes);
+      const message = saveMessage(t, reply);
+      toast('danger', step ? `${message} ${t('flows.saveStep')}` : message, { ttlMs: 9000 });
+      if (step) focusStep(step);
+    }
+  }
+
+  async function save(extra: { revision?: string; confirmUpgrade?: boolean } = {}) {
+    if (saving) return;
+    saving = true;
+    const sent = $state.snapshot(flow) as Flow;
+    const body = new FormData();
+    body.set('payload', JSON.stringify({ flow: sent, ref, expectedRevision: extra.revision ?? revision ?? undefined, confirmUpgrade: extra.confirmUpgrade }));
+    const reply = await postAction<SaveReply>('save', body);
+    saving = false;
+    if (!reply) toast('danger', t('flows.saveFailed'));
+    else if (reply.ok) saved(reply, sent);
+    else refused(reply);
+  }
+
+  async function setEnabled(next: boolean) {
+    const before = enabled;
+    enabled = next;
+    flow.enabled = next;
+    if (!ref) return;
+    const body = new FormData();
+    body.set('id', flowRouteId(ref));
+    body.set('enabled', next ? '1' : '0');
+    body.set('revision', revision ?? '');
+    const reply = await postAction<ToggleReply>('toggle', body, '/flows');
+    if (reply?.ok) {
+      revision = reply.revision;
+      announceWarnings(reply.warnings);
+      return;
+    }
+    enabled = before;
+    flow.enabled = before;
+    toast('danger', reply ? toggleMessage(t, reply) : t('flows.toggleFailed'));
   }
 
   async function testRun() {
@@ -294,8 +393,9 @@
 
 <svelte:head><title>{flow.name} · {data.navLabels['nav.flows']} · ItsBagelBot</title></svelte:head>
 
-<svelte:window onkeydown={onKeyDown} />
+<svelte:window onkeydown={onKeyDown} onbeforeunload={(e) => dirty && !leaving && e.preventDefault()} />
 
+{#if drawable}
 <div class="editor" data-canvas="fill" data-flow-editor bind:this={editorEl}>
   <header class="bar" bind:this={barEl}>
     <div class="bar-start">
@@ -303,22 +403,22 @@
         <Icon name="arrowLeft" size={16} />
         <span class="back-text">{data.navLabels['nav.flows']}</span>
       </a>
-      <span class="flow-name">{flow.name}</span>
+      <span class="flow-name"><Input fill maxlength={64} aria-label={t('flows.nameLabel')} bind:value={flow.name} /></span>
       <Switch
         checked={enabled}
-        label={enabled ? `Turn off ${flow.name}` : `Turn on ${flow.name}`}
-        onCheckedChange={(next) => savedEnabled.set(flow.id, next)}
+        label={enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
+        onCheckedChange={(next) => void setEnabled(next)}
       />
     </div>
 
     <div class="bar-end">
-      <Button variant="ghost" onclick={testRun}><Icon name="play" size={14} /> <span class="run-text">Test run</span></Button>
-      <Button variant="primary" disabled={!dirty} onclick={save}>Save</Button>
+      <Button variant="ghost" onclick={testRun}><Icon name="play" size={14} /> <span class="run-text">{t('flows.board.testRun')}</span></Button>
+      <Button variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}>{t('flows.page.save')}</Button>
     </div>
   </header>
 
   <div class="body">
-    <nav class="rail" aria-label="Step tools" bind:this={railEl}>
+    <nav class="rail" aria-label={t('flows.board.stepTools')} bind:this={railEl}>
       {#each TOOLS as tool (tool.mode)}
         <button
           class="tool"
@@ -328,11 +428,11 @@
           onclick={(e) => toggleLibrary(tool.mode, e.detail === 0)}
         >
           <Icon name={tool.icon} size={22} />
-          <span>{tool.label}</span>
+          <span>{toolLabel(tool.mode)}</span>
         </button>
       {/each}
-      <Tooltip text="Search all steps" placement="bottom">
-        <button class="tool" type="button" aria-label="Search all steps" aria-pressed={libMode === 'search'} onclick={(e) => toggleLibrary('search', e.detail === 0)}>
+      <Tooltip text={t('flows.board.searchAll')} placement="bottom">
+        <button class="tool" type="button" aria-label={t('flows.board.searchAll')} aria-pressed={libMode === 'search'} onclick={(e) => toggleLibrary('search', e.detail === 0)}>
           <Icon name="search" size={22} />
         </button>
       </Tooltip>
@@ -382,7 +482,67 @@
   </div>
 </div>
 
+<ConfirmDialog
+  open={discard.open}
+  title={t('flows.discardTitle')}
+  body={t('flows.discardBody')}
+  confirmLabel={t('flows.discardConfirm')}
+  cancelLabel={t('flows.discardKeep')}
+  tone="danger"
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
+/>
+
+<ConfirmDialog
+  open={staleLatest !== null}
+  title={t('flows.staleTitle')}
+  body={t('flows.staleBody')}
+  confirmLabel={t('flows.staleOverwrite')}
+  cancelLabel={t('flows.staleKeep')}
+  onCancel={() => (staleLatest = null)}
+  onConfirm={() => {
+    const latest = staleLatest ?? undefined;
+    staleLatest = null;
+    void save({ revision: latest });
+  }}
+/>
+
+<ConfirmDialog
+  open={upgrade !== null}
+  title={t('flows.upgradeTitle')}
+  body={upgrade?.from === 'alert' ? t('flows.upgradeAlertBody') : t('flows.upgradeCommandBody')}
+  confirmLabel={t('flows.upgradeConfirm')}
+  onCancel={() => (upgrade = null)}
+  onConfirm={() => {
+    upgrade = null;
+    void save({ confirmUpgrade: true });
+  }}
+>
+  <ul class="notes">
+    {#each upgrade ? upgradeNotes(t, upgrade) : [] as note (note)}<li>{note}</li>{/each}
+  </ul>
+</ConfirmDialog>
+{:else}
+  <div class="unsupported">
+    <EmptyState title={t('flows.unsupportedTitle')} body={t('flows.unsupportedBody')}>
+      <ButtonLink variant="primary" href="/automations">{t('flows.unsupportedCta')}</ButtonLink>
+    </EmptyState>
+  </div>
+{/if}
+
 <style>
+  .notes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding-left: 18px;
+  }
+  .unsupported {
+    display: flex;
+    justify-content: center;
+    padding-top: 48px;
+  }
   .editor {
     --editor-top: calc(var(--bb-topbar-height) + 6px);
     position: relative;
@@ -448,14 +608,9 @@
     background: rgba(var(--bb-white-rgb), 0.08);
   }
   .flow-name {
+    display: block;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--bb-font-body);
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--bb-white);
+    width: min(280px, 36vw);
   }
   .body {
     position: relative;

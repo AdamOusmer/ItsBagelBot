@@ -180,11 +180,17 @@ func banOutgress(o *module.Output) (outgress.Message, error) {
 	}{banData{UserID: o.TargetUserID, Duration: int(o.Duration), Reason: o.Reason}})
 }
 
+const shieldStatusOff = "off"
+
 func shieldOutgress(o *module.Output) (outgress.Message, error) {
+	payload := []byte(`{"is_active":true}`)
+	if o.Status == shieldStatusOff {
+		payload = []byte(`{"is_active":false}`)
+	}
 	return outgress.Message{
 		Type:          outgress.TypeShieldMode,
 		BroadcasterID: o.BroadcasterID,
-		Payload:       []byte(`{"is_active":true}`),
+		Payload:       payload,
 	}, nil
 }
 

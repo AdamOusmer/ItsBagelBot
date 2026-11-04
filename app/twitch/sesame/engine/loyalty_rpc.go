@@ -153,10 +153,10 @@ func (l *LoyaltyRPC) CounterCreate(ctx context.Context, broadcasterID uint64, na
 	return *reply.Counter, nil
 }
 
-func (l *LoyaltyRPC) CounterSet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, value int64) (bool, error) {
-	req := loyaltyrpc.Request{UserID: fmtID(broadcasterID), Name: name, Command: command, Value: value}
-	if viewerID != 0 {
-		req.ViewerID = fmtID(viewerID)
+func (l *LoyaltyRPC) CounterSet(ctx context.Context, set CounterAssignment) (bool, error) {
+	req := loyaltyrpc.Request{UserID: fmtID(set.BroadcasterID), Name: set.Name, Command: set.Command, Value: set.Value}
+	if set.ViewerID != 0 {
+		req.ViewerID = fmtID(set.ViewerID)
 	}
 	reply, err := l.call(ctx, "counter.set", req)
 	if err != nil {

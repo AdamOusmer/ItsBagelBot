@@ -41,6 +41,7 @@ type Request struct {
 	Def    *FetchDef `json:"def,omitempty"`
 	DryRun bool      `json:"dry_run,omitempty"`
 	Fresh  bool      `json:"fresh,omitempty"`
+	Body   string    `json:"body,omitempty"`
 
 	Region   string `json:"region,omitempty"`
 	Platform string `json:"platform,omitempty"`
@@ -216,8 +217,9 @@ type GoveeScenesReply struct {
 }
 
 type GoveeControlReply struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
+	OK           bool   `json:"ok"`
+	Error        string `json:"error,omitempty"`
+	SceneApplied bool   `json:"scene_applied,omitempty"`
 }
 
 type SpotifyTrack struct {

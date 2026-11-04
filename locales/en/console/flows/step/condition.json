@@ -1,0 +1,58 @@
+{
+  "role": {
+    "label": "User level",
+    "summary": "Only certain viewers pass",
+    "field": {
+      "level": {
+        "label": "At least",
+        "option": {
+          "everyone": "Everyone",
+          "sub": "Subscriber",
+          "vip": "VIP",
+          "mod": "Moderator",
+          "lead_mod": "Lead moderator",
+          "broadcaster": "Broadcaster"
+        }
+      }
+    },
+    "out": { "yes": "Allowed", "no": "Blocked" }
+  },
+  "user": {
+    "label": "Specific user",
+    "summary": "Only this viewer passes",
+    "field": {
+      "login": { "label": "Username", "placeholder": "itsbagelbot" }
+    },
+    "out": { "yes": "This user", "no": "Anyone else" }
+  },
+  "cooldown": {
+    "label": "Cooldown",
+    "summary": "Wait between runs",
+    "field": {
+      "seconds": { "label": "Cooldown", "unit": "seconds" },
+      "perUser": { "label": "Per viewer" }
+    },
+    "out": { "yes": "Ready", "no": "Cooling down" }
+  },
+  "compare": {
+    "label": "Compare value",
+    "summary": "Check a variable",
+    "field": {
+      "left": { "label": "Value", "placeholder": "{bits}" },
+      "op": {
+        "label": "Is",
+        "option": { "gte": "at least", "lt": "less than", "eq": "equal to", "contains": "contains" }
+      },
+      "right": { "label": "This value", "placeholder": "1000" }
+    },
+    "out": { "yes": "Yes", "no": "No" }
+  },
+  "chance": {
+    "label": "Random chance",
+    "summary": "Pass some of the time",
+    "field": {
+      "percent": { "label": "Chance", "unit": "%" }
+    },
+    "out": { "yes": "Hit", "no": "Miss" }
+  }
+}

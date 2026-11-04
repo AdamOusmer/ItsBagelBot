@@ -19,7 +19,7 @@ export type GoveeTarget = Pick<GoveeDevice, 'device' | 'sku'>;
 const devicesCacheKey = (userId: string) => `govee-devices:${userId}`;
 
 const scenesCachePrefix = (userId: string) => `govee-scenes:${userId}`;
-const scenesCacheKey = (userId: string, target: GoveeTarget) => `${scenesCachePrefix(userId)}:${target.sku}:${target.device}`;
+const scenesCacheKey = (userId: string, target: GoveeTarget) => `${scenesCachePrefix(userId)}:${target.sku}|${target.device}`;
 
 const REWARD_PROMPT = 'Type a colour: a name like blue, or a hex code like #00ccff';
 
