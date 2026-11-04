@@ -11,5 +11,7 @@ await assertProductionClean({
   // Verbatim from billing/demo-checkout/copy/en.json; drift makes this check pass vacuously.
   demoCopy: ['No card is charged', 'Demo checkout',
     // The Spotify sample-key shortcut must be erased, including source maps.
-    'preview-client-id']
+    'preview-client-id',
+    // Verbatim from routes/(app)/flows and lib/flow/demo.ts; drift makes this check pass vacuously.
+    'Pick what happens on stream', 'What starts this system', 'Hugs someone, most of the time']
 });

@@ -17,7 +17,7 @@ const consoleRoutes = /\/src\/routes\/(\(app\)\/|welcome\/\+page\.svelte$|\+erro
 
 export default defineConfig({
   plugins: [
-    stripDemoRoutes(['/billing/demo-checkout/']),
+    stripDemoRoutes(['/billing/demo-checkout/', '/(app)/flows/']),
     i18nCatalogs({ exclude: ['admin'], slices: true }),
     i18nSlices(),
     bundledUiSheets({ consoleRoutes }),

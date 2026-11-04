@@ -95,7 +95,8 @@
   const navLabel = (key: string) => data.navLabels[key] ?? key;
   const items = $derived(dashboardNavItems({
     isDelegate, sections, section, t: navLabel,
-    moduleLinks: data.moduleNav
+    moduleLinks: data.moduleNav,
+    showDemoSections: data.showDemoSections
   }));
   const groups = $derived(dashboardNavGroups(items, t));
   const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
