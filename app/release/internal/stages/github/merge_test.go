@@ -122,32 +122,6 @@ func TestMergePRs(t *testing.T) {
 			mergeResult{Code: deploy.FailNotMergeable, Target: "base"},
 		},
 		{
-			"merges once GitHub's silence on mergeability outlasts the limit",
-			withOpenPR(func(p *fakePR) { p.Mergeable = nil }),
-			merged,
-		},
-		{
-			"stops when mergeability stays unknown and GitHub refuses the merge",
-			withOpenPR(func(p *fakePR) { p.Mergeable, p.conflict = nil, true }),
-			mergeResult{Code: deploy.FailNotMergeable, Target: "base"},
-		},
-		{
-			"rides out a GitHub 5xx",
-			func(f *fixture) {
-				withOpenPR(nil)(f)
-				f.gh.flakes["pr"] = 2
-			},
-			merged,
-		},
-		{
-			"fails once GitHub keeps answering 5xx",
-			func(f *fixture) {
-				withOpenPR(nil)(f)
-				f.gh.flakes["pr"] = 99
-			},
-			mergeResult{Code: deploy.FailGitHub, Target: "base"},
-		},
-		{
 			"merge ahead of the target moves it",
 			withMergedPR("base", "c2"),
 			mergeResult{Done: true, Target: "c2", Merged: []int{5}},
@@ -161,17 +135,55 @@ func TestMergePRs(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f := newFixture(t, newRun(deploy.KindBump))
-			tc.setup(f)
-
-			done, err := f.runStage(t, deploy.StageMergePRs)
-
-			run := f.sink.View()
-			res := mergeResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, Target: run.TargetSHA, Merged: run.Outputs.MergedPRs}
-			if fl, ok := ports.AsFail(err); ok {
-				res.Tail = fl.LogTail
-			}
-			assert.Equal(t, tc.want, res)
+			assert.Equal(t, tc.want, runMerge(t, tc.setup))
 		})
 	}
+}
+
+func TestMergePRsWhenGitHubMisbehaves(t *testing.T) {
+	merged := mergeResult{Calls: []string{"merge #5", "delete feat/x"}, Target: "merge5", Merged: []int{5}}
+	flaky := func(failures int) func(*fixture) {
+		return func(f *fixture) {
+			withOpenPR(nil)(f)
+			f.gh.flakes["pr"] = failures
+		}
+	}
+	cases := []struct {
+		name  string
+		setup func(*fixture)
+		want  mergeResult
+	}{
+		{
+			"merges once GitHub's silence on mergeability outlasts the limit",
+			withOpenPR(func(p *fakePR) { p.Mergeable = nil }),
+			merged,
+		},
+		{
+			"stops when mergeability stays unknown and GitHub refuses the merge",
+			withOpenPR(func(p *fakePR) { p.Mergeable, p.conflict = nil, true }),
+			mergeResult{Code: deploy.FailNotMergeable, Target: "base"},
+		},
+		{"rides out a GitHub 5xx", flaky(2), merged},
+		{"fails once GitHub keeps answering 5xx", flaky(99), mergeResult{Code: deploy.FailGitHub, Target: "base"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, runMerge(t, tc.setup))
+		})
+	}
+}
+
+func runMerge(t *testing.T, setup func(*fixture)) mergeResult {
+	t.Helper()
+	f := newFixture(t, newRun(deploy.KindBump))
+	setup(f)
+
+	done, err := f.runStage(t, deploy.StageMergePRs)
+
+	run := f.sink.View()
+	res := mergeResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, Target: run.TargetSHA, Merged: run.Outputs.MergedPRs}
+	if fl, ok := ports.AsFail(err); ok {
+		res.Tail = fl.LogTail
+	}
+	return res
 }
