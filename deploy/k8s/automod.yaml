@@ -58,7 +58,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: automod
-          image: ghcr.io/adamousmer/bagel-automod:233d48fab182d1a739fc1642f59448e523903c8b@sha256:d9fed84182d4dd6893f31867aef7b7265c918461259f7e105c6f5722e5ce2928
+          image: ghcr.io/adamousmer/bagel-automod:d4369006db51f9531af49aba25766ff419d5a84a@sha256:e78b474d585c5c00d74af6f0dd7d1f1a8e1b0aef04b8a948510f550fd5339c03
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
