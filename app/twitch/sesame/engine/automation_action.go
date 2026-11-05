@@ -79,7 +79,9 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("counter_add", typed((*actionExec).counterAdd)).
 		Step("counter_set", typed((*actionExec).counterSet)).
 		Step("http_post", typed((*actionExec).httpPost)).
-		Step("lights", typed((*actionExec).lights))
+		Step("lights", typed((*actionExec).lights)).
+		Step("overlay_show", typed((*actionExec).overlayShow)).
+		Step("overlay_sound", typed((*actionExec).overlaySound))
 }
 
 func flowActions(b *actionTableBuilder) *actionTableBuilder {

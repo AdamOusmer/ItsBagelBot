@@ -256,8 +256,15 @@ function errorPageRedirect(event: HookEvent, res: Response): Response | null {
   return target ? new Response(null, { status: 303, headers: { location: target } }) : null;
 }
 
+const OVERLAY_ROUTES = '/overlay/';
+
 export const handle: Handle = async ({ event, resolve }) => {
   if (event.url.pathname === '/readyz') return resolve(event);
+  // Before the session opens: an expired cookie would otherwise earn this public route a Set-Cookie.
+  if (event.route.id?.startsWith(OVERLAY_ROUTES)) {
+    tagTransaction(newrelic, event, null);
+    return resolve(event);
+  }
 
   event.locals.session = openSessionCookie(event, COOKIE, open);
 

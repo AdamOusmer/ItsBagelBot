@@ -203,6 +203,8 @@ func init() {
 		"if":             registerNested(checkIf, ifBranches),
 		"http_post":      register(checkHTTPPost),
 		"lights":         register(checkLights),
+		"overlay_show":   register(checkOverlayShow),
+		"overlay_sound":  register(checkOverlaySound),
 		"stop":           register(checkEmpty),
 	}
 }

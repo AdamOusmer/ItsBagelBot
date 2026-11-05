@@ -1,0 +1,18 @@
+[
+  {
+    "path": "actions[0].params.url",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[0].params.volume",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[1].params.url",
+    "code": "required"
+  },
+  {
+    "path": "actions[1].params.volume",
+    "code": "out_of_range"
+  }
+]

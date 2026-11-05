@@ -1,0 +1,14 @@
+{
+  "title": "Overlay link",
+  "body": "Add this link to OBS as a browser source. Overlay steps show up there.",
+  "none": "No link yet.",
+  "active": "Your link is on. We only show it once.",
+  "create": "Make a link",
+  "rotate": "Make a new link",
+  "rotateWarning": "Your current link stops working right away.",
+  "rotateConfirm": "Replace link",
+  "rotateCancel": "Keep it",
+  "copyNow": "Copy this now. It won't show again.",
+  "copyLabel": "Overlay link",
+  "failed": "That didn't work. Try again."
+}

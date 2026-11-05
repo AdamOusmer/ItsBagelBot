@@ -82,6 +82,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 			Source:  rt.proj,
 			Runs:    rt.runs,
 			Limiter: rt.limiter,
+			Overlay: engine.NewValkeyOverlay(in.vc),
 		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,

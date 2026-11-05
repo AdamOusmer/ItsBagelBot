@@ -46,6 +46,7 @@ Allow: /
 # Not documents: JSON and SSE endpoints.
 Disallow: /stats/
 Disallow: /events
+Disallow: /overlay/
 
 # Session machinery. Crawling these spends budget on redirects to sign-in and,
 # for the two preference writes, on setting cookies for a client that has none.
