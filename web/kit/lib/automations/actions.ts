@@ -132,11 +132,12 @@ function checkRewardUpdate(c: Chk, p: RewardUpdateFields): void {
 }
 
 const OVERLAY_KINDS = ['text', 'image', 'video'];
+const OVERLAY_MEDIA_KINDS = ['image', 'video'];
 const OVERLAY_POSITIONS = ['top', 'center', 'bottom'];
 
 function checkOverlayShow(c: Chk, p: Wide<T.OverlayShowAction>): void {
   c.oneOf('kind', p.kind, OVERLAY_KINDS);
-  if (c.template('content', p.content) && p.kind !== 'text') checkHttpsTemplate(c, 'content', p.content);
+  if (c.template('content', p.content) && OVERLAY_MEDIA_KINDS.includes(p.kind)) checkHttpsTemplate(c, 'content', p.content);
   c.inRange('seconds', p.seconds, 1, MAX_OVERLAY_SECONDS);
   c.oneOf('position', p.position, OVERLAY_POSITIONS);
 }
