@@ -3,12 +3,13 @@
 import { describe, expect, test } from 'bun:test';
 import { definitionToFlow, flowToDefinition, validateDefinition, type FlowConfig } from '@bagel/kit/automations';
 import type { ChoiceSource } from './choices';
-import { NODE_SPECS, type FieldSpec, type Flow, type FlowNode, type NodeSpec } from './model';
+import { NODE_SPECS, fieldVisible, outputsFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec } from './model';
 
 type Config = Record<string, string | number | boolean>;
 
 const CHOICES: Record<ChoiceSource, { value: string; label: string; meta?: Record<string, string> }> = {
   rewards: { value: 'reward-1', label: 'Hydrate' },
+  manageableRewards: { value: 'reward-2', label: 'Hydrate' },
   counters: { value: 'deaths', label: 'deaths' },
   scenes: {
     value: 'snapshot:4:9',
@@ -19,7 +20,18 @@ const CHOICES: Record<ChoiceSource, { value: string; label: string; meta?: Recor
 
 const LIGHT: Config = { device: 'AA:BB:CC:DD:EE:FF:00:11', sku: 'H6008', deviceName: 'Desk lamp' };
 
-const TEXT: Record<string, string> = { trigger: '!hug', word: 'bagel', message: 'Thanks {user}!', left: '{bits}', right: '1000', color: '#f5a524' };
+const TEXT: Record<string, string> = {
+  trigger: '!hug',
+  word: 'bagel',
+  message: 'Thanks {user}!',
+  left: '{bits}',
+  right: '1000',
+  color: '#f5a524',
+  times: '3',
+  url: 'https://api.example.com/data',
+  content: 'https://cdn.example.com/a.png',
+  jsonPath: 'data.value'
+};
 
 const SHOWN_NOT_SAVED = new Set(['login', 'rewardTitle']);
 
@@ -68,8 +80,7 @@ function variations(spec: NodeSpec): Config[] {
 function configsFor(spec: NodeSpec): Config[] {
   return variations(spec).map((row) => {
     const config: Config = { ...row };
-    const hidden = (field: FieldSpec) => field.when && config[field.when.key] !== field.when.value;
-    for (const field of spec.fields) if (!hidden(field)) fill(config, field);
+    for (const field of spec.fields) if (fieldVisible(spec, { config }, field)) fill(config, field);
     return config;
   });
 }
@@ -78,7 +89,7 @@ const node = (id: string, type: string, config: Config): FlowNode => ({ id, type
 
 function drawn(spec: NodeSpec, config: Config): Flow {
   const chat = node('z', 'reply.chat', { message: 'Thanks {user}!' });
-  const port = spec.kind === 'condition' ? 'yes' : 'next';
+  const port = outputsFor(spec)[0]!.id;
   if (spec.kind === 'trigger') {
     return { id: 'f', name: 'f', enabled: true, nodes: [node('a', spec.type, config), chat], edges: [{ id: 'e1', from: 'a', port, to: 'z' }] };
   }

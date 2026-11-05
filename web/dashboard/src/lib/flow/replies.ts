@@ -22,7 +22,7 @@ export type ToggleReply =
 export type DeleteReply = { ok: true } | { ok: false; reason: 'not_found' | 'not_deletable' | 'failed' | 'denied'; error?: string };
 
 export type SaveRequest = {
-  flow: { name: string; enabled: boolean; nodes: unknown[]; edges: unknown[] };
+  flow: { name: string; enabled: boolean; nodes: unknown[]; edges: unknown[]; queue?: string };
   ref: FlowRef | null;
   expectedRevision?: string;
   confirmUpgrade?: boolean;

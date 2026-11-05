@@ -4,7 +4,7 @@
 import type { Chk } from './check';
 import { register, type Table, type Wide } from './engine';
 import { COMPARE_OPS } from './compare';
-import { CODE, MAX_LIST_ENTRIES, MAX_PATTERN_LENGTH, MAX_TEMPLATE_LENGTH } from './limits';
+import { CODE, MAX_LIST_ENTRIES, MAX_PATTERN_LENGTH, MAX_TEMPLATE_LENGTH, RECIPE_NAME_PATTERN } from './limits';
 import { isCounterChar } from './text';
 import { CMP_OPS, PERM_LEVELS } from './values';
 import { checkRegex } from './triggers';
@@ -19,6 +19,7 @@ import type {
   PermCondition,
   PointsCondition,
   UsersCondition,
+  VarCondition,
 } from './types';
 
 const LOGIN_PATTERN = /^[a-z0-9_]{1,25}$/;
@@ -70,6 +71,20 @@ function checkCompare(c: Chk, p: Wide<CompareCondition>): void {
   c.text('right', p.right, p.op === 'contains' ? 1 : 0, MAX_TEMPLATE_LENGTH);
 }
 
+export const VAR_SCOPES = ['channel', 'viewer'];
+const VAR_OPS = [...CMP_OPS, 'contains', 'exists'];
+
+export function checkVarIdentity(c: Chk, p: { scope: string; name: string }): void {
+  c.oneOf('scope', p.scope, VAR_SCOPES);
+  c.format('name', p.name, RECIPE_NAME_PATTERN);
+}
+
+function checkVar(c: Chk, p: Wide<VarCondition>): void {
+  checkVarIdentity(c, p);
+  c.oneOf('op', p.op, VAR_OPS);
+  c.text('value', p.value, 0, MAX_TEMPLATE_LENGTH);
+}
+
 export const CONDITIONS: Table = {
   perm: register<Wide<PermCondition>>({ level: 'string' }, (c, p) => c.oneOf('level', p.level, PERM_LEVELS)),
   users: register<Wide<UsersCondition>>(
@@ -86,4 +101,5 @@ export const CONDITIONS: Table = {
   ),
   category: register<Wide<CategoryCondition>>({ allow: 'strings', deny: 'strings' }, checkCategory),
   compare: register<Wide<CompareCondition>>({ left: 'string', op: 'string', right: 'string' }, checkCompare),
+  var: register<Wide<VarCondition>>({ scope: 'string', name: 'string', op: 'string', value: 'string' }, checkVar),
 };

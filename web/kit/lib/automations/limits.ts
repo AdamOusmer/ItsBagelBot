@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export const MAX_ACTIONS = 20;
+export const MAX_ACTIONS = 1000;
 export const MAX_DELAY_MS = 60000;
 export const MAX_CHAT_MESSAGES_PER_RUN = 3;
 export const MAX_RECURSION_DEPTH = 2;
@@ -22,6 +22,12 @@ export const MAX_COMMAND_ALIASES = 10;
 export const MAX_LIST_ENTRIES = 100;
 export const MAX_PATTERN_LENGTH = 200;
 export const MAX_FETCH_URL_LENGTH = 512;
+export const MAX_REWARD_COST = 10000000;
+export const MAX_OVERLAY_SECONDS = 60;
+export const MAX_OVERLAY_VOLUME = 100;
+export const MAX_VARIABLE_AMOUNT = 1_000_000_000_000_000;
+export const RECIPE_NAME_PATTERN = /^[A-Za-z0-9_]{1,32}$/;
+export const QUEUE_NAME_PATTERN = /^[a-z0-9_]{1,32}$/;
 
 export const VERSION = 1;
 

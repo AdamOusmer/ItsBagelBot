@@ -36,7 +36,25 @@
     "gt": "greater than",
     "gte": "at least",
     "lt": "less than",
-    "lte": "at most"
+    "lte": "at most",
+    "exists": "is set",
+    "upper": "Make uppercase",
+    "lower": "Make lowercase",
+    "trim": "Trim spaces",
+    "length": "Count characters",
+    "replace": "Replace",
+    "substring": "Take a part",
+    "split_pick": "Split and pick one",
+    "url_encode": "Make safe for a link"
+  },
+  "scope": {
+    "channel": "The channel",
+    "viewer": "This viewer"
+  },
+  "position": {
+    "top": "Top",
+    "center": "Center",
+    "bottom": "Bottom"
   },
   "status": {
     "fulfill": "Fulfill",
@@ -47,6 +65,9 @@
     "scene": "Scene"
   },
   "kind": {
+    "text": "Text",
+    "image": "Image",
+    "video": "Video",
     "channel": {
       "follow": "New follower",
       "subscribe": "New subscription",

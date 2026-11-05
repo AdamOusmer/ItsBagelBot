@@ -86,5 +86,33 @@
         "detail": "Hype redeem"
       }
     ]
+  },
+  {
+    "index": 2,
+    "sourceName": "Recipes v2",
+    "name": "Recipes v2",
+    "renamed": false,
+    "setup": [
+      {
+        "code": "http_target",
+        "path": "actions[5].params.actions[0]"
+      },
+      {
+        "code": "overlay_target",
+        "path": "actions[5].params.actions[0].params.on_failure[0]"
+      },
+      {
+        "code": "reward_target",
+        "path": "actions[6]"
+      },
+      {
+        "code": "overlay_target",
+        "path": "actions[8]"
+      }
+    ],
+    "status": "ready",
+    "issues": [],
+    "landing": "automation",
+    "review": []
   }
 ]

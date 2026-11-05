@@ -126,6 +126,7 @@
   },
   "choiceEmpty": {
     "rewards": "No channel point rewards yet. Create one in Channel points.",
+    "manageableRewards": "Twitch only lets us change rewards made here. Create one in Channel points.",
     "counters": "No counters yet. Create one in Counters.",
     "scenes": "This light has no scenes."
   },

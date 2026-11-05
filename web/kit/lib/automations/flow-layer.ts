@@ -125,6 +125,8 @@ function classifyEvent(definition: Definition): FlowLayer {
 }
 
 export function classifyFlow(definition: Definition): FlowLayer {
+  // Commands and alerts have no queue column, so a queued recipe stays an automation or the setting would be lost.
+  if (definition.queue) return AUTOMATION;
   if (definition.trigger.type === 'command') return classifyCommand(definition);
   if (definition.trigger.type === 'event') return classifyEvent(definition);
   return AUTOMATION;

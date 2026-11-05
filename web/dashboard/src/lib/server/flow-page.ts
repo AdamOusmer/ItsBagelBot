@@ -98,7 +98,8 @@ function flowOf(value: unknown): Flow | null {
   const nodes = listOf(value.nodes, MAX_NODES, nodeOf);
   const edges = listOf(value.edges, MAX_EDGES, edgeOf);
   if (!nodes || !edges) return null;
-  return { id: NEW_FLOW_ID, name: value.name.trim(), enabled: value.enabled === true, nodes, edges };
+  const flow: Flow = { id: NEW_FLOW_ID, name: value.name.trim(), enabled: value.enabled === true, nodes, edges };
+  return isText(value.queue, 64) ? { ...flow, queue: value.queue } : flow;
 }
 
 export function parseSaveRequest(text: string): { request: SaveRequest; flow: Flow } | null {

@@ -40,6 +40,8 @@ export type SetupCode =
   | 'users_list'
   | 'login_target'
   | 'http_target'
+  | 'reward_target'
+  | 'overlay_target'
   | 'lights_target'
   | 'slash_command'
   | 'run_removed'
@@ -171,12 +173,12 @@ const PRIVILEGED_ACTIONS = new Set([
 export const SHARE_REWRITTEN = {
   trigger: ['reward', 'event'],
   condition: ['users'],
-  action: ['lights', 'http_post', 'run']
+  action: ['lights', 'http_post', 'http_get', 'reward_update', 'overlay_show', 'overlay_sound', 'run']
 } as const;
 // Types reviewed as carrying only the user's own text, numbers and names. A new type is not shareable until it is added here.
 export const SHARE_REVIEWED = {
   trigger: ['command', 'timer', 'manual'],
-  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare'],
+  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var'],
   action: [
     'chat',
     'announce',
@@ -202,7 +204,13 @@ export const SHARE_REVIEWED = {
     'random_pick',
     'parallel',
     'if',
-    'stop'
+    'stop',
+    'var_set',
+    'var_add',
+    'var_delete',
+    'text',
+    'math',
+    'loop'
   ]
 } as const;
 const SHAREABLE: Record<keyof typeof SHARE_REVIEWED, ReadonlySet<string>> = {
@@ -236,17 +244,27 @@ function mapBranches(params: Params, path: string, visit: ActionVisit): Params {
   return { ...params, branches };
 }
 
-function mapIf(params: Params, path: string, visit: ActionVisit): Params {
+function mapArms(params: Params, arms: readonly string[], path: string, visit: ActionVisit): Params {
   const out: Params = { ...params };
-  for (const arm of ['then', 'else']) {
+  for (const arm of arms) {
     if (params[arm]) out[arm] = mapActions(list<Action>(params[arm]), `${path}.params.${arm}`, visit);
   }
   return out;
 }
 
+const API_ARMS = ['on_ok', 'on_failure'];
+
+const NAMED_ARMS = new Map<string, readonly string[]>([
+  ['if', ['then', 'else']],
+  ['loop', ['actions']],
+  ['http_get', API_ARMS],
+  ['http_post', API_ARMS]
+]);
+
 function mapNested(action: Action, path: string, visit: ActionVisit): Action {
   const params = action.params ?? {};
-  if (action.type === 'if') return { ...action, params: mapIf(params, path, visit) };
+  const arms = NAMED_ARMS.get(action.type);
+  if (arms) return { ...action, params: mapArms(params, arms, path, visit) };
   if (action.type === 'random_pick' || action.type === 'parallel') return { ...action, params: mapBranches(params, path, visit) };
   return action;
 }
@@ -328,17 +346,47 @@ function neutralLights(params: Params): Params {
   return out;
 }
 
+const NESTED_API_FIELDS = ['save_as', 'on_ok', 'on_failure'] as const;
+
+function apiPaths(params: Params): Params {
+  const out: Params = {};
+  for (const key of NESTED_API_FIELDS) if (params[key] !== undefined) out[key] = params[key];
+  return out;
+}
+
+const NEUTRAL_MEDIA = new Set(['image', 'video']);
+
+function neutralHttpGet(params: Params): Params {
+  const path = list(params.json_path).length > 0 ? { json_path: params.json_path } : {};
+  return { url: SETUP_URL, ...path, ...apiPaths(params) };
+}
+
+function neutralRewardUpdate(params: Params): Params {
+  return { reward_id: SETUP_REWARD_ID, enabled: params.enabled ?? null, cost: params.cost ?? null, reset_on_stream_end: params.reset_on_stream_end === true };
+}
+
+function neutralOverlayShow(params: Params): Params {
+  const { kind, content, seconds, position } = params;
+  return { kind, content: NEUTRAL_MEDIA.has(str(kind)) ? SETUP_URL : content, seconds, position };
+}
+
+type ExternalRule = { code: SetupCode; rewrite: (params: Params) => Params; applies?: (params: Params) => boolean };
+
+const EXTERNAL_RULES = new Map<string, ExternalRule>([
+  ['lights', { code: 'lights_target', rewrite: neutralLights }],
+  ['http_post', { code: 'http_target', rewrite: (params) => ({ url: SETUP_URL, ...apiPaths(params) }) }],
+  ['http_get', { code: 'http_target', rewrite: neutralHttpGet }],
+  ['reward_update', { code: 'reward_target', rewrite: neutralRewardUpdate }],
+  ['overlay_show', { code: 'overlay_target', rewrite: neutralOverlayShow, applies: (params) => NEUTRAL_MEDIA.has(str(params.kind)) }],
+  ['overlay_sound', { code: 'overlay_target', rewrite: (params) => ({ url: SETUP_URL, volume: params.volume }) }]
+]);
+
 function neutralExternal(action: Action, path: string, notes: Notes): Action {
   const params = action.params ?? {};
-  if (action.type === 'lights') {
-    notes.push({ code: 'lights_target', path });
-    return disabled(action, neutralLights(params));
-  }
-  if (action.type === 'http_post') {
-    notes.push({ code: 'http_target', path });
-    return disabled(action, { url: SETUP_URL });
-  }
-  return action;
+  const rule = EXTERNAL_RULES.get(action.type);
+  if (!rule || rule.applies?.(params) === false) return action;
+  notes.push({ code: rule.code, path });
+  return disabled(action, rule.rewrite(params));
 }
 
 function neutralSlash(action: Action, path: string, notes: Notes): Action {
@@ -403,6 +451,7 @@ function neutralDefinition(definition: Definition, run: RunRule): { definition: 
 
 function compactDefinition(definition: Definition): Definition {
   const out: Definition = { version: definition.version, trigger: definition.trigger };
+  if (definition.queue) out.queue = definition.queue;
   if (list(definition.conditions).length > 0) out.conditions = definition.conditions;
   if (list(definition.actions).length > 0) out.actions = definition.actions;
   return out;

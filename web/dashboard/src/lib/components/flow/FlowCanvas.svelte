@@ -34,14 +34,14 @@
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import FlowNodeCard from './FlowNode.svelte';
   import FlowStart, { START_H, START_W } from './FlowStart.svelte';
-  import { GRID, NODE_SPECS, NODE_W, outputsFor, specFor, type Flow, type FlowKind } from '../../flow/model';
+  import { GRID, NODE_SPECS, NODE_W, isSecondPort, outputsFor, specFor, type Flow, type FlowKind } from '../../flow/model';
   import { addNode, connect, duplicateNode, removeEdge, removeNode } from '../../flow/ops';
   import { neighbor, neighborAfterRemove, readingOrder, stepDelta, stepFocus } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
   import { describe } from '../../flow/describe';
   import { stepLabel, stepSummary } from '../../flow/copy';
-  import { inputY, nodeHeight, portY, tidy } from '../../flow/layout';
-  import { wirePath } from '../../flow/wire';
+  import { inputY, loopTails, nodeHeight, portY, tidy } from '../../flow/layout';
+  import { returnPath, wirePath } from '../../flow/wire';
   import { beginPinch, fitBox, pinchView, revealBox, type Inset, type Pinch } from '../../flow/touch';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit';
@@ -727,7 +727,22 @@
       const b = at(to.id);
       const p1 = { x: a.x + NODE_W, y: a.y + portY(spec, e.port) };
       const p2 = { x: b.x - ARROW_GAP, y: b.y + inputY };
-      return [{ id: e.id, d: wirePath(p1, p2), mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }, tone: e.port === 'no' ? 'no' : 'yes' }];
+      return [{ id: e.id, d: wirePath(p1, p2), mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }, tone: isSecondPort(spec, e.port) ? 'no' : 'yes' }];
+    })
+  );
+
+  const RETURN_DROP = 20;
+
+  const returns = $derived(
+    loopTails(flow).flatMap(({ loop, tail }) => {
+      const loopNode = nodeById(loop);
+      const tailNode = nodeById(tail);
+      if (!loopNode || !tailNode) return [];
+      const l = at(loop);
+      const a = at(tail);
+      const loopBottom = l.y + nodeHeight(specFor(loopNode.type));
+      const bottomY = Math.max(loopBottom, a.y + nodeHeight(specFor(tailNode.type))) + RETURN_DROP;
+      return [{ id: `${loop}:${tail}`, d: returnPath({ x: a.x + NODE_W, y: a.y + inputY }, { x: l.x + NODE_W / 2, y: loopBottom }, bottomY) }];
     })
   );
 
@@ -812,6 +827,9 @@
           d={wire.d}
           marker-end="url(#flow-arrow-yes)"
         />
+      {/each}
+      {#each returns as back (back.id)}
+        <path class="wire return" d={back.d} marker-end="url(#flow-arrow-no)" />
       {/each}
       {#each edges as edge (edge.id)}
         <path
@@ -999,6 +1017,10 @@
   }
   .wire.no {
     stroke: rgba(var(--bb-muted-rgb), 0.6);
+  }
+  .wire.return {
+    stroke: rgba(var(--bb-muted-rgb), 0.6);
+    stroke-dasharray: 2 6;
   }
   .wire.hot {
     stroke: var(--bb-green-glow);

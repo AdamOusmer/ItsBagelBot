@@ -24,6 +24,34 @@ export function portY(spec: NodeSpec | undefined, port: string): number {
 
 const isTriggerType = (type: string) => specFor(type)?.kind === 'trigger';
 
+const LOOP_TYPE = 'reply.loop';
+
+function reachFrom(flow: Flow, starts: string[]): Set<string> {
+  const seen = new Set<string>();
+  const walk = (ids: string[]) => {
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      walk(flow.edges.filter((e) => e.from === id).map((e) => e.to));
+    }
+  };
+  walk(starts);
+  return seen;
+}
+
+const portTargets = (flow: Flow, from: string, port: string) => flow.edges.filter((e) => e.from === from && e.port === port).map((e) => e.to);
+
+export function loopTails(flow: Flow): { loop: string; tail: string }[] {
+  return flow.nodes
+    .filter((node) => node.type === LOOP_TYPE)
+    .flatMap((node) => {
+      const after = reachFrom(flow, portTargets(flow, node.id, 'done'));
+      const body = [...reachFrom(flow, portTargets(flow, node.id, 'body'))];
+      const ends = body.filter((id) => !after.has(id) && !flow.edges.some((e) => e.from === id));
+      return ends.map((tail) => ({ loop: node.id, tail }));
+    });
+}
+
 function relax(flow: Flow, col: Map<string, number>, edge: FlowEdge): boolean {
   const from = col.get(edge.from);
   if (from === undefined) return false;

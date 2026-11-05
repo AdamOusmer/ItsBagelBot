@@ -25,18 +25,21 @@
   const device = $derived(String(node.config.device ?? ''));
   const sku = $derived(String(node.config.sku ?? ''));
 
+  const isReward = (source: ChoiceSource) => source === 'rewards' || source === 'manageableRewards';
+
   const chooseText = (source: ChoiceSource) => {
-    if (source === 'rewards') return t('flows.choose.reward');
+    if (isReward(source)) return t('flows.choose.reward');
     return source === 'counters' ? t('flows.choose.counter') : t('flows.choose.scene');
   };
 
   const emptyText = (source: ChoiceSource) => {
+    if (source === 'manageableRewards') return t('flows.choiceEmpty.manageableRewards');
     if (source === 'rewards') return t('flows.choiceEmpty.rewards');
     return source === 'counters' ? t('flows.choiceEmpty.counters') : t('flows.choiceEmpty.scenes');
   };
 
   const failedText = (source: ChoiceSource) => {
-    if (source === 'rewards') return t('flows.choiceProblem.rewards');
+    if (isReward(source)) return t('flows.choiceProblem.rewards');
     return source === 'counters' ? t('flows.choiceProblem.counters') : t('flows.choiceProblem.scenes');
   };
 
