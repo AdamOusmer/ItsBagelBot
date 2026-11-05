@@ -69,6 +69,7 @@ func outputActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("set_game", typed((*actionExec).setGame)).
 		Step("set_tags", typed((*actionExec).setTags)).
 		Step("commercial", typed((*actionExec).commercial)).
+		Step("reward_update", typed((*actionExec).rewardUpdate)).
 		Step("redemption", typed((*actionExec).redemption))
 }
 

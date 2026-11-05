@@ -87,6 +87,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		TrialStore:     in.vc,
 		Proj:           rt.proj,
 		Live:           rt.live,
+		RewardResets:   engine.NewValkeyRewardResets(in.vc),
 		Greet:          engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
 		Cooldown:       engine.NewValkeyCooldown(in.vc),
 		Special:        engine.NewSpecialSet(cfg.SpecialUserIDs),

@@ -6,6 +6,8 @@ package module
 import (
 	"context"
 	"time"
+
+	"ItsBagelBot/internal/domain/outgress"
 )
 
 type Kind int
@@ -47,6 +49,7 @@ type Output struct {
 	RewardID      string
 	RedemptionID  string
 	Status        string
+	Reward        *outgress.RewardUpdate
 }
 
 type Emit func(o *Output)

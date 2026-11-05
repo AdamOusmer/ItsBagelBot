@@ -156,6 +156,13 @@ func (x *actionExec) redemption(_ step, p automation.RedemptionAction) error {
 	return x.queue(o)
 }
 
+func (x *actionExec) rewardUpdate(_ step, p automation.RewardUpdateAction) error {
+	o := x.out(outgress.TypeRewardUpdate)
+	o.RewardID = p.RewardID
+	o.Reward = &outgress.RewardUpdate{Enabled: p.Enabled, Cost: p.Cost, ResetOnStreamEnd: p.ResetOnStreamEnd}
+	return x.queue(o)
+}
+
 func (x *actionExec) redemptionIDs() (rewardID, redemptionID string) {
 	if x.run.Env == nil || len(x.run.Env.Event) == 0 {
 		return "", ""

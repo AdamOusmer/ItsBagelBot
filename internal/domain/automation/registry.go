@@ -207,6 +207,7 @@ func init() {
 		"counter_add":    register(checkCounterAdd),
 		"counter_set":    register(checkCounterSet),
 		"redemption":     register(checkRedemption),
+		"reward_update":  register(checkRewardUpdate),
 		"delay":          register(checkDelay),
 		"random_pick":    registerNested(checkRandomPick, randomPickBranches),
 		"parallel":       registerNested(checkParallel, parallelBranches),
