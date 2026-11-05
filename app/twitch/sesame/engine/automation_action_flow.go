@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"maps"
 	"slices"
@@ -29,7 +30,8 @@ const (
 )
 
 type autoExecState struct {
-	running atomic.Int32
+	running  atomic.Int32
+	segments atomic.Int32
 }
 
 func (x *actionExec) stop(step, automation.EmptyParams) error {
@@ -48,7 +50,7 @@ func (x *actionExec) delay(_ step, p automation.DelayAction) error {
 }
 
 func (x *actionExec) randomPick(s step, p automation.RandomPickAction) error {
-	k := x.pickBranch(p.Branches)
+	k := x.pickBranch(s, p.Branches)
 	if k < 0 {
 		return failure("no_branch")
 	}
@@ -134,10 +136,11 @@ func (x *actionExec) schedulePath(s step, path int) {
 	cont := detachRun(x.run)
 	// Node, path and iteration keep replay ids distinct: outgress drops a repeated one.
 	cont.Replay = nestedReplayKey(x.run.replayKey(), s.EffectKey+"."+strconv.Itoa(path)+x.iter)
+	cont.Durable = nil
 	x.startContinuation(cont)
 }
 
-func (x *actionExec) pickBranch(branches []automation.Branch) int {
+func (x *actionExec) pickBranch(s step, branches []automation.Branch) int {
 	total := 0
 	for _, b := range branches {
 		total += max(b.Weight, 0)
@@ -145,7 +148,7 @@ func (x *actionExec) pickBranch(branches []automation.Branch) int {
 	if total <= 0 {
 		return -1
 	}
-	n := x.p.automationIntN(total)
+	n := x.branchRoll(s, total)
 	for i, b := range branches {
 		if n < b.Weight {
 			return i
@@ -153,6 +156,15 @@ func (x *actionExec) pickBranch(branches []automation.Branch) int {
 		n -= b.Weight
 	}
 	return len(branches) - 1
+}
+
+// A taken-over segment repeats: a fresh roll could pick the other branch and run both branches' effects.
+func (x *actionExec) branchRoll(s step, total int) int {
+	if x.run.Durable == nil {
+		return x.p.automationIntN(total)
+	}
+	sum := sha256.Sum256([]byte(x.run.replayKey() + "\x00" + s.EffectKey + x.iter))
+	return int(binary.BigEndian.Uint64(sum[:8]) % uint64(total))
 }
 
 func (x *actionExec) ifElse(s step, _ automation.IfAction) error {
@@ -205,6 +217,7 @@ func (x *actionExec) childRun(s step, target *automation.Plan) *AutomationRun {
 	child.Plan = target
 	child.Depth++
 	child.Record = automationrpc.RunRecord{}
+	child.OwnsSlot, child.Durable = false, nil
 	child.Locals = maps.Clone(x.run.Locals)
 	child.Iter = x.iter + "~" + s.EffectKey
 	child.Replay = nestedReplayKey(x.run.replayKey(), target.Automation.ID+child.Iter)
@@ -219,9 +232,13 @@ func (x *actionExec) startContinuation(cont *AutomationRun) {
 	budget := x.budget
 	budget.segment++
 	wait := time.Duration(x.delayMS) * time.Millisecond
+	c := continuation{run: cont, budget: budget, rest: x.rest, wait: wait}
+	if !x.p.durable.record(x.ctx, c) {
+		return
+	}
 	cont.Slot.retain()
 	x.p.autoExec.running.Add(1)
-	go x.p.continueRun(context.WithoutCancel(x.ctx), continuation{run: cont, budget: budget, rest: x.rest, wait: wait})
+	go x.p.continueRun(context.WithoutCancel(x.ctx), c)
 }
 
 type continuation struct {
@@ -237,11 +254,12 @@ func (p *Pipeline) continueRun(ctx context.Context, c continuation) {
 	defer run.Slot.drop()
 	ctx, cancel := context.WithTimeout(ctx, c.wait+continuationTimeout)
 	defer cancel()
-	if !sleepContext(ctx, c.wait) {
-		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeFailed, "canceled"
-		p.finishRun(ctx, run)
+	if !p.awaitResume(ctx, run, c.wait) {
 		return
 	}
+	p.autoExec.segments.Add(1)
+	defer p.autoExec.segments.Add(-1)
+	defer p.failPanickedSegment(ctx, run)
 	if p.automationsLockedFor(ctx, run.BroadcasterID) {
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, "premium_required"
 		p.finishRun(ctx, run)
@@ -257,6 +275,31 @@ func (p *Pipeline) continueRun(ctx context.Context, c continuation) {
 		p.log.Warn("automation continuation publish failed", zap.String("run_id", run.ID), zap.Error(err))
 	}
 	p.finishRun(ctx, run)
+}
+
+// A recorded run that crashed the process would be taken over and crash the next replica, and the next.
+func (p *Pipeline) failPanickedSegment(ctx context.Context, run *AutomationRun) {
+	if r := recover(); r != nil {
+		p.log.Error("automation segment panicked", zap.String("run_id", run.ID), zap.Any("panic", r))
+		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeFailed, "panic"
+		p.finishRun(ctx, run)
+	}
+}
+
+// Answers false when the run ended here or now belongs to another replica.
+func (p *Pipeline) awaitResume(ctx context.Context, run *AutomationRun, wait time.Duration) bool {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return p.durable.stillOurs(ctx, run)
+	case <-p.durable.haltedFor(run):
+		return false
+	case <-ctx.Done():
+		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeFailed, "canceled"
+		p.finishRun(ctx, run)
+		return false
+	}
 }
 
 func sleepContext(ctx context.Context, d time.Duration) bool {

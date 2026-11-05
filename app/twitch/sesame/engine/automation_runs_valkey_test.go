@@ -44,6 +44,27 @@ func TestValkeyRunLogReturnsNewestFirstWithFilterAndLimit(t *testing.T) {
 	assert.Equal(t, []string{"r4", "r2"}, runIDs(onlyA))
 }
 
+func TestValkeyRunLogShowsOneOutcomePerRun(t *testing.T) {
+	ctx := context.Background()
+	runs := NewValkeyRunLog(newHotPathTestClient(t), zap.NewNop())
+	bid := uniqueBroadcaster()
+	fork := automationrpc.ActionRecord{Type: "parallel", Status: automationrpc.StatusOK}
+	root := runRec("forked", "a")
+	root.Actions = []automationrpc.ActionRecord{fork}
+	path := runRec("forked", "a")
+	path.Outcome = automationrpc.OutcomeFailed
+	path.Actions = []automationrpc.ActionRecord{fork, {Type: "chat", Status: automationrpc.StatusFailed}}
+	runs.Record(ctx, bid, root)
+	runs.Record(ctx, bid, runRec("other", "a"))
+	runs.Record(ctx, bid, path)
+
+	got, err := runs.Recent(ctx, bid, "", 10)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"forked", "other"}, runIDs(got))
+	assert.Equal(t, automationrpc.OutcomeFailed, got[0].Outcome)
+	assert.Equal(t, path.Actions, got[0].Actions)
+}
+
 func TestValkeyRunLogKeepsOnlyRunsKept(t *testing.T) {
 	ctx := context.Background()
 	client := newHotPathTestClient(t)

@@ -58,6 +58,9 @@ type queueRigOptions struct {
 	loyalty LoyaltyStore
 	mods    func(*AutomationHook) module.Module
 	bid     uint64
+	durable *durableTiming
+	source  AutomationSource
+	dedup   *EventDedup
 }
 
 func newQueueRig(t *testing.T, opts queueRigOptions, autos ...automation.Automation) *queueRig {
@@ -83,8 +86,15 @@ func (r *queueRig) replica(opts queueRigOptions, autos []automation.Automation) 
 		mods = autoModule
 	}
 	d := Deps{
-		Proj: opts.proj, Live: liveAlways{}, Cooldown: opts.cool, Pub: r.pub, Log: zap.NewNop(), Loyalty: opts.loyalty,
-		Automations: AutomationDeps{Source: autoSource{list: autos}, Runs: r.runs, Limiter: opts.limiter, Queue: newValkeyRunQueue(r.client, opts.lease)},
+		Proj: opts.proj, Live: liveAlways{}, Cooldown: opts.cool, Pub: r.pub, Log: zap.NewNop(), Loyalty: opts.loyalty, Dedup: opts.dedup,
+		Automations: AutomationDeps{Source: opts.source, Runs: r.runs, Limiter: opts.limiter, Queue: newValkeyRunQueue(r.client, opts.lease)},
+	}
+	if d.Automations.Source == nil {
+		d.Automations.Source = autoSource{list: autos}
+	}
+	if opts.durable != nil {
+		d.Automations.Durable = NewValkeyDurableRuns(r.client)
+		d.Automations.durableTiming = *opts.durable
 	}
 	if d.Proj == nil {
 		d.Proj = fakeReader{modules: map[string]projection.ModuleView{AutomationsModuleName: on()}}
@@ -296,16 +306,6 @@ func TestRunQueueFullRefusesAndCloseCancelsWaitersWithoutHanging(t *testing.T) {
 	}
 	assert.Equal(t, []string{"holder"}, rig.line(t))
 	assert.Empty(t, rig.texts(t))
-}
-
-func TestRunQueueNodeWaiterBoundRefusesAndFreesTheSeat(t *testing.T) {
-	rig := newQueueRig(t, queueRigOptions{lease: queueLongHold}, queued("tail", queueName, chat("ran")))
-	rig.seatHolder(t, "holder")
-	rig.replicas[0].queueWaiters.limit = 0
-	rec := rig.awaitRecord(t, rig.fire(t, 0, "tail", ""))
-	assert.Equal(t, automationrpc.OutcomeLimited, rec.Outcome)
-	assert.Equal(t, queueReasonFull, rec.Reason)
-	assert.Equal(t, []string{"holder"}, rig.line(t))
 }
 
 func TestRunQueueTimedOutWaiterGivesUpItsPlace(t *testing.T) {

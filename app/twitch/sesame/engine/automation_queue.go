@@ -17,7 +17,6 @@ import (
 
 const (
 	maxQueueWaiting         = 100
-	maxQueueWaitersOnNode   = 2048
 	runQueueCallTimeout     = 2 * time.Second
 	runQueueCloseTimeout    = 3 * time.Second
 	queueReasonFull         = "queue_full"
@@ -25,6 +24,7 @@ const (
 	queueReasonCanceled     = "canceled"
 	queueReasonGranted      = "granted"
 	queueReasonValkeyAbsent = "valkey_unavailable"
+	queueReasonHandedOff    = "handed_off"
 )
 
 // RunQueueOut means the queue is full on Enter, or the seat is gone on Touch.
@@ -72,6 +72,7 @@ func (t queueTiming) pollAfter(position int64) time.Duration {
 }
 
 type queueSlot struct {
+	seat  RunQueueSeat
 	refs  atomic.Int32
 	ended chan struct{}
 }
@@ -91,7 +92,6 @@ func (s *queueSlot) drop() {
 type queueWaiters struct {
 	mu      sync.Mutex
 	count   int
-	limit   int
 	closed  bool
 	wg      sync.WaitGroup
 	closing context.Context
@@ -100,13 +100,13 @@ type queueWaiters struct {
 
 func newQueueWaiters() *queueWaiters {
 	closing, cancel := context.WithCancel(context.Background())
-	return &queueWaiters{limit: maxQueueWaitersOnNode, closing: closing, cancel: cancel}
+	return &queueWaiters{closing: closing, cancel: cancel}
 }
 
 func (w *queueWaiters) enter() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.closed || w.count >= w.limit {
+	if w.closed {
 		return false
 	}
 	w.count++
@@ -142,8 +142,8 @@ func (w *queueWaiters) close() {
 // Valkey errors run the recipe unqueued, matching automationRunAllowed: an outage must not stop every recipe.
 func (p *Pipeline) admitToQueue(ctx context.Context, run *AutomationRun) bool {
 	queue := run.Plan.Automation.Definition.Queue
-	// A run child executes inside its parent's segment: waiting on any queue here could deadlock the parent.
-	if queue == "" || run.Depth > 0 {
+	// A child of a slot holder joins that slot: waiting on any queue here could deadlock the parent.
+	if queue == "" || run.Slot != nil {
 		return true
 	}
 	seat := RunQueueSeat{BroadcasterID: run.BroadcasterID, Queue: queue, Ticket: run.ID}
@@ -158,60 +158,75 @@ func (p *Pipeline) admitToQueue(ctx context.Context, run *AutomationRun) bool {
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, queueReasonFull
 		return false
 	case position == 0:
-		run.Slot = p.holdSlot(seat)
+		run.Slot, run.OwnsSlot = p.holdSlot(seat), true
 		return true
 	}
-	p.startQueueWait(ctx, run, seat, position)
+	p.startQueueWait(ctx, run, queueTurn{seat: seat, position: position, until: time.Now().Add(p.queueTiming.maxWait)})
 	return false
 }
 
-func (p *Pipeline) startQueueWait(ctx context.Context, run *AutomationRun, seat RunQueueSeat, position int64) {
+type queueTurn struct {
+	seat     RunQueueSeat
+	position int64
+	until    time.Time
+}
+
+func (p *Pipeline) startQueueWait(ctx context.Context, run *AutomationRun, turn queueTurn) {
 	if !p.queueWaiters.enter() {
-		p.leaveQueue(seat)
+		p.leaveQueue(turn.seat)
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, queueReasonFull
 		return
 	}
 	// The handler returns now and recycles the run's pooled envelope and args, so the waiter gets its own copy.
 	waiting := detachRun(run)
 	run.Record.Outcome = outcomeDeferred
-	go p.awaitQueueTurn(context.WithoutCancel(ctx), waiting, seat, position)
+	if !p.durable.recordWaiter(ctx, waiting, turn) {
+		p.leaveQueue(turn.seat)
+		p.queueWaiters.done()
+		return
+	}
+	go p.awaitQueueTurn(context.WithoutCancel(ctx), waiting, turn)
 }
 
-func (p *Pipeline) awaitQueueTurn(ctx context.Context, run *AutomationRun, seat RunQueueSeat, position int64) {
-	if p.finishQueueWait(ctx, run, seat, position) {
+func (p *Pipeline) awaitQueueTurn(ctx context.Context, run *AutomationRun, turn queueTurn) {
+	if p.finishQueueWait(ctx, run, turn) {
 		p.runQueuedTurn(ctx, run)
 	}
 }
 
-func (p *Pipeline) finishQueueWait(ctx context.Context, run *AutomationRun, seat RunQueueSeat, position int64) bool {
+func (p *Pipeline) finishQueueWait(ctx context.Context, run *AutomationRun, turn queueTurn) bool {
 	defer p.queueWaiters.done()
-	reason := p.waitQueueTurn(ctx, seat, position)
+	reason := p.waitQueueTurn(ctx, run, turn)
 	switch reason {
 	case queueReasonGranted:
-		run.Slot = p.holdSlot(seat)
+		run.Slot = p.holdSlot(turn.seat)
 		return true
 	case queueReasonValkeyAbsent:
 		p.log.Warn("automations: run queue unavailable, running unqueued", zap.String("run_id", run.ID))
 		return true
+	case queueReasonHandedOff:
+		return false
 	case queueReasonCanceled:
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeFailed, reason
 	default:
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, reason
 	}
 	p.finishRun(ctx, run)
+	p.leaveQueue(turn.seat)
 	return false
 }
 
-func (p *Pipeline) waitQueueTurn(ctx context.Context, seat RunQueueSeat, position int64) string {
-	waitCtx, cancel := context.WithTimeout(ctx, p.queueTiming.maxWait)
+func (p *Pipeline) waitQueueTurn(ctx context.Context, run *AutomationRun, turn queueTurn) string {
+	waitCtx, cancel := context.WithDeadline(ctx, turn.until)
 	defer cancel()
 	stop := context.AfterFunc(p.queueWaiters.closing, cancel)
 	defer stop()
-	wait := queueWait{p: p, seat: seat, position: position, healthyAt: time.Now()}
+	stopHalt := p.durable.onHalt(cancel)
+	defer stopHalt()
+	wait := queueWait{p: p, seat: turn.seat, position: turn.position, healthyAt: time.Now()}
 	for {
 		if !sleepContext(waitCtx, p.queueTiming.pollAfter(wait.position)) {
-			p.leaveQueue(seat)
-			return queueWaitEnd(waitCtx)
+			return p.queueWaitEnd(waitCtx, run)
 		}
 		if reason, settled := wait.check(waitCtx); settled {
 			return reason
@@ -219,7 +234,10 @@ func (p *Pipeline) waitQueueTurn(ctx context.Context, seat RunQueueSeat, positio
 	}
 }
 
-func queueWaitEnd(ctx context.Context) string {
+func (p *Pipeline) queueWaitEnd(ctx context.Context, run *AutomationRun) string {
+	if p.durable.handingOff(run) {
+		return queueReasonHandedOff
+	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return queueReasonTimeout
 	}
@@ -264,6 +282,12 @@ func (p *Pipeline) runQueuedTurn(parent context.Context, run *AutomationRun) {
 	defer run.Slot.drop()
 	ctx, cancel := context.WithTimeout(parent, continuationTimeout)
 	defer cancel()
+	if !p.durable.stillOurs(ctx, run) {
+		return
+	}
+	p.autoExec.segments.Add(1)
+	defer p.autoExec.segments.Add(-1)
+	defer p.failPanickedSegment(ctx, run)
 	if p.automationsLockedFor(ctx, run.BroadcasterID) {
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, "premium_required"
 		p.finishRun(ctx, run)
@@ -280,7 +304,7 @@ func (p *Pipeline) runQueuedTurn(parent context.Context, run *AutomationRun) {
 }
 
 func (p *Pipeline) holdSlot(seat RunQueueSeat) *queueSlot {
-	slot := &queueSlot{ended: make(chan struct{})}
+	slot := &queueSlot{seat: seat, ended: make(chan struct{})}
 	slot.refs.Store(1)
 	go p.keepSlot(seat, slot)
 	return slot

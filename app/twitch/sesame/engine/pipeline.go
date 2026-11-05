@@ -98,6 +98,7 @@ type Pipeline struct {
 
 	queueWaiters *queueWaiters
 	queueTiming  queueTiming
+	durable      *durableRuns
 }
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
@@ -158,11 +159,14 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 	if d.Stats != nil {
 		p.stats = newBotStats(d.Stats, d.Log)
 	}
+	p.durable = newDurableRuns(p, p.automations)
 	return p
 }
 
 func (p *Pipeline) Close() {
+	p.durable.halt()
 	p.queueWaiters.close()
+	p.durable.handOff()
 	p.closeObservers()
 	if p.uses != nil {
 		p.uses.Close()
