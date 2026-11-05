@@ -857,7 +857,6 @@ accounts:
               from: USERS_RPC
         roles:
             twitch_ingress_rpc: {}
-            automod_rpc: {}
     USERS_RPC:
         exports:
             - service: bagel.rpc.internal.users.lifecycle
