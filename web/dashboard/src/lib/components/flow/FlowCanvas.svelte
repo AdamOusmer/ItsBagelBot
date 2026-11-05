@@ -575,7 +575,7 @@
   }
 
   function onMenuKey(e: KeyboardEvent) {
-    stepFocus(e, Array.from((e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('input, button')));
+    stepFocus(e, Array.from((e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('input, button:not(label button)')));
   }
 
   function onDragOver(e: DragEvent) {

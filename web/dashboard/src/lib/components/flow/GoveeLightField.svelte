@@ -13,6 +13,7 @@
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { FlowNode } from '#lib/flow/model';
+  import { configText } from '#lib/flow/setup';
 
   let keySaved = $state(false);
 
@@ -30,7 +31,7 @@
   let notice = $state('');
   let refreshing = $state(false);
 
-  const device = $derived(String(node.config.device ?? ''));
+  const device = $derived(configText(node, 'device'));
 
   const optionsFor = (devices: GoveeDevice[]) => {
     const options = devices.filter((d) => d.color).map((d) => ({ value: d.device, label: d.name || d.sku }));

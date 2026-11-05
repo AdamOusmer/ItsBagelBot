@@ -2,13 +2,13 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { untrack } from 'svelte';
-  import { getI18n } from '@bagel/kit';
+  import { getI18n, type MessageKey } from '@bagel/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import Modal from '@bagel/ui/svelte/Modal.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { postAction } from '#lib/client-actions.svelte';
-  import { flowKey, type FlowExportReply, type ShareableFlow } from '#lib/flow-share';
+  import { flowKey, scrubbedPlaces, type FlowExportReply, type ShareableFlow } from '#lib/flow-share';
 
   let { flows, path = '', startOpen = false }: { flows: ShareableFlow[]; path?: string; startOpen?: boolean } = $props();
 
@@ -68,6 +68,20 @@
       <p>{t('automations.share.exportDone', { n: summary.exported ?? 0 })}</p>
       {#if summary.needSetup}<p>{t('automations.share.exportNeedSetup', { n: summary.needSetup })}</p>{/if}
       {#if summary.missing}<p>{t('automations.share.exportMissing', { n: summary.missing })}</p>{/if}
+      {#if summary.scrubbed?.length}
+        <p>{t('automations.share.exportScrubbed')}</p>
+        <ul class="scrubbed">
+          {#each scrubbedPlaces(summary.scrubbed) as place (`${place.name}:${place.step}:${place.type}`)}
+            <li>
+              {#if place.step === null}
+                {t('automations.share.exportScrubbedRecipe', { name: place.name })}
+              {:else}
+                {t('automations.share.exportScrubbedStep', { name: place.name, n: place.step, step: t(`automations.action.${place.type}` as MessageKey) })}
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
       {#if summary.failed?.length}<p>{t('automations.share.exportFailed', { names: summary.failed.join(', ') })}</p>{/if}
       <div class="foot">
         <Button onclick={close}>{t('automations.share.importClose')}</Button>
@@ -103,6 +117,15 @@
   }
   p {
     margin: 0;
+  }
+  .scrubbed {
+    margin: 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: min(240px, 30vh);
+    overflow-y: auto;
   }
   .tools {
     display: flex;

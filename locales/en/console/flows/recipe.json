@@ -11,6 +11,7 @@
   "runsRefresh": "Refresh",
   "runsFailed": "Could not load runs. Try again in a moment.",
   "runCount": "{count} times",
+  "runOneOf": "One of: {steps}",
   "runStopped": "This run stopped at the first check.",
   "why": {
     "math_error": "The math could not be worked out. Check for a divide by zero or a typo.",

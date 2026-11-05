@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { alertDefinition, commandDefinition, type Definition } from '@bagel/kit/automations';
+import { alertDefinition, commandDefinition, SETUP_REWARD_ID, type Definition } from '@bagel/kit/automations';
 import type { CommandView } from '@bagel/kit';
 
 import { stubSvelteKit } from '../../../test/sveltekit';
@@ -344,6 +344,7 @@ describe('landing list and toggles', () => {
   test('toggling an automation reports conflict, missing and a switched off module', async () => {
     stubStorage([], []);
     const ref = { layer: 'automation', id: 'a' } as const;
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', followFlow, 3) };
     replies[`${AUTO}.set_enabled`] = { conflict: true, code: 'conflict' };
     expect(await store.setFlowEnabled(premium,ref, true, '3')).toEqual({ ok: false, reason: 'conflict' });
     replies[`${AUTO}.set_enabled`] = { code: 'not_found', error: 'missing' };
@@ -351,6 +352,32 @@ describe('landing list and toggles', () => {
     replies[`${AUTO}.set_enabled`] = { automation: savedAutomation('a', followFlow, 4) };
     expect(await store.setFlowEnabled(premium,ref, true)).toMatchObject({ ok: true, warnings: [] });
     expect(moduleWrites()).toEqual([{ name: 'automations', is_enabled: true }]);
+  });
+
+  test('an imported recipe still holding a placeholder refuses to turn on, and may turn off', async () => {
+    stubStorage([], []);
+    const ref = { layer: 'automation', id: 'a' } as const;
+    const awaiting = { version: 1, trigger: { type: 'reward', params: { reward_id: SETUP_REWARD_ID } }, actions: [{ type: 'chat', params: { text: 'hi' } }] };
+    replies[`${AUTO}.get`] = { automation: { ...savedAutomation('a', followFlow, 3), definition: awaiting } };
+    replies[`${AUTO}.set_enabled`] = { automation: savedAutomation('a', followFlow, 4) };
+    expect(await store.setFlowEnabled(premium, ref, true)).toEqual({ ok: false, reason: 'needs_setup' });
+    expect(callsTo(`${AUTO}.set_enabled`)).toHaveLength(0);
+    expect(await store.setFlowEnabled(premium, ref, false)).toMatchObject({ ok: true });
+  });
+
+  test('saving an imported recipe switched on is refused while a placeholder remains', async () => {
+    stubStorage([], []);
+    const definition = { version: 1, trigger: { type: 'reward', params: { reward_id: SETUP_REWARD_ID } }, actions: [{ type: 'chat', params: { text: 'hi' } }] };
+    const refused = await store.saveFlow(premium, { ref: null, name: 'x', enabled: true, definition });
+    expect(refused).toEqual({ ok: false, reason: 'invalid', issues: [{ path: 'trigger', code: 'setup_required' }] });
+  });
+
+  test('a restricted command is marked so its export cannot come out open to everyone', async () => {
+    stubStorage([{ name: 'hug', aliases: [], response: 'hi', is_active: true, allowed_user_id: '777000111' }], []);
+    const flows = await store.listFlows('7');
+    const hug = flows.find((flow) => flow.ref.layer === 'command');
+    expect(hug?.restricted).toBe(true);
+    expect(JSON.stringify(hug?.definition)).not.toContain('777000111');
   });
 
   test('toggling a command changes only is_active on its row', async () => {

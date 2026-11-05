@@ -109,7 +109,7 @@ async function writeFlow(locals: App.Locals, input: FlowWrite): Promise<FlowWrit
 }
 
 function rowOf(flow: StoredFlow): FlowExportRow {
-  return { id: flow.ref.layer === 'automation' ? flow.ref.id : undefined, name: flow.name, definition: flow.definition };
+  return { id: flow.ref.layer === 'automation' ? flow.ref.id : undefined, name: flow.name, definition: flow.definition, restricted: flow.restricted };
 }
 
 async function ownedRows(uid: string, keys: Set<string>, options: FlowShareOptions): Promise<FlowExportRow[]> {
@@ -140,6 +140,7 @@ async function exportAction({ request, locals }: ShareEvent, options: FlowShareO
       exported: file.flows.length,
       needSetup: report.filter((row) => row.setup.some(needsSetup)).length,
       missing: keys.size - rows.length,
+      scrubbed: report.filter((row) => row.scrubbed.length > 0).map((row) => ({ name: row.name, notes: row.scrubbed })),
       failed: report.filter((row) => row.issues.length > 0).map((row) => row.name)
     };
   } catch (err) {

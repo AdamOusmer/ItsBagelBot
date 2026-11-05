@@ -11,6 +11,7 @@
   "runsRefresh": "Atualizar",
   "runsFailed": "Não foi possível carregar as execuções. Tente novamente em instantes.",
   "runCount": "{count} vezes",
+  "runOneOf": "Um de: {steps}",
   "runStopped": "Esta execução parou na primeira verificação.",
   "why": {
     "math_error": "Não foi possível calcular a expressão. Verifique se há divisão por zero ou erro de digitação.",

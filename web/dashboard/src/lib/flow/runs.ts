@@ -26,27 +26,40 @@ type Named = Pick<RunStepRow, 'name' | 'line'>;
 const UNNAMED: Named = { name: null, line: null };
 
 function namedFromGraph(t: Translate, flow: Flow, candidates: FlowStepRef[]): Named {
-  if (candidates.length !== 1) return UNNAMED;
-  const node = flow.nodes.find((n) => n.id === candidates[0]!.node);
-  const spec = node && specFor(node.type);
-  return node && spec ? { name: stepLabel(t, spec), line: describe(t, node) } : UNNAMED;
+  const nodes = candidates.flatMap((ref) => flow.nodes.find((n) => n.id === ref.node) ?? []);
+  const spec = nodes[0] && specFor(nodes[0].type);
+  if (!spec) return UNNAMED;
+  const lines = [...new Set(nodes.map((node) => describe(t, node)))];
+  const line = nodes.length === 1 ? lines[0]! : t('flows.recipe.runOneOf', { steps: lines.join(', ') });
+  return { name: nodes.every((node) => node.type === nodes[0]!.type) ? stepLabel(t, spec) : null, line };
+}
+
+// A record names only its top-level action and type. Steps on one arm always run in drawn order, repeating under a loop, so
+// the nth record is known. Across arms any of them may have run, and parallel arms interleave, so those stay a list.
+function placedAmong(candidates: FlowStepRef[], nth: number): FlowStepRef[] {
+  if (candidates.length < 2 || candidates.some((ref) => ref.arm !== candidates[0]!.arm)) return candidates;
+  return [candidates[nth % candidates.length]!];
+}
+
+function tally(row: RunStepRow, record: ActionRecord): void {
+  row.count += 1;
+  row.status = worse(row.status, record.status);
+  row.detail = record.status === row.status && record.detail ? record.detail : row.detail;
 }
 
 export function runStepRows(t: Translate, records: readonly ActionRecord[], flow?: Flow): RunStepRow[] {
   const refs = flow ? flowStepRefs(flow as KitFlow) : [];
   const rows = new Map<string, RunStepRow>();
+  const seen = new Map<string, number>();
   for (const record of records) {
-    const key = `${record.index}:${record.type}`;
+    const group = `${record.index}:${record.type}`;
+    const nth = seen.get(group) ?? 0;
+    seen.set(group, nth + 1);
+    const placed = placedAmong(refs.filter((ref) => ref.index === record.index && ref.type === record.type), nth);
+    const key = placed.length === 1 ? `${group}:${placed[0]!.node}` : group;
     const row = rows.get(key);
-    if (row) {
-      row.count += 1;
-      row.status = worse(row.status, record.status);
-      row.detail = record.status === row.status && record.detail ? record.detail : row.detail;
-      continue;
-    }
-    const candidates = refs.filter((ref) => ref.index === record.index && ref.type === record.type);
-    const named = flow ? namedFromGraph(t, flow, candidates) : UNNAMED;
-    rows.set(key, { key, index: record.index, type: record.type, status: record.status, count: 1, detail: record.detail ?? '', ...named });
+    if (row) tally(row, record);
+    else rows.set(key, { key, index: record.index, type: record.type, status: record.status, count: 1, detail: record.detail ?? '', ...(flow ? namedFromGraph(t, flow, placed) : UNNAMED) });
   }
   return [...rows.values()];
 }

@@ -888,10 +888,10 @@ describe('containers keep their drawn shape through save and reload', () => {
       [edge('t', 'next', 'first'), edge('first', 'next', 'l'), edge('l', 'body', 'g'), edge('g', 'ok', 'inner')]
     );
     expect(flowStepRefs(drawn)).toEqual([
-      { index: 0, type: 'chat', node: 'first' },
-      { index: 1, type: 'loop', node: 'l' },
-      { index: 1, type: 'http_get', node: 'g' },
-      { index: 1, type: 'chat', node: 'inner' }
+      { index: 0, type: 'chat', node: 'first', arm: '' },
+      { index: 1, type: 'loop', node: 'l', arm: '' },
+      { index: 1, type: 'http_get', node: 'g', arm: '/1.actions' },
+      { index: 1, type: 'chat', node: 'inner', arm: '/1.actions/0.on_ok' }
     ]);
   });
 

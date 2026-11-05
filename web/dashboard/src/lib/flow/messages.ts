@@ -35,7 +35,8 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     invalid_enum: t('flows.issue.invalidEnum'),
     invalid_format: t('flows.issue.invalidFormat'),
     invalid_regex: t('flows.issue.invalidRegex'),
-    delay_budget: t('flows.issue.delayBudget')
+    delay_budget: t('flows.issue.delayBudget'),
+    setup_required: t('flows.setup.refused')
   };
 }
 
@@ -91,6 +92,7 @@ export function warningMessages(t: Translate, warnings: readonly FlowWarning[]):
 export function toggleMessage(t: Translate, reply: Extract<ToggleReply, { ok: false }>): string {
   if (reply.reason === 'conflict') return t('flows.toggleStale');
   if (reply.reason === 'not_found') return t('flows.toggleNotFound');
+  if (reply.reason === 'needs_setup') return t('flows.setup.refused');
   return reply.reason === 'denied' && reply.error ? reply.error : t('flows.toggleFailed');
 }
 

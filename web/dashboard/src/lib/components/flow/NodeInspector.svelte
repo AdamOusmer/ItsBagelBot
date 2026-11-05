@@ -22,6 +22,8 @@
   import { fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
   import { fieldVisible, outputsFor, specFor, variablesFor, type Flow, type FlowKind } from '#lib/flow/model';
   import { duplicateNode, removeNode } from '#lib/flow/ops';
+  import { awaitingSetup, configText } from '#lib/flow/setup';
+  import { SETUP_URL } from '@bagel/kit/automations';
   import ChoiceField from './ChoiceField.svelte';
   import FlowRehearsal from './FlowRehearsal.svelte';
   import GoveeLightField from './GoveeLightField.svelte';
@@ -69,7 +71,19 @@
   });
 
   const caret = new Map<string, number>();
-  const textOf = (key: string) => String(node?.config[key] ?? '');
+  const textOf = (key: string) => (node ? configText(node, key) : '');
+  const awaiting = $derived(node ? awaitingSetup(node) : false);
+
+  let heldForSetup: string | null = null;
+  $effect(() => {
+    if (!node) return;
+    if (awaiting) heldForSetup = node.id;
+    else if (heldForSetup === node.id) {
+      heldForSetup = null;
+      delete node.config.disabled;
+    }
+  });
+
   const templateFields = $derived(spec?.fields.filter((f) => f.type === 'template') ?? []);
 
   let focusedKey = $state<string>();
@@ -166,11 +180,14 @@
     </header>
 
     <div class="scroll">
+      {#if awaiting}
+        <p class="note">{t('flows.setup.stepNote')}</p>
+      {/if}
       {#if spec.fields.length}
         <div class="fields">
           {#each spec.fields.filter((f) => fieldVisible(spec, node, f)) as field (field.key)}
             {@const label = fieldLabel(t, spec, field)}
-            {@const placeholder = fieldPlaceholder(t, spec, field)}
+            {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field)}
             {#if field.type === 'color'}
               <Field {label} for="{uid}-{field.key}">
                 <ColorPicker

@@ -7,6 +7,7 @@ import { stepLabel } from './copy';
 import { describe, optionLabel, portLabel } from './describe';
 import type { Translate } from './messages';
 import { outputsFor, specFor, type Flow, type FlowNode, type NodeSpec } from './model';
+import { configText } from './setup';
 
 export type Decisions = Readonly<Record<string, string>>;
 
@@ -123,7 +124,7 @@ const REHEARSERS: Readonly<Record<string, Rehearser>> = {
   'twitch.reward': event,
   'twitch.stream.online': event,
   'cond.compare': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: comparePasses(ctx) }),
-  'reply.chat': (ctx) => ({ kind: 'bot', lines: ctx.lines(String(ctx.node.config.message ?? '')) }),
+  'reply.chat': (ctx) => ({ kind: 'bot', lines: ctx.lines(configText(ctx.node, 'message')) }),
   'reply.http_get': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true }),
   'reply.http_post': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true })
 };

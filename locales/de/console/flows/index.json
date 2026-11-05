@@ -138,5 +138,12 @@
   },
   "choiceMissing": "\"{name}\" ist nicht mehr in der Liste.",
   "choiceRetry": "Erneut versuchen",
-  "choiceLoading": "Wird geladen"
+  "choiceLoading": "Wird geladen",
+  "setup": {
+    "line": "Aus, bis eingerichtet",
+    "stepNote": "Dieser Schritt bleibt aus, bis du ihn ausfüllst.",
+    "pickReward": "Belohnung auswählen",
+    "addUrl": "URL hinzufügen",
+    "refused": "Fülle die Schritte aus, die eingerichtet werden müssen, speichere und schalte dies dann ein."
+  }
 }

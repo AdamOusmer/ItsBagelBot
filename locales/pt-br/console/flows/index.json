@@ -138,5 +138,12 @@
   },
   "choiceMissing": "\"{name}\" não está mais na lista.",
   "choiceRetry": "Tentar novamente",
-  "choiceLoading": "Carregando"
+  "choiceLoading": "Carregando",
+  "setup": {
+    "line": "Desativado até configurar",
+    "stepNote": "Esta etapa fica desativada até você preenchê-la.",
+    "pickReward": "Escolha uma recompensa",
+    "addUrl": "Adicione uma URL",
+    "refused": "Preencha as etapas que precisam de configuração, salve e depois ative isto."
+  }
 }

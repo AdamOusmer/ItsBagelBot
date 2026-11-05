@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { COMPARE_OPS } from './compare';
+import { SETUP_LOGIN } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
 
@@ -225,6 +226,8 @@ function lightsAction(config: FlowConfig): Action {
   return { type: 'lights', params: { ...params, mode: 'color', color: str(config.color) || DEFAULT_LIGHT_COLOR } };
 }
 
+const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
+
 const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
   'cond.compare': (config) => ({ type: 'compare', params: { left: str(config.left), op: str(config.op) || 'gte', right: str(config.right) } }),
   'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) } }),
@@ -233,7 +236,7 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
     const op = str(config.op) || 'eq';
     return { type: 'var', params: { ...varIdentity(config), op, value: op === 'exists' ? '' : str(config.value) } };
   },
-  'cond.user': (config) => ({ type: 'users', params: { allow_ids: [str(config.userId)] } }),
+  'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
   'cond.cooldown': (config) => ({
     type: 'cooldown',
     params: { [config.perUser ? 'user_s' : 'global_s']: num(config.seconds) }
@@ -415,7 +418,8 @@ function writeCondition(ctx: Lowering, node: FlowNode): Condition {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.unsupportedNode });
     return { type: node.type };
   }
-  if (node.type === 'cond.user' && !str(node.config.userId)) {
+  const resolved = str(node.config.userId) !== '' || awaitingUser(node.config);
+  if (node.type === 'cond.user' && !resolved) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.userNotResolved });
   }
   return owned(ctx, node, write(loweredConfig(ctx, node)));
@@ -592,14 +596,16 @@ function walkSteps(owners: Map<object, string>, list: Action[], base: string, in
   });
 }
 
-export type FlowStepRef = { index: number; type: string; node: string };
+export type FlowStepRef = { index: number; type: string; node: string; arm: string };
 
-function collectStepRefs(owners: Map<object, string>, list: Action[], top: number | null, into: FlowStepRef[]): void {
+type StepRefPlace = { top: number | null; path: string };
+
+function collectStepRefs(owners: Map<object, string>, list: Action[], place: StepRefPlace, into: FlowStepRef[]): void {
   list.forEach((action, i) => {
-    const index = top ?? i;
+    const index = place.top ?? i;
     const node = owners.get(action);
-    if (node) into.push({ index, type: action.type, node });
-    for (const arm of armsOf(action)) collectStepRefs(owners, arm.list, index, into);
+    if (node) into.push({ index, type: action.type, node, arm: place.path });
+    for (const arm of armsOf(action)) collectStepRefs(owners, arm.list, { top: index, path: `${place.path}/${i}.${arm.key}` }, into);
   });
 }
 
@@ -608,7 +614,7 @@ export function flowStepRefs(flow: Flow): FlowStepRef[] {
   const { result, owners } = lowerFlow(flow);
   if (!result.ok) return [];
   const into: FlowStepRef[] = [];
-  collectStepRefs(owners, result.value.actions ?? [], null, into);
+  collectStepRefs(owners, result.value.actions ?? [], { top: null, path: '' }, into);
   return into;
 }
 
@@ -729,6 +735,8 @@ function cooldownNode(params: Params): { type: string; config: FlowConfig } | nu
 function userNode(params: Params): { type: string; config: FlowConfig } | null {
   const ids = (params.allow_ids ?? []) as string[];
   const others = [params.allow, params.deny, params.deny_ids].flatMap((list) => (list ?? []) as string[]);
+  const everyone = [...ids, ...others];
+  if (everyone.length === 1 && (params.allow as string[] | undefined)?.[0] === SETUP_LOGIN) return { type: 'cond.user', config: { login: SETUP_LOGIN } };
   return ids.length === 1 && others.length === 0 ? { type: 'cond.user', config: { userId: ids[0]! } } : null;
 }
 

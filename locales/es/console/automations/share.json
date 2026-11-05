@@ -10,6 +10,9 @@
   "exportNeedSetup": "{n} necesitará configuración tras importar.",
   "exportMissing": "{n} no se encontró en este canal.",
   "exportFailed": "Excluidas porque ya no son válidas: {names}",
+  "exportScrubbed": "Se quitó algo que parecía una clave o contraseña de estos elementos. Revísalos antes de compartir el archivo:",
+  "exportScrubbedStep": "{name}, paso {n}: {step}",
+  "exportScrubbedRecipe": "{name}: su activador, condiciones o nombre",
   "exportError": "No se pudieron exportar esas recetas. Inténtalo de nuevo en un momento.",
   "importOpen": "Importar",
   "importTitle": "Importar recetas",
@@ -48,6 +51,7 @@
     "overlay_target": "Se desactivó un paso de overlay y se quitó su enlace. Añade el tuyo.",
     "lights_target": "Se desactivó un paso de luces y se quitó su dispositivo. Elige tu propia luz.",
     "slash_command": "Se desactivó y vació un paso que ejecutaba un comando de chat. Reescríbelo si lo quieres.",
+    "secret_removed": "Un paso contenía algo que no debería compartirse, así que se desactivó y se borró. Reescríbelo si lo quieres.",
     "run_removed": "Se quitó un paso que ejecutaba otra receta que no está en esta importación.",
     "run_target_simple": "Se quitó un paso que ejecutaba otra receta, porque esa receta está guardada como comando o alerta y no se puede ejecutar.",
     "link_failed": "No se pudo vincular un paso que ejecuta otra receta. Vuelve a añadirlo."

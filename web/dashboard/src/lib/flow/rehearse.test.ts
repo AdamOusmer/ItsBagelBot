@@ -3,6 +3,8 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { SETUP_REWARD_ID, SETUP_TEXT, SETUP_URL } from '@bagel/kit/automations';
+import { describe as describeNode } from './describe';
 import { NODE_SPECS, type Flow } from './model';
 import { english } from './english.testing';
 import { rehearseFlow, type RehearsalOptions, type RehearsalStep } from './rehearse';
@@ -142,6 +144,16 @@ describe('rehearseFlow', () => {
     expect(failed.map((step) => step.id)).toEqual(['t', 'g', 'f']);
     const last = failed[2]!;
     expect(last.kind === 'bot' && last.lines[0]!.segments.map((seg) => seg.text).join('')).toBe('failed 503');
+  });
+
+  test('an imported step awaiting setup never shows its placeholder', () => {
+    const flow = flowOf(
+      [n('t', 'twitch.reward', { reward: SETUP_REWARD_ID }), n('c', 'reply.chat', { message: SETUP_TEXT, disabled: true }), n('g', 'reply.http_get', { url: SETUP_URL, disabled: true })],
+      [e('e1', 't', 'next', 'c'), e('e2', 'c', 'next', 'g')]
+    );
+    const shown = JSON.stringify(rehearse(flow));
+    expect(shown).not.toContain('setup-required');
+    for (const node of flow.nodes) expect(describeNode(english, node)).toBe('Off until set up');
   });
 
   test('every step type rehearses', () => {

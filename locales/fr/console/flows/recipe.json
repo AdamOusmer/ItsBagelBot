@@ -11,6 +11,7 @@
   "runsRefresh": "Actualiser",
   "runsFailed": "Impossible de charger les exécutions. Réessayez dans un instant.",
   "runCount": "{count} fois",
+  "runOneOf": "L'un de : {steps}",
   "runStopped": "Cette exécution s’est arrêtée à la première vérification.",
   "why": {
     "math_error": "Le calcul n’a pas pu être effectué. Vérifiez qu’il n’y a pas de division par zéro ou de faute de frappe.",

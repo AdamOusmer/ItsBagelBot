@@ -43,9 +43,41 @@ describe('run step rows', () => {
     expect(rows[1]).toMatchObject({ type: 'chat', count: 1, status: 'ok', name: 'Send chat message', line: 'after' });
   });
 
-  test('two drawn steps of one type under a single action keep the type name, not a guess', () => {
-    const [row] = runStepRows(english, [{ index: 0, type: 'chat', status: 'ok' }], flow);
-    expect(row).toMatchObject({ name: null, line: null });
+  test('same-type steps on different paths list every step they could be, not a guess', () => {
+    const rows = runStepRows(english, [{ index: 0, type: 'chat', status: 'ok' }], flow);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: 'Send chat message', line: 'One of: worked, failed', count: 1 });
+  });
+
+  test('same-type steps on one path each get their own row, in order, repeating under a loop', () => {
+    const chain: Flow = {
+      ...flow,
+      nodes: [
+        { id: 't', type: 'twitch.follow', x: 0, y: 0, config: {} },
+        { id: 'l', type: 'reply.loop', x: 0, y: 0, config: { times: '2' } },
+        { id: 'a', type: 'reply.chat', x: 0, y: 0, config: { message: 'first' } },
+        { id: 'b', type: 'reply.chat', x: 0, y: 0, config: { message: 'second' } }
+      ],
+      edges: [
+        { id: 'e1', from: 't', port: 'next', to: 'l' },
+        { id: 'e2', from: 'l', port: 'body', to: 'a' },
+        { id: 'e3', from: 'a', port: 'next', to: 'b' }
+      ]
+    };
+    const rows = runStepRows(
+      english,
+      [
+        { index: 0, type: 'chat', status: 'ok' },
+        { index: 0, type: 'chat', status: 'failed', detail: 'rate_limited' },
+        { index: 0, type: 'chat', status: 'ok' },
+        { index: 0, type: 'chat', status: 'ok' }
+      ],
+      chain
+    );
+    expect(rows).toMatchObject([
+      { line: 'first', count: 2, status: 'ok' },
+      { line: 'second', count: 2, status: 'failed', detail: 'rate_limited' }
+    ]);
   });
 
   test('without a graph the rows still group', () => {
