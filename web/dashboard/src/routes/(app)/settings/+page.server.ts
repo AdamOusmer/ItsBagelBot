@@ -45,7 +45,6 @@ function tokenLabel(token: string): string {
 type OwnerPolicy = {
   anon: readonly [number, string];
   delegate: readonly [number, string];
-  impersonator?: true;
   body?: { ok: false };
 };
 
@@ -54,23 +53,17 @@ const NOT_SIGNED_IN = [401, 'Not signed in.'] as const;
 
 const OWNER_POLICY = {
   quiet: { anon: NOT_ALLOWED, delegate: NOT_ALLOWED },
-  page: { anon: NOT_ALLOWED, delegate: NOT_ALLOWED, impersonator: true },
   account: { anon: NOT_SIGNED_IN, delegate: NOT_ALLOWED },
   explicit: { anon: NOT_SIGNED_IN, delegate: [403, 'Only the account owner can do that.'] },
   keys: { anon: NOT_SIGNED_IN, delegate: [403, 'Only the account owner can do that.'], body: { ok: false } }
 } as const satisfies Record<string, OwnerPolicy>;
-
-function isBarred(s: Session, policy: OwnerPolicy): boolean {
-  if (s.delegate_of) return true;
-  return policy.impersonator === true && !!s.impersonator_id;
-}
 
 function requireOwner(
   s: Session | null,
   locale: Locale,
   policy: OwnerPolicy
 ): { session: Session } | { refusal: ActionFailure<{ ok?: false; error: string }> } {
-  if (s && !isBarred(s, policy)) return { session: s };
+  if (s && !s.delegate_of) return { session: s };
   const [status, message] = s ? policy.delegate : policy.anon;
   return { refusal: fail(status, { ...policy.body, error: actionError(locale, message) }) };
 }
@@ -78,7 +71,7 @@ function requireOwner(
 function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>, action: string) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     if (DEMO) return { ok: true, action, edgeDelayed: false };
-    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.page);
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
     if ('refusal' in owner) return owner.refusal;
     const s = owner.session;
 
@@ -90,6 +83,7 @@ function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>
       return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
 
+    auditDashboardImpersonation(s, `${action}:set`, `enabled=${enabled}`);
     return { ok: true, action, edgeDelayed: !(await purgeChannelPages(s.user_id)) };
   };
 }
