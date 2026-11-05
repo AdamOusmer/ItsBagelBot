@@ -467,21 +467,14 @@ func TestRunQueueReleasesAfterAPanic(t *testing.T) {
 }
 
 func TestRunQueueReleasesOnEveryEnding(t *testing.T) {
-	cases := map[string]struct {
-		actions  []automation.Action
-		capacity bool
-	}{
-		"stop":         {actions: []automation.Action{act("stop", obj{}), chat("never")}},
-		"failed step":  {actions: []automation.Action{runChild("missing")}},
-		"no capacity":  {actions: []automation.Action{delayMS(1), chat("limited")}, capacity: true},
-		"plain finish": {actions: []automation.Action{chat("done")}},
+	cases := map[string][]automation.Action{
+		"stop":         {act("stop", obj{}), chat("never")},
+		"failed step":  {runChild("missing")},
+		"plain finish": {chat("done")},
 	}
-	for name, tc := range cases {
+	for name, actions := range cases {
 		t.Run(name, func(t *testing.T) {
-			rig := newQueueRig(t, queueRigOptions{lease: queueLongHold}, queued("a", queueName, tc.actions...))
-			if tc.capacity {
-				rig.replicas[0].autoExec.running.Store(maxContinuations)
-			}
+			rig := newQueueRig(t, queueRigOptions{lease: queueLongHold}, queued("a", queueName, actions...))
 			rig.awaitRecord(t, rig.fire(t, 0, "a", ""))
 			rig.awaitEmptyLine(t)
 		})

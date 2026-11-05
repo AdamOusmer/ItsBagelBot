@@ -32,53 +32,27 @@ func (fx *autoFixture) awaitDetachedDone(t *testing.T) {
 	require.Eventually(t, func() bool { return fx.p.autoExec.running.Load() == 0 }, 15*time.Second, 5*time.Millisecond)
 }
 
-func TestRunChildContinuationsShareTheForkCap(t *testing.T) {
+func TestEveryRunChildPauseResumes(t *testing.T) {
 	fx := newAutoFixture(
 		manual("main", loopOf("20", loopOf("10", runChild("child")))),
 		manual("child", delayOf(1500), addVar("late")),
 	)
 	fx.start(t, "1", "main", "req-child-forks")
-	assert.LessOrEqual(t, fx.p.autoExec.running.Load(), int32(maxForksPerRun))
 	fx.awaitDetachedDone(t)
-	assert.Len(t, fx.vars.writesSoFar(), maxForksPerRun)
+	assert.Len(t, fx.vars.writesSoFar(), 200)
 }
 
-func TestRunChildFloodStaysUnderTheForkCap(t *testing.T) {
-	fx := newAutoFixture(
-		manual("main", loopOf("100", loopOf("10", runChild("child")))),
-		manual("child", delayOf(1500), chat("late")),
-	)
-	fx.start(t, "1", "main", "req-child-flood")
-	assert.LessOrEqual(t, fx.p.autoExec.running.Load(), int32(maxForksPerRun))
-	fx.awaitDetachedDone(t)
-}
-
-func TestRunChildLaterDelaysDoNotSpendForks(t *testing.T) {
-	steps := make([]automation.Action, 0, 2*maxForksPerRun+2)
-	for range maxForksPerRun + 1 {
-		steps = append(steps, delayOf(1), addVar("step"))
+func TestManyChannelsPausingAtOnceAllResume(t *testing.T) {
+	const channels, runsPerChannel, pausedPerRun = 40, 5, 200
+	path := actions(delayOf(300), addVar("late"))
+	fx := newAutoFixture(manual("busy", loopOf("100", parallelOf(path, path))))
+	for channel := 1; channel <= channels; channel++ {
+		for run := range runsPerChannel {
+			fx.start(t, strconv.Itoa(channel), "busy", "req-"+strconv.Itoa(channel)+"-"+strconv.Itoa(run))
+		}
 	}
-	fx := newAutoFixture(manual("main", runChild("child")), manual("child", steps...))
-	fx.start(t, "1", "main", "req-child-chain")
-	require.Eventually(t, func() bool { return len(fx.vars.writesSoFar()) == maxForksPerRun+1 }, 10*time.Second, 5*time.Millisecond)
 	fx.awaitDetachedDone(t)
-}
-
-func TestOneChannelCannotTakeEveryContinuation(t *testing.T) {
-	path := actions(delayOf(1500), addVar("late"))
-	fx := newAutoFixture(
-		manual("flood", loopOf("100", parallelOf(path, path))),
-		manual("other", delayOf(1), addVar("other")),
-	)
-	for i := range 5 {
-		fx.start(t, "1", "flood", "req-flood-"+strconv.Itoa(i))
-	}
-	assert.LessOrEqual(t, fx.p.autoExec.running.Load(), int32(maxContinuationsPerChannel))
-
-	rec := fx.awaitRecord(t, fx.start(t, "2", "other", "req-other"))
-	assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome, statuses(rec))
-	fx.awaitDetachedDone(t)
-	assert.Empty(t, fx.p.autoExec.channels, "an idle channel leaves no counter behind")
+	assert.Len(t, fx.vars.writesSoFar(), channels*runsPerChannel*pausedPerRun)
 }
 
 func TestChatCapSpansRunChildren(t *testing.T) {

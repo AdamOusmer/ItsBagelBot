@@ -214,23 +214,8 @@ func (x *actionExec) conclude() {
 		x.run.Record.Outcome = x.outcome()
 		return
 	}
-	if x.scheduleRest() {
-		x.run.Record.Outcome = outcomeDeferred
-		return
-	}
-	x.limitRest()
-	x.run.Record.Outcome = x.outcome()
-}
-
-func (x *actionExec) limitRest() {
-	for _, r := range x.rest {
-		if r.loop != nil {
-			x.recordLimited(r.loop.step, "delay_capacity")
-		}
-		for i := range r.steps {
-			x.recordLimited(&r.steps[i], "delay_capacity")
-		}
-	}
+	x.startContinuation(detachRun(x.run))
+	x.run.Record.Outcome = outcomeDeferred
 }
 
 func (x *actionExec) recordLimited(s step, detail string) {

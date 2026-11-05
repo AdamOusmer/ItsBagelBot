@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,41 +24,12 @@ import (
 )
 
 const (
-	maxContinuations           = 512
-	maxContinuationsPerChannel = maxContinuations / 4
-	continuationTimeout        = 30 * time.Second
-	maxForksPerRun             = 128
-	maxSyncSegment             = 3 * time.Second
+	continuationTimeout = 30 * time.Second
+	maxSyncSegment      = 3 * time.Second
 )
 
 type autoExecState struct {
-	running  atomic.Int32
-	mu       sync.Mutex
-	channels map[uint64]int32
-}
-
-func (s *autoExecState) acquire(channel uint64) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.running.Load() >= maxContinuations || s.channels[channel] >= maxContinuationsPerChannel {
-		return false
-	}
-	if s.channels == nil {
-		s.channels = make(map[uint64]int32)
-	}
-	s.channels[channel]++
-	s.running.Add(1)
-	return true
-}
-
-func (s *autoExecState) release(channel uint64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.channels[channel]--
-	if s.channels[channel] <= 0 {
-		delete(s.channels, channel)
-	}
-	s.running.Add(-1)
+	running atomic.Int32
 }
 
 func (x *actionExec) stop(step, automation.EmptyParams) error {
@@ -154,29 +124,17 @@ func (x *actionExec) restoreIndex(c loopCursor) {
 }
 
 func (x *actionExec) settlePath(s step, path int) {
-	paused := x.signal == signalDelay && len(x.rest) > 0
-	if paused && !x.schedulePath(s, path) {
-		x.limitRest()
+	if x.signal == signalDelay && len(x.rest) > 0 {
+		x.schedulePath(s, path)
 	}
 	x.signal, x.rest = signalNone, nil
 }
 
-func (x *actionExec) claimFork() bool {
-	return x.run.Tree.forks.Add(1) <= maxForksPerRun
-}
-
-func (x *actionExec) schedulePath(s step, path int) bool {
-	if !x.claimFork() {
-		return false
-	}
-	if !x.p.autoExec.acquire(x.run.BroadcasterID) {
-		return false
-	}
+func (x *actionExec) schedulePath(s step, path int) {
 	cont := detachRun(x.run)
 	// Node, path and iteration keep replay ids distinct: outgress drops a repeated one.
 	cont.Replay = nestedReplayKey(x.run.replayKey(), s.EffectKey+"."+strconv.Itoa(path)+x.iter)
 	x.startContinuation(cont)
-	return true
 }
 
 func (x *actionExec) pickBranch(branches []automation.Branch) int {
@@ -257,24 +215,12 @@ func (x *actionExec) childRun(s step, target *automation.Plan) *AutomationRun {
 	return &child
 }
 
-// A root's or continuation's next segment replaces the one ending; a child's first one runs beside its parent.
-func (x *actionExec) scheduleRest() bool {
-	forksFromParent := x.run.Depth > 0 && x.budget.segment == 0
-	if forksFromParent && !x.claimFork() {
-		return false
-	}
-	if !x.p.autoExec.acquire(x.run.BroadcasterID) {
-		return false
-	}
-	x.startContinuation(detachRun(x.run))
-	return true
-}
-
 func (x *actionExec) startContinuation(cont *AutomationRun) {
 	budget := x.budget
 	budget.segment++
 	wait := time.Duration(x.delayMS) * time.Millisecond
 	cont.Slot.retain()
+	x.p.autoExec.running.Add(1)
 	go x.p.continueRun(context.WithoutCancel(x.ctx), continuation{run: cont, budget: budget, rest: x.rest, wait: wait})
 }
 
@@ -287,7 +233,7 @@ type continuation struct {
 
 func (p *Pipeline) continueRun(ctx context.Context, c continuation) {
 	run, budget := c.run, c.budget
-	defer p.autoExec.release(run.BroadcasterID)
+	defer p.autoExec.running.Add(-1)
 	defer run.Slot.drop()
 	ctx, cancel := context.WithTimeout(ctx, c.wait+continuationTimeout)
 	defer cancel()

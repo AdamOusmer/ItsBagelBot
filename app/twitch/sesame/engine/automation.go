@@ -70,7 +70,6 @@ type AutomationRun struct {
 
 // A root run, its `run` children and every detached path spend these concurrently: a copy per path multiplies each cap.
 type runTree struct {
-	forks    atomic.Int32
 	executed atomic.Int32
 	visits   atomic.Int32
 	chats    atomic.Int32

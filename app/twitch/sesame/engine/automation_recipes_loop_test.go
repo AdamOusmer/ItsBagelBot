@@ -179,16 +179,13 @@ func TestRunChildrenInsideLoopsShareTheStepBudget(t *testing.T) {
 	assert.NotEmpty(t, fx.vars.writesSoFar())
 }
 
-func TestForkedPathsPerRunAreCapped(t *testing.T) {
+func TestEveryForkedPathResumes(t *testing.T) {
 	fork := parallelOf(actions(delayOf(1), addVar("late")), actions(delayOf(1), addVar("late")))
 	fx := newAutoFixture(manual("main", loopOf("100", fork)))
 	reply := fx.p.RunNamed(context.Background(), automationsrpc.RunRequest{BroadcasterID: "1", Name: "main", RequestID: "req-forks", Source: automationsrpc.SourceDashboard})
 	require.True(t, reply.Accepted)
-	assert.Eventually(t, func() bool { return len(fx.vars.writesSoFar()) == maxForksPerRun }, 3*time.Second, 5*time.Millisecond)
+	assert.Eventually(t, func() bool { return len(fx.vars.writesSoFar()) == 200 }, 3*time.Second, 5*time.Millisecond)
 	assert.Eventually(t, func() bool { return fx.p.autoExec.running.Load() == 0 }, 3*time.Second, 5*time.Millisecond)
-	assert.True(t, slices.ContainsFunc(fx.runs.records(), func(r automationrpc.RunRecord) bool {
-		return slices.Contains(statuses(r), "0:var_add:limited:delay_capacity")
-	}))
 }
 
 func TestSlowStepsMoveOffTheEventLane(t *testing.T) {
@@ -208,14 +205,6 @@ func (g *autoGossip) callCount() int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.calls
-}
-
-func TestLoopFrameRefusedContinuationIsRecordedLimited(t *testing.T) {
-	fx := newAutoFixture(manual("main", loopOf("2", delayOf(1), addVar("c"))))
-	fx.p.autoExec.running.Store(maxContinuations)
-	rec := fx.run(t, "main", "req-loop-cap", nil)
-	assert.Equal(t, []string{"0:loop:ok:", "0:delay:ok:", "0:var_add:limited:delay_capacity", "0:loop:limited:delay_capacity"}, statuses(rec))
-	assert.Empty(t, fx.vars.writesSoFar())
 }
 
 func TestRecordsPerIterationAndTrimmedToTheStoredCap(t *testing.T) {
