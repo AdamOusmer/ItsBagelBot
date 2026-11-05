@@ -4,6 +4,7 @@
 package core_test
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
@@ -18,6 +19,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/engine"
 	"ItsBagelBot/app/gossip/internal/provider"
 	"ItsBagelBot/app/gossip/internal/providers/custom"
+	"ItsBagelBot/app/gossip/internal/providers/govee"
 	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/nats-io/nats.go"
@@ -48,10 +50,18 @@ func TestRecipesE2EServe(t *testing.T) {
 	deps := provider.Deps{Cache: core.NewCache(core.NewValkeyStore(vc)), Limiter: ratelimit.New(vc), Log: zap.NewNop()}
 	// Above the default of 6 a minute: the e2e fires more runs in a few seconds than a channel's budget allows.
 	active := []provider.Provider{custom.New(custom.Config{ChannelRateLimit: 120, DefRateLimit: 120, HostRateLimit: 120}, deps)}
+	if base := os.Getenv("RECIPES_E2E_GOVEE_URL"); base != "" {
+		deps.GoveeKeys = staticGoveeKey{}
+		active = append(active, govee.New(govee.Config{BaseURL: base}, deps))
+	}
 	require.NoError(t, engine.Serve(nc, os.Getenv("RECIPES_E2E_GOSSIP_PREFIX"), "gossip-e2e", active, nil, zap.NewNop()))
 	fmt.Println("RECIPES_E2E_READY")
 	_, _ = io.Copy(io.Discard, os.Stdin)
 }
+
+type staticGoveeKey struct{}
+
+func (staticGoveeKey) Key(context.Context, string) (string, error) { return "e2e-govee-key", nil }
 
 // Stands in for the WARP sidecar: only the named host is reachable, and it lands on the local upstream.
 func startPinnedSOCKS(t *testing.T, host, upstream string) string {

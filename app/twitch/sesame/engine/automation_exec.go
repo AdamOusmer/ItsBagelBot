@@ -243,14 +243,8 @@ func (x *actionExec) queueText(o module.Output) error {
 	} else if x.p.prepareCommand(&o) {
 		x.pending = append(x.pending, o)
 	}
-	added := len(x.pending) - start
-	if added == 0 {
+	if len(x.pending) == start {
 		return skipped("empty")
-	}
-	kept := x.run.Tree.claimChats(added)
-	x.pending = x.pending[:start+kept]
-	if kept == 0 {
-		return limited("chat_cap")
 	}
 	return nil
 }

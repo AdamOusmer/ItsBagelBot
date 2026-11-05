@@ -26,21 +26,19 @@ func (b durableBudget) budget() runBudget {
 type durableTree struct {
 	Executed int32 `json:"executed"`
 	Visits   int32 `json:"visits"`
-	Chats    int32 `json:"chats"`
 }
 
 func snapshotTree(tree *runTree) durableTree {
 	if tree == nil {
 		return durableTree{}
 	}
-	return durableTree{Executed: tree.executed.Load(), Visits: tree.visits.Load(), Chats: tree.chats.Load()}
+	return durableTree{Executed: tree.executed.Load(), Visits: tree.visits.Load()}
 }
 
 func (t durableTree) tree() *runTree {
 	tree := new(runTree)
 	tree.executed.Store(t.Executed)
 	tree.visits.Store(t.Visits)
-	tree.chats.Store(t.Chats)
 	return tree
 }
 
@@ -193,7 +191,6 @@ func (r *durableRecord) run(ref DurableRef) *AutomationRun {
 		Identity:      r.Identity,
 		Depth:         r.Depth,
 		Started:       r.Started,
-		Admitted:      true,
 		Record:        r.Record,
 		Locals:        r.Locals,
 		Iter:          r.Iter,

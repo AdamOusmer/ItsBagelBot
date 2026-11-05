@@ -69,7 +69,7 @@ func newRPCFixture(t *testing.T, modules map[string]projection.ModuleView, autos
 	d := Deps{
 		Proj: fakeReader{modules: modules}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: fx.pub, Log: zap.NewNop(),
 		Dedup:       NewEventDedup(newRecordingStore(), "t:", time.Minute, zap.NewNop()),
-		Automations: AutomationDeps{Source: listSource(autos), Runs: fx.runs, Limiter: NewValkeyRunLimiter(valk)},
+		Automations: AutomationDeps{Source: listSource(autos), Runs: fx.runs},
 	}
 	fx.p = NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 	fx.nc = bustest.NATS(t)
@@ -184,11 +184,10 @@ func TestAutomationRunRPCRefusalReleasesClaim(t *testing.T) {
 	assert.False(t, fx.claimExists(t))
 }
 
-func TestValkeyRunLogAndLimiterReadAndWriteThroughPrimary(t *testing.T) {
+func TestValkeyRunLogReadsAndWritesThroughPrimary(t *testing.T) {
 	client := newHotPathTestClient(t)
 
 	assert.True(t, pkg_valkey.IsPrimary(NewValkeyRunLog(client, zap.NewNop()).client))
-	assert.True(t, pkg_valkey.IsPrimary(NewValkeyRunLimiter(client).client))
 }
 
 func TestAutomationRunsRPCReturnsNewestFirstWithFilter(t *testing.T) {
@@ -209,21 +208,4 @@ func TestAutomationRunsRPCReturnsNewestFirstWithFilter(t *testing.T) {
 
 	bad := call[automationrpc.RunsReply](t, fx.nc, automationrpc.RunsSubject, automationrpc.RunsRequest{BroadcasterID: "x"})
 	assert.Equal(t, rpc.CodeInvalid, bad.Code)
-}
-
-func TestRunNamedChannelRateCapRecordsLimited(t *testing.T) {
-	fx := newRPCFixture(t, automationOn(), chatAutomation("a1", "greet", "manual", `{}`))
-	for i := 0; i < automation.MaxRunsPerMinute; i++ {
-		_, err := NewValkeyRunLimiter(fx.valk).AllowRun(context.Background(), fx.bid)
-		require.NoError(t, err)
-	}
-
-	reply := fx.p.RunNamed(context.Background(), automationsrpc.RunRequest{BroadcasterID: fx.bidSt, Name: "greet", Source: automationsrpc.SourceDashboard, RequestID: "over"})
-
-	require.True(t, reply.Accepted)
-	recs, err := fx.runs.Recent(context.Background(), fx.bid, "", 1)
-	require.NoError(t, err)
-	require.Len(t, recs, 1)
-	assert.Equal(t, automationrpc.OutcomeLimited, recs[0].Outcome)
-	assert.Zero(t, fx.chatCount())
 }

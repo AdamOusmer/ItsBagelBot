@@ -53,7 +53,6 @@ type queueRig struct {
 type queueRigOptions struct {
 	lease   time.Duration
 	proj    projection.Reader
-	limiter RunLimiter
 	cool    CooldownStore
 	loyalty LoyaltyStore
 	mods    func(*AutomationHook) module.Module
@@ -87,7 +86,7 @@ func (r *queueRig) replica(opts queueRigOptions, autos []automation.Automation) 
 	}
 	d := Deps{
 		Proj: opts.proj, Live: liveAlways{}, Cooldown: opts.cool, Pub: r.pub, Log: zap.NewNop(), Loyalty: opts.loyalty, Dedup: opts.dedup,
-		Automations: AutomationDeps{Source: opts.source, Runs: r.runs, Limiter: opts.limiter, Queue: newValkeyRunQueue(r.client, opts.lease)},
+		Automations: AutomationDeps{Source: opts.source, Runs: r.runs, Queue: newValkeyRunQueue(r.client, opts.lease)},
 	}
 	if d.Automations.Source == nil {
 		d.Automations.Source = autoSource{list: autos}
@@ -481,16 +480,6 @@ func TestRunQueueReleasesOnEveryEnding(t *testing.T) {
 	}
 }
 
-type countingLimiter struct {
-	openLimiter
-	allowed atomic.Int64
-}
-
-func (l *countingLimiter) AllowRun(context.Context, uint64) (bool, error) {
-	l.allowed.Add(1)
-	return true, nil
-}
-
 type firstOnlyCooldown struct {
 	NoopCooldown
 	claims atomic.Int64
@@ -500,13 +489,13 @@ func (c *firstOnlyCooldown) Allow(context.Context, string, time.Duration) (bool,
 	return c.claims.Add(1) == 1, nil
 }
 
-func TestRunQueueChecksConditionsAndRateOnceBeforeQueuing(t *testing.T) {
-	limiter, cooldown := &countingLimiter{}, &firstOnlyCooldown{}
+func TestRunQueueChecksConditionsOnceBeforeQueuing(t *testing.T) {
+	cooldown := &firstOnlyCooldown{}
 	tail := queued("tail", queueName, chat("ran"))
 	raw, err := codec.Marshal(obj{"global_s": 60})
 	require.NoError(t, err)
 	tail.Definition.Conditions = []automation.Condition{{Type: "cooldown", Params: raw}}
-	rig := newQueueRig(t, queueRigOptions{lease: queueLongHold, limiter: limiter, cool: cooldown}, tail)
+	rig := newQueueRig(t, queueRigOptions{lease: queueLongHold, cool: cooldown}, tail)
 	rig.seatHolder(t, "holder")
 
 	waiting := rig.fire(t, 0, "tail", "")
@@ -518,7 +507,6 @@ func TestRunQueueChecksConditionsAndRateOnceBeforeQueuing(t *testing.T) {
 
 	rig.leave(t, "holder")
 	assert.Equal(t, automationrpc.OutcomeOK, rig.awaitRecord(t, waiting).Outcome)
-	assert.EqualValues(t, 2, limiter.allowed.Load())
 	assert.EqualValues(t, 2, cooldown.claims.Load())
 }
 

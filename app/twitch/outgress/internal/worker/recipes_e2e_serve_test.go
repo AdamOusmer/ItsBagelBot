@@ -61,6 +61,9 @@ func TestRecipesE2EServe(t *testing.T) {
 	for _, id := range strings.Split(os.Getenv("RECIPES_E2E_CHANNELS"), ",") {
 		registry.Prime(manage.Channel{BroadcasterID: id, Enabled: true, IsMod: true})
 	}
+	for _, id := range strings.Split(os.Getenv("RECIPES_E2E_NONMOD_CHANNELS"), ",") {
+		registry.Prime(manage.Channel{BroadcasterID: id, Enabled: true})
+	}
 
 	js, closeJS, err := bus.OpenCoordination(natsURL)
 	require.NoError(t, err)

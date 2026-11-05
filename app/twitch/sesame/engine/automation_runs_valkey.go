@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strconv"
 	"sync"
@@ -24,34 +23,15 @@ import (
 
 const (
 	runLogTTL          = outgress.RewardResultTTL
-	runRateTTL         = 120 * time.Second
 	runLogKeyPrefix    = "automation:runs:"
-	runRatePrefix      = "automation:rate:"
 	runLogBuffer       = 1024
 	runLogBatch        = 256
 	runLogFlushTimeout = 2 * time.Second
 	runLogCloseTimeout = 5 * time.Second
-	runLeaseSize       = 4
-	runLeaseIdle       = 5 * time.Second
-	runLeaseTimeout    = 2 * time.Second
 )
-
-var reserveRuns = pkg_valkey.NewScript(`
-local count = tonumber(redis.call('GET', KEYS[1]) or '0')
-local grant = math.max(math.min(tonumber(ARGV[1]), tonumber(ARGV[2]) - count), 0)
-if grant > 0 then
-  count = redis.call('INCRBY', KEYS[1], grant)
-end
-redis.call('EXPIRE', KEYS[1], ARGV[3])
-return {grant, count}
-`)
 
 func runLogKey(broadcasterID uint64) string {
 	return runLogKeyPrefix + "{" + strconv.FormatUint(broadcasterID, 10) + "}"
-}
-
-func runRateKey(broadcasterID uint64, at time.Time) string {
-	return runRatePrefix + "{" + strconv.FormatUint(broadcasterID, 10) + "}:" + strconv.FormatInt(at.Unix()/60, 10)
 }
 
 type queuedRun struct {
@@ -392,208 +372,4 @@ func (f runFilter) decode(item string) (automationrpc.RunRecord, bool) {
 		return rec, false
 	}
 	return rec, f.automationID == "" || rec.AutomationID == f.automationID
-}
-
-type runLease struct {
-	left      int
-	closed    bool
-	refused   bool
-	touchedAt time.Time
-	recheckAt time.Time
-}
-
-type ValkeyRunLimiter struct {
-	client valkey.Client
-	now    func() time.Time
-
-	mu     sync.Mutex
-	window int64
-	leases map[uint64]runLease
-
-	done     chan struct{}
-	finished chan struct{}
-	stop     sync.Once
-}
-
-func NewValkeyRunLimiter(client valkey.Client) *ValkeyRunLimiter {
-	l := newValkeyRunLimiter(client)
-	go l.run()
-	return l
-}
-
-func newValkeyRunLimiter(client valkey.Client) *ValkeyRunLimiter {
-	return &ValkeyRunLimiter{
-		client:   pkg_valkey.Primary(client),
-		now:      time.Now,
-		leases:   map[uint64]runLease{},
-		done:     make(chan struct{}),
-		finished: make(chan struct{}),
-	}
-}
-
-func (l *ValkeyRunLimiter) run() {
-	defer close(l.finished)
-	ticker := time.NewTicker(runLeaseIdle)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			l.sweep(context.Background(), time.Now(), runLeaseIdle)
-		case <-l.done:
-			return
-		}
-	}
-}
-
-func (l *ValkeyRunLimiter) Close() {
-	l.stop.Do(func() {
-		close(l.done)
-		<-l.finished
-		l.sweep(context.Background(), l.now(), 0)
-	})
-}
-
-type returnedLease struct {
-	key string
-	n   int64
-}
-
-func (l *ValkeyRunLimiter) sweep(ctx context.Context, at time.Time, idle time.Duration) {
-	returns := l.takeIdle(at, idle)
-	if len(returns) == 0 {
-		return
-	}
-	ctx, cancel := context.WithTimeout(ctx, runLeaseTimeout)
-	defer cancel()
-	cmds := make(valkey.Commands, len(returns))
-	for i, r := range returns {
-		cmds[i] = l.client.B().Decrby().Key(r.key).Decrement(r.n).Build()
-	}
-	l.client.DoMulti(ctx, cmds...)
-}
-
-func (l *ValkeyRunLimiter) takeIdle(at time.Time, idle time.Duration) []returnedLease {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.window != (runSlot{at: at}).window() {
-		return nil
-	}
-	var returns []returnedLease
-	for id, lease := range l.leases {
-		if lease.left == 0 || at.Sub(lease.touchedAt) < idle {
-			continue
-		}
-		returns = append(returns, returnedLease{key: runRateKey(id, at), n: int64(lease.left)})
-		l.leases[id] = runLease{touchedAt: at}
-	}
-	return returns
-}
-
-type runSlot struct {
-	broadcasterID uint64
-	at            time.Time
-}
-
-func (s runSlot) window() int64 { return s.at.Unix() / 60 }
-
-func (l *ValkeyRunLimiter) AllowRun(ctx context.Context, broadcasterID uint64) (bool, error) {
-	slot := runSlot{broadcasterID: broadcasterID, at: l.now()}
-	allowed, decided := l.spend(slot)
-	if decided {
-		return allowed, nil
-	}
-	return l.reserve(ctx, slot)
-}
-
-// Matches gossip's per-channel Govee budget so a flooding recipe stops here, before an RPC per step.
-const (
-	maxLightsPerMinute = 8
-	lightsWindow       = time.Minute
-)
-
-func (l *ValkeyRunLimiter) AllowLights(ctx context.Context, broadcasterID uint64) (bool, error) {
-	window := strconv.FormatInt(l.now().Unix()/int64(lightsWindow.Seconds()), 10)
-	key := "automation:lights:{" + strconv.FormatUint(broadcasterID, 10) + "}:" + window
-	used, err := pkg_valkey.Incr(ctx, l.client, key, lightsWindow)
-	return used <= maxLightsPerMinute, err
-}
-
-func (l *ValkeyRunLimiter) FirstRefusal(broadcasterID uint64) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	lease := l.leases[broadcasterID]
-	if lease.refused || !lease.closed {
-		return false
-	}
-	if l.window != (runSlot{at: l.now()}).window() {
-		return false
-	}
-	lease.refused = true
-	l.leases[broadcasterID] = lease
-	return true
-}
-
-func (l *ValkeyRunLimiter) spend(slot runSlot) (allowed, decided bool) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if window := slot.window(); l.window != window {
-		clear(l.leases)
-		l.window = window
-	}
-	lease := l.leases[slot.broadcasterID]
-	switch {
-	case lease.left > 0:
-		lease.left--
-		lease.touchedAt = slot.at
-		l.leases[slot.broadcasterID] = lease
-		return true, true
-	case lease.closed && slot.at.Before(lease.recheckAt):
-		return false, true
-	}
-	lease.touchedAt = slot.at
-	lease.recheckAt = slot.at.Add(runLeaseIdle)
-	l.leases[slot.broadcasterID] = lease
-	return false, false
-}
-
-func (l *ValkeyRunLimiter) reserve(ctx context.Context, slot runSlot) (bool, error) {
-	call := pkg_valkey.ScriptCall{
-		Script: reserveRuns,
-		Key:    runRateKey(slot.broadcasterID, slot.at),
-		Args: []string{
-			strconv.Itoa(runLeaseSize),
-			strconv.Itoa(automation.MaxRunsPerMinute),
-			strconv.Itoa(int(runRateTTL.Seconds())),
-		},
-	}
-	reply, err := pkg_valkey.RunScripts(ctx, l.client, []pkg_valkey.ScriptCall{call})[0].AsIntSlice()
-	if err != nil {
-		return true, err
-	}
-	if len(reply) != 2 {
-		return true, errReserveReply
-	}
-	l.store(slot, reservation{granted: reply[0], total: reply[1]})
-	return reply[0] > 0, nil
-}
-
-var errReserveReply = errors.New("automations: malformed run reservation reply")
-
-type reservation struct {
-	granted int64
-	total   int64
-}
-
-func (l *ValkeyRunLimiter) store(slot runSlot, res reservation) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.window != slot.window() {
-		return
-	}
-	lease := l.leases[slot.broadcasterID]
-	lease.left += int(max(res.granted-1, 0))
-	lease.closed = res.total >= automation.MaxRunsPerMinute
-	lease.touchedAt = slot.at
-	lease.recheckAt = slot.at.Add(runLeaseIdle)
-	l.leases[slot.broadcasterID] = lease
 }

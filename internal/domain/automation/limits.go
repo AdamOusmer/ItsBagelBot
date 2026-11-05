@@ -6,14 +6,12 @@ package automation
 const (
 	MaxActions               = 1000
 	MaxDelayMS               = 60000
-	MaxChatMessagesPerRun    = 3
 	MaxRecursionDepth        = 2
 	MaxNameLength            = 64
 	MaxAutomationsPerChannel = 100
 	MaxDefinitionBytes       = 32768
 	MaxPreviewBytes          = 4096
 	RunsKept                 = 50
-	MaxRunsPerMinute         = 60
 )
 
 const (

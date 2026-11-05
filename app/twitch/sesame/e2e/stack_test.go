@@ -244,6 +244,7 @@ type stack struct {
 	vars     *engine.LoyaltyRPC
 	helix    *fakeHelix
 	upstream *upstreamLog
+	govee    *upstreamLog
 	runs     *engine.ValkeyRunLog
 	source   *fixtureSource
 	replicas [2]*engine.Pipeline
@@ -357,6 +358,21 @@ func ensureOutgressStreams(t *testing.T, natsURL string) {
 
 func startStack(t *testing.T, channels ...uint64) *stack {
 	t.Helper()
+	return startStackFor(t, stackChannels{Mod: channels})
+}
+
+type stackChannels struct{ Mod, NonMod []uint64 }
+
+func joinIDs(channels []uint64) string {
+	ids := make([]string, len(channels))
+	for i, id := range channels {
+		ids[i] = strconv.FormatUint(id, 10)
+	}
+	return strings.Join(ids, ",")
+}
+
+func startStackFor(t *testing.T, channels stackChannels) *stack {
+	t.Helper()
 	addr := os.Getenv("VALKEY_TEST_ADDR")
 	if addr == "" {
 		t.Skip("VALKEY_TEST_ADDR is not set")
@@ -369,7 +385,7 @@ func startStack(t *testing.T, channels ...uint64) *stack {
 	ensureOutgressStreams(t, natsURL)
 	startLoyalty(t, nc)
 
-	s := &stack{vc: vc, nc: nc, natsURL: natsURL, helix: &fakeHelix{rewards: map[rewardRef]*rewardState{}, foreign: map[rewardRef]bool{}}, upstream: &upstreamLog{}, source: &fixtureSource{autos: map[uint64][]automation.Automation{}}}
+	s := &stack{vc: vc, nc: nc, natsURL: natsURL, helix: &fakeHelix{rewards: map[rewardRef]*rewardState{}, foreign: map[rewardRef]bool{}}, upstream: &upstreamLog{}, govee: &upstreamLog{}, source: &fixtureSource{autos: map[uint64][]automation.Automation{}}}
 	s.vars = engine.NewLoyaltyRPC(nc, engine.LoyaltyRPCPrefix(loyaltyPrefix))
 	s.runs = engine.NewValkeyRunLog(vc, zap.NewNop())
 
@@ -377,6 +393,8 @@ func startStack(t *testing.T, channels ...uint64) *stack {
 	t.Cleanup(helixServer.Close)
 	upstreamServer := httptest.NewTLSServer(s.upstream)
 	t.Cleanup(upstreamServer.Close)
+	goveeServer := httptest.NewServer(s.govee)
+	t.Cleanup(goveeServer.Close)
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstreamServer.Certificate().Raw})
 
 	common := []string{"RECIPES_E2E_NATS_URL=" + natsURL, "VALKEY_TEST_ADDR=" + addr}
@@ -397,14 +415,12 @@ func startStack(t *testing.T, channels ...uint64) *stack {
 		"RECIPES_E2E_UPSTREAM_HOST="+upstreamHost,
 		"RECIPES_E2E_UPSTREAM_ADDR="+strings.TrimPrefix(upstreamServer.URL, "https://"),
 		"RECIPES_E2E_UPSTREAM_SNI="+upstreamCertSNI,
-		"RECIPES_E2E_UPSTREAM_CERT="+string(certPEM))...)
-	ids := make([]string, len(channels))
-	for i, id := range channels {
-		ids[i] = strconv.FormatUint(id, 10)
-	}
+		"RECIPES_E2E_UPSTREAM_CERT="+string(certPEM),
+		"RECIPES_E2E_GOVEE_URL="+goveeServer.URL)...)
 	startService(t, outgressBin, append(common,
 		"RECIPES_E2E_TWITCH_URL="+helixServer.URL,
-		"RECIPES_E2E_CHANNELS="+strings.Join(ids, ","))...)
+		"RECIPES_E2E_CHANNELS="+joinIDs(channels.Mod),
+		"RECIPES_E2E_NONMOD_CHANNELS="+joinIDs(channels.NonMod))...)
 
 	s.pub, err = bus.NewPublisher(natsURL, zap.NewNop())
 	require.NoError(t, err)
@@ -424,7 +440,7 @@ func (s *stack) replica(t *testing.T) *engine.Pipeline {
 	d := engine.Deps{
 		AutomationHook: &engine.AutomationHook{},
 		Automations: engine.AutomationDeps{
-			Source: s.source, Runs: s.runs, Limiter: engine.NewValkeyRunLimiter(s.vc),
+			Source: s.source, Runs: s.runs,
 			Variables: s.vars, Overlay: engine.NewValkeyOverlay(s.vc), Queue: engine.NewValkeyRunQueue(s.vc),
 		},
 		Proj: premiumChannels{}, Live: live, RewardResets: engine.NewValkeyRewardResets(s.vc),

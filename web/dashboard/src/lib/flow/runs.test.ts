@@ -68,7 +68,7 @@ describe('run step rows', () => {
       english,
       [
         { index: 0, type: 'chat', status: 'ok' },
-        { index: 0, type: 'chat', status: 'failed', detail: 'rate_limited' },
+        { index: 0, type: 'chat', status: 'failed', detail: 'text_error' },
         { index: 0, type: 'chat', status: 'ok' },
         { index: 0, type: 'chat', status: 'ok' }
       ],
@@ -76,7 +76,7 @@ describe('run step rows', () => {
     );
     expect(rows).toMatchObject([
       { line: 'first', count: 2, status: 'ok' },
-      { line: 'second', count: 2, status: 'failed', detail: 'rate_limited' }
+      { line: 'second', count: 2, status: 'failed', detail: 'text_error' }
     ]);
   });
 

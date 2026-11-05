@@ -55,28 +55,28 @@ func TestManyChannelsPausingAtOnceAllResume(t *testing.T) {
 	assert.Len(t, fx.vars.writesSoFar(), channels*runsPerChannel*pausedPerRun)
 }
 
-func TestChatCapSpansRunChildren(t *testing.T) {
+func TestRunChildrenChatsAllReachOutgress(t *testing.T) {
 	fx := newAutoFixture(manual("main", loopOf("20", runChild("child"))), manual("child", chat("hi")))
 	fx.start(t, "1", "main", "req-chat-children")
 	fx.awaitDetachedDone(t)
-	assert.Len(t, fx.messages(t), automation.MaxChatMessagesPerRun)
+	assert.Len(t, fx.messages(t), 20)
 }
 
-func TestChatCapSpansParallelPaths(t *testing.T) {
+func TestParallelPathChatsAllReachOutgress(t *testing.T) {
 	fx := newAutoFixture(manual("main", loopOf("20", parallelOf(actions(delayOf(1), chat("hi"))))))
 	fx.start(t, "1", "main", "req-chat-forks")
 	fx.awaitDetachedDone(t)
-	assert.Len(t, fx.messages(t), automation.MaxChatMessagesPerRun)
+	assert.Len(t, fx.messages(t), 20)
 }
 
-func TestChatCapSpansRunChildrenAfterADelay(t *testing.T) {
+func TestDelayedRunChildrenChatsAllReachOutgress(t *testing.T) {
 	fx := newAutoFixture(
 		manual("main", loopOf("20", runChild("child"))),
 		manual("child", delayOf(1), chat("hi")),
 	)
 	fx.start(t, "1", "main", "req-chat-delayed-children")
 	fx.awaitDetachedDone(t)
-	assert.Len(t, fx.messages(t), automation.MaxChatMessagesPerRun)
+	assert.Len(t, fx.messages(t), 20)
 }
 
 func TestActionBudgetSpansParallelPaths(t *testing.T) {

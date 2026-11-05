@@ -26,16 +26,9 @@ type RunLog interface {
 	Recent(ctx context.Context, broadcasterID uint64, automationID string, limit int) ([]automationrpc.RunRecord, error)
 }
 
-type RunLimiter interface {
-	AllowRun(ctx context.Context, broadcasterID uint64) (bool, error)
-	FirstRefusal(broadcasterID uint64) bool
-	AllowLights(ctx context.Context, broadcasterID uint64) (bool, error)
-}
-
 type AutomationDeps struct {
 	Source    AutomationSource
 	Runs      RunLog
-	Limiter   RunLimiter
 	Variables VariableStore
 	Overlay   OverlayPublisher
 	Queue     RunQueue
@@ -61,7 +54,6 @@ type AutomationRun struct {
 	Identity      string
 	Depth         int
 	Started       time.Time
-	Admitted      bool
 	Record        automationrpc.RunRecord
 	Locals        map[string]string
 	Iter          string
@@ -77,20 +69,6 @@ type AutomationRun struct {
 type runTree struct {
 	executed atomic.Int32
 	visits   atomic.Int32
-	chats    atomic.Int32
-}
-
-func (t *runTree) claimChats(want int) int {
-	for {
-		used := t.chats.Load()
-		kept := min(int32(want), automation.MaxChatMessagesPerRun-used)
-		if kept <= 0 {
-			return 0
-		}
-		if t.chats.CompareAndSwap(used, used+kept) {
-			return int(kept)
-		}
-	}
 }
 
 type noRunLog struct{}
@@ -101,20 +79,9 @@ func (noRunLog) Recent(context.Context, uint64, string, int) ([]automationrpc.Ru
 	return nil, nil
 }
 
-type openLimiter struct{}
-
-func (openLimiter) AllowRun(context.Context, uint64) (bool, error) { return true, nil }
-
-func (openLimiter) FirstRefusal(uint64) bool { return false }
-
-func (openLimiter) AllowLights(context.Context, uint64) (bool, error) { return true, nil }
-
 func withAutomationDefaults(d AutomationDeps) AutomationDeps {
 	if d.Runs == nil {
 		d.Runs = noRunLog{}
-	}
-	if d.Limiter == nil {
-		d.Limiter = openLimiter{}
 	}
 	if d.Queue == nil {
 		d.Queue = openRunQueue{}
@@ -130,10 +97,6 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 		Trigger: auto.Definition.Trigger.Type, Source: run.Source, At: run.Started,
 	}
 	defer p.endRunSegment(ctx, run)
-	admitting := run.Depth == 0 && !run.Admitted
-	if admitting && !p.automationRunAllowed(ctx, run) {
-		return
-	}
 	x := p.newActionExec(ctx, run, emit)
 	defer releaseActionExec(x)
 	pass, reason, err := x.conditionsPass()
@@ -152,14 +115,6 @@ func (p *Pipeline) endRunSegment(ctx context.Context, run *AutomationRun) {
 		defer run.Slot.drop()
 	}
 	p.finishRun(ctx, run)
-}
-
-func (p *Pipeline) automationRunAllowed(ctx context.Context, run *AutomationRun) bool {
-	ok, err := p.automations.Limiter.AllowRun(ctx, run.BroadcasterID)
-	if err == nil && !ok {
-		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, "channel_rate"
-	}
-	return err != nil || ok
 }
 
 func skippedOutcome(err error, reason string) (string, string) {

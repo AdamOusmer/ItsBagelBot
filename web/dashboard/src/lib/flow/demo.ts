@@ -284,7 +284,7 @@ const DEMO_RUNS: RunRecord[] = [
     actions: [
       { index: 0, type: 'chat', status: 'ok' },
       { index: 1, type: 'delay', status: 'ok' },
-      { index: 2, type: 'chat', status: 'failed', detail: 'rate_limited' }
+      { index: 2, type: 'chat', status: 'failed', detail: 'text_error' }
     ]
   },
   {

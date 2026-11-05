@@ -167,6 +167,27 @@ func TestDurableDelayResumesOnAnotherReplica(t *testing.T) {
 	rig.assertDrained(t)
 }
 
+func TestDurableRecordStoredWithAChatCountStillResumes(t *testing.T) {
+	rig := newDurableRig(t, queueRigOptions{}, manual("a", chat("before"), delayMS(800), chat("after")))
+	runID := rig.fire(t, 0, "a", "")
+	require.Equal(t, []string{"before"}, rig.awaitTextCount(t, 1))
+
+	ctx := context.Background()
+	key := durableRecordKeys(DurableRef{BroadcasterID: rig.bid})[0]
+	stored, err := rig.client.Do(ctx, rig.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	for id, body := range stored {
+		require.Contains(t, body, `"tree":{`)
+		legacy := strings.Replace(body, `"tree":{`, `"tree":{"chats":3,`, 1)
+		require.NoError(t, rig.client.Do(ctx, rig.client.B().Hset().Key(key).FieldValue().FieldValue(id, legacy).Build()).Error())
+	}
+	rig.kill(0)
+
+	assert.Equal(t, automationrpc.OutcomeOK, rig.awaitRecord(t, runID).Outcome)
+	assert.Equal(t, []string{"before", "after"}, rig.texts(t))
+}
+
 func TestDurableKeepsArgsLocalsAndEventAcrossTakeover(t *testing.T) {
 	rig := newDurableRig(t, queueRigOptions{}, manual("a",
 		saveLocal("kept", "{args}!"),

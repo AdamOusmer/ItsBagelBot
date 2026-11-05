@@ -68,14 +68,14 @@ func TestAutomationDisabledActionIsSkipped(t *testing.T) {
 	assert.Len(t, fx.messages(t), 1)
 }
 
-func TestAutomationChatMessageCap(t *testing.T) {
+func TestEveryChatStepReachesOutgress(t *testing.T) {
 	var actions []automation.Action
 	for range 4 {
 		actions = append(actions, act("chat", obj{"text": "line"}))
 	}
 	fx := newAutoFixture(manual("main", actions...))
-	rec := fx.run(t, "main", "req-cap", nil)
-	assert.Equal(t, []string{"0:chat:ok:", "1:chat:ok:", "2:chat:ok:", "3:chat:limited:chat_cap"}, statuses(rec))
-	assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome)
-	assert.Len(t, fx.messages(t), automation.MaxChatMessagesPerRun)
+	rec := fx.run(t, "main", "req-chat", nil)
+	assert.Equal(t, []string{"0:chat:ok:", "1:chat:ok:", "2:chat:ok:", "3:chat:ok:"}, statuses(rec))
+	assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome)
+	assert.Len(t, fx.messages(t), 4)
 }

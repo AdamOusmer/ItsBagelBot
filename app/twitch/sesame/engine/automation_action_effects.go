@@ -163,9 +163,6 @@ func (x *actionExec) lightsRefusal(p automation.LightsAction) error {
 	case !hasLightTarget(p):
 		return failure("no_device")
 	}
-	if ok, err := x.p.automations.Limiter.AllowLights(x.ctx, x.run.BroadcasterID); err == nil && !ok {
-		return limited("lights_rate")
-	}
 	return nil
 }
 
