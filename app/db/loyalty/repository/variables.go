@@ -108,7 +108,7 @@ func validVariableNames(names []string) ([]string, error) {
 }
 
 func (r *Loyalty) VariableSet(ctx context.Context, o VariableOwner, name, value string) error {
-	if !automation.ValidVariableValue(value) {
+	if !automation.VariableValue(value).Fits() {
 		return ErrVariableLimit
 	}
 	return r.mutateVariable(ctx, o, name, func(string) (string, error) { return value, nil })
@@ -116,7 +116,7 @@ func (r *Loyalty) VariableSet(ctx context.Context, o VariableOwner, name, value 
 
 func (r *Loyalty) VariableAdd(ctx context.Context, o VariableOwner, name string, amount int64) error {
 	return r.mutateVariable(ctx, o, name, func(current string) (string, error) {
-		next, ok := automation.AddToVariable(current, amount)
+		next, ok := automation.VariableValue(current).Add(amount)
 		if !ok {
 			return "", ErrVariableLimit
 		}

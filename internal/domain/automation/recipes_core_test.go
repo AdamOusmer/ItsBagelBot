@@ -31,7 +31,7 @@ func TestAddToVariable(t *testing.T) {
 		{strconv.FormatInt(math.MinInt64, 10), -1, "", false},
 	}
 	for _, tc := range cases {
-		got, ok := automation.AddToVariable(tc.current, tc.amount)
+		got, ok := automation.VariableValue(tc.current).Add(tc.amount)
 		assert.Equal(t, tc.ok, ok, tc.current)
 		assert.Equal(t, tc.want, got, tc.current)
 	}

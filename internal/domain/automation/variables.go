@@ -25,26 +25,28 @@ var (
 	variableNamePattern = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)
 )
 
-type VarSetAction struct {
+// VarRef names one stored variable. Embedded untagged, so its fields stay flat in the JSON.
+type VarRef struct {
 	Scope string `json:"scope"`
 	Name  string `json:"name"`
+}
+
+type VarSetAction struct {
+	VarRef
 	Value string `json:"value"`
 }
 
 type VarAddAction struct {
-	Scope  string `json:"scope"`
-	Name   string `json:"name"`
-	Amount int64  `json:"amount"`
+	VarRef
+	Amount int64 `json:"amount"`
 }
 
 type VarDeleteAction struct {
-	Scope string `json:"scope"`
-	Name  string `json:"name"`
+	VarRef
 }
 
 type VarCondition struct {
-	Scope string `json:"scope"`
-	Name  string `json:"name"`
+	VarRef
 	Op    string `json:"op"`
 	Value string `json:"value"`
 }
@@ -71,52 +73,66 @@ func (c chk) optionalVariableName(f field, raw string) {
 	}
 }
 
+func (c chk) varRef(r VarRef) {
+	c.oneOf("scope", r.Scope, variableScopes)
+	c.variableName("name", r.Name)
+}
+
 func checkVarSet(c chk, p VarSetAction) {
-	c.oneOf("scope", p.Scope, variableScopes)
-	c.variableName("name", p.Name)
+	c.varRef(p.VarRef)
 	c.text("value", p.Value, upTo(MaxTemplateLength))
 }
 
 func checkVarAdd(c chk, p VarAddAction) {
-	c.oneOf("scope", p.Scope, variableScopes)
-	c.variableName("name", p.Name)
+	c.varRef(p.VarRef)
 	inRange(c, "amount", p.Amount, between(-MaxVariableAmount, MaxVariableAmount))
 	nonZero(c, "amount", p.Amount)
 }
 
 func checkVarDelete(c chk, p VarDeleteAction) {
-	c.oneOf("scope", p.Scope, variableScopes)
-	c.variableName("name", p.Name)
+	c.varRef(p.VarRef)
 }
 
 func checkVarCondition(c chk, p VarCondition) {
-	c.oneOf("scope", p.Scope, variableScopes)
-	c.variableName("name", p.Name)
+	c.varRef(p.VarRef)
 	c.oneOf("op", p.Op, varConditionOps)
 	c.text("value", p.Value, upTo(MaxTemplateLength))
 }
 
-// VarPasses compares numerically when both sides parse as numbers, otherwise as text.
-func VarPasses(op, current, value string, exists bool) bool {
-	switch op {
-	case varOpExists:
-		return exists
-	case CompareContains:
-		return value != "" && strings.Contains(current, value)
-	}
-	return orderPasses(op, compareVarValues(current, value))
+// VariableValue is the text a variable stores.
+type VariableValue string
+
+// VarComparison is one var condition with its stored value resolved.
+type VarComparison struct {
+	Op      string
+	Current VariableValue
+	Value   VariableValue
+	Exists  bool
 }
 
-func compareVarValues(left, right string) int {
-	a, okLeft := decimalValue(left)
-	b, okRight := decimalValue(right)
+// Passes compares numerically when both sides parse as numbers, otherwise as text.
+func (v VarComparison) Passes() bool {
+	switch v.Op {
+	case varOpExists:
+		return v.Exists
+	case CompareContains:
+		return v.Value != "" && strings.Contains(string(v.Current), string(v.Value))
+	}
+	return varOrderOp(v.Op).holds(v.Current.compare(v.Value))
+}
+
+func (v VariableValue) compare(other VariableValue) int {
+	a, okLeft := decimalValue(string(v))
+	b, okRight := decimalValue(string(other))
 	if okLeft && okRight {
 		return cmp.Compare(a, b)
 	}
-	return strings.Compare(left, right)
+	return strings.Compare(string(v), string(other))
 }
 
-func orderPasses(op string, order int) bool {
+type varOrderOp string
+
+func (op varOrderOp) holds(order int) bool {
 	switch op {
 	case "eq":
 		return order == 0
@@ -134,9 +150,9 @@ func orderPasses(op string, order int) bool {
 	return false
 }
 
-// AddToVariable applies var_add to a stored value; anything non-numeric counts as 0. It reports false on overflow.
-func AddToVariable(current string, amount int64) (string, bool) {
-	trimmed := strings.TrimSpace(current)
+// Add applies var_add to a stored value; anything non-numeric counts as 0. It reports false on overflow.
+func (v VariableValue) Add(amount int64) (string, bool) {
+	trimmed := strings.TrimSpace(string(v))
 	if base, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
 		return addIntegers(base, amount)
 	}
@@ -156,22 +172,7 @@ func addIntegers(base, amount int64) (string, bool) {
 	return strconv.FormatInt(base+amount, 10), true
 }
 
-// TruncateRunes keeps at most limit runes of s.
-func TruncateRunes(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	count := 0
-	for i := range s {
-		if count == limit {
-			return s[:i]
-		}
-		count++
-	}
-	return s
-}
-
-// ValidVariableValue reports whether a rendered value fits in a stored variable.
-func ValidVariableValue(value string) bool {
-	return utf8.RuneCountInString(value) <= MaxVariableValueRunes
+// Fits reports whether a rendered value fits in a stored variable.
+func (v VariableValue) Fits() bool {
+	return utf8.RuneCountInString(string(v)) <= MaxVariableValueRunes
 }

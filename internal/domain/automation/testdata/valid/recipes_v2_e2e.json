@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!e2e"
+    }
+  },
+  "queue": "e2e",
+  "actions": [
+    {
+      "type": "var_set",
+      "params": {
+        "scope": "channel",
+        "name": "last_input",
+        "value": "{args}"
+      }
+    },
+    {
+      "type": "math",
+      "params": {
+        "expression": "0{var:seen} + 1",
+        "save_as": "total"
+      }
+    },
+    {
+      "type": "var_set",
+      "params": {
+        "scope": "channel",
+        "name": "seen",
+        "value": "{local:total}"
+      }
+    },
+    {
+      "type": "text",
+      "params": {
+        "op": "upper",
+        "input": "run {local:total}",
+        "arg1": "",
+        "arg2": "",
+        "save_as": "shout"
+      }
+    },
+    {
+      "type": "loop",
+      "params": {
+        "times": "2",
+        "actions": [
+          {
+            "type": "http_get",
+            "params": {
+              "url": "https://upstream.e2e.test/item/{local:index}",
+              "json_path": [
+                "data",
+                "value"
+              ],
+              "save_as": "got",
+              "on_ok": [
+                {
+                  "type": "chat",
+                  "params": {
+                    "text": "worked {local:index} {local:got}"
+                  }
+                }
+              ],
+              "on_failure": [
+                {
+                  "type": "chat",
+                  "params": {
+                    "text": "failed {local:index} {local:error}"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "type": "delay",
+            "params": {
+              "ms": 1000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "hydrate",
+        "enabled": false,
+        "cost": 500,
+        "reset_on_stream_end": true
+      }
+    },
+    {
+      "type": "overlay_show",
+      "params": {
+        "kind": "text",
+        "content": "{local:shout}",
+        "seconds": 5,
+        "position": "center"
+      }
+    },
+    {
+      "type": "chat",
+      "params": {
+        "text": "done {var:last_input} {var:seen}"
+      }
+    }
+  ]
+}

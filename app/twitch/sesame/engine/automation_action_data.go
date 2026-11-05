@@ -65,7 +65,7 @@ func variableResult(err error) error {
 func (x *actionExec) varSet(s step, p automation.VarSetAction) error {
 	name, _ := automation.VariableName(p.Name)
 	value := x.expand(p.Value)
-	if !automation.ValidVariableValue(value) {
+	if !automation.VariableValue(value).Fits() {
 		return limited("var_limit")
 	}
 	return x.variableWrite(s, p.Scope, func(store VariableStore, owner VariableOwner) error {
@@ -102,7 +102,13 @@ func (x *actionExec) conditionVar(c automation.VarCondition) (bool, error) {
 		return false, err
 	}
 	current, exists := values[name]
-	return automation.VarPasses(c.Op, current, x.expand(c.Value), exists), nil
+	comparison := automation.VarComparison{
+		Op:      c.Op,
+		Current: automation.VariableValue(current),
+		Value:   automation.VariableValue(x.expand(c.Value)),
+		Exists:  exists,
+	}
+	return comparison.Passes(), nil
 }
 
 func (x *actionExec) textStep(_ step, p automation.TextStepAction) error {

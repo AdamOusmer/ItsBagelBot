@@ -122,13 +122,15 @@ func (p *mathParser) product() float64 {
 	left := p.unary()
 	for {
 		op := p.peek()
-		if op != '*' && op != '/' && op != '%' {
+		if !isMathProductOp(op) {
 			return left
 		}
 		p.pos++
 		left = p.multiply(op, left, p.unary())
 	}
 }
+
+func isMathProductOp(op byte) bool { return op == '*' || op == '/' || op == '%' }
 
 func (p *mathParser) multiply(op byte, left, right float64) float64 {
 	if op == '*' {
@@ -216,11 +218,13 @@ func (p *mathParser) call() float64 {
 		return p.fail()
 	}
 	args := p.arguments()
-	if p.failed || len(args) < fn.minArgs || len(args) > fn.maxArgs {
+	if p.failed || !fn.acceptsArgs(len(args)) {
 		return p.fail()
 	}
 	return fn.apply(args, p.random)
 }
+
+func (fn mathFunc) acceptsArgs(count int) bool { return count >= fn.minArgs && count <= fn.maxArgs }
 
 func (p *mathParser) arguments() []float64 {
 	args := []float64{p.sum()}

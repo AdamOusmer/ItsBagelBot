@@ -1,7 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import type { Component } from 'svelte';
   import { invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit';
   import type { RunRecord } from '@bagel/kit/automations';
@@ -19,6 +18,7 @@
   import FlowShareTools from '#lib/components/flow/FlowShareTools.svelte';
   import FlowThumb from '#lib/components/flow/FlowThumb.svelte';
   import FlowsIntro from '#lib/components/flow/FlowsIntro.svelte';
+  import OverlayLinkControl from '#lib/components/flows-overlay/OverlayLinkControl.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
   import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
@@ -57,8 +57,6 @@
 
   const stepCount = (count: number) => (count === 1 ? t('flows.page.stepOne') : t('flows.page.stepMany', { count }));
   const facts = (flow: FlowCard) => [flow.when, stepCount(flow.steps)].filter(Boolean).join(', ');
-
-  const overlaySlots = Object.values(import.meta.glob<{ default: Component }>('/src/lib/components/flows-overlay/OverlayLinkControl.svelte'));
 
   let runs = $state<RunRecord[]>([]);
   let runsBusy = $state(false);
@@ -144,11 +142,7 @@
     <RunsPanel {runs} busy={runsBusy} showNames title={t('flows.recipe.runsTitle')} empty={t('flows.recipe.runsEmpty')} onRefresh={() => void loadRuns()} />
   {/if}
 
-  {#each overlaySlots as loadOverlay, slot (slot)}
-    {#await loadOverlay() then { default: OverlayControl }}
-      <OverlayControl />
-    {/await}
-  {/each}
+  <OverlayLinkControl />
 
   {#if shown.length > 0}
     <ul class="cards">

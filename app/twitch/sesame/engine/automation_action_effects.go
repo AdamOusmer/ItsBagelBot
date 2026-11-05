@@ -205,7 +205,7 @@ func (x *actionExec) httpPost(s step, p automation.HTTPPostAction) error {
 	if x.p.gossip == nil {
 		return x.settleFetch(s, p.SaveAs, fetchResult{failure: "no_gossip"})
 	}
-	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, Def: &gossiprpc.FetchDef{URL: p.URL}, Body: x.expand(p.Body), CaptureBody: p.SaveAs != ""}
+	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{URL: p.URL}, Body: x.expand(p.Body), CaptureBody: p.SaveAs != ""}
 	var result fetchResult
 	err := x.once(s, func() error {
 		result = x.callFetch(customPostEndpoint, req)
@@ -228,7 +228,7 @@ func (x *actionExec) httpGet(s step, p automation.HTTPGetAction) error {
 	if x.p.gossip == nil {
 		return x.settleFetch(s, p.SaveAs, fetchResult{failure: "no_gossip"})
 	}
-	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, Def: &gossiprpc.FetchDef{
+	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{
 		Name: "get:" + x.bid, URL: target, JSONPath: p.JSONPath, IsActive: true,
 	}}
 	return x.settleFetch(s, p.SaveAs, x.callFetch(customFetchEndpoint, req))
