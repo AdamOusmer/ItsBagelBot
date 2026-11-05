@@ -177,4 +177,5 @@ type ActionRecord struct {
 	Type   string `json:"type"`
 	Status string `json:"status"`
 	Detail string `json:"detail,omitempty"`
+	Slot   string `json:"slot,omitempty"`
 }

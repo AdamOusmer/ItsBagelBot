@@ -50,6 +50,8 @@ type Output struct {
 	RedemptionID  string
 	Status        string
 	Reward        *outgress.RewardUpdate
+	RunID         string
+	ActionSlot    string
 }
 
 type Emit func(o *Output)

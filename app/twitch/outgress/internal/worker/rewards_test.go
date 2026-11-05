@@ -341,7 +341,7 @@ func TestRewardUpdateSurvivesRedeliveryWithoutResnapshotting(t *testing.T) {
 	assert.Equal(t, 100, api.state("rw-1").Cost)
 }
 
-func TestRewardNotManageableOnlyReachesLogs(t *testing.T) {
+func TestRewardNotManageableDropsWithoutRedelivery(t *testing.T) {
 	cases := map[string]struct {
 		payload string
 		arrange func(*rewardsAPI)
@@ -363,7 +363,7 @@ func TestRewardNotManageableOnlyReachesLogs(t *testing.T) {
 			patches, _ := api.calls()
 			assert.Len(t, patches, tc.patches)
 			assert.Empty(t, snapshotFields(t, vc))
-			assert.Equal(t, 1, logs.FilterMessage("dropping reward update: "+rewardNotManageable).Len())
+			assert.Equal(t, 1, logs.FilterMessage("dropping reward update: "+outgress.RewardResultNotManageable).Len())
 		})
 	}
 }

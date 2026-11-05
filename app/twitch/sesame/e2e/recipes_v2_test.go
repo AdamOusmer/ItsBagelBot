@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -85,6 +86,20 @@ func (s *stack) recentRuns(t *testing.T, broadcaster uint64, count int) []automa
 	return runs
 }
 
+func (s *stack) awaitRewardStep(t *testing.T, broadcaster uint64, want string) automationrpc.RunRecord {
+	t.Helper()
+	var rec automationrpc.RunRecord
+	require.Eventually(t, func() bool {
+		runs, err := s.runs.Recent(context.Background(), broadcaster, e2eID, 10)
+		if err != nil || len(runs) == 0 {
+			return false
+		}
+		rec = runs[0]
+		return slices.Contains(stepStatuses(rec), want)
+	}, settle, 20*time.Millisecond, "wanted step %s", want)
+	return rec
+}
+
 func stepStatuses(rec automationrpc.RunRecord) []string {
 	out := make([]string, len(rec.Actions))
 	for i, a := range rec.Actions {
@@ -112,7 +127,7 @@ func snapshotExists(t *testing.T, s *stack, broadcaster uint64) bool {
 
 // A paid channel's recipe fetch should spend the paid budget, as command fetches do (engine/urlfetch.go).
 func TestRecipesV2FetchCarriesThePaidFlag(t *testing.T) {
-	channel := uniqueChannel(4)
+	channel := uniqueChannel(5)
 	s := startStack(t, channel)
 	s.helix.seedReward(rewardRef{channel, rewardID}, rewardState{Enabled: true, Cost: 100})
 	s.source.set(channel, loadAutomation(t, e2eFixture, channel))
@@ -137,6 +152,18 @@ func TestRecipesV2FetchCarriesThePaidFlag(t *testing.T) {
 	}
 }
 
+func TestRecipesV2RewardResultReachesRunHistory(t *testing.T) {
+	foreign := uniqueChannel(4)
+	s := startStack(t, foreign)
+	s.helix.seedForeignReward(rewardRef{foreign, rewardID})
+	s.source.set(foreign, loadAutomation(t, e2eFixture, foreign))
+
+	s.command(t, chatCommand{Broadcaster: foreign, Viewer: "alice", Text: "!e2e refused"})
+
+	rec := s.awaitRewardStep(t, foreign, "reward_update:failed:reward_not_manageable")
+	assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome)
+}
+
 func assertFirstRunUpstreamAndVariables(t *testing.T, s *stack, channel uint64) {
 	t.Helper()
 	hits := s.upstream.snapshot()
@@ -159,13 +186,12 @@ func assertFirstRunReward(t *testing.T, s *stack, channel uint64) {
 
 func assertFirstRunRecord(t *testing.T, s *stack, channel uint64) {
 	t.Helper()
-	runs := s.recentRuns(t, channel, 1)
-	t.Logf("run record: %s %v", runs[0].Outcome, stepStatuses(runs[0]))
-	assert.Contains(t, stepStatuses(runs[0]), "http_get:ok")
-	assert.Contains(t, stepStatuses(runs[0]), "http_get:failed:upstream_error")
-	assert.Contains(t, stepStatuses(runs[0]), "overlay_show:ok:no_overlay")
-	assert.Contains(t, stepStatuses(runs[0]), "reward_update:ok:queued")
-	assert.NotEqual(t, automationrpc.OutcomeFailed, runs[0].Outcome, "a failure with a handled path is not a failed run")
+	rec := s.awaitRewardStep(t, channel, "reward_update:ok")
+	t.Logf("run record: %s %v", rec.Outcome, stepStatuses(rec))
+	assert.Contains(t, stepStatuses(rec), "http_get:ok")
+	assert.Contains(t, stepStatuses(rec), "http_get:failed:upstream_error")
+	assert.Contains(t, stepStatuses(rec), "overlay_show:ok:no_overlay")
+	assert.NotEqual(t, automationrpc.OutcomeFailed, rec.Outcome, "a failure with a handled path is not a failed run")
 }
 
 func TestRecipesV2DefinitionToEffects(t *testing.T) {

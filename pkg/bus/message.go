@@ -33,9 +33,15 @@ type Message struct {
 	receivedAt time.Time
 	storedAt   time.Time
 	retryAfter time.Duration
+	final      bool
 }
 
 func (m *Message) StoredAt() time.Time { return m.storedAt }
+
+// True when a failure here ends the message: the subscriber terminates it rather than redelivering.
+func (m *Message) FinalDelivery() bool { return m.final }
+
+func (m *Message) MarkFinalDelivery() { m.final = true }
 
 type messageState uint8
 

@@ -113,6 +113,22 @@ func (s *RewardSnapshots) clear(ctx context.Context, reward rewardRef) error {
 	return s.client.Do(ctx, cmd).Error()
 }
 
+// A success overwrites and a failure only fills an empty field, so a redelivery can never turn a success into a failure.
+func (s *RewardSnapshots) recordResult(ctx context.Context, payload *outgress.Message, result string) error {
+	key := outgress.RewardResultKey(payload.BroadcasterID, payload.RunID)
+	write := s.client.B().Hsetnx().Key(key).Field(payload.ActionSlot).Value(result).Build()
+	if result == outgress.RewardResultOK {
+		write = s.client.B().Hset().Key(key).FieldValue().FieldValue(payload.ActionSlot, result).Build()
+	}
+	results := s.client.DoMulti(ctx, write, s.client.B().Expire().Key(key).Seconds(int64(outgress.RewardResultTTL.Seconds())).Build())
+	for _, res := range results {
+		if err := res.Error(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *RewardSnapshots) changeLock(broadcasterID, owner string) pkg_valkey.OwnerLock {
 	return pkg_valkey.NewOwnerLock(s.client, "outgress:rewards:change:"+broadcasterID, owner)
 }

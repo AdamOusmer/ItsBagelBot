@@ -61,6 +61,9 @@ describe('plain words', () => {
   test('known details get a sentence and an unknown failure names what came back', () => {
     expect(explainStep(english, 'failed', 'math_error')).toContain('math');
     expect(explainStep(english, 'failed', 'reward_not_manageable')).toContain('rewards made here');
+    expect(explainStep(english, 'failed', 'reward_not_found')).toContain('no longer exists');
+    expect(explainStep(english, 'failed', 'reward_rejected')).toContain('turned down');
+    expect(explainStep(english, 'failed', 'reward_unconfirmed')).toContain('several tries');
     expect(explainStep(english, 'ok', 'no_overlay')).toContain('overlay');
     expect(explainStep(english, 'ok', 'queued')).toContain('Sent to Twitch');
     expect(explainStep(english, 'failed', 'timeout')).toBe('This step failed: timeout.');

@@ -211,7 +211,7 @@ func warnOutgress(o *module.Output) (outgress.Message, error) {
 
 func rewardUpdateOutgress(o *module.Output) (outgress.Message, error) {
 	msg, err := payloadMessage(outgress.TypeRewardUpdate, o.BroadcasterID, o.Reward)
-	msg.RewardID = o.RewardID
+	msg.RewardID, msg.RunID, msg.ActionSlot = o.RewardID, o.RunID, o.ActionSlot
 	return msg, err
 }
 

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/internal/domain/outgress"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
@@ -22,7 +23,7 @@ import (
 )
 
 const (
-	runLogTTL          = 7 * 24 * time.Hour
+	runLogTTL          = outgress.RewardResultTTL
 	runRateTTL         = 120 * time.Second
 	runLogKeyPrefix    = "automation:runs:"
 	runRatePrefix      = "automation:rate:"
@@ -263,7 +264,68 @@ func (l *ValkeyRunLog) Recent(ctx context.Context, broadcasterID uint64, automat
 	if err != nil {
 		return nil, err
 	}
-	return runFilter{automationID: automationID, limit: limit}.apply(raw), nil
+	records := runFilter{automationID: automationID, limit: limit}.apply(raw)
+	l.overlayRewardResults(ctx, broadcasterID, records)
+	return records, nil
+}
+
+func (l *ValkeyRunLog) overlayRewardResults(ctx context.Context, broadcasterID uint64, records []automationrpc.RunRecord) {
+	waiting := make([]*automationrpc.RunRecord, 0, len(records))
+	cmds := make(valkey.Commands, 0, len(records))
+	id := strconv.FormatUint(broadcasterID, 10)
+	for i := range records {
+		if awaitsRewardResult(records[i]) {
+			waiting = append(waiting, &records[i])
+			cmds = append(cmds, l.client.B().Hgetall().Key(outgress.RewardResultKey(id, records[i].RunID)).Build())
+		}
+	}
+	for i, results := range l.readRewardResults(ctx, cmds) {
+		applyRewardResults(waiting[i], results)
+	}
+}
+
+func (l *ValkeyRunLog) readRewardResults(ctx context.Context, cmds valkey.Commands) []map[string]string {
+	if len(cmds) == 0 {
+		return nil
+	}
+	replies := l.client.DoMulti(ctx, cmds...)
+	out := make([]map[string]string, len(replies))
+	for i, res := range replies {
+		results, err := res.AsStrMap()
+		if err != nil {
+			l.log.Warn("automations: reward result read failed", zap.Error(err))
+		}
+		out[i] = results
+	}
+	return out
+}
+
+func awaitsRewardResult(rec automationrpc.RunRecord) bool {
+	return slices.ContainsFunc(rec.Actions, func(a automationrpc.ActionRecord) bool { return a.Slot != "" })
+}
+
+func applyRewardResults(rec *automationrpc.RunRecord, results map[string]string) {
+	rewardFailed := false
+	for i := range rec.Actions {
+		action := &rec.Actions[i]
+		result, known := results[action.Slot]
+		action.Slot = ""
+		if !known {
+			continue
+		}
+		action.Status, action.Detail = rewardStep(result)
+		rewardFailed = rewardFailed || action.Status == automationrpc.StatusFailed
+	}
+	if rewardFailed && rec.Outcome == automationrpc.OutcomeOK {
+		rec.Outcome = automationrpc.OutcomePartial
+	}
+}
+
+func rewardStep(result string) (status, detail string) {
+	if result == outgress.RewardResultOK {
+		return automationrpc.StatusOK, ""
+	}
+	return automationrpc.StatusFailed, result
 }
 
 type runFilter struct {

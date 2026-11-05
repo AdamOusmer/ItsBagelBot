@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	rewardNotManageable = "reward_not_manageable"
+	rewardResultWriteTimeout = 2 * time.Second
 
 	errRewardsBusy expectedNackError = "another reward change for this channel is in progress"
 )
@@ -149,11 +149,14 @@ func (w *Worker) rewardUpdateResult(ctx context.Context, payload *outgress.Messa
 	}
 	switch {
 	case err == nil:
+		w.recordRewardResult(ctx, payload, outgress.RewardResultOK)
 		return nil
 	case rewardRefused(err):
-		w.log.Warn("dropping reward update: "+rewardNotManageable, fields...)
+		w.log.Warn("dropping reward update: "+outgress.RewardResultNotManageable, fields...)
+		w.recordRewardResult(ctx, payload, rewardRefusalResult(err))
 	case redemptionPermanent(err):
 		w.log.Warn("dropping reward update: permanent rejection", fields...)
+		w.recordRewardResult(ctx, payload, outgress.RewardResultRejected)
 	default:
 		w.log.Warn("reward update failed, will retry", fields...)
 		return err
@@ -164,6 +167,53 @@ func (w *Worker) rewardUpdateResult(ctx context.Context, payload *outgress.Messa
 
 func rewardRefused(err error) bool {
 	return errors.Is(err, twitch.ErrRewardNotManageable) || errors.Is(err, twitch.ErrRewardNotFound)
+}
+
+func rewardRefusalResult(err error) string {
+	if errors.Is(err, twitch.ErrRewardNotFound) {
+		return outgress.RewardResultNotFound
+	}
+	return outgress.RewardResultNotManageable
+}
+
+func namesARunStep(payload *outgress.Message) bool {
+	return payload.RunID != "" && payload.ActionSlot != ""
+}
+
+func (w *Worker) recordRewardResult(ctx context.Context, payload *outgress.Message, result string) {
+	if w.rewardSnapshots == nil || !namesARunStep(payload) {
+		return
+	}
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rewardResultWriteTimeout)
+	defer cancel()
+	if err := w.rewardSnapshots.recordResult(writeCtx, payload, result); err != nil {
+		w.log.Warn("failed to record reward result", zap.String("run_id", payload.RunID), zap.Error(err))
+	}
+}
+
+// Covers every way a delivery can run out: Twitch errors, a held lock, a pause, and batch items never reached.
+func (w *Worker) recordExhaustedRewards(ctx context.Context, payload *outgress.Message) {
+	if payload.Type != outgress.TypeBatch {
+		w.recordExhaustedReward(ctx, payload, payload.BroadcasterID)
+		return
+	}
+	var batch outgress.Batch
+	if decodeBatch(payload.Payload, &batch) != nil {
+		return
+	}
+	for i := range batch.Items {
+		w.recordExhaustedReward(ctx, &batch.Items[i], payload.BroadcasterID)
+	}
+}
+
+func (w *Worker) recordExhaustedReward(ctx context.Context, item *outgress.Message, broadcasterID string) {
+	if item.Type != outgress.TypeRewardUpdate {
+		return
+	}
+	if item.BroadcasterID == "" {
+		item.BroadcasterID = broadcasterID
+	}
+	w.recordRewardResult(ctx, item, outgress.RewardResultUnconfirmed)
 }
 
 func (w *Worker) processRewardRestore(ctx context.Context, payload *outgress.Message) error {

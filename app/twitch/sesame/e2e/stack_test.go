@@ -75,6 +75,7 @@ type fakeHelix struct {
 	mu      sync.Mutex
 	calls   []helixCall
 	rewards map[rewardRef]*rewardState
+	foreign map[rewardRef]bool
 }
 
 type rewardRef struct {
@@ -101,6 +102,10 @@ func (h *fakeHelix) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *fakeHelix) serveReward(w http.ResponseWriter, method string, call helixCall) {
+	if h.foreign[call.rewardRef()] {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	reward := h.rewards[call.rewardRef()]
 	if reward == nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -126,6 +131,12 @@ func (h *fakeHelix) seedReward(ref rewardRef, state rewardState) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.rewards[ref] = &state
+}
+
+func (h *fakeHelix) seedForeignReward(ref rewardRef) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.foreign[ref] = true
 }
 
 func (h *fakeHelix) reward(ref rewardRef) rewardState {
@@ -358,7 +369,7 @@ func startStack(t *testing.T, channels ...uint64) *stack {
 	ensureOutgressStreams(t, natsURL)
 	startLoyalty(t, nc)
 
-	s := &stack{vc: vc, nc: nc, natsURL: natsURL, helix: &fakeHelix{rewards: map[rewardRef]*rewardState{}}, upstream: &upstreamLog{}, source: &fixtureSource{autos: map[uint64][]automation.Automation{}}}
+	s := &stack{vc: vc, nc: nc, natsURL: natsURL, helix: &fakeHelix{rewards: map[rewardRef]*rewardState{}, foreign: map[rewardRef]bool{}}, upstream: &upstreamLog{}, source: &fixtureSource{autos: map[uint64][]automation.Automation{}}}
 	s.vars = engine.NewLoyaltyRPC(nc, engine.LoyaltyRPCPrefix(loyaltyPrefix))
 	s.runs = engine.NewValkeyRunLog(vc, zap.NewNop())
 
