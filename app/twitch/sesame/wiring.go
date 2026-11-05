@@ -85,6 +85,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 			Variables: engine.NewLoyaltyRPC(in.nc, engine.LoyaltyRPCPrefix(cfg.LoyaltyRPCPrefix)),
 			Overlay:   engine.NewValkeyOverlay(in.vc),
 			Queue:     engine.NewValkeyRunQueue(in.vc),
+			Durable:   engine.NewValkeyDurableRuns(in.vc),
 		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,

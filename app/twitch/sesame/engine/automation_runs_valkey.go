@@ -335,17 +335,55 @@ type runFilter struct {
 
 func (f runFilter) apply(raw []string) []automationrpc.RunRecord {
 	out := make([]automationrpc.RunRecord, 0, f.limit)
+	rows := make(map[string]int, f.limit)
 	for _, item := range raw {
 		rec, ok := f.decode(item)
 		if !ok {
 			continue
 		}
-		out = append(out, rec)
-		if len(out) == f.limit {
-			break
+		if row, seen := rows[rec.RunID]; seen {
+			out[row] = mergeRunParts(out[row], rec)
+			continue
+		}
+		if len(out) < f.limit {
+			rows[rec.RunID] = len(out)
+			out = append(out, rec)
 		}
 	}
 	return out
+}
+
+// Parallel paths that paused each finish on their own, so one run can hold several entries; history shows one outcome.
+func mergeRunParts(newer, older automationrpc.RunRecord) automationrpc.RunRecord {
+	merged := newer
+	merged.At = older.At
+	merged.DurationMS = max(newer.DurationMS, older.DurationMS)
+	if outcomeSeverity(older.Outcome) > outcomeSeverity(newer.Outcome) {
+		merged.Outcome, merged.Reason = older.Outcome, older.Reason
+	}
+	shared := sharedActionPrefix(newer.Actions, older.Actions)
+	merged.Actions = append(slices.Clone(newer.Actions), older.Actions[shared:]...)
+	return merged
+}
+
+func outcomeSeverity(outcome string) int {
+	switch outcome {
+	case automationrpc.OutcomeFailed:
+		return 3
+	case automationrpc.OutcomePartial:
+		return 2
+	case automationrpc.OutcomeLimited:
+		return 1
+	}
+	return 0
+}
+
+func sharedActionPrefix(a, b []automationrpc.ActionRecord) int {
+	shared := 0
+	for shared < min(len(a), len(b)) && a[shared] == b[shared] {
+		shared++
+	}
+	return shared
 }
 
 func (f runFilter) decode(item string) (automationrpc.RunRecord, bool) {

@@ -39,6 +39,9 @@ type AutomationDeps struct {
 	Variables VariableStore
 	Overlay   OverlayPublisher
 	Queue     RunQueue
+	Durable   DurableStore
+
+	durableTiming durableTiming
 }
 
 type AutomationRun struct {
@@ -65,7 +68,9 @@ type AutomationRun struct {
 	Replay        string
 	Tree          *runTree
 	Slot          *queueSlot
+	OwnsSlot      bool
 	DetachedRole  module.Role
+	Durable       *durableTicket
 }
 
 // A root run, its `run` children and every detached path spend these concurrently: a copy per path multiplies each cap.
@@ -141,9 +146,9 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 	}
 }
 
-// Only the root owns a slot reference: a run child shares its parent's segment.
+// A child that joined its parent's slot shares the parent's reference.
 func (p *Pipeline) endRunSegment(ctx context.Context, run *AutomationRun) {
-	if run.Depth == 0 {
+	if run.OwnsSlot {
 		defer run.Slot.drop()
 	}
 	p.finishRun(ctx, run)
@@ -174,7 +179,7 @@ func trimmedRecords(records []automationrpc.ActionRecord) []automationrpc.Action
 }
 
 func (p *Pipeline) finishRun(ctx context.Context, run *AutomationRun) {
-	if run.Record.Outcome == outcomeDeferred {
+	if run.Record.Outcome == outcomeDeferred || !p.durable.finish(ctx, run) {
 		return
 	}
 	run.Record.DurationMS = int(time.Since(run.Started).Milliseconds())
