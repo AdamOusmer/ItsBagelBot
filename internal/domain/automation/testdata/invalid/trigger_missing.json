@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "hello {user}"
+      }
+    }
+  ]
+}

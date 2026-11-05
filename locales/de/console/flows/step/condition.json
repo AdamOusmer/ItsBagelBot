@@ -1,0 +1,118 @@
+{
+  "role": {
+    "label": "Nutzerlevel",
+    "summary": "Nur bestimmte Zuschauer durchlassen",
+    "field": {
+      "level": {
+        "label": "Mindestens",
+        "option": {
+          "everyone": "Jeder",
+          "sub": "Abonnent",
+          "vip": "VIP",
+          "mod": "Moderator",
+          "lead_mod": "Hauptmoderator",
+          "broadcaster": "Kanalinhaber"
+        }
+      }
+    },
+    "out": {
+      "yes": "Erlaubt",
+      "no": "Blockiert"
+    }
+  },
+  "user": {
+    "label": "Bestimmter Nutzer",
+    "summary": "Nur diesen Zuschauer durchlassen",
+    "field": {
+      "login": {
+        "label": "Benutzername",
+        "placeholder": "itsbagelbot"
+      }
+    },
+    "out": {
+      "yes": "Dieser Nutzer",
+      "no": "Alle anderen"
+    }
+  },
+  "cooldown": {
+    "label": "Abklingzeit",
+    "summary": "Zwischen Ausführungen warten",
+    "field": {
+      "seconds": {
+        "label": "Abklingzeit",
+        "unit": "Sekunden"
+      },
+      "perUser": {
+        "label": "Pro Zuschauer"
+      }
+    },
+    "out": {
+      "yes": "Bereit",
+      "no": "In Abklingzeit"
+    }
+  },
+  "compare": {
+    "label": "Wert vergleichen",
+    "summary": "Variable prüfen",
+    "field": {
+      "left": {
+        "label": "Wert",
+        "placeholder": "{bits}"
+      },
+      "op": {
+        "label": "Ist",
+        "option": {
+          "gte": "mindestens",
+          "lt": "kleiner als",
+          "eq": "gleich",
+          "contains": "enthält"
+        }
+      },
+      "right": {
+        "label": "Dieser Wert",
+        "placeholder": "1000"
+      }
+    },
+    "out": {
+      "yes": "Ja",
+      "no": "Nein"
+    }
+  },
+  "chance": {
+    "label": "Zufallschance",
+    "summary": "Nur manchmal durchlassen",
+    "field": {
+      "percent": {
+        "label": "Chance",
+        "unit": "%"
+      }
+    },
+    "out": {
+      "yes": "Treffer",
+      "no": "Verfehlt"
+    }
+  },
+  "var": {
+    "label": "Variable prüfen",
+    "summary": "Durchlassen, wenn ein gespeicherter Wert übereinstimmt",
+    "field": {
+      "scope": { "label": "Gespeichert für", "option": { "channel": "Der Kanal", "viewer": "Dieser Zuschauer" } },
+      "name": { "label": "Name", "placeholder": "tode" },
+      "op": {
+        "label": "Ist",
+        "option": {
+          "eq": "gleich",
+          "ne": "nicht gleich",
+          "gt": "größer als",
+          "gte": "mindestens",
+          "lt": "kleiner als",
+          "lte": "höchstens",
+          "contains": "enthält",
+          "exists": "auf irgendetwas gesetzt"
+        }
+      },
+      "value": { "label": "Wert", "placeholder": "10" }
+    },
+    "out": { "yes": "Ja", "no": "Nein" }
+  }
+}

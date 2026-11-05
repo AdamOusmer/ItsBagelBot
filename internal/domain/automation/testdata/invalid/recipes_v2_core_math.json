@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    { "type": "math", "params": { "expression": "", "save_as": "not-a-name" } }
+  ]
+}

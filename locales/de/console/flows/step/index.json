@@ -1,0 +1,20 @@
+{
+  "then": "Dann",
+  "variable": {
+    "user": "Anzeigename",
+    "userId": "Nutzer-ID",
+    "args": "Argumente",
+    "touser": "Erstes Argument",
+    "tier": "Tier",
+    "months": "Monate",
+    "bits": "Bits",
+    "viewers": "Zuschauer",
+    "input": "Zuschauereingabe",
+    "title": "Stream-Titel",
+    "game": "Kategorie",
+    "count": "Neuer Zählerstand",
+    "loopIndex": "Welcher Durchlauf dies ist",
+    "apiError": "Warum es fehlgeschlagen ist",
+    "saved": "Von einem früheren Schritt gespeichert"
+  }
+}

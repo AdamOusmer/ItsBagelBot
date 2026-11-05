@@ -81,6 +81,7 @@ defmodule Ingress.Application do
     [
       Ingress.TrialValkey,
       Ingress.TrialMembership,
+      Ingress.AutomodTrialLane,
       Ingress.TrialAdmission.Pool,
       {Ingress.TrialReceiver, slot: 0},
       {Ingress.TrialReceiver, slot: 1},

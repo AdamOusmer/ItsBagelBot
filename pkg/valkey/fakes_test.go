@@ -217,6 +217,7 @@ var fakeCommands = map[string]func(*fakeValkey, respArgs) []byte{
 	"EVAL":            (*fakeValkey).execEVAL,
 	"EVALSHA":         (*fakeValkey).execEVALSHA,
 	"INCR":            (*fakeValkey).execINCR,
+	"INCRBY":          (*fakeValkey).execINCRBY,
 	"EXPIRE":          (*fakeValkey).execEXPIRE,
 	"HGET":            func(*fakeValkey, respArgs) []byte { return respNil() },
 	"ZADD":            (*fakeValkey).execZADD,
@@ -322,12 +323,19 @@ func (f *fakeValkey) renewLocked(key, owner string, ttl time.Duration) []byte {
 }
 
 func (f *fakeValkey) execINCR(args respArgs) []byte {
-	key := args[0]
+	return f.addLocked(args[0], 1)
+}
+
+func (f *fakeValkey) execINCRBY(args respArgs) []byte {
+	return f.addLocked(args[0], args.int(1))
+}
+
+func (f *fakeValkey) addLocked(key string, by int64) []byte {
 	n := int64(0)
 	if f.aliveLocked(key) {
 		n = respArgs{f.strs[key]}.int(0)
 	}
-	n++
+	n += by
 	f.strs[key] = strconv.FormatInt(n, 10)
 	return respInt(n)
 }

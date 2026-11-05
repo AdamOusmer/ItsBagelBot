@@ -362,11 +362,28 @@ accounts:
                         - data.loyalty.counters
                         - twitch.ingress.event.stream
                         - _INBOX.>
+            automod_bus:
+                publish:
+                    allow:
+                        - $JS.API.STREAM.INFO.TWITCH_AUTOMOD_TRIAL
+                        - $JS.API.STREAM.CREATE.TWITCH_AUTOMOD_TRIAL
+                        - $JS.API.STREAM.UPDATE.TWITCH_AUTOMOD_TRIAL
+                        - $JS.API.CONSUMER.INFO.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.API.CONSUMER.CREATE.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.API.CONSUMER.DELETE.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.API.CONSUMER.MSG.NEXT.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.ACK.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.ACK.*.*.TWITCH_AUTOMOD_TRIAL.>
+                subscribe:
+                    allow:
+                        - _INBOX.>
             twitch_ingress_bus:
                 publish:
                     allow:
                         - twitch.ingress.event.>
                         - twitch.ingress.status.>
+                        - twitch.automod.trial
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -502,6 +519,10 @@ accounts:
               from: GOSSIP_RPC
             - service: bagel.rpc.gossip.govee.devices.node.*
               from: GOSSIP_RPC
+            - service: bagel.rpc.gossip.govee.scenes
+              from: GOSSIP_RPC
+            - service: bagel.rpc.gossip.govee.scenes.node.*
+              from: GOSSIP_RPC
             - service: bagel.rpc.gossip.spotify.exchange
               from: GOSSIP_RPC
             - service: bagel.rpc.gossip.spotify.exchange.node.*
@@ -536,8 +557,18 @@ accounts:
               from: PROJECTOR_RPC
             - stream: bagel.cache.invalidate.modules
               from: PROJECTOR_RPC
+            - stream: bagel.cache.invalidate.automations
+              from: PROJECTOR_RPC
             - stream: bagel.cache.invalidate.notifications
               from: NOTIFICATIONS_RPC
+            - service: bagel.rpc.automations.run
+              from: WORKER_RPC
+            - service: bagel.rpc.automations.run.node.*
+              from: WORKER_RPC
+            - service: bagel.rpc.automations.runs
+              from: WORKER_RPC
+            - service: bagel.rpc.automations.runs.node.*
+              from: WORKER_RPC
             - stream: bagel.cache.invalidate.loyalty
               from: LOYALTY_RPC
         roles:
@@ -629,6 +660,8 @@ accounts:
             - service: bagel.rpc.modules.>
             - service: bagel.rpc.internal.projection.modules.get
             - service: bagel.rpc.internal.projection.modules.get.node.*
+            - service: bagel.rpc.internal.projection.modules.automations.get
+            - service: bagel.rpc.internal.projection.modules.automations.get.node.*
             - service: bagel.rpc.internal.govee.key.>
             - service: bagel.rpc.internal.spotify.key.>
         imports:
@@ -710,6 +743,7 @@ accounts:
             - service: bagel.rpc.broadcaster.stream_info.get.node.*
             - stream: bagel.cache.invalidate.commands
             - stream: bagel.cache.invalidate.modules
+            - stream: bagel.cache.invalidate.automations
             - stream: bagel.cache.invalidate.live
         imports:
             - service: bagel.rpc.internal.users.lifecycle
@@ -751,6 +785,10 @@ accounts:
             - service: bagel.rpc.internal.projection.modules.get
               from: MODULES_RPC
             - service: bagel.rpc.internal.projection.modules.get.node.*
+              from: MODULES_RPC
+            - service: bagel.rpc.internal.projection.modules.automations.get
+              from: MODULES_RPC
+            - service: bagel.rpc.internal.projection.modules.automations.get.node.*
               from: MODULES_RPC
             - service: bagel.rpc.loyalty.counter.get
               from: LOYALTY_RPC
@@ -851,7 +889,15 @@ accounts:
         exports:
             - service: bagel.rpc.health.sesame
             - service: bagel.rpc.health.sesame.node.*
+            - service: bagel.rpc.automations.run
+            - service: bagel.rpc.automations.run.node.*
+            - service: bagel.rpc.automations.runs
+            - service: bagel.rpc.automations.runs.node.*
         imports:
+            - service: bagel.rpc.internal.projection.modules.automations.get
+              from: MODULES_RPC
+            - service: bagel.rpc.internal.projection.modules.automations.get.node.*
+              from: MODULES_RPC
             - service: bagel.rpc.internal.users.lifecycle
               from: USERS_RPC
             - service: bagel.rpc.internal.users.lifecycle.node.*
@@ -921,6 +967,8 @@ accounts:
             - stream: bagel.cache.invalidate.commands
               from: PROJECTOR_RPC
             - stream: bagel.cache.invalidate.modules
+              from: PROJECTOR_RPC
+            - stream: bagel.cache.invalidate.automations
               from: PROJECTOR_RPC
             - stream: bagel.cache.invalidate.live
               from: PROJECTOR_RPC

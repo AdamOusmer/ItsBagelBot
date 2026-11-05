@@ -1,0 +1,33 @@
+{
+  "title": "Rezept-Einstellungen",
+  "close": "Rezept-Einstellungen schließen",
+  "queueTitle": "Nacheinander",
+  "queueLabel": "Warteschlangenname",
+  "queuePlaceholder": "klang",
+  "queueHint": "Rezepte mit demselben Warteschlangennamen kommen nacheinander an die Reihe. Lasse es leer, damit dieses Rezept immer ausgeführt wird, sobald es auslöst.",
+  "runsTitle": "Letzte Ausführungen",
+  "runsEmpty": "Bisher wurde nichts ausgeführt.",
+  "runsSaveFirst": "Speichere dieses Rezept, um seine Ausführungen zu sehen.",
+  "runsRefresh": "Aktualisieren",
+  "runsFailed": "Ausführungen konnten nicht geladen werden. Versuche es gleich noch einmal.",
+  "runCount": "{count} Mal",
+  "runOneOf": "Eines von: {steps}",
+  "runStopped": "Diese Ausführung wurde bei der ersten Prüfung gestoppt.",
+  "why": {
+    "math_error": "Die Berechnung konnte nicht durchgeführt werden. Prüfe auf eine Division durch null oder einen Tippfehler.",
+    "bad_times": "Die Anzahl der Wiederholungen war keine ganze Zahl.",
+    "text_error": "Dieser Text-Schritt hat einen Wert erhalten, den er nicht verwenden konnte.",
+    "reward_not_manageable": "Twitch lässt uns nur hier erstellte Belohnungen ändern. Wähle eine, die unter Kanalpunkte erstellt wurde.",
+    "reward_not_found": "Diese Belohnung gibt es auf Twitch nicht mehr. Wähle eine andere aus.",
+    "reward_rejected": "Twitch hat diese Änderung abgelehnt. Überprüfe die Kosten und ob der Kanal noch verbunden ist.",
+    "reward_unconfirmed": "Twitch hat diese Änderung nach mehreren Versuchen nicht bestätigt. Überprüfe die Belohnung.",
+    "queue_full": "In dieser Warteschlange warteten bereits zu viele Ausführungen.",
+    "queue_timeout": "Diese Ausführung hat 5 Minuten in der Warteschlange gewartet und wurde abgebrochen.",
+    "queued": "An Twitch gesendet. Noch keine Antwort, schau gleich noch mal nach.",
+    "limited": "Hier wurde ein Limit erreicht, daher wurde dies nicht ausgeführt.",
+    "failedWith": "Dieser Schritt ist fehlgeschlagen: {detail}.",
+    "failed": "Dieser Schritt ist fehlgeschlagen.",
+    "unsupported": "Dieser Schritt kann hier nicht ausgeführt werden.",
+    "skipped": "Dieser Schritt wurde übersprungen."
+  }
+}

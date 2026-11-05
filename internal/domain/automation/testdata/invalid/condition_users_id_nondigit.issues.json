@@ -1,0 +1,6 @@
+[
+  {
+    "path": "conditions[0].params.allow_ids[0]",
+    "code": "invalid_format"
+  }
+]

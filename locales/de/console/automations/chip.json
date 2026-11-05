@@ -1,0 +1,26 @@
+{
+  "user": "Der Zuschauer, der es ausgelöst hat",
+  "args": "Alles, was nach dem Befehl eingegeben wurde",
+  "arg": "Ein benanntes Argument: key ersetzen",
+  "event": {
+    "user": "Anzeigename des Zuschauers",
+    "login": "Login-Name des Zuschauers",
+    "user_id": "Twitch-Benutzer-ID",
+    "tier": "Abo-Stufe",
+    "is_gift": "Ob das Abo ein Geschenk ist",
+    "months": "Abo-Monate insgesamt",
+    "streak": "Aktuelle Serie in Monaten",
+    "message": "Nachrichtentext",
+    "amount": "Anzahl Bits oder Geschenke",
+    "total": "Bisher insgesamt verschenkt",
+    "anonymous": "Ob anonym",
+    "viewers": "Zuschauer im Raid",
+    "seconds": "Werbedauer in Sekunden",
+    "automatic": "Ob die Pause automatisch war",
+    "reward": "Titel der Belohnung",
+    "reward_id": "Belohnungs-ID",
+    "cost": "Kosten der Belohnung",
+    "input": "Vom Zuschauer eingegebener Text",
+    "type": "Stream-Typ"
+  }
+}

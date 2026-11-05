@@ -1,0 +1,92 @@
+{
+  "match": {
+    "start": "Beginnt mit",
+    "exact": "Exakt",
+    "anywhere": "Irgendwo in der Nachricht",
+    "regex": "Regulärer Ausdruck"
+  },
+  "sources": {
+    "chat": "Chat",
+    "sub_message": "Abo-Nachrichten"
+  },
+  "color": {
+    "none": "Standard",
+    "primary": "Primär",
+    "blue": "Blau",
+    "green": "Grün",
+    "orange": "Orange",
+    "purple": "Lila"
+  },
+  "level": {
+    "everyone": "Alle",
+    "sub": "Abonnenten",
+    "vip": "VIPs",
+    "mod": "Moderatoren",
+    "lead_mod": "Leitende Moderatoren",
+    "broadcaster": "Streamer"
+  },
+  "state": {
+    "live": "Live",
+    "offline": "Offline"
+  },
+  "op": {
+    "contains": "enthält",
+    "eq": "ist gleich",
+    "ne": "ist nicht",
+    "gt": "größer als",
+    "gte": "mindestens",
+    "lt": "kleiner als",
+    "lte": "höchstens",
+    "exists": "ist gesetzt",
+    "upper": "In Großbuchstaben umwandeln",
+    "lower": "In Kleinbuchstaben umwandeln",
+    "trim": "Leerzeichen entfernen",
+    "length": "Zeichen zählen",
+    "replace": "Ersetzen",
+    "substring": "Teil herausschneiden",
+    "split_pick": "Trennen und eins auswählen",
+    "url_encode": "Für Links sicher machen"
+  },
+  "scope": {
+    "channel": "Der Kanal",
+    "viewer": "Dieser Zuschauer"
+  },
+  "position": {
+    "top": "Oben",
+    "center": "Mitte",
+    "bottom": "Unten"
+  },
+  "status": {
+    "fulfill": "Erfüllen",
+    "cancel": "Abbrechen und erstatten"
+  },
+  "mode": {
+    "color": "Farbe",
+    "scene": "Szene"
+  },
+  "kind": {
+    "text": "Text",
+    "image": "Bild",
+    "video": "Video",
+    "channel": {
+      "follow": "Neuer Follower",
+      "subscribe": "Neues Abo",
+      "subscription": {
+        "message": "Nachricht zum Abo-Verlängern",
+        "gift": "Verschenkte Abos"
+      },
+      "cheer": "Cheer",
+      "raid": "Eingehender Raid",
+      "ad_break": {
+        "begin": "Werbepause beginnt"
+      },
+      "channel_points_custom_reward_redemption": {
+        "add": "Belohnung eingelöst"
+      }
+    },
+    "stream": {
+      "online": "Stream geht live",
+      "offline": "Stream endet"
+    }
+  }
+}

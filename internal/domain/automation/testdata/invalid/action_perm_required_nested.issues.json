@@ -1,0 +1,10 @@
+[
+  {
+    "path": "actions[0].params.then[0].type",
+    "code": "perm_required"
+  },
+  {
+    "path": "actions[1].params.branches[0].actions[0].type",
+    "code": "perm_required"
+  }
+]

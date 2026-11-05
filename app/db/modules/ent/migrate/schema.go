@@ -9,6 +9,38 @@ import (
 )
 
 var (
+	// AutomationsColumns holds the columns for the "automations" table.
+	AutomationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 36},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "name", Type: field.TypeString, Size: 64},
+		{Name: "name_key", Type: field.TypeString, Size: 256},
+		{Name: "enabled", Type: field.TypeBool, Default: false},
+		{Name: "revision", Type: field.TypeInt64, Default: 1},
+		{Name: "trigger_type", Type: field.TypeString, Size: 32},
+		{Name: "definition", Type: field.TypeString, Size: 2147483647},
+		{Name: "preview", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// AutomationsTable holds the schema information for the "automations" table.
+	AutomationsTable = &schema.Table{
+		Name:       "automations",
+		Columns:    AutomationsColumns,
+		PrimaryKey: []*schema.Column{AutomationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "automation_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{AutomationsColumns[1]},
+			},
+			{
+				Name:    "automation_user_id_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{AutomationsColumns[1], AutomationsColumns[3]},
+			},
+		},
+	}
 	// ChannelFeedCountersColumns holds the columns for the "channel_feed_counters" table.
 	ChannelFeedCountersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUint64, Increment: true},
@@ -143,6 +175,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AutomationsTable,
 		ChannelFeedCountersTable,
 		FeedCountersTable,
 		FeedReceiptsTable,

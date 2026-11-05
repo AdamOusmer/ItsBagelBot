@@ -136,6 +136,11 @@ export function rehearseTimer(response: string, modules: ModuleFlags = {}): Rehe
   return text === '' ? [] : [rehearseLine(text, chainResolver(timerChain(modules)))];
 }
 
+export function rehearseAutomation(response: string, samples: Samples = {}, modules: ModuleFlags = {}): RehearsedLine[] {
+  const text = responseLines(response).join(' ');
+  return text === '' ? [] : [rehearseLine(text, chainResolver(automationChain(samples, modules)))];
+}
+
 export interface ReplyOptions {
   dynamic?: boolean;
 }
@@ -225,6 +230,29 @@ export type ChainKind = 'command' | 'reply';
 export function resolvedWithoutSample(name: string, kind: ChainKind): boolean {
   if (kind === 'reply') return PURE_SCOPE.owns({ name });
   return !messageOwns(name) && ownedByCore(name);
+}
+
+const EVENT_PREFIX = 'event.';
+
+const RECIPE_VALUE_TOKENS = new Set(['local', 'var', 'viewervar']);
+
+function recipeValueScope(samples: Samples): SampleScope {
+  return {
+    owns: ({ name }) => RECIPE_VALUE_TOKENS.has(name),
+    get: (token) => samples[token.key] ?? token.payload
+  };
+}
+
+function automationChain(samples: Samples, modules: ModuleFlags): SampleScope[] {
+  return [recipeValueScope(samples), eventScope(samples), ...commandChain({ ...COMMAND_SAMPLES, ...samples }, modules)];
+}
+
+function eventScope(samples: Samples): SampleScope {
+  return {
+    owns: ({ name, payload }) =>
+      (payload ?? null) === null && (name.startsWith(EVENT_PREFIX) || Object.hasOwn(samples, name)),
+    get: (token) => samples[token.name.replace(EVENT_PREFIX, '')] ?? ''
+  };
 }
 
 function replyChain(samples: Samples, opts: ReplyOptions): SampleScope[] {

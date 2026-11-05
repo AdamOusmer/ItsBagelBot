@@ -37,6 +37,7 @@ describe('nav registry', () => {
     expect(DASHBOARD_SECTIONS.map((def) => def.href)).toEqual([
       '/',
       '/commands',
+      '/flows',
       '/modules',
       '/songqueue',
       '/discord',
@@ -45,7 +46,24 @@ describe('nav registry', () => {
     ]);
   });
 
-  test('an owner sees all seven entries with active following the section', () => {
+  test('Recipes is an owner entry in production, never hidden behind demo mode', () => {
+    const base = { isDelegate: false, sections: [], section: 'flows', moduleLinks: [] } as const;
+    expect(clientNavItems(base).find((i) => i.href === '/flows')?.current).toBe(true);
+    expect(clientNavItems({ ...base, isDelegate: true, sections: [...GRANTABLE_SECTIONS] }).map((i) => i.href)).not.toContain('/flows');
+  });
+
+  test('a beta section carries its label and no other section does', () => {
+    const items = clientNavItems({
+      isDelegate: false,
+      sections: [],
+      section: 'flows',
+      moduleLinks: [],
+      t: (key) => `en:${key}`
+    });
+    expect(items.filter((i) => i.count !== undefined).map((i) => [i.href, i.count])).toEqual([['/flows', 'en:nav.beta']]);
+  });
+
+  test('an owner sees every entry with active following the section', () => {
     const items = dashboardNavItems({
       isDelegate: false,
       sections: [],
@@ -55,12 +73,13 @@ describe('nav registry', () => {
     expect(items.map((i) => i.label)).toEqual([
       'en:nav.overview',
       'en:nav.commands',
+      'en:nav.flows',
       'en:nav.modules',
       'en:nav.songqueue',
       'en:nav.billing',
       'en:nav.settings'
     ]);
-    expect(items.map((i) => i.current)).toEqual([false, false, false, false, true, false]);
+    expect(items.map((i) => i.current)).toEqual([false, false, false, false, false, true, false]);
   });
 
   test('a delegate sees only granted sections, never owner-only ones', () => {
@@ -128,7 +147,7 @@ describe('nav registry', () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('en:nav.manage');
-    expect(groups[0].items).toHaveLength(6);
+    expect(groups[0].items).toHaveLength(7);
   });
 });
 

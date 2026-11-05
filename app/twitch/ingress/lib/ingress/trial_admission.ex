@@ -4,7 +4,7 @@
 defmodule Ingress.TrialAdmission do
   use GenServer
 
-  alias Ingress.{Dispatcher, Metrics, TrialValkey, Trials}
+  alias Ingress.{AutomodTrialLane, Dispatcher, Metrics, TrialValkey, Trials}
 
   @partitions 8
   @batch 256
@@ -79,10 +79,11 @@ defmodule Ingress.TrialAdmission do
   defp settle({{id, generation, _chat_id, payload, meta}, result}) do
     case Trials.admit_result(result) do
       :first ->
-        Dispatcher.dispatch(
-          payload,
+        trial_meta =
           Map.merge(meta, %{origin: :trial, trial_generation: String.to_integer(generation)})
-        )
+
+        Dispatcher.dispatch(payload, trial_meta)
+        AutomodTrialLane.publish(payload, trial_meta)
 
         []
 

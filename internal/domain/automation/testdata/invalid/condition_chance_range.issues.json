@@ -1,0 +1,6 @@
+[
+  {
+    "path": "conditions[0].params.percent",
+    "code": "out_of_range"
+  }
+]

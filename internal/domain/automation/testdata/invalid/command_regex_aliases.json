@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "^a$",
+      "match": "regex",
+      "aliases": [
+        "!b"
+      ]
+    }
+  }
+}

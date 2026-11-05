@@ -43,3 +43,8 @@ async function heal(login: string): Promise<ResolvedChannel | null> {
 // A rename the users DB has not seen yet: Twitch names the id, identity_sync moves our row onto the new login.
 // Rate-limited and cached like viewer lookups, and a hit lives no longer than a miss so a later rename cannot be masked.
 export const healLogin = createCachedResolver<ResolvedChannel>({ lookup: heal, foundTtlMs: MISSING_TTL_MS });
+
+export type { TwitchIdentity };
+
+// Any Twitch account, registered here or not: a recipe can name an ordinary viewer. Never writes to the users DB.
+export const lookupTwitchUser = createCachedResolver<TwitchIdentity>({ lookup: twitchIdentity });

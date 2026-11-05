@@ -1,0 +1,261 @@
+[
+  {
+    "kind": "channel.ad_break.begin",
+    "fields": [
+      {
+        "name": "seconds",
+        "path": "duration_seconds",
+        "numeric": true
+      },
+      {
+        "name": "automatic",
+        "path": "is_automatic",
+        "numeric": false
+      }
+    ]
+  },
+  {
+    "kind": "channel.channel_points_custom_reward_redemption.add",
+    "fields": [
+      {
+        "name": "user",
+        "path": "user_name",
+        "numeric": false
+      },
+      {
+        "name": "login",
+        "path": "user_login",
+        "numeric": false
+      },
+      {
+        "name": "user_id",
+        "path": "user_id",
+        "numeric": false
+      },
+      {
+        "name": "reward",
+        "path": "reward.title",
+        "numeric": false
+      },
+      {
+        "name": "reward_id",
+        "path": "reward.id",
+        "numeric": false
+      },
+      {
+        "name": "cost",
+        "path": "reward.cost",
+        "numeric": true
+      },
+      {
+        "name": "input",
+        "path": "user_input",
+        "numeric": false
+      }
+    ]
+  },
+  {
+    "kind": "channel.cheer",
+    "fields": [
+      {
+        "name": "user",
+        "path": "user_name",
+        "numeric": false
+      },
+      {
+        "name": "login",
+        "path": "user_login",
+        "numeric": false
+      },
+      {
+        "name": "user_id",
+        "path": "user_id",
+        "numeric": false
+      },
+      {
+        "name": "amount",
+        "path": "bits",
+        "numeric": true
+      },
+      {
+        "name": "message",
+        "path": "message",
+        "numeric": false
+      },
+      {
+        "name": "anonymous",
+        "path": "is_anonymous",
+        "numeric": false
+      }
+    ]
+  },
+  {
+    "kind": "channel.follow",
+    "fields": [
+      {
+        "name": "user",
+        "path": "user_name",
+        "numeric": false
+      },
+      {
+        "name": "login",
+        "path": "user_login",
+        "numeric": false
+      },
+      {
+        "name": "user_id",
+        "path": "user_id",
+        "numeric": false
+      }
+    ]
+  },
+  {
+    "kind": "channel.raid",
+    "fields": [
+      {
+        "name": "user",
+        "path": "from_broadcaster_user_name",
+        "numeric": false
+      },
+      {
+        "name": "login",
+        "path": "from_broadcaster_user_login",
+        "numeric": false
+      },
+      {
+        "name": "user_id",
+        "path": "from_broadcaster_user_id",
+        "numeric": false
+      },
+      {
+        "name": "viewers",
+        "path": "viewers",
+        "numeric": true
+      }
+    ]
+  },
+  {
+    "kind": "channel.subscribe",
+    "fields": [
+      {
+        "name": "user",
+        "path": "user_name",
+        "numeric": false
+      },
+      {
+        "name": "login",
+        "path": "user_login",
+        "numeric": false
+      },
+      {
+        "name": "user_id",
+        "path": "user_id",
+        "numeric": false
+      },
+      {
+        "name": "tier",
+        "path": "tier",
+        "numeric": false
+      },
+      {
+        "name": "is_gift",
+        "path": "is_gift",
+        "numeric": false
+      }
+    ]
+  },
+  {
+    "kind": "channel.subscription.gift",
+    "fields": [
+      {
+        "name": "user",
+        "path": "user_name",
+        "numeric": false
+      },
+      {
+        "name": "login",
+        "path": "user_login",
+        "numeric": false
+      },
+      {
+        "name": "user_id",
+        "path": "user_id",
+        "numeric": false
+      },
+      {
+        "name": "tier",
+        "path": "tier",
+        "numeric": false
+      },
+      {
+        "name": "amount",
+        "path": "total",
+        "numeric": true
+      },
+      {
+        "name": "total",
+        "path": "cumulative_total",
+        "numeric": true
+      },
+      {
+        "name": "anonymous",
+        "path": "is_anonymous",
+        "numeric": false
+      }
+    ]
+  },
+  {
+    "kind": "channel.subscription.message",
+    "fields": [
+      {
+        "name": "user",
+        "path": "user_name",
+        "numeric": false
+      },
+      {
+        "name": "login",
+        "path": "user_login",
+        "numeric": false
+      },
+      {
+        "name": "user_id",
+        "path": "user_id",
+        "numeric": false
+      },
+      {
+        "name": "tier",
+        "path": "tier",
+        "numeric": false
+      },
+      {
+        "name": "months",
+        "path": "cumulative_months",
+        "numeric": true
+      },
+      {
+        "name": "streak",
+        "path": "streak_months",
+        "numeric": true
+      },
+      {
+        "name": "message",
+        "path": "message.text",
+        "numeric": false
+      }
+    ]
+  },
+  {
+    "kind": "stream.offline",
+    "fields": []
+  },
+  {
+    "kind": "stream.online",
+    "fields": [
+      {
+        "name": "type",
+        "path": "type",
+        "numeric": false
+      }
+    ]
+  }
+]

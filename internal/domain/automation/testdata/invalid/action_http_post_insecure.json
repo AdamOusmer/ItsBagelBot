@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "http_post",
+      "params": {
+        "url": "http://example.com/hook",
+        "body": ""
+      }
+    }
+  ]
+}

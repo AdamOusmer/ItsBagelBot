@@ -24,6 +24,8 @@ type Message struct {
 	RewardID            string           `json:"reward_id,omitempty"`
 	RedemptionID        string           `json:"redemption_id,omitempty"`
 	Status              string           `json:"status,omitempty"`
+	RunID               string           `json:"run_id,omitempty"`
+	ActionSlot          string           `json:"action_slot,omitempty"`
 }
 
 type Batch struct {

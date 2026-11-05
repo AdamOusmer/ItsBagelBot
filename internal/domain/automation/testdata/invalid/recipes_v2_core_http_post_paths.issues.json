@@ -1,0 +1,10 @@
+[
+  {
+    "path": "actions[0].params.on_ok[0].type",
+    "code": "unknown_type"
+  },
+  {
+    "path": "actions[0].params.save_as",
+    "code": "invalid_format"
+  }
+]

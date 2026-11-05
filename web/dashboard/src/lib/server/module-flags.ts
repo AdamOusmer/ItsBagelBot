@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { betaLocked } from '@bagel/kit/catalog/module-def';
 import { MODULE_CATALOG } from '@bagel/kit/catalog';
 import { listModules, type ModuleView } from './commands-store';
 
@@ -32,4 +33,9 @@ export const DEMO_MODULE_FLAGS: Record<string, boolean> = Object.fromEntries(
 
 export async function moduleFlags(userId: string): Promise<Record<string, boolean>> {
   return flagsFromRows(await listModules(userId));
+}
+
+export function withBetaLocks(flags: Record<string, boolean>, premium: boolean): Record<string, boolean> {
+  const locked = MODULE_CATALOG.filter((def) => betaLocked(def, premium)).map((def) => [def.id, false]);
+  return { ...flags, ...Object.fromEntries(locked) };
 }

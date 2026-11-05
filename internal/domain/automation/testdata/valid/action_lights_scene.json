@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!scene"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "lights",
+      "params": {
+        "device": "AA:BB:CC:DD:EE:FF:00:11",
+        "sku": "H6008",
+        "device_name": "Desk lamp",
+        "mode": "scene",
+        "scene_id": "lightScene:1234",
+        "scene_name": "Sunset",
+        "scene_type": "devices.capabilities.dynamic_scene",
+        "scene_instance": "lightScene",
+        "scene_value": "1234"
+      }
+    },
+    {
+      "type": "lights",
+      "params": {
+        "device": "AA:BB:CC:DD:EE:FF:00:11",
+        "sku": "H6008",
+        "mode": "scene",
+        "scene_type": "devices.capabilities.dynamic_scene",
+        "scene_instance": "snapshot",
+        "scene_value": "{\"paramId\":4,\"id\":9}"
+      }
+    }
+  ]
+}

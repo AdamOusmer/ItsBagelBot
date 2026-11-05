@@ -1,0 +1,92 @@
+{
+  "match": {
+    "start": "Starts with",
+    "exact": "Exact",
+    "anywhere": "Anywhere in the message",
+    "regex": "Regular expression"
+  },
+  "sources": {
+    "chat": "Chat",
+    "sub_message": "Sub messages"
+  },
+  "color": {
+    "none": "Default",
+    "primary": "Primary",
+    "blue": "Blue",
+    "green": "Green",
+    "orange": "Orange",
+    "purple": "Purple"
+  },
+  "level": {
+    "everyone": "Everyone",
+    "sub": "Subscribers",
+    "vip": "VIPs",
+    "mod": "Moderators",
+    "lead_mod": "Lead moderators",
+    "broadcaster": "Broadcaster"
+  },
+  "state": {
+    "live": "Live",
+    "offline": "Offline"
+  },
+  "op": {
+    "contains": "contains",
+    "eq": "equals",
+    "ne": "is not",
+    "gt": "greater than",
+    "gte": "at least",
+    "lt": "less than",
+    "lte": "at most",
+    "exists": "is set",
+    "upper": "Make uppercase",
+    "lower": "Make lowercase",
+    "trim": "Trim spaces",
+    "length": "Count characters",
+    "replace": "Replace",
+    "substring": "Take a part",
+    "split_pick": "Split and pick one",
+    "url_encode": "Make safe for a link"
+  },
+  "scope": {
+    "channel": "The channel",
+    "viewer": "This viewer"
+  },
+  "position": {
+    "top": "Top",
+    "center": "Center",
+    "bottom": "Bottom"
+  },
+  "status": {
+    "fulfill": "Fulfill",
+    "cancel": "Cancel and refund"
+  },
+  "mode": {
+    "color": "Color",
+    "scene": "Scene"
+  },
+  "kind": {
+    "text": "Text",
+    "image": "Image",
+    "video": "Video",
+    "channel": {
+      "follow": "New follower",
+      "subscribe": "New subscription",
+      "subscription": {
+        "message": "Resubscription message",
+        "gift": "Gifted subscriptions"
+      },
+      "cheer": "Cheer",
+      "raid": "Incoming raid",
+      "ad_break": {
+        "begin": "Ad break begins"
+      },
+      "channel_points_custom_reward_redemption": {
+        "add": "Reward redeemed"
+      }
+    },
+    "stream": {
+      "online": "Stream goes live",
+      "offline": "Stream ends"
+    }
+  }
+}

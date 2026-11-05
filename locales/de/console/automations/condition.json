@@ -1,0 +1,13 @@
+{
+  "perm": "Rolle des Zuschauers",
+  "users": "Bestimmte Zuschauer",
+  "live": "Stream-Status",
+  "cooldown": "Cooldown",
+  "chance": "Zufallschance",
+  "counter": "Zählerwert",
+  "points": "Zuschauerpunkte",
+  "arg_regex": "Argumente passen zu Muster",
+  "category": "Stream-Kategorie",
+  "compare": "Zwei Werte vergleichen",
+  "var": "Variablenwert"
+}

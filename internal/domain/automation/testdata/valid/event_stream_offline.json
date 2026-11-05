@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "event",
+    "params": {
+      "kind": "stream.offline"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "hello {user}"
+      }
+    }
+  ]
+}

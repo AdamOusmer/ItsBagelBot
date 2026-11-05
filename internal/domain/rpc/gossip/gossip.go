@@ -3,6 +3,8 @@
 
 package gossiprpc
 
+import "ItsBagelBot/pkg/codec"
+
 type Request struct {
 	Account   string `json:"account"`
 	ChannelID string `json:"channel_id,omitempty"`
@@ -15,6 +17,8 @@ type Request struct {
 	SKU      string `json:"sku,omitempty"`
 	ColorRGB int    `json:"color_rgb,omitempty"`
 	PowerOff bool   `json:"power_off,omitempty"`
+
+	Scene *GoveeScene `json:"scene,omitempty"`
 
 	Query    string `json:"query,omitempty"`
 	TrackID  string `json:"track_id,omitempty"`
@@ -37,6 +41,9 @@ type Request struct {
 	Def    *FetchDef `json:"def,omitempty"`
 	DryRun bool      `json:"dry_run,omitempty"`
 	Fresh  bool      `json:"fresh,omitempty"`
+	Body   string    `json:"body,omitempty"`
+
+	CaptureBody bool `json:"capture_body,omitempty"`
 
 	Region   string `json:"region,omitempty"`
 	Platform string `json:"platform,omitempty"`
@@ -197,9 +204,24 @@ type GoveeDevicesReply struct {
 	KeyRejected bool          `json:"key_rejected,omitempty"`
 }
 
+type GoveeScene struct {
+	ID       string           `json:"id,omitempty"`
+	Name     string           `json:"name,omitempty"`
+	Type     string           `json:"type"`
+	Instance string           `json:"instance"`
+	Value    codec.RawMessage `json:"value"`
+}
+
+type GoveeScenesReply struct {
+	Scenes      []GoveeScene `json:"scenes"`
+	Error       string       `json:"error,omitempty"`
+	KeyRejected bool         `json:"key_rejected,omitempty"`
+}
+
 type GoveeControlReply struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
+	OK           bool   `json:"ok"`
+	Error        string `json:"error,omitempty"`
+	SceneApplied bool   `json:"scene_applied,omitempty"`
 }
 
 type SpotifyTrack struct {

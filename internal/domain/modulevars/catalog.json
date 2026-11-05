@@ -52,6 +52,10 @@
     "groups": []
   },
   {
+    "id": "automations",
+    "groups": []
+  },
+  {
     "id": "loyalty",
     "groups": [
       {

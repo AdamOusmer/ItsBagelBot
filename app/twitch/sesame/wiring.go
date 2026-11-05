@@ -67,6 +67,7 @@ type engineRuntime struct {
 	seq      *engine.Sequencer
 	emotes   *automod.EmoteFetcher
 	chatters *engine.ValkeyChatters
+	runs     *engine.ValkeyRunLog
 }
 
 func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
@@ -74,10 +75,19 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	accountsRPC := engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix)
 	return engine.Deps{
+		AutomationHook: &engine.AutomationHook{},
 		Runtime:        newRuntime(w),
+		Automations: engine.AutomationDeps{
+			Source:    rt.proj,
+			Runs:      rt.runs,
+			Variables: engine.NewLoyaltyRPC(in.nc, engine.LoyaltyRPCPrefix(cfg.LoyaltyRPCPrefix)),
+			Queue:     engine.NewValkeyRunQueue(in.vc),
+			Durable:   engine.NewValkeyDurableRuns(in.vc),
+		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,
 		Live:           rt.live,
+		RewardResets:   engine.NewValkeyRewardResets(in.vc),
 		Greet:          engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
 		Cooldown:       engine.NewValkeyCooldown(in.vc),
 		Special:        engine.NewSpecialSet(cfg.SpecialUserIDs),
@@ -186,6 +196,7 @@ func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore)
 		Expiry:                   w.expiry,
 		NC:                       w.in.nc,
 		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
+		AutomationsInvalidate:    w.cfg.CacheInvalidationPrefix + ".automations",
 		Log:                      w.log,
 	})
 }
@@ -278,4 +289,13 @@ func newConsumer(sub bus.Subscriber, nrApp *newrelic.Application, cfg *config.Co
 		},
 		PremiumReserve: cfg.PremiumReserve,
 	}, log)
+}
+
+func registerAutomationRPC(w wireCtx, pipe *engine.Pipeline, app *newrelic.Application) error {
+	return engine.SubscribeAutomationRPC(w.in.nc, queueGroup, engine.AutomationRPCDeps{
+		Pipeline: pipe,
+		Client:   w.in.vc,
+		App:      app,
+		Log:      w.log,
+	})
 }

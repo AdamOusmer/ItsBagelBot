@@ -11,7 +11,10 @@ import { bestEffort } from '@bagel/kit/server/best-effort';
 import type { Session } from '#lib/server/session';
 import { effectiveId } from '#lib/server/board';
 import { accountState, notificationsForUser, delegationAccess, type AccountState, type NotificationWire } from '#lib/server/services';
-import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags } from '#lib/server/module-flags';
+import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags, withBetaLocks } from '#lib/server/module-flags';
+import { broadcasterPremium } from '#lib/server/module-gate';
+import { twitchScopeGap } from '#lib/server/oauth';
+import { isOwnerSession } from '#lib/server/owner';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -51,9 +54,10 @@ async function loadAccountState(locals: App.Locals, s: Session): Promise<Account
   return 'value' in gateRead ? gateRead.value : null;
 }
 
-async function loadModuleFlags(s: Session): Promise<Record<string, boolean>> {
+async function loadModuleFlags(locals: App.Locals, s: Session): Promise<Record<string, boolean>> {
   if (DEMO) return DEMO_MODULE_FLAGS;
-  return bestEffort(moduleFlags(s.user_id), DEFAULT_MODULE_FLAGS);
+  const [flags, premium] = await Promise.all([bestEffort(moduleFlags(s.user_id), DEFAULT_MODULE_FLAGS), broadcasterPremium(locals)]);
+  return withBetaLocks(flags, premium);
 }
 
 async function requireSession(locals: App.Locals, url: URL): Promise<Session> {
@@ -61,6 +65,11 @@ async function requireSession(locals: App.Locals, url: URL): Promise<Session> {
   if (s) return s;
   const next = url.pathname + url.search;
   throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
+}
+
+function requireTwitchScopes(s: Session, url: URL): void {
+  if (!isOwnerSession(s) || !twitchScopeGap(s.scopes)) return;
+  throw redirect(302, `/auth/login?reauth=1&next=${encodeURIComponent(url.pathname + url.search)}`);
 }
 
 function delegateView(s: Session) {
@@ -74,16 +83,20 @@ function isPremiumAccount(acc: AccountState | null): boolean {
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
   const s = await requireSession(locals, url);
+  requireTwitchScopes(s, url);
 
   const [acc, authorizedDashboards, flags] = await Promise.all([
     loadAccountState(locals, s),
     loadAuthorizedDashboards(s),
-    loadModuleFlags(s)
+    loadModuleFlags(locals, s)
   ]);
 
   return {
     moduleNav: moduleSectionLinks((key) => translate(locals.locale, key)),
-    navLabels: Object.fromEntries(DASHBOARD_SECTIONS.map((def) => [def.labelKey, translate(locals.locale, def.labelKey)])),
+    navLabels: {
+      ...Object.fromEntries(DASHBOARD_SECTIONS.map((def) => [def.labelKey, translate(locals.locale, def.labelKey)])),
+      'nav.beta': translate(locals.locale, 'nav.beta')
+    } as Record<string, string>,
     role: s.role,
     displayName: s.display_name,
     login: s.login,

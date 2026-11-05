@@ -1,0 +1,6 @@
+[
+  {
+    "path": "trigger.params.reward_id",
+    "code": "required"
+  }
+]

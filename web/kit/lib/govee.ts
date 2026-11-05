@@ -30,6 +30,16 @@ export interface GoveeDevice {
   color: boolean;
 }
 
+export type GoveeSceneValue = number | { paramId: number; id: number };
+
+export interface GoveeScene {
+  id: string;
+  name: string;
+  type: string;
+  instance: string;
+  value: GoveeSceneValue;
+}
+
 export interface GoveeReward {
   rewardId: string;
   title: string;

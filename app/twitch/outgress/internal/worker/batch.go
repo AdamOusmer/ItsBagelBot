@@ -105,12 +105,32 @@ func (w *Worker) releaseBatch(lease BatchLease) {
 
 func runBatchItems(items []outgress.Message, start int, saveNext func(int) error, execute func(outgress.Message) error) error {
 	for i := max(start, 0); i < len(items); i++ {
-		if err := saveNext(i + 1); err != nil {
-			return err
+		run := runClaimedItem
+		if retriesSafely(items[i].Type) {
+			run = runRetriedItem
 		}
-		if err := execute(items[i]); err != nil {
+		if err := run(items[i], i+1, saveNext, execute); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func retriesSafely(itemType string) bool {
+	return itemType == outgress.TypeRewardUpdate || itemType == outgress.TypeRewardRestore
+}
+
+func runClaimedItem(item outgress.Message, next int, saveNext func(int) error, execute func(outgress.Message) error) error {
+	if err := saveNext(next); err != nil {
+		return err
+	}
+	return execute(item)
+}
+
+// Setting a reward to the same value twice is harmless, so its checkpoint waits for the outcome and a failure retries.
+func runRetriedItem(item outgress.Message, next int, saveNext func(int) error, execute func(outgress.Message) error) error {
+	if err := execute(item); err != nil {
+		return err
+	}
+	return saveNext(next)
 }

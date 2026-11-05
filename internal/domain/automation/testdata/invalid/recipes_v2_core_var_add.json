@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    { "type": "var_add", "params": { "scope": "channel", "name": "n", "amount": 0 } },
+    { "type": "var_add", "params": { "scope": "channel", "name": "n", "amount": 1000000000000001 } }
+  ]
+}

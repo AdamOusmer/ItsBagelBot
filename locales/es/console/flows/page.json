@@ -1,0 +1,16 @@
+{
+  "eyebrow": "Tablero · {name}",
+  "description": "Elige qué ocurre en el stream y luego define qué hace tu bot a continuación.",
+  "new": "Nuevo",
+  "search": "Buscar por nombre o disparador",
+  "stepOne": "1 paso",
+  "stepMany": "{count} pasos",
+  "turnOff": "Desactivar {name}",
+  "turnOn": "Activar {name}",
+  "emptyTitle": "No hay coincidencias",
+  "emptyBody": "Prueba con otro nombre o disparador.",
+  "noneTitle": "Aún no hay nada aquí",
+  "noneBody": "Los comandos y los módulos siguen en sus propias páginas. Elige Nuevo para crear el primero.",
+  "untitled": "Sin título",
+  "save": "Guardar"
+}

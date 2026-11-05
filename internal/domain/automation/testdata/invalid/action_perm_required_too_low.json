@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "vip"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "delete_message",
+      "params": {}
+    },
+    {
+      "type": "clip",
+      "params": {}
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "chatCommand": {
+    "label": "Comando de chat",
+    "summary": "Alguém digita um comando no chat",
+    "field": {
+      "trigger": {
+        "label": "Comando",
+        "placeholder": "!hug"
+      }
+    }
+  },
+  "chatWord": {
+    "label": "Palavra no chat",
+    "summary": "Alguém diz uma palavra no chat",
+    "field": {
+      "word": {
+        "label": "Palavra",
+        "placeholder": "bagel"
+      }
+    }
+  },
+  "follow": {
+    "label": "Novo follow",
+    "summary": "Alguém dá follow no canal"
+  },
+  "sub": {
+    "label": "Inscrição",
+    "summary": "Novo inscrito, resub ou presente",
+    "field": {
+      "variant": {
+        "label": "Tipo",
+        "option": {
+          "any": "Qualquer",
+          "new": "Novo",
+          "resub": "Resub",
+          "gift": "Presente"
+        }
+      }
+    }
+  },
+  "cheer": {
+    "label": "Cheer",
+    "summary": "Bits são enviados",
+    "field": {
+      "minBits": {
+        "label": "Mínimo de bits",
+        "unit": "bits"
+      }
+    }
+  },
+  "raid": {
+    "label": "Raid",
+    "summary": "Outro canal faz uma raid em você",
+    "field": {
+      "minViewers": {
+        "label": "Mínimo de espectadores",
+        "unit": "espectadores"
+      }
+    }
+  },
+  "reward": {
+    "label": "Recompensa de pontos do canal",
+    "summary": "Uma recompensa é resgatada",
+    "field": {
+      "reward": {
+        "label": "Recompensa"
+      }
+    }
+  },
+  "streamOnline": {
+    "label": "Stream entra ao vivo",
+    "summary": "Sua stream começa"
+  }
+}

@@ -1,0 +1,6 @@
+[
+  {
+    "path": "conditions[0].params.op",
+    "code": "invalid_enum"
+  }
+]

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "users",
+      "params": {
+        "allow_ids": [
+          "12a4"
+        ]
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "hi"
+      }
+    }
+  ]
+}

@@ -5,10 +5,13 @@ package setup
 
 import (
 	"context"
+	"errors"
+	"time"
 	"unicode/utf8"
 
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
+	"ItsBagelBot/pkg/cache"
 
 	"go.uber.org/zap"
 )
@@ -25,11 +28,17 @@ type discordGuildAPI interface {
 	GetGuildWithCounts(ctx context.Context, guild discapi.Guild) (discapi.GuildInfo, error)
 }
 
+const (
+	channelGuildCapacity int64 = 4096
+	channelGuildTTL            = time.Minute
+)
+
 type Worker struct {
-	discord discordGuildAPI
-	store   discordstore.Store
-	log     *zap.Logger
-	botID   string
+	discord       discordGuildAPI
+	store         discordstore.Store
+	log           *zap.Logger
+	botID         string
+	channelGuilds *cache.Cache[string]
 }
 
 type Config struct {
@@ -44,17 +53,49 @@ func New(cfg Config) *Worker {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Worker{discord: cfg.Discord, store: cfg.Store, log: log, botID: cfg.BotID}
+	return &Worker{
+		discord: cfg.Discord, store: cfg.Store, log: log, botID: cfg.BotID,
+		channelGuilds: cache.New[string](channelGuildCapacity, channelGuildTTL),
+	}
 }
 
-func (w *Worker) PostDiscord(ctx context.Context, channelID, content string) error {
+type PostRequest struct {
+	BroadcasterID string
+	GuildID       string
+	ChannelID     string
+	Content       string
+}
+
+// A recipe names its own guild and channel, so both are checked against the broadcaster on every post.
+func (w *Worker) PostDiscord(ctx context.Context, req PostRequest) error {
 	if w.discord == nil {
 		return discapi.ErrAuth
 	}
-	if channelID == "" || !discordContentOK(content) {
+	if req.ChannelID == "" || !discordContentOK(req.Content) {
 		return discapi.ErrBadRequest
 	}
-	return w.discord.SendChat(ctx, discapi.ChatPost{ChannelID: channelID, Content: content})
+	if err := w.requireOwnerStrict(ctx, GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.BroadcasterID}, ownerCheck{}); err != nil {
+		return err
+	}
+	if err := w.requirePostChannel(ctx, req); err != nil {
+		return err
+	}
+	err := w.discord.SendChat(ctx, discapi.ChatPost{ChannelID: req.ChannelID, Content: req.Content, NoMentions: true})
+	if errors.Is(err, discapi.ErrChannelNotFound) {
+		w.channelGuilds.Invalidate(req.ChannelID)
+	}
+	return err
+}
+
+func (w *Worker) requirePostChannel(ctx context.Context, req PostRequest) error {
+	if guild, ok := w.channelGuilds.Get(req.ChannelID); ok && guild == req.GuildID {
+		return nil
+	}
+	if err := discapi.RequireGuildChannel(ctx, w.discord, req.GuildID, req.ChannelID); err != nil {
+		return err
+	}
+	w.channelGuilds.Set(req.ChannelID, req.GuildID)
+	return nil
 }
 
 const discordContentMaxRunes = 2000

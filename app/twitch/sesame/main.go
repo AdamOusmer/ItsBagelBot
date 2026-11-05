@@ -57,6 +57,9 @@ func main() {
 	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
+	runs := engine.NewValkeyRunLog(valkeyClient, log)
+	defer runs.Close()
+
 	activity.SetSink(activity.NewStore(valkeyClient))
 
 	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log, expiry: pkgvalkey.NewExpiryHub(valkeyClient, 0, log)}
@@ -90,7 +93,7 @@ func main() {
 	deps := buildDeps(w, engineRuntime{
 		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
 		stats: loyaltyReporter, raffle: raffle, duel: duel, emotes: emotes,
-		seq: engine.NewSequencer(), chatters: chatters,
+		seq: engine.NewSequencer(), chatters: chatters, runs: runs,
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(w, guard, emotes)
@@ -101,6 +104,7 @@ func main() {
 	defer pipe.Close()
 
 	timers.WirePipeline(pipe)
+	deps.AutomationHook.Wire(pipe)
 	startTimerWatchers(w, timers)
 
 	pipe.RegisterObserver(activityObserver{})
@@ -108,6 +112,7 @@ func main() {
 	pipe.RegisterObserver(chatVolumeObserver{store: chatvolume.New(valkeyClient, log)})
 
 	prepareHotPath(w)
+	svcboot.FatalIf(log, registerAutomationRPC(w, pipe, core.NR), "failed to subscribe automation rpc")
 
 	go engine.NewTrialPromotion(valkeyClient, engine.NewLoyaltyRPC(nc, engine.LoyaltyRPCPrefix(cfg.LoyaltyRPCPrefix)), log.Named("trial-promotion")).Run(ctx)
 

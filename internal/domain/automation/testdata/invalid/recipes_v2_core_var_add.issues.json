@@ -1,0 +1,10 @@
+[
+  {
+    "path": "actions[0].params.amount",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[1].params.amount",
+    "code": "out_of_range"
+  }
+]

@@ -258,7 +258,7 @@ func replaceLoyaltyAccount(ctx context.Context, tx *sql.Tx, replacement loyaltyA
 }
 
 func deleteLoyaltyRows(ctx context.Context, tx *sql.Tx, id uint64) error {
-	for _, table := range []string{"balances", "counter_entries", "counters"} {
+	for _, table := range []string{"balances", "counter_entries", "counters", "variables"} {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE user_id=?", id); err != nil {
 			return err
 		}

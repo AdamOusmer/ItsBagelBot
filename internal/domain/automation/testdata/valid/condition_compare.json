@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "event",
+    "params": {
+      "kind": "channel.cheer"
+    }
+  },
+  "conditions": [
+    {
+      "type": "compare",
+      "params": {
+        "left": "{event.amount}",
+        "op": "gte",
+        "right": "1000"
+      }
+    },
+    {
+      "type": "compare",
+      "params": {
+        "left": "{user}",
+        "op": "contains",
+        "right": "bagel"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "big cheer {user}"
+      }
+    }
+  ]
+}

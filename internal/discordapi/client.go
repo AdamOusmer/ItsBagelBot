@@ -50,21 +50,29 @@ func NewClient(botToken string) *Client {
 func (c *Client) SetTransport(rt http.RoundTripper) { c.http.Transport = rt }
 
 type ChatPost struct {
-	ChannelID string
-	Content   string
-	TTS       bool
+	ChannelID  string
+	Content    string
+	TTS        bool
+	NoMentions bool
 }
 
 func (c *Client) SendChat(ctx context.Context, post ChatPost) error {
-	return c.SendMessage(ctx, post.ChannelID, post.Content, post.TTS)
+	return c.postMessage(ctx, post)
 }
 
 func (c *Client) SendMessage(ctx context.Context, channelID, content string, tts bool) error {
-	body := map[string]any{"content": content}
-	if tts {
+	return c.postMessage(ctx, ChatPost{ChannelID: channelID, Content: content, TTS: tts})
+}
+
+func (c *Client) postMessage(ctx context.Context, post ChatPost) error {
+	body := map[string]any{"content": post.Content}
+	if post.TTS {
 		body["tts"] = true
 	}
-	return c.do(ctx, request{method: http.MethodPost, path: "/channels/" + url.PathEscape(channelID) + "/messages", body: body})
+	if post.NoMentions {
+		body["allowed_mentions"] = map[string]any{"parse": []string{}}
+	}
+	return c.do(ctx, request{method: http.MethodPost, path: "/channels/" + url.PathEscape(post.ChannelID) + "/messages", body: body})
 }
 
 type request struct {

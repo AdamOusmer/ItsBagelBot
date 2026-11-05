@@ -1,0 +1,20 @@
+{
+  "then": "Then",
+  "variable": {
+    "user": "Display name",
+    "userId": "User ID",
+    "args": "Arguments",
+    "touser": "First argument",
+    "tier": "Tier",
+    "months": "Months",
+    "bits": "Bits",
+    "viewers": "Viewers",
+    "input": "Viewer input",
+    "title": "Stream title",
+    "game": "Category",
+    "count": "New count",
+    "loopIndex": "Which time this is",
+    "apiError": "Why it failed",
+    "saved": "Saved by an earlier step"
+  }
+}
