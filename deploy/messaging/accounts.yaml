@@ -362,11 +362,28 @@ accounts:
                         - data.loyalty.counters
                         - twitch.ingress.event.stream
                         - _INBOX.>
+            automod_bus:
+                publish:
+                    allow:
+                        - $JS.API.STREAM.INFO.TWITCH_AUTOMOD_TRIAL
+                        - $JS.API.STREAM.CREATE.TWITCH_AUTOMOD_TRIAL
+                        - $JS.API.STREAM.UPDATE.TWITCH_AUTOMOD_TRIAL
+                        - $JS.API.CONSUMER.INFO.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.API.CONSUMER.CREATE.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.API.CONSUMER.DELETE.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.API.CONSUMER.MSG.NEXT.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.ACK.TWITCH_AUTOMOD_TRIAL.>
+                        - $JS.ACK.*.*.TWITCH_AUTOMOD_TRIAL.>
+                subscribe:
+                    allow:
+                        - _INBOX.>
             twitch_ingress_bus:
                 publish:
                     allow:
                         - twitch.ingress.event.>
                         - twitch.ingress.status.>
+                        - twitch.automod.trial
                 subscribe:
                     allow:
                         - _INBOX.>

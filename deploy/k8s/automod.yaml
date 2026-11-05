@@ -1,0 +1,142 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: automod-env
+  namespace: app
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: automod-doppler-token
+  managedSecret:
+    name: automod-env
+    namespace: app
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: automod
+  namespace: app
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: automod
+  template:
+    metadata:
+      labels:
+        app: automod
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      priorityClassName: bagel-service
+      containers:
+        - name: automod
+          image: ghcr.io/adamousmer/bagel-automod:233d48fab182d1a739fc1642f59448e523903c8b@sha256:d9fed84182d4dd6893f31867aef7b7265c918461259f7e105c6f5722e5ce2928
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: automod-env
+          env:
+            - {name: AUTOMOD_MODE, value: observe}
+            - {name: AUTOMOD_TRIAL_STREAM, value: TWITCH_AUTOMOD_TRIAL}
+            - {name: AUTOMOD_TRIAL_SUBJECT, value: twitch.automod.trial}
+            - {name: AUTOMOD_AUDIT_SAMPLE_PPM, value: "50000"}
+            - {name: AUTOMOD_NATS_URL, value: "tls://nats.messaging:4222"}
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - {name: NATS_CLIENT_CERT_FILE, value: /etc/nats-client/tls/tls.crt}
+            - {name: NATS_CLIENT_KEY_FILE, value: /etc/nats-client/tls/tls.key}
+            - {name: AUTOMOD_ENFORCE_STATIC, value: "off"}
+            - {name: AUTOMOD_NETWORK_INDEX_ENABLED, value: "false"}
+            - {name: AUTOMOD_ESCALATE_JURY_PER_SEC, value: "2000"}
+            - {name: AUTOMOD_ESCALATE_JURY_BURST, value: "4000"}
+            - {name: AUTOMOD_MODEL_POOL_MANIFEST, value: /opt/automod/models/model-pool.json}
+            - {name: AUTOMOD_ARTIFACT_DIR, value: /opt/automod/models}
+            - {name: RUST_LOG, value: "info,automod.observation=warn"}
+            - {name: AUTOMOD_JEV_ENABLED, value: "false"}
+            - {name: AUTOMOD_JEV_BUDGET_PER_HOUR, value: "0"}
+            - {name: AUTOMOD_STAGE_THREADS, value: "1"}
+            - {name: AUTOMOD_MODEL_THREADS, value: "1"}
+            - {name: AUTOMOD_ORT_INTRA_THREADS, value: "2"}
+            - {name: AUTOMOD_RELEASE_MANIFEST, value: /opt/automod/models/release-hotpath.json}
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+          ports:
+            - {containerPort: 8080, name: health}
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 1536Mi
+          readinessProbe:
+            httpGet: {path: /readyz, port: health}
+          livenessProbe:
+            httpGet: {path: /healthz, port: health}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: automod-default-deny
+  namespace: app
+spec:
+  podSelector:
+    matchLabels:
+      app: automod
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+      ports:
+        - port: 4222
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
