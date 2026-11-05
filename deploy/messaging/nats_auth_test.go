@@ -23,7 +23,8 @@ var flowControlStreams = map[string][]string{
 }
 
 var pullFetchStreams = map[string][]string{
-	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+	"automod_bus": {"TWITCH_AUTOMOD_TRIAL"},
+	"worker_bus":  {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 }
 
 var coordinationBuckets = map[string][]string{
@@ -105,8 +106,10 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"discord_engine_bus":   {"DISCORD_INGRESS", "BAGEL_DATA", "TWITCH_INGRESS"},
 		"discord_outgress_bus": {"DISCORD_OUTGRESS"},
 		"discord_ingress_bus":  {},
+		"automod_bus":          {"TWITCH_AUTOMOD_TRIAL"},
 	}
 	owners := map[string][]string{
+		"automod_bus":          {"TWITCH_AUTOMOD_TRIAL"},
 		"users_bus":            {"BAGEL_DATA", "BAGEL_DLQ"},
 		"worker_bus":           {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"projector_bus":        {"BAGEL_DATA", "BAGEL_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
@@ -119,7 +122,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"projector_bus", "worker_bus", "outgress_bus",
 		"twitch_ingress_bus", "dashboard_bus",
 		"discord_ingress_bus", "discord_engine_bus", "discord_outgress_bus",
-		"discord_data_bus",
+		"discord_data_bus", "automod_bus",
 	}
 
 	for _, user := range serviceUsers {
