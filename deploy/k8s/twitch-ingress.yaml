@@ -120,8 +120,6 @@ spec:
               value: nats-leaf.messaging.svc.cluster.local
             - name: NATS_HUB_HOST
               value: nats.messaging.svc.cluster.local
-            - name: NATS_SUBJECT_AUTOMOD_TRIAL
-              value: twitch.automod.trial
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:
