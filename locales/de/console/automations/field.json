@@ -55,5 +55,22 @@
   "right": "Zweiter Wert",
   "url": "URL",
   "user_s": "Cooldown pro Zuschauer (s)",
-  "value": "Wert"
+  "value": "Wert",
+  "scope": "Gespeichert für",
+  "save_as": "Speichern als",
+  "input": "Text",
+  "arg1": "Erste Option",
+  "arg2": "Zweite Option",
+  "expression": "Ausdruck",
+  "times": "Wiederholungen",
+  "actions": "Schritte",
+  "on_ok": "Wenn es geklappt hat",
+  "on_failure": "Wenn es fehlgeschlagen ist",
+  "json_path": "JSON-Pfad",
+  "enabled": "Aktiviert",
+  "cost": "Kosten",
+  "reset_on_stream_end": "Beim Stream-Ende zurücksetzen",
+  "content": "Inhalt",
+  "position": "Position",
+  "volume": "Lautstärke"
 }

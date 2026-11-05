@@ -126,6 +126,7 @@
   },
   "choiceEmpty": {
     "rewards": "Aucune récompense de points de chaîne pour le moment. Créez-en une dans Points de chaîne.",
+    "manageableRewards": "Twitch ne permet de modifier que les récompenses créées ici. Créez-en une dans Points de chaîne.",
     "counters": "Aucun compteur pour le moment. Créez-en un dans Compteurs.",
     "scenes": "Cette lumière n’a aucune scène."
   },

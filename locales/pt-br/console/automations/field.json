@@ -55,5 +55,22 @@
   "right": "Segundo valor",
   "url": "URL",
   "user_s": "Intervalo por espectador (s)",
-  "value": "Valor"
+  "value": "Valor",
+  "scope": "Guardada para",
+  "save_as": "Salvar como",
+  "input": "Texto",
+  "arg1": "Primeira opção",
+  "arg2": "Segunda opção",
+  "expression": "Expressão",
+  "times": "Vezes",
+  "actions": "Etapas",
+  "on_ok": "Se funcionar",
+  "on_failure": "Se falhar",
+  "json_path": "Caminho JSON",
+  "enabled": "Ativado",
+  "cost": "Custo",
+  "reset_on_stream_end": "Restaurar quando a live terminar",
+  "content": "Conteúdo",
+  "position": "Posição",
+  "volume": "Volume"
 }

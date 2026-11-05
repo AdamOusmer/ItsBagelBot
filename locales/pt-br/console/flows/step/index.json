@@ -12,6 +12,9 @@
     "input": "Entrada do espectador",
     "title": "Título da transmissão",
     "game": "Categoria",
-    "count": "Nova contagem"
+    "count": "Nova contagem",
+    "loopIndex": "Qual repetição é esta",
+    "apiError": "Por que falhou",
+    "saved": "Salva por uma etapa anterior"
   }
 }

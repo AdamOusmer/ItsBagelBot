@@ -91,5 +91,28 @@
       "yes": "Acerto",
       "no": "Erro"
     }
+  },
+  "var": {
+    "label": "Verificar uma variável",
+    "summary": "Passar quando um valor guardado corresponder",
+    "field": {
+      "scope": { "label": "Guardada para", "option": { "channel": "O canal", "viewer": "Este espectador" } },
+      "name": { "label": "Nome", "placeholder": "mortes" },
+      "op": {
+        "label": "É",
+        "option": {
+          "eq": "igual a",
+          "ne": "diferente de",
+          "gt": "maior que",
+          "gte": "no mínimo",
+          "lt": "menor que",
+          "lte": "no máximo",
+          "contains": "contendo",
+          "exists": "definida com qualquer valor"
+        }
+      },
+      "value": { "label": "Valor", "placeholder": "10" }
+    },
+    "out": { "yes": "Sim", "no": "Não" }
   }
 }

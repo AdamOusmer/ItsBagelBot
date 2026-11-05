@@ -126,6 +126,7 @@
   },
   "choiceEmpty": {
     "rewards": "Aún no hay recompensas de puntos del canal. Crea una en Puntos del canal.",
+    "manageableRewards": "Twitch solo nos permite cambiar recompensas creadas aquí. Crea una en Puntos del canal.",
     "counters": "Aún no hay contadores. Crea uno en Contadores.",
     "scenes": "Esta luz no tiene escenas."
   },

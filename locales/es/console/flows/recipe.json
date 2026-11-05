@@ -1,0 +1,30 @@
+{
+  "title": "Ajustes de la receta",
+  "close": "Cerrar ajustes de la receta",
+  "queueTitle": "De una en una",
+  "queueLabel": "Nombre de la cola",
+  "queuePlaceholder": "sonidos",
+  "queueHint": "Las recetas con el mismo nombre de cola se turnan. Déjalo vacío para que esta se ejecute siempre que se active.",
+  "runsTitle": "Ejecuciones recientes",
+  "runsEmpty": "Aún no se ha ejecutado nada.",
+  "runsSaveFirst": "Guarda esta receta para ver sus ejecuciones.",
+  "runsRefresh": "Actualizar",
+  "runsFailed": "No se pudieron cargar las ejecuciones. Inténtalo de nuevo en un momento.",
+  "runCount": "{count} veces",
+  "runStopped": "Esta ejecución se detuvo en la primera comprobación.",
+  "why": {
+    "math_error": "No se pudo resolver el cálculo. Comprueba si hay una división por cero o un error de escritura.",
+    "bad_times": "El número de veces para repetir no era un número entero.",
+    "text_error": "Este paso de texto recibió un valor que no pudo usar.",
+    "reward_not_manageable": "Twitch solo nos permite cambiar recompensas creadas aquí. Elige una creada en Puntos del canal.",
+    "no_overlay": "No había ningún overlay abierto, así que no se mostró nada.",
+    "queue_full": "Ya había demasiadas ejecuciones esperando en esta cola.",
+    "queue_timeout": "Esta ejecución esperó 5 minutos en su cola y se canceló.",
+    "queued": "Enviado a Twitch. Twitch no responde aquí, así que revisa la recompensa si no cambió.",
+    "limited": "Alcanzó un límite, así que no se ejecutó.",
+    "failedWith": "Este paso falló: {detail}.",
+    "failed": "Este paso falló.",
+    "unsupported": "Este paso no se puede ejecutar aquí.",
+    "skipped": "Este paso se omitió."
+  }
+}

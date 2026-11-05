@@ -26,5 +26,15 @@
   "if": "Si, alors sinon",
   "http_post": "Envoyer une requête HTTP",
   "lights": "Régler les lumières",
-  "stop": "Arrêter ici"
+  "stop": "Arrêter ici",
+  "http_get": "Lire depuis une adresse web",
+  "var_set": "Définir une variable",
+  "var_add": "Ajouter à une variable",
+  "var_delete": "Supprimer une variable",
+  "text": "Modifier le texte",
+  "math": "Faire un calcul",
+  "loop": "Répéter des étapes",
+  "reward_update": "Modifier une récompense",
+  "overlay_show": "Afficher sur l’overlay",
+  "overlay_sound": "Jouer un son d’overlay"
 }

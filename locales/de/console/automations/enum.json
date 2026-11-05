@@ -36,7 +36,25 @@
     "gt": "größer als",
     "gte": "mindestens",
     "lt": "kleiner als",
-    "lte": "höchstens"
+    "lte": "höchstens",
+    "exists": "ist gesetzt",
+    "upper": "In Großbuchstaben umwandeln",
+    "lower": "In Kleinbuchstaben umwandeln",
+    "trim": "Leerzeichen entfernen",
+    "length": "Zeichen zählen",
+    "replace": "Ersetzen",
+    "substring": "Teil herausschneiden",
+    "split_pick": "Trennen und eins auswählen",
+    "url_encode": "Für Links sicher machen"
+  },
+  "scope": {
+    "channel": "Der Kanal",
+    "viewer": "Dieser Zuschauer"
+  },
+  "position": {
+    "top": "Oben",
+    "center": "Mitte",
+    "bottom": "Unten"
   },
   "status": {
     "fulfill": "Erfüllen",
@@ -47,6 +65,9 @@
     "scene": "Szene"
   },
   "kind": {
+    "text": "Text",
+    "image": "Bild",
+    "video": "Video",
     "channel": {
       "follow": "Neuer Follower",
       "subscribe": "Neues Abo",

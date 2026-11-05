@@ -36,7 +36,25 @@
     "gt": "mayor que",
     "gte": "al menos",
     "lt": "menor que",
-    "lte": "como máximo"
+    "lte": "como máximo",
+    "exists": "está definida",
+    "upper": "Pasar a mayúsculas",
+    "lower": "Pasar a minúsculas",
+    "trim": "Recortar espacios",
+    "length": "Contar caracteres",
+    "replace": "Reemplazar",
+    "substring": "Extraer una parte",
+    "split_pick": "Dividir y elegir uno",
+    "url_encode": "Hacer seguro para un enlace"
+  },
+  "scope": {
+    "channel": "El canal",
+    "viewer": "Este espectador"
+  },
+  "position": {
+    "top": "Arriba",
+    "center": "Centro",
+    "bottom": "Abajo"
   },
   "status": {
     "fulfill": "Completar",
@@ -47,6 +65,9 @@
     "scene": "Escena"
   },
   "kind": {
+    "text": "Texto",
+    "image": "Imagen",
+    "video": "Vídeo",
     "channel": {
       "follow": "Nuevo seguidor",
       "subscribe": "Nueva suscripción",

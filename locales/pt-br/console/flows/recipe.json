@@ -1,0 +1,30 @@
+{
+  "title": "Configurações da receita",
+  "close": "Fechar configurações da receita",
+  "queueTitle": "Uma de cada vez",
+  "queueLabel": "Nome da fila",
+  "queuePlaceholder": "sons",
+  "queueHint": "Receitas com o mesmo nome de fila se revezam. Deixe em branco para permitir que esta execute sempre que for disparada.",
+  "runsTitle": "Execuções recentes",
+  "runsEmpty": "Nada foi executado ainda.",
+  "runsSaveFirst": "Salve esta receita para ver suas execuções.",
+  "runsRefresh": "Atualizar",
+  "runsFailed": "Não foi possível carregar as execuções. Tente novamente em instantes.",
+  "runCount": "{count} vezes",
+  "runStopped": "Esta execução parou na primeira verificação.",
+  "why": {
+    "math_error": "Não foi possível calcular a expressão. Verifique se há divisão por zero ou erro de digitação.",
+    "bad_times": "O número de vezes para repetir não era um número inteiro.",
+    "text_error": "Esta etapa de texto recebeu um valor que não pôde usar.",
+    "reward_not_manageable": "A Twitch só permite alterar recompensas criadas aqui. Escolha uma criada em Pontos do canal.",
+    "no_overlay": "Nenhum overlay estava aberto, então nada foi exibido.",
+    "queue_full": "Muitas execuções já estavam aguardando nesta fila.",
+    "queue_timeout": "Esta execução aguardou 5 minutos na fila e desistiu.",
+    "queued": "Enviado para a Twitch. A Twitch não responde aqui, então verifique a recompensa se ela não mudou.",
+    "limited": "Atingiu um limite, por isso não foi executada.",
+    "failedWith": "Esta etapa falhou: {detail}.",
+    "failed": "Esta etapa falhou.",
+    "unsupported": "Esta etapa não pode ser executada aqui.",
+    "skipped": "Esta etapa foi ignorada."
+  }
+}

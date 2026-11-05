@@ -44,6 +44,8 @@
     "users_list": "Eine Liste erlaubter oder gesperrter Zuschauer wurde geleert. Richte sie neu ein.",
     "login_target": "Ein Schritt für einen bestimmten Zuschauer wurde deaktiviert. Wähle, wen er betrifft.",
     "http_target": "Eine Web-Anfrage wurde deaktiviert und ihre Adresse entfernt. Füge deine eigene hinzu.",
+    "reward_target": "Eine Belohnungsänderung wurde deaktiviert und ihre Belohnung entfernt. Wähle deine eigene.",
+    "overlay_target": "Ein Overlay-Schritt wurde deaktiviert und sein Link entfernt. Füge deinen eigenen hinzu.",
     "lights_target": "Ein Licht-Schritt wurde deaktiviert und sein Gerät entfernt. Wähle dein eigenes Licht.",
     "slash_command": "Ein Schritt, der einen Chat-Befehl ausführte, wurde deaktiviert und geleert. Schreibe ihn neu, wenn du ihn willst.",
     "run_removed": "Ein Schritt, der ein anderes Rezept außerhalb dieses Imports ausführte, wurde entfernt.",

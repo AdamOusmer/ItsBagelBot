@@ -46,5 +46,15 @@
   "eventReward": "{user} canjeó una recompensa",
   "eventLive": "El stream está en vivo: {title}",
   "sampleCommand": "!command",
-  "sampleWord": "bagel"
+  "sampleWord": "bagel",
+  "varSet": "Fijar {name} en {value}",
+  "varAdd": "Sumar {amount} a {name}",
+  "varTake": "Quitar {amount} a {name}",
+  "varDelete": "Eliminar {name}",
+  "varCheck": "{name} es {op} {value}",
+  "varExists": "{name} está definida",
+  "textSaved": "{op}, guardar como {name}",
+  "loop": "Repetir {times} veces",
+  "rewardUpdate": "Cambiar {reward}",
+  "rewardUpdateBack": "Cambiar {reward} hasta que termine el stream"
 }

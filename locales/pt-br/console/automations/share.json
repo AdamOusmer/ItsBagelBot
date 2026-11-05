@@ -44,6 +44,8 @@
     "users_list": "Uma lista de espectadores permitidos ou bloqueados foi limpa. Configure de novo.",
     "login_target": "Uma etapa direcionada a um espectador específico foi desativada. Escolha quem ela atinge.",
     "http_target": "Uma requisição web foi desativada e seu endereço removido. Adicione o seu.",
+    "reward_target": "Uma alteração de recompensa foi desativada e sua recompensa removida. Escolha a sua própria.",
+    "overlay_target": "Uma etapa de overlay foi desativada e seu link removido. Adicione o seu.",
     "lights_target": "Uma etapa de luzes foi desativada e seu dispositivo removido. Escolha a sua própria luz.",
     "slash_command": "Uma etapa que executava um comando de chat foi desativada e esvaziada. Reescreva-a se quiser.",
     "run_removed": "Uma etapa que executava outra receita que não está nesta importação foi removida.",

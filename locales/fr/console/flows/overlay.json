@@ -1,0 +1,14 @@
+{
+  "title": "Lien de l’overlay",
+  "body": "Ajoutez ce lien dans OBS comme source navigateur. Les étapes d’overlay s’y afficheront.",
+  "none": "Aucun lien pour le moment.",
+  "active": "Votre lien est actif. Nous ne l’affichons qu’une seule fois.",
+  "create": "Créer un lien",
+  "rotate": "Créer un nouveau lien",
+  "rotateWarning": "Votre lien actuel cessera immédiatement de fonctionner.",
+  "rotateConfirm": "Remplacer le lien",
+  "rotateCancel": "Le conserver",
+  "copyNow": "Copiez-le maintenant. Il ne s’affichera plus.",
+  "copyLabel": "Lien de l’overlay",
+  "failed": "Ça n’a pas fonctionné. Réessayez."
+}

@@ -12,6 +12,9 @@
     "input": "Saisie du viewer",
     "title": "Titre du stream",
     "game": "Catégorie",
-    "count": "Nouveau total"
+    "count": "Nouveau total",
+    "loopIndex": "Numéro de la répétition",
+    "apiError": "Raison de l’échec",
+    "saved": "Enregistrée par une étape précédente"
   }
 }

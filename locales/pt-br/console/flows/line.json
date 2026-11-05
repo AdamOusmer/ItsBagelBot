@@ -46,5 +46,15 @@
   "eventReward": "{user} resgatou uma recompensa",
   "eventLive": "A live começou: {title}",
   "sampleCommand": "!command",
-  "sampleWord": "bagel"
+  "sampleWord": "bagel",
+  "varSet": "Definir {name} como {value}",
+  "varAdd": "Adicionar {amount} a {name}",
+  "varTake": "Tirar {amount} de {name}",
+  "varDelete": "Apagar {name}",
+  "varCheck": "{name} é {op} {value}",
+  "varExists": "{name} está definida",
+  "textSaved": "{op}, salvar como {name}",
+  "loop": "Repetir {times} vezes",
+  "rewardUpdate": "Alterar {reward}",
+  "rewardUpdateBack": "Alterar {reward} até a live terminar"
 }

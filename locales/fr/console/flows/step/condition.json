@@ -91,5 +91,28 @@
       "yes": "Succès",
       "no": "Échec"
     }
+  },
+  "var": {
+    "label": "Vérifier une variable",
+    "summary": "Passe quand une valeur conservée correspond",
+    "field": {
+      "scope": { "label": "Conservé pour", "option": { "channel": "La chaîne", "viewer": "Ce viewer" } },
+      "name": { "label": "Nom", "placeholder": "morts" },
+      "op": {
+        "label": "Est",
+        "option": {
+          "eq": "égal à",
+          "ne": "différent de",
+          "gt": "supérieur à",
+          "gte": "au moins",
+          "lt": "inférieur à",
+          "lte": "au plus",
+          "contains": "contient",
+          "exists": "défini (n’importe quelle valeur)"
+        }
+      },
+      "value": { "label": "Valeur", "placeholder": "10" }
+    },
+    "out": { "yes": "Oui", "no": "Non" }
   }
 }

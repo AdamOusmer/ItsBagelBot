@@ -1,0 +1,14 @@
+{
+  "title": "Overlay-Link",
+  "body": "Füge diesen Link in OBS als Browserquelle hinzu. Overlay-Schritte werden dort angezeigt.",
+  "none": "Noch kein Link.",
+  "active": "Dein Link ist aktiv. Wir zeigen ihn nur einmal.",
+  "create": "Link erstellen",
+  "rotate": "Neuen Link erstellen",
+  "rotateWarning": "Dein bisheriger Link funktioniert sofort nicht mehr.",
+  "rotateConfirm": "Link ersetzen",
+  "rotateCancel": "Behalten",
+  "copyNow": "Kopiere ihn jetzt. Er wird nicht noch einmal angezeigt.",
+  "copyLabel": "Overlay-Link",
+  "failed": "Das hat nicht geklappt. Versuche es noch einmal."
+}
