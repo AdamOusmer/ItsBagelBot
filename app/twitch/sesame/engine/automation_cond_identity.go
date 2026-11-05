@@ -23,7 +23,7 @@ func runRole(run *AutomationRun) module.Role {
 	case run.Env == nil:
 		return module.RoleBroadcaster
 	default:
-		return module.RoleEveryone
+		return run.QueuedRole
 	}
 }
 
