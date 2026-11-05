@@ -43,6 +43,28 @@ defmodule Ingress.Dispatcher.WorkerTest do
     send(pid, {:process, System.monotonic_time(), %{}, %{broadcaster_id: broadcaster_id}})
   end
 
+  test "an idle worker hibernates and still handles the next message" do
+    test = self()
+
+    handler = fn _payload, _meta ->
+      send(test, {:handled, length(Enum.to_list(1..200_000))})
+    end
+
+    pid = start_worker(hibernate_after_ms: 10, handler: handler)
+
+    process(pid, "b1")
+    assert_receive {:handled, 200_000}, 500
+    assert Ingress.EnvCase.eventually(fn -> heap_words(pid) < 1_000 end)
+
+    process(pid, "b1")
+    assert_receive {:handled, 200_000}, 500
+  end
+
+  defp heap_words(pid) do
+    {:total_heap_size, words} = Process.info(pid, :total_heap_size)
+    words
+  end
+
   test "idle worker never wakes itself" do
     pid = start_worker()
 

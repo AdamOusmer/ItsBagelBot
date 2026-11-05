@@ -16,7 +16,8 @@ defmodule Ingress.Dispatcher.Supervisor do
   def init(opts) do
     children = [
       {Ingress.Dispatcher, opts},
-      {Ingress.Dispatcher.WorkerSupervisor, opts}
+      {Ingress.Dispatcher.WorkerSupervisor, opts},
+      {Ingress.Dispatcher.Scaler, opts}
     ]
 
     Supervisor.init(children, strategy: :rest_for_one)
