@@ -79,7 +79,13 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("counter_add", typed((*actionExec).counterAdd)).
 		Step("counter_set", typed((*actionExec).counterSet)).
 		Step("http_post", typed((*actionExec).httpPost)).
-		Step("lights", typed((*actionExec).lights))
+		Step("http_get", typed((*actionExec).httpGet)).
+		Step("lights", typed((*actionExec).lights)).
+		Step("var_set", typed((*actionExec).varSet)).
+		Step("var_add", typed((*actionExec).varAdd)).
+		Step("var_delete", typed((*actionExec).varDelete)).
+		Step("text", typed((*actionExec).textStep)).
+		Step("math", typed((*actionExec).mathStep))
 }
 
 func flowActions(b *actionTableBuilder) *actionTableBuilder {
@@ -87,6 +93,7 @@ func flowActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("delay", typed((*actionExec).delay)).
 		Step("random_pick", typed((*actionExec).randomPick)).
 		Step("parallel", typed((*actionExec).parallel)).
+		Step("loop", typed((*actionExec).loop)).
 		Step("run", typed((*actionExec).runOther)).
 		Step("if", typed((*actionExec).ifElse)).
 		Step("stop", typed((*actionExec).stop))

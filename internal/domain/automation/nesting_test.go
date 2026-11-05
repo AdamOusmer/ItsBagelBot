@@ -5,8 +5,11 @@ package automation
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
+
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -36,9 +39,27 @@ func TestManyConditionsInARowAreValid(t *testing.T) {
 }
 
 func TestBranchingStepsDoNotCountAsActions(t *testing.T) {
-	branch := fmt.Sprintf(`{"type":"if","params":{"condition":%s}}`, liveCondition)
-	list := strings.TrimSuffix(strings.Repeat(branch+",", MaxActions+5), ",")
-	raw := fmt.Sprintf(`{"version":1,"trigger":{"type":"manual","params":{}},"actions":[%s]}`, list)
-	_, issues := Parse([]byte(raw))
-	assert.Empty(t, issues)
+	branch := Action{Type: "if", Params: codec.RawMessage(fmt.Sprintf(`{"condition":%s}`, liveCondition))}
+	assert.Empty(t, Validate(manualDefinition(slices.Repeat([]Action{branch}, MaxActions+5))))
+}
+
+func manualDefinition(actions []Action) Definition {
+	return Definition{Version: 1, Trigger: Trigger{Type: "manual", Params: codec.RawMessage(`{}`)}, Actions: actions}
+}
+
+func TestEffectStepsOverTheLimitAreRefused(t *testing.T) {
+	stop := Action{Type: "stop", Params: codec.RawMessage(`{}`)}
+	assert.Empty(t, Validate(manualDefinition(slices.Repeat([]Action{stop}, MaxActions))))
+	tooMany := []Issue{{Path: "actions", Code: CodeTooMany}}
+	assert.Equal(t, tooMany, Validate(manualDefinition(slices.Repeat([]Action{stop}, MaxActions+1))))
+
+	body, err := codec.Marshal(LoopAction{Times: "1", Actions: slices.Repeat([]Action{stop}, MaxActions+1)})
+	assert.NoError(t, err)
+	assert.Equal(t, tooMany, Validate(manualDefinition([]Action{{Type: "loop", Params: body}})))
+}
+
+func TestFetchNodesCountAsEffectsAndLoopsDoNot(t *testing.T) {
+	assert.False(t, IsBranching("http_get"))
+	assert.False(t, IsBranching("http_post"))
+	assert.True(t, IsBranching("loop"))
 }

@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -32,9 +33,10 @@ type RunLimiter interface {
 }
 
 type AutomationDeps struct {
-	Source  AutomationSource
-	Runs    RunLog
-	Limiter RunLimiter
+	Source    AutomationSource
+	Runs      RunLog
+	Limiter   RunLimiter
+	Variables VariableStore
 }
 
 type AutomationRun struct {
@@ -56,6 +58,16 @@ type AutomationRun struct {
 	Started       time.Time
 	Admitted      bool
 	Record        automationrpc.RunRecord
+	Locals        map[string]string
+	Iter          string
+	Forks         *atomic.Int32
+	Spent         stepSpend
+}
+
+// stepSpend carries the step budget through `run` children, or loops multiply it per depth.
+type stepSpend struct {
+	executed int
+	visits   int
 }
 
 type noRunLog struct{}
@@ -121,6 +133,15 @@ func skippedOutcome(err error, reason string) (string, string) {
 	return automationrpc.OutcomeSkipped, reason
 }
 
+// The run log reply must fit a NATS message, so long loops keep their first steps and how they ended.
+func trimmedRecords(records []automationrpc.ActionRecord) []automationrpc.ActionRecord {
+	if len(records) <= automation.MaxRecordedActions {
+		return records
+	}
+	records[automation.MaxRecordedActions-1] = records[len(records)-1]
+	return records[:automation.MaxRecordedActions]
+}
+
 func (p *Pipeline) finishRun(ctx context.Context, run *AutomationRun) {
 	if run.Record.Outcome == outcomeDeferred {
 		return
@@ -129,5 +150,6 @@ func (p *Pipeline) finishRun(ctx context.Context, run *AutomationRun) {
 	if run.Record.Outcome == "" {
 		run.Record.Outcome = automationrpc.OutcomeOK
 	}
+	run.Record.Actions = trimmedRecords(run.Record.Actions)
 	p.automations.Runs.Record(ctx, run.BroadcasterID, run.Record)
 }

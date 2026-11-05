@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/automation"
@@ -62,7 +63,12 @@ const (
 	signalDelay
 )
 
-type resume struct{ steps []automation.Step }
+// iter is the loop iteration path the frame resumes under; it scopes effect dedup.
+type resume struct {
+	steps []automation.Step
+	loop  *loopCursor
+	iter  string
+}
 
 type step = *automation.Step
 
@@ -71,6 +77,8 @@ type runBudget struct {
 	chats    int
 	delayMS  int
 	segment  int
+	visits   int
+	handled  int
 }
 
 type actionExec struct {
@@ -88,11 +96,14 @@ type actionExec struct {
 	tctx    *module.Context
 	vars    runVars
 	buf     []byte
+	iter    string
+	started time.Time
 }
 
 func (p *Pipeline) newActionExec(ctx context.Context, run *AutomationRun, emit module.Emit) *actionExec {
 	x := getActionExec()
 	x.p, x.ctx, x.run, x.emit = p, ctx, run, emit
+	x.iter, x.started = run.Iter, time.Now()
 	x.bid = run.Channel
 	if x.bid == "" {
 		x.bid = strconv.FormatUint(run.BroadcasterID, 10)
@@ -105,13 +116,15 @@ func (x *actionExec) execute() {
 	if run.Plan.StepCount > 0 {
 		run.Record.Actions = make([]automationrpc.ActionRecord, 0, run.Plan.StepCount)
 	}
+	x.budget.executed, x.budget.visits = run.Spent.executed, run.Spent.visits
 	x.execList(run.Plan.Steps)
+	run.Spent = stepSpend{executed: x.budget.executed, visits: x.budget.visits}
 	x.conclude()
 }
 
 func (x *actionExec) runLists(lists []resume) {
 	for k, r := range lists {
-		x.execList(r.steps)
+		x.resumeFrame(r)
 		switch x.signal {
 		case signalDelay:
 			x.rest = append(x.rest, lists[k+1:]...)
@@ -122,20 +135,47 @@ func (x *actionExec) runLists(lists []resume) {
 	}
 }
 
+func (x *actionExec) resumeFrame(r resume) {
+	x.iter = r.iter
+	if r.loop != nil {
+		x.iterate(*r.loop)
+		return
+	}
+	x.execList(r.steps)
+}
+
 func (x *actionExec) execList(list []automation.Step) {
 	for i := range list {
 		x.step(&list[i])
+		x.yieldIfSlow()
 		if x.signal == signalNone {
 			continue
 		}
 		if x.signal == signalDelay && i+1 < len(list) {
-			x.rest = append(x.rest, resume{steps: list[i+1:]})
+			x.rest = append(x.rest, resume{steps: list[i+1:], iter: x.iter})
 		}
 		return
 	}
 }
 
+// Fetches and store calls block the event lane; past the budget the remaining steps move to a continuation.
+func (x *actionExec) yieldIfSlow() {
+	budget := x.p.autoSegment
+	if budget == 0 {
+		budget = maxSyncSegment
+	}
+	if x.signal == signalNone && time.Since(x.started) > budget {
+		x.signal, x.delayMS = signalDelay, 1
+	}
+}
+
 func (x *actionExec) step(s step) {
+	if x.budget.visits >= automation.MaxStepVisitsPerRun {
+		x.recordLimited(s, "max_steps")
+		x.signal = signalStop
+		return
+	}
+	x.budget.visits++
 	x.run.Record.Actions = append(x.run.Record.Actions, automationrpc.ActionRecord{Index: s.Index, Type: s.Type, Status: automationrpc.StatusOK})
 	slot := len(x.run.Record.Actions) - 1
 	status, detail := classify(x.dispatch(s))
@@ -161,17 +201,9 @@ func (x *actionExec) dispatch(s step) error {
 }
 
 func (x *actionExec) outcome() string {
-	good, bad := 0, 0
-	for _, r := range x.run.Record.Actions {
-		switch r.Status {
-		case automationrpc.StatusOK:
-			good++
-		case automationrpc.StatusFailed, automationrpc.StatusLimited, automationrpc.StatusUnsupported:
-			bad++
-		}
-	}
+	good, bad := tallyRecords(x.run.Record.Actions)
 	switch {
-	case bad == 0:
+	case bad <= x.budget.handled:
 		return automationrpc.OutcomeOK
 	case good == 0:
 		return automationrpc.OutcomeFailed
@@ -196,12 +228,19 @@ func (x *actionExec) conclude() {
 
 func (x *actionExec) limitRest() {
 	for _, r := range x.rest {
+		if r.loop != nil {
+			x.recordLimited(r.loop.step, "delay_capacity")
+		}
 		for i := range r.steps {
-			x.run.Record.Actions = append(x.run.Record.Actions, automationrpc.ActionRecord{
-				Index: r.steps[i].Index, Type: r.steps[i].Type, Status: automationrpc.StatusLimited, Detail: "delay_capacity",
-			})
+			x.recordLimited(&r.steps[i], "delay_capacity")
 		}
 	}
+}
+
+func (x *actionExec) recordLimited(s step, detail string) {
+	x.run.Record.Actions = append(x.run.Record.Actions, automationrpc.ActionRecord{
+		Index: s.Index, Type: s.Type, Status: automationrpc.StatusLimited, Detail: detail,
+	})
 }
 
 func (x *actionExec) out(typ string) module.Output {

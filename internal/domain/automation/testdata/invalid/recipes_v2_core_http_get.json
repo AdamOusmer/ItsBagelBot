@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    { "type": "http_get", "params": { "url": "http://example.com/plain" } },
+    { "type": "http_get", "params": { "url": "http://example.com/{arg:1}", "json_path": ["bad seg"], "save_as": "no spaces" } },
+    { "type": "http_get", "params": { "url": "https://example.com/x", "on_failure": [ { "type": "nope", "params": {} } ] } }
+  ]
+}

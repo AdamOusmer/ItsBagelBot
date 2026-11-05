@@ -6,6 +6,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,6 +24,8 @@ import (
 const (
 	maxContinuations    = 512
 	continuationTimeout = 30 * time.Second
+	maxForksPerRun      = 128
+	maxSyncSegment      = 3 * time.Second
 )
 
 type autoExecState struct {
@@ -68,15 +71,70 @@ func (x *actionExec) randomPick(s step, p automation.RandomPickAction) error {
 }
 
 // Each path pauses alone: its remaining steps move to their own continuation, so the next path starts right away.
+// Each path also owns a copy of the locals: a path that pauses could not hand its writes back in order.
 func (x *actionExec) parallel(s step, _ automation.ParallelAction) error {
-	spent := x.budget.delayMS
+	spent, locals := x.budget.delayMS, x.run.Locals
 	for i := range s.Branches {
 		x.budget.delayMS = spent
+		x.run.Locals = maps.Clone(locals)
 		x.execList(s.Branches[i])
 		x.settlePath(i)
 	}
-	x.budget.delayMS = spent
+	x.budget.delayMS, x.run.Locals = spent, locals
 	return nil
+}
+
+func (x *actionExec) loop(s step, p automation.LoopAction) error {
+	total, ok := automation.ParseLoopTimes(x.expand(p.Times))
+	if !ok {
+		return failure("bad_times")
+	}
+	prior, shadowed := x.run.Locals[localIndex]
+	x.iterate(loopCursor{step: s, next: 1, total: total, prior: prior, shadowed: shadowed})
+	return nil
+}
+
+type loopCursor struct {
+	step     step
+	next     int
+	total    int
+	prior    string
+	shadowed bool
+}
+
+func (x *actionExec) iterate(c loopCursor) {
+	outer := x.iter
+	for c.next <= c.total {
+		if x.budget.executed >= automation.MaxActions {
+			x.recordLimited(c.step, "max_actions")
+			break
+		}
+		index := strconv.Itoa(c.next)
+		c.next++
+		x.iter = outer + "@" + index
+		x.setLocal(localIndex, index)
+		x.execList(c.step.Branches[0])
+		x.iter = outer
+		if x.signal != signalNone {
+			x.pauseLoop(c, outer)
+			return
+		}
+	}
+	x.restoreIndex(c)
+}
+
+func (x *actionExec) pauseLoop(c loopCursor, outer string) {
+	if x.signal == signalDelay {
+		x.rest = append(x.rest, resume{loop: &c, iter: outer})
+	}
+}
+
+func (x *actionExec) restoreIndex(c loopCursor) {
+	if c.shadowed {
+		x.setLocal(localIndex, c.prior)
+		return
+	}
+	delete(x.run.Locals, localIndex)
 }
 
 func (x *actionExec) settlePath(path int) {
@@ -87,12 +145,23 @@ func (x *actionExec) settlePath(path int) {
 	x.signal, x.rest = signalNone, nil
 }
 
+func (x *actionExec) forks() *atomic.Int32 {
+	if x.run.Forks == nil {
+		x.run.Forks = new(atomic.Int32)
+	}
+	return x.run.Forks
+}
+
 func (x *actionExec) schedulePath(path int) bool {
+	if x.forks().Add(1) > maxForksPerRun {
+		return false
+	}
 	if !x.p.autoExec.acquire() {
 		return false
 	}
 	cont := detachRun(x.run)
-	cont.ID = cont.ID + "#" + strconv.Itoa(path)
+	// The iteration path keeps replay ids distinct: outgress drops a repeated one.
+	cont.ID = cont.ID + "#" + strconv.Itoa(path) + x.iter
 	x.startContinuation(cont)
 	return true
 }
@@ -140,8 +209,11 @@ func (x *actionExec) runOther(_ step, p automation.RunAction) error {
 		return failure("not_found")
 	}
 	x.flush()
+	x.forks()
 	child := x.childRun(target)
+	child.Spent = stepSpend{executed: x.budget.executed, visits: x.budget.visits}
 	x.p.runAutomation(x.ctx, child, x.emit)
+	x.budget.executed, x.budget.visits = max(x.budget.executed, child.Spent.executed), max(x.budget.visits, child.Spent.visits)
 	if child.Record.Outcome == automationrpc.OutcomeFailed {
 		return failure("child_failed")
 	}
@@ -165,6 +237,8 @@ func (x *actionExec) childRun(target *automation.Plan) *AutomationRun {
 	child.Plan = target
 	child.Depth++
 	child.Record = automationrpc.RunRecord{}
+	child.Locals = maps.Clone(x.run.Locals)
+	child.Iter = x.iter
 	child.ID = x.run.ID + "/" + target.Automation.ID
 	if id, err := utils.NewID(); err == nil {
 		child.ID = id.String()
@@ -239,7 +313,8 @@ func detachRun(run *AutomationRun) *AutomationRun {
 	d.Channel, d.Locale, d.Args = strings.Clone(run.Channel), strings.Clone(run.Locale), strings.Clone(run.Args)
 	d.ID, d.Identity = strings.Clone(run.ID), strings.Clone(run.Identity)
 	d.Viewer = Viewer{ID: run.Viewer.ID, Login: strings.Clone(run.Viewer.Login), Name: strings.Clone(run.Viewer.Name)}
-	d.ArgMap, d.Event = cloneStrings(run.ArgMap), cloneStrings(run.Event)
+	d.Iter = strings.Clone(run.Iter)
+	d.ArgMap, d.Event, d.Locals = cloneStrings(run.ArgMap), cloneStrings(run.Event), cloneStrings(run.Locals)
 	d.Record.Actions = slices.Clone(run.Record.Actions)
 	return &d
 }

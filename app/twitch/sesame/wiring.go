@@ -79,9 +79,10 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		AutomationHook: &engine.AutomationHook{},
 		Runtime:        newRuntime(w),
 		Automations: engine.AutomationDeps{
-			Source:  rt.proj,
-			Runs:    rt.runs,
-			Limiter: rt.limiter,
+			Source:    rt.proj,
+			Runs:      rt.runs,
+			Limiter:   rt.limiter,
+			Variables: engine.NewLoyaltyRPC(in.nc, engine.LoyaltyRPCPrefix(cfg.LoyaltyRPCPrefix)),
 		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,

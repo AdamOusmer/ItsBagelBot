@@ -126,8 +126,11 @@ type IfAction struct {
 }
 
 type HTTPPostAction struct {
-	URL  string `json:"url"`
-	Body string `json:"body"`
+	URL       string   `json:"url"`
+	Body      string   `json:"body"`
+	SaveAs    string   `json:"save_as,omitempty"`
+	OnOK      []Action `json:"on_ok,omitempty"`
+	OnFailure []Action `json:"on_failure,omitempty"`
 }
 
 const (
@@ -239,6 +242,8 @@ func checkHTTPPost(c chk, p HTTPPostAction) {
 		c.add("url", CodeInvalidFormat)
 	}
 	c.text("body", p.Body, upTo(2000))
+	c.optionalVariableName("save_as", p.SaveAs)
+	c.fetchPaths(p.OnOK, p.OnFailure)
 }
 
 func checkLights(c chk, p LightsAction) {

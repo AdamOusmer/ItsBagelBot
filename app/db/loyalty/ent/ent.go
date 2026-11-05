@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
+	"ItsBagelBot/app/db/loyalty/ent/variable"
 	"context"
 	"errors"
 	"fmt"
@@ -78,6 +79,7 @@ func checkColumn(t, c string) error {
 			balance.Table:      balance.ValidColumn,
 			counter.Table:      counter.ValidColumn,
 			counterentry.Table: counterentry.ValidColumn,
+			variable.Table:     variable.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

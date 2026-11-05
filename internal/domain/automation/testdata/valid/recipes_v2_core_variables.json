@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!death" } },
+  "conditions": [
+    { "type": "var", "params": { "scope": "channel", "name": "deaths", "op": "lt", "value": "{arg:1}" } },
+    { "type": "var", "params": { "scope": "viewer", "name": "seen", "op": "exists" } }
+  ],
+  "actions": [
+    { "type": "var_set", "params": { "scope": "channel", "name": "Last_Viewer", "value": "{user}" } },
+    { "type": "var_add", "params": { "scope": "channel", "name": "deaths", "amount": 1 } },
+    { "type": "var_add", "params": { "scope": "viewer", "name": "own_deaths", "amount": -2 } },
+    { "type": "var_delete", "params": { "scope": "viewer", "name": "seen" } },
+    { "type": "chat", "params": { "text": "{var:deaths} {viewervar:own_deaths}" } }
+  ]
+}

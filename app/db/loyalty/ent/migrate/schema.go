@@ -107,11 +107,41 @@ var (
 			},
 		},
 	}
+	// VariablesColumns holds the columns for the "variables" table.
+	VariablesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "scope", Type: field.TypeString, Size: 16},
+		{Name: "viewer_id", Type: field.TypeUint64, Default: 0},
+		{Name: "name", Type: field.TypeString, Size: 32},
+		{Name: "value", Type: field.TypeString, Size: 2000, Default: ""},
+		{Name: "revision", Type: field.TypeInt64, Default: 0},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// VariablesTable holds the schema information for the "variables" table.
+	VariablesTable = &schema.Table{
+		Name:       "variables",
+		Columns:    VariablesColumns,
+		PrimaryKey: []*schema.Column{VariablesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "variable_user_id_scope_viewer_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{VariablesColumns[1], VariablesColumns[2], VariablesColumns[3], VariablesColumns[4]},
+			},
+			{
+				Name:    "variable_user_id_scope_name",
+				Unique:  false,
+				Columns: []*schema.Column{VariablesColumns[1], VariablesColumns[2], VariablesColumns[4]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		BalancesTable,
 		CountersTable,
 		CounterEntriesTable,
+		VariablesTable,
 	}
 )
 

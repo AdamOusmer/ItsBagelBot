@@ -1,0 +1,22 @@
+[
+  {
+    "path": "actions[0].params.url",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[1].params.json_path",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[1].params.save_as",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[1].params.url",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[2].params.on_failure[0].type",
+    "code": "unknown_type"
+  }
+]

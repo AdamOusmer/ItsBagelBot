@@ -94,6 +94,7 @@ type Pipeline struct {
 	automations AutomationDeps
 	autoIntN    func(int) int
 	autoExec    autoExecState
+	autoSegment time.Duration
 }
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {

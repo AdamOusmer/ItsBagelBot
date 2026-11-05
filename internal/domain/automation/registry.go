@@ -14,6 +14,7 @@ type entry struct {
 	decode func(raw codec.RawMessage) (any, error)
 	nested func(raw codec.RawMessage) [][]Action
 	plan   func(params any) nesting
+	effect bool
 }
 
 type nesting struct {
@@ -73,6 +74,12 @@ func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
 	return e
 }
 
+func registerNestedEffect[T any](check func(chk, T), nested func(T) nesting) entry {
+	e := registerNested(check, nested)
+	e.effect = true
+	return e
+}
+
 func paramsCode(err error) issueCode {
 	if codec.IsUnknownField(err) {
 		return CodeUnknownField
@@ -121,7 +128,10 @@ func (c chk) action(i index, a Action) {
 }
 
 // IsBranching reports a step that only routes to other steps, so it does not count toward MaxActions.
-func IsBranching(typ string) bool { return actionRegistry[typ].nested != nil }
+func IsBranching(typ string) bool {
+	e := actionRegistry[typ]
+	return e.nested != nil && !e.effect
+}
 
 func (c chk) triggerMismatch(typ string) bool {
 	want, ok := requiredTrigger[typ]
@@ -174,6 +184,7 @@ func init() {
 		"arg_regex": register(checkArgRegex),
 		"category":  register(checkCategory),
 		"compare":   register(checkCompare),
+		"var":       register(checkVarCondition),
 	}
 	actionRegistry = map[string]entry{
 		"chat":           register(checkText),
@@ -201,8 +212,15 @@ func init() {
 		"parallel":       registerNested(checkParallel, parallelBranches),
 		"run":            register(checkRun),
 		"if":             registerNested(checkIf, ifBranches),
-		"http_post":      register(checkHTTPPost),
+		"loop":           registerNested(checkLoop, loopBranches),
+		"http_post":      registerNestedEffect(checkHTTPPost, httpPostBranches),
+		"http_get":       registerNestedEffect(checkHTTPGet, httpGetBranches),
 		"lights":         register(checkLights),
 		"stop":           register(checkEmpty),
+		"var_set":        register(checkVarSet),
+		"var_add":        register(checkVarAdd),
+		"var_delete":     register(checkVarDelete),
+		"text":           register(checkTextStep),
+		"math":           register(checkMath),
 	}
 }

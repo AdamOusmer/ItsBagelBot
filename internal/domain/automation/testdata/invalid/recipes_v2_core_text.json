@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    { "type": "text", "params": { "op": "reverse", "input": "x", "save_as": "y" } },
+    { "type": "text", "params": { "op": "upper", "input": "x" } }
+  ]
+}

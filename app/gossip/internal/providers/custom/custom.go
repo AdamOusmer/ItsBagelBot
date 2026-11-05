@@ -242,14 +242,27 @@ func (p *api) dispatch(ctx context.Context, req gossiprpc.Request, fl *flight) (
 		return p.produce(ctx, fl)
 	}
 	switch {
-	case fl.inline || req.DryRun:
+	case req.DryRun:
 		b, _, err := build(ctx)
 		return b, err
+	case fl.inline:
+		return p.dispatchInline(ctx, req, fl, build)
 	case req.Fresh:
 		return core.CachedBytesFresh(ctx, p.cache, fl.key, p.admitFor(req, fl), build)
 	default:
 		return core.CachedBytes(ctx, p.cache, fl.key, p.admitFor(req, fl), build)
 	}
+}
+
+// Recipes can loop an inline fetch, so unlike a dashboard dry run it spends rate budget.
+func (p *api) dispatchInline(ctx context.Context, req gossiprpc.Request, fl *flight, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
+	if admit := p.admitFor(req, fl); admit != nil {
+		if err := admit(ctx); err != nil {
+			return nil, err
+		}
+	}
+	b, _, err := build(ctx)
+	return b, err
 }
 
 func missingDefIdentity(req gossiprpc.Request) bool {

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    {
+      "type": "http_get",
+      "params": {
+        "url": "https://api.example.com/score/{local:team}",
+        "json_path": ["data", "0", "score"],
+        "save_as": "score",
+        "on_ok": [ { "type": "chat", "params": { "text": "{local:score}" } } ],
+        "on_failure": [ { "type": "chat", "params": { "text": "lookup failed: {local:error}" } } ]
+      }
+    },
+    { "type": "http_get", "params": { "url": "{var:endpoint}" } },
+    { "type": "http_get", "params": { "url": "https://api.example.com/plain" } },
+    { "type": "http_post", "params": { "url": "https://hooks.example.com/old", "body": "unchanged" } },
+    {
+      "type": "http_post",
+      "params": {
+        "url": "https://hooks.example.com/new",
+        "body": "{args}",
+        "save_as": "reply",
+        "on_ok": [ { "type": "var_set", "params": { "scope": "channel", "name": "last_reply", "value": "{local:reply}" } } ],
+        "on_failure": [ { "type": "stop", "params": {} } ]
+      }
+    }
+  ]
+}
