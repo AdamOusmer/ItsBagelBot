@@ -2,10 +2,18 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Chk } from './check';
-import { validateFetchDef } from '../engine/fetch-validate';
-import { counterName } from './conditions';
+import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE, validateFetchDef } from '../engine/fetch-validate';
+import { checkVarIdentity, counterName } from './conditions';
 import { register, type Table, type Wide } from './engine';
-import { CODE, MAX_DELAY_MS, MAX_FETCH_URL_LENGTH } from './limits';
+import {
+  CODE,
+  MAX_DELAY_MS,
+  MAX_FETCH_URL_LENGTH,
+  MAX_REWARD_COST,
+  MAX_TEMPLATE_LENGTH,
+  MAX_VARIABLE_AMOUNT,
+  RECIPE_NAME_PATTERN,
+} from './limits';
 import type * as T from './types';
 
 const ANNOUNCE_COLORS = ['', 'primary', 'blue', 'green', 'orange', 'purple'];
@@ -64,9 +72,57 @@ function fetchUrlRejected(url: string): boolean {
   return validateFetchDef({ name: 'a', url, kind: 'plain', path: [], keyLabel: '' }).url !== undefined;
 }
 
-function checkHttpPost(c: Chk, p: Wide<T.HTTPPostAction>): void {
+export function checkSaveAs(c: Chk, name: string): void {
+  if (name !== '') c.format('save_as', name, RECIPE_NAME_PATTERN);
+}
+
+export function checkHttpPostFields(c: Chk, p: { url: string; body: string; save_as: string }): void {
   if (c.text('url', p.url, 1, MAX_FETCH_URL_LENGTH) && fetchUrlRejected(p.url)) c.add('url', CODE.invalidFormat);
   c.text('body', p.body, 0, 2000);
+  checkSaveAs(c, p.save_as);
+}
+
+function jsonPathRejected(path: string[]): boolean {
+  return path.length > JSON_PATH_MAX_DEPTH || !path.every((segment) => PATH_SEGMENT_RE.test(segment));
+}
+
+function httpsTemplateRejected(template: string): boolean {
+  return !template.startsWith('{') && !template.startsWith('https://');
+}
+
+function fetchTemplateRejected(url: string): boolean {
+  return url.includes('{') ? httpsTemplateRejected(url) : fetchUrlRejected(url);
+}
+
+export function checkHttpGetFields(c: Chk, p: { url: string; json_path: string[]; save_as: string }): void {
+  if (c.text('url', p.url, 1, MAX_FETCH_URL_LENGTH) && fetchTemplateRejected(p.url)) c.add('url', CODE.invalidFormat);
+  if (jsonPathRejected(p.json_path)) c.add('json_path', CODE.invalidFormat);
+  checkSaveAs(c, p.save_as);
+}
+
+const TEXT_OPS = ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'];
+
+function checkTextStep(c: Chk, p: Wide<T.TextStepAction>): void {
+  c.oneOf('op', p.op, TEXT_OPS);
+  c.text('input', p.input, 0, MAX_TEMPLATE_LENGTH);
+  c.text('arg1', p.arg1, 0, MAX_TEMPLATE_LENGTH);
+  c.text('arg2', p.arg2, 0, MAX_TEMPLATE_LENGTH);
+  c.format('save_as', p.save_as, RECIPE_NAME_PATTERN);
+}
+
+function checkMath(c: Chk, p: Wide<T.MathAction>): void {
+  c.template('expression', p.expression);
+  c.format('save_as', p.save_as, RECIPE_NAME_PATTERN);
+}
+
+const REWARD_ID_PATTERN = /^[A-Za-z0-9-]+$/;
+
+type RewardUpdateFields = { reward_id: string; enabled: boolean | null; cost: number | null };
+
+function checkRewardUpdate(c: Chk, p: RewardUpdateFields): void {
+  if (c.text('reward_id', p.reward_id, 1, 64) && !REWARD_ID_PATTERN.test(p.reward_id)) c.add('reward_id', CODE.invalidFormat);
+  if (p.enabled === null && p.cost === null) c.add('enabled', CODE.required);
+  if (p.cost !== null) c.inRange('cost', p.cost, 1, MAX_REWARD_COST);
 }
 
 function jsonParses(text: string): boolean {
@@ -123,7 +179,22 @@ export const SIMPLE_ACTIONS: Table = {
   redemption: register<Wide<T.RedemptionAction>>({ status: 'string' }, (c, p) => c.oneOf('status', p.status, ['fulfill', 'cancel'])),
   delay: register<Wide<T.DelayAction>>({ ms: 'int' }, (c, p) => c.inRange('ms', p.ms, 1, MAX_DELAY_MS)),
   run: register<Wide<T.RunAction>>({ automation_id: 'string' }, (c, p) => void c.text('automation_id', p.automation_id, 1, 64)),
-  http_post: register<Wide<T.HTTPPostAction>>({ url: 'string', body: 'string' }, checkHttpPost),
+  var_set: register<Wide<T.VarSetAction>>({ scope: 'string', name: 'string', value: 'string' }, (c, p) => {
+    checkVarIdentity(c, p);
+    c.text('value', p.value, 0, MAX_TEMPLATE_LENGTH);
+  }),
+  var_add: register<Wide<T.VarAddAction>>({ scope: 'string', name: 'string', amount: 'int' }, (c, p) => {
+    checkVarIdentity(c, p);
+    c.inRange('amount', p.amount, -MAX_VARIABLE_AMOUNT, MAX_VARIABLE_AMOUNT);
+    c.nonZero('amount', p.amount);
+  }),
+  var_delete: register<Wide<T.VarDeleteAction>>({ scope: 'string', name: 'string' }, checkVarIdentity),
+  text: register<Wide<T.TextStepAction>>({ op: 'string', input: 'string', arg1: 'string', arg2: 'string', save_as: 'string' }, checkTextStep),
+  math: register<Wide<T.MathAction>>({ expression: 'string', save_as: 'string' }, checkMath),
+  reward_update: register<RewardUpdateFields>(
+    { reward_id: 'string', enabled: 'ptrbool', cost: 'ptrint', reset_on_stream_end: 'bool' },
+    checkRewardUpdate,
+  ),
   lights: register<Wide<T.LightsAction>>(
     {
       device: 'string',

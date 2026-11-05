@@ -4,16 +4,14 @@
 package automation
 
 const (
-	MaxActions               = 20
+	MaxActions               = 1000
 	MaxDelayMS               = 60000
-	MaxChatMessagesPerRun    = 3
 	MaxRecursionDepth        = 2
 	MaxNameLength            = 64
 	MaxAutomationsPerChannel = 100
 	MaxDefinitionBytes       = 32768
 	MaxPreviewBytes          = 4096
 	RunsKept                 = 50
-	MaxRunsPerMinute         = 60
 )
 
 const (
@@ -24,6 +22,19 @@ const (
 	MaxCommandAliases = 10
 	MaxListEntries    = 100
 	MaxPatternLength  = 200
+)
+
+const (
+	MaxVariableValueRunes  = 500
+	MaxChannelVariables    = 200
+	MaxViewerVariableNames = 200
+	MaxVariableAmount      = 1_000_000_000_000_000
+	MaxSavedValueRunes     = 500
+	MaxTextOperandRunes    = 1000
+	MaxMathExpressionRunes = 200
+	MaxLoopTimes           = 100
+	MaxStepVisitsPerRun    = 4 * MaxActions
+	MaxRecordedActions     = 1200
 )
 
 const (

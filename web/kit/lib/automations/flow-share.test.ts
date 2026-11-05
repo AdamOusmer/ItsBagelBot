@@ -97,6 +97,57 @@ const SHOWCASE: FlowExportRow[] = [
         }
       ]
     }
+  },
+  {
+    id: '11111111-aaaa-4bbb-8ccc-000000000003',
+    name: 'Recipes v2',
+    definition: {
+      version: 1,
+      queue: 'sounds',
+      trigger: { type: 'command', params: { name: '!v2' } },
+      conditions: [{ type: 'var', params: { scope: 'channel', name: 'mode', op: 'eq', value: 'on' } }],
+      actions: [
+        { type: 'var_set', params: { scope: 'viewer', name: 'seen', value: '{user}' } },
+        { type: 'var_add', params: { scope: 'channel', name: 'total', amount: 1 } },
+        { type: 'var_delete', params: { scope: 'channel', name: 'old' } },
+        { type: 'text', params: { op: 'upper', input: '{args}', arg1: '', arg2: '', save_as: 'loud' } },
+        { type: 'math', params: { expression: '{var:total}*2', save_as: 'double' } },
+        {
+          type: 'loop',
+          params: {
+            times: '3',
+            actions: [
+              {
+                type: 'http_get',
+                params: {
+                  url: 'https://api.example.org/secret-token',
+                  json_path: ['data', 'value'],
+                  save_as: 'answer',
+                  on_ok: [chat('got {local:answer}')],
+                  on_failure: [chat('no answer')]
+                }
+              }
+            ]
+          }
+        },
+        { type: 'reward_update', params: { reward_id: 'real-reward-to-hide', enabled: false, cost: null, reset_on_stream_end: true } }
+      ]
+    }
+  },
+  {
+    id: '11111111-aaaa-4bbb-8ccc-000000000004',
+    name: 'Pasted keys',
+    restricted: true,
+    definition: {
+      version: 1,
+      trigger: { type: 'command', params: { name: '!keys' } },
+      actions: [
+        chat('use ghp_0123456789abcdefABCDEF0123456789abcd today, {user}'),
+        { type: 'reply', params: { text: 'https://me:hunter2@example.org/a?token=hunter2&page=2' } },
+        { type: 'var_set', params: { scope: 'channel', name: 'jwt', value: 'x eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N' } },
+        { type: 'reply', params: { text: 'AKIAIOSFODNN7EXAMPLE' } }
+      ]
+    }
   }
 ];
 
@@ -144,7 +195,7 @@ describe('exportFlows', () => {
   });
 
   test('carries no channel ids, secrets, or row data', () => {
-    for (const leak of ['7e0f9a58', 'realviewer', 'realtroll', 'realfriend', '123456789012345678', 'hunter2', 'secret-token', 'AB:CD:EF', 'H6159', 'Desk strip', 'Sunrise', '4280', 'my-secret-hook', '555000111', '11111111-aaaa', '99999999']) {
+    for (const leak of ['7e0f9a58', 'realviewer', 'realtroll', 'realfriend', '123456789012345678', 'hunter2', 'secret-token', 'AB:CD:EF', 'H6159', 'Desk strip', 'Sunrise', '4280', 'my-secret-hook', '555000111', '11111111-aaaa', '99999999', 'ghp_', 'eyJ', 'AKIA']) {
       expect(text).not.toContain(leak);
     }
     for (const field of ['user_id"', 'revision', 'created_at', 'updated_at', 'preview', '"id"', 'uses']) {
@@ -163,6 +214,13 @@ describe('exportFlows', () => {
       expect.arrayContaining(['reward_trigger', 'users_list', 'http_target', 'lights_target', 'run_removed', 'counter', 'fetch'])
     );
     expect(report.every((r) => r.issues.length === 0)).toBe(true);
+    expect(report[3]!.scrubbed.map((note) => `${note.path} ${note.type} ${note.kind}`)).toEqual([
+      'actions[0].params.text chat known_token',
+      'actions[1].params.text reply url_credentials',
+      'actions[2].params.value var_set jwt',
+      'actions[3].params.text reply known_token'
+    ]);
+    expect(report.slice(0, 3).every((r) => r.scrubbed.length === 0)).toBe(true);
   });
 
   test('a stored row that no longer validates is left out and reported', () => {

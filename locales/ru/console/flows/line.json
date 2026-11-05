@@ -46,5 +46,15 @@
   "eventReward": "{user} активирует награду",
   "eventLive": "Стрим начался: {title}",
   "sampleCommand": "!command",
-  "sampleWord": "bagel"
+  "sampleWord": "bagel",
+  "varSet": "Задать {name} значение {value}",
+  "varAdd": "Прибавить {amount} к {name}",
+  "varTake": "Вычесть {amount} из {name}",
+  "varDelete": "Удалить {name}",
+  "varCheck": "{name} {op} {value}",
+  "varExists": "{name} задано",
+  "textSaved": "{op}, сохранить как {name}",
+  "loop": "Повторить {times} раз",
+  "rewardUpdate": "Изменить {reward}",
+  "rewardUpdateBack": "Изменить {reward} до конца стрима"
 }

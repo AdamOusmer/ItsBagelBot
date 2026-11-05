@@ -55,5 +55,22 @@
   "right": "Second value",
   "url": "URL",
   "user_s": "Per-viewer cooldown (s)",
-  "value": "Value"
+  "value": "Value",
+  "scope": "Kept for",
+  "save_as": "Save as",
+  "input": "Text",
+  "arg1": "First option",
+  "arg2": "Second option",
+  "expression": "Expression",
+  "times": "Times",
+  "actions": "Steps",
+  "on_ok": "If it worked",
+  "on_failure": "If it failed",
+  "json_path": "JSON path",
+  "enabled": "Turned on",
+  "cost": "Cost",
+  "reset_on_stream_end": "Put it back when stream ends",
+  "content": "Content",
+  "position": "Position",
+  "volume": "Volume"
 }

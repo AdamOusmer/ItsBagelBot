@@ -39,5 +39,106 @@
     "field": {
       "seconds": { "label": "Delay", "unit": "seconds, max {max}" }
     }
+  },
+  "loop": {
+    "label": "Repeat steps",
+    "summary": "Run a path up to 100 times",
+    "field": {
+      "times": { "label": "How many times", "placeholder": "3" }
+    },
+    "out": { "body": "Each time", "done": "When done" }
+  },
+  "varSet": {
+    "label": "Set a variable",
+    "summary": "Keep a value for later",
+    "field": {
+      "scope": { "label": "Kept for", "option": { "channel": "The channel", "viewer": "This viewer" } },
+      "name": { "label": "Name", "placeholder": "deaths" },
+      "value": { "label": "Value", "placeholder": "{user}" }
+    }
+  },
+  "varAdd": {
+    "label": "Add to a variable",
+    "summary": "Count up or down",
+    "field": {
+      "scope": { "label": "Kept for", "option": { "channel": "The channel", "viewer": "This viewer" } },
+      "name": { "label": "Name", "placeholder": "deaths" },
+      "amount": { "label": "Amount" }
+    }
+  },
+  "varDelete": {
+    "label": "Delete a variable",
+    "summary": "Forget a value",
+    "field": {
+      "scope": { "label": "Kept for", "option": { "channel": "The channel", "viewer": "This viewer" } },
+      "name": { "label": "Name", "placeholder": "deaths" }
+    }
+  },
+  "text": {
+    "label": "Change text",
+    "summary": "Clean up or pull apart text",
+    "field": {
+      "op": {
+        "label": "What to do",
+        "option": {
+          "upper": "Make uppercase",
+          "lower": "Make lowercase",
+          "trim": "Trim spaces",
+          "length": "Count characters",
+          "replace": "Replace",
+          "substring": "Take a part",
+          "split_pick": "Split and pick one",
+          "contains": "Check if it contains",
+          "url_encode": "Make safe for a link"
+        }
+      },
+      "input": { "label": "Text", "placeholder": "{args}" },
+      "find": { "label": "Find" },
+      "replaceWith": { "label": "Replace with" },
+      "start": { "label": "Start at" },
+      "count": { "label": "How many characters" },
+      "separator": { "label": "Split on" },
+      "pick": { "label": "Pick which one", "placeholder": "1, or random" },
+      "needle": { "label": "Look for" },
+      "saveAs": { "label": "Save as", "placeholder": "cleaned" }
+    }
+  },
+  "math": {
+    "label": "Do math",
+    "summary": "Work out a number",
+    "field": {
+      "expression": { "label": "Expression", "placeholder": "({bits} / 100) + 1" },
+      "saveAs": { "label": "Save as", "placeholder": "total" }
+    }
+  },
+  "httpGet": {
+    "label": "Read from a web address",
+    "summary": "Fetch a value over https",
+    "field": {
+      "url": { "label": "Address", "placeholder": "https://example.com/data" },
+      "jsonPath": { "label": "JSON path", "placeholder": "data.value" },
+      "saveAs": { "label": "Save as", "placeholder": "answer" }
+    },
+    "out": { "ok": "Worked", "failure": "Failed" }
+  },
+  "httpPost": {
+    "label": "Send to a web address",
+    "summary": "Post to a webhook over https",
+    "field": {
+      "url": { "label": "Address", "placeholder": "https://example.com/hook" },
+      "body": { "label": "Body", "placeholder": "{user} did it" },
+      "saveAs": { "label": "Save as", "placeholder": "answer" }
+    },
+    "out": { "ok": "Worked", "failure": "Failed" }
+  },
+  "rewardUpdate": {
+    "label": "Change a reward",
+    "summary": "Turn a reward on or off, or set its cost",
+    "field": {
+      "reward": { "label": "Reward" },
+      "setEnabled": { "label": "Turned on", "option": { "keep": "Leave as it is", "on": "Turn on", "off": "Turn off" } },
+      "cost": { "label": "New cost", "unit": "points" },
+      "reset": { "label": "Put it back when stream ends" }
+    }
   }
 }

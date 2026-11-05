@@ -3,6 +3,20 @@
 
 type Pt = { x: number; y: number };
 
+export function returnPath(tail: Pt, loop: Pt, bottomY: number, { reach = 20, radius = 10 } = {}): string {
+  const out = tail.x + reach;
+  return [
+    `M${tail.x},${tail.y}`,
+    `H${out - radius}`,
+    `Q${out},${tail.y} ${out},${tail.y + radius}`,
+    `V${bottomY - radius}`,
+    `Q${out},${bottomY} ${out - radius},${bottomY}`,
+    `H${loop.x + radius}`,
+    `Q${loop.x},${bottomY} ${loop.x},${bottomY - radius}`,
+    `V${loop.y}`
+  ].join(' ');
+}
+
 export function wirePath(a: Pt, b: Pt, { turn = 28, radius = 14 } = {}): string {
   const dy = b.y - a.y;
   if (Math.abs(dy) < 1) return `M${a.x},${a.y} L${b.x},${b.y}`;

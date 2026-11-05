@@ -12,6 +12,8 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { unavailable, withSaved, type ChoiceList, type ChoiceOption, type ChoiceProblem, type ChoiceSource } from '#lib/flow/choices';
   import type { FieldSpec, FlowNode } from '#lib/flow/model';
+  import { configText } from '#lib/flow/setup';
+  import { isSetupValue } from '@bagel/kit/automations';
 
   let { node, field, id, label }: { node: FlowNode; field: Extract<FieldSpec, { type: 'choice' }>; id: string; label: string } = $props();
 
@@ -20,23 +22,28 @@
   let attempt = $state(0);
   let refreshing = $state(false);
 
-  const value = $derived(String(node.config[field.key] ?? ''));
-  const savedName = $derived(field.nameKey ? String(node.config[field.nameKey] ?? '') : '');
-  const device = $derived(String(node.config.device ?? ''));
-  const sku = $derived(String(node.config.sku ?? ''));
+  const value = $derived(configText(node, field.key));
+  const awaiting = $derived(isSetupValue(node.config[field.key]));
+  const savedName = $derived(field.nameKey ? configText(node, field.nameKey) : '');
+  const device = $derived(configText(node, 'device'));
+  const sku = $derived(configText(node, 'sku'));
+
+  const isReward = (source: ChoiceSource) => source === 'rewards' || source === 'manageableRewards';
 
   const chooseText = (source: ChoiceSource) => {
-    if (source === 'rewards') return t('flows.choose.reward');
+    if (awaiting && isReward(source)) return t('flows.setup.pickReward');
+    if (isReward(source)) return t('flows.choose.reward');
     return source === 'counters' ? t('flows.choose.counter') : t('flows.choose.scene');
   };
 
   const emptyText = (source: ChoiceSource) => {
+    if (source === 'manageableRewards') return t('flows.choiceEmpty.manageableRewards');
     if (source === 'rewards') return t('flows.choiceEmpty.rewards');
     return source === 'counters' ? t('flows.choiceEmpty.counters') : t('flows.choiceEmpty.scenes');
   };
 
   const failedText = (source: ChoiceSource) => {
-    if (source === 'rewards') return t('flows.choiceProblem.rewards');
+    if (isReward(source)) return t('flows.choiceProblem.rewards');
     return source === 'counters' ? t('flows.choiceProblem.counters') : t('flows.choiceProblem.scenes');
   };
 

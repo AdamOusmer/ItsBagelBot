@@ -126,6 +126,7 @@
   },
   "choiceEmpty": {
     "rewards": "No channel point rewards yet. Create one in Channel points.",
+    "manageableRewards": "Twitch only lets us change rewards made here. Create one in Channel points.",
     "counters": "No counters yet. Create one in Counters.",
     "scenes": "This light has no scenes."
   },
@@ -137,5 +138,12 @@
   },
   "choiceMissing": "\"{name}\" is no longer in the list.",
   "choiceRetry": "Try again",
-  "choiceLoading": "Loading"
+  "choiceLoading": "Loading",
+  "setup": {
+    "line": "Off until set up",
+    "stepNote": "This step stays off until you fill it in.",
+    "pickReward": "Pick a reward",
+    "addUrl": "Add a URL",
+    "refused": "Fill in the steps that need setup and save, then turn this on."
+  }
 }

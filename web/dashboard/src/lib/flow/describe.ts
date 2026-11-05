@@ -4,6 +4,7 @@ import type { MessageKey } from '@bagel/kit';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
+import { awaitingSetup, configText } from './setup';
 
 const COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
   gte: 'flows.line.compareGte',
@@ -30,7 +31,7 @@ const SUBS: Readonly<Record<string, MessageKey>> = Object.freeze({
 
 const text = (node: FlowNode, key: string) => {
   const v = node.config[key];
-  return v === undefined || v === false ? '' : String(v).trim();
+  return v === false ? '' : configText(node, key).trim();
 };
 
 const num = (node: FlowNode, key: string) => {
@@ -96,8 +97,18 @@ function cooldownLine(t: Translate, n: FlowNode): string {
   );
 }
 
+function varCheckLine(t: Translate, n: FlowNode): string {
+  const spec = specFor(n.type)!;
+  const name = text(n, 'name');
+  if (!name) return '';
+  if (text(n, 'op') === 'exists') return t('flows.line.varExists', { name });
+  return t('flows.line.varCheck', { name, op: optionLabel(t, spec, n, 'op'), value: text(n, 'value') });
+}
+
 function conditionLine(t: Translate, n: FlowNode): string {
   switch (n.type) {
+    case 'cond.var':
+      return varCheckLine(t, n);
     case 'cond.role':
       return roleLine(t, text(n, 'level'));
     case 'cond.user':
@@ -125,6 +136,52 @@ function lightsLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   return given(optionLabel(t, spec, n, 'scene'), (scene) => t('flows.line.lightsScene', { light, scene }));
 }
 
+function varAddLine(t: Translate, n: FlowNode): string {
+  const name = text(n, 'name');
+  const amount = Number(n.config.amount) || 0;
+  if (!name || amount === 0) return '';
+  return amount > 0 ? t('flows.line.varAdd', { name, amount }) : t('flows.line.varTake', { name, amount: -amount });
+}
+
+function varLine(t: Translate, n: FlowNode): string {
+  const name = text(n, 'name');
+  switch (n.type) {
+    case 'reply.var_set':
+      return given(name, (shown) => t('flows.line.varSet', { name: shown, value: text(n, 'value') }));
+    case 'reply.var_add':
+      return varAddLine(t, n);
+    case 'reply.var_delete':
+      return given(name, (shown) => t('flows.line.varDelete', { name: shown }));
+    default:
+      return '';
+  }
+}
+
+function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  switch (n.type) {
+    case 'reply.text':
+      return given(text(n, 'saveAs'), (name) => t('flows.line.textSaved', { name, op: optionLabel(t, spec, n, 'op') }));
+    case 'reply.math':
+      return text(n, 'expression');
+    case 'reply.loop':
+      return given(text(n, 'times'), (times) => t('flows.line.loop', { times }));
+    case 'reply.http_get':
+    case 'reply.http_post':
+      return text(n, 'url');
+    default:
+      return varLine(t, n);
+  }
+}
+
+function rewardUpdateLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  const reward = optionLabel(t, spec, n, 'reward');
+  return given(reward, (name) => (n.config.reset === true ? t('flows.line.rewardUpdateBack', { reward: name }) : t('flows.line.rewardUpdate', { reward: name })));
+}
+
+function moduleLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  return n.type === 'reply.reward_update' ? rewardUpdateLine(t, n, spec) : dataLine(t, n, spec);
+}
+
 function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.chat':
@@ -138,7 +195,7 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
     case 'reply.wait':
       return given(num(n, 'seconds'), (count) => t('flows.line.pause', { amount: seconds(t, count) }));
     default:
-      return '';
+      return moduleLine(t, n, spec);
   }
 }
 
@@ -157,5 +214,6 @@ export function portLabel(t: Translate, node: FlowNode, id: string): string {
 export function describe(t: Translate, node: FlowNode): string {
   const spec = specFor(node.type);
   if (!spec) return '';
+  if (awaitingSetup(node)) return t('flows.setup.line');
   return lineFor(t, node, spec) || stepSummary(t, spec);
 }

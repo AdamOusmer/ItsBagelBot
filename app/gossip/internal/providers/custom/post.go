@@ -35,11 +35,15 @@ func (p *api) post(ctx context.Context, req gossiprpc.Request) any {
 			return postReply(p.classify(err), err, start)
 		}
 	}
-	err := p.sendPost(ctx, fl, req.Body)
+	response, err := p.sendPost(ctx, fl, req.Body)
 	if err != nil {
 		return postReply(p.classify(err), err, start)
 	}
-	return postReply(gossiprpc.FetchOK, nil, start)
+	reply := postReply(gossiprpc.FetchOK, nil, start)
+	if req.CaptureBody {
+		reply.Values = capValues([]string{strings.TrimSpace(strings.ToValidUTF8(string(response), ""))}, maxSavedValueRunes)
+	}
+	return reply
 }
 
 func (p *api) planPost(ctx context.Context, req gossiprpc.Request) (*flight, gossiprpc.FetchStatus) {
@@ -49,6 +53,7 @@ func (p *api) planPost(ctx context.Context, req gossiprpc.Request) (*flight, gos
 	}
 	return p.admitFlight(ctx, &flight{
 		channelID: channelID,
+		inline:    true,
 		def:       &gossiprpc.FetchDef{Name: "post:" + channelID, URL: req.Def.URL, IsActive: true},
 	})
 }
@@ -60,10 +65,10 @@ func badPostDef(channelID string, req gossiprpc.Request) bool {
 	return req.Def.URL == "" || len(req.Body) > maxPostBodyBytes
 }
 
-func (p *api) sendPost(ctx context.Context, fl *flight, body string) error {
+func (p *api) sendPost(ctx context.Context, fl *flight, body string) ([]byte, error) {
 	fctx, cancel := context.WithTimeout(ctx, upstreamBudget)
 	defer cancel()
-	err := p.http.SendDiscard(fctx, core.Request{
+	response, err := p.http.SendCapture(fctx, core.Request{
 		Method:      http.MethodPost,
 		Path:        fl.def.URL,
 		Headers:     map[string]string{contentTypeHeader: postContentType(body)},
@@ -71,7 +76,7 @@ func (p *api) sendPost(ctx context.Context, fl *flight, body string) error {
 		NoRedirects: true,
 	}, postDrainBytes)
 	p.noteOutcome(ctx, fl.host, err)
-	return err
+	return response, err
 }
 
 func postContentType(body string) string {

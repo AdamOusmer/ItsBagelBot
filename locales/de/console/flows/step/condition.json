@@ -91,5 +91,28 @@
       "yes": "Treffer",
       "no": "Verfehlt"
     }
+  },
+  "var": {
+    "label": "Variable prüfen",
+    "summary": "Durchlassen, wenn ein gespeicherter Wert übereinstimmt",
+    "field": {
+      "scope": { "label": "Gespeichert für", "option": { "channel": "Der Kanal", "viewer": "Dieser Zuschauer" } },
+      "name": { "label": "Name", "placeholder": "tode" },
+      "op": {
+        "label": "Ist",
+        "option": {
+          "eq": "gleich",
+          "ne": "nicht gleich",
+          "gt": "größer als",
+          "gte": "mindestens",
+          "lt": "kleiner als",
+          "lte": "höchstens",
+          "contains": "enthält",
+          "exists": "auf irgendetwas gesetzt"
+        }
+      },
+      "value": { "label": "Wert", "placeholder": "10" }
+    },
+    "out": { "yes": "Ja", "no": "Nein" }
   }
 }

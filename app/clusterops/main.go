@@ -7,7 +7,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/nats-io/nkeys"
 	"go.uber.org/zap"
 	"k8s.io/client-go/rest"
 
@@ -27,8 +26,7 @@ const (
 
 type claimsSync struct {
 	log          *zap.Logger
-	pusher       aclpush.ClaimsPusher
-	signer       nkeys.KeyPair
+	syncer       *aclpush.Syncer
 	accountsFile string
 	keysFile     string
 }
@@ -54,7 +52,7 @@ func main() {
 	defer claims.Close()
 
 	s := claimsSync{
-		log: log, pusher: claims, signer: signer,
+		log: log, syncer: aclpush.NewSyncer(claims, signer),
 		accountsFile: env.MustGet("NATS_ACCOUNTS_FILE"), keysFile: env.MustGet("NATS_ACCOUNTS_KEYS_FILE"),
 	}
 	go s.run(ctx, env.GetDuration("CLAIMS_SYNC_INTERVAL", time.Minute))
@@ -85,7 +83,7 @@ func (s claimsSync) once(ctx context.Context) {
 		s.log.Error("claims sync: load accounts", zap.Error(err))
 		return
 	}
-	pushed, err := aclpush.Sync(ctx, s.pusher, s.signer, compiled)
+	pushed, err := s.syncer.Sync(ctx, compiled)
 	for _, r := range pushed {
 		s.log.Info("claims sync: pushed", zap.String("account", r.Account), zap.String("cluster", string(r.Cluster)))
 	}

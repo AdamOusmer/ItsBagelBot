@@ -7,6 +7,7 @@ import { stepLabel } from './copy';
 import { describe, optionLabel, portLabel } from './describe';
 import type { Translate } from './messages';
 import { outputsFor, specFor, type Flow, type FlowNode, type NodeSpec } from './model';
+import { configText } from './setup';
 
 export type Decisions = Readonly<Record<string, string>>;
 
@@ -123,7 +124,9 @@ const REHEARSERS: Readonly<Record<string, Rehearser>> = {
   'twitch.reward': event,
   'twitch.stream.online': event,
   'cond.compare': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: comparePasses(ctx) }),
-  'reply.chat': (ctx) => ({ kind: 'bot', lines: ctx.lines(String(ctx.node.config.message ?? '')) })
+  'reply.chat': (ctx) => ({ kind: 'bot', lines: ctx.lines(configText(ctx.node, 'message')) }),
+  'reply.http_get': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true }),
+  'reply.http_post': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true })
 };
 
 const BY_KIND: Readonly<Record<NodeSpec['kind'], Rehearser>> = {
@@ -142,7 +145,8 @@ function contextFor({ node, spec, words }: StepIdentity, samples: Record<string,
 }
 
 function provide(spec: NodeSpec, samples: Record<string, string>) {
-  for (const v of spec.provides ?? []) samples[v.token.slice(1, -1)] = v.sample;
+  const viaPorts = (spec.outputs ?? []).flatMap((output) => output.provides ?? []);
+  for (const v of [...(spec.provides ?? []), ...viaPorts]) samples[v.token.slice(1, -1)] = v.sample;
 }
 
 function toStep(ctx: StepContext, chosen: string | undefined, via: string | undefined): RehearsalStep {
@@ -171,8 +175,8 @@ function firstTrigger(flow: Flow): string | undefined {
   return flow.nodes.find((n) => specFor(n.type)?.kind === 'trigger')?.id;
 }
 
-function nextPort(step: RehearsalStep, spec: NodeSpec): string {
-  return step.kind === 'check' ? step.taken : outputsFor(spec)[0].id;
+function nextPorts(step: RehearsalStep, spec: NodeSpec): string[] {
+  return step.kind === 'check' ? [step.taken] : outputsFor(spec).map((output) => output.id);
 }
 
 export type RehearsalOptions = {
@@ -210,8 +214,9 @@ function visit(t: Translate, walk: Walk, id: string, via?: string): void {
   const step = toStep(context, walk.forced[id] ?? walk.decisions[id], via);
   walk.steps.push(step);
   walk.done = id === walk.until;
-  const port = nextPort(step, spec);
-  for (const e of walk.flow.edges) if (e.from === id && e.port === port) visit(t, walk, e.to, e.id);
+  for (const port of nextPorts(step, spec)) {
+    for (const e of walk.flow.edges) if (e.from === id && e.port === port) visit(t, walk, e.to, e.id);
+  }
 }
 
 export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalStep[] {

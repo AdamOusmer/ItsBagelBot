@@ -5,20 +5,15 @@ import { lex } from '../engine/tmpl';
 import { classifyFlow, type AlertKey, type SimpleCommand } from './flow-layer';
 import { CODE, MAX_AUTOMATIONS_PER_CHANNEL, MAX_DEFINITION_BYTES, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
 import { byteLength, trimSpace } from './text';
+import { isSetupValue, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
+import { scrubSecrets, type ScrubKind } from './flow-share-scrub';
 import type { Action, Condition, Definition, Issue, Params } from './types';
 import { validateDefinition, validateName } from './validate';
 
+export * from './flow-setup';
+
 export const FLOW_FILE_FORMAT = 'itsbagelbot.flows';
 export const FLOW_FILE_VERSION = 1;
-
-export const SETUP_REWARD_ID = 'setup-required';
-export const SETUP_FILTER_VALUE = 'setup-required';
-export const SETUP_RUN_TARGET = 'setup-required';
-// A leading underscore is not a legal Twitch login, so this can never match a real account.
-export const SETUP_LOGIN = '_setup_required';
-export const SETUP_URL = 'https://example.com/setup-required';
-export const SETUP_TEXT = 'setup-required';
-export const SETUP_SCENE_VALUE = '"setup-required"';
 
 /** One recipe in a file. `ref` only links `run` steps inside the same file. */
 export interface FlowFileEntry {
@@ -40,8 +35,10 @@ export type SetupCode =
   | 'users_list'
   | 'login_target'
   | 'http_target'
+  | 'reward_target'
   | 'lights_target'
   | 'slash_command'
+  | 'secret_removed'
   | 'run_removed'
   | 'run_target_simple'
   | 'run_linked'
@@ -71,11 +68,20 @@ export interface FlowExportRow {
   id?: string;
   name: string;
   definition: Definition;
+  restricted?: boolean;
+}
+
+/** What a secret scan took out of a recipe. Holds where it was, never the removed text. */
+export interface ScrubNote {
+  path: string;
+  type: string;
+  kind: ScrubKind;
 }
 
 export interface FlowExportReport {
   name: string;
   setup: SetupNote[];
+  scrubbed: ScrubNote[];
   issues: Issue[];
 }
 
@@ -171,12 +177,12 @@ const PRIVILEGED_ACTIONS = new Set([
 export const SHARE_REWRITTEN = {
   trigger: ['reward', 'event'],
   condition: ['users'],
-  action: ['lights', 'http_post', 'run']
+  action: ['lights', 'http_post', 'http_get', 'reward_update', 'run']
 } as const;
 // Types reviewed as carrying only the user's own text, numbers and names. A new type is not shareable until it is added here.
 export const SHARE_REVIEWED = {
   trigger: ['command', 'timer', 'manual'],
-  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare'],
+  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var'],
   action: [
     'chat',
     'announce',
@@ -202,7 +208,13 @@ export const SHARE_REVIEWED = {
     'random_pick',
     'parallel',
     'if',
-    'stop'
+    'stop',
+    'var_set',
+    'var_add',
+    'var_delete',
+    'text',
+    'math',
+    'loop'
   ]
 } as const;
 const SHAREABLE: Record<keyof typeof SHARE_REVIEWED, ReadonlySet<string>> = {
@@ -236,17 +248,27 @@ function mapBranches(params: Params, path: string, visit: ActionVisit): Params {
   return { ...params, branches };
 }
 
-function mapIf(params: Params, path: string, visit: ActionVisit): Params {
+function mapArms(params: Params, arms: readonly string[], path: string, visit: ActionVisit): Params {
   const out: Params = { ...params };
-  for (const arm of ['then', 'else']) {
+  for (const arm of arms) {
     if (params[arm]) out[arm] = mapActions(list<Action>(params[arm]), `${path}.params.${arm}`, visit);
   }
   return out;
 }
 
+const API_ARMS = ['on_ok', 'on_failure'];
+
+const NAMED_ARMS = new Map<string, readonly string[]>([
+  ['if', ['then', 'else']],
+  ['loop', ['actions']],
+  ['http_get', API_ARMS],
+  ['http_post', API_ARMS]
+]);
+
 function mapNested(action: Action, path: string, visit: ActionVisit): Action {
   const params = action.params ?? {};
-  if (action.type === 'if') return { ...action, params: mapIf(params, path, visit) };
+  const arms = NAMED_ARMS.get(action.type);
+  if (arms) return { ...action, params: mapArms(params, arms, path, visit) };
   if (action.type === 'random_pick' || action.type === 'parallel') return { ...action, params: mapBranches(params, path, visit) };
   return action;
 }
@@ -328,17 +350,38 @@ function neutralLights(params: Params): Params {
   return out;
 }
 
+const NESTED_API_FIELDS = ['save_as', 'on_ok', 'on_failure'] as const;
+
+function apiPaths(params: Params): Params {
+  const out: Params = {};
+  for (const key of NESTED_API_FIELDS) if (params[key] !== undefined) out[key] = params[key];
+  return out;
+}
+
+function neutralHttpGet(params: Params): Params {
+  const path = list(params.json_path).length > 0 ? { json_path: params.json_path } : {};
+  return { url: SETUP_URL, ...path, ...apiPaths(params) };
+}
+
+function neutralRewardUpdate(params: Params): Params {
+  return { reward_id: SETUP_REWARD_ID, enabled: params.enabled ?? null, cost: params.cost ?? null, reset_on_stream_end: params.reset_on_stream_end === true };
+}
+
+type ExternalRule = { code: SetupCode; rewrite: (params: Params) => Params };
+
+const EXTERNAL_RULES = new Map<string, ExternalRule>([
+  ['lights', { code: 'lights_target', rewrite: neutralLights }],
+  ['http_post', { code: 'http_target', rewrite: (params) => ({ url: SETUP_URL, ...apiPaths(params) }) }],
+  ['http_get', { code: 'http_target', rewrite: neutralHttpGet }],
+  ['reward_update', { code: 'reward_target', rewrite: neutralRewardUpdate }]
+]);
+
 function neutralExternal(action: Action, path: string, notes: Notes): Action {
   const params = action.params ?? {};
-  if (action.type === 'lights') {
-    notes.push({ code: 'lights_target', path });
-    return disabled(action, neutralLights(params));
-  }
-  if (action.type === 'http_post') {
-    notes.push({ code: 'http_target', path });
-    return disabled(action, { url: SETUP_URL });
-  }
-  return action;
+  const rule = EXTERNAL_RULES.get(action.type);
+  if (!rule) return action;
+  notes.push({ code: rule.code, path });
+  return disabled(action, rule.rewrite(params));
 }
 
 function neutralSlash(action: Action, path: string, notes: Notes): Action {
@@ -373,10 +416,16 @@ function noteTemplateTokens(params: Params, path: string, notes: Notes): void {
   for (const [key, value] of Object.entries(params)) notes.push(...templateNotes(value, `${path}.params.${key}`));
 }
 
+function noteBlanked(action: Action, path: string, notes: Notes): void {
+  if (action.enabled !== false || EXTERNAL_RULES.has(action.type)) return;
+  if (Object.values(action.params ?? {}).includes(SETUP_TEXT)) notes.push({ code: 'secret_removed', path });
+}
+
 function neutralAction(action: Action, path: string, notes: Notes): Action {
   if (!SHAREABLE.action.has(action.type)) return disabled(action, {});
   noteNamedReferences(action, path, notes);
   noteTemplateTokens(action.params ?? {}, path, notes);
+  noteBlanked(action, path, notes);
   const external = neutralExternal(action, path, notes);
   const withCondition = neutralIfCondition(external, path, notes);
   return neutralSlash(neutralLogin(withCondition, path, notes), path, notes);
@@ -391,8 +440,24 @@ function neutralIfCondition(action: Action, path: string, notes: Notes): Action 
 
 type RunRule = (action: Action, path: string, notes: Notes) => Action | null;
 
-function neutralDefinition(definition: Definition, run: RunRule): { definition: Definition; setup: Notes } {
+const USER_ID_KEY = 'allowed_user_id';
+
+const joinPath = (path: string, key: string) => (path ? `${path}.${key}` : key);
+
+function withoutUserIds(value: unknown, path: string, notes: Notes): unknown {
+  if (Array.isArray(value)) return value.map((item, i) => withoutUserIds(item, `${path}[${i}]`, notes));
+  if (!isObject(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === USER_ID_KEY) notes.push({ code: 'users_list', path: joinPath(path, key) });
+    else out[key] = withoutUserIds(child, joinPath(path, key), notes);
+  }
+  return out;
+}
+
+function neutralDefinition(source: Definition, run: RunRule): { definition: Definition; setup: Notes } {
   const notes: Notes = [];
+  const definition = withoutUserIds(source, '', notes) as Definition;
   const triggered = neutralTrigger(definition, notes);
   const conditions = list<Condition>(triggered.conditions).map((c, i) => neutralCondition(c, `conditions[${i}]`, notes));
   const walked = mapDefinitionActions({ ...triggered, conditions }, (action, path) =>
@@ -403,6 +468,7 @@ function neutralDefinition(definition: Definition, run: RunRule): { definition: 
 
 function compactDefinition(definition: Definition): Definition {
   const out: Definition = { version: definition.version, trigger: definition.trigger };
+  if (definition.queue) out.queue = definition.queue;
   if (list(definition.conditions).length > 0) out.conditions = definition.conditions;
   if (list(definition.actions).length > 0) out.actions = definition.actions;
   return out;
@@ -418,15 +484,100 @@ function dedupeNotes(notes: Notes): Notes {
   });
 }
 
-function exportRow(row: FlowExportRow, ref: string, refs: Map<string, string>): { entry: FlowFileEntry; setup: Notes } {
+const ARM_KEYS = new Set(['then', 'else', 'actions', 'branches', 'on_ok', 'on_failure']);
+
+type ScrubAt = { type: string; found: ScrubNote[] };
+
+function scrubString(text: string, path: string, at: ScrubAt): string {
+  const scrubbed = scrubSecrets(text);
+  for (const kind of scrubbed.kinds) at.found.push({ path, type: at.type, kind });
+  return scrubbed.text;
+}
+
+function scrubValue(value: unknown, path: string, at: ScrubAt): unknown {
+  if (typeof value === 'string') return scrubString(value, path, at);
+  if (Array.isArray(value)) return value.map((item, i) => scrubValue(item, `${path}[${i}]`, at));
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, scrubValue(child, `${path}.${key}`, at)]));
+}
+
+function scrubParams(params: Params, path: string, at: ScrubAt): Params {
+  const out: Params = {};
+  for (const [key, value] of Object.entries(params)) out[key] = ARM_KEYS.has(key) ? value : scrubValue(value, `${path}.${key}`, at);
+  return out;
+}
+
+const emptiedKeys = (before: Params, after: Params) => Object.keys(before).filter((key) => str(before[key]).trim() !== '' && str(after[key]).trim() === '');
+
+function scrubOwned<T extends { type: string; params?: Params }>(item: T, path: string, found: ScrubNote[]): T {
+  return item.params ? { ...item, params: scrubParams(item.params, `${path}.params`, { type: item.type, found }) } : item;
+}
+
+function scrubAction(action: Action, path: string, found: ScrubNote[], notes: Notes): Action {
+  const before = action.params;
+  if (!before) return action;
+  const params = scrubParams(before, `${path}.params`, { type: action.type, found });
+  const emptied = emptiedKeys(before, params);
+  if (emptied.length === 0) return { ...action, params };
+  notes.push({ code: 'secret_removed', path });
+  for (const key of emptied) params[key] = SETUP_TEXT;
+  return disabled(action, params);
+}
+
+function scrubDefinition(definition: Definition, notes: Notes): { definition: Definition; scrubbed: ScrubNote[] } {
+  const found: ScrubNote[] = [];
+  const trigger = scrubOwned(definition.trigger, 'trigger', found);
+  const conditions = list<Condition>(definition.conditions).map((condition, i) => scrubOwned(condition, `conditions[${i}]`, found));
+  const walked = mapDefinitionActions({ ...definition, trigger, conditions }, (action, path) => scrubAction(action, path, found, notes));
+  return { definition: compactDefinition(walked), scrubbed: found };
+}
+
+const hasRestriction = (row: FlowExportRow) => row.restricted === true || str(row.definition.trigger.params?.[USER_ID_KEY]) !== '';
+
+// Losing the restriction would hand the importer a command anyone can fire, so it leaves as a list nobody is on yet.
+function restrictedDefinition(row: FlowExportRow): Definition {
+  if (!hasRestriction(row)) return row.definition;
+  return { ...row.definition, conditions: [...list<Condition>(row.definition.conditions), { type: 'users', params: { allow: [SETUP_LOGIN] } }] };
+}
+
+function exportRow(row: FlowExportRow, ref: string, refs: Map<string, string>): { entry: FlowFileEntry; setup: Notes; scrubbed: ScrubNote[] } {
   const run: RunRule = (action, path, notes) => {
     const target = refs.get(str(action.params?.automation_id));
     if (target) return { ...action, params: { automation_id: target } };
     notes.push({ code: 'run_removed', path });
     return disabled(action, { automation_id: SETUP_RUN_TARGET });
   };
-  const { definition, setup } = neutralDefinition(row.definition, run);
-  return { entry: { ref, name: trimSpace(row.name), definition }, setup };
+  const neutral = neutralDefinition(restrictedDefinition(row), run);
+  const { definition, scrubbed } = scrubDefinition(neutral.definition, neutral.setup);
+  const nameAt: ScrubAt = { type: 'name', found: [] };
+  const name = trimSpace(scrubString(row.name, 'name', nameAt));
+  return { entry: { ref, name, definition }, setup: neutral.setup, scrubbed: [...nameAt.found, ...scrubbed] };
+}
+
+function triggerGap(definition: Definition): Issue[] {
+  const params = definition.trigger.params ?? {};
+  const filters = isObject(params.filters) ? Object.values(params.filters) : [];
+  return [...Object.values(params), ...filters].some(isSetupValue) ? [{ path: 'trigger', code: 'setup_required' }] : [];
+}
+
+function conditionGaps(definition: Definition): Issue[] {
+  return list<Condition>(definition.conditions).flatMap((condition, i) =>
+    condition.type === 'users' && list(condition.params?.allow).some(isSetupValue) ? [{ path: `conditions[${i}]`, code: 'setup_required' }] : []
+  );
+}
+
+function actionGaps(definition: Definition): Issue[] {
+  const gaps: Issue[] = [];
+  mapDefinitionActions(definition, (action, path) => {
+    if (Object.values(action.params ?? {}).some(isSetupValue)) gaps.push({ path, code: 'setup_required' });
+    return action;
+  });
+  return gaps;
+}
+
+/** Steps still holding an import placeholder. A recipe with any of these cannot be turned on. */
+export function setupGaps(definition: Definition): Issue[] {
+  return [...triggerGap(definition), ...conditionGaps(definition), ...actionGaps(definition)];
 }
 
 function exportIssues(entry: FlowFileEntry): Issue[] {
@@ -439,9 +590,9 @@ export function exportFlows(rows: FlowExportRow[]): FlowExport {
   const report: FlowExportReport[] = [];
   const flows: FlowFileEntry[] = [];
   rows.forEach((row, i) => {
-    const { entry, setup } = exportRow(row, refOf(i), refs);
+    const { entry, setup, scrubbed } = exportRow(row, refOf(i), refs);
     const issues = exportIssues(entry);
-    report.push({ name: entry.name, setup, issues });
+    report.push({ name: entry.name, setup: dedupeNotes(setup), scrubbed, issues });
     if (issues.length === 0) flows.push(entry);
   });
   return { file: { format: FLOW_FILE_FORMAT, version: FLOW_FILE_VERSION, flows }, report };

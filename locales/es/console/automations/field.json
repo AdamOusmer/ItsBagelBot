@@ -55,5 +55,22 @@
   "right": "Segundo valor",
   "url": "URL",
   "user_s": "Enfriamiento por espectador (s)",
-  "value": "Valor"
+  "value": "Valor",
+  "scope": "Guardado para",
+  "save_as": "Guardar como",
+  "input": "Texto",
+  "arg1": "Primera opción",
+  "arg2": "Segunda opción",
+  "expression": "Expresión",
+  "times": "Veces",
+  "actions": "Pasos",
+  "on_ok": "Si funcionó",
+  "on_failure": "Si falló",
+  "json_path": "Ruta JSON",
+  "enabled": "Activado",
+  "cost": "Coste",
+  "reset_on_stream_end": "Restablecer al terminar el stream",
+  "content": "Contenido",
+  "position": "Posición",
+  "volume": "Volumen"
 }

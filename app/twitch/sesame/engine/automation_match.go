@@ -8,12 +8,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
-	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/utils"
 
@@ -123,9 +121,6 @@ func (p *Pipeline) loadIndex(ctx context.Context, mctx *module.Context) *automat
 func (p *Pipeline) startAutomation(ctx context.Context, mctx *module.Context, m triggerMatch, emit module.Emit) {
 	plan := m.plan
 	auto := &plan.Automation
-	if !p.admitTrigger(ctx, mctx.BroadcasterID, auto) {
-		return
-	}
 	id, err := utils.NewID()
 	if err != nil {
 		p.log.Warn("automations: run id failed", module.BIDField(mctx.BroadcasterID), zap.Error(err))
@@ -147,38 +142,11 @@ func (p *Pipeline) startAutomation(ctx context.Context, mctx *module.Context, m 
 		Event:         m.event,
 		Source:        auto.Definition.Trigger.Type,
 		ID:            id.String(),
-		Admitted:      true,
 	}
 	if EventIdentity(&mctx.Env) == "" {
 		run.Identity = ":" + auto.ID
 	}
 	p.runAutomation(ctx, run, emit)
-}
-
-// A refused trigger writes one limited record per window, not one per message.
-func (p *Pipeline) admitTrigger(ctx context.Context, broadcasterID uint64, auto *automation.Automation) bool {
-	limiter := p.automations.Limiter
-	ok, err := limiter.AllowRun(ctx, broadcasterID)
-	if err != nil || ok {
-		return true
-	}
-	if limiter.FirstRefusal(broadcasterID) {
-		p.recordRefusal(ctx, broadcasterID, auto)
-	}
-	return false
-}
-
-func (p *Pipeline) recordRefusal(ctx context.Context, broadcasterID uint64, auto *automation.Automation) {
-	id, err := utils.NewID()
-	if err != nil {
-		return
-	}
-	now := time.Now()
-	p.automations.Runs.Record(ctx, broadcasterID, automationrpc.RunRecord{
-		RunID: id.String(), AutomationID: auto.ID, Name: auto.Name,
-		Trigger: auto.Definition.Trigger.Type, Source: auto.Definition.Trigger.Type, At: now,
-		Outcome: automationrpc.OutcomeLimited, Reason: "channel_rate",
-	})
 }
 
 func triggerViewer(env *lane.Envelope, event map[string]string) Viewer {

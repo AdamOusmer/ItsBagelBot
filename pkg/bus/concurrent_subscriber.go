@@ -277,6 +277,7 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 			return
 		}
 		msg.SetContext(ctx)
+		s.markFinalDelivery(natsMsg, msg)
 		// The watch must exist before the handoff, or a fast worker's resolve drops the ack.
 		w := s.newResultWatch(natsMsg, msg)
 		select {
@@ -289,6 +290,16 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 					zap.Int64("dropped_total", dropped))
 			}
 		}
+	}
+}
+
+func (s *concurrentDurableSubscriber) markFinalDelivery(natsMsg *nats.Msg, msg *Message) {
+	metadata, err := natsMsg.Metadata()
+	if err != nil {
+		return
+	}
+	if s.delay.nakDelay(metadata.NumDelivered, 0) == terminateDelivery {
+		msg.MarkFinalDelivery()
 	}
 }
 

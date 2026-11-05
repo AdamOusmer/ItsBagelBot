@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strconv"
 	"sync"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/internal/domain/outgress"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
@@ -22,35 +22,16 @@ import (
 )
 
 const (
-	runLogTTL          = 7 * 24 * time.Hour
-	runRateTTL         = 120 * time.Second
+	runLogTTL          = outgress.RewardResultTTL
 	runLogKeyPrefix    = "automation:runs:"
-	runRatePrefix      = "automation:rate:"
 	runLogBuffer       = 1024
 	runLogBatch        = 256
 	runLogFlushTimeout = 2 * time.Second
 	runLogCloseTimeout = 5 * time.Second
-	runLeaseSize       = 4
-	runLeaseIdle       = 5 * time.Second
-	runLeaseTimeout    = 2 * time.Second
 )
-
-var reserveRuns = pkg_valkey.NewScript(`
-local count = tonumber(redis.call('GET', KEYS[1]) or '0')
-local grant = math.max(math.min(tonumber(ARGV[1]), tonumber(ARGV[2]) - count), 0)
-if grant > 0 then
-  count = redis.call('INCRBY', KEYS[1], grant)
-end
-redis.call('EXPIRE', KEYS[1], ARGV[3])
-return {grant, count}
-`)
 
 func runLogKey(broadcasterID uint64) string {
 	return runLogKeyPrefix + "{" + strconv.FormatUint(broadcasterID, 10) + "}"
-}
-
-func runRateKey(broadcasterID uint64, at time.Time) string {
-	return runRatePrefix + "{" + strconv.FormatUint(broadcasterID, 10) + "}:" + strconv.FormatInt(at.Unix()/60, 10)
 }
 
 type queuedRun struct {
@@ -263,7 +244,68 @@ func (l *ValkeyRunLog) Recent(ctx context.Context, broadcasterID uint64, automat
 	if err != nil {
 		return nil, err
 	}
-	return runFilter{automationID: automationID, limit: limit}.apply(raw), nil
+	records := runFilter{automationID: automationID, limit: limit}.apply(raw)
+	l.overlayRewardResults(ctx, broadcasterID, records)
+	return records, nil
+}
+
+func (l *ValkeyRunLog) overlayRewardResults(ctx context.Context, broadcasterID uint64, records []automationrpc.RunRecord) {
+	waiting := make([]*automationrpc.RunRecord, 0, len(records))
+	cmds := make(valkey.Commands, 0, len(records))
+	id := strconv.FormatUint(broadcasterID, 10)
+	for i := range records {
+		if awaitsRewardResult(records[i]) {
+			waiting = append(waiting, &records[i])
+			cmds = append(cmds, l.client.B().Hgetall().Key(outgress.RewardResultKey(id, records[i].RunID)).Build())
+		}
+	}
+	for i, results := range l.readRewardResults(ctx, cmds) {
+		applyRewardResults(waiting[i], results)
+	}
+}
+
+func (l *ValkeyRunLog) readRewardResults(ctx context.Context, cmds valkey.Commands) []map[string]string {
+	if len(cmds) == 0 {
+		return nil
+	}
+	replies := l.client.DoMulti(ctx, cmds...)
+	out := make([]map[string]string, len(replies))
+	for i, res := range replies {
+		results, err := res.AsStrMap()
+		if err != nil {
+			l.log.Warn("automations: reward result read failed", zap.Error(err))
+		}
+		out[i] = results
+	}
+	return out
+}
+
+func awaitsRewardResult(rec automationrpc.RunRecord) bool {
+	return slices.ContainsFunc(rec.Actions, func(a automationrpc.ActionRecord) bool { return a.Slot != "" })
+}
+
+func applyRewardResults(rec *automationrpc.RunRecord, results map[string]string) {
+	rewardFailed := false
+	for i := range rec.Actions {
+		action := &rec.Actions[i]
+		result, known := results[action.Slot]
+		action.Slot = ""
+		if !known {
+			continue
+		}
+		action.Status, action.Detail = rewardStep(result)
+		rewardFailed = rewardFailed || action.Status == automationrpc.StatusFailed
+	}
+	if rewardFailed && rec.Outcome == automationrpc.OutcomeOK {
+		rec.Outcome = automationrpc.OutcomePartial
+	}
+}
+
+func rewardStep(result string) (status, detail string) {
+	if result == outgress.RewardResultOK {
+		return automationrpc.StatusOK, ""
+	}
+	return automationrpc.StatusFailed, result
 }
 
 type runFilter struct {
@@ -273,17 +315,55 @@ type runFilter struct {
 
 func (f runFilter) apply(raw []string) []automationrpc.RunRecord {
 	out := make([]automationrpc.RunRecord, 0, f.limit)
+	rows := make(map[string]int, f.limit)
 	for _, item := range raw {
 		rec, ok := f.decode(item)
 		if !ok {
 			continue
 		}
-		out = append(out, rec)
-		if len(out) == f.limit {
-			break
+		if row, seen := rows[rec.RunID]; seen {
+			out[row] = mergeRunParts(out[row], rec)
+			continue
+		}
+		if len(out) < f.limit {
+			rows[rec.RunID] = len(out)
+			out = append(out, rec)
 		}
 	}
 	return out
+}
+
+// Parallel paths that paused each finish on their own, so one run can hold several entries; history shows one outcome.
+func mergeRunParts(newer, older automationrpc.RunRecord) automationrpc.RunRecord {
+	merged := newer
+	merged.At = older.At
+	merged.DurationMS = max(newer.DurationMS, older.DurationMS)
+	if outcomeSeverity(older.Outcome) > outcomeSeverity(newer.Outcome) {
+		merged.Outcome, merged.Reason = older.Outcome, older.Reason
+	}
+	shared := sharedActionPrefix(newer.Actions, older.Actions)
+	merged.Actions = append(slices.Clone(newer.Actions), older.Actions[shared:]...)
+	return merged
+}
+
+func outcomeSeverity(outcome string) int {
+	switch outcome {
+	case automationrpc.OutcomeFailed:
+		return 3
+	case automationrpc.OutcomePartial:
+		return 2
+	case automationrpc.OutcomeLimited:
+		return 1
+	}
+	return 0
+}
+
+func sharedActionPrefix(a, b []automationrpc.ActionRecord) int {
+	shared := 0
+	for shared < min(len(a), len(b)) && a[shared] == b[shared] {
+		shared++
+	}
+	return shared
 }
 
 func (f runFilter) decode(item string) (automationrpc.RunRecord, bool) {
@@ -292,208 +372,4 @@ func (f runFilter) decode(item string) (automationrpc.RunRecord, bool) {
 		return rec, false
 	}
 	return rec, f.automationID == "" || rec.AutomationID == f.automationID
-}
-
-type runLease struct {
-	left      int
-	closed    bool
-	refused   bool
-	touchedAt time.Time
-	recheckAt time.Time
-}
-
-type ValkeyRunLimiter struct {
-	client valkey.Client
-	now    func() time.Time
-
-	mu     sync.Mutex
-	window int64
-	leases map[uint64]runLease
-
-	done     chan struct{}
-	finished chan struct{}
-	stop     sync.Once
-}
-
-func NewValkeyRunLimiter(client valkey.Client) *ValkeyRunLimiter {
-	l := newValkeyRunLimiter(client)
-	go l.run()
-	return l
-}
-
-func newValkeyRunLimiter(client valkey.Client) *ValkeyRunLimiter {
-	return &ValkeyRunLimiter{
-		client:   pkg_valkey.Primary(client),
-		now:      time.Now,
-		leases:   map[uint64]runLease{},
-		done:     make(chan struct{}),
-		finished: make(chan struct{}),
-	}
-}
-
-func (l *ValkeyRunLimiter) run() {
-	defer close(l.finished)
-	ticker := time.NewTicker(runLeaseIdle)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			l.sweep(context.Background(), time.Now(), runLeaseIdle)
-		case <-l.done:
-			return
-		}
-	}
-}
-
-func (l *ValkeyRunLimiter) Close() {
-	l.stop.Do(func() {
-		close(l.done)
-		<-l.finished
-		l.sweep(context.Background(), l.now(), 0)
-	})
-}
-
-type returnedLease struct {
-	key string
-	n   int64
-}
-
-func (l *ValkeyRunLimiter) sweep(ctx context.Context, at time.Time, idle time.Duration) {
-	returns := l.takeIdle(at, idle)
-	if len(returns) == 0 {
-		return
-	}
-	ctx, cancel := context.WithTimeout(ctx, runLeaseTimeout)
-	defer cancel()
-	cmds := make(valkey.Commands, len(returns))
-	for i, r := range returns {
-		cmds[i] = l.client.B().Decrby().Key(r.key).Decrement(r.n).Build()
-	}
-	l.client.DoMulti(ctx, cmds...)
-}
-
-func (l *ValkeyRunLimiter) takeIdle(at time.Time, idle time.Duration) []returnedLease {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.window != (runSlot{at: at}).window() {
-		return nil
-	}
-	var returns []returnedLease
-	for id, lease := range l.leases {
-		if lease.left == 0 || at.Sub(lease.touchedAt) < idle {
-			continue
-		}
-		returns = append(returns, returnedLease{key: runRateKey(id, at), n: int64(lease.left)})
-		l.leases[id] = runLease{touchedAt: at}
-	}
-	return returns
-}
-
-type runSlot struct {
-	broadcasterID uint64
-	at            time.Time
-}
-
-func (s runSlot) window() int64 { return s.at.Unix() / 60 }
-
-func (l *ValkeyRunLimiter) AllowRun(ctx context.Context, broadcasterID uint64) (bool, error) {
-	slot := runSlot{broadcasterID: broadcasterID, at: l.now()}
-	allowed, decided := l.spend(slot)
-	if decided {
-		return allowed, nil
-	}
-	return l.reserve(ctx, slot)
-}
-
-// Matches gossip's per-channel Govee budget so a flooding recipe stops here, before an RPC per step.
-const (
-	maxLightsPerMinute = 8
-	lightsWindow       = time.Minute
-)
-
-func (l *ValkeyRunLimiter) AllowLights(ctx context.Context, broadcasterID uint64) (bool, error) {
-	window := strconv.FormatInt(l.now().Unix()/int64(lightsWindow.Seconds()), 10)
-	key := "automation:lights:{" + strconv.FormatUint(broadcasterID, 10) + "}:" + window
-	used, err := pkg_valkey.Incr(ctx, l.client, key, lightsWindow)
-	return used <= maxLightsPerMinute, err
-}
-
-func (l *ValkeyRunLimiter) FirstRefusal(broadcasterID uint64) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	lease := l.leases[broadcasterID]
-	if lease.refused || !lease.closed {
-		return false
-	}
-	if l.window != (runSlot{at: l.now()}).window() {
-		return false
-	}
-	lease.refused = true
-	l.leases[broadcasterID] = lease
-	return true
-}
-
-func (l *ValkeyRunLimiter) spend(slot runSlot) (allowed, decided bool) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if window := slot.window(); l.window != window {
-		clear(l.leases)
-		l.window = window
-	}
-	lease := l.leases[slot.broadcasterID]
-	switch {
-	case lease.left > 0:
-		lease.left--
-		lease.touchedAt = slot.at
-		l.leases[slot.broadcasterID] = lease
-		return true, true
-	case lease.closed && slot.at.Before(lease.recheckAt):
-		return false, true
-	}
-	lease.touchedAt = slot.at
-	lease.recheckAt = slot.at.Add(runLeaseIdle)
-	l.leases[slot.broadcasterID] = lease
-	return false, false
-}
-
-func (l *ValkeyRunLimiter) reserve(ctx context.Context, slot runSlot) (bool, error) {
-	call := pkg_valkey.ScriptCall{
-		Script: reserveRuns,
-		Key:    runRateKey(slot.broadcasterID, slot.at),
-		Args: []string{
-			strconv.Itoa(runLeaseSize),
-			strconv.Itoa(automation.MaxRunsPerMinute),
-			strconv.Itoa(int(runRateTTL.Seconds())),
-		},
-	}
-	reply, err := pkg_valkey.RunScripts(ctx, l.client, []pkg_valkey.ScriptCall{call})[0].AsIntSlice()
-	if err != nil {
-		return true, err
-	}
-	if len(reply) != 2 {
-		return true, errReserveReply
-	}
-	l.store(slot, reservation{granted: reply[0], total: reply[1]})
-	return reply[0] > 0, nil
-}
-
-var errReserveReply = errors.New("automations: malformed run reservation reply")
-
-type reservation struct {
-	granted int64
-	total   int64
-}
-
-func (l *ValkeyRunLimiter) store(slot runSlot, res reservation) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.window != slot.window() {
-		return
-	}
-	lease := l.leases[slot.broadcasterID]
-	lease.left += int(max(res.granted-1, 0))
-	lease.closed = res.total >= automation.MaxRunsPerMinute
-	lease.touchedAt = slot.at
-	lease.recheckAt = slot.at.Add(runLeaseIdle)
-	l.leases[slot.broadcasterID] = lease
 }

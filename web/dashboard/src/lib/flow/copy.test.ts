@@ -21,7 +21,7 @@ describe('step copy', () => {
         ...fieldOptions(english, spec, field).map((option) => option.label)
       ]),
       ...(spec.outputs ?? []).map((output) => outputLabel(english, spec, output.id)),
-      ...(spec.provides ?? []).map((variable) => variableLabel(english, variable))
+      ...[...(spec.provides ?? []), ...(spec.outputs ?? []).flatMap((output) => output.provides ?? [])].map((variable) => variableLabel(english, variable))
     ].filter((text) => text !== undefined);
     expect(shown.filter(missing)).toEqual([]);
   });

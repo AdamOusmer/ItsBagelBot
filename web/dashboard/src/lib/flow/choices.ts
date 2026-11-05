@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export const CHOICE_SOURCES = ['rewards', 'counters', 'scenes'] as const;
+export const CHOICE_SOURCES = ['rewards', 'manageableRewards', 'counters', 'scenes'] as const;
 
 export type ChoiceSource = (typeof CHOICE_SOURCES)[number];
 

@@ -126,6 +126,7 @@
   },
   "choiceEmpty": {
     "rewards": "Aún no hay recompensas de puntos del canal. Crea una en Puntos del canal.",
+    "manageableRewards": "Twitch solo nos permite cambiar recompensas creadas aquí. Crea una en Puntos del canal.",
     "counters": "Aún no hay contadores. Crea uno en Contadores.",
     "scenes": "Esta luz no tiene escenas."
   },
@@ -137,5 +138,12 @@
   },
   "choiceMissing": "\"{name}\" ya no está en la lista.",
   "choiceRetry": "Reintentar",
-  "choiceLoading": "Cargando"
+  "choiceLoading": "Cargando",
+  "setup": {
+    "line": "Desactivado hasta configurar",
+    "stepNote": "Este paso sigue desactivado hasta que lo completes.",
+    "pickReward": "Elige una recompensa",
+    "addUrl": "Añade una URL",
+    "refused": "Completa los pasos que necesitan configuración, guarda y luego activa esto."
+  }
 }

@@ -18,6 +18,8 @@ type Tx struct {
 	Counter *CounterClient
 	// CounterEntry is the client for interacting with the CounterEntry builders.
 	CounterEntry *CounterEntryClient
+	// Variable is the client for interacting with the Variable builders.
+	Variable *VariableClient
 
 	// lazily loaded.
 	client     *Client
@@ -152,6 +154,7 @@ func (tx *Tx) init() {
 	tx.Balance = NewBalanceClient(tx.config)
 	tx.Counter = NewCounterClient(tx.config)
 	tx.CounterEntry = NewCounterEntryClient(tx.config)
+	tx.Variable = NewVariableClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

@@ -26,5 +26,13 @@
   "if": "Wenn, dann, sonst",
   "http_post": "HTTP-Anfrage senden",
   "lights": "Licht einstellen",
-  "stop": "Hier stoppen"
+  "stop": "Hier stoppen",
+  "http_get": "Von Webadresse lesen",
+  "var_set": "Variable setzen",
+  "var_add": "Zu Variable hinzufügen",
+  "var_delete": "Variable löschen",
+  "text": "Text ändern",
+  "math": "Berechnen",
+  "loop": "Schritte wiederholen",
+  "reward_update": "Belohnung ändern"
 }

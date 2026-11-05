@@ -77,10 +77,14 @@
         return t('automations.share.setup.login_target');
       case 'http_target':
         return t('automations.share.setup.http_target');
+      case 'reward_target':
+        return t('automations.share.setup.reward_target');
       case 'lights_target':
         return t('automations.share.setup.lights_target');
       case 'slash_command':
         return t('automations.share.setup.slash_command');
+      case 'secret_removed':
+        return t('automations.share.setup.secret_removed');
       case 'run_removed':
         return t('automations.share.setup.run_removed');
       case 'run_target_simple':

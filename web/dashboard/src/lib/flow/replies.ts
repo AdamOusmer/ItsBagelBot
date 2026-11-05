@@ -17,12 +17,12 @@ export type SaveReply =
 
 export type ToggleReply =
   | { ok: true; enabled: boolean; revision: string; warnings: FlowWarning[] }
-  | { ok: false; reason: 'conflict' | 'not_found' | 'failed' | 'denied'; error?: string };
+  | { ok: false; reason: 'conflict' | 'not_found' | 'failed' | 'denied' | 'needs_setup'; error?: string };
 
 export type DeleteReply = { ok: true } | { ok: false; reason: 'not_found' | 'not_deletable' | 'failed' | 'denied'; error?: string };
 
 export type SaveRequest = {
-  flow: { name: string; enabled: boolean; nodes: unknown[]; edges: unknown[] };
+  flow: { name: string; enabled: boolean; nodes: unknown[]; edges: unknown[]; queue?: string };
   ref: FlowRef | null;
   expectedRevision?: string;
   confirmUpgrade?: boolean;

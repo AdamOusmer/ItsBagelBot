@@ -69,6 +69,10 @@
       {
         "code": "login_target",
         "path": "actions[0].params.then[0].params.login"
+      },
+      {
+        "code": "secret_removed",
+        "path": "actions[0].params.else[0]"
       }
     ],
     "status": "ready",
@@ -86,5 +90,45 @@
         "detail": "Hype redeem"
       }
     ]
+  },
+  {
+    "index": 2,
+    "sourceName": "Recipes v2",
+    "name": "Recipes v2",
+    "renamed": false,
+    "setup": [
+      {
+        "code": "http_target",
+        "path": "actions[5].params.actions[0]"
+      },
+      {
+        "code": "reward_target",
+        "path": "actions[6]"
+      }
+    ],
+    "status": "ready",
+    "issues": [],
+    "landing": "automation",
+    "review": []
+  },
+  {
+    "index": 3,
+    "sourceName": "Pasted keys",
+    "name": "Pasted keys",
+    "renamed": false,
+    "setup": [
+      {
+        "code": "users_list",
+        "path": "conditions[0]"
+      },
+      {
+        "code": "secret_removed",
+        "path": "actions[3]"
+      }
+    ],
+    "status": "ready",
+    "issues": [],
+    "landing": "automation",
+    "review": []
   }
 ]

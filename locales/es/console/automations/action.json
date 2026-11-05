@@ -26,5 +26,13 @@
   "if": "Si, entonces, si no",
   "http_post": "Enviar una solicitud HTTP",
   "lights": "Ajustar las luces",
-  "stop": "Detener aquí"
+  "stop": "Detener aquí",
+  "http_get": "Leer de una dirección web",
+  "var_set": "Fijar una variable",
+  "var_add": "Sumar a una variable",
+  "var_delete": "Eliminar una variable",
+  "text": "Cambiar texto",
+  "math": "Hacer cálculos",
+  "loop": "Repetir pasos",
+  "reward_update": "Cambiar una recompensa"
 }

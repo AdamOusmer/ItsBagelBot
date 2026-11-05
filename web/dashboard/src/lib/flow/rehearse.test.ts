@@ -3,6 +3,8 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { SETUP_REWARD_ID, SETUP_TEXT, SETUP_URL } from '@bagel/kit/automations';
+import { describe as describeNode } from './describe';
 import { NODE_SPECS, type Flow } from './model';
 import { english } from './english.testing';
 import { rehearseFlow, type RehearsalOptions, type RehearsalStep } from './rehearse';
@@ -119,6 +121,39 @@ describe('rehearseFlow', () => {
   test('a chat word trigger rehearses as the viewer saying it', () => {
     const [step] = rehearse(flowOf([n('w', 'twitch.chat.word', { word: 'bagel' })], []), { until: 'w' });
     expect(step.kind === 'viewer' && step.text).toBe('bagel');
+  });
+
+  test('a loop walks its body and then what comes after it', () => {
+    const flow = flowOf(
+      [n('t', 'twitch.follow'), n('l', 'reply.loop', { times: '3' }), n('b', 'reply.chat', { message: 'time {local:index}' }), n('a', 'reply.chat', { message: 'after' })],
+      [e('1', 't', 'next', 'l'), e('2', 'l', 'body', 'b'), e('3', 'l', 'done', 'a')]
+    );
+    const steps = rehearse(flow);
+    expect(steps.map((step) => step.id)).toEqual(['t', 'l', 'b', 'a']);
+    const body = steps[2]!;
+    expect(body.kind === 'bot' && body.lines[0]!.segments.map((seg) => seg.text).join('')).toBe('time 1');
+  });
+
+  test('an API node asks which path to rehearse and only walks that one', () => {
+    const flow = flowOf(
+      [n('t', 'twitch.follow'), n('g', 'reply.http_get', { url: 'https://api.example.com' }), n('w', 'reply.chat', { message: 'worked' }), n('f', 'reply.chat', { message: 'failed {local:error}' })],
+      [e('1', 't', 'next', 'g'), e('2', 'g', 'ok', 'w'), e('3', 'g', 'failure', 'f')]
+    );
+    expect(rehearse(flow).map((step) => step.id)).toEqual(['t', 'g', 'w']);
+    const failed = rehearse(flow, { decisions: { g: 'failure' } });
+    expect(failed.map((step) => step.id)).toEqual(['t', 'g', 'f']);
+    const last = failed[2]!;
+    expect(last.kind === 'bot' && last.lines[0]!.segments.map((seg) => seg.text).join('')).toBe('failed 503');
+  });
+
+  test('an imported step awaiting setup never shows its placeholder', () => {
+    const flow = flowOf(
+      [n('t', 'twitch.reward', { reward: SETUP_REWARD_ID }), n('c', 'reply.chat', { message: SETUP_TEXT, disabled: true }), n('g', 'reply.http_get', { url: SETUP_URL, disabled: true })],
+      [e('e1', 't', 'next', 'c'), e('e2', 'c', 'next', 'g')]
+    );
+    const shown = JSON.stringify(rehearse(flow));
+    expect(shown).not.toContain('setup-required');
+    for (const node of flow.nodes) expect(describeNode(english, node)).toBe('Off until set up');
   });
 
   test('every step type rehearses', () => {

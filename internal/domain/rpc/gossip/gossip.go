@@ -43,6 +43,8 @@ type Request struct {
 	Fresh  bool      `json:"fresh,omitempty"`
 	Body   string    `json:"body,omitempty"`
 
+	CaptureBody bool `json:"capture_body,omitempty"`
+
 	Region   string `json:"region,omitempty"`
 	Platform string `json:"platform,omitempty"`
 }

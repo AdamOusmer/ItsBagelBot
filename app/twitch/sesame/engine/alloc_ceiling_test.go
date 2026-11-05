@@ -15,8 +15,6 @@ const allocFlowIfCeiling = 48.0
 
 const allocFlowCompareCeiling = 53.0
 
-const allocFlowTwentyStepsCeiling = 54.0
+const allocFlowTwentyStepsCeiling = 55.0
 
 const allocFlowNoMatchCeiling = 18.0
-
-const allocFlowRefusedCeiling = 18.0

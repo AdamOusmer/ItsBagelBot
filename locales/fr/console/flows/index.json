@@ -126,6 +126,7 @@
   },
   "choiceEmpty": {
     "rewards": "Aucune récompense de points de chaîne pour le moment. Créez-en une dans Points de chaîne.",
+    "manageableRewards": "Twitch ne permet de modifier que les récompenses créées ici. Créez-en une dans Points de chaîne.",
     "counters": "Aucun compteur pour le moment. Créez-en un dans Compteurs.",
     "scenes": "Cette lumière n’a aucune scène."
   },
@@ -137,5 +138,12 @@
   },
   "choiceMissing": "\"{name}\" n’est plus dans la liste.",
   "choiceRetry": "Réessayer",
-  "choiceLoading": "Chargement"
+  "choiceLoading": "Chargement",
+  "setup": {
+    "line": "Désactivé avant configuration",
+    "stepNote": "Cette étape reste désactivée tant que tu ne l'as pas remplie.",
+    "pickReward": "Choisis une récompense",
+    "addUrl": "Ajoute une URL",
+    "refused": "Remplis les étapes à configurer, enregistre, puis active ceci."
+  }
 }

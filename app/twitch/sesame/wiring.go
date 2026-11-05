@@ -68,7 +68,6 @@ type engineRuntime struct {
 	emotes   *automod.EmoteFetcher
 	chatters *engine.ValkeyChatters
 	runs     *engine.ValkeyRunLog
-	limiter  *engine.ValkeyRunLimiter
 }
 
 func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
@@ -79,13 +78,16 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		AutomationHook: &engine.AutomationHook{},
 		Runtime:        newRuntime(w),
 		Automations: engine.AutomationDeps{
-			Source:  rt.proj,
-			Runs:    rt.runs,
-			Limiter: rt.limiter,
+			Source:    rt.proj,
+			Runs:      rt.runs,
+			Variables: engine.NewLoyaltyRPC(in.nc, engine.LoyaltyRPCPrefix(cfg.LoyaltyRPCPrefix)),
+			Queue:     engine.NewValkeyRunQueue(in.vc),
+			Durable:   engine.NewValkeyDurableRuns(in.vc),
 		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,
 		Live:           rt.live,
+		RewardResets:   engine.NewValkeyRewardResets(in.vc),
 		Greet:          engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
 		Cooldown:       engine.NewValkeyCooldown(in.vc),
 		Special:        engine.NewSpecialSet(cfg.SpecialUserIDs),

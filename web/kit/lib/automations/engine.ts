@@ -21,6 +21,7 @@ export interface ActionNode extends TypedNode {
 export interface Entry {
   check: (c: Chk, raw: unknown) => void;
   nested?: (raw: unknown) => ActionNode[][];
+  effect?: boolean;
 }
 
 export type Table = Record<string, Entry>;

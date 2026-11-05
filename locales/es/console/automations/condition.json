@@ -8,5 +8,6 @@
   "points": "Puntos del espectador",
   "arg_regex": "Los argumentos coinciden con un patrón",
   "category": "Categoría del stream",
-  "compare": "Comparar dos valores"
+  "compare": "Comparar dos valores",
+  "var": "Valor de la variable"
 }

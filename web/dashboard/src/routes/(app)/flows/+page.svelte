@@ -3,6 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit';
+  import type { RunRecord } from '@bagel/kit/automations';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
@@ -12,6 +14,7 @@
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
+  import RunsPanel from '#lib/components/automations/RunsPanel.svelte';
   import FlowShareTools from '#lib/components/flow/FlowShareTools.svelte';
   import FlowThumb from '#lib/components/flow/FlowThumb.svelte';
   import FlowsIntro from '#lib/components/flow/FlowsIntro.svelte';
@@ -53,6 +56,23 @@
 
   const stepCount = (count: number) => (count === 1 ? t('flows.page.stepOne') : t('flows.page.stepMany', { count }));
   const facts = (flow: FlowCard) => [flow.when, stepCount(flow.steps)].filter(Boolean).join(', ');
+
+  let runs = $state<RunRecord[]>([]);
+  let runsBusy = $state(false);
+  let runsOpen = $state(false);
+
+  async function loadRuns() {
+    runsBusy = true;
+    const reply = await postAction<{ ok: boolean; runs?: RunRecord[] }>('runs', new FormData());
+    runsBusy = false;
+    if (reply?.ok) runs = reply.runs ?? [];
+    else toast('danger', t('flows.recipe.runsFailed'));
+  }
+
+  function openRuns() {
+    runsOpen = !runsOpen;
+    if (runsOpen) void loadRuns();
+  }
 
   async function toggle(flow: FlowCard, next: boolean) {
     const before = { enabled: flow.enabled, revision: flow.revision };
@@ -112,7 +132,14 @@
     {/snippet}
   </PageHead>
 
-  <div class="search"><SearchInput bind:value={query} placeholder={t('flows.page.search')} fill /></div>
+  <div class="tools">
+    <div class="search"><SearchInput bind:value={query} placeholder={t('flows.page.search')} fill /></div>
+    <Button variant="ghost" aria-expanded={runsOpen} onclick={openRuns}>{t('flows.recipe.runsTitle')}</Button>
+  </div>
+
+  {#if runsOpen}
+    <RunsPanel {runs} busy={runsBusy} showNames title={t('flows.recipe.runsTitle')} empty={t('flows.recipe.runsEmpty')} onRefresh={() => void loadRuns()} />
+  {/if}
 
   {#if shown.length > 0}
     <ul class="cards">
@@ -171,7 +198,15 @@
     align-items: center;
     gap: 12px;
   }
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
   .search {
+    flex: 1 1 280px;
     max-width: 420px;
   }
   .cards {

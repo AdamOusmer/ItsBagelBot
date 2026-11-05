@@ -234,8 +234,17 @@ export function resolvedWithoutSample(name: string, kind: ChainKind): boolean {
 
 const EVENT_PREFIX = 'event.';
 
+const RECIPE_VALUE_TOKENS = new Set(['local', 'var', 'viewervar']);
+
+function recipeValueScope(samples: Samples): SampleScope {
+  return {
+    owns: ({ name }) => RECIPE_VALUE_TOKENS.has(name),
+    get: (token) => samples[token.key] ?? token.payload
+  };
+}
+
 function automationChain(samples: Samples, modules: ModuleFlags): SampleScope[] {
-  return [eventScope(samples), ...commandChain({ ...COMMAND_SAMPLES, ...samples }, modules)];
+  return [recipeValueScope(samples), eventScope(samples), ...commandChain({ ...COMMAND_SAMPLES, ...samples }, modules)];
 }
 
 function eventScope(samples: Samples): SampleScope {

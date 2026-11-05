@@ -94,6 +94,11 @@ type Pipeline struct {
 	automations AutomationDeps
 	autoIntN    func(int) int
 	autoExec    autoExecState
+	autoSegment time.Duration
+
+	queueWaiters *queueWaiters
+	queueTiming  queueTiming
+	durable      *durableRuns
 }
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
@@ -138,6 +143,8 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		chatLineCounter:   d.ChatLines,
 		automations:       withAutomationDefaults(d.Automations),
 		analytics:         d.Analytics,
+		queueWaiters:      newQueueWaiters(),
+		queueTiming:       defaultQueueTiming,
 	}
 	p.localeLookup = p.readLocale
 	if d.Automod == nil && d.Log != nil {
@@ -152,10 +159,14 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 	if d.Stats != nil {
 		p.stats = newBotStats(d.Stats, d.Log)
 	}
+	p.durable = newDurableRuns(p, p.automations)
 	return p
 }
 
 func (p *Pipeline) Close() {
+	p.durable.halt()
+	p.queueWaiters.close()
+	p.durable.handOff()
 	p.closeObservers()
 	if p.uses != nil {
 		p.uses.Close()

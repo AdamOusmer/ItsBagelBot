@@ -46,5 +46,15 @@
   "eventReward": "{user} hat eine Belohnung eingelöst",
   "eventLive": "Der Stream ist live gegangen: {title}",
   "sampleCommand": "!command",
-  "sampleWord": "bagel"
+  "sampleWord": "bagel",
+  "varSet": "Setze {name} auf {value}",
+  "varAdd": "Füge {amount} zu {name} hinzu",
+  "varTake": "Ziehe {amount} von {name} ab",
+  "varDelete": "Lösche {name}",
+  "varCheck": "{name} ist {op} {value}",
+  "varExists": "{name} ist gesetzt",
+  "textSaved": "{op}, als {name} speichern",
+  "loop": "{times}-mal wiederholen",
+  "rewardUpdate": "Ändere {reward}",
+  "rewardUpdateBack": "Ändere {reward} bis zum Stream-Ende"
 }

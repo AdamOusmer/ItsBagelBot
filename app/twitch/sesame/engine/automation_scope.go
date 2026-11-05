@@ -10,15 +10,22 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/pkg/tmpl"
 )
 
-const eventTokenPrefix = "event."
+const (
+	eventTokenPrefix   = "event."
+	localTokenName     = "local"
+	varTokenName       = "var"
+	viewerVarTokenName = "viewervar"
+)
 
 type automationScope struct {
 	event  map[string]string
 	argMap map[string]string
+	locals map[string]string
 	args   string
 }
 
@@ -26,7 +33,7 @@ func (automationScope) Owns(v scope.Var) bool {
 	switch {
 	case v.Name == "args":
 		return !v.HasPayload
-	case v.Name == "arg":
+	case v.Name == "arg", v.Name == localTokenName:
 		return v.HasPayload
 	default:
 		return strings.HasPrefix(v.Name, eventTokenPrefix) && !v.HasPayload
@@ -41,9 +48,85 @@ func (s automationScope) Get(v scope.Var) (string, bool) {
 		return sanitizeVar(s.args), true
 	case "arg":
 		return sanitizeVar(s.argMap[v.Payload]), true
+	case localTokenName:
+		return sanitizeVar(s.locals[strings.ToLower(v.Payload)]), true
 	default:
 		return sanitizeVar(s.event[strings.TrimPrefix(v.Name, eventTokenPrefix)]), true
 	}
+}
+
+type variableScope struct {
+	store    VariableStore
+	channel  VariableOwner
+	viewer   VariableOwner
+	onViewer bool
+}
+
+func (variableScope) Owns(v scope.Var) bool {
+	return v.HasPayload && (v.Name == varTokenName || v.Name == viewerVarTokenName)
+}
+
+type variableValues map[string]string
+
+func (s variableScope) Plan(ctx context.Context, wants []scope.Var) (scope.Values, error) {
+	values := variableValues{}
+	if s.store == nil {
+		return values, nil
+	}
+	if err := s.load(ctx, values, variableSource{varTokenName, s.channel}, wants); err != nil {
+		return values, err
+	}
+	if !s.onViewer {
+		return values, nil
+	}
+	return values, s.load(ctx, values, variableSource{viewerVarTokenName, s.viewer}, wants)
+}
+
+type variableSource struct {
+	token string
+	owner VariableOwner
+}
+
+func (s variableScope) load(ctx context.Context, into variableValues, source variableSource, wants []scope.Var) error {
+	names := wantedVariableNames(source.token, wants)
+	if len(names) == 0 {
+		return nil
+	}
+	found, err := s.store.VariablesGet(ctx, source.owner, names)
+	for name, value := range found {
+		into[source.token+":"+name] = value
+	}
+	return err
+}
+
+func wantedVariableNames(token string, wants []scope.Var) []string {
+	var names []string
+	for _, want := range wants {
+		name, ok := automation.VariableName(want.Payload)
+		if ok && want.Name == token {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// Stored text renders once as a value: it is never lexed, so a saved {arg:1} stays literal.
+func (v variableValues) Get(tok scope.Var) (string, bool) {
+	return sanitizeVar(v[tok.Name+":"+strings.ToLower(tok.Payload)]), true
+}
+
+func (x *actionExec) variableScope() variableScope {
+	viewerID := x.run.Viewer.ID
+	return variableScope{
+		store:    x.p.automations.Variables,
+		channel:  VariableOwner{BroadcasterID: x.run.BroadcasterID, Scope: automation.VariableScopeChannel},
+		viewer:   VariableOwner{BroadcasterID: x.run.BroadcasterID, ViewerID: viewerID, Scope: automation.VariableScopeViewer},
+		onViewer: viewerID != 0,
+	}
+}
+
+func (x *actionExec) automationScope() automationScope {
+	return automationScope{event: x.run.Event, argMap: x.run.ArgMap, locals: x.run.Locals, args: x.run.Args}
 }
 
 func (p *Pipeline) automationContext(ctx context.Context, run *AutomationRun) *module.Context {
@@ -135,6 +218,7 @@ func (x *actionExec) renderResident(toks []tmpl.Token) string {
 	if !x.vars.ready {
 		x.vars = x.newRunVars()
 	}
+	x.vars.auto.locals = x.run.Locals
 	x.buf = scope.Chain(nil).Render(x.buf[:0], toks, &x.vars)
 	return string(x.buf)
 }
@@ -144,7 +228,7 @@ func (x *actionExec) newRunVars() runVars {
 	run := commandRun{c: c, command: x.run.Plan.Automation.ID, args: x.run.Args}
 	return runVars{
 		ready: true,
-		auto:  automationScope{event: x.run.Event, argMap: x.run.ArgMap, args: x.run.Args},
+		auto:  x.automationScope(),
 		pure:  scope.Pure{Locale: c.Locale},
 		msg:   messageVars(run),
 	}
@@ -162,7 +246,7 @@ func (x *actionExec) expand(text string) string {
 		return x.renderResident(toks)
 	}
 	run := commandRun{c: x.context(), command: x.run.Plan.Automation.ID, args: x.run.Args}
-	chain := append(scope.Chain{automationScope{event: x.run.Event, argMap: x.run.ArgMap, args: x.run.Args}},
+	chain := append(scope.Chain{x.automationScope(), x.variableScope()},
 		x.p.commandChain(x.ctx, run, tmpl.WithCondRefs(toks))...)
 	values := chain.Plan(x.ctx, toks, x.p.logScopeFailure(run.c))
 	buf := GetBuf()

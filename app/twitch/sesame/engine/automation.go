@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -25,16 +26,14 @@ type RunLog interface {
 	Recent(ctx context.Context, broadcasterID uint64, automationID string, limit int) ([]automationrpc.RunRecord, error)
 }
 
-type RunLimiter interface {
-	AllowRun(ctx context.Context, broadcasterID uint64) (bool, error)
-	FirstRefusal(broadcasterID uint64) bool
-	AllowLights(ctx context.Context, broadcasterID uint64) (bool, error)
-}
-
 type AutomationDeps struct {
-	Source  AutomationSource
-	Runs    RunLog
-	Limiter RunLimiter
+	Source    AutomationSource
+	Runs      RunLog
+	Variables VariableStore
+	Queue     RunQueue
+	Durable   DurableStore
+
+	durableTiming durableTiming
 }
 
 type AutomationRun struct {
@@ -54,8 +53,21 @@ type AutomationRun struct {
 	Identity      string
 	Depth         int
 	Started       time.Time
-	Admitted      bool
 	Record        automationrpc.RunRecord
+	Locals        map[string]string
+	Iter          string
+	Replay        string
+	Tree          *runTree
+	Slot          *queueSlot
+	OwnsSlot      bool
+	DetachedRole  module.Role
+	Durable       *durableTicket
+}
+
+// A root run, its `run` children and every detached path spend these concurrently: a copy per path multiplies each cap.
+type runTree struct {
+	executed atomic.Int32
+	visits   atomic.Int32
 }
 
 type noRunLog struct{}
@@ -66,20 +78,12 @@ func (noRunLog) Recent(context.Context, uint64, string, int) ([]automationrpc.Ru
 	return nil, nil
 }
 
-type openLimiter struct{}
-
-func (openLimiter) AllowRun(context.Context, uint64) (bool, error) { return true, nil }
-
-func (openLimiter) FirstRefusal(uint64) bool { return false }
-
-func (openLimiter) AllowLights(context.Context, uint64) (bool, error) { return true, nil }
-
 func withAutomationDefaults(d AutomationDeps) AutomationDeps {
 	if d.Runs == nil {
 		d.Runs = noRunLog{}
 	}
-	if d.Limiter == nil {
-		d.Limiter = openLimiter{}
+	if d.Queue == nil {
+		d.Queue = openRunQueue{}
 	}
 	return d
 }
@@ -91,11 +95,7 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 		RunID: run.ID, AutomationID: auto.ID, Name: auto.Name,
 		Trigger: auto.Definition.Trigger.Type, Source: run.Source, At: run.Started,
 	}
-	defer p.finishRun(ctx, run)
-	admitting := run.Depth == 0 && !run.Admitted
-	if admitting && !p.automationRunAllowed(ctx, run) {
-		return
-	}
+	defer p.endRunSegment(ctx, run)
 	x := p.newActionExec(ctx, run, emit)
 	defer releaseActionExec(x)
 	pass, reason, err := x.conditionsPass()
@@ -103,15 +103,17 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 		run.Record.Outcome, run.Record.Reason = skippedOutcome(err, reason)
 		return
 	}
-	x.execute()
+	if p.admitToQueue(ctx, run) {
+		x.execute()
+	}
 }
 
-func (p *Pipeline) automationRunAllowed(ctx context.Context, run *AutomationRun) bool {
-	ok, err := p.automations.Limiter.AllowRun(ctx, run.BroadcasterID)
-	if err == nil && !ok {
-		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, "channel_rate"
+// A child that joined its parent's slot shares the parent's reference.
+func (p *Pipeline) endRunSegment(ctx context.Context, run *AutomationRun) {
+	if run.OwnsSlot {
+		defer run.Slot.drop()
 	}
-	return err != nil || ok
+	p.finishRun(ctx, run)
 }
 
 func skippedOutcome(err error, reason string) (string, string) {
@@ -121,13 +123,23 @@ func skippedOutcome(err error, reason string) (string, string) {
 	return automationrpc.OutcomeSkipped, reason
 }
 
+// The run log reply must fit a NATS message, so long loops keep their first steps and how they ended.
+func trimmedRecords(records []automationrpc.ActionRecord) []automationrpc.ActionRecord {
+	if len(records) <= automation.MaxRecordedActions {
+		return records
+	}
+	records[automation.MaxRecordedActions-1] = records[len(records)-1]
+	return records[:automation.MaxRecordedActions]
+}
+
 func (p *Pipeline) finishRun(ctx context.Context, run *AutomationRun) {
-	if run.Record.Outcome == outcomeDeferred {
+	if run.Record.Outcome == outcomeDeferred || !p.durable.finish(ctx, run) {
 		return
 	}
 	run.Record.DurationMS = int(time.Since(run.Started).Milliseconds())
 	if run.Record.Outcome == "" {
 		run.Record.Outcome = automationrpc.OutcomeOK
 	}
+	run.Record.Actions = trimmedRecords(run.Record.Actions)
 	p.automations.Runs.Record(ctx, run.BroadcasterID, run.Record)
 }

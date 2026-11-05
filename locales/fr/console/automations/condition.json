@@ -8,5 +8,6 @@
   "points": "Points du spectateur",
   "arg_regex": "Arguments correspondant à un motif",
   "category": "Catégorie du stream",
-  "compare": "Comparer deux valeurs"
+  "compare": "Comparer deux valeurs",
+  "var": "Valeur d’une variable"
 }

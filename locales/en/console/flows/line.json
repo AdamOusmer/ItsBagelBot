@@ -46,5 +46,15 @@
   "eventReward": "{user} redeemed a reward",
   "eventLive": "The stream went live: {title}",
   "sampleCommand": "!command",
-  "sampleWord": "bagel"
+  "sampleWord": "bagel",
+  "varSet": "Set {name} to {value}",
+  "varAdd": "Add {amount} to {name}",
+  "varTake": "Take {amount} from {name}",
+  "varDelete": "Delete {name}",
+  "varCheck": "{name} is {op} {value}",
+  "varExists": "{name} is set",
+  "textSaved": "{op}, save as {name}",
+  "loop": "Repeat {times} times",
+  "rewardUpdate": "Change {reward}",
+  "rewardUpdateBack": "Change {reward} until the stream ends"
 }

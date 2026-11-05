@@ -59,5 +59,106 @@
         "unit": "secondes, max {max}"
       }
     }
+  },
+  "loop": {
+    "label": "Répéter des étapes",
+    "summary": "Exécuter un chemin jusqu’à 100 fois",
+    "field": {
+      "times": { "label": "Nombre de fois", "placeholder": "3" }
+    },
+    "out": { "body": "À chaque fois", "done": "Une fois terminé" }
+  },
+  "varSet": {
+    "label": "Définir une variable",
+    "summary": "Conserver une valeur pour plus tard",
+    "field": {
+      "scope": { "label": "Conservé pour", "option": { "channel": "La chaîne", "viewer": "Ce viewer" } },
+      "name": { "label": "Nom", "placeholder": "morts" },
+      "value": { "label": "Valeur", "placeholder": "{user}" }
+    }
+  },
+  "varAdd": {
+    "label": "Ajouter à une variable",
+    "summary": "Augmenter ou diminuer",
+    "field": {
+      "scope": { "label": "Conservé pour", "option": { "channel": "La chaîne", "viewer": "Ce viewer" } },
+      "name": { "label": "Nom", "placeholder": "morts" },
+      "amount": { "label": "Montant" }
+    }
+  },
+  "varDelete": {
+    "label": "Supprimer une variable",
+    "summary": "Oublier une valeur",
+    "field": {
+      "scope": { "label": "Conservé pour", "option": { "channel": "La chaîne", "viewer": "Ce viewer" } },
+      "name": { "label": "Nom", "placeholder": "morts" }
+    }
+  },
+  "text": {
+    "label": "Modifier le texte",
+    "summary": "Nettoyer ou découper du texte",
+    "field": {
+      "op": {
+        "label": "Que faire",
+        "option": {
+          "upper": "Mettre en majuscules",
+          "lower": "Mettre en minuscules",
+          "trim": "Supprimer les espaces",
+          "length": "Compter les caractères",
+          "replace": "Remplacer",
+          "substring": "Extraire une partie",
+          "split_pick": "Séparer et en choisir un",
+          "contains": "Vérifier s’il contient",
+          "url_encode": "Adapter pour un lien"
+        }
+      },
+      "input": { "label": "Texte", "placeholder": "{args}" },
+      "find": { "label": "Rechercher" },
+      "replaceWith": { "label": "Remplacer par" },
+      "start": { "label": "Commencer à" },
+      "count": { "label": "Nombre de caractères" },
+      "separator": { "label": "Séparer par" },
+      "pick": { "label": "Choisir lequel", "placeholder": "1, ou random" },
+      "needle": { "label": "Chercher" },
+      "saveAs": { "label": "Enregistrer sous", "placeholder": "propre" }
+    }
+  },
+  "math": {
+    "label": "Faire un calcul",
+    "summary": "Calculer un nombre",
+    "field": {
+      "expression": { "label": "Expression", "placeholder": "({bits} / 100) + 1" },
+      "saveAs": { "label": "Enregistrer sous", "placeholder": "total" }
+    }
+  },
+  "httpGet": {
+    "label": "Lire depuis une adresse web",
+    "summary": "Récupérer une valeur via https",
+    "field": {
+      "url": { "label": "Adresse", "placeholder": "https://example.com/data" },
+      "jsonPath": { "label": "Chemin JSON", "placeholder": "data.value" },
+      "saveAs": { "label": "Enregistrer sous", "placeholder": "reponse" }
+    },
+    "out": { "ok": "Succès", "failure": "Échec" }
+  },
+  "httpPost": {
+    "label": "Envoyer vers une adresse web",
+    "summary": "Envoyer à un webhook via https",
+    "field": {
+      "url": { "label": "Adresse", "placeholder": "https://example.com/hook" },
+      "body": { "label": "Corps", "placeholder": "{user} l’a fait" },
+      "saveAs": { "label": "Enregistrer sous", "placeholder": "reponse" }
+    },
+    "out": { "ok": "Succès", "failure": "Échec" }
+  },
+  "rewardUpdate": {
+    "label": "Modifier une récompense",
+    "summary": "Activer ou désactiver une récompense, ou définir son coût",
+    "field": {
+      "reward": { "label": "Récompense" },
+      "setEnabled": { "label": "Activé", "option": { "keep": "Laisser tel quel", "on": "Activer", "off": "Désactiver" } },
+      "cost": { "label": "Nouveau coût", "unit": "points" },
+      "reset": { "label": "Rétablir à la fin du stream" }
+    }
   }
 }

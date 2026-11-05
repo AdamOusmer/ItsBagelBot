@@ -26,5 +26,13 @@
   "if": "Se, então, senão",
   "http_post": "Enviar uma requisição HTTP",
   "lights": "Ajustar as luzes",
-  "stop": "Parar aqui"
+  "stop": "Parar aqui",
+  "http_get": "Ler de um endereço web",
+  "var_set": "Definir uma variável",
+  "var_add": "Somar a uma variável",
+  "var_delete": "Apagar uma variável",
+  "text": "Alterar texto",
+  "math": "Fazer cálculos",
+  "loop": "Repetir etapas",
+  "reward_update": "Alterar uma recompensa"
 }

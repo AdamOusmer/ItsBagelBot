@@ -14,3 +14,6 @@ type Counter func(*sql.Selector)
 
 // CounterEntry is the predicate function for counterentry builders.
 type CounterEntry func(*sql.Selector)
+
+// Variable is the predicate function for variable builders.
+type Variable func(*sql.Selector)

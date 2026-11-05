@@ -1,0 +1,10 @@
+[
+  {
+    "path": "actions[0].params.expression",
+    "code": "required"
+  },
+  {
+    "path": "actions[0].params.save_as",
+    "code": "invalid_format"
+  }
+]

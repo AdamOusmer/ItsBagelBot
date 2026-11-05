@@ -54,5 +54,28 @@
       "percent": { "label": "Chance", "unit": "%" }
     },
     "out": { "yes": "Hit", "no": "Miss" }
+  },
+  "var": {
+    "label": "Check a variable",
+    "summary": "Pass when a kept value matches",
+    "field": {
+      "scope": { "label": "Kept for", "option": { "channel": "The channel", "viewer": "This viewer" } },
+      "name": { "label": "Name", "placeholder": "deaths" },
+      "op": {
+        "label": "Is",
+        "option": {
+          "eq": "equal to",
+          "ne": "not equal to",
+          "gt": "more than",
+          "gte": "at least",
+          "lt": "less than",
+          "lte": "at most",
+          "contains": "containing",
+          "exists": "set to anything"
+        }
+      },
+      "value": { "label": "Value", "placeholder": "10" }
+    },
+    "out": { "yes": "Yes", "no": "No" }
   }
 }

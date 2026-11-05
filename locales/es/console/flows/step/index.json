@@ -12,6 +12,9 @@
     "input": "Entrada del espectador",
     "title": "Título del stream",
     "game": "Categoría",
-    "count": "Nuevo conteo"
+    "count": "Nuevo conteo",
+    "loopIndex": "Qué repetición es",
+    "apiError": "Por qué falló",
+    "saved": "Guardado por un paso anterior"
   }
 }

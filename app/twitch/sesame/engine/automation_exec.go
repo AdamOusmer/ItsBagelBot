@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/automation"
@@ -62,15 +63,19 @@ const (
 	signalDelay
 )
 
-type resume struct{ steps []automation.Step }
+// iter is the loop iteration path the frame resumes under; it scopes effect dedup.
+type resume struct {
+	steps []automation.Step
+	loop  *loopCursor
+	iter  string
+}
 
 type step = *automation.Step
 
 type runBudget struct {
-	executed int
-	chats    int
-	delayMS  int
-	segment  int
+	delayMS int
+	segment int
+	handled int
 }
 
 type actionExec struct {
@@ -88,11 +93,14 @@ type actionExec struct {
 	tctx    *module.Context
 	vars    runVars
 	buf     []byte
+	iter    string
+	started time.Time
 }
 
 func (p *Pipeline) newActionExec(ctx context.Context, run *AutomationRun, emit module.Emit) *actionExec {
 	x := getActionExec()
 	x.p, x.ctx, x.run, x.emit = p, ctx, run, emit
+	x.iter, x.started = run.Iter, time.Now()
 	x.bid = run.Channel
 	if x.bid == "" {
 		x.bid = strconv.FormatUint(run.BroadcasterID, 10)
@@ -105,13 +113,16 @@ func (x *actionExec) execute() {
 	if run.Plan.StepCount > 0 {
 		run.Record.Actions = make([]automationrpc.ActionRecord, 0, run.Plan.StepCount)
 	}
+	if run.Tree == nil {
+		run.Tree = new(runTree)
+	}
 	x.execList(run.Plan.Steps)
 	x.conclude()
 }
 
 func (x *actionExec) runLists(lists []resume) {
 	for k, r := range lists {
-		x.execList(r.steps)
+		x.resumeFrame(r)
 		switch x.signal {
 		case signalDelay:
 			x.rest = append(x.rest, lists[k+1:]...)
@@ -122,20 +133,46 @@ func (x *actionExec) runLists(lists []resume) {
 	}
 }
 
+func (x *actionExec) resumeFrame(r resume) {
+	x.iter = r.iter
+	if r.loop != nil {
+		x.iterate(*r.loop)
+		return
+	}
+	x.execList(r.steps)
+}
+
 func (x *actionExec) execList(list []automation.Step) {
 	for i := range list {
 		x.step(&list[i])
+		x.yieldIfSlow()
 		if x.signal == signalNone {
 			continue
 		}
 		if x.signal == signalDelay && i+1 < len(list) {
-			x.rest = append(x.rest, resume{steps: list[i+1:]})
+			x.rest = append(x.rest, resume{steps: list[i+1:], iter: x.iter})
 		}
 		return
 	}
 }
 
+// Fetches and store calls block the event lane; past the budget the remaining steps move to a continuation.
+func (x *actionExec) yieldIfSlow() {
+	budget := x.p.autoSegment
+	if budget == 0 {
+		budget = maxSyncSegment
+	}
+	if x.signal == signalNone && time.Since(x.started) > budget {
+		x.signal, x.delayMS = signalDelay, 1
+	}
+}
+
 func (x *actionExec) step(s step) {
+	if x.run.Tree.visits.Add(1) > automation.MaxStepVisitsPerRun {
+		x.recordLimited(s, "max_steps")
+		x.signal = signalStop
+		return
+	}
 	x.run.Record.Actions = append(x.run.Record.Actions, automationrpc.ActionRecord{Index: s.Index, Type: s.Type, Status: automationrpc.StatusOK})
 	slot := len(x.run.Record.Actions) - 1
 	status, detail := classify(x.dispatch(s))
@@ -153,25 +190,16 @@ func (x *actionExec) dispatch(s step) error {
 	if automation.IsBranching(s.Type) {
 		return handler(x, s)
 	}
-	if x.budget.executed >= automation.MaxActions {
+	if x.run.Tree.executed.Add(1) > automation.MaxActions {
 		return limited("max_actions")
 	}
-	x.budget.executed++
 	return handler(x, s)
 }
 
 func (x *actionExec) outcome() string {
-	good, bad := 0, 0
-	for _, r := range x.run.Record.Actions {
-		switch r.Status {
-		case automationrpc.StatusOK:
-			good++
-		case automationrpc.StatusFailed, automationrpc.StatusLimited, automationrpc.StatusUnsupported:
-			bad++
-		}
-	}
+	good, bad := tallyRecords(x.run.Record.Actions)
 	switch {
-	case bad == 0:
+	case bad <= x.budget.handled:
 		return automationrpc.OutcomeOK
 	case good == 0:
 		return automationrpc.OutcomeFailed
@@ -186,22 +214,14 @@ func (x *actionExec) conclude() {
 		x.run.Record.Outcome = x.outcome()
 		return
 	}
-	if x.scheduleRest() {
-		x.run.Record.Outcome = outcomeDeferred
-		return
-	}
-	x.limitRest()
-	x.run.Record.Outcome = x.outcome()
+	x.startContinuation(detachRun(x.run))
+	x.run.Record.Outcome = outcomeDeferred
 }
 
-func (x *actionExec) limitRest() {
-	for _, r := range x.rest {
-		for i := range r.steps {
-			x.run.Record.Actions = append(x.run.Record.Actions, automationrpc.ActionRecord{
-				Index: r.steps[i].Index, Type: r.steps[i].Type, Status: automationrpc.StatusLimited, Detail: "delay_capacity",
-			})
-		}
-	}
+func (x *actionExec) recordLimited(s step, detail string) {
+	x.run.Record.Actions = append(x.run.Record.Actions, automationrpc.ActionRecord{
+		Index: s.Index, Type: s.Type, Status: automationrpc.StatusLimited, Detail: detail,
+	})
 }
 
 func (x *actionExec) out(typ string) module.Output {
@@ -223,18 +243,9 @@ func (x *actionExec) queueText(o module.Output) error {
 	} else if x.p.prepareCommand(&o) {
 		x.pending = append(x.pending, o)
 	}
-	added := len(x.pending) - start
-	if added == 0 {
+	if len(x.pending) == start {
 		return skipped("empty")
 	}
-	room := automation.MaxChatMessagesPerRun - x.budget.chats
-	if room <= 0 {
-		x.pending = x.pending[:start]
-		return limited("chat_cap")
-	}
-	kept := min(added, room)
-	x.pending = x.pending[:start+kept]
-	x.budget.chats += kept
 	return nil
 }
 
@@ -257,17 +268,10 @@ func (x *actionExec) emitBatch(items []module.Output) {
 	batch := GetOutput()
 	batch.Type = outgress.TypeBatch
 	batch.BroadcasterID = x.bid
-	batch.BatchID = x.run.ID + ":" + strconv.Itoa(x.budget.segment) + ":" + strconv.Itoa(x.flushes)
+	batch.BatchID = x.run.replayKey() + ":" + strconv.Itoa(x.budget.segment) + ":" + strconv.Itoa(x.flushes)
 	batch.Items = items
 	x.emit(batch)
 	PutOutput(batch)
 }
 
-func (x *actionExec) identity() string {
-	if x.run.Env != nil {
-		if id := EventIdentity(x.run.Env); id != "" {
-			return id
-		}
-	}
-	return x.run.Identity
-}
+func (x *actionExec) identity() string { return x.run.identity() }

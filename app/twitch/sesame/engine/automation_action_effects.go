@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"ItsBagelBot/internal/domain/automation"
+	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 )
@@ -69,7 +71,7 @@ func (x *actionExec) lookupLogin(login string) (actionTarget, error) {
 func (x *actionExec) once(s step, do func() error) error {
 	dup, release := x.p.dedup.Claim(x.ctx, EffectRef{
 		Identity: x.identity(),
-		Effect:   s.EffectKey,
+		Effect:   s.EffectKey + x.iter,
 	})
 	if dup {
 		return skipped("duplicate")
@@ -161,9 +163,6 @@ func (x *actionExec) lightsRefusal(p automation.LightsAction) error {
 	case !hasLightTarget(p):
 		return failure("no_device")
 	}
-	if ok, err := x.p.automations.Limiter.AllowLights(x.ctx, x.run.BroadcasterID); err == nil && !ok {
-		return limited("lights_rate")
-	}
 	return nil
 }
 
@@ -201,19 +200,41 @@ func gossipFailure(err error) error {
 
 func (x *actionExec) httpPost(s step, p automation.HTTPPostAction) error {
 	if x.p.gossip == nil {
-		return failure("no_gossip")
+		return x.settleFetch(s, p.SaveAs, fetchResult{failure: "no_gossip"})
 	}
-	body := x.expand(p.Body)
-	return x.once(s, func() error {
-		var reply gossiprpc.CustomFetchReply
-		req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, Def: &gossiprpc.FetchDef{URL: p.URL}, Body: body}
-		route := GossipRoute{Provider: customFetchProvider, Endpoint: customPostEndpoint}
-		if err := x.p.gossip.Call(x.ctx, route, req, &reply); err != nil {
-			return failure("gossip_error")
-		}
-		if reply.Status != gossiprpc.FetchOK {
-			return failure(string(reply.Status))
+	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{URL: p.URL}, Body: x.expand(p.Body), CaptureBody: p.SaveAs != ""}
+	var result fetchResult
+	err := x.once(s, func() error {
+		result = x.callFetch(customPostEndpoint, req)
+		if result.failure != "" {
+			return failure(result.failure)
 		}
 		return nil
 	})
+	if status, _ := classify(err); status == automationrpc.StatusSkipped {
+		return err
+	}
+	return x.settleFetch(s, p.SaveAs, result)
+}
+
+func (x *actionExec) httpGet(s step, p automation.HTTPGetAction) error {
+	target := x.expand(p.URL)
+	if validate.FetchURL(target) != nil {
+		return x.settleFetch(s, p.SaveAs, fetchResult{failure: string(gossiprpc.FetchBadDef)})
+	}
+	if x.p.gossip == nil {
+		return x.settleFetch(s, p.SaveAs, fetchResult{failure: "no_gossip"})
+	}
+	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{
+		Name: "get:" + x.bid, URL: target, JSONPath: p.JSONPath, IsActive: true,
+	}}
+	return x.settleFetch(s, p.SaveAs, x.callFetch(customFetchEndpoint, req))
+}
+
+func (x *actionExec) callFetch(endpoint string, req gossiprpc.Request) fetchResult {
+	var reply gossiprpc.CustomFetchReply
+	if err := x.p.gossip.Call(x.ctx, GossipRoute{Provider: customFetchProvider, Endpoint: endpoint}, req, &reply); err != nil {
+		return fetchResult{failure: "gossip_error"}
+	}
+	return replyResult(string(reply.Status), reply.Values)
 }

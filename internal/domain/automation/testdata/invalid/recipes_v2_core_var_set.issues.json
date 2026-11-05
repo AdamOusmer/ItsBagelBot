@@ -1,0 +1,14 @@
+[
+  {
+    "path": "actions[0].params.name",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[0].params.scope",
+    "code": "invalid_enum"
+  },
+  {
+    "path": "actions[1].params.name",
+    "code": "required"
+  }
+]

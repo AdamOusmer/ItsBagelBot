@@ -59,5 +59,106 @@
         "unit": "segundos, máximo {max}"
       }
     }
+  },
+  "loop": {
+    "label": "Repetir pasos",
+    "summary": "Ejecutar una ruta hasta 100 veces",
+    "field": {
+      "times": { "label": "Cuántas veces", "placeholder": "3" }
+    },
+    "out": { "body": "Cada vez", "done": "Al terminar" }
+  },
+  "varSet": {
+    "label": "Fijar una variable",
+    "summary": "Guardar un valor para después",
+    "field": {
+      "scope": { "label": "Guardado para", "option": { "channel": "El canal", "viewer": "Este espectador" } },
+      "name": { "label": "Nombre", "placeholder": "muertes" },
+      "value": { "label": "Valor", "placeholder": "{user}" }
+    }
+  },
+  "varAdd": {
+    "label": "Sumar a una variable",
+    "summary": "Sumar o restar",
+    "field": {
+      "scope": { "label": "Guardado para", "option": { "channel": "El canal", "viewer": "Este espectador" } },
+      "name": { "label": "Nombre", "placeholder": "muertes" },
+      "amount": { "label": "Cantidad" }
+    }
+  },
+  "varDelete": {
+    "label": "Eliminar una variable",
+    "summary": "Olvidar un valor",
+    "field": {
+      "scope": { "label": "Guardado para", "option": { "channel": "El canal", "viewer": "Este espectador" } },
+      "name": { "label": "Nombre", "placeholder": "muertes" }
+    }
+  },
+  "text": {
+    "label": "Cambiar texto",
+    "summary": "Limpiar o dividir texto",
+    "field": {
+      "op": {
+        "label": "Qué hacer",
+        "option": {
+          "upper": "Pasar a mayúsculas",
+          "lower": "Pasar a minúsculas",
+          "trim": "Recortar espacios",
+          "length": "Contar caracteres",
+          "replace": "Reemplazar",
+          "substring": "Extraer una parte",
+          "split_pick": "Dividir y elegir uno",
+          "contains": "Comprobar si contiene",
+          "url_encode": "Hacer seguro para un enlace"
+        }
+      },
+      "input": { "label": "Texto", "placeholder": "{args}" },
+      "find": { "label": "Buscar" },
+      "replaceWith": { "label": "Reemplazar por" },
+      "start": { "label": "Empezar en" },
+      "count": { "label": "Cuántos caracteres" },
+      "separator": { "label": "Separar por" },
+      "pick": { "label": "Elegir cuál", "placeholder": "1, o random" },
+      "needle": { "label": "Buscar" },
+      "saveAs": { "label": "Guardar como", "placeholder": "limpio" }
+    }
+  },
+  "math": {
+    "label": "Hacer cálculos",
+    "summary": "Calcular un número",
+    "field": {
+      "expression": { "label": "Expresión", "placeholder": "({bits} / 100) + 1" },
+      "saveAs": { "label": "Guardar como", "placeholder": "total" }
+    }
+  },
+  "httpGet": {
+    "label": "Leer de una dirección web",
+    "summary": "Obtener un valor por https",
+    "field": {
+      "url": { "label": "Dirección", "placeholder": "https://example.com/data" },
+      "jsonPath": { "label": "Ruta JSON", "placeholder": "data.value" },
+      "saveAs": { "label": "Guardar como", "placeholder": "respuesta" }
+    },
+    "out": { "ok": "Funcionó", "failure": "Falló" }
+  },
+  "httpPost": {
+    "label": "Enviar a una dirección web",
+    "summary": "Enviar a un webhook por https",
+    "field": {
+      "url": { "label": "Dirección", "placeholder": "https://example.com/hook" },
+      "body": { "label": "Cuerpo", "placeholder": "{user} lo hizo" },
+      "saveAs": { "label": "Guardar como", "placeholder": "respuesta" }
+    },
+    "out": { "ok": "Funcionó", "failure": "Falló" }
+  },
+  "rewardUpdate": {
+    "label": "Cambiar una recompensa",
+    "summary": "Activar o desactivar una recompensa, o fijar su coste",
+    "field": {
+      "reward": { "label": "Recompensa" },
+      "setEnabled": { "label": "Activado", "option": { "keep": "Dejar como está", "on": "Activar", "off": "Desactivar" } },
+      "cost": { "label": "Nuevo coste", "unit": "puntos" },
+      "reset": { "label": "Restablecer al terminar el stream" }
+    }
   }
 }

@@ -7,6 +7,7 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { FlowNode } from '#lib/flow/model';
+  import { configText } from '#lib/flow/setup';
 
   let { node, id, label, placeholder }: { node: FlowNode; id: string; label: string; placeholder?: string } = $props();
 
@@ -14,7 +15,7 @@
 
   const { t } = getI18n();
 
-  const login = $derived(String(node.config.login ?? ''));
+  const login = $derived(configText(node, 'login'));
   const userId = $derived(String(node.config.userId ?? ''));
   const matched = $derived(userId !== '');
   let problem = $state<'' | 'missing' | 'failed'>('');

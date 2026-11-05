@@ -82,15 +82,6 @@ func TestAutomationParallelPathsPauseOnTheirOwnBudget(t *testing.T) {
 	assert.Empty(t, automation.Validate(manual("main", fork).Definition))
 }
 
-func TestAutomationDelayWithoutContinuationCapacityLimitsTheRest(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("delay", obj{"ms": 10}), act("delay", obj{"ms": 10}), act("chat", obj{"text": "x"})))
-	fx.p.autoExec.running.Store(maxContinuations)
-	rec := fx.run(t, "main", "req-capacity", nil)
-	assert.Equal(t, []string{"0:delay:ok:", "1:delay:limited:delay_capacity", "2:chat:limited:delay_capacity"}, statuses(rec))
-	assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome)
-	assert.Empty(t, fx.messages(t))
-}
-
 func continuationRig(autos ...automation.Automation) (*Pipeline, *fakePublisher, *autoRunLog, *autoLoyalty) {
 	pub, runs, loyalty := &fakePublisher{}, &autoRunLog{}, &autoLoyalty{}
 	hook := &AutomationHook{}
