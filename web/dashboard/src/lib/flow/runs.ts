@@ -59,7 +59,8 @@ function knownReason(t: Translate, detail: string): string | null {
     reward_not_manageable: t('flows.recipe.why.reward_not_manageable'),
     no_overlay: t('flows.recipe.why.no_overlay'),
     queue_full: t('flows.recipe.why.queue_full'),
-    queue_timeout: t('flows.recipe.why.queue_timeout')
+    queue_timeout: t('flows.recipe.why.queue_timeout'),
+    queued: t('flows.recipe.why.queued')
   };
   return Object.hasOwn(texts, detail) ? texts[detail]! : null;
 }

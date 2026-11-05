@@ -50,13 +50,13 @@ func TestAutomationOutputActions(t *testing.T) {
 
 func TestAutomationBatchesConsecutiveOutputs(t *testing.T) {
 	fx := newAutoFixture(manual("main", act("chat", obj{"text": "one"}), act("shield", obj{"on": true}), act("chat", obj{"text": "two"})))
-	rec := fx.run(t, "main", "req-batch", nil)
+	fx.run(t, "main", "req-batch", nil)
 	snap := fx.pub.snapshot()
 	require.Len(t, snap, 1)
 	assert.Equal(t, outgress.TypeBatch, snap[0].msg.Type)
 	var batch outgress.Batch
 	require.NoError(t, codec.Unmarshal(snap[0].msg.Payload, &batch))
-	assert.Equal(t, rec.RunID+":0:1", batch.ID)
+	assert.Equal(t, "rpc:req-batch>main:0:1", batch.ID, "a redelivered event must resume the batch, not start it again")
 	assert.Len(t, batch.Items, 3)
 }
 

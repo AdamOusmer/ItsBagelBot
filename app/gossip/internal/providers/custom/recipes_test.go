@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/gossip/internal/core"
@@ -46,6 +47,32 @@ func TestInlineFetchBucketDenialAnswersLimited(t *testing.T) {
 
 	assert.Equal(t, gossiprpc.FetchLimited, reply.Status)
 	assert.Zero(t, h.hits.Load())
+}
+
+func TestSavedValuesKeepUpToTheRecipeLimit(t *testing.T) {
+	long := strings.Repeat("é", 800)
+	h := newHarness(t)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "text/plain; charset=utf-8", body: long})
+
+	inline := inlineFetch(h.srv.URL + "/wx")
+	inline.Def.JSONPath = nil
+	assert.Equal(t, []string{strings.Repeat("é", 500)}, call(t, h, inline).Values)
+
+	h.addDef("d", "/wx", gossiprpc.FetchDef{IsActive: true})
+	assert.Equal(t, []string{strings.Repeat("é", 256)}, call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "d"}).Values, "command fetches keep the chat limit")
+
+	rehearsal := inlineFetch(h.srv.URL + "/wx")
+	rehearsal.Def.JSONPath, rehearsal.DryRun = nil, true
+	assert.Equal(t, []string{strings.Repeat("é", 256)}, call(t, h, rehearsal).Values, "a rehearsal shows what a command would get")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte(long))
+	}))
+	t.Cleanup(srv.Close)
+	asked := postRequest(srv.URL, "x")
+	asked.CaptureBody = true
+	assert.Equal(t, []string{strings.Repeat("é", 500)}, callPost(t, h, asked).Values)
 }
 
 func TestPostCapturesTheResponseOnlyWhenAsked(t *testing.T) {

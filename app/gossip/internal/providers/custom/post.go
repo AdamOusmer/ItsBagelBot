@@ -41,7 +41,7 @@ func (p *api) post(ctx context.Context, req gossiprpc.Request) any {
 	}
 	reply := postReply(gossiprpc.FetchOK, nil, start)
 	if req.CaptureBody {
-		reply.Values = capValues([]string{strings.TrimSpace(strings.ToValidUTF8(string(response), ""))})
+		reply.Values = capValues([]string{strings.TrimSpace(strings.ToValidUTF8(string(response), ""))}, maxSavedValueRunes)
 	}
 	return reply
 }

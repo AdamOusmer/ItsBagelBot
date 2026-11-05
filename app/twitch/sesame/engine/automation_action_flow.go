@@ -6,10 +6,13 @@ package engine
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"maps"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,29 +25,42 @@ import (
 )
 
 const (
-	maxContinuations    = 512
-	continuationTimeout = 30 * time.Second
-	maxForksPerRun      = 128
-	maxSyncSegment      = 3 * time.Second
+	maxContinuations           = 512
+	maxContinuationsPerChannel = maxContinuations / 4
+	continuationTimeout        = 30 * time.Second
+	maxForksPerRun             = 128
+	maxSyncSegment             = 3 * time.Second
 )
 
 type autoExecState struct {
-	running atomic.Int32
+	running  atomic.Int32
+	mu       sync.Mutex
+	channels map[uint64]int32
 }
 
-func (s *autoExecState) acquire() bool {
-	for {
-		n := s.running.Load()
-		if n >= maxContinuations {
-			return false
-		}
-		if s.running.CompareAndSwap(n, n+1) {
-			return true
-		}
+func (s *autoExecState) acquire(channel uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.running.Load() >= maxContinuations || s.channels[channel] >= maxContinuationsPerChannel {
+		return false
 	}
+	if s.channels == nil {
+		s.channels = make(map[uint64]int32)
+	}
+	s.channels[channel]++
+	s.running.Add(1)
+	return true
 }
 
-func (s *autoExecState) release() { s.running.Add(-1) }
+func (s *autoExecState) release(channel uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.channels[channel]--
+	if s.channels[channel] <= 0 {
+		delete(s.channels, channel)
+	}
+	s.running.Add(-1)
+}
 
 func (x *actionExec) stop(step, automation.EmptyParams) error {
 	x.signal = signalStop
@@ -78,7 +94,7 @@ func (x *actionExec) parallel(s step, _ automation.ParallelAction) error {
 		x.budget.delayMS = spent
 		x.run.Locals = maps.Clone(locals)
 		x.execList(s.Branches[i])
-		x.settlePath(i)
+		x.settlePath(s, i)
 	}
 	x.budget.delayMS, x.run.Locals = spent, locals
 	return nil
@@ -105,7 +121,7 @@ type loopCursor struct {
 func (x *actionExec) iterate(c loopCursor) {
 	outer := x.iter
 	for c.next <= c.total {
-		if x.budget.executed >= automation.MaxActions {
+		if x.run.Tree.executed.Load() >= automation.MaxActions {
 			x.recordLimited(c.step, "max_actions")
 			break
 		}
@@ -137,31 +153,28 @@ func (x *actionExec) restoreIndex(c loopCursor) {
 	delete(x.run.Locals, localIndex)
 }
 
-func (x *actionExec) settlePath(path int) {
+func (x *actionExec) settlePath(s step, path int) {
 	paused := x.signal == signalDelay && len(x.rest) > 0
-	if paused && !x.schedulePath(path) {
+	if paused && !x.schedulePath(s, path) {
 		x.limitRest()
 	}
 	x.signal, x.rest = signalNone, nil
 }
 
-func (x *actionExec) forks() *atomic.Int32 {
-	if x.run.Forks == nil {
-		x.run.Forks = new(atomic.Int32)
-	}
-	return x.run.Forks
+func (x *actionExec) claimFork() bool {
+	return x.run.Tree.forks.Add(1) <= maxForksPerRun
 }
 
-func (x *actionExec) schedulePath(path int) bool {
-	if x.forks().Add(1) > maxForksPerRun {
+func (x *actionExec) schedulePath(s step, path int) bool {
+	if !x.claimFork() {
 		return false
 	}
-	if !x.p.autoExec.acquire() {
+	if !x.p.autoExec.acquire(x.run.BroadcasterID) {
 		return false
 	}
 	cont := detachRun(x.run)
-	// The iteration path keeps replay ids distinct: outgress drops a repeated one.
-	cont.ID = cont.ID + "#" + strconv.Itoa(path) + x.iter
+	// Node, path and iteration keep replay ids distinct: outgress drops a repeated one.
+	cont.Replay = nestedReplayKey(x.run.replayKey(), s.EffectKey+"."+strconv.Itoa(path)+x.iter)
 	x.startContinuation(cont)
 	return true
 }
@@ -197,7 +210,7 @@ func (x *actionExec) ifElse(s step, _ automation.IfAction) error {
 	return nil
 }
 
-func (x *actionExec) runOther(_ step, p automation.RunAction) error {
+func (x *actionExec) runOther(s step, p automation.RunAction) error {
 	if x.run.Depth >= automation.MaxRecursionDepth {
 		return limited("depth")
 	}
@@ -209,11 +222,8 @@ func (x *actionExec) runOther(_ step, p automation.RunAction) error {
 		return failure("not_found")
 	}
 	x.flush()
-	x.forks()
-	child := x.childRun(target)
-	child.Spent = stepSpend{executed: x.budget.executed, visits: x.budget.visits}
+	child := x.childRun(s, target)
 	x.p.runAutomation(x.ctx, child, x.emit)
-	x.budget.executed, x.budget.visits = max(x.budget.executed, child.Spent.executed), max(x.budget.visits, child.Spent.visits)
 	if child.Record.Outcome == automationrpc.OutcomeFailed {
 		return failure("child_failed")
 	}
@@ -232,13 +242,14 @@ func (x *actionExec) findAutomation(id string) *automation.Plan {
 	return index.Plan(id)
 }
 
-func (x *actionExec) childRun(target *automation.Plan) *AutomationRun {
+func (x *actionExec) childRun(s step, target *automation.Plan) *AutomationRun {
 	child := *x.run
 	child.Plan = target
 	child.Depth++
 	child.Record = automationrpc.RunRecord{}
 	child.Locals = maps.Clone(x.run.Locals)
-	child.Iter = x.iter
+	child.Iter = x.iter + "~" + s.EffectKey
+	child.Replay = nestedReplayKey(x.run.replayKey(), target.Automation.ID+child.Iter)
 	child.ID = x.run.ID + "/" + target.Automation.ID
 	if id, err := utils.NewID(); err == nil {
 		child.ID = id.String()
@@ -246,8 +257,13 @@ func (x *actionExec) childRun(target *automation.Plan) *AutomationRun {
 	return &child
 }
 
+// A root's or continuation's next segment replaces the one ending; a child's first one runs beside its parent.
 func (x *actionExec) scheduleRest() bool {
-	if !x.p.autoExec.acquire() {
+	forksFromParent := x.run.Depth > 0 && x.budget.segment == 0
+	if forksFromParent && !x.claimFork() {
+		return false
+	}
+	if !x.p.autoExec.acquire(x.run.BroadcasterID) {
 		return false
 	}
 	x.startContinuation(detachRun(x.run))
@@ -271,7 +287,7 @@ type continuation struct {
 
 func (p *Pipeline) continueRun(ctx context.Context, c continuation) {
 	run, budget := c.run, c.budget
-	defer p.autoExec.release()
+	defer p.autoExec.release(run.BroadcasterID)
 	defer run.Slot.drop()
 	ctx, cancel := context.WithTimeout(ctx, c.wait+continuationTimeout)
 	defer cancel()
@@ -285,7 +301,7 @@ func (p *Pipeline) continueRun(ctx context.Context, c continuation) {
 		p.finishRun(ctx, run)
 		return
 	}
-	out := p.detachedEmit(ctx, run.BroadcasterID, run.Locale, run.ID+":"+strconv.Itoa(budget.segment))
+	out := p.detachedEmit(ctx, run.BroadcasterID, run.Locale, run.replayKey()+":"+strconv.Itoa(budget.segment))
 	x := p.newActionExec(ctx, run, out.emit)
 	defer releaseActionExec(x)
 	x.budget = budget
@@ -311,14 +327,43 @@ func sleepContext(ctx context.Context, d time.Duration) bool {
 func detachRun(run *AutomationRun) *AutomationRun {
 	d := *run
 	d.Ctx = nil
+	if run.Ctx != nil {
+		d.DetachedRole = run.Ctx.Chatter()
+	}
 	d.Env = detachEnvelope(run.Env)
 	d.Channel, d.Locale, d.Args = strings.Clone(run.Channel), strings.Clone(run.Locale), strings.Clone(run.Args)
-	d.ID, d.Identity = strings.Clone(run.ID), strings.Clone(run.Identity)
+	d.ID, d.Identity, d.Replay = strings.Clone(run.ID), strings.Clone(run.Identity), strings.Clone(run.Replay)
 	d.Viewer = Viewer{ID: run.Viewer.ID, Login: strings.Clone(run.Viewer.Login), Name: strings.Clone(run.Viewer.Name)}
 	d.Iter = strings.Clone(run.Iter)
 	d.ArgMap, d.Event, d.Locals = cloneStrings(run.ArgMap), cloneStrings(run.Event), cloneStrings(run.Locals)
 	d.Record.Actions = slices.Clone(run.Record.Actions)
 	return &d
+}
+
+func (run *AutomationRun) identity() string {
+	if run.Env != nil {
+		if id := EventIdentity(run.Env); id != "" {
+			return id
+		}
+	}
+	return run.Identity
+}
+
+// A run id is random per delivery, so replay keys start from the event; a run with no event identity has only its id.
+func (run *AutomationRun) replayKey() string {
+	if run.Replay != "" {
+		return run.Replay
+	}
+	identity := run.identity()
+	if identity == "" || strings.HasPrefix(identity, ":") {
+		return run.ID
+	}
+	return identity + ">" + run.Plan.Automation.ID
+}
+
+func nestedReplayKey(parent, site string) string {
+	sum := sha256.Sum256([]byte(parent + "\x00" + site))
+	return hex.EncodeToString(sum[:16])
 }
 
 func cloneStrings(m map[string]string) map[string]string {

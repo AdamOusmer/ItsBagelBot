@@ -2732,6 +2732,7 @@ export type KnownMessageKey =
   | 'flows.recipe.why.no_overlay'
   | 'flows.recipe.why.queue_full'
   | 'flows.recipe.why.queue_timeout'
+  | 'flows.recipe.why.queued'
   | 'flows.recipe.why.reward_not_manageable'
   | 'flows.recipe.why.skipped'
   | 'flows.recipe.why.text_error'

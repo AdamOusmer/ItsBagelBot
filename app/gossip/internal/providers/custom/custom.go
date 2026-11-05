@@ -46,6 +46,8 @@ const (
 
 	maxValues     = 5
 	maxValueRunes = 256
+	// Mirrors automation.MaxSavedValueRunes.
+	maxSavedValueRunes = 500
 
 	// Must equal SAMPLE_MAX_BYTES in JsonTree.svelte: the client rejects anything larger.
 	maxSampleBytes = 128 * 1024
@@ -140,7 +142,7 @@ func (p *api) fetch(ctx context.Context, req gossiprpc.Request) any {
 		return fetchReply(gossiprpc.FetchUpstreamError, nil, start)
 	}
 	out.MS = int(time.Since(start).Milliseconds())
-	out.Values = capValues(out.Values)
+	out.Values = capValues(out.Values, fl.valueLimit(req.DryRun))
 	return out
 }
 
@@ -519,14 +521,22 @@ func marshalSampled(status gossiprpc.FetchStatus, values []string, sample string
 	return b
 }
 
-func capValues(values []string) []string {
+func capValues(values []string, runes int) []string {
 	if len(values) > maxValues {
 		values = values[:maxValues]
 	}
 	for i, v := range values {
-		values[i] = truncateRunes(v, maxValueRunes)
+		values[i] = truncateRunes(v, runes)
 	}
 	return values
+}
+
+// Only a live recipe saves its inline fetch; a dashboard rehearsal shows what a command would get.
+func (fl *flight) valueLimit(dryRun bool) int {
+	if fl.inline && !dryRun {
+		return maxSavedValueRunes
+	}
+	return maxValueRunes
 }
 
 func truncateRunes(s string, n int) string {

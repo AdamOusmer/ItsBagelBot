@@ -17,6 +17,7 @@ const (
 	maxTitleRunes  = 140
 	maxGameRunes   = 100
 	maxTagsRunes   = 500
+	rewardQueued   = "queued"
 )
 
 func (x *actionExec) chat(_ step, p automation.TextAction) error {
@@ -160,7 +161,10 @@ func (x *actionExec) rewardUpdate(_ step, p automation.RewardUpdateAction) error
 	o := x.out(outgress.TypeRewardUpdate)
 	o.RewardID = p.RewardID
 	o.Reward = &outgress.RewardUpdate{Enabled: p.Enabled, Cost: p.Cost, ResetOnStreamEnd: p.ResetOnStreamEnd}
-	return x.queue(o)
+	if err := x.queue(o); err != nil {
+		return err
+	}
+	return succeeded(rewardQueued)
 }
 
 func (x *actionExec) redemptionIDs() (rewardID, redemptionID string) {

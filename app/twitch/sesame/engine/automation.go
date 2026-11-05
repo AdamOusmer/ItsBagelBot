@@ -62,16 +62,31 @@ type AutomationRun struct {
 	Record        automationrpc.RunRecord
 	Locals        map[string]string
 	Iter          string
-	Forks         *atomic.Int32
-	Spent         stepSpend
+	Replay        string
+	Tree          *runTree
 	Slot          *queueSlot
-	QueuedRole    module.Role
+	DetachedRole  module.Role
 }
 
-// stepSpend carries the step budget through `run` children, or loops multiply it per depth.
-type stepSpend struct {
-	executed int
-	visits   int
+// A root run, its `run` children and every detached path spend these concurrently: a copy per path multiplies each cap.
+type runTree struct {
+	forks    atomic.Int32
+	executed atomic.Int32
+	visits   atomic.Int32
+	chats    atomic.Int32
+}
+
+func (t *runTree) claimChats(want int) int {
+	for {
+		used := t.chats.Load()
+		kept := min(int32(want), automation.MaxChatMessagesPerRun-used)
+		if kept <= 0 {
+			return 0
+		}
+		if t.chats.CompareAndSwap(used, used+kept) {
+			return int(kept)
+		}
+	}
 }
 
 type noRunLog struct{}

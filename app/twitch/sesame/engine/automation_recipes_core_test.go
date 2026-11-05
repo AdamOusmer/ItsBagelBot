@@ -759,9 +759,9 @@ func TestHTTPPostInsideLoopPostsEachIterationOnce(t *testing.T) {
 
 func TestFetchNodeConsumesBudget(t *testing.T) {
 	fx := newAutoFixture(manual("main", act("http_get", obj{"url": "https://example.com/"})))
-	x := fx.p.newActionExec(context.Background(), &AutomationRun{Plan: automation.NewPlan(manual("main")), BroadcasterID: 1, ID: "r"}, func(*module.Output) {})
+	x := fx.p.newActionExec(context.Background(), &AutomationRun{Plan: automation.NewPlan(manual("main")), BroadcasterID: 1, ID: "r", Tree: new(runTree)}, func(*module.Output) {})
 	defer releaseActionExec(x)
-	x.budget.executed = automation.MaxActions
+	x.run.Tree.executed.Store(automation.MaxActions)
 	plan := automation.NewPlan(manual("main", act("http_get", obj{"url": "https://example.com/"})))
 	x.execList(plan.Steps)
 	assert.Equal(t, []string{"0:http_get:limited:max_actions"}, statuses(x.run.Record))

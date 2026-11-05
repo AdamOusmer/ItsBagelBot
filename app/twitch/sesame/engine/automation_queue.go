@@ -173,9 +173,6 @@ func (p *Pipeline) startQueueWait(ctx context.Context, run *AutomationRun, seat 
 	}
 	// The handler returns now and recycles the run's pooled envelope and args, so the waiter gets its own copy.
 	waiting := detachRun(run)
-	if run.Ctx != nil {
-		waiting.QueuedRole = run.Ctx.Chatter()
-	}
 	run.Record.Outcome = outcomeDeferred
 	go p.awaitQueueTurn(context.WithoutCancel(ctx), waiting, seat, position)
 }
@@ -272,7 +269,7 @@ func (p *Pipeline) runQueuedTurn(parent context.Context, run *AutomationRun) {
 		p.finishRun(ctx, run)
 		return
 	}
-	out := p.detachedEmit(ctx, run.BroadcasterID, run.Locale, run.ID+":0")
+	out := p.detachedEmit(ctx, run.BroadcasterID, run.Locale, run.replayKey()+":0")
 	x := p.newActionExec(ctx, run, out.emit)
 	defer releaseActionExec(x)
 	x.execute()

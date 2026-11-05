@@ -73,12 +73,9 @@ type resume struct {
 type step = *automation.Step
 
 type runBudget struct {
-	executed int
-	chats    int
-	delayMS  int
-	segment  int
-	visits   int
-	handled  int
+	delayMS int
+	segment int
+	handled int
 }
 
 type actionExec struct {
@@ -116,9 +113,10 @@ func (x *actionExec) execute() {
 	if run.Plan.StepCount > 0 {
 		run.Record.Actions = make([]automationrpc.ActionRecord, 0, run.Plan.StepCount)
 	}
-	x.budget.executed, x.budget.visits = run.Spent.executed, run.Spent.visits
+	if run.Tree == nil {
+		run.Tree = new(runTree)
+	}
 	x.execList(run.Plan.Steps)
-	run.Spent = stepSpend{executed: x.budget.executed, visits: x.budget.visits}
 	x.conclude()
 }
 
@@ -170,12 +168,11 @@ func (x *actionExec) yieldIfSlow() {
 }
 
 func (x *actionExec) step(s step) {
-	if x.budget.visits >= automation.MaxStepVisitsPerRun {
+	if x.run.Tree.visits.Add(1) > automation.MaxStepVisitsPerRun {
 		x.recordLimited(s, "max_steps")
 		x.signal = signalStop
 		return
 	}
-	x.budget.visits++
 	x.run.Record.Actions = append(x.run.Record.Actions, automationrpc.ActionRecord{Index: s.Index, Type: s.Type, Status: automationrpc.StatusOK})
 	slot := len(x.run.Record.Actions) - 1
 	status, detail := classify(x.dispatch(s))
@@ -193,10 +190,9 @@ func (x *actionExec) dispatch(s step) error {
 	if automation.IsBranching(s.Type) {
 		return handler(x, s)
 	}
-	if x.budget.executed >= automation.MaxActions {
+	if x.run.Tree.executed.Add(1) > automation.MaxActions {
 		return limited("max_actions")
 	}
-	x.budget.executed++
 	return handler(x, s)
 }
 
@@ -266,14 +262,11 @@ func (x *actionExec) queueText(o module.Output) error {
 	if added == 0 {
 		return skipped("empty")
 	}
-	room := automation.MaxChatMessagesPerRun - x.budget.chats
-	if room <= 0 {
-		x.pending = x.pending[:start]
+	kept := x.run.Tree.claimChats(added)
+	x.pending = x.pending[:start+kept]
+	if kept == 0 {
 		return limited("chat_cap")
 	}
-	kept := min(added, room)
-	x.pending = x.pending[:start+kept]
-	x.budget.chats += kept
 	return nil
 }
 
@@ -296,17 +289,10 @@ func (x *actionExec) emitBatch(items []module.Output) {
 	batch := GetOutput()
 	batch.Type = outgress.TypeBatch
 	batch.BroadcasterID = x.bid
-	batch.BatchID = x.run.ID + ":" + strconv.Itoa(x.budget.segment) + ":" + strconv.Itoa(x.flushes)
+	batch.BatchID = x.run.replayKey() + ":" + strconv.Itoa(x.budget.segment) + ":" + strconv.Itoa(x.flushes)
 	batch.Items = items
 	x.emit(batch)
 	PutOutput(batch)
 }
 
-func (x *actionExec) identity() string {
-	if x.run.Env != nil {
-		if id := EventIdentity(x.run.Env); id != "" {
-			return id
-		}
-	}
-	return x.run.Identity
-}
+func (x *actionExec) identity() string { return x.run.identity() }

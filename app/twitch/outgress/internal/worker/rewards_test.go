@@ -41,6 +41,8 @@ type rewardsAPI struct {
 	gets        int
 	patches     []string
 	onPatch     func()
+	onGet       func()
+	failApplied int
 }
 
 func newRewardsAPI(rewards ...apiReward) *rewardsAPI {
@@ -63,6 +65,12 @@ func (a *rewardsAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *rewardsAPI) get(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	hook := a.onGet
+	a.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.gets++
@@ -104,6 +112,11 @@ func (a *rewardsAPI) patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = codec.Unmarshal([]byte(body.String()), reward)
+	if a.failApplied != 0 {
+		w.WriteHeader(a.failApplied)
+		a.failApplied = 0
+		return
+	}
 	writeRewards(w, []apiReward{*reward})
 }
 
