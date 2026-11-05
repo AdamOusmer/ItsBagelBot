@@ -5,10 +5,12 @@ package automation
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/pkg/tmpl"
 )
 
 type LoopAction struct {
@@ -30,7 +32,9 @@ func loopBranches(p LoopAction) nesting {
 	return nesting{lists: [][]Action{p.Actions}, labels: []string{"body"}}
 }
 
-func isStaticText(s string) bool { return !strings.Contains(s, "{") }
+func isVarToken(t tmpl.Token) bool { return t.Kind == tmpl.KindVar }
+
+func isStaticText(s string) bool { return !slices.ContainsFunc(tmpl.Lex(s), isVarToken) }
 
 // ParseLoopTimes reads a rendered times value, clamped to 0..MaxLoopTimes.
 func ParseLoopTimes(rendered string) (int, bool) {
@@ -62,10 +66,11 @@ func checkHTTPGet(c chk, p HTTPGetAction) {
 
 // A template's final URL is only known at run time; the engine and gossip check it again then.
 func plausibleFetchTemplate(raw string) bool {
-	if isStaticText(raw) {
+	toks := tmpl.Lex(raw)
+	if !slices.ContainsFunc(toks, isVarToken) {
 		return validate.FetchURL(raw) == nil
 	}
-	return strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "{")
+	return strings.HasPrefix(raw, "https://") || isVarToken(toks[0])
 }
 
 func (c chk) fetchPaths(onOK, onFailure []Action) {
