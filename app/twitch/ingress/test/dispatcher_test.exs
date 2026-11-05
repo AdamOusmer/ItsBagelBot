@@ -25,6 +25,7 @@ defmodule Ingress.DispatcherTest do
       name: name,
       supervisor_name: :"#{name}.Supervisor",
       worker_supervisor_name: :"#{name}.WorkerSupervisor",
+      scaler_name: :"#{name}.Scaler",
       max_running: 2,
       max_queue: 2,
       max_per_broadcaster: 2,
@@ -211,6 +212,184 @@ defmodule Ingress.DispatcherTest do
     send(worker, :finish)
     assert_receive {:processed, ^worker, %{n: 2}, %{broadcaster_id: "b2"}}, 500
     send(worker, :finish)
+  end
+
+  describe "elastic pool" do
+    defp start_elastic(opts \\ []) do
+      name = :"dispatcher_#{System.unique_integer([:positive])}"
+      test = self()
+
+      defaults = [
+        name: name,
+        supervisor_name: :"#{name}.Supervisor",
+        worker_supervisor_name: :"#{name}.WorkerSupervisor",
+        scaler_name: :"#{name}.Scaler",
+        min_running: 2,
+        max_running: 16,
+        max_queue: 256,
+        max_per_broadcaster: 256,
+        sweep_ms: 60_000,
+        scale_interval_ms: 5,
+        shrink_after_ms: 40,
+        retire_grace_ms: 10,
+        completion_batch_size: 1,
+        handler: fn payload, _meta ->
+          send(test, {:started, self(), payload})
+
+          receive do
+            :finish -> :ok
+          end
+        end
+      ]
+
+      start_supervised!({Ingress.Dispatcher.Supervisor, Keyword.merge(defaults, opts)})
+      assert eventually(fn -> Dispatcher.active_workers(name) == defaults[:min_running] end)
+      name
+    end
+
+    defp alive_workers(dispatcher), do: Enum.count(workers(dispatcher), &is_pid/1)
+
+    defp finish_all(count) do
+      for _ <- 1..count do
+        assert_receive {:started, worker, _payload}, 1_000
+        send(worker, :finish)
+      end
+    end
+
+    test "starts at the floor and grows with admitted backlog" do
+      dispatcher = start_elastic()
+      assert alive_workers(dispatcher) == 2
+
+      for n <- 1..40, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 10 end)
+      assert alive_workers(dispatcher) == 10
+    end
+
+    test "growth stops at the ceiling" do
+      dispatcher = start_elastic()
+
+      for n <- 1..200, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 16 end)
+      Process.sleep(30)
+      assert Dispatcher.active_workers(dispatcher) == 16
+    end
+
+    test "shrinks back to the floor after the backlog clears and stops the surplus" do
+      dispatcher = start_elastic()
+
+      for n <- 1..40, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+      assert eventually(fn -> alive_workers(dispatcher) == 10 end)
+
+      finish_all(40)
+
+      assert eventually(fn -> Dispatcher.admitted_count(dispatcher) == 0 end)
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 2 end)
+      assert eventually(fn -> alive_workers(dispatcher) == 2 end)
+    end
+
+    test "a retiring worker holding work finishes it before it stops" do
+      dispatcher = start_elastic()
+
+      for n <- 1..40, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 10 end)
+
+      for n <- 41..48, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+
+      floor_workers = dispatcher |> workers() |> Enum.take(2)
+      held = finish_all_but_one(floor_workers, nil)
+
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 2 end)
+      Process.sleep(50)
+      assert Process.alive?(held)
+      assert Dispatcher.admitted_count(dispatcher) > 0
+
+      send(held, :finish)
+      finish_remaining(dispatcher)
+
+      assert eventually(fn -> alive_workers(dispatcher) == 2 end)
+      assert counts(dispatcher, "b1") == {0, 0}
+    end
+
+    defp finish_all_but_one(floor_workers, held) do
+      receive do
+        {:started, worker, _payload} when held == nil ->
+          if worker in floor_workers do
+            send(worker, :finish)
+            finish_all_but_one(floor_workers, nil)
+          else
+            finish_all_but_one(floor_workers, worker)
+          end
+
+        {:started, worker, _payload} ->
+          send(worker, :finish)
+          finish_all_but_one(floor_workers, held)
+      after
+        100 -> held
+      end
+    end
+
+    defp finish_remaining(dispatcher) do
+      receive do
+        {:started, worker, _payload} ->
+          send(worker, :finish)
+          finish_remaining(dispatcher)
+      after
+        100 -> assert Dispatcher.admitted_count(dispatcher) == 0
+      end
+    end
+
+    test "the pool holds its size while the backlog persists across windows" do
+      dispatcher = start_elastic()
+
+      for n <- 1..40, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 10 end)
+
+      Process.sleep(120)
+
+      assert Dispatcher.active_workers(dispatcher) == 10
+      assert alive_workers(dispatcher) == 10
+    end
+
+    test "a pod-wide drop still applies at the fixed capacity while the pool is small" do
+      dispatcher = start_elastic(max_queue: 2, max_running: 2)
+
+      for n <- 1..10, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+
+      assert Dispatcher.admitted_count(dispatcher) == 4
+    end
+
+    test "growth reuses a worker that was retiring" do
+      dispatcher = start_elastic(retire_grace_ms: 60_000)
+
+      for n <- 1..40, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 10 end)
+      before_shrink = workers(dispatcher)
+
+      finish_all(40)
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 2 end)
+      assert alive_workers(dispatcher) == 10
+
+      for n <- 41..80, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 10 end)
+
+      assert workers(dispatcher) == before_shrink
+    end
+
+    test "a restarted scaler adopts surplus workers and stops them" do
+      dispatcher = start_elastic(shrink_after_ms: 60_000)
+
+      for n <- 1..40, do: Dispatcher.dispatch(%{n: n}, meta("b1"), dispatcher)
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 10 end)
+      finish_all(40)
+      assert eventually(fn -> Dispatcher.admitted_count(dispatcher) == 0 end)
+
+      Process.exit(Process.whereis(:"#{dispatcher}.Scaler"), :kill)
+
+      assert eventually(fn -> Dispatcher.active_workers(dispatcher) == 2 end)
+      assert eventually(fn -> alive_workers(dispatcher) == 2 end)
+    end
   end
 
   test "the sweep removes zeroed attribution counters" do

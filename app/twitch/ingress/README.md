@@ -83,7 +83,11 @@ to standard.
 | `NATS_CACHE_INVALIDATION_SUBJECT`   | Cache invalidation subject the ingress subscribes to.          | `bagel.cache.invalidate.status`               |
 | `BROADCASTER_CACHE_TTL_SECONDS`     | Status cache TTL.                                              | `300`                                         |
 | `INGRESS_SQUASH_PARTITIONS`         | Independent duplicate-cohort owners.                           | Online scheduler count                        |
-| `INGRESS_DISPATCHER_MAX_RUNNING`    | Fixed direct-dispatch worker count.                             | `512`                                         |
+| `INGRESS_DISPATCHER_MAX_RUNNING`    | Direct-dispatch worker ceiling; also part of admission capacity. | `512`                                         |
+| `INGRESS_DISPATCHER_MIN_RUNNING`    | Workers kept when idle.                                         | `8`                                           |
+| `INGRESS_DISPATCHER_SCALE_INTERVAL_MS` | How often the pool compares admitted work to its size.       | `100`                                         |
+| `INGRESS_DISPATCHER_SHRINK_AFTER_MS` | Window whose peak sets the size the pool shrinks to.           | `30000`                                       |
+| `INGRESS_DISPATCHER_RETIRE_GRACE_MS` | Wait before stopping a drained worker removed from dispatch.   | `1000`                                        |
 | `INGRESS_DISPATCHER_MAX_QUEUE`      | Total bounded worker-mailbox allowance.                         | `20000`                                       |
 | `INGRESS_DISPATCHER_MAX_PER_BROADCASTER` | Per-broadcaster cap on in-flight dispatcher work.               | `2048`                                        |
 | `INGRESS_PUBLISH_ACK_TIMEOUT_MS`    | PubAck wait before an outcome counts as ambiguous.              | `2000`                                        |
