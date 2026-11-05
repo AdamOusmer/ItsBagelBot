@@ -26,6 +26,7 @@ export const SECTIONS: ShowcaseGroup[] = [
       { href: '/lab/toggles/', label: 'Switch and checkbox' },
       { href: '/lab/color/', label: 'Color picker' },
       { href: '/lab/chat/', label: 'Chat playground' },
+      { href: '/lab/rehearsal/', label: 'Chat rehearsal' },
     ],
   },
 ];
