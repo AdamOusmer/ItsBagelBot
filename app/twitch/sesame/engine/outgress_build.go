@@ -94,6 +94,7 @@ var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error)
 	outgress.TypeDelete:           deleteOutgress,
 	outgress.TypeWarn:             warnOutgress,
 	outgress.TypeRedemptionUpdate: redemptionUpdateOutgress,
+	outgress.TypeRewardUpdate:     rewardUpdateOutgress,
 }
 
 func payloadMessage(msgType, broadcasterID string, payload any) (outgress.Message, error) {
@@ -206,6 +207,12 @@ func warnOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(outgress.TypeWarn, o.BroadcasterID, &struct {
 		Data banData `json:"data"`
 	}{banData{UserID: o.TargetUserID, Reason: o.Reason}})
+}
+
+func rewardUpdateOutgress(o *module.Output) (outgress.Message, error) {
+	msg, err := payloadMessage(outgress.TypeRewardUpdate, o.BroadcasterID, o.Reward)
+	msg.RewardID = o.RewardID
+	return msg, err
 }
 
 func redemptionUpdateOutgress(o *module.Output) (outgress.Message, error) {

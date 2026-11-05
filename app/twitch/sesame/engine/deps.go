@@ -41,6 +41,7 @@ type Deps struct {
 	TrialStore     valkey.Client
 	Proj           projection.Reader
 	Live           LiveStore
+	RewardResets   RewardResetLookup
 	Greet          GreetStore
 	Cooldown       CooldownStore
 	Special        *SpecialSet
