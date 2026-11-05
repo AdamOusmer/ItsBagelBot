@@ -139,8 +139,8 @@ func Load() *Config {
 		FetchKeySubjectPrefix:  env.Get("NATS_INTERNAL_FETCH_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.commands.fetchkey"),
 		FetchProjectionSubject: env.Get("PROJECTION_FETCHES_SUBJECT", "bagel.rpc.internal.projection.commands.fetches.get"),
 
-		CustomChannelRateLimit: env.GetFloat("CUSTOM_FETCH_CHANNEL_RATE_LIMIT", 6.0),
-		CustomDefRateLimit:     env.GetFloat("CUSTOM_FETCH_DEF_RATE_LIMIT", 30.0),
+		CustomChannelRateLimit: env.GetFloat("CUSTOM_FETCH_CHANNEL_RATE_LIMIT", 60.0),
+		CustomDefRateLimit:     env.GetFloat("CUSTOM_FETCH_DEF_RATE_LIMIT", 60.0),
 		CustomHostRateLimit:    env.GetFloat("CUSTOM_FETCH_HOST_RATE_LIMIT", 120.0),
 		CustomPositiveTTL:      env.GetDuration("CUSTOM_FETCH_POSITIVE_TTL", 30*time.Second),
 
