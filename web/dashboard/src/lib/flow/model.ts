@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { MAX_DELAY_MS } from '@bagel/kit/automations/limits';
+import { MAX_DELAY_MS, MAX_OVERLAY_SECONDS, MAX_OVERLAY_VOLUME, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
@@ -13,7 +13,7 @@ export type StepGroup = 'twitch' | 'modules' | 'basics';
 
 type Typed = { key: string; placeholder?: true };
 
-export type FieldSpec = { when?: { key: string; value: string } } & (
+export type FieldSpec = { when?: { key: string; value: string | readonly string[] } } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
@@ -27,7 +27,7 @@ export type FieldSpec = { when?: { key: string; value: string } } & (
 
 export type VariableSpec = { token: string; name: string; sample: string };
 
-export type OutputSpec = { id: string };
+export type OutputSpec = { id: string; provides?: readonly VariableSpec[] };
 
 export type NodeSpec = {
   type: string;
@@ -50,7 +50,7 @@ export type FlowNode = {
 
 export type FlowEdge = { id: string; from: string; port: string; to: string };
 
-export type Flow = { id: string; name: string; enabled: boolean; nodes: FlowNode[]; edges: FlowEdge[] };
+export type Flow = { id: string; name: string; enabled: boolean; nodes: FlowNode[]; edges: FlowEdge[]; queue?: string };
 
 export const GRID = 24;
 export const NODE_W = 288;
@@ -63,6 +63,21 @@ const user: VariableSpec[] = [
 ];
 
 const yesNo: OutputSpec[] = [{ id: 'yes' }, { id: 'no' }];
+
+const apiPorts: OutputSpec[] = [
+  { id: 'ok' },
+  { id: 'failure', provides: [{ token: '{local:error}', name: 'apiError', sample: '503' }] }
+];
+
+const loopPorts: OutputSpec[] = [
+  { id: 'body', provides: [{ token: '{local:index}', name: 'loopIndex', sample: '1' }] },
+  { id: 'done' }
+];
+
+const varScope: FieldSpec = { key: 'scope', type: 'select', options: ['channel', 'viewer'] };
+const varName: FieldSpec = { key: 'name', type: 'text', placeholder: true };
+const saveAs: FieldSpec = { key: 'saveAs', type: 'text', placeholder: true };
+const VAR_OPS_WITH_VALUE = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'] as const;
 
 export const newFlow = (name: string): Flow => ({ id: 'new', name, enabled: true, nodes: [], edges: [] });
 
@@ -192,6 +207,20 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     outputs: yesNo
   },
   {
+    type: 'cond.var',
+    slug: 'var',
+    kind: 'condition',
+    group: 'basics',
+    icon: 'braces',
+    fields: [
+      varScope,
+      varName,
+      { key: 'op', type: 'select', options: [...VAR_OPS_WITH_VALUE, 'exists'] },
+      { key: 'value', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: VAR_OPS_WITH_VALUE } }
+    ],
+    outputs: yesNo
+  },
+  {
     type: 'reply.chat',
     slug: 'chat',
     kind: 'reply',
@@ -236,19 +265,157 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     group: 'basics',
     icon: 'timer',
     fields: [{ key: 'seconds', type: 'number', min: 1, max: MAX_WAIT_SECONDS, unit: true }]
+  },
+  {
+    type: 'reply.loop',
+    slug: 'loop',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'repeat',
+    fields: [{ key: 'times', type: 'template', placeholder: true, singleLine: true }],
+    outputs: loopPorts
+  },
+  {
+    type: 'reply.var_set',
+    slug: 'varSet',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'braces',
+    fields: [varScope, varName, { key: 'value', type: 'template', placeholder: true, singleLine: true }]
+  },
+  {
+    type: 'reply.var_add',
+    slug: 'varAdd',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'braces',
+    fields: [varScope, varName, { key: 'amount', type: 'number' }]
+  },
+  {
+    type: 'reply.var_delete',
+    slug: 'varDelete',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'braces',
+    fields: [varScope, varName]
+  },
+  {
+    type: 'reply.text',
+    slug: 'text',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'letters',
+    fields: [
+      { key: 'op', type: 'select', options: ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'] },
+      { key: 'input', type: 'template', placeholder: true, singleLine: true },
+      { key: 'find', type: 'template', singleLine: true, when: { key: 'op', value: 'replace' } },
+      { key: 'replaceWith', type: 'template', singleLine: true, when: { key: 'op', value: 'replace' } },
+      { key: 'start', type: 'template', singleLine: true, when: { key: 'op', value: 'substring' } },
+      { key: 'count', type: 'template', singleLine: true, when: { key: 'op', value: 'substring' } },
+      { key: 'separator', type: 'template', singleLine: true, when: { key: 'op', value: 'split_pick' } },
+      { key: 'pick', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: 'split_pick' } },
+      { key: 'needle', type: 'template', singleLine: true, when: { key: 'op', value: 'contains' } },
+      saveAs
+    ]
+  },
+  {
+    type: 'reply.math',
+    slug: 'math',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'calculator',
+    fields: [{ key: 'expression', type: 'template', placeholder: true, singleLine: true }, saveAs]
+  },
+  {
+    type: 'reply.http_get',
+    slug: 'httpGet',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'globe',
+    fields: [
+      { key: 'url', type: 'template', placeholder: true, singleLine: true },
+      { key: 'jsonPath', type: 'text', placeholder: true },
+      saveAs
+    ],
+    outputs: apiPorts
+  },
+  {
+    type: 'reply.http_post',
+    slug: 'httpPost',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'globe',
+    fields: [{ key: 'url', type: 'template', placeholder: true, singleLine: true }, { key: 'body', type: 'template', placeholder: true }, saveAs],
+    outputs: apiPorts
+  },
+  {
+    type: 'reply.reward_update',
+    slug: 'rewardUpdate',
+    kind: 'reply',
+    group: 'modules',
+    icon: 'ticket',
+    fields: [
+      { key: 'reward', type: 'choice', source: 'manageableRewards', nameKey: 'rewardTitle' },
+      { key: 'setEnabled', type: 'select', options: ['keep', 'on', 'off'] },
+      { key: 'cost', type: 'number', min: 1, max: MAX_REWARD_COST, unit: true },
+      { key: 'reset', type: 'toggle' }
+    ]
+  },
+  {
+    type: 'reply.overlay_show',
+    slug: 'overlayShow',
+    kind: 'reply',
+    group: 'modules',
+    icon: 'picture',
+    fields: [
+      { key: 'kind', type: 'select', options: ['text', 'image', 'video'] },
+      { key: 'content', type: 'template', placeholder: true, singleLine: true },
+      { key: 'seconds', type: 'number', min: 1, max: MAX_OVERLAY_SECONDS, unit: true },
+      { key: 'position', type: 'select', options: ['center', 'top', 'bottom'] }
+    ]
+  },
+  {
+    type: 'reply.overlay_sound',
+    slug: 'overlaySound',
+    kind: 'reply',
+    group: 'modules',
+    icon: 'speaker',
+    fields: [
+      { key: 'url', type: 'template', placeholder: true, singleLine: true },
+      { key: 'volume', type: 'number', min: 0, max: MAX_OVERLAY_VOLUME, unit: true }
+    ]
   }
 ];
 
-export function fieldVisible(spec: NodeSpec, node: FlowNode, field: FieldSpec): boolean {
+function gateMatches(wanted: string | readonly string[], value: unknown): boolean {
+  return typeof wanted === 'string' ? value === wanted : wanted.includes(String(value));
+}
+
+export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, field: FieldSpec): boolean {
   if (!field.when) return true;
   const gate = spec.fields.find((f) => f.key === field.when?.key);
   const fallback = gate?.type === 'select' ? gate.options[0] : undefined;
-  return (node.config[field.when.key] ?? fallback) === field.when.value;
+  return gateMatches(field.when.value, node.config[field.when.key] ?? fallback);
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);
 
 export const outputsFor = (spec: NodeSpec): readonly OutputSpec[] => spec.outputs ?? [{ id: 'next' }];
+
+export const isSecondPort = (spec: NodeSpec | undefined, port: string): boolean => spec?.outputs?.[1]?.id === port;
+
+const SAVED_SAMPLE = 'saved value';
+
+function savedLocal(parent: FlowNode, spec: NodeSpec): VariableSpec[] {
+  const name = String(parent.config.saveAs ?? '').trim().toLowerCase();
+  const saves = spec.fields.some((field) => field.key === 'saveAs');
+  return name && saves ? [{ token: `{local:${name}}`, name: 'saved', sample: SAVED_SAMPLE }] : [];
+}
+
+function providedBy(parent: FlowNode, spec: NodeSpec, port: string): readonly VariableSpec[] {
+  const viaPort = spec.outputs?.find((output) => output.id === port)?.provides ?? [];
+  return [...(spec.provides ?? []), ...viaPort, ...savedLocal(parent, spec)];
+}
 
 export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
   const seen = new Map<string, VariableSpec>();
@@ -257,7 +424,7 @@ export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
       if (e.to !== id || trail.has(e.from)) continue;
       const parent = flow.nodes.find((n) => n.id === e.from);
       const spec = parent && specFor(parent.type);
-      for (const v of spec?.provides ?? []) seen.set(v.token, v);
+      for (const v of parent && spec ? providedBy(parent, spec, e.port) : []) seen.set(v.token, v);
       visit(e.from, new Set(trail).add(e.from));
     }
   };

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { nodeHeight, tidy } from './layout';
-import { GRID, specFor, type Flow, type FlowKind } from './model';
+import { GRID, isSecondPort, specFor, type Flow, type FlowKind } from './model';
 
 export const PREVIEW_KINDS: readonly FlowKind[] = ['trigger', 'condition', 'reply'];
 
@@ -32,7 +32,8 @@ export function flowPreview(flow: Flow): FlowPreview {
     e: flow.edges.flatMap((edge) => {
       const from = index.get(edge.from);
       const to = index.get(edge.to);
-      return from === undefined || to === undefined ? [] : [[from, to, edge.port === 'no' ? 1 : 0]];
+      if (from === undefined || to === undefined) return [];
+      return [[from, to, isSecondPort(placed[from]!.spec, edge.port) ? 1 : 0]];
     })
   };
 }

@@ -121,6 +121,29 @@ describe('rehearseFlow', () => {
     expect(step.kind === 'viewer' && step.text).toBe('bagel');
   });
 
+  test('a loop walks its body and then what comes after it', () => {
+    const flow = flowOf(
+      [n('t', 'twitch.follow'), n('l', 'reply.loop', { times: '3' }), n('b', 'reply.chat', { message: 'time {local:index}' }), n('a', 'reply.chat', { message: 'after' })],
+      [e('1', 't', 'next', 'l'), e('2', 'l', 'body', 'b'), e('3', 'l', 'done', 'a')]
+    );
+    const steps = rehearse(flow);
+    expect(steps.map((step) => step.id)).toEqual(['t', 'l', 'b', 'a']);
+    const body = steps[2]!;
+    expect(body.kind === 'bot' && body.lines[0]!.segments.map((seg) => seg.text).join('')).toBe('time 1');
+  });
+
+  test('an API node asks which path to rehearse and only walks that one', () => {
+    const flow = flowOf(
+      [n('t', 'twitch.follow'), n('g', 'reply.http_get', { url: 'https://api.example.com' }), n('w', 'reply.chat', { message: 'worked' }), n('f', 'reply.chat', { message: 'failed {local:error}' })],
+      [e('1', 't', 'next', 'g'), e('2', 'g', 'ok', 'w'), e('3', 'g', 'failure', 'f')]
+    );
+    expect(rehearse(flow).map((step) => step.id)).toEqual(['t', 'g', 'w']);
+    const failed = rehearse(flow, { decisions: { g: 'failure' } });
+    expect(failed.map((step) => step.id)).toEqual(['t', 'g', 'f']);
+    const last = failed[2]!;
+    expect(last.kind === 'bot' && last.lines[0]!.segments.map((seg) => seg.text).join('')).toBe('failed 503');
+  });
+
   test('every step type rehearses', () => {
     for (const spec of NODE_SPECS) {
       expect(rehearse(flowOf([n('n', spec.type)], []), { until: 'n' }).length).toBe(1);

@@ -97,6 +97,44 @@ const SHOWCASE: FlowExportRow[] = [
         }
       ]
     }
+  },
+  {
+    id: '11111111-aaaa-4bbb-8ccc-000000000003',
+    name: 'Recipes v2',
+    definition: {
+      version: 1,
+      queue: 'sounds',
+      trigger: { type: 'command', params: { name: '!v2' } },
+      conditions: [{ type: 'var', params: { scope: 'channel', name: 'mode', op: 'eq', value: 'on' } }],
+      actions: [
+        { type: 'var_set', params: { scope: 'viewer', name: 'seen', value: '{user}' } },
+        { type: 'var_add', params: { scope: 'channel', name: 'total', amount: 1 } },
+        { type: 'var_delete', params: { scope: 'channel', name: 'old' } },
+        { type: 'text', params: { op: 'upper', input: '{args}', arg1: '', arg2: '', save_as: 'loud' } },
+        { type: 'math', params: { expression: '{var:total}*2', save_as: 'double' } },
+        {
+          type: 'loop',
+          params: {
+            times: '3',
+            actions: [
+              {
+                type: 'http_get',
+                params: {
+                  url: 'https://api.example.org/secret-token',
+                  json_path: ['data', 'value'],
+                  save_as: 'answer',
+                  on_ok: [chat('got {local:answer}')],
+                  on_failure: [{ type: 'overlay_sound', params: { url: 'https://cdn.example.org/secret.mp3', volume: 40 } }]
+                }
+              }
+            ]
+          }
+        },
+        { type: 'reward_update', params: { reward_id: 'real-reward-to-hide', enabled: false, cost: null, reset_on_stream_end: true } },
+        { type: 'overlay_show', params: { kind: 'text', content: 'hello {user}', seconds: 5, position: 'top' } },
+        { type: 'overlay_show', params: { kind: 'image', content: 'https://cdn.example.org/secret.png', seconds: 5, position: 'center' } }
+      ]
+    }
   }
 ];
 

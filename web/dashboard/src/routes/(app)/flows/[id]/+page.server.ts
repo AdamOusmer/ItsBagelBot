@@ -9,7 +9,9 @@ import { NEW_FLOW_ID } from '#lib/flow/ref';
 import type { ChoiceList } from '#lib/flow/choices';
 import { effectiveId } from '#lib/server/board';
 import { lookupTwitchUser } from '#lib/server/identity-heal';
-import { counterChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
+import { counterChoices, manageableRewardChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
+import { listRuns } from '#lib/server/automations-store';
+import { parseFlowRouteId } from '#lib/flow/ref';
 import { flowDenial, liveEditor, liveSave, lowerSaveRequest, newEditor, type EditorData } from '#lib/server/flow-page';
 import { goveeStore, type GoveeDevice } from '#lib/server/govee-store';
 import { broadcasterPremium } from '#lib/server/module-gate';
@@ -35,16 +37,16 @@ async function editorFor(locals: App.Locals, routeId: string): Promise<EditorDat
   return routeId === NEW_FLOW_ID ? newEditor() : (await import('#lib/flow/demo')).demoEditor(routeId);
 }
 
-type Choices = { rewards: Promise<ChoiceList>; counters: Promise<ChoiceList> };
+type Choices = { rewards: Promise<ChoiceList>; manageableRewards: Promise<ChoiceList>; counters: Promise<ChoiceList> };
 
 async function choicesFor(locals: App.Locals, url: URL): Promise<Choices> {
   if (DEMO) {
     const demo = await import('#lib/flow/demo');
     const lists = demo.demoChoices(demo.demoChoiceMode(url.searchParams.get('choices')));
-    return { rewards: Promise.resolve(lists.rewards), counters: Promise.resolve(lists.counters) };
+    return { rewards: Promise.resolve(lists.rewards), manageableRewards: Promise.resolve(lists.rewards), counters: Promise.resolve(lists.counters) };
   }
   const uid = effectiveId(locals.session);
-  return { rewards: rewardChoices(uid), counters: counterChoices(uid) };
+  return { rewards: rewardChoices(uid), manageableRewards: manageableRewardChoices(uid), counters: counterChoices(uid) };
 }
 
 export const load: PageServerLoad = async ({ params, locals, url, depends }) => {
@@ -77,7 +79,22 @@ async function twitchResolve(login: string) {
   return { ok: true, userId: found.value.id, login: found.value.login };
 }
 
+async function runsFor(locals: App.Locals, id: string) {
+  if (DEMO) return (await import('#lib/flow/demo')).demoRuns(id);
+  return listRuns(effectiveId(locals.session), id);
+}
+
 export const actions: Actions = {
+  runs: async ({ request, locals }) => {
+    if (!(await broadcasterPremium(locals))) return fail(403, { ok: false });
+    const ref = parseFlowRouteId(String((await request.formData()).get('id') ?? ''));
+    if (ref?.layer !== 'automation') return fail(400, { ok: false });
+    try {
+      return { ok: true, runs: await runsFor(locals, ref.id) };
+    } catch {
+      return fail(502, { ok: false });
+    }
+  },
   save: async ({ request, locals }) => {
     const denied = await flowDenial(locals);
     if (denied) return denied;

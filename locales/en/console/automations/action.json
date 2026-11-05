@@ -26,5 +26,15 @@
   "if": "If, then otherwise",
   "http_post": "Send an HTTP request",
   "lights": "Set the lights",
-  "stop": "Stop here"
+  "stop": "Stop here",
+  "http_get": "Read from a web address",
+  "var_set": "Set a variable",
+  "var_add": "Add to a variable",
+  "var_delete": "Delete a variable",
+  "text": "Change text",
+  "math": "Do math",
+  "loop": "Repeat steps",
+  "reward_update": "Change a reward",
+  "overlay_show": "Show on overlay",
+  "overlay_sound": "Play overlay sound"
 }

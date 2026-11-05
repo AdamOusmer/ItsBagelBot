@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { dev } from '$app/env';
-import { flowToDefinition, type FlowExportRow } from '@bagel/kit/automations';
+import { definitionToFlow, flowToDefinition, type Definition, type FlowExportRow, type RunRecord } from '@bagel/kit/automations';
 import type { EditorData, Lowered } from '#lib/server/flow-page';
 import { cardFromSummary, type FlowCard } from './cards';
 import { unavailable, type ChoiceList, type ChoiceOption } from './choices';
@@ -173,11 +173,20 @@ export function demoCards(): FlowCard[] {
   }));
 }
 
+const RELOAD_META = { id: 'demo', name: 'demo', enabled: true };
+
+function reloaded(flow: Flow): Flow {
+  const definition = flowToDefinition(flow);
+  if (!definition.ok) return flow;
+  const drawn = definitionToFlow(JSON.parse(JSON.stringify(definition.value)) as Definition, RELOAD_META);
+  return drawn.ok ? drawn.value : flow;
+}
+
 export function demoEditor(routeId: string): EditorData | null {
   const ref = parseFlowRouteId(routeId);
   const row = ref?.layer === 'automation' ? rows.get(ref.id) : undefined;
   if (!ref || !row) return null;
-  return { routeId, ref, revision: String(row.revision), name: row.name, flow: { ...structuredClone(row.flow), id: routeId, name: row.name, enabled: row.enabled } };
+  return { routeId, ref, revision: String(row.revision), name: row.name, flow: { ...reloaded(structuredClone(row.flow)), id: routeId, name: row.name, enabled: row.enabled } };
 }
 
 function demoCreate(lowered: Lowered): SaveReply {
@@ -220,6 +229,40 @@ export function demoExportRows(): FlowExportRow[] {
     const lowered = flowToDefinition(row.flow);
     return lowered.ok ? [{ id, name: row.name, definition: lowered.value }] : [];
   });
+}
+
+const DEMO_RUNS: RunRecord[] = [
+  {
+    run_id: 'demo-run-2',
+    automation_id: 'hydrate',
+    name: 'Hydrate reward',
+    trigger: 'reward',
+    source: 'eventsub',
+    at: '2026-11-04T18:02:00Z',
+    duration_ms: 412,
+    outcome: 'partial',
+    actions: [
+      { index: 0, type: 'chat', status: 'ok' },
+      { index: 1, type: 'delay', status: 'ok' },
+      { index: 2, type: 'chat', status: 'failed', detail: 'rate_limited' }
+    ]
+  },
+  {
+    run_id: 'demo-run-1',
+    automation_id: 'hug',
+    name: '!hug command',
+    trigger: 'command',
+    source: 'chat',
+    at: '2026-11-04T17:40:00Z',
+    duration_ms: 0,
+    outcome: 'skipped',
+    reason: 'condition:0:cooldown',
+    actions: []
+  }
+];
+
+export function demoRuns(automationId?: string): RunRecord[] {
+  return DEMO_RUNS.filter((run) => !automationId || run.automation_id === automationId);
 }
 
 const DEMO_REWARDS: ChoiceOption[] = [

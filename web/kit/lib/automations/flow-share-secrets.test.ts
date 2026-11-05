@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, test } from 'bun:test';
 import { actionRegistry, conditionRegistry, register, triggerRegistry } from './engine';
-import { exportFlows, FLOW_FILE_FORMAT, FLOW_FILE_VERSION, planFlowImport, SETUP_LOGIN, SHARE_REVIEWED, SHARE_REWRITTEN, type FlowImportEntry } from './flow-share';
+import { exportFlows, FLOW_FILE_FORMAT, FLOW_FILE_VERSION, planFlowImport, SETUP_LOGIN, SETUP_URL, SHARE_REVIEWED, SHARE_REWRITTEN, type FlowImportEntry } from './flow-share';
 import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES } from './catalog';
 import type { Definition } from './types';
 import './validate';
@@ -224,6 +224,85 @@ function expectNeutral(definition: Definition, depth: number): void {
   expect(external.every((a) => a.enabled === false)).toBe(true);
   expect(steps.filter((a) => a.type === 'if').every((a) => JSON.stringify(a.params.condition).includes(SETUP_LOGIN))).toBe(true);
 }
+
+describe('recipes v2 external targets never leave, at any depth', () => {
+  const v2Leaves = () => [
+    { type: 'http_get', params: { url: `https://user:${LEAK}@api.example.org/a?t=${LEAK}`, json_path: ['data', 'value'], save_as: 'answer' } },
+    { type: 'http_post', params: { url: `https://hooks.example.org/${LEAK}`, body: `key=${LEAK}`, save_as: 'reply' } },
+    { type: 'reward_update', params: { reward_id: `reward-${LEAK}`, enabled: false, cost: null, reset_on_stream_end: true } },
+    { type: 'overlay_show', params: { kind: 'image', content: `https://cdn.example.org/${LEAK}.png`, seconds: 5, position: 'top' } },
+    { type: 'overlay_show', params: { kind: 'video', content: `https://cdn.example.org/${LEAK}.mp4`, seconds: 5, position: 'top' } },
+    { type: 'overlay_sound', params: { url: `https://cdn.example.org/${LEAK}.mp3`, volume: 40 } }
+  ];
+
+  const inLoop = (inner: unknown[]) => ({ type: 'loop', params: { times: '2', actions: inner } });
+  const inOk = (inner: unknown[]) => ({ type: 'http_get', params: { url: `https://api.example.org/${LEAK}`, on_ok: inner } });
+  const inFailure = (inner: unknown[]) => ({ type: 'http_post', params: { url: `https://hooks.example.org/${LEAK}`, on_failure: inner } });
+  const inIf = (inner: unknown[]) => ({ type: 'if', params: { condition: { type: 'live', params: { state: 'live' } }, then: inner } });
+  const inFork = (inner: unknown[]) => ({ type: 'parallel', params: { branches: [{ weight: 1, actions: inner }, { weight: 1, actions: [chat('b')] }] } });
+
+  const wrappers = { loop: inLoop, on_ok: inOk, on_failure: inFailure, if: inIf, parallel: inFork };
+
+  function nested(depth: number): unknown[] {
+    const chain = [inLoop, inOk, inFailure, inIf, inFork];
+    let list: unknown[] = v2Leaves();
+    for (let level = 0; level < depth; level++) list = [chain[level % chain.length]!(list)];
+    return list;
+  }
+
+  test.each(Object.entries(wrappers))('directly inside %s, export and import both drop every target', (_name, wrap) => {
+    const definition = manual([wrap(v2Leaves())]);
+    expect(exported(definition)).not.toContain(LEAK);
+    const entry = planned(definition);
+    expect(entry.status).toBe('ready');
+    expect(JSON.stringify(entry.definition)).not.toContain(LEAK);
+  });
+
+  test.each([1, 2, 3, 5, 8, 12])('%i containers deep', (depth) => {
+    const definition = manual(nested(depth));
+    const { file, report } = exportFlows([{ id: 'row-1', name: 'one', definition }]);
+    expect(report[0]!.issues).toEqual([]);
+    expect(JSON.stringify(file)).not.toContain(LEAK);
+    const entry = planned(definition);
+    expect(entry.status).toBe('ready');
+    expect(JSON.stringify(entry.definition)).not.toContain(LEAK);
+  });
+
+  test('a neutralised API node keeps its paths, save_as and json_path, and turns off', () => {
+    const entry = planned(manual([{ type: 'http_get', params: { url: `https://api.example.org/${LEAK}`, json_path: ['a', 'b'], save_as: 'answer', on_ok: [chat('good')], on_failure: [chat('bad')] } }]));
+    expect(entry.definition!.actions).toEqual([
+      { type: 'http_get', enabled: false, params: { url: SETUP_URL, json_path: ['a', 'b'], save_as: 'answer', on_ok: [chat('good')], on_failure: [chat('bad')] } }
+    ]);
+    expect(entry.setup.map((note) => note.code)).toEqual(['http_target']);
+  });
+
+  test('a post keeps its paths and loses its body', () => {
+    const entry = planned(manual([{ type: 'http_post', params: { url: `https://hooks.example.org/${LEAK}`, body: `x=${LEAK}`, on_failure: [chat('bad')] } }]));
+    expect(entry.definition!.actions).toEqual([{ type: 'http_post', enabled: false, params: { url: SETUP_URL, on_failure: [chat('bad')] } }]);
+  });
+
+  test('text overlays and the listed kept fields stay as written', () => {
+    const steps = [
+      { type: 'overlay_show', params: { kind: 'text', content: 'hello {user}', seconds: 5, position: 'top' } },
+      { type: 'var_set', params: { scope: 'channel', name: 'score', value: '1' } },
+      { type: 'var_add', params: { scope: 'viewer', name: 'score', amount: 2 } },
+      { type: 'var_delete', params: { scope: 'channel', name: 'score' } },
+      { type: 'text', params: { op: 'upper', input: '{user}', arg1: '', arg2: '', save_as: 'loud' } },
+      { type: 'math', params: { expression: '1+1', save_as: 'sum' } },
+      { type: 'loop', params: { times: '3', actions: [chat('a')] } }
+    ];
+    const entry = planned({ ...manual(steps), queue: 'sounds' });
+    expect(entry.definition!.actions).toEqual(steps as NonNullable<Definition['actions']>);
+    expect(entry.definition!.queue).toBe('sounds');
+    expect(entry.setup).toEqual([]);
+  });
+
+  test('the import view counts the setup work and the imported steps stay valid', () => {
+    const entry = planned(manual(v2Leaves()));
+    expect(entry.setup.map((note) => note.code)).toEqual(['http_target', 'http_target', 'reward_target', 'overlay_target', 'overlay_target', 'overlay_target']);
+    expect((entry.definition!.actions ?? []).every((action) => action.enabled === false)).toBe(true);
+  });
+});
 
 describe('nesting never hides a step from the neutraliser', () => {
   test.each([1, 2, 3, 6])('lights and http_post %i levels deep through if and parallel', (depth) => {

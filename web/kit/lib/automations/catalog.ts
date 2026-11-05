@@ -59,6 +59,10 @@ const op = f('op', 'enum', { required: true, values: CMP_OPS });
 const listLogin = (name: FieldName) => f(name, 'list', { max: 100 });
 const listUserId = (name: FieldName) => f(name, 'list', { max: 100 });
 const listCategory = (name: FieldName) => f(name, 'list', { max: 50 });
+const varScope = f('scope', 'enum', { required: true, values: ['channel', 'viewer'] });
+const varName = f('name', 'text', { required: true, min: 1, max: 32 });
+const saveAsReq = f('save_as', 'text', { required: true, min: 1, max: 32 });
+const saveAsOpt = f('save_as', 'text', { max: 32 });
 
 export const TRIGGER_TYPES: TypeDef[] = [
   trigger('command', [
@@ -97,6 +101,12 @@ export const CONDITION_TYPES: TypeDef[] = [
     f('op', 'enum', { required: true, values: COMPARE_OPS }),
     f('right', 'template', { max: 500 }),
   ]),
+  condition('var', [
+    varScope,
+    varName,
+    f('op', 'enum', { required: true, values: [...CMP_OPS, 'contains', 'exists'] }),
+    f('value', 'template', { max: 500 }),
+  ]),
 ];
 
 export const ACTION_TYPES: TypeDef[] = [
@@ -132,7 +142,42 @@ export const ACTION_TYPES: TypeDef[] = [
   action('http_post', [
     f('url', 'text', { required: true, min: 1, max: 512 }),
     f('body', 'template', { max: 2000 }),
+    saveAsOpt,
+    f('on_ok', 'actions'),
+    f('on_failure', 'actions'),
   ]),
+  action('http_get', [
+    f('url', 'template', { required: true, min: 1, max: 512 }),
+    f('json_path', 'list', { max: 8 }),
+    saveAsOpt,
+    f('on_ok', 'actions'),
+    f('on_failure', 'actions'),
+  ]),
+  action('var_set', [varScope, varName, f('value', 'template', { max: 500 })]),
+  action('var_add', [varScope, varName, f('amount', 'int', { required: true })]),
+  action('var_delete', [varScope, varName]),
+  action('text', [
+    f('op', 'enum', { required: true, values: ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'] }),
+    f('input', 'template', { max: 500 }),
+    f('arg1', 'template', { max: 500 }),
+    f('arg2', 'template', { max: 500 }),
+    saveAsReq,
+  ]),
+  action('math', [f('expression', 'template', { required: true, min: 1, max: 500 }), saveAsReq]),
+  action('loop', [f('times', 'template', { required: true, min: 1, max: 500 }), f('actions', 'actions')]),
+  action('reward_update', [
+    f('reward_id', 'text', { required: true, min: 1, max: 64 }),
+    f('enabled', 'bool'),
+    f('cost', 'int', { min: 1, max: 10000000 }),
+    f('reset_on_stream_end', 'bool'),
+  ]),
+  action('overlay_show', [
+    f('kind', 'enum', { required: true, values: ['text', 'image', 'video'] }),
+    f('content', 'template', { required: true, min: 1, max: 500 }),
+    f('seconds', 'int', { required: true, min: 1, max: 60 }),
+    f('position', 'enum', { required: true, values: ['top', 'center', 'bottom'] }),
+  ]),
+  action('overlay_sound', [f('url', 'template', { required: true, min: 1, max: 512 }), f('volume', 'int', { required: true, min: 0, max: 100 })]),
   action('lights', [
     f('device', 'text', { required: true, min: 1, max: 64 }),
     f('sku', 'text', { required: true, min: 1, max: 32 }),

@@ -136,6 +136,140 @@
           }
         ]
       }
+    },
+    {
+      "ref": "f3",
+      "name": "Recipes v2",
+      "definition": {
+        "version": 1,
+        "trigger": {
+          "type": "command",
+          "params": {
+            "name": "!v2"
+          }
+        },
+        "queue": "sounds",
+        "conditions": [
+          {
+            "type": "var",
+            "params": {
+              "scope": "channel",
+              "name": "mode",
+              "op": "eq",
+              "value": "on"
+            }
+          }
+        ],
+        "actions": [
+          {
+            "type": "var_set",
+            "params": {
+              "scope": "viewer",
+              "name": "seen",
+              "value": "{user}"
+            }
+          },
+          {
+            "type": "var_add",
+            "params": {
+              "scope": "channel",
+              "name": "total",
+              "amount": 1
+            }
+          },
+          {
+            "type": "var_delete",
+            "params": {
+              "scope": "channel",
+              "name": "old"
+            }
+          },
+          {
+            "type": "text",
+            "params": {
+              "op": "upper",
+              "input": "{args}",
+              "arg1": "",
+              "arg2": "",
+              "save_as": "loud"
+            }
+          },
+          {
+            "type": "math",
+            "params": {
+              "expression": "{var:total}*2",
+              "save_as": "double"
+            }
+          },
+          {
+            "type": "loop",
+            "params": {
+              "times": "3",
+              "actions": [
+                {
+                  "type": "http_get",
+                  "params": {
+                    "url": "https://example.com/setup-required",
+                    "json_path": [
+                      "data",
+                      "value"
+                    ],
+                    "save_as": "answer",
+                    "on_ok": [
+                      {
+                        "type": "chat",
+                        "params": {
+                          "text": "got {local:answer}"
+                        }
+                      }
+                    ],
+                    "on_failure": [
+                      {
+                        "type": "overlay_sound",
+                        "params": {
+                          "url": "https://example.com/setup-required",
+                          "volume": 40
+                        },
+                        "enabled": false
+                      }
+                    ]
+                  },
+                  "enabled": false
+                }
+              ]
+            }
+          },
+          {
+            "type": "reward_update",
+            "params": {
+              "reward_id": "setup-required",
+              "enabled": false,
+              "cost": null,
+              "reset_on_stream_end": true
+            },
+            "enabled": false
+          },
+          {
+            "type": "overlay_show",
+            "params": {
+              "kind": "text",
+              "content": "hello {user}",
+              "seconds": 5,
+              "position": "top"
+            }
+          },
+          {
+            "type": "overlay_show",
+            "params": {
+              "kind": "image",
+              "content": "https://example.com/setup-required",
+              "seconds": 5,
+              "position": "center"
+            },
+            "enabled": false
+          }
+        ]
+      }
     }
   ]
 }

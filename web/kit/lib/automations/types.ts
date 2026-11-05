@@ -21,6 +21,7 @@ export interface Action {
 
 export interface Definition {
   version: number;
+  queue?: string;
   trigger: Trigger;
   conditions?: Condition[];
   actions?: Action[];
@@ -245,6 +246,86 @@ export interface IfAction {
 export interface HTTPPostAction {
   url: string;
   body?: string;
+  save_as?: string;
+  on_ok?: Action[];
+  on_failure?: Action[];
+}
+
+export interface HTTPGetAction {
+  url: string;
+  json_path?: string[];
+  save_as?: string;
+  on_ok?: Action[];
+  on_failure?: Action[];
+}
+
+export type VarScope = 'channel' | 'viewer';
+export type VarOp = CompareOp | 'contains' | 'exists';
+
+export interface VarCondition {
+  scope: VarScope;
+  name: string;
+  op: VarOp;
+  value?: string;
+}
+
+export interface VarSetAction {
+  scope: VarScope;
+  name: string;
+  value?: string;
+}
+
+export interface VarAddAction {
+  scope: VarScope;
+  name: string;
+  amount: number;
+}
+
+export interface VarDeleteAction {
+  scope: VarScope;
+  name: string;
+}
+
+export type TextOp = 'upper' | 'lower' | 'trim' | 'length' | 'replace' | 'substring' | 'split_pick' | 'contains' | 'url_encode';
+
+export interface TextStepAction {
+  op: TextOp;
+  input?: string;
+  arg1?: string;
+  arg2?: string;
+  save_as: string;
+}
+
+export interface MathAction {
+  expression: string;
+  save_as: string;
+}
+
+export interface LoopAction {
+  times: string;
+  actions?: Action[];
+}
+
+export interface RewardUpdateAction {
+  reward_id: string;
+  enabled: boolean | null;
+  cost: number | null;
+  reset_on_stream_end?: boolean;
+}
+
+export type OverlayKind = 'text' | 'image' | 'video';
+export type OverlayPosition = 'top' | 'center' | 'bottom';
+
+export interface OverlayShowAction {
+  kind: OverlayKind;
+  content: string;
+  seconds: number;
+  position: OverlayPosition;
+}
+
+export interface OverlaySoundAction {
+  url: string;
+  volume: number;
 }
 
 export interface LightsAction {

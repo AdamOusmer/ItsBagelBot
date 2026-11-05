@@ -11,6 +11,8 @@ let rewards: { id: string; title: string }[] = [];
 let counters: { name: string }[] = [];
 let scenes: { scenes: { id: string; name: string; type: string; instance: string; value: unknown }[]; code?: 'key_rejected' | 'unreachable' } = { scenes: [] };
 let failing = false;
+let rewardReply: { rewards?: { id?: string; title: string }[]; missing_scope?: boolean; error?: string } = {};
+let rewardCalls: string[] = [];
 
 const refuse = () => {
   if (failing) throw new Error('rpc down');
@@ -29,10 +31,19 @@ mock.module('./loyalty-store', () => ({
   }
 }));
 mock.module('./govee-store', () => ({ goveeStore: () => ({ listScenes: async () => scenes }) }));
+mock.module('./reward-wire', () => ({
+  callReward: async (verb: string, req: { broadcaster_id: string }) => {
+    refuse();
+    rewardCalls.push(`${verb}:${req.broadcaster_id}`);
+    return rewardReply;
+  }
+}));
 
-const { attachChoiceNames, counterChoices, rewardChoices, sceneChoices } = await import('./flow-choices');
+const { attachChoiceNames, counterChoices, manageableRewardChoices, rewardChoices, sceneChoices } = await import('./flow-choices');
 
 beforeEach(() => {
+  rewardReply = {};
+  rewardCalls = [];
   rewards = [];
   counters = [];
   scenes = { scenes: [] };
@@ -40,6 +51,21 @@ beforeEach(() => {
 });
 
 describe('flow choices', () => {
+  test('the reward change picker lists what Twitch says the bot can manage', async () => {
+    rewardReply = { rewards: [{ id: 'r1', title: 'Hydrate' }, { title: 'No id' }] };
+    expect(await manageableRewardChoices('1')).toEqual({ options: [{ value: 'r1', label: 'Hydrate' }] });
+    expect(rewardCalls).toEqual(['list:1']);
+  });
+
+  test('the reward change picker reports a refusal or an outage instead of an empty list', async () => {
+    rewardReply = { missing_scope: true };
+    expect(await manageableRewardChoices('1')).toEqual({ options: [], problem: 'unavailable' });
+    rewardReply = { error: 'nope' };
+    expect(await manageableRewardChoices('1')).toEqual({ options: [], problem: 'unavailable' });
+    failing = true;
+    expect(await manageableRewardChoices('1')).toEqual({ options: [], problem: 'unavailable' });
+  });
+
   test('offers rewards that exist on Twitch, by id', async () => {
     rewards = [
       { id: 'r1', title: 'Hydrate' },

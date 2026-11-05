@@ -131,7 +131,7 @@
   }
 
   const branches = $derived(
-    node && spec?.kind === 'condition'
+    node && spec?.outputs
       ? outputsFor(spec).map((o) => ({ ...o, label: portLabel(t, node, o.id), count: reach(node.id, o.id) }))
       : []
   );
@@ -438,7 +438,7 @@
     font-weight: 500;
     color: rgba(var(--bb-white-rgb), 0.92);
   }
-  .branches li[data-port='yes'] .branch-name {
+  .branches li:first-child .branch-name {
     color: var(--bb-green-glow);
   }
   .branch-count {

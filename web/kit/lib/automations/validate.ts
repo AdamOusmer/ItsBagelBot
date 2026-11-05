@@ -15,7 +15,7 @@ import {
   type TypedNode,
   typed,
 } from './engine';
-import { CODE, MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_DELAY_MS, MAX_NAME_LENGTH, VERSION } from './limits';
+import { CODE, MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_DELAY_MS, MAX_NAME_LENGTH, QUEUE_NAME_PATTERN, VERSION } from './limits';
 import { fillRegistries } from './registry';
 import { byteLength, compareBytes, isNameChar, trimSpace } from './text';
 import type { Definition, Issue } from './types';
@@ -23,10 +23,11 @@ import type { Definition, Issue } from './types';
 // Called, not a bare import: the package's sideEffects list lets production bundles drop a bare one, emptying every registry.
 fillRegistries();
 
-const ROOT_SCHEMA: Schema = { version: 'int', trigger: 'typed', conditions: 'typeds', actions: 'actions' };
+const ROOT_SCHEMA: Schema = { version: 'int', queue: 'string', trigger: 'typed', conditions: 'typeds', actions: 'actions' };
 
 interface Root {
   version: number;
+  queue: string;
   trigger: TypedNode;
   conditions: TypedNode[];
   actions: ActionNode[];
@@ -49,7 +50,10 @@ function pathDelayMs(list: ActionNode[]): number {
 }
 
 function checkBudgets(c: Chk, list: ActionNode[]): void {
-  const effects = flatten(list).filter((a) => !actionRegistry.get(a.type)?.nested);
+  const effects = flatten(list).filter((a) => {
+    const entry = actionRegistry.get(a.type);
+    return !entry?.nested || entry.effect;
+  });
   c.count('actions', effects.length, 0, MAX_ACTIONS);
   if (pathDelayMs(list) > MAX_DELAY_MS) c.add('actions', CODE.delayBudget);
 }
@@ -63,6 +67,7 @@ function check(root: Root): Issue[] {
   const out: Issue[] = [];
   const c = new Chk(out, '', root.trigger.type, 0, permRank(root.conditions));
   if (root.version !== VERSION) c.add('version', CODE.unsupportedVersion);
+  if (root.queue !== '') c.format('queue', root.queue, QUEUE_NAME_PATTERN);
   typed(c.sub('trigger'), triggerRegistry, root.trigger);
   conditions(c, root.conditions);
   actions(c.sub('actions'), root.actions);

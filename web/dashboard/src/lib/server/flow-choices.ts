@@ -7,6 +7,7 @@ import { specFor } from '#lib/flow/model';
 import { readRewards } from './channelpoints-store';
 import { goveeStore, type GoveeTarget } from './govee-store';
 import { listCounters } from './loyalty-store';
+import { callReward } from './reward-wire';
 
 type BroadcasterId = string;
 
@@ -23,6 +24,13 @@ export const rewardChoices = (userId: BroadcasterId) =>
   settled('rewards', async () => {
     const { rewards } = await readRewards(userId);
     return { options: rewards.filter((reward) => reward.id).map((reward) => ({ value: reward.id, label: reward.title || reward.id })) };
+  });
+
+export const manageableRewardChoices = (userId: BroadcasterId) =>
+  settled('manageableRewards', async () => {
+    const reply = await callReward('list', { broadcaster_id: userId });
+    if (reply.missing_scope || reply.error) return unavailable();
+    return { options: (reply.rewards ?? []).flatMap((reward) => (reward.id ? [{ value: reward.id, label: reward.title || reward.id }] : [])) };
   });
 
 export const counterChoices = (userId: BroadcasterId) =>
@@ -47,7 +55,8 @@ type Named = { type: string; config: Record<string, string | number | boolean> }
 type Lookup = { node: Named; value: string; nameKey: string };
 
 const NAMED_SOURCES: Partial<Record<ChoiceSource, (userId: BroadcasterId) => Promise<ChoiceList>>> = {
-  rewards: rewardChoices
+  rewards: rewardChoices,
+  manageableRewards: manageableRewardChoices
 };
 
 function lookupsFor(node: Named): [ChoiceSource, Lookup][] {

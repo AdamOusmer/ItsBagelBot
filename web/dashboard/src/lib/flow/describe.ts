@@ -96,8 +96,18 @@ function cooldownLine(t: Translate, n: FlowNode): string {
   );
 }
 
+function varCheckLine(t: Translate, n: FlowNode): string {
+  const spec = specFor(n.type)!;
+  const name = text(n, 'name');
+  if (!name) return '';
+  if (text(n, 'op') === 'exists') return t('flows.line.varExists', { name });
+  return t('flows.line.varCheck', { name, op: optionLabel(t, spec, n, 'op'), value: text(n, 'value') });
+}
+
 function conditionLine(t: Translate, n: FlowNode): string {
   switch (n.type) {
+    case 'cond.var':
+      return varCheckLine(t, n);
     case 'cond.role':
       return roleLine(t, text(n, 'level'));
     case 'cond.user':
@@ -125,6 +135,61 @@ function lightsLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   return given(optionLabel(t, spec, n, 'scene'), (scene) => t('flows.line.lightsScene', { light, scene }));
 }
 
+function varAddLine(t: Translate, n: FlowNode): string {
+  const name = text(n, 'name');
+  const amount = Number(n.config.amount) || 0;
+  if (!name || amount === 0) return '';
+  return amount > 0 ? t('flows.line.varAdd', { name, amount }) : t('flows.line.varTake', { name, amount: -amount });
+}
+
+function varLine(t: Translate, n: FlowNode): string {
+  const name = text(n, 'name');
+  switch (n.type) {
+    case 'reply.var_set':
+      return given(name, (shown) => t('flows.line.varSet', { name: shown, value: text(n, 'value') }));
+    case 'reply.var_add':
+      return varAddLine(t, n);
+    case 'reply.var_delete':
+      return given(name, (shown) => t('flows.line.varDelete', { name: shown }));
+    default:
+      return '';
+  }
+}
+
+function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  switch (n.type) {
+    case 'reply.text':
+      return given(text(n, 'saveAs'), (name) => t('flows.line.textSaved', { name, op: optionLabel(t, spec, n, 'op') }));
+    case 'reply.math':
+      return text(n, 'expression');
+    case 'reply.loop':
+      return given(text(n, 'times'), (times) => t('flows.line.loop', { times }));
+    case 'reply.http_get':
+    case 'reply.http_post':
+      return text(n, 'url');
+    default:
+      return varLine(t, n);
+  }
+}
+
+function rewardUpdateLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  const reward = optionLabel(t, spec, n, 'reward');
+  return given(reward, (name) => (n.config.reset === true ? t('flows.line.rewardUpdateBack', { reward: name }) : t('flows.line.rewardUpdate', { reward: name })));
+}
+
+function moduleLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  switch (n.type) {
+    case 'reply.reward_update':
+      return rewardUpdateLine(t, n, spec);
+    case 'reply.overlay_show':
+      return text(n, 'content');
+    case 'reply.overlay_sound':
+      return text(n, 'url');
+    default:
+      return dataLine(t, n, spec);
+  }
+}
+
 function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.chat':
@@ -138,7 +203,7 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
     case 'reply.wait':
       return given(num(n, 'seconds'), (count) => t('flows.line.pause', { amount: seconds(t, count) }));
     default:
-      return '';
+      return moduleLine(t, n, spec);
   }
 }
 

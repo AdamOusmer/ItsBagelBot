@@ -51,13 +51,14 @@
   const loadInspector = () => import('#lib/components/flow/NodeInspector.svelte');
   const loadLibrary = () => import('#lib/components/flow/StepLibrary.svelte');
   const loadTestRun = () => import('#lib/components/flow/TestRunPanel.svelte');
+  const loadRecipe = () => import('#lib/components/flow/RecipePanel.svelte');
 
   const { t } = getI18n();
 
   const opened = untrack(() => structuredClone(data.flow ?? newFlow('')));
   let flow = $state<Flow>({ ...opened, name: opened.name || t('flows.page.untitled') });
   const contentOf = (f: Flow) =>
-    JSON.stringify({ name: f.name, edges: f.edges, nodes: f.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config })) });
+    JSON.stringify({ name: f.name, queue: f.queue ?? '', edges: f.edges, nodes: f.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config })) });
 
   let baseline = $state(contentOf(untrack(() => flow)));
   const drawable = untrack(() => data.flow !== null);
@@ -70,6 +71,7 @@
   let leaving = false;
   let selectedId = $state<string | null>(null);
   let testRunOpen = $state(false);
+  let recipeOpen = $state(false);
   let trace = $state<FlowTrace | null>(null);
   let autoTidy = $state(true);
   let canvas = $state<FlowCanvasApi>();
@@ -85,10 +87,11 @@
   let libFocus = $state(0);
   let libReturn: HTMLElement | null = null;
   let runReturn: HTMLElement | null = null;
+  let recipeReturn: HTMLElement | null = null;
 
   const edits = new FlowHistory(untrack(() => flow));
   const dirty = $derived(contentOf(flow) !== baseline);
-  const panelRoom = $derived((inspecting && selectedId) || testRunOpen ? PANEL_ROOM : 0);
+  const panelRoom = $derived((inspecting && selectedId) || testRunOpen || recipeOpen ? PANEL_ROOM : 0);
 
   $effect(() => {
     edits.sync(flow);
@@ -151,6 +154,7 @@
       void loadInspector();
       void loadLibrary();
       void loadTestRun();
+      void loadRecipe();
     };
     if ('requestIdleCallback' in window) {
       const id = requestIdleCallback(preload);
@@ -207,6 +211,7 @@
     if (libMode) closeLibrary(true);
     else if (inspecting && selectedId) closeInspector();
     else if (testRunOpen) closeTestRun(true);
+    else if (recipeOpen) closeRecipe(true);
     else if (selectedId) selectedId = null;
     else return false;
     return true;
@@ -366,9 +371,26 @@
   async function testRun() {
     runReturn = active();
     selectedId = null;
+    recipeOpen = false;
     testRunOpen = !testRunOpen;
     await tick();
     canvas?.fitView(testRunOpen ? PANEL_ROOM : 0);
+  }
+
+  async function toggleRecipe() {
+    recipeReturn = active();
+    selectedId = null;
+    testRunOpen = false;
+    recipeOpen = !recipeOpen;
+    await tick();
+    canvas?.fitView(recipeOpen ? PANEL_ROOM : 0);
+  }
+
+  function closeRecipe(restore = false) {
+    recipeOpen = false;
+    canvas?.fitView();
+    const back = restore ? recipeReturn : null;
+    if (back) void tick().then(() => back.isConnected && back.focus({ preventScroll: true }));
   }
 
   function closeTestRun(restore = false) {
@@ -387,7 +409,10 @@
   });
 
   $effect(() => {
-    if (inspecting && selectedId) testRunOpen = false;
+    if (inspecting && selectedId) {
+      testRunOpen = false;
+      recipeOpen = false;
+    }
   });
 </script>
 
@@ -436,6 +461,11 @@
           <Icon name="search" size={22} />
         </button>
       </Tooltip>
+      <Tooltip text={t('flows.recipe.title')} placement="bottom">
+        <button class="tool" type="button" aria-label={t('flows.recipe.title')} aria-pressed={recipeOpen} onpointerenter={loadRecipe} onclick={toggleRecipe}>
+          <Icon name="settings" size={22} />
+        </button>
+      </Tooltip>
     </nav>
 
     <div class="board" role="presentation" bind:this={boardEl} onpointerdowncapture={onBoardPointerDown}>
@@ -475,6 +505,13 @@
           <span class="grip" data-sheet-grip aria-hidden="true"></span>
           {#await loadTestRun() then { default: TestRunPanel }}
             <TestRunPanel {flow} onClose={closeTestRun} onTrace={(next) => (trace = next)} />
+          {/await}
+        </div>
+      {:else if recipeOpen}
+        <div class="inspector" use:sheetDrag={() => closeRecipe()}>
+          <span class="grip" data-sheet-grip aria-hidden="true"></span>
+          {#await loadRecipe() then { default: RecipePanel }}
+            <RecipePanel bind:flow {ref} onclose={() => closeRecipe(true)} />
           {/await}
         </div>
       {/if}
