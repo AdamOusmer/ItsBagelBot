@@ -28,12 +28,11 @@ func (w *Worker) Process(msg *bus.Message) error {
 		return nil
 	}
 	annotateTxn(ctx, &payload)
-	// Before admission: a trial channel has no account, so admission would drop it without the blocked record.
-	if w.rejectTrialOutput(ctx, &payload) {
-		return nil
-	}
 	if allowed, err := w.admitPayload(ctx, &payload); err != nil || !allowed {
 		return err
+	}
+	if w.rejectTrialOutput(ctx, &payload) {
+		return nil
 	}
 
 	if err := w.checkPaused(ctx); err != nil {
@@ -46,11 +45,11 @@ func (w *Worker) Process(msg *bus.Message) error {
 }
 
 func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) error {
-	if w.rejectTrialOutput(ctx, payload) {
-		return nil
-	}
 	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
 		return err
+	}
+	if w.rejectTrialOutput(ctx, payload) {
+		return nil
 	}
 	act, ok := w.actions.Lookup(payload.Type)
 	if !ok {

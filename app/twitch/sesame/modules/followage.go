@@ -32,7 +32,7 @@ func Followage(d engine.Deps) module.Module {
 	followage := func(ctx context.Context, c *module.Context, target lookupTarget) string {
 		bid := c.Env.BroadcasterUserID
 		return lookupCall[engine.FollowageResult]{
-			c: c, log: log, logKey: followageModuleName, unavailable: i18n.T(c.Locale, "followage.unavailable"),
+			log: log, logKey: followageModuleName, unavailable: i18n.T(c.Locale, "followage.unavailable"),
 			read: readIf(d.Followage != nil, func() (engine.FollowageResult, error) {
 				return d.Followage.Lookup(ctx, engine.FollowageQuery{
 					BroadcasterID: bid, TargetID: target.id, TargetLogin: target.login, Trial: c.Env.Origin == "trial",
@@ -50,7 +50,7 @@ func Followage(d engine.Deps) module.Module {
 
 	accountAge := func(ctx context.Context, c *module.Context, target lookupTarget) string {
 		return lookupCall[engine.AccountAgeResult]{
-			c: c, log: log, logKey: accountAgeModuleName, unavailable: i18n.T(c.Locale, "accountage.unavailable"),
+			log: log, logKey: accountAgeModuleName, unavailable: i18n.T(c.Locale, "accountage.unavailable"),
 			read: readIf(d.AccountAge != nil, func() (engine.AccountAgeResult, error) { return d.AccountAge.Lookup(ctx, target.id, target.login) }),
 			format: func(res engine.AccountAgeResult) string {
 				return lookupReply{locale: c.Locale, targetName: target.name}.accountAge(res)
@@ -77,7 +77,6 @@ func lookupRun(d engine.Deps, moduleName string, reply replyFunc) module.RunFunc
 }
 
 type lookupCall[T any] struct {
-	c           *module.Context
 	log         *zap.Logger
 	logKey      string
 	unavailable string
@@ -91,20 +90,10 @@ func (lc lookupCall[T]) run() string {
 	}
 	result, err := lc.read()
 	if err != nil {
-		lc.logFailure(err)
+		lc.log.Warn(lc.logKey+": lookup failed", zap.Error(err))
 		return lc.unavailable
 	}
 	return lc.format(result)
-}
-
-// Trial channels are read without moderator rights, so Twitch refusing them is the normal answer.
-func (lc lookupCall[T]) logFailure(err error) {
-	msg, fields := lc.logKey+": lookup failed", []zap.Field{lc.c.BID(), zap.Error(err)}
-	if lc.c.Env.Origin == "trial" {
-		lc.log.Info(msg, append(fields, zap.Bool("expected", true))...)
-		return
-	}
-	lc.log.Warn(msg, fields...)
 }
 
 func readIf[T any](ok bool, read func() (T, error)) func() (T, error) {

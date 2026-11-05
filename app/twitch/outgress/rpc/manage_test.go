@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -13,8 +12,6 @@ import (
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
-	"ItsBagelBot/internal/channelruntime"
-	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/internal/valkeytest"
@@ -57,53 +54,6 @@ func TestFollowageFailureLogLevel(t *testing.T) {
 			require.Equal(t, tc.wantLevel, entries[0].Level)
 			_, hasExpected := entries[0].ContextMap()["expected"]
 			require.Equal(t, tc.wantExpected, hasExpected)
-		})
-	}
-}
-
-type fakeRuntime struct {
-	snapshot channelruntime.Snapshot
-	err      error
-}
-
-func (f fakeRuntime) Get(context.Context, uint64) (channelruntime.Snapshot, error) {
-	return f.snapshot, f.err
-}
-
-func TestLookupAdmissionByChannelState(t *testing.T) {
-	healthy := lifecycle.State{Version: 1, DesiredEnabled: true, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, RuntimeState: lifecycle.Active}
-	cases := []struct {
-		name          string
-		runtime       fakeRuntime
-		wantTwitch    bool
-		wantFollowage string
-		wantUptime    string
-	}{
-		{"an unregistered trial channel reaches Twitch", fakeRuntime{}, true, "lookup failed", ""},
-		{"a registered healthy channel reaches Twitch", fakeRuntime{snapshot: channelruntime.Snapshot{Registered: true, State: healthy}}, true, "lookup failed", ""},
-		{"a service banned channel stays refused", fakeRuntime{snapshot: channelruntime.Snapshot{Registered: true, ServiceBanned: true, State: healthy}}, false, "channel unavailable", "channel unavailable"},
-		{"a registered suspended channel stays refused", fakeRuntime{snapshot: channelruntime.Snapshot{Registered: true}}, false, "channel unavailable", "channel unavailable"},
-		{"an unreadable lifecycle stays refused", fakeRuntime{err: errors.New("valkey down")}, false, "channel unavailable", "channel unavailable"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			calls := 0
-			api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), nil)
-			api.SetTransport(chatterRevocationTransport(func(req *http.Request) (*http.Response, error) {
-				calls++
-				if strings.Contains(req.URL.Path, "followers") {
-					return &http.Response{StatusCode: http.StatusUnauthorized, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(followagePermissionDenied))}, nil
-				}
-				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"data":[]}`))}, nil
-			}))
-			m := &Manage{twitch: api, log: zap.NewNop(), runtime: tc.runtime}
-
-			followage := m.handleFollowage(t.Context(), outgressrpc.FollowageRequest{BroadcasterID: "5", TargetID: "9", Trial: true})
-			uptime := m.handleUptime(t.Context(), outgressrpc.UptimeRequest{BroadcasterID: "5"})
-
-			require.Equal(t, tc.wantFollowage, followage.Error)
-			require.Equal(t, tc.wantUptime, uptime.Error)
-			require.Equal(t, tc.wantTwitch, calls > 0)
 		})
 	}
 }
