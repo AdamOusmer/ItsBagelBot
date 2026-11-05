@@ -46,6 +46,42 @@ func TestAutomationDelayInsideBranchResumesOuterActions(t *testing.T) {
 	assert.Equal(t, []string{`chat {"broadcaster_id":"1","message":"inner"}`, `chat {"broadcaster_id":"1","message":"outer"}`}, fx.described(t))
 }
 
+func TestAutomationParallelPathDoesNotWaitForAPausedPath(t *testing.T) {
+	path := func(actions ...automation.Action) obj { return obj{"weight": 1, "actions": actions} }
+	fork := act("parallel", obj{"branches": []obj{
+		path(act("delay", obj{"ms": 200}), act("chat", obj{"text": "late"})),
+		path(act("chat", obj{"text": "now"})),
+	}})
+	fx := newAutoFixture(manual("main", fork))
+	rec := fx.run(t, "main", "req-parallel", nil)
+	assert.Contains(t, statuses(rec), "0:chat:ok:")
+	assert.Equal(t, []string{`chat {"broadcaster_id":"1","message":"now"}`}, fx.described(t))
+}
+
+func TestAutomationRunsDeepNestingAndManyBranchesInARow(t *testing.T) {
+	step := act("chat", obj{"text": "deep"})
+	live := obj{"type": "live", "params": obj{"state": "live"}}
+	for range 40 {
+		step = act("if", obj{"condition": live, "then": []automation.Action{step}})
+	}
+	row := make([]automation.Action, 0, automation.MaxActions+6)
+	for range automation.MaxActions + 5 {
+		row = append(row, act("if", obj{"condition": live}))
+	}
+	fx := newAutoFixture(manual("main", append(row, step)...))
+	fx.run(t, "main", "req-deep", nil)
+	assert.Equal(t, []string{`chat {"broadcaster_id":"1","message":"deep"}`}, fx.described(t))
+}
+
+func TestAutomationParallelPathsPauseOnTheirOwnBudget(t *testing.T) {
+	path := func(actions ...automation.Action) obj { return obj{"weight": 1, "actions": actions} }
+	fork := act("parallel", obj{"branches": []obj{
+		path(act("delay", obj{"ms": 40000})),
+		path(act("delay", obj{"ms": 40000})),
+	}})
+	assert.Empty(t, automation.Validate(manual("main", fork).Definition))
+}
+
 func TestAutomationDelayWithoutContinuationCapacityLimitsTheRest(t *testing.T) {
 	fx := newAutoFixture(manual("main", act("delay", obj{"ms": 10}), act("delay", obj{"ms": 10}), act("chat", obj{"text": "x"})))
 	fx.p.autoExec.running.Store(maxContinuations)

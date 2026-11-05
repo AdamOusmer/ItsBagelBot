@@ -21,6 +21,7 @@
   "redemption": "Resolver o resgate",
   "delay": "Aguardar",
   "random_pick": "Escolher um aleatoriamente",
+  "parallel": "Executar caminhos em paralelo",
   "run": "Executar outra automação",
   "if": "Se, então, senão",
   "http_post": "Enviar uma requisição HTTP",

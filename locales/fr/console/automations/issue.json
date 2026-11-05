@@ -17,7 +17,7 @@
   "unknown_filter": "Filtre inconnu",
   "too_many": "Trop d’éléments",
   "nesting": "Imbrication impossible ici",
-  "delay_budget": "Les attentes dépassent 10 secondes au total",
+  "delay_budget": "Les attentes dépassent 60 secondes au total",
   "trigger_mismatch": "Incompatible avec ce déclencheur",
   "invalid_json": "Données invalides",
   "unsupported_version": "Version non prise en charge",

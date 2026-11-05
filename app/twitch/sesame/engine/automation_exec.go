@@ -146,12 +146,15 @@ func (x *actionExec) dispatch(s step) error {
 	if !s.Enabled {
 		return skipped("disabled")
 	}
-	if x.budget.executed >= automation.MaxActions {
-		return limited("max_actions")
-	}
 	handler, known := actionTable[s.Type]
 	if !known {
 		return failure("unknown_type")
+	}
+	if automation.IsBranching(s.Type) {
+		return handler(x, s)
+	}
+	if x.budget.executed >= automation.MaxActions {
+		return limited("max_actions")
 	}
 	x.budget.executed++
 	return handler(x, s)

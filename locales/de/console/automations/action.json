@@ -21,6 +21,7 @@
   "redemption": "Einlösung abschließen",
   "delay": "Warten",
   "random_pick": "Zufällig auswählen",
+  "parallel": "Pfade parallel ausführen",
   "run": "Andere Automatisierung starten",
   "if": "Wenn, dann, sonst",
   "http_post": "HTTP-Anfrage senden",

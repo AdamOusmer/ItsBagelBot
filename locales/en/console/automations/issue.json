@@ -17,7 +17,7 @@
   "unknown_filter": "Unknown filter",
   "too_many": "Too many",
   "nesting": "Cannot be nested here",
-  "delay_budget": "Waits add up to more than 10 seconds",
+  "delay_budget": "Waits add up to more than 60 seconds",
   "trigger_mismatch": "Does not fit this trigger",
   "invalid_json": "Invalid data",
   "unsupported_version": "Unsupported version",

@@ -266,10 +266,10 @@ describe('per-recipe refusals', () => {
     }
   });
 
-  test('absurd nesting is refused', () => {
+  test('nesting past the size limit is refused by size', () => {
     let deep: unknown = chat('x');
     for (let i = 0; i < 5000; i++) deep = { type: 'if', params: { then: [deep] } };
-    expect(issueCodes(onlyEntry({ version: 1, trigger: { type: 'manual' }, actions: [deep] }))).toEqual(['nesting']);
+    expect(issueCodes(onlyEntry({ version: 1, trigger: { type: 'manual' }, actions: [deep] }))).toEqual(['too_long']);
   });
 
   test('non-object definitions and names are per-recipe issues', () => {

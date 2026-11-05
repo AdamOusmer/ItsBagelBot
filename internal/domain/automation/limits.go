@@ -5,8 +5,7 @@ package automation
 
 const (
 	MaxActions               = 20
-	MaxConditions            = 10
-	MaxDelayMS               = 10000
+	MaxDelayMS               = 60000
 	MaxChatMessagesPerRun    = 3
 	MaxRecursionDepth        = 2
 	MaxNameLength            = 64
@@ -40,7 +39,6 @@ const (
 	CodeUnknownEventKind = "unknown_event_kind"
 	CodeUnknownFilter    = "unknown_filter"
 	CodeTooMany          = "too_many"
-	CodeNesting          = "nesting"
 	CodeDelayBudget      = "delay_budget"
 	CodeTriggerMismatch  = "trigger_mismatch"
 	CodePermRequired     = "perm_required"

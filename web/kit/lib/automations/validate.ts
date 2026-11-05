@@ -4,6 +4,7 @@
 import { Chk } from './check';
 import { decodeStrict, type Schema } from './decode';
 import {
+  actionRegistry,
   actions,
   type ActionNode,
   conditions,
@@ -22,8 +23,6 @@ import type { Definition, Issue } from './types';
 // Called, not a bare import: the package's sideEffects list lets production bundles drop a bare one, emptying every registry.
 fillRegistries();
 
-const MAX_FLATTEN_DEPTH = 4;
-
 const ROOT_SCHEMA: Schema = { version: 'int', trigger: 'typed', conditions: 'typeds', actions: 'actions' };
 
 interface Root {
@@ -33,26 +32,26 @@ interface Root {
   actions: ActionNode[];
 }
 
-function flatten(list: ActionNode[], depth: number): ActionNode[] {
+function flatten(list: ActionNode[]): ActionNode[] {
   const out: ActionNode[] = [];
   for (const a of list) {
     out.push(a);
-    if (depth >= MAX_FLATTEN_DEPTH) continue;
-    for (const branch of nestedActions(a)) out.push(...flatten(branch, depth + 1));
+    for (const branch of nestedActions(a)) out.push(...flatten(branch));
   }
   return out;
 }
 
-function totalDelayMs(flat: ActionNode[]): number {
-  return flat
-    .filter((a) => a.type === 'delay')
-    .reduce((sum, a) => sum + decodeParams<{ ms: number }>({ ms: 'int' }, {}, a.params).value.ms, 0);
+function pathDelayMs(list: ActionNode[]): number {
+  return list.reduce((sum, a) => {
+    if (a.type === 'delay') return sum + decodeParams<{ ms: number }>({ ms: 'int' }, {}, a.params).value.ms;
+    return sum + Math.max(0, ...nestedActions(a).map(pathDelayMs));
+  }, 0);
 }
 
 function checkBudgets(c: Chk, list: ActionNode[]): void {
-  const flat = flatten(list, 0);
-  c.count('actions', flat.length, 0, MAX_ACTIONS);
-  if (totalDelayMs(flat) > MAX_DELAY_MS) c.add('actions', CODE.delayBudget);
+  const effects = flatten(list).filter((a) => !actionRegistry.get(a.type)?.nested);
+  c.count('actions', effects.length, 0, MAX_ACTIONS);
+  if (pathDelayMs(list) > MAX_DELAY_MS) c.add('actions', CODE.delayBudget);
 }
 
 function finish(issues: Issue[]): Issue[] {

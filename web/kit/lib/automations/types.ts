@@ -228,6 +228,10 @@ export interface RandomPickAction {
   branches: Branch[];
 }
 
+export interface ParallelAction {
+  branches: Branch[];
+}
+
 export interface RunAction {
   automation_id: string;
 }

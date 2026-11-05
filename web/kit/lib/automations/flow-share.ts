@@ -149,7 +149,6 @@ export interface FlowCommitDeps {
 const REF_PATTERN = /^f[0-9]{1,3}$/;
 const ENTRY_KEYS = new Set(['ref', 'name', 'definition']);
 const FILE_KEYS = new Set(['format', 'version', 'flows']);
-const MAX_KEY_DEPTH = 16;
 const SAFE_KEY = /^[a-z0-9_]+$/;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const FILTERS_WITH_CHANNEL_VALUES = new Set(['user', 'login', 'user_id', 'reward', 'reward_id']);
@@ -168,6 +167,49 @@ const PRIVILEGED_ACTIONS = new Set([
   'set_game',
   'set_tags'
 ]);
+// Types whose params are rewritten by a rule below. Any type in neither list has its params dropped on the way through.
+export const SHARE_REWRITTEN = {
+  trigger: ['reward', 'event'],
+  condition: ['users'],
+  action: ['lights', 'http_post', 'run']
+} as const;
+// Types reviewed as carrying only the user's own text, numbers and names. A new type is not shareable until it is added here.
+export const SHARE_REVIEWED = {
+  trigger: ['command', 'timer', 'manual'],
+  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare'],
+  action: [
+    'chat',
+    'announce',
+    'reply',
+    'timeout',
+    'ban',
+    'delete_message',
+    'warn',
+    'shield',
+    'shoutout',
+    'clip',
+    'marker',
+    'set_title',
+    'set_game',
+    'set_tags',
+    'commercial',
+    'points_add',
+    'points_set',
+    'counter_add',
+    'counter_set',
+    'redemption',
+    'delay',
+    'random_pick',
+    'parallel',
+    'if',
+    'stop'
+  ]
+} as const;
+const SHAREABLE: Record<keyof typeof SHARE_REVIEWED, ReadonlySet<string>> = {
+  trigger: new Set([...SHARE_REWRITTEN.trigger, ...SHARE_REVIEWED.trigger]),
+  condition: new Set([...SHARE_REWRITTEN.condition, ...SHARE_REVIEWED.condition]),
+  action: new Set([...SHARE_REWRITTEN.action, ...SHARE_REVIEWED.action])
+};
 const REFERENCE_TOKENS: Record<string, SetupCode> = {
   count: 'counter',
   counter: 'counter',
@@ -205,7 +247,7 @@ function mapIf(params: Params, path: string, visit: ActionVisit): Params {
 function mapNested(action: Action, path: string, visit: ActionVisit): Action {
   const params = action.params ?? {};
   if (action.type === 'if') return { ...action, params: mapIf(params, path, visit) };
-  if (action.type === 'random_pick') return { ...action, params: mapBranches(params, path, visit) };
+  if (action.type === 'random_pick' || action.type === 'parallel') return { ...action, params: mapBranches(params, path, visit) };
   return action;
 }
 
@@ -222,11 +264,12 @@ function mapDefinitionActions(definition: Definition, visit: ActionVisit): Defin
 }
 
 function neutralUsers(params: Params): Params {
-  const hadAllow = list(params.allow).length > 0;
+  const hadAllow = list(params.allow).length + list(params.allow_ids).length > 0;
   return hadAllow ? { allow: [SETUP_LOGIN] } : { deny: [SETUP_LOGIN] };
 }
 
 function neutralCondition(condition: Condition, path: string, notes: Notes): Condition {
+  if (!SHAREABLE.condition.has(condition.type)) return { ...condition, params: {} };
   const params = condition.params ?? {};
   if (condition.type === 'users') {
     notes.push({ code: 'users_list', path });
@@ -249,6 +292,7 @@ function neutralFilters(filters: Record<string, string>, path: string, notes: No
 function neutralTrigger(definition: Definition, notes: Notes): Definition {
   const { trigger } = definition;
   const params = trigger.params ?? {};
+  if (!SHAREABLE.trigger.has(trigger.type)) return { ...definition, trigger: { ...trigger, params: {} } };
   if (trigger.type === 'reward') {
     notes.push({ code: 'reward_trigger', path: 'trigger.params.reward_id' });
     return { ...definition, trigger: { ...trigger, params: { reward_id: SETUP_REWARD_ID } } };
@@ -330,6 +374,7 @@ function noteTemplateTokens(params: Params, path: string, notes: Notes): void {
 }
 
 function neutralAction(action: Action, path: string, notes: Notes): Action {
+  if (!SHAREABLE.action.has(action.type)) return disabled(action, {});
   noteNamedReferences(action, path, notes);
   noteTemplateTokens(action.params ?? {}, path, notes);
   const external = neutralExternal(action, path, notes);
@@ -436,11 +481,10 @@ function childrenOf(value: unknown): unknown[] {
   return isObject(value) ? Object.values(value) : [];
 }
 
-function keyIssue(value: unknown, depth: number): Issue | null {
-  if (depth > MAX_KEY_DEPTH) return { path: 'definition', code: CODE.nesting };
+function keyIssue(value: unknown): Issue | null {
   if (isObject(value) && Object.keys(value).some(unsafeKey)) return { path: 'definition', code: CODE.unknownField };
   for (const child of childrenOf(value)) {
-    const hit = keyIssue(child, depth + 1);
+    const hit = keyIssue(child);
     if (hit) return hit;
   }
   return null;
@@ -448,9 +492,10 @@ function keyIssue(value: unknown, depth: number): Issue | null {
 
 function definitionIssues(definition: unknown): Issue[] {
   if (!isObject(definition)) return [{ path: 'definition', code: CODE.required }];
-  const key = keyIssue(definition, 0);
-  if (key) return [key];
+  // Size comes first: it bounds how deep the walks below can recurse on a hostile file.
   if (byteLength(JSON.stringify(definition) ?? '') > MAX_DEFINITION_BYTES) return [{ path: 'definition', code: CODE.tooLong }];
+  const key = keyIssue(definition);
+  if (key) return [key];
   return validateDefinition(definition).map((issue) => ({ ...issue, path: issue.path ? `definition.${issue.path}` : 'definition' }));
 }
 

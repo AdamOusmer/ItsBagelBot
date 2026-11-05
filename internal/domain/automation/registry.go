@@ -98,9 +98,6 @@ func (c chk) typed(reg map[string]entry, t typedParams) {
 }
 
 func (c chk) conditions(list []Condition) {
-	if !c.count("conditions", quantity(len(list)), upTo(MaxConditions)) {
-		return
-	}
 	for i, cond := range list {
 		c.sub("conditions").elem(index(i)).typed(conditionRegistry, typedParams(cond))
 	}
@@ -120,12 +117,11 @@ func (c chk) action(i index, a Action) {
 	if c.permMissing(a.Type) {
 		at.add("type", CodePermRequired)
 	}
-	if c.depth > 0 && actionRegistry[a.Type].nested != nil {
-		at.add("type", CodeNesting)
-		return
-	}
 	at.typed(actionRegistry, typedParams{Type: a.Type, Params: a.Params})
 }
+
+// IsBranching reports a step that only routes to other steps, so it does not count toward MaxActions.
+func IsBranching(typ string) bool { return actionRegistry[typ].nested != nil }
 
 func (c chk) triggerMismatch(typ string) bool {
 	want, ok := requiredTrigger[typ]
@@ -202,6 +198,7 @@ func init() {
 		"redemption":     register(checkRedemption),
 		"delay":          register(checkDelay),
 		"random_pick":    registerNested(checkRandomPick, randomPickBranches),
+		"parallel":       registerNested(checkParallel, parallelBranches),
 		"run":            register(checkRun),
 		"if":             registerNested(checkIf, ifBranches),
 		"http_post":      register(checkHTTPPost),

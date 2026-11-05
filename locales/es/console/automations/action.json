@@ -21,6 +21,7 @@
   "redemption": "Resolver el canje",
   "delay": "Esperar",
   "random_pick": "Elegir uno al azar",
+  "parallel": "Ejecutar rutas en paralelo",
   "run": "Ejecutar otra automatización",
   "if": "Si, entonces, si no",
   "http_post": "Enviar una solicitud HTTP",
