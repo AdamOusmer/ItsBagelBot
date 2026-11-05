@@ -35,6 +35,7 @@ type AutomationDeps struct {
 	Source  AutomationSource
 	Runs    RunLog
 	Limiter RunLimiter
+	Queue   RunQueue
 }
 
 type AutomationRun struct {
@@ -56,6 +57,8 @@ type AutomationRun struct {
 	Started       time.Time
 	Admitted      bool
 	Record        automationrpc.RunRecord
+	Slot          *queueSlot
+	QueuedRole    module.Role
 }
 
 type noRunLog struct{}
@@ -81,6 +84,9 @@ func withAutomationDefaults(d AutomationDeps) AutomationDeps {
 	if d.Limiter == nil {
 		d.Limiter = openLimiter{}
 	}
+	if d.Queue == nil {
+		d.Queue = openRunQueue{}
+	}
 	return d
 }
 
@@ -91,7 +97,7 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 		RunID: run.ID, AutomationID: auto.ID, Name: auto.Name,
 		Trigger: auto.Definition.Trigger.Type, Source: run.Source, At: run.Started,
 	}
-	defer p.finishRun(ctx, run)
+	defer p.endRunSegment(ctx, run)
 	admitting := run.Depth == 0 && !run.Admitted
 	if admitting && !p.automationRunAllowed(ctx, run) {
 		return
@@ -103,7 +109,17 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 		run.Record.Outcome, run.Record.Reason = skippedOutcome(err, reason)
 		return
 	}
-	x.execute()
+	if p.admitToQueue(ctx, run) {
+		x.execute()
+	}
+}
+
+// Only the root owns a slot reference: a run child shares its parent's segment.
+func (p *Pipeline) endRunSegment(ctx context.Context, run *AutomationRun) {
+	if run.Depth == 0 {
+		defer run.Slot.drop()
+	}
+	p.finishRun(ctx, run)
 }
 
 func (p *Pipeline) automationRunAllowed(ctx context.Context, run *AutomationRun) bool {

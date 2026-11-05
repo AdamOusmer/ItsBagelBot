@@ -184,6 +184,7 @@ func (x *actionExec) startContinuation(cont *AutomationRun) {
 	budget := x.budget
 	budget.segment++
 	wait := time.Duration(x.delayMS) * time.Millisecond
+	cont.Slot.retain()
 	go x.p.continueRun(context.WithoutCancel(x.ctx), continuation{run: cont, budget: budget, rest: x.rest, wait: wait})
 }
 
@@ -197,6 +198,7 @@ type continuation struct {
 func (p *Pipeline) continueRun(ctx context.Context, c continuation) {
 	run, budget := c.run, c.budget
 	defer p.autoExec.release()
+	defer run.Slot.drop()
 	ctx, cancel := context.WithTimeout(ctx, c.wait+continuationTimeout)
 	defer cancel()
 	if !sleepContext(ctx, c.wait) {
