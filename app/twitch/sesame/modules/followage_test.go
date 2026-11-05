@@ -16,6 +16,10 @@ import (
 	"ItsBagelBot/internal/projection"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 type fakeFollowage struct {
@@ -37,6 +41,32 @@ func lookupContext() *module.Context {
 
 func disabledModule(name string) []projection.ModuleView {
 	return []projection.ModuleView{{Name: name, IsEnabled: false}}
+}
+
+func TestLookupFailureLogLevelByOrigin(t *testing.T) {
+	cases := []struct {
+		origin string
+		level  zapcore.Level
+	}{
+		{"trial", zapcore.InfoLevel},
+		{"", zapcore.WarnLevel},
+	}
+	for _, tc := range cases {
+		t.Run("origin "+tc.origin, func(t *testing.T) {
+			core, logs := observer.New(zapcore.DebugLevel)
+			d := engine.Deps{Log: zap.New(core), Followage: &fakeFollowage{err: errors.New("rpc: channel unavailable")}, Proj: &fakeProj{}}
+			c := lookupContext()
+			c.Env.Origin = tc.origin
+
+			out := runChat(t, Followage(d), c, "!followage")
+
+			assert.Equal(t, []string{"Followage is unavailable right now."}, texts(out))
+			entries := logs.FilterMessage("followage: lookup failed").All()
+			require.Len(t, entries, 1)
+			assert.Equal(t, tc.level, entries[0].Level)
+			assert.Equal(t, uint64(5), entries[0].ContextMap()["broadcaster_id"])
+		})
+	}
 }
 
 func TestFollowageAndAccountAgeReplies(t *testing.T) {

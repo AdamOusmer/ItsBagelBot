@@ -28,7 +28,7 @@ func Uptime(d engine.Deps) module.Module {
 		}
 		bid := c.Env.BroadcasterUserID
 		text := lookupCall[engine.UptimeResult]{
-			log: log, logKey: uptimeModuleName, unavailable: i18n.T(c.Locale, "uptime.unavailable"),
+			c: c, log: log, logKey: uptimeModuleName, unavailable: i18n.T(c.Locale, "uptime.unavailable"),
 			read: readIf(d.Uptime != nil, func() (engine.UptimeResult, error) { return d.Uptime.Lookup(ctx, bid) }),
 			format: func(res engine.UptimeResult) string {
 				if !res.Live {

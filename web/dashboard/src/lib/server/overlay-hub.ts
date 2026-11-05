@@ -163,9 +163,9 @@ export function createOverlayHub(deps: OverlayHubDeps): OverlayHub {
   return { attach, recheck, size };
 }
 
-// Same node PUBLISH lands on, so its reply counts these pods; Sentinel kills pubsub clients on failover and this follows.
+// Same node PUBLISH lands on, so its reply counts these pods. Sentinel kills pubsub clients only when it reconfigures the old primary, about 10s after the switch; failoverDetector moves on +switch-master instead (measured 12s to 2s of lost items).
 export function overlaySubscriberOn(base: Redis, events: OverlaySubscriberEvents): OverlaySubscriber {
-  const client = base.duplicate({ autoResubscribe: false });
+  const client = base.duplicate({ autoResubscribe: false, failoverDetector: true });
   client.on('error', () => {});
   client.on('ready', events.onReady);
   client.on('message', events.onMessage);

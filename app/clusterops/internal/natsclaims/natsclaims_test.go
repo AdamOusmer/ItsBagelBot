@@ -156,6 +156,11 @@ func startCluster(t *testing.T, chain opChain, accountPub, accountToken string) 
 
 func connectAdapter(t *testing.T, url string, chain opChain) *Adapter {
 	t.Helper()
+	return adapterFor(t, Config{HubURL: url, LeafURL: url}, chain)
+}
+
+func adapterFor(t *testing.T, cfg Config, chain opChain) *Adapter {
+	t.Helper()
 	sysUserKp, err := nkeys.CreateUser()
 	require.NoError(t, err)
 	sysUserSeed, err := sysUserKp.Seed()
@@ -163,7 +168,8 @@ func connectAdapter(t *testing.T, url string, chain opChain) *Adapter {
 	sysUserJWT, err := jwt.NewUserClaims(publicKey(t, sysUserKp)).Encode(chain.sysKp)
 	require.NoError(t, err)
 
-	adapter, err := New(Config{HubURL: url, LeafURL: url, SysJWT: sysUserJWT, SysSeed: string(sysUserSeed)})
+	cfg.SysJWT, cfg.SysSeed = sysUserJWT, string(sysUserSeed)
+	adapter, err := New(cfg)
 	require.NoError(t, err)
 	t.Cleanup(adapter.Close)
 	return adapter

@@ -97,10 +97,10 @@ func subscribeAll(register ...func() error) error {
 }
 
 func (m *Manage) handleFollowage(ctx context.Context, req outgressrpc.FollowageRequest) outgressrpc.FollowageReply {
-	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+	ctx, admitted := lookupAdmission(ctx, m.runtime, req.BroadcasterID)
+	if !admitted {
 		return outgressrpc.FollowageReply{Error: "channel unavailable"}
 	}
-	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
 	if !validFollowageRequest(req) {
 		return outgressrpc.FollowageReply{Error: "bad request"}
 	}
@@ -187,10 +187,10 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 }
 
 func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest) outgressrpc.UptimeReply {
-	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+	ctx, admitted := lookupAdmission(ctx, m.runtime, req.BroadcasterID)
+	if !admitted {
 		return outgressrpc.UptimeReply{Error: "channel unavailable"}
 	}
-	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
 	if req.BroadcasterID == "" {
 		return outgressrpc.UptimeReply{Error: "bad request"}
 	}
@@ -203,18 +203,18 @@ func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest
 }
 
 func (m *Manage) handleStreamInfo(ctx context.Context, req outgressrpc.StreamInfoRequest) outgressrpc.StreamInfoReply {
-	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+	ctx, admitted := lookupAdmission(ctx, m.runtime, req.BroadcasterID)
+	if !admitted {
 		return outgressrpc.StreamInfoReply{Error: "channel unavailable"}
 	}
-	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
 	return readStreamInfo(ctx, m.twitch, m.log, req)
 }
 
 func (m *Manage) handleChannelCounts(ctx context.Context, req outgressrpc.ChannelCountsRequest) outgressrpc.ChannelCountsReply {
-	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+	ctx, admitted := lookupAdmission(ctx, m.runtime, req.BroadcasterID)
+	if !admitted {
 		return outgressrpc.ChannelCountsReply{Error: "channel unavailable"}
 	}
-	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
 	return readChannelCounts(ctx, m.twitch, m.log, req)
 }
 
@@ -317,6 +317,25 @@ func runtimeAdmitted(ctx context.Context, r channelruntime.Reader, id string) bo
 	}
 	s, err := r.Get(ctx, uid)
 	return err == nil && s.AllowsRuntime()
+}
+
+// Read-only lookups: a trial channel has no account yet and its chat still runs these commands, so only a registered channel that lost runtime is refused.
+func lookupAdmission(ctx context.Context, r channelruntime.Reader, id string) (context.Context, bool) {
+	if r == nil {
+		return ctx, true
+	}
+	uid, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		return ctx, false
+	}
+	s, err := r.Get(ctx, uid)
+	if err != nil {
+		return ctx, false
+	}
+	if !s.Registered {
+		return ctx, true
+	}
+	return runtimeContext(ctx, r, id), s.AllowsRuntime()
 }
 
 func runtimeContext(ctx context.Context, r channelruntime.Reader, id string) context.Context {

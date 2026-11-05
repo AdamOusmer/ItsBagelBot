@@ -18,12 +18,11 @@ import (
 const (
 	variableWriteAttempts = 8
 	maxVariableReadNames  = 100
+	// Outside the variable name pattern, so no recipe can read, write or count it.
+	variableNamesGuard = "#names"
 )
 
-var (
-	ErrVariableLimit = errors.New("variable limit reached")
-	errVariableStale = errors.New("variable changed concurrently")
-)
+var ErrVariableLimit = errors.New("variable limit reached")
 
 type VariableOwner struct {
 	UserID   uint64
@@ -147,7 +146,9 @@ func (r *Loyalty) mutateVariable(ctx context.Context, o VariableOwner, rawName s
 		return err
 	}
 	for range variableWriteAttempts {
-		err = db.WithExec(ctx, func(ctx context.Context) error { return r.writeVariable(ctx, o, name, next) })
+		err = db.WithExec(ctx, func(ctx context.Context) error {
+			return withTx(ctx, r.client, func(tx *ent.Tx) error { return r.writeVariable(ctx, tx, o, name, next) })
+		})
 		if !retryableVariableWrite(err) {
 			return err
 		}
@@ -159,13 +160,17 @@ func retryableVariableWrite(err error) bool {
 	if err == nil {
 		return false
 	}
-	return ent.IsConstraintError(err) || errors.Is(err, errVariableStale) || retryableTx(err, nil)
+	return ent.IsConstraintError(err) || retryableTx(err, nil)
 }
 
-func (r *Loyalty) writeVariable(ctx context.Context, o VariableOwner, name string, next func(string) (string, error)) error {
-	row, err := r.client.Variable.Query().Where(ownerPredicates(o)...).Where(variable.Name(name)).Only(ctx)
+func (r *Loyalty) writeVariable(ctx context.Context, tx *ent.Tx, o VariableOwner, name string, next func(string) (string, error)) error {
+	query := tx.Variable.Query().Where(ownerPredicates(o)...).Where(variable.Name(name))
+	if r.dialect != "sqlite3" {
+		query.ForUpdate()
+	}
+	row, err := query.Only(ctx)
 	if ent.IsNotFound(err) {
-		return r.createVariable(ctx, o, name, next)
+		return createVariable(ctx, tx, o, name, next)
 	}
 	if err != nil {
 		return err
@@ -174,45 +179,42 @@ func (r *Loyalty) writeVariable(ctx context.Context, o VariableOwner, name strin
 	if err != nil {
 		return err
 	}
-	return r.swapVariable(ctx, row, value)
+	return tx.Variable.UpdateOneID(row.ID).SetValue(value).AddRevision(1).Exec(ctx)
 }
 
-func (r *Loyalty) swapVariable(ctx context.Context, row *ent.Variable, value string) error {
-	updated, err := r.client.Variable.Update().
-		Where(variable.ID(row.ID), variable.Revision(row.Revision)).
-		SetValue(value).
-		AddRevision(1).
-		Save(ctx)
-	if err != nil {
-		return err
-	}
-	if updated == 0 {
-		return errVariableStale
-	}
-	return nil
-}
-
-func (r *Loyalty) createVariable(ctx context.Context, o VariableOwner, name string, next func(string) (string, error)) error {
+func createVariable(ctx context.Context, tx *ent.Tx, o VariableOwner, name string, next func(string) (string, error)) error {
 	value, err := next("")
 	if err != nil {
 		return err
 	}
-	if err := r.checkVariableRoom(ctx, o, name); err != nil {
+	if err := lockVariableNames(ctx, tx, o); err != nil {
 		return err
 	}
-	return r.client.Variable.Create().
+	if err := checkVariableRoom(ctx, tx, o, name); err != nil {
+		return err
+	}
+	return tx.Variable.Create().
 		SetUserID(o.UserID).SetScope(o.Scope).SetViewerID(o.ViewerID).SetName(name).SetValue(value).
 		Exec(ctx)
 }
 
+// READ-COMMITTED takes no gap locks, so an upsert on this row is what makes the room check and the insert one step per channel and scope.
+func lockVariableNames(ctx context.Context, tx *ent.Tx, o VariableOwner) error {
+	return tx.Variable.Create().
+		SetUserID(o.UserID).SetScope(o.Scope).SetViewerID(0).SetName(variableNamesGuard).
+		OnConflictColumns(variable.FieldUserID, variable.FieldScope, variable.FieldViewerID, variable.FieldName).
+		AddRevision(1).
+		Exec(ctx)
+}
+
 // Names in use count once per channel and scope; every viewer shares the one viewer-scope name budget.
-func (r *Loyalty) checkVariableRoom(ctx context.Context, o VariableOwner, name string) error {
+func checkVariableRoom(ctx context.Context, tx *ent.Tx, o VariableOwner, name string) error {
 	limit := automation.MaxChannelVariables
 	if o.Scope == automation.VariableScopeViewer {
 		limit = automation.MaxViewerVariableNames
 	}
-	others, err := r.client.Variable.Query().
-		Where(variable.UserID(o.UserID), variable.Scope(o.Scope), variable.NameNEQ(name)).
+	others, err := tx.Variable.Query().
+		Where(variable.UserID(o.UserID), variable.Scope(o.Scope), variable.NameNotIn(name, variableNamesGuard)).
 		Unique(true).
 		Limit(limit).
 		Select(variable.FieldName).

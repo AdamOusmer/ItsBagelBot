@@ -52,6 +52,18 @@ func TestTrialOriginStopsDirectAndBatchChild(t *testing.T) {
 	assert.Empty(t, rt.recorded(), "trial output never reaches Twitch")
 }
 
+func TestTrialOutputIsRecordedForAChannelWithNoAccount(t *testing.T) {
+	w, logs := observedWorker()
+	w.runtime = &fakeRuntime{}
+	body, err := codec.Marshal(outgress.Message{Type: outgress.TypeChat, BroadcasterID: "42", Origin: "trial", TrialGeneration: 5, Payload: codec.RawMessage(`{"message":"hi"}`)})
+	require.NoError(t, err)
+
+	require.NoError(t, w.Process(bus.NewMessage("trial-unregistered", body)))
+
+	w.blocked.Flush()
+	assert.Len(t, logs.FilterMessage("trial output blocked").All(), 1)
+}
+
 func TestProcessRefusesTrialOriginFromTheWire(t *testing.T) {
 	w, logs := observedWorker()
 	body, err := codec.Marshal(outgress.Message{Type: outgress.TypeChat, BroadcasterID: "42", Origin: "trial", TrialGeneration: 5, Payload: codec.RawMessage(`{"message":"hi"}`)})
