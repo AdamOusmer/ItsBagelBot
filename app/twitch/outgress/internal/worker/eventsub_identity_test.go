@@ -37,8 +37,11 @@ func eventSubIdentityWorker(t *testing.T, transport http.RoundTripper) (*Worker,
 }
 
 func countingTransport(calls *atomic.Int32) subscriptionTransport {
-	return func(*http.Request) (*http.Response, error) {
+	return func(r *http.Request) (*http.Response, error) {
 		calls.Add(1)
+		if r.Method == http.MethodGet {
+			return subscriptionResponse(200, `{"data":[]}`), nil
+		}
 		return subscriptionResponse(202, `{}`), nil
 	}
 }

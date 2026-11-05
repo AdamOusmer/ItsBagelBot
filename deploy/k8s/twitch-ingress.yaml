@@ -100,7 +100,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:v0.4.0-beta@sha256:f214b8f7c9a91295d77f07439e106eca6d95245ce252ab6e8952981bf63b7f76
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:sha-cdcbb1005a6d@sha256:eac949d4286d038db7fbd6b52b7cc68417fecb2354c00b486705b3b65e172d56
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -120,6 +120,8 @@ spec:
               value: nats-leaf.messaging.svc.cluster.local
             - name: NATS_HUB_HOST
               value: nats.messaging.svc.cluster.local
+            - name: NATS_SUBJECT_AUTOMOD_TRIAL
+              value: twitch.automod.trial
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:
