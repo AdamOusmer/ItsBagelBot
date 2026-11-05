@@ -828,9 +828,7 @@ describe('containers keep their drawn shape through save and reload', () => {
       [node('s', 'reply.var_delete', { name: 'score' }), { type: 'var_delete', params: { scope: 'channel', name: 'score' } }],
       [node('s', 'reply.text', { op: 'replace', input: '{user}', find: 'a', replaceWith: 'b', saveAs: 'out' }), { type: 'text', params: { op: 'replace', input: '{user}', arg1: 'a', arg2: 'b', save_as: 'out' } }],
       [node('s', 'reply.math', { expression: '1+1', saveAs: 'sum' }), { type: 'math', params: { expression: '1+1', save_as: 'sum' } }],
-      [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'off', reset: true }), { type: 'reward_update', params: { reward_id: 'r1', enabled: false, cost: null, reset_on_stream_end: true } }],
-      [node('s', 'reply.overlay_show', { content: 'hi', seconds: 5 }), { type: 'overlay_show', params: { kind: 'text', content: 'hi', seconds: 5, position: 'center' } }],
-      [node('s', 'reply.overlay_sound', { url: 'https://cdn.example.com/a.mp3', volume: 40 }), { type: 'overlay_sound', params: { url: 'https://cdn.example.com/a.mp3', volume: 40 } }]
+      [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'off', reset: true }), { type: 'reward_update', params: { reward_id: 'r1', enabled: false, cost: null, reset_on_stream_end: true } }]
     ];
     for (const [step, want] of steps) {
       const saved = expectStable(flow([trigger(), step], [edge('t', 'next', 's')]));

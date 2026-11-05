@@ -171,13 +171,6 @@ export const ACTION_TYPES: TypeDef[] = [
     f('cost', 'int', { min: 1, max: 10000000 }),
     f('reset_on_stream_end', 'bool'),
   ]),
-  action('overlay_show', [
-    f('kind', 'enum', { required: true, values: ['text', 'image', 'video'] }),
-    f('content', 'template', { required: true, min: 1, max: 500 }),
-    f('seconds', 'int', { required: true, min: 1, max: 60 }),
-    f('position', 'enum', { required: true, values: ['top', 'center', 'bottom'] }),
-  ]),
-  action('overlay_sound', [f('url', 'template', { required: true, min: 1, max: 512 }), f('volume', 'int', { required: true, min: 0, max: 100 })]),
   action('lights', [
     f('device', 'text', { required: true, min: 1, max: 64 }),
     f('sku', 'text', { required: true, min: 1, max: 32 }),

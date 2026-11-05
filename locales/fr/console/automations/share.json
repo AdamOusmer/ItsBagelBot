@@ -48,7 +48,6 @@
     "login_target": "Une étape ciblant un viewer spécifique a été désactivée. Choisissez qui elle cible.",
     "http_target": "Une requête web a été désactivée et son adresse supprimée. Ajoutez la vôtre.",
     "reward_target": "Une modification de récompense a été désactivée et sa récompense retirée. Choisissez la vôtre.",
-    "overlay_target": "Une étape d’overlay a été désactivée et son lien supprimé. Ajoutez le vôtre.",
     "lights_target": "Une étape d’éclairage a été désactivée et son appareil retiré. Choisissez votre propre lumière.",
     "slash_command":"Une étape qui exécutait une commande de chat a été désactivée et vidée. Réécrivez-la si vous souhaitez l’utiliser.",
     "secret_removed": "Une étape contenait quelque chose qui ne devrait pas être partagé, elle a donc été désactivée et vidée. Réécris-la si tu la veux.",

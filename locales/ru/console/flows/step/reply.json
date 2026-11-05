@@ -160,23 +160,5 @@
       "cost": { "label": "Новая стоимость", "unit": "баллов" },
       "reset": { "label": "Вернуть обратно в конце стрима" }
     }
-  },
-  "overlayShow": {
-    "label": "Показать в оверлее",
-    "summary": "Текст, изображение или видео на стриме",
-    "field": {
-      "kind": { "label": "Показать", "option": { "text": "Текст", "image": "Изображение", "video": "Видео" } },
-      "content": { "label": "Текст или ссылка", "placeholder": "{user} здесь" },
-      "seconds": { "label": "Длительность", "unit": "секунд" },
-      "position": { "label": "Где", "option": { "center": "По центру", "top": "Сверху", "bottom": "Снизу" } }
-    }
-  },
-  "overlaySound": {
-    "label": "Воспроизвести звук в оверлее",
-    "summary": "Воспроизвести звук на стриме",
-    "field": {
-      "url": { "label": "Ссылка на звук", "placeholder": "https://example.com/sound.mp3" },
-      "volume": { "label": "Громкость", "unit": "%" }
-    }
   }
 }

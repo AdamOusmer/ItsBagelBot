@@ -441,7 +441,7 @@ func (s *stack) replica(t *testing.T) *engine.Pipeline {
 		AutomationHook: &engine.AutomationHook{},
 		Automations: engine.AutomationDeps{
 			Source: s.source, Runs: s.runs,
-			Variables: s.vars, Overlay: engine.NewValkeyOverlay(s.vc), Queue: engine.NewValkeyRunQueue(s.vc),
+			Variables: s.vars, Queue: engine.NewValkeyRunQueue(s.vc),
 		},
 		Proj: premiumChannels{}, Live: live, RewardResets: engine.NewValkeyRewardResets(s.vc),
 		Greet: engine.NewValkeyGreetStore(s.vc, time.Hour, log), Cooldown: engine.NoopCooldown{},

@@ -86,9 +86,7 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("var_add", typed((*actionExec).varAdd)).
 		Step("var_delete", typed((*actionExec).varDelete)).
 		Step("text", typed((*actionExec).textStep)).
-		Step("math", typed((*actionExec).mathStep)).
-		Step("overlay_show", typed((*actionExec).overlayShow)).
-		Step("overlay_sound", typed((*actionExec).overlaySound))
+		Step("math", typed((*actionExec).mathStep))
 }
 
 func flowActions(b *actionTableBuilder) *actionTableBuilder {

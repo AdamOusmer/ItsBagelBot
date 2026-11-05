@@ -140,23 +140,5 @@
       "cost": { "label": "New cost", "unit": "points" },
       "reset": { "label": "Put it back when stream ends" }
     }
-  },
-  "overlayShow": {
-    "label": "Show on overlay",
-    "summary": "Text, an image or a video on stream",
-    "field": {
-      "kind": { "label": "Show", "option": { "text": "Text", "image": "Image", "video": "Video" } },
-      "content": { "label": "Text or link", "placeholder": "{user} is here" },
-      "seconds": { "label": "For", "unit": "seconds" },
-      "position": { "label": "Where", "option": { "center": "Center", "top": "Top", "bottom": "Bottom" } }
-    }
-  },
-  "overlaySound": {
-    "label": "Play overlay sound",
-    "summary": "Play a sound on stream",
-    "field": {
-      "url": { "label": "Sound link", "placeholder": "https://example.com/sound.mp3" },
-      "volume": { "label": "Volume", "unit": "%" }
-    }
   }
 }

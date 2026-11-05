@@ -21,7 +21,6 @@
     "reward_not_found": "Esta recompensa ya no existe en Twitch. Elige otra.",
     "reward_rejected": "Twitch rechazó este cambio. Revisa el costo y confirma que el canal siga conectado.",
     "reward_unconfirmed": "Twitch no confirmó este cambio después de varios intentos. Revisa la recompensa.",
-    "no_overlay": "No había ningún overlay abierto, así que no se mostró nada.",
     "queue_full": "Ya había demasiadas ejecuciones esperando en esta cola.",
     "queue_timeout": "Esta ejecución esperó 5 minutos en su cola y se canceló.",
     "queued": "Enviado a Twitch. Aún no hay respuesta, vuelve a revisar en un momento.",

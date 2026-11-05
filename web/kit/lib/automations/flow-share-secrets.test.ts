@@ -137,7 +137,6 @@ describe('secrets pasted into free text', () => {
     ['reply', { type: 'reply', params: { text: GH } }],
     ['var value', { type: 'var_set', params: { scope: 'channel', name: 'k', value: `x ${GH}` } }],
     ['text step', { type: 'text', params: { op: 'upper', input: `x ${GH}`, arg1: '', arg2: '', save_as: 'y' } }],
-    ['overlay text', { type: 'overlay_show', params: { kind: 'text', content: `x ${GH}`, seconds: 5, position: 'top' } }],
     ['nested body', { type: 'if', params: { condition: { type: 'compare', params: { left: `x ${GH}`, op: 'eq', right: '1' } }, then: [{ type: 'loop', params: { times: '2', actions: [chat(`x ${GH}`)] } }], else: [] } }]
   ];
 
@@ -390,10 +389,7 @@ describe('recipes v2 external targets never leave, at any depth', () => {
   const v2Leaves = () => [
     { type: 'http_get', params: { url: `https://user:${LEAK}@api.example.org/a?t=${LEAK}`, json_path: ['data', 'value'], save_as: 'answer' } },
     { type: 'http_post', params: { url: `https://hooks.example.org/${LEAK}`, body: `key=${LEAK}`, save_as: 'reply' } },
-    { type: 'reward_update', params: { reward_id: `reward-${LEAK}`, enabled: false, cost: null, reset_on_stream_end: true } },
-    { type: 'overlay_show', params: { kind: 'image', content: `https://cdn.example.org/${LEAK}.png`, seconds: 5, position: 'top' } },
-    { type: 'overlay_show', params: { kind: 'video', content: `https://cdn.example.org/${LEAK}.mp4`, seconds: 5, position: 'top' } },
-    { type: 'overlay_sound', params: { url: `https://cdn.example.org/${LEAK}.mp3`, volume: 40 } }
+    { type: 'reward_update', params: { reward_id: `reward-${LEAK}`, enabled: false, cost: null, reset_on_stream_end: true } }
   ];
 
   const inLoop = (inner: unknown[]) => ({ type: 'loop', params: { times: '2', actions: inner } });
@@ -442,9 +438,8 @@ describe('recipes v2 external targets never leave, at any depth', () => {
     expect(entry.definition!.actions).toEqual([{ type: 'http_post', enabled: false, params: { url: SETUP_URL, on_failure: [chat('bad')] } }]);
   });
 
-  test('text overlays and the listed kept fields stay as written', () => {
+  test('the listed kept fields stay as written', () => {
     const steps = [
-      { type: 'overlay_show', params: { kind: 'text', content: 'hello {user}', seconds: 5, position: 'top' } },
       { type: 'var_set', params: { scope: 'channel', name: 'score', value: '1' } },
       { type: 'var_add', params: { scope: 'viewer', name: 'score', amount: 2 } },
       { type: 'var_delete', params: { scope: 'channel', name: 'score' } },
@@ -460,7 +455,7 @@ describe('recipes v2 external targets never leave, at any depth', () => {
 
   test('the import view counts the setup work and the imported steps stay valid', () => {
     const entry = planned(manual(v2Leaves()));
-    expect(entry.setup.map((note) => note.code)).toEqual(['http_target', 'http_target', 'reward_target', 'overlay_target', 'overlay_target', 'overlay_target']);
+    expect(entry.setup.map((note) => note.code)).toEqual(['http_target', 'http_target', 'reward_target']);
     expect((entry.definition!.actions ?? []).every((action) => action.enabled === false)).toBe(true);
   });
 });

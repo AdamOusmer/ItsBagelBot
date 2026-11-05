@@ -190,7 +190,6 @@ func assertFirstRunRecord(t *testing.T, s *stack, channel uint64) {
 	t.Logf("run record: %s %v", rec.Outcome, stepStatuses(rec))
 	assert.Contains(t, stepStatuses(rec), "http_get:ok")
 	assert.Contains(t, stepStatuses(rec), "http_get:failed:upstream_error")
-	assert.Contains(t, stepStatuses(rec), "overlay_show:ok:no_overlay")
 	assert.NotEqual(t, automationrpc.OutcomeFailed, rec.Outcome, "a failure with a handled path is not a failed run")
 }
 

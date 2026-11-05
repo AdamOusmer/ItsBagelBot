@@ -48,7 +48,6 @@
     "login_target": "Se desactivó un paso dirigido a un espectador concreto. Elige a quién se dirige.",
     "http_target": "Se desactivó una solicitud web y se quitó su dirección. Añade la tuya.",
     "reward_target": "Se desactivó un cambio de recompensa y se quitó su recompensa. Elige la tuya.",
-    "overlay_target": "Se desactivó un paso de overlay y se quitó su enlace. Añade el tuyo.",
     "lights_target": "Se desactivó un paso de luces y se quitó su dispositivo. Elige tu propia luz.",
     "slash_command": "Se desactivó y vació un paso que ejecutaba un comando de chat. Reescríbelo si lo quieres.",
     "secret_removed": "Un paso contenía algo que no debería compartirse, así que se desactivó y se borró. Reescríbelo si lo quieres.",

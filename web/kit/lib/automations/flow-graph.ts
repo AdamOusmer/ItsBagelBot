@@ -142,9 +142,7 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.math': ['expression'],
   'reply.loop': ['times'],
   'reply.http_get': ['url'],
-  'reply.http_post': ['url', 'body'],
-  'reply.overlay_show': ['content'],
-  'reply.overlay_sound': ['url']
+  'reply.http_post': ['url', 'body']
 };
 
 const recipeName = (v: unknown) => str(v).trim().toLowerCase();
@@ -254,15 +252,7 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.var_delete': (config) => ({ type: 'var_delete', params: varIdentity(config) }),
   'reply.text': textAction,
   'reply.math': (config) => ({ type: 'math', params: { expression: str(config.expression), save_as: recipeName(config.saveAs) } }),
-  'reply.reward_update': rewardUpdateAction,
-  'reply.overlay_show': (config) => ({
-    type: 'overlay_show',
-    params: { kind: str(config.kind) || 'text', content: str(config.content), seconds: num(config.seconds), position: str(config.position) || 'center' }
-  }),
-  'reply.overlay_sound': (config) => ({
-    type: 'overlay_sound',
-    params: { url: str(config.url), volume: config.volume === undefined ? 100 : num(config.volume) }
-  })
+  'reply.reward_update': rewardUpdateAction
 };
 
 type Lowering = {
@@ -818,12 +808,7 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   var_delete: (params) => ({ type: 'reply.var_delete', config: varConfig(params) }),
   text: textNode,
   math: (params) => ({ type: 'reply.math', config: { expression: str(params.expression), saveAs: str(params.save_as) } }),
-  reward_update: rewardUpdateNode,
-  overlay_show: (params) => ({
-    type: 'reply.overlay_show',
-    config: { kind: str(params.kind), content: str(params.content), seconds: num(params.seconds), position: str(params.position) }
-  }),
-  overlay_sound: (params) => ({ type: 'reply.overlay_sound', config: { url: str(params.url), volume: num(params.volume) } })
+  reward_update: rewardUpdateNode
 };
 
 const placedConfig = (action: Action, config: FlowConfig): FlowConfig => (action.enabled === false ? { ...config, disabled: true } : config);

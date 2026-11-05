@@ -160,23 +160,5 @@
       "cost": { "label": "Neue Kosten", "unit": "Punkte" },
       "reset": { "label": "Beim Stream-Ende zurücksetzen" }
     }
-  },
-  "overlayShow": {
-    "label": "Im Overlay anzeigen",
-    "summary": "Text, ein Bild oder ein Video im Stream",
-    "field": {
-      "kind": { "label": "Anzeigen", "option": { "text": "Text", "image": "Bild", "video": "Video" } },
-      "content": { "label": "Text oder Link", "placeholder": "{user} ist hier" },
-      "seconds": { "label": "Dauer", "unit": "Sekunden" },
-      "position": { "label": "Position", "option": { "center": "Mitte", "top": "Oben", "bottom": "Unten" } }
-    }
-  },
-  "overlaySound": {
-    "label": "Overlay-Sound abspielen",
-    "summary": "Einen Sound im Stream abspielen",
-    "field": {
-      "url": { "label": "Sound-Link", "placeholder": "https://example.com/sound.mp3" },
-      "volume": { "label": "Lautstärke", "unit": "%" }
-    }
   }
 }

@@ -21,7 +21,6 @@
     "reward_not_found": "Diese Belohnung gibt es auf Twitch nicht mehr. Wähle eine andere aus.",
     "reward_rejected": "Twitch hat diese Änderung abgelehnt. Überprüfe die Kosten und ob der Kanal noch verbunden ist.",
     "reward_unconfirmed": "Twitch hat diese Änderung nach mehreren Versuchen nicht bestätigt. Überprüfe die Belohnung.",
-    "no_overlay": "Es war kein Overlay geöffnet, daher wurde nichts angezeigt.",
     "queue_full": "In dieser Warteschlange warteten bereits zu viele Ausführungen.",
     "queue_timeout": "Diese Ausführung hat 5 Minuten in der Warteschlange gewartet und wurde abgebrochen.",
     "queued": "An Twitch gesendet. Noch keine Antwort, schau gleich noch mal nach.",

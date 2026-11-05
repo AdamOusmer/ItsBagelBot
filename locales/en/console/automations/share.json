@@ -48,7 +48,6 @@
     "login_target": "A step aimed at a specific viewer was turned off. Pick who it targets.",
     "http_target": "A web request was turned off and its address removed. Add your own.",
     "reward_target": "A reward change was turned off and its reward removed. Pick your own.",
-    "overlay_target": "An overlay step was turned off and its link removed. Add your own.",
     "lights_target": "A lights step was turned off and its device removed. Pick your own light.",
     "slash_command": "A step that ran a chat command was turned off and blanked. Rewrite it if you want it.",
     "secret_removed": "A step held something that should not be shared, so it was turned off and blanked. Rewrite it if you want it.",

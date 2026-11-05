@@ -73,7 +73,6 @@ function knownReason(t: Translate, detail: string): string | null {
     reward_not_found: t('flows.recipe.why.reward_not_found'),
     reward_rejected: t('flows.recipe.why.reward_rejected'),
     reward_unconfirmed: t('flows.recipe.why.reward_unconfirmed'),
-    no_overlay: t('flows.recipe.why.no_overlay'),
     queue_full: t('flows.recipe.why.queue_full'),
     queue_timeout: t('flows.recipe.why.queue_timeout'),
     queued: t('flows.recipe.why.queued')

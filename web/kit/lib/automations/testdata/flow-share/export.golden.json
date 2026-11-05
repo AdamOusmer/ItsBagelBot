@@ -225,12 +225,10 @@
                     ],
                     "on_failure": [
                       {
-                        "type": "overlay_sound",
+                        "type": "chat",
                         "params": {
-                          "url": "https://example.com/setup-required",
-                          "volume": 40
-                        },
-                        "enabled": false
+                          "text": "no answer"
+                        }
                       }
                     ]
                   },
@@ -246,25 +244,6 @@
               "enabled": false,
               "cost": null,
               "reset_on_stream_end": true
-            },
-            "enabled": false
-          },
-          {
-            "type": "overlay_show",
-            "params": {
-              "kind": "text",
-              "content": "hello {user}",
-              "seconds": 5,
-              "position": "top"
-            }
-          },
-          {
-            "type": "overlay_show",
-            "params": {
-              "kind": "image",
-              "content": "https://example.com/setup-required",
-              "seconds": 5,
-              "position": "center"
             },
             "enabled": false
           }
@@ -314,12 +293,9 @@
             }
           },
           {
-            "type": "overlay_show",
+            "type": "reply",
             "params": {
-              "kind": "text",
-              "content": "setup-required",
-              "seconds": 5,
-              "position": "top"
+              "text": "setup-required"
             },
             "enabled": false
           }

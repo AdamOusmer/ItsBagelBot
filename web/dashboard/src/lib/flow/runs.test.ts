@@ -96,7 +96,6 @@ describe('plain words', () => {
     expect(explainStep(english, 'failed', 'reward_not_found')).toContain('no longer exists');
     expect(explainStep(english, 'failed', 'reward_rejected')).toContain('turned down');
     expect(explainStep(english, 'failed', 'reward_unconfirmed')).toContain('several tries');
-    expect(explainStep(english, 'ok', 'no_overlay')).toContain('overlay');
     expect(explainStep(english, 'ok', 'queued')).toContain('Sent to Twitch');
     expect(explainStep(english, 'failed', 'timeout')).toBe('This step failed: timeout.');
     expect(explainStep(english, 'failed', '')).toBe('This step failed.');

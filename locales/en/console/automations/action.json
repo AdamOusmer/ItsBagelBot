@@ -34,7 +34,5 @@
   "text": "Change text",
   "math": "Do math",
   "loop": "Repeat steps",
-  "reward_update": "Change a reward",
-  "overlay_show": "Show on overlay",
-  "overlay_sound": "Play overlay sound"
+  "reward_update": "Change a reward"
 }

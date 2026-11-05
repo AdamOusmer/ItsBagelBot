@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { MAX_DELAY_MS, MAX_OVERLAY_SECONDS, MAX_OVERLAY_VOLUME, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
+import { MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
@@ -359,30 +359,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
       { key: 'setEnabled', type: 'select', options: ['keep', 'on', 'off'] },
       { key: 'cost', type: 'number', min: 1, max: MAX_REWARD_COST, unit: true },
       { key: 'reset', type: 'toggle' }
-    ]
-  },
-  {
-    type: 'reply.overlay_show',
-    slug: 'overlayShow',
-    kind: 'reply',
-    group: 'modules',
-    icon: 'picture',
-    fields: [
-      { key: 'kind', type: 'select', options: ['text', 'image', 'video'] },
-      { key: 'content', type: 'template', placeholder: true, singleLine: true },
-      { key: 'seconds', type: 'number', min: 1, max: MAX_OVERLAY_SECONDS, unit: true },
-      { key: 'position', type: 'select', options: ['center', 'top', 'bottom'] }
-    ]
-  },
-  {
-    type: 'reply.overlay_sound',
-    slug: 'overlaySound',
-    kind: 'reply',
-    group: 'modules',
-    icon: 'speaker',
-    fields: [
-      { key: 'url', type: 'template', placeholder: true, singleLine: true },
-      { key: 'volume', type: 'number', min: 0, max: MAX_OVERLAY_VOLUME, unit: true }
     ]
   }
 ];

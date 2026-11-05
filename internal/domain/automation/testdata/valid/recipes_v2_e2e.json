@@ -92,15 +92,6 @@
       }
     },
     {
-      "type": "overlay_show",
-      "params": {
-        "kind": "text",
-        "content": "{local:shout}",
-        "seconds": 5,
-        "position": "center"
-      }
-    },
-    {
       "type": "chat",
       "params": {
         "text": "done {var:last_input} {var:seen}"

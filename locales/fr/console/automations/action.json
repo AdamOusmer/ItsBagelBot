@@ -34,7 +34,5 @@
   "text": "Modifier le texte",
   "math": "Faire un calcul",
   "loop": "Répéter des étapes",
-  "reward_update": "Modifier une récompense",
-  "overlay_show": "Afficher sur l’overlay",
-  "overlay_sound": "Jouer un son d’overlay"
+  "reward_update": "Modifier une récompense"
 }

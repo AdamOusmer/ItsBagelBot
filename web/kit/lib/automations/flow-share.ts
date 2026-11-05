@@ -36,7 +36,6 @@ export type SetupCode =
   | 'login_target'
   | 'http_target'
   | 'reward_target'
-  | 'overlay_target'
   | 'lights_target'
   | 'slash_command'
   | 'secret_removed'
@@ -178,7 +177,7 @@ const PRIVILEGED_ACTIONS = new Set([
 export const SHARE_REWRITTEN = {
   trigger: ['reward', 'event'],
   condition: ['users'],
-  action: ['lights', 'http_post', 'http_get', 'reward_update', 'overlay_show', 'overlay_sound', 'run']
+  action: ['lights', 'http_post', 'http_get', 'reward_update', 'run']
 } as const;
 // Types reviewed as carrying only the user's own text, numbers and names. A new type is not shareable until it is added here.
 export const SHARE_REVIEWED = {
@@ -359,8 +358,6 @@ function apiPaths(params: Params): Params {
   return out;
 }
 
-const NEUTRAL_MEDIA = new Set(['image', 'video']);
-
 function neutralHttpGet(params: Params): Params {
   const path = list(params.json_path).length > 0 ? { json_path: params.json_path } : {};
   return { url: SETUP_URL, ...path, ...apiPaths(params) };
@@ -370,26 +367,19 @@ function neutralRewardUpdate(params: Params): Params {
   return { reward_id: SETUP_REWARD_ID, enabled: params.enabled ?? null, cost: params.cost ?? null, reset_on_stream_end: params.reset_on_stream_end === true };
 }
 
-function neutralOverlayShow(params: Params): Params {
-  const { kind, content, seconds, position } = params;
-  return { kind, content: NEUTRAL_MEDIA.has(str(kind)) ? SETUP_URL : content, seconds, position };
-}
-
-type ExternalRule = { code: SetupCode; rewrite: (params: Params) => Params; applies?: (params: Params) => boolean };
+type ExternalRule = { code: SetupCode; rewrite: (params: Params) => Params };
 
 const EXTERNAL_RULES = new Map<string, ExternalRule>([
   ['lights', { code: 'lights_target', rewrite: neutralLights }],
   ['http_post', { code: 'http_target', rewrite: (params) => ({ url: SETUP_URL, ...apiPaths(params) }) }],
   ['http_get', { code: 'http_target', rewrite: neutralHttpGet }],
-  ['reward_update', { code: 'reward_target', rewrite: neutralRewardUpdate }],
-  ['overlay_show', { code: 'overlay_target', rewrite: neutralOverlayShow, applies: (params) => NEUTRAL_MEDIA.has(str(params.kind)) }],
-  ['overlay_sound', { code: 'overlay_target', rewrite: (params) => ({ url: SETUP_URL, volume: params.volume }) }]
+  ['reward_update', { code: 'reward_target', rewrite: neutralRewardUpdate }]
 ]);
 
 function neutralExternal(action: Action, path: string, notes: Notes): Action {
   const params = action.params ?? {};
   const rule = EXTERNAL_RULES.get(action.type);
-  if (!rule || rule.applies?.(params) === false) return action;
+  if (!rule) return action;
   notes.push({ code: rule.code, path });
   return disabled(action, rule.rewrite(params));
 }

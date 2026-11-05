@@ -124,15 +124,13 @@ const SHOWCASE: FlowExportRow[] = [
                   json_path: ['data', 'value'],
                   save_as: 'answer',
                   on_ok: [chat('got {local:answer}')],
-                  on_failure: [{ type: 'overlay_sound', params: { url: 'https://cdn.example.org/secret.mp3', volume: 40 } }]
+                  on_failure: [chat('no answer')]
                 }
               }
             ]
           }
         },
-        { type: 'reward_update', params: { reward_id: 'real-reward-to-hide', enabled: false, cost: null, reset_on_stream_end: true } },
-        { type: 'overlay_show', params: { kind: 'text', content: 'hello {user}', seconds: 5, position: 'top' } },
-        { type: 'overlay_show', params: { kind: 'image', content: 'https://cdn.example.org/secret.png', seconds: 5, position: 'center' } }
+        { type: 'reward_update', params: { reward_id: 'real-reward-to-hide', enabled: false, cost: null, reset_on_stream_end: true } }
       ]
     }
   },
@@ -147,7 +145,7 @@ const SHOWCASE: FlowExportRow[] = [
         chat('use ghp_0123456789abcdefABCDEF0123456789abcd today, {user}'),
         { type: 'reply', params: { text: 'https://me:hunter2@example.org/a?token=hunter2&page=2' } },
         { type: 'var_set', params: { scope: 'channel', name: 'jwt', value: 'x eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N' } },
-        { type: 'overlay_show', params: { kind: 'text', content: 'AKIAIOSFODNN7EXAMPLE', seconds: 5, position: 'top' } }
+        { type: 'reply', params: { text: 'AKIAIOSFODNN7EXAMPLE' } }
       ]
     }
   }
@@ -220,7 +218,7 @@ describe('exportFlows', () => {
       'actions[0].params.text chat known_token',
       'actions[1].params.text reply url_credentials',
       'actions[2].params.value var_set jwt',
-      'actions[3].params.content overlay_show known_token'
+      'actions[3].params.text reply known_token'
     ]);
     expect(report.slice(0, 3).every((r) => r.scrubbed.length === 0)).toBe(true);
   });

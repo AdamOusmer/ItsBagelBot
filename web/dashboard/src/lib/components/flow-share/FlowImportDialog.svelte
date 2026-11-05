@@ -79,8 +79,6 @@
         return t('automations.share.setup.http_target');
       case 'reward_target':
         return t('automations.share.setup.reward_target');
-      case 'overlay_target':
-        return t('automations.share.setup.overlay_target');
       case 'lights_target':
         return t('automations.share.setup.lights_target');
       case 'slash_command':

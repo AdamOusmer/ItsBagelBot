@@ -102,16 +102,8 @@
         "path": "actions[5].params.actions[0]"
       },
       {
-        "code": "overlay_target",
-        "path": "actions[5].params.actions[0].params.on_failure[0]"
-      },
-      {
         "code": "reward_target",
         "path": "actions[6]"
-      },
-      {
-        "code": "overlay_target",
-        "path": "actions[8]"
       }
     ],
     "status": "ready",
@@ -128,6 +120,10 @@
       {
         "code": "users_list",
         "path": "conditions[0]"
+      },
+      {
+        "code": "secret_removed",
+        "path": "actions[3]"
       }
     ],
     "status": "ready",

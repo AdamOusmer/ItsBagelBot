@@ -313,21 +313,6 @@ export interface RewardUpdateAction {
   reset_on_stream_end?: boolean;
 }
 
-export type OverlayKind = 'text' | 'image' | 'video';
-export type OverlayPosition = 'top' | 'center' | 'bottom';
-
-export interface OverlayShowAction {
-  kind: OverlayKind;
-  content: string;
-  seconds: number;
-  position: OverlayPosition;
-}
-
-export interface OverlaySoundAction {
-  url: string;
-  volume: number;
-}
-
 export interface LightsAction {
   device: string;
   sku: string;

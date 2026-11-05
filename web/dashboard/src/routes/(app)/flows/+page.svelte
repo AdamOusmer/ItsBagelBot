@@ -18,7 +18,6 @@
   import FlowShareTools from '#lib/components/flow/FlowShareTools.svelte';
   import FlowThumb from '#lib/components/flow/FlowThumb.svelte';
   import FlowsIntro from '#lib/components/flow/FlowsIntro.svelte';
-  import OverlayLinkControl from '#lib/components/flows-overlay/OverlayLinkControl.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
   import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
@@ -141,8 +140,6 @@
   {#if runsOpen}
     <RunsPanel {runs} busy={runsBusy} showNames title={t('flows.recipe.runsTitle')} empty={t('flows.recipe.runsEmpty')} onRefresh={() => void loadRuns()} />
   {/if}
-
-  <OverlayLinkControl />
 
   {#if shown.length > 0}
     <ul class="cards">

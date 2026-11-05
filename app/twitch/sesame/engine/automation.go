@@ -30,7 +30,6 @@ type AutomationDeps struct {
 	Source    AutomationSource
 	Runs      RunLog
 	Variables VariableStore
-	Overlay   OverlayPublisher
 	Queue     RunQueue
 	Durable   DurableStore
 

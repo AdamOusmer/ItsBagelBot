@@ -9,8 +9,6 @@ import {
   CODE,
   MAX_DELAY_MS,
   MAX_FETCH_URL_LENGTH,
-  MAX_OVERLAY_SECONDS,
-  MAX_OVERLAY_VOLUME,
   MAX_REWARD_COST,
   MAX_TEMPLATE_LENGTH,
   MAX_VARIABLE_AMOUNT,
@@ -92,10 +90,6 @@ function httpsTemplateRejected(template: string): boolean {
   return !template.startsWith('{') && !template.startsWith('https://');
 }
 
-function checkHttpsTemplate(c: Chk, field: string, template: string): void {
-  if (httpsTemplateRejected(template)) c.add(field, CODE.invalidFormat);
-}
-
 function fetchTemplateRejected(url: string): boolean {
   return url.includes('{') ? httpsTemplateRejected(url) : fetchUrlRejected(url);
 }
@@ -129,22 +123,6 @@ function checkRewardUpdate(c: Chk, p: RewardUpdateFields): void {
   if (c.text('reward_id', p.reward_id, 1, 64) && !REWARD_ID_PATTERN.test(p.reward_id)) c.add('reward_id', CODE.invalidFormat);
   if (p.enabled === null && p.cost === null) c.add('enabled', CODE.required);
   if (p.cost !== null) c.inRange('cost', p.cost, 1, MAX_REWARD_COST);
-}
-
-const OVERLAY_KINDS = ['text', 'image', 'video'];
-const OVERLAY_MEDIA_KINDS = ['image', 'video'];
-const OVERLAY_POSITIONS = ['top', 'center', 'bottom'];
-
-function checkOverlayShow(c: Chk, p: Wide<T.OverlayShowAction>): void {
-  c.oneOf('kind', p.kind, OVERLAY_KINDS);
-  if (c.template('content', p.content) && OVERLAY_MEDIA_KINDS.includes(p.kind)) checkHttpsTemplate(c, 'content', p.content);
-  c.inRange('seconds', p.seconds, 1, MAX_OVERLAY_SECONDS);
-  c.oneOf('position', p.position, OVERLAY_POSITIONS);
-}
-
-function checkOverlaySound(c: Chk, p: Wide<T.OverlaySoundAction>): void {
-  if (c.template('url', p.url)) checkHttpsTemplate(c, 'url', p.url);
-  c.inRange('volume', p.volume, 0, MAX_OVERLAY_VOLUME);
 }
 
 function jsonParses(text: string): boolean {
@@ -217,8 +195,6 @@ export const SIMPLE_ACTIONS: Table = {
     { reward_id: 'string', enabled: 'ptrbool', cost: 'ptrint', reset_on_stream_end: 'bool' },
     checkRewardUpdate,
   ),
-  overlay_show: register<Wide<T.OverlayShowAction>>({ kind: 'string', content: 'string', seconds: 'int', position: 'string' }, checkOverlayShow),
-  overlay_sound: register<Wide<T.OverlaySoundAction>>({ url: 'string', volume: 'int' }, checkOverlaySound),
   lights: register<Wide<T.LightsAction>>(
     {
       device: 'string',

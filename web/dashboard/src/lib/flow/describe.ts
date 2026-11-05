@@ -179,16 +179,7 @@ function rewardUpdateLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
 }
 
 function moduleLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
-  switch (n.type) {
-    case 'reply.reward_update':
-      return rewardUpdateLine(t, n, spec);
-    case 'reply.overlay_show':
-      return text(n, 'content');
-    case 'reply.overlay_sound':
-      return text(n, 'url');
-    default:
-      return dataLine(t, n, spec);
-  }
+  return n.type === 'reply.reward_update' ? rewardUpdateLine(t, n, spec) : dataLine(t, n, spec);
 }
 
 function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
