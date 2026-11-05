@@ -126,16 +126,33 @@ func durableRecordKeys(ref DurableRef) []string {
 	return []string{base + "records", base + "owners", base + "seats", base + "taken:" + ref.ID}
 }
 
-func durableOwnedKey(owner string) string {
-	return durableKeyPrefix + "owned:{" + owner + "}"
+type durableOwner string
+
+type durableMember string
+
+type durableHandover struct {
+	from durableOwner
+	to   durableOwner
 }
 
-func durableMember(ref DurableRef) string {
-	return strconv.FormatUint(ref.BroadcasterID, 10) + ":" + ref.ID
+func durableOwnedKey(owner durableOwner) string {
+	return durableKeyPrefix + "owned:{" + string(owner) + "}"
 }
 
-func parseDurableMember(member string) (DurableRef, bool) {
-	raw, id, ok := strings.Cut(member, ":")
+func memberOf(ref DurableRef) durableMember {
+	return durableMember(strconv.FormatUint(ref.BroadcasterID, 10) + ":" + ref.ID)
+}
+
+func memberStrings(members []durableMember) []string {
+	out := make([]string, len(members))
+	for i, member := range members {
+		out[i] = string(member)
+	}
+	return out
+}
+
+func parseDurableMember(member durableMember) (DurableRef, bool) {
+	raw, id, ok := strings.Cut(string(member), ":")
 	broadcasterID, err := strconv.ParseUint(raw, 10, 64)
 	if !ok || err != nil {
 		return DurableRef{}, false
@@ -147,22 +164,22 @@ func durableTTLMillis() string {
 	return strconv.FormatInt(durableKeyTTL.Milliseconds(), 10)
 }
 
-func (s *ValkeyDurableRuns) own(ctx context.Context, owner string, members ...string) error {
+func (s *ValkeyDurableRuns) own(ctx context.Context, owner durableOwner, members ...durableMember) error {
 	key := durableOwnedKey(owner)
 	results := s.client.DoMulti(ctx,
-		s.client.B().Sadd().Key(key).Member(members...).Build(),
+		s.client.B().Sadd().Key(key).Member(memberStrings(members)...).Build(),
 		s.client.B().Pexpire().Key(key).Milliseconds(durableKeyTTL.Milliseconds()).Build(),
 	)
 	return results[0].Error()
 }
 
-func (s *ValkeyDurableRuns) disown(ctx context.Context, owner string, members ...string) error {
-	return s.client.Do(ctx, s.client.B().Srem().Key(durableOwnedKey(owner)).Member(members...).Build()).Error()
+func (s *ValkeyDurableRuns) disown(ctx context.Context, owner durableOwner, members ...durableMember) error {
+	return s.client.Do(ctx, s.client.B().Srem().Key(durableOwnedKey(owner)).Member(memberStrings(members)...).Build()).Error()
 }
 
 // The owned entry goes first: a crash between the writes leaves a stale entry a sweep drops, never an unreachable record.
 func (s *ValkeyDurableRuns) Save(ctx context.Context, owner string, save DurableSave) (DurableStanding, error) {
-	if err := s.own(ctx, owner, durableMember(save.Ref)); err != nil {
+	if err := s.own(ctx, durableOwner(owner), memberOf(save.Ref)); err != nil {
 		return DurableMissing, err
 	}
 	fresh := ""
@@ -186,7 +203,7 @@ func (s *ValkeyDurableRuns) Finish(ctx context.Context, owner string, ref Durabl
 	if err != nil {
 		return DurableMissing, err
 	}
-	return DurableStanding(standing), s.disown(ctx, owner, durableMember(ref))
+	return DurableStanding(standing), s.disown(ctx, durableOwner(owner), memberOf(ref))
 }
 
 func (s *ValkeyDurableRuns) Renew(ctx context.Context, owner string, lease time.Duration) error {
@@ -216,19 +233,24 @@ func (s *ValkeyDurableRuns) Lapsed(ctx context.Context) ([]string, time.Duration
 }
 
 func (s *ValkeyDurableRuns) Claim(ctx context.Context, from, to string, limit int) ([]DurableClaim, bool, error) {
-	members, err := s.client.Do(ctx, s.client.B().Srandmember().Key(durableOwnedKey(from)).Count(int64(limit)).Build()).AsStrSlice()
+	handover := durableHandover{from: durableOwner(from), to: durableOwner(to)}
+	raw, err := s.client.Do(ctx, s.client.B().Srandmember().Key(durableOwnedKey(handover.from)).Count(int64(limit)).Build()).AsStrSlice()
 	if err != nil {
 		return nil, false, err
 	}
-	if len(members) == 0 {
+	if len(raw) == 0 {
 		return nil, true, s.client.Do(ctx, s.client.B().Zrem().Key(durableReplicasKey).Member(from).Build()).Error()
 	}
-	if err := s.own(ctx, to, members...); err != nil {
+	members := make([]durableMember, len(raw))
+	for i, member := range raw {
+		members[i] = durableMember(member)
+	}
+	if err := s.own(ctx, handover.to, members...); err != nil {
 		return nil, false, err
 	}
 	claims := make([]DurableClaim, 0, len(members))
 	for _, member := range members {
-		claim, claimed, err := s.claimOne(ctx, from, to, member)
+		claim, claimed, err := s.claimOne(ctx, handover, member)
 		if err != nil {
 			return claims, false, err
 		}
@@ -244,12 +266,12 @@ const (
 	durableClaimWon  = 1
 )
 
-func (s *ValkeyDurableRuns) claimOne(ctx context.Context, from, to, member string) (DurableClaim, bool, error) {
+func (s *ValkeyDurableRuns) claimOne(ctx context.Context, handover durableHandover, member durableMember) (DurableClaim, bool, error) {
 	ref, ok := parseDurableMember(member)
 	if !ok {
-		return DurableClaim{}, false, s.disown(ctx, from, member)
+		return DurableClaim{}, false, s.disown(ctx, handover.from, member)
 	}
-	args := []string{ref.ID, from, to, durableTTLMillis()}
+	args := []string{ref.ID, string(handover.from), string(handover.to), durableTTLMillis()}
 	reply, err := claimDurableScript.Exec(ctx, s.client, durableRecordKeys(ref), args).ToArray()
 	if err != nil {
 		return DurableClaim{}, false, err
@@ -259,9 +281,9 @@ func (s *ValkeyDurableRuns) claimOne(ctx context.Context, from, to, member strin
 		return DurableClaim{}, false, err
 	}
 	if status == durableClaimGone {
-		_ = s.disown(ctx, to, member)
+		_ = s.disown(ctx, handover.to, member)
 	}
-	if err := s.disown(ctx, from, member); err != nil {
+	if err := s.disown(ctx, handover.from, member); err != nil {
 		return DurableClaim{}, false, err
 	}
 	body, err := reply[1].ToString()

@@ -12,10 +12,55 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/valkeytest"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func budgetedHarness(t *testing.T) *harness {
+	t.Helper()
+	h := newHarness(t)
+	h.p.limiter = ratelimit.New(valkeytest.Spawn(t))
+	h.p.admit = h.p.spendBudget
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
+	return h
+}
+
+func TestRecipesGetTheirOwnLargerBudget(t *testing.T) {
+	h := budgetedHarness(t)
+	for range 20 {
+		require.Equal(t, gossiprpc.FetchOK, call(t, h, inlineFetch(h.srv.URL+"/wx")).Status)
+	}
+}
+
+func TestRecipePostsGetTheRecipeBudget(t *testing.T) {
+	h := budgetedHarness(t)
+	for range 20 {
+		require.Equal(t, gossiprpc.FetchOK, callPost(t, h, postRequest(h.srv.URL+"/wx", "x")).Status)
+	}
+}
+
+func TestRecipeBudgetStillEnds(t *testing.T) {
+	h := budgetedHarness(t)
+	statuses := map[gossiprpc.FetchStatus]int{}
+	for range 80 {
+		statuses[call(t, h, inlineFetch(h.srv.URL+"/wx")).Status]++
+	}
+	assert.Positive(t, statuses[gossiprpc.FetchLimited])
+}
+
+func TestCommandFetchesKeepTheirOwnBudget(t *testing.T) {
+	h := budgetedHarness(t)
+	h.addDef("d", "/wx", gossiprpc.FetchDef{IsActive: true})
+	req := gossiprpc.Request{ChannelID: "ch1", DefID: "d", Fresh: true}
+	statuses := map[gossiprpc.FetchStatus]int{}
+	for range 20 {
+		statuses[call(t, h, req).Status]++
+	}
+	assert.Positive(t, statuses[gossiprpc.FetchLimited], "commands stay on the smaller budget")
+}
 
 func inlineFetch(url string) gossiprpc.Request {
 	return gossiprpc.Request{ChannelID: "ch1", Def: &gossiprpc.FetchDef{Name: "get:ch1", URL: url, JSONPath: []string{"v"}, IsActive: true}}

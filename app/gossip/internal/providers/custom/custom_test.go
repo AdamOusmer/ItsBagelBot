@@ -95,7 +95,7 @@ func newHarness(t *testing.T) *harness {
 		FetchDefs: fakeDefs{defs: h.defs},
 	}
 	b := provider.NewProvider(providerName, deps)
-	cfg := Config{ChannelRateLimit: 6, DefRateLimit: 30, HostRateLimit: 120, PositiveTTL: time.Minute}
+	cfg := Config{ChannelRateLimit: 6, DefRateLimit: 30, HostRateLimit: 120, RecipeChannelRateLimit: 60, RecipeDefRateLimit: 60, PositiveTTL: time.Minute}
 	h.p = newAPI(cfg, deps, b)
 	h.p.admit = func(context.Context, *flight, bool) error {
 		h.admit.Add(1)

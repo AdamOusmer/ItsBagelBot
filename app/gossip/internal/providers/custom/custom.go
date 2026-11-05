@@ -56,10 +56,12 @@ const (
 )
 
 type Config struct {
-	ChannelRateLimit float64
-	DefRateLimit     float64
-	HostRateLimit    float64
-	PositiveTTL      time.Duration
+	ChannelRateLimit       float64
+	DefRateLimit           float64
+	HostRateLimit          float64
+	RecipeChannelRateLimit float64
+	RecipeDefRateLimit     float64
+	PositiveTTL            time.Duration
 }
 
 type api struct {
@@ -73,6 +75,9 @@ type api struct {
 	channelBuckets core.Buckets
 	defBuckets     core.Buckets
 	hostBuckets    core.Buckets
+
+	recipeChannelBuckets core.Buckets
+	recipeDefBuckets     core.Buckets
 
 	positiveTTL time.Duration
 
@@ -105,16 +110,18 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 
 func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	p := &api{
-		http:           b.Client("", nil, fetchTimeout),
-		cache:          d.Cache,
-		log:            d.Logger(),
-		defs:           d.FetchDefs,
-		keys:           d.FetchKeys,
-		limiter:        d.Limiter,
-		channelBuckets: core.NewBuckets("ratelimit:gossip:custom:ch", cfg.ChannelRateLimit, 60),
-		defBuckets:     core.NewBuckets("ratelimit:gossip:custom:def", cfg.DefRateLimit, 60),
-		hostBuckets:    core.NewBuckets("ratelimit:gossip:custom:host", cfg.HostRateLimit, 60),
-		positiveTTL:    cfg.PositiveTTL,
+		http:                 b.Client("", nil, fetchTimeout),
+		cache:                d.Cache,
+		log:                  d.Logger(),
+		defs:                 d.FetchDefs,
+		keys:                 d.FetchKeys,
+		limiter:              d.Limiter,
+		channelBuckets:       core.NewBuckets("ratelimit:gossip:custom:ch", cfg.ChannelRateLimit, 60),
+		defBuckets:           core.NewBuckets("ratelimit:gossip:custom:def", cfg.DefRateLimit, 60),
+		hostBuckets:          core.NewBuckets("ratelimit:gossip:custom:host", cfg.HostRateLimit, 60),
+		recipeChannelBuckets: core.NewBuckets("ratelimit:gossip:custom:recipe:ch", cfg.RecipeChannelRateLimit, 60),
+		recipeDefBuckets:     core.NewBuckets("ratelimit:gossip:custom:recipe:def", cfg.RecipeDefRateLimit, 60),
+		positiveTTL:          cfg.PositiveTTL,
 	}
 	if p.positiveTTL <= 0 {
 		p.positiveTTL = positiveTTLDflt
@@ -466,17 +473,28 @@ func (p *api) spendBudget(ctx context.Context, fl *flight, isPremium bool) error
 	if p.limiter == nil {
 		return nil
 	}
-	layers := []core.Buckets{
-		p.channelBuckets.WithKey("ratelimit:gossip:custom:ch:" + fl.channelID),
-		p.defBuckets.WithKey("ratelimit:gossip:custom:def:" + fl.def.Name),
-		p.hostBuckets.WithKey("ratelimit:gossip:custom:host:" + fl.host),
-	}
-	for _, b := range layers {
+	for _, b := range p.budgetLayers(fl) {
 		if err := b.Enforce(ctx, p.limiter, isPremium); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (p *api) budgetLayers(fl *flight) []core.Buckets {
+	host := p.hostBuckets.WithKey("ratelimit:gossip:custom:host:" + fl.host)
+	if fl.inline {
+		return []core.Buckets{
+			p.recipeChannelBuckets.WithKey("ratelimit:gossip:custom:recipe:ch:" + fl.channelID),
+			p.recipeDefBuckets.WithKey("ratelimit:gossip:custom:recipe:def:" + fl.def.Name),
+			host,
+		}
+	}
+	return []core.Buckets{
+		p.channelBuckets.WithKey("ratelimit:gossip:custom:ch:" + fl.channelID),
+		p.defBuckets.WithKey("ratelimit:gossip:custom:def:" + fl.def.Name),
+		host,
+	}
 }
 
 func (p *api) admitFor(req gossiprpc.Request, fl *flight) func(context.Context) error {

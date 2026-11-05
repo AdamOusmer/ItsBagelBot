@@ -36,7 +36,17 @@ const MIN_DIGIT_SWITCHES = 4;
 const MIN_BITS_PER_CHAR = 3;
 
 const isCredentialInfo = (info: string) => !info.includes('{');
-const isSecretParam = (name: string, value: string) => value !== '' && !value.includes('{') && SECRET_PARAM.test(name);
+interface UrlParam {
+  name: string;
+  value: string;
+}
+
+interface RemovalRule {
+  pattern: RegExp;
+  kind: ScrubKind;
+}
+
+const isSecretParam = ({ name, value }: UrlParam) => value !== '' && !value.includes('{') && SECRET_PARAM.test(name);
 
 function scrubUrl(url: string, kinds: Set<ScrubKind>): string {
   const clean = url.replace(USERINFO, (whole, scheme: string, info: string) => {
@@ -45,7 +55,7 @@ function scrubUrl(url: string, kinds: Set<ScrubKind>): string {
     return scheme;
   });
   return clean.replace(URL_PARAM, (whole, mark: string, name: string, value: string) => {
-    if (!isSecretParam(name, value)) return whole;
+    if (!isSecretParam({ name, value })) return whole;
     kinds.add('url_credentials');
     return `${mark}${name}=`;
   });
@@ -75,7 +85,7 @@ function looksRandom(run: string): boolean {
   });
 }
 
-function removeMatches(text: string, pattern: RegExp, kind: ScrubKind, kinds: Set<ScrubKind>): string {
+function removeMatches(text: string, { pattern, kind }: RemovalRule, kinds: Set<ScrubKind>): string {
   return text.replace(pattern, () => {
     kinds.add(kind);
     return '';
@@ -93,7 +103,7 @@ function removeRandomRuns(text: string, kinds: Set<ScrubKind>): string {
 export function scrubSecrets(input: string): ScrubbedText {
   const kinds = new Set<ScrubKind>();
   let text = input.replace(URL_PATTERN, (url) => scrubUrl(url, kinds));
-  for (const pattern of KNOWN_TOKENS) text = removeMatches(text, pattern, 'known_token', kinds);
-  text = removeMatches(text, JWT, 'jwt', kinds);
+  for (const pattern of KNOWN_TOKENS) text = removeMatches(text, { pattern, kind: 'known_token' }, kinds);
+  text = removeMatches(text, { pattern: JWT, kind: 'jwt' }, kinds);
   return { text: removeRandomRuns(text, kinds), kinds: [...kinds] };
 }

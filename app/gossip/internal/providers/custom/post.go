@@ -53,6 +53,7 @@ func (p *api) planPost(ctx context.Context, req gossiprpc.Request) (*flight, gos
 	}
 	return p.admitFlight(ctx, &flight{
 		channelID: channelID,
+		inline:    true,
 		def:       &gossiprpc.FetchDef{Name: "post:" + channelID, URL: req.Def.URL, IsActive: true},
 	})
 }

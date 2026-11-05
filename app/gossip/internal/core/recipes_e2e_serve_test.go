@@ -48,8 +48,7 @@ func TestRecipesE2EServe(t *testing.T) {
 	defer vc.Close()
 
 	deps := provider.Deps{Cache: core.NewCache(core.NewValkeyStore(vc)), Limiter: ratelimit.New(vc), Log: zap.NewNop()}
-	// Above the default of 6 a minute: the e2e fires more runs in a few seconds than a channel's budget allows.
-	active := []provider.Provider{custom.New(custom.Config{ChannelRateLimit: 120, DefRateLimit: 120, HostRateLimit: 120}, deps)}
+	active := []provider.Provider{custom.New(custom.Config{ChannelRateLimit: 6, DefRateLimit: 30, HostRateLimit: 120, RecipeChannelRateLimit: 60, RecipeDefRateLimit: 60}, deps)}
 	if base := os.Getenv("RECIPES_E2E_GOVEE_URL"); base != "" {
 		deps.GoveeKeys = staticGoveeKey{}
 		active = append(active, govee.New(govee.Config{BaseURL: base}, deps))

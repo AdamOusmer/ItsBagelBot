@@ -257,20 +257,24 @@ func stepsAt(root []automation.Step, path []int) ([]automation.Step, bool) {
 	list := root
 	for i := 0; i < len(path)-1; i += 2 {
 		branches, ok := branchesAt(list, path[i])
-		if !ok || path[i+1] < 0 || path[i+1] >= len(branches) {
+		if !ok || !inRange(path[i+1], len(branches)) {
 			return nil, false
 		}
 		list = branches[path[i+1]]
 	}
 	last := path[len(path)-1]
-	if last < 0 || last >= len(list) {
+	if !inRange(last, len(list)) {
 		return nil, false
 	}
 	return list[last:], true
 }
 
+func inRange(index, length int) bool {
+	return index >= 0 && index < length
+}
+
 func branchesAt(list []automation.Step, index int) ([][]automation.Step, bool) {
-	if index < 0 || index >= len(list) {
+	if !inRange(index, len(list)) {
 		return nil, false
 	}
 	return list[index].Branches, true
