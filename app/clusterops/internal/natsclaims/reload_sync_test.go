@@ -1,6 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+// nats-server Reload deep-compares live options, which the race detector reports inside the server itself.
+//go:build !race
+
 package natsclaims
 
 import (

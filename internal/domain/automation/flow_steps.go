@@ -34,7 +34,7 @@ func isStaticText(s string) bool { return !strings.Contains(s, "{") }
 
 // ParseLoopTimes reads a rendered times value, clamped to 0..MaxLoopTimes.
 func ParseLoopTimes(rendered string) (int, bool) {
-	value, err := strconv.ParseInt(strings.TrimSpace(rendered), 10, 64)
+	value, err := strconv.ParseInt(strings.TrimSpace(rendered), 10, 32)
 	if err != nil && !errors.Is(err, strconv.ErrRange) {
 		return 0, false
 	}

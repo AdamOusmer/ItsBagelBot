@@ -35,7 +35,6 @@ const MIN_SEGMENT = 24;
 const MIN_DIGIT_SWITCHES = 4;
 const MIN_BITS_PER_CHAR = 3;
 
-const isCredentialInfo = (info: string) => !info.includes('{');
 interface UrlParam {
   name: string;
   value: string;
@@ -48,62 +47,71 @@ interface RemovalRule {
 
 const isSecretParam = ({ name, value }: UrlParam) => value !== '' && !value.includes('{') && SECRET_PARAM.test(name);
 
-function scrubUrl(url: string, kinds: Set<ScrubKind>): string {
-  const clean = url.replace(USERINFO, (whole, scheme: string, info: string) => {
-    if (!isCredentialInfo(info)) return whole;
-    kinds.add('url_credentials');
-    return scheme;
-  });
-  return clean.replace(URL_PARAM, (whole, mark: string, name: string, value: string) => {
-    if (!isSecretParam({ name, value })) return whole;
-    kinds.add('url_credentials');
-    return `${mark}${name}=`;
-  });
-}
-
-function bitsPerChar(text: string): number {
+function bitsPerChar(chars: readonly string[]): number {
   const counts = new Map<string, number>();
-  for (const char of text) counts.set(char, (counts.get(char) ?? 0) + 1);
+  for (const char of chars) counts.set(char, (counts.get(char) ?? 0) + 1);
   let bits = 0;
-  for (const count of counts.values()) bits -= (count / text.length) * Math.log2(count / text.length);
+  for (const count of counts.values()) bits -= (count / chars.length) * Math.log2(count / chars.length);
   return bits;
 }
 
-function digitSwitches(text: string): number {
+function digitSwitches(chars: readonly string[]): number {
   let switches = 0;
-  for (let i = 1; i < text.length; i++) {
-    if (/[0-9]/.test(text[i]!) !== /[0-9]/.test(text[i - 1]!)) switches++;
+  for (let i = 1; i < chars.length; i++) {
+    if (/[0-9]/.test(chars[i]!) !== /[0-9]/.test(chars[i - 1]!)) switches++;
   }
   return switches;
 }
 
 // Slugs and uuids split into short segments, and a title ending in a year switches between letters and digits once.
-function looksRandom(run: string): boolean {
-  return run.split(RUN_SEPARATORS).some((segment) => {
+function looksRandom(segments: readonly string[]): boolean {
+  return segments.some((segment) => {
     if (segment.length < MIN_SEGMENT) return false;
-    return digitSwitches(segment) >= MIN_DIGIT_SWITCHES && bitsPerChar(segment) >= MIN_BITS_PER_CHAR;
+    const chars = segment.split('');
+    return digitSwitches(chars) >= MIN_DIGIT_SWITCHES && bitsPerChar(chars) >= MIN_BITS_PER_CHAR;
   });
 }
 
-function removeMatches(text: string, { pattern, kind }: RemovalRule, kinds: Set<ScrubKind>): string {
-  return text.replace(pattern, () => {
-    kinds.add(kind);
-    return '';
-  });
-}
+class SecretScrub {
+  readonly kinds = new Set<ScrubKind>();
+  text = '';
 
-function removeRandomRuns(text: string, kinds: Set<ScrubKind>): string {
-  return text.replace(LONG_RUN, (run) => {
-    if (!looksRandom(run)) return run;
-    kinds.add('high_entropy');
-    return '';
-  });
+  urlsOf(input: string): void {
+    this.text = input.replace(URL_PATTERN, (url) => {
+      const clean = url.replace(USERINFO, (whole, scheme: string, info: string) => {
+        if (info.includes('{')) return whole;
+        this.kinds.add('url_credentials');
+        return scheme;
+      });
+      return clean.replace(URL_PARAM, (whole, mark: string, name: string, value: string) => {
+        if (!isSecretParam({ name, value })) return whole;
+        this.kinds.add('url_credentials');
+        return `${mark}${name}=`;
+      });
+    });
+  }
+
+  remove({ pattern, kind }: RemovalRule): void {
+    this.text = this.text.replace(pattern, () => {
+      this.kinds.add(kind);
+      return '';
+    });
+  }
+
+  removeRandomRuns(): void {
+    this.text = this.text.replace(LONG_RUN, (run) => {
+      if (!looksRandom(run.split(RUN_SEPARATORS))) return run;
+      this.kinds.add('high_entropy');
+      return '';
+    });
+  }
 }
 
 export function scrubSecrets(input: string): ScrubbedText {
-  const kinds = new Set<ScrubKind>();
-  let text = input.replace(URL_PATTERN, (url) => scrubUrl(url, kinds));
-  for (const pattern of KNOWN_TOKENS) text = removeMatches(text, { pattern, kind: 'known_token' }, kinds);
-  text = removeMatches(text, { pattern: JWT, kind: 'jwt' }, kinds);
-  return { text: removeRandomRuns(text, kinds), kinds: [...kinds] };
+  const scrub = new SecretScrub();
+  scrub.urlsOf(input);
+  for (const pattern of KNOWN_TOKENS) scrub.remove({ pattern, kind: 'known_token' });
+  scrub.remove({ pattern: JWT, kind: 'jwt' });
+  scrub.removeRandomRuns();
+  return { text: scrub.text, kinds: [...scrub.kinds] };
 }
