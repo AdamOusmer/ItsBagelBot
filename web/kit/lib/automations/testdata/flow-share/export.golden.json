@@ -270,6 +270,61 @@
           }
         ]
       }
+    },
+    {
+      "ref": "f4",
+      "name": "Pasted keys",
+      "definition": {
+        "version": 1,
+        "trigger": {
+          "type": "command",
+          "params": {
+            "name": "!keys"
+          }
+        },
+        "conditions": [
+          {
+            "type": "users",
+            "params": {
+              "allow": [
+                "_setup_required"
+              ]
+            }
+          }
+        ],
+        "actions": [
+          {
+            "type": "chat",
+            "params": {
+              "text": "use  today, {user}"
+            }
+          },
+          {
+            "type": "reply",
+            "params": {
+              "text": "https://example.org/a?token=&page=2"
+            }
+          },
+          {
+            "type": "var_set",
+            "params": {
+              "scope": "channel",
+              "name": "jwt",
+              "value": "x "
+            }
+          },
+          {
+            "type": "overlay_show",
+            "params": {
+              "kind": "text",
+              "content": "setup-required",
+              "seconds": 5,
+              "position": "top"
+            },
+            "enabled": false
+          }
+        ]
+      }
     }
   ]
 }

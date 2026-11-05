@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { dev } from '$app/env';
-import { definitionToFlow, flowToDefinition, type Definition, type FlowExportRow, type RunRecord } from '@bagel/kit/automations';
+import { definitionToFlow, flowToDefinition, setupGaps, SETUP_REWARD_ID, SETUP_URL, type Definition, type FlowExportRow, type RunRecord } from '@bagel/kit/automations';
 import type { EditorData, Lowered } from '#lib/server/flow-page';
 import { cardFromSummary, type FlowCard } from './cards';
 import { unavailable, type ChoiceList, type ChoiceOption } from './choices';
@@ -150,6 +150,26 @@ const rows = new Map<string, DemoRow>(
   ])
 );
 
+rows.set('imported', {
+  name: 'Imported recipe',
+  description: 'Waiting for its reward and web address',
+  enabled: false,
+  revision: 1,
+  flow: {
+    ...flowOf(
+      'imported',
+      'Imported recipe',
+      [
+        node('i1', 'twitch.reward', { reward: SETUP_REWARD_ID }),
+        node('i2', 'reply.chat', { message: 'Thanks {user}!' }),
+        node('i3', 'reply.http_get', { url: SETUP_URL, disabled: true })
+      ],
+      [edge('ie1', 'i1', 'next', 'i2'), edge('ie2', 'i2', 'next', 'i3')]
+    ),
+    enabled: false
+  }
+});
+
 let created = 0;
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -211,10 +231,16 @@ export function demoSave(lowered: Lowered): SaveReply {
   return { ok: true, id: flowRouteId(ref), name: row.name, enabled: row.enabled, revision: String(row.revision), warnings: [] };
 }
 
+function needsSetup(flow: Flow): boolean {
+  const lowered = flowToDefinition(flow);
+  return lowered.ok ? setupGaps(lowered.value).length > 0 : false;
+}
+
 export function demoToggle(ref: FlowRef, enabled: boolean, expectedRevision?: string): ToggleReply {
   const row = ref.layer === 'automation' ? rows.get(ref.id) : undefined;
   if (!row) return { ok: false, reason: 'not_found' };
   if (expectedRevision !== undefined && Number(expectedRevision) !== row.revision) return { ok: false, reason: 'conflict' };
+  if (enabled && needsSetup(row.flow)) return { ok: false, reason: 'needs_setup' };
   row.enabled = enabled;
   row.revision += 1;
   return { ok: true, enabled, revision: String(row.revision), warnings: [] };
@@ -232,6 +258,20 @@ export function demoExportRows(): FlowExportRow[] {
 }
 
 const DEMO_RUNS: RunRecord[] = [
+  {
+    run_id: 'demo-run-3',
+    automation_id: 'cheer',
+    name: 'Big cheer celebration',
+    trigger: 'event',
+    source: 'eventsub',
+    at: '2026-11-04T18:10:00Z',
+    duration_ms: 120,
+    outcome: 'ok',
+    actions: [
+      { index: 0, type: 'if', status: 'ok' },
+      { index: 0, type: 'chat', status: 'ok' }
+    ]
+  },
   {
     run_id: 'demo-run-2',
     automation_id: 'hydrate',

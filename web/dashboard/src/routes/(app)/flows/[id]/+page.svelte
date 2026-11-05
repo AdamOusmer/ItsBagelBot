@@ -20,6 +20,7 @@
   import { FlowHistory } from '#lib/flow/history';
   import { allowed, resolveShortcut, type Shortcut } from '#lib/flow/keyboard';
   import { isStale, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
+  import { awaitingSetup } from '#lib/flow/setup';
   import { addNode } from '#lib/flow/ops';
   import { newFlow, outputsFor, specFor, type Flow } from '#lib/flow/model';
   import { flowRouteId, parseFlowRouteId } from '#lib/flow/ref';
@@ -348,7 +349,17 @@
     else refused(reply);
   }
 
+  async function refuseUntilSetUp(step: string) {
+    enabled = true;
+    await tick();
+    enabled = false;
+    toast('danger', t('flows.setup.refused'), { ttlMs: 9000 });
+    focusStep(step);
+  }
+
   async function setEnabled(next: boolean) {
+    const unfinished = next ? flow.nodes.find(awaitingSetup) : undefined;
+    if (unfinished) return refuseUntilSetUp(unfinished.id);
     const before = enabled;
     enabled = next;
     flow.enabled = next;

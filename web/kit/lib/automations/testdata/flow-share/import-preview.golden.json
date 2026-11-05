@@ -69,6 +69,10 @@
       {
         "code": "login_target",
         "path": "actions[0].params.then[0].params.login"
+      },
+      {
+        "code": "secret_removed",
+        "path": "actions[0].params.else[0]"
       }
     ],
     "status": "ready",
@@ -108,6 +112,22 @@
       {
         "code": "overlay_target",
         "path": "actions[8]"
+      }
+    ],
+    "status": "ready",
+    "issues": [],
+    "landing": "automation",
+    "review": []
+  },
+  {
+    "index": 3,
+    "sourceName": "Pasted keys",
+    "name": "Pasted keys",
+    "renamed": false,
+    "setup": [
+      {
+        "code": "users_list",
+        "path": "conditions[0]"
       }
     ],
     "status": "ready",

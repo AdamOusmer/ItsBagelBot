@@ -11,6 +11,7 @@
   "runsRefresh": "Aktualisieren",
   "runsFailed": "Ausführungen konnten nicht geladen werden. Versuche es gleich noch einmal.",
   "runCount": "{count} Mal",
+  "runOneOf": "Eines von: {steps}",
   "runStopped": "Diese Ausführung wurde bei der ersten Prüfung gestoppt.",
   "why": {
     "math_error": "Die Berechnung konnte nicht durchgeführt werden. Prüfe auf eine Division durch null oder einen Tippfehler.",

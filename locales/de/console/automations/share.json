@@ -10,6 +10,9 @@
   "exportNeedSetup": "{n} muss nach dem Import eingerichtet werden.",
   "exportMissing": "{n} wurde in diesem Kanal nicht gefunden.",
   "exportFailed": "Ausgelassen, weil sie nicht mehr gültig sind: {names}",
+  "exportScrubbed": "Aus diesen Einträgen wurde etwas entfernt, das wie ein Schlüssel oder Passwort aussah. Prüfe sie, bevor du die Datei teilst:",
+  "exportScrubbedStep": "{name}, Schritt {n}: {step}",
+  "exportScrubbedRecipe": "{name}: Auslöser, Bedingungen oder Name",
   "exportError": "Diese Rezepte konnten nicht exportiert werden. Versuche es gleich noch einmal.",
   "importOpen": "Import",
   "importTitle": "Rezepte importieren",
@@ -48,6 +51,7 @@
     "overlay_target": "Ein Overlay-Schritt wurde deaktiviert und sein Link entfernt. Füge deinen eigenen hinzu.",
     "lights_target": "Ein Licht-Schritt wurde deaktiviert und sein Gerät entfernt. Wähle dein eigenes Licht.",
     "slash_command": "Ein Schritt, der einen Chat-Befehl ausführte, wurde deaktiviert und geleert. Schreibe ihn neu, wenn du ihn willst.",
+    "secret_removed": "Ein Schritt enthielt etwas, das nicht geteilt werden sollte, daher wurde er deaktiviert und geleert. Schreib ihn neu, wenn du ihn haben willst.",
     "run_removed": "Ein Schritt, der ein anderes Rezept außerhalb dieses Imports ausführte, wurde entfernt.",
     "run_target_simple": "Ein Schritt, der ein anderes Rezept ausführte, wurde entfernt, weil dieses Rezept als Befehl oder Benachrichtigung gespeichert ist und nicht ausgeführt werden kann.",
     "link_failed": "Ein Schritt, der ein anderes Rezept ausführt, konnte nicht verknüpft werden. Füge ihn erneut hinzu."

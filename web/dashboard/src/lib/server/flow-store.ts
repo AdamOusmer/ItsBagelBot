@@ -8,6 +8,7 @@ import {
   classifyFlow,
   commandDefinition,
   plainAlertLine,
+  setupGaps,
   validateDefinition,
   type AlertKey,
   type Automation,
@@ -61,6 +62,7 @@ export interface StoredFlow {
   enabled: boolean;
   revision: string;
   definition: Definition;
+  restricted?: boolean;
 }
 
 export interface SaveFlowInput {
@@ -110,7 +112,7 @@ export type FlowDenied = { ok: false; reason: 'denied'; error: string };
 
 export type SetFlowEnabledResult =
   | { ok: true; enabled: boolean; revision: string; warnings: FlowWarning[] }
-  | { ok: false; reason: 'conflict' | 'not_found' }
+  | { ok: false; reason: 'conflict' | 'not_found' | 'needs_setup' }
   | { ok: false; reason: 'failed'; error: string }
   | FlowDenied;
 
@@ -169,7 +171,7 @@ function simpleCommand(row: CommandView): SimpleCommand {
 
 function commandFlow(row: CommandView): StoredFlow {
   const definition = commandDefinition(simpleCommand(row));
-  return { ref: { layer: 'command', name: row.name }, name: `!${row.name}`, enabled: row.is_active, revision: commandToken(row), definition };
+  return { ref: { layer: 'command', name: row.name }, name: `!${row.name}`, enabled: row.is_active, revision: commandToken(row), definition, restricted: Boolean(row.allowed_user_id) };
 }
 
 type AlertState = { on: boolean; customized: boolean; message: string; configured: unknown[] };
@@ -513,7 +515,13 @@ function route(userId: UserId, target: FlowLayer, input: SaveFlowInput): Promise
 const TOGGLE_CONFLICT: SetFlowEnabledResult = { ok: false, reason: 'conflict' };
 const TOGGLE_NOT_FOUND: SetFlowEnabledResult = { ok: false, reason: 'not_found' };
 
+async function stillNeedsSetup(userId: UserId, id: FlowId): Promise<boolean> {
+  const row = await getAutomation(userId, id);
+  return row ? setupGaps(row.definition).length > 0 : false;
+}
+
 async function toggleAutomation(userId: UserId, id: FlowId, enabled: Enabled, expected?: Revision): Promise<SetFlowEnabledResult> {
+  if (enabled && (await stillNeedsSetup(userId, id))) return { ok: false, reason: 'needs_setup' };
   const result = await setAutomationEnabled(userId, id, enabled, expected === undefined ? undefined : Number(expected));
   if (!result.ok) {
     if (result.conflict) return TOGGLE_CONFLICT;
@@ -572,7 +580,7 @@ export async function setFlowEnabled(locals: App.Locals, ref: FlowRef, enabled: 
 export async function saveFlow(locals: App.Locals, input: SaveFlowInput): Promise<SaveFlowResult> {
   const denied = await writeDenial(locals);
   if (denied) return denied;
-  const issues = validateDefinition(input.definition);
+  const issues = [...validateDefinition(input.definition), ...(input.enabled ? setupGaps(input.definition) : [])];
   if (issues.length > 0) return { ok: false, reason: 'invalid', issues };
   return route(effectiveId(locals.session), classifyFlow(input.definition), input).catch(failed);
 }

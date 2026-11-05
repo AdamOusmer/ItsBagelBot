@@ -10,6 +10,9 @@
   "exportNeedSetup": "{n} nécessitera une configuration après l’importation.",
   "exportMissing": "{n} n’a pas pu être trouvée sur cette chaîne.",
   "exportFailed": "Exclues car elles ne sont plus valides : {names}",
+  "exportScrubbed": "Quelque chose ressemblant à une clé ou un mot de passe a été retiré de ces éléments. Vérifie-les avant de partager le fichier :",
+  "exportScrubbedStep": "{name}, étape {n} : {step}",
+  "exportScrubbedRecipe": "{name} : son déclencheur, ses conditions ou son nom",
   "exportError": "Impossible d’exporter ces recettes. Réessayez dans un instant.",
   "importOpen": "Importer",
   "importTitle": "Importer des recettes",
@@ -48,6 +51,7 @@
     "overlay_target": "Une étape d’overlay a été désactivée et son lien supprimé. Ajoutez le vôtre.",
     "lights_target": "Une étape d’éclairage a été désactivée et son appareil retiré. Choisissez votre propre lumière.",
     "slash_command":"Une étape qui exécutait une commande de chat a été désactivée et vidée. Réécrivez-la si vous souhaitez l’utiliser.",
+    "secret_removed": "Une étape contenait quelque chose qui ne devrait pas être partagé, elle a donc été désactivée et vidée. Réécris-la si tu la veux.",
     "run_removed": "Une étape qui exécutait une autre recette non incluse dans cette importation a été supprimée.",
     "run_target_simple": "Une étape qui exécutait une autre recette a été supprimée, car cette recette est enregistrée comme commande ou alerte et ne peut pas être exécutée.",
     "link_failed": "Impossible de lier une étape qui exécute une autre recette. Ajoutez-la à nouveau."

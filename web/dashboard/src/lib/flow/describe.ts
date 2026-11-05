@@ -4,6 +4,7 @@ import type { MessageKey } from '@bagel/kit';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
+import { awaitingSetup, configText } from './setup';
 
 const COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
   gte: 'flows.line.compareGte',
@@ -30,7 +31,7 @@ const SUBS: Readonly<Record<string, MessageKey>> = Object.freeze({
 
 const text = (node: FlowNode, key: string) => {
   const v = node.config[key];
-  return v === undefined || v === false ? '' : String(v).trim();
+  return v === false ? '' : configText(node, key).trim();
 };
 
 const num = (node: FlowNode, key: string) => {
@@ -222,5 +223,6 @@ export function portLabel(t: Translate, node: FlowNode, id: string): string {
 export function describe(t: Translate, node: FlowNode): string {
   const spec = specFor(node.type);
   if (!spec) return '';
+  if (awaitingSetup(node)) return t('flows.setup.line');
   return lineFor(t, node, spec) || stepSummary(t, spec);
 }

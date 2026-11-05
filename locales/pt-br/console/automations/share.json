@@ -10,6 +10,9 @@
   "exportNeedSetup": "{n} vai precisar de configuração após a importação.",
   "exportMissing": "{n} não foi encontrada neste canal.",
   "exportFailed": "Deixadas de fora porque não são mais válidas: {names}",
+  "exportScrubbed": "Algo parecido com uma chave ou senha foi removido destes itens. Confira antes de compartilhar o arquivo:",
+  "exportScrubbedStep": "{name}, etapa {n}: {step}",
+  "exportScrubbedRecipe": "{name}: seu gatilho, condições ou nome",
   "exportError": "Não foi possível exportar essas receitas. Tente novamente em instantes.",
   "importOpen": "Importar",
   "importTitle": "Importar receitas",
@@ -48,6 +51,7 @@
     "overlay_target": "Uma etapa de overlay foi desativada e seu link removido. Adicione o seu.",
     "lights_target": "Uma etapa de luzes foi desativada e seu dispositivo removido. Escolha a sua própria luz.",
     "slash_command": "Uma etapa que executava um comando de chat foi desativada e esvaziada. Reescreva-a se quiser.",
+    "secret_removed": "Uma etapa continha algo que não deveria ser compartilhado, então foi desativada e apagada. Reescreva se você a quiser.",
     "run_removed": "Uma etapa que executava outra receita que não está nesta importação foi removida.",
     "run_target_simple": "Uma etapa que executava outra receita foi removida, porque essa receita está salva como comando ou alerta e não pode ser executada.",
     "link_failed": "Não foi possível vincular uma etapa que executa outra receita. Adicione-a novamente."

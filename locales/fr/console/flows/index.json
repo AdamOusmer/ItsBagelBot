@@ -138,5 +138,12 @@
   },
   "choiceMissing": "\"{name}\" n’est plus dans la liste.",
   "choiceRetry": "Réessayer",
-  "choiceLoading": "Chargement"
+  "choiceLoading": "Chargement",
+  "setup": {
+    "line": "Désactivé avant configuration",
+    "stepNote": "Cette étape reste désactivée tant que tu ne l'as pas remplie.",
+    "pickReward": "Choisis une récompense",
+    "addUrl": "Ajoute une URL",
+    "refused": "Remplis les étapes à configurer, enregistre, puis active ceci."
+  }
 }

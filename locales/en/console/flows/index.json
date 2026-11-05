@@ -138,5 +138,12 @@
   },
   "choiceMissing": "\"{name}\" is no longer in the list.",
   "choiceRetry": "Try again",
-  "choiceLoading": "Loading"
+  "choiceLoading": "Loading",
+  "setup": {
+    "line": "Off until set up",
+    "stepNote": "This step stays off until you fill it in.",
+    "pickReward": "Pick a reward",
+    "addUrl": "Add a URL",
+    "refused": "Fill in the steps that need setup and save, then turn this on."
+  }
 }
