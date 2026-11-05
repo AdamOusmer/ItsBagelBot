@@ -37,6 +37,7 @@ type AutomationDeps struct {
 	Runs      RunLog
 	Limiter   RunLimiter
 	Variables VariableStore
+	Overlay   OverlayPublisher
 }
 
 type AutomationRun struct {

@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!show"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "overlay_show",
+      "params": {
+        "kind": "html",
+        "content": "<b>hi</b>",
+        "seconds": 61,
+        "position": "left"
+      }
+    },
+    {
+      "type": "overlay_show",
+      "params": {
+        "kind": "image",
+        "content": "http://cdn.example.com/a.png",
+        "seconds": 0,
+        "position": "top"
+      }
+    },
+    {
+      "type": "overlay_show",
+      "params": {
+        "kind": "video",
+        "content": "javascript:alert(1)",
+        "seconds": 5,
+        "position": "top"
+      }
+    },
+    {
+      "type": "overlay_show",
+      "params": {
+        "kind": "text",
+        "content": "",
+        "seconds": 5,
+        "position": "top",
+        "html": true
+      }
+    }
+  ]
+}

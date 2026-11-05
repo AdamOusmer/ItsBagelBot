@@ -217,6 +217,8 @@ func init() {
 		"http_post":      registerNestedEffect(checkHTTPPost, httpPostBranches),
 		"http_get":       registerNestedEffect(checkHTTPGet, httpGetBranches),
 		"lights":         register(checkLights),
+		"overlay_show":   register(checkOverlayShow),
+		"overlay_sound":  register(checkOverlaySound),
 		"stop":           register(checkEmpty),
 		"var_set":        register(checkVarSet),
 		"var_add":        register(checkVarAdd),
