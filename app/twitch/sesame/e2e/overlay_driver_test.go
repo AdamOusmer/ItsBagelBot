@@ -114,18 +114,24 @@ func TestRecipesV2OverlayDriver(t *testing.T) {
 		if strings.HasPrefix(parts[1], "!say") {
 			id = "say"
 		}
-		fmt.Println("RESULT", awaitRunJSON(t, runs, broadcaster, id, events))
+		fmt.Println("RESULT", awaitRunJSON(t, runs, runLookup{Broadcaster: broadcaster, ID: id, Event: events}))
 	}
 }
 
-func awaitRunJSON(t *testing.T, runs *engine.ValkeyRunLog, broadcaster uint64, id string, event int) string {
+type runLookup struct {
+	Broadcaster uint64
+	ID          string
+	Event       int
+}
+
+func awaitRunJSON(t *testing.T, runs *engine.ValkeyRunLog, q runLookup) string {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		recent, err := runs.Recent(context.Background(), broadcaster, id, 1)
+		recent, err := runs.Recent(context.Background(), q.Broadcaster, q.ID, 1)
 		require.NoError(t, err)
 		if len(recent) > 0 && time.Since(recent[0].At) < 3*time.Second {
-			out, err := json.Marshal(map[string]any{"event": event, "outcome": recent[0].Outcome, "steps": stepStatuses(recent[0])})
+			out, err := json.Marshal(map[string]any{"event": q.Event, "outcome": recent[0].Outcome, "steps": stepStatuses(recent[0])})
 			require.NoError(t, err)
 			return string(out)
 		}

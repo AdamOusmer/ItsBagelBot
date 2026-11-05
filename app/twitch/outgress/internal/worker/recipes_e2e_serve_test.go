@@ -85,8 +85,8 @@ func TestRecipesE2EServe(t *testing.T) {
 
 	const premiumSubject, standardSubject = "twitch.outgress.premium", "twitch.outgress.standard"
 	lanes := []bus.WeightedLane{
-		{Sub: e2eLane(t, natsURL, premiumSubject, "outgress-premium", log), Subject: premiumSubject, Handle: premium.Process, Reserve: 50},
-		{Sub: e2eLane(t, natsURL, standardSubject, "outgress-standard", log), Subject: standardSubject, Handle: standard.Process},
+		{Sub: e2eLane(t, e2eLaneSpec{NatsURL: natsURL, Subject: premiumSubject, Group: "outgress-premium"}, log), Subject: premiumSubject, Handle: premium.Process, Reserve: 50},
+		{Sub: e2eLane(t, e2eLaneSpec{NatsURL: natsURL, Subject: standardSubject, Group: "outgress-standard"}, log), Subject: standardSubject, Handle: standard.Process},
 	}
 	_, err = bus.ConsumeWeighted(ctx, nil, lanes, bus.ScalePolicy{MinRoutines: 4, MaxRoutines: 8, MaxConsumers: 1, ScaleUpAfter: time.Second, ScaleDownAfter: time.Minute}, log)
 	require.NoError(t, err)
@@ -95,11 +95,17 @@ func TestRecipesE2EServe(t *testing.T) {
 	_, _ = io.Copy(io.Discard, os.Stdin)
 }
 
-func e2eLane(t *testing.T, natsURL, subject, group string, log *zap.Logger) bus.Subscriber {
+type e2eLaneSpec struct {
+	NatsURL string
+	Subject string
+	Group   string
+}
+
+func e2eLane(t *testing.T, spec e2eLaneSpec, log *zap.Logger) bus.Subscriber {
 	t.Helper()
 	sub, err := bus.NewLaneSubscriber(bus.LaneConfig{
-		URL: natsURL, Stream: bus.OutgressStream.Name, Subject: subject,
-		Group: group, NakDelay: time.Second, MaxRedeliveries: 3,
+		URL: spec.NatsURL, Stream: bus.OutgressStream.Name, Subject: spec.Subject,
+		Group: spec.Group, NakDelay: time.Second, MaxRedeliveries: 3,
 	}, log)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sub.Close() })

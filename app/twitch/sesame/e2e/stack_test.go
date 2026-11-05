@@ -74,10 +74,13 @@ type rewardState struct {
 type fakeHelix struct {
 	mu      sync.Mutex
 	calls   []helixCall
-	rewards map[string]*rewardState
+	rewards map[rewardRef]*rewardState
 }
 
-func rewardKey(broadcaster, reward string) string { return broadcaster + "/" + reward }
+type rewardRef struct {
+	Broadcaster uint64
+	ID          string
+}
 
 func (h *fakeHelix) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
@@ -98,7 +101,7 @@ func (h *fakeHelix) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *fakeHelix) serveReward(w http.ResponseWriter, method string, call helixCall) {
-	reward := h.rewards[rewardKey(call.Broadcaster, call.RewardID)]
+	reward := h.rewards[call.rewardRef()]
 	if reward == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -119,16 +122,16 @@ func (h *fakeHelix) serveReward(w http.ResponseWriter, method string, call helix
 	_, _ = fmt.Fprintf(w, `{"data":[{"id":%q,"title":"Hydrate","prompt":"","cost":%d,"is_enabled":%t}]}`, call.RewardID, reward.Cost, reward.Enabled)
 }
 
-func (h *fakeHelix) seedReward(broadcaster uint64, reward string, state rewardState) {
+func (h *fakeHelix) seedReward(ref rewardRef, state rewardState) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.rewards[rewardKey(strconv.FormatUint(broadcaster, 10), reward)] = &state
+	h.rewards[ref] = &state
 }
 
-func (h *fakeHelix) reward(broadcaster uint64, reward string) rewardState {
+func (h *fakeHelix) reward(ref rewardRef) rewardState {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return *h.rewards[rewardKey(strconv.FormatUint(broadcaster, 10), reward)]
+	return *h.rewards[ref]
 }
 
 func (h *fakeHelix) snapshot() []helixCall {
@@ -286,10 +289,12 @@ func startLoyalty(t *testing.T, nc *nats.Conn) {
 	require.NoError(t, loyaltyserver.Subscribe(loyaltyserver.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))}, Repo: repo, InvalidationPrefix: "bagel.cache.invalidate"}, loyaltyPrefix))
 }
 
-func buildService(t *testing.T, pkg, name string) string {
+type serviceBuild struct{ Pkg, Name string }
+
+func buildService(t *testing.T, svc serviceBuild) string {
 	t.Helper()
-	binary := filepath.Join(t.TempDir(), name)
-	build := exec.Command("go", "test", "-c", "-o", binary, pkg)
+	binary := filepath.Join(t.TempDir(), svc.Name)
+	build := exec.Command("go", "test", "-c", "-o", binary, svc.Pkg)
 	build.Dir = repoRoot
 	out, err := build.CombinedOutput()
 	require.NoError(t, err, string(out))
@@ -353,7 +358,7 @@ func startStack(t *testing.T, channels ...uint64) *stack {
 	ensureOutgressStreams(t, natsURL)
 	startLoyalty(t, nc)
 
-	s := &stack{vc: vc, nc: nc, natsURL: natsURL, helix: &fakeHelix{rewards: map[string]*rewardState{}}, upstream: &upstreamLog{}, source: &fixtureSource{autos: map[uint64][]automation.Automation{}}}
+	s := &stack{vc: vc, nc: nc, natsURL: natsURL, helix: &fakeHelix{rewards: map[rewardRef]*rewardState{}}, upstream: &upstreamLog{}, source: &fixtureSource{autos: map[uint64][]automation.Automation{}}}
 	s.vars = engine.NewLoyaltyRPC(nc, engine.LoyaltyRPCPrefix(loyaltyPrefix))
 	s.runs = engine.NewValkeyRunLog(vc, zap.NewNop())
 
@@ -367,10 +372,13 @@ func startStack(t *testing.T, channels ...uint64) *stack {
 	var wg sync.WaitGroup
 	var gossipBin, outgressBin string
 	wg.Add(2)
-	go func() { defer wg.Done(); gossipBin = buildService(t, "./app/gossip/internal/core", "gossip-e2e") }()
 	go func() {
 		defer wg.Done()
-		outgressBin = buildService(t, "./app/twitch/outgress/internal/worker", "outgress-e2e")
+		gossipBin = buildService(t, serviceBuild{"./app/gossip/internal/core", "gossip-e2e"})
+	}()
+	go func() {
+		defer wg.Done()
+		outgressBin = buildService(t, serviceBuild{"./app/twitch/outgress/internal/worker", "outgress-e2e"})
 	}()
 	wg.Wait()
 	startService(t, gossipBin, append(common,
@@ -427,14 +435,21 @@ func (s *stack) nextEvent(prefix string) string {
 	return fmt.Sprintf("%s-%d-%d", prefix, time.Now().UnixNano(), s.events)
 }
 
-func (s *stack) command(t *testing.T, replica int, broadcaster uint64, viewer, text string) {
+type chatCommand struct {
+	Replica     int
+	Broadcaster uint64
+	Viewer      string
+	Text        string
+}
+
+func (s *stack) command(t *testing.T, c chatCommand) {
 	t.Helper()
 	env := lane.Envelope{
-		Type: "channel.chat.message", Lane: "premium", EventID: s.nextEvent("chat"), Text: text,
-		BroadcasterUserID: strconv.FormatUint(broadcaster, 10), BroadcasterUserLogin: "streamer",
-		ChatterUserID: "777", ChatterUserLogin: viewer,
+		Type: "channel.chat.message", Lane: "premium", EventID: s.nextEvent("chat"), Text: c.Text,
+		BroadcasterUserID: strconv.FormatUint(c.Broadcaster, 10), BroadcasterUserLogin: "streamer",
+		ChatterUserID: "777", ChatterUserLogin: c.Viewer,
 	}
-	s.process(t, replica, env)
+	s.process(t, c.Replica, env)
 }
 
 func (s *stack) streamOffline(t *testing.T, broadcaster uint64) {
@@ -460,4 +475,9 @@ func loadAutomation(t *testing.T, fixture string, broadcaster uint64) automation
 	require.NoError(t, codec.Unmarshal(raw, &def))
 	require.Empty(t, automation.Validate(def), "%s must validate", fixture)
 	return automation.Automation{ID: strings.TrimSuffix(fixture, ".json"), UserID: broadcaster, Name: fixture, Enabled: true, Definition: def}
+}
+
+func (c helixCall) rewardRef() rewardRef {
+	broadcaster, _ := strconv.ParseUint(c.Broadcaster, 10, 64)
+	return rewardRef{Broadcaster: broadcaster, ID: c.RewardID}
 }

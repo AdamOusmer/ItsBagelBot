@@ -114,7 +114,7 @@ func snapshotExists(t *testing.T, s *stack, broadcaster uint64) bool {
 func TestRecipesV2FetchCarriesThePaidFlag(t *testing.T) {
 	channel := uniqueChannel(4)
 	s := startStack(t, channel)
-	s.helix.seedReward(channel, rewardID, rewardState{Enabled: true, Cost: 100})
+	s.helix.seedReward(rewardRef{channel, rewardID}, rewardState{Enabled: true, Cost: 100})
 	s.source.set(channel, loadAutomation(t, e2eFixture, channel))
 
 	requests := make(chan gossiprpc.Request, 8)
@@ -128,7 +128,7 @@ func TestRecipesV2FetchCarriesThePaidFlag(t *testing.T) {
 	defer func() { _ = sub.Unsubscribe() }()
 	require.NoError(t, s.nc.Flush())
 
-	s.command(t, 0, channel, "alice", "!e2e paid")
+	s.command(t, chatCommand{Broadcaster: channel, Viewer: "alice", Text: "!e2e paid"})
 	select {
 	case req := <-requests:
 		assert.True(t, req.IsPremium, "the event came through the premium lane")
@@ -137,19 +137,50 @@ func TestRecipesV2FetchCarriesThePaidFlag(t *testing.T) {
 	}
 }
 
+func assertFirstRunUpstreamAndVariables(t *testing.T, s *stack, channel uint64) {
+	t.Helper()
+	hits := s.upstream.snapshot()
+	require.GreaterOrEqual(t, len(hits), 2)
+	assert.Equal(t, []string{"/item/1", "/item/2"}, []string{hits[0].Path, hits[1].Path})
+
+	assert.Equal(t, "{arg:1}", s.channelVariable(t, channel, "last_input"), "viewer text is stored as written")
+	assert.Equal(t, "1", s.channelVariable(t, channel, "seen"))
+}
+
+func assertFirstRunReward(t *testing.T, s *stack, channel uint64) {
+	t.Helper()
+	patches := s.helix.patches(channel)
+	require.Len(t, patches, 1)
+	assert.Equal(t, map[string]any{"is_enabled": false, "cost": float64(500)}, patchKeys(t, patches[0].Body))
+	assert.Equal(t, rewardID, patches[0].RewardID)
+	assert.Equal(t, rewardState{Enabled: false, Cost: 500}, s.helix.reward(rewardRef{channel, rewardID}))
+	assert.True(t, snapshotExists(t, s, channel), "the first change leaves a snapshot")
+}
+
+func assertFirstRunRecord(t *testing.T, s *stack, channel uint64) {
+	t.Helper()
+	runs := s.recentRuns(t, channel, 1)
+	t.Logf("run record: %s %v", runs[0].Outcome, stepStatuses(runs[0]))
+	assert.Contains(t, stepStatuses(runs[0]), "http_get:ok")
+	assert.Contains(t, stepStatuses(runs[0]), "http_get:failed:upstream_error")
+	assert.Contains(t, stepStatuses(runs[0]), "overlay_show:ok:no_overlay")
+	assert.Contains(t, stepStatuses(runs[0]), "reward_update:ok:queued")
+	assert.NotEqual(t, automationrpc.OutcomeFailed, runs[0].Outcome, "a failure with a handled path is not a failed run")
+}
+
 func TestRecipesV2DefinitionToEffects(t *testing.T) {
 	single, queued, legacy := uniqueChannel(1), uniqueChannel(2), uniqueChannel(3)
 	s := startStack(t, single, queued, legacy)
 
-	s.helix.seedReward(single, rewardID, rewardState{Enabled: true, Cost: 100})
-	s.helix.seedReward(queued, rewardID, rewardState{Enabled: true, Cost: 100})
+	s.helix.seedReward(rewardRef{single, rewardID}, rewardState{Enabled: true, Cost: 100})
+	s.helix.seedReward(rewardRef{queued, rewardID}, rewardState{Enabled: true, Cost: 100})
 	s.source.set(single, loadAutomation(t, e2eFixture, single))
 	s.source.set(queued, loadAutomation(t, e2eFixture, queued))
 	s.source.set(legacy, loadAutomation(t, "command_defaults.json", legacy))
 
 	t.Run("first run reaches every boundary", func(t *testing.T) {
 		started := time.Now()
-		s.command(t, 0, single, "alice", "!e2e {arg:1}")
+		s.command(t, chatCommand{Broadcaster: single, Viewer: "alice", Text: "!e2e {arg:1}"})
 		lines := s.awaitChat(t, single, 3)
 
 		assert.Equal(t, []string{"worked 1 from-upstream", "failed 2 upstream_error", "done {arg:1} 1"}, texts(lines)[:3])
@@ -157,31 +188,13 @@ func TestRecipesV2DefinitionToEffects(t *testing.T) {
 		assert.GreaterOrEqual(t, lines[2].At.Sub(lines[1].At), loopDelay-100*time.Millisecond, "the last iteration's delay runs before the steps after the loop")
 		assert.GreaterOrEqual(t, lines[2].At.Sub(started), 2*loopDelay-100*time.Millisecond)
 
-		hits := s.upstream.snapshot()
-		require.GreaterOrEqual(t, len(hits), 2)
-		assert.Equal(t, []string{"/item/1", "/item/2"}, []string{hits[0].Path, hits[1].Path})
-
-		assert.Equal(t, "{arg:1}", s.channelVariable(t, single, "last_input"), "viewer text is stored as written")
-		assert.Equal(t, "1", s.channelVariable(t, single, "seen"))
-
-		patches := s.helix.patches(single)
-		require.Len(t, patches, 1)
-		assert.Equal(t, map[string]any{"is_enabled": false, "cost": float64(500)}, patchKeys(t, patches[0].Body))
-		assert.Equal(t, rewardID, patches[0].RewardID)
-		assert.Equal(t, rewardState{Enabled: false, Cost: 500}, s.helix.reward(single, rewardID))
-		assert.True(t, snapshotExists(t, s, single), "the first change leaves a snapshot")
-
-		runs := s.recentRuns(t, single, 1)
-		t.Logf("run record: %s %v", runs[0].Outcome, stepStatuses(runs[0]))
-		assert.Contains(t, stepStatuses(runs[0]), "http_get:ok")
-		assert.Contains(t, stepStatuses(runs[0]), "http_get:failed:upstream_error")
-		assert.Contains(t, stepStatuses(runs[0]), "overlay_show:ok:no_overlay")
-		assert.Contains(t, stepStatuses(runs[0]), "reward_update:ok:queued")
-		assert.NotEqual(t, automationrpc.OutcomeFailed, runs[0].Outcome, "a failure with a handled path is not a failed run")
+		assertFirstRunUpstreamAndVariables(t, s, single)
+		assertFirstRunReward(t, s, single)
+		assertFirstRunRecord(t, s, single)
 	})
 
 	t.Run("second run reads the persisted variable and keeps the first snapshot", func(t *testing.T) {
-		s.command(t, 0, single, "alice", "!e2e second")
+		s.command(t, chatCommand{Broadcaster: single, Viewer: "alice", Text: "!e2e second"})
 		lines := s.awaitChat(t, single, 6)
 		assert.Equal(t, []string{"worked 1 from-upstream", "failed 2 upstream_error", "done second 2"}, texts(lines)[3:6])
 		assert.Equal(t, "2", s.channelVariable(t, single, "seen"))
@@ -193,7 +206,7 @@ func TestRecipesV2DefinitionToEffects(t *testing.T) {
 		for replica, arg := range []string{"from-a", "from-b"} {
 			go func() {
 				defer func() { done <- struct{}{} }()
-				s.command(t, replica, queued, "viewer"+strconv.Itoa(replica), "!e2e "+arg)
+				s.command(t, chatCommand{Replica: replica, Broadcaster: queued, Viewer: "viewer" + strconv.Itoa(replica), Text: "!e2e " + arg})
 			}()
 		}
 		<-done
@@ -219,7 +232,7 @@ func TestRecipesV2DefinitionToEffects(t *testing.T) {
 		require.Eventually(t, func() bool { return len(s.helix.patches(single)) == before+1 }, settle, 20*time.Millisecond)
 		patch := s.helix.patches(single)[before]
 		assert.Equal(t, map[string]any{"is_enabled": true, "cost": float64(100)}, patchKeys(t, patch.Body))
-		assert.Equal(t, rewardState{Enabled: true, Cost: 100}, s.helix.reward(single, rewardID))
+		assert.Equal(t, rewardState{Enabled: true, Cost: 100}, s.helix.reward(rewardRef{single, rewardID}))
 		require.Eventually(t, func() bool { return !snapshotExists(t, s, single) }, settle, 20*time.Millisecond, "the snapshot clears")
 
 		s.streamOffline(t, single)
@@ -228,7 +241,7 @@ func TestRecipesV2DefinitionToEffects(t *testing.T) {
 	})
 
 	t.Run("a definition from before v2 validates and runs the same", func(t *testing.T) {
-		s.command(t, 0, legacy, "bob", "!hi")
+		s.command(t, chatCommand{Broadcaster: legacy, Viewer: "bob", Text: "!hi"})
 		lines := s.awaitChat(t, legacy, 1)
 		assert.Equal(t, []string{"hello bob"}, texts(lines))
 		assert.Empty(t, s.helix.patches(legacy))
