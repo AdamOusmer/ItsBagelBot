@@ -223,11 +223,11 @@ func (w *Worker) sendReauthBeacon(ctx context.Context, broadcasterID string, n n
 // Reports whether the channel is healthy afterward, not whether the retry itself
 // errored: enableEventSubs acks almost every failure, so registry state is the only reliable signal.
 func (w *Worker) recoverFromBan(ctx context.Context, broadcasterID string) bool {
-	conduitID, err := w.conduit.Get(ctx)
+	e, err := w.currentEnrollment(ctx, broadcasterID)
 	if err != nil {
 		return false
 	}
-	_ = w.enableEventSubs(ctx, enrollment{broadcasterID: broadcasterID, conduitID: conduitID})
+	_ = w.enableEventSubs(ctx, e)
 
 	ch, found, err := w.registry.Get(ctx, broadcasterID)
 	return err == nil && found && ch.SubState == subStateOK
