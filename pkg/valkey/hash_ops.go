@@ -28,3 +28,15 @@ func HValues(ctx context.Context, client valkey_go.Client, key string) ([]string
 	}
 	return vals, err
 }
+
+// ReadHashInt tells a missing field from a failed read.
+func ReadHashInt(ctx context.Context, client valkey_go.Client, key, field string) (int64, bool, error) {
+	v, err := client.Do(ctx, client.B().Hget().Key(key).Field(field).Build()).AsInt64()
+	if valkey_go.IsValkeyNil(err) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return v, true, nil
+}
