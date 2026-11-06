@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	pkgvalkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -151,14 +153,14 @@ func (g *Guarder) recordAndCount(ctx context.Context, s Sighting, link normalize
 }
 
 func (g *Guarder) addAndExpire(ctx context.Context, key valkeyKey, member string, ttl time.Duration) error {
-	if err := g.client.Do(ctx, g.client.B().Sadd().Key(string(key)).Member(member).Build()).Error(); err != nil {
+	if err := pkgvalkey.Exec1(ctx, g.client, pkgvalkey.SaddCmd(g.client, string(key), member)).Error(); err != nil {
 		return err
 	}
-	return g.client.Do(ctx, g.client.B().Expire().Key(string(key)).Seconds(int64(ttl.Seconds())).Nx().Build()).Error()
+	return pkgvalkey.Exec1(ctx, g.client, pkgvalkey.ExpireNXCmd(g.client, string(key), int64(ttl.Seconds()))).Error()
 }
 
 func (g *Guarder) card(ctx context.Context, key valkeyKey) (int, error) {
-	n, err := g.client.Do(ctx, g.client.B().Scard().Key(string(key)).Build()).AsInt64()
+	n, err := pkgvalkey.Exec1(ctx, g.client, pkgvalkey.ScardCmd(g.client, string(key))).AsInt64()
 	if err != nil {
 		return 0, err
 	}
