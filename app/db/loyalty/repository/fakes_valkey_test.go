@@ -78,8 +78,13 @@ func counterKnownScripts() map[string]string {
 }
 
 var (
-	counterRelease       = pkg_valkey.NewOwnerLock(nil, "", "").ReleaseCall().Script
-	counterReleaseScript = counterRelease.Body()
+	counterTestLeaseShape = pkg_valkey.MarkedLease{Done: counterDoneMarker}
+	counterClaim          = counterTestLeaseShape.ClaimCall("", 0).Script
+	counterComplete       = counterTestLeaseShape.FinishCall("", 0).Script
+	counterClaimScript    = counterClaim.Body()
+	counterCompleteScript = counterComplete.Body()
+	counterRelease        = pkg_valkey.NewOwnerLock(nil, "", "").ReleaseCall().Script
+	counterReleaseScript  = counterRelease.Body()
 )
 
 func (f *counterFakeValkey) session(c net.Conn) {
