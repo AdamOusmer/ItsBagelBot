@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 	valkey "github.com/valkey-io/valkey-go"
 )
 
@@ -74,51 +75,18 @@ func SubscribeTrialSubscriptions(wiring bus.RPCWiring, store valkey.Client, tw *
 	)
 }
 
-const activateTrial = `
-local owner = redis.call('GET', KEYS[1]) or ''
-if string.sub(owner, 1, string.len(ARGV[1]) + 1) ~= ARGV[1] .. ':' then return 0 end
-if redis.call('GET', KEYS[3]) ~= ARGV[1] .. ':' .. ARGV[4] then return 0 end
-if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 0 end
-if redis.call('HGET', KEYS[2], 'enabled') == '0' then return 0 end
-if (redis.call('HGET', KEYS[2], 'slot') or '0') ~= ARGV[5] then return 0 end
-local state = redis.call('HGET', KEYS[2], 'state')
-if state ~= 'pending' and state ~= 'receiving' and state ~= 'failed' then return 0 end
-redis.call('HSET', KEYS[2], 'subscription_id', ARGV[3], 'session_id', ARGV[4], 'owner_epoch', ARGV[1], 'state', 'receiving')
-redis.call('HDEL', KEYS[2], 'error')
-return 1`
-
-const releaseTrial = `
-local owner = redis.call('GET', KEYS[1]) or ''
-if string.sub(owner, 1, string.len(ARGV[1]) + 1) ~= ARGV[1] .. ':' then return 0 end
-if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 0 end
-local state = redis.call('HGET', KEYS[2], 'state')
-if state ~= 'stopping' and state ~= 'disabled' then return 0 end
-if (redis.call('HGET', KEYS[2], 'subscription_id') or '') ~= ARGV[3] then return 0 end
-redis.call('HDEL', KEYS[2], 'subscription_id', 'session_id', 'owner_epoch')
-if state == 'disabled' and redis.call('HGET', KEYS[2], 'enabled') ~= '0' then
-  redis.call('HSET', KEYS[2], 'state', 'pending')
-end
-return 1`
-
-var (
-	activateTrialScript     = valkey.NewLuaScript(activateTrial)
-	releaseTrialScript      = valkey.NewLuaScript(releaseTrial)
-	recordDisplayNameScript = valkey.NewLuaScript(`if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
-redis.call('HSET', KEYS[1], 'display_name', ARGV[2]); return 1`)
-)
-
 func (h *trialSubscriptions) owned(ctx context.Context, req TrialSubscriptionRequest) (map[string]string, bool) {
 	if !req.valid() {
 		return nil, false
 	}
-	owner, err := h.store.Do(ctx, h.store.B().Get().Key(trialOwnerKey(req.Slot)).Build()).ToString()
+	owner, err := pkg_valkey.NewKV(h.store).ReadString(ctx, trialOwnerKey(req.Slot))
 	if err != nil {
 		return nil, false
 	}
 	if !strings.HasPrefix(owner, fmt.Sprint(req.OwnerEpoch)+":") {
 		return nil, false
 	}
-	fields, err := h.store.Do(ctx, h.store.B().Hgetall().Key("trial:channel:"+req.BroadcasterID).Build()).AsStrMap()
+	fields, err := pkg_valkey.HashAll(ctx, h.store, "trial:channel:"+req.BroadcasterID)
 	if err != nil {
 		return nil, false
 	}
@@ -148,7 +116,7 @@ func (h *trialSubscriptions) currentSession(ctx context.Context, req TrialSubscr
 	if req.SessionID == "" {
 		return false
 	}
-	session, err := h.store.Do(ctx, h.store.B().Get().Key(trialSessionKey(req.Slot)).Build()).ToString()
+	session, err := pkg_valkey.NewKV(h.store).ReadString(ctx, trialSessionKey(req.Slot))
 	return err == nil && session == fmt.Sprint(req.OwnerEpoch)+":"+req.SessionID
 }
 
@@ -269,11 +237,9 @@ func (h *trialSubscriptions) conflictID(ctx context.Context, req TrialSubscripti
 }
 
 func (h *trialSubscriptions) activate(ctx context.Context, req TrialSubscriptionRequest, id string) bool {
-	key := "trial:channel:" + req.BroadcasterID
-	keys := []string{trialOwnerKey(req.Slot), key, trialSessionKey(req.Slot)}
-	args := []string{fmt.Sprint(req.OwnerEpoch), req.TrialGeneration, id, req.SessionID, strconv.Itoa(req.Slot)}
-	activated, err := activateTrialScript.Exec(ctx, h.store, keys, args).AsInt64()
-	return err == nil && activated == 1
+	gate := pkg_valkey.EpochGate{Owner: trialOwnerKey(req.Slot), Session: trialSessionKey(req.Slot), Record: "trial:channel:" + req.BroadcasterID}
+	activated, err := gate.Activate(ctx, h.store, fmt.Sprint(req.OwnerEpoch), req.TrialGeneration, id, req.SessionID, strconv.Itoa(req.Slot))
+	return err == nil && activated
 }
 
 func (h *trialSubscriptions) existingSubscriptionMatches(ctx context.Context, id string, req TrialSubscriptionRequest) bool {
@@ -344,7 +310,7 @@ func (h *trialSubscriptions) recordDisplayName(ctx context.Context, req TrialSub
 	if page.Data[0].DisplayName == "" {
 		return
 	}
-	_ = recordDisplayNameScript.Exec(ctx, h.store, []string{"trial:channel:" + req.BroadcasterID}, []string{req.TrialGeneration, page.Data[0].DisplayName}).Error()
+	_, _ = pkg_valkey.GuardedFieldWrite{Key: "trial:channel:" + req.BroadcasterID, GuardField: "generation", Field: "display_name"}.Apply(ctx, h.store, req.TrialGeneration, page.Data[0].DisplayName)
 }
 
 func (h *trialSubscriptions) delete(ctx context.Context, req TrialSubscriptionRequest) TrialSubscriptionReply {
@@ -369,11 +335,9 @@ func trialDeletionMatches(fields map[string]string, subscriptionID string) bool 
 }
 
 func (h *trialSubscriptions) release(ctx context.Context, req TrialSubscriptionRequest) bool {
-	key := "trial:channel:" + req.BroadcasterID
-	keys := []string{trialOwnerKey(req.Slot), key}
-	args := []string{fmt.Sprint(req.OwnerEpoch), req.TrialGeneration, req.SubscriptionID}
-	released, err := releaseTrialScript.Exec(ctx, h.store, keys, args).AsInt64()
-	return err == nil && released == 1
+	gate := pkg_valkey.EpochGate{Owner: trialOwnerKey(req.Slot), Record: "trial:channel:" + req.BroadcasterID}
+	released, err := gate.Release(ctx, h.store, fmt.Sprint(req.OwnerEpoch), req.TrialGeneration, req.SubscriptionID)
+	return err == nil && released
 }
 
 func (h *trialSubscriptions) deleteTwitch(ctx context.Context, id string) error {

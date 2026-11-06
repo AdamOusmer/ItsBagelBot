@@ -11,7 +11,14 @@ import (
 	"testing"
 	"time"
 
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/stretchr/testify/assert"
+)
+
+var (
+	activateTrial = pkg_valkey.EpochGate{}.ActivateCall("", "", "", "", "").Script.Body()
+	releaseTrial  = pkg_valkey.EpochGate{}.ReleaseCall("", "", "").Script.Body()
 )
 
 func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
