@@ -215,7 +215,9 @@ func consumerPause(ctx context.Context, delay time.Duration) bool {
 }
 
 func (c *Consumer) read(ctx context.Context) error {
-	streams, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XReadGroupCmd(c.client, Stream, ConsumerGroup, c.name, 1, 1000)).AsXRead()
+	streams, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XReadGroupCmd(c.client, pkgvalkey.GroupRead{
+		Stream: Stream, Group: ConsumerGroup, Consumer: c.name, Count: 1, BlockMS: 1000,
+	})).AsXRead()
 	if valkey.IsValkeyNil(err) {
 		return nil
 	}
@@ -250,7 +252,9 @@ func (c *Consumer) recoverBatch(ctx context.Context, idle time.Duration) error {
 }
 
 func (c *Consumer) reclaimOne(ctx context.Context, idle time.Duration) (int, error) {
-	parts, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XAutoClaimCmd(c.client, Stream, ConsumerGroup, c.name, strconv.FormatInt(idle.Milliseconds(), 10), c.claimCursor, 1)).ToArray()
+	parts, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XAutoClaimCmd(c.client, pkgvalkey.GroupReclaim{
+		Stream: Stream, Group: ConsumerGroup, Consumer: c.name, MinIdleMS: strconv.FormatInt(idle.Milliseconds(), 10), Cursor: c.claimCursor, Count: 1,
+	})).ToArray()
 	if err != nil {
 		return 0, err
 	}
