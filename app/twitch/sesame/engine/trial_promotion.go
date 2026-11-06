@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+
 	valkey "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -19,7 +21,7 @@ const (
 )
 
 // Claims a promoted trial for one promotion call; a claim older than ARGV[2] seconds is retried.
-var claimTrialCounters = valkey.NewLuaScript(`
+var claimTrialCounters = pkg_valkey.CompileScript(`
 if redis.call('HGET', KEYS[1], 'state') ~= 'promoted' then return 0 end
 local claimed = redis.call('HGET', KEYS[1], 'counters_promoted') or ''
 if claimed == 'done' then return 0 end
@@ -55,7 +57,7 @@ func (t *TrialPromotion) Run(ctx context.Context) {
 }
 
 func (t *TrialPromotion) Sweep(ctx context.Context) {
-	ids, err := t.store.Do(ctx, t.store.B().Zrange().Key("trial:history").Min("0").Max("-1").Build()).AsStrSlice()
+	ids, err := pkg_valkey.ZRangeAll(ctx, t.store, "trial:history")
 	if err != nil {
 		t.log.Debug("trial promotion sweep unavailable", zap.Error(err))
 		return
@@ -81,5 +83,5 @@ func (t *TrialPromotion) promote(ctx context.Context, id string) error {
 	if err := t.promoter.PromoteTrial(ctx, userID); err != nil {
 		return err
 	}
-	return t.store.Do(ctx, t.store.B().Hset().Key(key).FieldValue().FieldValue("counters_promoted", trialPromotedDone).Build()).Error()
+	return pkg_valkey.HSet(ctx, t.store, pkg_valkey.HashField{Key: key, Field: "counters_promoted"}, trialPromotedDone)
 }
