@@ -156,14 +156,18 @@
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: var(--bb-muted);
-    padding: 0 8px 8px;
+    padding: 0 12px 12px;
   }
 
   .bb-rail__group {
     display: flex;
     flex-direction: column;
-    gap: 1px;
-    margin-bottom: 20px;
+    gap: 6px;
+    margin-bottom: 28px;
+  }
+
+  .bb-rail > .bb-brand {
+    margin-bottom: 14px;
   }
 
   .bb-rail__row {
@@ -221,12 +225,17 @@
     grid-template-rows: 1fr;
   }
 
-  .bb-rail__subs-inner {
+  /* A grid track counts its item's margins even at 0fr, so the spaced list must sit inside this clip. */
+  .bb-rail__subs-clip {
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .bb-rail__subs-inner {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    margin: 4px 0 6px 22px;
+    margin: 6px 0 2px 22px;
     padding-left: 12px;
     border-left: 1px solid rgba(var(--bb-tan-rgb), 0.25);
   }
@@ -449,6 +458,14 @@
     }
 
     .bb-topbar__account[data-railed] {
+      display: none;
+    }
+
+    .bb-shell--railed .bb-topbar {
+      padding-left: 18px;
+    }
+
+    .bb-shell--railed .bb-topbar .bb-brand {
       display: none;
     }
   }
