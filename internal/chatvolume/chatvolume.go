@@ -35,39 +35,6 @@ var (
 	widthArg = strconv.Itoa(ringWidth)
 )
 
-var bumpScript = valkey.NewLuaScript(`
-local key = KEYS[1]
-local epoch = tonumber(ARGV[1])
-local handled = ARGV[2]
-local ttl = ARGV[3]
-local width = tonumber(ARGV[4])
-
-local anchor = tonumber(redis.call('HGET', key, 'a'))
-if not anchor then
-    anchor = epoch
-    redis.call('HSET', key, 'a', anchor)
-end
-
-local delta = epoch - anchor
-local slot = tostring(epoch % width)
-local count = 1
-local existing = redis.call('HGET', key, slot)
-if existing then
-    local sep1 = string.find(existing, ':')
-    if sep1 and tonumber(string.sub(existing, 1, sep1 - 1)) == delta then
-        local sep2 = string.find(existing, ':', sep1 + 1)
-        count = tonumber(string.sub(existing, sep1 + 1, sep2 - 1)) + 1
-        if handled ~= '1' then
-            handled = string.sub(existing, sep2 + 1)
-        end
-    end
-end
-
-redis.call('HSET', key, slot, delta .. ':' .. count .. ':' .. handled)
-redis.call('EXPIRE', key, ttl)
-return count
-`)
-
 type Store struct {
 	client valkey.Client
 	log    *zap.Logger
@@ -97,7 +64,7 @@ func (s *Store) reset(broadcasterID uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
 	c := pkgvalkey.Primary(s.client)
-	if err := c.Do(ctx, c.B().Del().Key(chatVolKey(broadcasterID)).Build()).Error(); err != nil && s.log != nil {
+	if err := pkgvalkey.Exec1(ctx, c, pkgvalkey.DelCmd(c, chatVolKey(broadcasterID))).Error(); err != nil && s.log != nil {
 		s.log.Warn("chatvolume: reset failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
 }
@@ -111,7 +78,7 @@ func (s *Store) bump(broadcasterID uint64, at time.Time, handled bool) {
 		h = "1"
 	}
 	epoch := strconv.FormatInt(epochMinute(at), 10)
-	_, err := bumpScript.Exec(ctx, c, []string{chatVolKey(broadcasterID)}, []string{epoch, h, ttlArg, widthArg}).AsInt64()
+	_, err := pkgvalkey.RunRingWindowBump(ctx, c, []string{chatVolKey(broadcasterID)}, []string{epoch, h, ttlArg, widthArg}).AsInt64()
 	if err != nil && s.log != nil {
 		s.log.Warn("chatvolume: bump failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
@@ -128,7 +95,7 @@ func (s *Store) Read(ctx context.Context, broadcasterID uint64, now time.Time) (
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 	c := pkgvalkey.Primary(s.client)
-	fields, err := c.Do(ctx, c.B().Hgetall().Key(chatVolKey(broadcasterID)).Build()).AsStrMap()
+	fields, err := pkgvalkey.HashAll(ctx, c, chatVolKey(broadcasterID))
 	if err != nil {
 		return ChatVolume{}, err
 	}

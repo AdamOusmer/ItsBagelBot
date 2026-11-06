@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -35,7 +36,7 @@ func (v *Store) SetFetch(ctx context.Context, dto data.FetchChangedDTO) error {
 
 	if dto.Deleted {
 		cmds := append(
-			[]valkey.Completed{v.client.B().Hdel().Key(key).Field(field).Build()},
+			[]valkey.Completed{pkg_valkey.HDelCmd(v.client, key, field)},
 			v.expiryCommands(key, DefaultTTL)...,
 		)
 		return v.pipeline(ctx, cmds...)
@@ -54,7 +55,7 @@ func (v *Store) SetFetch(ctx context.Context, dto data.FetchChangedDTO) error {
 
 	cmds := append(
 		[]valkey.Completed{
-			v.client.B().Hset().Key(key).FieldValue().FieldValue(field, string(body)).Build(),
+			pkg_valkey.HSetCmd(v.client, key, pkg_valkey.HashFieldValue{Field: field, Value: string(body)}),
 		},
 		v.expiryCommands(key, DefaultTTL)...,
 	)
@@ -90,9 +91,9 @@ func (v *Store) GetFetch(ctx context.Context, userID uint64, name string) (view 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 	lname := strings.ToLower(name)
 
-	res := v.client.DoMulti(ctx,
-		v.client.B().Hget().Key(key).Field(fetchFieldPrefix+lname).Build(),
-		v.client.B().Hget().Key(key).Field(fetchesMarkerField).Build(),
+	res := pkg_valkey.ExecMulti(ctx, v.client,
+		pkg_valkey.HGetCmd(v.client, key, fetchFieldPrefix+lname),
+		pkg_valkey.HGetCmd(v.client, key, fetchesMarkerField),
 	)
 
 	projected, err = markerProjected(res[1])
