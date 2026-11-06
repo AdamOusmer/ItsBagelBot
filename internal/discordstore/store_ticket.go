@@ -132,7 +132,7 @@ func parsePendingClose(channelID, raw string) (TicketClose, bool) {
 func (s valkeyStore) TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error) {
 	ch := Channel{ID: t.ChannelID}
 	value := ticketValue(Ticket{GuildID: t.GuildID, OpenerID: t.OpenerID, PanelMessageID: t.PanelMessageID})
-	err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, ticketKey(ch), value)).Error()
+	err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, pkg_valkey.StringWrite{Key: ticketKey(ch), Value: value})).Error()
 	return TicketOpenResult{}, err
 }
 
@@ -156,7 +156,7 @@ func (s valkeyStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
 		return nil
 	}
 	t.ClaimedBy = c.StaffID
-	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, ticketKey(Channel{ID: c.ChannelID}), ticketValue(t))).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, pkg_valkey.StringWrite{Key: ticketKey(Channel{ID: c.ChannelID}), Value: ticketValue(t)})).Error()
 }
 
 func (s valkeyStore) CloseTicket(ctx context.Context, c TicketClose) error {
@@ -170,7 +170,7 @@ func (valkeyStore) TicketsDurable(context.Context) bool { return false }
 func (s valkeyStore) MarkPendingClose(ctx context.Context, c TicketClose) error {
 	value := strings.Join([]string{c.GuildID, c.ClosedBy, c.ArchivedChannelID}, "|")
 	key := pendingCloseKey(Channel{ID: c.ChannelID})
-	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetExSecondsCmd(s.client, key, value, pendingCloseTTL)).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetExSecondsCmd(s.client, pkg_valkey.StringWrite{Key: key, Value: value}, pendingCloseTTL)).Error()
 }
 
 func (s valkeyStore) PendingClose(ctx context.Context, ch Channel) (TicketClose, bool) {
@@ -195,17 +195,17 @@ func (s valkeyStore) ClaimSummary(ctx context.Context, ticketID int) bool {
 }
 
 func (s valkeyStore) ClaimDesk(ctx context.Context, g Guild) bool {
-	err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetNXCmd(s.client, deskKey(g), deskClaimed)).Error()
+	err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetNXCmd(s.client, pkg_valkey.StringWrite{Key: deskKey(g), Value: deskClaimed})).Error()
 	return err == nil
 }
 
 func (s valkeyStore) RememberDesk(ctx context.Context, p DeskPanel) error {
 	key := deskKey(Guild{ID: p.GuildID})
 	if p.MessageID == "" {
-		return ignoreNil(pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetNXCmd(s.client, key, deskClaimed)).Error())
+		return ignoreNil(pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetNXCmd(s.client, pkg_valkey.StringWrite{Key: key, Value: deskClaimed})).Error())
 	}
 	value := p.ChannelID + "|" + p.MessageID
-	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, key, value)).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, pkg_valkey.StringWrite{Key: key, Value: value})).Error()
 }
 
 func ignoreNil(err error) error {

@@ -152,7 +152,7 @@ func (s valkeyStore) BindGuild(ctx context.Context, bind Binding) error {
 		return nil
 	}
 	s.dropGuilds(ctx, bind.Broadcaster)
-	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, guildKey(bind.Guild), bind.Broadcaster.ID)).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, pkg_valkey.StringWrite{Key: guildKey(bind.Guild), Value: bind.Broadcaster.ID})).Error()
 }
 
 func (s valkeyStore) UnbindGuild(ctx context.Context, bind Binding) error {
