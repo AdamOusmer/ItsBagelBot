@@ -71,7 +71,7 @@ func (r *Recorder) SeedOnce(ctx context.Context, service string, owned Owned, se
 		_ = pkg_valkey.Exec1(context.WithoutCancel(ctx), r.client, pkg_valkey.DelCmd(r.client, marker)).Error()
 		return
 	}
-	_ = pkg_valkey.Exec1(context.WithoutCancel(ctx), r.client, pkg_valkey.SetCmd(r.client, marker, seedDone)).Error()
+	_ = pkg_valkey.Exec1(context.WithoutCancel(ctx), r.client, pkg_valkey.SetCmd(r.client, pkg_valkey.StringWrite{Key: marker, Value: seedDone})).Error()
 }
 
 func (r *Recorder) seed(ctx context.Context, owned Owned, seed Seed) error {
