@@ -92,6 +92,40 @@ func TestCooldownExtendOnAFarFutureWindowStillAddsExactly(t *testing.T) {
 	})
 }
 
+// MySQL's client reports zero rows affected when an UPDATE's SET clause computes the value already stored, even
+// though the WHERE clause matched a live row. This proves that premise directly against the real driver, so the
+// next test's claim that CooldownExtend no longer trusts RowsAffected rests on more than a guess.
+func TestMySQLReportsZeroRowsAffectedOnANoopUpdate(t *testing.T) {
+	_, raw := mysqlStateRepo(t)
+	_, err := raw.Exec("INSERT INTO cooldown_claims (user_id, cooldown_key, expires_at_ms) VALUES (?, ?, ?)", cooldownChannel, "noop", 999)
+	require.NoError(t, err)
+
+	res, err := raw.Exec("UPDATE cooldown_claims SET expires_at_ms = 999 WHERE user_id = ? AND cooldown_key = ?", cooldownChannel, "noop")
+	require.NoError(t, err)
+	affected, err := res.RowsAffected()
+	require.NoError(t, err)
+	assert.Zero(t, affected, "the matched row's value did not change")
+}
+
+// Reproduces the bug by forcing the same no-op update CooldownExtend's own query can hit: a window already past
+// where any extend this call could reach leaves the stored value unchanged, so RowsAffected would read 0 on MySQL
+// even though the window is very much still running. found must come from reading the row back, not from that count.
+func TestCooldownExtendOnARowTheWriteDoesNotChangeIsStillFound(t *testing.T) {
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
+		ctx := context.Background()
+		_, won := claimCooldowns(t, repo, repository.CooldownWindow{Key: "named:noop", TTL: time.Hour})
+		require.True(t, won)
+		beyondAnyCap := time.Now().Add(2 * time.Duration(automation.MaxCooldownSeconds) * time.Second).UnixMilli()
+		_, err := raw.Exec("UPDATE cooldown_claims SET expires_at_ms = ? WHERE cooldown_key = ?", beyondAnyCap, "named:noop")
+		require.NoError(t, err)
+
+		expiry, found, _, err := repo.CooldownExtend(ctx, extendReq("named:noop", 30))
+		require.NoError(t, err)
+		assert.True(t, found, "the window is running even though the write changed nothing")
+		assert.Equal(t, beyondAnyCap, expiry, "GREATEST kept the larger, already-stored value")
+	})
+}
+
 func TestCooldownExtendRefusesBadInput(t *testing.T) {
 	repo, _ := sqliteStateRepo(t)
 	ctx := context.Background()

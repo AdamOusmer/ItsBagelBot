@@ -238,6 +238,11 @@ func (req CooldownExtendRequest) valid() error {
 	return nil
 }
 
+// sqlTxStarter adapts a raw *sql.DB to db.WithTx's TxStarter, the way an ent client's own Tx method does.
+type sqlTxStarter struct{ db *sql.DB }
+
+func (s sqlTxStarter) Tx(ctx context.Context) (*sql.Tx, error) { return s.db.BeginTx(ctx, nil) }
+
 // CooldownExtend adds req.AddSeconds to a running window, capped at MaxCooldownSeconds from now; it never shortens
 // the window. found is false when the row is gone or already expired. capped marks a result the ceiling shortened.
 func (r *RecipeState) CooldownExtend(ctx context.Context, req CooldownExtendRequest) (expiresAtMS int64, found bool, capped bool, err error) {
@@ -246,9 +251,11 @@ func (r *RecipeState) CooldownExtend(ctx context.Context, req CooldownExtendRequ
 	}
 	err = db.RetryTx(ctx, func(ctx context.Context) error {
 		return db.WithExec(ctx, func(ctx context.Context) error {
-			var txErr error
-			expiresAtMS, found, capped, txErr = r.extendCooldownRow(ctx, req)
-			return txErr
+			return db.WithTx(ctx, sqlTxStarter{r.sqldb}, func(tx *sql.Tx) error {
+				var txErr error
+				expiresAtMS, found, capped, txErr = r.extendCooldownRow(ctx, tx, req)
+				return txErr
+			})
 		})
 	})
 	if err != nil {
@@ -257,31 +264,26 @@ func (r *RecipeState) CooldownExtend(ctx context.Context, req CooldownExtendRequ
 	return expiresAtMS, found, capped, nil
 }
 
-func (r *RecipeState) extendCooldownRow(ctx context.Context, req CooldownExtendRequest) (int64, bool, bool, error) {
-	tx, err := r.sqldb.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, false, false, err
-	}
-	defer func() { _ = tx.Rollback() }()
+// extendCooldownRow always reads the row back after the write: MySQL reports zero rows affected when the computed
+// value equals the one already stored, which an extend landing exactly on the cap can do to a window that is very
+// much still running, so RowsAffected can never be the found signal here.
+func (r *RecipeState) extendCooldownRow(ctx context.Context, tx *sql.Tx, req CooldownExtendRequest) (int64, bool, bool, error) {
 	nowMS := time.Now().UnixMilli()
 	maxMS := int64(automation.MaxCooldownSeconds) * 1000
-	res, err := tx.ExecContext(ctx, r.cooldownExtendQuery(), req.AddSeconds*1000, nowMS, maxMS, req.UserID, req.Key, nowMS)
-	if err != nil {
+	if _, err := tx.ExecContext(ctx, r.cooldownExtendQuery(), req.AddSeconds*1000, nowMS, maxMS, req.UserID, req.Key, nowMS); err != nil {
 		return 0, false, false, err
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, false, false, err
-	}
-	if affected == 0 {
-		return 0, false, false, tx.Commit()
 	}
 	var expiresAtMS int64
 	row := tx.QueryRowContext(ctx, "SELECT expires_at_ms FROM cooldown_claims WHERE user_id=? AND cooldown_key=?", req.UserID, req.Key)
-	if err := row.Scan(&expiresAtMS); err != nil {
+	switch err := row.Scan(&expiresAtMS); {
+	case errors.Is(err, sql.ErrNoRows):
+		return 0, false, false, nil
+	case err != nil:
 		return 0, false, false, err
+	case expiresAtMS <= nowMS:
+		return 0, false, false, nil
 	}
-	return expiresAtMS, true, expiresAtMS == nowMS+maxMS, tx.Commit()
+	return expiresAtMS, true, expiresAtMS == nowMS+maxMS, nil
 }
 
 func (r *RecipeState) cooldownExtendQuery() string {

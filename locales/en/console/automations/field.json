@@ -75,5 +75,6 @@
   "reset_on_stream_end": "Put it back when stream ends",
   "content": "Content",
   "position": "Position",
-  "volume": "Volume"
+  "volume": "Volume",
+  "per": "Per"
 }

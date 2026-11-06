@@ -75,5 +75,6 @@
   "reset_on_stream_end": "Beim Stream-Ende zurücksetzen",
   "content": "Inhalt",
   "position": "Position",
-  "volume": "Lautstärke"
+  "volume": "Lautstärke",
+  "per": "Pro"
 }
