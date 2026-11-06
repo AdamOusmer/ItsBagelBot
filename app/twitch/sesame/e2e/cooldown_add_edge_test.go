@@ -22,54 +22,37 @@ import (
 	"go.uber.org/zap"
 )
 
-func cheerCooldownRecipes(t *testing.T, channel uint64, secondsPerHundredBits int) (arm, add automation.Automation) {
-	t.Helper()
-	condParams, err := codec.Marshal(step{"global_s": oneHourSeconds, "name": namedCooldownName, "left_command": leftCommand})
-	require.NoError(t, err)
-	arm = recipeWith(t, channel, "!arm", chatStep("armed"))
-	arm.Definition.Conditions = []automation.Condition{{Type: "cooldown", Params: condParams}}
-	require.Empty(t, automation.Validate(arm.Definition))
-
-	raw, err := codec.Marshal(step{
-		"version": 1,
-		"trigger": step{"type": "event", "params": step{"kind": "channel.cheer"}},
-		"actions": []step{{"type": "cooldown_add", "params": step{"name": namedCooldownName, "seconds": secondsPerHundredBits, "per": 100}}},
-	})
-	require.NoError(t, err)
-	var def automation.Definition
-	require.NoError(t, codec.Unmarshal(raw, &def))
-	require.Empty(t, automation.Validate(def))
-	add = automation.Automation{ID: addAutomationID, UserID: channel, Name: addAutomationID, Enabled: true, Definition: def}
-	return arm, add
-}
-
 func cheerEvent(viewer uint64, bits int) string {
 	id := strconv.FormatUint(viewer, 10)
 	return `{"user_id":"` + id + `","user_login":"viewer` + id + `","user_name":"Viewer` + id +
 		`","bits":` + strconv.Itoa(bits) + `,"message":"","is_anonymous":"false"}`
 }
 
-func (r *cooldownRig) cheer(t *testing.T, replica int, eventID string, viewer uint64, bits int) {
+func (r *cooldownRig) cheer(t *testing.T, at dispatchAt, bits int) {
 	t.Helper()
-	r.process(t, replica, lane.Envelope{
-		Type: "channel.cheer", Lane: "premium", EventID: eventID,
-		BroadcasterUserID: strconv.FormatUint(r.channel, 10), BroadcasterUserLogin: "streamer",
-		Event: codec.RawMessage(cheerEvent(viewer, bits)),
-	})
+	r.dispatch(t, at, "channel.cheer", cheerEvent(at.viewer, bits))
+}
+
+// armedCheerRig stands up a channel with a one-hour named window and a channel.cheer recipe that adds
+// secondsPerHundredBits for every 100 bits, already armed, so a test only has to cheer and assert.
+func armedCheerRig(t *testing.T, dbName string, channelOffset uint64, secondsPerHundredBits int) (r *cooldownRig, before []int64) {
+	t.Helper()
+	r = startCooldownRig(t, recipeDB{Pool: testdb.MySQL(t, dbName), Dialect: "mysql"})
+	r.channel = uniqueChannel(channelOffset)
+	arm, add := namedCooldownRecipes(t, r.channel, addTrigger{kind: "channel.cheer", seconds: secondsPerHundredBits, per: 100})
+	r.source.set(r.channel, arm, add)
+
+	r.runArm(t, dispatchAt{eventID: r.nextEvent("arm"), viewer: alice})
+	require.Equal(t, automationrpc.OutcomeOK, r.awaitAutomationRun(t, "!arm", 1).Outcome)
+	before = r.storedWindows(t)
+	require.Len(t, before, 1)
+	return r, before
 }
 
 func TestCooldownAddOnBitsCheerScalesWithTheBitCount(t *testing.T) {
-	r := startCooldownRig(t, recipeDB{Pool: testdb.MySQL(t, "bagel_cooldown_add_bits_"), Dialect: "mysql"})
-	r.channel = uniqueChannel(46)
-	arm, add := cheerCooldownRecipes(t, r.channel, 20)
-	r.source.set(r.channel, arm, add)
+	r, before := armedCheerRig(t, "bagel_cooldown_add_bits_", 46, 20)
 
-	r.runArm(t, 0, r.nextEvent("arm"), alice)
-	require.Equal(t, automationrpc.OutcomeOK, r.awaitAutomationRun(t, "!arm", 1).Outcome)
-	before := r.storedWindows(t)
-	require.Len(t, before, 1)
-
-	r.cheer(t, 1, r.nextEvent("cheer"), carol, 350)
+	r.cheer(t, dispatchAt{replica: 1, eventID: r.nextEvent("cheer"), viewer: carol}, 350)
 	added := r.awaitAutomationRun(t, addAutomationID, 1)
 	require.Equal(t, automationrpc.OutcomeOK, added.Outcome, statusesOf(added))
 	assert.Equal(t, "60s", added.Actions[0].Detail, "floor(350/100)=3 lots of 20s, the 50 leftover bits carry nothing")
@@ -82,17 +65,9 @@ func TestCooldownAddOnBitsCheerScalesWithTheBitCount(t *testing.T) {
 // A viewer cheering below the rate leaves the window exactly as it was: a store call would have nothing to add,
 // so cooldown_add never makes one.
 func TestCooldownAddOnBitsCheerBelowTheRateAddsNothing(t *testing.T) {
-	r := startCooldownRig(t, recipeDB{Pool: testdb.MySQL(t, "bagel_cooldown_add_bits_low_"), Dialect: "mysql"})
-	r.channel = uniqueChannel(47)
-	arm, add := cheerCooldownRecipes(t, r.channel, 20)
-	r.source.set(r.channel, arm, add)
+	r, before := armedCheerRig(t, "bagel_cooldown_add_bits_low_", 47, 20)
 
-	r.runArm(t, 0, r.nextEvent("arm"), alice)
-	require.Equal(t, automationrpc.OutcomeOK, r.awaitAutomationRun(t, "!arm", 1).Outcome)
-	before := r.storedWindows(t)
-	require.Len(t, before, 1)
-
-	r.cheer(t, 0, r.nextEvent("cheer-low"), bob, 40)
+	r.cheer(t, dispatchAt{eventID: r.nextEvent("cheer-low"), viewer: bob}, 40)
 	added := r.awaitAutomationRun(t, addAutomationID, 1)
 	assert.Equal(t, automationrpc.OutcomeOK, added.Outcome, statusesOf(added))
 	assert.Equal(t, "below_rate", added.Actions[0].Detail)
