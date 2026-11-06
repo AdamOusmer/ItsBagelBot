@@ -118,7 +118,7 @@ func feedWriteCmds(c valkey.Client, channelID string, data []byte, dropped uint6
 		pkgvalkey.LpushCmd(c, key, string(data)),
 		pkgvalkey.LtrimCmd(c, key, 0, feedCap-1),
 		pkgvalkey.ExpireCmd(c, key, ttl),
-		pkgvalkey.SetExSecondsCmd(c, droppedKey(channelID), strconv.FormatUint(dropped, 10), ttl),
+		pkgvalkey.SetExSecondsCmd(c, pkgvalkey.StringWrite{Key: droppedKey(channelID), Value: strconv.FormatUint(dropped, 10)}, ttl),
 	}
 }
 
