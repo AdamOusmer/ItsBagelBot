@@ -68,10 +68,10 @@ func (r *Recorder) SeedOnce(ctx context.Context, service string, owned Owned, se
 	defer cancel()
 	if err := r.seed(runCtx, owned, seed); err != nil {
 		r.log.Warn("analytics seed failed", zap.String("service", service), zap.Error(err))
-		_ = r.client.Do(context.WithoutCancel(ctx), r.client.B().Del().Key(marker).Build()).Error()
+		_ = pkg_valkey.Exec1(context.WithoutCancel(ctx), r.client, pkg_valkey.DelCmd(r.client, marker)).Error()
 		return
 	}
-	_ = r.client.Do(context.WithoutCancel(ctx), r.client.B().Set().Key(marker).Value(seedDone).Build()).Error()
+	_ = pkg_valkey.Exec1(context.WithoutCancel(ctx), r.client, pkg_valkey.SetCmd(r.client, marker, seedDone)).Error()
 }
 
 func (r *Recorder) seed(ctx context.Context, owned Owned, seed Seed) error {
@@ -79,7 +79,7 @@ func (r *Recorder) seed(ctx context.Context, owned Owned, seed Seed) error {
 	if err != nil {
 		return err
 	}
-	existing, err := r.client.Do(ctx, r.client.B().Hkeys().Key(catalog.LevelKey).Build()).AsStrSlice()
+	existing, err := pkg_valkey.Exec1(ctx, r.client, pkg_valkey.HKeysCmd(r.client, catalog.LevelKey)).AsStrSlice()
 	if err != nil {
 		return err
 	}
@@ -90,11 +90,11 @@ func (r *Recorder) writeLevels(ctx context.Context, values map[string]string) er
 	if len(values) == 0 {
 		return nil
 	}
-	cmd := r.client.B().Hset().Key(catalog.LevelKey).FieldValue()
+	pairs := make([]pkg_valkey.HashFieldValue, 0, len(values))
 	for field, v := range values {
-		cmd = cmd.FieldValue(field, v)
+		pairs = append(pairs, pkg_valkey.HashFieldValue{Field: field, Value: v})
 	}
-	return r.client.Do(ctx, cmd.Build()).Error()
+	return pkg_valkey.Exec1(ctx, r.client, pkg_valkey.HSetCmd(r.client, catalog.LevelKey, pairs...)).Error()
 }
 
 // Pages walks a table in index order, one bounded query at a time with a pause between
