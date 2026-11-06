@@ -107,6 +107,7 @@ export interface LiveCondition {
 export interface CooldownCondition {
   global_s?: number;
   user_s?: number;
+  name?: string;
   left_command?: string;
   left_reply?: string;
   ready_reply?: string;
@@ -287,6 +288,12 @@ export interface VarAddAction {
 export interface VarDeleteAction {
   scope: VarScope;
   name: string;
+}
+
+export interface CooldownAddAction {
+  name: string;
+  seconds: number;
+  per?: number;
 }
 
 export type TextOp = 'upper' | 'lower' | 'trim' | 'length' | 'replace' | 'substring' | 'split_pick' | 'contains' | 'url_encode';

@@ -214,7 +214,8 @@ export const SHARE_REVIEWED = {
     'var_delete',
     'text',
     'math',
-    'loop'
+    'loop',
+    'cooldown_add'
   ]
 } as const;
 const SHAREABLE: Record<keyof typeof SHARE_REVIEWED, ReadonlySet<string>> = {

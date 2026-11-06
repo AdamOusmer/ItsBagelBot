@@ -60,6 +60,17 @@ func (s *scriptedLongStore) PeekLongCooldowns(_ context.Context, claim LongCoold
 	return live, nil
 }
 
+func (s *scriptedLongStore) ExtendLongCooldown(_ context.Context, _ uint64, _ string, addSeconds int64) (int64, bool, bool, error) {
+	if s.claimErr != nil {
+		return 0, false, false, s.claimErr
+	}
+	if s.refuse {
+		return 0, false, false, nil
+	}
+	s.expiry += addSeconds * 1000
+	return s.expiry, true, false, nil
+}
+
 func TestPeekReadsTheExactExpiryFromAMarkerAndMarksOnAMiss(t *testing.T) {
 	client, channel := markerRig(t)
 	store := &scriptedLongStore{expiry: time.Now().Add(72 * time.Hour).UnixMilli()}
@@ -225,4 +236,57 @@ func TestValkeyDownGoesToTheDatabase(t *testing.T) {
 	_, won, err = broken.ClaimLongCooldowns(ctx, claim)
 	assert.Error(t, err)
 	assert.False(t, won, "both stores down fails closed")
+}
+
+func namedWindow(name string) []CooldownWindow {
+	return []CooldownWindow{{Key: automation.LongCooldownNamedPrefix + "k:" + name, TTL: 24 * time.Hour}}
+}
+
+// A named window's expiry moves forward whenever cooldown_add extends it, so a stale marker left by an earlier
+// peek must never read as a lost race; markWindow arms it instead of reporting a mismatch.
+func TestRefusalOnANamedWindowArmsRatherThanReportsALostRace(t *testing.T) {
+	client, channel := markerRig(t)
+	windows := namedWindow("subathon")
+	key := windows[0].Key
+	fresh := time.Now().Add(3 * time.Hour).UnixMilli()
+	store := &scriptedLongStore{expiry: fresh, refuse: true}
+	// A write races the claim itself, the same way a concurrent extend or move would: the marker appears only
+	// after ClaimLongCooldowns already checked for one and found none.
+	store.before = func() {
+		setMarker(t, client, automation.LongCooldownMarkerKey(channel, key), time.Now().Add(time.Hour).UnixMilli())
+	}
+	marked := NewMarkedLongCooldowns(client, store, zap.NewNop())
+
+	_, won, err := marked.ClaimLongCooldowns(context.Background(), LongCooldownClaim{BroadcasterID: channel, Windows: windows})
+
+	require.NoError(t, err)
+	assert.False(t, won)
+	got, err := client.Do(context.Background(), client.B().Get().Key(automation.LongCooldownMarkerKey(channel, key)).Build()).ToString()
+	require.NoError(t, err)
+	assert.Equal(t, strconv.FormatInt(fresh, 10), got, "the marker armed to the later, correct expiry instead of staying stale")
+}
+
+func TestExtendLongCooldownArmsTheMarkerSoAPeekShowsTheNewExpiry(t *testing.T) {
+	client, channel := markerRig(t)
+	windows := namedWindow("subathon")
+	key := windows[0].Key
+	first := time.Now().Add(time.Hour).UnixMilli()
+	store := &scriptedLongStore{expiry: first}
+	marked := NewMarkedLongCooldowns(client, store, zap.NewNop())
+
+	expiresAtMS, found, capped, err := marked.ExtendLongCooldown(context.Background(), channel, key, 1800)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.False(t, capped)
+	assert.Equal(t, first+1800*1000, expiresAtMS)
+
+	got, err := client.Do(context.Background(), client.B().Get().Key(automation.LongCooldownMarkerKey(channel, key)).Build()).ToString()
+	require.NoError(t, err)
+	assert.Equal(t, strconv.FormatInt(expiresAtMS, 10), got, "the extend armed the marker to the new expiry")
+
+	live, err := marked.PeekLongCooldowns(context.Background(), LongCooldownClaim{BroadcasterID: channel, Windows: windows})
+	require.NoError(t, err)
+	require.Len(t, live, 1)
+	assert.Equal(t, expiresAtMS, live[0].ExpiresAtMS, "a peek right after sees the extended expiry, from the marker alone")
+	assert.Zero(t, store.peeks, "the marker answered without asking the store")
 }

@@ -15,6 +15,7 @@ import {
   type TypedNode,
   typed,
 } from './engine';
+import { lookupEventKind } from './event-kinds';
 import { CODE, MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_DELAY_MS, MAX_NAME_LENGTH, QUEUE_NAME_PATTERN, VERSION } from './limits';
 import { fillRegistries } from './registry';
 import { byteLength, compareBytes, isNameChar, trimSpace } from './text';
@@ -63,9 +64,18 @@ function finish(issues: Issue[]): Issue[] {
   return sorted.filter((is, i) => i === 0 || is.path !== sorted[i - 1].path || is.code !== sorted[i - 1].code);
 }
 
+// triggerHasAmount reports a definition whose event trigger carries a numeric "amount" field, the only trigger
+// shape cooldown_add's per can divide by.
+function triggerHasAmount(trigger: TypedNode): boolean {
+  if (trigger.type !== 'event') return false;
+  const { value, err } = decodeParams<{ kind: string }>({ kind: 'string', filters: 'strmap' }, {}, trigger.params);
+  if (err || !value) return false;
+  return lookupEventKind(value.kind)?.fields.some((f) => f.name === 'amount' && f.numeric) ?? false;
+}
+
 function check(root: Root): Issue[] {
   const out: Issue[] = [];
-  const c = new Chk(out, '', root.trigger.type, 0, permRank(root.conditions));
+  const c = new Chk(out, '', root.trigger.type, 0, permRank(root.conditions), triggerHasAmount(root.trigger));
   if (root.version !== VERSION) c.add('version', CODE.unsupportedVersion);
   if (root.queue !== '') c.simpleWord('queue', root.queue, QUEUE_NAME_PATTERN);
   typed(c.sub('trigger'), triggerRegistry, root.trigger);

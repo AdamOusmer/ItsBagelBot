@@ -10,7 +10,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-
 func Parse(raw []byte) (Definition, []Issue) {
 	if len(raw) > MaxDefinitionBytes {
 		return Definition{}, []Issue{{Code: CodeTooLong}}
@@ -28,7 +27,7 @@ func Parse(raw []byte) (Definition, []Issue) {
 
 func Validate(def Definition) []Issue {
 	var out []Issue
-	c := chk{out: &out, trigger: def.Trigger.Type, perm: permRank(def.Conditions)}
+	c := chk{out: &out, trigger: def.Trigger.Type, perm: permRank(def.Conditions), eventAmount: triggerHasAmount(def.Trigger)}
 	if def.Version != Version {
 		c.add("version", CodeUnsupportedVer)
 	}

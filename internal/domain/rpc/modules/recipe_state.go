@@ -34,10 +34,12 @@ type CooldownRequest struct {
 	Windows []CooldownWindow `json:"windows,omitempty"`
 }
 
-// CooldownReply lists the won windows when Claimed, otherwise the window that refused with its expiry.
+// CooldownReply lists the won windows when Claimed, otherwise the window that refused with its expiry. Capped is set
+// only by extend, marking a result the system ceiling shortened.
 type CooldownReply struct {
 	Claimed bool             `json:"claimed,omitempty"`
 	Found   bool             `json:"found,omitempty"`
+	Capped  bool             `json:"capped,omitempty"`
 	Windows []CooldownWindow `json:"windows,omitempty"`
 	rpc.Refusal
 }

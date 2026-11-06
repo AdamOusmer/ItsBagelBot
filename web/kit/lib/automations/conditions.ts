@@ -58,6 +58,9 @@ function checkCooldown(c: Chk, p: Wide<CooldownCondition>): void {
   c.inRange('global_s', p.global_s, 0, MAX_COOLDOWN_SECONDS);
   c.inRange('user_s', p.user_s, 0, MAX_COOLDOWN_SECONDS);
   c.atLeastOne(p.global_s > 0 || p.user_s > 0);
+  if (p.name !== '') c.simpleWord('name', p.name, RECIPE_NAME_PATTERN);
+  if (p.name !== '' && p.global_s <= 0) c.add('name', CODE.required);
+  if (p.name !== '' && p.user_s > 0) c.add('user_s', CODE.invalidFormat);
   if (p.left_command !== '') commandName(c, 'left_command', p.left_command, 'start');
   c.text('left_reply', p.left_reply, 0, MAX_TEMPLATE_LENGTH);
   c.text('ready_reply', p.ready_reply, 0, MAX_TEMPLATE_LENGTH);
@@ -95,7 +98,7 @@ export const CONDITIONS: Table = {
     checkUsers,
   ),
   live: register<Wide<LiveCondition>>({ state: 'string' }, (c, p) => c.oneOf('state', p.state, ['live', 'offline'])),
-  cooldown: register<Wide<CooldownCondition>>({ global_s: 'int', user_s: 'int', left_command: 'string', left_reply: 'string', ready_reply: 'string' }, checkCooldown),
+  cooldown: register<Wide<CooldownCondition>>({ global_s: 'int', user_s: 'int', name: 'string', left_command: 'string', left_reply: 'string', ready_reply: 'string' }, checkCooldown),
   chance: register<Wide<ChanceCondition>>({ percent: 'int' }, (c, p) => c.inRange('percent', p.percent, 1, 100)),
   counter: register<Wide<CounterCondition>>({ name: 'string', op: 'string', value: 'int' }, checkCounter),
   points: register<Wide<PointsCondition>>({ op: 'string', value: 'int' }, (c, p) => c.oneOf('op', p.op, CMP_OPS)),

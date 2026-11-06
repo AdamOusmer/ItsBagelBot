@@ -79,6 +79,23 @@ func (x *actionExec) once(s step, do func() error) error {
 	return nil
 }
 
+// onceRefusable claims the effect once, like once, but releases the claim only on a clean refusal. A store failure is
+// ambiguous about whether it already happened, so it keeps the claim and a redelivery cannot double the effect.
+func (x *actionExec) onceRefusable(s step, do func() error) error {
+	dup, release := x.p.dedup.Claim(x.ctx, EffectRef{
+		Identity: x.identity(),
+		Effect:   s.EffectKey + x.iter,
+	})
+	if dup {
+		return skipped("duplicate")
+	}
+	err := do()
+	if status, _ := classify(err); status == automationrpc.StatusSkipped {
+		release()
+	}
+	return err
+}
+
 func storeResult(err error, found bool) error {
 	if err != nil {
 		return failure("store_error")

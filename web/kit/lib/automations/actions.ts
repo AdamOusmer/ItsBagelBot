@@ -7,6 +7,8 @@ import { checkVarIdentity, counterName } from './conditions';
 import { register, type Table, type Wide } from './engine';
 import {
   CODE,
+  MAX_COOLDOWN_SECONDS,
+  MAX_COOLDOWN_ADD_PER,
   MAX_DELAY_MS,
   MAX_FETCH_URL_LENGTH,
   MAX_REWARD_COST,
@@ -142,6 +144,13 @@ function checkLightsScene(c: Chk, p: Wide<T.LightsAction>): void {
   if (c.text('scene_value', p.scene_value, 1, 200) && !jsonParses(p.scene_value)) c.add('scene_value', CODE.invalidFormat);
 }
 
+function checkCooldownAdd(c: Chk, p: Wide<T.CooldownAddAction>): void {
+  c.simpleWord('name', p.name, RECIPE_NAME_PATTERN);
+  c.inRange('seconds', p.seconds, 1, MAX_COOLDOWN_SECONDS);
+  c.inRange('per', p.per, 0, MAX_COOLDOWN_ADD_PER);
+  if (p.per > 0 && !c.eventAmount) c.add('per', CODE.triggerMismatch);
+}
+
 function checkLights(c: Chk, p: Wide<T.LightsAction>): void {
   c.text('device', p.device, 1, 64);
   c.text('sku', p.sku, 1, 32);
@@ -212,5 +221,6 @@ export const SIMPLE_ACTIONS: Table = {
     { mode: 'color' },
   ),
   stop: empty,
+  cooldown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
 };
 

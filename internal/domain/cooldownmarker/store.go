@@ -67,6 +67,12 @@ func (s *Store) Mark(ctx context.Context, marker Marker) (bool, error) {
 	return found && held != marker.value(), nil
 }
 
+// Arm raises the marker to this expiry unless one already there is as late or later, or this one has already passed. Unlike Mark it never reports a mismatch, so a legitimately extended window never reads as a lost race.
+func (s *Store) Arm(ctx context.Context, marker Marker) (bool, error) {
+	index := automation.LongCooldownMarkerIndexKey(marker.Channel)
+	return pkg_valkey.MonotonicArm(ctx, s.client, index, marker.Window, marker.key(), marker.value(), marker.ExpiresAtMS, automation.LongCooldownMarkerMaxTTL)
+}
+
 // Hold keeps each marker until its expiry, never shortening one already reaching that far.
 func (s *Store) Hold(ctx context.Context, markers []Marker) error {
 	keys := make([]pkg_valkey.IndexedKey, len(markers))

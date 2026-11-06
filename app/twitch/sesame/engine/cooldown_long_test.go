@@ -60,6 +60,10 @@ func (s *fakeLongCooldowns) PeekLongCooldowns(context.Context, LongCooldownClaim
 	return nil, nil
 }
 
+func (s *fakeLongCooldowns) ExtendLongCooldown(context.Context, uint64, string, int64) (int64, bool, bool, error) {
+	return 0, false, false, nil
+}
+
 type valkeyOutcome struct {
 	recordingCooldown
 	err error

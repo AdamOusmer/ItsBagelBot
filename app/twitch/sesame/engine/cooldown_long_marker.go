@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 
+	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/cooldownmarker"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 
@@ -40,6 +41,18 @@ func (m *MarkedLongCooldowns) ClaimLongCooldowns(ctx context.Context, claim Long
 		return hold, true, nil
 	}
 	return LongCooldownHold{}, false, m.ReleaseLongCooldowns(context.WithoutCancel(ctx), hold)
+}
+
+// ExtendLongCooldown writes through to the database, which stays the truth for a named window's whole life, then arms the marker so a cached peek shows the new expiry right away.
+func (m *MarkedLongCooldowns) ExtendLongCooldown(ctx context.Context, broadcasterID uint64, key string, addSeconds int64) (int64, bool, bool, error) {
+	expiresAtMS, found, capped, err := m.store.ExtendLongCooldown(ctx, broadcasterID, key, addSeconds)
+	if err != nil || !found {
+		return expiresAtMS, found, capped, err
+	}
+	if _, markErr := m.markers.Arm(ctx, cooldownmarker.Marker{Channel: broadcasterID, Window: key, ExpiresAtMS: expiresAtMS}); markErr != nil {
+		m.log.Warn("long cooldown marker arm failed", zap.String("window", key), zap.Error(markErr))
+	}
+	return expiresAtMS, found, capped, nil
 }
 
 func (m *MarkedLongCooldowns) ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error {
@@ -116,7 +129,14 @@ func (m *MarkedLongCooldowns) markWon(ctx context.Context, hold LongCooldownHold
 	return lost
 }
 
+// A named window's expiry legitimately moves when cooldown_add extends it, so its marker always arms to the newest value instead of reading that move as a lost race.
 func (m *MarkedLongCooldowns) markWindow(ctx context.Context, channel uint64, window modulesrpc.CooldownWindow) bool {
+	if automation.IsNamedCooldownKey(window.Key) {
+		if _, err := m.markers.Arm(ctx, markerOf(channel, window)); err != nil {
+			m.log.Warn("long cooldown marker write failed", zap.Error(err))
+		}
+		return false
+	}
 	lost, err := m.markers.Mark(ctx, markerOf(channel, window))
 	if err != nil {
 		m.log.Warn("long cooldown marker write failed", zap.Error(err))

@@ -22,6 +22,7 @@ export class Chk {
     readonly trigger: Text = '',
     readonly depth: Count = 0,
     readonly perm: Count = -1,
+    readonly eventAmount: boolean = false,
   ) {}
 
   add(field: Field, code: Text): void {
@@ -29,15 +30,15 @@ export class Chk {
   }
 
   sub(field: Field): Chk {
-    return new Chk(this.out, joinPath(this.path, field), this.trigger, this.depth, this.perm);
+    return new Chk(this.out, joinPath(this.path, field), this.trigger, this.depth, this.perm, this.eventAmount);
   }
 
   elem(i: Count): Chk {
-    return new Chk(this.out, `${this.path}[${i}]`, this.trigger, this.depth, this.perm);
+    return new Chk(this.out, `${this.path}[${i}]`, this.trigger, this.depth, this.perm, this.eventAmount);
   }
 
   nest(): Chk {
-    return new Chk(this.out, this.path, this.trigger, this.depth + 1, this.perm);
+    return new Chk(this.out, this.path, this.trigger, this.depth + 1, this.perm, this.eventAmount);
   }
 
   bound(field: Field, n: Count, { lo, hi, over }: Bounds): boolean {

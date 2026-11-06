@@ -40,6 +40,10 @@ func runCooldownSubject(run *AutomationRun) cooldownSubject {
 func (s cooldownSubject) windows(c automation.CooldownCondition) []CooldownWindow {
 	var windows []CooldownWindow
 	bid := strconv.FormatUint(s.broadcasterID, 10)
+	if c.Name != "" {
+		key := automation.LongCooldownNamedKey(s.broadcasterID, c.Name)
+		return append(windows, CooldownWindow{Key: key, TTL: time.Duration(c.GlobalS) * time.Second})
+	}
 	if c.GlobalS > 0 {
 		windows = append(windows, CooldownWindow{Key: "cooldown:auto:" + bid + ":" + s.automationID, TTL: time.Duration(c.GlobalS) * time.Second})
 	}

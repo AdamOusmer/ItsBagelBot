@@ -38,6 +38,7 @@ func SubscribeRecipeState(w bus.RPCWiring, repo *repository.RecipeState, prefix 
 		cooldownVerb("claim", s.handleCooldownClaim),
 		cooldownVerb("release", s.handleCooldownRelease),
 		cooldownVerb("peek", s.handleCooldownPeek),
+		cooldownVerb("extend", s.handleCooldownExtend),
 	)
 }
 
@@ -152,6 +153,22 @@ func (s *recipeStateRPC) handleCooldownPeek(ctx context.Context, req modulesrpc.
 		return modulesrpc.CooldownReply{Refusal: s.refusal("cooldown.peek", err)}, nil
 	}
 	return modulesrpc.CooldownReply{Found: len(holds) > 0, Windows: cooldownViews(holds)}, nil
+}
+
+// handleCooldownExtend reuses TTLSeconds on the one window a request names to carry the seconds to add.
+func (s *recipeStateRPC) handleCooldownExtend(ctx context.Context, req modulesrpc.CooldownRequest, userID uint64) (modulesrpc.CooldownReply, error) {
+	if len(req.Windows) != 1 {
+		return modulesrpc.CooldownReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "cooldown extend takes one window")}, nil
+	}
+	w := req.Windows[0]
+	expiresAtMS, found, capped, err := s.repo.CooldownExtend(ctx, repository.CooldownExtendRequest{UserID: userID, Key: w.Key, AddSeconds: w.TTLSeconds})
+	if err != nil {
+		return modulesrpc.CooldownReply{Refusal: s.refusal("cooldown.extend", err)}, nil
+	}
+	if !found {
+		return modulesrpc.CooldownReply{}, nil
+	}
+	return modulesrpc.CooldownReply{Found: true, Capped: capped, Windows: []modulesrpc.CooldownWindow{{Key: w.Key, ExpiresAtMS: expiresAtMS}}}, nil
 }
 
 func (s *recipeStateRPC) handleCooldownRelease(ctx context.Context, req modulesrpc.CooldownRequest, userID uint64) (modulesrpc.CooldownReply, error) {

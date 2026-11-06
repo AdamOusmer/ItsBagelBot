@@ -94,6 +94,7 @@ export const CONDITION_TYPES: TypeDef[] = [
   condition('cooldown', [
     f('global_s', 'int', { min: 0, max: MAX_COOLDOWN_SECONDS }),
     f('user_s', 'int', { min: 0, max: MAX_COOLDOWN_SECONDS }),
+    f('name', 'text', { max: 32 }),
     f('left_command', 'text', { max: 64 }),
     f('left_reply', 'template', { max: 500 }),
     f('ready_reply', 'template', { max: 500 }),
@@ -191,4 +192,9 @@ export const ACTION_TYPES: TypeDef[] = [
     f('scene_value', 'text', { min: 1, max: 200 }),
   ]),
   action('stop'),
+  action('cooldown_add', [
+    f('name', 'text', { required: true, min: 1, max: 32 }),
+    f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }),
+    f('per', 'int', { min: 0 }),
+  ]),
 ];

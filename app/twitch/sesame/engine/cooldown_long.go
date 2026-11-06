@@ -29,6 +29,8 @@ type LongCooldownStore interface {
 	ClaimLongCooldowns(ctx context.Context, claim LongCooldownClaim) (LongCooldownHold, bool, error)
 	ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error
 	PeekLongCooldowns(ctx context.Context, claim LongCooldownClaim) ([]modulesrpc.CooldownWindow, error)
+	// ExtendLongCooldown adds addSeconds to a named window's expiry. found is false when the window is not running; capped marks a result the system ceiling shortened.
+	ExtendLongCooldown(ctx context.Context, broadcasterID uint64, key string, addSeconds int64) (expiresAtMS int64, found bool, capped bool, err error)
 }
 
 func (c *RecipeStateRPC) cooldownCall(ctx context.Context, verb string, req modulesrpc.CooldownRequest) (modulesrpc.CooldownReply, error) {
@@ -64,10 +66,24 @@ func (c *RecipeStateRPC) PeekLongCooldowns(ctx context.Context, claim LongCooldo
 	return reply.Windows, nil
 }
 
+// ExtendLongCooldown reuses TTLSeconds on the window to carry the seconds to add, not a duration.
+func (c *RecipeStateRPC) ExtendLongCooldown(ctx context.Context, broadcasterID uint64, key string, addSeconds int64) (int64, bool, bool, error) {
+	req := modulesrpc.CooldownRequest{UserID: fmtID(broadcasterID), Windows: []modulesrpc.CooldownWindow{{Key: key, TTLSeconds: addSeconds}}}
+	reply, err := c.cooldownCall(ctx, "extend", req)
+	if err != nil {
+		return 0, false, false, err
+	}
+	if !reply.Found || len(reply.Windows) == 0 {
+		return 0, false, false, nil
+	}
+	return reply.Windows[0].ExpiresAtMS, true, reply.Capped, nil
+}
+
 // The viewer window goes first in long: a viewer it refuses then never touches the shared global row.
+// A named window stays long at any length: its row is the one cooldown_add extends, for as long as it runs.
 func splitCooldownWindows(windows []CooldownWindow) (short, long []CooldownWindow) {
 	for _, window := range windows {
-		if window.TTL > longestValkeyCooldown {
+		if window.TTL > longestValkeyCooldown || automation.IsNamedCooldownKey(window.Key) {
 			long = append([]CooldownWindow{window}, long...)
 		} else {
 			short = append(short, window)

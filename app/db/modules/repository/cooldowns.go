@@ -218,6 +218,80 @@ func (r *RecipeState) CooldownPeek(ctx context.Context, userID uint64, wanted []
 	return holds, nil
 }
 
+// CooldownExtendRequest names the running window to add to; AddSeconds must be positive.
+type CooldownExtendRequest struct {
+	UserID     uint64
+	Key        string
+	AddSeconds int64
+}
+
+func (req CooldownExtendRequest) valid() error {
+	if req.UserID == 0 {
+		return fmt.Errorf("%w: user_id", ErrInvalidInput)
+	}
+	if req.Key == "" || len(req.Key) > maxCooldownKeyBytes {
+		return fmt.Errorf("%w: cooldown key", ErrInvalidInput)
+	}
+	if req.AddSeconds <= 0 {
+		return fmt.Errorf("%w: cooldown extend seconds", ErrInvalidInput)
+	}
+	return nil
+}
+
+// CooldownExtend adds req.AddSeconds to a running window, capped at MaxCooldownSeconds from now; it never shortens
+// the window. found is false when the row is gone or already expired. capped marks a result the ceiling shortened.
+func (r *RecipeState) CooldownExtend(ctx context.Context, req CooldownExtendRequest) (expiresAtMS int64, found bool, capped bool, err error) {
+	if err := req.valid(); err != nil {
+		return 0, false, false, err
+	}
+	err = db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			var txErr error
+			expiresAtMS, found, capped, txErr = r.extendCooldownRow(ctx, req)
+			return txErr
+		})
+	})
+	if err != nil {
+		return 0, false, false, err
+	}
+	return expiresAtMS, found, capped, nil
+}
+
+func (r *RecipeState) extendCooldownRow(ctx context.Context, req CooldownExtendRequest) (int64, bool, bool, error) {
+	tx, err := r.sqldb.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, false, false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	nowMS := time.Now().UnixMilli()
+	maxMS := int64(automation.MaxCooldownSeconds) * 1000
+	res, err := tx.ExecContext(ctx, r.cooldownExtendQuery(), req.AddSeconds*1000, nowMS, maxMS, req.UserID, req.Key, nowMS)
+	if err != nil {
+		return 0, false, false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, false, false, err
+	}
+	if affected == 0 {
+		return 0, false, false, tx.Commit()
+	}
+	var expiresAtMS int64
+	row := tx.QueryRowContext(ctx, "SELECT expires_at_ms FROM cooldown_claims WHERE user_id=? AND cooldown_key=?", req.UserID, req.Key)
+	if err := row.Scan(&expiresAtMS); err != nil {
+		return 0, false, false, err
+	}
+	return expiresAtMS, true, expiresAtMS == nowMS+maxMS, tx.Commit()
+}
+
+func (r *RecipeState) cooldownExtendQuery() string {
+	set := "expires_at_ms=GREATEST(expires_at_ms, LEAST(expires_at_ms+?, ?+?))"
+	if r.dialect == "sqlite3" {
+		set = "expires_at_ms=MAX(expires_at_ms, MIN(expires_at_ms+?, ?+?))"
+	}
+	return "UPDATE cooldown_claims SET " + set + " WHERE user_id=? AND cooldown_key=? AND expires_at_ms>?"
+}
+
 // PruneExpiredCooldowns walks the expiry index in bounded batches; it only removes rows a claim would overwrite anyway.
 func (r *RecipeState) PruneExpiredCooldowns(ctx context.Context) error {
 	now := time.Now().UnixMilli()
@@ -257,10 +331,15 @@ type CooldownRow struct {
 	CooldownHold
 }
 
+// dueCooldowns never offers a named window: its row stays the truth for its whole life, since cooldown_add can only extend what the database still holds.
 func (r *RecipeState) dueCooldowns(ctx context.Context, now time.Time, limit int) ([]CooldownRow, error) {
 	rows, err := db.WithRead(ctx, func(ctx context.Context) ([]*ent.CooldownClaim, error) {
 		return r.client.CooldownClaim.Query().
-			Where(cooldownclaim.ExpiresAtMsGT(now.UnixMilli()), cooldownclaim.ExpiresAtMsLTE(now.Add(automation.LongCooldownMoveWindow).UnixMilli())).
+			Where(
+				cooldownclaim.ExpiresAtMsGT(now.UnixMilli()),
+				cooldownclaim.ExpiresAtMsLTE(now.Add(automation.LongCooldownMoveWindow).UnixMilli()),
+				cooldownclaim.Not(cooldownclaim.CooldownKeyHasPrefix(automation.LongCooldownNamedPrefix)),
+			).
 			Order(ent.Asc(cooldownclaim.FieldExpiresAtMs)).
 			Limit(limit).
 			All(ctx)
