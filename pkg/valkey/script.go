@@ -21,9 +21,22 @@ func NewScript(body string) Script {
 	return Script{body: body, sha: hex.EncodeToString(sum[:])}
 }
 
+// CompileScript is NewScript for a caller outside this package: service code holds scripts only as opaque,
+// already-compiled values, never builds one from a literal body itself.
+func CompileScript(body string) Script { return NewScript(body) }
+
 func (s Script) Body() string { return s.body }
 
 func (s Script) SHA1() string { return s.sha }
+
+// Exec runs the script against keys and args as EVALSHA, falling back once to EVAL on a NOSCRIPT miss.
+func (s Script) Exec(ctx context.Context, client valkey_go.Client, keys, args []string) valkey_go.ValkeyResult {
+	call := ScriptCall{Script: s, Args: args}
+	if len(keys) > 0 {
+		call.Key, call.Also = keys[0], keys[1:]
+	}
+	return RunScripts(ctx, client, []ScriptCall{call})[0]
+}
 
 type ScriptCall struct {
 	Script Script

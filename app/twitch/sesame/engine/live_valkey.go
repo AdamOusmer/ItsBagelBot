@@ -96,12 +96,12 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 }
 
 func (s *ValkeyLiveStore) loadLive(ctx context.Context, broadcasterID uint64) (bool, error) {
-	_, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
-	if err == nil {
-		return true, nil
-	}
-	if !valkey.IsValkeyNil(err) {
+	_, ok, err := pkg_valkey.NewKV(s.client).ReadBytes(ctx, liveKey(broadcasterID))
+	if err != nil {
 		return false, err
+	}
+	if ok {
+		return true, nil
 	}
 
 	id := strconv.FormatUint(broadcasterID, 10)
@@ -167,8 +167,8 @@ func clearLiveKey(ctx context.Context, client valkey.Client, broadcasterID uint6
 
 // Not retryable: a retried DEL racing a concurrent SetLive could delete a freshly confirmed key.
 var (
-	setLiveScript   = valkey.NewLuaScript(livekey.SetScript)
-	clearLiveScript = valkey.NewLuaScript(livekey.ClearScript)
+	setLiveScript   = pkg_valkey.CompileScript(livekey.SetScript)
+	clearLiveScript = pkg_valkey.CompileScript(livekey.ClearScript)
 )
 
 func (s *ValkeyLiveStore) broadcast(broadcasterID uint64) {
@@ -240,8 +240,8 @@ func (s *ValkeyLiveStore) confirmationAllowed(ctx context.Context, broadcasterID
 		return false
 	}
 	id := strconv.FormatUint(broadcasterID, 10)
-	fence, err := s.client.Do(ctx, s.client.B().Get().Key(offlineConfirmKeyPrefix+"admission:"+id).Build()).ToString()
-	return err == nil && fence == runtimeFence(state)
+	fence, ok := pkg_valkey.NewKV(s.client).GetString(ctx, offlineConfirmKeyPrefix+"admission:"+id)
+	return ok && fence == runtimeFence(state)
 }
 
 func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID string) error {
