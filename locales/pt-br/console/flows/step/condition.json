@@ -44,6 +44,18 @@
       },
       "perUser": {
         "label": "Por espectador"
+      },
+      "leftCommand": {
+        "label": "Comando de tempo restante",
+        "placeholder": "!temporestante"
+      },
+      "leftReply": {
+        "label": "Resposta durante a espera",
+        "placeholder": "{user}, faltam {cooldown:left} para poder usar isso de novo."
+      },
+      "readyReply": {
+        "label": "Resposta quando estiver pronto",
+        "placeholder": "{user}, isso já está pronto para usar."
       }
     },
     "out": {

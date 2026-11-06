@@ -10,6 +10,7 @@
   "out_of_range": "Out of range",
   "invalid_enum": "Pick a listed option",
   "invalid_format": "Invalid format",
+  "simple_word": "Use one simple word for this name: lowercase letters and numbers only, like points or wins.",
   "invalid_regex": "Invalid regular expression",
   "unknown_type": "Unknown type",
   "unknown_field": "Unknown field",

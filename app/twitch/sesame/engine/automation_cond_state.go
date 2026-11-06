@@ -7,8 +7,6 @@ import (
 	"cmp"
 	"context"
 	"math/rand/v2"
-	"strconv"
-	"time"
 
 	"ItsBagelBot/internal/domain/automation"
 )
@@ -68,14 +66,5 @@ func (p *Pipeline) conditionCooldown(ctx context.Context, run *AutomationRun, c 
 	if p.cooldown == nil {
 		return false, nil
 	}
-	var windows []CooldownWindow
-	bid := strconv.FormatUint(run.BroadcasterID, 10)
-	if c.GlobalS > 0 {
-		windows = append(windows, CooldownWindow{Key: "cooldown:auto:" + bid + ":" + run.Plan.Automation.ID, TTL: time.Duration(c.GlobalS) * time.Second})
-	}
-	if c.UserS > 0 {
-		key := "cooldown:autouser:" + bid + ":" + strconv.FormatUint(run.Viewer.ID, 10) + ":" + run.Plan.Automation.ID
-		windows = append(windows, CooldownWindow{Key: key, TTL: time.Duration(c.UserS) * time.Second})
-	}
-	return p.claimCooldownWindows(ctx, run.BroadcasterID, windows)
+	return p.claimCooldownWindows(ctx, run.BroadcasterID, runCooldownSubject(run).windows(c))
 }

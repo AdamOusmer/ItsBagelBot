@@ -44,6 +44,18 @@
       },
       "perUser": {
         "label": "Pro Zuschauer"
+      },
+      "leftCommand": {
+        "label": "Befehl für verbleibende Zeit",
+        "placeholder": "!restzeit"
+      },
+      "leftReply": {
+        "label": "Antwort während der Wartezeit",
+        "placeholder": "{user}, noch {cooldown:left}, bevor du das wieder nutzen kannst."
+      },
+      "readyReply": {
+        "label": "Antwort, wenn bereit",
+        "placeholder": "{user}, das ist einsatzbereit."
       }
     },
     "out": {

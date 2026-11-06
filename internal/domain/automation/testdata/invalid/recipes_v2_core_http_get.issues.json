@@ -9,7 +9,7 @@
   },
   {
     "path": "actions[1].params.save_as",
-    "code": "invalid_format"
+    "code": "simple_word"
   },
   {
     "path": "actions[1].params.url",

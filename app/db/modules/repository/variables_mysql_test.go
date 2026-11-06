@@ -100,8 +100,8 @@ func TestVariableMySQLViewerNameLimitHoldsAcrossViewers(t *testing.T) {
 	ctx := context.Background()
 	newViewer := repository.VariableOwner{UserID: channelVars.UserID, ViewerID: 999999, Scope: automation.VariableScopeViewer}
 	assert.NoError(t, repo.VariableSet(ctx, newViewer, sharedName, "an existing name takes no slot"))
-	assert.ErrorIs(t, repo.VariableSet(ctx, newViewer, "brand_new", "x"), repository.ErrVariableLimit)
-	assert.NoError(t, repo.VariableSet(ctx, channelVars, "brand_new", "channel scope counts separately"))
+	assert.ErrorIs(t, repo.VariableSet(ctx, newViewer, "brandnew", "x"), repository.ErrVariableLimit)
+	assert.NoError(t, repo.VariableSet(ctx, channelVars, "brandnew", "channel scope counts separately"))
 }
 
 func TestVariableMySQLViewerScopeIsolation(t *testing.T) {

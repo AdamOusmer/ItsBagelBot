@@ -56,6 +56,10 @@ func (s *fakeLongCooldowns) ReleaseLongCooldowns(ctx context.Context, hold LongC
 	return s.releaseErr
 }
 
+func (s *fakeLongCooldowns) PeekLongCooldowns(context.Context, LongCooldownClaim) ([]modulesrpc.CooldownWindow, error) {
+	return nil, nil
+}
+
 type valkeyOutcome struct {
 	recordingCooldown
 	err error

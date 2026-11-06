@@ -25,8 +25,8 @@ export const MAX_PATTERN_LENGTH = 200;
 export const MAX_FETCH_URL_LENGTH = 512;
 export const MAX_REWARD_COST = 10000000;
 export const MAX_VARIABLE_AMOUNT = 1_000_000_000_000_000;
-export const RECIPE_NAME_PATTERN = /^[A-Za-z0-9_]{1,32}$/;
-export const QUEUE_NAME_PATTERN = /^[a-z0-9_]{1,32}$/;
+export const RECIPE_NAME_PATTERN = /^[A-Za-z0-9]{1,32}$/;
+export const QUEUE_NAME_PATTERN = /^[a-z0-9]{1,32}$/;
 
 export const VERSION = 1;
 
@@ -37,6 +37,8 @@ export const CODE = {
   outOfRange: 'out_of_range',
   invalidEnum: 'invalid_enum',
   invalidFormat: 'invalid_format',
+  simpleWord: 'simple_word',
+  commandExists: 'command_exists',
   invalidRegex: 'invalid_regex',
   unknownType: 'unknown_type',
   unknownField: 'unknown_field',

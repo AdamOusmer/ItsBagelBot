@@ -57,6 +57,7 @@ type AutomationRun struct {
 	Started       time.Time
 	Record        automationrpc.RunRecord
 	Locals        map[string]string
+	CooldownEndMS int64
 	Iter          string
 	Replay        string
 	Tree          *runTree

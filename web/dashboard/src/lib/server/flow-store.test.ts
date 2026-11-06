@@ -536,6 +536,39 @@ describe('a simple flow never lives in the automation table', () => {
     expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
   });
 
+  const withLeftCommand = (left_command: string): Definition => ({ ...complex, conditions: [{ type: 'cooldown', params: { global_s: 60, left_command } }] });
+
+  test.each([
+    ['a custom command', 'hug'],
+    ['a custom alias', '!Cuddle'],
+    ['a built-in command', '!followage'],
+    ['a built-in alias', 'settitle']
+  ])('a left command on %s is refused', async (_label, name) => {
+    commands = [{ ...hugRow, aliases: ['cuddle'] }];
+    stubTable();
+
+    expect(await store.saveFlow(premium, { ref: null, name: 'Wave', enabled: true, definition: withLeftCommand(name) })).toEqual({ ok: false, reason: 'conflict', issues: [{ path: 'left_command', code: 'command_exists' }] });
+    expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
+  });
+
+  test('a free left command saves and stays a recipe', async () => {
+    commands = [hugRow];
+    stubTable();
+
+    const saved = await store.saveFlow(premium, { ref: null, name: 'Wave', enabled: true, definition: withLeftCommand('!timeleft') });
+
+    expect(saved.ok).toBe(true);
+    expect(callsTo(`${AUTO}.upsert`).length).toBe(1);
+  });
+
+  test('a new command may not take a name a recipe answers on', async () => {
+    commands = [];
+    stubTable();
+    table.set('a', automation('a', withLeftCommand('!wave')));
+
+    expect(await store.saveFlow(premium, { ref: null, name: 'Wave', enabled: true, definition: simpleCommandDef })).toEqual({ ok: false, reason: 'conflict', issues: [{ path: 'trigger.params.name', code: 'command_exists' }] });
+  });
+
   const taken = [{ path: 'trigger', code: 'alert_exists' }];
   const defaultFollow = 'Thank you for following the channel, {user}!';
 

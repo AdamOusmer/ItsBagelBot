@@ -8,7 +8,7 @@ import { byteLength, trimSpace } from './text';
 import { isSetupValue, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
 import { scrubSecrets, type ScrubKind } from './flow-share-scrub';
 import type { Action, Condition, Definition, Issue, Params } from './types';
-import { validateDefinition, validateName } from './validate';
+import { leftCommandNames, normalizeCommandName, validateDefinition, validateName } from './validate';
 
 export * from './flow-setup';
 
@@ -725,9 +725,12 @@ function landAutomation(entry: FlowImportEntry, claims: Claims): FlowImportEntry
   const landing = { ...entry, landing: 'automation' as const };
   if (USES_TOKEN.test(JSON.stringify(entry.definition!.actions ?? []))) return emptied(landing, 'invalid', [{ path: 'definition.actions', code: 'uses_token' }]);
   if (claims.slots <= 0) return emptied(landing, 'over_limit');
+  const definition = entry.definition!;
+  const leftNames = leftCommandNames(definition).map(normalizeCommandName);
+  if (leftNames.some((left) => claims.commands.has(left))) return emptied(landing, 'conflict', [{ path: 'left_command', code: 'command_exists' }]);
+  for (const left of leftNames) claims.commands.add(left);
   claims.slots -= 1;
   const name = uniqueName(entry.name, claims.names);
-  const definition = entry.definition!;
   const shadowed = commandNames(definition).filter((command) => claims.commands.has(command));
   const setup = [...entry.setup, ...shadowed.map((detail): SetupNote => ({ code: 'command_in_use', path: 'trigger.params.name', detail }))];
   return { ...landing, name, renamed: name !== entry.sourceName, definition, setup };

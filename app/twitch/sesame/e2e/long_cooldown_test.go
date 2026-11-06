@@ -49,7 +49,11 @@ type cooldownRig struct {
 	channel    uint64
 	runsNow    int
 	claimCalls atomic.Int64
+	peekCalls  atomic.Int64
 	failDelete atomic.Bool
+
+	chatMu sync.Mutex
+	chat   []chatSent
 }
 
 func startCooldownRig(t *testing.T, target recipeDB) *cooldownRig {
@@ -79,7 +83,12 @@ func startCooldownRig(t *testing.T, target recipeDB) *cooldownRig {
 		if strings.Contains(msg.Subject, ".claim") {
 			rig.claimCalls.Add(1)
 		}
+		if strings.Contains(msg.Subject, ".peek") {
+			rig.peekCalls.Add(1)
+		}
 	})
+	require.NoError(t, err)
+	_, err = nc.Subscribe("twitch.outgress.>", rig.recordChat)
 	require.NoError(t, err)
 	require.NoError(t, nc.Flush())
 	service.client.CooldownClaim.Use(func(next baseent.Mutator) baseent.Mutator {

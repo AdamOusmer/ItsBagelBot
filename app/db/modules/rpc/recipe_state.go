@@ -37,6 +37,7 @@ func SubscribeRecipeState(w bus.RPCWiring, repo *repository.RecipeState, prefix 
 	return bus.ServeVerbs(w, prefix+".cooldown",
 		cooldownVerb("claim", s.handleCooldownClaim),
 		cooldownVerb("release", s.handleCooldownRelease),
+		cooldownVerb("peek", s.handleCooldownPeek),
 	)
 }
 
@@ -126,19 +127,35 @@ func (s *recipeStateRPC) handleCooldownClaim(ctx context.Context, req modulesrpc
 	if err != nil {
 		return modulesrpc.CooldownReply{Refusal: s.refusal("cooldown.claim", err)}, nil
 	}
+	return modulesrpc.CooldownReply{Claimed: won, Windows: cooldownViews(holds)}, nil
+}
+
+func cooldownViews(holds []repository.CooldownHold) []modulesrpc.CooldownWindow {
 	views := make([]modulesrpc.CooldownWindow, len(holds))
 	for i, hold := range holds {
 		views[i] = modulesrpc.CooldownWindow{Key: hold.Key, ExpiresAtMS: hold.ExpiresAtMS}
 	}
-	return modulesrpc.CooldownReply{Claimed: won, Windows: views}, nil
+	return views
+}
+
+func cooldownHolds(windows []modulesrpc.CooldownWindow) []repository.CooldownHold {
+	holds := make([]repository.CooldownHold, len(windows))
+	for i, window := range windows {
+		holds[i] = repository.CooldownHold{Key: window.Key, ExpiresAtMS: window.ExpiresAtMS}
+	}
+	return holds
+}
+
+func (s *recipeStateRPC) handleCooldownPeek(ctx context.Context, req modulesrpc.CooldownRequest, userID uint64) (modulesrpc.CooldownReply, error) {
+	holds, err := s.repo.CooldownPeek(ctx, userID, cooldownHolds(req.Windows))
+	if err != nil {
+		return modulesrpc.CooldownReply{Refusal: s.refusal("cooldown.peek", err)}, nil
+	}
+	return modulesrpc.CooldownReply{Found: len(holds) > 0, Windows: cooldownViews(holds)}, nil
 }
 
 func (s *recipeStateRPC) handleCooldownRelease(ctx context.Context, req modulesrpc.CooldownRequest, userID uint64) (modulesrpc.CooldownReply, error) {
-	holds := make([]repository.CooldownHold, len(req.Windows))
-	for i, window := range req.Windows {
-		holds[i] = repository.CooldownHold{Key: window.Key, ExpiresAtMS: window.ExpiresAtMS}
-	}
-	if err := s.repo.CooldownRelease(ctx, userID, holds); err != nil {
+	if err := s.repo.CooldownRelease(ctx, userID, cooldownHolds(req.Windows)); err != nil {
 		return modulesrpc.CooldownReply{Refusal: s.refusal("cooldown.release", err)}, nil
 	}
 	return modulesrpc.CooldownReply{Found: true}, nil

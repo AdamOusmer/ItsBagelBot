@@ -73,7 +73,7 @@ function fetchUrlRejected(url: string): boolean {
 }
 
 export function checkSaveAs(c: Chk, name: string): void {
-  if (name !== '') c.format('save_as', name, RECIPE_NAME_PATTERN);
+  if (name !== '') c.simpleWord('save_as', name, RECIPE_NAME_PATTERN);
 }
 
 export function checkHttpPostFields(c: Chk, p: { url: string; body: string; save_as: string }): void {
@@ -107,12 +107,12 @@ function checkTextStep(c: Chk, p: Wide<T.TextStepAction>): void {
   c.text('input', p.input, 0, MAX_TEMPLATE_LENGTH);
   c.text('arg1', p.arg1, 0, MAX_TEMPLATE_LENGTH);
   c.text('arg2', p.arg2, 0, MAX_TEMPLATE_LENGTH);
-  c.format('save_as', p.save_as, RECIPE_NAME_PATTERN);
+  c.simpleWord('save_as', p.save_as, RECIPE_NAME_PATTERN);
 }
 
 function checkMath(c: Chk, p: Wide<T.MathAction>): void {
   c.template('expression', p.expression);
-  c.format('save_as', p.save_as, RECIPE_NAME_PATTERN);
+  c.simpleWord('save_as', p.save_as, RECIPE_NAME_PATTERN);
 }
 
 const REWARD_ID_PATTERN = /^[A-Za-z0-9-]+$/;

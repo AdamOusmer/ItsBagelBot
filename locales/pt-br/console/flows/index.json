@@ -112,6 +112,7 @@
     "outOfRange": "Um número está fora do intervalo permitido.",
     "invalidEnum": "Uma opção não é válida.",
     "invalidFormat": "Um valor não está no formato correto.",
+    "simpleWord": "Use uma palavra simples para este nome: apenas letras minúsculas e números, como pontos ou vitorias.",
     "invalidRegex": "Um padrão não é válido.",
     "nesting": "As verificações estão aninhadas profundamente demais.",
     "delayBudget": "As esperas somam mais do que uma receita pode pausar.",

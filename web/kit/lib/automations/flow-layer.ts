@@ -47,11 +47,15 @@ function clashes(wanted: number, held: number): boolean {
   return wanted > 0 && held > 0;
 }
 
+const TIME_LEFT_PARAMS = ['left_command', 'left_reply', 'ready_reply'];
+
 function readCooldown(gates: Gates, params: Params): boolean {
   const global = Number(params.global_s ?? 0);
   const user = Number(params.user_s ?? 0);
   // Commands enforce their cooldowns in Valkey only; a longer window must run as an automation to reach MySQL.
   if (Math.max(global, user) > MAX_VALKEY_COOLDOWN_SECONDS) return false;
+  // A plain command has nowhere to keep the time left command.
+  if (TIME_LEFT_PARAMS.some((key) => params[key])) return false;
   if (clashes(global, gates.cooldown) || clashes(user, gates.userCooldown)) return false;
   gates.cooldown ||= global;
   gates.userCooldown ||= user;

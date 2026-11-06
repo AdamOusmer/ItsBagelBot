@@ -44,6 +44,18 @@
       },
       "perUser": {
         "label": "Для каждого зрителя"
+      },
+      "leftCommand": {
+        "label": "Команда оставшегося времени",
+        "placeholder": "!timeleft"
+      },
+      "leftReply": {
+        "label": "Ответ во время ожидания",
+        "placeholder": "{user}, осталось {cooldown:left}, прежде чем ты сможешь использовать это снова."
+      },
+      "readyReply": {
+        "label": "Ответ, когда готово",
+        "placeholder": "{user}, это готово к использованию."
       }
     },
     "out": {

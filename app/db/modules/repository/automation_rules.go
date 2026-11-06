@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"ItsBagelBot/app/db/modules/ent"
@@ -55,7 +56,12 @@ func checkAutomationRules(ctx context.Context, client *ent.AutomationClient, dra
 	if err != nil {
 		return err
 	}
+	clashes, err := commandClashIssues(ctx, client, draft)
+	if err != nil {
+		return err
+	}
 	issues = append(issues, dups...)
+	issues = append(issues, clashes...)
 	issues = append(issues, unknownRunTargets(draft.def, known)...)
 	if len(issues) == 0 {
 		return nil
@@ -63,9 +69,49 @@ func checkAutomationRules(ctx context.Context, client *ent.AutomationClient, dra
 	return &AutomationRefusal{Code: refusalCode(issues), Issues: sortIssues(issues)}
 }
 
+// commandClashIssues keeps a time left command from sharing a name with another recipe; two recipes may still share a trigger.
+func commandClashIssues(ctx context.Context, client *ent.AutomationClient, draft automationDraft) ([]automation.Issue, error) {
+	lefts := normalizedNames(automation.LeftCommandNames(draft.def))
+	triggers := automation.TriggerCommandNames(draft.def)
+	if len(lefts)+len(triggers) == 0 {
+		return nil, nil
+	}
+	rows, err := client.Query().Where(entautomation.UserID(draft.userID), entautomation.IDNEQ(draft.in.ID)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var issues []automation.Issue
+	for _, row := range rows {
+		def, parseIssues := automation.Parse([]byte(row.Definition))
+		if len(parseIssues) > 0 {
+			continue
+		}
+		otherLefts := normalizedNames(automation.LeftCommandNames(def))
+		if sharesName(lefts, otherLefts) || sharesName(lefts, automation.TriggerCommandNames(def)) {
+			issues = append(issues, automation.Issue{Path: "left_command", Code: automation.CodeCommandExists})
+		}
+		if sharesName(triggers, otherLefts) {
+			issues = append(issues, automation.Issue{Path: "trigger.params.name", Code: automation.CodeCommandExists})
+		}
+	}
+	return slices.Compact(issues), nil
+}
+
+func normalizedNames(names []string) []string {
+	out := make([]string, len(names))
+	for i, name := range names {
+		out[i] = automation.NormalizeCommandName(name)
+	}
+	return out
+}
+
+func sharesName(names, others []string) bool {
+	return slices.ContainsFunc(names, func(name string) bool { return slices.Contains(others, name) })
+}
+
 func refusalCode(issues []automation.Issue) rpc.Code {
 	for _, issue := range issues {
-		if issue.Code == "duplicate" {
+		if issue.Code == "duplicate" || issue.Code == automation.CodeCommandExists {
 			return rpc.CodeConflict
 		}
 	}

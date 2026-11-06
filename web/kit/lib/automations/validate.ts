@@ -67,12 +67,50 @@ function check(root: Root): Issue[] {
   const out: Issue[] = [];
   const c = new Chk(out, '', root.trigger.type, 0, permRank(root.conditions));
   if (root.version !== VERSION) c.add('version', CODE.unsupportedVersion);
-  if (root.queue !== '') c.format('queue', root.queue, QUEUE_NAME_PATTERN);
+  if (root.queue !== '') c.simpleWord('queue', root.queue, QUEUE_NAME_PATTERN);
   typed(c.sub('trigger'), triggerRegistry, root.trigger);
   conditions(c, root.conditions);
   actions(c.sub('actions'), root.actions);
   checkBudgets(c, root.actions);
+  checkLeftCommands(c, root);
   return finish(out);
+}
+
+export const normalizeCommandName = (name: string): string => name.trim().replace(/^!/, '').toLowerCase();
+
+const COOLDOWN_NAME_SCHEMA: Schema = { left_command: 'string', global_s: 'int', user_s: 'int', left_reply: 'string', ready_reply: 'string' };
+const IF_CONDITION_SCHEMA: Schema = { condition: 'typed', then: 'actions', else: 'actions' };
+
+function cooldownLeftCommand(node: TypedNode): string {
+  if (node.type !== 'cooldown') return '';
+  return decodeParams<{ left_command: string }>(COOLDOWN_NAME_SCHEMA, {}, node.params).value?.left_command ?? '';
+}
+
+function ifCondition(action: ActionNode): TypedNode[] {
+  if (action.type !== 'if') return [];
+  const condition = decodeParams<{ condition: TypedNode }>(IF_CONDITION_SCHEMA, {}, action.params).value?.condition;
+  return condition ? [condition] : [];
+}
+
+// A cooldown sits in the conditions or in an if's condition; nothing else can hold one.
+export function leftCommandNames(definition: { conditions?: unknown; actions?: unknown }): string[] {
+  const held = [...((definition.conditions ?? []) as TypedNode[]), ...flatten((definition.actions ?? []) as ActionNode[]).flatMap(ifCondition)];
+  return held.map(cooldownLeftCommand).filter((name) => name !== '');
+}
+
+function triggerCommandNames(trigger: TypedNode): string[] {
+  if (trigger.type !== 'command') return [];
+  const params = decodeParams<{ name: string; aliases: string[]; match: string }>({ name: 'string', aliases: 'strings', match: 'string', case_sensitive: 'bool', sources: 'strings' }, {}, trigger.params).value;
+  if (!params || params.match === 'regex') return [];
+  return [params.name, ...(params.aliases ?? [])].map(normalizeCommandName);
+}
+
+function checkLeftCommands(c: Chk, root: Root): void {
+  const taken = new Set(triggerCommandNames(root.trigger));
+  for (const name of leftCommandNames(root).map(normalizeCommandName)) {
+    if (taken.has(name)) c.add('left_command', CODE.commandExists);
+    taken.add(name);
+  }
 }
 
 export function validateDefinition(def: unknown): Issue[] {

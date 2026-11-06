@@ -10,6 +10,7 @@
   "out_of_range": "Fora do intervalo",
   "invalid_enum": "Escolha uma opção da lista",
   "invalid_format": "Formato inválido",
+  "simple_word": "Use uma palavra simples para este nome: apenas letras minúsculas e números, como pontos ou vitorias.",
   "invalid_regex": "Expressão regular inválida",
   "unknown_type": "Tipo desconhecido",
   "unknown_field": "Campo desconhecido",

@@ -30,7 +30,10 @@
     "summary": "Wait between runs",
     "field": {
       "seconds": { "label": "Cooldown", "range": "Use 1 second to {days} days." },
-      "perUser": { "label": "Per viewer" }
+      "perUser": { "label": "Per viewer" },
+      "leftCommand": { "label": "Time left command", "placeholder": "!timeleft" },
+      "leftReply": { "label": "Reply while waiting", "placeholder": "{user}, {cooldown:left} left before you can use this again." },
+      "readyReply": { "label": "Reply when ready", "placeholder": "{user}, this is ready to use." }
     },
     "out": { "yes": "Ready", "no": "Cooling down" }
   },

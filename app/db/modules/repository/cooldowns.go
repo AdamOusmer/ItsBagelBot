@@ -181,6 +181,33 @@ func (r *RecipeState) deleteCooldownRow(ctx context.Context, row CooldownRow) (i
 	return deleted, err
 }
 
+// CooldownPeek reads which of the named windows still run; it takes nothing.
+func (r *RecipeState) CooldownPeek(ctx context.Context, userID uint64, wanted []CooldownHold) ([]CooldownHold, error) {
+	if userID == 0 {
+		return nil, fmt.Errorf("%w: user_id", ErrInvalidInput)
+	}
+	if len(wanted) == 0 || len(wanted) > maxCooldownWindows {
+		return nil, fmt.Errorf("%w: cooldown windows", ErrInvalidInput)
+	}
+	keys := make([]string, len(wanted))
+	for i, hold := range wanted {
+		keys[i] = hold.Key
+	}
+	rows, err := db.WithRead(ctx, func(ctx context.Context) ([]*ent.CooldownClaim, error) {
+		return r.client.CooldownClaim.Query().
+			Where(cooldownclaim.UserID(userID), cooldownclaim.CooldownKeyIn(keys...), cooldownclaim.ExpiresAtMsGT(time.Now().UnixMilli())).
+			All(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	holds := make([]CooldownHold, len(rows))
+	for i, row := range rows {
+		holds[i] = CooldownHold{Key: row.CooldownKey, ExpiresAtMS: row.ExpiresAtMs}
+	}
+	return holds, nil
+}
+
 // PruneExpiredCooldowns walks the expiry index in bounded batches; it only removes rows a claim would overwrite anyway.
 func (r *RecipeState) PruneExpiredCooldowns(ctx context.Context) error {
 	now := time.Now().UnixMilli()

@@ -226,6 +226,20 @@ function lightsAction(config: FlowConfig): Action {
 
 const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
 
+const TIME_LEFT_FIELDS = [
+  ['leftCommand', 'left_command'],
+  ['leftReply', 'left_reply'],
+  ['readyReply', 'ready_reply']
+] as const;
+
+function timeLeftParams(config: FlowConfig): Params {
+  return Object.fromEntries(TIME_LEFT_FIELDS.filter(([key]) => str(config[key]).trim() !== '').map(([key, param]) => [param, str(config[key]).trim()]));
+}
+
+function timeLeftConfig(params: Params): FlowConfig {
+  return Object.fromEntries(TIME_LEFT_FIELDS.filter(([, param]) => str(params[param]) !== '').map(([key, param]) => [key, str(params[param])]));
+}
+
 const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
   'cond.compare': (config) => ({ type: 'compare', params: { left: str(config.left), op: str(config.op) || 'gte', right: str(config.right) } }),
   'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) } }),
@@ -237,7 +251,7 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
   'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
   'cond.cooldown': (config) => ({
     type: 'cooldown',
-    params: { [config.perUser ? 'user_s' : 'global_s']: num(config.seconds) }
+    params: { [config.perUser ? 'user_s' : 'global_s']: num(config.seconds), ...timeLeftParams(config) }
   })
 };
 
@@ -719,7 +733,7 @@ function cooldownNode(params: Params): { type: string; config: FlowConfig } | nu
   const global = num(params.global_s);
   const user = num(params.user_s);
   if (global > 0 && user > 0) return null;
-  return { type: 'cond.cooldown', config: { seconds: global || user, perUser: user > 0 } };
+  return { type: 'cond.cooldown', config: { seconds: global || user, perUser: user > 0, ...timeLeftConfig(params) } };
 }
 
 function userNode(params: Params): { type: string; config: FlowConfig } | null {

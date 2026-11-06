@@ -26,6 +26,7 @@ type scriptedLongStore struct {
 	claimErr error
 	before   func()
 	claims   int
+	peeks    int
 	released []modulesrpc.CooldownWindow
 }
 
@@ -47,6 +48,34 @@ func (s *scriptedLongStore) ClaimLongCooldowns(_ context.Context, claim LongCool
 func (s *scriptedLongStore) ReleaseLongCooldowns(_ context.Context, hold LongCooldownHold) error {
 	s.released = append(s.released, hold.Windows...)
 	return nil
+}
+
+func (s *scriptedLongStore) PeekLongCooldowns(_ context.Context, claim LongCooldownClaim) ([]modulesrpc.CooldownWindow, error) {
+	s.peeks++
+	var live []modulesrpc.CooldownWindow
+	for _, window := range claim.Windows {
+		live = append(live, modulesrpc.CooldownWindow{Key: window.Key, ExpiresAtMS: s.expiry})
+	}
+	return live, nil
+}
+
+func TestPeekReadsTheExactExpiryFromAMarkerAndMarksOnAMiss(t *testing.T) {
+	client, channel := markerRig(t)
+	store := &scriptedLongStore{expiry: time.Now().Add(72 * time.Hour).UnixMilli()}
+	marked := NewMarkedLongCooldowns(client, store, zap.NewNop())
+	ctx := context.Background()
+	claim := LongCooldownClaim{BroadcasterID: channel, Windows: longWindow("k")}
+
+	live, err := marked.PeekLongCooldowns(ctx, claim)
+	require.NoError(t, err)
+	require.Len(t, live, 1)
+	assert.Equal(t, 1, store.peeks, "a miss asks the store")
+	assert.InDelta(t, float64(24*time.Hour), float64(markerTTL(t, client, channel, "k")), float64(time.Minute))
+
+	live, err = marked.PeekLongCooldowns(ctx, claim)
+	require.NoError(t, err)
+	assert.Equal(t, 1, store.peeks, "the marker answers the second peek")
+	assert.Equal(t, store.expiry, live[0].ExpiresAtMS, "three days left, past the day-long marker")
 }
 
 func markerRig(t *testing.T) (valkey.Client, uint64) {

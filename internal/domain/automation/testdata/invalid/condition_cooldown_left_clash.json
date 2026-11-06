@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!hi", "aliases": ["!hello"] } },
+  "conditions": [
+    { "type": "cooldown", "params": { "global_s": 60, "left_command": "!HI" } },
+    { "type": "cooldown", "params": { "user_s": 60, "left_command": "two words" } }
+  ],
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": { "type": "cooldown", "params": { "global_s": 90, "left_command": "!wait", "left_reply": "" } },
+        "then": [
+          {
+            "type": "if",
+            "params": {
+              "condition": { "type": "cooldown", "params": { "global_s": 90, "left_command": "wait" } },
+              "then": [ { "type": "chat", "params": { "text": "ran" } } ],
+              "else": []
+            }
+          }
+        ],
+        "else": []
+      }
+    }
+  ]
+}

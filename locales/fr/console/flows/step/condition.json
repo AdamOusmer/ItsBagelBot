@@ -44,6 +44,18 @@
       },
       "perUser": {
         "label": "Par viewer"
+      },
+      "leftCommand": {
+        "label": "Commande de temps restant",
+        "placeholder": "!tempsrestant"
+      },
+      "leftReply": {
+        "label": "Réponse pendant l’attente",
+        "placeholder": "{user}, encore {cooldown:left} avant de pouvoir réutiliser ceci."
+      },
+      "readyReply": {
+        "label": "Réponse quand c’est prêt",
+        "placeholder": "{user}, c’est prêt à être utilisé."
       }
     },
     "out": {

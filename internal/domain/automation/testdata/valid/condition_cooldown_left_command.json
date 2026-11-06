@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "trigger": { "type": "reward", "params": { "reward_id": "11111111-2222-3333-4444-555555555555" } },
+  "conditions": [
+    { "type": "cooldown", "params": { "user_s": 172800, "left_command": "!timeleft", "left_reply": "{user}, {cooldown:left} to go", "ready_reply": "{user}, go ahead" } }
+  ],
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": { "type": "cooldown", "params": { "global_s": 60, "left_command": "!shared" } },
+        "then": [ { "type": "chat", "params": { "text": "ran" } } ],
+        "else": [ { "type": "chat", "params": { "text": "wait {cooldown:left}" } } ]
+      }
+    }
+  ]
+}

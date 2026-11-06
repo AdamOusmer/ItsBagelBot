@@ -112,6 +112,7 @@
     "outOfRange": "A number is outside the allowed range.",
     "invalidEnum": "A choice is not valid.",
     "invalidFormat": "A value is not in the right format.",
+    "simpleWord": "Use one simple word for this name: lowercase letters and numbers only, like points or wins.",
     "invalidRegex": "A pattern is not valid.",
     "nesting": "Checks are nested too deeply.",
     "delayBudget": "The waits add up to more than a recipe can pause.",

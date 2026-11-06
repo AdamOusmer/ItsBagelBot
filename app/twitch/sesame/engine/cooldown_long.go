@@ -28,6 +28,7 @@ type LongCooldownHold struct {
 type LongCooldownStore interface {
 	ClaimLongCooldowns(ctx context.Context, claim LongCooldownClaim) (LongCooldownHold, bool, error)
 	ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error
+	PeekLongCooldowns(ctx context.Context, claim LongCooldownClaim) ([]modulesrpc.CooldownWindow, error)
 }
 
 func (c *RecipeStateRPC) cooldownCall(ctx context.Context, verb string, req modulesrpc.CooldownRequest) (modulesrpc.CooldownReply, error) {
@@ -56,6 +57,18 @@ func (c *RecipeStateRPC) ClaimLongCooldowns(ctx context.Context, claim LongCoold
 func (c *RecipeStateRPC) ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error {
 	_, err := c.cooldownCall(ctx, "release", modulesrpc.CooldownRequest{UserID: fmtID(hold.BroadcasterID), Windows: hold.Windows})
 	return err
+}
+
+func (c *RecipeStateRPC) PeekLongCooldowns(ctx context.Context, claim LongCooldownClaim) ([]modulesrpc.CooldownWindow, error) {
+	windows := make([]modulesrpc.CooldownWindow, len(claim.Windows))
+	for i, window := range claim.Windows {
+		windows[i] = modulesrpc.CooldownWindow{Key: window.Key}
+	}
+	reply, err := c.cooldownCall(ctx, "peek", modulesrpc.CooldownRequest{UserID: fmtID(claim.BroadcasterID), Windows: windows})
+	if err != nil {
+		return nil, err
+	}
+	return reply.Windows, nil
 }
 
 // The viewer window goes first in long: a viewer it refuses then never touches the shared global row.

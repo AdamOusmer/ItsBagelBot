@@ -21,7 +21,7 @@
         "url": "https://hooks.example.com/new",
         "body": "{args}",
         "save_as": "reply",
-        "on_ok": [ { "type": "var_set", "params": { "scope": "channel", "name": "last_reply", "value": "{local:reply}" } } ],
+        "on_ok": [ { "type": "var_set", "params": { "scope": "channel", "name": "lastreply", "value": "{local:reply}" } } ],
         "on_failure": [ { "type": "stop", "params": {} } ]
       }
     }

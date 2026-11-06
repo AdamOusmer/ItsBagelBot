@@ -4,14 +4,12 @@
 package automation
 
 import (
-	"regexp"
 	"sort"
 	"strings"
 
 	"ItsBagelBot/pkg/codec"
 )
 
-var queueNamePattern = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)
 
 func Parse(raw []byte) (Definition, []Issue) {
 	if len(raw) > MaxDefinitionBytes {
@@ -38,8 +36,9 @@ func Validate(def Definition) []Issue {
 	c.conditions(def.Conditions)
 	c.sub("actions").actions(def.Actions)
 	c.budgets(def)
-	if def.Queue != "" && !queueNamePattern.MatchString(def.Queue) {
-		c.add("queue", CodeInvalidFormat)
+	c.leftCommands(def)
+	if def.Queue != "" && !variableNamePattern.MatchString(def.Queue) {
+		c.add("queue", CodeSimpleWord)
 	}
 	return finish(out)
 }

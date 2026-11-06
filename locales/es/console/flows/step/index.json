@@ -15,6 +15,7 @@
     "count": "Nuevo conteo",
     "loopIndex": "Qué repetición es",
     "apiError": "Por qué falló",
+    "cooldownLeft": "Tiempo restante de enfriamiento",
     "saved": "Guardado por un paso anterior"
   }
 }

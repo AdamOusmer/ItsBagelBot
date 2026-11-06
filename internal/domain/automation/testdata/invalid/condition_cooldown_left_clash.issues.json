@@ -1,0 +1,10 @@
+[
+  {
+    "path": "conditions[1].params.left_command",
+    "code": "invalid_format"
+  },
+  {
+    "path": "left_command",
+    "code": "command_exists"
+  }
+]

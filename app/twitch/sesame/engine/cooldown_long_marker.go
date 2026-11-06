@@ -56,6 +56,37 @@ func (m *MarkedLongCooldowns) ReleaseLongCooldowns(ctx context.Context, hold Lon
 	return err
 }
 
+// PeekLongCooldowns reads each marker's stored expiry, which outlasts a marker capped at a day, and only asks the store for windows with no marker.
+func (m *MarkedLongCooldowns) PeekLongCooldowns(ctx context.Context, claim LongCooldownClaim) ([]modulesrpc.CooldownWindow, error) {
+	live := make([]modulesrpc.CooldownWindow, 0, len(claim.Windows))
+	missing := LongCooldownClaim{BroadcasterID: claim.BroadcasterID}
+	for _, window := range claim.Windows {
+		expiry, marked := m.markerExpiry(ctx, automation.LongCooldownMarkerKey(claim.BroadcasterID, window.Key))
+		if marked {
+			live = append(live, modulesrpc.CooldownWindow{Key: window.Key, ExpiresAtMS: expiry})
+			continue
+		}
+		missing.Windows = append(missing.Windows, window)
+	}
+	if len(missing.Windows) == 0 {
+		return live, nil
+	}
+	stored, err := m.store.PeekLongCooldowns(ctx, missing)
+	if err != nil {
+		return nil, err
+	}
+	m.remark(ctx, LongCooldownHold{BroadcasterID: claim.BroadcasterID, Windows: stored})
+	return append(live, stored...), nil
+}
+
+func (m *MarkedLongCooldowns) markerExpiry(ctx context.Context, key string) (int64, bool) {
+	value, err := m.client.Do(ctx, m.client.B().Get().Key(key).Build()).AsInt64()
+	if err != nil && !valkey.IsValkeyNil(err) {
+		m.log.Warn("long cooldown marker read failed, asking the database", zap.Error(err))
+	}
+	return value, err == nil
+}
+
 // A Valkey failure falls through to the database, which still decides every window it holds.
 func (m *MarkedLongCooldowns) marked(ctx context.Context, claim LongCooldownClaim) bool {
 	keys := make([]string, len(claim.Windows))

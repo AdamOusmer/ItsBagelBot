@@ -49,6 +49,8 @@ const (
 	CodeOutOfRange       = "out_of_range"
 	CodeInvalidEnum      = "invalid_enum"
 	CodeInvalidFormat    = "invalid_format"
+	CodeSimpleWord       = "simple_word"
+	CodeCommandExists    = "command_exists"
 	CodeInvalidRegex     = "invalid_regex"
 	CodeUnknownType      = "unknown_type"
 	CodeUnknownField     = "unknown_field"

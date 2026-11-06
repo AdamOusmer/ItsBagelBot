@@ -181,9 +181,12 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     icon: 'hourglass',
     fields: [
       { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
-      { key: 'perUser', type: 'toggle' }
+      { key: 'perUser', type: 'toggle' },
+      { key: 'leftCommand', type: 'text', placeholder: true },
+      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
+      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
     ],
-    outputs: yesNo
+    outputs: [{ id: 'yes' }, { id: 'no', provides: [{ token: '{cooldown:left}', name: 'cooldownLeft', sample: '2d 3h' }] }]
   },
   {
     type: 'cond.compare',

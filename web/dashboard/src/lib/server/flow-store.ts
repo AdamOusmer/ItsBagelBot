@@ -7,6 +7,8 @@ import {
   alertDefinition,
   classifyFlow,
   commandDefinition,
+  leftCommandNames,
+  normalizeCommandName,
   plainAlertLine,
   setupGaps,
   validateDefinition,
@@ -18,7 +20,7 @@ import {
   type SimpleCommand
 } from '@bagel/kit/automations';
 import { moduleDef, MOD } from '@bagel/kit/catalog';
-import type { CommandView, Perm } from '@bagel/kit';
+import { BUILTIN_COMMANDS, type CommandView, type Perm } from '@bagel/kit';
 import { rpc } from '@bagel/kit/server/nats';
 import type { FlowRef } from '#lib/flow/ref';
 import {
@@ -295,6 +297,8 @@ async function writeCommand(userId: UserId, command: SimpleCommand, input: SaveF
   if (previousName && !current) return { ok: false, reason: 'not_found' };
   if (current && staleRevision(input.expectedRevision, commandToken(current))) return CONFLICT;
   if (commandNameTaken(rows, command, previousName)) return COMMAND_EXISTS;
+  const timeLeftNames = await recipeTimeLeftNames(userId);
+  if ([command.name, ...command.aliases].some((name) => timeLeftNames.has(normalizeCommandName(name)))) return COMMAND_EXISTS;
   const saved = commandInput(command, input.enabled, current);
   await upsertCommand(userId, saved, previousName);
   const view: CommandView = { name: saved.name, aliases: saved.aliases, response: saved.response, is_active: saved.isActive, stream_online_only: saved.streamOnlineOnly, perm: saved.perm, cooldown: saved.cooldown, user_cooldown: saved.userCooldown, allowed_user_id: saved.allowedUserId, bump_counter: saved.bumpCounter };
@@ -372,8 +376,26 @@ async function turnOnAutomations(userId: UserId): Promise<void> {
   if (modules.find((row) => row.name === MOD.automations)?.is_enabled !== true) await setModuleEnabled(userId, MOD.automations, true);
 }
 
+const LEFT_COMMAND_EXISTS: SaveFlowResult = { ok: false, reason: 'conflict', issues: [{ path: 'left_command', code: 'command_exists' }] };
+
+const builtinNames = (): string[] => BUILTIN_COMMANDS.flatMap((def) => [def.id, ...(def.aliases ?? [])]);
+
+// The other side of this check, recipes against recipes, is the modules service's on save.
+async function leftCommandRefusal(userId: UserId, definition: Definition, dropping?: CommandName): Promise<SaveFlowResult | null> {
+  const wanted = leftCommandNames(definition).map(normalizeCommandName);
+  if (wanted.length === 0) return null;
+  const rows = (await ownerCommands(userId)).filter((row) => row.name !== dropping);
+  const taken = new Set([...builtinNames(), ...rows.flatMap((row) => [row.name, ...(row.aliases ?? [])])].map(normalizeCommandName));
+  return wanted.some((name) => taken.has(name)) ? LEFT_COMMAND_EXISTS : null;
+}
+
+async function recipeTimeLeftNames(userId: UserId): Promise<Set<string>> {
+  const rows = await listAutomations(userId);
+  return new Set(rows.flatMap((row) => leftCommandNames(row.definition)).map(normalizeCommandName));
+}
+
 async function writeAutomation(userId: UserId, input: SaveFlowInput, id?: FlowId, dropping?: CommandName): Promise<SaveFlowResult> {
-  const refusal = usesTokenRefusal(input.definition);
+  const refusal = usesTokenRefusal(input.definition) ?? (await leftCommandRefusal(userId, input.definition, dropping));
   if (refusal) return refusal;
   const expected = id && input.expectedRevision !== undefined ? Number(input.expectedRevision) : undefined;
   const result = await upsertAutomation(userId, { id, name: input.name, enabled: input.enabled, definition: input.definition, preview: input.preview, expectedRevision: expected });

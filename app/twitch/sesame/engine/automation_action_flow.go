@@ -176,6 +176,7 @@ func (x *actionExec) ifElse(s step, _ automation.IfAction) error {
 		x.execList(s.Branches[0])
 		return nil
 	}
+	x.noteCooldownLeft(s.Condition)
 	x.execList(s.Branches[1])
 	return nil
 }

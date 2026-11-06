@@ -107,6 +107,9 @@ export interface LiveCondition {
 export interface CooldownCondition {
   global_s?: number;
   user_s?: number;
+  left_command?: string;
+  left_reply?: string;
+  ready_reply?: string;
 }
 
 export interface ChanceCondition {

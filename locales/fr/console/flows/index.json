@@ -112,6 +112,7 @@
     "outOfRange": "Un nombre se situe en dehors de la plage autorisée.",
     "invalidEnum": "Un choix n’est pas valide.",
     "invalidFormat": "Une valeur n’est pas au bon format.",
+    "simpleWord": "Utilise un mot simple pour ce nom : lettres minuscules et chiffres uniquement, comme points ou victoires.",
     "invalidRegex": "Un motif n’est pas valide.",
     "nesting": "Les vérifications sont imbriquées trop profondément.",
     "delayBudget": "Le total des temps d’attente dépasse la durée de pause autorisée pour une recette.",

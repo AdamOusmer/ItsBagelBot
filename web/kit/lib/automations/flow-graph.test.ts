@@ -876,8 +876,8 @@ describe('containers keep their drawn shape through save and reload', () => {
       [edge('t', 'next', 'l'), edge('l', 'body', 'g'), edge('g', 'failure', 'bad')]
     );
     const issues = validateDefinition(lowered(drawn));
-    expect(issues).toEqual([{ path: 'actions[0].params.actions[0].params.on_failure[0].params.name', code: 'invalid_format' }]);
-    expect(locateIssues(drawn, issues)).toEqual([{ path: 'nodes.bad.params.name', code: 'invalid_format' }]);
+    expect(issues).toEqual([{ path: 'actions[0].params.actions[0].params.on_failure[0].params.name', code: 'simple_word' }]);
+    expect(locateIssues(drawn, issues)).toEqual([{ path: 'nodes.bad.params.name', code: 'simple_word' }]);
   });
 
   test('step refs link a run record index back to each nested step', () => {

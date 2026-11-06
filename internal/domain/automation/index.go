@@ -22,6 +22,7 @@ type CompiledTrigger struct {
 	Filters  map[string]string
 	Kind     EventKind
 	RewardID string
+	Left     *CooldownCondition
 
 	scanNames, allNames []matchName
 	regex               *regexp.Regexp
@@ -55,6 +56,7 @@ func CompileIndex(list []Automation) *TriggerIndex {
 		if add := triggerCompilers[a.Definition.Trigger.Type]; add != nil {
 			add(idx, plan)
 		}
+		idx.addLeftCommands(plan)
 	}
 	return idx
 }

@@ -86,6 +86,11 @@ export class Chk {
     else if (!re.test(s)) this.add(field, CODE.invalidFormat);
   }
 
+  simpleWord(field: Field, s: Text, re: RegExp): void {
+    if (s === '') this.add(field, CODE.required);
+    else if (!re.test(s)) this.add(field, CODE.simpleWord);
+  }
+
   chars(field: Field, s: Text, ok: CharTest): void {
     if (!allChars(s, ok)) this.add(field, CODE.invalidFormat);
   }

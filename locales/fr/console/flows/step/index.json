@@ -15,6 +15,7 @@
     "count": "Nouveau total",
     "loopIndex": "Numéro de la répétition",
     "apiError": "Raison de l’échec",
+    "cooldownLeft": "Délai restant",
     "saved": "Enregistrée par une étape précédente"
   }
 }
