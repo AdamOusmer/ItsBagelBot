@@ -16,13 +16,15 @@ import (
 )
 
 const (
-	variableWriteAttempts = 8
-	maxVariableReadNames  = 100
+	maxVariableReadNames = 100
 	// Outside the variable name pattern, so no recipe can read, write or count it.
 	variableNamesGuard = "#names"
 )
 
-var ErrVariableLimit = errors.New("variable limit reached")
+var (
+	ErrVariableLimit      = errors.New("variable limit reached")
+	errVariableWriteRaced = errors.New("variable write raced")
+)
 
 type VariableOwner struct {
 	UserID   uint64
@@ -145,22 +147,15 @@ func (r *RecipeState) mutateVariable(ctx context.Context, o VariableOwner, rawNa
 	if err != nil {
 		return err
 	}
-	for range variableWriteAttempts {
-		err = db.WithExec(ctx, func(ctx context.Context) error {
+	return db.RetryTx(ctx, func(ctx context.Context) error {
+		err := db.WithExec(ctx, func(ctx context.Context) error {
 			return withTx(ctx, r.client, func(tx *ent.Tx) error { return r.writeVariable(ctx, tx, o, name, next) })
 		})
-		if !retryableVariableWrite(err) {
-			return err
+		if ent.IsConstraintError(err) {
+			return fmt.Errorf("%w: %w", errVariableWriteRaced, err)
 		}
-	}
-	return err
-}
-
-func retryableVariableWrite(err error) bool {
-	if err == nil {
-		return false
-	}
-	return ent.IsConstraintError(err) || db.RetryableTx(err, nil)
+		return err
+	}, errVariableWriteRaced)
 }
 
 func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {

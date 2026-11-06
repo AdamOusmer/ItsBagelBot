@@ -19,7 +19,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 
-	"github.com/valkey-io/valkey-go"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
@@ -51,7 +51,7 @@ type moduleKey struct {
 
 type Modules struct {
 	instanceResolver AccountInstanceResolver
-	cooldownMarkers  valkey.Client
+	cooldownMarkers  *cooldownmarker.Store
 	client           *ent.Client
 	views            *cache.Cache[[]ModuleView]
 	pub              bus.Publisher

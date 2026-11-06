@@ -18,10 +18,9 @@ import (
 	"ItsBagelBot/app/db/modules/ent/quote"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/app/db/modules/ent/variable"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
-
-	"github.com/valkey-io/valkey-go"
 )
 
 const accountInstanceKey = "__account_created_at"
@@ -80,15 +79,15 @@ func (r *Modules) upsertLoyalty(ctx context.Context, item data.ModuleChangedDTO)
 }
 
 // SetCooldownMarkers lets DeleteAccount clear the channel's Valkey markers; a moved cooldown exists nowhere else.
-func (r *Modules) SetCooldownMarkers(client valkey.Client) {
-	r.cooldownMarkers = client
+func (r *Modules) SetCooldownMarkers(markers *cooldownmarker.Store) {
+	r.cooldownMarkers = markers
 }
 
 func (r *Modules) eraseCooldownMarkers(ctx context.Context, id uint64) error {
 	if r.cooldownMarkers == nil {
 		return nil
 	}
-	return EraseCooldownMarkers(ctx, r.cooldownMarkers, id)
+	return r.cooldownMarkers.Erase(ctx, id)
 }
 
 // DeleteAccount resolves the canonical incarnation before removing modules, quotes

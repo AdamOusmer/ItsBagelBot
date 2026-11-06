@@ -20,6 +20,7 @@ import (
 	_ "ItsBagelBot/app/db/modules/ent/runtime"
 	"ItsBagelBot/app/db/modules/repository"
 	"ItsBagelBot/app/db/modules/rpc"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
@@ -87,7 +88,7 @@ func main() {
 	valkeyClient := svcboot.MustValkey(core)
 	recorder := analytics.New(valkeyClient, log, nil)
 	defer recorder.Close()
-	repo.SetCooldownMarkers(valkeyClient)
+	repo.SetCooldownMarkers(cooldownmarker.New(valkeyClient))
 	recipeState := repository.NewRecipeState(client, driver)
 	go repository.NewCooldownMover(recipeState, valkeyClient, rand.Text(), log).Run(core.Ctx)
 	repo.SetAnalytics(recorder)

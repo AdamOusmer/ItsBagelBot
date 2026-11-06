@@ -235,10 +235,14 @@ func (l *ValkeyRunLog) overlayRewardResults(ctx context.Context, broadcasterID u
 		}
 	}
 	for i, read := range pkg_valkey.ReadHashes(ctx, l.client, keys) {
-		if read.Err != nil {
-			l.log.Warn("automations: reward result read failed", zap.Error(read.Err))
-		}
+		l.warnFailedRead(read.Err)
 		applyRewardResults(waiting[i], read.Fields)
+	}
+}
+
+func (l *ValkeyRunLog) warnFailedRead(err error) {
+	if err != nil {
+		l.log.Warn("automations: reward result read failed", zap.Error(err))
 	}
 }
 

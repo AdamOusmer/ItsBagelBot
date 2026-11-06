@@ -42,11 +42,12 @@ func RetryableTx(err error, sentinels []error) bool {
 	if err == nil {
 		return false
 	}
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) {
-		return mysqlErr.Number == MySQLDeadlock || mysqlErr.Number == MySQLLockWaitTimeout
+	// First: a duplicate-key error wrapped with a sentinel also unwraps to its MySQL error.
+	if slices.ContainsFunc(sentinels, func(target error) bool { return errors.Is(err, target) }) {
+		return true
 	}
-	return slices.ContainsFunc(sentinels, func(target error) bool { return errors.Is(err, target) })
+	var mysqlErr *mysql.MySQLError
+	return errors.As(err, &mysqlErr) && (mysqlErr.Number == MySQLDeadlock || mysqlErr.Number == MySQLLockWaitTimeout)
 }
 
 func waitTxRetry(ctx context.Context, attempt int) error {

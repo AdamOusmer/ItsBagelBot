@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/valkeytest"
 
@@ -77,6 +78,25 @@ func TestPeekReadsTheExactExpiryFromAMarkerAndMarksOnAMiss(t *testing.T) {
 	assert.Equal(t, 1, store.peeks, "the marker answers the second peek")
 	assert.Equal(t, store.expiry, live[0].ExpiresAtMS, "three days left, past the day-long marker")
 }
+
+func TestAFailedIndexWriteLeavesNoMarker(t *testing.T) {
+	client, channel := markerRig(t)
+	ctx := context.Background()
+	notAnIndex := client.B().Set().Key(automation.LongCooldownMarkerIndexKey(channel)).Value("string").Px(time.Hour).Build()
+	require.NoError(t, client.Do(ctx, notAnIndex).Error())
+	expiry := time.Now().Add(72 * time.Hour).UnixMilli()
+	marked := NewMarkedLongCooldowns(client, &scriptedLongStore{expiry: expiry}, zap.NewNop())
+
+	_, won, err := marked.ClaimLongCooldowns(ctx, LongCooldownClaim{BroadcasterID: channel, Windows: longWindow("claim")})
+	require.NoError(t, err)
+	assert.True(t, won, "the database still decides")
+	assert.Equal(t, missingKeyTTL, markerTTL(t, client, channel, "claim"), "claim path")
+
+	require.Error(t, cooldownmarker.New(client).Hold(ctx, []cooldownmarker.Marker{{Channel: channel, Window: "moved", ExpiresAtMS: expiry}}))
+	assert.Equal(t, missingKeyTTL, markerTTL(t, client, channel, "moved"), "move path")
+}
+
+const missingKeyTTL = -2 * time.Millisecond
 
 func markerRig(t *testing.T) (valkey.Client, uint64) {
 	t.Helper()

@@ -56,24 +56,22 @@ func (kv KV) SetBytes(ctx context.Context, at Key, value []byte) error {
 
 // ReadBytes tells a missing key from a failed read.
 func (kv KV) ReadBytes(ctx context.Context, name string) ([]byte, bool, error) {
-	raw, err := kv.client.Do(ctx, kv.client.B().Get().Key(name).Build()).AsBytes()
-	if valkey_go.IsValkeyNil(err) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	return raw, true, nil
+	return readOptional(ctx, kv, name, valkey_go.ValkeyResult.AsBytes)
 }
 
 // ReadInt tells a missing key from a failed read or a non-integer value.
 func (kv KV) ReadInt(ctx context.Context, name string) (int64, bool, error) {
-	value, err := kv.client.Do(ctx, kv.client.B().Get().Key(name).Build()).AsInt64()
+	return readOptional(ctx, kv, name, valkey_go.ValkeyResult.AsInt64)
+}
+
+func readOptional[T any](ctx context.Context, kv KV, name string, decode func(valkey_go.ValkeyResult) (T, error)) (T, bool, error) {
+	var zero T
+	value, err := decode(kv.client.Do(ctx, kv.client.B().Get().Key(name).Build()))
 	if valkey_go.IsValkeyNil(err) {
-		return 0, false, nil
+		return zero, false, nil
 	}
 	if err != nil {
-		return 0, false, err
+		return zero, false, err
 	}
 	return value, true, nil
 }

@@ -5,11 +5,9 @@ package engine
 
 import (
 	"context"
-	"time"
 
-	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -17,13 +15,13 @@ import (
 
 // MarkedLongCooldowns answers refusals from Valkey so a live window costs about one database read per day. A marker hit refuses whichever store wrote it, because the hourly move leaves a window only in Valkey.
 type MarkedLongCooldowns struct {
-	client valkey.Client
-	store  LongCooldownStore
-	log    *zap.Logger
+	markers *cooldownmarker.Store
+	store   LongCooldownStore
+	log     *zap.Logger
 }
 
 func NewMarkedLongCooldowns(client valkey.Client, store LongCooldownStore, log *zap.Logger) *MarkedLongCooldowns {
-	return &MarkedLongCooldowns{client: client, store: store, log: log.Named("long-cooldowns")}
+	return &MarkedLongCooldowns{markers: cooldownmarker.New(client), store: store, log: log.Named("long-cooldowns")}
 }
 
 func (m *MarkedLongCooldowns) ClaimLongCooldowns(ctx context.Context, claim LongCooldownClaim) (LongCooldownHold, bool, error) {
@@ -47,10 +45,8 @@ func (m *MarkedLongCooldowns) ClaimLongCooldowns(ctx context.Context, claim Long
 func (m *MarkedLongCooldowns) ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error {
 	err := m.store.ReleaseLongCooldowns(ctx, hold)
 	for _, window := range hold.Windows {
-		key := automation.LongCooldownMarkerKey(hold.BroadcasterID, window.Key)
-		owner := automation.LongCooldownMarkerValue(window.ExpiresAtMS)
-		if clearErr := pkg_valkey.NewOwnerLock(m.client, key, owner).Release(ctx); clearErr != nil {
-			m.log.Warn("long cooldown marker not cleared", zap.String("key", key), zap.Error(clearErr))
+		if clearErr := m.markers.Clear(ctx, markerOf(hold.BroadcasterID, window)); clearErr != nil {
+			m.log.Warn("long cooldown marker not cleared", zap.String("window", window.Key), zap.Error(clearErr))
 		}
 	}
 	return err
@@ -61,7 +57,7 @@ func (m *MarkedLongCooldowns) PeekLongCooldowns(ctx context.Context, claim LongC
 	live := make([]modulesrpc.CooldownWindow, 0, len(claim.Windows))
 	missing := LongCooldownClaim{BroadcasterID: claim.BroadcasterID}
 	for _, window := range claim.Windows {
-		expiry, marked := m.markerExpiry(ctx, automation.LongCooldownMarkerKey(claim.BroadcasterID, window.Key))
+		expiry, marked := m.markerExpiry(ctx, claim.BroadcasterID, window.Key)
 		if marked {
 			live = append(live, modulesrpc.CooldownWindow{Key: window.Key, ExpiresAtMS: expiry})
 			continue
@@ -79,8 +75,12 @@ func (m *MarkedLongCooldowns) PeekLongCooldowns(ctx context.Context, claim LongC
 	return append(live, stored...), nil
 }
 
-func (m *MarkedLongCooldowns) markerExpiry(ctx context.Context, key string) (int64, bool) {
-	value, found, err := pkg_valkey.NewKV(m.client).ReadInt(ctx, key)
+func markerOf(channel uint64, window modulesrpc.CooldownWindow) cooldownmarker.Marker {
+	return cooldownmarker.Marker{Channel: channel, Window: window.Key, ExpiresAtMS: window.ExpiresAtMS}
+}
+
+func (m *MarkedLongCooldowns) markerExpiry(ctx context.Context, channel uint64, window string) (int64, bool) {
+	value, found, err := m.markers.Expiry(ctx, channel, window)
 	if err != nil {
 		m.log.Warn("long cooldown marker read failed, asking the database", zap.Error(err))
 	}
@@ -89,16 +89,16 @@ func (m *MarkedLongCooldowns) markerExpiry(ctx context.Context, key string) (int
 
 // A Valkey failure falls through to the database, which still decides every window it holds.
 func (m *MarkedLongCooldowns) marked(ctx context.Context, claim LongCooldownClaim) bool {
-	keys := make([]string, len(claim.Windows))
+	windows := make([]string, len(claim.Windows))
 	for i, window := range claim.Windows {
-		keys[i] = automation.LongCooldownMarkerKey(claim.BroadcasterID, window.Key)
+		windows[i] = window.Key
 	}
-	count, err := pkg_valkey.CountExisting(ctx, m.client, keys)
+	live, err := m.markers.AnyLive(ctx, claim.BroadcasterID, windows)
 	if err != nil {
 		m.log.Warn("long cooldown marker read failed, asking the database", zap.Error(err))
 		return false
 	}
-	return count > 0
+	return live
 }
 
 func (m *MarkedLongCooldowns) remark(ctx context.Context, hold LongCooldownHold) {
@@ -117,22 +117,9 @@ func (m *MarkedLongCooldowns) markWon(ctx context.Context, hold LongCooldownHold
 }
 
 func (m *MarkedLongCooldowns) markWindow(ctx context.Context, channel uint64, window modulesrpc.CooldownWindow) bool {
-	value := automation.LongCooldownMarkerValue(window.ExpiresAtMS)
-	ttl := automation.LongCooldownMarkerTTL(window.ExpiresAtMS, time.Now())
-	if ttl <= 0 {
-		return false
-	}
-	marker := pkg_valkey.IndexedKey{
-		Index:       automation.LongCooldownMarkerIndexKey(channel),
-		Member:      window.Key,
-		Key:         automation.LongCooldownMarkerKey(channel, window.Key),
-		Value:       value,
-		ExpiresAtMS: window.ExpiresAtMS,
-	}
-	held, found, err := marker.SetIfAbsent(ctx, m.client, ttl)
+	lost, err := m.markers.Mark(ctx, markerOf(channel, window))
 	if err != nil {
 		m.log.Warn("long cooldown marker write failed", zap.Error(err))
-		return false
 	}
-	return found && held != value
+	return lost
 }

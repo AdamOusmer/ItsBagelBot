@@ -8,7 +8,7 @@ import (
 	"errors"
 	"time"
 
-	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
@@ -21,20 +21,23 @@ const (
 	cooldownMovePoll     = 5 * time.Minute
 	cooldownMoveBudget   = 5 * time.Minute
 	cooldownMoveBatch    = 500
-	cooldownEraseBatch   = 500
-	cooldownEraseBudget  = 10 * time.Second
 )
 
 // CooldownMover hands rows with little time left to Valkey so the table only keeps long waits.
 type CooldownMover struct {
-	state  *RecipeState
-	client valkey.Client
-	owner  string
-	log    *zap.Logger
+	state   *RecipeState
+	markers *cooldownmarker.Store
+	lease   pkgvalkey.OwnerLock
+	log     *zap.Logger
 }
 
 func NewCooldownMover(state *RecipeState, client valkey.Client, owner string, log *zap.Logger) *CooldownMover {
-	return &CooldownMover{state: state, client: client, owner: owner, log: log.Named("cooldown-mover")}
+	return &CooldownMover{
+		state:   state,
+		markers: cooldownmarker.New(client),
+		lease:   pkgvalkey.NewOwnerLock(client, cooldownMoveLeaseKey, owner),
+		log:     log.Named("cooldown-mover"),
+	}
 }
 
 // Run polls often and lets the hour-long lease set the pace, so restarts cannot starve the job.
@@ -55,7 +58,7 @@ func (m *CooldownMover) Run(ctx context.Context) {
 
 // Tick reports whether this replica held the lease; the lease is kept until it lapses, which is what spaces runs an hour apart.
 func (m *CooldownMover) Tick(ctx context.Context) (bool, error) {
-	won, err := pkgvalkey.NewOwnerLock(m.client, cooldownMoveLeaseKey, m.owner).Acquire(ctx, cooldownMoveLease)
+	won, err := m.lease.Acquire(ctx, cooldownMoveLease)
 	if err != nil || !won {
 		return false, err
 	}
@@ -81,17 +84,11 @@ func (m *CooldownMover) moveBatch(ctx context.Context) (int, error) {
 	if err != nil || len(rows) == 0 {
 		return 0, err
 	}
-	markers := make([]pkgvalkey.IndexedKey, len(rows))
+	markers := make([]cooldownmarker.Marker, len(rows))
 	for i, row := range rows {
-		markers[i] = pkgvalkey.IndexedKey{
-			Index:       automation.LongCooldownMarkerIndexKey(row.UserID),
-			Member:      row.Key,
-			Key:         automation.LongCooldownMarkerKey(row.UserID, row.Key),
-			Value:       automation.LongCooldownMarkerValue(row.ExpiresAtMS),
-			ExpiresAtMS: row.ExpiresAtMS,
-		}
+		markers[i] = row.marker()
 	}
-	if err := pkgvalkey.HoldIndexedKeys(ctx, m.client, markers); err != nil {
+	if err := m.markers.Hold(ctx, markers); err != nil {
 		return 0, err
 	}
 	return len(rows), m.forgetRows(ctx, rows)
@@ -110,23 +107,13 @@ func (m *CooldownMover) forgetRows(ctx context.Context, rows []CooldownRow) erro
 	return nil
 }
 
-// EraseCooldownMarkers walks one channel's index in batches, so it never scans the keyspace. Out of budget it returns the error and the redelivered event carries on.
-func EraseCooldownMarkers(ctx context.Context, client valkey.Client, channel uint64) error {
-	ctx, cancel := context.WithTimeout(ctx, cooldownEraseBudget)
-	defer cancel()
-	erase := pkgvalkey.IndexErase{
-		Index: automation.LongCooldownMarkerIndexKey(channel),
-		Batch: cooldownEraseBatch,
-		KeyOf: func(window string) string { return automation.LongCooldownMarkerKey(channel, window) },
-	}
-	return erase.Run(ctx, client)
+func (row CooldownRow) marker() cooldownmarker.Marker {
+	return cooldownmarker.Marker{Channel: row.UserID, Window: row.Key, ExpiresAtMS: row.ExpiresAtMS}
 }
 
 // The row was released while its marker was being written, so nothing holds that window any more.
 func (m *CooldownMover) undoMarker(ctx context.Context, row CooldownRow) {
-	key := automation.LongCooldownMarkerKey(row.UserID, row.Key)
-	owner := automation.LongCooldownMarkerValue(row.ExpiresAtMS)
-	if err := pkgvalkey.NewOwnerLock(m.client, key, owner).Release(ctx); err != nil {
-		m.log.Warn("cooldown marker undo failed", zap.String("key", key), zap.Error(err))
+	if err := m.markers.Clear(ctx, row.marker()); err != nil {
+		m.log.Warn("cooldown marker undo failed", zap.String("window", row.Key), zap.Error(err))
 	}
 }

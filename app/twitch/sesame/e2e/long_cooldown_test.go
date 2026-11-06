@@ -17,6 +17,7 @@ import (
 	modulesrepo "ItsBagelBot/app/db/modules/repository"
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/lane"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/internal/testdb"
@@ -24,7 +25,6 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
-	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	baseent "entgo.io/ent"
 	entsql "entgo.io/ent/dialect/sql"
@@ -439,7 +439,7 @@ func exerciseRecipeState(t *testing.T, r *cooldownRig) {
 		repo := modulesrepo.NewModules(modulesent.NewClient(modulesent.Driver(entsql.OpenDB(r.dialect, r.pool))), bustest.NewPublisher(), nil, zap.NewNop())
 		t.Cleanup(func() { repo.Close(context.Background()) })
 		repo.SetAccountInstanceResolver(func(context.Context, uint64) (int64, error) { return instance, nil })
-		repo.SetCooldownMarkers(r.vc)
+		repo.SetCooldownMarkers(cooldownmarker.New(r.vc))
 
 		require.NoError(t, repo.DeleteAccount(ctx, r.channel, instance))
 
@@ -465,14 +465,14 @@ func exerciseErasureBatches(t *testing.T, r *cooldownRig) {
 		const markers = 1200
 		expiry := time.Now().Add(time.Hour).UnixMilli()
 		index := automation.LongCooldownMarkerIndexKey(channel)
-		seed := make([]pkgvalkey.IndexedKey, markers)
+		seed := make([]cooldownmarker.Marker, markers)
 		for i := range markers {
-			window := "w" + strconv.Itoa(i)
-			seed[i] = pkgvalkey.IndexedKey{Index: index, Member: window, Key: automation.LongCooldownMarkerKey(channel, window), Value: "1", ExpiresAtMS: expiry}
+			seed[i] = cooldownmarker.Marker{Channel: channel, Window: "w" + strconv.Itoa(i), ExpiresAtMS: expiry}
 		}
-		require.NoError(t, pkgvalkey.HoldIndexedKeys(ctx, r.vc, seed))
+		store := cooldownmarker.New(r.vc)
+		require.NoError(t, store.Hold(ctx, seed))
 
-		require.NoError(t, modulesrepo.EraseCooldownMarkers(ctx, r.vc, channel))
+		require.NoError(t, store.Erase(ctx, channel))
 
 		left, err := r.vc.Do(ctx, r.vc.B().Exists().Key(automation.LongCooldownMarkerKey(channel, "w1199"), index).Build()).AsInt64()
 		require.NoError(t, err)

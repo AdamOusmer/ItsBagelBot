@@ -17,7 +17,6 @@ import (
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	automationsrpc "ItsBagelBot/internal/domain/rpc/automations"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
 
@@ -43,29 +42,14 @@ func SubscribeAutomationRPC(nc *nats.Conn, queue string, deps AutomationRPCDeps)
 		deps.Client = pkg_valkey.Primary(deps.Client)
 	}
 	h := &automationRPC{deps: deps}
-	if err := h.subscribe(nc, queue, automationsrpc.SubjectRun, func(ctx context.Context, data []byte) any { return h.run(ctx, data) }); err != nil {
+	w := bus.RPCWiring{NC: nc, App: deps.App, Queue: queue, Log: deps.Log}.Within(automationRPCTimeout)
+	if err := bus.Serve(w, automationsrpc.SubjectRun, h.run); err != nil {
 		return err
 	}
-	return h.subscribe(nc, queue, automationrpc.RunsSubject, func(ctx context.Context, data []byte) any { return h.runs(ctx, data) })
+	return bus.Serve(w, automationrpc.RunsSubject, h.runs)
 }
 
-func (h *automationRPC) subscribe(nc *nats.Conn, queue, subject string, handle func(context.Context, []byte) any) error {
-	return bus.QueueSubscribeRPC(nc, subject, queue, func(msg *nats.Msg) {
-		txn := h.deps.App.StartTransaction("rpc " + subject)
-		defer txn.End()
-		ctx, cancel := context.WithTimeout(newrelic.NewContext(context.Background(), txn), automationRPCTimeout)
-		defer cancel()
-		if err := bus.Respond(msg, handle(ctx, msg.Data)); err != nil {
-			h.deps.Log.Warn("automation rpc reply failed", zap.String("subject", subject), zap.Error(err))
-		}
-	})
-}
-
-func (h *automationRPC) run(ctx context.Context, data []byte) automationsrpc.RunReply {
-	var req automationsrpc.RunRequest
-	if err := codec.Unmarshal(data, &req); err != nil {
-		return runRefused(rpc.CodeInvalid, "bad request")
-	}
+func (h *automationRPC) run(ctx context.Context, req automationsrpc.RunRequest) automationsrpc.RunReply {
 	broadcasterID, reason := validRunRequest(&req)
 	if reason != "" {
 		return runRefused(rpc.CodeInvalid, reason)
@@ -136,11 +120,7 @@ func (h *automationRPC) settleRequest(ctx context.Context, broadcasterID uint64,
 	}
 }
 
-func (h *automationRPC) runs(ctx context.Context, data []byte) automationrpc.RunsReply {
-	var req automationrpc.RunsRequest
-	if err := codec.Unmarshal(data, &req); err != nil {
-		return automationrpc.RunsReply{Refusal: rpc.Refused(rpc.CodeInvalid, "bad request")}
-	}
+func (h *automationRPC) runs(ctx context.Context, req automationrpc.RunsRequest) automationrpc.RunsReply {
 	id, err := strconv.ParseUint(req.BroadcasterID, 10, 64)
 	if err != nil || id == 0 {
 		return automationrpc.RunsReply{Refusal: rpc.Refused(rpc.CodeInvalid, "broadcaster_id must be numeric")}
