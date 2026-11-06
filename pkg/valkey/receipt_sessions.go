@@ -130,6 +130,28 @@ func TTLAndSize(ctx context.Context, client valkey_go.Client, ttlKey, sizeKey st
 	return ttlSeconds, size, err
 }
 
+// ReadDrawPool reads a session's state record, every member of its pool, and a labels hash alongside it, in one pipeline.
+// stateOK is false when the state record was absent; the pool and labels reads propagate their own errors.
+func ReadDrawPool(ctx context.Context, client valkey_go.Client, stateKey, poolKey, labelsKey string) (stateRaw string, stateOK bool, members []string, labels map[string]string, err error) {
+	results := client.DoMulti(ctx,
+		client.B().Get().Key(stateKey).Build(),
+		client.B().Zrange().Key(poolKey).Min("0").Max("-1").Build(),
+		client.B().Hgetall().Key(labelsKey).Build(),
+	)
+	stateRaw, err = results[0].ToString()
+	if valkey_go.IsValkeyNil(err) {
+		return "", false, nil, nil, nil
+	}
+	if err != nil {
+		return "", false, nil, nil, err
+	}
+	if members, err = results[1].AsStrSlice(); err != nil {
+		return "", false, nil, nil, err
+	}
+	labels, _ = results[2].AsStrMap()
+	return stateRaw, true, members, labels, nil
+}
+
 // StatusProbe reads whether a deadline key exists, a pool's size, and the deadline's remaining TTL in seconds, in one pipeline.
 func StatusProbe(ctx context.Context, client valkey_go.Client, deadlineKey, poolKey string) (exists bool, size, ttlSeconds int64, err error) {
 	results := client.DoMulti(ctx,

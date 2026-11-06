@@ -53,6 +53,16 @@ func ZRangeAll(ctx context.Context, client valkey_go.Client, key string) ([]stri
 	return client.Do(ctx, client.B().Zrange().Key(key).Min("0").Max("-1").Build()).AsStrSlice()
 }
 
+// ZRangeByScore returns up to limit members scored between min and max, lowest first.
+func ZRangeByScore(ctx context.Context, client valkey_go.Client, key, min, max string, limit int64) ([]string, error) {
+	return client.Do(ctx, client.B().Zrangebyscore().Key(key).Min(min).Max(max).Limit(0, limit).Build()).AsStrSlice()
+}
+
+// ZRem removes one member from a sorted set.
+func ZRem(ctx context.Context, client valkey_go.Client, key, member string) error {
+	return client.Do(ctx, client.B().Zrem().Key(key).Member(member).Build()).Error()
+}
+
 // IncrPlain increments a key with no TTL change.
 func IncrPlain(ctx context.Context, client valkey_go.Client, key string) (int64, error) {
 	return client.Do(ctx, client.B().Incr().Key(key).Build()).AsInt64()
