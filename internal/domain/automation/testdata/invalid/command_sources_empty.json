@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi",
+      "sources": []
+    }
+  }
+}

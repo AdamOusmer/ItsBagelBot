@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "conditions": [
+    { "type": "var", "params": { "scope": "channel", "name": "n", "op": "matches", "value": "x" } }
+  ]
+}

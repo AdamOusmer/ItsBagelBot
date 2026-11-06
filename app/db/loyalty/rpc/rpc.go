@@ -49,6 +49,10 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At("counter.entries", l.handleCounterEntries),
 		bus.At("counter.trial", l.handleCounterTrial),
 		bus.At("counter.promote_trial", l.handlePromoteTrial),
+		bus.At("variable.get", l.handleVariableGet),
+		bus.At("variable.set", l.handleVariableSet),
+		bus.At("variable.add", l.handleVariableAdd),
+		bus.At("variable.delete", l.handleVariableDelete),
 	)
 }
 

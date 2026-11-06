@@ -1,0 +1,92 @@
+{
+  "match": {
+    "start": "Começa com",
+    "exact": "Exato",
+    "anywhere": "Em qualquer lugar da mensagem",
+    "regex": "Expressão regular"
+  },
+  "sources": {
+    "chat": "Chat",
+    "sub_message": "Mensagens de inscrição"
+  },
+  "color": {
+    "none": "Padrão",
+    "primary": "Principal",
+    "blue": "Azul",
+    "green": "Verde",
+    "orange": "Laranja",
+    "purple": "Roxo"
+  },
+  "level": {
+    "everyone": "Todos",
+    "sub": "Inscritos",
+    "vip": "VIPs",
+    "mod": "Moderadores",
+    "lead_mod": "Moderadores líderes",
+    "broadcaster": "Streamer"
+  },
+  "state": {
+    "live": "Ao vivo",
+    "offline": "Offline"
+  },
+  "op": {
+    "contains": "contém",
+    "eq": "é igual a",
+    "ne": "não é",
+    "gt": "maior que",
+    "gte": "pelo menos",
+    "lt": "menor que",
+    "lte": "no máximo",
+    "exists": "está definida",
+    "upper": "Deixar em maiúsculas",
+    "lower": "Deixar em minúsculas",
+    "trim": "Remover espaços",
+    "length": "Contar caracteres",
+    "replace": "Substituir",
+    "substring": "Pegar uma parte",
+    "split_pick": "Dividir e escolher um",
+    "url_encode": "Tornar seguro para link"
+  },
+  "scope": {
+    "channel": "O canal",
+    "viewer": "Este espectador"
+  },
+  "position": {
+    "top": "Superior",
+    "center": "Centro",
+    "bottom": "Inferior"
+  },
+  "status": {
+    "fulfill": "Concluir",
+    "cancel": "Cancelar e reembolsar"
+  },
+  "mode": {
+    "color": "Cor",
+    "scene": "Cena"
+  },
+  "kind": {
+    "text": "Texto",
+    "image": "Imagem",
+    "video": "Vídeo",
+    "channel": {
+      "follow": "Novo seguidor",
+      "subscribe": "Nova inscrição",
+      "subscription": {
+        "message": "Mensagem de reinscrição",
+        "gift": "Inscrições presenteadas"
+      },
+      "cheer": "Cheer",
+      "raid": "Raid recebida",
+      "ad_break": {
+        "begin": "Intervalo de anúncios começa"
+      },
+      "channel_points_custom_reward_redemption": {
+        "add": "Recompensa resgatada"
+      }
+    },
+    "stream": {
+      "online": "A live começa",
+      "offline": "A live termina"
+    }
+  }
+}

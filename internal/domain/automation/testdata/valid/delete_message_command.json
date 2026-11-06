@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "lead_mod"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "delete_message",
+      "params": {}
+    },
+    {
+      "type": "timeout",
+      "params": {
+        "login": "{user}",
+        "seconds": 600,
+        "reason": "spam"
+      }
+    }
+  ]
+}

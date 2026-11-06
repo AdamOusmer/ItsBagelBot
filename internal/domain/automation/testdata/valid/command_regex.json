@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "^!roll (\\d+)$",
+      "match": "regex"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "hello {user}"
+      }
+    }
+  ]
+}

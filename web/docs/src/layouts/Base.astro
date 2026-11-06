@@ -40,7 +40,7 @@ Astro.locals.uiLocale = locale;
 
 const metaDescription = description ?? t('description');
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
-const ogImage = new URL('/og-image.png', Astro.site).href;
+const ogImage = new URL('/og-image.png?v=2', Astro.site).href;
 const localeLinks = docsLocaleOptions(Astro.url.pathname, locale);
 const alternates = localeLinks.map(({ code, href }) => ({ code, href: new URL(href, Astro.site).href }));
 

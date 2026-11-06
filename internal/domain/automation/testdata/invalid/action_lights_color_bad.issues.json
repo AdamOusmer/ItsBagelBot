@@ -1,0 +1,6 @@
+[
+  {
+    "path": "actions[0].params.color",
+    "code": "invalid_format"
+  }
+]

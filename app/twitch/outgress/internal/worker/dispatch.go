@@ -28,10 +28,18 @@ func (w *Worker) Process(msg *bus.Message) error {
 		return nil
 	}
 	annotateTxn(ctx, &payload)
-	if allowed, err := w.admitPayload(ctx, &payload); err != nil || !allowed {
+	err := w.processDecoded(ctx, &payload, msg.UUID)
+	if err != nil && msg.FinalDelivery() {
+		w.recordExhaustedRewards(ctx, &payload)
+	}
+	return err
+}
+
+func (w *Worker) processDecoded(ctx context.Context, payload *outgress.Message, uuid string) error {
+	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
 		return err
 	}
-	if w.rejectTrialOutput(ctx, &payload) {
+	if w.rejectTrialOutput(ctx, payload) {
 		return nil
 	}
 
@@ -39,9 +47,9 @@ func (w *Worker) Process(msg *bus.Message) error {
 		return err
 	}
 	if payload.Type == outgress.TypeBatch {
-		return w.processBatchMessage(ctx, &payload, msg.UUID)
+		return w.processBatchMessage(ctx, payload, uuid)
 	}
-	return w.processPayload(ctx, &payload)
+	return w.processPayload(ctx, payload)
 }
 
 func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) error {

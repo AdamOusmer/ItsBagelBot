@@ -30,6 +30,8 @@ type wireMessage struct {
 	Status              string                 `json:"status,omitempty"`
 	Origin              string                 `json:"origin,omitempty"`
 	TrialGeneration     uint64                 `json:"trial_generation,omitempty"`
+	RunID               string                 `json:"run_id,omitempty"`
+	ActionSlot          string                 `json:"action_slot,omitempty"`
 }
 
 func PrepareJSON() error {
@@ -53,6 +55,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 		As: wire.As, Color: wire.Color, To: wire.To, MsgID: wire.MsgID,
 		RewardID: wire.RewardID, RedemptionID: wire.RedemptionID, Status: wire.Status,
 		Origin: wire.Origin, TrialGeneration: wire.TrialGeneration,
+		RunID: wire.RunID, ActionSlot: wire.ActionSlot,
 	}
 	return nil
 }

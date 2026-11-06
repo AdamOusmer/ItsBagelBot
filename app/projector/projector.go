@@ -38,6 +38,7 @@ type Projector struct {
 	hydrator              *hydration.Hydrator
 	loyalty               loyaltyCounterReader
 	live                  liveCounterStore
+	owner                 automationOwner
 	log                   *zap.Logger
 	analytics             *analytics.Recorder
 }
@@ -51,6 +52,7 @@ type Deps struct {
 	Hydrator              *hydration.Hydrator
 	Loyalty               loyaltyCounterReader
 	Live                  liveCounterStore
+	Owner                 automationOwner
 	Analytics             *analytics.Recorder
 	Log                   *zap.Logger
 }
@@ -65,6 +67,7 @@ func NewProjector(d Deps) *Projector {
 		hydrator:              d.Hydrator,
 		loyalty:               d.Loyalty,
 		live:                  d.Live,
+		owner:                 d.Owner,
 		log:                   d.Log,
 		analytics:             d.Analytics,
 	}

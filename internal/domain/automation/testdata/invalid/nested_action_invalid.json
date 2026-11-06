@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": {
+          "type": "live",
+          "params": {
+            "state": "live"
+          }
+        },
+        "then": [
+          {
+            "type": "chat",
+            "params": {
+              "text": "hello {user}"
+            }
+          },
+          {
+            "type": "chat",
+            "params": {}
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "user": "The viewer who triggered it",
+  "args": "Everything typed after the command",
+  "arg": "One named argument: replace key",
+  "event": {
+    "user": "Display name of the viewer",
+    "login": "Login name of the viewer",
+    "user_id": "Twitch user ID",
+    "tier": "Subscription tier",
+    "is_gift": "Whether the subscription is a gift",
+    "months": "Total months subscribed",
+    "streak": "Current streak in months",
+    "message": "Message text",
+    "amount": "Bits or gifts count",
+    "total": "Total gifted so far",
+    "anonymous": "Whether it was anonymous",
+    "viewers": "Viewers in the raid",
+    "seconds": "Ad length in seconds",
+    "automatic": "Whether the break was automatic",
+    "reward": "Reward title",
+    "reward_id": "Reward ID",
+    "cost": "Reward cost",
+    "input": "Text the viewer entered",
+    "type": "Stream type"
+  }
+}

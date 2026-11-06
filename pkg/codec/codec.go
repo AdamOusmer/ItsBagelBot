@@ -4,10 +4,12 @@
 package codec
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"reflect"
+	"strings"
 
 	"github.com/bytedance/sonic"
 )
@@ -78,6 +80,23 @@ func Valid(data []byte) bool { return std.Valid(data) }
 func FastUnmarshal(data []byte, v any) error { return fast.Unmarshal(data, v) }
 
 func FastMarshal(v any) ([]byte, error) { return fast.Marshal(v) }
+
+// UnmarshalStrict refuses unknown fields and trailing data; sonic reports both differently per build, so this stays on encoding/json.
+func UnmarshalStrict(data []byte, v any) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		return err
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return errors.New("trailing data")
+	}
+	return nil
+}
+
+func IsUnknownField(err error) bool {
+	return err != nil && strings.HasPrefix(err.Error(), "json: unknown field")
+}
 
 func NewDecoder(r io.Reader) Decoder { return std.NewDecoder(r) }
 

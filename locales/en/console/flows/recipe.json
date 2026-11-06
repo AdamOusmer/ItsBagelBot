@@ -1,0 +1,33 @@
+{
+  "title": "Recipe settings",
+  "close": "Close recipe settings",
+  "queueTitle": "One at a time",
+  "queueLabel": "Queue name",
+  "queuePlaceholder": "sounds",
+  "queueHint": "Recipes with the same queue name take turns. Leave it empty to let this one run whenever it fires.",
+  "runsTitle": "Recent runs",
+  "runsEmpty": "Nothing has run yet.",
+  "runsSaveFirst": "Save this recipe to see its runs.",
+  "runsRefresh": "Refresh",
+  "runsFailed": "Could not load runs. Try again in a moment.",
+  "runCount": "{count} times",
+  "runOneOf": "One of: {steps}",
+  "runStopped": "This run stopped at the first check.",
+  "why": {
+    "math_error": "The math could not be worked out. Check for a divide by zero or a typo.",
+    "bad_times": "The number of times to repeat was not a whole number.",
+    "text_error": "This text step got a value it could not use.",
+    "reward_not_manageable": "Twitch only lets us change rewards made here. Pick one made in Channel points.",
+    "reward_not_found": "This reward no longer exists on Twitch. Pick another one.",
+    "reward_rejected": "Twitch turned down this change. Check the cost and that the channel is still connected.",
+    "reward_unconfirmed": "Twitch did not confirm this change after several tries. Check the reward.",
+    "queue_full": "Too many runs were already waiting in this queue.",
+    "queue_timeout": "This run waited 5 minutes in its queue and gave up.",
+    "queued": "Sent to Twitch. No answer yet, so check back in a moment.",
+    "limited": "This hit a limit, so it did not run.",
+    "failedWith": "This step failed: {detail}.",
+    "failed": "This step failed.",
+    "unsupported": "This step cannot run here.",
+    "skipped": "This step was skipped."
+  }
+}

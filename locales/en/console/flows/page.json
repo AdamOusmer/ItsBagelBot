@@ -1,0 +1,16 @@
+{
+  "eyebrow": "Board · {name}",
+  "description": "Pick what happens on stream, then lay out what your bot does next.",
+  "new": "New",
+  "search": "Search by name or trigger",
+  "stepOne": "1 step",
+  "stepMany": "{count} steps",
+  "turnOff": "Turn off {name}",
+  "turnOn": "Turn on {name}",
+  "emptyTitle": "Nothing matches",
+  "emptyBody": "Try another name or trigger.",
+  "noneTitle": "Nothing here yet",
+  "noneBody": "Commands and modules stay on their own pages. Choose New to build your first one.",
+  "untitled": "Untitled",
+  "save": "Save"
+}

@@ -1,0 +1,16 @@
+{
+  "eyebrow": "Quadro · {name}",
+  "description": "Escolha o que acontece na live e depois defina o que seu bot faz a seguir.",
+  "new": "Novo",
+  "search": "Buscar por nome ou gatilho",
+  "stepOne": "1 etapa",
+  "stepMany": "{count} etapas",
+  "turnOff": "Desativar {name}",
+  "turnOn": "Ativar {name}",
+  "emptyTitle": "Nenhum resultado",
+  "emptyBody": "Tente outro nome ou gatilho.",
+  "noneTitle": "Nada aqui ainda",
+  "noneBody": "Comandos e módulos continuam em suas próprias páginas. Escolha Novo para criar o primeiro.",
+  "untitled": "Sem título",
+  "save": "Salvar"
+}

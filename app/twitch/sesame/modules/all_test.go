@@ -5,6 +5,7 @@ package modules
 
 import (
 	"maps"
+	"slices"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
@@ -102,6 +103,7 @@ var shippedContract = map[string]moduleSpec{
 	"~uptime":       {module.KindCore, []commandSpec{command("uptime", roleEveryone)}},
 	"shoutout":      {module.KindOptIn, nil},
 	"alerts":        {module.KindDefault, nil},
+	"automations":   {module.KindOptIn, nil},
 	"automod":       {module.KindDefault, nil},
 	"channelpoints": {module.KindOptIn, nil},
 	"govee":         {module.KindOptIn, nil},
@@ -159,6 +161,14 @@ var shippedContract = map[string]moduleSpec{
 		command("schedule", roleEveryone), command("merch", roleEveryone), command("sens", roleEveryone, "settings", "crosshair"),
 		command("specs", roleEveryone, "setup", "pc"), command("prime", roleEveryone, "sub"), command("lurk", roleEveryone), command("unlurk", roleEveryone),
 	}},
+}
+
+// The pipeline derives its automations premium gate from this chat entry; losing it would run saved recipes for free accounts.
+func TestAutomationsBetaGateIsVisibleOnChat(t *testing.T) {
+	reg, _ := allRegistry(t)
+	i := slices.IndexFunc(reg.For("channel.chat.message"), func(m module.Module) bool { return m.Name == engine.AutomationsModuleName })
+	require.GreaterOrEqual(t, i, 0)
+	assert.True(t, reg.For("channel.chat.message")[i].Beta)
 }
 
 func TestShippedModuleContract(t *testing.T) {

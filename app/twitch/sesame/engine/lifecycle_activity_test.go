@@ -51,7 +51,7 @@ func TestLifecycleActivityRequiresEnabledViewerFeature(t *testing.T) {
 			}}}
 			p := &Pipeline{registry: NewRegistry(zap.NewNop(), m), log: zap.NewNop()}
 			c := &module.Context{Env: lane.Envelope{Type: tc.event}}
-			p.runHandlers(context.Background(), map[string]projection.ModuleView{"feature": {IsEnabled: tc.enabled}}, c, func(*module.Output) {})
+			p.runHandlers(context.Background(), map[string]projection.ModuleView{"feature": {IsEnabled: tc.enabled}}, c, func(*module.Output) {}, tc.event)
 			require.Equal(t, tc.want, c.Engaged)
 		})
 	}
@@ -75,7 +75,7 @@ func TestLifecycleActivityIgnoresSilentDefaultsAndAdBreaks(t *testing.T) {
 			}}}
 			p := &Pipeline{registry: NewRegistry(zap.NewNop(), m), log: zap.NewNop()}
 			c := &module.Context{Env: lane.Envelope{Type: tc.event}}
-			p.runHandlers(context.Background(), map[string]projection.ModuleView{"alerts": {IsEnabled: true}}, c, func(*module.Output) { c.Emitted++ })
+			p.runHandlers(context.Background(), map[string]projection.ModuleView{"alerts": {IsEnabled: true}}, c, func(*module.Output) { c.Emitted++ }, tc.event)
 			require.Equal(t, tc.want, c.Engaged)
 		})
 	}

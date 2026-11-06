@@ -1,0 +1,92 @@
+{
+  "match": {
+    "start": "Empieza por",
+    "exact": "Exacto",
+    "anywhere": "En cualquier parte del mensaje",
+    "regex": "Expresión regular"
+  },
+  "sources": {
+    "chat": "Chat",
+    "sub_message": "Mensajes de suscripción"
+  },
+  "color": {
+    "none": "Predeterminado",
+    "primary": "Principal",
+    "blue": "Azul",
+    "green": "Verde",
+    "orange": "Naranja",
+    "purple": "Morado"
+  },
+  "level": {
+    "everyone": "Todos",
+    "sub": "Suscriptores",
+    "vip": "VIP",
+    "mod": "Moderadores",
+    "lead_mod": "Moderadores principales",
+    "broadcaster": "Streamer"
+  },
+  "state": {
+    "live": "En directo",
+    "offline": "Desconectado"
+  },
+  "op": {
+    "contains": "contiene",
+    "eq": "es igual a",
+    "ne": "no es",
+    "gt": "mayor que",
+    "gte": "al menos",
+    "lt": "menor que",
+    "lte": "como máximo",
+    "exists": "está definida",
+    "upper": "Pasar a mayúsculas",
+    "lower": "Pasar a minúsculas",
+    "trim": "Recortar espacios",
+    "length": "Contar caracteres",
+    "replace": "Reemplazar",
+    "substring": "Extraer una parte",
+    "split_pick": "Dividir y elegir uno",
+    "url_encode": "Hacer seguro para un enlace"
+  },
+  "scope": {
+    "channel": "El canal",
+    "viewer": "Este espectador"
+  },
+  "position": {
+    "top": "Arriba",
+    "center": "Centro",
+    "bottom": "Abajo"
+  },
+  "status": {
+    "fulfill": "Completar",
+    "cancel": "Cancelar y reembolsar"
+  },
+  "mode": {
+    "color": "Color",
+    "scene": "Escena"
+  },
+  "kind": {
+    "text": "Texto",
+    "image": "Imagen",
+    "video": "Vídeo",
+    "channel": {
+      "follow": "Nuevo seguidor",
+      "subscribe": "Nueva suscripción",
+      "subscription": {
+        "message": "Mensaje de resuscripción",
+        "gift": "Suscripciones regaladas"
+      },
+      "cheer": "Cheer",
+      "raid": "Raid entrante",
+      "ad_break": {
+        "begin": "Empieza una pausa publicitaria"
+      },
+      "channel_points_custom_reward_redemption": {
+        "add": "Recompensa canjeada"
+      }
+    },
+    "stream": {
+      "online": "El stream empieza",
+      "offline": "El stream termina"
+    }
+  }
+}

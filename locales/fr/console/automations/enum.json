@@ -1,0 +1,92 @@
+{
+  "match": {
+    "start": "Commence par",
+    "exact": "Exact",
+    "anywhere": "N’importe où dans le message",
+    "regex": "Expression régulière"
+  },
+  "sources": {
+    "chat": "Chat",
+    "sub_message": "Messages d’abonnement"
+  },
+  "color": {
+    "none": "Par défaut",
+    "primary": "Principale",
+    "blue": "Bleu",
+    "green": "Vert",
+    "orange": "Orange",
+    "purple": "Violet"
+  },
+  "level": {
+    "everyone": "Tout le monde",
+    "sub": "Abonnés",
+    "vip": "VIP",
+    "mod": "Modérateurs",
+    "lead_mod": "Modérateurs principaux",
+    "broadcaster": "Diffuseur"
+  },
+  "state": {
+    "live": "En direct",
+    "offline": "Hors ligne"
+  },
+  "op": {
+    "contains": "contient",
+    "eq": "égal à",
+    "ne": "différent de",
+    "gt": "supérieur à",
+    "gte": "au moins",
+    "lt": "inférieur à",
+    "lte": "au plus",
+    "exists": "est défini",
+    "upper": "Mettre en majuscules",
+    "lower": "Mettre en minuscules",
+    "trim": "Supprimer les espaces",
+    "length": "Compter les caractères",
+    "replace": "Remplacer",
+    "substring": "Extraire une partie",
+    "split_pick": "Séparer et en choisir un",
+    "url_encode": "Adapter pour un lien"
+  },
+  "scope": {
+    "channel": "La chaîne",
+    "viewer": "Ce viewer"
+  },
+  "position": {
+    "top": "Haut",
+    "center": "Centre",
+    "bottom": "Bas"
+  },
+  "status": {
+    "fulfill": "Accomplir",
+    "cancel": "Annuler et rembourser"
+  },
+  "mode": {
+    "color": "Couleur",
+    "scene": "Scène"
+  },
+  "kind": {
+    "text": "Texte",
+    "image": "Image",
+    "video": "Vidéo",
+    "channel": {
+      "follow": "Nouveau follower",
+      "subscribe": "Nouvel abonnement",
+      "subscription": {
+        "message": "Message de réabonnement",
+        "gift": "Abonnements offerts"
+      },
+      "cheer": "Cheer",
+      "raid": "Raid entrant",
+      "ad_break": {
+        "begin": "Début d’une coupure pub"
+      },
+      "channel_points_custom_reward_redemption": {
+        "add": "Récompense échangée"
+      }
+    },
+    "stream": {
+      "online": "Le stream démarre",
+      "offline": "Le stream se termine"
+    }
+  }
+}

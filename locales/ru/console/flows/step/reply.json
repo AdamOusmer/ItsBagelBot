@@ -1,0 +1,164 @@
+{
+  "chat": {
+    "label": "Отправить сообщение в чат",
+    "summary": "Бот отвечает в чате",
+    "field": {
+      "message": {
+        "label": "Сообщение",
+        "placeholder": "Спасибо, {user}!"
+      }
+    }
+  },
+  "points": {
+    "label": "Начислить баллы лояльности",
+    "summary": "Добавить или списать баллы",
+    "field": {
+      "amount": {
+        "label": "Количество",
+        "unit": "баллов"
+      }
+    }
+  },
+  "counter": {
+    "label": "Увеличить счётчик",
+    "summary": "Увеличить счётчик",
+    "field": {
+      "counter": {
+        "label": "Счётчик"
+      }
+    }
+  },
+  "lights": {
+    "label": "Настроить свет",
+    "summary": "Установить цвет или сцену Govee",
+    "field": {
+      "device": {
+        "label": "Свет"
+      },
+      "mode": {
+        "label": "Режим",
+        "option": {
+          "color": "Цвет",
+          "scene": "Сцена"
+        }
+      },
+      "color": {
+        "label": "Цвет"
+      },
+      "scene": {
+        "label": "Сцена"
+      }
+    }
+  },
+  "wait": {
+    "label": "Ожидание",
+    "summary": "Пауза перед следующим шагом",
+    "field": {
+      "seconds": {
+        "label": "Задержка",
+        "unit": "секунд, макс. {max}"
+      }
+    }
+  },
+  "loop": {
+    "label": "Повторить шаги",
+    "summary": "Запустить путь до 100 раз",
+    "field": {
+      "times": { "label": "Сколько раз", "placeholder": "3" }
+    },
+    "out": { "body": "Каждый раз", "done": "После завершения" }
+  },
+  "varSet": {
+    "label": "Задать переменную",
+    "summary": "Сохранить значение на потом",
+    "field": {
+      "scope": { "label": "Хранить для", "option": { "channel": "Канал", "viewer": "Этот зритель" } },
+      "name": { "label": "Название", "placeholder": "deaths" },
+      "value": { "label": "Значение", "placeholder": "{user}" }
+    }
+  },
+  "varAdd": {
+    "label": "Прибавить к переменной",
+    "summary": "Прибавить или вычесть",
+    "field": {
+      "scope": { "label": "Хранить для", "option": { "channel": "Канал", "viewer": "Этот зритель" } },
+      "name": { "label": "Название", "placeholder": "deaths" },
+      "amount": { "label": "Количество" }
+    }
+  },
+  "varDelete": {
+    "label": "Удалить переменную",
+    "summary": "Забыть значение",
+    "field": {
+      "scope": { "label": "Хранить для", "option": { "channel": "Канал", "viewer": "Этот зритель" } },
+      "name": { "label": "Название", "placeholder": "deaths" }
+    }
+  },
+  "text": {
+    "label": "Изменить текст",
+    "summary": "Очистить или разобрать текст",
+    "field": {
+      "op": {
+        "label": "Что сделать",
+        "option": {
+          "upper": "Сделать заглавными",
+          "lower": "Сделать строчными",
+          "trim": "Убрать пробелы",
+          "length": "Посчитать символы",
+          "replace": "Заменить",
+          "substring": "Взять часть",
+          "split_pick": "Разделить и выбрать",
+          "contains": "Проверить, содержит ли",
+          "url_encode": "Подготовить для ссылки"
+        }
+      },
+      "input": { "label": "Текст", "placeholder": "{args}" },
+      "find": { "label": "Найти" },
+      "replaceWith": { "label": "Заменить на" },
+      "start": { "label": "Начиная с" },
+      "count": { "label": "Сколько символов" },
+      "separator": { "label": "Разделитель" },
+      "pick": { "label": "Какой выбрать", "placeholder": "1, или random" },
+      "needle": { "label": "Что искать" },
+      "saveAs": { "label": "Сохранить как", "placeholder": "cleaned" }
+    }
+  },
+  "math": {
+    "label": "Вычислить",
+    "summary": "Вычислить число",
+    "field": {
+      "expression": { "label": "Выражение", "placeholder": "({bits} / 100) + 1" },
+      "saveAs": { "label": "Сохранить как", "placeholder": "total" }
+    }
+  },
+  "httpGet": {
+    "label": "Прочитать по веб-адресу",
+    "summary": "Получить значение по https",
+    "field": {
+      "url": { "label": "Адрес", "placeholder": "https://example.com/data" },
+      "jsonPath": { "label": "Путь JSON", "placeholder": "data.value" },
+      "saveAs": { "label": "Сохранить как", "placeholder": "answer" }
+    },
+    "out": { "ok": "Сработало", "failure": "Не сработало" }
+  },
+  "httpPost": {
+    "label": "Отправить по веб-адресу",
+    "summary": "Отправить на вебхук по https",
+    "field": {
+      "url": { "label": "Адрес", "placeholder": "https://example.com/hook" },
+      "body": { "label": "Тело", "placeholder": "{user} сделал это" },
+      "saveAs": { "label": "Сохранить как", "placeholder": "answer" }
+    },
+    "out": { "ok": "Сработало", "failure": "Не сработало" }
+  },
+  "rewardUpdate": {
+    "label": "Изменить награду",
+    "summary": "Включить или выключить награду или задать её стоимость",
+    "field": {
+      "reward": { "label": "Награда" },
+      "setEnabled": { "label": "Включено", "option": { "keep": "Оставить как есть", "on": "Включить", "off": "Выключить" } },
+      "cost": { "label": "Новая стоимость", "unit": "баллов" },
+      "reset": { "label": "Вернуть обратно в конце стрима" }
+    }
+  }
+}

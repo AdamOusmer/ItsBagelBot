@@ -11,10 +11,11 @@ import (
 )
 
 func Incr(ctx context.Context, client valkey_go.Client, key string, ttl time.Duration) (int64, error) {
-	resps := client.DoMulti(ctx,
-		client.B().Incr().Key(key).Build(),
-		client.B().Expire().Key(key).Seconds(int64(ttl.Seconds())).Build(),
-	)
+	return bumpAndExpire(ctx, client, client.B().Incr().Key(key).Build(), client.B().Expire().Key(key).Seconds(int64(ttl.Seconds())).Build())
+}
+
+func bumpAndExpire(ctx context.Context, client valkey_go.Client, bump, expire valkey_go.Completed) (int64, error) {
+	resps := client.DoMulti(ctx, bump, expire)
 	n, err := resps[0].AsInt64()
 	if err != nil {
 		return 0, err

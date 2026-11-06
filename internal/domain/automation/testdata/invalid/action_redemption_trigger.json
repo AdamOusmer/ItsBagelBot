@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "redemption",
+      "params": {
+        "status": "fulfill"
+      }
+    }
+  ]
+}

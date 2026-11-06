@@ -1,0 +1,7 @@
+{
+  "command": "Comando de chat",
+  "event": "Evento da Twitch",
+  "timer": "Temporizador",
+  "reward": "Recompensa de pontos do canal",
+  "manual": "Manual"
+}

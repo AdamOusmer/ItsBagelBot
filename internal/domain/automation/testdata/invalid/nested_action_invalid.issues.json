@@ -1,0 +1,6 @@
+[
+  {
+    "path": "actions[0].params.then[1].params.text",
+    "code": "required"
+  }
+]

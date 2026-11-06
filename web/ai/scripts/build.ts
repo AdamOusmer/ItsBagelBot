@@ -187,7 +187,7 @@ function renderLinks(tasks: Page[]): string {
 }
 
 function renderIndex(index: Page, tasks: Page[]): string {
-  const head = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, follow"><link rel="canonical" href="${origin}/"><meta name="description" content="${escapeHtml(index.description)}"><title>${escapeHtml(index.title)}</title>`;
+  const head = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, follow"><link rel="canonical" href="${origin}/"><meta name="description" content="${escapeHtml(index.description)}"><meta property="og:title" content="${escapeHtml(index.title)}"><meta property="og:description" content="${escapeHtml(index.description)}"><meta property="og:image" content="${humanOrigin}og-image.png?v=2"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${humanOrigin}og-image.png?v=2"><title>${escapeHtml(index.title)}</title>`;
   const human = `<p>This site is written for AI assistants. For the human site, go to <a href="${humanOrigin}">${humanOrigin}</a>.</p>`;
   return `<!doctype html>\n<html lang="en"><head>${head}</head><body><h1>${escapeHtml(index.title)}</h1>${human}${renderLinks(tasks)}</body></html>\n`;
 }

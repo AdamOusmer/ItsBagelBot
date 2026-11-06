@@ -31,6 +31,7 @@
   "importTooLarge": "Der eingelesene Import ist zu groß zur Überprüfung.",
   "importDecode": "Der eingelesene Import konnte nicht dekodiert werden. Führe die Vorschau erneut aus.",
   "fileTooLarge": "Diese Datei ist zu groß. Exportierte Bot-Konfigurationen sollten deutlich kleiner als 20 MB sein.",
+  "flowFileTooLarge": "Diese Rezeptdatei ist zu groß.",
   "fileRead": "Diese Datei konnte nicht gelesen werden.",
   "importSource": "Wähle eine Importquelle.",
   "importService": "Der Importdienst hat nicht geantwortet. Versuche es gleich erneut.",

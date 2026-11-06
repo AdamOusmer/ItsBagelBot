@@ -1,0 +1,134 @@
+[
+  {
+    "index": 0,
+    "sourceName": "Hype redeem",
+    "name": "Hype redeem",
+    "renamed": false,
+    "setup": [
+      {
+        "code": "reward_trigger",
+        "path": "trigger.params.reward_id"
+      },
+      {
+        "code": "users_list",
+        "path": "conditions[0]"
+      },
+      {
+        "code": "http_target",
+        "path": "actions[1]"
+      },
+      {
+        "code": "lights_target",
+        "path": "actions[2]"
+      },
+      {
+        "code": "run_removed",
+        "path": "actions[4]"
+      }
+    ],
+    "status": "ready",
+    "issues": [],
+    "landing": "automation",
+    "review": [
+      {
+        "code": "counter",
+        "path": "actions[0].params.text",
+        "detail": "deaths"
+      },
+      {
+        "code": "fetch",
+        "path": "actions[0].params.text",
+        "detail": "weather"
+      },
+      {
+        "code": "counter",
+        "path": "actions[5]",
+        "detail": "deaths"
+      },
+      {
+        "code": "run_linked",
+        "path": "actions[3]",
+        "detail": "Mod helper"
+      }
+    ]
+  },
+  {
+    "index": 1,
+    "sourceName": "Mod helper",
+    "name": "Mod helper",
+    "renamed": false,
+    "setup": [
+      {
+        "code": "event_filter",
+        "path": "trigger.params.filters.user_id"
+      },
+      {
+        "code": "users_list",
+        "path": "actions[0].params.condition"
+      },
+      {
+        "code": "login_target",
+        "path": "actions[0].params.then[0].params.login"
+      },
+      {
+        "code": "secret_removed",
+        "path": "actions[0].params.else[0]"
+      }
+    ],
+    "status": "ready",
+    "issues": [],
+    "landing": "automation",
+    "review": [
+      {
+        "code": "privileged_action",
+        "path": "actions[0].params.then[0]",
+        "detail": "points_add"
+      },
+      {
+        "code": "run_linked",
+        "path": "actions[0].params.else[1]",
+        "detail": "Hype redeem"
+      }
+    ]
+  },
+  {
+    "index": 2,
+    "sourceName": "Recipes v2",
+    "name": "Recipes v2",
+    "renamed": false,
+    "setup": [
+      {
+        "code": "http_target",
+        "path": "actions[5].params.actions[0]"
+      },
+      {
+        "code": "reward_target",
+        "path": "actions[6]"
+      }
+    ],
+    "status": "ready",
+    "issues": [],
+    "landing": "automation",
+    "review": []
+  },
+  {
+    "index": 3,
+    "sourceName": "Pasted keys",
+    "name": "Pasted keys",
+    "renamed": false,
+    "setup": [
+      {
+        "code": "users_list",
+        "path": "conditions[0]"
+      },
+      {
+        "code": "secret_removed",
+        "path": "actions[3]"
+      }
+    ],
+    "status": "ready",
+    "issues": [],
+    "landing": "automation",
+    "review": []
+  }
+]

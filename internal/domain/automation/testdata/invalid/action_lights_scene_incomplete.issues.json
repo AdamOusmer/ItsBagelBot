@@ -1,0 +1,22 @@
+[
+  {
+    "path": "actions[0].params.scene_instance",
+    "code": "required"
+  },
+  {
+    "path": "actions[0].params.scene_type",
+    "code": "required"
+  },
+  {
+    "path": "actions[0].params.scene_value",
+    "code": "required"
+  },
+  {
+    "path": "actions[1].params.scene_value",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[2].params.mode",
+    "code": "invalid_enum"
+  }
+]

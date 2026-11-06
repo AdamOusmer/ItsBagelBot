@@ -1,0 +1,74 @@
+{
+  "chatCommand": {
+    "label": "Commande de chat",
+    "summary": "Quelqu’un écrit une commande dans le chat",
+    "field": {
+      "trigger": {
+        "label": "Commande",
+        "placeholder": "!hug"
+      }
+    }
+  },
+  "chatWord": {
+    "label": "Mot dans le chat",
+    "summary": "Quelqu’un écrit un mot dans le chat",
+    "field": {
+      "word": {
+        "label": "Mot",
+        "placeholder": "bagel"
+      }
+    }
+  },
+  "follow": {
+    "label": "Nouveau follower",
+    "summary": "Quelqu’un follow la chaîne"
+  },
+  "sub": {
+    "label": "Abonnement",
+    "summary": "Nouveau sub, resub ou sub offert",
+    "field": {
+      "variant": {
+        "label": "Type",
+        "option": {
+          "any": "Tous",
+          "new": "Nouveau",
+          "resub": "Resub",
+          "gift": "Offert"
+        }
+      }
+    }
+  },
+  "cheer": {
+    "label": "Cheer",
+    "summary": "Des bits sont cheerés",
+    "field": {
+      "minBits": {
+        "label": "Bits minimum",
+        "unit": "bits"
+      }
+    }
+  },
+  "raid": {
+    "label": "Raid",
+    "summary": "Une autre chaîne vous lance un raid",
+    "field": {
+      "minViewers": {
+        "label": "Viewers minimum",
+        "unit": "viewers"
+      }
+    }
+  },
+  "reward": {
+    "label": "Récompense de points de chaîne",
+    "summary": "Une récompense est échangée",
+    "field": {
+      "reward": {
+        "label": "Récompense"
+      }
+    }
+  },
+  "streamOnline": {
+    "label": "Le stream passe en direct",
+    "summary": "Votre stream démarre"
+  }
+}

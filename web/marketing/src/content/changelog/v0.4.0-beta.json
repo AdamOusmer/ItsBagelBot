@@ -1,0 +1,28 @@
+{
+  "tag": "beta",
+  "version": "v0.4.0-beta",
+  "date": "2026-11-04",
+  "title": {
+    "en": "Recipes, a visual builder in Premium beta",
+    "fr": "Recettes, un éditeur visuel en bêta Premium"
+  },
+  "highlights": {
+    "en": [
+      "Recipes is a new visual builder for advanced setups, available to Premium during the beta. Connect triggers, conditions and actions on a canvas, and each recipe can be turned on or off by itself.",
+      "Test run walks every path of a recipe, so you can check what it does before anything reaches chat.",
+      "Recipes can start from a chat command, a word said in chat, a follow, a sub, a cheer, a raid, a channel point reward or the stream going live. Conditions can check user level, one specific viewer, a cooldown, a chance or a comparison.",
+      "Set your Govee lights to a color or one of their scenes from a recipe. You can add your Govee key right in the step, and it works with the Govee module turned off.",
+      "The editor works with a keyboard and on phones, with touch gestures and bottom sheets. Recipes can be exported to a file and imported again.",
+      "Link previews have new cards, and the website loads its stylesheets faster."
+    ],
+    "fr": [
+      "Recettes est un nouvel éditeur visuel pour les configurations avancées, offert aux abonnés Premium pendant la bêta. Reliez des déclencheurs, des conditions et des actions sur un canevas, et activez ou désactivez chaque recette séparément.",
+      "Le test parcourt chaque chemin d’une recette, pour vérifier ce qu’elle fait avant que quoi que ce soit n’arrive dans le clavardage.",
+      "Une recette peut démarrer avec une commande de clavardage, un mot dit dans le clavardage, un suivi, un abonnement, des bits, un raid, une récompense de points de chaîne ou le début du stream. Les conditions peuvent vérifier le niveau d’utilisateur, un spectateur précis, un délai, une probabilité ou une comparaison.",
+      "Réglez vos lumières Govee sur une couleur ou l’une de leurs scènes depuis une recette. Vous pouvez ajouter votre clé Govee directement dans l’étape, et cela fonctionne même si le module Govee est désactivé.",
+      "L’éditeur fonctionne au clavier et sur téléphone, avec des gestes tactiles et des panneaux en bas de l’écran. Les recettes peuvent être exportées dans un fichier, puis importées.",
+      "Les aperçus de liens ont de nouvelles cartes, et le site charge ses feuilles de style plus rapidement."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.4.0-beta"
+}

@@ -10,14 +10,15 @@
     title?: string;
     onclick?: () => void;
     onfocus?: () => void;
+    stacked?: boolean;
     class?: string;
     children?: Snippet;
   };
 
-  let { token, hint, title, onclick, onfocus, class: className = '', children }: Own = $props();
+  let { token, hint, title, onclick, onfocus, stacked = false, class: className = '', children }: Own = $props();
 
   const classes = $derived(
-    ['bb-var-card', 'bb-var-card--list', onclick ? null : 'bb-var-card--static', className || null]
+    ['bb-var-card', 'bb-var-card--list', stacked ? 'bb-var-card--stacked' : null, onclick ? null : 'bb-var-card--static', className || null]
       .filter(Boolean)
       .join(' '),
   );

@@ -94,6 +94,7 @@ var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error)
 	outgress.TypeDelete:           deleteOutgress,
 	outgress.TypeWarn:             warnOutgress,
 	outgress.TypeRedemptionUpdate: redemptionUpdateOutgress,
+	outgress.TypeRewardUpdate:     rewardUpdateOutgress,
 }
 
 func payloadMessage(msgType, broadcasterID string, payload any) (outgress.Message, error) {
@@ -180,11 +181,17 @@ func banOutgress(o *module.Output) (outgress.Message, error) {
 	}{banData{UserID: o.TargetUserID, Duration: int(o.Duration), Reason: o.Reason}})
 }
 
+const shieldStatusOff = "off"
+
 func shieldOutgress(o *module.Output) (outgress.Message, error) {
+	payload := []byte(`{"is_active":true}`)
+	if o.Status == shieldStatusOff {
+		payload = []byte(`{"is_active":false}`)
+	}
 	return outgress.Message{
 		Type:          outgress.TypeShieldMode,
 		BroadcasterID: o.BroadcasterID,
-		Payload:       []byte(`{"is_active":true}`),
+		Payload:       payload,
 	}, nil
 }
 
@@ -200,6 +207,12 @@ func warnOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(outgress.TypeWarn, o.BroadcasterID, &struct {
 		Data banData `json:"data"`
 	}{banData{UserID: o.TargetUserID, Reason: o.Reason}})
+}
+
+func rewardUpdateOutgress(o *module.Output) (outgress.Message, error) {
+	msg, err := payloadMessage(outgress.TypeRewardUpdate, o.BroadcasterID, o.Reward)
+	msg.RewardID, msg.RunID, msg.ActionSlot = o.RewardID, o.RunID, o.ActionSlot
+	return msg, err
 }
 
 func redemptionUpdateOutgress(o *module.Output) (outgress.Message, error) {

@@ -24,6 +24,8 @@ type panelPost struct {
 
 type fakeDiscord struct {
 	channelGuilds map[string]string
+	channelReads  int
+	chatErr       error
 	channels      []discapi.Snowflake
 	roles         []discapi.Snowflake
 	everyonePerms string
@@ -42,6 +44,7 @@ type fakeDiscord struct {
 }
 
 func (f *fakeDiscord) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
+	f.channelReads++
 	guild, ok := f.channelGuilds[id]
 	if !ok {
 		guild = "guild-1"
@@ -50,6 +53,9 @@ func (f *fakeDiscord) GetChannel(_ context.Context, id string) (discapi.ChannelI
 }
 
 func (f *fakeDiscord) SendChat(_ context.Context, post discapi.ChatPost) error {
+	if f.chatErr != nil {
+		return f.chatErr
+	}
 	f.chats = append(f.chats, post)
 	return nil
 }

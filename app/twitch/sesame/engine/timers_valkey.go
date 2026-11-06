@@ -66,6 +66,8 @@ type timerDef struct {
 
 	ChatWindowMinutes int  `json:"chatWindowMinutes"`
 	AllowOffline      bool `json:"allowOffline"`
+
+	JitterS int `json:"-"`
 }
 
 type timersConfig struct {
@@ -81,6 +83,7 @@ type ValkeyTimerStore struct {
 
 	nc           *nats.Conn
 	rearmSubject string
+	rearmExtra   string
 
 	outgressPremium  string
 	outgressStandard string
@@ -115,6 +118,7 @@ type TimersConfig struct {
 	Expiry                   *pkg_valkey.ExpiryHub
 	NC                       *nats.Conn
 	ModulesInvalidateSubject string
+	AutomationsInvalidate    string
 	Log                      *zap.Logger
 }
 
@@ -131,6 +135,7 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 		live:             live,
 		nc:               cfg.NC,
 		rearmSubject:     cfg.ModulesInvalidateSubject,
+		rearmExtra:       cfg.AutomationsInvalidate,
 		outgressPremium:  cfg.OutgressPremiumSubject,
 		outgressStandard: cfg.OutgressStandardSubject,
 		keyspaceDB:       cfg.KeyspaceDB,
@@ -317,6 +322,7 @@ func (s *ValkeyTimerStore) armAfter(ctx context.Context, at armedTimer, ex time.
 	if !at.def.Enabled || at.ref.id == "" {
 		return
 	}
+	ex += armJitter(at.def)
 	err := s.armSchedule(ctx, at.ref, ex)
 	if err != nil && !valkey.IsValkeyNil(err) {
 		s.log.Warn("timers: failed to arm", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
@@ -375,6 +381,13 @@ func (s *ValkeyTimerStore) delAuxKey(ctx context.Context, ref timerRef, key stri
 }
 
 func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (timersConfig, bool) {
+	cfg, ok := s.moduleTimers(ctx, broadcasterID)
+	auto := s.automationTimers(ctx, broadcasterID)
+	cfg.Timers = append(cfg.Timers, auto...)
+	return cfg, ok || len(auto) > 0
+}
+
+func (s *ValkeyTimerStore) moduleTimers(ctx context.Context, broadcasterID uint64) (timersConfig, bool) {
 	view, state, err := ModuleLookup{Proj: s.proj, BroadcasterID: broadcasterID, Name: timersModuleName, Absent: ModuleOff}.Resolve(ctx)
 	if err != nil {
 		s.log.Warn("timers: failed to read module views", module.BIDField(broadcasterID), zap.Error(err))
@@ -394,10 +407,15 @@ func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (ti
 }
 
 func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
-	if s.nc == nil || s.rearmSubject == "" {
+	s.watchRearm(ctx, s.rearmSubject)
+	s.watchRearm(ctx, s.rearmExtra)
+}
+
+func (s *ValkeyTimerStore) watchRearm(ctx context.Context, subject string) {
+	if s.nc == nil || subject == "" {
 		return
 	}
-	sub, err := s.nc.Subscribe(s.rearmSubject, func(msg *nats.Msg) {
+	sub, err := s.nc.Subscribe(subject, func(msg *nats.Msg) {
 		var dto invalidate.DTO
 		if err := codec.Unmarshal(msg.Data, &dto); err != nil {
 			return
@@ -414,10 +432,10 @@ func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
 		}()
 	})
 	if err != nil {
-		s.log.Error("timers: failed to start rearm watcher", zap.String("subject", s.rearmSubject), zap.Error(err))
+		s.log.Error("timers: failed to start rearm watcher", zap.String("subject", subject), zap.Error(err))
 		return
 	}
-	s.log.Info("timers: rearm watcher starting", zap.String("subject", s.rearmSubject))
+	s.log.Info("timers: rearm watcher starting", zap.String("subject", subject))
 	go func() {
 		<-ctx.Done()
 		_ = sub.Unsubscribe()
@@ -659,6 +677,10 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 	if !s.admitted(ctx, at.ref.broadcasterID) {
 		return
 	}
+	if strings.HasPrefix(at.ref.id, autoTimerPrefix) {
+		s.fireAutomation(ctx, at)
+		return
+	}
 	if term, hit := moderation.CheckFloor(at.def.Message); hit {
 		s.log.Warn("timers: suppressed message carrying floor content",
 			module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.String("term", term))
@@ -666,14 +688,7 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 	}
 
 	idStr := strconv.FormatUint(at.ref.broadcasterID, 10)
-	subject := s.outgressStandard
-	user := projection.User{}
-	if u, err := s.proj.User(ctx, at.ref.broadcasterID); err == nil {
-		if u.Premium() {
-			subject = s.outgressPremium
-		}
-		user = u
-	}
+	subject, user := s.timerRoute(ctx, at.ref.broadcasterID)
 
 	text := s.timerText(ctx, at, user)
 	outputs := s.timerOutputs(idStr, text)
@@ -687,6 +702,17 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 	if s.pipeline != nil {
 		s.pipeline.analytics.Count(catalog.TimerFires)
 	}
+}
+
+func (s *ValkeyTimerStore) timerRoute(ctx context.Context, broadcasterID uint64) (string, projection.User) {
+	u, err := s.proj.User(ctx, broadcasterID)
+	if err != nil {
+		return s.outgressStandard, projection.User{}
+	}
+	if u.Premium() {
+		return s.outgressPremium, u
+	}
+	return s.outgressStandard, u
 }
 
 func (s *ValkeyTimerStore) warnBlankFire(at armedTimer) {

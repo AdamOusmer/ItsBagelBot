@@ -1,0 +1,6 @@
+[
+  {
+    "path": "actions[0].params.seconds",
+    "code": "invalid_enum"
+  }
+]

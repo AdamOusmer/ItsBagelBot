@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!lights"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "lights",
+      "params": {
+        "device": "AA:BB:CC:DD:EE:FF:00:11",
+        "sku": "H6008",
+        "device_name": "Desk lamp",
+        "mode": "color",
+        "color": "#f5a524"
+      }
+    },
+    {
+      "type": "lights",
+      "params": {
+        "device": "AA:BB:CC:DD:EE:FF:00:11",
+        "sku": "H6008",
+        "color": "#000000"
+      }
+    }
+  ]
+}

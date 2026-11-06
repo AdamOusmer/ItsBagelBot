@@ -7,6 +7,7 @@ export { namespaceReplyTemplate } from './template-namespaces';
 import { GAME_MODULE_DEFS } from './games';
 import { VALORANT_MODULE_DEF } from './valorant';
 import { ALERTS_MODULE } from './alerts';
+import { AUTOMATIONS_MODULE } from './automations';
 import { AUTOMOD_MODULE } from './automod';
 import { CHANNELPOINTS_MODULE } from './channelpoints';
 import { CLASHROYALE_MODULE } from './clashroyale';
@@ -34,6 +35,7 @@ import { URCHIN_MODULE } from './urchin';
 export const MOD = {
   channelpoints: 'channelpoints',
   timers: 'timers',
+  automations: 'automations',
   loyalty: 'loyalty',
   counters: 'counters',
   gamble: 'gamble',
@@ -66,6 +68,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = ([
   STREAM_MODULE,
   CMD_MODULE,
   TIMERS_MODULE,
+  AUTOMATIONS_MODULE,
   LOYALTY_MODULE,
   COUNTERS_MODULE,
   ...GAME_MODULE_DEFS,

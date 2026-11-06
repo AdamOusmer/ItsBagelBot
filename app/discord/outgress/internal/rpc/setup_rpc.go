@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,6 +32,8 @@ const statusHandleTimeout = 2500 * time.Millisecond
 const deskRepostTimeout = 8 * time.Second
 
 const handleTimeout = 1500 * time.Millisecond
+
+const postHandleTimeout = 4 * time.Second
 
 const configGetHandleTimeout = 1500 * time.Millisecond
 
@@ -65,7 +68,7 @@ func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 		register[outgressrpc.DiscordDeskRepostRequest, outgressrpc.DiscordDeskRepostReply](
 			wire.Wiring, verb{Name: "discord.desk.repost", Timeout: deskRepostTimeout}, d.handleDeskRepost),
 		register[outgressrpc.DiscordPostRequest, outgressrpc.DiscordPostReply](
-			wire.Wiring, verb{Name: "discord.post", Timeout: handleTimeout}, d.handlePost),
+			wire.Wiring, verb{Name: "discord.post", Timeout: postHandleTimeout}, d.handlePost),
 	); err != nil {
 		return err
 	}
@@ -356,13 +359,14 @@ func (d *discordRPC) handleUnbind(ctx context.Context, req outgressrpc.DiscordUn
 }
 
 func (d *discordRPC) handlePost(ctx context.Context, req outgressrpc.DiscordPostRequest) outgressrpc.DiscordPostReply {
-	if req.ChannelID == "" || req.Content == "" {
-		return outgressrpc.DiscordPostReply{Error: "missing channel or content", Code: outgressrpc.CodeInvalid}
+	if slices.Contains([]string{req.UserID, req.GuildID, req.ChannelID, req.Content}, "") {
+		return outgressrpc.DiscordPostReply{Error: "missing user, guild, channel or content", Code: outgressrpc.CodeInvalid}
 	}
-	if err := d.w.PostDiscord(ctx, req.ChannelID, req.Content); err != nil {
+	post := setup.PostRequest{BroadcasterID: req.UserID, GuildID: req.GuildID, ChannelID: req.ChannelID, Content: req.Content}
+	if err := d.w.PostDiscord(ctx, post); err != nil {
 		return outgressrpc.DiscordPostReply{Error: err.Error(), Code: codeFor(err)}
 	}
-	return outgressrpc.DiscordPostReply{}
+	return outgressrpc.DiscordPostReply{Checked: true}
 }
 
 func (d *discordRPC) needsReauth(ctx context.Context, guildID kv.GuildID) bool {

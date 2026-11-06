@@ -14,9 +14,10 @@ defmodule Ingress.Dispatcher do
           admitted: reference(),
           capacity: pos_integer(),
           max_per_broadcaster: pos_integer(),
-          workers: tuple(),
-          worker_count: pos_integer()
+          workers: tuple()
         }
+
+  @active_workers_slot 2
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -71,6 +72,27 @@ defmodule Ingress.Dispatcher do
   end
 
   @doc false
+  def active_workers(server \\ __MODULE__) do
+    case context(server) do
+      nil -> 0
+      ctx -> :atomics.get(ctx.admitted, @active_workers_slot)
+    end
+  end
+
+  @doc false
+  def set_active_workers(server, count) do
+    :atomics.put(context(server).admitted, @active_workers_slot, count)
+  end
+
+  @doc false
+  def worker_in_flight?(server, index) do
+    ctx = context(server)
+    worker = Process.whereis(elem(ctx.workers, index))
+    match = [{{{:worker, worker, :_}, :"$1"}, [{:>, :"$1", 0}], [true]}]
+    :ets.select_count(ctx.table, match) > 0
+  end
+
+  @doc false
   def worker_names(server) do
     case context(server) do
       nil -> {}
@@ -106,7 +128,7 @@ defmodule Ingress.Dispatcher do
     ticket = Process.get(cursor_key, scheduler - 1)
     Process.put(cursor_key, ticket + 1)
 
-    index = rem(ticket, ctx.worker_count)
+    index = rem(ticket, :atomics.get(ctx.admitted, @active_workers_slot))
     worker_name = elem(ctx.workers, index)
 
     case Process.whereis(worker_name) do
@@ -175,7 +197,7 @@ defmodule Ingress.Dispatcher do
   def init(opts) do
     name = Keyword.get(opts, :name, __MODULE__)
     table = Keyword.get(opts, :table, name)
-    worker_count = Keyword.get(opts, :max_running, DispatcherConfig.max_running())
+    {floor, worker_count} = DispatcherConfig.pool_bounds(opts)
     max_queue = Keyword.get(opts, :max_queue, DispatcherConfig.max_queue())
 
     max_per_broadcaster =
@@ -184,7 +206,8 @@ defmodule Ingress.Dispatcher do
     sweep_ms = Keyword.get(opts, :sweep_ms, DispatcherConfig.broadcaster_sweep_ms())
     capacity = worker_count + max_queue
     workers = worker_names_tuple(name, worker_count)
-    admitted = :atomics.new(1, signed: true)
+    admitted = :atomics.new(2, signed: true)
+    :atomics.put(admitted, @active_workers_slot, floor)
 
     :ets.new(table, [
       :named_table,
@@ -202,8 +225,7 @@ defmodule Ingress.Dispatcher do
         admitted: admitted,
         capacity: capacity,
         max_per_broadcaster: max_per_broadcaster,
-        workers: workers,
-        worker_count: worker_count
+        workers: workers
       }
     )
 

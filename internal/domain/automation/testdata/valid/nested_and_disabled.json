@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": {
+          "type": "perm",
+          "params": {
+            "level": "vip"
+          }
+        },
+        "then": [
+          {
+            "type": "chat",
+            "params": {
+              "text": "vip"
+            }
+          },
+          {
+            "type": "delay",
+            "params": {
+              "ms": 500
+            }
+          }
+        ],
+        "else": [
+          {
+            "type": "chat",
+            "enabled": false,
+            "params": {
+              "text": "plain"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "random_pick",
+      "params": {
+        "branches": [
+          {
+            "weight": 1,
+            "actions": [
+              {
+                "type": "chat",
+                "params": {
+                  "text": "hello {user}"
+                }
+              }
+            ]
+          },
+          {
+            "weight": 3,
+            "actions": [
+              {
+                "type": "stop",
+                "params": {}
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "clip",
+      "enabled": false,
+      "params": {}
+    }
+  ]
+}

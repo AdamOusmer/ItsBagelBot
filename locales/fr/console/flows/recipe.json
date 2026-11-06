@@ -1,0 +1,33 @@
+{
+  "title": "Paramètres de la recette",
+  "close": "Fermer les paramètres de la recette",
+  "queueTitle": "Une à la fois",
+  "queueLabel": "Nom de la file d’attente",
+  "queuePlaceholder": "sons",
+  "queueHint": "Les recettes avec le même nom de file d’attente passent à tour de rôle. Laissez vide pour que celle-ci s’exécute dès qu’elle se déclenche.",
+  "runsTitle": "Exécutions récentes",
+  "runsEmpty": "Rien n’a encore été exécuté.",
+  "runsSaveFirst": "Enregistrez cette recette pour voir ses exécutions.",
+  "runsRefresh": "Actualiser",
+  "runsFailed": "Impossible de charger les exécutions. Réessayez dans un instant.",
+  "runCount": "{count} fois",
+  "runOneOf": "L'un de : {steps}",
+  "runStopped": "Cette exécution s’est arrêtée à la première vérification.",
+  "why": {
+    "math_error": "Le calcul n’a pas pu être effectué. Vérifiez qu’il n’y a pas de division par zéro ou de faute de frappe.",
+    "bad_times": "Le nombre de répétitions n’était pas un nombre entier.",
+    "text_error": "Cette étape de texte a reçu une valeur qu’elle n’a pas pu utiliser.",
+    "reward_not_manageable": "Twitch ne permet de modifier que les récompenses créées ici. Choisissez-en une créée dans Points de chaîne.",
+    "reward_not_found": "Cette récompense n’existe plus sur Twitch. Choisissez-en une autre.",
+    "reward_rejected": "Twitch a refusé cette modification. Vérifiez le coût et assurez-vous que la chaîne est toujours connectée.",
+    "reward_unconfirmed": "Twitch n’a pas confirmé cette modification après plusieurs tentatives. Vérifiez la récompense.",
+    "queue_full": "Trop d’exécutions étaient déjà en attente dans cette file d’attente.",
+    "queue_timeout": "Cette exécution a attendu 5 minutes dans sa file d’attente et a été abandonnée.",
+    "queued": "Envoyé à Twitch. Pas encore de réponse, vérifiez à nouveau dans un instant.",
+    "limited": "Une limite a été atteinte, cela n’a donc pas été exécuté.",
+    "failedWith": "Cette étape a échoué : {detail}.",
+    "failed": "Cette étape a échoué.",
+    "unsupported": "Cette étape ne peut pas être exécutée ici.",
+    "skipped": "Cette étape a été ignorée."
+  }
+}

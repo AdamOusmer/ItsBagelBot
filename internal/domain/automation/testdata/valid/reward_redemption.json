@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "reward",
+    "params": {
+      "reward_id": "abc-123"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "redemption",
+      "params": {
+        "status": "fulfill"
+      }
+    },
+    {
+      "type": "chat",
+      "params": {
+        "text": "hello {user}"
+      }
+    }
+  ]
+}

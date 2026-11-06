@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "users",
+      "params": {
+        "allow": [
+          "alice"
+        ],
+        "allow_ids": [
+          "141981764",
+          "12826"
+        ],
+        "deny_ids": [
+          "9876543210"
+        ]
+      }
+    },
+    {
+      "type": "users",
+      "params": {
+        "deny_ids": [
+          "1"
+        ]
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "hi"
+      }
+    }
+  ]
+}

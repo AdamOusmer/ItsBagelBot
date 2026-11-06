@@ -77,6 +77,9 @@ func main() {
 
 	quotes := repository.NewQuotes(client, n.Pub, log)
 	defer quotes.Close()
+	automations := repository.NewAutomations(client, n.Pub, log)
+	automations.SetDialect(driver.Dialect())
+	automations.BindModules(repo)
 
 	recorder := analytics.New(svcboot.MustValkey(core), log, nil)
 	defer recorder.Close()
@@ -91,7 +94,7 @@ func main() {
 	})
 
 	projectionSubject := subscribeRPCs(rpcWiring{
-		nc: n.RPC, client: client, repo: repo, quotes: quotes, app: core.NR, log: log,
+		nc: n.RPC, client: client, repo: repo, quotes: quotes, automations: automations, app: core.NR, log: log,
 	})
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{
@@ -157,12 +160,13 @@ func deleteUser(w eventsWiring) func(*bus.Message) error {
 }
 
 type rpcWiring struct {
-	nc     *nats.Conn
-	client *ent.Client
-	repo   *repository.Modules
-	quotes *repository.Quotes
-	app    *newrelic.Application
-	log    *zap.Logger
+	nc          *nats.Conn
+	client      *ent.Client
+	repo        *repository.Modules
+	quotes      *repository.Quotes
+	automations *repository.Automations
+	app         *newrelic.Application
+	log         *zap.Logger
 }
 
 func subscribeRPCs(w rpcWiring) string {
@@ -183,6 +187,10 @@ func subscribeRPCs(w rpcWiring) string {
 
 	if err := rpc.SubscribeQuotes(wiring.RPCWiring, w.quotes, dashboardSubject+".quote"); err != nil {
 		w.log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
+	}
+
+	if err := rpc.SubscribeAutomations(wiring.RPCWiring, w.automations); err != nil {
+		w.log.Fatal("failed to subscribe automations rpc", zap.Error(err))
 	}
 
 	personality := repository.NewPersonality(w.client)

@@ -1,0 +1,13 @@
+{
+  "perm": "Viewer role",
+  "users": "Specific viewers",
+  "live": "Stream state",
+  "cooldown": "Cooldown",
+  "chance": "Random chance",
+  "counter": "Counter value",
+  "points": "Viewer points",
+  "arg_regex": "Arguments match a pattern",
+  "category": "Stream category",
+  "compare": "Compare two values",
+  "var": "Variable value"
+}

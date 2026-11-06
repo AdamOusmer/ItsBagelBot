@@ -216,6 +216,53 @@ defmodule Ingress.Pipeline do
     {:publish, subject, put_unless_empty(message, :mentions, mentions(event))}
   end
 
+  @doc """
+  The AutoMod trial lane's `chat_input`: one record per admitted message, before
+  squash folds it, so room statistics see every sender.
+  """
+  @spec trial_chat_input(map(), map(), DateTime.t()) :: map() | nil
+  def trial_chat_input(
+        %{"subscription" => %{"type" => "channel.chat.message"}, "event" => event},
+        meta,
+        ingested_at
+      ) do
+    text = get_in(event, ["message", "text"]) || ""
+    hot = Config.hot_path()
+
+    if text != "" and byte_size(text) <= hot.max_chat_text_bytes do
+      {:publish, _subject, message} = chat_message(:standard, event, text, meta, hot)
+
+      %{
+        kind: "chat_input",
+        schema_version: 1,
+        routing_version: 2,
+        partition: room_partition(event["broadcaster_user_id"]),
+        ingested_at: not_before_source(ingested_at, meta.ts),
+        envelope: message |> Map.drop([:ts, :shard_id]) |> first_message(event)
+      }
+    end
+  end
+
+  def trial_chat_input(_payload, _meta, _ingested_at), do: nil
+
+  # The source stamps Twitch's clock; AutoMod rejects a record ingested before it.
+  defp not_before_source(ingested_at, source_ts) do
+    with {:ok, source, _offset} <- DateTime.from_iso8601(source_ts),
+         :lt <- DateTime.compare(ingested_at, source) do
+      DateTime.add(source, 1, :second)
+    else
+      _ -> ingested_at
+    end
+  end
+
+  defp first_message(message, %{"message_type" => "user_intro"}),
+    do: Map.put(message, :first_message, true)
+
+  defp first_message(message, _event), do: message
+
+  defp room_partition(id),
+    do: :crypto.hash(:sha256, id) |> binary_part(0, 8) |> :binary.decode_unsigned() |> rem(128)
+
   defp put_unless_empty(message, _key, []), do: message
   defp put_unless_empty(message, key, value), do: Map.put(message, key, value)
 

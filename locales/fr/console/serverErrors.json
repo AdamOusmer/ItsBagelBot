@@ -31,6 +31,7 @@
   "importTooLarge": "L’import analysé est trop volumineux pour être vérifié.",
   "importDecode": "L’import analysé n’a pas pu être décodé. Relancez l’aperçu.",
   "fileTooLarge": "Ce fichier est trop volumineux. Les configurations exportées font normalement moins de 20 Mo.",
+  "flowFileTooLarge": "Ce fichier de recettes est trop volumineux.",
   "fileRead": "Impossible de lire ce fichier.",
   "importSource": "Choisissez une source à importer.",
   "importService": "Le service d’import n’a pas répondu. Réessayez dans un instant.",

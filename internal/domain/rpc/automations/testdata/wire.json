@@ -1,0 +1,21 @@
+{
+  "subject": "bagel.rpc.automations.run",
+  "request": {
+    "broadcaster_id": "1001",
+    "name": "welcome",
+    "args": {
+      "target": "viewer"
+    },
+    "source": "dashboard",
+    "request_id": "req-1"
+  },
+  "reply": {
+    "accepted": true,
+    "run_id": "run-1"
+  },
+  "refused": {
+    "accepted": false,
+    "error": "no such automation",
+    "code": "not_found"
+  }
+}

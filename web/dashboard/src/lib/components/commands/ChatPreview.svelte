@@ -4,17 +4,17 @@
   import { page } from '$app/state';
   import { translate, type Locale } from '@bagel/kit/i18n';
   import {
-    Bolota,
     rehearseCommand,
     rehearseReply,
     rehearseTimer,
     COMMAND_SAMPLES,
     normName,
     getI18n,
-    type RehearsedLine,
-    type Seg
+    type RehearsedLine
   } from '@bagel/kit';
   import ChatPreview from '@bagel/ui/svelte/ChatPreview.svelte';
+  import ChatBotName from './ChatBotName.svelte';
+  import RehearsedLineRow from './RehearsedLineRow.svelte';
 
   const i18n = getI18n();
 
@@ -61,13 +61,6 @@
 
   const effectiveShowViewer = $derived(kind === 'timer' ? false : showViewer);
 
-  function verbLabelOf(v: RehearsedLine): string {
-    if (v.mode === 'announce') {
-      return v.color === 'primary' ? '/announce' : `/announce (${v.color})`;
-    }
-    return v.verb ?? '';
-  }
-
   let typing = $state(false);
   let hovered = $state(false);
   let settle: ReturnType<typeof setTimeout> | undefined;
@@ -86,21 +79,6 @@
   });
 </script>
 
-{#snippet botName()}
-  <span class="bb-chat__name bb-chat__name--bot">
-    <span class="bb-chat__avatar" aria-hidden="true"><Bolota name={botSeed} size={20} active={typing || hovered} /></span>
-    ItsBagelBot
-  </span>
-{/snippet}
-
-{#snippet segs(list: Seg[])}
-  {#each list as seg, i (i)}
-    {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
-    {:else if seg.kind === 'unknown'}<mark class="bb-chat__unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
-    {:else}{seg.text}{/if}
-  {/each}
-{/snippet}
-
 <ChatPreview
   title={tag ?? t('chatPreview.rehearsal')}
   label={t('chatPreview.ariaPreview')}
@@ -116,69 +94,19 @@
   {/if}
   {#if typing}
     <div class="bb-chat__line">
-      {@render botName()}
+      <ChatBotName seed={botSeed} active={typing || hovered} />
       <span class="bb-chat__msg bb-chat__msg--typing" aria-label={t('chatPreview.ariaTyping')}>
         <span class="bb-drawline" aria-hidden="true"></span>
       </span>
     </div>
   {:else if views.length === 0}
     <div class="bb-chat__line">
-      {@render botName()}
+      <ChatBotName seed={botSeed} active={typing || hovered} />
       <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.nothingToSay')}</span>
     </div>
   {:else}
     {#each views as v, li (li)}
-      <div
-        class="bb-chat__line"
-        class:bb-chat__line--stack={v.mode !== 'chat' && v.mode !== 'me'}
-        class:bb-chat__line--bare={v.mode === 'me'}
-        style:--reply-delay="{li * 140}ms"
-      >
-        {@render botName()}
-        {#if v.mode === 'announce'}
-          <div class="bb-chat__announce bb-chat__acc--{v.color ?? 'primary'}">
-            <span class="bb-chat__head">
-              <span class="bb-chat__via" title={t('chatPreview.runsVerb', { verb: v.verb ?? '' })}>Twitch {verbLabelOf(v)}</span>
-              {t('chatPreview.announcement')}
-            </span>
-            {#if v.segments.length}
-              <span class="bb-chat__msg bb-chat__reply">{@render segs(v.segments)}</span>
-            {:else}
-              <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.addMessageAfter', { verb: v.verb ?? '' })}</span>
-            {/if}
-          </div>
-        {:else if v.mode === 'shoutout'}
-          <div class="bb-chat__shoutout">
-            <span class="bb-chat__via" title={t('chatPreview.runsVerb', { verb: '/shoutout' })}>Twitch /shoutout</span>
-            {#if v.target}
-              <span class="bb-chat__msg bb-chat__reply">{t('chatPreview.shoutsOut')} <strong>@{v.target}</strong></span>
-            {:else}
-              <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.nameChannel')}</span>
-            {/if}
-          </div>
-        {:else if v.mode === 'me'}
-          <span class="bb-chat__via bb-chat__via--inline" title={t('chatPreview.runsVerb', { verb: '/me' })}>Twitch /me</span>
-          {#if v.segments.length}
-            <span class="bb-chat__msg bb-chat__reply bb-chat__msg--action">{@render segs(v.segments)}</span>
-          {:else}
-            <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.addActionAfterMe')}</span>
-          {/if}
-        {:else if v.mode === 'pin'}
-          <div class="bb-chat__pin">
-            <span class="bb-chat__head">
-              <span class="bb-chat__via" title={t('chatPreview.runsVerb', { verb: '/pin' })}>Twitch /pin</span>
-              {t('chatPreview.pinnedForStream')}
-            </span>
-            {#if v.segments.length}
-              <span class="bb-chat__msg bb-chat__reply">{@render segs(v.segments)}</span>
-            {:else}
-              <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.addMessageAfter', { verb: '/pin' })}</span>
-            {/if}
-          </div>
-        {:else}
-          <span class="bb-chat__msg bb-chat__reply">{@render segs(v.segments)}</span>
-        {/if}
-      </div>
+      <RehearsedLineRow line={v} index={li} seed={botSeed} active={typing || hovered} {locale} />
     {/each}
   {/if}
 </ChatPreview>

@@ -95,6 +95,20 @@
     .bb-var-card--list .bb-var-card__body { grid-column: 1 / -1; }
   }
 
+  .bb-var-card--stacked { grid-template-columns: minmax(0, 1fr) 25px; gap: 6px 8px; padding: 10px 12px; }
+  .bb-var-card--stacked .bb-var-card__token { padding: 4px 7px; font-size: 12.5px; }
+  .bb-var-card--stacked .bb-var-card__plus { grid-area: 1 / 2; }
+  .bb-var-card--stacked .bb-var-card__body { grid-area: 2 / 1 / 3 / -1; }
+  .bb-var-card--stacked .bb-var-card__body small {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    color: rgba(var(--bb-white-rgb), 0.92);
+    font: 400 13px/1.4 var(--bb-font-body);
+  }
+
   small.bb-var-card__hint { display: block; height: calc(2 * 1lh); color: var(--bb-muted); font: 11.5px/1.5 var(--bb-font-body); }
 
   @media (max-width: 700px) {
