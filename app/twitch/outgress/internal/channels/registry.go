@@ -296,14 +296,18 @@ type SubState struct {
 
 func (r *Registry) SetSubStateUnless(ctx context.Context, broadcasterID string, write SubState, protected ...string) (bool, error) {
 	now := strconv.FormatInt(time.Now().Unix(), 10)
-	transition := pkg_valkey.GuardedTransition{Key: keyPrefix + broadcasterID, Index: indexKey, Flagged: unhealthyKey}
-	fields := []pkg_valkey.FieldValue{
-		{Field: "sub_state", Value: write.State},
-		{Field: "sub_error", Value: write.Error},
-		{Field: "sub_checked_at", Value: now},
-		{Field: "updated_at", Value: now},
+	transition := pkg_valkey.GuardedTransition{
+		Key: keyPrefix + broadcasterID, Index: indexKey, Flagged: unhealthyKey,
+		GuardField: "sub_state",
+		Fields: []pkg_valkey.FieldValue{
+			{Field: "sub_state", Value: write.State},
+			{Field: "sub_error", Value: write.Error},
+			{Field: "sub_checked_at", Value: now},
+			{Field: "updated_at", Value: now},
+		},
+		Member: broadcasterID, Flag: unhealthyState(write.State), Protected: protected,
 	}
-	applied, err := transition.Apply(ctx, r.client, "sub_state", fields, broadcasterID, unhealthyState(write.State), protected...)
+	applied, err := transition.Apply(ctx, r.client)
 	if err != nil || !applied {
 		return false, err
 	}
@@ -411,7 +415,7 @@ func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 	}
 	out := []manage.Channel{}
 	for offset := 0; ; offset += hotBatch {
-		ids, err := pkg_valkey.ZRangeByIndex(ctx, r.client, hotIndexKey, int64(offset), int64(offset+hotBatch-1))
+		ids, err := pkg_valkey.ZRangeByIndex(ctx, r.client, pkg_valkey.RankRange{Key: hotIndexKey, Start: int64(offset), Stop: int64(offset + hotBatch - 1)})
 		if err != nil {
 			return nil, err
 		}

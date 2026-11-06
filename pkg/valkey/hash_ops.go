@@ -15,11 +15,6 @@ func HSetIfAbsent(ctx context.Context, client valkey_go.Client, field HashField,
 	return added > 0, err
 }
 
-// HSet writes one hash field, leaving any TTL on the hash untouched.
-func HSet(ctx context.Context, client valkey_go.Client, field HashField, value string) error {
-	return client.Do(ctx, client.B().Hset().Key(field.Key).FieldValue().FieldValue(field.Field, value).Build()).Error()
-}
-
 // HValues reads every value in a hash; a missing hash is empty, not an error.
 func HValues(ctx context.Context, client valkey_go.Client, key string) ([]string, error) {
 	vals, err := client.Do(ctx, client.B().Hvals().Key(key).Build()).AsStrSlice()

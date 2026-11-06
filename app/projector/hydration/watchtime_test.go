@@ -17,6 +17,7 @@ import (
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/watchtime"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
@@ -135,16 +136,17 @@ func TestHydrationFinishingAfterOfflineCannotReviveWatchtime(t *testing.T) {
 	h := hydration.New(store, nc, up.subjects, queryTTL, liveTTL, 1, zap.NewNop())
 	h.RefreshAsync(id)
 	store.awaitFill(t)
-	require.NoError(t, client.Do(ctx, client.B().Eval().Script(livekey.SetScript).Numkeys(2).
-		Key(livekey.Key(id), livekey.VerKey(id)).Arg("2000", "3600", "7200").Build()).Error())
+	slot := pkg_valkey.VersionedSlot{Key: livekey.Key(id), VerKey: livekey.VerKey(id)}
+	_, err := slot.Set(ctx, client, pkg_valkey.SlotWrite{Version: 2000, TTL: time.Hour, VerTTL: 2 * time.Hour})
+	require.NoError(t, err)
 	snapshot, allowed, err := awards.Capture(ctx, id)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
 	h.RefreshAsync(id)
 	waitFor(t, secondUserStarted, "hydration to reach the delayed account fetch")
-	require.NoError(t, client.Do(ctx, client.B().Eval().Script(livekey.ClearScript).Numkeys(2).
-		Key(livekey.Key(id), livekey.VerKey(id)).Arg("3000", "7200").Build()).Error())
+	_, err = slot.Clear(ctx, client, 3000, 2*time.Hour)
+	require.NoError(t, err)
 	_, err = store.SetStreamLive(ctx, id, projection.StreamLive{Version: 3000})
 	require.NoError(t, err)
 	releaseFill()

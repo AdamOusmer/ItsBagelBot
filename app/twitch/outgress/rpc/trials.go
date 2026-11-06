@@ -238,7 +238,9 @@ func (h *trialSubscriptions) conflictID(ctx context.Context, req TrialSubscripti
 
 func (h *trialSubscriptions) activate(ctx context.Context, req TrialSubscriptionRequest, id string) bool {
 	gate := pkg_valkey.EpochGate{Owner: trialOwnerKey(req.Slot), Session: trialSessionKey(req.Slot), Record: "trial:channel:" + req.BroadcasterID}
-	activated, err := gate.Activate(ctx, h.store, fmt.Sprint(req.OwnerEpoch), req.TrialGeneration, id, req.SessionID, strconv.Itoa(req.Slot))
+	activated, err := gate.Activate(ctx, h.store, pkg_valkey.EpochActivation{
+		Epoch: fmt.Sprint(req.OwnerEpoch), Generation: req.TrialGeneration, SubscriptionID: id, SessionID: req.SessionID, Slot: strconv.Itoa(req.Slot),
+	})
 	return err == nil && activated
 }
 
@@ -336,7 +338,7 @@ func trialDeletionMatches(fields map[string]string, subscriptionID string) bool 
 
 func (h *trialSubscriptions) release(ctx context.Context, req TrialSubscriptionRequest) bool {
 	gate := pkg_valkey.EpochGate{Owner: trialOwnerKey(req.Slot), Record: "trial:channel:" + req.BroadcasterID}
-	released, err := gate.Release(ctx, h.store, fmt.Sprint(req.OwnerEpoch), req.TrialGeneration, req.SubscriptionID)
+	released, err := gate.Release(ctx, h.store, pkg_valkey.EpochRelease{Epoch: fmt.Sprint(req.OwnerEpoch), Generation: req.TrialGeneration, SubscriptionID: req.SubscriptionID})
 	return err == nil && released
 }
 

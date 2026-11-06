@@ -20,15 +20,6 @@ const (
 	trialPromotedDone   = "done"
 )
 
-// Claims a promoted trial for one promotion call; a claim older than ARGV[2] seconds is retried.
-var claimTrialCounters = pkg_valkey.CompileScript(`
-if redis.call('HGET', KEYS[1], 'state') ~= 'promoted' then return 0 end
-local claimed = redis.call('HGET', KEYS[1], 'counters_promoted') or ''
-if claimed == 'done' then return 0 end
-if claimed ~= '' and tonumber(claimed) > tonumber(ARGV[1]) - tonumber(ARGV[2]) then return 0 end
-redis.call('HSET', KEYS[1], 'counters_promoted', ARGV[1])
-return 1`)
-
 type TrialPromoter interface {
 	PromoteTrial(ctx context.Context, broadcasterID uint64) error
 }
@@ -70,10 +61,16 @@ func (t *TrialPromotion) Sweep(ctx context.Context) {
 }
 
 func (t *TrialPromotion) promote(ctx context.Context, id string) error {
-	key := "trial:channel:" + id
-	now := strconv.FormatInt(time.Now().Unix(), 10)
-	claimed, err := claimTrialCounters.Exec(ctx, t.store, []string{key}, []string{now, strconv.Itoa(int(trialClaimTimeout.Seconds()))}).AsInt64()
-	if err != nil || claimed != 1 {
+	claim := pkg_valkey.AgedClaim{
+		Key:       "trial:channel:" + id,
+		Guard:     "state",
+		Want:      "promoted",
+		Field:     "counters_promoted",
+		DoneValue: trialPromotedDone,
+		MaxAge:    trialClaimTimeout,
+	}
+	claimed, err := claim.Claim(ctx, t.store, time.Now())
+	if err != nil || !claimed {
 		return err
 	}
 	userID, err := strconv.ParseUint(id, 10, 64)
@@ -83,5 +80,5 @@ func (t *TrialPromotion) promote(ctx context.Context, id string) error {
 	if err := t.promoter.PromoteTrial(ctx, userID); err != nil {
 		return err
 	}
-	return pkg_valkey.HSet(ctx, t.store, pkg_valkey.HashField{Key: key, Field: "counters_promoted"}, trialPromotedDone)
+	return claim.Done(ctx, t.store)
 }

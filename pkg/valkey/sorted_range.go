@@ -10,12 +10,28 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// ZRangeByIndex returns the members ranked start..stop inclusive.
-func ZRangeByIndex(ctx context.Context, client valkey_go.Client, key string, start, stop int64) ([]string, error) {
-	return client.Do(ctx, client.B().Zrange().Key(key).Min(strconv.FormatInt(start, 10)).Max(strconv.FormatInt(stop, 10)).Build()).AsStrSlice()
+// RankRange names the members ranked Start..Stop inclusive.
+type RankRange struct {
+	Key   string
+	Start int64
+	Stop  int64
 }
 
-// ZRangeByScoreLimit returns up to count members scored between min and max, starting at offset.
-func ZRangeByScoreLimit(ctx context.Context, client valkey_go.Client, key, min, max string, offset, count int64) ([]string, error) {
-	return client.Do(ctx, client.B().Zrangebyscore().Key(key).Min(min).Max(max).Limit(offset, count).Build()).AsStrSlice()
+// ZRangeByIndex returns the members in r.
+func ZRangeByIndex(ctx context.Context, client valkey_go.Client, r RankRange) ([]string, error) {
+	return client.Do(ctx, client.B().Zrange().Key(r.Key).Min(strconv.FormatInt(r.Start, 10)).Max(strconv.FormatInt(r.Stop, 10)).Build()).AsStrSlice()
+}
+
+// ScorePage names up to Count members scored between Min and Max, starting at Offset.
+type ScorePage struct {
+	Key    string
+	Min    string
+	Max    string
+	Offset int64
+	Count  int64
+}
+
+// ZRangeByScoreLimit returns the members in p.
+func ZRangeByScoreLimit(ctx context.Context, client valkey_go.Client, p ScorePage) ([]string, error) {
+	return client.Do(ctx, client.B().Zrangebyscore().Key(p.Key).Min(p.Min).Max(p.Max).Limit(p.Offset, p.Count).Build()).AsStrSlice()
 }

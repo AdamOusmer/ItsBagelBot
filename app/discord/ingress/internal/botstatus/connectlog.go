@@ -41,5 +41,5 @@ func stamps(scores []valkey.ZScore) []time.Time {
 
 func (l *ConnectLog) Add(ctx context.Context, at time.Time) error {
 	member := strconv.FormatInt(at.UnixMilli(), 10) + "-" + l.pod
-	return (pkg_valkey.TimeIndex{Key: ddiscord.BotConnectsKey}).Add(ctx, l.client, at, member, ddiscord.BotConnectsTTL)
+	return (pkg_valkey.TimeIndex{Key: ddiscord.BotConnectsKey}).Add(ctx, l.client, pkg_valkey.TimedEntry{At: at, Member: member, TTL: ddiscord.BotConnectsTTL})
 }

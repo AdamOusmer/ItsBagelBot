@@ -78,7 +78,7 @@ func TestOutcomeClaimRealValkey(t *testing.T) {
 	cleanKeys(t, client, key)
 
 	drawnAt := time.Now().Add(-time.Minute)
-	require.NoError(t, HSet(ctx, client, HashField{Key: key, Field: "result"}, `{"winners":[{"id":"w1"}],"drawn_at":`+
+	require.NoError(t, HashField{Key: key, Field: "result"}.Set(ctx, client, `{"winners":[{"id":"w1"}],"drawn_at":`+
 		strconv.FormatInt(drawnAt.UnixMilli(), 10)+`}`))
 
 	claim := OutcomeClaim{Key: key}

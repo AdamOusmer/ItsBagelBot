@@ -38,7 +38,7 @@ func (w *LiveWriter) Write(ctx context.Context, broadcasterID string, isLive boo
 
 	var err error
 	if isLive {
-		_, err = slot.Set(ctx, w.client, version, w.ttl, livekey.VerTTL)
+		_, err = slot.Set(ctx, w.client, pkg_valkey.SlotWrite{Version: version, TTL: w.ttl, VerTTL: livekey.VerTTL})
 	} else {
 		_, err = slot.Clear(ctx, w.client, version, livekey.VerTTL)
 	}

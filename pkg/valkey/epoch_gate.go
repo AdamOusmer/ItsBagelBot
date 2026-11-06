@@ -42,34 +42,50 @@ type EpochGate struct {
 	Record  string
 }
 
+// EpochActivation is what Activate checks and records.
+type EpochActivation struct {
+	Epoch          string
+	Generation     string
+	SubscriptionID string
+	SessionID      string
+	Slot           string
+}
+
 // ActivateCall builds the script call for Activate.
-func (g EpochGate) ActivateCall(epoch, generation, subscriptionID, sessionID, slot string) ScriptCall {
+func (g EpochGate) ActivateCall(a EpochActivation) ScriptCall {
 	return ScriptCall{
 		Script: epochGateActivateScript,
 		Key:    g.Owner,
 		Also:   []string{g.Record, g.Session},
-		Args:   []string{epoch, generation, subscriptionID, sessionID, slot},
+		Args:   []string{a.Epoch, a.Generation, a.SubscriptionID, a.SessionID, a.Slot},
 	}
 }
 
 // Activate moves Record into the receiving state, only while Owner's epoch prefix, Session, generation, enabled flag and slot all still match.
-func (g EpochGate) Activate(ctx context.Context, client valkey_go.Client, epoch, generation, subscriptionID, sessionID, slot string) (bool, error) {
-	n, err := RunScripts(ctx, client, []ScriptCall{g.ActivateCall(epoch, generation, subscriptionID, sessionID, slot)})[0].ToInt64()
+func (g EpochGate) Activate(ctx context.Context, client valkey_go.Client, a EpochActivation) (bool, error) {
+	n, err := RunScripts(ctx, client, []ScriptCall{g.ActivateCall(a)})[0].ToInt64()
 	return n == 1, err
 }
 
+// EpochRelease is what Release checks.
+type EpochRelease struct {
+	Epoch          string
+	Generation     string
+	SubscriptionID string
+}
+
 // ReleaseCall builds the script call for Release.
-func (g EpochGate) ReleaseCall(epoch, generation, subscriptionID string) ScriptCall {
+func (g EpochGate) ReleaseCall(r EpochRelease) ScriptCall {
 	return ScriptCall{
 		Script: epochGateReleaseScript,
 		Key:    g.Owner,
 		Also:   []string{g.Record},
-		Args:   []string{epoch, generation, subscriptionID},
+		Args:   []string{r.Epoch, r.Generation, r.SubscriptionID},
 	}
 }
 
 // Release clears Record's subscription fields, only while Owner's epoch prefix, generation, state and subscriptionID still match.
-func (g EpochGate) Release(ctx context.Context, client valkey_go.Client, epoch, generation, subscriptionID string) (bool, error) {
-	n, err := RunScripts(ctx, client, []ScriptCall{g.ReleaseCall(epoch, generation, subscriptionID)})[0].ToInt64()
+func (g EpochGate) Release(ctx context.Context, client valkey_go.Client, r EpochRelease) (bool, error) {
+	n, err := RunScripts(ctx, client, []ScriptCall{g.ReleaseCall(r)})[0].ToInt64()
 	return n == 1, err
 }

@@ -21,10 +21,6 @@ func NewScript(body string) Script {
 	return Script{body: body, sha: hex.EncodeToString(sum[:])}
 }
 
-// CompileScript is NewScript for a caller outside this package: service code holds scripts only as opaque,
-// already-compiled values, never builds one from a literal body itself.
-func CompileScript(body string) Script { return NewScript(body) }
-
 func (s Script) Body() string { return s.body }
 
 func (s Script) SHA1() string { return s.sha }

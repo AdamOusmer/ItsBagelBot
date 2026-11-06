@@ -31,24 +31,29 @@ return 1`)
 
 // GuardedTransition writes Fields to Key unless GuardField already holds a protected value, lists Key's member in Index, and toggles the member's membership in Flagged.
 type GuardedTransition struct {
-	Key     string
-	Index   string
-	Flagged string
+	Key        string
+	Index      string
+	Flagged    string
+	GuardField string
+	Fields     []FieldValue
+	Member     string
+	Flag       bool
+	Protected  []string
 }
 
 // Apply runs the guarded write as one script call.
-func (t GuardedTransition) Apply(ctx context.Context, client valkey_go.Client, guardField string, fields []FieldValue, member string, flagged bool, protected ...string) (bool, error) {
-	args := make([]string, 0, 2+len(fields)*2+2+len(protected))
-	args = append(args, guardField, strconv.Itoa(len(fields)))
-	for _, fv := range fields {
+func (t GuardedTransition) Apply(ctx context.Context, client valkey_go.Client) (bool, error) {
+	args := make([]string, 0, 2+len(t.Fields)*2+2+len(t.Protected))
+	args = append(args, t.GuardField, strconv.Itoa(len(t.Fields)))
+	for _, fv := range t.Fields {
 		args = append(args, fv.Field, fv.Value)
 	}
 	flag := ""
-	if flagged {
+	if t.Flag {
 		flag = "1"
 	}
-	args = append(args, member, flag)
-	args = append(args, protected...)
+	args = append(args, t.Member, flag)
+	args = append(args, t.Protected...)
 	n, err := RunScripts(ctx, client, []ScriptCall{{
 		Script: guardedTransitionScript,
 		Key:    t.Key,

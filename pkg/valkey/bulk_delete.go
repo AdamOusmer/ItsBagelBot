@@ -17,14 +17,6 @@ func DelKeys(ctx context.Context, client valkey_go.Client, keys ...string) error
 	return client.Do(ctx, client.B().Del().Key(keys...).Build()).Error()
 }
 
-// UnlinkKeys unlinks every key named, in one call.
-func UnlinkKeys(ctx context.Context, client valkey_go.Client, keys ...string) error {
-	if len(keys) == 0 {
-		return nil
-	}
-	return client.Do(ctx, client.B().Unlink().Key(keys...).Build()).Error()
-}
-
 // ScanUnlink unlinks every key matching Match, paging through SCAN until the cursor returns to zero.
 type ScanUnlink struct {
 	Match string
@@ -38,7 +30,7 @@ func (s ScanUnlink) Run(ctx context.Context, client valkey_go.Client) error {
 		if err != nil {
 			return err
 		}
-		if err := UnlinkKeys(ctx, client, page.Elements...); err != nil {
+		if err := UnlinkAll(ctx, client, page.Elements); err != nil {
 			return err
 		}
 		if page.Cursor == 0 {

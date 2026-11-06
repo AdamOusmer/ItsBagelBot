@@ -18,17 +18,20 @@ func TestGuardedTransitionSkipsProtectedValuesAndTogglesMembership(t *testing.T)
 	key := "test:guarded:" + t.Name()
 	index := "test:guarded:index:" + t.Name()
 	flagged := "test:guarded:flagged:" + t.Name()
-	transition := GuardedTransition{Key: key, Index: index, Flagged: flagged}
+	transition := func(fields []FieldValue, flag bool, protected ...string) (bool, error) {
+		return GuardedTransition{
+			Key: key, Index: index, Flagged: flagged, GuardField: "state",
+			Fields: fields, Member: "member-1", Flag: flag, Protected: protected,
+		}.Apply(ctx, client)
+	}
 
 	require.NoError(t, client.Do(ctx, client.B().Hset().Key(key).FieldValue().FieldValue("state", "pending").Build()).Error())
 
-	applied, err := transition.Apply(ctx, client, "state",
-		[]FieldValue{{Field: "state", Value: "pending"}}, "member-1", false, "pending")
+	applied, err := transition([]FieldValue{{Field: "state", Value: "pending"}}, false, "pending")
 	require.NoError(t, err)
 	require.False(t, applied, "the current value is protected, so nothing should change")
 
-	applied, err = transition.Apply(ctx, client, "state",
-		[]FieldValue{{Field: "state", Value: "failing"}, {Field: "error", Value: "boom"}}, "member-1", true, "receiving")
+	applied, err = transition([]FieldValue{{Field: "state", Value: "failing"}, {Field: "error", Value: "boom"}}, true, "receiving")
 	require.NoError(t, err)
 	require.True(t, applied)
 
@@ -48,8 +51,7 @@ func TestGuardedTransitionSkipsProtectedValuesAndTogglesMembership(t *testing.T)
 	require.NoError(t, err)
 	require.True(t, inFlagged)
 
-	applied, err = transition.Apply(ctx, client, "state",
-		[]FieldValue{{Field: "state", Value: "ok"}}, "member-1", false, "failing")
+	applied, err = transition([]FieldValue{{Field: "state", Value: "ok"}}, false, "failing")
 	require.NoError(t, err)
 	require.False(t, applied, "the now-protected value must block the write")
 }

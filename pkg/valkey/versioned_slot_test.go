@@ -20,11 +20,11 @@ func TestVersionedSlotRejectsAStaleVersionAndClearHonorsTheSameGuard(t *testing.
 	key := testUniqueKey(t)
 	slot := VersionedSlot{Key: "test:slot:" + key, VerKey: "test:slot:ver:" + key}
 
-	applied, err := slot.Set(ctx, client, 10, time.Minute, time.Minute)
+	applied, err := slot.Set(ctx, client, SlotWrite{Version: 10, TTL: time.Minute, VerTTL: time.Minute})
 	require.NoError(t, err)
 	require.True(t, applied)
 
-	applied, err = slot.Set(ctx, client, 5, time.Minute, time.Minute)
+	applied, err = slot.Set(ctx, client, SlotWrite{Version: 5, TTL: time.Minute, VerTTL: time.Minute})
 	require.NoError(t, err)
 	require.False(t, applied, "a lower version must not overwrite a higher one")
 

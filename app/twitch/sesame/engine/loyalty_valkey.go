@@ -459,7 +459,7 @@ func (s *ValkeyLoyaltyStore) dropBalances(ctx context.Context, d balanceDrop) er
 	if len(keys) == 0 {
 		return nil
 	}
-	return pkg_valkey.UnlinkKeys(ctx, s.primary, keys...)
+	return pkg_valkey.UnlinkAll(ctx, s.primary, keys)
 }
 
 func (s *ValkeyLoyaltyStore) dropChannelBalances(ctx context.Context, broadcasterID uint64) error {

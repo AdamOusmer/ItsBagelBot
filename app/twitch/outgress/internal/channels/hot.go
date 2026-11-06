@@ -18,7 +18,7 @@ const hotMigrationCursorKey = "outgress:channels:migration-cursor"
 
 func (r *Registry) retainHot(ctx context.Context, id string) error {
 	score := time.Now().Add(hotRetention).Unix()
-	return pkg_valkey.RetainIfPresent{Key: keyPrefix + id, Index: hotIndexKey}.Run(ctx, r.client, id, hotRetention, score)
+	return pkg_valkey.RetainIfPresent{Key: keyPrefix + id, Index: hotIndexKey, Member: id, TTL: hotRetention, Score: score}.Run(ctx, r.client)
 }
 func (r *Registry) RenewHot(ctx context.Context, keep func(context.Context, string) bool) error {
 	claimed, err := r.claimRenewPass(ctx)
@@ -45,7 +45,7 @@ func (r *Registry) renewalCandidates(ctx context.Context) ([]string, error) {
 	before := strconv.FormatInt(time.Now().Add(hotRenewWindow).Unix(), 10)
 	var due []string
 	for offset := int64(0); ; offset += hotBatch {
-		ids, err := pkg_valkey.ZRangeByScoreLimit(ctx, r.client, hotIndexKey, "-inf", before, offset, hotBatch)
+		ids, err := pkg_valkey.ZRangeByScoreLimit(ctx, r.client, pkg_valkey.ScorePage{Key: hotIndexKey, Min: "-inf", Max: before, Offset: offset, Count: hotBatch})
 		if err != nil {
 			return nil, err
 		}
@@ -64,18 +64,27 @@ func (r *Registry) renewIfKept(ctx context.Context, id string, keep func(context
 }
 
 func (r *Registry) PruneHot(ctx context.Context) error {
-	migration := pkg_valkey.RetentionMigration{Source: indexKey, Index: hotIndexKey, Cursor: hotMigrationCursorKey}
-	if _, err := migration.Run(ctx, r.client, hotBatch, keyPrefix, hotRetention, time.Now()); err != nil {
+	migration := pkg_valkey.RetentionMigration{
+		Source: indexKey, Index: hotIndexKey, Cursor: hotMigrationCursorKey,
+		Batch: hotBatch, KeyPrefix: keyPrefix, FloorTTL: hotRetention, Now: time.Now(),
+	}
+	if _, err := migration.Run(ctx, r.client); err != nil {
 		return err
 	}
-	sweep := pkg_valkey.RetentionSweep{Index: hotIndexKey, SetIdx: []string{indexKey, unhealthyKey}, KeyPrefix: keyPrefix}
-	_, err := sweep.Run(ctx, r.client, time.Now(), hotBatch, hotRetention)
+	sweep := pkg_valkey.RetentionSweep{
+		Index: hotIndexKey, SetIdx: []string{indexKey, unhealthyKey}, KeyPrefix: keyPrefix,
+		Now: time.Now(), Batch: hotBatch, FloorTTL: hotRetention,
+	}
+	_, err := sweep.Run(ctx, r.client)
 	return err
 }
 
 func (r *Registry) EraseIncarnation(ctx context.Context, id string, incarnation int64) error {
-	erase := pkg_valkey.GuardedErase{Key: keyPrefix + id, SortedIdx: hotIndexKey, SetIdx: []string{indexKey, unhealthyKey}}
-	if _, err := erase.Run(ctx, r.client, "account_created_at", strconv.FormatInt(incarnation, 10), id); err != nil {
+	erase := pkg_valkey.GuardedErase{
+		Key: keyPrefix + id, SortedIdx: hotIndexKey, SetIdx: []string{indexKey, unhealthyKey},
+		GuardField: "account_created_at", Expect: strconv.FormatInt(incarnation, 10), Member: id,
+	}
+	if _, err := erase.Run(ctx, r.client); err != nil {
 		return err
 	}
 	r.cache.Invalidate(id)

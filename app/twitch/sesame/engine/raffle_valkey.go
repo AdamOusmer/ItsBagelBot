@@ -334,7 +334,7 @@ func (s *ValkeyRaffleStore) recordPayout(ctx context.Context, broadcasterID uint
 		return
 	}
 	field := pkg_valkey.HashField{Key: raffleKey(raffleLastPrefix, broadcasterID), Field: "result"}
-	err := pkg_valkey.HSet(ctx, s.client, field, marshalJSON(res))
+	err := field.Set(ctx, s.client, marshalJSON(res))
 	if err != nil {
 		s.log.Warn("raffle: payout receipt not recorded", module.BIDField(broadcasterID), zap.Error(err))
 	}

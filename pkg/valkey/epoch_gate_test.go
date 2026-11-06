@@ -25,11 +25,11 @@ func TestEpochGateActivateAndReleaseGuardOnOwnerSessionAndState(t *testing.T) {
 	require.NoError(t, client.Do(ctx, client.B().Set().Key(session).Value("9:session-1").Build()).Error())
 	require.NoError(t, client.Do(ctx, client.B().Hset().Key(record).FieldValue().FieldValue("generation", "3").FieldValue("state", "pending").Build()).Error())
 
-	activated, err := gate.Activate(ctx, client, "8", "3", "sub-1", "session-1", "0")
+	activated, err := gate.Activate(ctx, client, EpochActivation{Epoch: "8", Generation: "3", SubscriptionID: "sub-1", SessionID: "session-1", Slot: "0"})
 	require.NoError(t, err)
 	require.False(t, activated, "a stale epoch must not activate")
 
-	activated, err = gate.Activate(ctx, client, "9", "3", "sub-1", "session-1", "0")
+	activated, err = gate.Activate(ctx, client, EpochActivation{Epoch: "9", Generation: "3", SubscriptionID: "sub-1", SessionID: "session-1", Slot: "0"})
 	require.NoError(t, err)
 	require.True(t, activated)
 
@@ -39,11 +39,11 @@ func TestEpochGateActivateAndReleaseGuardOnOwnerSessionAndState(t *testing.T) {
 
 	require.NoError(t, client.Do(ctx, client.B().Hset().Key(record).FieldValue().FieldValue("state", "stopping").Build()).Error())
 
-	released, err := gate.Release(ctx, client, "9", "3", "other-sub")
+	released, err := gate.Release(ctx, client, EpochRelease{Epoch: "9", Generation: "3", SubscriptionID: "other-sub"})
 	require.NoError(t, err)
 	require.False(t, released, "releasing an unrelated subscription id must fail")
 
-	released, err = gate.Release(ctx, client, "9", "3", "sub-1")
+	released, err = gate.Release(ctx, client, EpochRelease{Epoch: "9", Generation: "3", SubscriptionID: "sub-1"})
 	require.NoError(t, err)
 	require.True(t, released)
 

@@ -27,11 +27,18 @@ func (i TimeIndex) Since(ctx context.Context, client valkey_go.Client, since tim
 	return resps[1].AsZScores()
 }
 
-// Add scores member at at.UnixMilli and renews the key's TTL.
-func (i TimeIndex) Add(ctx context.Context, client valkey_go.Client, at time.Time, member string, ttl time.Duration) error {
+// TimedEntry is one member of a TimeIndex and the TTL its write renews.
+type TimedEntry struct {
+	At     time.Time
+	Member string
+	TTL    time.Duration
+}
+
+// Add scores the entry's member at At.UnixMilli and renews the key's TTL.
+func (i TimeIndex) Add(ctx context.Context, client valkey_go.Client, entry TimedEntry) error {
 	resps := client.DoMulti(ctx,
-		client.B().Zadd().Key(i.Key).ScoreMember().ScoreMember(float64(at.UnixMilli()), member).Build(),
-		client.B().Expire().Key(i.Key).Seconds(int64(ttl.Seconds())).Build(),
+		client.B().Zadd().Key(i.Key).ScoreMember().ScoreMember(float64(entry.At.UnixMilli()), entry.Member).Build(),
+		client.B().Expire().Key(i.Key).Seconds(int64(entry.TTL.Seconds())).Build(),
 	)
 	return resps[0].Error()
 }

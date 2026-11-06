@@ -31,7 +31,7 @@ func (l TrimmedLog) AppendBatch(ctx context.Context, client valkey_go.Client, en
 	return client.DoMulti(ctx,
 		zadd.Build(),
 		client.B().Zremrangebyscore().Key(l.Key).Min("-inf").Max(cutoffScore).Build(),
-		client.B().Zremrangebyrank().Key(l.Key).Start(0).Stop(-(l.Keep+1)).Build(),
+		client.B().Zremrangebyrank().Key(l.Key).Start(0).Stop(-(l.Keep + 1)).Build(),
 		client.B().Expire().Key(l.Key).Seconds(l.TTLSeconds).Build(),
 	)
 }

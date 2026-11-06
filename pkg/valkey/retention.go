@@ -20,16 +20,19 @@ return 1`)
 
 // RetainIfPresent refreshes Key's TTL and rescores Member in Index, only while Key still exists.
 type RetainIfPresent struct {
-	Key   string
-	Index string
+	Key    string
+	Index  string
+	Member string
+	TTL    time.Duration
+	Score  int64
 }
 
-func (r RetainIfPresent) Run(ctx context.Context, client valkey_go.Client, member string, ttl time.Duration, score int64) error {
+func (r RetainIfPresent) Run(ctx context.Context, client valkey_go.Client) error {
 	return RunScripts(ctx, client, []ScriptCall{{
 		Script: retainIfPresentScript,
 		Key:    r.Key,
 		Also:   []string{r.Index},
-		Args:   []string{member, strconv.FormatInt(int64(ttl/time.Second), 10), strconv.FormatInt(score, 10)},
+		Args:   []string{r.Member, strconv.FormatInt(int64(r.TTL/time.Second), 10), strconv.FormatInt(r.Score, 10)},
 	}})[0].Error()
 }
 
@@ -53,15 +56,18 @@ type RetentionSweep struct {
 	Index     string
 	SetIdx    []string
 	KeyPrefix string
+	Now       time.Time
+	Batch     int
+	FloorTTL  time.Duration
 }
 
-func (s RetentionSweep) Run(ctx context.Context, client valkey_go.Client, now time.Time, batch int, floorTTL time.Duration) (int64, error) {
+func (s RetentionSweep) Run(ctx context.Context, client valkey_go.Client) (int64, error) {
 	keys := append([]string{s.Index}, s.SetIdx...)
 	n, err := RunScripts(ctx, client, []ScriptCall{{
 		Script: retentionSweepScript,
 		Key:    keys[0],
 		Also:   keys[1:],
-		Args:   []string{strconv.FormatInt(now.Unix(), 10), strconv.Itoa(batch), s.KeyPrefix, strconv.FormatInt(int64(floorTTL/time.Second), 10)},
+		Args:   []string{strconv.FormatInt(s.Now.Unix(), 10), strconv.Itoa(s.Batch), s.KeyPrefix, strconv.FormatInt(int64(s.FloorTTL/time.Second), 10)},
 	}})[0].ToInt64()
 	return n, err
 }
@@ -84,17 +90,21 @@ return #page[2]`)
 
 // RetentionMigration drains Source in bounded, resumable batches tracked by Cursor, carrying still-live members into Index.
 type RetentionMigration struct {
-	Source string
-	Index  string
-	Cursor string
+	Source    string
+	Index     string
+	Cursor    string
+	Batch     int
+	KeyPrefix string
+	FloorTTL  time.Duration
+	Now       time.Time
 }
 
-func (m RetentionMigration) Run(ctx context.Context, client valkey_go.Client, batch int, keyPrefix string, floorTTL time.Duration, now time.Time) (int64, error) {
+func (m RetentionMigration) Run(ctx context.Context, client valkey_go.Client) (int64, error) {
 	n, err := RunScripts(ctx, client, []ScriptCall{{
 		Script: retentionMigrationScript,
 		Key:    m.Source,
 		Also:   []string{m.Index, m.Cursor},
-		Args:   []string{strconv.Itoa(batch), keyPrefix, strconv.FormatInt(int64(floorTTL/time.Second), 10), strconv.FormatInt(now.Unix(), 10)},
+		Args:   []string{strconv.Itoa(m.Batch), m.KeyPrefix, strconv.FormatInt(int64(m.FloorTTL/time.Second), 10), strconv.FormatInt(m.Now.Unix(), 10)},
 	}})[0].ToInt64()
 	return n, err
 }
@@ -108,18 +118,21 @@ return 1`)
 
 // GuardedErase deletes Key and removes Member from SortedIdx and every SetIdx, but only while GuardField on Key still equals Expect.
 type GuardedErase struct {
-	Key       string
-	SortedIdx string
-	SetIdx    []string
+	Key        string
+	SortedIdx  string
+	SetIdx     []string
+	GuardField string
+	Expect     string
+	Member     string
 }
 
-func (g GuardedErase) Run(ctx context.Context, client valkey_go.Client, guardField, expect, member string) (bool, error) {
+func (g GuardedErase) Run(ctx context.Context, client valkey_go.Client) (bool, error) {
 	keys := append([]string{g.Key, g.SortedIdx}, g.SetIdx...)
 	n, err := RunScripts(ctx, client, []ScriptCall{{
 		Script: guardedEraseScript,
 		Key:    keys[0],
 		Also:   keys[1:],
-		Args:   []string{member, expect, guardField},
+		Args:   []string{g.Member, g.Expect, g.GuardField},
 	}})[0].ToInt64()
 	return n == 1, err
 }
