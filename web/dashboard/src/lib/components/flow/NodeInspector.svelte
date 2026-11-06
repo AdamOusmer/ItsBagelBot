@@ -234,7 +234,7 @@
                 />
               </Field>
             {:else if field.type === 'number'}
-              <Field {label} for="{uid}-{field.key}">
+              <Field {label} for="{uid}-{field.key}" hint={spec.type === 'reply.cooldown_add' && field.key === 'per' ? t('flows.step.reply.cooldownAdd.field.per.hint') : undefined}>
                 <Input
                   id="{uid}-{field.key}"
                   type="number"

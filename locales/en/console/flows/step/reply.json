@@ -147,7 +147,7 @@
     "field": {
       "name": { "label": "Timer" },
       "seconds": { "label": "Add", "range": "Use 1 second to {days} days." },
-      "per": { "label": "Per" }
+      "per": { "label": "Per", "hint": "Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event." }
     }
   }
 }

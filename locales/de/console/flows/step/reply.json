@@ -167,7 +167,7 @@
     "field": {
       "name": { "label": "Timer" },
       "seconds": { "label": "Hinzufügen", "range": "Verwende 1 Sekunde bis {days} Tage." },
-      "per": { "label": "Pro" }
+      "per": { "label": "Pro", "hint": "Fügt die Zeit oben für jeden vollen Betrag hinzu. Trage in einem Bits-Rezept 100 ein, um je 100 Bits zu zählen. Leer lassen, um sie einmal pro Ereignis hinzuzufügen." }
     }
   }
 }

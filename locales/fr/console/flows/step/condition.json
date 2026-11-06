@@ -48,7 +48,7 @@
       "name": {
         "label": "Nom",
         "placeholder": "subathon",
-        "hint": "Lui donner un nom redémarre une fenêtre en cours ; une étape cooldown_add ailleurs peut lui ajouter du temps par ce nom. Non disponible par viewer."
+        "hint": "Lui donner un nom le redémarre s’il est en cours. Les étapes d’ajout de temps de n’importe quelle recette peuvent ensuite le prolonger. Non disponible par viewer."
       },
       "leftCommand": {
         "label": "Commande de temps restant",

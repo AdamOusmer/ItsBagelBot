@@ -167,7 +167,7 @@
     "field": {
       "name": { "label": "Temporizador" },
       "seconds": { "label": "Añadir", "range": "Usa de 1 segundo a {days} días." },
-      "per": { "label": "Por" }
+      "per": { "label": "Por", "hint": "Añade el tiempo de arriba por cada cantidad completa. Pon 100 en una receta de bits para contar cada 100 bits. Déjalo vacío para añadirlo una vez por evento." }
     }
   }
 }

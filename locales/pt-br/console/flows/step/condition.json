@@ -48,7 +48,7 @@
       "name": {
         "label": "Nome",
         "placeholder": "subathon",
-        "hint": "Dar um nome reinicia uma janela em andamento; uma etapa cooldown_add em outra receita pode adicionar tempo a ela por esse nome. Não disponível por espectador."
+        "hint": "Dar um nome o reinicia se estiver em andamento. Etapas de adicionar tempo em qualquer receita poderão estendê-lo. Não disponível por espectador."
       },
       "leftCommand": {
         "label": "Comando de tempo restante",

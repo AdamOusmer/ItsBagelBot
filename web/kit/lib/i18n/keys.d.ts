@@ -2845,6 +2845,7 @@ export type KnownMessageKey =
   | 'flows.step.reply.chat.label'
   | 'flows.step.reply.chat.summary'
   | 'flows.step.reply.cooldownAdd.field.name.label'
+  | 'flows.step.reply.cooldownAdd.field.per.hint'
   | 'flows.step.reply.cooldownAdd.field.per.label'
   | 'flows.step.reply.cooldownAdd.field.seconds.label'
   | 'flows.step.reply.cooldownAdd.field.seconds.range'
