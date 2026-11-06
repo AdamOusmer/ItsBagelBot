@@ -73,7 +73,10 @@ func emoteplayKey(broadcasterID uint64) string {
 
 func (s *ValkeyEmotePlay) Bump(ctx context.Context, u EmotePlayUpdate) (EmotePlayResult, error) {
 	flags, milestone, apex, err := pkg_valkey.RepeatSequence{Key: emoteplayKey(u.BroadcasterID)}.Track(
-		ctx, s.client, u.Emote, u.Width, u.Copies, u.MsgID, s.pyrWin, s.stkWin, s.ttl, streakLadderArg,
+		ctx, s.client, pkg_valkey.RepeatStep{
+			Element: u.Emote, Width: u.Width, Copies: u.Copies, ReplayID: u.MsgID,
+			PyramidWindow: s.pyrWin, StreakWindow: s.stkWin, TTL: s.ttl, Ladder: streakLadderArg,
+		},
 	)
 	if err != nil {
 		return EmotePlayResult{}, err

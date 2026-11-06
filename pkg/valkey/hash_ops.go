@@ -10,14 +10,14 @@ import (
 )
 
 // HSetIfAbsent sets a hash field only when it was unset, and reports whether it did.
-func HSetIfAbsent(ctx context.Context, client valkey_go.Client, key, field, value string) (bool, error) {
-	added, err := client.Do(ctx, client.B().Hsetnx().Key(key).Field(field).Value(value).Build()).AsInt64()
+func HSetIfAbsent(ctx context.Context, client valkey_go.Client, field HashField, value string) (bool, error) {
+	added, err := client.Do(ctx, client.B().Hsetnx().Key(field.Key).Field(field.Field).Value(value).Build()).AsInt64()
 	return added > 0, err
 }
 
 // HSet writes one hash field, leaving any TTL on the hash untouched.
-func HSet(ctx context.Context, client valkey_go.Client, key, field, value string) error {
-	return client.Do(ctx, client.B().Hset().Key(key).FieldValue().FieldValue(field, value).Build()).Error()
+func HSet(ctx context.Context, client valkey_go.Client, field HashField, value string) error {
+	return client.Do(ctx, client.B().Hset().Key(field.Key).FieldValue().FieldValue(field.Field, value).Build()).Error()
 }
 
 // HValues reads every value in a hash; a missing hash is empty, not an error.

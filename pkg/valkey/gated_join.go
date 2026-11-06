@@ -32,13 +32,21 @@ type GatedJoin struct {
 	Labels         string
 }
 
-// Join reports whether the gate was open, whether member was newly added, and the set's size afterward.
-func (g GatedJoin) Join(ctx context.Context, client valkey_go.Client, score int64, member, label string, ttl time.Duration) (open, added bool, count int64, err error) {
+// Entrant is one member joining a GatedJoin set at a given score, with a label and the TTL to refresh every key to.
+type Entrant struct {
+	Score  int64
+	Member string
+	Label  string
+	TTL    time.Duration
+}
+
+// Join reports whether the gate was open, whether the entrant was newly added, and the set's size afterward.
+func (g GatedJoin) Join(ctx context.Context, client valkey_go.Client, entrant Entrant) (open, added bool, count int64, err error) {
 	reply, err := gatedJoinScript.Exec(ctx, client,
 		[]string{g.GuardA, g.GuardB, g.Set, g.Labels},
 		[]string{
-			strconv.FormatInt(score, 10), member, label,
-			strconv.FormatInt(int64(ttl.Seconds()), 10),
+			strconv.FormatInt(entrant.Score, 10), entrant.Member, entrant.Label,
+			strconv.FormatInt(int64(entrant.TTL.Seconds()), 10),
 		},
 	).AsIntSlice()
 	if err != nil {

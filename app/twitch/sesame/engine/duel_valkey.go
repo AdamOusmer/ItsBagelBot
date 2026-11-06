@@ -354,8 +354,10 @@ func (s *ValkeyDuelStore) writeInstall(ctx context.Context, broadcasterID uint64
 			TTL: duelStateTTL,
 		}
 	}
-	return pkg_valkey.InstallWithEscrowField(ctx, s.client,
-		pkg_valkey.Key{Name: duelKey(duelStatePrefix, broadcasterID), TTL: duelStateTTL}, string(blob), escrow)
+	return pkg_valkey.InstallWithEscrowField(ctx, s.client, pkg_valkey.InstallSpec{
+		State:      pkg_valkey.Key{Name: duelKey(duelStatePrefix, broadcasterID), TTL: duelStateTTL},
+		StateValue: string(blob), Escrow: escrow,
+	})
 }
 
 func (s *ValkeyDuelStore) compensateOpen(ctx context.Context, broadcasterID uint64, state DuelState) {
@@ -427,7 +429,8 @@ func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, ent
 }
 
 func (s *ValkeyDuelStore) claimSeat(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, error) {
-	return pkg_valkey.HSetIfAbsent(ctx, s.client, duelKey(duelEntriesPrefix, broadcasterID), entry.ledgerField(), entry.ledgerValue())
+	field := pkg_valkey.HashField{Key: duelKey(duelEntriesPrefix, broadcasterID), Field: entry.ledgerField()}
+	return pkg_valkey.HSetIfAbsent(ctx, s.client, field, entry.ledgerValue())
 }
 
 func (s *ValkeyDuelStore) unclaimSeat(ctx context.Context, broadcasterID uint64, entry DuelStake) {
@@ -702,7 +705,10 @@ func (s *ValkeyDuelStore) teardown(ctx context.Context, broadcasterID uint64, re
 		escrow = &pkg_valkey.RenameTTL{From: duelKey(duelEntriesPrefix, broadcasterID), To: snap, TTL: duelReceiptTTL}
 	}
 	drop := []string{duelKey(duelStatePrefix, broadcasterID), duelKey(duelDeadlinePrefix, broadcasterID)}
-	if err := pkg_valkey.CloseWithReceipt(ctx, s.client, pkg_valkey.Key{Name: lastKey, TTL: duelReceiptTTL}, string(blob), drop, escrow); err != nil {
+	spec := pkg_valkey.CloseSpec{
+		Receipt: pkg_valkey.Key{Name: lastKey, TTL: duelReceiptTTL}, ReceiptValue: string(blob), Drop: drop, Escrow: escrow,
+	}
+	if err := pkg_valkey.CloseWithReceipt(ctx, s.client, spec); err != nil {
 		s.log.Warn("duel: teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
@@ -735,9 +741,10 @@ func (s *ValkeyDuelStore) autoResolve(ctx context.Context, broadcasterID uint64)
 
 	if !s.holdSection(dctx, broadcasterID) {
 		// The claim delete is required: otherwise the retry expires inside the claim TTL and is dropped.
-		pkg_valkey.RearmAndForget(dctx, s.client,
-			pkg_valkey.Key{Name: duelKey(duelDeadlinePrefix, broadcasterID), TTL: 2 * time.Second}, "retry",
-			duelKey(duelClaimPrefix, broadcasterID))
+		pkg_valkey.RearmAndForget(dctx, s.client, pkg_valkey.RearmSpec{
+			Marker:      pkg_valkey.Key{Name: duelKey(duelDeadlinePrefix, broadcasterID), TTL: 2 * time.Second},
+			MarkerValue: "retry", Forget: duelKey(duelClaimPrefix, broadcasterID),
+		})
 		return
 	}
 	defer s.releaseSection(dctx, broadcasterID)
@@ -813,7 +820,8 @@ func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterI
 	escrow := pkg_valkey.RenameTTL{From: duelKey(duelEntriesPrefix, broadcasterID), To: receipt.SnapKey, TTL: duelReceiptTTL}
 	drop := []string{duelKey(duelStatePrefix, broadcasterID), duelKey(duelDeadlinePrefix, broadcasterID)}
 	lastKey := pkg_valkey.Key{Name: duelKey(duelLastPrefix, broadcasterID), TTL: duelReceiptTTL}
-	if err := pkg_valkey.SnapshotThenReceipt(ctx, s.client, escrow, lastKey, string(blob), drop); err != nil {
+	spec := pkg_valkey.SnapshotReceiptSpec{Escrow: escrow, Receipt: lastKey, ReceiptValue: string(blob), Drop: drop}
+	if err := pkg_valkey.SnapshotThenReceipt(ctx, s.client, spec); err != nil {
 		s.log.Warn("duel: snapshot teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }

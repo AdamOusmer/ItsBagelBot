@@ -82,7 +82,8 @@ func (s *ValkeyPersonality) Feed(ctx context.Context, broadcasterID uint64, name
 	if totals.Total < 0 || totals.Total > data.MaxCounter {
 		return FeedCounts{}, errors.New("personality: feed total outside signed integer range")
 	}
-	today, total, err := feedCounter.Bump(ctx, s.client, "personality:feed:receipt:"+receiptID, 2*personalityTTL, totals.Total)
+	receipt := pkg_valkey.Key{Name: "personality:feed:receipt:" + receiptID, TTL: 2 * personalityTTL}
+	today, total, err := feedCounter.Bump(ctx, s.client, receipt, totals.Total)
 	if err != nil {
 		return FeedCounts{}, err
 	}

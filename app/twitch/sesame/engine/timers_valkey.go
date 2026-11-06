@@ -274,7 +274,8 @@ func (s *ValkeyTimerStore) reconcile(ctx context.Context) {
 
 func (s *ValkeyTimerStore) liveBroadcasters(ctx context.Context) []uint64 {
 	var ids []uint64
-	err := pkg_valkey.ScanAll(ctx, s.client, livekey.KeyPrefix+"*", "string", liveScanCount, func(keys []string) error {
+	query := pkg_valkey.ScanQuery{Match: livekey.KeyPrefix + "*", Type: "string", Count: liveScanCount}
+	err := pkg_valkey.ScanAll(ctx, s.client, query, func(keys []string) error {
 		for _, k := range keys {
 			if strings.HasPrefix(k, recheckKeyPrefix) {
 				continue

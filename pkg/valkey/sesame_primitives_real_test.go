@@ -78,19 +78,19 @@ func TestOutcomeClaimRealValkey(t *testing.T) {
 	cleanKeys(t, client, key)
 
 	drawnAt := time.Now().Add(-time.Minute)
-	require.NoError(t, HSet(ctx, client, key, "result", `{"winners":[{"id":"w1"}],"drawn_at":`+
+	require.NoError(t, HSet(ctx, client, HashField{Key: key, Field: "result"}, `{"winners":[{"id":"w1"}],"drawn_at":`+
 		strconv.FormatInt(drawnAt.UnixMilli(), 10)+`}`))
 
 	claim := OutcomeClaim{Key: key}
-	code, err := claim.Claim(ctx, client, "w1", time.Hour, time.Now())
+	code, err := claim.Claim(ctx, client, "w1", time.Hour)
 	require.NoError(t, err)
 	require.Equal(t, OutcomeClaimOK, code)
 
-	again, err := claim.Claim(ctx, client, "w1", time.Hour, time.Now())
+	again, err := claim.Claim(ctx, client, "w1", time.Hour)
 	require.NoError(t, err)
 	require.Equal(t, OutcomeClaimAlready, again)
 
-	none, err := claim.Claim(ctx, client, "nobody", time.Hour, time.Now())
+	none, err := claim.Claim(ctx, client, "nobody", time.Hour)
 	require.NoError(t, err)
 	require.Equal(t, OutcomeClaimNone, none)
 }
@@ -123,7 +123,8 @@ func TestGatedJoinRealValkey(t *testing.T) {
 	}
 	cleanKeys(t, client, gate.GuardA, gate.GuardB, gate.Set, gate.Labels)
 
-	open, added, count, err := gate.Join(ctx, client, 1, "viewer-1", "login-1", time.Minute)
+	entrant := Entrant{Score: 1, Member: "viewer-1", Label: "login-1", TTL: time.Minute}
+	open, added, count, err := gate.Join(ctx, client, entrant)
 	require.NoError(t, err)
 	require.False(t, open, "guards are missing")
 	require.False(t, added)
@@ -132,13 +133,14 @@ func TestGatedJoinRealValkey(t *testing.T) {
 	require.NoError(t, NewKV(client).Set(ctx, Key{Name: gate.GuardA, TTL: time.Minute}, "1"))
 	require.NoError(t, NewKV(client).Set(ctx, Key{Name: gate.GuardB, TTL: time.Minute}, "1"))
 
-	open, added, count, err = gate.Join(ctx, client, 1, "viewer-1", "login-1", time.Minute)
+	open, added, count, err = gate.Join(ctx, client, entrant)
 	require.NoError(t, err)
 	require.True(t, open)
 	require.True(t, added)
 	require.EqualValues(t, 1, count)
 
-	open, added, count, err = gate.Join(ctx, client, 2, "viewer-1", "login-1", time.Minute)
+	entrant.Score = 2
+	open, added, count, err = gate.Join(ctx, client, entrant)
 	require.NoError(t, err)
 	require.True(t, open)
 	require.False(t, added, "already joined")
@@ -179,17 +181,17 @@ func TestReceiptCounterRealValkey(t *testing.T) {
 	r1, r2 := "test:receipt:r1:"+t.Name(), "test:receipt:r2:"+t.Name()
 	cleanKeys(t, client, counter.Counter, r1, r2)
 
-	today, total, err := counter.Bump(ctx, client, r1, 2*time.Minute, 100)
+	today, total, err := counter.Bump(ctx, client, Key{Name: r1, TTL: 2 * time.Minute}, 100)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, today)
 	require.EqualValues(t, 100, total)
 
-	replayToday, replayTotal, err := counter.Bump(ctx, client, r1, 2*time.Minute, 100)
+	replayToday, replayTotal, err := counter.Bump(ctx, client, Key{Name: r1, TTL: 2 * time.Minute}, 100)
 	require.NoError(t, err)
 	require.Equal(t, today, replayToday)
 	require.Equal(t, total, replayTotal)
 
-	nextToday, _, err := counter.Bump(ctx, client, r2, 2*time.Minute, 100)
+	nextToday, _, err := counter.Bump(ctx, client, Key{Name: r2, TTL: 2 * time.Minute}, 100)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, nextToday)
 }
@@ -210,14 +212,20 @@ func TestRepeatSequenceRealValkey(t *testing.T) {
 	var flags, apex int64
 	for _, s := range steps {
 		var err error
-		flags, _, apex, err = seq.Track(ctx, client, "emote", s.width, s.copies, s.replay, window, window, time.Minute, "5,10")
+		flags, _, apex, err = seq.Track(ctx, client, RepeatStep{
+			Element: "emote", Width: s.width, Copies: s.copies, ReplayID: s.replay,
+			PyramidWindow: window, StreakWindow: window, TTL: time.Minute, Ladder: "5,10",
+		})
 		require.NoError(t, err)
 	}
 	require.Equal(t, int64(1), flags&1, "ascend-then-descend run should have completed")
 	require.EqualValues(t, 3, apex)
 
 	// Replaying the last message must not re-trigger completion.
-	flagsReplay, _, _, err := seq.Track(ctx, client, "emote", 1, 1, "m5", window, window, time.Minute, "5,10")
+	flagsReplay, _, _, err := seq.Track(ctx, client, RepeatStep{
+		Element: "emote", Width: 1, Copies: 1, ReplayID: "m5",
+		PyramidWindow: window, StreakWindow: window, TTL: time.Minute, Ladder: "5,10",
+	})
 	require.NoError(t, err)
 	require.Zero(t, flagsReplay)
 }

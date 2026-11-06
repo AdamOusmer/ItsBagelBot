@@ -133,21 +133,21 @@ func (f hotPathFixture) testFeedCounters(t *testing.T) {
 	counter := pkg_valkey.ReceiptCounter{Counter: todayKey, CounterTTL: 60 * time.Second}
 	const maxCounter = int64(9223372036854775807)
 
-	firstToday, firstTotal, err := counter.Bump(f.ctx, f.client, receipt, 120*time.Second, maxCounter)
+	firstToday, firstTotal, err := counter.Bump(f.ctx, f.client, pkg_valkey.Key{Name: receipt, TTL: 120 * time.Second}, maxCounter)
 	require.NoError(t, err)
 	require.Equal(t, FeedCounts{Today: 1, Total: maxCounter}, FeedCounts{Today: firstToday, Total: firstTotal})
 
-	replayToday, replayTotal, err := counter.Bump(f.ctx, f.client, receipt, 120*time.Second, maxCounter)
+	replayToday, replayTotal, err := counter.Bump(f.ctx, f.client, pkg_valkey.Key{Name: receipt, TTL: 120 * time.Second}, maxCounter)
 	require.NoError(t, err)
 	require.Equal(t, firstToday, replayToday)
 	require.Equal(t, firstTotal, replayTotal)
 
 	require.NoError(t, f.client.Do(f.ctx, f.client.B().Set().Key(todayKey).Value("9223372036854775806").Build()).Error())
-	lastToday, _, err := counter.Bump(f.ctx, f.client, receipt+"2", 120*time.Second, maxCounter)
+	lastToday, _, err := counter.Bump(f.ctx, f.client, pkg_valkey.Key{Name: receipt + "2", TTL: 120 * time.Second}, maxCounter)
 	require.NoError(t, err)
 	require.Equal(t, maxCounter, lastToday)
 
-	_, _, err = counter.Bump(f.ctx, f.client, receipt+"3", 120*time.Second, maxCounter)
+	_, _, err = counter.Bump(f.ctx, f.client, pkg_valkey.Key{Name: receipt + "3", TTL: 120 * time.Second}, maxCounter)
 	require.Error(t, err)
 }
 
@@ -193,9 +193,10 @@ func (f hotPathBenchmark) benchmarkLoyalty(b *testing.B) {
 
 func (f hotPathBenchmark) benchmarkFeed(b *testing.B) {
 	counter := pkg_valkey.ReceiptCounter{Counter: f.today, CounterTTL: 60 * time.Second}
+	receipt := pkg_valkey.Key{Name: f.total + ":receipt", TTL: 120 * time.Second}
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, _, err := counter.Bump(f.ctx, f.client, f.total+":receipt", 120*time.Second, 1); err != nil {
+		if _, _, err := counter.Bump(f.ctx, f.client, receipt, 1); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -24,9 +24,8 @@ func TTLSeconds(ctx context.Context, client valkey_go.Client, key string) (int64
 	return client.Do(ctx, client.B().Ttl().Key(key).Build()).AsInt64()
 }
 
-// ReadString tells a missing key from a failed read.
-func ReadString(ctx context.Context, client valkey_go.Client, key string) (string, bool, error) {
-	raw, err := client.Do(ctx, client.B().Get().Key(key).Build()).ToString()
+func readOptionalString(ctx context.Context, cmd valkey_go.Completed, client valkey_go.Client) (string, bool, error) {
+	raw, err := client.Do(ctx, cmd).ToString()
 	if valkey_go.IsValkeyNil(err) {
 		return "", false, nil
 	}
@@ -36,16 +35,14 @@ func ReadString(ctx context.Context, client valkey_go.Client, key string) (strin
 	return raw, true, nil
 }
 
+// ReadString tells a missing key from a failed read.
+func ReadString(ctx context.Context, client valkey_go.Client, key string) (string, bool, error) {
+	return readOptionalString(ctx, client.B().Get().Key(key).Build(), client)
+}
+
 // ListFront reads a list's first element without popping it; a missing list (or element) is not an error.
 func ListFront(ctx context.Context, client valkey_go.Client, key string) (string, bool, error) {
-	raw, err := client.Do(ctx, client.B().Lindex().Key(key).Index(0).Build()).ToString()
-	if valkey_go.IsValkeyNil(err) {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, err
-	}
-	return raw, true, nil
+	return readOptionalString(ctx, client.B().Lindex().Key(key).Index(0).Build(), client)
 }
 
 // ZRangeAll returns every member of a sorted set in score order.
@@ -53,9 +50,15 @@ func ZRangeAll(ctx context.Context, client valkey_go.Client, key string) ([]stri
 	return client.Do(ctx, client.B().Zrange().Key(key).Min("0").Max("-1").Build()).AsStrSlice()
 }
 
-// ZRangeByScore returns up to limit members scored between min and max, lowest first.
-func ZRangeByScore(ctx context.Context, client valkey_go.Client, key, min, max string, limit int64) ([]string, error) {
-	return client.Do(ctx, client.B().Zrangebyscore().Key(key).Min(min).Max(max).Limit(0, limit).Build()).AsStrSlice()
+// ScoreRange bounds a ZRANGEBYSCORE read.
+type ScoreRange struct {
+	Min, Max string
+	Limit    int64
+}
+
+// ZRangeByScore returns up to Limit members scored between Min and Max, lowest first.
+func ZRangeByScore(ctx context.Context, client valkey_go.Client, key string, r ScoreRange) ([]string, error) {
+	return client.Do(ctx, client.B().Zrangebyscore().Key(key).Min(r.Min).Max(r.Max).Limit(0, r.Limit).Build()).AsStrSlice()
 }
 
 // ZRem removes one member from a sorted set.

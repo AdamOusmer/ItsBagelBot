@@ -135,8 +135,13 @@ func (s *ValkeyRaffleStore) installState(ctx context.Context, broadcasterID uint
 	if remindSecs > 0 {
 		remind = &pkg_valkey.Key{Name: raffleKey(raffleRemindPrefix, broadcasterID), TTL: time.Duration(remindSecs) * time.Second}
 	}
-	err := pkg_valkey.OpenSession(ctx, s.client, stateKey, string(state), clear,
-		raffleDueKey, float64(dueAt.UnixMilli()), strconv.FormatUint(broadcasterID, 10), remind, "1")
+	err := pkg_valkey.OpenSession(ctx, s.client, pkg_valkey.OpenSpec{
+		State: stateKey, StateValue: string(state), Clear: clear,
+		Due: pkg_valkey.DueSchedule{
+			Key: raffleDueKey, Score: float64(dueAt.UnixMilli()), Member: strconv.FormatUint(broadcasterID, 10),
+		},
+		Remind: remind, RemindValue: "1",
+	})
 	if err != nil {
 		_ = pkg_valkey.DelKeys(ctx, s.client, raffleKey(raffleDeadlinePrefix, broadcasterID))
 		return err
@@ -175,7 +180,9 @@ func (s *ValkeyRaffleStore) Join(ctx context.Context, broadcasterID uint64, entr
 		GuardA: raffleKey(raffleStatePrefix, broadcasterID), GuardB: raffleKey(raffleDeadlinePrefix, broadcasterID),
 		Set: raffleKey(raffleEntriesPrefix, broadcasterID), Labels: raffleKey(raffleNamesPrefix, broadcasterID),
 	}
-	open, added, count, err := gate.Join(ctx, s.client, time.Now().UnixMilli(), entrant.ID, entrant.Login, raffleStateTTL)
+	open, added, count, err := gate.Join(ctx, s.client, pkg_valkey.Entrant{
+		Score: time.Now().UnixMilli(), Member: entrant.ID, Label: entrant.Login, TTL: raffleStateTTL,
+	})
 	if err != nil {
 		return RaffleEntry{}, err
 	}
@@ -199,7 +206,8 @@ func (s *ValkeyRaffleStore) Cancel(ctx context.Context, broadcasterID uint64) (b
 		raffleKey(raffleRemindPrefix, broadcasterID), raffleKey(raffleEntriesPrefix, broadcasterID),
 		raffleKey(raffleNamesPrefix, broadcasterID),
 	}
-	return pkg_valkey.CancelAndForget(ctx, s.client, drop, raffleDueKey, strconv.FormatUint(broadcasterID, 10))
+	due := pkg_valkey.DueMember{Key: raffleDueKey, Member: strconv.FormatUint(broadcasterID, 10)}
+	return pkg_valkey.CancelAndForget(ctx, s.client, drop, due)
 }
 
 func (s *ValkeyRaffleStore) LastResult(ctx context.Context, broadcasterID uint64) (*RaffleResult, bool, error) {
@@ -235,8 +243,9 @@ type drawRead struct {
 }
 
 func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uint64, override int64) (*drawRead, error) {
-	v, ok, members, names, err := pkg_valkey.ReadDrawPool(ctx, s.client,
-		raffleKey(raffleStatePrefix, broadcasterID), raffleKey(raffleEntriesPrefix, broadcasterID), raffleKey(raffleNamesPrefix, broadcasterID))
+	v, ok, members, names, err := pkg_valkey.ReadDrawPool(ctx, s.client, pkg_valkey.DrawPoolKeys{
+		State: raffleKey(raffleStatePrefix, broadcasterID), Pool: raffleKey(raffleEntriesPrefix, broadcasterID), Labels: raffleKey(raffleNamesPrefix, broadcasterID),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -290,9 +299,13 @@ func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID ui
 		raffleKey(raffleStatePrefix, broadcasterID), raffleKey(raffleDeadlinePrefix, broadcasterID),
 		raffleKey(raffleRemindPrefix, broadcasterID), raffleKey(raffleNamesPrefix, broadcasterID),
 	}
-	err := pkg_valkey.SnapshotThenFieldReceipt(ctx, s.client, escrow, drop,
-		raffleDueKey, strconv.FormatUint(broadcasterID, 10),
-		raffleKey(raffleLastPrefix, broadcasterID), "result", marshalJSON(res), raffleReceiptTTL)
+	err := pkg_valkey.SnapshotThenFieldReceipt(ctx, s.client, pkg_valkey.SnapshotFieldReceiptSpec{
+		Escrow: escrow, Drop: drop,
+		Due: pkg_valkey.DueMember{Key: raffleDueKey, Member: strconv.FormatUint(broadcasterID, 10)},
+		Receipt: pkg_valkey.HashFieldTTL{
+			Key: raffleKey(raffleLastPrefix, broadcasterID), Field: "result", Value: marshalJSON(res), TTL: raffleReceiptTTL,
+		},
+	})
 	if err != nil {
 		s.log.Warn("raffle: draw teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
 	}
@@ -320,7 +333,8 @@ func (s *ValkeyRaffleStore) recordPayout(ctx context.Context, broadcasterID uint
 	if res.Payout == RafflePayoutNone {
 		return
 	}
-	err := pkg_valkey.HSet(ctx, s.client, raffleKey(raffleLastPrefix, broadcasterID), "result", marshalJSON(res))
+	field := pkg_valkey.HashField{Key: raffleKey(raffleLastPrefix, broadcasterID), Field: "result"}
+	err := pkg_valkey.HSet(ctx, s.client, field, marshalJSON(res))
 	if err != nil {
 		s.log.Warn("raffle: payout receipt not recorded", module.BIDField(broadcasterID), zap.Error(err))
 	}
@@ -347,7 +361,8 @@ func (s *ValkeyRaffleStore) sweepOverdue(ctx context.Context) {
 
 func (s *ValkeyRaffleStore) drawOverdue(ctx context.Context) {
 	cutoff := time.Now().Add(-raffleSweepGrace).UnixMilli()
-	ids, err := pkg_valkey.ZRangeByScore(ctx, s.client, raffleDueKey, "-inf", strconv.FormatInt(cutoff, 10), raffleSweepBatch)
+	ids, err := pkg_valkey.ZRangeByScore(ctx, s.client, raffleDueKey,
+		pkg_valkey.ScoreRange{Min: "-inf", Max: strconv.FormatInt(cutoff, 10), Limit: raffleSweepBatch})
 	if err != nil {
 		if ctx.Err() == nil {
 			s.log.Warn("raffle: overdue sweep failed", zap.Error(err))

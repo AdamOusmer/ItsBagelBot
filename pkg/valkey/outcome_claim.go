@@ -49,10 +49,10 @@ return 4
 // OutcomeClaim lets one entrant claim its place among a JSON-encoded outcome's listed winners, within a window after the outcome was drawn.
 type OutcomeClaim struct{ Key string }
 
-func (o OutcomeClaim) Claim(ctx context.Context, client valkey_go.Client, entrantID string, window time.Duration, now time.Time) (int64, error) {
+func (o OutcomeClaim) Claim(ctx context.Context, client valkey_go.Client, entrantID string, window time.Duration) (int64, error) {
 	return claimOutcomeScript.Exec(ctx, client, []string{o.Key}, []string{
 		entrantID,
 		strconv.FormatInt(int64(window.Seconds()), 10),
-		strconv.FormatInt(now.UnixMilli(), 10),
+		strconv.FormatInt(time.Now().UnixMilli(), 10),
 	}).AsInt64()
 }

@@ -38,10 +38,8 @@ func (s ScanUnlink) Run(ctx context.Context, client valkey_go.Client) error {
 		if err != nil {
 			return err
 		}
-		if len(page.Elements) > 0 {
-			if err := UnlinkKeys(ctx, client, page.Elements...); err != nil {
-				return err
-			}
+		if err := UnlinkKeys(ctx, client, page.Elements...); err != nil {
+			return err
 		}
 		if page.Cursor == 0 {
 			return nil

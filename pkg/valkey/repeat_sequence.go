@@ -125,18 +125,28 @@ return {flags, milestone, done_apex}`)
 // A replay sharing the same replayID as the last call is absorbed without changing either subsystem's state.
 type RepeatSequence struct{ Key string }
 
+// RepeatStep is one (element, width, copies) step fed to RepeatSequence.Track.
+type RepeatStep struct {
+	Element                     string
+	Width, Copies               int
+	ReplayID                    string
+	PyramidWindow, StreakWindow time.Duration
+	TTL                         time.Duration
+	Ladder                      string
+}
+
 // Track reports: bit 0 of flags set means the ascent completed this call (apex holds its peak width);
 // bit 1 set means the streak crossed a ladder rung (milestone holds the highest rung crossed).
-func (r RepeatSequence) Track(ctx context.Context, client valkey_go.Client, element string, width, copies int, replayID string, pyramidWindow, streakWindow, ttl time.Duration, ladder string) (flags, milestone, apex int64, err error) {
+func (r RepeatSequence) Track(ctx context.Context, client valkey_go.Client, step RepeatStep) (flags, milestone, apex int64, err error) {
 	args := []string{
-		element,
-		strconv.Itoa(width),
-		strconv.Itoa(copies),
-		replayID,
-		strconv.FormatInt(pyramidWindow.Milliseconds(), 10),
-		strconv.FormatInt(streakWindow.Milliseconds(), 10),
-		strconv.FormatInt(ttl.Milliseconds(), 10),
-		ladder,
+		step.Element,
+		strconv.Itoa(step.Width),
+		strconv.Itoa(step.Copies),
+		step.ReplayID,
+		strconv.FormatInt(step.PyramidWindow.Milliseconds(), 10),
+		strconv.FormatInt(step.StreakWindow.Milliseconds(), 10),
+		strconv.FormatInt(step.TTL.Milliseconds(), 10),
+		step.Ladder,
 	}
 	values, err := repeatSequenceScript.Exec(ctx, client, []string{r.Key}, args).ToArray()
 	if err != nil {

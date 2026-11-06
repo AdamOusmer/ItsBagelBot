@@ -65,7 +65,7 @@ func (s *ValkeyQueueStore) IsOpen(ctx context.Context, broadcasterID uint64) (bo
 }
 
 func (s *ValkeyQueueStore) Join(ctx context.Context, broadcasterID uint64, login string) (pos, size int64, joined bool, err error) {
-	return s.queue(broadcasterID).Join(ctx, s.client, login, time.Now(), s.ttl)
+	return s.queue(broadcasterID).Join(ctx, s.client, pkg_valkey.QueueEntry{Member: login, At: time.Now(), TTL: s.ttl})
 }
 
 func (s *ValkeyQueueStore) Remove(ctx context.Context, broadcasterID uint64, login string) (bool, error) {

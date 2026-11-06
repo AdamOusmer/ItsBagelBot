@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"time"
 
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
@@ -24,7 +23,7 @@ func (s *ValkeyRaffleStore) Claim(ctx context.Context, broadcasterID uint64, vie
 		return ClaimNone, nil
 	}
 	code, err := (pkg_valkey.OutcomeClaim{Key: raffleKey(raffleLastPrefix, broadcasterID)}).Claim(
-		ctx, s.client, viewerID, raffleClaimWindow, time.Now(),
+		ctx, s.client, viewerID, raffleClaimWindow,
 	)
 	if err != nil {
 		return ClaimNone, err

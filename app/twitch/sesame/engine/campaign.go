@@ -59,7 +59,7 @@ func (c *ValkeyCampaign) Observe(ctx context.Context, broadcasterID uint64, simh
 	b1, b2 := simBands(simhash)
 	k1, k2 := campaignKey(broadcasterID, b1), campaignKey(broadcasterID, b2)
 
-	resps := pkg_valkey.TouchAndCountHLL(ctx, c.client, k1, k2, senderID, campaignWindow)
+	resps := pkg_valkey.TouchAndCountHLL(ctx, c.client, pkg_valkey.HLLBandTouch{KeyA: k1, KeyB: k2, Member: senderID, TTL: campaignWindow})
 
 	c.noteWriteErrors(resps[:4])
 

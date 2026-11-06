@@ -83,5 +83,5 @@ func (t *TrialPromotion) promote(ctx context.Context, id string) error {
 	if err := t.promoter.PromoteTrial(ctx, userID); err != nil {
 		return err
 	}
-	return pkg_valkey.HSet(ctx, t.store, key, "counters_promoted", trialPromotedDone)
+	return pkg_valkey.HSet(ctx, t.store, pkg_valkey.HashField{Key: key, Field: "counters_promoted"}, trialPromotedDone)
 }

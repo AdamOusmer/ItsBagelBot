@@ -41,15 +41,14 @@ type SeededCounter struct {
 // Bump increments the counter by delta, seeding it with seed() only when it must create the counter.
 // seed is called at most once and its own error handling (if any) is the caller's responsibility.
 func (c SeededCounter) Bump(ctx context.Context, client valkey_go.Client, delta int64, seed func() int64) (int64, error) {
-	ttlArg := strconv.FormatInt(int64(c.TTL.Seconds()), 10)
-	deltaArg := strconv.FormatInt(delta, 10)
 	if c.Field == "" {
-		return c.bumpKey(ctx, client, deltaArg, ttlArg, seed)
+		return c.bumpKey(ctx, client, delta, seed)
 	}
-	return c.bumpField(ctx, client, deltaArg, ttlArg, seed)
+	return c.bumpField(ctx, client, delta, seed)
 }
 
-func (c SeededCounter) bumpKey(ctx context.Context, client valkey_go.Client, deltaArg, ttlArg string, seed func() int64) (int64, error) {
+func (c SeededCounter) bumpKey(ctx context.Context, client valkey_go.Client, delta int64, seed func() int64) (int64, error) {
+	deltaArg, ttlArg := strconv.FormatInt(delta, 10), strconv.FormatInt(int64(c.TTL.Seconds()), 10)
 	value, err := seededCounterKeyScript.Exec(ctx, client, []string{c.Key}, []string{"", deltaArg, ttlArg}).AsInt64()
 	if err == nil {
 		return value, nil
@@ -61,7 +60,8 @@ func (c SeededCounter) bumpKey(ctx context.Context, client valkey_go.Client, del
 	return seededCounterKeyScript.Exec(ctx, client, []string{c.Key}, []string{seedArg, deltaArg, ttlArg}).AsInt64()
 }
 
-func (c SeededCounter) bumpField(ctx context.Context, client valkey_go.Client, deltaArg, ttlArg string, seed func() int64) (int64, error) {
+func (c SeededCounter) bumpField(ctx context.Context, client valkey_go.Client, delta int64, seed func() int64) (int64, error) {
+	deltaArg, ttlArg := strconv.FormatInt(delta, 10), strconv.FormatInt(int64(c.TTL.Seconds()), 10)
 	value, err := seededCounterFieldScript.Exec(ctx, client, []string{c.Key}, []string{c.Field, "", deltaArg, ttlArg}).AsInt64()
 	if err == nil {
 		return value, nil

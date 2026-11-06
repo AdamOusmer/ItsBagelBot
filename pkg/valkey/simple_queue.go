@@ -43,11 +43,19 @@ func (q SimpleQueue) IsOpen(ctx context.Context, client valkey_go.Client) (bool,
 	return n > 0, nil
 }
 
-// Join adds member to the line if absent and refreshes both the line and the open marker's TTL; the open marker's refresh error is ignored, matching the line's own best-effort refresh.
-func (q SimpleQueue) Join(ctx context.Context, client valkey_go.Client, member string, at time.Time, ttl time.Duration) (pos, size int64, joined bool, err error) {
-	seconds := int64(ttl.Seconds())
+// QueueEntry is one member joining a SimpleQueue line at a given time, with the TTL to refresh the line to.
+type QueueEntry struct {
+	Member string
+	At     time.Time
+	TTL    time.Duration
+}
+
+// Join adds entry.Member to the line if absent and refreshes both the line and the open marker's TTL; the open marker's refresh error is ignored, matching the line's own best-effort refresh.
+func (q SimpleQueue) Join(ctx context.Context, client valkey_go.Client, entry QueueEntry) (pos, size int64, joined bool, err error) {
+	member := entry.Member
+	seconds := int64(entry.TTL.Seconds())
 	resps := client.DoMulti(ctx,
-		client.B().Zadd().Key(q.Line).Nx().ScoreMember().ScoreMember(float64(at.UnixMilli()), member).Build(),
+		client.B().Zadd().Key(q.Line).Nx().ScoreMember().ScoreMember(float64(entry.At.UnixMilli()), member).Build(),
 		client.B().Zrank().Key(q.Line).Member(member).Build(),
 		client.B().Zcard().Key(q.Line).Build(),
 		client.B().Expire().Key(q.Line).Seconds(seconds).Build(),

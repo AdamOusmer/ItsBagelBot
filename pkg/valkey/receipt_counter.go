@@ -37,11 +37,12 @@ type ReceiptCounter struct {
 }
 
 // Bump returns the counter's value after this call and the validated passthrough total.
-func (c ReceiptCounter) Bump(ctx context.Context, client valkey_go.Client, receiptKey string, receiptTTL time.Duration, passthrough int64) (today, total int64, err error) {
-	result := receiptCounterScript.Exec(ctx, client, []string{c.Counter, receiptKey}, []string{
+// receipt names the per-receipt dedupe marker and its TTL.
+func (c ReceiptCounter) Bump(ctx context.Context, client valkey_go.Client, receipt Key, passthrough int64) (today, total int64, err error) {
+	result := receiptCounterScript.Exec(ctx, client, []string{c.Counter, receipt.Name}, []string{
 		strconv.FormatInt(passthrough, 10),
 		strconv.FormatInt(int64(c.CounterTTL.Seconds()), 10),
-		strconv.FormatInt(int64(receiptTTL.Seconds()), 10),
+		strconv.FormatInt(int64(receipt.TTL.Seconds()), 10),
 	})
 	values, err := result.ToArray()
 	if err != nil {
