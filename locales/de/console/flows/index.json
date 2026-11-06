@@ -123,21 +123,25 @@
     "reward": "Belohnung auswählen",
     "counter": "Zähler auswählen",
     "scene": "Szene auswählen",
-    "light": "Zuerst ein Licht auswählen"
+    "light": "Zuerst ein Licht auswählen",
+    "namedCooldown": "Timer auswählen"
   },
   "choiceEmpty": {
     "rewards": "Noch keine Kanalpunkte-Belohnungen. Erstelle eine unter Kanalpunkte.",
     "manageableRewards": "Twitch lässt uns nur hier erstellte Belohnungen ändern. Erstelle eine unter Kanalpunkte.",
     "counters": "Noch keine Zähler. Erstelle einen unter Zähler.",
-    "scenes": "Dieses Licht hat keine Szenen."
+    "scenes": "Dieses Licht hat keine Szenen.",
+    "namedCooldowns": "Noch kein Rezept benennt einen Timer. Gib einem unter seinem Cooldown einen Namen."
   },
   "choiceProblem": {
     "rewards": "Deine Belohnungen konnten nicht geladen werden.",
     "counters": "Deine Zähler konnten nicht geladen werden.",
     "scenes": "Die Szenen für dieses Licht konnten nicht geladen werden.",
-    "keyRejected": "Govee hat deinen API-Schlüssel nicht akzeptiert."
+    "keyRejected": "Govee hat deinen API-Schlüssel nicht akzeptiert.",
+    "namedCooldowns": "Die Timer deiner Rezepte konnten nicht geladen werden."
   },
   "choiceMissing": "\"{name}\" ist nicht mehr in der Liste.",
+  "choiceUnowned": "Noch kein Rezept besitzt \"{name}\". Das bewirkt nichts, bis eines es tut.",
   "choiceRetry": "Erneut versuchen",
   "choiceLoading": "Wird geladen",
   "setup": {

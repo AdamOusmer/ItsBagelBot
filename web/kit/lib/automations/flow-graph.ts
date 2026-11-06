@@ -252,11 +252,16 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
     return { type: 'var', params: { ...varIdentity(config), op, value: op === 'exists' ? '' : str(config.value) } };
   },
   'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
-  'cond.cooldown': (config) => ({
-    type: 'cooldown',
-    params: { [config.perUser ? 'user_s' : 'global_s']: num(config.seconds), ...timeLeftParams(config) }
-  })
+  'cond.cooldown': cooldownConditionAction
 };
+
+// A per-viewer window can never be named: a name that survived a toggle (or a stale fixture) never reaches params.
+function cooldownConditionAction(config: FlowConfig): Condition {
+  const perUser = Boolean(config.perUser);
+  const params: Params = { [perUser ? 'user_s' : 'global_s']: num(config.seconds), ...timeLeftParams(config) };
+  if (perUser) delete params.name;
+  return { type: 'cooldown', params };
+}
 
 const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
@@ -269,8 +274,15 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.var_delete': (config) => ({ type: 'var_delete', params: varIdentity(config) }),
   'reply.text': textAction,
   'reply.math': (config) => ({ type: 'math', params: { expression: str(config.expression), save_as: recipeName(config.saveAs) } }),
-  'reply.reward_update': rewardUpdateAction
+  'reply.reward_update': rewardUpdateAction,
+  'reply.cooldown_add': cooldownAddAction
 };
+
+function cooldownAddAction(config: FlowConfig): Action {
+  const params: Params = { name: recipeName(str(config.name)), seconds: num(config.seconds) };
+  if (num(config.per) > 0) params.per = num(config.per);
+  return { type: 'cooldown_add', params };
+}
 
 type Lowering = {
   nodes: FlowNode[];
@@ -825,8 +837,15 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   var_delete: (params) => ({ type: 'reply.var_delete', config: varConfig(params) }),
   text: textNode,
   math: (params) => ({ type: 'reply.math', config: { expression: str(params.expression), saveAs: str(params.save_as) } }),
-  reward_update: rewardUpdateNode
+  reward_update: rewardUpdateNode,
+  cooldown_add: cooldownAddNode
 };
+
+function cooldownAddNode(params: Params): { type: string; config: FlowConfig } {
+  const config: FlowConfig = { name: str(params.name), seconds: num(params.seconds) };
+  if (num(params.per) > 0) config.per = num(params.per);
+  return { type: 'reply.cooldown_add', config };
+}
 
 const placedConfig = (action: Action, config: FlowConfig): FlowConfig => (action.enabled === false ? { ...config, disabled: true } : config);
 

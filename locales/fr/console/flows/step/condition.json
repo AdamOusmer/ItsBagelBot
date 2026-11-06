@@ -45,6 +45,11 @@
       "perUser": {
         "label": "Par viewer"
       },
+      "name": {
+        "label": "Nom",
+        "placeholder": "subathon",
+        "hint": "Lui donner un nom redémarre une fenêtre en cours ; une étape cooldown_add ailleurs peut lui ajouter du temps par ce nom. Non disponible par viewer."
+      },
       "leftCommand": {
         "label": "Commande de temps restant",
         "placeholder": "!tempsrestant"

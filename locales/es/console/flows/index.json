@@ -123,21 +123,25 @@
     "reward": "Elige una recompensa",
     "counter": "Elige un contador",
     "scene": "Elige una escena",
-    "light": "Elige primero una luz"
+    "light": "Elige primero una luz",
+    "namedCooldown": "Elige un temporizador"
   },
   "choiceEmpty": {
     "rewards": "Aún no hay recompensas de puntos del canal. Crea una en Puntos del canal.",
     "manageableRewards": "Twitch solo nos permite cambiar recompensas creadas aquí. Crea una en Puntos del canal.",
     "counters": "Aún no hay contadores. Crea uno en Contadores.",
-    "scenes": "Esta luz no tiene escenas."
+    "scenes": "Esta luz no tiene escenas.",
+    "namedCooldowns": "Ninguna receta nombra un temporizador todavía. Dale un nombre en su enfriamiento."
   },
   "choiceProblem": {
     "rewards": "No se pudieron cargar tus recompensas.",
     "counters": "No se pudieron cargar tus contadores.",
     "scenes": "No se pudieron cargar las escenas de esta luz.",
-    "keyRejected": "Govee no aceptó tu clave de API."
+    "keyRejected": "Govee no aceptó tu clave de API.",
+    "namedCooldowns": "No se pudieron cargar los temporizadores de tus recetas."
   },
   "choiceMissing": "\"{name}\" ya no está en la lista.",
+  "choiceUnowned": "Ninguna receta es dueña de \"{name}\" todavía. Esto no hará nada hasta que una lo sea.",
   "choiceRetry": "Reintentar",
   "choiceLoading": "Cargando",
   "setup": {

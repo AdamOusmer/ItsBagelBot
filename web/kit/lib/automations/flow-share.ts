@@ -8,7 +8,7 @@ import { byteLength, trimSpace } from './text';
 import { isSetupValue, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
 import { scrubSecrets, type ScrubKind } from './flow-share-scrub';
 import type { Action, Condition, Definition, Issue, Params } from './types';
-import { leftCommandNames, normalizeCommandName, triggerCommandNames, validateDefinition, validateName } from './validate';
+import { leftCommandNames, normalizeCommandName, ownedCooldownNames, triggerCommandNames, validateDefinition, validateName } from './validate';
 
 export * from './flow-setup';
 
@@ -46,14 +46,16 @@ export type SetupCode =
   | 'counter'
   | 'fetch'
   | 'command_in_use'
-  | 'privileged_action';
+  | 'privileged_action'
+  | 'timer_unowned';
 
 const REVIEW_ONLY: ReadonlySet<SetupCode> = new Set([
   'run_linked',
   'counter',
   'fetch',
   'command_in_use',
-  'privileged_action'
+  'privileged_action',
+  'timer_unowned'
 ]);
 
 export interface SetupNote {
@@ -796,6 +798,30 @@ function noteLinks(entry: FlowImportEntry, landedByRef: Map<string, FlowImportEn
   return { ...entry, setup: [...entry.setup, ...notes] };
 }
 
+function ownedNamesAcross(entries: readonly FlowImportEntry[]): Set<string> {
+  const owned = new Set<string>();
+  for (const entry of entries) {
+    if (entry.status !== 'ready') continue;
+    for (const name of ownedCooldownNames(entry.definition!)) owned.add(name);
+  }
+  return owned;
+}
+
+// A cooldown_add step naming a timer with no owner still saves: this only tells the importer so, the same way
+// noteLinks tells it where a run points.
+function noteUnownedTimers(entry: FlowImportEntry, owned: Set<string>): FlowImportEntry {
+  if (entry.status !== 'ready') return entry;
+  const notes: Notes = [];
+  mapDefinitionActions(entry.definition!, (action, path) => {
+    if (action.type === 'cooldown_add') {
+      const name = str(action.params?.name);
+      if (name && !owned.has(name)) notes.push({ code: 'timer_unowned', path, detail: name });
+    }
+    return action;
+  });
+  return notes.length === 0 ? entry : { ...entry, setup: [...entry.setup, ...notes] };
+}
+
 // Where a recipe lands decides whether a run can point at it, and dropping a run can make its owner simple, so this
 // repeats until stable. Definitions only ever lose steps, so it ends.
 function settleLandings(candidates: FlowImportEntry[], context: FlowImportContext): FlowImportEntry[] {
@@ -805,7 +831,11 @@ function settleLandings(candidates: FlowImportEntry[], context: FlowImportContex
     const landed = current.map((entry) => landEntry(entry, claims));
     const byRef = landedIndex(current, landed);
     const next = current.map((entry) => dropDeadRuns(entry, byRef));
-    if (next.every((entry, i) => entry === current[i])) return landed.map((entry) => noteLinks(entry, byRef));
+    if (next.every((entry, i) => entry === current[i])) {
+      const linked = landed.map((entry) => noteLinks(entry, byRef));
+      const owned = ownedNamesAcross(linked);
+      return linked.map((entry) => noteUnownedTimers(entry, owned));
+    }
     current = next;
   }
 }

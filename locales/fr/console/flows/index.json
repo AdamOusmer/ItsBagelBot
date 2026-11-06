@@ -123,21 +123,25 @@
     "reward": "Choisir une récompense",
     "counter": "Choisir un compteur",
     "scene": "Choisir une scène",
-    "light": "Choisir d’abord une lumière"
+    "light": "Choisir d’abord une lumière",
+    "namedCooldown": "Choisir un minuteur"
   },
   "choiceEmpty": {
     "rewards": "Aucune récompense de points de chaîne pour le moment. Créez-en une dans Points de chaîne.",
     "manageableRewards": "Twitch ne permet de modifier que les récompenses créées ici. Créez-en une dans Points de chaîne.",
     "counters": "Aucun compteur pour le moment. Créez-en un dans Compteurs.",
-    "scenes": "Cette lumière n’a aucune scène."
+    "scenes": "Cette lumière n’a aucune scène.",
+    "namedCooldowns": "Aucune recette ne nomme encore de minuteur. Donnez-en un nom dans son délai de récupération."
   },
   "choiceProblem": {
     "rewards": "Impossible de charger vos récompenses.",
     "counters": "Impossible de charger vos compteurs.",
     "scenes": "Impossible de charger les scènes de cette lumière.",
-    "keyRejected": "Govee n’a pas accepté votre clé API."
+    "keyRejected": "Govee n’a pas accepté votre clé API.",
+    "namedCooldowns": "Impossible de charger les minuteurs de vos recettes."
   },
   "choiceMissing": "\"{name}\" n’est plus dans la liste.",
+  "choiceUnowned": "Aucune recette ne possède encore \"{name}\". Cela ne fera rien jusqu’à ce qu’une le fasse.",
   "choiceRetry": "Réessayer",
   "choiceLoading": "Chargement",
   "setup": {

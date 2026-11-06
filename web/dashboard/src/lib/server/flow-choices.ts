@@ -1,10 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { ownedCooldownNames } from '@bagel/kit/automations';
 import { logger } from '@bagel/kit/server/logger';
 import { unavailable, type ChoiceList, type ChoiceSource } from '#lib/flow/choices';
 import { specFor } from '#lib/flow/model';
 import { readRewards } from './channelpoints-store';
+import { listAutomations } from './automations-store';
 import { goveeStore, type GoveeTarget } from './govee-store';
 import { listCounters } from './loyalty-store';
 import { callReward } from './reward-wire';
@@ -35,6 +37,23 @@ export const manageableRewardChoices = (userId: BroadcasterId) =>
 
 export const counterChoices = (userId: BroadcasterId) =>
   settled('counters', async () => ({ options: (await listCounters(userId)).map((counter) => ({ value: counter.name, label: counter.name })) }));
+
+// Every recipe's own cooldown condition can own a name; cooldown_add picks among them by name alone, so a channel
+// naming the same timer twice just offers one option for it, labelled with whichever recipe comes first.
+export const namedCooldownChoices = (userId: BroadcasterId) =>
+  settled('namedCooldowns', async () => {
+    const automations = await listAutomations(userId);
+    const seen = new Set<string>();
+    const options: ChoiceList['options'] = [];
+    for (const automation of automations) {
+      for (const name of ownedCooldownNames(automation.definition)) {
+        if (seen.has(name)) continue;
+        seen.add(name);
+        options.push({ value: name, label: `${name}, in ${automation.name}` });
+      }
+    }
+    return { options };
+  });
 
 export const sceneChoices = (userId: BroadcasterId, target: GoveeTarget) =>
   settled('scenes', async () => {

@@ -13,7 +13,7 @@ export type StepGroup = 'twitch' | 'modules' | 'basics';
 
 type Typed = { key: string; placeholder?: true };
 
-export type FieldSpec = { when?: { key: string; value: string | readonly string[] } } & (
+export type FieldSpec = { when?: { key: string; value: string | readonly string[] | boolean } } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
@@ -182,6 +182,7 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     fields: [
       { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
       { key: 'perUser', type: 'toggle' },
+      { key: 'name', type: 'text', placeholder: true, when: { key: 'perUser', value: false } },
       { key: 'leftCommand', type: 'text', placeholder: true },
       { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
       { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
@@ -364,10 +365,23 @@ export const NODE_SPECS: readonly NodeSpec[] = [
       { key: 'cost', type: 'number', min: 1, max: MAX_REWARD_COST, unit: true },
       { key: 'reset', type: 'toggle' }
     ]
+  },
+  {
+    type: 'reply.cooldown_add',
+    slug: 'cooldownAdd',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'timer',
+    fields: [
+      { key: 'name', type: 'choice', source: 'namedCooldowns' },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'per', type: 'number', min: 0 }
+    ]
   }
 ];
 
-function gateMatches(wanted: string | readonly string[], value: unknown): boolean {
+function gateMatches(wanted: string | readonly string[] | boolean, value: unknown): boolean {
+  if (typeof wanted === 'boolean') return Boolean(value) === wanted;
   return typeof wanted === 'string' ? value === wanted : wanted.includes(String(value));
 }
 

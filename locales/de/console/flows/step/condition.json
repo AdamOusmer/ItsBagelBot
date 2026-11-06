@@ -45,6 +45,11 @@
       "perUser": {
         "label": "Pro Zuschauer"
       },
+      "name": {
+        "label": "Name",
+        "placeholder": "subathon",
+        "hint": "Eine Benennung startet ein laufendes Fenster neu; ein cooldown_add-Schritt anderswo kann ihm über diesen Namen Zeit hinzufügen. Nicht verfügbar pro Zuschauer."
+      },
       "leftCommand": {
         "label": "Befehl für verbleibende Zeit",
         "placeholder": "!restzeit"

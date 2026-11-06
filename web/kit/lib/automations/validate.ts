@@ -88,12 +88,17 @@ function check(root: Root): Issue[] {
 
 export const normalizeCommandName = (name: string): string => name.trim().replace(/^!/, '').toLowerCase();
 
-const COOLDOWN_NAME_SCHEMA: Schema = { left_command: 'string', global_s: 'int', user_s: 'int', left_reply: 'string', ready_reply: 'string' };
+const COOLDOWN_NAME_SCHEMA: Schema = { left_command: 'string', global_s: 'int', user_s: 'int', left_reply: 'string', ready_reply: 'string', name: 'string' };
 const IF_CONDITION_SCHEMA: Schema = { condition: 'typed', then: 'actions', else: 'actions' };
 
 function cooldownLeftCommand(node: TypedNode): string {
   if (node.type !== 'cooldown') return '';
   return decodeParams<{ left_command: string }>(COOLDOWN_NAME_SCHEMA, {}, node.params).value?.left_command ?? '';
+}
+
+function cooldownOwnerName(node: TypedNode): string {
+  if (node.type !== 'cooldown') return '';
+  return decodeParams<{ name: string }>(COOLDOWN_NAME_SCHEMA, {}, node.params).value?.name ?? '';
 }
 
 function ifCondition(action: ActionNode): TypedNode[] {
@@ -103,9 +108,17 @@ function ifCondition(action: ActionNode): TypedNode[] {
 }
 
 // A cooldown sits in the conditions or in an if's condition; nothing else can hold one.
+function heldConditions(definition: { conditions?: unknown; actions?: unknown }): TypedNode[] {
+  return [...((definition.conditions ?? []) as TypedNode[]), ...flatten((definition.actions ?? []) as ActionNode[]).flatMap(ifCondition)];
+}
+
 export function leftCommandNames(definition: { conditions?: unknown; actions?: unknown }): string[] {
-  const held = [...((definition.conditions ?? []) as TypedNode[]), ...flatten((definition.actions ?? []) as ActionNode[]).flatMap(ifCondition)];
-  return held.map(cooldownLeftCommand).filter((name) => name !== '');
+  return heldConditions(definition).map(cooldownLeftCommand).filter((name) => name !== '');
+}
+
+// ownedCooldownNames lists the names a definition arms by way of a cooldown condition, wherever it sits.
+export function ownedCooldownNames(definition: { conditions?: unknown; actions?: unknown }): string[] {
+  return heldConditions(definition).map(cooldownOwnerName).filter((name) => name !== '');
 }
 
 export function triggerCommandNames(trigger: { type: string; params?: unknown }): string[] {
