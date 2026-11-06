@@ -21,7 +21,7 @@ if prior and prior~='null' then
  changed=cjson.decode(prior).admission_generation~=cjson.decode(ARGV[3]).admission_generation
 end
 if changed then redis.call('HINCRBY',KEYS[2],'epoch',1) end
-redis.call('HSET',KEYS[1],'instance',ARGV[1],'state_revision',ARGV[2])
+redis.call('HSET',KEYS[2],'instance',ARGV[1],'state_revision',ARGV[2])
 redis.call('HSET',KEYS[1],'account_created_at',ARGV[1],'lifecycle',ARGV[3],'active',ARGV[4])
 redis.call('HSET',KEYS[1],'runtime_background',ARGV[5])
 if redis.call('TTL',KEYS[1])<0 then redis.call('EXPIRE',KEYS[1],86400) end
@@ -62,7 +62,7 @@ local current=tonumber(redis.call('HGET',KEYS[1],ARGV[1]) or '-1')
 local incoming=tonumber(ARGV[2])
 if ARGV[3] == 'module:loyalty:enabled' then
  current=math.max(current,tonumber(redis.call('HGET',KEYS[2],'loyalty_revision') or '-1'))
- if current>=0 then redis.call('HSET',KEYS[2],'loyalty_revision',current) end
+ if current>=0 then redis.call('HSET',KEYS[2],'loyalty_revision',string.format('%.0f',current)) end
 end
 if incoming < current then return 0 end
 if ARGV[3] == 'module:loyalty:enabled' then redis.call('HSET',KEYS[2],'loyalty_revision',ARGV[2]) end

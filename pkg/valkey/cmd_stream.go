@@ -18,12 +18,31 @@ func XRangeCmd(client valkey_go.Client, stream string, count int64) valkey_go.Co
 	return client.B().Xrange().Key(stream).Start("-").End("+").Count(count).Build()
 }
 
-// XReadGroupCmd blocks up to blockMS milliseconds for up to count new deliveries.
-func XReadGroupCmd(client valkey_go.Client, stream, group, consumer string, count, blockMS int64) valkey_go.Completed {
-	return client.B().Xreadgroup().Group(group, consumer).Count(count).Block(blockMS).Streams().Key(stream).Id(">").Build()
+// GroupRead names a consumer group read: up to Count new deliveries, blocking up to BlockMS.
+type GroupRead struct {
+	Stream   string
+	Group    string
+	Consumer string
+	Count    int64
+	BlockMS  int64
 }
 
-// XAutoClaimCmd reclaims up to count deliveries idle at least minIdleMS, starting at cursor.
-func XAutoClaimCmd(client valkey_go.Client, stream, group, consumer, minIdleMS, cursor string, count int64) valkey_go.Completed {
-	return client.B().Xautoclaim().Key(stream).Group(group).Consumer(consumer).MinIdleTime(minIdleMS).Start(cursor).Count(count).Build()
+// XReadGroupCmd blocks up to BlockMS milliseconds for up to Count new deliveries.
+func XReadGroupCmd(client valkey_go.Client, read GroupRead) valkey_go.Completed {
+	return client.B().Xreadgroup().Group(read.Group, read.Consumer).Count(read.Count).Block(read.BlockMS).Streams().Key(read.Stream).Id(">").Build()
+}
+
+// GroupReclaim names a pending-entry reclaim: up to Count deliveries idle at least MinIdleMS, starting at Cursor.
+type GroupReclaim struct {
+	Stream    string
+	Group     string
+	Consumer  string
+	MinIdleMS string
+	Cursor    string
+	Count     int64
+}
+
+// XAutoClaimCmd reclaims up to Count deliveries idle at least MinIdleMS, starting at Cursor.
+func XAutoClaimCmd(client valkey_go.Client, reclaim GroupReclaim) valkey_go.Completed {
+	return client.B().Xautoclaim().Key(reclaim.Stream).Group(reclaim.Group).Consumer(reclaim.Consumer).MinIdleTime(reclaim.MinIdleMS).Start(reclaim.Cursor).Count(reclaim.Count).Build()
 }

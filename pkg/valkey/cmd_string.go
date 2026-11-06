@@ -12,19 +12,25 @@ func GetCmd(client valkey_go.Client, key string) valkey_go.Completed {
 	return client.B().Get().Key(key).Build()
 }
 
+// StringWrite is a plain string key and the value to write there.
+type StringWrite struct {
+	Key   string
+	Value string
+}
+
 // SetCmd writes a plain string key with no expiry.
-func SetCmd(client valkey_go.Client, key, value string) valkey_go.Completed {
-	return client.B().Set().Key(key).Value(value).Build()
+func SetCmd(client valkey_go.Client, write StringWrite) valkey_go.Completed {
+	return client.B().Set().Key(write.Key).Value(write.Value).Build()
 }
 
 // SetExSecondsCmd writes a plain string key that expires after seconds.
-func SetExSecondsCmd(client valkey_go.Client, key, value string, seconds int64) valkey_go.Completed {
-	return client.B().Set().Key(key).Value(value).ExSeconds(seconds).Build()
+func SetExSecondsCmd(client valkey_go.Client, write StringWrite, seconds int64) valkey_go.Completed {
+	return client.B().Set().Key(write.Key).Value(write.Value).ExSeconds(seconds).Build()
 }
 
 // SetNXCmd writes a plain string key only if it is absent, with no expiry.
-func SetNXCmd(client valkey_go.Client, key, value string) valkey_go.Completed {
-	return client.B().Set().Key(key).Value(value).Nx().Build()
+func SetNXCmd(client valkey_go.Client, write StringWrite) valkey_go.Completed {
+	return client.B().Set().Key(write.Key).Value(write.Value).Nx().Build()
 }
 
 // DelCmd removes one or more keys.
