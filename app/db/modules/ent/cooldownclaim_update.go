@@ -3,8 +3,8 @@
 package ent
 
 import (
-	"ItsBagelBot/app/db/loyalty/ent/cooldownclaim"
-	"ItsBagelBot/app/db/loyalty/ent/predicate"
+	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
+	"ItsBagelBot/app/db/modules/ent/predicate"
 	"context"
 	"errors"
 	"fmt"

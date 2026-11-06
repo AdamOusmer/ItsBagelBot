@@ -74,17 +74,17 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	in, cfg, log := w.in, w.cfg, w.log
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	accountsRPC := engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix)
-	loyaltyRPC := engine.NewLoyaltyRPC(in.nc, engine.LoyaltyRPCPrefix(cfg.LoyaltyRPCPrefix))
+	recipeState := engine.NewRecipeStateRPC(in.nc, cfg.ModulesRPCPrefix)
 	return engine.Deps{
 		AutomationHook: &engine.AutomationHook{},
 		Runtime:        newRuntime(w),
 		Automations: engine.AutomationDeps{
 			Source:        rt.proj,
 			Runs:          rt.runs,
-			Variables:     loyaltyRPC,
+			Variables:     recipeState,
 			Queue:         engine.NewValkeyRunQueue(in.vc),
 			Durable:       engine.NewValkeyDurableRuns(in.vc),
-			LongCooldowns: loyaltyRPC,
+			LongCooldowns: engine.NewMarkedLongCooldowns(in.vc, recipeState, log),
 		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,

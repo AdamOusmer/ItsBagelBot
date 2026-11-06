@@ -3,7 +3,7 @@
 package ent
 
 import (
-	"ItsBagelBot/app/db/loyalty/ent/cooldownclaim"
+	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
 	"fmt"
 	"strings"
 

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
+	"ItsBagelBot/app/db/modules/repository"
 	"ItsBagelBot/internal/domain/automation"
 
 	"github.com/stretchr/testify/assert"
@@ -44,11 +44,11 @@ func storedNames(t *testing.T, raw *sql.DB, user uint64, scope string) (names, r
 }
 
 func TestVariableMySQLAddExactUnderConcurrentWriters(t *testing.T) {
-	repo, raw := mysqlRetentionRepo(t)
+	repo, raw := mysqlStateRepo(t)
 	raw.SetMaxOpenConns(8)
 	const writers = 100
 	for _, tc := range []struct {
-		owner  loyaltyrepo.VariableOwner
+		owner  repository.VariableOwner
 		amount int64
 	}{{channelVars, 3}, {viewerVars, -1}} {
 		errs := concurrently(writers, func(ctx context.Context, _ int) error {
@@ -63,7 +63,7 @@ func TestVariableMySQLAddExactUnderConcurrentWriters(t *testing.T) {
 	}
 }
 
-func checkNameLimitHolds(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB, owner func(i int) loyaltyrepo.VariableOwner, scope string, limit int) {
+func checkNameLimitHolds(t *testing.T, repo *repository.RecipeState, raw *sql.DB, owner func(i int) repository.VariableOwner, scope string, limit int) {
 	t.Helper()
 	const attempts = 300
 	errs := concurrently(attempts, func(ctx context.Context, i int) error {
@@ -75,7 +75,7 @@ func checkNameLimitHolds(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB, o
 			admitted++
 			continue
 		}
-		require.ErrorIs(t, err, loyaltyrepo.ErrVariableLimit)
+		require.ErrorIs(t, err, repository.ErrVariableLimit)
 	}
 	names, _ := storedNames(t, raw, owner(0).UserID, scope)
 	assert.Equal(t, limit, names, "distinct names stored")
@@ -83,33 +83,33 @@ func checkNameLimitHolds(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB, o
 }
 
 func TestVariableMySQLChannelNameLimitHoldsUnderConcurrency(t *testing.T) {
-	repo, raw := mysqlRetentionRepo(t)
+	repo, raw := mysqlStateRepo(t)
 	raw.SetMaxOpenConns(8)
-	checkNameLimitHolds(t, repo, raw, func(int) loyaltyrepo.VariableOwner { return channelVars }, automation.VariableScopeChannel, automation.MaxChannelVariables)
+	checkNameLimitHolds(t, repo, raw, func(int) repository.VariableOwner { return channelVars }, automation.VariableScopeChannel, automation.MaxChannelVariables)
 }
 
 func TestVariableMySQLViewerNameLimitHoldsAcrossViewers(t *testing.T) {
-	repo, raw := mysqlRetentionRepo(t)
+	repo, raw := mysqlStateRepo(t)
 	raw.SetMaxOpenConns(8)
-	checkNameLimitHolds(t, repo, raw, func(i int) loyaltyrepo.VariableOwner {
-		return loyaltyrepo.VariableOwner{UserID: channelVars.UserID, ViewerID: uint64(i + 1), Scope: automation.VariableScopeViewer}
+	checkNameLimitHolds(t, repo, raw, func(i int) repository.VariableOwner {
+		return repository.VariableOwner{UserID: channelVars.UserID, ViewerID: uint64(i + 1), Scope: automation.VariableScopeViewer}
 	}, automation.VariableScopeViewer, automation.MaxViewerVariableNames)
 
 	var sharedName string
 	require.NoError(t, raw.QueryRow("SELECT name FROM variables WHERE user_id = ? AND scope = ? AND name REGEXP '^[a-z0-9_]+$' LIMIT 1", channelVars.UserID, automation.VariableScopeViewer).Scan(&sharedName))
 	ctx := context.Background()
-	newViewer := loyaltyrepo.VariableOwner{UserID: channelVars.UserID, ViewerID: 999999, Scope: automation.VariableScopeViewer}
+	newViewer := repository.VariableOwner{UserID: channelVars.UserID, ViewerID: 999999, Scope: automation.VariableScopeViewer}
 	assert.NoError(t, repo.VariableSet(ctx, newViewer, sharedName, "an existing name takes no slot"))
-	assert.ErrorIs(t, repo.VariableSet(ctx, newViewer, "brand_new", "x"), loyaltyrepo.ErrVariableLimit)
+	assert.ErrorIs(t, repo.VariableSet(ctx, newViewer, "brand_new", "x"), repository.ErrVariableLimit)
 	assert.NoError(t, repo.VariableSet(ctx, channelVars, "brand_new", "channel scope counts separately"))
 }
 
 func TestVariableMySQLViewerScopeIsolation(t *testing.T) {
-	repo, raw := mysqlRetentionRepo(t)
+	repo, raw := mysqlStateRepo(t)
 	raw.SetMaxOpenConns(8)
 	const viewers = 50
-	viewer := func(i int) loyaltyrepo.VariableOwner {
-		return loyaltyrepo.VariableOwner{UserID: 2, ViewerID: uint64(i + 1), Scope: automation.VariableScopeViewer}
+	viewer := func(i int) repository.VariableOwner {
+		return repository.VariableOwner{UserID: 2, ViewerID: uint64(i + 1), Scope: automation.VariableScopeViewer}
 	}
 
 	errs := concurrently(viewers, func(ctx context.Context, i int) error {
@@ -126,7 +126,7 @@ func TestVariableMySQLViewerScopeIsolation(t *testing.T) {
 	}
 	_, ok := variableValue(t, repo, channelVars, "score")
 	assert.False(t, ok, "a viewer value never shows in channel scope")
-	otherChannel := loyaltyrepo.VariableOwner{UserID: 3, ViewerID: 1, Scope: automation.VariableScopeViewer}
+	otherChannel := repository.VariableOwner{UserID: 3, ViewerID: 1, Scope: automation.VariableScopeViewer}
 	_, ok = variableValue(t, repo, otherChannel, "score")
 	assert.False(t, ok, "a viewer value never crosses channels")
 	require.NoError(t, repo.VariableDelete(context.Background(), viewer(0), "score"))
@@ -135,7 +135,7 @@ func TestVariableMySQLViewerScopeIsolation(t *testing.T) {
 }
 
 func TestVariableMySQLLongEmojiValueSurvives(t *testing.T) {
-	repo, raw := mysqlRetentionRepo(t)
+	repo, raw := mysqlStateRepo(t)
 	ctx := context.Background()
 	fourBytes := strings.Repeat("\U0001F96F", automation.MaxVariableValueRunes)
 
@@ -149,7 +149,7 @@ func TestVariableMySQLLongEmojiValueSurvives(t *testing.T) {
 		assert.True(t, ok, name)
 		assert.Equal(t, value, got, name)
 	}
-	assert.ErrorIs(t, repo.VariableSet(ctx, channelVars, "emoji", fourBytes+"\U0001F96F"), loyaltyrepo.ErrVariableLimit)
+	assert.ErrorIs(t, repo.VariableSet(ctx, channelVars, "emoji", fourBytes+"\U0001F96F"), repository.ErrVariableLimit)
 
 	var charset string
 	var chars int

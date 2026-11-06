@@ -6,7 +6,8 @@ and [app map](../../../CONTEXT-MAP.md).
 ## Responsibility and boundaries
 
 Owns broadcaster module enablement/config JSON, channel quote books, lifetime
-personality feed tallies, and sealed Govee/Spotify credentials in `bagel_modules`.
+personality feed tallies, recipe variables, recipe cooldown windows over one day,
+and sealed Govee/Spotify credentials in `bagel_modules`.
 Sesame implements module behavior, Gossip contacts external integrations, and
 Projector maintains the shared configuration projection. Per-guild Discord
 settings belong to Discord Data; the Discord module retains channel-level controls.
@@ -40,6 +41,11 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | [repository/quotes.go](repository/quotes.go) | Quote numbering, CRUD, random reads, date correction and race retries. |
 | [repository/personality.go](repository/personality.go) | Atomic global/channel feed totals and leaderboard reads. |
 | [repository/govee.go](repository/govee.go), [spotify.go](repository/spotify.go) | AEAD key/token/app custody and safe status metadata. |
+| [repository/variables.go](repository/variables.go) | Recipe variables with the per-channel name budget. |
+| [repository/cooldowns.go](repository/cooldowns.go) | Atomic all-or-nothing claim, release and expiry cleanup for long windows. |
+| [repository/cooldown_mover.go](repository/cooldown_mover.go) | Leased hourly job moving rows with 25 hours or less left into Valkey markers. |
+| [repository/schema.go](repository/schema.go) | `MigrateSchema`: on MySQL, cooldown claims are clustered on their natural key. |
+| [rpc/recipe_state.go](rpc/recipe_state.go) | `variable.*` and `cooldown.*` verbs. |
 | [rpc/dashboard.go](rpc/dashboard.go) | Module list/upsert/patch and integration-custody wiring. |
 | [rpc/quotes.go](rpc/quotes.go), [personality.go](rpc/personality.go) | Quote and feed RPC surfaces. |
 | [rpc/govee.go](rpc/govee.go), [spotify.go](rpc/spotify.go) | Dashboard credential setup plus internal unseal verbs. |
@@ -54,7 +60,10 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
 ## Flow and contracts
 
 - Default dashboard prefix `bagel.rpc.modules`: `list`, `upsert`, `patch`,
-  `patch-existing`, with quote verbs under `.quote` and feed verbs under `.personality`.
+  `patch-existing`, with quote verbs under `.quote`, feed verbs under `.personality`,
+  and recipe state under `.variable` and `.cooldown`.
+- A long cooldown is refused from a Valkey marker first (key and TTL rules in
+  `internal/domain/automation/cooldown_marker.go`); a moved window exists only as its marker.
 - Dashboard upsert uses `SetNow`, persists immediately and returns committed views.
   Background `Set` still coalesces by `(user_id, name)` for 2 seconds / 256 items.
   Events publish persisted revisions; lists have a local five-minute cache.

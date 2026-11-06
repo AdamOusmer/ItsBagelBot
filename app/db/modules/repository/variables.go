@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 
-	"ItsBagelBot/app/db/loyalty/ent"
-	"ItsBagelBot/app/db/loyalty/ent/predicate"
-	"ItsBagelBot/app/db/loyalty/ent/variable"
+	"ItsBagelBot/app/db/modules/ent"
+	"ItsBagelBot/app/db/modules/ent/predicate"
+	"ItsBagelBot/app/db/modules/ent/variable"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/pkg/db"
 )
@@ -70,7 +70,7 @@ func ownerPredicates(o VariableOwner) []predicate.Variable {
 }
 
 // VariablesGet returns only the names that exist, keyed by lowercase name.
-func (r *Loyalty) VariablesGet(ctx context.Context, o VariableOwner, names []string) (map[string]string, error) {
+func (r *RecipeState) VariablesGet(ctx context.Context, o VariableOwner, names []string) (map[string]string, error) {
 	if err := o.valid(); err != nil {
 		return nil, err
 	}
@@ -106,14 +106,14 @@ func validVariableNames(names []string) ([]string, error) {
 	return out, nil
 }
 
-func (r *Loyalty) VariableSet(ctx context.Context, o VariableOwner, name, value string) error {
+func (r *RecipeState) VariableSet(ctx context.Context, o VariableOwner, name, value string) error {
 	if !automation.VariableValue(value).Fits() {
 		return ErrVariableLimit
 	}
 	return r.mutateVariable(ctx, o, name, func(string) (string, error) { return value, nil })
 }
 
-func (r *Loyalty) VariableAdd(ctx context.Context, o VariableOwner, name string, amount int64) error {
+func (r *RecipeState) VariableAdd(ctx context.Context, o VariableOwner, name string, amount int64) error {
 	return r.mutateVariable(ctx, o, name, func(current string) (string, error) {
 		next, ok := automation.VariableValue(current).Add(amount)
 		if !ok {
@@ -123,7 +123,7 @@ func (r *Loyalty) VariableAdd(ctx context.Context, o VariableOwner, name string,
 	})
 }
 
-func (r *Loyalty) VariableDelete(ctx context.Context, o VariableOwner, rawName string) error {
+func (r *RecipeState) VariableDelete(ctx context.Context, o VariableOwner, rawName string) error {
 	if err := o.valid(); err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (r *Loyalty) VariableDelete(ctx context.Context, o VariableOwner, rawName s
 	})
 }
 
-func (r *Loyalty) mutateVariable(ctx context.Context, o VariableOwner, rawName string, next func(string) (string, error)) error {
+func (r *RecipeState) mutateVariable(ctx context.Context, o VariableOwner, rawName string, next func(string) (string, error)) error {
 	if err := o.valid(); err != nil {
 		return err
 	}
@@ -160,10 +160,22 @@ func retryableVariableWrite(err error) bool {
 	if err == nil {
 		return false
 	}
-	return ent.IsConstraintError(err) || retryableTx(err, nil)
+	return ent.IsConstraintError(err) || db.RetryableTx(err, nil)
 }
 
-func (r *Loyalty) writeVariable(ctx context.Context, tx *ent.Tx, o VariableOwner, name string, next func(string) (string, error)) error {
+func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {
+	tx, err := client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *RecipeState) writeVariable(ctx context.Context, tx *ent.Tx, o VariableOwner, name string, next func(string) (string, error)) error {
 	query := tx.Variable.Query().Where(ownerPredicates(o)...).Where(variable.Name(name))
 	if r.dialect != "sqlite3" {
 		query.ForUpdate()

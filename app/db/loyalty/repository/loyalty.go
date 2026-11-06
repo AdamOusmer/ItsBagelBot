@@ -140,7 +140,6 @@ func NewLoyalty(client *ent.Client, driver *entsql.Driver, app *newrelic.Applica
 			select {
 			case <-r.ticker.C:
 				r.tryFlush()
-				r.pruneCooldownsOnTick()
 			case <-r.done:
 				return
 			}

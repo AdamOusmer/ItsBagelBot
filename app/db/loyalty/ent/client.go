@@ -12,10 +12,8 @@ import (
 	"ItsBagelBot/app/db/loyalty/ent/migrate"
 
 	"ItsBagelBot/app/db/loyalty/ent/balance"
-	"ItsBagelBot/app/db/loyalty/ent/cooldownclaim"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
-	"ItsBagelBot/app/db/loyalty/ent/variable"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -29,14 +27,10 @@ type Client struct {
 	Schema *migrate.Schema
 	// Balance is the client for interacting with the Balance builders.
 	Balance *BalanceClient
-	// CooldownClaim is the client for interacting with the CooldownClaim builders.
-	CooldownClaim *CooldownClaimClient
 	// Counter is the client for interacting with the Counter builders.
 	Counter *CounterClient
 	// CounterEntry is the client for interacting with the CounterEntry builders.
 	CounterEntry *CounterEntryClient
-	// Variable is the client for interacting with the Variable builders.
-	Variable *VariableClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -49,10 +43,8 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Balance = NewBalanceClient(c.config)
-	c.CooldownClaim = NewCooldownClaimClient(c.config)
 	c.Counter = NewCounterClient(c.config)
 	c.CounterEntry = NewCounterEntryClient(c.config)
-	c.Variable = NewVariableClient(c.config)
 }
 
 type (
@@ -143,13 +135,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:           ctx,
-		config:        cfg,
-		Balance:       NewBalanceClient(cfg),
-		CooldownClaim: NewCooldownClaimClient(cfg),
-		Counter:       NewCounterClient(cfg),
-		CounterEntry:  NewCounterEntryClient(cfg),
-		Variable:      NewVariableClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		Balance:      NewBalanceClient(cfg),
+		Counter:      NewCounterClient(cfg),
+		CounterEntry: NewCounterEntryClient(cfg),
 	}, nil
 }
 
@@ -167,13 +157,11 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:           ctx,
-		config:        cfg,
-		Balance:       NewBalanceClient(cfg),
-		CooldownClaim: NewCooldownClaimClient(cfg),
-		Counter:       NewCounterClient(cfg),
-		CounterEntry:  NewCounterEntryClient(cfg),
-		Variable:      NewVariableClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		Balance:      NewBalanceClient(cfg),
+		Counter:      NewCounterClient(cfg),
+		CounterEntry: NewCounterEntryClient(cfg),
 	}, nil
 }
 
@@ -203,20 +191,16 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	c.Balance.Use(hooks...)
-	c.CooldownClaim.Use(hooks...)
 	c.Counter.Use(hooks...)
 	c.CounterEntry.Use(hooks...)
-	c.Variable.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.Balance.Intercept(interceptors...)
-	c.CooldownClaim.Intercept(interceptors...)
 	c.Counter.Intercept(interceptors...)
 	c.CounterEntry.Intercept(interceptors...)
-	c.Variable.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -224,14 +208,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *BalanceMutation:
 		return c.Balance.mutate(ctx, m)
-	case *CooldownClaimMutation:
-		return c.CooldownClaim.mutate(ctx, m)
 	case *CounterMutation:
 		return c.Counter.mutate(ctx, m)
 	case *CounterEntryMutation:
 		return c.CounterEntry.mutate(ctx, m)
-	case *VariableMutation:
-		return c.Variable.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -367,139 +347,6 @@ func (c *BalanceClient) mutate(ctx context.Context, m *BalanceMutation) (Value, 
 		return (&BalanceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Balance mutation op: %q", m.Op())
-	}
-}
-
-// CooldownClaimClient is a client for the CooldownClaim schema.
-type CooldownClaimClient struct {
-	config
-}
-
-// NewCooldownClaimClient returns a client for the CooldownClaim from the given config.
-func NewCooldownClaimClient(c config) *CooldownClaimClient {
-	return &CooldownClaimClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `cooldownclaim.Hooks(f(g(h())))`.
-func (c *CooldownClaimClient) Use(hooks ...Hook) {
-	c.hooks.CooldownClaim = append(c.hooks.CooldownClaim, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `cooldownclaim.Intercept(f(g(h())))`.
-func (c *CooldownClaimClient) Intercept(interceptors ...Interceptor) {
-	c.inters.CooldownClaim = append(c.inters.CooldownClaim, interceptors...)
-}
-
-// Create returns a builder for creating a CooldownClaim entity.
-func (c *CooldownClaimClient) Create() *CooldownClaimCreate {
-	mutation := newCooldownClaimMutation(c.config, OpCreate)
-	return &CooldownClaimCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of CooldownClaim entities.
-func (c *CooldownClaimClient) CreateBulk(builders ...*CooldownClaimCreate) *CooldownClaimCreateBulk {
-	return &CooldownClaimCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *CooldownClaimClient) MapCreateBulk(slice any, setFunc func(*CooldownClaimCreate, int)) *CooldownClaimCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &CooldownClaimCreateBulk{err: fmt.Errorf("calling to CooldownClaimClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*CooldownClaimCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &CooldownClaimCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for CooldownClaim.
-func (c *CooldownClaimClient) Update() *CooldownClaimUpdate {
-	mutation := newCooldownClaimMutation(c.config, OpUpdate)
-	return &CooldownClaimUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *CooldownClaimClient) UpdateOne(_m *CooldownClaim) *CooldownClaimUpdateOne {
-	mutation := newCooldownClaimMutation(c.config, OpUpdateOne, withCooldownClaim(_m))
-	return &CooldownClaimUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *CooldownClaimClient) UpdateOneID(id int) *CooldownClaimUpdateOne {
-	mutation := newCooldownClaimMutation(c.config, OpUpdateOne, withCooldownClaimID(id))
-	return &CooldownClaimUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for CooldownClaim.
-func (c *CooldownClaimClient) Delete() *CooldownClaimDelete {
-	mutation := newCooldownClaimMutation(c.config, OpDelete)
-	return &CooldownClaimDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *CooldownClaimClient) DeleteOne(_m *CooldownClaim) *CooldownClaimDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *CooldownClaimClient) DeleteOneID(id int) *CooldownClaimDeleteOne {
-	builder := c.Delete().Where(cooldownclaim.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &CooldownClaimDeleteOne{builder}
-}
-
-// Query returns a query builder for CooldownClaim.
-func (c *CooldownClaimClient) Query() *CooldownClaimQuery {
-	return &CooldownClaimQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeCooldownClaim},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a CooldownClaim entity by its id.
-func (c *CooldownClaimClient) Get(ctx context.Context, id int) (*CooldownClaim, error) {
-	return c.Query().Where(cooldownclaim.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *CooldownClaimClient) GetX(ctx context.Context, id int) *CooldownClaim {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *CooldownClaimClient) Hooks() []Hook {
-	return c.hooks.CooldownClaim
-}
-
-// Interceptors returns the client interceptors.
-func (c *CooldownClaimClient) Interceptors() []Interceptor {
-	return c.inters.CooldownClaim
-}
-
-func (c *CooldownClaimClient) mutate(ctx context.Context, m *CooldownClaimMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&CooldownClaimCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&CooldownClaimUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&CooldownClaimUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&CooldownClaimDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown CooldownClaim mutation op: %q", m.Op())
 	}
 }
 
@@ -771,145 +618,12 @@ func (c *CounterEntryClient) mutate(ctx context.Context, m *CounterEntryMutation
 	}
 }
 
-// VariableClient is a client for the Variable schema.
-type VariableClient struct {
-	config
-}
-
-// NewVariableClient returns a client for the Variable from the given config.
-func NewVariableClient(c config) *VariableClient {
-	return &VariableClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `variable.Hooks(f(g(h())))`.
-func (c *VariableClient) Use(hooks ...Hook) {
-	c.hooks.Variable = append(c.hooks.Variable, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `variable.Intercept(f(g(h())))`.
-func (c *VariableClient) Intercept(interceptors ...Interceptor) {
-	c.inters.Variable = append(c.inters.Variable, interceptors...)
-}
-
-// Create returns a builder for creating a Variable entity.
-func (c *VariableClient) Create() *VariableCreate {
-	mutation := newVariableMutation(c.config, OpCreate)
-	return &VariableCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of Variable entities.
-func (c *VariableClient) CreateBulk(builders ...*VariableCreate) *VariableCreateBulk {
-	return &VariableCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *VariableClient) MapCreateBulk(slice any, setFunc func(*VariableCreate, int)) *VariableCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &VariableCreateBulk{err: fmt.Errorf("calling to VariableClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*VariableCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &VariableCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for Variable.
-func (c *VariableClient) Update() *VariableUpdate {
-	mutation := newVariableMutation(c.config, OpUpdate)
-	return &VariableUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *VariableClient) UpdateOne(_m *Variable) *VariableUpdateOne {
-	mutation := newVariableMutation(c.config, OpUpdateOne, withVariable(_m))
-	return &VariableUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *VariableClient) UpdateOneID(id int) *VariableUpdateOne {
-	mutation := newVariableMutation(c.config, OpUpdateOne, withVariableID(id))
-	return &VariableUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for Variable.
-func (c *VariableClient) Delete() *VariableDelete {
-	mutation := newVariableMutation(c.config, OpDelete)
-	return &VariableDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *VariableClient) DeleteOne(_m *Variable) *VariableDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *VariableClient) DeleteOneID(id int) *VariableDeleteOne {
-	builder := c.Delete().Where(variable.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &VariableDeleteOne{builder}
-}
-
-// Query returns a query builder for Variable.
-func (c *VariableClient) Query() *VariableQuery {
-	return &VariableQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeVariable},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a Variable entity by its id.
-func (c *VariableClient) Get(ctx context.Context, id int) (*Variable, error) {
-	return c.Query().Where(variable.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *VariableClient) GetX(ctx context.Context, id int) *Variable {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *VariableClient) Hooks() []Hook {
-	return c.hooks.Variable
-}
-
-// Interceptors returns the client interceptors.
-func (c *VariableClient) Interceptors() []Interceptor {
-	return c.inters.Variable
-}
-
-func (c *VariableClient) mutate(ctx context.Context, m *VariableMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&VariableCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&VariableUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&VariableUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&VariableDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown Variable mutation op: %q", m.Op())
-	}
-}
-
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Balance, CooldownClaim, Counter, CounterEntry, Variable []ent.Hook
+		Balance, Counter, CounterEntry []ent.Hook
 	}
 	inters struct {
-		Balance, CooldownClaim, Counter, CounterEntry, Variable []ent.Interceptor
+		Balance, Counter, CounterEntry []ent.Interceptor
 	}
 )

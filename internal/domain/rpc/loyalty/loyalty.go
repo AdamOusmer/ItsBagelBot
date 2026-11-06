@@ -22,18 +22,6 @@ type Request struct {
 	Limit          int    `json:"limit,omitempty"`
 	Offset         int    `json:"offset,omitempty"`
 	Query          string `json:"query,omitempty"`
-
-	Names []string `json:"names,omitempty"`
-	Text  string   `json:"text,omitempty"`
-
-	Cooldowns []CooldownWindow `json:"cooldowns,omitempty"`
-}
-
-// CooldownWindow carries TTLSeconds on a claim and ExpiresAtMS on a won claim and its release.
-type CooldownWindow struct {
-	Key         string `json:"key"`
-	TTLSeconds  int64  `json:"ttl_s,omitempty"`
-	ExpiresAtMS int64  `json:"expires_at_ms,omitempty"`
 }
 
 type Balance struct {
@@ -77,10 +65,5 @@ type Reply struct {
 	Found         bool           `json:"found,omitempty"`
 	Spent         bool           `json:"spent,omitempty"`
 	LimitExceeded bool           `json:"limit_exceeded,omitempty"`
-
-	Variables map[string]string `json:"variables,omitempty"`
-
-	Claimed   bool             `json:"claimed,omitempty"`
-	Cooldowns []CooldownWindow `json:"cooldowns,omitempty"`
 	rpc.Refusal
 }

@@ -47,8 +47,7 @@ RPC reads and synchronous balance/counter management.
 | [repository/counter_persist.go](repository/counter_persist.go) | SQL transaction, deterministic lock order, bounded writes and row-range isolation. |
 | [repository/watchtime.go](repository/watchtime.go) | Raw SQL inbox/dedup/fence schemas, atomic awards and account deletion/recreation. |
 | [repository/watchtime_retention.go](repository/watchtime_retention.go) | Monotonic retirement barrier and bounded replay-history pruning. |
-| [repository/cooldowns.go](repository/cooldowns.go) | Recipe cooldown windows over one day: atomic claim, release and bounded expiry cleanup on the flush tick. |
-| [rpc/rpc.go](rpc/rpc.go) | All `balance.*`, `top.get`, `counter.*`, `variable.*` and `cooldown.*` handlers and wire views. |
+| [rpc/rpc.go](rpc/rpc.go) | All `balance.*`, `top.get`, `counter.*` handlers and wire views. |
 | [ent/schema/](ent/schema/) | Balance, Counter and CounterEntry schemas; watchtime auxiliary tables use raw SQL. |
 | [repository/schema.go](repository/schema.go) | `MigrateSchema`: on MySQL, balances, counters and counter entries are clustered on their natural key. |
 

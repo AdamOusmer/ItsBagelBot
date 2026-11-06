@@ -3,7 +3,7 @@
 package variable
 
 import (
-	"ItsBagelBot/app/db/loyalty/ent/predicate"
+	"ItsBagelBot/app/db/modules/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"

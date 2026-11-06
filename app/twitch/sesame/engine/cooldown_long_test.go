@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/automation"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/pkg/codec"
 
@@ -38,7 +38,7 @@ func (s *fakeLongCooldowns) ClaimLongCooldowns(_ context.Context, claim LongCool
 	hold := LongCooldownHold{BroadcasterID: claim.BroadcasterID}
 	for _, window := range claim.Windows {
 		s.claimed = append(s.claimed, window.Key)
-		hold.Windows = append(hold.Windows, loyaltyrpc.CooldownWindow{Key: window.Key, ExpiresAtMS: 1})
+		hold.Windows = append(hold.Windows, modulesrpc.CooldownWindow{Key: window.Key, ExpiresAtMS: 1})
 	}
 	if s.claimErr != nil {
 		return LongCooldownHold{}, false, s.claimErr
@@ -181,43 +181,43 @@ func TestMixedStoresAllOrNothingOnRealValkey(t *testing.T) {
 	assert.Equal(t, []string{"long"}, long.released)
 }
 
-func TestLoyaltyRPCCooldownSubjectsAndPayloads(t *testing.T) {
+func TestRecipeStateRPCCooldownSubjectsAndPayloads(t *testing.T) {
 	nc := testnats.Connect(t)
-	claimed := make(chan loyaltyrpc.Request, 1)
-	_, err := nc.Subscribe("loy.cooldown.claim", func(msg *nats.Msg) {
-		var req loyaltyrpc.Request
+	claimed := make(chan modulesrpc.CooldownRequest, 1)
+	_, err := nc.Subscribe("mods.cooldown.claim", func(msg *nats.Msg) {
+		var req modulesrpc.CooldownRequest
 		assert.NoError(t, codec.Unmarshal(msg.Data, &req))
 		claimed <- req
-		body, err := codec.Marshal(loyaltyrpc.Reply{Claimed: true, Cooldowns: []loyaltyrpc.CooldownWindow{{Key: "k", ExpiresAtMS: 9}}})
+		body, err := codec.Marshal(modulesrpc.CooldownReply{Claimed: true, Windows: []modulesrpc.CooldownWindow{{Key: "k", ExpiresAtMS: 9}}})
 		assert.NoError(t, err)
 		assert.NoError(t, msg.Respond(body))
 	})
 	require.NoError(t, err)
-	released := make(chan loyaltyrpc.Request, 1)
-	_, err = nc.Subscribe("loy.cooldown.release", func(msg *nats.Msg) {
-		var req loyaltyrpc.Request
+	released := make(chan modulesrpc.CooldownRequest, 1)
+	_, err = nc.Subscribe("mods.cooldown.release", func(msg *nats.Msg) {
+		var req modulesrpc.CooldownRequest
 		assert.NoError(t, codec.Unmarshal(msg.Data, &req))
 		released <- req
-		body, err := codec.Marshal(loyaltyrpc.Reply{Found: true})
+		body, err := codec.Marshal(modulesrpc.CooldownReply{Found: true})
 		assert.NoError(t, err)
 		assert.NoError(t, msg.Respond(body))
 	})
 	require.NoError(t, err)
-	store := NewLoyaltyRPC(nc, "loy")
+	store := NewRecipeStateRPC(nc, "mods")
 	ctx := context.Background()
 
 	hold, won, err := store.ClaimLongCooldowns(ctx, LongCooldownClaim{BroadcasterID: 7, Windows: []CooldownWindow{{Key: "k", TTL: aboveValkey * time.Second}}})
 
 	require.NoError(t, err)
 	assert.True(t, won)
-	assert.Equal(t, loyaltyrpc.Request{UserID: "7", Cooldowns: []loyaltyrpc.CooldownWindow{{Key: "k", TTLSeconds: aboveValkey}}}, <-claimed)
+	assert.Equal(t, modulesrpc.CooldownRequest{UserID: "7", Windows: []modulesrpc.CooldownWindow{{Key: "k", TTLSeconds: aboveValkey}}}, <-claimed)
 
 	require.NoError(t, store.ReleaseLongCooldowns(ctx, hold))
-	assert.Equal(t, loyaltyrpc.Request{UserID: "7", Cooldowns: []loyaltyrpc.CooldownWindow{{Key: "k", ExpiresAtMS: 9}}}, <-released)
+	assert.Equal(t, modulesrpc.CooldownRequest{UserID: "7", Windows: []modulesrpc.CooldownWindow{{Key: "k", ExpiresAtMS: 9}}}, <-released)
 }
 
-func TestLoyaltyRPCCooldownWithoutResponderIsAnError(t *testing.T) {
-	store := NewLoyaltyRPC(testnats.Connect(t), "absent")
+func TestRecipeStateRPCCooldownWithoutResponderIsAnError(t *testing.T) {
+	store := NewRecipeStateRPC(testnats.Connect(t), "absent")
 
 	_, won, err := store.ClaimLongCooldowns(context.Background(), LongCooldownClaim{BroadcasterID: 7, Windows: []CooldownWindow{{Key: "k", TTL: aboveValkey * time.Second}}})
 

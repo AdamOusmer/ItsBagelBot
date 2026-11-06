@@ -21,10 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"ItsBagelBot/app/db/loyalty/ent"
-	_ "ItsBagelBot/app/db/loyalty/ent/runtime"
-	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
-	loyaltyserver "ItsBagelBot/app/db/loyalty/rpc"
+	modulesent "ItsBagelBot/app/db/modules/ent"
+	_ "ItsBagelBot/app/db/modules/ent/runtime"
+	modulesrepo "ItsBagelBot/app/db/modules/repository"
+	modulesserver "ItsBagelBot/app/db/modules/rpc"
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/modules"
 	"ItsBagelBot/internal/domain/automation"
@@ -37,6 +37,7 @@ import (
 	"ItsBagelBot/pkg/idempotency"
 
 	entsql "entgo.io/ent/dialect/sql"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
@@ -47,7 +48,7 @@ import (
 
 const (
 	gossipPrefix    = "bagel.rpc.gossip"
-	loyaltyPrefix   = "loyalty"
+	modulesPrefix   = "modules"
 	premiumSubject  = "twitch.outgress.premium"
 	standardSubject = "twitch.outgress.standard"
 	upstreamHost    = "upstream.e2e.test"
@@ -241,7 +242,7 @@ type stack struct {
 	nc       *nats.Conn
 	pub      bus.Publisher
 	natsURL  string
-	vars     *engine.LoyaltyRPC
+	vars     *engine.RecipeStateRPC
 	helix    *fakeHelix
 	upstream *upstreamLog
 	govee    *upstreamLog
@@ -288,28 +289,38 @@ func startNATS(t *testing.T) string {
 	return s.ClientURL()
 }
 
-func startLoyalty(t *testing.T, nc *nats.Conn) {
+func startRecipeState(t *testing.T, nc *nats.Conn) {
+	t.Helper()
+	serveRecipeState(t, nc, sqliteRecipeDB(t))
+}
+
+func sqliteRecipeDB(t *testing.T) recipeDB {
 	t.Helper()
 	db, err := sql.Open(testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	db.SetMaxOpenConns(1)
-	serveLoyalty(t, nc, loyaltyDB{Pool: db, Dialect: "sqlite3"})
+	return recipeDB{Pool: db, Dialect: "sqlite3"}
 }
 
-type loyaltyDB struct {
+type recipeDB struct {
 	Pool    *sql.DB
 	Dialect string
 }
 
-func serveLoyalty(t *testing.T, nc *nats.Conn, target loyaltyDB) {
+type recipeStateService struct {
+	client *modulesent.Client
+	state  *modulesrepo.RecipeState
+}
+
+func serveRecipeState(t *testing.T, nc *nats.Conn, target recipeDB) recipeStateService {
 	t.Helper()
 	drv := entsql.OpenDB(target.Dialect, target.Pool)
-	client := ent.NewClient(ent.Driver(drv))
-	require.NoError(t, loyaltyrepo.MigrateSchema(context.Background(), client, target.Dialect))
-	repo := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
-	t.Cleanup(func() { repo.Close(context.Background()) })
-	require.NoError(t, loyaltyserver.Subscribe(loyaltyserver.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))}, Repo: repo, InvalidationPrefix: "bagel.cache.invalidate"}, loyaltyPrefix))
+	client := modulesent.NewClient(modulesent.Driver(drv))
+	require.NoError(t, modulesrepo.MigrateSchema(context.Background(), client, target.Dialect))
+	state := modulesrepo.NewRecipeState(client, drv)
+	require.NoError(t, modulesserver.SubscribeRecipeState(bus.RPCWiring{NC: nc, Log: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))}, state, modulesPrefix))
+	return recipeStateService{client: client, state: state}
 }
 
 type serviceBuild struct{ Pkg, Name string }
@@ -394,10 +405,10 @@ func startStackFor(t *testing.T, channels stackChannels) *stack {
 	require.NoError(t, err)
 	t.Cleanup(nc.Close)
 	ensureOutgressStreams(t, natsURL)
-	startLoyalty(t, nc)
+	startRecipeState(t, nc)
 
 	s := &stack{vc: vc, nc: nc, natsURL: natsURL, helix: &fakeHelix{rewards: map[rewardRef]*rewardState{}, foreign: map[rewardRef]bool{}}, upstream: &upstreamLog{}, govee: &upstreamLog{}, source: &fixtureSource{autos: map[uint64][]automation.Automation{}}}
-	s.vars = engine.NewLoyaltyRPC(nc, engine.LoyaltyRPCPrefix(loyaltyPrefix))
+	s.vars = engine.NewRecipeStateRPC(nc, modulesPrefix)
 	s.runs = engine.NewValkeyRunLog(vc, zap.NewNop())
 
 	helixServer := httptest.NewServer(s.helix)
@@ -457,7 +468,7 @@ func (s *stack) replica(t *testing.T) *engine.Pipeline {
 		Automations: engine.AutomationDeps{
 			Source: s.source, Runs: s.runs,
 			Variables: s.vars, Queue: engine.NewValkeyRunQueue(s.vc),
-			LongCooldowns: s.vars,
+			LongCooldowns: engine.NewMarkedLongCooldowns(s.vc, s.vars, log),
 		},
 		Proj: premiumChannels{}, Live: live, RewardResets: engine.NewValkeyRewardResets(s.vc),
 		Greet: engine.NewValkeyGreetStore(s.vc, time.Hour, log), Cooldown: cooldown,

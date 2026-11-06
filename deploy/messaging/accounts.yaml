@@ -918,6 +918,10 @@ accounts:
               from: COMMANDS_RPC
             - service: bagel.rpc.modules.quote.>
               from: MODULES_RPC
+            - service: bagel.rpc.modules.variable.>
+              from: MODULES_RPC
+            - service: bagel.rpc.modules.cooldown.>
+              from: MODULES_RPC
             - service: bagel.rpc.modules.personality.feed
               from: MODULES_RPC
             - service: bagel.rpc.modules.personality.feed.node.*

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
+	"ItsBagelBot/app/db/modules/repository"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,26 +23,26 @@ const (
 	claimers        = 100
 )
 
-func eachCooldownStore(t *testing.T, run func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB)) {
+func eachCooldownStore(t *testing.T, run func(t *testing.T, repo *repository.RecipeState, raw *sql.DB)) {
 	t.Helper()
 	t.Run("sqlite", func(t *testing.T) {
-		repo, raw := sqliteRetentionRepo(t)
+		repo, raw := sqliteStateRepo(t)
 		run(t, repo, raw)
 	})
 	t.Run("mysql", func(t *testing.T) {
-		repo, raw := mysqlRetentionRepo(t)
+		repo, raw := mysqlStateRepo(t)
 		raw.SetMaxOpenConns(8)
 		run(t, repo, raw)
 	})
 }
 
-func window(key string) loyaltyrepo.CooldownWindow {
-	return loyaltyrepo.CooldownWindow{Key: key, TTL: 7 * 24 * time.Hour}
+func window(key string) repository.CooldownWindow {
+	return repository.CooldownWindow{Key: key, TTL: 7 * 24 * time.Hour}
 }
 
-func claimCooldowns(t *testing.T, repo *loyaltyrepo.Loyalty, windows ...loyaltyrepo.CooldownWindow) ([]loyaltyrepo.CooldownHold, bool) {
+func claimCooldowns(t *testing.T, repo *repository.RecipeState, windows ...repository.CooldownWindow) ([]repository.CooldownHold, bool) {
 	t.Helper()
-	holds, won, err := repo.CooldownClaimAll(context.Background(), loyaltyrepo.CooldownClaim{UserID: cooldownChannel, Windows: windows})
+	holds, won, err := repo.CooldownClaimAll(context.Background(), repository.CooldownClaim{UserID: cooldownChannel, Windows: windows})
 	require.NoError(t, err)
 	return holds, won
 }
@@ -69,7 +69,7 @@ func cooldownRows(t *testing.T, raw *sql.DB) []string {
 }
 
 func TestCooldownWindowRefusesUntilExpiry(t *testing.T) {
-	eachCooldownStore(t, func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
 		holds, won := claimCooldowns(t, repo, window("k"))
 		require.True(t, won)
 		require.Len(t, holds, 1)
@@ -79,7 +79,7 @@ func TestCooldownWindowRefusesUntilExpiry(t *testing.T) {
 		assert.False(t, won, "a live window refuses")
 
 		ctx := context.Background()
-		_, won, err := repo.CooldownClaimAll(ctx, loyaltyrepo.CooldownClaim{UserID: cooldownChannel + 1, Windows: []loyaltyrepo.CooldownWindow{window("k")}})
+		_, won, err := repo.CooldownClaimAll(ctx, repository.CooldownClaim{UserID: cooldownChannel + 1, Windows: []repository.CooldownWindow{window("k")}})
 		require.NoError(t, err)
 		assert.True(t, won, "the same key in another channel is free")
 
@@ -90,11 +90,11 @@ func TestCooldownWindowRefusesUntilExpiry(t *testing.T) {
 	})
 }
 
-func oneWinnerAmong(t *testing.T, repo *loyaltyrepo.Loyalty, windows func(i int) []loyaltyrepo.CooldownWindow) int64 {
+func oneWinnerAmong(t *testing.T, repo *repository.RecipeState, windows func(i int) []repository.CooldownWindow) int64 {
 	t.Helper()
 	var winners atomic.Int64
 	errs := concurrently(claimers, func(ctx context.Context, i int) error {
-		_, won, err := repo.CooldownClaimAll(ctx, loyaltyrepo.CooldownClaim{UserID: cooldownChannel, Windows: windows(i)})
+		_, won, err := repo.CooldownClaimAll(ctx, repository.CooldownClaim{UserID: cooldownChannel, Windows: windows(i)})
 		if won {
 			winners.Add(1)
 		}
@@ -107,8 +107,8 @@ func oneWinnerAmong(t *testing.T, repo *loyaltyrepo.Loyalty, windows func(i int)
 }
 
 func TestCooldownConcurrentClaimersHaveOneWinner(t *testing.T) {
-	eachCooldownStore(t, func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
-		same := func(int) []loyaltyrepo.CooldownWindow { return []loyaltyrepo.CooldownWindow{window("race")} }
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
+		same := func(int) []repository.CooldownWindow { return []repository.CooldownWindow{window("race")} }
 
 		assert.EqualValues(t, 1, oneWinnerAmong(t, repo, same), "absent row")
 		assert.EqualValues(t, 0, oneWinnerAmong(t, repo, same), "live row")
@@ -120,9 +120,9 @@ func TestCooldownConcurrentClaimersHaveOneWinner(t *testing.T) {
 }
 
 func TestCooldownMixedWindowsOneWinnerAcrossViewers(t *testing.T) {
-	eachCooldownStore(t, func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
-		winners := oneWinnerAmong(t, repo, func(i int) []loyaltyrepo.CooldownWindow {
-			return []loyaltyrepo.CooldownWindow{window(fmt.Sprintf("viewer:%d", i)), window("global")}
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
+		winners := oneWinnerAmong(t, repo, func(i int) []repository.CooldownWindow {
+			return []repository.CooldownWindow{window(fmt.Sprintf("viewer:%d", i)), window("global")}
 		})
 
 		assert.EqualValues(t, 1, winners)
@@ -133,7 +133,7 @@ func TestCooldownMixedWindowsOneWinnerAcrossViewers(t *testing.T) {
 }
 
 func TestCooldownClaimUnderCleanupKeepsOneWinner(t *testing.T) {
-	eachCooldownStore(t, func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
 		ctx, stop := context.WithCancel(context.Background())
 		cleaned := make(chan struct{})
 		go func() {
@@ -144,7 +144,7 @@ func TestCooldownClaimUnderCleanupKeepsOneWinner(t *testing.T) {
 		}()
 		defer func() { stop(); <-cleaned }()
 
-		same := func(int) []loyaltyrepo.CooldownWindow { return []loyaltyrepo.CooldownWindow{window("swept")} }
+		same := func(int) []repository.CooldownWindow { return []repository.CooldownWindow{window("swept")} }
 		for range 5 {
 			assert.EqualValues(t, 1, oneWinnerAmong(t, repo, same))
 			expireCooldown(t, raw, "swept")
@@ -153,7 +153,7 @@ func TestCooldownClaimUnderCleanupKeepsOneWinner(t *testing.T) {
 }
 
 func TestCooldownRefusalSpendsNothing(t *testing.T) {
-	eachCooldownStore(t, func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
 		_, won := claimCooldowns(t, repo, window("taken"))
 		require.True(t, won)
 
@@ -168,12 +168,12 @@ func TestCooldownRefusalSpendsNothing(t *testing.T) {
 }
 
 func TestCooldownReleaseGivesBackOnlyItsOwnClaim(t *testing.T) {
-	eachCooldownStore(t, func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
 		ctx := context.Background()
 		first, won := claimCooldowns(t, repo, window("k"))
 		require.True(t, won)
 		expireCooldown(t, raw, "k")
-		second, won := claimCooldowns(t, repo, loyaltyrepo.CooldownWindow{Key: "k", TTL: 8 * 24 * time.Hour})
+		second, won := claimCooldowns(t, repo, repository.CooldownWindow{Key: "k", TTL: 8 * 24 * time.Hour})
 		require.True(t, won)
 
 		require.NoError(t, repo.CooldownRelease(ctx, cooldownChannel, first))
@@ -187,7 +187,7 @@ func TestCooldownReleaseGivesBackOnlyItsOwnClaim(t *testing.T) {
 }
 
 func TestCooldownPruneDeletesOnlyExpiredPastOneBatch(t *testing.T) {
-	eachCooldownStore(t, func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
 		ctx := context.Background()
 		const expired = 2500
 		past := time.Now().Add(-time.Hour).UnixMilli()
@@ -206,41 +206,39 @@ func TestCooldownPruneDeletesOnlyExpiredPastOneBatch(t *testing.T) {
 	})
 }
 
-func TestCooldownAccountDeletionErasesClaims(t *testing.T) {
-	eachCooldownStore(t, func(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
-		ctx := context.Background()
-		_, won := claimCooldowns(t, repo, window("mine"))
-		require.True(t, won)
-		_, won, err := repo.CooldownClaimAll(ctx, loyaltyrepo.CooldownClaim{UserID: cooldownChannel + 1, Windows: []loyaltyrepo.CooldownWindow{window("other")}})
-		require.NoError(t, err)
+func TestCooldownRefusalNamesTheWindowAndItsExpiry(t *testing.T) {
+	eachCooldownStore(t, func(t *testing.T, repo *repository.RecipeState, raw *sql.DB) {
+		holds, won := claimCooldowns(t, repo, window("taken"))
 		require.True(t, won)
 
-		require.NoError(t, repo.DeleteAccount(ctx, cooldownChannel, 0))
+		refused, won := claimCooldowns(t, repo, window("free"), window("taken"))
 
-		assert.Equal(t, []string{"other"}, cooldownRows(t, raw))
+		assert.False(t, won)
+		assert.Equal(t, holds, refused)
+		assert.Equal(t, []string{"taken"}, cooldownRows(t, raw))
 	})
 }
 
 func TestCooldownClaimRefusesBadInput(t *testing.T) {
-	repo, _ := sqliteRetentionRepo(t)
+	repo, _ := sqliteStateRepo(t)
 	ctx := context.Background()
-	for name, claim := range map[string]loyaltyrepo.CooldownClaim{
-		"no channel":  {Windows: []loyaltyrepo.CooldownWindow{window("k")}},
+	for name, claim := range map[string]repository.CooldownClaim{
+		"no channel":  {Windows: []repository.CooldownWindow{window("k")}},
 		"no windows":  {UserID: cooldownChannel},
-		"three":       {UserID: cooldownChannel, Windows: []loyaltyrepo.CooldownWindow{window("a"), window("b"), window("c")}},
-		"empty key":   {UserID: cooldownChannel, Windows: []loyaltyrepo.CooldownWindow{window("")}},
-		"long key":    {UserID: cooldownChannel, Windows: []loyaltyrepo.CooldownWindow{window(strings.Repeat("k", 129))}},
-		"no ttl":      {UserID: cooldownChannel, Windows: []loyaltyrepo.CooldownWindow{{Key: "k"}}},
-		"over thirty": {UserID: cooldownChannel, Windows: []loyaltyrepo.CooldownWindow{{Key: "k", TTL: 30*24*time.Hour + time.Second}}},
+		"three":       {UserID: cooldownChannel, Windows: []repository.CooldownWindow{window("a"), window("b"), window("c")}},
+		"empty key":   {UserID: cooldownChannel, Windows: []repository.CooldownWindow{window("")}},
+		"long key":    {UserID: cooldownChannel, Windows: []repository.CooldownWindow{window(strings.Repeat("k", 129))}},
+		"no ttl":      {UserID: cooldownChannel, Windows: []repository.CooldownWindow{{Key: "k"}}},
+		"over thirty": {UserID: cooldownChannel, Windows: []repository.CooldownWindow{{Key: "k", TTL: 30*24*time.Hour + time.Second}}},
 	} {
 		_, won, err := repo.CooldownClaimAll(ctx, claim)
 		assert.False(t, won, name)
-		assert.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput, name)
+		assert.ErrorIs(t, err, repository.ErrInvalidInput, name)
 	}
 }
 
 func TestCooldownMySQLClusteredOnNaturalKey(t *testing.T) {
-	_, raw := mysqlRetentionRepo(t)
+	_, raw := mysqlStateRepo(t)
 	rows, err := raw.Query("SELECT COLUMN_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cooldown_claims' AND INDEX_NAME = 'PRIMARY' ORDER BY SEQ_IN_INDEX")
 	require.NoError(t, err)
 	defer rows.Close()

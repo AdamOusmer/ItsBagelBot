@@ -6,9 +6,15 @@ package engine
 import (
 	"context"
 	"errors"
+	"time"
 
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
+	"ItsBagelBot/pkg/bus"
+
+	"github.com/nats-io/nats.go"
 )
+
+const recipeStateRPCTimeout = 3 * time.Second
 
 var ErrVariableLimit = errors.New("variable limit reached")
 
@@ -25,42 +31,67 @@ type VariableStore interface {
 	VariableDelete(ctx context.Context, owner VariableOwner, name string) error
 }
 
-func variableRequest(owner VariableOwner, name string) loyaltyrpc.Request {
-	req := loyaltyrpc.Request{UserID: fmtID(owner.BroadcasterID), Scope: owner.Scope, Name: name}
+// RecipeStateRPC reaches recipe variables and long cooldown windows in the modules service.
+type RecipeStateRPC struct {
+	nc     *nats.Conn
+	prefix string
+}
+
+func NewRecipeStateRPC(nc *nats.Conn, modulesPrefix string) *RecipeStateRPC {
+	return &RecipeStateRPC{nc: nc, prefix: modulesPrefix}
+}
+
+func recipeStateCall[Reply any](ctx context.Context, c *RecipeStateRPC, verb string, req any) (Reply, error) {
+	return bus.RequestJSONTimeout[Reply](ctx, c.nc, c.prefix+"."+verb, req, recipeStateRPCTimeout)
+}
+
+func variableRequest(owner VariableOwner, name string) modulesrpc.VariableRequest {
+	req := modulesrpc.VariableRequest{UserID: fmtID(owner.BroadcasterID), Scope: owner.Scope, Name: name}
 	if owner.ViewerID != 0 {
 		req.ViewerID = fmtID(owner.ViewerID)
 	}
 	return req
 }
 
-func (l *LoyaltyRPC) VariablesGet(ctx context.Context, owner VariableOwner, names []string) (map[string]string, error) {
+func (c *RecipeStateRPC) variableCall(ctx context.Context, verb string, req modulesrpc.VariableRequest) (modulesrpc.VariableReply, error) {
+	reply, err := recipeStateCall[modulesrpc.VariableReply](ctx, c, "variable."+verb, req)
+	if err != nil {
+		return reply, err
+	}
+	if reply.Error != "" {
+		return reply, errors.New(reply.Error)
+	}
+	return reply, nil
+}
+
+func (c *RecipeStateRPC) VariablesGet(ctx context.Context, owner VariableOwner, names []string) (map[string]string, error) {
 	req := variableRequest(owner, "")
 	req.Names = names
-	reply, err := l.call(ctx, "variable.get", req)
+	reply, err := c.variableCall(ctx, "get", req)
 	if err != nil {
 		return nil, err
 	}
 	return reply.Variables, nil
 }
 
-func (l *LoyaltyRPC) VariableSet(ctx context.Context, owner VariableOwner, name, value string) error {
+func (c *RecipeStateRPC) VariableSet(ctx context.Context, owner VariableOwner, name, value string) error {
 	req := variableRequest(owner, name)
 	req.Text = value
-	return l.variableWrite(ctx, "variable.set", req)
+	return c.variableWrite(ctx, "set", req)
 }
 
-func (l *LoyaltyRPC) VariableAdd(ctx context.Context, owner VariableOwner, name string, amount int64) error {
+func (c *RecipeStateRPC) VariableAdd(ctx context.Context, owner VariableOwner, name string, amount int64) error {
 	req := variableRequest(owner, name)
 	req.Value = amount
-	return l.variableWrite(ctx, "variable.add", req)
+	return c.variableWrite(ctx, "add", req)
 }
 
-func (l *LoyaltyRPC) VariableDelete(ctx context.Context, owner VariableOwner, name string) error {
-	return l.variableWrite(ctx, "variable.delete", variableRequest(owner, name))
+func (c *RecipeStateRPC) VariableDelete(ctx context.Context, owner VariableOwner, name string) error {
+	return c.variableWrite(ctx, "delete", variableRequest(owner, name))
 }
 
-func (l *LoyaltyRPC) variableWrite(ctx context.Context, verb loyaltyVerb, req loyaltyrpc.Request) error {
-	reply, err := l.call(ctx, verb, req)
+func (c *RecipeStateRPC) variableWrite(ctx context.Context, verb string, req modulesrpc.VariableRequest) error {
+	reply, err := c.variableCall(ctx, verb, req)
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,7 @@
 package cooldownclaim
 
 import (
-	"ItsBagelBot/app/db/loyalty/ent/predicate"
+	"ItsBagelBot/app/db/modules/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
 )

@@ -3,8 +3,8 @@
 package ent
 
 import (
-	"ItsBagelBot/app/db/loyalty/ent/predicate"
-	"ItsBagelBot/app/db/loyalty/ent/variable"
+	"ItsBagelBot/app/db/modules/ent/predicate"
+	"ItsBagelBot/app/db/modules/ent/variable"
 	"context"
 
 	"entgo.io/ent/dialect/sql"

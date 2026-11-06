@@ -5,12 +5,14 @@ package ent
 import (
 	"ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
+	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
+	"ItsBagelBot/app/db/modules/ent/variable"
 	"context"
 	"errors"
 	"fmt"
@@ -82,12 +84,14 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			automation.Table:         automation.ValidColumn,
 			channelfeedcounter.Table: channelfeedcounter.ValidColumn,
+			cooldownclaim.Table:      cooldownclaim.ValidColumn,
 			feedcounter.Table:        feedcounter.ValidColumn,
 			feedreceipt.Table:        feedreceipt.ValidColumn,
 			goveecredential.Table:    goveecredential.ValidColumn,
 			modules.Table:            modules.ValidColumn,
 			quote.Table:              quote.ValidColumn,
 			spotifycredential.Table:  spotifycredential.ValidColumn,
+			variable.Table:           variable.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

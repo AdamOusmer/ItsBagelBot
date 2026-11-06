@@ -4,11 +4,9 @@ package runtime
 
 import (
 	"ItsBagelBot/app/db/loyalty/ent/balance"
-	"ItsBagelBot/app/db/loyalty/ent/cooldownclaim"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
 	"ItsBagelBot/app/db/loyalty/ent/schema"
-	"ItsBagelBot/app/db/loyalty/ent/variable"
 	"time"
 )
 
@@ -44,26 +42,6 @@ func init() {
 	balance.DefaultUpdatedAt = balanceDescUpdatedAt.Default.(func() time.Time)
 	// balance.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	balance.UpdateDefaultUpdatedAt = balanceDescUpdatedAt.UpdateDefault.(func() time.Time)
-	cooldownclaimFields := schema.CooldownClaim{}.Fields()
-	_ = cooldownclaimFields
-	// cooldownclaimDescCooldownKey is the schema descriptor for cooldown_key field.
-	cooldownclaimDescCooldownKey := cooldownclaimFields[1].Descriptor()
-	// cooldownclaim.CooldownKeyValidator is a validator for the "cooldown_key" field. It is called by the builders before save.
-	cooldownclaim.CooldownKeyValidator = func() func(string) error {
-		validators := cooldownclaimDescCooldownKey.Validators
-		fns := [...]func(string) error{
-			validators[0].(func(string) error),
-			validators[1].(func(string) error),
-		}
-		return func(cooldown_key string) error {
-			for _, fn := range fns {
-				if err := fn(cooldown_key); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}()
 	counterHooks := schema.Counter{}.Hooks()
 	counter.Hooks[0] = counterHooks[0]
 	counterFields := schema.Counter{}.Fields()
@@ -182,50 +160,6 @@ func init() {
 	counterentry.DefaultUpdatedAt = counterentryDescUpdatedAt.Default.(func() time.Time)
 	// counterentry.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	counterentry.UpdateDefaultUpdatedAt = counterentryDescUpdatedAt.UpdateDefault.(func() time.Time)
-	variableFields := schema.Variable{}.Fields()
-	_ = variableFields
-	// variableDescScope is the schema descriptor for scope field.
-	variableDescScope := variableFields[1].Descriptor()
-	// variable.ScopeValidator is a validator for the "scope" field. It is called by the builders before save.
-	variable.ScopeValidator = variableDescScope.Validators[0].(func(string) error)
-	// variableDescViewerID is the schema descriptor for viewer_id field.
-	variableDescViewerID := variableFields[2].Descriptor()
-	// variable.DefaultViewerID holds the default value on creation for the viewer_id field.
-	variable.DefaultViewerID = variableDescViewerID.Default.(uint64)
-	// variableDescName is the schema descriptor for name field.
-	variableDescName := variableFields[3].Descriptor()
-	// variable.NameValidator is a validator for the "name" field. It is called by the builders before save.
-	variable.NameValidator = func() func(string) error {
-		validators := variableDescName.Validators
-		fns := [...]func(string) error{
-			validators[0].(func(string) error),
-			validators[1].(func(string) error),
-		}
-		return func(name string) error {
-			for _, fn := range fns {
-				if err := fn(name); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}()
-	// variableDescValue is the schema descriptor for value field.
-	variableDescValue := variableFields[4].Descriptor()
-	// variable.DefaultValue holds the default value on creation for the value field.
-	variable.DefaultValue = variableDescValue.Default.(string)
-	// variable.ValueValidator is a validator for the "value" field. It is called by the builders before save.
-	variable.ValueValidator = variableDescValue.Validators[0].(func(string) error)
-	// variableDescRevision is the schema descriptor for revision field.
-	variableDescRevision := variableFields[5].Descriptor()
-	// variable.DefaultRevision holds the default value on creation for the revision field.
-	variable.DefaultRevision = variableDescRevision.Default.(int64)
-	// variableDescUpdatedAt is the schema descriptor for updated_at field.
-	variableDescUpdatedAt := variableFields[6].Descriptor()
-	// variable.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	variable.DefaultUpdatedAt = variableDescUpdatedAt.Default.(func() time.Time)
-	// variable.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	variable.UpdateDefaultUpdatedAt = variableDescUpdatedAt.UpdateDefault.(func() time.Time)
 }
 
 const (

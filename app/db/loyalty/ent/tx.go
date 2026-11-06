@@ -14,14 +14,10 @@ type Tx struct {
 	config
 	// Balance is the client for interacting with the Balance builders.
 	Balance *BalanceClient
-	// CooldownClaim is the client for interacting with the CooldownClaim builders.
-	CooldownClaim *CooldownClaimClient
 	// Counter is the client for interacting with the Counter builders.
 	Counter *CounterClient
 	// CounterEntry is the client for interacting with the CounterEntry builders.
 	CounterEntry *CounterEntryClient
-	// Variable is the client for interacting with the Variable builders.
-	Variable *VariableClient
 
 	// lazily loaded.
 	client     *Client
@@ -154,10 +150,8 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Balance = NewBalanceClient(tx.config)
-	tx.CooldownClaim = NewCooldownClaimClient(tx.config)
 	tx.Counter = NewCounterClient(tx.config)
 	tx.CounterEntry = NewCounterEntryClient(tx.config)
-	tx.Variable = NewVariableClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

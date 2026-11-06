@@ -16,6 +16,8 @@ type Tx struct {
 	Automation *AutomationClient
 	// ChannelFeedCounter is the client for interacting with the ChannelFeedCounter builders.
 	ChannelFeedCounter *ChannelFeedCounterClient
+	// CooldownClaim is the client for interacting with the CooldownClaim builders.
+	CooldownClaim *CooldownClaimClient
 	// FeedCounter is the client for interacting with the FeedCounter builders.
 	FeedCounter *FeedCounterClient
 	// FeedReceipt is the client for interacting with the FeedReceipt builders.
@@ -28,6 +30,8 @@ type Tx struct {
 	Quote *QuoteClient
 	// SpotifyCredential is the client for interacting with the SpotifyCredential builders.
 	SpotifyCredential *SpotifyCredentialClient
+	// Variable is the client for interacting with the Variable builders.
+	Variable *VariableClient
 
 	// lazily loaded.
 	client     *Client
@@ -161,12 +165,14 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.Automation = NewAutomationClient(tx.config)
 	tx.ChannelFeedCounter = NewChannelFeedCounterClient(tx.config)
+	tx.CooldownClaim = NewCooldownClaimClient(tx.config)
 	tx.FeedCounter = NewFeedCounterClient(tx.config)
 	tx.FeedReceipt = NewFeedReceiptClient(tx.config)
 	tx.GoveeCredential = NewGoveeCredentialClient(tx.config)
 	tx.Modules = NewModulesClient(tx.config)
 	tx.Quote = NewQuoteClient(tx.config)
 	tx.SpotifyCredential = NewSpotifyCredentialClient(tx.config)
+	tx.Variable = NewVariableClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

@@ -11,11 +11,13 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent"
 	entautomation "ItsBagelBot/app/db/modules/ent/automation"
+	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/predicate"
 	"ItsBagelBot/app/db/modules/ent/quote"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
+	"ItsBagelBot/app/db/modules/ent/variable"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
 )
@@ -214,10 +216,22 @@ func (r *Modules) deleteAccountSnapshot(ctx context.Context, id uint64, epoch in
 	if err := snapshot.deleteCapturedRows(ctx, tx); err != nil {
 		return false, err
 	}
+	if err := deleteRecipeState(ctx, tx, id); err != nil {
+		return false, err
+	}
 	if err := tx.Commit(); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// Viewer rows can outnumber what a snapshot should hold, so these go by owner rather than by captured identity.
+func deleteRecipeState(ctx context.Context, tx *ent.Tx, id uint64) error {
+	if _, err := tx.Variable.Delete().Where(variable.UserID(id)).Exec(ctx); err != nil {
+		return err
+	}
+	_, err := tx.CooldownClaim.Delete().Where(cooldownclaim.UserID(id)).Exec(ctx)
+	return err
 }
 
 func newerPersistedLoyalty(ctx context.Context, tx *ent.Tx, id uint64, epoch int64) (bool, error) {

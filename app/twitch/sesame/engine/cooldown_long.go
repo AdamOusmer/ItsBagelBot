@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/automation"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 )
 
 const longestValkeyCooldown = automation.MaxValkeyCooldownSeconds * time.Second
@@ -19,9 +19,10 @@ type LongCooldownClaim struct {
 	Windows       []CooldownWindow
 }
 
+// LongCooldownHold lists the won windows after a win and the refusing window after a refusal.
 type LongCooldownHold struct {
 	BroadcasterID uint64
-	Windows       []loyaltyrpc.CooldownWindow
+	Windows       []modulesrpc.CooldownWindow
 }
 
 type LongCooldownStore interface {
@@ -29,20 +30,31 @@ type LongCooldownStore interface {
 	ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error
 }
 
-func (l *LoyaltyRPC) ClaimLongCooldowns(ctx context.Context, claim LongCooldownClaim) (LongCooldownHold, bool, error) {
-	windows := make([]loyaltyrpc.CooldownWindow, len(claim.Windows))
-	for i, window := range claim.Windows {
-		windows[i] = loyaltyrpc.CooldownWindow{Key: window.Key, TTLSeconds: int64(window.TTL / time.Second)}
+func (c *RecipeStateRPC) cooldownCall(ctx context.Context, verb string, req modulesrpc.CooldownRequest) (modulesrpc.CooldownReply, error) {
+	reply, err := recipeStateCall[modulesrpc.CooldownReply](ctx, c, "cooldown."+verb, req)
+	if err != nil {
+		return reply, err
 	}
-	reply, err := l.call(ctx, "cooldown.claim", loyaltyrpc.Request{UserID: fmtID(claim.BroadcasterID), Cooldowns: windows})
+	if reply.Error != "" {
+		return reply, errors.New(reply.Error)
+	}
+	return reply, nil
+}
+
+func (c *RecipeStateRPC) ClaimLongCooldowns(ctx context.Context, claim LongCooldownClaim) (LongCooldownHold, bool, error) {
+	windows := make([]modulesrpc.CooldownWindow, len(claim.Windows))
+	for i, window := range claim.Windows {
+		windows[i] = modulesrpc.CooldownWindow{Key: window.Key, TTLSeconds: int64(window.TTL / time.Second)}
+	}
+	reply, err := c.cooldownCall(ctx, "claim", modulesrpc.CooldownRequest{UserID: fmtID(claim.BroadcasterID), Windows: windows})
 	if err != nil {
 		return LongCooldownHold{}, false, err
 	}
-	return LongCooldownHold{BroadcasterID: claim.BroadcasterID, Windows: reply.Cooldowns}, reply.Claimed, nil
+	return LongCooldownHold{BroadcasterID: claim.BroadcasterID, Windows: reply.Windows}, reply.Claimed, nil
 }
 
-func (l *LoyaltyRPC) ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error {
-	_, err := l.call(ctx, "cooldown.release", loyaltyrpc.Request{UserID: fmtID(hold.BroadcasterID), Cooldowns: hold.Windows})
+func (c *RecipeStateRPC) ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error {
+	_, err := c.cooldownCall(ctx, "release", modulesrpc.CooldownRequest{UserID: fmtID(hold.BroadcasterID), Windows: hold.Windows})
 	return err
 }
 
