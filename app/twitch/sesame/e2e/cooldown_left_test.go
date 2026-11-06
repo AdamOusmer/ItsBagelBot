@@ -262,7 +262,7 @@ func peekRewardRecipe(t *testing.T, r *cooldownRig) {
 		Type: automation.RewardRedemptionKind, Lane: "premium", EventID: r.nextEvent("redeem"),
 		BroadcasterUserID: strconv.FormatUint(channel, 10), BroadcasterUserLogin: "streamer", Event: codec.RawMessage(event),
 	})
-	assert.Equal(t, []string{"redeemed"}, r.awaitChatTail(t, 1))
+	assert.Equal(t, []string{"Viewer101" + readyDefault, "redeemed"}, r.awaitChatTail(t, 2))
 
 	assert.Regexp(t, "^Viewer101, "+twoDaysLeft+waitingSuffix, r.peek(t, alice))
 	assert.Equal(t, "Viewer102"+readyDefault, r.peek(t, bob), "the window belongs to the redeeming viewer")
