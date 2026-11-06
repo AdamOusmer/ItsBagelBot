@@ -28,21 +28,10 @@ func NewValkeyRewardResets(client valkey.Client) *ValkeyRewardResets {
 
 // An offline older than the applied live version belongs to a stream that already ended; the snapshot waits for the real one.
 func (r *ValkeyRewardResets) RestorePending(ctx context.Context, broadcasterID uint64, offlineVersion int64) (bool, error) {
-	id := strconv.FormatUint(broadcasterID, 10)
-	results := r.client.DoMulti(ctx,
-		r.client.B().Exists().Key(outgress.RewardSnapshotKey(id)).Build(),
-		r.client.B().Get().Key(livekey.VerKey(broadcasterID)).Build(),
-	)
-	snapshots, err := results[0].AsInt64()
-	if err != nil || snapshots == 0 {
+	keys := pkg_valkey.GuardedIntKeys{Guard: outgress.RewardSnapshotKey(strconv.FormatUint(broadcasterID, 10)), Value: livekey.VerKey(broadcasterID)}
+	snapshot, err := keys.Read(ctx, r.client)
+	if err != nil || !snapshot.Exists {
 		return false, err
 	}
-	applied, err := results[1].AsInt64()
-	if valkey.IsValkeyNil(err) {
-		return true, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return applied <= offlineVersion, nil
+	return !snapshot.HasValue || snapshot.Value <= offlineVersion, nil
 }

@@ -40,6 +40,44 @@ func (kv KV) Del(ctx context.Context, name string) error {
 	return kv.client.Do(ctx, kv.client.B().Del().Key(name).Build()).Error()
 }
 
+// SetIfAbsent keeps an existing value; losing to one is not an error.
+func (kv KV) SetIfAbsent(ctx context.Context, at Key, value string) error {
+	err := kv.client.Do(ctx, kv.client.B().Set().Key(at.Name).Value(value).Nx().Px(at.TTL).Build()).Error()
+	if valkey_go.IsValkeyNil(err) {
+		return nil
+	}
+	return err
+}
+
+// SetBytes stores value without copying it first; TTL must be positive.
+func (kv KV) SetBytes(ctx context.Context, at Key, value []byte) error {
+	return kv.client.Do(ctx, kv.client.B().Set().Key(at.Name).Value(valkey_go.BinaryString(value)).Ex(at.TTL).Build()).Error()
+}
+
+// ReadBytes tells a missing key from a failed read.
+func (kv KV) ReadBytes(ctx context.Context, name string) ([]byte, bool, error) {
+	raw, err := kv.client.Do(ctx, kv.client.B().Get().Key(name).Build()).AsBytes()
+	if valkey_go.IsValkeyNil(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return raw, true, nil
+}
+
+// ReadInt tells a missing key from a failed read or a non-integer value.
+func (kv KV) ReadInt(ctx context.Context, name string) (int64, bool, error) {
+	value, err := kv.client.Do(ctx, kv.client.B().Get().Key(name).Build()).AsInt64()
+	if valkey_go.IsValkeyNil(err) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return value, true, nil
+}
+
 func GetJSON[T any](ctx context.Context, kv KV, name string) (T, bool) {
 	var out T
 	raw, ok := kv.GetString(ctx, name)

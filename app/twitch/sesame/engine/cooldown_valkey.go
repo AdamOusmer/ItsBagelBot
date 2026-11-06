@@ -29,9 +29,5 @@ func (c *ValkeyCooldown) AllowAll(ctx context.Context, windows []CooldownWindow)
 }
 
 func (c *ValkeyCooldown) TimeLeft(ctx context.Context, key string) (time.Duration, error) {
-	ms, err := c.client.Do(ctx, c.client.B().Pttl().Key(key).Build()).AsInt64()
-	if err != nil {
-		return 0, err
-	}
-	return max(time.Duration(ms)*time.Millisecond, 0), nil
+	return pkg_valkey.TimeToLive(ctx, c.client, key)
 }

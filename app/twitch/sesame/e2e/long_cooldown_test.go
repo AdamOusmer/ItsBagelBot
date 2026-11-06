@@ -31,7 +31,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -466,19 +465,12 @@ func exerciseErasureBatches(t *testing.T, r *cooldownRig) {
 		const markers = 1200
 		expiry := time.Now().Add(time.Hour).UnixMilli()
 		index := automation.LongCooldownMarkerIndexKey(channel)
-		calls := make([]pkgvalkey.ScriptCall, markers)
-		seed := make([]valkey.Completed, markers)
+		seed := make([]pkgvalkey.IndexedKey, markers)
 		for i := range markers {
 			window := "w" + strconv.Itoa(i)
-			calls[i] = pkgvalkey.ExpiringIndexEntry{Index: index, Member: window, ExpiresAtMS: expiry}.AddCall(time.Now().UnixMilli())
-			seed[i] = r.vc.B().Set().Key(automation.LongCooldownMarkerKey(channel, window)).Value("1").Px(time.Hour).Build()
+			seed[i] = pkgvalkey.IndexedKey{Index: index, Member: window, Key: automation.LongCooldownMarkerKey(channel, window), Value: "1", ExpiresAtMS: expiry}
 		}
-		for _, result := range pkgvalkey.RunScripts(ctx, r.vc, calls) {
-			require.NoError(t, result.Error())
-		}
-		for _, result := range r.vc.DoMulti(ctx, seed...) {
-			require.NoError(t, result.Error())
-		}
+		require.NoError(t, pkgvalkey.HoldIndexedKeys(ctx, r.vc, seed))
 
 		require.NoError(t, modulesrepo.EraseCooldownMarkers(ctx, r.vc, channel))
 

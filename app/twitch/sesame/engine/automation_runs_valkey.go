@@ -162,55 +162,30 @@ func (l *ValkeyRunLog) flushBatch(parent context.Context) bool {
 	if len(batch) == 0 {
 		return false
 	}
-	cmds := l.encode(batch)
+	pushes := l.encode(batch)
 	clear(batch)
-	l.write(parent, cmds)
+	l.write(parent, pushes)
 	return true
 }
 
-func (l *ValkeyRunLog) encode(batch []queuedRun) valkey.Commands {
-	cmds := make(valkey.Commands, 0, len(batch)+8)
-	var keys []uint64
+func (l *ValkeyRunLog) encode(batch []queuedRun) []pkg_valkey.ListPush {
+	pushes := make([]pkg_valkey.ListPush, 0, len(batch))
 	for _, q := range batch {
-		push, ok := l.pushCommand(q)
-		if !ok {
+		body, err := codec.Marshal(q.rec)
+		if err != nil {
+			l.log.Warn("automations: run record encode failed", zap.Error(err))
 			continue
 		}
-		cmds = append(cmds, push)
-		if !slices.Contains(keys, q.broadcasterID) {
-			keys = append(keys, q.broadcasterID)
-		}
+		pushes = append(pushes, pkg_valkey.ListPush{Key: runLogKey(q.broadcasterID), Element: string(body)})
 	}
-	for _, id := range keys {
-		key := runLogKey(id)
-		cmds = append(cmds,
-			l.client.B().Ltrim().Key(key).Start(0).Stop(automation.RunsKept-1).Build(),
-			l.client.B().Expire().Key(key).Seconds(int64(runLogTTL.Seconds())).Build(),
-		)
-	}
-	return cmds
+	return pushes
 }
 
-func (l *ValkeyRunLog) pushCommand(q queuedRun) (valkey.Completed, bool) {
-	body, err := codec.Marshal(q.rec)
-	if err != nil {
-		l.log.Warn("automations: run record encode failed", zap.Error(err))
-		return valkey.Completed{}, false
-	}
-	return l.client.B().Lpush().Key(runLogKey(q.broadcasterID)).Element(string(body)).Build(), true
-}
-
-func (l *ValkeyRunLog) write(parent context.Context, cmds valkey.Commands) {
-	if len(cmds) == 0 {
-		return
-	}
+func (l *ValkeyRunLog) write(parent context.Context, pushes []pkg_valkey.ListPush) {
 	ctx, cancel := context.WithTimeout(parent, runLogFlushTimeout)
 	defer cancel()
-	for _, res := range l.client.DoMulti(ctx, cmds...) {
-		if err := res.Error(); err != nil {
-			l.log.Warn("automations: run record write failed", zap.Error(err))
-			return
-		}
+	if err := pkg_valkey.PushCapped(ctx, l.client, pushes, pkg_valkey.ListCap{Keep: automation.RunsKept, TTL: runLogTTL}); err != nil {
+		l.log.Warn("automations: run record write failed", zap.Error(err))
 	}
 }
 
@@ -240,7 +215,7 @@ func (l *ValkeyRunLog) Recent(ctx context.Context, broadcasterID uint64, automat
 		return nil, err
 	}
 	// Primary view on purpose: a replica read can miss what drain just flushed.
-	raw, err := l.client.Do(ctx, l.client.B().Lrange().Key(runLogKey(broadcasterID)).Start(0).Stop(-1).Build()).AsStrSlice()
+	raw, err := pkg_valkey.ListAll(ctx, l.client, runLogKey(broadcasterID))
 	if err != nil {
 		return nil, err
 	}
@@ -251,33 +226,20 @@ func (l *ValkeyRunLog) Recent(ctx context.Context, broadcasterID uint64, automat
 
 func (l *ValkeyRunLog) overlayRewardResults(ctx context.Context, broadcasterID uint64, records []automationrpc.RunRecord) {
 	waiting := make([]*automationrpc.RunRecord, 0, len(records))
-	cmds := make(valkey.Commands, 0, len(records))
+	keys := make([]string, 0, len(records))
 	id := strconv.FormatUint(broadcasterID, 10)
 	for i := range records {
 		if awaitsRewardResult(records[i]) {
 			waiting = append(waiting, &records[i])
-			cmds = append(cmds, l.client.B().Hgetall().Key(outgress.RewardResultKey(id, records[i].RunID)).Build())
+			keys = append(keys, outgress.RewardResultKey(id, records[i].RunID))
 		}
 	}
-	for i, results := range l.readRewardResults(ctx, cmds) {
-		applyRewardResults(waiting[i], results)
-	}
-}
-
-func (l *ValkeyRunLog) readRewardResults(ctx context.Context, cmds valkey.Commands) []map[string]string {
-	if len(cmds) == 0 {
-		return nil
-	}
-	replies := l.client.DoMulti(ctx, cmds...)
-	out := make([]map[string]string, len(replies))
-	for i, res := range replies {
-		results, err := res.AsStrMap()
-		if err != nil {
-			l.log.Warn("automations: reward result read failed", zap.Error(err))
+	for i, read := range pkg_valkey.ReadHashes(ctx, l.client, keys) {
+		if read.Err != nil {
+			l.log.Warn("automations: reward result read failed", zap.Error(read.Err))
 		}
-		out[i] = results
+		applyRewardResults(waiting[i], read.Fields)
 	}
-	return out
 }
 
 func awaitsRewardResult(rec automationrpc.RunRecord) bool {
