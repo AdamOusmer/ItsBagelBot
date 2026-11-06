@@ -226,18 +226,21 @@ function lightsAction(config: FlowConfig): Action {
 
 const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
 
-const TIME_LEFT_FIELDS = [
+// Carried through as plain strings so a named window round-trips even though the builder has no field for it yet;
+// losing it here would silently turn a named cooldown back into a plain one on the next save.
+const COOLDOWN_PASSTHROUGH_FIELDS = [
+  ['name', 'name'],
   ['leftCommand', 'left_command'],
   ['leftReply', 'left_reply'],
   ['readyReply', 'ready_reply']
 ] as const;
 
 function timeLeftParams(config: FlowConfig): Params {
-  return Object.fromEntries(TIME_LEFT_FIELDS.filter(([key]) => str(config[key]).trim() !== '').map(([key, param]) => [param, str(config[key]).trim()]));
+  return Object.fromEntries(COOLDOWN_PASSTHROUGH_FIELDS.filter(([key]) => str(config[key]).trim() !== '').map(([key, param]) => [param, str(config[key]).trim()]));
 }
 
 function timeLeftConfig(params: Params): FlowConfig {
-  return Object.fromEntries(TIME_LEFT_FIELDS.filter(([, param]) => str(params[param]) !== '').map(([key, param]) => [key, str(params[param])]));
+  return Object.fromEntries(COOLDOWN_PASSTHROUGH_FIELDS.filter(([, param]) => str(params[param]) !== '').map(([key, param]) => [key, str(params[param])]));
 }
 
 const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {

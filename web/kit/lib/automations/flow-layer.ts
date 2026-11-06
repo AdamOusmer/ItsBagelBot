@@ -52,6 +52,8 @@ const TIME_LEFT_PARAMS = ['left_command', 'left_reply', 'ready_reply'];
 function readCooldown(gates: Gates, params: Params): boolean {
   const global = Number(params.global_s ?? 0);
   const user = Number(params.user_s ?? 0);
+  // A named window always takes the long path, at any length, so cooldown_add elsewhere has a row to extend.
+  if (params.name) return false;
   // Commands enforce their cooldowns in Valkey only; a longer window must run as an automation to reach MySQL.
   if (Math.max(global, user) > MAX_VALKEY_COOLDOWN_SECONDS) return false;
   // A plain command has nowhere to keep the time left command.

@@ -41,6 +41,15 @@ describe('the time left fields', () => {
     expect(classifyFlow(recipe({ global_s: 60, left_reply: 'x' })).layer).toBe('automation');
   });
 
+  test('a named window never reads as a plain command, even under the Valkey threshold', () => {
+    expect(classifyFlow(recipe({ global_s: 60, name: 'subathon' })).layer).toBe('automation');
+  });
+
+  test('a named window survives the builder graph instead of being silently stripped', () => {
+    const named = { global_s: 60, name: 'subathon' };
+    expect(throughBuilder(recipe(named)).conditions![0]!.params).toEqual(named);
+  });
+
   test('are found in an if at any depth', () => {
     const nested = {
       ...recipe({ global_s: 60 }),
