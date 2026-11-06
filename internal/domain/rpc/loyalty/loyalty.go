@@ -25,6 +25,15 @@ type Request struct {
 
 	Names []string `json:"names,omitempty"`
 	Text  string   `json:"text,omitempty"`
+
+	Cooldowns []CooldownWindow `json:"cooldowns,omitempty"`
+}
+
+// CooldownWindow carries TTLSeconds on a claim and ExpiresAtMS on a won claim and its release.
+type CooldownWindow struct {
+	Key         string `json:"key"`
+	TTLSeconds  int64  `json:"ttl_s,omitempty"`
+	ExpiresAtMS int64  `json:"expires_at_ms,omitempty"`
 }
 
 type Balance struct {
@@ -70,5 +79,8 @@ type Reply struct {
 	LimitExceeded bool           `json:"limit_exceeded,omitempty"`
 
 	Variables map[string]string `json:"variables,omitempty"`
+
+	Claimed   bool             `json:"claimed,omitempty"`
+	Cooldowns []CooldownWindow `json:"cooldowns,omitempty"`
 	rpc.Refusal
 }

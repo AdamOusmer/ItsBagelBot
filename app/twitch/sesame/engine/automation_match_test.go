@@ -92,6 +92,7 @@ type autoRig struct {
 	builtin     bool
 	nilSource   bool
 	cooldown    CooldownStore
+	long        LongCooldownStore
 	loyalty     LoyaltyStore
 	stream      StreamInfoLookup
 	intN        int
@@ -138,7 +139,8 @@ func (r autoRig) pipeline() (*Pipeline, *recordingRunLog) {
 		StreamInfo: r.stream,
 		Log:        zap.NewNop(),
 		Automations: AutomationDeps{
-			Runs: runs,
+			Runs:          runs,
+			LongCooldowns: r.long,
 		},
 	}
 	if !r.nilSource {

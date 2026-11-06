@@ -40,7 +40,7 @@
     "field": {
       "seconds": {
         "label": "Délai de recharge",
-        "unit": "secondes"
+        "range": "Utilisez de 1 seconde à {days} jours."
       },
       "perUser": {
         "label": "Par viewer"

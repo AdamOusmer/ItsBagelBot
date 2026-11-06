@@ -40,7 +40,7 @@
     "field": {
       "seconds": {
         "label": "Intervalo de espera",
-        "unit": "segundos"
+        "range": "Use de 1 segundo a {days} dias."
       },
       "perUser": {
         "label": "Por espectador"

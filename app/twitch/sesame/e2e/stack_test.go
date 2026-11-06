@@ -250,6 +250,7 @@ type stack struct {
 	replicas [2]*engine.Pipeline
 	events   int
 	mu       sync.Mutex
+	cooldown engine.CooldownStore
 }
 
 type fixtureSource struct {
@@ -292,10 +293,20 @@ func startLoyalty(t *testing.T, nc *nats.Conn) {
 	db, err := sql.Open(testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	drv := entsql.OpenDB("sqlite3", db)
-	client := ent.NewClient(ent.Driver(drv))
 	db.SetMaxOpenConns(1)
-	require.NoError(t, loyaltyrepo.MigrateSchema(context.Background(), client, "sqlite3"))
+	serveLoyalty(t, nc, loyaltyDB{Pool: db, Dialect: "sqlite3"})
+}
+
+type loyaltyDB struct {
+	Pool    *sql.DB
+	Dialect string
+}
+
+func serveLoyalty(t *testing.T, nc *nats.Conn, target loyaltyDB) {
+	t.Helper()
+	drv := entsql.OpenDB(target.Dialect, target.Pool)
+	client := ent.NewClient(ent.Driver(drv))
+	require.NoError(t, loyaltyrepo.MigrateSchema(context.Background(), client, target.Dialect))
 	repo := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	require.NoError(t, loyaltyserver.Subscribe(loyaltyserver.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))}, Repo: repo, InvalidationPrefix: "bagel.cache.invalidate"}, loyaltyPrefix))
@@ -437,14 +448,19 @@ func (s *stack) replica(t *testing.T) *engine.Pipeline {
 	gossip := engine.NewGossipRPC(s.nc, gossipPrefix)
 	live := engine.NewValkeyLiveStore(s.vc, s.nc, s.pub, engine.LiveConfig{TTL: time.Hour, CacheTTL: time.Second, Log: log})
 	t.Cleanup(live.Close)
+	cooldown := s.cooldown
+	if cooldown == nil {
+		cooldown = engine.NoopCooldown{}
+	}
 	d := engine.Deps{
 		AutomationHook: &engine.AutomationHook{},
 		Automations: engine.AutomationDeps{
 			Source: s.source, Runs: s.runs,
 			Variables: s.vars, Queue: engine.NewValkeyRunQueue(s.vc),
+			LongCooldowns: s.vars,
 		},
 		Proj: premiumChannels{}, Live: live, RewardResets: engine.NewValkeyRewardResets(s.vc),
-		Greet: engine.NewValkeyGreetStore(s.vc, time.Hour, log), Cooldown: engine.NoopCooldown{},
+		Greet: engine.NewValkeyGreetStore(s.vc, time.Hour, log), Cooldown: cooldown,
 		Special: engine.NewSpecialSet(""), Pub: s.pub, Gossip: gossip, CustomFetch: gossip, Log: log,
 		Dedup: engine.NewEventDedup(idempotency.NewTiered(1000, idempotency.NewValkeyStore(s.vc, "e2e:seen:", log)), "e2e:seen:", time.Hour, log),
 		Seq:   engine.NewSequencer(),

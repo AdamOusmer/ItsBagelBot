@@ -12,6 +12,9 @@ export const MAX_FLOWS_PER_FILE = MAX_AUTOMATIONS_PER_CHANNEL;
 export const MAX_FLOW_FILE_BYTES = 4 * 1024 * 1024;
 export const RUNS_KEPT = 50;
 
+export const MAX_COOLDOWN_SECONDS = 2_592_000;
+export const MAX_VALKEY_COOLDOWN_SECONDS = 86_400;
+
 export const MAX_TEMPLATE_LENGTH = 500;
 export const MAX_LOGIN_TEMPLATE = 100;
 export const MAX_EVENT_FILTERS = 10;

@@ -33,6 +33,8 @@ type AutomationDeps struct {
 	Queue     RunQueue
 	Durable   DurableStore
 
+	LongCooldowns LongCooldownStore
+
 	durableTiming durableTiming
 }
 

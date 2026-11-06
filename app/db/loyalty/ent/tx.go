@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// Balance is the client for interacting with the Balance builders.
 	Balance *BalanceClient
+	// CooldownClaim is the client for interacting with the CooldownClaim builders.
+	CooldownClaim *CooldownClaimClient
 	// Counter is the client for interacting with the Counter builders.
 	Counter *CounterClient
 	// CounterEntry is the client for interacting with the CounterEntry builders.
@@ -152,6 +154,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Balance = NewBalanceClient(tx.config)
+	tx.CooldownClaim = NewCooldownClaimClient(tx.config)
 	tx.Counter = NewCounterClient(tx.config)
 	tx.CounterEntry = NewCounterEntryClient(tx.config)
 	tx.Variable = NewVariableClient(tx.config)

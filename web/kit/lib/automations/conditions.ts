@@ -4,7 +4,7 @@
 import type { Chk } from './check';
 import { register, type Table, type Wide } from './engine';
 import { COMPARE_OPS } from './compare';
-import { CODE, MAX_LIST_ENTRIES, MAX_PATTERN_LENGTH, MAX_TEMPLATE_LENGTH, RECIPE_NAME_PATTERN } from './limits';
+import { CODE, MAX_COOLDOWN_SECONDS, MAX_LIST_ENTRIES, MAX_PATTERN_LENGTH, MAX_TEMPLATE_LENGTH, RECIPE_NAME_PATTERN } from './limits';
 import { isCounterChar } from './text';
 import { CMP_OPS, PERM_LEVELS } from './values';
 import { checkRegex } from './triggers';
@@ -55,8 +55,8 @@ function checkCategory(c: Chk, p: Wide<CategoryCondition>): void {
 }
 
 function checkCooldown(c: Chk, p: Wide<CooldownCondition>): void {
-  c.inRange('global_s', p.global_s, 0, 86400);
-  c.inRange('user_s', p.user_s, 0, 86400);
+  c.inRange('global_s', p.global_s, 0, MAX_COOLDOWN_SECONDS);
+  c.inRange('user_s', p.user_s, 0, MAX_COOLDOWN_SECONDS);
   c.atLeastOne(p.global_s > 0 || p.user_s > 0);
 }
 

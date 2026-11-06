@@ -4,6 +4,7 @@ package runtime
 
 import (
 	"ItsBagelBot/app/db/loyalty/ent/balance"
+	"ItsBagelBot/app/db/loyalty/ent/cooldownclaim"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
 	"ItsBagelBot/app/db/loyalty/ent/schema"
@@ -43,6 +44,26 @@ func init() {
 	balance.DefaultUpdatedAt = balanceDescUpdatedAt.Default.(func() time.Time)
 	// balance.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	balance.UpdateDefaultUpdatedAt = balanceDescUpdatedAt.UpdateDefault.(func() time.Time)
+	cooldownclaimFields := schema.CooldownClaim{}.Fields()
+	_ = cooldownclaimFields
+	// cooldownclaimDescCooldownKey is the schema descriptor for cooldown_key field.
+	cooldownclaimDescCooldownKey := cooldownclaimFields[1].Descriptor()
+	// cooldownclaim.CooldownKeyValidator is a validator for the "cooldown_key" field. It is called by the builders before save.
+	cooldownclaim.CooldownKeyValidator = func() func(string) error {
+		validators := cooldownclaimDescCooldownKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(cooldown_key string) error {
+			for _, fn := range fns {
+				if err := fn(cooldown_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	counterHooks := schema.Counter{}.Hooks()
 	counter.Hooks[0] = counterHooks[0]
 	counterFields := schema.Counter{}.Fields()

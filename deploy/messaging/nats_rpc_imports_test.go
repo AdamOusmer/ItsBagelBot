@@ -83,6 +83,8 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.loyalty.variable.set", "app/twitch/sesame/engine/variables_rpc.go"},
 		{"bagel.rpc.loyalty.variable.add", "app/twitch/sesame/engine/variables_rpc.go"},
 		{"bagel.rpc.loyalty.variable.delete", "app/twitch/sesame/engine/variables_rpc.go"},
+		{"bagel.rpc.loyalty.cooldown.claim", "app/twitch/sesame/engine/cooldown_long.go"},
+		{"bagel.rpc.loyalty.cooldown.release", "app/twitch/sesame/engine/cooldown_long.go"},
 		{"bagel.rpc.outgress.chatters.get", "app/twitch/sesame/engine/loyalty_tick.go"},
 		{"bagel.rpc.outgress.followage.get", "app/twitch/sesame followage lookup"},
 		{"bagel.rpc.outgress.accountage.get", "app/twitch/sesame accountage lookup"},

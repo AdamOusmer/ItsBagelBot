@@ -49,6 +49,9 @@ function fill(config: Config, field: FieldSpec): void {
     case 'number':
       config[field.key] = withinRange(field);
       break;
+    case 'duration':
+      config[field.key] = field.max;
+      break;
     case 'toggle':
     case 'select':
       break;

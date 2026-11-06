@@ -17,6 +17,7 @@ var naturalKeys = map[string]string{
 	"balances":        "balance_user_id_viewer_id",
 	"counters":        "counter_user_id_name",
 	"counter_entries": "counterentry_user_id_name_command_viewer_id",
+	"cooldown_claims": "cooldownclaim_user_id_cooldown_key",
 }
 
 // MigrateSchema clusters MySQL balance and counter tables on their natural key; an auto-increment primary key makes concurrent upserts deadlock on its tail.

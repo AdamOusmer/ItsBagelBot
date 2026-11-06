@@ -40,7 +40,7 @@
     "field": {
       "seconds": {
         "label": "Abklingzeit",
-        "unit": "Sekunden"
+        "range": "Verwende 1 Sekunde bis {days} Tage."
       },
       "perUser": {
         "label": "Pro Zuschauer"

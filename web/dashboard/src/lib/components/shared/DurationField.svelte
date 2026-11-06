@@ -7,9 +7,11 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
 
-  type Unit = 'seconds' | 'minutes' | 'hours';
-  const UNIT_SECONDS: Record<Unit, number> = { seconds: 1, minutes: 60, hours: 3600 };
+  type Unit = 'seconds' | 'minutes' | 'hours' | 'days';
+  const DAY = 86_400;
+  const UNIT_SECONDS: Record<Unit, number> = { seconds: 1, minutes: 60, hours: 3600, days: DAY };
   const UNITS = Object.keys(UNIT_SECONDS) as Unit[];
+  const HOURS_AT_MOST = UNITS.filter((u) => u !== 'days');
 
   let {
     value = $bindable(0),
@@ -40,19 +42,19 @@
   const { t } = getI18n();
   const uid = $props.id();
 
+  const unitsUpTo = (limit: number) => (limit > DAY ? UNITS : HOURS_AT_MOST).filter((u) => UNIT_SECONDS[u] <= Math.max(limit, 1));
+
   function fitUnit(seconds: number): Unit {
-    if (seconds > 0 && seconds % 3600 === 0) return 'hours';
-    if (seconds > 0 && seconds % 60 === 0) return 'minutes';
-    return 'seconds';
+    return unitsUpTo(max).findLast((u) => seconds > 0 && seconds % UNIT_SECONDS[u] === 0) ?? 'seconds';
   }
 
   // svelte-ignore state_referenced_locally
   let unit = $state<Unit>(fitUnit(value));
   // svelte-ignore state_referenced_locally
-  let amount = $state<number | null>(value / UNIT_SECONDS[unit]);
+  let amount = $state<number | null>(Number.isFinite(value) ? value / UNIT_SECONDS[unit] : null);
 
   const unitOptions = $derived(
-    UNITS.filter((u) => UNIT_SECONDS[u] <= Math.max(max, 1)).map((u) => ({
+    unitsUpTo(max).map((u) => ({
       value: u,
       label: t(`common.unit.${u}`)
     }))

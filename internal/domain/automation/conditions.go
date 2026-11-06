@@ -101,8 +101,8 @@ func checkCounterCond(c chk, p CounterCondition) {
 }
 
 func checkCooldown(c chk, p CooldownCondition) {
-	inRange(c, "global_s", p.GlobalS, between(0, 86400))
-	inRange(c, "user_s", p.UserS, between(0, 86400))
+	inRange(c, "global_s", p.GlobalS, between(0, MaxCooldownSeconds))
+	inRange(c, "user_s", p.UserS, between(0, MaxCooldownSeconds))
 	c.atLeastOne(p.GlobalS > 0 || p.UserS > 0)
 }
 

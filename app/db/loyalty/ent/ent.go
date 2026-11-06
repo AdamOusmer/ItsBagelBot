@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/loyalty/ent/balance"
+	"ItsBagelBot/app/db/loyalty/ent/cooldownclaim"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
 	"ItsBagelBot/app/db/loyalty/ent/variable"
@@ -76,10 +77,11 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			balance.Table:      balance.ValidColumn,
-			counter.Table:      counter.ValidColumn,
-			counterentry.Table: counterentry.ValidColumn,
-			variable.Table:     variable.ValidColumn,
+			balance.Table:       balance.ValidColumn,
+			cooldownclaim.Table: cooldownclaim.ValidColumn,
+			counter.Table:       counter.ValidColumn,
+			counterentry.Table:  counterentry.ValidColumn,
+			variable.Table:      variable.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

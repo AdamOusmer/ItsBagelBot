@@ -54,6 +54,31 @@ var (
 			},
 		},
 	}
+	// CooldownClaimsColumns holds the columns for the "cooldown_claims" table.
+	CooldownClaimsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "cooldown_key", Type: field.TypeString, Size: 128},
+		{Name: "expires_at_ms", Type: field.TypeInt64},
+	}
+	// CooldownClaimsTable holds the schema information for the "cooldown_claims" table.
+	CooldownClaimsTable = &schema.Table{
+		Name:       "cooldown_claims",
+		Columns:    CooldownClaimsColumns,
+		PrimaryKey: []*schema.Column{CooldownClaimsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "cooldownclaim_user_id_cooldown_key",
+				Unique:  true,
+				Columns: []*schema.Column{CooldownClaimsColumns[1], CooldownClaimsColumns[2]},
+			},
+			{
+				Name:    "cooldownclaim_expires_at_ms",
+				Unique:  false,
+				Columns: []*schema.Column{CooldownClaimsColumns[3]},
+			},
+		},
+	}
 	// CountersColumns holds the columns for the "counters" table.
 	CountersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -139,6 +164,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		BalancesTable,
+		CooldownClaimsTable,
 		CountersTable,
 		CounterEntriesTable,
 		VariablesTable,

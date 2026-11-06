@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { builderTokensToEvent, eventTokensToBuilder } from './flow-graph';
-import { VERSION } from './limits';
+import { MAX_VALKEY_COOLDOWN_SECONDS, VERSION } from './limits';
 import type { Action, Condition, Definition, Params, PermLevel } from './types';
 
 export type AlertKey = 'follow' | 'sub' | 'gift' | 'cheer' | 'raid';
@@ -50,6 +50,8 @@ function clashes(wanted: number, held: number): boolean {
 function readCooldown(gates: Gates, params: Params): boolean {
   const global = Number(params.global_s ?? 0);
   const user = Number(params.user_s ?? 0);
+  // Commands enforce their cooldowns in Valkey only; a longer window must run as an automation to reach MySQL.
+  if (Math.max(global, user) > MAX_VALKEY_COOLDOWN_SECONDS) return false;
   if (clashes(global, gates.cooldown) || clashes(user, gates.userCooldown)) return false;
   gates.cooldown ||= global;
   gates.userCooldown ||= user;

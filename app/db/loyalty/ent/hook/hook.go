@@ -20,6 +20,18 @@ func (f BalanceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BalanceMutation", m)
 }
 
+// The CooldownClaimFunc type is an adapter to allow the use of ordinary
+// function as CooldownClaim mutator.
+type CooldownClaimFunc func(context.Context, *ent.CooldownClaimMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CooldownClaimFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CooldownClaimMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CooldownClaimMutation", m)
+}
+
 // The CounterFunc type is an adapter to allow the use of ordinary
 // function as Counter mutator.
 type CounterFunc func(context.Context, *ent.CounterMutation) (ent.Value, error)

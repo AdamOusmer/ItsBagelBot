@@ -53,6 +53,8 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At("variable.set", l.handleVariableSet),
 		bus.At("variable.add", l.handleVariableAdd),
 		bus.At("variable.delete", l.handleVariableDelete),
+		bus.At("cooldown.claim", l.handleCooldownClaim),
+		bus.At("cooldown.release", l.handleCooldownRelease),
 	)
 }
 

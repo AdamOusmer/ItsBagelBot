@@ -19,7 +19,8 @@
   import { portLabel } from '#lib/flow/describe';
   import { rehearseFlow } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
-  import { fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
+  import DurationField from '#lib/components/shared/DurationField.svelte';
+  import { durationOutside, durationRange, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
   import { fieldVisible, outputsFor, specFor, variablesFor, type Flow, type FlowKind } from '#lib/flow/model';
   import { duplicateNode, removeNode } from '#lib/flow/ops';
   import { awaitingSetup, configText } from '#lib/flow/setup';
@@ -230,6 +231,28 @@
                 >
                   {#snippet trailing()}{#if field.unit}<span class="unit">{fieldUnit(t, spec, field)}</span>{/if}{/snippet}
                 </Input>
+              </Field>
+            {:else if field.type === 'duration'}
+              {@const outside = durationOutside(field, node.config[field.key])}
+              {@const range = durationRange(t, spec, field)}
+              <Field {label} hint={outside ? undefined : range} error={outside ? range : undefined} errorId="{uid}-{field.key}-error">
+                {#key node.id}
+                  <DurationField
+                    id="{uid}-{field.key}"
+                    min={field.min}
+                    max={field.max}
+                    {label}
+                    invalid={outside}
+                    describedby={outside ? `${uid}-${field.key}-error` : undefined}
+                    bind:value={
+                      () => (node.config[field.key] === undefined ? Number.NaN : Number(node.config[field.key])),
+                      (seconds) => {
+                        if (Number.isFinite(seconds)) node.config[field.key] = seconds;
+                        else delete node.config[field.key];
+                      }
+                    }
+                  />
+                {/key}
               </Field>
             {:else if field.type === 'template' && field.singleLine}
               <Field {label} for="{uid}-{field.key}">

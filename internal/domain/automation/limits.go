@@ -15,6 +15,11 @@ const (
 )
 
 const (
+	MaxCooldownSeconds       = 2_592_000
+	MaxValkeyCooldownSeconds = 86_400
+)
+
+const (
 	MaxTemplateLength = 500
 	MaxLoginTemplate  = 100
 	MaxEventFilters   = 10

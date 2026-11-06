@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
+import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
@@ -17,6 +17,7 @@ export type FieldSpec = { when?: { key: string; value: string | readonly string[
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
+  | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[] }
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
@@ -179,7 +180,7 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     group: 'basics',
     icon: 'hourglass',
     fields: [
-      { key: 'seconds', type: 'number', min: 1, unit: true },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
       { key: 'perUser', type: 'toggle' }
     ],
     outputs: yesNo

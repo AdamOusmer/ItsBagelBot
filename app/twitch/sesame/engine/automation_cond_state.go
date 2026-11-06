@@ -77,16 +77,5 @@ func (p *Pipeline) conditionCooldown(ctx context.Context, run *AutomationRun, c 
 		key := "cooldown:autouser:" + bid + ":" + strconv.FormatUint(run.Viewer.ID, 10) + ":" + run.Plan.Automation.ID
 		windows = append(windows, CooldownWindow{Key: key, TTL: time.Duration(c.UserS) * time.Second})
 	}
-	return p.claimCooldownWindows(ctx, windows)
-}
-
-func (p *Pipeline) claimCooldownWindows(ctx context.Context, windows []CooldownWindow) (bool, error) {
-	switch len(windows) {
-	case 0:
-		return true, nil
-	case 1:
-		return p.cooldown.Allow(ctx, windows[0].Key, windows[0].TTL)
-	default:
-		return p.cooldown.AllowAll(ctx, windows)
-	}
+	return p.claimCooldownWindows(ctx, run.BroadcasterID, windows)
 }

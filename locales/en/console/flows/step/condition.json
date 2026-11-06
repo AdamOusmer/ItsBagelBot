@@ -29,7 +29,7 @@
     "label": "Cooldown",
     "summary": "Wait between runs",
     "field": {
-      "seconds": { "label": "Cooldown", "unit": "seconds" },
+      "seconds": { "label": "Cooldown", "range": "Use 1 second to {days} days." },
       "perUser": { "label": "Per viewer" }
     },
     "out": { "yes": "Ready", "no": "Cooling down" }

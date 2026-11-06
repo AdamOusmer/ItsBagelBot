@@ -9,6 +9,9 @@ import (
 // Balance is the predicate function for balance builders.
 type Balance func(*sql.Selector)
 
+// CooldownClaim is the predicate function for cooldownclaim builders.
+type CooldownClaim func(*sql.Selector)
+
 // Counter is the predicate function for counter builders.
 type Counter func(*sql.Selector)
 
