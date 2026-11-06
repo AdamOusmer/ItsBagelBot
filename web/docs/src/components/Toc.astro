@@ -1,0 +1,80 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Label from '@bagel/ui/astro/Label.astro';
+import { docsI18n } from '../i18n/ui';
+
+interface Props {
+  sections: { slug: string; text: string }[];
+  locale: string;
+  bare?: boolean;
+}
+
+const { sections, locale, bare = false } = Astro.props;
+const { t } = docsI18n(locale);
+---
+
+<nav class="doc-onpage" aria-label={t('chrome.onThisPage')}>
+  {!bare && <Label mono as="span" class="doc-onpage__title">{t('chrome.onThisPage')}</Label>}
+  <ul class="doc-onpage__list">
+    {sections.map(({ slug, text }) => (
+      <li><a class="doc-onpage__link" href={`#${slug}`} data-toc-link>{text}</a></li>
+    ))}
+  </ul>
+</nav>
+
+<style>
+  .doc-onpage {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+  }
+
+  .doc-onpage__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .doc-onpage__link {
+    display: block;
+    padding-block: 4px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--bb-muted);
+    transition: color var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .doc-onpage__link:hover,
+  .doc-onpage__link[aria-current='true'] {
+    color: var(--bb-white);
+  }
+</style>
+
+<script>
+  let observer: IntersectionObserver | null = null;
+
+  function setCurrent(slug: string) {
+    document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]').forEach((link) => {
+      if (link.hash === `#${slug}`) link.setAttribute('aria-current', 'true');
+      else link.removeAttribute('aria-current');
+    });
+  }
+
+  function watchHeadings() {
+    observer?.disconnect();
+    const headings = document.querySelectorAll<HTMLElement>('.doc-prose h2[id]');
+    if (!headings.length) return;
+    observer = new IntersectionObserver(
+      (entries) => {
+        const crossing = entries.filter((entry) => entry.isIntersecting).at(-1);
+        if (crossing) setCurrent(crossing.target.id);
+      },
+      { rootMargin: '-15% 0px -75% 0px' },
+    );
+    headings.forEach((heading) => observer?.observe(heading));
+  }
+
+  document.addEventListener('astro:page-load', watchHeadings);
+</script>

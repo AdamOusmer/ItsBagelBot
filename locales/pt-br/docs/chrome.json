@@ -1,0 +1,16 @@
+{
+  "skip": "Ir para o conteúdo",
+  "search": "Buscar",
+  "searchPlaceholder": "Serviços, contratos, decisões",
+  "searchEmpty": "Nada corresponde a essa busca.",
+  "onThisPage": "Nesta página",
+  "pagination": "Mais páginas desta seção",
+  "previous": "Anterior",
+  "next": "Próxima",
+  "copy": "Copiar código",
+  "notTranslated": "Esta página ainda não foi traduzida, então você está lendo a versão em inglês.",
+  "notFoundEyebrow": "Página não encontrada",
+  "notFoundTitle": "Essa página não está na documentação",
+  "notFoundDesc": "Ela pode ter mudado de lugar quando a documentação foi reorganizada. As páginas estão agrupadas por seção a partir do início.",
+  "notFoundHome": "Início da documentação"
+}

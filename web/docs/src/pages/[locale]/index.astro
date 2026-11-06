@@ -1,0 +1,15 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Home from '../../components/Home.astro';
+import { docsLocales } from '../../i18n/ui';
+
+export function getStaticPaths() {
+  return docsLocales.filter((locale) => locale !== 'en').map((locale) => ({ params: { locale } }));
+}
+
+const { locale } = Astro.params;
+---
+
+<Home locale={locale} />

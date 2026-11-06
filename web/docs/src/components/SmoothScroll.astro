@@ -7,12 +7,9 @@
 <script>
     import { createSmoothScroll, getSmoothScroll } from "@bagel/ui/lib/lenis";
 
-    const PANES =
-        "#starlight__sidebar, .right-sidebar, mobile-starlight-toc, dialog, [data-lenis-prevent]";
-
     createSmoothScroll({
         prevent: (node) =>
-            typeof node.closest === "function" && node.closest(PANES) !== null,
+            typeof node.closest === "function" && node.closest("[data-lenis-prevent], dialog") !== null,
     });
 
     document.addEventListener("astro:before-preparation", () => {
@@ -22,7 +19,7 @@
     document.addEventListener("astro:after-swap", () => {
         const lenis = getSmoothScroll();
         if (!lenis) return;
-        lenis.scrollTo(0, { immediate: true, force: true });
+        if (!location.hash) lenis.scrollTo(0, { immediate: true, force: true });
         lenis.start();
     });
 </script>

@@ -1,0 +1,16 @@
+{
+  "skip": "Zum Inhalt springen",
+  "search": "Suchen",
+  "searchPlaceholder": "Dienste, Verträge, Entscheidungen",
+  "searchEmpty": "Keine Treffer für diese Suche.",
+  "onThisPage": "Auf dieser Seite",
+  "pagination": "Weitere Seiten in diesem Bereich",
+  "previous": "Zurück",
+  "next": "Weiter",
+  "copy": "Code kopieren",
+  "notTranslated": "Diese Seite ist noch nicht übersetzt, du liest die englische Fassung.",
+  "notFoundEyebrow": "Seite nicht gefunden",
+  "notFoundTitle": "Diese Seite gibt es in der Doku nicht",
+  "notFoundDesc": "Vielleicht wurde sie bei der Neuordnung verschoben. Alle Seiten sind auf der Startseite nach Bereichen sortiert.",
+  "notFoundHome": "Zur Doku-Startseite"
+}
