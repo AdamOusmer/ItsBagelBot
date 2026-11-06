@@ -148,7 +148,7 @@ func (s valkeyStore) takeXPCooldown(ctx context.Context, m Member) bool {
 }
 
 func (s valkeyStore) releaseXPCooldown(ctx context.Context, m Member) {
-	_ = s.client.Do(ctx, s.client.B().Del().Key(xpCDKey(m)).Build()).Error()
+	_ = pkg_valkey.Exec1(ctx, s.client, pkg_valkey.DelCmd(s.client, xpCDKey(m))).Error()
 }
 
 func (m *Mem) cachedBroadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -136,7 +137,7 @@ func (s valkeyStore) BindingOf(ctx context.Context, g Guild) (Broadcaster, Bindi
 }
 
 func (s valkeyStore) Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(guildKey(g)).Build()).ToString()
+	raw, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.GetCmd(s.client, guildKey(g))).ToString()
 	if err != nil {
 		return Broadcaster{}, false
 	}
@@ -151,12 +152,12 @@ func (s valkeyStore) BindGuild(ctx context.Context, bind Binding) error {
 		return nil
 	}
 	s.dropGuilds(ctx, bind.Broadcaster)
-	return s.client.Do(ctx, s.client.B().Set().Key(guildKey(bind.Guild)).Value(bind.Broadcaster.ID).Build()).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, guildKey(bind.Guild), bind.Broadcaster.ID)).Error()
 }
 
 func (s valkeyStore) UnbindGuild(ctx context.Context, bind Binding) error {
 	s.dropGuilds(ctx, bind.Broadcaster)
-	return s.client.Do(ctx, s.client.B().Del().Key(guildKey(bind.Guild)).Build()).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.DelCmd(s.client, guildKey(bind.Guild))).Error()
 }
 
 func (s valkeyStore) GuildsOf(_ context.Context, b Broadcaster) ([]Binding, error) {

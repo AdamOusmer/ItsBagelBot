@@ -132,12 +132,12 @@ func parsePendingClose(channelID, raw string) (TicketClose, bool) {
 func (s valkeyStore) TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error) {
 	ch := Channel{ID: t.ChannelID}
 	value := ticketValue(Ticket{GuildID: t.GuildID, OpenerID: t.OpenerID, PanelMessageID: t.PanelMessageID})
-	err := s.client.Do(ctx, s.client.B().Set().Key(ticketKey(ch)).Value(value).Build()).Error()
+	err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, ticketKey(ch), value)).Error()
 	return TicketOpenResult{}, err
 }
 
 func (s valkeyStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ticketKey(ch)).Build()).ToString()
+	raw, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.GetCmd(s.client, ticketKey(ch))).ToString()
 	if err != nil || raw == "" {
 		return Ticket{}, false
 	}
@@ -156,11 +156,11 @@ func (s valkeyStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
 		return nil
 	}
 	t.ClaimedBy = c.StaffID
-	return s.client.Do(ctx, s.client.B().Set().Key(ticketKey(Channel{ID: c.ChannelID})).Value(ticketValue(t)).Build()).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, ticketKey(Channel{ID: c.ChannelID}), ticketValue(t))).Error()
 }
 
 func (s valkeyStore) CloseTicket(ctx context.Context, c TicketClose) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(Channel{ID: c.ChannelID})).Build()).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.DelCmd(s.client, ticketKey(Channel{ID: c.ChannelID}))).Error()
 }
 
 func (s valkeyStore) PutTranscript(context.Context, Transcript) error { return nil }
@@ -170,11 +170,11 @@ func (valkeyStore) TicketsDurable(context.Context) bool { return false }
 func (s valkeyStore) MarkPendingClose(ctx context.Context, c TicketClose) error {
 	value := strings.Join([]string{c.GuildID, c.ClosedBy, c.ArchivedChannelID}, "|")
 	key := pendingCloseKey(Channel{ID: c.ChannelID})
-	return s.client.Do(ctx, s.client.B().Set().Key(key).Value(value).ExSeconds(pendingCloseTTL).Build()).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetExSecondsCmd(s.client, key, value, pendingCloseTTL)).Error()
 }
 
 func (s valkeyStore) PendingClose(ctx context.Context, ch Channel) (TicketClose, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(pendingCloseKey(ch)).Build()).ToString()
+	raw, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.GetCmd(s.client, pendingCloseKey(ch))).ToString()
 	if err != nil || raw == "" {
 		return TicketClose{}, false
 	}
@@ -182,7 +182,7 @@ func (s valkeyStore) PendingClose(ctx context.Context, ch Channel) (TicketClose,
 }
 
 func (s valkeyStore) ClearPendingClose(ctx context.Context, ch Channel) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(pendingCloseKey(ch)).Build()).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.DelCmd(s.client, pendingCloseKey(ch))).Error()
 }
 
 func (s valkeyStore) ClaimSummary(ctx context.Context, ticketID int) bool {
@@ -195,17 +195,17 @@ func (s valkeyStore) ClaimSummary(ctx context.Context, ticketID int) bool {
 }
 
 func (s valkeyStore) ClaimDesk(ctx context.Context, g Guild) bool {
-	err := s.client.Do(ctx, s.client.B().Set().Key(deskKey(g)).Value(deskClaimed).Nx().Build()).Error()
+	err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetNXCmd(s.client, deskKey(g), deskClaimed)).Error()
 	return err == nil
 }
 
 func (s valkeyStore) RememberDesk(ctx context.Context, p DeskPanel) error {
 	key := deskKey(Guild{ID: p.GuildID})
 	if p.MessageID == "" {
-		return ignoreNil(s.client.Do(ctx, s.client.B().Set().Key(key).Value(deskClaimed).Nx().Build()).Error())
+		return ignoreNil(pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetNXCmd(s.client, key, deskClaimed)).Error())
 	}
 	value := p.ChannelID + "|" + p.MessageID
-	return s.client.Do(ctx, s.client.B().Set().Key(key).Value(value).Build()).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SetCmd(s.client, key, value)).Error()
 }
 
 func ignoreNil(err error) error {
@@ -216,7 +216,7 @@ func ignoreNil(err error) error {
 }
 
 func (s valkeyStore) Desk(ctx context.Context, g Guild) (DeskPanel, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(deskKey(g)).Build()).ToString()
+	raw, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.GetCmd(s.client, deskKey(g))).ToString()
 	if err != nil || raw == "" {
 		return DeskPanel{}, false
 	}

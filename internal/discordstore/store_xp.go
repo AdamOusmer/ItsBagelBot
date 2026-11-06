@@ -31,7 +31,7 @@ func (s valkeyStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
 		return xp, false, level
 	}
 	before, _ := s.Rank(ctx, m)
-	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(m)).Increment(xpPerMessage).Build()).AsInt64()
+	n, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.IncrByCmd(s.client, xpKey(m), xpPerMessage)).AsInt64()
 	if err != nil {
 		return before, false, levelOf(before)
 	}
@@ -48,7 +48,7 @@ func (s valkeyStore) ClaimDaily(ctx context.Context, m Member) (bool, int) {
 		xp, _ := s.Rank(ctx, m)
 		return false, xp
 	}
-	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(m)).Increment(dailyXP).Build()).AsInt64()
+	n, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.IncrByCmd(s.client, xpKey(m), dailyXP)).AsInt64()
 	if err != nil {
 		return true, dailyXP
 	}
@@ -56,7 +56,7 @@ func (s valkeyStore) ClaimDaily(ctx context.Context, m Member) (bool, int) {
 }
 
 func (s valkeyStore) Rank(ctx context.Context, m Member) (int, int) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(xpKey(m)).Build()).ToString()
+	raw, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.GetCmd(s.client, xpKey(m))).ToString()
 	if err != nil {
 		return 0, 0
 	}
