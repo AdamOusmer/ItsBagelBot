@@ -159,6 +159,8 @@ func TestDeleteAccountRemovesVariablesAndCooldowns(t *testing.T) {
 			require.NoError(t, repo.VariableSet(ctx, viewerVars, "x", "y"))
 			other := repository.VariableOwner{UserID: channelVars.UserID + 1, Scope: automation.VariableScopeChannel}
 			require.NoError(t, repo.VariableSet(ctx, other, "x", "kept"))
+			visiting := repository.VariableOwner{UserID: other.UserID, Scope: automation.VariableScopeViewer, ViewerID: channelVars.UserID}
+			require.NoError(t, repo.VariableSet(ctx, visiting, "x", "theirs"))
 			_, won, err := repo.CooldownClaimAll(ctx, repository.CooldownClaim{UserID: channelVars.UserID, Windows: []repository.CooldownWindow{window("mine")}})
 			require.NoError(t, err)
 			require.True(t, won)
@@ -177,6 +179,8 @@ func TestDeleteAccountRemovesVariablesAndCooldowns(t *testing.T) {
 			assert.False(t, ok)
 			value, _ := variableValue(t, repo, other, "x")
 			assert.Equal(t, "kept", value)
+			value, _ = variableValue(t, repo, visiting, "x")
+			assert.Equal(t, "theirs", value, "a viewer's rows in other channels stay, as Loyalty's balances do")
 			assert.Equal(t, []string{"theirs"}, cooldownRows(t, raw))
 		})
 	}

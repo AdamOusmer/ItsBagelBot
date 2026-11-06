@@ -12,6 +12,7 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
+	"ItsBagelBot/app/db/modules/ent/variable"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/pkg/db"
 
@@ -38,6 +39,15 @@ type RecipeState struct {
 
 func NewRecipeState(client *ent.Client, driver *entsql.Driver) *RecipeState {
 	return &RecipeState{client: client, sqldb: driver.DB(), dialect: driver.Dialect()}
+}
+
+// Viewer rows can outnumber what a snapshot should hold, so these go by channel rather than by captured identity. A viewer's rows in other channels stay, as Loyalty's balances do.
+func (*RecipeState) deleteChannelRows(ctx context.Context, tx *ent.Tx, channel uint64) error {
+	if _, err := tx.Variable.Delete().Where(variable.UserID(channel)).Exec(ctx); err != nil {
+		return err
+	}
+	_, err := tx.CooldownClaim.Delete().Where(cooldownclaim.UserID(channel)).Exec(ctx)
+	return err
 }
 
 type CooldownWindow struct {
