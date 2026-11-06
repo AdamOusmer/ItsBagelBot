@@ -127,7 +127,7 @@ func (i *TriggerIndex) addChatNames(entry *CompiledTrigger) {
 			scanned = true
 			continue
 		}
-		key := strings.ToLower(strings.TrimPrefix(name, "!"))
+		key := NormalizeCommandName(name)
 		if !seen[key] {
 			seen[key] = true
 			i.commands[key] = append(i.commands[key], entry)

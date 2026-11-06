@@ -149,25 +149,13 @@ func (r *RecipeState) mutateVariable(ctx context.Context, o VariableOwner, rawNa
 	}
 	return db.RetryTx(ctx, func(ctx context.Context) error {
 		err := db.WithExec(ctx, func(ctx context.Context) error {
-			return withTx(ctx, r.client, func(tx *ent.Tx) error { return r.writeVariable(ctx, tx, o, name, next) })
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error { return r.writeVariable(ctx, tx, o, name, next) })
 		})
 		if ent.IsConstraintError(err) {
 			return fmt.Errorf("%w: %w", errVariableWriteRaced, err)
 		}
 		return err
 	}, errVariableWriteRaced)
-}
-
-func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {
-	tx, err := client.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	return tx.Commit()
 }
 
 func (r *RecipeState) writeVariable(ctx context.Context, tx *ent.Tx, o VariableOwner, name string, next func(string) (string, error)) error {

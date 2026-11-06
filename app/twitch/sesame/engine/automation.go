@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"math/rand/v2"
 	"sync/atomic"
 	"time"
 
@@ -36,6 +37,7 @@ type AutomationDeps struct {
 	LongCooldowns LongCooldownStore
 
 	durableTiming durableTiming
+	intN          func(int) int
 }
 
 type AutomationRun struct {
@@ -87,6 +89,9 @@ func withAutomationDefaults(d AutomationDeps) AutomationDeps {
 	}
 	if d.Queue == nil {
 		d.Queue = openRunQueue{}
+	}
+	if d.intN == nil {
+		d.intN = rand.IntN
 	}
 	return d
 }

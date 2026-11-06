@@ -54,14 +54,7 @@ func variableRequest(owner VariableOwner, name string) modulesrpc.VariableReques
 }
 
 func (c *RecipeStateRPC) variableCall(ctx context.Context, verb string, req modulesrpc.VariableRequest) (modulesrpc.VariableReply, error) {
-	reply, err := recipeStateCall[modulesrpc.VariableReply](ctx, c, "variable."+verb, req)
-	if err != nil {
-		return reply, err
-	}
-	if reply.Error != "" {
-		return reply, errors.New(reply.Error)
-	}
-	return reply, nil
+	return recipeStateCall[modulesrpc.VariableReply](ctx, c, "variable."+verb, req)
 }
 
 func (c *RecipeStateRPC) VariablesGet(ctx context.Context, owner VariableOwner, names []string) (map[string]string, error) {

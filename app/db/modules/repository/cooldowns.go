@@ -221,11 +221,16 @@ func (r *RecipeState) PruneExpiredCooldowns(ctx context.Context) error {
 }
 
 func (r *RecipeState) pruneCooldownBatch(ctx context.Context, nowMS int64) (int64, error) {
-	result, err := r.sqldb.ExecContext(ctx, r.cooldownPruneQuery(), nowMS, cooldownPruneBatch)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	var deleted int64
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		result, err := r.sqldb.ExecContext(ctx, r.cooldownPruneQuery(), nowMS, cooldownPruneBatch)
+		if err != nil {
+			return err
+		}
+		deleted, err = result.RowsAffected()
+		return err
+	})
+	return deleted, err
 }
 
 func (r *RecipeState) cooldownPruneQuery() string {

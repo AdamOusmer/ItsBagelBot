@@ -23,6 +23,7 @@ const saves: { locals: unknown; input: any }[] = [];
 const created = (input: any) => ({ ok: true, flow: { ref: input.ref ?? { layer: 'automation', id: 'new' }, name: input.name, enabled: false, revision: '1', definition: input.definition }, warnings: [] });
 let saveReply: (input: any) => unknown = created;
 const listFlowsCalls: string[] = [];
+let extraFlows: unknown[] = [];
 const chat = (text: string) => ({ type: 'chat', params: { text } });
 const manual = { version: 1, trigger: { type: 'manual', params: {} }, actions: [chat('hi')] };
 const drawable = { version: 1, trigger: { type: 'command', params: { name: '!fresh' } }, actions: [chat('hi'), chat('there')] };
@@ -33,7 +34,8 @@ mock.module('./flow-store', () => ({
       { ref: { layer: 'automation', id: 'a1' }, name: 'First', enabled: true, revision: '1', definition: { ...manual, actions: [chat('one'), { type: 'run', params: { automation_id: 'a2' } }] } },
       { ref: { layer: 'automation', id: 'a2' }, name: 'Second', enabled: true, revision: '1', definition: manual },
       { ref: { layer: 'command', name: 'hug' }, name: '!hug', enabled: true, revision: 'x', definition: manual },
-      { ref: { layer: 'automation', id: 'a3' }, name: 'Taken', enabled: true, revision: '1', definition: manual }
+      { ref: { layer: 'automation', id: 'a3' }, name: 'Taken', enabled: true, revision: '1', definition: manual },
+      ...extraFlows
     ];
   },
   takenAlerts: async () => ['follow'],
@@ -81,6 +83,7 @@ beforeEach(() => {
   saves.length = 0;
   limiterKeys.length = 0;
   listFlowsCalls.length = 0;
+  extraFlows = [];
 });
 
 describe('gates', () => {
@@ -135,6 +138,16 @@ describe('flowExport', () => {
 });
 
 describe('flowImportPreview', () => {
+  test("an existing recipe's time left command is taken, and its regex trigger claims no name", async () => {
+    const withLeft = (name: string) => ({ ...manual, conditions: [{ type: 'cooldown', params: { user_s: 172800, left_command: name } }] });
+    extraFlows = [
+      { ref: { layer: 'automation', id: 'a4' }, name: 'Waits', enabled: true, revision: '1', definition: withLeft('!Wait') },
+      { ref: { layer: 'automation', id: 'a5' }, name: 'Pattern', enabled: true, revision: '1', definition: { ...manual, trigger: { type: 'command', params: { name: 'free', match: 'regex' } } } }
+    ];
+    const result = await post('flowImportPreview', fileForm(file([{ ref: 'f1', name: 'New', definition: withLeft('wait') }, { ref: 'f2', name: 'Open', definition: withLeft('free') }])));
+    expect(result.entries.map((e: { status: string }) => e.status)).toEqual(['conflict', 'ready']);
+  });
+
   test('reports without writing and without leaking definitions', async () => {
     const result = await post('flowImportPreview', fileForm(file([{ ref: 'f1', name: 'Taken', definition: manual }, { ref: 'f2', name: 'x', definition: { version: 9 } }])));
     expect(result.entries.map((e: { status: string; name: string }) => [e.status, e.name])).toEqual([

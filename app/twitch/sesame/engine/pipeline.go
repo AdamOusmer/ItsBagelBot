@@ -92,7 +92,6 @@ type Pipeline struct {
 	chatLineCounter ChatLineCounter
 
 	automations AutomationDeps
-	autoIntN    func(int) int
 	autoExec    autoExecState
 	autoSegment time.Duration
 

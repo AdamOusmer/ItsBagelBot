@@ -73,9 +73,3 @@ func TestApplyTextNeverPanicsOnArbitraryInput(t *testing.T) {
 		}
 	}
 }
-
-func TestTruncateRunes(t *testing.T) {
-	assert.Equal(t, "éé", automation.TruncateRunes("ééé", 2))
-	assert.Equal(t, "abc", automation.TruncateRunes("abc", 3))
-	assert.Equal(t, "", automation.TruncateRunes("abc", 0))
-}

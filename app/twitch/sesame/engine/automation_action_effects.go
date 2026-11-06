@@ -6,8 +6,8 @@ package engine
 import (
 	"errors"
 	"strconv"
-	"strings"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/automation"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
@@ -27,15 +27,11 @@ type actionTarget struct {
 	login string
 }
 
-func normalizeLogin(s string) string {
-	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(s), "@"))
-}
-
 func (x *actionExec) target(template string, selfWhenEmpty bool) (actionTarget, error) {
-	login := normalizeLogin(x.expand(template))
+	login := scope.NormalizeLogin(x.expand(template))
 	viewer := x.run.Viewer
 	if login == "" && selfWhenEmpty {
-		login = normalizeLogin(viewer.Login)
+		login = scope.NormalizeLogin(viewer.Login)
 		if viewer.ID == 0 {
 			return actionTarget{}, failure("no_viewer")
 		}
@@ -44,7 +40,7 @@ func (x *actionExec) target(template string, selfWhenEmpty bool) (actionTarget, 
 	if login == "" {
 		return actionTarget{}, failure("empty_login")
 	}
-	if viewer.ID != 0 && login == normalizeLogin(viewer.Login) {
+	if viewer.ID != 0 && login == scope.NormalizeLogin(viewer.Login) {
 		return actionTarget{id: viewer.ID, login: login}, nil
 	}
 	return x.lookupLogin(login)
@@ -236,5 +232,5 @@ func (x *actionExec) callFetch(endpoint string, req gossiprpc.Request) fetchResu
 	if err := x.p.gossip.Call(x.ctx, GossipRoute{Provider: customFetchProvider, Endpoint: endpoint}, req, &reply); err != nil {
 		return fetchResult{failure: "gossip_error"}
 	}
-	return replyResult(string(reply.Status), reply.Values)
+	return replyResult(reply.Status, reply.Values)
 }

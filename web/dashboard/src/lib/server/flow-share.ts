@@ -9,12 +9,14 @@ import {
   exportFlows,
   flowImportView,
   flowResultView,
+  leftCommandNames,
   MAX_FLOWS_PER_FILE,
   MAX_FLOW_FILE_BYTES,
   MAX_PREVIEW_BYTES,
   needsSetup,
   planFlowImport,
   serializeFlowFile,
+  triggerCommandNames,
   type Definition,
   type Flow,
   type FlowExportRow,
@@ -69,11 +71,7 @@ export function regeneratedPreview(flowPreview: FlowShareOptions['flowPreview'],
   return new TextEncoder().encode(text).length <= MAX_PREVIEW_BYTES ? text : undefined;
 }
 
-function commandTriggerNames(definition: Definition): string[] {
-  if (definition.trigger.type !== 'command') return [];
-  const params = definition.trigger.params ?? {};
-  return [params.name, ...((params.aliases ?? []) as unknown[])].map((name) => String(name).replace(/^!/, ''));
-}
+const automationCommands = (definition: Definition): string[] => [...triggerCommandNames(definition.trigger), ...leftCommandNames(definition)];
 
 const isAutomation = (flow: StoredFlow) => flow.ref.layer === 'automation';
 
@@ -84,7 +82,7 @@ async function importContext(uid: string): Promise<FlowImportContext> {
   return {
     count: automations.length,
     names: automations.map((row) => row.name),
-    commands: [...commands.flatMap((row) => [row.name, ...(row.aliases ?? [])]), ...automations.flatMap((row) => commandTriggerNames(row.definition))],
+    commands: [...commands.flatMap((row) => [row.name, ...(row.aliases ?? [])]), ...automations.flatMap((row) => automationCommands(row.definition))],
     alerts
   };
 }

@@ -23,6 +23,30 @@ const (
 	MySQLDeadlock        = 1213
 )
 
+// Tx is what every ent transaction offers.
+type Tx interface {
+	Commit() error
+	Rollback() error
+}
+
+// TxStarter is an ent client.
+type TxStarter[T Tx] interface {
+	Tx(ctx context.Context) (T, error)
+}
+
+// WithTx commits when fn succeeds and rolls back when it fails.
+func WithTx[T Tx](ctx context.Context, client TxStarter[T], fn func(tx T) error) error {
+	tx, err := client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
 // Each attempt must begin and roll back its own transaction; after 1213 the server has already discarded every earlier statement.
 func RetryTx(ctx context.Context, attempt func(context.Context) error, retryable ...error) error {
 	var err error

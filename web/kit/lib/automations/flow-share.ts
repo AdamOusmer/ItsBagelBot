@@ -8,7 +8,7 @@ import { byteLength, trimSpace } from './text';
 import { isSetupValue, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
 import { scrubSecrets, type ScrubKind } from './flow-share-scrub';
 import type { Action, Condition, Definition, Issue, Params } from './types';
-import { leftCommandNames, normalizeCommandName, validateDefinition, validateName } from './validate';
+import { leftCommandNames, normalizeCommandName, triggerCommandNames, validateDefinition, validateName } from './validate';
 
 export * from './flow-setup';
 
@@ -699,12 +699,6 @@ function uniqueName(base: string, taken: Set<string>): string {
   return candidate;
 }
 
-function commandNames(definition: Definition): string[] {
-  if (definition.trigger.type !== 'command') return [];
-  const params = definition.trigger.params ?? {};
-  return [params.name, ...list(params.aliases)].map((name) => str(name).replace(/^!/, '').toLowerCase());
-}
-
 interface Claims {
   slots: number;
   names: Set<string>;
@@ -731,7 +725,7 @@ function landAutomation(entry: FlowImportEntry, claims: Claims): FlowImportEntry
   for (const left of leftNames) claims.commands.add(left);
   claims.slots -= 1;
   const name = uniqueName(entry.name, claims.names);
-  const shadowed = commandNames(definition).filter((command) => claims.commands.has(command));
+  const shadowed = triggerCommandNames(definition.trigger).filter((command) => claims.commands.has(command));
   const setup = [...entry.setup, ...shadowed.map((detail): SetupNote => ({ code: 'command_in_use', path: 'trigger.params.name', detail }))];
   return { ...landing, name, renamed: name !== entry.sourceName, definition, setup };
 }
@@ -764,7 +758,7 @@ function claimsFrom(context: FlowImportContext): Claims {
   return {
     slots: Math.max(0, MAX_AUTOMATIONS_PER_CHANNEL - context.count),
     names: new Set(context.names.map((name) => name.toLowerCase())),
-    commands: new Set(context.commands.map((name) => name.toLowerCase())),
+    commands: new Set(context.commands.map(normalizeCommandName)),
     alerts: new Set(context.alerts)
   };
 }

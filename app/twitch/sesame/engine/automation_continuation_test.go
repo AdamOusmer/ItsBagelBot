@@ -212,7 +212,7 @@ func TestAutomationEffectKeysStayStable(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fx := newAutoFixture(manual("main", tc.actions...))
-			fx.p.autoIntN = func(int) int { return 1 }
+			fx.p.automations.intN = func(int) int { return 1 }
 			rec := fx.run(t, "main", "req-keys", nil)
 			require.Equal(t, automationrpc.OutcomeOK, rec.Outcome, statuses(rec))
 			keys := fx.p.dedup.store.(*recordingStore).keys()

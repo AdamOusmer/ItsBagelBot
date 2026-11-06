@@ -197,7 +197,7 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 		return err
 	}
 	counted := r.trackAccounts(ctx, targetID)
-	err := withTx(ctx, r.client, func(tx *ent.Tx) error {
+	err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 		actor, err := tx.AdminUser.Query().Where(
 			adminuser.IDEQ(actorID), adminuser.ActiveEQ(true),
 			adminuser.RoleIn(adminuser.RoleAdmin, adminuser.RoleOwner),

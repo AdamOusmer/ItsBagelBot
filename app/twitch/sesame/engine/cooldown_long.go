@@ -32,14 +32,7 @@ type LongCooldownStore interface {
 }
 
 func (c *RecipeStateRPC) cooldownCall(ctx context.Context, verb string, req modulesrpc.CooldownRequest) (modulesrpc.CooldownReply, error) {
-	reply, err := recipeStateCall[modulesrpc.CooldownReply](ctx, c, "cooldown."+verb, req)
-	if err != nil {
-		return reply, err
-	}
-	if reply.Error != "" {
-		return reply, errors.New(reply.Error)
-	}
-	return reply, nil
+	return recipeStateCall[modulesrpc.CooldownReply](ctx, c, "cooldown."+verb, req)
 }
 
 func (c *RecipeStateRPC) ClaimLongCooldowns(ctx context.Context, claim LongCooldownClaim) (LongCooldownHold, bool, error) {

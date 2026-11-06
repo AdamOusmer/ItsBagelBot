@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"ItsBagelBot/internal/utils"
 )
 
 const (
@@ -59,9 +61,9 @@ type TextOperands struct {
 
 func (o TextOperands) capped() TextOperands {
 	return TextOperands{
-		Input: TruncateRunes(o.Input, MaxTextOperandRunes),
-		Arg1:  TruncateRunes(o.Arg1, MaxTextOperandRunes),
-		Arg2:  TruncateRunes(o.Arg2, MaxTextOperandRunes),
+		Input: utils.TruncateRunes(o.Input, MaxTextOperandRunes),
+		Arg1:  utils.TruncateRunes(o.Arg1, MaxTextOperandRunes),
+		Arg2:  utils.TruncateRunes(o.Arg2, MaxTextOperandRunes),
 	}
 }
 

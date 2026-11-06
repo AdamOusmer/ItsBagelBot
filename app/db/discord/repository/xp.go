@@ -184,7 +184,7 @@ func (s *Store) lockedMember(ctx context.Context, tx *ent.Tx, guildID, userID st
 
 func (s *Store) retryOnConflict(ctx context.Context, fn func(context.Context, *ent.Tx) error) error {
 	run := func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error { return fn(ctx, tx) })
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error { return fn(ctx, tx) })
 	}
 	err := db.WithExec(ctx, run)
 	if !ent.IsConstraintError(err) {

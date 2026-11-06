@@ -98,7 +98,7 @@ export function leftCommandNames(definition: { conditions?: unknown; actions?: u
   return held.map(cooldownLeftCommand).filter((name) => name !== '');
 }
 
-function triggerCommandNames(trigger: TypedNode): string[] {
+export function triggerCommandNames(trigger: { type: string; params?: unknown }): string[] {
   if (trigger.type !== 'command') return [];
   const params = decodeParams<{ name: string; aliases: string[]; match: string }>({ name: 'string', aliases: 'strings', match: 'string', case_sensitive: 'bool', sources: 'strings' }, {}, trigger.params).value;
   if (!params || params.match === 'regex') return [];

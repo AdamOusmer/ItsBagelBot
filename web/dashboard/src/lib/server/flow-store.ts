@@ -11,6 +11,7 @@ import {
   normalizeCommandName,
   plainAlertLine,
   setupGaps,
+  triggerCommandNames,
   validateDefinition,
   type AlertKey,
   type Automation,
@@ -360,15 +361,9 @@ function upsertFailure(result: Extract<UpsertResult, { ok: false }>): SaveFlowRe
   return { ok: false, reason: 'failed', error: result.error ?? result.code ?? 'save failed' };
 }
 
-function triggerNames(definition: Definition): string[] {
-  if (definition.trigger.type !== 'command') return [];
-  const params = definition.trigger.params ?? {};
-  return [params.name, ...((params.aliases ?? []) as string[])].map((n) => String(n).replace(/^!/, '').toLowerCase());
-}
-
 async function automationWarnings(userId: UserId, definition: Definition, dropping?: CommandName): Promise<FlowWarning[]> {
   const commands = await ownerCommands(userId);
-  const names = triggerNames(definition);
+  const names = triggerCommandNames(definition.trigger);
   return commands.some((row) => row.name !== dropping && names.includes(row.name.toLowerCase())) ? ['shadowed_by_command'] : [];
 }
 

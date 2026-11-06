@@ -6,7 +6,6 @@ package engine
 import (
 	"cmp"
 	"context"
-	"math/rand/v2"
 
 	"ItsBagelBot/internal/domain/automation"
 )
@@ -26,10 +25,7 @@ func compareValues[T cmp.Ordered](op string, a, b T) bool {
 }
 
 func (p *Pipeline) automationIntN(n int) int {
-	if p.autoIntN != nil {
-		return p.autoIntN(n)
-	}
-	return rand.IntN(n)
+	return p.automations.intN(n)
 }
 
 func (p *Pipeline) conditionChance(_ context.Context, _ *AutomationRun, c automation.ChanceCondition) (bool, error) {

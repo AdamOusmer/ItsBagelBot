@@ -4,13 +4,18 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/outgress"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +51,32 @@ func TestAutomationOutputActions(t *testing.T) {
 			assert.Equal(t, tc.want, fx.described(t))
 		})
 	}
+}
+
+func TestAModerationTargetWithControlCharactersIsRefused(t *testing.T) {
+	fx := newAutoFixture(manual("main", act("ban", obj{"login": "target\nsecond", "reason": "bye"})))
+
+	rec := fx.run(t, "main", "req-control", nil)
+
+	assert.Equal(t, "failed", rec.Actions[0].Status, statuses(rec))
+	assert.Equal(t, "empty_login", rec.Actions[0].Detail)
+	assert.Empty(t, fx.described(t))
+}
+
+func TestGossipCallsKeepTheRefusalCode(t *testing.T) {
+	nc := bustest.NATS(t)
+	refuse := func(msg *nats.Msg) { _ = msg.Respond([]byte(`{"error":"gone","code":"not_found"}`)) }
+	_, err := nc.Subscribe(gossiprpc.Subject("g", customFetchProvider, customFetchEndpoint), refuse)
+	require.NoError(t, err)
+	require.NoError(t, nc.Flush())
+	rpc := NewGossipRPC(nc, "g")
+
+	_, err = rpc.Fetch(context.Background(), gossiprpc.Request{})
+	assert.True(t, bus.NotFoundReply(err), "%v", err)
+
+	var reply gossiprpc.CustomFetchReply
+	err = rpc.Call(context.Background(), GossipRoute{Provider: customFetchProvider, Endpoint: customFetchEndpoint}, gossiprpc.Request{}, &reply)
+	assert.True(t, bus.NotFoundReply(err), "%v", err)
 }
 
 func TestAutomationBatchesConsecutiveOutputs(t *testing.T) {
