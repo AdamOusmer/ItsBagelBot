@@ -20,6 +20,8 @@ import (
 	"ItsBagelBot/app/db/modules/ent/variable"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
+
+	"github.com/valkey-io/valkey-go"
 )
 
 const accountInstanceKey = "__account_created_at"
@@ -77,6 +79,18 @@ func (r *Modules) upsertLoyalty(ctx context.Context, item data.ModuleChangedDTO)
 	return errors.New("loyalty module concurrent update; retry")
 }
 
+// SetCooldownMarkers lets DeleteAccount clear the channel's Valkey markers; a moved cooldown exists nowhere else.
+func (r *Modules) SetCooldownMarkers(client valkey.Client) {
+	r.cooldownMarkers = client
+}
+
+func (r *Modules) eraseCooldownMarkers(ctx context.Context, id uint64) error {
+	if r.cooldownMarkers == nil {
+		return nil
+	}
+	return EraseCooldownMarkers(ctx, r.cooldownMarkers, id)
+}
+
 // DeleteAccount resolves the canonical incarnation before removing modules, quotes
 // or credentials. Captured row identities and versions fence concurrent updates;
 // rows inserted or replaced after the snapshot are left untouched.
@@ -98,10 +112,11 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 		return err
 	}
 	done()
-	if applied {
-		r.Invalidate(id)
+	if !applied {
+		return nil
 	}
-	return nil
+	r.Invalidate(id)
+	return r.eraseCooldownMarkers(ctx, id)
 }
 
 func (r *Modules) validateCapturedAccount(ctx context.Context, id uint64, epoch int64) error {

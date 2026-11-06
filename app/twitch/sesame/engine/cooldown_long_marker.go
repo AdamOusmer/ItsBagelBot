@@ -107,6 +107,7 @@ func (m *MarkedLongCooldowns) remark(ctx context.Context, hold LongCooldownHold)
 		if ttl <= 0 {
 			continue
 		}
+		m.indexMarker(ctx, hold.BroadcasterID, window)
 		cmd := m.client.B().Set().Key(automation.LongCooldownMarkerKey(hold.BroadcasterID, window.Key)).
 			Value(automation.LongCooldownMarkerValue(window.ExpiresAtMS)).Nx().Px(ttl).Build()
 		if err := m.client.Do(ctx, cmd).Error(); err != nil && !valkey.IsValkeyNil(err) {
@@ -124,12 +125,22 @@ func (m *MarkedLongCooldowns) markWon(ctx context.Context, hold LongCooldownHold
 	return lost
 }
 
+// Indexed before the marker is written, so account erasure can never miss one that exists.
+func (m *MarkedLongCooldowns) indexMarker(ctx context.Context, channel uint64, window modulesrpc.CooldownWindow) {
+	entry := pkg_valkey.ExpiringIndexEntry{Index: automation.LongCooldownMarkerIndexKey(channel), Member: window.Key, ExpiresAtMS: window.ExpiresAtMS}
+	result := pkg_valkey.RunScripts(ctx, m.client, []pkg_valkey.ScriptCall{entry.AddCall(time.Now().UnixMilli())})
+	if err := result[0].Error(); err != nil {
+		m.log.Warn("long cooldown marker index failed", zap.Error(err))
+	}
+}
+
 func (m *MarkedLongCooldowns) markWindow(ctx context.Context, channel uint64, window modulesrpc.CooldownWindow) bool {
 	value := automation.LongCooldownMarkerValue(window.ExpiresAtMS)
 	ttl := automation.LongCooldownMarkerTTL(window.ExpiresAtMS, time.Now())
 	if ttl <= 0 {
 		return false
 	}
+	m.indexMarker(ctx, channel, window)
 	cmd := m.client.B().Set().Key(automation.LongCooldownMarkerKey(channel, window.Key)).Value(value).Nx().Get().Px(ttl).Build()
 	held, err := m.client.Do(ctx, cmd).ToString()
 	if valkey.IsValkeyNil(err) {

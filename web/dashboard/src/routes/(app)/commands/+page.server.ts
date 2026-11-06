@@ -23,6 +23,7 @@ import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
 import { listCommands, upsertCommand, deleteCommand, listModules, listModulesForEditing, patchModule, type ModuleView } from '#lib/server/commands-store';
 import { moduleEditState } from '#lib/server/module-edit-state';
 import { saveConflict, conflictField } from '#lib/server/command-conflict';
+import { recipeTimeLeftNames } from '#lib/server/recipe-time-left';
 import { isBulkRequest, runBulk } from '#lib/server/commands-bulk';
 import { listFetches, upsertFetchDef, deleteFetchDef } from '#lib/server/fetches-store';
 import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '#lib/server/fetch-def-actions';
@@ -232,11 +233,12 @@ function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]
 }
 
 async function guardSave(uid: string, s: ReturnType<typeof parseSaveForm>) {
-  const listed = await tryRpc('save-guard', () => listCommands(uid));
+  const listed = await tryRpc('save-guard', () => Promise.all([listCommands(uid), recipeTimeLeftNames(uid)]));
   if (!listed.ok) return s.isEdit && !s.renamed ? null : fail(503, { ok: false, code: 'unavailable' });
   const conflict = saveConflict(
     { name: s.cmd.name, aliases: s.cmd.aliases, isEdit: s.isEdit, originalName: s.originalName },
-    listed.value
+    listed.value[0],
+    listed.value[1]
   );
   if (!conflict) return null;
   return fail(409, { ok: false, code: conflict.code, field: conflictField(conflict.code), conflict: conflict.name });

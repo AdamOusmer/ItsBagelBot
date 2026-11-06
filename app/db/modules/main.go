@@ -87,6 +87,7 @@ func main() {
 	valkeyClient := svcboot.MustValkey(core)
 	recorder := analytics.New(valkeyClient, log, nil)
 	defer recorder.Close()
+	repo.SetCooldownMarkers(valkeyClient)
 	recipeState := repository.NewRecipeState(client, driver)
 	go repository.NewCooldownMover(recipeState, valkeyClient, rand.Text(), log).Run(core.Ctx)
 	repo.SetAnalytics(recorder)

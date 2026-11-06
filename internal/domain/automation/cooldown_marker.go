@@ -18,6 +18,11 @@ func LongCooldownMarkerKey(channel uint64, window string) string {
 	return "cooldown:long:{" + strconv.FormatUint(channel, 10) + "}:" + window
 }
 
+// LongCooldownMarkerIndexKey lists a channel's markers in the same slot, so erasure finds them without a keyspace scan.
+func LongCooldownMarkerIndexKey(channel uint64) string {
+	return "cooldown:long:{" + strconv.FormatUint(channel, 10) + "}:#index"
+}
+
 // LongCooldownMarkerValue lets a holder delete only its own marker.
 func LongCooldownMarkerValue(expiresAtMS int64) string {
 	return strconv.FormatInt(expiresAtMS, 10)

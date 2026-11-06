@@ -24,12 +24,14 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	baseent "entgo.io/ent"
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -222,6 +224,7 @@ func exerciseLongCooldowns(t *testing.T, r *cooldownRig) {
 	exerciseMover(t, r)
 	exerciseMoverLease(t, r)
 	exerciseRecipeState(t, r)
+	exerciseErasureBatches(t, r)
 }
 
 func exerciseClaims(t *testing.T, r *cooldownRig) {
@@ -422,13 +425,22 @@ func exerciseRecipeState(t *testing.T, r *cooldownRig) {
 	t.Run("account erasure removes both", func(t *testing.T) {
 		const instance = 100
 		ctx := context.Background()
-		r.forChannel(t, uniqueChannel(32), step{"global_s": twoDaysSeconds})
+		other := uniqueChannel(33)
+		r.forChannel(t, other, step{"global_s": twoDaysSeconds})
 		r.assertPasses(t, alice)
+		otherKey := r.globalKey()
+		r.forChannel(t, uniqueChannel(32), step{"global_s": twoDaysSeconds, "user_s": twoDaysSeconds})
+		r.assertPasses(t, alice)
+		r.setExpiry(t, r.globalKey(), time.Now().Add(time.Hour))
+		require.NoError(t, r.mover("solo").MoveDue(ctx))
+		require.Positive(t, r.markerTTL(t, r.globalKey()), "the moved window lives only in Valkey")
+		viewerMarker := r.viewerKey(alice)
 		owner := engine.VariableOwner{BroadcasterID: r.channel, Scope: automation.VariableScopeChannel}
 		require.NoError(t, r.vars.VariableSet(ctx, owner, "x", "y"))
 		repo := modulesrepo.NewModules(modulesent.NewClient(modulesent.Driver(entsql.OpenDB(r.dialect, r.pool))), bustest.NewPublisher(), nil, zap.NewNop())
 		t.Cleanup(func() { repo.Close(context.Background()) })
 		repo.SetAccountInstanceResolver(func(context.Context, uint64) (int64, error) { return instance, nil })
+		repo.SetCooldownMarkers(r.vc)
 
 		require.NoError(t, repo.DeleteAccount(ctx, r.channel, instance))
 
@@ -436,6 +448,43 @@ func exerciseRecipeState(t *testing.T, r *cooldownRig) {
 		values, err := r.vars.VariablesGet(ctx, owner, []string{"x"})
 		require.NoError(t, err)
 		assert.Empty(t, values)
+		assert.EqualValues(t, -2, r.markerTTL(t, r.globalKey())/time.Millisecond, "the moved marker is gone at once")
+		assert.EqualValues(t, -2, r.markerTTL(t, viewerMarker)/time.Millisecond, "so is the unmoved one")
+		indexExists, err := r.vc.Do(ctx, r.vc.B().Exists().Key(automation.LongCooldownMarkerIndexKey(r.channel)).Build()).AsInt64()
+		require.NoError(t, err)
+		assert.Zero(t, indexExists)
+		r.assertPasses(t, bob)
+		r.channel = other
+		assert.Positive(t, r.markerTTL(t, otherKey), "another channel keeps its marker")
+	})
+}
+
+func exerciseErasureBatches(t *testing.T, r *cooldownRig) {
+	t.Run("erasure walks past one batch", func(t *testing.T) {
+		ctx := context.Background()
+		channel := uniqueChannel(34)
+		const markers = 1200
+		expiry := time.Now().Add(time.Hour).UnixMilli()
+		index := automation.LongCooldownMarkerIndexKey(channel)
+		calls := make([]pkgvalkey.ScriptCall, markers)
+		seed := make([]valkey.Completed, markers)
+		for i := range markers {
+			window := "w" + strconv.Itoa(i)
+			calls[i] = pkgvalkey.ExpiringIndexEntry{Index: index, Member: window, ExpiresAtMS: expiry}.AddCall(time.Now().UnixMilli())
+			seed[i] = r.vc.B().Set().Key(automation.LongCooldownMarkerKey(channel, window)).Value("1").Px(time.Hour).Build()
+		}
+		for _, result := range pkgvalkey.RunScripts(ctx, r.vc, calls) {
+			require.NoError(t, result.Error())
+		}
+		for _, result := range r.vc.DoMulti(ctx, seed...) {
+			require.NoError(t, result.Error())
+		}
+
+		require.NoError(t, modulesrepo.EraseCooldownMarkers(ctx, r.vc, channel))
+
+		left, err := r.vc.Do(ctx, r.vc.B().Exists().Key(automation.LongCooldownMarkerKey(channel, "w1199"), index).Build()).AsInt64()
+		require.NoError(t, err)
+		assert.Zero(t, left)
 	})
 }
 

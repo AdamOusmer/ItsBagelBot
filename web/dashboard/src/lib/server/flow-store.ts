@@ -35,6 +35,7 @@ import {
   type AlertDowngradeResult,
   type UpsertResult
 } from './automations-store';
+import { recipeTimeLeftNames } from './recipe-time-left';
 import {
   deleteCommand,
   listCommands,
@@ -387,11 +388,6 @@ async function leftCommandRefusal(userId: UserId, definition: Definition, droppi
   const rows = (await ownerCommands(userId)).filter((row) => row.name !== dropping);
   const taken = new Set([...builtinNames(), ...rows.flatMap((row) => [row.name, ...(row.aliases ?? [])])].map(normalizeCommandName));
   return wanted.some((name) => taken.has(name)) ? LEFT_COMMAND_EXISTS : null;
-}
-
-async function recipeTimeLeftNames(userId: UserId): Promise<Set<string>> {
-  const rows = await listAutomations(userId);
-  return new Set(rows.flatMap((row) => leftCommandNames(row.definition)).map(normalizeCommandName));
 }
 
 async function writeAutomation(userId: UserId, input: SaveFlowInput, id?: FlowId, dropping?: CommandName): Promise<SaveFlowResult> {
