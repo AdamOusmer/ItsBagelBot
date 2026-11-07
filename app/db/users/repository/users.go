@@ -238,7 +238,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				CommandsPageHidden:        u.CommandsPageHidden,
 				LeaderboardPageHidden:     u.LeaderboardPageHidden,
 				SongQueuePageHidden:       u.SongqueuePageHidden,
-				CreatorCode:              u.CreatorCode,
+				CreatorCode:               u.CreatorCode,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
 				SubscriptionRef:           u.SubscriptionRef,
