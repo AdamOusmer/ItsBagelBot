@@ -37,7 +37,7 @@ defmodule Ingress.Nats do
   def publish_acked(subject, payload) do
     json =
       Trace.span("encode", fn ->
-        JSON.encode(payload)
+        payload |> JSON.encode() |> IO.iodata_to_binary()
       end)
 
     result =

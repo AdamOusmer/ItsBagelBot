@@ -18,8 +18,12 @@ type Tx struct {
 	AdminUser *AdminUserClient
 	// AnalyticsRollup is the client for interacting with the AnalyticsRollup builders.
 	AnalyticsRollup *AnalyticsRollupClient
+	// AuthorizationCode is the client for interacting with the AuthorizationCode builders.
+	AuthorizationCode *AuthorizationCodeClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
+	// DeviceGrant is the client for interacting with the DeviceGrant builders.
+	DeviceGrant *DeviceGrantClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
 	LifecycleErasure *LifecycleErasureClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
@@ -162,7 +166,9 @@ func (tx *Tx) init() {
 	tx.AdminAudit = NewAdminAuditClient(tx.config)
 	tx.AdminUser = NewAdminUserClient(tx.config)
 	tx.AnalyticsRollup = NewAnalyticsRollupClient(tx.config)
+	tx.AuthorizationCode = NewAuthorizationCodeClient(tx.config)
 	tx.Delegation = NewDelegationClient(tx.config)
+	tx.DeviceGrant = NewDeviceGrantClient(tx.config)
 	tx.LifecycleErasure = NewLifecycleErasureClient(tx.config)
 	tx.PremiumGrant = NewPremiumGrantClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)

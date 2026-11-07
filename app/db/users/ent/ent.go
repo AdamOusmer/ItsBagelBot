@@ -6,7 +6,9 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/analyticsrollup"
+	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
@@ -80,14 +82,16 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			adminaudit.Table:       adminaudit.ValidColumn,
-			adminuser.Table:        adminuser.ValidColumn,
-			analyticsrollup.Table:  analyticsrollup.ValidColumn,
-			delegation.Table:       delegation.ValidColumn,
-			lifecycleerasure.Table: lifecycleerasure.ValidColumn,
-			premiumgrant.Table:     premiumgrant.ValidColumn,
-			tokens.Table:           tokens.ValidColumn,
-			user.Table:             user.ValidColumn,
+			adminaudit.Table:        adminaudit.ValidColumn,
+			adminuser.Table:         adminuser.ValidColumn,
+			analyticsrollup.Table:   analyticsrollup.ValidColumn,
+			authorizationcode.Table: authorizationcode.ValidColumn,
+			delegation.Table:        delegation.ValidColumn,
+			devicegrant.Table:       devicegrant.ValidColumn,
+			lifecycleerasure.Table:  lifecycleerasure.ValidColumn,
+			premiumgrant.Table:      premiumgrant.ValidColumn,
+			tokens.Table:            tokens.ValidColumn,
+			user.Table:              user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

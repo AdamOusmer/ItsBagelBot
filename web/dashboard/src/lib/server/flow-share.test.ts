@@ -25,8 +25,9 @@ let saveReply: (input: any) => unknown = created;
 const listFlowsCalls: unknown[] = [];
 let extraFlows: unknown[] = [];
 const chat = (text: string) => ({ type: 'chat', params: { text } });
-const manual = { version: 1, trigger: { type: 'manual', params: {} }, actions: [chat('hi')] };
-const drawable = { version: 1, trigger: { type: 'command', params: { name: '!fresh' } }, actions: [chat('hi'), chat('there')] };
+const hi = chat('hi');
+const manual = { version: 1, trigger: { type: 'manual', params: {} }, actions: [hi] };
+const drawable = { version: 1, trigger: { type: 'command', params: { name: '!fresh' } }, actions: [hi, chat('there')] };
 mock.module('./flow-store', () => ({
   listFlows: async (uid: unknown) => {
     listFlowsCalls.push(uid);
@@ -160,8 +161,8 @@ describe('flowImportPreview', () => {
   });
 
   test('says where each lands, and treats taken alerts and aliased commands as conflicts', async () => {
-    const event = (kind: string) => ({ version: 1, trigger: { type: 'event', params: { kind } }, actions: [chat('hi')] });
-    const command = (name: string) => ({ version: 1, trigger: { type: 'command', params: { name } }, actions: [chat('hi')] });
+    const event = (kind: string) => ({ version: 1, trigger: { type: 'event', params: { kind } }, actions: [hi] });
+    const command = (name: string) => ({ version: 1, trigger: { type: 'command', params: { name } }, actions: [hi] });
     const result = await post(
       'flowImportPreview',
       fileForm(
@@ -208,7 +209,7 @@ describe('flowImportCommit', () => {
   });
 
   test('a simple recipe goes through saveFlow and comes back as a command, off', async () => {
-    const simple = { version: 1, trigger: { type: 'command', params: { name: '!simple' } }, actions: [chat('hi')] };
+    const simple = { version: 1, trigger: { type: 'command', params: { name: '!simple' } }, actions: [hi] };
     saveReply = (input) => ({ ok: true, flow: { ref: { layer: 'command', name: 'simple' }, name: '!simple', enabled: false, revision: 'x', definition: input.definition }, warnings: [] });
     const result = await post('flowImportCommit', fileForm(file([{ ref: 'f1', name: 'y', definition: simple }]), [0]));
     expect(result.results[0]).toMatchObject({ status: 'created', landing: 'command', target: 'simple' });

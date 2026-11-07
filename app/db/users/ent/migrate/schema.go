@@ -96,6 +96,41 @@ var (
 			},
 		},
 	}
+	// AuthorizationCodesColumns holds the columns for the "authorization_codes" table.
+	AuthorizationCodesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "code_hash", Type: field.TypeBytes, Unique: true, SchemaType: map[string]string{"mysql": "binary(32)"}},
+		{Name: "code_challenge", Type: field.TypeString, Size: 128},
+		{Name: "redirect_uri", Type: field.TypeString, Size: 255},
+		{Name: "device_name", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "platform", Type: field.TypeEnum, Enums: []string{"macos", "windows", "linux"}},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "consumed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "produced_grant_id", Type: field.TypeString, Nullable: true, Size: 36},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// AuthorizationCodesTable holds the schema information for the "authorization_codes" table.
+	AuthorizationCodesTable = &schema.Table{
+		Name:       "authorization_codes",
+		Columns:    AuthorizationCodesColumns,
+		PrimaryKey: []*schema.Column{AuthorizationCodesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "authorization_codes_users_authorization_codes",
+				Columns:    []*schema.Column{AuthorizationCodesColumns[10]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "authorizationcode_expires_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{AuthorizationCodesColumns[7], AuthorizationCodesColumns[0]},
+			},
+		},
+	}
 	// DelegationsColumns holds the columns for the "delegations" table.
 	DelegationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -124,6 +159,55 @@ var (
 				Name:    "delegation_delegate_id_consumed_at_created_at_id",
 				Unique:  false,
 				Columns: []*schema.Column{DelegationsColumns[5], DelegationsColumns[7], DelegationsColumns[8], DelegationsColumns[0]},
+			},
+		},
+	}
+	// DeviceGrantsColumns holds the columns for the "device_grants" table.
+	DeviceGrantsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "grant_id", Type: field.TypeString, Unique: true, Size: 36},
+		{Name: "device_id", Type: field.TypeString, Unique: true, Size: 36},
+		{Name: "device_name", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "platform", Type: field.TypeEnum, Enums: []string{"macos", "windows", "linux"}},
+		{Name: "refresh_hash", Type: field.TypeBytes, Unique: true, SchemaType: map[string]string{"mysql": "binary(32)"}},
+		{Name: "prev_refresh_hash", Type: field.TypeBytes, Nullable: true, SchemaType: map[string]string{"mysql": "binary(32)"}},
+		{Name: "prev_rotated_at", Type: field.TypeTime, Nullable: true},
+		{Name: "refresh_sliding_expires_at", Type: field.TypeTime},
+		{Name: "refresh_absolute_expires_at", Type: field.TypeTime},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
+		{Name: "revoked_at", Type: field.TypeTime, Nullable: true},
+		{Name: "revoked_reason", Type: field.TypeString, Default: ""},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// DeviceGrantsTable holds the schema information for the "device_grants" table.
+	DeviceGrantsTable = &schema.Table{
+		Name:       "device_grants",
+		Columns:    DeviceGrantsColumns,
+		PrimaryKey: []*schema.Column{DeviceGrantsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "device_grants_users_device_grants",
+				Columns:    []*schema.Column{DeviceGrantsColumns[14]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "devicegrant_prev_refresh_hash",
+				Unique:  false,
+				Columns: []*schema.Column{DeviceGrantsColumns[6]},
+			},
+			{
+				Name:    "devicegrant_user_id_revoked_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{DeviceGrantsColumns[14], DeviceGrantsColumns[12], DeviceGrantsColumns[0]},
+			},
+			{
+				Name:    "devicegrant_revoked_at_refresh_absolute_expires_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{DeviceGrantsColumns[12], DeviceGrantsColumns[9], DeviceGrantsColumns[0]},
 			},
 		},
 	}
@@ -312,7 +396,9 @@ var (
 		AdminAuditsTable,
 		AdminUsersTable,
 		AnalyticsRollupsTable,
+		AuthorizationCodesTable,
 		DelegationsTable,
+		DeviceGrantsTable,
 		LifecycleErasuresTable,
 		PremiumGrantsTable,
 		TokensTable,
@@ -321,6 +407,8 @@ var (
 )
 
 func init() {
+	AuthorizationCodesTable.ForeignKeys[0].RefTable = UsersTable
+	DeviceGrantsTable.ForeignKeys[0].RefTable = UsersTable
 	PremiumGrantsTable.ForeignKeys[0].RefTable = UsersTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 }
