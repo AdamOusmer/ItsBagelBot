@@ -1,0 +1,15 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+  /* Shared dot backdrop for a pannable or static canvas editor stage (flows, overlay editor). */
+  .bb-dot-canvas {
+    background-color: var(--bb-black);
+    background-image: radial-gradient(circle, rgba(var(--bb-white-rgb), 0.16) 1px, transparent 1.5px);
+    /* 24px default tile (the flows board's grid unit at 1x zoom); a pannable
+       canvas overrides background-size/-position inline as it zooms. */
+    background-size: 24px 24px;
+  }
+}

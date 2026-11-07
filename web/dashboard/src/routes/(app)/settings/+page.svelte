@@ -2,8 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { copyText } from '@bagel/ui/lib/clipboard';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import {
-    Bolota,
     getI18n,
     toastFailure,
     type ActionOk,
