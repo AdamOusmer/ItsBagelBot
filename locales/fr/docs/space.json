@@ -1,0 +1,13 @@
+{
+  "start": "Démarrer",
+  "platform": "Plateforme",
+  "records": "Archives",
+  "groupEvents": "Parcours des événements",
+  "groupData": "Propriétaires des données",
+  "groupWeb": "Applications web",
+  "startLead": "Lancez la pile en local, puis voyez comment les pièces s’assemblent.",
+  "servicesLead": "Chaque service possède son schéma et parle aux autres par NATS.",
+  "platformLead": "Où vit l’état et sur quoi tourne la flotte.",
+  "referenceLead": "Les contrats à vérifier quand vous modifiez le code.",
+  "recordsLead": "Pourquoi le système a cette forme, et des preuves datées de son comportement."
+}

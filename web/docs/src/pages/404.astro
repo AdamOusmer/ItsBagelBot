@@ -1,0 +1,20 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import ErrorScene from '@bagel/ui/astro/ErrorScene.astro';
+import { docsI18n } from '../i18n/ui';
+import Base from '../layouts/Base.astro';
+
+const { t, path } = docsI18n('en');
+---
+
+<Base title={`${t('chrome.notFoundEyebrow')} | ItsBagelBot`} locale="en" noindex>
+  <ErrorScene
+    status={404}
+    eyebrow={t('chrome.notFoundEyebrow')}
+    title={t('chrome.notFoundTitle')}
+    description={t('chrome.notFoundDesc')}
+    primary={{ label: t('chrome.notFoundHome'), href: path('/') }}
+  />
+</Base>

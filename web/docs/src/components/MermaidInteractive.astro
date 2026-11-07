@@ -8,7 +8,11 @@ import Button from '@bagel/ui/astro/Button.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
 import { docsI18n } from '../i18n/ui';
 
-const { t } = docsI18n(Astro.locals.starlightRoute?.locale);
+interface Props {
+  locale: string;
+}
+
+const { t } = docsI18n(Astro.props.locale);
 const controls = [
   { action: 'zoom-out', label: t('diagram.zoomOut'), icon: 'minus' },
   { action: 'reset', label: t('diagram.reset'), icon: 'expand' },

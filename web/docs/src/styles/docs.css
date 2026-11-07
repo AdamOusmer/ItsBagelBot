@@ -1,0 +1,150 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@import "@bagel/ui/styles/layers.css";
+@import "@bagel/ui/styles/brand.css";
+@import "@bagel/ui/styles/fonts.css";
+@import "@bagel/ui/styles/elements/typography.css";
+@import "@bagel/ui/styles/base.css";
+@import "@bagel/ui/styles/elements/layout.css";
+@import "@bagel/ui/styles/elements/fit.css";
+@import "@bagel/ui/styles/motion.css";
+@import "@bagel/ui/styles/orbs.css";
+@import "@bagel/ui/styles/a11y.css";
+@import "@bagel/ui/styles/lenis.css";
+
+:root {
+    --doc-nav-offset: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px));
+}
+
+@layer bb.base {
+    *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    html {
+        scroll-behavior: smooth;
+        scrollbar-width: none;
+    }
+
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar {
+        display: none;
+    }
+
+    body {
+        background: var(--bb-black);
+        color: var(--bb-white);
+        font-family: var(--bb-font-body);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+    }
+
+    img, picture, video, canvas, svg {
+        display: block;
+        max-width: 100%;
+    }
+
+    input, button, textarea, select {
+        font: inherit;
+    }
+
+    ul, ol {
+        list-style: none;
+    }
+
+    a {
+        text-decoration: none;
+        color: inherit;
+    }
+
+    button {
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
+}
+
+.doc-root {
+    display: contents;
+}
+
+.doc-shell {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr) 192px;
+    gap: clamp(32px, 4vw, 64px);
+    width: min(100% - 48px, 1320px);
+    margin-inline: auto;
+    padding-block: calc(var(--doc-nav-offset) + 48px) 120px;
+}
+
+.doc-side,
+.doc-toc {
+    position: sticky;
+    top: calc(var(--doc-nav-offset) + 24px);
+    align-self: start;
+    max-height: calc(100dvh - var(--doc-nav-offset) - 48px);
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.doc-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-5);
+}
+
+.doc-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-6);
+    width: 100%;
+    max-width: 760px;
+    min-width: 0;
+    margin-inline: auto;
+}
+
+.doc-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+}
+
+.doc-mobile-nav,
+.doc-mobile-toc {
+    display: none;
+}
+
+@media (max-width: 1240px) {
+    .doc-shell {
+        grid-template-columns: 232px minmax(0, 1fr);
+    }
+
+    .doc-toc {
+        display: none;
+    }
+
+    .doc-mobile-toc {
+        display: block;
+    }
+}
+
+@media (max-width: 900px) {
+    .doc-shell {
+        grid-template-columns: minmax(0, 1fr);
+        width: min(100% - 32px, 760px);
+        padding-top: calc(var(--doc-nav-offset) + 24px);
+    }
+
+    .doc-side {
+        display: none;
+    }
+
+    .doc-mobile-nav {
+        display: flex;
+        flex-direction: column;
+        gap: var(--bb-space-2);
+    }
+}

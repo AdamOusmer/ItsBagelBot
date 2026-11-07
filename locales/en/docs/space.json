@@ -1,0 +1,13 @@
+{
+  "start": "Start",
+  "platform": "Platform",
+  "records": "Records",
+  "groupEvents": "Event path",
+  "groupData": "Data owners",
+  "groupWeb": "Web apps",
+  "startLead": "Run the stack locally, then see how the pieces fit together.",
+  "servicesLead": "Each service owns its schema and talks to the others over NATS.",
+  "platformLead": "Where state lives and what the fleet runs on.",
+  "referenceLead": "The contracts to check while you change code.",
+  "recordsLead": "Why the system looks this way, and dated evidence of how it behaved."
+}

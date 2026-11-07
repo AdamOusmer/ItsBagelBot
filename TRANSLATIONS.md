@@ -130,7 +130,7 @@ Long-form content keeps its own layout outside `locales/`:
 | Marketing guides | `web/marketing/src/content/guides/` (English guide structure plus `<slug>.<code>.json` string maps) |
 | Terms, privacy, creator terms | `web/marketing/src/content/legal/<document>/<code>/` |
 | Release notes | `web/marketing/src/content/changelog/*.json` (`title` and `description` locale maps) |
-| Technical documentation pages | `web/docs/src/content/docs/` (Markdown/MDX; see the docs README for locale layout) |
+| Technical documentation pages | `web/docs/src/content/docs/` (Markdown; see the docs README for locale layout) |
 | Manually sent support emails | `mail/` (HTML and plain-text versions; see its README) |
 | Development-only checkout copy | `web/dashboard/src/routes/(app)/billing/demo-checkout/copy/<code>.json` (kept out of production bundles) |
 

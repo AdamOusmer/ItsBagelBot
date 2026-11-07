@@ -1,0 +1,16 @@
+{
+  "skip": "Skip to content",
+  "search": "Search docs",
+  "searchPlaceholder": "Search services, contracts, decisions",
+  "searchEmpty": "Nothing matches that search.",
+  "onThisPage": "On this page",
+  "pagination": "More pages in this section",
+  "previous": "Previous",
+  "next": "Next",
+  "copy": "Copy code",
+  "notTranslated": "This page has not been translated yet, so you are reading the English version.",
+  "notFoundEyebrow": "Page not found",
+  "notFoundTitle": "That page is not in the docs",
+  "notFoundDesc": "It may have moved when the docs were reorganized. Pages are grouped by section from the home page.",
+  "notFoundHome": "Docs home"
+}

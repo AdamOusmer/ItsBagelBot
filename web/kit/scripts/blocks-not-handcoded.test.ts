@@ -17,10 +17,9 @@ const ELEMENTS = [
 
 const ALLOWLIST = new Map([
   [
-    'docs/src/styles/theme.css',
-    'The Starlight theme. Every flagged selector dresses markup Starlight renders ' +
-      '(sidebar, TOC, search, theme select, hero) or authored markdown inside ' +
-      '.sl-markdown-content; this repo authors neither and cannot put block classes on them.',
+    'docs/src/styles/prose.css',
+    'Dresses rendered markdown inside .doc-prose. The HTML comes out of the markdown ' +
+      'processor, so headings, tables and code blocks have no block classes to target.',
   ],
   [
     'marketing/src/components/home/Header.astro',
