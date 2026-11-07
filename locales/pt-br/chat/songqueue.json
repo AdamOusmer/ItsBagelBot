@@ -14,6 +14,8 @@
   "err.upstream": "@{songqueue:user} a busca de músicas está indisponível, tente novamente em instantes.",
   "next.empty": "A fila de músicas está vazia.",
   "next.pending": "Pedido para pular enviado ao Spotify. A fila de pedidos será atualizada quando a reprodução mudar.",
+  "page.link": "Veja a fila toda: {songqueue:url}",
+  "page.off": "@{songqueue:user} a página da fila de músicas não é pública.",
   "playing": "Tocando: {songqueue:title} de {songqueue:artist} (pedido de {songqueue:req})",
   "refund.off": "os pedidos de música com pontos do canal estão desativados agora, seus pontos foram devolvidos.",
   "refund.offline": "os pedidos de música só funcionam durante a transmissão ao vivo, seus pontos foram devolvidos.",

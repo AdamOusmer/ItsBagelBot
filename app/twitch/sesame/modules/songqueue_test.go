@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/projection"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -440,6 +441,55 @@ func TestSRQueueAndListShowTheViewEvenWhenChatRequestsAreOff(t *testing.T) {
 	for _, cmd := range []string{"!sr queue", "!sr list"} {
 		text := chatText(t, runChat(t, m, off, cmd))
 		assert.Contains(t, text, "1. One (by alice)", cmd)
+	}
+}
+
+func TestSongQueuePageLinkFollowsTheToggle(t *testing.T) {
+	cases := []struct {
+		name     string
+		text     string
+		proj     projection.Reader
+		baseURL  string
+		contains string
+		excludes string
+	}{
+		{name: "sr queue prints the link", text: "!sr queue", contains: "https://queue.itsbagelbot.com/sr/streamer"},
+		{name: "sr list prints the link", text: "!sr list", contains: "https://queue.itsbagelbot.com/sr/streamer"},
+		{name: "srlist prints the link", text: "!srlist", contains: "https://queue.itsbagelbot.com/sr/streamer"},
+		{name: "songlist prints the link", text: "!songlist", contains: "https://queue.itsbagelbot.com/sr/streamer"},
+		{name: "a configured base is used without a double slash", text: "!sr queue", baseURL: "https://staging.example.com/",
+			contains: "https://staging.example.com/sr/streamer", excludes: "example.com//"},
+		{name: "a hidden page says so instead of linking", text: "!sr queue", proj: &fakeProj{user: projection.User{SongQueuePageHidden: true}},
+			contains: "isn't public", excludes: "http"},
+		{name: "a hidden commands page does not hide the song queue link", text: "!sr list", proj: &fakeProj{user: projection.User{CommandsPageHidden: true}},
+			contains: "/sr/streamer"},
+		{name: "a projection error fails open", text: "!sr queue", proj: &fakeProj{userErr: errors.New("projection unavailable")},
+			contains: "/sr/streamer"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeSongQueue{up: []engine.SongEntry{entry("t1", "One", "1", "alice")}}
+			d := songDeps(store, srSearchGossip())
+			d.Proj = tc.proj
+			d.QueueBaseURL = tc.baseURL
+			out := runChat(t, SongQueue(d), chatCtx("9", "viewer"), tc.text)
+			require.Len(t, out, 2, "the view, then the page line")
+			assert.Contains(t, out[0].Text, "1. One (by alice)")
+			assert.Contains(t, out[1].Text, tc.contains)
+			if tc.excludes != "" {
+				assert.NotContains(t, out[1].Text, tc.excludes)
+			}
+		})
+	}
+}
+
+func TestSongQueuePageLinkStaysOffTheOtherViews(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{entry("t1", "One", "1", "alice")}}
+	g := srSearchGossip(srTrack("tq", "Queue of Hearts", "Someone"))
+	for _, text := range []string{"!sr", "!sr queue of hearts"} {
+		out := runChat(t, SongQueue(songDeps(store, g)), chatCtx("9", "viewer"), text)
+		require.Len(t, out, 1, text)
+		assert.NotContains(t, out[0].Text, "http", text)
 	}
 }
 
