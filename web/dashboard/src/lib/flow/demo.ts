@@ -315,6 +315,8 @@ const DEMO_COUNTERS: ChoiceOption[] = [
   { value: 'hugs', label: 'hugs' }
 ];
 
+const DEMO_NAMED_COOLDOWNS: ChoiceOption[] = [{ value: 'subathon', label: 'subathon, in Big cheer celebration' }];
+
 const demoScene = (id: number, label: string): ChoiceOption => ({
   value: `lightScene:${id}`,
   label: `${label} (demo scene)`,
@@ -338,7 +340,8 @@ function demoList(options: ChoiceOption[], mode: DemoChoiceMode): ChoiceList {
 export function demoChoices(mode: DemoChoiceMode) {
   return {
     rewards: demoList(DEMO_REWARDS, mode),
-    counters: demoList(DEMO_COUNTERS, mode)
+    counters: demoList(DEMO_COUNTERS, mode),
+    namedCooldowns: demoList(DEMO_NAMED_COOLDOWNS, mode)
   };
 }
 

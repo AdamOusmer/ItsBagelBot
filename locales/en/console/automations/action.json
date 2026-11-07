@@ -34,5 +34,6 @@
   "text": "Change text",
   "math": "Do math",
   "loop": "Repeat steps",
-  "reward_update": "Change a reward"
+  "reward_update": "Change a reward",
+  "cooldown_add": "Add time to a cooldown"
 }

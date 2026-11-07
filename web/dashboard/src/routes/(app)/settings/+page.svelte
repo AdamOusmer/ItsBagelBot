@@ -36,7 +36,7 @@
   import DeleteAccountDialog from '#lib/components/settings/DeleteAccountDialog.svelte';
   import { busyEnhance } from '#lib/components/settings/busy-enhance';
   import { commandsHref, leaderboardHref } from '@bagel/kit/site-links';
-  import type { DelegationGrant, NotificationWire } from '#lib/server/services';
+  import type { DelegationGrant, DeviceGrantView, NotificationWire } from '#lib/server/services';
 
   let { data, form } = $props();
 
@@ -64,6 +64,17 @@
   } as const;
   const levelLabel = (l: string) => t(LEVEL_LABEL[l as keyof typeof LEVEL_LABEL] ?? LEVEL_LABEL.info);
   const stampFormat = $derived(new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }));
+  function deviceStamp(iso: string | null): string {
+    if (!iso) return t('settings.deviceNeverUsed');
+    const ms = Date.parse(iso);
+    return Number.isNaN(ms) ? t('settings.deviceNeverUsed') : stampFormat.format(new Date(ms));
+  }
+  function devicePlatformLabel(p: string): string {
+    if (p === 'macos') return t('settings.devicePlatformMacos');
+    if (p === 'windows') return t('settings.devicePlatformWindows');
+    if (p === 'linux') return t('settings.devicePlatformLinux');
+    return p;
+  }
   const NOTIFICATION_PAGE = 20;
   let showAllNotifications = $state(false);
   const shownNotifications = $derived(showAllNotifications ? notifications : notifications.slice(0, NOTIFICATION_PAGE));
@@ -122,6 +133,7 @@
   const navItems = $derived([
     { href: '#account', label: t('settings.account') },
     { href: '#access', label: t('settings.sharedAccess') },
+    { href: '#devices', label: t('settings.devices') },
     { href: '#notifications', label: t('settings.notifications') },
     { href: '#preferences', label: t('settings.preferences') },
     { href: '#public-pages', label: t('settings.publicPages') },
@@ -200,13 +212,19 @@
     updated: () => t('settings.toastAccessUpdated'),
     revoked: () => t('settings.toastRevoked'),
     opted_out: () => t('settings.toastOptedOut'),
-    all_read: () => t('settings.toastAllRead')
+    all_read: () => t('settings.toastAllRead'),
+    device_revoked: () => t('settings.toastDeviceRevoked'),
+    devices_revoked_all: () => t('settings.toastDevicesRevokedAll')
   };
+  const DEVICE_ACTIONS: ReadonlySet<string> = new Set(['device_revoked', 'devices_revoked_all']);
   reseedOnChange(() => form, (next) => {
     if (!next) return;
     if (next.error) {
       toast('danger', String(next.error));
       return;
+    }
+    if (DEVICE_ACTIONS.has(String(next.action))) {
+      deviceGrants = (next.deviceGrants as DeviceGrantView[] | undefined) ?? [];
     }
     const message = next.ok ? actionToast[String(next.action)] : undefined;
     if (message) toast('success', message());
@@ -249,6 +267,21 @@
   let leaveTarget = $state<{ owner_user_id: string; owner_login: string } | null>(null);
   let leaveForm = $state<HTMLFormElement | null>(null);
   let leaving = $state(false);
+
+  // svelte-ignore state_referenced_locally
+  let deviceGrants = $state<DeviceGrantView[]>(data.deviceGrants ?? []);
+  reseedOnChange(() => data.deviceGrants, (next) => {
+    deviceGrants = next ?? [];
+  });
+  const devicesDegraded = $derived(!!data.devicesDegraded);
+
+  let revokeDeviceTarget = $state<DeviceGrantView | null>(null);
+  let revokeDeviceForm = $state<HTMLFormElement | null>(null);
+  let revokingDevice = $state(false);
+
+  let revokeAllDevicesOpen = $state(false);
+  let revokeAllDevicesForm = $state<HTMLFormElement | null>(null);
+  let revokingAllDevices = $state(false);
 
   let deleteOpen = $state(false);
   let deleting = $state(false);
@@ -476,6 +509,54 @@
   </Card>
   </section>
 
+  <section id="devices" class="settings-section" tabindex="-1" aria-labelledby="h-devices">
+  <Card>
+    <div class="sec-title"><Heading level={6} as="h2" id="h-devices">{t('settings.devices')}</Heading></div>
+    <div class="hint"><Text size="sm" tone="muted">{t('settings.devicesHint')}</Text></div>
+
+    {#if devicesDegraded}
+      <AlertBanner tone="warning" role="status">{t('settings.devicesDegraded')}</AlertBanner>
+    {/if}
+
+    {#if deviceGrants.length === 0}
+      <EmptyState title={t('settings.devicesEmpty')} body={t('settings.devicesEmptyBody')} />
+    {:else}
+      <ul class="grants">
+        {#each deviceGrants as g (g.grantId)}
+          <Card as="li" style="--card-pad: 14px 16px">
+          <div class="grant device-grant">
+            <div class="grant-main">
+              <Text as="span" size="sm"><b>{g.deviceName || t('settings.deviceUnnamed')}</b></Text>
+              <div class="grant-sections">
+                <Tag tone="quiet">{devicePlatformLabel(g.platform)}</Tag>
+              </div>
+              <Text as="span" size="xs" tone="muted">
+                {t('settings.deviceCreated', { date: deviceStamp(g.createdAt) })}
+              </Text>
+              <Text as="span" size="xs" tone="muted">
+                {t('settings.deviceLastUsed', { date: deviceStamp(g.lastUsedAt) })}
+              </Text>
+            </div>
+            <div class="actions">
+              <Button size="sm" onclick={() => (revokeDeviceTarget = g)} tone="danger">{t('common.revoke')}</Button>
+            </div>
+          </div>
+          </Card>
+        {/each}
+      </ul>
+
+      <Divider />
+      <div class="row">
+        <div class="row-text">
+          <Text as="span" size="sm"><b>{t('settings.revokeAllDevices')}</b></Text>
+          <Text size="sm" tone="muted">{t('settings.revokeAllDevicesHint')}</Text>
+        </div>
+        <Button onclick={() => (revokeAllDevicesOpen = true)} tone="danger">{t('settings.revokeAllDevices')}</Button>
+      </div>
+    {/if}
+  </Card>
+  </section>
+
   <section id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
   <Card>
     <div class="sec-head">
@@ -672,6 +753,52 @@
 {/if}
 
 <ConfirmDialog
+  open={revokeDeviceTarget !== null}
+  title={t('settings.revokeDeviceTitle')}
+  body={t('settings.revokeDeviceBody', { device: revokeDeviceTarget?.deviceName || t('settings.deviceUnnamed') })}
+  confirmLabel={t('common.revoke')}
+  cancelLabel={t('common.cancel')}
+  busyLabel={t('settings.working')}
+  busy={revokingDevice}
+  onCancel={() => (revokeDeviceTarget = null)}
+  onConfirm={() => revokeDeviceForm?.requestSubmit()}
+  tone="danger"
+/>
+{#if revokeDeviceTarget}
+  <form
+    method="POST"
+    action="?/revokeDevice"
+    use:enhance={busyEnhance((b) => (revokingDevice = b), (type) => type === 'success' && (revokeDeviceTarget = null))}
+    bind:this={revokeDeviceForm}
+    hidden
+  >
+    <input type="hidden" name="grant_id" value={revokeDeviceTarget.grantId} />
+  </form>
+{/if}
+
+<ConfirmDialog
+  open={revokeAllDevicesOpen}
+  title={t('settings.revokeAllDevicesTitle')}
+  body={t('settings.revokeAllDevicesBody')}
+  confirmLabel={t('settings.revokeAllDevices')}
+  cancelLabel={t('common.cancel')}
+  busyLabel={t('settings.working')}
+  busy={revokingAllDevices}
+  onCancel={() => (revokeAllDevicesOpen = false)}
+  onConfirm={() => revokeAllDevicesForm?.requestSubmit()}
+  tone="danger"
+/>
+{#if revokeAllDevicesOpen}
+  <form
+    method="POST"
+    action="?/revokeAllDevices"
+    use:enhance={busyEnhance((b) => (revokingAllDevices = b), (type) => type === 'success' && (revokeAllDevicesOpen = false))}
+    bind:this={revokeAllDevicesForm}
+    hidden
+  ></form>
+{/if}
+
+<ConfirmDialog
   open={signOutOpen}
   title={t('settings.signOutEverywhereTitle')}
   body={t('settings.signOutEverywhereBody')}
@@ -687,7 +814,9 @@
   <form
     method="POST"
     action="?/signOutEverywhere"
-    use:enhance={busyEnhance((b) => (signingOut = b), () => {})}
+    use:enhance={busyEnhance((b) => (signingOut = b), (type) => {
+      if (type === 'failure') signOutOpen = false;
+    })}
     bind:this={signOutForm}
     hidden
   ></form>
@@ -792,6 +921,7 @@
     align-items: center;
     gap: 14px;
   }
+  .grant.device-grant { grid-template-columns: minmax(0, 1fr) auto; }
 
   .face { flex: none; display: flex; }
   .grant-main { min-width: 0; display: flex; flex-direction: column; gap: 7px; }

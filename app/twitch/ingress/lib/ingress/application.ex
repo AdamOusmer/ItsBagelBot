@@ -152,7 +152,7 @@ defmodule Ingress.Application do
 
   defp status_listener do
     port = String.to_integer(System.get_env("STATUS_PORT", "8080"))
-    base = [plug: Ingress.StatusPlug, port: port]
+    base = [plug: Ingress.StatusPlug, port: port, thousand_island_options: [num_acceptors: 2]]
 
     case {System.get_env("TLS_CERT_FILE", ""), System.get_env("TLS_KEY_FILE", "")} do
       {"", ""} ->

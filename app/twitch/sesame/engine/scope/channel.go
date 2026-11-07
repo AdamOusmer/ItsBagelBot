@@ -118,7 +118,7 @@ func (v *channelValues) loginOf(tok Var) (string, bool) {
 	if tok.Name == ViewersToken {
 		return "", false
 	}
-	login := normalizeLogin(tok.Payload)
+	login := NormalizeLogin(tok.Payload)
 	if login == "" {
 		return "", false
 	}

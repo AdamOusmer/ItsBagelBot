@@ -5,3 +5,5 @@ package modulesrpc
 
 func (r DashboardRequest) Requested() string { return r.UserID }
 func (r QuoteRequest) Requested() string     { return r.UserID }
+func (r VariableRequest) Requested() string  { return r.UserID }
+func (r CooldownRequest) Requested() string  { return r.UserID }

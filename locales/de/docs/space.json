@@ -1,0 +1,13 @@
+{
+  "start": "Einstieg",
+  "platform": "Plattform",
+  "records": "Archiv",
+  "groupEvents": "Ereignispfad",
+  "groupData": "Datenbesitzer",
+  "groupWeb": "Web-Apps",
+  "startLead": "Starte den Stack lokal und sieh dann, wie die Teile zusammenspielen.",
+  "servicesLead": "Jeder Dienst besitzt sein Schema und spricht über NATS mit den anderen.",
+  "platformLead": "Wo der Zustand liegt und worauf die Flotte läuft.",
+  "referenceLead": "Die Verträge, die du beim Ändern von Code prüfen solltest.",
+  "recordsLead": "Warum das System so aussieht, und datierte Belege für sein Verhalten."
+}

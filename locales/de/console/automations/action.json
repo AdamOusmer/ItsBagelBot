@@ -34,5 +34,6 @@
   "text": "Text ändern",
   "math": "Berechnen",
   "loop": "Schritte wiederholen",
-  "reward_update": "Belohnung ändern"
+  "reward_update": "Belohnung ändern",
+  "cooldown_add": "Zeit zu einem Cooldown hinzufügen"
 }

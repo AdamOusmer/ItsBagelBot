@@ -27,3 +27,7 @@ func (c *ValkeyCooldown) Allow(ctx context.Context, key string, ttl time.Duratio
 func (c *ValkeyCooldown) AllowAll(ctx context.Context, windows []CooldownWindow) (bool, error) {
 	return pkg_valkey.ClaimAll(ctx, c.client, windows)
 }
+
+func (c *ValkeyCooldown) TimeLeft(ctx context.Context, key string) (time.Duration, error) {
+	return pkg_valkey.TimeToLive(ctx, c.client, key)
+}

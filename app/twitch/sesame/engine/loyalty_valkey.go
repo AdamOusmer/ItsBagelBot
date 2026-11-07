@@ -39,26 +39,6 @@ const (
 
 var ErrReservedCounter = errors.New("reserved counter name")
 
-var (
-	counterTTLArg     = strconv.FormatInt(int64(counterTTL.Seconds()), 10)
-	bumpChannelScript = valkey.NewLuaScript(`
-if redis.call('EXISTS', KEYS[1]) == 0 then
-  if ARGV[1] == '' then return false end
-  redis.call('SET', KEYS[1], ARGV[1])
-end
-local value = redis.call('INCRBY', KEYS[1], ARGV[2])
-redis.call('EXPIRE', KEYS[1], ARGV[3])
-return value`)
-	bumpEntryScript = valkey.NewLuaScript(`
-if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 0 then
-  if ARGV[2] == '' then return false end
-  redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
-end
-local value = redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[3])
-redis.call('EXPIRE', KEYS[1], ARGV[4])
-return value`)
-)
-
 type ValkeyLoyaltyStore struct {
 	client   valkey.Client
 	primary  valkey.Client
@@ -225,44 +205,24 @@ func bumpViewer(viewer Viewer, viewerID uint64) Viewer {
 
 func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint64, name string, delta int64) (int64, error) {
 	key := counterRef{broadcasterID, name}.channelKey()
-	deltaArg := strconv.FormatInt(delta, 10)
-
-	value, err := bumpChannelScript.Exec(ctx, s.client, []string{key}, []string{"", deltaArg, counterTTLArg}).AsInt64()
-	if err == nil {
-		return value, nil
-	}
-	if !valkey.IsValkeyNil(err) {
-		return 0, err
-	}
-
-	seed := int64(0)
-	if c, found, loadErr := s.rpc.CounterGet(ctx, broadcasterID, name, 0, ""); loadErr == nil && found {
-		seed = c.Value
-	}
-	return bumpChannelScript.Exec(ctx, s.client, []string{key}, []string{
-		strconv.FormatInt(seed, 10), deltaArg, counterTTLArg,
-	}).AsInt64()
+	counter := pkg_valkey.SeededCounter{Key: key, TTL: counterTTL}
+	return counter.Bump(ctx, s.client, delta, func() int64 {
+		if c, found, loadErr := s.rpc.CounterGet(ctx, broadcasterID, name, 0, ""); loadErr == nil && found {
+			return c.Value
+		}
+		return 0
+	})
 }
 
 func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, broadcasterID uint64, name, field string, viewerID uint64, command string, delta int64) (int64, error) {
 	key := counterRef{broadcasterID, name}.viewerKey()
-	deltaArg := strconv.FormatInt(delta, 10)
-
-	value, err := bumpEntryScript.Exec(ctx, s.client, []string{key}, []string{field, "", deltaArg, counterTTLArg}).AsInt64()
-	if err == nil {
-		return value, nil
-	}
-	if !valkey.IsValkeyNil(err) {
-		return 0, err
-	}
-
-	seed := int64(0)
-	if c, found, loadErr := s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command); loadErr == nil && found {
-		seed = c.Value
-	}
-	return bumpEntryScript.Exec(ctx, s.client, []string{key}, []string{
-		field, strconv.FormatInt(seed, 10), deltaArg, counterTTLArg,
-	}).AsInt64()
+	counter := pkg_valkey.SeededCounter{Key: key, Field: field, TTL: counterTTL}
+	return counter.Bump(ctx, s.client, delta, func() int64 {
+		if c, found, loadErr := s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command); loadErr == nil && found {
+			return c.Value
+		}
+		return 0
+	})
 }
 
 func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error) {
@@ -286,22 +246,21 @@ func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, target CounterTarg
 func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, broadcasterID uint64, name, scope string, viewerID uint64, command string) (int64, bool) {
 	var (
 		v   int64
+		ok  bool
 		err error
 	)
 	ref := counterRef{broadcasterID, name}
 	if viewScope, viewViewer, viewCmd := bumpTarget(scope, viewerID, command); !rowScoped(viewScope) {
 		field := entryField(viewScope, viewViewer, viewCmd)
-		v, err = s.primary.Do(ctx, s.primary.B().Hget().Key(ref.viewerKey()).Field(field).Build()).AsInt64()
+		v, ok, err = pkg_valkey.ReadHashInt(ctx, s.primary, ref.viewerKey(), field)
 	} else {
-		v, err = s.primary.Do(ctx, s.primary.B().Get().Key(ref.channelKey()).Build()).AsInt64()
+		v, ok, err = pkg_valkey.NewKV(s.primary).ReadInt(ctx, ref.channelKey())
 	}
 	if err != nil {
-		if !valkey.IsValkeyNil(err) {
-			s.log.Debug("loyalty: counter view read failed", zap.String("counter", name), zap.Error(err))
-		}
+		s.log.Debug("loyalty: counter view read failed", zap.String("counter", name), zap.Error(err))
 		return 0, false
 	}
-	return v, true
+	return v, ok
 }
 
 func (s *ValkeyLoyaltyStore) CounterInvalidate(ctx context.Context, broadcasterID uint64, name string) {
@@ -310,9 +269,7 @@ func (s *ValkeyLoyaltyStore) CounterInvalidate(ctx context.Context, broadcasterI
 		return
 	}
 	ref := counterRef{broadcasterID, name}
-	if err := s.client.Do(ctx, s.client.B().Del().
-		Key(ref.channelKey(), ref.viewerKey()).
-		Build()).Error(); err != nil {
+	if err := pkg_valkey.DelKeys(ctx, s.client, ref.channelKey(), ref.viewerKey()); err != nil {
 		s.log.Warn("loyalty: failed to invalidate counter view",
 			module.BIDField(broadcasterID), zap.String("counter", name), zap.Error(err))
 	}
@@ -321,7 +278,8 @@ func (s *ValkeyLoyaltyStore) CounterInvalidate(ctx context.Context, broadcasterI
 
 func (s *ValkeyLoyaltyStore) BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error) {
 	key := balanceKey(broadcasterID, viewerID)
-	if raw, err := s.client.Do(ctx, s.client.B().Get().Key(key).Build()).ToString(); err == nil {
+	kv := pkg_valkey.NewKV(s.client)
+	if raw, ok := kv.GetString(ctx, key); ok {
 		if points, watch, ok := decodeBalance(raw); ok {
 			return loyaltyrpc.Balance{ViewerID: strconv.FormatUint(viewerID, 10), Points: points, WatchSeconds: watch}, nil
 		}
@@ -330,9 +288,8 @@ func (s *ValkeyLoyaltyStore) BalanceGet(ctx context.Context, broadcasterID, view
 	if err != nil {
 		return loyaltyrpc.Balance{}, err
 	}
-	_ = s.client.Do(ctx, s.client.B().Set().Key(key).
-		Value(strconv.FormatInt(bal.Points, 10)+":"+strconv.FormatUint(bal.WatchSeconds, 10)).
-		ExSeconds(int64(balanceTTL.Seconds())).Build()).Error()
+	_ = kv.Set(ctx, pkg_valkey.Key{Name: key, TTL: balanceTTL},
+		strconv.FormatInt(bal.Points, 10)+":"+strconv.FormatUint(bal.WatchSeconds, 10))
 	return bal, nil
 }
 
@@ -399,7 +356,7 @@ func (s *ValkeyLoyaltyStore) Top(ctx context.Context, broadcasterID uint64, limi
 
 func (s *ValkeyLoyaltyStore) dropBalanceCache(ctx context.Context, broadcasterID uint64, viewerID string) {
 	if id, err := strconv.ParseUint(viewerID, 10, 64); err == nil && id != 0 {
-		_ = s.client.Do(ctx, s.client.B().Del().Key(balanceKey(broadcasterID, id)).Build()).Error()
+		_ = pkg_valkey.DelKeys(ctx, s.client, balanceKey(broadcasterID, id))
 	}
 }
 
@@ -502,30 +459,12 @@ func (s *ValkeyLoyaltyStore) dropBalances(ctx context.Context, d balanceDrop) er
 	if len(keys) == 0 {
 		return nil
 	}
-	return s.primary.Do(ctx, s.primary.B().Unlink().Key(keys...).Build()).Error()
+	return pkg_valkey.UnlinkAll(ctx, s.primary, keys)
 }
 
 func (s *ValkeyLoyaltyStore) dropChannelBalances(ctx context.Context, broadcasterID uint64) error {
 	match := cache.PairKey(loyalBalancePrefix, broadcasterID, "*")
-	var cursor uint64
-	for {
-		next, err := s.unlinkScanPage(ctx, cursor, match)
-		if err != nil || next == 0 {
-			return err
-		}
-		cursor = next
-	}
-}
-
-func (s *ValkeyLoyaltyStore) unlinkScanPage(ctx context.Context, cursor uint64, match string) (uint64, error) {
-	page, err := s.primary.Do(ctx, s.primary.B().Scan().Cursor(cursor).Match(match).Count(balanceScanCount).Build()).AsScanEntry()
-	if err != nil {
-		return 0, err
-	}
-	if len(page.Elements) == 0 {
-		return page.Cursor, nil
-	}
-	return page.Cursor, s.primary.Do(ctx, s.primary.B().Unlink().Key(page.Elements...).Build()).Error()
+	return pkg_valkey.ScanUnlink{Match: match, Count: balanceScanCount}.Run(ctx, s.primary)
 }
 
 func (s *ValkeyLoyaltyStore) Close() {

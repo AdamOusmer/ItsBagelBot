@@ -17,6 +17,7 @@ import (
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/db"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -43,18 +44,7 @@ func normalizeName(name string) string {
 }
 
 func normalizeCommand(command string) string {
-	return truncateChars(normalizeName(command), maxCounterName)
-}
-
-func truncateChars(s string, limit int) string {
-	chars := 0
-	for i := range s {
-		if chars == limit {
-			return s[:i]
-		}
-		chars++
-	}
-	return s
+	return utils.TruncateRunes(normalizeName(command), maxCounterName)
 }
 
 // Strict mode fails the whole INSERT on invalid UTF-8 or an over-long VARCHAR, which counts characters, not bytes.

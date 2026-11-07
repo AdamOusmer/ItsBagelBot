@@ -22,7 +22,7 @@ export default defineConfig({
     i18nSlices(),
     bundledUiSheets({ consoleRoutes }),
     sveltekit({
-      ...consoleKitConfig({ directives: { 'frame-src': ['none'] } }),
+      ...consoleKitConfig({ directives: { 'frame-src': ['none'], 'form-action': ['self'] } }),
       compilerOptions: { discloseVersion: false }
     })
   ],

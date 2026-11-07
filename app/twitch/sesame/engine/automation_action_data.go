@@ -8,6 +8,8 @@ import (
 
 	"ItsBagelBot/internal/domain/automation"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/utils"
 )
 
 const (
@@ -19,7 +21,7 @@ func (x *actionExec) setLocal(name, value string) {
 	if x.run.Locals == nil {
 		x.run.Locals = make(map[string]string, 4)
 	}
-	x.run.Locals[name] = automation.TruncateRunes(value, automation.MaxSavedValueRunes)
+	x.run.Locals[name] = utils.TruncateRunes(value, automation.MaxSavedValueRunes)
 }
 
 func (x *actionExec) saveLocal(rawName, value string) {
@@ -141,9 +143,9 @@ type fetchResult struct {
 	value   string
 }
 
-func replyResult(status string, values []string) fetchResult {
-	if status != "ok" {
-		return fetchResult{failure: status}
+func replyResult(status gossiprpc.FetchStatus, values []string) fetchResult {
+	if status != gossiprpc.FetchOK {
+		return fetchResult{failure: string(status)}
 	}
 	if len(values) == 0 {
 		return fetchResult{}

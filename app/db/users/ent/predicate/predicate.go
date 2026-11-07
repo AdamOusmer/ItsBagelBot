@@ -15,8 +15,14 @@ type AdminUser func(*sql.Selector)
 // AnalyticsRollup is the predicate function for analyticsrollup builders.
 type AnalyticsRollup func(*sql.Selector)
 
+// AuthorizationCode is the predicate function for authorizationcode builders.
+type AuthorizationCode func(*sql.Selector)
+
 // Delegation is the predicate function for delegation builders.
 type Delegation func(*sql.Selector)
+
+// DeviceGrant is the predicate function for devicegrant builders.
+type DeviceGrant func(*sql.Selector)
 
 // LifecycleErasure is the predicate function for lifecycleerasure builders.
 type LifecycleErasure func(*sql.Selector)

@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -317,7 +318,7 @@ func TestRunQueueTimedOutWaiterGivesUpItsPlace(t *testing.T) {
 	rec := rig.awaitRecord(t, gaveUp)
 	assert.Equal(t, automationrpc.OutcomeLimited, rec.Outcome)
 	assert.Equal(t, queueReasonTimeout, rec.Reason)
-	assert.Equal(t, []string{"holder", stayed}, rig.line(t))
+	require.Eventually(t, func() bool { return slices.Equal([]string{"holder", stayed}, rig.line(t)) }, queueSettle, 2*time.Millisecond)
 
 	rig.leave(t, "holder")
 	assert.Equal(t, automationrpc.OutcomeOK, rig.awaitRecord(t, stayed).Outcome)

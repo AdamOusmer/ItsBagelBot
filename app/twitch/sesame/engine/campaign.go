@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/cache"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -57,16 +58,8 @@ func (c *ValkeyCampaign) Observe(ctx context.Context, broadcasterID uint64, simh
 	}
 	b1, b2 := simBands(simhash)
 	k1, k2 := campaignKey(broadcasterID, b1), campaignKey(broadcasterID, b2)
-	ttl := int64(campaignWindow.Seconds())
 
-	resps := c.client.DoMulti(ctx,
-		c.client.B().Pfadd().Key(k1).Element(senderID).Build(),
-		c.client.B().Pfadd().Key(k2).Element(senderID).Build(),
-		c.client.B().Expire().Key(k1).Seconds(ttl).Build(),
-		c.client.B().Expire().Key(k2).Seconds(ttl).Build(),
-		c.client.B().Pfcount().Key(k1).Build(),
-		c.client.B().Pfcount().Key(k2).Build(),
-	)
+	resps := pkg_valkey.TouchAndCountHLL(ctx, c.client, pkg_valkey.HLLBandTouch{KeyA: k1, KeyB: k2, Member: senderID, TTL: campaignWindow})
 
 	c.noteWriteErrors(resps[:4])
 

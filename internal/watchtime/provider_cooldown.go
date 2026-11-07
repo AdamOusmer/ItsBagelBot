@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/valkey-io/valkey-go"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 )
 
 const providerCooldownPrefix = "watchtime:provider-reset:"
@@ -39,18 +39,6 @@ func providerCooldownKey(identity string) (string, error) {
 	return providerCooldownPrefix + identity, nil
 }
 
-var observeProviderResetScript = valkey.NewLuaScript(`
-local clock=redis.call('TIME')
-local now=tonumber(clock[1])*1000+math.floor(tonumber(clock[2])/1000)
-local incoming=math.min(tonumber(ARGV[1]),now+tonumber(ARGV[2]))
-local raw=redis.call('GET',KEYS[1])
-local previous=raw and tonumber(raw) or 0
-if raw and not tonumber(raw) then return redis.error_reply('invalid provider reset state') end
-if previous>incoming then incoming=previous end
-if incoming<=now then redis.call('DEL',KEYS[1]); return 0 end
-redis.call('SET',KEYS[1],string.format('%.0f',incoming))
-return 1`)
-
 // ObserveProviderReset publishes a provider 429 reset fleet-wide. Shorter or
 // expired observations cannot release a cooldown another replica established.
 // The server clock bounds resets to one day. Keys deliberately have no TTL:
@@ -65,14 +53,8 @@ func (s *Store) ObserveProviderReset(ctx context.Context, identity string, reset
 	if reset.IsZero() {
 		return nil
 	}
-	return observeProviderResetScript.Exec(ctx, s.client, []string{key}, []string{strconv.FormatInt(reset.UnixMilli(), 10), strconv.FormatInt(providerResetMaximum.Milliseconds(), 10)}).Error()
+	return pkgvalkey.RunCooldownDeadlineObserve(ctx, s.client, []string{key}, []string{strconv.FormatInt(reset.UnixMilli(), 10), strconv.FormatInt(providerResetMaximum.Milliseconds(), 10)}).Error()
 }
-
-var providerRetryAtScript = valkey.NewLuaScript(`local raw=redis.call('GET',KEYS[1]); if not raw then return 0 end
-local at=tonumber(raw); if not at or at<=0 then return redis.error_reply('invalid provider reset state') end
-local clock=redis.call('TIME'); local now=tonumber(clock[1])*1000+math.floor(tonumber(clock[2])/1000)
-if at<=now then redis.call('DEL',KEYS[1]); return 0 end
-return at`)
 
 // ProviderRetryAt returns zero when no live provider cooldown exists. Read
 // errors are not interpreted as absence: callers must stop the HTTP attempt.
@@ -81,7 +63,7 @@ func (s *Store) ProviderRetryAt(ctx context.Context, identity string) (time.Time
 	if err != nil {
 		return time.Time{}, err
 	}
-	n, err := providerRetryAtScript.Exec(ctx, s.client, []string{key}, nil).AsInt64()
+	n, err := pkgvalkey.RunCooldownDeadlineRead(ctx, s.client, []string{key}, nil).AsInt64()
 	if err != nil {
 		return time.Time{}, err
 	}

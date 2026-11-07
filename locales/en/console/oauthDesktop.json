@@ -1,0 +1,21 @@
+{
+  "title": "Connect the desktop app",
+  "eyebrow": "Device sign-in",
+  "asAccount": "Signing in as {name}.",
+  "deviceLabel": "Device",
+  "deviceUnnamed": "Unnamed device",
+  "platformLabel": "Platform",
+  "platformMacos": "macOS",
+  "platformWindows": "Windows",
+  "platformLinux": "Linux",
+  "reportedByApp": "Device name and platform are reported by the app and are not verified.",
+  "accessGranted": "Approving lets this app act as your account from your computer.",
+  "onlyIfYouStarted": "Only approve this if you just started this sign-in from the desktop app yourself.",
+  "approve": "Approve",
+  "cancel": "Cancel",
+  "refusalImpersonator": "This session is a staff view-as session and cannot approve a desktop app. Sign in with your own account to continue.",
+  "refusalDelegate": "This session has delegated access to another account and cannot approve a desktop app. Sign in with your own account to continue.",
+  "approvedRedirecting": "Approved. Returning you to the app…",
+  "cancelledRedirecting": "Cancelled. Returning you to the app…",
+  "closeWindow": "If nothing happens in a few seconds, you can close this window."
+}

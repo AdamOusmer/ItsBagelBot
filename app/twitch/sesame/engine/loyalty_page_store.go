@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
 )
@@ -25,7 +26,7 @@ type loyaltySchedule struct {
 }
 
 func (s *ValkeyLoyaltyClock) readSchedule(ctx context.Context, id uint64) (loyaltySchedule, error) {
-	fields, err := s.client.Do(ctx, s.client.B().Hgetall().Key(loyaltyScheduleKey(id)).Build()).AsStrMap()
+	fields, err := pkg_valkey.HashAll(ctx, s.client, loyaltyScheduleKey(id))
 	if err != nil {
 		return loyaltySchedule{}, err
 	}

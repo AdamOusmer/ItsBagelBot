@@ -13,6 +13,7 @@ import (
 	contract "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -62,7 +63,7 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 	}
 
 	if dto.Deleted {
-		cmds = append(cmds, v.client.B().Hdel().Key(key).Field(field).Build())
+		cmds = append(cmds, pkg_valkey.HDelCmd(v.client, key, field))
 		cmds = append(cmds, v.expiryCommands(key, DefaultTTL)...)
 		return v.pipeline(ctx, cmds...)
 	}
@@ -78,7 +79,7 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 
 func (v *Store) retireStaleAliases(ctx context.Context, key, field string) ([]valkey.Completed, error) {
 	cmds := make([]valkey.Completed, 0, 4)
-	old, err := v.primary.Do(ctx, v.primary.B().Hget().Key(key).Field(field).Build()).ToString()
+	old, err := pkg_valkey.Exec1(ctx, v.primary, pkg_valkey.HGetCmd(v.primary, key, field)).ToString()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
 			return cmds, nil
@@ -99,7 +100,7 @@ func (v *Store) retireStaleAliases(ctx context.Context, key, field string) ([]va
 	for _, a := range prev.Aliases {
 		stale = append(stale, aliasFieldPrefix+strings.ToLower(a))
 	}
-	return append(cmds, v.client.B().Hdel().Key(key).Field(stale...).Build()), nil
+	return append(cmds, pkg_valkey.HDelCmd(v.client, key, stale...)), nil
 }
 
 func (v *Store) commandSetCommand(key, field, name string, dto data.CommandChangedDTO) (valkey.Completed, error) {
@@ -108,12 +109,11 @@ func (v *Store) commandSetCommand(key, field, name string, dto data.CommandChang
 	if err != nil {
 		return valkey.Completed{}, err
 	}
-	set := v.client.B().Hset().Key(key).FieldValue().
-		FieldValue(field, string(body))
+	pairs := []pkg_valkey.HashFieldValue{{Field: field, Value: string(body)}}
 	for _, a := range view.Aliases {
-		set = set.FieldValue(aliasFieldPrefix+strings.ToLower(a), name)
+		pairs = append(pairs, pkg_valkey.HashFieldValue{Field: aliasFieldPrefix + strings.ToLower(a), Value: name})
 	}
-	return set.Build(), nil
+	return pkg_valkey.HSetCmd(v.client, key, pairs...), nil
 }
 
 func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (view CommandView, found bool, projected bool, err error) {
@@ -122,10 +122,10 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 	key := cache.UserKey(settingsKeyPrefix, userID)
 	lname := strings.ToLower(name)
 
-	res := v.client.DoMulti(ctx,
-		v.client.B().Hget().Key(key).Field(commandFieldPrefix+lname).Build(),
-		v.client.B().Hget().Key(key).Field(aliasFieldPrefix+lname).Build(),
-		v.client.B().Hget().Key(key).Field(commandsMarkerField).Build(),
+	res := pkg_valkey.ExecMulti(ctx, v.client,
+		pkg_valkey.HGetCmd(v.client, key, commandFieldPrefix+lname),
+		pkg_valkey.HGetCmd(v.client, key, aliasFieldPrefix+lname),
+		pkg_valkey.HGetCmd(v.client, key, commandsMarkerField),
 	)
 
 	projected, err = markerProjected(res[2])
@@ -156,7 +156,7 @@ func (v *Store) resolveAlias(ctx context.Context, key string, aliasRes valkey.Va
 		return CommandView{}, false, projected, nil
 	}
 
-	view, found, err := decodeJSONField[CommandView](v.client.Do(ctx, v.client.B().Hget().Key(key).Field(commandFieldPrefix+primary).Build()))
+	view, found, err := decodeJSONField[CommandView](pkg_valkey.Exec1(ctx, v.client, pkg_valkey.HGetCmd(v.client, key, commandFieldPrefix+primary)))
 	if err != nil || !found {
 		return CommandView{}, false, projected, err
 	}

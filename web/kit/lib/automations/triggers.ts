@@ -21,7 +21,7 @@ export function checkRegex(c: Chk, field: string, s: string, hi: number): void {
   if (!compilesAsRe2(s)) c.add(field, CODE.invalidRegex);
 }
 
-function commandName(c: Chk, field: string, s: string, match: string): void {
+export function commandName(c: Chk, field: string, s: string, match: string): void {
   if (match === REGEX_MATCH) {
     checkRegex(c, field, s, MAX_PATTERN_LENGTH);
     return;

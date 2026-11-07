@@ -1,0 +1,154 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import { SITE } from '@bagel/kit/site-links';
+import { siteFooterProps } from '@bagel/kit/site-footer';
+import { getImage } from 'astro:assets';
+import { ClientRouter } from 'astro:transitions';
+
+import Brackets from '@bagel/ui/astro/Brackets.astro';
+import Cursor from '@bagel/ui/astro/Cursor.astro';
+import Footer from '@bagel/ui/astro/Footer.astro';
+import Nav from '@bagel/ui/astro/Nav.astro';
+import ReadingProgress from '@bagel/ui/astro/ReadingProgress.astro';
+import SkipLink from '@bagel/ui/astro/SkipLink.astro';
+import syneLatinWoff2 from '@bagel/ui/fonts/syne-latin.woff2?url';
+import dmSansLatinWoff2 from '@bagel/ui/fonts/dm-sans-latin.woff2?url';
+import dmMono400Woff2 from '@bagel/ui/fonts/dm-mono-400.woff2?url';
+
+import logoImage from '../assets/LogoBOT.png';
+import MermaidStyles from '../components/MermaidStyles.astro';
+import SearchDialog from '../components/SearchDialog.astro';
+import SmoothScroll from '../components/SmoothScroll.astro';
+import { docsI18n, docsLocaleOptions, docsLocales, footerLabels } from '../i18n/ui';
+import { pagesFor, spaces } from '../lib/pages';
+import '../styles/docs.css';
+import '../styles/prose.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  locale: string;
+  activeSpace?: string;
+  noindex?: boolean;
+}
+
+const { title, description, locale, activeSpace, noindex = false } = Astro.props;
+const { t, path } = docsI18n(locale);
+Astro.locals.uiLocale = locale;
+
+const metaDescription = description ?? t('description');
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const ogImage = new URL('/og-image.png?v=2', Astro.site).href;
+const localeLinks = docsLocaleOptions(Astro.url.pathname, locale);
+const alternates = localeLinks.map(({ code, href }) => ({ code, href: new URL(href, Astro.site).href }));
+
+const pages = pagesFor(locale);
+const navLinks = spaces.map(({ key, label, groups }) => ({
+  href: pages.get(groups[0].pages[0])!.href,
+  label: t(label),
+  current: key === activeSpace,
+}));
+
+const navLogo = await getImage({ src: logoImage, width: 52, height: 52, format: 'webp' });
+const footerLogo = await getImage({ src: logoImage, width: 320, height: 320, format: 'webp' });
+const footer = siteFooterProps({ ...footerLabels(locale), langQuery: '', url: Astro.url }, footerLogo.src);
+
+const MAIN = SITE.web;
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${MAIN}/#organization`,
+      name: 'ItsBagelBot',
+      url: `${MAIN}/`,
+      logo: `${MAIN}/android-chrome-512x512.png`,
+      sameAs: [SITE.twitch, SITE.discord, SITE.github],
+    },
+    {
+      '@type': 'WebSite',
+      '@id': new URL('/#website', Astro.site).href,
+      url: new URL(path('/'), Astro.site).href,
+      name: t('title'),
+      description: t('description'),
+      inLanguage: locale,
+      publisher: { '@id': `${MAIN}/#organization` },
+    },
+  ],
+};
+---
+
+<!doctype html>
+<html lang={locale} data-surface="tonal">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={metaDescription} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large'} />
+    <meta name="theme-color" content="#111113" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="generator" content={Astro.generator} />
+
+    <link rel="preload" href={syneLatinWoff2} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={dmSansLatinWoff2} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={dmMono400Woff2} as="font" type="font/woff2" crossorigin />
+
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="describedby" type="text/markdown" href="https://ai.itsbagelbot.com/llms.txt" title="ItsBagelBot reference for AI assistants" />
+    {!noindex && alternates.map(({ code, href }) => <link rel="alternate" hreflang={code} href={href} />)}
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ItsBagelBot" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={metaDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={t('title')} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={metaDescription} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} is:inline />
+
+    <ClientRouter />
+    <SmoothScroll />
+    <MermaidStyles />
+  </head>
+
+  <body>
+    <SkipLink href="#main-content" label={t('chrome.skip')} />
+    <main id="main-content" class="doc-root">
+      <slot />
+    </main>
+    <Nav
+      brand={{ title: 'ItsBagelBot', sub: t('brand'), href: path('/'), logoSrc: navLogo.src, logoAlt: '' }}
+      links={navLinks}
+      cta={{ href: `${SITE.web}${path('/')}`, label: t('mainSite'), external: true }}
+      locales={noindex ? undefined : localeLinks}
+      label={t('brand')}
+      menuLabels={{ open: t('menu.open'), close: t('menu.close'), panel: t('menu.panel') }}
+    />
+    <ReadingProgress />
+    <Brackets />
+    <Footer {...footer} />
+    <Cursor />
+    <SearchDialog locale={locale} />
+
+    <script>
+      import { defineTextFit } from '@bagel/ui/lib/text-fit';
+
+      defineTextFit();
+    </script>
+  </body>
+</html>

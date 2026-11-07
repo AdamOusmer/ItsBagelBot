@@ -1,0 +1,91 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import { render } from 'astro:content';
+import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
+import Disclosure from '@bagel/ui/astro/Disclosure.astro';
+import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Lead from '@bagel/ui/astro/Lead.astro';
+
+import CodeCopy from '../components/CodeCopy.astro';
+import MermaidInteractive from '../components/MermaidInteractive.astro';
+import PageCards from '../components/PageCards.astro';
+import SearchButton from '../components/SearchButton.astro';
+import SectionNav from '../components/SectionNav.astro';
+import Toc from '../components/Toc.astro';
+import { docsI18n, docsLocales } from '../i18n/ui';
+import Base from '../layouts/Base.astro';
+import { pagesFor, spaces } from '../lib/pages';
+import { neighbours, spaceOf } from '../lib/spaces';
+
+export function getStaticPaths() {
+  return docsLocales.flatMap((locale) =>
+    [...pagesFor(locale).values()].map(({ id }) => ({
+      params: { slug: locale === 'en' ? id : `${locale}/${id}` },
+      props: { id, locale },
+    })),
+  );
+}
+
+const { id, locale } = Astro.props;
+const { t } = docsI18n(locale);
+const pages = pagesFor(locale);
+const page = pages.get(id)!;
+const space = spaceOf(id, spaces);
+const spaceLabel = t(space.label);
+const { prev, next } = neighbours(id, space);
+const { Content, headings } = await render(page.entry);
+const sections = headings.filter(({ depth }) => depth === 2);
+const { title, description } = page.entry.data;
+---
+
+<Base title={`${title} | ItsBagelBot`} description={description} locale={locale} activeSpace={space.key}>
+  <div class="doc-shell">
+    <aside class="doc-side" data-lenis-prevent>
+      <SearchButton locale={locale} />
+      <SectionNav space={space} pages={pages} current={id} locale={locale} label={spaceLabel} />
+    </aside>
+
+    <article class="doc-main">
+      <div class="doc-mobile-nav">
+        <SearchButton locale={locale} />
+        <Disclosure summary={spaceLabel} size="sm">
+          <SectionNav space={space} pages={pages} current={id} locale={locale} label={spaceLabel} />
+        </Disclosure>
+      </div>
+
+      <header class="doc-head">
+        <Eyebrow as="p">{spaceLabel}</Eyebrow>
+        <Heading level={1} variant="section">{title}</Heading>
+        {description && <Lead>{description}</Lead>}
+      </header>
+
+      {sections.length > 1 && (
+        <div class="doc-mobile-toc">
+          <Disclosure summary={t('chrome.onThisPage')} size="sm">
+            <Toc sections={sections} locale={locale} bare />
+          </Disclosure>
+        </div>
+      )}
+
+      {!page.translated && (
+        <AlertBanner tone="info" role="note" variant="callout" class="doc-notice">{t('chrome.notTranslated')}</AlertBanner>
+      )}
+
+      <div class="bb-prose bb-prose-code doc-prose" data-pagefind-body={page.translated ? '' : undefined} data-pagefind-meta={`title:${title}`}>
+        <Content />
+      </div>
+
+      <PageCards prev={prev ? pages.get(prev) : undefined} next={next ? pages.get(next) : undefined} locale={locale} />
+    </article>
+
+    <aside class="doc-toc" data-lenis-prevent>
+      {sections.length > 1 && <Toc sections={sections} locale={locale} />}
+    </aside>
+  </div>
+
+  <MermaidInteractive locale={locale} />
+  <CodeCopy locale={locale} />
+</Base>

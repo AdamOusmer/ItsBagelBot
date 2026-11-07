@@ -1,0 +1,91 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package valkey
+
+import (
+	"context"
+
+	valkey_go "github.com/valkey-io/valkey-go"
+)
+
+var epochGateActivateScript = NewScript(`
+local owner = redis.call('GET', KEYS[1]) or ''
+if string.sub(owner, 1, string.len(ARGV[1]) + 1) ~= ARGV[1] .. ':' then return 0 end
+if redis.call('GET', KEYS[3]) ~= ARGV[1] .. ':' .. ARGV[4] then return 0 end
+if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 0 end
+if redis.call('HGET', KEYS[2], 'enabled') == '0' then return 0 end
+if (redis.call('HGET', KEYS[2], 'slot') or '0') ~= ARGV[5] then return 0 end
+local state = redis.call('HGET', KEYS[2], 'state')
+if state ~= 'pending' and state ~= 'receiving' and state ~= 'failed' then return 0 end
+redis.call('HSET', KEYS[2], 'subscription_id', ARGV[3], 'session_id', ARGV[4], 'owner_epoch', ARGV[1], 'state', 'receiving')
+redis.call('HDEL', KEYS[2], 'error')
+return 1`)
+
+var epochGateReleaseScript = NewScript(`
+local owner = redis.call('GET', KEYS[1]) or ''
+if string.sub(owner, 1, string.len(ARGV[1]) + 1) ~= ARGV[1] .. ':' then return 0 end
+if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 0 end
+local state = redis.call('HGET', KEYS[2], 'state')
+if state ~= 'stopping' and state ~= 'disabled' then return 0 end
+if (redis.call('HGET', KEYS[2], 'subscription_id') or '') ~= ARGV[3] then return 0 end
+redis.call('HDEL', KEYS[2], 'subscription_id', 'session_id', 'owner_epoch')
+if state == 'disabled' and redis.call('HGET', KEYS[2], 'enabled') ~= '0' then
+  redis.call('HSET', KEYS[2], 'state', 'pending')
+end
+return 1`)
+
+// EpochGate guards a record's state transitions behind an owner key holding "<epoch>:<suffix>" and a generation stamp on the record.
+type EpochGate struct {
+	Owner   string
+	Session string
+	Record  string
+}
+
+// EpochActivation is what Activate checks and records.
+type EpochActivation struct {
+	Epoch          string
+	Generation     string
+	SubscriptionID string
+	SessionID      string
+	Slot           string
+}
+
+// ActivateCall builds the script call for Activate.
+func (g EpochGate) ActivateCall(a EpochActivation) ScriptCall {
+	return ScriptCall{
+		Script: epochGateActivateScript,
+		Key:    g.Owner,
+		Also:   []string{g.Record, g.Session},
+		Args:   []string{a.Epoch, a.Generation, a.SubscriptionID, a.SessionID, a.Slot},
+	}
+}
+
+// Activate moves Record into the receiving state, only while Owner's epoch prefix, Session, generation, enabled flag and slot all still match.
+func (g EpochGate) Activate(ctx context.Context, client valkey_go.Client, a EpochActivation) (bool, error) {
+	n, err := RunScripts(ctx, client, []ScriptCall{g.ActivateCall(a)})[0].ToInt64()
+	return n == 1, err
+}
+
+// EpochRelease is what Release checks.
+type EpochRelease struct {
+	Epoch          string
+	Generation     string
+	SubscriptionID string
+}
+
+// ReleaseCall builds the script call for Release.
+func (g EpochGate) ReleaseCall(r EpochRelease) ScriptCall {
+	return ScriptCall{
+		Script: epochGateReleaseScript,
+		Key:    g.Owner,
+		Also:   []string{g.Record},
+		Args:   []string{r.Epoch, r.Generation, r.SubscriptionID},
+	}
+}
+
+// Release clears Record's subscription fields, only while Owner's epoch prefix, generation, state and subscriptionID still match.
+func (g EpochGate) Release(ctx context.Context, client valkey_go.Client, r EpochRelease) (bool, error) {
+	n, err := RunScripts(ctx, client, []ScriptCall{g.ReleaseCall(r)})[0].ToInt64()
+	return n == 1, err
+}

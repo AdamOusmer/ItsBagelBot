@@ -10,7 +10,7 @@ export interface ScrubbedText {
 
 const URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
 const USERINFO = /^([a-z][a-z0-9+.-]*:\/\/)([^/?#]*)@/i;
-const URL_PARAM = /([?&#])([^=&#]+)=([^&#]*)/g;
+const URL_PARAM = /([?&#])([^=&#?]+)=([^&#]*)/g;
 const SECRET_PARAM = /(^|[_-])(token|secret|password|passwd|pwd|auth|authorization|apikey|key|signature|sig|credentials?|session)$/i;
 
 const KNOWN_TOKENS: readonly RegExp[] = [

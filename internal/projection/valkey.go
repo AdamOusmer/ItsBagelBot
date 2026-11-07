@@ -79,33 +79,8 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 		background = background && u.Lifecycle.AllowsBackground()
 	}
 	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden), u.CreatorCode)
-	return userAdmissionWriteScript.Exec(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, args).Error()
+	return pkg_valkey.RunHashRevisionGateUser(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, args).Error()
 }
-
-var userAdmissionWriteScript = valkey.NewLuaScript(userAdmissionWrite)
-
-const userAdmissionWrite = `-- user watch admission write
-local instance=redis.call('HGET',KEYS[2],'instance')
-if redis.call('HGET',KEYS[2],'deleted') == '1' then return 0 end
-if instance and instance ~= ARGV[7] then return 0 end
-local revision=tonumber(redis.call('HGET',KEYS[2],'state_revision') or '0')
-local incoming=tonumber(ARGV[8])
-if incoming < revision then return 0 end
-if incoming > 0 then redis.call('HSET',KEYS[2],'state_revision',ARGV[8]) end
-local active=redis.call('HGET',KEYS[1],'active'); local banned=redis.call('HGET',KEYS[1],'banned')
-local prior=redis.call('HGET',KEYS[1],'lifecycle')
-local changed=false
-if prior and prior ~= 'null' and ARGV[9] ~= 'null' then
- local old=cjson.decode(prior); local new=cjson.decode(ARGV[9])
- changed=old.admission_generation ~= new.admission_generation
-end
-if active ~= ARGV[1] or banned ~= ARGV[2] or changed then redis.call('HINCRBY',KEYS[2],'epoch',1) end
-redis.call('HSET',KEYS[1],'active',ARGV[1],'banned',ARGV[2],'status',ARGV[3],'commands_page_hidden',ARGV[4])
-redis.call('HSET',KEYS[1],'account_created_at',ARGV[7],'lifecycle',ARGV[9])
-redis.call('HSET',KEYS[1],'runtime_background',ARGV[10],'leaderboard_page_hidden',ARGV[11],'creator_code',ARGV[12])
-if ARGV[5] ~= '' then redis.call('HSET',KEYS[1],'locale',ARGV[5]) end
-local existing=redis.call('TTL',KEYS[1]); if existing<0 or existing<tonumber(ARGV[6]) then redis.call('EXPIRE',KEYS[1],ARGV[6]) end
-return 1`
 
 // GetUser retrieves the tier status, active flag, ban flag, UI locale and
 // commands-page-hidden flag of one user. locale is empty when the hash
@@ -116,7 +91,7 @@ func (v *Store) GetUser(ctx context.Context, userID uint64) (status string, acti
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Field("banned").Field("locale").Field("commands_page_hidden").Build()).AsStrSlice()
+	res, err := pkg_valkey.Exec1(ctx, v.client, pkg_valkey.HMGetCmd(v.client, key, "status", "active", "banned", "locale", "commands_page_hidden")).AsStrSlice()
 	if err != nil {
 		return "", false, false, "", false, err
 	}
@@ -140,14 +115,12 @@ func (v *Store) replaceSection(ctx context.Context, userID uint64, sec sectionWr
 	if err := v.clearProjectionFields(ctx, key, sec.prefixes...); err != nil {
 		return err
 	}
-	fields := v.client.B().Hset().
-		Key(key).
-		FieldValue().
-		FieldValue(sec.marker, "1")
+	pairs := make([]pkg_valkey.HashFieldValue, 0, len(sec.rows)+1)
+	pairs = append(pairs, pkg_valkey.HashFieldValue{Field: sec.marker, Value: "1"})
 	for _, row := range sec.rows {
-		fields = fields.FieldValue(row[0], row[1])
+		pairs = append(pairs, pkg_valkey.HashFieldValue{Field: row[0], Value: row[1]})
 	}
-	return v.pipelineWithTTL(ctx, key, sec.ttl, fields.Build())
+	return v.pipelineWithTTL(ctx, key, sec.ttl, pkg_valkey.HSetCmd(v.client, key, pairs...))
 }
 
 func markerProjected(res valkey.ValkeyResult) (bool, error) {
@@ -186,7 +159,7 @@ func getSection[T any](ctx context.Context, v *Store, userID uint64, sec section
 	defer segment(ctx, "HGETALL")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	fields, err := pkg_valkey.HashAll(ctx, v.client, key)
 	if err != nil {
 		return nil, false, err
 	}
@@ -221,11 +194,7 @@ func (v *Store) GetHydrationState(ctx context.Context, userID uint64) (Hydration
 	defer segment(ctx, "HMGET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	fields, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).
-		Field("status").
-		Field(modulesMarkerField).
-		Field(commandsMarkerField).
-		Build()).AsStrSlice()
+	fields, err := pkg_valkey.Exec1(ctx, v.client, pkg_valkey.HMGetCmd(v.client, key, "status", modulesMarkerField, commandsMarkerField)).AsStrSlice()
 	if err != nil {
 		return HydrationState{}, err
 	}
@@ -240,7 +209,7 @@ func (v *Store) GetHydrationState(ctx context.Context, userID uint64) (Hydration
 }
 
 func (v *Store) clearProjectionFields(ctx context.Context, key string, prefixes ...string) error {
-	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	fields, err := pkg_valkey.HashAll(ctx, v.client, key)
 	if err != nil {
 		return err
 	}
@@ -258,7 +227,7 @@ func (v *Store) clearProjectionFields(ctx context.Context, key string, prefixes 
 		return nil
 	}
 
-	return v.client.Do(ctx, v.client.B().Hdel().Key(key).Field(stale...).Build()).Error()
+	return pkg_valkey.Exec1(ctx, v.client, pkg_valkey.HDelCmd(v.client, key, stale...)).Error()
 }
 
 func (v *Store) DeleteUser(ctx context.Context, userID uint64) error {
@@ -266,16 +235,12 @@ func (v *Store) DeleteUser(ctx context.Context, userID uint64) error {
 	return err
 }
 
-var legacyDeleteScript = valkey.NewLuaScript(`-- user watch deletion
-if tonumber(redis.call('HGET',KEYS[2],'instance') or '0') > 0 then return 0 end
-redis.call('HINCRBY',KEYS[2],'epoch',1); redis.call('HSET',KEYS[2],'deleted','1'); redis.call('DEL',KEYS[1]); return 1`)
-
 // DeleteLegacyAccount refuses an unstamped delete once a current incarnation
 // is known. Its result also fences callers' subsequent cleanup side effects.
 func (v *Store) DeleteLegacyAccount(ctx context.Context, userID uint64) (bool, error) {
 	defer segment(ctx, "DEL")()
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	n, err := legacyDeleteScript.Exec(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, nil).AsInt64()
+	n, err := pkg_valkey.RunHashRevisionGateLegacyDelete(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, nil).AsInt64()
 	return n == 1, err
 }
 
@@ -284,7 +249,7 @@ func (v *Store) Close() {
 }
 
 func (v *Store) pipeline(ctx context.Context, cmds ...valkey.Completed) error {
-	for _, res := range v.client.DoMulti(ctx, cmds...) {
+	for _, res := range pkg_valkey.ExecMulti(ctx, v.client, cmds...) {
 		if err := res.Error(); err != nil {
 			return err
 		}
@@ -303,8 +268,8 @@ func (v *Store) expiryCommands(key string, ttl time.Duration) []valkey.Completed
 		seconds = 1
 	}
 	return []valkey.Completed{
-		v.client.B().Expire().Key(key).Seconds(seconds).Nx().Build(),
-		v.client.B().Expire().Key(key).Seconds(seconds).Gt().Build(),
+		pkg_valkey.ExpireNXCmd(v.client, key, seconds),
+		pkg_valkey.ExpireGTCmd(v.client, key, seconds),
 	}
 }
 

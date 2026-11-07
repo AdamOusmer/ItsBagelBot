@@ -22,7 +22,7 @@ const (
 var (
 	variableScopes      = enum{VariableScopeChannel, VariableScopeViewer}
 	varConditionOps     = enum{"eq", "ne", "gt", "gte", "lt", "lte", CompareContains, varOpExists}
-	variableNamePattern = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)
+	variableNamePattern = regexp.MustCompile(`^[a-z0-9]{1,32}$`)
 )
 
 // VarRef names one stored variable. Embedded untagged, so its fields stay flat in the JSON.
@@ -63,7 +63,7 @@ func (c chk) variableName(f field, raw string) {
 		return
 	}
 	if _, ok := VariableName(raw); !ok {
-		c.add(f, CodeInvalidFormat)
+		c.add(f, CodeSimpleWord)
 	}
 }
 

@@ -78,6 +78,7 @@ type durableRecord struct {
 	ArgMap       map[string]string       `json:"arg_map,omitempty"`
 	Event        map[string]string       `json:"event,omitempty"`
 	Locals       map[string]string       `json:"locals,omitempty"`
+	CooldownEnd  int64                   `json:"cooldown_end_ms,omitempty"`
 	Iter         string                  `json:"iter,omitempty"`
 	Started      time.Time               `json:"started"`
 	Env          *lane.Envelope          `json:"env,omitempty"`
@@ -104,6 +105,7 @@ func baseDurableRecord(run *AutomationRun) durableRecord {
 		ArgMap:       run.ArgMap,
 		Event:        run.Event,
 		Locals:       run.Locals,
+		CooldownEnd:  run.CooldownEndMS,
 		Iter:         run.Iter,
 		Started:      run.Started,
 		Env:          run.Env,
@@ -193,6 +195,7 @@ func (r *durableRecord) run(ref DurableRef) *AutomationRun {
 		Started:       r.Started,
 		Record:        r.Record,
 		Locals:        r.Locals,
+		CooldownEndMS: r.CooldownEnd,
 		Iter:          r.Iter,
 		Replay:        r.Replay,
 		Tree:          r.Tree.tree(),

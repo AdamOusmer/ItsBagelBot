@@ -34,5 +34,6 @@
   "text": "Alterar texto",
   "math": "Fazer cálculos",
   "loop": "Repetir etapas",
-  "reward_update": "Alterar uma recompensa"
+  "reward_update": "Alterar uma recompensa",
+  "cooldown_add": "Adicionar tempo a um intervalo de uso"
 }
