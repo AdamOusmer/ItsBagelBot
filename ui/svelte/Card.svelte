@@ -65,8 +65,6 @@
   this={as ?? (href ? 'a' : 'div')}
   class={classes}
   {...href ? { href } : {}}
-  data-card=""
-  data-atmo={atmo ? '' : undefined}
   data-hover={hover ? '' : undefined}
   {...rest}
 >

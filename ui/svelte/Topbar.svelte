@@ -66,8 +66,7 @@
     >{/if}<div class="bb-topbar__grow"></div>{#if clock}<span
       bind:this={clockEl}
       class="bb-topbar__clock"
-      aria-hidden="true"
-      data-clock="">{clockText}</span>{/if}{#if account}<div
+      aria-hidden="true">{clockText}</span>{/if}{#if account}<div
       class="bb-topbar__account"
       data-railed={railed ? '' : undefined}>{@render account()}</div
     >{/if}{#if actions}{@render actions()}{/if}</header

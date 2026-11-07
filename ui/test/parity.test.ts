@@ -291,7 +291,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: {},
-    html: '<div class="bb-card" data-card>body</div>',
+    html: '<div class="bb-card">body</div>',
   });
 
   contract({
@@ -299,7 +299,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { atmo: true, hover: true, label: '#lofi' },
-    html: '<div class="bb-card" data-card data-atmo data-hover><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">#lofi</span>body</div>',
+    html: '<div class="bb-card" data-hover><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">#lofi</span>body</div>',
   });
 
   contract({
@@ -307,7 +307,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { banded: true, atmo: true, label: '01' },
-    html: '<div class="bb-card bb-card--band" data-card data-atmo><span class="bb-card__band"><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">01</span><span class="bb-card__band-inner"><i>B</i></span></span><span class="bb-card__body">body</span></div>',
+    html: '<div class="bb-card bb-card--band"><span class="bb-card__band"><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">01</span><span class="bb-card__band-inner"><i>B</i></span></span><span class="bb-card__body">body</span></div>',
   });
 
   contract({
@@ -315,7 +315,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { as: 'a', href: '/x', stat: true, sheen: true, class: 'tile' },
-    html: '<a class="bb-card bb-card--stat bb-card--sheen tile" href="/x" data-card>body</a>',
+    html: '<a class="bb-card bb-card--stat bb-card--sheen tile" href="/x">body</a>',
   });
 
   contract({
@@ -323,7 +323,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { raised: true },
-    html: '<div class="bb-card bb-card--raised" data-card>body</div>',
+    html: '<div class="bb-card bb-card--raised">body</div>',
   });
 
   contract({
@@ -331,7 +331,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { glass: true },
-    html: '<div class="bb-card bb-card--glass" data-card>body</div>',
+    html: '<div class="bb-card bb-card--glass">body</div>',
   });
 });
 
@@ -475,7 +475,7 @@ const PAIRS: {
     html:
       '<div class="bb-stat"><div class="bb-stat__head">' +
       '<span class="bb-stat__label">Messages</span></div>' +
-      '<div class="bb-stat__value"><span data-count-up>12,904</span><small>msg</small></div>' +
+      '<div class="bb-stat__value"><span>12,904</span><small>msg</small></div>' +
       '<div class="bb-stat__delta">+4.1%</div></div>',
   },
   {
@@ -1251,7 +1251,7 @@ const PRIMITIVES: {
     astro: AstroStepCard,
     props: {"index":3,"title":"Go"},
     slot: "x",
-    html: "<li><div class=\"bb-card bb-step-card\" data-card data-atmo data-hover><div class=\"bb-card-atmo\" aria-hidden=\"true\"><span class=\"bb-card-atmo__ring\"></span><span class=\"bb-card-atmo__sheen\"></span></div><span class=\"bb-eyebrow\" aria-hidden=\"true\">03</span><h3 class=\"bb-h bb-h--l5 bb-step-card__title\"><bb-fit mode=\"block\">Go</bb-fit></h3><p class=\"bb-text bb-text--sm bb-text--muted bb-step-card__body\"><bb-fit mode=\"block\">x</bb-fit></p></div></li>",
+    html: "<li><div class=\"bb-card bb-step-card\" data-hover><div class=\"bb-card-atmo\" aria-hidden=\"true\"><span class=\"bb-card-atmo__ring\"></span><span class=\"bb-card-atmo__sheen\"></span></div><span class=\"bb-eyebrow\" aria-hidden=\"true\">03</span><h3 class=\"bb-h bb-h--l5 bb-step-card__title\"><bb-fit mode=\"block\">Go</bb-fit></h3><p class=\"bb-text bb-text--sm bb-text--muted bb-step-card__body\"><bb-fit mode=\"block\">x</bb-fit></p></div></li>",
   },
   {
     name: "LinkRow",
@@ -1463,12 +1463,6 @@ test('bare-element rules live only in the opt-in base.css, in bb.base', async ()
   );
   expect(typography).not.toContain('@layer bb.base');
   expect(typography).not.toMatch(/^\s{4}(h[1-6]|p|small|code|kbd)\s*[,{]/m);
-});
-
-test('magnetic keeps its tuned ease and settle threshold', async () => {
-  const src = await Bun.file(new URL('../lib/magnetic.ts', import.meta.url)).text();
-  expect(src).toContain('const EASE = 0.2;');
-  expect(src).toContain('const SETTLE_PX = 0.1;');
 });
 
 test('chat preview: both adapters emit the contract markup', async () => {

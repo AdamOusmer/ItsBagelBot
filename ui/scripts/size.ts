@@ -199,14 +199,6 @@ const ENTRIES: {
              globalThis.x = m;`,
   },
   {
-    // 1114 B gzip measured 2026-09-29: rect cache and the shared frame loop, room ~10%.
-    name: "tilt",
-    budget: 1230,
-    external: [],
-    source: `import * as m from "../../lib/tilt";
-             globalThis.x = m;`,
-  },
-  {
     // 532 B gzip measured 2026-09-28, +150 B platform delta and ~10% room.
     name: "live-poll",
     budget: 760,

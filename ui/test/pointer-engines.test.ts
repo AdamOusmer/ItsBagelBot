@@ -35,9 +35,8 @@ function flush(): void {
   for (const fn of due) fn(0);
 }
 
-const lib = isolatedLib('pointer', ['motion-query.ts', 'raf-loop.ts', 'rect-cache.ts', 'parallax.ts', 'tilt.ts']);
+const lib = isolatedLib('pointer', ['motion-query.ts', 'raf-loop.ts', 'rect-cache.ts', 'parallax.ts']);
 const { mountParallax } = await lib.load<typeof import('../lib/parallax')>('parallax.ts');
-const { mountTilt, observeTilt } = await lib.load<typeof import('../lib/tilt')>('tilt.ts');
 
 afterAll(() => {
   lib.remove();
@@ -114,85 +113,5 @@ describe('parallax', () => {
     expect(seen).toEqual([]);
     dispose();
     expect([el.count('pointermove'), el.count('pointerleave')]).toEqual([0, 0]);
-  });
-});
-
-describe('tilt', () => {
-  test('mount zeroes the tilt, the pointer leans it and leaving resets it', () => {
-    const el = node({ left: 0, top: 0, width: 200, height: 100 });
-    el.dataset.tilt = '8';
-    const dispose = mountTilt(el as unknown as HTMLElement);
-    expect([el.vars.get('--tilt-x'), el.vars.get('--tilt-y')]).toEqual(['0deg', '0deg']);
-    el.dispatch('pointermove', { clientX: 150, clientY: 0 });
-    expect(el.vars.get('--tilt-x')).toBe('0deg');
-    flush();
-    expect([el.vars.get('--tilt-x'), el.vars.get('--tilt-y')]).toEqual(['4.00deg', '2.00deg']);
-    el.dispatch('pointerleave');
-    expect(el.vars.get('--tilt-x')).toBe('0deg');
-    dispose();
-  });
-
-  test('the default lean is 4 degrees and a second mount is a no-op until disposed', () => {
-    const el = node({ left: 0, top: 0, width: 100, height: 100 });
-    const dispose = mountTilt(el as unknown as HTMLElement);
-    mountTilt(el as unknown as HTMLElement);
-    expect(el.count('pointermove')).toBe(1);
-    el.dispatch('pointermove', { clientX: 100, clientY: 50 });
-    flush();
-    expect(el.vars.get('--tilt-y')).toBe('2.00deg');
-    dispose();
-    expect([el.count('pointermove'), el.dataset.tiltReady]).toEqual([0, undefined]);
-  });
-
-  test('reduced motion and coarse pointers ignore the pointer', () => {
-    const el = node({ left: 0, top: 0, width: 100, height: 100 });
-    const dispose = mountTilt(el as unknown as HTMLElement);
-    reduced = true;
-    el.dispatch('pointermove', { clientX: 100, clientY: 100 });
-    reduced = false;
-    fine = false;
-    el.dispatch('pointermove', { clientX: 100, clientY: 100 });
-    flush();
-    expect(el.vars.get('--tilt-x')).toBe('0deg');
-    dispose();
-  });
-
-  test('moves coalesce to one write per frame, and the rect is measured once until scroll', () => {
-    let reads = 0;
-    const el = node({ left: 0, top: 0, width: 100, height: 100 });
-    el.getBoundingClientRect = () => {
-      reads += 1;
-      return { left: 0, top: 0, width: 100, height: 100 };
-    };
-    let writes = 0;
-    const setProperty = el.style.setProperty;
-    el.style.setProperty = (name, value) => {
-      writes += 1;
-      return setProperty(name, value);
-    };
-    const dispose = mountTilt(el as unknown as HTMLElement);
-    writes = 0;
-    for (let x = 10; x <= 50; x += 10) el.dispatch('pointermove', { clientX: x, clientY: 50 });
-    flush();
-    expect([writes, reads]).toEqual([2, 1]);
-    el.dispatch('pointermove', { clientX: 60, clientY: 50 });
-    flush();
-    expect(reads).toBe(1);
-    win.dispatch('scroll');
-    el.dispatch('pointermove', { clientX: 70, clientY: 50 });
-    flush();
-    expect(reads).toBe(2);
-    dispose();
-    expect(win.count('scroll')).toBe(0);
-  });
-
-  test('observeTilt mounts every [data-tilt] under the root', () => {
-    const a = node();
-    const b = node();
-    const root = { querySelectorAll: () => [a, b] } as unknown as ParentNode;
-    const dispose = observeTilt(root);
-    expect([a.count('pointermove'), b.count('pointermove')]).toEqual([1, 1]);
-    dispose();
-    expect([a.count('pointermove'), b.count('pointermove')]).toEqual([0, 0]);
   });
 });

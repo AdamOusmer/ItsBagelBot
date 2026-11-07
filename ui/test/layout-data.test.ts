@@ -154,14 +154,14 @@ describe('StatTile', () => {
       props: { label: 'Eligible', value: '42' },
       html:
         '<div class="bb-stat"><div class="bb-stat__head"><span class="bb-stat__label">Eligible</span></div>' +
-        '<div class="bb-stat__value"><span data-count-up>42</span></div></div>',
+        '<div class="bb-stat__value"><span>42</span></div></div>',
     },
     {
       name: 'flat delta still renders',
       props: { label: 'Fires', value: '9', delta: 'today', flat: true },
       html:
         '<div class="bb-stat"><div class="bb-stat__head"><span class="bb-stat__label">Fires</span></div>' +
-        '<div class="bb-stat__value"><span data-count-up>9</span></div>' +
+        '<div class="bb-stat__value"><span>9</span></div>' +
         '<div class="bb-stat__delta" data-flat>today</div></div>',
     },
     {
@@ -187,19 +187,19 @@ describe('Card and Section', () => {
       name: 'flush accent card',
       props: { flush: true, tone: 'accent' },
       slots: { default: 'body' },
-      html: '<div class="bb-card bb-card--flush bb-card--accent" data-card>body</div>',
+      html: '<div class="bb-card bb-card--flush bb-card--accent">body</div>',
     },
     {
       name: 'danger section',
       props: { as: 'section', tone: 'danger', id: 'danger-zone' },
       slots: { default: 'body' },
-      html: '<section class="bb-card bb-card--danger" data-card id="danger-zone">body</section>',
+      html: '<section class="bb-card bb-card--danger" id="danger-zone">body</section>',
     },
     {
       name: 'dashed card',
       props: { dashed: true, hidden: true },
       slots: { default: 'Generate' },
-      html: '<div class="bb-card bb-card--dashed" data-card hidden>Generate</div>',
+      html: '<div class="bb-card bb-card--dashed" hidden>Generate</div>',
     },
   ]);
 

@@ -104,7 +104,7 @@ export { default as NavProgress } from './NavProgress.svelte';
 export { toast, toasts, dismissToast, type ToastItem, type ToastKind } from './toast.svelte';
 export { createInspector, type Inspector } from './inspector.svelte';
 export { createDiscardGuard, type DiscardGuard } from './discard-guard.svelte';
-export { reveal, decode, magnetic } from './actions';
+export { reveal, decode } from './actions';
 
 export { focusFirstInvalid } from './forms';
 

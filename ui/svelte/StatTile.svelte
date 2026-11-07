@@ -52,6 +52,6 @@
     <span class="bb-stat__label">{label}</span>
     {#if trailing}{@render trailing()}{/if}
   </div>
-  <div class="bb-stat__value">{#if isStatic}<span>{value}</span>{:else}<span data-count-up use:countUp={{ value }}>{value}</span>{/if}{#if unit}<small>{unit}</small>{/if}</div>
+  <div class="bb-stat__value">{#if isStatic}<span>{value}</span>{:else}<span use:countUp={{ value }}>{value}</span>{/if}{#if unit}<small>{unit}</small>{/if}</div>
   {#if delta !== undefined}<div class="bb-stat__delta" data-flat={flat ? '' : undefined}>{delta}</div>{/if}
 </div>
