@@ -203,37 +203,6 @@
     animation: bb-modal-viewer-in var(--bb-dur-fast) ease-out;
   }
 
-  :root[data-theme="light"] .bb-modal--viewer .bb-modal__backdrop {
-    background:
-      radial-gradient(70% 60% at 18% 12%, rgba(var(--bb-green-rgb), 0.22), transparent 65%),
-      radial-gradient(65% 55% at 82% 88%, rgba(var(--bb-tan-deep-rgb), 0.2), transparent 60%),
-      radial-gradient(
-        100% 100% at 50% 50%,
-        rgba(var(--bb-paper-warm-rgb), 0.88),
-        rgba(var(--bb-paper-warm-rgb), 0.97) 75%
-      );
-  }
-
-  :root[data-theme="light"] .bb-modal__toolbar {
-    border-color: rgba(var(--bb-green-rgb), 0.4);
-    background: rgba(var(--bb-paper-warm-rgb), 0.92);
-    box-shadow: 0 6px 24px rgba(var(--bb-ink-rgb), 0.15);
-  }
-
-  :root[data-theme="light"] .bb-modal__toolbar .bb-btn--icon {
-    color: var(--bb-ink-soft);
-  }
-
-  :root[data-theme="light"] .bb-modal__toolbar .bb-btn--icon:is(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    border-color: var(--bb-green);
-    background: rgba(var(--bb-green-rgb), 0.15);
-    color: var(--bb-ink);
-  }
-
-  :root[data-theme="light"] .bb-modal__hint {
-    color: rgba(var(--bb-ink-rgb), 0.5);
-  }
-
   @keyframes bb-modal-viewer-in {
     from { opacity: 0; }
     to { opacity: 1; }

@@ -25,7 +25,6 @@
     border-radius: var(--bb-radius-md);
     box-shadow: var(--bb-depth-3);
   }
-  :root[data-theme='light'] :is(.bb-picker-panel--dropdown, .bb-picker-panel--static) { box-shadow: 0 12px 32px rgba(var(--bb-ink-rgb), 0.15); }
 
   .bb-picker-panel__shell { position: fixed; inset: 0; }
   .bb-picker-panel__scrim {

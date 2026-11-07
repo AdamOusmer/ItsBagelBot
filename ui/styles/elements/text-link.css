@@ -197,40 +197,6 @@
     flex: none;
   }
 
-  :root[data-theme='light'] {
-    .bb-text-link {
-      --text-link-rest: var(--bb-gray-3-light);
-      --text-link-lit: var(--bb-ink);
-      --text-link-active: var(--bb-ink);
-    }
-
-    .bb-link--arrow,
-    .bb-link--quiet {
-      color: var(--bb-gray-3-light);
-    }
-
-    .bb-link--arrow:hover,
-    .bb-link--quiet:hover,
-    .bb-link--lead,
-    .bb-link--lead:hover {
-      color: var(--bb-ink);
-    }
-
-    .bb-link--inline {
-      color: var(--bb-ink);
-      text-decoration-color: var(--bb-gray-3-light);
-    }
-
-    .bb-link--inline:hover {
-      text-decoration-color: var(--bb-ink);
-    }
-
-    .bb-link--go,
-    .bb-link--go:hover {
-      color: var(--bb-green-light);
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .bb-text-link,
     .bb-link,

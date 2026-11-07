@@ -630,19 +630,6 @@ describe('navigation and feedback stylesheets', () => {
       ],
     },
     {
-      name: 'viewer chrome has light rules on paper and ink tokens',
-      checks: [
-        {
-          file: 'styles/elements/modal.css',
-          has: [
-            /:root\[data-theme="light"\] \.bb-modal--viewer \.bb-modal__backdrop \{[^}]*--bb-paper-warm-rgb/,
-            /:root\[data-theme="light"\] \.bb-modal__toolbar \.bb-btn--icon \{[^}]*--bb-ink-soft/,
-            /:root\[data-theme="light"\] \.bb-modal__hint \{[^}]*--bb-ink-rgb/,
-          ],
-        },
-      ],
-    },
-    {
       name: 'bottom placement anchors above the pill with touch areas on the controls',
       checks: [
         {

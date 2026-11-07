@@ -14,13 +14,6 @@
         --cp-edge: inset 0 0 0 1px rgba(var(--bb-white-pure-rgb), 0.14);
     }
 
-    :where(:root[data-theme='light']) :is(.bb-color, .bb-color-panel) {
-        --cp-off: var(--bb-gray-5-light);
-        --cp-off-hover: color-mix(in srgb, var(--bb-gray-5-light), var(--bb-ink) 8%);
-        --cp-inset: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.12);
-        --cp-edge: inset 0 0 0 1px rgba(var(--bb-shadow-rgb), 0.12);
-    }
-
     .bb-color {
         display: inline-flex;
         align-items: center;

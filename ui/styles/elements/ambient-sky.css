@@ -125,8 +125,6 @@
   .bb-ambient-sky--leaving .bb-ambient-sky__orb { --bb-orb-opacity: 0.3; }
   .bb-ambient-sky--leaving .bb-ambient-sky__dawn { opacity: 1; transform: translate3d(0, 0, 0) scaleX(1.15); }
 
-  :root[data-theme="light"] .bb-ambient-sky__dawn { opacity: calc(0.1 + var(--ambient-progress) * 0.4); }
-
   @keyframes bb-ambient-sky-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }

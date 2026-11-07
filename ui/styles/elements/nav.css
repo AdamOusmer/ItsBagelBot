@@ -66,27 +66,6 @@
     pointer-events: auto;
   }
 
-  :root[data-theme='light'] .bb-nav {
-    --nav-bg: color-mix(in srgb, var(--bb-paper-sidebar) 90%, transparent);
-    --nav-scrim: rgba(var(--bb-shadow-rgb), 0.14);
-    --bb-lang-switch-rest: var(--bb-gray-3-light);
-    --bb-lang-switch-hover: var(--bb-ink);
-    --bb-lang-switch-lit: var(--bb-ink);
-  }
-
-  :root[data-theme='light'] .bb-nav .bb-nav__inner {
-    border-color: color-mix(in srgb, var(--bb-ink) 12%, transparent);
-  }
-
-  :root[data-theme='light'] .bb-hamburger {
-    border-color: color-mix(in srgb, var(--bb-ink) 14%, transparent);
-    background: var(--bb-paper-sidebar);
-  }
-
-  :root[data-theme='light'] .bb-hamburger__bar {
-    background: var(--bb-ink);
-  }
-
   .bb-nav__links {
     display: flex;
     align-items: center;
