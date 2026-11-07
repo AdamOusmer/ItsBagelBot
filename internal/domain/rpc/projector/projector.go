@@ -39,6 +39,13 @@ type LiveReply struct {
 	Error         string `json:"error,omitempty"`
 }
 
+type LiveListRequest struct{}
+
+type LiveListReply struct {
+	IDs   []uint64 `json:"ids"`
+	Error string   `json:"error,omitempty"`
+}
+
 type StreamInfoRequest struct {
 	BroadcasterID string `json:"broadcaster_id"`
 }

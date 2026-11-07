@@ -5,9 +5,6 @@ import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import {
-  userOverview,
-  USER_MAX_PAGES,
-  USER_PAGE_SIZE,
   userLookup,
   userSetStatus,
   userSetActive,
@@ -25,8 +22,6 @@ import {
   isForbidden,
   type AdminUserWire,
   type ChannelSubState,
-  type UserDirectoryQuery,
-  type UserOrder,
   type UserRef
 } from '#lib/server/services';
 import { requireRole, type AccessKey, type AdminIdentity } from '#lib/server/access';
@@ -45,117 +40,15 @@ import {
 import { audit } from '#lib/server/audit';
 import { signViewAs } from '@bagel/kit/server/impersonation';
 import { env } from '@bagel/kit/server/env';
-import { EMPTY_USER_STATS } from '#lib/server/fallback';
-import type { UserStats } from '@bagel/kit';
-import { parsePage, normalizeSearch } from '#lib/server/paging';
+import { directoryQuery, loadUserDirectory } from '#lib/server/user-directory';
 
 const CREATOR_CODE_MAX_LENGTH = 64;
 const DEMO = dev && process.env.DEMO === '1';
 
-function matchesSearch(user: AdminUserWire, search: string): boolean {
-  if (!search) return true;
-  const q = search.toLowerCase();
-  return user.username.toLowerCase().includes(q) || String(user.id).includes(q);
-}
-
-const STATES = new Set(['vip', 'paid', 'free', 'banned', 'inactive']);
-
-function parseState(raw: string | null): string {
-  const state = (raw ?? '').trim();
-  return STATES.has(state) ? state : '';
-}
-
-function parseOrder(raw: string | null): UserOrder {
-  return raw === 'oldest' ? 'oldest' : 'newest';
-}
-
-function byJoined(order: UserOrder) {
-  const sign = order === 'oldest' ? 1 : -1;
-  return (a: AdminUserWire, b: AdminUserWire) => sign * (a.created_at ?? '').localeCompare(b.created_at ?? '');
-}
-
-function matchesState(user: AdminUserWire, state: string): boolean {
-  if (!state) return true;
-  if (user.banned) return state === 'banned';
-  if (!user.is_active) return state === 'inactive';
-  return user.status === state;
-}
-
-export type DirectoryQuery = UserDirectoryQuery;
-
-type DemoDirectoryFixtures = {
-  sampleUsers: AdminUserWire[];
-  sampleStats: UserStats;
-};
-
-function demoPage(q: DirectoryQuery, fixtures: DemoDirectoryFixtures) {
-  const filtered = fixtures.sampleUsers
-    .filter((user) => matchesSearch(user, q.search) && matchesState(user, q.state))
-    .sort(byJoined(q.order));
-  const start = (q.page - 1) * USER_PAGE_SIZE;
-  const users = filtered.slice(start, start + USER_PAGE_SIZE);
-  const cappedTotal = Math.min(filtered.length, USER_PAGE_SIZE * USER_MAX_PAGES);
-  return {
-    recent: users,
-    stats: fixtures.sampleStats,
-    page: q.page,
-    pageSize: USER_PAGE_SIZE,
-    maxPages: USER_MAX_PAGES,
-    hasMore: start + USER_PAGE_SIZE < cappedTotal,
-    search: q.search,
-    degraded: false
-  };
-}
-
-export type UserDirectory = {
-  recent: AdminUserWire[];
-  stats: UserStats;
-  page: number;
-  pageSize: number;
-  maxPages: number;
-  hasMore: boolean;
-  degraded: boolean;
-};
-
-async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
-  try {
-    const overview = await userOverview({ actorId, ...q });
-    return {
-      recent: overview.users,
-      stats: overview.stats,
-      page: overview.page,
-      pageSize: overview.page_size,
-      maxPages: overview.max_pages,
-      hasMore: overview.has_more,
-      degraded: false
-    };
-  } catch {
-    return {
-      recent: [],
-      stats: { ...EMPTY_USER_STATS },
-      page: q.page,
-      pageSize: USER_PAGE_SIZE,
-      maxPages: USER_MAX_PAGES,
-      hasMore: false,
-      degraded: true
-    };
-  }
-}
-
 export const load: PageServerLoad = async ({ url, parent }) => {
   const { id } = await parent();
-  const q: DirectoryQuery = {
-    page: parsePage(url.searchParams.get('page'), USER_MAX_PAGES),
-    search: normalizeSearch(url.searchParams.get('q')),
-    state: parseState(url.searchParams.get('state')),
-    order: parseOrder(url.searchParams.get('order'))
-  };
-
-  const directory: Promise<UserDirectory> = DEMO
-    ? import('#lib/server/demo-data').then((fixtures) => demoPage(q, fixtures))
-    : loadDirectory(id, q);
-
-  return { directory, ...q };
+  const q = directoryQuery(url);
+  return { directory: loadUserDirectory(id, q), ...q };
 };
 
 const STATUSES = new Set(['free', 'paid', 'vip']);

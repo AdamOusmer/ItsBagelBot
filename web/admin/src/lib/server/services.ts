@@ -310,6 +310,10 @@ export type UserDirectoryQuery = {
   search: string;
   state: string;
   order: UserOrder;
+  // live asks for broadcasters whose live:<id> key exists right now.
+  // liveIDs is the set read for this request; ignored unless live is set.
+  live: boolean;
+  liveIDs?: number[];
 };
 export const USER_MAX_PAGES = 25;
 
@@ -343,18 +347,31 @@ function overviewKey(q: UserDirectoryQuery): string {
 }
 
 export async function userOverview(q: UserDirectoryQuery & { actorId: string }): Promise<UserPage> {
-  const { actorId, page, search, state, order } = q;
-  return cached(overviewKey(q), POLICY.adminPage, async () => {
+  const { actorId, page, search, state, order, live, liveIDs } = q;
+  // The overview cache is allowed to be 30s stale. A live filter served from
+  // it would keep showing someone who already went offline, so this path
+  // always reads through.
+  const load = async () => {
     const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: UserStats }>(
       `${SUB.user}.overview`,
-      { actor_id: actorId, page, limit: USER_PAGE_SIZE, search, state, order }
+      {
+        actor_id: actorId,
+        page,
+        limit: USER_PAGE_SIZE,
+        search,
+        state,
+        order,
+        ...(live ? { only_live: true, live_ids: liveIDs ?? [] } : {})
+      }
     );
     return {
       users: r.users ?? [],
       stats: r.stats,
       ...pageMetaOf(r, { page, pageSize: USER_PAGE_SIZE, maxPages: USER_MAX_PAGES })
     };
-  });
+  };
+  if (live) return load();
+  return cached(overviewKey(q), POLICY.adminPage, load);
 }
 
 export const userSetStatus = defineWrite({
