@@ -69,6 +69,11 @@ func (o *optionalInts) read(res valkey.ValkeyResult) (value int64, present bool)
 	return value, true
 }
 
+// LiveBroadcasters is the set of live:<id> keys, read through pkg/valkey.
+func (v *Store) LiveBroadcasters(ctx context.Context) ([]uint64, error) {
+	return livekey.BroadcasterIDs(ctx, v.client)
+}
+
 // Newest version wins between the projected flag and the live key; either alone can be stale.
 func (v *Store) GetStreamLive(ctx context.Context, userID uint64) (StreamLive, error) {
 	defer segment(ctx, "HGET")()

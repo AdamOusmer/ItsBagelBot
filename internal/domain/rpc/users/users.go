@@ -10,24 +10,31 @@ import "ItsBagelBot/internal/domain/rpc"
 import "time"
 
 type AdminRequest struct {
-	ActorID      string   `json:"actor_id"`
-	UserID       string   `json:"user_id"`
-	Username     string   `json:"username"`
-	Status       string   `json:"status"`
-	Active       bool     `json:"active"`
-	Limit        int      `json:"limit"`
-	Page         int      `json:"page"`
-	Search       string   `json:"search"`
-	AccessToken  string   `json:"access_token"`
-	RefreshToken string   `json:"refresh_token"`
-	ExpiresAt    string   `json:"expires_at,omitempty"`
-	CreatorCode  string   `json:"creator_code,omitempty"`
-	Days         int      `json:"days,omitempty"`
-	State        string   `json:"state,omitempty"`
-	Order        string   `json:"order,omitempty"`
-	TestAccount  bool     `json:"test_account,omitempty"`
-	Metrics      []string `json:"metrics,omitempty"`
-	Window       string   `json:"window,omitempty"`
+	ActorID      string `json:"actor_id"`
+	UserID       string `json:"user_id"`
+	Username     string `json:"username"`
+	Status       string `json:"status"`
+	Active       bool   `json:"active"`
+	Limit        int    `json:"limit"`
+	Page         int    `json:"page"`
+	Search       string `json:"search"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresAt    string `json:"expires_at,omitempty"`
+	CreatorCode  string `json:"creator_code,omitempty"`
+	Days         int    `json:"days,omitempty"`
+	State        string `json:"state,omitempty"`
+	Order        string `json:"order,omitempty"`
+	// OnlyLive restricts list and overview to LiveIDs. The admin console
+	// fills LiveIDs from the live:<id> keys at the moment the operator is
+	// looking; this service does not read Valkey. An empty list matches
+	// nobody. LiveIDs is ignored unless OnlyLive is set, so ids without the
+	// flag still return the unfiltered directory.
+	OnlyLive    bool     `json:"only_live,omitempty"`
+	LiveIDs     []uint64 `json:"live_ids,omitempty"`
+	TestAccount bool     `json:"test_account,omitempty"`
+	Metrics     []string `json:"metrics,omitempty"`
+	Window      string   `json:"window,omitempty"`
 }
 
 type AdminUserView struct {

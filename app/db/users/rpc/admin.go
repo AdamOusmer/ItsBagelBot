@@ -183,16 +183,23 @@ func adminListLimit(limit int) int {
 	return limit
 }
 
+func adminUserQuery(req usersrpc.AdminRequest, limit, offset int) repository.AdminUserQuery {
+	return repository.AdminUserQuery{
+		Search:   req.Search,
+		State:    req.State,
+		Order:    req.Order,
+		Limit:    limit,
+		Offset:   offset,
+		OnlyLive: req.OnlyLive,
+		LiveIDs:  req.LiveIDs,
+	}
+}
+
 func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	if req.Page > 0 {
 		return a.listPage(ctx, req)
 	}
-	rows, err := a.repo.ListUsers(ctx, repository.AdminUserQuery{
-		Search: req.Search,
-		State:  req.State,
-		Order:  req.Order,
-		Limit:  adminListLimit(req.Limit),
-	})
+	rows, err := a.repo.ListUsers(ctx, adminUserQuery(req, adminListLimit(req.Limit), 0))
 	if err != nil {
 		return adminError(refusal(err))
 	}
@@ -206,13 +213,7 @@ func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) user
 	if page < adminUserMaxPages {
 		fetchLimit++
 	}
-	rows, err := a.repo.ListUsers(ctx, repository.AdminUserQuery{
-		Search: req.Search,
-		State:  req.State,
-		Order:  req.Order,
-		Limit:  fetchLimit,
-		Offset: (page - 1) * pageSize,
-	})
+	rows, err := a.repo.ListUsers(ctx, adminUserQuery(req, fetchLimit, (page-1)*pageSize))
 	if err != nil {
 		return adminError(refusal(err))
 	}

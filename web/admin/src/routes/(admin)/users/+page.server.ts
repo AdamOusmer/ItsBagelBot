@@ -48,6 +48,7 @@ import { env } from '@bagel/kit/server/env';
 import { EMPTY_USER_STATS } from '#lib/server/fallback';
 import type { UserStats } from '@bagel/kit';
 import { parsePage, normalizeSearch } from '#lib/server/paging';
+import { currentLiveBroadcasterIDs } from '#lib/server/live-broadcasters';
 
 const CREATOR_CODE_MAX_LENGTH = 64;
 const DEMO = dev && process.env.DEMO === '1';
@@ -69,6 +70,20 @@ function parseOrder(raw: string | null): UserOrder {
   return raw === 'oldest' ? 'oldest' : 'newest';
 }
 
+function parseLive(raw: string | null): boolean {
+  return raw === '1';
+}
+
+export function directoryQuery(url: URL): DirectoryQuery {
+  return {
+    page: parsePage(url.searchParams.get('page'), USER_MAX_PAGES),
+    search: normalizeSearch(url.searchParams.get('q')),
+    state: parseState(url.searchParams.get('state')),
+    order: parseOrder(url.searchParams.get('order')),
+    live: parseLive(url.searchParams.get('live'))
+  };
+}
+
 function byJoined(order: UserOrder) {
   const sign = order === 'oldest' ? 1 : -1;
   return (a: AdminUserWire, b: AdminUserWire) => sign * (a.created_at ?? '').localeCompare(b.created_at ?? '');
@@ -86,11 +101,17 @@ export type DirectoryQuery = UserDirectoryQuery;
 type DemoDirectoryFixtures = {
   sampleUsers: AdminUserWire[];
   sampleStats: UserStats;
+  sampleLiveUserIDs: ReadonlySet<number>;
 };
 
 function demoPage(q: DirectoryQuery, fixtures: DemoDirectoryFixtures) {
   const filtered = fixtures.sampleUsers
-    .filter((user) => matchesSearch(user, q.search) && matchesState(user, q.state))
+    .filter(
+      (user) =>
+        matchesSearch(user, q.search) &&
+        matchesState(user, q.state) &&
+        (!q.live || fixtures.sampleLiveUserIDs.has(user.id))
+    )
     .sort(byJoined(q.order));
   const start = (q.page - 1) * USER_PAGE_SIZE;
   const users = filtered.slice(start, start + USER_PAGE_SIZE);
@@ -117,9 +138,27 @@ export type UserDirectory = {
   degraded: boolean;
 };
 
+function degradedDirectory(q: DirectoryQuery): UserDirectory {
+  return {
+    recent: [],
+    stats: { ...EMPTY_USER_STATS },
+    page: q.page,
+    pageSize: USER_PAGE_SIZE,
+    maxPages: USER_MAX_PAGES,
+    hasMore: false,
+    degraded: true
+  };
+}
+
 async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
   try {
-    const overview = await userOverview({ actorId, ...q });
+    let liveIDs: number[] | undefined;
+    if (q.live) {
+      const ids = await currentLiveBroadcasterIDs();
+      if (!ids) return degradedDirectory(q);
+      liveIDs = ids;
+    }
+    const overview = await userOverview({ actorId, ...q, liveIDs });
     return {
       recent: overview.users,
       stats: overview.stats,
@@ -130,32 +169,19 @@ async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDi
       degraded: false
     };
   } catch {
-    return {
-      recent: [],
-      stats: { ...EMPTY_USER_STATS },
-      page: q.page,
-      pageSize: USER_PAGE_SIZE,
-      maxPages: USER_MAX_PAGES,
-      hasMore: false,
-      degraded: true
-    };
+    return degradedDirectory(q);
   }
+}
+
+export function loadUserDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
+  if (DEMO) return import('#lib/server/demo-data').then((fixtures) => demoPage(q, fixtures));
+  return loadDirectory(actorId, q);
 }
 
 export const load: PageServerLoad = async ({ url, parent }) => {
   const { id } = await parent();
-  const q: DirectoryQuery = {
-    page: parsePage(url.searchParams.get('page'), USER_MAX_PAGES),
-    search: normalizeSearch(url.searchParams.get('q')),
-    state: parseState(url.searchParams.get('state')),
-    order: parseOrder(url.searchParams.get('order'))
-  };
-
-  const directory: Promise<UserDirectory> = DEMO
-    ? import('#lib/server/demo-data').then((fixtures) => demoPage(q, fixtures))
-    : loadDirectory(id, q);
-
-  return { directory, ...q };
+  const q = directoryQuery(url);
+  return { directory: loadUserDirectory(id, q), ...q };
 };
 
 const STATUSES = new Set(['free', 'paid', 'vip']);

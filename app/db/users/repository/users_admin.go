@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +26,12 @@ const (
 	AdminUserPageSize     = 15
 	AdminUserMaxPages     = 25
 	AdminUserMaxSearchLen = 200
+	// AdminLiveIDCap bounds the IN list for the live filter. The console's
+	// live set is the same live:<id> scan the timer reconciler already walks
+	// once a minute, which is hundreds of channels, not tens of thousands. Past
+	// this the caller is handed an error instead of a truncated page: a short
+	// IN list would look like a complete answer.
+	AdminLiveIDCap = 10_000
 )
 
 const (
@@ -61,9 +68,19 @@ type AdminUserQuery struct {
 	Order  string
 	Limit  int
 	Offset int
+	// OnlyLive keeps rows whose id is in LiveIDs. Empty matches nobody.
+	// LiveIDs is not consulted when OnlyLive is false.
+	OnlyLive bool
+	LiveIDs  []uint64
 }
 
 func (r *Users) ListUsers(ctx context.Context, query AdminUserQuery) ([]*ent.User, error) {
+	if query.OnlyLive && len(query.LiveIDs) == 0 {
+		return nil, nil
+	}
+	if query.OnlyLive && len(query.LiveIDs) > AdminLiveIDCap {
+		return nil, fmt.Errorf("live id list exceeds %d", AdminLiveIDCap)
+	}
 	by := ent.Desc
 	if query.Order == AdminOrderOldest {
 		by = ent.Asc
@@ -74,6 +91,9 @@ func (r *Users) ListUsers(ctx context.Context, query AdminUserQuery) ([]*ent.Use
 	}
 	if pred, ok := AdminStatePredicate(query.State); ok {
 		q = q.Where(pred)
+	}
+	if query.OnlyLive {
+		q = q.Where(user.IDIn(query.LiveIDs...))
 	}
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return q.Offset(query.Offset).Limit(query.Limit).All(ctx)

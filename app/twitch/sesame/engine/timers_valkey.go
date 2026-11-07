@@ -273,21 +273,10 @@ func (s *ValkeyTimerStore) reconcile(ctx context.Context) {
 }
 
 func (s *ValkeyTimerStore) liveBroadcasters(ctx context.Context) []uint64 {
-	var ids []uint64
-	query := pkg_valkey.ScanQuery{Match: livekey.KeyPrefix + "*", Type: "string", Count: liveScanCount}
-	err := pkg_valkey.ScanAll(ctx, s.client, query, func(keys []string) error {
-		for _, k := range keys {
-			if strings.HasPrefix(k, recheckKeyPrefix) {
-				continue
-			}
-			if id, err := strconv.ParseUint(strings.TrimPrefix(k, livekey.KeyPrefix), 10, 64); err == nil && id != 0 {
-				ids = append(ids, id)
-			}
-		}
-		return nil
-	})
+	ids, err := livekey.BroadcasterIDs(ctx, s.client)
 	if err != nil {
 		s.log.Warn("timers: reconcile scan failed", zap.Error(err))
+		return nil
 	}
 	return ids
 }
