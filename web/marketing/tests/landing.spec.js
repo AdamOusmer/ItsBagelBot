@@ -133,7 +133,7 @@ test.describe('feature landing pages', () => {
         await page.goto('/song-requests/');
         const button = page.locator('.fltbl__copy').first();
         await button.click();
-        await expect(button).toHaveClass(/is-done/);
+        await expect(button).toHaveClass(/is-copied/);
         expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('!sr Daft Punk - One More Time');
     });
 });
