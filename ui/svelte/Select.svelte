@@ -217,7 +217,7 @@
         {#if option.group && (i === 0 || option.group !== results[i - 1].group)}
           <li class="bb-select__group" role="presentation">{option.group}</li>
         {/if}
-        <li id="{controlId}-option-{i}" data-index={i} role="option" tabindex="-1" aria-selected={option.value === value}
+        <li id="{controlId}-option-{i}" role="option" tabindex="-1" aria-selected={option.value === value}
           aria-disabled={option.disabled || undefined} class="bb-select__option" class:active={i === active}
           onclick={() => void pick(option)}
           onkeydown={(event) => { event.stopPropagation(); onKey(event); }}>

@@ -73,8 +73,6 @@
   ><div class="bb-footer__crew" aria-hidden="true"
     >{#each FOOTER_CREW as seat (seat.name)}<span
         class="bb-footer__peeker"
-        data-crew={seat.name}
-        data-head={seat.head}
         style="--seat: {seat.size}"><svg viewBox="0 0 100 100"></svg></span
       >{/each}</div
   ></footer

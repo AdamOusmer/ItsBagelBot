@@ -12,7 +12,7 @@ const { class: className = '', ...rest } = Astro.props;
 const classes = ['bb-reading-progress', className].filter(Boolean).join(' ');
 ---
 
-<div class={classes} aria-hidden="true" {...rest}><span class="bb-reading-progress__fill" data-reading-progress></span></div>
+<div class={classes} aria-hidden="true" {...rest}><span class="bb-reading-progress__fill"></span></div>
 
 <script>
     import { mountReadingProgress } from '../lib/reading-progress';
@@ -26,7 +26,7 @@ const classes = ['bb-reading-progress', className].filter(Boolean).join(' ');
 
     function setup(): void {
         teardown();
-        const fill = document.querySelector<HTMLElement>('[data-reading-progress]');
+        const fill = document.querySelector<HTMLElement>('.bb-reading-progress__fill');
         if (fill) dispose = mountReadingProgress(fill);
     }
 

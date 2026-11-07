@@ -30,7 +30,7 @@ const PANEL_EASE = bezier(0.33, 1, 0.68, 1);
 const CURVE_EASE = bezier(0.25, 0.1, 0.25, 1);
 const ITEM_EASE = bezier(0.34, 1.56, 0.64, 1);
 
-const ITEM_SELECTOR = '[data-menu-item], [data-menu-footer]';
+const ITEM_SELECTOR = '.bb-mobile-menu__links > li, .bb-mobile-menu__footer';
 
 function renderMenu(menu: HTMLElement, progress: number): void {
   menu.style.transform = `translateY(${(1 - progress) * -100}%)`;

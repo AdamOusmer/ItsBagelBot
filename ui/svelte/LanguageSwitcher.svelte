@@ -87,10 +87,10 @@
       >{/each}</ul
   >{/snippet}
 
-{#if action}<form method="POST" {action} class={classes} data-bb-lang-switch="" {...rest} {@attach mountLangSwitch}
+{#if action}<form method="POST" {action} class={classes} {...rest} {@attach mountLangSwitch}
     >{#each Object.entries(fields) as [field, fieldValue] (field)}<input
         type="hidden"
         name={field}
         value={fieldValue}
       />{/each}{@render body()}</form
-  >{:else}<div class={classes} data-bb-lang-switch="" {...rest} {@attach mountLangSwitch}>{@render body()}</div>{/if}
+  >{:else}<div class={classes} {...rest} {@attach mountLangSwitch}>{@render body()}</div>{/if}

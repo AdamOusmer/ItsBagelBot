@@ -76,7 +76,7 @@ test('cursor: the svelte adapter renders nothing when disabled', () => {
 });
 
 const LIGHT_FIELD_HTML =
-  '<div class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></div>';
+  '<div class="bb-light-field" aria-hidden="true"></div>';
 
 test('light field: both adapters emit the contract markup', async () => {
   const container = await experimental_AstroContainer.create();
@@ -94,7 +94,7 @@ test('light field: the class and warmth props agree', async () => {
   const astro = normalise(await container.renderToString(AstroLightField, { props }));
 
   expect(svelte).toBe(
-    '<div class="bb-light-field bb-light-field--bleed" data-field data-warmth="0.4" aria-hidden="true"></div>',
+    '<div class="bb-light-field bb-light-field--bleed" aria-hidden="true"></div>',
   );
   expect(astro).toBe(svelte);
 });
@@ -572,7 +572,7 @@ import AstroBrackets from '../astro/Brackets.astro';
 import SvelteReadingProgress from '../svelte/ReadingProgress.svelte';
 import AstroReadingProgress from '../astro/ReadingProgress.astro';
 
-const LIGHT_FIELD = '<div class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></div>';
+const LIGHT_FIELD = '<div class="bb-light-field" aria-hidden="true"></div>';
 
 const REMAINING: {
   name: string;
@@ -727,7 +727,7 @@ const REMAINING: {
     astro: AstroModal,
     props: { open: true, label: 'Celebration' },
     html:
-      '<div class="bb-modal" data-overlay style="z-index: 200">' +
+      '<div class="bb-modal" style="z-index: 200">' +
       '<button class="bb-modal__backdrop" type="button" aria-label="Close" style="--bb-cursor: quiet"></button>' +
       '<div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-label="Celebration" data-lenis-prevent></div>' +
       '</div>',
@@ -850,7 +850,7 @@ const REMAINING: {
     props: {},
     html:
       '<div class="bb-reading-progress" aria-hidden="true">' +
-      '<span class="bb-reading-progress__fill" data-reading-progress></span></div>',
+      '<span class="bb-reading-progress__fill"></span></div>',
   },
 ];
 
@@ -1427,7 +1427,7 @@ const PRIMITIVES: {
     svelte: SvelteErrorScene,
     astro: AstroErrorScene,
     props: {"status":404,"eyebrow":"Not found","title":"T","description":"D","aside":"A"},
-    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><div class=\"bb-light-field bb-light-field--bleed\" data-field data-warmth=\"0.7\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbs\" aria-hidden=\"true\"><span class=\"bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb\"><i class=\"bb-orb__pulse\"></i></span><span class=\"bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two\"><i class=\"bb-orb__pulse\"></i></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">4<span class=\"bb-error-scene__perch\">0</span>4</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
+    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><div class=\"bb-light-field bb-light-field--bleed\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbs\" aria-hidden=\"true\"><span class=\"bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb\"><i class=\"bb-orb__pulse\"></i></span><span class=\"bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two\"><i class=\"bb-orb__pulse\"></i></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">4<span class=\"bb-error-scene__perch\">0</span>4</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
   },
 ];
 
