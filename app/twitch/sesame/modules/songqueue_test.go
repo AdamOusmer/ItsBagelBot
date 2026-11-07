@@ -433,6 +433,24 @@ func TestSRViewRenumbersAfterSpotifySkippedPendingTrack(t *testing.T) {
 	assert.NotContains(t, text, "Skipped")
 }
 
+func TestSRQueueAndListShowTheViewEvenWhenChatRequestsAreOff(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{entry("t1", "One", "1", "alice")}}
+	m := SongQueue(songDeps(store, srSearchGossip()))
+	off := withConfig(chatCtx("9", "viewer"), `{"sr":{"enabled":false}}`)
+	for _, cmd := range []string{"!sr queue", "!sr list"} {
+		text := chatText(t, runChat(t, m, off, cmd))
+		assert.Contains(t, text, "1. One (by alice)", cmd)
+	}
+}
+
+func TestSRQueueWithMoreWordsIsStillASearch(t *testing.T) {
+	store := &fakeSongQueue{}
+	g := srSearchGossip(srTrack("tq", "Queue of Hearts", "Someone"))
+	runChat(t, SongQueue(songDeps(store, g)), chatCtx("42", "alice"), "!sr queue of hearts")
+	require.Len(t, store.up, 1)
+	assert.Equal(t, "tq", store.up[0].TrackID)
+}
+
 func TestSongRequestUnknownWordsAreQueriesNotVerbs(t *testing.T) {
 	store := &fakeSongQueue{}
 	g := srSearchGossip(srTrack("tn", "Next Episode", "Dr. Dre"))
