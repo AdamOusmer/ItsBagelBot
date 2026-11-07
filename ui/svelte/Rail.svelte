@@ -118,6 +118,8 @@
           class="bb-rail__label">{group.label}</div
         >{/if}<div class="bb-rail__group"
         >{#each group.items as item (item.href)}{#if item.children && item.children.length}<div
+            class="bb-rail__branch"
+            ><div
               class="bb-rail__row"
               ><RailItem
                 href={item.href}
@@ -139,16 +141,19 @@
                 ></button
               ></div
             ><div class={['bb-rail__subs', isOpen(item) ? 'is-open' : null].filter(Boolean).join(' ')}
-              ><div class="bb-rail__subs-inner"
-                >{#each item.children as child (child.href)}<a
-                    class="bb-rail__sub"
-                    href={child.href}
-                    ><span class="bb-rail__sub-label">{child.label}</span>{#if child.count !== undefined}<span
-                        class="bb-rail__sub-count">{child.count}</span
-                      >{/if}</a
-                  >{/each}</div
+              ><div class="bb-rail__subs-clip"
+                ><div class="bb-rail__subs-inner"
+                  >{#each item.children as child (child.href)}<a
+                      class="bb-rail__sub"
+                      href={child.href}
+                      ><span class="bb-rail__sub-label">{child.label}</span>{#if child.count !== undefined}<span
+                          class="bb-rail__sub-count">{child.count}</span
+                        >{/if}</a
+                    >{/each}</div
+                ></div
               ></div
-            >{:else}<RailItem
+            ></div
+          >{:else}<RailItem
               href={item.href}
               icon={item.icon}
               label={item.label}
