@@ -47,6 +47,7 @@ type UserProjection struct {
 	// visible -- the pre-feature behaviour needs no "skip when empty" rule.
 	CommandsPageHidden    bool
 	LeaderboardPageHidden bool
+	SongQueuePageHidden   bool
 	CreatorCode           string
 }
 
@@ -78,7 +79,7 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 	if u.Lifecycle != nil {
 		background = background && u.Lifecycle.AllowsBackground()
 	}
-	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden), u.CreatorCode)
+	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden), u.CreatorCode, utils.BoolField(u.SongQueuePageHidden))
 	return pkg_valkey.RunHashRevisionGateUser(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, args).Error()
 }
 

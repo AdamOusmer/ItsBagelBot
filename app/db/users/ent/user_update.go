@@ -320,6 +320,20 @@ func (_u *UserUpdate) SetNillableLeaderboardPageHidden(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetSongqueuePageHidden sets the "songqueue_page_hidden" field.
+func (_u *UserUpdate) SetSongqueuePageHidden(v bool) *UserUpdate {
+	_u.mutation.SetSongqueuePageHidden(v)
+	return _u
+}
+
+// SetNillableSongqueuePageHidden sets the "songqueue_page_hidden" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSongqueuePageHidden(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetSongqueuePageHidden(*v)
+	}
+	return _u
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdate) SetCreatorCode(v string) *UserUpdate {
 	_u.mutation.SetCreatorCode(v)
@@ -848,6 +862,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.LeaderboardPageHidden(); ok {
 		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SongqueuePageHidden(); ok {
+		_spec.SetField(user.FieldSongqueuePageHidden, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -1389,6 +1406,20 @@ func (_u *UserUpdateOne) SetLeaderboardPageHidden(v bool) *UserUpdateOne {
 func (_u *UserUpdateOne) SetNillableLeaderboardPageHidden(v *bool) *UserUpdateOne {
 	if v != nil {
 		_u.SetLeaderboardPageHidden(*v)
+	}
+	return _u
+}
+
+// SetSongqueuePageHidden sets the "songqueue_page_hidden" field.
+func (_u *UserUpdateOne) SetSongqueuePageHidden(v bool) *UserUpdateOne {
+	_u.mutation.SetSongqueuePageHidden(v)
+	return _u
+}
+
+// SetNillableSongqueuePageHidden sets the "songqueue_page_hidden" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSongqueuePageHidden(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetSongqueuePageHidden(*v)
 	}
 	return _u
 }
@@ -1951,6 +1982,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.LeaderboardPageHidden(); ok {
 		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SongqueuePageHidden(); ok {
+		_spec.SetField(user.FieldSongqueuePageHidden, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)

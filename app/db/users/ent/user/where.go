@@ -140,6 +140,11 @@ func LeaderboardPageHidden(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldLeaderboardPageHidden, v))
 }
 
+// SongqueuePageHidden applies equality check predicate on the "songqueue_page_hidden" field. It's identical to SongqueuePageHiddenEQ.
+func SongqueuePageHidden(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSongqueuePageHidden, v))
+}
+
 // CreatorCode applies equality check predicate on the "creator_code" field. It's identical to CreatorCodeEQ.
 func CreatorCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
@@ -868,6 +873,16 @@ func LeaderboardPageHiddenEQ(v bool) predicate.User {
 // LeaderboardPageHiddenNEQ applies the NEQ predicate on the "leaderboard_page_hidden" field.
 func LeaderboardPageHiddenNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldLeaderboardPageHidden, v))
+}
+
+// SongqueuePageHiddenEQ applies the EQ predicate on the "songqueue_page_hidden" field.
+func SongqueuePageHiddenEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSongqueuePageHidden, v))
+}
+
+// SongqueuePageHiddenNEQ applies the NEQ predicate on the "songqueue_page_hidden" field.
+func SongqueuePageHiddenNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldSongqueuePageHidden, v))
 }
 
 // CreatorCodeEQ applies the EQ predicate on the "creator_code" field.

@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
@@ -37,7 +38,7 @@ func TestAccountLevelsFollowWrites(t *testing.T) {
 	expires := now.Add(time.Hour)
 	require.NoError(t, repo.SetAdminStatus(ctx, 2, user.StatusPaid, &expires))
 	require.NoError(t, repo.SetLocaleNow(ctx, 3, "fr"))
-	require.NoError(t, repo.SetCommandsPageHidden(ctx, 3, true))
+	require.NoError(t, repo.SetPageHidden(ctx, 3, repository.PageCommands, true))
 	require.NoError(t, repo.SetOnboarded(ctx, 1, true))
 	require.NoError(t, repo.Delete(ctx, 4))
 	repo.Close(ctx)
@@ -80,7 +81,7 @@ func TestAnalyticsSeedTalliesCountedAccounts(t *testing.T) {
 	require.NoError(t, create(2).SetStatus(user.StatusPaid).SetSubscriptionSource("tebex").SetSubscriptionCancelPending(true).
 		SetOnboarded(true).SetIsActive(false).Exec(ctx))
 	require.NoError(t, create(3).SetStatus(user.StatusVip).SetLocale("fr").SetCommandsPageHidden(true).
-		SetLeaderboardPageHidden(true).SetSubscriptionPaymentFailed(true).Exec(ctx))
+		SetLeaderboardPageHidden(true).SetSongqueuePageHidden(true).SetSubscriptionPaymentFailed(true).Exec(ctx))
 	require.NoError(t, create(4).SetTestAccount(true).SetStatus(user.StatusPaid).Exec(ctx))
 	require.NoError(t, create(5).SetBanned(true).Exec(ctx))
 
@@ -103,6 +104,7 @@ func TestAnalyticsSeedTalliesCountedAccounts(t *testing.T) {
 		"accounts.locale|fr":                   1,
 		"accounts.pages_hidden|commands":       1,
 		"accounts.pages_hidden|leaderboard":    1,
+		"accounts.pages_hidden|songqueue":      1,
 		"accounts.by_signup_week|" + week:      3,
 		"accounts.paid_by_signup_week|" + week: 2,
 	}, got)

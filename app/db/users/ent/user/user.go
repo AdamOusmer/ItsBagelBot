@@ -54,6 +54,8 @@ const (
 	FieldCommandsPageHidden = "commands_page_hidden"
 	// FieldLeaderboardPageHidden holds the string denoting the leaderboard_page_hidden field in the database.
 	FieldLeaderboardPageHidden = "leaderboard_page_hidden"
+	// FieldSongqueuePageHidden holds the string denoting the songqueue_page_hidden field in the database.
+	FieldSongqueuePageHidden = "songqueue_page_hidden"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -142,6 +144,7 @@ var Columns = []string{
 	FieldCustomCursor,
 	FieldCommandsPageHidden,
 	FieldLeaderboardPageHidden,
+	FieldSongqueuePageHidden,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -206,6 +209,8 @@ var (
 	DefaultCommandsPageHidden bool
 	// DefaultLeaderboardPageHidden holds the default value on creation for the "leaderboard_page_hidden" field.
 	DefaultLeaderboardPageHidden bool
+	// DefaultSongqueuePageHidden holds the default value on creation for the "songqueue_page_hidden" field.
+	DefaultSongqueuePageHidden bool
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -346,6 +351,11 @@ func ByCommandsPageHidden(opts ...sql.OrderTermOption) OrderOption {
 // ByLeaderboardPageHidden orders the results by the leaderboard_page_hidden field.
 func ByLeaderboardPageHidden(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLeaderboardPageHidden, opts...).ToFunc()
+}
+
+// BySongqueuePageHidden orders the results by the songqueue_page_hidden field.
+func BySongqueuePageHidden(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSongqueuePageHidden, opts...).ToFunc()
 }
 
 // ByCreatorCode orders the results by the creator_code field.

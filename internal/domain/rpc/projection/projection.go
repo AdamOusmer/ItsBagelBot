@@ -53,6 +53,7 @@ type UserReply struct {
 	// reply decodes without conversion (see CommandView's comment above).
 	CommandsPageHidden    bool   `json:"commands_page_hidden,omitempty"`
 	LeaderboardPageHidden bool   `json:"leaderboard_page_hidden,omitempty"`
+	SongQueuePageHidden   bool   `json:"songqueue_page_hidden,omitempty"`
 	CreatorCode           string `json:"creator_code,omitempty"`
 	rpc.Refusal
 }

@@ -27,6 +27,7 @@ var fullUser = UserProjection{
 	CommandsPageHidden: true,
 
 	LeaderboardPageHidden: true,
+	SongQueuePageHidden:   true,
 	CreatorCode:           "BAGEL10",
 }
 
@@ -51,6 +52,7 @@ func TestUserMappersCopyEveryField(t *testing.T) {
 			CommandsPageHidden: true,
 
 			LeaderboardPageHidden: true,
+			SongQueuePageHidden:   true,
 			CreatorCode:           "BAGEL10",
 		}),
 		"changed": UserFromChanged(data.UserChangedDTO{
@@ -66,6 +68,7 @@ func TestUserMappersCopyEveryField(t *testing.T) {
 			CommandsPageHidden: true,
 
 			LeaderboardPageHidden: true,
+			SongQueuePageHidden:   true,
 			CreatorCode:           "BAGEL10",
 		}),
 	}
@@ -99,6 +102,21 @@ func TestSetUserRoundTripsLeaderboardPageHidden(t *testing.T) {
 
 	require.NoError(t, store.SetUser(ctx, 73, UserProjection{Status: "vip", IsActive: true}))
 	assert.Equal(t, "0", f.hash("settings:73")["leaderboard_page_hidden"], "an event without the flag folds to visible")
+}
+
+func TestSetUserRoundTripsSongQueuePageHidden(t *testing.T) {
+	store, f := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, store.SetUser(ctx, 75, UserProjection{Status: "vip", IsActive: true, SongQueuePageHidden: true}))
+	assert.Equal(t, "1", f.hash("settings:75")["songqueue_page_hidden"])
+	user, found, err := store.GetUserRuntime(ctx, 75)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.True(t, user.SongQueuePageHidden)
+
+	require.NoError(t, store.SetUser(ctx, 75, UserProjection{Status: "vip", IsActive: true}))
+	assert.Equal(t, "0", f.hash("settings:75")["songqueue_page_hidden"], "an event without the flag folds to visible")
 }
 
 func TestSetUserGetUserRoundTripsCommandsPageHidden(t *testing.T) {
