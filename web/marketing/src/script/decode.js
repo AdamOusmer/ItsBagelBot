@@ -13,7 +13,7 @@ function teardown() {
 
 function setup() {
     teardown();
-    dispose = observeDecode(document, {instant: getLangSwitchScrollY() !== null});
+    dispose = observeDecode(document.querySelectorAll('.step__receipt bb-fit'), {instant: getLangSwitchScrollY() !== null});
 }
 
 setup();

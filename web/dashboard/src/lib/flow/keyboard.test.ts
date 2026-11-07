@@ -98,7 +98,8 @@ describe('allowed', () => {
   });
 
   test('portaled overlays keep their own keys', () => {
-    expect(allowed(esc, el('DIV', ['data-overlay', 'data-flow-editor']))).toBe(false);
+    expect(allowed(esc, el('DIV', ['aria-modal', 'data-flow-editor']))).toBe(false);
+    expect(allowed(esc, el('DIV', ['bb-picker-panel', 'data-flow-editor']))).toBe(false);
   });
 
   test('Enter opens a step only from the step itself', () => {

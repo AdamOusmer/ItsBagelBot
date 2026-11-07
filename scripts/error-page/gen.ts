@@ -134,7 +134,7 @@ function page(copy: Record<string, Copy>, css: string, js: string, svg: string):
 </head>
 <body>
 <main class="bb-error-scene" aria-labelledby="error-title" data-group="${branches((group) => group.name)}">
-<div class="bb-light-field bb-light-field--bleed" data-field aria-hidden="true"></div>
+<div class="bb-light-field bb-light-field--bleed" aria-hidden="true"></div>
 <div class="bb-error-scene__orbs" aria-hidden="true"><span class="bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb"></span><span class="bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two"></span></div>
 <div class="bb-error-scene__content">
 <p class="bb-error-scene__eyebrow"><span>{{ .StatusCode }}</span> · <b data-copy="*Eyebrow">${field('Eyebrow')}</b></p>

@@ -74,7 +74,7 @@ const { t } = docsI18n(Astro.props.locale);
 </style>
 
 <script>
-  import { pushOverlay, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
+  import { pushOverlay, registerOverlayShell, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
 
   interface PagefindResult {
     data: () => Promise<{ url: string; excerpt: string; meta: { title?: string } }>;
@@ -144,6 +144,7 @@ const { t } = docsI18n(Astro.props.locale);
     const root = dialog();
     if (!root?.hidden) return;
     root.hidden = false;
+    registerOverlayShell(root);
     overlayId = pushOverlay();
     focusTrap = trapFocus(root.querySelector<HTMLElement>('.bb-modal__card') ?? root);
     input()?.focus();
