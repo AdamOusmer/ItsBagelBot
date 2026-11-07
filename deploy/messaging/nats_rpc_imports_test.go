@@ -208,6 +208,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"twitch.ingress.admin.trials.set_enabled", "web/admin/src/lib/server/services.ts"},
 		{"twitch.ingress.admin.trials.remove", "web/admin/src/lib/server/services.ts"},
 		{"bagel.rpc.health.users", "web/admin health page"},
+		{"bagel.rpc.broadcaster.live.list", "web/admin/src/lib/server/live-broadcasters.ts"},
 		{"bagel.rpc.health.projector", "web/admin health page"},
 		{"bagel.rpc.health.sesame", "web/admin health page"},
 	},

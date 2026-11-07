@@ -43,6 +43,7 @@ type projectorTopics struct {
 	status            string
 	dashboard         string
 	live              string
+	liveList          string
 	streamInfo        string
 	loyalty           string
 	outgressSystem    string
@@ -62,6 +63,7 @@ func loadTopics() projectorTopics {
 		status:            env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
 		dashboard:         env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard"),
 		live:              env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
+		liveList:          env.Get("NATS_BROADCASTER_LIVE_LIST_SUBJECT", "bagel.rpc.broadcaster.live.list"),
 		streamInfo:        env.Get("NATS_BROADCASTER_STREAM_INFO_SUBJECT", "bagel.rpc.broadcaster.stream_info.get"),
 		loyalty:           env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
 		outgressSystem:    env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
@@ -192,7 +194,10 @@ func subscribeRPCs(rt rpcRuntime, topics projectorTopics) {
 	svcboot.FatalIf(rt.log, rpc.SubscribeDashboard(rt.nc, rt.store, topics.dashboard,
 		topics.commands, topics.modules, topics.cacheInvalidate, rt.hydrator, queueGroup, rt.nrApp, rt.log),
 		"failed to subscribe dashboard projector rpc")
-	svcboot.FatalIf(rt.log, rpc.SubscribeLive(bus.RPCWiring{NC: rt.nc, App: rt.nrApp, Queue: queueGroup, Log: rt.log}, rpc.LiveDependencies{Store: rt.store, Pub: rt.pub, Runtime: channelruntime.NewClient(rt.store, rt.nc, topics.users)}, topics.live, topics.outgressSystem),
+	svcboot.FatalIf(rt.log, rpc.SubscribeLive(bus.RPCWiring{NC: rt.nc, App: rt.nrApp, Queue: queueGroup, Log: rt.log}, rpc.LiveDependencies{
+		Store: rt.store, Pub: rt.pub, Runtime: channelruntime.NewClient(rt.store, rt.nc, topics.users),
+		ListSubject: topics.liveList, SystemSubject: topics.outgressSystem,
+	}, topics.live),
 		"failed to subscribe live rpc")
 	svcboot.FatalIf(rt.log, rpc.SubscribeStreamInfo(rpc.StreamInfoDeps{
 		NC: rt.nc, Store: rt.store, Subject: topics.streamInfo,

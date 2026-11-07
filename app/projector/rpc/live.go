@@ -28,14 +28,33 @@ type liveRPC struct {
 }
 
 type LiveDependencies struct {
-	Store   *projection.Store
-	Pub     bus.Publisher
-	Runtime channelruntime.Reader
+	Store         *projection.Store
+	Pub           bus.Publisher
+	Runtime       channelruntime.Reader
+	ListSubject   string
+	SystemSubject string
 }
 
-func SubscribeLive(w bus.RPCWiring, d LiveDependencies, subject, systemSubject string) error {
-	l := &liveRPC{store: d.Store, pub: d.Pub, systemSubject: systemSubject, log: w.Log, runtime: d.Runtime}
-	return bus.QueueSubscribeJSON[projectorrpc.LiveRequest, projectorrpc.LiveReply](w.NC, subject, w.Queue, 1500*time.Millisecond, w.App, w.Log, l.handleGet)
+func SubscribeLive(w bus.RPCWiring, d LiveDependencies, subject string) error {
+	l := &liveRPC{store: d.Store, pub: d.Pub, systemSubject: d.SystemSubject, log: w.Log, runtime: d.Runtime}
+	if err := bus.QueueSubscribeJSON[projectorrpc.LiveRequest, projectorrpc.LiveReply](w.NC, subject, w.Queue, 1500*time.Millisecond, w.App, w.Log, l.handleGet); err != nil {
+		return err
+	}
+	// The list walks every live key. 1500ms is the single-key read; the scan
+	// gets the same budget the admin used to spend on its own walk.
+	return bus.QueueSubscribeJSON[projectorrpc.LiveListRequest, projectorrpc.LiveListReply](w.NC, d.ListSubject, w.Queue, 4*time.Second, w.App, w.Log, l.handleList)
+}
+
+func (l *liveRPC) handleList(ctx context.Context, _ projectorrpc.LiveListRequest) projectorrpc.LiveListReply {
+	ids, err := l.store.LiveBroadcasters(ctx)
+	if err != nil {
+		monitor.TxnLogger(ctx, l.log).Warn("live rpc: list failed", zap.Error(err))
+		return projectorrpc.LiveListReply{Error: "live scan failed"}
+	}
+	if ids == nil {
+		ids = []uint64{}
+	}
+	return projectorrpc.LiveListReply{IDs: ids}
 }
 
 func (l *liveRPC) handleGet(ctx context.Context, req projectorrpc.LiveRequest) projectorrpc.LiveReply {
