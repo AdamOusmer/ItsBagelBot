@@ -9,10 +9,11 @@ package tokensign
 import (
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const Version = "v1"
@@ -66,7 +67,7 @@ func (s *Signer) Sign(payload Payload) (string, error) {
 }
 
 func encodeMessage(payload Payload) (string, error) {
-	body, err := json.Marshal(payload)
+	body, err := codec.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
@@ -97,7 +98,7 @@ func Verify(pub ed25519.PublicKey, token string) (Payload, error) {
 		return Payload{}, errors.New("tokensign: malformed payload")
 	}
 	var payload Payload
-	if err := json.Unmarshal(body, &payload); err != nil {
+	if err := codec.Unmarshal(body, &payload); err != nil {
 		return Payload{}, errors.New("tokensign: unreadable payload")
 	}
 	return payload, nil
