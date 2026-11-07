@@ -36,7 +36,7 @@
     <path class="wire" class:no={e[2] === 1} d={wire(e)} />
   {/each}
   {#each boxes as b, i (i)}
-    <rect class="box" data-kind={b.kind} x={b.x} y={b.y} width={BOX_W} height={b.h} rx="0.7" />
+    <rect class="box kind-{b.kind}" x={b.x} y={b.y} width={BOX_W} height={b.h} rx="0.7" />
   {/each}
 </svg>
 
@@ -58,10 +58,10 @@
   .box {
     fill: rgba(var(--bb-white-rgb), 0.14);
   }
-  .box[data-kind='trigger'] {
+  .box.kind-trigger {
     fill: rgba(var(--bb-green-glow-rgb), 0.45);
   }
-  .box[data-kind='condition'] {
+  .box.kind-condition {
     fill: rgba(var(--bb-tan-rgb), 0.45);
   }
 </style>

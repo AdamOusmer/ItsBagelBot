@@ -124,6 +124,7 @@
   }
 
   let rowStatus = $state<Record<string, SaveState>>({});
+  const rowEls = $state<Record<string, HTMLElement | null>>({});
   const statusTimers = new Map<string, ReturnType<typeof setTimeout>[]>();
 
   function clearTimers(name: string) {
@@ -326,7 +327,7 @@
     void tick().then(() => {
       const active = document.activeElement;
       if (active && active !== document.body) return;
-      const row = document.querySelector<HTMLElement>(`[data-row-name="${CSS.escape(key)}"] .bb-row__primary`);
+      const row = rowEls[key]?.querySelector<HTMLElement>('.bb-row__primary');
       (row ?? document.getElementById(NEW_BUTTON_ID))?.focus();
     });
   }
@@ -728,11 +729,14 @@
     onSpace(name: string) {
       if (selecting) return toggleSelect(name);
       if (rowStatus[name] === 'saving') return;
-      document.querySelector<HTMLFormElement>(`[data-row-name="${CSS.escape(name)}"] form`)?.requestSubmit();
+      rowEls[name]?.querySelector('form')?.requestSubmit();
     },
     onDelete(name: string) {
       const c = items.find((x) => x.name === name);
       if (c && !c.builtin && !selecting) void requestDelete(c);
+    },
+    rowOf(el: Element) {
+      return Object.keys(rowEls).find((name) => rowEls[name]?.contains(el)) ?? '';
     }
   };
 
@@ -887,6 +891,7 @@
                   expanded={!selecting && expanded === c.name}
                   {selecting}
                   checked={selected.has(c.name)}
+                  bind:rowEl={rowEls[c.name]}
                   onExpand={() => onRowActivate(c)}
                   onDelete={() => requestDelete(c)}
                   toggleSubmit={toggleSubmit(c)}

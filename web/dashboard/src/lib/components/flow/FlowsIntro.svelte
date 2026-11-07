@@ -59,15 +59,15 @@
 
       <ol class="flow rise" style="--i: 2" aria-hidden="true">
         <li class="start"><Icon name="play" size={12} /> {t('flows.introStart')}</li>
-        <li class="step" data-kind="trigger">
+        <li class="step kind-trigger">
           <IconTile size="sm" style="--tile: 32px"><Icon name="bolt" size={16} /></IconTile>
           <span class="step-copy"><b>{t('flows.introWhenLabel')}</b>{t('flows.introWhen')}</span>
         </li>
-        <li class="step" data-kind="condition">
+        <li class="step kind-condition">
           <IconTile size="sm" style="--tile: 32px"><Icon name="branch" size={16} /></IconTile>
           <span class="step-copy"><b>{t('flows.introIfLabel')}</b>{t('flows.introIf')}</span>
         </li>
-        <li class="step" data-kind="reply">
+        <li class="step">
           <IconTile size="sm" style="--tile: 32px"><Icon name="messageSquare" size={16} /></IconTile>
           <span class="step-copy"><b>{t('flows.introDoLabel')}</b>{t('flows.introDo')}</span>
         </li>
@@ -248,8 +248,8 @@
     background: linear-gradient(rgba(var(--bb-white-rgb), 0.07), rgba(var(--bb-white-rgb), 0.03)), var(--bb-card-bg);
     box-shadow: var(--bb-depth-2);
   }
-  .step[data-kind='trigger'] { color: var(--bb-green-glow); }
-  .step[data-kind='condition'] { color: var(--bb-tan); }
+  .step.kind-trigger { color: var(--bb-green-glow); }
+  .step.kind-condition { color: var(--bb-tan); }
   .step-copy {
     display: flex;
     flex-direction: column;

@@ -4,12 +4,11 @@
 export interface RovingHandlers {
   onSpace: (name: string) => void;
   onDelete: (name: string) => void;
+  rowOf: (el: Element) => string;
 }
 
 const ITEM = '.bb-row__primary';
 const SECONDARY = '.bb-row__actions button, .bb-row__actions a, .bb-row__actions input';
-
-const rowName = (el: Element) => el.closest<HTMLElement>('[data-row-name]')?.dataset.rowName ?? '';
 
 export function rovingList(node: HTMLElement, initial: RovingHandlers) {
   let handlers = initial;
@@ -52,10 +51,10 @@ export function rovingList(node: HTMLElement, initial: RovingHandlers) {
       moveTo(move(all, all.indexOf(target)));
     } else if (e.key === ' ') {
       e.preventDefault();
-      handlers.onSpace(rowName(target));
+      handlers.onSpace(handlers.rowOf(target));
     } else if (e.key === 'Delete') {
       e.preventDefault();
-      handlers.onDelete(rowName(target));
+      handlers.onDelete(handlers.rowOf(target));
     }
   }
 

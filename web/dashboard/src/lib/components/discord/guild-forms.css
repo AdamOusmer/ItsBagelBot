@@ -99,7 +99,7 @@
   grid-column: 1 / -1;
 }
 
-.dc .field-note[data-quiet] {
+.dc .field-note.quiet {
   visibility: hidden;
 }
 

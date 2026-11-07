@@ -90,7 +90,7 @@
         {/if}
       </div>
       {#if toggleable}
-        <div class="disabled-note" data-shown={!draft.enabled || undefined} aria-hidden={draft.enabled}>
+        <div class="disabled-note" class:shown={!draft.enabled} aria-hidden={draft.enabled}>
           <Text size="sm" tone="muted">{t('discord.module.disabledNote')}</Text>
         </div>
       {/if}
@@ -179,7 +179,7 @@
     border-top: 1px solid var(--bb-border);
     visibility: hidden;
   }
-  .disabled-note[data-shown] {
+  .disabled-note.shown {
     visibility: visible;
   }
 </style>
