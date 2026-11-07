@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
 import { STATIC_LOCALES, staticText } from '../../../../../kit/lib/i18n/static';
 import { privateEnv, stubSvelteKit } from '../../../../test/sveltekit';
+import { PAGE_ACTION, PUBLIC_PAGES, pageScope, type PublicPage } from '../../../lib/public-pages';
 
 stubSvelteKit();
 
@@ -16,6 +17,8 @@ const audits: { action: string; detail: string }[] = [];
 let writeFails = false;
 let purgeStatus = 200;
 let savedLocale = 'en';
+const hiddenPages = new Set<PublicPage>();
+let failingPageRead: PublicPage | null = null;
 
 const services = await import('../../../lib/server/services');
 const servicesMock = () => ({
@@ -24,8 +27,6 @@ const servicesMock = () => ({
   delegationAccess: async () => [],
   notificationsForUser: async () => ({ notifications: [] }),
   hasGrant: async () => true,
-  userCommandsPage: async () => true,
-  userLeaderboardPage: async () => true,
   userLocale: async () => savedLocale,
   accountState: async () => ({ username: 'StreamerLogin' }),
   publishEventSub: async () => {},
@@ -33,21 +34,28 @@ const servicesMock = () => ({
   auditDashboardImpersonation: (session: Session, action: string, detail: string) => {
     if (session.impersonator_id) audits.push({ action, detail });
   },
-  setCommandsPage: async (userId: string, hidden: boolean) => {
-    if (writeFails) throw new Error('rpc down');
-    hiddenWrites.push({ page: 'commands_page', userId, hidden });
-  },
-  setLeaderboardPage: async (userId: string, hidden: boolean) => {
-    if (writeFails) throw new Error('rpc down');
-    hiddenWrites.push({ page: 'leaderboard_page', userId, hidden });
-  }
+  pageToggles: Object.fromEntries(
+    PUBLIC_PAGES.map((page) => [
+      page,
+      {
+        read: async () => {
+          if (page === failingPageRead) throw new Error('rpc down');
+          return !hiddenPages.has(page);
+        },
+        write: async (userId: string, hidden: boolean) => {
+          if (writeFails) throw new Error('rpc down');
+          hiddenWrites.push({ page: pageScope(page), userId, hidden });
+        }
+      }
+    ])
+  )
 });
 mock.module('#lib/server/services', servicesMock);
 mock.module('../../../lib/server/services', servicesMock);
 const fetchesStore = await import('../../../lib/server/fetches-store');
 mock.module('#lib/server/fetches-store', () => ({ ...fetchesStore, listFetches: async () => ({ defs: [], keys: [] }) }));
 
-const { channelPageUrls } = await import('../../../lib/server/channel-urls');
+const { allPageUrls } = await import('../../../lib/server/channel-urls');
 const { actions, load } = await import('./+page.server');
 
 const realFetch = globalThis.fetch;
@@ -58,6 +66,8 @@ beforeEach(() => {
   audits.length = 0;
   writeFails = false;
   purgeStatus = 200;
+  hiddenPages.clear();
+  failingPageRead = null;
   Object.assign(privateEnv, { CF_ZONE_ID: 'zone', CF_CACHE_PURGE_TOKEN: 'token' });
   globalThis.fetch = (async (_url: string, init: { body: string }) => {
     purgeBodies.push(JSON.parse(init.body));
@@ -69,7 +79,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-type Toggle = { action: 'setCommandsPage' | 'setLeaderboardPage'; page: 'commands_page' | 'leaderboard_page' };
+type Toggle = { action: (typeof PAGE_ACTION)[PublicPage]; page: string };
 
 function submitToggle(toggle: Toggle, session: Session | null, fields: Record<string, string>, locale: 'en' | 'fr' = 'en') {
   const request = new Request(`https://dashboard.itsbagelbot.com/settings?/${toggle.action}`, {
@@ -80,7 +90,7 @@ function submitToggle(toggle: Toggle, session: Session | null, fields: Record<st
   return actions[toggle.action]({ request, locals: { session, locale } } as never);
 }
 
-const channelPurge: PurgeBody[] = [{ files: channelPageUrls('7', ['streamerlogin']) }, { tags: ['lb:streamerlogin'] }];
+const channelPurge: PurgeBody[] = [{ files: allPageUrls('7', ['streamerlogin']) }, { tags: ['lb:streamerlogin'] }];
 const refused = { status: 403, data: { error: staticText('en', 'serverErrors.notAllowed') } };
 
 const cases: {
@@ -90,39 +100,39 @@ const cases: {
   locale?: 'en' | 'fr';
   writeFails?: boolean;
   purgeStatus?: number;
-  want: { result: (page: string) => unknown; writes: [string, boolean][]; purges: PurgeBody[] };
+  want: { result: (page: string) => unknown; writes: [string, boolean][]; purged: boolean };
 }[] = [
   {
     name: 'a French refusal preserves the authorization status and localizes its message',
     session: null,
     fields: {},
     locale: 'fr',
-    want: { result: () => ({ status: 403, data: { error: staticText('fr', 'serverErrors.notAllowed') } }), writes: [], purges: [] }
+    want: { result: () => ({ status: 403, data: { error: staticText('fr', 'serverErrors.notAllowed') } }), writes: [], purged: false }
   },
   {
     name: 'a delegate session is refused',
     session: { user_id: '1', delegate_of: '2' },
     fields: { enabled: 'on' },
-    want: { result: () => refused, writes: [], purges: [] }
+    want: { result: () => refused, writes: [], purged: false }
   },
   {
-    name: 'owner enabled=on writes hidden=false then purges the commands page URLs and the leaderboard tag',
+    name: 'owner enabled=on writes hidden=false then purges that page from the edge',
     session: { user_id: '7' },
     fields: { enabled: 'on' },
-    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', false]], purges: channelPurge }
+    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', false]], purged: true }
   },
   {
     name: 'a failed purge surfaces edgeDelayed: true without failing the request',
     session: { user_id: '7' },
     fields: { enabled: 'on' },
     purgeStatus: 500,
-    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: true }), writes: [['7', false]], purges: channelPurge }
+    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: true }), writes: [['7', false]], purged: true }
   },
   {
     name: 'enabled absent (unchecked switch) writes hidden=true',
     session: { user_id: '7' },
     fields: {},
-    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', true]], purges: channelPurge }
+    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', true]], purged: true }
   },
   {
     name: 'a failed write answers 502 and purges nothing',
@@ -132,15 +142,12 @@ const cases: {
     want: {
       result: () => ({ status: 502, data: { error: staticText('en', 'serverErrors.updateRetry') } }),
       writes: [],
-      purges: []
+      purged: false
     }
   }
 ];
 
-const toggles: Toggle[] = [
-  { action: 'setCommandsPage', page: 'commands_page' },
-  { action: 'setLeaderboardPage', page: 'leaderboard_page' }
-];
+const toggles: Toggle[] = PUBLIC_PAGES.map((page) => ({ action: PAGE_ACTION[page], page: pageScope(page) }));
 
 describe.each(toggles)('$action action', (toggle) => {
   test.each(cases)('$name', async ({ session, fields, locale, writeFails: fails, purgeStatus: status, want }) => {
@@ -150,7 +157,7 @@ describe.each(toggles)('$action action', (toggle) => {
     const expected = {
       result: want.result(toggle.page),
       writes: want.writes.map(([userId, hidden]) => ({ page: toggle.page, userId, hidden })),
-      purges: want.purges
+      purges: want.purged ? channelPurge : []
     };
     expect({ result, writes: hiddenWrites, purges: purgeBodies } as unknown).toEqual(expected);
   });
@@ -193,4 +200,16 @@ test('settings preserves every saved language as the selected one', async () => 
     saved.push(data.savedLocale);
   }
   expect(saved).toEqual([...STATIC_LOCALES]);
+});
+
+test('settings reports every public page flag and degrades on a failed read without hiding the page', async () => {
+  const read = async () =>
+    (await load({ locals: { session: { user_id: '42' }, locale: 'en' } } as never)) as unknown as { pages: Record<string, boolean>; degraded: boolean };
+
+  hiddenPages.add('songqueue');
+  expect(await read()).toMatchObject({ pages: { commands: true, leaderboard: true, songqueue: false }, degraded: false });
+
+  hiddenPages.clear();
+  failingPageRead = 'leaderboard';
+  expect(await read()).toMatchObject({ pages: { commands: true, leaderboard: true, songqueue: true }, degraded: true });
 });

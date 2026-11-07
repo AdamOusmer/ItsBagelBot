@@ -14,6 +14,8 @@
   "err.upstream": "@{songqueue:user} la recherche musicale est en panne pour le moment, réessaie dans un instant.",
   "next.empty": "La file de chansons est vide.",
   "next.pending": "Passage au titre suivant envoyé à Spotify. La file des demandes sera mise à jour quand la lecture changera.",
+  "page.link": "Toute la file : {songqueue:url}",
+  "page.off": "@{songqueue:user} la page de la file de chansons n'est pas publique.",
   "playing": "Lecture en cours : {songqueue:title} par {songqueue:artist} (demandée par {songqueue:req})",
   "refund.off": "les demandes de musique avec les points de chaîne sont désactivées pour le moment, tes points ont été remboursés.",
   "refund.offline": "les demandes de musique ne fonctionnent que pendant une diffusion en direct, tes points ont été remboursés.",

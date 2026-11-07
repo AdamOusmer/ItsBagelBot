@@ -59,6 +59,7 @@ type UserView struct {
 	CustomCursor              bool             `json:"custom_cursor"`
 	CommandsPageHidden        bool             `json:"commands_page_hidden"`
 	LeaderboardPageHidden     bool             `json:"leaderboard_page_hidden"`
+	SongQueuePageHidden       bool             `json:"songqueue_page_hidden"`
 	CreatorCode               *string          `json:"creator_code,omitempty"`
 	SubscriptionSource        string           `json:"subscription_source"`
 	SubscriptionExpiresAt     *time.Time       `json:"subscription_expires_at,omitempty"`
@@ -236,6 +237,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				CustomCursor:              u.CustomCursor,
 				CommandsPageHidden:        u.CommandsPageHidden,
 				LeaderboardPageHidden:     u.LeaderboardPageHidden,
+				SongQueuePageHidden:       u.SongqueuePageHidden,
 				CreatorCode:               u.CreatorCode,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
@@ -334,13 +336,27 @@ func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 	return nil
 }
 
-// Must write through: Get does not overlay pending preference writes.
-func (r *Users) SetCommandsPageHidden(ctx context.Context, id uint64, hidden bool) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetCommandsPageHidden(hidden) })
+type PublicPage string
+
+const (
+	PageCommands    PublicPage = "commands"
+	PageLeaderboard PublicPage = "leaderboard"
+	PageSongQueue   PublicPage = "songqueue"
+)
+
+var pageHiddenSetters = map[PublicPage]func(*ent.UserUpdateOne, bool){
+	PageCommands:    func(u *ent.UserUpdateOne, hidden bool) { u.SetCommandsPageHidden(hidden) },
+	PageLeaderboard: func(u *ent.UserUpdateOne, hidden bool) { u.SetLeaderboardPageHidden(hidden) },
+	PageSongQueue:   func(u *ent.UserUpdateOne, hidden bool) { u.SetSongqueuePageHidden(hidden) },
 }
 
-func (r *Users) SetLeaderboardPageHidden(ctx context.Context, id uint64, hidden bool) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLeaderboardPageHidden(hidden) })
+// Must write through: Get does not overlay pending preference writes.
+func (r *Users) SetPageHidden(ctx context.Context, id uint64, page PublicPage, hidden bool) error {
+	set, ok := pageHiddenSetters[page]
+	if !ok {
+		return fmt.Errorf("unknown public page %q", page)
+	}
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { set(u, hidden) })
 }
 
 func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
@@ -431,6 +447,7 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 		CommandsPageHidden: view.CommandsPageHidden,
 
 		LeaderboardPageHidden: view.LeaderboardPageHidden,
+		SongQueuePageHidden:   view.SongQueuePageHidden,
 		CreatorCode:           view.CreatorCodeText(),
 	})
 }

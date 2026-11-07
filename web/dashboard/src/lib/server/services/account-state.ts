@@ -4,6 +4,7 @@
 import type { ChannelLifecycle } from '@bagel/kit/connection-state';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { defineRead, defineWrite, READ_TIMEOUT_MS } from '@bagel/kit/server/service';
+import { PUBLIC_PAGES, pageHiddenField, pageSetVerb, type PageHiddenField, type PublicPage } from '#lib/public-pages';
 import { SUB } from './subjects';
 import { fabric, invalidate } from './fabric';
 
@@ -32,9 +33,7 @@ export type StateReply = {
   subscription_payment_failed?: boolean;
   locale?: unknown;
   custom_cursor?: unknown;
-  commands_page_hidden?: unknown;
-  leaderboard_page_hidden?: unknown;
-};
+} & { [K in PageHiddenField]?: unknown };
 
 // One state_get reply per board; every view below derives from it, so every state scope must evict `state:`.
 const boardState = defineRead({
@@ -84,11 +83,20 @@ export const setLocale = stateWrite<string>({ verb: 'locale_set', field: 'locale
 export const userCursor = stateView((r) => r.custom_cursor !== false);
 export const setCursor = stateWrite<boolean>({ verb: 'cursor_set', field: 'custom_cursor' });
 
-export const userCommandsPage = stateView((r) => r.commands_page_hidden !== true);
-export const setCommandsPage = stateWrite<boolean>({ verb: 'commands_page_set', field: 'commands_page_hidden' });
+// A page is public unless the account explicitly hid it: an absent field keeps the pre-toggle behaviour.
+function publicPageToggle(page: PublicPage) {
+  const field = pageHiddenField(page);
+  return {
+    read: stateView((r) => r[field] !== true),
+    write: stateWrite<boolean>({ verb: pageSetVerb(page), field })
+  };
+}
 
-export const userLeaderboardPage = stateView((r) => r.leaderboard_page_hidden !== true);
-export const setLeaderboardPage = stateWrite<boolean>({ verb: 'leaderboard_page_set', field: 'leaderboard_page_hidden' });
+export const pageToggles = Object.fromEntries(PUBLIC_PAGES.map((page) => [page, publicPageToggle(page)])) as Record<PublicPage, ReturnType<typeof publicPageToggle>>;
+
+export const { read: userCommandsPage, write: setCommandsPage } = pageToggles.commands;
+export const { read: userLeaderboardPage, write: setLeaderboardPage } = pageToggles.leaderboard;
+export const { read: userSongQueuePage, write: setSongQueuePage } = pageToggles.songqueue;
 
 type LifecycleRetryRequest = { broadcaster_user_id: string };
 export const retryLifecycle = defineWrite({

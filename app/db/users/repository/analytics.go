@@ -80,7 +80,7 @@ func accountTally(u *ent.User) analytics.Tally {
 var accountColumns = []string{
 	user.FieldID, user.FieldStatus, user.FieldIsActive, user.FieldOnboarded, user.FieldSubscriptionSource,
 	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
-	user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldCreatedAt,
+	user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldCreatedAt,
 	user.FieldTestAccount, user.FieldBanned,
 }
 
@@ -138,6 +138,7 @@ func tallyFlags(t analytics.Tally, u *ent.User) {
 		{u.SubscriptionPaymentFailed, catalog.AccountsPaymentFailed, nil},
 		{u.CommandsPageHidden, catalog.AccountsPagesHidden, []string{"commands"}},
 		{u.LeaderboardPageHidden, catalog.AccountsPagesHidden, []string{"leaderboard"}},
+		{u.SongqueuePageHidden, catalog.AccountsPagesHidden, []string{"songqueue"}},
 	}
 	for _, f := range flags {
 		if f.on {

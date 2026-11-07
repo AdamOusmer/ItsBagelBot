@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 
@@ -117,6 +118,7 @@ func songQueueLog(d engine.Deps) *zap.Logger {
 
 type songQueueCmd struct {
 	chatReplier
+	deps     engine.Deps
 	store    engine.SongQueueStore
 	gossip   engine.GossipCaller
 	live     engine.IsLiveChecker
@@ -130,7 +132,7 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger, warn *ca
 	if d.SongQueue == nil {
 		return songQueueCmd{}, false
 	}
-	qc = songQueueCmd{chatReplier: newChatReplier(c), store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log, warn: warn}
+	qc = songQueueCmd{chatReplier: newChatReplier(c), deps: d, store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log, warn: warn}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
 	if qc.maxDepth <= 0 {
@@ -324,7 +326,7 @@ func songQueueList(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, boo
 		if !ok {
 			return nil
 		}
-		return qc.viewDepth(ctx, srlistLen, emit)
+		return qc.viewLinked(ctx, srlistLen, emit)
 	}
 }
 
@@ -366,7 +368,7 @@ func (qc songQueueCmd) actView(ctx context.Context, args, rest string, emit modu
 	if rest != "" {
 		return qc.request(ctx, args, emit)
 	}
-	return qc.view(ctx, emit)
+	return qc.viewLinked(ctx, songqueueListLen, emit)
 }
 
 func (qc songQueueCmd) actClear(ctx context.Context, args, rest string, emit module.Emit) error {
@@ -728,6 +730,24 @@ func (qc songQueueCmd) clearAll(ctx context.Context, emit module.Emit) error {
 
 func (qc songQueueCmd) view(ctx context.Context, emit module.Emit) error {
 	return qc.viewDepth(ctx, songqueueListLen, emit)
+}
+
+func (qc songQueueCmd) viewLinked(ctx context.Context, depth int, emit module.Emit) error {
+	if err := qc.viewDepth(ctx, depth, emit); err != nil {
+		return err
+	}
+	link, visible := publicPageURL(ctx, qc.c, qc.deps, publicPage{
+		base:        qc.deps.QueueBaseURL,
+		defaultBase: "https://queue.itsbagelbot.com",
+		path:        "/sr/",
+		hidden:      func(u projection.User) bool { return u.SongQueuePageHidden },
+	})
+	if !visible {
+		qc.reply(emit, "", "songqueue.page.off")
+		return nil
+	}
+	qc.reply(emit, "", "songqueue.page.link", "url", link)
+	return nil
 }
 
 func (qc songQueueCmd) viewDepth(ctx context.Context, depth int, emit module.Emit) error {

@@ -334,6 +334,7 @@ var (
 		{Name: "custom_cursor", Type: field.TypeBool, Default: true},
 		{Name: "commands_page_hidden", Type: field.TypeBool, Default: false},
 		{Name: "leaderboard_page_hidden", Type: field.TypeBool, Default: false},
+		{Name: "songqueue_page_hidden", Type: field.TypeBool, Default: false},
 		{Name: "creator_code", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "subscription_source", Type: field.TypeString, Default: ""},
 		{Name: "subscription_expires_at", Type: field.TypeTime, Nullable: true},
@@ -357,7 +358,7 @@ var (
 			{
 				Name:    "user_status_subscription_source_subscription_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[15], UsersColumns[21], UsersColumns[22]},
+				Columns: []*schema.Column{UsersColumns[15], UsersColumns[22], UsersColumns[23]},
 			},
 			{
 				Name:    "user_username",

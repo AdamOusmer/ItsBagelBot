@@ -14,6 +14,8 @@
   "err.upstream": "@{songqueue:user} la búsqueda de música no funciona ahora, vuelve a intentarlo en un rato.",
   "next.empty": "La cola de canciones está vacía.",
   "next.pending": "Se envió la orden de saltar a Spotify. La cola de solicitudes se actualizará cuando cambie la reproducción.",
+  "page.link": "Mira toda la cola: {songqueue:url}",
+  "page.off": "@{songqueue:user} la página de la cola de canciones no es pública.",
   "playing": "Sonando: {songqueue:title} de {songqueue:artist} (solicitud de {songqueue:req})",
   "refund.off": "las solicitudes de canciones con puntos del canal están desactivadas ahora, se te devolvieron los puntos.",
   "refund.offline": "las solicitudes de canciones solo funcionan durante el directo, se te devolvieron los puntos.",
