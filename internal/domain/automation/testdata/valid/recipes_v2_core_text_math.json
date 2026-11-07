@@ -10,7 +10,7 @@
     { "type": "text", "params": { "op": "substring", "input": "{args}", "arg1": "0", "arg2": "5", "save_as": "head" } },
     { "type": "text", "params": { "op": "split_pick", "input": "{args}", "arg1": ",", "arg2": "random", "save_as": "pick" } },
     { "type": "text", "params": { "op": "split_pick", "input": "{args}", "arg1": ",", "arg2": "2", "save_as": "second" } },
-    { "type": "text", "params": { "op": "contains", "input": "{args}", "arg1": "x", "save_as": "has_x" } },
+    { "type": "text", "params": { "op": "contains", "input": "{args}", "arg1": "x", "save_as": "hasx" } },
     { "type": "text", "params": { "op": "url_encode", "input": "{args}", "save_as": "query" } },
     { "type": "math", "params": { "expression": "max(round({local:size} / 2), random(1, 6)) ^ 2 % 7", "save_as": "score" } },
     { "type": "var_set", "params": { "scope": "channel", "name": "kept", "value": "{local:score}" } }

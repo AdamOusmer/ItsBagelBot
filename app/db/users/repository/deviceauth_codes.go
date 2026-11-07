@@ -132,7 +132,7 @@ func (r *Users) redeemCode(ctx context.Context, row *ent.AuthorizationCode) (Dev
 		CreatedAt: now,
 	}
 	var tokens DeviceTokens
-	err = withTx(ctx, r.client, func(tx *ent.Tx) error {
+	err = db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 		if err := mintGrantInTx(ctx, tx, row.ID, grant); err != nil {
 			return err
 		}

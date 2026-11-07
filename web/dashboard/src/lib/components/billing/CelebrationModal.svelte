@@ -11,7 +11,8 @@
   import Modal from '@bagel/ui/svelte/Modal.svelte';
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import { Bolota, getI18n } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { confettiPieces, type ConfettiPiece } from './confetti';
 
   let {

@@ -9,7 +9,7 @@ import { NEW_FLOW_ID } from '#lib/flow/ref';
 import type { ChoiceList } from '#lib/flow/choices';
 import { effectiveId } from '#lib/server/board';
 import { lookupTwitchUser } from '#lib/server/identity-heal';
-import { counterChoices, manageableRewardChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
+import { counterChoices, manageableRewardChoices, namedCooldownChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
 import { listRuns } from '#lib/server/automations-store';
 import { parseFlowRouteId } from '#lib/flow/ref';
 import { flowDenial, liveEditor, liveSave, lowerSaveRequest, newEditor, type EditorData } from '#lib/server/flow-page';
@@ -37,16 +37,26 @@ async function editorFor(locals: App.Locals, routeId: string): Promise<EditorDat
   return routeId === NEW_FLOW_ID ? newEditor() : (await import('#lib/flow/demo')).demoEditor(routeId);
 }
 
-type Choices = { rewards: Promise<ChoiceList>; manageableRewards: Promise<ChoiceList>; counters: Promise<ChoiceList> };
+type Choices = {
+  rewards: Promise<ChoiceList>;
+  manageableRewards: Promise<ChoiceList>;
+  counters: Promise<ChoiceList>;
+  namedCooldowns: Promise<ChoiceList>;
+};
 
 async function choicesFor(locals: App.Locals, url: URL): Promise<Choices> {
   if (DEMO) {
     const demo = await import('#lib/flow/demo');
     const lists = demo.demoChoices(demo.demoChoiceMode(url.searchParams.get('choices')));
-    return { rewards: Promise.resolve(lists.rewards), manageableRewards: Promise.resolve(lists.rewards), counters: Promise.resolve(lists.counters) };
+    return {
+      rewards: Promise.resolve(lists.rewards),
+      manageableRewards: Promise.resolve(lists.rewards),
+      counters: Promise.resolve(lists.counters),
+      namedCooldowns: Promise.resolve(lists.namedCooldowns)
+    };
   }
   const uid = effectiveId(locals.session);
-  return { rewards: rewardChoices(uid), manageableRewards: manageableRewardChoices(uid), counters: counterChoices(uid) };
+  return { rewards: rewardChoices(uid), manageableRewards: manageableRewardChoices(uid), counters: counterChoices(uid), namedCooldowns: namedCooldownChoices(uid) };
 }
 
 export const load: PageServerLoad = async ({ params, locals, url, depends }) => {

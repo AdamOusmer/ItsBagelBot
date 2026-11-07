@@ -28,7 +28,8 @@
     "label": "Einheit",
     "seconds": "Sekunden",
     "minutes": "Minuten",
-    "hours": "Stunden"
+    "hours": "Stunden",
+    "days": "Tage"
   },
   "duration": {
     "seconds": "{n} s",

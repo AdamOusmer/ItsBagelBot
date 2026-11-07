@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"ItsBagelBot/app/gossip/internal/core"
@@ -35,6 +36,7 @@ const (
 
 	rateWindowSeconds = 60.0
 	defaultRateLimit  = 8.0
+	maxControlLights  = 32
 
 	apiKeyHeader = "Govee-API-Key"
 
@@ -469,28 +471,76 @@ func (p *api) control(ctx context.Context, req gossiprpc.Request) any {
 		return gossiprpc.GoveeControlReply{Error: friendlyControlError(err)}
 	}
 
-	target := goveeTarget{http: p.http, headers: authHeader(key), sku: strings.TrimSpace(req.SKU), device: strings.TrimSpace(req.Device)}
-	for _, step := range controlSteps(req) {
-		if err := target.set(ctx, step.capType, step.instance, step.value); err != nil {
-			monitor.TxnLogger(ctx, p.log).Warn("govee control step failed", zap.String("broadcaster", broadcaster), zap.String("capability", step.capType), zap.Error(err))
-			return gossiprpc.GoveeControlReply{Error: controlStepError(req, err)}
-		}
+	if err := p.driveLights(ctx, broadcaster, authHeader(key), req); err != nil {
+		return gossiprpc.GoveeControlReply{Error: controlStepError(req, err)}
 	}
 	return gossiprpc.GoveeControlReply{OK: true, SceneApplied: req.Scene != nil}
+}
+
+// One light failing must not refund a redemption that changed the others.
+func (p *api) driveLights(ctx context.Context, broadcaster string, headers map[string]string, req gossiprpc.Request) error {
+	lights := controlLights(req)
+	steps := controlSteps(req)
+	errs := make([]error, len(lights))
+	var wg sync.WaitGroup
+	for i, light := range lights {
+		wg.Go(func() {
+			target := goveeTarget{http: p.http, headers: headers, sku: strings.TrimSpace(light.SKU), device: strings.TrimSpace(light.Device)}
+			errs[i] = p.driveLight(ctx, broadcaster, target, steps)
+		})
+	}
+	wg.Wait()
+	var failure error
+	for _, err := range errs {
+		if err == nil {
+			return nil
+		}
+		failure = err
+	}
+	return failure
+}
+
+func (p *api) driveLight(ctx context.Context, broadcaster string, target goveeTarget, steps []controlStep) error {
+	for _, step := range steps {
+		if err := target.set(ctx, step.capType, step.instance, step.value); err != nil {
+			monitor.TxnLogger(ctx, p.log).Warn("govee control step failed", zap.String("broadcaster", broadcaster), zap.String("capability", step.capType), zap.Error(err))
+			return err
+		}
+	}
+	return nil
+}
+
+func controlLights(req gossiprpc.Request) []gossiprpc.GoveeLight {
+	if len(req.Lights) > 0 {
+		return req.Lights
+	}
+	return []gossiprpc.GoveeLight{{Device: req.Device, SKU: req.SKU}}
 }
 
 func validateControlInput(req gossiprpc.Request) string {
 	if strings.TrimSpace(req.ChannelID) == "" {
 		return "missing channel"
 	}
-	if strings.TrimSpace(req.Device) == "" || strings.TrimSpace(req.SKU) == "" {
-		return "missing device"
+	if msg := validateControlLights(controlLights(req)); msg != "" {
+		return msg
 	}
 	if req.Scene != nil {
 		return validateScene(req)
 	}
 	if !req.PowerOff && !validColorRGB(req.ColorRGB) {
 		return "colour out of range"
+	}
+	return ""
+}
+
+func validateControlLights(lights []gossiprpc.GoveeLight) string {
+	if len(lights) > maxControlLights {
+		return "too many lights"
+	}
+	for _, light := range lights {
+		if strings.TrimSpace(light.Device) == "" || strings.TrimSpace(light.SKU) == "" {
+			return "missing device"
+		}
 	}
 	return ""
 }

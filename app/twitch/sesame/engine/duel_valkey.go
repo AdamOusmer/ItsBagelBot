@@ -232,17 +232,13 @@ func NewValkeyDuelStore(client valkey.Client, cfg DuelConfig, log *zap.Logger) *
 	return &ValkeyDuelStore{client: pkg_valkey.Primary(client), cfg: cfg, log: log}
 }
 
-func benign(err error) bool {
-	return err == nil || valkey.IsValkeyNil(err)
-}
-
 func (s *ValkeyDuelStore) holdSection(ctx context.Context, broadcasterID uint64) bool {
 	won, err := pkg_valkey.ClaimOnce(ctx, s.client, duelKey(duelDrawPrefix, broadcasterID), duelDrawLockTTL)
 	return err == nil && won
 }
 
 func (s *ValkeyDuelStore) releaseSection(ctx context.Context, broadcasterID uint64) {
-	s.client.Do(ctx, s.client.B().Del().Key(duelKey(duelDrawPrefix, broadcasterID)).Build())
+	_ = pkg_valkey.DelKeys(ctx, s.client, duelKey(duelDrawPrefix, broadcasterID))
 }
 
 func (s *ValkeyDuelStore) Open(ctx context.Context, broadcasterID uint64, spec DuelOpenSpec) (DuelOpenResult, error) {
@@ -252,13 +248,12 @@ func (s *ValkeyDuelStore) Open(ctx context.Context, broadcasterID uint64, spec D
 	if err != nil {
 		return res, err
 	}
-	got, err := s.client.Do(ctx, s.client.B().Set().
-		Key(duelKey(duelDeadlinePrefix, broadcasterID)).Value(string(spec.Kind)).
-		Nx().ExSeconds(seconds).Build()).ToString()
+	won, err := pkg_valkey.NewOwnerLock(s.client, duelKey(duelDeadlinePrefix, broadcasterID), string(spec.Kind)).
+		Acquire(ctx, time.Duration(seconds)*time.Second)
 	if err != nil {
 		return res, err
 	}
-	if got != "OK" {
+	if !won {
 		res.Busy = true
 		return res, nil
 	}
@@ -351,24 +346,18 @@ func (s *ValkeyDuelStore) install(ctx context.Context, broadcasterID uint64, spe
 }
 
 func (s *ValkeyDuelStore) writeInstall(ctx context.Context, broadcasterID uint64, spec DuelOpenSpec, blob []byte) error {
-	batch := []valkey.Completed{
-		s.client.B().Set().Key(duelKey(duelStatePrefix, broadcasterID)).
-			Value(string(blob)).ExSeconds(int64(duelStateTTL.Seconds())).Build(),
-	}
+	var escrow *pkg_valkey.HashFieldTTL
 	if spec.Kind == DuelPot {
-		batch = append(batch,
-			s.client.B().Hsetex().Key(duelKey(duelEntriesPrefix, broadcasterID)).
-				Ex(int64(duelStateTTL.Seconds())).
-				Fields().Numfields(1).FieldValue().
-				FieldValue(spec.Opener.stake(spec.Stake).ledgerField(), spec.Opener.stake(spec.Stake).ledgerValue()).
-				Build())
-	}
-	for _, r := range s.client.DoMulti(ctx, batch...) {
-		if err := r.Error(); err != nil && !valkey.IsValkeyNil(err) {
-			return err
+		entry := spec.Opener.stake(spec.Stake)
+		escrow = &pkg_valkey.HashFieldTTL{
+			Key: duelKey(duelEntriesPrefix, broadcasterID), Field: entry.ledgerField(), Value: entry.ledgerValue(),
+			TTL: duelStateTTL,
 		}
 	}
-	return nil
+	return pkg_valkey.InstallWithEscrowField(ctx, s.client, pkg_valkey.InstallSpec{
+		State:      pkg_valkey.Key{Name: duelKey(duelStatePrefix, broadcasterID), TTL: duelStateTTL},
+		StateValue: string(blob), Escrow: escrow,
+	})
 }
 
 func (s *ValkeyDuelStore) compensateOpen(ctx context.Context, broadcasterID uint64, state DuelState) {
@@ -377,13 +366,11 @@ func (s *ValkeyDuelStore) compensateOpen(ctx context.Context, broadcasterID uint
 			zap.String("login", state.Opener), zap.Int64("amount", state.OpenerStake), zap.Error(err))
 	}
 	s.releaseSlot(ctx, broadcasterID)
-	s.client.Do(ctx, s.client.B().Del().
-		Key(duelKey(duelEntriesPrefix, broadcasterID)).
-		Key(duelKey(duelStatePrefix, broadcasterID)).Build())
+	_ = pkg_valkey.DelKeys(ctx, s.client, duelKey(duelEntriesPrefix, broadcasterID), duelKey(duelStatePrefix, broadcasterID))
 }
 
 func (s *ValkeyDuelStore) releaseSlot(ctx context.Context, broadcasterID uint64) {
-	s.client.Do(ctx, s.client.B().Del().Key(duelKey(duelDeadlinePrefix, broadcasterID)).Build())
+	_ = pkg_valkey.DelKeys(ctx, s.client, duelKey(duelDeadlinePrefix, broadcasterID))
 }
 
 func (s *ValkeyDuelStore) Join(ctx context.Context, broadcasterID uint64, who DuelParty, stake int64) (DuelJoinResult, error) {
@@ -435,22 +422,19 @@ func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, ent
 		return s.joinTotals(ctx, broadcasterID, res)
 	}
 
-	s.client.Do(ctx, s.client.B().Expire().
-		Key(duelKey(duelStatePrefix, broadcasterID)).Seconds(int64(duelStateTTL.Seconds())).Build())
+	_ = pkg_valkey.Expire(ctx, s.client, duelKey(duelStatePrefix, broadcasterID), duelStateTTL)
 
 	res.Joined = true
 	return s.joinTotals(ctx, broadcasterID, res)
 }
 
 func (s *ValkeyDuelStore) claimSeat(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, error) {
-	added, err := s.client.Do(ctx, s.client.B().Hsetnx().
-		Key(duelKey(duelEntriesPrefix, broadcasterID)).
-		Field(entry.ledgerField()).Value(entry.ledgerValue()).Build()).AsInt64()
-	return added > 0, err
+	field := pkg_valkey.HashField{Key: duelKey(duelEntriesPrefix, broadcasterID), Field: entry.ledgerField()}
+	return pkg_valkey.HSetIfAbsent(ctx, s.client, field, entry.ledgerValue())
 }
 
 func (s *ValkeyDuelStore) unclaimSeat(ctx context.Context, broadcasterID uint64, entry DuelStake) {
-	if _, err := s.hdelEntry(ctx, broadcasterID, entry.ledgerField()); err != nil {
+	if err := (pkg_valkey.HashField{Key: duelKey(duelEntriesPrefix, broadcasterID), Field: entry.ledgerField()}).Delete(ctx, s.client); err != nil {
 		s.log.Warn("duel: join rollback unclaim failed", module.BIDField(broadcasterID),
 			zap.String("login", entry.Login), zap.Error(err))
 	}
@@ -472,20 +456,11 @@ func (s *ValkeyDuelStore) joinTotals(ctx context.Context, broadcasterID uint64, 
 }
 
 func (s *ValkeyDuelStore) readLedger(ctx context.Context, broadcasterID uint64) (poolSummary, error) {
-	vals, err := s.client.Do(ctx, s.client.B().Hvals().
-		Key(duelKey(duelEntriesPrefix, broadcasterID)).Build()).AsStrSlice()
+	vals, err := pkg_valkey.HValues(ctx, s.client, duelKey(duelEntriesPrefix, broadcasterID))
 	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return poolSummary{}, nil
-		}
 		return poolSummary{}, err
 	}
 	return poolSummary{entrants: int64(len(vals)), pot: sumStakes(vals)}, nil
-}
-
-func (s *ValkeyDuelStore) hdelEntry(ctx context.Context, broadcasterID uint64, field string) (int64, error) {
-	return s.client.Do(ctx, s.client.B().Hdel().
-		Key(duelKey(duelEntriesPrefix, broadcasterID)).Field(field).Build()).AsInt64()
 }
 
 func (s *ValkeyDuelStore) stateOf(ctx context.Context, broadcasterID uint64) *DuelState {
@@ -650,8 +625,7 @@ func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint
 	if st.Kind != DuelPot {
 		return fallback, nil
 	}
-	m, err := s.client.Do(ctx, s.client.B().Hgetall().
-		Key(duelKey(duelEntriesPrefix, broadcasterID)).Build()).AsStrMap()
+	m, err := pkg_valkey.HashAll(ctx, s.client, duelKey(duelEntriesPrefix, broadcasterID))
 	if err != nil {
 		return nil, err
 	}
@@ -682,20 +656,18 @@ func (s *ValkeyDuelStore) refund(ctx context.Context, broadcasterID uint64, entr
 
 func (s *ValkeyDuelStore) Status(ctx context.Context, broadcasterID uint64) (DuelStatus, error) {
 	st := DuelStatus{SecondsLeft: -1}
-	raw, err := s.client.Do(ctx, s.client.B().Get().
-		Key(duelKey(duelStatePrefix, broadcasterID)).Build()).ToString()
+	raw, ok, err := pkg_valkey.ReadString(ctx, s.client, duelKey(duelStatePrefix, broadcasterID))
 	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return st, nil
-		}
 		return st, err
+	}
+	if !ok {
+		return st, nil
 	}
 	state := DuelState{}
 	if codec.UnmarshalFromString(raw, &state) != nil {
 		return st, nil
 	}
-	left, err := s.client.Do(ctx, s.client.B().Ttl().
-		Key(duelKey(duelDeadlinePrefix, broadcasterID)).Build()).AsInt64()
+	left, err := pkg_valkey.TTLSeconds(ctx, s.client, duelKey(duelDeadlinePrefix, broadcasterID))
 	if err != nil {
 		return st, err
 	}
@@ -721,29 +693,23 @@ func (s *ValkeyDuelStore) Status(ctx context.Context, broadcasterID uint64) (Due
 
 func (s *ValkeyDuelStore) teardown(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt, hasLedger bool) {
 	now := receipt.ResolvedAt
-	ttl := int64(duelReceiptTTL.Seconds())
 	lastKey := duelKey(duelLastPrefix, broadcasterID)
 
 	blob, err := codec.Marshal(receipt)
 	if err != nil {
 		s.log.Warn("duel: receipt marshal failed", zap.Error(err))
 	}
-	batch := []valkey.Completed{
-		s.client.B().Set().Key(lastKey).Value(string(blob)).ExSeconds(ttl).Build(),
-		s.client.B().Del().Key(duelKey(duelStatePrefix, broadcasterID)).
-			Key(duelKey(duelDeadlinePrefix, broadcasterID)).Build(),
-	}
+	var escrow *pkg_valkey.RenameTTL
 	if receipt.SnapKey == "" && hasLedger {
 		snap := duelSnapPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + strconv.FormatInt(now, 10)
-		batch = append(batch,
-			s.client.B().Rename().Key(duelKey(duelEntriesPrefix, broadcasterID)).Newkey(snap).Build(),
-			s.client.B().Expire().Key(snap).Seconds(ttl).Build())
+		escrow = &pkg_valkey.RenameTTL{From: duelKey(duelEntriesPrefix, broadcasterID), To: snap, TTL: duelReceiptTTL}
 	}
-	for _, r := range s.client.DoMulti(ctx, batch...) {
-		if err := r.Error(); !benign(err) {
-			s.log.Warn("duel: teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
-			break
-		}
+	drop := []string{duelKey(duelStatePrefix, broadcasterID), duelKey(duelDeadlinePrefix, broadcasterID)}
+	spec := pkg_valkey.CloseSpec{
+		Receipt: pkg_valkey.Key{Name: lastKey, TTL: duelReceiptTTL}, ReceiptValue: string(blob), Drop: drop, Escrow: escrow,
+	}
+	if err := pkg_valkey.CloseWithReceipt(ctx, s.client, spec); err != nil {
+		s.log.Warn("duel: teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
 
@@ -775,10 +741,10 @@ func (s *ValkeyDuelStore) autoResolve(ctx context.Context, broadcasterID uint64)
 
 	if !s.holdSection(dctx, broadcasterID) {
 		// The claim delete is required: otherwise the retry expires inside the claim TTL and is dropped.
-		s.client.DoMulti(dctx,
-			s.client.B().Set().
-				Key(duelKey(duelDeadlinePrefix, broadcasterID)).Value("retry").ExSeconds(2).Build(),
-			s.client.B().Del().Key(duelKey(duelClaimPrefix, broadcasterID)).Build())
+		pkg_valkey.RearmAndForget(dctx, s.client, pkg_valkey.RearmSpec{
+			Marker:      pkg_valkey.Key{Name: duelKey(duelDeadlinePrefix, broadcasterID), TTL: 2 * time.Second},
+			MarkerValue: "retry", Forget: duelKey(duelClaimPrefix, broadcasterID),
+		})
 		return
 	}
 	defer s.releaseSection(dctx, broadcasterID)
@@ -796,8 +762,7 @@ func (s *ValkeyDuelStore) autoResolve(ctx context.Context, broadcasterID uint64)
 }
 
 func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st *DuelState) {
-	m, err := s.client.Do(ctx, s.client.B().Hgetall().
-		Key(duelKey(duelEntriesPrefix, broadcasterID)).Build()).AsStrMap()
+	m, err := pkg_valkey.HashAll(ctx, s.client, duelKey(duelEntriesPrefix, broadcasterID))
 	if err != nil {
 		s.log.Warn("duel: auto-draw ledger read failed", module.BIDField(broadcasterID), zap.Error(err))
 		return
@@ -848,22 +813,15 @@ func (s *ValkeyDuelStore) refundOnly(ctx context.Context, broadcasterID uint64, 
 }
 
 func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt) {
-	snap := receipt.SnapKey
-	ttl := int64(duelReceiptTTL.Seconds())
 	blob, err := codec.Marshal(receipt)
 	if err != nil {
 		s.log.Warn("duel: receipt marshal failed", zap.Error(err))
 	}
-	for _, r := range s.client.DoMulti(ctx,
-		s.client.B().Rename().Key(duelKey(duelEntriesPrefix, broadcasterID)).Newkey(snap).Build(),
-		s.client.B().Expire().Key(snap).Seconds(ttl).Build(),
-		s.client.B().Set().Key(duelKey(duelLastPrefix, broadcasterID)).Value(string(blob)).ExSeconds(ttl).Build(),
-		s.client.B().Del().Key(duelKey(duelStatePrefix, broadcasterID)).
-			Key(duelKey(duelDeadlinePrefix, broadcasterID)).Build(),
-	) {
-		if err := r.Error(); !benign(err) {
-			s.log.Warn("duel: snapshot teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
-			break
-		}
+	escrow := pkg_valkey.RenameTTL{From: duelKey(duelEntriesPrefix, broadcasterID), To: receipt.SnapKey, TTL: duelReceiptTTL}
+	drop := []string{duelKey(duelStatePrefix, broadcasterID), duelKey(duelDeadlinePrefix, broadcasterID)}
+	lastKey := pkg_valkey.Key{Name: duelKey(duelLastPrefix, broadcasterID), TTL: duelReceiptTTL}
+	spec := pkg_valkey.SnapshotReceiptSpec{Escrow: escrow, Receipt: lastKey, ReceiptValue: string(blob), Drop: drop}
+	if err := pkg_valkey.SnapshotThenReceipt(ctx, s.client, spec); err != nil {
+		s.log.Warn("duel: snapshot teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }

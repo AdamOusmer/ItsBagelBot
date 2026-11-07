@@ -515,10 +515,10 @@ describe('ProfileMenu', () => {
     expect(html).toContain('<div class="bb-profile__section" aria-hidden="true">Dashboards</div>');
     expect(html).toContain('<a class="bb-profile__link" href="/c/alpha" role="menuitem"><span class="bb-profile__avatar"><i data-size="26" data-item="true"></i></span>');
     expect(html).toContain(`<span class="bb-profile__avatar">${icon('home', 14)}</span><span class="bb-profile__name">Back to mine</span>`);
-    expect(html).toContain('<form method="POST" action="/auth/logout" role="none"><button type="submit" class="bb-profile-topbar__op-menu-item" role="menuitem">Log out</button></form>');
+    expect(html).toContain('<form method="POST" action="/auth/logout" role="none"><button type="submit" class="bb-profile__menu-item" role="menuitem">Log out</button></form>');
   });
 
-  test('rail without dashboards shows help, a static account row and the logout', () => {
+  test('rail without dashboards still makes the account row a menu trigger', () => {
     const html = svelteHtml(SvelteProfileMenu, {
       ...base,
       variant: 'rail',
@@ -529,15 +529,21 @@ describe('ProfileMenu', () => {
     expect(html.startsWith('<div class="bb-profile-rail__side-foot"><div class="bb-profile-rail__help">')).toBe(true);
     expect(html).toContain('aria-haspopup="menu">Support</button>');
     expect(html).toContain('<a class="bb-profile-rail__help-btn" href="https://example.test/issues" target="_blank" rel="noopener noreferrer">Feedback</a>');
-    expect(html).toContain('<div class="bb-profile-rail__account" role="group">');
-    expect(html).toContain('<form class="bb-profile-rail__logout" method="POST" action="/auth/logout">');
-    expect(html).not.toContain('bb-profile-rail__account--btn');
+    expect(html).toContain('<button class="bb-profile-rail__account bb-profile-rail__account--btn" type="button" aria-expanded="false" aria-haspopup="menu">');
+    expect(html).not.toContain('bb-profile-rail__logout');
   });
 
-  test('rail with dashboards turns the account row into the menu trigger', () => {
-    const html = svelteHtml(SvelteProfileMenu, { ...base, variant: 'rail', links: [{ href: '/c/alpha', label: 'Alpha' }] });
-    expect(html).toContain('<button class="bb-profile-rail__account bb-profile-rail__account--btn" type="button" aria-expanded="false" aria-haspopup="menu">');
-    expect(html).toContain(`<span class="bb-profile-rail__chev" aria-hidden="true">${icon('chevron', 14)}</span>`);
+  test('rail account menu opens on click and keeps the logout behind it', () => {
+    const html = svelteHtml(SvelteProfileMenu, {
+      ...base,
+      variant: 'rail',
+      open: true,
+      links: [{ href: '/c/alpha', label: 'Alpha' }],
+    });
+    expect(html).toContain(`<span class="bb-profile-rail__chev bb-profile-rail__open" aria-hidden="true">${icon('chevron', 14)}</span>`);
+    expect(html).toContain('role="menu" aria-label="Account menu"');
+    expect(html).toContain('<a class="bb-profile__link" href="/c/alpha" role="menuitem">');
+    expect(html).toContain('<form method="POST" action="/auth/logout" role="none"><button type="submit" class="bb-profile__menu-item" role="menuitem">Log out</button></form>');
   });
 });
 

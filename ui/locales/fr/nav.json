@@ -3,6 +3,8 @@
   "skip": "Passer au contenu",
   "breadcrumb": "Fil d’Ariane",
   "main": "Navigation principale",
+  "railCollapse": "Réduire la barre latérale",
+  "railExpand": "Développer la barre latérale",
   "menuOpen": "Ouvrir le menu",
   "menuClose": "Fermer le menu",
   "menu": "Menu",

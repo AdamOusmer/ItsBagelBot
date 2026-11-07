@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,8 @@ import (
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
+
+var setLiveScript = pkg_valkey.VersionedSlotSetScript
 
 func TestRearmAfterFailure(t *testing.T) {
 	assert.Equal(t, watchTickQuickRetry, rearmAfterFailure(1))

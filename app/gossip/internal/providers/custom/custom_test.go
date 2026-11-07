@@ -54,6 +54,8 @@ type harness struct {
 	hits  atomic.Int32
 	admit atomic.Int32
 
+	admission admitPolicy
+
 	routesMu sync.Mutex
 	routes   map[string]staged
 
@@ -96,11 +98,13 @@ func newHarness(t *testing.T) *harness {
 	}
 	b := provider.NewProvider(providerName, deps)
 	cfg := Config{ChannelRateLimit: 6, DefRateLimit: 30, HostRateLimit: 120, RecipeChannelRateLimit: 60, RecipeDefRateLimit: 60, PositiveTTL: time.Minute}
-	h.p = newAPI(cfg, deps, b)
-	h.p.admit = func(context.Context, *flight, bool) error {
+	h.admission = func(context.Context, *flight, bool) error {
 		h.admit.Add(1)
 		return nil
 	}
+	h.p = newAPI(cfg, deps, b, func(ctx context.Context, fl *flight, isPremium bool) error {
+		return h.admission(ctx, fl, isPremium)
+	})
 	return h
 }
 
@@ -293,7 +297,7 @@ func TestFetchBucketDenialAnswersLimited(t *testing.T) {
 	h := newHarness(t)
 	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
-	h.p.admit = func(context.Context, *flight, bool) error {
+	h.admission = func(context.Context, *flight, bool) error {
 		return &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
 	}
 
@@ -311,7 +315,7 @@ func TestFetchPremiumRidesAdmitLane(t *testing.T) {
 
 	var gotPremium atomic.Bool
 	var gotHost string
-	h.p.admit = func(_ context.Context, fl *flight, isPremium bool) error {
+	h.admission = func(_ context.Context, fl *flight, isPremium bool) error {
 		gotPremium.Store(isPremium)
 		gotHost = fl.host
 		return nil

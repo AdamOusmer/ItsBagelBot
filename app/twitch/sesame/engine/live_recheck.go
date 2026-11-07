@@ -11,7 +11,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -50,20 +49,17 @@ func (s *ValkeyLiveStore) armOfflineConfirm(ctx context.Context, broadcasterID u
 		return
 	}
 	id := strconv.FormatUint(broadcasterID, 10)
-	cmds := make(valkey.Commands, 0, len(s.cfg.OfflineConfirmDelays)+1)
+	items := make([]pkg_valkey.MSet, 0, len(s.cfg.OfflineConfirmDelays)+1)
 	if admissionFence != "" {
-		cmds = append(cmds, s.client.B().Set().Key(offlineConfirmKeyPrefix+"admission:"+id).Value(admissionFence).Px(s.confirmationRetention()).Build())
+		items = append(items, pkg_valkey.MSet{Key: offlineConfirmKeyPrefix + "admission:" + id, Value: admissionFence, TTL: s.confirmationRetention()})
 	}
-	cmds = append(cmds, s.client.B().Set().Key(demandRecheckKeyPrefix+id).Value("1").Px(demandRecheckWindow).Build())
+	items = append(items, pkg_valkey.MSet{Key: demandRecheckKeyPrefix + id, Value: "1", TTL: demandRecheckWindow})
 	for stage, delay := range s.cfg.OfflineConfirmDelays {
 		key := offlineConfirmKeyPrefix + strconv.Itoa(stage) + ":" + id
-		cmds = append(cmds, s.client.B().Set().Key(key).Value("1").Px(delay).Build())
+		items = append(items, pkg_valkey.MSet{Key: key, Value: "1", TTL: delay})
 	}
-	for _, res := range s.client.DoMulti(ctx, cmds...) {
-		if err := res.Error(); err != nil {
-			s.log.Warn("live: failed to arm offline confirmation", module.BIDField(broadcasterID), zap.Error(err))
-			return
-		}
+	if err := pkg_valkey.SetAll(ctx, s.client, items); err != nil {
+		s.log.Warn("live: failed to arm offline confirmation", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
 
@@ -87,6 +83,6 @@ func (s *ValkeyLiveStore) confirmationRetention() time.Duration {
 }
 
 func (s *ValkeyLiveStore) liveKeyExists(ctx context.Context, broadcasterID uint64) bool {
-	n, err := s.client.Do(ctx, s.client.B().Exists().Key(liveKey(broadcasterID)).Build()).AsInt64()
+	n, err := pkg_valkey.CountExisting(ctx, s.client, []string{liveKey(broadcasterID)})
 	return err == nil && n > 0
 }

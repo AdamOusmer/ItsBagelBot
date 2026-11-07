@@ -40,15 +40,30 @@ func NotFoundReply(err error) bool {
 }
 
 func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, request any) (T, error) {
-	var zero T
+	var reply T
+	if err := RequestInto(ctx, nc, RPCRequest{Subject: subject, Body: request}, &reply); err != nil {
+		var zero T
+		return zero, err
+	}
+	return reply, nil
+}
 
+// RPCRequest is one request and where it goes.
+type RPCRequest struct {
+	Subject string
+	Body    any
+}
+
+// RequestInto is RequestJSON for a caller holding the reply as an untyped pointer.
+func RequestInto(ctx context.Context, nc *nats.Conn, request RPCRequest, reply any) error {
+	subject := request.Subject
 	encodeSegment := startMessagingSegment(ctx, messagingSpan{
 		name: "rpc.request.encode", operation: "request", destination: subject,
 	})
-	body, err := codec.FastMarshal(request)
+	body, err := codec.FastMarshal(request.Body)
 	endMessagingSegment(encodeSegment, err)
 	if err != nil {
-		return zero, fmt.Errorf("rpc %s marshal request: %w", subject, err)
+		return fmt.Errorf("rpc %s marshal request: %w", subject, err)
 	}
 
 	requestMsg := nats.NewMsg(subject)
@@ -61,23 +76,22 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	msg, err := RequestMsgWithContext(ctx, nc, requestMsg)
 	endMessagingSegment(segment, err)
 	if err != nil {
-		return zero, fmt.Errorf("rpc %s request: %w", subject, err)
+		return fmt.Errorf("rpc %s request: %w", subject, err)
 	}
 
 	if refusal := replyRefusal(msg.Data); refusal.Error != "" {
-		return zero, RPCReplyError{Subject: subject, Message: refusal.Error, Code: refusal.Code}
+		return RPCReplyError{Subject: subject, Message: refusal.Error, Code: refusal.Code}
 	}
 
 	decodeSegment := startMessagingSegment(ctx, messagingSpan{
 		name: "rpc.response.decode", operation: "request", destination: subject,
 	})
-	var reply T
-	if err := codec.FastUnmarshal(msg.Data, &reply); err != nil {
+	if err := codec.FastUnmarshal(msg.Data, reply); err != nil {
 		endMessagingSegment(decodeSegment, err)
-		return zero, fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
+		return fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
 	}
 	endMessagingSegment(decodeSegment, nil)
-	return reply, nil
+	return nil
 }
 
 func RequestJSONTimeout[T any](ctx context.Context, nc *nats.Conn, subject string, request any, timeout time.Duration) (T, error) {

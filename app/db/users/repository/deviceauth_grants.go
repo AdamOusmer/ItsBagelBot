@@ -59,7 +59,7 @@ func (r *Users) RevokeDeviceGrant(ctx context.Context, userID uint64, grantID st
 // authorization codes die with the grants, so none can mint a grant afterwards.
 func (r *Users) RevokeAllDeviceGrants(ctx context.Context, userID uint64, reason string) ([]string, error) {
 	var deviceIDs []string
-	err := withTx(ctx, r.client, func(tx *ent.Tx) error {
+	err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 		var err error
 		deviceIDs, err = revokeAllInTx(ctx, tx, userID, reason)
 		return err

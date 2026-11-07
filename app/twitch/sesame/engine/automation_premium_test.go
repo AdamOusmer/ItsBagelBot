@@ -135,6 +135,36 @@ func TestAutomationsPremiumGateOnMessagePaths(t *testing.T) {
 	}
 }
 
+func TestTimeLeftCommandStaysSilentOnALockedChannel(t *testing.T) {
+	for name, left := range map[string]string{"routed": "!left", "chat scan": "left"} {
+		recipe := testAutomation("t", "reward", map[string]any{"reward_id": "r-1"}, cond("cooldown", map[string]any{"global_s": 60, "left_command": left}))
+
+		t.Run(name+"/locked", func(t *testing.T) {
+			rig := newPremiumRig(t, betaAutoModule, false, projection.Command{}, recipe)
+			env := chatEnv(left, "")
+			env.Lane = "standard"
+
+			process(t, rig.p, env)
+
+			assert.Empty(t, rig.pub.snapshot(), "no reply")
+			assert.Empty(t, rig.runs.records())
+			assert.Zero(t, rig.src.loads.Load(), "the recipe list is not even read")
+		})
+		t.Run(name+"/premium", func(t *testing.T) {
+			rig := newPremiumRig(t, betaAutoModule, false, projection.Command{}, recipe)
+			env := chatEnv(left, "")
+			env.Lane = "premium"
+
+			process(t, rig.p, env)
+
+			replies := rig.pub.chatTexts(t)
+			require.Len(t, replies, 1)
+			assert.Contains(t, replies[0], "ready to use")
+			assert.Empty(t, rig.runs.records(), "a peek starts no run")
+		})
+	}
+}
+
 func TestAutomationsPremiumGateOnTimers(t *testing.T) {
 	timer := withActions(testAutomation("t", "timer", map[string]any{"interval_s": 60}), []automation.Action{chatAction("tick")})
 	rig := newPremiumRig(t, betaAutoModule, false, projection.Command{}, timer)

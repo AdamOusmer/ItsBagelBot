@@ -3,6 +3,8 @@
   "skip": "Ir al contenido",
   "breadcrumb": "Ruta de navegación",
   "main": "Navegación principal",
+  "railCollapse": "Contraer la barra lateral",
+  "railExpand": "Expandir la barra lateral",
   "menuOpen": "Abrir menú",
   "menuClose": "Cerrar menú",
   "menu": "Menú",

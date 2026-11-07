@@ -251,11 +251,12 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/nav-link", budget: 1350 },
   { name: "elements/button", budget: 2000 }, // 1919 B: tonal depth on primary, twitch and go-solid (2026-10-29)
   { name: "elements/card", budget: 1760 }, // 1470 B: halo surface and light-theme shadow in the base card (2026-10-28)
+  { name: "elements/canvas-card", budget: 480 }, // 419 B: shared background + selection ring for flows nodes and overlay layers (2026-11-06)
   { name: "elements/icon", budget: 280 },
   { name: "elements/brand-mark", budget: 900 },
   { name: "elements/nav", budget: 3640 }, // 3511 B: tonal depth on the field trigger and locale menu (2026-10-28)
   { name: "elements/footer", budget: 2460 }, // 2284 B: full-height frame with built-in aurora sky, grain tile and peeking bolota crew; footer no longer loads light-field.css; ~7% room (2026-10-29)
-  { name: "elements/shell", budget: 3200 }, // 2818 B after the page head split (2026-09-29)
+  { name: "elements/shell", budget: 3500 }, // 3200 -> 3500: collapsible rail fold behind an opt-in attribute (2026-11-07)
   { name: "elements/badge", budget: 320 },
   { name: "elements/chip", budget: 1230 }, // 1114 B: tonal surface fill, lift and focus ring for plain chips (2026-10-29)
   { name: "elements/empty-state", budget: 500 },
@@ -323,8 +324,10 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/skip-link", budget: 480 }, // 283 B
   { name: "elements/popover", budget: 1230 }, // 964 B: bottom placement, touch areas (2026-09-29)
   { name: "elements/copy-surface", budget: 1620 }, // 1319 B
-  { name: "elements/profile-menu", budget: 2010 }, // 1675 B: menu height cap, coarse-pointer targets (2026-09-29)
+  { name: "elements/profile-menu", budget: 2300 }, // 2010 -> 2300: rail footer folds with a collapsible rail (2026-11-07)
   { name: "elements/nav-progress", budget: 510 }, // 310 B: nav progress bar (2026-09-29)
+  { name: "elements/dot-canvas", budget: 230 }, // 176 B: shared pannable/static dot backdrop (2026-11-06)
+  { name: "elements/editor-stage", budget: 1450 }, // 1422 B: +slimBar opt-in (one attached top bar instead of three floating pills), still under budget (2026-11-06)
 ];
 
 let failed = false;

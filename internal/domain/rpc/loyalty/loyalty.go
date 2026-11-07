@@ -22,9 +22,6 @@ type Request struct {
 	Limit          int    `json:"limit,omitempty"`
 	Offset         int    `json:"offset,omitempty"`
 	Query          string `json:"query,omitempty"`
-
-	Names []string `json:"names,omitempty"`
-	Text  string   `json:"text,omitempty"`
 }
 
 type Balance struct {
@@ -68,7 +65,5 @@ type Reply struct {
 	Found         bool           `json:"found,omitempty"`
 	Spent         bool           `json:"spent,omitempty"`
 	LimitExceeded bool           `json:"limit_exceeded,omitempty"`
-
-	Variables map[string]string `json:"variables,omitempty"`
 	rpc.Refusal
 }

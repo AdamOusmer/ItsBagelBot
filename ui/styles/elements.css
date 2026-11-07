@@ -23,6 +23,7 @@
 @import './elements/light-field.css';
 @import './elements/footer.css';
 @import './elements/card.css';
+@import './elements/canvas-card.css';
 @import './elements/tag.css';
 @import './elements/tabs.css';
 @import './elements/field.css';
@@ -97,3 +98,5 @@
 @import './elements/chat-preview.css';
 @import './elements/action-bar.css';
 @import './elements/mark-badge.css';
+@import './elements/dot-canvas.css';
+@import './elements/editor-stage.css';

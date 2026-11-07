@@ -2,7 +2,8 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
-  import { Bolota, getI18n } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { webHref } from '@bagel/kit/site-links';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import HaloPanel from '@bagel/ui/svelte/HaloPanel.svelte';

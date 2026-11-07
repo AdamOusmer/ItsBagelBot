@@ -14,6 +14,7 @@ import (
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	automationsrpc "ItsBagelBot/internal/domain/rpc/automations"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
@@ -108,6 +109,38 @@ func TestAutomationRunRPCAcceptsAndPublishesOutput(t *testing.T) {
 	got := fx.pub.snapshot()[0]
 	assert.Contains(t, []string{premiumSubj, standardSubj}, got.subject)
 	assert.JSONEq(t, `{"broadcaster_id":"`+fx.bidSt+`","message":"hello from greet"}`, string(got.msg.Payload))
+}
+
+type blockingSource struct{ finished chan struct{} }
+
+func (s blockingSource) Automations(ctx context.Context, _ uint64) ([]automation.Automation, error) {
+	<-ctx.Done()
+	close(s.finished)
+	return nil, ctx.Err()
+}
+
+func (s blockingSource) AutomationIndex(ctx context.Context, id uint64) (*automation.TriggerIndex, error) {
+	list, err := s.Automations(ctx, id)
+	return automation.CompileIndex(list), err
+}
+
+func TestAutomationRunRPCStopsAtTheCallersDeadline(t *testing.T) {
+	fx := newRPCFixture(t, automationOn())
+	source := blockingSource{finished: make(chan struct{})}
+	fx.p.automations.Source = source
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_, err := bus.RequestJSON[automationsrpc.RunReply](ctx, fx.nc, automationsrpc.SubjectRun, automationsrpc.RunRequest{
+		BroadcasterID: fx.bidSt, Name: "greet", Source: automationsrpc.SourceDashboard, RequestID: "deadline",
+	})
+
+	require.Error(t, err)
+	select {
+	case <-source.finished:
+	case <-time.After(automationRPCTimeout / 2):
+		t.Fatal("the run outlived its caller")
+	}
 }
 
 func TestAutomationRunRPCRefusals(t *testing.T) {

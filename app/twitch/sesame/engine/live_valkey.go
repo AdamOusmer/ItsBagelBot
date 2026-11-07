@@ -96,12 +96,12 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 }
 
 func (s *ValkeyLiveStore) loadLive(ctx context.Context, broadcasterID uint64) (bool, error) {
-	_, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
-	if err == nil {
-		return true, nil
-	}
-	if !valkey.IsValkeyNil(err) {
+	_, ok, err := pkg_valkey.NewKV(s.client).ReadBytes(ctx, liveKey(broadcasterID))
+	if err != nil {
 		return false, err
+	}
+	if ok {
+		return true, nil
 	}
 
 	id := strconv.FormatUint(broadcasterID, 10)
@@ -146,30 +146,8 @@ func (s *ValkeyLiveStore) setLiveKey(ctx context.Context, broadcasterID uint64, 
 	if ttl <= 0 {
 		ttl = 12 * time.Hour
 	}
-	applied, err := setLiveScript.Exec(ctx, s.client, []string{liveKey(broadcasterID), livekey.VerKey(broadcasterID)}, []string{
-		livekey.Value(version), strconv.FormatInt(int64(ttl.Seconds()), 10), strconv.FormatInt(int64(livekey.VerTTL.Seconds()), 10),
-	}).AsInt64()
-	if err != nil {
-		return false, err
-	}
-	return applied > 0, nil
+	return liveSlot(broadcasterID).Set(ctx, s.client, pkg_valkey.SlotWrite{Version: version, TTL: ttl, VerTTL: livekey.VerTTL})
 }
-
-func clearLiveKey(ctx context.Context, client valkey.Client, broadcasterID uint64, version int64) (bool, error) {
-	applied, err := clearLiveScript.Exec(ctx, client, []string{liveKey(broadcasterID), livekey.VerKey(broadcasterID)}, []string{
-		livekey.Value(version), strconv.FormatInt(int64(livekey.VerTTL.Seconds()), 10),
-	}).AsInt64()
-	if err != nil {
-		return false, err
-	}
-	return applied > 0, nil
-}
-
-// Not retryable: a retried DEL racing a concurrent SetLive could delete a freshly confirmed key.
-var (
-	setLiveScript   = valkey.NewLuaScript(livekey.SetScript)
-	clearLiveScript = valkey.NewLuaScript(livekey.ClearScript)
-)
 
 func (s *ValkeyLiveStore) broadcast(broadcasterID uint64) {
 	if s.nc == nil || s.cfg.CacheInvalidatePrefix == "" {
@@ -240,8 +218,8 @@ func (s *ValkeyLiveStore) confirmationAllowed(ctx context.Context, broadcasterID
 		return false
 	}
 	id := strconv.FormatUint(broadcasterID, 10)
-	fence, err := s.client.Do(ctx, s.client.B().Get().Key(offlineConfirmKeyPrefix+"admission:"+id).Build()).ToString()
-	return err == nil && fence == runtimeFence(state)
+	fence, ok := pkg_valkey.NewKV(s.client).GetString(ctx, offlineConfirmKeyPrefix+"admission:"+id)
+	return ok && fence == runtimeFence(state)
 }
 
 func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID string) error {

@@ -20,7 +20,9 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/internal/domain/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
@@ -46,14 +48,15 @@ const (
 
 	maxValues     = 5
 	maxValueRunes = 256
-	// Mirrors automation.MaxSavedValueRunes.
-	maxSavedValueRunes = 500
 
 	// Must equal SAMPLE_MAX_BYTES in JsonTree.svelte: the client rejects anything larger.
 	maxSampleBytes = 128 * 1024
 
 	authHeaderName = "Authorization"
 )
+
+// admitPolicy decides whether a flight may spend upstream budget; nil means the rate-limit buckets.
+type admitPolicy func(ctx context.Context, fl *flight, isPremium bool) error
 
 type Config struct {
 	ChannelRateLimit       float64
@@ -81,7 +84,7 @@ type api struct {
 
 	positiveTTL time.Duration
 
-	admit func(ctx context.Context, fl *flight, isPremium bool) error
+	admit admitPolicy
 
 	fails syncMapHosts
 }
@@ -102,13 +105,13 @@ func (h *syncMapHosts) counter(host string) *atomic.Int32 {
 // Must not declare .Trusted(): user-defined fetches egress via WARP.
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d)
-	p := newAPI(cfg, d, b)
+	p := newAPI(cfg, d, b, nil)
 	b.Endpoint(fetchEndpoint).Timeout(fetchTimeout).Handle(p.fetch)
 	b.Endpoint(postEndpoint).Timeout(fetchTimeout).Handle(p.post)
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder, admit admitPolicy) *api {
 	p := &api{
 		http:                 b.Client("", nil, fetchTimeout),
 		cache:                d.Cache,
@@ -126,7 +129,10 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	if p.positiveTTL <= 0 {
 		p.positiveTTL = positiveTTLDflt
 	}
-	p.admit = p.spendBudget
+	p.admit = admit
+	if admit == nil {
+		p.admit = p.spendBudget
+	}
 	return p
 }
 
@@ -265,10 +271,8 @@ func (p *api) dispatch(ctx context.Context, req gossiprpc.Request, fl *flight) (
 
 // Recipes can loop an inline fetch, so unlike a dashboard dry run it spends rate budget.
 func (p *api) dispatchInline(ctx context.Context, req gossiprpc.Request, fl *flight, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
-	if admit := p.admitFor(req, fl); admit != nil {
-		if err := admit(ctx); err != nil {
-			return nil, err
-		}
+	if err := p.admit(ctx, fl, req.IsPremium); err != nil {
+		return nil, err
 	}
 	b, _, err := build(ctx)
 	return b, err
@@ -498,9 +502,6 @@ func (p *api) budgetLayers(fl *flight) []core.Buckets {
 }
 
 func (p *api) admitFor(req gossiprpc.Request, fl *flight) func(context.Context) error {
-	if p.admit == nil {
-		return nil
-	}
 	return func(ctx context.Context) error {
 		return p.admit(ctx, fl, req.IsPremium)
 	}
@@ -544,7 +545,7 @@ func capValues(values []string, runes int) []string {
 		values = values[:maxValues]
 	}
 	for i, v := range values {
-		values[i] = truncateRunes(v, runes)
+		values[i] = utils.TruncateRunes(v, runes)
 	}
 	return values
 }
@@ -552,18 +553,7 @@ func capValues(values []string, runes int) []string {
 // Only a live recipe saves its inline fetch; a dashboard rehearsal shows what a command would get.
 func (fl *flight) valueLimit(dryRun bool) int {
 	if fl.inline && !dryRun {
-		return maxSavedValueRunes
+		return automation.MaxSavedValueRunes
 	}
 	return maxValueRunes
-}
-
-func truncateRunes(s string, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n])
 }

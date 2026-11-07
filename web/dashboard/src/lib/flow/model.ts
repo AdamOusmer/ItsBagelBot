@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
+import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
@@ -13,10 +13,11 @@ export type StepGroup = 'twitch' | 'modules' | 'basics';
 
 type Typed = { key: string; placeholder?: true };
 
-export type FieldSpec = { when?: { key: string; value: string | readonly string[] } } & (
+export type FieldSpec = { when?: { key: string; value: string | readonly string[] | boolean } } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
+  | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[] }
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
@@ -179,10 +180,14 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     group: 'basics',
     icon: 'hourglass',
     fields: [
-      { key: 'seconds', type: 'number', min: 1, unit: true },
-      { key: 'perUser', type: 'toggle' }
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'perUser', type: 'toggle' },
+      { key: 'name', type: 'text', placeholder: true, when: { key: 'perUser', value: false } },
+      { key: 'leftCommand', type: 'text', placeholder: true },
+      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
+      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
     ],
-    outputs: yesNo
+    outputs: [{ id: 'yes' }, { id: 'no', provides: [{ token: '{cooldown:left}', name: 'cooldownLeft', sample: '2d 3h' }] }]
   },
   {
     type: 'cond.compare',
@@ -360,10 +365,23 @@ export const NODE_SPECS: readonly NodeSpec[] = [
       { key: 'cost', type: 'number', min: 1, max: MAX_REWARD_COST, unit: true },
       { key: 'reset', type: 'toggle' }
     ]
+  },
+  {
+    type: 'reply.cooldown_add',
+    slug: 'cooldownAdd',
+    kind: 'reply',
+    group: 'basics',
+    icon: 'timer',
+    fields: [
+      { key: 'name', type: 'choice', source: 'namedCooldowns' },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'per', type: 'number', min: 0 }
+    ]
   }
 ];
 
-function gateMatches(wanted: string | readonly string[], value: unknown): boolean {
+function gateMatches(wanted: string | readonly string[] | boolean, value: unknown): boolean {
+  if (typeof wanted === 'boolean') return Boolean(value) === wanted;
   return typeof wanted === 'string' ? value === wanted : wanted.includes(String(value));
 }
 

@@ -38,7 +38,7 @@ var requiredTrigger = map[string]string{
 
 var actionRole = map[string]int{
 	"timeout": roleModerator, "ban": roleModerator, "warn": roleModerator, "shield": roleModerator,
-	"delete_message": roleModerator,
+	"delete_message": roleModerator, "cooldown_add": roleModerator,
 }
 
 func register[T any](check func(chk, T)) entry {
@@ -223,5 +223,6 @@ func init() {
 		"var_delete":     register(checkVarDelete),
 		"text":           register(checkTextStep),
 		"math":           register(checkMath),
+		"cooldown_add":   register(checkCooldownAdd),
 	}
 }

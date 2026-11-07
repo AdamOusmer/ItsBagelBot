@@ -84,7 +84,7 @@ func (f *fakeValkey) hash(key string) fakeHash {
 }
 
 func execEVALRO(s *valkeytest.Server, args valkeytest.Args) valkeytest.Reply {
-	if args[0] != moduleSnapshotRead {
+	if !strings.Contains(args[0], "module-only settings snapshot") {
 		return valkeytest.Err("unsupported read-only script")
 	}
 	key := args[2]

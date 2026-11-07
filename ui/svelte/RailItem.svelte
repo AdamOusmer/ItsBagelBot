@@ -29,7 +29,16 @@
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
-  const classes = $derived(['bb-rail-item', locked ? 'bb-rail-item--locked' : null, className || null].filter(Boolean).join(' '));
+  const classes = $derived(
+    [
+      'bb-rail-item',
+      locked ? 'is-locked' : null,
+      current ? 'is-active' : null,
+      className || null,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
 </script>
 
 {#if locked}

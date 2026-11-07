@@ -4,7 +4,7 @@
   import ErrorScene from '@bagel/ui/svelte/ErrorScene.svelte';
   import { page } from '$app/state';
   import { getI18n } from '../lib/i18n/context';
-  import Bolota from './Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
 
   const mascotPalette = { head: '#62a593', eye: '#111113' };
 

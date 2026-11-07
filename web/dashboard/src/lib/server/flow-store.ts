@@ -7,8 +7,11 @@ import {
   alertDefinition,
   classifyFlow,
   commandDefinition,
+  leftCommandNames,
+  normalizeCommandName,
   plainAlertLine,
   setupGaps,
+  triggerCommandNames,
   validateDefinition,
   type AlertKey,
   type Automation,
@@ -18,7 +21,7 @@ import {
   type SimpleCommand
 } from '@bagel/kit/automations';
 import { moduleDef, MOD } from '@bagel/kit/catalog';
-import type { CommandView, Perm } from '@bagel/kit';
+import { BUILTIN_COMMANDS, type CommandView, type Perm } from '@bagel/kit';
 import { rpc } from '@bagel/kit/server/nats';
 import type { FlowRef } from '#lib/flow/ref';
 import {
@@ -33,6 +36,7 @@ import {
   type AlertDowngradeResult,
   type UpsertResult
 } from './automations-store';
+import { recipeTimeLeftNames } from './recipe-time-left';
 import {
   deleteCommand,
   listCommands,
@@ -295,6 +299,8 @@ async function writeCommand(userId: UserId, command: SimpleCommand, input: SaveF
   if (previousName && !current) return { ok: false, reason: 'not_found' };
   if (current && staleRevision(input.expectedRevision, commandToken(current))) return CONFLICT;
   if (commandNameTaken(rows, command, previousName)) return COMMAND_EXISTS;
+  const timeLeftNames = await recipeTimeLeftNames(userId);
+  if ([command.name, ...command.aliases].some((name) => timeLeftNames.has(normalizeCommandName(name)))) return COMMAND_EXISTS;
   const saved = commandInput(command, input.enabled, current);
   await upsertCommand(userId, saved, previousName);
   const view: CommandView = { name: saved.name, aliases: saved.aliases, response: saved.response, is_active: saved.isActive, stream_online_only: saved.streamOnlineOnly, perm: saved.perm, cooldown: saved.cooldown, user_cooldown: saved.userCooldown, allowed_user_id: saved.allowedUserId, bump_counter: saved.bumpCounter };
@@ -355,15 +361,9 @@ function upsertFailure(result: Extract<UpsertResult, { ok: false }>): SaveFlowRe
   return { ok: false, reason: 'failed', error: result.error ?? result.code ?? 'save failed' };
 }
 
-function triggerNames(definition: Definition): string[] {
-  if (definition.trigger.type !== 'command') return [];
-  const params = definition.trigger.params ?? {};
-  return [params.name, ...((params.aliases ?? []) as string[])].map((n) => String(n).replace(/^!/, '').toLowerCase());
-}
-
 async function automationWarnings(userId: UserId, definition: Definition, dropping?: CommandName): Promise<FlowWarning[]> {
   const commands = await ownerCommands(userId);
-  const names = triggerNames(definition);
+  const names = triggerCommandNames(definition.trigger);
   return commands.some((row) => row.name !== dropping && names.includes(row.name.toLowerCase())) ? ['shadowed_by_command'] : [];
 }
 
@@ -372,8 +372,21 @@ async function turnOnAutomations(userId: UserId): Promise<void> {
   if (modules.find((row) => row.name === MOD.automations)?.is_enabled !== true) await setModuleEnabled(userId, MOD.automations, true);
 }
 
+const LEFT_COMMAND_EXISTS: SaveFlowResult = { ok: false, reason: 'conflict', issues: [{ path: 'left_command', code: 'command_exists' }] };
+
+const builtinNames = (): string[] => BUILTIN_COMMANDS.flatMap((def) => [def.id, ...(def.aliases ?? [])]);
+
+// The other side of this check, recipes against recipes, is the modules service's on save.
+async function leftCommandRefusal(userId: UserId, definition: Definition, dropping?: CommandName): Promise<SaveFlowResult | null> {
+  const wanted = leftCommandNames(definition).map(normalizeCommandName);
+  if (wanted.length === 0) return null;
+  const rows = (await ownerCommands(userId)).filter((row) => row.name !== dropping);
+  const taken = new Set([...builtinNames(), ...rows.flatMap((row) => [row.name, ...(row.aliases ?? [])])].map(normalizeCommandName));
+  return wanted.some((name) => taken.has(name)) ? LEFT_COMMAND_EXISTS : null;
+}
+
 async function writeAutomation(userId: UserId, input: SaveFlowInput, id?: FlowId, dropping?: CommandName): Promise<SaveFlowResult> {
-  const refusal = usesTokenRefusal(input.definition);
+  const refusal = usesTokenRefusal(input.definition) ?? (await leftCommandRefusal(userId, input.definition, dropping));
   if (refusal) return refusal;
   const expected = id && input.expectedRevision !== undefined ? Number(input.expectedRevision) : undefined;
   const result = await upsertAutomation(userId, { id, name: input.name, enabled: input.enabled, definition: input.definition, preview: input.preview, expectedRevision: expected });

@@ -40,7 +40,7 @@
   "reward.b1.html": "\n            <h3>Was Zuschauer eingeben</h3>\n            <p>\n                Wenn ein Zuschauer die Belohnung einlöst, gibt er eine Farbe ein. Ein englischer Farbname\n                funktioniert, zum Beispiel <code>blue</code>. Ein Hex-Code funktioniert ebenfalls, etwa\n                <code>#00ccff</code>. Wenn du „Zuschauer dürfen die Leuchte ausschalten“ aktivierst, kann ein Zuschauer\n                <code>off</code> eingeben, um die Leuchte auszuschalten.\n            </p>",
   "reward.b2.html": "\n                <b>„Nur live“ ist standardmäßig aktiviert</b>\n                „Nur live“ bedeutet, dass Einlösungen nur funktionieren, wenn dein Stream live ist. Das wird empfohlen.\n                Wenn du es deaktivierst, können Zuschauer die Leuchte auch ändern, während du offline bist.",
   "reward.heading": "Die Kanalpunkte-Belohnung erstellen",
-  "reward.note": "Eine Belohnung pro Leuchte. Zuschauer geben beim Einlösen eine Farbe ein.",
+  "reward.note": "Eine Belohnung pro Leuchte oder pro Gruppe von Leuchten. Zuschauer geben beim Einlösen eine Farbe ein.",
   "trouble.b0.html": "\n            <p>\n                In den Chatzeilen unten steht <code>@viewer</code> für den Namen des Zuschauers, der die Belohnung eingelöst hat. Jede Erstattungszeile bedeutet, dass der Bot die Punkte zurückgegeben hat.\n            </p>",
   "trouble.b1.head.0": "Was du siehst",
   "trouble.b1.head.1": "Was das bedeutet",

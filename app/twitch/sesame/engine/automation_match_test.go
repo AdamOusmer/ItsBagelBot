@@ -92,6 +92,7 @@ type autoRig struct {
 	builtin     bool
 	nilSource   bool
 	cooldown    CooldownStore
+	long        LongCooldownStore
 	loyalty     LoyaltyStore
 	stream      StreamInfoLookup
 	intN        int
@@ -138,7 +139,9 @@ func (r autoRig) pipeline() (*Pipeline, *recordingRunLog) {
 		StreamInfo: r.stream,
 		Log:        zap.NewNop(),
 		Automations: AutomationDeps{
-			Runs: runs,
+			Runs:          runs,
+			LongCooldowns: r.long,
+			intN:          func(int) int { return r.intN },
 		},
 	}
 	if !r.nilSource {
@@ -146,7 +149,6 @@ func (r autoRig) pipeline() (*Pipeline, *recordingRunLog) {
 	}
 	p := NewPipeline(d, NewRegistry(zap.NewNop(), mods...), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 	hook.Wire(p)
-	p.autoIntN = func(int) int { return r.intN }
 	return p, runs
 }
 

@@ -25,20 +25,18 @@ type Store interface {
 	Del(ctx context.Context, key string) error
 }
 
-type ValkeyStore struct{ c valkey.Client }
+type ValkeyStore struct {
+	c  valkey.Client
+	kv pkg_valkey.KV
+}
 
-func NewValkeyStore(c valkey.Client) *ValkeyStore { return &ValkeyStore{c: c} }
+func NewValkeyStore(c valkey.Client) *ValkeyStore {
+	return &ValkeyStore{c: c, kv: pkg_valkey.NewKV(c)}
+}
 
 func (s *ValkeyStore) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	res := s.c.Do(ctx, s.c.B().Get().Key(key).Build())
-	if err := res.Error(); err != nil {
-		if valkey.IsValkeyNil(err) {
-			return nil, false, nil
-		}
-		return nil, false, err
-	}
-	b, err := res.AsBytes()
-	if err != nil {
+	b, found, err := s.kv.ReadBytes(ctx, key)
+	if err != nil || !found {
 		return nil, false, err
 	}
 	b, err = codec.Unpack(b)
@@ -50,7 +48,7 @@ func (s *ValkeyStore) Get(ctx context.Context, key string) ([]byte, bool, error)
 }
 
 func (s *ValkeyStore) Set(ctx context.Context, key string, val []byte, ttl time.Duration) error {
-	return s.c.Do(ctx, s.c.B().Set().Key(key).Value(valkey.BinaryString(codec.Pack(val))).Ex(ttl).Build()).Error()
+	return s.kv.SetBytes(ctx, pkg_valkey.Key{Name: key, TTL: ttl}, codec.Pack(val))
 }
 
 func (s *ValkeyStore) SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error) {
@@ -58,7 +56,7 @@ func (s *ValkeyStore) SetNX(ctx context.Context, key string, ttl time.Duration) 
 }
 
 func (s *ValkeyStore) Del(ctx context.Context, key string) error {
-	return s.c.Do(ctx, s.c.B().Del().Key(key).Build()).Error()
+	return s.kv.Del(ctx, key)
 }
 
 type Cache struct {

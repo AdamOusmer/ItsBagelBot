@@ -23,7 +23,7 @@ func budgetedHarness(t *testing.T) *harness {
 	t.Helper()
 	h := newHarness(t)
 	h.p.limiter = ratelimit.New(valkeytest.Spawn(t))
-	h.p.admit = h.p.spendBudget
+	h.admission = h.p.spendBudget
 	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	return h
 }
@@ -84,7 +84,7 @@ func TestInlineFetchSpendsBudgetAndSkipsTheCache(t *testing.T) {
 func TestInlineFetchBucketDenialAnswersLimited(t *testing.T) {
 	h := newHarness(t)
 	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
-	h.p.admit = func(context.Context, *flight, bool) error {
+	h.admission = func(context.Context, *flight, bool) error {
 		return &core.UpstreamError{Status: http.StatusTooManyRequests, LocalDeny: true}
 	}
 

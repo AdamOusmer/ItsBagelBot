@@ -14,6 +14,7 @@ import (
 	"time"
 
 	catalog "ItsBagelBot/internal/domain/analytics"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -231,14 +232,14 @@ func (r *Recorder) Flush(ctx context.Context) {
 	cmds := r.counterCmds(p.counts)
 	cmds = append(cmds, r.sketchCmds(ctx, p.sketches)...)
 	cmds = append(cmds, r.levelCmds(p.levels)...)
-	r.reportErrors(r.client.DoMulti(ctx, cmds...))
+	r.reportErrors(pkg_valkey.ExecMulti(ctx, r.client, cmds...))
 }
 
 func (r *Recorder) counterCmds(counts map[slot]int64) valkey.Commands {
 	cmds := make(valkey.Commands, 0, len(counts)+1)
 	expiries := map[string]time.Time{}
 	for s, n := range counts {
-		cmds = append(cmds, r.client.B().Hincrby().Key(s.key).Field(s.field).Increment(n).Build())
+		cmds = append(cmds, pkg_valkey.HIncrByCmd(r.client, s.key, s.field, n))
 		expiries[s.key] = catalog.DataExpiry(catalog.Day, s.day)
 	}
 	return append(cmds, r.expireCmds(expiries)...)
@@ -259,8 +260,8 @@ func (r *Recorder) sketchCmds(ctx context.Context, sketches map[sketch]map[uint6
 		}
 		index := catalog.IndexKey(s.window, s.at)
 		cmds = append(cmds,
-			r.client.B().Pfadd().Key(s.key).Element(elements...).Build(),
-			r.client.B().Sadd().Key(index).Member(s.key).Build(),
+			pkg_valkey.PfaddCmd(r.client, s.key, elements...),
+			pkg_valkey.SaddCmd(r.client, index, s.key),
 		)
 		expiry := catalog.DataExpiry(s.window, s.at)
 		expiries[s.key] = expiry
@@ -273,7 +274,7 @@ func (r *Recorder) levelCmds(levels map[string]int64) valkey.Commands {
 	cmds := make(valkey.Commands, 0, len(levels))
 	for field, delta := range levels {
 		if delta != 0 {
-			cmds = append(cmds, r.client.B().Hincrby().Key(catalog.LevelKey).Field(field).Increment(delta).Build())
+			cmds = append(cmds, pkg_valkey.HIncrByCmd(r.client, catalog.LevelKey, field, delta))
 		}
 	}
 	return cmds
@@ -282,7 +283,7 @@ func (r *Recorder) levelCmds(levels map[string]int64) valkey.Commands {
 func (r *Recorder) expireCmds(expiries map[string]time.Time) valkey.Commands {
 	cmds := make(valkey.Commands, 0, len(expiries))
 	for key, at := range expiries {
-		cmds = append(cmds, r.client.B().Expireat().Key(key).Timestamp(at.Unix()).Build())
+		cmds = append(cmds, pkg_valkey.ExpireAtCmd(r.client, key, at.Unix()))
 	}
 	return cmds
 }
@@ -300,8 +301,8 @@ func (r *Recorder) salt(ctx context.Context, w catalog.Window, at time.Time) ([]
 	}
 	key := catalog.SaltKey(w, at)
 	expiry := strconv.FormatInt(catalog.SaltExpiry(w, at).Unix(), 10)
-	cmd := r.client.B().Arbitrary("SET").Keys(key).Args(string(fresh), "NX", "GET", "EXAT", expiry).Build()
-	existing, err := r.client.Do(ctx, cmd).AsBytes()
+	cmd := pkg_valkey.SetIfAbsentGetExpireAtCmd(r.client, key, string(fresh), expiry)
+	existing, err := pkg_valkey.Exec1(ctx, r.client, cmd).AsBytes()
 	switch {
 	case valkey.IsValkeyNil(err):
 		existing = fresh

@@ -111,7 +111,7 @@ func refOf(tok Var, sender string) (viewerRef, bool) {
 	}
 	login := sender
 	if tok.HasPayload {
-		login = normalizeLogin(tok.Payload)
+		login = NormalizeLogin(tok.Payload)
 	}
 	if login == "" {
 		return viewerRef{}, false
@@ -126,7 +126,8 @@ func familyOf(name string) string {
 	return name
 }
 
-func normalizeLogin(payload string) string {
+// NormalizeLogin is empty for anything that cannot be a login, such as text with control characters.
+func NormalizeLogin(payload string) string {
 	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(payload), "@"))
 	if strings.ContainsFunc(login, func(r rune) bool { return r < ' ' || r == '\x7f' }) {
 		return ""

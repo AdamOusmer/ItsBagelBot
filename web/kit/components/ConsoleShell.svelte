@@ -2,11 +2,13 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
+  import { afterNavigate } from '$app/navigation';
   import AppShell from '@bagel/ui/svelte/AppShell.svelte';
-  import AccountFoot from './AccountFoot.svelte';
   import OperatorMenu from './OperatorMenu.svelte';
   import { getI18n } from '../lib/i18n/context';
   import { groupsWithLockedHints } from '../lib/nav-core';
+  import { railAccountValues } from '../lib/account-menu';
+  import { clearOnboarding } from '../lib/onboarding';
   import type { NavGroupDef, NavLink, DashboardLink } from '../lib/types';
 
   const { t } = getI18n();
@@ -24,6 +26,24 @@
   } = $props();
 
   const withHints = $derived(groupsWithLockedHints(groups, t));
+
+  const accountValues = $derived(
+    railAccountValues(t, { dashboards, isDelegate, delegateExitHref, delegateExitLabel })
+  );
+  const railAccount = $derived(
+    accountName
+      ? {
+          name: accountName,
+          caption: accountRole,
+          ...accountValues,
+          logoutLabel: t('topbar.logout'),
+          onLogout: clearOnboarding
+        }
+      : undefined
+  );
+
+  let railAccountOpen = $state(false);
+  afterNavigate(() => (railAccountOpen = false));
 </script>
 
 <AppShell
@@ -41,6 +61,8 @@
   railLabel={t('nav.ariaMain')}
   {banner}
   {topActions}
+  {railAccount}
+  bind:railAccountOpen
 >
   {#snippet account()}
     {#if accountName}
@@ -53,16 +75,6 @@
         {delegateExitLabel}
       />
     {/if}
-  {/snippet}
-  {#snippet railFooter()}
-    <AccountFoot
-      name={accountName}
-      role={accountRole}
-      {dashboards}
-      {isDelegate}
-      {delegateExitHref}
-      {delegateExitLabel}
-    />
   {/snippet}
   {@render children()}
 </AppShell>

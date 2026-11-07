@@ -19,6 +19,7 @@ import {
 } from '@bagel/kit/importer/validate';
 import type { Session } from '../session';
 import { invalidate, SUB } from '../services';
+import { recipeTimeLeftNames } from '../recipe-time-left';
 import { listCommands, listModules, upsertCommand } from '../commands-store';
 import { addQuote } from '../quotes-store';
 import { rpc, RpcError } from '@bagel/kit/server/nats';
@@ -158,6 +159,7 @@ export async function commitImport(s: Session, req: ImportCommitRequest): Promis
     ctx.collisions = findCollisions(existingNames, ctx.manifest);
     ctx.skipCommands = collisionNames(ctx.collisions, 'command');
   }
+  for (const name of await recipeTimeLeftNames(ctx.uid).catch(() => new Set<string>())) ctx.skipCommands.add(name);
 
   await commitCommands(ctx);
   ctx.modules = await loadModules(ctx);

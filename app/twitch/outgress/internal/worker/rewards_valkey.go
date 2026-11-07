@@ -30,10 +30,12 @@ type rewardSnapshot struct {
 
 type RewardSnapshots struct {
 	client valkey.Client
+	kv     pkg_valkey.KV
 }
 
 func NewRewardSnapshots(client valkey.Client) *RewardSnapshots {
-	return &RewardSnapshots{client: pkg_valkey.Primary(client)}
+	primary := pkg_valkey.Primary(client)
+	return &RewardSnapshots{client: primary, kv: pkg_valkey.NewKV(primary)}
 }
 
 type rewardRef struct {
@@ -45,12 +47,17 @@ func (r rewardRef) stagedKey() string {
 	return "outgress:rewards:staged:" + r.broadcasterID + ":" + r.rewardID
 }
 
+func (r rewardRef) field() pkg_valkey.HashField {
+	return pkg_valkey.HashField{Key: outgress.RewardSnapshotKey(r.broadcasterID), Field: r.rewardID}
+}
+
 func (s *RewardSnapshots) has(ctx context.Context, reward rewardRef) (bool, error) {
-	committed, err := s.client.Do(ctx, s.client.B().Hexists().Key(outgress.RewardSnapshotKey(reward.broadcasterID)).Field(reward.rewardID).Build()).AsBool()
+	committed, err := reward.field().Exists(ctx, s.client)
 	if err != nil || committed {
 		return committed, err
 	}
-	return s.client.Do(ctx, s.client.B().Exists().Key(reward.stagedKey()).Build()).AsBool()
+	staged, err := pkg_valkey.CountExisting(ctx, s.client, []string{reward.stagedKey()})
+	return staged > 0, err
 }
 
 func (s *RewardSnapshots) stage(ctx context.Context, reward rewardRef, snapshot rewardSnapshot) error {
@@ -58,43 +65,19 @@ func (s *RewardSnapshots) stage(ctx context.Context, reward rewardRef, snapshot 
 	if err != nil {
 		return err
 	}
-	cmd := s.client.B().Set().Key(reward.stagedKey()).Value(string(body)).Nx().Px(rewardStagedTTL).Build()
-	if err := s.client.Do(ctx, cmd).Error(); !valkey.IsValkeyNil(err) {
-		return err
-	}
-	return nil
+	return s.kv.SetIfAbsent(ctx, pkg_valkey.Key{Name: reward.stagedKey(), TTL: rewardStagedTTL}, string(body))
 }
 
 func (s *RewardSnapshots) commit(ctx context.Context, reward rewardRef) error {
-	staged := reward.stagedKey()
-	body, err := s.client.Do(ctx, s.client.B().Get().Key(staged).Build()).ToString()
-	if valkey.IsValkeyNil(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	key := outgress.RewardSnapshotKey(reward.broadcasterID)
-	results := s.client.DoMulti(ctx,
-		s.client.B().Hsetnx().Key(key).Field(reward.rewardID).Value(body).Build(),
-		s.client.B().Expire().Key(key).Seconds(int64(rewardSnapshotTTL.Seconds())).Build(),
-		s.client.B().Del().Key(staged).Build(),
-	)
-	for _, result := range results {
-		if err := result.Error(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return reward.field().CommitStaged(ctx, s.client, pkg_valkey.StagedCommit{Staged: reward.stagedKey(), HashTTL: rewardSnapshotTTL})
 }
 
 func (s *RewardSnapshots) discard(ctx context.Context, reward rewardRef) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(reward.stagedKey()).Build()).Error()
+	return s.kv.Del(ctx, reward.stagedKey())
 }
 
 func (s *RewardSnapshots) all(ctx context.Context, broadcasterID string) (map[string]rewardSnapshot, error) {
-	cmd := s.client.B().Hgetall().Key(outgress.RewardSnapshotKey(broadcasterID)).Build()
-	raw, err := s.client.Do(ctx, cmd).AsStrMap()
+	raw, err := pkg_valkey.HashAll(ctx, s.client, outgress.RewardSnapshotKey(broadcasterID))
 	if err != nil {
 		return nil, err
 	}
@@ -109,24 +92,13 @@ func (s *RewardSnapshots) all(ctx context.Context, broadcasterID string) (map[st
 }
 
 func (s *RewardSnapshots) clear(ctx context.Context, reward rewardRef) error {
-	cmd := s.client.B().Hdel().Key(outgress.RewardSnapshotKey(reward.broadcasterID)).Field(reward.rewardID).Build()
-	return s.client.Do(ctx, cmd).Error()
+	return reward.field().Delete(ctx, s.client)
 }
 
 // A success overwrites and a failure only fills an empty field, so a redelivery can never turn a success into a failure.
 func (s *RewardSnapshots) recordResult(ctx context.Context, payload *outgress.Message, result string) error {
-	key := outgress.RewardResultKey(payload.BroadcasterID, payload.RunID)
-	write := s.client.B().Hsetnx().Key(key).Field(payload.ActionSlot).Value(result).Build()
-	if result == outgress.RewardResultOK {
-		write = s.client.B().Hset().Key(key).FieldValue().FieldValue(payload.ActionSlot, result).Build()
-	}
-	results := s.client.DoMulti(ctx, write, s.client.B().Expire().Key(key).Seconds(int64(outgress.RewardResultTTL.Seconds())).Build())
-	for _, res := range results {
-		if err := res.Error(); err != nil {
-			return err
-		}
-	}
-	return nil
+	field := pkg_valkey.HashField{Key: outgress.RewardResultKey(payload.BroadcasterID, payload.RunID), Field: payload.ActionSlot}
+	return field.Write(ctx, s.client, pkg_valkey.HashWrite{Value: result, Replace: result == outgress.RewardResultOK, TTL: outgress.RewardResultTTL})
 }
 
 func (s *RewardSnapshots) changeLock(broadcasterID, owner string) pkg_valkey.OwnerLock {

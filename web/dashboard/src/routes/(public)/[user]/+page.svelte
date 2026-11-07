@@ -8,7 +8,7 @@
   import Pager from '@bagel/ui/svelte/Pager.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { page as route } from '$app/state';

@@ -35,11 +35,12 @@ func upTo(hi quantity) span { return span{hi: hi} }
 func nonEmpty(hi quantity) span { return span{lo: 1, hi: hi} }
 
 type chk struct {
-	out     *[]Issue
-	path    path
-	trigger string
-	perm    int
-	depth   int
+	out         *[]Issue
+	path        path
+	trigger     string
+	perm        int
+	depth       int
+	eventAmount bool
 }
 
 func joinPath(base path, f field) path {

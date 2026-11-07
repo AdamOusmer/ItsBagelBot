@@ -47,3 +47,36 @@ export interface UiFooterColumn {
   title: string;
   links: UiNavLink[];
 }
+
+export interface ProfileMenuLink {
+  href: string;
+  label: string;
+  hint?: string;
+  icon?: IconName;
+  external?: boolean;
+}
+
+export interface ProfileAvatar {
+  name: string;
+  size: number;
+  active: boolean;
+  item: boolean;
+}
+
+// Values an app hands the rail's own account menu. The rail renders the
+// trigger, dropdown and avatar; the app supplies no markup.
+export interface UiAccount {
+  name: string;
+  caption: string;
+  links?: ProfileMenuLink[];
+  linksLabel?: string;
+  exit?: ProfileMenuLink;
+  help?: ProfileMenuLink[];
+  helpLabel?: string;
+  helpTitle?: string;
+  feedback?: ProfileMenuLink;
+  logoutLabel: string;
+  logoutAction?: string;
+  onLogout?: (event: SubmitEvent) => void;
+  menuLabel?: string;
+}

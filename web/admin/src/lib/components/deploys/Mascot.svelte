@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
 
   type Sequence = 'entrance' | 'burst' | 'orbit' | 'comet';
 
