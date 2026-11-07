@@ -70,6 +70,18 @@ export {
 } from './services/billing';
 export { auditDashboardImpersonation, auditImpersonation, type AuditEntry } from './services/audit';
 export {
+  deviceCodeCreate,
+  deviceCodeExchange,
+  deviceTokenRefresh,
+  deviceGrantList,
+  deviceGrantRevoke,
+  deviceGrantRevokeAll,
+  type DeviceTokens,
+  type DeviceGrantView,
+  type TokenOutcome,
+  type TokenOauthError
+} from './services/device-auth';
+export {
   notificationMarkPeeked,
   notificationMarkRead,
   notificationsForUser,

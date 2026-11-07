@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/tokensign"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
@@ -84,6 +85,7 @@ type Users struct {
 	erasures           ErasureStore
 	revoker            TokenRevoker
 	analytics          *analytics.Recorder
+	deviceSigner       *tokensign.Signer
 }
 
 func (r *Users) SetAnalytics(rec *analytics.Recorder) {
@@ -357,9 +359,19 @@ func (r *Users) SetCustomCursor(ctx context.Context, id uint64, on bool) error {
 	return nil
 }
 
-// SetBanned is moderation enforcement, so it writes through.
+// SetBanned is moderation enforcement, so it writes through. Banning also
+// revokes every desktop device grant; the DB write commits regardless of
+// whether the best-effort revocation publish succeeds.
 func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetBanned(banned) })
+	if err := r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetBanned(banned) }); err != nil {
+		return err
+	}
+	if banned {
+		if _, err := r.RevokeAllDeviceGrants(ctx, id, "ban"); err != nil {
+			r.log.Warn("device grant revoke on ban failed", zap.Uint64("user_id", id), zap.Error(err))
+		}
+	}
+	return nil
 }
 
 // Must write through: Get does not overlay pending preference writes.
@@ -392,6 +404,9 @@ func (r *Users) Delete(ctx context.Context, id uint64) error {
 
 func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error {
 	r.revokeTwitchTokens(ctx, id)
+	if _, err := r.RevokeAllDeviceGrants(ctx, id, "erasure"); err != nil {
+		r.log.Warn("device grant revoke on erasure failed", zap.Uint64("user_id", id), zap.Error(err))
+	}
 	deleted := data.UserDeletedDTO{UserID: id, AccountCreatedAt: createdAt.UnixMicro()}
 	counted := r.trackAccounts(ctx, id)
 

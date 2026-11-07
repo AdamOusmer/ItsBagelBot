@@ -10,7 +10,11 @@ custody, contact email, effective access, promotional grants, staff/audit record
 and dashboard delegation in `bagel_users`. It provisions the shared `BAGEL_DATA`
 stream and `BAGEL_DLQ`; Sesame owns Twitch ingress streams. Transactions owns provider HTTP calls
 and giveaway campaigns/draws, while Users owns authoritative eligibility/access.
-Modules, Commands and Loyalty own their separate feature records.
+Modules, Commands and Loyalty own their separate feature records. Users also
+owns all desktop device-authorization state and token logic (device grants,
+authorization codes, Ed25519 access-token signing); the dashboard owns HTTP
+input/CSRF/rate-limiting and forwards to Users over RPC, and the controls
+gateway only verifies access tokens and listens for revocation.
 
 ## Nomenclature
 
@@ -33,6 +37,9 @@ Modules, Commands and Loyalty own their separate feature records.
 | Delegation | Single-use invitation leading to scoped access to an owner's dashboard. |
 | Preference write | Locale/cursor/onboarding/creator-code batching; active intent changes persist immediately through lifecycle CAS. |
 | Payment failed | Separate billing condition; does not itself mean access has expired. |
+| Device grant | One desktop app authorization: `device_id` (stable across refresh) and `grant_id` identify it; owns the current refresh-token family. |
+| Authorization code | Single-use, 60s-lived PKCE code; stored only as a SHA-256 hash. Reuse revokes whatever grant it produced. |
+| `controls.revoked.<device_id>` | Core-NATS (non-JetStream) fire-and-forget revocation broadcast; the controls gateway is its only intended consumer. |
 
 ## Where to start
 
@@ -53,7 +60,10 @@ Modules, Commands and Loyalty own their separate feature records.
 | [rpc/tokens.go](rpc/tokens.go), [email.go](rpc/email.go), [projection.go](rpc/projection.go), [counts.go](rpc/counts.go), [delegation.go](rpc/delegation.go) | Scoped read/custody/delegation endpoints. |
 | [rpc/bot_token.go](rpc/bot_token.go) | Bot OAuth grant validation for the dedicated bot-token save path. |
 | [rpc/budgets.go](rpc/budgets.go) | Explicit deadlines protected by tests. |
-| [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, AdminUser and AdminAudit definitions. |
+| [rpc/deviceauth.go](rpc/deviceauth.go) | Desktop device-authorization RPCs (`bagel.rpc.dashboard.device.*`); OAuth-error mapping for the token endpoint. |
+| [repository/deviceauth_codes.go](repository/deviceauth_codes.go), [deviceauth_refresh.go](repository/deviceauth_refresh.go), [deviceauth_grants.go](repository/deviceauth_grants.go), [deviceauth_cleanup.go](repository/deviceauth_cleanup.go) | Code issuance/exchange, refresh rotation with reuse detection, grant listing/revocation, and the expired-code/stale-grant sweep. |
+| [tokensign/tokensign.go](tokensign/tokensign.go) | Ed25519 access-token signing/verification (`v1.<payload>.<sig>`), keyed by `kid`. |
+| [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, AdminUser, AdminAudit, DeviceGrant and AuthorizationCode definitions. |
 
 Shared contracts: [Users RPC](../../../internal/domain/rpc/users/),
 [billing RPC](../../../internal/domain/rpc/billing/),
@@ -66,6 +76,9 @@ Edit schemas rather than generated Ent code.
 
 - Dashboard defaults to `bagel.rpc.dashboard.*`; admin accounts to
   `bagel.rpc.admin.user.*`, with `.auth` and `.audit` surfaces for staff operations.
+  Desktop device authorization sits at `bagel.rpc.dashboard.device.*`
+  (`create_code`, `exchange`, `refresh`, `list`, `revoke`, `revoke_all`) under
+  the same wildcard export.
 - Registration persists identity immediately; contact-email capture is a separate
   best-effort step. Sensitive token/email reads use internal RPCs, not projections.
 - Locale/cursor/onboarded/creator-code preferences coalesce
@@ -87,6 +100,22 @@ Edit schemas rather than generated Ent code.
   subject overrides, token/email/count reads and the projection subject.
 
 Lifecycle authority: `repository/lifecycle.go` owns immediate intent, independent bot moderation/grant facts, admission generations, incident suppression, bounded recovery and indexed due replay. `lifecycle_projection_pending` persists publication failures without changing read revision on acknowledgment. Legacy seeds run 200 per due pass and unknown access stays degraded. `LifecycleErasure` retains incarnation-fenced cleanup after deletion; completed markers expire after seven days.
+
+Device authorization: `CreateDeviceAuthorizationCode`/`ExchangeDeviceCode` redeem a
+single-use code atomically (conditional `UPDATE ... WHERE consumed_at IS NULL`,
+same optimistic-concurrency shape as `delegations.go`); redeeming an
+already-consumed code revokes whatever grant it produced, win or lose the
+race. `RefreshDeviceGrant` rotates the refresh token on every use and keeps
+one prior hash; presenting that prior hash inside a 10s grace window is a
+quiet `invalid_grant` (covers a concurrent retry), presenting it after the
+grace window revokes the whole grant. `RevokeAllDeviceGrants` is the single
+path shared by the dashboard's `revoke_all` RPC, `SetBanned(true)` and
+`Delete`/erasure; a revoke commits in MySQL first and then best-effort
+publishes core NATS `controls.revoked.<device_id>` per device — a failed
+publish is logged, never un-revokes. Only `ExchangeDeviceCode`/`RefreshDeviceGrant`
+need the Ed25519 signer; a missing/invalid `DEVICE_AUTH_SIGNING_KEY` fails
+just those two closed and leaves the rest of the RPC surface (and the rest of
+Users) running.
 
 ## Invariants and pitfalls
 
@@ -120,7 +149,7 @@ Lifecycle authority: `repository/lifecycle.go` owns immediate intent, independen
 From repository root:
 
 ```sh
-go test ./app/db/users/repository ./app/db/users/rpc
+go test ./app/db/users/repository ./app/db/users/rpc ./app/db/users/tokensign
 go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock ./app/db/users/ent/schema
 ```
 
@@ -128,4 +157,9 @@ Choose preference tests for batching, giveaways tests for eligibility/access,
 watchtime_lifecycle tests for instance metadata, and contact-email/adminauth tests
 for custody/roles; bot-token tests protect its dedicated identity/scopes gate.
 Dashboard commands-page integration tests cover visibility and
-invalidation. CI regeneration/race checks: [main.yml](../../../.github/workflows/main.yml).
+invalidation. `deviceauth_test.go` covers the device-authorization business
+rules (replay/grace/revocation/erasure) on sqlite; `deviceauth_mysql_test.go`
+proves no double-spend under real concurrent exchange/refresh against MySQL
+(needs `MYSQL_TEST_DSN`, otherwise skipped); `tokensign` has a fixed-vector
+test pinned against `scratchpad/token-test-vector.json`. CI regeneration/race
+checks: [main.yml](../../../.github/workflows/main.yml).
