@@ -99,6 +99,14 @@ defmodule Ingress.Nats.PublisherTest do
       start_publisher(conn)
     end
 
+    test "publish_acked hands the publisher one flat binary" do
+      assert Ingress.Nats.publish_acked("twitch.ingress.event.standard", %{n: 1}) == :ok
+
+      assert_receive {:pub, "twitch.ingress.event.standard", body, _opts}, 500
+      assert is_binary(body)
+      assert JSON.decode!(body) == %{"n" => 1}
+    end
+
     test "two concurrent events retain individual PubAcks without atomic headers", %{
       publisher: publisher
     } do
