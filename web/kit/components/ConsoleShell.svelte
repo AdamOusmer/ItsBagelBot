@@ -28,7 +28,7 @@
   const withHints = $derived(groupsWithLockedHints(groups, t));
 
   const accountValues = $derived(
-    railAccountValues({ dashboards, isDelegate, delegateExitHref, delegateExitLabel, t })
+    railAccountValues(t, { dashboards, isDelegate, delegateExitHref, delegateExitLabel })
   );
   const railAccount = $derived(
     accountName
