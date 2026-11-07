@@ -40,11 +40,11 @@ const steps = [
 
         <Timeline rail="bridge" draw class="steps__list reveal-in">
             {steps.map((step, i) => (
-                <TimelineItem dot={false} class="step reveal-in" data-badge-host style={`--reveal-i: ${i + 2}`}>
+                <TimelineItem dot={false} badgeHover class="step reveal-in" style={`--reveal-i: ${i + 2}`}>
                     <RoundBadge size="lg" solid class="step__num" aria-hidden="true">{step.num}</RoundBadge>
                     <div class="step__body">
                         <Heading level={4} as="h3" class="step__title"><bb-fit mode="block">{step.title}</bb-fit></Heading>
-                        <Code class="step__receipt"><bb-fit data-decode={step.receipt}>{step.receipt}</bb-fit></Code>
+                        <Code class="step__receipt"><bb-fit>{step.receipt}</bb-fit></Code>
                     </div>
                 </TimelineItem>
             ))}

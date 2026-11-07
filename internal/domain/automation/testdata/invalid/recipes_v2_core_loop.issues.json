@@ -1,0 +1,14 @@
+[
+  {
+    "path": "actions[0].params.times",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[1].params.actions[0].type",
+    "code": "unknown_type"
+  },
+  {
+    "path": "actions[1].params.times",
+    "code": "required"
+  }
+]

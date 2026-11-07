@@ -8,7 +8,7 @@
   import Pager from '@bagel/ui/svelte/Pager.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { page as route } from '$app/state';
@@ -352,9 +352,6 @@
     gap: var(--bb-space-2);
     padding: calc(var(--bb-space-7) + 6px) var(--bb-space-6) var(--bb-space-6);
   }
-
-  .lb-spot--2 :global(.lb-spot__card) { --card-halo-rgb: var(--bb-tier-vip-rgb); --card-halo: 0.5; }
-  .lb-spot--3 :global(.lb-spot__card) { --card-halo-rgb: var(--bb-halo-green-rgb); --card-halo: 0.45; }
 
   .lb-spot__top {
     display: flex;

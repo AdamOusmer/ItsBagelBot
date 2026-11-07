@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { alertDefinition, commandDefinition, simpleFlowPreview, type Definition } from '@bagel/kit/automations';
+import { alertDefinition, commandDefinition, SETUP_REWARD_ID, type Definition } from '@bagel/kit/automations';
 import type { CommandView } from '@bagel/kit';
 
 import { stubSvelteKit } from '../../../test/sveltekit';
@@ -70,10 +70,12 @@ const savedAutomation = (id: string, definition: Definition, revision = 1) => ({
 const hugSimple = { name: 'hug', aliases: ['cuddle'], response: 'hi {user}', perm: 'mod' as const, cooldown: 30, userCooldown: 5 };
 
 const callsTo = (subject: string) => calls.filter((c) => c.subject === subject);
+const moduleWrites = () => callsTo('bagel.rpc.modules.upsert').map((c) => ({ name: c.body.name, is_enabled: c.body.is_enabled }));
 
 function stubStorage(commands: CommandView[], modules: unknown[]) {
   replies['bagel.rpc.commands.list'] = { commands };
   replies['bagel.rpc.modules.list'] = { modules };
+  replies['bagel.rpc.modules.upsert'] = { modules };
   replies['bagel.rpc.projector.dashboard.modules.get'] = { modules };
   replies['bagel.rpc.projector.dashboard.commands.get'] = { commands };
   replies['bagel.rpc.projector.dashboard.commands.replace'] = { commands };
@@ -250,11 +252,27 @@ describe('saving to the row a flow came from', () => {
 });
 
 describe('automation rows', () => {
-  test('a new complex flow inserts an automation and flags a switched off module', async () => {
+  test('saving an enabled recipe turns on the module the engine requires', async () => {
     stubStorage([], []);
     replies[`${AUTO}.upsert`] = { automation: savedAutomation('new', followFlow) };
     const res = await store.saveFlow(premium,{ ref: null, name: 'Flow', enabled: true, definition: followFlow });
-    expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'automation', id: 'new' }, revision: '1' }, warnings: ['automations_module_off'] });
+    expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'automation', id: 'new' }, revision: '1' }, warnings: [] });
+    expect(moduleWrites()).toEqual([{ name: 'automations', is_enabled: true }]);
+  });
+
+  test('saving a disabled recipe leaves the module alone', async () => {
+    stubStorage([], []);
+    replies[`${AUTO}.upsert`] = { automation: savedAutomation('new', followFlow) };
+    await store.saveFlow(premium,{ ref: null, name: 'Flow', enabled: false, definition: followFlow });
+    expect(moduleWrites()).toEqual([]);
+  });
+
+  test('a recipe converted to a command opens right away, before the commands service flushes', async () => {
+    stubStorage([], [automationsOn]);
+    replies['bagel.rpc.commands.upsert'] = {};
+    const res = await store.saveFlow(premium,{ ref: null, name: 'Flow', enabled: true, definition: commandDefinition(hugSimple) });
+    expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'command', name: 'hug' } } });
+    expect(await store.loadFlow('7', { layer: 'command', name: 'hug' })).not.toBeNull();
   });
 
   test('expected revision reaches the owner and a stale one is a conflict', async () => {
@@ -288,7 +306,7 @@ describe('automation rows', () => {
 describe('landing list and toggles', () => {
   const summary = (id: string, preview?: string) => ({ id, name: 'Flow', enabled: true, revision: 3, trigger_type: 'event', preview, updated_at: '' });
 
-  test('summaries read previews without the definition verbs', async () => {
+  test('the landing list holds saved recipes only, never commands or modules', async () => {
     stubStorage([hugRow], [alerts({})]);
     replies[`${AUTO}.summaries`] = { automations: [summary('a', '{"n":[],"e":[]}'), summary('b')] };
 
@@ -298,11 +316,7 @@ describe('landing list and toggles', () => {
     expect(callsTo(`${AUTO}.get`)).toEqual([]);
     expect(flows[0]).toEqual({ ref: { layer: 'automation', id: 'a' }, name: 'Flow', enabled: true, revision: '3', preview: '{"n":[],"e":[]}' });
     expect(flows[1]!.preview).toBeNull();
-    const command = flows.find((f) => f.ref.layer === 'command')!;
-    expect(command.preview).toBe(simpleFlowPreview(commandDefinition(hugSimple)));
-    const alert = flows.find((f) => f.ref.layer === 'alert')!;
-    expect(JSON.parse(alert.preview!).n).toHaveLength(2);
-    expect(flows.filter((f) => f.ref.layer === 'alert')).toHaveLength(5);
+    expect(flows.map((f) => f.ref.layer)).toEqual(['automation', 'automation']);
     for (const flow of flows) expect(flow).not.toHaveProperty('definition');
   });
 
@@ -330,12 +344,40 @@ describe('landing list and toggles', () => {
   test('toggling an automation reports conflict, missing and a switched off module', async () => {
     stubStorage([], []);
     const ref = { layer: 'automation', id: 'a' } as const;
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', followFlow, 3) };
     replies[`${AUTO}.set_enabled`] = { conflict: true, code: 'conflict' };
     expect(await store.setFlowEnabled(premium,ref, true, '3')).toEqual({ ok: false, reason: 'conflict' });
     replies[`${AUTO}.set_enabled`] = { code: 'not_found', error: 'missing' };
     expect(await store.setFlowEnabled(premium,ref, true)).toEqual({ ok: false, reason: 'not_found' });
     replies[`${AUTO}.set_enabled`] = { automation: savedAutomation('a', followFlow, 4) };
-    expect(await store.setFlowEnabled(premium,ref, true)).toMatchObject({ ok: true, warnings: ['automations_module_off'] });
+    expect(await store.setFlowEnabled(premium,ref, true)).toMatchObject({ ok: true, warnings: [] });
+    expect(moduleWrites()).toEqual([{ name: 'automations', is_enabled: true }]);
+  });
+
+  test('an imported recipe still holding a placeholder refuses to turn on, and may turn off', async () => {
+    stubStorage([], []);
+    const ref = { layer: 'automation', id: 'a' } as const;
+    const awaiting = { version: 1, trigger: { type: 'reward', params: { reward_id: SETUP_REWARD_ID } }, actions: [{ type: 'chat', params: { text: 'hi' } }] };
+    replies[`${AUTO}.get`] = { automation: { ...savedAutomation('a', followFlow, 3), definition: awaiting } };
+    replies[`${AUTO}.set_enabled`] = { automation: savedAutomation('a', followFlow, 4) };
+    expect(await store.setFlowEnabled(premium, ref, true)).toEqual({ ok: false, reason: 'needs_setup' });
+    expect(callsTo(`${AUTO}.set_enabled`)).toHaveLength(0);
+    expect(await store.setFlowEnabled(premium, ref, false)).toMatchObject({ ok: true });
+  });
+
+  test('saving an imported recipe switched on is refused while a placeholder remains', async () => {
+    stubStorage([], []);
+    const definition = { version: 1, trigger: { type: 'reward', params: { reward_id: SETUP_REWARD_ID } }, actions: [{ type: 'chat', params: { text: 'hi' } }] };
+    const refused = await store.saveFlow(premium, { ref: null, name: 'x', enabled: true, definition });
+    expect(refused).toEqual({ ok: false, reason: 'invalid', issues: [{ path: 'trigger', code: 'setup_required' }] });
+  });
+
+  test('a restricted command is marked so its export cannot come out open to everyone', async () => {
+    stubStorage([{ name: 'hug', aliases: [], response: 'hi', is_active: true, allowed_user_id: '777000111' }], []);
+    const flows = await store.listFlows('7');
+    const hug = flows.find((flow) => flow.ref.layer === 'command');
+    expect(hug?.restricted).toBe(true);
+    expect(JSON.stringify(hug?.definition)).not.toContain('777000111');
   });
 
   test('toggling a command changes only is_active on its row', async () => {
@@ -492,6 +534,39 @@ describe('a simple flow never lives in the automation table', () => {
     expect(await store.saveFlow(premium, { ref: null, name: 'Wave', enabled: true, definition: simpleCommandDef })).toEqual({ ok: false, reason: 'conflict', issues });
     expect(table.get('a')!.definition).toEqual(complex);
     expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
+  });
+
+  const withLeftCommand = (left_command: string): Definition => ({ ...complex, conditions: [{ type: 'cooldown', params: { global_s: 60, left_command } }] });
+
+  test.each([
+    ['a custom command', 'hug'],
+    ['a custom alias', '!Cuddle'],
+    ['a built-in command', '!followage'],
+    ['a built-in alias', 'settitle']
+  ])('a left command on %s is refused', async (_label, name) => {
+    commands = [{ ...hugRow, aliases: ['cuddle'] }];
+    stubTable();
+
+    expect(await store.saveFlow(premium, { ref: null, name: 'Wave', enabled: true, definition: withLeftCommand(name) })).toEqual({ ok: false, reason: 'conflict', issues: [{ path: 'left_command', code: 'command_exists' }] });
+    expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
+  });
+
+  test('a free left command saves and stays a recipe', async () => {
+    commands = [hugRow];
+    stubTable();
+
+    const saved = await store.saveFlow(premium, { ref: null, name: 'Wave', enabled: true, definition: withLeftCommand('!timeleft') });
+
+    expect(saved.ok).toBe(true);
+    expect(callsTo(`${AUTO}.upsert`).length).toBe(1);
+  });
+
+  test('a new command may not take a name a recipe answers on', async () => {
+    commands = [];
+    stubTable();
+    table.set('a', automation('a', withLeftCommand('!wave')));
+
+    expect(await store.saveFlow(premium, { ref: null, name: 'Wave', enabled: true, definition: simpleCommandDef })).toEqual({ ok: false, reason: 'conflict', issues: [{ path: 'trigger.params.name', code: 'command_exists' }] });
   });
 
   const taken = [{ path: 'trigger', code: 'alert_exists' }];
@@ -658,7 +733,7 @@ describe('premium beta', () => {
 
   test('reads stay open and writes work again with Premium', async () => {
     stubStorage([hugRow], []);
-    replies[`${AUTO}.summaries`] = { automations: [] };
+    replies[`${AUTO}.summaries`] = { automations: [{ id: 'a', name: 'Flow', enabled: true, revision: 3, trigger_type: 'event', updated_at: '' }] };
     expect((await store.listFlowSummaries('7')).length).toBeGreaterThan(0);
     expect(await store.loadFlow('7', { layer: 'command', name: 'hug' })).not.toBeNull();
     expect(await store.setFlowEnabled(localsFor('vip'), { layer: 'command', name: 'hug' }, true)).toMatchObject({ ok: true });

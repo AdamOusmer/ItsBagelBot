@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { builderTokensToEvent, eventTokensToBuilder } from './flow-graph';
-import { VERSION } from './limits';
+import { MAX_VALKEY_COOLDOWN_SECONDS, VERSION } from './limits';
 import type { Action, Condition, Definition, Params, PermLevel } from './types';
 
 export type AlertKey = 'follow' | 'sub' | 'gift' | 'cheer' | 'raid';
@@ -47,9 +47,17 @@ function clashes(wanted: number, held: number): boolean {
   return wanted > 0 && held > 0;
 }
 
+const TIME_LEFT_PARAMS = ['left_command', 'left_reply', 'ready_reply'];
+
 function readCooldown(gates: Gates, params: Params): boolean {
   const global = Number(params.global_s ?? 0);
   const user = Number(params.user_s ?? 0);
+  // A named window always takes the long path, at any length, so cooldown_add elsewhere has a row to extend.
+  if (params.name) return false;
+  // Commands enforce their cooldowns in Valkey only; a longer window must run as an automation to reach MySQL.
+  if (Math.max(global, user) > MAX_VALKEY_COOLDOWN_SECONDS) return false;
+  // A plain command has nowhere to keep the time left command.
+  if (TIME_LEFT_PARAMS.some((key) => params[key])) return false;
   if (clashes(global, gates.cooldown) || clashes(user, gates.userCooldown)) return false;
   gates.cooldown ||= global;
   gates.userCooldown ||= user;
@@ -85,7 +93,7 @@ function classifyCommand(definition: Definition): FlowLayer {
   const gates = readGates(definition.conditions ?? []);
   if (response === null || !gates) return AUTOMATION;
   if (!plainChatCommand(params)) return AUTOMATION;
-  const bare = (s: string) => s.replace(/^!/, '');
+  const bare = (s: string) => s.replace(/^!/, '').toLowerCase();
   const aliases = ((params.aliases ?? []) as string[]).map(bare);
   return { layer: 'command', command: { name: bare(params.name as string), aliases, response, ...gates } };
 }
@@ -125,6 +133,8 @@ function classifyEvent(definition: Definition): FlowLayer {
 }
 
 export function classifyFlow(definition: Definition): FlowLayer {
+  // Commands and alerts have no queue column, so a queued recipe stays an automation or the setting would be lost.
+  if (definition.queue) return AUTOMATION;
   if (definition.trigger.type === 'command') return classifyCommand(definition);
   if (definition.trigger.type === 'event') return classifyEvent(definition);
   return AUTOMATION;

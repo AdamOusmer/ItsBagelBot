@@ -34,7 +34,7 @@
     animation: bb-setup-title-in 1ms 1600ms forwards;
   }
 
-  .bb-setup-step__title:is([data-line-rise], .is-shown) {
+  .bb-setup-step__title.is-shown {
     opacity: 1;
     animation: none;
   }
@@ -119,7 +119,7 @@
 
   .bb-setup-step__body:empty,
   .bb-setup-step__controls:empty,
-  .bb-setup-step__status:not([data-reserve]) {
+  .bb-setup-step__status:not(.bb-setup-step__status--reserve) {
     display: none;
   }
 

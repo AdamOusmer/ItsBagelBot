@@ -13,6 +13,8 @@ import { effectiveId } from '#lib/server/board';
 import { accountState, notificationsForUser, delegationAccess, type AccountState, type NotificationWire } from '#lib/server/services';
 import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags, withBetaLocks } from '#lib/server/module-flags';
 import { broadcasterPremium } from '#lib/server/module-gate';
+import { twitchScopeGap } from '#lib/server/oauth';
+import { isOwnerSession } from '#lib/server/owner';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -65,6 +67,11 @@ async function requireSession(locals: App.Locals, url: URL): Promise<Session> {
   throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
 }
 
+function requireTwitchScopes(s: Session, url: URL): void {
+  if (!isOwnerSession(s) || !twitchScopeGap(s.scopes)) return;
+  throw redirect(302, `/auth/login?reauth=1&next=${encodeURIComponent(url.pathname + url.search)}`);
+}
+
 function delegateView(s: Session) {
   if (!s.delegate_of) return { delegateOf: s.delegate_of, delegateLogin: undefined, sections: undefined };
   return { delegateOf: s.delegate_of, delegateLogin: s.delegate_login, sections: s.sections ?? [] };
@@ -76,6 +83,7 @@ function isPremiumAccount(acc: AccountState | null): boolean {
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
   const s = await requireSession(locals, url);
+  requireTwitchScopes(s, url);
 
   const [acc, authorizedDashboards, flags] = await Promise.all([
     loadAccountState(locals, s),

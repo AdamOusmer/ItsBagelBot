@@ -37,4 +37,4 @@ const classes = [
     .join(' ');
 ---
 
-{tooltip ? (<span class="bb-tooltip"><button class={classes} type={type} disabled={disabled} aria-label={label} data-mark="" {...rest}><span class="bb-btn__content"><slot /></span></button><span class="bb-tooltip__bubble" aria-hidden="true">{label}</span></span>) : (<button class={classes} type={type} disabled={disabled} aria-label={label} data-mark="" {...rest}><span class="bb-btn__content"><slot /></span></button>)}
+{tooltip ? (<span class="bb-tooltip"><button class={classes} type={type} disabled={disabled} aria-label={label} {...rest}><span class="bb-btn__content"><slot /></span></button><span class="bb-tooltip__bubble" aria-hidden="true">{label}</span></span>) : (<button class={classes} type={type} disabled={disabled} aria-label={label} {...rest}><span class="bb-btn__content"><slot /></span></button>)}

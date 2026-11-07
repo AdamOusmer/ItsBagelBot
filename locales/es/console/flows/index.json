@@ -112,6 +112,7 @@
     "outOfRange": "Un número está fuera del rango permitido.",
     "invalidEnum": "Una opción no es válida.",
     "invalidFormat": "Un valor no tiene el formato correcto.",
+    "simpleWord": "Usa una palabra sencilla para este nombre: solo letras minúsculas y números, como puntos o victorias.",
     "invalidRegex": "Un patrón no es válido.",
     "nesting": "Las comprobaciones están anidadas a demasiada profundidad.",
     "delayBudget": "Las esperas suman más de lo que una receta puede pausarse.",
@@ -120,26 +121,34 @@
   },
   "choose": {
     "reward": "Elige una recompensa",
-    "channel": "Elige un canal",
     "counter": "Elige un contador",
     "scene": "Elige una escena",
-    "light": "Elige primero una luz"
+    "light": "Elige primero una luz",
+    "namedCooldown": "Elige un temporizador"
   },
   "choiceEmpty": {
     "rewards": "Aún no hay recompensas de puntos del canal. Crea una en Puntos del canal.",
-    "discordChannels": "El bot no tiene ningún canal de texto en el que pueda publicar.",
+    "manageableRewards": "Twitch solo nos permite cambiar recompensas creadas aquí. Crea una en Puntos del canal.",
     "counters": "Aún no hay contadores. Crea uno en Contadores.",
-    "scenes": "Esta luz no tiene escenas."
+    "scenes": "Esta luz no tiene escenas.",
+    "namedCooldowns": "Ninguna receta nombra un temporizador todavía. Dale un nombre en su enfriamiento."
   },
   "choiceProblem": {
     "rewards": "No se pudieron cargar tus recompensas.",
-    "discordChannels": "No se pudieron cargar tus canales de Discord.",
     "counters": "No se pudieron cargar tus contadores.",
     "scenes": "No se pudieron cargar las escenas de esta luz.",
     "keyRejected": "Govee no aceptó tu clave de API.",
-    "notConnected": "Conecta Discord y añade el bot a un servidor para elegir un canal."
+    "namedCooldowns": "No se pudieron cargar los temporizadores de tus recetas."
   },
   "choiceMissing": "\"{name}\" ya no está en la lista.",
+  "choiceUnowned": "Ninguna receta es dueña de \"{name}\" todavía. Esto no hará nada hasta que una lo sea.",
   "choiceRetry": "Reintentar",
-  "choiceLoading": "Cargando"
+  "choiceLoading": "Cargando",
+  "setup": {
+    "line": "Desactivado hasta configurar",
+    "stepNote": "Este paso sigue desactivado hasta que lo completes.",
+    "pickReward": "Elige una recompensa",
+    "addUrl": "Añade una URL",
+    "refused": "Completa los pasos que necesitan configuración, guarda y luego activa esto."
+  }
 }

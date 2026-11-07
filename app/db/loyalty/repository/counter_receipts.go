@@ -17,22 +17,7 @@ import (
 	"time"
 )
 
-// A claim and its expiry are atomic. A pending delivery is retryable, never
-// acknowledged as completed. Owners prevent late cleanup from deleting a
-// replacement claim after a timeout.
-const counterClaimScript = `local value = redis.call('GET', KEYS[1])
-if value == 'done' then return 2 end
-if value then return 0 end
-redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
-return 1`
-const counterCompleteScript = `if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-redis.call('SET', KEYS[1], 'done', 'PX', ARGV[2])
-return 1`
-
-var (
-	counterClaim    = pkg_valkey.NewScript(counterClaimScript)
-	counterComplete = pkg_valkey.NewScript(counterCompleteScript)
-)
+const counterDoneMarker = "done"
 
 type counterDelivery struct {
 	request     *counterRequest
@@ -72,19 +57,14 @@ func (p *CounterProcessor) counterClaimCommands(deliveries []*counterDelivery, o
 		if delivery.key == "" {
 			continue
 		}
-		commands = append(commands, counterLeaseCommand(delivery, owner, counterLease{counterClaim, counterPendingTTL}))
+		commands = append(commands, counterLease(delivery).ClaimCall(owner, counterPendingTTL))
 		tracked = append(tracked, delivery)
 	}
 	return commands, tracked
 }
 
-type counterLease struct {
-	script pkg_valkey.Script
-	ttl    time.Duration
-}
-
-func counterLeaseCommand(delivery *counterDelivery, owner string, lease counterLease) pkg_valkey.ScriptCall {
-	return pkg_valkey.ScriptCall{Script: lease.script, Key: delivery.key, Args: []string{owner, strconv.FormatInt(lease.ttl.Milliseconds(), 10)}}
+func counterLease(delivery *counterDelivery) pkg_valkey.MarkedLease {
+	return pkg_valkey.MarkedLease{Key: delivery.key, Done: counterDoneMarker}
 }
 
 func counterClaimStatus(results []valkey_go.ValkeyResult, index int) (int64, error) {
@@ -174,7 +154,7 @@ func (p *CounterProcessor) counterFinalizationCommands(tracked []*counterDeliver
 
 func (p *CounterProcessor) counterFinalizationCommand(delivery *counterDelivery, owner string) (pkg_valkey.ScriptCall, bool) {
 	if delivery.shouldComplete() {
-		return counterLeaseCommand(delivery, owner, counterLease{counterComplete, counterCompletedTTL}), true
+		return counterLease(delivery).FinishCall(owner, counterCompletedTTL), true
 	}
 	if delivery.shouldRelease() {
 		// Also release unknown claims: a failed response may follow a valid SET.

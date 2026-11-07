@@ -74,7 +74,7 @@ const schema: Record<string, unknown>[] = [
         <ul class="vshub__grid">
             {pages.map((page, i) => (
                 <li>
-                    <Card atmo hover as="a" href={page.href} label={page.name} class="vshub__card reveal-in" data-cursor="quiet" style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
+                    <Card atmo hover as="a" href={page.href} label={page.name} class="vshub__card reveal-in" style={`--reveal-i: ${Math.min(i + 1, 6)}; --bb-cursor: quiet`}>
                         <Heading level={4} as="span" class="vshub__title"><bb-fit>{page.title}</bb-fit></Heading>
                         <Text as="span" tone="muted-light" class="vshub__desc"><bb-fit mode="block">{page.description}</bb-fit></Text>
                     </Card>

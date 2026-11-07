@@ -150,9 +150,11 @@ func appendSpotify(out []provider.Provider, cfg *config.Config, d provider.Deps,
 
 func appendCustom(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	return gated(out, log, d.FetchDefs == nil, "custom urlfetch provider disabled: no definition source (projection FetchDefs unwired)", custom.New, custom.Config{
-		ChannelRateLimit: cfg.CustomChannelRateLimit,
-		DefRateLimit:     cfg.CustomDefRateLimit,
-		HostRateLimit:    cfg.CustomHostRateLimit,
-		PositiveTTL:      cfg.CustomPositiveTTL,
+		ChannelRateLimit:       cfg.CustomChannelRateLimit,
+		DefRateLimit:           cfg.CustomDefRateLimit,
+		HostRateLimit:          cfg.CustomHostRateLimit,
+		RecipeChannelRateLimit: cfg.CustomRecipeChannelRateLimit,
+		RecipeDefRateLimit:     cfg.CustomRecipeDefRateLimit,
+		PositiveTTL:            cfg.CustomPositiveTTL,
 	}, d)
 }

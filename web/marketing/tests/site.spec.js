@@ -56,7 +56,7 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(page.locator('#enc-section')).toHaveCount(1);
 
-        await expect(page.locator('main .bb-light-field[data-field]')).toHaveCount(1);
+        await expect(page.locator('main .bb-light-field')).toHaveCount(1);
         await expect(page.locator('.starfield .bb-light-field')).toHaveCount(1);
         await expect(page.locator('.seam')).toHaveCount(8);
         await expect(page.locator('.seam__line').first()).toHaveCSS('animation-name', 'seam-draw');
@@ -75,12 +75,12 @@ test.describe('ItsBagelBot site', () => {
         await expect(play.locator('.pmsg--bot').last()).toContainText('fresh from the oven', { timeout: 5000 });
 
         const quiet = page.locator('#quiet-work');
-        await expect(quiet.locator('[data-card]')).toHaveCount(5);
+        await expect(quiet.locator('.fcard')).toHaveCount(5);
         await expect(quiet).toContainText('The things it handles while you stream.');
-        await expect(quiet.locator('[data-card]').first()).toContainText('Spotify song requests, run by chat.');
+        await expect(quiet.locator('.fcard').first()).toContainText('Spotify song requests, run by chat.');
 
         const safety = page.locator('#safety-layers');
-        await expect(safety.locator('[data-card]')).toHaveCount(3);
+        await expect(safety.locator('.fcard')).toHaveCount(3);
         await expect(safety).toContainText('Several classifiers have to agree.');
         await expect(safety).toContainText('One raid warns every protected channel.');
 
@@ -122,7 +122,7 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(page.locator('h1')).toContainText('Pricing');
 
-        const tiers = page.locator('.tiers [data-card]');
+        const tiers = page.locator('.tiers .bb-card');
         await expect(tiers).toHaveCount(3);
         await expect(tiers.nth(0)).toContainText('Free');
         await expect(tiers.nth(1)).toContainText('Premium');
@@ -378,7 +378,7 @@ test.describe('reduced motion', () => {
 
     test('reveal content is visible without motion', async ({ page }) => {
         await page.goto('/pricing');
-        const tier = page.locator('.tiers [data-card]').first();
+        const tier = page.locator('.tiers .bb-card').first();
         await expect(tier).toBeVisible();
         await expect(tier).toHaveCSS('opacity', '1');
     });
@@ -402,7 +402,7 @@ test.describe('guides & command builder', () => {
         await page.goto('/guides/commands');
 
         await expect(page.locator('.gshell__hub')).toHaveAccessibleName('All guides');
-        await expect(page.locator('[data-guide-section]')).toHaveCount(6);
+        await expect(page.locator('.gshell__content .bb-prose')).toHaveCount(6);
 
         await expect(page.locator('.cmock__win').first()).toBeVisible();
         await expect(page.locator('.dframe__win')).toHaveCount(1);
@@ -416,7 +416,7 @@ test.describe('guides & command builder', () => {
     test('data sources guide teaches the path with a live picker', async ({ page }) => {
         await page.goto('/guides/data-sources');
 
-        await expect(page.locator('[data-guide-section]')).toHaveCount(7);
+        await expect(page.locator('.gshell__content .bb-prose')).toHaveCount(7);
         await expect(page.locator('.dframe__win')).toHaveCount(2);
 
         const picker = page.locator('[data-pathpicker]');
@@ -424,7 +424,7 @@ test.describe('guides & command builder', () => {
         await expect(picker.locator('[data-pp-token]')).toContainText('{urlfetch:');
 
         const outcomes = page.locator('[data-fetchoutcomes]');
-        await outcomes.locator('[data-go-tab]').nth(2).click();
+        await outcomes.getByRole('radio').nth(2).click();
         await expect(outcomes.locator('[data-chat-hook="go-line"]')).toContainText('It is °C in Montreal right now.');
     });
 
@@ -446,7 +446,7 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/commands/');
 
         await page.goto('/fr/guides/data-sources');
-        await expect(page.locator('[data-guide-section]')).toHaveCount(7);
+        await expect(page.locator('.gshell__content .bb-prose')).toHaveCount(7);
         await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/data-sources/');
 
         await page.goto('/guides');
@@ -459,7 +459,7 @@ test.describe('guides & command builder', () => {
         const groups = page.locator('section.vref-group');
         await expect(groups).toHaveCount(5);
 
-        const rows = page.locator('tr[data-vref-entry]');
+        const rows = page.getByRole('row').filter({ has: page.getByRole('cell') });
         const totalRows = await rows.count();
         expect(totalRows).toBeGreaterThan(30);
         await expect(page.locator('details')).toHaveCount(0);
@@ -540,7 +540,7 @@ test.describe('guides & command builder', () => {
         await page.goto('/command-builder');
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
-        await page.click('[data-mode="module"]');
+        await page.getByRole('radio', { name: 'Module message' }).click();
         await page.selectOption('[data-cb-surface]', 'shoutout');
 
         await expect(page.locator('[data-vars] .bb-var-card__token').first()).toHaveText('{shoutout:raider}');

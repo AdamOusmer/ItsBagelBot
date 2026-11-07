@@ -21,7 +21,7 @@
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
   import { localeFlag } from '@bagel/kit/site-links';
@@ -426,7 +426,7 @@
   wide={choiceLayout}
   {leaving}
   style={choiceLayout ? `--setup-art-x: calc(${compactChoices.current ? choicePositionCompact : choicePosition} - 50%)` : undefined}
-  data-orbs="off"
+  orbs={false}
 >
   {#snippet start()}<Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
   {#snippet art()}
@@ -489,7 +489,7 @@
           <CursorSwitch describedby="wlc-cursor-hint" />
         </div>
       {:else if current.kind === 'mod'}
-        <div class="mod-well" use:decode>
+        <div class="mod-well">
           <CopySurface
             variant="well"
             text={MOD_COMMAND}
@@ -500,7 +500,7 @@
             title={tr('common.copy')}
             onCopy={celebrateCopy}
           >
-            {#snippet children()}<span data-decode={MOD_COMMAND}>{MOD_COMMAND}</span>{/snippet}
+            {#snippet children()}<span use:decode>{MOD_COMMAND}</span>{/snippet}
           </CopySurface>
         </div>
       {:else if current.kind === 'commands'}

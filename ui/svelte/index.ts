@@ -104,13 +104,14 @@ export { default as NavProgress } from './NavProgress.svelte';
 export { toast, toasts, dismissToast, type ToastItem, type ToastKind } from './toast.svelte';
 export { createInspector, type Inspector } from './inspector.svelte';
 export { createDiscardGuard, type DiscardGuard } from './discard-guard.svelte';
-export { reveal, decode, magnetic } from './actions';
+export { reveal, decode } from './actions';
 
 export { focusFirstInvalid } from './forms';
 
 export { default as StatusDot } from './StatusDot.svelte';
 export { default as RoundBadge } from './RoundBadge.svelte';
 export { default as AvatarPlate } from './AvatarPlate.svelte';
+export { default as Bolota } from './Bolota.svelte';
 export { default as Timeline } from './Timeline.svelte';
 export { default as TimelineItem } from './TimelineItem.svelte';
 
@@ -164,3 +165,5 @@ export type {
   Tone, TagTone, BadgeTone, TextTone, StatusDotTone, ProgressTone, CodeTone, StatTone, SwitchRowTone, CardTone, SeriesTone,
 } from '../lib/tone';
 export { default as Well } from './Well.svelte';
+export { default as EditorStage } from './EditorStage.svelte';
+export { default as CanvasCard } from './CanvasCard.svelte';

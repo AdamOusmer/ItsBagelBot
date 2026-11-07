@@ -40,10 +40,27 @@
     "field": {
       "seconds": {
         "label": "Tiempo de espera",
-        "unit": "segundos"
+        "range": "Usa de 1 segundo a {days} días."
       },
       "perUser": {
         "label": "Por espectador"
+      },
+      "name": {
+        "label": "Nombre",
+        "placeholder": "subathon",
+        "hint": "Nombrarlo lo reinicia si está en curso. Los pasos para añadir tiempo de cualquier receta podrán extenderlo. No disponible por espectador."
+      },
+      "leftCommand": {
+        "label": "Comando de tiempo restante",
+        "placeholder": "!tiemporestante"
+      },
+      "leftReply": {
+        "label": "Respuesta durante la espera",
+        "placeholder": "{user}, quedan {cooldown:left} antes de poder usar esto de nuevo."
+      },
+      "readyReply": {
+        "label": "Respuesta cuando esté listo",
+        "placeholder": "{user}, esto ya está listo para usar."
       }
     },
     "out": {
@@ -91,5 +108,28 @@
       "yes": "Acierto",
       "no": "Fallo"
     }
+  },
+  "var": {
+    "label": "Comprobar una variable",
+    "summary": "Pasa si coincide un valor guardado",
+    "field": {
+      "scope": { "label": "Guardado para", "option": { "channel": "El canal", "viewer": "Este espectador" } },
+      "name": { "label": "Nombre", "placeholder": "muertes" },
+      "op": {
+        "label": "Es",
+        "option": {
+          "eq": "igual a",
+          "ne": "no es igual a",
+          "gt": "mayor que",
+          "gte": "al menos",
+          "lt": "menor que",
+          "lte": "como máximo",
+          "contains": "contiene",
+          "exists": "tiene cualquier valor"
+        }
+      },
+      "value": { "label": "Valor", "placeholder": "10" }
+    },
+    "out": { "yes": "Sí", "no": "No" }
   }
 }

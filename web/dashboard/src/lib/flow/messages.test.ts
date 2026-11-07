@@ -71,10 +71,10 @@ describe('cardFromSummary', () => {
     }
   });
 
-  test('counts steps, sections the flow and protects built-in alerts from delete', () => {
+  test('counts steps and protects built-in alerts from delete', () => {
     const preview = JSON.stringify({ n: [[0, 0, 4, 0], [12, 0, 4, 2]], e: [[0, 1, 0]] });
-    expect(cardFromSummary({ ref, name: 'A', enabled: false, revision: '3', preview })).toMatchObject({ id: 'a-x1', steps: 2, section: 'automations', deletable: true, enabled: false });
-    expect(cardFromSummary({ ref: { layer: 'alert', alert: 'raid' }, name: 'Raid', enabled: true, revision: 'r', preview: null })).toMatchObject({ section: 'alerts', deletable: false });
-    expect(cardFromSummary({ ref: { layer: 'command', name: 'hug' }, name: '!hug', enabled: true, revision: 'r', preview: null })).toMatchObject({ section: 'commands', id: 'c-hug' });
+    expect(cardFromSummary({ ref, name: 'A', enabled: false, revision: '3', preview })).toMatchObject({ id: 'a-x1', steps: 2, deletable: true, enabled: false });
+    expect(cardFromSummary({ ref: { layer: 'alert', alert: 'raid' }, name: 'Raid', enabled: true, revision: 'r', preview: null })).toMatchObject({ deletable: false });
+    expect(cardFromSummary({ ref: { layer: 'command', name: 'hug' }, name: '!hug', enabled: true, revision: 'r', preview: null })).toMatchObject({ id: 'c-hug' });
   });
 });

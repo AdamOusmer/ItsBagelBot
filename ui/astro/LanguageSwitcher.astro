@@ -46,7 +46,7 @@ const Root = action ? 'form' : 'div';
 const Label = variant === 'field' ? 'span' : 'bb-fit';
 ---
 
-<Root method={action ? 'POST' : undefined} action={action} class={classes} data-bb-lang-switch="" {...rest}>{Object.entries(fields).map(([field, fieldValue]) => (
+<Root method={action ? 'POST' : undefined} action={action} class={classes} {...rest}>{Object.entries(fields).map(([field, fieldValue]) => (
   <input type="hidden" name={field} value={fieldValue} />
 ))}<button
   type="button"
@@ -73,7 +73,7 @@ const Label = variant === 'field' ? 'span' : 'bb-fit';
   const mounted = new WeakSet<Element>();
 
   function mountAll() {
-    for (const root of document.querySelectorAll<HTMLElement>('[data-bb-lang-switch]')) {
+    for (const root of document.querySelectorAll<HTMLElement>('.bb-lang-switch')) {
       if (mounted.has(root)) continue;
       mounted.add(root);
       mountLangSwitch(root);

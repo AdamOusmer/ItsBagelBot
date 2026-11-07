@@ -4,17 +4,19 @@
 package automation
 
 const (
-	MaxActions               = 20
-	MaxConditions            = 10
-	MaxDelayMS               = 10000
-	MaxChatMessagesPerRun    = 3
+	MaxActions               = 1000
+	MaxDelayMS               = 60000
 	MaxRecursionDepth        = 2
 	MaxNameLength            = 64
 	MaxAutomationsPerChannel = 100
 	MaxDefinitionBytes       = 32768
 	MaxPreviewBytes          = 4096
 	RunsKept                 = 50
-	MaxRunsPerMinute         = 60
+)
+
+const (
+	MaxCooldownSeconds       = 2_592_000
+	MaxValkeyCooldownSeconds = 86_400
 )
 
 const (
@@ -28,19 +30,33 @@ const (
 )
 
 const (
+	MaxVariableValueRunes  = 500
+	MaxChannelVariables    = 200
+	MaxViewerVariableNames = 200
+	MaxVariableAmount      = 1_000_000_000_000_000
+	MaxSavedValueRunes     = 500
+	MaxTextOperandRunes    = 1000
+	MaxMathExpressionRunes = 200
+	MaxLoopTimes           = 100
+	MaxStepVisitsPerRun    = 4 * MaxActions
+	MaxRecordedActions     = 1200
+)
+
+const (
 	CodeRequired         = "required"
 	CodeTooLong          = "too_long"
 	CodeTooShort         = "too_short"
 	CodeOutOfRange       = "out_of_range"
 	CodeInvalidEnum      = "invalid_enum"
 	CodeInvalidFormat    = "invalid_format"
+	CodeSimpleWord       = "simple_word"
+	CodeCommandExists    = "command_exists"
 	CodeInvalidRegex     = "invalid_regex"
 	CodeUnknownType      = "unknown_type"
 	CodeUnknownField     = "unknown_field"
 	CodeUnknownEventKind = "unknown_event_kind"
 	CodeUnknownFilter    = "unknown_filter"
 	CodeTooMany          = "too_many"
-	CodeNesting          = "nesting"
 	CodeDelayBudget      = "delay_budget"
 	CodeTriggerMismatch  = "trigger_mismatch"
 	CodePermRequired     = "perm_required"

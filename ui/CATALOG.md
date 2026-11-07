@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **129** blocks;
+Every block the library ships, by family. **132** blocks;
 **111** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 129 times
+omitted: nearly every block takes both, and listing them 132 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -34,19 +34,20 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
-| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`dockQuick`: number<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railFooter`: Snippet | svelte + astro | stable | `styles/elements/shell.css` |
+| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`dockQuick`: number<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railAccount`: UiAccount<br>`railAccountOpen`: boolean | svelte + astro | stable | `styles/elements/shell.css` |
 | **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **Container** | `width`: 'default' \| 'hero' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **DeckLayout** | `inspecting`: boolean<br>`width`: string | svelte + astro | stable | `styles/elements/deck-layout.css` |
 | **Disclosure** | `summary*`: string<br>`open`: boolean<br>`onOpenChange`: (open: boolean) => void<br>`index`: string<br>`size`: 'md' \| 'sm' | svelte + astro | stable | `styles/elements/disclosure.css` |
 | **Divider** | `vertical`: boolean<br>`flush`: boolean<br>`fade`: boolean | svelte + astro | stable | `styles/elements/layout.css` |
+| **EditorStage** | `label`: string<br>`railLabel`: string<br>`topInset`: string<br>`height`: string<br>`bottomRoom`: string<br>`topStart`: Snippet<br>`topCenter`: Snippet<br>`topEnd`: Snippet<br>`slimBar`: boolean<br>`rail`: Snippet<br>`leftPanel`: Snippet<br>`rightPanel`: Snippet<br>`onboardpointerdown`: (event: PointerEvent) => void<br>`editorEl`: HTMLDivElement<br>`barEl`: HTMLElement<br>`railEl`: HTMLElement<br>`boardEl`: HTMLDivElement<br>`leftPanelEl`: HTMLDivElement<br>`rightPanelEl`: HTMLDivElement | svelte<br>*Svelte only: floating chrome driven by pan/zoom and viewport state (sheet mode, grip, bound element refs) that only a client has.* | svelte-only | `styles/elements/editor-stage.css` |
 | **Grid** | `cols`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`min`: string<br>`stackAt`: 'sm' \| 'md'<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **InspectorSurface** | `open`: boolean<br>`title*`: string<br>`controls`: string<br>`closeLabel`: string<br>`onClose`: () => void<br>`onOpenChange`: (open: boolean) => void<br>`idle`: Snippet | svelte + astro | stable | `styles/elements/card.css, styles/elements/surface.css, styles/elements/tag.css` |
 | **PageHero** | `eyebrow`: string<br>`title*`: string<br>`description`: string | svelte + astro | stable | `styles/elements/page-hero.css` |
 | **PickerPanel** | `open`: boolean<br>`anchor`: HTMLElement<br>`label*`: string<br>`id`: string<br>`width`: number<br>`maxHeight`: number<br>`placement`: 'beside' \| 'below'<br>`onClose`: () => void<br>`onOpenChange`: (open: boolean) => void | svelte<br>*Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.* | svelte-only | `styles/elements/picker-panel.css` |
 | **Scroller** | `maxHeight`: string<br>`fill`: boolean<br>`padding`: string<br>`smooth`: boolean | svelte + astro | stable | `styles/elements/page.css` |
 | **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush' \| 'page' \| 'band'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: 'section' \| 'article' \| 'div' \| 'ul' \| 'ol' \| 'li' \| 'header' \| 'footer' \| 'aside' \| 'main' | svelte + astro | stable | `styles/elements/layout.css` |
-| **SetupStage** | `label*`: string<br>`steps`: readonly StepperStep[]<br>`current`: number<br>`maxStep`: number<br>`stepLabel`: string<br>`onSelect`: (index: number) => void<br>`wide`: boolean<br>`full`: boolean<br>`fill`: boolean<br>`hero`: boolean<br>`leaving`: boolean<br>`start`: Snippet<br>`trail`: Snippet<br>`art`: Snippet<br>`aside`: Snippet<br>`foot`: Snippet<br>`end`: Snippet | svelte | svelte-only | `styles/elements/setup-stage.css` |
+| **SetupStage** | `label*`: string<br>`steps`: readonly StepperStep[]<br>`current`: number<br>`maxStep`: number<br>`stepLabel`: string<br>`onSelect`: (index: number) => void<br>`wide`: boolean<br>`full`: boolean<br>`fill`: boolean<br>`hero`: boolean<br>`leaving`: boolean<br>`orbs`: boolean<br>`start`: Snippet<br>`trail`: Snippet<br>`art`: Snippet<br>`aside`: Snippet<br>`foot`: Snippet<br>`end`: Snippet | svelte | svelte-only | `styles/elements/setup-stage.css` |
 | **SetupStep** | `kicker*`: string<br>`title*`: string<br>`body`: string<br>`dir`: number<br>`instant`: boolean<br>`hero`: boolean<br>`heading`: HTMLHeadingElement \| null<br>`status`: Snippet | svelte | svelte-only | `styles/elements/page-hero.css, styles/elements/setup-step.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | stable | `styles/elements/layout.css` |
 | **Stack** | `gap`: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`align`: 'start' \| 'center' \| 'end'<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
@@ -123,8 +124,8 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **PageHead** | `eyebrow`: string<br>`title`: string<br>`description`: string<br>`trailing`: Snippet<br>`compact`: boolean | svelte + astro | stable | `styles/elements/page.css` |
 | **PageToolbar** | `leading`: Snippet<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/page.css` |
 | **Pager** | `label*`: string<br>`prevHref*`: string<br>`nextHref*`: string<br>`hasPrev`: boolean<br>`hasNext`: boolean<br>`prevLabel`: string<br>`nextLabel`: string<br>`navLabel`: string<br>`fit`: boolean<br>`fixed`: boolean | svelte + astro | stable | `styles/elements/pager.css` |
-| **ProfileMenu** | `variant`: 'topbar' \| 'rail'<br>`name*`: string<br>`caption*`: string<br>`open`: boolean<br>`helpOpen`: boolean<br>`links`: ProfileMenuLink[]<br>`linksLabel`: string<br>`exit`: ProfileMenuLink<br>`logoutLabel*`: string<br>`logoutAction`: string<br>`onLogout`: () => void<br>`help`: ProfileMenuLink[]<br>`helpLabel`: string<br>`helpTitle`: string<br>`more`: ProfileMenuLink[]<br>`newTabLabel`: string<br>`feedback`: ProfileMenuLink<br>`menuLabel`: string<br>`triggerLabel`: string<br>`avatar*`: Snippet<[ProfileAvatar]> | svelte<br>*Svelte only: an account menu with open state, scrim and Escape handling that only a client has.* | svelte-only | `styles/elements/profile-menu.css` |
-| **Rail** | `brand*`: UiBrand<br>`groups*`: UiNavGroup[]<br>`footer`: Snippet<br>`label`: string | svelte + astro | stable | `styles/elements/shell.css` |
+| **ProfileMenu** | `variant`: 'topbar' \| 'rail'<br>`name*`: string<br>`caption*`: string<br>`open`: boolean<br>`helpOpen`: boolean<br>`links`: ProfileMenuLink[]<br>`linksLabel`: string<br>`exit`: ProfileMenuLink<br>`logoutLabel*`: string<br>`logoutAction`: string<br>`onLogout`: (event: SubmitEvent) => void<br>`help`: ProfileMenuLink[]<br>`helpLabel`: string<br>`helpTitle`: string<br>`more`: ProfileMenuLink[]<br>`newTabLabel`: string<br>`feedback`: ProfileMenuLink<br>`menuLabel`: string<br>`triggerLabel`: string<br>`helpInAccount`: boolean<br>`avatar*`: Snippet<[ProfileAvatar]> | svelte<br>*Svelte only: an account menu with open state, scrim and Escape handling that only a client has.* | svelte-only | `styles/elements/profile-menu.css` |
+| **Rail** | `brand*`: UiBrand<br>`groups*`: UiNavGroup[]<br>`account`: UiAccount<br>`accountOpen`: boolean<br>`onnavigate`: (href: string) => void<br>`footer`: Snippet<br>`label`: string<br>`collapsible`: boolean<br>`collapsed`: boolean<br>`alwaysVisible`: boolean<br>`topInset`: number<br>`collapsedWidth`: number | svelte + astro | stable | `styles/elements/shell.css` |
 | **RailItem** | `href`: string<br>`icon`: IconName<br>`label*`: string<br>`current`: boolean<br>`locked`: boolean<br>`lockedHint`: string<br>`count`: string \| number | svelte + astro | stable | `styles/elements/shell.css` |
 | **SectionNav** | `label*`: string<br>`items*`: { href: string; label: string; count?: number; current?: boolean; attrs?: Record<string, string> }[]<br>`orientation`: 'auto' \| 'horizontal' \| 'vertical'<br>`variant`: 'tabs' \| 'toc'<br>`index`: boolean | svelte + astro | stable | `styles/elements/tabs.css` |
 | **SkipLink** | `href*`: string<br>`label`: string | svelte + astro | stable | `styles/elements/skip-link.css` |
@@ -138,6 +139,8 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | --- | --- | --- | --- | --- |
 | **AreaSeries** | `values*`: readonly number[]<br>`ticks`: readonly number[]<br>`label*`: string<br>`height`: number<br>`uid`: string | svelte + astro | stable | `styles/elements/area-series.css` |
 | **AvatarPlate** | `size`: number | svelte + astro | stable | `styles/elements/avatar-plate.css` |
+| **Bolota** | `name*`: string<br>`size`: number<br>`palette`: Palette<br>`active`: boolean<br>`cycle`: boolean<br>`motionState`: string<br>`follow`: boolean<br>`expression`: string \| null<br>`sequence`: 'entrance' \| 'burst' \| 'orbit' \| 'comet' \| null<br>`sequenceKey`: unknown<br>`sequenceHold`: number<br>`sequenceFor`: number<br>`gate`: boolean<br>`plate`: boolean<br>`title`: string | svelte | svelte-only | — |
+| **CanvasCard** | `background`: boolean<br>`selected`: boolean | svelte | svelte-only | `styles/elements/canvas-card.css` |
 | **Card** | `as`: T<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`raised`: boolean<br>`stat`: boolean<br>`glass`: boolean<br>`hover`: boolean<br>`flush`: boolean<br>`dashed`: boolean<br>`tone`: 'accent' \| 'danger'<br>`label`: string<br>`band`: Snippet | svelte + astro | stable | `styles/elements/card.css` |
 | **CardHead** | — | svelte + astro | stable | `styles/elements/card.css` |
 | **ChatPreview** | `title*`: string<br>`label`: string<br>`kind`: string<br>`note`: string<br>`onpointerenter`: (event: PointerEvent) => void<br>`onpointerleave`: (event: PointerEvent) => void | svelte + astro | stable | `styles/elements/chat-preview.css` |
@@ -157,18 +160,18 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **MarkBadge** | `src`: string<br>`alt`: string<br>`size`: 'xs' \| 'sm' \| 'md' \| 'lg'<br>`tone`: 'premium' \| 'success' | svelte | svelte-only | `styles/elements/mark-badge.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | stable | `styles/elements/overview-grid.css` |
 | **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
-| **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |
+| **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`text`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |
 | **StepCard** | `index*`: number<br>`title`: string | svelte + astro | stable | `styles/elements/step-card.css` |
 | **Table** | `label*`: string<br>`zebra`: boolean<br>`compact`: boolean<br>`roomy`: boolean<br>`minWidth`: string | svelte + astro | stable | `styles/elements/table.css` |
 | **Timeline** | `rail`: 'fade' \| 'bridge'<br>`draw`: boolean<br>`as`: 'ol' \| 'ul' \| 'div' | svelte + astro | stable | `styles/elements/timeline.css` |
-| **TimelineItem** | `dot`: boolean<br>`as`: 'li' \| 'div' | svelte + astro | stable | `styles/elements/timeline.css` |
+| **TimelineItem** | `dot`: boolean<br>`as`: 'li' \| 'div'<br>`badgeHover`: boolean | svelte + astro | stable | `styles/elements/timeline.css` |
 | **VarCard** | `token*`: string<br>`hint`: string<br>`title`: string<br>`onclick`: () => void<br>`onfocus`: () => void<br>`stacked`: boolean | svelte<br>*Svelte only: the compact list form of the variable card; Astro pages build the full card from the `bb-var-card` classes.* | svelte-only | `styles/elements/var-card.css` |
 
 ## Motion
 
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
-| **AmbientSky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean<br>`position`: 'contained' \| 'fixed'<br>`stillStars`: boolean<br>`warmth`: number<br>`uid`: string | svelte + astro | stable | `styles/elements/ambient-sky.css, styles/orbs.css` |
+| **AmbientSky** | `shift`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean<br>`position`: 'contained' \| 'fixed'<br>`stillStars`: boolean<br>`warmth`: number | svelte + astro | stable | `styles/elements/ambient-sky.css, styles/orbs.css` |
 | **AuroraBg** | — | svelte + astro | stable | `styles/elements/aurora.css, styles/orbs.css` |
 | **BackgroundOrbs** | — | svelte + astro | stable | `styles/elements/bg-orbs.css, styles/orbs.css` |
 | **Brackets** | `variant`: 'page' \| 'loader'<br>`label`: string | svelte + astro | stable | `styles/elements/brackets.css` |
@@ -177,4 +180,4 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **LightField** | — | svelte + astro | stable | `styles/elements/light-field.css` |
 | **NavProgress** | — | svelte + astro | stable | `styles/elements/nav-progress.css` |
 | **ReadingProgress** | — | svelte + astro | stable | `styles/elements/reading-progress.css` |
-| **Sky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean | svelte<br>*Svelte only: it follows the pointer and a flow's progress from client state; a static page has neither.* | svelte-only | — |
+| **Sky** | `shift`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean | svelte<br>*Svelte only: it follows the pointer and a flow's progress from client state; a static page has neither.* | svelte-only | — |

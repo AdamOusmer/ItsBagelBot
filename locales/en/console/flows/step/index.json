@@ -12,6 +12,10 @@
     "input": "Viewer input",
     "title": "Stream title",
     "game": "Category",
-    "count": "New count"
+    "count": "New count",
+    "loopIndex": "Which time this is",
+    "apiError": "Why it failed",
+    "cooldownLeft": "Time left on the cooldown",
+    "saved": "Saved by an earlier step"
   }
 }

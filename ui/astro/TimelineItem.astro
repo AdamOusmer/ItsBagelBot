@@ -5,14 +5,15 @@
 import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/timeline.css';
 
-interface Props extends Omit<HTMLAttributes<'li'>, 'dot' | 'as' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'li'>, 'dot' | 'as' | 'badgeHover' | 'class'> {
     dot?: boolean;
+    badgeHover?: boolean;
     as?: 'li' | 'div';
     class?: string;
 }
 
-const { dot = true, as: Tag = 'li', class: className = '', ...rest } = Astro.props;
-const classes = ['bb-timeline__item', className].filter(Boolean).join(' ');
+const { dot = true, as: Tag = 'li', badgeHover = false, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-timeline__item', badgeHover ? 'bb-timeline__item--badge-hover' : null, className].filter(Boolean).join(' ');
 ---
 
 <Tag class={classes} {...rest}>{dot && <span class="bb-timeline__dot" aria-hidden="true"></span>}<slot /></Tag>

@@ -1,7 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Bolota, getI18n } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
@@ -21,7 +22,7 @@
   const titleWords = $derived(title.split(' '));
 </script>
 
-<section class="gate" data-canvas="fill" data-orbs="off" aria-labelledby="premium-gate-title">
+<section class="gate bb-canvas-fill bb-no-orbs" aria-labelledby="premium-gate-title">
   <div class="field" aria-hidden="true"><LightField /></div>
   <div class="bb-orb bb-orb--halo bb-orb--green orb orb--green" aria-hidden="true"><i class="bb-orb__pulse"></i></div>
   <div class="bb-orb bb-orb--halo bb-orb--tan orb orb--tan" aria-hidden="true"><i class="bb-orb__pulse"></i></div>

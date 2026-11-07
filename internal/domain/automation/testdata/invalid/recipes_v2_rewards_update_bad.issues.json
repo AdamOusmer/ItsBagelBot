@@ -1,0 +1,22 @@
+[
+  {
+    "path": "actions[0].params.reward_id",
+    "code": "required"
+  },
+  {
+    "path": "actions[1].params.reward_id",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[2].params.enabled",
+    "code": "required"
+  },
+  {
+    "path": "actions[3].params.cost",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[4].params.cost",
+    "code": "out_of_range"
+  }
+]

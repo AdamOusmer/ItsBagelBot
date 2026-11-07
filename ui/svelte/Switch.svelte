@@ -44,8 +44,6 @@
   aria-describedby={describedby}
   aria-busy={busy ? 'true' : undefined}
   disabled={disabled || busy}
-  data-state={checked ? 'on' : 'off'}
-  data-busy={busy ? '' : undefined}
   onclick={flip}
   {...rest}
 ></button>

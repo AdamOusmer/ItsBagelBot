@@ -46,13 +46,13 @@
 <div class="strip">
   <Grid cols={3} gap={3} stackAt="md">
     <StatTile
-      data-text
+      text
       label={t('admin.deploys.statusLive')}
       value={plan?.live_version ?? dash}
       delta={plan?.live_sha ? shortSha(plan.live_sha) : dash}
     />
     <StatTile
-      data-text
+      text
       label={t('admin.deploys.statusCluster')}
       value={clusterValue()}
       delta={clusterDelta()}
@@ -63,7 +63,7 @@
         </span>
       {/snippet}
     </StatTile>
-    <StatTile data-text label={t('admin.deploys.statusLastRun')} value={lastValue} delta={lastDelta()}>
+    <StatTile text label={t('admin.deploys.statusLastRun')} value={lastValue} delta={lastDelta()}>
       {#snippet trailing()}
         <span class="trail">
           {#if last}<TextLink href="/deploys/{last.id}" label={t('admin.deploys.openLast')} />{/if}

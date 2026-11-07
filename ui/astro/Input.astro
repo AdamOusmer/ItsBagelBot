@@ -32,10 +32,11 @@ const classes = [
     fill ? 'bb-input--fill' : null,
     mono ? 'bb-input--mono' : null,
     align === 'end' ? 'bb-input--end' : null,
+    invalid ? 'bb-input--invalid' : null,
     className,
 ]
     .filter(Boolean)
     .join(' ');
 ---
 
-<span class={classes} data-invalid={invalid ? '' : undefined}><slot name="leading" /><input type={type} value={value} {...rest} /><slot name="trailing" /></span>
+<span class={classes}><slot name="leading" /><input type={type} value={value} {...rest} /><slot name="trailing" /></span>

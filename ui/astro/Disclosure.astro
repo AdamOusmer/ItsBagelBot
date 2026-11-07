@@ -31,7 +31,7 @@ const classes = [
     import { wireDisclosure } from '../lib/disclosure';
 
     function bindDisclosures() {
-        document.querySelectorAll<HTMLDetailsElement>('details.bb-disclosure:not([data-motion])').forEach((details) => {
+        document.querySelectorAll<HTMLDetailsElement>('details.bb-disclosure:not(.is-open, .is-closed)').forEach((details) => {
             wireDisclosure(details);
         });
     }

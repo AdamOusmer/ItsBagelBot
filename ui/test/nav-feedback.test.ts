@@ -263,8 +263,8 @@ describe('Modal viewer and InspectorSurface idle', () => {
       props: { open: true, variant: 'viewer', label: 'Diagram', toolbarLabel: 'Controls' },
       slots: { default: '<svg></svg>', toolbar: '<button>+</button>', hint: '<span>Drag to pan</span>' },
       html:
-        '<div class="bb-modal bb-modal--viewer" data-overlay style="z-index: 200">' +
-        '<button class="bb-modal__backdrop" type="button" aria-label="Close" data-cursor="quiet"></button>' +
+        '<div class="bb-modal bb-modal--viewer" style="z-index: 200">' +
+        '<button class="bb-modal__backdrop" type="button" aria-label="Close" style="--bb-cursor: quiet"></button>' +
         '<div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-label="Diagram" data-lenis-prevent>' +
         '<div class="bb-modal__stage"><svg></svg></div>' +
         '<div class="bb-modal__toolbar" role="toolbar" aria-label="Controls"><button>+</button></div>' +
@@ -275,7 +275,7 @@ describe('Modal viewer and InspectorSurface idle', () => {
 
   test('a closed astro modal stays in the document, hidden', async () => {
     const html = await astroHtml(AstroModal, { open: false, variant: 'viewer', label: 'Diagram' });
-    expect(html).toContain('<div class="bb-modal bb-modal--viewer" data-overlay style="z-index: 200" hidden>');
+    expect(html).toContain('<div class="bb-modal bb-modal--viewer" style="z-index: 200" hidden>');
   });
 
   contracts(SvelteInspectorSurface, AstroInspectorSurface, [
@@ -328,7 +328,7 @@ describe('SkipLink and LanguageSwitcher', () => {
       name: 'form mode posts the chosen code',
       props: { label: 'Language', action: '/lang', name: 'to', fields: { next: '/x' }, options, menuId: 'lang' },
       html:
-        '<form method="POST" action="/lang" class="bb-lang-switch" data-bb-lang-switch><input type="hidden" name="next" value="/x">' +
+        '<form method="POST" action="/lang" class="bb-lang-switch"><input type="hidden" name="next" value="/x">' +
         `${TRIGGER_EN}${MENU}` +
         `<li><button type="submit" name="to" value="en" class="bb-lang-switch__opt is-active" aria-pressed="true">${optionBody('en', 'English')}` +
         `<li><button type="submit" name="to" value="fr" class="bb-lang-switch__opt" aria-pressed="false">${optionBody('fr', 'FR')}` +
@@ -338,7 +338,7 @@ describe('SkipLink and LanguageSwitcher', () => {
       name: 'language switcher falls back to the catalog label',
       props: { options: [{ code: 'en', label: 'EN', href: '/', current: true }], menuId: 'lang' },
       html:
-        '<div class="bb-lang-switch" data-bb-lang-switch>' +
+        '<div class="bb-lang-switch">' +
         `${TRIGGER_EN.replace('Language: English', 'Language: EN')}${MENU}` +
         `<li><a class="bb-lang-switch__opt is-active" href="/" hreflang="en" aria-current="true">${FLAG}<span class="bb-lang-switch__name" lang="en">EN</span>${CHECK}</a></li>` +
         '</ul></div>',
@@ -348,7 +348,7 @@ describe('SkipLink and LanguageSwitcher', () => {
   test('svelte callback mode renders plain buttons', () => {
     const html = svelteHtml(SvelteLanguageSwitcher, { label: 'Language', options, onSelect: () => {}, menuId: 'lang' });
     expect(html).toBe(
-      `<div class="bb-lang-switch" data-bb-lang-switch>${TRIGGER_EN}${MENU}` +
+      `<div class="bb-lang-switch">${TRIGGER_EN}${MENU}` +
         `<li><button type="button" class="bb-lang-switch__opt is-active" aria-pressed="true">${optionBody('en', 'English')}` +
         `<li><button type="button" class="bb-lang-switch__opt" aria-pressed="false">${optionBody('fr', 'FR')}` +
         '</ul></div>',
@@ -401,7 +401,7 @@ describe('Dock grouping', () => {
   test('a folded group is current when any page inside it is', async () => {
     const quiet = { label: 'Quiet', items: [link('/p', 'P'), link('/q', 'Q')] };
     const live = { label: 'Live', items: [link('/o', 'O', { current: true }), link('/r', 'R')] };
-    expect(buttons(await dock({ groups: [quiet, live] })).map((button) => button.includes('data-active'))).toEqual([false, true]);
+    expect(buttons(await dock({ groups: [quiet, live] })).map((button) => button.includes('is-active'))).toEqual([false, true]);
   });
 
   test('counts sum, and a zero sum shows no badge', async () => {
@@ -413,16 +413,16 @@ describe('Dock grouping', () => {
   test('a quick limit marks the tail for folding and repeats it behind a current menu', async () => {
     const pages = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => link(`/${id}`, id.toUpperCase(), { current: id === 'f' }));
     const html = await dock({ items: pages, quick: 4 });
-    expect([...html.matchAll(/href="\/(\w)" (?:data-active )?(?:aria-current="page" )?data-dock-fold/g)].map((m) => m[1])).toEqual(['e', 'f']);
+    expect([...html.matchAll(/class="bb-dock-item bb-dock-item--fold" href="\/(\w)"/g)].map((m) => m[1])).toEqual(['e', 'f']);
     expect(html).toContain('<div class="bb-dock__group bb-dock__more">');
-    expect(buttons(html)).toEqual([expect.stringContaining('data-active')]);
+    expect(buttons(html)).toEqual([expect.stringContaining('is-active')]);
     expect(html).toContain('>Menu</bb-fit>');
   });
 
   test('a single extra page stays in the dock instead of hiding behind a menu', async () => {
     const pages = ['a', 'b', 'c', 'd', 'e'].map((id) => link(`/${id}`, id));
     const html = await dock({ items: pages, quick: 4 });
-    expect(html).not.toContain('data-dock-fold');
+    expect(html).not.toContain('bb-dock-item--fold');
     expect(html).not.toContain('bb-dock__more');
   });
 
@@ -444,33 +444,33 @@ describe('CopySurface', () => {
       name: 'card with label and chip hint',
       props: { text: 'BAGEL', label: 'Creator code', hint: 'Click to copy', copiedLabel: 'Copied' },
       html:
-        '<span class="bb-copy-host"><button class="bb-copy bb-copy--card" type="button" data-copy="BAGEL">' +
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--card" type="button">' +
         '<span class="bb-copy__label">Creator code</span><span class="bb-copy__row">' +
         '<span class="bb-copy__value">BAGEL</span><span class="bb-copy__hint" aria-hidden="true">' +
         `<span class="bb-copy__idle">Click to copy</span><span class="bb-copy__done">Copied</span></span></span>${STATUS}`,
     },
     {
-      name: 'well shows glyphs and carries its timing',
+      name: 'well shows glyphs',
       props: { text: '/mod bot', variant: 'well', hint: 'Copy', copiedLabel: 'Copied', flashMs: 2000, legacyFallback: true },
       html:
-        '<span class="bb-copy-host"><button class="bb-copy bb-copy--well" type="button" data-copy="/mod bot" data-copy-ms="2000" data-copy-legacy>' +
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--well" type="button">' +
         '<span class="bb-copy__row"><span class="bb-copy__value">/mod bot</span><span class="bb-copy__hint" aria-hidden="true">' +
         `<span class="bb-copy__idle">${icon('copy', 12)}Copy</span><span class="bb-copy__done">${icon('check', 12)}Copied</span>` +
         `</span></span>${STATUS}`,
     },
     {
-      name: 'chip is icon only and announces the copied label',
+      name: 'chip is icon only',
       props: { text: 'a@b.c', variant: 'chip', copiedLabel: 'Copied' },
       html:
-        '<span class="bb-copy-host"><button class="bb-copy bb-copy--chip" type="button" data-copy="a@b.c" data-copy-announce="Copied">' +
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--chip" type="button">' +
         '<span class="bb-copy__row"><span class="bb-copy__value">a@b.c</span><span class="bb-copy__hint" aria-hidden="true">' +
         `<span class="bb-copy__idle">${icon('copy', 12)}</span><span class="bb-copy__done">${icon('check', 12)}</span></span></span>${STATUS}`,
     },
     {
-      name: 'announce text rides on the surface for the status region',
+      name: 'announce text does not change the markup',
       props: { text: '!hi', variant: 'row', hint: '', copiedLabel: 'Copied', announce: 'Copied !hi' },
       html:
-        '<span class="bb-copy-host"><button class="bb-copy bb-copy--row" type="button" data-copy="!hi" data-copy-announce="Copied !hi">' +
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--row" type="button">' +
         '<span class="bb-copy__row"><span class="bb-copy__value">!hi</span><span class="bb-copy__hint" aria-hidden="true">' +
         `<span class="bb-copy__idle"></span><span class="bb-copy__done">Copied</span></span></span>${STATUS}`,
     },
@@ -515,10 +515,10 @@ describe('ProfileMenu', () => {
     expect(html).toContain('<div class="bb-profile__section" aria-hidden="true">Dashboards</div>');
     expect(html).toContain('<a class="bb-profile__link" href="/c/alpha" role="menuitem"><span class="bb-profile__avatar"><i data-size="26" data-item="true"></i></span>');
     expect(html).toContain(`<span class="bb-profile__avatar">${icon('home', 14)}</span><span class="bb-profile__name">Back to mine</span>`);
-    expect(html).toContain('<form method="POST" action="/auth/logout" role="none"><button type="submit" class="bb-profile-topbar__op-menu-item" role="menuitem">Log out</button></form>');
+    expect(html).toContain('<form method="POST" action="/auth/logout" role="none"><button type="submit" class="bb-profile__menu-item" role="menuitem">Log out</button></form>');
   });
 
-  test('rail without dashboards shows help, a static account row and the logout', () => {
+  test('rail without dashboards still makes the account row a menu trigger', () => {
     const html = svelteHtml(SvelteProfileMenu, {
       ...base,
       variant: 'rail',
@@ -529,15 +529,21 @@ describe('ProfileMenu', () => {
     expect(html.startsWith('<div class="bb-profile-rail__side-foot"><div class="bb-profile-rail__help">')).toBe(true);
     expect(html).toContain('aria-haspopup="menu">Support</button>');
     expect(html).toContain('<a class="bb-profile-rail__help-btn" href="https://example.test/issues" target="_blank" rel="noopener noreferrer">Feedback</a>');
-    expect(html).toContain('<div class="bb-profile-rail__account" role="group">');
-    expect(html).toContain('<form class="bb-profile-rail__logout" method="POST" action="/auth/logout">');
-    expect(html).not.toContain('bb-profile-rail__account--btn');
+    expect(html).toContain('<button class="bb-profile-rail__account bb-profile-rail__account--btn" type="button" aria-expanded="false" aria-haspopup="menu">');
+    expect(html).not.toContain('bb-profile-rail__logout');
   });
 
-  test('rail with dashboards turns the account row into the menu trigger', () => {
-    const html = svelteHtml(SvelteProfileMenu, { ...base, variant: 'rail', links: [{ href: '/c/alpha', label: 'Alpha' }] });
-    expect(html).toContain('<button class="bb-profile-rail__account bb-profile-rail__account--btn" type="button" aria-expanded="false" aria-haspopup="menu">');
-    expect(html).toContain(`<span class="bb-profile-rail__chev" aria-hidden="true">${icon('chevron', 14)}</span>`);
+  test('rail account menu opens on click and keeps the logout behind it', () => {
+    const html = svelteHtml(SvelteProfileMenu, {
+      ...base,
+      variant: 'rail',
+      open: true,
+      links: [{ href: '/c/alpha', label: 'Alpha' }],
+    });
+    expect(html).toContain(`<span class="bb-profile-rail__chev bb-profile-rail__open" aria-hidden="true">${icon('chevron', 14)}</span>`);
+    expect(html).toContain('role="menu" aria-label="Account menu"');
+    expect(html).toContain('<a class="bb-profile__link" href="/c/alpha" role="menuitem">');
+    expect(html).toContain('<form method="POST" action="/auth/logout" role="none"><button type="submit" class="bb-profile__menu-item" role="menuitem">Log out</button></form>');
   });
 });
 
@@ -630,19 +636,6 @@ describe('navigation and feedback stylesheets', () => {
       ],
     },
     {
-      name: 'viewer chrome has light rules on paper and ink tokens',
-      checks: [
-        {
-          file: 'styles/elements/modal.css',
-          has: [
-            /:root\[data-theme="light"\] \.bb-modal--viewer \.bb-modal__backdrop \{[^}]*--bb-paper-warm-rgb/,
-            /:root\[data-theme="light"\] \.bb-modal__toolbar \.bb-btn--icon \{[^}]*--bb-ink-soft/,
-            /:root\[data-theme="light"\] \.bb-modal__hint \{[^}]*--bb-ink-rgb/,
-          ],
-        },
-      ],
-    },
-    {
       name: 'bottom placement anchors above the pill with touch areas on the controls',
       checks: [
         {
@@ -658,8 +651,8 @@ describe('navigation and feedback stylesheets', () => {
       ],
     },
     ...STATIC_FLOW.map(([file, selector]) => ({
-      name: `${file} renders ${selector} in flow under data-static`,
-      checks: [{ file: `styles/${file}`, has: [`:is([data-static] ${selector}, ${selector}[data-static])`] }],
+      name: `${file} renders ${selector} in flow under bb-static-frame`,
+      checks: [{ file: `styles/${file}`, has: [`.bb-static-frame ${selector} {`] }],
     })),
     ...NO_FALLBACK_FILES.map((file) => ({
       name: `${file} restates no token value as a fallback`,

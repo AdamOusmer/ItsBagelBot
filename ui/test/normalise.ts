@@ -5,6 +5,7 @@ export function normalise(html: string): string {
   const stripped = stripHtmlComments(
     html
       .replace(/<script type="module" src="[^"]*"><\/script>/g, '')
+      .replace(/<script type="application\/json"[^>]*>[^<]*<\/script>/g, '')
       .replace(/\s*\/>/g, '>'),
   );
   return stripped

@@ -30,6 +30,7 @@ var servicesProjects = map[string]string{
 	"outgress":       "outgress",
 	"worker":         "sesame",
 	"twitch_ingress": "twitch-ingress",
+	"automod":        "automod",
 	"dashboard":      "dashboard",
 	"admin":          "admin",
 	"transactions":   "transactions",

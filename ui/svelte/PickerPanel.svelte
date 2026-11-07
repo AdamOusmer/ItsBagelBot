@@ -11,7 +11,7 @@
   import '../styles/elements/picker-panel.css';
   import { mediaQuery } from '../lib/motion-query';
   import { naturalHeight, placeDropdown, type DropdownPlacement } from '../lib/dropdown-placement';
-  import { MOBILE_QUERY, portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains, wirePopupAnchor, focusWithin, FOCUSABLE } from '../lib/overlay-stack';
+  import { MOBILE_QUERY, overlayShell, portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains, wirePopupAnchor, focusWithin, FOCUSABLE } from '../lib/overlay-stack';
 
   const uid = $props.id();
 
@@ -79,6 +79,7 @@
   let isSheet = $state(sheetQuery.matches);
   let pos = $state<DropdownPlacement>({ top: 0, left: 0, width: 0, maxHeight: 0 });
   let panelEl = $state<HTMLDivElement>();
+  const rootOf = (panel: HTMLElement) => (isSheet && panel.parentElement) || panel;
   let overlayId = 0;
   let zIndex = $state(300);
 
@@ -100,7 +101,7 @@
 
   $effect(() => {
     if (!open || !panelEl) return;
-    const root = panelEl.closest<HTMLElement>('[data-overlay]') || panelEl;
+    const root = rootOf(panelEl);
     openPickerRoots.add(root);
     const unregister = anchor ? registerOverlayAnchor(root, anchor) : undefined;
     return () => {
@@ -160,7 +161,7 @@
 <svelte:window
   onkeydowncapture={(e) => {
     if (!open || e.key !== 'Escape' || !panelEl) return;
-    const root = panelEl.closest<HTMLElement>('[data-overlay]') || panelEl;
+    const root = rootOf(panelEl);
     if (Array.from(openPickerRoots).at(-1) !== root) return;
     // A child portal may use another adapter and handle Escape at its target.
     if (e.target instanceof Node && !root.contains(e.target) && overlayContains(root, e.target)) return;
@@ -173,7 +174,7 @@
 
 {#if open}
   {#if isSheet}
-    <div class="bb-picker-panel__shell" data-overlay style="z-index: {zIndex}" use:portal>
+    <div class="bb-picker-panel__shell" style="z-index: {zIndex}" use:portal use:overlayShell>
       <button class="bb-picker-panel__scrim" type="button" tabindex="-1" aria-hidden="true" onclick={requestClose}></button>
       <div class="bb-picker-panel bb-picker-panel--sheet" data-lenis-prevent role="dialog" aria-modal="true" aria-label={label} {id} bind:this={panelEl} tabindex="-1" use:trapFocus>
         <span class="bb-picker-panel__grabber" aria-hidden="true"></span>
@@ -183,7 +184,6 @@
   {:else}
     <div
       class="bb-picker-panel bb-picker-panel--dropdown"
-      data-overlay
       data-lenis-prevent
       role="dialog"
       aria-label={label}
@@ -197,6 +197,7 @@
       style:max-height={px(pos.maxHeight)}
       bind:this={panelEl}
       use:portal
+      use:overlayShell
     >
       {@render children()}
     </div>

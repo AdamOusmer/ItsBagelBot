@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/pkg/cache"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -127,17 +128,12 @@ func newestBufferedAt(batch map[uint64][]recentEntry) stamp {
 }
 
 func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID channelID, entries []recentEntry, plan flushPlan) {
-	key := recentChannelKey(chanID)
-	zadd := v.client.B().Zadd().Key(key).ScoreMember()
+	log := pkg_valkey.TrimmedLog{Key: recentChannelKey(chanID), Keep: recentRingCap, TTLSeconds: plan.ttlSec}
+	members := make([]pkg_valkey.ScoreMember, len(entries))
 	for i := range entries {
-		zadd = zadd.ScoreMember(float64(entries[i].at/stamp(time.Millisecond)), encodeRecentMember(entries[i]))
+		members[i] = pkg_valkey.ScoreMember{Score: float64(entries[i].at / stamp(time.Millisecond)), Member: encodeRecentMember(entries[i])}
 	}
-	resps := v.client.DoMulti(ctx,
-		zadd.Build(),
-		v.client.B().Zremrangebyscore().Key(key).Min("-inf").Max(plan.cutoff).Build(),
-		v.client.B().Zremrangebyrank().Key(key).Start(0).Stop(-(recentRingCap + 1)).Build(),
-		v.client.B().Expire().Key(key).Seconds(plan.ttlSec).Build(),
-	)
+	resps := log.AppendBatch(ctx, v.client, members, plan.cutoff)
 	v.noteErrors(resps)
 }
 
@@ -152,12 +148,8 @@ func (v *ValkeyRecent) Sweep(ctx context.Context, chanID channelID, phrase strin
 	}
 	cutoff := strconv.FormatInt(now.Add(-recentTTL).UnixMilli(), 10)
 
-	resp := v.client.Do(ctx, v.client.B().Zrangebyscore().
-		Key(recentChannelKey(chanID)).
-		Min(cutoff).Max("+inf").
-		Limit(0, recentFetchLimit).
-		Build())
-	members, err := resp.AsStrSlice()
+	log := pkg_valkey.TrimmedLog{Key: recentChannelKey(chanID)}
+	members, err := log.Range(ctx, v.client, cutoff, recentFetchLimit)
 	if err != nil {
 		v.noteReadError(err)
 		return nil

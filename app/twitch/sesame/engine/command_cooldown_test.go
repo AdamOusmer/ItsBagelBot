@@ -35,6 +35,8 @@ func (s *windowStore) Allow(ctx context.Context, key string, ttl time.Duration) 
 	return s.AllowAll(ctx, []CooldownWindow{{Key: key, TTL: ttl}})
 }
 
+func (s *windowStore) TimeLeft(context.Context, string) (time.Duration, error) { return 0, nil }
+
 func (s *windowStore) AllowAll(_ context.Context, windows []CooldownWindow) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -8,7 +8,7 @@
   import Dock from './Dock.svelte';
   import Rail from './Rail.svelte';
   import type { Snippet } from 'svelte';
-  import type { UiBrand, UiCrumb, UiNavGroup, UiNavLink } from '../lib/nav-types';
+  import type { UiAccount, UiBrand, UiCrumb, UiNavGroup, UiNavLink } from '../lib/nav-types';
 
   type Own = {
     brand: UiBrand;
@@ -27,7 +27,8 @@
     banner?: Snippet;
     topActions?: Snippet;
     account?: Snippet;
-    railFooter?: Snippet;
+    railAccount?: UiAccount;
+    railAccountOpen?: boolean;
     children: Snippet;
     class?: string;
   };
@@ -49,7 +50,8 @@
     banner,
     topActions,
     account,
-    railFooter,
+    railAccount,
+    railAccountOpen = $bindable(false),
     children,
     class: className = '',
     ...rest
@@ -85,7 +87,7 @@
 
 <div class={classes} {...rest}>
   {#if rail}
-    <Rail {brand} {groups} footer={railFooter} label={railLabel} />
+    <Rail {brand} {groups} account={railAccount} bind:accountOpen={railAccountOpen} label={railLabel} />
   {/if}
   <div class="bb-shell__stage">
     <Topbar

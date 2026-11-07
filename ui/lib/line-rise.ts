@@ -3,7 +3,7 @@
 
 import { prefersReducedMotion } from './motion-query';
 
-const ARMED = 'lineRise';
+const armed = new WeakSet<HTMLElement>();
 
 function wordSpans(text: string): HTMLElement[] {
     return text.split(' ').map((word) => {
@@ -67,7 +67,7 @@ function whenFitted(source: HTMLElement, run: () => void): () => void {
 }
 
 function canRise(title: HTMLElement, source: HTMLElement | null): source is HTMLElement {
-    return source !== null && title.dataset[ARMED] === undefined && !prefersReducedMotion();
+    return source !== null && !armed.has(title) && !prefersReducedMotion();
 }
 
 export function riseLines(title: HTMLElement): () => void {
@@ -87,7 +87,8 @@ export function riseLines(title: HTMLElement): () => void {
         title.append(layer);
         const last = fillLines(layer, groupLines(layer, source.textContent ?? ''));
         source.style.opacity = '0';
-        title.dataset[ARMED] = '';
+        armed.add(title);
+        title.classList.add('is-shown');
         last.addEventListener('animationend', finish, { once: true });
     });
 

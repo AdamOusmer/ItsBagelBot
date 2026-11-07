@@ -52,7 +52,7 @@
   const uid = $props.id();
   const controlId = $derived(id || uid);
   const panelLabel = $derived(label || String(rest['aria-label'] || i18n.t('select.label')));
-  const classes = $derived(['bb-input', 'bb-input--select', 'bb-select__trigger', fill ? 'bb-input--fill' : '', className].filter(Boolean).join(' '));
+  const classes = $derived(['bb-input', 'bb-input--select', 'bb-select__trigger', fill ? 'bb-input--fill' : '', invalid ? 'bb-input--invalid' : '', className].filter(Boolean).join(' '));
   const selected = $derived(options.find((option) => option.value === value));
 
   let enhanced = $state(false);
@@ -177,8 +177,8 @@
   }
 </script>
 
-<span class="bb-select" class:bb-select--fill={fill} data-enhanced={enhanced ? '' : undefined}>
-  <span class="bb-input bb-input--select bb-select__fallback" class:bb-input--fill={fill} data-invalid={invalid ? '' : undefined}>
+<span class="bb-select" class:bb-select--fill={fill} class:bb-select--enhanced={enhanced}>
+  <span class="bb-input bb-input--select bb-select__fallback" class:bb-input--fill={fill} class:bb-input--invalid={invalid}>
     <select id={enhanced ? `${controlId}-native` : controlId} {name} {form} {disabled} {required}
       bind:value bind:this={nativeEl} aria-hidden={enhanced ? 'true' : undefined} tabindex={enhanced ? -1 : undefined}
       {...rest} {onchange} {oninput}
@@ -191,8 +191,7 @@
     </select>
     <svg class="bb-input__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
   </span>
-  <button id={enhanced ? controlId : undefined} type="button" class={classes} hidden={!enhanced} {disabled}
-    data-invalid={invalid ? '' : undefined} data-placeholder={!selected?.value ? '' : undefined}
+  <button id={enhanced ? controlId : undefined} type="button" class={[classes, !selected?.value && 'is-placeholder']} hidden={!enhanced} {disabled}
     aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${controlId}-list` : undefined}
     aria-labelledby={rest['aria-labelledby'] ? String(rest['aria-labelledby']) : label ? undefined : labelledBy} aria-label={label}
     {...rest}
@@ -218,7 +217,7 @@
         {#if option.group && (i === 0 || option.group !== results[i - 1].group)}
           <li class="bb-select__group" role="presentation">{option.group}</li>
         {/if}
-        <li id="{controlId}-option-{i}" data-index={i} role="option" tabindex="-1" aria-selected={option.value === value}
+        <li id="{controlId}-option-{i}" role="option" tabindex="-1" aria-selected={option.value === value}
           aria-disabled={option.disabled || undefined} class="bb-select__option" class:active={i === active}
           onclick={() => void pick(option)}
           onkeydown={(event) => { event.stopPropagation(); onKey(event); }}>

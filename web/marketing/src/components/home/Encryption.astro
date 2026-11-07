@@ -46,14 +46,14 @@ const CODE_LINES = [
             target="_blank"
             rel="noopener noreferrer"
             class="enc__card enc__card--link"
-            data-cursor="quiet"
+            style="--bb-cursor: quiet"
         >
             <div class="enc__inner reveal-in" style="--reveal-i: 1">
                 <div class="enc__demo enc__demo--code" aria-hidden="true">
                     <div class="code__win">
                         <span class="code__bar">
                             <span class="code__dots"><i></i><i></i><i></i></span>
-                            <RoundBadge size="md" muted class="code__go" data-cursor>→</RoundBadge>
+                            <RoundBadge size="md" muted class="code__go" style="--bb-cursor: follow">→</RoundBadge>
                         </span>
                         {CODE_LINES.map((line) => (
                             <span class="code__line" style={`--w: ${line.width}%; --indent: ${line.indent}px`}></span>

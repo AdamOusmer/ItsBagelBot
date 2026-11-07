@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/pkg/batch"
+	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -55,6 +56,11 @@ func (r *Users) queuePref(id uint64, field prefField, w prefWrite) {
 	r.pendingPrefs[prefKey{userID: id, field: field}] = w
 	r.pendingMu.Unlock()
 	r.batcher.Add(prefKey{userID: id, field: field}, w)
+}
+
+func (r *Users) SetCustomCursor(ctx context.Context, id uint64, on bool) error {
+	r.queuePref(id, prefCursor, prefWrite{flag: on})
+	return nil
 }
 
 func (r *Users) clearPendingPrefs(items []prefWrite) {
@@ -116,7 +122,7 @@ func (r *Users) flushPrefs(ctx context.Context, items []prefWrite) error {
 	perUser := groupByUser(items)
 	defer r.trackAccounts(ctx, slices.Collect(maps.Keys(perUser))...)()
 
-	err := withTx(ctx, r.client, func(tx *ent.Tx) error {
+	err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 		return writeAllUserPrefs(ctx, tx, perUser)
 	})
 	if err == nil {
@@ -197,7 +203,7 @@ func requeuePrefWrites(b *batch.Batcher[prefKey, prefWrite], writes []prefWrite)
 
 func (r *Users) applyPrefEach(ctx context.Context, txn *newrelic.Transaction, log *zap.Logger, perUser map[uint64][]prefWrite) {
 	for id, writes := range perUser {
-		err := withTx(ctx, r.client, func(tx *ent.Tx) error {
+		err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 			return writeUserPrefs(ctx, tx, id, writes)
 		})
 

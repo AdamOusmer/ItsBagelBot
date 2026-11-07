@@ -38,7 +38,6 @@
 <div
   class={classes}
   {id}
-  data-mobile-menu=""
   aria-hidden="true"
   inert
   style="--menu-clip:url(#{clipId})"
@@ -46,12 +45,12 @@
   ><svg class="bb-mobile-menu__curve" aria-hidden="true" focusable="false"
     ><defs
       ><clipPath id={clipId} clipPathUnits="userSpaceOnUse"
-        ><path class="bb-mobile-menu__curve-path" data-menu-curve-path d=""></path></clipPath
+        ><path class="bb-mobile-menu__curve-path" d=""></path></clipPath
       ></defs
     ></svg
   ><div class="bb-mobile-menu__panel" role="dialog" aria-label={panelLabel} aria-modal="true"
     ><ul class="bb-mobile-menu__links"
-      >{#each links as link (link.href)}<li data-menu-item
+      >{#each links as link (link.href)}<li
           ><NavLink
             class="bb-mobile-menu__link"
             href={link.href}
@@ -63,7 +62,7 @@
             data-astro-prefetch={link.current || link.external ? undefined : 'viewport'}
           /></li
         >{/each}</ul
-    ><div class="bb-mobile-menu__footer" data-menu-footer
+    ><div class="bb-mobile-menu__footer"
       >{#if cta}<NavLink
           class="bb-mobile-menu__cta"
           variant={cta.icon === 'twitch' ? 'twitch' : 'cta'}

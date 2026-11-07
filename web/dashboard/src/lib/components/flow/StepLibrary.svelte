@@ -33,7 +33,7 @@
     condition: 'var(--bb-tan)',
     reply: 'var(--bb-muted-light)'
   };
-  const GROUP_ORDER: readonly StepGroup[] = ['twitch', 'discord', 'modules', 'basics'];
+  const GROUP_ORDER: readonly StepGroup[] = ['twitch', 'modules', 'basics'];
 
   let query = $state('');
   let searchEl = $state<HTMLInputElement>();

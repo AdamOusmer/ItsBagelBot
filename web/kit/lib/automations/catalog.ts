@@ -3,6 +3,7 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
+import { MAX_COOLDOWN_SECONDS } from './limits';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
 export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
@@ -59,6 +60,10 @@ const op = f('op', 'enum', { required: true, values: CMP_OPS });
 const listLogin = (name: FieldName) => f(name, 'list', { max: 100 });
 const listUserId = (name: FieldName) => f(name, 'list', { max: 100 });
 const listCategory = (name: FieldName) => f(name, 'list', { max: 50 });
+const varScope = f('scope', 'enum', { required: true, values: ['channel', 'viewer'] });
+const varName = f('name', 'text', { required: true, min: 1, max: 32 });
+const saveAsReq = f('save_as', 'text', { required: true, min: 1, max: 32 });
+const saveAsOpt = f('save_as', 'text', { max: 32 });
 
 export const TRIGGER_TYPES: TypeDef[] = [
   trigger('command', [
@@ -86,7 +91,14 @@ export const CONDITION_TYPES: TypeDef[] = [
   condition('perm', [f('level', 'enum', { required: true, values: PERM_LEVELS })]),
   condition('users', [listLogin('allow'), listLogin('deny'), listUserId('allow_ids'), listUserId('deny_ids')]),
   condition('live', [f('state', 'enum', { required: true, values: ['live', 'offline'] })]),
-  condition('cooldown', [f('global_s', 'int', { min: 0, max: 86400 }), f('user_s', 'int', { min: 0, max: 86400 })]),
+  condition('cooldown', [
+    f('global_s', 'int', { min: 0, max: MAX_COOLDOWN_SECONDS }),
+    f('user_s', 'int', { min: 0, max: MAX_COOLDOWN_SECONDS }),
+    f('name', 'text', { max: 32 }),
+    f('left_command', 'text', { max: 64 }),
+    f('left_reply', 'template', { max: 500 }),
+    f('ready_reply', 'template', { max: 500 }),
+  ]),
   condition('chance', [f('percent', 'int', { required: true, min: 1, max: 100 })]),
   condition('counter', [counterName, op, f('value', 'int', { required: true })]),
   condition('points', [op, f('value', 'int', { required: true })]),
@@ -96,6 +108,12 @@ export const CONDITION_TYPES: TypeDef[] = [
     f('left', 'template', { required: true, min: 1, max: 500 }),
     f('op', 'enum', { required: true, values: COMPARE_OPS }),
     f('right', 'template', { max: 500 }),
+  ]),
+  condition('var', [
+    varScope,
+    varName,
+    f('op', 'enum', { required: true, values: [...CMP_OPS, 'contains', 'exists'] }),
+    f('value', 'template', { max: 500 }),
   ]),
 ];
 
@@ -120,22 +138,46 @@ export const ACTION_TYPES: TypeDef[] = [
   action('counter_add', [counterName, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
   action('counter_set', [counterName, f('value', 'int', { required: true })]),
   action('redemption', [f('status', 'enum', { required: true, values: ['fulfill', 'cancel'] })]),
-  action('delay', [f('ms', 'int', { required: true, min: 1, max: 10000 })]),
+  action('delay', [f('ms', 'int', { required: true, min: 1, max: 60000 })]),
   action('random_pick', [f('branches', 'branches', { required: true, min: 2, max: 5 })]),
+  action('parallel', [f('branches', 'branches', { required: true, min: 2, max: 10 })]),
   action('run', [f('automation_id', 'text', { required: true, min: 1, max: 64 })]),
   action('if', [
     f('condition', 'condition', { required: true }),
     f('then', 'actions'),
     f('else', 'actions'),
   ]),
-  action('discord_post', [
-    f('guild_id', 'text', { required: true }),
-    f('channel_id', 'text', { required: true }),
-    f('text', 'template', { required: true, min: 1, max: 2000 }),
-  ]),
   action('http_post', [
     f('url', 'text', { required: true, min: 1, max: 512 }),
     f('body', 'template', { max: 2000 }),
+    saveAsOpt,
+    f('on_ok', 'actions'),
+    f('on_failure', 'actions'),
+  ]),
+  action('http_get', [
+    f('url', 'template', { required: true, min: 1, max: 512 }),
+    f('json_path', 'list', { max: 8 }),
+    saveAsOpt,
+    f('on_ok', 'actions'),
+    f('on_failure', 'actions'),
+  ]),
+  action('var_set', [varScope, varName, f('value', 'template', { max: 500 })]),
+  action('var_add', [varScope, varName, f('amount', 'int', { required: true })]),
+  action('var_delete', [varScope, varName]),
+  action('text', [
+    f('op', 'enum', { required: true, values: ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'] }),
+    f('input', 'template', { max: 500 }),
+    f('arg1', 'template', { max: 500 }),
+    f('arg2', 'template', { max: 500 }),
+    saveAsReq,
+  ]),
+  action('math', [f('expression', 'template', { required: true, min: 1, max: 500 }), saveAsReq]),
+  action('loop', [f('times', 'template', { required: true, min: 1, max: 500 }), f('actions', 'actions')]),
+  action('reward_update', [
+    f('reward_id', 'text', { required: true, min: 1, max: 64 }),
+    f('enabled', 'bool'),
+    f('cost', 'int', { min: 1, max: 10000000 }),
+    f('reset_on_stream_end', 'bool'),
   ]),
   action('lights', [
     f('device', 'text', { required: true, min: 1, max: 64 }),
@@ -150,4 +192,9 @@ export const ACTION_TYPES: TypeDef[] = [
     f('scene_value', 'text', { min: 1, max: 200 }),
   ]),
   action('stop'),
+  action('cooldown_add', [
+    f('name', 'text', { required: true, min: 1, max: 32 }),
+    f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }),
+    f('per', 'int', { min: 0 }),
+  ]),
 ];

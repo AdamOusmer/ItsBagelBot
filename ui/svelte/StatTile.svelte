@@ -15,6 +15,7 @@
     flat?: boolean;
     static?: boolean;
     inline?: boolean;
+    text?: boolean;
     tone?: StatTone;
     class?: string;
     trailing?: Snippet;
@@ -28,6 +29,7 @@
     flat = false,
     static: isStatic = false,
     inline = false,
+    text = false,
     tone,
     class: className = '',
     trailing = undefined as Snippet | undefined,
@@ -39,6 +41,7 @@
       'bb-stat',
       isStatic ? 'bb-stat--static' : null,
       inline ? 'bb-stat--inline' : null,
+      text ? 'bb-stat--text' : null,
       tone ? `bb-stat--${tone}` : null,
       className || null,
     ]
@@ -52,6 +55,6 @@
     <span class="bb-stat__label">{label}</span>
     {#if trailing}{@render trailing()}{/if}
   </div>
-  <div class="bb-stat__value">{#if isStatic}<span>{value}</span>{:else}<span data-count-up use:countUp={{ value }}>{value}</span>{/if}{#if unit}<small>{unit}</small>{/if}</div>
-  {#if delta !== undefined}<div class="bb-stat__delta" data-flat={flat ? '' : undefined}>{delta}</div>{/if}
+  <div class="bb-stat__value">{#if isStatic}<span>{value}</span>{:else}<span use:countUp={{ value }}>{value}</span>{/if}{#if unit}<small>{unit}</small>{/if}</div>
+  {#if delta !== undefined}<div class={['bb-stat__delta', flat && 'bb-stat__delta--flat']}>{delta}</div>{/if}
 </div>

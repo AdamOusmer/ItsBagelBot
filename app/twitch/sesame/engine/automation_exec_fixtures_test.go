@@ -17,7 +17,6 @@ import (
 	automationsrpc "ItsBagelBot/internal/domain/rpc/automations"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
-	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/require"
@@ -113,8 +112,10 @@ type autoGossip struct {
 	route  GossipRoute
 	req    gossiprpc.Request
 	status gossiprpc.FetchStatus
+	values []string
 	calls  int
 	err    error
+	slow   time.Duration
 
 	outdated bool
 }
@@ -124,36 +125,17 @@ func (g *autoGossip) Call(_ context.Context, route GossipRoute, req gossiprpc.Re
 	defer g.mu.Unlock()
 	g.route, g.req = route, req
 	g.calls++
+	time.Sleep(g.slow)
 	if g.err != nil {
 		return g.err
 	}
 	switch reply := out.(type) {
 	case *gossiprpc.CustomFetchReply:
-		reply.Status = g.status
+		reply.Status, reply.Values = g.status, g.values
 	case *gossiprpc.GoveeControlReply:
 		reply.SceneApplied = !g.outdated
 	}
 	return nil
-}
-
-type autoDiscord struct {
-	mu    sync.Mutex
-	posts []outgressrpc.DiscordPostRequest
-	reply outgressrpc.DiscordPostReply
-	err   error
-}
-
-func (d *autoDiscord) Post(_ context.Context, req outgressrpc.DiscordPostRequest) (outgressrpc.DiscordPostReply, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.posts = append(d.posts, req)
-	return d.reply, d.err
-}
-
-func (d *autoDiscord) sent() []outgressrpc.DiscordPostRequest {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return append([]outgressrpc.DiscordPostRequest(nil), d.posts...)
 }
 
 type autoAccounts map[string]string
@@ -169,7 +151,7 @@ type autoFixture struct {
 	runs    *autoRunLog
 	loyalty *autoLoyalty
 	gossip  *autoGossip
-	discord *autoDiscord
+	vars    *autoVariables
 }
 
 func newAutoFixture(autos ...automation.Automation) *autoFixture {
@@ -178,13 +160,13 @@ func newAutoFixture(autos ...automation.Automation) *autoFixture {
 		runs:    &autoRunLog{},
 		loyalty: &autoLoyalty{},
 		gossip:  &autoGossip{status: gossiprpc.FetchOK},
-		discord: &autoDiscord{reply: outgressrpc.DiscordPostReply{Checked: true}},
+		vars:    newAutoVariables(),
 	}
 	d := Deps{
 		Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: fx.pub, Log: zap.NewNop(),
-		Loyalty: fx.loyalty, Gossip: fx.gossip, Discord: fx.discord, TwitchAccounts: autoAccounts{"target": "99"},
+		Loyalty: fx.loyalty, Gossip: fx.gossip, TwitchAccounts: autoAccounts{"target": "99"},
 		Dedup:       NewEventDedup(newRecordingStore(), "t:", time.Minute, zap.NewNop()),
-		Automations: AutomationDeps{Source: autoSource{list: autos}, Runs: fx.runs},
+		Automations: AutomationDeps{Source: autoSource{list: autos}, Runs: fx.runs, Variables: fx.vars},
 	}
 	fx.p = NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 	return fx

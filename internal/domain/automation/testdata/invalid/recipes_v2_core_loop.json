@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    { "type": "loop", "params": { "times": "many", "actions": [] } },
+    { "type": "loop", "params": { "times": "", "actions": [ { "type": "nope", "params": {} } ] } }
+  ]
+}

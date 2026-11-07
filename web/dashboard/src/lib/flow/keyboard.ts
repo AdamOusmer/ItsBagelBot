@@ -80,7 +80,9 @@ export function isTyping(t: Target): boolean {
 
 const within = (t: Target, selector: string) => Boolean(t?.closest(selector));
 
-const SCOPE_HOST = { canvas: '[data-flow-canvas]', editor: '[data-flow-editor]' } as const;
+const OVERLAY = '[aria-modal="true"], .bb-picker-panel';
+
+const SCOPE_HOST ={ canvas: '[data-flow-canvas]', editor: '[data-flow-editor]' } as const;
 
 function inScope(s: Shortcut, t: Target): boolean {
   if (s.scope === 'node') return within(t, '[data-node-id]') && !within(t, 'button, a');
@@ -88,7 +90,7 @@ function inScope(s: Shortcut, t: Target): boolean {
 }
 
 export function allowed(s: Shortcut, t: Target): boolean {
-  if (within(t, '[data-overlay]')) return false;
+  if (within(t, OVERLAY)) return false;
   if (isTyping(t) && !s.typing) return false;
   return inScope(s, t);
 }

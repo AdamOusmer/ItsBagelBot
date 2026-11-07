@@ -38,7 +38,6 @@
   href={disabled ? undefined : href}
   role={disabled ? 'link' : undefined}
   aria-disabled={disabled ? 'true' : undefined}
-  data-mark=""
   {...rest}
 >
   {#if hasMark(variant)}<i class="bb-btn__mark" aria-hidden="true"></i>{/if}

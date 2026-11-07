@@ -22,7 +22,11 @@ import {
   userLeaderboardPage,
   setLeaderboardPage,
   hasGrant,
-  type NotificationWire
+  deviceGrantList,
+  deviceGrantRevoke,
+  deviceGrantRevokeAll,
+  type NotificationWire,
+  type DeviceGrantView
 } from '#lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '#lib/server/fetches-store';
 import { purgeChannelPages, scheduleLeaderboardPurge, schedulePurgeChannel } from '#lib/server/edge-purge';
@@ -45,7 +49,6 @@ function tokenLabel(token: string): string {
 type OwnerPolicy = {
   anon: readonly [number, string];
   delegate: readonly [number, string];
-  impersonator?: true;
   body?: { ok: false };
 };
 
@@ -54,23 +57,17 @@ const NOT_SIGNED_IN = [401, 'Not signed in.'] as const;
 
 const OWNER_POLICY = {
   quiet: { anon: NOT_ALLOWED, delegate: NOT_ALLOWED },
-  page: { anon: NOT_ALLOWED, delegate: NOT_ALLOWED, impersonator: true },
   account: { anon: NOT_SIGNED_IN, delegate: NOT_ALLOWED },
   explicit: { anon: NOT_SIGNED_IN, delegate: [403, 'Only the account owner can do that.'] },
   keys: { anon: NOT_SIGNED_IN, delegate: [403, 'Only the account owner can do that.'], body: { ok: false } }
 } as const satisfies Record<string, OwnerPolicy>;
-
-function isBarred(s: Session, policy: OwnerPolicy): boolean {
-  if (s.delegate_of) return true;
-  return policy.impersonator === true && !!s.impersonator_id;
-}
 
 function requireOwner(
   s: Session | null,
   locale: Locale,
   policy: OwnerPolicy
 ): { session: Session } | { refusal: ActionFailure<{ ok?: false; error: string }> } {
-  if (s && !isBarred(s, policy)) return { session: s };
+  if (s && !s.delegate_of) return { session: s };
   const [status, message] = s ? policy.delegate : policy.anon;
   return { refusal: fail(status, { ...policy.body, error: actionError(locale, message) }) };
 }
@@ -78,7 +75,7 @@ function requireOwner(
 function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>, action: string) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     if (DEMO) return { ok: true, action, edgeDelayed: false };
-    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.page);
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
     if ('refusal' in owner) return owner.refusal;
     const s = owner.session;
 
@@ -90,6 +87,7 @@ function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>
       return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
 
+    auditDashboardImpersonation(s, `${action}:set`, `enabled=${enabled}`);
     return { ok: true, action, edgeDelayed: !(await purgeChannelPages(s.user_id)) };
   };
 }
@@ -139,7 +137,9 @@ export const load: PageServerLoad = async ({ locals }) => {
       twitchConnected: true as boolean | null,
       degraded: false,
       fetchKeys: d.demoFetches().keys,
-      fetchKeyRefs: { weather_api: ['weather'] }
+      fetchKeyRefs: { weather_api: ['weather'] },
+      deviceGrants: d.demoDeviceGrants,
+      devicesDegraded: false
     };
   }
 
@@ -147,16 +147,18 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!s || s.delegate_of) throw redirect(302, '/');
 
   const self = s.user_id;
-  const [givenResult, receivedResult, notifResult, localeResult, commandsPageResult, leaderboardPageResult, fetchKeyResult, grantResult] = await Promise.allSettled([
-    delegationList(self),
-    delegationAccess(self),
-    notificationsForUser(self),
-    userLocale(self),
-    userCommandsPage(self),
-    userLeaderboardPage(self),
-    listFetches(self),
-    hasGrant(self)
-  ]);
+  const [givenResult, receivedResult, notifResult, localeResult, commandsPageResult, leaderboardPageResult, fetchKeyResult, grantResult, deviceResult] =
+    await Promise.allSettled([
+      delegationList(self),
+      delegationAccess(self),
+      notificationsForUser(self),
+      userLocale(self),
+      userCommandsPage(self),
+      userLeaderboardPage(self),
+      listFetches(self),
+      hasGrant(self),
+      deviceGrantList(self)
+    ]);
 
   const notifications: NotificationWire[] = settledOr(notifResult, { notifications: [], unreadCount: 0 }).notifications;
 
@@ -170,6 +172,8 @@ export const load: PageServerLoad = async ({ locals }) => {
     leaderboardPage: settledOr(leaderboardPageResult, true),
     twitchConnected: grantResult.status === 'fulfilled' ? grantResult.value === true : (null as boolean | null),
     degraded: [givenResult, receivedResult, localeResult, commandsPageResult, leaderboardPageResult].some(rejected),
+    deviceGrants: settledOr(deviceResult, [] as DeviceGrantView[]),
+    devicesDegraded: rejected(deviceResult),
     ...readFetchKeys(fetchKeyResult)
   };
 };
@@ -382,14 +386,39 @@ export const actions: Actions = {
     return { ok: true, action: 'opted_out' };
   }),
 
+  revokeDevice: ownerAction('Could not revoke that device.', async (s, f, locale) => {
+    const grantId = String(f.get('grant_id') ?? '');
+    if (!grantId) return fail(400, { error: actionError(locale, 'Missing device.') });
+
+    await deviceGrantRevoke({ userId: s.user_id, grantId });
+    auditDashboardImpersonation(s, 'device:revoke', grantId);
+    const deviceGrants = await deviceGrantList(s.user_id).catch(() => [] as DeviceGrantView[]);
+    return { ok: true, action: 'device_revoked', deviceGrants };
+  }),
+
+  revokeAllDevices: ownerAction('Could not revoke your devices.', async (s) => {
+    await deviceGrantRevokeAll(s.user_id);
+    auditDashboardImpersonation(s, 'device:revoke_all');
+    return { ok: true, action: 'devices_revoked_all', deviceGrants: [] as DeviceGrantView[] };
+  }),
+
   signOutEverywhere: async ({ locals, cookies, url }) => {
     const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
     if ('refusal' in owner) return owner.refusal;
     const s = owner.session;
 
+    // Devices first: a failure here keeps this session alive so the user sees it and can retry,
+    // instead of landing on the login page believing every device was signed out.
+    try {
+      await deviceGrantRevokeAll(s.user_id);
+    } catch {
+      return fail(502, { error: actionError(locals.locale, 'Could not revoke your devices.') });
+    }
+
     const now = Math.floor(Date.now() / 1000);
     await revokeAllForUser(s.user_id, now, SESSION_TTL_SECONDS);
     if (s.sid) await revokeSession(s.sid, s.expires_at - now);
+    auditDashboardImpersonation(s, 'sign_out_everywhere');
 
     cookies.delete(COOKIE, deleteOptions(url));
     throw redirect(303, '/login?e=revoked');

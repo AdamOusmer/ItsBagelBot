@@ -65,7 +65,6 @@
     defaultReply={DEFAULT_REPLY}
     {replySamples}
     previewTag={t('spotify.reward.previewTag')}
-    cursorColor
   />
 
   {#if canDelete}

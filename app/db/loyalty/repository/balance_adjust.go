@@ -34,7 +34,7 @@ func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustm
 	}
 	var row *ent.Balance
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, r.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 			var err error
 			row, err = r.applyBalanceAdjustment(ctx, tx, target)
 			return err

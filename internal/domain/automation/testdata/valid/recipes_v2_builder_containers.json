@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!containers" } },
+  "conditions": [{ "type": "var", "params": { "scope": "channel", "name": "mode", "op": "exists", "value": "" } }],
+  "actions": [
+    {
+      "type": "parallel",
+      "params": {
+        "branches": [
+          {
+            "weight": 1,
+            "actions": [
+              {
+                "type": "loop",
+                "params": {
+                  "times": "{args}",
+                  "actions": [
+                    {
+                      "type": "http_get",
+                      "params": {
+                        "url": "https://api.example.com/{local:index}",
+                        "json_path": ["data", "value"],
+                        "save_as": "answer",
+                        "on_ok": [{ "type": "chat", "params": { "text": "{local:answer}" } }],
+                        "on_failure": [{ "type": "chat", "params": { "text": "{local:error}" } }]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "weight": 1,
+            "actions": [
+              {
+                "type": "http_post",
+                "params": {
+                  "url": "https://hooks.example.com/a",
+                  "body": "x",
+                  "save_as": "posted",
+                  "on_failure": [
+                    {
+                      "type": "loop",
+                      "params": {
+                        "times": "2",
+                        "actions": [
+                          {
+                            "type": "parallel",
+                            "params": {
+                              "branches": [
+                                { "weight": 1, "actions": [{ "type": "var_add", "params": { "scope": "viewer", "name": "tries", "amount": 1 } }] },
+                                { "weight": 1, "actions": [{ "type": "math", "params": { "expression": "{local:index}*2", "save_as": "double" } }] }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

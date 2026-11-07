@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    { "type": "var_set", "params": { "scope": "global", "name": "bad name!", "value": "x" } },
+    { "type": "var_set", "params": { "scope": "channel", "name": "", "value": "x" } }
+  ]
+}

@@ -5,10 +5,10 @@ package engine
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"ItsBagelBot/pkg/cache"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -18,35 +18,23 @@ const greetKeyPrefix = "bagel:greeted:"
 
 type ValkeyGreetStore struct {
 	client valkey.Client
-	ttlArg string
+	ttl    time.Duration
 }
-
-var firstGreetScript = valkey.NewLuaScript(`
-local added = redis.call('SADD', KEYS[1], ARGV[1])
-if added == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
-return added`)
 
 func NewValkeyGreetStore(client valkey.Client, ttl time.Duration, log *zap.Logger) *ValkeyGreetStore {
 	if ttl <= 0 {
 		ttl = 12 * time.Hour
 	}
 	_ = log
-	return &ValkeyGreetStore{client: client, ttlArg: strconv.FormatInt(int64(ttl.Seconds()), 10)}
+	return &ValkeyGreetStore{client: client, ttl: ttl}
 }
 
 func greetKey(id uint64) string { return cache.UserKey(greetKeyPrefix, id) }
 
 func (s *ValkeyGreetStore) FirstGreet(ctx context.Context, broadcasterID uint64, chatterID string) (bool, error) {
-	key := greetKey(broadcasterID)
-	added, err := firstGreetScript.Exec(ctx, s.client, []string{key}, []string{
-		chatterID, s.ttlArg,
-	}).AsInt64()
-	if err != nil {
-		return false, err
-	}
-	return added > 0, nil
+	return pkg_valkey.FreshMemberSet{Key: greetKey(broadcasterID)}.Add(ctx, s.client, chatterID, s.ttl)
 }
 
 func (s *ValkeyGreetStore) ResetGreets(ctx context.Context, broadcasterID uint64) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(greetKey(broadcasterID)).Build()).Error()
+	return pkg_valkey.DelKeys(ctx, s.client, greetKey(broadcasterID))
 }

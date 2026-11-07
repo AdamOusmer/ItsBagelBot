@@ -5,21 +5,15 @@ import { lex } from '../engine/tmpl';
 import { classifyFlow, type AlertKey, type SimpleCommand } from './flow-layer';
 import { CODE, MAX_AUTOMATIONS_PER_CHANNEL, MAX_DEFINITION_BYTES, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
 import { byteLength, trimSpace } from './text';
+import { isSetupValue, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
+import { scrubSecrets, type ScrubKind } from './flow-share-scrub';
 import type { Action, Condition, Definition, Issue, Params } from './types';
-import { validateDefinition, validateName } from './validate';
+import { leftCommandNames, normalizeCommandName, ownedCooldownNames, triggerCommandNames, validateDefinition, validateName } from './validate';
+
+export * from './flow-setup';
 
 export const FLOW_FILE_FORMAT = 'itsbagelbot.flows';
 export const FLOW_FILE_VERSION = 1;
-
-export const SETUP_REWARD_ID = 'setup-required';
-export const SETUP_FILTER_VALUE = 'setup-required';
-export const SETUP_RUN_TARGET = 'setup-required';
-// A leading underscore is not a legal Twitch login, so this can never match a real account.
-export const SETUP_LOGIN = '_setup_required';
-export const SETUP_SNOWFLAKE = '00000';
-export const SETUP_URL = 'https://example.com/setup-required';
-export const SETUP_TEXT = 'setup-required';
-export const SETUP_SCENE_VALUE = '"setup-required"';
 
 /** One recipe in a file. `ref` only links `run` steps inside the same file. */
 export interface FlowFileEntry {
@@ -40,10 +34,11 @@ export type SetupCode =
   | 'event_filter'
   | 'users_list'
   | 'login_target'
-  | 'discord_target'
   | 'http_target'
+  | 'reward_target'
   | 'lights_target'
   | 'slash_command'
+  | 'secret_removed'
   | 'run_removed'
   | 'run_target_simple'
   | 'run_linked'
@@ -51,14 +46,16 @@ export type SetupCode =
   | 'counter'
   | 'fetch'
   | 'command_in_use'
-  | 'privileged_action';
+  | 'privileged_action'
+  | 'timer_unowned';
 
 const REVIEW_ONLY: ReadonlySet<SetupCode> = new Set([
   'run_linked',
   'counter',
   'fetch',
   'command_in_use',
-  'privileged_action'
+  'privileged_action',
+  'timer_unowned'
 ]);
 
 export interface SetupNote {
@@ -73,11 +70,20 @@ export interface FlowExportRow {
   id?: string;
   name: string;
   definition: Definition;
+  restricted?: boolean;
+}
+
+/** What a secret scan took out of a recipe. Holds where it was, never the removed text. */
+export interface ScrubNote {
+  path: string;
+  type: string;
+  kind: ScrubKind;
 }
 
 export interface FlowExportReport {
   name: string;
   setup: SetupNote[];
+  scrubbed: ScrubNote[];
   issues: Issue[];
 }
 
@@ -151,7 +157,6 @@ export interface FlowCommitDeps {
 const REF_PATTERN = /^f[0-9]{1,3}$/;
 const ENTRY_KEYS = new Set(['ref', 'name', 'definition']);
 const FILE_KEYS = new Set(['format', 'version', 'flows']);
-const MAX_KEY_DEPTH = 16;
 const SAFE_KEY = /^[a-z0-9_]+$/;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const FILTERS_WITH_CHANNEL_VALUES = new Set(['user', 'login', 'user_id', 'reward', 'reward_id']);
@@ -170,6 +175,56 @@ const PRIVILEGED_ACTIONS = new Set([
   'set_game',
   'set_tags'
 ]);
+// Types whose params are rewritten by a rule below. Any type in neither list has its params dropped on the way through.
+export const SHARE_REWRITTEN = {
+  trigger: ['reward', 'event'],
+  condition: ['users'],
+  action: ['lights', 'http_post', 'http_get', 'reward_update', 'run']
+} as const;
+// Types reviewed as carrying only the user's own text, numbers and names. A new type is not shareable until it is added here.
+export const SHARE_REVIEWED = {
+  trigger: ['command', 'timer', 'manual'],
+  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var'],
+  action: [
+    'chat',
+    'announce',
+    'reply',
+    'timeout',
+    'ban',
+    'delete_message',
+    'warn',
+    'shield',
+    'shoutout',
+    'clip',
+    'marker',
+    'set_title',
+    'set_game',
+    'set_tags',
+    'commercial',
+    'points_add',
+    'points_set',
+    'counter_add',
+    'counter_set',
+    'redemption',
+    'delay',
+    'random_pick',
+    'parallel',
+    'if',
+    'stop',
+    'var_set',
+    'var_add',
+    'var_delete',
+    'text',
+    'math',
+    'loop',
+    'cooldown_add'
+  ]
+} as const;
+const SHAREABLE: Record<keyof typeof SHARE_REVIEWED, ReadonlySet<string>> = {
+  trigger: new Set([...SHARE_REWRITTEN.trigger, ...SHARE_REVIEWED.trigger]),
+  condition: new Set([...SHARE_REWRITTEN.condition, ...SHARE_REVIEWED.condition]),
+  action: new Set([...SHARE_REWRITTEN.action, ...SHARE_REVIEWED.action])
+};
 const REFERENCE_TOKENS: Record<string, SetupCode> = {
   count: 'counter',
   counter: 'counter',
@@ -196,18 +251,28 @@ function mapBranches(params: Params, path: string, visit: ActionVisit): Params {
   return { ...params, branches };
 }
 
-function mapIf(params: Params, path: string, visit: ActionVisit): Params {
+function mapArms(params: Params, arms: readonly string[], path: string, visit: ActionVisit): Params {
   const out: Params = { ...params };
-  for (const arm of ['then', 'else']) {
+  for (const arm of arms) {
     if (params[arm]) out[arm] = mapActions(list<Action>(params[arm]), `${path}.params.${arm}`, visit);
   }
   return out;
 }
 
+const API_ARMS = ['on_ok', 'on_failure'];
+
+const NAMED_ARMS = new Map<string, readonly string[]>([
+  ['if', ['then', 'else']],
+  ['loop', ['actions']],
+  ['http_get', API_ARMS],
+  ['http_post', API_ARMS]
+]);
+
 function mapNested(action: Action, path: string, visit: ActionVisit): Action {
   const params = action.params ?? {};
-  if (action.type === 'if') return { ...action, params: mapIf(params, path, visit) };
-  if (action.type === 'random_pick') return { ...action, params: mapBranches(params, path, visit) };
+  const arms = NAMED_ARMS.get(action.type);
+  if (arms) return { ...action, params: mapArms(params, arms, path, visit) };
+  if (action.type === 'random_pick' || action.type === 'parallel') return { ...action, params: mapBranches(params, path, visit) };
   return action;
 }
 
@@ -224,11 +289,12 @@ function mapDefinitionActions(definition: Definition, visit: ActionVisit): Defin
 }
 
 function neutralUsers(params: Params): Params {
-  const hadAllow = list(params.allow).length > 0;
+  const hadAllow = list(params.allow).length + list(params.allow_ids).length > 0;
   return hadAllow ? { allow: [SETUP_LOGIN] } : { deny: [SETUP_LOGIN] };
 }
 
 function neutralCondition(condition: Condition, path: string, notes: Notes): Condition {
+  if (!SHAREABLE.condition.has(condition.type)) return { ...condition, params: {} };
   const params = condition.params ?? {};
   if (condition.type === 'users') {
     notes.push({ code: 'users_list', path });
@@ -251,6 +317,7 @@ function neutralFilters(filters: Record<string, string>, path: string, notes: No
 function neutralTrigger(definition: Definition, notes: Notes): Definition {
   const { trigger } = definition;
   const params = trigger.params ?? {};
+  if (!SHAREABLE.trigger.has(trigger.type)) return { ...definition, trigger: { ...trigger, params: {} } };
   if (trigger.type === 'reward') {
     notes.push({ code: 'reward_trigger', path: 'trigger.params.reward_id' });
     return { ...definition, trigger: { ...trigger, params: { reward_id: SETUP_REWARD_ID } } };
@@ -286,21 +353,38 @@ function neutralLights(params: Params): Params {
   return out;
 }
 
+const NESTED_API_FIELDS = ['save_as', 'on_ok', 'on_failure'] as const;
+
+function apiPaths(params: Params): Params {
+  const out: Params = {};
+  for (const key of NESTED_API_FIELDS) if (params[key] !== undefined) out[key] = params[key];
+  return out;
+}
+
+function neutralHttpGet(params: Params): Params {
+  const path = list(params.json_path).length > 0 ? { json_path: params.json_path } : {};
+  return { url: SETUP_URL, ...path, ...apiPaths(params) };
+}
+
+function neutralRewardUpdate(params: Params): Params {
+  return { reward_id: SETUP_REWARD_ID, enabled: params.enabled ?? null, cost: params.cost ?? null, reset_on_stream_end: params.reset_on_stream_end === true };
+}
+
+type ExternalRule = { code: SetupCode; rewrite: (params: Params) => Params };
+
+const EXTERNAL_RULES = new Map<string, ExternalRule>([
+  ['lights', { code: 'lights_target', rewrite: neutralLights }],
+  ['http_post', { code: 'http_target', rewrite: (params) => ({ url: SETUP_URL, ...apiPaths(params) }) }],
+  ['http_get', { code: 'http_target', rewrite: neutralHttpGet }],
+  ['reward_update', { code: 'reward_target', rewrite: neutralRewardUpdate }]
+]);
+
 function neutralExternal(action: Action, path: string, notes: Notes): Action {
   const params = action.params ?? {};
-  if (action.type === 'lights') {
-    notes.push({ code: 'lights_target', path });
-    return disabled(action, neutralLights(params));
-  }
-  if (action.type === 'discord_post') {
-    notes.push({ code: 'discord_target', path });
-    return disabled(action, { ...params, guild_id: SETUP_SNOWFLAKE, channel_id: SETUP_SNOWFLAKE });
-  }
-  if (action.type === 'http_post') {
-    notes.push({ code: 'http_target', path });
-    return disabled(action, { url: SETUP_URL });
-  }
-  return action;
+  const rule = EXTERNAL_RULES.get(action.type);
+  if (!rule) return action;
+  notes.push({ code: rule.code, path });
+  return disabled(action, rule.rewrite(params));
 }
 
 function neutralSlash(action: Action, path: string, notes: Notes): Action {
@@ -335,9 +419,16 @@ function noteTemplateTokens(params: Params, path: string, notes: Notes): void {
   for (const [key, value] of Object.entries(params)) notes.push(...templateNotes(value, `${path}.params.${key}`));
 }
 
+function noteBlanked(action: Action, path: string, notes: Notes): void {
+  if (action.enabled !== false || EXTERNAL_RULES.has(action.type)) return;
+  if (Object.values(action.params ?? {}).includes(SETUP_TEXT)) notes.push({ code: 'secret_removed', path });
+}
+
 function neutralAction(action: Action, path: string, notes: Notes): Action {
+  if (!SHAREABLE.action.has(action.type)) return disabled(action, {});
   noteNamedReferences(action, path, notes);
   noteTemplateTokens(action.params ?? {}, path, notes);
+  noteBlanked(action, path, notes);
   const external = neutralExternal(action, path, notes);
   const withCondition = neutralIfCondition(external, path, notes);
   return neutralSlash(neutralLogin(withCondition, path, notes), path, notes);
@@ -352,8 +443,24 @@ function neutralIfCondition(action: Action, path: string, notes: Notes): Action 
 
 type RunRule = (action: Action, path: string, notes: Notes) => Action | null;
 
-function neutralDefinition(definition: Definition, run: RunRule): { definition: Definition; setup: Notes } {
+const USER_ID_KEY = 'allowed_user_id';
+
+const joinPath = (path: string, key: string) => (path ? `${path}.${key}` : key);
+
+function withoutUserIds(value: unknown, path: string, notes: Notes): unknown {
+  if (Array.isArray(value)) return value.map((item, i) => withoutUserIds(item, `${path}[${i}]`, notes));
+  if (!isObject(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === USER_ID_KEY) notes.push({ code: 'users_list', path: joinPath(path, key) });
+    else out[key] = withoutUserIds(child, joinPath(path, key), notes);
+  }
+  return out;
+}
+
+function neutralDefinition(source: Definition, run: RunRule): { definition: Definition; setup: Notes } {
   const notes: Notes = [];
+  const definition = withoutUserIds(source, '', notes) as Definition;
   const triggered = neutralTrigger(definition, notes);
   const conditions = list<Condition>(triggered.conditions).map((c, i) => neutralCondition(c, `conditions[${i}]`, notes));
   const walked = mapDefinitionActions({ ...triggered, conditions }, (action, path) =>
@@ -364,6 +471,7 @@ function neutralDefinition(definition: Definition, run: RunRule): { definition: 
 
 function compactDefinition(definition: Definition): Definition {
   const out: Definition = { version: definition.version, trigger: definition.trigger };
+  if (definition.queue) out.queue = definition.queue;
   if (list(definition.conditions).length > 0) out.conditions = definition.conditions;
   if (list(definition.actions).length > 0) out.actions = definition.actions;
   return out;
@@ -379,15 +487,100 @@ function dedupeNotes(notes: Notes): Notes {
   });
 }
 
-function exportRow(row: FlowExportRow, ref: string, refs: Map<string, string>): { entry: FlowFileEntry; setup: Notes } {
+const ARM_KEYS = new Set(['then', 'else', 'actions', 'branches', 'on_ok', 'on_failure']);
+
+type ScrubAt = { type: string; found: ScrubNote[] };
+
+function scrubString(text: string, path: string, at: ScrubAt): string {
+  const scrubbed = scrubSecrets(text);
+  for (const kind of scrubbed.kinds) at.found.push({ path, type: at.type, kind });
+  return scrubbed.text;
+}
+
+function scrubValue(value: unknown, path: string, at: ScrubAt): unknown {
+  if (typeof value === 'string') return scrubString(value, path, at);
+  if (Array.isArray(value)) return value.map((item, i) => scrubValue(item, `${path}[${i}]`, at));
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, scrubValue(child, `${path}.${key}`, at)]));
+}
+
+function scrubParams(params: Params, path: string, at: ScrubAt): Params {
+  const out: Params = {};
+  for (const [key, value] of Object.entries(params)) out[key] = ARM_KEYS.has(key) ? value : scrubValue(value, `${path}.${key}`, at);
+  return out;
+}
+
+const emptiedKeys = (before: Params, after: Params) => Object.keys(before).filter((key) => str(before[key]).trim() !== '' && str(after[key]).trim() === '');
+
+function scrubOwned<T extends { type: string; params?: Params }>(item: T, path: string, found: ScrubNote[]): T {
+  return item.params ? { ...item, params: scrubParams(item.params, `${path}.params`, { type: item.type, found }) } : item;
+}
+
+function scrubAction(action: Action, path: string, found: ScrubNote[], notes: Notes): Action {
+  const before = action.params;
+  if (!before) return action;
+  const params = scrubParams(before, `${path}.params`, { type: action.type, found });
+  const emptied = emptiedKeys(before, params);
+  if (emptied.length === 0) return { ...action, params };
+  notes.push({ code: 'secret_removed', path });
+  for (const key of emptied) params[key] = SETUP_TEXT;
+  return disabled(action, params);
+}
+
+function scrubDefinition(definition: Definition, notes: Notes): { definition: Definition; scrubbed: ScrubNote[] } {
+  const found: ScrubNote[] = [];
+  const trigger = scrubOwned(definition.trigger, 'trigger', found);
+  const conditions = list<Condition>(definition.conditions).map((condition, i) => scrubOwned(condition, `conditions[${i}]`, found));
+  const walked = mapDefinitionActions({ ...definition, trigger, conditions }, (action, path) => scrubAction(action, path, found, notes));
+  return { definition: compactDefinition(walked), scrubbed: found };
+}
+
+const hasRestriction = (row: FlowExportRow) => row.restricted === true || str(row.definition.trigger.params?.[USER_ID_KEY]) !== '';
+
+// Losing the restriction would hand the importer a command anyone can fire, so it leaves as a list nobody is on yet.
+function restrictedDefinition(row: FlowExportRow): Definition {
+  if (!hasRestriction(row)) return row.definition;
+  return { ...row.definition, conditions: [...list<Condition>(row.definition.conditions), { type: 'users', params: { allow: [SETUP_LOGIN] } }] };
+}
+
+function exportRow(row: FlowExportRow, ref: string, refs: Map<string, string>): { entry: FlowFileEntry; setup: Notes; scrubbed: ScrubNote[] } {
   const run: RunRule = (action, path, notes) => {
     const target = refs.get(str(action.params?.automation_id));
     if (target) return { ...action, params: { automation_id: target } };
     notes.push({ code: 'run_removed', path });
     return disabled(action, { automation_id: SETUP_RUN_TARGET });
   };
-  const { definition, setup } = neutralDefinition(row.definition, run);
-  return { entry: { ref, name: trimSpace(row.name), definition }, setup };
+  const neutral = neutralDefinition(restrictedDefinition(row), run);
+  const { definition, scrubbed } = scrubDefinition(neutral.definition, neutral.setup);
+  const nameAt: ScrubAt = { type: 'name', found: [] };
+  const name = trimSpace(scrubString(row.name, 'name', nameAt));
+  return { entry: { ref, name, definition }, setup: neutral.setup, scrubbed: [...nameAt.found, ...scrubbed] };
+}
+
+function triggerGap(definition: Definition): Issue[] {
+  const params = definition.trigger.params ?? {};
+  const filters = isObject(params.filters) ? Object.values(params.filters) : [];
+  return [...Object.values(params), ...filters].some(isSetupValue) ? [{ path: 'trigger', code: 'setup_required' }] : [];
+}
+
+function conditionGaps(definition: Definition): Issue[] {
+  return list<Condition>(definition.conditions).flatMap((condition, i) =>
+    condition.type === 'users' && list(condition.params?.allow).some(isSetupValue) ? [{ path: `conditions[${i}]`, code: 'setup_required' }] : []
+  );
+}
+
+function actionGaps(definition: Definition): Issue[] {
+  const gaps: Issue[] = [];
+  mapDefinitionActions(definition, (action, path) => {
+    if (Object.values(action.params ?? {}).some(isSetupValue)) gaps.push({ path, code: 'setup_required' });
+    return action;
+  });
+  return gaps;
+}
+
+/** Steps still holding an import placeholder. A recipe with any of these cannot be turned on. */
+export function setupGaps(definition: Definition): Issue[] {
+  return [...triggerGap(definition), ...conditionGaps(definition), ...actionGaps(definition)];
 }
 
 function exportIssues(entry: FlowFileEntry): Issue[] {
@@ -400,9 +593,9 @@ export function exportFlows(rows: FlowExportRow[]): FlowExport {
   const report: FlowExportReport[] = [];
   const flows: FlowFileEntry[] = [];
   rows.forEach((row, i) => {
-    const { entry, setup } = exportRow(row, refOf(i), refs);
+    const { entry, setup, scrubbed } = exportRow(row, refOf(i), refs);
     const issues = exportIssues(entry);
-    report.push({ name: entry.name, setup, issues });
+    report.push({ name: entry.name, setup: dedupeNotes(setup), scrubbed, issues });
     if (issues.length === 0) flows.push(entry);
   });
   return { file: { format: FLOW_FILE_FORMAT, version: FLOW_FILE_VERSION, flows }, report };
@@ -433,8 +626,8 @@ function parseJson(text: string): { value?: unknown; issues: Issue[] } {
   }
 }
 
-// The shared decoder folds field case the way Go does, so {"GUILD_ID": ...} would validate and then slip past
-// every rule here that reads params.guild_id. Definitions are all lowercase, so anything else is refused.
+// The shared decoder folds field case the way Go does, so {"URL": ...} would validate and then slip past
+// every rule here that reads params.url. Definitions are all lowercase, so anything else is refused.
 const unsafeKey = (key: string) => !SAFE_KEY.test(key) || FORBIDDEN_KEYS.has(key);
 
 function childrenOf(value: unknown): unknown[] {
@@ -442,11 +635,10 @@ function childrenOf(value: unknown): unknown[] {
   return isObject(value) ? Object.values(value) : [];
 }
 
-function keyIssue(value: unknown, depth: number): Issue | null {
-  if (depth > MAX_KEY_DEPTH) return { path: 'definition', code: CODE.nesting };
+function keyIssue(value: unknown): Issue | null {
   if (isObject(value) && Object.keys(value).some(unsafeKey)) return { path: 'definition', code: CODE.unknownField };
   for (const child of childrenOf(value)) {
-    const hit = keyIssue(child, depth + 1);
+    const hit = keyIssue(child);
     if (hit) return hit;
   }
   return null;
@@ -454,9 +646,10 @@ function keyIssue(value: unknown, depth: number): Issue | null {
 
 function definitionIssues(definition: unknown): Issue[] {
   if (!isObject(definition)) return [{ path: 'definition', code: CODE.required }];
-  const key = keyIssue(definition, 0);
-  if (key) return [key];
+  // Size comes first: it bounds how deep the walks below can recurse on a hostile file.
   if (byteLength(JSON.stringify(definition) ?? '') > MAX_DEFINITION_BYTES) return [{ path: 'definition', code: CODE.tooLong }];
+  const key = keyIssue(definition);
+  if (key) return [key];
   return validateDefinition(definition).map((issue) => ({ ...issue, path: issue.path ? `definition.${issue.path}` : 'definition' }));
 }
 
@@ -509,12 +702,6 @@ function uniqueName(base: string, taken: Set<string>): string {
   return candidate;
 }
 
-function commandNames(definition: Definition): string[] {
-  if (definition.trigger.type !== 'command') return [];
-  const params = definition.trigger.params ?? {};
-  return [params.name, ...list(params.aliases)].map((name) => str(name).replace(/^!/, '').toLowerCase());
-}
-
 interface Claims {
   slots: number;
   names: Set<string>;
@@ -535,10 +722,13 @@ function landAutomation(entry: FlowImportEntry, claims: Claims): FlowImportEntry
   const landing = { ...entry, landing: 'automation' as const };
   if (USES_TOKEN.test(JSON.stringify(entry.definition!.actions ?? []))) return emptied(landing, 'invalid', [{ path: 'definition.actions', code: 'uses_token' }]);
   if (claims.slots <= 0) return emptied(landing, 'over_limit');
+  const definition = entry.definition!;
+  const leftNames = leftCommandNames(definition).map(normalizeCommandName);
+  if (leftNames.some((left) => claims.commands.has(left))) return emptied(landing, 'conflict', [{ path: 'left_command', code: 'command_exists' }]);
+  for (const left of leftNames) claims.commands.add(left);
   claims.slots -= 1;
   const name = uniqueName(entry.name, claims.names);
-  const definition = entry.definition!;
-  const shadowed = commandNames(definition).filter((command) => claims.commands.has(command));
+  const shadowed = triggerCommandNames(definition.trigger).filter((command) => claims.commands.has(command));
   const setup = [...entry.setup, ...shadowed.map((detail): SetupNote => ({ code: 'command_in_use', path: 'trigger.params.name', detail }))];
   return { ...landing, name, renamed: name !== entry.sourceName, definition, setup };
 }
@@ -571,7 +761,7 @@ function claimsFrom(context: FlowImportContext): Claims {
   return {
     slots: Math.max(0, MAX_AUTOMATIONS_PER_CHANNEL - context.count),
     names: new Set(context.names.map((name) => name.toLowerCase())),
-    commands: new Set(context.commands.map((name) => name.toLowerCase())),
+    commands: new Set(context.commands.map(normalizeCommandName)),
     alerts: new Set(context.alerts)
   };
 }
@@ -608,6 +798,30 @@ function noteLinks(entry: FlowImportEntry, landedByRef: Map<string, FlowImportEn
   return { ...entry, setup: [...entry.setup, ...notes] };
 }
 
+function ownedNamesAcross(entries: readonly FlowImportEntry[]): Set<string> {
+  const owned = new Set<string>();
+  for (const entry of entries) {
+    if (entry.status !== 'ready') continue;
+    for (const name of ownedCooldownNames(entry.definition!)) owned.add(name);
+  }
+  return owned;
+}
+
+// A cooldown_add step naming a timer with no owner still saves: this only tells the importer so, the same way
+// noteLinks tells it where a run points.
+function noteUnownedTimers(entry: FlowImportEntry, owned: Set<string>): FlowImportEntry {
+  if (entry.status !== 'ready') return entry;
+  const notes: Notes = [];
+  mapDefinitionActions(entry.definition!, (action, path) => {
+    if (action.type === 'cooldown_add') {
+      const name = str(action.params?.name);
+      if (name && !owned.has(name)) notes.push({ code: 'timer_unowned', path, detail: name });
+    }
+    return action;
+  });
+  return notes.length === 0 ? entry : { ...entry, setup: [...entry.setup, ...notes] };
+}
+
 // Where a recipe lands decides whether a run can point at it, and dropping a run can make its owner simple, so this
 // repeats until stable. Definitions only ever lose steps, so it ends.
 function settleLandings(candidates: FlowImportEntry[], context: FlowImportContext): FlowImportEntry[] {
@@ -617,7 +831,11 @@ function settleLandings(candidates: FlowImportEntry[], context: FlowImportContex
     const landed = current.map((entry) => landEntry(entry, claims));
     const byRef = landedIndex(current, landed);
     const next = current.map((entry) => dropDeadRuns(entry, byRef));
-    if (next.every((entry, i) => entry === current[i])) return landed.map((entry) => noteLinks(entry, byRef));
+    if (next.every((entry, i) => entry === current[i])) {
+      const linked = landed.map((entry) => noteLinks(entry, byRef));
+      const owned = ownedNamesAcross(linked);
+      return linked.map((entry) => noteUnownedTimers(entry, owned));
+    }
     current = next;
   }
 }

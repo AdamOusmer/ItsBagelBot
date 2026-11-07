@@ -3,7 +3,7 @@
 
 import { FOCUSABLE } from './overlay-stack';
 
-export const TOOLTIP_DISMISSED = 'data-dismissed';
+export const TOOLTIP_DISMISSED = 'is-dismissed';
 
 function addToken(el: HTMLElement, name: string, token: string): () => void {
   const tokens = (el.getAttribute(name) ?? '').split(/\s+/).filter(Boolean);
@@ -21,13 +21,13 @@ function describeTrigger(root: HTMLElement, bubble: HTMLElement): () => void {
 }
 
 function dismissal(root: HTMLElement) {
-  const shown = () => !root.hasAttribute(TOOLTIP_DISMISSED) && root.matches(':hover, :focus-within');
-  const reset = () => root.removeAttribute(TOOLTIP_DISMISSED);
+  const shown = () => !root.classList.contains(TOOLTIP_DISMISSED) && root.matches(':hover, :focus-within');
+  const reset = () => root.classList.remove(TOOLTIP_DISMISSED);
 
   const onKeydown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape' || !shown()) return;
     event.stopImmediatePropagation();
-    root.setAttribute(TOOLTIP_DISMISSED, '');
+    root.classList.add(TOOLTIP_DISMISSED);
   };
   const onPointerLeave = () => {
     if (!root.matches(':focus-within')) reset();

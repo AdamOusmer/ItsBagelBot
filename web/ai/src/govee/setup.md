@@ -1,7 +1,7 @@
 ---
 title: Setup reference for AI assistants: {{console:setupAi.featureGovee}}
 description: Four dashboard steps to get a Govee API key from the Govee Home app, paste it, and see your lights. Read this first.
-updated: 2026-10-13
+updated: 2026-11-07
 kind: setup
 human: https://itsbagelbot.com/guides/govee-lights/
 ---
@@ -128,7 +128,7 @@ The page says: {{console:goveeSetup.lightsBody}}
 2. The page shows the number of colour lights found and their names. The text has the form "{{console:goveeSetup.lightsFound}}", with n replaced by the count.
 3. Select "{{console:goveeSetup.readyCta}}" to go to the "{{console:modules.catalog.govee.label}}" page.
 
-On the "{{console:modules.catalog.govee.label}}" page the user turns on "{{console:govee.masterLabel}}" and creates one reward per light. Viewers type a colour when they redeem it. "{{console:govee.liveOnlyLabel}}" is on by default, so redemptions work only while the stream is live.
+On the "{{console:modules.catalog.govee.label}}" page the user turns on "{{console:govee.masterLabel}}" and creates one reward per light, or one reward for a group under "{{console:govee.groupsTitle}}". Viewers type a colour when they redeem it. "{{console:govee.liveOnlyLabel}}" is on by default, so redemptions work only while the stream is live.
 
 How to tell it worked: at least one light is listed under "{{console:govee.lightsTitle}}", and the page shows "{{console:govee.keyOnFile}}".
 

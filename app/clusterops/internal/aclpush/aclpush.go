@@ -72,30 +72,52 @@ func (e *PushError) Error() string {
 	return strings.Join(parts, "; ")
 }
 
+type confirmedKey struct {
+	cluster ClusterName
+	account string
+}
+
+// Syncer keeps the claim ID every server of a cluster acknowledged, per account.
+// A config reload swaps in a resolver with no update callback: it rewrites the
+// store CLAIMS.LOOKUP reads while running accounts keep the old claims, so a store
+// token this process did not push proves nothing about what is running.
+type Syncer struct {
+	cp        ClaimsPusher
+	signer    nkeys.KeyPair
+	confirmed map[confirmedKey]string
+}
+
+func NewSyncer(cp ClaimsPusher, signer nkeys.KeyPair) *Syncer {
+	return &Syncer{cp: cp, signer: signer, confirmed: map[confirmedKey]string{}}
+}
+
 // ClusterPusher pushes and looks up account claims against one cluster,
 // against the server set it read when constructed.
 type ClusterPusher struct {
-	cp      ClaimsPusher
+	*Syncer
 	cluster ClusterName
-	signer  nkeys.KeyPair
 	servers []string
 }
 
 func (p *ClusterPusher) Cluster() ClusterName { return p.cluster }
 
-func NewClusterPusher(ctx context.Context, cp ClaimsPusher, signer nkeys.KeyPair, cluster ClusterName) (*ClusterPusher, error) {
-	servers, err := cp.Servers(ctx, cluster)
+func (s *Syncer) ClusterPusher(ctx context.Context, cluster ClusterName) (*ClusterPusher, error) {
+	servers, err := s.cp.Servers(ctx, cluster)
 	if err != nil {
 		return nil, fmt.Errorf("aclpush: list %s servers: %w", cluster, err)
 	}
-	return &ClusterPusher{cp: cp, cluster: cluster, signer: signer, servers: servers}, nil
+	return &ClusterPusher{Syncer: s, cluster: cluster, servers: servers}, nil
+}
+
+func (p *ClusterPusher) confirmedLive(live *jwt.AccountClaims) bool {
+	return live != nil && p.confirmed[confirmedKey{p.cluster, live.Subject}] == live.ID
 }
 
 // Sync pushes every drifted account to the hub, then the leaf, stopping at the first failure.
-func Sync(ctx context.Context, cp ClaimsPusher, signer nkeys.KeyPair, compiled []*jwt.AccountClaims) ([]PushResult, error) {
+func (s *Syncer) Sync(ctx context.Context, compiled []*jwt.AccountClaims) ([]PushResult, error) {
 	var pushed []PushResult
 	for _, cluster := range []ClusterName{ClusterHub, ClusterLeaf} {
-		p, err := NewClusterPusher(ctx, cp, signer, cluster)
+		p, err := s.ClusterPusher(ctx, cluster)
 		if err != nil {
 			return pushed, err
 		}
@@ -125,10 +147,11 @@ func (p *ClusterPusher) pushDrifted(ctx context.Context, compiled []*jwt.Account
 }
 
 // Drift returns the subset of compiled claims whose live JWT on the cluster
-// is not natsacl.Equivalent; a missing live JWT counts as different. Each
-// candidate is signed and decoded once first: an unsigned claims object
-// carries empty-but-non-nil maps that a decoded JWT never does, and Equivalent
-// treats that as a difference, so both sides must have made the same trip.
+// is not natsacl.Equivalent or is not the one this process last confirmed; a
+// missing live JWT counts as different. Each candidate is signed and decoded
+// once first: an unsigned claims object carries empty-but-non-nil maps that a
+// decoded JWT never does, and Equivalent treats that as a difference, so both
+// sides must have made the same trip.
 func (p *ClusterPusher) Drift(ctx context.Context, compiled []*jwt.AccountClaims) ([]*jwt.AccountClaims, error) {
 	var drifted []*jwt.AccountClaims
 	for _, c := range compiled {
@@ -140,7 +163,8 @@ func (p *ClusterPusher) Drift(ctx context.Context, compiled []*jwt.AccountClaims
 		if err != nil {
 			return nil, fmt.Errorf("aclpush: sign %s for comparison: %w", c.Name, err)
 		}
-		if !natsacl.Equivalent(decodeLive(live), want) {
+		liveClaims := decodeLive(live)
+		if !natsacl.Equivalent(liveClaims, want) || !p.confirmedLive(liveClaims) {
 			drifted = append(drifted, c)
 		}
 	}
@@ -159,7 +183,11 @@ func (p *ClusterPusher) Push(ctx context.Context, c *jwt.AccountClaims) (PushRes
 		return PushResult{}, fmt.Errorf("aclpush: push %s to %s: %w", c.Name, p.cluster, err)
 	}
 	result := PushResult{Account: c.Name, Cluster: p.cluster, Replies: replies}
-	return result, checkReplies(p.servers, replies)
+	if err := checkReplies(p.servers, replies); err != nil {
+		return result, err
+	}
+	p.confirmed[confirmedKey{p.cluster, c.Subject}] = c.ID
+	return result, nil
 }
 
 func canonicalize(c *jwt.AccountClaims, signer nkeys.KeyPair) (*jwt.AccountClaims, error) {

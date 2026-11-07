@@ -82,7 +82,19 @@ func (w *Worker) reconcileGrantChange(ctx context.Context, uid uint64, action st
 		return nil
 	}
 	if changed.State.ChatRestriction == lifecycle.RestrictionNone {
-		return nil
+		return w.enrollAfterGrant(ctx, strconv.FormatUint(uid, 10))
 	}
 	return w.reconcileControlRepair(ctx, usersrpc.LifecycleWork{UserID: uid, AccountCreatedAt: changed.AccountCreatedAt, State: changed.State})
+}
+
+// A redelivered grant no longer applies, so pending must be stored first for the unhealthy sweep to finish a failed enrollment.
+func (w *Worker) enrollAfterGrant(ctx context.Context, broadcasterID string) error {
+	if err := w.registry.SetSubState(ctx, broadcasterID, subStatePending, ""); err != nil {
+		return err
+	}
+	e, err := w.currentEnrollment(ctx, broadcasterID)
+	if err != nil {
+		return err
+	}
+	return w.enableEventSubs(ctx, e)
 }

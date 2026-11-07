@@ -115,10 +115,10 @@ func feedWriteCmds(c valkey.Client, channelID string, data []byte, dropped uint6
 	key := feedKey(channelID)
 	ttl := int64(feedTTL.Seconds())
 	return []valkey.Completed{
-		c.B().Lpush().Key(key).Element(string(data)).Build(),
-		c.B().Ltrim().Key(key).Start(0).Stop(feedCap - 1).Build(),
-		c.B().Expire().Key(key).Seconds(ttl).Build(),
-		c.B().Set().Key(droppedKey(channelID)).Value(strconv.FormatUint(dropped, 10)).ExSeconds(ttl).Build(),
+		pkgvalkey.LpushCmd(c, key, string(data)),
+		pkgvalkey.LtrimCmd(c, key, 0, feedCap-1),
+		pkgvalkey.ExpireCmd(c, key, ttl),
+		pkgvalkey.SetExSecondsCmd(c, pkgvalkey.StringWrite{Key: droppedKey(channelID), Value: strconv.FormatUint(dropped, 10)}, ttl),
 	}
 }
 
@@ -126,14 +126,14 @@ func latencyWriteCmds(c valkey.Client, channelID string, ms int) []valkey.Comple
 	key := latencyKey(channelID)
 	ttl := int64(feedTTL.Seconds())
 	return []valkey.Completed{
-		c.B().Lpush().Key(key).Element(strconv.Itoa(ms)).Build(),
-		c.B().Ltrim().Key(key).Start(0).Stop(latencyCap - 1).Build(),
-		c.B().Expire().Key(key).Seconds(ttl).Build(),
+		pkgvalkey.LpushCmd(c, key, strconv.Itoa(ms)),
+		pkgvalkey.LtrimCmd(c, key, 0, latencyCap-1),
+		pkgvalkey.ExpireCmd(c, key, ttl),
 	}
 }
 
 func execWrites(ctx context.Context, c valkey.Client, cmds []valkey.Completed) error {
-	for _, r := range c.DoMulti(ctx, cmds...) {
+	for _, r := range pkgvalkey.ExecMulti(ctx, c, cmds...) {
 		if err := r.Error(); err != nil {
 			return err
 		}
@@ -151,10 +151,10 @@ func (s *Store) Read(ctx context.Context, channelID string) (Feed, error) {
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 	c := pkgvalkey.Primary(s.client)
-	resps := c.DoMulti(ctx,
-		c.B().Lrange().Key(feedKey(channelID)).Start(0).Stop(feedCap-1).Build(),
-		c.B().Lrange().Key(latencyKey(channelID)).Start(0).Stop(latencyCap-1).Build(),
-		c.B().Get().Key(droppedKey(channelID)).Build(),
+	resps := pkgvalkey.ExecMulti(ctx, c,
+		pkgvalkey.LrangeCmd(c, feedKey(channelID), 0, feedCap-1),
+		pkgvalkey.LrangeCmd(c, latencyKey(channelID), 0, latencyCap-1),
+		pkgvalkey.GetCmd(c, droppedKey(channelID)),
 	)
 	rows, err := readRows(resps[0])
 	if err != nil {

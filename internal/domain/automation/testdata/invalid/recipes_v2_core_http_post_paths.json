@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    { "type": "http_post", "params": { "url": "https://example.com/x", "body": "", "save_as": "no spaces", "on_ok": [ { "type": "nope", "params": {} } ] } }
+  ]
+}

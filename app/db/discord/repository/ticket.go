@@ -51,7 +51,7 @@ func (s *Store) TicketOpen(ctx context.Context, p OpenParams) (int, int, error) 
 	}
 	var id, count int
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			var openErr error
 			id, count, openErr = s.openInTx(ctx, tx, p)
 			return openErr
@@ -138,7 +138,7 @@ func (s *Store) TicketClaim(ctx context.Context, p ClaimParams) (int, error) {
 	}
 	var id int
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			row, err := liveTicket(ctx, tx, p.Key)
 			if err != nil {
 				return err
@@ -170,7 +170,7 @@ func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, er
 	var id int
 	var openerID string
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			row, err := liveTicket(ctx, tx, p.Key)
 			if err != nil {
 				return err

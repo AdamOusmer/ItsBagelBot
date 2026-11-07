@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Badge from '@bagel/ui/astro/Badge.astro';
+import Mark from '../Mark.astro';
 import DeckList from '@bagel/ui/astro/DeckList.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
@@ -110,7 +111,7 @@ const categoryTabs = categories.map((cat, i) => ({ href: '#', label: cat.label, 
     <div class="gs-index">
         <div class="gs-rail">
             <SectionNav label={L.railTitle} items={categoryTabs} />
-            {L.dot1 && <i class="gs-mark" data-note={L.dot1}></i>}
+            {L.dot1 && <Mark n={L.dot1} />}
         </div>
         <div class="gs-stack">
             <div class="gs-family">
@@ -123,7 +124,7 @@ const categoryTabs = categories.map((cat, i) => ({ href: '#', label: cat.label, 
                         </span>
                         <Fragment slot="actions">
                             <Tag tone="pre">{L.row1Beta}</Tag>
-                            {L.dot5 && <i class="gs-mark" data-note={L.dot5}></i>}
+                            {L.dot5 && <Mark n={L.dot5} />}
                         </Fragment>
                     </ManagementRow>
                 </DeckList>
@@ -136,7 +137,7 @@ const categoryTabs = categories.map((cat, i) => ({ href: '#', label: cat.label, 
                             <span class="gs-name">{L.row2Name}</span>
                             <span class="gs-grow">{L.row2Desc}</span>
                             <span class="gs-cmds"><Tag tone="bare">{L.row2Cmds}</Tag></span>
-                            {L.dot2 && <i class="gs-mark" data-note={L.dot2}></i>}
+                            {L.dot2 && <Mark n={L.dot2} />}
                         </span>
                         <Fragment slot="actions"><Switch label={L.row2Name} /></Fragment>
                     </ManagementRow>
@@ -148,7 +149,7 @@ const categoryTabs = categories.map((cat, i) => ({ href: '#', label: cat.label, 
                         </span>
                         <Fragment slot="actions">
                             <Switch label={L.row3Name} />
-                            {L.dot3 && <i class="gs-mark" data-note={L.dot3}></i>}
+                            {L.dot3 && <Mark n={L.dot3} />}
                         </Fragment>
                     </ManagementRow>
                 </DeckList>
@@ -165,7 +166,7 @@ const categoryTabs = categories.map((cat, i) => ({ href: '#', label: cat.label, 
                         <Fragment slot="actions">
                             <Badge tone="live" mark="solid">{L.statusOn}</Badge>
                             <Switch checked label={L.row4Name} />
-                            {L.dot4 && <i class="gs-mark" data-note={L.dot4}></i>}
+                            {L.dot4 && <Mark n={L.dot4} />}
                         </Fragment>
                     </ManagementRow>
                     <ManagementRow>
@@ -176,7 +177,7 @@ const categoryTabs = categories.map((cat, i) => ({ href: '#', label: cat.label, 
                         </span>
                         <Fragment slot="actions">
                             <Tag tone="quiet">{L.row5State}</Tag>
-                            {L.dot6 && <i class="gs-mark" data-note={L.dot6}></i>}
+                            {L.dot6 && <Mark n={L.dot6} />}
                         </Fragment>
                     </ManagementRow>
                 </DeckList>

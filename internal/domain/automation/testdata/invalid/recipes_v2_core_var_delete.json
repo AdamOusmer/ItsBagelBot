@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    { "type": "var_delete", "params": { "scope": "", "name": "this_name_is_longer_than_thirty_two_chars" } }
+  ]
+}

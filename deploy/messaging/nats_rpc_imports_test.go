@@ -208,6 +208,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"twitch.ingress.admin.trials.set_enabled", "web/admin/src/lib/server/services.ts"},
 		{"twitch.ingress.admin.trials.remove", "web/admin/src/lib/server/services.ts"},
 		{"bagel.rpc.health.users", "web/admin health page"},
+		{"bagel.rpc.broadcaster.live.list", "web/admin/src/lib/server/live-broadcasters.ts"},
 		{"bagel.rpc.health.projector", "web/admin health page"},
 		{"bagel.rpc.health.sesame", "web/admin health page"},
 	},
@@ -234,6 +235,7 @@ var rpcServicesWithoutIdentity = map[string]string{
 	"app/plain":      "template service; config.Load() is called but no NATS connection is opened",
 	"app/clusterops": "connects only as the system account's claims push user, never over RPC",
 	"app/release":    "a GitHub Actions CLI; it never connects to NATS",
+	"app/desktop":    "a desktop client; it never connects to NATS",
 }
 
 var rpcIntraAccountSubjects = map[string]map[string]string{

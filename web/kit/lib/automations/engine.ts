@@ -3,7 +3,7 @@
 
 import { decodeStrict, type DecodeError, type Schema } from './decode';
 import { Chk } from './check';
-import { CODE, MAX_CONDITIONS } from './limits';
+import { CODE } from './limits';
 import { PERM_LEVELS } from './values';
 
 export type Widen<V> = V extends string ? string : V extends (infer U)[] ? Widen<U>[] : V;
@@ -21,6 +21,7 @@ export interface ActionNode extends TypedNode {
 export interface Entry {
   check: (c: Chk, raw: unknown) => void;
   nested?: (raw: unknown) => ActionNode[][];
+  effect?: boolean;
 }
 
 export type Table = Record<string, Entry>;
@@ -42,6 +43,7 @@ const ACTION_ROLE: Record<string, number> = {
   warn: ROLE_MODERATOR,
   shield: ROLE_MODERATOR,
   delete_message: ROLE_MODERATOR,
+  cooldown_add: ROLE_MODERATOR,
 };
 
 export function paramsCode(err: DecodeError): string {
@@ -85,7 +87,6 @@ export function typed(c: Chk, reg: Map<string, Entry>, node: TypedNode): void {
 }
 
 export function conditions(c: Chk, list: TypedNode[]): void {
-  if (!c.count('conditions', list.length, 0, MAX_CONDITIONS)) return;
   list.forEach((cond, i) => typed(c.sub('conditions').elem(i), conditionRegistry, cond));
 }
 
@@ -116,10 +117,6 @@ export function permRank(list: TypedNode[]): number {
 function action(at: Chk, a: ActionNode): void {
   if (triggerMismatch(at, a.type)) at.add('type', CODE.triggerMismatch);
   if (permMissing(at, a.type)) at.add('type', CODE.permRequired);
-  if (at.depth > 0 && actionRegistry.get(a.type)?.nested) {
-    at.add('type', CODE.nesting);
-    return;
-  }
   typed(at, actionRegistry, a);
 }
 

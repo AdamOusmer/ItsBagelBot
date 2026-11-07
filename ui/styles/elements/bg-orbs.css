@@ -27,7 +27,7 @@
     --bb-orb-opacity: 0.1;
   }
 
-  body:has([data-orbs="off"]) .bb-bg-orb {
+  body:has(.bb-no-orbs) .bb-bg-orb {
     display: none;
   }
 }

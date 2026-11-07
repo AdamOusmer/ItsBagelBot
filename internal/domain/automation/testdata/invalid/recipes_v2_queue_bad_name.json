@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!song"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "Playing next"
+      }
+    }
+  ],
+  "queue": "Song Requests"
+}

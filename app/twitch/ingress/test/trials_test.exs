@@ -247,6 +247,19 @@ defmodule Ingress.TrialReceiverProtocolTest do
     assert {:ok, %{trials: [%{received: 2, failed: 0}]}} = Trials.list()
   end
 
+  test "admission completes when the automod lane process is absent" do
+    Ingress.EnvCase.put_env(automod_trial_subject: "twitch.automod.trial.test")
+    {:ok, generation} = Trials.add("4242")
+    {:ok, _} = Trials.field("4242", "state", "receiving")
+    refute Process.whereis(Ingress.AutomodTrialLane)
+
+    payload = %{"event" => %{"broadcaster_user_id" => "4242", "message_id" => "a"}}
+    TrialAdmission.submit(payload, %{broadcaster_id: "4242"}, generation)
+
+    settle_admission()
+    assert {:ok, %{trials: [%{received: 1, failed: 0}]}} = Trials.list()
+  end
+
   test "admission never counts chat for a channel that is not receiving" do
     {:ok, generation} = Trials.add("4242")
 

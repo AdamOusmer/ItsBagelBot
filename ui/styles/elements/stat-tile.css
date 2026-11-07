@@ -12,7 +12,6 @@
 
     .bb-stat {
         padding: calc(20px * var(--d)) calc(24px * var(--d));
-        background: var(--bb-card-bg);
         border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-md);
         position: relative;
@@ -67,12 +66,12 @@
         letter-spacing: 0.02em;
     }
 
-    .bb-stat__delta[data-flat] {
+    .bb-stat__delta.bb-stat__delta--flat {
         color: var(--bb-muted);
         font-family: var(--bb-font-body);
     }
 
-    .bb-stat[data-text] .bb-stat__value {
+    .bb-stat.bb-stat--text .bb-stat__value {
         font-size: clamp(22px, 1.9vw, 30px);
         white-space: nowrap;
         overflow: hidden;
@@ -136,7 +135,7 @@
         color: var(--bb-tan-light);
     }
 
-    :where([data-surface='tonal']) .bb-stat:not(.bb-stat--inline) {
+    .bb-stat:not(.bb-stat--inline) {
         background: var(--bb-elev-2);
         border-color: transparent;
         box-shadow: var(--bb-depth-1);

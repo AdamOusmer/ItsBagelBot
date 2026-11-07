@@ -76,7 +76,7 @@ test('cursor: the svelte adapter renders nothing when disabled', () => {
 });
 
 const LIGHT_FIELD_HTML =
-  '<div class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></div>';
+  '<div class="bb-light-field" aria-hidden="true"></div>';
 
 test('light field: both adapters emit the contract markup', async () => {
   const container = await experimental_AstroContainer.create();
@@ -94,7 +94,7 @@ test('light field: the class and warmth props agree', async () => {
   const astro = normalise(await container.renderToString(AstroLightField, { props }));
 
   expect(svelte).toBe(
-    '<div class="bb-light-field bb-light-field--bleed" data-field data-warmth="0.4" aria-hidden="true"></div>',
+    '<div class="bb-light-field bb-light-field--bleed" aria-hidden="true"></div>',
   );
   expect(astro).toBe(svelte);
 });
@@ -217,7 +217,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: {},
-    html: '<button class="bb-btn bb-btn--primary" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    html: '<button class="bb-btn bb-btn--primary" type="button"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
@@ -225,7 +225,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: { variant: 'ghost', size: 'sm' },
-    html: '<button class="bb-btn bb-btn--ghost bb-btn--sm" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    html: '<button class="bb-btn bb-btn--ghost bb-btn--sm" type="button"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
@@ -233,7 +233,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: { tone: 'success' },
-    html: '<button class="bb-btn bb-btn--go-solid" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    html: '<button class="bb-btn bb-btn--go-solid" type="button"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
@@ -241,7 +241,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: { variant: 'secondary', tone: 'success' },
-    html: '<button class="bb-btn bb-btn--go" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    html: '<button class="bb-btn bb-btn--go" type="button"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
@@ -249,7 +249,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: { tone: 'danger', type: 'submit', class: 'row-act' },
-    html: '<button class="bb-btn bb-btn--danger row-act" type="submit" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    html: '<button class="bb-btn bb-btn--danger row-act" type="submit"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
@@ -257,7 +257,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: { variant: 'ghost', tone: 'danger' },
-    html: '<button class="bb-btn bb-btn--ghost bb-btn--danger-hover" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    html: '<button class="bb-btn bb-btn--ghost bb-btn--danger-hover" type="button"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
@@ -265,7 +265,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: { busy: true },
-    html: '<button class="bb-btn bb-btn--primary is-loading" type="button" disabled aria-busy="true" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span><span class="bb-btn__spinner" aria-hidden="true"></span></button>',
+    html: '<button class="bb-btn bb-btn--primary is-loading" type="button" disabled aria-busy="true"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span><span class="bb-btn__spinner" aria-hidden="true"></span></button>',
   });
 
   contract({
@@ -273,7 +273,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: { done: true },
-    html: '<button class="bb-btn bb-btn--primary is-done" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    html: '<button class="bb-btn bb-btn--primary is-done" type="button"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
@@ -281,7 +281,7 @@ describe('Button', () => {
     svelte: SvelteButton,
     astro: AstroButton,
     props: { link: true, variant: 'secondary' },
-    html: '<a class="bb-btn bb-btn--secondary" href="/x" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></a>',
+    html: '<a class="bb-btn bb-btn--secondary" href="/x"><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></a>',
   });
 });
 
@@ -291,7 +291,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: {},
-    html: '<div class="bb-card" data-card>body</div>',
+    html: '<div class="bb-card">body</div>',
   });
 
   contract({
@@ -299,7 +299,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { atmo: true, hover: true, label: '#lofi' },
-    html: '<div class="bb-card" data-card data-atmo data-hover><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">#lofi</span>body</div>',
+    html: '<div class="bb-card bb-card--hover"><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">#lofi</span>body</div>',
   });
 
   contract({
@@ -307,7 +307,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { banded: true, atmo: true, label: '01' },
-    html: '<div class="bb-card bb-card--band" data-card data-atmo><span class="bb-card__band"><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">01</span><span class="bb-card__band-inner"><i>B</i></span></span><span class="bb-card__body">body</span></div>',
+    html: '<div class="bb-card bb-card--band"><span class="bb-card__band"><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">01</span><span class="bb-card__band-inner"><i>B</i></span></span><span class="bb-card__body">body</span></div>',
   });
 
   contract({
@@ -315,7 +315,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { as: 'a', href: '/x', stat: true, sheen: true, class: 'tile' },
-    html: '<a class="bb-card bb-card--stat bb-card--sheen tile" href="/x" data-card>body</a>',
+    html: '<a class="bb-card bb-card--stat bb-card--sheen tile" href="/x">body</a>',
   });
 
   contract({
@@ -323,7 +323,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { raised: true },
-    html: '<div class="bb-card bb-card--raised" data-card>body</div>',
+    html: '<div class="bb-card bb-card--raised">body</div>',
   });
 
   contract({
@@ -331,7 +331,7 @@ describe('Card', () => {
     svelte: SvelteCard,
     astro: AstroCard,
     props: { glass: true },
-    html: '<div class="bb-card bb-card--glass" data-card>body</div>',
+    html: '<div class="bb-card bb-card--glass">body</div>',
   });
 });
 
@@ -431,7 +431,7 @@ const PAIRS: {
     astro: AstroChip,
     props: { pressed: true, tone: 'muted' },
     slot: 'Timers',
-    html: '<button type="button" class="bb-chip bb-chip--muted" aria-pressed="true" data-pressed>Timers</button>',
+    html: '<button type="button" class="bb-chip bb-chip--muted is-pressed" aria-pressed="true">Timers</button>',
   },
   {
     name: 'EmptyState',
@@ -475,7 +475,7 @@ const PAIRS: {
     html:
       '<div class="bb-stat"><div class="bb-stat__head">' +
       '<span class="bb-stat__label">Messages</span></div>' +
-      '<div class="bb-stat__value"><span data-count-up>12,904</span><small>msg</small></div>' +
+      '<div class="bb-stat__value"><span>12,904</span><small>msg</small></div>' +
       '<div class="bb-stat__delta">+4.1%</div></div>',
   },
   {
@@ -485,7 +485,7 @@ const PAIRS: {
     props: { checked: true, label: 'Enable timers', describedby: 'h2' },
     html:
       '<button type="button" class="bb-switch" role="switch" aria-checked="true" ' +
-      'aria-label="Enable timers" aria-describedby="h2" data-state="on"></button>',
+      'aria-label="Enable timers" aria-describedby="h2"></button>',
   },
 ];
 
@@ -572,7 +572,7 @@ import AstroBrackets from '../astro/Brackets.astro';
 import SvelteReadingProgress from '../svelte/ReadingProgress.svelte';
 import AstroReadingProgress from '../astro/ReadingProgress.astro';
 
-const LIGHT_FIELD = '<div class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></div>';
+const LIGHT_FIELD = '<div class="bb-light-field" aria-hidden="true"></div>';
 
 const REMAINING: {
   name: string;
@@ -644,7 +644,7 @@ const REMAINING: {
     props: {},
     html:
       '<div class="bb-row row-shell">' +
-      '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="false"></button>' +
+      '<button class="bb-row__primary" type="button" style="--bb-cursor: quiet" aria-expanded="false"></button>' +
       '</div>',
   },
   {
@@ -654,7 +654,7 @@ const REMAINING: {
     props: { selected: true, expanded: true, controls: 'insp', disabled: true, accent: true },
     html:
       '<div class="bb-row row-shell bb-row--accent is-selected is-off">' +
-      '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="true" aria-controls="insp" aria-current="true"></button>' +
+      '<button class="bb-row__primary" type="button" style="--bb-cursor: quiet" aria-expanded="true" aria-controls="insp" aria-current="true"></button>' +
       '</div>',
   },
   {
@@ -664,7 +664,7 @@ const REMAINING: {
     props: { wrap: true, stackActions: true },
     html:
       '<div class="bb-row row-shell bb-row--wrap bb-row--stack-actions">' +
-      '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="false"></button>' +
+      '<button class="bb-row__primary" type="button" style="--bb-cursor: quiet" aria-expanded="false"></button>' +
       '</div>',
   },
   {
@@ -676,10 +676,10 @@ const REMAINING: {
       '<div class="bb-editor-foot">' +
       '<span class="bb-editor-foot__status" role="status" aria-live="polite"></span>' +
       '<span class="bb-editor-foot__acts">' +
-      '<button class="bb-btn bb-btn--ghost" type="button" data-mark>' +
+      '<button class="bb-btn bb-btn--ghost" type="button">' +
       '<i class="bb-btn__mark" aria-hidden="true"></i>' +
       '<span class="bb-btn__content">Cancel</span></button>' +
-      '<button class="bb-btn bb-btn--primary" type="submit" data-mark>' +
+      '<button class="bb-btn bb-btn--primary" type="submit">' +
       '<i class="bb-btn__mark" aria-hidden="true"></i>' +
       '<span class="bb-btn__content">Save</span></button>' +
       '</span></div>',
@@ -694,10 +694,10 @@ const REMAINING: {
       '<span class="bb-editor-foot__status" role="status" aria-live="polite">' +
       '<span class="bb-editor-foot__s bb-editor-foot__s--saving">Saving…</span></span>' +
       '<span class="bb-editor-foot__acts">' +
-      '<button class="bb-btn bb-btn--ghost" type="button" data-mark>' +
+      '<button class="bb-btn bb-btn--ghost" type="button">' +
       '<i class="bb-btn__mark" aria-hidden="true"></i>' +
       '<span class="bb-btn__content">Cancel</span></button>' +
-      '<button class="bb-btn bb-btn--primary" type="submit" disabled data-mark>' +
+      '<button class="bb-btn bb-btn--primary" type="submit" disabled>' +
       '<i class="bb-btn__mark" aria-hidden="true"></i>' +
       '<span class="bb-btn__content">Saving…</span></button>' +
       '</span></div>',
@@ -727,8 +727,8 @@ const REMAINING: {
     astro: AstroModal,
     props: { open: true, label: 'Celebration' },
     html:
-      '<div class="bb-modal" data-overlay style="z-index: 200">' +
-      '<button class="bb-modal__backdrop" type="button" aria-label="Close" data-cursor="quiet"></button>' +
+      '<div class="bb-modal" style="z-index: 200">' +
+      '<button class="bb-modal__backdrop" type="button" aria-label="Close" style="--bb-cursor: quiet"></button>' +
       '<div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-label="Celebration" data-lenis-prevent></div>' +
       '</div>',
   },
@@ -850,7 +850,7 @@ const REMAINING: {
     props: {},
     html:
       '<div class="bb-reading-progress" aria-hidden="true">' +
-      '<span class="bb-reading-progress__fill" data-reading-progress></span></div>',
+      '<span class="bb-reading-progress__fill"></span></div>',
   },
 ];
 
@@ -1219,7 +1219,7 @@ const PRIMITIVES: {
     svelte: SvelteGlide,
     astro: AstroGlide,
     props: {"shown":true},
-    html: "<span class=\"bb-glide\" aria-hidden=\"true\" data-shown></span>",
+    html: "<span class=\"bb-glide is-shown\" aria-hidden=\"true\"></span>",
   },
   {
     name: "HaloPanel",
@@ -1243,7 +1243,7 @@ const PRIMITIVES: {
     astro: AstroDonateCard,
     props: {"label":"L","title":"T","text":"X","cta":"C","href":"/k","note":"N","class":"d"},
     slot: "x",
-    html: "<section class=\"bb-donate-card d\"><div class=\"bb-donate-card__crowd\" aria-hidden=\"true\">x</div><span class=\"bb-donate-card__label\"><bb-fit>L</bb-fit></span><h2 class=\"bb-donate-card__title\"><bb-fit mode=\"block\">T</bb-fit></h2><p class=\"bb-donate-card__text\"><bb-fit mode=\"block\">X</bb-fit></p><a class=\"bb-btn bb-btn--primary bb-donate-card__cta\" href=\"/k\" data-mark target=\"_blank\" rel=\"noopener noreferrer\"><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\"><bb-fit>C</bb-fit></span></a><span class=\"bb-donate-card__note\"><bb-fit>N</bb-fit></span></section>",
+    html: "<section class=\"bb-donate-card d\"><div class=\"bb-donate-card__crowd\" aria-hidden=\"true\">x</div><span class=\"bb-donate-card__label\"><bb-fit>L</bb-fit></span><h2 class=\"bb-donate-card__title\"><bb-fit mode=\"block\">T</bb-fit></h2><p class=\"bb-donate-card__text\"><bb-fit mode=\"block\">X</bb-fit></p><a class=\"bb-btn bb-btn--primary bb-donate-card__cta\" href=\"/k\" target=\"_blank\" rel=\"noopener noreferrer\"><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\"><bb-fit>C</bb-fit></span></a><span class=\"bb-donate-card__note\"><bb-fit>N</bb-fit></span></section>",
   },
   {
     name: "StepCard",
@@ -1251,7 +1251,7 @@ const PRIMITIVES: {
     astro: AstroStepCard,
     props: {"index":3,"title":"Go"},
     slot: "x",
-    html: "<li><div class=\"bb-card bb-step-card\" data-card data-atmo data-hover><div class=\"bb-card-atmo\" aria-hidden=\"true\"><span class=\"bb-card-atmo__ring\"></span><span class=\"bb-card-atmo__sheen\"></span></div><span class=\"bb-eyebrow\" aria-hidden=\"true\">03</span><h3 class=\"bb-h bb-h--l5 bb-step-card__title\"><bb-fit mode=\"block\">Go</bb-fit></h3><p class=\"bb-text bb-text--sm bb-text--muted bb-step-card__body\"><bb-fit mode=\"block\">x</bb-fit></p></div></li>",
+    html: "<li><div class=\"bb-card bb-card--hover bb-step-card\"><div class=\"bb-card-atmo\" aria-hidden=\"true\"><span class=\"bb-card-atmo__ring\"></span><span class=\"bb-card-atmo__sheen\"></span></div><span class=\"bb-eyebrow\" aria-hidden=\"true\">03</span><h3 class=\"bb-h bb-h--l5 bb-step-card__title\"><bb-fit mode=\"block\">Go</bb-fit></h3><p class=\"bb-text bb-text--sm bb-text--muted bb-step-card__body\"><bb-fit mode=\"block\">x</bb-fit></p></div></li>",
   },
   {
     name: "LinkRow",
@@ -1272,7 +1272,7 @@ const PRIMITIVES: {
     svelte: SvelteInput,
     astro: AstroInput,
     props: {"type":"email","invalid":true,"name":"email","placeholder":"you@example.com"},
-    html: "<span class=\"bb-input\" data-invalid><input type=\"email\" value name=\"email\" placeholder=\"you@example.com\"></span>",
+    html: "<span class=\"bb-input bb-input--invalid\"><input type=\"email\" value name=\"email\" placeholder=\"you@example.com\"></span>",
   },
   {
     name: "Textarea",
@@ -1295,7 +1295,7 @@ const PRIMITIVES: {
     astro: AstroIconButton,
     props: {"label":"Close","tooltip":true},
     slot: "<svg></svg>",
-    html: "<span class=\"bb-tooltip\"><button class=\"bb-btn bb-btn--icon\" type=\"button\" aria-label=\"Close\" data-mark><span class=\"bb-btn__content\"><svg></svg></span></button><span class=\"bb-tooltip__bubble\" aria-hidden=\"true\">Close</span></span>",
+    html: "<span class=\"bb-tooltip\"><button class=\"bb-btn bb-btn--icon\" type=\"button\" aria-label=\"Close\"><span class=\"bb-btn__content\"><svg></svg></span></button><span class=\"bb-tooltip__bubble\" aria-hidden=\"true\">Close</span></span>",
   },
   {
     name: "IconButton|plain",
@@ -1303,7 +1303,7 @@ const PRIMITIVES: {
     astro: AstroIconButton,
     props: {"label":"Close","size":"sm"},
     slot: "<svg></svg>",
-    html: "<button class=\"bb-btn bb-btn--icon bb-btn--sm\" type=\"button\" aria-label=\"Close\" data-mark><span class=\"bb-btn__content\"><svg></svg></span></button>",
+    html: "<button class=\"bb-btn bb-btn--icon bb-btn--sm\" type=\"button\" aria-label=\"Close\"><span class=\"bb-btn__content\"><svg></svg></span></button>",
   },
   {
     name: "ButtonLink",
@@ -1311,7 +1311,7 @@ const PRIMITIVES: {
     astro: AstroButtonLink,
     props: {"href":"/pricing","variant":"secondary","tone":"success"},
     slot: "Go",
-    html: "<a class=\"bb-btn bb-btn--go\" href=\"/pricing\" data-mark><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\">Go</span></a>",
+    html: "<a class=\"bb-btn bb-btn--go\" href=\"/pricing\"><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\">Go</span></a>",
   },
   {
     name: "Tag",
@@ -1427,7 +1427,7 @@ const PRIMITIVES: {
     svelte: SvelteErrorScene,
     astro: AstroErrorScene,
     props: {"status":404,"eyebrow":"Not found","title":"T","description":"D","aside":"A"},
-    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><div class=\"bb-light-field bb-light-field--bleed\" data-field data-warmth=\"0.7\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbs\" aria-hidden=\"true\"><span class=\"bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb\"><i class=\"bb-orb__pulse\"></i></span><span class=\"bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two\"><i class=\"bb-orb__pulse\"></i></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">4<span class=\"bb-error-scene__perch\">0</span>4</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
+    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><div class=\"bb-light-field bb-light-field--bleed\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbs\" aria-hidden=\"true\"><span class=\"bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb\"><i class=\"bb-orb__pulse\"></i></span><span class=\"bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two\"><i class=\"bb-orb__pulse\"></i></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">4<span class=\"bb-error-scene__perch\">0</span>4</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
   },
 ];
 
@@ -1463,12 +1463,6 @@ test('bare-element rules live only in the opt-in base.css, in bb.base', async ()
   );
   expect(typography).not.toContain('@layer bb.base');
   expect(typography).not.toMatch(/^\s{4}(h[1-6]|p|small|code|kbd)\s*[,{]/m);
-});
-
-test('magnetic keeps its tuned ease and settle threshold', async () => {
-  const src = await Bun.file(new URL('../lib/magnetic.ts', import.meta.url)).text();
-  expect(src).toContain('const EASE = 0.2;');
-  expect(src).toContain('const SETTLE_PX = 0.1;');
 });
 
 test('chat preview: both adapters emit the contract markup', async () => {

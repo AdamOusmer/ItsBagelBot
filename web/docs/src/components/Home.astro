@@ -1,0 +1,141 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import { webHref } from '@bagel/kit/site-links';
+import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
+import PageHero from '@bagel/ui/astro/PageHero.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
+
+import { docsI18n } from '../i18n/ui';
+import Base from '../layouts/Base.astro';
+import { pagesFor, spaces } from '../lib/pages';
+import SearchButton from './SearchButton.astro';
+
+interface Props {
+  locale: string;
+}
+
+const { locale } = Astro.props;
+const { t } = docsI18n(locale);
+const pages = pagesFor(locale);
+const lanes = spaces.map(({ key, label, featured }) => ({
+  key,
+  title: t(label),
+  lead: t(`space.${key}Lead`),
+  links: featured.map((id) => pages.get(id)!),
+}));
+---
+
+<Base title={t('title')} locale={locale}>
+  <PageHero eyebrow={t('brand')} title={t('home.title')} description={t('home.lead')} />
+
+  <div class="doc-home">
+    <div class="doc-home__search"><SearchButton locale={locale} /></div>
+
+    <div class="doc-home__lanes">
+      {lanes.map((lane, index) => (
+        <section class="doc-lane" aria-labelledby={`lane-${lane.key}`}>
+          <div class="doc-lane__side">
+            <span class="doc-lane__num">{String(index + 1).padStart(2, '0')}</span>
+            <h2 class="doc-lane__title" id={`lane-${lane.key}`}>{lane.title}</h2>
+          </div>
+          <div class="doc-lane__body">
+            <p class="doc-lane__lead">{lane.lead}</p>
+            <ul class="doc-lane__links">
+              {lane.links.map((page) => (
+                <li><TextLink variant="arrow" href={page.href} label={page.label} /></li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ))}
+    </div>
+
+    <AlertBanner tone="info" role="note" variant="callout" cta={{ href: webHref(locale, '/guides'), label: t('home.streamerCta') }}>{t('home.streamerNote')}</AlertBanner>
+  </div>
+</Base>
+
+<style>
+  .doc-home {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-7);
+    width: min(100% - 48px, 1120px);
+    margin-inline: auto;
+    padding-bottom: 120px;
+  }
+
+  .doc-home__search {
+    width: min(100%, 420px);
+    align-self: center;
+  }
+
+  .doc-home__lanes {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--bb-border);
+  }
+
+  .doc-lane {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: var(--bb-space-7);
+    padding-block: var(--bb-space-7);
+    border-bottom: 1px solid var(--bb-border);
+  }
+
+  .doc-lane__side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-2);
+  }
+
+  .doc-lane__num {
+    font: 500 var(--bb-text-sm)/1 var(--bb-font-mono);
+    color: var(--bb-tan-light);
+  }
+
+  .doc-lane__title {
+    font-family: var(--bb-font-display);
+    font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    color: var(--bb-white);
+  }
+
+  .doc-lane__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-4);
+  }
+
+  .doc-lane__lead {
+    color: var(--bb-muted-light);
+    line-height: 1.6;
+  }
+
+  .doc-lane__links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bb-space-2) var(--bb-space-5);
+  }
+
+  @media (max-width: 900px) {
+    .doc-home {
+      width: min(100% - 32px, 1120px);
+    }
+
+    .doc-lane {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--bb-space-4);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .doc-lane__links {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

@@ -5,6 +5,24 @@ import (
 	"context"
 )
 
+func (w *Worker) liveSubscriptionTypes(ctx context.Context, e enrollment) (map[string]bool, error) {
+	live := map[string]bool{}
+	err := w.visitSubscriptionPages(ctx, e, func(sub twitch.EventSubEntry) error {
+		if w.liveSubscription(sub, e) {
+			live[sub.Type] = true
+		}
+		return nil
+	})
+	return live, err
+}
+
+func (w *Worker) liveSubscription(sub twitch.EventSubEntry, e enrollment) bool {
+	if sub.Status != subscriptionStatusEnabled || !ownedSub(sub, e) {
+		return false
+	}
+	return sub.Type != twitch.ChatMessageType || sub.Condition.UserID == w.botID
+}
+
 // Provider pagination is bounded; an incomplete inventory never becomes durable ownership.
 func (w *Worker) visitSubscriptionPages(ctx context.Context, e enrollment, visit func(twitch.EventSubEntry) error) error {
 	cursor := ""

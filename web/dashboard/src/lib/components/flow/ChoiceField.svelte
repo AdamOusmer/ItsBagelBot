@@ -12,6 +12,8 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { unavailable, withSaved, type ChoiceList, type ChoiceOption, type ChoiceProblem, type ChoiceSource } from '#lib/flow/choices';
   import type { FieldSpec, FlowNode } from '#lib/flow/model';
+  import { configText } from '#lib/flow/setup';
+  import { isSetupValue } from '@bagel/kit/automations';
 
   let { node, field, id, label }: { node: FlowNode; field: Extract<FieldSpec, { type: 'choice' }>; id: string; label: string } = $props();
 
@@ -20,33 +22,44 @@
   let attempt = $state(0);
   let refreshing = $state(false);
 
-  const value = $derived(String(node.config[field.key] ?? ''));
-  const savedName = $derived(field.nameKey ? String(node.config[field.nameKey] ?? '') : '');
-  const device = $derived(String(node.config.device ?? ''));
-  const sku = $derived(String(node.config.sku ?? ''));
+  const value = $derived(configText(node, field.key));
+  const awaiting = $derived(isSetupValue(node.config[field.key]));
+  const savedName = $derived(field.nameKey ? configText(node, field.nameKey) : '');
+  const device = $derived(configText(node, 'device'));
+  const sku = $derived(configText(node, 'sku'));
+
+  const isReward = (source: ChoiceSource) => source === 'rewards' || source === 'manageableRewards';
 
   const chooseText = (source: ChoiceSource) => {
-    if (source === 'rewards') return t('flows.choose.reward');
-    if (source === 'discordChannels') return t('flows.choose.channel');
-    return source === 'counters' ? t('flows.choose.counter') : t('flows.choose.scene');
+    if (awaiting && isReward(source)) return t('flows.setup.pickReward');
+    if (isReward(source)) return t('flows.choose.reward');
+    if (source === 'counters') return t('flows.choose.counter');
+    if (source === 'namedCooldowns') return t('flows.choose.namedCooldown');
+    return t('flows.choose.scene');
   };
 
   const emptyText = (source: ChoiceSource) => {
+    if (source === 'manageableRewards') return t('flows.choiceEmpty.manageableRewards');
     if (source === 'rewards') return t('flows.choiceEmpty.rewards');
-    if (source === 'discordChannels') return t('flows.choiceEmpty.discordChannels');
-    return source === 'counters' ? t('flows.choiceEmpty.counters') : t('flows.choiceEmpty.scenes');
+    if (source === 'counters') return t('flows.choiceEmpty.counters');
+    if (source === 'namedCooldowns') return t('flows.choiceEmpty.namedCooldowns');
+    return t('flows.choiceEmpty.scenes');
   };
 
   const failedText = (source: ChoiceSource) => {
-    if (source === 'rewards') return t('flows.choiceProblem.rewards');
-    if (source === 'discordChannels') return t('flows.choiceProblem.discordChannels');
-    return source === 'counters' ? t('flows.choiceProblem.counters') : t('flows.choiceProblem.scenes');
+    if (isReward(source)) return t('flows.choiceProblem.rewards');
+    if (source === 'counters') return t('flows.choiceProblem.counters');
+    if (source === 'namedCooldowns') return t('flows.choiceProblem.namedCooldowns');
+    return t('flows.choiceProblem.scenes');
   };
 
   const problemText = (source: ChoiceSource, problem: ChoiceProblem) => {
     if (problem === 'keyRejected') return t('flows.choiceProblem.keyRejected');
-    return problem === 'notConnected' ? t('flows.choiceProblem.notConnected') : failedText(source);
+    return failedText(source);
   };
+
+  const missingText = (source: ChoiceSource, name: string) =>
+    source === 'namedCooldowns' ? t('flows.choiceUnowned', { name }) : t('flows.choiceMissing', { name });
 
   async function fetchScenes(light: string, model: string): Promise<ChoiceList> {
     const body = new FormData();
@@ -104,7 +117,7 @@
       {:else if result.options.length === 0}
         <Text size="sm" tone="muted">{emptyText(field.source)}</Text>
       {:else if value && !result.options.some((option) => option.value === value)}
-        <Text size="sm" tone="muted">{t('flows.choiceMissing', { name: savedName || value })}</Text>
+        <Text size="sm" tone="muted">{missingText(field.source, savedName || value)}</Text>
       {/if}
     {/await}
   {/if}

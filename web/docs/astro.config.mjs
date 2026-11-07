@@ -3,22 +3,16 @@
 
 // @ts-check
 import { defineConfig } from 'astro/config';
-import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 import mermaid from 'astro-mermaid';
 import { readFlatCatalogs } from '@bagel/kit/i18n/fs';
 
-const docsCatalogs = readFlatCatalogs('docs');
-const docsLocales = Object.fromEntries(Object.entries(docsCatalogs).map(([code, copy]) => [code === 'en' ? 'root' : code, { label: copy['lang.name'] ?? code, lang: code }]));
-const sidebarGroup = (key, directory) => ({
-  label: docsCatalogs.en[key],
-  translations: Object.fromEntries(Object.entries(docsCatalogs).map(([code, copy]) => [code, copy[key] ?? docsCatalogs.en[key]])),
-  items: [{ autogenerate: { directory } }],
-});
+const docsLocales = Object.keys(readFlatCatalogs('docs'));
 
 const mermaidDarkVars = {
 	fontFamily: '"DM Sans", system-ui, sans-serif; font-weight: 600',
 	fontSize: '25px',
-	
+
 	actorFontSize: '25px',
 	messageFontSize: '25px',
 	noteFontSize: '25px',
@@ -67,8 +61,39 @@ const mermaidDarkVars = {
 	activationBorderColor: '#62a593',
 };
 
+const codeColor = (token) => `var(--doc-code-${token})`;
+
+// Shiki validates theme colours as hex, so the theme names placeholders and swaps in the brand variables after highlighting.
+const CODE_PLACEHOLDERS = {
+	'#000001': codeColor('bg'),
+	'#000002': codeColor('fg'),
+	'#000003': codeColor('comment'),
+	'#000004': codeColor('keyword'),
+	'#000005': codeColor('string'),
+	'#000006': codeColor('title'),
+	'#000007': codeColor('constant'),
+};
+
+const codeTheme = {
+	name: 'bagel-docs',
+	type: 'dark',
+	colorReplacements: CODE_PLACEHOLDERS,
+	colors: { 'editor.background': '#000001', 'editor.foreground': '#000002' },
+	tokenColors: [
+		{ scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: '#000003' } },
+		{ scope: ['keyword', 'storage', 'keyword.operator.expression'], settings: { foreground: '#000004' } },
+		{ scope: ['string', 'markup.inline.raw', 'string.quoted'], settings: { foreground: '#000005' } },
+		{ scope: ['entity.name.function', 'entity.name.type', 'support.function', 'entity.name.tag'], settings: { foreground: '#000006' } },
+		{ scope: ['constant', 'variable.other.constant', 'support.constant', 'variable.language'], settings: { foreground: '#000007' } },
+	],
+};
+
 export default defineConfig({
 	site: 'https://docs.itsbagelbot.com',
+	trailingSlash: 'ignore',
+	markdown: {
+		shikiConfig: { theme: codeTheme },
+	},
 	integrations: [
 		mermaid({
 			theme: 'base',
@@ -83,44 +108,11 @@ export default defineConfig({
 				gantt: { useMaxWidth: true },
 			},
 		}),
-		starlight({
-			title: 'ItsBagelBot',
-			description: 'The all-in-one Twitch companion baked for independence.',
-			defaultLocale: 'root',
-			locales: docsLocales,
-			logo: {
-				src: './src/assets/LogoBOT.png',
-				replacesTitle: false,
+		sitemap({
+			i18n: {
+				defaultLocale: 'en',
+				locales: Object.fromEntries(docsLocales.map((code) => [code, code])),
 			},
-			customCss: ['./src/styles/theme.css'],
-			components: {
-				Head: './src/components/Head.astro',
-				SkipLink: './src/components/SkipLink.astro',
-				Header: './src/components/Header.astro',
-				Footer: './src/components/Footer.astro',
-			},
-			social: [
-				{
-					icon: 'github',
-					label: 'GitHub',
-					href: 'https://github.com/ItsMavey/ItsBagelBot',
-				},
-				{
-					icon: 'discord',
-					label: 'Discord',
-					href: 'https://discord.gg/SZ2remwSDv',
-				},
-			],
-			sidebar: [
-				sidebarGroup('guides', 'guides'),
-				sidebarGroup('architecture', 'architecture'),
-				sidebarGroup('infrastructure', 'infrastructure'),
-				sidebarGroup('data', 'data-and-state'),
-				sidebarGroup('services', 'microservices'),
-				sidebarGroup('qa', 'qa'),
-				sidebarGroup('adr', 'adr'),
-				sidebarGroup('reference', 'reference'),
-			],
 		}),
 	],
 });

@@ -19,7 +19,7 @@ import {
 } from '@bagel/kit';
 import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import type { Session } from './session';
-import type { AccountState, BillingState, NotificationWire } from './services';
+import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
@@ -97,6 +97,27 @@ export const demoDelegationGiven = [
 ];
 
 export const demoDelegationReceived = [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }];
+
+export const demoDeviceGrants: DeviceGrantView[] = [
+  {
+    grantId: 'demo-grant-1',
+    deviceId: 'demo-device-1',
+    deviceName: "Mavey's MacBook",
+    platform: 'macos',
+    createdAt: '2026-10-20T10:00:00Z',
+    lastUsedAt: '2026-11-05T09:30:00Z',
+    expiresAt: '2027-01-18T10:00:00Z'
+  },
+  {
+    grantId: 'demo-grant-2',
+    deviceId: 'demo-device-2',
+    deviceName: 'Stream PC',
+    platform: 'windows',
+    createdAt: '2026-09-02T08:00:00Z',
+    lastUsedAt: null,
+    expiresAt: '2027-03-01T08:00:00Z'
+  }
+];
 
 
 let demoBillingState: BillingState = {
@@ -250,6 +271,21 @@ export function demoGoveeView(): GoveeView {
         reward: { rewardId: 'demo-reward', title: 'Colour the desk strip', cost: 500, color: '#9147ff', cooldown: 0 },
         allowOffline: false,
         allowOff: true,
+        replyMessage: '@{user} set the lights to {color}!'
+      }
+    ],
+    groups: [
+      {
+        name: 'Whole room',
+        lights: [
+          { device: 'AB:CD:EF:12:34:56', sku: 'H6159', name: 'Desk strip' },
+          { device: '11:22:33:44:55:66', sku: 'H6072', name: 'Floor lamp' }
+        ],
+        onRedeem: 'fulfill',
+        rewardId: 'demo-group-reward',
+        reward: { rewardId: 'demo-group-reward', title: 'Colour the whole room', cost: 1000, color: '#9147ff', cooldown: 0 },
+        allowOffline: false,
+        allowOff: false,
         replyMessage: '@{user} set the lights to {color}!'
       }
     ]

@@ -7,6 +7,7 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import EditorStage from '@bagel/ui/svelte/EditorStage.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Icon from '#lib/components/flow/FlowIcon.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
@@ -20,6 +21,7 @@
   import { FlowHistory } from '#lib/flow/history';
   import { allowed, resolveShortcut, type Shortcut } from '#lib/flow/keyboard';
   import { isStale, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
+  import { awaitingSetup } from '#lib/flow/setup';
   import { addNode } from '#lib/flow/ops';
   import { newFlow, outputsFor, specFor, type Flow } from '#lib/flow/model';
   import { flowRouteId, parseFlowRouteId } from '#lib/flow/ref';
@@ -51,13 +53,14 @@
   const loadInspector = () => import('#lib/components/flow/NodeInspector.svelte');
   const loadLibrary = () => import('#lib/components/flow/StepLibrary.svelte');
   const loadTestRun = () => import('#lib/components/flow/TestRunPanel.svelte');
+  const loadRecipe = () => import('#lib/components/flow/RecipePanel.svelte');
 
   const { t } = getI18n();
 
   const opened = untrack(() => structuredClone(data.flow ?? newFlow('')));
   let flow = $state<Flow>({ ...opened, name: opened.name || t('flows.page.untitled') });
   const contentOf = (f: Flow) =>
-    JSON.stringify({ name: f.name, edges: f.edges, nodes: f.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config })) });
+    JSON.stringify({ name: f.name, queue: f.queue ?? '', edges: f.edges, nodes: f.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config })) });
 
   let baseline = $state(contentOf(untrack(() => flow)));
   const drawable = untrack(() => data.flow !== null);
@@ -70,25 +73,28 @@
   let leaving = false;
   let selectedId = $state<string | null>(null);
   let testRunOpen = $state(false);
+  let recipeOpen = $state(false);
   let trace = $state<FlowTrace | null>(null);
   let autoTidy = $state(true);
   let canvas = $state<FlowCanvasApi>();
   let libMode = $state<LibraryMode | null>(untrack(() => (data.flow?.nodes.length === 0 ? 'trigger' : null)));
-  let flyoutEl = $state<HTMLElement>();
-  let editorEl = $state<HTMLElement>();
+  let editorEl = $state<HTMLDivElement>();
   let barEl = $state<HTMLElement>();
   let railEl = $state<HTMLElement>();
-  let boardEl = $state<HTMLElement>();
+  let boardEl = $state<HTMLDivElement>();
+  let leftPanelEl = $state<HTMLDivElement>();
+  let rightPanelEl = $state<HTMLDivElement>();
   let sheetMode = false;
   let inspecting = $state(false);
   let inspectFocus = $state(0);
   let libFocus = $state(0);
   let libReturn: HTMLElement | null = null;
   let runReturn: HTMLElement | null = null;
+  let recipeReturn: HTMLElement | null = null;
 
   const edits = new FlowHistory(untrack(() => flow));
   const dirty = $derived(contentOf(flow) !== baseline);
-  const panelRoom = $derived((inspecting && selectedId) || testRunOpen ? PANEL_ROOM : 0);
+  const panelRoom = $derived((inspecting && selectedId) || testRunOpen || recipeOpen ? PANEL_ROOM : 0);
 
   $effect(() => {
     edits.sync(flow);
@@ -103,13 +109,13 @@
     if (!style || !sheetMode) return;
     const height = visualViewport?.height ?? layoutHeight();
     const keyboard = Math.max(0, layoutHeight() - height - (visualViewport?.offsetTop ?? 0));
-    style.setProperty('--flow-kb', `${keyboard}px`);
-    style.setProperty('--flow-vvh', `${height}px`);
-    style.setProperty('--flow-sheet-h', `${sheetHeight()}px`);
-    style.setProperty('--flow-board-left', `${boardEl?.getBoundingClientRect().left ?? 0}px`);
+    style.setProperty('--stage-kb', `${keyboard}px`);
+    style.setProperty('--stage-vvh', `${height}px`);
+    style.setProperty('--stage-sheet-h', `${sheetHeight()}px`);
+    style.setProperty('--stage-board-left', `${boardEl?.getBoundingClientRect().left ?? 0}px`);
     if (keyboard === 0 && scrollY !== 0) scrollTo(0, 0);
     const field = document.activeElement;
-    if (keyboard > 0 && field?.matches('input, textarea, select') && field.closest('.flyout, .inspector')) field.scrollIntoView({ block: 'center' });
+    if (keyboard > 0 && field?.matches('input, textarea, select') && field.closest('.bb-editor-stage__panel')) field.scrollIntoView({ block: 'center' });
   }
 
   function viewInsets(withPanel: boolean) {
@@ -131,7 +137,7 @@
     const query = matchMedia(SHEET_QUERY);
     const onQuery = () => {
       sheetMode = query.matches;
-      if (!sheetMode) for (const name of ['--flow-kb', '--flow-vvh', '--flow-sheet-h', '--flow-board-left']) editorEl?.style.removeProperty(name);
+      if (!sheetMode) for (const name of ['--stage-kb', '--stage-vvh', '--stage-sheet-h', '--stage-board-left']) editorEl?.style.removeProperty(name);
       syncViewport();
     };
     onQuery();
@@ -151,6 +157,7 @@
       void loadInspector();
       void loadLibrary();
       void loadTestRun();
+      void loadRecipe();
     };
     if ('requestIdleCallback' in window) {
       const id = requestIdleCallback(preload);
@@ -207,6 +214,7 @@
     if (libMode) closeLibrary(true);
     else if (inspecting && selectedId) closeInspector();
     else if (testRunOpen) closeTestRun(true);
+    else if (recipeOpen) closeRecipe(true);
     else if (selectedId) selectedId = null;
     else return false;
     return true;
@@ -269,7 +277,7 @@
     );
     selectedId = node.id;
     inspecting = true;
-    const fromList = Boolean(flyoutEl?.contains(document.activeElement));
+    const fromList = Boolean(leftPanelEl?.contains(document.activeElement));
     if (sheetMode || specFor(type)?.kind === 'trigger') {
       libMode = null;
       if (fromList) canvas?.focusNode(node.id);
@@ -278,8 +286,26 @@
   }
 
   function onBoardPointerDown(e: PointerEvent) {
-    if (libMode && flyoutEl && !flyoutEl.contains(e.target as Node)) libMode = null;
+    if (libMode && leftPanelEl && !leftPanelEl.contains(e.target as Node)) libMode = null;
   }
+
+  function rightPanelDismiss(): void {
+    if (selectedId && inspecting) selectedId = null;
+    else if (testRunOpen) closeTestRun();
+    else if (recipeOpen) closeRecipe();
+  }
+
+  $effect(() => {
+    if (!leftPanelEl) return;
+    const drag = sheetDrag(leftPanelEl, () => (libMode = null));
+    return () => drag.destroy();
+  });
+
+  $effect(() => {
+    if (!rightPanelEl) return;
+    const drag = sheetDrag(rightPanelEl, rightPanelDismiss);
+    return () => drag.destroy();
+  });
 
   const discard = createDiscardGuard(() => dirty && !leaving);
 
@@ -343,7 +369,17 @@
     else refused(reply);
   }
 
+  async function refuseUntilSetUp(step: string) {
+    enabled = true;
+    await tick();
+    enabled = false;
+    toast('danger', t('flows.setup.refused'), { ttlMs: 9000 });
+    focusStep(step);
+  }
+
   async function setEnabled(next: boolean) {
+    const unfinished = next ? flow.nodes.find(awaitingSetup) : undefined;
+    if (unfinished) return refuseUntilSetUp(unfinished.id);
     const before = enabled;
     enabled = next;
     flow.enabled = next;
@@ -366,9 +402,26 @@
   async function testRun() {
     runReturn = active();
     selectedId = null;
+    recipeOpen = false;
     testRunOpen = !testRunOpen;
     await tick();
     canvas?.fitView(testRunOpen ? PANEL_ROOM : 0);
+  }
+
+  async function toggleRecipe() {
+    recipeReturn = active();
+    selectedId = null;
+    testRunOpen = false;
+    recipeOpen = !recipeOpen;
+    await tick();
+    canvas?.fitView(recipeOpen ? PANEL_ROOM : 0);
+  }
+
+  function closeRecipe(restore = false) {
+    recipeOpen = false;
+    canvas?.fitView();
+    const back = restore ? recipeReturn : null;
+    if (back) void tick().then(() => back.isConnected && back.focus({ preventScroll: true }));
   }
 
   function closeTestRun(restore = false) {
@@ -387,7 +440,10 @@
   });
 
   $effect(() => {
-    if (inspecting && selectedId) testRunOpen = false;
+    if (inspecting && selectedId) {
+      testRunOpen = false;
+      recipeOpen = false;
+    }
   });
 </script>
 
@@ -395,92 +451,109 @@
 
 <svelte:window onkeydown={onKeyDown} onbeforeunload={(e) => dirty && !leaving && e.preventDefault()} />
 
+{#snippet topStart()}
+  <a class="back" href="/flows">
+    <Icon name="arrowLeft" size={16} />
+    <span class="back-text">{data.navLabels['nav.flows']}</span>
+  </a>
+  <span class="flow-name"><Input fill maxlength={64} aria-label={t('flows.nameLabel')} bind:value={flow.name} /></span>
+  <Switch
+    checked={enabled}
+    label={enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
+    onCheckedChange={(next) => void setEnabled(next)}
+  />
+{/snippet}
+
+{#snippet topEnd()}
+  <Button variant="ghost" onclick={testRun}><Icon name="play" size={14} /> <span class="run-text">{t('flows.board.testRun')}</span></Button>
+  <Button variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}>{t('flows.page.save')}</Button>
+{/snippet}
+
+{#snippet rail()}
+  {#each TOOLS as tool (tool.mode)}
+    <button
+      class="tool"
+      type="button"
+      aria-pressed={libMode === tool.mode}
+      onpointerenter={loadLibrary}
+      onclick={(e) => toggleLibrary(tool.mode, e.detail === 0)}
+    >
+      <Icon name={tool.icon} size={22} />
+      <span>{toolLabel(tool.mode)}</span>
+    </button>
+  {/each}
+  <Tooltip text={t('flows.board.searchAll')} placement="bottom">
+    <button class="tool" type="button" aria-label={t('flows.board.searchAll')} aria-pressed={libMode === 'search'} onclick={(e) => toggleLibrary('search', e.detail === 0)}>
+      <Icon name="search" size={22} />
+    </button>
+  </Tooltip>
+  <Tooltip text={t('flows.recipe.title')} placement="bottom">
+    <button class="tool" type="button" aria-label={t('flows.recipe.title')} aria-pressed={recipeOpen} onpointerenter={loadRecipe} onclick={toggleRecipe}>
+      <Icon name="settings" size={22} />
+    </button>
+  </Tooltip>
+{/snippet}
+
+{#snippet leftPanel()}
+  {#await loadLibrary() then { default: StepLibrary }}
+    {#key libMode}
+      <StepLibrary mode={libMode ?? 'trigger'} focusToken={libFocus} {onAdd} onClose={() => closeLibrary(true)} />
+    {/key}
+  {/await}
+{/snippet}
+
+{#snippet rightPanel()}
+  {#if selectedId && inspecting}
+    {#await loadInspector() then { default: NodeInspector }}
+      <NodeInspector bind:flow bind:selectedId focusToken={inspectFocus} onclose={closeInspector} />
+    {/await}
+  {:else if testRunOpen}
+    {#await loadTestRun() then { default: TestRunPanel }}
+      <TestRunPanel {flow} onClose={closeTestRun} onTrace={(next) => (trace = next)} />
+    {/await}
+  {:else if recipeOpen}
+    {#await loadRecipe() then { default: RecipePanel }}
+      <RecipePanel bind:flow {ref} onclose={() => closeRecipe(true)} />
+    {/await}
+  {/if}
+{/snippet}
+
+{#snippet boardChildren()}
+  <FlowCanvas
+    bind:this={canvas}
+    bind:flow
+    bind:selectedId
+    bind:autoTidy
+    {trace}
+    insets={viewInsets}
+    room={panelRoom}
+    onmoved={(moves) => edits.moved(moves)}
+    oninspect={() => (inspecting = true)}
+    onstart={(byKey) => toggleLibrary('trigger', byKey)}
+  />
+{/snippet}
+
 {#if drawable}
-<div class="editor" data-canvas="fill" data-flow-editor bind:this={editorEl}>
-  <header class="bar" bind:this={barEl}>
-    <div class="bar-start">
-      <a class="back" href="/flows">
-        <Icon name="arrowLeft" size={16} />
-        <span class="back-text">{data.navLabels['nav.flows']}</span>
-      </a>
-      <span class="flow-name"><Input fill maxlength={64} aria-label={t('flows.nameLabel')} bind:value={flow.name} /></span>
-      <Switch
-        checked={enabled}
-        label={enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
-        onCheckedChange={(next) => void setEnabled(next)}
-      />
-    </div>
-
-    <div class="bar-end">
-      <Button variant="ghost" onclick={testRun}><Icon name="play" size={14} /> <span class="run-text">{t('flows.board.testRun')}</span></Button>
-      <Button variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}>{t('flows.page.save')}</Button>
-    </div>
-  </header>
-
-  <div class="body">
-    <nav class="rail" aria-label={t('flows.board.stepTools')} bind:this={railEl}>
-      {#each TOOLS as tool (tool.mode)}
-        <button
-          class="tool"
-          type="button"
-          aria-pressed={libMode === tool.mode}
-          onpointerenter={loadLibrary}
-          onclick={(e) => toggleLibrary(tool.mode, e.detail === 0)}
-        >
-          <Icon name={tool.icon} size={22} />
-          <span>{toolLabel(tool.mode)}</span>
-        </button>
-      {/each}
-      <Tooltip text={t('flows.board.searchAll')} placement="bottom">
-        <button class="tool" type="button" aria-label={t('flows.board.searchAll')} aria-pressed={libMode === 'search'} onclick={(e) => toggleLibrary('search', e.detail === 0)}>
-          <Icon name="search" size={22} />
-        </button>
-      </Tooltip>
-    </nav>
-
-    <div class="board" role="presentation" bind:this={boardEl} onpointerdowncapture={onBoardPointerDown}>
-      <FlowCanvas
-        bind:this={canvas}
-        bind:flow
-        bind:selectedId
-        bind:autoTidy
-        {trace}
-        insets={viewInsets}
-        room={panelRoom}
-        onmoved={(moves) => edits.moved(moves)}
-        oninspect={() => (inspecting = true)}
-        onstart={(byKey) => toggleLibrary('trigger', byKey)}
-      />
-
-      {#if libMode}
-        <div class="flyout" bind:this={flyoutEl} use:sheetDrag={() => (libMode = null)}>
-          <span class="grip" data-sheet-grip aria-hidden="true"></span>
-          {#await loadLibrary() then { default: StepLibrary }}
-            {#key libMode}
-              <StepLibrary mode={libMode} focusToken={libFocus} {onAdd} onClose={() => closeLibrary(true)} />
-            {/key}
-          {/await}
-        </div>
-      {/if}
-
-      {#if selectedId && inspecting}
-        <div class="inspector" use:sheetDrag={() => (selectedId = null)}>
-          <span class="grip" data-sheet-grip aria-hidden="true"></span>
-          {#await loadInspector() then { default: NodeInspector }}
-            <NodeInspector bind:flow bind:selectedId focusToken={inspectFocus} onclose={closeInspector} />
-          {/await}
-        </div>
-      {:else if testRunOpen}
-        <div class="inspector" use:sheetDrag={closeTestRun}>
-          <span class="grip" data-sheet-grip aria-hidden="true"></span>
-          {#await loadTestRun() then { default: TestRunPanel }}
-            <TestRunPanel {flow} onClose={closeTestRun} onTrace={(next) => (trace = next)} />
-          {/await}
-        </div>
-      {/if}
-    </div>
-  </div>
-</div>
+<EditorStage
+  data-flow-editor
+  height="100dvh"
+  topInset="calc(var(--bb-topbar-height) + var(--flows-top-gap, 6px))"
+  bottomRoom="var(--flows-bottom-room, 0px)"
+  railLabel={t('flows.board.stepTools')}
+  bind:editorEl
+  bind:barEl
+  bind:railEl
+  bind:boardEl
+  bind:leftPanelEl
+  bind:rightPanelEl
+  {topStart}
+  {topEnd}
+  {rail}
+  leftPanel={libMode ? leftPanel : undefined}
+  rightPanel={(selectedId && inspecting) || testRunOpen || recipeOpen ? rightPanel : undefined}
+  onboardpointerdown={onBoardPointerDown}
+  children={boardChildren}
+/>
 
 <ConfirmDialog
   open={discard.open}
@@ -543,51 +616,23 @@
     justify-content: center;
     padding-top: 48px;
   }
-  .editor {
-    --editor-top: calc(var(--bb-topbar-height) + 6px);
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-    margin-top: calc(-1 * var(--editor-top));
-    height: 100dvh;
-    overflow: hidden;
-    background: var(--bb-black);
+  :global(:root) {
+    --flows-top-gap: 6px;
   }
   @media (max-width: 760px) {
-    .editor {
-      --editor-top: calc(var(--bb-topbar-height) + 10px);
+    :global(:root) {
+      --flows-top-gap: 10px;
     }
   }
-  .bar {
-    position: absolute;
-    top: calc(var(--editor-top) + 16px);
-    left: 16px;
-    right: 16px;
-    z-index: 6;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    pointer-events: none;
+  @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
+    :global(:root) {
+      --flows-bottom-room: calc(81px + 8px + env(safe-area-inset-bottom, 0px));
+    }
   }
-  .bar-start,
-  .bar-end {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 48px;
-    min-width: 0;
-    padding: 6px;
-    border-radius: 12px;
-    background: var(--bb-bg-1);
-    box-shadow: 0 8px 24px rgba(var(--bb-shadow-rgb), 0.55);
-    pointer-events: auto;
-  }
-  .bar-start {
-    gap: 12px;
-    padding-inline-end: 14px;
+  @media (min-width: 761px) and (pointer: coarse) and (max-height: 520px) {
+    :global(:root) {
+      --flows-bottom-room: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
   }
   .back {
     display: inline-flex;
@@ -611,26 +656,6 @@
     display: block;
     min-width: 0;
     width: min(280px, 36vw);
-  }
-  .body {
-    position: relative;
-    display: flex;
-    flex: 1;
-    min-height: 0;
-  }
-  .rail {
-    position: absolute;
-    top: calc(var(--editor-top) + 80px);
-    left: 16px;
-    z-index: 5;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 72px;
-    padding: 6px;
-    border-radius: 12px;
-    background: var(--bb-bg-1);
-    box-shadow: 0 8px 24px rgba(var(--bb-shadow-rgb), 0.55);
   }
   .tool {
     display: flex;
@@ -664,84 +689,12 @@
     outline: 2px solid var(--bb-green-glow);
     outline-offset: -2px;
   }
-  .board {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-    background: var(--bb-black);
-  }
-  .flyout {
-    position: absolute;
-    top: calc(var(--editor-top) + 80px);
-    bottom: 16px;
-    left: 100px;
-    z-index: 5;
-    width: 320px;
-    min-height: 0;
-    overflow: hidden;
-    border-radius: 12px;
-    background: var(--bb-bg-1);
-    box-shadow: 0 16px 48px rgba(var(--bb-shadow-rgb), 0.65);
-  }
-  .inspector {
-    position: absolute;
-    top: calc(var(--editor-top) + 80px);
-    right: 16px;
-    bottom: 16px;
-    z-index: 4;
-    width: 360px;
-    min-height: 0;
-  }
-  .grip {
-    display: none;
-  }
-  :global(.bb-shell:has(.editor[data-canvas='fill'])) {
-    touch-action: pan-x pan-y;
-  }
-  @media (pointer: coarse), (max-width: 760px) {
-    :global(.bb-shell:has(.editor[data-canvas='fill'])) {
-      height: 100dvh;
-      min-height: 0;
-      overflow: hidden;
-    }
-  }
   @media (pointer: coarse) {
-    .bar,
-    .rail {
-      touch-action: none;
-    }
     .back {
       height: 44px;
     }
-    .bar-end :global(.bb-btn) {
-      min-height: 44px;
-    }
   }
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
-    :global(body:has(.editor[data-canvas='fill']) .bb-popover--bottom) {
-      display: none;
-    }
-    .editor {
-      --flow-dock-room: calc(81px + 8px + env(safe-area-inset-bottom, 0px));
-    }
-    .bar {
-      left: max(16px, env(safe-area-inset-left, 0px));
-      right: max(16px, env(safe-area-inset-right, 0px));
-      gap: 8px;
-    }
-    .bar-start {
-      flex: 1;
-      gap: 4px;
-      padding: 4px 10px 4px 4px;
-    }
-    .bar-end {
-      flex: none;
-      gap: 4px;
-      min-height: 52px;
-      padding: 4px;
-    }
     .back {
       justify-content: center;
       width: 44px;
@@ -760,115 +713,11 @@
     .flow-name {
       flex: 1;
     }
-    .bar-end :global(.bb-btn) {
-      min-width: 44px;
-      min-height: 44px;
-      --btn-pad: 0 12px;
-    }
-    .rail {
-      top: auto;
-      right: calc(max(16px, env(safe-area-inset-right, 0px)) + 72px);
-      bottom: calc(var(--flow-dock-room) + 8px);
-      left: max(16px, env(safe-area-inset-left, 0px));
-      flex-direction: row;
-      width: auto;
-      height: 68px;
-      box-sizing: border-box;
-      padding: 4px;
-    }
-    .rail > :global(*) {
-      flex: 1;
-      min-width: 0;
-    }
     .tool {
       gap: 4px;
       height: 100%;
       min-height: 44px;
       padding: 4px 0;
-    }
-  }
-  @media (min-width: 761px) and (pointer: coarse) and (max-height: 520px) {
-    .editor {
-      --flow-dock-room: calc(8px + env(safe-area-inset-bottom, 0px));
-    }
-  }
-  @media (max-width: 760px), (pointer: coarse) and (max-width: 1023px) {
-    .flyout,
-    .inspector {
-      position: fixed;
-      top: auto;
-      right: 0;
-      bottom: var(--flow-kb, 0px);
-      left: var(--flow-board-left, 0px);
-      z-index: 70;
-      width: auto;
-      height: min(var(--flow-sheet-h, 56dvh), calc(var(--flow-vvh, 100dvh) - 64px));
-      border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
-      background: var(--bb-bg-1);
-      box-shadow: 0 -16px 48px rgba(var(--bb-shadow-rgb), 0.65);
-      touch-action: pan-y;
-      overflow: hidden;
-      animation: flow-sheet-in var(--bb-dur-base) var(--bb-ease-out-expo);
-    }
-    .flyout {
-      height: min(calc(var(--flow-sheet-h, 56dvh) * 1.25), calc(var(--flow-vvh, 100dvh) - 64px));
-    }
-    .grip {
-      position: absolute;
-      top: 0;
-      left: 72px;
-      right: 72px;
-      z-index: 1;
-      display: flex;
-      justify-content: center;
-      height: 20px;
-      padding-top: 6px;
-      box-sizing: border-box;
-      touch-action: none;
-    }
-    .grip::after {
-      content: '';
-      width: 36px;
-      height: 4px;
-      border-radius: var(--bb-radius-pill);
-      background: rgba(var(--bb-white-rgb), 0.24);
-    }
-    .flyout :global(header),
-    .inspector :global(header) {
-      padding-top: 24px;
-      touch-action: none;
-    }
-    .inspector :global(aside) {
-      border-radius: inherit;
-      box-shadow: none;
-    }
-    .inspector :global(footer) {
-      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    }
-    .flyout :global(header .bb-btn--icon.bb-btn--sm),
-    .inspector :global(header .bb-btn--icon.bb-btn--sm) {
-      min-width: 44px;
-      width: 44px;
-      height: 44px;
-    }
-    .editor .flyout :global(:is(input, textarea, select)),
-    .editor .inspector :global(:is(input, textarea, select)) {
-      font-size: 16px;
-    }
-    .inspector :global(.scroll),
-    .flyout :global(.bb-scroller) {
-      overscroll-behavior: contain;
-    }
-  }
-  @keyframes flow-sheet-in {
-    from {
-      transform: translateY(100%);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .flyout,
-    .inspector {
-      animation: none;
     }
   }
 </style>

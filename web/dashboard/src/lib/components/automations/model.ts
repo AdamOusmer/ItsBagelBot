@@ -157,7 +157,7 @@ function normalizeAction(action: Action): void {
     params.condition ??= makeCondition(CONDITION_TYPES[0].type);
     paramsOf(params.condition as Condition);
   }
-  if (action.type !== 'random_pick') return;
+  if (action.type !== 'random_pick' && action.type !== 'parallel') return;
   const branches = (params.branches ?? []) as Array<{ weight: number; actions?: Action[] }>;
   for (const branch of branches) branch.actions = normalizeActions(branch.actions);
   params.branches = branches;

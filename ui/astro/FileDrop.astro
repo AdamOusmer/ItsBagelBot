@@ -18,13 +18,15 @@ const classes = ['bb-file-drop', className].filter(Boolean).join(' ');
 <label class={classes}><input type="file" class="bb-file-drop__input" accept={accept} {...rest} /><span class="bb-file-drop__text">{label}</span></label>
 
 <script>
+    const bound = new WeakSet<HTMLElement>();
+
     function setOver(zone: HTMLElement, over: boolean) {
-        zone.toggleAttribute('data-over', over);
+        zone.classList.toggle('is-over', over);
     }
 
     function showFile(zone: HTMLElement, input: HTMLInputElement, label: string) {
         const file = input.files?.[0];
-        zone.toggleAttribute('data-filled', Boolean(file));
+        zone.classList.toggle('is-filled', Boolean(file));
         const text = zone.querySelector<HTMLElement>('.bb-file-drop__text');
         if (text) text.textContent = file ? file.name : label;
     }
@@ -33,7 +35,7 @@ const classes = ['bb-file-drop', className].filter(Boolean).join(' ');
         const input = zone.querySelector<HTMLInputElement>('.bb-file-drop__input');
         if (!input) return;
         const label = zone.querySelector('.bb-file-drop__text')?.textContent ?? '';
-        zone.dataset.bbFileDrop = '';
+        bound.add(zone);
         input.addEventListener('dragover', () => setOver(zone, true));
         input.addEventListener('dragleave', () => setOver(zone, false));
         input.addEventListener('drop', () => setOver(zone, false));
@@ -41,7 +43,9 @@ const classes = ['bb-file-drop', className].filter(Boolean).join(' ');
     }
 
     function bindFileDrops() {
-        document.querySelectorAll<HTMLElement>('.bb-file-drop:not([data-bb-file-drop])').forEach(bindZone);
+        document.querySelectorAll<HTMLElement>('.bb-file-drop').forEach((zone) => {
+            if (!bound.has(zone)) bindZone(zone);
+        });
     }
 
     bindFileDrops();

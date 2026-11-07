@@ -6,14 +6,12 @@ package engine
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
@@ -45,6 +43,15 @@ func TestAutomationStoreActions(t *testing.T) {
 	assert.Equal(t, BalanceAdjustment{BroadcasterID: 1, ViewerID: 99, ViewerLogin: "target", Value: 40, Absolute: true}, fx.loyalty.adjusts[0])
 	assert.Equal(t, CounterBump{BroadcasterID: 1, Name: "wins", Viewer: Viewer{ID: 1}, Delta: 2}, fx.loyalty.bumps[0])
 	assert.Equal(t, []string{"wins/1/9"}, fx.loyalty.sets)
+}
+
+func TestAutomationStoredDiscordPostFailsAloneAndTheRestStillRuns(t *testing.T) {
+	removed := obj{"guild_id": "123456789012345678", "channel_id": "223456789012345678", "text": "hi"}
+	fx := newAutoFixture(manual("main", act("discord_post", removed), act("chat", obj{"text": "after"})))
+	rec := fx.run(t, "main", "req-removed-discord", nil)
+	assert.Equal(t, []string{"0:discord_post:failed:unknown_type", "1:chat:ok:"}, statuses(rec))
+	assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome)
+	assert.Len(t, fx.messages(t), 1)
 }
 
 func TestAutomationHTTPPost(t *testing.T) {
@@ -96,68 +103,6 @@ func TestAutomationLightsSceneFailsAgainstAnOutdatedGossip(t *testing.T) {
 			assert.Equal(t, []string{tc.want}, statuses(rec))
 		})
 	}
-}
-
-func discordParams(text string) obj {
-	return obj{"guild_id": "123456789012345678", "channel_id": "223456789012345678", "text": text}
-}
-
-func TestAutomationDiscordPostNamesTheBroadcasterGuildAndChannel(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("discord_post", discordParams("hi {arg:who}"))))
-	rec := fx.run(t, "main", "req-discord", map[string]string{"who": "chat"})
-	assert.Equal(t, []string{"0:discord_post:ok:"}, statuses(rec))
-	assert.Equal(t, []outgressrpc.DiscordPostRequest{
-		{UserID: "1", GuildID: "123456789012345678", ChannelID: "223456789012345678", Content: "hi chat"},
-	}, fx.discord.sent())
-}
-
-func TestAutomationDiscordPostFailuresDoNotStopFlow(t *testing.T) {
-	cases := []struct {
-		name  string
-		reply outgressrpc.DiscordPostReply
-		err   error
-		want  string
-	}{
-		{"not bound", outgressrpc.DiscordPostReply{Code: outgressrpc.CodeNotBound, Error: "not bound"}, nil, "0:discord_post:failed:not_bound"},
-		{"channel elsewhere", outgressrpc.DiscordPostReply{Code: outgressrpc.CodeForbidden}, nil, "0:discord_post:failed:forbidden"},
-		{"bot offline", outgressrpc.DiscordPostReply{Code: outgressrpc.CodeDiscordUnavailable}, nil, "0:discord_post:failed:discord_unavailable"},
-		{"transport", outgressrpc.DiscordPostReply{}, errors.New("timeout"), "0:discord_post:failed:discord_error"},
-		{"outdated outgress", outgressrpc.DiscordPostReply{Code: outgressrpc.CodeOK}, nil, "0:discord_post:failed:outgress_outdated"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			fx := newAutoFixture(manual("main", act("discord_post", discordParams("hi")), act("chat", obj{"text": "after"})))
-			fx.discord.reply, fx.discord.err = tc.reply, tc.err
-			rec := fx.run(t, "main", "req-"+tc.name, nil)
-			assert.Equal(t, []string{tc.want, "1:chat:ok:"}, statuses(rec))
-			assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome)
-			assert.Len(t, fx.messages(t), 1)
-		})
-	}
-}
-
-func TestAutomationDiscordPostWithoutAPosterFails(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("discord_post", discordParams("hi"))))
-	fx.p.discord = nil
-	rec := fx.run(t, "main", "req-discord-none", nil)
-	assert.Equal(t, []string{"0:discord_post:failed:no_discord"}, statuses(rec))
-}
-
-func TestAutomationDiscordPostSkipsAnEmptyMessageAndCapsALongOne(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("discord_post", discordParams("{arg:none|}")), act("discord_post", discordParams("{arg:long}"))))
-	rec := fx.run(t, "main", "req-discord-text", map[string]string{"long": strings.Repeat("é", 2100)})
-	assert.Equal(t, []string{"0:discord_post:skipped:empty", "1:discord_post:ok:"}, statuses(rec))
-	sent := fx.discord.sent()
-	require.Len(t, sent, 1)
-	assert.Equal(t, 2000, len([]rune(sent[0].Content)))
-}
-
-func TestAutomationDiscordPostDeduplicated(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("discord_post", discordParams("hi"))))
-	fx.run(t, "main", "req-discord-dup", nil)
-	second := fx.run(t, "main", "req-discord-dup", nil)
-	assert.Equal(t, []string{"0:discord_post:skipped:duplicate"}, statuses(second))
-	assert.Len(t, fx.discord.sent(), 1)
 }
 
 func TestAutomationLightsSceneCarriesTheStoredScene(t *testing.T) {

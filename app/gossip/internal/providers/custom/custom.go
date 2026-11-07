@@ -20,7 +20,9 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/internal/domain/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
@@ -53,11 +55,16 @@ const (
 	authHeaderName = "Authorization"
 )
 
+// admitPolicy decides whether a flight may spend upstream budget; nil means the rate-limit buckets.
+type admitPolicy func(ctx context.Context, fl *flight, isPremium bool) error
+
 type Config struct {
-	ChannelRateLimit float64
-	DefRateLimit     float64
-	HostRateLimit    float64
-	PositiveTTL      time.Duration
+	ChannelRateLimit       float64
+	DefRateLimit           float64
+	HostRateLimit          float64
+	RecipeChannelRateLimit float64
+	RecipeDefRateLimit     float64
+	PositiveTTL            time.Duration
 }
 
 type api struct {
@@ -72,9 +79,12 @@ type api struct {
 	defBuckets     core.Buckets
 	hostBuckets    core.Buckets
 
+	recipeChannelBuckets core.Buckets
+	recipeDefBuckets     core.Buckets
+
 	positiveTTL time.Duration
 
-	admit func(ctx context.Context, fl *flight, isPremium bool) error
+	admit admitPolicy
 
 	fails syncMapHosts
 }
@@ -95,29 +105,34 @@ func (h *syncMapHosts) counter(host string) *atomic.Int32 {
 // Must not declare .Trusted(): user-defined fetches egress via WARP.
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d)
-	p := newAPI(cfg, d, b)
+	p := newAPI(cfg, d, b, nil)
 	b.Endpoint(fetchEndpoint).Timeout(fetchTimeout).Handle(p.fetch)
 	b.Endpoint(postEndpoint).Timeout(fetchTimeout).Handle(p.post)
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder, admit admitPolicy) *api {
 	p := &api{
-		http:           b.Client("", nil, fetchTimeout),
-		cache:          d.Cache,
-		log:            d.Logger(),
-		defs:           d.FetchDefs,
-		keys:           d.FetchKeys,
-		limiter:        d.Limiter,
-		channelBuckets: core.NewBuckets("ratelimit:gossip:custom:ch", cfg.ChannelRateLimit, 60),
-		defBuckets:     core.NewBuckets("ratelimit:gossip:custom:def", cfg.DefRateLimit, 60),
-		hostBuckets:    core.NewBuckets("ratelimit:gossip:custom:host", cfg.HostRateLimit, 60),
-		positiveTTL:    cfg.PositiveTTL,
+		http:                 b.Client("", nil, fetchTimeout),
+		cache:                d.Cache,
+		log:                  d.Logger(),
+		defs:                 d.FetchDefs,
+		keys:                 d.FetchKeys,
+		limiter:              d.Limiter,
+		channelBuckets:       core.NewBuckets("ratelimit:gossip:custom:ch", cfg.ChannelRateLimit, 60),
+		defBuckets:           core.NewBuckets("ratelimit:gossip:custom:def", cfg.DefRateLimit, 60),
+		hostBuckets:          core.NewBuckets("ratelimit:gossip:custom:host", cfg.HostRateLimit, 60),
+		recipeChannelBuckets: core.NewBuckets("ratelimit:gossip:custom:recipe:ch", cfg.RecipeChannelRateLimit, 60),
+		recipeDefBuckets:     core.NewBuckets("ratelimit:gossip:custom:recipe:def", cfg.RecipeDefRateLimit, 60),
+		positiveTTL:          cfg.PositiveTTL,
 	}
 	if p.positiveTTL <= 0 {
 		p.positiveTTL = positiveTTLDflt
 	}
-	p.admit = p.spendBudget
+	p.admit = admit
+	if admit == nil {
+		p.admit = p.spendBudget
+	}
 	return p
 }
 
@@ -140,7 +155,7 @@ func (p *api) fetch(ctx context.Context, req gossiprpc.Request) any {
 		return fetchReply(gossiprpc.FetchUpstreamError, nil, start)
 	}
 	out.MS = int(time.Since(start).Milliseconds())
-	out.Values = capValues(out.Values)
+	out.Values = capValues(out.Values, fl.valueLimit(req.DryRun))
 	return out
 }
 
@@ -242,14 +257,25 @@ func (p *api) dispatch(ctx context.Context, req gossiprpc.Request, fl *flight) (
 		return p.produce(ctx, fl)
 	}
 	switch {
-	case fl.inline || req.DryRun:
+	case req.DryRun:
 		b, _, err := build(ctx)
 		return b, err
+	case fl.inline:
+		return p.dispatchInline(ctx, req, fl, build)
 	case req.Fresh:
 		return core.CachedBytesFresh(ctx, p.cache, fl.key, p.admitFor(req, fl), build)
 	default:
 		return core.CachedBytes(ctx, p.cache, fl.key, p.admitFor(req, fl), build)
 	}
+}
+
+// Recipes can loop an inline fetch, so unlike a dashboard dry run it spends rate budget.
+func (p *api) dispatchInline(ctx context.Context, req gossiprpc.Request, fl *flight, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
+	if err := p.admit(ctx, fl, req.IsPremium); err != nil {
+		return nil, err
+	}
+	b, _, err := build(ctx)
+	return b, err
 }
 
 func missingDefIdentity(req gossiprpc.Request) bool {
@@ -451,12 +477,7 @@ func (p *api) spendBudget(ctx context.Context, fl *flight, isPremium bool) error
 	if p.limiter == nil {
 		return nil
 	}
-	layers := []core.Buckets{
-		p.channelBuckets.WithKey("ratelimit:gossip:custom:ch:" + fl.channelID),
-		p.defBuckets.WithKey("ratelimit:gossip:custom:def:" + fl.def.Name),
-		p.hostBuckets.WithKey("ratelimit:gossip:custom:host:" + fl.host),
-	}
-	for _, b := range layers {
+	for _, b := range p.budgetLayers(fl) {
 		if err := b.Enforce(ctx, p.limiter, isPremium); err != nil {
 			return err
 		}
@@ -464,10 +485,23 @@ func (p *api) spendBudget(ctx context.Context, fl *flight, isPremium bool) error
 	return nil
 }
 
-func (p *api) admitFor(req gossiprpc.Request, fl *flight) func(context.Context) error {
-	if p.admit == nil {
-		return nil
+func (p *api) budgetLayers(fl *flight) []core.Buckets {
+	host := p.hostBuckets.WithKey("ratelimit:gossip:custom:host:" + fl.host)
+	if fl.inline {
+		return []core.Buckets{
+			p.recipeChannelBuckets.WithKey("ratelimit:gossip:custom:recipe:ch:" + fl.channelID),
+			p.recipeDefBuckets.WithKey("ratelimit:gossip:custom:recipe:def:" + fl.def.Name),
+			host,
+		}
 	}
+	return []core.Buckets{
+		p.channelBuckets.WithKey("ratelimit:gossip:custom:ch:" + fl.channelID),
+		p.defBuckets.WithKey("ratelimit:gossip:custom:def:" + fl.def.Name),
+		host,
+	}
+}
+
+func (p *api) admitFor(req gossiprpc.Request, fl *flight) func(context.Context) error {
 	return func(ctx context.Context) error {
 		return p.admit(ctx, fl, req.IsPremium)
 	}
@@ -506,23 +540,20 @@ func marshalSampled(status gossiprpc.FetchStatus, values []string, sample string
 	return b
 }
 
-func capValues(values []string) []string {
+func capValues(values []string, runes int) []string {
 	if len(values) > maxValues {
 		values = values[:maxValues]
 	}
 	for i, v := range values {
-		values[i] = truncateRunes(v, maxValueRunes)
+		values[i] = utils.TruncateRunes(v, runes)
 	}
 	return values
 }
 
-func truncateRunes(s string, n int) string {
-	if n <= 0 {
-		return ""
+// Only a live recipe saves its inline fetch; a dashboard rehearsal shows what a command would get.
+func (fl *flight) valueLimit(dryRun bool) int {
+	if fl.inline && !dryRun {
+		return automation.MaxSavedValueRunes
 	}
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n])
+	return maxValueRunes
 }

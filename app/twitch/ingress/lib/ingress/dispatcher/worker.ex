@@ -10,8 +10,13 @@ defmodule Ingress.Dispatcher.Worker do
 
   alias Ingress.{Dispatcher, Trace}
 
+  @hibernate_after_ms 1_000
+
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
+    GenServer.start_link(__MODULE__, opts,
+      name: Keyword.fetch!(opts, :name),
+      hibernate_after: Keyword.get(opts, :hibernate_after_ms, @hibernate_after_ms)
+    )
   end
 
   @impl true

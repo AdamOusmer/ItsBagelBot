@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/predicate"
 	"ItsBagelBot/app/db/modules/ent/quote"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
 )
@@ -75,6 +76,18 @@ func (r *Modules) upsertLoyalty(ctx context.Context, item data.ModuleChangedDTO)
 	return errors.New("loyalty module concurrent update; retry")
 }
 
+// SetCooldownMarkers lets DeleteAccount clear the channel's Valkey markers; a moved cooldown exists nowhere else.
+func (r *Modules) SetCooldownMarkers(markers *cooldownmarker.Store) {
+	r.cooldownMarkers = markers
+}
+
+func (r *Modules) eraseCooldownMarkers(ctx context.Context, id uint64) error {
+	if r.cooldownMarkers == nil {
+		return nil
+	}
+	return r.cooldownMarkers.Erase(ctx, id)
+}
+
 // DeleteAccount resolves the canonical incarnation before removing modules, quotes
 // or credentials. Captured row identities and versions fence concurrent updates;
 // rows inserted or replaced after the snapshot are left untouched.
@@ -96,10 +109,11 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 		return err
 	}
 	done()
-	if applied {
-		r.Invalidate(id)
+	if !applied {
+		return nil
 	}
-	return nil
+	r.Invalidate(id)
+	return r.eraseCooldownMarkers(ctx, id)
 }
 
 func (r *Modules) validateCapturedAccount(ctx context.Context, id uint64, epoch int64) error {
@@ -212,6 +226,9 @@ func (r *Modules) deleteAccountSnapshot(ctx context.Context, id uint64, epoch in
 		return false, err
 	}
 	if err := snapshot.deleteCapturedRows(ctx, tx); err != nil {
+		return false, err
+	}
+	if err := r.recipeState.deleteChannelRows(ctx, tx, id); err != nil {
 		return false, err
 	}
 	if err := tx.Commit(); err != nil {

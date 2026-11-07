@@ -5,15 +5,13 @@ export { default as MasterToggle } from '../components/MasterToggle.svelte';
 export { default as PermBadge } from '../components/PermBadge.svelte';
 export { default as RootShell } from '../components/RootShell.svelte';
 export { default as ConsoleShell } from '../components/ConsoleShell.svelte';
-export { default as AccountFoot } from '../components/AccountFoot.svelte';
 export { default as OperatorMenu } from '../components/OperatorMenu.svelte';
-export { default as Bolota } from '../components/Bolota.svelte';
 export { default as ImpersonationBanner } from '../components/ImpersonationBanner.svelte';
 export { default as MiniButton } from '../components/MiniButton.svelte';
 export { default as ErrorView } from '../components/ErrorView.svelte';
 export { default as NotificationBell } from '../components/NotificationBell.svelte';
 
-export { initLenis, magnetic, countUp } from './actions';
+export { initLenis, countUp } from './actions';
 export { customCursor } from './cursor';
 
 export { setI18n, getI18n, type I18n } from './i18n/context';
@@ -30,6 +28,7 @@ export {
   LOCALE_COOKIE,
   type Locale
 } from './i18n/messages';
+export * from './account-menu';
 export * from './types';
 export * from './module-index';
 export * from './module-copy';

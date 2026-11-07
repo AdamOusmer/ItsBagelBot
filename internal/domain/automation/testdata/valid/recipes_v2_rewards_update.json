@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "manual",
+    "params": {}
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "3f7a9c52-6d1e-4b8a-9f20-7c1d2e3a4b5c",
+        "enabled": false,
+        "cost": null,
+        "reset_on_stream_end": true
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "3f7a9c52-6d1e-4b8a-9f20-7c1d2e3a4b5c",
+        "enabled": null,
+        "cost": 10000000,
+        "reset_on_stream_end": false
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "8b2e4d10-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+        "enabled": true,
+        "cost": 1,
+        "reset_on_stream_end": true
+      }
+    }
+  ]
+}

@@ -93,10 +93,9 @@ describe('decode', () => {
       disconnect() {}
     } as unknown as typeof IntersectionObserver;
 
-    const el = { textContent: 'tiny', dataset: { decode: 'soupdream' } } as unknown as HTMLElement;
-    const root = { querySelectorAll: () => [el] } as unknown as ParentNode;
+    const el = { textContent: 'soupdream' } as unknown as HTMLElement;
     const t0 = performance.now();
-    const stop = observeDecode(root, { charset: 'z', durationMs: 900 });
+    const stop = observeDecode([el], { charset: 'z', durationMs: 900 });
     frame(t0);
     expect(el.textContent).toBe('zzzzzzzzz');
     stop();

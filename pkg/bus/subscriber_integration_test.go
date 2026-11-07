@@ -195,10 +195,18 @@ func (s durableIntegrationScenario) verifyRedeliveryBudgetTerminates() {
 	if _, err := s.js.PublishMsg(wire); err != nil {
 		s.t.Fatal(err)
 	}
-	if !receiveIntegrationMessage(s.t, s.messages).Nack() {
+	first := receiveIntegrationMessage(s.t, s.messages)
+	if first.FinalDelivery() {
+		s.t.Fatal("first delivery claims to be the last")
+	}
+	if !first.Nack() {
 		s.t.Fatal("term message first delivery could not nack")
 	}
-	if !receiveIntegrationMessage(s.t, s.messages).Nack() {
+	last := receiveIntegrationMessage(s.t, s.messages)
+	if !last.FinalDelivery() {
+		s.t.Fatal("last delivery does not know it is the last")
+	}
+	if !last.Nack() {
 		s.t.Fatal("term message final delivery could not nack")
 	}
 	s.waitForAckPending(0)

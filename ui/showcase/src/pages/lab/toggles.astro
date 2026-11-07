@@ -56,8 +56,8 @@ const options = [
     }
 
     .lab-c .bb-switch::after { top: 3px; left: 3px; }
-    .lab-c .bb-switch[data-state='on']::after { left: calc(var(--switch-w) - var(--switch-knob) - 3px); background: var(--bb-green-glow); box-shadow: none; }
-    .lab-c .bb-switch[data-state='on'],
+    .lab-c .bb-switch[aria-checked='true']::after { left: calc(var(--switch-w) - var(--switch-knob) - 3px); background: var(--bb-green-glow); box-shadow: none; }
+    .lab-c .bb-switch[aria-checked='true'],
     .lab-c .bb-check__input:checked + .bb-check__box { background: var(--bb-white); box-shadow: none; }
     .lab-c .bb-check__box::after { background: var(--bb-green-glow); }
 
@@ -92,11 +92,11 @@ const options = [
 
     :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch:active:not(:disabled) { --knob-stretch: 5px; }
 
-    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch[data-state='on']::after {
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch[aria-checked='true']::after {
       left: calc(var(--switch-w) - var(--switch-knob) - var(--knob-stretch) - var(--knob-pad));
     }
 
-    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch:hover:not(:disabled):not([data-state='on']) {
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch:hover:not(:disabled):not([aria-checked='true']) {
       background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 18%);
     }
 
@@ -125,15 +125,15 @@ const options = [
       background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 18%);
     }
 
-    .lab-c2 .bb-switch[data-state='on'],
+    .lab-c2 .bb-switch[aria-checked='true'],
     .lab-c2 .bb-check__input:checked + .bb-check__box {
       background: var(--bb-white);
       box-shadow: inset 0 -1px 2px rgba(var(--bb-shadow-rgb), 0.12);
     }
 
-    .lab-c2 .bb-switch[data-state='on']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
+    .lab-c2 .bb-switch[aria-checked='true']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
 
-    .lab-c2 .bb-switch[data-state='on']::after {
+    .lab-c2 .bb-switch[aria-checked='true']::after {
       background: linear-gradient(180deg, color-mix(in srgb, var(--bb-green-glow) 80%, #fff), var(--bb-green-glow) 60%);
       box-shadow:
         inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.35),
@@ -146,15 +146,15 @@ const options = [
       inset: 3.5px;
     }
 
-    .lab-c3 .bb-switch[data-state='on'],
+    .lab-c3 .bb-switch[aria-checked='true'],
     .lab-c3 .bb-check__input:checked + .bb-check__box {
       background: var(--bb-white);
       box-shadow: inset 0 -1px 2px rgba(var(--bb-shadow-rgb), 0.12);
     }
 
-    .lab-c3 .bb-switch[data-state='on']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
+    .lab-c3 .bb-switch[aria-checked='true']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
 
-    .lab-c3 .bb-switch[data-state='on']::after {
+    .lab-c3 .bb-switch[aria-checked='true']::after {
       background:
         radial-gradient(circle at 50% 50%, var(--bb-green-glow) 0 3px, rgba(var(--bb-green-glow-rgb), 0.35) 4.5px, transparent 7px),
         linear-gradient(180deg, #2a2a2f, var(--bb-ink));
@@ -163,24 +163,24 @@ const options = [
 
     .lab-c3 .bb-check__box::after { background: var(--bb-ink); }
 
-    .lab-g1 .bb-switch[data-state='on'],
+    .lab-g1 .bb-switch[aria-checked='true'],
     .lab-g1 .bb-check__input:checked + .bb-check__box {
       background: var(--bb-gold-gradient);
       box-shadow: inset 0 1px 1px rgba(var(--bb-white-pure-rgb), 0.35), inset 0 -1px 2px rgba(var(--bb-tan-deep-rgb), 0.5);
     }
 
-    .lab-g1 .bb-switch[data-state='on']:hover:not(:disabled) { filter: brightness(1.05); }
+    .lab-g1 .bb-switch[aria-checked='true']:hover:not(:disabled) { filter: brightness(1.05); }
     .lab-g1 .bb-check__box::after { background: var(--bb-ink); }
 
-    :is(.lab-g2, .lab-g3) .bb-switch[data-state='on'],
+    :is(.lab-g2, .lab-g3) .bb-switch[aria-checked='true'],
     :is(.lab-g2, .lab-g3) .bb-check__input:checked + .bb-check__box {
       background: var(--bb-white);
       box-shadow: inset 0 -1px 2px rgba(var(--bb-shadow-rgb), 0.12);
     }
 
-    :is(.lab-g2, .lab-g3) .bb-switch[data-state='on']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
+    :is(.lab-g2, .lab-g3) .bb-switch[aria-checked='true']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
 
-    .lab-g2 .bb-switch[data-state='on']::after {
+    .lab-g2 .bb-switch[aria-checked='true']::after {
       background: var(--bb-gold-gradient);
       box-shadow:
         inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.5),
@@ -190,7 +190,7 @@ const options = [
 
     .lab-g2 .bb-check__box::after { background: var(--bb-tan-deep); inset: 3.5px; }
 
-    .lab-g3 .bb-switch[data-state='on']::after {
+    .lab-g3 .bb-switch[aria-checked='true']::after {
       background:
         radial-gradient(circle at 50% 50%, var(--bb-tan) 0 3px, rgba(var(--bb-tan-rgb), 0.35) 4.5px, transparent 7px),
         linear-gradient(180deg, #2a2a2f, var(--bb-ink));
@@ -199,15 +199,15 @@ const options = [
 
     .lab-g3 .bb-check__box::after { background: var(--bb-ink); }
 
-    .lab-g4 .bb-switch[data-state='on'],
+    .lab-g4 .bb-switch[aria-checked='true'],
     .lab-g4 .bb-check__input:checked + .bb-check__box {
       background: var(--bb-tan-low);
       box-shadow: inset 0 0 0 1px rgba(var(--bb-tan-rgb), 0.22), inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.5);
     }
 
-    .lab-g4 .bb-switch[data-state='on']:hover:not(:disabled) { background: color-mix(in srgb, var(--bb-tan-low), var(--bb-tan) 10%); }
+    .lab-g4 .bb-switch[aria-checked='true']:hover:not(:disabled) { background: color-mix(in srgb, var(--bb-tan-low), var(--bb-tan) 10%); }
 
-    .lab-g4 .bb-switch[data-state='on']::after {
+    .lab-g4 .bb-switch[aria-checked='true']::after {
       background: var(--bb-gold-gradient);
       box-shadow:
         inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.5),

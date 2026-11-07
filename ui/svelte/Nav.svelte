@@ -61,12 +61,11 @@
   });
 
   $effect(() => {
-    const root = navEl?.parentElement;
-    if (!root) return;
-    const toggle = root.querySelector<HTMLElement>('[data-menu-toggle]');
-    const menuEl = root.querySelector<HTMLElement>('[data-mobile-menu]');
-    const curvePath = root.querySelector<SVGPathElement>('[data-menu-curve-path]');
-    const logo = root.querySelector<HTMLAnchorElement>('[data-home-logo]');
+    if (!navEl) return;
+    const toggle = navEl.querySelector<HTMLElement>('.bb-hamburger');
+    const menuEl = document.getElementById(menuId);
+    const curvePath = menuEl?.querySelector<SVGPathElement>('.bb-mobile-menu__curve-path');
+    const logo = navEl.querySelector<HTMLAnchorElement>('.bb-nav__brand');
 
     const disposers: (() => void)[] = [];
     if (toggle && menuEl && curvePath) {
@@ -100,7 +99,6 @@
       logoAlt={brand.logoAlt}
       size="sm"
       logoShape={brand.logoShape}
-      data-home-logo
     /><ul class="bb-nav__links"
       >{#each links as link (link.href)}<li
           ><NavLink

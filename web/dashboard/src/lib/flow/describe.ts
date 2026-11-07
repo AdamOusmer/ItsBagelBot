@@ -4,6 +4,7 @@ import type { MessageKey } from '@bagel/kit';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
+import { awaitingSetup, configText } from './setup';
 
 const COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
   gte: 'flows.line.compareGte',
@@ -30,7 +31,7 @@ const SUBS: Readonly<Record<string, MessageKey>> = Object.freeze({
 
 const text = (node: FlowNode, key: string) => {
   const v = node.config[key];
-  return v === undefined || v === false ? '' : String(v).trim();
+  return v === false ? '' : configText(node, key).trim();
 };
 
 const num = (node: FlowNode, key: string) => {
@@ -90,14 +91,37 @@ function compareLine(t: Translate, n: FlowNode): string {
   return Object.hasOwn(COMPARISONS, op) ? t(COMPARISONS[op]!, { left, right }) : t('flows.line.compareIs', { left, right });
 }
 
+const minutes = (t: Translate, count: number) => (count === 1 ? t('flows.line.minutesOne', { count }) : t('flows.line.minutesMany', { count }));
+
+const hours = (t: Translate, count: number) => (count === 1 ? t('flows.line.hoursOne', { count }) : t('flows.line.hoursMany', { count }));
+
+const days = (t: Translate, count: number) => (count === 1 ? t('flows.line.daysOne', { count }) : t('flows.line.daysMany', { count }));
+
+function cooldownAmount(t: Translate, total: number): string {
+  if (total % 86_400 === 0) return days(t, total / 86_400);
+  if (total % 3600 === 0) return hours(t, total / 3600);
+  if (total % 60 === 0) return minutes(t, total / 60);
+  return seconds(t, total);
+}
+
 function cooldownLine(t: Translate, n: FlowNode): string {
   return given(num(n, 'seconds'), (count) =>
-    t(n.config.perUser ? 'flows.line.cooldownViewer' : 'flows.line.cooldown', { amount: seconds(t, count) })
+    t(n.config.perUser ? 'flows.line.cooldownViewer' : 'flows.line.cooldown', { amount: cooldownAmount(t, count) })
   );
+}
+
+function varCheckLine(t: Translate, n: FlowNode): string {
+  const spec = specFor(n.type)!;
+  const name = text(n, 'name');
+  if (!name) return '';
+  if (text(n, 'op') === 'exists') return t('flows.line.varExists', { name });
+  return t('flows.line.varCheck', { name, op: optionLabel(t, spec, n, 'op'), value: text(n, 'value') });
 }
 
 function conditionLine(t: Translate, n: FlowNode): string {
   switch (n.type) {
+    case 'cond.var':
+      return varCheckLine(t, n);
     case 'cond.role':
       return roleLine(t, text(n, 'level'));
     case 'cond.user':
@@ -113,13 +137,6 @@ function conditionLine(t: Translate, n: FlowNode): string {
   }
 }
 
-function discordLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
-  const channel = optionLabel(t, spec, n, 'channel');
-  const message = text(n, 'message');
-  if (!message) return given(channel, (name) => t('flows.line.discordPost', { channel: name }));
-  return channel ? t('flows.line.discordSay', { channel, message }) : message;
-}
-
 function pointsLine(t: Translate, n: FlowNode): string {
   const amount = Number(n.config.amount);
   if (!Number.isFinite(amount) || amount === 0) return '';
@@ -132,12 +149,56 @@ function lightsLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   return given(optionLabel(t, spec, n, 'scene'), (scene) => t('flows.line.lightsScene', { light, scene }));
 }
 
+function varAddLine(t: Translate, n: FlowNode): string {
+  const name = text(n, 'name');
+  const amount = Number(n.config.amount) || 0;
+  if (!name || amount === 0) return '';
+  return amount > 0 ? t('flows.line.varAdd', { name, amount }) : t('flows.line.varTake', { name, amount: -amount });
+}
+
+function varLine(t: Translate, n: FlowNode): string {
+  const name = text(n, 'name');
+  switch (n.type) {
+    case 'reply.var_set':
+      return given(name, (shown) => t('flows.line.varSet', { name: shown, value: text(n, 'value') }));
+    case 'reply.var_add':
+      return varAddLine(t, n);
+    case 'reply.var_delete':
+      return given(name, (shown) => t('flows.line.varDelete', { name: shown }));
+    default:
+      return '';
+  }
+}
+
+function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  switch (n.type) {
+    case 'reply.text':
+      return given(text(n, 'saveAs'), (name) => t('flows.line.textSaved', { name, op: optionLabel(t, spec, n, 'op') }));
+    case 'reply.math':
+      return text(n, 'expression');
+    case 'reply.loop':
+      return given(text(n, 'times'), (times) => t('flows.line.loop', { times }));
+    case 'reply.http_get':
+    case 'reply.http_post':
+      return text(n, 'url');
+    default:
+      return varLine(t, n);
+  }
+}
+
+function rewardUpdateLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  const reward = optionLabel(t, spec, n, 'reward');
+  return given(reward, (name) => (n.config.reset === true ? t('flows.line.rewardUpdateBack', { reward: name }) : t('flows.line.rewardUpdate', { reward: name })));
+}
+
+function moduleLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  return n.type === 'reply.reward_update' ? rewardUpdateLine(t, n, spec) : dataLine(t, n, spec);
+}
+
 function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.chat':
       return text(n, 'message');
-    case 'reply.discord':
-      return discordLine(t, n, spec);
     case 'reply.points':
       return pointsLine(t, n);
     case 'reply.counter':
@@ -147,7 +208,7 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
     case 'reply.wait':
       return given(num(n, 'seconds'), (count) => t('flows.line.pause', { amount: seconds(t, count) }));
     default:
-      return '';
+      return moduleLine(t, n, spec);
   }
 }
 
@@ -166,5 +227,6 @@ export function portLabel(t: Translate, node: FlowNode, id: string): string {
 export function describe(t: Translate, node: FlowNode): string {
   const spec = specFor(node.type);
   if (!spec) return '';
+  if (awaitingSetup(node)) return t('flows.setup.line');
   return lineFor(t, node, spec) || stepSummary(t, spec);
 }

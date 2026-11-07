@@ -6,17 +6,17 @@ package engine
 import (
 	"errors"
 	"strconv"
-	"strings"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/automation"
+	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 )
 
 const (
-	discordMessageRunes  = 2000
 	customPostEndpoint   = "post"
 	goveeProvider        = "govee"
 	goveeControlEndpoint = "control"
@@ -27,15 +27,11 @@ type actionTarget struct {
 	login string
 }
 
-func normalizeLogin(s string) string {
-	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(s), "@"))
-}
-
 func (x *actionExec) target(template string, selfWhenEmpty bool) (actionTarget, error) {
-	login := normalizeLogin(x.expand(template))
+	login := scope.NormalizeLogin(x.expand(template))
 	viewer := x.run.Viewer
 	if login == "" && selfWhenEmpty {
-		login = normalizeLogin(viewer.Login)
+		login = scope.NormalizeLogin(viewer.Login)
 		if viewer.ID == 0 {
 			return actionTarget{}, failure("no_viewer")
 		}
@@ -44,7 +40,7 @@ func (x *actionExec) target(template string, selfWhenEmpty bool) (actionTarget, 
 	if login == "" {
 		return actionTarget{}, failure("empty_login")
 	}
-	if viewer.ID != 0 && login == normalizeLogin(viewer.Login) {
+	if viewer.ID != 0 && login == scope.NormalizeLogin(viewer.Login) {
 		return actionTarget{id: viewer.ID, login: login}, nil
 	}
 	return x.lookupLogin(login)
@@ -71,7 +67,7 @@ func (x *actionExec) lookupLogin(login string) (actionTarget, error) {
 func (x *actionExec) once(s step, do func() error) error {
 	dup, release := x.p.dedup.Claim(x.ctx, EffectRef{
 		Identity: x.identity(),
-		Effect:   s.EffectKey,
+		Effect:   s.EffectKey + x.iter,
 	})
 	if dup {
 		return skipped("duplicate")
@@ -81,6 +77,23 @@ func (x *actionExec) once(s step, do func() error) error {
 		return err
 	}
 	return nil
+}
+
+// onceRefusable claims the effect once, like once, but releases the claim only on a clean refusal. A store failure is
+// ambiguous about whether it already happened, so it keeps the claim and a redelivery cannot double the effect.
+func (x *actionExec) onceRefusable(s step, do func() error) error {
+	dup, release := x.p.dedup.Claim(x.ctx, EffectRef{
+		Identity: x.identity(),
+		Effect:   s.EffectKey + x.iter,
+	})
+	if dup {
+		return skipped("duplicate")
+	}
+	err := do()
+	if status, _ := classify(err); status == automationrpc.StatusSkipped {
+		release()
+	}
+	return err
 }
 
 func storeResult(err error, found bool) error {
@@ -163,9 +176,6 @@ func (x *actionExec) lightsRefusal(p automation.LightsAction) error {
 	case !hasLightTarget(p):
 		return failure("no_device")
 	}
-	if ok, err := x.p.automations.Limiter.AllowLights(x.ctx, x.run.BroadcasterID); err == nil && !ok {
-		return limited("lights_rate")
-	}
 	return nil
 }
 
@@ -178,29 +188,6 @@ func (x *actionExec) sendLights(req gossiprpc.Request) error {
 		return failure("gossip_outdated")
 	}
 	return nil
-}
-
-func (x *actionExec) discordPost(s step, p automation.DiscordPostAction) error {
-	if x.p.discord == nil {
-		return failure("no_discord")
-	}
-	text := truncateRunes(x.expand(p.Text), discordMessageRunes)
-	if strings.TrimSpace(text) == "" {
-		return skipped("empty")
-	}
-	req := outgressrpc.DiscordPostRequest{UserID: x.bid, GuildID: p.GuildID, ChannelID: p.ChannelID, Content: text}
-	return x.once(s, func() error {
-		reply, err := x.p.discord.Post(x.ctx, req)
-		switch {
-		case err != nil:
-			return failure("discord_error")
-		case reply.Code != outgressrpc.CodeOK:
-			return failure(string(reply.Code))
-		case !reply.Checked:
-			return failure("outgress_outdated")
-		}
-		return nil
-	})
 }
 
 func lightsRequest(channelID string, p automation.LightsAction) gossiprpc.Request {
@@ -226,19 +213,41 @@ func gossipFailure(err error) error {
 
 func (x *actionExec) httpPost(s step, p automation.HTTPPostAction) error {
 	if x.p.gossip == nil {
-		return failure("no_gossip")
+		return x.settleFetch(s, p.SaveAs, fetchResult{failure: "no_gossip"})
 	}
-	body := x.expand(p.Body)
-	return x.once(s, func() error {
-		var reply gossiprpc.CustomFetchReply
-		req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, Def: &gossiprpc.FetchDef{URL: p.URL}, Body: body}
-		route := GossipRoute{Provider: customFetchProvider, Endpoint: customPostEndpoint}
-		if err := x.p.gossip.Call(x.ctx, route, req, &reply); err != nil {
-			return failure("gossip_error")
-		}
-		if reply.Status != gossiprpc.FetchOK {
-			return failure(string(reply.Status))
+	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{URL: p.URL}, Body: x.expand(p.Body), CaptureBody: p.SaveAs != ""}
+	var result fetchResult
+	err := x.once(s, func() error {
+		result = x.callFetch(customPostEndpoint, req)
+		if result.failure != "" {
+			return failure(result.failure)
 		}
 		return nil
 	})
+	if status, _ := classify(err); status == automationrpc.StatusSkipped {
+		return err
+	}
+	return x.settleFetch(s, p.SaveAs, result)
+}
+
+func (x *actionExec) httpGet(s step, p automation.HTTPGetAction) error {
+	target := x.expand(p.URL)
+	if validate.FetchURL(target) != nil {
+		return x.settleFetch(s, p.SaveAs, fetchResult{failure: string(gossiprpc.FetchBadDef)})
+	}
+	if x.p.gossip == nil {
+		return x.settleFetch(s, p.SaveAs, fetchResult{failure: "no_gossip"})
+	}
+	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{
+		Name: "get:" + x.bid, URL: target, JSONPath: p.JSONPath, IsActive: true,
+	}}
+	return x.settleFetch(s, p.SaveAs, x.callFetch(customFetchEndpoint, req))
+}
+
+func (x *actionExec) callFetch(endpoint string, req gossiprpc.Request) fetchResult {
+	var reply gossiprpc.CustomFetchReply
+	if err := x.p.gossip.Call(x.ctx, GossipRoute{Provider: customFetchProvider, Endpoint: endpoint}, req, &reply); err != nil {
+		return fetchResult{failure: "gossip_error"}
+	}
+	return replyResult(reply.Status, reply.Values)
 }

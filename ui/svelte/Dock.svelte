@@ -78,11 +78,9 @@
   >{/snippet}
 
 {#snippet link(item: UiNavLink, fold: boolean)}<a
-    class="bb-dock-item"
+    class={['bb-dock-item', fold && 'bb-dock-item--fold']}
     href={item.href}
-    data-active={item.current ? '' : undefined}
     aria-current={item.current ? 'page' : undefined}
-    data-dock-fold={fold ? '' : undefined}
     onclick={closeOnNav}
     >{#if item.icon}<Icon name={item.icon} size={18} />{/if}{@render caption(item.label)}{#if item.count}<span
         class="bb-dock-item__count"
@@ -94,8 +92,7 @@
     class={more ? 'bb-dock__group bb-dock__more' : 'bb-dock__group'}
     ><button
       type="button"
-      class="bb-dock-item"
-      data-active={groupActive(group) ? '' : undefined}
+      class={['bb-dock-item', groupActive(group) && 'is-active']}
       aria-expanded={openGroup === group.label}
       aria-haspopup="menu"
       onclick={() => toggleGroup(group.label ?? '')}
@@ -108,7 +105,6 @@
             class="bb-dock__pop-item"
             href={item.href}
             role="menuitem"
-            data-active={item.current ? '' : undefined}
             aria-current={item.current ? 'page' : undefined}
             onclick={closeOnNav}
             >{#if item.icon}<Icon name={item.icon} />{/if}<span>{item.label}</span

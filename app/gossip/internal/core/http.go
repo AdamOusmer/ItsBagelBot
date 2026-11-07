@@ -435,19 +435,25 @@ func (c *HTTPClient) openChecked(ctx context.Context, r Request) (*http.Response
 }
 
 func (c *HTTPClient) SendDiscard(ctx context.Context, r Request, drainBytes int64) error {
+	_, err := c.SendCapture(ctx, r, drainBytes)
+	return err
+}
+
+// SendCapture returns at most limitBytes of the response body, whatever its content type.
+func (c *HTTPClient) SendCapture(ctx context.Context, r Request, limitBytes int64) ([]byte, error) {
 	resp, err := c.openChecked(ctx, r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, drainBytes))
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, limitBytes))
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return &UpstreamError{
+		return nil, &UpstreamError{
 			Status:     resp.StatusCode,
 			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
 		}
 	}
-	return nil
+	return body, nil
 }
 
 func vetBoundedResponse(resp *http.Response) ([]byte, error) {

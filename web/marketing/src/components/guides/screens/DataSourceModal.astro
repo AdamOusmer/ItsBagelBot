@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Button from '@bagel/ui/astro/Button.astro';
+import Mark from '../Mark.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import Input from '@bagel/ui/astro/Input.astro';
 import JsonTree from '@bagel/ui/astro/JsonTree.astro';
@@ -66,16 +67,16 @@ const tree = [
     <Modal title={L.panelHead} closeLabel={L.close} titleId="gs-dsm-title">
         <p class="gs-hint">{L.intro}</p>
         <Field label={L.fieldDisplayName}>
-            <Input fill inert value={L.displayNameValue}><i slot="trailing" class="gs-mark" data-note="1"></i></Input>
+            <Input fill inert value={L.displayNameValue}><Fragment slot="trailing"><Mark n={1} /></Fragment></Input>
         </Field>
         <Field label={L.fieldSlug}>
-            <span class="bb-input gs-value" data-focus>
-                <span class="gs-var">{L.slugValue}</span><i class="gs-mark" data-note="2"></i>
+            <span class="bb-input bb-input--focus gs-value">
+                <span class="gs-var">{L.slugValue}</span><Mark n={2} />
             </span>
         </Field>
         <p class="gs-hint"><Fragment set:html={L.slugHint} /></p>
         <Field label={L.fieldUrl}>
-            <Input fill inert mono value={L.urlValue}><i slot="trailing" class="gs-mark" data-note="3"></i></Input>
+            <Input fill inert mono value={L.urlValue}><Fragment slot="trailing"><Mark n={3} /></Fragment></Input>
         </Field>
         <Field label={L.fieldAuth}>
             <Input fill inert placeholder={L.authValue} />
@@ -83,14 +84,14 @@ const tree = [
         <div class="gs-actions">
             <Button variant="ghost" size="sm">{L.fetchSample}</Button>
             <Text as="span" size="xs"><TextLink variant="inline" href="#" tabindex={-1}>{L.pasteInstead}</TextLink></Text>
-            <i class="gs-mark" data-note="4"></i>
+            <Mark n={4} />
         </div>
         <p class="gs-hint">{L.pickPrompt}</p>
         <Well container class="dsm__tree"><JsonTree nodes={tree} /></Well>
         <div class="gs-actions">
             <Tag tone="live" mark="solid">{L.picked}</Tag>
             <Text as="span" size="xs"><TextLink variant="inline" href="#" tabindex={-1}>{L.wholeResponse}</TextLink></Text>
-            <i class="gs-mark" data-note="5"></i>
+            <Mark n={5} />
         </div>
         <div class="bb-modal__actions">
             <Button variant="ghost" size="sm">{L.cancel}</Button>

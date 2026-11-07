@@ -42,9 +42,6 @@ func (r *ValkeyReputation) Score(ctx context.Context, chatterID string) int {
 	if chatterID == "" {
 		return 0
 	}
-	n, err := r.client.Do(ctx, r.client.B().Get().Key(repKey(chatterID)).Build()).AsInt64()
-	if err != nil {
-		return 0
-	}
+	n, _ := pkg_valkey.GetInt(ctx, r.client, repKey(chatterID))
 	return int(n)
 }

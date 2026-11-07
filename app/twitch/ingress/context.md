@@ -36,7 +36,7 @@ It obtains broadcaster status through RPC, never by reading MySQL.
 | Conduit reconciliation and placement | [conduit_manager.ex](lib/ingress/conduit_manager.ex), [shard_distribution.ex](lib/ingress/shard_distribution.ex) |
 | Event shape and priority | [pipeline.ex](lib/ingress/pipeline.ex): `handle_event/2`, `route/2`, `decide/3`, `emote_spans/1` |
 | Duplicate chat handling | [squash.ex](lib/ingress/squash.ex), [squash/pool.ex](lib/ingress/squash/pool.ex) |
-| Bounded delivery and broker verdicts | [dispatcher.ex](lib/ingress/dispatcher.ex), [nats.ex](lib/ingress/nats.ex), [publisher.ex](lib/ingress/nats/publisher.ex), [wire.ex](lib/ingress/nats/publisher/wire.ex) |
+| Bounded delivery and broker verdicts | [dispatcher.ex](lib/ingress/dispatcher.ex), [scaler.ex](lib/ingress/dispatcher/scaler.ex), [nats.ex](lib/ingress/nats.ex), [publisher.ex](lib/ingress/nats/publisher.ex), [wire.ex](lib/ingress/nats/publisher/wire.ex) |
 | Status lookup/invalidation | [broadcaster_cache.ex](lib/ingress/broadcaster_cache.ex), [cache_invalidator.ex](lib/ingress/cache_invalidator.ex) |
 | Trials and registration eviction | [trial_receiver.ex](lib/ingress/trial_receiver.ex), [trials.ex](lib/ingress/trials.ex), [trial_user_changed.ex](lib/ingress/trial_user_changed.ex) |
 | Capacity and scaling | [capacity.ex](lib/ingress/capacity.ex), [shard_scaler.ex](lib/ingress/shard_scaler.ex), [shard_scaler/policy.ex](lib/ingress/shard_scaler/policy.ex) |

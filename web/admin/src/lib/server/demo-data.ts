@@ -127,6 +127,10 @@ export function demoEnrollment(days = 30): EnrollmentWire {
 
 export const sampleEnrollment: EnrollmentWire = demoEnrollment(30);
 
+// The two channels the demo directory treats as on air, so the live filter
+// has something to show without a Valkey scan.
+export const sampleLiveUserIDs = new Set<number>([44322190, 23910044]);
+
 export const sampleUsers: AdminUserWire[] = [
   { id: 44322190, username: 'itsmavey', is_active: true, status: 'vip', banned: false, creator_code: 'MAVEY10', created_at: new Date(Date.now() - 400 * 864e5).toISOString(), updated_at: new Date().toISOString() },
   { id: 81002934, username: 'ferret_king', is_active: true, status: 'paid', banned: false, subscription_expires_at: new Date(Date.now() + 21 * 864e5).toISOString(), subscription_source: 'tebex', created_at: new Date(Date.now() - 90 * 864e5).toISOString(), updated_at: new Date().toISOString() },

@@ -14,6 +14,7 @@ type entry struct {
 	decode func(raw codec.RawMessage) (any, error)
 	nested func(raw codec.RawMessage) [][]Action
 	plan   func(params any) nesting
+	effect bool
 }
 
 type nesting struct {
@@ -37,7 +38,7 @@ var requiredTrigger = map[string]string{
 
 var actionRole = map[string]int{
 	"timeout": roleModerator, "ban": roleModerator, "warn": roleModerator, "shield": roleModerator,
-	"delete_message": roleModerator,
+	"delete_message": roleModerator, "cooldown_add": roleModerator,
 }
 
 func register[T any](check func(chk, T)) entry {
@@ -73,6 +74,12 @@ func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
 	return e
 }
 
+func registerNestedEffect[T any](check func(chk, T), nested func(T) nesting) entry {
+	e := registerNested(check, nested)
+	e.effect = true
+	return e
+}
+
 func paramsCode(err error) issueCode {
 	if codec.IsUnknownField(err) {
 		return CodeUnknownField
@@ -98,9 +105,6 @@ func (c chk) typed(reg map[string]entry, t typedParams) {
 }
 
 func (c chk) conditions(list []Condition) {
-	if !c.count("conditions", quantity(len(list)), upTo(MaxConditions)) {
-		return
-	}
 	for i, cond := range list {
 		c.sub("conditions").elem(index(i)).typed(conditionRegistry, typedParams(cond))
 	}
@@ -120,11 +124,13 @@ func (c chk) action(i index, a Action) {
 	if c.permMissing(a.Type) {
 		at.add("type", CodePermRequired)
 	}
-	if c.depth > 0 && actionRegistry[a.Type].nested != nil {
-		at.add("type", CodeNesting)
-		return
-	}
 	at.typed(actionRegistry, typedParams{Type: a.Type, Params: a.Params})
+}
+
+// IsBranching reports a step that only routes to other steps, so it does not count toward MaxActions.
+func IsBranching(typ string) bool {
+	e := actionRegistry[typ]
+	return e.nested != nil && !e.effect
 }
 
 func (c chk) triggerMismatch(typ string) bool {
@@ -178,6 +184,7 @@ func init() {
 		"arg_regex": register(checkArgRegex),
 		"category":  register(checkCategory),
 		"compare":   register(checkCompare),
+		"var":       register(checkVarCondition),
 	}
 	actionRegistry = map[string]entry{
 		"chat":           register(checkText),
@@ -200,13 +207,22 @@ func init() {
 		"counter_add":    register(checkCounterAdd),
 		"counter_set":    register(checkCounterSet),
 		"redemption":     register(checkRedemption),
+		"reward_update":  register(checkRewardUpdate),
 		"delay":          register(checkDelay),
 		"random_pick":    registerNested(checkRandomPick, randomPickBranches),
+		"parallel":       registerNested(checkParallel, parallelBranches),
 		"run":            register(checkRun),
 		"if":             registerNested(checkIf, ifBranches),
-		"discord_post":   register(checkDiscordPost),
-		"http_post":      register(checkHTTPPost),
+		"loop":           registerNested(checkLoop, loopBranches),
+		"http_post":      registerNestedEffect(checkHTTPPost, httpPostBranches),
+		"http_get":       registerNestedEffect(checkHTTPGet, httpGetBranches),
 		"lights":         register(checkLights),
 		"stop":           register(checkEmpty),
+		"var_set":        register(checkVarSet),
+		"var_add":        register(checkVarAdd),
+		"var_delete":     register(checkVarDelete),
+		"text":           register(checkTextStep),
+		"math":           register(checkMath),
+		"cooldown_add":   register(checkCooldownAdd),
 	}
 }

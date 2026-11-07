@@ -28,7 +28,7 @@
   "faqQ1": "Welche Govee-Lichter funktionieren?",
   "faqA1": "Verwende ein Licht mit Farbunterstützung, das auf der Govee-Seite erscheint, nachdem du deinen API-Schlüssel eingetragen hast. Wähle ein Gerät aus dieser Liste, bevor du seine Belohnung erstellst.",
   "faqQ2": "Kann der Chat mehr als ein Licht steuern?",
-  "faqA2": "Ja. Erstelle auf der Govee-Seite für jedes Licht eine Belohnung. Zuschauer wählen das Licht, indem sie dessen Belohnung einlösen.",
+  "faqA2": "Ja. Erstelle auf der Govee-Seite für jedes Licht eine Belohnung oder gruppiere Lichter, damit eine Belohnung alle ändert. Zuschauer wählen, indem sie eine Belohnung einlösen.",
   "faqQ3": "Was passiert, wenn ein Zuschauer eine Farbe tippt, die der Bot nicht kennt?",
   "faqA3": "Der Bot erstattet die Punkte und schlägt einen englischen Farbnamen wie blue oder einen Hex-Code wie #00ccff vor.",
   "faqQ4": "Ist mein Govee-Schlüssel sicher?",

@@ -39,6 +39,7 @@ type Definition struct {
 	Trigger    Trigger     `json:"trigger"`
 	Conditions []Condition `json:"conditions"`
 	Actions    []Action    `json:"actions"`
+	Queue      string      `json:"queue,omitempty"`
 }
 
 type Trigger struct {

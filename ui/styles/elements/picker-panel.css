@@ -25,7 +25,6 @@
     border-radius: var(--bb-radius-md);
     box-shadow: var(--bb-depth-3);
   }
-  :root[data-theme='light'] :is(.bb-picker-panel--dropdown, .bb-picker-panel--static) { box-shadow: 0 12px 32px rgba(var(--bb-ink-rgb), 0.15); }
 
   .bb-picker-panel__shell { position: fixed; inset: 0; }
   .bb-picker-panel__scrim {
@@ -144,7 +143,7 @@
     background: color-mix(in srgb, var(--bb-status-danger) 12%, transparent);
   }
 
-  .bb-picker-option__remove[data-armed] {
+  .bb-picker-option__remove.is-armed {
     color: var(--bb-status-danger);
     background: color-mix(in srgb, var(--bb-status-danger) 16%, transparent);
   }

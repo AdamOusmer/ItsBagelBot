@@ -30,8 +30,8 @@
 
   .bb-round-badge:hover,
   .bb-var-card__plus:hover,
-  :is(a, button, [data-badge-host]):hover .bb-round-badge,
-  :is(a, button, [data-badge-host]):hover .bb-var-card__plus {
+  :is(a, button, .bb-timeline__item--badge-hover):hover .bb-round-badge,
+  :is(a, button, .bb-timeline__item--badge-hover):hover .bb-var-card__plus {
     background: var(--bb-white);
     color: var(--bb-black);
   }

@@ -1,20 +1,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { ownedCooldownNames } from '@bagel/kit/automations';
 import { logger } from '@bagel/kit/server/logger';
-import { unavailable, type ChoiceList, type ChoiceOption, type ChoiceSource } from '#lib/flow/choices';
+import { unavailable, type ChoiceList, type ChoiceSource } from '#lib/flow/choices';
 import { specFor } from '#lib/flow/model';
 import { readRewards } from './channelpoints-store';
-import { guildLayout, listGuilds, type DiscordEntry, type DiscordGuildSummary } from './discord-store';
+import { listAutomations } from './automations-store';
 import { goveeStore, type GoveeTarget } from './govee-store';
 import { listCounters } from './loyalty-store';
-
-const TEXT_CHANNEL_TYPES = new Set([0, 5]);
-const MAX_GUILDS = 3;
+import { callReward } from './reward-wire';
 
 type BroadcasterId = string;
-
-type GuildListing = { guild: DiscordGuildSummary; several: boolean };
 
 async function settled(source: ChoiceSource, load: () => Promise<ChoiceList>): Promise<ChoiceList> {
   try {
@@ -31,30 +28,31 @@ export const rewardChoices = (userId: BroadcasterId) =>
     return { options: rewards.filter((reward) => reward.id).map((reward) => ({ value: reward.id, label: reward.title || reward.id })) };
   });
 
+export const manageableRewardChoices = (userId: BroadcasterId) =>
+  settled('manageableRewards', async () => {
+    const reply = await callReward('list', { broadcaster_id: userId });
+    if (reply.missing_scope || reply.error) return unavailable();
+    return { options: (reply.rewards ?? []).flatMap((reward) => (reward.id ? [{ value: reward.id, label: reward.title || reward.id }] : [])) };
+  });
+
 export const counterChoices = (userId: BroadcasterId) =>
   settled('counters', async () => ({ options: (await listCounters(userId)).map((counter) => ({ value: counter.name, label: counter.name })) }));
 
-const canPost = (channel: DiscordEntry) => TEXT_CHANNEL_TYPES.has(channel.type) && channel.botCanSend !== false;
-
-function channelOptions(channels: DiscordEntry[], { guild, several }: GuildListing): ChoiceOption[] {
-  return channels.filter(canPost).map((channel) => ({
-    value: channel.id,
-    label: `#${channel.name}${several ? ` (${guild.name})` : ''}`,
-    meta: { guildId: guild.guildId }
-  }));
-}
-
-async function guildChannels(userId: BroadcasterId, listing: GuildListing): Promise<ChoiceOption[]> {
-  const layout = await guildLayout({ userId, guildId: listing.guild.guildId });
-  return channelOptions(layout.channels, listing);
-}
-
-export const discordChoices = (userId: BroadcasterId) =>
-  settled('discordChannels', async () => {
-    const guilds = (await listGuilds({ userId })).filter((guild) => guild.botPresent && !guild.needsReauth).slice(0, MAX_GUILDS);
-    if (guilds.length === 0) return unavailable('notConnected');
-    const lists = await Promise.all(guilds.map((guild) => guildChannels(userId, { guild, several: guilds.length > 1 })));
-    return { options: lists.flat() };
+// Every recipe's own cooldown condition can own a name; cooldown_add picks among them by name alone, so a channel
+// naming the same timer twice just offers one option for it, labelled with whichever recipe comes first.
+export const namedCooldownChoices = (userId: BroadcasterId) =>
+  settled('namedCooldowns', async () => {
+    const automations = await listAutomations(userId);
+    const seen = new Set<string>();
+    const options: ChoiceList['options'] = [];
+    for (const automation of automations) {
+      for (const name of ownedCooldownNames(automation.definition)) {
+        if (seen.has(name)) continue;
+        seen.add(name);
+        options.push({ value: name, label: `${name}, in ${automation.name}` });
+      }
+    }
+    return { options };
   });
 
 export const sceneChoices = (userId: BroadcasterId, target: GoveeTarget) =>
@@ -77,7 +75,7 @@ type Lookup = { node: Named; value: string; nameKey: string };
 
 const NAMED_SOURCES: Partial<Record<ChoiceSource, (userId: BroadcasterId) => Promise<ChoiceList>>> = {
   rewards: rewardChoices,
-  discordChannels: discordChoices
+  manageableRewards: manageableRewardChoices
 };
 
 function lookupsFor(node: Named): [ChoiceSource, Lookup][] {

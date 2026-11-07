@@ -74,7 +74,7 @@ func (r *Rollup) fold(ctx context.Context, p period, now time.Time) (int, error)
 	}
 	n, err := r.move(ctx, p, now)
 	if err != nil {
-		_ = r.vc.Do(context.WithoutCancel(ctx), r.vc.B().Del().Key(claim).Build()).Error()
+		_ = pkgvalkey.NewKV(r.vc).Del(context.WithoutCancel(ctx), claim)
 		return n, fmt.Errorf("fold %s %s: %w", catalog.WindowCode(p.window), catalog.Period(p.window, p.at), err)
 	}
 	return n, nil
@@ -90,7 +90,7 @@ func (r *Rollup) move(ctx context.Context, p period, now time.Time) (int, error)
 	if err != nil {
 		return 0, err
 	}
-	return n, r.vc.Do(ctx, r.vc.B().Unlink().Key(keys...).Build()).Error()
+	return n, pkgvalkey.UnlinkAll(ctx, r.vc, keys)
 }
 
 func (r *Rollup) collect(ctx context.Context, p period, now time.Time) ([]repository.AnalyticsRow, []string, error) {
@@ -115,7 +115,7 @@ func (r *Rollup) collect(ctx context.Context, p period, now time.Time) ([]reposi
 
 func (r *Rollup) sketches(ctx context.Context, p period) ([]repository.AnalyticsRow, []string, error) {
 	index := catalog.IndexKey(p.window, p.at)
-	keys, err := r.vc.Do(ctx, r.vc.B().Smembers().Key(index).Build()).AsStrSlice()
+	keys, err := pkgvalkey.SetMembers(ctx, r.vc, index)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -125,7 +125,7 @@ func (r *Rollup) sketches(ctx context.Context, p period) ([]repository.Analytics
 		if !ok {
 			continue
 		}
-		n, err := r.vc.Do(ctx, r.vc.B().Pfcount().Key(key).Build()).AsInt64()
+		n, err := pkgvalkey.HyperLogLogCount(ctx, r.vc, key)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -135,7 +135,7 @@ func (r *Rollup) sketches(ctx context.Context, p period) ([]repository.Analytics
 }
 
 func (r *Rollup) hash(ctx context.Context, p period, key string) ([]repository.AnalyticsRow, error) {
-	fields, err := r.vc.Do(ctx, r.vc.B().Hgetall().Key(key).Build()).AsIntMap()
+	fields, err := pkgvalkey.HashAllInts(ctx, r.vc, key)
 	return rowsOf(p, fields), err
 }
 

@@ -50,6 +50,12 @@ Each service owns its schema. Its repository, RPC handlers, and `ent/schema` are
 | Plain | Unfinished Go scaffold; not a wired chat engine. | [app/plain](app/plain/context.md) |
 | YouTube ingress directory | Documentation placeholder with no tracked application implementation. | [app/yt-ingress](app/yt-ingress/context.md) |
 
+### Desktop controls
+
+| App | Owns / answers | Context |
+| --- | --- | --- |
+| Controls gateway (Elixir) | The desktop app's WebSocket connection (`/v1/connect`), access-token verification, device event/command relay and takeover/revocation over core NATS. Verifies tokens only; Users owns device grants and signing. | [app/controls/gateway](app/controls/gateway/context.md) |
+
 ### Web apps and shared packages
 
 The [web workspace guide](web/context.md) explains app/package boundaries and workspace commands.
@@ -59,7 +65,7 @@ The [web workspace guide](web/context.md) explains app/package boundaries and wo
 | Dashboard (SvelteKit) | Broadcaster onboarding, bot configuration, account management, and public commands pages. | [web/dashboard](web/dashboard/context.md) |
 | Admin (SvelteKit) | Staff operations, fleet/channel views, account management, trials, and promotions. | [web/admin](web/admin/context.md) |
 | Marketing (Astro) | Public product site, localized marketing content, and marketing interactions. | [web/marketing](web/marketing/context.md) |
-| Docs (Astro/Starlight) | Guides, variable references, and architecture decisions. | [web/docs](web/docs/context.md) |
+| Docs (Astro) | Guides, variable references, and architecture decisions. | [web/docs](web/docs/context.md) |
 | Kit (`@bagel/kit`) | Shared product catalogs, variable manifests, validation, server integration, and console composition. | [web/kit](web/kit/context.md) |
 | UI (`@bagel/ui`) | Shared design tokens, styles, Astro/Svelte components, and interaction primitives; outside the Bun web workspace. | [ui](ui/context.md) |
 | Mail templates | Static templates for human email replies. Automated transactional email is in Transactions. | [mail](mail/context.md) |

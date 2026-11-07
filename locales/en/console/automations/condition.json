@@ -8,5 +8,6 @@
   "points": "Viewer points",
   "arg_regex": "Arguments match a pattern",
   "category": "Stream category",
-  "compare": "Compare two values"
+  "compare": "Compare two values",
+  "var": "Variable value"
 }

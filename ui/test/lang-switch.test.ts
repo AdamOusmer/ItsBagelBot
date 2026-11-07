@@ -26,10 +26,14 @@ function openedMenu({ field, trigger, menu, viewport = { width: 1280, height: 80
     ...eventTarget(),
     getBoundingClientRect: () => ({ ...trigger, bottom: trigger.top + trigger.height, right: trigger.left + trigger.width }),
   };
+  const classes = new Set<string>();
   const menuEl = {
     ...eventTarget(),
     style: {} as Record<string, string>,
-    dataset: {} as Record<string, string>,
+    classList: {
+      add: (name: string) => classes.add(name),
+      toggle: (name: string, on: boolean) => (on ? classes.add(name) : classes.delete(name)),
+    },
     showPopover: () => {
       open = true;
     },
@@ -45,7 +49,7 @@ function openedMenu({ field, trigger, menu, viewport = { width: 1280, height: 80
   globalThis.document = { documentElement: { clientWidth: viewport.width } } as never;
   mountLangSwitch(root as never);
   triggerEl.dispatch('click', { preventDefault: () => {} });
-  return { left: menuEl.style.left, top: menuEl.style.top, maxHeight: menuEl.style.maxHeight, side: menuEl.dataset.side };
+  return { left: menuEl.style.left, top: menuEl.style.top, maxHeight: menuEl.style.maxHeight, side: classes.has('bb-lang-switch__menu--top') ? 'top' : 'bottom' };
 }
 
 describe('language switch menu placement', () => {

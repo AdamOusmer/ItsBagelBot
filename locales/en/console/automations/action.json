@@ -21,10 +21,19 @@
   "redemption": "Resolve the redemption",
   "delay": "Wait",
   "random_pick": "Pick one at random",
+  "parallel": "Run paths side by side",
   "run": "Run another automation",
   "if": "If, then otherwise",
-  "discord_post": "Post to Discord",
   "http_post": "Send an HTTP request",
   "lights": "Set the lights",
-  "stop": "Stop here"
+  "stop": "Stop here",
+  "http_get": "Read from a web address",
+  "var_set": "Set a variable",
+  "var_add": "Add to a variable",
+  "var_delete": "Delete a variable",
+  "text": "Change text",
+  "math": "Do math",
+  "loop": "Repeat steps",
+  "reward_update": "Change a reward",
+  "cooldown_add": "Add time to a cooldown"
 }

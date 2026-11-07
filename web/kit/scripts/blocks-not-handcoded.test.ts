@@ -17,10 +17,9 @@ const ELEMENTS = [
 
 const ALLOWLIST = new Map([
   [
-    'docs/src/styles/theme.css',
-    'The Starlight theme. Every flagged selector dresses markup Starlight renders ' +
-      '(sidebar, TOC, search, theme select, hero) or authored markdown inside ' +
-      '.sl-markdown-content; this repo authors neither and cannot put block classes on them.',
+    'docs/src/styles/prose.css',
+    'Dresses rendered markdown inside .doc-prose. The HTML comes out of the markdown ' +
+      'processor, so headings, tables and code blocks have no block classes to target.',
   ],
   [
     'marketing/src/components/home/Header.astro',
@@ -60,7 +59,6 @@ const PENDING = new Map<string, number>([
   ['dashboard/src/lib/components/flow/FlowsIntro.svelte', 1],
   ['dashboard/src/lib/components/flow/NodeInspector.svelte', 3],
   ['dashboard/src/lib/components/flow/TestRunPanel.svelte', 1],
-  ['dashboard/src/routes/(app)/flows/[id]/+page.svelte', 8],
 ]);
 
 const HANDCODED =

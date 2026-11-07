@@ -235,6 +235,12 @@ func (g *fakeGitHub) MoveBranch(_ context.Context, b ports.Branch, sha deploy.SH
 	return nil
 }
 
+func (g *fakeGitHub) BranchHasTreeOf(_ context.Context, b ports.Branch, sha deploy.SHA) (bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.resolve(ports.Ref(b)) == sha, nil
+}
+
 func (g *fakeGitHub) LatestTag(context.Context) (ports.TagRef, error) {
 	return ports.TagRef{}, ports.ErrNotImplemented
 }

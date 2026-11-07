@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
@@ -23,24 +24,26 @@ const goveeModuleName = "govee"
 
 // Never add the API key here: this blob is projected and cached in cleartext.
 type goveeConfig struct {
-	RewardID     string `json:"rewardId"`
-	Device       string `json:"device"`
-	SKU          string `json:"sku"`
-	OnRedeem     string `json:"onRedeem"`
-	AllowOffline bool   `json:"allowOffline"`
-	AllowOff     bool   `json:"allowOff"`
-	ReplyMessage string `json:"replyMessage"`
+	RewardID     string                 `json:"rewardId"`
+	Device       string                 `json:"device"`
+	SKU          string                 `json:"sku"`
+	Lights       []gossiprpc.GoveeLight `json:"lights"`
+	OnRedeem     string                 `json:"onRedeem"`
+	AllowOffline bool                   `json:"allowOffline"`
+	AllowOff     bool                   `json:"allowOff"`
+	ReplyMessage string                 `json:"replyMessage"`
 }
 
 type goveeConfigs struct {
 	Bindings []goveeConfig `json:"bindings"`
+	Groups   []goveeConfig `json:"groups"`
 }
 
 func bindingsOf(c *module.Context) []goveeConfig {
 	var wrap goveeConfigs
 	_ = c.Decode(&wrap)
-	if len(wrap.Bindings) > 0 {
-		return wrap.Bindings
+	if all := slices.Concat(wrap.Bindings, wrap.Groups); len(all) > 0 {
+		return all
 	}
 	var single goveeConfig
 	_ = c.Decode(&single)
@@ -101,6 +104,7 @@ func (r goveeRun) control(ctx context.Context, req gossiprpc.Request) error {
 	req.ChannelID = r.ev.BroadcasterUserID
 	req.Device = r.cfg.Device
 	req.SKU = r.cfg.SKU
+	req.Lights = r.cfg.Lights
 	var reply gossiprpc.GoveeControlReply
 	return r.d.Gossip.Call(ctx, engine.GossipRoute{Provider: "govee", Endpoint: "control"}, req, &reply)
 }
@@ -163,10 +167,10 @@ func goveeConfigured(cfg goveeConfig) bool {
 	if cfg.RewardID == "" {
 		return false
 	}
-	if cfg.Device == "" {
-		return false
+	if len(cfg.Lights) > 0 {
+		return true
 	}
-	return cfg.SKU != ""
+	return cfg.Device != "" && cfg.SKU != ""
 }
 
 func goveeLivePermits(ctx context.Context, d engine.Deps, cfg goveeConfig, broadcasterID uint64) bool {

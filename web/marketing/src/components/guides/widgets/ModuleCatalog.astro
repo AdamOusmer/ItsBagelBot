@@ -171,7 +171,7 @@ const planTone = (m: Module) => (m.plan === 'premium' ? 'paid' : 'free');
                 cat = chip.dataset.mcatChip ?? '';
                 chips.forEach((other) => {
                     const on = other === chip;
-                    other.toggleAttribute('data-pressed', on);
+                    other.classList.toggle('is-pressed', on);
                     other.setAttribute('aria-pressed', on ? 'true' : 'false');
                 });
                 apply();

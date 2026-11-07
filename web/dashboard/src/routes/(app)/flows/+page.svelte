@@ -3,6 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit';
+  import type { RunRecord } from '@bagel/kit/automations';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
@@ -12,13 +14,14 @@
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
+  import RunsPanel from '#lib/components/automations/RunsPanel.svelte';
   import FlowShareTools from '#lib/components/flow/FlowShareTools.svelte';
   import FlowThumb from '#lib/components/flow/FlowThumb.svelte';
   import FlowsIntro from '#lib/components/flow/FlowsIntro.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
   import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
-  import type { FlowCard, FlowSection } from '#lib/flow/cards';
+  import type { FlowCard } from '#lib/flow/cards';
   import { deleteMessage, toggleMessage, warningMessages } from '#lib/flow/messages';
   import type { DeleteReply, ToggleReply } from '#lib/flow/replies';
   import type { PageData } from './$types';
@@ -26,14 +29,6 @@
   let { data }: { data: PageData } = $props();
 
   const { t } = getI18n();
-
-  const SECTIONS: readonly FlowSection[] = ['commands', 'alerts', 'rewards', 'automations'];
-
-  const sectionTitle = (section: FlowSection) => {
-    if (section === 'commands') return t('flows.sectionCommands');
-    if (section === 'alerts') return t('flows.sectionAlerts');
-    return section === 'rewards' ? t('flows.sectionRewards') : t('flows.sectionAutomations');
-  };
 
   let introDismissed = $state(false);
   const showIntro = $derived(!data.introSeen && !introDismissed);
@@ -57,15 +52,27 @@
 
   let query = $state('');
   const needle = $derived(query.trim().toLowerCase());
-  const groups = $derived(
-    SECTIONS.map((section) => ({
-      section,
-      flows: cards.filter((f) => f.section === section && (!needle || `${f.name} ${f.description} ${f.when}`.toLowerCase().includes(needle)))
-    })).filter((g) => g.flows.length > 0)
-  );
+  const shown = $derived(cards.filter((f) => !needle || `${f.name} ${f.description} ${f.when}`.toLowerCase().includes(needle)));
 
   const stepCount = (count: number) => (count === 1 ? t('flows.page.stepOne') : t('flows.page.stepMany', { count }));
   const facts = (flow: FlowCard) => [flow.when, stepCount(flow.steps)].filter(Boolean).join(', ');
+
+  let runs = $state<RunRecord[]>([]);
+  let runsBusy = $state(false);
+  let runsOpen = $state(false);
+
+  async function loadRuns() {
+    runsBusy = true;
+    const reply = await postAction<{ ok: boolean; runs?: RunRecord[] }>('runs', new FormData());
+    runsBusy = false;
+    if (reply?.ok) runs = reply.runs ?? [];
+    else toast('danger', t('flows.recipe.runsFailed'));
+  }
+
+  function openRuns() {
+    runsOpen = !runsOpen;
+    if (runsOpen) void loadRuns();
+  }
 
   async function toggle(flow: FlowCard, next: boolean) {
     const before = { enabled: flow.enabled, revision: flow.revision };
@@ -125,39 +132,45 @@
     {/snippet}
   </PageHead>
 
-  <div class="search"><SearchInput bind:value={query} placeholder={t('flows.page.search')} fill /></div>
+  <div class="tools">
+    <div class="search"><SearchInput bind:value={query} placeholder={t('flows.page.search')} fill /></div>
+    <Button variant="ghost" aria-expanded={runsOpen} onclick={openRuns}>{t('flows.recipe.runsTitle')}</Button>
+  </div>
 
-  {#each groups as group (group.section)}
-    <section class="group">
-      <h2 class="group-title">{sectionTitle(group.section)}</h2>
-      <ul class="cards">
-        {#each group.flows as flow (flow.id)}
-          <li class="card" class:off={!flow.enabled}>
-            <a class="open" href="/flows/{flow.id}">
-              <span class="diagram"><FlowThumb preview={flow.preview} /></span>
-              <span class="name">{flow.name}</span>
-              {#if flow.description}<span class="description">{flow.description}</span>{/if}
-            </a>
-            <div class="meta">
-              <span class="facts">{facts(flow)}</span>
-              <span class="controls">
-                {#if flow.deletable}
-                  <RowDeleteButton label={t('flows.deleteLabel', { name: flow.name })} onclick={() => (pending = flow)} />
-                {/if}
-                <Switch
-                  checked={flow.enabled}
-                  label={flow.enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
-                  onCheckedChange={(next) => void toggle(flow, next)}
-                />
-              </span>
-            </div>
-          </li>
-        {/each}
-      </ul>
-    </section>
-  {:else}
+  {#if runsOpen}
+    <RunsPanel {runs} busy={runsBusy} showNames title={t('flows.recipe.runsTitle')} empty={t('flows.recipe.runsEmpty')} onRefresh={() => void loadRuns()} />
+  {/if}
+
+  {#if shown.length > 0}
+    <ul class="cards">
+      {#each shown as flow (flow.id)}
+        <li class="card" class:off={!flow.enabled}>
+          <a class="open" href="/flows/{flow.id}">
+            <span class="diagram"><FlowThumb preview={flow.preview} /></span>
+            <span class="name">{flow.name}</span>
+            {#if flow.description}<span class="description">{flow.description}</span>{/if}
+          </a>
+          <div class="meta">
+            <span class="facts">{facts(flow)}</span>
+            <span class="controls">
+              {#if flow.deletable}
+                <RowDeleteButton label={t('flows.deleteLabel', { name: flow.name })} onclick={() => (pending = flow)} />
+              {/if}
+              <Switch
+                checked={flow.enabled}
+                label={flow.enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
+                onCheckedChange={(next) => void toggle(flow, next)}
+              />
+            </span>
+          </div>
+        </li>
+      {/each}
+    </ul>
+  {:else if needle}
     <EmptyState title={t('flows.page.emptyTitle')} body={t('flows.page.emptyBody')} />
-  {/each}
+  {:else}
+    <EmptyState title={t('flows.page.noneTitle')} body={t('flows.page.noneBody')} />
+  {/if}
 </div>
 
 <ConfirmDialog
@@ -185,20 +198,16 @@
     align-items: center;
     gap: 12px;
   }
-  .search {
-    max-width: 420px;
-  }
-  .group {
+  .tools {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
     gap: 12px;
   }
-  .group-title {
-    margin: 0;
-    font-family: var(--bb-font-body);
-    font-size: 15px;
-    font-weight: 600;
-    color: rgba(var(--bb-white-rgb), 0.92);
+  .search {
+    flex: 1 1 280px;
+    max-width: 420px;
   }
   .cards {
     list-style: none;

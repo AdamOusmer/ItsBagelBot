@@ -112,6 +112,7 @@
     "outOfRange": "A number is outside the allowed range.",
     "invalidEnum": "A choice is not valid.",
     "invalidFormat": "A value is not in the right format.",
+    "simpleWord": "Use one simple word for this name: lowercase letters and numbers only, like points or wins.",
     "invalidRegex": "A pattern is not valid.",
     "nesting": "Checks are nested too deeply.",
     "delayBudget": "The waits add up to more than a recipe can pause.",
@@ -120,26 +121,34 @@
   },
   "choose": {
     "reward": "Choose a reward",
-    "channel": "Choose a channel",
     "counter": "Choose a counter",
     "scene": "Choose a scene",
-    "light": "Choose a light first"
+    "light": "Choose a light first",
+    "namedCooldown": "Choose a timer"
   },
   "choiceEmpty": {
     "rewards": "No channel point rewards yet. Create one in Channel points.",
-    "discordChannels": "The bot has no text channel it can post in.",
+    "manageableRewards": "Twitch only lets us change rewards made here. Create one in Channel points.",
     "counters": "No counters yet. Create one in Counters.",
-    "scenes": "This light has no scenes."
+    "scenes": "This light has no scenes.",
+    "namedCooldowns": "No recipe names a timer yet. Give one a name under its cooldown."
   },
   "choiceProblem": {
     "rewards": "Could not load your rewards.",
-    "discordChannels": "Could not load your Discord channels.",
     "counters": "Could not load your counters.",
     "scenes": "Could not load the scenes for this light.",
     "keyRejected": "Govee did not accept your API key.",
-    "notConnected": "Connect Discord and add the bot to a server to choose a channel."
+    "namedCooldowns": "Could not load your recipes' timers."
   },
   "choiceMissing": "\"{name}\" is no longer in the list.",
+  "choiceUnowned": "No recipe currently owns \"{name}\". This will do nothing until one does.",
   "choiceRetry": "Try again",
-  "choiceLoading": "Loading"
+  "choiceLoading": "Loading",
+  "setup": {
+    "line": "Off until set up",
+    "stepNote": "This step stays off until you fill it in.",
+    "pickReward": "Pick a reward",
+    "addUrl": "Add a URL",
+    "refused": "Fill in the steps that need setup and save, then turn this on."
+  }
 }

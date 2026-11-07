@@ -9,9 +9,9 @@ export interface GlideOptions {
   watch?: boolean;
 }
 
-const WATCHED = ['class', 'aria-checked', 'aria-current', 'data-active'];
+const WATCHED = ['class', 'aria-checked', 'aria-current'];
 
-const DEFAULT_SELECTOR = '[data-active]';
+const DEFAULT_SELECTOR = '[aria-current]';
 
 // The container must be the offset parent of the selected items.
 export function mountGlide(
@@ -24,11 +24,8 @@ export function mountGlide(
   const measure = () => {
     if (!glide) return;
     const active = container.querySelector<HTMLElement>(selector);
-    if (!active) {
-      glide.removeAttribute('data-shown');
-      return;
-    }
-    glide.setAttribute('data-shown', '');
+    if (glide.classList.contains('is-shown') !== Boolean(active)) glide.classList.toggle('is-shown', Boolean(active));
+    if (!active) return;
     glide.style.setProperty('--glide-top', `${active.offsetTop}px`);
     glide.style.setProperty('--glide-left', `${active.offsetLeft}px`);
     glide.style.setProperty('--glide-w', `${active.offsetWidth}px`);
@@ -61,10 +58,12 @@ export function mountGlide(
 
 // Astro pages have no component lifecycle: bind every tab strip that carries a
 // glide once, and again after each client-side navigation.
+const gliding = new WeakSet<Element>();
+
 export function mountTabGlides(root: ParentNode = document): void {
-  root.querySelectorAll<HTMLElement>('.bb-tabs:not([data-bb-glide])').forEach((tabs) => {
-    if (!tabs.querySelector(':scope > .bb-glide')) return;
-    tabs.dataset.bbGlide = '';
+  root.querySelectorAll<HTMLElement>('.bb-tabs').forEach((tabs) => {
+    if (gliding.has(tabs) || !tabs.querySelector(':scope > .bb-glide')) return;
+    gliding.add(tabs);
     mountGlide(tabs, { observe: tabs, selector: ':scope > .bb-tab.is-active', watch: true });
   });
 }

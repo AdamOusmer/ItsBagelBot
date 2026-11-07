@@ -2,13 +2,14 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { COMPARE_OPS } from './compare';
+import { SETUP_LOGIN } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
 
 export type FlowConfig = Record<string, string | number | boolean>;
 export type FlowNode = { id: string; type: string; x: number; y: number; config: FlowConfig };
 export type FlowEdge = { id: string; from: string; port: string; to: string };
-export type Flow = { id: string; name: string; enabled: boolean; nodes: FlowNode[]; edges: FlowEdge[] };
+export type Flow = { id: string; name: string; enabled: boolean; nodes: FlowNode[]; edges: FlowEdge[]; queue?: string };
 export type FlowMeta = Pick<Flow, 'id' | 'name' | 'enabled'>;
 
 export type FlowResult<T> = { ok: true; value: T } | { ok: false; issues: Issue[] };
@@ -134,9 +135,72 @@ const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = 
 
 const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.chat': ['message'],
-  'reply.discord': ['message'],
-  'cond.compare': ['left', 'right']
+  'cond.compare': ['left', 'right'],
+  'cond.var': ['value'],
+  'reply.var_set': ['value'],
+  'reply.text': ['input', 'find', 'replaceWith', 'start', 'count', 'separator', 'pick', 'needle'],
+  'reply.math': ['expression'],
+  'reply.loop': ['times'],
+  'reply.http_get': ['url'],
+  'reply.http_post': ['url', 'body']
 };
+
+const recipeName = (v: unknown) => str(v).trim().toLowerCase();
+
+const varIdentity = (config: FlowConfig): Params => ({ scope: str(config.scope) || 'channel', name: recipeName(config.name) });
+
+const TEXT_ARG_FIELDS = new Map<string, readonly string[]>([
+  ['replace', ['find', 'replaceWith']],
+  ['substring', ['start', 'count']],
+  ['split_pick', ['separator', 'pick']],
+  ['contains', ['needle']]
+]);
+
+function textAction(config: FlowConfig): Action {
+  const op = str(config.op) || 'upper';
+  const [first, second] = TEXT_ARG_FIELDS.get(op) ?? [];
+  const arg = (key: string | undefined) => (key ? str(config[key]) : '');
+  return { type: 'text', params: { op, input: str(config.input), arg1: arg(first), arg2: arg(second), save_as: recipeName(config.saveAs) } };
+}
+
+const REWARD_ENABLED = new Map<string, boolean | null>([
+  ['keep', null],
+  ['on', true],
+  ['off', false]
+]);
+
+function rewardUpdateAction(config: FlowConfig): Action {
+  const cost = config.cost === undefined || config.cost === '' ? null : num(config.cost);
+  const enabled = REWARD_ENABLED.get(str(config.setEnabled)) ?? null;
+  return { type: 'reward_update', params: { reward_id: str(config.reward), enabled, cost, reset_on_stream_end: config.reset === true } };
+}
+
+function withOptional(params: Params, optional: Params): Params {
+  for (const [key, value] of Object.entries(optional)) if (value) params[key] = value;
+  return params;
+}
+
+const JSON_PATH_SEPARATOR = '.';
+
+function jsonPathOf(config: FlowConfig): string[] | undefined {
+  const segments = str(config.jsonPath).trim().split(JSON_PATH_SEPARATOR).filter(Boolean);
+  return segments.length > 0 ? segments : undefined;
+}
+
+const API_WRITERS: Record<string, (config: FlowConfig) => Action> = {
+  'reply.http_get': (config) => ({
+    type: 'http_get',
+    params: withOptional({ url: str(config.url) }, { json_path: jsonPathOf(config), save_as: recipeName(config.saveAs) })
+  }),
+  'reply.http_post': (config) => ({
+    type: 'http_post',
+    params: withOptional({ url: str(config.url) }, { body: str(config.body), save_as: recipeName(config.saveAs) })
+  })
+};
+
+const API_PORTS = ['ok', 'failure'] as const;
+const LOOP_TYPE = 'reply.loop';
+const LOOP_PORTS = ['body', 'done'] as const;
 
 const DEFAULT_LIGHT_COLOR = '#ffffff';
 
@@ -160,28 +224,65 @@ function lightsAction(config: FlowConfig): Action {
   return { type: 'lights', params: { ...params, mode: 'color', color: str(config.color) || DEFAULT_LIGHT_COLOR } };
 }
 
+const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
+
+// Carried through as plain strings so a named window round-trips even though the builder has no field for it yet;
+// losing it here would silently turn a named cooldown back into a plain one on the next save.
+const COOLDOWN_PASSTHROUGH_FIELDS = [
+  ['name', 'name'],
+  ['leftCommand', 'left_command'],
+  ['leftReply', 'left_reply'],
+  ['readyReply', 'ready_reply']
+] as const;
+
+function timeLeftParams(config: FlowConfig): Params {
+  return Object.fromEntries(COOLDOWN_PASSTHROUGH_FIELDS.filter(([key]) => str(config[key]).trim() !== '').map(([key, param]) => [param, str(config[key]).trim()]));
+}
+
+function timeLeftConfig(params: Params): FlowConfig {
+  return Object.fromEntries(COOLDOWN_PASSTHROUGH_FIELDS.filter(([, param]) => str(params[param]) !== '').map(([key, param]) => [key, str(params[param])]));
+}
+
 const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
   'cond.compare': (config) => ({ type: 'compare', params: { left: str(config.left), op: str(config.op) || 'gte', right: str(config.right) } }),
   'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) } }),
   'cond.chance': (config) => ({ type: 'chance', params: { percent: num(config.percent) } }),
-  'cond.user': (config) => ({ type: 'users', params: { allow_ids: [str(config.userId)] } }),
-  'cond.cooldown': (config) => ({
-    type: 'cooldown',
-    params: { [config.perUser ? 'user_s' : 'global_s']: num(config.seconds) }
-  })
+  'cond.var': (config) => {
+    const op = str(config.op) || 'eq';
+    return { type: 'var', params: { ...varIdentity(config), op, value: op === 'exists' ? '' : str(config.value) } };
+  },
+  'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
+  'cond.cooldown': cooldownConditionAction
 };
+
+// A per-viewer window can never be named: a name that survived a toggle (or a stale fixture) never reaches params.
+function cooldownConditionAction(config: FlowConfig): Condition {
+  const perUser = Boolean(config.perUser);
+  const params: Params = { [perUser ? 'user_s' : 'global_s']: num(config.seconds), ...timeLeftParams(config) };
+  if (perUser) delete params.name;
+  return { type: 'cooldown', params };
+}
 
 const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
-  'reply.discord': (config) => ({
-    type: 'discord_post',
-    params: { guild_id: str(config.guildId), channel_id: str(config.channel), text: str(config.message) }
-  }),
   'reply.lights': lightsAction,
   'reply.points': (config) => ({ type: 'points_add', params: { amount: num(config.amount) } }),
   'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
-  'reply.wait': (config) => ({ type: 'delay', params: { ms: num(config.seconds) * 1000 } })
+  'reply.wait': (config) => ({ type: 'delay', params: { ms: num(config.seconds) * 1000 } }),
+  'reply.var_set': (config) => ({ type: 'var_set', params: { ...varIdentity(config), value: str(config.value) } }),
+  'reply.var_add': (config) => ({ type: 'var_add', params: { ...varIdentity(config), amount: num(config.amount) } }),
+  'reply.var_delete': (config) => ({ type: 'var_delete', params: varIdentity(config) }),
+  'reply.text': textAction,
+  'reply.math': (config) => ({ type: 'math', params: { expression: str(config.expression), save_as: recipeName(config.saveAs) } }),
+  'reply.reward_update': rewardUpdateAction,
+  'reply.cooldown_add': cooldownAddAction
 };
+
+function cooldownAddAction(config: FlowConfig): Action {
+  const params: Params = { name: recipeName(str(config.name)), seconds: num(config.seconds) };
+  if (num(config.per) > 0) params.per = num(config.per);
+  return { type: 'cooldown_add', params };
+}
 
 type Lowering = {
   nodes: FlowNode[];
@@ -297,14 +398,29 @@ function shapeIssues(flow: Flow, trigger: FlowNode, ctx: Lowering): Issue[] {
   ].map((id) => ({ path: nodePath(id), code: FLOW_ISSUE.unconnectedNode }));
 }
 
-function commonJoin(ctx: Lowering, entries: string[]): string | null {
-  if (new Set(entries).size < 2) return null;
-  const sets = entries.map((id) => ctx.reach.get(id) ?? reachable(ctx.outs, id, ctx.reach));
-  const shared = [...sets[0]!].filter((id) => sets.every((s) => s.has(id)));
-  if (shared.length === 0) return null;
-  const reachSize = (id: string) => (ctx.reach.get(id) ?? reachable(ctx.outs, id, ctx.reach)).size;
-  return shared.reduce((best, id) => (reachSize(id) > reachSize(best) ? id : best));
+type Stops = ReadonlySet<string>;
+
+const NO_STOPS: Stops = new Set<string>();
+
+const reachOf = (ctx: Lowering, id: string) => ctx.reach.get(id) ?? reachable(ctx.outs, id, ctx.reach);
+
+const earliest = (ctx: Lowering, shared: string[]) => shared.filter((id) => !shared.some((other) => other !== id && reachOf(ctx, other).has(id)));
+
+function commonJoins(ctx: Lowering, entries: string[]): string[] {
+  if (new Set(entries).size < 2) return [];
+  const sets = entries.map((id) => reachOf(ctx, id));
+  return earliest(ctx, [...sets[0]!].filter((id) => sets.every((s) => s.has(id))));
 }
+
+function armJoins(ctx: Lowering, first: string[], second: string[]): string[] {
+  if (first.length === 0 || second.length === 0) return [];
+  const other = new Set(second.flatMap((id) => [...reachOf(ctx, id)]));
+  const joins = earliest(ctx, [...new Set(first.flatMap((id) => [...reachOf(ctx, id)]))].filter((id) => other.has(id)));
+  const everyPathMeets = [...first, ...second].every((id) => joins.some((join) => reachOf(ctx, id).has(join)));
+  return everyPathMeets ? joins : [];
+}
+
+const extended = (stop: Stops, joins: string[]): Stops => (joins.length > 0 ? new Set([...stop, ...joins]) : stop);
 
 function visit(ctx: Lowering, id: string): boolean {
   if (!ctx.visited.has(id)) {
@@ -321,7 +437,8 @@ function writeCondition(ctx: Lowering, node: FlowNode): Condition {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.unsupportedNode });
     return { type: node.type };
   }
-  if (node.type === 'cond.user' && !str(node.config.userId)) {
+  const resolved = str(node.config.userId) !== '' || awaitingUser(node.config);
+  if (node.type === 'cond.user' && !resolved) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.userNotResolved });
   }
   return owned(ctx, node, write(loweredConfig(ctx, node)));
@@ -345,32 +462,86 @@ function writeAction(ctx: Lowering, node: FlowNode): Action {
   return owned(ctx, node, node.config.disabled === true ? { ...action, enabled: false } : action);
 }
 
-function lowerEntries(ctx: Lowering, entries: string[], stop: string | null): Action[] {
-  const join = commonJoin(ctx, entries);
-  const bound = join ?? stop;
-  const branches = entries.flatMap((id) => lowerFrom(ctx, id, bound));
-  return join && join !== stop ? [...branches, ...lowerFrom(ctx, join, stop)] : branches;
+const NESTED_PARAMS = ['then', 'else', 'on_ok', 'on_failure', 'actions'] as const;
+
+type Arm = { key: string; list: Action[] };
+
+function armsOf(action: Action): Arm[] {
+  const params = action.params ?? {};
+  const named = NESTED_PARAMS.map((key): Arm => ({ key, list: (params[key] ?? []) as Action[] }));
+  const branches = (params.branches ?? []) as { actions?: Action[] }[];
+  return [...named, ...branches.map((branch, b): Arm => ({ key: `branches[${b}].actions`, list: branch.actions ?? [] }))];
 }
 
-function lowerFrom(ctx: Lowering, id: string, stop: string | null): Action[] {
-  if (id === stop || !visit(ctx, id)) return [];
+const nestedLists = (action: Action): Action[][] => armsOf(action).map((arm) => arm.list);
+
+const waits = (list: Action[]): boolean => list.some((a) => a.type === 'delay' || nestedLists(a).some(waits));
+
+const forkPauses = (paths: Action[][]) => paths.length > 1 && paths.some(waits);
+
+function fork(paths: Action[][]): Action[] {
+  if (paths.length < 2) return paths[0] ?? [];
+  return [{ type: 'parallel', params: { branches: paths.map((actions) => ({ weight: 1, actions })) } }];
+}
+
+function lowerRest(ctx: Lowering, joins: string[], stop: Stops): Action[] {
+  const open = joins.filter((id) => !stop.has(id));
+  return open.length > 0 ? lowerEntries(ctx, open, stop) : [];
+}
+
+function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
+  const joins = commonJoins(ctx, entries);
+  const bound = extended(stop, joins);
+  const paths = entries.map((id) => lowerFrom(ctx, id, bound)).filter((path) => path.length > 0);
+  const anchor = joins[0] ?? [...stop][0];
+  // A later step would not wait for a path that paused, so it would run before that path finished.
+  if (anchor && forkPauses(paths)) ctx.issues.push({ path: nodePath(anchor), code: FLOW_ISSUE.unstructuredMerge });
+  return [...fork(paths), ...lowerRest(ctx, joins, stop)];
+}
+
+function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
+  if (stop.has(id) || !visit(ctx, id)) return [];
   const node = ctx.byId.get(id)!;
   if (isConditionType(node.type)) return lowerBranch(ctx, node, stop);
+  if (node.type === LOOP_TYPE) return lowerLoop(ctx, node, stop);
+  if (Object.hasOwn(API_WRITERS, node.type)) return lowerApi(ctx, node, stop);
   return [writeAction(ctx, node), ...lowerEntries(ctx, targets(ctx, id, 'next'), stop)];
 }
 
-function lowerBranch(ctx: Lowering, node: FlowNode, stop: string | null): Action[] {
-  const yes = targets(ctx, node.id, 'yes');
-  const no = targets(ctx, node.id, 'no');
-  const join = yes.length > 0 && no.length > 0 ? commonJoin(ctx, [...yes, ...no]) : null;
-  const bound = join ?? stop;
+type Arms = { first: Action[]; second: Action[]; rest: Action[] };
+
+function lowerArms(ctx: Lowering, node: FlowNode, ports: readonly [string, string], stop: Stops): Arms {
+  const first = targets(ctx, node.id, ports[0]);
+  const second = targets(ctx, node.id, ports[1]);
+  const joins = armJoins(ctx, first, second);
+  const bound = extended(stop, joins);
+  return { first: lowerEntries(ctx, first, bound), second: lowerEntries(ctx, second, bound), rest: lowerRest(ctx, joins, stop) };
+}
+
+function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
   const params: Params = { condition: writeCondition(ctx, node) };
-  const then = lowerEntries(ctx, yes, bound);
-  const otherwise = lowerEntries(ctx, no, bound);
-  if (then.length > 0) params.then = then;
-  if (otherwise.length > 0) params.else = otherwise;
-  const rest = join && join !== stop ? lowerFrom(ctx, join, stop) : [];
+  const { first, second, rest } = lowerArms(ctx, node, ['yes', 'no'], stop);
+  if (first.length > 0) params.then = first;
+  if (second.length > 0) params.else = second;
   return [owned(ctx, node, { type: 'if', params }), ...rest];
+}
+
+const withEnabled = (node: FlowNode, action: Action): Action => (node.config.disabled === true ? { ...action, enabled: false } : action);
+
+function lowerLoop(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
+  const times = str(loweredConfig(ctx, node).times);
+  const { first, second, rest } = lowerArms(ctx, node, LOOP_PORTS, stop);
+  const params: Params = first.length > 0 ? { times, actions: first } : { times };
+  return [owned(ctx, node, withEnabled(node, { type: 'loop', params })), ...second, ...rest];
+}
+
+function lowerApi(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
+  const action = API_WRITERS[node.type]!(loweredConfig(ctx, node));
+  const { first, second, rest } = lowerArms(ctx, node, API_PORTS, stop);
+  const params = { ...action.params };
+  if (first.length > 0) params.on_ok = first;
+  if (second.length > 0) params.on_failure = second;
+  return [owned(ctx, node, withEnabled(node, { ...action, params })), ...rest];
 }
 
 function leadingGate(ctx: Lowering, entries: string[]): FlowNode | null {
@@ -388,11 +559,13 @@ function lowerRoot(ctx: Lowering, trigger: FlowNode): { conditions: Condition[];
     conditions.push(writeCondition(ctx, gate));
     entries = targets(ctx, gate.id, 'yes');
   }
-  return { conditions, actions: lowerEntries(ctx, entries, null) };
+  return { conditions, actions: lowerEntries(ctx, entries, NO_STOPS) };
 }
 
-function assembled(trigger: Trigger, conditions: Condition[], actions: Action[]): Definition {
+function assembled(flow: Flow, trigger: Trigger, conditions: Condition[], actions: Action[]): Definition {
   const definition: Definition = { version: VERSION, trigger };
+  const queue = recipeName(flow.queue);
+  if (queue) definition.queue = queue;
   if (conditions.length > 0) definition.conditions = conditions;
   if (actions.length > 0) definition.actions = actions;
   return definition;
@@ -421,7 +594,7 @@ function lowerFlow(flow: Flow): Lowered {
   if (!written) return { result: { ok: false, issues: [{ path: nodePath(trigger.id), code: FLOW_ISSUE.unsupportedNode }] }, owners };
   const { conditions, actions } = lowerRoot(ctx, trigger);
   if (ctx.issues.length > 0) return { result: { ok: false, issues: ctx.issues }, owners };
-  return { result: { ok: true, value: assembled(written, conditions, actions) }, owners };
+  return { result: { ok: true, value: assembled(flow, written, conditions, actions) }, owners };
 }
 
 export function flowToDefinition(flow: Flow): FlowResult<Definition> {
@@ -436,13 +609,32 @@ function walkSteps(owners: Map<object, string>, list: Action[], base: string, in
     const id = owners.get(action);
     if (id) into.byPath.set(path, id);
     if (id && action.type === 'delay') into.lastDelay = id;
-    if (action.type !== 'if') return;
-    const params = action.params ?? {};
-    const gate = owners.get(params.condition as object);
+    const gate = action.type === 'if' ? owners.get(action.params?.condition as object) : undefined;
     if (gate) into.byPath.set(`${path}.params.condition`, gate);
-    walkSteps(owners, (params.then ?? []) as Action[], `${path}.params.then`, into);
-    walkSteps(owners, (params.else ?? []) as Action[], `${path}.params.else`, into);
+    for (const arm of armsOf(action)) walkSteps(owners, arm.list, `${path}.params.${arm.key}`, into);
   });
+}
+
+export type FlowStepRef = { index: number; type: string; node: string; arm: string };
+
+type StepRefPlace = { top: number | null; path: string };
+
+function collectStepRefs(owners: Map<object, string>, list: Action[], place: StepRefPlace, into: FlowStepRef[]): void {
+  list.forEach((action, i) => {
+    const index = place.top ?? i;
+    const node = owners.get(action);
+    if (node) into.push({ index, type: action.type, node, arm: place.path });
+    for (const arm of armsOf(action)) collectStepRefs(owners, arm.list, { top: index, path: `${place.path}/${i}.${arm.key}` }, into);
+  });
+}
+
+// A run record only carries its top-level action index and type, so this is what links one back to a drawn step.
+export function flowStepRefs(flow: Flow): FlowStepRef[] {
+  const { result, owners } = lowerFlow(flow);
+  if (!result.ok) return [];
+  const into: FlowStepRef[] = [];
+  collectStepRefs(owners, result.value.actions ?? [], { top: null, path: '' }, into);
+  return into;
 }
 
 function stepPaths(definition: Definition, owners: Map<object, string>): StepPaths {
@@ -556,12 +748,14 @@ function cooldownNode(params: Params): { type: string; config: FlowConfig } | nu
   const global = num(params.global_s);
   const user = num(params.user_s);
   if (global > 0 && user > 0) return null;
-  return { type: 'cond.cooldown', config: { seconds: global || user, perUser: user > 0 } };
+  return { type: 'cond.cooldown', config: { seconds: global || user, perUser: user > 0, ...timeLeftConfig(params) } };
 }
 
 function userNode(params: Params): { type: string; config: FlowConfig } | null {
   const ids = (params.allow_ids ?? []) as string[];
   const others = [params.allow, params.deny, params.deny_ids].flatMap((list) => (list ?? []) as string[]);
+  const everyone = [...ids, ...others];
+  if (everyone.length === 1 && (params.allow as string[] | undefined)?.[0] === SETUP_LOGIN) return { type: 'cond.user', config: { login: SETUP_LOGIN } };
   return ids.length === 1 && others.length === 0 ? { type: 'cond.user', config: { userId: ids[0]! } } : null;
 }
 
@@ -570,8 +764,17 @@ function compareNode(params: Params): { type: string; config: FlowConfig } | nul
   return { type: 'cond.compare', config: { left: str(params.left), op: str(params.op), right: str(params.right) } };
 }
 
+const varConfig = (params: Params): FlowConfig => ({ scope: str(params.scope), name: str(params.name) });
+
+function varConditionNode(params: Params): { type: string; config: FlowConfig } {
+  const op = str(params.op);
+  const config: FlowConfig = { ...varConfig(params), op };
+  return { type: 'cond.var', config: op === 'exists' ? config : { ...config, value: str(params.value) } };
+}
+
 function conditionToNode(condition: Condition): { type: string; config: FlowConfig } | null {
   const params = condition.params ?? {};
+  if (condition.type === 'var') return varConditionNode(params);
   if (condition.type === 'compare') return compareNode(params);
   if (condition.type === 'users') return userNode(params);
   if (condition.type === 'perm') return { type: 'cond.role', config: { level: str(params.level) } };
@@ -596,17 +799,55 @@ function lightsNode(params: Params): { type: string; config: FlowConfig } | null
   return { type: 'reply.lights', config: { ...config, mode, ...scene } };
 }
 
+function textNode(params: Params): { type: string; config: FlowConfig } {
+  const op = str(params.op);
+  const config: FlowConfig = { op, input: str(params.input), saveAs: str(params.save_as) };
+  const [first, second] = TEXT_ARG_FIELDS.get(op) ?? [];
+  if (first) config[first] = str(params.arg1);
+  if (second) config[second] = str(params.arg2);
+  return { type: 'reply.text', config };
+}
+
+function rewardEnabledChoice(enabled: unknown): string {
+  if (enabled === true) return 'on';
+  return enabled === false ? 'off' : 'keep';
+}
+
+function rewardUpdateNode(params: Params): { type: string; config: FlowConfig } {
+  const config: FlowConfig = { reward: str(params.reward_id), setEnabled: rewardEnabledChoice(params.enabled), reset: params.reset_on_stream_end === true };
+  return { type: 'reply.reward_update', config: typeof params.cost === 'number' ? { ...config, cost: params.cost } : config };
+}
+
+const API_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig }> = {
+  http_get: (params) => ({
+    type: 'reply.http_get',
+    config: { url: str(params.url), jsonPath: ((params.json_path ?? []) as string[]).join(JSON_PATH_SEPARATOR), saveAs: str(params.save_as) }
+  }),
+  http_post: (params) => ({ type: 'reply.http_post', config: { url: str(params.url), body: str(params.body), saveAs: str(params.save_as) } })
+};
+
 const ACTION_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig } | null> = {
   chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text) } }),
-  discord_post: (params) => ({
-    type: 'reply.discord',
-    config: { channel: str(params.channel_id), guildId: str(params.guild_id), message: str(params.text) }
-  }),
   lights: lightsNode,
   points_add: (params) => (params.login ? null : { type: 'reply.points', config: { amount: num(params.amount) } }),
   counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
-  delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } })
+  delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),
+  var_set: (params) => ({ type: 'reply.var_set', config: { ...varConfig(params), value: str(params.value) } }),
+  var_add: (params) => ({ type: 'reply.var_add', config: { ...varConfig(params), amount: num(params.amount) } }),
+  var_delete: (params) => ({ type: 'reply.var_delete', config: varConfig(params) }),
+  text: textNode,
+  math: (params) => ({ type: 'reply.math', config: { expression: str(params.expression), saveAs: str(params.save_as) } }),
+  reward_update: rewardUpdateNode,
+  cooldown_add: cooldownAddNode
 };
+
+function cooldownAddNode(params: Params): { type: string; config: FlowConfig } {
+  const config: FlowConfig = { name: str(params.name), seconds: num(params.seconds) };
+  if (num(params.per) > 0) config.per = num(params.per);
+  return { type: 'reply.cooldown_add', config };
+}
+
+const placedConfig = (action: Action, config: FlowConfig): FlowConfig => (action.enabled === false ? { ...config, disabled: true } : config);
 
 function placeGate(b: Building, condition: Condition, path: string, tails: Tail[]): string | null {
   const node = conditionToNode(condition);
@@ -624,15 +865,38 @@ function placeIf(b: Building, action: Action, path: string, tails: Tail[]): Tail
   return [...yes, ...no];
 }
 
+function placeParallel(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
+  const branches = (action.params?.branches ?? []) as { actions?: Action[] }[];
+  return branches.flatMap((branch, i) => placeActions(b, branch.actions ?? [], `${path}.params.branches[${i}].actions`, tails));
+}
+
+function placeLoop(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
+  const params = action.params ?? {};
+  const id = addNode(b, LOOP_TYPE, placedConfig(action, { times: str(params.times) }), tails);
+  placeActions(b, (params.actions ?? []) as Action[], `${path}.params.actions`, [{ from: id, port: 'body' }]);
+  return [{ from: id, port: 'done' }];
+}
+
+function placeApi(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
+  const params = action.params ?? {};
+  const node = API_READERS[action.type]!(params);
+  const id = addNode(b, node.type, placedConfig(action, node.config), tails);
+  const worked = placeActions(b, (params.on_ok ?? []) as Action[], `${path}.params.on_ok`, [{ from: id, port: 'ok' }]);
+  const failed = placeActions(b, (params.on_failure ?? []) as Action[], `${path}.params.on_failure`, [{ from: id, port: 'failure' }]);
+  return [...worked, ...failed];
+}
+
 function placeAction(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
   if (action.type === 'if') return placeIf(b, action, path, tails);
-  const node = ACTION_READERS[action.type]?.(action.params ?? {});
+  if (action.type === 'parallel') return placeParallel(b, action, path, tails);
+  if (action.type === 'loop') return placeLoop(b, action, path, tails);
+  if (Object.hasOwn(API_READERS, action.type)) return placeApi(b, action, path, tails);
+  const node = Object.hasOwn(ACTION_READERS, action.type) ? ACTION_READERS[action.type]!(action.params ?? {}) : null;
   if (!node) {
     b.issues.push({ path, code: FLOW_ISSUE.unsupportedAction });
     return tails;
   }
-  const config = action.enabled === false ? { ...node.config, disabled: true } : node.config;
-  return [{ from: addNode(b, node.type, config, tails), port: 'next' }];
+  return [{ from: addNode(b, node.type, placedConfig(action, node.config), tails), port: 'next' }];
 }
 
 function placeActions(b: Building, actions: Action[], path: string, tails: Tail[]): Tail[] {
@@ -674,5 +938,6 @@ export function definitionToFlow(definition: Definition, meta: FlowMeta): FlowRe
   placeActions(b, definition.actions ?? [], 'actions', gated);
   if (b.issues.length > 0) return { ok: false, issues: b.issues };
   raiseMessages(b, triggerKind(definition.trigger));
-  return { ok: true, value: { ...meta, nodes: b.nodes, edges: b.edges } };
+  const queue = definition.queue ? { queue: definition.queue } : {};
+  return { ok: true, value: { ...meta, ...queue, nodes: b.nodes, edges: b.edges } };
 }

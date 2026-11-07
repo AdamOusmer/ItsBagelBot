@@ -20,18 +20,30 @@ type fakeCP struct {
 	live    map[string]string
 	replies []aclpush.ClaimsReply
 	pushed  []string
+	landed  map[string]string
 }
 
 func (f *fakeCP) Servers(context.Context, aclpush.ClusterName) ([]string, error) {
 	return f.servers, nil
 }
 
-func (f *fakeCP) Lookup(_ context.Context, _ aclpush.ClusterName, key string) (string, error) {
+func (f *fakeCP) Lookup(_ context.Context, cluster aclpush.ClusterName, key string) (string, error) {
+	if token, ok := f.landed[string(cluster)+key]; ok {
+		return token, nil
+	}
 	return f.live[key], nil
 }
 
-func (f *fakeCP) Push(_ context.Context, _ aclpush.ClusterName, accountJWT string, _ int) ([]aclpush.ClaimsReply, error) {
+func (f *fakeCP) Push(_ context.Context, cluster aclpush.ClusterName, accountJWT string, _ int) ([]aclpush.ClaimsReply, error) {
 	f.pushed = append(f.pushed, accountJWT)
+	claims, err := jwt.DecodeAccountClaims(accountJWT)
+	if err != nil {
+		return nil, err
+	}
+	if f.landed == nil {
+		f.landed = map[string]string{}
+	}
+	f.landed[string(cluster)+claims.Subject] = accountJWT
 	return f.replies, nil
 }
 
@@ -73,30 +85,36 @@ func TestDrift(t *testing.T) {
 	matching := namedClaims(t, "MATCHING")
 	drifted := namedClaims(t, "DRIFTED")
 	missing := namedClaims(t, "MISSING")
-	live := map[string]string{
-		matching.Subject: encode(t, matching, op),
-		drifted.Subject:  encode(t, namedClaims(t, "OLD"), op),
-	}
+	cp := &fakeCP{servers: []string{"s1"}, replies: []aclpush.ClaimsReply{{Server: "s1", Code: 200}}, live: map[string]string{}}
+	p, err := aclpush.NewSyncer(cp, op).ClusterPusher(context.Background(), aclpush.ClusterHub)
+	require.NoError(t, err)
+	_, err = p.Push(context.Background(), matching)
+	require.NoError(t, err)
+	cp.live[drifted.Subject] = encode(t, namedClaims(t, "OLD"), op)
 
-	cases := []struct {
-		name     string
-		live     map[string]string
-		compiled []*jwt.AccountClaims
-		want     []string
-	}{
-		{"pushes only what is missing or different", live, []*jwt.AccountClaims{matching, drifted, missing}, []string{"DRIFTED", "MISSING"}},
-		{"counts an account with no live claims as different", map[string]string{}, []*jwt.AccountClaims{namedClaims(t, "SOLO")}, []string{"SOLO"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			p, err := aclpush.NewClusterPusher(context.Background(), &fakeCP{live: tc.live}, op, aclpush.ClusterHub)
-			require.NoError(t, err)
+	got, err := p.Drift(context.Background(), []*jwt.AccountClaims{matching, drifted, missing})
 
-			got, err := p.Drift(context.Background(), tc.compiled)
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, names(got))
-		})
-	}
+	require.NoError(t, err)
+	assert.Equal(t, []string{"DRIFTED", "MISSING"}, names(got), "pushes only what is missing or different")
+}
+
+func TestDriftCountsStoreTokenItDidNotPush(t *testing.T) {
+	op := operator(t)
+	account := namedClaims(t, "RELOADED")
+	cp := &fakeCP{servers: []string{"s1"}, replies: []aclpush.ClaimsReply{{Server: "s1", Code: 200}}, live: map[string]string{}}
+	p, err := aclpush.NewSyncer(cp, op).ClusterPusher(context.Background(), aclpush.ClusterHub)
+	require.NoError(t, err)
+	cp.live[account.Subject] = encode(t, account, op)
+
+	got, err := p.Drift(context.Background(), []*jwt.AccountClaims{account})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"RELOADED"}, names(got), "equivalent store token from a reload or a boot")
+
+	_, err = p.Push(context.Background(), account)
+	require.NoError(t, err)
+	got, err = p.Drift(context.Background(), []*jwt.AccountClaims{account})
+	require.NoError(t, err)
+	assert.Empty(t, got, "the token every server acknowledged")
 }
 
 func TestPush(t *testing.T) {
@@ -114,7 +132,7 @@ func TestPush(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cp := &fakeCP{servers: []string{"s1", "s2"}, replies: tc.replies}
-			p, err := aclpush.NewClusterPusher(context.Background(), cp, operator(t), aclpush.ClusterHub)
+			p, err := aclpush.NewSyncer(cp, operator(t)).ClusterPusher(context.Background(), aclpush.ClusterHub)
 			require.NoError(t, err)
 
 			res, err := p.Push(context.Background(), namedClaims(t, "PUSHED"))
@@ -147,9 +165,13 @@ func TestSync(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cp := &fakeCP{servers: []string{"s1"}, replies: tc.replies, live: map[string]string{matching.Subject: encode(t, matching, op)}}
+			cp := &fakeCP{servers: []string{"s1"}, replies: ok}
+			syncer := aclpush.NewSyncer(cp, op)
+			_, err := syncer.Sync(context.Background(), []*jwt.AccountClaims{matching})
+			require.NoError(t, err)
+			cp.replies = tc.replies
 
-			res, err := aclpush.Sync(context.Background(), cp, op, []*jwt.AccountClaims{matching, drifted})
+			res, err := syncer.Sync(context.Background(), []*jwt.AccountClaims{matching, drifted})
 
 			var clusters []aclpush.ClusterName
 			for _, r := range res {

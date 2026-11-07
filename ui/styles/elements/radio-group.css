@@ -179,6 +179,8 @@
         flex-direction: column;
         border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-md);
+        background: var(--bb-elev-1);
+        box-shadow: var(--bb-depth-1);
     }
 
     .bb-choices--scroll {
@@ -205,7 +207,7 @@
 
     .bb-choices--rows .bb-choice:last-child { border-bottom: 0; }
 
-    .bb-choices--rows .bb-choice:hover { background: rgba(var(--bb-white-pure-rgb), 0.03); }
+    .bb-choices--rows .bb-choice:hover { background: var(--bb-elev-2); }
 
     .bb-choices--rows .bb-choice:has(.bb-choice__input:checked) {
         background: linear-gradient(100deg, rgba(var(--bb-tan-rgb), 0.14), rgba(var(--bb-green-glow-rgb), 0.06));
@@ -230,16 +232,6 @@
         font-size: 11px;
         color: var(--bb-muted);
     }
-
-    :where([data-surface='tonal']) .bb-choices--rows {
-        border-color: transparent;
-        background: var(--bb-elev-1);
-        box-shadow: var(--bb-depth-1);
-    }
-
-    :where([data-surface='tonal']) .bb-choices--rows .bb-choice { border-bottom-color: transparent; }
-
-    :where([data-surface='tonal']) .bb-choices--rows .bb-choice:hover { background: var(--bb-elev-2); }
 
     @media (prefers-reduced-motion: reduce) {
         .bb-choice,

@@ -44,6 +44,7 @@ type enrollment struct {
 	conduitID     string
 	// priorState must be read before this attempt's "pending" write clobbers it.
 	priorState string
+	live       map[string]bool
 }
 
 func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message) error {
@@ -244,7 +245,7 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStatePending, "")
 
 		err = retryTransient(ctx, func() error {
-			return w.createAllEventSubs(ctx, e)
+			return w.createMissingEventSubs(ctx, e)
 		})
 		if err == nil {
 			w.recordEnrollSuccess(ctx, e)
@@ -426,6 +427,15 @@ func ownedSub(sub twitch.EventSubEntry, e enrollment) bool {
 	return sub.Condition.BroadcasterUserID == e.broadcasterID || sub.Condition.ToBroadcasterUserID == e.broadcasterID
 }
 
+func (w *Worker) createMissingEventSubs(ctx context.Context, e enrollment) error {
+	live, err := w.liveSubscriptionTypes(ctx, e)
+	if err != nil {
+		return err
+	}
+	e.live = live
+	return w.createAllEventSubs(ctx, e)
+}
+
 func (w *Worker) createAllEventSubs(ctx context.Context, e enrollment) error {
 	defer w.recordChatOwnership(ctx, e)
 	if w.botID == "" {
@@ -435,7 +445,7 @@ func (w *Worker) createAllEventSubs(ctx context.Context, e enrollment) error {
 	// Recovery listener permissions are independent of ordinary chat permissions.
 	_ = w.createControlListeners(ctx, e)
 	for _, spec := range twitch.ChannelSubscriptions(e.broadcasterID, w.botID) {
-		if controlSubscription(spec.Type) {
+		if controlSubscription(spec.Type) || e.live[spec.Type] {
 			continue
 		}
 		if !w.enrollmentAllowed(ctx, e) {
@@ -458,7 +468,12 @@ func (w *Worker) ensureOptionalEventSubs(ctx context.Context, e enrollment) erro
 		return nil
 	}
 	return w.underEnrollLock(ctx, "ensure-optional", e, func() error {
-		if err := w.createOptionalEventSubs(ctx, e); err != nil {
+		live, err := w.liveSubscriptionTypes(ctx, e)
+		if err == nil {
+			e.live = live
+			err = w.createOptionalEventSubs(ctx, e)
+		}
+		if err != nil {
 			w.log.Warn("ensure-optional eventsubs failed, will retry",
 				zap.String("broadcaster_id", e.broadcasterID), zap.Error(err))
 			return err
@@ -470,6 +485,9 @@ func (w *Worker) ensureOptionalEventSubs(ctx context.Context, e enrollment) erro
 
 func (w *Worker) createOptionalEventSubs(ctx context.Context, e enrollment) error {
 	for _, spec := range twitch.ChannelOptionalSubscriptions(e.broadcasterID) {
+		if e.live[spec.Type] {
+			continue
+		}
 		if !w.enrollmentAllowed(ctx, e) {
 			return errLifecycleStopped
 		}

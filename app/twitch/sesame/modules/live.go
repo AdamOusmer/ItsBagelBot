@@ -64,9 +64,12 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 }
 
 func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
+	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		id := c.BroadcasterID
 		version := c.EventVersion()
+		if restore := rewardRestore(ctx, d, c, log); restore != nil {
+			emit(restore)
+		}
 		seqOrGo(d.Seq, id, log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), liveWriteTimeout)
 			defer cancel()
@@ -84,6 +87,21 @@ func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 		log.Debug("stream offline", module.BIDField(id))
 		return nil
 	}
+}
+
+// Lives in the core module so a channel that lost the recipes module mid-stream still gets its rewards back.
+func rewardRestore(ctx context.Context, d engine.Deps, c *module.Context, log *zap.Logger) *module.Output {
+	if d.RewardResets == nil {
+		return nil
+	}
+	pending, err := d.RewardResets.RestorePending(ctx, c.BroadcasterID, c.EventVersion())
+	if err != nil {
+		log.Warn("live: reward restore check failed, restoring anyway", module.BIDField(c.BroadcasterID), zap.Error(err))
+	}
+	if err == nil && !pending {
+		return nil
+	}
+	return &module.Output{Type: outgress.TypeRewardRestore, BroadcasterID: strconv.FormatUint(c.BroadcasterID, 10)}
 }
 
 func seqOrGo(seq *engine.Sequencer, broadcasterID uint64, log *zap.Logger, task func()) {

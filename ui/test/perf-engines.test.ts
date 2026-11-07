@@ -147,13 +147,12 @@ const lib = isolatedLib('perf', [
   'motion-query.ts',
   'raf-loop.ts',
   'rect-cache.ts',
-  'magnetic.ts',
   'cursor-engine.ts',
+  'cursor-prop.ts',
   'light-field.ts',
   'count-up.ts',
 ]);
 const { mountCursor } = await lib.load<typeof import('../lib/cursor-engine')>('cursor-engine.ts');
-const { mountMagnetic } = await lib.load<typeof import('../lib/magnetic')>('magnetic.ts');
 const { field } = await lib.load<typeof import('../lib/light-field')>('light-field.ts');
 const { countUp } = await lib.load<typeof import('../lib/count-up')>('count-up.ts');
 const { isRunning, wake } = await lib.load<typeof import('../lib/raf-loop')>('raf-loop.ts');
@@ -178,7 +177,8 @@ describe('cursor', () => {
     let rects = 0;
     const link = {
       isConnected: true,
-      matches: () => false,
+      parentElement: null,
+      matches: (selector: string) => selector === 'a, button, .bb-input',
       closest: () => link,
       getBoundingClientRect: () => {
         rects += 1;
@@ -186,7 +186,7 @@ describe('cursor', () => {
       },
     };
     const paint = () => ({ style: {} as Record<string, string>, classList: { toggle() {} } });
-    computed = { borderRadius: '8px' };
+    computed = { borderRadius: '8px', getPropertyValue: () => '' };
     const ring = paint();
     const dispose = mountCursor({ dot: paint() as never, ring: ring as never });
     return { link, ring, dispose, rects: () => rects };
@@ -273,63 +273,6 @@ describe('cursor', () => {
 
     dispose();
     expect([dot.popover, ring.popover, doc.count('beforetoggle')]).toEqual([null, null, 0]);
-  });
-});
-
-describe('magnetic', () => {
-  function stage() {
-    let rects = 0;
-    const writes = { transition: [] as string[], transform: 0, last: '' };
-    const style = {
-      set transition(value: string) {
-        writes.transition.push(value);
-      },
-      set transform(value: string) {
-        writes.transform += 1;
-        writes.last = value;
-      },
-      willChange: '',
-    };
-    computed = { transform: 'none' };
-    const el = Object.assign(target(), {
-      style,
-      getBoundingClientRect: () => {
-        rects += 1;
-        return { left: 0, top: 0, width: 100, height: 100 };
-      },
-    });
-    const dispose = mountMagnetic(el as unknown as HTMLElement);
-    return { el, dispose, writes, rects: () => rects };
-  }
-
-  test('rect is read once per hover, transition is set on enter and leave only, one style write per frame', () => {
-    const { el, dispose, writes, rects } = stage();
-    flush();
-    writes.transform = 0;
-    el.dispatch('pointerenter');
-    for (const x of [60, 80, 100]) el.dispatch('pointermove', { clientX: x, clientY: 50 });
-    flush();
-    expect([rects(), writes.transform]).toEqual([1, 1]);
-    expect(writes.transition).toEqual(['transform 0.3s cubic-bezier(0.16,1,0.3,1)', 'none']);
-    win.dispatch('scroll');
-    el.dispatch('pointermove', { clientX: 100, clientY: 50 });
-    expect(rects()).toBe(2);
-    el.dispatch('pointerleave');
-    expect(writes.transition.at(-1)).toBe('transform 0.4s cubic-bezier(0.16,1,0.3,1)');
-    expect(win.count('scroll')).toBe(0);
-    dispose();
-  });
-
-  test('pull is measured from the displaced centre, as a live rect read would be', () => {
-    const { el, dispose, writes } = stage();
-    el.dispatch('pointerenter');
-    el.dispatch('pointermove', { clientX: 100, clientY: 50 });
-    flush();
-    expect(writes.last).toBe('translate(2.80px, 0.00px)');
-    el.dispatch('pointermove', { clientX: 60, clientY: 50 });
-    flush();
-    expect(writes.last).toBe('translate(2.67px, 0.00px)');
-    dispose();
   });
 });
 

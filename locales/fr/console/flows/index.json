@@ -112,6 +112,7 @@
     "outOfRange": "Un nombre se situe en dehors de la plage autorisée.",
     "invalidEnum": "Un choix n’est pas valide.",
     "invalidFormat": "Une valeur n’est pas au bon format.",
+    "simpleWord": "Utilise un mot simple pour ce nom : lettres minuscules et chiffres uniquement, comme points ou victoires.",
     "invalidRegex": "Un motif n’est pas valide.",
     "nesting": "Les vérifications sont imbriquées trop profondément.",
     "delayBudget": "Le total des temps d’attente dépasse la durée de pause autorisée pour une recette.",
@@ -120,26 +121,34 @@
   },
   "choose": {
     "reward": "Choisir une récompense",
-    "channel": "Choisir un salon",
     "counter": "Choisir un compteur",
     "scene": "Choisir une scène",
-    "light": "Choisir d’abord une lumière"
+    "light": "Choisir d’abord une lumière",
+    "namedCooldown": "Choisir un minuteur"
   },
   "choiceEmpty": {
     "rewards": "Aucune récompense de points de chaîne pour le moment. Créez-en une dans Points de chaîne.",
-    "discordChannels": "Le bot n’a aucun salon textuel dans lequel publier.",
+    "manageableRewards": "Twitch ne permet de modifier que les récompenses créées ici. Créez-en une dans Points de chaîne.",
     "counters": "Aucun compteur pour le moment. Créez-en un dans Compteurs.",
-    "scenes": "Cette lumière n’a aucune scène."
+    "scenes": "Cette lumière n’a aucune scène.",
+    "namedCooldowns": "Aucune recette ne nomme encore de minuteur. Donnez-en un nom dans son délai de récupération."
   },
   "choiceProblem": {
     "rewards": "Impossible de charger vos récompenses.",
-    "discordChannels": "Impossible de charger vos salons Discord.",
     "counters": "Impossible de charger vos compteurs.",
     "scenes": "Impossible de charger les scènes de cette lumière.",
     "keyRejected": "Govee n’a pas accepté votre clé API.",
-    "notConnected": "Connectez Discord et ajoutez le bot à un serveur pour choisir un salon."
+    "namedCooldowns": "Impossible de charger les minuteurs de vos recettes."
   },
   "choiceMissing": "\"{name}\" n’est plus dans la liste.",
+  "choiceUnowned": "Aucune recette ne possède encore \"{name}\". Cela ne fera rien jusqu’à ce qu’une le fasse.",
   "choiceRetry": "Réessayer",
-  "choiceLoading": "Chargement"
+  "choiceLoading": "Chargement",
+  "setup": {
+    "line": "Désactivé avant configuration",
+    "stepNote": "Cette étape reste désactivée tant que tu ne l'as pas remplie.",
+    "pickReward": "Choisis une récompense",
+    "addUrl": "Ajoute une URL",
+    "refused": "Remplis les étapes à configurer, enregistre, puis active ceci."
+  }
 }

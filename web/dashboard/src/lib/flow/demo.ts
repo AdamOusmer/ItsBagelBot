@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { dev } from '$app/env';
-import { flowToDefinition, type FlowExportRow } from '@bagel/kit/automations';
+import { definitionToFlow, flowToDefinition, setupGaps, SETUP_REWARD_ID, SETUP_URL, type Definition, type FlowExportRow, type RunRecord } from '@bagel/kit/automations';
 import type { EditorData, Lowered } from '#lib/server/flow-page';
-import { cardFromSummary, type FlowCard, type FlowSection } from './cards';
+import { cardFromSummary, type FlowCard } from './cards';
 import { unavailable, type ChoiceList, type ChoiceOption } from './choices';
 import { MAX_WAIT_SECONDS, specFor, type Flow } from './model';
 import { flowRouteId, parseFlowRouteId, type FlowRef } from './ref';
@@ -15,17 +15,8 @@ if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 export type DemoSystem = {
   id: string;
   name: string;
-  section: string;
   description: string;
   flow: Flow;
-};
-
-const DEMO_GUILD_ID = '123456789012345678';
-
-const DEMO_ANNOUNCEMENTS: ChoiceOption = {
-  value: '567890123456789013',
-  label: '#announcements (demo channel)',
-  meta: { guildId: DEMO_GUILD_ID }
 };
 
 const DEMO_STRIP = { device: 'AB:CD:EF:12:34:56', sku: 'H6159', name: 'Desk strip' };
@@ -56,7 +47,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'hug',
     name: '!hug command',
-    section: 'Commands',
     description: 'Hugs someone, most of the time',
     flow: flowOf(
       'hug',
@@ -73,7 +63,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'follow',
     name: 'Follow alert',
-    section: 'Alerts',
     description: 'Welcomes every new follower',
     flow: flowOf(
       'follow',
@@ -89,7 +78,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'sub',
     name: 'Sub alert',
-    section: 'Alerts',
     description: 'Thanks subs, with extra love for long ones',
     flow: flowOf(
       'sub',
@@ -106,7 +94,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'raid',
     name: 'Raid shoutout',
-    section: 'Alerts',
     description: 'Shouts out raids of five viewers or more',
     flow: flowOf(
       'raid',
@@ -114,21 +101,14 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
       [
         node('r1', 'twitch.raid', { minViewers: 1 }),
         node('r2', 'cond.compare', { left: '{viewers}', op: 'gte', right: '5' }),
-        node('r3', 'reply.chat', { message: 'Welcome raiders! {user} brought {viewers} friends.' }),
-        node('r4', 'reply.discord', {
-          channel: DEMO_ANNOUNCEMENTS.value,
-          channelName: DEMO_ANNOUNCEMENTS.label,
-          guildId: DEMO_GUILD_ID,
-          message: '{user} just raided with {viewers} viewers!'
-        })
+        node('r3', 'reply.chat', { message: 'Welcome raiders! {user} brought {viewers} friends.' })
       ],
-      [edge('re1', 'r1', 'next', 'r2'), edge('re2', 'r2', 'yes', 'r3'), edge('re3', 'r2', 'yes', 'r4')]
+      [edge('re1', 'r1', 'next', 'r2'), edge('re2', 'r2', 'yes', 'r3')]
     )
   },
   {
     id: 'hydrate',
     name: 'Hydrate reward',
-    section: 'Channel point rewards',
     description: 'Water break reminder with a follow-up',
     flow: flowOf(
       'hydrate',
@@ -145,7 +125,6 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'cheer',
     name: 'Big cheer celebration',
-    section: 'Automations',
     description: 'Lights and thanks for big bit cheers',
     flow: flowOf(
       'cheer',
@@ -162,21 +141,34 @@ export const DEMO_SYSTEMS: DemoSystem[] = [
   }
 ];
 
-type DemoRow = { name: string; section: FlowSection; description: string; flow: Flow; enabled: boolean; revision: number };
-
-const SECTIONS: Record<string, FlowSection> = {
-  Commands: 'commands',
-  Alerts: 'alerts',
-  'Channel point rewards': 'rewards',
-  Automations: 'automations'
-};
+type DemoRow = { name: string; description: string; flow: Flow; enabled: boolean; revision: number };
 
 const rows = new Map<string, DemoRow>(
   DEMO_SYSTEMS.map((system) => [
     system.id,
-    { name: system.name, section: SECTIONS[system.section] ?? 'automations', description: system.description, flow: system.flow, enabled: true, revision: 1 }
+    { name: system.name, description: system.description, flow: system.flow, enabled: true, revision: 1 }
   ])
 );
+
+rows.set('imported', {
+  name: 'Imported recipe',
+  description: 'Waiting for its reward and web address',
+  enabled: false,
+  revision: 1,
+  flow: {
+    ...flowOf(
+      'imported',
+      'Imported recipe',
+      [
+        node('i1', 'twitch.reward', { reward: SETUP_REWARD_ID }),
+        node('i2', 'reply.chat', { message: 'Thanks {user}!' }),
+        node('i3', 'reply.http_get', { url: SETUP_URL, disabled: true })
+      ],
+      [edge('ie1', 'i1', 'next', 'i2'), edge('ie2', 'i2', 'next', 'i3')]
+    ),
+    enabled: false
+  }
+});
 
 let created = 0;
 
@@ -196,23 +188,31 @@ const triggerLabel = (flow: Flow) => TRIGGER_LABELS[specFor(flow.nodes.find((n) 
 export function demoCards(): FlowCard[] {
   return [...rows].map(([id, row]) => ({
     ...cardFromSummary({ ref: { layer: 'automation', id }, name: row.name, enabled: row.enabled, revision: String(row.revision), preview: JSON.stringify(flowPreview(row.flow)) }),
-    section: row.section,
     description: row.description,
     when: triggerLabel(row.flow)
   }));
+}
+
+const RELOAD_META = { id: 'demo', name: 'demo', enabled: true };
+
+function reloaded(flow: Flow): Flow {
+  const definition = flowToDefinition(flow);
+  if (!definition.ok) return flow;
+  const drawn = definitionToFlow(JSON.parse(JSON.stringify(definition.value)) as Definition, RELOAD_META);
+  return drawn.ok ? drawn.value : flow;
 }
 
 export function demoEditor(routeId: string): EditorData | null {
   const ref = parseFlowRouteId(routeId);
   const row = ref?.layer === 'automation' ? rows.get(ref.id) : undefined;
   if (!ref || !row) return null;
-  return { routeId, ref, revision: String(row.revision), name: row.name, flow: { ...structuredClone(row.flow), id: routeId, name: row.name, enabled: row.enabled } };
+  return { routeId, ref, revision: String(row.revision), name: row.name, flow: { ...reloaded(structuredClone(row.flow)), id: routeId, name: row.name, enabled: row.enabled } };
 }
 
 function demoCreate(lowered: Lowered): SaveReply {
   const id = `demo-${++created}`;
   const name = lowered.flow.name || 'Untitled';
-  rows.set(id, { name, section: 'automations', description: '', flow: structuredClone(lowered.flow), enabled: lowered.flow.enabled, revision: 1 });
+  rows.set(id, { name, description: '', flow: structuredClone(lowered.flow), enabled: lowered.flow.enabled, revision: 1 });
   return { ok: true, id: flowRouteId({ layer: 'automation', id }), name, enabled: lowered.flow.enabled, revision: '1', warnings: [] };
 }
 
@@ -231,10 +231,16 @@ export function demoSave(lowered: Lowered): SaveReply {
   return { ok: true, id: flowRouteId(ref), name: row.name, enabled: row.enabled, revision: String(row.revision), warnings: [] };
 }
 
+function needsSetup(flow: Flow): boolean {
+  const lowered = flowToDefinition(flow);
+  return lowered.ok ? setupGaps(lowered.value).length > 0 : false;
+}
+
 export function demoToggle(ref: FlowRef, enabled: boolean, expectedRevision?: string): ToggleReply {
   const row = ref.layer === 'automation' ? rows.get(ref.id) : undefined;
   if (!row) return { ok: false, reason: 'not_found' };
   if (expectedRevision !== undefined && Number(expectedRevision) !== row.revision) return { ok: false, reason: 'conflict' };
+  if (enabled && needsSetup(row.flow)) return { ok: false, reason: 'needs_setup' };
   row.enabled = enabled;
   row.revision += 1;
   return { ok: true, enabled, revision: String(row.revision), warnings: [] };
@@ -251,20 +257,65 @@ export function demoExportRows(): FlowExportRow[] {
   });
 }
 
+const DEMO_RUNS: RunRecord[] = [
+  {
+    run_id: 'demo-run-3',
+    automation_id: 'cheer',
+    name: 'Big cheer celebration',
+    trigger: 'event',
+    source: 'eventsub',
+    at: '2026-11-04T18:10:00Z',
+    duration_ms: 120,
+    outcome: 'ok',
+    actions: [
+      { index: 0, type: 'if', status: 'ok' },
+      { index: 0, type: 'chat', status: 'ok' }
+    ]
+  },
+  {
+    run_id: 'demo-run-2',
+    automation_id: 'hydrate',
+    name: 'Hydrate reward',
+    trigger: 'reward',
+    source: 'eventsub',
+    at: '2026-11-04T18:02:00Z',
+    duration_ms: 412,
+    outcome: 'partial',
+    actions: [
+      { index: 0, type: 'chat', status: 'ok' },
+      { index: 1, type: 'delay', status: 'ok' },
+      { index: 2, type: 'chat', status: 'failed', detail: 'text_error' }
+    ]
+  },
+  {
+    run_id: 'demo-run-1',
+    automation_id: 'hug',
+    name: '!hug command',
+    trigger: 'command',
+    source: 'chat',
+    at: '2026-11-04T17:40:00Z',
+    duration_ms: 0,
+    outcome: 'skipped',
+    reason: 'condition:0:cooldown',
+    actions: []
+  }
+];
+
+export function demoRuns(automationId?: string): RunRecord[] {
+  return DEMO_RUNS.filter((run) => !automationId || run.automation_id === automationId);
+}
+
 const DEMO_REWARDS: ChoiceOption[] = [
   { value: 'hydrate', label: 'Hydrate (demo reward)' },
   { value: 'song', label: 'Song request (demo reward)' }
-];
-
-const DEMO_CHANNELS: ChoiceOption[] = [
-  DEMO_ANNOUNCEMENTS,
-  { value: '890123456789012345', label: '#chat (demo channel)', meta: { guildId: DEMO_GUILD_ID } }
 ];
 
 const DEMO_COUNTERS: ChoiceOption[] = [
   { value: 'deaths', label: 'deaths' },
   { value: 'hugs', label: 'hugs' }
 ];
+
+const DEMO_NAMED_COOLDOWNS: ChoiceOption[] = [{ value: 'subathon', label: 'subathon, in Big cheer celebration' }];
 
 const demoScene = (id: number, label: string): ChoiceOption => ({
   value: `lightScene:${id}`,
@@ -289,8 +340,8 @@ function demoList(options: ChoiceOption[], mode: DemoChoiceMode): ChoiceList {
 export function demoChoices(mode: DemoChoiceMode) {
   return {
     rewards: demoList(DEMO_REWARDS, mode),
-    discordChannels: demoList(DEMO_CHANNELS, mode),
-    counters: demoList(DEMO_COUNTERS, mode)
+    counters: demoList(DEMO_COUNTERS, mode),
+    namedCooldowns: demoList(DEMO_NAMED_COOLDOWNS, mode)
   };
 }
 

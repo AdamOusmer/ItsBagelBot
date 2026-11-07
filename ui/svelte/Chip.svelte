@@ -28,8 +28,7 @@
 <svelte:element
   this={tag}
   type={tag === 'button' ? type : undefined}
-  class="bb-chip{tone ? ` bb-chip--${tone}` : ''}{cls ? ` ${cls}` : ''}"
+  class="bb-chip{tone ? ` bb-chip--${tone}` : ''}{pressed ? ' is-pressed' : ''}{cls ? ` ${cls}` : ''}"
   aria-pressed={tag === 'button' && pressed !== undefined ? pressed : undefined}
-  data-pressed={pressed ? '' : undefined}
   {...rest}
 >{@render children()}</svelte:element>

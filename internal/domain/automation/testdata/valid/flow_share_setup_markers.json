@@ -3,7 +3,6 @@
   "trigger": { "type": "event", "params": { "kind": "channel.follow", "filters": { "user_id": "setup-required" } } },
   "conditions": [{ "type": "users", "params": { "allow": ["_setup_required"] } }],
   "actions": [
-    { "type": "discord_post", "enabled": false, "params": { "guild_id": "00000", "channel_id": "00000", "text": "hi" } },
     { "type": "http_post", "enabled": false, "params": { "url": "https://example.com/setup-required" } },
     { "type": "points_add", "enabled": false, "params": { "login": "_setup_required", "amount": 10 } },
     { "type": "run", "enabled": false, "params": { "automation_id": "setup-required" } }

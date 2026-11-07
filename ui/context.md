@@ -44,17 +44,17 @@ Svelte `setUiI18n` and Astro `uiI18n(Astro)` resolve locale without product-spec
 - [styles/elements.css](styles/elements.css): every element sheet in cascade order (the tiebreak for equal
   specificity). Console apps ship it as two ordered kit files and skip the per-adapter imports.
 - `svelte/` and `astro/`: named component adapters; `index.ts` files provide aggregate exports.
-- [svelte/actions.ts](svelte/actions.ts): `use:` wrappers over shared reveal/decode/magnetic engines.
+- [svelte/actions.ts](svelte/actions.ts): `use:` wrappers over shared reveal/decode engines.
 - `lib/select.ts` and `lib/astro-select.ts`: option filtering/navigation and Astro enhancement.
 - [lib/overlay-stack.ts](lib/overlay-stack.ts): overlay order, portals, anchors, containment and focus traps.
 - [lib/inspector-machine.ts](lib/inspector-machine.ts): pure draft/save transitions;
   `svelte/inspector.svelte.ts` and `discard-guard.svelte.ts` adapt state/navigation behavior.
-- `lib/light-field.ts`, `cursor-engine.ts`, `reveal.ts`, `decode.ts`, `magnetic.ts`:
+- `lib/light-field.ts`, `cursor-engine.ts`, `reveal.ts`, `decode.ts`:
   reusable visual effects; keep mount/dispose cleanup and reduced-motion behavior intact.
 - [lib/raf-loop.ts](lib/raf-loop.ts): shared animation subscription/wake scheduling.
 - `lib/lenis.ts`, `scroll-spy.ts`, `reading-progress.ts`, `glide.ts`: navigation/scroll engines.
 - `lib/icons.ts`, `line-series.ts`, `csv.ts`, `clipboard.ts`: shared symbols/data/utility primitives.
-- `tilt.ts`, `nested-scroll.ts`, `roving-focus.ts`: pointer effects, nested scroll and keyboard navigation. Inspect these before adding new listeners.
+- `nested-scroll.ts`, `roving-focus.ts`: pointer effects, nested scroll and keyboard navigation. Inspect these before adding new listeners.
 - `svelte/forms.ts`: shared form enhancements; `locales/index.ts` is generated UI catalog data.
 - `fonts/`: local WOFF2 assets; consumers can import URLs for selective preloads. `caveat-latin.woff2` holds only the
   glyphs in `caveat-glyphs.txt` (derived from locale sign-off strings; `test/caveat-glyphs.test.ts` fails when a copy edit

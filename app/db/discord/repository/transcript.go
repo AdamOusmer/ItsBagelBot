@@ -22,7 +22,7 @@ func (s *Store) TranscriptPut(ctx context.Context, ticketID int, body string, me
 		return ErrInvalidInput
 	}
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			return putTranscriptInTx(ctx, tx, transcriptPut{
 				ticketID:     ticketID,
 				body:         body,

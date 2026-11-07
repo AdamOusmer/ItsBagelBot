@@ -55,6 +55,8 @@ defmodule Ingress.Config do
   def lane_subject(:standard), do: Application.fetch_env!(:ingress, :lane_subject_standard)
   def lane_subject(:stream), do: Application.fetch_env!(:ingress, :lane_subject_stream)
 
+  def automod_trial_subject, do: Application.get_env(:ingress, :automod_trial_subject)
+
   def invalidation_subject, do: Application.fetch_env!(:ingress, :invalidation_subject)
 
   def broadcaster_status_subject,

@@ -21,7 +21,7 @@
   import SetupStage from '@bagel/ui/svelte/SetupStage.svelte';
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
   import SetupNote from '@bagel/ui/svelte/SetupNote.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import SetupAskAi from '../shared/SetupAskAi.svelte';
 
   let { name, app, redirectUri, preview = false, error = '', onRemoveApp }: {
@@ -124,8 +124,8 @@
   onSelect={go}
   {hero}
   style="--setup-stage-offset: 76px"
-  data-orbs="off"
-  data-canvas="fill"
+  orbs={false}
+  class="bb-canvas-fill"
 >
   {#snippet start()}<TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('spotify.back')} />{/snippet}
   {#snippet art()}

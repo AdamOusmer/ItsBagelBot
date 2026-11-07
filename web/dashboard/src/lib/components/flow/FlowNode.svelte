@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import Icon from './FlowIcon.svelte';
+  import CanvasCard from '@bagel/ui/svelte/CanvasCard.svelte';
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
   import FlowAddButton from './FlowAddButton.svelte';
   import { NODE_W, outputsFor, specFor, type FlowNode } from '../../flow/model';
@@ -49,19 +50,19 @@
 {/snippet}
 
 {#if spec}
-  <div
+  <CanvasCard
     class="node"
-    class:selected
+    background
+    {selected}
     data-kind={spec.kind}
-    style:width="{NODE_W}px"
-    style:height="{nodeHeight(spec)}px"
+    style="width: {NODE_W}px; height: {nodeHeight(spec)}px;"
     role="button"
     tabindex={tabbable ? 0 : -1}
     aria-pressed={selected}
     aria-label={t('flows.board.nodeLabel', { label: title, kind: kindLabel, line })}
   >
     {#if !isTrigger}
-      <span class="port port--in" data-in style:top="{inputY}px"></span>
+      <span class="port port--in" style:top="{inputY}px"></span>
     {/if}
 
     <div class="head" style:height="{HEADER_H}px">
@@ -90,47 +91,29 @@
     {:else}
       {@render outPort(outputs[0]?.id ?? 'next', t('flows.board.addAfterThis'), HEADER_H / 2, 'yes')}
     {/if}
-  </div>
+  </CanvasCard>
 {/if}
 
 <style>
-  .node {
+  /* Background, idle/hover shadow and the selected/focus ring live in the
+     shared CanvasCard (ui/styles/elements/canvas-card.css); this file only
+     owns the node's own layout, accent tint and drag affordance. */
+  :global(.node) {
     --accent: var(--bb-muted-light);
-    position: relative;
-    box-sizing: border-box;
-    border-radius: var(--bb-radius-md);
-    background: linear-gradient(rgba(var(--bb-white-rgb), 0.07), rgba(var(--bb-white-rgb), 0.03)), var(--bb-card-bg);
-    box-shadow: var(--bb-depth-2), 0 10px 28px rgba(var(--bb-shadow-rgb), 0.6);
     cursor: grab;
     user-select: none;
-    outline: none;
     font-family: var(--bb-font-body);
-    transition:
-      box-shadow var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
-  .node[data-kind='trigger'] {
+  :global(.node[data-kind='trigger']) {
     --accent: var(--bb-green-glow);
     --accent-rgb: var(--bb-green-glow-rgb);
   }
-  .node[data-kind='condition'] {
+  :global(.node[data-kind='condition']) {
     --accent: var(--bb-tan);
     --accent-rgb: var(--bb-tan-rgb);
   }
-  .node[data-kind='reply'] {
+  :global(.node[data-kind='reply']) {
     --accent-rgb: var(--bb-muted-rgb);
-  }
-  .node:hover {
-    box-shadow: var(--bb-depth-3), 0 14px 36px rgba(var(--bb-shadow-rgb), 0.75);
-  }
-  .node.selected {
-    box-shadow:
-      0 0 0 2px var(--bb-tan-light),
-      0 0 28px rgba(var(--bb-tan-light-rgb), 0.18);
-  }
-  .node:focus-visible {
-    box-shadow:
-      0 0 0 3px var(--bb-green-glow),
-      0 0 28px rgba(var(--bb-green-glow-rgb), 0.3);
   }
   .head {
     box-sizing: border-box;
@@ -204,12 +187,12 @@
   .row[data-tone='yes'] .row-label {
     color: var(--bb-green-glow);
   }
-  .node[data-kind='condition'] .title {
+  :global(.node[data-kind='condition']) .title {
     font-size: 14px;
     font-weight: 500;
     color: rgba(var(--bb-white-rgb), 0.92);
   }
-  .node[data-kind='condition'] .line {
+  :global(.node[data-kind='condition']) .line {
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
@@ -277,7 +260,7 @@
     pointer-events: none;
     transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
-  .node:hover::after {
+  :global(.node):hover::after {
     content: '';
     position: absolute;
     top: -8px;
@@ -285,35 +268,35 @@
     left: 100%;
     width: 48px;
   }
-  .node:hover .add,
+  :global(.node):hover .add,
   .out:focus-within .add {
     opacity: 1;
     pointer-events: auto;
   }
   :global(.canvas[data-touch]) .out::before,
-  :global(.canvas[data-touch]) .node:hover::after {
+  :global(.canvas[data-touch] .node):hover::after {
     display: none;
   }
-  :global(.canvas[data-touch]) .node:not(.selected) .out {
+  :global(.canvas[data-touch] .node):not(.selected) .out {
     pointer-events: none;
   }
-  :global(.canvas[data-touch]) .node:not(.selected):hover .add {
+  :global(.canvas[data-touch] .node):not(.selected):hover .add {
     opacity: 0;
     pointer-events: none;
   }
-  :global(.canvas[data-touch]) .node.selected .add {
+  :global(.canvas[data-touch] .node.selected) .add {
     opacity: 1;
     pointer-events: auto;
     transform-origin: left center;
     scale: calc(var(--inv, 1) * 1.25);
   }
-  :global(.canvas[data-touch]) .node.selected .add[data-tone='yes'] {
+  :global(.canvas[data-touch] .node.selected) .add[data-tone='yes'] {
     translate: 0 calc(-1 * max(0px, 22px * var(--inv, 1) - 16px));
   }
-  :global(.canvas[data-touch]) .node.selected .add[data-tone='no'] {
+  :global(.canvas[data-touch] .node.selected) .add[data-tone='no'] {
     translate: 0 max(0px, 22px * var(--inv, 1) - 16px);
   }
-  :global(.canvas[data-touch]) .node.selected .port--out::before {
+  :global(.canvas[data-touch] .node.selected) .port--out::before {
     inset: calc((8px - 46px * var(--inv, 1)) / 2);
   }
   :global(.canvas[data-touch][data-connecting]) .add {
@@ -321,7 +304,7 @@
     pointer-events: none;
   }
   @media (prefers-reduced-motion: reduce) {
-    .node,
+    :global(.node),
     .add,
     .port {
       transition: none;

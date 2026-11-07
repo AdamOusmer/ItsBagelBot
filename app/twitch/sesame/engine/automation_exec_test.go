@@ -4,13 +4,18 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/outgress"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,15 +53,41 @@ func TestAutomationOutputActions(t *testing.T) {
 	}
 }
 
+func TestAModerationTargetWithControlCharactersIsRefused(t *testing.T) {
+	fx := newAutoFixture(manual("main", act("ban", obj{"login": "target\nsecond", "reason": "bye"})))
+
+	rec := fx.run(t, "main", "req-control", nil)
+
+	assert.Equal(t, "failed", rec.Actions[0].Status, statuses(rec))
+	assert.Equal(t, "empty_login", rec.Actions[0].Detail)
+	assert.Empty(t, fx.described(t))
+}
+
+func TestGossipCallsKeepTheRefusalCode(t *testing.T) {
+	nc := bustest.NATS(t)
+	refuse := func(msg *nats.Msg) { _ = msg.Respond([]byte(`{"error":"gone","code":"not_found"}`)) }
+	_, err := nc.Subscribe(gossiprpc.Subject("g", customFetchProvider, customFetchEndpoint), refuse)
+	require.NoError(t, err)
+	require.NoError(t, nc.Flush())
+	rpc := NewGossipRPC(nc, "g")
+
+	_, err = rpc.Fetch(context.Background(), gossiprpc.Request{})
+	assert.True(t, bus.NotFoundReply(err), "%v", err)
+
+	var reply gossiprpc.CustomFetchReply
+	err = rpc.Call(context.Background(), GossipRoute{Provider: customFetchProvider, Endpoint: customFetchEndpoint}, gossiprpc.Request{}, &reply)
+	assert.True(t, bus.NotFoundReply(err), "%v", err)
+}
+
 func TestAutomationBatchesConsecutiveOutputs(t *testing.T) {
 	fx := newAutoFixture(manual("main", act("chat", obj{"text": "one"}), act("shield", obj{"on": true}), act("chat", obj{"text": "two"})))
-	rec := fx.run(t, "main", "req-batch", nil)
+	fx.run(t, "main", "req-batch", nil)
 	snap := fx.pub.snapshot()
 	require.Len(t, snap, 1)
 	assert.Equal(t, outgress.TypeBatch, snap[0].msg.Type)
 	var batch outgress.Batch
 	require.NoError(t, codec.Unmarshal(snap[0].msg.Payload, &batch))
-	assert.Equal(t, rec.RunID+":0:1", batch.ID)
+	assert.Equal(t, "rpc:req-batch>main:0:1", batch.ID, "a redelivered event must resume the batch, not start it again")
 	assert.Len(t, batch.Items, 3)
 }
 
@@ -68,14 +99,14 @@ func TestAutomationDisabledActionIsSkipped(t *testing.T) {
 	assert.Len(t, fx.messages(t), 1)
 }
 
-func TestAutomationChatMessageCap(t *testing.T) {
+func TestEveryChatStepReachesOutgress(t *testing.T) {
 	var actions []automation.Action
 	for range 4 {
 		actions = append(actions, act("chat", obj{"text": "line"}))
 	}
 	fx := newAutoFixture(manual("main", actions...))
-	rec := fx.run(t, "main", "req-cap", nil)
-	assert.Equal(t, []string{"0:chat:ok:", "1:chat:ok:", "2:chat:ok:", "3:chat:limited:chat_cap"}, statuses(rec))
-	assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome)
-	assert.Len(t, fx.messages(t), automation.MaxChatMessagesPerRun)
+	rec := fx.run(t, "main", "req-chat", nil)
+	assert.Equal(t, []string{"0:chat:ok:", "1:chat:ok:", "2:chat:ok:", "3:chat:ok:"}, statuses(rec))
+	assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome)
+	assert.Len(t, fx.messages(t), 4)
 }

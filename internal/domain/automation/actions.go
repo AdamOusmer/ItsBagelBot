@@ -16,7 +16,6 @@ import (
 var (
 	announceColors   = []string{"", "primary", "blue", "green", "orange", "purple"}
 	commercialLength = []int{30, 60, 90, 120, 150, 180}
-	snowflakePattern = regexp.MustCompile(`^[0-9]{5,25}$`)
 
 	lightsModes        = enum{LightsModeColor, LightsModeScene}
 	lightsColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -112,6 +111,10 @@ type RandomPickAction struct {
 	Branches []Branch `json:"branches"`
 }
 
+type ParallelAction struct {
+	Branches []Branch `json:"branches"`
+}
+
 type RunAction struct {
 	AutomationID string `json:"automation_id"`
 }
@@ -122,15 +125,12 @@ type IfAction struct {
 	Else      []Action  `json:"else"`
 }
 
-type DiscordPostAction struct {
-	GuildID   string `json:"guild_id"`
-	ChannelID string `json:"channel_id"`
-	Text      string `json:"text"`
-}
-
 type HTTPPostAction struct {
-	URL  string `json:"url"`
-	Body string `json:"body"`
+	URL       string   `json:"url"`
+	Body      string   `json:"body"`
+	SaveAs    string   `json:"save_as,omitempty"`
+	OnOK      []Action `json:"on_ok,omitempty"`
+	OnFailure []Action `json:"on_failure,omitempty"`
 }
 
 const (
@@ -237,17 +237,13 @@ func checkDelay(c chk, p DelayAction) { inRange(c, "ms", p.Ms, between(1, MaxDel
 
 func checkRun(c chk, p RunAction) { c.text("automation_id", p.AutomationID, nonEmpty(64)) }
 
-func checkDiscordPost(c chk, p DiscordPostAction) {
-	c.format("guild_id", p.GuildID, snowflakePattern)
-	c.format("channel_id", p.ChannelID, snowflakePattern)
-	c.text("text", p.Text, nonEmpty(2000))
-}
-
 func checkHTTPPost(c chk, p HTTPPostAction) {
 	if c.text("url", p.URL, nonEmpty(validate.MaxFetchURLLength)) && validate.FetchURL(p.URL) != nil {
 		c.add("url", CodeInvalidFormat)
 	}
 	c.text("body", p.Body, upTo(2000))
+	c.optionalVariableName("save_as", p.SaveAs)
+	c.fetchPaths(p.OnOK, p.OnFailure)
 }
 
 func checkLights(c chk, p LightsAction) {
@@ -289,6 +285,19 @@ func randomPickBranches(p RandomPickAction) nesting {
 		n.lists[i], n.labels[i] = b.Actions, "b"+strconv.Itoa(i)
 	}
 	return n
+}
+
+func checkParallel(c chk, p ParallelAction) {
+	if !c.count("branches", quantity(len(p.Branches)), between(2, 10)) {
+		return
+	}
+	for i, b := range p.Branches {
+		c.sub("branches").elem(index(i)).sub("actions").nest().actions(b.Actions)
+	}
+}
+
+func parallelBranches(p ParallelAction) nesting {
+	return randomPickBranches(RandomPickAction(p))
 }
 
 func checkIf(c chk, p IfAction) {

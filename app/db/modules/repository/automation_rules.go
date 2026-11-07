@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"ItsBagelBot/app/db/modules/ent"
@@ -16,6 +17,9 @@ import (
 )
 
 const actionRun = "run"
+
+// codeTimerExists keeps one owner per named cooldown across a channel's recipes.
+const codeTimerExists = "timer_exists"
 
 type channelCapCheck int
 
@@ -55,7 +59,12 @@ func checkAutomationRules(ctx context.Context, client *ent.AutomationClient, dra
 	if err != nil {
 		return err
 	}
+	clashes, err := commandClashIssues(ctx, client, draft)
+	if err != nil {
+		return err
+	}
 	issues = append(issues, dups...)
+	issues = append(issues, clashes...)
 	issues = append(issues, unknownRunTargets(draft.def, known)...)
 	if len(issues) == 0 {
 		return nil
@@ -63,9 +72,79 @@ func checkAutomationRules(ctx context.Context, client *ent.AutomationClient, dra
 	return &AutomationRefusal{Code: refusalCode(issues), Issues: sortIssues(issues)}
 }
 
+// clashClaim is one draft's names, checked against every sibling recipe in turn.
+type clashClaim struct {
+	lefts, triggers, owned []string
+}
+
+func newClashClaim(def automation.Definition) clashClaim {
+	return clashClaim{
+		lefts:    normalizedNames(automation.LeftCommandNames(def)),
+		triggers: automation.TriggerCommandNames(def),
+		owned:    automation.OwnedCooldownNames(def),
+	}
+}
+
+func (c clashClaim) empty() bool { return len(c.lefts)+len(c.triggers)+len(c.owned) == 0 }
+
+// issuesAgainst keeps a time left command, and a named cooldown, from sharing a name with row's; two recipes may still share a trigger, and a cooldown_add step naming a timer with no owner still saves.
+func (c clashClaim) issuesAgainst(row *ent.Automation) []automation.Issue {
+	def, parseIssues := automation.Parse([]byte(row.Definition))
+	if len(parseIssues) > 0 {
+		return nil
+	}
+	otherLefts := normalizedNames(automation.LeftCommandNames(def))
+	var issues []automation.Issue
+	if c.leftClashes(otherLefts, def) {
+		issues = append(issues, automation.Issue{Path: "left_command", Code: automation.CodeCommandExists})
+	}
+	if sharesName(c.triggers, otherLefts) {
+		issues = append(issues, automation.Issue{Path: "trigger.params.name", Code: automation.CodeCommandExists})
+	}
+	if sharesName(c.owned, automation.OwnedCooldownNames(def)) {
+		issues = append(issues, automation.Issue{Path: "cooldown_name", Code: codeTimerExists})
+	}
+	return issues
+}
+
+func (c clashClaim) leftClashes(otherLefts []string, def automation.Definition) bool {
+	return sharesName(c.lefts, otherLefts) || sharesName(c.lefts, automation.TriggerCommandNames(def))
+}
+
+func commandClashIssues(ctx context.Context, client *ent.AutomationClient, draft automationDraft) ([]automation.Issue, error) {
+	claim := newClashClaim(draft.def)
+	if claim.empty() {
+		return nil, nil
+	}
+	rows, err := client.Query().Where(entautomation.UserID(draft.userID), entautomation.IDNEQ(draft.in.ID)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var issues []automation.Issue
+	for _, row := range rows {
+		issues = append(issues, claim.issuesAgainst(row)...)
+	}
+	return slices.Compact(issues), nil
+}
+
+func normalizedNames(names []string) []string {
+	out := make([]string, len(names))
+	for i, name := range names {
+		out[i] = automation.NormalizeCommandName(name)
+	}
+	return out
+}
+
+func sharesName(names, others []string) bool {
+	return slices.ContainsFunc(names, func(name string) bool { return slices.Contains(others, name) })
+}
+
+// conflictCodes names every issue code a dashboard treats as a naming conflict rather than a plain validation error.
+var conflictCodes = map[string]bool{"duplicate": true, automation.CodeCommandExists: true, codeTimerExists: true}
+
 func refusalCode(issues []automation.Issue) rpc.Code {
 	for _, issue := range issues {
-		if issue.Code == "duplicate" {
+		if conflictCodes[issue.Code] {
 			return rpc.CodeConflict
 		}
 	}

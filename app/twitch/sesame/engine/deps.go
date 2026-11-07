@@ -41,13 +41,13 @@ type Deps struct {
 	TrialStore     valkey.Client
 	Proj           projection.Reader
 	Live           LiveStore
+	RewardResets   RewardResetLookup
 	Greet          GreetStore
 	Cooldown       CooldownStore
 	Special        *SpecialSet
 	Pub            bus.Publisher
 	Commands       CommandManager
 	Gossip         GossipCaller
-	Discord        DiscordPoster
 	CustomFetch    UrlFetchCaller
 	Followage      FollowageLookup
 	AccountAge     AccountAgeLookup
@@ -145,6 +145,7 @@ type CooldownWindow = pkg_valkey.Claim
 type CooldownStore interface {
 	Allow(ctx context.Context, key string, ttl time.Duration) (bool, error)
 	AllowAll(ctx context.Context, windows []CooldownWindow) (bool, error)
+	TimeLeft(ctx context.Context, key string) (time.Duration, error)
 }
 
 type Viewer struct {
@@ -265,3 +266,5 @@ type NoopCooldown struct{}
 func (NoopCooldown) Allow(context.Context, string, time.Duration) (bool, error) { return true, nil }
 
 func (NoopCooldown) AllowAll(context.Context, []CooldownWindow) (bool, error) { return true, nil }
+
+func (NoopCooldown) TimeLeft(context.Context, string) (time.Duration, error) { return 0, nil }

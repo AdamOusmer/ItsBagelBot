@@ -3,26 +3,38 @@
 import { describe, expect, test } from 'bun:test';
 import { definitionToFlow, flowToDefinition, validateDefinition, type FlowConfig } from '@bagel/kit/automations';
 import type { ChoiceSource } from './choices';
-import { NODE_SPECS, type FieldSpec, type Flow, type FlowNode, type NodeSpec } from './model';
+import { NODE_SPECS, fieldVisible, outputsFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec } from './model';
 
 type Config = Record<string, string | number | boolean>;
 
 const CHOICES: Record<ChoiceSource, { value: string; label: string; meta?: Record<string, string> }> = {
   rewards: { value: 'reward-1', label: 'Hydrate' },
-  discordChannels: { value: '223456789012345678', label: '#announcements', meta: { guildId: '123456789012345678' } },
+  manageableRewards: { value: 'reward-2', label: 'Hydrate' },
   counters: { value: 'deaths', label: 'deaths' },
   scenes: {
     value: 'snapshot:4:9',
     label: 'Sunset',
     meta: { sceneType: 'devices.capabilities.dynamic_scene', sceneInstance: 'snapshot', sceneValue: '{"paramId":4,"id":9}' }
-  }
+  },
+  namedCooldowns: { value: 'subathon', label: 'subathon, in Big cheer celebration' }
 };
 
 const LIGHT: Config = { device: 'AA:BB:CC:DD:EE:FF:00:11', sku: 'H6008', deviceName: 'Desk lamp' };
 
-const TEXT: Record<string, string> = { trigger: '!hug', word: 'bagel', message: 'Thanks {user}!', left: '{bits}', right: '1000', color: '#f5a524' };
+const TEXT: Record<string, string> = {
+  trigger: '!hug',
+  word: 'bagel',
+  message: 'Thanks {user}!',
+  left: '{bits}',
+  right: '1000',
+  color: '#f5a524',
+  times: '3',
+  url: 'https://api.example.com/data',
+  content: 'https://cdn.example.com/a.png',
+  jsonPath: 'data.value'
+};
 
-const SHOWN_NOT_SAVED = new Set(['login', 'rewardTitle', 'channelName']);
+const SHOWN_NOT_SAVED = new Set(['login', 'rewardTitle']);
 
 const withinRange = (field: Extract<FieldSpec, { type: 'number' }>) => Math.min(field.max ?? Infinity, Math.max(field.min ?? 0, 7));
 
@@ -37,6 +49,9 @@ function fill(config: Config, field: FieldSpec): void {
   switch (field.type) {
     case 'number':
       config[field.key] = withinRange(field);
+      break;
+    case 'duration':
+      config[field.key] = field.max;
       break;
     case 'toggle':
     case 'select':
@@ -69,8 +84,7 @@ function variations(spec: NodeSpec): Config[] {
 function configsFor(spec: NodeSpec): Config[] {
   return variations(spec).map((row) => {
     const config: Config = { ...row };
-    const hidden = (field: FieldSpec) => field.when && config[field.when.key] !== field.when.value;
-    for (const field of spec.fields) if (!hidden(field)) fill(config, field);
+    for (const field of spec.fields) if (fieldVisible(spec, { config }, field)) fill(config, field);
     return config;
   });
 }
@@ -79,7 +93,7 @@ const node = (id: string, type: string, config: Config): FlowNode => ({ id, type
 
 function drawn(spec: NodeSpec, config: Config): Flow {
   const chat = node('z', 'reply.chat', { message: 'Thanks {user}!' });
-  const port = spec.kind === 'condition' ? 'yes' : 'next';
+  const port = outputsFor(spec)[0]!.id;
   if (spec.kind === 'trigger') {
     return { id: 'f', name: 'f', enabled: true, nodes: [node('a', spec.type, config), chat], edges: [{ id: 'e1', from: 'a', port, to: 'z' }] };
   }

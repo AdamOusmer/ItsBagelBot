@@ -503,7 +503,7 @@
     <Field label={t('billing.twitchUsername')}>
       <Input
         name="recipient"
-        data-cursor
+        style="--bb-cursor: follow"
         placeholder={t('billing.usernamePlaceholder')}
         autocomplete="off"
         spellcheck="false"
@@ -520,7 +520,7 @@
     >
       <Textarea
         name="message"
-        data-cursor
+        style="--bb-cursor: follow"
         placeholder={t('billing.messagePlaceholder')}
         maxlength={280}
         rows={3}
@@ -652,9 +652,6 @@
     grid-template-rows: subgrid;
     row-gap: var(--bb-space-4);
     padding: var(--bb-space-6);
-  }
-  .plan--free :global(.plan-card) {
-    --card-halo-rgb: var(--bb-halo-green-rgb);
   }
   .plan-head {
     display: flex;

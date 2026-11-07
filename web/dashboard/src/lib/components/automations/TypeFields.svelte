@@ -44,7 +44,7 @@
   }
 </script>
 
-<div class="tf" data-type={def.type} aria-label={t(`automations.${def.group}.${def.type}` as MessageKey)}>
+<div class="tf" aria-label={t(`automations.${def.group}.${def.type}` as MessageKey)}>
   {#each fields as field (field.name)}
     <ParamField
       {field}

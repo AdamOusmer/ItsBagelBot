@@ -34,9 +34,10 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     out_of_range: t('flows.issue.outOfRange'),
     invalid_enum: t('flows.issue.invalidEnum'),
     invalid_format: t('flows.issue.invalidFormat'),
+    simple_word: t('flows.issue.simpleWord'),
     invalid_regex: t('flows.issue.invalidRegex'),
-    nesting: t('flows.issue.nesting'),
-    delay_budget: t('flows.issue.delayBudget')
+    delay_budget: t('flows.issue.delayBudget'),
+    setup_required: t('flows.setup.refused')
   };
 }
 
@@ -76,7 +77,6 @@ export const isStale = (reply: Extract<SaveReply, { ok: false }>) => reply.reaso
 
 function warningTexts(t: Translate): Record<FlowWarning, string> {
   return {
-    automations_module_off: t('flows.warnAutomationsOff'),
     shadowed_by_command: t('flows.warnShadowed'),
     command_delete_failed: t('flows.warnCommandDelete'),
     automation_delete_failed: t('flows.warnAutomationDelete'),
@@ -93,6 +93,7 @@ export function warningMessages(t: Translate, warnings: readonly FlowWarning[]):
 export function toggleMessage(t: Translate, reply: Extract<ToggleReply, { ok: false }>): string {
   if (reply.reason === 'conflict') return t('flows.toggleStale');
   if (reply.reason === 'not_found') return t('flows.toggleNotFound');
+  if (reply.reason === 'needs_setup') return t('flows.setup.refused');
   return reply.reason === 'denied' && reply.error ? reply.error : t('flows.toggleFailed');
 }
 

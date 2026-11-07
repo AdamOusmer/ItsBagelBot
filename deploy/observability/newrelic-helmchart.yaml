@@ -141,6 +141,16 @@ spec:
       enabled: false
     newrelic-logging:
       enabled: true
+      fluentBit:
+        config:
+          extraFilters: |
+            [FILTER]
+                Name         grep
+                Alias        warp-noise-filter
+                Match        kube.*_app_warp-*
+                Logical_Op   or
+                Exclude      log ^\S+\s+\S*\s*(DEBUG|INFO)\x1b
+                Exclude      log WARN.*(dbus connection failed|Socks greeting failed|Failed to synchronize time with NTP server)
       lowDataMode: true
       resources:
         limits:

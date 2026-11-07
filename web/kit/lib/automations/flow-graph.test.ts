@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { definitionToFlow, flowToDefinition, locateIssues, type Flow, type FlowConfig, type FlowEdge, type FlowNode } from './flow-graph';
+import { definitionToFlow, flowStepRefs, flowToDefinition, locateIssues, type Flow, type FlowConfig, type FlowEdge, type FlowNode } from './flow-graph';
 import { classifyFlow } from './flow-layer';
 import { validateDefinition } from './validate';
 import type { Definition } from './types';
@@ -64,10 +64,9 @@ const DEMO = {
     [
       node('r1', 'twitch.raid', { minViewers: 1 }),
       node('r2', 'cond.compare', { left: '{viewers}', op: 'gte', right: '5' }),
-      node('r3', 'reply.chat', { message: 'Welcome raiders! {user} brought {viewers} friends.' }),
-      node('r4', 'reply.discord', { channel: '223456789012345678', guildId: '123456789012345678', message: '{user} just raided with {viewers} viewers!' })
+      node('r3', 'reply.chat', { message: 'Welcome raiders! {user} brought {viewers} friends.' })
     ],
-    [edge('r1', 'next', 'r2'), edge('r2', 'yes', 'r3'), edge('r2', 'yes', 'r4')]
+    [edge('r1', 'next', 'r2'), edge('r2', 'yes', 'r3')]
   ),
   hydrate: flow(
     [
@@ -142,14 +141,16 @@ describe('lowering rules', () => {
     ]);
   });
 
-  test('fan-out runs branches in edge order, one after another', () => {
+  test('fan-out lowers to parallel paths in edge order', () => {
     const definition = lowered(
       flow(
         [trigger, node('b', 'reply.chat', { message: 'second' }), node('a', 'reply.chat', { message: 'first' })],
         [edge('t', 'next', 'a'), edge('t', 'next', 'b')]
       )
     );
-    expect(definition.actions).toEqual([chat('first'), chat('second')]);
+    expect(definition.actions).toEqual([
+      { type: 'parallel', params: { branches: [{ weight: 1, actions: [chat('first')] }, { weight: 1, actions: [chat('second')] }] } }
+    ]);
   });
 
   test('a clean merge lowers to if then the shared step and rebuilds as a join', () => {
@@ -310,8 +311,41 @@ describe('refusals', () => {
     expect(issueCodes(input)).toEqual(['unstructured_merge']);
   });
 
+  test('a step after a pausing fork is refused, since it would not wait for that path', () => {
+    const drawn = flow(
+      [node('t', 'twitch.follow'), node('w', 'reply.wait', { seconds: 5 }), node('a', 'reply.chat', { message: 'a' }), node('j', 'reply.chat', { message: 'j' })],
+      [edge('t', 'next', 'w'), edge('t', 'next', 'a'), edge('w', 'next', 'j'), edge('a', 'next', 'j')]
+    );
+    expect(issueCodes(drawn)).toEqual(['unstructured_merge']);
+  });
+
+  test('a fork saves as parallel paths and reopens as a fork', () => {
+    const drawn = flow(
+      [node('t', 'twitch.follow'), node('w', 'reply.wait', { seconds: 5 }), node('l', 'reply.chat', { message: 'late' }), node('n', 'reply.chat', { message: 'now' })],
+      [edge('t', 'next', 'w'), edge('w', 'next', 'l'), edge('t', 'next', 'n')]
+    );
+    const lowered = flowToDefinition(drawn);
+    if (!lowered.ok) throw new Error('refused');
+    expect(lowered.value.actions).toEqual([
+      {
+        type: 'parallel',
+        params: {
+          branches: [
+            { weight: 1, actions: [{ type: 'delay', params: { ms: 5000 } }, { type: 'chat', params: { text: 'late' } }] },
+            { weight: 1, actions: [{ type: 'chat', params: { text: 'now' } }] }
+          ]
+        }
+      }
+    ]);
+    expect(validateDefinition(lowered.value)).toEqual([]);
+    const reopened = definitionToFlow(lowered.value, { id: 'x', name: 'x', enabled: true });
+    if (!reopened.ok) throw new Error('did not reopen');
+    const triggerId = reopened.value.nodes.find((n) => n.type === 'twitch.follow')!.id;
+    expect(reopened.value.edges.filter((e) => e.from === triggerId)).toHaveLength(2);
+  });
+
   test('a wait over the delay budget', () => {
-    expect(issueCodes(flow([node('t', 'twitch.follow'), node('w', 'reply.wait', { seconds: 11 })], [edge('t', 'next', 'w')]))).toEqual(['wait_too_long']);
+    expect(issueCodes(flow([node('t', 'twitch.follow'), node('w', 'reply.wait', { seconds: 61 })], [edge('t', 'next', 'w')]))).toEqual(['wait_too_long']);
   });
 });
 
@@ -484,35 +518,12 @@ describe('set lights step', () => {
   });
 });
 
-describe('post to Discord step', () => {
-  const trigger = node('t', 'twitch.raid', { minViewers: 5 });
-  const post = node('d', 'reply.discord', { channel: '223456789012345678', guildId: '123456789012345678', message: '{user} raided with {viewers}' });
-  const drawn = flow([trigger, post], [edge('t', 'next', 'd')]);
-
-  test('the server, channel and message map to the engine action with event tokens', () => {
-    const definition = lowered(drawn);
-    expect(definition.actions).toEqual([
-      { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: '{user} raided with {event.viewers}' } }
-    ]);
-    expect(validateDefinition(definition)).toEqual([]);
-  });
-
-  test('it reopens with the builder tokens', () => {
-    expect(rebuilt(lowered(drawn)).nodes[1]).toMatchObject({ type: 'reply.discord', config: post.config });
-  });
-
-  test('a channel with no server is refused by validation', () => {
-    const lonely = flow([trigger, node('d', 'reply.discord', { channel: '223456789012345678', message: 'x' })], [edge('t', 'next', 'd')]);
-    expect(validateDefinition(lowered(lonely))).toEqual([{ path: 'actions[0].params.guild_id', code: 'required' }]);
-  });
-});
-
 describe('locating validation issues on steps', () => {
   const trigger = node('t', 'twitch.raid', { minViewers: 5 });
   const gate = node('g', 'cond.role', { level: 'mod' });
   const check = node('c', 'cond.compare', { left: '', op: 'gte', right: '5' });
-  const post = node('d', 'reply.discord', { channel: '223456789012345678', message: 'x' });
-  const wait = (id: FlowNode['id']) => node(id, 'reply.wait', { seconds: 6 });
+  const post = node('d', 'reply.lights', { sku: 'H6008', mode: 'color', color: '#f5a524' });
+  const wait = (id: FlowNode['id']) => node(id, 'reply.wait', { seconds: 31 });
 
   const refused = (input: Flow) => {
     const result = flowToDefinition(input);
@@ -527,7 +538,7 @@ describe('locating validation issues on steps', () => {
 
   test('a step inside a branch is found by its nested path', () => {
     const drawn = flow([trigger, gate, post, node('n', 'reply.chat', { message: 'no' })], [edge('t', 'next', 'g'), edge('g', 'yes', 'd'), edge('g', 'no', 'n')]);
-    expect(refused(drawn)).toEqual([{ path: 'nodes.d.params.guild_id', code: 'required' }]);
+    expect(refused(drawn)).toEqual([{ path: 'nodes.d.params.device', code: 'required' }]);
   });
 
   test('the condition of a branch is found through the if step', () => {
@@ -597,6 +608,16 @@ describe('compare value step', () => {
 });
 
 describe('reading stored definitions', () => {
+  test('a stored Discord post, an action that no longer exists, cannot be drawn', () => {
+    const stored: Definition = {
+      version: 1,
+      trigger: { type: 'event', params: { kind: 'channel.raid' } },
+      actions: [chat('a'), { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: 'hi' } }]
+    };
+    expect(definitionToFlow(stored, meta)).toEqual({ ok: false, issues: [{ path: 'actions[1]', code: 'unsupported_action' }] });
+    expect(validateDefinition(stored)).toEqual([{ path: 'actions[1].type', code: 'unknown_type' }]);
+  });
+
   test('a definition the builder cannot draw reports where', () => {
     const result = definitionToFlow(
       { version: 1, trigger: { type: 'manual', params: {} }, actions: [] },
@@ -625,6 +646,261 @@ describe('reading stored definitions', () => {
       version: 1,
       trigger: { type: 'command', params: { name: '!hug', aliases: ['!cuddle', '!squeeze'] } },
       actions: [chat('a')]
+    };
+    expect(lowered(rebuilt(definition))).toEqual(definition);
+  });
+});
+
+describe('containers keep their drawn shape through save and reload', () => {
+  const trigger = () => node('t', 'twitch.follow');
+  const say = (id: string) => node(id, 'reply.chat', { message: id });
+  const loop = (id: string, times = '3') => node(id, 'reply.loop', { times });
+  const get = (id: string) => node(id, 'reply.http_get', { url: `https://api.example.com/${id}`, saveAs: id });
+
+  const labelOf = (n: FlowNode) => String(n.config.message ?? n.config.url ?? n.config.times ?? n.type);
+
+  function shape(input: Flow): string[] {
+    const byId = new Map(input.nodes.map((n) => [n.id, n]));
+    return input.edges.map((e) => `${labelOf(byId.get(e.from)!)} ${e.port} ${labelOf(byId.get(e.to)!)}`).sort();
+  }
+
+  function expectStable(drawn: Flow): Definition {
+    const saved = lowered(drawn);
+    expect(validateDefinition(saved)).toEqual([]);
+    const payload = JSON.parse(JSON.stringify(saved)) as Definition;
+    const reopened = rebuilt(payload);
+    expect(shape(reopened)).toEqual(shape(drawn));
+    expect(lowered(reopened)).toEqual(saved);
+    return saved;
+  }
+
+  test('a loop in a fork stays nested inside its path', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), loop('l'), say('body'), say('other')],
+        [edge('t', 'next', 'l'), edge('t', 'next', 'other'), edge('l', 'body', 'body')]
+      )
+    );
+    expect(saved.actions).toEqual([
+      {
+        type: 'parallel',
+        params: {
+          branches: [
+            { weight: 1, actions: [{ type: 'loop', params: { times: '3', actions: [chat('body')] } }] },
+            { weight: 1, actions: [chat('other')] }
+          ]
+        }
+      }
+    ]);
+  });
+
+  test('a fork in a loop stays inside the body', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), loop('l'), say('a'), say('b'), say('after')],
+        [edge('t', 'next', 'l'), edge('l', 'body', 'a'), edge('l', 'body', 'b'), edge('l', 'done', 'after')]
+      )
+    );
+    expect(saved.actions).toEqual([
+      {
+        type: 'loop',
+        params: {
+          times: '3',
+          actions: [{ type: 'parallel', params: { branches: [{ weight: 1, actions: [chat('a')] }, { weight: 1, actions: [chat('b')] }] } }]
+        }
+      },
+      chat('after')
+    ]);
+  });
+
+  test('a loop holding an API node keeps both ports inside the body', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), loop('l'), get('g'), say('worked'), say('failed'), say('after')],
+        [edge('t', 'next', 'l'), edge('l', 'body', 'g'), edge('g', 'ok', 'worked'), edge('g', 'failure', 'failed'), edge('l', 'done', 'after')]
+      )
+    );
+    const inner = saved.actions![0]!.params!.actions as Definition['actions'];
+    expect(inner).toEqual([
+      { type: 'http_get', params: { url: 'https://api.example.com/g', save_as: 'g', on_ok: [chat('worked')], on_failure: [chat('failed')] } }
+    ]);
+    expect(saved.actions![1]).toEqual(chat('after'));
+  });
+
+  test('a Failed path leading to a join runs the join after the node, not inside a path', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), get('g'), say('worked'), say('failed'), say('join')],
+        [edge('t', 'next', 'g'), edge('g', 'ok', 'worked'), edge('g', 'failure', 'failed'), edge('worked', 'next', 'join'), edge('failed', 'next', 'join')]
+      )
+    );
+    expect(saved.actions).toEqual([
+      { type: 'http_get', params: { url: 'https://api.example.com/g', save_as: 'g', on_ok: [chat('worked')], on_failure: [chat('failed')] } },
+      chat('join')
+    ]);
+  });
+
+  test('a Failed port wired straight to the step after a Worked path is a join', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), get('g'), say('worked'), say('join')],
+        [edge('t', 'next', 'g'), edge('g', 'ok', 'worked'), edge('worked', 'next', 'join'), edge('g', 'failure', 'join')]
+      )
+    );
+    expect(saved.actions).toEqual([{ type: 'http_get', params: { url: 'https://api.example.com/g', save_as: 'g', on_ok: [chat('worked')] } }, chat('join')]);
+  });
+
+  test('two paths with no join at all end where they are drawn', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), get('g'), say('worked'), say('failed')],
+        [edge('t', 'next', 'g'), edge('g', 'ok', 'worked'), edge('g', 'failure', 'failed')]
+      )
+    );
+    expect(saved.actions).toEqual([
+      { type: 'http_get', params: { url: 'https://api.example.com/g', save_as: 'g', on_ok: [chat('worked')], on_failure: [chat('failed')] } }
+    ]);
+  });
+
+  test('a step after an API node with no paths takes both ports and saves as the next step', () => {
+    const old: Definition = { version: 1, trigger: { type: 'event', params: { kind: 'channel.follow' } }, actions: [{ type: 'http_post', params: { url: 'https://hooks.example.org/a', body: 'x' } }, chat('next')] };
+    const reopened = rebuilt(old);
+    expect(reopened.edges.filter((e) => e.port === 'ok' || e.port === 'failure').length).toBe(2);
+    expect(lowered(reopened)).toEqual(old);
+  });
+
+  test('a fork after two API paths stays one fork after the node', () => {
+    const fork = { type: 'parallel', params: { branches: [{ weight: 1, actions: [chat('c')] }, { weight: 1, actions: [chat('d')] }] } };
+    const definition: Definition = {
+      version: 1,
+      trigger: { type: 'event', params: { kind: 'channel.follow' } },
+      actions: [{ type: 'http_get', params: { url: 'https://api.example.com/g', on_ok: [chat('a')] } }, fork]
+    };
+    expect(lowered(rebuilt(definition))).toEqual(definition);
+  });
+
+  test('a loop inside a loop keeps each body and each next step', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), loop('outer', '2'), loop('inner', '3'), say('deep'), say('afterinner'), say('afterouter')],
+        [edge('t', 'next', 'outer'), edge('outer', 'body', 'inner'), edge('inner', 'body', 'deep'), edge('inner', 'done', 'afterinner'), edge('outer', 'done', 'afterouter')]
+      )
+    );
+    expect(saved.actions).toEqual([
+      { type: 'loop', params: { times: '2', actions: [{ type: 'loop', params: { times: '3', actions: [chat('deep')] } }, chat('afterinner')] } },
+      chat('afterouter')
+    ]);
+  });
+
+  test('an if inside a loop joins inside the body, not after the loop', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), loop('l'), node('c', 'cond.chance', { percent: 50 }), say('yes'), say('no'), say('join')],
+        [edge('t', 'next', 'l'), edge('l', 'body', 'c'), edge('c', 'yes', 'yes'), edge('c', 'no', 'no'), edge('yes', 'next', 'join'), edge('no', 'next', 'join')]
+      )
+    );
+    expect((saved.actions![0]!.params!.actions as unknown[]).length).toBe(2);
+    expect(saved.actions!.length).toBe(1);
+  });
+
+  test('a pause in a loop body is allowed and the step after the loop stays after it', () => {
+    const saved = expectStable(
+      flow(
+        [trigger(), loop('l'), node('w', 'reply.wait', { seconds: 5 }), say('after')],
+        [edge('t', 'next', 'l'), edge('l', 'body', 'w'), edge('l', 'done', 'after')]
+      )
+    );
+    expect(saved.actions![1]).toEqual(chat('after'));
+  });
+
+  test('a pause in a looping fork path before a join is refused like any pausing fork', () => {
+    const drawn = flow(
+      [trigger(), loop('l'), node('w', 'reply.wait', { seconds: 5 }), say('a'), say('join')],
+      [edge('t', 'next', 'l'), edge('t', 'next', 'a'), edge('l', 'body', 'w'), edge('l', 'done', 'join'), edge('a', 'next', 'join')]
+    );
+    expect(issueCodes(drawn)).toEqual(['unstructured_merge']);
+  });
+
+  test('every new step lowers to its contract shape and validates', () => {
+    const steps: [FlowNode, unknown][] = [
+      [node('s', 'reply.var_set', { scope: 'viewer', name: 'Score', value: '{user}' }), { type: 'var_set', params: { scope: 'viewer', name: 'score', value: '{user}' } }],
+      [node('s', 'reply.var_add', { name: 'score', amount: 2 }), { type: 'var_add', params: { scope: 'channel', name: 'score', amount: 2 } }],
+      [node('s', 'reply.var_delete', { name: 'score' }), { type: 'var_delete', params: { scope: 'channel', name: 'score' } }],
+      [node('s', 'reply.text', { op: 'replace', input: '{user}', find: 'a', replaceWith: 'b', saveAs: 'out' }), { type: 'text', params: { op: 'replace', input: '{user}', arg1: 'a', arg2: 'b', save_as: 'out' } }],
+      [node('s', 'reply.math', { expression: '1+1', saveAs: 'sum' }), { type: 'math', params: { expression: '1+1', save_as: 'sum' } }],
+      [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'off', reset: true }), { type: 'reward_update', params: { reward_id: 'r1', enabled: false, cost: null, reset_on_stream_end: true } }]
+    ];
+    for (const [step, want] of steps) {
+      const saved = expectStable(flow([trigger(), step], [edge('t', 'next', 's')]));
+      expect(saved.actions).toEqual([want as NonNullable<Definition['actions']>[number]]);
+    }
+  });
+
+  test('a var condition as the first gate lowers and reopens, including exists with no value', () => {
+    const saved = expectStable(
+      flow([trigger(), node('v', 'cond.var', { scope: 'channel', name: 'mode', op: 'exists' }), say('a')], [edge('t', 'next', 'v'), edge('v', 'yes', 'a')])
+    );
+    expect(saved.conditions).toEqual([{ type: 'var', params: { scope: 'channel', name: 'mode', op: 'exists', value: '' } }]);
+  });
+
+  test('builder tokens inside new templates lower to the event and raise back', () => {
+    const drawn = flow(
+      [node('t', 'twitch.cheer', { minBits: 1 }), node('m', 'reply.math', { expression: '{bits}*2', saveAs: 'double' }), node('l', 'reply.loop', { times: '{bits}' })],
+      [edge('t', 'next', 'm'), edge('m', 'next', 'l')]
+    );
+    const saved = lowered(drawn);
+    expect(saved.actions![0]!.params!.expression).toBe('{event.amount}*2');
+    expect(saved.actions![1]!.params!.times).toBe('{event.amount}');
+    const reopened = rebuilt(saved);
+    expect(reopened.nodes.find((n) => n.type === 'reply.math')!.config.expression).toBe('{bits}*2');
+  });
+
+  test('a queue name survives, lowercased, and an empty one stays absent', () => {
+    const drawn = { ...flow([trigger(), say('a')], [edge('t', 'next', 'a')]), queue: 'Sounds' };
+    const saved = lowered(drawn);
+    expect(saved.queue).toBe('sounds');
+    expect(validateDefinition(saved)).toEqual([]);
+    expect(rebuilt(saved).queue).toBe('sounds');
+    expect('queue' in lowered({ ...drawn, queue: ' ' })).toBe(false);
+    expect('queue' in rebuilt(lowered({ ...drawn, queue: '' }))).toBe(false);
+  });
+
+  test('a queued simple command stays an automation so the queue is kept', () => {
+    const definition: Definition = { version: 1, queue: 'sounds', trigger: { type: 'command', params: { name: '!hi' } }, actions: [chat('a')] };
+    expect(classifyFlow(definition).layer).toBe('automation');
+  });
+
+  test('a validator issue deep in a loop or API path lands on the drawn step', () => {
+    const drawn = flow(
+      [trigger(), loop('l'), get('g'), node('bad', 'reply.var_set', { name: 'no spaces' })],
+      [edge('t', 'next', 'l'), edge('l', 'body', 'g'), edge('g', 'failure', 'bad')]
+    );
+    const issues = validateDefinition(lowered(drawn));
+    expect(issues).toEqual([{ path: 'actions[0].params.actions[0].params.on_failure[0].params.name', code: 'simple_word' }]);
+    expect(locateIssues(drawn, issues)).toEqual([{ path: 'nodes.bad.params.name', code: 'simple_word' }]);
+  });
+
+  test('step refs link a run record index back to each nested step', () => {
+    const drawn = flow(
+      [trigger(), say('first'), loop('l'), get('g'), say('inner')],
+      [edge('t', 'next', 'first'), edge('first', 'next', 'l'), edge('l', 'body', 'g'), edge('g', 'ok', 'inner')]
+    );
+    expect(flowStepRefs(drawn)).toEqual([
+      { index: 0, type: 'chat', node: 'first', arm: '' },
+      { index: 1, type: 'loop', node: 'l', arm: '' },
+      { index: 1, type: 'http_get', node: 'g', arm: '/1.actions' },
+      { index: 1, type: 'chat', node: 'inner', arm: '/1.actions/0.on_ok' }
+    ]);
+  });
+
+  test('a disabled loop and a disabled API node stay disabled', () => {
+    const definition: Definition = {
+      version: 1,
+      trigger: { type: 'event', params: { kind: 'channel.follow' } },
+      actions: [
+        { type: 'loop', enabled: false, params: { times: '2', actions: [chat('a')] } },
+        { type: 'http_get', enabled: false, params: { url: 'https://api.example.com/x' } }
+      ]
     };
     expect(lowered(rebuilt(definition))).toEqual(definition);
   });

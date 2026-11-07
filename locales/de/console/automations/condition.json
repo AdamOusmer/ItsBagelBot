@@ -8,5 +8,6 @@
   "points": "Zuschauerpunkte",
   "arg_regex": "Argumente passen zu Muster",
   "category": "Stream-Kategorie",
-  "compare": "Zwei Werte vergleichen"
+  "compare": "Zwei Werte vergleichen",
+  "var": "Variablenwert"
 }

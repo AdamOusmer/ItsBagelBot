@@ -75,14 +75,16 @@
         return t('automations.share.setup.users_list');
       case 'login_target':
         return t('automations.share.setup.login_target');
-      case 'discord_target':
-        return t('automations.share.setup.discord_target');
       case 'http_target':
         return t('automations.share.setup.http_target');
+      case 'reward_target':
+        return t('automations.share.setup.reward_target');
       case 'lights_target':
         return t('automations.share.setup.lights_target');
       case 'slash_command':
         return t('automations.share.setup.slash_command');
+      case 'secret_removed':
+        return t('automations.share.setup.secret_removed');
       case 'run_removed':
         return t('automations.share.setup.run_removed');
       case 'run_target_simple':
@@ -142,6 +144,11 @@
     results = [];
     selected = new Set();
     busy = false;
+  }
+
+  function close() {
+    open = false;
+    reset();
   }
 
   function refusal(reply: { error?: string; issues?: Issue[] } | null): string[] {
@@ -230,7 +237,7 @@
 
 <Button variant="secondary" onclick={() => (open = true)}>{t('automations.share.importOpen')}</Button>
 
-<Modal bind:open title={t('automations.share.importTitle')} onClose={reset} {busy}>
+<Modal bind:open title={t('automations.share.importTitle')} onClose={close} {busy}>
   <div class="body">
     {#if stage === 'choose'}
       <p>{t('automations.share.importBody')}</p>
@@ -238,6 +245,9 @@
       <div class="state" aria-live="polite">
         {#if busy}<Spinner /> <span>{t('automations.share.importChecking')}</span>{/if}
         {#each problem as text (text)}<Text as="p" tone="danger">{text}</Text>{/each}
+      </div>
+      <div class="foot">
+        <Button variant="ghost" disabled={busy} onclick={close}>{t('common.cancel')}</Button>
       </div>
     {:else if stage === 'preview'}
       <p>{t('automations.share.importCount', { ready: ready.length, setup: needSetup, blocked })}</p>
@@ -274,7 +284,7 @@
         {/each}
       </ul>
       <div class="foot">
-        <Button onclick={() => (open = false)}>{t('automations.share.importClose')}</Button>
+        <Button onclick={close}>{t('automations.share.importClose')}</Button>
       </div>
     {/if}
   </div>

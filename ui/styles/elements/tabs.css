@@ -82,7 +82,7 @@
         box-shadow: var(--bb-depth-1);
     }
 
-    .bb-tabs:has(> .bb-glide[data-shown]) > .bb-tab.is-active {
+    .bb-tabs:has(> .bb-glide.is-shown) > .bb-tab.is-active {
         background: transparent;
         box-shadow: none;
     }

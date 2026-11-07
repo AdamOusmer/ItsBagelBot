@@ -36,7 +36,25 @@
     "gt": "supérieur à",
     "gte": "au moins",
     "lt": "inférieur à",
-    "lte": "au plus"
+    "lte": "au plus",
+    "exists": "est défini",
+    "upper": "Mettre en majuscules",
+    "lower": "Mettre en minuscules",
+    "trim": "Supprimer les espaces",
+    "length": "Compter les caractères",
+    "replace": "Remplacer",
+    "substring": "Extraire une partie",
+    "split_pick": "Séparer et en choisir un",
+    "url_encode": "Adapter pour un lien"
+  },
+  "scope": {
+    "channel": "La chaîne",
+    "viewer": "Ce viewer"
+  },
+  "position": {
+    "top": "Haut",
+    "center": "Centre",
+    "bottom": "Bas"
   },
   "status": {
     "fulfill": "Accomplir",
@@ -47,6 +65,9 @@
     "scene": "Scène"
   },
   "kind": {
+    "text": "Texte",
+    "image": "Image",
+    "video": "Vidéo",
     "channel": {
       "follow": "Nouveau follower",
       "subscribe": "Nouvel abonnement",

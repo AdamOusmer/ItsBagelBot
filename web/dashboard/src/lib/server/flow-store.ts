@@ -7,8 +7,11 @@ import {
   alertDefinition,
   classifyFlow,
   commandDefinition,
+  leftCommandNames,
+  normalizeCommandName,
   plainAlertLine,
-  simpleFlowPreview,
+  setupGaps,
+  triggerCommandNames,
   validateDefinition,
   type AlertKey,
   type Automation,
@@ -18,7 +21,7 @@ import {
   type SimpleCommand
 } from '@bagel/kit/automations';
 import { moduleDef, MOD } from '@bagel/kit/catalog';
-import type { CommandView, Perm } from '@bagel/kit';
+import { BUILTIN_COMMANDS, type CommandView, type Perm } from '@bagel/kit';
 import { rpc } from '@bagel/kit/server/nats';
 import type { FlowRef } from '#lib/flow/ref';
 import {
@@ -33,8 +36,10 @@ import {
   type AlertDowngradeResult,
   type UpsertResult
 } from './automations-store';
+import { recipeTimeLeftNames } from './recipe-time-left';
 import {
   deleteCommand,
+  listCommands,
   listModules,
   listModulesForEditing,
   patchModule,
@@ -42,6 +47,7 @@ import {
   type ModuleView
 } from './commands-store';
 import { effectiveId } from './board';
+import { setModuleEnabled } from './module-blob';
 import { moduleWriteDenial } from './module-gate';
 import { SUB } from './services';
 
@@ -60,6 +66,7 @@ export interface StoredFlow {
   enabled: boolean;
   revision: string;
   definition: Definition;
+  restricted?: boolean;
 }
 
 export interface SaveFlowInput {
@@ -99,7 +106,6 @@ export type AlertUpgradeReport = {
 export type UpgradeReport = CommandUpgradeReport | AlertUpgradeReport;
 
 export type FlowWarning =
-  | 'automations_module_off'
   | 'shadowed_by_command'
   | 'command_delete_failed'
   | 'automation_delete_failed'
@@ -110,7 +116,7 @@ export type FlowDenied = { ok: false; reason: 'denied'; error: string };
 
 export type SetFlowEnabledResult =
   | { ok: true; enabled: boolean; revision: string; warnings: FlowWarning[] }
-  | { ok: false; reason: 'conflict' | 'not_found' }
+  | { ok: false; reason: 'conflict' | 'not_found' | 'needs_setup' }
   | { ok: false; reason: 'failed'; error: string }
   | FlowDenied;
 
@@ -169,7 +175,7 @@ function simpleCommand(row: CommandView): SimpleCommand {
 
 function commandFlow(row: CommandView): StoredFlow {
   const definition = commandDefinition(simpleCommand(row));
-  return { ref: { layer: 'command', name: row.name }, name: `!${row.name}`, enabled: row.is_active, revision: commandToken(row), definition };
+  return { ref: { layer: 'command', name: row.name }, name: `!${row.name}`, enabled: row.is_active, revision: commandToken(row), definition, restricted: Boolean(row.allowed_user_id) };
 }
 
 type AlertState = { on: boolean; customized: boolean; message: string; configured: unknown[] };
@@ -198,10 +204,8 @@ function automationFlow(row: Automation): StoredFlow {
   return { ref: { layer: 'automation', id: row.id }, name: row.name, enabled: row.enabled, revision: String(row.revision), definition: row.definition };
 }
 
-async function ownerCommands(userId: UserId): Promise<CommandView[]> {
-  const reply = await rpc<{ commands?: CommandView[] }>(`${SUB.commands}.list`, { user_id: userId });
-  return reply.commands ?? [];
-}
+// The commands service buffers writes, so its own list misses a command saved a moment ago. This read holds the saved row.
+const ownerCommands = (userId: UserId): Promise<CommandView[]> => listCommands(userId);
 
 async function alertsRow(userId: UserId): Promise<ModuleView | undefined> {
   return (await listModulesForEditing(userId)).find((row) => row.name === MOD.alerts);
@@ -218,29 +222,17 @@ export async function listFlows(userId: UserId): Promise<StoredFlow[]> {
   ];
 }
 
-const generatedSummary = ({ ref, name, enabled, revision, definition }: StoredFlow): FlowSummary => ({
-  ref,
-  name,
-  enabled,
-  revision,
-  preview: simpleFlowPreview(definition)
-});
-
 export async function listFlowSummaries(userId: UserId): Promise<FlowSummary[]> {
-  const [automations, commands, alerts] = await Promise.all([listAutomationSummaries(userId), ownerCommands(userId), alertsRow(userId)]);
-  return [
-    ...automations.map(
-      (row): FlowSummary => ({
-        ref: { layer: 'automation', id: row.id },
-        name: row.name,
-        enabled: row.enabled,
-        revision: String(row.revision),
-        preview: row.preview ?? null
-      })
-    ),
-    ...commands.filter(drawableCommand).map(commandFlow).map(generatedSummary),
-    ...ALERT_KEYS.map((alert) => generatedSummary(alertFlow(alert, alerts)))
-  ];
+  const automations = await listAutomationSummaries(userId);
+  return automations.map(
+    (row): FlowSummary => ({
+      ref: { layer: 'automation', id: row.id },
+      name: row.name,
+      enabled: row.enabled,
+      revision: String(row.revision),
+      preview: row.preview ?? null
+    })
+  );
 }
 
 export async function loadFlow(userId: UserId, ref: FlowRef): Promise<StoredFlow | null> {
@@ -307,6 +299,8 @@ async function writeCommand(userId: UserId, command: SimpleCommand, input: SaveF
   if (previousName && !current) return { ok: false, reason: 'not_found' };
   if (current && staleRevision(input.expectedRevision, commandToken(current))) return CONFLICT;
   if (commandNameTaken(rows, command, previousName)) return COMMAND_EXISTS;
+  const timeLeftNames = await recipeTimeLeftNames(userId);
+  if ([command.name, ...command.aliases].some((name) => timeLeftNames.has(normalizeCommandName(name)))) return COMMAND_EXISTS;
   const saved = commandInput(command, input.enabled, current);
   await upsertCommand(userId, saved, previousName);
   const view: CommandView = { name: saved.name, aliases: saved.aliases, response: saved.response, is_active: saved.isActive, stream_online_only: saved.streamOnlineOnly, perm: saved.perm, cooldown: saved.cooldown, user_cooldown: saved.userCooldown, allowed_user_id: saved.allowedUserId, bump_counter: saved.bumpCounter };
@@ -367,28 +361,38 @@ function upsertFailure(result: Extract<UpsertResult, { ok: false }>): SaveFlowRe
   return { ok: false, reason: 'failed', error: result.error ?? result.code ?? 'save failed' };
 }
 
-function triggerNames(definition: Definition): string[] {
-  if (definition.trigger.type !== 'command') return [];
-  const params = definition.trigger.params ?? {};
-  return [params.name, ...((params.aliases ?? []) as string[])].map((n) => String(n).replace(/^!/, '').toLowerCase());
+async function automationWarnings(userId: UserId, definition: Definition, dropping?: CommandName): Promise<FlowWarning[]> {
+  const commands = await ownerCommands(userId);
+  const names = triggerCommandNames(definition.trigger);
+  return commands.some((row) => row.name !== dropping && names.includes(row.name.toLowerCase())) ? ['shadowed_by_command'] : [];
 }
 
-async function automationWarnings(userId: UserId, definition: Definition, enabled: Enabled, dropping?: CommandName): Promise<FlowWarning[]> {
-  const [modules, commands] = await Promise.all([listModules(userId), ownerCommands(userId)]);
-  const warnings: FlowWarning[] = [];
-  if (enabled && modules.find((row) => row.name === MOD.automations)?.is_enabled !== true) warnings.push('automations_module_off');
-  const names = triggerNames(definition);
-  if (commands.some((row) => row.name !== dropping && names.includes(row.name.toLowerCase()))) warnings.push('shadowed_by_command');
-  return warnings;
+async function turnOnAutomations(userId: UserId): Promise<void> {
+  const modules = await listModules(userId);
+  if (modules.find((row) => row.name === MOD.automations)?.is_enabled !== true) await setModuleEnabled(userId, MOD.automations, true);
+}
+
+const LEFT_COMMAND_EXISTS: SaveFlowResult = { ok: false, reason: 'conflict', issues: [{ path: 'left_command', code: 'command_exists' }] };
+
+const builtinNames = (): string[] => BUILTIN_COMMANDS.flatMap((def) => [def.id, ...(def.aliases ?? [])]);
+
+// The other side of this check, recipes against recipes, is the modules service's on save.
+async function leftCommandRefusal(userId: UserId, definition: Definition, dropping?: CommandName): Promise<SaveFlowResult | null> {
+  const wanted = leftCommandNames(definition).map(normalizeCommandName);
+  if (wanted.length === 0) return null;
+  const rows = (await ownerCommands(userId)).filter((row) => row.name !== dropping);
+  const taken = new Set([...builtinNames(), ...rows.flatMap((row) => [row.name, ...(row.aliases ?? [])])].map(normalizeCommandName));
+  return wanted.some((name) => taken.has(name)) ? LEFT_COMMAND_EXISTS : null;
 }
 
 async function writeAutomation(userId: UserId, input: SaveFlowInput, id?: FlowId, dropping?: CommandName): Promise<SaveFlowResult> {
-  const refusal = usesTokenRefusal(input.definition);
+  const refusal = usesTokenRefusal(input.definition) ?? (await leftCommandRefusal(userId, input.definition, dropping));
   if (refusal) return refusal;
   const expected = id && input.expectedRevision !== undefined ? Number(input.expectedRevision) : undefined;
   const result = await upsertAutomation(userId, { id, name: input.name, enabled: input.enabled, definition: input.definition, preview: input.preview, expectedRevision: expected });
   if (!result.ok) return upsertFailure(result);
-  return { ok: true, flow: automationFlow(result.automation), warnings: await automationWarnings(userId, input.definition, input.enabled, dropping) };
+  if (input.enabled) await turnOnAutomations(userId);
+  return { ok: true, flow: automationFlow(result.automation), warnings: await automationWarnings(userId, input.definition, dropping) };
 }
 
 const asNewFlow = (input: SaveFlowInput): SaveFlowInput => ({ ...input, ref: null, expectedRevision: undefined });
@@ -493,7 +497,8 @@ async function moveAlert(userId: UserId, alert: AlertKey, target: FlowLayer, inp
     expectedModuleRev: row?.revision ?? 0
   });
   if (!result.ok) return upsertFailure(result);
-  return { ok: true, flow: automationFlow(result.automation), upgrade, warnings: await automationWarnings(userId, input.definition, input.enabled) };
+  if (input.enabled) await turnOnAutomations(userId);
+  return { ok: true, flow: automationFlow(result.automation), upgrade, warnings: await automationWarnings(userId, input.definition) };
 }
 
 function saveExistingCommand(userId: UserId, ref: { name: CommandName }, target: FlowLayer, input: SaveFlowInput) {
@@ -523,16 +528,21 @@ function route(userId: UserId, target: FlowLayer, input: SaveFlowInput): Promise
 const TOGGLE_CONFLICT: SetFlowEnabledResult = { ok: false, reason: 'conflict' };
 const TOGGLE_NOT_FOUND: SetFlowEnabledResult = { ok: false, reason: 'not_found' };
 
+async function stillNeedsSetup(userId: UserId, id: FlowId): Promise<boolean> {
+  const row = await getAutomation(userId, id);
+  return row ? setupGaps(row.definition).length > 0 : false;
+}
+
 async function toggleAutomation(userId: UserId, id: FlowId, enabled: Enabled, expected?: Revision): Promise<SetFlowEnabledResult> {
+  if (enabled && (await stillNeedsSetup(userId, id))) return { ok: false, reason: 'needs_setup' };
   const result = await setAutomationEnabled(userId, id, enabled, expected === undefined ? undefined : Number(expected));
   if (!result.ok) {
     if (result.conflict) return TOGGLE_CONFLICT;
     if (result.code === 'not_found') return TOGGLE_NOT_FOUND;
     return { ok: false, reason: 'failed', error: result.error ?? result.code ?? 'toggle failed' };
   }
-  const modules = await listModules(userId);
-  const moduleOff = enabled && modules.find((row) => row.name === MOD.automations)?.is_enabled !== true;
-  return { ok: true, enabled, revision: String(result.automation.revision), warnings: moduleOff ? ['automations_module_off'] : [] };
+  if (enabled) await turnOnAutomations(userId);
+  return { ok: true, enabled, revision: String(result.automation.revision), warnings: [] };
 }
 
 async function toggleCommand(userId: UserId, name: CommandName, enabled: Enabled, expected?: Revision): Promise<SetFlowEnabledResult> {
@@ -583,7 +593,7 @@ export async function setFlowEnabled(locals: App.Locals, ref: FlowRef, enabled: 
 export async function saveFlow(locals: App.Locals, input: SaveFlowInput): Promise<SaveFlowResult> {
   const denied = await writeDenial(locals);
   if (denied) return denied;
-  const issues = validateDefinition(input.definition);
+  const issues = [...validateDefinition(input.definition), ...(input.enabled ? setupGaps(input.definition) : [])];
   if (issues.length > 0) return { ok: false, reason: 'invalid', issues };
   return route(effectiveId(locals.session), classifyFlow(input.definition), input).catch(failed);
 }

@@ -287,38 +287,6 @@
     overflow: visible;
   }
 
-  :root[data-theme="light"] .bb-footer {
-    --bb-footer-bg: var(--bb-paper-warm);
-    --footer-head: rgba(var(--bb-ink-rgb), 0.9);
-    --footer-link: rgba(var(--bb-ink-rgb), 0.58);
-    --footer-fine: rgba(var(--bb-ink-rgb), 0.42);
-    --footer-rule: rgba(var(--bb-ink-rgb), 0.09);
-    --footer-mark-ink: var(--bb-ink);
-
-    color: var(--bb-ink);
-  }
-
-  :root[data-theme="light"] .bb-footer .bb-nav-link {
-    --bb-nav-link-lit: var(--bb-ink);
-  }
-
-  :root[data-theme="light"] .bb-footer__band {
-    opacity: 0.35;
-  }
-
-  :root[data-theme="light"] .bb-footer__grain {
-    mix-blend-mode: multiply;
-    opacity: 0.16;
-  }
-
-  :root[data-theme="light"] .bb-footer__studio {
-    color: var(--bb-tan-deep);
-  }
-
-  :root[data-theme="light"] .bb-footer__peeker svg {
-    filter: drop-shadow(0 6px 10px rgba(var(--bb-ink-rgb), 0.12));
-  }
-
   @media (max-width: 899px) {
     .bb-footer__top,
     .bb-footer__bottom {

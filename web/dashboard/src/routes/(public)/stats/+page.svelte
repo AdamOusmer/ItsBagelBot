@@ -10,7 +10,7 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import DonateCard from '@bagel/ui/svelte/DonateCard.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import PublicHead from '#lib/components/public/PublicHead.svelte';
@@ -542,8 +542,6 @@
     gap: var(--bb-space-2);
     padding: calc(var(--bb-space-7) + 8px) var(--bb-space-7) var(--bb-space-6);
   }
-
-  .st-counter--green :global(.st-counter__card) { --card-halo-rgb: var(--bb-halo-green-rgb); }
 
   .st-counter__top {
     display: flex;

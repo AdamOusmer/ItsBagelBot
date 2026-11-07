@@ -33,7 +33,7 @@ export function sheetDrag(el: HTMLElement, initial: () => void) {
   const down = (e: PointerEvent) => {
     if (drag || !matchMedia(SHEET_QUERY).matches) return;
     const target = e.target as Element;
-    if (!target.closest('header, [data-sheet-grip]') || target.closest('button, a, input, textarea, select')) return;
+    if (!target.closest('header, .bb-editor-stage__grip') || target.closest('button, a, input, textarea, select')) return;
     drag = { id: e.pointerId, y: e.clientY, t: e.timeStamp, dy: 0 };
     el.setPointerCapture(e.pointerId);
     el.style.transition = '';

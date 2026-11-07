@@ -10,6 +10,7 @@ export type Kind =
   | 'strings'
   | 'strmap'
   | 'ptrbool'
+  | 'ptrint'
   | 'raw'
   | 'typed'
   | 'typeds'
@@ -90,6 +91,7 @@ const ZERO_VALUES: Record<Kind, () => unknown> = {
   branches: () => [],
   strmap: () => ({}),
   ptrbool: () => null,
+  ptrint: () => null,
   raw: () => undefined,
   typed: () => ({ type: '', params: undefined }),
 };
@@ -105,6 +107,7 @@ const VALUE_DECODERS: Record<Kind, (v: unknown, ctx: Ctx) => unknown> = {
   strings: (v, ctx) => decodeList(v, ctx, (e) => orEmpty(e, ctx)),
   strmap: decodeMap,
   ptrbool: decodeBool,
+  ptrint: decodeInt,
   raw: (v) => v,
   typed: (v, ctx) => decodeStruct(v, TYPED_SCHEMA, {}, ctx),
   typeds: (v, ctx) => decodeList(v, ctx, (e) => decodeStruct(e, TYPED_SCHEMA, {}, ctx)),

@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Bolota } from '@bagel/kit';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
 
   let { seed, active = false }: { seed: string; active?: boolean } = $props();
 </script>

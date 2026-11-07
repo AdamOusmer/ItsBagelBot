@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "manual",
+    "params": {}
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "",
+        "enabled": true,
+        "cost": null,
+        "reset_on_stream_end": false
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "{args}",
+        "enabled": true,
+        "cost": null,
+        "reset_on_stream_end": false
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "rw-1",
+        "enabled": null,
+        "cost": null,
+        "reset_on_stream_end": true
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "rw-1",
+        "enabled": null,
+        "cost": 0,
+        "reset_on_stream_end": false
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "rw-1",
+        "enabled": null,
+        "cost": 10000001,
+        "reset_on_stream_end": false
+      }
+    }
+  ]
+}

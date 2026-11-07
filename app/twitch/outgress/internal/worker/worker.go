@@ -87,6 +87,8 @@ type Worker struct {
 	live       *LiveWriter
 	streamInfo *projection.Store
 
+	rewardSnapshots *RewardSnapshots
+
 	grants grantRegistry
 
 	clipVerify chan struct{}
@@ -107,6 +109,8 @@ type Config struct {
 	Lane        Lane
 	Batch       BatchStore
 	UserIDs     *cache.Cache[string]
+
+	RewardSnapshots *RewardSnapshots
 }
 
 func New(cfg Config) *Worker {
@@ -135,6 +139,8 @@ func New(cfg Config) *Worker {
 		userIDs:    userIDs,
 		clipVerify: make(chan struct{}, clipVerifySlots),
 		tokenWarm:  make(chan struct{}, tokenWarmSlots),
+
+		rewardSnapshots: cfg.RewardSnapshots,
 	}
 	w.actions = w.buildActions()
 	return w

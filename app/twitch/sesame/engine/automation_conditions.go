@@ -46,6 +46,7 @@ var conditionChecks = map[string]conditionCheck{
 	"arg_regex":       checkWith((*Pipeline).conditionArgRegex),
 	"category":        checkWith((*Pipeline).conditionCategory),
 	"compare":         checkParams((*actionExec).conditionCompare),
+	"var":             checkParams((*actionExec).conditionVar),
 }
 
 func (x *actionExec) conditionsPass() (bool, string, error) {

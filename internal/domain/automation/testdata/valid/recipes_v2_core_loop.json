@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual", "params": {} },
+  "actions": [
+    {
+      "type": "loop",
+      "params": {
+        "times": "{arg:count}",
+        "actions": [
+          { "type": "delay", "params": { "ms": 100 } },
+          {
+            "type": "loop",
+            "params": {
+              "times": "3",
+              "actions": [
+                { "type": "var_add", "params": { "scope": "channel", "name": "laps", "amount": 1 } },
+                {
+                  "type": "parallel",
+                  "params": {
+                    "branches": [
+                      { "weight": 1, "actions": [ { "type": "chat", "params": { "text": "{local:index}" } } ] },
+                      { "weight": 1, "actions": [ { "type": "stop", "params": {} } ] }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    { "type": "loop", "params": { "times": "0", "actions": [] } }
+  ]
+}

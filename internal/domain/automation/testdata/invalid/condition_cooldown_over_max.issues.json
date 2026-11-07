@@ -1,0 +1,10 @@
+[
+  {
+    "path": "conditions[0].params.global_s",
+    "code": "out_of_range"
+  },
+  {
+    "path": "conditions[0].params.user_s",
+    "code": "out_of_range"
+  }
+]

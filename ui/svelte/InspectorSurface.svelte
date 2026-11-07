@@ -16,6 +16,7 @@
     isTopmost,
     overlayIndex,
     hasOpenOverlay,
+    overlayShell,
     portal,
     trapFocus,
   } from '../lib/overlay-stack';
@@ -126,7 +127,7 @@
 
 {#if open}
   {#if isSheet}
-    <div class="bb-sheet-shell" data-overlay style="z-index: {zIndex}" use:portal>
+    <div class="bb-sheet-shell" style="z-index: {zIndex}" use:portal use:overlayShell>
       <button class="bb-sheet-shell__scrim" type="button" aria-label={closeLabel} onclick={requestClose}
       ></button>
       <div

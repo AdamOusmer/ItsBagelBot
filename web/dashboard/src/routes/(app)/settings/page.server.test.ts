@@ -12,6 +12,7 @@ type Session = { user_id: string; delegate_of?: string; impersonator_id?: string
 const hiddenWrites: { page: string; userId: string; hidden: boolean }[] = [];
 type PurgeBody = { files: string[] } | { tags: string[] };
 const purgeBodies: PurgeBody[] = [];
+const audits: { action: string; detail: string }[] = [];
 let writeFails = false;
 let purgeStatus = 200;
 let savedLocale = 'en';
@@ -29,7 +30,9 @@ const servicesMock = () => ({
   accountState: async () => ({ username: 'StreamerLogin' }),
   publishEventSub: async () => {},
   deleteSelf: async () => {},
-  auditDashboardImpersonation: () => {},
+  auditDashboardImpersonation: (session: Session, action: string, detail: string) => {
+    if (session.impersonator_id) audits.push({ action, detail });
+  },
   setCommandsPage: async (userId: string, hidden: boolean) => {
     if (writeFails) throw new Error('rpc down');
     hiddenWrites.push({ page: 'commands_page', userId, hidden });
@@ -52,6 +55,7 @@ const realFetch = globalThis.fetch;
 beforeEach(() => {
   hiddenWrites.length = 0;
   purgeBodies.length = 0;
+  audits.length = 0;
   writeFails = false;
   purgeStatus = 200;
   Object.assign(privateEnv, { CF_ZONE_ID: 'zone', CF_CACHE_PURGE_TOKEN: 'token' });
@@ -98,12 +102,6 @@ const cases: {
   {
     name: 'a delegate session is refused',
     session: { user_id: '1', delegate_of: '2' },
-    fields: { enabled: 'on' },
-    want: { result: () => refused, writes: [], purges: [] }
-  },
-  {
-    name: 'an admin "view as" session is refused',
-    session: { user_id: '1', impersonator_id: '9' },
     fields: { enabled: 'on' },
     want: { result: () => refused, writes: [], purges: [] }
   },
@@ -155,6 +153,16 @@ describe.each(toggles)('$action action', (toggle) => {
       purges: want.purges
     };
     expect({ result, writes: hiddenWrites, purges: purgeBodies } as unknown).toEqual(expected);
+  });
+});
+
+test.each(toggles)('$action lets an admin view-as session flip the channel page and audits it', async (toggle) => {
+  const result = await submitToggle(toggle, { user_id: '7', impersonator_id: '9' }, {});
+  expect({ result, writes: hiddenWrites, purges: purgeBodies, audits } as unknown).toEqual({
+    result: { ok: true, action: toggle.page, edgeDelayed: false },
+    writes: [{ page: toggle.page, userId: '7', hidden: true }],
+    purges: channelPurge,
+    audits: [{ action: `${toggle.page}:set`, detail: 'enabled=false' }]
   });
 });
 

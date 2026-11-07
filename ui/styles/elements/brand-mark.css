@@ -46,7 +46,7 @@
     border-radius: var(--brand-radius);
   }
 
-  .bb-brand[data-logo="circle"] .bb-brand__logo img {
+  .bb-brand--circle .bb-brand__logo img {
     border-radius: 50%;
   }
 
@@ -64,10 +64,6 @@
     letter-spacing: -0.01em;
     color: var(--bb-white);
     white-space: nowrap;
-  }
-
-  :root[data-theme="light"] .bb-brand__name {
-    color: var(--bb-ink);
   }
 
   .bb-brand__sub {

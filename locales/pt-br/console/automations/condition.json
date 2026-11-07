@@ -8,5 +8,6 @@
   "points": "Pontos do espectador",
   "arg_regex": "Argumentos seguem um padrão",
   "category": "Categoria da live",
-  "compare": "Comparar dois valores"
+  "compare": "Comparar dois valores",
+  "var": "Valor da variável"
 }

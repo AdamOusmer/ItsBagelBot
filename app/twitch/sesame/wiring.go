@@ -68,24 +68,28 @@ type engineRuntime struct {
 	emotes   *automod.EmoteFetcher
 	chatters *engine.ValkeyChatters
 	runs     *engine.ValkeyRunLog
-	limiter  *engine.ValkeyRunLimiter
 }
 
 func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	in, cfg, log := w.in, w.cfg, w.log
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	accountsRPC := engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix)
+	recipeState := engine.NewRecipeStateRPC(in.nc, cfg.ModulesRPCPrefix)
 	return engine.Deps{
 		AutomationHook: &engine.AutomationHook{},
 		Runtime:        newRuntime(w),
 		Automations: engine.AutomationDeps{
-			Source:  rt.proj,
-			Runs:    rt.runs,
-			Limiter: rt.limiter,
+			Source:        rt.proj,
+			Runs:          rt.runs,
+			Variables:     recipeState,
+			Queue:         engine.NewValkeyRunQueue(in.vc),
+			Durable:       engine.NewValkeyDurableRuns(in.vc),
+			LongCooldowns: engine.NewMarkedLongCooldowns(in.vc, recipeState, log),
 		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,
 		Live:           rt.live,
+		RewardResets:   engine.NewValkeyRewardResets(in.vc),
 		Greet:          engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
 		Cooldown:       engine.NewValkeyCooldown(in.vc),
 		Special:        engine.NewSpecialSet(cfg.SpecialUserIDs),
@@ -93,7 +97,6 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Commands:       engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
 		Quotes:         engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
 		Gossip:         gossipRPC,
-		Discord:        engine.NewDiscordRPC(in.nc, cfg.DiscordRPCPrefix),
 		CustomFetch:    gossipRPC,
 		Followage:      engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
 		AccountAge:     accountsRPC,

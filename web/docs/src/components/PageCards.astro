@@ -1,0 +1,72 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Card from '@bagel/ui/astro/Card.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Label from '@bagel/ui/astro/Label.astro';
+import { docsI18n } from '../i18n/ui';
+import type { DocPage } from '../lib/pages';
+
+interface Props {
+  prev?: DocPage;
+  next?: DocPage;
+  locale: string;
+}
+
+const { prev, next, locale } = Astro.props;
+const { t } = docsI18n(locale);
+---
+
+{(prev || next) && (
+  <nav class="doc-cards" aria-label={t('chrome.pagination')}>
+    {prev ? (
+      <Card as="a" href={prev.href} hover flush>
+        <span class="doc-cards__body">
+          <Label mono as="span">{t('chrome.previous')}</Label>
+          <Heading level={5} as="span">{prev.label}</Heading>
+        </span>
+      </Card>
+    ) : <span />}
+    {next && (
+      <Card as="a" href={next.href} hover flush>
+        <span class="doc-cards__body doc-cards__body--next">
+          <Label mono as="span">{t('chrome.next')}</Label>
+          <Heading level={5} as="span">{next.label}</Heading>
+        </span>
+      </Card>
+    )}
+  </nav>
+)}
+
+<style>
+  .doc-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding-top: var(--bb-space-7);
+  }
+
+  .doc-cards__body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 20px;
+  }
+
+  .doc-cards__body--next {
+    align-items: flex-end;
+    text-align: end;
+  }
+
+  @media (max-width: 640px) {
+    .doc-cards {
+      grid-template-columns: 1fr;
+    }
+
+    .doc-cards__body--next {
+      align-items: flex-start;
+      text-align: start;
+    }
+  }
+</style>

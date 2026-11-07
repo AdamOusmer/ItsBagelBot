@@ -56,14 +56,6 @@
       }
     },
     {
-      "type": "discord_post",
-      "params": {
-        "guild_id": "123456789012345678",
-        "channel_id": "987654321098765432",
-        "text": "live now"
-      }
-    },
-    {
       "type": "http_post",
       "params": {
         "url": "https://example.com/hook",
