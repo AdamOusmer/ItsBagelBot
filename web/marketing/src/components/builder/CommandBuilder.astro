@@ -46,8 +46,8 @@ for (const surface of data.surfaces) {
 }
 
 const modeOptions = [
-    { value: 'custom', label: ui.modeCustom, attrs: { 'data-mode': 'custom' } },
-    { value: 'module', label: ui.modeModule, attrs: { 'data-mode': 'module' } },
+    { value: 'custom', label: ui.modeCustom },
+    { value: 'module', label: ui.modeModule },
 ];
 const surfaceOptions = groups.flatMap((g) => g.items.map((item) => ({ value: item.id, label: item.label, group: g.group })));
 const firstSurfaceHint = data.surfaces.find((s) => s.id === surfaceOptions[0]?.value)?.hint ?? '';

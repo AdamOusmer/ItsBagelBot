@@ -23,7 +23,6 @@ const { label, href, tone = 'gold', span = 1, index = 0, class: cls = '' } = Ast
     href={href}
     tone={tone}
     class:list={['fcard', `fcard--${tone}`, span > 1 && `fcard--span-${span}`, cls]}
-    data-card
     data-cursor={href ? 'quiet' : undefined}
 >
     <div class="fcard__inner reveal-in" style={`--reveal-i: ${index}`}>
