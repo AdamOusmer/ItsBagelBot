@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=ItsBagelBot
+Comment=The free Twitch chat bot.
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/ItsBagelBot %u
+Terminal=false
+Type=Application
+Icon=ItsBagelBot
+Categories=Utility;
+StartupWMClass=ItsBagelBot
+
+ 

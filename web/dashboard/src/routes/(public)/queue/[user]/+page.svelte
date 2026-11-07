@@ -5,7 +5,7 @@
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import { livePoll } from '@bagel/ui/lib/live-poll';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { onMount, untrack } from 'svelte';
   import { page as route } from '$app/state';
   import { getI18n } from '@bagel/kit';

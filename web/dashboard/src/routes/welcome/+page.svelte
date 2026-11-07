@@ -21,7 +21,7 @@
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
   import { localeFlag } from '@bagel/kit/site-links';

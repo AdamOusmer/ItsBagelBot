@@ -22,6 +22,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/ui/styles/elements/dot-canvas.css';
   import { onMount, tick, untrack } from 'svelte';
   import Icon from './FlowIcon.svelte';
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
@@ -791,7 +792,7 @@
 </script>
 
 <div
-  class="canvas"
+  class="canvas bb-dot-canvas"
   class:dragging
   class:view-open={viewOpen}
   data-touch={touch ? '' : undefined}
@@ -982,8 +983,6 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background-color: var(--bb-black);
-    background-image: radial-gradient(circle, rgba(var(--bb-white-rgb), 0.16) 1px, transparent 1.5px);
     touch-action: none;
     cursor: default;
     user-select: none;

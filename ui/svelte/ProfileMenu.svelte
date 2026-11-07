@@ -2,23 +2,9 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { HTMLAttributes } from 'svelte/elements';
+  import type { ProfileMenuLink, ProfileAvatar } from '../lib/nav-types';
 
-  import type { IconName } from '../lib/icons';
-
-  export interface ProfileMenuLink {
-    href: string;
-    label: string;
-    hint?: string;
-    icon?: IconName;
-    external?: boolean;
-  }
-
-  export interface ProfileAvatar {
-    name: string;
-    size: number;
-    active: boolean;
-    item: boolean;
-  }
+  export type { ProfileMenuLink, ProfileAvatar };
 </script>
 
 <script lang="ts">
@@ -27,7 +13,6 @@
   import { menuKeys } from '../lib/menu-keys';
   import { hasOpenOverlay } from '../lib/overlay-stack';
   import { getUiI18n } from './i18n';
-  import Button from './Button.svelte';
   import Icon from './Icon.svelte';
   import Scroller from './Scroller.svelte';
   import VisuallyHidden from './VisuallyHidden.svelte';
@@ -43,7 +28,7 @@
     exit?: ProfileMenuLink;
     logoutLabel: string;
     logoutAction?: string;
-    onLogout?: () => void;
+    onLogout?: (event: SubmitEvent) => void;
     help?: ProfileMenuLink[];
     helpLabel?: string;
     helpTitle?: string;
@@ -52,6 +37,9 @@
     feedback?: ProfileMenuLink;
     menuLabel?: string;
     triggerLabel?: string;
+    // Rail only: fold a collapsed-away help row's items into the account
+    // dropdown, so they stay reachable from the one trigger that still shows.
+    helpInAccount?: boolean;
     avatar: Snippet<[ProfileAvatar]>;
     class?: string;
   };
@@ -77,6 +65,7 @@
     feedback,
     menuLabel = i18n.t('profile.menu'),
     triggerLabel,
+    helpInAccount = false,
     avatar,
     class: className = '',
     ...rest
@@ -93,11 +82,24 @@
   let topTrigger = $state<HTMLButtonElement | null>(null);
   let railTrigger = $state<HTMLButtonElement | null>(null);
   let helpTrigger = $state<HTMLButtonElement | null>(null);
+  let footMenuEl = $state<HTMLElement | null>(null);
+  let railRootEl = $state<HTMLElement | null>(null);
 
   const trigger = $derived(triggerLabel ?? `${name} · ${caption}`);
-  const hasMenu = $derived(links.length > 0 || Boolean(exit));
   const hasHelp = $derived(help.length > 0 || Boolean(feedback));
   const hasTopbarHelp = $derived(help.length > 0 || more.length > 0);
+  const showHelpInAccount = $derived(helpInAccount && hasHelp);
+
+  // The rail's foot-menu is `bottom: calc(100% + 8px)` off its own root, which
+  // can sit anywhere in a short window; cap it to the space actually above
+  // that root so it never clips above the viewport, and let it scroll past
+  // that instead.
+  $effect(() => {
+    const isOpen = open || helpOpen;
+    if (!isOpen || !footMenuEl || !railRootEl) return;
+    const top = railRootEl.getBoundingClientRect().top;
+    footMenuEl.style.setProperty('--profile-rail-menu-max', `${Math.max(top - 8, 120)}px`);
+  });
 
   function toggleAccount() {
     helpOpen = false;
@@ -187,6 +189,12 @@
   </a>
 {/snippet}
 
+{#snippet logoutLine()}
+  <form method="POST" action={logoutAction} onsubmit={onLogout} role="none">
+    <button type="submit" class="bb-profile__menu-item" role="menuitem">{logoutLabel}</button>
+  </form>
+{/snippet}
+
 {#snippet moreLine(line: ProfileMenuLink)}
   <a
     class="bb-profile__link"
@@ -235,13 +243,11 @@
           {#each more as line (line.href)}{@render moreLine(line)}{/each}
         </div>
       {/if}
-      <form method="POST" action={logoutAction} onsubmit={onLogout} role="none">
-        <button type="submit" class="bb-profile-topbar__op-menu-item" role="menuitem">{logoutLabel}</button>
-      </form>
+      {@render logoutLine()}
     </div>
   {/if}
 {:else}
-  <div class={['bb-profile-rail__side-foot', className || null].filter(Boolean).join(' ')} {...rest}>
+  <div class={['bb-profile-rail__side-foot', className || null].filter(Boolean).join(' ')} bind:this={railRootEl} {...rest}>
     {#if hasHelp}
       <div class="bb-profile-rail__help">
         {#if help.length}
@@ -268,44 +274,40 @@
     {/if}
     {#if open || helpOpen}{@render scrim()}{/if}
     {#if helpOpen}
-      <div class="bb-profile-rail__foot-menu" id={helpMenuId} role="menu" aria-label={helpName} use:menuKeys={closeToTrigger}>
+      <div class="bb-profile-rail__foot-menu" bind:this={footMenuEl} id={helpMenuId} role="menu" aria-label={helpName} use:menuKeys={closeToTrigger}>
         {#each help as line (line.href)}{@render helpLine(line)}{/each}
       </div>
     {/if}
-    {#if hasMenu}
-      <button
-        class="bb-profile-rail__account bb-profile-rail__account--btn"
-        class:bb-profile-rail__open={open}
-        type="button"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-controls={open ? accountMenuId : undefined}
-        bind:this={railTrigger}
-        onclick={toggleAccount}
-        onpointerenter={hover(true)}
-        onpointerleave={hover(false)}
+    <button
+      class="bb-profile-rail__account bb-profile-rail__account--btn"
+      class:bb-profile-rail__open={open}
+      type="button"
+      aria-expanded={open}
+      aria-haspopup="menu"
+      aria-controls={open ? accountMenuId : undefined}
+      bind:this={railTrigger}
+      onclick={toggleAccount}
+      onpointerenter={hover(true)}
+      onpointerleave={hover(false)}
+    >
+      <span class="bb-profile-rail__avatar">{@render avatar({ name, size: 34, active: hovered || open, item: false })}</span>
+      <span class="bb-profile-rail__who"><b>{name}</b><span>{caption}</span></span>
+      <span class="bb-profile-rail__chev" class:bb-profile-rail__open={open} aria-hidden="true"
+        ><Icon name="chevron" size={14} /></span
       >
-        <span class="bb-profile-rail__avatar">{@render avatar({ name, size: 34, active: hovered || open, item: false })}</span>
-        <span class="bb-profile-rail__who"><b>{name}</b><span>{caption}</span></span>
-        <span class="bb-profile-rail__chev" class:bb-profile-rail__open={open} aria-hidden="true"
-          ><Icon name="chevron" size={14} /></span
-        >
-      </button>
-      {#if open}
-        <div class="bb-profile-rail__foot-menu" id={accountMenuId} role="menu" aria-label={menuName} use:menuKeys={closeToTrigger}>
-          {@render head()}
-          {#if links.length}{@render list()}{/if}
-          {#if exit}{@render exitLink(exit)}{/if}
-        </div>
-      {/if}
-    {:else}
-      <div class="bb-profile-rail__account" role="group" onpointerenter={hover(true)} onpointerleave={hover(false)}>
-        <div class="bb-profile-rail__avatar">{@render avatar({ name, size: 34, active: hovered, item: false })}</div>
-        <div class="bb-profile-rail__who"><b>{name}</b><span>{caption}</span></div>
+    </button>
+    {#if open}
+      <div class="bb-profile-rail__foot-menu" bind:this={footMenuEl} id={accountMenuId} role="menu" aria-label={menuName} use:menuKeys={closeToTrigger}>
+        {@render head()}
+        {#if links.length}{@render list()}{/if}
+        {#if exit}{@render exitLink(exit)}{/if}
+        {#if showHelpInAccount}
+          <div class="bb-profile__section" aria-hidden="true">{helpGroupName}</div>
+          {#each help as line (line.href)}{@render helpLine(line)}{/each}
+          {#if feedback}{@render moreLine(feedback)}{/if}
+        {/if}
+        {@render logoutLine()}
       </div>
     {/if}
-    <form class="bb-profile-rail__logout" method="POST" action={logoutAction} onsubmit={onLogout}>
-      <Button variant="ghost" type="submit">{logoutLabel}</Button>
-    </form>
   </div>
 {/if}

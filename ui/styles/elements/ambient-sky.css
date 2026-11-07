@@ -2,7 +2,7 @@
    Proprietary. No license granted. See LICENSE.md. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-/* Shared onboarding sky: layered motes, rings and breathing brand-colour orbs. */
+/* Shared onboarding sky: layered motes and breathing brand-colour orbs. */
 @layer bb.elements {
 
   .bb-ambient-sky {
@@ -16,12 +16,11 @@
   .bb-ambient-sky--fixed { position: fixed; }
 
   /* One curve, one duration, for every layer: the sky is a single body that
-     leans, not four things that each decided how fast to move. 1200ms is
+     leans, not three things that each decided how fast to move. 1200ms is
      longer than the copy's own 760ms slide so the background is still
      settling when the foreground has landed, which is what gives it weight. */
   .bb-ambient-sky__dawn,
   .bb-ambient-sky__field,
-  .bb-ambient-sky__ring,
   .bb-ambient-sky__orb {
     transition:
       transform 1200ms var(--bb-ease-out-expo),
@@ -29,9 +28,9 @@
     will-change: transform;
   }
 
-  /* Depth is the ratio between these three: the motes barely move, the ring
-     moves a little, the orbs move the most, and the field slides the OTHER
-     way from the stage so the parallax has a far plane. */
+  /* Depth is the ratio between these two: the motes barely move, the orbs
+     move the most, and the field slides the OTHER way from the stage so the
+     parallax has a far plane. */
   .bb-ambient-sky__field {
     position: absolute;
     inset: 0;
@@ -60,23 +59,6 @@
     transition:
       transform 1400ms var(--bb-ease-out-expo),
       opacity 1400ms var(--bb-ease-out-expo);
-  }
-
-  .bb-ambient-sky__ring {
-    position: absolute;
-    top: var(--ambient-ring-top, 50%);
-    right: var(--ambient-ring-right, -180px);
-    width: 760px;
-    height: 760px;
-    opacity: var(--ambient-ring-opacity, calc(0.08 + var(--ambient-progress) * 0.06));
-    transform: translate3d(calc(var(--ambient-shift) * 4vw + var(--ambient-px) * 14px), calc(-50% + var(--ambient-py) * 10px), 0)
-      rotate(var(--ambient-turn));
-  }
-
-  .bb-ambient-sky__ring svg {
-    width: 100%;
-    height: 100%;
-    animation: bb-ambient-sky-spin 40s linear infinite;
   }
 
   /* Shape, blur, pulse and colour are the library's (.bb-orb--halo); where
@@ -121,33 +103,17 @@
 
   /* The exit: the room lights come up as the stage slides off, so the cut to
      the next page reads as arriving somewhere rather than as a fade to black. */
-  .bb-ambient-sky--leaving .bb-ambient-sky__ring { opacity: 0.18; }
   .bb-ambient-sky--leaving .bb-ambient-sky__orb { --bb-orb-opacity: 0.3; }
   .bb-ambient-sky--leaving .bb-ambient-sky__dawn { opacity: 1; transform: translate3d(0, 0, 0) scaleX(1.15); }
 
   :root[data-theme="light"] .bb-ambient-sky__dawn { opacity: calc(0.1 + var(--ambient-progress) * 0.4); }
-
-  @keyframes bb-ambient-sky-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
-  @media (max-width: 760px) {
-    .bb-ambient-sky__ring {
-      width: 520px;
-      height: 520px;
-      right: -220px;
-    }
-  }
 
   /* Orbs freeze in orbs.css; the field hides itself in light-field.css. What
      is left to switch off here is this file's own motion. */
   @media (prefers-reduced-motion: reduce) {
     .bb-ambient-sky__dawn,
     .bb-ambient-sky__field,
-    .bb-ambient-sky__ring,
     .bb-ambient-sky__orb { transition: none; }
-    .bb-ambient-sky__ring svg { animation: none; }
     .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::before { animation: none; }
     .bb-ambient-sky--still-stars::before {
       content: '';
