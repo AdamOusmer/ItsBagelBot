@@ -19,14 +19,16 @@ export interface RailAccountValues {
 // The rail renders the account menu itself; this returns the values it
 // needs. No markup, no $app import, so it works for the SvelteKit apps and
 // the router-less desktop app alike.
-export function railAccountValues(options: {
-  dashboards: DashboardLink[];
-  isDelegate: boolean;
-  delegateExitHref: string;
-  delegateExitLabel: string;
-  t: (key: MessageKey) => string;
-}): RailAccountValues {
-  const { dashboards, isDelegate, delegateExitHref, delegateExitLabel, t } = options;
+export function railAccountValues(
+  options: {
+    dashboards: DashboardLink[];
+    isDelegate: boolean;
+    delegateExitHref: string;
+    delegateExitLabel: string;
+  },
+  t: (key: MessageKey) => string
+): RailAccountValues {
+  const { dashboards, isDelegate, delegateExitHref, delegateExitLabel } = options;
   return {
     links: dashboards.map((d) => ({ href: d.href, label: d.name })),
     linksLabel: t('topbar.dashboards'),
