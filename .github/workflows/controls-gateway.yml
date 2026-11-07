@@ -1,0 +1,77 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+name: Controls Gateway Elixir Pipeline
+
+# Mirrors ingress.yml: app/controls/gateway is a separate BEAM service with
+# its own mix.exs/mix.lock, so nothing in the Go pipeline covers it.
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'app/controls/gateway/**'
+      - '.github/workflows/controls-gateway.yml'
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'app/controls/gateway/**'
+      - '.github/workflows/controls-gateway.yml'
+
+# Superseded PR runs are cancelled; main runs are grouped by commit and never are.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Controls Gateway Unit Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: app/controls/gateway
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Must match app/controls/gateway/Containerfile exactly.
+      - name: Set up Elixir
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          elixir-version: '1.20'
+          otp-version: '28'
+
+      - name: Cache deps and build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            app/controls/gateway/deps
+            app/controls/gateway/_build
+          key: controls-gateway-${{ runner.os }}-otp28-elixir1.20-${{ hashFiles('app/controls/gateway/mix.lock') }}
+          restore-keys: controls-gateway-${{ runner.os }}-otp28-elixir1.20-
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      # See ingress.yml: `mix deps.get` silently repairs a stale mix.lock in
+      # the working tree instead of failing, so compare the file directly.
+      - name: Verify mix.lock is in sync with mix.exs
+        run: git diff --exit-code mix.lock
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile
+        run: MIX_ENV=test mix compile --warnings-as-errors
+
+      # Integration tests open real sockets against a real local nats-server.
+      - name: Install nats-server
+        run: |
+          curl -sf https://binaries.nats.dev/nats-io/nats-server/v2@v2.15.2 | PREFIX=. sh
+          sudo mv nats-server /usr/local/bin/nats-server
+
+      - name: Run Tests
+        run: MIX_ENV=test mix test
