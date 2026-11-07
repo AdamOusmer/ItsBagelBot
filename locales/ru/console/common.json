@@ -28,7 +28,8 @@
     "label": "Единица",
     "seconds": "секунды",
     "minutes": "минуты",
-    "hours": "часы"
+    "hours": "часы",
+    "days": "дни"
   },
   "duration": {
     "seconds": "{n} сек.",

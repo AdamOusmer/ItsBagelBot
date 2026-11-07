@@ -26,7 +26,7 @@ func (s *Store) EraseBroadcaster(ctx context.Context, broadcasterID uint64, cuto
 	}
 	return db.WithQuery(ctx, func(ctx context.Context) (EraseResult, error) {
 		var out EraseResult
-		err := withTx(ctx, s.client, func(tx *ent.Tx) error {
+		err := db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			var err error
 			out.Configs, err = tx.GuildConfig.Delete().
 				Where(guildconfig.BroadcasterIDEQ(broadcasterID), guildconfig.UpdatedAtLTE(cutoff)).

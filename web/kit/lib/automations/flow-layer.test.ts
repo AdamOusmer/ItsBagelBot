@@ -71,6 +71,10 @@ describe('classifyFlow', () => {
     });
   });
 
+  test('a cooldown of exactly one day stays a command', () => {
+    expect(classifyFlow(command([{ type: 'cooldown', params: { global_s: 86400 } }])).layer).toBe('command');
+  });
+
   test('a stored command reads back to the same row fields', () => {
     const definition = commandDefinition(simple);
     expect(validateDefinition(definition)).toEqual([]);
@@ -81,6 +85,8 @@ describe('classifyFlow', () => {
     ['another condition', command([{ type: 'chance', params: { percent: 50 } }])],
     ['two roles', command([{ type: 'perm', params: { level: 'vip' } }, { type: 'perm', params: { level: 'mod' } }])],
     ['two global cooldowns', command([{ type: 'cooldown', params: { global_s: 1 } }, { type: 'cooldown', params: { global_s: 2 } }])],
+    ['a global cooldown over a day', command([{ type: 'cooldown', params: { global_s: 86401 } }])],
+    ['a viewer cooldown over a day', command([{ type: 'cooldown', params: { user_s: 86401 } }])],
     ['two lines', command(undefined, [chat, chat])],
     ['another action', command(undefined, [{ type: 'points_add', params: { amount: 1 } }])],
     ['a disabled line', command(undefined, [{ ...chat, enabled: false }])],

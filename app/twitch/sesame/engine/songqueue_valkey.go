@@ -6,7 +6,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -77,14 +76,6 @@ const (
 	casRetries = 5
 )
 
-var casScript = valkey.NewLuaScript(`
-local cur = redis.call('GET', KEYS[1])
-if (cur == false and ARGV[1] == '') or (cur ~= false and cur == ARGV[1]) then
-	redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
-	return 1
-end
-return 0`)
-
 type ValkeySongQueueStore struct {
 	client valkey.Client
 	ttl    time.Duration
@@ -117,25 +108,12 @@ type docState struct {
 }
 
 func (s *ValkeySongQueueStore) readDoc(ctx context.Context, key docKey) (rawDoc, error) {
-	resp := s.client.Do(ctx, s.client.B().Get().Key(string(key)).Build())
-	b, err := resp.AsBytes()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return "", nil
-		}
-		return "", err
-	}
-	return rawDoc(b), nil
+	raw, err := pkg_valkey.CASDocument{Key: string(key)}.Read(ctx, s.client)
+	return rawDoc(raw), err
 }
 
 func (s *ValkeySongQueueStore) cas(ctx context.Context, st docState, newDoc rawDoc) (bool, error) {
-	n, err := casScript.Exec(ctx, s.client, []string{string(st.key)}, []string{
-		string(st.raw), string(newDoc), strconv.FormatInt(int64(s.ttl.Seconds()), 10),
-	}).AsInt64()
-	if err != nil {
-		return false, err
-	}
-	return n == 1, nil
+	return pkg_valkey.CASDocument{Key: string(st.key), TTL: s.ttl}.Swap(ctx, s.client, string(st.raw), string(newDoc))
 }
 
 func (s *ValkeySongQueueStore) mutate(ctx context.Context, broadcasterID uint64, fn func(*songQueueDoc) error) error {

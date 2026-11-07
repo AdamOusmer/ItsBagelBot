@@ -7,6 +7,8 @@ import { checkVarIdentity, counterName } from './conditions';
 import { register, type Table, type Wide } from './engine';
 import {
   CODE,
+  MAX_COOLDOWN_SECONDS,
+  MAX_COOLDOWN_ADD_PER,
   MAX_DELAY_MS,
   MAX_FETCH_URL_LENGTH,
   MAX_REWARD_COST,
@@ -73,7 +75,7 @@ function fetchUrlRejected(url: string): boolean {
 }
 
 export function checkSaveAs(c: Chk, name: string): void {
-  if (name !== '') c.format('save_as', name, RECIPE_NAME_PATTERN);
+  if (name !== '') c.simpleWord('save_as', name, RECIPE_NAME_PATTERN);
 }
 
 export function checkHttpPostFields(c: Chk, p: { url: string; body: string; save_as: string }): void {
@@ -107,12 +109,12 @@ function checkTextStep(c: Chk, p: Wide<T.TextStepAction>): void {
   c.text('input', p.input, 0, MAX_TEMPLATE_LENGTH);
   c.text('arg1', p.arg1, 0, MAX_TEMPLATE_LENGTH);
   c.text('arg2', p.arg2, 0, MAX_TEMPLATE_LENGTH);
-  c.format('save_as', p.save_as, RECIPE_NAME_PATTERN);
+  c.simpleWord('save_as', p.save_as, RECIPE_NAME_PATTERN);
 }
 
 function checkMath(c: Chk, p: Wide<T.MathAction>): void {
   c.template('expression', p.expression);
-  c.format('save_as', p.save_as, RECIPE_NAME_PATTERN);
+  c.simpleWord('save_as', p.save_as, RECIPE_NAME_PATTERN);
 }
 
 const REWARD_ID_PATTERN = /^[A-Za-z0-9-]+$/;
@@ -140,6 +142,13 @@ function checkLightsScene(c: Chk, p: Wide<T.LightsAction>): void {
   c.text('scene_type', p.scene_type, 1, 64);
   c.text('scene_instance', p.scene_instance, 1, 64);
   if (c.text('scene_value', p.scene_value, 1, 200) && !jsonParses(p.scene_value)) c.add('scene_value', CODE.invalidFormat);
+}
+
+function checkCooldownAdd(c: Chk, p: Wide<T.CooldownAddAction>): void {
+  c.simpleWord('name', p.name, RECIPE_NAME_PATTERN);
+  c.inRange('seconds', p.seconds, 1, MAX_COOLDOWN_SECONDS);
+  c.inRange('per', p.per, 0, MAX_COOLDOWN_ADD_PER);
+  if (p.per > 0 && !c.eventAmount) c.add('per', CODE.triggerMismatch);
 }
 
 function checkLights(c: Chk, p: Wide<T.LightsAction>): void {
@@ -212,5 +221,6 @@ export const SIMPLE_ACTIONS: Table = {
     { mode: 'color' },
   ),
   stop: empty,
+  cooldown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
 };
 

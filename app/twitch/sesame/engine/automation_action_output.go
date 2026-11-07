@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
@@ -91,7 +92,7 @@ func (x *actionExec) shield(_ step, p automation.ShieldAction) error {
 
 func (x *actionExec) shoutout(_ step, p automation.LoginAction) error {
 	o := x.out(outgress.TypeShoutout)
-	o.To = normalizeLogin(x.expand(p.Login))
+	o.To = scope.NormalizeLogin(x.expand(p.Login))
 	return x.queue(o)
 }
 

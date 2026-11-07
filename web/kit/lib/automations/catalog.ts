@@ -3,6 +3,7 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
+import { MAX_COOLDOWN_SECONDS } from './limits';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
 export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
@@ -90,7 +91,14 @@ export const CONDITION_TYPES: TypeDef[] = [
   condition('perm', [f('level', 'enum', { required: true, values: PERM_LEVELS })]),
   condition('users', [listLogin('allow'), listLogin('deny'), listUserId('allow_ids'), listUserId('deny_ids')]),
   condition('live', [f('state', 'enum', { required: true, values: ['live', 'offline'] })]),
-  condition('cooldown', [f('global_s', 'int', { min: 0, max: 86400 }), f('user_s', 'int', { min: 0, max: 86400 })]),
+  condition('cooldown', [
+    f('global_s', 'int', { min: 0, max: MAX_COOLDOWN_SECONDS }),
+    f('user_s', 'int', { min: 0, max: MAX_COOLDOWN_SECONDS }),
+    f('name', 'text', { max: 32 }),
+    f('left_command', 'text', { max: 64 }),
+    f('left_reply', 'template', { max: 500 }),
+    f('ready_reply', 'template', { max: 500 }),
+  ]),
   condition('chance', [f('percent', 'int', { required: true, min: 1, max: 100 })]),
   condition('counter', [counterName, op, f('value', 'int', { required: true })]),
   condition('points', [op, f('value', 'int', { required: true })]),
@@ -184,4 +192,9 @@ export const ACTION_TYPES: TypeDef[] = [
     f('scene_value', 'text', { min: 1, max: 200 }),
   ]),
   action('stop'),
+  action('cooldown_add', [
+    f('name', 'text', { required: true, min: 1, max: 32 }),
+    f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }),
+    f('per', 'int', { min: 0 }),
+  ]),
 ];

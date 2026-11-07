@@ -12,6 +12,9 @@ type Automation func(*sql.Selector)
 // ChannelFeedCounter is the predicate function for channelfeedcounter builders.
 type ChannelFeedCounter func(*sql.Selector)
 
+// CooldownClaim is the predicate function for cooldownclaim builders.
+type CooldownClaim func(*sql.Selector)
+
 // FeedCounter is the predicate function for feedcounter builders.
 type FeedCounter func(*sql.Selector)
 
@@ -29,3 +32,6 @@ type Quote func(*sql.Selector)
 
 // SpotifyCredential is the predicate function for spotifycredential builders.
 type SpotifyCredential func(*sql.Selector)
+
+// Variable is the predicate function for variable builders.
+type Variable func(*sql.Selector)

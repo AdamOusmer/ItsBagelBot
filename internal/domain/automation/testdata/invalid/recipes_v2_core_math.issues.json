@@ -5,6 +5,6 @@
   },
   {
     "path": "actions[0].params.save_as",
-    "code": "invalid_format"
+    "code": "simple_word"
   }
 ]

@@ -33,24 +33,33 @@
   const chooseText = (source: ChoiceSource) => {
     if (awaiting && isReward(source)) return t('flows.setup.pickReward');
     if (isReward(source)) return t('flows.choose.reward');
-    return source === 'counters' ? t('flows.choose.counter') : t('flows.choose.scene');
+    if (source === 'counters') return t('flows.choose.counter');
+    if (source === 'namedCooldowns') return t('flows.choose.namedCooldown');
+    return t('flows.choose.scene');
   };
 
   const emptyText = (source: ChoiceSource) => {
     if (source === 'manageableRewards') return t('flows.choiceEmpty.manageableRewards');
     if (source === 'rewards') return t('flows.choiceEmpty.rewards');
-    return source === 'counters' ? t('flows.choiceEmpty.counters') : t('flows.choiceEmpty.scenes');
+    if (source === 'counters') return t('flows.choiceEmpty.counters');
+    if (source === 'namedCooldowns') return t('flows.choiceEmpty.namedCooldowns');
+    return t('flows.choiceEmpty.scenes');
   };
 
   const failedText = (source: ChoiceSource) => {
     if (isReward(source)) return t('flows.choiceProblem.rewards');
-    return source === 'counters' ? t('flows.choiceProblem.counters') : t('flows.choiceProblem.scenes');
+    if (source === 'counters') return t('flows.choiceProblem.counters');
+    if (source === 'namedCooldowns') return t('flows.choiceProblem.namedCooldowns');
+    return t('flows.choiceProblem.scenes');
   };
 
   const problemText = (source: ChoiceSource, problem: ChoiceProblem) => {
     if (problem === 'keyRejected') return t('flows.choiceProblem.keyRejected');
     return failedText(source);
   };
+
+  const missingText = (source: ChoiceSource, name: string) =>
+    source === 'namedCooldowns' ? t('flows.choiceUnowned', { name }) : t('flows.choiceMissing', { name });
 
   async function fetchScenes(light: string, model: string): Promise<ChoiceList> {
     const body = new FormData();
@@ -108,7 +117,7 @@
       {:else if result.options.length === 0}
         <Text size="sm" tone="muted">{emptyText(field.source)}</Text>
       {:else if value && !result.options.some((option) => option.value === value)}
-        <Text size="sm" tone="muted">{t('flows.choiceMissing', { name: savedName || value })}</Text>
+        <Text size="sm" tone="muted">{missingText(field.source, savedName || value)}</Text>
       {/if}
     {/await}
   {/if}

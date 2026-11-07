@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, stepLabel, stepSummary, variableLabel } from './copy';
+import { durationOutside, durationRange, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, stepLabel, stepSummary, variableLabel } from './copy';
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
 import { NODE_SPECS, type FlowNode } from './model';
@@ -30,6 +30,25 @@ describe('step copy', () => {
     const trigger = NODE_SPECS.find((spec) => spec.type === 'twitch.reward')!;
     expect(fieldPlaceholder(english, trigger, trigger.fields[0])).toBeUndefined();
     expect(fieldUnit(english, trigger, trigger.fields[0])).toBeUndefined();
+  });
+
+  test('the cooldown takes up to 30 days and says so when a value is outside', () => {
+    const cooldown = NODE_SPECS.find((spec) => spec.type === 'cond.cooldown')!;
+    const field = cooldown.fields[0];
+    if (field.type !== 'duration') throw new Error('cooldown is not a duration field');
+    expect(durationRange(english, cooldown, field)).toBe('Use 1 second to 30 days.');
+    expect([undefined, 1, 2_592_000].map((seconds) => durationOutside(field, seconds))).toEqual([false, false, false]);
+    expect([0, 2_592_001].map((seconds) => durationOutside(field, seconds))).toEqual([true, true]);
+  });
+
+  test.each([
+    [59, 'Wait 59 seconds between runs'],
+    [60, 'Wait 1 minute between runs'],
+    [7200, 'Wait 2 hours between runs'],
+    [86_400, 'Wait 1 day between runs'],
+    [604_800, 'Wait 7 days between runs']
+  ])('a %d second cooldown reads %s', (seconds, line) => {
+    expect(describeNode(english, { id: 'c', type: 'cond.cooldown', x: 0, y: 0, config: { seconds } })).toBe(line);
   });
 
   test('the wait unit names the longest wait', () => {

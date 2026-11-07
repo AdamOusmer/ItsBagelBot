@@ -50,8 +50,12 @@ type LiveCondition struct {
 }
 
 type CooldownCondition struct {
-	GlobalS int `json:"global_s"`
-	UserS   int `json:"user_s"`
+	GlobalS     int    `json:"global_s"`
+	UserS       int    `json:"user_s"`
+	Name        string `json:"name,omitempty"`
+	LeftCommand string `json:"left_command,omitempty"`
+	LeftReply   string `json:"left_reply,omitempty"`
+	ReadyReply  string `json:"ready_reply,omitempty"`
 }
 
 type ChanceCondition struct {
@@ -101,9 +105,21 @@ func checkCounterCond(c chk, p CounterCondition) {
 }
 
 func checkCooldown(c chk, p CooldownCondition) {
-	inRange(c, "global_s", p.GlobalS, between(0, 86400))
-	inRange(c, "user_s", p.UserS, between(0, 86400))
+	inRange(c, "global_s", p.GlobalS, between(0, MaxCooldownSeconds))
+	inRange(c, "user_s", p.UserS, between(0, MaxCooldownSeconds))
 	c.atLeastOne(p.GlobalS > 0 || p.UserS > 0)
+	c.optionalVariableName("name", p.Name)
+	if p.Name != "" && p.GlobalS <= 0 {
+		c.add("name", CodeRequired)
+	}
+	if p.Name != "" && p.UserS > 0 {
+		c.add("user_s", CodeInvalidFormat)
+	}
+	if p.LeftCommand != "" {
+		c.commandName("left_command", p.LeftCommand, "start")
+	}
+	c.text("left_reply", p.LeftReply, upTo(MaxTemplateLength))
+	c.text("ready_reply", p.ReadyReply, upTo(MaxTemplateLength))
 }
 
 func checkUsers(c chk, p UsersCondition) {

@@ -22,6 +22,7 @@ type triggerMatch struct {
 	plan  *automation.Plan
 	args  string
 	event map[string]string
+	left  *automation.CooldownCondition
 }
 
 func (p *Pipeline) runAutomationStage(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, consumed bool, emit module.Emit) {
@@ -41,7 +42,7 @@ func (p *Pipeline) runChatScanTriggers(ctx context.Context, mctx *module.Context
 	text := automation.NewMatchText(mctx.Env.Text)
 	for _, t := range triggers {
 		if args, ok := t.MatchChat(&text); ok {
-			p.startAutomation(ctx, mctx, triggerMatch{plan: t.Plan, args: args}, emit)
+			p.runChatTrigger(ctx, mctx, triggerMatch{plan: t.Plan, args: args, left: t.Left}, emit)
 		}
 	}
 }
@@ -129,8 +130,17 @@ func (p *Pipeline) startAutomation(ctx context.Context, mctx *module.Context, m 
 	p.ensureLocale(ctx, mctx)
 	run := getRun()
 	defer putRun(run)
+	fillTriggeredRun(run, mctx, m)
+	run.ID = id.String()
+	if EventIdentity(&mctx.Env) == "" {
+		run.Identity = ":" + auto.ID
+	}
+	p.runAutomation(ctx, run, emit)
+}
+
+func fillTriggeredRun(run *AutomationRun, mctx *module.Context, m triggerMatch) {
 	*run = AutomationRun{
-		Plan:          plan,
+		Plan:          m.plan,
 		BroadcasterID: mctx.BroadcasterID,
 		Channel:       mctx.Env.BroadcasterUserID,
 		Regress:       mctx.Regress,
@@ -140,13 +150,8 @@ func (p *Pipeline) startAutomation(ctx context.Context, mctx *module.Context, m 
 		Viewer:        triggerViewer(&mctx.Env, m.event),
 		Args:          m.args,
 		Event:         m.event,
-		Source:        auto.Definition.Trigger.Type,
-		ID:            id.String(),
+		Source:        m.plan.Automation.Definition.Trigger.Type,
 	}
-	if EventIdentity(&mctx.Env) == "" {
-		run.Identity = ":" + auto.ID
-	}
-	p.runAutomation(ctx, run, emit)
 }
 
 func triggerViewer(env *lane.Envelope, event map[string]string) Viewer {

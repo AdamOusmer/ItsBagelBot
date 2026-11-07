@@ -15,7 +15,8 @@ const CHOICES: Record<ChoiceSource, { value: string; label: string; meta?: Recor
     value: 'snapshot:4:9',
     label: 'Sunset',
     meta: { sceneType: 'devices.capabilities.dynamic_scene', sceneInstance: 'snapshot', sceneValue: '{"paramId":4,"id":9}' }
-  }
+  },
+  namedCooldowns: { value: 'subathon', label: 'subathon, in Big cheer celebration' }
 };
 
 const LIGHT: Config = { device: 'AA:BB:CC:DD:EE:FF:00:11', sku: 'H6008', deviceName: 'Desk lamp' };
@@ -48,6 +49,9 @@ function fill(config: Config, field: FieldSpec): void {
   switch (field.type) {
     case 'number':
       config[field.key] = withinRange(field);
+      break;
+    case 'duration':
+      config[field.key] = field.max;
       break;
     case 'toggle':
     case 'select':

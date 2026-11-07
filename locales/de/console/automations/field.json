@@ -55,6 +55,9 @@
   "right": "Zweiter Wert",
   "url": "URL",
   "user_s": "Cooldown pro Zuschauer (s)",
+  "left_command": "Befehl für verbleibende Zeit",
+  "left_reply": "Antwort während der Wartezeit",
+  "ready_reply": "Antwort, wenn bereit",
   "value": "Wert",
   "scope": "Gespeichert für",
   "save_as": "Speichern als",
@@ -72,5 +75,6 @@
   "reset_on_stream_end": "Beim Stream-Ende zurücksetzen",
   "content": "Inhalt",
   "position": "Position",
-  "volume": "Lautstärke"
+  "volume": "Lautstärke",
+  "per": "Pro"
 }

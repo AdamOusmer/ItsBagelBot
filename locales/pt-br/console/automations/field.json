@@ -55,6 +55,9 @@
   "right": "Segundo valor",
   "url": "URL",
   "user_s": "Intervalo por espectador (s)",
+  "left_command": "Comando de tempo restante",
+  "left_reply": "Resposta durante a espera",
+  "ready_reply": "Resposta quando estiver pronto",
   "value": "Valor",
   "scope": "Guardada para",
   "save_as": "Salvar como",
@@ -72,5 +75,6 @@
   "reset_on_stream_end": "Restaurar quando a live terminar",
   "content": "Conteúdo",
   "position": "Posição",
-  "volume": "Volume"
+  "volume": "Volume",
+  "per": "Por"
 }

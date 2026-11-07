@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/predicate"
@@ -285,40 +284,6 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 	return r.publishChanged(ctx, id)
 }
 
-const CreatorCodeMaxLen = 64
-
-func normalizeCreatorCode(raw string) (*string, error) {
-	code := strings.TrimSpace(raw)
-	if code == "" {
-		return nil, nil
-	}
-	if utf8.RuneCountInString(code) > CreatorCodeMaxLen {
-		return nil, fmt.Errorf("creator_code must be %d characters or fewer", CreatorCodeMaxLen)
-	}
-	for _, r := range code {
-		if r < 0x20 || r == 0x7f {
-			return nil, fmt.Errorf("creator_code cannot contain control characters")
-		}
-	}
-	return &code, nil
-}
-
-func (v UserView) CreatorCodeText() string {
-	if v.CreatorCode == nil {
-		return ""
-	}
-	return *v.CreatorCode
-}
-
-func (r *Users) SetCreatorCode(ctx context.Context, id uint64, raw string) error {
-	code, err := normalizeCreatorCode(raw)
-	if err != nil {
-		return err
-	}
-	r.queuePref(id, prefCreatorCode, prefWrite{code: code})
-	return nil
-}
-
 // SetStatus is on the money path, so it must write through, never via the batcher.
 func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) error {
 	if err := validate.Status(string(status)); err != nil {
@@ -352,11 +317,6 @@ func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
 // SetLocaleNow commits interactive language changes before reads and invalidation.
 func (r *Users) SetLocaleNow(ctx context.Context, id uint64, locale string) error {
 	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLocale(locale) })
-}
-
-func (r *Users) SetCustomCursor(ctx context.Context, id uint64, on bool) error {
-	r.queuePref(id, prefCursor, prefWrite{flag: on})
-	return nil
 }
 
 // SetBanned is moderation enforcement, so it writes through. Banning also
@@ -410,7 +370,7 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 	deleted := data.UserDeletedDTO{UserID: id, AccountCreatedAt: createdAt.UnixMicro()}
 	counted := r.trackAccounts(ctx, id)
 
-	if err := withTx(ctx, r.client, func(tx *ent.Tx) error {
+	if err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 		row, err := tx.User.Get(ctx, id)
 		if err != nil {
 			return err
@@ -555,7 +515,7 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 	}
 
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, r.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 
 			existing, err := tx.Tokens.Query().
 				Where(
@@ -675,17 +635,3 @@ func (o tokenOwner) aad(tokenType tokens.Type, platform tokens.Platform) []byte 
 	return aad
 }
 
-func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {
-
-	tx, err := client.Tx(ctx)
-	if err != nil {
-		return err
-	}
-
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-
-	return tx.Commit()
-}

@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 
 	"ItsBagelBot/pkg/bus"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
 )
@@ -137,7 +138,7 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 		return
 	}
 	if res == nil {
-		s.client.Do(dctx, s.forgetDueCmd(broadcasterID))
+		_ = pkg_valkey.ZRem(dctx, s.client, raffleDueKey, strconv.FormatUint(broadcasterID, 10))
 		return
 	}
 	for _, line := range s.announcement(dctx, broadcasterID).ResultLines(res) {
@@ -158,16 +159,9 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	dctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	resps := s.client.DoMulti(dctx,
-		s.client.B().Ttl().Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build(),
-		s.client.B().Zcard().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Build(),
-	)
-	left, err := resps[0].AsInt64()
+	left, entrants, err := pkg_valkey.TTLAndSize(dctx, s.client,
+		raffleKey(raffleDeadlinePrefix, broadcasterID), raffleKey(raffleEntriesPrefix, broadcasterID))
 	if err != nil || left <= 0 {
-		return
-	}
-	entrants, err := resps[1].AsInt64()
-	if err != nil {
 		return
 	}
 
@@ -176,8 +170,7 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	}
 
 	next := min(raffleDefaultRemind, left)
-	s.client.Do(dctx, s.client.B().Set().Key(raffleKey(raffleRemindPrefix, broadcasterID)).
-		Value("1").ExSeconds(next).Build())
+	_ = pkg_valkey.NewKV(s.client).Set(dctx, pkg_valkey.Key{Name: raffleKey(raffleRemindPrefix, broadcasterID), TTL: time.Duration(next) * time.Second}, "1")
 }
 
 func (s *ValkeyRaffleStore) localeOf(ctx context.Context, broadcasterID uint64) string {

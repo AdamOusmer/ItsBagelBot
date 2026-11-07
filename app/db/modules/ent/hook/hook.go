@@ -32,6 +32,18 @@ func (f ChannelFeedCounterFunc) Mutate(ctx context.Context, m ent.Mutation) (ent
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelFeedCounterMutation", m)
 }
 
+// The CooldownClaimFunc type is an adapter to allow the use of ordinary
+// function as CooldownClaim mutator.
+type CooldownClaimFunc func(context.Context, *ent.CooldownClaimMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CooldownClaimFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CooldownClaimMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CooldownClaimMutation", m)
+}
+
 // The FeedCounterFunc type is an adapter to allow the use of ordinary
 // function as FeedCounter mutator.
 type FeedCounterFunc func(context.Context, *ent.FeedCounterMutation) (ent.Value, error)
@@ -102,6 +114,18 @@ func (f SpotifyCredentialFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SpotifyCredentialMutation", m)
+}
+
+// The VariableFunc type is an adapter to allow the use of ordinary
+// function as Variable mutator.
+type VariableFunc func(context.Context, *ent.VariableMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f VariableFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.VariableMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.VariableMutation", m)
 }
 
 // Condition is a hook condition function.

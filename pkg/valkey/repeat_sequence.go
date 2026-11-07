@@ -1,0 +1,166 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package valkey
+
+import (
+	"context"
+	"errors"
+	"strconv"
+	"time"
+
+	valkey_go "github.com/valkey-io/valkey-go"
+)
+
+var repeatSequenceScript = valkey_go.NewLuaScript(`
+local t = redis.call('TIME')
+local now = t[1] * 1000 + math.floor(t[2] / 1000)
+local elem, width, copies = ARGV[1], tonumber(ARGV[2]), tonumber(ARGV[3])
+local pwin, swin = tonumber(ARGV[5]), tonumber(ARGV[6])
+
+local st = redis.call('HMGET', KEYS[1],
+  'pem', 'pw', 'pa', 'pp', 'pts',
+  'sem', 'sn', 'sts',
+  'msg')
+local pem, pw, pa, pp, pts = st[1], tonumber(st[2]), tonumber(st[3]), tonumber(st[4]), tonumber(st[5])
+local sem, sn, sts = st[6], tonumber(st[7]), tonumber(st[8])
+
+-- Replay absorption runs before anything else, on its own unconditional
+-- field: neither subsystem's state may own this guard, because a completion
+-- clears the ascent fields and would let a redelivery slip past a
+-- subsystem-owned guard and double-count into the streak.
+if ARGV[4] ~= '' and st[9] == ARGV[4] then
+  redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[7]))
+  return {0, 0, 0}
+end
+
+local flags, milestone, done_apex = 0, 0, 0
+
+-- Ascent-then-descent. A valid attempt always starts at width 1, then rises one step
+-- at a time before it may descend. In particular, a descending fragment such as
+-- 3,2,1 or a partial 2,3,2,1 is not a valid run.
+if pts == nil or now - pts > pwin then
+  if width == 1 then
+    pem, pw, pa, pp = elem, 1, 1, 0
+  else
+    pem, pw, pa, pp = nil, nil, nil, nil
+  end
+elseif pem ~= elem then
+  if width == 1 then
+    pem, pw, pa, pp = elem, 1, 1, 0
+  else
+    pem, pw, pa, pp = nil, nil, nil, nil
+  end
+elseif width == pw + 1 then
+  if pp == 1 then
+    pem, pw, pa, pp = nil, nil, nil, nil
+  else
+    pw, pa = width, width
+  end
+elseif width == pw - 1 then
+  -- Descending, either already under way or turning straight off the apex.
+  -- One branch for both so the landing-at-1 check can never be skipped: an
+  -- apex-2 attempt turns at its own top and must complete there too.
+  if pp == 1 or pw == pa then
+    pw = width
+    pp = 1
+    if pw <= 1 then
+      flags = flags + 1
+      done_apex = pa
+      pem, pw, pa, pp, pts = nil, nil, nil, nil, nil
+    end
+  else
+    if width == 1 then
+      pem, pw, pa, pp = elem, 1, 1, 0
+    else
+      pem, pw, pa, pp = nil, nil, nil, nil
+    end
+  end
+elseif width ~= pw then
+  if width == 1 then
+    pem, pw, pa, pp = elem, 1, 1, 0
+  else
+    pem, pw, pa, pp = nil, nil, nil, nil
+  end
+end
+-- width == pw falls through: duplicate step, neutral.
+
+if done_apex > 0 or pem == nil then
+  redis.call('HDEL', KEYS[1], 'pem', 'pw', 'pa', 'pp', 'pts')
+else
+  redis.call('HMSET', KEYS[1], 'pem', pem, 'pw', pw, 'pa', pa, 'pp', pp, 'pts', now)
+end
+
+-- Streak.
+if width == 1 then
+  if sts == nil or now - sts > swin then
+    sem, sn = nil, nil
+  end
+  local prev = sn
+  if sem == elem and sn then
+    sn = sn + copies
+  else
+    sem, sn, prev = elem, copies, 0
+  end
+  for v in string.gmatch(ARGV[8], '%d+') do
+    local rung = tonumber(v)
+    if prev < rung and rung <= sn and (milestone == 0 or rung < milestone) then
+      milestone = rung
+    end
+  end
+  if milestone > 0 then flags = flags + 2 end
+  redis.call('HMSET', KEYS[1], 'sem', sem, 'sn', sn, 'sts', now)
+else
+  redis.call('HDEL', KEYS[1], 'sem', 'sn', 'sts')
+end
+
+-- The replay marker is written unconditionally last, so it records exactly the
+-- line this call consumed no matter what either subsystem did above.
+redis.call('HSET', KEYS[1], 'msg', ARGV[4])
+redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[7]))
+return {flags, milestone, done_apex}`)
+
+// RepeatSequence tracks two things from a stream of (element, width, copies) steps against one key: an
+// ascend-then-descend run (a "pyramid") and a same-element run-length streak that crosses rungs in a ladder.
+// A replay sharing the same replayID as the last call is absorbed without changing either subsystem's state.
+type RepeatSequence struct{ Key string }
+
+// RepeatStep is one (element, width, copies) step fed to RepeatSequence.Track.
+type RepeatStep struct {
+	Element                     string
+	Width, Copies               int
+	ReplayID                    string
+	PyramidWindow, StreakWindow time.Duration
+	TTL                         time.Duration
+	Ladder                      string
+}
+
+// Track reports: bit 0 of flags set means the ascent completed this call (apex holds its peak width);
+// bit 1 set means the streak crossed a ladder rung (milestone holds the highest rung crossed).
+func (r RepeatSequence) Track(ctx context.Context, client valkey_go.Client, step RepeatStep) (flags, milestone, apex int64, err error) {
+	args := []string{
+		step.Element,
+		strconv.Itoa(step.Width),
+		strconv.Itoa(step.Copies),
+		step.ReplayID,
+		strconv.FormatInt(step.PyramidWindow.Milliseconds(), 10),
+		strconv.FormatInt(step.StreakWindow.Milliseconds(), 10),
+		strconv.FormatInt(step.TTL.Milliseconds(), 10),
+		step.Ladder,
+	}
+	values, err := repeatSequenceScript.Exec(ctx, client, []string{r.Key}, args).ToArray()
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	if len(values) != 3 {
+		return 0, 0, 0, errors.New("valkey: invalid repeat sequence result")
+	}
+	if flags, err = values[0].AsInt64(); err != nil {
+		return 0, 0, 0, err
+	}
+	if milestone, err = values[1].AsInt64(); err != nil {
+		return 0, 0, 0, err
+	}
+	apex, err = values[2].AsInt64()
+	return flags, milestone, apex, err
+}

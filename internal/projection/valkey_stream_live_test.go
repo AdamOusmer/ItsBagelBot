@@ -11,6 +11,7 @@ import (
 	"time"
 
 	livekey "ItsBagelBot/internal/domain/live"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,7 +109,7 @@ func TestStreamLiveReadTakesTheNewestVerdict(t *testing.T) {
 			name: "Twitch restored a stream the projection still holds offline",
 			setup: func(f streamLiveFixture) {
 				f.fold(false, 2000)
-				f.twitchVerdict(livekey.SetScript, 3000)
+				f.twitchVerdict(pkg_valkey.VersionedSlotSetScript.Body(), 3000)
 			},
 			want: StreamLive{Live: true, Known: true, Version: 3000},
 		},
@@ -116,14 +117,14 @@ func TestStreamLiveReadTakesTheNewestVerdict(t *testing.T) {
 			name: "a newer clear outranks a projected live",
 			setup: func(f streamLiveFixture) {
 				f.fold(true, 1000)
-				f.twitchVerdict(livekey.ClearScript, 2000)
+				f.twitchVerdict(pkg_valkey.VersionedSlotClearScript.Body(), 2000)
 			},
 			want: StreamLive{Known: true, Version: 2000},
 		},
 		{
 			name: "a projected live outranks an older clear",
 			setup: func(f streamLiveFixture) {
-				f.twitchVerdict(livekey.ClearScript, 1000)
+				f.twitchVerdict(pkg_valkey.VersionedSlotClearScript.Body(), 1000)
 				f.fold(true, 2000)
 			},
 			want: StreamLive{Live: true, Known: true, Version: 2000},
@@ -131,7 +132,7 @@ func TestStreamLiveReadTakesTheNewestVerdict(t *testing.T) {
 		{
 			name: "only the live key is known",
 			setup: func(f streamLiveFixture) {
-				f.twitchVerdict(livekey.ClearScript, 1000)
+				f.twitchVerdict(pkg_valkey.VersionedSlotClearScript.Body(), 1000)
 			},
 			want: StreamLive{Known: true, Version: 1000},
 		},
@@ -159,7 +160,7 @@ func TestStreamBaselinePendingCannotOverwriteNewerOfflineFact(t *testing.T) {
 	pending, err := f.store.StreamBaselinePending(f.ctx, f.user, 1000)
 	require.NoError(t, err)
 	require.True(t, pending)
-	f.twitchVerdict(livekey.ClearScript, 2000)
+	f.twitchVerdict(pkg_valkey.VersionedSlotClearScript.Body(), 2000)
 	require.NoError(t, f.store.SetStreamCounterBaselineForVersion(f.ctx, f.user, 1000, StreamCounters{Messages: 99}))
 	_, found, err := f.store.GetStreamCounterBaseline(f.ctx, strconv.FormatUint(f.user, 10))
 	require.NoError(t, err)

@@ -27,6 +27,9 @@ type automationScope struct {
 	argMap map[string]string
 	locals map[string]string
 	args   string
+	locale string
+
+	cooldownEndMS int64
 }
 
 func (automationScope) Owns(v scope.Var) bool {
@@ -35,6 +38,8 @@ func (automationScope) Owns(v scope.Var) bool {
 		return !v.HasPayload
 	case v.Name == "arg", v.Name == localTokenName:
 		return v.HasPayload
+	case v.Name == automation.CooldownTokenName:
+		return automation.IsCooldownLeftToken(v)
 	default:
 		return strings.HasPrefix(v.Name, eventTokenPrefix) && !v.HasPayload
 	}
@@ -50,6 +55,8 @@ func (s automationScope) Get(v scope.Var) (string, bool) {
 		return sanitizeVar(s.argMap[v.Payload]), true
 	case localTokenName:
 		return sanitizeVar(s.locals[strings.ToLower(v.Payload)]), true
+	case automation.CooldownTokenName:
+		return s.cooldownLeft(), true
 	default:
 		return sanitizeVar(s.event[strings.TrimPrefix(v.Name, eventTokenPrefix)]), true
 	}
@@ -126,7 +133,7 @@ func (x *actionExec) variableScope() variableScope {
 }
 
 func (x *actionExec) automationScope() automationScope {
-	return automationScope{event: x.run.Event, argMap: x.run.ArgMap, locals: x.run.Locals, args: x.run.Args}
+	return automationScope{event: x.run.Event, argMap: x.run.ArgMap, locals: x.run.Locals, args: x.run.Args, locale: x.context().Locale, cooldownEndMS: x.run.CooldownEndMS}
 }
 
 func (p *Pipeline) automationContext(ctx context.Context, run *AutomationRun) *module.Context {
@@ -219,6 +226,7 @@ func (x *actionExec) renderResident(toks []tmpl.Token) string {
 		x.vars = x.newRunVars()
 	}
 	x.vars.auto.locals = x.run.Locals
+	x.vars.auto.cooldownEndMS = x.run.CooldownEndMS
 	x.buf = scope.Chain(nil).Render(x.buf[:0], toks, &x.vars)
 	return string(x.buf)
 }
