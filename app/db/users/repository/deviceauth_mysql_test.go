@@ -51,7 +51,7 @@ func TestDeviceAuthMySQLConcurrentCodeExchangeNoDoubleSpend(t *testing.T) {
 	ctx := t.Context()
 	require.NoError(t, repo.Register(ctx, 6001, "racer", "Racer", "racer@example.invalid"))
 
-	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6001, pkceChallenge(testVerifier), testRedirect, "Race Rig", "macos")
+	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6001, codeRequest(testVerifier))
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
@@ -95,7 +95,7 @@ func TestDeviceAuthMySQLConcurrentRefreshNoDoubleSpend(t *testing.T) {
 	ctx := t.Context()
 	require.NoError(t, repo.Register(ctx, 6002, "racer2", "Racer2", "racer2@example.invalid"))
 
-	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6002, pkceChallenge(testVerifier), testRedirect, "Race Rig 2", "windows")
+	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6002, codeRequest(testVerifier))
 	require.NoError(t, err)
 	tokens, err := repo.ExchangeDeviceCode(ctx, code, testVerifier, testRedirect)
 	require.NoError(t, err)

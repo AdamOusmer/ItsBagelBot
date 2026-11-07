@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
@@ -14,9 +15,17 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
+// DeviceCodeRequest is what the consent page asks Users to bind a code to.
+type DeviceCodeRequest struct {
+	Challenge   string
+	RedirectURI string
+	DeviceName  string
+	Platform    string
+}
+
 // CreateDeviceAuthorizationCode stores a single-use code hash; the raw code
 // is returned once and never persisted.
-func (r *Users) CreateDeviceAuthorizationCode(ctx context.Context, userID uint64, challenge, redirectURI, deviceName, platform string) (string, error) {
+func (r *Users) CreateDeviceAuthorizationCode(ctx context.Context, userID uint64, req DeviceCodeRequest) (string, error) {
 	owner, err := r.FindUser(ctx, userID)
 	if err != nil {
 		return "", err
@@ -34,10 +43,10 @@ func (r *Users) CreateDeviceAuthorizationCode(ctx context.Context, userID uint64
 		return r.client.AuthorizationCode.Create().
 			SetCodeHash(hash).
 			SetUserID(userID).
-			SetCodeChallenge(challenge).
-			SetRedirectURI(redirectURI).
-			SetDeviceName(deviceName).
-			SetPlatform(authorizationcode.Platform(platform)).
+			SetCodeChallenge(req.Challenge).
+			SetRedirectURI(req.RedirectURI).
+			SetDeviceName(req.DeviceName).
+			SetPlatform(authorizationcode.Platform(req.Platform)).
 			SetCreatedAt(now).
 			SetExpiresAt(now.Add(deviceCodeTTL)).
 			Exec(ctx)
@@ -112,59 +121,27 @@ func (r *Users) revokeProducedGrant(ctx context.Context, grantID *string) {
 // race rolls the candidate grant back and is reported as the same replay.
 func (r *Users) redeemCode(ctx context.Context, row *ent.AuthorizationCode) (DeviceTokens, error) {
 	now := time.Now().UTC()
-	grantID, deviceID := newDeviceUUID(), newDeviceUUID()
 	refreshRaw, refreshHash, err := randomDeviceSecret()
 	if err != nil {
 		return DeviceTokens{}, err
 	}
 
+	grant := &ent.DeviceGrant{
+		GrantID: newDeviceUUID(), DeviceID: newDeviceUUID(), UserID: row.UserID,
+		DeviceName: row.DeviceName, Platform: devicegrant.Platform(row.Platform), RefreshHash: refreshHash,
+		CreatedAt: now,
+	}
 	var tokens DeviceTokens
 	err = withTx(ctx, r.client, func(tx *ent.Tx) error {
-		if err := requireDeviceOwnerInTx(ctx, tx, row.UserID); err != nil {
+		if err := mintGrantInTx(ctx, tx, row.ID, grant); err != nil {
 			return err
 		}
-		_, err := tx.DeviceGrant.Create().
-			SetGrantID(grantID).
-			SetDeviceID(deviceID).
-			SetUserID(row.UserID).
-			SetDeviceName(row.DeviceName).
-			SetPlatform(devicegrant.Platform(row.Platform)).
-			SetRefreshHash(refreshHash).
-			SetRefreshSlidingExpiresAt(now.Add(deviceRefreshSlidingTTL)).
-			SetRefreshAbsoluteExpiresAt(now.Add(deviceRefreshAbsoluteTTL)).
-			SetCreatedAt(now).
-			Save(ctx)
-		if err != nil {
-			return err
-		}
-
-		n, err := tx.AuthorizationCode.Update().
-			Where(authorizationcode.IDEQ(row.ID), authorizationcode.ConsumedAtIsNil(), authorizationcode.ExpiresAtGT(now)).
-			SetConsumedAt(now).
-			SetProducedGrantID(grantID).
-			Save(ctx)
-		if err != nil {
-			return err
-		}
-		if n != 1 {
-			return errDeviceCodeRace
-		}
-
-		access, err := r.signDeviceAccessToken(row.UserID, deviceID, grantID, now)
-		if err != nil {
-			return err
-		}
-		tokens = DeviceTokens{
-			AccessToken:  access,
-			RefreshToken: deviceRefreshTokenPrefix + base64.RawURLEncoding.EncodeToString(refreshRaw),
-			ExpiresIn:    int64(deviceAccessTokenTTL.Seconds()),
-			GrantID:      grantID,
-			DeviceID:     deviceID,
-		}
-		return nil
+		var err error
+		tokens, err = r.deviceTokensFor(grant, refreshRaw, now)
+		return err
 	})
 
-	if err == errDeviceCodeRace {
+	if errors.Is(err, errDeviceCodeRace) {
 		r.revokeProducedGrant(ctx, refetchProducedGrantID(ctx, r, row.ID))
 		return DeviceTokens{}, ErrDeviceInvalidGrant
 	}
@@ -172,6 +149,40 @@ func (r *Users) redeemCode(ctx context.Context, row *ent.AuthorizationCode) (Dev
 		return DeviceTokens{}, err
 	}
 	return tokens, nil
+}
+
+func mintGrantInTx(ctx context.Context, tx *ent.Tx, codeRowID int, grant *ent.DeviceGrant) error {
+	if err := requireDeviceOwnerInTx(ctx, tx, grant.UserID); err != nil {
+		return err
+	}
+	now := grant.CreatedAt
+	_, err := tx.DeviceGrant.Create().
+		SetGrantID(grant.GrantID).
+		SetDeviceID(grant.DeviceID).
+		SetUserID(grant.UserID).
+		SetDeviceName(grant.DeviceName).
+		SetPlatform(grant.Platform).
+		SetRefreshHash(grant.RefreshHash).
+		SetRefreshSlidingExpiresAt(now.Add(deviceRefreshSlidingTTL)).
+		SetRefreshAbsoluteExpiresAt(now.Add(deviceRefreshAbsoluteTTL)).
+		SetCreatedAt(now).
+		Save(ctx)
+	if err != nil {
+		return err
+	}
+
+	n, err := tx.AuthorizationCode.Update().
+		Where(authorizationcode.IDEQ(codeRowID), authorizationcode.ConsumedAtIsNil(), authorizationcode.ExpiresAtGT(now)).
+		SetConsumedAt(now).
+		SetProducedGrantID(grant.GrantID).
+		Save(ctx)
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return errDeviceCodeRace
+	}
+	return nil
 }
 
 func refetchProducedGrantID(ctx context.Context, r *Users, codeRowID int) *string {

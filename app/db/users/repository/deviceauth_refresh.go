@@ -53,7 +53,7 @@ func (r *Users) rotateDeviceGrant(ctx context.Context, row *ent.DeviceGrant, cur
 	if err := r.requireDeviceOwner(ctx, row.UserID); err != nil {
 		return DeviceTokens{}, err
 	}
-	if now.After(row.RefreshAbsoluteExpiresAt) || now.After(row.RefreshSlidingExpiresAt) {
+	if deviceGrantExpired(row, now) {
 		return DeviceTokens{}, ErrDeviceInvalidGrant
 	}
 
@@ -72,22 +72,33 @@ func (r *Users) rotateDeviceGrant(ctx context.Context, row *ent.DeviceGrant, cur
 		return DeviceTokens{}, err
 	}
 	if n != 1 {
-		fresh, ferr := db.WithQuery(ctx, func(ctx context.Context) (*ent.DeviceGrant, error) {
-			return r.client.DeviceGrant.Get(ctx, row.ID)
-		})
-		if ferr != nil {
-			return DeviceTokens{}, ferr
-		}
-		return DeviceTokens{}, r.settleRefreshReplay(ctx, fresh, now)
+		return DeviceTokens{}, r.settleLostRotation(ctx, row.ID, now)
 	}
+	return r.deviceTokensFor(row, newRaw, now)
+}
 
+func deviceGrantExpired(row *ent.DeviceGrant, now time.Time) bool {
+	return now.After(row.RefreshAbsoluteExpiresAt) || now.After(row.RefreshSlidingExpiresAt)
+}
+
+func (r *Users) settleLostRotation(ctx context.Context, grantRowID int, now time.Time) error {
+	fresh, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.DeviceGrant, error) {
+		return r.client.DeviceGrant.Get(ctx, grantRowID)
+	})
+	if err != nil {
+		return err
+	}
+	return r.settleRefreshReplay(ctx, fresh, now)
+}
+
+func (r *Users) deviceTokensFor(row *ent.DeviceGrant, refreshRaw []byte, now time.Time) (DeviceTokens, error) {
 	access, err := r.signDeviceAccessToken(row.UserID, row.DeviceID, row.GrantID, now)
 	if err != nil {
 		return DeviceTokens{}, err
 	}
 	return DeviceTokens{
 		AccessToken:  access,
-		RefreshToken: deviceRefreshTokenPrefix + base64.RawURLEncoding.EncodeToString(newRaw),
+		RefreshToken: deviceRefreshTokenPrefix + base64.RawURLEncoding.EncodeToString(refreshRaw),
 		ExpiresIn:    int64(deviceAccessTokenTTL.Seconds()),
 		GrantID:      row.GrantID,
 		DeviceID:     row.DeviceID,

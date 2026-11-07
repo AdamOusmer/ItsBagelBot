@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 // client_id and state never reach Users: the contract keeps both as
@@ -42,7 +41,7 @@ func DeviceRedirectURI(raw string) error {
 	if !isBareCallback(u) {
 		return ErrRedirectURI
 	}
-	return deviceRedirectHost(u.Host)
+	return deviceRedirectHost(u)
 }
 
 func isPlainHTTP(u *url.URL) bool {
@@ -53,12 +52,11 @@ func isBareCallback(u *url.URL) bool {
 	return u.Path == "/callback" && u.RawQuery == "" && u.Fragment == ""
 }
 
-func deviceRedirectHost(host string) error {
-	hostname, portText, err := splitHostPort(host)
-	if err != nil || hostname != "127.0.0.1" {
+func deviceRedirectHost(u *url.URL) error {
+	if u.Hostname() != "127.0.0.1" {
 		return ErrRedirectURI
 	}
-	port, err := strconv.Atoi(portText)
+	port, err := strconv.Atoi(u.Port())
 	if err != nil {
 		return ErrRedirectURI
 	}
@@ -72,18 +70,15 @@ func isRedirectPort(port int) bool {
 	return port >= minRedirectPort && port <= maxRedirectPort
 }
 
-func splitHostPort(host string) (string, string, error) {
-	parts := strings.SplitN(host, ":", 2)
-	if len(parts) != 2 {
-		return "", "", ErrRedirectURI
-	}
-	return parts[0], parts[1], nil
-}
-
 // DeviceChallenge checks shape only; PKCEVerify compares the real value.
 func DeviceChallenge(challenge string) error {
-	if len(challenge) != challengeLength || !isBase64URLNoPad(challenge) {
+	if len(challenge) != challengeLength {
 		return ErrChallenge
+	}
+	for i := 0; i < len(challenge); i++ {
+		if !isBase64URLByte(challenge[i]) {
+			return ErrChallenge
+		}
 	}
 	return nil
 }
@@ -104,15 +99,6 @@ func isPKCEVerifierByte(c byte) bool {
 	return isAlphanumeric(c) || c == '-' || c == '.' || c == '_' || c == '~'
 }
 
-func isBase64URLNoPad(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if !isBase64URLByte(s[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 func isBase64URLByte(c byte) bool {
 	return isAlphanumeric(c) || c == '-' || c == '_'
 }
@@ -131,16 +117,20 @@ func DevicePlatform(platform string) error {
 // fails, since the reported name is untrusted and shown on the consent page,
 // where a bidi override could reorder what the user reads.
 func DeviceName(raw string) string {
-	cleaned := strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
-			return -1
-		}
-		return r
-	}, raw)
-	cleaned = strings.TrimSpace(cleaned)
-	if utf8.RuneCountInString(cleaned) <= maxDeviceNameLength {
-		return cleaned
+	cleaned := strings.TrimSpace(strings.Map(displayableRune, raw))
+	return string(firstRunes([]rune(cleaned), maxDeviceNameLength))
+}
+
+func displayableRune(r rune) rune {
+	if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+		return -1
 	}
-	runes := []rune(cleaned)
-	return string(runes[:maxDeviceNameLength])
+	return r
+}
+
+func firstRunes(runes []rune, limit int) []rune {
+	if len(runes) <= limit {
+		return runes
+	}
+	return runes[:limit]
 }

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/users/repository"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
@@ -22,14 +21,13 @@ const deviceAuthTimeout = 3 * time.Second
 
 type deviceAuthRPC struct {
 	repo *repository.Users
-	log  *zap.Logger
 }
 
 // SubscribeDeviceAuth wires desktop device authorization. Only exchange and
 // refresh require the Ed25519 signing key; they fail closed on their own
 // when it is unconfigured, so the rest of this surface keeps working.
 func SubscribeDeviceAuth(w Wiring, prefix string) error {
-	d := &deviceAuthRPC{repo: w.Repo, log: w.Log}
+	d := &deviceAuthRPC{repo: w.Repo}
 	verbs := map[string]func(context.Context, *nats.Msg){
 		"create_code": d.handleCreateCode,
 		"exchange":    d.handleExchange,
@@ -55,8 +53,10 @@ func (d *deviceAuthRPC) handleCreateCode(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	code, err := d.repo.CreateDeviceAuthorizationCode(ctx, userID, req.CodeChallenge, req.RedirectURI,
-		validate.DeviceName(req.DeviceName), req.Platform)
+	code, err := d.repo.CreateDeviceAuthorizationCode(ctx, userID, repository.DeviceCodeRequest{
+		Challenge: req.CodeChallenge, RedirectURI: req.RedirectURI,
+		DeviceName: validate.DeviceName(req.DeviceName), Platform: req.Platform,
+	})
 	if err != nil {
 		respondFail(msg, err)
 		return
@@ -169,40 +169,36 @@ func deviceGrantViews(views []repository.DeviceGrantView) []usersrpc.DeviceGrant
 }
 
 func (d *deviceAuthRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.DeviceRevokeRequest](msg)
-	if !ok {
-		return
-	}
-	userID, ok := parseWireID(msg, req.UserID, "user_id")
-	if !ok {
-		return
-	}
+	serveDeviceRevoke(msg, func(req usersrpc.DeviceRevokeRequest) string { return req.UserID },
+		func(userID uint64, req usersrpc.DeviceRevokeRequest) (usersrpc.DeviceRevokeReply, error) {
+			deviceID, err := d.repo.RevokeDeviceGrant(ctx, userID, req.GrantID)
+			return usersrpc.DeviceRevokeReply{DeviceID: deviceID}, err
+		})
+}
 
-	deviceID, err := d.repo.RevokeDeviceGrant(ctx, userID, req.GrantID)
+func (d *deviceAuthRPC) handleRevokeAll(ctx context.Context, msg *nats.Msg) {
+	serveDeviceRevoke(msg, func(req usersrpc.DeviceRevokeAllRequest) string { return req.UserID },
+		func(userID uint64, req usersrpc.DeviceRevokeAllRequest) (usersrpc.DeviceRevokeAllReply, error) {
+			deviceIDs, err := d.repo.RevokeAllDeviceGrants(ctx, userID, deviceRevokeReason(req.Reason))
+			return usersrpc.DeviceRevokeAllReply{DeviceIDs: deviceIDs}, err
+		})
+}
+
+func serveDeviceRevoke[Req, Reply any](msg *nats.Msg, wireUser func(Req) string, revoke func(uint64, Req) (Reply, error)) {
+	req, ok := decodeRequest[Req](msg)
+	if !ok {
+		return
+	}
+	userID, ok := parseWireID(msg, wireUser(req), "user_id")
+	if !ok {
+		return
+	}
+	reply, err := revoke(userID, req)
 	if err != nil {
 		respondFail(msg, err, domainrpc.Is(repository.ErrDeviceGrantNotFound, domainrpc.CodeNotFound))
 		return
 	}
-	bus.Respond(msg, usersrpc.DeviceRevokeReply{DeviceID: deviceID})
-}
-
-func (d *deviceAuthRPC) handleRevokeAll(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.DeviceRevokeAllRequest](msg)
-	if !ok {
-		return
-	}
-	userID, ok := parseWireID(msg, req.UserID, "user_id")
-	if !ok {
-		return
-	}
-
-	deviceIDs, err := d.repo.RevokeAllDeviceGrants(ctx, userID, deviceRevokeReason(req.Reason))
-	if err != nil {
-		d.log.Error("revoke_all device grants", zap.Error(err))
-		respondFail(msg, err)
-		return
-	}
-	bus.Respond(msg, usersrpc.DeviceRevokeAllReply{DeviceIDs: deviceIDs})
+	bus.Respond(msg, reply)
 }
 
 func deviceRevokeReason(reason string) string {

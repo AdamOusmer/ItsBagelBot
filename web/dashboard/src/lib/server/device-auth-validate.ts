@@ -26,14 +26,24 @@ export function validClientId(value: string | null): value is typeof DESKTOP_CLI
 
 // Field-by-field checks on the parsed URL, never a string match: userinfo, encoded paths,
 // IPv6 literals and lookalike hosts (127.0.0.1.evil.com) all fail one of these checks.
+const LOOPBACK_RULES: readonly ((url: URL) => boolean)[] = [
+  (url) => url.protocol === 'http:',
+  (url) => !url.username,
+  (url) => !url.password,
+  (url) => url.hostname === '127.0.0.1',
+  (url) => url.pathname === '/callback',
+  (url) => !url.search,
+  (url) => !url.hash
+];
+
+function isAllowedPort(port: number): boolean {
+  return port >= MIN_PORT && port <= MAX_PORT;
+}
+
 function loopbackPort(url: URL): number | null {
-  if (url.protocol !== 'http:') return null;
-  if (url.username || url.password) return null;
-  if (url.hostname !== '127.0.0.1') return null;
-  if (url.pathname !== '/callback') return null;
-  if (url.search || url.hash) return null;
-  const port = url.port ? Number(url.port) : 80;
-  return port >= MIN_PORT && port <= MAX_PORT ? port : null;
+  if (!LOOPBACK_RULES.every((rule) => rule(url))) return null;
+  const port = Number(url.port || 80);
+  return isAllowedPort(port) ? port : null;
 }
 
 export function validRedirectUri(value: string | null): value is string {

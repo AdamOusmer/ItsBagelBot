@@ -19,7 +19,7 @@ func TestDeviceAuthRevokeAllKillsPendingCode(t *testing.T) {
 	createTestUser(t, h, 5101)
 	ctx := context.Background()
 
-	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5101, pkceChallenge(testVerifier), testRedirect, "Test Mac", "macos")
+	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5101, codeRequest(testVerifier))
 	require.NoError(t, err)
 
 	_, err = h.repo.RevokeAllDeviceGrants(ctx, 5101, "user")
@@ -38,7 +38,7 @@ func TestDeviceAuthRevokeAllKeepsConsumedCodeForReplayDetection(t *testing.T) {
 	createTestUser(t, h, 5102)
 	ctx := context.Background()
 
-	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5102, pkceChallenge(testVerifier), testRedirect, "Test Mac", "macos")
+	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5102, codeRequest(testVerifier))
 	require.NoError(t, err)
 	_, err = h.repo.ExchangeDeviceCode(ctx, code, testVerifier, testRedirect)
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestDeviceAuthOwnerLookupFailureIsNotInvalidGrant(t *testing.T) {
 	ctx := context.Background()
 	tokens := createAndExchange(t, h, 5103, testVerifier)
 
-	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5103, pkceChallenge(testVerifier), testRedirect, "Test Mac", "macos")
+	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5103, codeRequest(testVerifier))
 	require.NoError(t, err)
 
 	storageDown := errors.New("storage unavailable")

@@ -69,10 +69,16 @@ func createTestUser(t *testing.T, h deviceHarness, id uint64) {
 	require.NoError(t, h.repo.Register(context.Background(), id, "user", "User", fmt.Sprintf("user-%d@example.invalid", id)))
 }
 
+func codeRequest(verifier string) repository.DeviceCodeRequest {
+	return repository.DeviceCodeRequest{
+		Challenge: pkceChallenge(verifier), RedirectURI: testRedirect, DeviceName: "Test Mac", Platform: "macos",
+	}
+}
+
 func createAndExchange(t *testing.T, h deviceHarness, userID uint64, verifier string) repository.DeviceTokens {
 	t.Helper()
 	ctx := context.Background()
-	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, userID, pkceChallenge(verifier), testRedirect, "Test Mac", "macos")
+	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, userID, codeRequest(verifier))
 	require.NoError(t, err)
 	tokens, err := h.repo.ExchangeDeviceCode(ctx, code, verifier, testRedirect)
 	require.NoError(t, err)
@@ -111,7 +117,7 @@ func TestDeviceAuthWrongVerifierDoesNotBurnCode(t *testing.T) {
 	createTestUser(t, h, 5002)
 	ctx := context.Background()
 
-	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5002, pkceChallenge(testVerifier), testRedirect, "Test PC", "windows")
+	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5002, codeRequest(testVerifier))
 	require.NoError(t, err)
 
 	_, err = h.repo.ExchangeDeviceCode(ctx, code, "wrong-verifier-wrong-verifier-wrong-verifier", testRedirect)
@@ -127,7 +133,7 @@ func TestDeviceAuthExpiredCode(t *testing.T) {
 	createTestUser(t, h, 5003)
 	ctx := context.Background()
 
-	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5003, pkceChallenge(testVerifier), testRedirect, "", "linux")
+	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5003, codeRequest(testVerifier))
 	require.NoError(t, err)
 
 	row := h.client.AuthorizationCode.Query().OnlyX(ctx)
@@ -143,7 +149,7 @@ func TestDeviceAuthReplayedCodeRevokesProducedGrant(t *testing.T) {
 	ctx := context.Background()
 	sub := watchRevoked(t, h)
 
-	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5004, pkceChallenge(testVerifier), testRedirect, "Rig", "macos")
+	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5004, codeRequest(testVerifier))
 	require.NoError(t, err)
 	tokens, err := h.repo.ExchangeDeviceCode(ctx, code, testVerifier, testRedirect)
 	require.NoError(t, err)
@@ -219,7 +225,7 @@ func TestDeviceAuthBannedUserFailsExchangeAndRefresh(t *testing.T) {
 	_, err := h.repo.RefreshDeviceGrant(ctx, tokens.RefreshToken)
 	require.ErrorIs(t, err, repository.ErrDeviceInvalidGrant, "ban must revoke existing grants")
 
-	_, err = h.repo.CreateDeviceAuthorizationCode(ctx, 5007, pkceChallenge(testVerifier), testRedirect, "", "macos")
+	_, err = h.repo.CreateDeviceAuthorizationCode(ctx, 5007, codeRequest(testVerifier))
 	require.ErrorIs(t, err, repository.ErrDeviceInvalidGrant, "a banned account cannot start a new authorization")
 }
 
@@ -302,7 +308,7 @@ func TestDeviceAuthMissingSigningKeyFailsClosedButRestWorks(t *testing.T) {
 
 	require.NoError(t, repo.Register(ctx, 5012, "nosign", "No Sign", "nosign@example.invalid"))
 
-	code, err := repo.CreateDeviceAuthorizationCode(ctx, 5012, pkceChallenge(testVerifier), testRedirect, "", "macos")
+	code, err := repo.CreateDeviceAuthorizationCode(ctx, 5012, codeRequest(testVerifier))
 	require.NoError(t, err, "code creation does not need the signing key")
 
 	_, err = repo.ExchangeDeviceCode(ctx, code, testVerifier, testRedirect)
@@ -321,7 +327,7 @@ func TestDeviceAuthCleanupPrunesExpiredCodesAndStaleGrants(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5013, pkceChallenge(testVerifier), testRedirect, "", "macos")
+	code, err := h.repo.CreateDeviceAuthorizationCode(ctx, 5013, codeRequest(testVerifier))
 	require.NoError(t, err)
 	staleCodeRow := h.client.AuthorizationCode.Query().OnlyX(ctx)
 	h.client.AuthorizationCode.UpdateOneID(staleCodeRow.ID).SetExpiresAt(now.Add(-time.Hour)).ExecX(ctx)

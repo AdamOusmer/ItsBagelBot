@@ -24,7 +24,7 @@ func TestDeviceAuthMySQLBanDuringRedemptionRevokesNewGrant(t *testing.T) {
 	ctx := t.Context()
 	require.NoError(t, repo.Register(ctx, 6101, "banrace", "BanRace", "banrace@example.invalid"))
 
-	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6101, pkceChallenge(banRaceVerifier), testRedirect, "Test Mac", "macos")
+	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6101, codeRequest(banRaceVerifier))
 	require.NoError(t, err)
 
 	insertStarted := make(chan struct{})
