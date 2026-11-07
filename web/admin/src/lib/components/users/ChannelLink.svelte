@@ -22,7 +22,6 @@
   rel="noopener noreferrer"
   aria-label={label}
   title={label}
-  data-mark=""
 >
   <Icon name="twitch" size={14} />
 </a>

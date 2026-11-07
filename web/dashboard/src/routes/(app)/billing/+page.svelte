@@ -503,7 +503,7 @@
     <Field label={t('billing.twitchUsername')}>
       <Input
         name="recipient"
-        data-cursor
+        style="--bb-cursor: follow"
         placeholder={t('billing.usernamePlaceholder')}
         autocomplete="off"
         spellcheck="false"
@@ -520,7 +520,7 @@
     >
       <Textarea
         name="message"
-        data-cursor
+        style="--bb-cursor: follow"
         placeholder={t('billing.messagePlaceholder')}
         maxlength={280}
         rows={3}

@@ -432,7 +432,7 @@
 <svelte:window onkeydown={onKeyDown} onbeforeunload={(e) => dirty && !leaving && e.preventDefault()} />
 
 {#if drawable}
-<div class="editor" data-canvas="fill" data-flow-editor bind:this={editorEl}>
+<div class="editor flow-editor bb-canvas-fill" data-flow-editor bind:this={editorEl}>
   <header class="bar" bind:this={barEl}>
     <div class="bar-start">
       <a class="back" href="/flows">
@@ -745,11 +745,11 @@
   .grip {
     display: none;
   }
-  :global(.bb-shell:has(.editor[data-canvas='fill'])) {
+  :global(.bb-shell:has(.flow-editor)) {
     touch-action: pan-x pan-y;
   }
   @media (pointer: coarse), (max-width: 760px) {
-    :global(.bb-shell:has(.editor[data-canvas='fill'])) {
+    :global(.bb-shell:has(.flow-editor)) {
       height: 100dvh;
       min-height: 0;
       overflow: hidden;
@@ -768,7 +768,7 @@
     }
   }
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
-    :global(body:has(.editor[data-canvas='fill']) .bb-popover--bottom) {
+    :global(body:has(.flow-editor) .bb-popover--bottom) {
       display: none;
     }
     .editor {

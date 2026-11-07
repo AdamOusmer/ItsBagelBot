@@ -29,8 +29,7 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
     href={href}
     label={index}
     class:list={['gcard', 'reveal-in', { 'gcard--wide': wide }]}
-    data-cursor="quiet"
-    style={`--reveal-i: ${revealIndex}`}
+    style={`--reveal-i: ${revealIndex}; --bb-cursor: quiet`}
 >
     <span class="gcard__chips" slot="band" aria-hidden="true">
         {chips.map((chip) => <Chip as="span" class="bb-chip--cell"><bb-fit>{chip}</bb-fit></Chip>)}
@@ -40,7 +39,7 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         <Text as="span" tone="muted-light" class="gcard__desc"><bb-fit mode="block">{description}</bb-fit></Text>
         <Cluster as="span" gap={3} justify="between" class="gcard__foot">
             <Text as="span" size="xs" mono tone="muted" class="gcard__meta"><bb-fit>{meta}</bb-fit></Text>
-            <Button as="span" variant="secondary" class="gcard__cta" data-cursor><bb-fit>{cta}</bb-fit></Button>
+            <Button as="span" variant="secondary" class="gcard__cta" style="--bb-cursor: follow"><bb-fit>{cta}</bb-fit></Button>
         </Cluster>
     </span>
 </Card>

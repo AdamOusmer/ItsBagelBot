@@ -426,7 +426,7 @@
   wide={choiceLayout}
   {leaving}
   style={choiceLayout ? `--setup-art-x: calc(${compactChoices.current ? choicePositionCompact : choicePosition} - 50%)` : undefined}
-  data-orbs="off"
+  orbs={false}
 >
   {#snippet start()}<Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
   {#snippet art()}

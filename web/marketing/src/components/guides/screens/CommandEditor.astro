@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Chip from '@bagel/ui/astro/Chip.astro';
+import Mark from '../Mark.astro';
 import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
@@ -56,17 +57,17 @@ const L = {
 <div class="dframe__screen dframe__screen--panel">
     <InspectorSurface title={L.panelHead} closeLabel={L.close}>
         <Field label={L.fieldName}>
-            <span class="bb-input gs-value">{L.nameValue}<i class="gs-mark" data-note="1"></i></span>
+            <span class="bb-input gs-value">{L.nameValue}<Mark n={1} /></span>
         </Field>
         <Field label={L.fieldAlts} tag={L.optional}>
             <span class="bb-input gs-value">
                 <Chip pressed aria-label={`${L.altChipLabel} · ${L.remove}`}>{L.altChipLabel} <Icon name="x" size={10} /></Chip>
-                <i class="gs-mark" data-note="2"></i>
+                <Mark n={2} />
             </span>
         </Field>
         <Field label={L.fieldResponse}>
             <span class="bb-input gs-value">
-                <span set:html={L.responseHtml}></span><i class="gs-mark" data-note="3"></i>
+                <span set:html={L.responseHtml}></span><Mark n={3} />
             </span>
         </Field>
         <div class="gs-actions">
@@ -74,7 +75,7 @@ const L = {
             <Chip tone="muted"><Fragment set:html={L.chip2} /></Chip>
             <Chip tone="muted"><Fragment set:html={L.chip3} /></Chip>
             <Chip tone="muted" title={L.chip4Tooltip}>{L.chip4}</Chip>
-            <i class="gs-mark" data-note="7"></i>
+            <Mark n={7} />
         </div>
         <ChatRehearsal
             tag={L.chatTag}
@@ -89,14 +90,14 @@ const L = {
         </Field>
         <div class="gs-pair">
             <Field label={L.fieldCooldown}>
-                <span class="bb-input gs-value">{L.cooldownValue}<i class="gs-mark" data-note="5"></i></span>
+                <span class="bb-input gs-value">{L.cooldownValue}<Mark n={5} /></span>
             </Field>
             <Field label={L.fieldUserCooldown}>
                 <span class="bb-input gs-value">{L.userCooldownValue}</span>
             </Field>
         </div>
         <Field label={L.fieldRestrict} tag={L.optional}>
-            <span class="bb-input gs-value" data-placeholder>{L.restrictPlaceholder}</span>
+            <span class="bb-input gs-value is-placeholder">{L.restrictPlaceholder}</span>
         </Field>
         <ScreenCheck label={L.checkActive} checked />
         <ScreenCheck label={L.checkLive} note="6" />

@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
+import Mark from '../Mark.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
 import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
@@ -42,7 +43,7 @@ const scopes = [L.chip1, L.chip2, L.chip3, L.chip4];
         <Field label={L.fieldScope}>
             <div class="gs-choices" inert>
                 <SegmentedControl options={scopes} value={scopes[3]} label={L.fieldScope} />
-                <i class="gs-mark" data-note="2"></i>
+                <Mark n={2} />
             </div>
         </Field>
         <div class="gs-foot">

@@ -21,7 +21,7 @@
   const titleWords = $derived(title.split(' '));
 </script>
 
-<section class="gate" data-canvas="fill" data-orbs="off" aria-labelledby="premium-gate-title">
+<section class="gate bb-canvas-fill bb-no-orbs" aria-labelledby="premium-gate-title">
   <div class="field" aria-hidden="true"><LightField /></div>
   <div class="bb-orb bb-orb--halo bb-orb--green orb orb--green" aria-hidden="true"><i class="bb-orb__pulse"></i></div>
   <div class="bb-orb bb-orb--halo bb-orb--tan orb orb--tan" aria-hidden="true"><i class="bb-orb__pulse"></i></div>

@@ -27,7 +27,7 @@
   const instant = $derived(t('admin.shards.rowLoadBurst', { now: rateLabel(burstEps), eps: rateLabel(eps), pct: pctLabel(utilization) }));
 </script>
 
-<Card as="article" data-cursor="quiet">
+<Card as="article" style="--bb-cursor: quiet">
   <div class="socket">
     <header class="head">
       <strong class="id">{t('admin.shards.rowId', { id: String(shard.shard_id) })}</strong>

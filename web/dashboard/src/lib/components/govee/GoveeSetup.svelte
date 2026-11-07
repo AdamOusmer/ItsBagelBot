@@ -109,8 +109,8 @@
   onSelect={go}
   {hero}
   style="--setup-stage-offset: 76px"
-  data-orbs="off"
-  data-canvas="fill"
+  orbs={false}
+  class="bb-canvas-fill"
 >
   {#snippet start()}<TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('govee.back')} />{/snippet}
   {#snippet art()}

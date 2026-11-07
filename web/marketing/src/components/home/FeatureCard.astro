@@ -23,13 +23,13 @@ const { label, href, tone = 'gold', span = 1, index = 0, class: cls = '' } = Ast
     href={href}
     tone={tone}
     class:list={['fcard', `fcard--${tone}`, span > 1 && `fcard--span-${span}`, cls]}
-    data-cursor={href ? 'quiet' : undefined}
+    style={href ? '--bb-cursor: quiet' : undefined}
 >
     <div class="fcard__inner reveal-in" style={`--reveal-i: ${index}`}>
         {(label || href) && (
             <div class="fcard__top">
                 {label && <span class="fcard__label"><bb-fit>{label}</bb-fit></span>}
-                {href && <RoundBadge size="md" muted class="fcard__go" data-cursor aria-hidden="true">→</RoundBadge>}
+                {href && <RoundBadge size="md" muted class="fcard__go" style="--bb-cursor: follow" aria-hidden="true">→</RoundBadge>}
             </div>
         )}
         <div class="fcard__demo" aria-hidden="true"><slot name="demo" /></div>

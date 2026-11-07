@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Badge from '@bagel/ui/astro/Badge.astro';
+import Mark from '../Mark.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import DeckList from '@bagel/ui/astro/DeckList.astro';
 import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
@@ -99,7 +100,7 @@ const replies: { name: string; text: string; on: boolean }[] = [
             <SwitchRow control="end" checked label={L.statusLabel} hint={L.statusHelp} class="gs-fill">
                 <Badge slot="status" tone="live" mark="solid">{L.statusOn}</Badge>
             </SwitchRow>
-            <i class="gs-mark" data-note="1"></i>
+            <Mark n={1} />
         </span>
     </Card>
     <div class="gs-cols">
@@ -111,11 +112,11 @@ const replies: { name: string; text: string; on: boolean }[] = [
                         <span class="gs-row">
                             <span class="gs-num">{String(i + 1).padStart(2, '0')}</span>
                             <span class="gs-grow"><b>{reply.name}</b> {reply.text}</span>
-                            {i === 0 && <i class="gs-mark" data-note="2"></i>}
+                            {i === 0 && <Mark n={2} />}
                         </span>
                         <Fragment slot="actions">
                             <Switch checked={reply.on} label={reply.name} />
-                            {i === replies.length - 1 && <i class="gs-mark" data-note="3"></i>}
+                            {i === replies.length - 1 && <Mark n={3} />}
                         </Fragment>
                     </ManagementRow>
                 ))}
@@ -123,8 +124,8 @@ const replies: { name: string; text: string; on: boolean }[] = [
         </div>
         <InspectorSurface title={L.panelHead} closeLabel={L.closeLabel}>
             <Field label={L.fieldMessage} hint={L.blankHint}>
-                <span class="bb-input gs-value" data-focus>
-                    <span set:html={L.messageHtml}></span><i class="gs-mark" data-note="4"></i>
+                <span class="bb-input bb-input--focus gs-value">
+                    <span set:html={L.messageHtml}></span><Mark n={4} />
                 </span>
             </Field>
             <ChatRehearsal
