@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import PageToolbar from '@bagel/ui/astro/PageToolbar.astro';
+import Mark from '../Mark.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
 
 import Button from '@bagel/ui/astro/Button.astro';
@@ -93,7 +94,7 @@ const nav = {
         <Fragment slot="trailing">
         <SearchInput placeholder={L.searchPlaceholder} readonly />
         <Button size="sm">{L.newCommand}</Button>
-        <i class="gs-mark" data-note="1"></i>
+        <Mark n={1} />
         </Fragment>
     </PageToolbar>
     <div class="gs-cols">
@@ -120,10 +121,10 @@ const nav = {
         </DeckList>
         <InspectorSurface title={L.panelHead} closeLabel={L.close}>
             <Field label={L.fieldName}>
-                <span class="bb-input gs-value" data-focus>{L.nameValue}<i class="gs-mark" data-note="2"></i></span>
+                <span class="bb-input bb-input--focus gs-value">{L.nameValue}<Mark n={2} /></span>
             </Field>
             <Field label={L.fieldResponse}>
-                <span class="bb-input gs-value">{L.responseValue}<i class="gs-mark" data-note="3"></i></span>
+                <span class="bb-input gs-value">{L.responseValue}<Mark n={3} /></span>
             </Field>
             <ChatRehearsal
                 tag={L.chatTag}
@@ -134,7 +135,7 @@ const nav = {
             />
             <div class="gs-foot">
                 <EditorFooter cancelLabel={L.cancel} saveLabel={L.create} dirty />
-                <i class="gs-mark" data-note="4"></i>
+                <Mark n={4} />
             </div>
         </InspectorSurface>
     </div>

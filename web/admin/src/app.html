@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
      Proprietary. No license granted. See LICENSE.md. -->
-<html lang="en" data-surface="tonal">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <link rel="icon" href="%sveltekit.assets%/logo.png" />
   %sveltekit.head%
 </head>
-<body data-role="admin" data-entrance="slide" data-sveltekit-preload-data="hover">
+<body class="bb-entrance-slide" data-sveltekit-preload-data="hover">
   <!-- display:contents wrapper isolates the hydration root from browser
        extensions that inject nodes directly into <body>. Without it, an injected
        sibling shifts SvelteKit's hydration index walk, the hydrate throws, and

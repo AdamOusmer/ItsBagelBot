@@ -143,12 +143,12 @@
     }
   }
 
-  :global(.bb-shell:has(.bb-editor-stage[data-canvas='fill'])) {
+  :global(.bb-shell:has(.bb-editor-stage)) {
     touch-action: pan-x pan-y;
   }
 
   @media (pointer: coarse), (max-width: 760px) {
-    :global(.bb-shell:has(.bb-editor-stage[data-canvas='fill'])) {
+    :global(.bb-shell:has(.bb-editor-stage)) {
       height: 100dvh;
       min-height: 0;
       overflow: hidden;
@@ -167,7 +167,7 @@
   }
 
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
-    :global(body:has(.bb-editor-stage[data-canvas='fill']) .bb-popover--bottom) {
+    :global(body:has(.bb-editor-stage) .bb-popover--bottom) {
       display: none;
     }
 

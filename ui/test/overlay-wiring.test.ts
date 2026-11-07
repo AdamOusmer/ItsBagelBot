@@ -11,6 +11,12 @@ type KeyName = string;
 
 class FakeElement {
   attrs = new Map<string, string>();
+  classes = new Set<string>();
+  classList = {
+    contains: (name: string) => this.classes.has(name),
+    add: (name: string) => this.classes.add(name),
+    remove: (name: string) => this.classes.delete(name),
+  };
   listeners = new Map<string, (event: never) => void>();
   focused = false;
   focusOptions: unknown;
@@ -179,14 +185,14 @@ describe('tooltip wiring', () => {
     const { root, press } = setup();
     root.focusWithinNow = true;
     expect(press('Escape')).toBe(true);
-    expect(root.attrs.has('data-dismissed')).toBe(true);
+    expect(root.classes.has('is-dismissed')).toBe(true);
     expect(press('Escape')).toBe(false);
   });
 
   test('Escape passes through when the tooltip is not shown', () => {
     const { root, press } = setup();
     expect(press('Escape')).toBe(false);
-    expect(root.attrs.has('data-dismissed')).toBe(false);
+    expect(root.classes.has('is-dismissed')).toBe(false);
   });
 
   test('other keys never dismiss', () => {
@@ -198,18 +204,18 @@ describe('tooltip wiring', () => {
   test('leaving hover and focus makes it show again', () => {
     const { root } = setup();
     root.hovered = true;
-    root.attrs.set('data-dismissed', '');
+    root.classes.add('is-dismissed');
     root.hovered = false;
     root.listeners.get('pointerleave')?.({} as never);
-    expect(root.attrs.has('data-dismissed')).toBe(false);
+    expect(root.classes.has('is-dismissed')).toBe(false);
   });
 
   test('pointer leaving while focus is inside keeps it dismissed', () => {
     const { root } = setup();
     root.focusWithinNow = true;
-    root.attrs.set('data-dismissed', '');
+    root.classes.add('is-dismissed');
     root.listeners.get('pointerleave')?.({} as never);
-    expect(root.attrs.has('data-dismissed')).toBe(true);
+    expect(root.classes.has('is-dismissed')).toBe(true);
   });
 });
 

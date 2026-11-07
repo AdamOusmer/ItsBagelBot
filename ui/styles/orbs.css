@@ -57,15 +57,6 @@
         --bb-orb-halo-inset: -60%;
     }
 
-    :root[data-theme="light"] .bb-orb--green {
-        --bb-orb-fill-rgb: var(--bb-green-light-rgb);
-        opacity: 0.1;
-    }
-
-    :root[data-theme="light"] .bb-orb--tan {
-        opacity: 0.12;
-    }
-
     .bb-orb--halo.bb-orb--green::before,
     .bb-orb--green .bb-orb__pulse::before {
         background: radial-gradient(circle closest-side,

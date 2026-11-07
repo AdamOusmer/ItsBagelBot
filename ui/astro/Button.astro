@@ -36,7 +36,7 @@ const classes = [buttonClass({ variant, tone, size, block, busy, done, static: i
 const control = isStatic ? {} : { type, disabled: disabled || busy, 'aria-busy': busy ? 'true' : undefined };
 ---
 
-<Tag class={classes} {...control} data-mark="" {...rest}>
+<Tag class={classes} {...control} {...rest}>
     {hasMark(variant) && <i class="bb-btn__mark" aria-hidden="true" />}
     <span class="bb-btn__content"><slot /></span>
     {busy && <span class="bb-btn__spinner" aria-hidden="true" />}

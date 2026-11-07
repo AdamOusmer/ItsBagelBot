@@ -4,6 +4,7 @@
   import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/management-row.css';
   import type { Snippet } from 'svelte';
+  import { CURSOR_QUIET as QUIET } from '../lib/cursor-prop';
 
   type Own = {
     as?: T;
@@ -73,14 +74,14 @@
   function primaryElement() {
     const current: 'true' | undefined = selected ? 'true' : undefined;
     if (href) {
-      return { tag: 'a', attrs: { href, 'data-cursor': 'quiet', 'aria-current': current, 'aria-label': label } };
+      return { tag: 'a', attrs: { href, style: QUIET, 'aria-current': current, 'aria-label': label } };
     }
-    if (isStatic) return { tag: 'div', attrs: { 'data-cursor': 'quiet' } };
+    if (isStatic) return { tag: 'div', attrs: { style: QUIET } };
     return {
       tag: 'button',
       attrs: {
         type: 'button',
-        'data-cursor': 'quiet',
+        style: QUIET,
         'aria-expanded': expanded,
         'aria-controls': controls,
         'aria-current': current,

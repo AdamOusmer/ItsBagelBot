@@ -56,13 +56,13 @@ describe('Button, ButtonLink and IconButton', () => {
       name: 'add is the dashed pill with no diamond mark',
       props: { variant: 'add' },
       slots: { default: '+ Add line' },
-      html: '<button class="bb-btn bb-btn--add" type="button" data-mark><span class="bb-btn__content">+ Add line</span></button>',
+      html: '<button class="bb-btn bb-btn--add" type="button"><span class="bb-btn__content">+ Add line</span></button>',
     },
     {
       name: 'a static button is a span with no button semantics',
-      props: { as: 'span', variant: 'secondary', 'data-cursor': '' },
+      props: { as: 'span', variant: 'secondary', style: '--bb-cursor: follow' },
       slots: { default: 'Open guide' },
-      html: `<span class="bb-btn bb-btn--secondary bb-btn--static" data-mark data-cursor>${MARK}<span class="bb-btn__content">Open guide</span></span>`,
+      html: `<span class="bb-btn bb-btn--secondary bb-btn--static" style="--bb-cursor: follow">${MARK}<span class="bb-btn__content">Open guide</span></span>`,
     },
   ]);
 
@@ -71,13 +71,13 @@ describe('Button, ButtonLink and IconButton', () => {
       name: 'a disabled link drops its href and says so',
       props: { href: '/p?page=0', variant: 'ghost', disabled: true },
       slots: { default: 'Prev' },
-      html: `<a class="bb-btn bb-btn--ghost" role="link" aria-disabled="true" data-mark>${MARK}<span class="bb-btn__content">Prev</span></a>`,
+      html: `<a class="bb-btn bb-btn--ghost" role="link" aria-disabled="true">${MARK}<span class="bb-btn__content">Prev</span></a>`,
     },
     {
       name: 'brand variant keeps the mark and reads its colours from hooks',
       props: { href: '/auth/login', variant: 'brand', block: true },
       slots: { default: 'Continue' },
-      html: `<a class="bb-btn bb-btn--brand bb-btn--block" href="/auth/login" data-mark>${MARK}<span class="bb-btn__content">Continue</span></a>`,
+      html: `<a class="bb-btn bb-btn--brand bb-btn--block" href="/auth/login">${MARK}<span class="bb-btn__content">Continue</span></a>`,
     },
   ]);
 
@@ -87,7 +87,7 @@ describe('Button, ButtonLink and IconButton', () => {
       props: { label: 'Delete deaths', size: 'sm', tone: 'danger' },
       slots: { default: '<svg></svg>' },
       html:
-        '<button class="bb-btn bb-btn--icon bb-btn--sm bb-btn--danger-hover" type="button" aria-label="Delete deaths" data-mark>' +
+        '<button class="bb-btn bb-btn--icon bb-btn--sm bb-btn--danger-hover" type="button" aria-label="Delete deaths">' +
         '<span class="bb-btn__content"><svg></svg></span></button>',
     },
   ]);
@@ -149,7 +149,7 @@ describe('Chip, Badge, Tag and StatusDot', () => {
       name: 'tier chip',
       props: { tone: 'vip', pressed: true, class: 'tier' },
       slots: { default: 'vip' },
-      html: '<button type="button" class="bb-chip bb-chip--vip tier" aria-pressed="true" data-pressed>vip</button>',
+      html: '<button type="button" class="bb-chip bb-chip--vip is-pressed tier" aria-pressed="true">vip</button>',
     },
     {
       name: 'unpressed toggle chip',
@@ -166,7 +166,7 @@ describe('Chip, Badge, Tag and StatusDot', () => {
       name: 'span chip never claims aria-pressed',
       props: { as: 'span', pressed: true },
       slots: { default: 'beta' },
-      html: '<span class="bb-chip" data-pressed>beta</span>',
+      html: '<span class="bb-chip is-pressed">beta</span>',
     },
   ]);
 
@@ -345,7 +345,7 @@ describe('SwitchRow', () => {
       props: { label: 'Enabled', hint: 'Runs in chat', hintId: 'h1', checked: true },
       html:
         '<div class="bb-switch-row"><button type="button" class="bb-switch" role="switch" aria-checked="true" ' +
-        'aria-label="Enabled" aria-describedby="h1" data-state="on"></button><span class="bb-switch-row__text">' +
+        'aria-label="Enabled" aria-describedby="h1"></button><span class="bb-switch-row__text">' +
         '<span class="bb-switch-row__label">Enabled</span><span class="bb-switch-row__hint" id="h1">Runs in chat</span></span></div>',
     },
     {
@@ -355,7 +355,7 @@ describe('SwitchRow', () => {
         '<div class="bb-switch-row bb-switch-row--end"><span class="bb-switch-row__text">' +
         '<span class="bb-switch-row__label">Streamer points</span><span class="bb-switch-row__hint" id="h2">Earn too</span></span>' +
         '<button type="submit" class="bb-switch" role="switch" aria-checked="false" aria-label="Points" ' +
-        'aria-describedby="h2" data-state="off"></button></div>',
+        'aria-describedby="h2"></button></div>',
     },
     {
       name: 'status sits between the text and the switch, warn tones the label',
@@ -364,13 +364,13 @@ describe('SwitchRow', () => {
       html:
         '<div class="bb-switch-row bb-switch-row--end bb-switch-row--warning"><span class="bb-switch-row__text">' +
         '<span class="bb-switch-row__label">Live only</span></span><span class="bb-switch-row__status"><em>Saved</em></span>' +
-        '<button type="button" class="bb-switch" role="switch" aria-checked="false" aria-label="Live only" data-state="off"></button></div>',
+        '<button type="button" class="bb-switch" role="switch" aria-checked="false" aria-label="Live only"></button></div>',
     },
   ]);
 
   test('the note renders on its own line after the switch in both adapters', async () => {
     const note = '<small>Refused</small>';
-    const tail = 'data-state="off"></button><span class="bb-switch-row__note"><small>Refused</small></span></div>';
+    const tail = 'aria-label="On"></button><span class="bb-switch-row__note"><small>Refused</small></span></div>';
     expect(svelteHtml(SvelteSwitchRow, { label: 'On', control: 'end' }, { note }).endsWith(tail)).toBe(true);
     expect((await astroHtml(AstroSwitchRow, { label: 'On', control: 'end' }, { note })).endsWith(tail)).toBe(true);
   });
@@ -410,7 +410,7 @@ describe('PickerOption', () => {
       html:
         '<li class="bb-picker-option bb-picker-option--stacked"><button type="button" class="bb-picker-option__main">' +
         '<span class="bb-picker-option__label">$(fetch.weather)</span><span class="bb-picker-option__desc">data.temp</span></button>' +
-        '<button type="button" class="bb-picker-option__remove" aria-label="Delete weather" data-armed>Delete</button></li>',
+        '<button type="button" class="bb-picker-option__remove is-armed" aria-label="Delete weather">Delete</button></li>',
     },
     {
       name: 'selected and disabled, attributes land on the row button',
@@ -490,7 +490,7 @@ describe('control stylesheets', () => {
       checks: [
         {
           file: 'styles/elements/chip.css',
-          has: ['.bb-chip[data-pressed]:is(.bb-chip--free, .bb-chip--paid, .bb-chip--vip, .bb-chip--banned, .bb-chip--inactive)'],
+          has: ['.bb-chip.is-pressed:is(.bb-chip--free, .bb-chip--paid, .bb-chip--vip, .bb-chip--banned, .bb-chip--inactive)'],
         },
       ],
     },

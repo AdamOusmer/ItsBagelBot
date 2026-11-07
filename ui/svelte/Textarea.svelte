@@ -25,11 +25,18 @@
   }: Own & Omit<SvelteHTMLElements['textarea'], keyof Own> = $props();
 
   const classes = $derived(
-    ['bb-input', 'bb-input--area', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, className || null]
+    [
+      'bb-input',
+      'bb-input--area',
+      fill ? 'bb-input--fill' : null,
+      mono ? 'bb-input--mono' : null,
+      invalid ? 'bb-input--invalid' : null,
+      className || null,
+    ]
       .filter(Boolean)
       .join(' '),
   );
 </script>
 
-<span class={classes} data-invalid={invalid ? '' : undefined}><textarea {rows} bind:value {...rest}
+<span class={classes}><textarea {rows} bind:value {...rest}
   ></textarea></span>

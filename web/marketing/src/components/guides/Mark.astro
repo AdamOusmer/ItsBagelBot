@@ -1,0 +1,11 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+interface Props {
+    n: number | string;
+}
+const { n } = Astro.props;
+---
+
+<i class="gs-mark" style={`--n: ${n}`}></i>

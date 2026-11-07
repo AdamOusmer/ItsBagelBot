@@ -74,11 +74,11 @@
         font-variant-numeric: tabular-nums;
     }
 
-    .bb-input[data-invalid] {
+    .bb-input.bb-input--invalid {
         border-color: rgba(var(--bb-status-danger-rgb), 0.55);
     }
 
-    .bb-input[data-invalid]:focus-within {
+    .bb-input.bb-input--invalid:focus-within {
         box-shadow: 0 0 0 3px rgba(var(--bb-status-danger-rgb), 0.12);
     }
 
@@ -182,12 +182,6 @@
 
     .bb-check__input:focus-visible + .bb-check__box {
         box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
-    }
-
-    :where(:root[data-theme='light']) .bb-check {
-        --check-off-bg: var(--bb-gray-5-light);
-        --check-off-hover-bg: color-mix(in srgb, var(--bb-gray-5-light), var(--bb-ink) 8%);
-        --check-off-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.12);
     }
 
     .bb-check__input:disabled + .bb-check__box { opacity: 0.55; }

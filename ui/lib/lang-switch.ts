@@ -59,8 +59,8 @@ export function mountLangSwitch(root: HTMLElement): () => void {
     menu.style.left = `${placement.x}px`;
     menu.style.top = `${placement.y}px`;
     menu.style.maxHeight = `${placement.maxHeight}px`;
-    menu.dataset.side = placement.side;
-    menu.dataset.anchored = '';
+    menu.classList.toggle('bb-lang-switch__menu--top', placement.side === 'top');
+    menu.classList.add('is-anchored');
   };
 
   const open = (focus?: 'current') => {

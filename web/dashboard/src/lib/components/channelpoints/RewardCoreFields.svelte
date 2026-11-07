@@ -21,8 +21,7 @@
     surface,
     defaultReply,
     replySamples,
-    previewTag,
-    cursorColor = false
+    previewTag
   }: {
     draft: RewardCoreDraft;
     errors: RewardCoreErrors;
@@ -33,7 +32,6 @@
     defaultReply: string;
     replySamples: Record<string, string>;
     previewTag: string;
-    cursorColor?: boolean;
   } = $props();
 
   const { t } = getI18n();
@@ -70,7 +68,7 @@
   </div>
   <div class="color-field">
     <Field label={labels.color}>
-      <ColorPicker data-cursor={cursorColor ? '' : undefined} bind:value={draft.color} />
+      <ColorPicker bind:value={draft.color} />
     </Field>
   </div>
 </div>

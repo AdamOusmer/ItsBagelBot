@@ -39,6 +39,7 @@
     border: 1px solid var(--modal-border);
     border-radius: var(--bb-radius-md);
     background: var(--bb-bg-1);
+    box-shadow: var(--bb-depth-3);
     backdrop-filter: blur(var(--modal-blur));
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -92,13 +93,13 @@
     }
   }
 
-  :is([data-static] .bb-modal, .bb-modal[data-static]) {
+  .bb-static-frame .bb-modal {
     position: relative;
     inset: auto;
     padding: var(--bb-space-3) 0;
   }
 
-  :is([data-static] .bb-modal, .bb-modal[data-static]) .bb-modal__card {
+  .bb-static-frame .bb-modal .bb-modal__card {
     margin: 0 auto;
   }
 
@@ -202,37 +203,6 @@
     animation: bb-modal-viewer-in var(--bb-dur-fast) ease-out;
   }
 
-  :root[data-theme="light"] .bb-modal--viewer .bb-modal__backdrop {
-    background:
-      radial-gradient(70% 60% at 18% 12%, rgba(var(--bb-green-rgb), 0.22), transparent 65%),
-      radial-gradient(65% 55% at 82% 88%, rgba(var(--bb-tan-deep-rgb), 0.2), transparent 60%),
-      radial-gradient(
-        100% 100% at 50% 50%,
-        rgba(var(--bb-paper-warm-rgb), 0.88),
-        rgba(var(--bb-paper-warm-rgb), 0.97) 75%
-      );
-  }
-
-  :root[data-theme="light"] .bb-modal__toolbar {
-    border-color: rgba(var(--bb-green-rgb), 0.4);
-    background: rgba(var(--bb-paper-warm-rgb), 0.92);
-    box-shadow: 0 6px 24px rgba(var(--bb-ink-rgb), 0.15);
-  }
-
-  :root[data-theme="light"] .bb-modal__toolbar .bb-btn--icon {
-    color: var(--bb-ink-soft);
-  }
-
-  :root[data-theme="light"] .bb-modal__toolbar .bb-btn--icon:is(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    border-color: var(--bb-green);
-    background: rgba(var(--bb-green-rgb), 0.15);
-    color: var(--bb-ink);
-  }
-
-  :root[data-theme="light"] .bb-modal__hint {
-    color: rgba(var(--bb-ink-rgb), 0.5);
-  }
-
   @keyframes bb-modal-viewer-in {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -249,9 +219,5 @@
     .bb-modal__hint {
       animation: none;
     }
-  }
-
-  :where([data-surface='tonal']) .bb-modal__card {
-    box-shadow: var(--bb-depth-3);
   }
 }

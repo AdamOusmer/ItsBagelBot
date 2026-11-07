@@ -9,9 +9,11 @@
     --bb-bg-0: var(--bb-black);
     --bb-bg-1: var(--bb-card-bg);
 
-    --bb-border: rgba(var(--bb-white-pure-rgb), 0.08);
-    --bb-border-strong: rgba(var(--bb-white-pure-rgb), 0.16);
-    --bb-border-chip: rgba(var(--bb-white-pure-rgb), 0.12);
+    --bb-scrollbar-thumb: rgba(var(--bb-white-pure-rgb), 0.16);
+    --bb-border: transparent;
+    --bb-border-strong: transparent;
+    --bb-border-chip: transparent;
+    --profile-border: transparent;
     --bb-surface-raised:
         linear-gradient(180deg, rgba(var(--bb-white-pure-rgb), 0.04), rgba(var(--bb-white-pure-rgb), 0) 55%),
         var(--bb-card-bg);
@@ -39,7 +41,7 @@
 
     --bb-glass-fill: rgba(var(--bb-white-rgb), 0.022);
     --bb-glass-fill-2: rgba(var(--bb-white-rgb), 0.04);
-    --bb-glass-border: rgba(var(--bb-white-rgb), 0.11);
+    --bb-glass-border: transparent;
     --bb-glass-blur: 0px;
     --bb-glass-sat: 100%;
     --bb-glass-rim: 0 0 0 0 transparent;
@@ -88,17 +90,7 @@
 
     --bb-tier-inactive: var(--bb-muted);
     --bb-tier-inactive-bg: rgba(var(--bb-white-pure-rgb), 0.04);
-    --bb-tier-inactive-border: rgba(var(--bb-white-pure-rgb), 0.12);
-}
-
-:root[data-surface='tonal'] {
-    --bb-scrollbar-thumb: rgba(var(--bb-white-pure-rgb), 0.16);
-    --bb-border: transparent;
-    --bb-border-strong: transparent;
-    --bb-border-chip: transparent;
-    --bb-glass-border: transparent;
     --bb-tier-inactive-border: transparent;
-    --profile-border: transparent;
 }
 
 }

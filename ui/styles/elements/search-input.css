@@ -4,7 +4,7 @@
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.elements {
-    .bb-search { position: relative; }
+    .bb-search { position: relative; box-shadow: var(--bb-depth-0); }
 
     .bb-search.bb-search--tall { box-sizing: border-box; height: 44px; padding-block: 0; }
 
@@ -31,6 +31,4 @@
 
     .bb-search__clear:hover { color: var(--bb-white); }
     .bb-search__clear[hidden] { display: none; }
-
-    :where([data-surface='tonal']) .bb-search { box-shadow: var(--bb-depth-0); }
 }

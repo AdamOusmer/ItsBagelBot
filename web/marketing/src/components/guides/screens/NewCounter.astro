@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
+import Mark from '../Mark.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
 import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
@@ -35,15 +36,15 @@ const scopes = [L.chip1, L.chip2, L.chip3, L.chip4];
 <div class="dframe__screen dframe__screen--panel">
     <InspectorSurface title={L.panelHead} closeLabel={L.close}>
         <Field label={L.fieldName}>
-            <span class="bb-input gs-value">{L.nameValue}<i class="gs-mark" data-note="1"></i></span>
+            <span class="bb-input gs-value">{L.nameValue}<Mark n={1} /></span>
         </Field>
         <Field label={L.fieldCounts}>
             <div class="gs-choices" inert>
                 <SegmentedControl options={scopes} value={scopes[0]} label={L.fieldCounts} />
-                <i class="gs-mark" data-note="2"></i>
+                <Mark n={2} />
             </div>
         </Field>
-        <p class="gs-hint"><Fragment set:html={L.hint} /><i class="gs-mark" data-note="3"></i></p>
+        <p class="gs-hint"><Fragment set:html={L.hint} /><Mark n={3} /></p>
         <div class="gs-foot">
             <EditorFooter cancelLabel={L.cancel} saveLabel={L.create} dirty />
         </div>

@@ -38,6 +38,7 @@
       fill ? 'bb-input--fill' : null,
       mono ? 'bb-input--mono' : null,
       align === 'end' ? 'bb-input--end' : null,
+      invalid ? 'bb-input--invalid' : null,
       className || null,
     ]
       .filter(Boolean)
@@ -45,7 +46,7 @@
   );
 </script>
 
-<span class={classes} data-invalid={invalid ? '' : undefined}>{#if leading}{@render leading()}{/if}<input
+<span class={classes}>{#if leading}{@render leading()}{/if}<input
     {type}
     bind:value
     {...rest}

@@ -33,7 +33,13 @@
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
-    ['bb-brand', `bb-brand--${size}`, wordmark ? 'bb-brand--wordmark' : null, className || null]
+    [
+      'bb-brand',
+      `bb-brand--${size}`,
+      wordmark ? 'bb-brand--wordmark' : null,
+      logoShape === 'circle' ? 'bb-brand--circle' : null,
+      className || null,
+    ]
       .filter(Boolean)
       .join(' '),
   );
@@ -53,11 +59,11 @@
   >{/snippet}
 
 {#if href}
-  <a class={classes} {href} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}
+  <a class={classes} {href} {...rest}
     >{@render body()}</a
   >
 {:else}
-  <div class={classes} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}
+  <div class={classes} {...rest}
     >{@render body()}</div
   >
 {/if}

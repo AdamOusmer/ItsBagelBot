@@ -33,7 +33,7 @@ const {
     label = t('select.label'), placeholder = t('select.placeholder'), searchPlaceholder = t('search.placeholder'),
     searchClearLabel = t('search.clear'), emptyLabel = t('search.empty'), class: className = '', ...rest
 } = Astro.props;
-const classes = ['bb-input', 'bb-input--select', fill ? 'bb-input--fill' : null, className]
+const classes = ['bb-input', 'bb-input--select', fill ? 'bb-input--fill' : null, invalid ? 'bb-input--invalid' : null, className]
     .filter(Boolean)
     .join(' ');
 ---
@@ -41,7 +41,7 @@ const classes = ['bb-input', 'bb-input--select', fill ? 'bb-input--fill' : null,
 <span class:list={['bb-select', fill && 'bb-select--fill']} data-bb-select data-value={value} data-searchable={searchable ? '' : undefined}
     data-label={label} data-placeholder={placeholder} data-search-placeholder={searchPlaceholder}
     data-search-clear-label={searchClearLabel} data-empty-label={emptyLabel}>
-    <span class={classes} data-select-fallback data-invalid={invalid ? '' : undefined}>
+    <span class={classes} data-select-fallback>
         <select {...rest}>
             {options && value !== undefined && !options.some((option) => option.value === value) && (
                 <option value="" selected disabled hidden data-select-fallback-option>{placeholder}</option>

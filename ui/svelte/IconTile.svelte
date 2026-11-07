@@ -27,6 +27,7 @@
       'bb-icon-tile',
       size === 'md' ? null : `bb-icon-tile--${size}`,
       tone ? `bb-icon-tile--${tone}` : null,
+      picked ? 'bb-icon-tile--picked' : null,
       className || null,
     ]
       .filter(Boolean)
@@ -34,4 +35,4 @@
   );
 </script>
 
-<span class={classes} data-picked={picked ? '' : undefined} aria-hidden="true" {...rest}>{@render children?.()}</span>
+<span class={classes} aria-hidden="true" {...rest}>{@render children?.()}</span>

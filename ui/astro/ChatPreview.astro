@@ -22,5 +22,5 @@ const { title, label, kind, note, class: className = '', ...rest } = Astro.props
     {kind && <b class="bb-chat__kind">{kind}</b>}
   </div>
   <div class="bb-chat__feed"><slot /></div>
-  {note && <i class="gs-mark" data-note={note}></i>}
+  {note && <i class="gs-mark" style={`--n: ${note}`}></i>}
 </div>

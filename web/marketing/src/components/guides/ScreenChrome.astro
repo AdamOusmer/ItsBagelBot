@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Rail from '@bagel/ui/astro/Rail.astro';
+import Mark from './Mark.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
 import Topbar from '@bagel/ui/astro/Topbar.astro';
 import PageHead from '@bagel/ui/astro/PageHead.astro';
@@ -60,7 +61,7 @@ const items: UiNavLink[] = SECTIONS.map((section) => ({
     <Rail brand={brand} groups={[{ label: navLabel, items }]} label={navLabel}>
         <Fragment slot="footer">
             <Badge tone="quiet">{account}</Badge>
-            {railNote && <i class="gs-mark" data-note={railNote}></i>}
+            {railNote && <Mark n={railNote} />}
         </Fragment>
     </Rail>
     <div class="dframe__stage">

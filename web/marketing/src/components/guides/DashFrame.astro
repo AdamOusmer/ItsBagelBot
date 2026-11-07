@@ -26,7 +26,7 @@ const { path = '/', notes = [], caption } = Astro.props;
 <figure class="dframe reveal-in">
     <Window class="dframe__win" role="img" aria-label={caption ?? `dashboard.itsbagelbot.com${path}`}>
         <Well as="span" slot="title" class="dframe__url">dashboard.itsbagelbot.com<b class="dframe__path">{path}</b></Well>
-        <div class="dframe__body" data-static inert>
+        <div class="dframe__body bb-static-frame" inert>
             <slot />
         </div>
     </Window>
@@ -107,9 +107,10 @@ const { path = '/', notes = [], caption } = Astro.props;
 
     function setupFrame(frame: HTMLElement) {
         const lines = frame.querySelectorAll<HTMLElement>('[data-note-for]');
+        const marks = Array.from(frame.querySelectorAll<HTMLElement>('.gs-mark'));
         lines.forEach((line) => {
             const n = line.dataset.noteFor;
-            const target = frame.querySelector<HTMLElement>(`.gs-mark[data-note="${n}"]`)?.parentElement;
+            const target = marks.find((mark) => mark.style.getPropertyValue('--n').trim() === n)?.parentElement;
             if (!target) return;
             const on = () => target.classList.add('is-hot');
             const off = () => target.classList.remove('is-hot');

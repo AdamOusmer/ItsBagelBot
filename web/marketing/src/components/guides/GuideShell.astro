@@ -57,7 +57,7 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
         <SectionLaneList>
             {sections.map((section, i) => (
                 <SectionLane id={section.id} num={ordinal(i)} heading={section.heading} revealIndex={i + 1}>
-                    <div class="bb-prose bb-prose-code" data-guide-section>
+                    <div class="bb-prose bb-prose-code">
                         {section.note && (
                             <AlertBanner tone="success" role="note" class="gshell__glance" variant="callout"><Tag tone="live" bare class="gshell__glance-tag">{labels.glance}</Tag>{section.note}</AlertBanner>
                         )}

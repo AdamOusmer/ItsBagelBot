@@ -27,7 +27,7 @@
 
   .bb-icon-tile--success { color: var(--bb-green-glow); }
 
-  .bb-icon-tile[data-picked] {
+  .bb-icon-tile.bb-icon-tile--picked {
     background: var(--bb-white);
     color: var(--bb-black);
     box-shadow: var(--bb-depth-1);

@@ -15,14 +15,9 @@
     padding: var(--bb-space-8) var(--bb-space-6) var(--bb-space-7);
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-lg);
-    background: radial-gradient(90% 120% at 50% 0%, rgba(var(--bb-halo-green-rgb), 0.16), transparent 65%), var(--bb-surface-raised);
+    background: radial-gradient(90% 120% at 50% 0%, rgba(var(--bb-halo-green-rgb), 0.16), transparent 65%), var(--bb-elev-1);
     box-shadow: var(--bb-depth-2);
     text-align: center;
-  }
-
-  :where([data-surface='tonal']) .bb-donate-card {
-    border-color: transparent;
-    background: radial-gradient(90% 120% at 50% 0%, rgba(var(--bb-halo-green-rgb), 0.16), transparent 65%), var(--bb-elev-1);
   }
 
   .bb-donate-card__crowd {

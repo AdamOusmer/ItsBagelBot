@@ -11,7 +11,7 @@ export { default as MiniButton } from '../components/MiniButton.svelte';
 export { default as ErrorView } from '../components/ErrorView.svelte';
 export { default as NotificationBell } from '../components/NotificationBell.svelte';
 
-export { initLenis, magnetic, countUp } from './actions';
+export { initLenis, countUp } from './actions';
 export { customCursor } from './cursor';
 
 export { setI18n, getI18n, type I18n } from './i18n/context';

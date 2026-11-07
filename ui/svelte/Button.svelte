@@ -45,7 +45,6 @@
   this={as}
   class={[buttonClass({ variant, tone, size, block, busy, done, static: isStatic }), className]}
   {...control}
-  data-mark=""
   {...rest}
 >
   {#if hasMark(variant)}<i class="bb-btn__mark" aria-hidden="true"></i>{/if}

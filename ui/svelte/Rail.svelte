@@ -111,7 +111,7 @@
     logoSrc={brand.logoSrc}
     logoAlt={brand.logoAlt}
     logoShape={brand.logoShape}
-    class="bb-cursor-quiet"
+    style="--bb-cursor: quiet"
   /><Glide /><!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div bind:this={navEl} class="bb-rail__nav" onclick={handleNav}
     >{#each groups as group (group.label ?? '')}{#if group.label}<div

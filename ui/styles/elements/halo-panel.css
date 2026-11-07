@@ -16,7 +16,7 @@
     background: var(--bb-surface-raised);
     border: 1px solid var(--bb-border);
     border-radius: var(--halo-radius, var(--bb-radius-lg));
-    box-shadow: var(--bb-surface-raised-shadow);
+    box-shadow: var(--bb-depth-2);
     transition: border-color var(--bb-dur-base) ease;
   }
 
@@ -41,11 +41,6 @@
 
   a.bb-halo-panel:hover .bb-halo-panel__halo {
     opacity: 1;
-  }
-
-  :where([data-surface='tonal']) .bb-halo-panel {
-    border-color: transparent;
-    box-shadow: var(--bb-depth-2);
   }
 
   a.bb-halo-panel:focus-visible {

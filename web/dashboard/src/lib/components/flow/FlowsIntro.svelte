@@ -28,7 +28,7 @@
   ] as const);
 </script>
 
-<section class="intro" data-canvas="fill" aria-labelledby="flows-intro-title">
+<section class="intro bb-canvas-fill" aria-labelledby="flows-intro-title">
   <div class="inner">
     <div class="hero">
       <span class="glow">{t('flows.lockedChip')}</span>
