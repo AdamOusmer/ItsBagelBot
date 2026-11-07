@@ -145,8 +145,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!s || s.delegate_of) throw redirect(302, '/');
 
   const self = s.user_id;
-  const pagesRead = readPages(self);
-  const [givenResult, receivedResult, notifResult, localeResult, fetchKeyResult, grantResult, deviceResult] =
+  const [givenResult, receivedResult, notifResult, localeResult, fetchKeyResult, grantResult, deviceResult, ...pageResults] =
     await Promise.allSettled([
       delegationList(self),
       delegationAccess(self),
@@ -154,11 +153,12 @@ export const load: PageServerLoad = async ({ locals }) => {
       userLocale(self),
       listFetches(self),
       hasGrant(self),
-      deviceGrantList(self)
+      deviceGrantList(self),
+      ...PUBLIC_PAGES.map((page) => pageToggles[page].read(self))
     ]);
 
   const notifications: NotificationWire[] = settledOr(notifResult, { notifications: [], unreadCount: 0 }).notifications;
-  const { pages, degraded: pagesDegraded } = await pagesRead;
+  const pages = Object.fromEntries(PUBLIC_PAGES.map((page, i) => [page, settledOr(pageResults[i], true)])) as PageFlags;
 
   return {
     given: settledOr(givenResult, []),
@@ -168,18 +168,12 @@ export const load: PageServerLoad = async ({ locals }) => {
     savedLocale: savedLocaleOf(localeResult),
     pages,
     twitchConnected: grantResult.status === 'fulfilled' ? grantResult.value === true : (null as boolean | null),
-    degraded: pagesDegraded || [givenResult, receivedResult, localeResult].some(rejected),
+    degraded: [givenResult, receivedResult, localeResult, ...pageResults].some(rejected),
     deviceGrants: settledOr(deviceResult, [] as DeviceGrantView[]),
     devicesDegraded: rejected(deviceResult),
     ...readFetchKeys(fetchKeyResult)
   };
 };
-
-async function readPages(userId: string): Promise<{ pages: PageFlags; degraded: boolean }> {
-  const results = await Promise.allSettled(PUBLIC_PAGES.map((page) => pageToggles[page].read(userId)));
-  const flags = PUBLIC_PAGES.map((page, i) => [page, settledOr(results[i], true)]);
-  return { pages: Object.fromEntries(flags) as PageFlags, degraded: results.some(rejected) };
-}
 
 function settledOr<T>(r: PromiseSettledResult<T>, fallback: T): T {
   return r.status === 'fulfilled' ? r.value : fallback;
