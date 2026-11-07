@@ -70,8 +70,7 @@ function appendChevron(trigger: HTMLButtonElement, fallback: HTMLElement): void 
   trigger.append(chevron);
 }
 
-function mountNativeBridge(root: HTMLElement, native: HTMLSelectElement, fallback: HTMLElement, trigger: HTMLButtonElement, value: string | undefined): void {
-  if (value !== undefined) native.value = value;
+function mountNativeBridge(root: HTMLElement, native: HTMLSelectElement, fallback: HTMLElement, trigger: HTMLButtonElement): void {
   native.id = `${trigger.id}-native`;
   native.classList.add('bb-select__native');
   native.tabIndex = -1;
@@ -185,15 +184,21 @@ function createSearch(config: SelectConfig, panel: HTMLDivElement, id: string, r
   return { input, clear };
 }
 
+function readParts(root: HTMLElement): { native: HTMLSelectElement; fallback: HTMLElement; config: SelectConfig } | null {
+  const native = root.querySelector<HTMLSelectElement>('select');
+  const fallback = native?.parentElement;
+  const text = root.querySelector<HTMLScriptElement>(':scope > script[type="application/json"]')?.textContent;
+  if (!native || !fallback) return null;
+  return text ? { native, fallback, config: JSON.parse(text) } : null;
+}
+
 /** Enhance once; the native select remains the form and change-event bridge. */
 export function enhanceAstroSelect(root: HTMLElement): void {
   if (enhanced.has(root)) return;
-  const native = root.querySelector<HTMLSelectElement>('select');
-  const fallback = native?.parentElement;
-  const payload = root.querySelector<HTMLScriptElement>(':scope > script[type="application/json"]');
-  if (!native || !fallback || !payload?.textContent) return;
+  const parts = readParts(root);
+  if (!parts) return;
   enhanced.add(root);
-  const config: SelectConfig = JSON.parse(payload.textContent);
+  const { native, fallback, config } = parts;
   const id = native.id || `bb-astro-select-${++sequence}`;
   const label = config.label;
   const trigger = createTrigger(native, fallback, id, label);
@@ -201,7 +206,8 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   valueLabel.className = 'bb-select__value';
   trigger.append(valueLabel);
   appendChevron(trigger, fallback);
-  mountNativeBridge(root, native, fallback, trigger, config.value);
+  if (config.value !== undefined) native.value = config.value;
+  mountNativeBridge(root, native, fallback, trigger);
 
   let panel: HTMLDivElement | undefined;
   let shell: HTMLDivElement | undefined;
