@@ -20,6 +20,8 @@ type Request struct {
 
 	Scene *GoveeScene `json:"scene,omitempty"`
 
+	Lights []GoveeLight `json:"lights,omitempty"`
+
 	Query    string `json:"query,omitempty"`
 	TrackID  string `json:"track_id,omitempty"`
 	ArtistID string `json:"artist_id,omitempty"`
@@ -196,6 +198,11 @@ type GoveeDevice struct {
 	SKU    string `json:"sku"`
 	Name   string `json:"name"`
 	Color  bool   `json:"color"`
+}
+
+type GoveeLight struct {
+	Device string `json:"device"`
+	SKU    string `json:"sku"`
 }
 
 type GoveeDevicesReply struct {

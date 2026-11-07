@@ -28,7 +28,7 @@
   "faqQ1": "Quelles lumières Govee fonctionnent ?",
   "faqA1": "Utilisez une lumière à couleur réglable affichée sur la page Govee après l’ajout de votre clé API. Choisissez un appareil dans cette liste avant de créer sa récompense.",
   "faqQ2": "Le chat peut-il contrôler plusieurs lumières ?",
-  "faqA2": "Oui. Créez une récompense pour chaque lumière sur la page Govee. Les viewers choisissent la lumière en utilisant la récompense correspondante.",
+  "faqA2": "Oui. Créez une récompense pour chaque lumière sur la page Govee, ou regroupez des lumières pour qu’une seule récompense les modifie toutes. Les viewers choisissent en utilisant une récompense.",
   "faqQ3": "Et si un viewer tape une couleur que le bot ne connaît pas ?",
   "faqA3": "Le bot rembourse les points et propose un nom de couleur anglais comme blue ou un code hexadécimal comme #00ccff.",
   "faqQ4": "Ma clé Govee est-elle en sécurité ?",

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -457,6 +458,116 @@ func TestControlRateLimitsScenes(t *testing.T) {
 	reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control", req)
 
 	assert.Equal(t, "too many light changes, slow down", reply.Error)
+}
+
+func groupRequest(devices ...string) gossiprpc.Request {
+	req := gossiprpc.Request{ChannelID: "2", ColorRGB: 0x00CCFF}
+	for _, device := range devices {
+		req.Lights = append(req.Lights, gossiprpc.GoveeLight{Device: device, SKU: "H6159"})
+	}
+	return req
+}
+
+func numberedLights(n int) []string {
+	devices := make([]string, n)
+	for i := range devices {
+		devices[i] = "light-" + strconv.Itoa(i)
+	}
+	return devices
+}
+
+type controlRecorder struct {
+	mu     sync.Mutex
+	hits   map[string]int
+	broken map[string]int
+}
+
+func (u *controlRecorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	b, _ := io.ReadAll(r.Body)
+	var body struct {
+		Payload struct {
+			Device string `json:"device"`
+		} `json:"payload"`
+	}
+	_ = codec.Unmarshal(b, &body)
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.hits == nil {
+		u.hits = map[string]int{}
+	}
+	u.hits[body.Payload.Device]++
+	if status, broken := u.broken[body.Payload.Device]; broken {
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, `{}`)
+		return
+	}
+	_, _ = io.WriteString(w, `{"code":200,"message":"success"}`)
+}
+
+func TestControlDrivesEveryLightInAGroup(t *testing.T) {
+	upstream := &controlRecorder{}
+	p := newProvider(t, fakeKeys{key: "k"}, upstream)
+
+	reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control", groupRequest("AA", "BB", "CC"))
+
+	assert.True(t, reply.OK)
+	assert.Empty(t, reply.Error)
+	assert.Equal(t, map[string]int{"AA": 2, "BB": 2, "CC": 2}, upstream.hits, "each light is power-on then colour")
+}
+
+func TestControlSucceedsWhenOnlySomeOfAGroupFails(t *testing.T) {
+	upstream := &controlRecorder{broken: map[string]int{"BB": http.StatusInternalServerError}}
+	p := newProvider(t, fakeKeys{key: "k"}, upstream)
+
+	reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control", groupRequest("AA", "BB"))
+
+	assert.True(t, reply.OK)
+	assert.Equal(t, 2, upstream.hits["AA"], "the healthy light still changes")
+}
+
+func TestControlReportsAFailureWhenAWholeGroupFails(t *testing.T) {
+	upstream := &controlRecorder{broken: map[string]int{"AA": http.StatusTooManyRequests, "BB": http.StatusTooManyRequests}}
+	p := newProvider(t, fakeKeys{key: "k"}, upstream)
+
+	reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control", groupRequest("AA", "BB"))
+
+	assert.False(t, reply.OK)
+	assert.Equal(t, "too many light changes, slow down", reply.Error)
+}
+
+func TestControlDrivesAGroupLargerThanTheMinuteLimit(t *testing.T) {
+	upstream := &controlRecorder{}
+	p := newProvider(t, fakeKeys{key: "k"}, upstream)
+	devices := numberedLights(12)
+
+	reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control", groupRequest(devices...))
+
+	assert.True(t, reply.OK)
+	assert.Len(t, upstream.hits, len(devices), "a redemption costs one change, however many lights it drives")
+}
+
+func TestControlRefusesABadGroupWithoutDialling(t *testing.T) {
+	blankSKU := groupRequest("AA")
+	blankSKU.Lights[0].SKU = " "
+	for _, tc := range []struct {
+		name string
+		req  gossiprpc.Request
+		want string
+	}{
+		{"more lights than one call may drive", groupRequest(numberedLights(33)...), "too many lights"},
+		{"a light without a device", groupRequest("AA", " "), "missing device"},
+		{"a light without a sku", blankSKU, "missing device"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := &controlRecorder{}
+			p := newProvider(t, fakeKeys{key: "k"}, upstream)
+
+			reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control", tc.req)
+
+			assert.Equal(t, tc.want, reply.Error)
+			assert.Empty(t, upstream.hits)
+		})
+	}
 }
 
 func capabilityOf(t *testing.T, body map[string]any) map[string]any {

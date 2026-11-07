@@ -28,7 +28,7 @@
   "faqQ1": "Which Govee lights work?",
   "faqA1": "Use a colour-capable light listed on the Govee page after you add your API key. Choose a device from that list before creating its reward.",
   "faqQ2": "Can chat control more than one light?",
-  "faqA2": "Yes. Create a reward for each light on the Govee page. Viewers choose the light by redeeming its reward.",
+  "faqA2": "Yes. Create a reward for each light on the Govee page, or group lights so one reward changes them all. Viewers choose by redeeming a reward.",
   "faqQ3": "What if a viewer types a colour the bot doesn't know?",
   "faqA3": "The bot refunds their points and suggests an English colour name such as blue or a hex code such as #00ccff.",
   "faqQ4": "Is my Govee key safe?",
