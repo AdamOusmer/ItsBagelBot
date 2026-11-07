@@ -9,7 +9,9 @@ stubSvelteKit();
 
 let reply: Record<string, unknown> | Error = {};
 const calls: { subject: string; payload: unknown }[] = [];
-const moduleReads = mock(async () => []);
+let moduleRows: unknown[] = [];
+const moduleReads = mock(async () => moduleRows);
+const moduleWrites: unknown[] = [];
 
 const realNats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
@@ -18,11 +20,19 @@ mock.module('@bagel/kit/server/nats', () => ({
     calls.push({ subject, payload });
     if (reply instanceof Error) throw reply;
     return reply;
+  },
+  rpc: async (subject: string) =>
+    subject.includes('.channelpoints.') ? { reward: { id: 'rw-g', title: 'Whole room', cost: 900 } } : { present: true }
+}));
+mock.module('./commands-store', () => ({
+  listModules: moduleReads,
+  upsertModule: async (_user: string, _name: string, _enabled: boolean, configs: unknown) => {
+    moduleWrites.push(configs);
+    return { modules: [], synced: true };
   }
 }));
-mock.module('./commands-store', () => ({ listModules: moduleReads, upsertModule: async () => {} }));
 
-const { goveeStore } = await import('./govee-store');
+const { goveeStore, parseGroupLights } = await import('./govee-store');
 const { invalidate } = await import('./services');
 
 const sunrise: GoveeScene = {
@@ -88,5 +98,41 @@ describe('listScenes', () => {
     await store.clearKey();
     await store.listScenes({ device: 'AB:CD', sku: 'H6159' });
     expect(calls.filter((c) => c.subject.endsWith('.govee.scenes'))).toHaveLength(2);
+  });
+});
+
+describe('light groups', () => {
+  const lights = [
+    { device: 'AA', sku: 'H1', name: 'Desk' },
+    { device: 'BB', sku: 'H2', name: 'Lamp' }
+  ];
+
+  test('saving a group keeps the single light bindings and its place in the list', async () => {
+    const binding = { device: 'AA', sku: 'H1', rewardId: 'rw-1' };
+    const group = (rewardId: string, name: string) => ({ rewardId, name, lights });
+    moduleRows = [{ name: 'govee', is_enabled: true, configs: { bindings: [binding], groups: [group('rw-g', 'Old'), group('rw-z', 'Other')] } }];
+    moduleWrites.length = 0;
+    const draft = { title: 'Whole room', cost: 900, color: '', cooldown: 0, onRedeem: 'fulfill', replyMessage: '', allowOff: false, allowOffline: false } as const;
+
+    expect(await goveeStore('1').saveGroup(group('rw-g', 'Room'), draft)).toEqual({ ok: true });
+
+    const written = moduleWrites[0] as { bindings: { rewardId: string }[]; groups: { name: string }[] };
+    expect(written.bindings.map((b) => b.rewardId)).toEqual(['rw-1']);
+    expect(written.groups.map((g) => g.name)).toEqual(['Room', 'Other']);
+  });
+
+  test('deleting a group leaves the other groups', async () => {
+    moduleRows = [{ name: 'govee', is_enabled: true, configs: { groups: [{ rewardId: 'rw-g', name: 'A', lights }, { rewardId: 'rw-z', name: 'B', lights }] } }];
+    moduleWrites.length = 0;
+
+    expect(await goveeStore('1').deleteGroup('rw-g')).toEqual({ ok: true });
+
+    expect((moduleWrites[0] as { groups: { name: string }[] }).groups.map((g) => g.name)).toEqual(['B']);
+  });
+
+  test('a group needs 2 to 32 distinct lights', () => {
+    expect(parseGroupLights(JSON.stringify(lights))).toEqual(lights);
+    expect(parseGroupLights(JSON.stringify([lights[0], lights[0]]))).toBeNull();
+    expect(parseGroupLights('not json')).toBeNull();
   });
 });

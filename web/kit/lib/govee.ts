@@ -48,10 +48,7 @@ export interface GoveeReward {
   cooldown: number;
 }
 
-export interface GoveeBinding {
-  device: string;
-  sku: string;
-  deviceName: string;
+export interface GoveeRewardBinding {
   onRedeem: GoveeOnRedeem;
   rewardId: string;
   reward: GoveeReward | null;
@@ -59,3 +56,24 @@ export interface GoveeBinding {
   allowOff: boolean;
   replyMessage: string;
 }
+
+export interface GoveeBinding extends GoveeRewardBinding {
+  device: string;
+  sku: string;
+  deviceName: string;
+}
+
+export interface GoveeLight {
+  device: string;
+  sku: string;
+  name: string;
+}
+
+export interface GoveeGroup extends GoveeRewardBinding {
+  name: string;
+  lights: GoveeLight[];
+}
+
+export const GOVEE_GROUP_MIN_LIGHTS = 2;
+export const GOVEE_GROUP_MAX_LIGHTS = 32;
+export const GOVEE_GROUP_NAME_MAX = 60;

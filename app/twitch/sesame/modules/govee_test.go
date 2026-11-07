@@ -90,8 +90,7 @@ func TestGoveeRedemptions(t *testing.T) {
 			config: `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"},{"rewardId":"rw-2","device":"BB:BB:BB","sku":"H2"}]}`,
 			kinds:  []string{chat, fulfilled}, call: &gossiprpc.Request{ChannelID: "2", Device: "BB:BB:BB", SKU: "H2", ColorRGB: 0xFF0000}},
 		{name: "a multi binding config ignores an unbound reward", live: liveOnline, payload: goveePayload("other", "red"),
-			config: `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"}]}`},
-	}
+			config: `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"}]}`},	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			gw := goveeGossip(tc.gossip)
@@ -115,6 +114,29 @@ func TestGoveeRedemptions(t *testing.T) {
 			assert.Equal(t, *tc.call, gw.calls[0].req)
 		})
 	}
+}
+
+func TestGoveeGroupSendsAllItsLightsInOneCall(t *testing.T) {
+	const lights = `[{"device":"AA:AA:AA","sku":"H1"},{"device":"BB:BB:BB","sku":"H2"}]`
+	want := []gossiprpc.GoveeLight{{Device: "AA:AA:AA", SKU: "H1"}, {Device: "BB:BB:BB", SKU: "H2"}}
+	gw := goveeGossip(nil)
+	config := `{"bindings":[{"rewardId":"rw-1","device":"CC:CC:CC","sku":"H3"}],"groups":[{"rewardId":"rw-g","allowOff":true,"lights":` + lights + `}]}`
+
+	out := runGovee(t, engine.Deps{Live: liveOnline.store(), Gossip: gw}, eventCtx(eventInput{redemptionAddType, goveePayload("rw-g", "off"), config}))
+
+	assert.Equal(t, []string{"chat", "update:" + outgress.RedemptionFulfilled}, outputKinds(out))
+	require.Len(t, gw.calls, 1)
+	assert.Equal(t, gossiprpc.Request{ChannelID: "2", PowerOff: true, Lights: want}, gw.calls[0].req)
+}
+
+func TestGoveeGroupWithNoLightsDrivesNothing(t *testing.T) {
+	gw := goveeGossip(nil)
+	config := `{"groups":[{"rewardId":"rw-g","lights":[]}]}`
+
+	out := runGovee(t, engine.Deps{Live: liveOnline.store(), Gossip: gw}, eventCtx(eventInput{redemptionAddType, goveePayload("rw-g", "red"), config}))
+
+	assert.Empty(t, out)
+	assert.Empty(t, gw.calls)
 }
 
 func TestGoveeReplyTemplates(t *testing.T) {
