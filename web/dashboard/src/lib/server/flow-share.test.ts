@@ -139,12 +139,12 @@ describe('flowExport', () => {
 
 describe('flowImportPreview', () => {
   test("an existing recipe's time left command is taken, and its regex trigger claims no name", async () => {
-    const withLeft = (name: string) => ({ ...manual, conditions: [{ type: 'cooldown', params: { user_s: 172800, left_command: name } }] });
+    const withLeft = (left: { left_command: string }) => ({ ...manual, conditions: [{ type: 'cooldown', params: { user_s: 172800, ...left } }] });
     extraFlows = [
-      { ref: { layer: 'automation', id: 'a4' }, name: 'Waits', enabled: true, revision: '1', definition: withLeft('!Wait') },
+      { ref: { layer: 'automation', id: 'a4' }, name: 'Waits', enabled: true, revision: '1', definition: withLeft({ left_command: '!Wait' }) },
       { ref: { layer: 'automation', id: 'a5' }, name: 'Pattern', enabled: true, revision: '1', definition: { ...manual, trigger: { type: 'command', params: { name: 'free', match: 'regex' } } } }
     ];
-    const result = await post('flowImportPreview', fileForm(file([{ ref: 'f1', name: 'New', definition: withLeft('wait') }, { ref: 'f2', name: 'Open', definition: withLeft('free') }])));
+    const result = await post('flowImportPreview', fileForm(file([{ ref: 'f1', name: 'New', definition: withLeft({ left_command: 'wait' }) }, { ref: 'f2', name: 'Open', definition: withLeft({ left_command: 'free' }) }])));
     expect(result.entries.map((e: { status: string }) => e.status)).toEqual(['conflict', 'ready']);
   });
 
