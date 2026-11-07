@@ -26,6 +26,7 @@ import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
 import type { PublicBoards } from './public-boards';
 import type { QueueView } from '../queue-snapshot';
+import type { SongQueuePublicView, SongRow } from '../songqueue-snapshot';
 import type { CommandDigest, ConnData, ModuleDigest, ShareDigest } from '../../routes/(app)/+page.server';
 import type {
   StreamMeta,
@@ -856,4 +857,21 @@ export function demoQueue(now: number): QueueView {
     };
   });
   return { open: step % 20 < 16, total: size, entries, degraded: false };
+}
+
+const demoSongs: readonly SongRow[] = [
+  { title: 'Mr. Brightside', artists: 'The Killers', requester: 'crumbcatcher' },
+  { title: 'Human', artists: 'The Killers', requester: 'toastedtomato' },
+  { title: 'Somebody Told Me', artists: 'The Killers', requester: 'sesame_sam' },
+  { title: 'Take On Me', artists: 'a-ha', requester: 'lox_and_load' },
+  { title: 'Dreams', artists: 'Fleetwood Mac', requester: 'pixelpretzel' },
+  { title: 'Electric Feel', artists: 'MGMT', requester: 'nightowl_nox' },
+  { title: 'Midnight City', artists: 'M83', requester: 'cream_cheese_kid' },
+  { title: 'Safe and Sound', artists: 'Capital Cities', requester: 'everythingbagel' }
+];
+
+export function demoSongQueue(now: number): SongQueuePublicView {
+  const step = Math.floor(now / DEMO_QUEUE_STEP_MS);
+  const [current, ...up] = Array.from({ length: demoQueueSize(step) + 1 }, (_, i) => demoSongs[(step + i) % demoSongs.length]);
+  return { current, up, total: up.length, degraded: false };
 }

@@ -20,13 +20,17 @@ export interface SongQueueDoc {
   up?: SongQueueEntry[];
 }
 
+export const songQueueKey = (broadcasterId: string) => `songqueue:doc:${broadcasterId}`;
+
+export function decodeSongQueueDoc(raw: string | null): SongQueueDoc {
+  return raw ? shapeDoc(JSON.parse(raw)) : {};
+}
+
 export async function getSongQueue(broadcasterId: string): Promise<SongQueueDoc> {
   const c = masterClient();
   if (!c) return {};
   try {
-    const raw = await c.get(`songqueue:doc:${broadcasterId}`);
-    if (!raw) return {};
-    return shapeDoc(JSON.parse(raw));
+    return decodeSongQueueDoc(await c.get(songQueueKey(broadcasterId)));
   } catch {
     return {};
   }

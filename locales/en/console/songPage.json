@@ -1,0 +1,20 @@
+{
+  "title": "{channel} song queue",
+  "metaDescription": "See what is playing and what comes next on {channel}'s stream, updated live.",
+  "eyebrow": "Song queue",
+  "tagline": "What is playing and what plays next, updated live.",
+  "requestHint": "Request a song from chat with !sr <song>.",
+  "nowPlaying": "Now playing",
+  "nothingPlaying": "Nothing playing",
+  "inQueue": "In the queue",
+  "upNext": "Up next",
+  "boardTitle": "The queue",
+  "boardNote": "First requested, first played. Shows the next {max} songs.",
+  "colSong": "Song",
+  "colRequester": "Requested by",
+  "moreNote": "Showing the next {shown} of {total} songs",
+  "emptyTitle": "No songs queued",
+  "emptyBody": "When viewers request songs, they show up here.",
+  "degradedTitle": "Can't load the queue",
+  "degraded": "The queue can't load right now. This page keeps trying."
+}

@@ -1,0 +1,20 @@
+{
+  "title": "File de chansons de {channel}",
+  "metaDescription": "Découvrez ce qui joue et ce qui suit sur la chaîne de {channel}, mis à jour en direct.",
+  "eyebrow": "File de chansons",
+  "tagline": "Ce qui joue et ce qui suit, mis à jour en direct.",
+  "requestHint": "Demandez une chanson depuis le chat avec !sr <chanson>.",
+  "nowPlaying": "En cours de lecture",
+  "nothingPlaying": "Rien en lecture",
+  "inQueue": "Dans la file",
+  "upNext": "Ensuite",
+  "boardTitle": "La file",
+  "boardNote": "Premier demandé, premier joué. Affiche les {max} prochaines chansons.",
+  "colSong": "Chanson",
+  "colRequester": "Demandée par",
+  "moreNote": "Affichage des {shown} prochaines chansons sur {total}",
+  "emptyTitle": "Aucune chanson en file",
+  "emptyBody": "Quand les spectateurs demandent des chansons, elles apparaissent ici.",
+  "degradedTitle": "Impossible de charger la file",
+  "degraded": "La file ne peut pas se charger pour le moment. Cette page réessaie."
+}

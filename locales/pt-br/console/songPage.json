@@ -1,0 +1,20 @@
+{
+  "title": "Fila de músicas de {channel}",
+  "metaDescription": "Veja o que está tocando e o que vem a seguir no canal de {channel}, atualizado ao vivo.",
+  "eyebrow": "Fila de músicas",
+  "tagline": "O que está tocando e o que vem depois, atualizado ao vivo.",
+  "requestHint": "Peça uma música pelo chat com !sr <música>.",
+  "nowPlaying": "Tocando agora",
+  "nothingPlaying": "Nada tocando",
+  "inQueue": "Na fila",
+  "upNext": "A seguir",
+  "boardTitle": "A fila",
+  "boardNote": "Quem pediu primeiro toca primeiro. Mostra as próximas {max} músicas.",
+  "colSong": "Música",
+  "colRequester": "Pedida por",
+  "moreNote": "Mostrando as próximas {shown} de {total} músicas",
+  "emptyTitle": "Nenhuma música na fila",
+  "emptyBody": "Quando os espectadores pedirem músicas, elas aparecem aqui.",
+  "degradedTitle": "Não foi possível carregar a fila",
+  "degraded": "A fila não pode ser carregada agora. Esta página continua tentando."
+}
