@@ -7,16 +7,17 @@ import { RpcError } from '@bagel/kit/server/nats';
 
 stubSvelteKit();
 
-type Song = { title: string; artists: string; requester: string };
-type View = { current: Song | null; up: Song[]; total: number; degraded: boolean };
+type Song = { title: string; artists: string; requester: string; joinedAt: number };
+type View = { open: boolean; current: Song | null; up: Song[]; total: number; degraded: boolean };
 
-const now: Song = { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' };
-const next: Song = { title: 'Human', artists: 'The Killers', requester: 'bob' };
+const now: Song = { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice', joinedAt: 1000 };
+const next: Song = { title: 'Human', artists: 'The Killers', requester: 'bob', joinedAt: 2000 };
 
+let srEnabled: boolean | undefined;
 let moduleEnabled: () => Promise<boolean> = async () => true;
 let pageVisible: () => Promise<boolean> = async () => true;
 let resolveReply: () => Promise<{ userId: string; username: string; displayName?: string }> = async () => ({ userId: '42', username: 'somechannel' });
-let songView: View = { current: now, up: [next], total: 1, degraded: false };
+let songView: View = { open: true, current: now, up: [next], total: 1, degraded: false };
 const songReads: string[] = [];
 const moduleReads: string[] = [];
 const pageReads: string[] = [];
@@ -33,7 +34,7 @@ mock.module('#lib/server/queue-store', () => ({ readQueue: async () => ({ open: 
 mock.module('#lib/server/module-blob', () => ({
   readModuleBlob: async (userId: string, modId: string) => {
     moduleReads.push(`${userId}:${modId}`);
-    return { enabled: await moduleEnabled(), configs: {} };
+    return { enabled: await moduleEnabled(), configs: srEnabled === undefined ? {} : { sr: { enabled: srEnabled } } };
   }
 }));
 mock.module('#lib/server/songqueue-public-store', () => ({
@@ -49,11 +50,12 @@ const { QUEUE_EDGE_HEADERS, QUEUE_UNCACHED_HEADERS } = await import('../../queue
 
 type Outcome = { status?: number; message?: string; location?: string; edge?: unknown; page?: Record<string, unknown>; headers?: Headers; body?: Record<string, unknown> };
 
-function arrange(setup: { module?: () => Promise<boolean>; page?: () => Promise<boolean>; resolve?: typeof resolveReply; view?: Partial<View> } = {}): void {
+function arrange(setup: { module?: () => Promise<boolean>; sr?: boolean; page?: () => Promise<boolean>; resolve?: typeof resolveReply; view?: Partial<View> } = {}): void {
+  srEnabled = setup.sr;
   moduleEnabled = setup.module ?? (async () => true);
   pageVisible = setup.page ?? (async () => true);
   resolveReply = setup.resolve ?? (async () => ({ userId: '42', username: 'somechannel' }));
-  songView = { current: now, up: [next], total: 1, degraded: false, ...setup.view };
+  songView = { open: true, current: now, up: [next], total: 1, degraded: false, ...setup.view };
   songReads.length = 0;
   moduleReads.length = 0;
   pageReads.length = 0;
@@ -135,6 +137,15 @@ describe('(public)/sr/[user] load', () => {
     expect(out.page).toMatchObject({ login: 'somechannel', channelName: 'SomeChannel', snapshot: { current: now, up: [next], total: 1, degraded: false } });
     expect(typeof (out.page?.snapshot as { at: number }).at).toBe('number');
     expect(songReads).toEqual(['42']);
+  });
+
+  test('open follows the song request setting and defaults to open', async () => {
+    arrange();
+    expect((await loadPage()).page).toMatchObject({ snapshot: { open: true } });
+    arrange({ sr: false });
+    expect((await loadPage()).page).toMatchObject({ snapshot: { open: false } });
+    arrange({ sr: true });
+    expect((await loadPage()).page).toMatchObject({ snapshot: { open: true } });
   });
 
   test('an unreadable queue renders a degraded page that the edge skips', async () => {

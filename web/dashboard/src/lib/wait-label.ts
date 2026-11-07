@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export function waitLabeler(locale: string, justJoined: string): (seconds: number) => string {
+type WaitText = { locale: string; justJoined: string };
+
+export function waitLabeler({ locale, justJoined }: WaitText): (seconds: number) => string {
   const unitFmt = (unit: 'hour' | 'minute') => new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow' });
   const hoursFmt = unitFmt('hour');
   const minutesFmt = unitFmt('minute');

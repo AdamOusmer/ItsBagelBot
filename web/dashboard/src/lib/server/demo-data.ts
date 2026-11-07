@@ -859,7 +859,7 @@ export function demoQueue(now: number): QueueView {
   return { open: step % 20 < 16, total: size, entries, degraded: false };
 }
 
-const demoSongs: readonly SongRow[] = [
+const demoSongs: readonly Omit<SongRow, 'joinedAt'>[] = [
   { title: 'Mr. Brightside', artists: 'The Killers', requester: 'crumbcatcher' },
   { title: 'Human', artists: 'The Killers', requester: 'toastedtomato' },
   { title: 'Somebody Told Me', artists: 'The Killers', requester: 'sesame_sam' },
@@ -872,6 +872,10 @@ const demoSongs: readonly SongRow[] = [
 
 export function demoSongQueue(now: number): SongQueuePublicView {
   const step = Math.floor(now / DEMO_QUEUE_STEP_MS);
-  const [current, ...up] = Array.from({ length: demoQueueSize(step) + 1 }, (_, i) => demoSongs[(step + i) % demoSongs.length]);
-  return { current, up, total: up.length, degraded: false };
+  const size = demoQueueSize(step) + 1;
+  const [current, ...up] = Array.from({ length: size }, (_, i) => ({
+    ...demoSongs[(step + i) % demoSongs.length],
+    joinedAt: (step - size + 1 + i) * DEMO_QUEUE_STEP_MS - DEMO_QUEUE_HEAD_START_MS
+  }));
+  return { open: step % 20 < 16, current, up, total: up.length, degraded: false };
 }

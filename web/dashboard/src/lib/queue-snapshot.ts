@@ -37,6 +37,6 @@ export function parseSnapshot(raw: unknown): QueueSnapshot | null {
   return { open, degraded, total, at, entries };
 }
 
-export function waitedSeconds(entry: QueueEntry, nowMs: number): number {
+export function waitedSeconds(entry: Pick<QueueEntry, 'joinedAt'>, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - entry.joinedAt) / 1000));
 }

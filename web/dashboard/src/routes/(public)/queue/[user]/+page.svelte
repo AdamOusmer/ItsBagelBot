@@ -22,7 +22,7 @@
   const trouble = $derived(live.trouble);
 
   const countFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
-  const waitLabel = waitLabeler(locale, t('queuePage.justJoined'));
+  const waitLabel = waitLabeler({ locale, justJoined: t('queuePage.justJoined') });
 
   const waits = $derived(snapshot.entries.map((entry) => waitedSeconds(entry, live.nowMs)));
   const longestWait = $derived(Math.max(1, ...waits));

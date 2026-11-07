@@ -13,6 +13,8 @@ import { songSnapshotOf, type SongQueueSnapshot } from '#lib/songqueue-snapshot'
 
 const DEMO = dev && env.DEMO === '1';
 
+type SrBlob = { sr?: { enabled?: boolean } };
+
 export type SongQueueRead = { login: string; channelName: string; snapshot: SongQueueSnapshot; outcome: EdgeOutcome };
 
 async function demoRead(login: string): Promise<SongQueueRead> {
@@ -24,16 +26,18 @@ async function demoRead(login: string): Promise<SongQueueRead> {
 export async function readSongQueueChannel(login: string, locals: App.Locals): Promise<SongQueueRead> {
   if (DEMO) return demoRead(login);
   const channel = await requireChannel(login, locals);
-  const [enabled, pageOn, view] = await Promise.all([
-    readVisibility(readModuleBlob(channel.userId, MOD.songqueue).then((blob) => blob.enabled)),
+  const blob = readModuleBlob<SrBlob>(channel.userId, MOD.songqueue);
+  const [enabled, pageOn, view, open] = await Promise.all([
+    readVisibility(blob.then((b) => b.enabled)),
     readVisibility(userSongQueuePage(channel.userId)),
-    readPublicSongQueue(channel.userId)
+    readPublicSongQueue(channel.userId),
+    blob.then((b) => b.configs.sr?.enabled !== false).catch(() => false)
   ]);
   if (enabled === false || pageOn === false) hideChannel(locals);
   return {
     login: channel.login,
     channelName: channel.channelName,
-    snapshot: songSnapshotOf(view, Date.now()),
+    snapshot: songSnapshotOf({ ...view, open }, Date.now()),
     outcome: pageOutcome([enabled, pageOn], view.degraded)
   };
 }
