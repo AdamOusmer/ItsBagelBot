@@ -30,11 +30,11 @@ const {
   ...rest
 } = Astro.props;
 
-const classes = ['bb-rail-item', className || null].filter(Boolean).join(' ');
+const classes = ['bb-rail-item', locked ? 'bb-rail-item--locked' : null, className || null].filter(Boolean).join(' ');
 ---
 
 {locked ? (
-  <span class={classes} data-locked {...rest}>{icon && <Icon name={icon} />}<span class="bb-rail-item__label">{label}</span><Icon name="lock" size={13} />{lockedHint && <span class="bb-rail-item__hint">{lockedHint}</span>}</span>
+  <span class={classes} {...rest}>{icon && <Icon name={icon} />}<span class="bb-rail-item__label">{label}</span><Icon name="lock" size={13} />{lockedHint && <span class="bb-rail-item__hint">{lockedHint}</span>}</span>
 ) : (
-  <a class={classes} href={href} data-active={current ? '' : undefined} aria-current={current ? 'page' : undefined} {...rest}>{icon && <Icon name={icon} />}<span class="bb-rail-item__label">{label}</span>{count !== undefined && <span class="bb-rail-item__count">{count}</span>}</a>
+  <a class={classes} href={href} aria-current={current ? 'page' : undefined} {...rest}>{icon && <Icon name={icon} />}<span class="bb-rail-item__label">{label}</span>{count !== undefined && <span class="bb-rail-item__count">{count}</span>}</a>
 )}

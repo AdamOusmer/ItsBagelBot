@@ -47,7 +47,7 @@
         transition-delay: 320ms;
     }
 
-    .bb-tooltip[data-dismissed] .bb-tooltip__bubble {
+    .bb-tooltip.is-dismissed .bb-tooltip__bubble {
         opacity: 0;
         transition-delay: 0s;
     }

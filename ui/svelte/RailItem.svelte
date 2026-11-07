@@ -29,11 +29,11 @@
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
-  const classes = $derived(['bb-rail-item', className || null].filter(Boolean).join(' '));
+  const classes = $derived(['bb-rail-item', locked ? 'bb-rail-item--locked' : null, className || null].filter(Boolean).join(' '));
 </script>
 
 {#if locked}
-  <span class={classes} data-locked="" {...rest}
+  <span class={classes} {...rest}
     >{#if icon}<Icon name={icon} />{/if}<span class="bb-rail-item__label">{label}</span><Icon
       name="lock"
       size={13}
@@ -43,7 +43,6 @@
   <a
     class={classes}
     {href}
-    data-active={current ? '' : undefined}
     aria-current={current ? 'page' : undefined}
     {...rest}
     >{#if icon}<Icon name={icon} />{/if}<span class="bb-rail-item__label">{label}</span>{#if count !== undefined}<span

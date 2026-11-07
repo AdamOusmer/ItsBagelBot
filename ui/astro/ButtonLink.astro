@@ -22,7 +22,7 @@ const classes = [buttonClass({ variant, tone, size, block, done }), className].f
 const link = disabled ? { role: 'link', 'aria-disabled': 'true' } : { href };
 ---
 
-<a class={classes} {...link} data-mark="" {...rest}>
+<a class={classes} {...link} {...rest}>
     {hasMark(variant) && <i class="bb-btn__mark" aria-hidden="true" />}
     <span class="bb-btn__content">{variant === 'twitch' && <Icon name="twitch" />}<slot /></span>
 </a>

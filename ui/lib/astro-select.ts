@@ -40,7 +40,6 @@ function createTrigger(native: HTMLSelectElement, fallback: HTMLElement, id: str
   trigger.type = 'button';
   trigger.id = id;
   trigger.className = `bb-select__trigger ${fallback.className}`;
-  if (fallback.hasAttribute('data-invalid')) trigger.dataset.invalid = '';
   for (const attribute of Array.from(native.attributes)) {
     if (attribute.name.startsWith('aria-') || attribute.name === 'title') trigger.setAttribute(attribute.name, attribute.value);
   }
@@ -215,7 +214,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     const selected = selectedOption();
     valueLabel.textContent = selected?.triggerLabel ?? selected?.label ?? root.dataset.placeholder ?? '';
     trigger.disabled = native!.disabled;
-    trigger.toggleAttribute('data-placeholder', !selected?.value);
+    trigger.classList.toggle('is-placeholder', !selected?.value);
     if (trigger.disabled && panel) close(false);
   }
 

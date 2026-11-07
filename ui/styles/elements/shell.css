@@ -105,7 +105,7 @@
     }
   }
 
-  .bb-shell__canvas:has([data-canvas="fill"]) {
+  .bb-shell__canvas:has(.bb-canvas-fill) {
     display: flex;
     flex: 1;
     max-width: none;
@@ -218,7 +218,7 @@
     transition: grid-template-rows 200ms var(--bb-ease-out-expo);
   }
 
-  .bb-rail__subs[data-open] {
+  .bb-rail__subs.is-open {
     grid-template-rows: 1fr;
   }
 
@@ -295,7 +295,7 @@
     transition: opacity var(--bb-dur-fast) ease;
   }
 
-  .bb-rail-item:is(:hover, [data-active]) .bb-icon {
+  .bb-rail-item:is(:hover, [aria-current]) .bb-icon {
     opacity: 1;
   }
 
@@ -316,11 +316,11 @@
     color: var(--bb-white);
   }
 
-  .bb-rail-item[data-active] {
+  .bb-rail-item[aria-current] {
     color: var(--bb-white);
   }
 
-  .bb-rail-item[data-locked] {
+  .bb-rail-item.bb-rail-item--locked {
     opacity: 0.45;
     cursor: not-allowed;
   }
@@ -411,7 +411,7 @@
     color: var(--bb-tan-pale);
   }
 
-  .bb-topbar__crumb [data-here] {
+  .bb-topbar__crumb .is-current {
     color: var(--bb-tan-light);
     white-space: nowrap;
     font-weight: 600;
@@ -450,7 +450,7 @@
       display: inline;
     }
 
-    .bb-topbar__account[data-railed] {
+    .bb-topbar__account--railed {
       display: none;
     }
   }
@@ -554,13 +554,13 @@
     transform: translateY(0);
   }
 
-  .bb-dock-item[data-active],
+  .bb-dock-item:is([aria-current], .is-active),
   .bb-dock-item[aria-expanded="true"] {
     color: var(--bb-tan-pale);
     background: rgba(var(--bb-tan-rgb), 0.14);
   }
 
-  .bb-dock-item[data-active]::before {
+  .bb-dock-item:is([aria-current], .is-active)::before {
     content: "";
     position: absolute;
     top: 5px;
@@ -640,7 +640,7 @@
     background: rgba(var(--bb-tan-rgb), 0.1);
   }
 
-  .bb-dock__pop-item[data-active] {
+  .bb-dock__pop-item[aria-current] {
     color: var(--bb-tan-pale);
     background: rgba(var(--bb-tan-rgb), 0.14);
   }
@@ -692,11 +692,11 @@
       display: none;
     }
 
-    .bb-dock-item[data-active] {
+    .bb-dock-item:is([aria-current], .is-active) {
       flex: 1.6;
     }
 
-    .bb-dock-item[data-active] .bb-dock-item__label {
+    .bb-dock-item:is([aria-current], .is-active) .bb-dock-item__label {
       display: block;
     }
 
@@ -704,7 +704,7 @@
        visible on touch, where the rail and hover labels are unavailable. */
     .bb-shell--railed .bb-dock__inner { gap: 2px; }
     .bb-shell--railed .bb-dock-item,
-    .bb-shell--railed .bb-dock-item[data-active] {
+    .bb-shell--railed .bb-dock-item:is([aria-current], .is-active) {
       flex: 1;
       padding-inline: 0;
     }
@@ -731,7 +731,7 @@
   }
 
   @media (max-width: 480px) {
-    .bb-dock-item[data-dock-fold] {
+    .bb-dock-item.bb-dock-item--fold {
       display: none;
     }
 
@@ -775,7 +775,7 @@
     }
   }
 
-  :is([data-static] .bb-rail, .bb-rail[data-static]) {
+  .bb-static-frame .bb-rail {
     --rail-width: 190px;
     --rail-pad: 10px;
 
@@ -786,7 +786,7 @@
     border-radius: var(--bb-radius-sm);
   }
 
-  :is([data-static] .bb-topbar, .bb-topbar[data-static]) {
+  .bb-static-frame .bb-topbar {
     position: static;
     margin: 0 0 var(--bb-space-1);
   }

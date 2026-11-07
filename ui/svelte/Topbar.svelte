@@ -53,11 +53,11 @@
     logoAlt={brand.logoAlt}
     size="sm"
     logoShape={brand.logoShape}
-    data-cursor="quiet"
+    style="--bb-cursor: quiet"
   />{#if crumbs.length}<nav class="bb-topbar__crumb" aria-label={crumbLabel}
       ><ol
         >{#each crumbs as crumb, i (crumb.label)}<li
-            data-here={i === crumbs.length - 1 ? '' : undefined}
+            class={i === crumbs.length - 1 ? 'is-current' : undefined}
             >{#if crumb.href}<a href={crumb.href}>{crumb.label}</a>{:else}<span
                 aria-current="page">{crumb.label}</span
               >{/if}</li
@@ -67,7 +67,6 @@
       bind:this={clockEl}
       class="bb-topbar__clock"
       aria-hidden="true">{clockText}</span>{/if}{#if account}<div
-      class="bb-topbar__account"
-      data-railed={railed ? '' : undefined}>{@render account()}</div
+      class={['bb-topbar__account', railed && 'bb-topbar__account--railed']}>{@render account()}</div
     >{/if}{#if actions}{@render actions()}{/if}</header
 >

@@ -14,7 +14,7 @@ const astroSelect = (props: Record<string, unknown>, slot?: string) =>
 test('Astro Select preserves option slots and native form attributes before enhancement', async () => {
   const html = await astroSelect({ id: 'mode', name: 'mode', required: true, disabled: true, invalid: true, fill: true },
     '<optgroup label="Modes" disabled><option value="a" selected>A</option><option value="b" disabled>B</option></optgroup>');
-  expect(html).toContain('class="bb-input bb-input--select bb-input--fill" data-select-fallback data-invalid');
+  expect(html).toContain('class="bb-input bb-input--select bb-input--fill bb-input--invalid" data-select-fallback');
   expect(html).toContain('<select id="mode" name="mode" required disabled>');
   expect(html).toContain('<optgroup label="Modes" disabled><option value="a" selected>A</option><option value="b" disabled>B</option></optgroup>');
   expect(html).not.toContain('data-searchable');
@@ -59,7 +59,7 @@ test('Svelte Select submits nothing and shows the placeholder for a value absent
   });
   expect(html).toContain('<select id="stored" name="stored" disabled><option value selected disabled hidden>Select…</option><option value="live">Live</option></select>');
   expect(html).not.toContain('saved-id');
-  expect(html).toContain('data-placeholder');
+  expect(html).toContain('bb-select__trigger is-placeholder');
   expect(html).toContain('<span class="bb-select__value">Select…</span>');
 });
 

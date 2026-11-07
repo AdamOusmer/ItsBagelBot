@@ -143,7 +143,7 @@
     background: color-mix(in srgb, var(--bb-status-danger) 12%, transparent);
   }
 
-  .bb-picker-option__remove[data-armed] {
+  .bb-picker-option__remove.is-armed {
     color: var(--bb-status-danger);
     background: color-mix(in srgb, var(--bb-status-danger) 16%, transparent);
   }

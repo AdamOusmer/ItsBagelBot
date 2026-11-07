@@ -34,7 +34,7 @@
 
     .bb-color:hover:not(:disabled) { background: var(--cp-off-hover); }
     .bb-color:focus-visible { outline: none; box-shadow: var(--cp-inset), var(--cp-ring); }
-    .bb-color[data-invalid] { box-shadow: var(--cp-inset), 0 0 0 1px rgba(var(--bb-status-danger-rgb), 0.55); }
+    .bb-color.bb-color--invalid { box-shadow: var(--cp-inset), 0 0 0 1px rgba(var(--bb-status-danger-rgb), 0.55); }
     .bb-color:disabled { cursor: not-allowed; opacity: 0.55; }
 
     .bb-color__dot,

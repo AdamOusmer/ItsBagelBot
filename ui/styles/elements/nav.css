@@ -580,12 +580,12 @@
     transform-origin: top center;
   }
 
-  .bb-lang-switch__menu[data-anchored] {
+  .bb-lang-switch__menu.is-anchored {
     inset: auto;
     margin: 0;
   }
 
-  .bb-lang-switch__menu[data-side="top"] {
+  .bb-lang-switch__menu.bb-lang-switch__menu--top {
     transform-origin: bottom center;
   }
 
@@ -731,7 +731,7 @@
       opacity var(--bb-dur-base) ease;
   }
 
-  .bb-nav-group__index[data-active] {
+  .bb-nav-group__index.is-active {
     color: var(--bb-tan);
     opacity: 1;
   }

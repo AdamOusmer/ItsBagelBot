@@ -50,6 +50,7 @@
       stat && 'bb-card--stat',
       sheen && 'bb-card--sheen',
       raised && 'bb-card--raised',
+      hover && 'bb-card--hover',
       glass && 'bb-card--glass',
       flush && 'bb-card--flush',
       dashed && 'bb-card--dashed',
@@ -65,7 +66,6 @@
   this={as ?? (href ? 'a' : 'div')}
   class={classes}
   {...href ? { href } : {}}
-  data-hover={hover ? '' : undefined}
   {...rest}
 >
   {#if band}<span class="bb-card__band">{#if atmo}<CardAtmosphere />{/if}{#if label}<span class="bb-card__label">{label}</span>{/if}<span class="bb-card__band-inner">{@render band()}</span></span><span class="bb-card__body">{@render children()}</span>{:else}{#if atmo}<CardAtmosphere />{/if}{#if label}<span class="bb-card__label">{label}</span>{/if}{@render children()}{/if}</svelte:element>

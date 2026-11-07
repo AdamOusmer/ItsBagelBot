@@ -5,9 +5,8 @@ import { prefersReducedMotion } from './motion-query';
 
 // A closed <details> stops rendering its body at once, so CSS alone can only
 // animate the first open: every close snaps shut and the reopen after it has
-// no rendered 0fr frame to start from. data-motion carries the visual state
-// instead, and the element stays [open] until its collapse has played out.
-export const DISCLOSURE_MOTION = 'data-motion';
+// no rendered 0fr frame to start from. is-open and is-closed carry the visual
+// state instead, and the element stays [open] until its collapse has played out.
 
 const BODY = ':scope > .bb-disclosure__body';
 const SUMMARY = ':scope > summary';
@@ -21,8 +20,11 @@ export function wireDisclosure(details: HTMLDetailsElement): () => void {
     if (!body || !summary) return () => {};
 
     let settle: (() => void) | null = null;
-    const state = (): State => (details.getAttribute(DISCLOSURE_MOTION) === 'open' ? 'open' : 'closed');
-    const set = (next: State) => details.setAttribute(DISCLOSURE_MOTION, next);
+    const state = (): State => (details.classList.contains('is-open') ? 'open' : 'closed');
+    const set = (next: State) => {
+        details.classList.toggle('is-open', next === 'open');
+        details.classList.toggle('is-closed', next === 'closed');
+    };
 
     const cancelSettle = () => {
         settle?.();
@@ -82,6 +84,6 @@ export function wireDisclosure(details: HTMLDetailsElement): () => void {
         cancelSettle();
         summary.removeEventListener('click', onClick);
         details.removeEventListener('toggle', onToggle);
-        details.removeAttribute(DISCLOSURE_MOTION);
+        details.classList.remove('is-open', 'is-closed');
     };
 }

@@ -25,7 +25,7 @@
 
   let over = $state(false);
 
-  const classes = $derived(['bb-file-drop', className || null].filter(Boolean).join(' '));
+  const classes = $derived(['bb-file-drop', over ? 'is-over' : null, file ? 'is-filled' : null, className || null].filter(Boolean).join(' '));
 
   function drag(next: boolean) {
     if (over === next) return;
@@ -45,7 +45,7 @@
   }
 </script>
 
-<label class={classes} data-over={over ? '' : undefined} data-filled={file ? '' : undefined}
+<label class={classes}
   ><input
     type="file"
     class="bb-file-drop__input"

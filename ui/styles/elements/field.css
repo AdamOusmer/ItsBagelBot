@@ -50,7 +50,7 @@
                     box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
-    .bb-input:is(:focus-within, [data-focus]):not(:where([data-invalid])) {
+    .bb-input:is(:focus-within, .bb-input--focus):not(:where(.bb-input--invalid)) {
         border-color: transparent;
         box-shadow: var(--bb-depth-0), 0 0 0 3px rgba(var(--bb-tan-rgb), 0.18);
     }

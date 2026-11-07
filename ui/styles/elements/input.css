@@ -74,11 +74,11 @@
         font-variant-numeric: tabular-nums;
     }
 
-    .bb-input[data-invalid] {
+    .bb-input.bb-input--invalid {
         border-color: rgba(var(--bb-status-danger-rgb), 0.55);
     }
 
-    .bb-input[data-invalid]:focus-within {
+    .bb-input.bb-input--invalid:focus-within {
         box-shadow: 0 0 0 3px rgba(var(--bb-status-danger-rgb), 0.12);
     }
 

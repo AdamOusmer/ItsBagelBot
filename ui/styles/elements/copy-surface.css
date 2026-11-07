@@ -41,11 +41,11 @@
   }
 
   .bb-copy__done,
-  .bb-copy[data-copied] .bb-copy__idle {
+  .bb-copy.is-copied .bb-copy__idle {
     visibility: hidden;
   }
 
-  .bb-copy[data-copied] .bb-copy__done {
+  .bb-copy.is-copied .bb-copy__done {
     visibility: visible;
   }
 
@@ -124,7 +124,7 @@
       background var(--bb-dur-base) var(--bb-ease-out-expo);
   }
 
-  .bb-copy--card[data-copied] .bb-copy__hint {
+  .bb-copy--card.is-copied .bb-copy__hint {
     border-color: rgba(var(--bb-green-glow-rgb), 0.4);
     background: rgba(var(--bb-green-glow-rgb), 0.07);
     color: var(--bb-green-glow);
@@ -179,7 +179,7 @@
     color: var(--bb-tan-pale);
   }
 
-  .bb-copy--well[data-copied] .bb-copy__hint {
+  .bb-copy--well.is-copied .bb-copy__hint {
     color: var(--bb-green-glow);
   }
 
@@ -229,7 +229,7 @@
     transition: opacity var(--bb-dur-fast) ease-out;
   }
 
-  .bb-copy--row[data-copied] .bb-copy__done {
+  .bb-copy--row.is-copied .bb-copy__done {
     opacity: 1;
   }
 
@@ -255,7 +255,7 @@
     color: var(--bb-tan-light);
   }
 
-  .bb-copy--chip[data-copied] {
+  .bb-copy--chip.is-copied {
     border-color: rgba(var(--bb-green-glow-rgb), 0.4);
     background: rgba(var(--bb-green-glow-rgb), 0.07);
     color: var(--bb-green-glow);

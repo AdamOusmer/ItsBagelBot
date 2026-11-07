@@ -54,13 +54,13 @@
     .bb-chip--eyebrow .bb-chip__text { font-size: 12.5px; letter-spacing: var(--bb-tracking-eyebrow); text-transform: uppercase; color: var(--bb-tan-light); }
     .bb-chip--eyebrow .bb-chip__arrow { font-size: 13px; color: var(--bb-tan); }
 
-    .bb-chip[data-pressed] {
+    .bb-chip.is-pressed {
         color: var(--bb-tan-pale);
         background: rgba(var(--bb-tan-rgb), 0.10);
         border-color: rgba(var(--bb-tan-rgb), 0.50);
     }
 
-    .bb-chip[data-pressed]:is(.bb-chip--free, .bb-chip--paid, .bb-chip--vip, .bb-chip--banned, .bb-chip--inactive) {
+    .bb-chip.is-pressed:is(.bb-chip--free, .bb-chip--paid, .bb-chip--vip, .bb-chip--banned, .bb-chip--inactive) {
         color: var(--tone);
         background: var(--tone-bg);
         border-color: var(--tone-rule);
@@ -79,12 +79,12 @@
         .bb-chip:active { transform: none; }
     }
 
-    .bb-chip:not(:is([class*='bb-chip--']:not(.bb-chip--muted, .bb-chip--off), .is-done, [data-pressed])) {
+    .bb-chip:not(:is([class*='bb-chip--']:not(.bb-chip--muted, .bb-chip--off), .is-done, .is-pressed)) {
         background: var(--bb-elev-2);
         box-shadow: var(--bb-depth-1);
     }
 
-    .bb-chip:not(:is([class*='bb-chip--']:not(.bb-chip--muted, .bb-chip--off), .is-done, [data-pressed])):hover {
+    .bb-chip:not(:is([class*='bb-chip--']:not(.bb-chip--muted, .bb-chip--off), .is-done, .is-pressed)):hover {
         border-color: transparent;
         background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 7%);
         box-shadow: var(--bb-depth-2);

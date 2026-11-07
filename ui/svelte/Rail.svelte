@@ -44,7 +44,7 @@
     if (!railEl) return;
     void groups;
     void manual;
-    return mountGlide(railEl, { observe: navEl, selector: '.bb-rail-item[data-active]' });
+    return mountGlide(railEl, { observe: navEl, selector: '.bb-rail-item[aria-current]' });
   });
 </script>
 
@@ -56,7 +56,7 @@
     logoSrc={brand.logoSrc}
     logoAlt={brand.logoAlt}
     logoShape={brand.logoShape}
-    data-cursor="quiet"
+    style="--bb-cursor: quiet"
   /><Glide /><div bind:this={navEl} class="bb-rail__nav"
     >{#each groups as group (group.label ?? '')}{#if group.label}<div
           class="bb-rail__label">{group.label}</div
@@ -81,7 +81,7 @@
                   ><polyline points="9 6 15 12 9 18"></polyline></svg
                 ></button
               ></div
-            ><div class="bb-rail__subs" data-open={isOpen(item) ? '' : undefined}
+            ><div class={['bb-rail__subs', isOpen(item) && 'is-open']}
               ><div class="bb-rail__subs-inner"
                 >{#each item.children as child (child.href)}<a
                     class="bb-rail__sub"

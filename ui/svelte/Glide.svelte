@@ -15,7 +15,7 @@
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLSpanElement>, keyof Own> = $props();
 
-  const classes = $derived(['bb-glide', className || null].filter(Boolean).join(' '));
+  const classes = $derived(['bb-glide', shown ? 'is-shown' : null, className || null].filter(Boolean).join(' '));
 </script>
 
-<span class={classes} aria-hidden="true" data-shown={shown ? '' : undefined} {...rest}></span>
+<span class={classes} aria-hidden="true" {...rest}></span>

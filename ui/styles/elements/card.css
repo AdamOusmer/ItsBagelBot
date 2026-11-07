@@ -28,7 +28,7 @@
     --card-shadow: var(--bb-depth-2);
   }
 
-  .bb-card:is(.bb-card--raised, [data-hover]:hover, [href]:hover, [data-hover]:focus-visible, [href]:focus-visible) {
+  .bb-card:is(.bb-card--raised, .bb-card--hover:hover, [href]:hover, .bb-card--hover:focus-visible, [href]:focus-visible) {
     background: var(--card-bg, var(--bb-elev-2));
     box-shadow: var(--card-shadow-raised, var(--bb-depth-2));
   }
@@ -129,7 +129,7 @@
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .bb-card:is([data-hover], [href]):hover {
+    .bb-card:is(.bb-card--hover, [href]):hover {
       border-color: var(--card-hover-border, var(--bb-border-strong));
     }
   }

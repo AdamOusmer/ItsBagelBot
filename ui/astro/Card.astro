@@ -48,6 +48,7 @@ const classes = [
     stat && 'bb-card--stat',
     sheen && 'bb-card--sheen',
     raised && 'bb-card--raised',
+    hover && 'bb-card--hover',
     glass && 'bb-card--glass',
     flush && 'bb-card--flush',
     dashed && 'bb-card--dashed',
@@ -61,7 +62,6 @@ const classes = [
 <Tag
     class={classes}
     href={href}
-    data-hover={hover ? '' : undefined}
     {...rest}
 >
     {banded ? (

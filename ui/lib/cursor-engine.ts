@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { CURSOR_PROP } from './cursor-prop';
 import { finePointer, reduceMotion } from './motion-query';
 import { subscribe, wake } from './raf-loop';
 
@@ -13,12 +14,10 @@ export type CursorOptions = {
     dot: HTMLElement;
     ring: HTMLElement;
     selector?: string;
-    quietAttr?: string;
     ease?: CursorEase;
 };
 
-const SELECTOR = 'a, button, .bb-input, [data-cursor]';
-const QUIET = '[data-cursor="quiet"]';
+const SELECTOR = `a, button, .bb-input, [style*="${CURSOR_PROP}"]`;
 const TEXT =
     '.bb-input:not(.bb-input--select), textarea, [contenteditable]:not([contenteditable="false"]), ' +
     'input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], ' +
@@ -89,7 +88,7 @@ function arrived(box: Box, to: Box): boolean {
 }
 
 export function mountCursor(options: CursorOptions): () => void {
-    const { dot, ring, selector = SELECTOR, quietAttr = QUIET, ease = EASE } = options;
+    const { dot, ring, selector = SELECTOR, ease = EASE } = options;
     if (!finePointer.matches) return () => {};
 
     if (pointerX < 0) {
@@ -153,7 +152,7 @@ export function mountCursor(options: CursorOptions): () => void {
         }
         const el = nearest(event);
         if (!el) return;
-        setTarget(el.matches(quietAttr) ? null : el);
+        setTarget(el.style.getPropertyValue(CURSOR_PROP).trim() === 'quiet' ? null : el);
         wake(tick);
     };
 

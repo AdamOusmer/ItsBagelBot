@@ -87,7 +87,7 @@
     color: transparent;
   }
 
-  .bb-page-hero__title[data-line-rise] {
+  .bb-page-hero__title.is-shown {
     opacity: 1;
     animation: none;
   }

@@ -10,7 +10,7 @@ interface Props {
 }
 
 const { shown = false, class: className = '', ...rest } = Astro.props;
-const classes = ['bb-glide', className].filter(Boolean).join(' ');
+const classes = ['bb-glide', shown ? 'is-shown' : null, className].filter(Boolean).join(' ');
 ---
 
-<span class={classes} aria-hidden="true" data-shown={shown ? '' : undefined} {...rest} />
+<span class={classes} aria-hidden="true" {...rest} />

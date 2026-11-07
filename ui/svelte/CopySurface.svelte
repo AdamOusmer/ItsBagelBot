@@ -45,7 +45,7 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const classes = $derived(
-    ['bb-copy', `bb-copy--${variant}`, className || null].filter(Boolean).join(' '),
+    ['bb-copy', `bb-copy--${variant}`, copied ? 'is-copied' : null, className || null].filter(Boolean).join(' '),
   );
   const iconOnly = $derived(variant === 'chip');
   const glyphs = $derived(variant === 'well' || iconOnly);
@@ -76,7 +76,6 @@
     data-copy-announce={announce ?? (iconOnly ? copiedLabel : undefined)}
     data-copy-ms={flashMs}
     data-copy-legacy={legacyFallback ? '' : undefined}
-    data-copied={copied ? '' : undefined}
     {onclick}
     >{#if label}<span class="bb-copy__label">{label}</span>{/if}<span class="bb-copy__row"
       ><span class="bb-copy__value">{#if children}{@render children(copied)}{:else}{text}{/if}</span

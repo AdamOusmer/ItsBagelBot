@@ -38,8 +38,7 @@
       hint={item.locked ? item.lockedHint : undefined}
       block
       >{#snippet leading()}<span
-          class="bb-nav-group__index"
-          data-active={item.current ? '' : undefined}>{pad(startIndex + i)}</span
+          class={['bb-nav-group__index', item.current && 'is-active']}>{pad(startIndex + i)}</span
         >{#if item.icon}<Icon name={item.icon} />{/if}{/snippet}{#snippet trailing()}{#if item.locked}<Icon
             name="lock"
             size={13}

@@ -6,7 +6,7 @@
   .bb-select { display: inline-block; max-width: 100%; min-width: 0; }
   .bb-select--fill, .bb-field .bb-select { display: block; width: 100%; min-width: 0; }
   /* Native form bridge and JS-off fallback. It must remain validatable. */
-  .bb-select[data-enhanced] .bb-select__fallback, .bb-select__native {
+  .bb-select--enhanced .bb-select__fallback, .bb-select__native {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
   }
@@ -21,7 +21,7 @@
     outline: none;
   }
   .bb-select__trigger:disabled { opacity: 0.45; cursor: not-allowed; }
-  .bb-select__trigger[data-placeholder] { color: var(--bb-muted); }
+  .bb-select__trigger.is-placeholder { color: var(--bb-muted); }
   .bb-select__value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bb-select__trigger .bb-select__chevron {
     flex: none; width: 14px; height: 14px; fill: none;

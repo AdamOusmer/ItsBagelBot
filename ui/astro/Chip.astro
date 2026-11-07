@@ -13,7 +13,7 @@ interface Props extends Omit<HTMLAttributes<'button'>, 'pressed' | 'type' | 'ton
 }
 
 const { pressed, type = 'button', tone, as: Tag = 'button', class: cls = '', ...rest } = Astro.props;
-const className = `bb-chip${tone ? ` bb-chip--${tone}` : ''}${cls ? ` ${cls}` : ''}`;
+const className = `bb-chip${tone ? ` bb-chip--${tone}` : ''}${pressed ? ' is-pressed' : ''}${cls ? ` ${cls}` : ''}`;
 ---
 
-<Tag type={Tag === 'button' ? type : undefined} class={className} aria-pressed={Tag === 'button' && pressed !== undefined ? pressed : undefined} data-pressed={pressed ? '' : undefined} {...rest}><slot /></Tag>
+<Tag type={Tag === 'button' ? type : undefined} class={className} aria-pressed={Tag === 'button' && pressed !== undefined ? pressed : undefined} {...rest}><slot /></Tag>

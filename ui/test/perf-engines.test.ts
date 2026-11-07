@@ -148,6 +148,7 @@ const lib = isolatedLib('perf', [
   'raf-loop.ts',
   'rect-cache.ts',
   'cursor-engine.ts',
+  'cursor-prop.ts',
   'light-field.ts',
   'count-up.ts',
 ]);
@@ -177,6 +178,7 @@ describe('cursor', () => {
     const link = {
       isConnected: true,
       matches: () => false,
+      style: { getPropertyValue: () => '' },
       closest: () => link,
       getBoundingClientRect: () => {
         rects += 1;

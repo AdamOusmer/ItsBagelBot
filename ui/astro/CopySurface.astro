@@ -47,7 +47,7 @@ const hasChildren = Astro.slots.has('default');
     const timers = new WeakMap<HTMLElement, number>();
 
     function flash(surface: HTMLElement, on: boolean): void {
-        surface.toggleAttribute('data-copied', on);
+        surface.classList.toggle('is-copied', on);
         const status = surface.parentElement?.querySelector('.bb-copy__status');
         const done = surface.querySelector('.bb-copy__done')?.textContent ?? '';
         if (status) status.textContent = on ? (surface.dataset.copyAnnounce ?? done) : '';

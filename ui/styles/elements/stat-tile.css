@@ -66,12 +66,12 @@
         letter-spacing: 0.02em;
     }
 
-    .bb-stat__delta[data-flat] {
+    .bb-stat__delta.bb-stat__delta--flat {
         color: var(--bb-muted);
         font-family: var(--bb-font-body);
     }
 
-    .bb-stat[data-text] .bb-stat__value {
+    .bb-stat.bb-stat--text .bb-stat__value {
         font-size: clamp(22px, 1.9vw, 30px);
         white-space: nowrap;
         overflow: hidden;

@@ -98,7 +98,7 @@
       class="bb-modal__backdrop"
       type="button"
       aria-label={closeLabel}
-      data-cursor="quiet"
+      style="--bb-cursor: quiet"
       onclick={tryClose}
     ></button><div
       class="bb-modal__card"

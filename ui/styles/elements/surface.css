@@ -24,7 +24,7 @@
     overflow-anchor: none;
   }
 
-  :is([data-static] .bb-surface--docked, .bb-surface--docked[data-static]) {
+  .bb-static-frame .bb-surface--docked {
     position: static;
     max-height: none;
   }

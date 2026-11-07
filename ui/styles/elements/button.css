@@ -273,8 +273,7 @@
     cursor: progress;
   }
 
-  .bb-btn__spinner,
-  .bb-btn.is-loading:not([data-mark])::after {
+  .bb-btn__spinner {
     content: "";
     position: absolute;
     top: 50%;
@@ -304,8 +303,7 @@
       transform: none;
     }
 
-    .bb-btn__spinner,
-    .bb-btn.is-loading:not([data-mark])::after {
+    .bb-btn__spinner {
       animation: none;
     }
   }

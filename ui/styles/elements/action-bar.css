@@ -33,7 +33,7 @@
     .bb-action-bar--roomy { padding: 14px 16px; }
   }
 
-  :is([data-static] .bb-action-bar, .bb-action-bar[data-static]) {
+  .bb-static-frame .bb-action-bar {
     position: static;
   }
 }
