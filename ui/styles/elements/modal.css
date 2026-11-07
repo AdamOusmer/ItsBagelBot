@@ -39,6 +39,7 @@
     border: 1px solid var(--modal-border);
     border-radius: var(--bb-radius-md);
     background: var(--bb-bg-1);
+    box-shadow: var(--bb-depth-3);
     backdrop-filter: blur(var(--modal-blur));
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -249,9 +250,5 @@
     .bb-modal__hint {
       animation: none;
     }
-  }
-
-  :where([data-surface='tonal']) .bb-modal__card {
-    box-shadow: var(--bb-depth-3);
   }
 }

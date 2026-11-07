@@ -59,7 +59,7 @@
   });
 </script>
 
-<SetupStage label={`${eyebrow} · ${name}`} full fill {leaving} data-orbs="off" data-surface="tonal">
+<SetupStage label={`${eyebrow} · ${name}`} full fill {leaving} data-orbs="off">
   {#snippet start()}
     <Brand title="ItsBagelBot" sub={t('admin.title')} href="/" logoSrc="/logo.png" logoAlt="" size="md" />
     <div class="ident">

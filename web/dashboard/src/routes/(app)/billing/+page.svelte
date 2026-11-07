@@ -653,9 +653,6 @@
     row-gap: var(--bb-space-4);
     padding: var(--bb-space-6);
   }
-  .plan--free :global(.plan-card) {
-    --card-halo-rgb: var(--bb-halo-green-rgb);
-  }
   .plan-head {
     display: flex;
     align-items: center;

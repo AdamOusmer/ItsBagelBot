@@ -353,9 +353,6 @@
     padding: calc(var(--bb-space-7) + 6px) var(--bb-space-6) var(--bb-space-6);
   }
 
-  .lb-spot--2 :global(.lb-spot__card) { --card-halo-rgb: var(--bb-tier-vip-rgb); --card-halo: 0.5; }
-  .lb-spot--3 :global(.lb-spot__card) { --card-halo-rgb: var(--bb-halo-green-rgb); --card-halo: 0.45; }
-
   .lb-spot__top {
     display: flex;
     align-items: baseline;

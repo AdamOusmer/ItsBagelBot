@@ -14,11 +14,11 @@
     display: inline-flex; align-items: center; gap: 8px; box-sizing: border-box;
     padding: 8px 12px; text-align: left; cursor: pointer;
     font-family: var(--bb-font-body); color: var(--bb-white);
-    background: var(--bb-glass-fill-2); min-height: 36px;
+    min-height: 36px;
   }
   .bb-select__trigger[hidden] { display: none; }
   .bb-select__trigger:hover, .bb-select__trigger[aria-expanded='true'], .bb-select__trigger:focus-visible {
-    outline: none; border-color: var(--bb-tan);
+    outline: none;
   }
   .bb-select__trigger:disabled { opacity: 0.45; cursor: not-allowed; }
   .bb-select__trigger[data-placeholder] { color: var(--bb-muted); }
@@ -38,16 +38,16 @@
   .bb-select__empty { margin: 0; padding: 6px 2px; font-family: var(--bb-font-body); font-size: 12px; font-style: italic; color: var(--bb-muted); }
   @media (pointer: coarse) { .bb-select__trigger, .bb-select__option { min-height: 44px; } }
 
-  :where([data-surface='tonal']) .bb-select__trigger.bb-select__trigger {
+  .bb-select__trigger.bb-select__trigger {
     background: var(--bb-elev-2);
     box-shadow: var(--bb-depth-1);
   }
-  :where([data-surface='tonal']) .bb-select__trigger.bb-select__trigger:is(:hover, [aria-expanded='true']) {
+  .bb-select__trigger.bb-select__trigger:is(:hover, [aria-expanded='true']) {
     border-color: transparent;
     background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 7%);
     box-shadow: var(--bb-depth-2);
   }
-  :where([data-surface='tonal']) .bb-select__trigger.bb-select__trigger:focus-visible {
+  .bb-select__trigger.bb-select__trigger:focus-visible {
     border-color: transparent;
     box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
   }

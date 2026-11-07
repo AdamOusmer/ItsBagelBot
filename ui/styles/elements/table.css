@@ -8,6 +8,7 @@
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         border-radius: var(--bb-radius-sm);
+        box-shadow: var(--bb-depth-1);
         background:
             linear-gradient(to right, var(--tbl-fade-bg) 30%, transparent) left / 32px 100% no-repeat local,
             linear-gradient(to left, var(--tbl-fade-bg) 30%, transparent) right / 32px 100% no-repeat local,
@@ -45,7 +46,7 @@
     .bb-tbl td,
     .bb-tbl th[scope="row"] {
         padding: 7px 8px;
-        border-bottom: 1px solid rgba(var(--bb-white-rgb), 0.05);
+        border-bottom: 1px solid transparent;
         color: var(--bb-white);
     }
 
@@ -78,7 +79,4 @@
         line-height: 1.6;
         vertical-align: top;
     }
-
-    :where([data-surface='tonal']) .bb-tbl-wrap { box-shadow: var(--bb-depth-1); }
-    :where([data-surface='tonal']) .bb-tbl :is(td, th[scope="row"]) { border-color: transparent; }
 }

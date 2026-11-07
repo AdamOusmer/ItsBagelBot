@@ -94,13 +94,15 @@
   .bb-btn--secondary,
   .bb-btn--icon {
     border-color: var(--bb-border-strong);
-    background: var(--bb-card-bg);
     color: var(--bb-white);
     --btn-spinner: var(--bb-white);
   }
 
   .bb-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
-  .bb-btn--icon:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--icon:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    color: var(--bb-white);
+  }
+
   a:hover .bb-btn--static.bb-btn--secondary {
     background: var(--bb-elev-2);
     border-color: var(--bb-muted);
@@ -394,26 +396,26 @@
     }
   }
 
-  :where([data-surface='tonal']) :is(.bb-btn--secondary, .bb-btn--icon:not(.bb-btn--sm)) {
+  :is(.bb-btn--secondary, .bb-btn--icon:not(.bb-btn--sm)) {
     background: var(--bb-elev-2);
     box-shadow: var(--bb-depth-1);
   }
 
-  :where([data-surface='tonal']) :is(.bb-btn--secondary, .bb-btn--icon:not(.bb-btn--sm)):hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+  :is(.bb-btn--secondary, .bb-btn--icon:not(.bb-btn--sm)):hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
     border-color: transparent;
     background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 7%);
     box-shadow: var(--bb-depth-2);
   }
 
-  :where([data-surface='tonal']) :is(.bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid) {
+  :is(.bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid) {
     box-shadow: var(--bb-depth-1);
   }
 
-  :where([data-surface='tonal']) :is(.bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid):hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+  :is(.bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid):hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
     box-shadow: var(--bb-depth-2);
   }
 
-  :where([data-surface='tonal']) :is(.bb-btn--secondary, .bb-btn--icon, .bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid):focus-visible {
+  :is(.bb-btn--secondary, .bb-btn--icon, .bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid):focus-visible {
     border-color: transparent;
     box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
   }

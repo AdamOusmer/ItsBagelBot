@@ -40,8 +40,9 @@
         gap: 9px;
         padding: 10px 14px;
         background: rgba(var(--bb-shadow-rgb), 0.35);
-        border: 1px solid var(--bb-border);
+        border: 1px solid transparent;
         border-radius: var(--bb-radius-sm);
+        box-shadow: var(--bb-depth-0);
         width: var(--input-w, 240px);
         font-size: var(--input-fs, 13.5px);
         color: var(--bb-muted);
@@ -50,8 +51,8 @@
     }
 
     .bb-input:is(:focus-within, [data-focus]):not(:where([data-invalid])) {
-        border-color: var(--bb-border-strong);
-        box-shadow: 0 0 0 3px rgba(var(--bb-tan-rgb), 0.10);
+        border-color: transparent;
+        box-shadow: var(--bb-depth-0), 0 0 0 3px rgba(var(--bb-tan-rgb), 0.18);
     }
 
     .bb-input :where(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
@@ -80,12 +81,5 @@
     @media (pointer: coarse) {
         .bb-input { min-height: 44px; font-size: 16px; }
         .bb-input input { font-size: 16px; }
-    }
-
-    :where([data-surface='tonal']) .bb-input { box-shadow: var(--bb-depth-0); }
-
-    :where([data-surface='tonal']) .bb-input:is(:focus-within, [data-focus]):not(:where([data-invalid])) {
-        border-color: transparent;
-        box-shadow: var(--bb-depth-0), 0 0 0 3px rgba(var(--bb-tan-rgb), 0.18);
     }
 }

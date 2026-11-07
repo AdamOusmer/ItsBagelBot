@@ -548,9 +548,10 @@
     min-width: 208px;
     min-height: 40px;
     padding: 0 12px 0 11px;
-    background-color: rgba(var(--bb-white-rgb), 0.03);
+    background-color: var(--bb-elev-2);
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-sm);
+    box-shadow: var(--bb-depth-1);
     font-family: var(--bb-font-body);
     font-size: 14px;
     font-weight: 500;
@@ -563,34 +564,12 @@
   .bb-lang-switch--field:has(.bb-lang-switch__menu:popover-open) .bb-lang-switch__trigger {
     color: var(--bb-white);
     border-color: var(--bb-border-strong);
-    background-color: rgba(var(--bb-tan-rgb), 0.07);
-  }
-
-  :where([data-surface='tonal']) .bb-lang-switch--field .bb-lang-switch__trigger {
-    background-color: var(--bb-elev-2);
-    border-color: transparent;
-    box-shadow: var(--bb-depth-1);
-  }
-
-  :where([data-surface='tonal']) .bb-lang-switch--field .bb-lang-switch__trigger:is(:hover, :focus-visible),
-  :where([data-surface='tonal']) .bb-lang-switch--field:has(.bb-lang-switch__menu:popover-open) .bb-lang-switch__trigger {
     background-color: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 7%);
-    border-color: transparent;
     box-shadow: var(--bb-depth-2);
   }
 
-  :where([data-surface='tonal']) .bb-lang-switch--field .bb-lang-switch__trigger:focus-visible {
+  .bb-lang-switch--field .bb-lang-switch__trigger:focus-visible {
     box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
-  }
-
-  :where([data-surface='tonal']) .bb-lang-switch__menu {
-    background: var(--bb-elev-2);
-    border-color: transparent;
-    box-shadow: var(--bb-depth-3);
-  }
-
-  :where([data-surface='tonal']) .bb-lang-switch__opt:is(:hover, :focus-visible) {
-    background-color: var(--bb-glass-fill-2);
   }
 
   .bb-lang-switch--field .bb-lang-switch__flag {

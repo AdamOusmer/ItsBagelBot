@@ -13,55 +13,26 @@
     display: block;
     overflow: hidden;
     padding: var(--card-pad);
-    background: var(--card-bg, var(--bb-surface-raised));
-    border: 1px solid var(--card-border, var(--bb-border));
-    border-radius: var(--card-radius, var(--bb-radius-lg));
-    box-shadow: var(--card-shadow, var(--bb-surface-raised-shadow));
+    --card-hover-border: var(--card-border, transparent);
+    background: var(--card-bg, var(--bb-elev-1));
+    border: 1px solid var(--card-border, transparent);
+    border-radius: var(--card-radius, var(--bb-radius-md));
+    box-shadow: var(--card-shadow, var(--bb-depth-1));
     text-decoration: none;
-    transition: border-color var(--bb-dur-base) ease;
-  }
-
-  .bb-card::after {
-    content: "";
-    position: absolute;
-    inset: -35% -10% auto;
-    z-index: -1;
-    height: 100%;
-    background: radial-gradient(closest-side, rgba(var(--card-halo-rgb, var(--bb-halo-gold-rgb)), 0.16), transparent);
-    opacity: var(--card-halo, 0.7);
-    pointer-events: none;
-    transition: opacity var(--bb-dur-slow) ease;
-  }
-
-  .bb-card--danger::after {
-    content: none;
+    transition:
+      background-color var(--bb-dur-base) ease,
+      box-shadow var(--bb-dur-base) ease;
   }
 
   :root[data-theme='light'] .bb-card {
     --card-shadow: 0 1px 2px rgba(var(--bb-shadow-rgb), 0.06);
-    --card-halo: 0.35;
   }
 
   .bb-card--raised {
     --card-shadow: var(--bb-depth-2);
   }
 
-  :where([data-surface='tonal']) .bb-card {
-    --card-hover-border: var(--card-border, transparent);
-    background: var(--card-bg, var(--bb-elev-1));
-    border-color: var(--card-border, transparent);
-    border-radius: var(--card-radius, var(--bb-radius-md));
-    box-shadow: var(--card-shadow, var(--bb-depth-1));
-    transition:
-      background-color var(--bb-dur-base) ease,
-      box-shadow var(--bb-dur-base) ease;
-  }
-
-  :where([data-surface='tonal']) .bb-card::after {
-    content: none;
-  }
-
-  :where([data-surface='tonal']) .bb-card:is(.bb-card--raised, [data-hover]:hover, [href]:hover, [data-hover]:focus-visible, [href]:focus-visible) {
+  .bb-card:is(.bb-card--raised, [data-hover]:hover, [href]:hover, [data-hover]:focus-visible, [href]:focus-visible) {
     background: var(--card-bg, var(--bb-elev-2));
     box-shadow: var(--card-shadow-raised, var(--bb-depth-2));
   }
@@ -88,7 +59,7 @@
   }
 
   .bb-card--danger {
-    border-color: var(--bb-status-danger-border);
+    border-color: transparent;
     background: var(--bb-status-danger-bg);
   }
 
@@ -165,10 +136,6 @@
     display: none;
   }
 
-  .bb-card:is([data-hover], [href]):is(:hover, :focus-visible) {
-    --card-halo: 1;
-  }
-
   @media (hover: hover) and (pointer: fine) {
     .bb-card:is([data-hover], [href]):hover {
       border-color: var(--card-hover-border, var(--bb-border-strong));
@@ -203,10 +170,6 @@
 
   .bb-card-head__more:hover {
     color: var(--bb-tan-pale);
-  }
-
-  :where([data-surface='tonal']) .bb-card--danger {
-    border-color: transparent;
   }
 
 }
