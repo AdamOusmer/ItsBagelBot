@@ -46,11 +46,31 @@ func BroadcasterIDs(ctx context.Context, client valkey_go.Client) ([]uint64, err
 // prefix (the version key, the recheck guard) is not a broadcaster.
 func BroadcasterID(key string) (uint64, bool) {
 	rest, ok := strings.CutPrefix(key, KeyPrefix)
-	if !ok || rest == "" || rest[0] < '1' || rest[0] > '9' {
+	if !ok {
 		return 0, false
 	}
+	if !startsWithNonZeroDigit(rest) {
+		return 0, false
+	}
+	return parseBroadcasterID(rest)
+}
+
+func startsWithNonZeroDigit(rest string) bool {
+	if rest == "" {
+		return false
+	}
+	if rest[0] < '1' {
+		return false
+	}
+	return rest[0] <= '9'
+}
+
+func parseBroadcasterID(rest string) (uint64, bool) {
 	id, err := strconv.ParseUint(rest, 10, 64)
-	if err != nil || id == 0 {
+	if err != nil {
+		return 0, false
+	}
+	if id == 0 {
 		return 0, false
 	}
 	return id, true

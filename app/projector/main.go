@@ -194,7 +194,10 @@ func subscribeRPCs(rt rpcRuntime, topics projectorTopics) {
 	svcboot.FatalIf(rt.log, rpc.SubscribeDashboard(rt.nc, rt.store, topics.dashboard,
 		topics.commands, topics.modules, topics.cacheInvalidate, rt.hydrator, queueGroup, rt.nrApp, rt.log),
 		"failed to subscribe dashboard projector rpc")
-	svcboot.FatalIf(rt.log, rpc.SubscribeLive(bus.RPCWiring{NC: rt.nc, App: rt.nrApp, Queue: queueGroup, Log: rt.log}, rpc.LiveDependencies{Store: rt.store, Pub: rt.pub, Runtime: channelruntime.NewClient(rt.store, rt.nc, topics.users)}, topics.live, topics.liveList, topics.outgressSystem),
+	svcboot.FatalIf(rt.log, rpc.SubscribeLive(bus.RPCWiring{NC: rt.nc, App: rt.nrApp, Queue: queueGroup, Log: rt.log}, rpc.LiveDependencies{
+		Store: rt.store, Pub: rt.pub, Runtime: channelruntime.NewClient(rt.store, rt.nc, topics.users),
+		ListSubject: topics.liveList, SystemSubject: topics.outgressSystem,
+	}, topics.live),
 		"failed to subscribe live rpc")
 	svcboot.FatalIf(rt.log, rpc.SubscribeStreamInfo(rpc.StreamInfoDeps{
 		NC: rt.nc, Store: rt.store, Subject: topics.streamInfo,

@@ -75,29 +75,81 @@ type AdminUserQuery struct {
 }
 
 func (r *Users) ListUsers(ctx context.Context, query AdminUserQuery) ([]*ent.User, error) {
-	if query.OnlyLive && len(query.LiveIDs) == 0 {
+	q, err := adminDirectoryQuery(r.client, query)
+	if err != nil {
+		return nil, err
+	}
+	if q == nil {
 		return nil, nil
-	}
-	if query.OnlyLive && len(query.LiveIDs) > AdminLiveIDCap {
-		return nil, fmt.Errorf("live id list exceeds %d", AdminLiveIDCap)
-	}
-	by := ent.Desc
-	if query.Order == AdminOrderOldest {
-		by = ent.Asc
-	}
-	q := r.client.User.Query().Order(by(user.FieldCreatedAt), by(user.FieldID))
-	if s := NormalizeAdminSearch(query.Search); s != "" {
-		q = q.Where(AdminSearchPredicate(s))
-	}
-	if pred, ok := AdminStatePredicate(query.State); ok {
-		q = q.Where(pred)
-	}
-	if query.OnlyLive {
-		q = q.Where(user.IDIn(query.LiveIDs...))
 	}
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return q.Offset(query.Offset).Limit(query.Limit).All(ctx)
 	})
+}
+
+func adminDirectoryQuery(client *ent.Client, query AdminUserQuery) (*ent.UserQuery, error) {
+	if err := validateLiveIDs(query); err != nil {
+		return nil, err
+	}
+	if liveFilterEmpty(query) {
+		return nil, nil
+	}
+	return withAdminFilters(client.User.Query(), query), nil
+}
+
+func validateLiveIDs(query AdminUserQuery) error {
+	if !query.OnlyLive {
+		return nil
+	}
+	if len(query.LiveIDs) <= AdminLiveIDCap {
+		return nil
+	}
+	return fmt.Errorf("live id list exceeds %d", AdminLiveIDCap)
+}
+
+func liveFilterEmpty(query AdminUserQuery) bool {
+	if !query.OnlyLive {
+		return false
+	}
+	return len(query.LiveIDs) == 0
+}
+
+func withAdminFilters(q *ent.UserQuery, query AdminUserQuery) *ent.UserQuery {
+	by := adminOrder(query)
+	q = q.Order(by(user.FieldCreatedAt), by(user.FieldID))
+	q = whereAdminSearch(q, query.Search)
+	q = whereAdminState(q, query.State)
+	return whereAdminLive(q, query)
+}
+
+func adminOrder(query AdminUserQuery) func(...string) func(*entsql.Selector) {
+	if query.Order == AdminOrderOldest {
+		return ent.Asc
+	}
+	return ent.Desc
+}
+
+func whereAdminSearch(q *ent.UserQuery, search string) *ent.UserQuery {
+	s := NormalizeAdminSearch(search)
+	if s == "" {
+		return q
+	}
+	return q.Where(AdminSearchPredicate(s))
+}
+
+func whereAdminState(q *ent.UserQuery, state string) *ent.UserQuery {
+	pred, ok := AdminStatePredicate(state)
+	if !ok {
+		return q
+	}
+	return q.Where(pred)
+}
+
+func whereAdminLive(q *ent.UserQuery, query AdminUserQuery) *ent.UserQuery {
+	if !query.OnlyLive {
+		return q
+	}
+	return q.Where(user.IDIn(query.LiveIDs...))
 }
 
 func AdminStatePredicate(state string) (predicate.User, bool) {

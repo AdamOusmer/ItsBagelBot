@@ -409,7 +409,7 @@
       label={t('admin.users.stateFilter')}
       bind:value={() => stateLabel, pickState}
     />
-    <Cluster gap={3} wrap>
+    <Cluster gap={3}>
       <SegmentedControl
         options={orderOptions}
         label={t('admin.users.orderFilter')}
