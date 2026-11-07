@@ -3,6 +3,8 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/users/ent/authorizationcode"
+	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
@@ -477,6 +479,36 @@ func (_c *UserCreate) AddPremiumGrants(v ...*PremiumGrant) *UserCreate {
 	return _c.AddPremiumGrantIDs(ids...)
 }
 
+// AddDeviceGrantIDs adds the "device_grants" edge to the DeviceGrant entity by IDs.
+func (_c *UserCreate) AddDeviceGrantIDs(ids ...int) *UserCreate {
+	_c.mutation.AddDeviceGrantIDs(ids...)
+	return _c
+}
+
+// AddDeviceGrants adds the "device_grants" edges to the DeviceGrant entity.
+func (_c *UserCreate) AddDeviceGrants(v ...*DeviceGrant) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddDeviceGrantIDs(ids...)
+}
+
+// AddAuthorizationCodeIDs adds the "authorization_codes" edge to the AuthorizationCode entity by IDs.
+func (_c *UserCreate) AddAuthorizationCodeIDs(ids ...int) *UserCreate {
+	_c.mutation.AddAuthorizationCodeIDs(ids...)
+	return _c
+}
+
+// AddAuthorizationCodes adds the "authorization_codes" edges to the AuthorizationCode entity.
+func (_c *UserCreate) AddAuthorizationCodes(v ...*AuthorizationCode) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddAuthorizationCodeIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_c *UserCreate) Mutation() *UserMutation {
 	return _c.mutation
@@ -892,6 +924,38 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DeviceGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeviceGrantsTable,
+			Columns: []string{user.DeviceGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(devicegrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.AuthorizationCodesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.AuthorizationCodesTable,
+			Columns: []string{user.AuthorizationCodesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

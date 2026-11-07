@@ -1,0 +1,21 @@
+{
+  "title": "Conectar o app de desktop",
+  "eyebrow": "Login do dispositivo",
+  "asAccount": "Entrando como {name}.",
+  "deviceLabel": "Dispositivo",
+  "deviceUnnamed": "Dispositivo sem nome",
+  "platformLabel": "Plataforma",
+  "platformMacos": "macOS",
+  "platformWindows": "Windows",
+  "platformLinux": "Linux",
+  "reportedByApp": "O nome do dispositivo e a plataforma são informados pelo app e não são verificados.",
+  "accessGranted": "Aprovar permite que este app aja como sua conta a partir do seu computador.",
+  "onlyIfYouStarted": "Aprove isto somente se você mesmo acabou de iniciar este login no app de desktop.",
+  "approve": "Aprovar",
+  "cancel": "Cancelar",
+  "refusalImpersonator": "Esta sessão é uma visualização da equipe e não pode aprovar um app de desktop. Entre com sua própria conta para continuar.",
+  "refusalDelegate": "Esta sessão tem acesso delegado a outra conta e não pode aprovar um app de desktop. Entre com sua própria conta para continuar.",
+  "approvedRedirecting": "Aprovado. Retornando para o app…",
+  "cancelledRedirecting": "Cancelado. Retornando para o app…",
+  "closeWindow": "Se nada acontecer em alguns segundos, você pode fechar esta janela."
+}

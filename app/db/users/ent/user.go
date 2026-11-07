@@ -95,9 +95,13 @@ type UserEdges struct {
 	Tokens []*Tokens `json:"tokens,omitempty"`
 	// PremiumGrants holds the value of the premium_grants edge.
 	PremiumGrants []*PremiumGrant `json:"premium_grants,omitempty"`
+	// DeviceGrants holds the value of the device_grants edge.
+	DeviceGrants []*DeviceGrant `json:"device_grants,omitempty"`
+	// AuthorizationCodes holds the value of the authorization_codes edge.
+	AuthorizationCodes []*AuthorizationCode `json:"authorization_codes,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [4]bool
 }
 
 // TokensOrErr returns the Tokens value or an error if the edge
@@ -116,6 +120,24 @@ func (e UserEdges) PremiumGrantsOrErr() ([]*PremiumGrant, error) {
 		return e.PremiumGrants, nil
 	}
 	return nil, &NotLoadedError{edge: "premium_grants"}
+}
+
+// DeviceGrantsOrErr returns the DeviceGrants value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) DeviceGrantsOrErr() ([]*DeviceGrant, error) {
+	if e.loadedTypes[2] {
+		return e.DeviceGrants, nil
+	}
+	return nil, &NotLoadedError{edge: "device_grants"}
+}
+
+// AuthorizationCodesOrErr returns the AuthorizationCodes value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) AuthorizationCodesOrErr() ([]*AuthorizationCode, error) {
+	if e.loadedTypes[3] {
+		return e.AuthorizationCodes, nil
+	}
+	return nil, &NotLoadedError{edge: "authorization_codes"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -377,6 +399,16 @@ func (_m *User) QueryTokens() *TokensQuery {
 // QueryPremiumGrants queries the "premium_grants" edge of the User entity.
 func (_m *User) QueryPremiumGrants() *PremiumGrantQuery {
 	return NewUserClient(_m.config).QueryPremiumGrants(_m)
+}
+
+// QueryDeviceGrants queries the "device_grants" edge of the User entity.
+func (_m *User) QueryDeviceGrants() *DeviceGrantQuery {
+	return NewUserClient(_m.config).QueryDeviceGrants(_m)
+}
+
+// QueryAuthorizationCodes queries the "authorization_codes" edge of the User entity.
+func (_m *User) QueryAuthorizationCodes() *AuthorizationCodeQuery {
+	return NewUserClient(_m.config).QueryAuthorizationCodes(_m)
 }
 
 // Update returns a builder for updating this User.

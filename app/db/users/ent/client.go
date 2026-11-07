@@ -14,7 +14,9 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/analyticsrollup"
+	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
@@ -37,8 +39,12 @@ type Client struct {
 	AdminUser *AdminUserClient
 	// AnalyticsRollup is the client for interacting with the AnalyticsRollup builders.
 	AnalyticsRollup *AnalyticsRollupClient
+	// AuthorizationCode is the client for interacting with the AuthorizationCode builders.
+	AuthorizationCode *AuthorizationCodeClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
+	// DeviceGrant is the client for interacting with the DeviceGrant builders.
+	DeviceGrant *DeviceGrantClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
 	LifecycleErasure *LifecycleErasureClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
@@ -61,7 +67,9 @@ func (c *Client) init() {
 	c.AdminAudit = NewAdminAuditClient(c.config)
 	c.AdminUser = NewAdminUserClient(c.config)
 	c.AnalyticsRollup = NewAnalyticsRollupClient(c.config)
+	c.AuthorizationCode = NewAuthorizationCodeClient(c.config)
 	c.Delegation = NewDelegationClient(c.config)
+	c.DeviceGrant = NewDeviceGrantClient(c.config)
 	c.LifecycleErasure = NewLifecycleErasureClient(c.config)
 	c.PremiumGrant = NewPremiumGrantClient(c.config)
 	c.Tokens = NewTokensClient(c.config)
@@ -156,16 +164,18 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:              ctx,
-		config:           cfg,
-		AdminAudit:       NewAdminAuditClient(cfg),
-		AdminUser:        NewAdminUserClient(cfg),
-		AnalyticsRollup:  NewAnalyticsRollupClient(cfg),
-		Delegation:       NewDelegationClient(cfg),
-		LifecycleErasure: NewLifecycleErasureClient(cfg),
-		PremiumGrant:     NewPremiumGrantClient(cfg),
-		Tokens:           NewTokensClient(cfg),
-		User:             NewUserClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		AdminAudit:        NewAdminAuditClient(cfg),
+		AdminUser:         NewAdminUserClient(cfg),
+		AnalyticsRollup:   NewAnalyticsRollupClient(cfg),
+		AuthorizationCode: NewAuthorizationCodeClient(cfg),
+		Delegation:        NewDelegationClient(cfg),
+		DeviceGrant:       NewDeviceGrantClient(cfg),
+		LifecycleErasure:  NewLifecycleErasureClient(cfg),
+		PremiumGrant:      NewPremiumGrantClient(cfg),
+		Tokens:            NewTokensClient(cfg),
+		User:              NewUserClient(cfg),
 	}, nil
 }
 
@@ -183,16 +193,18 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:              ctx,
-		config:           cfg,
-		AdminAudit:       NewAdminAuditClient(cfg),
-		AdminUser:        NewAdminUserClient(cfg),
-		AnalyticsRollup:  NewAnalyticsRollupClient(cfg),
-		Delegation:       NewDelegationClient(cfg),
-		LifecycleErasure: NewLifecycleErasureClient(cfg),
-		PremiumGrant:     NewPremiumGrantClient(cfg),
-		Tokens:           NewTokensClient(cfg),
-		User:             NewUserClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		AdminAudit:        NewAdminAuditClient(cfg),
+		AdminUser:         NewAdminUserClient(cfg),
+		AnalyticsRollup:   NewAnalyticsRollupClient(cfg),
+		AuthorizationCode: NewAuthorizationCodeClient(cfg),
+		Delegation:        NewDelegationClient(cfg),
+		DeviceGrant:       NewDeviceGrantClient(cfg),
+		LifecycleErasure:  NewLifecycleErasureClient(cfg),
+		PremiumGrant:      NewPremiumGrantClient(cfg),
+		Tokens:            NewTokensClient(cfg),
+		User:              NewUserClient(cfg),
 	}, nil
 }
 
@@ -222,8 +234,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.Delegation, c.LifecycleErasure,
-		c.PremiumGrant, c.Tokens, c.User,
+		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.AuthorizationCode, c.Delegation,
+		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -233,8 +245,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.Delegation, c.LifecycleErasure,
-		c.PremiumGrant, c.Tokens, c.User,
+		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.AuthorizationCode, c.Delegation,
+		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -249,8 +261,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AdminUser.mutate(ctx, m)
 	case *AnalyticsRollupMutation:
 		return c.AnalyticsRollup.mutate(ctx, m)
+	case *AuthorizationCodeMutation:
+		return c.AuthorizationCode.mutate(ctx, m)
 	case *DelegationMutation:
 		return c.Delegation.mutate(ctx, m)
+	case *DeviceGrantMutation:
+		return c.DeviceGrant.mutate(ctx, m)
 	case *LifecycleErasureMutation:
 		return c.LifecycleErasure.mutate(ctx, m)
 	case *PremiumGrantMutation:
@@ -663,6 +679,155 @@ func (c *AnalyticsRollupClient) mutate(ctx context.Context, m *AnalyticsRollupMu
 	}
 }
 
+// AuthorizationCodeClient is a client for the AuthorizationCode schema.
+type AuthorizationCodeClient struct {
+	config
+}
+
+// NewAuthorizationCodeClient returns a client for the AuthorizationCode from the given config.
+func NewAuthorizationCodeClient(c config) *AuthorizationCodeClient {
+	return &AuthorizationCodeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `authorizationcode.Hooks(f(g(h())))`.
+func (c *AuthorizationCodeClient) Use(hooks ...Hook) {
+	c.hooks.AuthorizationCode = append(c.hooks.AuthorizationCode, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `authorizationcode.Intercept(f(g(h())))`.
+func (c *AuthorizationCodeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AuthorizationCode = append(c.inters.AuthorizationCode, interceptors...)
+}
+
+// Create returns a builder for creating a AuthorizationCode entity.
+func (c *AuthorizationCodeClient) Create() *AuthorizationCodeCreate {
+	mutation := newAuthorizationCodeMutation(c.config, OpCreate)
+	return &AuthorizationCodeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AuthorizationCode entities.
+func (c *AuthorizationCodeClient) CreateBulk(builders ...*AuthorizationCodeCreate) *AuthorizationCodeCreateBulk {
+	return &AuthorizationCodeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AuthorizationCodeClient) MapCreateBulk(slice any, setFunc func(*AuthorizationCodeCreate, int)) *AuthorizationCodeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AuthorizationCodeCreateBulk{err: fmt.Errorf("calling to AuthorizationCodeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AuthorizationCodeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AuthorizationCodeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AuthorizationCode.
+func (c *AuthorizationCodeClient) Update() *AuthorizationCodeUpdate {
+	mutation := newAuthorizationCodeMutation(c.config, OpUpdate)
+	return &AuthorizationCodeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AuthorizationCodeClient) UpdateOne(_m *AuthorizationCode) *AuthorizationCodeUpdateOne {
+	mutation := newAuthorizationCodeMutation(c.config, OpUpdateOne, withAuthorizationCode(_m))
+	return &AuthorizationCodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AuthorizationCodeClient) UpdateOneID(id int) *AuthorizationCodeUpdateOne {
+	mutation := newAuthorizationCodeMutation(c.config, OpUpdateOne, withAuthorizationCodeID(id))
+	return &AuthorizationCodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AuthorizationCode.
+func (c *AuthorizationCodeClient) Delete() *AuthorizationCodeDelete {
+	mutation := newAuthorizationCodeMutation(c.config, OpDelete)
+	return &AuthorizationCodeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AuthorizationCodeClient) DeleteOne(_m *AuthorizationCode) *AuthorizationCodeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AuthorizationCodeClient) DeleteOneID(id int) *AuthorizationCodeDeleteOne {
+	builder := c.Delete().Where(authorizationcode.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AuthorizationCodeDeleteOne{builder}
+}
+
+// Query returns a query builder for AuthorizationCode.
+func (c *AuthorizationCodeClient) Query() *AuthorizationCodeQuery {
+	return &AuthorizationCodeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAuthorizationCode},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AuthorizationCode entity by its id.
+func (c *AuthorizationCodeClient) Get(ctx context.Context, id int) (*AuthorizationCode, error) {
+	return c.Query().Where(authorizationcode.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AuthorizationCodeClient) GetX(ctx context.Context, id int) *AuthorizationCode {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a AuthorizationCode.
+func (c *AuthorizationCodeClient) QueryUser(_m *AuthorizationCode) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(authorizationcode.Table, authorizationcode.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, authorizationcode.UserTable, authorizationcode.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *AuthorizationCodeClient) Hooks() []Hook {
+	return c.hooks.AuthorizationCode
+}
+
+// Interceptors returns the client interceptors.
+func (c *AuthorizationCodeClient) Interceptors() []Interceptor {
+	return c.inters.AuthorizationCode
+}
+
+func (c *AuthorizationCodeClient) mutate(ctx context.Context, m *AuthorizationCodeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AuthorizationCodeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AuthorizationCodeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AuthorizationCodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AuthorizationCodeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AuthorizationCode mutation op: %q", m.Op())
+	}
+}
+
 // DelegationClient is a client for the Delegation schema.
 type DelegationClient struct {
 	config
@@ -793,6 +958,155 @@ func (c *DelegationClient) mutate(ctx context.Context, m *DelegationMutation) (V
 		return (&DelegationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Delegation mutation op: %q", m.Op())
+	}
+}
+
+// DeviceGrantClient is a client for the DeviceGrant schema.
+type DeviceGrantClient struct {
+	config
+}
+
+// NewDeviceGrantClient returns a client for the DeviceGrant from the given config.
+func NewDeviceGrantClient(c config) *DeviceGrantClient {
+	return &DeviceGrantClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `devicegrant.Hooks(f(g(h())))`.
+func (c *DeviceGrantClient) Use(hooks ...Hook) {
+	c.hooks.DeviceGrant = append(c.hooks.DeviceGrant, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `devicegrant.Intercept(f(g(h())))`.
+func (c *DeviceGrantClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DeviceGrant = append(c.inters.DeviceGrant, interceptors...)
+}
+
+// Create returns a builder for creating a DeviceGrant entity.
+func (c *DeviceGrantClient) Create() *DeviceGrantCreate {
+	mutation := newDeviceGrantMutation(c.config, OpCreate)
+	return &DeviceGrantCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of DeviceGrant entities.
+func (c *DeviceGrantClient) CreateBulk(builders ...*DeviceGrantCreate) *DeviceGrantCreateBulk {
+	return &DeviceGrantCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DeviceGrantClient) MapCreateBulk(slice any, setFunc func(*DeviceGrantCreate, int)) *DeviceGrantCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DeviceGrantCreateBulk{err: fmt.Errorf("calling to DeviceGrantClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DeviceGrantCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DeviceGrantCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for DeviceGrant.
+func (c *DeviceGrantClient) Update() *DeviceGrantUpdate {
+	mutation := newDeviceGrantMutation(c.config, OpUpdate)
+	return &DeviceGrantUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DeviceGrantClient) UpdateOne(_m *DeviceGrant) *DeviceGrantUpdateOne {
+	mutation := newDeviceGrantMutation(c.config, OpUpdateOne, withDeviceGrant(_m))
+	return &DeviceGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DeviceGrantClient) UpdateOneID(id int) *DeviceGrantUpdateOne {
+	mutation := newDeviceGrantMutation(c.config, OpUpdateOne, withDeviceGrantID(id))
+	return &DeviceGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for DeviceGrant.
+func (c *DeviceGrantClient) Delete() *DeviceGrantDelete {
+	mutation := newDeviceGrantMutation(c.config, OpDelete)
+	return &DeviceGrantDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DeviceGrantClient) DeleteOne(_m *DeviceGrant) *DeviceGrantDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DeviceGrantClient) DeleteOneID(id int) *DeviceGrantDeleteOne {
+	builder := c.Delete().Where(devicegrant.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DeviceGrantDeleteOne{builder}
+}
+
+// Query returns a query builder for DeviceGrant.
+func (c *DeviceGrantClient) Query() *DeviceGrantQuery {
+	return &DeviceGrantQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDeviceGrant},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a DeviceGrant entity by its id.
+func (c *DeviceGrantClient) Get(ctx context.Context, id int) (*DeviceGrant, error) {
+	return c.Query().Where(devicegrant.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DeviceGrantClient) GetX(ctx context.Context, id int) *DeviceGrant {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a DeviceGrant.
+func (c *DeviceGrantClient) QueryUser(_m *DeviceGrant) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(devicegrant.Table, devicegrant.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, devicegrant.UserTable, devicegrant.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *DeviceGrantClient) Hooks() []Hook {
+	return c.hooks.DeviceGrant
+}
+
+// Interceptors returns the client interceptors.
+func (c *DeviceGrantClient) Interceptors() []Interceptor {
+	return c.inters.DeviceGrant
+}
+
+func (c *DeviceGrantClient) mutate(ctx context.Context, m *DeviceGrantMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DeviceGrantCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DeviceGrantUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DeviceGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DeviceGrantDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown DeviceGrant mutation op: %q", m.Op())
 	}
 }
 
@@ -1367,6 +1681,38 @@ func (c *UserClient) QueryPremiumGrants(_m *User) *PremiumGrantQuery {
 	return query
 }
 
+// QueryDeviceGrants queries the device_grants edge of a User.
+func (c *UserClient) QueryDeviceGrants(_m *User) *DeviceGrantQuery {
+	query := (&DeviceGrantClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(devicegrant.Table, devicegrant.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.DeviceGrantsTable, user.DeviceGrantsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAuthorizationCodes queries the authorization_codes edge of a User.
+func (c *UserClient) QueryAuthorizationCodes(_m *User) *AuthorizationCodeQuery {
+	query := (&AuthorizationCodeClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(authorizationcode.Table, authorizationcode.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.AuthorizationCodesTable, user.AuthorizationCodesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	hooks := c.hooks.User
@@ -1396,11 +1742,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AdminAudit, AdminUser, AnalyticsRollup, Delegation, LifecycleErasure,
-		PremiumGrant, Tokens, User []ent.Hook
+		AdminAudit, AdminUser, AnalyticsRollup, AuthorizationCode, Delegation,
+		DeviceGrant, LifecycleErasure, PremiumGrant, Tokens, User []ent.Hook
 	}
 	inters struct {
-		AdminAudit, AdminUser, AnalyticsRollup, Delegation, LifecycleErasure,
-		PremiumGrant, Tokens, User []ent.Interceptor
+		AdminAudit, AdminUser, AnalyticsRollup, AuthorizationCode, Delegation,
+		DeviceGrant, LifecycleErasure, PremiumGrant, Tokens, User []ent.Interceptor
 	}
 )

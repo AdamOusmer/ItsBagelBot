@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"os"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/app/db/users/rollup"
 	"ItsBagelBot/app/db/users/rpc"
+	"ItsBagelBot/app/db/users/tokensign"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
@@ -65,6 +67,7 @@ func main() {
 
 	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
 	repo.SetAnalytics(recorder)
+	repo.SetDeviceAuthSigner(loadDeviceAuthSigner(log))
 	go recorder.SeedOnce(ctx, serviceName, ownedAccountLevels(), repo.AnalyticsSeed)
 	repo.SetInvalidationPrefix(env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"))
 	repo.SetInvalidationConn(n.RPC)
@@ -81,6 +84,7 @@ func main() {
 
 	go expireSubscriptions(ctx, repo, log)
 	go expirePremiumGrants(ctx, repo, log)
+	go cleanupDeviceAuth(ctx, repo, log)
 	go rollupAnalytics(ctx, rollup.New(vc, repo), log)
 
 	wiring := rpc.Wiring{
@@ -97,6 +101,29 @@ func main() {
 	subjects.logReady(log)
 
 	core.Await()
+}
+
+// loadDeviceAuthSigner reads the Ed25519 seed from env/Doppler. A missing or
+// malformed key fails closed: device authorization refuses exchange/refresh,
+// but every other Users RPC keeps running.
+func loadDeviceAuthSigner(log *zap.Logger) *tokensign.Signer {
+	seedB64 := strings.TrimSpace(env.Get("DEVICE_AUTH_SIGNING_KEY", ""))
+	kid := strings.TrimSpace(env.Get("DEVICE_AUTH_SIGNING_KID", ""))
+	if seedB64 == "" || kid == "" {
+		log.Warn("device authorization signing key not configured; exchange and refresh will fail closed")
+		return nil
+	}
+	seed, err := base64.StdEncoding.DecodeString(seedB64)
+	if err != nil {
+		log.Error("device authorization signing key is not valid base64", zap.Error(err))
+		return nil
+	}
+	signer, err := tokensign.NewSigner(seed, kid)
+	if err != nil {
+		log.Error("device authorization signing key rejected", zap.Error(err))
+		return nil
+	}
+	return signer
 }
 
 func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *crypto.Crypto) {
@@ -131,6 +158,7 @@ type rpcSubjects struct {
 	billing    string
 	projection string
 	giveaway   string
+	device     string
 }
 
 func (s rpcSubjects) logReady(log *zap.Logger) {
@@ -139,7 +167,8 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 		zap.String("admin_prefix", s.admin),
 		zap.String("billing_subject", s.billing),
 		zap.String("projection_subject", s.projection),
-		zap.String("giveaway_prefix", s.giveaway))
+		zap.String("giveaway_prefix", s.giveaway),
+		zap.String("device_prefix", s.device))
 }
 
 func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, log *zap.Logger) rpcSubjects {
@@ -151,6 +180,7 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 		billing:    env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply"),
 		projection: env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
 		giveaway:   env.Get("NATS_INTERNAL_USERS_GIVEAWAY_SUBJECT_PREFIX", "bagel.rpc.internal.users.giveaway"),
+		device:     env.Get("NATS_DASHBOARD_DEVICE_SUBJECT_PREFIX", "bagel.rpc.dashboard.device"),
 	}
 
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
@@ -179,6 +209,7 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 		"failed to subscribe counts rpc")
 	svcboot.FatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation"), invalidationPrefix),
 		"failed to subscribe delegation rpc")
+	svcboot.FatalIf(log, rpc.SubscribeDeviceAuth(wiring, s.device), "failed to subscribe device authorization rpc")
 
 	return s
 }
@@ -221,6 +252,13 @@ func expirePremiumGrants(ctx context.Context, repo *repository.Users, log *zap.L
 		func(runCtx context.Context, now time.Time) (int, error) {
 			return repo.ExpirePremiumGrants(runCtx, now)
 		})
+}
+
+func cleanupDeviceAuth(ctx context.Context, repo *repository.Users, log *zap.Logger) {
+	interval := env.GetDuration("USERS_DEVICE_AUTH_SWEEP_INTERVAL", 5*time.Minute)
+	runPeriodicSweep(ctx, log, interval, 10*time.Second,
+		"failed to clean up device authorization", "cleaned up device authorization",
+		repo.CleanupDeviceAuth)
 }
 
 func runPeriodicSweep(ctx context.Context, log *zap.Logger, interval, timeout time.Duration, errorMessage, successMessage string, sweep func(context.Context, time.Time) (int, error)) {

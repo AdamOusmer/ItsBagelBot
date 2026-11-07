@@ -44,6 +44,18 @@ func (f AnalyticsRollupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Va
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AnalyticsRollupMutation", m)
 }
 
+// The AuthorizationCodeFunc type is an adapter to allow the use of ordinary
+// function as AuthorizationCode mutator.
+type AuthorizationCodeFunc func(context.Context, *ent.AuthorizationCodeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AuthorizationCodeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AuthorizationCodeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthorizationCodeMutation", m)
+}
+
 // The DelegationFunc type is an adapter to allow the use of ordinary
 // function as Delegation mutator.
 type DelegationFunc func(context.Context, *ent.DelegationMutation) (ent.Value, error)
@@ -54,6 +66,18 @@ func (f DelegationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DelegationMutation", m)
+}
+
+// The DeviceGrantFunc type is an adapter to allow the use of ordinary
+// function as DeviceGrant mutator.
+type DeviceGrantFunc func(context.Context, *ent.DeviceGrantMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DeviceGrantFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DeviceGrantMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DeviceGrantMutation", m)
 }
 
 // The LifecycleErasureFunc type is an adapter to allow the use of ordinary

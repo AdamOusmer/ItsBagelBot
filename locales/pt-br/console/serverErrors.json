@@ -93,5 +93,8 @@
   "giftAlreadyPremium": "Esse streamer já tem Premium. Escolha outra pessoa para presentear.",
   "giftLookup": "Não foi possível verificar esse nome de usuário agora. Aguarde um momento e tente novamente.",
   "giftSelf": "Essa é sua própria conta. Para obter Premium, escolha Assinar mensalmente ou Comprar um mês.",
-  "checkoutInProgress": "Uma página de pagamento para essa conta já está aberta. Aguarde 30 segundos e tente novamente."
+  "checkoutInProgress": "Uma página de pagamento para essa conta já está aberta. Aguarde 30 segundos e tente novamente.",
+  "missingDevice": "Dispositivo ausente.",
+  "deviceRevoke": "Não foi possível revogar esse dispositivo. Tente novamente em um instante.",
+  "devicesRevokeAll": "Não foi possível revogar seus dispositivos. Tente novamente em um instante."
 }

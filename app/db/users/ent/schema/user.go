@@ -39,7 +39,7 @@ func (User) Fields() []ent.Field {
 		field.JSON("lifecycle", &lifecycle.State{}).Optional(),
 		field.String("lifecycle_state").Default(""),
 		field.Bool("lifecycle_projection_pending").Default(false),
- field.Bool("lifecycle_migration_pending").Default(false),
+		field.Bool("lifecycle_migration_pending").Default(false),
 		field.Time("dormant_after").Optional().Nillable(),
 		field.Time("lifecycle_due_at").Optional().Nillable(),
 		field.Time("notice_due_at").Optional().Nillable(),
@@ -94,6 +94,14 @@ func (User) Edges() []ent.Edge {
 			Annotations(entsql.Annotation{
 				OnDelete: entsql.Cascade,
 			}),
+		edge.To("device_grants", DeviceGrant.Type).
+			Annotations(entsql.Annotation{
+				OnDelete: entsql.Cascade,
+			}),
+		edge.To("authorization_codes", AuthorizationCode.Type).
+			Annotations(entsql.Annotation{
+				OnDelete: entsql.Cascade,
+			}),
 	}
 }
 
@@ -107,7 +115,7 @@ func (User) Indexes() []ent.Index {
 		index.Fields("lifecycle_state", "lifecycle_due_at", "id"),
 		index.Fields("notice_due_at", "id"),
 		index.Fields("lifecycle_projection_pending", "id"),
- index.Fields("lifecycle_migration_pending", "id"),
+		index.Fields("lifecycle_migration_pending", "id"),
 	}
 }
 
