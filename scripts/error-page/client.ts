@@ -63,7 +63,7 @@ function wireBack(): void {
 const scene = document.querySelector<HTMLElement>('.bb-error-scene');
 if (scene) localize(scene);
 wireBack();
-const host = document.querySelector<HTMLElement>('[data-field]');
+const host = document.querySelector<HTMLElement>('.bb-light-field');
 if (host) field(host);
 const mascot = document.querySelector<SVGSVGElement>('[data-error-bolota]');
 if (mascot) wakeMascot(mascot);

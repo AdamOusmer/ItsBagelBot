@@ -57,10 +57,12 @@ const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
         next.click();
     }
 
+    const bound = new WeakSet<HTMLElement>();
+
     function bindSegmented() {
-        document.querySelectorAll<HTMLElement>('.bb-tabs[role="radiogroup"]:not([data-bb-segmented])').forEach((group) => {
-            if (radios(group).length === 0) return;
-            group.dataset.bbSegmented = '';
+        document.querySelectorAll<HTMLElement>('.bb-tabs[role="radiogroup"]').forEach((group) => {
+            if (bound.has(group) || radios(group).length === 0) return;
+            bound.add(group);
             group.addEventListener('click', onClick);
             group.addEventListener('keydown', onKeydown);
         });

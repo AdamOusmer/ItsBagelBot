@@ -27,7 +27,7 @@ const colophon = ((await Astro.slots.render('colophon')) ?? '').trim();
 ))}</div></div><div class="bb-footer__mark"><Brand class="bb-footer__brand" title={brand.title} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" wordmark /></div><div class="bb-footer__bottom"><div class="bb-footer__legal">{legal.map((link) => (
   <NavLink href={link.href} label={link.label} external={link.external} fit fitGroup="bb-footer-legal" />
 ))}</div><p class="bb-footer__fine"><bb-fit mode="block"><span>{copyright}</span>{note && <Fragment><span class="bb-footer__sep" aria-hidden="true">·</span><span>{note}</span></Fragment>}</bb-fit></p>{colophon && <div class="bb-footer__colophon" set:html={colophon} />}</div><div class="bb-footer__crew" aria-hidden="true">{FOOTER_CREW.map((seat) => (
-  <span class="bb-footer__peeker" data-crew={seat.name} data-head={seat.head} style={`--seat: ${seat.size}`}><svg viewBox="0 0 100 100"></svg></span>
+  <span class="bb-footer__peeker" style={`--seat: ${seat.size}`}><svg viewBox="0 0 100 100"></svg></span>
 ))}</div></footer>
 
 <script>

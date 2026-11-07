@@ -44,7 +44,7 @@ const steps = [
                     <RoundBadge size="lg" solid class="step__num" aria-hidden="true">{step.num}</RoundBadge>
                     <div class="step__body">
                         <Heading level={4} as="h3" class="step__title"><bb-fit mode="block">{step.title}</bb-fit></Heading>
-                        <Code class="step__receipt"><bb-fit data-decode={step.receipt}>{step.receipt}</bb-fit></Code>
+                        <Code class="step__receipt"><bb-fit>{step.receipt}</bb-fit></Code>
                     </div>
                 </TimelineItem>
             ))}

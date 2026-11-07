@@ -17,7 +17,7 @@ export type CursorOptions = {
     ease?: CursorEase;
 };
 
-const SELECTOR = `a, button, .bb-input, [style*="${CURSOR_PROP}"]`;
+const SELECTOR = 'a, button, .bb-input';
 const TEXT =
     '.bb-input:not(.bb-input--select), textarea, [contenteditable]:not([contenteditable="false"]), ' +
     'input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], ' +
@@ -42,8 +42,8 @@ function idleBox(x: number, y: number): Box {
     return { x: x - half, y: y - half, w: IDLE_SIZE, h: IDLE_SIZE, r: half };
 }
 
-function radiusOf(el: HTMLElement): number {
-    return parseFloat(getComputedStyle(el).borderRadius) || FALLBACK_RADIUS;
+function radiusOf(style: CSSStyleDeclaration): number {
+    return parseFloat(style.borderRadius) || FALLBACK_RADIUS;
 }
 
 function hoverBox(el: HTMLElement, radius: number): Box {
@@ -102,9 +102,9 @@ export function mountCursor(options: CursorOptions): () => void {
     let lastMove = 0;
     let radius = FALLBACK_RADIUS;
 
-    function setTarget(next: HTMLElement | null): void {
+    function setTarget(next: HTMLElement | null, style?: CSSStyleDeclaration): void {
         target = next;
-        if (next) radius = radiusOf(next);
+        if (next && style) radius = radiusOf(style);
     }
 
     function hovered(): HTMLElement | null {
@@ -132,8 +132,12 @@ export function mountCursor(options: CursorOptions): () => void {
         return false;
     }
 
-    const nearest = (event: PointerEvent): HTMLElement | null =>
-        (event.target as Element | null)?.closest<HTMLElement>(selector) ?? null;
+    const nearest = (event: PointerEvent): HTMLElement | null => {
+        for (let el = event.target as Element | null; el; el = el.parentElement) {
+            if (el.matches(selector) || getComputedStyle(el).getPropertyValue(CURSOR_PROP) !== '') return el as HTMLElement;
+        }
+        return null;
+    };
 
     const onMove = (event: PointerEvent): void => {
         if (event.pointerType === 'touch') return;
@@ -152,7 +156,9 @@ export function mountCursor(options: CursorOptions): () => void {
         }
         const el = nearest(event);
         if (!el) return;
-        setTarget(el.style.getPropertyValue(CURSOR_PROP).trim() === 'quiet' ? null : el);
+        const style = getComputedStyle(el);
+        const quiet = style.getPropertyValue(CURSOR_PROP).trim() === 'quiet';
+        setTarget(quiet ? null : el, style);
         wake(tick);
     };
 

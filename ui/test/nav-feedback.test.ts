@@ -263,7 +263,7 @@ describe('Modal viewer and InspectorSurface idle', () => {
       props: { open: true, variant: 'viewer', label: 'Diagram', toolbarLabel: 'Controls' },
       slots: { default: '<svg></svg>', toolbar: '<button>+</button>', hint: '<span>Drag to pan</span>' },
       html:
-        '<div class="bb-modal bb-modal--viewer" data-overlay style="z-index: 200">' +
+        '<div class="bb-modal bb-modal--viewer" style="z-index: 200">' +
         '<button class="bb-modal__backdrop" type="button" aria-label="Close" style="--bb-cursor: quiet"></button>' +
         '<div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-label="Diagram" data-lenis-prevent>' +
         '<div class="bb-modal__stage"><svg></svg></div>' +
@@ -275,7 +275,7 @@ describe('Modal viewer and InspectorSurface idle', () => {
 
   test('a closed astro modal stays in the document, hidden', async () => {
     const html = await astroHtml(AstroModal, { open: false, variant: 'viewer', label: 'Diagram' });
-    expect(html).toContain('<div class="bb-modal bb-modal--viewer" data-overlay style="z-index: 200" hidden>');
+    expect(html).toContain('<div class="bb-modal bb-modal--viewer" style="z-index: 200" hidden>');
   });
 
   contracts(SvelteInspectorSurface, AstroInspectorSurface, [
@@ -328,7 +328,7 @@ describe('SkipLink and LanguageSwitcher', () => {
       name: 'form mode posts the chosen code',
       props: { label: 'Language', action: '/lang', name: 'to', fields: { next: '/x' }, options, menuId: 'lang' },
       html:
-        '<form method="POST" action="/lang" class="bb-lang-switch" data-bb-lang-switch><input type="hidden" name="next" value="/x">' +
+        '<form method="POST" action="/lang" class="bb-lang-switch"><input type="hidden" name="next" value="/x">' +
         `${TRIGGER_EN}${MENU}` +
         `<li><button type="submit" name="to" value="en" class="bb-lang-switch__opt is-active" aria-pressed="true">${optionBody('en', 'English')}` +
         `<li><button type="submit" name="to" value="fr" class="bb-lang-switch__opt" aria-pressed="false">${optionBody('fr', 'FR')}` +
@@ -338,7 +338,7 @@ describe('SkipLink and LanguageSwitcher', () => {
       name: 'language switcher falls back to the catalog label',
       props: { options: [{ code: 'en', label: 'EN', href: '/', current: true }], menuId: 'lang' },
       html:
-        '<div class="bb-lang-switch" data-bb-lang-switch>' +
+        '<div class="bb-lang-switch">' +
         `${TRIGGER_EN.replace('Language: English', 'Language: EN')}${MENU}` +
         `<li><a class="bb-lang-switch__opt is-active" href="/" hreflang="en" aria-current="true">${FLAG}<span class="bb-lang-switch__name" lang="en">EN</span>${CHECK}</a></li>` +
         '</ul></div>',
@@ -348,7 +348,7 @@ describe('SkipLink and LanguageSwitcher', () => {
   test('svelte callback mode renders plain buttons', () => {
     const html = svelteHtml(SvelteLanguageSwitcher, { label: 'Language', options, onSelect: () => {}, menuId: 'lang' });
     expect(html).toBe(
-      `<div class="bb-lang-switch" data-bb-lang-switch>${TRIGGER_EN}${MENU}` +
+      `<div class="bb-lang-switch">${TRIGGER_EN}${MENU}` +
         `<li><button type="button" class="bb-lang-switch__opt is-active" aria-pressed="true">${optionBody('en', 'English')}` +
         `<li><button type="button" class="bb-lang-switch__opt" aria-pressed="false">${optionBody('fr', 'FR')}` +
         '</ul></div>',
@@ -444,33 +444,33 @@ describe('CopySurface', () => {
       name: 'card with label and chip hint',
       props: { text: 'BAGEL', label: 'Creator code', hint: 'Click to copy', copiedLabel: 'Copied' },
       html:
-        '<span class="bb-copy-host"><button class="bb-copy bb-copy--card" type="button" data-copy="BAGEL">' +
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--card" type="button">' +
         '<span class="bb-copy__label">Creator code</span><span class="bb-copy__row">' +
         '<span class="bb-copy__value">BAGEL</span><span class="bb-copy__hint" aria-hidden="true">' +
         `<span class="bb-copy__idle">Click to copy</span><span class="bb-copy__done">Copied</span></span></span>${STATUS}`,
     },
     {
-      name: 'well shows glyphs and carries its timing',
+      name: 'well shows glyphs',
       props: { text: '/mod bot', variant: 'well', hint: 'Copy', copiedLabel: 'Copied', flashMs: 2000, legacyFallback: true },
       html:
-        '<span class="bb-copy-host"><button class="bb-copy bb-copy--well" type="button" data-copy="/mod bot" data-copy-ms="2000" data-copy-legacy>' +
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--well" type="button">' +
         '<span class="bb-copy__row"><span class="bb-copy__value">/mod bot</span><span class="bb-copy__hint" aria-hidden="true">' +
         `<span class="bb-copy__idle">${icon('copy', 12)}Copy</span><span class="bb-copy__done">${icon('check', 12)}Copied</span>` +
         `</span></span>${STATUS}`,
     },
     {
-      name: 'chip is icon only and announces the copied label',
+      name: 'chip is icon only',
       props: { text: 'a@b.c', variant: 'chip', copiedLabel: 'Copied' },
       html:
-        '<span class="bb-copy-host"><button class="bb-copy bb-copy--chip" type="button" data-copy="a@b.c" data-copy-announce="Copied">' +
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--chip" type="button">' +
         '<span class="bb-copy__row"><span class="bb-copy__value">a@b.c</span><span class="bb-copy__hint" aria-hidden="true">' +
         `<span class="bb-copy__idle">${icon('copy', 12)}</span><span class="bb-copy__done">${icon('check', 12)}</span></span></span>${STATUS}`,
     },
     {
-      name: 'announce text rides on the surface for the status region',
+      name: 'announce text does not change the markup',
       props: { text: '!hi', variant: 'row', hint: '', copiedLabel: 'Copied', announce: 'Copied !hi' },
       html:
-        '<span class="bb-copy-host"><button class="bb-copy bb-copy--row" type="button" data-copy="!hi" data-copy-announce="Copied !hi">' +
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--row" type="button">' +
         '<span class="bb-copy__row"><span class="bb-copy__value">!hi</span><span class="bb-copy__hint" aria-hidden="true">' +
         `<span class="bb-copy__idle"></span><span class="bb-copy__done">Copied</span></span></span>${STATUS}`,
     },

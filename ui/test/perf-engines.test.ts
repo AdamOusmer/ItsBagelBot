@@ -177,8 +177,8 @@ describe('cursor', () => {
     let rects = 0;
     const link = {
       isConnected: true,
-      matches: () => false,
-      style: { getPropertyValue: () => '' },
+      parentElement: null,
+      matches: (selector: string) => selector === 'a, button, .bb-input',
       closest: () => link,
       getBoundingClientRect: () => {
         rects += 1;
@@ -186,7 +186,7 @@ describe('cursor', () => {
       },
     };
     const paint = () => ({ style: {} as Record<string, string>, classList: { toggle() {} } });
-    computed = { borderRadius: '8px' };
+    computed = { borderRadius: '8px', getPropertyValue: () => '' };
     const ring = paint();
     const dispose = mountCursor({ dot: paint() as never, ring: ring as never });
     return { link, ring, dispose, rects: () => rects };

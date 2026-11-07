@@ -3,6 +3,11 @@
 
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
+@property --bb-cursor {
+    syntax: '*';
+    inherits: false;
+}
+
 @layer bb.elements {
     .bb-cursor {
         position: fixed;

@@ -13,30 +13,32 @@ const { class: className = '', warmth = 0.7 } = Astro.props;
 const classes = ['bb-light-field', className].filter(Boolean).join(' ');
 ---
 
-<div class={classes} data-field data-warmth={warmth} aria-hidden="true"></div>
+<div class={classes} aria-hidden="true"></div><script type="application/json" is:inline set:html={JSON.stringify({ warmth })}></script>
 
 <script>
     import { field } from '../lib/light-field';
 
     const running = new Set<() => void>();
+    const ready = new WeakSet<HTMLElement>();
 
-    function setupField(host: HTMLElement): void {
-        if (host.dataset.fieldReady === 'true') return;
+    function setupField(payload: Element): void {
+        const host = payload.previousElementSibling;
+        if (!(host instanceof HTMLElement) || ready.has(host)) return;
 
-        const stop = field(host, { warmth: parseFloat(host.dataset.warmth ?? '') || 0.7 });
+        const stop = field(host, { warmth: JSON.parse(payload.textContent ?? '{}').warmth || 0.7 });
         if (!stop) return;
-        host.dataset.fieldReady = 'true';
+        ready.add(host);
 
         const cleanup = () => {
             stop();
-            host.removeAttribute('data-field-ready');
+            ready.delete(host);
             running.delete(cleanup);
         };
         running.add(cleanup);
     }
 
     function setup(): void {
-        document.querySelectorAll<HTMLElement>('[data-field]').forEach(setupField);
+        document.querySelectorAll('.bb-light-field + script[type="application/json"]').forEach(setupField);
     }
 
     function teardown(): void {

@@ -34,11 +34,11 @@ type Seat = {
 function seats(footer: HTMLElement): Seat[] {
   const styles = getComputedStyle(document.documentElement);
   const eye = styles.getPropertyValue('--bb-black').trim();
-  return [...footer.querySelectorAll<HTMLElement>('[data-crew]')].map((el) => ({
+  return [...footer.querySelectorAll<HTMLElement>('.bb-footer__peeker')].slice(0, FOOTER_CREW.length).map((el, i) => ({
     el,
     svg: el.querySelector('svg')!,
-    name: el.dataset.crew!,
-    palette: { head: styles.getPropertyValue(el.dataset.head!).trim(), eye },
+    name: FOOTER_CREW[i].name,
+    palette: { head: styles.getPropertyValue(FOOTER_CREW[i].head).trim(), eye },
   }));
 }
 
