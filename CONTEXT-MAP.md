@@ -50,6 +50,12 @@ Each service owns its schema. Its repository, RPC handlers, and `ent/schema` are
 | Plain | Unfinished Go scaffold; not a wired chat engine. | [app/plain](app/plain/context.md) |
 | YouTube ingress directory | Documentation placeholder with no tracked application implementation. | [app/yt-ingress](app/yt-ingress/context.md) |
 
+### Desktop controls
+
+| App | Owns / answers | Context |
+| --- | --- | --- |
+| Controls gateway (Elixir) | The desktop app's WebSocket connection (`/v1/connect`), access-token verification, device event/command relay and takeover/revocation over core NATS. Verifies tokens only; Users owns device grants and signing. | [app/controls/gateway](app/controls/gateway/context.md) |
+
 ### Web apps and shared packages
 
 The [web workspace guide](web/context.md) explains app/package boundaries and workspace commands.
