@@ -75,11 +75,11 @@ func blocking(c ports.Check, codescene string) bool {
 }
 
 func promoteDone(ctx context.Context, rc *stage.RunCtx) (bool, error) {
-	head, err := rc.Deps.GitHub.BranchHead(ctx, rc.Deps.Config.DeployBranch)
+	matches, err := rc.Deps.GitHub.BranchHasTreeOf(ctx, rc.Deps.Config.DeployBranch, promoteTarget(rc.View()))
 	if err != nil {
 		return false, nil
 	}
-	return head == promoteTarget(rc.View()), nil
+	return matches, nil
 }
 
 func runPromote(ctx context.Context, rc *stage.RunCtx) error {
