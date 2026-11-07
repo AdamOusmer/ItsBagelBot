@@ -34,7 +34,7 @@
   import { downloadCsv } from '@bagel/ui/lib/csv';
   import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '#lib/components/users/user-state';
   import { USER_ACTIONS, type UserActionDef } from '#lib/components/users/user-actions';
-  import type { UserDirectory } from './+page.server';
+  import type { UserDirectory } from '#lib/server/user-directory';
 
   let { data } = $props();
 

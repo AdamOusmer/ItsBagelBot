@@ -3,7 +3,7 @@
 
 import { error, json } from '@sveltejs/kit';
 import { requireAdmin } from '#lib/server/access';
-import { directoryQuery, loadUserDirectory } from '../+page.server';
+import { directoryQuery, loadUserDirectory } from '#lib/server/user-directory';
 
 // Refresh target for the users page while the live filter is on. The page
 // load is a snapshot; this is the same query read again so the list tracks
