@@ -84,6 +84,10 @@ const (
 	EdgeTokens = "tokens"
 	// EdgePremiumGrants holds the string denoting the premium_grants edge name in mutations.
 	EdgePremiumGrants = "premium_grants"
+	// EdgeDeviceGrants holds the string denoting the device_grants edge name in mutations.
+	EdgeDeviceGrants = "device_grants"
+	// EdgeAuthorizationCodes holds the string denoting the authorization_codes edge name in mutations.
+	EdgeAuthorizationCodes = "authorization_codes"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// TokensTable is the table that holds the tokens relation/edge.
@@ -100,6 +104,20 @@ const (
 	PremiumGrantsInverseTable = "premium_grants"
 	// PremiumGrantsColumn is the table column denoting the premium_grants relation/edge.
 	PremiumGrantsColumn = "user_id"
+	// DeviceGrantsTable is the table that holds the device_grants relation/edge.
+	DeviceGrantsTable = "device_grants"
+	// DeviceGrantsInverseTable is the table name for the DeviceGrant entity.
+	// It exists in this package in order to avoid circular dependency with the "devicegrant" package.
+	DeviceGrantsInverseTable = "device_grants"
+	// DeviceGrantsColumn is the table column denoting the device_grants relation/edge.
+	DeviceGrantsColumn = "user_id"
+	// AuthorizationCodesTable is the table that holds the authorization_codes relation/edge.
+	AuthorizationCodesTable = "authorization_codes"
+	// AuthorizationCodesInverseTable is the table name for the AuthorizationCode entity.
+	// It exists in this package in order to avoid circular dependency with the "authorizationcode" package.
+	AuthorizationCodesInverseTable = "authorization_codes"
+	// AuthorizationCodesColumn is the table column denoting the authorization_codes relation/edge.
+	AuthorizationCodesColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -422,6 +440,34 @@ func ByPremiumGrants(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newPremiumGrantsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByDeviceGrantsCount orders the results by device_grants count.
+func ByDeviceGrantsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDeviceGrantsStep(), opts...)
+	}
+}
+
+// ByDeviceGrants orders the results by device_grants terms.
+func ByDeviceGrants(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDeviceGrantsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByAuthorizationCodesCount orders the results by authorization_codes count.
+func ByAuthorizationCodesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAuthorizationCodesStep(), opts...)
+	}
+}
+
+// ByAuthorizationCodes orders the results by authorization_codes terms.
+func ByAuthorizationCodes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAuthorizationCodesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTokensStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -434,5 +480,19 @@ func newPremiumGrantsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PremiumGrantsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PremiumGrantsTable, PremiumGrantsColumn),
+	)
+}
+func newDeviceGrantsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DeviceGrantsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, DeviceGrantsTable, DeviceGrantsColumn),
+	)
+}
+func newAuthorizationCodesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AuthorizationCodesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, AuthorizationCodesTable, AuthorizationCodesColumn),
 	)
 }

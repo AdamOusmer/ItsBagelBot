@@ -3,6 +3,8 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/users/ent/authorizationcode"
+	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
@@ -559,6 +561,36 @@ func (_u *UserUpdate) AddPremiumGrants(v ...*PremiumGrant) *UserUpdate {
 	return _u.AddPremiumGrantIDs(ids...)
 }
 
+// AddDeviceGrantIDs adds the "device_grants" edge to the DeviceGrant entity by IDs.
+func (_u *UserUpdate) AddDeviceGrantIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddDeviceGrantIDs(ids...)
+	return _u
+}
+
+// AddDeviceGrants adds the "device_grants" edges to the DeviceGrant entity.
+func (_u *UserUpdate) AddDeviceGrants(v ...*DeviceGrant) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddDeviceGrantIDs(ids...)
+}
+
+// AddAuthorizationCodeIDs adds the "authorization_codes" edge to the AuthorizationCode entity by IDs.
+func (_u *UserUpdate) AddAuthorizationCodeIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddAuthorizationCodeIDs(ids...)
+	return _u
+}
+
+// AddAuthorizationCodes adds the "authorization_codes" edges to the AuthorizationCode entity.
+func (_u *UserUpdate) AddAuthorizationCodes(v ...*AuthorizationCode) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddAuthorizationCodeIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -604,6 +636,48 @@ func (_u *UserUpdate) RemovePremiumGrants(v ...*PremiumGrant) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePremiumGrantIDs(ids...)
+}
+
+// ClearDeviceGrants clears all "device_grants" edges to the DeviceGrant entity.
+func (_u *UserUpdate) ClearDeviceGrants() *UserUpdate {
+	_u.mutation.ClearDeviceGrants()
+	return _u
+}
+
+// RemoveDeviceGrantIDs removes the "device_grants" edge to DeviceGrant entities by IDs.
+func (_u *UserUpdate) RemoveDeviceGrantIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveDeviceGrantIDs(ids...)
+	return _u
+}
+
+// RemoveDeviceGrants removes "device_grants" edges to DeviceGrant entities.
+func (_u *UserUpdate) RemoveDeviceGrants(v ...*DeviceGrant) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveDeviceGrantIDs(ids...)
+}
+
+// ClearAuthorizationCodes clears all "authorization_codes" edges to the AuthorizationCode entity.
+func (_u *UserUpdate) ClearAuthorizationCodes() *UserUpdate {
+	_u.mutation.ClearAuthorizationCodes()
+	return _u
+}
+
+// RemoveAuthorizationCodeIDs removes the "authorization_codes" edge to AuthorizationCode entities by IDs.
+func (_u *UserUpdate) RemoveAuthorizationCodeIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveAuthorizationCodeIDs(ids...)
+	return _u
+}
+
+// RemoveAuthorizationCodes removes "authorization_codes" edges to AuthorizationCode entities.
+func (_u *UserUpdate) RemoveAuthorizationCodes(v ...*AuthorizationCode) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveAuthorizationCodeIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -915,6 +989,96 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.DeviceGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeviceGrantsTable,
+			Columns: []string{user.DeviceGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(devicegrant.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedDeviceGrantsIDs(); len(nodes) > 0 && !_u.mutation.DeviceGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeviceGrantsTable,
+			Columns: []string{user.DeviceGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(devicegrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DeviceGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeviceGrantsTable,
+			Columns: []string{user.DeviceGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(devicegrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.AuthorizationCodesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.AuthorizationCodesTable,
+			Columns: []string{user.AuthorizationCodesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedAuthorizationCodesIDs(); len(nodes) > 0 && !_u.mutation.AuthorizationCodesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.AuthorizationCodesTable,
+			Columns: []string{user.AuthorizationCodesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.AuthorizationCodesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.AuthorizationCodesTable,
+			Columns: []string{user.AuthorizationCodesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -1470,6 +1634,36 @@ func (_u *UserUpdateOne) AddPremiumGrants(v ...*PremiumGrant) *UserUpdateOne {
 	return _u.AddPremiumGrantIDs(ids...)
 }
 
+// AddDeviceGrantIDs adds the "device_grants" edge to the DeviceGrant entity by IDs.
+func (_u *UserUpdateOne) AddDeviceGrantIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddDeviceGrantIDs(ids...)
+	return _u
+}
+
+// AddDeviceGrants adds the "device_grants" edges to the DeviceGrant entity.
+func (_u *UserUpdateOne) AddDeviceGrants(v ...*DeviceGrant) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddDeviceGrantIDs(ids...)
+}
+
+// AddAuthorizationCodeIDs adds the "authorization_codes" edge to the AuthorizationCode entity by IDs.
+func (_u *UserUpdateOne) AddAuthorizationCodeIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddAuthorizationCodeIDs(ids...)
+	return _u
+}
+
+// AddAuthorizationCodes adds the "authorization_codes" edges to the AuthorizationCode entity.
+func (_u *UserUpdateOne) AddAuthorizationCodes(v ...*AuthorizationCode) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddAuthorizationCodeIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -1515,6 +1709,48 @@ func (_u *UserUpdateOne) RemovePremiumGrants(v ...*PremiumGrant) *UserUpdateOne 
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePremiumGrantIDs(ids...)
+}
+
+// ClearDeviceGrants clears all "device_grants" edges to the DeviceGrant entity.
+func (_u *UserUpdateOne) ClearDeviceGrants() *UserUpdateOne {
+	_u.mutation.ClearDeviceGrants()
+	return _u
+}
+
+// RemoveDeviceGrantIDs removes the "device_grants" edge to DeviceGrant entities by IDs.
+func (_u *UserUpdateOne) RemoveDeviceGrantIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveDeviceGrantIDs(ids...)
+	return _u
+}
+
+// RemoveDeviceGrants removes "device_grants" edges to DeviceGrant entities.
+func (_u *UserUpdateOne) RemoveDeviceGrants(v ...*DeviceGrant) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveDeviceGrantIDs(ids...)
+}
+
+// ClearAuthorizationCodes clears all "authorization_codes" edges to the AuthorizationCode entity.
+func (_u *UserUpdateOne) ClearAuthorizationCodes() *UserUpdateOne {
+	_u.mutation.ClearAuthorizationCodes()
+	return _u
+}
+
+// RemoveAuthorizationCodeIDs removes the "authorization_codes" edge to AuthorizationCode entities by IDs.
+func (_u *UserUpdateOne) RemoveAuthorizationCodeIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveAuthorizationCodeIDs(ids...)
+	return _u
+}
+
+// RemoveAuthorizationCodes removes "authorization_codes" edges to AuthorizationCode entities.
+func (_u *UserUpdateOne) RemoveAuthorizationCodes(v ...*AuthorizationCode) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveAuthorizationCodeIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -1856,6 +2092,96 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.DeviceGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeviceGrantsTable,
+			Columns: []string{user.DeviceGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(devicegrant.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedDeviceGrantsIDs(); len(nodes) > 0 && !_u.mutation.DeviceGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeviceGrantsTable,
+			Columns: []string{user.DeviceGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(devicegrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DeviceGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeviceGrantsTable,
+			Columns: []string{user.DeviceGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(devicegrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.AuthorizationCodesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.AuthorizationCodesTable,
+			Columns: []string{user.AuthorizationCodesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedAuthorizationCodesIDs(); len(nodes) > 0 && !_u.mutation.AuthorizationCodesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.AuthorizationCodesTable,
+			Columns: []string{user.AuthorizationCodesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.AuthorizationCodesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.AuthorizationCodesTable,
+			Columns: []string{user.AuthorizationCodesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

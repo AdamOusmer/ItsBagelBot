@@ -6,7 +6,9 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/analyticsrollup"
+	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/schema"
@@ -88,6 +90,58 @@ func init() {
 	analyticsrollup.DefaultD3 = analyticsrollupDescD3.Default.(string)
 	// analyticsrollup.D3Validator is a validator for the "d3" field. It is called by the builders before save.
 	analyticsrollup.D3Validator = analyticsrollupDescD3.Validators[0].(func(string) error)
+	authorizationcodeFields := schema.AuthorizationCode{}.Fields()
+	_ = authorizationcodeFields
+	// authorizationcodeDescCodeChallenge is the schema descriptor for code_challenge field.
+	authorizationcodeDescCodeChallenge := authorizationcodeFields[2].Descriptor()
+	// authorizationcode.CodeChallengeValidator is a validator for the "code_challenge" field. It is called by the builders before save.
+	authorizationcode.CodeChallengeValidator = func() func(string) error {
+		validators := authorizationcodeDescCodeChallenge.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(code_challenge string) error {
+			for _, fn := range fns {
+				if err := fn(code_challenge); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// authorizationcodeDescRedirectURI is the schema descriptor for redirect_uri field.
+	authorizationcodeDescRedirectURI := authorizationcodeFields[3].Descriptor()
+	// authorizationcode.RedirectURIValidator is a validator for the "redirect_uri" field. It is called by the builders before save.
+	authorizationcode.RedirectURIValidator = func() func(string) error {
+		validators := authorizationcodeDescRedirectURI.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(redirect_uri string) error {
+			for _, fn := range fns {
+				if err := fn(redirect_uri); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// authorizationcodeDescDeviceName is the schema descriptor for device_name field.
+	authorizationcodeDescDeviceName := authorizationcodeFields[4].Descriptor()
+	// authorizationcode.DefaultDeviceName holds the default value on creation for the device_name field.
+	authorizationcode.DefaultDeviceName = authorizationcodeDescDeviceName.Default.(string)
+	// authorizationcode.DeviceNameValidator is a validator for the "device_name" field. It is called by the builders before save.
+	authorizationcode.DeviceNameValidator = authorizationcodeDescDeviceName.Validators[0].(func(string) error)
+	// authorizationcodeDescCreatedAt is the schema descriptor for created_at field.
+	authorizationcodeDescCreatedAt := authorizationcodeFields[6].Descriptor()
+	// authorizationcode.DefaultCreatedAt holds the default value on creation for the created_at field.
+	authorizationcode.DefaultCreatedAt = authorizationcodeDescCreatedAt.Default.(func() time.Time)
+	// authorizationcodeDescProducedGrantID is the schema descriptor for produced_grant_id field.
+	authorizationcodeDescProducedGrantID := authorizationcodeFields[9].Descriptor()
+	// authorizationcode.ProducedGrantIDValidator is a validator for the "produced_grant_id" field. It is called by the builders before save.
+	authorizationcode.ProducedGrantIDValidator = authorizationcodeDescProducedGrantID.Validators[0].(func(string) error)
 	delegationFields := schema.Delegation{}.Fields()
 	_ = delegationFields
 	// delegationDescToken is the schema descriptor for token field.
@@ -102,6 +156,58 @@ func init() {
 	delegationDescCreatedAt := delegationFields[7].Descriptor()
 	// delegation.DefaultCreatedAt holds the default value on creation for the created_at field.
 	delegation.DefaultCreatedAt = delegationDescCreatedAt.Default.(func() time.Time)
+	devicegrantFields := schema.DeviceGrant{}.Fields()
+	_ = devicegrantFields
+	// devicegrantDescGrantID is the schema descriptor for grant_id field.
+	devicegrantDescGrantID := devicegrantFields[0].Descriptor()
+	// devicegrant.GrantIDValidator is a validator for the "grant_id" field. It is called by the builders before save.
+	devicegrant.GrantIDValidator = func() func(string) error {
+		validators := devicegrantDescGrantID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(grant_id string) error {
+			for _, fn := range fns {
+				if err := fn(grant_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// devicegrantDescDeviceID is the schema descriptor for device_id field.
+	devicegrantDescDeviceID := devicegrantFields[1].Descriptor()
+	// devicegrant.DeviceIDValidator is a validator for the "device_id" field. It is called by the builders before save.
+	devicegrant.DeviceIDValidator = func() func(string) error {
+		validators := devicegrantDescDeviceID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(device_id string) error {
+			for _, fn := range fns {
+				if err := fn(device_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// devicegrantDescDeviceName is the schema descriptor for device_name field.
+	devicegrantDescDeviceName := devicegrantFields[3].Descriptor()
+	// devicegrant.DefaultDeviceName holds the default value on creation for the device_name field.
+	devicegrant.DefaultDeviceName = devicegrantDescDeviceName.Default.(string)
+	// devicegrant.DeviceNameValidator is a validator for the "device_name" field. It is called by the builders before save.
+	devicegrant.DeviceNameValidator = devicegrantDescDeviceName.Validators[0].(func(string) error)
+	// devicegrantDescCreatedAt is the schema descriptor for created_at field.
+	devicegrantDescCreatedAt := devicegrantFields[10].Descriptor()
+	// devicegrant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	devicegrant.DefaultCreatedAt = devicegrantDescCreatedAt.Default.(func() time.Time)
+	// devicegrantDescRevokedReason is the schema descriptor for revoked_reason field.
+	devicegrantDescRevokedReason := devicegrantFields[13].Descriptor()
+	// devicegrant.DefaultRevokedReason holds the default value on creation for the revoked_reason field.
+	devicegrant.DefaultRevokedReason = devicegrantDescRevokedReason.Default.(string)
 	lifecycleerasureFields := schema.LifecycleErasure{}.Fields()
 	_ = lifecycleerasureFields
 	// lifecycleerasureDescDeletedAt is the schema descriptor for deleted_at field.

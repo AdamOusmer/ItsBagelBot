@@ -93,5 +93,8 @@
   "giftAlreadyPremium": "That streamer already has Premium. Pick someone else to gift to.",
   "giftLookup": "Could not check that username right now. Wait a moment, then try again.",
   "giftSelf": "That is your own account. To get Premium yourself, choose Subscribe monthly or Buy one month.",
-  "checkoutInProgress": "A checkout for that account is already open. Wait 30 seconds, then try again."
+  "checkoutInProgress": "A checkout for that account is already open. Wait 30 seconds, then try again.",
+  "missingDevice": "Missing device.",
+  "deviceRevoke": "Could not revoke that device. Try again in a moment.",
+  "devicesRevokeAll": "Could not revoke your devices. Try again in a moment."
 }
