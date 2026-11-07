@@ -46,6 +46,7 @@ const SCOPES: ScopeMap = {
   cursor: () => [],
   commands_page: () => [],
   leaderboard_page: () => [],
+  songqueue_page: () => [],
   live: () => [],
   'token-warm': () => [],
   outgress: () => [],

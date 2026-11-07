@@ -17,10 +17,7 @@ import {
   notificationMarkRead,
   notificationMarkPeeked,
   userLocale,
-  userCommandsPage,
-  setCommandsPage,
-  userLeaderboardPage,
-  setLeaderboardPage,
+  pageToggles,
   hasGrant,
   deviceGrantList,
   deviceGrantRevoke,
@@ -29,7 +26,8 @@ import {
   type DeviceGrantView
 } from '#lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '#lib/server/fetches-store';
-import { purgeChannelPages, scheduleLeaderboardPurge, schedulePurgeChannel } from '#lib/server/edge-purge';
+import { purgeChannelPages, purgeSongQueuePage, scheduleLeaderboardPurge, schedulePurgeChannel } from '#lib/server/edge-purge';
+import { PAGE_ACTION, PUBLIC_PAGES, pageScope, type PageFlags, type PublicPage } from '#lib/public-pages';
 import { KEY_VALUE_MAX, slugifyName, translate, type Locale } from '@bagel/kit';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '#lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
@@ -72,7 +70,14 @@ function requireOwner(
   return { refusal: fail(status, { ...policy.body, error: actionError(locale, message) }) };
 }
 
-function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>, action: string) {
+const PAGE_PURGE: Record<PublicPage, (userId: string) => Promise<boolean>> = {
+  commands: purgeChannelPages,
+  leaderboard: purgeChannelPages,
+  songqueue: purgeSongQueuePage
+};
+
+function pageToggle(page: PublicPage) {
+  const action = pageScope(page);
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     if (DEMO) return { ok: true, action, edgeDelayed: false };
     const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
@@ -82,13 +87,13 @@ function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>
     const enabled = ['on', 'true'].includes(String((await request.formData()).get('enabled') ?? ''));
 
     try {
-      await write(s.user_id, !enabled);
+      await pageToggles[page].write(s.user_id, !enabled);
     } catch {
       return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
 
     auditDashboardImpersonation(s, `${action}:set`, `enabled=${enabled}`);
-    return { ok: true, action, edgeDelayed: !(await purgeChannelPages(s.user_id)) };
+    return { ok: true, action, edgeDelayed: !(await PAGE_PURGE[page](s.user_id)) };
   };
 }
 
@@ -132,8 +137,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       grantableSections: [...GRANTABLE_SECTIONS],
       notifications: d.demoNotifications,
       savedLocale: locals.locale,
-      commandsPage: true,
-      leaderboardPage: true,
+      pages: Object.fromEntries(PUBLIC_PAGES.map((page) => [page, true])) as PageFlags,
       twitchConnected: true as boolean | null,
       degraded: false,
       fetchKeys: d.demoFetches().keys,
@@ -147,20 +151,20 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!s || s.delegate_of) throw redirect(302, '/');
 
   const self = s.user_id;
-  const [givenResult, receivedResult, notifResult, localeResult, commandsPageResult, leaderboardPageResult, fetchKeyResult, grantResult, deviceResult] =
+  const pagesRead = readPages(self);
+  const [givenResult, receivedResult, notifResult, localeResult, fetchKeyResult, grantResult, deviceResult] =
     await Promise.allSettled([
       delegationList(self),
       delegationAccess(self),
       notificationsForUser(self),
       userLocale(self),
-      userCommandsPage(self),
-      userLeaderboardPage(self),
       listFetches(self),
       hasGrant(self),
       deviceGrantList(self)
     ]);
 
   const notifications: NotificationWire[] = settledOr(notifResult, { notifications: [], unreadCount: 0 }).notifications;
+  const { pages, degraded: pagesDegraded } = await pagesRead;
 
   return {
     given: settledOr(givenResult, []),
@@ -168,15 +172,20 @@ export const load: PageServerLoad = async ({ locals }) => {
     grantableSections: [...GRANTABLE_SECTIONS],
     notifications,
     savedLocale: savedLocaleOf(localeResult),
-    commandsPage: settledOr(commandsPageResult, true),
-    leaderboardPage: settledOr(leaderboardPageResult, true),
+    pages,
     twitchConnected: grantResult.status === 'fulfilled' ? grantResult.value === true : (null as boolean | null),
-    degraded: [givenResult, receivedResult, localeResult, commandsPageResult, leaderboardPageResult].some(rejected),
+    degraded: pagesDegraded || [givenResult, receivedResult, localeResult].some(rejected),
     deviceGrants: settledOr(deviceResult, [] as DeviceGrantView[]),
     devicesDegraded: rejected(deviceResult),
     ...readFetchKeys(fetchKeyResult)
   };
 };
+
+async function readPages(userId: string): Promise<{ pages: PageFlags; degraded: boolean }> {
+  const results = await Promise.allSettled(PUBLIC_PAGES.map((page) => pageToggles[page].read(userId)));
+  const flags = PUBLIC_PAGES.map((page, i) => [page, settledOr(results[i], true)]);
+  return { pages: Object.fromEntries(flags) as PageFlags, degraded: results.some(rejected) };
+}
 
 function settledOr<T>(r: PromiseSettledResult<T>, fallback: T): T {
   return r.status === 'fulfilled' ? r.value : fallback;
@@ -282,9 +291,11 @@ export const actions: Actions = {
     }
   },
 
-  setCommandsPage: pageToggle(setCommandsPage, 'commands_page'),
+  [PAGE_ACTION.commands]: pageToggle('commands'),
 
-  setLeaderboardPage: pageToggle(setLeaderboardPage, 'leaderboard_page'),
+  [PAGE_ACTION.leaderboard]: pageToggle('leaderboard'),
+
+  [PAGE_ACTION.songqueue]: pageToggle('songqueue'),
 
   markAllRead: async ({ request, locals }) => {
     if (DEMO) return { ok: true, action: 'all_read' };

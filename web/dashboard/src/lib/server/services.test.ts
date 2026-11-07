@@ -31,6 +31,7 @@ mock.module('@bagel/kit/server/nats', () => ({
   }
 }));
 
+const { PUBLIC_PAGES } = await import('../public-pages');
 const liveHub = await import('./live-hub');
 const services = await import('./services');
 const { fabric, startInvalidationListener } = services;
@@ -59,6 +60,7 @@ async function survivors(): Promise<string[]> {
 test.each([
   { scope: 'commands_page', id: '42', kept: ['stream-meta:42', 'commands:42', 'notifications:42', 'notifications:7'] },
   { scope: 'leaderboard_page', id: '42', kept: ['stream-meta:42', 'commands:42', 'notifications:42', 'notifications:7'] },
+  { scope: 'songqueue_page', id: '42', kept: ['stream-meta:42', 'commands:42', 'notifications:42', 'notifications:7'] },
   { scope: 'locale', id: '7', kept: KEYS },
   { scope: 'live', id: '42', kept: ['state:42', 'commands:42', 'notifications:42', 'notifications:7'] },
   { scope: 'token-warm', id: '42', kept: KEYS },
@@ -95,6 +97,18 @@ test('account, billing and preference reads share one state_get per board', asyn
   ]);
   expect(rpcCalls).toEqual(['bagel.rpc.dashboard.state_get']);
   expect([account.status, billing.expiresAt, locale, commandsPage]).toEqual(['paid', '2026-12-01', 'fr', false]);
+});
+
+test('every public page reads visible unless its hidden flag is true and writes through its own verb', async () => {
+  fabric.cache.clear();
+  const visible = await Promise.all(PUBLIC_PAGES.map((page) => services.pageToggles[page].read('42')));
+  expect(visible).toEqual([false, true, true]);
+  await Promise.all(PUBLIC_PAGES.map((page) => services.pageToggles[page].write('42', true)));
+  expect(rpcCalls.filter((subject) => subject.endsWith('_page_set')).sort()).toEqual([
+    'bagel.rpc.dashboard.commands_page_set',
+    'bagel.rpc.dashboard.leaderboard_page_set',
+    'bagel.rpc.dashboard.songqueue_page_set'
+  ]);
 });
 
 test('a preference write evicts the shared state for that board', async () => {

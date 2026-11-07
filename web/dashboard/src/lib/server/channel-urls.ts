@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { commandsHref } from '@bagel/kit/site-links';
+import { commandsHref, songqueueHref } from '@bagel/kit/site-links';
 
 const COMMANDS_ROUTE = '/(public)/user/[channel]';
 
@@ -27,6 +27,10 @@ export function enumerableChannelQuery(routeId: string, search: string, isDataRe
 
 function withData(page: string): string[] {
   return [page, ...DATA_QUERIES.map((query) => `${page}/__data.json${query}`)];
+}
+
+export function songQueuePageUrls(logins: readonly string[]): string[] {
+  return logins.flatMap((login) => [songqueueHref(login), `${songqueueHref(login)}/data`]);
 }
 
 export function channelPageUrls(userId: string | undefined, logins: readonly string[]): string[] {

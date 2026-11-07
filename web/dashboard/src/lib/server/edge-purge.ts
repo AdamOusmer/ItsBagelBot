@@ -6,7 +6,7 @@ import { env } from '@bagel/kit/server/env';
 import { logger } from '@bagel/kit/server/logger';
 import { leaderboardCacheTag } from '#lib/edge-tags';
 import { accountState } from './services';
-import { channelPageUrls } from './channel-urls';
+import { channelPageUrls, songQueuePageUrls } from './channel-urls';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -128,6 +128,11 @@ export async function purgeChannelPages(userId: string): Promise<boolean> {
     logins.length > 0 && purgeAll(LEADERBOARD_TAGS, logins.map(leaderboardCacheTag))
   ]);
   return pages && boards;
+}
+
+export async function purgeSongQueuePage(userId: string): Promise<boolean> {
+  const logins = await knownLogins(userId, []);
+  return logins.length === 0 || purgeAll(PAGE_URLS, songQueuePageUrls(logins));
 }
 
 export function schedulePurgeChannel(userId: string, logins: readonly string[] = []): void {

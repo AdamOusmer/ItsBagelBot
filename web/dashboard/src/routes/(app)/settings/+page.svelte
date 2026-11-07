@@ -35,7 +35,7 @@
   import SectionPicker from '#lib/components/settings/SectionPicker.svelte';
   import DeleteAccountDialog from '#lib/components/settings/DeleteAccountDialog.svelte';
   import { busyEnhance } from '#lib/components/settings/busy-enhance';
-  import { commandsHref, leaderboardHref } from '@bagel/kit/site-links';
+  import { PAGE_ACTION, PAGE_DELAYED, PAGE_HINT, PAGE_HREF, PAGE_LABEL, PAGE_TOAST_OFF, PAGE_TOAST_ON, PUBLIC_PAGES, pageScope, type PublicPage } from '#lib/public-pages';
   import type { DelegationGrant, DeviceGrantView, NotificationWire } from '#lib/server/services';
 
   let { data, form } = $props();
@@ -52,10 +52,15 @@
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
-  const commandsPageUrl = $derived(commandsHref((data.login ?? '').toLowerCase()));
-  const leaderboardPageUrl = $derived(leaderboardHref((data.login ?? '').toLowerCase()));
-  const leaderboardPageDelayed = $derived(form?.action === 'leaderboard_page' && !!form?.edgeDelayed);
-  const commandsPageDelayed = $derived(form?.action === 'commands_page' && !!form?.edgeDelayed);
+  const pageRows = $derived(
+    PUBLIC_PAGES.map((key) => ({
+      key,
+      action: PAGE_ACTION[key],
+      url: PAGE_HREF[key]((data.login ?? '').toLowerCase()),
+      on: !!data.pages?.[key],
+      delayed: form?.action === pageScope(key) && !!form?.edgeDelayed
+    }))
+  );
   const LEVEL_LABEL = {
     info: 'settings.level.info',
     success: 'settings.level.success',
@@ -230,35 +235,22 @@
     if (message) toast('success', message());
   });
 
-  let commandsPageBusy = $state(false);
-  const commandsPageSubmit: SubmitFunction = ({ formData }) => {
-    commandsPageBusy = true;
-    const enabling = formData.get('enabled') === 'on';
-    return async ({ result, update }) => {
-      await update();
-      commandsPageBusy = false;
-      if (result.type === 'success') {
-        toast('success', t(enabling ? 'settings.toastCommandsPageOn' : 'settings.toastCommandsPageOff'));
-      } else if (result.type === 'error') {
-        toast('danger', t('serverErrors.updateRetry'));
-      }
+  let pageBusy = $state<Partial<Record<PublicPage, boolean>>>({});
+  const pageSubmit =
+    (key: PublicPage): SubmitFunction =>
+    ({ formData }) => {
+      pageBusy[key] = true;
+      const enabling = formData.get('enabled') === 'on';
+      return async ({ result, update }) => {
+        await update();
+        pageBusy[key] = false;
+        if (result.type === 'success') {
+          toast('success', enabling ? t(PAGE_TOAST_ON[key]) : t(PAGE_TOAST_OFF[key]));
+        } else if (result.type === 'error') {
+          toast('danger', t('serverErrors.updateRetry'));
+        }
+      };
     };
-  };
-
-  let leaderboardPageBusy = $state(false);
-  const leaderboardPageSubmit: SubmitFunction = ({ formData }) => {
-    leaderboardPageBusy = true;
-    const enabling = formData.get('enabled') === 'on';
-    return async ({ result, update }) => {
-      await update();
-      leaderboardPageBusy = false;
-      if (result.type === 'success') {
-        toast('success', t(enabling ? 'settings.toastLeaderboardPageOn' : 'settings.toastLeaderboardPageOff'));
-      } else if (result.type === 'error') {
-        toast('danger', t('serverErrors.updateRetry'));
-      }
-    };
-  };
 
   let revokeTarget = $state<DelegationGrant | null>(null);
   let revokeForm = $state<HTMLFormElement | null>(null);
@@ -623,32 +615,21 @@
   <section id="public-pages" class="settings-section" tabindex="-1" aria-labelledby="h-public-pages">
   <Card>
     <div class="sec-title"><Heading level={6} as="h2" id="h-public-pages">{t('settings.publicPages')}</Heading></div>
-    <div class="row">
-      <div class="row-text">
-        <Text as="span" size="sm" id="commands-page-label">{t('settings.commandsPage')}</Text>
-        <Text size="sm" tone="muted" id="commands-page-hint">{t('settings.commandsPageHint', { url: commandsPageUrl })}</Text>
-        {#if commandsPageDelayed}
-          <Text size="sm" tone="muted">{t('settings.commandsPageDelayed')}</Text>
-        {/if}
+    {#each pageRows as row (row.key)}
+      <div class="row">
+        <div class="row-text">
+          <Text as="span" size="sm" id="{row.key}-page-label">{t(PAGE_LABEL[row.key])}</Text>
+          <Text size="sm" tone="muted" id="{row.key}-page-hint">{t(PAGE_HINT[row.key], { url: row.url })}</Text>
+          {#if row.delayed}
+            <Text size="sm" tone="muted">{t(PAGE_DELAYED[row.key])}</Text>
+          {/if}
+        </div>
+        <form method="POST" action="?/{row.action}" use:enhance={pageSubmit(row.key)}>
+          <input type="hidden" name="enabled" value={row.on ? '' : 'on'} />
+          <Switch type="submit" checked={row.on} busy={!!pageBusy[row.key]} label={t(PAGE_LABEL[row.key])} describedby="{row.key}-page-hint" />
+        </form>
       </div>
-      <form method="POST" action="?/setCommandsPage" use:enhance={commandsPageSubmit}>
-        <input type="hidden" name="enabled" value={data.commandsPage ? '' : 'on'} />
-        <Switch type="submit" checked={!!data.commandsPage} busy={commandsPageBusy} label={t('settings.commandsPage')} describedby="commands-page-hint" />
-      </form>
-    </div>
-    <div class="row">
-      <div class="row-text">
-        <Text as="span" size="sm" id="leaderboard-page-label">{t('settings.leaderboardPage')}</Text>
-        <Text size="sm" tone="muted" id="leaderboard-page-hint">{t('settings.leaderboardPageHint', { url: leaderboardPageUrl })}</Text>
-        {#if leaderboardPageDelayed}
-          <Text size="sm" tone="muted">{t('settings.leaderboardPageDelayed')}</Text>
-        {/if}
-      </div>
-      <form method="POST" action="?/setLeaderboardPage" use:enhance={leaderboardPageSubmit}>
-        <input type="hidden" name="enabled" value={data.leaderboardPage ? '' : 'on'} />
-        <Switch type="submit" checked={!!data.leaderboardPage} busy={leaderboardPageBusy} label={t('settings.leaderboardPage')} describedby="leaderboard-page-hint" />
-      </form>
-    </div>
+    {/each}
   </Card>
   </section>
 
