@@ -17,8 +17,10 @@ export type CursorOptions = {
     ease?: CursorEase;
 };
 
-const SELECTOR = 'a, button, .bb-input, [data-cursor]';
-const QUIET = '[data-cursor="quiet"]';
+// .bb-cursor-quiet is the class-based equivalent of data-cursor="quiet" for
+// components (the Rail) that may not carry state/style data attributes.
+const SELECTOR = 'a, button, .bb-input, [data-cursor], .bb-cursor-quiet';
+const QUIET = '[data-cursor="quiet"], .bb-cursor-quiet';
 const TEXT =
     '.bb-input:not(.bb-input--select), textarea, [contenteditable]:not([contenteditable="false"]), ' +
     'input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], ' +

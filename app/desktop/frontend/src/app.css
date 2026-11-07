@@ -1,0 +1,62 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@import '@bagel/ui/styles/layers.css';
+@import '@bagel/ui/styles/brand.css';
+@import '@bagel/ui/styles/fonts.css';
+@import '@bagel/ui/styles/base.css';
+@import '@bagel/ui/styles/a11y.css';
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bb-black);
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  img,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+@layer bb.app {
+  :root {
+    color-scheme: dark;
+    --default-contextmenu: hide;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    --default-contextmenu: show;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}

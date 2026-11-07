@@ -3,6 +3,8 @@
   "skip": "Zum Inhalt springen",
   "breadcrumb": "Navigationspfad",
   "main": "Hauptnavigation",
+  "railCollapse": "Seitenleiste einklappen",
+  "railExpand": "Seitenleiste ausklappen",
   "menuOpen": "Menü öffnen",
   "menuClose": "Menü schließen",
   "menu": "Menü",

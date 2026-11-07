@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { GOVEE_COLOR_NAMES } from '@bagel/kit';
-import { goveeStore, type GoveeDevice, type GoveeView, type RewardDraft } from '#lib/server/govee-store';
+import { GOVEE_COLOR_NAMES, GOVEE_GROUP_NAME_MAX } from '@bagel/kit';
+import { goveeStore, parseGroupLights, type GoveeDevice, type GoveeGroupInput, type GoveeView, type RewardDraft } from '#lib/server/govee-store';
 import { moduleLoad } from '#lib/server/module-page';
 import { done, storeMutator } from '#lib/server/reward-action';
 import { parseRewardCore } from '#lib/server/reward-form';
@@ -19,6 +19,7 @@ type GoveePage = {
   keyPresent: boolean;
   setupPreview?: boolean;
   bindings: GoveeView['bindings'];
+  groups: GoveeView['groups'];
   devices: DeviceList | Promise<DeviceList>;
   colors: string[];
 };
@@ -45,6 +46,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
       enabled: false,
       keyPresent: false,
       bindings: [] as GoveeView['bindings'],
+      groups: [] as GoveeView['groups'],
       devices: { devices: [] as GoveeDevice[], error: undefined },
       colors
     })
@@ -65,6 +67,16 @@ function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft
   const parsed = parseRewardDraft(f);
   if ('error' in parsed) return parsed;
   return { device: { device, sku, name: String(f.get('deviceName') ?? '').trim(), color: true }, draft: parsed.draft };
+}
+
+const validGroupName = (name: string) => name.length > 0 && name.length <= GOVEE_GROUP_NAME_MAX;
+
+function parseGroupInput(f: FormData): GoveeGroupInput | null {
+  const name = String(f.get('name') ?? '').trim();
+  const lights = parseGroupLights(String(f.get('lights') ?? ''));
+  if (!lights) return null;
+  if (!validGroupName(name)) return null;
+  return { rewardId: String(f.get('reward_id') ?? '').trim(), name, lights };
 }
 
 const mutate = storeMutator('govee', DEMO, goveeStore);
@@ -94,6 +106,20 @@ export const actions: Actions = {
     const deviceId = String(f.get('device') ?? '').trim();
     if (!deviceId) return null;
     return done(await store.deleteReward(deviceId), deviceId);
+  }),
+
+  saveGroup: mutate('group', 'Pick a light first.', async (store, f) => {
+    const group = parseGroupInput(f);
+    if (!group) return null;
+    const parsed = parseRewardDraft(f);
+    if ('error' in parsed) return fail(400, { ok: false, error: parsed.error });
+    return done(await store.saveGroup(group, parsed.draft), parsed.draft.title);
+  }),
+
+  deleteGroup: mutate('group_delete', 'Pick a light first.', async (store, f) => {
+    const rewardId = String(f.get('reward_id') ?? '').trim();
+    if (!rewardId) return null;
+    return done(await store.deleteGroup(rewardId), rewardId);
   }),
 
   toggle: mutate('toggle', 'Invalid request.', async (store, f) => {

@@ -3,14 +3,26 @@
 
 import { rpc, rpcReply } from '@bagel/kit/server/nats';
 import { POLICY } from '@bagel/kit/server/cache-keys';
-import { type GoveeOnRedeem, type GoveeDevice, type GoveeScene, type GoveeReward, type GoveeBinding, MOD } from '@bagel/kit';
+import {
+  GOVEE_GROUP_MAX_LIGHTS,
+  GOVEE_GROUP_MIN_LIGHTS,
+  MOD,
+  type GoveeBinding,
+  type GoveeDevice,
+  type GoveeGroup,
+  type GoveeLight,
+  type GoveeOnRedeem,
+  type GoveeReward,
+  type GoveeRewardBinding,
+  type GoveeScene
+} from '@bagel/kit';
 import { SUB, fabric, invalidate } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
 import { deleteRemoteReward, saveRewardFlow, type MirroredReward } from './reward-wire';
 import type { RewardCore } from './reward-form';
 
-export type { GoveeOnRedeem, GoveeDevice, GoveeScene, GoveeReward, GoveeBinding };
+export type { GoveeOnRedeem, GoveeDevice, GoveeScene, GoveeReward, GoveeBinding, GoveeGroup, GoveeLight };
 
 const GOVEE_MODULE = MOD.govee;
 
@@ -27,6 +39,13 @@ export interface GoveeView {
   enabled: boolean;
   keyPresent: boolean;
   bindings: GoveeBinding[];
+  groups: GoveeGroup[];
+}
+
+export interface GoveeGroupInput {
+  rewardId: string;
+  name: string;
+  lights: GoveeLight[];
 }
 
 export interface RewardDraft extends RewardCore {
@@ -42,13 +61,10 @@ function coerceOnRedeem(v: unknown): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
 }
 
-function readBinding(configs: unknown): GoveeBinding {
-  const c = (configs ?? {}) as Partial<GoveeBinding>;
+function readRewardBinding(configs: unknown): GoveeRewardBinding {
+  const c = (configs ?? {}) as Partial<GoveeRewardBinding>;
   const reward = c.reward && typeof c.reward === 'object' ? (c.reward as Partial<GoveeReward>) : null;
   return {
-    device: String(c.device ?? ''),
-    sku: String(c.sku ?? ''),
-    deviceName: String(c.deviceName ?? ''),
     onRedeem: coerceOnRedeem(c.onRedeem),
     rewardId: String(c.rewardId ?? ''),
     reward: reward
@@ -66,6 +82,49 @@ function readBinding(configs: unknown): GoveeBinding {
   };
 }
 
+function readBinding(configs: unknown): GoveeBinding {
+  const c = (configs ?? {}) as Partial<GoveeBinding>;
+  return {
+    ...readRewardBinding(configs),
+    device: String(c.device ?? ''),
+    sku: String(c.sku ?? ''),
+    deviceName: String(c.deviceName ?? '')
+  };
+}
+
+function readLight(item: unknown): GoveeLight {
+  const c = (item ?? {}) as Partial<GoveeLight>;
+  return { device: String(c.device ?? '').trim(), sku: String(c.sku ?? '').trim(), name: String(c.name ?? '').trim() };
+}
+
+function readLights(value: unknown): GoveeLight[] {
+  if (!Array.isArray(value)) return [];
+  const byDevice = new Map<string, GoveeLight>();
+  for (const light of value.map(readLight).filter((l) => l.device && l.sku)) {
+    if (!byDevice.has(light.device)) byDevice.set(light.device, light);
+  }
+  return [...byDevice.values()];
+}
+
+function readGroups(configs: unknown): GoveeGroup[] {
+  const groups = ((configs ?? {}) as { groups?: unknown }).groups;
+  if (!Array.isArray(groups)) return [];
+  return groups
+    .map((g: Partial<GoveeGroup>) => ({ ...readRewardBinding(g), name: String(g?.name ?? ''), lights: readLights(g?.lights) }))
+    .filter((g) => g.rewardId && g.lights.length);
+}
+
+export function parseGroupLights(raw: string): GoveeLight[] | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const lights = readLights(value);
+  return lights.length >= GOVEE_GROUP_MIN_LIGHTS && lights.length <= GOVEE_GROUP_MAX_LIGHTS ? lights : null;
+}
+
 function readBindings(configs: unknown): GoveeBinding[] {
   const c = (configs ?? {}) as { bindings?: unknown };
   if (Array.isArray(c.bindings)) {
@@ -75,11 +134,8 @@ function readBindings(configs: unknown): GoveeBinding[] {
   return single.device ? [single] : [];
 }
 
-function bindingFromReply(device: GoveeDevice, draft: RewardDraft, reward: MirroredReward): GoveeBinding {
+function rewardBindingFromReply(draft: RewardDraft, reward: MirroredReward): GoveeRewardBinding {
   return {
-    device: device.device,
-    sku: device.sku,
-    deviceName: device.name,
     onRedeem: draft.onRedeem,
     rewardId: reward.rewardId,
     reward,
@@ -87,6 +143,10 @@ function bindingFromReply(device: GoveeDevice, draft: RewardDraft, reward: Mirro
     allowOff: draft.allowOff,
     replyMessage: draft.replyMessage
   };
+}
+
+function bindingFromReply(device: GoveeDevice, draft: RewardDraft, reward: MirroredReward): GoveeBinding {
+  return { ...rewardBindingFromReply(draft, reward), device: device.device, sku: device.sku, deviceName: device.name };
 }
 
 export interface GoveeScenesResult {
@@ -104,6 +164,8 @@ export interface GoveeStore {
   setEnabled(enabled: boolean): Promise<GoveeResult>;
   saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult>;
   deleteReward(deviceId: string): Promise<GoveeResult>;
+  saveGroup(group: GoveeGroupInput, draft: RewardDraft): Promise<GoveeResult>;
+  deleteGroup(rewardId: string): Promise<GoveeResult>;
 }
 
 function lookupFailure(e: unknown, fallback: string): { error: string; code: 'key_rejected' | 'unreachable' } {
@@ -150,11 +212,11 @@ export function goveeStore(userId: string): GoveeStore {
       readModuleBlob<unknown>(userId, GOVEE_MODULE),
       keyPresent()
     ]);
-    return { enabled: blob.enabled, keyPresent: present, bindings: readBindings(blob.configs) };
+    return { enabled: blob.enabled, keyPresent: present, bindings: readBindings(blob.configs), groups: readGroups(blob.configs) };
   }
 
-  async function writeBindings(enabled: boolean, bindings: GoveeBinding[]): Promise<void> {
-    await upsertModule(userId, GOVEE_MODULE, enabled, { bindings } as unknown as Record<string, unknown>);
+  async function writeConfig(cur: GoveeView, change: Partial<Pick<GoveeView, 'bindings' | 'groups'>>): Promise<void> {
+    await upsertModule(userId, GOVEE_MODULE, cur.enabled, { bindings: cur.bindings, groups: cur.groups, ...change });
   }
 
   async function setKey(key: string): Promise<GoveeResult> {
@@ -221,11 +283,30 @@ export function goveeStore(userId: string): GoveeStore {
     const cur = await read();
     const existingId = cur.bindings.find((b) => b.device === device.device)?.rewardId ?? '';
     return saveRewardFlow(userId, { draft, prompt: REWARD_PROMPT, existingId }, (reward) =>
-      writeBindings(cur.enabled, [
-        ...cur.bindings.filter((b) => b.device !== device.device),
-        bindingFromReply(device, draft, reward)
-      ])
+      writeConfig(cur, {
+        bindings: [...cur.bindings.filter((b) => b.device !== device.device), bindingFromReply(device, draft, reward)]
+      })
     );
+  }
+
+  async function saveGroup(group: GoveeGroupInput, draft: RewardDraft): Promise<GoveeResult> {
+    const cur = await read();
+    const existingId = cur.groups.find((g) => g.rewardId === group.rewardId)?.rewardId ?? '';
+    return saveRewardFlow(userId, { draft, prompt: REWARD_PROMPT, existingId }, (reward) => {
+      const next: GoveeGroup = { ...rewardBindingFromReply(draft, reward), name: group.name, lights: group.lights };
+      return writeConfig(cur, {
+        groups: existingId ? cur.groups.map((g) => (g.rewardId === existingId ? next : g)) : [...cur.groups, next]
+      });
+    });
+  }
+
+  async function deleteGroup(rewardId: string): Promise<GoveeResult> {
+    const cur = await read();
+    if (!cur.groups.some((g) => g.rewardId === rewardId)) return { ok: true };
+    const remote = await deleteRemoteReward(userId, rewardId);
+    if (!remote.ok) return remote;
+    await writeConfig(cur, { groups: cur.groups.filter((g) => g.rewardId !== rewardId) });
+    return { ok: true };
   }
 
   async function deleteReward(deviceId: string): Promise<GoveeResult> {
@@ -236,8 +317,7 @@ export function goveeStore(userId: string): GoveeStore {
       const remote = await deleteRemoteReward(userId, target.rewardId);
       if (!remote.ok) return remote;
     }
-    const bindings = cur.bindings.filter((b) => b.device !== deviceId);
-    await writeBindings(cur.enabled, bindings);
+    await writeConfig(cur, { bindings: cur.bindings.filter((b) => b.device !== deviceId) });
     return { ok: true };
   }
 
@@ -252,6 +332,8 @@ export function goveeStore(userId: string): GoveeStore {
       return { ok: true };
     },
     saveReward,
-    deleteReward
+    deleteReward,
+    saveGroup,
+    deleteGroup
   };
 }

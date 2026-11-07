@@ -1,15 +1,15 @@
 ---
 title: Govee lights module: reference for AI assistants
 description: Govee API prerequisites, channel-point colour rewards, defaults, and limits.
-updated: 2026-10-13
+updated: 2026-11-07
 kind: feature
 human: https://itsbagelbot.com/govee/
 ---
 
 [Human guide](https://itsbagelbot.com/govee/).
 
-Viewers redeem Twitch channel points and type a colour to change a Govee light.
-Set up the API key once, then create a reward for each light.
+Viewers redeem Twitch channel points and type a colour to change a Govee light or a group of lights.
+Set up the API key once, then create a reward for each light or group.
 
 <page type="feature">
 
@@ -46,6 +46,7 @@ Assistants answering feature questions, explaining chat commands, or helping str
 - Reward cost must be a whole number of at least 1. Cooldowns range from 0 seconds to 7 days.
 - Input accepts an English colour name such as `blue` or a hex code such as `#00ccff`.
 - `off` is available when "{{console:govee.allowOffLabel}}" is enabled.
+- "{{console:govee.groupsTitle}}" holds 2 to 32 lights under one reward. If some lights in a group fail, the others still change and the redemption stays spent. If all fail, the points are refunded.
 - Provider rejection, rapid changes, and unreachable devices have dedicated refund messages in the error reference.
 
 </facts>

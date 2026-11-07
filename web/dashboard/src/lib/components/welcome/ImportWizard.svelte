@@ -48,7 +48,8 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
-  import { PermBadge, Bolota, actionPayload } from '@bagel/kit';
+  import { PermBadge, actionPayload } from '@bagel/kit';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import {
     IMPORT_STRATEGIES,
     isImportSource,

@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance, type SubmitFunction } from '$app/forms';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';

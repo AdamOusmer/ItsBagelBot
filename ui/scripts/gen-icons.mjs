@@ -62,7 +62,8 @@ const ICONS = {
   youtube: 'simple-icons:youtube',
   github: 'simple-icons:github',
   twitch: 'simple-icons:twitch',
-  branch: 'lucide:git-branch'
+  branch: 'lucide:git-branch',
+  sidebar: 'lucide:panel-left'
 };
 
 const STRIP = /\s(?:fill="none"|stroke="currentColor"|stroke-linecap="round"|stroke-linejoin="round"|stroke-width="2")/g;

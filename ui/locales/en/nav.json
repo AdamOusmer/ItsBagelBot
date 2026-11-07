@@ -3,6 +3,8 @@
   "skip": "Skip to content",
   "breadcrumb": "Breadcrumb",
   "main": "Main navigation",
+  "railCollapse": "Collapse sidebar",
+  "railExpand": "Expand sidebar",
   "menuOpen": "Open menu",
   "menuClose": "Close menu",
   "menu": "Menu",
