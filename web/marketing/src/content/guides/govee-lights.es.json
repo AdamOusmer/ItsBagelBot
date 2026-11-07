@@ -40,7 +40,7 @@
   "reward.b1.html": "\n            <h3>Lo que escriben los espectadores</h3>\n            <p>\n                Cuando un espectador canjea la recompensa, escribe un color. Un nombre de color en inglés\n                funciona, como <code>blue</code>. Un código hexadecimal también funciona, como\n                <code>#00ccff</code>. Si activas «Permitir a los espectadores apagar la luz»,\n                un espectador puede escribir <code>off</code> para apagar la luz.\n            </p>",
   "reward.b2.html": "\n                <b>«Solo en directo» está activado por defecto</b>\n                «Solo en directo» significa que los canjes solo funcionan mientras tu\n                stream está en directo. Es lo recomendado. Si lo desactivas, los espectadores pueden\n                cambiar la luz aunque no estés en directo.",
   "reward.heading": "Crear la recompensa de puntos de canal",
-  "reward.note": "Una recompensa por luz. Los espectadores escriben un color al canjearla.",
+  "reward.note": "Una recompensa por luz o por grupo de luces. Los espectadores escriben un color al canjearla.",
   "trouble.b0.html": "\n            <p>\n                En las líneas de chat de abajo, <code>@viewer</code> representa el nombre del\n                espectador que canjeó la recompensa. Cada línea de devolución significa que el bot\n                devolvió los puntos.\n            </p>",
   "trouble.b1.head.0": "Lo que ves",
   "trouble.b1.head.1": "Lo que significa",

@@ -151,7 +151,7 @@ const guide: GuideContent = {
     {
       id: 'reward',
       heading: 'Create the channel-points reward',
-      note: 'One reward per light. Viewers type a colour when they redeem it.',
+      note: 'One reward per light or per group of lights. Viewers type a colour when they redeem it.',
       blocks: [
         {
           kind: 'steps',

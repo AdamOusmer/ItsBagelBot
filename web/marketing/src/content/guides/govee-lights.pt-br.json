@@ -40,7 +40,7 @@
   "reward.b1.html": "\n            <h3>O que os espectadores digitam</h3>\n            <p>\n                Quando um espectador resgata a recompensa, ele digita uma cor. Um nome de cor em inglês funciona, como <code>blue</code>.\n                Um código hexadecimal também funciona, como <code>#00ccff</code>. Se você ativar «Permitir que os espectadores apaguem a luz»,\n                um espectador pode digitar <code>off</code> para apagar a luz.\n            </p>",
   "reward.b2.html": "\n                <b>«Somente ao vivo» vem ativado por padrão</b>\n                «Somente ao vivo» significa que os resgates só funcionam enquanto a sua transmissão está ao vivo. Isso é recomendado.\n                Se você desativar, os espectadores podem mudar a luz mesmo quando você estiver offline.",
   "reward.heading": "Criar a recompensa de pontos do canal",
-  "reward.note": "Uma recompensa por luz. Os espectadores digitam uma cor quando a resgatam.",
+  "reward.note": "Uma recompensa por luz ou por grupo de luzes. Os espectadores digitam uma cor quando a resgatam.",
   "trouble.b0.html": "\n            <p>\n                Nas linhas de chat abaixo, <code>@viewer</code> representa o nome do espectador que resgatou a recompensa. Cada linha de reembolso\n                significa que o bot devolveu os pontos.\n            </p>",
   "trouble.b1.head.0": "O que você vê",
   "trouble.b1.head.1": "O que isso significa",
