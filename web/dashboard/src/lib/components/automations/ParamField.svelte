@@ -99,7 +99,7 @@
   }
 </script>
 
-<div class="pf" class:wide data-kind={field.kind}>
+<div class="pf" class:wide>
   {#if field.kind === 'bool'}
     <div class="pf-check">
       <Checkbox checked={params[field.name] === true} {disabled} onchange={(e: Event) => set((e.currentTarget as HTMLInputElement).checked)}>{label}</Checkbox>

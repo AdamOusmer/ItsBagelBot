@@ -85,7 +85,7 @@
   }
 </script>
 
-<div class="al" data-depth={depth}>
+<div class="al">
   {#each actions as action, i (action)}
     {@const def = actionDef(action.type)}
     {@const typeCode = issueAt(issues, `${at(i)}.type`)}
