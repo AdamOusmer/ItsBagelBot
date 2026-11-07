@@ -19,7 +19,7 @@
   import type { LibraryMode } from '#lib/components/flow/StepLibrary.svelte';
   import { postAction } from '#lib/client-actions.svelte';
   import { FlowHistory } from '#lib/flow/history';
-  import { allowed, resolveShortcut, type Shortcut } from '#lib/flow/keyboard';
+  import { allowed, resolveShortcut, type Scopes, type Shortcut } from '#lib/flow/keyboard';
   import { isStale, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
   import { awaitingSetup } from '#lib/flow/setup';
   import { addNode } from '#lib/flow/ops';
@@ -231,7 +231,7 @@
       case 'nudge':
         return s.dir ? (canvas?.nudge(s.dir) ?? false) : false;
       case 'open': {
-        const id = (e.target as HTMLElement).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+        const id = canvas?.nodeIdAt(e.target);
         if (id) openSettings(id);
         return Boolean(id);
       }
@@ -257,12 +257,18 @@
     }
   }
 
+  const scopes: Scopes = {
+    canvas: (t) => canvas?.hasTarget(t) ?? false,
+    editor: (t) => editorEl?.contains(t as Node | null) ?? false,
+    node: (t) => canvas?.nodeIdAt(t) !== undefined
+  };
+
   function onKeyDown(e: KeyboardEvent) {
     const s = resolveShortcut(e);
     if (!s || e.isComposing) return;
     const target = e.target as HTMLElement | null;
     if (s.id === 'save') e.preventDefault();
-    if (!allowed(s, target) || (e.repeat && !s.repeat)) return;
+    if (!allowed(s, target, scopes) || (e.repeat && !s.repeat)) return;
     if (run(s, e)) e.preventDefault();
   }
 
@@ -535,7 +541,6 @@
 
 {#if drawable}
 <EditorStage
-  data-flow-editor
   height="100dvh"
   topInset="calc(var(--bb-topbar-height) + var(--flows-top-gap, 6px))"
   bottomRoom="var(--flows-bottom-room, 0px)"

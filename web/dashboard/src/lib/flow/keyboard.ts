@@ -82,17 +82,17 @@ const within = (t: Target, selector: string) => Boolean(t?.closest(selector));
 
 const OVERLAY = '[aria-modal="true"], .bb-picker-panel';
 
-const SCOPE_HOST ={ canvas: '[data-flow-canvas]', editor: '[data-flow-editor]' } as const;
+export type Scopes = Record<Scope, (t: Target) => boolean>;
 
-function inScope(s: Shortcut, t: Target): boolean {
-  if (s.scope === 'node') return within(t, '[data-node-id]') && !within(t, 'button, a');
-  return isBody(t) || within(t, SCOPE_HOST[s.scope]);
+function inScope(s: Shortcut, t: Target, scopes: Scopes): boolean {
+  if (s.scope === 'node') return scopes.node(t) && !within(t, 'button, a');
+  return isBody(t) || scopes[s.scope](t);
 }
 
-export function allowed(s: Shortcut, t: Target): boolean {
+export function allowed(s: Shortcut, t: Target, scopes: Scopes): boolean {
   if (within(t, OVERLAY)) return false;
   if (isTyping(t) && !s.typing) return false;
-  return inScope(s, t);
+  return inScope(s, t, scopes);
 }
 
 const DELTAS: Record<Dir, { dx: number; dy: number }> = {

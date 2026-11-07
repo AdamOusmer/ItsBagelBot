@@ -9,12 +9,19 @@
   import { getI18n } from '@bagel/kit';
   import Icon from './FlowIcon.svelte';
 
-  let { x, y, onadd }: { x: number; y: number; empty?: boolean; onadd?: (byKey: boolean) => void } = $props();
+  let { x, y, touch = false, el = $bindable<HTMLElement | null>(null), onadd }: {
+    x: number;
+    y: number;
+    empty?: boolean;
+    touch?: boolean;
+    el?: HTMLElement | null;
+    onadd?: (byKey: boolean) => void;
+  } = $props();
 
   const { t } = getI18n();
 </script>
 
-<button class="start" type="button" data-flow-ui aria-label={t('flows.board.addTrigger')} title={t('flows.board.addTrigger')} style:transform="translate({x}px, {y}px)" style:width="{START_W}px" style:height="{START_H}px" onclick={(e) => onadd?.(e.detail === 0)}>
+<button class="start" class:touch bind:this={el} type="button" aria-label={t('flows.board.addTrigger')} title={t('flows.board.addTrigger')} style:transform="translate({x}px, {y}px)" style:width="{START_W}px" style:height="{START_H}px" onclick={(e) => onadd?.(e.detail === 0)}>
   <Icon name="play" size={12} />
   <span>{t('flows.board.start')}</span>
   <span class="plus"><Icon name="plus" size={12} /></span>
@@ -56,10 +63,10 @@
     outline: 2px solid var(--bb-green-glow);
     outline-offset: 3px;
   }
-  :global(.canvas[data-touch]) .start {
+  .start.touch {
     z-index: 3;
   }
-  :global(.canvas[data-touch]) .start::after {
+  .start.touch::after {
     content: '';
     position: absolute;
     top: min(0px, calc((36px - 44px * var(--inv, 1)) / 2));
