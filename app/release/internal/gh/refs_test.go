@@ -300,26 +300,69 @@ func TestMoveBranch(t *testing.T) {
 	const (
 		getDeploy  = "GET /repos/o/r/git/ref/heads/deploy"
 		moveDeploy = "PATCH /repos/o/r/git/refs/heads/deploy"
+		compare    = "GET /repos/o/r/compare/c1...c2"
+		getTarget  = "GET /repos/o/r/git/commits/c2"
+		newCommit  = "POST /repos/o/r/git/commits"
+		atC1       = `{"ref":"refs/heads/deploy","object":{"sha":"c1","type":"commit"}}`
 	)
-	cases := []struct {
-		name string
-		rt   routes
-		want []string
-	}{
-		{"force-moves an existing branch, rollbacks included", routes{
-			getDeploy:  reply(http.StatusOK, `{"ref":"refs/heads/deploy","object":{"sha":"c1","type":"commit"}}`),
+	mergeRoutes := func(status string) routes {
+		return routes{
+			getDeploy:  reply(http.StatusOK, atC1),
+			compare:    reply(http.StatusOK, `{"status":"`+status+`"}`),
+			getTarget:  reply(http.StatusOK, `{"sha":"c2","tree":{"sha":"t2"}}`),
+			newCommit:  reply(http.StatusCreated, `{"sha":"m1"}`),
 			moveDeploy: reply(http.StatusOK, `{}`),
-		}, []string{moveDeploy}},
+		}
+	}
+	cases := []struct {
+		name     string
+		rt       routes
+		want     []string
+		wantBody string
+	}{
+		{"fast-forwards when the target descends from the head", mergeRoutes("ahead"), []string{moveDeploy}, `{"sha":"c2"}`},
+		{"adds a commit with the target's tree when diverged", mergeRoutes("diverged"), []string{newCommit, moveDeploy}, `{"sha":"m1"}`},
+		{"adds a commit with the target's tree on rollback", mergeRoutes("behind"), []string{newCommit, moveDeploy}, `{"sha":"m1"}`},
 		{"creates the branch on first promote", routes{
 			getDeploy: reply(http.StatusNotFound, `{"message":"Not Found"}`),
 			createRef: reply(http.StatusCreated, `{}`),
-		}, []string{createRef}},
+		}, []string{createRef}, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c, fake, _ := newClient(t, tc.rt)
 			require.NoError(t, c.MoveBranch(t.Context(), "deploy", "c2"))
 			assert.Equal(t, tc.want, fake.writes())
+			if tc.wantBody != "" {
+				assert.JSONEq(t, tc.wantBody, fake.bodies[moveDeploy])
+			}
+		})
+	}
+}
+
+func TestBranchHasTreeOf(t *testing.T) {
+	const (
+		getDeploy = "GET /repos/o/r/git/ref/heads/deploy"
+		getHead   = "GET /repos/o/r/git/commits/m1"
+		getTarget = "GET /repos/o/r/git/commits/c2"
+	)
+	cases := map[string]struct {
+		headTree string
+		want     bool
+	}{
+		"same tree on a promote commit": {"t2", true},
+		"different tree":                {"t1", false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c, _, _ := newClient(t, routes{
+				getDeploy: reply(http.StatusOK, `{"object":{"sha":"m1","type":"commit"}}`),
+				getHead:   reply(http.StatusOK, `{"sha":"m1","tree":{"sha":"`+tc.headTree+`"}}`),
+				getTarget: reply(http.StatusOK, `{"sha":"c2","tree":{"sha":"t2"}}`),
+			})
+			got, err := c.BranchHasTreeOf(t.Context(), "deploy", "c2")
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }

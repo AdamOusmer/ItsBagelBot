@@ -33,12 +33,70 @@ func (c *Client) BranchHead(ctx context.Context, branch ports.Branch) (deploy.SH
 }
 
 func (c *Client) MoveBranch(ctx context.Context, branch ports.Branch, sha deploy.SHA) error {
-	_, resp, err := c.gh.Git.GetRef(ctx, c.owner, c.repo, string(headRef(branch)))
+	ref, resp, err := c.gh.Git.GetRef(ctx, c.owner, c.repo, string(headRef(branch)))
 	exists, err := found(resp, err)
 	if err != nil {
 		return err
 	}
-	return c.pointRef(ctx, headRef(branch), sha, exists)
+	if !exists {
+		return c.pointRef(ctx, headRef(branch), sha, false)
+	}
+	next, err := c.descendantOf(ctx, deploy.SHA(ref.GetObject().GetSHA()), sha)
+	if err != nil {
+		return err
+	}
+	_, resp, err = c.gh.Git.UpdateRef(ctx, c.owner, c.repo, string(headRef(branch)), github.UpdateRef{SHA: string(next)})
+	return apiErr(resp, err)
+}
+
+func (c *Client) descendantOf(ctx context.Context, head, sha deploy.SHA) (deploy.SHA, error) {
+	cmp, resp, err := c.gh.Repositories.CompareCommits(ctx, c.owner, c.repo, string(head), string(sha), &github.ListOptions{PerPage: 1})
+	if err != nil {
+		return "", apiErr(resp, err)
+	}
+	if status := cmp.GetStatus(); status == "ahead" || status == "identical" {
+		return sha, nil
+	}
+	target, resp, err := c.gh.Git.GetCommit(ctx, c.owner, c.repo, string(sha))
+	if err != nil {
+		return "", apiErr(resp, err)
+	}
+	commit, resp, err := c.gh.Git.CreateCommit(ctx, c.owner, c.repo, github.Commit{
+		Message: github.Ptr("Promote " + string(sha)),
+		Tree:    target.Tree,
+		Parents: []*github.Commit{{SHA: github.Ptr(string(head))}, {SHA: github.Ptr(string(sha))}},
+	}, nil)
+	if err != nil {
+		return "", apiErr(resp, err)
+	}
+	return deploy.SHA(commit.GetSHA()), nil
+}
+
+func (c *Client) BranchHasTreeOf(ctx context.Context, branch ports.Branch, sha deploy.SHA) (bool, error) {
+	head, err := c.BranchHead(ctx, branch)
+	if err != nil {
+		return false, err
+	}
+	if head == sha {
+		return true, nil
+	}
+	headTree, err := c.treeOf(ctx, head)
+	if err != nil {
+		return false, err
+	}
+	targetTree, err := c.treeOf(ctx, sha)
+	if err != nil {
+		return false, err
+	}
+	return headTree == targetTree, nil
+}
+
+func (c *Client) treeOf(ctx context.Context, sha deploy.SHA) (string, error) {
+	commit, resp, err := c.gh.Git.GetCommit(ctx, c.owner, c.repo, string(sha))
+	if err != nil {
+		return "", apiErr(resp, err)
+	}
+	return commit.GetTree().GetSHA(), nil
 }
 
 var betaTag = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)-beta$`)
