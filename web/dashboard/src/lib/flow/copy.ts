@@ -23,6 +23,16 @@ export function fieldUnit(t: Translate, spec: NodeSpec, field: FieldSpec): strin
   return t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.unit` as MessageKey, { max: MAX_WAIT_SECONDS });
 }
 
+export type DurationSpec = Extract<FieldSpec, { type: 'duration' }>;
+
+export const durationRange = (t: Translate, spec: NodeSpec, field: DurationSpec): string =>
+  t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.range` as MessageKey, { days: field.max / 86_400 });
+
+export function durationOutside(field: DurationSpec, seconds: string | number | boolean | undefined): boolean {
+  if (seconds === undefined) return false;
+  return Number(seconds) < field.min || Number(seconds) > field.max;
+}
+
 export const optionText = (t: Translate, spec: NodeSpec, field: FieldSpec, value: string): string =>
   t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.option.${value}` as MessageKey);
 

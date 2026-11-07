@@ -28,19 +28,18 @@ func (s *ValkeyBatchStore) Acquire(ctx context.Context, lease BatchLease, ttl ti
 }
 
 func (s *ValkeyBatchStore) Next(ctx context.Context, batchID string) (int, error) {
-	value, err := s.client.Do(ctx, s.client.B().Get().Key(batchProgressKey(batchID)).Build()).ToString()
+	n, ok, err := pkg_valkey.NewKV(s.client).ReadInt(ctx, batchProgressKey(batchID))
 	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return 0, nil
-		}
 		return 0, err
 	}
-	return strconv.Atoi(value)
+	if !ok {
+		return 0, nil
+	}
+	return int(n), nil
 }
 
 func (s *ValkeyBatchStore) SaveNext(ctx context.Context, lease BatchLease, next int, ttl time.Duration) error {
-	return s.client.Do(ctx, s.client.B().Set().Key(batchProgressKey(lease.ID)).
-		Value(strconv.Itoa(next)).Px(ttl).Build()).Error()
+	return pkg_valkey.NewKV(s.client).SetMillis(ctx, batchProgressKey(lease.ID), strconv.Itoa(next), ttl)
 }
 
 func (s *ValkeyBatchStore) Release(ctx context.Context, lease BatchLease) error {

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 )
@@ -43,24 +45,24 @@ type hotPathFixture struct {
 
 func (f hotPathFixture) testChannelBump(t *testing.T) {
 	key := f.testBump(t, bumpCase{
-		keySuffix: ":counter", script: bumpChannelScript,
-		missingArgs: []string{"", "2", "60"},
-		seedArgs:    []string{"41", "2", "60"}, seedValue: 43,
-		warmArgs: []string{"", "3", "60"}, warmValue: 46,
+		keySuffix: ":counter", counter: pkg_valkey.SeededCounter{TTL: 60 * time.Second},
+		seed: 41, seedDelta: 2, seedValue: 43,
+		warmDelta: 3, warmValue: 46,
 	})
 	f.requireConcurrentBumps(t, key, 46)
 }
 
 func (f hotPathFixture) requireConcurrentBumps(t *testing.T, key string, initial int) {
 	const replicas = 16
+	counter := pkg_valkey.SeededCounter{Key: key, TTL: 60 * time.Second}
 	errs := make(chan error, replicas)
 	var wg sync.WaitGroup
 	wg.Add(replicas)
 	for range replicas {
 		go func() {
 			defer wg.Done()
-			errs <- bumpChannelScript.Exec(context.Background(), f.client,
-				[]string{key}, []string{"", "1", "60"}).Error()
+			_, err := counter.Bump(context.Background(), f.client, 1, mustNotSeed(t))
+			errs <- err
 		}()
 	}
 	wg.Wait()
@@ -75,64 +77,77 @@ func (f hotPathFixture) requireConcurrentBumps(t *testing.T, key string, initial
 
 func (f hotPathFixture) testEntryBump(t *testing.T) {
 	f.testBump(t, bumpCase{
-		keySuffix: ":entries", script: bumpEntryScript,
-		missingArgs: []string{"viewer", "", "1", "60"},
-		seedArgs:    []string{"viewer", "9", "1", "60"}, seedValue: 10,
-		warmArgs: []string{"viewer", "", "4", "60"}, warmValue: 14,
+		keySuffix: ":entries", counter: pkg_valkey.SeededCounter{Field: "viewer", TTL: 60 * time.Second},
+		seed: 9, seedDelta: 1, seedValue: 10,
+		warmDelta: 4, warmValue: 14,
 	})
 }
 
 type bumpCase struct {
-	keySuffix   string
-	script      *valkey.Lua
-	missingArgs []string
-	seedArgs    []string
-	seedValue   int64
-	warmArgs    []string
-	warmValue   int64
+	keySuffix string
+	counter   pkg_valkey.SeededCounter
+	seed      int64
+	seedDelta int64
+	seedValue int64
+	warmDelta int64
+	warmValue int64
 }
 
 func (f hotPathFixture) testBump(t *testing.T, test bumpCase) string {
 	key := f.prefix + test.keySuffix
 	f.cleanupKeys(t, key)
-	_, err := test.script.Exec(f.ctx, f.client, []string{key}, test.missingArgs).AsInt64()
-	require.True(t, valkey.IsValkeyNil(err), "empty seed must decode as Valkey nil")
-	seeded, err := test.script.Exec(f.ctx, f.client, []string{key}, test.seedArgs).AsInt64()
+	test.counter.Key = key
+	seeded, err := test.counter.Bump(f.ctx, f.client, test.seedDelta, func() int64 { return test.seed })
 	require.NoError(t, err)
 	require.EqualValues(t, test.seedValue, seeded)
-	warm, err := test.script.Exec(f.ctx, f.client, []string{key}, test.warmArgs).AsInt64()
+	warm, err := test.counter.Bump(f.ctx, f.client, test.warmDelta, mustNotSeed(t))
 	require.NoError(t, err)
 	require.EqualValues(t, test.warmValue, warm)
 	requirePositiveTTL(t, f.ctx, f.client, key)
 	return key
 }
 
+func mustNotSeed(t require.TestingT) func() int64 {
+	return func() int64 {
+		require.Fail(t, "seed must not be called once a counter is warm")
+		return 0
+	}
+}
+
 func (f hotPathFixture) testGreetClaim(t *testing.T) {
 	key := f.prefix + ":greet"
 	f.cleanupKeys(t, key)
-	first, err := firstGreetScript.Exec(f.ctx, f.client, []string{key}, []string{"viewer", "60"}).AsInt64()
+	set := pkg_valkey.FreshMemberSet{Key: key}
+	first, err := set.Add(f.ctx, f.client, "viewer", 60*time.Second)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, first)
-	second, err := firstGreetScript.Exec(f.ctx, f.client, []string{key}, []string{"viewer", "60"}).AsInt64()
+	require.True(t, first)
+	second, err := set.Add(f.ctx, f.client, "viewer", 60*time.Second)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, second)
+	require.False(t, second)
 	requirePositiveTTL(t, f.ctx, f.client, key)
 }
 
 func (f hotPathFixture) testFeedCounters(t *testing.T) {
 	todayKey, receipt := f.prefix+":feed-today", f.prefix+":feed-receipt"
 	f.cleanupKeys(t, todayKey, receipt, receipt+"2")
-	first, err := decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client, []string{todayKey, receipt}, []string{"9223372036854775807", "60", "120"}))
+	counter := pkg_valkey.ReceiptCounter{Counter: todayKey, CounterTTL: 60 * time.Second}
+	const maxCounter = int64(9223372036854775807)
+
+	firstToday, firstTotal, err := counter.Bump(f.ctx, f.client, pkg_valkey.Key{Name: receipt, TTL: 120 * time.Second}, maxCounter)
 	require.NoError(t, err)
-	require.Equal(t, FeedCounts{Today: 1, Total: 9223372036854775807}, first)
-	replay, err := decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client, []string{todayKey, receipt}, []string{"9223372036854775807", "60", "120"}))
+	require.Equal(t, FeedCounts{Today: 1, Total: maxCounter}, FeedCounts{Today: firstToday, Total: firstTotal})
+
+	replayToday, replayTotal, err := counter.Bump(f.ctx, f.client, pkg_valkey.Key{Name: receipt, TTL: 120 * time.Second}, maxCounter)
 	require.NoError(t, err)
-	require.Equal(t, first, replay)
+	require.Equal(t, firstToday, replayToday)
+	require.Equal(t, firstTotal, replayTotal)
+
 	require.NoError(t, f.client.Do(f.ctx, f.client.B().Set().Key(todayKey).Value("9223372036854775806").Build()).Error())
-	last, err := decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client, []string{todayKey, receipt + "2"}, []string{"9223372036854775807", "60", "120"}))
+	lastToday, _, err := counter.Bump(f.ctx, f.client, pkg_valkey.Key{Name: receipt + "2", TTL: 120 * time.Second}, maxCounter)
 	require.NoError(t, err)
-	require.Equal(t, int64(9223372036854775807), last.Today)
-	_, err = decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client, []string{todayKey, receipt + "3"}, []string{"9223372036854775807", "60", "120"}))
+	require.Equal(t, maxCounter, lastToday)
+
+	_, _, err = counter.Bump(f.ctx, f.client, pkg_valkey.Key{Name: receipt + "3", TTL: 120 * time.Second}, maxCounter)
 	require.Error(t, err)
 }
 
@@ -166,19 +181,22 @@ func newHotPathBenchmark(b *testing.B) hotPathBenchmark {
 }
 
 func (f hotPathBenchmark) benchmarkLoyalty(b *testing.B) {
+	counter := pkg_valkey.SeededCounter{Key: f.counter, TTL: 60 * time.Second}
+	noSeed := func() int64 { b.Fatal("seed must not be called once a counter is warm"); return 0 }
 	b.ReportAllocs()
 	for b.Loop() {
-		if err := bumpChannelScript.Exec(f.ctx, f.client, []string{f.counter}, []string{"", "1", "60"}).Error(); err != nil {
+		if _, err := counter.Bump(f.ctx, f.client, 1, noSeed); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func (f hotPathBenchmark) benchmarkFeed(b *testing.B) {
+	counter := pkg_valkey.ReceiptCounter{Counter: f.today, CounterTTL: 60 * time.Second}
+	receipt := pkg_valkey.Key{Name: f.total + ":receipt", TTL: 120 * time.Second}
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client,
-			[]string{f.today, f.total + ":receipt"}, []string{"1", "60", "120"})); err != nil {
+		if _, _, err := counter.Bump(f.ctx, f.client, receipt, 1); err != nil {
 			b.Fatal(err)
 		}
 	}

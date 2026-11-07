@@ -89,7 +89,7 @@ func TestAutomationRandomPick(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.want+fmt.Sprint(tc.roll), func(t *testing.T) {
 			fx := newAutoFixture(manual("main", pick))
-			fx.p.autoIntN = func(n int) int {
+			fx.p.automations.intN = func(n int) int {
 				require.Equal(t, 4, n)
 				return tc.roll
 			}

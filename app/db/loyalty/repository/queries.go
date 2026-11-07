@@ -28,52 +28,6 @@ const (
 
 var ErrInvalidInput = errors.New("invalid input")
 
-func ValidCounterName(name string) (string, error) {
-	n := normalizeName(name)
-	if n == "" || len(n) > maxCounterName {
-		return "", fmt.Errorf("%w: counter name", ErrInvalidInput)
-	}
-	if strings.Contains(n, ":") {
-		return "", fmt.Errorf("%w: counter name", ErrInvalidInput)
-	}
-	return n, nil
-}
-
-func writableCounterName(userID uint64, name string) (string, error) {
-	n, err := ValidCounterName(name)
-	if err != nil {
-		return "", err
-	}
-	if userID != 0 && data.SystemCounter(n) {
-		return "", fmt.Errorf("%w: reserved counter name", ErrInvalidInput)
-	}
-	return n, nil
-}
-
-func ValidScope(scope string) (string, error) {
-	switch scope {
-	case "", data.CounterScopeChannel:
-		return data.CounterScopeChannel, nil
-	case data.CounterScopeBot, data.CounterScopeViewer, data.CounterScopeCommand, data.CounterScopeViewerCommand:
-		return scope, nil
-	default:
-		return "", fmt.Errorf("%w: scope", ErrInvalidInput)
-	}
-}
-
-func entryScoped(scope string) bool {
-	switch scope {
-	case data.CounterScopeViewer, data.CounterScopeCommand, data.CounterScopeViewerCommand:
-		return true
-	default:
-		return false
-	}
-}
-
-func bucketed(scope string) bool {
-	return scope == data.CounterScopeCommand || scope == data.CounterScopeViewerCommand
-}
-
 func (r *Loyalty) BalanceGet(ctx context.Context, userID, viewerID uint64) (*ent.Balance, bool, error) {
 	return readOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
 		return r.client.Balance.Query().
@@ -444,7 +398,7 @@ func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newNam
 	}
 	renamed := false
 	err = db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, r.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 			updated, err := tx.Counter.Update().
 				Where(counter.UserIDEQ(userID), counter.NameEQ(n)).
 				SetName(nn).
@@ -466,18 +420,6 @@ func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newNam
 		})
 	})
 	return renamed, err
-}
-
-func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {
-	tx, err := client.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	return tx.Commit()
 }
 
 func (r *Loyalty) CounterDelete(ctx context.Context, userID uint64, name string) error {

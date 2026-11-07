@@ -3,7 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { page } from '$app/state';
-  import { PermBadge, Bolota, getI18n } from '@bagel/kit';
+  import { PermBadge, getI18n } from '@bagel/kit';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';

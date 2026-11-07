@@ -166,8 +166,7 @@ func TestAdvKeyMaterialNeverLoggedOrCached(t *testing.T) {
 	deps := provider.Deps{Cache: core.NewCache(h.store), Log: zap.New(observed), FetchDefs: fakeDefs{defs: h.defs}, FetchKeys: keys}
 	b := provider.NewProvider(providerName, deps)
 	cfg := Config{ChannelRateLimit: 6, DefRateLimit: 30, HostRateLimit: 120, PositiveTTL: time.Minute}
-	h.p = newAPI(cfg, deps, b)
-	h.p.admit = func(context.Context, *flight, bool) error { return nil }
+	h.p = newAPI(cfg, deps, b, func(context.Context, *flight, bool) error { return nil })
 
 	h.defs["keyed"] = gossiprpc.FetchDef{
 		Name: "keyed", URL: echo.URL + "/echo", IsActive: true, KeyLabel: "prod", JSONPath: []string{"safe"},

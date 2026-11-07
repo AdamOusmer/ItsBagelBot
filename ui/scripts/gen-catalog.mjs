@@ -40,6 +40,7 @@ const FAMILY = {
   Well: 'Layout', Window: 'Layout', JsonTree: 'Data',
   IconTile: 'Data', MarkBadge: 'Data', ActionBar: 'Navigation',
   RoundBadge: 'Feedback', Timeline: 'Data', TimelineItem: 'Data', AvatarPlate: 'Data',
+  EditorStage: 'Layout', Bolota: 'Data', CanvasCard: 'Data',
 };
 
 const ADAPTER_NOTE = {
@@ -58,6 +59,7 @@ const ADAPTER_NOTE = {
   StepList: 'The navigable form (`onSelect`) is Svelte only; Astro renders the static list.',
   Stepper: 'Clickable steps (`onSelect`) are Svelte only; Astro renders the static rail.',
   LineSeries: 'Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.',
+  EditorStage: 'Svelte only: floating chrome driven by pan/zoom and viewport state (sheet mode, grip, bound element refs) that only a client has.',
 };
 
 const PROP_RE = /^\s*(?:\/\*\*.*\*\/\s*)?([A-Za-z_$][\w$]*)(\??)\s*:\s*(.+);\s*$/;

@@ -234,7 +234,7 @@ export function resolvedWithoutSample(name: string, kind: ChainKind): boolean {
 
 const EVENT_PREFIX = 'event.';
 
-const RECIPE_VALUE_TOKENS = new Set(['local', 'var', 'viewervar']);
+const RECIPE_VALUE_TOKENS = new Set(['local', 'var', 'viewervar', 'cooldown']);
 
 function recipeValueScope(samples: Samples): SampleScope {
   return {

@@ -10,6 +10,7 @@
   "out_of_range": "Hors limites",
   "invalid_enum": "Choisissez une option de la liste",
   "invalid_format": "Format invalide",
+  "simple_word": "Utilise un mot simple pour ce nom : lettres minuscules et chiffres uniquement, comme points ou victoires.",
   "invalid_regex": "Expression régulière invalide",
   "unknown_type": "Type inconnu",
   "unknown_field": "Champ inconnu",

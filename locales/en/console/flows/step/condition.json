@@ -29,8 +29,12 @@
     "label": "Cooldown",
     "summary": "Wait between runs",
     "field": {
-      "seconds": { "label": "Cooldown", "unit": "seconds" },
-      "perUser": { "label": "Per viewer" }
+      "seconds": { "label": "Cooldown", "range": "Use 1 second to {days} days." },
+      "perUser": { "label": "Per viewer" },
+      "name": { "label": "Name", "placeholder": "subathon", "hint": "Naming this restarts it if it is running. Add time steps in any recipe can then extend it. Not available per viewer." },
+      "leftCommand": { "label": "Time left command", "placeholder": "!timeleft" },
+      "leftReply": { "label": "Reply while waiting", "placeholder": "{user}, {cooldown:left} left before you can use this again." },
+      "readyReply": { "label": "Reply when ready", "placeholder": "{user}, this is ready to use." }
     },
     "out": { "yes": "Ready", "no": "Cooling down" }
   },

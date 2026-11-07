@@ -15,6 +15,7 @@
     "count": "Neuer Zählerstand",
     "loopIndex": "Welcher Durchlauf dies ist",
     "apiError": "Warum es fehlgeschlagen ist",
+    "cooldownLeft": "Verbleibender Cooldown",
     "saved": "Von einem früheren Schritt gespeichert"
   }
 }

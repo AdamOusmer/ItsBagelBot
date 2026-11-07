@@ -1,0 +1,21 @@
+{
+  "title": "Connecter l’application de bureau",
+  "eyebrow": "Connexion de l’appareil",
+  "asAccount": "Connexion en tant que {name}.",
+  "deviceLabel": "Appareil",
+  "deviceUnnamed": "Appareil sans nom",
+  "platformLabel": "Plateforme",
+  "platformMacos": "macOS",
+  "platformWindows": "Windows",
+  "platformLinux": "Linux",
+  "reportedByApp": "Le nom de l’appareil et la plateforme sont indiqués par l’application et ne sont pas vérifiés.",
+  "accessGranted": "Approuver permet à cette application d’agir comme votre compte depuis votre ordinateur.",
+  "onlyIfYouStarted": "N’approuvez ceci que si vous venez de démarrer cette connexion vous-même depuis l’application de bureau.",
+  "approve": "Approuver",
+  "cancel": "Annuler",
+  "refusalImpersonator": "Cette session est une vue du personnel et ne peut pas approuver une application de bureau. Connectez-vous avec votre propre compte pour continuer.",
+  "refusalDelegate": "Cette session a un accès délégué à un autre compte et ne peut pas approuver une application de bureau. Connectez-vous avec votre propre compte pour continuer.",
+  "approvedRedirecting": "Approuvé. Retour vers l’application…",
+  "cancelledRedirecting": "Annulé. Retour vers l’application…",
+  "closeWindow": "Si rien ne se passe après quelques secondes, vous pouvez fermer cette fenêtre."
+}

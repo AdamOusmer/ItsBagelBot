@@ -38,10 +38,10 @@ func TestAddToVariable(t *testing.T) {
 }
 
 func TestVariableNameIsCaseInsensitive(t *testing.T) {
-	name, ok := automation.VariableName("Deaths_2")
+	name, ok := automation.VariableName("Deaths2")
 	assert.True(t, ok)
-	assert.Equal(t, "deaths_2", name)
-	for _, bad := range []string{"", "has space", "dash-ed", strings.Repeat("a", 33), "é"} {
+	assert.Equal(t, "deaths2", name)
+	for _, bad := range []string{"", "has space", "dash-ed", "under_score", "co:lon", strings.Repeat("a", 33), "é"} {
 		_, ok := automation.VariableName(bad)
 		assert.False(t, ok, bad)
 	}
@@ -72,10 +72,4 @@ func TestApplyTextNeverPanicsOnArbitraryInput(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestTruncateRunes(t *testing.T) {
-	assert.Equal(t, "éé", automation.TruncateRunes("ééé", 2))
-	assert.Equal(t, "abc", automation.TruncateRunes("abc", 3))
-	assert.Equal(t, "", automation.TruncateRunes("abc", 0))
 }

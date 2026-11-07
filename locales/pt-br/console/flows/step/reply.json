@@ -160,5 +160,14 @@
       "cost": { "label": "Novo custo", "unit": "pontos" },
       "reset": { "label": "Restaurar quando a live terminar" }
     }
+  },
+  "cooldownAdd": {
+    "label": "Adicionar tempo a um intervalo de uso",
+    "summary": "Estender um temporizador nomeado enquanto ele está em andamento",
+    "field": {
+      "name": { "label": "Temporizador" },
+      "seconds": { "label": "Adicionar", "range": "Use de 1 segundo a {days} dias." },
+      "per": { "label": "Por", "hint": "Adiciona o tempo acima para cada quantidade completa. Coloque 100 em uma receita de bits para contar a cada 100 bits. Deixe vazio para adicionar uma vez por evento." }
+    }
   }
 }

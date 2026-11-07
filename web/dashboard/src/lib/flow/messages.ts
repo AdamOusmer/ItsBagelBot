@@ -34,6 +34,7 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     out_of_range: t('flows.issue.outOfRange'),
     invalid_enum: t('flows.issue.invalidEnum'),
     invalid_format: t('flows.issue.invalidFormat'),
+    simple_word: t('flows.issue.simpleWord'),
     invalid_regex: t('flows.issue.invalidRegex'),
     delay_budget: t('flows.issue.delayBudget'),
     setup_required: t('flows.setup.refused')

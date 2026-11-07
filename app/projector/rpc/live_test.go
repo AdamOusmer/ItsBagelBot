@@ -12,6 +12,7 @@ import (
 	livekey "ItsBagelBot/internal/domain/live"
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,8 +28,8 @@ func TestLiveReadsFollowATwitchRestoredStream(t *testing.T) {
 
 	_, err := store.SetStreamLive(ctx, id, projection.StreamLive{Version: 2000})
 	require.NoError(t, err)
-	require.NoError(t, client.Do(ctx, client.B().Eval().Script(livekey.SetScript).Numkeys(2).
-		Key(livekey.Key(id), livekey.VerKey(id)).Arg("3000", "60", "120").Build()).Error())
+	_, err = pkg_valkey.VersionedSlot{Key: livekey.Key(id), VerKey: livekey.VerKey(id)}.Set(ctx, client, pkg_valkey.SlotWrite{Version: 3000, TTL: time.Minute, VerTTL: 2 * time.Minute})
+	require.NoError(t, err)
 
 	live := (&liveRPC{store: store, log: zap.NewNop()}).handleGet(ctx, projectorrpc.LiveRequest{BroadcasterID: sid})
 	assert.Equal(t, projectorrpc.LiveReply{BroadcasterID: sid, Live: true, Known: true, Version: 3000}, live)

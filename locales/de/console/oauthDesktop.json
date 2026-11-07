@@ -1,0 +1,21 @@
+{
+  "title": "Desktop-App verbinden",
+  "eyebrow": "Geräte-Anmeldung",
+  "asAccount": "Anmeldung als {name}.",
+  "deviceLabel": "Gerät",
+  "deviceUnnamed": "Unbenanntes Gerät",
+  "platformLabel": "Plattform",
+  "platformMacos": "macOS",
+  "platformWindows": "Windows",
+  "platformLinux": "Linux",
+  "reportedByApp": "Gerätename und Plattform werden von der App gemeldet und sind nicht überprüft.",
+  "accessGranted": "Durch die Bestätigung darf diese App von deinem Computer aus für dein Konto handeln.",
+  "onlyIfYouStarted": "Bestätige dies nur, wenn du diese Anmeldung selbst gerade in der Desktop-App gestartet hast.",
+  "approve": "Bestätigen",
+  "cancel": "Abbrechen",
+  "refusalImpersonator": "Diese Sitzung ist eine Mitarbeiter-Ansicht und kann keine Desktop-App bestätigen. Melde dich mit deinem eigenen Konto an, um fortzufahren.",
+  "refusalDelegate": "Diese Sitzung hat delegierten Zugriff auf ein anderes Konto und kann keine Desktop-App bestätigen. Melde dich mit deinem eigenen Konto an, um fortzufahren.",
+  "approvedRedirecting": "Bestätigt. Du wirst zur App zurückgeleitet…",
+  "cancelledRedirecting": "Abgebrochen. Du wirst zur App zurückgeleitet…",
+  "closeWindow": "Falls in ein paar Sekunden nichts passiert, kannst du dieses Fenster schließen."
+}

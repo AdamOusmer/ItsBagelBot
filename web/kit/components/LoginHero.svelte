@@ -9,7 +9,7 @@
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import Bolota from './Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import logo320 from '../assets/logo-320.webp';
   import { getI18n } from '../lib/i18n/context';
   import { playHeroTitle } from '../lib/login-hero';

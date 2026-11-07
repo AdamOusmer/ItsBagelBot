@@ -210,7 +210,7 @@ func channelFromFields(broadcasterID string, fields map[string]string) manage.Ch
 func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channel, bool, error) {
 
 	ch, err := r.cache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (manage.Channel, error) {
-		fields, err := r.client.Do(ctx, r.client.B().Hgetall().Key(keyPrefix+broadcasterID).Build()).AsStrMap()
+		fields, err := pkg_valkey.HashAll(ctx, r.client, keyPrefix+broadcasterID)
 		if err != nil {
 			return manage.Channel{}, err
 		}
@@ -231,75 +231,63 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 func (r *Registry) SetFlags(ctx context.Context, broadcasterID string, enabled, isMod *bool) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
-	hset := r.client.B().Hset().Key(key).FieldValue().FieldValue("updated_at", now)
+	fields := map[string]string{"updated_at": now}
 	if enabled != nil {
-		hset = hset.FieldValue("enabled", utils.BoolField(*enabled))
+		fields["enabled"] = utils.BoolField(*enabled)
 	}
 	if isMod != nil {
-		hset = hset.FieldValue("is_mod", utils.BoolField(*isMod)).FieldValue("mod_checked_at", now)
+		fields["is_mod"] = utils.BoolField(*isMod)
+		fields["mod_checked_at"] = now
 	}
-	return r.applyChannelUpdate(ctx, broadcasterID,
-		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
-		hset.Build(),
-		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
-	)
+	update := pkg_valkey.HashFieldsUpdate{Key: key, Defaults: map[string]string{"enabled": "1"}, Fields: fields}
+	if err := update.Apply(ctx, r.client, pkg_valkey.Membership{Key: indexKey, Member: broadcasterID, Include: true}); err != nil {
+		return err
+	}
+	return r.afterChannelUpdate(ctx, broadcasterID)
 }
 
 func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 
-	return r.applyChannelUpdate(ctx, broadcasterID,
-		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
-		r.client.B().Hset().Key(key).FieldValue().
-			FieldValue("is_mod", utils.BoolField(isMod)).
-			FieldValue("mod_checked_at", now).
-			FieldValue("updated_at", now).
-			Build(),
-		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
-	)
+	update := pkg_valkey.HashFieldsUpdate{
+		Key:      key,
+		Defaults: map[string]string{"enabled": "1"},
+		Fields:   map[string]string{"is_mod": utils.BoolField(isMod), "mod_checked_at": now, "updated_at": now},
+	}
+	if err := update.Apply(ctx, r.client, pkg_valkey.Membership{Key: indexKey, Member: broadcasterID, Include: true}); err != nil {
+		return err
+	}
+	return r.afterChannelUpdate(ctx, broadcasterID)
 }
 
 func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg string) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 
-	return r.applyChannelUpdate(ctx, broadcasterID,
-		r.client.B().Hset().Key(key).FieldValue().
-			FieldValue("sub_state", state).
-			FieldValue("sub_error", errMsg).
-			FieldValue("sub_checked_at", now).
-			FieldValue("updated_at", now).
-			Build(),
-		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
-		r.unhealthyCommand(broadcasterID, state),
+	update := pkg_valkey.HashFieldsUpdate{
+		Key:    key,
+		Fields: map[string]string{"sub_state": state, "sub_error": errMsg, "sub_checked_at": now, "updated_at": now},
+	}
+	err := update.Apply(ctx, r.client,
+		pkg_valkey.Membership{Key: indexKey, Member: broadcasterID, Include: true},
+		pkg_valkey.Membership{Key: unhealthyKey, Member: broadcasterID, Include: unhealthyState(state)},
 	)
+	if err != nil {
+		return err
+	}
+	return r.afterChannelUpdate(ctx, broadcasterID)
 }
 
 func unhealthyState(state string) bool { return state == "failing" || state == "pending" }
 
-func (r *Registry) unhealthyCommand(broadcasterID, state string) valkey.Completed {
-	if unhealthyState(state) {
-		return r.client.B().Sadd().Key(unhealthyKey).Member(broadcasterID).Build()
-	}
-	return r.client.B().Srem().Key(unhealthyKey).Member(broadcasterID).Build()
-}
-
 func (r *Registry) UnhealthyBatch(ctx context.Context, n int) ([]string, error) {
-	return r.client.Do(ctx, r.client.B().Srandmember().Key(unhealthyKey).Count(int64(n)).Build()).AsStrSlice()
+	return pkg_valkey.ExpiringSet{Key: unhealthyKey}.Sample(ctx, r.client, n)
 }
 
 func (r *Registry) ClaimUnhealthySweep(ctx context.Context, ttl time.Duration) (bool, error) {
-	return r.acquireLock(ctx, unhealthySweepLockKey, "1", ttl)
+	return r.acquireLock(ctx, namedLock{key: unhealthySweepLockKey, owner: "1"}, ttl)
 }
-
-var setSubStateUnless = valkey.NewLuaScript(`
-local current=redis.call('HGET',KEYS[1],'sub_state')
-for i=5,#ARGV do if current==ARGV[i] then return 0 end end
-redis.call('HSET',KEYS[1],'sub_state',ARGV[1],'sub_error',ARGV[2],'sub_checked_at',ARGV[3],'updated_at',ARGV[3])
-redis.call('SADD',KEYS[2],ARGV[4])
-if ARGV[1]=='failing' or ARGV[1]=='pending' then redis.call('SADD',KEYS[3],ARGV[4]) else redis.call('SREM',KEYS[3],ARGV[4]) end
-return 1`)
 
 type SubState struct {
 	State string
@@ -308,9 +296,19 @@ type SubState struct {
 
 func (r *Registry) SetSubStateUnless(ctx context.Context, broadcasterID string, write SubState, protected ...string) (bool, error) {
 	now := strconv.FormatInt(time.Now().Unix(), 10)
-	args := append([]string{write.State, write.Error, now, broadcasterID}, protected...)
-	applied, err := setSubStateUnless.Exec(ctx, r.client, []string{keyPrefix + broadcasterID, indexKey, unhealthyKey}, args).AsInt64()
-	if err != nil || applied == 0 {
+	transition := pkg_valkey.GuardedTransition{
+		Key: keyPrefix + broadcasterID, Index: indexKey, Flagged: unhealthyKey,
+		GuardField: "sub_state",
+		Fields: []pkg_valkey.FieldValue{
+			{Field: "sub_state", Value: write.State},
+			{Field: "sub_error", Value: write.Error},
+			{Field: "sub_checked_at", Value: now},
+			{Field: "updated_at", Value: now},
+		},
+		Member: broadcasterID, Flag: unhealthyState(write.State), Protected: protected,
+	}
+	applied, err := transition.Apply(ctx, r.client)
+	if err != nil || !applied {
 		return false, err
 	}
 	return true, r.afterChannelUpdate(ctx, broadcasterID)
@@ -320,35 +318,24 @@ func (r *Registry) MarkBlocked(ctx context.Context, ch manage.Channel) error {
 	key := keyPrefix + ch.BroadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 
-	return r.applyChannelUpdate(ctx, ch.BroadcasterID,
-		r.client.B().Hset().Key(key).FieldValue().
-			FieldValue("blocked_at", now).
-			FieldValue("updated_at", now).
-			Build(),
-		r.client.B().Sadd().Key(indexKey).Member(ch.BroadcasterID).Build(),
-	)
+	update := pkg_valkey.HashFieldsUpdate{Key: key, Fields: map[string]string{"blocked_at": now, "updated_at": now}}
+	if err := update.Apply(ctx, r.client, pkg_valkey.Membership{Key: indexKey, Member: ch.BroadcasterID, Include: true}); err != nil {
+		return err
+	}
+	return r.afterChannelUpdate(ctx, ch.BroadcasterID)
 }
 
 func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, state manage.GrantState) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 
-	return r.applyChannelUpdate(ctx, broadcasterID,
-		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
-		r.client.B().Hset().Key(key).FieldValue().
-			FieldValue("grant_state", string(state)).
-			FieldValue("grant_checked_at", now).
-			FieldValue("updated_at", now).
-			Build(),
-		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
-	)
-}
-
-func (r *Registry) applyChannelUpdate(ctx context.Context, broadcasterID string, commands ...valkey.Completed) error {
-	for _, res := range r.client.DoMulti(ctx, commands...) {
-		if err := res.Error(); err != nil {
-			return err
-		}
+	update := pkg_valkey.HashFieldsUpdate{
+		Key:      key,
+		Defaults: map[string]string{"enabled": "1"},
+		Fields:   map[string]string{"grant_state": string(state), "grant_checked_at": now, "updated_at": now},
+	}
+	if err := update.Apply(ctx, r.client, pkg_valkey.Membership{Key: indexKey, Member: broadcasterID, Include: true}); err != nil {
+		return err
 	}
 	return r.afterChannelUpdate(ctx, broadcasterID)
 }
@@ -369,19 +356,17 @@ const modCheckLockPrefix = "outgress:mod-check:lock:"
 const verifyThrottlePrefix = "outgress:verify:"
 
 func (r *Registry) ClaimVerify(ctx context.Context, broadcasterID string, ttl time.Duration) (bool, error) {
-	return r.acquireLock(ctx, verifyThrottlePrefix+broadcasterID, "1", ttl)
+	return r.acquireLock(ctx, namedLock{key: verifyThrottlePrefix + broadcasterID, owner: "1"}, ttl)
 }
 
 const enrollCooldownPrefix = "outgress:enroll:cooldown:"
 
 func (r *Registry) ArmEnrollCooldown(ctx context.Context, broadcasterID string, ttl time.Duration) error {
-	return r.client.Do(ctx,
-		r.client.B().Set().Key(enrollCooldownPrefix+broadcasterID).Value("1").PxMilliseconds(ttl.Milliseconds()).Build(),
-	).Error()
+	return pkg_valkey.NewKV(r.client).SetMillis(ctx, enrollCooldownPrefix+broadcasterID, "1", ttl)
 }
 
 func (r *Registry) EnrollCooldownActive(ctx context.Context, broadcasterID string) (bool, error) {
-	n, err := r.client.Do(ctx, r.client.B().Exists().Key(enrollCooldownPrefix+broadcasterID).Build()).AsInt64()
+	n, err := pkg_valkey.CountExisting(ctx, r.client, []string{enrollCooldownPrefix + broadcasterID})
 	if err != nil {
 		return false, err
 	}
@@ -390,32 +375,38 @@ func (r *Registry) EnrollCooldownActive(ctx context.Context, broadcasterID strin
 
 const reauthBeaconPrefix = "outgress:reauth:beacon:"
 
+// namedLock names a lock by its prefixed key and owner, so acquire and release share one shape.
+type namedLock struct {
+	key   string
+	owner string
+}
+
 func (r *Registry) ArmReauthBeacon(ctx context.Context, broadcasterID string, ttl time.Duration) (bool, error) {
-	return r.acquireLock(ctx, reauthBeaconPrefix+broadcasterID, "1", ttl)
+	return r.acquireLock(ctx, namedLock{key: reauthBeaconPrefix + broadcasterID, owner: "1"}, ttl)
 }
 
 func (r *Registry) AcquireEnrollLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {
-	return r.acquireLock(ctx, enrollLockPrefix+broadcasterID, owner, ttl)
+	return r.acquireLock(ctx, namedLock{key: enrollLockPrefix + broadcasterID, owner: owner}, ttl)
 }
 
 func (r *Registry) AcquireModCheckLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {
-	return r.acquireLock(ctx, modCheckLockPrefix+broadcasterID, owner, ttl)
+	return r.acquireLock(ctx, namedLock{key: modCheckLockPrefix + broadcasterID, owner: owner}, ttl)
 }
 
-func (r *Registry) acquireLock(ctx context.Context, key, owner string, ttl time.Duration) (bool, error) {
-	return pkg_valkey.NewOwnerLock(r.client, key, owner).Acquire(ctx, ttl)
+func (r *Registry) acquireLock(ctx context.Context, lock namedLock, ttl time.Duration) (bool, error) {
+	return pkg_valkey.NewOwnerLock(r.client, lock.key, lock.owner).Acquire(ctx, ttl)
 }
 
 func (r *Registry) ReleaseEnrollLock(ctx context.Context, broadcasterID, owner string) error {
-	return r.releaseLock(ctx, enrollLockPrefix+broadcasterID, owner)
+	return r.releaseLock(ctx, namedLock{key: enrollLockPrefix + broadcasterID, owner: owner})
 }
 
 func (r *Registry) ReleaseModCheckLock(ctx context.Context, broadcasterID, owner string) error {
-	return r.releaseLock(ctx, modCheckLockPrefix+broadcasterID, owner)
+	return r.releaseLock(ctx, namedLock{key: modCheckLockPrefix + broadcasterID, owner: owner})
 }
 
-func (r *Registry) releaseLock(ctx context.Context, key, owner string) error {
-	return pkg_valkey.NewOwnerLock(r.client, key, owner).Release(ctx)
+func (r *Registry) releaseLock(ctx context.Context, lock namedLock) error {
+	return pkg_valkey.NewOwnerLock(r.client, lock.key, lock.owner).Release(ctx)
 }
 
 func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
@@ -424,7 +415,7 @@ func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 	}
 	out := []manage.Channel{}
 	for offset := 0; ; offset += hotBatch {
-		ids, err := r.client.Do(ctx, r.client.B().Zrange().Key(hotIndexKey).Min(strconv.Itoa(offset)).Max(strconv.Itoa(offset+hotBatch-1)).Build()).AsStrSlice()
+		ids, err := pkg_valkey.ZRangeByIndex(ctx, r.client, pkg_valkey.RankRange{Key: hotIndexKey, Start: int64(offset), Stop: int64(offset + hotBatch - 1)})
 		if err != nil {
 			return nil, err
 		}
@@ -447,74 +438,13 @@ func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
 	if r.pauseStore != nil {
 		return r.setDurablePause(ctx, paused)
 	}
-	var version int64
-	err := r.client.Dedicated(func(client valkey.DedicatedClient) error {
-		var txnErr error
-		version, txnErr = runPauseTxn(ctx, client, paused)
-		return txnErr
-	})
+	version, err := (pkg_valkey.VersionedFlag{Flag: pausedKey, Version: pausedVersionKey}).Set(ctx, r.client, paused)
 	if err != nil {
 		return err
 	}
 
 	r.applyPauseSnapshot(pauseSnapshot{paused: paused, version: version, observedAt: time.Now()})
 	r.publishPause(paused, version)
-	return nil
-}
-
-func runPauseTxn(ctx context.Context, client valkey.DedicatedClient, paused bool) (int64, error) {
-	stateCommand := client.B().Del().Key(pausedKey).Build()
-	if paused {
-		stateCommand = client.B().Set().Key(pausedKey).Value("1").Build()
-	}
-	results := client.DoMulti(ctx,
-		client.B().Multi().Build(),
-		stateCommand,
-		client.B().Incr().Key(pausedVersionKey).Build(),
-		client.B().Exec().Build(),
-	)
-	executed, err := pauseTxnResults(results)
-	if err != nil {
-		return 0, err
-	}
-	return executed[1].AsInt64()
-}
-
-func pauseTxnResults(results []valkey.ValkeyResult) ([]valkey.ValkeyMessage, error) {
-	if len(results) != 4 {
-		return nil, errors.New("pause transaction returned an invalid pipeline result")
-	}
-	if err := firstResultError(results[:len(results)-1]); err != nil {
-		return nil, err
-	}
-	executed, err := results[len(results)-1].ToArray()
-	if err != nil {
-		return nil, err
-	}
-	if len(executed) != 2 {
-		return nil, errors.New("pause transaction returned an invalid result")
-	}
-	if err := firstMessageError(executed); err != nil {
-		return nil, err
-	}
-	return executed, nil
-}
-
-func firstResultError(results []valkey.ValkeyResult) error {
-	for _, result := range results {
-		if err := result.Error(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func firstMessageError(messages []valkey.ValkeyMessage) error {
-	for _, message := range messages {
-		if err := message.Error(); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -551,45 +481,11 @@ func (r *Registry) loadPauseSnapshot(ctx context.Context) (pauseSnapshot, error)
 	if r.pauseStore != nil {
 		return r.loadDurablePause(ctx)
 	}
-	values, err := r.client.Do(ctx, r.client.B().Mget().Key(pausedKey, pausedVersionKey).Build()).ToArray()
+	paused, version, err := (pkg_valkey.VersionedFlag{Flag: pausedKey, Version: pausedVersionKey}).Read(ctx, r.client)
 	if err != nil {
 		return pauseSnapshot{}, err
 	}
-	if len(values) != 2 {
-		return pauseSnapshot{}, errors.New("pause lookup returned an invalid result")
-	}
-
-	paused, err := pausedFlagField(values[0])
-	if err != nil {
-		return pauseSnapshot{}, err
-	}
-	version, err := pauseVersionField(values[1])
-	if err != nil {
-		return pauseSnapshot{}, err
-	}
-
 	return pauseSnapshot{paused: paused, version: version, observedAt: time.Now()}, nil
-}
-
-func pausedFlagField(value valkey.ValkeyMessage) (bool, error) {
-	state, err := stringOrNil(value)
-	return state == "1", err
-}
-
-func pauseVersionField(value valkey.ValkeyMessage) (int64, error) {
-	raw, err := stringOrNil(value)
-	if err != nil || raw == "" {
-		return 0, err
-	}
-	return strconv.ParseInt(raw, 10, 64)
-}
-
-func stringOrNil(value valkey.ValkeyMessage) (string, error) {
-	raw, err := value.ToString()
-	if valkey.IsValkeyNil(err) {
-		return "", nil
-	}
-	return raw, err
 }
 
 func (r *Registry) applyPauseSnapshot(next pauseSnapshot) {
@@ -645,17 +541,16 @@ func unixField(v string) time.Time {
 type channelIDs []string
 
 func (r *Registry) listChannels(ctx context.Context, ids channelIDs) ([]manage.Channel, error) {
-	gets := make([]valkey.Completed, 0, len(ids))
-	for _, id := range ids {
-		gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = keyPrefix + id
 	}
 	out := make([]manage.Channel, 0, len(ids))
-	for i, res := range r.client.DoMulti(ctx, gets...) {
-		fields, err := res.AsStrMap()
-		if err != nil {
-			return nil, err
+	for i, read := range pkg_valkey.ReadHashes(ctx, r.client, keys) {
+		if read.Err != nil {
+			return nil, read.Err
 		}
-		ch := channelFromFields(ids[i], fields)
+		ch := channelFromFields(ids[i], read.Fields)
 		if ch.BroadcasterID != "" {
 			out = append(out, ch)
 		}

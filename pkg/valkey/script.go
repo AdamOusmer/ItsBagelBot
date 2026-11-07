@@ -25,18 +25,34 @@ func (s Script) Body() string { return s.body }
 
 func (s Script) SHA1() string { return s.sha }
 
+// Exec runs the script against keys and args as a single EVALSHA call, falling back to EVAL on a NOSCRIPT miss.
+// Unlike RunScripts, this never pipelines: a caller intercepting single Do calls (routing, tracing, tests) sees
+// exactly one command, matching how a *valkey_go.Lua script runs.
+func (s Script) Exec(ctx context.Context, client valkey_go.Client, keys, args []string) valkey_go.ValkeyResult {
+	call := ScriptCall{Script: s, Args: args}
+	if len(keys) > 0 {
+		call.Key, call.Also = keys[0], keys[1:]
+	}
+	result := client.Do(ctx, call.evalsha(client))
+	if err, ok := valkey_go.IsValkeyErr(result.Error()); ok && err.IsNoScript() {
+		return client.Do(ctx, call.eval(client))
+	}
+	return result
+}
+
 type ScriptCall struct {
 	Script Script
 	Key    string
+	Also   []string
 	Args   []string
 }
 
 func (c ScriptCall) evalsha(client valkey_go.Client) valkey_go.Completed {
-	return client.B().Evalsha().Sha1(c.Script.sha).Numkeys(1).Key(c.Key).Arg(c.Args...).Build()
+	return client.B().Evalsha().Sha1(c.Script.sha).Numkeys(1 + int64(len(c.Also))).Key(c.Key).Key(c.Also...).Arg(c.Args...).Build()
 }
 
 func (c ScriptCall) eval(client valkey_go.Client) valkey_go.Completed {
-	return client.B().Eval().Script(c.Script.body).Numkeys(1).Key(c.Key).Arg(c.Args...).Build()
+	return client.B().Eval().Script(c.Script.body).Numkeys(1 + int64(len(c.Also))).Key(c.Key).Key(c.Also...).Arg(c.Args...).Build()
 }
 
 // RunScripts pipelines every call as EVALSHA and resends only the NOSCRIPT misses as EVAL.

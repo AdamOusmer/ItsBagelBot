@@ -45,7 +45,7 @@ func (s *Store) ModulesGet(ctx context.Context, guildID string) ([]ddiscord.Modu
 func (s *Store) backfillModules(ctx context.Context, guildID string) ([]*ent.GuildModule, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.GuildModule, error) {
 		var rows []*ent.GuildModule
-		err := withTx(ctx, s.client, func(tx *ent.Tx) error {
+		err := db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			var err error
 			rows, err = s.ensureModulesInTx(ctx, tx, guildID)
 			return err
@@ -60,7 +60,7 @@ func (s *Store) ModuleSet(ctx context.Context, p ModuleSetParams) (int, error) {
 	}
 	var version int
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			got, err := s.setModuleInTx(ctx, tx, p)
 			version = got
 			return err

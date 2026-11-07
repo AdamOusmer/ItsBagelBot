@@ -42,6 +42,37 @@ func HumanizeDuration(locale string, d time.Duration) string {
 	return strings.Join(parts, ", ")
 }
 
+var compactUnits = []struct {
+	seconds int64
+	key     string
+}{
+	{24 * 3600, "time.short_day"},
+	{3600, "time.short_hour"},
+	{60, "time.short_minute"},
+	{1, "time.short_second"},
+}
+
+// CompactDuration reads like 2d 3h, 45m or 12s, rounded up so a running window never shows nothing.
+func CompactDuration(locale string, d time.Duration) string {
+	if d <= 0 {
+		return ""
+	}
+	seconds := int64((d + time.Second - 1) / time.Second)
+	parts := make([]string, 0, humanizeParts)
+	for _, unit := range compactUnits {
+		n := seconds / unit.seconds
+		if n == 0 {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%d%s", n, T(locale, unit.key)))
+		seconds %= unit.seconds
+		if len(parts) == humanizeParts {
+			break
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
 func humanizePart(locale string, n int64, key string) string {
 	if n != 1 {
 		key += "s"

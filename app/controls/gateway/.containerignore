@@ -1,0 +1,6 @@
+.DS_Store
+.env
+*.log
+_build
+deps
+.elixir_ls

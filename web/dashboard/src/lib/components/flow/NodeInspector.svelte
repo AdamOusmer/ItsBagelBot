@@ -19,8 +19,9 @@
   import { portLabel } from '#lib/flow/describe';
   import { rehearseFlow } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
-  import { fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
-  import { fieldVisible, outputsFor, specFor, variablesFor, type Flow, type FlowKind } from '#lib/flow/model';
+  import DurationField from '#lib/components/shared/DurationField.svelte';
+  import { durationOutside, durationRange, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
+  import { fieldVisible, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode, removeNode } from '#lib/flow/ops';
   import { awaitingSetup, configText } from '#lib/flow/setup';
   import { SETUP_URL } from '@bagel/kit/automations';
@@ -82,6 +83,12 @@
       heldForSetup = null;
       delete node.config.disabled;
     }
+  });
+
+  // A named window cannot also be per-viewer, so switching to per-viewer drops a name rather than letting an
+  // invalid combination sit unsaved.
+  $effect(() => {
+    if (node && spec?.type === 'cond.cooldown' && node.config.perUser && node.config.name) delete node.config.name;
   });
 
   const templateFields = $derived(spec?.fields.filter((f) => f.type === 'template') ?? []);
@@ -154,6 +161,13 @@
     count === 0 ? t('flows.board.branchNone') : count === 1 ? t('flows.board.branchOne') : t('flows.board.branchMany', { count });
   const hintTitle = (token: string, hint: string | undefined) => (hint ? t('flows.board.variableTitle', { token, hint }) : token);
 
+  // The cooldown name field keeps its slot even while hidden, disabled rather than removed, so toggling
+  // per-viewer never shifts the fields below it.
+  const RESERVE_SPACE = new Set(['cond.cooldown:name']);
+  function renderVisible(s: NodeSpec, n: FlowNode, field: FieldSpec): boolean {
+    return RESERVE_SPACE.has(`${s.type}:${field.key}`) || fieldVisible(s, n, field);
+  }
+
   function duplicate() {
     if (!node) return;
     const copy = duplicateNode(flow, node.id);
@@ -185,10 +199,15 @@
       {/if}
       {#if spec.fields.length}
         <div class="fields">
-          {#each spec.fields.filter((f) => fieldVisible(spec, node, f)) as field (field.key)}
+          {#each spec.fields.filter((f) => renderVisible(spec, node, f)) as field (field.key)}
             {@const label = fieldLabel(t, spec, field)}
             {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field)}
-            {#if field.type === 'color'}
+            {#if spec.type === 'cond.cooldown' && field.key === 'name'}
+              {@const perViewer = Boolean(node.config.perUser)}
+              <Field {label} for="{uid}-{field.key}" hint={t('flows.step.condition.cooldown.field.name.hint')}>
+                <Input id="{uid}-{field.key}" {placeholder} value={perViewer ? '' : textOf(field.key)} disabled={perViewer} oninput={(e) => (node.config[field.key] = e.currentTarget.value)} />
+              </Field>
+            {:else if field.type === 'color'}
               <Field {label} for="{uid}-{field.key}">
                 <ColorPicker
                   id="{uid}-{field.key}"
@@ -215,7 +234,7 @@
                 />
               </Field>
             {:else if field.type === 'number'}
-              <Field {label} for="{uid}-{field.key}">
+              <Field {label} for="{uid}-{field.key}" hint={spec.type === 'reply.cooldown_add' && field.key === 'per' ? t('flows.step.reply.cooldownAdd.field.per.hint') : undefined}>
                 <Input
                   id="{uid}-{field.key}"
                   type="number"
@@ -230,6 +249,28 @@
                 >
                   {#snippet trailing()}{#if field.unit}<span class="unit">{fieldUnit(t, spec, field)}</span>{/if}{/snippet}
                 </Input>
+              </Field>
+            {:else if field.type === 'duration'}
+              {@const outside = durationOutside(field, node.config[field.key])}
+              {@const range = durationRange(t, spec, field)}
+              <Field {label} hint={outside ? undefined : range} error={outside ? range : undefined} errorId="{uid}-{field.key}-error">
+                {#key node.id}
+                  <DurationField
+                    id="{uid}-{field.key}"
+                    min={field.min}
+                    max={field.max}
+                    {label}
+                    invalid={outside}
+                    describedby={outside ? `${uid}-${field.key}-error` : undefined}
+                    bind:value={
+                      () => (node.config[field.key] === undefined ? Number.NaN : Number(node.config[field.key])),
+                      (seconds) => {
+                        if (Number.isFinite(seconds)) node.config[field.key] = seconds;
+                        else delete node.config[field.key];
+                      }
+                    }
+                  />
+                {/key}
               </Field>
             {:else if field.type === 'template' && field.singleLine}
               <Field {label} for="{uid}-{field.key}">

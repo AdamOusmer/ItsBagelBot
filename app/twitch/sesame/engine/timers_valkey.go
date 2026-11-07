@@ -274,14 +274,9 @@ func (s *ValkeyTimerStore) reconcile(ctx context.Context) {
 
 func (s *ValkeyTimerStore) liveBroadcasters(ctx context.Context) []uint64 {
 	var ids []uint64
-	cursor := uint64(0)
-	for {
-		entry, err := s.client.Do(ctx, s.client.B().Scan().Cursor(cursor).Match(livekey.KeyPrefix+"*").Count(liveScanCount).Type("string").Build()).AsScanEntry()
-		if err != nil {
-			s.log.Warn("timers: reconcile scan failed", zap.Error(err))
-			return ids
-		}
-		for _, k := range entry.Elements {
+	query := pkg_valkey.ScanQuery{Match: livekey.KeyPrefix + "*", Type: "string", Count: liveScanCount}
+	err := pkg_valkey.ScanAll(ctx, s.client, query, func(keys []string) error {
+		for _, k := range keys {
 			if strings.HasPrefix(k, recheckKeyPrefix) {
 				continue
 			}
@@ -289,11 +284,12 @@ func (s *ValkeyTimerStore) liveBroadcasters(ctx context.Context) []uint64 {
 				ids = append(ids, id)
 			}
 		}
-		cursor = entry.Cursor
-		if cursor == 0 {
-			return ids
-		}
+		return nil
+	})
+	if err != nil {
+		s.log.Warn("timers: reconcile scan failed", zap.Error(err))
 	}
+	return ids
 }
 
 func clampInterval(seconds int) time.Duration {
@@ -339,7 +335,8 @@ func (s *ValkeyTimerStore) armSchedule(ctx context.Context, ref timerRef, ex tim
 		return nil
 	}
 	generation := runtimeFence(state)
-	return timerAdmissionArm.Exec(ctx, s.client, []string{ref.scheduleKey(), ref.admissionKey()}, []string{generation, strconv.FormatInt(int64(ex.Seconds()), 10)}).Error()
+	_, err = timerAdmissionClaim(ref).Arm(ctx, s.client, generation, ex)
+	return err
 }
 
 func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) {
@@ -369,13 +366,13 @@ func (s *ValkeyTimerStore) delKeys(ctx context.Context, broadcasterID uint64, ke
 	if len(keys) == 0 {
 		return
 	}
-	if err := s.client.Do(ctx, s.client.B().Del().Key(keys...).Build()).Error(); err != nil {
+	if err := pkg_valkey.DelKeys(ctx, s.client, keys...); err != nil {
 		s.log.Warn("timers: failed to disarm", module.BIDField(broadcasterID), zap.Int("keys", len(keys)), zap.Error(err))
 	}
 }
 
 func (s *ValkeyTimerStore) delAuxKey(ctx context.Context, ref timerRef, key string) {
-	if err := s.client.Do(ctx, s.client.B().Del().Key(key).Build()).Error(); err != nil {
+	if err := pkg_valkey.DelKeys(ctx, s.client, key); err != nil {
 		s.log.Warn("timers: failed to disarm", module.BIDField(ref.broadcasterID), zap.String("timer_id", ref.id), zap.String("key", key), zap.Error(err))
 	}
 }
@@ -512,8 +509,8 @@ func (s *ValkeyTimerStore) timerAdmission(ctx context.Context, ref timerRef) (ch
 	if err != nil || !admission.AllowsBackground() {
 		return admission, false
 	}
-	generation, err := s.client.Do(ctx, s.client.B().Get().Key(ref.admissionKey()).Build()).ToString()
-	return admission, err == nil && generation == runtimeFence(admission)
+	generation, ok := pkg_valkey.NewKV(s.client).GetString(ctx, ref.admissionKey())
+	return admission, ok && generation == runtimeFence(admission)
 }
 
 func runtimeFence(state channelruntime.Snapshot) string {
@@ -771,8 +768,6 @@ func (r timerRef) admissionKey() string {
 	return cache.PairKey(timerAuxPrefix+"admission:", r.broadcasterID, r.id)
 }
 
-var timerAdmissionArm = valkey.NewLuaScript(`
-local previous=redis.call('GET',KEYS[2])
-if previous~=ARGV[1] then redis.call('DEL',KEYS[1]) end
-redis.call('SET',KEYS[2],ARGV[1],'EX',172800)
-return redis.call('SET',KEYS[1],'1','NX','EX',ARGV[2])`)
+func timerAdmissionClaim(ref timerRef) pkg_valkey.FencedClaim {
+	return pkg_valkey.FencedClaim{Claim: ref.scheduleKey(), Fence: ref.admissionKey()}
+}

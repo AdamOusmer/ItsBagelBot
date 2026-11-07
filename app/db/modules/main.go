@@ -6,6 +6,7 @@ package main
 import (
 	"ItsBagelBot/internal/analytics"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	_ "ItsBagelBot/app/db/modules/ent/runtime"
 	"ItsBagelBot/app/db/modules/repository"
 	"ItsBagelBot/app/db/modules/rpc"
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
@@ -50,7 +52,9 @@ func main() {
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
+	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error {
+		return repository.MigrateSchema(ctx, client, driver.Dialect())
+	})
 
 	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
@@ -81,8 +85,12 @@ func main() {
 	automations.SetDialect(driver.Dialect())
 	automations.BindModules(repo)
 
-	recorder := analytics.New(svcboot.MustValkey(core), log, nil)
+	valkeyClient := svcboot.MustValkey(core)
+	recorder := analytics.New(valkeyClient, log, nil)
 	defer recorder.Close()
+	repo.SetCooldownMarkers(cooldownmarker.New(valkeyClient))
+	recipeState := repository.NewRecipeState(client, driver)
+	go repository.NewCooldownMover(recipeState, valkeyClient, rand.Text(), log).Run(core.Ctx)
 	repo.SetAnalytics(recorder)
 	go recorder.SeedOnce(core.Ctx, serviceName,
 		[]string{"modules.rows", "modules.breadth", "integrations.connected|spotify", "integrations.connected|govee"},
@@ -94,7 +102,7 @@ func main() {
 	})
 
 	projectionSubject := subscribeRPCs(rpcWiring{
-		nc: n.RPC, client: client, repo: repo, quotes: quotes, automations: automations, app: core.NR, log: log,
+		nc: n.RPC, client: client, repo: repo, quotes: quotes, automations: automations, recipeState: recipeState, app: core.NR, log: log,
 	})
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{
@@ -165,6 +173,7 @@ type rpcWiring struct {
 	repo        *repository.Modules
 	quotes      *repository.Quotes
 	automations *repository.Automations
+	recipeState *repository.RecipeState
 	app         *newrelic.Application
 	log         *zap.Logger
 }
@@ -187,6 +196,10 @@ func subscribeRPCs(w rpcWiring) string {
 
 	if err := rpc.SubscribeQuotes(wiring.RPCWiring, w.quotes, dashboardSubject+".quote"); err != nil {
 		w.log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
+	}
+
+	if err := rpc.SubscribeRecipeState(wiring.RPCWiring, w.recipeState, dashboardSubject); err != nil {
+		w.log.Fatal("failed to subscribe recipe state rpc", zap.Error(err))
 	}
 
 	if err := rpc.SubscribeAutomations(wiring.RPCWiring, w.automations); err != nil {

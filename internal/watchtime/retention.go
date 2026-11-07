@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"github.com/valkey-io/valkey-go"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 )
 
 const (
@@ -34,25 +34,11 @@ func WindowStartUnixMilli(a data.WatchAwardDTO) int64 {
 	return max(0, start)
 }
 
-var safePruneScript = valkey.NewLuaScript(`
-local n=redis.call('XLEN',KEYS[1])
-if n~=redis.call('ZCARD',KEYS[2]) then return 0 end
-local clock=redis.call('TIME')
-local now=tonumber(clock[1])*1000+math.floor(tonumber(clock[2])/1000)
-local cutoff=math.min(tonumber(ARGV[1]),now-tonumber(ARGV[2]))
-local first=redis.call('ZRANGE',KEYS[2],0,0,'WITHSCORES')
-if #first>0 then cutoff=math.min(cutoff,tonumber(first[2])-1) end
-if cutoff<=0 then return 0 end
-local prior=tonumber(redis.call('GET',KEYS[3]) or '0')
-if prior>cutoff then return 0 end
-redis.call('SET',KEYS[3],string.format('%.0f',cutoff))
-return cutoff`)
-
 // SafePruneBefore publishes the acceptance barrier before SQL pruning. Every
 // queued award pins it below that window's start, including pending deliveries.
 // Unindexed legacy deliveries conservatively prevent advancement until drained.
 func (s *Store) SafePruneBefore(ctx context.Context, desiredUnixMilli int64) (int64, error) {
 	keys := []string{Stream, OutboxWindowIndex, RetentionFloor}
 	args := []string{strconv.FormatInt(desiredUnixMilli, 10), strconv.FormatInt(HistoryRetention.Milliseconds(), 10)}
-	return safePruneScript.Exec(ctx, s.client, keys, args).AsInt64()
+	return pkgvalkey.RunOutboxBarrierAdvance(ctx, s.client, keys, args).AsInt64()
 }

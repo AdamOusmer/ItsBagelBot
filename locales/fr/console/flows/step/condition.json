@@ -40,10 +40,27 @@
     "field": {
       "seconds": {
         "label": "Délai de recharge",
-        "unit": "secondes"
+        "range": "Utilisez de 1 seconde à {days} jours."
       },
       "perUser": {
         "label": "Par viewer"
+      },
+      "name": {
+        "label": "Nom",
+        "placeholder": "subathon",
+        "hint": "Lui donner un nom le redémarre s’il est en cours. Les étapes d’ajout de temps de n’importe quelle recette peuvent ensuite le prolonger. Non disponible par viewer."
+      },
+      "leftCommand": {
+        "label": "Commande de temps restant",
+        "placeholder": "!tempsrestant"
+      },
+      "leftReply": {
+        "label": "Réponse pendant l’attente",
+        "placeholder": "{user}, encore {cooldown:left} avant de pouvoir réutiliser ceci."
+      },
+      "readyReply": {
+        "label": "Réponse quand c’est prêt",
+        "placeholder": "{user}, c’est prêt à être utilisé."
       }
     },
     "out": {

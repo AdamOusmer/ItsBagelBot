@@ -6,12 +6,14 @@ package modules
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/validate"
@@ -115,12 +117,26 @@ func (k cmdCall) add(args cmdArgs) {
 		k.log.Warn("cmd: add lookup failed", zap.String("name", name), k.c.BID(), zap.Error(err))
 		return
 	}
-	if found {
+	if found || k.recipeAnswersOn(name) {
 		k.reply("cmd.err.exists", name)
 		return
 	}
 
 	k.save(projection.Command{Name: name, Response: response, IsActive: true, Perm: "everyone"}, "cmd.added")
+}
+
+// A custom command runs first, so taking this name would silence the recipe's time left command.
+func (k cmdCall) recipeAnswersOn(name string) bool {
+	source := k.d.Automations.Source
+	if source == nil {
+		return false
+	}
+	index, err := source.AutomationIndex(k.ctx, k.c.BroadcasterID)
+	if err != nil {
+		k.log.Warn("cmd: recipe lookup failed", zap.String("name", name), k.c.BID(), zap.Error(err))
+		return false
+	}
+	return slices.ContainsFunc(index.Command(name), func(t *automation.CompiledTrigger) bool { return t.Left != nil })
 }
 
 func (k cmdCall) edit(args cmdArgs) {

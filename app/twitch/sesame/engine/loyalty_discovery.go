@@ -44,12 +44,12 @@ func (s *ValkeyLoyaltyClock) reconcile(ctx context.Context) {
 	}
 }
 func (s *ValkeyLoyaltyClock) armDiscoveredChannel(ctx context.Context) (bool, error) {
-	raw, err := s.client.Do(ctx, s.client.B().Lindex().Key(loyaltyDiscoveryQueueKey).Index(0).Build()).ToString()
-	if valkey.IsValkeyNil(err) {
-		return false, nil
-	}
+	raw, ok, err := pkg_valkey.ListFront(ctx, s.client, loyaltyDiscoveryQueueKey)
 	if err != nil {
 		return false, err
+	}
+	if !ok {
+		return false, nil
 	}
 	id, parseErr := strconv.ParseUint(raw, 10, 64)
 	if parseErr == nil {
@@ -61,12 +61,12 @@ func (s *ValkeyLoyaltyClock) armDiscoveredChannel(ctx context.Context) (bool, er
 	return true, err
 }
 func (s *ValkeyLoyaltyClock) discoverLivePage(ctx context.Context) (bool, error) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(loyaltyDiscoveryCursorKey).Build()).ToString()
-	if err != nil && !valkey.IsValkeyNil(err) {
+	raw, _, err := pkg_valkey.ReadString(ctx, s.client, loyaltyDiscoveryCursorKey)
+	if err != nil {
 		return false, err
 	}
 	cursor, _ := strconv.ParseUint(raw, 10, 64)
-	scan, err := s.client.Do(ctx, s.client.B().Scan().Cursor(cursor).Match(livekey.KeyPrefix+"*").Count(liveScanCount).Type("string").Build()).AsScanEntry()
+	scan, err := pkg_valkey.ScanPage(ctx, s.client, cursor, pkg_valkey.ScanQuery{Match: livekey.KeyPrefix + "*", Type: "string", Count: liveScanCount})
 	if err != nil {
 		s.log.Warn("loyalty: live schedule discovery failed", zap.Error(err))
 		return false, err

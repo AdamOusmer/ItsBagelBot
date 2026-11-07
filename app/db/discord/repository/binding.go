@@ -50,7 +50,7 @@ func (s *Store) BindingSet(ctx context.Context, p BindParams) error {
 		return ErrInvalidInput
 	}
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			return bindInTx(ctx, tx, p)
 		})
 	})
@@ -91,7 +91,7 @@ func (s *Store) BindingDelete(ctx context.Context, guildID string, broadcasterID
 		return ErrInvalidInput
 	}
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			existing, err := tx.GuildBinding.Query().Where(guildbinding.GuildIDEQ(guildID)).Only(ctx)
 			if ent.IsNotFound(err) {
 				return nil

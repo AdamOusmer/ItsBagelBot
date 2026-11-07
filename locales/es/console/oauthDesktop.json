@@ -1,0 +1,21 @@
+{
+  "title": "Conectar la app de escritorio",
+  "eyebrow": "Inicio de sesión del dispositivo",
+  "asAccount": "Iniciando sesión como {name}.",
+  "deviceLabel": "Dispositivo",
+  "deviceUnnamed": "Dispositivo sin nombre",
+  "platformLabel": "Plataforma",
+  "platformMacos": "macOS",
+  "platformWindows": "Windows",
+  "platformLinux": "Linux",
+  "reportedByApp": "El nombre del dispositivo y la plataforma los informa la app y no están verificados.",
+  "accessGranted": "Aprobar permite que esta app actúe como tu cuenta desde tu computadora.",
+  "onlyIfYouStarted": "Aprueba esto solo si acabas de iniciar este inicio de sesión desde la app de escritorio tú mismo.",
+  "approve": "Aprobar",
+  "cancel": "Cancelar",
+  "refusalImpersonator": "Esta sesión es una vista de personal y no puede aprobar una app de escritorio. Inicia sesión con tu propia cuenta para continuar.",
+  "refusalDelegate": "Esta sesión tiene acceso delegado a otra cuenta y no puede aprobar una app de escritorio. Inicia sesión con tu propia cuenta para continuar.",
+  "approvedRedirecting": "Aprobado. Volviendo a la app…",
+  "cancelledRedirecting": "Cancelado. Volviendo a la app…",
+  "closeWindow": "Si no pasa nada en unos segundos, puedes cerrar esta ventana."
+}

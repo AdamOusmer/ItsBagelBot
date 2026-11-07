@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/gossip/internal/core"
+	"ItsBagelBot/internal/domain/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
 )
@@ -30,10 +31,8 @@ func (p *api) post(ctx context.Context, req gossiprpc.Request) any {
 	if fl == nil {
 		return postReply(status, nil, start)
 	}
-	if admit := p.admitFor(req, fl); admit != nil {
-		if err := admit(ctx); err != nil {
-			return postReply(p.classify(err), err, start)
-		}
+	if err := p.admit(ctx, fl, req.IsPremium); err != nil {
+		return postReply(p.classify(err), err, start)
 	}
 	response, err := p.sendPost(ctx, fl, req.Body)
 	if err != nil {
@@ -41,7 +40,7 @@ func (p *api) post(ctx context.Context, req gossiprpc.Request) any {
 	}
 	reply := postReply(gossiprpc.FetchOK, nil, start)
 	if req.CaptureBody {
-		reply.Values = capValues([]string{strings.TrimSpace(strings.ToValidUTF8(string(response), ""))}, maxSavedValueRunes)
+		reply.Values = capValues([]string{strings.TrimSpace(strings.ToValidUTF8(string(response), ""))}, automation.MaxSavedValueRunes)
 	}
 	return reply
 }
