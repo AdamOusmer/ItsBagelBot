@@ -34,7 +34,7 @@
   import { downloadCsv } from '@bagel/ui/lib/csv';
   import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '#lib/components/users/user-state';
   import { USER_ACTIONS, type UserActionDef } from '#lib/components/users/user-actions';
-  import type { UserDirectory } from './+page.server';
+  import type { UserDirectory } from '#lib/server/user-directory';
 
   let { data } = $props();
 
@@ -70,28 +70,48 @@
     { value: 'newest', label: t('admin.users.orderNewest') },
     { value: 'oldest', label: t('admin.users.orderOldest') }
   ]);
+  const liveChoice = $derived(data.live ? 'live' : 'any');
+  const liveOptions = $derived([
+    { value: 'any', label: t('admin.users.liveAny') },
+    { value: 'live', label: t('admin.users.liveNow') }
+  ]);
 
-  function href(params: { q?: string; state?: string; order?: string; page?: number }): string {
+  // How often the live filter re-reads who is on air. The first paint is the
+  // scan at page load; this keeps that set current while the filter stays on.
+  // Five seconds is short enough to see someone go offline, and long enough
+  // that the live-key scan is not a request per second.
+  const LIVE_REFRESH_MS = 5_000;
+
+  function queryOf(params: { q?: string; state?: string; order?: string; page?: number; live?: boolean }): string {
     const p = new URLSearchParams();
     if (params.q) p.set('q', params.q);
     if (params.state && params.state !== 'all') p.set('state', params.state);
     if (params.order === 'oldest') p.set('order', params.order);
+    if (params.live) p.set('live', '1');
     if (params.page && params.page > 1) p.set('page', String(params.page));
-    const qs = p.toString();
+    return p.toString();
+  }
+
+  function href(params: { q?: string; state?: string; order?: string; page?: number; live?: boolean }): string {
+    const qs = queryOf(params);
     return qs ? `/users?${qs}` : '/users';
   }
 
   function pickState(label: string) {
     const next = USER_STATES[stateLabels.indexOf(label)];
-    if (next) goto(href({ q: data.search, state: next, order: data.order }), { reset: false });
+    if (next) goto(href({ q: data.search, state: next, order: data.order, live: data.live }), { reset: false });
   }
 
   function pickOrder(order: string) {
-    goto(href({ q: data.search, state: data.state, order }), { reset: false });
+    goto(href({ q: data.search, state: data.state, order, live: data.live }), { reset: false });
+  }
+
+  function pickLive(choice: string) {
+    goto(href({ q: data.search, state: data.state, order: data.order, live: choice === 'live' }), { reset: false });
   }
 
   function submitSearch() {
-    goto(href({ q: search.trim(), state: stateFilter, order: data.order }), { reset: false });
+    goto(href({ q: search.trim(), state: stateFilter, order: data.order, live: data.live }), { reset: false });
   }
 
   let selectedId = $state<string | null>(null);
@@ -200,6 +220,30 @@
   }
 
   let busy = $state<string | null>(null);
+
+  function replaceDirectory(next: UserDirectory) {
+    const keep = selected;
+    dir = next;
+    if (selectedId && keep && !next.recent.some((u) => String(u.id) === selectedId)) detached = keep;
+  }
+
+  $effect(() => {
+    if (!data.live || busy) return;
+    const qs = queryOf({ q: data.search, state: data.state, order: data.order, page: data.page, live: true });
+    let alive = true;
+    const timer = setInterval(() => {
+      void fetch(`/users/directory?${qs}`).then(async (res) => {
+        if (!alive || !res.ok) return;
+        const next = (await res.json()) as UserDirectory;
+        if (!alive || next.degraded) return;
+        replaceDirectory(next);
+      }).catch(() => {});
+    }, LIVE_REFRESH_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  });
   let forms = $state<Record<string, HTMLFormElement | null>>({});
   let pending = $state<UserActionDef | null>(null);
 
@@ -365,11 +409,18 @@
       label={t('admin.users.stateFilter')}
       bind:value={() => stateLabel, pickState}
     />
-    <SegmentedControl
-      options={orderOptions}
-      label={t('admin.users.orderFilter')}
-      bind:value={() => data.order, pickOrder}
-    />
+    <Cluster gap={3}>
+      <SegmentedControl
+        options={orderOptions}
+        label={t('admin.users.orderFilter')}
+        bind:value={() => data.order, pickOrder}
+      />
+      <SegmentedControl
+        options={liveOptions}
+        label={t('admin.users.liveFilter')}
+        bind:value={() => liveChoice, pickLive}
+      />
+    </Cluster>
   </div>
 
   {#if dir?.degraded}
@@ -395,6 +446,8 @@
         </ul>
       {:else if data.search}
         <EmptyState title={t('admin.users.emptyMatch')} body={t('admin.users.emptyMatchBody')} />
+      {:else if data.live && !dir.degraded}
+        <EmptyState title={t('admin.users.emptyLive')} />
       {:else if data.state}
         <EmptyState title={t('admin.users.emptyState')} />
       {:else}
@@ -404,8 +457,8 @@
       {#if dir && (dir.page > 1 || dir.hasMore)}
         <Pager
           label={t('admin.users.pagerLabel', { page: String(dir.page), max: String(dir.maxPages) })}
-          prevHref={href({ q: data.search, state: data.state, order: data.order, page: dir.page - 1 })}
-          nextHref={href({ q: data.search, state: data.state, order: data.order, page: dir.page + 1 })}
+          prevHref={href({ q: data.search, state: data.state, order: data.order, live: data.live, page: dir.page - 1 })}
+          nextHref={href({ q: data.search, state: data.state, order: data.order, live: data.live, page: dir.page + 1 })}
           hasPrev={dir.page > 1}
           hasNext={dir.hasMore}
           prevLabel={t('admin.users.pagerPrev')}

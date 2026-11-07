@@ -142,6 +142,32 @@ func TestAdminUserListFiltersByState(t *testing.T) {
 	}
 }
 
+func TestAdminUserListOnlyLive(t *testing.T) {
+	h := moderatorHarness(t)
+	base := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+	for i, id := range []uint64{6001, 6002, 6003} {
+		h.client.User.Create().SetID(id).
+			SetUsername(fmt.Sprintf("live-%02d", i)).SetEmail(fmt.Sprintf("live-%02d@example.invalid", i)).
+			SetStatus(user.StatusFree).SetIsActive(true).
+			SetCreatedAt(base.Add(time.Duration(i) * time.Minute)).ExecX(t.Context())
+	}
+
+	live := h.admin(t, "list", modActor, usersrpc.AdminRequest{
+		Page: 1, Limit: listPage, OnlyLive: true, LiveIDs: []uint64{6001, 6003},
+	})
+	require.Empty(t, live.Error)
+	assert.Equal(t, []uint64{6003, 6001}, userIDs(live))
+
+	none := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, OnlyLive: true})
+	require.Empty(t, none.Error)
+	assert.Empty(t, userIDs(none))
+
+	// Ids without the flag do not narrow the directory.
+	ignored := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, LiveIDs: []uint64{6001}})
+	require.Empty(t, ignored.Error)
+	assert.Equal(t, []uint64{6003, 6002, 6001}, userIDs(ignored))
+}
+
 func TestAdminEnrollmentBucketsPerDay(t *testing.T) {
 	h := moderatorHarness(t)
 	day := time.Now().UTC().Truncate(24 * time.Hour)

@@ -25,6 +25,10 @@ accounts:
               from: PROJECTOR_RPC
             - service: bagel.rpc.health.projector.node.*
               from: PROJECTOR_RPC
+            - service: bagel.rpc.broadcaster.live.list
+              from: PROJECTOR_RPC
+            - service: bagel.rpc.broadcaster.live.list.node.*
+              from: PROJECTOR_RPC
             - service: bagel.rpc.health.outgress
               from: OUTGRESS_RPC
             - service: bagel.rpc.health.outgress.node.*
@@ -739,6 +743,8 @@ accounts:
             - service: bagel.rpc.broadcaster.status.get.node.*
             - service: bagel.rpc.broadcaster.live.get
             - service: bagel.rpc.broadcaster.live.get.node.*
+            - service: bagel.rpc.broadcaster.live.list
+            - service: bagel.rpc.broadcaster.live.list.node.*
             - service: bagel.rpc.broadcaster.stream_info.get
             - service: bagel.rpc.broadcaster.stream_info.get.node.*
             - stream: bagel.cache.invalidate.commands

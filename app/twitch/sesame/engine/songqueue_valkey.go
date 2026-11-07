@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -299,26 +300,29 @@ const idleRetireSlack = 5 * time.Minute
 // enqueue time plus every duration ahead of them, plus slack.
 func retirePlayedThrough(d *songQueueDoc, now time.Time) bool {
 	cutoff := now.Add(-idleRetireSlack).UnixMilli()
-	changed := false
-	var aheadMS int64
-	if d.Current != nil {
-		aheadMS = d.Current.DurationMS
-		if playedThrough(*d.Current, aheadMS, cutoff) {
-			d.Current = nil
-			changed = true
-		}
-	}
-	kept := d.Up[:0]
-	for _, entry := range d.Up {
+	aheadMS := currentDurationMS(d.Current)
+	currentRetired := retireCurrentIfPlayed(d, aheadMS, cutoff)
+	waiting := len(d.Up)
+	d.Up = slices.DeleteFunc(d.Up, func(entry SongEntry) bool {
 		aheadMS += entry.DurationMS
-		if playedThrough(entry, aheadMS, cutoff) {
-			changed = true
-			continue
-		}
-		kept = append(kept, entry)
+		return playedThrough(entry, aheadMS, cutoff)
+	})
+	return currentRetired || len(d.Up) != waiting
+}
+
+func currentDurationMS(current *SongEntry) int64 {
+	if current == nil {
+		return 0
 	}
-	d.Up = kept
-	return changed
+	return current.DurationMS
+}
+
+func retireCurrentIfPlayed(d *songQueueDoc, aheadMS, cutoffMS int64) bool {
+	if d.Current == nil || !playedThrough(*d.Current, aheadMS, cutoffMS) {
+		return false
+	}
+	d.Current = nil
+	return true
 }
 
 func playedThrough(entry SongEntry, aheadMS, cutoffMS int64) bool {
