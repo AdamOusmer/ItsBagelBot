@@ -20,13 +20,13 @@ export interface RailAccountValues {
 // needs. No markup, no $app import, so it works for the SvelteKit apps and
 // the router-less desktop app alike.
 export function railAccountValues(
+  t: (key: MessageKey) => string,
   options: {
     dashboards: DashboardLink[];
     isDelegate: boolean;
     delegateExitHref: string;
     delegateExitLabel: string;
-  },
-  t: (key: MessageKey) => string
+  }
 ): RailAccountValues {
   const { dashboards, isDelegate, delegateExitHref, delegateExitLabel } = options;
   return {
