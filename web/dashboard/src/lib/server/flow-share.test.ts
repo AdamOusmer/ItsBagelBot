@@ -9,10 +9,10 @@ import { stubSvelteKit } from '../../../test/sveltekit';
 stubSvelteKit();
 
 let allowed = true;
-const limiterKeys: string[] = [];
+const limiterKeys: unknown[] = [];
 mock.module('@bagel/kit/server/rate-limit', () => ({
   ValkeyRateLimiter: class {
-    async check(key: string) {
+    async check(key: unknown) {
       limiterKeys.push(key);
       return { allowed, retryAfterSec: 1 };
     }
@@ -22,13 +22,13 @@ mock.module('@bagel/kit/server/rate-limit', () => ({
 const saves: { locals: unknown; input: any }[] = [];
 const created = (input: any) => ({ ok: true, flow: { ref: input.ref ?? { layer: 'automation', id: 'new' }, name: input.name, enabled: false, revision: '1', definition: input.definition }, warnings: [] });
 let saveReply: (input: any) => unknown = created;
-const listFlowsCalls: string[] = [];
+const listFlowsCalls: unknown[] = [];
 let extraFlows: unknown[] = [];
 const chat = (text: string) => ({ type: 'chat', params: { text } });
 const manual = { version: 1, trigger: { type: 'manual', params: {} }, actions: [chat('hi')] };
 const drawable = { version: 1, trigger: { type: 'command', params: { name: '!fresh' } }, actions: [chat('hi'), chat('there')] };
 mock.module('./flow-store', () => ({
-  listFlows: async (uid: string) => {
+  listFlows: async (uid: unknown) => {
     listFlowsCalls.push(uid);
     return [
       { ref: { layer: 'automation', id: 'a1' }, name: 'First', enabled: true, revision: '1', definition: { ...manual, actions: [chat('one'), { type: 'run', params: { automation_id: 'a2' } }] } },
