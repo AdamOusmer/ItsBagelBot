@@ -56,7 +56,7 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(page.locator('#enc-section')).toHaveCount(1);
 
-        await expect(page.locator('main .bb-light-field[data-field]')).toHaveCount(1);
+        await expect(page.locator('main .bb-light-field')).toHaveCount(1);
         await expect(page.locator('.starfield .bb-light-field')).toHaveCount(1);
         await expect(page.locator('.seam')).toHaveCount(8);
         await expect(page.locator('.seam__line').first()).toHaveCSS('animation-name', 'seam-draw');

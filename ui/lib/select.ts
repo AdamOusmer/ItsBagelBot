@@ -27,8 +27,8 @@ export function filterSelectOptions(options: readonly SelectOption[], query: str
 }
 
 export function optionIndexAt(list: Element, target: EventTarget | null): number {
-  const option = target instanceof Element ? target.closest<HTMLElement>('[role="option"]') : null;
-  return option && list.contains(option) ? Number(option.dataset.index) : -1;
+  const option = target instanceof Element ? target.closest('[role="option"]') : null;
+  return option && list.contains(option) ? Array.from(list.querySelectorAll('[role="option"]')).indexOf(option) : -1;
 }
 
 /** Wrap keyboard navigation, skipping disabled options, including an all-disabled list. */

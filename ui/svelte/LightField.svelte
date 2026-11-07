@@ -15,8 +15,6 @@
 
 <div
     class={['bb-light-field', className].filter(Boolean).join(' ')}
-    data-field
-    data-warmth={warmth}
     aria-hidden="true"
     bind:this={host}
 ></div>

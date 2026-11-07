@@ -29,10 +29,8 @@ const classes = ['bb-hamburger', className || null].filter(Boolean).join(' ');
 <button
   class={classes}
   type="button"
-  data-menu-toggle
   aria-label={label}
   aria-expanded="false"
   aria-controls={controls}
-  data-label-close={closeLabel}
   {...rest}
-><span class="bb-hamburger__bar"></span><span class="bb-hamburger__bar"></span><span class="bb-hamburger__bar"></span></button>
+><span class="bb-hamburger__bar"></span><span class="bb-hamburger__bar"></span><span class="bb-hamburger__bar"></span></button><script type="application/json" is:inline set:html={JSON.stringify({ closeLabel })}></script>

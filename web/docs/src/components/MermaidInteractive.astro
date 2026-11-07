@@ -44,7 +44,7 @@ const controls = [
 </template>
 
 <script>
-  import { pushOverlay, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
+  import { pushOverlay, registerOverlayShell, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
   import panzoom, { type PanZoom } from 'panzoom';
 
   const READY = 'mermaid-interactive-ready';
@@ -121,6 +121,7 @@ const controls = [
     const host = diagramHost(source);
     stage.replaceChildren(host);
     viewer.hidden = false;
+    registerOverlayShell(viewer);
     overlayId = pushOverlay();
     focusTrap = trapFocus(viewer.querySelector<HTMLElement>('.bb-modal__card') ?? viewer);
 

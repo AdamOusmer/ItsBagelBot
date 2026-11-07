@@ -2,8 +2,20 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { createTypeahead, filterSelectOptions, nextEnabledOption, optionIndexAt, SELECT_NAVIGATION_KEYS, type SelectDirection, type SelectOption } from './select';
 import { naturalHeight, placeDropdown, type DropdownPlacement } from './dropdown-placement';
-import { MOBILE_QUERY, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from './overlay-stack';
+import { MOBILE_QUERY, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, registerOverlayShell, overlayContains } from './overlay-stack';
 
+interface SelectConfig {
+  value?: string;
+  searchable?: boolean;
+  label: string;
+  placeholder: string;
+  searchPlaceholder: string;
+  searchClearLabel: string;
+  emptyLabel: string;
+  meta: Record<string, Pick<SelectOption, 'description' | 'group' | 'searchText' | 'triggerLabel'>>;
+}
+
+const enhanced = new WeakSet<HTMLElement>();
 let sequence = 0;
 const MAX_HEIGHT_PX = 380;
 
@@ -59,7 +71,6 @@ function appendChevron(trigger: HTMLButtonElement, fallback: HTMLElement): void 
 }
 
 function mountNativeBridge(root: HTMLElement, native: HTMLSelectElement, fallback: HTMLElement, trigger: HTMLButtonElement): void {
-  if (root.dataset.value !== undefined) native.value = root.dataset.value;
   native.id = `${trigger.id}-native`;
   native.classList.add('bb-select__native');
   native.tabIndex = -1;
@@ -68,13 +79,16 @@ function mountNativeBridge(root: HTMLElement, native: HTMLSelectElement, fallbac
   fallback.replaceWith(trigger);
 }
 
-function readOption(option: HTMLOptionElement): SelectOption {
+const isFallbackOption = (option: HTMLOptionElement): boolean => option.hidden && option.disabled && option.value === '';
+
+function readOption(option: HTMLOptionElement, meta: SelectConfig['meta']): SelectOption {
   const group = option.parentElement instanceof HTMLOptGroupElement ? option.parentElement : undefined;
+  const extra = meta[option.value];
   return {
     value: option.value, label: option.label,
     disabled: option.disabled || group?.disabled,
-    group: option.dataset.group || group?.label,
-    description: option.dataset.description, searchText: option.dataset.searchText, triggerLabel: option.dataset.triggerLabel,
+    group: extra?.group || group?.label,
+    description: extra?.description, searchText: extra?.searchText, triggerLabel: extra?.triggerLabel,
   };
 }
 
@@ -95,7 +109,7 @@ interface OptionRenderContext {
 function createOptionItem(option: SelectOption, index: number, context: OptionRenderContext): HTMLLIElement {
   const { id, selected, pick } = context;
   const item = document.createElement('li');
-  item.id = `${id}-option-${index}`; item.className = 'bb-select__option'; item.dataset.index = String(index);
+  item.id = `${id}-option-${index}`; item.className = 'bb-select__option';
   item.setAttribute('role', 'option'); item.setAttribute('aria-selected', String(option.value === selected));
   if (option.disabled) item.setAttribute('aria-disabled', 'true');
   appendOptionText(item, option);
@@ -119,17 +133,18 @@ function appendEmptyMessage(list: HTMLUListElement, label: string): void {
 function createPanel(label: string, keydown: (event: KeyboardEvent) => void): HTMLDivElement {
   const panel = document.createElement('div'); panel.className = 'bb-picker-panel';
   panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', label);
-  panel.dataset.overlay = ''; panel.dataset.lenisPrevent = ''; panel.tabIndex = -1;
+  panel.dataset.lenisPrevent = ''; panel.tabIndex = -1;
   panel.addEventListener('keydown', keydown);
   return panel;
 }
 
 function mountMobilePanel(panel: HTMLDivElement, label: string, close: () => void): { shell: HTMLDivElement; overlayId: number } {
-  const shell = document.createElement('div'); shell.className = 'bb-picker-panel__shell'; shell.dataset.overlay = '';
+  const shell = document.createElement('div'); shell.className = 'bb-picker-panel__shell';
   const scrim = document.createElement('button'); scrim.type = 'button';
   scrim.className = 'bb-picker-panel__scrim'; scrim.setAttribute('aria-label', label);
   scrim.addEventListener('click', close);
   panel.classList.add('bb-picker-panel--sheet'); panel.setAttribute('aria-modal', 'true');
+  registerOverlayShell(shell);
   shell.append(scrim, panel); document.body.append(shell);
   const overlayId = pushOverlay(); shell.style.zIndex = String(300 + overlayIndex(overlayId) * 10);
   return { shell, overlayId };
@@ -144,6 +159,7 @@ function applyPlacement(panel: HTMLElement, { left, width, maxHeight, top, botto
 
 function mountDesktopPanel(panel: HTMLDivElement, trigger: HTMLButtonElement): void {
   panel.classList.add('bb-picker-panel--dropdown');
+  registerOverlayShell(panel);
   document.body.append(panel);
   const viewport = { width: window.innerWidth, height: window.innerHeight };
   applyPlacement(panel, placeDropdown(trigger.getBoundingClientRect(), viewport, MAX_HEIGHT_PX, (width) => naturalHeight(panel, width)));
@@ -155,33 +171,42 @@ function createList(id: string, label: string, searchable: boolean): HTMLUListEl
   return list;
 }
 
-function createSearch(root: HTMLElement, panel: HTMLDivElement, id: string, render: () => void): { input: HTMLInputElement; clear: HTMLButtonElement } {
+function createSearch(config: SelectConfig, panel: HTMLDivElement, id: string, render: () => void): { input: HTMLInputElement; clear: HTMLButtonElement } {
   const search = document.createElement('label'); search.className = 'bb-search bb-input bb-input--fill';
   const input = document.createElement('input'); input.type = 'search'; input.className = 'bb-search__input';
-  input.placeholder = root.dataset.searchPlaceholder ?? ''; input.setAttribute('aria-label', input.placeholder);
+  input.placeholder = config.searchPlaceholder; input.setAttribute('aria-label', input.placeholder);
   input.setAttribute('role', 'combobox'); input.setAttribute('aria-expanded', 'true'); input.setAttribute('aria-autocomplete', 'list');
   input.setAttribute('aria-controls', `${id}-list`); input.autocomplete = 'off'; input.addEventListener('input', render);
   const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'bb-search__clear';
-  clear.setAttribute('aria-label', root.dataset.searchClearLabel ?? ''); clear.append(searchGlyph(true));
+  clear.setAttribute('aria-label', config.searchClearLabel); clear.append(searchGlyph(true));
   clear.addEventListener('click', () => { input.value = ''; render(); input.focus(); });
   search.append(searchGlyph(), input, clear); panel.append(search);
   return { input, clear };
 }
 
+function readParts(root: HTMLElement): { native: HTMLSelectElement; fallback: HTMLElement; config: SelectConfig } | null {
+  const native = root.querySelector<HTMLSelectElement>('select');
+  const fallback = native?.parentElement;
+  const text = root.querySelector<HTMLScriptElement>(':scope > script[type="application/json"]')?.textContent;
+  if (!native || !fallback) return null;
+  return text ? { native, fallback, config: JSON.parse(text) } : null;
+}
+
 /** Enhance once; the native select remains the form and change-event bridge. */
 export function enhanceAstroSelect(root: HTMLElement): void {
-  if (root.hasAttribute('data-select-enhanced')) return;
-  const native = root.querySelector<HTMLSelectElement>('select');
-  const fallback = root.querySelector<HTMLElement>('[data-select-fallback]');
-  if (!native || !fallback) return;
-  root.dataset.selectEnhanced = '';
+  if (enhanced.has(root)) return;
+  const parts = readParts(root);
+  if (!parts) return;
+  enhanced.add(root);
+  const { native, fallback, config } = parts;
   const id = native.id || `bb-astro-select-${++sequence}`;
-  const label = root.dataset.label ?? '';
+  const label = config.label;
   const trigger = createTrigger(native, fallback, id, label);
   const valueLabel = document.createElement('span');
   valueLabel.className = 'bb-select__value';
   trigger.append(valueLabel);
   appendChevron(trigger, fallback);
+  if (config.value !== undefined) native.value = config.value;
   mountNativeBridge(root, native, fallback, trigger);
 
   let panel: HTMLDivElement | undefined;
@@ -194,25 +219,25 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   let overlayId: number | undefined;
   let focusTrap: ReturnType<typeof trapFocus> | undefined;
   let unregisterAnchor: (() => void) | undefined;
-  const searchable = root.hasAttribute('data-searchable');
+  const searchable = Boolean(config.searchable);
   const typeahead = createTypeahead();
   let pointer: { x: number; y: number } | undefined;
 
   function options(): SelectOption[] {
     return Array.from(native!.options)
-      .filter((option) => !option.hasAttribute('data-select-fallback-option'))
-      .map(readOption);
+      .filter((option) => !isFallbackOption(option))
+      .map((option) => readOption(option, config.meta));
   }
 
   function selectedOption(): SelectOption | undefined {
     const option = native!.selectedOptions[0];
-    if (!option || option.hasAttribute('data-select-fallback-option')) return undefined;
-    return readOption(option);
+    if (!option || isFallbackOption(option)) return undefined;
+    return readOption(option, config.meta);
   }
 
   function sync() {
     const selected = selectedOption();
-    valueLabel.textContent = selected?.triggerLabel ?? selected?.label ?? root.dataset.placeholder ?? '';
+    valueLabel.textContent = selected?.triggerLabel ?? selected?.label ?? config.placeholder;
     trigger.disabled = native!.disabled;
     trigger.classList.toggle('is-placeholder', !selected?.value);
     if (trigger.disabled && panel) close(false);
@@ -295,7 +320,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
       group = option.group;
       target.append(createOptionItem(option, index, context));
     }
-    if (!matches.length) appendEmptyMessage(target, root.dataset.emptyLabel ?? '');
+    if (!matches.length) appendEmptyMessage(target, config.emptyLabel);
   }
 
   function resetActive() {
@@ -394,7 +419,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     sync();
     if (trigger.disabled) return;
     panel = createPanel(label, keydown);
-    if (searchable) ({ input, clear } = createSearch(root, panel, id, renderOptions));
+    if (searchable) ({ input, clear } = createSearch(config, panel, id, renderOptions));
     list = createList(id, label, searchable);
     panel.append(list); renderOptions();
     const mobile = window.matchMedia(MOBILE_QUERY).matches;

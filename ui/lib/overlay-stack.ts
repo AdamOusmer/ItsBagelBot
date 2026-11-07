@@ -35,13 +35,30 @@ export function hasOpenOverlay(): boolean {
 let locked = false;
 let prevOverflow = '';
 const inerted: Element[] = [];
+const shells = new WeakSet<Element>();
+
+export function registerOverlayShell(node: Element): () => void {
+  shells.add(node);
+  const at = inerted.indexOf(node);
+  if (at >= 0) {
+    node.removeAttribute('inert');
+    inerted.splice(at, 1);
+  }
+  return () => {
+    shells.delete(node);
+  };
+}
+
+export function overlayShell(node: HTMLElement) {
+  return { destroy: registerOverlayShell(node) };
+}
 
 function acquireLock(): void {
   prevOverflow = document.body.style.overflow;
   document.body.style.overflow = 'hidden';
   (window as unknown as { __lenis?: { stop(): void } }).__lenis?.stop();
   for (const child of Array.from(document.body.children)) {
-    if (child.hasAttribute('data-overlay')) continue;
+    if (shells.has(child)) continue;
     child.setAttribute('inert', '');
     inerted.push(child);
   }

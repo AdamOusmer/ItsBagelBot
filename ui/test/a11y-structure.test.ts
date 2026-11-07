@@ -304,11 +304,9 @@ describe('ProfileMenu', () => {
 });
 
 describe('CopySurface', () => {
-  test('caller attributes cannot replace the copy payload or the type', () => {
-    const out = svelteHtml(SvelteCopySurface, { text: 'BAGEL', 'data-copy': 'other', type: 'submit' });
-    expect(out).toContain('data-copy="BAGEL"');
+  test('caller attributes cannot replace the type', () => {
+    const out = svelteHtml(SvelteCopySurface, { text: 'BAGEL', type: 'submit' });
     expect(out).toContain('type="button"');
-    expect(out).not.toContain('other');
     expect(out).not.toContain('submit');
   });
 });

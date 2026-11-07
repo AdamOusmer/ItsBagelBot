@@ -27,11 +27,9 @@
 <button
   class={classes}
   type="button"
-  data-menu-toggle=""
   aria-label={label}
   aria-expanded="false"
   aria-controls={controls}
-  data-label-close={closeLabel}
   {...rest}
   ><span class="bb-hamburger__bar"></span><span class="bb-hamburger__bar"></span><span
     class="bb-hamburger__bar"

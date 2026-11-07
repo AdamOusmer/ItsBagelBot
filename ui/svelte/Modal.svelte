@@ -11,6 +11,7 @@
     removeOverlay,
     isTopmost,
     overlayIndex,
+    overlayShell,
     portal,
     trapFocus,
   } from '../lib/overlay-stack';
@@ -94,7 +95,7 @@
 />
 
 {#if open}
-  <div class={classes} data-overlay="" style="z-index: {zIndex}" use:portal {...rest}><button
+  <div class={classes} style="z-index: {zIndex}" use:portal use:overlayShell {...rest}><button
       class="bb-modal__backdrop"
       type="button"
       aria-label={closeLabel}

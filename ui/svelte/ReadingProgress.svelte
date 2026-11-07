@@ -19,6 +19,5 @@
 
 <div class={classes} aria-hidden="true" {...rest}><span
     class="bb-reading-progress__fill"
-    data-reading-progress
     bind:this={fill}
   ></span></div>

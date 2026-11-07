@@ -44,7 +44,7 @@ const menuClose = menuLabels.close ?? t('nav.menuClose');
 const menuPanel = menuLabels.panel ?? t('nav.menu');
 ---
 
-<nav {...rest} class="bb-nav" aria-label={label}><div class="bb-nav__inner"><Glide /><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
+<nav {...rest} class="bb-nav" aria-label={label}><div class="bb-nav__inner"><Glide /><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} /><ul class="bb-nav__links">{links.map((link) => (
   <li><NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit data-astro-prefetch={link.current || link.external ? undefined : 'hover'} /></li>
 ))}</ul><div class="bb-nav__actions">{locales && locales.length > 0 && <LanguageSwitcher options={locales} label={localeLabel} menuId={`${menuId}-lang`} />}{cta && <NavLink class="bb-nav__cta" variant={cta.icon === 'twitch' ? 'twitch' : 'cta'} href={cta.href} label={cta.label} external={cta.external} fit />}</div><Hamburger label={menuOpen} closeLabel={menuClose} controls={menuId} /></div></nav><MobileMenu links={links} cta={cta} id={menuId} panelLabel={menuPanel} meta={menuMeta}><slot name="mobileFooter" slot="footer" /></MobileMenu>
 
@@ -61,22 +61,25 @@ const menuPanel = menuLabels.panel ?? t('nav.menu');
     disposers = [];
   }
 
+  const bound = new WeakSet<Element>();
+
   function mountMenu(): void {
-    const toggle = document.querySelector<HTMLElement>('[data-menu-toggle]');
-    const menu = document.querySelector<HTMLElement>('[data-mobile-menu]');
-    const curvePath = document.querySelector<SVGPathElement>('[data-menu-curve-path]');
-    if (!toggle || !menu || !curvePath || toggle.dataset.ready === '1') return;
-    toggle.dataset.ready = '1';
+    const toggle = document.querySelector<HTMLElement>('.bb-nav .bb-hamburger');
+    const menu = document.getElementById(toggle?.getAttribute('aria-controls') ?? '');
+    const curvePath = menu?.querySelector<SVGPathElement>('.bb-mobile-menu__curve-path');
+    if (!toggle || !menu || !curvePath || bound.has(toggle)) return;
+    bound.add(toggle);
 
     const open = toggle.getAttribute('aria-label') ?? '';
-    const close = toggle.dataset.labelClose ?? open;
+    const payload = toggle.nextElementSibling?.textContent;
+    const close = (payload ? JSON.parse(payload).closeLabel : undefined) ?? open;
     disposers.push(mountTopDownMenu({ toggle, menu, curvePath }, { labels: { open, close } }));
   }
 
   function mountLogo(): void {
-    const logo = document.querySelector<HTMLAnchorElement>('[data-home-logo]');
-    if (!logo || logo.dataset.ready === '1') return;
-    logo.dataset.ready = '1';
+    const logo = document.querySelector<HTMLAnchorElement>('.bb-nav .bb-nav__brand');
+    if (!logo || bound.has(logo)) return;
+    bound.add(logo);
     disposers.push(mountHomeLogo(logo));
   }
 

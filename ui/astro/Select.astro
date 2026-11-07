@@ -36,32 +36,34 @@ const {
 const classes = ['bb-input', 'bb-input--select', fill ? 'bb-input--fill' : null, invalid ? 'bb-input--invalid' : null, className]
     .filter(Boolean)
     .join(' ');
+const meta = Object.fromEntries(
+    (options ?? [])
+        .filter((option) => option.description || option.group || option.searchText || option.triggerLabel)
+        .map((option) => [option.value, { description: option.description, group: option.group, searchText: option.searchText, triggerLabel: option.triggerLabel }]),
+);
+const config = JSON.stringify({ value, searchable, label, placeholder, searchPlaceholder, searchClearLabel, emptyLabel, meta }).replace(/</g, '\\u003c');
 ---
 
-<span class:list={['bb-select', fill && 'bb-select--fill']} data-bb-select data-value={value} data-searchable={searchable ? '' : undefined}
-    data-label={label} data-placeholder={placeholder} data-search-placeholder={searchPlaceholder}
-    data-search-clear-label={searchClearLabel} data-empty-label={emptyLabel}>
-    <span class={classes} data-select-fallback>
+<span class:list={['bb-select', fill && 'bb-select--fill']}>
+    <span class={classes}>
         <select {...rest}>
             {options && value !== undefined && !options.some((option) => option.value === value) && (
-                <option value="" selected disabled hidden data-select-fallback-option>{placeholder}</option>
+                <option value="" selected disabled hidden>{placeholder}</option>
             )}
             {options ? options.map((option) => (
-                <option value={option.value} selected={value === option.value} disabled={option.disabled}
-                    data-description={option.description} data-group={option.group}
-                    data-search-text={option.searchText} data-trigger-label={option.triggerLabel}
-                >{option.label}</option>
+                <option value={option.value} selected={value === option.value} disabled={option.disabled}>{option.label}</option>
             )) : <slot />}
         </select>
         <svg class="bb-input__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
     </span>
+    <script type="application/json" is:inline set:html={config}></script>
 </span>
 
 <script>
     import { enhanceAstroSelect } from '../lib/astro-select';
 
     function enhanceSelects() {
-        document.querySelectorAll<HTMLElement>('[data-bb-select]').forEach(enhanceAstroSelect);
+        document.querySelectorAll<HTMLElement>('.bb-select:has(> script[type="application/json"])').forEach(enhanceAstroSelect);
     }
 
     enhanceSelects();

@@ -4,7 +4,6 @@
 import { prefersReducedMotion } from './motion-query';
 import { subscribe } from './raf-loop';
 
-const SELECTOR = '[data-decode]';
 const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>';
 const BASE_DURATION_MS = 380;
 const PER_CHAR_MS = 26;
@@ -64,11 +63,9 @@ export function decode(
     return stop;
 }
 
-export function observeDecode(root: ParentNode, options: DecodeOptions = {}): () => void {
+export function observeDecode(elements: Iterable<HTMLElement>, options: DecodeOptions = {}): () => void {
     const { threshold = DEFAULT_THRESHOLD, instant, ...scramble } = options;
-    const self =
-        root instanceof Element && root.matches(SELECTOR) ? [root as HTMLElement] : [];
-    const targets = [...self, ...Array.from(root.querySelectorAll<HTMLElement>(SELECTOR))];
+    const targets = Array.from(elements);
     const running = new Set<() => void>();
 
     const stopAll = (): void => {
@@ -76,9 +73,7 @@ export function observeDecode(root: ParentNode, options: DecodeOptions = {}): ()
         running.clear();
     };
 
-    const source = new Map(
-        targets.map((el) => [el, el.dataset.decode?.length ? el.dataset.decode : (el.textContent ?? '')]),
-    );
+    const source = new Map(targets.map((el) => [el, el.textContent ?? '']));
 
     if (instant || typeof IntersectionObserver === 'undefined') {
         for (const el of targets) el.textContent = source.get(el) ?? '';

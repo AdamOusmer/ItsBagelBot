@@ -58,10 +58,12 @@ export function mountGlide(
 
 // Astro pages have no component lifecycle: bind every tab strip that carries a
 // glide once, and again after each client-side navigation.
+const gliding = new WeakSet<Element>();
+
 export function mountTabGlides(root: ParentNode = document): void {
-  root.querySelectorAll<HTMLElement>('.bb-tabs:not([data-bb-glide])').forEach((tabs) => {
-    if (!tabs.querySelector(':scope > .bb-glide')) return;
-    tabs.dataset.bbGlide = '';
+  root.querySelectorAll<HTMLElement>('.bb-tabs').forEach((tabs) => {
+    if (gliding.has(tabs) || !tabs.querySelector(':scope > .bb-glide')) return;
+    gliding.add(tabs);
     mountGlide(tabs, { observe: tabs, selector: ':scope > .bb-tab.is-active', watch: true });
   });
 }

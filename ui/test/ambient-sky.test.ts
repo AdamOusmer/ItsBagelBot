@@ -16,7 +16,7 @@ for (const props of [
     const svelte = svelteHtml(SvelteSky, props);
     expect(svelte).toBe(await astroHtml(AstroSky, props));
     expect(svelte).toContain('aria-hidden="true"');
-    expect(svelte).toContain('class="bb-light-field" data-field');
+    expect(svelte).toContain('class="bb-light-field" aria-hidden="true"');
     expect(svelte).not.toContain('bb-ambient-sky__ring');
     expect(svelte).toContain(`--ambient-progress: ${Math.min(Math.max(props.progress ?? 0, 0), 1)};`);
   });
@@ -28,6 +28,6 @@ for (const props of [{}, { shift: -1, px: 0.25, py: -0.2, progress: 0.8, leaving
     const direct = normalise(svelteHtml(SvelteSky, props));
     expect(wrapper).toBe(direct);
     expect(wrapper).toContain('bb-ambient-sky--fixed');
-    expect(wrapper).toContain('data-warmth="0.7"');
+    expect(wrapper).toContain('class="bb-light-field"');
   });
 }

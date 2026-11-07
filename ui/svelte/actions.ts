@@ -14,7 +14,7 @@ export const reveal: Action<HTMLElement, RevealOptions | undefined> = (node, opt
 };
 
 export const decode: Action<HTMLElement, DecodeOptions | undefined> = (node, options) => {
-  const dispose = observeDecode(node, options);
+  const dispose = observeDecode([node], options);
   return { destroy: dispose };
 };
 

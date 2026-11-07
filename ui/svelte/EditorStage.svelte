@@ -100,14 +100,14 @@
 
       {#if leftPanel}
         <div class="bb-editor-stage__panel bb-editor-stage__panel--left" bind:this={leftPanelEl}>
-          <span class="bb-editor-stage__grip" data-sheet-grip aria-hidden="true"></span>
+          <span class="bb-editor-stage__grip" aria-hidden="true"></span>
           {@render leftPanel()}
         </div>
       {/if}
 
       {#if rightPanel}
         <div class="bb-editor-stage__panel bb-editor-stage__panel--right" bind:this={rightPanelEl}>
-          <span class="bb-editor-stage__grip" data-sheet-grip aria-hidden="true"></span>
+          <span class="bb-editor-stage__grip" aria-hidden="true"></span>
           {@render rightPanel()}
         </div>
       {/if}

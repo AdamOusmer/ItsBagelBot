@@ -6,6 +6,7 @@ import { render } from 'svelte/server';
 import AstroSelect from '../astro/Select.astro';
 import SvelteSelect from '../svelte/Select.svelte';
 import PickerPanel from '../svelte/PickerPanel.svelte';
+import { experimental_AstroContainer } from 'astro/container';
 import { astroHtml, svelteHtml } from './contract';
 
 const astroSelect = (props: Record<string, unknown>, slot?: string) =>
@@ -14,27 +15,28 @@ const astroSelect = (props: Record<string, unknown>, slot?: string) =>
 test('Astro Select preserves option slots and native form attributes before enhancement', async () => {
   const html = await astroSelect({ id: 'mode', name: 'mode', required: true, disabled: true, invalid: true, fill: true },
     '<optgroup label="Modes" disabled><option value="a" selected>A</option><option value="b" disabled>B</option></optgroup>');
-  expect(html).toContain('class="bb-input bb-input--select bb-input--fill bb-input--invalid" data-select-fallback');
+  expect(html).toContain('class="bb-input bb-input--select bb-input--fill bb-input--invalid"><select id="mode"');
   expect(html).toContain('<select id="mode" name="mode" required disabled>');
   expect(html).toContain('<optgroup label="Modes" disabled><option value="a" selected>A</option><option value="b" disabled>B</option></optgroup>');
-  expect(html).not.toContain('data-searchable');
 });
 
 test('Astro Select serializes optional search labels and option metadata for the custom picker', async () => {
-  const html = await astroSelect({
+  const container = await experimental_AstroContainer.create();
+  const html = await container.renderToString(AstroSelect, { props: {
     name: 'zone', value: 'America/Toronto', searchable: true, label: 'Timezone',
     searchPlaceholder: 'Find a city', searchClearLabel: 'Clear city', emptyLabel: 'No cities',
     options: [
       { value: 'America/Toronto', label: 'Toronto', description: 'America/Toronto', triggerLabel: 'America/Toronto', group: 'America', searchText: 'Canada' },
       { value: 'America/Montreal', label: 'Montréal', disabled: true },
     ],
+  } });
+  const payload = JSON.parse(/<script type="application\/json">(.*?)<\/script>/s.exec(html)![1]);
+  expect(payload).toEqual({
+    value: 'America/Toronto', searchable: true, label: 'Timezone',
+    placeholder: 'Select…', searchPlaceholder: 'Find a city', searchClearLabel: 'Clear city', emptyLabel: 'No cities',
+    meta: { 'America/Toronto': { description: 'America/Toronto', group: 'America', searchText: 'Canada', triggerLabel: 'America/Toronto' } },
   });
-  expect(html).toContain('data-searchable');
-  expect(html).toContain('data-label="Timezone"');
-  expect(html).toContain('data-search-placeholder="Find a city"');
-  expect(html).toContain('data-search-clear-label="Clear city"');
-  expect(html).toContain('data-empty-label="No cities"');
-  expect(html).toContain('<option value="America/Toronto" selected data-description="America/Toronto" data-group="America" data-search-text="Canada" data-trigger-label="America/Toronto">Toronto</option>');
+  expect(html).toContain('<option value="America/Toronto" selected>Toronto</option>');
   expect(html).toContain('<option value="America/Montreal" disabled>Montréal</option>');
 });
 
@@ -73,7 +75,7 @@ test('Svelte Select omits the placeholder option when the value is offered', () 
 
 test('Astro Select submits nothing and shows the placeholder for a value absent from its options', async () => {
   const html = await astroSelect({ id: 'stored', name: 'stored', value: 'saved-id', options: [{ value: 'live', label: 'Live' }] });
-  expect(html).toContain('<select id="stored" name="stored"><option value selected disabled hidden data-select-fallback-option>Select…</option><option value="live">Live</option></select>');
+  expect(html).toContain('<select id="stored" name="stored"><option value selected disabled hidden>Select…</option><option value="live">Live</option></select>');
   expect(html).not.toContain('>saved-id<');
 });
 
@@ -81,6 +83,6 @@ test('an open Svelte picker keeps wheel and touch away from the page smooth-scro
   const children = createRawSnippet(() => ({ render: () => '<ul role="listbox"></ul>' }));
   for (const placement of ['beside', 'below'] as const) {
     const html = render(PickerPanel, { props: { open: true, label: 'Pick', placement, onClose: () => {}, children } }).body;
-    expect(html).toContain('class="bb-picker-panel bb-picker-panel--dropdown" data-overlay="" data-lenis-prevent=""');
+    expect(html).toContain('class="bb-picker-panel bb-picker-panel--dropdown" data-lenis-prevent=""');
   }
 });
