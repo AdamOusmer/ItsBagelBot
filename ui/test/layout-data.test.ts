@@ -55,7 +55,7 @@ describe('ManagementRow modes', () => {
         slots: { default: 'Quotes' },
         html:
           '<div class="bb-row row-shell is-selected">' +
-          '<a class="bb-row__primary" href="/modules/quotes" data-cursor="quiet" aria-current="true" aria-label="Open Quotes">Quotes</a>' +
+          '<a class="bb-row__primary" href="/modules/quotes" style="--bb-cursor: quiet" aria-current="true" aria-label="Open Quotes">Quotes</a>' +
           '</div>',
       },
       {
@@ -64,7 +64,7 @@ describe('ManagementRow modes', () => {
         slots: { default: 'shard 0', actions: '<i>m</i>' },
         html:
           '<article class="bb-row row-shell bb-row--static">' +
-          '<div class="bb-row__primary" data-cursor="quiet">shard 0</div>' +
+          '<div class="bb-row__primary" style="--bb-cursor: quiet">shard 0</div>' +
           '<div class="bb-row__actions"><i>m</i></div></article>',
       },
       {
@@ -73,7 +73,7 @@ describe('ManagementRow modes', () => {
         slots: { leading: '<b>L</b>', badge: '<b>You</b>', default: '<b>meter</b>', marks: '<b>paid</b>' },
         html:
           '<div class="bb-row row-shell">' +
-          '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="false" aria-controls="insp">' +
+          '<button class="bb-row__primary" type="button" style="--bb-cursor: quiet" aria-expanded="false" aria-controls="insp">' +
           '<span class="bb-row__line"><b>L</b><span class="bb-row__text">' +
           '<span class="bb-row__title">ada<span class="bb-row__badge"><b>You</b></span></span>' +
           '<span class="bb-row__meta">id 4</span></span><b>meter</b>' +
@@ -84,7 +84,7 @@ describe('ManagementRow modes', () => {
         props: { title: 'lane' },
         html:
           '<div class="bb-row row-shell">' +
-          '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="false">' +
+          '<button class="bb-row__primary" type="button" style="--bb-cursor: quiet" aria-expanded="false">' +
           '<span class="bb-row__line"><span class="bb-row__text"><span class="bb-row__title">lane</span></span></span>' +
           '</button></div>',
       },
@@ -94,7 +94,7 @@ describe('ManagementRow modes', () => {
         slots: { badge: '<b>You</b>', actions: '<i>go</i>' },
         html:
           '<div class="bb-row row-shell bb-row--static bb-row--wrap bb-row--stack-actions">' +
-          '<div class="bb-row__primary" data-cursor="quiet"><span class="bb-row__line"><span class="bb-row__text">' +
+          '<div class="bb-row__primary" style="--bb-cursor: quiet"><span class="bb-row__line"><span class="bb-row__text">' +
           '<span class="bb-row__title">Ada Lovelace<span class="bb-row__badge"><b>You</b></span></span></span></span></div>' +
           '<div class="bb-row__actions"><i>go</i></div></div>',
       },
@@ -154,15 +154,15 @@ describe('StatTile', () => {
       props: { label: 'Eligible', value: '42' },
       html:
         '<div class="bb-stat"><div class="bb-stat__head"><span class="bb-stat__label">Eligible</span></div>' +
-        '<div class="bb-stat__value"><span data-count-up>42</span></div></div>',
+        '<div class="bb-stat__value"><span>42</span></div></div>',
     },
     {
       name: 'flat delta still renders',
       props: { label: 'Fires', value: '9', delta: 'today', flat: true },
       html:
         '<div class="bb-stat"><div class="bb-stat__head"><span class="bb-stat__label">Fires</span></div>' +
-        '<div class="bb-stat__value"><span data-count-up>9</span></div>' +
-        '<div class="bb-stat__delta" data-flat>today</div></div>',
+        '<div class="bb-stat__value"><span>9</span></div>' +
+        '<div class="bb-stat__delta bb-stat__delta--flat">today</div></div>',
     },
     {
       name: 'static tile skips the count-up',
@@ -187,19 +187,19 @@ describe('Card and Section', () => {
       name: 'flush accent card',
       props: { flush: true, tone: 'accent' },
       slots: { default: 'body' },
-      html: '<div class="bb-card bb-card--flush bb-card--accent" data-card>body</div>',
+      html: '<div class="bb-card bb-card--flush bb-card--accent">body</div>',
     },
     {
       name: 'danger section',
       props: { as: 'section', tone: 'danger', id: 'danger-zone' },
       slots: { default: 'body' },
-      html: '<section class="bb-card bb-card--danger" data-card id="danger-zone">body</section>',
+      html: '<section class="bb-card bb-card--danger" id="danger-zone">body</section>',
     },
     {
       name: 'dashed card',
       props: { dashed: true, hidden: true },
       slots: { default: 'Generate' },
-      html: '<div class="bb-card bb-card--dashed" data-card hidden>Generate</div>',
+      html: '<div class="bb-card bb-card--dashed" hidden>Generate</div>',
     },
   ]);
 
@@ -220,10 +220,10 @@ describe('Pager', () => {
       props: { label: 'Page 1 of 3', prevHref: '?page=0', nextHref: '?page=2', hasPrev: false },
       html:
         '<nav class="bb-pager" aria-label="Pagination">' +
-        '<a class="bb-btn bb-btn--secondary" role="link" aria-disabled="true" data-mark>' +
+        '<a class="bb-btn bb-btn--secondary" role="link" aria-disabled="true">' +
         '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Previous</span></a>' +
         '<span class="bb-pager__label" aria-current="page">Page 1 of 3</span>' +
-        '<a class="bb-btn bb-btn--secondary" href="?page=2" data-mark>' +
+        '<a class="bb-btn bb-btn--secondary" href="?page=2">' +
         '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Next</span></a></nav>',
     },
     {
@@ -239,10 +239,10 @@ describe('Pager', () => {
       },
       html:
         '<nav class="bb-pager" aria-label="Pages">' +
-        '<a class="bb-btn bb-btn--secondary" href="?page=2" data-mark>' +
+        '<a class="bb-btn bb-btn--secondary" href="?page=2">' +
         '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Précédent</span></a>' +
         '<span class="bb-pager__label" aria-current="page">Page 3 sur 3</span>' +
-        '<a class="bb-btn bb-btn--secondary" role="link" aria-disabled="true" data-mark>' +
+        '<a class="bb-btn bb-btn--secondary" role="link" aria-disabled="true">' +
         '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Suivant</span></a></nav>',
     },
   ]);

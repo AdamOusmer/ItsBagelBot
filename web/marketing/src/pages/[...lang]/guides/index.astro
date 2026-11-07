@@ -33,7 +33,7 @@ const [first, ...rest] = guides;
     <PageHero eyebrow={hub.meta.eyebrow} title={hub.meta.heading} description={hub.meta.lead} />
 
     <Section size="flush" class="ghub">
-        <Card atmo hover as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool reveal-in" data-cursor="quiet" style="--reveal-i: 1">
+        <Card atmo hover as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool reveal-in" style="--reveal-i: 1; --bb-cursor: quiet">
             <span class="ghub__tool-demo" slot="band" aria-hidden="true">
                 <span class="ghub__tool-line"><bb-fit mode="block" set:html={hub.tool.demoIn}></bb-fit></span>
                 <span class="ghub__tool-line ghub__tool-line--out"><bb-fit mode="block" set:html={hub.tool.demoOut}></bb-fit></span>
@@ -43,11 +43,11 @@ const [first, ...rest] = guides;
                     <Heading level={3} variant="card" as="span" class="ghub__tool-name"><bb-fit>{hub.tool.name}</bb-fit></Heading>
                     <Text as="span" tone="muted-light" class="ghub__tool-desc"><bb-fit mode="block">{hub.tool.description}</bb-fit></Text>
                 </span>
-                <Button as="span" class="ghub__tool-btn" data-cursor><bb-fit>{hub.tool.cta}</bb-fit></Button>
+                <Button as="span" class="ghub__tool-btn" style="--bb-cursor: follow"><bb-fit>{hub.tool.cta}</bb-fit></Button>
             </span>
         </Card>
 
-        <Card atmo hover as="a" href={localizePath('/guides/variables', lang)} label={t('guide.variablesEyebrow')} class="ghub__variables reveal-in" data-cursor="quiet" style="--reveal-i: 2">
+        <Card atmo hover as="a" href={localizePath('/guides/variables', lang)} label={t('guide.variablesEyebrow')} class="ghub__variables reveal-in" style="--reveal-i: 2; --bb-cursor: quiet">
             <span class="ghub__variables-band" slot="band" aria-hidden="true">
                 <Code tone="token">{'{user}'}</Code><Code tone="token">{'{counter:name}'}</Code><Code tone="token">{'{random}'}</Code><Code tone="token">{'{...}'}</Code>
             </span>
@@ -56,7 +56,7 @@ const [first, ...rest] = guides;
                     <Heading level={4} as="span" class="ghub__variables-name"><bb-fit>{t('guide.variablesTitle')}</bb-fit></Heading>
                     <Text as="span" tone="muted-light" class="ghub__variables-desc"><bb-fit mode="block">{t('guide.variablesDescription')}</bb-fit></Text>
                 </span>
-                <Button as="span" variant="secondary" class="ghub__variables-btn" data-cursor><bb-fit>{t('guide.variablesCta')}</bb-fit></Button>
+                <Button as="span" variant="secondary" class="ghub__variables-btn" style="--bb-cursor: follow"><bb-fit>{t('guide.variablesCta')}</bb-fit></Button>
             </span>
         </Card>
 

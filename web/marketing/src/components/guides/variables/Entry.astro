@@ -30,7 +30,7 @@ const extraForms = entry.syntaxes.slice(1).map((syntax, i) => ({
 }));
 ---
 
-<tr id={entry.id} data-vref-entry>
+<tr id={entry.id}>
     <td><Code class="vref-syntax">{entry.syntax}</Code></td>
     <td class="vref-td-means"><Text as="span" size="sm" tone="accent">{means}</Text></td>
     <td><CopySurface variant="well" text={entry.example} hint={copy.copy} class="vref-copy" aria-label={`${copy.copy} ${entry.example}`}>{entry.example}</CopySurface></td>

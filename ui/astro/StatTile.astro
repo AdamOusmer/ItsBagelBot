@@ -5,7 +5,7 @@ import type { HTMLAttributes } from 'astro/types';
 import type { StatTone } from '../lib/tone';
 import '../styles/elements/stat-tile.css';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'value' | 'unit' | 'delta' | 'flat' | 'static' | 'inline' | 'tone' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'value' | 'unit' | 'delta' | 'flat' | 'static' | 'inline' | 'text' | 'tone' | 'class'> {
     label: string;
     value: string;
     unit?: string;
@@ -13,6 +13,7 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'value' | 'unit' |
     flat?: boolean;
     static?: boolean;
     inline?: boolean;
+    text?: boolean;
     tone?: StatTone;
     class?: string;
 }
@@ -25,6 +26,7 @@ const {
     flat = false,
     static: isStatic = false,
     inline = false,
+    text = false,
     tone,
     class: className = '',
     ...rest
@@ -33,6 +35,7 @@ const classes = [
     'bb-stat',
     isStatic ? 'bb-stat--static' : null,
     inline ? 'bb-stat--inline' : null,
+    text ? 'bb-stat--text' : null,
     tone ? `bb-stat--${tone}` : null,
     className || null,
 ]
@@ -45,6 +48,6 @@ const classes = [
     <span class="bb-stat__label">{label}</span>
     <slot name="trailing" />
   </div>
-  <div class="bb-stat__value"><span data-count-up={isStatic ? undefined : ''}>{value}</span>{unit && <small>{unit}</small>}</div>
-  {delta !== undefined && <div class="bb-stat__delta" data-flat={flat ? '' : undefined}>{delta}</div>}
+  <div class="bb-stat__value"><span>{value}</span>{unit && <small>{unit}</small>}</div>
+  {delta !== undefined && <div class:list={['bb-stat__delta', flat && 'bb-stat__delta--flat']}>{delta}</div>}
 </div>

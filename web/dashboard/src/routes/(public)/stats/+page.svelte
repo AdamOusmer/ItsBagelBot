@@ -543,8 +543,6 @@
     padding: calc(var(--bb-space-7) + 8px) var(--bb-space-7) var(--bb-space-6);
   }
 
-  .st-counter--green :global(.st-counter__card) { --card-halo-rgb: var(--bb-halo-green-rgb); }
-
   .st-counter__top {
     display: flex;
     justify-content: space-between;

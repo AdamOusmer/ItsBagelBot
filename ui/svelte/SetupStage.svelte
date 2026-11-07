@@ -19,6 +19,7 @@
     fill?: boolean;
     hero?: boolean;
     leaving?: boolean;
+    orbs?: boolean;
     class?: string;
     start?: Snippet;
     trail?: Snippet;
@@ -41,6 +42,7 @@
     fill = false,
     hero = false,
     leaving = false,
+    orbs = true,
     class: className = '',
     start,
     trail,
@@ -60,6 +62,7 @@
       fill && 'bb-setup-stage--fill',
       hero && 'bb-setup-stage--hero',
       leaving && 'bb-setup-stage--leaving',
+      !orbs && 'bb-no-orbs',
       className || null,
     ]
       .filter(Boolean)

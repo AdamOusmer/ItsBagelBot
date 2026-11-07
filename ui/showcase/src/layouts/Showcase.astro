@@ -163,6 +163,5 @@ const path = Astro.url.pathname;
     if (!target) return;
     const on = target.getAttribute('aria-checked') !== 'true';
     target.setAttribute('aria-checked', String(on));
-    target.dataset.state = on ? 'on' : 'off';
   });
 </script>

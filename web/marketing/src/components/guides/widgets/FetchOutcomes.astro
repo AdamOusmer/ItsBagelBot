@@ -34,7 +34,6 @@ const options = outcomes.map((outcome) => ({
     value: outcome.id,
     label: outcome.label,
     attrs: {
-        'data-go-tab': outcome.id,
         'data-go-bot': outcome.bot,
         'aria-controls': `gout-why-${outcome.id}`,
     },

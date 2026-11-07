@@ -19,12 +19,12 @@ const classes = ['bb-file-drop', className].filter(Boolean).join(' ');
 
 <script>
     function setOver(zone: HTMLElement, over: boolean) {
-        zone.toggleAttribute('data-over', over);
+        zone.classList.toggle('is-over', over);
     }
 
     function showFile(zone: HTMLElement, input: HTMLInputElement, label: string) {
         const file = input.files?.[0];
-        zone.toggleAttribute('data-filled', Boolean(file));
+        zone.classList.toggle('is-filled', Boolean(file));
         const text = zone.querySelector<HTMLElement>('.bb-file-drop__text');
         if (text) text.textContent = file ? file.name : label;
     }

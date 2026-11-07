@@ -41,11 +41,11 @@
   }
 
   .bb-copy__done,
-  .bb-copy[data-copied] .bb-copy__idle {
+  .bb-copy.is-copied .bb-copy__idle {
     visibility: hidden;
   }
 
-  .bb-copy[data-copied] .bb-copy__done {
+  .bb-copy.is-copied .bb-copy__done {
     visibility: visible;
   }
 
@@ -124,7 +124,7 @@
       background var(--bb-dur-base) var(--bb-ease-out-expo);
   }
 
-  .bb-copy--card[data-copied] .bb-copy__hint {
+  .bb-copy--card.is-copied .bb-copy__hint {
     border-color: rgba(var(--bb-green-glow-rgb), 0.4);
     background: rgba(var(--bb-green-glow-rgb), 0.07);
     color: var(--bb-green-glow);
@@ -134,33 +134,23 @@
     display: flex;
     width: min(100%, 440px);
     padding: 15px var(--bb-space-4);
-    border: 1px solid var(--bb-border-strong);
+    border: 1px solid transparent;
     border-radius: var(--bb-radius-sm);
-    background: linear-gradient(
-      180deg,
-      rgba(var(--bb-white-pure-rgb), 0.04),
-      rgba(var(--bb-shadow-rgb), 0.32)
-    );
-    box-shadow:
-      inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.07),
-      0 18px 40px rgba(var(--bb-shadow-rgb), 0.35);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-0);
     transition:
       border-color var(--bb-dur-base) var(--bb-ease-out-expo),
       transform var(--bb-dur-base) var(--bb-ease-out-expo);
   }
 
   .bb-copy--well:hover {
-    border-color: var(--bb-tan);
+    background: var(--bb-elev-2);
     transform: translateX(6px);
   }
 
   .bb-copy--well:focus-visible {
     outline: 2px solid var(--bb-tan);
     outline-offset: 2px;
-  }
-
-  .bb-copy--well[data-copied] {
-    border-color: var(--bb-green-glow);
   }
 
   .bb-copy--well .bb-copy__row {
@@ -189,22 +179,8 @@
     color: var(--bb-tan-pale);
   }
 
-  .bb-copy--well[data-copied] .bb-copy__hint {
+  .bb-copy--well.is-copied .bb-copy__hint {
     color: var(--bb-green-glow);
-  }
-
-  :where([data-surface='tonal']) .bb-copy--well {
-    border-color: transparent;
-    background: var(--bb-elev-1);
-    box-shadow: var(--bb-depth-0);
-  }
-
-  :where([data-surface='tonal']) .bb-copy--well:hover {
-    background: var(--bb-elev-2);
-  }
-
-  :where([data-surface='tonal']) .bb-copy--well:is(:hover, [data-copied]) {
-    border-color: transparent;
   }
 
   .bb-copy--row {
@@ -253,7 +229,7 @@
     transition: opacity var(--bb-dur-fast) ease-out;
   }
 
-  .bb-copy--row[data-copied] .bb-copy__done {
+  .bb-copy--row.is-copied .bb-copy__done {
     opacity: 1;
   }
 
@@ -279,7 +255,7 @@
     color: var(--bb-tan-light);
   }
 
-  .bb-copy--chip[data-copied] {
+  .bb-copy--chip.is-copied {
     border-color: rgba(var(--bb-green-glow-rgb), 0.4);
     background: rgba(var(--bb-green-glow-rgb), 0.07);
     color: var(--bb-green-glow);

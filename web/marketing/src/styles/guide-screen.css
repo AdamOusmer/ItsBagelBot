@@ -135,7 +135,7 @@
     color: var(--bb-white);
 }
 
-.dframe__body .gs-value[data-placeholder] {
+.dframe__body .gs-value.is-placeholder {
     color: var(--bb-muted);
 }
 

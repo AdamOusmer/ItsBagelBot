@@ -25,7 +25,7 @@
       opacity var(--bb-dur-fast) ease;
   }
 
-  .bb-glide[data-shown] {
+  .bb-glide.is-shown {
     opacity: 1;
   }
 

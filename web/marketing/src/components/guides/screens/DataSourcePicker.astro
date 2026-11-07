@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Card from '@bagel/ui/astro/Card.astro';
+import Mark from '../Mark.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import Label from '@bagel/ui/astro/Label.astro';
@@ -36,20 +37,20 @@ const L = {
 <div class="dframe__screen dframe__screen--panel">
     <Card>
         <Field label={L.fieldResponse}>
-            <span class="bb-input gs-value" data-focus><Fragment set:html={L.responseHtml} /></span>
+            <span class="bb-input bb-input--focus gs-value"><Fragment set:html={L.responseHtml} /></span>
         </Field>
         <p class="gs-hint">{L.insertVariable}</p>
         <div class="gs-actions">
             <Chip tone="muted"><Fragment set:html={L.chipUser} /></Chip>
             <Chip tone="muted"><Fragment set:html={L.chipArgs} /></Chip>
             <Chip tone="muted">{L.chipCounter}</Chip>
-            <Chip pressed>{L.chipDataSource}<i class="gs-mark" data-note="1"></i></Chip>
+            <Chip pressed>{L.chipDataSource}<Mark n={1} /></Chip>
         </div>
         <div class="bb-picker-panel bb-picker-panel--static dsp__pop">
             <Label mono as="span">{L.popoverTitle}</Label>
-            <PickerOption label={L.row1Name} description={L.row1Path} selected tabindex={-1}><i slot="trailing" class="gs-mark" data-note="2"></i></PickerOption>
+            <PickerOption label={L.row1Name} description={L.row1Path} selected tabindex={-1}><Fragment slot="trailing"><Mark n={2} /></Fragment></PickerOption>
             <PickerOption label={L.row2Name} description={L.row2Path} tabindex={-1} />
-            <PickerOption label={L.newSource} tabindex={-1}><i slot="trailing" class="gs-mark" data-note="3"></i></PickerOption>
+            <PickerOption label={L.newSource} tabindex={-1}><Fragment slot="trailing"><Mark n={3} /></Fragment></PickerOption>
         </div>
     </Card>
 </div>

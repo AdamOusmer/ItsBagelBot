@@ -31,7 +31,7 @@
   }: Own & Omit<SvelteHTMLElements['label'], keyof Own> = $props();
 </script>
 
-<label class={['bb-field', className]} for={htmlFor} data-invalid={error ? '' : undefined} {...rest}>
+<label class={['bb-field', className]} for={htmlFor} {...rest}>
   <span class="bb-field__label">{label}{#if tag}<small class="bb-tag bb-tag--quiet bb-field__tag">{tag}</small>{/if}</span>
   {@render children()}
   {#if hint}<small class="bb-field__hint" id={hintId}>{hint}</small>{/if}

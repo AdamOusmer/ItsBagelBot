@@ -31,5 +31,5 @@
     {#if kind}<b class="bb-chat__kind">{kind}</b>{/if}
   </div>
   <div class="bb-chat__feed">{@render children?.()}</div>
-  {#if note}<i class="gs-mark" data-note={note}></i>{/if}
+  {#if note}<i class="gs-mark" style="--n: {note}"></i>{/if}
 </div>

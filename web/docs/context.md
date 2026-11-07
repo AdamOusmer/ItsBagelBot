@@ -72,7 +72,7 @@ An old ADR describes the decision at the time; it may have been superseded by la
 - Validate service statements against app entry points/handlers, not just another document.
 - Do not invent current infrastructure availability from a past QA report.
 - Mermaid `autoTheme` stays disabled: its theme replacement would discard custom palette variables.
-- The site is dark only, like marketing; `data-surface="tonal"` makes `--bb-border` transparent, so hairlines
+- The site is dark only, like marketing; `--bb-border` is transparent, so hairlines
   that must show use an explicit colour.
 - Pagefind needs `'wasm-unsafe-eval'` in the `public/_headers` CSP. `astro preview` does not apply that file,
   so test search under the real header.

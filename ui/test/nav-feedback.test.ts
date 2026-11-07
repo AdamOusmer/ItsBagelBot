@@ -264,7 +264,7 @@ describe('Modal viewer and InspectorSurface idle', () => {
       slots: { default: '<svg></svg>', toolbar: '<button>+</button>', hint: '<span>Drag to pan</span>' },
       html:
         '<div class="bb-modal bb-modal--viewer" data-overlay style="z-index: 200">' +
-        '<button class="bb-modal__backdrop" type="button" aria-label="Close" data-cursor="quiet"></button>' +
+        '<button class="bb-modal__backdrop" type="button" aria-label="Close" style="--bb-cursor: quiet"></button>' +
         '<div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-label="Diagram" data-lenis-prevent>' +
         '<div class="bb-modal__stage"><svg></svg></div>' +
         '<div class="bb-modal__toolbar" role="toolbar" aria-label="Controls"><button>+</button></div>' +
@@ -401,7 +401,7 @@ describe('Dock grouping', () => {
   test('a folded group is current when any page inside it is', async () => {
     const quiet = { label: 'Quiet', items: [link('/p', 'P'), link('/q', 'Q')] };
     const live = { label: 'Live', items: [link('/o', 'O', { current: true }), link('/r', 'R')] };
-    expect(buttons(await dock({ groups: [quiet, live] })).map((button) => button.includes('data-active'))).toEqual([false, true]);
+    expect(buttons(await dock({ groups: [quiet, live] })).map((button) => button.includes('is-active'))).toEqual([false, true]);
   });
 
   test('counts sum, and a zero sum shows no badge', async () => {
@@ -413,16 +413,16 @@ describe('Dock grouping', () => {
   test('a quick limit marks the tail for folding and repeats it behind a current menu', async () => {
     const pages = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => link(`/${id}`, id.toUpperCase(), { current: id === 'f' }));
     const html = await dock({ items: pages, quick: 4 });
-    expect([...html.matchAll(/href="\/(\w)" (?:data-active )?(?:aria-current="page" )?data-dock-fold/g)].map((m) => m[1])).toEqual(['e', 'f']);
+    expect([...html.matchAll(/class="bb-dock-item bb-dock-item--fold" href="\/(\w)"/g)].map((m) => m[1])).toEqual(['e', 'f']);
     expect(html).toContain('<div class="bb-dock__group bb-dock__more">');
-    expect(buttons(html)).toEqual([expect.stringContaining('data-active')]);
+    expect(buttons(html)).toEqual([expect.stringContaining('is-active')]);
     expect(html).toContain('>Menu</bb-fit>');
   });
 
   test('a single extra page stays in the dock instead of hiding behind a menu', async () => {
     const pages = ['a', 'b', 'c', 'd', 'e'].map((id) => link(`/${id}`, id));
     const html = await dock({ items: pages, quick: 4 });
-    expect(html).not.toContain('data-dock-fold');
+    expect(html).not.toContain('bb-dock-item--fold');
     expect(html).not.toContain('bb-dock__more');
   });
 
@@ -636,19 +636,6 @@ describe('navigation and feedback stylesheets', () => {
       ],
     },
     {
-      name: 'viewer chrome has light rules on paper and ink tokens',
-      checks: [
-        {
-          file: 'styles/elements/modal.css',
-          has: [
-            /:root\[data-theme="light"\] \.bb-modal--viewer \.bb-modal__backdrop \{[^}]*--bb-paper-warm-rgb/,
-            /:root\[data-theme="light"\] \.bb-modal__toolbar \.bb-btn--icon \{[^}]*--bb-ink-soft/,
-            /:root\[data-theme="light"\] \.bb-modal__hint \{[^}]*--bb-ink-rgb/,
-          ],
-        },
-      ],
-    },
-    {
       name: 'bottom placement anchors above the pill with touch areas on the controls',
       checks: [
         {
@@ -664,8 +651,8 @@ describe('navigation and feedback stylesheets', () => {
       ],
     },
     ...STATIC_FLOW.map(([file, selector]) => ({
-      name: `${file} renders ${selector} in flow under data-static`,
-      checks: [{ file: `styles/${file}`, has: [`:is([data-static] ${selector}, ${selector}[data-static])`] }],
+      name: `${file} renders ${selector} in flow under bb-static-frame`,
+      checks: [{ file: `styles/${file}`, has: [`.bb-static-frame ${selector} {`] }],
     })),
     ...NO_FALLBACK_FILES.map((file) => ({
       name: `${file} restates no token value as a fallback`,

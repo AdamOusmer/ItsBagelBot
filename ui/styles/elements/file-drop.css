@@ -32,13 +32,13 @@
         color: var(--bb-tan-pale);
     }
 
-    .bb-file-drop[data-over] {
+    .bb-file-drop.is-over {
         border-color: var(--bb-tan);
         background: rgba(var(--bb-tan-rgb), 0.08);
         color: var(--bb-white);
     }
 
-    .bb-file-drop[data-filled] {
+    .bb-file-drop.is-filled {
         color: var(--bb-white);
     }
 

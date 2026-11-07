@@ -49,7 +49,6 @@
       {type}
       {disabled}
       aria-label={label}
-      data-mark=""
       {onclick}
       {...rest}><span class="bb-btn__content">{@render children()}</span></button
     ><span class="bb-tooltip__bubble" aria-hidden="true">{label}</span></span
@@ -58,7 +57,6 @@
     {type}
     {disabled}
     aria-label={label}
-    data-mark=""
     {onclick}
     {...rest}><span class="bb-btn__content">{@render children()}</span></button
   >{/if}

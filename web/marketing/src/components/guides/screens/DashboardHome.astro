@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Button from '@bagel/ui/astro/Button.astro';
+import Mark from '../Mark.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import DeckList from '@bagel/ui/astro/DeckList.astro';
 import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
@@ -71,16 +72,16 @@ const nav = {
             <span class="gs-grow"><b>{L.statusState}</b> {L.statusNote}</span>
             <Button variant="ghost" size="sm">{L.restart}</Button>
             <Button variant="ghost" size="sm">{L.disconnect}</Button>
-            <i class="gs-mark" data-note="2"></i>
+            <Mark n={2} />
         </span>
     </Card>
     <span class="gs-h">{L.quickActions}</span>
     <div class="gs-actions">
         <Button size="sm">{L.newCommand}</Button>
         <Button variant="ghost" size="sm">{L.manageModules}</Button>
-        <i class="gs-mark" data-note="3"></i>
+        <Mark n={3} />
     </div>
-    <span class="gs-h">{L.topCommands} <i class="gs-mark" data-note="4"></i></span>
+    <span class="gs-h">{L.topCommands} <Mark n={4} /></span>
     <DeckList>
         <ManagementRow>
             <span class="gs-row">

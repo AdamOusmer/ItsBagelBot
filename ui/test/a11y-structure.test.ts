@@ -320,7 +320,7 @@ describe('overlay stylesheets, markup and prop types', () => {
       checks: [
         {
           file: 'styles/elements/tooltip.css',
-          after: [['.bb-tooltip[data-dismissed] .bb-tooltip__bubble', '.bb-tooltip:is(:hover, :focus-within) .bb-tooltip__bubble']],
+          after: [['.bb-tooltip.is-dismissed .bb-tooltip__bubble', '.bb-tooltip:is(:hover, :focus-within) .bb-tooltip__bubble']],
         },
       ],
     },

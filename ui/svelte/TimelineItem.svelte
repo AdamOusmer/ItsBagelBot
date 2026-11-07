@@ -8,6 +8,7 @@
   type Own = {
     dot?: boolean;
     as?: 'li' | 'div';
+    badgeHover?: boolean;
     class?: string;
     children: Snippet;
   };
@@ -15,12 +16,13 @@
   let {
     dot = true,
     as: tag = 'li',
+    badgeHover = false,
     class: className = '',
     children,
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
-  const classes = $derived(['bb-timeline__item', className || null].filter(Boolean).join(' '));
+  const classes = $derived(['bb-timeline__item', badgeHover ? 'bb-timeline__item--badge-hover' : null, className || null].filter(Boolean).join(' '));
 </script>
 
 <svelte:element this={tag} class={classes} {...rest}

@@ -132,13 +132,6 @@
       --bb-nav-link-radius: var(--bb-radius-sm);
     }
 
-    :root[data-theme='light'] .bb-nav-link {
-      --bb-nav-link-rest: var(--bb-gray-3-light);
-      --bb-nav-link-lit: var(--bb-ink);
-      --bb-nav-link-hover-bg: var(--bb-paper-sidebar);
-      --bb-nav-link-current-bg: color-mix(in srgb, var(--bb-ink) 8%, var(--bb-paper-sidebar));
-    }
-
     @media (prefers-reduced-motion: reduce) {
       .bb-nav-link {
         transition: none;

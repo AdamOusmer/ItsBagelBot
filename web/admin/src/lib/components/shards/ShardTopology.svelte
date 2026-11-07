@@ -137,7 +137,7 @@
                     <ul class="sockets trial-members">
                       {#each group.channels as trial (trial.broadcaster_id)}
                         <li>
-                          <Card as="article" dashed data-cursor="quiet">
+                          <Card as="article" dashed style="--bb-cursor: quiet">
                             <div class="trial-channel">
                               <header class="line spread">
                                 <strong class="trial-channel-name">{trial.display_name?.trim() || trial.broadcaster_id}</strong>

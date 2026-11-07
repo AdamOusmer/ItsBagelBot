@@ -56,7 +56,7 @@
     }
   }
 
-  :is([data-static] .bb-editor-foot, .bb-editor-foot[data-static]) {
+  .bb-static-frame .bb-editor-foot {
     position: static;
   }
 }

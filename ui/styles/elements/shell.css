@@ -105,7 +105,7 @@
     }
   }
 
-  .bb-shell__canvas:has([data-canvas="fill"]) {
+  .bb-shell__canvas:has(.bb-canvas-fill) {
     display: flex;
     flex: 1;
     max-width: none;
@@ -128,7 +128,8 @@
     flex-direction: column;
     padding: 20px var(--rail-pad) var(--rail-pad);
     background: rgba(var(--bb-black-rgb), 0.55);
-    border-right: 1px solid rgba(var(--bb-white-rgb), 0.1);
+    border-right: 1px solid transparent;
+    box-shadow: inset -6px 0 8px -6px rgba(var(--bb-shadow-rgb), 0.6);
     overflow: auto;
   }
 
@@ -343,7 +344,7 @@
     gap: 2px;
     margin: 6px 0 2px 22px;
     padding-left: 12px;
-    border-left: 1px solid rgba(var(--bb-tan-rgb), 0.25);
+    border-left: 1px solid transparent;
   }
 
   .bb-rail__sub {
@@ -465,6 +466,7 @@
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-md);
     background: rgba(var(--bb-black-rgb), 0.55);
+    box-shadow: var(--bb-depth-2);
     backdrop-filter: blur(18px);
   }
 
@@ -524,7 +526,7 @@
     color: var(--bb-tan-pale);
   }
 
-  .bb-topbar__crumb [data-here] {
+  .bb-topbar__crumb .is-current {
     color: var(--bb-tan-light);
     white-space: nowrap;
     font-weight: 600;
@@ -563,7 +565,7 @@
       display: inline;
     }
 
-    .bb-topbar__account[data-railed] {
+    .bb-topbar__account--railed {
       display: none;
     }
 
@@ -675,13 +677,13 @@
     transform: translateY(0);
   }
 
-  .bb-dock-item[data-active],
+  .bb-dock-item:is([aria-current], .is-active),
   .bb-dock-item[aria-expanded="true"] {
     color: var(--bb-tan-pale);
     background: rgba(var(--bb-tan-rgb), 0.14);
   }
 
-  .bb-dock-item[data-active]::before {
+  .bb-dock-item:is([aria-current], .is-active)::before {
     content: "";
     position: absolute;
     top: 5px;
@@ -761,7 +763,7 @@
     background: rgba(var(--bb-tan-rgb), 0.1);
   }
 
-  .bb-dock__pop-item[data-active] {
+  .bb-dock__pop-item[aria-current] {
     color: var(--bb-tan-pale);
     background: rgba(var(--bb-tan-rgb), 0.14);
   }
@@ -813,11 +815,11 @@
       display: none;
     }
 
-    .bb-dock-item[data-active] {
+    .bb-dock-item:is([aria-current], .is-active) {
       flex: 1.6;
     }
 
-    .bb-dock-item[data-active] .bb-dock-item__label {
+    .bb-dock-item:is([aria-current], .is-active) .bb-dock-item__label {
       display: block;
     }
 
@@ -825,7 +827,7 @@
        visible on touch, where the rail and hover labels are unavailable. */
     .bb-shell--railed .bb-dock__inner { gap: 2px; }
     .bb-shell--railed .bb-dock-item,
-    .bb-shell--railed .bb-dock-item[data-active] {
+    .bb-shell--railed .bb-dock-item:is([aria-current], .is-active) {
       flex: 1;
       padding-inline: 0;
     }
@@ -852,7 +854,7 @@
   }
 
   @media (max-width: 480px) {
-    .bb-dock-item[data-dock-fold] {
+    .bb-dock-item.bb-dock-item--fold {
       display: none;
     }
 
@@ -896,7 +898,7 @@
     }
   }
 
-  :is([data-static] .bb-rail, .bb-rail[data-static]) {
+  .bb-static-frame .bb-rail {
     --rail-width: 190px;
     --rail-pad: 10px;
 
@@ -907,21 +909,8 @@
     border-radius: var(--bb-radius-sm);
   }
 
-  :is([data-static] .bb-topbar, .bb-topbar[data-static]) {
+  .bb-static-frame .bb-topbar {
     position: static;
     margin: 0 0 var(--bb-space-1);
-  }
-
-  :where([data-surface='tonal']) .bb-topbar {
-    box-shadow: var(--bb-depth-2);
-  }
-
-  :where([data-surface='tonal']) .bb-rail {
-    border-right-color: transparent;
-    box-shadow: inset -6px 0 8px -6px rgba(var(--bb-shadow-rgb), 0.6);
-  }
-
-  :where([data-surface='tonal']) .bb-rail__subs-inner {
-    border-color: transparent;
   }
 }

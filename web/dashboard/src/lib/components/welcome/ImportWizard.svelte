@@ -391,7 +391,7 @@
   fill
   leaving={showCompletion}
   class="welcome-import"
-  data-orbs="off"
+  orbs={false}
 >
   {#snippet start()}<Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
   {#snippet art()}

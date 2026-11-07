@@ -32,7 +32,7 @@ const { t } = docsI18n(Astro.props.locale);
 
   .doc-code:hover .doc-code-copy,
   .doc-code-copy:focus-within,
-  .doc-code-copy[data-copied] {
+  .doc-code-copy.is-copied {
     opacity: 1;
   }
 
@@ -55,8 +55,8 @@ const { t } = docsI18n(Astro.props.locale);
     frame.append(block, control);
     control.addEventListener('click', async () => {
       await copyText(block.textContent ?? '');
-      control.dataset.copied = '';
-      setTimeout(() => delete control.dataset.copied, FLASH_MS);
+      control.classList.add('is-copied');
+      setTimeout(() => control.classList.remove('is-copied'), FLASH_MS);
     });
   }
 

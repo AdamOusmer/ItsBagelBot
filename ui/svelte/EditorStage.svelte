@@ -67,8 +67,7 @@
 </script>
 
 <div
-  class={classes}
-  data-canvas="fill"
+  class={[classes, 'bb-canvas-fill']}
   style:--stage-top={topInset}
   style:--stage-height={height}
   style:--stage-bottom-room={bottomRoom}

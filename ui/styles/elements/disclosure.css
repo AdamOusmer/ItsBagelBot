@@ -76,21 +76,21 @@
     height: 14px;
   }
 
-  /* data-motion is set by lib/disclosure.ts; [open] covers the moment before it runs. */
-  .bb-disclosure:is([data-motion="open"], [open]:not([data-motion])) > .bb-disclosure__summary {
+  /* is-open and is-closed are set by lib/disclosure.ts; [open] covers the moment before it runs. */
+  .bb-disclosure:is(.is-open, [open]:not(.is-open, .is-closed)) > .bb-disclosure__summary {
     color: var(--bb-tan-light);
   }
 
-  .bb-disclosure:is([data-motion="open"], [open]:not([data-motion])) > .bb-disclosure__summary .bb-disclosure__index {
+  .bb-disclosure:is(.is-open, [open]:not(.is-open, .is-closed)) > .bb-disclosure__summary .bb-disclosure__index {
     color: var(--bb-tan);
   }
 
-  .bb-disclosure:is([data-motion="open"], [open]:not([data-motion])) > .bb-disclosure__summary .bb-disclosure__icon::before,
-  .bb-disclosure:is([data-motion="open"], [open]:not([data-motion])) > .bb-disclosure__summary .bb-disclosure__icon::after {
+  .bb-disclosure:is(.is-open, [open]:not(.is-open, .is-closed)) > .bb-disclosure__summary .bb-disclosure__icon::before,
+  .bb-disclosure:is(.is-open, [open]:not(.is-open, .is-closed)) > .bb-disclosure__summary .bb-disclosure__icon::after {
     background: var(--bb-tan);
   }
 
-  .bb-disclosure:is([data-motion="open"], [open]:not([data-motion])) > .bb-disclosure__summary .bb-disclosure__icon::after {
+  .bb-disclosure:is(.is-open, [open]:not(.is-open, .is-closed)) > .bb-disclosure__summary .bb-disclosure__icon::after {
     transform: translate(-50%, -50%) rotate(90deg);
   }
 
@@ -116,7 +116,7 @@
     transition: grid-template-rows 380ms var(--bb-ease-out-expo);
   }
 
-  .bb-disclosure:is([data-motion="open"], [open]:not([data-motion])) > .bb-disclosure__body {
+  .bb-disclosure:is(.is-open, [open]:not(.is-open, .is-closed)) > .bb-disclosure__body {
     grid-template-rows: 1fr;
   }
 
@@ -128,7 +128,7 @@
     transition: opacity 280ms ease 60ms;
   }
 
-  .bb-disclosure:is([data-motion="open"], [open]:not([data-motion])) > .bb-disclosure__body > .bb-disclosure__content {
+  .bb-disclosure:is(.is-open, [open]:not(.is-open, .is-closed)) > .bb-disclosure__body > .bb-disclosure__content {
     opacity: 1;
   }
 

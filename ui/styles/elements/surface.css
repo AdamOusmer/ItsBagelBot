@@ -24,7 +24,7 @@
     overflow-anchor: none;
   }
 
-  :is([data-static] .bb-surface--docked, .bb-surface--docked[data-static]) {
+  .bb-static-frame .bb-surface--docked {
     position: static;
     max-height: none;
   }
@@ -127,6 +127,7 @@
     border-top-color: var(--surface-rule-strong);
     border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
     background: var(--bb-bg-1);
+    box-shadow: var(--bb-depth-3);
     padding-bottom: env(safe-area-inset-bottom, 0);
     animation: bb-sheet-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
   }
@@ -140,9 +141,5 @@
     .bb-surface--sheet {
       animation: none;
     }
-  }
-
-  :where([data-surface='tonal']) .bb-surface--sheet {
-    box-shadow: var(--bb-depth-3);
   }
 }

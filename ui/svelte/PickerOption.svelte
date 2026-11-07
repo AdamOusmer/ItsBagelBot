@@ -52,9 +52,8 @@
       >{/if}{#if trailing}{@render trailing()}{/if}</button
   >{#if remove}<button
       type="button"
-      class="bb-picker-option__remove"
+      class={['bb-picker-option__remove', remove.armed && 'is-armed']}
       aria-label={remove.label}
-      data-armed={remove.armed ? '' : undefined}
       onclick={remove.onclick}
       >{#if remove.armed}{remove.armedLabel}{:else}<Icon name="x" size={12} />{/if}</button
     >{/if}</svelte:element

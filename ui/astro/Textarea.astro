@@ -24,9 +24,9 @@ const {
     class: className = '',
     ...rest
 } = Astro.props;
-const classes = ['bb-input', 'bb-input--area', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, className]
+const classes = ['bb-input', 'bb-input--area', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, invalid ? 'bb-input--invalid' : null, className]
     .filter(Boolean)
     .join(' ');
 ---
 
-<span class={classes} data-invalid={invalid ? '' : undefined}><textarea rows={rows} {...rest}>{value}</textarea></span>
+<span class={classes}><textarea rows={rows} {...rest}>{value}</textarea></span>

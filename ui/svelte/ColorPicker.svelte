@@ -112,12 +112,11 @@
   }
 
   const percent = (n: number) => `${Math.round(n * 100)}%`;
-  const classes = $derived(['bb-color', className].filter(Boolean).join(' '));
+  const classes = $derived(['bb-color', invalid ? 'bb-color--invalid' : null, className].filter(Boolean).join(' '));
 </script>
 
 {#if name}<input type="hidden" {name} {form} value={hex} />{/if}
 <button bind:this={btnEl} id={controlId} type="button" class={classes} {disabled}
-  data-invalid={invalid ? '' : undefined}
   aria-label={label} aria-labelledby={label ? undefined : labelledBy}
   style:--cp-color={hex}
   {...rest}

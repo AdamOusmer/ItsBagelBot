@@ -339,7 +339,7 @@
           {/if}
           <ul class="branches">
             {#each branches as b (b.id)}
-              <li data-port={b.id}>
+              <li>
                 <span class="branch-name">{b.label}</span>
                 <span class="branch-count">{countText(b.count)}</span>
               </li>

@@ -62,7 +62,7 @@
     aria-label={t('flows.board.nodeLabel', { label: title, kind: kindLabel, line })}
   >
     {#if !isTrigger}
-      <span class="port port--in" data-in style:top="{inputY}px"></span>
+      <span class="port port--in" style:top="{inputY}px"></span>
     {/if}
 
     <div class="head" style:height="{HEADER_H}px">
