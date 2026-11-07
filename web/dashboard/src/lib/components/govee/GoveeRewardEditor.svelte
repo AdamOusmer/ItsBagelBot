@@ -5,13 +5,15 @@
   import Code from '@bagel/ui/svelte/Code.svelte';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import { namespaceReplySamples, getI18n } from '@bagel/kit';
+  import { namespaceReplySamples, getI18n, type GoveeLight } from '@bagel/kit';
   import RewardCoreFields from '#lib/components/channelpoints/RewardCoreFields.svelte';
+  import GoveeGroupFields from './GoveeGroupFields.svelte';
   import { GOVEE_ERROR_KEYS, goveeErrors, type GoveeDraft, type GoveeErrorField } from './govee-draft';
 
   let {
     draft = $bindable<GoveeDraft>(),
     colors,
+    groupOptions = null,
     canDelete,
     busy = false,
     attempted = false,
@@ -19,6 +21,7 @@
   }: {
     draft: GoveeDraft;
     colors: string[];
+    groupOptions?: GoveeLight[] | null;
     canDelete: boolean;
     busy?: boolean;
     attempted?: boolean;
@@ -36,6 +39,10 @@
 </script>
 
 <div class="editor">
+  {#if groupOptions}
+    <GoveeGroupFields bind:draft options={groupOptions} {attempted} />
+  {/if}
+
   <Text size="sm" tone="muted">
     {t('govee.editorHintNames')} <Code>{colors.join(', ')}</Code>. {t('govee.editorHintHex')} <Code>#00ccff</Code>.
   </Text>
@@ -64,8 +71,8 @@
     <SwitchRow
       control="end"
       bind:checked={draft.allowOff}
-      label={t('govee.allowOffLabel')}
-      hint={t('govee.allowOffHint')}
+      label={t(groupOptions ? 'govee.groupAllowOffLabel' : 'govee.allowOffLabel')}
+      hint={t(groupOptions ? 'govee.groupAllowOffHint' : 'govee.allowOffHint')}
       hintId="govee-allowoff-desc"
     />
   </div>
@@ -76,7 +83,7 @@
       bind:checked={draft.liveOnly}
       tone={draft.liveOnly ? undefined : 'warning'}
       label={t('govee.liveOnlyLabel')}
-      hint={draft.liveOnly ? t('govee.liveOnlyOn') : t('govee.liveOnlyOff')}
+      hint={draft.liveOnly ? t('govee.liveOnlyOn') : t(groupOptions ? 'govee.groupLiveOnlyOff' : 'govee.liveOnlyOff')}
       hintId="govee-liveonly-desc"
     />
   </div>

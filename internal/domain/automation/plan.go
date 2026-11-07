@@ -19,6 +19,8 @@ type Plan struct {
 	Steps      []Step
 	StepCount  int
 	Templates  map[string][]tmpl.Token
+	// A refused if only spends a lookup on the time left when a template can show it.
+	ShowsCooldownLeft bool
 }
 
 type PlannedCondition struct {
@@ -42,6 +44,8 @@ type planner struct {
 	id        string
 	count     int
 	templates map[string][]tmpl.Token
+
+	showsCooldownLeft bool
 }
 
 func NewPlan(a Automation) *Plan {
@@ -54,6 +58,8 @@ func NewPlan(a Automation) *Plan {
 		Steps:      steps,
 		StepCount:  pl.count,
 		Templates:  pl.templates,
+
+		ShowsCooldownLeft: pl.showsCooldownLeft,
 	}
 }
 
@@ -167,6 +173,7 @@ func (pl *planner) lexTemplate(text string) {
 	if !slices.ContainsFunc(toks, func(t tmpl.Token) bool { return t.Kind == tmpl.KindVar }) {
 		return
 	}
+	pl.showsCooldownLeft = pl.showsCooldownLeft || slices.ContainsFunc(toks, IsCooldownLeftToken)
 	if pl.templates == nil {
 		pl.templates = make(map[string][]tmpl.Token)
 	}

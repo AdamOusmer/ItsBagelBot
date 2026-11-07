@@ -160,5 +160,14 @@
       "cost": { "label": "Nouveau coût", "unit": "points" },
       "reset": { "label": "Rétablir à la fin du stream" }
     }
+  },
+  "cooldownAdd": {
+    "label": "Ajouter du temps à un délai de récupération",
+    "summary": "Prolonger un minuteur nommé pendant qu’il est en cours",
+    "field": {
+      "name": { "label": "Minuteur" },
+      "seconds": { "label": "Ajouter", "range": "Utilisez de 1 seconde à {days} jours." },
+      "per": { "label": "Par", "hint": "Ajoute le temps ci-dessus pour chaque montant complet. Mettez 100 dans une recette de bits pour compter tous les 100 bits. Laissez vide pour l’ajouter une fois par événement." }
+    }
   }
 }

@@ -18,6 +18,8 @@ import (
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+
+	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
@@ -49,6 +51,8 @@ type moduleKey struct {
 
 type Modules struct {
 	instanceResolver AccountInstanceResolver
+	cooldownMarkers  *cooldownmarker.Store
+	recipeState      *RecipeState
 	client           *ent.Client
 	views            *cache.Cache[[]ModuleView]
 	pub              bus.Publisher
@@ -70,6 +74,8 @@ func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application
 		log:     log,
 		govee:   NewGoveeCredsFromEnv(client, log),
 		spotify: NewSpotifyCredsFromEnv(client, log),
+
+		recipeState: &RecipeState{client: client},
 	}
 
 	r.batcher = batch.New[moduleKey, data.ModuleChangedDTO](flushInterval, flushMaxSize, r.flush, log)

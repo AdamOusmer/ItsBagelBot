@@ -30,7 +30,7 @@ const {
   ...rest
 } = Astro.props;
 
-const classes = ['bb-rail-item', locked ? 'bb-rail-item--locked' : null, className || null].filter(Boolean).join(' ');
+const classes = ['bb-rail-item', locked ? 'is-locked' : null, current ? 'is-active' : null, className || null].filter(Boolean).join(' ');
 ---
 
 {locked ? (

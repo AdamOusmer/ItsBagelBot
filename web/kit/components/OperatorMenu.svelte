@@ -3,7 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { afterNavigate } from '$app/navigation';
   import ProfileMenu, { type ProfileMenuLink } from '@bagel/ui/svelte/ProfileMenu.svelte';
-  import Bolota from './Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
   import { clearOnboarding } from '../lib/onboarding';

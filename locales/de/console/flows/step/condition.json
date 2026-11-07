@@ -40,10 +40,27 @@
     "field": {
       "seconds": {
         "label": "Abklingzeit",
-        "unit": "Sekunden"
+        "range": "Verwende 1 Sekunde bis {days} Tage."
       },
       "perUser": {
         "label": "Pro Zuschauer"
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "subathon",
+        "hint": "Eine Benennung startet ihn neu, falls er läuft. Schritte zum Hinzufügen von Zeit können ihn danach in jedem Rezept verlängern. Nicht verfügbar pro Zuschauer."
+      },
+      "leftCommand": {
+        "label": "Befehl für verbleibende Zeit",
+        "placeholder": "!restzeit"
+      },
+      "leftReply": {
+        "label": "Antwort während der Wartezeit",
+        "placeholder": "{user}, noch {cooldown:left}, bevor du das wieder nutzen kannst."
+      },
+      "readyReply": {
+        "label": "Antwort, wenn bereit",
+        "placeholder": "{user}, das ist einsatzbereit."
       }
     },
     "out": {

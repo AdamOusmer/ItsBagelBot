@@ -55,6 +55,9 @@
   "right": "Second value",
   "url": "URL",
   "user_s": "Per-viewer cooldown (s)",
+  "left_command": "Time left command",
+  "left_reply": "Reply while waiting",
+  "ready_reply": "Reply when ready",
   "value": "Value",
   "scope": "Kept for",
   "save_as": "Save as",
@@ -72,5 +75,6 @@
   "reset_on_stream_end": "Put it back when stream ends",
   "content": "Content",
   "position": "Position",
-  "volume": "Volume"
+  "volume": "Volume",
+  "per": "Per"
 }

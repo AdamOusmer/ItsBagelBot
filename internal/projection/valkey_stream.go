@@ -11,6 +11,7 @@ import (
 	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -74,11 +75,11 @@ func (v *Store) GetStreamLive(ctx context.Context, userID uint64) (StreamLive, e
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	res := v.client.DoMulti(ctx,
-		v.client.B().Hget().Key(key).Field(streamLiveField).Build(),
-		v.client.B().Hget().Key(key).Field(streamLiveVersionField).Build(),
-		v.client.B().Get().Key(livekey.Key(userID)).Build(),
-		v.client.B().Get().Key(livekey.VerKey(userID)).Build(),
+	res := pkg_valkey.ExecMulti(ctx, v.client,
+		pkg_valkey.HGetCmd(v.client, key, streamLiveField),
+		pkg_valkey.HGetCmd(v.client, key, streamLiveVersionField),
+		pkg_valkey.GetCmd(v.client, livekey.Key(userID)),
+		pkg_valkey.GetCmd(v.client, livekey.VerKey(userID)),
 	)
 
 	var ints optionalInts
@@ -96,22 +97,10 @@ func (v *Store) GetStreamLive(ctx context.Context, userID uint64) (StreamLive, e
 	return StreamLive{Live: projectedLive == 1, Known: projectedKnown, Version: projectedVersion}, nil
 }
 
-var foldStreamLiveScript = valkey.NewLuaScript(`local cur = tonumber(redis.call('HGET', KEYS[1], 'live_ver'))
-if cur and cur > tonumber(ARGV[2]) then return -1 end
-local was = redis.call('HGET', KEYS[1], 'live')
-if ARGV[1]=='1' then
- if was~='1' or redis.call('HEXISTS',KEYS[1],'stream_baseline_pending_ver')==1 then redis.call('HSET',KEYS[1],'stream_baseline_pending_ver',ARGV[2]) end
-else redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') end
-redis.call('HSET', KEYS[1], 'live', ARGV[1], 'live_ver', ARGV[2])
-redis.call('EXPIRE', KEYS[1], ARGV[3], 'NX')
-redis.call('EXPIRE', KEYS[1], ARGV[3], 'GT')
-if was == '1' then return 1 end
-return 0`)
-
 func (v *Store) SetStreamLive(ctx context.Context, userID uint64, next StreamLive) (StreamLiveFold, error) {
 	defer segment(ctx, "EVALSHA")()
 
-	prior, err := foldStreamLiveScript.Exec(ctx, v.primary, []string{cache.UserKey(settingsKeyPrefix, userID)}, []string{
+	prior, err := pkg_valkey.RunVersionFoldApply(ctx, v.primary, []string{cache.UserKey(settingsKeyPrefix, userID)}, []string{
 		utils.BoolField(next.Live), strconv.FormatInt(next.Version, 10), strconv.FormatInt(int64(DefaultTTL/time.Second), 10),
 	}).AsInt64()
 	if err != nil {
@@ -138,16 +127,14 @@ func (v *Store) SetStreamInfo(ctx context.Context, userID string, info StreamInf
 	}
 
 	return v.pipelineWithTTL(ctx, key, DefaultTTL,
-		v.client.B().Hset().
-			Key(key).
-			FieldValue().
-			FieldValue(streamTitleField, info.Title).
-			FieldValue(streamGameField, info.GameName).
-			FieldValue(streamViewersField, strconv.Itoa(info.ViewerCount)).
-			FieldValue(streamPeakViewersField, strconv.Itoa(info.PeakViewers)).
-			FieldValue(streamStartedAtField, info.StartedAt.Format(time.RFC3339)).
-			FieldValue(streamEndedAtField, info.EndedAt.Format(time.RFC3339)).
-			Build(),
+		pkg_valkey.HSetCmd(v.client, key,
+			pkg_valkey.HashFieldValue{Field: streamTitleField, Value: info.Title},
+			pkg_valkey.HashFieldValue{Field: streamGameField, Value: info.GameName},
+			pkg_valkey.HashFieldValue{Field: streamViewersField, Value: strconv.Itoa(info.ViewerCount)},
+			pkg_valkey.HashFieldValue{Field: streamPeakViewersField, Value: strconv.Itoa(info.PeakViewers)},
+			pkg_valkey.HashFieldValue{Field: streamStartedAtField, Value: info.StartedAt.Format(time.RFC3339)},
+			pkg_valkey.HashFieldValue{Field: streamEndedAtField, Value: info.EndedAt.Format(time.RFC3339)},
+		),
 	)
 }
 
@@ -159,13 +146,13 @@ func (v *Store) GetStreamInfo(ctx context.Context, userID string) (StreamInfo, b
 		return StreamInfo{}, false, err
 	}
 
-	res := v.client.DoMulti(ctx,
-		v.client.B().Hget().Key(key).Field(streamTitleField).Build(),
-		v.client.B().Hget().Key(key).Field(streamGameField).Build(),
-		v.client.B().Hget().Key(key).Field(streamViewersField).Build(),
-		v.client.B().Hget().Key(key).Field(streamPeakViewersField).Build(),
-		v.client.B().Hget().Key(key).Field(streamStartedAtField).Build(),
-		v.client.B().Hget().Key(key).Field(streamEndedAtField).Build(),
+	res := pkg_valkey.ExecMulti(ctx, v.client,
+		pkg_valkey.HGetCmd(v.client, key, streamTitleField),
+		pkg_valkey.HGetCmd(v.client, key, streamGameField),
+		pkg_valkey.HGetCmd(v.client, key, streamViewersField),
+		pkg_valkey.HGetCmd(v.client, key, streamPeakViewersField),
+		pkg_valkey.HGetCmd(v.client, key, streamStartedAtField),
+		pkg_valkey.HGetCmd(v.client, key, streamEndedAtField),
 	)
 
 	title, err := res[0].ToString()
@@ -212,13 +199,11 @@ func (v *Store) SetStreamCounterBaseline(ctx context.Context, userID string, b S
 	}
 
 	return v.pipelineWithTTL(ctx, key, DefaultTTL,
-		v.client.B().Hset().
-			Key(key).
-			FieldValue().
-			FieldValue(streamCtrMessagesField, strconv.FormatInt(b.Messages, 10)).
-			FieldValue(streamCtrAnsweredField, strconv.FormatInt(b.Answered, 10)).
-			FieldValue(streamCtrModActionField, strconv.FormatInt(b.ModActions, 10)).
-			Build(),
+		pkg_valkey.HSetCmd(v.client, key,
+			pkg_valkey.HashFieldValue{Field: streamCtrMessagesField, Value: strconv.FormatInt(b.Messages, 10)},
+			pkg_valkey.HashFieldValue{Field: streamCtrAnsweredField, Value: strconv.FormatInt(b.Answered, 10)},
+			pkg_valkey.HashFieldValue{Field: streamCtrModActionField, Value: strconv.FormatInt(b.ModActions, 10)},
+		),
 	)
 }
 
@@ -230,10 +215,10 @@ func (v *Store) GetStreamCounterBaseline(ctx context.Context, userID string) (St
 		return StreamCounters{}, false, err
 	}
 
-	res := v.primary.DoMulti(ctx,
-		v.primary.B().Hget().Key(key).Field(streamCtrMessagesField).Build(),
-		v.primary.B().Hget().Key(key).Field(streamCtrAnsweredField).Build(),
-		v.primary.B().Hget().Key(key).Field(streamCtrModActionField).Build(),
+	res := pkg_valkey.ExecMulti(ctx, v.primary,
+		pkg_valkey.HGetCmd(v.primary, key, streamCtrMessagesField),
+		pkg_valkey.HGetCmd(v.primary, key, streamCtrAnsweredField),
+		pkg_valkey.HGetCmd(v.primary, key, streamCtrModActionField),
 	)
 
 	messages, err := res[0].ToString()
@@ -254,29 +239,21 @@ func (v *Store) GetStreamCounterBaseline(ctx context.Context, userID string) (St
 	return StreamCounters{Messages: msgs, Answered: ans, ModActions: mods}, true, nil
 }
 
-var discardStreamBaselineScript = valkey.NewLuaScript(`if redis.call('HGET',KEYS[1],'stream_baseline_pending_ver')==ARGV[1] then redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') end return 1`)
-
-var setStreamBaselineScript = valkey.NewLuaScript(`local confirmed=tonumber(redis.call('GET',KEYS[2]) or '0')
- if confirmed>tonumber(ARGV[1]) then return 0 end
- if redis.call('HGET',KEYS[1],'live')~='1' or redis.call('HGET',KEYS[1],'live_ver')~=ARGV[1] or redis.call('HGET',KEYS[1],'stream_baseline_pending_ver')~=ARGV[1] then return 0 end
- redis.call('HSET',KEYS[1],'streamctr:messages',ARGV[2],'streamctr:answered',ARGV[3],'streamctr:mod_actions',ARGV[4])
- redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') return 1`)
-
 // StreamBaselinePending survives a lifecycle read failure after accepting online.
 // Its version remains tied to the latest accepted live fact, never wall-clock replay.
 func (v *Store) StreamBaselinePending(ctx context.Context, id uint64, version int64) (bool, error) {
 	key := cache.UserKey(settingsKeyPrefix, id)
-	value, err := v.primary.Do(ctx, v.primary.B().Hget().Key(key).Field(streamBaselinePendingField).Build()).AsInt64()
+	value, err := pkg_valkey.Exec1(ctx, v.primary, pkg_valkey.HGetCmd(v.primary, key, streamBaselinePendingField)).AsInt64()
 	if valkey.IsValkeyNil(err) {
 		return false, nil
 	}
 	return value == version, err
 }
 func (v *Store) DiscardStreamBaseline(ctx context.Context, id uint64, version int64) error {
-	return discardStreamBaselineScript.Exec(ctx, v.primary, []string{cache.UserKey(settingsKeyPrefix, id)}, []string{strconv.FormatInt(version, 10)}).Error()
+	return pkg_valkey.RunVersionFoldDiscardPending(ctx, v.primary, []string{cache.UserKey(settingsKeyPrefix, id)}, []string{strconv.FormatInt(version, 10)}).Error()
 }
 func (v *Store) SetStreamCounterBaselineForVersion(ctx context.Context, id uint64, version int64, b StreamCounters) error {
 	keys := []string{cache.UserKey(settingsKeyPrefix, id), livekey.VerKey(id)}
 	args := []string{strconv.FormatInt(version, 10), strconv.FormatInt(b.Messages, 10), strconv.FormatInt(b.Answered, 10), strconv.FormatInt(b.ModActions, 10)}
-	return setStreamBaselineScript.Exec(ctx, v.primary, keys, args).Error()
+	return pkg_valkey.RunVersionFoldCommitPending(ctx, v.primary, keys, args).Error()
 }

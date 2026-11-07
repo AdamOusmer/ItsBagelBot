@@ -129,7 +129,7 @@ func TestPostAcceptsBodyAtTheLimit(t *testing.T) {
 func TestPostBucketDenialAnswersLimited(t *testing.T) {
 	h := newHarness(t)
 	up := newPostUpstream(t, http.StatusOK)
-	h.p.admit = func(context.Context, *flight, bool) error {
+	h.admission = func(context.Context, *flight, bool) error {
 		return &core.UpstreamError{Status: 429, LocalDeny: true}
 	}
 

@@ -139,6 +139,112 @@
     }
   }
 
+  .bb-rail.bb-rail--always-visible {
+    display: flex;
+  }
+
+  /* One clock for the whole fold. Rows never change layout: they clip as the
+     rail narrows while icons glide to center on the same timing. */
+  .bb-rail.bb-rail--collapsible {
+    --rail-collapsed-width: 72px;
+    --rail-fold: 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    --rail-fold-center: calc(var(--rail-collapsed-width) / 2 - var(--rail-pad));
+    --rail-icon-pad: 12px;
+    --rail-logo-pad: 6px;
+    --rail-avatar-pad: 8px;
+    padding-top: var(--rail-top-inset, 20px);
+    overflow: visible;
+    z-index: var(--bb-z-popover);
+    transition: width var(--rail-fold);
+  }
+
+  .bb-rail.bb-rail--collapsed {
+    width: var(--rail-collapsed-width);
+    --rail-icon-pad: calc(var(--rail-fold-center) - 8.5px);
+    --rail-logo-pad: calc(var(--rail-fold-center) - 15px);
+    --rail-avatar-pad: calc(var(--rail-fold-center) - 17px);
+  }
+
+  .bb-rail.bb-rail--collapsible > .bb-brand {
+    flex: none;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding-left: var(--rail-logo-pad);
+    transition: padding-left var(--rail-fold);
+  }
+
+  .bb-rail.bb-rail--collapsible .bb-brand__logo,
+  .bb-rail.bb-rail--collapsible .bb-brand__id {
+    flex: none;
+  }
+
+  .bb-rail.bb-rail--collapsible .bb-rail__nav {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: hidden auto;
+  }
+
+  .bb-rail.bb-rail--collapsible .bb-rail-item {
+    flex: none;
+    width: 100%;
+    overflow: hidden;
+    padding: 0 0 0 var(--rail-icon-pad);
+    transition:
+      padding-left var(--rail-fold),
+      color var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .bb-rail.bb-rail--collapsible .bb-rail-item .bb-icon {
+    flex: none;
+  }
+
+  .bb-rail.bb-rail--collapsible .bb-rail-item__label {
+    flex: none;
+    overflow: visible;
+  }
+
+  .bb-rail.bb-rail--collapsible .bb-brand__id,
+  .bb-rail.bb-rail--collapsible .bb-rail-item__label,
+  .bb-rail.bb-rail--collapsible .bb-rail-item__count,
+  .bb-rail.bb-rail--collapsible .bb-rail__label,
+  .bb-rail.bb-rail--collapsible .bb-rail__chev,
+  .bb-rail.bb-rail--collapsible .bb-rail__subs {
+    transition: opacity 180ms ease 90ms;
+  }
+
+  .bb-rail.bb-rail--collapsed .bb-brand__id,
+  .bb-rail.bb-rail--collapsed .bb-rail-item__label,
+  .bb-rail.bb-rail--collapsed .bb-rail-item__count,
+  .bb-rail.bb-rail--collapsed .bb-rail__label,
+  .bb-rail.bb-rail--collapsed .bb-rail__chev,
+  .bb-rail.bb-rail--collapsed .bb-rail__subs {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease;
+  }
+
+  .bb-rail__toggle {
+    border: 0;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-rail.bb-rail--collapsible,
+    .bb-rail.bb-rail--collapsible > .bb-brand,
+    .bb-rail.bb-rail--collapsible .bb-rail-item,
+    .bb-rail.bb-rail--collapsible .bb-brand__id,
+    .bb-rail.bb-rail--collapsible .bb-rail-item__label,
+    .bb-rail.bb-rail--collapsible .bb-rail-item__count,
+    .bb-rail.bb-rail--collapsible .bb-rail__label,
+    .bb-rail.bb-rail--collapsible .bb-rail__chev,
+    .bb-rail.bb-rail--collapsible .bb-rail__subs {
+      transition: none;
+    }
+  }
+
   .bb-rail > .bb-glide {
     left: var(--rail-pad, 14px);
     right: var(--rail-pad, 14px);
@@ -157,14 +263,18 @@
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: var(--bb-muted);
-    padding: 0 8px 8px;
+    padding: 0 12px 12px;
   }
 
   .bb-rail__group {
     display: flex;
     flex-direction: column;
-    gap: 1px;
-    margin-bottom: 20px;
+    gap: 6px;
+    margin-bottom: 28px;
+  }
+
+  .bb-rail > .bb-brand {
+    margin-bottom: 14px;
   }
 
   .bb-rail__row {
@@ -222,12 +332,17 @@
     grid-template-rows: 1fr;
   }
 
-  .bb-rail__subs-inner {
+  /* A grid track counts its item's margins even at 0fr, so the spaced list must sit inside this clip. */
+  .bb-rail__subs-clip {
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .bb-rail__subs-inner {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    margin: 4px 0 6px 22px;
+    margin: 6px 0 2px 22px;
     padding-left: 12px;
     border-left: 1px solid transparent;
   }
@@ -295,7 +410,7 @@
     transition: opacity var(--bb-dur-fast) ease;
   }
 
-  .bb-rail-item:is(:hover, [aria-current]) .bb-icon {
+  .bb-rail-item:is(:hover, .is-active) .bb-icon {
     opacity: 1;
   }
 
@@ -316,11 +431,11 @@
     color: var(--bb-white);
   }
 
-  .bb-rail-item[aria-current] {
+  .bb-rail-item.is-active {
     color: var(--bb-white);
   }
 
-  .bb-rail-item.bb-rail-item--locked {
+  .bb-rail-item.is-locked {
     opacity: 0.45;
     cursor: not-allowed;
   }
@@ -451,6 +566,14 @@
     }
 
     .bb-topbar__account--railed {
+      display: none;
+    }
+
+    .bb-shell--railed .bb-topbar {
+      padding-left: 18px;
+    }
+
+    .bb-shell--railed .bb-topbar .bb-brand {
       display: none;
     }
   }

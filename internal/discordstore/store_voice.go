@@ -11,8 +11,8 @@ import (
 	"time"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -48,23 +48,10 @@ func occupantsKey(ch Channel) string { return "discord:voiceoccupants:" + ch.ID 
 
 func seatKey(m Member) string { return "discord:voiceseat:" + m.key() }
 
-var trackCloneScript = valkey.NewLuaScript(`
-local added = redis.call('SADD', KEYS[2], ARGV[1])
-if redis.call('SCARD', KEYS[2]) > tonumber(ARGV[4]) then
-    if added == 1 then
-        redis.call('SREM', KEYS[2], ARGV[1])
-    end
-    return 0
-end
-redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
-redis.call('EXPIRE', KEYS[2], ARGV[3])
-return 1
-`)
-
 func (s valkeyStore) TrackClone(ctx context.Context, c Clone) error {
 	keys := []string{cloneKey(Channel{ID: c.ChannelID}), cloneSet(Guild{ID: c.GuildID})}
 	args := []string{c.ChannelID, c.GuildID + "|" + c.OwnerID, voiceTTLArg, strconv.Itoa(ddiscord.VoiceCloneCap)}
-	tracked, err := trackCloneScript.Exec(ctx, s.client, keys, args).AsInt64()
+	tracked, err := pkg_valkey.RunCapacitySetAdd(ctx, s.client, keys, args).AsInt64()
 	if err != nil {
 		return err
 	}
@@ -75,7 +62,7 @@ func (s valkeyStore) TrackClone(ctx context.Context, c Clone) error {
 }
 
 func (s valkeyStore) Clone(ctx context.Context, ch Channel) (Clone, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(cloneKey(ch)).Build()).ToString()
+	raw, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.GetCmd(s.client, cloneKey(ch))).ToString()
 	if err != nil {
 		return Clone{}, false
 	}
@@ -90,7 +77,7 @@ func (s valkeyStore) Clone(ctx context.Context, ch Channel) (Clone, bool) {
 }
 
 func (s valkeyStore) CloneCount(ctx context.Context, g Guild) int {
-	n, err := s.client.Do(ctx, s.client.B().Scard().Key(cloneSet(g)).Build()).AsInt64()
+	n, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.ScardCmd(s.client, cloneSet(g))).AsInt64()
 	if err != nil {
 		return 0
 	}
@@ -100,35 +87,14 @@ func (s valkeyStore) CloneCount(ctx context.Context, g Guild) int {
 func (s valkeyStore) ForgetClone(ctx context.Context, c Clone) error {
 	ch := Channel{ID: c.ChannelID}
 	g := Guild{ID: c.GuildID}
-	_ = s.client.Do(ctx, s.client.B().Del().Key(cloneKey(ch)).Build()).Error()
-	return s.client.Do(ctx, s.client.B().Srem().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
+	_ = pkg_valkey.Exec1(ctx, s.client, pkg_valkey.DelCmd(s.client, cloneKey(ch))).Error()
+	return pkg_valkey.Exec1(ctx, s.client, pkg_valkey.SremCmd(s.client, cloneSet(g), c.ChannelID)).Error()
 }
-
-var voiceMoveScript = valkey.NewLuaScript(`
-local user, to, occupants, clones, ttl = ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]
-local from = redis.call('GET', KEYS[1]) or ''
-local empty = 0
-if from ~= '' then
-    redis.call('SREM', occupants .. from, user)
-    if from ~= to and redis.call('SCARD', occupants .. from) == 0 then
-        empty = 1
-    end
-end
-if to == '' then
-    redis.call('DEL', KEYS[1])
-else
-    redis.call('SADD', occupants .. to, user)
-    redis.call('EXPIRE', occupants .. to, ttl)
-    redis.call('EXPIRE', clones .. to, ttl)
-    redis.call('SET', KEYS[1], to, 'EX', ttl)
-end
-return {from, tostring(empty)}
-`)
 
 func (s valkeyStore) UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) VoiceMove {
 	m := Member{GuildID: seat.GuildID, UserID: seat.UserID}
 	args := []string{seat.UserID, seat.ChannelID, occupantsKey(Channel{}), cloneKey(Channel{}), voiceTTLArg}
-	got, err := voiceMoveScript.Exec(ctx, s.client, []string{seatKey(m)}, args).AsStrSlice()
+	got, err := pkg_valkey.RunSeatTransfer(ctx, s.client, []string{seatKey(m)}, args).AsStrSlice()
 	if err != nil || len(got) != 2 {
 		zap.L().Warn("discord voice occupancy update failed; ignoring the event",
 			zap.String("guild_id", seat.GuildID), zap.String("user_id", seat.UserID), zap.Error(err))

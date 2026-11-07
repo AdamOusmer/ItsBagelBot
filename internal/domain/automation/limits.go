@@ -15,6 +15,11 @@ const (
 )
 
 const (
+	MaxCooldownSeconds       = 2_592_000
+	MaxValkeyCooldownSeconds = 86_400
+)
+
+const (
 	MaxTemplateLength = 500
 	MaxLoginTemplate  = 100
 	MaxEventFilters   = 10
@@ -44,6 +49,8 @@ const (
 	CodeOutOfRange       = "out_of_range"
 	CodeInvalidEnum      = "invalid_enum"
 	CodeInvalidFormat    = "invalid_format"
+	CodeSimpleWord       = "simple_word"
+	CodeCommandExists    = "command_exists"
 	CodeInvalidRegex     = "invalid_regex"
 	CodeUnknownType      = "unknown_type"
 	CodeUnknownField     = "unknown_field"

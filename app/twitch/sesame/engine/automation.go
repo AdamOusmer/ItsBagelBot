@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"math/rand/v2"
 	"sync/atomic"
 	"time"
 
@@ -33,7 +34,10 @@ type AutomationDeps struct {
 	Queue     RunQueue
 	Durable   DurableStore
 
+	LongCooldowns LongCooldownStore
+
 	durableTiming durableTiming
+	intN          func(int) int
 }
 
 type AutomationRun struct {
@@ -55,6 +59,7 @@ type AutomationRun struct {
 	Started       time.Time
 	Record        automationrpc.RunRecord
 	Locals        map[string]string
+	CooldownEndMS int64
 	Iter          string
 	Replay        string
 	Tree          *runTree
@@ -84,6 +89,9 @@ func withAutomationDefaults(d AutomationDeps) AutomationDeps {
 	}
 	if d.Queue == nil {
 		d.Queue = openRunQueue{}
+	}
+	if d.intN == nil {
+		d.intN = rand.IntN
 	}
 	return d
 }

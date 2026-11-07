@@ -4,7 +4,6 @@
 package repository
 
 import (
-	"context"
 	"errors"
 
 	"entgo.io/ent/dialect"
@@ -28,16 +27,4 @@ type Store struct {
 
 func New(client *ent.Client, dialectName string) *Store {
 	return &Store{client: client, rowLocks: dialectName == dialect.MySQL}
-}
-
-func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {
-	tx, err := client.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	return tx.Commit()
 }

@@ -8,7 +8,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Fact from '@bagel/ui/svelte/Fact.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '#lib/server/services';
   import StatePill from '../StatePill.svelte';

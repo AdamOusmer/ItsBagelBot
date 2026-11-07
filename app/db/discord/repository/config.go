@@ -43,7 +43,7 @@ func (s *Store) ConfigSet(ctx context.Context, p SetConfigParams) (int, error) {
 	}
 	var version int
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, s.client, func(tx *ent.Tx) error {
+		return db.WithTx(ctx, s.client, func(tx *ent.Tx) error {
 			got, err := s.setConfigInTx(ctx, tx, p)
 			version = got
 			return err

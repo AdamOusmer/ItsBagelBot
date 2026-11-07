@@ -12,7 +12,7 @@
       "type": "var_set",
       "params": {
         "scope": "channel",
-        "name": "last_input",
+        "name": "lastinput",
         "value": "{args}"
       }
     },
@@ -94,7 +94,7 @@
     {
       "type": "chat",
       "params": {
-        "text": "done {var:last_input} {var:seen}"
+        "text": "done {var:lastinput} {var:seen}"
       }
     }
   ]

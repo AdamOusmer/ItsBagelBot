@@ -40,7 +40,7 @@
   "reward.b1.html": "\n            <h3>Ce que les spectateurs tapent</h3>\n            <p>\n                Quand un spectateur échange la récompense, il tape une couleur. Un nom de couleur en anglais\n                fonctionne, comme <code>blue</code>. Un code hexadécimal fonctionne aussi, comme\n                <code>#00ccff</code>. Si vous activez «Autoriser les spectateurs à éteindre la lumière»,\n                un spectateur peut taper <code>off</code> pour éteindre la lumière.\n            </p>",
   "reward.b2.html": "\n                <b>«En direct uniquement» est activé par défaut</b>\n                «En direct uniquement» signifie que les échanges ne fonctionnent que lorsque votre\n                stream est en direct. C’est recommandé. Si vous le désactivez, les spectateurs peuvent\n                changer la lumière même hors ligne.",
   "reward.heading": "Créer la récompense de points de chaîne",
-  "reward.note": "Une récompense par lumière. Les spectateurs tapent une couleur quand ils l’échangent.",
+  "reward.note": "Une récompense par lumière ou par groupe de lumières. Les spectateurs tapent une couleur quand ils l’échangent.",
   "trouble.b0.html": "\n            <p>\n                Dans les lignes de chat ci-dessous, <code>@viewer</code> représente le nom du\n                spectateur qui a échangé la récompense. Chaque ligne de remboursement veut dire que le bot\n                a rendu les points.\n            </p>",
   "trouble.b1.head.0": "Ce que vous voyez",
   "trouble.b1.head.1": "Ce que ça veut dire",

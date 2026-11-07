@@ -88,7 +88,7 @@ func TestMathStepsOnHostileInput(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fx := newAutoFixture(manual("main", act("math", obj{"expression": tc.expr, "save_as": "out"}), setVar("out", "[{local:out}]")))
-			fx.p.autoIntN = func(int) int { return 0 }
+			fx.p.automations.intN = func(int) int { return 0 }
 			rec := fx.run(t, "main", "req-math", map[string]string{"n": "21"})
 			if tc.want == "" {
 				assert.Equal(t, "failed", rec.Actions[0].Status, statuses(rec))

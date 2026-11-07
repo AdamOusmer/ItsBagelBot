@@ -43,6 +43,7 @@ const ACTION_ROLE: Record<string, number> = {
   warn: ROLE_MODERATOR,
   shield: ROLE_MODERATOR,
   delete_message: ROLE_MODERATOR,
+  cooldown_add: ROLE_MODERATOR,
 };
 
 export function paramsCode(err: DecodeError): string {

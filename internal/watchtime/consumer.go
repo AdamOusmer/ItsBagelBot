@@ -60,7 +60,7 @@ func NewConsumer(client valkey.Client, handle func(context.Context, data.WatchAw
 // Ensure starts at the oldest retained award, including records accepted before
 // the first loyalty consumer came online. BUSYGROUP means another replica won.
 func (c *Consumer) Ensure(ctx context.Context) error {
-	err := c.client.Do(ctx, c.client.B().XgroupCreate().Key(Stream).Group(ConsumerGroup).Id("0").Mkstream().Build()).Error()
+	err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XGroupCreateCmd(c.client, Stream, ConsumerGroup)).Error()
 	if err != nil && strings.HasPrefix(err.Error(), "BUSYGROUP") {
 		return nil
 	}
@@ -186,7 +186,7 @@ func (c *Consumer) pruneHistory(parent context.Context) (err error) {
 // Check exposes a stalled outbox independently of the NATS/SQL health checks.
 // An accepted award waiting longer than a complete watch interval needs attention.
 func (c *Consumer) Check(ctx context.Context) error {
-	entries, err := c.client.Do(ctx, c.client.B().Xrange().Key(Stream).Start("-").End("+").Count(1).Build()).AsXRange()
+	entries, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XRangeCmd(c.client, Stream, 1)).AsXRange()
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,9 @@ func consumerPause(ctx context.Context, delay time.Duration) bool {
 }
 
 func (c *Consumer) read(ctx context.Context) error {
-	streams, err := c.client.Do(ctx, c.client.B().Xreadgroup().Group(ConsumerGroup, c.name).Count(1).Block(1000).Streams().Key(Stream).Id(">").Build()).AsXRead()
+	streams, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XReadGroupCmd(c.client, pkgvalkey.GroupRead{
+		Stream: Stream, Group: ConsumerGroup, Consumer: c.name, Count: 1, BlockMS: 1000,
+	})).AsXRead()
 	if valkey.IsValkeyNil(err) {
 		return nil
 	}
@@ -250,7 +252,9 @@ func (c *Consumer) recoverBatch(ctx context.Context, idle time.Duration) error {
 }
 
 func (c *Consumer) reclaimOne(ctx context.Context, idle time.Duration) (int, error) {
-	parts, err := c.client.Do(ctx, c.client.B().Xautoclaim().Key(Stream).Group(ConsumerGroup).Consumer(c.name).MinIdleTime(strconv.FormatInt(idle.Milliseconds(), 10)).Start(c.claimCursor).Count(1).Build()).ToArray()
+	parts, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XAutoClaimCmd(c.client, pkgvalkey.GroupReclaim{
+		Stream: Stream, Group: ConsumerGroup, Consumer: c.name, MinIdleMS: strconv.FormatInt(idle.Milliseconds(), 10), Cursor: c.claimCursor, Count: 1,
+	})).ToArray()
 	if err != nil {
 		return 0, err
 	}
@@ -271,25 +275,17 @@ func (c *Consumer) reclaimOne(ctx context.Context, idle time.Duration) (int, err
 	return len(entries), nil
 }
 
-var ackScript = valkey.NewLuaScript(`redis.call('XACK',KEYS[1],ARGV[1],ARGV[2]); redis.call('XDEL',KEYS[1],ARGV[2]); redis.call('HDEL',KEYS[2],ARGV[3]); redis.call('ZREM',KEYS[3],ARGV[2]); return 1`)
-
-var quarantineScript = valkey.NewLuaScript(`
-local clock=redis.call('TIME')
-local horizon=tonumber(clock[1])*1000+math.floor(tonumber(clock[2])/1000)-tonumber(ARGV[5])
-redis.call('XADD',KEYS[2],'MINID','~',string.format('%.0f',math.max(horizon,0)),'*','source_id',ARGV[2],'reason',ARGV[3],'payload',ARGV[4])
-redis.call('XACK',KEYS[1],ARGV[1],ARGV[2]); redis.call('XDEL',KEYS[1],ARGV[2]); redis.call('ZREM',KEYS[3],ARGV[2]); return 1`)
-
 func (c *Consumer) ack(ctx context.Context, id string, award data.WatchAwardDTO) error {
 	// SQL already remembers this operation. Clear the short-lived acceptance
 	// digest with the delivery so Valkey memory grows with unpaid work, while
 	// an uncertain acknowledgement can safely retry the SQL operation.
 	keys := []string{Stream, "watchtime:operations:" + strconv.FormatUint(award.UserID, 10), OutboxWindowIndex}
-	return ackScript.Exec(ctx, c.client, keys, []string{ConsumerGroup, id, OperationID(award)}).Error()
+	return pkgvalkey.RunOutboxDeliveryAck(ctx, c.client, keys, []string{ConsumerGroup, id, OperationID(award)}).Error()
 }
 
 func (c *Consumer) quarantine(ctx context.Context, entry valkey.XRangeEntry, cause error) error {
 	// Quarantine and ACK are one primary operation; a malformed item cannot
 	// monopolize the recovery queue or disappear without an inspectable record.
 	args := []string{ConsumerGroup, entry.ID, fmt.Sprint(cause), entry.FieldValues["payload"], strconv.FormatInt(HistoryRetention.Milliseconds(), 10)}
-	return quarantineScript.Exec(ctx, c.client, []string{Stream, QuarantineStream, OutboxWindowIndex}, args).Error()
+	return pkgvalkey.RunOutboxDeliveryQuarantine(ctx, c.client, []string{Stream, QuarantineStream, OutboxWindowIndex}, args).Error()
 }

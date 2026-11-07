@@ -1,7 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Bolota, getI18n } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';

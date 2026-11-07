@@ -170,7 +170,7 @@ func assertFirstRunUpstreamAndVariables(t *testing.T, s *stack, channel uint64) 
 	require.GreaterOrEqual(t, len(hits), 2)
 	assert.Equal(t, []string{"/item/1", "/item/2"}, []string{hits[0].Path, hits[1].Path})
 
-	assert.Equal(t, "{arg:1}", s.channelVariable(t, channel, "last_input"), "viewer text is stored as written")
+	assert.Equal(t, "{arg:1}", s.channelVariable(t, channel, "lastinput"), "viewer text is stored as written")
 	assert.Equal(t, "1", s.channelVariable(t, channel, "seen"))
 }
 

@@ -21,7 +21,7 @@
   import SetupStage from '@bagel/ui/svelte/SetupStage.svelte';
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
   import SetupNote from '@bagel/ui/svelte/SetupNote.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import SetupAskAi from '../shared/SetupAskAi.svelte';
 
   let { name, app, redirectUri, preview = false, error = '', onRemoveApp }: {

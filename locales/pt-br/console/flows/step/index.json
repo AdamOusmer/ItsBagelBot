@@ -15,6 +15,7 @@
     "count": "Nova contagem",
     "loopIndex": "Qual repetição é esta",
     "apiError": "Por que falhou",
+    "cooldownLeft": "Intervalo restante",
     "saved": "Salva por uma etapa anterior"
   }
 }

@@ -75,7 +75,10 @@ function knownReason(t: Translate, detail: string): string | null {
     reward_unconfirmed: t('flows.recipe.why.reward_unconfirmed'),
     queue_full: t('flows.recipe.why.queue_full'),
     queue_timeout: t('flows.recipe.why.queue_timeout'),
-    queued: t('flows.recipe.why.queued')
+    queued: t('flows.recipe.why.queued'),
+    not_running: t('flows.recipe.why.not_running'),
+    capped: t('flows.recipe.why.capped'),
+    below_rate: t('flows.recipe.why.below_rate')
   };
   return Object.hasOwn(texts, detail) ? texts[detail]! : null;
 }

@@ -177,12 +177,12 @@ func (request loyaltyArmRequest) mode() string {
 	return "recover"
 }
 func (s *ValkeyLoyaltyClock) liveSession(ctx context.Context, request loyaltyArmRequest) (int64, bool, error) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(livekey.Key(request.broadcaster)).Build()).ToString()
-	if valkey.IsValkeyNil(err) {
-		return 0, false, nil
-	}
+	raw, ok, err := pkg_valkey.ReadString(ctx, s.client, livekey.Key(request.broadcaster))
 	if err != nil {
 		return 0, false, err
+	}
+	if !ok {
+		return 0, false, nil
 	}
 	version, err := strconv.ParseInt(raw, 10, 64)
 	return version, err == nil, nil
@@ -206,7 +206,7 @@ func (s *ValkeyLoyaltyClock) DisarmVersioned(ctx context.Context, id uint64, ver
 	}
 }
 
-func (s *ValkeyLoyaltyClock) eval(ctx context.Context, script *valkey.Lua, keys []string, args ...string) (valkey.ValkeyResult, error) {
+func (s *ValkeyLoyaltyClock) eval(ctx context.Context, script pkg_valkey.Script, keys []string, args ...string) (valkey.ValkeyResult, error) {
 	result := script.Exec(ctx, s.client, keys, args)
 	return result, result.Error()
 }

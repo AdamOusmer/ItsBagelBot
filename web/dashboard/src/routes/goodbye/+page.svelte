@@ -4,7 +4,7 @@
   import '@bagel/kit/styles/ui-console.css';
   import { onMount } from 'svelte';
   import ErrorScene from '@bagel/ui/svelte/ErrorScene.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { getI18n } from '@bagel/kit';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
 

@@ -97,7 +97,7 @@ func validTransfer(t Transfer) (string, error) {
 func (r *Loyalty) moveBalance(ctx context.Context, sender, recipient *ent.Balance, amount int64) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		return retryTx(ctx, func(ctx context.Context) error {
-			return withTx(ctx, r.client, func(tx *ent.Tx) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 				if err := r.lockTransferRows(ctx, tx, sender, recipient); err != nil {
 					return err
 				}

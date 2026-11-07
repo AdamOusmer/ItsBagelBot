@@ -273,6 +273,21 @@ export function demoGoveeView(): GoveeView {
         allowOff: true,
         replyMessage: '@{user} set the lights to {color}!'
       }
+    ],
+    groups: [
+      {
+        name: 'Whole room',
+        lights: [
+          { device: 'AB:CD:EF:12:34:56', sku: 'H6159', name: 'Desk strip' },
+          { device: '11:22:33:44:55:66', sku: 'H6072', name: 'Floor lamp' }
+        ],
+        onRedeem: 'fulfill',
+        rewardId: 'demo-group-reward',
+        reward: { rewardId: 'demo-group-reward', title: 'Colour the whole room', cost: 1000, color: '#9147ff', cooldown: 0 },
+        allowOffline: false,
+        allowOff: false,
+        replyMessage: '@{user} set the lights to {color}!'
+      }
     ]
   };
 }

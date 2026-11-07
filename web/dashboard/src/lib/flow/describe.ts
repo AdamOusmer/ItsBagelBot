@@ -91,9 +91,22 @@ function compareLine(t: Translate, n: FlowNode): string {
   return Object.hasOwn(COMPARISONS, op) ? t(COMPARISONS[op]!, { left, right }) : t('flows.line.compareIs', { left, right });
 }
 
+const minutes = (t: Translate, count: number) => (count === 1 ? t('flows.line.minutesOne', { count }) : t('flows.line.minutesMany', { count }));
+
+const hours = (t: Translate, count: number) => (count === 1 ? t('flows.line.hoursOne', { count }) : t('flows.line.hoursMany', { count }));
+
+const days = (t: Translate, count: number) => (count === 1 ? t('flows.line.daysOne', { count }) : t('flows.line.daysMany', { count }));
+
+function cooldownAmount(t: Translate, total: number): string {
+  if (total % 86_400 === 0) return days(t, total / 86_400);
+  if (total % 3600 === 0) return hours(t, total / 3600);
+  if (total % 60 === 0) return minutes(t, total / 60);
+  return seconds(t, total);
+}
+
 function cooldownLine(t: Translate, n: FlowNode): string {
   return given(num(n, 'seconds'), (count) =>
-    t(n.config.perUser ? 'flows.line.cooldownViewer' : 'flows.line.cooldown', { amount: seconds(t, count) })
+    t(n.config.perUser ? 'flows.line.cooldownViewer' : 'flows.line.cooldown', { amount: cooldownAmount(t, count) })
   );
 }
 

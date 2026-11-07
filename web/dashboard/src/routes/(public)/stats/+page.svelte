@@ -10,7 +10,7 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import DonateCard from '@bagel/ui/svelte/DonateCard.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
-  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import PublicHead from '#lib/components/public/PublicHead.svelte';

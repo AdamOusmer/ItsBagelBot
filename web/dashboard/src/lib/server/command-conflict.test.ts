@@ -24,3 +24,11 @@ const cases: { name: string; save: ReturnType<typeof create>; want: ReturnType<t
 test.each(cases)('saveConflict ', ({ save, want }) => {
   expect(saveConflict(save, existing)).toEqual(want);
 });
+
+test('a recipe time left command holds its name and alias against the commands page', () => {
+  const recipes = new Set(['timeleft']);
+
+  expect(saveConflict(create('timeleft'), existing, recipes)).toEqual({ code: 'name_taken', name: 'timeleft' });
+  expect(saveConflict(create('socials', ['timeleft']), existing, recipes)).toEqual({ code: 'alias_taken', name: 'timeleft' });
+  expect(saveConflict(edit('discord', 'discord', ['dc']), existing, recipes)).toBeNull();
+});

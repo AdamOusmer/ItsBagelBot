@@ -18,8 +18,8 @@ export interface SaveIntent {
   originalName: string;
 }
 
-function claimedNames(existing: CommandView[], ownName: string): Set<string> {
-  const claimed = new Set<string>();
+function claimedNames(existing: CommandView[], ownName: string, recipeNames: ReadonlySet<string>): Set<string> {
+  const claimed = new Set<string>(recipeNames);
   for (const c of existing) {
     if (c.builtin || c.name === ownName) continue;
     claimed.add(c.name);
@@ -41,12 +41,15 @@ function aliasClash(aliases: string[], kept: Set<string>, claimed: Set<string>):
   return aliases.find((a) => !kept.has(a) && taken(a));
 }
 
-export function saveConflict(intent: SaveIntent, existing: CommandView[]): SaveConflict | null {
+const NO_NAMES: ReadonlySet<string> = new Set();
+
+// recipeNames are the names recipes answer on with a time left command.
+export function saveConflict(intent: SaveIntent, existing: CommandView[], recipeNames = NO_NAMES): SaveConflict | null {
   const { name } = intent;
   if (BUILTIN_NAMES.has(name)) return { code: 'builtin_name', name };
 
   const ownName = ownNameOf(intent);
-  const claimed = claimedNames(existing, ownName);
+  const claimed = claimedNames(existing, ownName, recipeNames);
   if (takesNewName(intent, ownName) && claimed.has(name)) return { code: 'name_taken', name };
 
   const clash = aliasClash(intent.aliases, ownAliases(existing, ownName), claimed);

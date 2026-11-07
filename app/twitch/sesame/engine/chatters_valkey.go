@@ -83,7 +83,7 @@ func (v *ValkeyChatters) ReleaseFetchLock(ctx context.Context, broadcasterID uin
 	if v == nil || v.client == nil {
 		return
 	}
-	err := v.client.Do(ctx, v.client.B().Del().Key(chattersFetchLockKey(broadcasterID)).Build()).Error()
+	err := pkg_valkey.DelKeys(ctx, v.client, chattersFetchLockKey(broadcasterID))
 	if err != nil {
 		v.log.Warn("chatters: fetch lock release failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
