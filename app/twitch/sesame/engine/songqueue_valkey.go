@@ -284,14 +284,45 @@ func (s *ValkeySongQueueStore) SyncQueue(ctx context.Context, broadcasterID uint
 // queue, aged absent requests can also be retired. The grace interval protects
 // a newly accepted POST while Spotify's read endpoint catches up.
 func reconcileSongQueue(d *songQueueDoc, player PlayerQueueIDs, now time.Time) bool {
-	// An idle or private player can yield no snapshot at all. Without a
-	// current item or an upcoming item, there is no evidence to retire from.
 	if player.CurrentID == "" && len(player.UpcomingIDs) == 0 {
-		return false
+		return retirePlayedThrough(d, now)
 	}
 	currentChanged := reconcileCurrentSong(d, player.CurrentID)
 	upcomingChanged := reconcileUpcomingSongs(d, player.UpcomingIDs, now)
 	return currentChanged || upcomingChanged
+}
+
+const idleRetireSlack = 5 * time.Minute
+
+// A private session also reads as an empty player, so an empty snapshot may
+// only retire entries that have finished even if nothing was ever paused:
+// enqueue time plus every duration ahead of them, plus slack.
+func retirePlayedThrough(d *songQueueDoc, now time.Time) bool {
+	cutoff := now.Add(-idleRetireSlack).UnixMilli()
+	changed := false
+	var aheadMS int64
+	if d.Current != nil {
+		aheadMS = d.Current.DurationMS
+		if playedThrough(*d.Current, aheadMS, cutoff) {
+			d.Current = nil
+			changed = true
+		}
+	}
+	kept := d.Up[:0]
+	for _, entry := range d.Up {
+		aheadMS += entry.DurationMS
+		if playedThrough(entry, aheadMS, cutoff) {
+			changed = true
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	d.Up = kept
+	return changed
+}
+
+func playedThrough(entry SongEntry, aheadMS, cutoffMS int64) bool {
+	return entry.EnqueuedAt > 0 && entry.EnqueuedAt+aheadMS < cutoffMS
 }
 
 func reconcileCurrentSong(d *songQueueDoc, currentID string) bool {

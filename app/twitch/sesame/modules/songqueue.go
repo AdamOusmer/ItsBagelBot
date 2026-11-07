@@ -151,6 +151,8 @@ var songQueueActions = map[string]songQueueAction{
 	"next":    (*songQueueCmd).actNext,
 	"skip":    (*songQueueCmd).actNext,
 	"clear":   (*songQueueCmd).actClear,
+	"queue":   (*songQueueCmd).actView,
+	"list":    (*songQueueCmd).actView,
 }
 
 func songQueueView(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
@@ -358,6 +360,13 @@ func (qc songQueueCmd) actRemove(ctx context.Context, _ string, rest string, emi
 
 func (qc songQueueCmd) actNext(ctx context.Context, args, rest string, emit module.Emit) error {
 	return qc.bareModVerb(ctx, args, rest, emit, qc.nextTrack)
+}
+
+func (qc songQueueCmd) actView(ctx context.Context, args, rest string, emit module.Emit) error {
+	if rest != "" {
+		return qc.request(ctx, args, emit)
+	}
+	return qc.view(ctx, emit)
 }
 
 func (qc songQueueCmd) actClear(ctx context.Context, args, rest string, emit module.Emit) error {
