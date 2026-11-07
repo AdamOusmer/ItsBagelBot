@@ -29,7 +29,7 @@ function withData(page: string): string[] {
   return [page, ...DATA_QUERIES.map((query) => `${page}/__data.json${query}`)];
 }
 
-export function songQueuePageUrls(logins: readonly string[]): string[] {
+function songQueuePageUrls(logins: readonly string[]): string[] {
   return logins.flatMap((login) => [songqueueHref(login), `${songqueueHref(login)}/data`]);
 }
 
@@ -37,4 +37,8 @@ export function channelPageUrls(userId: string | undefined, logins: readonly str
   const segments = logins.flatMap((login) => [login, `@${login}`]);
   const pages = [...segments.map(commandsHref), ...(userId ? [commandsHref(userId)] : [])];
   return pages.flatMap(withData);
+}
+
+export function allPageUrls(userId: string | undefined, logins: readonly string[]): string[] {
+  return [...channelPageUrls(userId, logins), ...songQueuePageUrls(logins)];
 }

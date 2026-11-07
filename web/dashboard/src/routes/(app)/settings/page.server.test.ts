@@ -55,7 +55,7 @@ mock.module('../../../lib/server/services', servicesMock);
 const fetchesStore = await import('../../../lib/server/fetches-store');
 mock.module('#lib/server/fetches-store', () => ({ ...fetchesStore, listFetches: async () => ({ defs: [], keys: [] }) }));
 
-const { channelPageUrls, songQueuePageUrls } = await import('../../../lib/server/channel-urls');
+const { allPageUrls } = await import('../../../lib/server/channel-urls');
 const { actions, load } = await import('./+page.server');
 
 const realFetch = globalThis.fetch;
@@ -90,9 +90,7 @@ function submitToggle(toggle: Toggle, session: Session | null, fields: Record<st
   return actions[toggle.action]({ request, locals: { session, locale } } as never);
 }
 
-const channelPurge: PurgeBody[] = [{ files: channelPageUrls('7', ['streamerlogin']) }, { tags: ['lb:streamerlogin'] }];
-const songQueuePurge: PurgeBody[] = [{ files: songQueuePageUrls(['streamerlogin']) }];
-const pagePurge = (page: string): PurgeBody[] => (page === 'songqueue_page' ? songQueuePurge : channelPurge);
+const channelPurge: PurgeBody[] = [{ files: allPageUrls('7', ['streamerlogin']) }, { tags: ['lb:streamerlogin'] }];
 const refused = { status: 403, data: { error: staticText('en', 'serverErrors.notAllowed') } };
 
 const cases: {
@@ -159,7 +157,7 @@ describe.each(toggles)('$action action', (toggle) => {
     const expected = {
       result: want.result(toggle.page),
       writes: want.writes.map(([userId, hidden]) => ({ page: toggle.page, userId, hidden })),
-      purges: want.purged ? pagePurge(toggle.page) : []
+      purges: want.purged ? channelPurge : []
     };
     expect({ result, writes: hiddenWrites, purges: purgeBodies } as unknown).toEqual(expected);
   });
@@ -170,7 +168,7 @@ test.each(toggles)('$action lets an admin view-as session flip the channel page 
   expect({ result, writes: hiddenWrites, purges: purgeBodies, audits } as unknown).toEqual({
     result: { ok: true, action: toggle.page, edgeDelayed: false },
     writes: [{ page: toggle.page, userId: '7', hidden: true }],
-    purges: pagePurge(toggle.page),
+    purges: channelPurge,
     audits: [{ action: `${toggle.page}:set`, detail: 'enabled=false' }]
   });
 });
