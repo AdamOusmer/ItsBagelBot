@@ -18,6 +18,38 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # The pinned action downloads through the release browser URL on a cache
+      # miss. Seed its exact cache from GitHub's API when that route is unavailable.
+      - name: Restore pinned scanner
+        id: scanner-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5.0.4
+        with:
+          path: /tmp/gitleaks-8.24.3
+          key: gitleaks-cache-8.24.3-linux-x64
+      - name: Download and verify pinned scanner
+        if: steps.scanner-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gitleaks-8.24.3-linux-x64.tar.gz"
+          curl --fail --location --retry 3 --connect-timeout 10 --max-time 90 \
+            --header 'Accept: application/octet-stream' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --output "$archive" \
+            https://api.github.com/repos/gitleaks/gitleaks/releases/assets/245568496
+          echo "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c  $archive" | sha256sum --check --strict
+          mkdir -p /tmp/gitleaks-8.24.3
+          tar -xzf "$archive" -C /tmp/gitleaks-8.24.3 gitleaks
+          chmod 0755 /tmp/gitleaks-8.24.3/gitleaks
+      - name: Cache verified scanner for the scan action
+        if: steps.scanner-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5.0.4
+        with:
+          path: /tmp/gitleaks-8.24.3
+          key: gitleaks-cache-8.24.3-linux-x64
       - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.24.3
