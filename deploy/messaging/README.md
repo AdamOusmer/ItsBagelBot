@@ -6,11 +6,73 @@ Three `nats-server` pods (`nats-0/1/2`, one per worker node) holding every
 JetStream stream at R3, plus a leaf DaemonSet that apps connect to. The hot
 event lanes are in memory; the data, dead-letter and system streams are on file
 storage (`pkg/bus/streams.go`). Hub and leaf authenticate in NATS operator (JWT)
-mode (`nats-operator.conf`). The hubs run nats-server 2.15.1 with our patch set
-(`deploy/messaging/nats-server`), pinned by digest in `nats.yaml`; the leaves
-run stock 2.15.0. This file
+mode (`nats-operator.conf`). Hubs and leaves use stock upstream nats-server
+2.15.2, pinned by digest in `nats.yaml` and `nats-leaf.yaml`. The custom broker
+build and its CI image target have been removed. This file
 records what the broker can actually do, because the number is lower than it
 looks and the way past it is not a broker setting.
+
+## Stock replacement, 2026-11-08
+
+Stock upstream 2.15.2 passed the 20k messages/s requirement with 2x tested
+headroom on the live worker nodes. The test used separate disposable brokers
+(one on each of node1/node2/node3), not application subjects on the production
+brokers. The current deployed client revision was
+`5ee7ccfc086dd10011740b89aceb467d59179c31`.
+
+Both 60-second runs used 1 KiB payloads, mutual TLS, JWT operator authentication,
+S2 route compression, one R3 memory stream with 384 MiB / 6 s retention,
+three publisher pods and three consumer pods sharing one R3 AckNone pull durable.
+Publisher settings matched sesame: 4 connections, 8 in-flight atomic cohorts,
+256-message / 1 ms batches, queue 512, ACK_FIRST and a 5 s publish wait.
+Consumers used 8 pull loops of 250 per pod. Both capacity runs had separate
+stream and consumer leaders; the matched 1k comparisons below colocated them.
+
+| target | admitted and received | completed rate | consumer p50 range | worst consumer p99 | average broker CPU range |
+|---|---|---|---|---|---|
+| 20k/s | 1,199,488 | 19,987.5/s | 5.4–6.0 ms | 9.04 ms | 0.65–1.17 cores |
+| 40k/s | 2,398,912 | 39,976.6/s | 5.9–6.6 ms | 22.7 ms | 1.59–2.12 cores |
+
+Both runs had zero publisher/flush errors, duplicate deliveries, slow consumers,
+and CPU throttling. Per-publisher message counts, sequence sums and sequence
+hashes reconciled across all consumers. Final consumer pending was zero.
+Rates include publisher startup and flush overhead; percentiles exclude the
+first two seconds. Consumer quantiles are reported separately, not averaged.
+Broker CPU averages include the six-second synchronized start and final drain;
+each broker had a five-core limit and a 2 GiB memory limit. End-of-run broker
+RSS was 508–566 MiB at 20k and 1,009–1,059 MiB at 40k.
+
+At 1,000 messages/s total, matched 60-second tests on these same worker nodes
+measured combined end-to-end p99 of **4.68 ms for custom 2.15.1-bench** and
+**5.06 ms for stock 2.15.2** (p50 3.31 and 3.51 ms). Both used the same clients,
+1 KiB payloads and colocated stream/consumer leaders. All 59,976 custom and
+59,984 stock messages arrived; per-publisher counts and checksums matched,
+with zero errors or duplicates. These combined quantiles use the individual
+samples from all consumers after the two-second warmup, not consumer quantile
+averages. This single pair of runs does not establish statistical significance.
+See [custom 1k](benchmarks/2026-11-08/custom1k_pull.json) and
+[stock 1k](benchmarks/2026-11-08/stock1k_pull.json).
+
+The first 20k/40k attempt used a non-canary subject and silently selected the
+client's explicit push fallback. Those numbers are superseded here by reruns
+using `twitch.ingress.retry.canary.*`; broker monitoring confirmed an R3 pull
+consumer with `ack_policy: none`.
+
+Upstream's release API was checked on 2026-11-08: [2.15.2](https://github.com/nats-io/nats-server/releases/tag/v2.15.2)
+was the newest stable release, with no newer stable major version. The newer
+2.15.3-RC.2 is a prerelease. Hubs and leaves use the tested stable release.
+
+Machine-readable summaries: [20k](benchmarks/2026-11-08/stock20k.json) and
+[40k](benchmarks/2026-11-08/stock40k.json). These measure broker transport through
+handler entry, not application execution or Twitch API throughput, and are
+short capacity checks rather than a long soak. The production hub and leaf
+configurations also passed `nats-server -t` under the pinned stock image.
+
+The hub StatefulSet is deliberately excluded from Flux's messaging tier, so
+changing its image in Git does not roll the hubs. Roll them individually and
+check every stream and durable replica from its leader's view between members.
+The leaf DaemonSet is managed by Flux and rolls one node at a time. Retain the
+previous controller manifests for rollback; do not recreate streams or PVCs.
 
 ## What one stream can do
 
@@ -204,8 +266,8 @@ Not shipped:
 
 ## Measured, 2026-10-12 (patched 2.15.1-bench)
 
-Production hubs on the patched build (`deploy/messaging/nats-server`, fork tag
-`bagel/v2.15.1-bench`, the `NATS_BENCH_*` knobs in `nats.yaml`, eviction
+Historical production measurement on the patched build (removed custom image, fork tag
+`bagel/v2.15.1-bench`, the then-configured `NATS_BENCH_*` knobs, eviction
 batching off), same rig and lane as 2026-10-11: TWITCH_INGRESS_RETRY at R3, one
 shared R3 AckNone pull durable on the canary subject, three publisher pods with
 8 in-flight cohorts, three consumer pods with six pumps of 250, 735 B payload.
