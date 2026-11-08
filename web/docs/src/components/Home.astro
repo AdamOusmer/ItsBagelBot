@@ -5,6 +5,9 @@
 import { webHref } from '@bagel/kit/site-links';
 import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
 import PageHero from '@bagel/ui/astro/PageHero.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Label from '@bagel/ui/astro/Label.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 
 import { docsI18n } from '../i18n/ui';
@@ -37,11 +40,11 @@ const lanes = spaces.map(({ key, label, featured }) => ({
       {lanes.map((lane, index) => (
         <section class="doc-lane" aria-labelledby={`lane-${lane.key}`}>
           <div class="doc-lane__side">
-            <span class="doc-lane__num">{String(index + 1).padStart(2, '0')}</span>
-            <h2 class="doc-lane__title" id={`lane-${lane.key}`}>{lane.title}</h2>
+            <Label mono as="span">{String(index + 1).padStart(2, '0')}</Label>
+            <Heading level={3} as="h2" id={`lane-${lane.key}`}>{lane.title}</Heading>
           </div>
           <div class="doc-lane__body">
-            <p class="doc-lane__lead">{lane.lead}</p>
+            <Text tone="muted-light">{lane.lead}</Text>
             <ul class="doc-lane__links">
               {lane.links.map((page) => (
                 <li><TextLink variant="arrow" href={page.href} label={page.label} /></li>
@@ -91,29 +94,11 @@ const lanes = spaces.map(({ key, label, featured }) => ({
     gap: var(--bb-space-2);
   }
 
-  .doc-lane__num {
-    font: 500 var(--bb-text-sm)/1 var(--bb-font-mono);
-    color: var(--bb-tan-light);
-  }
-
-  .doc-lane__title {
-    font-family: var(--bb-font-display);
-    font-size: clamp(1.35rem, 2.2vw, 1.7rem);
-    font-weight: 500;
-    letter-spacing: -0.03em;
-    line-height: 1.2;
-    color: var(--bb-white);
-  }
 
   .doc-lane__body {
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-4);
-  }
-
-  .doc-lane__lead {
-    color: var(--bb-muted-light);
-    line-height: 1.6;
   }
 
   .doc-lane__links {
