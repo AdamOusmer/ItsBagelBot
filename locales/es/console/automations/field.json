@@ -43,6 +43,7 @@
   "title": "Título",
   "device": "Dispositivo",
   "device_name": "Nombre del dispositivo",
+  "extra_lights": "Más luces",
   "sku": "SKU",
   "allow_ids": "IDs de usuario permitidos",
   "deny_ids": "IDs de usuario denegados",

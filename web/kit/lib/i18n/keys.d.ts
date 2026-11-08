@@ -1265,6 +1265,7 @@ export type KnownMessageKey =
   | 'automations.field.else'
   | 'automations.field.enabled'
   | 'automations.field.expression'
+  | 'automations.field.extra_lights'
   | 'automations.field.filters'
   | 'automations.field.game'
   | 'automations.field.global_s'
