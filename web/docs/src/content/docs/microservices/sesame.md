@@ -2,122 +2,39 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Sesame
-description: The core engine and command processor of ItsBagelBot.
+description: "Processes Twitch events, built-in modules and custom commands, incoming moderation, timers and replies."
+docType: reference
 ---
 
-Sesame is the core engine of ItsBagelBot. It consumes ingress events, evaluates gates, dispatches commands, runs module event handlers, and routes outputs to the outgress service.
+## Responsibilities
 
-## Architecture
+Ingress delivers normalized events; Sesame resolves settings and commands through projections and RPC, applies gates and publishes typed actions to Outgress. Trial events exercise processing with output suppressed. Incoming AutoMod enforcement defaults off; completed outgoing replies also pass a safety check.
 
-Sesame operates as a highly concurrent NATS JetStream consumer. It pulls from the `twitch.ingress.event.*` subjects across two lanes (Premium and Standard) and drains them into a shared pool with reserved capacity for Premium events.
+## Interfaces
 
-### The Pipeline
+Ingress supplies normalized lane envelopes; Sesame publishes typed `internal/domain/outgress` messages to the appropriate Twitch Outgress lane.
 
-Every message flows through `engine.Pipeline`, an allocation-free (for non-emissions) decoding and dispatch stage:
-1. **Decode**: The JSON payload is unmarshaled into a pooled `lane.Envelope`.
-2. **Eligibility**: Unsupported events and envelopes without a valid broadcaster are discarded before projection or command work.
-3. **Module Views**: If the event requires configurable behavior, the `Projector` is queried for the broadcaster's `ModuleView` set.
-4. **Incoming Moderation**: Chat is checked by the AutoMod gate (`automod/`, `engine/moderate.go`). Enforcement defaults off (`SESAME_AUTOMOD_ENFORCE=false`), in which case verdicts are recorded and processing continues. An enforced action consumes the line.
-5. **Command Dispatch**: If the event is a chat message (`channel.chat.message`) and not consumed, the pipeline checks the command registry. Baked and custom commands are evaluated for their permissions, cooldowns, and live-only gates.
-6. **Event Handlers**: Non-command event handlers registered by modules are executed in registration order.
-7. **Emission**: Module handlers do not publish directly to NATS. They yield an `Output` struct to an `Emit` callback, which builds the `outgress.Message` wire contract and publishes it to `twitch.outgress.premium` or `twitch.outgress.standard` (system jobs use `twitch.outgress.system`). Chat, announcement and pin text passes the shared outgoing floor check first.
+The pipeline resolves channel state, runs observers and moderation, dispatches eligible built-in or custom commands, expands variables and publishes described outputs. The registry in `modules/all.go` defines available handlers; each channel still controls its settings. Stream lifecycle followups use a bounded per-broadcaster sequencer; overflow runs inline and does not preserve FIFO order. Trial-origin outputs are suppressed.
 
-Events from a trial channel (an observed, unregistered channel) skip moderation, run the handlers, and have their outputs tagged with the trial origin so Twitch Outgress refuses them.
-
-Transport replay does not claim a Valkey key. Outputs derived from an input with
-a stable event ID use a stable publication ID and wait for the NATS confirmation
-before the input is acknowledged. Valkey remains domain state, not a second
-transport acknowledgement system.
-
-### Module Authoring
-
-Sesame's feature set is authored in the `module` package. To ensure high testability and to keep the authoring surface completely free of runtime wiring (like Valkey, Projector, or NATS), features are declared using a **fluent builder pattern**.
-
-A module is instantiated, its commands and event handlers are chained, and it returns an immutable `Module` that the `engine.Registry` consumes at startup.
-
-#### The Fluent Builder
-
-Here is an example of authoring a module using the builder:
-
-```go
-func MyModule() module.Module {
-    // 1. Initialize with name and kind (Core, Default, Opt-In)
-	m := module.NewModule("my_feature", module.KindDefault)
-
-    // 2. Register non-command EventSub handlers
-	m.On("channel.chat.message", handleChat)
-    m.On("stream.online", handleStreamOnline)
-
-    // 3. Declare commands with chained gates
-	m.Command("ping").Everyone().Run(pingRun)
-	m.Command("announce").Mod().Cooldown(10 * time.Second).Run(announceRun)
-    m.Command("shoutout").Aliases("so").Mod().LiveOnly().Run(soRun)
-
-    // 4. Validate and build the immutable artifact
-	return m.Build()
-}
+```mermaid
+flowchart LR
+  Event --> Pipeline --> Gate[Settings and gates]
+  Gate --> Handler --> Reply[Expand reply]
+  Reply --> Safety --> Outgress
 ```
 
-#### Module Kinds
-Modules are declared as one of three kinds, dictating their enablement logic. A builder can also mark a module `.Beta()` (runs only for Premium channels; not allowed on Core) or `.Trial()` (Core only, runs for trial channels):
-- **Core**: Always enabled, never toggled, skips projection fetches.
-- **Default**: Enabled by default, can be disabled via the dashboard.
-- **Opt-In**: Disabled by default, must be explicitly enabled via the dashboard.
+## State and dependencies
 
-#### Command Gates
-The `.Command("name")` method returns a `CmdBuilder` allowing you to seamlessly chain execution gates before finalizing with `.Run()`.
-- **Permissions**: `.Everyone()`, `.Sub()`, `.VIP()`, `.Mod()`, `.LeadMod()`, `.Broadcaster()`, or `.AllowUser(id)` for one named viewer
-- **State**: `.LiveOnly()`, `.Cooldown(time.Duration)`
-- **Routing**: `.Aliases("trigger")`, `.NumericSuffix()` (absorbs trailing digits inline, e.g. `!clip30` resolves to `clip`).
+Settings and commands come from projections and owner RPCs; Sesame does not own their SQL schemas.
 
-The `engine.Registry` indexes these built modules at startup, constructing a flat, case-insensitive command index and a routing table for event types.
+## Failure behavior
 
-### Variables & Templating
+Trial output is suppressed. Sequencer overflow runs inline and does not retain per-broadcaster FIFO order.
 
-Sesame provides a fast, allocation-light string templating system used for dynamic command replies. The `module.Expand` (and `module.ExpandString`) functions parse strings for `{key}` tokens and resolve them using a provided callback.
+## Code map
 
-The system supports passing through literal `{key}` tokens if the callback does not recognize them, instead of silently dropping them. 
+Source: [app/twitch/sesame/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/twitch/sesame). See `main.go`, `engine/pipeline.go`, `engine/dispatch.go`, `modules/all.go`, and `automod/`.
 
-Additionally, `tmpl.Dynamic` (`pkg/tmpl/dynamic.go`) provides built-in support for generic dynamic variables:
-- `{random}`: Generates a random number between 1 and 100.
-- `{random:min-max}`: Generates a random number between `min` and `max`.
-- `{random:min-max:,}`: Groups digits in threes using the supplied single-character separator (for example, `1,000,000`). Use `'` instead of `,` for `1'000'000`.
-- `{choice:a,b,c}`: Picks a random string from a comma-separated list of choices.
+## Validation
 
-### State & Caching
-
-Sesame maintains high throughput by avoiding database reads on the hot path:
-- **Projection Cache**: `projection.Reader` provides an in-memory cache of broadcaster settings (modules, users, custom commands), falling back to NATS RPC (`bagel.rpc.internal.projection.*`) and listening for `bagel.cache.invalidate.*` broadcasts.
-- **Live Store**: `ValkeyLiveStore` checks if a broadcaster is currently live. It caches locally, falls back to Valkey, and can trigger a system outgress lane check to Twitch if the key is cold.
-- **Domain State**: Cooldowns, timers, loyalty live views, greeting windows, and
-  reputation state are backed by Valkey. Transport replay is not.
-
-### Follow-alert dedupe
-
-Twitch re-sends `channel.follow` on every re-follow, so an unfollow/refollow loop would otherwise drive the chat
-alert as fast as a viewer can click. The alerts module claims `alert:follow:<broadcaster>:<follower>` for 72 hours
-using the same `SET key 1 NX PX` idiom as a command cooldown, and posts the thank-you only when it wins the claim.
-Both halves of the key are Twitch numeric IDs, so a rename cannot reopen the window, and one channel's claim never
-suppresses another's. The claim is taken after the enable toggle is read, so a channel with follow alerts off never
-burns a window it would want the moment it turns them back on.
-
-Subscriptions use the same claim with a 15 minute window (`alert:sub:...`, gift subs excluded). Gifts, cheers and raids
-each cost the sender something, and ad breaks are the channel's own event, so they are not gated.
-
-Three properties of the fleet make a multi-day window safe to hold in Valkey:
-
-- **The claim always lands on the primary.** `SET ... NX` is a write, so replica lag cannot let two replicas both
-  believe they won the window.
-- **The window survives restarts.** The keyspace runs AOF with `appendfsync everysec` on a persistent volume
-  (`save ""`, no RDB snapshots). The AOF records expirations as absolute timestamps, so a pod restart or a full
-  fleet restart restores each claim with its *remaining* time, not a refreshed 72 hours. The only loss window is
-  the sub-second of writes an unclean kill can drop, plus the few milliseconds of unreplicated writes a Sentinel
-  failover discards. Both cost at most a duplicate alert.
-- **The key set stays small.** At 5,000 follows/day a channel holds roughly 15,000 claims of about 120 bytes each:
-  under 2 MiB against the 512 MiB `maxmemory` budget. The window could be raised to a week at the same order of
-  cost. The pressure to watch is not size but policy: `maxmemory-policy volatile-lru` evicts TTL-carrying keys
-  first, and these claims are written once and rarely read, making them the coldest keys in the keyspace.
-  Sustained memory pressure would evict them and reopen alerts.
-
-The gate fails open. With Valkey unreachable the alert still posts and the miss is logged, because a lost
-thank-you is a worse outcome than a duplicate, and the abuse the gate exists for cannot cause the outage.
+Run `go test ./app/twitch/sesame/...` from the repository root. See `engine/pipeline.go`, `engine/moderate.go` and `internal/consumer/` for processing and retry boundaries.

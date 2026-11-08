@@ -2,19 +2,32 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Users
-description: Manages user accounts, Twitch token custody, access status, staff and delegation.
+description: "Owns accounts, access status, broadcaster preferences, Twitch credentials, staff and delegation, and device grants."
+docType: reference
 ---
 
-The Users service (`app/db/users/`) is the central authority for identity in ItsBagelBot.
+## Responsibilities
 
-## Architecture
+Other services use its RPCs instead of reading its schema. It emits user change and deletion events for projections and downstream cleanup. Token operations have a separate internal RPC surface.
 
-- **Ownership**: Owns the Users MySQL schema containing Twitch IDs, preferences, sealed OAuth tokens and contact email, account statuses, promotional Premium grants, staff roles with an audit log, and dashboard delegations.
-- **Status Tiers**: Determines whether an account is `free`, `paid`, or `vip`, which dictates their access to premium features or routing lanes. `paid` can come from a Tebex subscription or from a giveaway grant; `vip` is permanent.
-- **Events**: Publishes `data.users.changed` (with a state revision) and `data.users.deleted`, and broadcasts cache invalidations. Feature services clean up their own data after a deletion.
-- **RPC**: Serves the dashboard (`bagel.rpc.dashboard.*`), admin account operations (`bagel.rpc.admin.user.*`), billing application (`bagel.rpc.internal.billing.apply`), giveaway eligibility and grants, delegation, and the secret-free projection (`bagel.rpc.internal.projection.users.get`).
-- **Token Vault**: Manages the sensitive Twitch OAuth tokens. It acts as an internal vault; other services (like Outgress) query the Users service securely over NATS RPC (`bagel.rpc.internal.tokens.*`, verbs `get` and `save`) to obtain access to perform actions on behalf of the user. Tokens and contact emails are encrypted at rest.
+## Interfaces
 
-## Inter-Service Auth
+Dashboard RPCs default to `bagel.rpc.dashboard.*`; device authorization uses `bagel.rpc.dashboard.device.*`. User changes and deletions publish `data.users.changed` and `data.users.deleted`.
 
-NATS authorization restricts access to the `bagel.rpc.internal.tokens.*` subjects. Only authorized services (Twitch Outgress and the Users service itself) can access these subjects, ensuring that plaintext tokens are heavily guarded within the cluster.
+Registration and access changes persist immediately. Some preferences coalesce in a write-behind window; accepted and committed are therefore different states. Committed mutations publish `data.users.changed`. Deletion writes an erasure ledger first, revokes tokens and emits `data.users.deleted`; a ledger failure prevents deletion. Sensitive token and email reads use internal RPCs, not projections. Dashboard and device operations default to `bagel.rpc.dashboard.*`.
+
+## State and dependencies
+
+Users owns the account and credential schema; consumers use RPC or derived projections.
+
+## Failure behavior
+
+Write-behind preferences are not committed when accepted. Deletion stops if the erasure ledger write fails.
+
+## Code map
+
+Source: [app/db/users/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/db/users). Start at `main.go`, `rpc/`, `repository/`, and `ent/schema/`; device token signing is in `tokensign/`.
+
+## Validation
+
+Run `go test ./app/db/users/...` from the repository root.

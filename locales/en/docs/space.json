@@ -1,13 +1,16 @@
 {
-  "start": "Start",
-  "platform": "Platform",
-  "records": "Records",
+  "start": "Guides",
+  "platform": "Architecture",
+  "records": "Decisions",
   "groupEvents": "Event path",
   "groupData": "Data owners",
   "groupWeb": "Web apps",
-  "startLead": "Run the stack locally, then see how the pieces fit together.",
-  "servicesLead": "Each service owns its schema and talks to the others over NATS.",
-  "platformLead": "Where state lives and what the fleet runs on.",
-  "referenceLead": "The contracts to check while you change code.",
-  "recordsLead": "Why the system looks this way, and dated evidence of how it behaved."
+  "startLead": "Complete a development task, investigate a failure, or verify a change.",
+  "servicesLead": "Who receives events, makes decisions, owns data and performs effects.",
+  "platformLead": "Understand service boundaries, state flows, consistency, and release invariants.",
+  "referenceLead": "Look up service contracts, configuration, shared packages, and documentation conventions.",
+  "recordsLead": "Read the context, decision, and consequences of each architectural choice.",
+  "groupRuntime": "External integrations",
+  "groupDevelopment": "Development",
+  "groupValidation": "Diagnostics and validation"
 }

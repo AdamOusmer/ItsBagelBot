@@ -1,31 +1,28 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Monkey tests
-description: Randomized and property-style runs against running services. Used to find crashes, deadlocks, and unexpected state.
+title: Run randomized checks
+description: Make failures from randomized checks reproducible.
+docType: how-to
 ---
 
-Each entry below is a dated run report. Open the report for the verdict block, method, findings, and artifact
-links. See [QA reports](/qa/) for the reading and authoring conventions that apply to both streams.
+Use randomized inputs to exercise a chosen invariant and retain enough information to reproduce a failure.
 
-## Reports
+## Prerequisites
 
-| # | Date | Scope | Build | Environment | Verdict |
-|---|------|-------|-------|-------------|---------|
+Choose the code, fixture and invariant to test. Start with the repository's existing [tests and benchmarks](/guides/testing/). Use fakes for platform effects or an isolated test account.
 
-*No runs published yet. The first report lands here after the inaugural Twitch Ingress monkey run.*
+## Procedure
 
-## What we run
+1. Record the source commit, seed, fixture, limits and exact command for the run.
+2. Exercise relevant malformed events, duplicates, cancellation, reconnects and bounded queue pressure.
+3. Assert an invariant, such as no duplicate committed award or no action after expiry, rather than only checking that the process stayed alive.
+4. If a failure occurs, retain the original evidence, reduce the scenario to a repeatable case and add a focused regression test.
 
-- **Lifecycle chaos.** Kill, pause, and slow individual processes inside a service. Assert the supervisor recovers
-  within its declared budget.
-- **Input fuzzing.** Replay a recorded Twitch EventSub stream with bit-flipped, truncated, or out-of-order frames
-  against a staging tenant.
-- **Load bursts.** Short, high-rate event bursts to surface back-pressure and queue overflow handling.
+## Verify and record
 
-## What we do *not* run
+Reproduce the failure with the recorded inputs and run the regression test. A future report can use `NNNN-YYYY-MM-DD-scope.md`, with the seed and reproduction command near the top. See [validation evidence](/qa/) for the other fields to retain.
 
-- **Anything that touches a real broadcaster.** Monkey runs use staging tenants with synthetic OAuth grants. A
-  monkey run that hits a live broadcaster's chat is a bug in the harness.
-- **Long soak tests.** This subgroup is reserved for bounded, reproducible runs that produce a single artifact
-  set.
+## Limitations
+
+This guide does not designate a randomized harness or claim that a run occurred. No numbered randomized-run reports are published in this section.

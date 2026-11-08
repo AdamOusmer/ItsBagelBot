@@ -9,7 +9,10 @@
     "build": "bun --bun astro build && bun x pagefind --site dist",
     "preview": "bun --bun astro preview",
     "astro": "astro",
-    "adr:new": "./bin/adr new"
+    "adr:new": "./bin/adr new",
+    "check:content": "bun scripts/check-content.ts",
+    "check:diagrams": "bun scripts/check-content.ts --diagrams",
+    "check": "bun run check:content"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.3",
@@ -21,5 +24,10 @@
     "pagefind": "^1.5.2",
     "panzoom": "^9.4.4",
     "sharp": "^0.35.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "github-slugger": "^2.0.0",
+    "mdast-util-from-markdown": "^2.0.2"
   }
 }

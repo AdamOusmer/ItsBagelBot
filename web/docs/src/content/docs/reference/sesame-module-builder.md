@@ -1,225 +1,40 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Sesame Module Builder
-description: The fluent authoring API for sesame modules and commands, with every builder method and the gate order the engine applies.
+title: Sesame module builder
+description: "Define and register Sesame modules and commands."
+docType: how-to
 ---
 
-A sesame feature is one function returning one `module.Module` value. The builder
-in `app/twitch/sesame/module/builder.go` assembles that value; the engine in
-`app/twitch/sesame/engine/` indexes and runs it.
+## Outcome and prerequisites
 
-The builder package carries **no runtime wiring** (no NATS, Valkey, projection or
-pipeline). A module receives `engine.Deps` and its handlers capture what they need
-by closure, which is what keeps the authoring surface small and unit-testable
-without a cluster.
+The builder in `app/twitch/sesame/module/builder.go` creates a `module.Module`; the engine indexes and runs the result. Module constructors are registered in `app/twitch/sesame/modules/all.go`. Existing modules in that directory are the best examples of dependency wiring and handlers.
 
-## Minimum module
+## Declare a module
 
 ```go
-func Ping(d engine.Deps) module.Module {
-    m := module.NewModule("", module.KindCore)
-    m.Command("ping").Everyone().Run(
-        func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-            emit(&module.Output{
-                Type:          outgress.TypeChat,
-                BroadcasterID: c.Env.BroadcasterUserID,
-                Text:          "pong",
-            })
-            return nil
-        })
-    return m.Build()
-}
+m := module.NewModule("example", module.KindOptIn)
+m.Command("hello").Everyone().Run(handler)
+return m.Build()
 ```
 
-Then add one line to `app/twitch/sesame/modules/all.go`. That is the whole registration
-step.
+Here `handler` must satisfy `module.RunFunc`. `Command` lowercases the name; `Run` finishes its definition. A module can also register an event handler with `On`. `KindCore` is for core behaviour, `KindDefault` for named modules enabled by default, and `KindOptIn` for named modules enabled explicitly. Named kinds require a name.
 
-## Module-level API
+Command builders include role gates (`Everyone`, `Sub`, `VIP`, `Mod`, `LeadMod`, `Broadcaster`), `Cooldown`, `LiveOnly`, `Aliases`, `When` and `AllowUser`. The builder records these declarations; the engine applies them. Read the engine and existing module tests before relying on a specific order or adding a gate.
 
-| Call | Purpose |
-|---|---|
-| `module.NewModule(name, kind)` | Start a module. Returns `*Builder`. |
-| `b.Beta()` | Mark a named module beta. It runs only for Premium broadcasters. A core module cannot be beta. |
-| `b.Trial()` | Mark the trial command set. It must be a core module, cannot be beta, and is gated only by the trial origin. |
-| `b.Command(name)` | Begin a chat command. Returns `*CmdBuilder` to chain gates. Name is lowercased. |
-| `b.On(eventType, fn)` | Register a non-command handler for one EventSub type. Registering the same type twice keeps the last handler. |
-| `b.Build()` | Validate and return the immutable `Module`. **Panics** on a programmer error. |
-| `b.Validate()` | Same checks without panicking. For tests. |
+`Validate` returns an error for invalid declarations, including duplicate command triggers or a missing handler. `Build` calls it and panics on an error, making mistakes fail at startup. Trial modules must be core and cannot be beta; core modules cannot be beta. See the builder and its tests for the complete rules, then run the focused module and engine tests when changing them.
 
-A `Builder` is single-use and not safe for concurrent use.
+## Add a module
 
-## Kinds
+1. Implement a constructor alongside the existing [modules](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/twitch/sesame/modules/). Choose a kind and capture only the dependencies its handlers need from `engine.Deps`.
+2. Declare commands and event handlers with the [builder](https://github.com/AdamOusmer/ItsBagelBot/blob/main/app/twitch/sesame/module/builder.go). Give each command a `Run` handler and unique names and aliases within the module. Use `Validate` in focused tests for invalid declarations.
+3. Register the constructor in [`modules.All`](https://github.com/AdamOusmer/ItsBagelBot/blob/main/app/twitch/sesame/modules/all.go). For a configurable module, trace its configuration and enabled state through the modules service and projection; registration alone does not create that data.
+4. Test the handler's output and error cases, the relevant engine gates and any changes to public variables. Run `go test ./app/twitch/sesame/module/... ./app/twitch/sesame/engine/...` plus the changed module's tests.
 
-| Kind | Name | Behaviour |
-|---|---|---|
-| `KindCore` | optional | Always on. Never listed to broadcasters, never toggled, no config. The engine skips the `ModuleView` projection fetch entirely for it. |
-| `KindDefault` | required | Named, ships **enabled**. Runs unless the broadcaster disables it. |
-| `KindOptIn` | required | Named, ships **disabled**. Runs only when the broadcaster enables it. |
+`Build` copies the command slice and event map into the returned value; the builder itself is not runtime wiring. The engine's actual gate order belongs to the implementation and tests under [engine](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/twitch/sesame/engine/), not the order in which this page lists builder methods.
 
-`Build` enforces the pairing: a named kind with an empty name fails.
+## Verify and troubleshoot
 
-Core skipping the projection fetch is a hot-path property, not a detail. A named
-module costs a `ModuleView` lookup per message to decide whether it runs. Core
-costs nothing. A core module that still wants a per-broadcaster toggle does its
-own lazy check inside `Run` (see `moduleEnabled` in `modules/followage.go`).
+A successful focused test run exits with status zero. If startup panics at `Build`, call `Validate` in a test and inspect the error: a command may have no handler, an alias may duplicate a trigger, or the module kind and flags may be incompatible. If a command is registered but does not run, inspect its engine gates and the channel's module state before changing the handler.
 
-## Command gates
-
-Every method below returns the same `*CmdBuilder`, so they chain. `Run` is
-terminal and returns nothing.
-
-### Permission
-
-Each sets the **minimum** role, so higher roles also pass.
-
-| Method | Minimum role |
-|---|---|
-| `.Everyone()` | anyone in chat (the default) |
-| `.Sub()` | subscriber |
-| `.VIP()` | VIP |
-| `.Mod()` | moderator |
-| `.LeadMod()` | lead moderator |
-| `.Broadcaster()` | channel owner only |
-
-Ladder order: `RoleEveryone` → `RoleSubscriber` → `RoleVIP` → `RoleModerator` →
-`RoleLeadModerator` → `RoleBroadcaster`.
-
-Twitch ships the `lead_moderator` badge instead of `moderator`, so `.Mod()` also admits lead moderators and above. `.LeadMod()` excludes plain moderators.
-
-The tier is also used outside the builder: `permRoles` maps `"lead_mod"`,
-`internal/domain/validate` accepts it, the `commands` ent schema stores it, and
-the dashboard offers "Lead moderators & up". The engine gates baked and custom
-commands through the same `gate()`.
-
-| Method | Purpose |
-|---|---|
-| `.AllowUser(id)` | Restrict to exactly one chatter id. **Overrides the role gate entirely.** |
-
-### Conditions
-
-| Method | Purpose |
-|---|---|
-| `.Cooldown(d)` | Shared per-command window. Zero (default) means none. Custom commands can also set a per-viewer window. |
-| `.LiveOnly()` | Only runs while the broadcaster is live. |
-
-### Matching
-
-| Method | Purpose |
-|---|---|
-| `.Aliases(a, b, ...)` | Extra triggers resolving to this command. Lowercased. Duplicates rejected by `Validate`. |
-| `.NumericSuffix()` | Trigger absorbs trailing digits typed inline: `!clip30` resolves to `clip` with `c.Num == "30"`. Digits are stripped and are **not** the argument string. |
-
-### Terminal
-
-| Method | Purpose |
-|---|---|
-| `.Run(fn)` | Sets the handler and finishes the command. Returns nothing so a declaration cannot continue past it. |
-
-## Gate order
-
-The engine applies gates centrally in `engine/dispatch.go`:
-
-```go
-func (p *Pipeline) gate(ctx, c, r gateRule) (bool, error) {
-    if !permits(c, r.allowedUserID, r.perm) { return false, nil }          // 1
-    if ok, err := p.liveOK(ctx, c, r.liveOnly); !ok { return false, err }  // 2
-    if c.Env.Origin == "trial" { return true, nil }                         // no cooldown claim
-    return p.cooldownOK(ctx, c, r)                                          // 3
-}
-```
-
-1. permission
-2. live-only
-3. cooldown (skipped for trial-origin messages)
-
-**Cooldown is last on purpose.** `cooldownOK` *claims* the window when it passes.
-If it ran first, a chatter who fails the permission check would still burn
-everyone else's cooldown.
-
-Baked commands and broadcaster-authored custom commands build the same
-`gateRule`, so permission semantics cannot drift between built-ins and user
-commands.
-
-## What `Run` receives
-
-```go
-type RunFunc func(ctx context.Context, c *Context, args string, emit Emit) error
-```
-
-- `args` is the trimmed string **after** the command name.
-- `c.Env` is the chat envelope: `BroadcasterUserID`, `ChatterUserID`,
-  `ChatterUserLogin`, `ChatterName()`, badges.
-- `c.Chatter()` resolves the chatter's role, parsed once and cached.
-- `c.Locale` is the broadcaster's language, loaded on demand. Call `c.EnsureLocale(ctx)` before reading it, then use `i18n.T(c.Locale, "key")`.
-- `c.Config` is this module's raw config blob; `c.Decode(&out)` unmarshals it.
-  Empty for core modules, and a missing config is not an error.
-- `c.Num` is the inline numeric suffix, set only for a `NumericSuffix` command.
-
-### Pooling rules
-
-Both of these will corrupt other messages if ignored.
-
-- **Do not retain `c` past the call.** `Context` is pooled and `Reset()` between
-  messages.
-- **Do not retain the `Output` passed to `emit`.** The engine may recycle it as
-  soon as `Emit` returns.
-
-Copy anything that must outlive the call.
-
-## Emitting
-
-```go
-emit(&module.Output{
-    Type:          outgress.TypeChat,
-    BroadcasterID: c.Env.BroadcasterUserID,
-    Text:          "hello",
-})
-```
-
-`Output.Type` selects the action (`outgress.TypeChat`, `TypeAnnounce`, clip,
-shoutout, moderation, redemption resolution). Type-specific fields are documented
-on the struct in `module/module.go`; fields belonging to other types are ignored.
-`BatchID`/`Items` carry a multi-message response as one outgress queue job,
-executed in slice order.
-
-## Validation
-
-`Build` panics rather than returning an error, because these are startup
-misconfigurations rather than runtime data, and failing loud at boot beats
-silently misbehaving in production. It rejects:
-
-- a named kind with an empty name
-- an unknown kind
-- a core module marked beta
-- a trial module that is not core or is also beta
-- an empty command name or empty alias
-- a duplicate trigger **within the same module**
-- a command with no `Run` (reported as "chain .Run to finish it")
-
-A command you forget to finish still exists as an incomplete entry, because
-`Command()` appends it before any chaining happens, which is exactly how
-`Validate` catches it.
-
-## Cross-module collisions
-
-Duplicates *within* a module panic at build. Duplicates *across* modules are
-**first-wins** with a warning log (`engine: duplicate command trigger ignored`).
-
-Ordering in `all.go` is therefore load-bearing: core modules are listed first so
-their reserved triggers win over any named module declaring a clash.
-
-## Checklist for a new module
-
-1. Create `app/twitch/sesame/modules/<name>.go`.
-2. `func <Name>(d engine.Deps) module.Module`.
-3. `module.NewModule(name, kind)`.
-4. Declare commands with `.Command(...).<gates>.Run(fn)` and events with
-   `.On(type, fn)`.
-5. `return m.Build()`.
-6. Add one line to `all.go`.
-7. Localise replies via `i18n.T(c.Locale, key)`.
-8. Guard optional services (`d.X != nil`) and decide the failure policy
-   deliberately; existing modules fail **open** so a transient projection blip
-   does not swallow a command.
-9. Add `<name>_test.go`. `Validate()` runs without a cluster.
+See [module variables](/reference/module-variables/) when exposing public reply values and [testing](/guides/testing/) for broader checks.

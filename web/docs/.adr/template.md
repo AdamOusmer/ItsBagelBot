@@ -1,28 +1,27 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: "NUMBER - TITLE"
-description: "Architecture decision record: TITLE"
+title: TITLE_YAML
+description: DESCRIPTION_YAML
+docType: decision
 ---
 
 **Date:** DATE
 
-## Status
-
-STATUS
+**Status:** Proposed
 
 ## Context
 
-The issue motivating this decision, and any context that influences or constrains the decision.
+Describe the problem and constraints.
 
 ## Decision
 
-The change that we're proposing or have agreed to implement.
+Describe the choice and its rationale.
 
 ## Consequences
 
-What becomes easier or more difficult to do, and any risks introduced by the change that will need to be mitigated.
+Describe the trade-offs and risks.
 
-## Alternatives considered
+## References
 
-Options that were weighed and why they were not chosen.
+Link to relevant code and related decisions.

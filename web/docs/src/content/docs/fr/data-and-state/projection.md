@@ -1,84 +1,50 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Projection des réglages
-description: "Modèle de lecture Valkey : organisation des hashes, flux d'événements et handshake de reproject qui reconstruit l'état."
-sidebar:
-  order: 5
+title: Projection des paramètres
+description: "Le modèle de lecture dérivé dans Valkey et ses chemins de récupération."
+docType: explanation
 ---
 
-Le hot path réagit à un message de chat et cette lecture ne peut pas toucher MySQL. Le projector (`app/projector`) maintient dans Valkey un modèle de lecture dénormalisé contenant tout ce dont le hot path a besoin sur une chaîne, lisible en un aller-retour. La projection est un cache, jamais la source de vérité ; MySQL peut la reconstruire à tout moment. L'organisation des clés se trouve dans `internal/projection`.
+## Portée et composants
 
-## Organisation
+`app/projector` maintient un modèle de lecture dérivé dans Valkey. Les opérations sur ses clés et champs sont dans `internal/projection/`; les services de données restent propriétaires des enregistrements persistés. Les lecteurs peuvent demander des instantanés par les contrats RPC dans `internal/domain/rpc/projection/`.
 
-Un hash par utilisateur, `settings:<user_id>`, lisible avec un seul `HGETALL`. Le TTL par défaut est de 24 heures, et une écriture ne raccourcit jamais un TTL existant plus long.
-
-```
-settings:<user_id>
-  status                   free | paid | vip
-  active                   0 | 1
-  banned                   0 | 1
-  locale                   langue de l'interface
-  commands_page_hidden     0 | 1
-  live                     0 | 1
-  live_ver                 version de l'indicateur live
-  module:<name>:enabled    0 | 1
-  module:<name>:config     JSON brut
-  module:<name>:revision   jeton de concurrence optimiste
-  modules:projected        marqueur : la section des modules est complète
-  command:<name>           vue JSON de la commande
-  cmdalias:<alias>         pointeur vers la commande
-  commands:projected       marqueur : la section des commandes est complète
-  fetch:<name>             définition de fetch personnalisé
-  fetches:projected        marqueur : la section des fetch est complète
-  stream:*, streamctr:*    titre, jeu, spectateurs et compteurs par stream
-```
-
-Les lecteurs n'analysent que le champ dont ils ont réellement besoin. Les noms de module sont validés à la frontière d'écriture (lettres minuscules, chiffres, tiret bas, tiret) précisément parce que le nom est intégré au champ : un deux-points dans un nom pourrait sinon forger un autre champ. Un marqueur `*:projected` distingue une section vide d'une section jamais chargée, si bien qu'une liste de commandes vide ne déclenche pas de lectures répétées chez le propriétaire.
-
-D'autres clés accompagnent le hash : un enregistrement d'admission par utilisateur qui porte l'incarnation du compte et les barrières de révision, ainsi que les clés de compteurs en direct et de classements (`ctr:live:<id>`, `ctr:board:v2:<name>`). Sesame possède la clé versionnée `live:<id>` ; le projector ne l'écrit jamais.
-
-## Flux en direct
-
-Le projector consomme les événements de changement des utilisateurs, modules et commandes, les événements de compteurs de fidélité et les événements d'état de stream via un groupe de files durable : chaque événement est donc appliqué une fois et le consommateur conserve sa position après un redémarrage. Chaque handler valide le contenu, puis l'écrit via un script qui vérifie l'incarnation du compte et la révision : un événement obsolète ou rejoué ne peut pas écraser un état plus récent, et les anciens événements d'un compte supprimé ne peuvent pas le faire revivre. La suppression d'un utilisateur marque le compte comme supprimé et retire le hash. L'invalidation du cache n'est publiée qu'après la réussite de l'écriture dans le magasin.
-
-## Reconstruction et réparation
-
-Une section absente ou expirée converge sans que le projector lise jamais le schéma d'un autre service :
-
-- **Hydratation.** Quand une lecture trouve une section absente, l'hydrateur du projector récupère l'instantané du propriétaire via les sujets `bagel.rpc.internal.projection.*` et écrit la section. Les récupérations sont bornées (8 simultanées par défaut, `PROJECTOR_HYDRATION_CONCURRENCY` ; trois tentatives chacune) et limitées par utilisateur. L'hydratation déclenchée par une requête conserve la section 2 heures (`PROJECTOR_QUERY_HYDRATION_TTL`) ; celle du passage en direct utilise la valeur par défaut de 24 heures. Le passage en direct déclenche aussi un rafraîchissement complet.
-- **Handshake de reproject.** Publier `data.reproject.request` fait rejouer chaque ligne par les services users et modules comme un événement de changement ordinaire, paginé pour ne jamais charger une table entière. Le projector ne publie pas cette requête lui-même ; aucun service du dépôt ne le fait aujourd'hui, et le rôle `admin_bus` peut la publier (`deploy/messaging/accounts.yaml`).
+Le hash `settings:<user_id>` contient l'état utilisateur et des sections pour les modules, commandes et fetches. Des marqueurs distinguent une section vide d'une section non projetée. Des clés associées d'admission et de révision protègent le cycle de vie et les mises à jour versionnées. Les lectures d'admission à l'exécution utilisent le primaire; voir `internal/projection/runtime.go`.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant O as Operator
-    participant N as NATS JetStream
-    participant U as users service
-    participant M as modules service
-    participant P as Projector
+    participant O as Propriétaire
+    participant N as NATS
+    participant P as Projecteur
     participant V as Valkey
-
-    O->>N: publish data.reproject.request
-    N-->>U: deliver, durable group users
-    N-->>M: deliver, durable group modules
-    Note over U,M: one instance per service answers, the rest of the group stays idle
-    loop pages of 500 rows, cursor on ID
-        U->>N: publish data.users.changed, full state
-    end
-    loop pages of 500 rows, cursor on ID
-        M->>N: publish data.modules.changed, full state
-    end
-    N-->>P: deliver events, durable group projector
-    P->>V: write settings hash per user, revision-fenced
-    Note over P,V: a replay racing live changes settles on the latest state
+    participant R as Lecteur
+    O->>N: Publier un changement
+    N->>P: Livrer l'événement
+    P->>V: Appliquer la mise à jour contrôlée
+    R->>V: Lire la projection
+    Note over P,O: Les sections manquantes peuvent déclencher des RPC
+    P->>O: Demander un instantané
+    O-->>P: Instantané
+    P->>V: Remplir l'état manquant
 ```
 
-Le handshake sert aussi d'outil de réconciliation : si un événement est un jour manqué au-delà de la fenêtre de rétention JetStream ([ADR 0003](/fr/adr/0003-adoption-of-nats-as-communication-bridge/)), la projection reste périmée pour l'utilisateur concerné seulement jusqu'au prochain changement, à la prochaine hydratation ou au prochain reproject.
+## Invariants et échecs
 
-## Comportement en cas de panne
+Le projecteur consomme les changements et applique les contrôles de révision et d'incarnation du compte là où ils sont implémentés. Une livraison peut être répétée; ne supposez pas un traitement exactement une fois. L'hydratation dans `app/projector/hydration/` obtient les instantanés des utilisateurs, modules et commandes par RPC, borne la concurrence et les tentatives et contrôle le travail par utilisateur. Les lectures et les rafraîchissements au passage en direct ont des TTL distincts. Consultez le code et la configuration pour les valeurs actuelles.
 
-- **Valkey indisponible :** aucune donnée n'est perdue ; les sections s'hydratent de nouveau depuis les propriétaires au retour de Valkey. Les lecteurs du hot path doivent se dégrader de façon délibérée pendant l'absence, ce qui relève de leur décision et non de celle du projector.
-- **Projector indisponible :** le groupe durable conserve sa position ; au redémarrage, il reprend là où il s'était arrêté, dans la fenêtre de rétention.
-- **Événement empoisonné :** validé, journalisé et acquitté. La projection ne se bloque jamais sur un message mal formé. Les échecs de stockage renvoient une erreur afin que l'événement soit relivré.
-- **Pourquoi Valkey et non Redis :** même protocole, mêmes clients, même modèle de données ; Valkey est le fork sous licence BSD à gouvernance ouverte, ce qui compte pour un logiciel potentiellement autohébergé indéfiniment sur la flotte décrite dans l'[ADR 0004](/fr/adr/0004-adoption-of-oracle-cloud/).
+L'événement `data.reproject.request` demande aux propriétaires de rejouer leur état; le projecteur ne l'émet pas lui-même. Un événement conservé peut être livré de nouveau après un échec, mais la rétention est limitée. Après une panne plus longue, la réparation dépend de l'hydratation, de changements ultérieurs ou d'un rejeu demandé explicitement. Une panne Valkey peut rendre les lectures indisponibles; la récupération ne garantit pas que chaque compteur dérivé peut être reconstruit par les propriétaires des paramètres. Examinez chaque gestionnaire et ses erreurs de stockage avant de modifier ce comportement.
+
+## Lecture à froid et récupération
+
+Le [client de projection](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/projection/client.go) possède des caches locaux pour utilisateurs, modules, commandes et fetches. En cas d'absence, il consulte le stockage et peut demander un instantané au propriétaire par NATS. Ses caches peuvent servir des données périmées en cas d'erreur; les échecs RPC des modules déclenchent aussi un court délai de repli. Ce chemin est distinct de l'hydratation asynchrone du projecteur. Les [tests RPC](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/projection/client_rpc_test.go) couvrent erreurs, nouvelles tentatives et invalidation.
+
+L'[hydrateur](https://github.com/AdamOusmer/ItsBagelBot/blob/main/app/projector/hydration/hydrator.go) demande des instantanés avec une concurrence bornée, jusqu'à trois tentatives et des contrôles par utilisateur. Une lecture peut fournir des données de modules ou commandes déjà connues; un rafraîchissement au passage en direct force une nouvelle exécution. Une requête échouée ne rend pas un hash partiel complet. Les marqueurs permettent de distinguer « non chargé » de « chargé et vide ».
+
+## Modifier un champ projeté
+
+1. Modifiez le DTO du propriétaire dans les [contrats de projection](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/domain/rpc/projection/projection.go), son gestionnaire et, le cas échéant, l'événement de changement correspondant.
+2. Modifiez la représentation lue et écrite sous [internal/projection](https://github.com/AdamOusmer/ItsBagelBot/tree/main/internal/projection/), ainsi que le gestionnaire ou l'hydratation du projecteur. Préservez les contrôles de révision et d'incarnation appropriés.
+3. Adaptez les consommateurs et les tests pour une section vide, une mise à jour périmée ou rejouée et une panne du propriétaire ou de Valkey. Vérifiez une lecture à froid et un changement après hydratation.
+
+Le flux d'événements n'est pas la base de données : [BAGEL_DATA](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/bus/streams.go) a une rétention limitée. Un hash sain reste un état dérivé qui peut avoir du retard pendant la livraison ou l'hydratation.

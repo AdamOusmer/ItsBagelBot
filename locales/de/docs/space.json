@@ -1,13 +1,16 @@
 {
-  "start": "Einstieg",
-  "platform": "Plattform",
-  "records": "Archiv",
+  "start": "Anleitungen",
+  "platform": "Architektur",
+  "records": "Entscheidungen",
   "groupEvents": "Ereignispfad",
   "groupData": "Datenbesitzer",
   "groupWeb": "Web-Apps",
-  "startLead": "Starte den Stack lokal und sieh dann, wie die Teile zusammenspielen.",
-  "servicesLead": "Jeder Dienst besitzt sein Schema und spricht über NATS mit den anderen.",
-  "platformLead": "Wo der Zustand liegt und worauf die Flotte läuft.",
-  "referenceLead": "Die Verträge, die du beim Ändern von Code prüfen solltest.",
-  "recordsLead": "Warum das System so aussieht, und datierte Belege für sein Verhalten."
+  "startLead": "Entwicklungsaufgaben erledigen, Fehler untersuchen und Änderungen prüfen.",
+  "servicesLead": "Wer Ereignisse empfängt, entscheidet, Daten besitzt und Aktionen ausführt.",
+  "platformLead": "Servicegrenzen, Zustandsflüsse, Konsistenz und Release-Invarianten verstehen.",
+  "referenceLead": "Verträge, Konfiguration, gemeinsame Pakete und Dokumentationskonventionen nachschlagen.",
+  "recordsLead": "Kontext, Entscheidung und Folgen jeder Architekturentscheidung lesen.",
+  "groupRuntime": "Externe Integrationen",
+  "groupDevelopment": "Entwicklung",
+  "groupValidation": "Diagnose und Validierung"
 }

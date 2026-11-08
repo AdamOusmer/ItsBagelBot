@@ -2,28 +2,32 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Notifications
-description: Manages dashboard notifications and admin announcements.
+description: "Owns account-facing notifications and their cleanup."
+docType: reference
 ---
 
-The Notifications service (`app/db/notifications/`) manages persistent alerts, system announcements, and dashboard bells for broadcasters and operators.
+## Responsibilities
 
-## Architecture
+RPCs serve dashboard notifications and administrative announcement operations. Other services request notifications through this owner rather than writing its records directly.
 
-- **Schema**: Backed by a MySQL database using `ent` for the schema runtime and migrations.
-- **RPC Service**: Communicates exclusively over NATS Request-Reply. It consumes no JetStream events and publishes none.
-  - **User RPC** (`bagel.rpc.notifications.*`): Serves the dashboard with `list`, `mark_read` and `mark_peeked`, tracking read state (Peek vs Full Read) and unread counts.
-  - **Admin RPC** (`bagel.rpc.admin.notifications.*`): `send`, `list` and `delete`. Operators can blast system-wide announcements or target direct notifications by user ID or username (resolved through a Users lookup). A repeated `request_id` does not create a second notification.
+## Interfaces
 
-## Data Lifecycle and TTL
+User operations use `bagel.rpc.notifications.*`; administrative operations use `bagel.rpc.admin.notifications.*`.
 
-Notifications are ephemeral to prevent unbounded database growth. The service implements tiered Time-To-Live (TTL) sweeps:
+`bagel.rpc.notifications.*` lists and marks notifications; `bagel.rpc.admin.notifications.*` sends, lists and deletes them. Request IDs make repeated creates return the existing row. Broadcast and per-user expiry have distinct roles; marking one user’s notification read does not delete the broadcast. Cleanup uses an internal RPC.
 
-- **Default TTL** (`NOTIF_DEFAULT_TTL`, 90 days): A global hard limit.
-- **Full Read TTL** (`NOTIF_FULL_READ_TTL`, 1 day): Once a user fully reads a notification, it stops being shown to that user after a day.
-- **Peek TTL** (`NOTIF_PEEK_TTL`, 7 days): Opening the bell dropdown (peeking) marks notifications as seen, hiding them from that user after a longer delay.
+## State and dependencies
 
-These per-user cutoffs hide a notification for one user. The row itself is deleted only when its global expiry passes.
+The service owns notifications and per-user receipt state.
 
-### Janitor Cron
+## Failure behavior
 
-The TTL sweeps are not evaluated on the fly. The service subscribes to an internal maintenance verb (`bagel.rpc.internal.notifications.cleanup`). A Kubernetes CronJob (`notifications-cleanup`, daily at 03:17) runs the service binary in `cleanup` mode, which calls this RPC to sweep globally expired records. The cleanup process does not open MySQL itself.
+Create requests with the same request ID return the existing row. Expiry and cleanup are separate from read receipts.
+
+## Code map
+
+Source: [app/db/notifications/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/db/notifications). See `main.go`, `rpc/`, `repository/`, and `ent/schema/`.
+
+## Validation
+
+Run `go test ./app/db/notifications/...` from the repository root.
