@@ -1,7 +1,11 @@
 # Keep in sync with the CSP <meta> in src/layouts/Layout.astro: the two intersect, so drift silently makes the stricter win.
 # style-src keeps 'unsafe-inline' for the reveal system's style="" attributes and the build's inlined stylesheets.
+# Cloudflare Bot Fight Mode injects per-response inline script tags. Static Pages cannot
+# issue fresh CSP nonces, so allow inline tags but keep inline event handlers blocked.
+# Astro owns prefetching; override Speed Brain's separate cache-only speculation rules.
 /*
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com
+  Speculation-Rules: "/speculation-rules.json"
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://ajax.cloudflare.com; script-src-attr 'none'; connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com
   X-Frame-Options: DENY
   Link: <https://ai.itsbagelbot.com/llms.txt>; rel="describedby"; type="text/markdown"
 

@@ -63,7 +63,7 @@ export default defineConfig({
       dedupe: ['@luzir/bolota'],
     },
     build: {
-      // The CSP allows only same-origin scripts: never inline small chunks.
+      // Keep application scripts external for ClientRouter's execution ordering.
       assetsInlineLimit: 0,
     },
   },
