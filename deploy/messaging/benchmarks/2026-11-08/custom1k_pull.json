@@ -1,0 +1,62 @@
+{
+  "name": "custom1k_pull",
+  "target_per_s": 1000,
+  "duration_s": 60,
+  "payload_bytes": 1024,
+  "admitted": 59976,
+  "consumed": 59976,
+  "admitted_per_s": 999.6,
+  "completed_per_s": 999.1592402848376,
+  "publisher_errors": 0,
+  "flush_errors": [],
+  "global_checksum_match": true,
+  "duplicates": 0,
+  "e2e_p50_ms_per_consumer": [
+    3.331562,
+    3.638553,
+    3.026858
+  ],
+  "e2e_p99_ms_per_consumer": [
+    4.525764,
+    4.846866,
+    4.269481
+  ],
+  "broker_avg_cpu_cores": {
+    "b0": 0.2507599238407161,
+    "b1": 0.163211356993944,
+    "b2": 0.1587948154096883
+  },
+  "broker_throttled_usec": {
+    "b0": 0,
+    "b1": 0,
+    "b2": 0
+  },
+  "broker_rss_mib": {
+    "b0": 136.3125,
+    "b1": 136.33984375,
+    "b2": 129.0078125
+  },
+  "slow_consumer_delta": {
+    "b0": 0,
+    "b1": 0,
+    "b2": 0
+  },
+  "e2e_p50_ms": 3.310342,
+  "e2e_p99_ms": 4.67548,
+  "latency_samples": 58024,
+  "negative_latency_samples": 0,
+  "seat": {
+    "consumer": "custom1k_pull_twitch_ingress_retry_canary_custom1k_pull",
+    "leader": "b0",
+    "stream_leader": "b0",
+    "attempts": 4
+  },
+  "broker_versions": {
+    "b0": "2.15.1-bench",
+    "b1": "2.15.1-bench",
+    "b2": "2.15.1-bench"
+  },
+  "environment": "Isolated live-worker R3 cluster; 1 KiB payload; mTLS; JWT; atomic publishing; R3 AckNone pull; colocated stream and consumer leaders",
+  "client_revision": "5ee7ccfc086dd10011740b89aceb467d59179c31",
+  "metric": "Combined produced-to-handler-entry p99 from individual samples, excluding first two seconds"
+}
