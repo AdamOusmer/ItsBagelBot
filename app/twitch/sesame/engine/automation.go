@@ -35,38 +35,43 @@ type AutomationDeps struct {
 	Durable   DurableStore
 
 	LongCooldowns LongCooldownStore
+	Countdowns    CountdownStore
 
 	durableTiming durableTiming
 	intN          func(int) int
 }
 
 type AutomationRun struct {
-	Plan          *automation.Plan
-	BroadcasterID uint64
-	Channel       string
-	Regress       module.Regress
-	Locale        string
-	Env           *lane.Envelope
-	Ctx           *module.Context
-	Viewer        Viewer
-	Args          string
-	ArgMap        map[string]string
-	Event         map[string]string
-	Source        string
-	ID            string
-	Identity      string
-	Depth         int
-	Started       time.Time
-	Record        automationrpc.RunRecord
-	Locals        map[string]string
-	CooldownEndMS int64
-	Iter          string
-	Replay        string
-	Tree          *runTree
-	Slot          *queueSlot
-	OwnsSlot      bool
-	DetachedRole  module.Role
-	Durable       *durableTicket
+	Plan                      *automation.Plan
+	BroadcasterID             uint64
+	Channel                   string
+	Regress                   module.Regress
+	Locale                    string
+	Env                       *lane.Envelope
+	Ctx                       *module.Context
+	Viewer                    Viewer
+	Args                      string
+	ArgMap                    map[string]string
+	Event                     map[string]string
+	Source                    string
+	ID                        string
+	Identity                  string
+	Depth                     int
+	Started                   time.Time
+	Record                    automationrpc.RunRecord
+	Locals                    map[string]string
+	CooldownEndMS             int64
+	CountdownEndMS            int64
+	CountdownAdmission        *countdownAdmission
+	countdownSkipConditions   bool
+	countdownConditionsPassed func() error
+	Iter                      string
+	Replay                    string
+	Tree                      *runTree
+	Slot                      *queueSlot
+	OwnsSlot                  bool
+	DetachedRole              module.Role
+	Durable                   *durableTicket
 }
 
 // A root run, its `run` children and every detached path spend these concurrently: a copy per path multiplies each cap.
@@ -106,14 +111,36 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 	defer p.endRunSegment(ctx, run)
 	x := p.newActionExec(ctx, run, emit)
 	defer releaseActionExec(x)
-	pass, reason, err := x.conditionsPass()
-	if err != nil || !pass {
-		run.Record.Outcome, run.Record.Reason = skippedOutcome(err, reason)
+	if !x.countdownConditions() {
 		return
 	}
 	if p.admitToQueue(ctx, run) {
 		x.execute()
 	}
+}
+
+func (x *actionExec) countdownConditions() bool {
+	run := x.run
+	if run.countdownSkipConditions {
+		return true
+	}
+	pass, reason, err := x.conditionsPass()
+	if err != nil || !pass {
+		run.Record.Outcome, run.Record.Reason = skippedOutcome(err, reason)
+		return false
+	}
+	return run.checkpointConditions()
+}
+
+func (run *AutomationRun) checkpointConditions() bool {
+	if run.countdownConditionsPassed == nil {
+		return true
+	}
+	if run.countdownConditionsPassed() == nil {
+		return true
+	}
+	run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeFailed, "countdown_checkpoint"
+	return false
 }
 
 // A child that joined its parent's slot shares the parent's reference.

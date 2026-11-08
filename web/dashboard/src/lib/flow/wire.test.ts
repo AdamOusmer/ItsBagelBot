@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { wirePath } from './wire';
+import { previewPath, wirePath } from './wire';
 
 describe('wirePath', () => {
   test('level points get a straight line', () => {
@@ -33,4 +33,8 @@ describe('wirePath', () => {
     expect(wirePath(a, { x: 80, y: 100 })).toContain('Q28,0 28,14');
     expect(wirePath(a, { x: 80, y: 200 })).toContain('Q28,0 28,14');
   });
+});
+
+test('short forward previews keep control points between their endpoints', () => {
+  expect(previewPath({ x: 0, y: 0 }, { x: 8, y: 4 })).toBe('M0,0 C4,0 4,4 8,4');
 });

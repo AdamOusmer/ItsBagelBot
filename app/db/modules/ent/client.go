@@ -14,6 +14,9 @@ import (
 	"ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
+	"ItsBagelBot/app/db/modules/ent/countdown"
+	"ItsBagelBot/app/db/modules/ent/countdowndelivery"
+	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
@@ -38,6 +41,12 @@ type Client struct {
 	ChannelFeedCounter *ChannelFeedCounterClient
 	// CooldownClaim is the client for interacting with the CooldownClaim builders.
 	CooldownClaim *CooldownClaimClient
+	// Countdown is the client for interacting with the Countdown builders.
+	Countdown *CountdownClient
+	// CountdownDelivery is the client for interacting with the CountdownDelivery builders.
+	CountdownDelivery *CountdownDeliveryClient
+	// CountdownOperation is the client for interacting with the CountdownOperation builders.
+	CountdownOperation *CountdownOperationClient
 	// FeedCounter is the client for interacting with the FeedCounter builders.
 	FeedCounter *FeedCounterClient
 	// FeedReceipt is the client for interacting with the FeedReceipt builders.
@@ -66,6 +75,9 @@ func (c *Client) init() {
 	c.Automation = NewAutomationClient(c.config)
 	c.ChannelFeedCounter = NewChannelFeedCounterClient(c.config)
 	c.CooldownClaim = NewCooldownClaimClient(c.config)
+	c.Countdown = NewCountdownClient(c.config)
+	c.CountdownDelivery = NewCountdownDeliveryClient(c.config)
+	c.CountdownOperation = NewCountdownOperationClient(c.config)
 	c.FeedCounter = NewFeedCounterClient(c.config)
 	c.FeedReceipt = NewFeedReceiptClient(c.config)
 	c.GoveeCredential = NewGoveeCredentialClient(c.config)
@@ -168,6 +180,9 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Automation:         NewAutomationClient(cfg),
 		ChannelFeedCounter: NewChannelFeedCounterClient(cfg),
 		CooldownClaim:      NewCooldownClaimClient(cfg),
+		Countdown:          NewCountdownClient(cfg),
+		CountdownDelivery:  NewCountdownDeliveryClient(cfg),
+		CountdownOperation: NewCountdownOperationClient(cfg),
 		FeedCounter:        NewFeedCounterClient(cfg),
 		FeedReceipt:        NewFeedReceiptClient(cfg),
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
@@ -197,6 +212,9 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Automation:         NewAutomationClient(cfg),
 		ChannelFeedCounter: NewChannelFeedCounterClient(cfg),
 		CooldownClaim:      NewCooldownClaimClient(cfg),
+		Countdown:          NewCountdownClient(cfg),
+		CountdownDelivery:  NewCountdownDeliveryClient(cfg),
+		CountdownOperation: NewCountdownOperationClient(cfg),
 		FeedCounter:        NewFeedCounterClient(cfg),
 		FeedReceipt:        NewFeedReceiptClient(cfg),
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
@@ -233,9 +251,9 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.Automation, c.ChannelFeedCounter, c.CooldownClaim, c.FeedCounter,
-		c.FeedReceipt, c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential,
-		c.Variable,
+		c.Automation, c.ChannelFeedCounter, c.CooldownClaim, c.Countdown,
+		c.CountdownDelivery, c.CountdownOperation, c.FeedCounter, c.FeedReceipt,
+		c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential, c.Variable,
 	} {
 		n.Use(hooks...)
 	}
@@ -245,9 +263,9 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.Automation, c.ChannelFeedCounter, c.CooldownClaim, c.FeedCounter,
-		c.FeedReceipt, c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential,
-		c.Variable,
+		c.Automation, c.ChannelFeedCounter, c.CooldownClaim, c.Countdown,
+		c.CountdownDelivery, c.CountdownOperation, c.FeedCounter, c.FeedReceipt,
+		c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential, c.Variable,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -262,6 +280,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelFeedCounter.mutate(ctx, m)
 	case *CooldownClaimMutation:
 		return c.CooldownClaim.mutate(ctx, m)
+	case *CountdownMutation:
+		return c.Countdown.mutate(ctx, m)
+	case *CountdownDeliveryMutation:
+		return c.CountdownDelivery.mutate(ctx, m)
+	case *CountdownOperationMutation:
+		return c.CountdownOperation.mutate(ctx, m)
 	case *FeedCounterMutation:
 		return c.FeedCounter.mutate(ctx, m)
 	case *FeedReceiptMutation:
@@ -677,6 +701,405 @@ func (c *CooldownClaimClient) mutate(ctx context.Context, m *CooldownClaimMutati
 		return (&CooldownClaimDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown CooldownClaim mutation op: %q", m.Op())
+	}
+}
+
+// CountdownClient is a client for the Countdown schema.
+type CountdownClient struct {
+	config
+}
+
+// NewCountdownClient returns a client for the Countdown from the given config.
+func NewCountdownClient(c config) *CountdownClient {
+	return &CountdownClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `countdown.Hooks(f(g(h())))`.
+func (c *CountdownClient) Use(hooks ...Hook) {
+	c.hooks.Countdown = append(c.hooks.Countdown, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `countdown.Intercept(f(g(h())))`.
+func (c *CountdownClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Countdown = append(c.inters.Countdown, interceptors...)
+}
+
+// Create returns a builder for creating a Countdown entity.
+func (c *CountdownClient) Create() *CountdownCreate {
+	mutation := newCountdownMutation(c.config, OpCreate)
+	return &CountdownCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Countdown entities.
+func (c *CountdownClient) CreateBulk(builders ...*CountdownCreate) *CountdownCreateBulk {
+	return &CountdownCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CountdownClient) MapCreateBulk(slice any, setFunc func(*CountdownCreate, int)) *CountdownCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CountdownCreateBulk{err: fmt.Errorf("calling to CountdownClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CountdownCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CountdownCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Countdown.
+func (c *CountdownClient) Update() *CountdownUpdate {
+	mutation := newCountdownMutation(c.config, OpUpdate)
+	return &CountdownUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CountdownClient) UpdateOne(_m *Countdown) *CountdownUpdateOne {
+	mutation := newCountdownMutation(c.config, OpUpdateOne, withCountdown(_m))
+	return &CountdownUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CountdownClient) UpdateOneID(id int) *CountdownUpdateOne {
+	mutation := newCountdownMutation(c.config, OpUpdateOne, withCountdownID(id))
+	return &CountdownUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Countdown.
+func (c *CountdownClient) Delete() *CountdownDelete {
+	mutation := newCountdownMutation(c.config, OpDelete)
+	return &CountdownDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CountdownClient) DeleteOne(_m *Countdown) *CountdownDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CountdownClient) DeleteOneID(id int) *CountdownDeleteOne {
+	builder := c.Delete().Where(countdown.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CountdownDeleteOne{builder}
+}
+
+// Query returns a query builder for Countdown.
+func (c *CountdownClient) Query() *CountdownQuery {
+	return &CountdownQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCountdown},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Countdown entity by its id.
+func (c *CountdownClient) Get(ctx context.Context, id int) (*Countdown, error) {
+	return c.Query().Where(countdown.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CountdownClient) GetX(ctx context.Context, id int) *Countdown {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CountdownClient) Hooks() []Hook {
+	return c.hooks.Countdown
+}
+
+// Interceptors returns the client interceptors.
+func (c *CountdownClient) Interceptors() []Interceptor {
+	return c.inters.Countdown
+}
+
+func (c *CountdownClient) mutate(ctx context.Context, m *CountdownMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CountdownCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CountdownUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CountdownUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CountdownDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Countdown mutation op: %q", m.Op())
+	}
+}
+
+// CountdownDeliveryClient is a client for the CountdownDelivery schema.
+type CountdownDeliveryClient struct {
+	config
+}
+
+// NewCountdownDeliveryClient returns a client for the CountdownDelivery from the given config.
+func NewCountdownDeliveryClient(c config) *CountdownDeliveryClient {
+	return &CountdownDeliveryClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `countdowndelivery.Hooks(f(g(h())))`.
+func (c *CountdownDeliveryClient) Use(hooks ...Hook) {
+	c.hooks.CountdownDelivery = append(c.hooks.CountdownDelivery, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `countdowndelivery.Intercept(f(g(h())))`.
+func (c *CountdownDeliveryClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CountdownDelivery = append(c.inters.CountdownDelivery, interceptors...)
+}
+
+// Create returns a builder for creating a CountdownDelivery entity.
+func (c *CountdownDeliveryClient) Create() *CountdownDeliveryCreate {
+	mutation := newCountdownDeliveryMutation(c.config, OpCreate)
+	return &CountdownDeliveryCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CountdownDelivery entities.
+func (c *CountdownDeliveryClient) CreateBulk(builders ...*CountdownDeliveryCreate) *CountdownDeliveryCreateBulk {
+	return &CountdownDeliveryCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CountdownDeliveryClient) MapCreateBulk(slice any, setFunc func(*CountdownDeliveryCreate, int)) *CountdownDeliveryCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CountdownDeliveryCreateBulk{err: fmt.Errorf("calling to CountdownDeliveryClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CountdownDeliveryCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CountdownDeliveryCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CountdownDelivery.
+func (c *CountdownDeliveryClient) Update() *CountdownDeliveryUpdate {
+	mutation := newCountdownDeliveryMutation(c.config, OpUpdate)
+	return &CountdownDeliveryUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CountdownDeliveryClient) UpdateOne(_m *CountdownDelivery) *CountdownDeliveryUpdateOne {
+	mutation := newCountdownDeliveryMutation(c.config, OpUpdateOne, withCountdownDelivery(_m))
+	return &CountdownDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CountdownDeliveryClient) UpdateOneID(id int) *CountdownDeliveryUpdateOne {
+	mutation := newCountdownDeliveryMutation(c.config, OpUpdateOne, withCountdownDeliveryID(id))
+	return &CountdownDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CountdownDelivery.
+func (c *CountdownDeliveryClient) Delete() *CountdownDeliveryDelete {
+	mutation := newCountdownDeliveryMutation(c.config, OpDelete)
+	return &CountdownDeliveryDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CountdownDeliveryClient) DeleteOne(_m *CountdownDelivery) *CountdownDeliveryDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CountdownDeliveryClient) DeleteOneID(id int) *CountdownDeliveryDeleteOne {
+	builder := c.Delete().Where(countdowndelivery.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CountdownDeliveryDeleteOne{builder}
+}
+
+// Query returns a query builder for CountdownDelivery.
+func (c *CountdownDeliveryClient) Query() *CountdownDeliveryQuery {
+	return &CountdownDeliveryQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCountdownDelivery},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CountdownDelivery entity by its id.
+func (c *CountdownDeliveryClient) Get(ctx context.Context, id int) (*CountdownDelivery, error) {
+	return c.Query().Where(countdowndelivery.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CountdownDeliveryClient) GetX(ctx context.Context, id int) *CountdownDelivery {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CountdownDeliveryClient) Hooks() []Hook {
+	return c.hooks.CountdownDelivery
+}
+
+// Interceptors returns the client interceptors.
+func (c *CountdownDeliveryClient) Interceptors() []Interceptor {
+	return c.inters.CountdownDelivery
+}
+
+func (c *CountdownDeliveryClient) mutate(ctx context.Context, m *CountdownDeliveryMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CountdownDeliveryCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CountdownDeliveryUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CountdownDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CountdownDeliveryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CountdownDelivery mutation op: %q", m.Op())
+	}
+}
+
+// CountdownOperationClient is a client for the CountdownOperation schema.
+type CountdownOperationClient struct {
+	config
+}
+
+// NewCountdownOperationClient returns a client for the CountdownOperation from the given config.
+func NewCountdownOperationClient(c config) *CountdownOperationClient {
+	return &CountdownOperationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `countdownoperation.Hooks(f(g(h())))`.
+func (c *CountdownOperationClient) Use(hooks ...Hook) {
+	c.hooks.CountdownOperation = append(c.hooks.CountdownOperation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `countdownoperation.Intercept(f(g(h())))`.
+func (c *CountdownOperationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CountdownOperation = append(c.inters.CountdownOperation, interceptors...)
+}
+
+// Create returns a builder for creating a CountdownOperation entity.
+func (c *CountdownOperationClient) Create() *CountdownOperationCreate {
+	mutation := newCountdownOperationMutation(c.config, OpCreate)
+	return &CountdownOperationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CountdownOperation entities.
+func (c *CountdownOperationClient) CreateBulk(builders ...*CountdownOperationCreate) *CountdownOperationCreateBulk {
+	return &CountdownOperationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CountdownOperationClient) MapCreateBulk(slice any, setFunc func(*CountdownOperationCreate, int)) *CountdownOperationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CountdownOperationCreateBulk{err: fmt.Errorf("calling to CountdownOperationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CountdownOperationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CountdownOperationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CountdownOperation.
+func (c *CountdownOperationClient) Update() *CountdownOperationUpdate {
+	mutation := newCountdownOperationMutation(c.config, OpUpdate)
+	return &CountdownOperationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CountdownOperationClient) UpdateOne(_m *CountdownOperation) *CountdownOperationUpdateOne {
+	mutation := newCountdownOperationMutation(c.config, OpUpdateOne, withCountdownOperation(_m))
+	return &CountdownOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CountdownOperationClient) UpdateOneID(id int) *CountdownOperationUpdateOne {
+	mutation := newCountdownOperationMutation(c.config, OpUpdateOne, withCountdownOperationID(id))
+	return &CountdownOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CountdownOperation.
+func (c *CountdownOperationClient) Delete() *CountdownOperationDelete {
+	mutation := newCountdownOperationMutation(c.config, OpDelete)
+	return &CountdownOperationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CountdownOperationClient) DeleteOne(_m *CountdownOperation) *CountdownOperationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CountdownOperationClient) DeleteOneID(id int) *CountdownOperationDeleteOne {
+	builder := c.Delete().Where(countdownoperation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CountdownOperationDeleteOne{builder}
+}
+
+// Query returns a query builder for CountdownOperation.
+func (c *CountdownOperationClient) Query() *CountdownOperationQuery {
+	return &CountdownOperationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCountdownOperation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CountdownOperation entity by its id.
+func (c *CountdownOperationClient) Get(ctx context.Context, id int) (*CountdownOperation, error) {
+	return c.Query().Where(countdownoperation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CountdownOperationClient) GetX(ctx context.Context, id int) *CountdownOperation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CountdownOperationClient) Hooks() []Hook {
+	return c.hooks.CountdownOperation
+}
+
+// Interceptors returns the client interceptors.
+func (c *CountdownOperationClient) Interceptors() []Interceptor {
+	return c.inters.CountdownOperation
+}
+
+func (c *CountdownOperationClient) mutate(ctx context.Context, m *CountdownOperationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CountdownOperationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CountdownOperationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CountdownOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CountdownOperationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CountdownOperation mutation op: %q", m.Op())
 	}
 }
 
@@ -1614,11 +2037,13 @@ func (c *VariableClient) mutate(ctx context.Context, m *VariableMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Automation, ChannelFeedCounter, CooldownClaim, FeedCounter, FeedReceipt,
-		GoveeCredential, Modules, Quote, SpotifyCredential, Variable []ent.Hook
+		Automation, ChannelFeedCounter, CooldownClaim, Countdown, CountdownDelivery,
+		CountdownOperation, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
+		SpotifyCredential, Variable []ent.Hook
 	}
 	inters struct {
-		Automation, ChannelFeedCounter, CooldownClaim, FeedCounter, FeedReceipt,
-		GoveeCredential, Modules, Quote, SpotifyCredential, Variable []ent.Interceptor
+		Automation, ChannelFeedCounter, CooldownClaim, Countdown, CountdownDelivery,
+		CountdownOperation, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
+		SpotifyCredential, Variable []ent.Interceptor
 	}
 )

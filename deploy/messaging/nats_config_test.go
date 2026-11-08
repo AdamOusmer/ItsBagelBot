@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -184,7 +185,7 @@ func TestHubFailbackProbeStaysOnTheNode(t *testing.T) {
 	assert.Contains(t, readText(t, "certificates.yaml"), "- nats-local.messaging\n", "the probe dials tls://nats-local.messaging and verifies the hub certificate")
 }
 
-var jetStreamTrigger =regexp.MustCompile(`(?m)^    - type: nats-jetstream\n((?:      .*\n)+)`)
+var jetStreamTrigger = regexp.MustCompile(`(?m)^    - type: nats-jetstream\n((?:      .*\n)+)`)
 
 func TestScaledObjectsTargetTheBusAccountByID(t *testing.T) {
 	compiled, err := natsacl.Compile(committedACL(t), committedKeys(t))
@@ -213,4 +214,33 @@ func TestHubMonitoringIsHTTPSOnly(t *testing.T) {
 	assert.Contains(t, manifest, `"https://localhost:8222"`)
 	assert.Contains(t, manifest, "- {name: https, port: 8222, targetPort: monitor}")
 	assert.Regexp(t, `(?m)^      port:\n        name: https$`, manifest, "the Tailscale operator proxies https only when the Ingress backend port is named https")
+}
+
+// Both the declarative ACL and the mounted resolver preload must grant Sesame's countdown RPCs.
+func TestCountdownRPCsReachModulesInCompiledAndPreloadedClaims(t *testing.T) {
+	keys := committedKeys(t)
+	compiled, err := natsacl.Compile(committedACL(t), keys)
+	require.NoError(t, err)
+	var worker *jwt.AccountClaims
+	for _, claim := range compiled {
+		if claim.Name == "WORKER_RPC" {
+			worker = claim
+			break
+		}
+	}
+	require.NotNil(t, worker)
+	preload := committedPreload(t)[keys.Accounts["WORKER_RPC"]]
+	require.NotNil(t, preload)
+	require.True(t, committedOperator(t).DidSign(preload))
+	for _, name := range []string{"start", "add", "peek", "claim", "ack", "progress"} {
+		subject := "bagel.rpc.modules.countdown." + name
+		for label, claim := range map[string]*jwt.AccountClaims{"compiled": worker, "preloaded": preload} {
+			t.Run(label+"/"+name, func(t *testing.T) {
+				ok := slices.ContainsFunc(claim.Imports, func(imp *jwt.Import) bool {
+					return imp.IsService() && imp.Account == keys.Accounts["MODULES_RPC"] && server.SubjectsCollide(string(imp.Subject), subject)
+				})
+				require.True(t, ok, "%s worker claim does not import %s", label, subject)
+			})
+		}
+	}
 }

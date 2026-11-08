@@ -202,6 +202,10 @@ func subscribeRPCs(w rpcWiring) string {
 		w.log.Fatal("failed to subscribe recipe state rpc", zap.Error(err))
 	}
 
+	if err := rpc.SubscribeCountdown(wiring.RPCWiring, w.recipeState, dashboardSubject); err != nil {
+		w.log.Fatal("failed to subscribe countdown rpc", zap.Error(err))
+	}
+
 	if err := rpc.SubscribeAutomations(wiring.RPCWiring, w.automations); err != nil {
 		w.log.Fatal("failed to subscribe automations rpc", zap.Error(err))
 	}

@@ -35,5 +35,7 @@
   "math": "Berechnen",
   "loop": "Schritte wiederholen",
   "reward_update": "Belohnung ändern",
-  "cooldown_add": "Zeit zu einem Cooldown hinzufügen"
+  "cooldown_add": "Zeit zu einem Cooldown hinzufügen",
+  "countdown_start": "Countdown starten",
+  "countdown_add": "Zeit zum Countdown hinzufügen"
 }

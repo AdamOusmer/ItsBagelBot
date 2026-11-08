@@ -16,6 +16,7 @@
     "loopIndex": "Which time this is",
     "apiError": "Why it failed",
     "cooldownLeft": "Time left on the cooldown",
+    "countdownLeft": "Time left on the countdown",
     "saved": "Saved by an earlier step"
   }
 }

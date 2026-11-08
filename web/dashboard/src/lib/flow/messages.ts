@@ -51,7 +51,7 @@ const nodeIdIn = (path: string) => /^nodes\.([^.]+)/.exec(path)?.[1];
 
 export function stepOf(issues: readonly Issue[], nodes: readonly { id: string; type: string }[]): string | null {
   const known = new Set(nodes.map((node) => node.id));
-  const trigger = nodes.find((node) => node.type.startsWith('twitch.'))?.id;
+  const trigger = nodes.find((node) => (node.type.startsWith('twitch.') || node.type === 'countdown.finished'))?.id;
   for (const issue of issues) {
     const id = nodeIdIn(issue.path) ?? (issue.path.startsWith('trigger') ? trigger : undefined);
     if (id && known.has(id)) return id;

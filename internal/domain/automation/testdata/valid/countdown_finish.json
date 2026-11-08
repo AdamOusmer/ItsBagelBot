@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "countdown",
+    "params": {
+      "name": "break"
+    }
+  },
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "Break finished!"
+      }
+    }
+  ]
+}

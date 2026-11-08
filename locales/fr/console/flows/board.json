@@ -65,5 +65,6 @@
   "statusDoneOne": "Terminé, 1 étape a été exécutée. Rien n’a été envoyé dans le chat.",
   "statusDoneMany": "Terminé, {count} étapes ont été exécutées. Rien n’a été envoyé dans le chat.",
   "viewerTyped": "{name} a écrit {text}",
-  "nothingToSend": "Rien à envoyer pour l’instant"
+  "nothingToSend": "Rien à envoyer pour l’instant",
+  "connectionSelection": "Sélectionner la connexion"
 }

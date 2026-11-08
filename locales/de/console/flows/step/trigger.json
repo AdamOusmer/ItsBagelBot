@@ -70,5 +70,14 @@
   "streamOnline": {
     "label": "Stream geht live",
     "summary": "Dein Stream startet"
+  },
+    "countdownFinished": {
+    "label": "Countdown beendet",
+    "summary": "Ein benannter Countdown erreicht null",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      }
+    }
   }
 }

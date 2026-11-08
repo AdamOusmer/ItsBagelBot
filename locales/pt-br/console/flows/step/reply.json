@@ -169,5 +169,48 @@
       "seconds": { "label": "Adicionar", "range": "Use de 1 segundo a {days} dias." },
       "per": { "label": "Por", "hint": "Adiciona o tempo acima para cada quantidade completa. Coloque 100 em uma receita de bits para contar a cada 100 bits. Deixe vazio para adicionar uma vez por evento." }
     }
+  },
+    "countdownStart": {
+    "label": "Iniciar contagem regressiva",
+    "summary": "Iniciar ou reiniciar uma contagem regressiva",
+    "field": {
+      "name": {
+        "label": "Nome",
+        "placeholder": "subathon"
+      },
+      "seconds": {
+        "label": "Duração",
+        "range": "Use de 1 segundo a {days} dias."
+      },
+      "leftCommand": {
+        "label": "Comando de tempo restante",
+        "placeholder": "!timeleft"
+      },
+      "leftReply": {
+        "label": "Resposta de tempo restante",
+        "placeholder": "Restam {countdown:left}"
+      },
+      "readyReply": {
+        "label": "Resposta de tempo restante ao terminar",
+        "placeholder": "A contagem regressiva terminou!"
+      }
+    }
+  },
+    "countdownAdd": {
+    "label": "Adicionar tempo à contagem regressiva",
+    "summary": "Estender uma contagem regressiva ativa",
+    "field": {
+      "name": {
+        "label": "Contagem regressiva"
+      },
+      "seconds": {
+        "label": "Adicionar",
+        "range": "Use de 1 segundo a {days} dias."
+      },
+      "per": {
+        "label": "A cada",
+        "hint": "Adiciona este tempo para cada valor completo. Deixe vazio para adicionar uma vez por evento."
+      }
+    }
   }
 }

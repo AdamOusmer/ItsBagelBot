@@ -70,5 +70,14 @@
   "streamOnline": {
     "label": "El stream empieza",
     "summary": "Empieza tu stream"
+  },
+    "countdownFinished": {
+    "label": "Cuenta atrás terminada",
+    "summary": "Una cuenta atrás llega a cero",
+    "field": {
+      "name": {
+        "label": "Cuenta atrás"
+      }
+    }
   }
 }

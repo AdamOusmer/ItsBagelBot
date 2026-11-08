@@ -35,6 +35,7 @@
     if (isReward(source)) return t('flows.choose.reward');
     if (source === 'counters') return t('flows.choose.counter');
     if (source === 'namedCooldowns') return t('flows.choose.namedCooldown');
+    if (source === 'namedCountdowns') return t('flows.choose.namedCountdown');
     return t('flows.choose.scene');
   };
 
@@ -43,6 +44,7 @@
     if (source === 'rewards') return t('flows.choiceEmpty.rewards');
     if (source === 'counters') return t('flows.choiceEmpty.counters');
     if (source === 'namedCooldowns') return t('flows.choiceEmpty.namedCooldowns');
+    if (source === 'namedCountdowns') return t('flows.choiceEmpty.namedCountdowns');
     return t('flows.choiceEmpty.scenes');
   };
 
@@ -50,6 +52,7 @@
     if (isReward(source)) return t('flows.choiceProblem.rewards');
     if (source === 'counters') return t('flows.choiceProblem.counters');
     if (source === 'namedCooldowns') return t('flows.choiceProblem.namedCooldowns');
+    if (source === 'namedCountdowns') return t('flows.choiceProblem.namedCountdowns');
     return t('flows.choiceProblem.scenes');
   };
 
@@ -59,7 +62,7 @@
   };
 
   const missingText = (source: ChoiceSource, name: string) =>
-    source === 'namedCooldowns' ? t('flows.choiceUnowned', { name }) : t('flows.choiceMissing', { name });
+    (source === 'namedCooldowns' || source === 'namedCountdowns') ? t('flows.choiceUnowned', { name }) : t('flows.choiceMissing', { name });
 
   async function fetchScenes(light: string, model: string): Promise<ChoiceList> {
     const body = new FormData();

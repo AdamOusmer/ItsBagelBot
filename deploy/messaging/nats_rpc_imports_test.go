@@ -72,6 +72,13 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.modules.cooldown.release", "app/twitch/sesame/engine/cooldown_long.go"},
 		{"bagel.rpc.modules.cooldown.peek", "app/twitch/sesame/engine/cooldown_long.go"},
 		{"bagel.rpc.modules.cooldown.extend", "app/twitch/sesame/engine/cooldown_long.go"},
+		{"bagel.rpc.modules.countdown.start", "app/twitch/sesame/engine/countdown_rpc.go"},
+		{"bagel.rpc.modules.countdown.add", "app/twitch/sesame/engine/countdown_rpc.go"},
+		{"bagel.rpc.modules.countdown.peek", "app/twitch/sesame/engine/countdown_rpc.go"},
+		{"bagel.rpc.modules.countdown.claim", "app/twitch/sesame/engine/countdown_rpc.go"},
+		{"bagel.rpc.modules.countdown.ack", "app/twitch/sesame/engine/countdown_rpc.go"},
+		{"bagel.rpc.modules.countdown.progress", "app/twitch/sesame/engine/countdown_rpc.go"},
+
 		{"bagel.rpc.modules.personality.feed", "app/twitch/sesame/engine/personality_rpc.go"},
 		{"bagel.rpc.modules.personality.feed.board", "app/twitch/sesame/engine/personality_rpc.go"},
 		{"bagel.rpc.gossip.custom.fetch", "app/twitch/sesame/engine/gossip_rpc.go"},

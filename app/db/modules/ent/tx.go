@@ -18,6 +18,12 @@ type Tx struct {
 	ChannelFeedCounter *ChannelFeedCounterClient
 	// CooldownClaim is the client for interacting with the CooldownClaim builders.
 	CooldownClaim *CooldownClaimClient
+	// Countdown is the client for interacting with the Countdown builders.
+	Countdown *CountdownClient
+	// CountdownDelivery is the client for interacting with the CountdownDelivery builders.
+	CountdownDelivery *CountdownDeliveryClient
+	// CountdownOperation is the client for interacting with the CountdownOperation builders.
+	CountdownOperation *CountdownOperationClient
 	// FeedCounter is the client for interacting with the FeedCounter builders.
 	FeedCounter *FeedCounterClient
 	// FeedReceipt is the client for interacting with the FeedReceipt builders.
@@ -166,6 +172,9 @@ func (tx *Tx) init() {
 	tx.Automation = NewAutomationClient(tx.config)
 	tx.ChannelFeedCounter = NewChannelFeedCounterClient(tx.config)
 	tx.CooldownClaim = NewCooldownClaimClient(tx.config)
+	tx.Countdown = NewCountdownClient(tx.config)
+	tx.CountdownDelivery = NewCountdownDeliveryClient(tx.config)
+	tx.CountdownOperation = NewCountdownOperationClient(tx.config)
 	tx.FeedCounter = NewFeedCounterClient(tx.config)
 	tx.FeedReceipt = NewFeedReceiptClient(tx.config)
 	tx.GoveeCredential = NewGoveeCredentialClient(tx.config)

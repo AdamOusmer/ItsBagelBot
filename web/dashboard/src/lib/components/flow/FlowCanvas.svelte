@@ -39,10 +39,9 @@
   import { addNode, connect, duplicateNode, removeEdge, removeNode } from '../../flow/ops';
   import { neighbor, neighborAfterRemove, readingOrder, stepDelta, stepFocus } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
-  import { describe } from '../../flow/describe';
   import { stepLabel, stepSummary } from '../../flow/copy';
   import { inputY, loopTails, nodeHeight, portY, tidy } from '../../flow/layout';
-  import { returnPath, wirePath } from '../../flow/wire';
+  import { previewPath, returnPath, wirePath } from '../../flow/wire';
   import { beginPinch, fitBox, pinchView, revealBox, type Inset, type Pinch } from '../../flow/touch';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit';
@@ -100,6 +99,9 @@
   let dragging = $state(false);
   let wire = $state<{ from: string; port: string; x: number; y: number } | null>(null);
   let hoverEdge = $state<string | null>(null);
+  let selectedEdge = $state<string | null>(null);
+  let wireTarget = $state<string | null>(null);
+  let toolbarBottom = $state(20);
   let menu = $state<{ link?: { from: string; port: string }; at: Pt; sx: number; sy: number } | null>(null);
   let menuAnchor = $state<HTMLElement>();
   let menuOpen = $state(false);
@@ -117,8 +119,8 @@
   let activeNode: string | null = null;
   let tween = 0;
   let tweenTimer: ReturnType<typeof setTimeout> | undefined;
-  let hoverTimer: ReturnType<typeof setTimeout> | undefined;
   let glide = 0;
+  let toolbarFrame = 0;
   const fingers = new Map<number, Pt>();
   let pinch: Pinch | null = null;
   let tapped: { port?: string; node?: string; edge?: string } = {};
@@ -264,22 +266,41 @@
     if (!(e.target as Element).closest(OWN_TAPS)) e.preventDefault();
   };
 
+  function scheduleToolbarPosition() {
+    cancelAnimationFrame(toolbarFrame);
+    toolbarFrame = requestAnimationFrame(() => {
+      toolbarBottom = Math.max(20, (insets?.(room > 0)?.bottom ?? 0) + 8);
+    });
+  }
+
   onMount(() => {
+    const observer = new ResizeObserver(scheduleToolbarPosition);
+    if (host) observer.observe(host);
     touch = matchMedia('(pointer: coarse)').matches;
     runTidy(false);
     fitView();
+    host?.addEventListener('keydown', onCanvasKey);
     host?.addEventListener('wheel', onWheel, { passive: false });
     host?.addEventListener('gesturestart', stopGesture);
     host?.addEventListener('touchend', stopCompatClick, { passive: false });
     return () => {
+      observer.disconnect();
+      cancelAnimationFrame(toolbarFrame);
+      host?.removeEventListener('keydown', onCanvasKey);
       host?.removeEventListener('wheel', onWheel);
       host?.removeEventListener('gesturestart', stopGesture);
       host?.removeEventListener('touchend', stopCompatClick);
       cancelAnimationFrame(tween);
       cancelAnimationFrame(glide);
       clearTimeout(tweenTimer);
-      clearTimeout(hoverTimer);
     };
+  });
+
+  $effect(() => {
+    // The inset callback reads layout and does not itself provide reactive dependencies.
+    void selectedEdge;
+    void room;
+    scheduleToolbarPosition();
   });
 
   $effect(() => {
@@ -308,6 +329,8 @@
     if (port && id && !connecting) {
       const p = toWorld(e.clientX, e.clientY);
       wire = { from: id, port: port.dataset.port as string, x: p.x, y: p.y };
+      selectedEdge = null;
+      wireTarget = null;
       mode = 'wire';
     } else if (n && !connecting) {
       finishTween();
@@ -330,6 +353,7 @@
     dragging = false;
     activeNode = null;
     wire = null;
+    wireTarget = null;
   }
 
   function startPinch() {
@@ -347,7 +371,10 @@
       if (node && targetFor(node)) {
         const made = connect(flow, { from: connecting.from, port: connecting.port, to: node });
         connecting = null;
-        if (made && autoTidy) runTidy(true);
+        if (made) {
+          announce(t('flows.noteConnected'));
+          if (autoTidy) runTidy(true);
+        }
       } else if (!node) {
         connecting = null;
       }
@@ -359,9 +386,10 @@
       hoverEdge = null;
       fitView();
     } else if (edge) {
-      hoverEdge = hoverEdge === edge ? null : edge;
+      selectEdge(edge);
     } else {
       hoverEdge = null;
+      selectedEdge = null;
       selectedId = node ?? null;
       if (node) oninspect?.(node);
     }
@@ -416,20 +444,39 @@
       onTouchDown(e);
       return;
     }
-    connecting = null;
     if (e.button !== 0) return;
     const el = e.target as HTMLElement;
     if (el.closest('[data-flow-ui], button')) return;
+    if (connecting) {
+      const id = el.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+      if (id && targetFor(id)) {
+        const made = connect(flow, { ...connecting, to: id });
+        connecting = null;
+        if (made) {
+          announce(t('flows.noteConnected'));
+          if (autoTidy) runTidy(true);
+        }
+      } else if (!id) connecting = null;
+      return;
+    }
     (host as HTMLElement).setPointerCapture(e.pointerId);
     start = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y, nx: 0, ny: 0, moved: false };
     closeMenu();
 
+    const edge = el.closest<SVGElement>('[data-edge]')?.dataset.edge;
+    if (edge) {
+      selectEdge(edge);
+      mode = 'idle';
+      return;
+    }
     const port = el.closest<HTMLElement>('[data-port]');
     const nodeEl = el.closest<HTMLElement>('[data-node-id]');
     if (port && nodeEl) {
       const id = nodeEl.dataset.nodeId as string;
       const p = toWorld(e.clientX, e.clientY);
       wire = { from: id, port: port.dataset.port as string, x: p.x, y: p.y };
+      selectedEdge = null;
+      wireTarget = null;
       mode = 'wire';
       return;
     }
@@ -439,6 +486,7 @@
       if (!n) return;
       finishTween();
       activeNode = id;
+      selectedEdge = null;
       selectedId = id;
       oninspect?.(id);
       start.nx = n.x;
@@ -476,6 +524,8 @@
       disp[n.id] = { x: n.x, y: n.y };
     } else if (mode === 'wire' && wire) {
       const p = toWorld(e.clientX, e.clientY);
+      const under = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-node-id]');
+      wireTarget = under?.dataset.nodeId ?? null;
       wire = { ...wire, x: p.x, y: p.y };
     }
   }
@@ -488,7 +538,11 @@
     const was = mode;
     mode = 'idle';
     if (host?.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId);
-    if (was === 'pan' && !start.moved) selectedId = null;
+    if (e.type === 'pointercancel') {
+      undoSingleFinger();
+      return;
+    }
+    if (was === 'pan' && !start.moved) { selectedId = null; selectedEdge = null; }
     if (was === 'node') {
       dragging = false;
       if (start.moved) recordMove(activeNode);
@@ -501,10 +555,14 @@
   function endWire(e: PointerEvent) {
     const w = wire as NonNullable<typeof wire>;
     wire = null;
+    wireTarget = null;
     if (!start.moved) return;
     const under = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-node-id]');
     if (under) {
-      if (connect(flow, { from: w.from, port: w.port, to: under.dataset.nodeId as string }) && autoTidy) runTidy(true);
+      if (connect(flow, { from: w.from, port: w.port, to: under.dataset.nodeId as string })) {
+        announce(t('flows.noteConnected'));
+        if (autoTidy) runTidy(true);
+      }
       return;
     }
     const r = (host as HTMLElement).getBoundingClientRect();
@@ -537,15 +595,19 @@
   }
 
   function connectFromMenu() {
+    const byKey = menuByKey;
     connecting = menu?.link ?? null;
     selectedId = null;
     closeMenu();
     fitView();
+    if (byKey) {
+      const first = readingOrder(flow).find((node) => targetFor(node.id));
+      if (first) focusNode(first.id);
+    }
   }
 
-  function targetFor(id: string) {
+  function targetFor(id: string, c = connecting ?? wire ?? menu?.link) {
     const n = nodeById(id);
-    const c = connecting;
     return Boolean(
       n && c && id !== c.from && specFor(n.type)?.kind !== 'trigger' && !flow.edges.some((e) => e.from === c.from && e.port === c.port && e.to === id)
     );
@@ -563,16 +625,18 @@
     if (byKey) focusNode(node.id);
   }
 
-  function linkTo(id: string) {
-    const link = menu?.link;
-    if (!link) return;
-    const existing = flow.edges.find((e) => e.from === link.from && e.port === link.port && e.to === id);
-    if (existing) removeEdge(flow, existing.id);
-    else if (!connect(flow, { from: link.from, port: link.port, to: id })) return;
-    announce(existing ? t('flows.noteDisconnected') : t('flows.noteConnected'));
-    closeMenu();
-    if (autoTidy) runTidy(true);
-    focusNode(link.from);
+  function onCanvasKey(e: KeyboardEvent) {
+    if (!connecting || (e.key !== 'Enter' && e.key !== ' ')) return;
+    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+    if (!id || !targetFor(id)) return;
+    const made = connect(flow, { ...connecting, to: id });
+    connecting = null;
+    e.preventDefault();
+    e.stopPropagation();
+    if (made) {
+      announce(t('flows.noteConnected'));
+      if (autoTidy) runTidy(true);
+    }
   }
 
   function onMenuKey(e: KeyboardEvent) {
@@ -648,6 +712,10 @@
   }
 
   export function removeSelected(): boolean {
+    if (selectedEdge && flow.edges.some((edge) => edge.id === selectedEdge)) {
+      deleteEdge(selectedEdge);
+      return true;
+    }
     const id = selectedId;
     if (!id || !nodeById(id)) return false;
     const next = neighborAfterRemove(flow, id);
@@ -684,9 +752,11 @@
   }
 
   export function dismissMenu(): boolean {
-    if (!menu) return false;
-    closeMenu(true);
-    return true;
+    if (menu) { closeMenu(true); return true; }
+    if (wire) { wire = null; wireTarget = null; mode = 'idle'; return true; }
+    if (connecting) { connecting = null; return true; }
+    if (selectedEdge) { selectedEdge = null; return true; }
+    return false;
   }
 
   export function zoomBy(factor: number) {
@@ -698,22 +768,24 @@
     else finishTween();
   }
 
+  function resetHostScroll() {
+    if (host) { host.scrollLeft = 0; host.scrollTop = 0; }
+  }
+
+  function selectEdge(id: string) {
+    resetHostScroll();
+    selectedEdge = id;
+    selectedId = null;
+    hoverEdge = null;
+    void tick().then(() => host?.querySelector<HTMLButtonElement>('.edge-toolbar button')?.focus({ preventScroll: true }));
+  }
+
   function deleteEdge(id: string) {
     removeEdge(flow, id);
+    selectedEdge = null;
     hoverEdge = null;
+    announce(t('flows.noteDisconnected'));
     if (autoTidy) runTidy(true);
-  }
-
-  function holdEdge(e: PointerEvent, id: string) {
-    if (e.pointerType !== 'mouse') return;
-    clearTimeout(hoverTimer);
-    hoverEdge = id;
-  }
-
-  function leaveEdge(e: PointerEvent) {
-    if (e.pointerType !== 'mouse') return;
-    clearTimeout(hoverTimer);
-    hoverTimer = setTimeout(() => (hoverEdge = null), 140);
   }
 
   const dotGap = $derived(GRID * view.k * (view.k < 0.6 ? 2 : 1));
@@ -728,7 +800,7 @@
       const b = at(to.id);
       const p1 = { x: a.x + NODE_W, y: a.y + portY(spec, e.port) };
       const p2 = { x: b.x - ARROW_GAP, y: b.y + inputY };
-      return [{ id: e.id, d: wirePath(p1, p2), mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }, tone: isSecondPort(spec, e.port) ? 'no' : 'yes' }];
+      return [{ id: e.id, d: wirePath(p1, p2), tone: isSecondPort(spec, e.port) ? 'no' : 'yes' }];
     })
   );
 
@@ -764,7 +836,9 @@
     const n = nodeById(wire.from);
     if (!n) return '';
     const a = at(n.id);
-    return wirePath({ x: a.x + NODE_W, y: a.y + portY(specFor(n.type), wire.port) }, { x: wire.x, y: wire.y });
+    const target = wireTarget && targetFor(wireTarget) ? at(wireTarget) : null;
+    const end = target ? { x: target.x - ARROW_GAP, y: target.y + inputY } : { x: wire.x, y: wire.y };
+    return previewPath({ x: a.x + NODE_W, y: a.y + portY(specFor(n.type), wire.port) }, end);
   });
 
   const needle = $derived(query.trim().toLowerCase());
@@ -778,17 +852,7 @@
     })).filter((g) => g.specs.length > 0)
   );
 
-  const links = $derived.by(() => {
-    const link = menu?.link;
-    if (!link || (touch && !menuByKey)) return [];
-    return flow.nodes.flatMap((n) => {
-      const spec = specFor(n.type);
-      if (!spec || spec.kind === 'trigger' || n.id === link.from) return [];
-      const line = describe(t, n);
-      if (needle && !`${stepLabel(t, spec)} ${line}`.toLowerCase().includes(needle)) return [];
-      return [{ id: n.id, spec, line, linked: flow.edges.some((e) => e.from === link.from && e.port === link.port && e.to === n.id) }];
-    });
-  });
+
 </script>
 
 <div
@@ -811,7 +875,7 @@
   ondrop={onDrop}
 >
   <div class="world" style:transform="translate({view.x}px, {view.y}px) scale({view.k})" style:--inv={touch ? 1 / shownK : undefined}>
-    <svg class="wires" width="1" height="1" aria-hidden="true">
+    <svg class="wires" width="1" height="1">
       <defs>
         <marker id="flow-arrow-yes" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">
           <path d="M0,0 L10,5 L0,10 z" style="fill: rgba(var(--bb-green-glow-rgb), 0.7)" />
@@ -819,10 +883,14 @@
         <marker id="flow-arrow-no" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">
           <path d="M0,0 L10,5 L0,10 z" style="fill: rgba(var(--bb-muted-rgb), 0.6)" />
         </marker>
+        <marker id="flow-arrow-preview" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--bb-green-glow)" />
+        </marker>
       </defs>
       {#each startWires as wire (wire.id)}
         <path
           class="wire"
+          aria-hidden="true"
           class:taken={trace?.nodes.has(wire.id)}
           class:off={trace && !trace.nodes.has(wire.id)}
           d={wire.d}
@@ -830,12 +898,14 @@
         />
       {/each}
       {#each returns as back (back.id)}
-        <path class="wire return" d={back.d} marker-end="url(#flow-arrow-no)" />
+        <path aria-hidden="true" class="wire return" d={back.d} marker-end="url(#flow-arrow-no)" />
       {/each}
       {#each edges as edge (edge.id)}
         <path
           class="wire"
-          class:hot={hoverEdge === edge.id}
+          aria-hidden="true"
+          class:hot={hoverEdge === edge.id || selectedEdge === edge.id}
+          class:chosen={selectedEdge === edge.id}
           class:no={edge.tone === 'no'}
           class:taken={trace?.edges.has(edge.id)}
           class:off={trace && !trace.edges.has(edge.id)}
@@ -846,32 +916,25 @@
           class="hit"
           d={edge.d}
           data-edge={edge.id}
-          role="presentation"
-          onpointerenter={(e) => holdEdge(e, edge.id)}
-          onpointerleave={leaveEdge}
+          role="button"
+          tabindex="0"
+          aria-label={t('flows.board.connectionSelection')}
+          onfocus={resetHostScroll}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              selectEdge(edge.id);
+            }
+          }}
+          onpointerenter={(e) => { if (e.pointerType === 'mouse') hoverEdge = edge.id; }}
+          onpointerleave={(e) => { if (e.pointerType === 'mouse') hoverEdge = null; }}
         />
       {/each}
       {#if wire}
-        <path class="wire preview" d={wireD} />
+        <path aria-hidden="true" class="wire preview" class:invalid={wireTarget && !targetFor(wireTarget)} d={wireD} marker-end="url(#flow-arrow-preview)" />
       {/if}
     </svg>
-
-    {#each edges as edge (edge.id)}
-      {#if hoverEdge === edge.id}
-        <span
-          class="cut"
-          data-flow-ui
-          style:transform="translate({edge.mid.x - 14}px, {edge.mid.y - 14}px)"
-          role="presentation"
-          onpointerenter={(e) => holdEdge(e, edge.id)}
-          onpointerleave={leaveEdge}
-        >
-          <IconButton label={t('flows.board.removeConnection')} size="sm" tone="danger" onclick={() => deleteEdge(edge.id)}>
-            <Icon name="x" size={12} />
-          </IconButton>
-        </span>
-      {/if}
-    {/each}
 
     <FlowStart x={startAt.x} y={startAt.y} empty={triggers.length === 0} onadd={onstart} />
 
@@ -880,18 +943,16 @@
         class="slot"
         class:off={trace && !trace.nodes.has(node.id)}
         class:running={trace?.current === node.id}
-        class:source={connecting?.from === node.id}
-        class:target={connecting && targetFor(node.id)}
+        class:source={(connecting ?? wire)?.from === node.id}
+        class:target={(connecting && targetFor(node.id)) || (wireTarget === node.id && targetFor(node.id))}
+        class:invalid-target={wireTarget === node.id && !targetFor(node.id)}
         data-node-id={node.id}
         style:transform="translate({at(node.id).x}px, {at(node.id).y}px)"
         style:z-index={selectedId === node.id || trace?.current === node.id ? 2 : 1}
         role="presentation"
         onfocusin={(e) => {
-          if (!(e.target as HTMLElement).closest('button')) selectedId = node.id;
-          if (host) {
-            host.scrollLeft = 0;
-            host.scrollTop = 0;
-          }
+          if (!(e.target as HTMLElement).closest('button')) { selectedId = node.id; selectedEdge = null; }
+          resetHostScroll();
           if (mode === 'idle') keepInView(node.id);
         }}
       >
@@ -904,7 +965,7 @@
     <span class="menu-anchor" bind:this={menuAnchor} style:left="{menu.sx}px" style:top="{menu.sy}px"></span>
     <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label={t('flows.board.addStep')} width={300} maxHeight={380} onClose={() => closeMenu(true)}>
       <div class="menu" role="presentation" onkeydown={onMenuKey}>
-        {#if touch && menu.link}
+        {#if menu.link && flow.nodes.some((node) => targetFor(node.id, menu?.link))}
           <PickerOption onclick={connectFromMenu}>
             <span class="menu-row">
               <IconTile class="menu-tile"><Icon name="branch" size={16} /></IconTile>
@@ -927,24 +988,19 @@
             </PickerOption>
           {/each}
         {:else}
-          {#if links.length === 0}<span class="menu-sum menu-empty">{t('flows.board.noStepsMatch')}</span>{/if}
+          <span class="menu-sum menu-empty">{t('flows.board.noStepsMatch')}</span>
         {/each}
-        {#if links.length}
-          <span class="menu-title">{t('flows.linkTitle')}</span>
-          {#each links as l (l.id)}
-            <PickerOption onclick={() => linkTo(l.id)}>
-              <span class="menu-row" style:--tint={MENU_TINT[l.spec.kind].color} style:--tint-rgb={MENU_TINT[l.spec.kind].rgb}>
-                <IconTile class="menu-tile"><Icon name={l.spec.icon} size={16} /></IconTile>
-                <span class="menu-text">
-                  <span class="menu-name">{stepLabel(t, l.spec)}</span>
-                  <span class="menu-sum">{l.linked ? t('flows.linkedRemove') : l.line}</span>
-                </span>
-              </span>
-            </PickerOption>
-          {/each}
-        {/if}
       </div>
     </PickerPanel>
+  {/if}
+
+  {#if selectedEdge && flow.edges.some((edge) => edge.id === selectedEdge)}
+    <div class="edge-toolbar" data-flow-ui style:bottom="{toolbarBottom}px" style:left="calc(50% - {room / 2}px)">
+      <Button variant="ghost" onclick={() => selectedEdge && deleteEdge(selectedEdge)}>
+        <Icon name="trash" size={16} />
+        {t('flows.board.removeConnection')}
+      </Button>
+    </div>
   {/if}
 
   {#if connecting}
@@ -1037,16 +1093,16 @@
   .wire.off {
     opacity: 0.2;
   }
-  .wire.preview {
-    stroke: rgba(var(--bb-white-rgb), 0.5);
-    stroke-dasharray: 6 6;
-  }
+  .wire.chosen { stroke-width: 3.5; filter: drop-shadow(0 0 5px rgba(var(--bb-green-glow-rgb), 0.45)); }
+  .wire.preview { stroke: var(--bb-green-glow); stroke-width: 2.5; filter: drop-shadow(0 0 5px rgba(var(--bb-green-glow-rgb), 0.35)); }
+  .wire.preview.invalid { opacity: 0.45; }
   .hit {
     fill: none;
     stroke: transparent;
     stroke-width: 16;
     pointer-events: stroke;
   }
+  .hit:focus-visible { stroke: rgba(var(--bb-green-glow-rgb), 0.3); outline: none; }
   .slot {
     position: absolute;
     left: 0;
@@ -1063,12 +1119,21 @@
       0 0 0 2px var(--bb-green-glow),
       0 0 28px rgba(var(--bb-green-glow-rgb), 0.35);
   }
-  .cut {
+  .edge-toolbar {
+    --btn-radius: var(--bb-radius-pill);
+    --btn-min-h: 38px;
     position: absolute;
-    left: 0;
-    top: 0;
-    z-index: 4;
+    left: 50%;
+    bottom: calc(var(--flow-dock-room, 0px) + 20px);
+    translate: -50% 0;
+    z-index: 6;
+    padding: 5px;
+    border: 1px solid rgba(var(--bb-white-rgb), 0.14);
+    border-radius: 999px;
+    background: var(--bb-bg-1);
+    box-shadow: 0 8px 28px rgba(var(--bb-shadow-rgb), 0.55);
   }
+  .canvas[data-touch] .edge-toolbar { --btn-min-h: 44px; }
   .menu-anchor {
     position: absolute;
     width: 1px;
@@ -1190,6 +1255,7 @@
       0 0 0 2px var(--bb-green-glow),
       0 0 28px rgba(var(--bb-green-glow-rgb), 0.25);
   }
+  .slot.invalid-target :global(.node) { opacity: 0.55; }
   .canvas[data-touch] .hit {
     stroke-width: calc(32px * var(--inv, 1));
   }
@@ -1201,12 +1267,6 @@
     right: 0;
     height: max(100%, 44px * var(--inv, 1));
     translate: 0 -50%;
-  }
-  .canvas[data-touch] .cut :global(button) {
-    border-radius: var(--bb-radius-pill);
-    background: var(--bb-bg-1);
-    box-shadow: 0 2px 8px rgba(var(--bb-shadow-rgb), 0.6);
-    scale: calc(var(--inv, 1) * 1.6);
   }
   .canvas[data-touch] .zoom :global(.bb-btn--icon),
   .canvas[data-touch] .connect-hint :global(button) {

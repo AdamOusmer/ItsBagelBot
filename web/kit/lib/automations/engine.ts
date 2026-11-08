@@ -44,6 +44,8 @@ const ACTION_ROLE: Record<string, number> = {
   shield: ROLE_MODERATOR,
   delete_message: ROLE_MODERATOR,
   cooldown_add: ROLE_MODERATOR,
+  countdown_start: ROLE_MODERATOR,
+  countdown_add: ROLE_MODERATOR,
 };
 
 export function paramsCode(err: DecodeError): string {

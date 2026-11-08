@@ -16,6 +16,7 @@
     "loopIndex": "Numéro de la répétition",
     "apiError": "Raison de l’échec",
     "cooldownLeft": "Délai restant",
+    "countdownLeft": "Temps restant du compte à rebours",
     "saved": "Enregistrée par une étape précédente"
   }
 }

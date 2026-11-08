@@ -85,6 +85,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 			Queue:         engine.NewValkeyRunQueue(in.vc),
 			Durable:       engine.NewValkeyDurableRuns(in.vc),
 			LongCooldowns: engine.NewMarkedLongCooldowns(in.vc, recipeState, log),
+			Countdowns:    recipeState,
 		},
 		TrialStore:     in.vc,
 		Proj:           rt.proj,
