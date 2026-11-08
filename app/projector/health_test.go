@@ -98,38 +98,56 @@ func TestProjectorReadinessFitsProbeBudgetWithSilentOwners(t *testing.T) {
 	}{{name: "one owner"}, {name: "all owners", all: true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			nc := testnats.Connect(t)
-			for i, owner := range dataTierServices {
-				if i == 0 || tc.all {
-					_, err := nc.Subscribe(bus.RPCHealthSubject(owner), func(*nats.Msg) {})
-					require.NoError(t, err)
-					continue
-				}
-				_, err := bus.SubscribeRPCHealth(nc, owner, owner+"-health", health.NewSet(owner))
-				require.NoError(t, err)
-			}
-			require.NoError(t, nc.Flush())
+			subscribeSilentOwners(t, nc, tc.all)
 			set := projectorHealth(t, nc, true)
-			server := httptest.NewTLSServer(set.Handler())
-			defer server.Close()
-			client := server.Client()
-			// Match Kubernetes' default probe deadline, including the HTTP/TLS round trip.
-			client.Timeout = time.Second
-			response, err := client.Get(server.URL + "/readyz")
-			require.NoError(t, err, "optional owner probes must run concurrently within the readiness deadline")
-			defer response.Body.Close()
-			require.Equal(t, http.StatusOK, response.StatusCode)
+			requireReadinessWithinProbeBudget(t, set)
 
 			report := set.Snapshot(t.Context())
 			require.Equal(t, health.StatusDegraded, report.Status)
-			for _, check := range report.Checks {
-				if check.Name == dataTierServices[0] {
-					require.False(t, check.OK, "the silent owner remains visible as unhealthy")
-					require.True(t, check.Optional)
-					require.Contains(t, check.Error, "deadline exceeded")
-				}
-			}
+			check := reportedCheck(t, report, dataTierServices[0])
+			require.False(t, check.OK, "the silent owner remains visible as unhealthy")
+			require.True(t, check.Optional)
+			require.Contains(t, check.Error, "deadline exceeded")
 		})
 	}
+}
+
+func subscribeSilentOwners(t *testing.T, nc *nats.Conn, all bool) {
+	t.Helper()
+	for i, owner := range dataTierServices {
+		if i == 0 || all {
+			_, err := nc.Subscribe(bus.RPCHealthSubject(owner), func(*nats.Msg) {})
+			require.NoError(t, err)
+			continue
+		}
+		_, err := bus.SubscribeRPCHealth(nc, owner, owner+"-health", health.NewSet(owner))
+		require.NoError(t, err)
+	}
+	require.NoError(t, nc.Flush())
+}
+
+func requireReadinessWithinProbeBudget(t *testing.T, set *health.Set) {
+	t.Helper()
+	server := httptest.NewTLSServer(set.Handler())
+	defer server.Close()
+	client := server.Client()
+	// Match Kubernetes' default probe deadline, including the HTTP/TLS round trip.
+	client.Timeout = time.Second
+	response, err := client.Get(server.URL + "/readyz")
+	require.NoError(t, err, "optional owner probes must run concurrently within the readiness deadline")
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+}
+
+func reportedCheck(t *testing.T, report health.Report, name string) health.CheckResult {
+	t.Helper()
+	for _, check := range report.Checks {
+		if check.Name == name {
+			return check
+		}
+	}
+	t.Fatalf("missing health check %q", name)
+	return health.CheckResult{}
 }
 
 func TestProjectorEssentialFailuresStillRemoveReadiness(t *testing.T) {
