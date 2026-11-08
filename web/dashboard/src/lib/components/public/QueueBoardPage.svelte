@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import Card from '@bagel/ui/svelte/Card.svelte';
+  import PublicStreamerHeader from './PublicStreamerHeader.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
@@ -41,14 +42,16 @@
 </div>
 
 <main class="qp">
-  <header class="qp-head">
-    <span class="qp-eyebrow"><span class="qp-beacon" aria-hidden="true"></span><span class="qp-eyebrow__label"><bb-fit>{eyebrow}</bb-fit></span></span>
-    <h1 class="qp-title{titleSize ? ` qp-title--${titleSize}` : ''}">
-      {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="qp-word">{word}</span>{/each}
-    </h1>
-    <p class="qp-tagline"><bb-fit mode="block">{tagline}</bb-fit></p>
-    <p class="qp-hint"><bb-fit mode="block">{hint}</bb-fit></p>
-  </header>
+  <PublicStreamerHeader>
+    <div class="qp-intro">
+      <span class="qp-eyebrow"><span class="qp-beacon" aria-hidden="true"></span><span class="qp-eyebrow__label"><bb-fit>{eyebrow}</bb-fit></span></span>
+      <h1 class="qp-title{titleSize ? ` qp-title--${titleSize}` : ''}">
+        {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="qp-word">{word}</span>{/each}
+      </h1>
+      <p class="qp-tagline"><bb-fit mode="block">{tagline}</bb-fit></p>
+      <p class="qp-hint"><bb-fit mode="block">{hint}</bb-fit></p>
+    </div>
+  </PublicStreamerHeader>
 
   <section class="qp-spots">
     <div class="qp-spot qp-spot--next">
@@ -152,13 +155,13 @@
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: var(--bb-space-8);
+    gap: var(--bb-space-6);
     width: min(100% - 32px, 1080px);
     margin-inline: auto;
     padding: calc(var(--bb-nav-height) + var(--bb-space-8)) 0 var(--bb-space-section);
   }
 
-  .qp-head {
+  .qp-intro {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -221,15 +224,15 @@
     line-height: 1.6;
   }
 
-  .qp-tagline { height: calc(2 * 1lh); color: var(--bb-muted-light); }
-  .qp-hint { height: 1lh; font-size: var(--bb-text-sm); color: var(--bb-tan-light); }
+  .qp-tagline { color: var(--bb-muted-light); }
+  .qp-hint { font-size: var(--bb-text-sm); color: var(--bb-tan-light); }
 
   .qp-spots {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: end;
     gap: var(--bb-space-5);
-    padding-top: var(--bb-space-6);
+    padding-top: var(--bb-space-4);
   }
 
   .qp-spot {
@@ -504,8 +507,6 @@
 
   @media (max-width: 760px) {
     .qp { padding-top: calc(var(--bb-nav-height) + var(--bb-space-6)); }
-    .qp-tagline { height: calc(3 * 1lh); }
-    .qp-hint { height: calc(2 * 1lh); }
     .qp-spots { grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-6); }
     .qp :global(.qp-board) { padding: var(--bb-space-5) var(--bb-space-4) var(--bb-space-4); }
     .qp-row { grid-template-columns: 2.25rem minmax(0, 1fr) 7rem; gap: var(--bb-space-3); padding: 0 var(--bb-space-2); }

@@ -5,19 +5,31 @@ import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/donate-card.css';
 import ButtonLink from './ButtonLink.astro';
+  import HaloPanel from './HaloPanel.astro';
 
 interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'class'> {
-    label: string;
+    compact?: boolean;
+    label?: string;
     title: string;
-    text: string;
+    text?: string;
     cta: string;
     href: string;
-    note: string;
+    note?: string;
     class?: string;
 }
 
-const { label, title, text, cta, href, note, class: className = '', ...rest } = Astro.props;
-const classes = ['bb-donate-card', className].filter(Boolean).join(' ');
+const { compact = false, label, title, text, cta, href, note, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-donate-card', compact && 'bb-donate-card--compact', className].filter(Boolean).join(' ');
 ---
 
+{compact ? (
+<div class={classes} {...rest}>
+  <div class="bb-donate-card__crowd" aria-hidden="true"><slot /></div>
+  <HaloPanel as="section" tone="green" class="bb-donate-card__panel">
+    <h2 class="bb-donate-card__title">{title}</h2>
+    <ButtonLink class="bb-donate-card__cta" size="sm" href={href} target="_blank" rel="noopener noreferrer">{cta}</ButtonLink>
+  </HaloPanel>
+</div>
+) : (
 <section class={classes} {...rest}><div class="bb-donate-card__crowd" aria-hidden="true"><slot /></div><span class="bb-donate-card__label"><bb-fit>{label}</bb-fit></span><h2 class="bb-donate-card__title"><bb-fit mode="block">{title}</bb-fit></h2><p class="bb-donate-card__text"><bb-fit mode="block">{text}</bb-fit></p><ButtonLink class="bb-donate-card__cta" href={href} target="_blank" rel="noopener noreferrer"><bb-fit>{cta}</bb-fit></ButtonLink><span class="bb-donate-card__note"><bb-fit>{note}</bb-fit></span></section>
+)}

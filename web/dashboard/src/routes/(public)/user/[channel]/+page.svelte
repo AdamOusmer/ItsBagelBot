@@ -23,6 +23,7 @@
   import { tick } from 'svelte';
   import { page } from '$app/state';
   import PublicHead from '#lib/components/public/PublicHead.svelte';
+  import PublicStreamerHeader from '#lib/components/public/PublicStreamerHeader.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -229,26 +230,28 @@
 </div>
 
 <main class="page">
-  <header class="hero">
-    <div class="hero__text">
-      <span class="eyebrow"><bb-fit>{t('public.commands.eyebrow')}</bb-fit></span>
-      <h1 class="title{titleSize ? ` title--${titleSize}` : ''}">
-        {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="word">{word}</span>{/each}
-      </h1>
-      <p class="tagline">{summary}</p>
-    </div>
-    {#if creatorCode}
-      <CopySurface
-        text={creatorCode}
-        label={t('public.commands.copyCreator')}
-        hint={t('public.commands.clickToCopy')}
-        copiedLabel={t('common.copied')}
-        flashMs={COPY_FLASH_MS}
-        title={t('public.commands.copyCreator')}
-        announce={t('public.commands.copiedAnnounce', { trigger: creatorCode })}
-      />
-    {/if}
-  </header>
+  <div class="hero">
+    <PublicStreamerHeader>
+      <div class="hero__text">
+        <span class="eyebrow"><bb-fit>{t('public.commands.eyebrow')}</bb-fit></span>
+        <h1 class="title{titleSize ? ` title--${titleSize}` : ''}">
+          {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="word">{word}</span>{/each}
+        </h1>
+        <p class="tagline">{summary}</p>
+        {#if creatorCode}
+          <CopySurface
+            text={creatorCode}
+            label={t('public.commands.copyCreator')}
+            hint={t('public.commands.clickToCopy')}
+            copiedLabel={t('common.copied')}
+            flashMs={COPY_FLASH_MS}
+            title={t('public.commands.copyCreator')}
+            announce={t('public.commands.copiedAnnounce', { trigger: creatorCode })}
+          />
+        {/if}
+      </div>
+    </PublicStreamerHeader>
+  </div>
 
   {#if data.degraded}
     <div class="notice">
@@ -271,11 +274,11 @@
   </div>
 
   <div class="columns">
+    <div class="list__head">
+      <Label mono as="span">{listHeading}</Label>
+      <Label mono as="span">{t('public.commands.clickRow')}</Label>
+    </div>
     <section class="list-wrap" aria-label={t('public.commands.commandsLabel')}>
-      <div class="list__head">
-        <Label mono as="span">{listHeading}</Label>
-        <Label mono as="span">{t('public.commands.clickRow')}</Label>
-      </div>
 
       {#if rows.length}
         {#each groups as group, i (group.key)}
@@ -335,7 +338,7 @@
                           <Tag tone="live" mark="solid" sweep>{t('public.commands.liveOnly')}</Tag>
                         {/if}
                         {#if row.uses}
-                          <Label mono as="span">{t('public.commands.uses', { count: row.uses })}</Label>
+                          <span class="row__uses"><Label mono as="span">{t('public.commands.uses', { count: row.uses })}</Label></span>
                         {/if}
                       </span>
                     </CopySurface>
@@ -435,14 +438,7 @@
     color: var(--bb-white);
   }
 
-  .hero {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: var(--bb-space-6) var(--bb-space-8);
-    margin-bottom: var(--bb-space-8);
-  }
+  .hero { margin-bottom: var(--bb-space-6); }
 
   .hero__text {
     display: flex;
@@ -509,18 +505,19 @@
   .search { flex: 1 1 260px; min-width: 0; }
 
   .columns {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 28px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    align-items: start;
+    gap: 14px 28px;
     margin-top: 10px;
   }
 
-  .list-wrap { flex: 999 1 520px; min-width: 0; }
+  .list-wrap { grid-column: 1; min-width: 0; }
   .side {
     --card-pad: 22px;
 
-    flex: 1 1 260px;
+    grid-column: 2;
+    grid-row: 2;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -533,7 +530,7 @@
     justify-content: space-between;
     gap: 12px;
   }
-  .list__head { padding: 0 4px 14px; }
+  .list__head { grid-column: 1; padding-inline: 4px; }
   .side__head { margin-bottom: 16px; }
 
   .rows, .mods { list-style: none; margin: 0; padding: 0; }
@@ -549,7 +546,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-1);
-    padding: var(--bb-space-6) var(--bb-space-6) var(--bb-space-4);
+    padding: var(--bb-space-6) var(--bb-space-5) var(--bb-space-4);
     box-shadow: inset 0 -1px 0 rgba(var(--bb-white-rgb), 0.05);
   }
   .group__title {
@@ -594,6 +591,8 @@
     gap: 6px;
     padding-top: 2px;
   }
+
+  .row__uses { flex-basis: 100%; text-align: right; }
 
   .mods-wrap { position: relative; }
   .mods { display: flex; flex-direction: column; }
@@ -647,6 +646,11 @@
     gap: 10px;
   }
 
+  @media (min-width: 641px) and (max-width: 899px) {
+    .columns { grid-template-columns: minmax(0, 1fr); }
+    .side { grid-column: 1; grid-row: auto; }
+  }
+
   @media (max-width: 640px) {
     .page { padding-top: calc(var(--bb-nav-height) + var(--bb-space-6)); }
     .toolbar { display: contents; }
@@ -658,10 +662,11 @@
       background: var(--bb-black);
     }
     .filters { margin-bottom: 16px; }
-    .columns { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px; margin-top: 0; }
+    .columns { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px; margin-top: 0; }
+    .columns > .list__head { order: 2; width: 100%; }
     .list-wrap { flex: 0 0 auto; order: 3; }
     .side { display: contents; }
-    .modules { --card-pad: 14px; order: 2; }
+    .modules { --card-pad: 14px; order: 1; }
     .legend { --card-pad: 14px 16px; order: 4; }
     .mods { flex-direction: row; gap: 8px; overflow-x: auto; scrollbar-width: none; }
     .mods::-webkit-scrollbar { display: none; }
@@ -673,6 +678,7 @@
     .side__head { margin-bottom: 10px; }
     .row__trigger { flex-basis: 100%; }
     .row__tags { flex-basis: 100%; justify-content: flex-start; }
+    .row__uses { flex-basis: auto; text-align: left; }
     .list__head { padding: 14px 18px; }
     .group__head { padding: var(--bb-space-5) var(--bb-space-4) var(--bb-space-3); }
   }

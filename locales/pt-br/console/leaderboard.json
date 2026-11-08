@@ -29,5 +29,7 @@
   "donateTitle": "As doações mantêm o plano Gratuito grátis.",
   "donateText": "Cada canal, grátis ou Premium, roda nos mesmos servidores. O Premium e as doações pagam por eles, então uma doação no Ko-fi mantém o bot online para todos.",
   "donateCta": "Doar no Ko-fi",
-  "donateNote": "Qualquer valor. Sem benefícios em troca."
+  "donateNote": "Qualquer valor. Sem benefícios em troca.",
+  "supportBotTitle": "Apoie o bot do seu streamer.",
+  "supportBotCta": "Apoiar no Ko-fi"
 }

@@ -29,5 +29,7 @@
   "donateTitle": "Spenden halten den kostenlosen Tarif kostenlos.",
   "donateText": "Jeder Kanal, ob kostenlos oder Premium, läuft auf denselben Servern. Premium und Spenden bezahlen sie, also hält eine Spende auf Ko-fi den Bot für alle online.",
   "donateCta": "Auf Ko-fi spenden",
-  "donateNote": "Jeder Betrag. Ohne Gegenleistung."
+  "donateNote": "Jeder Betrag. Ohne Gegenleistung.",
+  "supportBotTitle": "Unterstütze den Bot deines Streamers.",
+  "supportBotCta": "Auf Ko-fi unterstützen"
 }
