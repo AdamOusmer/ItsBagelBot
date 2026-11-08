@@ -1,0 +1,50 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+name: Documentation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Source changes can break documentation links even when no page was edited.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  documentation:
+    name: Validate engineering documentation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/docs
+    steps:
+      - name: Check out source and documentation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: Install workspace dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+      - name: Test documentation policies and navigation
+        run: bun test src
+      - name: Check content and source references
+        run: bun run check:content
+      - name: Check French coverage
+        working-directory: .
+        run: python3 scripts/translations.py check --strict fr
+      - name: Install diagram browser
+        run: bunx playwright install --with-deps chromium
+      - name: Render Mermaid diagrams
+        run: bun run check:diagrams
+      - name: Build site and search index
+        run: bun run build

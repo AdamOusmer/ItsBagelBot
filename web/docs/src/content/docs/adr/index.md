@@ -2,59 +2,23 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Architecture Decision Records
-description: The decision log for ItsBagelBot. Why the system looks the way it does.
+description: The architecture decision log.
+docType: reference
 ---
 
-Architecture Decision Records (ADRs) capture the **reasoning** behind architectural choices: the context that motivated
-a decision, the option that was chosen, the consequences that follow, and the alternatives that were weighed.
+Decisions retain their original dates and statuses. These summaries describe the choices and trade-offs in light of the current code. Superseded decisions remain in the log. The former hosting and observability provider records were retired during reorganization; they remain available in Git history.
 
-ADRs are **immutable** once accepted. If a later decision changes course, we don't edit the original. We write a new
-ADR that supersedes it and update the older one's status to point forward.
+| Decision | Date | Status |
+| --- | --- | --- |
+| [0001 - Rewrite as services](/adr/0001-rewrite-as-services/) | 2025-12-25 | Superseded in part by [ADR 0005](/adr/0005-elixir-twitch-ingress/); the rewrite and service boundaries remain. |
+| [0002 - Go for services](/adr/0002-go-for-services/) | 2026-01-04 | Accepted; refined by [ADR 0005](/adr/0005-elixir-twitch-ingress/). |
+| [0003 - NATS for service communication](/adr/0003-nats-service-communication/) | 2026-05-23 | Accepted. |
+| [0004 - MySQL for durable state](/adr/0004-mysql-durable-state/) | 2026-05-23 | Accepted. |
+| [0005 - Elixir for Twitch ingress](/adr/0005-elixir-twitch-ingress/) | 2026-05-23 | Accepted; supersedes [ADR 0001](/adr/0001-rewrite-as-services/) in part. |
+| [0006 - Data service ownership](/adr/0006-data-service-ownership/) | 2026-06-09 | Accepted. |
+| [0007 - Cache and write-behind](/adr/0007-cache-and-write-behind/) | 2026-06-09 | Accepted. |
+| [0008 - Shared read projection](/adr/0008-shared-read-projection/) | 2026-06-09 | Accepted. |
+| [0009 - Transactions owns giveaway awards](/adr/0009-transactions-own-giveaway-awards/) | 2026-09-15 | Accepted and implemented; fulfillment paths have separate gates. |
+| [0010 - Kit owns the public variable inventory](/adr/0010-kit-variable-inventory/) | 2026-09-18 | Accepted and implemented. |
 
-## The log
-
-ADRs are listed in the sidebar in numerical order. Each filename follows the pattern `NNNN-kebab-case-title.md`.
-
-## Writing a new ADR
-
-From the `web/docs/` directory:
-
-```sh
-bun run adr:new "Short title of the decision"
-# or: npm run adr:new "Short title of the decision"
-```
-
-The wrapper points `adr-tools` at the project template (`web/docs/.adr/template.md`) and writes the new file into this
-folder with the next sequential number.
-
-To supersede or link to an existing record:
-
-```sh
-bun run adr:new -- -s 3 "Replaces decision 3"
-bun run adr:new -- -l "3:Amends:Amended by" "Amends decision 3"
-adr list
-```
-
-## What deserves an ADR?
-
-Write an ADR when a choice is:
-
-- **Architecturally significant:** It shapes how other components are built or constrains future options.
-- **Costly to reverse:** Flipping the decision later would require coordinated change across services, infrastructure,
-  or data.
-- **Non-obvious:** A future maintainer reading the code would reasonably ask *"why this way?"*
-
-Day-to-day refactors, bug fixes, and naming preferences don't need ADRs. Commit messages and PR descriptions are the
-right home for those.
-
-## Anatomy of a record
-
-Each ADR contains:
-
-- **Status:** Proposed, Accepted, Deprecated, or Superseded by `[ADR-NNNN]`.
-- **Context:** The forces in play: constraints, requirements, prior decisions, incidents that prompted it.
-- **Decision:** The choice, stated in the active voice ("We will…").
-- **Consequences:** What becomes easier, harder, or riskier as a result. Be honest about the trade-offs.
-- **Alternatives considered:** Options that were weighed and why they lost.
-
-See [`adr help`](https://github.com/npryce/adr-tools) for the full command reference.
+To add a decision, run `bun run adr:new "Short title"` from `web/docs/`, then add its translation in `fr/adr/` with the same number and filename. Reserve ADRs for choices that are costly to reverse, non-obvious and involve a real trade-off.

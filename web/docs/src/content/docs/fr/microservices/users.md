@@ -1,20 +1,33 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: "Users"
-description: "Gère les comptes utilisateurs, la garde des jetons Twitch, le statut d’accès, le staff et la délégation."
+title: Users
+description: "Gère les comptes, les droits, les préférences des chaînes, les identifiants Twitch, le personnel, les délégations et les autorisations d’appareil."
+docType: reference
 ---
 
-Le service Users (`app/db/users/`) est l’autorité centrale de gestion des identités dans ItsBagelBot.
+## Responsabilités
 
-## Architecture
+Les autres services utilisent ses RPC plutôt que son schéma. Il émet des événements de modification et de suppression pour les projections et le nettoyage. Les opérations sur les jetons ont une surface RPC interne distincte.
 
-- **Propriété** : possède le schéma MySQL Users contenant les identifiants Twitch, les préférences, les jetons OAuth et l’e-mail de contact chiffrés, les statuts des comptes, les attributions Premium promotionnelles, les rôles du staff avec un journal d’audit et les délégations du tableau de bord.
-- **Niveaux de statut** : détermine si un compte est `free`, `paid` ou `vip`, ce qui régit son accès aux fonctionnalités Premium ou aux voies de routage. `paid` peut venir d’un abonnement Tebex ou d’une attribution de concours ; `vip` est permanent.
-- **Événements** : publie `data.users.changed` (avec une révision d’état) et `data.users.deleted`, et diffuse des invalidations de cache. Les services fonctionnels nettoient eux-mêmes leurs données après une suppression.
-- **RPC** : sert le tableau de bord (`bagel.rpc.dashboard.*`), les opérations admin sur les comptes (`bagel.rpc.admin.user.*`), l’application de la facturation (`bagel.rpc.internal.billing.apply`), l’éligibilité et les attributions des concours, la délégation et la projection sans secret (`bagel.rpc.internal.projection.users.get`).
-- **Coffre de jetons** : gère les jetons OAuth Twitch sensibles. Il sert de coffre interne ; les autres services, comme Outgress, interrogent Users de façon sécurisée par RPC NATS (`bagel.rpc.internal.tokens.*`, opérations `get` et `save`) afin d’obtenir un accès pour agir au nom de l’utilisateur. Les jetons et les e-mails de contact sont chiffrés au repos.
+## Interfaces
 
-## Authentification entre services
+Les RPC du tableau de bord utilisent par défaut `bagel.rpc.dashboard.*` ; l’autorisation des appareils utilise `bagel.rpc.dashboard.device.*`. Les changements et suppressions publient `data.users.changed` et `data.users.deleted`.
 
-L’autorisation NATS restreint l’accès aux sujets `bagel.rpc.internal.tokens.*`. Seuls les services autorisés, Twitch Outgress et Users lui-même, peuvent accéder à ces sujets, ce qui protège strictement les jetons en clair au sein du cluster.
+L’inscription et les changements de droits sont persistés immédiatement. Certaines préférences sont regroupées avant écriture : acceptation et persistance sont donc distinctes. Une modification persistée publie `data.users.changed`. La suppression écrit d’abord dans un registre d’effacement, révoque les jetons et émet `data.users.deleted` ; un échec du registre empêche la suppression. Les lectures sensibles utilisent des RPC internes, pas les projections. Les opérations du tableau de bord et des appareils utilisent par défaut `bagel.rpc.dashboard.*`.
+
+## État et dépendances
+
+Users possède le schéma des comptes et des identifiants ; les consommateurs utilisent les RPC ou les projections.
+
+## Comportement en cas d’échec
+
+Les préférences acceptées en écriture différée ne sont pas encore persistées. La suppression s’arrête si l’écriture du registre d’effacement échoue.
+
+## Code
+
+Source : [app/db/users/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/db/users). Voir `main.go`, `rpc/`, `repository/` et `ent/schema/` ; la signature des jetons d’appareil se trouve dans `tokensign/`.
+
+## Validation
+
+Depuis la racine, exécuter `go test ./app/db/users/...`.

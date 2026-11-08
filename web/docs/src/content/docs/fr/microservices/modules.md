@@ -1,22 +1,33 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: "Modules"
-description: "Gère les réglages des modules par diffuseur, les citations, les compteurs d’alimentation et les identifiants d’intégrations."
+title: Modules
+description: "Gère la configuration des modules par chaîne, les citations, l’état des fonctionnalités et les identifiants d’intégration."
+docType: reference
 ---
 
-Le service Modules (`app/db/modules/`) gère la configuration et l’état d’activation des modules fonctionnels pour chaque diffuseur. Il conserve aussi les carnets de citations des chaînes, les totaux à vie de l’alimentation des bagels et les identifiants Govee et Spotify chiffrés.
+## Responsabilités
 
-## Architecture
+Le tableau de bord écrit auprès du service propriétaire ; Sesame lit les projections. Gossip résout les identifiants au besoin. Les changements alimentent Projector ; un module enregistré dans le code n’est pas forcément activé pour une chaîne.
 
-Comme les autres services de données, Modules suit un modèle de propriété strict :
+## Interfaces
 
-- **Propriété** : propriétaire unique du schéma MySQL des modules.
-- **Interface RPC** : sert le tableau de bord sous `bagel.rpc.modules.*` (`list`, `upsert`, `patch`, `patch-existing`, plus les opérations de citations et de personnalité) et fournit des vues de réparation sans secret via `bagel.rpc.internal.projection.modules.get`.
-- **Émission d’événements** : émet `data.modules.changed` avec la révision enregistrée. Un `upsert` du tableau de bord est écrit avant le retour de la réponse ; les écritures en arrière-plan sont groupées.
-- **Invalidation du cache** : diffuse sur `bagel.cache.invalidate.<portée>` lorsqu’un module est activé, désactivé ou reconfiguré, afin que le moteur Sesame adapte son pipeline d’exécution.
-- **Identifiants** : les clés Govee et l’application et les jetons de rafraîchissement Spotify sont chiffrés dans des tables séparées et n’entrent jamais dans les blocs de configuration ni dans les projections. Gossip les lit par des RPC internes de déchiffrement.
+Le préfixe RPC par défaut est `bagel.rpc.modules`, notamment `list`, `upsert`, `patch` et `patch-existing`. La réparation des projections utilise `bagel.rpc.internal.projection.modules.get`.
 
-## Configuration des modules
+Les écritures du tableau de bord sont persistées avant la réponse ; celles en arrière-plan peuvent être regroupées. Une modification avec une révision attendue périmée renvoie un conflit. `patch-existing` exige aussi l’identifiant attendu et ne crée jamais de remplacement. Les changements persistés invalident les caches locaux et la RPC interne de projection renvoie une vue sans secrets.
 
-Les modules d’ItsBagelBot sont configurables par chaîne. Ce service conserve les blocs de configuration JSON et les booléens d’activation (`IsEnabled`) associés aux identités de module déclarées dans le moteur [Sesame](/fr/microservices/sesame/). Lorsqu’il traite un événement, Sesame consulte sa projection locale `ModuleView`, alimentée par ce service, pour déterminer si les handlers ou commandes du module doivent s’exécuter.
+## État et dépendances
+
+Modules possède les réglages des chaînes et les identifiants d’intégration ; Projector conserve des vues dérivées sans secrets.
+
+## Comportement en cas d’échec
+
+Une révision attendue périmée produit un conflit. Les écritures en arrière-plan peuvent rester en attente après acceptation.
+
+## Code
+
+Source : [app/db/modules/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/db/modules). Voir `main.go`, `rpc/`, `repository/` et `ent/schema/`.
+
+## Validation
+
+Depuis la racine, exécuter `go test ./app/db/modules/...`.

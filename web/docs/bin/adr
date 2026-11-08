@@ -1,21 +1,31 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-# Wraps adr-tools with the local template and rewrites the new ADR's title number to the zero-padded filename form.
-set -euo pipefail
+"""Create an ADR in the documentation site's existing decision log."""
+import datetime
+import json
+import re
+import sys
+from pathlib import Path
 
-project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-export ADR_TEMPLATE="$project_root/.adr/template.md"
-
-cd "$project_root"
-
-if [ "${1:-}" = "new" ]; then
-    shift
-    file=$(adr new "$@" | tail -n 1)
-    num=$(basename "$file" | grep -oE '^[0-9]+')
-    sed -i '' -E "s/^title: \"[0-9]+ - (.*)\"\$/title: \"$num - \\1\"/" "$file"
-    echo "$file"
-else
-    exec adr "$@"
-fi
+root = Path(__file__).resolve().parent.parent
+if len(sys.argv) != 3 or sys.argv[1] != 'new' or not sys.argv[2].strip():
+    sys.exit('Usage: bin/adr new "Short title"')
+title = sys.argv[2].strip()
+slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+if not slug:
+    sys.exit('Title must contain an ASCII letter or number.')
+directory = root / (root / '.adr-dir').read_text().strip()
+numbers = [int(m.group(1)) for p in directory.glob('*.md') if (m := re.match(r'^(\d+)-', p.name))]
+number = max(numbers, default=0) + 1
+path = directory / f'{number:04}-{slug}.md'
+template = (root / '.adr/template.md').read_text()
+values = {
+    'TITLE_YAML': json.dumps(f'{number:04} - {title}', ensure_ascii=False),
+    'DESCRIPTION_YAML': json.dumps(f'Architecture decision record: {title}', ensure_ascii=False),
+    'DATE': datetime.date.today().isoformat(),
+}
+content = re.sub(r'TITLE_YAML|DESCRIPTION_YAML|DATE', lambda match: values[match.group()], template)
+with path.open('x') as out:
+    out.write(content)
+print(path.relative_to(root))

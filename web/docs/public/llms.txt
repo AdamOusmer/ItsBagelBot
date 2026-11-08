@@ -13,10 +13,16 @@
 
 - [Home](https://docs.itsbagelbot.com/): documentation index.
 - [Getting started](https://docs.itsbagelbot.com/guides/getting-started/): developer onboarding.
+- [Testing](https://docs.itsbagelbot.com/guides/testing/): focused tests and documentation checks.
 - [Architecture](https://docs.itsbagelbot.com/architecture/): how the platform fits together.
 - [Microservices](https://docs.itsbagelbot.com/microservices/): one page per service (ingress, sesame, commands, modules, users, notifications, and more).
 - [Reference](https://docs.itsbagelbot.com/reference/system-overview/): system overview and RPC contracts.
 - [ADRs](https://docs.itsbagelbot.com/adr/): architecture decision records with the reasoning behind each choice.
+
+- [Shared packages](https://docs.itsbagelbot.com/reference/shared-packages/): common runtime boundaries.
+- [Runtime configuration](https://docs.itsbagelbot.com/infrastructure/runtime-configuration/): startup, configuration and dependency ownership.
+
+- [Documentation standards](https://docs.itsbagelbot.com/reference/documentation-standards/): page types, writing, diagrams, and review requirements.
 
 ## Related
 

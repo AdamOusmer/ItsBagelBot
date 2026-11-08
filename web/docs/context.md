@@ -17,7 +17,7 @@ This is the Astro documentation package, deployed as a static site.
 | Term | Meaning here |
 | --- | --- |
 | Docs collection | Astro content collection loaded from `src/content/docs/`. |
-| Space | One of the five top-level sections (Start, Services, Platform, Reference, Records). A space's sidebar lists only its own pages. |
+| Space | One of the five top-level sections (Guides, Architecture, Services, Reference, Decisions). A space's sidebar lists only its own pages. |
 | Reference | Current shape, contracts and inventories used while implementing changes. |
 | Architecture | System boundaries, ownership and communication model. |
 | Data & State | Persistence/projection/cache model across services. |
@@ -46,7 +46,7 @@ An old ADR describes the decision at the time; it may have been superseded by la
 - [architecture/index.md](src/content/docs/architecture/index.md): external dependencies and boundaries.
 - [microservices/index.md](src/content/docs/microservices/index.md): links to individual service ownership.
 - [data-and-state/index.md](src/content/docs/data-and-state/index.md): persistence, projection and caching.
-- `src/content/docs/infrastructure/`: deployment, networking and performance material.
+- `src/content/docs/infrastructure/`: runtime configuration, observability, performance and release code.
 - `src/content/docs/guides/`: contributor/operator onboarding guides.
 - `src/content/docs/qa/`: recorded experiments, canaries and review reports.
 - [adr/index.md](src/content/docs/adr/index.md): chronological architecture decisions.
@@ -56,7 +56,7 @@ An old ADR describes the decision at the time; it may have been superseded by la
 
 ## Content/build flow
 
-- Edit Markdown with `title` frontmatter; the content loader validates the schema at build.
+- Edit Markdown with required `title`, `description` and `docType` frontmatter; the content loader validates the schema at build.
 - A new page must be listed in `src/lib/spaces.ts` or the build fails. Numbered files under `adr/` join on their own.
 - Localized content lives under locale directories in the docs collection (for example `fr/`);
   shared docs catalogs supply chrome copy, rather than translating page bodies automatically.
@@ -77,13 +77,18 @@ An old ADR describes the decision at the time; it may have been superseded by la
 - Pagefind needs `'wasm-unsafe-eval'` in the `public/_headers` CSP. `astro preview` does not apply that file,
   so test search under the real header.
 - Use app-level style overrides rather than copying shared primitive markup/CSS into documentation.
-- The ADR helper relies on external `adr-tools` and uses macOS `sed -i ''`; it is not a bundled compiler.
+- `automod/IMPLEMENTATION.md` and `urlfetch/IMPLEMENTATION.md` are unpublished source-grounded status notes, not deployment or rollout promises.
 
 ## Focused commands
 
-From `web/docs`: `bun run dev`, `bun run build`, `bun run preview`.
-From `web`: `bun test docs` covers the page-to-space mapping and catalog keys; build validates collection/rendering changes.
-From `web/docs`: `bun run adr:new -- "Decision title"` invokes [bin/adr](bin/adr),
-using `.adr/template.md` and the existing local ADR configuration; requires `adr` on PATH.
+From `web/docs`: `bun run dev`, `bun run check:content`, `bun run check:diagrams`, `bun run build`, `bun run preview`.
+The diagram check renders every Mermaid block in Chromium; install it with `bunx playwright install chromium`.
+From `web`: `bun test docs` covers Markdown policy, page-to-space mapping and catalog keys; build validates collection/rendering changes.
+From `web/docs`: `bun run adr:new "Decision title"` invokes [bin/adr](bin/adr),
+using Python 3, `.adr/template.md` and `.adr-dir`. Add the French record with the same number and filename.
 When shared UI changed, also use its focused tests/build consumers instead of assuming a docs build
 checks every adapter contract. Verify diagram/navigation layout visually after relevant changes.
+
+Documentation conventions: [documentation-standards.md](src/content/docs/reference/documentation-standards.md).
+[templates/](templates/) contains reusable how-to, service-reference and explanation structures.
+[Documentation CI](../../.github/workflows/docs.yml) checks metadata, content links, translation parity, diagram rendering and site output.

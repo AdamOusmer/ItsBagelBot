@@ -22,9 +22,11 @@ test('a page outside every space fails the build', () => {
   expect(() => spaceOf('nowhere/at-all', spaces)).toThrow('belongs to no space');
 });
 
-test('neighbours stay inside the space and cross its groups', () => {
-  const records = spaceOf('qa', spaces);
-  const lastAdr = records.groups[0].pages.at(-1)!;
-  expect(neighbours('qa', records)).toEqual({ prev: lastAdr, next: 'qa/monkey' });
-  expect(neighbours('adr', records).prev).toBeUndefined();
+test('guide navigation crosses task groups while decisions remain isolated', () => {
+  const guides = spaceOf('guides/testing', spaces);
+  expect(neighbours('reference/sesame-module-builder', guides)).toEqual({ prev: 'guides/testing', next: 'infrastructure/observability' });
+  expect(neighbours('guides/getting-started', guides).prev).toBeUndefined();
+  const decisions = spaceOf('adr', spaces);
+  expect(neighbours('adr', decisions).prev).toBeUndefined();
+  expect(neighbours(decisions.groups[0].pages.at(-1)!, decisions).next).toBeUndefined();
 });

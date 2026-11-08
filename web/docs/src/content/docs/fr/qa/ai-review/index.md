@@ -1,30 +1,28 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: "Revues de code par IA"
-description: "Lectures d’un sous-système ou d’une pull request assistées par modèle, avec verdict du modèle et triage humain."
+title: Examiner un constat candidat
+description: Valider un candidat à partir d’un déclencheur concret et de preuves.
+docType: how-to
 ---
 
-Chaque entrée ci-dessous est une revue datée d’un commit ou d’une pull request précise. Le modèle reçoit toujours la même consigne : signaler les bugs de correction, les problèmes de sécurité et les contrats faciles à mal utiliser. Sa sortie brute est conservée dans le rapport ; le triage humain figure dans une section séparée, afin qu’un futur lecteur distingue ce qui vient du modèle de ce qui vient de l’équipe.
+Cette procédure distingue un constat proposé par un modèle d’une conclusion validée.
 
-## Rapports
+## Prérequis
 
-| N° | Date | Périmètre | Commit | Modèle | Verdict |
-|---|------|-------|--------|-------|---------|
+Identifiez le code concerné et le périmètre de la revue. Le modèle se trouve dans `web/docs/.qa/template-ai-review.md`. Des revues de travail ciblées se trouvent dans `docs/reviews/`; vérifiez leur périmètre et leur date avant de considérer une conclusion comme actuelle.
 
-*Aucune revue publiée pour le moment.*
+## Procédure
 
-## Pourquoi les conserver
+1. Identifiez le code concerné et l’entrée ou l’état précis qui déclenche le problème candidat.
+2. Suivez le chemin de code ou exécutez un test adapté pour établir la conséquence observée. Si du code généré est concerné, examinez le schéma propriétaire ou le contrat partagé.
+3. Consignez si le candidat est confirmé, rejeté ou laissé ouvert, ainsi que les preuves et le raisonnement.
+4. Après correction, liez le changement et la validation qui couvre le déclencheur.
 
-Les revues par IA produisent du bruit : elles signalent de vrais bugs, des faux positifs et inventent parfois des éléments absents du diff. Publier le verdict brut avec le triage humain permet de répondre rétrospectivement à la question « le modèle a-t-il réellement aidé ici ? » avec des faits plutôt qu’une impression.
+## Vérifier et consigner
 
-## Périmètre inclus
+Vérifiez qu’une autre personne peut suivre le déclencheur, le code et les preuves jusqu’à la conclusion. Un paragraphe affirmatif ne constitue pas une preuve. Suivez les conseils sur les [preuves de validation](/fr/qa/) et consultez les [tests](/fr/guides/testing/) pour les commandes.
 
-- Nouveaux microservices et sous-systèmes importants lors de leur première intégration.
-- Changements justifiant un ADR : un changement disposant de son propre ADR est revu une fois son implémentation intégrée.
-- Surfaces sensibles pour la sécurité : authentification, stockage de jetons, tout ce qui traite les identifiants des diffuseurs.
+## Limites
 
-## Périmètre exclu
-
-- Refactorisations, renommages et corrections du quotidien : le modèle produirait surtout du bruit.
-- Code généré (mocks, protobufs, stubs OpenAPI) : le contrat appartient au schéma, pas au résultat généré.
+Distinguez les candidats proposés par un modèle de leur validation humaine. Aucun rapport numéroté de revue par IA n’est publié dans cette section.
