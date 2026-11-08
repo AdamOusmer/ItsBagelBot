@@ -88,8 +88,10 @@ func (p *Pipeline) moduleLookup(views map[string]projection.ModuleView, c *modul
 }
 
 func trialReadOnlyCommand(name string) bool {
+	// Followage and uptime require registered-channel admission in Outgress.
+	// Trial chat must stop here instead of issuing lookups that cannot succeed.
 	switch name {
-	case "ping", "itsbagelbot", "clip", "followage", "accountage", "uptime",
+	case "ping", "itsbagelbot", "clip", "accountage",
 		"bagels", "fed", "bagelcount", "bagelboard", "feedboard", "bagellb",
 		"title", "settitle", "game", "setgame", "tags", "settags", "commercial", "ad", "marker":
 		return true

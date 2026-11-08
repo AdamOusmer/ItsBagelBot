@@ -1,0 +1,218 @@
+{
+  "baseline_commit": "6861f8d9c917a06a7e9fd60218eb6cfdf81b4d1f",
+  "candidate_branch": "perf/gossip-game-fetches",
+  "go_version": "go version go1.27.1 darwin/arm64",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "command": [
+    "go",
+    "test",
+    "./app/gossip/internal/providers/paceman",
+    "./app/gossip/internal/providers/fortnite",
+    "./app/gossip/internal/providers/valorant",
+    "-run",
+    "^$",
+    "-bench",
+    "Benchmark(PacemanColdSession|FortniteStatsAfterSnapshot|ValorantRankThenAccount)$",
+    "-benchtime=10x",
+    "-count=5",
+    "-timeout=90s"
+  ],
+  "fixture": {
+    "http_delay_ms": 50,
+    "cache": "new in-memory store per operation",
+    "external_apis": false,
+    "limiter": "disabled for latency fixture; admission correctness covered by tests"
+  },
+  "timing_scope": {
+    "PaceMan": "cold session, provider/server setup excluded",
+    "Fortnite": "stats command immediately after fresh snapshot; snapshot setup excluded",
+    "Valorant": "cold automatic-region rank lookup then account lookup; provider/server setup excluded"
+  },
+  "candidate_runtime_sha256": [
+    {
+      "path": "app/gossip/internal/config/config.go",
+      "sha256": "1a83d03167ca4eeaf743d051ff523cc7fa47ca5dde754182a50f04640b3296fe"
+    },
+    {
+      "path": "app/gossip/internal/core/buckets.go",
+      "sha256": "8a2bc2ff4c8a2dd80ff832932ae4bfd08d7b12a4e579c4aed97b2f4277df74c7"
+    },
+    {
+      "path": "app/gossip/internal/core/bytes.go",
+      "sha256": "f589a2f96f6959a3651c17bfa5f8fc6d6624fbf7461f770b266b5df0b3c9ed7d"
+    },
+    {
+      "path": "app/gossip/internal/core/cache.go",
+      "sha256": "5e7cd08419d2c463fe95ff28718b8da082b94dd305a67033c57d2ca3c0d04521"
+    },
+    {
+      "path": "app/gossip/internal/core/deadline.go",
+      "sha256": "4d3366b5508aebd21699475456c30a6fa83628820d9934ad59099b80ecd9ab57"
+    },
+    {
+      "path": "app/gossip/internal/core/entry.go",
+      "sha256": "3fea64fcb0323bf2777e056ed6cb8daa7a58e3a89b52c47e4658c04a23a24909"
+    },
+    {
+      "path": "app/gossip/internal/core/fetchkeys.go",
+      "sha256": "b3e7d285b9401e669dd79ffacd5361fa05f0981ac1ee313e40b3c2b7f2bd76a4"
+    },
+    {
+      "path": "app/gossip/internal/core/flight.go",
+      "sha256": "fecefb4120b289451901445a20558705c94536e2fe92aa80b5e99f140169f0d5"
+    },
+    {
+      "path": "app/gossip/internal/core/goveekeys.go",
+      "sha256": "5259bd0d4f7912cbc858666528d39622546a8fe3da507fd7753518d3168cf11f"
+    },
+    {
+      "path": "app/gossip/internal/core/http.go",
+      "sha256": "c20859edc525acfa805afe8fd54d3b4f514e5facedfa20860c6518d4e4e95f65"
+    },
+    {
+      "path": "app/gossip/internal/core/keyclient.go",
+      "sha256": "265aee80977bac3b3a4963f0d7dae33d8c2b2b30d3bdafd50707f8d4a2c1e7c8"
+    },
+    {
+      "path": "app/gossip/internal/core/reply.go",
+      "sha256": "c961f6a62bd52b292e14edfc5e09d0fc78bf218e4ed5f2dd915a274e1b9ad7ce"
+    },
+    {
+      "path": "app/gossip/internal/core/spotifykeys.go",
+      "sha256": "fc57e0c7d1912e62c249f75bc37da87271c13c77e920b8d673cc8accecea5b88"
+    },
+    {
+      "path": "app/gossip/internal/core/telemetry.go",
+      "sha256": "10b3bd2bf598d89f519f92e6fe7cda22ac4d99aee4d91c00ae4f5690edebd39b"
+    },
+    {
+      "path": "app/gossip/internal/engine/engine.go",
+      "sha256": "07eb4bf3246ccc75d673db35e12c42e0f79166a8c46245e0f9385e6a6f754dce"
+    },
+    {
+      "path": "app/gossip/internal/provider/builder.go",
+      "sha256": "870f46b8abba7533de4980a320a9403ae66873c9c75eca6e84e50f862cd18291"
+    },
+    {
+      "path": "app/gossip/internal/provider/flow.go",
+      "sha256": "fb362774b032e1617dbda1fd3bf279097443396ca7dabf383e3275de9b351127"
+    },
+    {
+      "path": "app/gossip/internal/provider/provider.go",
+      "sha256": "6dc8162fb4f0ee63fcc77bb6213c4c00098bd043322372ea033ffe33da500426"
+    },
+    {
+      "path": "app/gossip/internal/providers/all.go",
+      "sha256": "66b942a21c753583bc0a233fa2cab591804de10f449ab9781e4abf39ca1d7a1c"
+    },
+    {
+      "path": "app/gossip/internal/providers/clashroyale/clashroyale.go",
+      "sha256": "0263fa4fc3b0f867cf9c0ce38caa73cf74fbb2bac05e0fe834426987e17f90c2"
+    },
+    {
+      "path": "app/gossip/internal/providers/codm/codm.go",
+      "sha256": "e4f8ccb5b45745f943a31b0a42f853845d11867641aa16ea61424dce35d42332"
+    },
+    {
+      "path": "app/gossip/internal/providers/custom/custom.go",
+      "sha256": "92eee38338cf92dda7f567692b9495d6f5c63e1d60e9d7c3fc4dd7b842100fe7"
+    },
+    {
+      "path": "app/gossip/internal/providers/custom/extract.go",
+      "sha256": "03dd01d7bc82a01b4174cdf75b315ead6a1b702cdc8ae01a27c814867bee9fe9"
+    },
+    {
+      "path": "app/gossip/internal/providers/custom/post.go",
+      "sha256": "fd8e5ecf03f7a9c529de1f523f2be41131328ee777fefe7dea800d4fda2c1a7c"
+    },
+    {
+      "path": "app/gossip/internal/providers/fortnite/fortnite.go",
+      "sha256": "2984b53f8e99eccf853b0294cbcec60c4346d17cc66d2d782016f71b9cfec657"
+    },
+    {
+      "path": "app/gossip/internal/providers/fortnite/parse.go",
+      "sha256": "15900bdf14b683958e35e93400d439ee029d48543be0fab6d2dce160d83c612e"
+    },
+    {
+      "path": "app/gossip/internal/providers/govee/govee.go",
+      "sha256": "600c13274c63b6b5318c0365cf2c66093cefce2ce7c8ac0e566d7ca9204afa75"
+    },
+    {
+      "path": "app/gossip/internal/providers/hypixel/hypixel.go",
+      "sha256": "1bafe8aaa19aee6de820970f5552d775843265f37b0df67c4f6cb94ebd128d0c"
+    },
+    {
+      "path": "app/gossip/internal/providers/hypixel/hypixel_uuid.go",
+      "sha256": "75b25ccb2e4c926808e22eb5796f71ff7a8b773759ef0d7e3ece5a6705066f55"
+    },
+    {
+      "path": "app/gossip/internal/providers/mcsr/mcsr.go",
+      "sha256": "c111443a2645b9cb402226ee7d355b7fe45a3bd02151a0dff575293670092631"
+    },
+    {
+      "path": "app/gossip/internal/providers/paceman/paceman.go",
+      "sha256": "f2d469cd249fec0026d17a7db1f8e8542d13eff6868ff097d2243c0750a38c0c"
+    },
+    {
+      "path": "app/gossip/internal/providers/paceman/paceman_endpoints.go",
+      "sha256": "19a5446147a1dc36d3b19721cbac68361cf3a078000f2af86928571a4a852037"
+    },
+    {
+      "path": "app/gossip/internal/providers/paceman/paceman_reply.go",
+      "sha256": "93905f5abad855974cfdc9937fa7674038ad07bc44488b1af24b04375569e66a"
+    },
+    {
+      "path": "app/gossip/internal/providers/spotify/parse.go",
+      "sha256": "03a4285547bb72c684e9f072611585e4b4735d48df36830d1b0521835aebcce8"
+    },
+    {
+      "path": "app/gossip/internal/providers/spotify/rotate.go",
+      "sha256": "07f94fe6717d534d76db81bf639182060f717787d9deb219e3ac3e469cecdc05"
+    },
+    {
+      "path": "app/gossip/internal/providers/spotify/search.go",
+      "sha256": "1f5af0e66dfe500a380ad5d56df71d8be4f8e47f04e8fce9aefa25d6b734f49d"
+    },
+    {
+      "path": "app/gossip/internal/providers/spotify/share.go",
+      "sha256": "1019ba663274964d763a261f5cf0b5603022c7319c93b38a04b0d96c6a693494"
+    },
+    {
+      "path": "app/gossip/internal/providers/spotify/spotify.go",
+      "sha256": "8c4b4836bcb7f4b6668b51e2da0fb636ad9423d8df3aeacaa3df5ee38d31224e"
+    },
+    {
+      "path": "app/gossip/internal/providers/urchin/batch.go",
+      "sha256": "a2589211167c3816bd6e54669534d45a806891bc42d97ef468f77f5528065c8a"
+    },
+    {
+      "path": "app/gossip/internal/providers/urchin/urchin.go",
+      "sha256": "6dd5dc749b94a84a5d0e30bb54f1dacb12c3e73497dc3c13a0e879e8d5a13f41"
+    },
+    {
+      "path": "app/gossip/internal/providers/valorant/shop.go",
+      "sha256": "4e741005bf6c3260d60849f1be55002bcbeafdb033a4b729af3a17a5ce1654ca"
+    },
+    {
+      "path": "app/gossip/internal/providers/valorant/valorant.go",
+      "sha256": "8d5a0b5901263c4247493d3c6aa2e4b77fc32f3651adcde788208d011434938d"
+    },
+    {
+      "path": "app/gossip/internal/providertest/providertest.go",
+      "sha256": "005ed1153708a3b3f9c902a34a288dedc650e3195647f3b009c5562a0ad759c6"
+    },
+    {
+      "path": "app/gossip/internal/providertest/socks.go",
+      "sha256": "a11fa2ff2c440f31f4f25c686fd55a857f78ec422014a70190e535b8bff58560"
+    },
+    {
+      "path": "app/gossip/main.go",
+      "sha256": "e1efbe938a4691e6cac1c561eec9cefb26ef9142c487dcb3ce0f8b559d49f3bd"
+    }
+  ],
+  "limits": [
+    "Controlled local HTTP fixture; not a production end-to-end latency measurement.",
+    "Fixed50ms delay per upstream call. Real upstream latency, Valkey networking, rate admission and RPC queueing can differ.",
+    "Fortnite measurement excludes snapshot setup and applies only to the immediate following stats command."
+  ]
+}

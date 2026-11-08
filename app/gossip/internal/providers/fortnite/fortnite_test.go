@@ -395,9 +395,38 @@ func TestStatsUnknownPlayerNegativeCached(t *testing.T) {
 	assert.Equal(t, 1, upstream.Hits(), "unknown player must be served from the negative cache")
 }
 
-func TestSessionReportsGainsSinceTheStartSnapshot(t *testing.T) {
+func TestSessionStartRefreshesAndWarmsLifetimeStats(t *testing.T) {
 	up := newStatsUpstream(t, "Ninja", syntheticBlob)
 	p := newTestProvider(t, up, providertest.Forbid(t))
+	req := gossiprpc.Request{Account: "Ninja", ChannelID: "42"}
+	old := providertest.Call[gossiprpc.FortniteStatsReply](t, p, "stats", req)
+	require.Empty(t, old.Error)
+	require.Equal(t, int64(20), old.Overall.Wins)
+
+	up.setBody(`{"accountId":"deadbeef","stats":{
+		"br_placetop1_keyboardmouse_m0_playlist_defaultsolo": 25,
+		"br_matchesplayed_keyboardmouse_m0_playlist_defaultsolo": 170,
+		"br_kills_keyboardmouse_m0_playlist_defaultsolo": 600
+	}}`)
+	start := providertest.Call[gossiprpc.FortniteSnapshotReply](t, p, "session_start", req)
+	require.Empty(t, start.Error)
+	warm := up.paths()
+	require.Equal(t, []string{displayNamePath + "Ninja", statsLookupPath, statsLookupPath}, warm,
+		"a new session must fetch a fresh baseline even while ordinary stats are cached")
+
+	stats := providertest.Call[gossiprpc.FortniteStatsReply](t, p, "stats", req)
+	require.Empty(t, stats.Error)
+	assert.Equal(t, int64(25), stats.Overall.Wins)
+	sess := providertest.Call[gossiprpc.FortniteSessionReply](t, p, "session", req)
+	require.Empty(t, sess.Error)
+	assert.True(t, sess.HasSnapshot)
+	assert.Zero(t, sess.Wins, "the fresh result is also the new session baseline")
+	assert.Equal(t, warm, up.paths(), "stats and session reuse the fresh snapshot without another upstream call")
+}
+
+func TestSessionReportsGainsSinceTheStartSnapshot(t *testing.T) {
+	up := newStatsUpstream(t, "Ninja", syntheticBlob)
+	p, store := newProviderWithStore(t, up, providertest.Forbid(t))
 	req := gossiprpc.Request{Account: "Ninja", ChannelID: "42"}
 
 	snap := providertest.Call[gossiprpc.FortniteSnapshotReply](t, p, "session_start", req)
@@ -410,6 +439,8 @@ func TestSessionReportsGainsSinceTheStartSnapshot(t *testing.T) {
 		"br_kills_keyboardmouse_m0_playlist_defaultsolo": 600
 	}}`)
 
+	// A later session read refills after the warmed stats entry expires.
+	require.NoError(t, store.Del(context.Background(), lifetimeStatsKey(req.Account)))
 	sess := providertest.Call[gossiprpc.FortniteSessionReply](t, p, "session", req)
 
 	require.Empty(t, sess.Error)

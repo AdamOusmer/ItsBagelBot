@@ -10,7 +10,9 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
@@ -21,15 +23,30 @@ func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
 	}
 	hoursBetween := resolveHoursBetween(req.HoursBetween)
 
-	stats, err := p.cachedSessionStats(ctx, sessionQuery{Account: account, HoursBetween: hoursBetween}, req.IsPremium)
-	if err != nil {
-		return sessionErrorReply(log, account, err)
-	}
-	nethers, err := p.cachedSessionNethers(ctx, sessionQuery{Account: account, HoursBetween: hoursBetween}, req.IsPremium)
+	stats, nethers, err := p.sessionLookups(ctx, sessionQuery{Account: account, HoursBetween: hoursBetween}, req.IsPremium)
 	if err != nil {
 		return sessionErrorReply(log, account, err)
 	}
 	return buildSessionReply(account, stats, nethers)
+}
+
+func (p *api) sessionLookups(ctx context.Context, q sessionQuery, premium bool) (sessionStatsResponse, sessionNethersResponse, error) {
+	var stats sessionStatsResponse
+	var nethers sessionNethersResponse
+	g, gctx := errgroup.WithContext(ctx)
+	txn := newrelic.FromContext(ctx)
+	g.Go(func() (err error) {
+		stats, err = p.cachedSessionStats(newrelic.NewContext(gctx, txn.NewGoroutine()), q, premium)
+		return err
+	})
+	g.Go(func() (err error) {
+		nethers, err = p.cachedSessionNethers(newrelic.NewContext(gctx, txn.NewGoroutine()), q, premium)
+		return err
+	})
+	if err := g.Wait(); err != nil {
+		return sessionStatsResponse{}, sessionNethersResponse{}, err
+	}
+	return stats, nethers, nil
 }
 
 func sessionErrorReply(log *zap.Logger, account string, err error) gossiprpc.PacemanSessionReply {

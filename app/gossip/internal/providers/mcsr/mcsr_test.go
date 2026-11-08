@@ -267,6 +267,32 @@ func TestWeeklyRaceSharesOneUpstreamCallAcrossPlayers(t *testing.T) {
 	assert.Equal(t, 1, upstream.Hits())
 }
 
+func TestSessionStartRefreshesAndWarmsUserStats(t *testing.T) {
+	up := providertest.NewSequence(t,
+		providertest.Reply{Status: http.StatusOK, Body: userBody(1650, 40, 20, 61)},
+		providertest.Reply{Status: http.StatusOK, Body: userBody(1674, 43, 21, 65)},
+	)
+	p := newProvider(t, up)
+	req := gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}
+	old := providertest.Call[gossiprpc.McsrUserReply](t, p, "user", req)
+	require.Empty(t, old.Error)
+	require.Equal(t, 1650, old.Elo)
+
+	start := providertest.Call[gossiprpc.McsrSnapshotReply](t, p, "session_start", req)
+	require.Empty(t, start.Error)
+	assert.Equal(t, 1674, start.Elo, "the baseline must be freshly fetched rather than reused from cache")
+	require.Equal(t, 2, up.Hits())
+
+	user := providertest.Call[gossiprpc.McsrUserReply](t, p, "user", req)
+	require.Empty(t, user.Error)
+	assert.Equal(t, 1674, user.Elo)
+	sess := providertest.Call[gossiprpc.McsrSessionReply](t, p, "session", req)
+	require.Empty(t, sess.Error)
+	assert.True(t, sess.HasSnapshot)
+	assert.Zero(t, sess.EloChange)
+	assert.Equal(t, 2, up.Hits(), "user and session reuse the fresh snapshot without another upstream call")
+}
+
 func TestSessionTracksChangesSinceTheStoredBaseline(t *testing.T) {
 	var mu sync.Mutex
 	elo, wins, loses, played := 1650, 40, 20, 61

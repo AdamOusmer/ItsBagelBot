@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -174,6 +175,32 @@ func TestTrialNeverReadsTheAccount(t *testing.T) {
 				assert.Equal(t, "locale=", chatMessageText(t, pub.snapshot()[0].msg))
 			}
 		})
+	}
+}
+
+func TestTrialSkipsChannelLookupsBeforeRunningTheirHandlers(t *testing.T) {
+	for _, name := range []string{"followage", "uptime"} {
+		for _, real := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/registered=%t", name, real), func(t *testing.T) {
+				var calls int
+				m := module.NewModule("", module.KindCore)
+				m.Command(name).Everyone().Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
+					calls++
+					emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: "lookup result"})
+					return nil
+				})
+				pub := &fakePublisher{}
+				p := newPipelineWith(pub, fakeReader{}, m.Build())
+				require.NoError(t, p.Process(trialLine{text: "!" + name, real: real, gen: 9}.message(t)))
+				if real {
+					assert.Equal(t, 1, calls)
+					assert.Equal(t, []string{"lookup result"}, pub.chatTexts(t))
+				} else {
+					assert.Zero(t, calls, "trial requests must stop before an Outgress lookup can run")
+					assert.Empty(t, pub.snapshot())
+				}
+			})
+		}
 	}
 }
 

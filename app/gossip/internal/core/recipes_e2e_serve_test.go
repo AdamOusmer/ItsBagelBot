@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/provider"
 	"ItsBagelBot/app/gossip/internal/providers/custom"
 	"ItsBagelBot/app/gossip/internal/providers/govee"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/nats-io/nats.go"
@@ -53,7 +54,8 @@ func TestRecipesE2EServe(t *testing.T) {
 		deps.GoveeKeys = staticGoveeKey{}
 		active = append(active, govee.New(govee.Config{BaseURL: base}, deps))
 	}
-	require.NoError(t, engine.Serve(nc, os.Getenv("RECIPES_E2E_GOSSIP_PREFIX"), "gossip-e2e", active, nil, zap.NewNop()))
+	wiring := bus.RPCWiring{NC: nc, Queue: "gossip-e2e", Log: zap.NewNop()}
+	require.NoError(t, engine.Serve(wiring, os.Getenv("RECIPES_E2E_GOSSIP_PREFIX"), active))
 	fmt.Println("RECIPES_E2E_READY")
 	_, _ = io.Copy(io.Discard, os.Stdin)
 }

@@ -177,10 +177,14 @@ func (p *api) fetchUser(ctx context.Context, account string) (gossiprpc.McsrUser
 	return reply, nil
 }
 
-func (p *api) cachedUser(ctx context.Context, account string, isPremium bool) (gossiprpc.McsrUserReply, error) {
-	key := core.Key(providerName, "user", strings.ToLower(strings.TrimSpace(account)))
-	return core.Cached(ctx, p.cache, key, userTTL, 5*time.Minute, p.admit(isPremium), func(ctx context.Context) (gossiprpc.McsrUserReply, error) {
-		return p.fetchUser(ctx, account)
+func userKey(req gossiprpc.Request) string {
+	return core.Key(providerName, "user", strings.ToLower(strings.TrimSpace(req.Account)))
+}
+
+func (p *api) cachedUser(ctx context.Context, req gossiprpc.Request) (gossiprpc.McsrUserReply, error) {
+	key := userKey(req)
+	return core.Cached(ctx, p.cache, key, userTTL, 5*time.Minute, p.admit(req.IsPremium), func(ctx context.Context) (gossiprpc.McsrUserReply, error) {
+		return p.fetchUser(ctx, strings.TrimSpace(req.Account))
 	})
 }
 
@@ -190,7 +194,7 @@ func (p *api) user(ctx context.Context, req gossiprpc.Request) any {
 	if account == "" {
 		return gossiprpc.McsrUserReply{Error: "missing account"}
 	}
-	reply, err := p.cachedUser(ctx, account, req.IsPremium)
+	reply, err := p.cachedUser(ctx, req)
 	if err != nil {
 		if msg := friendlyError(err); msg != "" {
 			return gossiprpc.McsrUserReply{Nickname: account, Error: msg}
@@ -222,6 +226,9 @@ func (p *api) sessionStart(ctx context.Context, req gossiprpc.Request) any {
 		log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
 		return gossiprpc.McsrSnapshotReply{Error: "snapshot store failed"}
 	}
+	core.StoreCached(ctx, p.cache, core.StoreRequest[gossiprpc.McsrUserReply]{
+		Key: userKey(req), TTL: userTTL, NegativeTTL: negativeTTL, Value: user,
+	})
 	return gossiprpc.McsrSnapshotReply{Nickname: user.Nickname, Elo: user.Elo}
 }
 
@@ -248,10 +255,8 @@ func (p *api) sessionEnd(ctx context.Context, req gossiprpc.Request) any {
 }
 
 type sessionRequest struct {
-	log       *zap.Logger
-	channelID string
-	account   string
-	isPremium bool
+	log *zap.Logger
+	gossiprpc.Request
 }
 
 func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
@@ -259,11 +264,10 @@ func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
 	if account == "" || req.ChannelID == "" {
 		return gossiprpc.McsrSessionReply{Error: "missing account or channel"}
 	}
+	req.Account = account
 	sreq := sessionRequest{
-		log:       monitor.TxnLogger(ctx, p.log),
-		channelID: req.ChannelID,
-		account:   account,
-		isPremium: req.IsPremium,
+		log:     monitor.TxnLogger(ctx, p.log),
+		Request: req,
 	}
 
 	user, errReply, ok := p.sessionUser(ctx, sreq)
@@ -279,31 +283,31 @@ func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
 }
 
 func (p *api) sessionUser(ctx context.Context, req sessionRequest) (user gossiprpc.McsrUserReply, errReply gossiprpc.McsrSessionReply, ok bool) {
-	user, err := p.cachedUser(ctx, req.account, req.isPremium)
+	user, err := p.cachedUser(ctx, req.Request)
 	if err != nil {
 		if msg := friendlyError(err); msg != "" {
-			return gossiprpc.McsrUserReply{}, gossiprpc.McsrSessionReply{Nickname: req.account, Error: msg}, false
+			return gossiprpc.McsrUserReply{}, gossiprpc.McsrSessionReply{Nickname: req.Account, Error: msg}, false
 		}
-		req.log.Warn("mcsr session fetch failed", zap.String("account", req.account), zap.Error(err))
-		return gossiprpc.McsrUserReply{}, gossiprpc.McsrSessionReply{Nickname: req.account, Error: "stats lookup failed"}, false
+		req.log.Warn("mcsr session fetch failed", zap.String("account", req.Account), zap.Error(err))
+		return gossiprpc.McsrUserReply{}, gossiprpc.McsrSessionReply{Nickname: req.Account, Error: "stats lookup failed"}, false
 	}
 	return user, gossiprpc.McsrSessionReply{}, true
 }
 
 func (p *api) sessionSnapshot(ctx context.Context, req sessionRequest) (snap snapshot, hasSnapshot bool) {
-	ok, err := p.cache.GetJSON(ctx, snapshotKey(req.channelID), &snap)
+	ok, err := p.cache.GetJSON(ctx, snapshotKey(req.ChannelID), &snap)
 	if err != nil {
-		req.log.Warn("mcsr snapshot read failed", zap.String("channel_id", req.channelID), zap.Error(err))
+		req.log.Warn("mcsr snapshot read failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
 	}
-	if !ok || snap.Account != strings.ToLower(req.account) {
+	if !ok || snap.Account != strings.ToLower(req.Account) {
 		return snapshot{}, false
 	}
 	return snap, true
 }
 
 func (p *api) startSession(ctx context.Context, req sessionRequest, user gossiprpc.McsrUserReply) gossiprpc.McsrSessionReply {
-	if err := p.writeSnapshot(ctx, req.channelID, req.account, user); err != nil {
-		req.log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.channelID), zap.Error(err))
+	if err := p.writeSnapshot(ctx, req.ChannelID, req.Account, user); err != nil {
+		req.log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
 	}
 	return gossiprpc.McsrSessionReply{
 		Nickname:    user.Nickname,

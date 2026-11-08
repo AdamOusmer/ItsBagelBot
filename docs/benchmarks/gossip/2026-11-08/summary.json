@@ -1,0 +1,26 @@
+[
+  {
+    "benchmark": "BenchmarkPacemanColdSession",
+    "baseline_median_ns_per_op": 103468042,
+    "candidate_median_ns_per_op": 52018842,
+    "reduction_percent": 49.725,
+    "repetitions": 5,
+    "iterations_per_repetition": 10
+  },
+  {
+    "benchmark": "BenchmarkFortniteStatsAfterSnapshot",
+    "baseline_median_ns_per_op": 51661329,
+    "candidate_median_ns_per_op": 33879,
+    "reduction_percent": 99.934,
+    "repetitions": 5,
+    "iterations_per_repetition": 10
+  },
+  {
+    "benchmark": "BenchmarkValorantRankThenAccount",
+    "baseline_median_ns_per_op": 154633504,
+    "candidate_median_ns_per_op": 103503250,
+    "reduction_percent": 33.065,
+    "repetitions": 5,
+    "iterations_per_repetition": 10
+  }
+]

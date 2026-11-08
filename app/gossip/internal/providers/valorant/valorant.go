@@ -85,7 +85,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 
 	b.Endpoint("account").Timeout(handlerTimeout).
 		Cached(accountTTL, negativeTTL).
-		ID(riotID).
+		ID(accountID).
 		Reply(func(id, msg string) any { return accountReply{Player: id, Error: msg} }).
 		Budget(p.budget).
 		Fallback("account lookup failed").
@@ -219,6 +219,14 @@ func riotID(req gossiprpc.Request) (provider.ID, string) {
 	}, ""
 }
 
+func accountID(req gossiprpc.Request) (provider.ID, string) {
+	id, reject := riotID(req)
+	// Account data is independent of the requested region and platform. Retain
+	// their validation, but share the reply with a freshly resolved account.
+	id.Key = core.CacheID(id.Display)
+	return id, reject
+}
+
 func boardID(req gossiprpc.Request) (provider.ID, string) {
 	display := strings.TrimSpace(req.Account)
 	region, msg := normalizeRegion(req.Region)
@@ -267,17 +275,31 @@ func (p *api) effectiveRegion(ctx context.Context, id riotIDValue, region string
 func (p *api) resolveAccount(ctx context.Context, id riotIDValue) (accountInfo, error) {
 	key := core.Key(providerName, "resolve", id.cacheKey())
 	return core.Cached(ctx, p.cache, key, resolveTTL, negativeTTL, nil, func(ctx context.Context) (accountInfo, error) {
-		var wire accountWire
-		path := "/valorant/v2/account/" + url.PathEscape(id.name) + "/" + url.PathEscape(id.tag)
-		if err := p.http.GetJSON(ctx, path, nil, &wire); err != nil {
+		info, err := p.fetchAccount(ctx, id)
+		if err != nil {
 			return accountInfo{}, err
 		}
-		info := wire.Data
-		if strings.TrimSpace(info.Puuid) == "" {
-			return accountInfo{}, &core.UpstreamError{Status: 404, Message: "player not found"}
+		// Only a new HTTP result can warm the short-lived account reply. A hit
+		// on the 24-hour resolver must never renew that reply's freshness.
+		if body, err := core.MarshalReply(accountReplyFor(id, info)); err == nil {
+			core.StoreCachedBytes(ctx, p.cache, core.BytesEntry{
+				Key: core.Key(providerName, "account", id.cacheKey()), Value: body, TTL: accountTTL,
+			})
 		}
 		return info, nil
 	})
+}
+
+func (p *api) fetchAccount(ctx context.Context, id riotIDValue) (accountInfo, error) {
+	var wire accountWire
+	path := "/valorant/v2/account/" + url.PathEscape(id.name) + "/" + url.PathEscape(id.tag)
+	if err := p.http.GetJSON(ctx, path, nil, &wire); err != nil {
+		return accountInfo{}, err
+	}
+	if strings.TrimSpace(wire.Data.Puuid) == "" {
+		return accountInfo{}, &core.UpstreamError{Status: 404, Message: "player not found"}
+	}
+	return wire.Data, nil
 }
 
 func scoped(req gossiprpc.Request) (id riotIDValue, region, platform string) {
@@ -535,15 +557,18 @@ type accountReply struct {
 
 func (p *api) accountFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
 	rid, _, _ := scoped(req)
-	var wire accountWire
-	path := "/valorant/v2/account/" + url.PathEscape(rid.name) + "/" + url.PathEscape(rid.tag)
-	if err := p.http.GetJSON(ctx, path, nil, &wire); err != nil {
+	info, err := p.fetchAccount(ctx, rid)
+	if err != nil {
 		return nil, err
 	}
-	info := wire.Data
-	if strings.TrimSpace(info.Puuid) == "" {
-		return nil, &core.UpstreamError{Status: 404, Message: "player not found"}
-	}
+	core.StoreCached(ctx, p.cache, core.StoreRequest[accountInfo]{
+		Key: core.Key(providerName, "resolve", rid.cacheKey()), TTL: resolveTTL,
+		NegativeTTL: negativeTTL, Value: info,
+	})
+	return accountReplyFor(rid, info), nil
+}
+
+func accountReplyFor(rid riotIDValue, info accountInfo) accountReply {
 	return accountReply{
 		Player:       rid.String(),
 		Puuid:        info.Puuid,
@@ -551,7 +576,7 @@ func (p *api) accountFetch(ctx context.Context, req gossiprpc.Request, id provid
 		AccountLevel: info.AccountLevel,
 		Card:         info.Card,
 		Title:        info.Title,
-	}, nil
+	}
 }
 
 type boardWire struct {
