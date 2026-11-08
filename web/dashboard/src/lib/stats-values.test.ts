@@ -19,6 +19,14 @@ test('stats accept the exact limit and reject an imprecise total', () => {
   expect(validStats({ ...stats, messages_total: '9223372036854775808' })).toBeNull();
 });
 
+test('stats retain sampling timestamps and reject invalid clock values', () => {
+  expect(validStats({ ...stats, sampled_at: 2000 })?.sampled_at).toBe(2000);
+  expect(validStats({ ...stats, sampled_at: null })?.sampled_at).toBeNull();
+  for (const sampled_at of [-1, 0.5, NaN, Infinity, '2000']) {
+    expect(validStats({ ...stats, sampled_at })).toBeNull();
+  }
+});
+
 test('boards reject an imprecise feed or channel count', () => {
   const boards = {
     channels: [{ id: '1', name: 'a', messages: '10', events: '10' }],

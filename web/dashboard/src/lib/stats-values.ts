@@ -25,6 +25,8 @@ export function validStats(raw: unknown): PublicStats | null {
   if (!stats) return null;
   if (typeof stats.degraded !== 'boolean') return null;
   if (!validRates(stats)) return null;
+  if (stats.sampled_at !== undefined && stats.sampled_at !== null &&
+    (typeof stats.sampled_at !== 'number' || !Number.isSafeInteger(stats.sampled_at) || stats.sampled_at < 0)) return null;
   const messages = parseCounterValue(stats.messages_total);
   const events = parseCounterValue(stats.events_total);
   if (messages === null || events === null) return null;

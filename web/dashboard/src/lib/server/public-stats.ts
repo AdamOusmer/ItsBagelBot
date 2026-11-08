@@ -19,6 +19,8 @@ const SAMPLE_MS = 1000;
 export interface PublicStats {
   messages_total: string;
   events_total: string;
+  /** Source sampling time; absent on snapshots from an older server. */
+  sampled_at?: number | null;
   msg_rate: number | null;
   event_rate: number | null;
   msg_rate_now: number | null;
@@ -36,6 +38,7 @@ function degradedStats(): PublicStats {
   return {
     messages_total: '0',
     events_total: '0',
+    sampled_at: null,
     msg_rate: null,
     event_rate: null,
     msg_rate_now: null,
@@ -50,10 +53,12 @@ async function loadStats(): Promise<PublicStats> {
 
   const messages = totals[COUNTER_MESSAGES];
   const events = totals[COUNTER_EVENTS];
-  const rates = sampleRates({ messages: BigInt(messages), events: BigInt(events), at: Date.now() });
+  const sampledAt = Date.now();
+  const rates = sampleRates({ messages: BigInt(messages), events: BigInt(events), at: sampledAt });
   return {
     messages_total: messages,
     events_total: events,
+    sampled_at: sampledAt,
     msg_rate: rates.avg.msg,
     event_rate: rates.avg.event,
     msg_rate_now: rates.now.msg,

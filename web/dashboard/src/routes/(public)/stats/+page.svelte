@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { reduceMotion } from '@bagel/ui/lib/motion-query';
   import { subscribe } from '@bagel/ui/lib/raf-loop';
   import { livePoll } from '@bagel/ui/lib/live-poll';
   import { onMount, untrack } from 'svelte';
@@ -16,8 +16,8 @@
   import PublicHead from '#lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { SITE, commandsHref } from '@bagel/kit/site-links';
-  import { formatStatTotal, validBoards, validStats } from '#lib/stats-values';
-  import { frameDelta, resumedAfterGap, rewindTotals, seedFrame, stepFrame, targetFrame } from '#lib/stats-odometer';
+  import { exactDisplay, formatStatTotal, validBoards, validStats } from '#lib/stats-values';
+  import { COUNTER_BUFFER_MS, StatsCounter } from '#lib/stats-odometer';
   import { isLoginShape } from '#lib/public-login';
   import { formatCounterValue } from '@bagel/kit/validation';
 
@@ -47,31 +47,44 @@
 
   let boards = $state(untrack(() => validBoards(data.boards) ?? emptyBoards()));
 
-  let display = $state(seedFrame(seed));
+  // Play one update behind the source so the total and its rate share a
+  // linear timeline. Sampling timestamps keep cached polls from restarting it.
+  const seedAt = seed.sampled_at ?? 0;
+  const counter = (total: string, rate: number | null, at: number, minimum = 0) =>
+    new StatsCounter(exactDisplay(Number(total)), rate, at, minimum);
+  let messages = counter(seed.messages_total, seed.msg_rate_now ?? seed.msg_rate, seedAt);
+  let events = counter(seed.events_total, seed.event_rate_now ?? seed.event_rate, seedAt);
 
-  let snapAt = 0;
-  let lastFrame = 0;
+  function frame(now: number) {
+    const msg = messages.read(now);
+    const event = events.read(now);
+    return {
+      messages: exactDisplay(msg.total), events: exactDisplay(event.total),
+      msgRate: msg.rate, eventRate: event.rate
+    };
+  }
+
+  function exact(snapshot: typeof seed) {
+    return {
+      messages: exactDisplay(Number(snapshot.messages_total)),
+      events: exactDisplay(Number(snapshot.events_total)),
+      msgRate: snapshot.msg_rate_now ?? snapshot.msg_rate,
+      eventRate: snapshot.event_rate_now ?? snapshot.event_rate
+    };
+  }
+
+  let display = $state(frame(seedAt));
+  let clockOffset = 0; // server sampling clock minus performance.now()
   let reduced = false;
   let missedWhileHidden = false;
 
   function tick(now: number): boolean {
-    if (resumedAfterGap(now, lastFrame)) {
-      snap(now);
-      return true;
-    }
-    const dt = frameDelta(now, lastFrame);
-    lastFrame = now;
-    if (degraded) return true;
-    display = stepFrame(display, targetFrame(live, snapAt, now), dt);
+    // Projection expires on the source clock, even during a degraded response.
+    display = frame(now + clockOffset);
     return true;
   }
 
-  function snap(now: number): void {
-    lastFrame = now;
-    display = targetFrame(live, snapAt, now);
-  }
-
-  function applySnapshot(raw: unknown): void {
+  function applySnapshot(raw: unknown, resync = false): void {
     const next = validStats(raw);
     if (!next) {
       degraded = true;
@@ -79,14 +92,21 @@
     }
     degraded = next.degraded;
     if (next.degraded) return;
-    const prev = live;
-    live = next;
-    snapAt = performance.now();
-    if (reduced || prev.degraded) {
-      snap(snapAt);
-      return;
+    const at = next.sampled_at ?? Date.now();
+    if (live.sampled_at != null && (at < live.sampled_at || (!resync && at === live.sampled_at))) return;
+    const now = performance.now();
+    // A cached HTML seed or a resumed view starts at the latest sample. Keep
+    // printed totals monotonic, except when the source counter actually resets.
+    if (resync || live.degraded || at > now + clockOffset + COUNTER_BUFFER_MS) {
+      clockOffset = at - now;
+      messages = counter(next.messages_total, next.msg_rate_now ?? next.msg_rate, at, display.messages);
+      events = counter(next.events_total, next.event_rate_now ?? next.event_rate, at, display.events);
+    } else {
+      messages.push(exactDisplay(Number(next.messages_total)), next.msg_rate_now ?? next.msg_rate, at);
+      events.push(exactDisplay(Number(next.events_total)), next.event_rate_now ?? next.event_rate, at);
     }
-    display = rewindTotals(display, prev, next);
+    live = next;
+    display = reduced ? exact(next) : frame(now + clockOffset);
   }
   async function fetchJson(path: string): Promise<unknown> {
     const res = await fetch(path, { headers: { accept: 'application/json' } });
@@ -96,8 +116,7 @@
 
   function applyStats(result: PromiseSettledResult<unknown>, resync: boolean): void {
     if (result.status !== 'fulfilled') return;
-    applySnapshot(result.value);
-    if (resync) snap(performance.now());
+    applySnapshot(result.value, resync);
   }
 
   async function poll(): Promise<boolean> {
@@ -114,11 +133,20 @@
   }
 
   onMount(() => {
-    reduced = prefersReducedMotion();
-    const now = performance.now();
-    snapAt = now;
-    snap(now);
-    const stopOdometer = reduced ? () => {} : subscribe(tick);
+    reduced = reduceMotion.matches;
+    clockOffset = seedAt - performance.now();
+    if (reduced) display = exact(live);
+    let stopOdometer = reduced ? () => {} : subscribe(tick);
+    const onMotionChange = () => {
+      reduced = reduceMotion.matches;
+      stopOdometer();
+      if (reduced) display = exact(live);
+      else {
+        applySnapshot(live, true);
+        stopOdometer = subscribe(tick);
+      }
+    };
+    reduceMotion.addEventListener('change', onMotionChange);
     const stopPoll = livePoll(poll, {
       firstDelayMs: 0,
       delayMs: () => POLL_MS,
@@ -129,6 +157,7 @@
     return () => {
       stopPoll();
       stopOdometer();
+      reduceMotion.removeEventListener('change', onMotionChange);
     };
   });
 
@@ -158,7 +187,7 @@
       label: t('stats.messagesShortLabel'),
       ...compactTotal(live.messages_total, display.messages),
       detail: t('stats.processedTotal', { count: formatStatTotal(live.messages_total, display.messages, locale) }),
-      rate: (live.msg_rate_now ?? live.msg_rate) === null ? PENDING : rateFmt.format(display.msgRate),
+      rate: display.msgRate === null ? PENDING : rateFmt.format(display.msgRate),
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel'),
       tone: 'green' as const
@@ -168,7 +197,7 @@
       label: t('stats.eventsShortLabel'),
       ...compactTotal(live.events_total, display.events),
       detail: t('stats.processedTotal', { count: formatStatTotal(live.events_total, display.events, locale) }),
-      rate: (live.event_rate_now ?? live.event_rate) === null ? PENDING : rateFmt.format(display.eventRate),
+      rate: display.eventRate === null ? PENDING : rateFmt.format(display.eventRate),
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel'),
       tone: 'tan' as const
