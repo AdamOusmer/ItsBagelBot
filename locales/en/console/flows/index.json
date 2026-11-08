@@ -124,21 +124,24 @@
     "counter": "Choose a counter",
     "scene": "Choose a scene",
     "light": "Choose a light first",
-    "namedCooldown": "Choose a timer"
+    "namedCooldown": "Choose a timer",
+    "namedCountdown": "Choose a countdown"
   },
   "choiceEmpty": {
     "rewards": "No channel point rewards yet. Create one in Channel points.",
     "manageableRewards": "Twitch only lets us change rewards made here. Create one in Channel points.",
     "counters": "No counters yet. Create one in Counters.",
     "scenes": "This light has no scenes.",
-    "namedCooldowns": "No recipe names a timer yet. Give one a name under its cooldown."
+    "namedCooldowns": "No recipe names a timer yet. Give one a name under its cooldown.",
+    "namedCountdowns": "No countdown has been started in a recipe yet."
   },
   "choiceProblem": {
     "rewards": "Could not load your rewards.",
     "counters": "Could not load your counters.",
     "scenes": "Could not load the scenes for this light.",
     "keyRejected": "Govee did not accept your API key.",
-    "namedCooldowns": "Could not load your recipes' timers."
+    "namedCooldowns": "Could not load your recipes' timers.",
+    "namedCountdowns": "Could not load your countdowns."
   },
   "choiceMissing": "\"{name}\" is no longer in the list.",
   "choiceUnowned": "No recipe currently owns \"{name}\". This will do nothing until one does.",

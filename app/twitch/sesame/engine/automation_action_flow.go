@@ -215,6 +215,8 @@ func (x *actionExec) findAutomation(id string) *automation.Plan {
 
 func (x *actionExec) childRun(s step, target *automation.Plan) *AutomationRun {
 	child := *x.run
+	child.countdownSkipConditions = false
+	child.countdownConditionsPassed = nil
 	child.Plan = target
 	child.Depth++
 	child.Record = automationrpc.RunRecord{}

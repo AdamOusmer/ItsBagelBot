@@ -65,5 +65,6 @@
   "statusDoneOne": "Finished, 1 step ran. Nothing was sent to chat.",
   "statusDoneMany": "Finished, {count} steps ran. Nothing was sent to chat.",
   "viewerTyped": "{name} typed {text}",
-  "nothingToSend": "Nothing to send yet"
+  "nothingToSend": "Nothing to send yet",
+  "connectionSelection": "Select connection"
 }

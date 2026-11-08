@@ -12,6 +12,8 @@
   "short_hour": "h",
   "short_minute": "m",
   "short_second": "s",
+  "countdown_left": "{user}, {countdown:left} left on the countdown.",
+  "countdown_finished": "{user}, the countdown has finished.",
   "cooldown_left": "{user}, {cooldown:left} left before you can use this again.",
   "cooldown_ready": "{user}, this is ready to use.",
   "unavailable": "The time is unavailable right now.",

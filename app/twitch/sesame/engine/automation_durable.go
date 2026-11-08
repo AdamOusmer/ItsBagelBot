@@ -337,19 +337,19 @@ func (d *durableRuns) restart(run *AutomationRun, rec *durableRecord, frames []r
 // record answers false when another replica already holds this path: the caller must not run it too.
 func (d *durableRuns) record(ctx context.Context, c continuation) bool {
 	if d == nil {
-		return true
+		return c.run.failCountdownAdmission()
 	}
 	rec, ok := newDurableRecord(c)
 	if !ok {
 		d.p.log.Warn("automations: paused run has no plan position, staying in memory", zap.String("run_id", c.run.ID))
-		return true
+		return c.run.failCountdownAdmission()
 	}
 	return d.save(ctx, c.run, &rec)
 }
 
 func (d *durableRuns) recordWaiter(ctx context.Context, run *AutomationRun, turn queueTurn) bool {
 	if d == nil {
-		return true
+		return run.failCountdownAdmission()
 	}
 	rec := newDurableWaiter(run, turn)
 	return d.save(ctx, run, &rec)
@@ -359,7 +359,7 @@ func (d *durableRuns) save(ctx context.Context, run *AutomationRun, rec *durable
 	body, err := codec.Marshal(rec)
 	if err != nil {
 		d.p.log.Warn("automations: paused run not recorded", zap.String("run_id", run.ID), zap.Error(err))
-		return true
+		return run.failCountdownAdmission()
 	}
 	save := DurableSave{Body: body, Fresh: run.Durable == nil}
 	if rec.Seat != nil {
@@ -371,10 +371,14 @@ func (d *durableRuns) save(ctx context.Context, run *AutomationRun, rec *durable
 	standing, err := d.store.Save(callCtx, d.owner, save)
 	if err != nil {
 		d.p.log.Warn("automations: valkey unavailable, paused run stays in memory", zap.String("run_id", run.ID), zap.Error(err))
-		return true
+		return run.failCountdownAdmission()
 	}
 	if standing == DurableLost {
+		run.failCountdownAdmission()
 		return false
+	}
+	if run.CountdownAdmission != nil {
+		run.CountdownAdmission.saved.Store(true)
 	}
 	run.Durable = &durableTicket{ref: save.Ref, ticket: save.Seat.Ticket}
 	if d.ctx.Err() != nil {

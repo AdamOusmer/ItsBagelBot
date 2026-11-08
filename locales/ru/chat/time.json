@@ -12,6 +12,8 @@
   "short_hour": "ч",
   "short_minute": "м",
   "short_second": "с",
+  "countdown_left": "{user}, до конца отсчёта осталось {countdown:left}.",
+  "countdown_finished": "{user}, обратный отсчёт завершён.",
   "cooldown_left": "{user}, осталось {cooldown:left}, прежде чем ты сможешь использовать это снова.",
   "cooldown_ready": "{user}, это готово к использованию.",
   "unavailable": "Сейчас время недоступно.",

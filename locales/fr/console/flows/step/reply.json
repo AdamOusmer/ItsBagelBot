@@ -169,5 +169,48 @@
       "seconds": { "label": "Ajouter", "range": "Utilisez de 1 seconde à {days} jours." },
       "per": { "label": "Par", "hint": "Ajoute le temps ci-dessus pour chaque montant complet. Mettez 100 dans une recette de bits pour compter tous les 100 bits. Laissez vide pour l’ajouter une fois par événement." }
     }
+  },
+    "countdownStart": {
+    "label": "Démarrer un compte à rebours",
+    "summary": "Démarrer ou relancer un compte à rebours",
+    "field": {
+      "name": {
+        "label": "Nom",
+        "placeholder": "subathon"
+      },
+      "seconds": {
+        "label": "Durée",
+        "range": "Utilisez de 1 seconde à {days} jours."
+      },
+      "leftCommand": {
+        "label": "Commande du temps restant",
+        "placeholder": "!timeleft"
+      },
+      "leftReply": {
+        "label": "Réponse du temps restant",
+        "placeholder": "Il reste {countdown:left}"
+      },
+      "readyReply": {
+        "label": "Réponse du temps restant à la fin",
+        "placeholder": "Le compte à rebours est terminé !"
+      }
+    }
+  },
+    "countdownAdd": {
+    "label": "Ajouter du temps au compte à rebours",
+    "summary": "Prolonger un compte à rebours en cours",
+    "field": {
+      "name": {
+        "label": "Compte à rebours"
+      },
+      "seconds": {
+        "label": "Ajouter",
+        "range": "Utilisez de 1 seconde à {days} jours."
+      },
+      "per": {
+        "label": "Par tranche de",
+        "hint": "Ajoute cette durée pour chaque tranche complète. Laissez vide pour l’ajouter une fois par événement."
+      }
+    }
   }
 }

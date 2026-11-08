@@ -4,7 +4,7 @@
 import type { Chk } from './check';
 import { register, type Wide, type Table } from './engine';
 import { lookupEventKind, type EventKind } from './event-kinds';
-import { CODE, MAX_COMMAND_ALIASES, MAX_EVENT_FILTERS, MAX_FILTER_VALUE, MAX_PATTERN_LENGTH } from './limits';
+import { CODE, MAX_COMMAND_ALIASES, MAX_EVENT_FILTERS, MAX_FILTER_VALUE, MAX_PATTERN_LENGTH, RECIPE_NAME_PATTERN } from './limits';
 import { compilesAsRe2 } from './regex';
 import { compareBytes, isCommandChar, isPrintChar, parsesAsInt64 } from './text';
 import type { CommandTrigger, EventTrigger, RewardTrigger, TimerTrigger } from './types';
@@ -85,6 +85,7 @@ export const TRIGGERS: Table = {
     { interval_s: 'int', random_jitter_s: 'int', min_chat_lines: 'int', offline_ok: 'bool' },
     checkTimer,
   ),
+  countdown: register<{ name: string }>({ name: 'string' }, (c, p) => c.simpleWord('name', p.name, RECIPE_NAME_PATTERN)),
   reward: register<Wide<RewardTrigger>>({ reward_id: 'string' }, checkReward),
   manual: register<Record<string, never>>({}, () => {}),
 };

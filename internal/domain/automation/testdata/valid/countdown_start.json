@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!startbreak"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "mod"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "countdown_start",
+      "params": {
+        "name": "break",
+        "seconds": 120,
+        "left_command": "!breakleft",
+        "left_reply": "{countdown:left} left",
+        "ready_reply": "Break finished"
+      }
+    },
+    {
+      "type": "chat",
+      "params": {
+        "text": "Break started: {countdown:left}"
+      }
+    }
+  ]
+}

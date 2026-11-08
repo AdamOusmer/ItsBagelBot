@@ -41,6 +41,7 @@ func newStateHarness(t *testing.T) *stateHarness {
 	require.NoError(t, client.Schema.Create(context.Background()))
 	nc := testnats.Connect(t)
 	require.NoError(t, SubscribeRecipeState(bus.RPCWiring{NC: nc, Log: zap.NewNop()}, repository.NewRecipeState(client, drv), "mods"))
+	require.NoError(t, SubscribeCountdown(bus.RPCWiring{NC: nc, Log: zap.NewNop()}, repository.NewRecipeState(client, drv), "mods"))
 	return &stateHarness{nc: nc}
 }
 

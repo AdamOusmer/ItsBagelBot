@@ -8,7 +8,7 @@ import { byteLength, trimSpace } from './text';
 import { isSetupValue, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
 import { scrubSecrets, type ScrubKind } from './flow-share-scrub';
 import type { Action, Condition, Definition, Issue, Params } from './types';
-import { leftCommandNames, normalizeCommandName, ownedCooldownNames, triggerCommandNames, validateDefinition, validateName } from './validate';
+import { leftCommandNames, normalizeCommandName, ownedCooldownNames, ownedCountdownNames, triggerCommandNames, validateDefinition, validateName } from './validate';
 
 export * from './flow-setup';
 
@@ -183,7 +183,7 @@ export const SHARE_REWRITTEN = {
 } as const;
 // Types reviewed as carrying only the user's own text, numbers and names. A new type is not shareable until it is added here.
 export const SHARE_REVIEWED = {
-  trigger: ['command', 'timer', 'manual'],
+  trigger: ['command', 'timer', 'manual', 'countdown'],
   condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var'],
   action: [
     'chat',
@@ -217,6 +217,8 @@ export const SHARE_REVIEWED = {
     'text',
     'math',
     'loop',
+    'countdown_start',
+    'countdown_add',
     'cooldown_add'
   ]
 } as const;
@@ -799,24 +801,24 @@ function noteLinks(entry: FlowImportEntry, landedByRef: Map<string, FlowImportEn
   return { ...entry, setup: [...entry.setup, ...notes] };
 }
 
-function ownedNamesAcross(entries: readonly FlowImportEntry[]): Set<string> {
+function ownedNamesAcross(entries: readonly FlowImportEntry[], countdown = false): Set<string> {
   const owned = new Set<string>();
   for (const entry of entries) {
     if (entry.status !== 'ready') continue;
-    for (const name of ownedCooldownNames(entry.definition!)) owned.add(name);
+    for (const name of (countdown ? ownedCountdownNames(entry.definition!) : ownedCooldownNames(entry.definition!))) owned.add(name.toLowerCase());
   }
   return owned;
 }
 
 // A cooldown_add step naming a timer with no owner still saves: this only tells the importer so, the same way
 // noteLinks tells it where a run points.
-function noteUnownedTimers(entry: FlowImportEntry, owned: Set<string>): FlowImportEntry {
+function noteUnownedTimers(entry: FlowImportEntry, owned: Set<string>, countdowns: Set<string>): FlowImportEntry {
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
   mapDefinitionActions(entry.definition!, (action, path) => {
-    if (action.type === 'cooldown_add') {
+    if (action.type === 'cooldown_add' || action.type === 'countdown_add') {
       const name = str(action.params?.name);
-      if (name && !owned.has(name)) notes.push({ code: 'timer_unowned', path, detail: name });
+      if (name && !(action.type === 'countdown_add' ? countdowns : owned).has(name.toLowerCase())) notes.push({ code: 'timer_unowned', path, detail: name });
     }
     return action;
   });
@@ -835,7 +837,8 @@ function settleLandings(candidates: FlowImportEntry[], context: FlowImportContex
     if (next.every((entry, i) => entry === current[i])) {
       const linked = landed.map((entry) => noteLinks(entry, byRef));
       const owned = ownedNamesAcross(linked);
-      return linked.map((entry) => noteUnownedTimers(entry, owned));
+      const countdowns = ownedNamesAcross(linked, true);
+      return linked.map((entry) => noteUnownedTimers(entry, owned, countdowns));
     }
     current = next;
   }

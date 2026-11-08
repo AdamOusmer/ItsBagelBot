@@ -6,38 +6,57 @@
   let {
     label,
     tabindex = 0,
+    showLabel = false,
     onclick
-  }: { label: string; tabindex?: number; onclick: (event: MouseEvent & { currentTarget: HTMLButtonElement }) => void } = $props();
+  }: { label: string; tabindex?: number; showLabel?: boolean; onclick: (event: MouseEvent & { currentTarget: HTMLButtonElement }) => void } = $props();
 </script>
 
-<button class="add" type="button" aria-label={label} title={label} {tabindex} {onclick}>
-  <Icon name="plus" size={14} strokeWidth={2.2} />
+<button class="add" class:labelled={showLabel} type="button" aria-label={label} title={label} {tabindex} {onclick}>
+  <Icon name="plus" size={14} strokeWidth={2} />
+  {#if showLabel}<span>{label}</span>{/if}
 </button>
 
 <style>
   .add {
     position: relative;
-    display: grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-sizing: border-box;
     width: 24px;
     height: 24px;
     padding: 0;
-    border: 0;
+    border: 1px solid rgba(var(--bb-white-rgb), 0.25);
     border-radius: var(--bb-radius-pill);
-    background: var(--bb-green-glow);
-    box-shadow: 0 2px 8px rgba(var(--bb-shadow-rgb), 0.6);
-    color: var(--bb-black);
+    background: var(--bb-card-bg);
+    box-shadow: 0 2px 8px rgba(var(--bb-shadow-rgb), 0.35);
+    color: var(--bb-white);
     cursor: pointer;
-    transition: transform var(--bb-dur-fast) var(--bb-ease-out-expo);
+    transition: border-color var(--bb-dur-fast) var(--bb-ease-out-expo),
+      color var(--bb-dur-fast) var(--bb-ease-out-expo),
+      background-color var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  .add.labelled {
+    width: max-content;
+    padding: 0 11px 0 9px;
+    font-family: var(--bb-font-body);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
   }
   .add::before {
     content: '';
     position: absolute;
-    inset: -8px;
+    inset: -4px;
     border-radius: var(--bb-radius-pill);
   }
+  :global(.canvas[data-touch]) .add.labelled::before {
+    inset: -10px;
+  }
   .add:hover {
-    transform: scale(1.12);
+    border-color: var(--bb-green-glow);
+    color: var(--bb-green-glow);
   }
   .add:focus-visible {
     outline: 2px solid var(--bb-green-glow);

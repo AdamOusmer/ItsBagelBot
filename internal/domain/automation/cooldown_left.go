@@ -41,6 +41,11 @@ func LeftCommandNames(def Definition) []string {
 		collect(c)
 	}
 	for _, a := range def.Flatten() {
+		if a.Type == "countdown_start" {
+			if p, err := DecodeParams[CountdownStartAction](a.Params); err == nil && p.LeftCommand != "" {
+				names = append(names, p.LeftCommand)
+			}
+		}
 		if a.Type != actionIf {
 			continue
 		}

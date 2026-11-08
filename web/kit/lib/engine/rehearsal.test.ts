@@ -350,6 +350,12 @@ describe('module state (engine/namespaced_vars.go mirror)', () => {
 describe('automation rehearsal (engine automationScope mirror)', () => {
   const text = (template: string, samples = {}) => textOf(rehearseAutomation(template, samples)[0].segments);
 
+  test('countdown time left is scoped without changing date countdowns', () => {
+    expect(text('{countdown:left}', { 'countdown:left': '2d 3h' })).toBe('2d 3h');
+    expect(text('{countdown:left}')).toBe('');
+    expect(text('{countdown:2026-12-25}')).toBe('3 days, 4 hours');
+  });
+
   test('event fields answer by name and with the event prefix', () => {
     expect(text('{bits} and {event.bits}', { bits: '500' })).toBe('500 and 500');
   });

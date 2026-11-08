@@ -16,7 +16,7 @@ import {
   typed,
 } from './engine';
 import { lookupEventKind } from './event-kinds';
-import { CODE, MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_DELAY_MS, MAX_NAME_LENGTH, QUEUE_NAME_PATTERN, VERSION } from './limits';
+import { CODE, MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_DELAY_MS, MAX_NAME_LENGTH, QUEUE_NAME_PATTERN, RECIPE_NAME_PATTERN, VERSION } from './limits';
 import { fillRegistries } from './registry';
 import { byteLength, compareBytes, isNameChar, trimSpace } from './text';
 import type { Definition, Issue } from './types';
@@ -113,12 +113,21 @@ function heldConditions(definition: { conditions?: unknown; actions?: unknown })
 }
 
 export function leftCommandNames(definition: { conditions?: unknown; actions?: unknown }): string[] {
-  return heldConditions(definition).map(cooldownLeftCommand).filter((name) => name !== '');
+  const starts = flatten((definition.actions ?? []) as ActionNode[]).filter((a) => a.type === 'countdown_start');
+  return [...heldConditions(definition).map(cooldownLeftCommand), ...starts.map((a) => countdownStartParams(a)?.left_command ?? '')].filter((name) => name !== '');
 }
 
 // ownedCooldownNames lists the names a definition arms by way of a cooldown condition, wherever it sits.
 export function ownedCooldownNames(definition: { conditions?: unknown; actions?: unknown }): string[] {
   return heldConditions(definition).map(cooldownOwnerName).filter((name) => name !== '');
+}
+
+const COUNTDOWN_START_SCHEMA: Schema = { name: 'string', seconds: 'int', left_command: 'string', left_reply: 'string', ready_reply: 'string' };
+function countdownStartParams(action: ActionNode): { name: string; left_command: string } | undefined {
+  return decodeParams<{ name: string; left_command: string }>(COUNTDOWN_START_SCHEMA, {}, action.params).value;
+}
+export function ownedCountdownNames(definition: { actions?: unknown }): string[] {
+  return flatten((definition.actions ?? []) as ActionNode[]).filter((a) => a.type === 'countdown_start').map((a) => countdownStartParams(a)?.name.toLowerCase() ?? '').filter((name) => RECIPE_NAME_PATTERN.test(name));
 }
 
 export function triggerCommandNames(trigger: { type: string; params?: unknown }): string[] {

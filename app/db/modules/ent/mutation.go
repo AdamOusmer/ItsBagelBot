@@ -6,6 +6,9 @@ import (
 	"ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
+	"ItsBagelBot/app/db/modules/ent/countdown"
+	"ItsBagelBot/app/db/modules/ent/countdowndelivery"
+	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
@@ -36,6 +39,9 @@ const (
 	TypeAutomation         = "Automation"
 	TypeChannelFeedCounter = "ChannelFeedCounter"
 	TypeCooldownClaim      = "CooldownClaim"
+	TypeCountdown          = "Countdown"
+	TypeCountdownDelivery  = "CountdownDelivery"
+	TypeCountdownOperation = "CountdownOperation"
 	TypeFeedCounter        = "FeedCounter"
 	TypeFeedReceipt        = "FeedReceipt"
 	TypeGoveeCredential    = "GoveeCredential"
@@ -1877,6 +1883,2208 @@ func (m *CooldownClaimMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *CooldownClaimMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown CooldownClaim edge %s", name)
+}
+
+// CountdownMutation represents an operation that mutates the Countdown nodes in the graph.
+type CountdownMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int
+	user_id          *uint64
+	adduser_id       *int64
+	name             *string
+	expires_at_ms    *int64
+	addexpires_at_ms *int64
+	generation       *string
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*Countdown, error)
+	predicates       []predicate.Countdown
+}
+
+var _ ent.Mutation = (*CountdownMutation)(nil)
+
+// countdownOption allows management of the mutation configuration using functional options.
+type countdownOption func(*CountdownMutation)
+
+// newCountdownMutation creates new mutation for the Countdown entity.
+func newCountdownMutation(c config, op Op, opts ...countdownOption) *CountdownMutation {
+	m := &CountdownMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCountdown,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCountdownID sets the ID field of the mutation.
+func withCountdownID(id int) countdownOption {
+	return func(m *CountdownMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Countdown
+		)
+		m.oldValue = func(ctx context.Context) (*Countdown, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Countdown.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCountdown sets the old Countdown of the mutation.
+func withCountdown(node *Countdown) countdownOption {
+	return func(m *CountdownMutation) {
+		m.oldValue = func(context.Context) (*Countdown, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CountdownMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CountdownMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CountdownMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CountdownMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Countdown.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *CountdownMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *CountdownMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the Countdown entity.
+// If the Countdown object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *CountdownMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *CountdownMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *CountdownMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *CountdownMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *CountdownMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Countdown entity.
+// If the Countdown object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *CountdownMutation) ResetName() {
+	m.name = nil
+}
+
+// SetExpiresAtMs sets the "expires_at_ms" field.
+func (m *CountdownMutation) SetExpiresAtMs(i int64) {
+	m.expires_at_ms = &i
+	m.addexpires_at_ms = nil
+}
+
+// ExpiresAtMs returns the value of the "expires_at_ms" field in the mutation.
+func (m *CountdownMutation) ExpiresAtMs() (r int64, exists bool) {
+	v := m.expires_at_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAtMs returns the old "expires_at_ms" field's value of the Countdown entity.
+// If the Countdown object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownMutation) OldExpiresAtMs(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAtMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAtMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAtMs: %w", err)
+	}
+	return oldValue.ExpiresAtMs, nil
+}
+
+// AddExpiresAtMs adds i to the "expires_at_ms" field.
+func (m *CountdownMutation) AddExpiresAtMs(i int64) {
+	if m.addexpires_at_ms != nil {
+		*m.addexpires_at_ms += i
+	} else {
+		m.addexpires_at_ms = &i
+	}
+}
+
+// AddedExpiresAtMs returns the value that was added to the "expires_at_ms" field in this mutation.
+func (m *CountdownMutation) AddedExpiresAtMs() (r int64, exists bool) {
+	v := m.addexpires_at_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetExpiresAtMs resets all changes to the "expires_at_ms" field.
+func (m *CountdownMutation) ResetExpiresAtMs() {
+	m.expires_at_ms = nil
+	m.addexpires_at_ms = nil
+}
+
+// SetGeneration sets the "generation" field.
+func (m *CountdownMutation) SetGeneration(s string) {
+	m.generation = &s
+}
+
+// Generation returns the value of the "generation" field in the mutation.
+func (m *CountdownMutation) Generation() (r string, exists bool) {
+	v := m.generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGeneration returns the old "generation" field's value of the Countdown entity.
+// If the Countdown object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownMutation) OldGeneration(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGeneration: %w", err)
+	}
+	return oldValue.Generation, nil
+}
+
+// ResetGeneration resets all changes to the "generation" field.
+func (m *CountdownMutation) ResetGeneration() {
+	m.generation = nil
+}
+
+// Where appends a list predicates to the CountdownMutation builder.
+func (m *CountdownMutation) Where(ps ...predicate.Countdown) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CountdownMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CountdownMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Countdown, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CountdownMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CountdownMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Countdown).
+func (m *CountdownMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CountdownMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.user_id != nil {
+		fields = append(fields, countdown.FieldUserID)
+	}
+	if m.name != nil {
+		fields = append(fields, countdown.FieldName)
+	}
+	if m.expires_at_ms != nil {
+		fields = append(fields, countdown.FieldExpiresAtMs)
+	}
+	if m.generation != nil {
+		fields = append(fields, countdown.FieldGeneration)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CountdownMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case countdown.FieldUserID:
+		return m.UserID()
+	case countdown.FieldName:
+		return m.Name()
+	case countdown.FieldExpiresAtMs:
+		return m.ExpiresAtMs()
+	case countdown.FieldGeneration:
+		return m.Generation()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CountdownMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case countdown.FieldUserID:
+		return m.OldUserID(ctx)
+	case countdown.FieldName:
+		return m.OldName(ctx)
+	case countdown.FieldExpiresAtMs:
+		return m.OldExpiresAtMs(ctx)
+	case countdown.FieldGeneration:
+		return m.OldGeneration(ctx)
+	}
+	return nil, fmt.Errorf("unknown Countdown field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CountdownMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case countdown.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case countdown.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case countdown.FieldExpiresAtMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAtMs(v)
+		return nil
+	case countdown.FieldGeneration:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGeneration(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Countdown field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CountdownMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, countdown.FieldUserID)
+	}
+	if m.addexpires_at_ms != nil {
+		fields = append(fields, countdown.FieldExpiresAtMs)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CountdownMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case countdown.FieldUserID:
+		return m.AddedUserID()
+	case countdown.FieldExpiresAtMs:
+		return m.AddedExpiresAtMs()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CountdownMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case countdown.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case countdown.FieldExpiresAtMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddExpiresAtMs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Countdown numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CountdownMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CountdownMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CountdownMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Countdown nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CountdownMutation) ResetField(name string) error {
+	switch name {
+	case countdown.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case countdown.FieldName:
+		m.ResetName()
+		return nil
+	case countdown.FieldExpiresAtMs:
+		m.ResetExpiresAtMs()
+		return nil
+	case countdown.FieldGeneration:
+		m.ResetGeneration()
+		return nil
+	}
+	return fmt.Errorf("unknown Countdown field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CountdownMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CountdownMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CountdownMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CountdownMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CountdownMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CountdownMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CountdownMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Countdown unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CountdownMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Countdown edge %s", name)
+}
+
+// CountdownDeliveryMutation represents an operation that mutates the CountdownDelivery nodes in the graph.
+type CountdownDeliveryMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int
+	user_id           *uint64
+	adduser_id        *int64
+	name              *string
+	generation        *string
+	expires_at_ms     *int64
+	addexpires_at_ms  *int64
+	lease_token       *string
+	lease_until_ms    *int64
+	addlease_until_ms *int64
+	progress          *map[string]string
+	clearedFields     map[string]struct{}
+	done              bool
+	oldValue          func(context.Context) (*CountdownDelivery, error)
+	predicates        []predicate.CountdownDelivery
+}
+
+var _ ent.Mutation = (*CountdownDeliveryMutation)(nil)
+
+// countdowndeliveryOption allows management of the mutation configuration using functional options.
+type countdowndeliveryOption func(*CountdownDeliveryMutation)
+
+// newCountdownDeliveryMutation creates new mutation for the CountdownDelivery entity.
+func newCountdownDeliveryMutation(c config, op Op, opts ...countdowndeliveryOption) *CountdownDeliveryMutation {
+	m := &CountdownDeliveryMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCountdownDelivery,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCountdownDeliveryID sets the ID field of the mutation.
+func withCountdownDeliveryID(id int) countdowndeliveryOption {
+	return func(m *CountdownDeliveryMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CountdownDelivery
+		)
+		m.oldValue = func(ctx context.Context) (*CountdownDelivery, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CountdownDelivery.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCountdownDelivery sets the old CountdownDelivery of the mutation.
+func withCountdownDelivery(node *CountdownDelivery) countdowndeliveryOption {
+	return func(m *CountdownDeliveryMutation) {
+		m.oldValue = func(context.Context) (*CountdownDelivery, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CountdownDeliveryMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CountdownDeliveryMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CountdownDeliveryMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CountdownDeliveryMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CountdownDelivery.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *CountdownDeliveryMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *CountdownDeliveryMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the CountdownDelivery entity.
+// If the CountdownDelivery object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownDeliveryMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *CountdownDeliveryMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *CountdownDeliveryMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *CountdownDeliveryMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *CountdownDeliveryMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *CountdownDeliveryMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the CountdownDelivery entity.
+// If the CountdownDelivery object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownDeliveryMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *CountdownDeliveryMutation) ResetName() {
+	m.name = nil
+}
+
+// SetGeneration sets the "generation" field.
+func (m *CountdownDeliveryMutation) SetGeneration(s string) {
+	m.generation = &s
+}
+
+// Generation returns the value of the "generation" field in the mutation.
+func (m *CountdownDeliveryMutation) Generation() (r string, exists bool) {
+	v := m.generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGeneration returns the old "generation" field's value of the CountdownDelivery entity.
+// If the CountdownDelivery object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownDeliveryMutation) OldGeneration(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGeneration: %w", err)
+	}
+	return oldValue.Generation, nil
+}
+
+// ResetGeneration resets all changes to the "generation" field.
+func (m *CountdownDeliveryMutation) ResetGeneration() {
+	m.generation = nil
+}
+
+// SetExpiresAtMs sets the "expires_at_ms" field.
+func (m *CountdownDeliveryMutation) SetExpiresAtMs(i int64) {
+	m.expires_at_ms = &i
+	m.addexpires_at_ms = nil
+}
+
+// ExpiresAtMs returns the value of the "expires_at_ms" field in the mutation.
+func (m *CountdownDeliveryMutation) ExpiresAtMs() (r int64, exists bool) {
+	v := m.expires_at_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAtMs returns the old "expires_at_ms" field's value of the CountdownDelivery entity.
+// If the CountdownDelivery object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownDeliveryMutation) OldExpiresAtMs(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAtMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAtMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAtMs: %w", err)
+	}
+	return oldValue.ExpiresAtMs, nil
+}
+
+// AddExpiresAtMs adds i to the "expires_at_ms" field.
+func (m *CountdownDeliveryMutation) AddExpiresAtMs(i int64) {
+	if m.addexpires_at_ms != nil {
+		*m.addexpires_at_ms += i
+	} else {
+		m.addexpires_at_ms = &i
+	}
+}
+
+// AddedExpiresAtMs returns the value that was added to the "expires_at_ms" field in this mutation.
+func (m *CountdownDeliveryMutation) AddedExpiresAtMs() (r int64, exists bool) {
+	v := m.addexpires_at_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetExpiresAtMs resets all changes to the "expires_at_ms" field.
+func (m *CountdownDeliveryMutation) ResetExpiresAtMs() {
+	m.expires_at_ms = nil
+	m.addexpires_at_ms = nil
+}
+
+// SetLeaseToken sets the "lease_token" field.
+func (m *CountdownDeliveryMutation) SetLeaseToken(s string) {
+	m.lease_token = &s
+}
+
+// LeaseToken returns the value of the "lease_token" field in the mutation.
+func (m *CountdownDeliveryMutation) LeaseToken() (r string, exists bool) {
+	v := m.lease_token
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLeaseToken returns the old "lease_token" field's value of the CountdownDelivery entity.
+// If the CountdownDelivery object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownDeliveryMutation) OldLeaseToken(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLeaseToken is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLeaseToken requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLeaseToken: %w", err)
+	}
+	return oldValue.LeaseToken, nil
+}
+
+// ResetLeaseToken resets all changes to the "lease_token" field.
+func (m *CountdownDeliveryMutation) ResetLeaseToken() {
+	m.lease_token = nil
+}
+
+// SetLeaseUntilMs sets the "lease_until_ms" field.
+func (m *CountdownDeliveryMutation) SetLeaseUntilMs(i int64) {
+	m.lease_until_ms = &i
+	m.addlease_until_ms = nil
+}
+
+// LeaseUntilMs returns the value of the "lease_until_ms" field in the mutation.
+func (m *CountdownDeliveryMutation) LeaseUntilMs() (r int64, exists bool) {
+	v := m.lease_until_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLeaseUntilMs returns the old "lease_until_ms" field's value of the CountdownDelivery entity.
+// If the CountdownDelivery object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownDeliveryMutation) OldLeaseUntilMs(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLeaseUntilMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLeaseUntilMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLeaseUntilMs: %w", err)
+	}
+	return oldValue.LeaseUntilMs, nil
+}
+
+// AddLeaseUntilMs adds i to the "lease_until_ms" field.
+func (m *CountdownDeliveryMutation) AddLeaseUntilMs(i int64) {
+	if m.addlease_until_ms != nil {
+		*m.addlease_until_ms += i
+	} else {
+		m.addlease_until_ms = &i
+	}
+}
+
+// AddedLeaseUntilMs returns the value that was added to the "lease_until_ms" field in this mutation.
+func (m *CountdownDeliveryMutation) AddedLeaseUntilMs() (r int64, exists bool) {
+	v := m.addlease_until_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetLeaseUntilMs resets all changes to the "lease_until_ms" field.
+func (m *CountdownDeliveryMutation) ResetLeaseUntilMs() {
+	m.lease_until_ms = nil
+	m.addlease_until_ms = nil
+}
+
+// SetProgress sets the "progress" field.
+func (m *CountdownDeliveryMutation) SetProgress(value map[string]string) {
+	m.progress = &value
+}
+
+// Progress returns the value of the "progress" field in the mutation.
+func (m *CountdownDeliveryMutation) Progress() (r map[string]string, exists bool) {
+	v := m.progress
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProgress returns the old "progress" field's value of the CountdownDelivery entity.
+// If the CountdownDelivery object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownDeliveryMutation) OldProgress(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProgress is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProgress requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProgress: %w", err)
+	}
+	return oldValue.Progress, nil
+}
+
+// ResetProgress resets all changes to the "progress" field.
+func (m *CountdownDeliveryMutation) ResetProgress() {
+	m.progress = nil
+}
+
+// Where appends a list predicates to the CountdownDeliveryMutation builder.
+func (m *CountdownDeliveryMutation) Where(ps ...predicate.CountdownDelivery) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CountdownDeliveryMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CountdownDeliveryMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CountdownDelivery, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CountdownDeliveryMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CountdownDeliveryMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CountdownDelivery).
+func (m *CountdownDeliveryMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CountdownDeliveryMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.user_id != nil {
+		fields = append(fields, countdowndelivery.FieldUserID)
+	}
+	if m.name != nil {
+		fields = append(fields, countdowndelivery.FieldName)
+	}
+	if m.generation != nil {
+		fields = append(fields, countdowndelivery.FieldGeneration)
+	}
+	if m.expires_at_ms != nil {
+		fields = append(fields, countdowndelivery.FieldExpiresAtMs)
+	}
+	if m.lease_token != nil {
+		fields = append(fields, countdowndelivery.FieldLeaseToken)
+	}
+	if m.lease_until_ms != nil {
+		fields = append(fields, countdowndelivery.FieldLeaseUntilMs)
+	}
+	if m.progress != nil {
+		fields = append(fields, countdowndelivery.FieldProgress)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CountdownDeliveryMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case countdowndelivery.FieldUserID:
+		return m.UserID()
+	case countdowndelivery.FieldName:
+		return m.Name()
+	case countdowndelivery.FieldGeneration:
+		return m.Generation()
+	case countdowndelivery.FieldExpiresAtMs:
+		return m.ExpiresAtMs()
+	case countdowndelivery.FieldLeaseToken:
+		return m.LeaseToken()
+	case countdowndelivery.FieldLeaseUntilMs:
+		return m.LeaseUntilMs()
+	case countdowndelivery.FieldProgress:
+		return m.Progress()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CountdownDeliveryMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case countdowndelivery.FieldUserID:
+		return m.OldUserID(ctx)
+	case countdowndelivery.FieldName:
+		return m.OldName(ctx)
+	case countdowndelivery.FieldGeneration:
+		return m.OldGeneration(ctx)
+	case countdowndelivery.FieldExpiresAtMs:
+		return m.OldExpiresAtMs(ctx)
+	case countdowndelivery.FieldLeaseToken:
+		return m.OldLeaseToken(ctx)
+	case countdowndelivery.FieldLeaseUntilMs:
+		return m.OldLeaseUntilMs(ctx)
+	case countdowndelivery.FieldProgress:
+		return m.OldProgress(ctx)
+	}
+	return nil, fmt.Errorf("unknown CountdownDelivery field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CountdownDeliveryMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case countdowndelivery.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case countdowndelivery.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case countdowndelivery.FieldGeneration:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGeneration(v)
+		return nil
+	case countdowndelivery.FieldExpiresAtMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAtMs(v)
+		return nil
+	case countdowndelivery.FieldLeaseToken:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLeaseToken(v)
+		return nil
+	case countdowndelivery.FieldLeaseUntilMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLeaseUntilMs(v)
+		return nil
+	case countdowndelivery.FieldProgress:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProgress(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CountdownDelivery field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CountdownDeliveryMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, countdowndelivery.FieldUserID)
+	}
+	if m.addexpires_at_ms != nil {
+		fields = append(fields, countdowndelivery.FieldExpiresAtMs)
+	}
+	if m.addlease_until_ms != nil {
+		fields = append(fields, countdowndelivery.FieldLeaseUntilMs)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CountdownDeliveryMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case countdowndelivery.FieldUserID:
+		return m.AddedUserID()
+	case countdowndelivery.FieldExpiresAtMs:
+		return m.AddedExpiresAtMs()
+	case countdowndelivery.FieldLeaseUntilMs:
+		return m.AddedLeaseUntilMs()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CountdownDeliveryMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case countdowndelivery.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case countdowndelivery.FieldExpiresAtMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddExpiresAtMs(v)
+		return nil
+	case countdowndelivery.FieldLeaseUntilMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLeaseUntilMs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CountdownDelivery numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CountdownDeliveryMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CountdownDeliveryMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CountdownDeliveryMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CountdownDelivery nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CountdownDeliveryMutation) ResetField(name string) error {
+	switch name {
+	case countdowndelivery.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case countdowndelivery.FieldName:
+		m.ResetName()
+		return nil
+	case countdowndelivery.FieldGeneration:
+		m.ResetGeneration()
+		return nil
+	case countdowndelivery.FieldExpiresAtMs:
+		m.ResetExpiresAtMs()
+		return nil
+	case countdowndelivery.FieldLeaseToken:
+		m.ResetLeaseToken()
+		return nil
+	case countdowndelivery.FieldLeaseUntilMs:
+		m.ResetLeaseUntilMs()
+		return nil
+	case countdowndelivery.FieldProgress:
+		m.ResetProgress()
+		return nil
+	}
+	return fmt.Errorf("unknown CountdownDelivery field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CountdownDeliveryMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CountdownDeliveryMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CountdownDeliveryMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CountdownDeliveryMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CountdownDeliveryMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CountdownDeliveryMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CountdownDeliveryMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CountdownDelivery unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CountdownDeliveryMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CountdownDelivery edge %s", name)
+}
+
+// CountdownOperationMutation represents an operation that mutates the CountdownOperation nodes in the graph.
+type CountdownOperationMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int
+	user_id          *uint64
+	adduser_id       *int64
+	operation_id     *string
+	name             *string
+	verb             *string
+	seconds          *int64
+	addseconds       *int64
+	found            *bool
+	capped           *bool
+	expires_at_ms    *int64
+	addexpires_at_ms *int64
+	created_at_ms    *int64
+	addcreated_at_ms *int64
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*CountdownOperation, error)
+	predicates       []predicate.CountdownOperation
+}
+
+var _ ent.Mutation = (*CountdownOperationMutation)(nil)
+
+// countdownoperationOption allows management of the mutation configuration using functional options.
+type countdownoperationOption func(*CountdownOperationMutation)
+
+// newCountdownOperationMutation creates new mutation for the CountdownOperation entity.
+func newCountdownOperationMutation(c config, op Op, opts ...countdownoperationOption) *CountdownOperationMutation {
+	m := &CountdownOperationMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCountdownOperation,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCountdownOperationID sets the ID field of the mutation.
+func withCountdownOperationID(id int) countdownoperationOption {
+	return func(m *CountdownOperationMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CountdownOperation
+		)
+		m.oldValue = func(ctx context.Context) (*CountdownOperation, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CountdownOperation.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCountdownOperation sets the old CountdownOperation of the mutation.
+func withCountdownOperation(node *CountdownOperation) countdownoperationOption {
+	return func(m *CountdownOperationMutation) {
+		m.oldValue = func(context.Context) (*CountdownOperation, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CountdownOperationMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CountdownOperationMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CountdownOperationMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CountdownOperationMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CountdownOperation.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *CountdownOperationMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *CountdownOperationMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *CountdownOperationMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *CountdownOperationMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *CountdownOperationMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetOperationID sets the "operation_id" field.
+func (m *CountdownOperationMutation) SetOperationID(s string) {
+	m.operation_id = &s
+}
+
+// OperationID returns the value of the "operation_id" field in the mutation.
+func (m *CountdownOperationMutation) OperationID() (r string, exists bool) {
+	v := m.operation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOperationID returns the old "operation_id" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldOperationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOperationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOperationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOperationID: %w", err)
+	}
+	return oldValue.OperationID, nil
+}
+
+// ResetOperationID resets all changes to the "operation_id" field.
+func (m *CountdownOperationMutation) ResetOperationID() {
+	m.operation_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *CountdownOperationMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *CountdownOperationMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *CountdownOperationMutation) ResetName() {
+	m.name = nil
+}
+
+// SetVerb sets the "verb" field.
+func (m *CountdownOperationMutation) SetVerb(s string) {
+	m.verb = &s
+}
+
+// Verb returns the value of the "verb" field in the mutation.
+func (m *CountdownOperationMutation) Verb() (r string, exists bool) {
+	v := m.verb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVerb returns the old "verb" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldVerb(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVerb is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVerb requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVerb: %w", err)
+	}
+	return oldValue.Verb, nil
+}
+
+// ResetVerb resets all changes to the "verb" field.
+func (m *CountdownOperationMutation) ResetVerb() {
+	m.verb = nil
+}
+
+// SetSeconds sets the "seconds" field.
+func (m *CountdownOperationMutation) SetSeconds(i int64) {
+	m.seconds = &i
+	m.addseconds = nil
+}
+
+// Seconds returns the value of the "seconds" field in the mutation.
+func (m *CountdownOperationMutation) Seconds() (r int64, exists bool) {
+	v := m.seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSeconds returns the old "seconds" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldSeconds(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSeconds: %w", err)
+	}
+	return oldValue.Seconds, nil
+}
+
+// AddSeconds adds i to the "seconds" field.
+func (m *CountdownOperationMutation) AddSeconds(i int64) {
+	if m.addseconds != nil {
+		*m.addseconds += i
+	} else {
+		m.addseconds = &i
+	}
+}
+
+// AddedSeconds returns the value that was added to the "seconds" field in this mutation.
+func (m *CountdownOperationMutation) AddedSeconds() (r int64, exists bool) {
+	v := m.addseconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSeconds resets all changes to the "seconds" field.
+func (m *CountdownOperationMutation) ResetSeconds() {
+	m.seconds = nil
+	m.addseconds = nil
+}
+
+// SetFound sets the "found" field.
+func (m *CountdownOperationMutation) SetFound(b bool) {
+	m.found = &b
+}
+
+// Found returns the value of the "found" field in the mutation.
+func (m *CountdownOperationMutation) Found() (r bool, exists bool) {
+	v := m.found
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFound returns the old "found" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldFound(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFound is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFound requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFound: %w", err)
+	}
+	return oldValue.Found, nil
+}
+
+// ResetFound resets all changes to the "found" field.
+func (m *CountdownOperationMutation) ResetFound() {
+	m.found = nil
+}
+
+// SetCapped sets the "capped" field.
+func (m *CountdownOperationMutation) SetCapped(b bool) {
+	m.capped = &b
+}
+
+// Capped returns the value of the "capped" field in the mutation.
+func (m *CountdownOperationMutation) Capped() (r bool, exists bool) {
+	v := m.capped
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCapped returns the old "capped" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldCapped(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCapped is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCapped requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCapped: %w", err)
+	}
+	return oldValue.Capped, nil
+}
+
+// ResetCapped resets all changes to the "capped" field.
+func (m *CountdownOperationMutation) ResetCapped() {
+	m.capped = nil
+}
+
+// SetExpiresAtMs sets the "expires_at_ms" field.
+func (m *CountdownOperationMutation) SetExpiresAtMs(i int64) {
+	m.expires_at_ms = &i
+	m.addexpires_at_ms = nil
+}
+
+// ExpiresAtMs returns the value of the "expires_at_ms" field in the mutation.
+func (m *CountdownOperationMutation) ExpiresAtMs() (r int64, exists bool) {
+	v := m.expires_at_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAtMs returns the old "expires_at_ms" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldExpiresAtMs(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAtMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAtMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAtMs: %w", err)
+	}
+	return oldValue.ExpiresAtMs, nil
+}
+
+// AddExpiresAtMs adds i to the "expires_at_ms" field.
+func (m *CountdownOperationMutation) AddExpiresAtMs(i int64) {
+	if m.addexpires_at_ms != nil {
+		*m.addexpires_at_ms += i
+	} else {
+		m.addexpires_at_ms = &i
+	}
+}
+
+// AddedExpiresAtMs returns the value that was added to the "expires_at_ms" field in this mutation.
+func (m *CountdownOperationMutation) AddedExpiresAtMs() (r int64, exists bool) {
+	v := m.addexpires_at_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetExpiresAtMs resets all changes to the "expires_at_ms" field.
+func (m *CountdownOperationMutation) ResetExpiresAtMs() {
+	m.expires_at_ms = nil
+	m.addexpires_at_ms = nil
+}
+
+// SetCreatedAtMs sets the "created_at_ms" field.
+func (m *CountdownOperationMutation) SetCreatedAtMs(i int64) {
+	m.created_at_ms = &i
+	m.addcreated_at_ms = nil
+}
+
+// CreatedAtMs returns the value of the "created_at_ms" field in the mutation.
+func (m *CountdownOperationMutation) CreatedAtMs() (r int64, exists bool) {
+	v := m.created_at_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAtMs returns the old "created_at_ms" field's value of the CountdownOperation entity.
+// If the CountdownOperation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CountdownOperationMutation) OldCreatedAtMs(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAtMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAtMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAtMs: %w", err)
+	}
+	return oldValue.CreatedAtMs, nil
+}
+
+// AddCreatedAtMs adds i to the "created_at_ms" field.
+func (m *CountdownOperationMutation) AddCreatedAtMs(i int64) {
+	if m.addcreated_at_ms != nil {
+		*m.addcreated_at_ms += i
+	} else {
+		m.addcreated_at_ms = &i
+	}
+}
+
+// AddedCreatedAtMs returns the value that was added to the "created_at_ms" field in this mutation.
+func (m *CountdownOperationMutation) AddedCreatedAtMs() (r int64, exists bool) {
+	v := m.addcreated_at_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreatedAtMs resets all changes to the "created_at_ms" field.
+func (m *CountdownOperationMutation) ResetCreatedAtMs() {
+	m.created_at_ms = nil
+	m.addcreated_at_ms = nil
+}
+
+// Where appends a list predicates to the CountdownOperationMutation builder.
+func (m *CountdownOperationMutation) Where(ps ...predicate.CountdownOperation) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CountdownOperationMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CountdownOperationMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CountdownOperation, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CountdownOperationMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CountdownOperationMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CountdownOperation).
+func (m *CountdownOperationMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CountdownOperationMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.user_id != nil {
+		fields = append(fields, countdownoperation.FieldUserID)
+	}
+	if m.operation_id != nil {
+		fields = append(fields, countdownoperation.FieldOperationID)
+	}
+	if m.name != nil {
+		fields = append(fields, countdownoperation.FieldName)
+	}
+	if m.verb != nil {
+		fields = append(fields, countdownoperation.FieldVerb)
+	}
+	if m.seconds != nil {
+		fields = append(fields, countdownoperation.FieldSeconds)
+	}
+	if m.found != nil {
+		fields = append(fields, countdownoperation.FieldFound)
+	}
+	if m.capped != nil {
+		fields = append(fields, countdownoperation.FieldCapped)
+	}
+	if m.expires_at_ms != nil {
+		fields = append(fields, countdownoperation.FieldExpiresAtMs)
+	}
+	if m.created_at_ms != nil {
+		fields = append(fields, countdownoperation.FieldCreatedAtMs)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CountdownOperationMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case countdownoperation.FieldUserID:
+		return m.UserID()
+	case countdownoperation.FieldOperationID:
+		return m.OperationID()
+	case countdownoperation.FieldName:
+		return m.Name()
+	case countdownoperation.FieldVerb:
+		return m.Verb()
+	case countdownoperation.FieldSeconds:
+		return m.Seconds()
+	case countdownoperation.FieldFound:
+		return m.Found()
+	case countdownoperation.FieldCapped:
+		return m.Capped()
+	case countdownoperation.FieldExpiresAtMs:
+		return m.ExpiresAtMs()
+	case countdownoperation.FieldCreatedAtMs:
+		return m.CreatedAtMs()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CountdownOperationMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case countdownoperation.FieldUserID:
+		return m.OldUserID(ctx)
+	case countdownoperation.FieldOperationID:
+		return m.OldOperationID(ctx)
+	case countdownoperation.FieldName:
+		return m.OldName(ctx)
+	case countdownoperation.FieldVerb:
+		return m.OldVerb(ctx)
+	case countdownoperation.FieldSeconds:
+		return m.OldSeconds(ctx)
+	case countdownoperation.FieldFound:
+		return m.OldFound(ctx)
+	case countdownoperation.FieldCapped:
+		return m.OldCapped(ctx)
+	case countdownoperation.FieldExpiresAtMs:
+		return m.OldExpiresAtMs(ctx)
+	case countdownoperation.FieldCreatedAtMs:
+		return m.OldCreatedAtMs(ctx)
+	}
+	return nil, fmt.Errorf("unknown CountdownOperation field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CountdownOperationMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case countdownoperation.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case countdownoperation.FieldOperationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOperationID(v)
+		return nil
+	case countdownoperation.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case countdownoperation.FieldVerb:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVerb(v)
+		return nil
+	case countdownoperation.FieldSeconds:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSeconds(v)
+		return nil
+	case countdownoperation.FieldFound:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFound(v)
+		return nil
+	case countdownoperation.FieldCapped:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCapped(v)
+		return nil
+	case countdownoperation.FieldExpiresAtMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAtMs(v)
+		return nil
+	case countdownoperation.FieldCreatedAtMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAtMs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CountdownOperation field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CountdownOperationMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, countdownoperation.FieldUserID)
+	}
+	if m.addseconds != nil {
+		fields = append(fields, countdownoperation.FieldSeconds)
+	}
+	if m.addexpires_at_ms != nil {
+		fields = append(fields, countdownoperation.FieldExpiresAtMs)
+	}
+	if m.addcreated_at_ms != nil {
+		fields = append(fields, countdownoperation.FieldCreatedAtMs)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CountdownOperationMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case countdownoperation.FieldUserID:
+		return m.AddedUserID()
+	case countdownoperation.FieldSeconds:
+		return m.AddedSeconds()
+	case countdownoperation.FieldExpiresAtMs:
+		return m.AddedExpiresAtMs()
+	case countdownoperation.FieldCreatedAtMs:
+		return m.AddedCreatedAtMs()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CountdownOperationMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case countdownoperation.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case countdownoperation.FieldSeconds:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSeconds(v)
+		return nil
+	case countdownoperation.FieldExpiresAtMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddExpiresAtMs(v)
+		return nil
+	case countdownoperation.FieldCreatedAtMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCreatedAtMs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CountdownOperation numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CountdownOperationMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CountdownOperationMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CountdownOperationMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CountdownOperation nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CountdownOperationMutation) ResetField(name string) error {
+	switch name {
+	case countdownoperation.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case countdownoperation.FieldOperationID:
+		m.ResetOperationID()
+		return nil
+	case countdownoperation.FieldName:
+		m.ResetName()
+		return nil
+	case countdownoperation.FieldVerb:
+		m.ResetVerb()
+		return nil
+	case countdownoperation.FieldSeconds:
+		m.ResetSeconds()
+		return nil
+	case countdownoperation.FieldFound:
+		m.ResetFound()
+		return nil
+	case countdownoperation.FieldCapped:
+		m.ResetCapped()
+		return nil
+	case countdownoperation.FieldExpiresAtMs:
+		m.ResetExpiresAtMs()
+		return nil
+	case countdownoperation.FieldCreatedAtMs:
+		m.ResetCreatedAtMs()
+		return nil
+	}
+	return fmt.Errorf("unknown CountdownOperation field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CountdownOperationMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CountdownOperationMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CountdownOperationMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CountdownOperationMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CountdownOperationMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CountdownOperationMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CountdownOperationMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CountdownOperation unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CountdownOperationMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CountdownOperation edge %s", name)
 }
 
 // FeedCounterMutation represents an operation that mutates the FeedCounter nodes in the graph.

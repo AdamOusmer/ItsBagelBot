@@ -169,5 +169,48 @@
       "seconds": { "label": "Añadir", "range": "Usa de 1 segundo a {days} días." },
       "per": { "label": "Por", "hint": "Añade el tiempo de arriba por cada cantidad completa. Pon 100 en una receta de bits para contar cada 100 bits. Déjalo vacío para añadirlo una vez por evento." }
     }
+  },
+    "countdownStart": {
+    "label": "Iniciar cuenta atrás",
+    "summary": "Iniciar o reiniciar una cuenta atrás",
+    "field": {
+      "name": {
+        "label": "Nombre",
+        "placeholder": "subathon"
+      },
+      "seconds": {
+        "label": "Duración",
+        "range": "Usa entre 1 segundo y {days} días."
+      },
+      "leftCommand": {
+        "label": "Comando de tiempo restante",
+        "placeholder": "!timeleft"
+      },
+      "leftReply": {
+        "label": "Respuesta de tiempo restante",
+        "placeholder": "Quedan {countdown:left}"
+      },
+      "readyReply": {
+        "label": "Respuesta de tiempo restante al terminar",
+        "placeholder": "¡La cuenta atrás ha terminado!"
+      }
+    }
+  },
+    "countdownAdd": {
+    "label": "Añadir tiempo a la cuenta atrás",
+    "summary": "Ampliar una cuenta atrás activa",
+    "field": {
+      "name": {
+        "label": "Cuenta atrás"
+      },
+      "seconds": {
+        "label": "Añadir",
+        "range": "Usa entre 1 segundo y {days} días."
+      },
+      "per": {
+        "label": "Por cada",
+        "hint": "Añade este tiempo por cada cantidad completa. Déjalo vacío para añadirlo una vez por evento."
+      }
+    }
   }
 }

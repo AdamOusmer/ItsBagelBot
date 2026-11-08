@@ -12,6 +12,9 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
+	"ItsBagelBot/app/db/modules/ent/countdown"
+	"ItsBagelBot/app/db/modules/ent/countdowndelivery"
+	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/variable"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/pkg/db"
@@ -46,7 +49,16 @@ func (*RecipeState) deleteChannelRows(ctx context.Context, tx *ent.Tx, channel u
 	if _, err := tx.Variable.Delete().Where(variable.UserID(channel)).Exec(ctx); err != nil {
 		return err
 	}
-	_, err := tx.CooldownClaim.Delete().Where(cooldownclaim.UserID(channel)).Exec(ctx)
+	if _, err := tx.CooldownClaim.Delete().Where(cooldownclaim.UserID(channel)).Exec(ctx); err != nil {
+		return err
+	}
+	if _, err := tx.Countdown.Delete().Where(countdown.UserID(channel)).Exec(ctx); err != nil {
+		return err
+	}
+	if _, err := tx.CountdownDelivery.Delete().Where(countdowndelivery.UserID(channel)).Exec(ctx); err != nil {
+		return err
+	}
+	_, err := tx.CountdownOperation.Delete().Where(countdownoperation.UserID(channel)).Exec(ctx)
 	return err
 }
 

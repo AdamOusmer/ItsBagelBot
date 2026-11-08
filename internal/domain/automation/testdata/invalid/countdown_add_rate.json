@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "manual"
+  },
+  "actions": [
+    {
+      "type": "countdown_add",
+      "params": {
+        "name": "break",
+        "seconds": 30,
+        "per": 100
+      }
+    }
+  ]
+}

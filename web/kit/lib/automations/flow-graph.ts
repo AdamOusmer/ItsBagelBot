@@ -75,7 +75,7 @@ const FIXED_EVENT_NODES: Record<string, string> = {
   'twitch.stream.online': 'stream.online'
 };
 
-const isTriggerType = (type: string) => type.startsWith('twitch.');
+const isTriggerType = (type: string) => (type.startsWith('twitch.') || type === 'countdown.finished');
 const isConditionType = (type: string) => type.startsWith('cond.');
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -123,6 +123,7 @@ function subTrigger(config: FlowConfig): Trigger | null {
 }
 
 const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = {
+  'countdown.finished': (config) => ({ type: 'countdown', params: { name: recipeName(config.name) } }),
   'twitch.chat.command': commandTrigger,
   'twitch.chat.word': wordTrigger,
   'twitch.follow': () => eventTrigger('channel.follow'),
@@ -277,6 +278,8 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.text': textAction,
   'reply.math': (config) => ({ type: 'math', params: { expression: str(config.expression), save_as: recipeName(config.saveAs) } }),
   'reply.reward_update': rewardUpdateAction,
+  'reply.countdown_start': (config) => ({ type: 'countdown_start', params: { ...timeLeftParams(config), name: recipeName(config.name), seconds: num(config.seconds) } }),
+  'reply.countdown_add': (config) => ({ ...cooldownAddAction(config), type: 'countdown_add' }),
   'reply.cooldown_add': cooldownAddAction
 };
 
@@ -740,6 +743,7 @@ function commandNode(params: Params): { type: string; config: FlowConfig } | nul
 
 function triggerToNode(trigger: Trigger): { type: string; config: FlowConfig } | null {
   const params = trigger.params ?? {};
+  if (trigger.type === 'countdown') return { type: 'countdown.finished', config: { name: str(params.name) } };
   if (trigger.type === 'command') return commandNode(params);
   if (trigger.type === 'event') return eventNode(params);
   if (trigger.type === 'reward') return { type: 'twitch.reward', config: { reward: str(params.reward_id) } };
@@ -842,6 +846,8 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   text: textNode,
   math: (params) => ({ type: 'reply.math', config: { expression: str(params.expression), saveAs: str(params.save_as) } }),
   reward_update: rewardUpdateNode,
+  countdown_start: (params) => ({ type: 'reply.countdown_start', config: { ...timeLeftConfig(params), name: str(params.name), seconds: num(params.seconds) } }),
+  countdown_add: (params) => ({ ...cooldownAddNode(params), type: 'reply.countdown_add' }),
   cooldown_add: cooldownAddNode
 };
 

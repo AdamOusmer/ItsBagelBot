@@ -19,10 +19,11 @@ import (
 )
 
 type triggerMatch struct {
-	plan  *automation.Plan
-	args  string
-	event map[string]string
-	left  *automation.CooldownCondition
+	plan          *automation.Plan
+	args          string
+	event         map[string]string
+	left          *automation.CooldownCondition
+	countdownLeft *automation.CountdownStartAction
 }
 
 func (p *Pipeline) runAutomationStage(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, consumed bool, emit module.Emit) {
@@ -42,7 +43,7 @@ func (p *Pipeline) runChatScanTriggers(ctx context.Context, mctx *module.Context
 	text := automation.NewMatchText(mctx.Env.Text)
 	for _, t := range triggers {
 		if args, ok := t.MatchChat(&text); ok {
-			p.runChatTrigger(ctx, mctx, triggerMatch{plan: t.Plan, args: args, left: t.Left}, emit)
+			p.runChatTrigger(ctx, mctx, triggerMatch{plan: t.Plan, args: args, left: t.Left, countdownLeft: t.CountdownLeft}, emit)
 		}
 	}
 }

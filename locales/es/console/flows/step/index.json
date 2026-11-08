@@ -16,6 +16,7 @@
     "loopIndex": "Qué repetición es",
     "apiError": "Por qué falló",
     "cooldownLeft": "Tiempo restante de enfriamiento",
+    "countdownLeft": "Tiempo restante de la cuenta atrás",
     "saved": "Guardado por un paso anterior"
   }
 }

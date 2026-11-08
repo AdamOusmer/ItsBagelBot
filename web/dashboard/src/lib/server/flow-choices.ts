@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { ownedCooldownNames } from '@bagel/kit/automations';
+import { ownedCooldownNames, ownedCountdownNames } from '@bagel/kit/automations';
 import { logger } from '@bagel/kit/server/logger';
 import { unavailable, type ChoiceList, type ChoiceSource } from '#lib/flow/choices';
 import { specFor } from '#lib/flow/model';
@@ -47,6 +47,21 @@ export const namedCooldownChoices = (userId: BroadcasterId) =>
     const options: ChoiceList['options'] = [];
     for (const automation of automations) {
       for (const name of ownedCooldownNames(automation.definition)) {
+        if (seen.has(name)) continue;
+        seen.add(name);
+        options.push({ value: name, label: `${name}, in ${automation.name}` });
+      }
+    }
+    return { options };
+  });
+
+export const namedCountdownChoices = (userId: BroadcasterId) =>
+  settled('namedCountdowns', async () => {
+    const automations = await listAutomations(userId);
+    const seen = new Set<string>();
+    const options: ChoiceList['options'] = [];
+    for (const automation of automations) {
+      for (const name of ownedCountdownNames(automation.definition)) {
         if (seen.has(name)) continue;
         seen.add(name);
         options.push({ value: name, label: `${name}, in ${automation.name}` });
