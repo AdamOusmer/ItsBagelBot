@@ -85,7 +85,7 @@ func TestReplyTokensResolveInGameReplies(t *testing.T) {
 		{"urchin.sniper", gossipCase{chat: urchinChat("!sniper"), replies: map[string]any{"urchin.sniper": gossiprpc.UrchinSniperReply{
 			Player: "Techno", Score: 7.5, Mode: "warn", TagCount: 1,
 		}}}},
-		{"urchin.tags", gossipCase{chat: urchinChat("!tag"), replies: map[string]any{"urchin.tags": gossiprpc.UrchinTagsReply{
+		{"urchin.tags", gossipCase{chat: urchinChat("!bwtag"), replies: map[string]any{"urchin.tags": gossiprpc.UrchinTagsReply{
 			Player: "Techno", Tags: []gossiprpc.UrchinTag{{Type: "blatant_cheater", AddedOn: 1, Reason: "bhop"}},
 		}}}},
 		{"mcsr.elo", gossipCase{chat: mcsrChat("!elo", ""), replies: map[string]any{"mcsr.user": gossiprpc.McsrUserReply{

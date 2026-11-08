@@ -37,6 +37,18 @@ describe('public directory module commands', () => {
   const commandsOf = (rows: Parameters<typeof publicModules>[0], id: string) =>
     publicModules(rows, 'en').find((entry) => entry.id === id)?.commands ?? [];
 
+  test('Bedwars tag names stay current in the dashboard public directory', () => {
+    for (const locale of ['en', 'fr'] as const) {
+      const entry = publicModules([{ name: 'urchin', is_enabled: true }], locale).find((entry) => entry.id === 'urchin')!;
+      const labels = entry.commands.map((command) => command.label);
+      expect(labels.some((label) => label.includes('!bwtag') && label.includes('!bwtags'))).toBe(true);
+      expect(labels).not.toContain('!tag');
+      expect(labels).not.toContain('!tags');
+    }
+    const disabled = commandsOf([{ name: 'urchin', is_enabled: true, configs: { tagsEnabled: 'off' } }], 'urchin');
+    expect(disabled.some((command) => command.label.includes('!bwtag'))).toBe(false);
+  });
+
   test('lists each trigger once, not once per reply line', () => {
     const raffle = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').map((c) => c.label);
     expect(raffle.filter((label) => label === '!join')).toHaveLength(1);

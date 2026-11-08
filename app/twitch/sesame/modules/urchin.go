@@ -55,18 +55,21 @@ func Urchin(d engine.Deps) module.Module {
 	}
 
 	m := module.NewModule(urchinModuleName, module.KindOptIn)
+	statsRun, tagsRun := urchinStatsCommand.run(d), urchinTagsRun(d)
+	m.Command("bw").Everyone().Cooldown(urchinCooldown).Aliases("bedwars").
+		Run(subDispatch(statsRun, map[string]module.RunFunc{"tag": tagsRun, "stats": statsRun}))
 	m.Command("daily").Everyone().Cooldown(urchinCooldown).Aliases("bwdaily").
 		Run(urchinSessionRun(d, urchinDailyWindow))
 	m.Command("weekly").Everyone().Cooldown(urchinCooldown).Aliases("bwweekly").
 		Run(urchinSessionRun(d, urchinWeeklyWindow))
 	m.Command("monthly").Everyone().Cooldown(urchinCooldown).Aliases("bwmonthly").
 		Run(urchinSessionRun(d, urchinMonthlyWindow))
-	m.Command("bwstats").Everyone().Cooldown(urchinCooldown).Aliases("bedwars").
-		Run(urchinStatsCommand.run(d))
+	m.Command("bwstats").Everyone().Cooldown(urchinCooldown).
+		Run(statsRun)
 	m.Command("sniper").Everyone().Cooldown(urchinCooldown).Aliases("urchin").
 		Run(urchinSniperCommand.run(d))
-	m.Command("tag").Everyone().Cooldown(urchinCooldown).Aliases("tags", "bwtags").
-		Run(urchinTagsRun(d))
+	m.Command("bwtag").Everyone().Cooldown(urchinCooldown).Aliases("bwtags").
+		Run(tagsRun)
 	m.Command("tagdescription").Everyone().Cooldown(urchinCooldown).
 		Run(urchinTagDescriptionRun(d))
 	return m.Build()

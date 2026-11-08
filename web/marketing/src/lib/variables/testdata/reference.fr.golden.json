@@ -1541,7 +1541,7 @@
       {
         "id": "tags",
         "group": "Stats de jeu",
-        "label": "Bedwars: !tag / !tagdescription",
+        "label": "Bedwars: !bwtag / !bwtags / !tagdescription",
         "dashPath": "/modules/urchin"
       },
       {
@@ -2230,7 +2230,7 @@
       {
         "id": "tags",
         "group": "Stats de jeu",
-        "label": "Bedwars: !tag / !tagdescription",
+        "label": "Bedwars: !bwtag / !bwtags / !tagdescription",
         "dashPath": "/modules/urchin"
       },
       {
@@ -7222,7 +7222,7 @@
       {
         "id": "tags",
         "group": "Stats de jeu",
-        "label": "Bedwars: !tag / !tagdescription",
+        "label": "Bedwars: !bwtag / !bwtags / !tagdescription",
         "dashPath": "/modules/urchin"
       }
     ],

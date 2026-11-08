@@ -31,7 +31,7 @@
       "defaultMessage": "{player} urchin score: {score}"
     },
     "tags": {
-      "tagline": "Active Urchin blacklist tags.",
+      "tagline": "Active Urchin blacklist tags (also !bwtags, !bw tag or !bedwars tag).",
       "defaultMessage": "{player}: {tags}"
     },
     "tagdescription": {

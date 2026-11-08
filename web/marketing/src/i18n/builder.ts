@@ -284,11 +284,11 @@ export const SURFACES: SurfaceDef[] = ([
   {
     id: 'tags',
     group: { en: 'Game stats', fr: 'Stats de jeu' },
-    label: { en: 'Bedwars: !tag / !tagdescription', fr: 'Bedwars: !tag / !tagdescription' },
+    label: { en: 'Bedwars: !bwtag / !bwtags / !tagdescription', fr: 'Bedwars: !bwtag / !bwtags / !tagdescription' },
     dashPath: '/modules/urchin',
     hint: { en: 'Bedwars Stats module → tag-lookup replies.', fr: 'Module Stats Bedwars → réponses de recherche de tags.' },
     example: { en: '{player}: {tags}', fr: '{player}: {tags}' },
-    prompt: { en: '!tag Technoblade', fr: '!tag Technoblade' },
+    prompt: { en: '!bwtag Technoblade', fr: '!bwtag Technoblade' },
     vars: moduleSurfaceVars('urchin.tags'),
   },
   {

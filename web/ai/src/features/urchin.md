@@ -1,7 +1,7 @@
 ---
 title: Hypixel Bedwars and Urchin module: reference for AI assistants
 description: Capabilities, prerequisites, exact chat syntax, aliases, permissions, and defaults for Hypixel Bedwars and Urchin module.
-updated: 2026-10-13
+updated: 2026-11-08
 kind: feature
 human: https://itsbagelbot.com/guides/modules/
 ---
@@ -89,9 +89,9 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 ### `!bwstats`
 
 - Syntax: `!bwstats [player]`
-- Aliases: `!bedwars`
+- Aliases: `!bw [player]`, `!bedwars [player]`
 - Who can run it: Everyone, while the module and the relevant reply are enabled.
-- Behaviour: Lifetime stars, wins, finals, FKDR, and beds broken.
+- Behaviour: Lifetime stars, wins, finals, FKDR, and beds broken. `!bw` and `!bedwars` show these stats by default; their `tag` subcommand performs the blacklist-tag lookup below. `!bwstats` remains the standalone stats command.
 - Example reply template: "{{console:modules.catalog.urchin.replies.stats.defaultMessage}}". Runtime values replace the braces.
 
 </command>
@@ -108,12 +108,12 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 
 </command>
 
-<command name="!tag">
+<command name="!bwtag">
 
-### `!tag`
+### `!bwtag`
 
-- Syntax: `!tag [player]`
-- Aliases: `!tags`, `!bwtags`
+- Syntax: `!bwtag [player]`
+- Aliases: `!bwtags [player]`, `!bw tag [player]`, `!bedwars tag [player]`
 - Who can run it: Everyone, while the module and the relevant reply are enabled.
 - Behaviour: Active Urchin blacklist tags.
 - Example reply template: "{{console:modules.catalog.urchin.replies.tags.defaultMessage}}". Runtime values replace the braces.

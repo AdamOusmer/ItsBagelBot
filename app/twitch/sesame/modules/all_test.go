@@ -111,9 +111,10 @@ var shippedContract = map[string]moduleSpec{
 	"emoteplay":     {module.KindOptIn, nil},
 	"moderation":    {module.KindDefault, []commandSpec{command("nuke", roleModerator)}},
 	"urchin": {module.KindOptIn, []commandSpec{
+		command("bw", roleEveryone, "bedwars"),
 		command("daily", roleEveryone, "bwdaily"), command("weekly", roleEveryone, "bwweekly"), command("monthly", roleEveryone, "bwmonthly"),
-		command("bwstats", roleEveryone, "bedwars"), command("sniper", roleEveryone, "urchin"),
-		command("tag", roleEveryone, "tags", "bwtags"), command("tagdescription", roleEveryone),
+		command("bwstats", roleEveryone), command("sniper", roleEveryone, "urchin"),
+		command("bwtag", roleEveryone, "bwtags"), command("tagdescription", roleEveryone),
 	}},
 	"mcsr": {module.KindOptIn, []commandSpec{
 		command("elo", roleEveryone, "mcsr", "ranked"), command("session", roleEveryone, "mcsrsession"),

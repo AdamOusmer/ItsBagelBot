@@ -1,9 +1,25 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync } from 'node:fs';
 import { guideIds, translate } from './translate';
+import type { GuideContent } from './types';
 
 const folder = new URL('../../content/guides/', import.meta.url);
 const names = readdirSync(folder);
+
+function expectBedwarsTagCommands(guide: GuideContent) {
+  const widgets = guide.sections.flatMap((section) => section.blocks)
+    .filter((block) => block.kind === 'widget');
+  const widget = widgets.find((block) => block.name === 'ModuleCatalog');
+  if (!widget) throw new Error('ModuleCatalog widget is missing');
+  const modules = widget.props?.modules as { commands?: string }[];
+  const commands = modules.find((module) => module.commands?.includes('!bwstats'))?.commands?.split(', ');
+  expect(commands).toContain('!bwtag');
+  expect(commands).toContain('!bwtags');
+  expect(commands).toContain('!bw tag');
+  expect(commands).toContain('!bedwars tag');
+  expect(commands).not.toContain('!tag');
+  expect(commands).not.toContain('!tags');
+}
 
 describe('data-only guide translations', () => {
   for (const name of names.filter((name) => name.endsWith('.json') && !name.startsWith('hub.'))) {
@@ -21,6 +37,10 @@ describe('data-only guide translations', () => {
         expect(ids.includes(id) || (marker > 0 && blocks.includes(id.slice(0, marker)))).toBe(true);
       }
       const localized = translate(english, copy);
+      if (slug === 'modules') {
+        expectBedwarsTagCommands(english);
+        expectBedwarsTagCommands(localized);
+      }
       expect(localized.sections.map((section) => section.id)).toEqual(english.sections.map((section) => section.id));
       expect(localized.meta.title).toBe(copy['meta.title']);
       expect(localized.meta.aiDoc).toBe(english.meta.aiDoc);
