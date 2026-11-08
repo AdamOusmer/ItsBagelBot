@@ -54,6 +54,8 @@ const COMMAND_TEXT: [name: string, template: string, want: string, overrides?: O
   ['{n:m} is a real slice; {:m} anchors it at word 1', '{1:2} / {:2}', 'Lotti good / Lotti good'],
   ['{sender}/{target} are aliases; an override of the canonical covers them', '{sender} waves at {target}', 'SnackPackPanda waves at MikanMeerkat', { user: 'SnackPackPanda', touser: 'MikanMeerkat' }],
   ['resolves dynamic tokens deterministically', '{random} {random:10-20} {choice:a,b,c}', '57 15 a'],
+  ['formats random numbers with the chosen separator', "{random:1000000-1000000:,} {random:1000000-1000000:'} {random:1000-1000:·} {random:999-999:,}", "1,000,000 1'000'000 1·000 999"],
+  ['invalid random separators stay literal', '{random:1000-1000:} {random:1000-1000:ab}', '{random:1000-1000:} {random:1000-1000:ab}'],
   ['invalid random ranges stay literal, like ParseDynamic ok=false', '{random:5-1} {random:x-y}', '{random:5-1} {random:x-y}'],
   ['a conditional picks a branch from the sample of the token it names', '{if:touser:hi you:hi everyone} - {touser}', 'hi you - Lotti'],
   ['a conditional on a missing word tests emptiness', '{if:9:word nine:no ninth word}', 'no ninth word'],

@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 func Dynamic(tok Token) (val string, ok bool) {
@@ -31,11 +32,21 @@ func randomValue(tok Token) (string, bool) {
 	if !tok.HasPayload {
 		return strconv.Itoa(rand.IntN(randomDefaultMax) + 1), true
 	}
-	low, high, ok := rangeBounds(tok.Payload)
+	rangeText, separator, hasSeparator := strings.Cut(tok.Payload, ":")
+	if hasSeparator && utf8.RuneCountInString(separator) != 1 {
+		return "", false
+	}
+	low, high, ok := rangeBounds(rangeText)
 	if !ok {
 		return "", false
 	}
-	return strconv.Itoa(rand.IntN(high-low+1) + low), true
+	value := strconv.Itoa(rand.IntN(high-low+1) + low)
+	if hasSeparator {
+		for i := len(value) - 3; i > 0; i -= 3 {
+			value = value[:i] + separator + value[i:]
+		}
+	}
+	return value, true
 }
 
 func rangeBounds(payload string) (low, high int, ok bool) {

@@ -80,6 +80,7 @@ Le système peut laisser passer les jetons littéraux `{key}` si le callback ne 
 En outre, `tmpl.Dynamic` (`pkg/tmpl/dynamic.go`) prend en charge les variables dynamiques génériques :
 - `{random}` : génère un nombre aléatoire entre 1 et 100.
 - `{random:min-max}` : génère un nombre aléatoire entre `min` et `max`.
+- `{random:min-max:,}` : regroupe les chiffres par trois avec le séparateur d'un seul caractère indiqué (par exemple `1,000,000`). Utilisez `'` à la place de `,` pour obtenir `1'000'000`.
 - `{choice:a,b,c}` : choisit une chaîne aléatoire dans une liste séparée par des virgules.
 
 ### État et cache

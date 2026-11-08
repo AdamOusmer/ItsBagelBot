@@ -2107,7 +2107,7 @@
     ],
     "name": "Random 1-100",
     "hint": "a random number from 1 to 100, or {random:min-max}",
-    "description": "A whole number from 1 to 100, new every time. {random:1-6} picks your own range; both ends included.",
+    "description": "A whole number from 1 to 100, new every time. {random:1-6} picks your own range; both ends included. Add a separator with {random:1-1000000:,}.",
     "group": "fun",
     "groups": [
       "fun"

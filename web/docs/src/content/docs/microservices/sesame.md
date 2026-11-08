@@ -81,6 +81,7 @@ The system supports passing through literal `{key}` tokens if the callback does 
 Additionally, `tmpl.Dynamic` (`pkg/tmpl/dynamic.go`) provides built-in support for generic dynamic variables:
 - `{random}`: Generates a random number between 1 and 100.
 - `{random:min-max}`: Generates a random number between `min` and `max`.
+- `{random:min-max:,}`: Groups digits in threes using the supplied single-character separator (for example, `1,000,000`). Use `'` instead of `,` for `1'000'000`.
 - `{choice:a,b,c}`: Picks a random string from a comma-separated list of choices.
 
 ### State & Caching

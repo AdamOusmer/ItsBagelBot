@@ -274,11 +274,13 @@ function choiceSample(token: Token): string | null {
 
 function randomSample(token: Token): string | null {
   if (token.payload === null) return RANDOM_SAMPLE;
-  const bounds = token.payload.match(/^(\d+)-(\d+)$/);
+  const bounds = token.payload.match(/^(\d+)-(\d+)(?::([^]))?$/u);
   if (!bounds) return null;
   const min = Number(bounds[1]);
   const max = Number(bounds[2]);
-  return max < min ? null : String(Math.floor((min + max) / 2));
+  if (max < min) return null;
+  const value = String(Math.floor((min + max) / 2));
+  return bounds[3] === undefined ? value : value.replace(/\B(?=(\d{3})+(?!\d))/g, () => bounds[3]);
 }
 
 const UTIL_SCOPE: SampleScope = {
