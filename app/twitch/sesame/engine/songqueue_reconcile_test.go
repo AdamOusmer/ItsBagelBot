@@ -74,10 +74,40 @@ func TestReconcileSongQueueKeepsNewestDuplicate(t *testing.T) {
 	assert.Equal(t, "second", doc.Up[0].RequesterID)
 }
 
-func TestReconcileSongQueueLeavesIdlePlayerAlone(t *testing.T) {
+func TestReconcileSongQueueIdlePlayerKeepsRequestsThatCouldStillBeWaiting(t *testing.T) {
 	now := time.Now()
-	doc := songQueueDoc{Current: &SongEntry{TrackID: "paused"}, Up: []SongEntry{{TrackID: "waiting", EnqueuedAt: now.Add(-time.Hour).UnixMilli()}}}
+	song := int64(3 * 60 * 1000)
+	doc := songQueueDoc{
+		Current: &SongEntry{TrackID: "playing", DurationMS: song, EnqueuedAt: now.Add(-2 * time.Minute).UnixMilli()},
+		Up: []SongEntry{
+			{TrackID: "next", DurationMS: song, EnqueuedAt: now.Add(-2 * time.Minute).UnixMilli()},
+			{TrackID: "later", DurationMS: song, EnqueuedAt: now.Add(-time.Minute).UnixMilli()},
+		},
+	}
 	assert.False(t, reconcileSongQueue(&doc, PlayerQueueIDs{}, now))
-	assert.Equal(t, "paused", doc.Current.TrackID)
+	require.NotNil(t, doc.Current)
+	assert.Len(t, doc.Up, 2)
+}
+
+func TestReconcileSongQueueIdlePlayerRetiresRequestsThatMustHavePlayed(t *testing.T) {
+	now := time.Now()
+	song := int64(3 * 60 * 1000)
+	doc := songQueueDoc{
+		Current: &SongEntry{TrackID: "old", DurationMS: song, EnqueuedAt: now.Add(-3 * time.Hour).UnixMilli()},
+		Up: []SongEntry{
+			{TrackID: "ghost", RequesterID: "a", DurationMS: song, EnqueuedAt: now.Add(-3 * time.Hour).UnixMilli()},
+			{TrackID: "ghost2", RequesterID: "b", DurationMS: song, EnqueuedAt: now.Add(-2 * time.Hour).UnixMilli()},
+			{TrackID: "recent", RequesterID: "c", DurationMS: song, EnqueuedAt: now.Add(-time.Minute).UnixMilli()},
+		},
+	}
+	assert.True(t, reconcileSongQueue(&doc, PlayerQueueIDs{}, now))
+	assert.Nil(t, doc.Current)
+	require.Len(t, doc.Up, 1)
+	assert.Equal(t, "recent", doc.Up[0].TrackID)
+}
+
+func TestReconcileSongQueueIdlePlayerKeepsEntriesWithoutEnqueueTime(t *testing.T) {
+	doc := songQueueDoc{Up: []SongEntry{{TrackID: "legacy"}}}
+	assert.False(t, reconcileSongQueue(&doc, PlayerQueueIDs{}, time.Now()))
 	assert.Len(t, doc.Up, 1)
 }

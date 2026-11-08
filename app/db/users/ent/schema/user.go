@@ -56,6 +56,7 @@ func (User) Fields() []ent.Field {
 
 		field.Bool("commands_page_hidden").Default(false),
 		field.Bool("leaderboard_page_hidden").Default(false),
+		field.Bool("songqueue_page_hidden").Default(false),
 
 		field.String("creator_code").Optional().Nillable().MaxLen(64),
 

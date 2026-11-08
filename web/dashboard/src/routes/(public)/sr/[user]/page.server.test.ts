@@ -1,0 +1,193 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import { describe, expect, mock, test } from 'bun:test';
+import { stubSvelteKit } from '../../../../../test/sveltekit';
+import { RpcError } from '@bagel/kit/server/nats';
+
+stubSvelteKit();
+
+type Song = { title: string; artists: string; requester: string; joinedAt: number };
+type View = { open: boolean; current: Song | null; up: Song[]; total: number; degraded: boolean };
+
+const now: Song = { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice', joinedAt: 1000 };
+const next: Song = { title: 'Human', artists: 'The Killers', requester: 'bob', joinedAt: 2000 };
+
+let srEnabled: boolean | undefined;
+let moduleEnabled: () => Promise<boolean> = async () => true;
+let pageVisible: () => Promise<boolean> = async () => true;
+let resolveReply: () => Promise<{ userId: string; username: string; displayName?: string }> = async () => ({ userId: '42', username: 'somechannel' });
+let songView: View = { open: true, current: now, up: [next], total: 1, degraded: false };
+const songReads: string[] = [];
+const moduleReads: string[] = [];
+const pageReads: string[] = [];
+
+mock.module('#lib/server/services', () => ({
+  resolveLogin: () => resolveReply(),
+  userSongQueuePage: async (userId: string) => {
+    pageReads.push(userId);
+    return pageVisible();
+  }
+}));
+mock.module('#lib/server/identity-heal', () => ({ healLogin: async () => ({ kind: 'missing' }) }));
+mock.module('#lib/server/queue-store', () => ({ readQueue: async () => ({ open: false, total: 0, entries: [], degraded: false }) }));
+mock.module('#lib/server/module-blob', () => ({
+  readModuleBlob: async (userId: string, modId: string) => {
+    moduleReads.push(`${userId}:${modId}`);
+    return { enabled: await moduleEnabled(), configs: srEnabled === undefined ? {} : { sr: { enabled: srEnabled } } };
+  }
+}));
+mock.module('#lib/server/songqueue-public-store', () => ({
+  readPublicSongQueue: async (userId: string) => {
+    songReads.push(userId);
+    return songView;
+  }
+}));
+
+const { load } = await import('./+page.server');
+const { GET } = await import('./data/+server');
+const { QUEUE_EDGE_HEADERS, QUEUE_UNCACHED_HEADERS } = await import('../../queue/[user]/edge-headers');
+
+type Outcome = { status?: number; message?: string; location?: string; edge?: unknown; page?: Record<string, unknown>; headers?: Headers; body?: Record<string, unknown> };
+
+function arrange(setup: { module?: () => Promise<boolean>; sr?: boolean; page?: () => Promise<boolean>; resolve?: typeof resolveReply; view?: Partial<View> } = {}): void {
+  srEnabled = setup.sr;
+  moduleEnabled = setup.module ?? (async () => true);
+  pageVisible = setup.page ?? (async () => true);
+  resolveReply = setup.resolve ?? (async () => ({ userId: '42', username: 'somechannel' }));
+  songView = { open: true, current: now, up: [next], total: 1, degraded: false, ...setup.view };
+  songReads.length = 0;
+  moduleReads.length = 0;
+  pageReads.length = 0;
+}
+
+function failure(e: unknown, locals: Record<string, unknown>): Outcome {
+  const err = e as { status?: number; location?: string; body?: { message?: string } };
+  return { status: err.status, message: err.body?.message, location: err.location, edge: locals.edgeOutcome };
+}
+
+async function loadPage(user = 'somechannel', host = 'queue.itsbagelbot.com', path = `/sr/${user}`): Promise<Outcome> {
+  const locals: Record<string, unknown> = { locale: 'en' };
+  try {
+    const page = (await load({ params: { user }, url: new URL(`https://${host}${path}`), locals } as never)) as unknown as Record<string, unknown>;
+    return { page, edge: locals.edgeOutcome };
+  } catch (e) {
+    return failure(e, locals);
+  }
+}
+
+async function loadData(user = 'somechannel', host = 'queue.itsbagelbot.com'): Promise<Outcome> {
+  const locals: Record<string, unknown> = { locale: 'en' };
+  try {
+    const res = await GET({ params: { user }, url: new URL(`https://${host}/sr/${user}/data`), locals } as never);
+    return { headers: res.headers, body: (await res.json()) as Record<string, unknown> };
+  } catch (e) {
+    return failure(e, locals);
+  }
+}
+
+const notFound = { status: 404, message: 'Channel not found', edge: 'hidden' };
+
+describe('(public)/sr/[user] load', () => {
+  test('a request off the queue host 404s as missing without reading anything', async () => {
+    arrange();
+    expect(await loadPage('somechannel', 'dashboard.itsbagelbot.com')).toEqual({ status: 404, message: 'Not found', edge: 'missing' });
+    expect(songReads).toEqual([]);
+  });
+
+  test('a malformed login 404s as missing', async () => {
+    arrange();
+    expect(await loadPage('not-a-login')).toEqual({ status: 404, message: 'Channel not found', edge: 'missing' });
+  });
+
+  test('an unknown login 404s as missing', async () => {
+    arrange({ resolve: async () => Promise.reject(new RpcError('no such channel', 'not_found')) });
+    expect(await loadPage()).toEqual({ status: 404, message: 'Channel not found', edge: 'missing' });
+    expect(songReads).toEqual([]);
+  });
+
+  test('a failed lookup 404s without an edge outcome so it is never cached', async () => {
+    arrange({ resolve: async () => Promise.reject(new Error('users service down')) });
+    expect(await loadPage()).toEqual({ status: 404, message: 'Channel not found', edge: undefined });
+  });
+
+  test('a hidden page 404s edge-cached with the unknown-channel message', async () => {
+    arrange({ page: async () => false });
+    expect(await loadPage()).toEqual(notFound);
+    expect(pageReads).toEqual(['42']);
+  });
+
+  test('a disabled Song Requests module 404s edge-cached as hidden', async () => {
+    arrange({ module: async () => false });
+    expect(await loadPage()).toEqual(notFound);
+    expect(moduleReads).toEqual(['42:songqueue']);
+  });
+
+  test('a mixed-case or at-prefixed login redirects to the canonical path', async () => {
+    arrange();
+    const out = await loadPage('@SomeChannel', 'queue.itsbagelbot.com', '/sr/@SomeChannel?lang=fr');
+    expect({ status: out.status, location: out.location }).toEqual({ status: 308, location: '/sr/somechannel?lang=fr' });
+    expect(songReads).toEqual([]);
+  });
+
+  test('a visible page renders the snapshot under a shareable edge outcome', async () => {
+    arrange({ resolve: async () => ({ userId: '42', username: 'somechannel', displayName: 'SomeChannel' }) });
+    const out = await loadPage();
+    expect(out.edge).toBe('page');
+    expect(out.page).toMatchObject({ login: 'somechannel', channelName: 'SomeChannel', snapshot: { current: now, up: [next], total: 1, degraded: false } });
+    expect(typeof (out.page?.snapshot as { at: number }).at).toBe('number');
+    expect(songReads).toEqual(['42']);
+  });
+
+  test('open follows the song request setting and defaults to open', async () => {
+    arrange();
+    expect((await loadPage()).page).toMatchObject({ snapshot: { open: true } });
+    arrange({ sr: false });
+    expect((await loadPage()).page).toMatchObject({ snapshot: { open: false } });
+    arrange({ sr: true });
+    expect((await loadPage()).page).toMatchObject({ snapshot: { open: true } });
+  });
+
+  test('an unreadable queue renders a degraded page that the edge skips', async () => {
+    arrange({ view: { current: null, up: [], total: 0, degraded: true } });
+    const out = await loadPage();
+    expect(out.edge).toBe('skip');
+    expect(out.page).toMatchObject({ snapshot: { degraded: true, up: [] } });
+  });
+
+  test('an unreadable page flag fails open and renders without caching', async () => {
+    arrange({ page: async () => Promise.reject(new Error('users service blip')) });
+    const out = await loadPage();
+    expect({ edge: out.edge, up: (out.page?.snapshot as { up: unknown[] }).up.length }).toEqual({ edge: 'skip', up: 1 });
+  });
+});
+
+describe('(public)/sr/[user]/data GET', () => {
+  test('a visible page is edge-cacheable for a moment with stale-while-revalidate and no s-maxage', async () => {
+    arrange();
+    const out = await loadData();
+    expect(out.body).toMatchObject({ current: now, total: 1, degraded: false });
+    expect(out.headers?.get('cache-control')).toBe(QUEUE_EDGE_HEADERS['cache-control']);
+    const cdn = out.headers?.get('cdn-cache-control') ?? '';
+    expect(cdn).toContain('stale-while-revalidate=');
+    expect(`${out.headers?.get('cache-control')} ${cdn}`).not.toContain('s-maxage');
+  });
+
+  test('a degraded read is never edge-cached', async () => {
+    arrange({ view: { current: null, up: [], total: 0, degraded: true } });
+    const out = await loadData();
+    expect(out.headers?.get('cache-control')).toBe(QUEUE_UNCACHED_HEADERS['cache-control']);
+    expect(out.headers?.get('cdn-cache-control')).toBeNull();
+  });
+
+  test('the data path 404s for a hidden page, a disabled module, an unknown login and a foreign host', async () => {
+    arrange({ page: async () => false });
+    expect((await loadData()).status).toBe(404);
+    arrange({ module: async () => false });
+    expect((await loadData()).status).toBe(404);
+    arrange({ resolve: async () => Promise.reject(new RpcError('no such channel', 'not_found')) });
+    expect((await loadData()).status).toBe(404);
+    arrange();
+    expect((await loadData('somechannel', 'commands.itsbagelbot.com')).status).toBe(404);
+  });
+});

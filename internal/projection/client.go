@@ -38,6 +38,7 @@ type User struct {
 	CommandsPageHidden bool             `json:"commands_page_hidden,omitempty"`
 
 	LeaderboardPageHidden bool   `json:"leaderboard_page_hidden,omitempty"`
+	SongQueuePageHidden   bool   `json:"songqueue_page_hidden,omitempty"`
 	CreatorCode           string `json:"creator_code,omitempty"`
 }
 
@@ -246,7 +247,7 @@ func (c *Client) evictChannel(inv invalidation) bool {
 		c.moduleOutages.Invalidate(key("modules", id))
 	case "automations":
 		c.automations.Invalidate(key("automations", id))
-	case "status", "grant", "live", "locale", "commands_page", "leaderboard_page":
+	case "status", "grant", "live", "locale", "commands_page", "leaderboard_page", "songqueue_page":
 		c.users.Invalidate(key("user", id))
 	default:
 		return false

@@ -49,6 +49,7 @@ func TestPageSetRoundTripIntegration(t *testing.T) {
 	}{
 		{"commands_page_set", "commands_page_hidden", func(v repository.UserView) bool { return v.CommandsPageHidden }},
 		{"leaderboard_page_set", "leaderboard_page_hidden", func(v repository.UserView) bool { return v.LeaderboardPageHidden }},
+		{"songqueue_page_set", "songqueue_page_hidden", func(v repository.UserView) bool { return v.SongQueuePageHidden }},
 	}
 	for _, tc := range tests {
 		t.Run(tc.verb, func(t *testing.T) {

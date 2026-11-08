@@ -45,7 +45,7 @@ end
 if active ~= ARGV[1] or banned ~= ARGV[2] or changed then redis.call('HINCRBY',KEYS[2],'epoch',1) end
 redis.call('HSET',KEYS[1],'active',ARGV[1],'banned',ARGV[2],'status',ARGV[3],'commands_page_hidden',ARGV[4])
 redis.call('HSET',KEYS[1],'account_created_at',ARGV[7],'lifecycle',ARGV[9])
-redis.call('HSET',KEYS[1],'runtime_background',ARGV[10],'leaderboard_page_hidden',ARGV[11],'creator_code',ARGV[12])
+redis.call('HSET',KEYS[1],'runtime_background',ARGV[10],'leaderboard_page_hidden',ARGV[11],'creator_code',ARGV[12],'songqueue_page_hidden',ARGV[13])
 if ARGV[5] ~= '' then redis.call('HSET',KEYS[1],'locale',ARGV[5]) end
 local existing=redis.call('TTL',KEYS[1]); if existing<0 or existing<tonumber(ARGV[6]) then redis.call('EXPIRE',KEYS[1],ARGV[6]) end
 return 1`)

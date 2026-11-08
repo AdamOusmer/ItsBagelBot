@@ -261,6 +261,20 @@ func (_c *UserCreate) SetNillableLeaderboardPageHidden(v *bool) *UserCreate {
 	return _c
 }
 
+// SetSongqueuePageHidden sets the "songqueue_page_hidden" field.
+func (_c *UserCreate) SetSongqueuePageHidden(v bool) *UserCreate {
+	_c.mutation.SetSongqueuePageHidden(v)
+	return _c
+}
+
+// SetNillableSongqueuePageHidden sets the "songqueue_page_hidden" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSongqueuePageHidden(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetSongqueuePageHidden(*v)
+	}
+	return _c
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_c *UserCreate) SetCreatorCode(v string) *UserCreate {
 	_c.mutation.SetCreatorCode(v)
@@ -594,6 +608,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultLeaderboardPageHidden
 		_c.mutation.SetLeaderboardPageHidden(v)
 	}
+	if _, ok := _c.mutation.SongqueuePageHidden(); !ok {
+		v := user.DefaultSongqueuePageHidden
+		_c.mutation.SetSongqueuePageHidden(v)
+	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		v := user.DefaultSubscriptionSource
 		_c.mutation.SetSubscriptionSource(v)
@@ -708,6 +726,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.LeaderboardPageHidden(); !ok {
 		return &ValidationError{Name: "leaderboard_page_hidden", err: errors.New(`ent: missing required field "User.leaderboard_page_hidden"`)}
+	}
+	if _, ok := _c.mutation.SongqueuePageHidden(); !ok {
+		return &ValidationError{Name: "songqueue_page_hidden", err: errors.New(`ent: missing required field "User.songqueue_page_hidden"`)}
 	}
 	if v, ok := _c.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
@@ -846,6 +867,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.LeaderboardPageHidden(); ok {
 		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
 		_node.LeaderboardPageHidden = value
+	}
+	if value, ok := _c.mutation.SongqueuePageHidden(); ok {
+		_spec.SetField(user.FieldSongqueuePageHidden, field.TypeBool, value)
+		_node.SongqueuePageHidden = value
 	}
 	if value, ok := _c.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -1276,6 +1301,18 @@ func (u *UserUpsert) SetLeaderboardPageHidden(v bool) *UserUpsert {
 // UpdateLeaderboardPageHidden sets the "leaderboard_page_hidden" field to the value that was provided on create.
 func (u *UserUpsert) UpdateLeaderboardPageHidden() *UserUpsert {
 	u.SetExcluded(user.FieldLeaderboardPageHidden)
+	return u
+}
+
+// SetSongqueuePageHidden sets the "songqueue_page_hidden" field.
+func (u *UserUpsert) SetSongqueuePageHidden(v bool) *UserUpsert {
+	u.Set(user.FieldSongqueuePageHidden, v)
+	return u
+}
+
+// UpdateSongqueuePageHidden sets the "songqueue_page_hidden" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSongqueuePageHidden() *UserUpsert {
+	u.SetExcluded(user.FieldSongqueuePageHidden)
 	return u
 }
 
@@ -1824,6 +1861,20 @@ func (u *UserUpsertOne) SetLeaderboardPageHidden(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateLeaderboardPageHidden() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateLeaderboardPageHidden()
+	})
+}
+
+// SetSongqueuePageHidden sets the "songqueue_page_hidden" field.
+func (u *UserUpsertOne) SetSongqueuePageHidden(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSongqueuePageHidden(v)
+	})
+}
+
+// UpdateSongqueuePageHidden sets the "songqueue_page_hidden" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSongqueuePageHidden() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSongqueuePageHidden()
 	})
 }
 
@@ -2570,6 +2621,20 @@ func (u *UserUpsertBulk) SetLeaderboardPageHidden(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateLeaderboardPageHidden() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateLeaderboardPageHidden()
+	})
+}
+
+// SetSongqueuePageHidden sets the "songqueue_page_hidden" field.
+func (u *UserUpsertBulk) SetSongqueuePageHidden(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSongqueuePageHidden(v)
+	})
+}
+
+// UpdateSongqueuePageHidden sets the "songqueue_page_hidden" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSongqueuePageHidden() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSongqueuePageHidden()
 	})
 }
 

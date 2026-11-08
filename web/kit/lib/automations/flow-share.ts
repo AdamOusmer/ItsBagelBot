@@ -348,6 +348,7 @@ const LIGHTS_SCENE_FIELDS = ['scene_id', 'scene_name', 'scene_type', 'scene_inst
 function neutralLights(params: Params): Params {
   const out: Params = { ...params };
   for (const key of LIGHTS_IDENTITY_FIELDS) out[key] = SETUP_TEXT;
+  delete out.extra_lights;
   for (const key of LIGHTS_SCENE_FIELDS) if (str(params[key]) !== '') out[key] = SETUP_TEXT;
   if (out.scene_value === SETUP_TEXT) out.scene_value = SETUP_SCENE_VALUE;
   return out;

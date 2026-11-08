@@ -172,7 +172,7 @@ var enums = map[Kind][]string{
 	KindTier:      {"free", "paid", "vip"},
 	KindSource:    {"tebex", "admin", "giveaway", "vip"},
 	KindBilling:   {"activate", "cancel_requested", "cancel_aborted", "revoke", "payment_failed", "expired"},
-	KindPage:      {"commands", "leaderboard"},
+	KindPage:      {"commands", "leaderboard", "songqueue"},
 	KindState:     {"on", "off"},
 	KindBreadth:   {"1", "2", "3-5", "6+"},
 	KindLink:      {"spotify", "govee", "fetch_key"},

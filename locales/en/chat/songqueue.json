@@ -14,6 +14,8 @@
   "err.upstream": "@{songqueue:user} the music lookup is down right now, try again in a bit.",
   "next.empty": "The song queue is empty.",
   "next.pending": "Skip sent to Spotify. The request queue will update when playback changes.",
+  "page.link": "See the whole queue: {songqueue:url}",
+  "page.off": "@{songqueue:user} the song queue page isn't public.",
   "playing": "Now playing: {songqueue:title} by {songqueue:artist} (asked by {songqueue:req})",
   "refund.off": "song requests from channel points are turned off right now, your points were refunded.",
   "refund.offline": "song requests only work while the stream is live, your points were refunded.",

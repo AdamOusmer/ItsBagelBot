@@ -7580,6 +7580,7 @@ type UserMutation struct {
 	custom_cursor                *bool
 	commands_page_hidden         *bool
 	leaderboard_page_hidden      *bool
+	songqueue_page_hidden        *bool
 	creator_code                 *string
 	subscription_source          *string
 	subscription_expires_at      *time.Time
@@ -8485,6 +8486,42 @@ func (m *UserMutation) ResetLeaderboardPageHidden() {
 	m.leaderboard_page_hidden = nil
 }
 
+// SetSongqueuePageHidden sets the "songqueue_page_hidden" field.
+func (m *UserMutation) SetSongqueuePageHidden(b bool) {
+	m.songqueue_page_hidden = &b
+}
+
+// SongqueuePageHidden returns the value of the "songqueue_page_hidden" field in the mutation.
+func (m *UserMutation) SongqueuePageHidden() (r bool, exists bool) {
+	v := m.songqueue_page_hidden
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSongqueuePageHidden returns the old "songqueue_page_hidden" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldSongqueuePageHidden(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSongqueuePageHidden is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSongqueuePageHidden requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSongqueuePageHidden: %w", err)
+	}
+	return oldValue.SongqueuePageHidden, nil
+}
+
+// ResetSongqueuePageHidden resets all changes to the "songqueue_page_hidden" field.
+func (m *UserMutation) ResetSongqueuePageHidden() {
+	m.songqueue_page_hidden = nil
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (m *UserMutation) SetCreatorCode(s string) {
 	m.creator_code = &s
@@ -9288,7 +9325,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 32)
+	fields := make([]string, 0, 33)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -9345,6 +9382,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.leaderboard_page_hidden != nil {
 		fields = append(fields, user.FieldLeaderboardPageHidden)
+	}
+	if m.songqueue_page_hidden != nil {
+		fields = append(fields, user.FieldSongqueuePageHidden)
 	}
 	if m.creator_code != nil {
 		fields = append(fields, user.FieldCreatorCode)
@@ -9431,6 +9471,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.CommandsPageHidden()
 	case user.FieldLeaderboardPageHidden:
 		return m.LeaderboardPageHidden()
+	case user.FieldSongqueuePageHidden:
+		return m.SongqueuePageHidden()
 	case user.FieldCreatorCode:
 		return m.CreatorCode()
 	case user.FieldSubscriptionSource:
@@ -9504,6 +9546,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldCommandsPageHidden(ctx)
 	case user.FieldLeaderboardPageHidden:
 		return m.OldLeaderboardPageHidden(ctx)
+	case user.FieldSongqueuePageHidden:
+		return m.OldSongqueuePageHidden(ctx)
 	case user.FieldCreatorCode:
 		return m.OldCreatorCode(ctx)
 	case user.FieldSubscriptionSource:
@@ -9671,6 +9715,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetLeaderboardPageHidden(v)
+		return nil
+	case user.FieldSongqueuePageHidden:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSongqueuePageHidden(v)
 		return nil
 	case user.FieldCreatorCode:
 		v, ok := value.(string)
@@ -9958,6 +10009,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldLeaderboardPageHidden:
 		m.ResetLeaderboardPageHidden()
+		return nil
+	case user.FieldSongqueuePageHidden:
+		m.ResetSongqueuePageHidden()
 		return nil
 	case user.FieldCreatorCode:
 		m.ResetCreatorCode()

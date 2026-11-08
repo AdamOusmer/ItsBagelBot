@@ -162,6 +162,7 @@ func applyUserAdmissionWrite(s *valkeytest.Server, settings, admission string, a
 	}
 	s.Hashes[settings]["leaderboard_page_hidden"] = argv[10]
 	s.Hashes[settings]["creator_code"] = argv[11]
+	s.Hashes[settings]["songqueue_page_hidden"] = argv[12]
 	if argv[4] != "" {
 		s.Hashes[settings]["locale"] = argv[4]
 	}

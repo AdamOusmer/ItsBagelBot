@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -284,14 +285,48 @@ func (s *ValkeySongQueueStore) SyncQueue(ctx context.Context, broadcasterID uint
 // queue, aged absent requests can also be retired. The grace interval protects
 // a newly accepted POST while Spotify's read endpoint catches up.
 func reconcileSongQueue(d *songQueueDoc, player PlayerQueueIDs, now time.Time) bool {
-	// An idle or private player can yield no snapshot at all. Without a
-	// current item or an upcoming item, there is no evidence to retire from.
 	if player.CurrentID == "" && len(player.UpcomingIDs) == 0 {
-		return false
+		return retirePlayedThrough(d, now)
 	}
 	currentChanged := reconcileCurrentSong(d, player.CurrentID)
 	upcomingChanged := reconcileUpcomingSongs(d, player.UpcomingIDs, now)
 	return currentChanged || upcomingChanged
+}
+
+const idleRetireSlack = 5 * time.Minute
+
+// A private session also reads as an empty player, so an empty snapshot may
+// only retire entries that have finished even if nothing was ever paused:
+// enqueue time plus every duration ahead of them, plus slack.
+func retirePlayedThrough(d *songQueueDoc, now time.Time) bool {
+	cutoff := now.Add(-idleRetireSlack).UnixMilli()
+	aheadMS := currentDurationMS(d.Current)
+	currentRetired := retireCurrentIfPlayed(d, aheadMS, cutoff)
+	waiting := len(d.Up)
+	d.Up = slices.DeleteFunc(d.Up, func(entry SongEntry) bool {
+		aheadMS += entry.DurationMS
+		return playedThrough(entry, aheadMS, cutoff)
+	})
+	return currentRetired || len(d.Up) != waiting
+}
+
+func currentDurationMS(current *SongEntry) int64 {
+	if current == nil {
+		return 0
+	}
+	return current.DurationMS
+}
+
+func retireCurrentIfPlayed(d *songQueueDoc, aheadMS, cutoffMS int64) bool {
+	if d.Current == nil || !playedThrough(*d.Current, aheadMS, cutoffMS) {
+		return false
+	}
+	d.Current = nil
+	return true
+}
+
+func playedThrough(entry SongEntry, aheadMS, cutoffMS int64) bool {
+	return entry.EnqueuedAt > 0 && entry.EnqueuedAt+aheadMS < cutoffMS
 }
 
 func reconcileCurrentSong(d *songQueueDoc, currentID string) bool {

@@ -16,7 +16,7 @@ mock.module('./services', () => ({
 }));
 
 const { purgeChannelPages, purgeEdgeByTag, purgeRenamedChannel, scheduleLeaderboardPurge, schedulePurgeChannel } = await import('./edge-purge');
-const { channelPageUrls, enumerableChannelQuery } = await import('./channel-urls');
+const { allPageUrls, channelPageUrls, enumerableChannelQuery } = await import('./channel-urls');
 
 type Purge = { url: string; authorization: string; body: { files?: string[]; tags?: string[] } };
 
@@ -128,9 +128,9 @@ describe('channelPageUrls', () => {
 });
 
 describe('purgeChannelPages', () => {
-  test('purges the commands page URLs and the leaderboard tag of the current login', async () => {
+  test('purges the commands and song queue page URLs and the leaderboard tag of the current login', async () => {
     expect(await purgeChannelPages('42')).toBe(true);
-    expect(purges.map((p) => p.body)).toEqual([{ files: channelPageUrls('42', ['foo']) }, { tags: ['lb:foo'] }]);
+    expect(purges.map((p) => p.body)).toEqual([{ files: allPageUrls('42', ['foo']) }, { tags: ['lb:foo'] }]);
   });
 
   test('a 429 is retried once after a backoff', async () => {
@@ -151,7 +151,7 @@ describe('purgeChannelPages', () => {
   test('an unavailable account state purges the id pages and reports the board as not purged', async () => {
     username = null;
     expect(await purgeChannelPages('42')).toBe(false);
-    expect(purges.map((p) => p.body)).toEqual([{ files: channelPageUrls('42', []) }]);
+    expect(purges.map((p) => p.body)).toEqual([{ files: allPageUrls('42', []) }]);
   });
 });
 
@@ -189,7 +189,7 @@ describe('purgeRenamedChannel', () => {
     await settle();
     const bodies = purges.map((p) => p.body);
     expect(bodies.flatMap((b) => b.tags ?? [])).toEqual(['lb:newname', 'lb:oldname']);
-    expect(new Set(bodies.flatMap((b) => b.files ?? []))).toEqual(new Set(channelPageUrls('8', ['newname', 'oldname'])));
+    expect(new Set(bodies.flatMap((b) => b.files ?? []))).toEqual(new Set(allPageUrls('8', ['newname', 'oldname'])));
   });
 });
 
@@ -200,15 +200,15 @@ describe('schedulePurgeChannel', () => {
     for (const id of ids) schedulePurgeChannel(id);
     await settle();
     const sent = purges.flatMap((p) => p.body.files ?? []);
-    expect(purges.map((p) => p.body.files?.length)).toEqual([100, 20]);
-    expect(new Set(sent)).toEqual(new Set([...new Set(ids)].flatMap((id) => channelPageUrls(id, [`user${id}`]))));
+    expect(purges.map((p) => p.body.files?.length)).toEqual([100, 36]);
+    expect(new Set(sent)).toEqual(new Set([...new Set(ids)].flatMap((id) => allPageUrls(id, [`user${id}`]))));
   });
 
   test('logins passed by the caller (a rename) are purged instead of the cached account login', async () => {
     username = 'stale';
     schedulePurgeChannel('8', ['newname', 'OldName']);
     await settle();
-    expect(purges.map((p) => p.body)).toEqual([{ files: channelPageUrls('8', ['newname', 'oldname']) }]);
+    expect(purges.map((p) => p.body)).toEqual([{ files: allPageUrls('8', ['newname', 'oldname']) }]);
   });
 
   test('a write after the flush schedules a fresh purge', async () => {

@@ -23,9 +23,13 @@ function channelNotFound(): never {
   throw error(404, 'Channel not found');
 }
 
-function hideChannel(locals: App.Locals): never {
+export function hideChannel(locals: App.Locals): never {
   markEdge(locals, 'hidden');
   return channelNotFound();
+}
+
+export function canonicalPath(url: URL, login: string): string {
+  return `${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}${login}${url.search}`;
 }
 
 export function requireQueueLogin(url: URL, segment: string, locals: App.Locals): string {
@@ -39,7 +43,7 @@ export function requireQueueLogin(url: URL, segment: string, locals: App.Locals)
   return channelNotFound();
 }
 
-async function requireChannel(login: string, locals: App.Locals) {
+export async function requireChannel(login: string, locals: App.Locals) {
   const looked = await lookupLogin(login);
   if (typeof looked === 'object') return { userId: looked.userId, login, channelName: channelLabel(looked, login) };
   if (looked === 'missing') markEdge(locals, 'missing');

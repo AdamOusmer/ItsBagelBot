@@ -7,6 +7,7 @@ import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
 import type { ScopeMap } from '@bagel/kit/server/invalidation';
 import { getServerConfig } from '@bagel/kit/server/config';
 import { LOGIN_RE } from '#lib/public-login';
+import { PUBLIC_PAGES, pageScope } from '#lib/public-pages';
 import * as liveHub from '../live-hub';
 import { dashboardL1CacheCapacity } from '../config-sanity';
 
@@ -33,8 +34,7 @@ export const SCOPES: ScopeMap = {
   notifications: (id) => [id === '*' ? 'notifications:' : `notifications:${id}`],
   locale: stateKeys,
   cursor: stateKeys,
-  commands_page: stateKeys,
-  leaderboard_page: stateKeys,
+  ...Object.fromEntries(PUBLIC_PAGES.map((page) => [pageScope(page), stateKeys])),
   live: (id) => [`stream-meta:${id}`],
   fetches: (id) => [`fetches:${id}`],
   rename: renamedKeys,

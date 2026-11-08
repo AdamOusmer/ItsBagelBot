@@ -6,7 +6,7 @@ import { env } from '@bagel/kit/server/env';
 import { logger } from '@bagel/kit/server/logger';
 import { leaderboardCacheTag } from '#lib/edge-tags';
 import { accountState } from './services';
-import { channelPageUrls } from './channel-urls';
+import { allPageUrls } from './channel-urls';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -124,7 +124,7 @@ async function knownLogins(userId: string, logins: readonly string[]): Promise<s
 export async function purgeChannelPages(userId: string): Promise<boolean> {
   const logins = await knownLogins(userId, []);
   const [pages, boards] = await Promise.all([
-    purgeAll(PAGE_URLS, channelPageUrls(userId, logins)),
+    purgeAll(PAGE_URLS, allPageUrls(userId, logins)),
     logins.length > 0 && purgeAll(LEADERBOARD_TAGS, logins.map(leaderboardCacheTag))
   ]);
   return pages && boards;
@@ -132,7 +132,7 @@ export async function purgeChannelPages(userId: string): Promise<boolean> {
 
 export function schedulePurgeChannel(userId: string, logins: readonly string[] = []): void {
   if (DEMO) return;
-  void knownLogins(userId, logins).then((known) => pageQueue.add(channelPageUrls(userId, known)));
+  void knownLogins(userId, logins).then((known) => pageQueue.add(allPageUrls(userId, known)));
 }
 
 // Leaderboard responses are tagged per login: call only on board visibility, loyalty on/off, points reset, rename or deletion.

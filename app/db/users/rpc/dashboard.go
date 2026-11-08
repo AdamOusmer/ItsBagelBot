@@ -59,6 +59,7 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 		"cursor_set":           d.handleCursorSet,
 		"commands_page_set":    d.handleCommandsPageSet,
 		"leaderboard_page_set": d.handleLeaderboardPageSet,
+		"songqueue_page_set":   d.handleSongQueuePageSet,
 		"delete_self":          d.handleDeleteSelf,
 	}
 	return serveMsgVerbs(w.Within(dashboardTimeout), prefix, verbs)
@@ -234,6 +235,7 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"custom_cursor":               view.CustomCursor,
 			"commands_page_hidden":        view.CommandsPageHidden,
 			"leaderboard_page_hidden":     view.LeaderboardPageHidden,
+			"songqueue_page_hidden":       view.SongQueuePageHidden,
 			"creator_code":                view.CreatorCode,
 			"expires_at":                  view.SubscriptionExpiresAt,
 			"source":                      view.SubscriptionSource,
@@ -341,20 +343,31 @@ func (d *dashboardRPC) handleCursorSet(ctx context.Context, msg *nats.Msg) {
 		})
 }
 
-func (d *dashboardRPC) handleCommandsPageSet(ctx context.Context, msg *nats.Msg) {
-	setBoolPref(d, ctx, msg, "commands_page", "commands_page_set",
-		func(r usersrpc.CommandsPageSetRequest) string { return r.BroadcasterUserID },
-		func(ctx context.Context, id uint64, r usersrpc.CommandsPageSetRequest) error {
-			return d.repo.SetCommandsPageHidden(ctx, id, r.Hidden)
+func setPageHidden[T any](d *dashboardRPC, ctx context.Context, msg *nats.Msg, page repository.PublicPage, target func(T) (id string, hidden bool)) {
+	setBoolPref(d, ctx, msg, string(page)+"_page", string(page)+"_page_set",
+		func(r T) string { id, _ := target(r); return id },
+		func(ctx context.Context, id uint64, r T) error {
+			_, hidden := target(r)
+			return d.repo.SetPageHidden(ctx, id, page, hidden)
 		})
 }
 
+func (d *dashboardRPC) handleCommandsPageSet(ctx context.Context, msg *nats.Msg) {
+	setPageHidden(d, ctx, msg, repository.PageCommands, func(r usersrpc.CommandsPageSetRequest) (string, bool) {
+		return r.BroadcasterUserID, r.Hidden
+	})
+}
+
 func (d *dashboardRPC) handleLeaderboardPageSet(ctx context.Context, msg *nats.Msg) {
-	setBoolPref(d, ctx, msg, "leaderboard_page", "leaderboard_page_set",
-		func(r usersrpc.LeaderboardPageSetRequest) string { return r.BroadcasterUserID },
-		func(ctx context.Context, id uint64, r usersrpc.LeaderboardPageSetRequest) error {
-			return d.repo.SetLeaderboardPageHidden(ctx, id, r.Hidden)
-		})
+	setPageHidden(d, ctx, msg, repository.PageLeaderboard, func(r usersrpc.LeaderboardPageSetRequest) (string, bool) {
+		return r.BroadcasterUserID, r.Hidden
+	})
+}
+
+func (d *dashboardRPC) handleSongQueuePageSet(ctx context.Context, msg *nats.Msg) {
+	setPageHidden(d, ctx, msg, repository.PageSongQueue, func(r usersrpc.SongQueuePageSetRequest) (string, bool) {
+		return r.BroadcasterUserID, r.Hidden
+	})
 }
 
 func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {

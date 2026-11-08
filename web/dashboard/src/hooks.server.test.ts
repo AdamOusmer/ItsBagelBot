@@ -36,6 +36,7 @@ const LOGIN = '/(public)/login';
 const CHANNEL = '/(public)/user/[channel]';
 const LEADERBOARD = '/(public)/[user]';
 const QUEUE = '/(public)/queue/[user]';
+const SONG_QUEUE = '/(public)/sr/[user]';
 const SET_COOKIE = { 'set-cookie': 'bagel_session=; Max-Age=0; Path=/' };
 
 function makeEvent(opts: EventOptions): Event {
@@ -154,6 +155,9 @@ const edgeCases: { name: string; event: EventOptions; res: Response; want: Recor
   { name: 'queue: the live page is shared for a few seconds', event: { ...PAGE, routeId: QUEUE }, res: htmlResponse(200), want: cached('max-age=5, stale-while-revalidate=5, stale-if-error=86400') },
   { name: 'queue: a disabled-module 404 shares the same short TTL', event: { edgeOutcome: 'hidden', routeId: QUEUE }, res: htmlResponse(404), want: cached('max-age=5, stale-while-revalidate=5, stale-if-error=86400') },
   { name: 'queue: a degraded line is never cached', event: { edgeOutcome: 'skip', routeId: QUEUE }, res: htmlResponse(200), want: uncached },
+  { name: 'song queue: the live page is shared for a few seconds', event: { ...PAGE, routeId: SONG_QUEUE }, res: htmlResponse(200), want: cached('max-age=5, stale-while-revalidate=5, stale-if-error=86400') },
+  { name: 'song queue: a hidden page 404 shares the same short TTL', event: { edgeOutcome: 'hidden', routeId: SONG_QUEUE }, res: htmlResponse(404), want: cached('max-age=5, stale-while-revalidate=5, stale-if-error=86400') },
+  { name: 'song queue: an unreadable page flag is never cached', event: { edgeOutcome: 'skip', routeId: SONG_QUEUE }, res: htmlResponse(200), want: uncached },
   { name: 'signed-in page data is never cached', event: { ...PAGE, isDataRequest: true, sessionCookie: signedIn }, res: dataResponse(), want: uncached },
   { name: 'a plain 200 emits CDN-only directives so browsers revalidate', event: {}, res: htmlResponse(200), want: DEFAULT_TTL },
   { name: 'login uses its own TTL', event: { routeId: LOGIN }, res: htmlResponse(200), want: cached('max-age=600, stale-while-revalidate=86400, stale-if-error=86400') },

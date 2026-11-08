@@ -8,6 +8,7 @@ export const SITE = {
   dashboard: 'https://dashboard.itsbagelbot.com',
   commands: 'https://commands.itsbagelbot.com',
   leaderboard: 'https://leaderboard.itsbagelbot.com',
+  queue: 'https://queue.itsbagelbot.com',
   docs: 'https://docs.itsbagelbot.com',
   stats: 'https://stats.itsbagelbot.com',
   status: 'https://status.itsbagelbot.com',
@@ -175,6 +176,10 @@ export function commandsHref(segment: string): string {
 
 export function leaderboardHref(segment: string): string {
   return `${SITE.leaderboard}/${segment}`;
+}
+
+export function songqueueHref(segment: string): string {
+  return `${SITE.queue}/sr/${segment}`;
 }
 
 export function dashboardHref(path: string, langQuery: string): string {

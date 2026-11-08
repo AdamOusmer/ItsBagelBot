@@ -57,6 +57,8 @@ type User struct {
 	CommandsPageHidden bool `json:"commands_page_hidden,omitempty"`
 	// LeaderboardPageHidden holds the value of the "leaderboard_page_hidden" field.
 	LeaderboardPageHidden bool `json:"leaderboard_page_hidden,omitempty"`
+	// SongqueuePageHidden holds the value of the "songqueue_page_hidden" field.
+	SongqueuePageHidden bool `json:"songqueue_page_hidden,omitempty"`
 	// CreatorCode holds the value of the "creator_code" field.
 	CreatorCode *string `json:"creator_code,omitempty"`
 	// SubscriptionSource holds the value of the "subscription_source" field.
@@ -147,7 +149,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldEmailEnc, user.FieldLifecycle:
 			values[i] = new([]byte)
-		case user.FieldIsActive, user.FieldLifecycleProjectionPending, user.FieldLifecycleMigrationPending, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount:
+		case user.FieldIsActive, user.FieldLifecycleProjectionPending, user.FieldLifecycleMigrationPending, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount:
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldStateRevision, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
@@ -294,6 +296,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field leaderboard_page_hidden", values[i])
 			} else if value.Valid {
 				_m.LeaderboardPageHidden = value.Bool
+			}
+		case user.FieldSongqueuePageHidden:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field songqueue_page_hidden", values[i])
+			} else if value.Valid {
+				_m.SongqueuePageHidden = value.Bool
 			}
 		case user.FieldCreatorCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -494,6 +502,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("leaderboard_page_hidden=")
 	builder.WriteString(fmt.Sprintf("%v", _m.LeaderboardPageHidden))
+	builder.WriteString(", ")
+	builder.WriteString("songqueue_page_hidden=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SongqueuePageHidden))
 	builder.WriteString(", ")
 	if v := _m.CreatorCode; v != nil {
 		builder.WriteString("creator_code=")
