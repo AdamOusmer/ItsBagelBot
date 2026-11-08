@@ -75,12 +75,30 @@ type createJob struct {
 	create  createFunc
 }
 
-func (w *Worker) processPollCreate(ctx context.Context, payload *outgress.Message) error {
-	var in outgress.PollCreate
+type contestCreation[T any] struct {
+	limits  createLimits
+	options func(T) twitch.CreateOptions
+	create  createFunc
+}
+
+func createContest[T any](w *Worker, ctx context.Context, payload *outgress.Message, creation contestCreation[T]) error {
+	var in T
 	if !w.decodeTyped(payload, &in) {
 		return nil
 	}
-	return w.runCreate(ctx, payload, createJob{pollLimits, twitch.CreateOptions{Title: in.Title, Items: in.Choices, Seconds: in.Duration}, w.twitch.CreatePoll})
+	return w.runCreate(ctx, payload, createJob{creation.limits, creation.options(in), creation.create})
+}
+
+func pollOptions(in outgress.PollCreate) twitch.CreateOptions {
+	return twitch.CreateOptions{Title: in.Title, Items: in.Choices, Seconds: in.Duration}
+}
+
+func predictionOptions(in outgress.PredictionCreate) twitch.CreateOptions {
+	return twitch.CreateOptions{Title: in.Title, Items: in.Outcomes, Seconds: in.Window}
+}
+
+func (w *Worker) processPollCreate(ctx context.Context, payload *outgress.Message) error {
+	return createContest(w, ctx, payload, contestCreation[outgress.PollCreate]{pollLimits, pollOptions, w.twitch.CreatePoll})
 }
 
 func (w *Worker) runCreate(ctx context.Context, payload *outgress.Message, job createJob) error {
@@ -104,22 +122,38 @@ func pollEndStatus(raw string) (string, bool) {
 	return status, status == outgress.PollTerminated || status == outgress.PollArchived
 }
 
-func (w *Worker) processPollEnd(ctx context.Context, payload *outgress.Message) error {
-	var in outgress.PollEnd
+type contestEnding[T any] struct {
+	normalize func(T) (T, bool)
+	resolve   func(context.Context, *outgress.Message, T) error
+	rejection string
+}
+
+func endContest[T any](w *Worker, ctx context.Context, payload *outgress.Message, ending contestEnding[T]) error {
+	var in T
 	if !w.decodeTyped(payload, &in) {
 		return nil
 	}
-	status, valid := pollEndStatus(in.Status)
+	in, valid := ending.normalize(in)
 	if !valid {
-		w.dropTyped(payload, "unsupported poll end status")
+		w.dropTyped(payload, ending.rejection)
 		return nil
 	}
 	return w.runTyped(ctx, payload, typedJob{as: outgress.AsBroadcaster, call: func(ctx context.Context) error {
-		return w.endLatestPoll(ctx, payload, status)
+		return ending.resolve(ctx, payload, in)
 	}})
 }
 
-func (w *Worker) endLatestPoll(ctx context.Context, payload *outgress.Message, status string) error {
+func normalizePollEnd(in outgress.PollEnd) (outgress.PollEnd, bool) {
+	status, valid := pollEndStatus(in.Status)
+	in.Status = status
+	return in, valid
+}
+
+func (w *Worker) processPollEnd(ctx context.Context, payload *outgress.Message) error {
+	return endContest(w, ctx, payload, contestEnding[outgress.PollEnd]{normalizePollEnd, w.endLatestPoll, "unsupported poll end status"})
+}
+
+func (w *Worker) endLatestPoll(ctx context.Context, payload *outgress.Message, in outgress.PollEnd) error {
 	poll, found, err := w.twitch.LatestPoll(ctx, payload.BroadcasterID)
 	if err != nil {
 		return err
@@ -131,15 +165,11 @@ func (w *Worker) endLatestPoll(ctx context.Context, payload *outgress.Message, s
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
-	return w.twitch.EndPoll(ctx, payload.BroadcasterID, twitch.PollResolution{ID: poll.ID, Status: status})
+	return w.twitch.EndPoll(ctx, payload.BroadcasterID, twitch.PollResolution{ID: poll.ID, Status: in.Status})
 }
 
 func (w *Worker) processPredictionCreate(ctx context.Context, payload *outgress.Message) error {
-	var in outgress.PredictionCreate
-	if !w.decodeTyped(payload, &in) {
-		return nil
-	}
-	return w.runCreate(ctx, payload, createJob{predictionLimits, twitch.CreateOptions{Title: in.Title, Items: in.Outcomes, Seconds: in.Window}, w.twitch.CreatePrediction})
+	return createContest(w, ctx, payload, contestCreation[outgress.PredictionCreate]{predictionLimits, predictionOptions, w.twitch.CreatePrediction})
 }
 
 func winningOutcomeID(p twitch.Prediction, status string, winner int) (string, bool) {
@@ -152,19 +182,14 @@ func winningOutcomeID(p twitch.Prediction, status string, winner int) (string, b
 	return p.Outcomes[winner-1].ID, true
 }
 
-func (w *Worker) processPredictionEnd(ctx context.Context, payload *outgress.Message) error {
-	var in outgress.PredictionEnd
-	if !w.decodeTyped(payload, &in) {
-		return nil
-	}
+func normalizePredictionEnd(in outgress.PredictionEnd) (outgress.PredictionEnd, bool) {
 	in.Status = strings.ToUpper(strings.TrimSpace(in.Status))
-	if _, supported := predictionEndFrom[in.Status]; !supported {
-		w.dropTyped(payload, "unsupported prediction end status")
-		return nil
-	}
-	return w.runTyped(ctx, payload, typedJob{as: outgress.AsBroadcaster, call: func(ctx context.Context) error {
-		return w.endLatestPrediction(ctx, payload, in)
-	}})
+	_, supported := predictionEndFrom[in.Status]
+	return in, supported
+}
+
+func (w *Worker) processPredictionEnd(ctx context.Context, payload *outgress.Message) error {
+	return endContest(w, ctx, payload, contestEnding[outgress.PredictionEnd]{normalizePredictionEnd, w.endLatestPrediction, "unsupported prediction end status"})
 }
 
 func (w *Worker) endLatestPrediction(ctx context.Context, payload *outgress.Message, in outgress.PredictionEnd) error {

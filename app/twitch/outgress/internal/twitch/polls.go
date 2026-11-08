@@ -66,7 +66,7 @@ func (c *Client) CreatePoll(ctx context.Context, broadcasterID string, options C
 }
 
 func (c *Client) LatestPoll(ctx context.Context, broadcasterID string) (Poll, bool, error) {
-	return readFirst[Poll](ctx, c, helixRead{broadcasterTarget(broadcasterID), latestQuery("/helix/polls", broadcasterID)})
+	return readFirst[Poll](ctx, c, helixRead{broadcasterTarget(broadcasterID), pollResource.latestEndpoint(broadcasterID)})
 }
 
 func (c *Client) EndPoll(ctx context.Context, broadcasterID string, resolution PollResolution) error {
@@ -87,7 +87,7 @@ func (c *Client) CreatePrediction(ctx context.Context, broadcasterID string, opt
 }
 
 func (c *Client) LatestPrediction(ctx context.Context, broadcasterID string) (Prediction, bool, error) {
-	return readFirst[Prediction](ctx, c, helixRead{broadcasterTarget(broadcasterID), latestQuery("/helix/predictions", broadcasterID)})
+	return readFirst[Prediction](ctx, c, helixRead{broadcasterTarget(broadcasterID), predictionResource.latestEndpoint(broadcasterID)})
 }
 
 func (c *Client) EndPrediction(ctx context.Context, broadcasterID string, resolution PredictionResolution) error {
@@ -102,9 +102,16 @@ func (c *Client) EndPrediction(ctx context.Context, broadcasterID string, resolu
 	return c.sendJSON(ctx, broadcasterTarget(broadcasterID), HelixCall{Method: http.MethodPatch, Endpoint: "/helix/predictions"}, body)
 }
 
-func latestQuery(path, broadcasterID string) string {
+type contestResource struct{ path string }
+
+var (
+	pollResource       = contestResource{path: "/helix/polls"}
+	predictionResource = contestResource{path: "/helix/predictions"}
+)
+
+func (resource contestResource) latestEndpoint(broadcasterID string) string {
 	q := url.Values{}
 	q.Set("broadcaster_id", broadcasterID)
 	q.Set("first", "1")
-	return path + "?" + q.Encode()
+	return resource.path + "?" + q.Encode()
 }
