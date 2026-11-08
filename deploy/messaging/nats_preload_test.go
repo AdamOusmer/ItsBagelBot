@@ -41,52 +41,83 @@ func TestCommittedPreloadMatchesCompiledACL(t *testing.T) {
 }
 
 func comparePreload(body string, compiled []*jwt.AccountClaims) error {
-	config, err := conf.Parse(body)
+	entries, err := parsePreloadMap(body)
 	if err != nil {
-		return fmt.Errorf("parse preload: %w", err)
-	}
-	entries, ok := config["resolver_preload"].(map[string]any)
-	if !ok {
-		return fmt.Errorf("missing resolver_preload map")
+		return err
 	}
 	if len(entries) != len(compiled) {
 		return fmt.Errorf("preload has %d accounts; compiled ACL has %d", len(entries), len(compiled))
 	}
 
-	// Round-trip the compiled claims through signing and decoding, just as the
-	// generator does, so normalized empty collections match decoded JWTs.
 	signer, err := nkeys.CreateOperator()
 	if err != nil {
 		return err
 	}
 	defer signer.Wipe()
 	for _, account := range compiled {
-		raw, exists := entries[account.Subject]
-		if !exists {
-			return fmt.Errorf("preload missing account %s", account.Name)
-		}
-		token, ok := raw.(string)
-		if !ok {
-			return fmt.Errorf("preload account %s is not a JWT string", account.Name)
-		}
-		got, err := jwt.DecodeAccountClaims(token)
-		if err != nil {
-			return fmt.Errorf("decode account %s: %w", account.Name, err)
-		}
-		if got.Subject != account.Subject {
-			return fmt.Errorf("preload account %s subject does not match its key", account.Name)
-		}
-		encoded, err := account.Encode(signer)
-		if err != nil {
-			return fmt.Errorf("canonicalize account %s: %w", account.Name, err)
-		}
-		want, err := jwt.DecodeAccountClaims(encoded)
-		if err != nil {
-			return fmt.Errorf("decode compiled account %s: %w", account.Name, err)
-		}
-		if !natsacl.Equivalent(got, want) {
-			return fmt.Errorf("preload account %s differs from compiled ACL", account.Name)
+		if err := comparePreloadedAccount(entries, account, signer); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func parsePreloadMap(body string) (map[string]any, error) {
+	config, err := conf.Parse(body)
+	if err != nil {
+		return nil, fmt.Errorf("parse preload: %w", err)
+	}
+	entries, ok := config["resolver_preload"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("missing resolver_preload map")
+	}
+	return entries, nil
+}
+
+func comparePreloadedAccount(entries map[string]any, account *jwt.AccountClaims, signer nkeys.KeyPair) error {
+	got, err := decodePreloadedAccount(entries, account)
+	if err != nil {
+		return err
+	}
+	want, err := canonicalAccount(account, signer)
+	if err != nil {
+		return err
+	}
+	if !natsacl.Equivalent(got, want) {
+		return fmt.Errorf("preload account %s differs from compiled ACL", account.Name)
+	}
+	return nil
+}
+
+func decodePreloadedAccount(entries map[string]any, account *jwt.AccountClaims) (*jwt.AccountClaims, error) {
+	raw, exists := entries[account.Subject]
+	if !exists {
+		return nil, fmt.Errorf("preload missing account %s", account.Name)
+	}
+	token, ok := raw.(string)
+	if !ok {
+		return nil, fmt.Errorf("preload account %s is not a JWT string", account.Name)
+	}
+	got, err := jwt.DecodeAccountClaims(token)
+	if err != nil {
+		return nil, fmt.Errorf("decode account %s: %w", account.Name, err)
+	}
+	if got.Subject != account.Subject {
+		return nil, fmt.Errorf("preload account %s subject does not match its key", account.Name)
+	}
+	return got, nil
+}
+
+// Match the generator's sign-and-decode round trip so empty collections have
+// the same representation as they do in the committed JWTs.
+func canonicalAccount(account *jwt.AccountClaims, signer nkeys.KeyPair) (*jwt.AccountClaims, error) {
+	encoded, err := account.Encode(signer)
+	if err != nil {
+		return nil, fmt.Errorf("canonicalize account %s: %w", account.Name, err)
+	}
+	want, err := jwt.DecodeAccountClaims(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode compiled account %s: %w", account.Name, err)
+	}
+	return want, nil
 }
