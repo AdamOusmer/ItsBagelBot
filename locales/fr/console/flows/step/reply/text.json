@@ -1,0 +1,50 @@
+{
+  "label": "Modifier le texte",
+  "summary": "Nettoyer ou découper du texte",
+  "field": {
+    "op": {
+      "label": "Que faire",
+      "option": {
+        "upper": "Mettre en majuscules",
+        "lower": "Mettre en minuscules",
+        "trim": "Supprimer les espaces",
+        "length": "Compter les caractères",
+        "replace": "Remplacer",
+        "substring": "Extraire une partie",
+        "split_pick": "Séparer et en choisir un",
+        "contains": "Vérifier s’il contient",
+        "url_encode": "Adapter pour un lien"
+      }
+    },
+    "input": {
+      "label": "Texte",
+      "placeholder": "{args}"
+    },
+    "find": {
+      "label": "Rechercher"
+    },
+    "replaceWith": {
+      "label": "Remplacer par"
+    },
+    "start": {
+      "label": "Commencer à"
+    },
+    "count": {
+      "label": "Nombre de caractères"
+    },
+    "separator": {
+      "label": "Séparer par"
+    },
+    "pick": {
+      "label": "Choisir lequel",
+      "placeholder": "1, ou random"
+    },
+    "needle": {
+      "label": "Chercher"
+    },
+    "saveAs": {
+      "label": "Enregistrer sous",
+      "placeholder": "propre"
+    }
+  }
+}

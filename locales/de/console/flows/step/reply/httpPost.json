@@ -1,0 +1,22 @@
+{
+  "label": "An Webadresse senden",
+  "summary": "Über https an einen Webhook senden",
+  "field": {
+    "url": {
+      "label": "Adresse",
+      "placeholder": "https://example.com/hook"
+    },
+    "body": {
+      "label": "Inhalt",
+      "placeholder": "{user} war es"
+    },
+    "saveAs": {
+      "label": "Speichern als",
+      "placeholder": "antwort"
+    }
+  },
+  "out": {
+    "ok": "Geklappt",
+    "failure": "Fehlgeschlagen"
+  }
+}

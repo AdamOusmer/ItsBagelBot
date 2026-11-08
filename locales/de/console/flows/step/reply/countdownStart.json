@@ -1,0 +1,26 @@
+{
+  "label": "Countdown starten",
+  "summary": "Einen benannten Countdown starten oder neu starten",
+  "field": {
+    "name": {
+      "label": "Name",
+      "placeholder": "subathon"
+    },
+    "seconds": {
+      "label": "Dauer",
+      "range": "1 Sekunde bis {days} Tage eingeben."
+    },
+    "leftCommand": {
+      "label": "Verbleibende Zeit: Befehl",
+      "placeholder": "!timeleft"
+    },
+    "leftReply": {
+      "label": "Verbleibende Zeit: Antwort",
+      "placeholder": "Noch {countdown:left}"
+    },
+    "readyReply": {
+      "label": "Antwort bei abgelaufenem Countdown",
+      "placeholder": "Der Countdown ist beendet!"
+    }
+  }
+}

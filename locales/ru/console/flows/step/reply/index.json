@@ -64,139 +64,106 @@
     "label": "Повторить шаги",
     "summary": "Запустить путь до 100 раз",
     "field": {
-      "times": { "label": "Сколько раз", "placeholder": "3" }
+      "times": {
+        "label": "Сколько раз",
+        "placeholder": "3"
+      }
     },
-    "out": { "body": "Каждый раз", "done": "После завершения" }
+    "out": {
+      "body": "Каждый раз",
+      "done": "После завершения"
+    }
   },
   "varSet": {
     "label": "Задать переменную",
     "summary": "Сохранить значение на потом",
     "field": {
-      "scope": { "label": "Хранить для", "option": { "channel": "Канал", "viewer": "Этот зритель" } },
-      "name": { "label": "Название", "placeholder": "deaths" },
-      "value": { "label": "Значение", "placeholder": "{user}" }
+      "scope": {
+        "label": "Хранить для",
+        "option": {
+          "channel": "Канал",
+          "viewer": "Этот зритель"
+        }
+      },
+      "name": {
+        "label": "Название",
+        "placeholder": "deaths"
+      },
+      "value": {
+        "label": "Значение",
+        "placeholder": "{user}"
+      }
     }
   },
   "varAdd": {
     "label": "Прибавить к переменной",
     "summary": "Прибавить или вычесть",
     "field": {
-      "scope": { "label": "Хранить для", "option": { "channel": "Канал", "viewer": "Этот зритель" } },
-      "name": { "label": "Название", "placeholder": "deaths" },
-      "amount": { "label": "Количество" }
+      "scope": {
+        "label": "Хранить для",
+        "option": {
+          "channel": "Канал",
+          "viewer": "Этот зритель"
+        }
+      },
+      "name": {
+        "label": "Название",
+        "placeholder": "deaths"
+      },
+      "amount": {
+        "label": "Количество"
+      }
     }
   },
   "varDelete": {
     "label": "Удалить переменную",
     "summary": "Забыть значение",
     "field": {
-      "scope": { "label": "Хранить для", "option": { "channel": "Канал", "viewer": "Этот зритель" } },
-      "name": { "label": "Название", "placeholder": "deaths" }
-    }
-  },
-  "text": {
-    "label": "Изменить текст",
-    "summary": "Очистить или разобрать текст",
-    "field": {
-      "op": {
-        "label": "Что сделать",
+      "scope": {
+        "label": "Хранить для",
         "option": {
-          "upper": "Сделать заглавными",
-          "lower": "Сделать строчными",
-          "trim": "Убрать пробелы",
-          "length": "Посчитать символы",
-          "replace": "Заменить",
-          "substring": "Взять часть",
-          "split_pick": "Разделить и выбрать",
-          "contains": "Проверить, содержит ли",
-          "url_encode": "Подготовить для ссылки"
+          "channel": "Канал",
+          "viewer": "Этот зритель"
         }
       },
-      "input": { "label": "Текст", "placeholder": "{args}" },
-      "find": { "label": "Найти" },
-      "replaceWith": { "label": "Заменить на" },
-      "start": { "label": "Начиная с" },
-      "count": { "label": "Сколько символов" },
-      "separator": { "label": "Разделитель" },
-      "pick": { "label": "Какой выбрать", "placeholder": "1, или random" },
-      "needle": { "label": "Что искать" },
-      "saveAs": { "label": "Сохранить как", "placeholder": "cleaned" }
+      "name": {
+        "label": "Название",
+        "placeholder": "deaths"
+      }
     }
   },
   "math": {
     "label": "Вычислить",
     "summary": "Вычислить число",
     "field": {
-      "expression": { "label": "Выражение", "placeholder": "({bits} / 100) + 1" },
-      "saveAs": { "label": "Сохранить как", "placeholder": "total" }
-    }
-  },
-  "httpGet": {
-    "label": "Прочитать по веб-адресу",
-    "summary": "Получить значение по https",
-    "field": {
-      "url": { "label": "Адрес", "placeholder": "https://example.com/data" },
-      "jsonPath": { "label": "Путь JSON", "placeholder": "data.value" },
-      "saveAs": { "label": "Сохранить как", "placeholder": "answer" }
-    },
-    "out": { "ok": "Сработало", "failure": "Не сработало" }
-  },
-  "httpPost": {
-    "label": "Отправить по веб-адресу",
-    "summary": "Отправить на вебхук по https",
-    "field": {
-      "url": { "label": "Адрес", "placeholder": "https://example.com/hook" },
-      "body": { "label": "Тело", "placeholder": "{user} сделал это" },
-      "saveAs": { "label": "Сохранить как", "placeholder": "answer" }
-    },
-    "out": { "ok": "Сработало", "failure": "Не сработало" }
-  },
-  "rewardUpdate": {
-    "label": "Изменить награду",
-    "summary": "Включить или выключить награду или задать её стоимость",
-    "field": {
-      "reward": { "label": "Награда" },
-      "setEnabled": { "label": "Включено", "option": { "keep": "Оставить как есть", "on": "Включить", "off": "Выключить" } },
-      "cost": { "label": "Новая стоимость", "unit": "баллов" },
-      "reset": { "label": "Вернуть обратно в конце стрима" }
+      "expression": {
+        "label": "Выражение",
+        "placeholder": "({bits} / 100) + 1"
+      },
+      "saveAs": {
+        "label": "Сохранить как",
+        "placeholder": "total"
+      }
     }
   },
   "cooldownAdd": {
     "label": "Добавить время к перезарядке",
     "summary": "Продлить именованный таймер, пока он работает",
     "field": {
-      "name": { "label": "Таймер" },
-      "seconds": { "label": "Добавить", "range": "Используйте от 1 секунды до {days} дней." },
-      "per": { "label": "За", "hint": "Добавляет указанное время за каждую полную сумму. Укажите 100 в рецепте с битсами, чтобы считать каждые 100 битсов. Оставьте пустым, чтобы добавлять один раз за событие." }
-    }
-  },
-    "countdownStart": {
-    "label": "Запустить обратный отсчёт",
-    "summary": "Запустить или перезапустить обратный отсчёт",
-    "field": {
       "name": {
-        "label": "Название",
-        "placeholder": "subathon"
+        "label": "Таймер"
       },
       "seconds": {
-        "label": "Длительность",
-        "range": "Укажите от 1 секунды до {days} дней."
+        "label": "Добавить",
+        "range": "Используйте от 1 секунды до {days} дней."
       },
-      "leftCommand": {
-        "label": "Команда оставшегося времени",
-        "placeholder": "!timeleft"
-      },
-      "leftReply": {
-        "label": "Ответ с оставшимся временем",
-        "placeholder": "Осталось {countdown:left}"
-      },
-      "readyReply": {
-        "label": "Ответ об оставшемся времени после завершения",
-        "placeholder": "Обратный отсчёт завершён!"
+      "per": {
+        "label": "За",
+        "hint": "Добавляет указанное время за каждую полную сумму. Укажите 100 в рецепте с битсами, чтобы считать каждые 100 битсов. Оставьте пустым, чтобы добавлять один раз за событие."
       }
     }
   },
-    "countdownAdd": {
+  "countdownAdd": {
     "label": "Добавить время к отсчёту",
     "summary": "Продлить текущий обратный отсчёт",
     "field": {
@@ -307,28 +274,6 @@
       },
       "on": {
         "label": "Включено"
-      }
-    }
-  },
-  "chatMode": {
-    "label": "Изменить режим чата",
-    "summary": "Изменить режим чата",
-    "field": {
-      "mode": {
-        "label": "Режим чата",
-        "option": {
-          "emote_only": "Только смайлики",
-          "followers": "Только фолловеры",
-          "slow": "Медленный режим",
-          "subscribers": "Только подписчики",
-          "unique": "Уникальные сообщения"
-        }
-      },
-      "on": {
-        "label": "Включено"
-      },
-      "value": {
-        "label": "Секунды в медленном режиме; минуты в режиме для фолловеров"
       }
     }
   },

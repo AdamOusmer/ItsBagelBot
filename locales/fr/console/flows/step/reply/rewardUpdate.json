@@ -1,0 +1,24 @@
+{
+  "label": "Modifier une récompense",
+  "summary": "Activer ou désactiver une récompense, ou définir son coût",
+  "field": {
+    "reward": {
+      "label": "Récompense"
+    },
+    "setEnabled": {
+      "label": "Activé",
+      "option": {
+        "keep": "Laisser tel quel",
+        "on": "Activer",
+        "off": "Désactiver"
+      }
+    },
+    "cost": {
+      "label": "Nouveau coût",
+      "unit": "points"
+    },
+    "reset": {
+      "label": "Rétablir à la fin du stream"
+    }
+  }
+}

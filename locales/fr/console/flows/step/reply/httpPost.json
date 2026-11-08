@@ -1,0 +1,22 @@
+{
+  "label": "Envoyer vers une adresse web",
+  "summary": "Envoyer à un webhook via https",
+  "field": {
+    "url": {
+      "label": "Adresse",
+      "placeholder": "https://example.com/hook"
+    },
+    "body": {
+      "label": "Corps",
+      "placeholder": "{user} l’a fait"
+    },
+    "saveAs": {
+      "label": "Enregistrer sous",
+      "placeholder": "reponse"
+    }
+  },
+  "out": {
+    "ok": "Succès",
+    "failure": "Échec"
+  }
+}

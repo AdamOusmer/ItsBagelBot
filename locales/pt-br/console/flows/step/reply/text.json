@@ -1,0 +1,50 @@
+{
+  "label": "Alterar texto",
+  "summary": "Limpar ou separar partes do texto",
+  "field": {
+    "op": {
+      "label": "O que fazer",
+      "option": {
+        "upper": "Deixar em maiúsculas",
+        "lower": "Deixar em minúsculas",
+        "trim": "Remover espaços",
+        "length": "Contar caracteres",
+        "replace": "Substituir",
+        "substring": "Pegar uma parte",
+        "split_pick": "Dividir e escolher um",
+        "contains": "Verificar se contém",
+        "url_encode": "Tornar seguro para link"
+      }
+    },
+    "input": {
+      "label": "Texto",
+      "placeholder": "{args}"
+    },
+    "find": {
+      "label": "Localizar"
+    },
+    "replaceWith": {
+      "label": "Substituir por"
+    },
+    "start": {
+      "label": "Começar em"
+    },
+    "count": {
+      "label": "Quantos caracteres"
+    },
+    "separator": {
+      "label": "Dividir por"
+    },
+    "pick": {
+      "label": "Escolher qual",
+      "placeholder": "1, ou random"
+    },
+    "needle": {
+      "label": "Procurar por"
+    },
+    "saveAs": {
+      "label": "Salvar como",
+      "placeholder": "limpo"
+    }
+  }
+}

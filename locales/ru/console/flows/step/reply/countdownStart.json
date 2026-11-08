@@ -1,0 +1,26 @@
+{
+  "label": "Запустить обратный отсчёт",
+  "summary": "Запустить или перезапустить обратный отсчёт",
+  "field": {
+    "name": {
+      "label": "Название",
+      "placeholder": "subathon"
+    },
+    "seconds": {
+      "label": "Длительность",
+      "range": "Укажите от 1 секунды до {days} дней."
+    },
+    "leftCommand": {
+      "label": "Команда оставшегося времени",
+      "placeholder": "!timeleft"
+    },
+    "leftReply": {
+      "label": "Ответ с оставшимся временем",
+      "placeholder": "Осталось {countdown:left}"
+    },
+    "readyReply": {
+      "label": "Ответ об оставшемся времени после завершения",
+      "placeholder": "Обратный отсчёт завершён!"
+    }
+  }
+}

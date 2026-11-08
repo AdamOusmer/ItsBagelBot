@@ -1,0 +1,24 @@
+{
+  "label": "Alterar uma recompensa",
+  "summary": "Ativar ou desativar uma recompensa, ou definir seu custo",
+  "field": {
+    "reward": {
+      "label": "Recompensa"
+    },
+    "setEnabled": {
+      "label": "Ativada",
+      "option": {
+        "keep": "Manter como está",
+        "on": "Ativar",
+        "off": "Desativar"
+      }
+    },
+    "cost": {
+      "label": "Novo custo",
+      "unit": "pontos"
+    },
+    "reset": {
+      "label": "Restaurar quando a live terminar"
+    }
+  }
+}

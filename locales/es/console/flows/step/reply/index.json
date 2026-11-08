@@ -64,139 +64,106 @@
     "label": "Repetir pasos",
     "summary": "Ejecutar una ruta hasta 100 veces",
     "field": {
-      "times": { "label": "Cuántas veces", "placeholder": "3" }
+      "times": {
+        "label": "Cuántas veces",
+        "placeholder": "3"
+      }
     },
-    "out": { "body": "Cada vez", "done": "Al terminar" }
+    "out": {
+      "body": "Cada vez",
+      "done": "Al terminar"
+    }
   },
   "varSet": {
     "label": "Fijar una variable",
     "summary": "Guardar un valor para después",
     "field": {
-      "scope": { "label": "Guardado para", "option": { "channel": "El canal", "viewer": "Este espectador" } },
-      "name": { "label": "Nombre", "placeholder": "muertes" },
-      "value": { "label": "Valor", "placeholder": "{user}" }
+      "scope": {
+        "label": "Guardado para",
+        "option": {
+          "channel": "El canal",
+          "viewer": "Este espectador"
+        }
+      },
+      "name": {
+        "label": "Nombre",
+        "placeholder": "muertes"
+      },
+      "value": {
+        "label": "Valor",
+        "placeholder": "{user}"
+      }
     }
   },
   "varAdd": {
     "label": "Sumar a una variable",
     "summary": "Sumar o restar",
     "field": {
-      "scope": { "label": "Guardado para", "option": { "channel": "El canal", "viewer": "Este espectador" } },
-      "name": { "label": "Nombre", "placeholder": "muertes" },
-      "amount": { "label": "Cantidad" }
+      "scope": {
+        "label": "Guardado para",
+        "option": {
+          "channel": "El canal",
+          "viewer": "Este espectador"
+        }
+      },
+      "name": {
+        "label": "Nombre",
+        "placeholder": "muertes"
+      },
+      "amount": {
+        "label": "Cantidad"
+      }
     }
   },
   "varDelete": {
     "label": "Eliminar una variable",
     "summary": "Olvidar un valor",
     "field": {
-      "scope": { "label": "Guardado para", "option": { "channel": "El canal", "viewer": "Este espectador" } },
-      "name": { "label": "Nombre", "placeholder": "muertes" }
-    }
-  },
-  "text": {
-    "label": "Cambiar texto",
-    "summary": "Limpiar o dividir texto",
-    "field": {
-      "op": {
-        "label": "Qué hacer",
+      "scope": {
+        "label": "Guardado para",
         "option": {
-          "upper": "Pasar a mayúsculas",
-          "lower": "Pasar a minúsculas",
-          "trim": "Recortar espacios",
-          "length": "Contar caracteres",
-          "replace": "Reemplazar",
-          "substring": "Extraer una parte",
-          "split_pick": "Dividir y elegir uno",
-          "contains": "Comprobar si contiene",
-          "url_encode": "Hacer seguro para un enlace"
+          "channel": "El canal",
+          "viewer": "Este espectador"
         }
       },
-      "input": { "label": "Texto", "placeholder": "{args}" },
-      "find": { "label": "Buscar" },
-      "replaceWith": { "label": "Reemplazar por" },
-      "start": { "label": "Empezar en" },
-      "count": { "label": "Cuántos caracteres" },
-      "separator": { "label": "Separar por" },
-      "pick": { "label": "Elegir cuál", "placeholder": "1, o random" },
-      "needle": { "label": "Buscar" },
-      "saveAs": { "label": "Guardar como", "placeholder": "limpio" }
+      "name": {
+        "label": "Nombre",
+        "placeholder": "muertes"
+      }
     }
   },
   "math": {
     "label": "Hacer cálculos",
     "summary": "Calcular un número",
     "field": {
-      "expression": { "label": "Expresión", "placeholder": "({bits} / 100) + 1" },
-      "saveAs": { "label": "Guardar como", "placeholder": "total" }
-    }
-  },
-  "httpGet": {
-    "label": "Leer de una dirección web",
-    "summary": "Obtener un valor por https",
-    "field": {
-      "url": { "label": "Dirección", "placeholder": "https://example.com/data" },
-      "jsonPath": { "label": "Ruta JSON", "placeholder": "data.value" },
-      "saveAs": { "label": "Guardar como", "placeholder": "respuesta" }
-    },
-    "out": { "ok": "Funcionó", "failure": "Falló" }
-  },
-  "httpPost": {
-    "label": "Enviar a una dirección web",
-    "summary": "Enviar a un webhook por https",
-    "field": {
-      "url": { "label": "Dirección", "placeholder": "https://example.com/hook" },
-      "body": { "label": "Cuerpo", "placeholder": "{user} lo hizo" },
-      "saveAs": { "label": "Guardar como", "placeholder": "respuesta" }
-    },
-    "out": { "ok": "Funcionó", "failure": "Falló" }
-  },
-  "rewardUpdate": {
-    "label": "Cambiar una recompensa",
-    "summary": "Activar o desactivar una recompensa, o fijar su coste",
-    "field": {
-      "reward": { "label": "Recompensa" },
-      "setEnabled": { "label": "Activado", "option": { "keep": "Dejar como está", "on": "Activar", "off": "Desactivar" } },
-      "cost": { "label": "Nuevo coste", "unit": "puntos" },
-      "reset": { "label": "Restablecer al terminar el stream" }
+      "expression": {
+        "label": "Expresión",
+        "placeholder": "({bits} / 100) + 1"
+      },
+      "saveAs": {
+        "label": "Guardar como",
+        "placeholder": "total"
+      }
     }
   },
   "cooldownAdd": {
     "label": "Añadir tiempo a un enfriamiento",
     "summary": "Extender un temporizador con nombre mientras se ejecuta",
     "field": {
-      "name": { "label": "Temporizador" },
-      "seconds": { "label": "Añadir", "range": "Usa de 1 segundo a {days} días." },
-      "per": { "label": "Por", "hint": "Añade el tiempo de arriba por cada cantidad completa. Pon 100 en una receta de bits para contar cada 100 bits. Déjalo vacío para añadirlo una vez por evento." }
-    }
-  },
-    "countdownStart": {
-    "label": "Iniciar cuenta atrás",
-    "summary": "Iniciar o reiniciar una cuenta atrás",
-    "field": {
       "name": {
-        "label": "Nombre",
-        "placeholder": "subathon"
+        "label": "Temporizador"
       },
       "seconds": {
-        "label": "Duración",
-        "range": "Usa entre 1 segundo y {days} días."
+        "label": "Añadir",
+        "range": "Usa de 1 segundo a {days} días."
       },
-      "leftCommand": {
-        "label": "Comando de tiempo restante",
-        "placeholder": "!timeleft"
-      },
-      "leftReply": {
-        "label": "Respuesta de tiempo restante",
-        "placeholder": "Quedan {countdown:left}"
-      },
-      "readyReply": {
-        "label": "Respuesta de tiempo restante al terminar",
-        "placeholder": "¡La cuenta atrás ha terminado!"
+      "per": {
+        "label": "Por",
+        "hint": "Añade el tiempo de arriba por cada cantidad completa. Pon 100 en una receta de bits para contar cada 100 bits. Déjalo vacío para añadirlo una vez por evento."
       }
     }
   },
-    "countdownAdd": {
+  "countdownAdd": {
     "label": "Añadir tiempo a la cuenta atrás",
     "summary": "Ampliar una cuenta atrás activa",
     "field": {
@@ -307,28 +274,6 @@
       },
       "on": {
         "label": "Activado"
-      }
-    }
-  },
-  "chatMode": {
-    "label": "Cambiar el modo del chat",
-    "summary": "Cambiar el modo del chat",
-    "field": {
-      "mode": {
-        "label": "Modo del chat",
-        "option": {
-          "emote_only": "Solo emotes",
-          "followers": "Solo seguidores",
-          "slow": "Modo lento",
-          "subscribers": "Solo suscriptores",
-          "unique": "Mensajes únicos"
-        }
-      },
-      "on": {
-        "label": "Activado"
-      },
-      "value": {
-        "label": "Segundos en modo lento; minutos en modo solo seguidores"
       }
     }
   },

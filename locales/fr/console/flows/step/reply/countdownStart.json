@@ -1,0 +1,26 @@
+{
+  "label": "Démarrer un compte à rebours",
+  "summary": "Démarrer ou relancer un compte à rebours",
+  "field": {
+    "name": {
+      "label": "Nom",
+      "placeholder": "subathon"
+    },
+    "seconds": {
+      "label": "Durée",
+      "range": "Utilisez de 1 seconde à {days} jours."
+    },
+    "leftCommand": {
+      "label": "Commande du temps restant",
+      "placeholder": "!timeleft"
+    },
+    "leftReply": {
+      "label": "Réponse du temps restant",
+      "placeholder": "Il reste {countdown:left}"
+    },
+    "readyReply": {
+      "label": "Réponse du temps restant à la fin",
+      "placeholder": "Le compte à rebours est terminé !"
+    }
+  }
+}

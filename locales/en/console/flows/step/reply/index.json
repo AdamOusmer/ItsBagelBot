@@ -1,0 +1,325 @@
+{
+  "chat": {
+    "label": "Send chat message",
+    "summary": "Bot replies in chat",
+    "field": {
+      "message": {
+        "label": "Message",
+        "placeholder": "Thanks {user}!"
+      }
+    }
+  },
+  "points": {
+    "label": "Give loyalty points",
+    "summary": "Add or remove points",
+    "field": {
+      "amount": {
+        "label": "Amount",
+        "unit": "points"
+      }
+    }
+  },
+  "counter": {
+    "label": "Bump counter",
+    "summary": "Increase a counter",
+    "field": {
+      "counter": {
+        "label": "Counter"
+      }
+    }
+  },
+  "lights": {
+    "label": "Set lights",
+    "summary": "Set a Govee color or scene",
+    "field": {
+      "device": {
+        "label": "Light"
+      },
+      "mode": {
+        "label": "Set",
+        "option": {
+          "color": "Color",
+          "scene": "Scene"
+        }
+      },
+      "color": {
+        "label": "Color"
+      },
+      "scene": {
+        "label": "Scene"
+      }
+    }
+  },
+  "wait": {
+    "label": "Wait",
+    "summary": "Pause before the next step",
+    "field": {
+      "seconds": {
+        "label": "Delay",
+        "unit": "seconds, max {max}"
+      }
+    }
+  },
+  "loop": {
+    "label": "Repeat steps",
+    "summary": "Run a path up to 100 times",
+    "field": {
+      "times": {
+        "label": "How many times",
+        "placeholder": "3"
+      }
+    },
+    "out": {
+      "body": "Each time",
+      "done": "When done"
+    }
+  },
+  "varSet": {
+    "label": "Set a variable",
+    "summary": "Keep a value for later",
+    "field": {
+      "scope": {
+        "label": "Kept for",
+        "option": {
+          "channel": "The channel",
+          "viewer": "This viewer"
+        }
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "deaths"
+      },
+      "value": {
+        "label": "Value",
+        "placeholder": "{user}"
+      }
+    }
+  },
+  "varAdd": {
+    "label": "Add to a variable",
+    "summary": "Count up or down",
+    "field": {
+      "scope": {
+        "label": "Kept for",
+        "option": {
+          "channel": "The channel",
+          "viewer": "This viewer"
+        }
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "deaths"
+      },
+      "amount": {
+        "label": "Amount"
+      }
+    }
+  },
+  "varDelete": {
+    "label": "Delete a variable",
+    "summary": "Forget a value",
+    "field": {
+      "scope": {
+        "label": "Kept for",
+        "option": {
+          "channel": "The channel",
+          "viewer": "This viewer"
+        }
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "deaths"
+      }
+    }
+  },
+  "math": {
+    "label": "Do math",
+    "summary": "Work out a number",
+    "field": {
+      "expression": {
+        "label": "Expression",
+        "placeholder": "({bits} / 100) + 1"
+      },
+      "saveAs": {
+        "label": "Save as",
+        "placeholder": "total"
+      }
+    }
+  },
+  "cooldownAdd": {
+    "label": "Add time to a cooldown",
+    "summary": "Extend a named timer while it runs",
+    "field": {
+      "name": {
+        "label": "Timer"
+      },
+      "seconds": {
+        "label": "Add",
+        "range": "Use 1 second to {days} days."
+      },
+      "per": {
+        "label": "Per",
+        "hint": "Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event."
+      }
+    }
+  },
+  "countdownAdd": {
+    "label": "Add time to countdown",
+    "summary": "Extend a running countdown",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      },
+      "seconds": {
+        "label": "Add",
+        "range": "Use 1 second to {days} days."
+      },
+      "per": {
+        "label": "Per",
+        "hint": "Add this time for each full amount. Leave empty to add it once per event."
+      }
+    }
+  },
+  "poll": {
+    "label": "Start a poll",
+    "summary": "Start a poll",
+    "field": {
+      "title": {
+        "label": "Title"
+      },
+      "choices": {
+        "label": "Choices (one per line)"
+      },
+      "seconds": {
+        "label": "Duration (seconds)"
+      }
+    }
+  },
+  "pollEnd": {
+    "label": "End a poll",
+    "summary": "End a poll",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "terminate": "Stop voting",
+          "archive": "Archive"
+        }
+      }
+    }
+  },
+  "prediction": {
+    "label": "Start a prediction",
+    "summary": "Start a prediction",
+    "field": {
+      "title": {
+        "label": "Title"
+      },
+      "outcomes": {
+        "label": "Outcomes (one per line)"
+      },
+      "seconds": {
+        "label": "Duration (seconds)"
+      }
+    }
+  },
+  "predictionEnd": {
+    "label": "End a prediction",
+    "summary": "End a prediction",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "lock": "Lock voting",
+          "cancel": "Cancel and refund",
+          "resolve": "Choose a winner"
+        }
+      },
+      "winner": {
+        "label": "Winning outcome number"
+      }
+    }
+  },
+  "raidStart": {
+    "label": "Start a raid",
+    "summary": "Start a raid",
+    "field": {
+      "target": {
+        "label": "Channel or viewer login"
+      }
+    }
+  },
+  "raidCancel": {
+    "label": "Cancel a raid",
+    "summary": "Cancel a raid"
+  },
+  "mod": {
+    "label": "Set moderator role",
+    "summary": "Set moderator role",
+    "field": {
+      "target": {
+        "label": "Channel or viewer login"
+      },
+      "on": {
+        "label": "Enabled"
+      }
+    }
+  },
+  "vip": {
+    "label": "Set VIP role",
+    "summary": "Set VIP role",
+    "field": {
+      "target": {
+        "label": "Channel or viewer login"
+      },
+      "on": {
+        "label": "Enabled"
+      }
+    }
+  },
+  "clearChat": {
+    "label": "Clear chat",
+    "summary": "Clear chat"
+  },
+  "adSnooze": {
+    "label": "Snooze the next ad",
+    "summary": "Snooze the next ad"
+  },
+  "whisper": {
+    "label": "Send a whisper",
+    "summary": "Send a whisper",
+    "field": {
+      "target": {
+        "label": "Channel or viewer login"
+      },
+      "text": {
+        "label": "Message"
+      }
+    }
+  },
+  "unbanResolve": {
+    "label": "Resolve the unban request",
+    "summary": "Resolve the unban request",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "approve": "Approve",
+          "deny": "Deny"
+        }
+      },
+      "resolution": {
+        "label": "Resolution message (optional)"
+      }
+    }
+  },
+  "brandedContent": {
+    "label": "Set branded content",
+    "summary": "Set branded content",
+    "field": {
+      "on": {
+        "label": "Enabled"
+      }
+    }
+  }
+}

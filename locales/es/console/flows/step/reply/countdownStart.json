@@ -1,0 +1,26 @@
+{
+  "label": "Iniciar cuenta atrás",
+  "summary": "Iniciar o reiniciar una cuenta atrás",
+  "field": {
+    "name": {
+      "label": "Nombre",
+      "placeholder": "subathon"
+    },
+    "seconds": {
+      "label": "Duración",
+      "range": "Usa entre 1 segundo y {days} días."
+    },
+    "leftCommand": {
+      "label": "Comando de tiempo restante",
+      "placeholder": "!timeleft"
+    },
+    "leftReply": {
+      "label": "Respuesta de tiempo restante",
+      "placeholder": "Quedan {countdown:left}"
+    },
+    "readyReply": {
+      "label": "Respuesta de tiempo restante al terminar",
+      "placeholder": "¡La cuenta atrás ha terminado!"
+    }
+  }
+}

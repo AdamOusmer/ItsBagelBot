@@ -1,0 +1,50 @@
+{
+  "label": "Change text",
+  "summary": "Clean up or pull apart text",
+  "field": {
+    "op": {
+      "label": "What to do",
+      "option": {
+        "upper": "Make uppercase",
+        "lower": "Make lowercase",
+        "trim": "Trim spaces",
+        "length": "Count characters",
+        "replace": "Replace",
+        "substring": "Take a part",
+        "split_pick": "Split and pick one",
+        "contains": "Check if it contains",
+        "url_encode": "Make safe for a link"
+      }
+    },
+    "input": {
+      "label": "Text",
+      "placeholder": "{args}"
+    },
+    "find": {
+      "label": "Find"
+    },
+    "replaceWith": {
+      "label": "Replace with"
+    },
+    "start": {
+      "label": "Start at"
+    },
+    "count": {
+      "label": "How many characters"
+    },
+    "separator": {
+      "label": "Split on"
+    },
+    "pick": {
+      "label": "Pick which one",
+      "placeholder": "1, or random"
+    },
+    "needle": {
+      "label": "Look for"
+    },
+    "saveAs": {
+      "label": "Save as",
+      "placeholder": "cleaned"
+    }
+  }
+}

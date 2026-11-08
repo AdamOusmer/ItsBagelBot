@@ -1,0 +1,26 @@
+{
+  "label": "Iniciar contagem regressiva",
+  "summary": "Iniciar ou reiniciar uma contagem regressiva",
+  "field": {
+    "name": {
+      "label": "Nome",
+      "placeholder": "subathon"
+    },
+    "seconds": {
+      "label": "Duração",
+      "range": "Use de 1 segundo a {days} dias."
+    },
+    "leftCommand": {
+      "label": "Comando de tempo restante",
+      "placeholder": "!timeleft"
+    },
+    "leftReply": {
+      "label": "Resposta de tempo restante",
+      "placeholder": "Restam {countdown:left}"
+    },
+    "readyReply": {
+      "label": "Resposta de tempo restante ao terminar",
+      "placeholder": "A contagem regressiva terminou!"
+    }
+  }
+}

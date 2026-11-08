@@ -1,0 +1,50 @@
+{
+  "label": "Text ändern",
+  "summary": "Text bereinigen oder zerlegen",
+  "field": {
+    "op": {
+      "label": "Was getan werden soll",
+      "option": {
+        "upper": "In Großbuchstaben umwandeln",
+        "lower": "In Kleinbuchstaben umwandeln",
+        "trim": "Leerzeichen entfernen",
+        "length": "Zeichen zählen",
+        "replace": "Ersetzen",
+        "substring": "Teil herausschneiden",
+        "split_pick": "Trennen und eins auswählen",
+        "contains": "Prüfen, ob es enthalten ist",
+        "url_encode": "Für Links sicher machen"
+      }
+    },
+    "input": {
+      "label": "Text",
+      "placeholder": "{args}"
+    },
+    "find": {
+      "label": "Suchen"
+    },
+    "replaceWith": {
+      "label": "Ersetzen durch"
+    },
+    "start": {
+      "label": "Beginnen bei"
+    },
+    "count": {
+      "label": "Wie viele Zeichen"
+    },
+    "separator": {
+      "label": "Trennen bei"
+    },
+    "pick": {
+      "label": "Welches auswählen",
+      "placeholder": "1, oder random"
+    },
+    "needle": {
+      "label": "Suchen nach"
+    },
+    "saveAs": {
+      "label": "Speichern als",
+      "placeholder": "bereinigt"
+    }
+  }
+}
