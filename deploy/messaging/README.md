@@ -30,8 +30,8 @@ consumer leaders; the 40k run had both leaders on the same broker.
 
 | target | admitted and received | completed rate | consumer p50 range | worst consumer p99 | average broker CPU range |
 |---|---|---|---|---|---|
-| 20k/s | 1,199,488 | 19,988.5/s | 6.3–7.0 ms | 10.3 ms | 1.40–1.61 cores |
-| 40k/s | 2,398,848 | 39,971.3/s | 8.4–9.8 ms | 31.4 ms | 1.55–3.09 cores |
+| 20k/s | 1,199,488 | 19,987.5/s | 5.4–6.0 ms | 9.04 ms | 0.65–1.17 cores |
+| 40k/s | 2,398,912 | 39,976.6/s | 5.9–6.6 ms | 22.7 ms | 1.59–2.12 cores |
 
 Both runs had zero publisher/flush errors, duplicate deliveries, slow consumers,
 and CPU throttling. Per-publisher message counts, sequence sums and sequence
@@ -40,7 +40,27 @@ Rates include publisher startup and flush overhead; percentiles exclude the
 first two seconds. Consumer quantiles are reported separately, not averaged.
 Broker CPU averages include the six-second synchronized start and final drain;
 each broker had a five-core limit and a 2 GiB memory limit. End-of-run broker
-RSS was 546–585 MiB at 20k and 999–1,248 MiB at 40k.
+RSS was 508–566 MiB at 20k and 1,009–1,059 MiB at 40k.
+
+At 1,000 messages/s total, matched 60-second tests on these same worker nodes
+measured combined end-to-end p99 of **4.68 ms for custom 2.15.1-bench** and
+**5.06 ms for stock 2.15.2** (p50 3.31 and 3.51 ms). Both used the same clients,
+1 KiB payloads and colocated stream/consumer leaders. All 59,976 custom and
+59,984 stock messages arrived; per-publisher counts and checksums matched,
+with zero errors or duplicates. These combined quantiles use the individual
+samples from all consumers after the two-second warmup, not consumer quantile
+averages. This single pair of runs does not establish statistical significance.
+See [custom 1k](benchmarks/2026-11-08/custom1k_pull.json) and
+[stock 1k](benchmarks/2026-11-08/stock1k_pull.json).
+
+The first 20k/40k attempt used a non-canary subject and silently selected the
+client's explicit push fallback. Those numbers are superseded here by reruns
+using `twitch.ingress.retry.canary.*`; broker monitoring confirmed an R3 pull
+consumer with `ack_policy: none`.
+
+Upstream's release API was checked on 2026-11-08: [2.15.2](https://github.com/nats-io/nats-server/releases/tag/v2.15.2)
+was the newest stable release, with no newer stable major version. The newer
+2.15.3-RC.2 is a prerelease. Hubs and leaves use the tested stable release.
 
 Machine-readable summaries: [20k](benchmarks/2026-11-08/stock20k.json) and
 [40k](benchmarks/2026-11-08/stock40k.json). These measure broker transport through

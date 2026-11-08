@@ -1,30 +1,30 @@
 {
-  "name": "stock40k",
+  "name": "stock40k_pull",
   "target_per_s": 40000,
   "duration_s": 60,
   "payload_bytes": 1024,
-  "admitted": 2398848,
-  "consumed": 2398848,
-  "admitted_per_s": 39980.8,
-  "completed_per_s": 39971.341277731255,
+  "admitted": 2398912,
+  "consumed": 2398912,
+  "admitted_per_s": 39981.86666666667,
+  "completed_per_s": 39976.644130536726,
   "publisher_errors": 0,
   "flush_errors": [],
   "global_checksum_match": true,
   "duplicates": 0,
   "e2e_p50_ms_per_consumer": [
-    9.498117,
-    9.790672,
-    8.388162
+    6.083257,
+    6.622707,
+    5.912808
   ],
   "e2e_p99_ms_per_consumer": [
-    30.836469,
-    31.393014,
-    29.51025
+    21.991283,
+    22.602709,
+    22.114952
   ],
   "broker_avg_cpu_cores": {
-    "b0": 1.552172902728946,
-    "b1": 1.9736709997699444,
-    "b2": 3.0895334328305704
+    "b0": 1.6074229888670135,
+    "b1": 1.5866265819834469,
+    "b2": 2.124470913955697
   },
   "broker_throttled_usec": {
     "b0": 0,
@@ -32,16 +32,22 @@
     "b2": 0
   },
   "broker_rss_mib": {
-    "b0": 998.765625,
-    "b1": 1023.18359375,
-    "b2": 1248.40234375
+    "b0": 1013.4453125,
+    "b1": 1009.4609375,
+    "b2": 1059.046875
   },
   "slow_consumer_delta": {
     "b0": 0,
     "b1": 0,
     "b2": 0
   },
+  "seat": null,
+  "broker_versions": {
+    "b0": "2.15.2",
+    "b1": "2.15.2",
+    "b2": "2.15.2"
+  },
   "broker_image": "nats:2.15.2-alpine@sha256:afae2fdbe2e326c65e1246cb83b9d05d319188734f3bd577ac8072daae78a10f",
   "client_revision": "5ee7ccfc086dd10011740b89aceb467d59179c31",
-  "environment": "Isolated R3 cluster on live node1/node2/node3; mTLS, JWT operator auth, s2_fast routes, atomic publish, shared R3 AckNone pull consumer"
+  "environment": "Isolated live-worker R3 cluster; mTLS; JWT; s2_fast routes; atomic publish; R3 AckNone pull"
 }

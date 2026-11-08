@@ -1,30 +1,30 @@
 {
-  "name": "stock20k",
+  "name": "stock20k_pull",
   "target_per_s": 20000,
   "duration_s": 60,
   "payload_bytes": 1024,
   "admitted": 1199488,
   "consumed": 1199488,
   "admitted_per_s": 19991.466666666667,
-  "completed_per_s": 19988.531611982926,
+  "completed_per_s": 19987.46454732541,
   "publisher_errors": 0,
   "flush_errors": [],
   "global_checksum_match": true,
   "duplicates": 0,
   "e2e_p50_ms_per_consumer": [
-    6.380438,
-    7.010522,
-    6.336471
+    5.952442,
+    5.601902,
+    5.355705
   ],
   "e2e_p99_ms_per_consumer": [
-    9.413406,
-    10.228611,
-    9.586591
+    9.037628,
+    8.598599,
+    8.496659
   ],
   "broker_avg_cpu_cores": {
-    "b0": 1.5553451047516735,
-    "b1": 1.4029971183985304,
-    "b2": 1.610806038360846
+    "b0": 0.6546042183858558,
+    "b1": 1.1136073146964003,
+    "b2": 1.1708548892880124
   },
   "broker_throttled_usec": {
     "b0": 0,
@@ -32,16 +32,22 @@
     "b2": 0
   },
   "broker_rss_mib": {
-    "b0": 584.5,
-    "b1": 569.27734375,
-    "b2": 545.52734375
+    "b0": 565.65234375,
+    "b1": 508.01953125,
+    "b2": 564.91015625
   },
   "slow_consumer_delta": {
     "b0": 0,
     "b1": 0,
     "b2": 0
   },
+  "seat": null,
+  "broker_versions": {
+    "b0": "2.15.2",
+    "b1": "2.15.2",
+    "b2": "2.15.2"
+  },
   "broker_image": "nats:2.15.2-alpine@sha256:afae2fdbe2e326c65e1246cb83b9d05d319188734f3bd577ac8072daae78a10f",
   "client_revision": "5ee7ccfc086dd10011740b89aceb467d59179c31",
-  "environment": "Isolated R3 cluster on live node1/node2/node3; mTLS, JWT operator auth, s2_fast routes, atomic publish, shared R3 AckNone pull consumer"
+  "environment": "Isolated live-worker R3 cluster; mTLS; JWT; s2_fast routes; atomic publish; R3 AckNone pull"
 }
