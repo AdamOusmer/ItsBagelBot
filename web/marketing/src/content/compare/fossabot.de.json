@@ -79,14 +79,8 @@
       "source": "https://fossabot.com/docs/commands/custom-commands"
     },
     {
-      "feature": "Discord",
-      "us": "Discord ist eine Premium-Beta-Integration für Live-Ankündigungen, Clips, Willkommensnachrichten, Tickets und Community-Werkzeuge.",
-      "them": "Die offizielle Übersicht nennt die Discord-Integration, beschreibt ihre Serverfunktionen aber nicht im Detail. Kläre, welchen Ablauf du brauchst.",
-      "source": "https://fossabot.com/"
-    },
-    {
       "feature": "Preis",
-      "us": "Jede fertige Funktion ist kostenlos. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen, derzeit AutoMod und Discord. Spotify Premium ist eine separate Voraussetzung.",
+      "us": "Jede fertige Funktion ist kostenlos. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen, derzeit AutoMod. Spotify Premium ist eine separate Voraussetzung.",
       "them": "Die offizielle Website beschreibt Fossabot als kostenlos.",
       "source": "https://fossabot.com/"
     }
@@ -104,7 +98,7 @@
   "faq": [
     {
       "q": "Wann ist ItsBagelBot eine sinnvolle Alternative zu Fossabot?",
-      "a": "Zieh es in Betracht für Anfragen in deiner echten Spotify-Warteschlange, eingebaute Abfragen für die unterstützten Spiele oder Twitch-Belohnungen für kompatible Govee-Lampen. Diese fertigen Funktionen und der Import-Assistent sind kostenlos. AutoMod und Discord sind Premium-Beta-Module."
+      "a": "Zieh es in Betracht für Anfragen in deiner echten Spotify-Warteschlange, eingebaute Abfragen für die unterstützten Spiele oder Twitch-Belohnungen für kompatible Govee-Lampen. Diese fertigen Funktionen und der Import-Assistent sind kostenlos. AutoMod ist ein Premium-Beta-Modul."
     },
     {
       "q": "Wann solltest du bei Fossabot bleiben?",

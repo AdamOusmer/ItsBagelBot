@@ -6,7 +6,7 @@ import type { CommandView } from '@bagel/kit';
 import { hasCreatedAt, listCommands, stateCounts } from './list-model';
 
 const items: CommandView[] = [
-  { name: 'discord', response: 'join us', is_active: true, perm: 'everyone', uses: '5' },
+  { name: 'social', response: 'join us', is_active: true, perm: 'everyone', uses: '5' },
   { name: 'lurk', response: 'enjoy', is_active: false, perm: 'sub', uses: '9', aliases: ['bbl'] },
   { name: 'uptime', response: 'up', is_active: true, perm: 'everyone', builtin: true, uses: '1' }
 ];
@@ -14,12 +14,12 @@ const dated = [{ ...items[0], created_at: 100 }, { ...items[1], created_at: 300 
 const base = { state: 'all', perm: 'all', sort: 'uses', search: '' } as const;
 
 const lists: { name: string; rows: CommandView[]; view: object; want: string[] }[] = [
-  { name: 'sorts by uses then name', rows: items, view: {}, want: ['lurk', 'discord', 'uptime'] },
-  { name: 'sorts by name', rows: items, view: { sort: 'name' }, want: ['discord', 'lurk', 'uptime'] },
-  { name: 'sorts recently added first, undated rows last', rows: dated, view: { sort: 'recent' }, want: ['lurk', 'discord', 'uptime'] },
-  { name: 'filters by permission and state together', rows: items, view: { perm: 'everyone', state: 'custom' }, want: ['discord'] },
+  { name: 'sorts by uses then name', rows: items, view: {}, want: ['lurk', 'social', 'uptime'] },
+  { name: 'sorts by name', rows: items, view: { sort: 'name' }, want: ['lurk', 'social', 'uptime'] },
+  { name: 'sorts recently added first, undated rows last', rows: dated, view: { sort: 'recent' }, want: ['lurk', 'social', 'uptime'] },
+  { name: 'filters by permission and state together', rows: items, view: { perm: 'everyone', state: 'custom' }, want: ['social'] },
   { name: 'search matches aliases', rows: items, view: { search: 'bbl' }, want: ['lurk'] },
-  { name: 'keep retains a just-toggled row outside the state filter', rows: items, view: { state: 'active', keep: new Set(['lurk']) }, want: ['lurk', 'discord', 'uptime'] }
+  { name: 'keep retains a just-toggled row outside the state filter', rows: items, view: { state: 'active', keep: new Set(['lurk']) }, want: ['lurk', 'social', 'uptime'] }
 ];
 
 describe('command list model', () => {

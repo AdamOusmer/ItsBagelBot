@@ -63,7 +63,7 @@
   "setup.b1.items.8.title": "Dein Spotify-Konto verbinden",
   "setup.b1.items.9.html": "<p>Spotify bringt dich zurück zur Seite Musikwünsche. Der Bereich Verbindung zeigt das Abzeichen <strong>Verbunden</strong>, und es erscheint die Meldung „Spotify verbunden.“ Jetzt kannst du die Wünsche aktivieren.</p>",
   "setup.b1.items.9.title": "Das Ergebnis prüfen",
-  "setup.b2.html": "\n                <b>Halte dein Client-Secret geheim</b>\n                Füge Client ID und Client-Secret nur in die oben genannten Felder des ItsBagelBot-Dashboards ein. Füge ein\n                Client-Secret niemals in einen Chat mit einer KI, auf einem Discord-Server oder in einer Support-Nachricht ein.\n                Falls es durchsickert, erneuere es im Spotify-Entwicklerdashboard und füge das neue in ItsBagelBot ein.",
+  "setup.b2.html": "<b>Halte dein Client-Secret geheim</b> Gib es nur im Dashboard ein und erneuere es bei einem Datenleck.",
   "setup.heading": "Spotify im Dashboard einrichten",
   "setup.note": "Eine Einrichtungsseite, vier Schritte: Willkommen, App erstellen, Schlüssel hinzufügen, Spotify verbinden.",
   "trouble.b0.html": "\n            <p>\n                Die erste Tabelle listet die Meldungen, die du im Dashboard siehst. Die zweite listet, was Zuschauer im Chat\n                sehen. Die Meldungen sind so kopiert, wie das Dashboard sie anzeigt. Die Liste deckt die Meldungen ab, die du\n                wahrscheinlich siehst.\n            </p>",

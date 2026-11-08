@@ -50,7 +50,7 @@ test('golden replay: canonicalizers match the Go mapping fixture byte-for-byte',
 
 describe('NormalizeName', () => {
   const cases: [string, string][] = [
-    ['!Discord', 'discord'],
+    ['!Social', 'social'],
     ['  !lurk  ', 'lurk'],
     ['LURK', 'lurk'],
     ['!!double', '!double'],

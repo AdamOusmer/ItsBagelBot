@@ -81,17 +81,16 @@ const guide: GuideContent = {
     {
       id: 'tour',
       heading: 'Find your way around',
-      note: 'Six stops in the navigation rail. You will spend most of your time in two of them.',
+      note: 'Five stops in the navigation rail. You will spend most of your time in two of them.',
       blocks: [
         {
           kind: 'prose',
           html: `
             <p>
-                The dashboard is one page at a time, and its whole navigation is the six-item rail
+                The dashboard is one page at a time, and its whole navigation is the five-item rail
                 down the left of the screen, which becomes a floating dock at the bottom on a phone.
                 <strong>Overview</strong> is your landing page, <strong>Commands</strong> is where custom chat commands live, and
-                <strong>Modules</strong> holds every bigger feature. <strong>Discord</strong> is its own
-                page for connecting a Discord server (premium beta). Billing and Settings do what they
+                <strong>Modules</strong> holds every bigger feature. Billing and Settings do what they
                 say on the tin.
             </p>`,
         },
@@ -101,7 +100,7 @@ const guide: GuideContent = {
           path: '/',
           caption: 'The Overview page. Navigation lives in the rail on the left, and in a dock at the bottom on a phone.',
           notes: [
-            { n: 1, text: 'The rail is the whole navigation: Overview, Commands, Modules, Discord, Billing, Settings. On a phone the same six sit in a dock at the bottom.' },
+            { n: 1, text: 'The rail is the whole navigation: Overview, Commands, Modules, Billing, Settings. On a phone the same five sit in a dock at the bottom.' },
             { n: 2, text: 'Bot status: whether ItsBagelBot is sitting in your chat right now, and the one button to fix it if not.' },
             { n: 3, text: 'Quick actions: the two things you will do most, one tap away.' },
             { n: 4, text: 'Your most-used commands live here too, one click from editing.' },
@@ -149,8 +148,8 @@ const guide: GuideContent = {
           title: '#your_channel',
           caption: 'Thirty seconds later, in chat.',
           lines: [
-            { who: 'viewer', name: 'SnackPackPanda', text: '!discord' },
-            { who: 'bot', text: 'Come hang out between streams → discord.gg/your-invite' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!socials' },
+            { who: 'bot', text: 'Find my social links on my profile.' },
           ],
         },
         {
@@ -243,7 +242,7 @@ const guide: GuideContent = {
             storageKey: 'guides.getting-started.checklist',
             items: [
               'Sign in at <a href="https://dashboard.itsbagelbot.com/auth/login" target="_blank" rel="noopener noreferrer">dashboard.itsbagelbot.com</a> and mod the bot with <code>/mod ItsBagelBot</code>.',
-              'Create one command, like <code>!discord</code> or <code>!socials</code>.',
+              'Create one command, like <code>!socials</code>.',
               'Open <strong>Modules</strong> and rewrite the <strong>Chat Alerts</strong> messages so they sound like you.',
               'Switch on <strong>Local Time</strong> and set your timezone, so <code>!time</code> answers correctly.',
               'Add a mod on <strong>Settings</strong>, so someone else can help run the bot.',

@@ -136,14 +136,6 @@ const modules = [
     needs: 'A Govee API key and a channel-point reward. Works while you are live unless you switch off Live only.',
   },
   {
-    name: 'Discord',
-    tagline: 'One bot on Twitch and Discord. Go-live, clips, welcomes, tickets, and voice.',
-    cat: 'Gear',
-    plan: 'premium',
-    start: 'Off by default',
-    needs: 'A Discord server connected, or one created from the template.',
-  },
-  {
     name: 'Bedwars Stats',
     tagline: 'Hypixel Bedwars stats, urchin score and blacklist tags in chat.',
     cat: 'Stats',
@@ -208,7 +200,7 @@ const guide: GuideContent = {
     {
       id: 'page',
       heading: 'The modules page',
-      note: 'Seven categories, one switch per row, six row shapes.',
+      note: 'Seven categories, one switch per row, five row shapes.',
       blocks: [
         {
           kind: 'prose',
@@ -261,11 +253,6 @@ const guide: GuideContent = {
               'The internal plumbing behind commands.',
             ],
             [
-              'Section',
-              'The module skips the list and gets a page of its own in the dashboard.',
-              'Discord.',
-            ],
-            [
               'Nested',
               'A row on the parent module\'s page, with no switch of its own. The row says: "This game spends <code>&#123;parent&#125;</code>. Turn it on from there. It cannot run on its own."',
               'Gamble and Duels, on the Loyalty Points page.',
@@ -278,17 +265,17 @@ const guide: GuideContent = {
             [
               'Beta',
               'A locked row with a "Beta · Premium" chip, and the settings underneath once you have Premium.',
-              'AutoMod, Discord.',
+              'AutoMod.',
             ],
           ],
-          caption: 'Six row shapes, five of which surprise people at least once.',
+          caption: 'Five row shapes to recognize.',
         },
         {
           kind: 'callout',
           tone: 'note',
           html: `
                 <b>Note</b>
-                Two modules are premium while they are in beta: AutoMod and Discord. Everything else
+                AutoMod is premium while it is in beta. Everything else
                 on this page works on the free plan, for as long as you like.`,
         },
       ],
@@ -525,8 +512,8 @@ const guide: GuideContent = {
     },
     {
       id: 'gear',
-      heading: 'Song requests, lights, Discord',
-      note: 'The three modules that reach outside Twitch, and what each one asks for first.',
+      heading: 'Song requests and lights',
+      note: 'Two modules that reach outside Twitch, and what each one asks for first.',
       blocks: [
         {
           kind: 'prose',
@@ -560,18 +547,6 @@ const guide: GuideContent = {
                 <b>Watch out</b>
                 Lights only answer while you are live unless you switch off Live only on the Govee page.
                 A redemption that lands off stream is refunded automatically, so nobody pays for a dark room.`,
-        },
-        {
-          kind: 'prose',
-          html: `
-            <h3>Discord</h3>
-            <p>
-                The same bot on both sides: go-live posts, clips, welcomes, tickets and voice rooms.
-                Discord skips the modules list and says nothing in Twitch chat; it gets a page of
-                its own in the dashboard. Connect a server you already run, or let the bot
-                build one from the template. It is premium while the beta lasts, and what you
-                configure during the beta keeps working afterwards.
-            </p>`,
         },
       ],
     },

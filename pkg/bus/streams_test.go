@@ -6,11 +6,8 @@ package bus
 import (
 	"context"
 	"fmt"
-	"slices"
 	"testing"
 	"time"
-
-	ddiscord "ItsBagelBot/internal/domain/discord"
 
 	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
@@ -131,13 +128,4 @@ func TestPartitionFlagOffKeepsThePrePartitionShape(t *testing.T) {
 			fmt.Sprintf("legacy subjects = %v, want the event wildcard restored", legacy.Subjects)},
 		contractClause{legacy.MaxBytes == 1<<30, fmt.Sprintf("legacy MaxBytes = %d, want the whole gigabyte", legacy.MaxBytes)},
 	)
-}
-
-func TestDiscordSubjectConstantsMatchTheCatalog(t *testing.T) {
-	assert.True(t, slices.Equal(DiscordIngressStream.Subjects, []string{
-		ddiscord.SubjectEventMessage, ddiscord.SubjectEventMember, ddiscord.SubjectEventVoice,
-		ddiscord.SubjectEventInteraction, ddiscord.SubjectEventAudit, ddiscord.SubjectEventGuild,
-	}), "DISCORD_INGRESS subjects drifted from internal/domain/discord: %q", DiscordIngressStream.Subjects)
-	assert.True(t, slices.Equal(DiscordOutgressStream.Subjects, []string{ddiscord.LaneMod, ddiscord.LaneDefault}),
-		"DISCORD_OUTGRESS subjects drifted from internal/domain/discord: %q", DiscordOutgressStream.Subjects)
 }

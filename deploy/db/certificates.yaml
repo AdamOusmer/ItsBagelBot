@@ -5,28 +5,6 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: discord-data-tls
-  namespace: db
-spec:
-  secretName: discord-data-tls
-  duration: 2160h
-  renewBefore: 360h
-  privateKey:
-    algorithm: ECDSA
-    size: 256
-  issuerRef:
-    name: fleet-intermediate-issuer
-    kind: ClusterIssuer
-    group: cert-manager.io
-  dnsNames:
-    - discord-data-status
-    - discord-data-status.db
-    - discord-data-status.db.svc
-    - discord-data-status.db.svc.cluster.local
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
   name: valkey-client-tls
   namespace: db
 spec:

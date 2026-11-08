@@ -857,10 +857,6 @@
     ]
   },
   {
-    "id": "discord",
-    "groups": []
-  },
-  {
     "id": "songqueue",
     "groups": [
       {

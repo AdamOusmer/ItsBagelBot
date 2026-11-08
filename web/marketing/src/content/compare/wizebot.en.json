@@ -91,14 +91,8 @@
       "source": "https://support.wizebot.tv/docs/tags"
     },
     {
-      "feature": "Discord",
-      "us": "Discord is a Premium beta integration for go-live posts, clips, welcomes, tickets and community tools.",
-      "them": "The service overview lists Discord notifications for going live and game or status changes.",
-      "source": "https://wizebot.tv/en/services"
-    },
-    {
       "feature": "Price",
-      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod and Discord. Spotify Premium is a separate requirement.",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod. Spotify Premium is a separate requirement.",
       "them": "The official homepage describes a free cloud service. Check the dashboard requirements for the specific tools you want to enable.",
       "source": "https://wizebot.tv/en/index"
     }
@@ -116,7 +110,7 @@
   "faq": [
     {
       "q": "When is ItsBagelBot a useful WizeBot alternative?",
-      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod and Discord are Premium beta modules."
+      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod is a Premium beta module."
     },
     {
       "q": "When should I keep WizeBot?",
@@ -139,10 +133,6 @@
     {
       "label": "WizeBot: free cloud service overview",
       "url": "https://wizebot.tv/en/index"
-    },
-    {
-      "label": "WizeBot: periodic announcements, protections, Twitch rewards, Discord and overlays",
-      "url": "https://wizebot.tv/en/services"
     },
     {
       "label": "WizeBot: custom commands, YouTube requests and giveaway commands",

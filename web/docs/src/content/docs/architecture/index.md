@@ -22,7 +22,7 @@ flowchart LR
     Sesame --> Projection
 ```
 
-The Twitch ingress is Elixir (`app/twitch/ingress`); Sesame and outgress are Go (`app/twitch/sesame`, `app/twitch/outgress`). The dashboard and admin apps live under `web/`. Discord has its own ingress, engine and outgress under `app/discord`.
+The Twitch ingress is Elixir (`app/twitch/ingress`); Sesame and outgress are Go (`app/twitch/sesame`, `app/twitch/outgress`). The dashboard and admin apps live under `web/`.
 
 This diagram is a starting point, not a complete dependency graph. See [system state](/reference/system-overview/) for the service map, [data and state](/data-and-state/) for ownership and consistency, and `CONTEXT-MAP.md` for the repository's context boundaries. Deployment configuration is under `deploy/`.
 

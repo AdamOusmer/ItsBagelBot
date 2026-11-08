@@ -19,8 +19,7 @@
     "them": [
       "Вы хотите расширять взаимодействие в чате с помощью Python-скриптов. Справка: https://streamlabs.com/content-hub/post/chatbot-scripts-desktop.",
       "Вы уже используете отдельное приложение с настройкой команд, таймеров и триггеров событий. Справка: https://streamlabs.com/content-hub/post/choosing-the-right-chatbot.",
-      "Вам нужны параметры команд, которые читают локальные текстовые файлы. Справка: https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf.",
-      "Вы хотите, чтобы команды Twitch работали в Discord после привязки аккаунтов зрителей. Справка: https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop."
+      "Вам нужны параметры команд, которые читают локальные текстовые файлы. Справка: https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf."
     ]
   },
   "rows": [
@@ -91,14 +90,8 @@
       "source": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
     },
     {
-      "feature": "Discord",
-      "us": "Интеграция с Discord доступна как бета-функция Premium для постов о начале эфира, клипов, приветствий, тикетов и инструментов сообщества.",
-      "them": "Официальное руководство для десктопа требует, чтобы зрители привязали свои аккаунты Discord и Twitch перед использованием команд в Discord. Каждая команда должна быть настроена для работы в Discord.",
-      "source": "https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop"
-    },
-    {
       "feature": "Цена",
-      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и ранний доступ к бета-модулям, сейчас это AutoMod и Discord. Spotify Premium требуется отдельно.",
+      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и ранний доступ к бета-модулям, сейчас это AutoMod. Spotify Premium требуется отдельно.",
       "them": "Официальный сайт всё ещё ведёт на загрузку десктопного Chatbot со страницы Cloudbot. Бесплатные функции и цены Ultra на той странице относятся к Cloudbot и не подтверждают актуальную таблицу цен десктопного Chatbot. Любые платные требования проверяйте отдельно.",
       "source": "https://streamlabs.com/cloudbot"
     }
@@ -116,7 +109,7 @@
   "faq": [
     {
       "q": "Когда ItsBagelBot является полезной альтернативой Streamlabs Chatbot?",
-      "a": "Рассмотрите его для запросов в вашу реальную очередь Spotify, встроенных проверок для поддерживаемых игр или наград Twitch для совместимого освещения Govee. Эти готовые функции и мастер импорта бесплатны. AutoMod и Discord доступны как бета-модули Premium."
+      "a": "Рассмотрите его для запросов в вашу реальную очередь Spotify, встроенных проверок для поддерживаемых игр или наград Twitch для совместимого освещения Govee. Эти готовые функции и мастер импорта бесплатны. AutoMod доступен как бета-модуль Premium."
     },
     {
       "q": "Когда стоит оставить Streamlabs Chatbot?",
@@ -140,11 +133,25 @@
     }
   ],
   "sources": [
-    { "label": "Streamlabs Chatbot: требование Windows и подключение приложения", "url": "https://support.streamlabs.com/hc/en-us/articles/115003848733-Streamlabs-Desktop-Chatbot-FAQs-Troubleshooting-Desktop-Chatbot" },
-    { "label": "Streamlabs Chatbot: актуальное руководство по различию Chatbot и Cloudbot", "url": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot" },
-    { "label": "Streamlabs Chatbot: настройка Python-скриптов для десктопа", "url": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop" },
-    { "label": "Streamlabs Chatbot: руководство для десктопа: команды, таймеры, цитаты, музыка, розыгрыши и Mod Tools", "url": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf" },
-    { "label": "Streamlabs Chatbot: привязка Twitch и Discord для команд десктопа", "url": "https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop" },
-    { "label": "Streamlabs Chatbot: актуальная страница со ссылкой на загрузку десктопного Chatbot", "url": "https://streamlabs.com/cloudbot" }
+    {
+      "label": "Streamlabs Chatbot: требование Windows и подключение приложения",
+      "url": "https://support.streamlabs.com/hc/en-us/articles/115003848733-Streamlabs-Desktop-Chatbot-FAQs-Troubleshooting-Desktop-Chatbot"
+    },
+    {
+      "label": "Streamlabs Chatbot: актуальное руководство по различию Chatbot и Cloudbot",
+      "url": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot"
+    },
+    {
+      "label": "Streamlabs Chatbot: настройка Python-скриптов для десктопа",
+      "url": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
+    },
+    {
+      "label": "Streamlabs Chatbot: руководство для десктопа: команды, таймеры, цитаты, музыка, розыгрыши и Mod Tools",
+      "url": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "label": "Streamlabs Chatbot: актуальная страница со ссылкой на загрузку десктопного Chatbot",
+      "url": "https://streamlabs.com/cloudbot"
+    }
   ]
 }

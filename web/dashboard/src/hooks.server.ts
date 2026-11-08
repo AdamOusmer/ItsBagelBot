@@ -188,13 +188,6 @@ async function admitSession(event: HookEvent): Promise<Response | null> {
   return null;
 }
 
-const OFFLINE_ROUTE_ROOT = '/(app)/discord';
-
-function offlineRoute(event: HookEvent): boolean {
-  const id = event.route.id ?? '';
-  return id === OFFLINE_ROUTE_ROOT || id.startsWith(OFFLINE_ROUTE_ROOT + '/');
-}
-
 const PERMISSIONS_POLICY =
   'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()';
 
@@ -204,7 +197,6 @@ async function prepareRequest(event: HookEvent): Promise<void> {
   event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
   tagTransaction(newrelic, event, event.locals.session);
   countView(event);
-  if (offlineRoute(event)) error(404, 'Not Found');
 }
 
 function pageChunkTransform(locale: Locale): NonNullable<ResolveOptions['transformPageChunk']> {

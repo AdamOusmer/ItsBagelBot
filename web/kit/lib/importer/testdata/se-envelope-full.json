@@ -299,8 +299,8 @@
       "chatLines": 25,
       "_id": "5c0aa9d3de9a4c4622a14e09",
       "channel": "5b2e2007760aeb7729487dab",
-      "name": "retired discord plug",
-      "message": "Join the Discord! $(customapi https://example.com/invite)",
+      "name": "retired community plug",
+      "message": "Join the Community! $(customapi https://example.com/invite)",
       "createdAt": "2019-02-20T16:20:00.000Z",
       "updatedAt": "2019-02-20T16:20:00.000Z"
     },

@@ -63,7 +63,7 @@
   "setup.b1.items.8.title": "Conectar a sua conta Spotify",
   "setup.b1.items.9.html": "<p>O Spotify leva você de volta à página Pedidos de músicas. A área de Conexão mostra o selo <strong>Conectado</strong> e aparece a mensagem «Spotify conectado.» Agora você já pode ativar os pedidos.</p>",
   "setup.b1.items.9.title": "Conferir o resultado",
-  "setup.b2.html": "\n                <b>Mantenha o seu Client Secret em segredo</b>\n                Cole o Client ID e o Client Secret somente nos campos do painel do ItsBagelBot indicados acima.\n                Nunca cole um Client Secret em uma conversa com IA, em um servidor do Discord ou em uma mensagem para o suporte. Se ele vazar, troque-o no\n                painel de desenvolvedor do Spotify e cole o novo no ItsBagelBot.",
+  "setup.b2.html": "<b>Mantenha seu Client Secret em segredo</b> Insira-o apenas no painel e troque-o em caso de vazamento.",
   "setup.heading": "Configurar o Spotify no painel",
   "setup.note": "Uma página de configuração, quatro etapas: Boas-vindas, Crie seu aplicativo, Adicione suas chaves, Conecte Spotify.",
   "trouble.b0.html": "\n            <p>\n                A primeira tabela lista as mensagens que você vê no painel. A segunda lista o que os espectadores veem no chat. As mensagens são copiadas exatamente como o painel as mostra. A lista cobre as mensagens que você provavelmente vai ver.\n            </p>",

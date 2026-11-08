@@ -45,15 +45,6 @@ func TestAutomationStoreActions(t *testing.T) {
 	assert.Equal(t, []string{"wins/1/9"}, fx.loyalty.sets)
 }
 
-func TestAutomationStoredDiscordPostFailsAloneAndTheRestStillRuns(t *testing.T) {
-	removed := obj{"guild_id": "123456789012345678", "channel_id": "223456789012345678", "text": "hi"}
-	fx := newAutoFixture(manual("main", act("discord_post", removed), act("chat", obj{"text": "after"})))
-	rec := fx.run(t, "main", "req-removed-discord", nil)
-	assert.Equal(t, []string{"0:discord_post:failed:unknown_type", "1:chat:ok:"}, statuses(rec))
-	assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome)
-	assert.Len(t, fx.messages(t), 1)
-}
-
 func TestAutomationHTTPPost(t *testing.T) {
 	cases := []struct {
 		status gossiprpc.FetchStatus

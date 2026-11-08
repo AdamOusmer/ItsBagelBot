@@ -95,34 +95,26 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	blocks := busUserBlocks(t)
 
 	consumers := map[string][]string{
-		"users_bus":            {"BAGEL_DATA"},
-		"commands_bus":         {"BAGEL_DATA"},
-		"modules_bus":          {"BAGEL_DATA"},
-		"loyalty_bus":          {"BAGEL_DATA"},
-		"discord_data_bus":     {"BAGEL_DATA"},
-		"projector_bus":        {"BAGEL_DATA", "TWITCH_INGRESS"},
-		"worker_bus":           {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus":         {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
-		"discord_engine_bus":   {"DISCORD_INGRESS", "BAGEL_DATA", "TWITCH_INGRESS"},
-		"discord_outgress_bus": {"DISCORD_OUTGRESS"},
-		"discord_ingress_bus":  {},
-		"automod_bus":          {"TWITCH_AUTOMOD_TRIAL"},
+		"users_bus":     {"BAGEL_DATA"},
+		"commands_bus":  {"BAGEL_DATA"},
+		"modules_bus":   {"BAGEL_DATA"},
+		"loyalty_bus":   {"BAGEL_DATA"},
+		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
+		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
+		"automod_bus":   {"TWITCH_AUTOMOD_TRIAL"},
 	}
 	owners := map[string][]string{
-		"automod_bus":          {"TWITCH_AUTOMOD_TRIAL"},
-		"users_bus":            {"BAGEL_DATA", "BAGEL_DLQ"},
-		"worker_bus":           {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"projector_bus":        {"BAGEL_DATA", "BAGEL_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus":         {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
-		"discord_engine_bus":   {"DISCORD_INGRESS"},
-		"discord_outgress_bus": {"DISCORD_OUTGRESS"},
+		"automod_bus":   {"TWITCH_AUTOMOD_TRIAL"},
+		"users_bus":     {"BAGEL_DATA", "BAGEL_DLQ"},
+		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+		"projector_bus": {"BAGEL_DATA", "BAGEL_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
 		"users_bus", "commands_bus", "modules_bus", "loyalty_bus",
 		"projector_bus", "worker_bus", "outgress_bus",
-		"twitch_ingress_bus", "dashboard_bus",
-		"discord_ingress_bus", "discord_engine_bus", "discord_outgress_bus",
-		"discord_data_bus", "automod_bus",
+		"twitch_ingress_bus", "dashboard_bus", "automod_bus",
 	}
 
 	for _, user := range serviceUsers {
@@ -182,8 +174,6 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 		"outgress": {
 			"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},
-		"discord-engine":   {"[]bus.StreamSpec{bus.DiscordIngressStream}"},
-		"discord-outgress": {"[]bus.StreamSpec{bus.DiscordOutgressStream}"},
 	}
 	mainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "main.go"))
 	require.NoError(t, err)
@@ -198,9 +188,6 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 		}
 		dir := filepath.Dir(name)
 		service := filepath.Base(dir)
-		if filepath.Base(filepath.Dir(dir)) == "discord" {
-			service = "discord-" + service
-		}
 		snippets, owned := want[service]
 		if !assert.True(t, owned, "%s reconciles streams but has no stream-owner ACL", service) {
 			continue

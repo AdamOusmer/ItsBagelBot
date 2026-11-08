@@ -18,7 +18,7 @@ the mail (Resend dashboard, Gmail with an HTML-paste add-on, a help desk).
 | `support-email.txt`  | Plain-text twin. Paste as the **plain-text** body so text-only clients get a clean version. |
 | `example-filled.html` | The template with everything filled in. Open in a browser to see the finished look. Do **not** send this one. |
 | `example-filled.fr.html` | French, fully filled demonstration of the reply template. Open in a browser to preview it. Do **not** send this one. |
-| `received.html` / `received.txt` | Ready-to-send auto-acknowledgment: confirms the message landed, states open hours (10am–5pm most active days), and links the Discord for faster replies. Fire it on receipt. Only edit the hours line if the window changes. |
+| `received.html` / `received.txt` | Ready-to-send auto-acknowledgment: confirms the message landed, states open hours (10am–5pm most active days). Fire it on receipt. Only edit the hours line if the window changes. |
 | `received.fr.html` / `received.fr.txt` | French version of the ready-to-send acknowledgment. Use the pair together. |
 | `support-email.fr.html` / `support-email.fr.txt` | French versions of the reply template. The `[[ ... ]]` markers are intentionally identical to the English pair so the same handoff checklist applies. |
 
@@ -36,7 +36,7 @@ the security copy between messages in that language.
    us" cue. Same tick, same wording, same place, always.
 2. **Anti-phishing footer**: "ItsBagelBot will never ask for your password,
    payment or card details, or login and verification codes by email. We only
-   send from @itsbagelbot.com..." with a Discord link to verify anything
+   send from @itsbagelbot.com..." with a contact-page link to verify anything
    suspicious.
 
 Together with the locked visual identity (logo + wordmark, the tan→green accent

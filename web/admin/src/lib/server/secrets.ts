@@ -11,8 +11,7 @@ export type SecretServiceId =
   | 'commands'
   | 'modules'
   | 'transactions'
-  | 'notifications'
-  | 'discord-data';
+  | 'notifications';
 
 interface ServiceDef {
   id: SecretServiceId;
@@ -29,7 +28,6 @@ const services: Record<SecretServiceId, ServiceDef> = {
   modules: { id: 'modules', label: 'Modules', project: 'modules', config: 'prd', schema: 'bagel_modules', expectedUserPrefix: 'modules_svc' },
   transactions: { id: 'transactions', label: 'Transactions', project: 'transactions', config: 'prd', schema: 'bagel_transactions', expectedUserPrefix: 'transactions_svc' },
   notifications: { id: 'notifications', label: 'Notifications', project: 'notifications', config: 'prd', schema: 'bagel_notifications', expectedUserPrefix: 'notifications_svc' },
-  'discord-data': { id: 'discord-data', label: 'Discord data', project: 'discord-data', config: 'prd', schema: 'bagel_discord', expectedUserPrefix: 'discord_data_svc' }
 };
 
 // Every live service account is `<svc>_svc@'10.0.%' ... REQUIRE X509`: reachable only from the
@@ -50,7 +48,6 @@ export function serviceOf(raw: string): SecretServiceId | null {
 export type TokenSource = 'scoped' | 'missing';
 
 export function tokenFor(svc: ServiceDef): { token: string; source: TokenSource } {
-  // Doppler keys cannot carry a hyphen: discord-data reads DOPPLER_TOKEN_DISCORD_DATA.
   const scoped = (env[`DOPPLER_TOKEN_${svc.id.toUpperCase().replace(/-/g, '_')}`] ?? '').trim();
   if (scoped) return { token: scoped, source: 'scoped' };
   return { token: '', source: 'missing' };
@@ -367,7 +364,7 @@ function accountSql(cred: Pick<DbCredentialInput, 'dbUser'>): string {
 
 function schemaSql(svc: ServiceDef): string {
   // Allowlist, not an escape: the name is interpolated into DDL. Each service above needs an arm.
-  if (!/^bagel_(users|commands|modules|transactions|notifications|discord)$/.test(svc.schema)) {
+  if (!/^bagel_(users|commands|modules|transactions|notifications)$/.test(svc.schema)) {
     throw new Error('invalid database schema');
   }
   return `\`${svc.schema}\``;

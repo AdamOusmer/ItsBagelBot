@@ -19,8 +19,7 @@
     "them": [
       "Vous voulez alterner des messages programmés selon le temps écoulé et l’activité du chat. Référence : https://moo.bot/docs/auto-post-twitch-chat-messages.",
       "Vous préférez les demandes YouTube avec des limites de durée et de file par spectateur. Référence : https://moo.bot/docs/song-requests-music-through-twitch-bot.",
-      "Vous voulez des tirages par mot-clé ou nombre à deviner avec des critères d’accès pour les abonnés. Référence : https://moo.bot/docs/twitch-giveaways-for-increased-engagement.",
-      "Vous voulez retrouver vos commandes Twitch personnalisées sous forme de commandes slash sur Discord. Référence : https://moo.bot/docs/using-your-twitch-bot-on-discord."
+      "Vous voulez des tirages par mot-clé ou nombre à deviner avec des critères d’accès pour les abonnés. Référence : https://moo.bot/docs/twitch-giveaways-for-increased-engagement."
     ]
   },
   "rows": [
@@ -79,14 +78,8 @@
       "source": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings"
     },
     {
-      "feature": "Discord",
-      "us": "Discord est une intégration Premium en bêta pour les annonces de direct, clips, accueils, tickets et outils communautaires.",
-      "them": "L’intégration Discord comprend annonces de direct, liens vers les VOD, commandes slash personnalisées synchronisées et messages automatiques. Le guide précise que les commandes intégrées et les restrictions temporelles des commandes personnalisées n’y sont pas prises en charge.",
-      "source": "https://moo.bot/docs/using-your-twitch-bot-on-discord"
-    },
-    {
       "feature": "Tarif",
-      "us": "Toutes les fonctionnalités finalisées sont gratuites. Premium coûte 7 $ CAD plus taxes par mois et ajoute traitement prioritaire, assistance et accès anticipé aux modules en bêta, actuellement AutoMod et Discord. Spotify Premium est requis séparément.",
+      "us": "Toutes les fonctionnalités finalisées sont gratuites. Premium coûte 7 $ CAD plus taxes par mois et ajoute traitement prioritaire, assistance et accès anticipé aux modules en bêta, actuellement AutoMod. Spotify Premium est requis séparément.",
       "them": "Les fonctions de base sont gratuites. Le tableau publié indique 25 commandes personnalisées et 3 programmations sans forfait ; Affiliate, Partner et Business ajoutent des emplacements et avantages. Les montants payants figurent dans le parcours d’abonnement du tableau de bord ; vérifiez-y le tarif actuel.",
       "source": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
     }
@@ -104,7 +97,7 @@
   "faq": [
     {
       "q": "Quand ItsBagelBot est-il une alternative utile à Moobot ?",
-      "a": "Envisagez-le pour les demandes dans votre véritable file Spotify, les statistiques intégrées des jeux pris en charge ou les récompenses Twitch pour des lampes Govee compatibles. Ces fonctionnalités finalisées et l’assistant d’import sont gratuits. AutoMod et Discord sont des modules Premium en bêta."
+      "a": "Envisagez-le pour les demandes dans votre véritable file Spotify, les statistiques intégrées des jeux pris en charge ou les récompenses Twitch pour des lampes Govee compatibles. Ces fonctionnalités finalisées et l’assistant d’import sont gratuits. AutoMod est un module Premium en bêta."
     },
     {
       "q": "Quand devriez-vous garder Moobot ?",
@@ -151,10 +144,6 @@
     {
       "label": "Moobot : export des réglages choisis dans un fichier",
       "url": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings"
-    },
-    {
-      "label": "Moobot : annonces et commandes slash Discord",
-      "url": "https://moo.bot/docs/using-your-twitch-bot-on-discord"
     },
     {
       "label": "Moobot : limites gratuites et forfaits MoobotPlus",

@@ -17,7 +17,7 @@ const DAILY = [
   'billing.events', 'accounts.total', 'accounts.bot_enabled', 'accounts.onboarded', 'accounts.paid_source',
   'accounts.cancel_pending', 'accounts.payment_failed', 'accounts.locale', 'accounts.pages_hidden',
   'command.uses', 'module.events', 'module.errors', 'module.latency', 'timer.fires',
-  'discord.interactions', 'discord.events', 'outgress.failures', 'onboarding.preset', 'module.toggles',
+  'outgress.failures', 'onboarding.preset', 'module.toggles',
   'custom.commands', 'web.views', 'web.actions'
 ];
 const SNAPSHOTS = [

@@ -4,8 +4,6 @@
 import { test, expect } from '@playwright/test';
 import { moduleDef } from '../../kit/lib/catalog/index.ts';
 import { blankTimer } from '../../kit/lib/timers.ts';
-import { blankDiscordConfig } from '../../kit/lib/discord-config.ts';
-import { guildModuleTiles } from '../../kit/lib/discord-overview.ts';
 
 const valorantCommands = moduleDef('valorant').replies.map((reply) => `!${reply.command}`);
 const GAME_PAGES = [
@@ -217,9 +215,8 @@ const FEATURE_PAGES = [
     { path: '/giveaways/', title: 'Twitch Giveaway Bot', ai: 'engagement', rows: catalogEntryCount('raffle') },
     { path: '/loyalty-points/', title: 'Twitch Loyalty Points Bot', ai: 'loyalty', rows: ['loyalty', 'gamble', 'duel'].map(catalogEntryCount).reduce((sum, count) => sum + count, 0) },
     { path: '/death-counter/', title: 'Twitch Death Counter', ai: 'engagement', rows: 3 },
-    { path: '/timers/', title: 'Twitch Timer Bot', ai: 'engagement', rows: Object.keys(blankTimer()).filter((key) => key !== 'id').length },
-    { path: '/viewer-queue/', title: 'Twitch Viewer Queue Bot', ai: 'engagement', rows: catalogEntryCount('queue') },
-    { path: '/discord-bot/', title: 'Twitch Discord Bot', ai: 'discord', rows: guildModuleTiles(blankDiscordConfig()).length },
+    { path: '/timers/', title: 'Twitch Timer Bot', ai: 'engagement', rows: Object.keys(blankTimer()).filter((key) => key !== 'id').length, related: ['/giveaways/', '/viewer-queue/', '/vs/'] },
+    { path: '/viewer-queue/', title: 'Twitch Viewer Queue Bot', ai: 'engagement', rows: catalogEntryCount('queue'), related: ['/giveaways/', '/loyalty-points/', '/vs/'] },
 ];
 
 for (const feature of FEATURE_PAGES) {
@@ -239,7 +236,9 @@ for (const feature of FEATURE_PAGES) {
         expect(graph.find((node) => node['@type'] === 'ItemList').numberOfItems).toBe(feature.rows);
         expect(await page.title()).toMatch(/^.{1,60}$/);
         expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
-        await expect(page.locator('.flrel a')).toHaveCount(4);
+        const related = page.locator('.flrel a');
+        await expect(related).toHaveCount(feature.related?.length ?? 4);
+        if (feature.related) expect(await related.evaluateAll((links) => links.map((link) => link.getAttribute('href')))).toEqual(feature.related);
         await expect(page.locator('.flrel a').last()).toHaveAttribute('href', '/vs/');
         await expect(page.locator('.flrel a').last()).toHaveAccessibleName('Bot comparisons');
     });

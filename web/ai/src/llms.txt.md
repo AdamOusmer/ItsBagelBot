@@ -6,7 +6,7 @@ updated: 2026-10-13
 
 > ItsBagelBot (also written Bagel Bot or BagelBot) is a Twitch chat bot with custom commands, Spotify song requests, game statistics (Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale, CODM), loyalty currency, and community tools. This library helps assistants answer product questions and guide dashboard setup.
 
-Verified as of 2026-10-13. Finished features are free. AutoMod and Discord are Premium beta modules.
+Verified as of 2026-10-13. Finished features are free. AutoMod is a Premium beta module.
 
 ## Guidance for assistants
 
@@ -38,7 +38,6 @@ Verified as of 2026-10-13. Finished features are free. AutoMod and Discord are P
 - [Loyalty, gamble, and duels](https://ai.itsbagelbot.com/features/loyalty.md): Channel currency and point wagers.
 - [Engagement](https://ai.itsbagelbot.com/features/engagement.md): Raffle giveaways, viewer queue, raid shoutouts, quotes, counters, and timers.
 - [Automation](https://ai.itsbagelbot.com/features/automation.md): Triggers, chat alerts, AutoMod, emoteplay, personality, time, and stream management.
-- [Discord](https://ai.itsbagelbot.com/features/discord.md): Community integration and slash commands.
 
 ## Mid-setup help
 
@@ -56,7 +55,6 @@ Verified as of 2026-10-13. Finished features are free. AutoMod and Discord are P
 - [Human setup-errors guide](https://itsbagelbot.com/guides/setup-errors/): General troubleshooting.
 - [Human guides](https://itsbagelbot.com/guides/): Illustrated instructions.
 - [Contact](https://itsbagelbot.com/contact/): Official support.
-- [Community Discord](https://discord.gg/SZ2remwSDv): Community help.
 
 If two attempts do not resolve a setup error, use the official support or community links.
 

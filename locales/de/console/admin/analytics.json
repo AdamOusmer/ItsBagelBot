@@ -40,8 +40,6 @@
     "commands": "Integrierte Befehle",
     "toggles": "Modulschalter",
     "customCommands": "Eigene Befehle",
-    "discordInteractions": "Discord-Befehle und -Schaltflächen",
-    "discordEvents": "Verarbeitete Discord-Ereignisse",
     "outgress": "Fehlgeschlagene Twitch-Aufrufe",
     "pages": "Seitenaufrufe der Konsole",
     "actions": "Formularergebnisse der Konsole",

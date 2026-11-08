@@ -94,10 +94,6 @@
   "noneYetBody": "Erstelle deine erste eigene Antwort. Zuschauer lösen sie mit !{name} im Chat aus.",
   "startersTitle": "Oder beginne mit einer Vorlage",
   "starters": {
-    "discord": {
-      "name": "discord",
-      "response": "Tritt der Community auf Discord bei: discord.gg/your-invite"
-    },
     "socials": {
       "name": "socials",
       "response": "Hier findest du mich auch: twitter.com/yourname und instagram.com/yourname"

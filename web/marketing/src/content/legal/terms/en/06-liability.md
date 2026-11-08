@@ -9,5 +9,5 @@ ItsBagelBot is provided as-is and as-available without warranties of any kind, w
 
 - Any chat moderation decisions, missed messages, or service interruptions.
 - Any security breach, compromise, unauthorized access, loss, leak, or abuse of third-party services, API keys, client IDs, client secrets, or authentication tokens provided by you or configured in connection with integrations or `urlfetch` definitions.
-- Any actions, rate limits, suspensions, downtime, billing disputes, or enforcement measures taken by third-party platforms or service providers (including Twitch, Spotify, Discord, Govee, or custom API hosts).
+- Any actions, rate limits, suspensions, downtime, billing disputes, or enforcement measures taken by third-party platforms or service providers (including Twitch, Spotify, Govee, or custom API hosts).
 - Any indirect, incidental, special, consequential, or punitive damages arising from or related to your use of the service.

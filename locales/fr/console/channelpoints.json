@@ -7,7 +7,7 @@
   "eyebrow": "Gérer",
   "titlePre": "Points de ",
   "titleEm": "chaîne",
-  "description": "Connectez un serveur Discord ou créez-en un depuis le modèle Bagel. Live, clips, bienvenues, tickets, voix temporaire, journaux staff et rangs, le tout depuis un seul bot.",
+  "description": "Créez les récompenses échangées contre des points de chaîne et choisissez la réponse du bot.",
   "degraded": "Les points de chaîne sont momentanément indisponibles. Réessayez bientôt.",
   "reconnect": "Reconnectez votre compte Twitch pour gérer les points de chaîne. Une autorisation supplémentaire est requise.",
   "reconnectCta": "Reconnecter Twitch",

@@ -39,7 +39,7 @@ const footerLabels = labelsOf((ctx) => {
 });
 
 const CONTACT_STATES = ['Operational', 'Degraded', 'Downtime', 'Maintenance'];
-const CONTACT_BLOCKS = ['community', 'support', 'enterprise', 'source', 'docs'];
+const CONTACT_BLOCKS = ['support', 'enterprise', 'source', 'docs'];
 const CONTACT_PARTS = ['Label', 'Text', 'Cta'];
 
 const DYNAMIC: Record<string, string[]> = {

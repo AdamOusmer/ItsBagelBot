@@ -40,28 +40,6 @@ func TestBotIdentityComesFromTheRightSecret(t *testing.T) {
 	}
 }
 
-func TestDiscordEnvContracts(t *testing.T) {
-	tests := []struct {
-		name        string
-		deployments []string
-		env         string
-		wantPresent bool
-	}{
-		{name: "TestDiscordManifestsCarryNoDeadDataSwitch", deployments: []string{"discord-engine", "discord-outgress", "discord-ingress"},
-			env: "DISCORD_DATA_ENABLED"},
-		{name: "TestDiscordDataPrefixSurvives", deployments: []string{"discord-engine", "discord-outgress"},
-			env: "NATS_DISCORD_DATA_RPC_PREFIX", wantPresent: true},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			for _, name := range tc.deployments {
-				assert.Equal(t, tc.wantPresent, slices.Contains(findDeployment(t, "discord.yaml", name).envNames(), tc.env),
-					"%s %s presence", name, tc.env)
-			}
-		})
-	}
-}
-
 func TestClusterOpsSecretsAreWiredOneByOne(t *testing.T) {
 	want := secretEnv{Refs: map[string]string{
 		"APP_ENV":            "clusterops-env/APP_ENV",
@@ -88,9 +66,6 @@ func TestSpreadIsHardWithoutMinDomains(t *testing.T) {
 		{"transactions.yaml", "transactions"},
 		{"twitch-ingress.yaml", "twitch-ingress"},
 		{"outgress.yaml", "outgress"},
-		{"discord.yaml", "discord-ingress"},
-		{"discord.yaml", "discord-engine"},
-		{"discord.yaml", "discord-outgress"},
 		{"sesame.yaml", "sesame"},
 	}
 	for _, tc := range tests {

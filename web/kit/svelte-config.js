@@ -13,7 +13,7 @@ const BASE_DIRECTIVES = {
   'style-src': ['self'],
   'style-src-attr': ['unsafe-inline'],
   'font-src': ['self'],
-  'img-src': ['self', 'data:', 'https://cdn.discordapp.com'],
+  'img-src': ['self', 'data:'],
   'connect-src': ['self', 'https://dashboard.itsbagelbot.com', 'https://*.nr-data.net'],
   'object-src': ['none'],
   'base-uri': ['self'],

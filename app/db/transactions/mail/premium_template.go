@@ -27,7 +27,7 @@ const (
 	legacyLogoURL = "https://itsbagelbot.com/logo.png"
 	logoCID       = "itsbagelbot-logo-v1"
 	logoSrc       = "cid:" + logoCID
-	discordURL    = "https://discord.gg/SZ2remwSDv"
+	supportURL    = "https://itsbagelbot.com"
 )
 
 var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(`
@@ -173,7 +173,7 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
       <div style="border-top:1px solid ` + colorBorder + `;padding-top:16px;padding-bottom:18px;">
         <strong style="color:` + colorTan + `;">&#128274; {{.SafetyLabel}}</strong>
         {{.SafetyBody}}
-        <a href="` + discordURL + `" style="color:` + colorTan + `;text-decoration:none;">Discord</a>.
+        <a href="` + supportURL + `" style="color:` + colorTan + `;text-decoration:none;">itsbagelbot.com</a>.
       </div>
       {{.Footer}}<br>
       <a href="https://itsbagelbot.com" style="color:` + colorTan + `;text-decoration:none;">itsbagelbot.com</a>

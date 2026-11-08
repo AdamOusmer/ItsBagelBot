@@ -22,7 +22,7 @@ flowchart LR
     Sesame --> Projection
 ```
 
-L'entrée Twitch est en Elixir (`app/twitch/ingress`); Sesame et la sortie sont en Go (`app/twitch/sesame`, `app/twitch/outgress`). Les applications dashboard et admin sont sous `web/`. Discord possède ses propres entrée, moteur et sortie sous `app/discord`.
+L'entrée Twitch est en Elixir (`app/twitch/ingress`); Sesame et la sortie sont en Go (`app/twitch/sesame`, `app/twitch/outgress`). Les applications dashboard et admin sont sous `web/`.
 
 Ce diagramme est un point de départ, pas un graphe complet des dépendances. Voir [État du système](/fr/reference/system-overview/), [Données et état](/fr/data-and-state/) et `CONTEXT-MAP.md` à la racine. La configuration de déploiement se trouve sous `deploy/`.
 

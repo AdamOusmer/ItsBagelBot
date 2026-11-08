@@ -57,7 +57,6 @@ beforeEach(() => {
     DB_ADMIN_PASS: 'secret',
     DB_CA_CERT: 'heatwave-ca-pem',
     DOPPLER_TOKEN_USERS: 'dp.st.users',
-    DOPPLER_TOKEN_DISCORD_DATA: 'dp.st.discord-data'
   });
   dopplerSecrets = dopplerConfig();
   dopplerWriteOk = true;
@@ -167,47 +166,5 @@ describe('service account provisioning', () => {
       "DROP USER IF EXISTS 'users_svc_old'@'10.0.%'"
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe('discord-data', () => {
-  test('manages the discord_data_svc account through its underscore-named token', async () => {
-    dopplerSecrets = dopplerConfig({ DB_USER: 'discord_data_svc_old' });
-
-    const { dbUser } = await rotateCredential('discord-data');
-
-    expect(dbUser).toMatch(/^discord_data_svc_r[0-9a-z]{8}$/);
-    expect(sql()[3]).toBe(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON \`bagel_discord\`.* TO '${dbUser}'@'10.0.%'`
-    );
-    for (const call of fetchSpy.mock.calls) {
-      const headers = (call[1] as RequestInit).headers as Record<string, string>;
-      expect(headers.authorization).toBe('Bearer dp.st.discord-data');
-    }
-    expect(dopplerWrites()).toEqual([
-      expect.objectContaining({ DB_USER: dbUser, DB_SCHEMA: 'bagel_discord' })
-    ]);
-  });
-
-  test('rejects the old discord_svc prefix', async () => {
-    await expect(
-      revokeCredential('discord-data', { dbUser: 'discord_svc_old' })
-    ).rejects.toThrow('user must start with discord_data_svc');
-    await expect(
-      setCredential('discord-data', { dbUser: 'discord_svc_main', dbPass: 'Aa1!'.repeat(10) })
-    ).rejects.toThrow('user must start with discord_data_svc');
-
-    expect(createConnection).not.toHaveBeenCalled();
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  test('stays unmanageable while its Doppler config carries no client certificate', async () => {
-    dopplerSecrets = dopplerConfig({ DB_USER: 'discord_data_svc_old', DB_CLIENT_CERT: '', DB_CLIENT_KEY: '' });
-
-    await expect(rotateCredential('discord-data')).rejects.toThrow(
-      'discord-data has no DB_CLIENT_CERT/DB_CLIENT_KEY in Doppler (discord-data/prd)'
-    );
-    expect(createConnection).not.toHaveBeenCalled();
-    expect(dopplerWrites()).toEqual([]);
   });
 });

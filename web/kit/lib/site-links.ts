@@ -16,7 +16,6 @@ export const SITE = {
   newIssue: 'https://github.com/AdamOusmer/ItsBagelBot/issues/new',
   supportEmail: 'support@itsbagelbot.com',
   enterpriseEmail: 'enterprise@itsbagelbot.com',
-  discord: 'https://discord.gg/SZ2remwSDv',
   twitch: 'https://twitch.tv/itsbagelbot',
   kofi: 'https://ko-fi.com/Q8P121QNHK',
 } as const;
@@ -89,7 +88,6 @@ export const SITE_FOOTER = [
   {
     key: 'community',
     links: [
-      { url: SITE.discord, label: 'Discord' },
       { url: SITE.twitch, label: 'Twitch' },
       { url: SITE.github, label: 'GitHub' },
       { url: SITE.docs, key: 'developer' },
@@ -103,7 +101,11 @@ export const SITE_LEGAL: readonly SiteLinkDef[] = [
   { path: '/creator-terms', key: 'creatorTerms' },
 ];
 
-const trimPath = (path: string) => path.replace(/\/+$/, '') || '/';
+function trimPath(path: string): string {
+  let end = path.length;
+  while (end > 0 && path[end - 1] === '/') end--;
+  return path.slice(0, end) || '/';
+}
 
 function isCurrentHref(href: string, url: SiteLinkContext['url']): boolean {
   if (!url) return false;

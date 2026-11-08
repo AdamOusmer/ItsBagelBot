@@ -94,7 +94,7 @@ var curatedTLDs = strings.Join([]string{
 }, "|")
 
 var (
-	reScheme  = regexp.MustCompile(`(?i)\b(?:https?|ftps?|sftp|ssh|wss?|mailto|tel|sms|magnet|steam|discord|ircs?|xmpp):`)
+	reScheme  = regexp.MustCompile(`(?i)\b(?:https?|ftps?|sftp|ssh|wss?|mailto|tel|sms|magnet|steam|ircs?|xmpp):`)
 	reAuthy   = regexp.MustCompile(`(?i)[a-z][a-z0-9+.\-]{0,30}://`)
 	reProtoRl = regexp.MustCompile(`(?:^|[^a-z0-9+.\-/])//[a-z0-9]`)
 	reDataURI = regexp.MustCompile(`(?i)\bdata:\s*(?:[a-z]+/|;base64)`)

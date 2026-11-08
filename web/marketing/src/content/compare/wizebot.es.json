@@ -91,14 +91,8 @@
       "source": "https://support.wizebot.tv/docs/tags"
     },
     {
-      "feature": "Discord",
-      "us": "Discord es una integración beta de Premium para anuncios de directo, clips, bienvenidas, tickets y herramientas de comunidad.",
-      "them": "La visión general del servicio enumera notificaciones de Discord al empezar el directo y en cambios de juego o de estado.",
-      "source": "https://wizebot.tv/en/services"
-    },
-    {
       "feature": "Precio",
-      "us": "Todas las funciones terminadas son gratis. Premium cuesta $7 CAD más impuestos al mes y añade atención prioritaria, soporte y acceso anticipado a los módulos beta, actualmente AutoMod y Discord. Spotify Premium es un requisito aparte.",
+      "us": "Todas las funciones terminadas son gratis. Premium cuesta $7 CAD más impuestos al mes y añade atención prioritaria, soporte y acceso anticipado a los módulos beta, actualmente AutoMod. Spotify Premium es un requisito aparte.",
       "them": "La página principal oficial describe un servicio en la nube gratuito. Revisa los requisitos del panel para las herramientas concretas que quieras activar.",
       "source": "https://wizebot.tv/en/index"
     }
@@ -116,7 +110,7 @@
   "faq": [
     {
       "q": "¿Cuándo es ItsBagelBot una alternativa útil a WizeBot?",
-      "a": "Considéralo para peticiones en tu cola real de Spotify, consultas integradas para los juegos compatibles o recompensas de Twitch para luces Govee compatibles. Esas funciones terminadas y el asistente de importación son gratuitos. AutoMod y Discord son módulos beta de Premium."
+      "a": "Considéralo para peticiones en tu cola real de Spotify, consultas integradas para los juegos compatibles o recompensas de Twitch para luces Govee compatibles. Esas funciones terminadas y el asistente de importación son gratuitos. AutoMod es un módulo beta de Premium."
     },
     {
       "q": "¿Cuándo debería seguir con WizeBot?",
@@ -139,10 +133,6 @@
     {
       "label": "WizeBot: visión general del servicio gratuito en la nube",
       "url": "https://wizebot.tv/en/index"
-    },
-    {
-      "label": "WizeBot: anuncios periódicos, protecciones, recompensas de Twitch, Discord y overlays",
-      "url": "https://wizebot.tv/en/services"
     },
     {
       "label": "WizeBot: comandos personalizados, peticiones de YouTube y comandos de sorteo",

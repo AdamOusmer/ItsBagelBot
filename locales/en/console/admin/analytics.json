@@ -40,8 +40,6 @@
     "commands": "Built-in commands",
     "toggles": "Module switches",
     "customCommands": "Custom commands",
-    "discordInteractions": "Discord commands and buttons",
-    "discordEvents": "Discord events handled",
     "outgress": "Failed Twitch calls",
     "pages": "Console page views",
     "actions": "Console form results",

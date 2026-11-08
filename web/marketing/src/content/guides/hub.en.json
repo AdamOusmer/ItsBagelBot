@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Twitch Bot Setup Tutorials | ItsBagelBot",
-    "description": "Follow visual Twitch bot setup tutorials for commands, API data, counters, Spotify requests, Govee lights, Discord and shared dashboard access.",
+    "description": "Follow visual Twitch bot setup tutorials for commands, API data, counters, Spotify requests, Govee lights and shared dashboard access.",
     "eyebrow": "Guides",
     "heading": "Learn the bot.",
     "lead": "Every guide here works on the free plan, except the parts marked Premium beta, and each one runs ten minutes or less."
@@ -19,11 +19,6 @@
   "help": {
     "prompt": "Stuck on something a guide doesn't cover?",
     "links": [
-      {
-        "href": "https://discord.gg/SZ2remwSDv",
-        "label": "Ask on Discord",
-        "external": true
-      },
       {
         "href": "/contact",
         "label": "Contact support"

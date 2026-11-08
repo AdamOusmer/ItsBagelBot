@@ -93,14 +93,14 @@ describe('SectionNav modes', () => {
       props: {
         label: 'Server',
         items: [
-          { href: '/discord/1', label: 'Overview', current: true },
-          { href: '/discord/1/roles', label: 'Roles', current: false },
+          { href: '/settings', label: 'Overview', current: true },
+          { href: '/settings/roles', label: 'Roles', current: false },
         ],
       },
       html:
         '<div class="bb-tabs-host"><nav class="bb-tabs bb-tabs--auto" aria-label="Server" data-lenis-prevent><span class="bb-glide" aria-hidden="true"></span>' +
-        '<a class="bb-tab is-active" href="/discord/1" aria-current="page">Overview</a>' +
-        '<a class="bb-tab" href="/discord/1/roles">Roles</a></nav></div>',
+        '<a class="bb-tab is-active" href="/settings" aria-current="page">Overview</a>' +
+        '<a class="bb-tab" href="/settings/roles">Roles</a></nav></div>',
     },
     {
       name: 'toc variant numbers its entries',

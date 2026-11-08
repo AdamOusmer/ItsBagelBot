@@ -91,14 +91,8 @@
       "source": "https://support.wizebot.tv/docs/tags"
     },
     {
-      "feature": "Discord",
-      "us": "Интеграция с Discord доступна как бета-функция Premium для постов о начале эфира, клипов, приветствий, тикетов и инструментов сообщества.",
-      "them": "В обзоре сервиса перечислены уведомления в Discord о начале эфира и изменениях игры или статуса.",
-      "source": "https://wizebot.tv/en/services"
-    },
-    {
       "feature": "Цена",
-      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и ранний доступ к бета-модулям, сейчас это AutoMod и Discord. Spotify Premium требуется отдельно.",
+      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и ранний доступ к бета-модулям, сейчас это AutoMod. Spotify Premium требуется отдельно.",
       "them": "На официальной главной странице описан бесплатный облачный сервис. Требования к панели для конкретных инструментов, которые вы хотите включить, проверяйте отдельно.",
       "source": "https://wizebot.tv/en/index"
     }
@@ -116,7 +110,7 @@
   "faq": [
     {
       "q": "Когда ItsBagelBot является полезной альтернативой WizeBot?",
-      "a": "Рассмотрите его для запросов в вашу реальную очередь Spotify, встроенных проверок для поддерживаемых игр или наград Twitch для совместимого освещения Govee. Эти готовые функции и мастер импорта бесплатны. AutoMod и Discord доступны как бета-модули Premium."
+      "a": "Рассмотрите его для запросов в вашу реальную очередь Spotify, встроенных проверок для поддерживаемых игр или наград Twitch для совместимого освещения Govee. Эти готовые функции и мастер импорта бесплатны. AutoMod доступен как бета-модуль Premium."
     },
     {
       "q": "Когда стоит оставить WizeBot?",
@@ -136,11 +130,25 @@
     }
   ],
   "sources": [
-    { "label": "WizeBot: обзор бесплатного облачного сервиса", "url": "https://wizebot.tv/en/index" },
-    { "label": "WizeBot: периодические объявления, защита, награды Twitch, Discord и оверлеи", "url": "https://wizebot.tv/en/services" },
-    { "label": "WizeBot: пользовательские команды, запросы YouTube и команды розыгрышей", "url": "https://support.wizebot.tv/docs/commands" },
-    { "label": "WizeBot: теги ответов и игровые интеграции", "url": "https://support.wizebot.tv/docs/tags" },
-    { "label": "WizeBot: JavaScript-команды и ограничения выполнения (сентябрь 2026)", "url": "https://support.wizebot.tv/docs/JS_commands" },
-    { "label": "WizeBot: действия покупок в виртуальном магазине", "url": "https://support.wizebot.tv/docs/currency_virtualshop" }
+    {
+      "label": "WizeBot: обзор бесплатного облачного сервиса",
+      "url": "https://wizebot.tv/en/index"
+    },
+    {
+      "label": "WizeBot: пользовательские команды, запросы YouTube и команды розыгрышей",
+      "url": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "label": "WizeBot: теги ответов и игровые интеграции",
+      "url": "https://support.wizebot.tv/docs/tags"
+    },
+    {
+      "label": "WizeBot: JavaScript-команды и ограничения выполнения (сентябрь 2026)",
+      "url": "https://support.wizebot.tv/docs/JS_commands"
+    },
+    {
+      "label": "WizeBot: действия покупок в виртуальном магазине",
+      "url": "https://support.wizebot.tv/docs/currency_virtualshop"
+    }
   ]
 }

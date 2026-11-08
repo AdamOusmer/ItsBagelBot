@@ -160,7 +160,7 @@ var catalog struct {
 }
 
 func catalogSpecs() []StreamSpec {
-	return append(fleetStreamSpecs(), BagelDeadLetterStream, DiscordIngressStream, DiscordOutgressStream)
+	return append(fleetStreamSpecs(), BagelDeadLetterStream)
 }
 
 type busFixture struct {

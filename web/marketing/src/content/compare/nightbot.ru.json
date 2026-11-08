@@ -79,14 +79,8 @@
       "source": "https://docs.nightbot.tv/control-panel/commands"
     },
     {
-      "feature": "Discord",
-      "us": "Интеграция с Discord доступна как бета-функция Premium для постов о начале эфира, клипов, приветствий, тикетов и инструментов сообщества.",
-      "them": "Nightbot документирует доступ к командам в Discord, сопоставление ролей и необязательную спам-фильтрацию. Это подходит, чтобы перенести существующие команды на сервер.",
-      "source": "https://docs.nightbot.tv/discord"
-    },
-    {
       "feature": "Цена",
-      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и ранний доступ к бета-модулям, сейчас это AutoMod и Discord. Spotify Premium требуется отдельно.",
+      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и ранний доступ к бета-модулям, сейчас это AutoMod. Spotify Premium требуется отдельно.",
       "them": "Бесплатный сервис, как сообщил разработчик Nightbot в связанном официальном ответе поддержки от марта 2025 года. Это заявление разработчика, а не опубликованная таблица цен.",
       "source": "https://community.nightdev.com/t/messages-command/1534655926634549409"
     }
@@ -104,7 +98,7 @@
   "faq": [
     {
       "q": "Когда ItsBagelBot является полезной альтернативой Nightbot?",
-      "a": "Рассмотрите его, если вашей настройке Twitch нужны запросы в очередь Spotify, встроенные проверки для поддерживаемых игр или действия за баллы канала для освещения Govee. Команды, таймеры и мастер импорта входят в бесплатный план. AutoMod и Discord доступны как бета-модули Premium."
+      "a": "Рассмотрите его, если вашей настройке Twitch нужны запросы в очередь Spotify, встроенные проверки для поддерживаемых игр или действия за баллы канала для освещения Govee. Команды, таймеры и мастер импорта входят в бесплатный план. AutoMod доступен как бета-модуль Premium."
     },
     {
       "q": "Когда стоит оставить Nightbot?",
@@ -124,16 +118,45 @@
     }
   ],
   "sources": [
-    { "label": "Nightbot: поддерживаемые стриминговые платформы", "url": "https://docs.nightbot.tv/" },
-    { "label": "Nightbot: команды, права и псевдонимы", "url": "https://docs.nightbot.tv/control-panel/commands" },
-    { "label": "Nightbot: переменные и игровая статистика", "url": "https://docs.nightbot.tv/variables" },
-    { "label": "Nightbot: переменная ранга League of Legends", "url": "https://docs.nightbot.tv/variables/leagueoflegends" },
-    { "label": "Nightbot: переменная ранга Teamfight Tactics", "url": "https://docs.nightbot.tv/variables/teamfighttactics" },
-    { "label": "Nightbot: таймеры и пороги активности в чате", "url": "https://docs.nightbot.tv/control-panel/timers" },
-    { "label": "Nightbot: спам-защита", "url": "https://docs.nightbot.tv/control-panel/spam-protection" },
-    { "label": "Nightbot: запросы песен YouTube и SoundCloud", "url": "https://docs.nightbot.tv/control-panel/song-requests" },
-    { "label": "Nightbot: форматы розыгрышей", "url": "https://docs.nightbot.tv/control-panel/giveaways" },
-    { "label": "Nightbot: интеграция с Discord", "url": "https://docs.nightbot.tv/discord" },
-    { "label": "Nightbot: официальное заявление разработчика о бесплатном сервисе (март 2025)", "url": "https://community.nightdev.com/t/messages-command/1534655926634549409" }
+    {
+      "label": "Nightbot: поддерживаемые стриминговые платформы",
+      "url": "https://docs.nightbot.tv/"
+    },
+    {
+      "label": "Nightbot: команды, права и псевдонимы",
+      "url": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "label": "Nightbot: переменные и игровая статистика",
+      "url": "https://docs.nightbot.tv/variables"
+    },
+    {
+      "label": "Nightbot: переменная ранга League of Legends",
+      "url": "https://docs.nightbot.tv/variables/leagueoflegends"
+    },
+    {
+      "label": "Nightbot: переменная ранга Teamfight Tactics",
+      "url": "https://docs.nightbot.tv/variables/teamfighttactics"
+    },
+    {
+      "label": "Nightbot: таймеры и пороги активности в чате",
+      "url": "https://docs.nightbot.tv/control-panel/timers"
+    },
+    {
+      "label": "Nightbot: спам-защита",
+      "url": "https://docs.nightbot.tv/control-panel/spam-protection"
+    },
+    {
+      "label": "Nightbot: запросы песен YouTube и SoundCloud",
+      "url": "https://docs.nightbot.tv/control-panel/song-requests"
+    },
+    {
+      "label": "Nightbot: форматы розыгрышей",
+      "url": "https://docs.nightbot.tv/control-panel/giveaways"
+    },
+    {
+      "label": "Nightbot: официальное заявление разработчика о бесплатном сервисе (март 2025)",
+      "url": "https://community.nightdev.com/t/messages-command/1534655926634549409"
+    }
   ]
 }

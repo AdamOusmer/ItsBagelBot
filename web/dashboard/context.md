@@ -44,7 +44,7 @@ Preserve variable/token/form/surface wording in editors and help copy.
   [module-gate.ts](src/lib/server/module-gate.ts): shared load/action paths and Premium/beta/delegate gates.
 - `module-flags.ts` derives shell/built-in enable state from saved module rows plus catalog defaults.
 - [module-blob.ts](src/lib/server/module-blob.ts): common module persistence shape.
-- `src/lib/server/*-store.ts`: focused commands, quotes, timers, fetches, Discord, Spotify,
+- `src/lib/server/*-store.ts`: focused commands, quotes, timers, fetches, Spotify,
   Govee, loyalty and channel-point adapters; reuse them rather than writing route RPCs.
 - `src/lib/components/`: feature editors; `commands/CommandEditor.svelte` and `ResponseEditor.svelte`
   handle command editing, while `modules/ReplyEditor.svelte` handles module reply surfaces.
@@ -67,9 +67,6 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - `(app)/+page.*` is overview; `overview/stream/` feeds stream details.
 - `commands/`, `modules/`, `modules/[id]/`, `quotes/`, `timers/`, `counters/`, `channelpoints/`
   cover configuration; dedicated module pages coexist with generic module forms.
-- `discord/[guildId]/` splits guild configuration into settings, channels, announcements,
-  community, roles and tickets; Discord setup RPC belongs to `app/discord/outgress`, using
-  historical `bagel.rpc.dingress` subjects, rather than the Twitch outgress service.
 - `songqueue/`, `govee/`, `loyalty/`, and Spotify connect/callback handle their integrations.
 - `settings/` and `settings/import/` handle preferences, deletion and supported bot imports.
 - `welcome/` and `welcome/import/` complete onboarding before ordinary use.

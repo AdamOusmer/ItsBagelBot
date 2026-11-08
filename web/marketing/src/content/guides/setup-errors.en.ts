@@ -8,20 +8,19 @@ const guide: GuideContent = {
   "meta": {
     "aiDoc": "https://ai.itsbagelbot.com/llms.txt",
     "title": "Fix Twitch Bot Setup and Connection Errors | ItsBagelBot",
-    "description": "Find your ItsBagelBot setup or connection error, check its cause and follow the fix. Troubleshoot Twitch bot, Spotify, Govee and Discord connections.",
+    "description": "Find your ItsBagelBot setup or connection error, check its cause and follow the fix. Troubleshoot Twitch bot, Spotify and Govee connections.",
     "eyebrow": "Guide",
     "heading": "Setup errors",
     "lead": "Paste the message you saw, find it in the list, and follow the fix. Each row links to the guide that covers the whole flow.",
     "minutes": "Reference",
     "card": {
       "title": "Setup errors",
-      "description": "An error glossary: the exact message on screen or in chat, what it means, and what to do, grouped by Spotify, Govee, Discord, share access and more.",
+      "description": "An error glossary: the exact message on screen or in chat, what it means, and what to do, grouped by Spotify, Govee, share access and more.",
       "meta": "200 messages · 8 areas",
       "chips": [
         "sign-in",
         "Spotify",
         "Govee",
-        "Discord",
         "bot status"
       ]
     }
@@ -607,240 +606,6 @@ const guide: GuideContent = {
               "Govee or the light did not answer.",
               "Check that the light is on and shows as online in the Govee Home app. Then try again.",
               "<a href=\"/guides/govee-lights#trouble\">Govee Lights: If something goes wrong</a>"
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "id": "discord",
-      "heading": "Discord",
-      "note": "Messages from the Discord page.",
-      "blocks": [
-        {
-          "kind": "table",
-          "head": [
-            "What you see",
-            "What it means",
-            "What to do",
-            "Guide section"
-          ],
-          "rows": [
-            [
-              "\"Premium only while in beta\"",
-              "Your channel is not Premium. Discord is open to Premium channels only during the beta.",
-              "Choose \"See plans\". Come back to \"Discord\" once Premium is active.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord is in beta and open to Premium channels only.\"",
-              "Same limit, shown when a Discord action is refused.",
-              "Make the channel Premium, then try again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Premium for this channel is managed by &#123;login&#125;. Ask them to upgrade on their Billing page.\"",
-              "You are a mod with shared access, and the Billing section is not shared with you.",
-              "Ask the channel owner to upgrade on their Billing page.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "The \"Add a server\" button is greyed out, or \"Discord is not configured on this deployment (missing client id or redirect).\"",
-              "Discord connection is not set up on Bagel's side. Nothing in your account causes it.",
-              "Contact support through the Contact page (itsbagelbot.com/contact) or at support@itsbagelbot.com.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"You cancelled on Discord's screen, so nothing was added. Choose Add a server to try again.\"",
-              "You closed or cancelled Discord's confirm screen.",
-              "Choose \"Add a server\" again and choose \"Authorize\" on Discord's screen.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord did not list a server you can add a bot to. You need to own the server, or have Manage Server on it.\"",
-              "The Discord account you used has no server it can add Bagel to.",
-              "Use the Discord account that owns the server or has Manage Server on it.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"No server we can add Bagel to\"",
-              "The server list is empty: \"Bagel can only be added to a server you own, or one where you have Manage Server.\"",
-              "Ask a server owner for Manage Server, or choose \"Create my Discord\" to start from Bagel's template.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Linked to another channel\"",
-              "Another Twitch channel already uses this server.",
-              "Ask that channel's owner to choose \"Disconnect\" on the server's Settings page in Bagel. Do not remove Bagel from the server.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"That Discord server is already linked to another Twitch channel. Ask that channel's owner to open this server in Bagel, go to Settings and choose Disconnect. Then add it here again.\"",
-              "You authorized Bagel on a server that belongs to another channel's setup.",
-              "Ask that owner to choose \"Disconnect\", then add the server again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord refused that because Bagel is missing a permission in this server. In Discord, open Server Settings, then Roles, and drag Bagel's role above the roles it manages. If you unchecked a permission when adding Bagel, choose Re-authorize on this server's Settings page and keep them all checked.\"",
-              "Bagel's role sits too low, or a permission was unchecked.",
-              "Follow \"Fix the role order\" above. If you unchecked a permission, choose \"Re-authorize\" and keep every box checked.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"This server was added before Bagel asked for the Change Nickname permission, so the premium name cannot be applied here. The premium avatar still works. Choose Re-authorize Bagel, then choose Add Bagel again next to this server.\"",
-              "The server was added with an older permission list.",
-              "Choose \"Re-authorize Bagel\", then \"Add Bagel again\" next to the server, and keep every permission checked.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Bagel needs to be added again to work in this server.\"",
-              "Bagel is not in the server any more, or needs a fresh authorization.",
-              "Choose \"Add Bagel again\" on the server list.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord did not return a server. Try adding Bagel again.\"",
-              "Discord ended the connection without naming a server.",
-              "Choose \"Add a server\" and start again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"That Discord link expired. Start from Add Bagel again.\"",
-              "The page waited too long, or came from an old tab.",
-              "Open \"Discord\" and choose \"Add a server\" again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Could not save the connected server. Try again.\"",
-              "Bagel could not store the link to your server.",
-              "Choose \"Add a server\" and try again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Someone else saved this server first. Reload and try again.\"",
-              "Two people changed the same server at once.",
-              "Choose \"Reload\", then make your change again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord is rate limiting us. Try again in a minute.\"",
-              "Discord is slowing requests down.",
-              "Wait a minute and try again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord did not answer. Try again in a moment.\"",
-              "Discord did not reply in time.",
-              "Wait a moment and try again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"This took too long. Some of it may be missing; reload to see the rest.\"",
-              "An action ran past its time limit and may be half done.",
-              "Reload the page and check the result.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"That channel or role is gone from the server. Pick another one.\"",
-              "The channel or role was deleted in Discord.",
-              "Pick another one, or choose \"Create missing channels and roles\".",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"No Discord server is connected yet.\"",
-              "This channel has no linked server, for example after \"Disconnect\".",
-              "Choose \"Add a server\".",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Some settings were not valid, so they were left as they were.\" or \"Saved, but these were left as they were: &#123;fields&#125;.\"",
-              "Some values were rejected and kept their old value.",
-              "Check the fields marked \"Not valid, so this kept the value it already had.\" and fix them.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Bagel cannot post here\" or \"Bagel can no longer post in the saved channel. Give it Send Messages there, or pick another channel.\"",
-              "Bagel lacks Send Messages in that channel.",
-              "Give Bagel \"Send Messages\" in that channel in Discord, or pick another channel.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Turn the ticket desk on and save before reposting the panel.\"",
-              "You asked to repost the ticket panel while tickets are off.",
-              "Turn the ticket desk on, save, then repost.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Could not list your server's channels and roles, so the pickers are turned off. Nothing was changed; try again in a moment.\"",
-              "Discord did not return the server's channels and roles.",
-              "Wait a moment and reload the page.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Could not reach the backend. Try again in a moment.\"",
-              "The dashboard could not load your Discord data.",
-              "Wait a moment and reload.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Could not disconnect Discord.\" or \"Could not set up this server.\"",
-              "The action did not finish.",
-              "Try again. If it keeps failing, contact support through the Contact page (itsbagelbot.com/contact) or at support@itsbagelbot.com.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "The status \"Offline\", or \"The gateway dropped and is reconnecting on its own. Nothing to do.\"",
-              "Bagel lost its connection to Discord and reconnects by itself.",
-              "Wait a few minutes. If the status says \"Reauthorize\", choose \"Re-authorize Bagel\", then \"Add Bagel again\" next to the server.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Something went wrong on our side. Try again, and tell support if it keeps happening.\"",
-              "An unexpected error on Bagel's side.",
-              "Try again, then contact support through the Contact page (itsbagelbot.com/contact) or at support@itsbagelbot.com if it repeats.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Could not save Discord settings.\"",
-              "The settings on the server's page did not save.",
-              "Try again. If it keeps failing, reload the page and make the change again.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Could not repost the ticket panel.\"",
-              "Discord did not accept the ticket panel repost.",
-              "Try again in a moment. Check that Bagel can post in the ticket channel.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord rejected the bot token. It has to be replaced before the bot can come back.\"",
-              "A problem on Bagel's side, shown in the server status.",
-              "Nothing you can do from the dashboard. Contact support through the Contact page (itsbagelbot.com/contact) or at support@itsbagelbot.com if it lasts.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"This bot now needs more than one shard. Nothing you can do from here; we are on it.\"",
-              "A problem on Bagel's side, shown in the server status.",
-              "Nothing you can do. Wait; Bagel's team is working on it.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord refused the gateway intents. Nothing you can do from here; we are on it.\"",
-              "A problem on Bagel's side, shown in the server status.",
-              "Nothing you can do. Wait; Bagel's team is working on it.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Discord has not approved the privileged intents this bot needs. Nothing you can do from here; we are on it.\"",
-              "A problem on Bagel's side, shown in the server status.",
-              "Nothing you can do. Wait; Bagel's team is working on it.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
-            ],
-            [
-              "\"Bagel joined. This server already has a layout, so it was not rebuilt. Bagel adopted the channels it recognised; pick the rest below.\"",
-              "Bagel joined and kept your existing channels.",
-              "Pick the channels that are still empty on the \"Channels\" page.",
-              "<a href=\"/guides/discord-setup#trouble\">Add Bagel to Discord: If something goes wrong</a>"
             ]
           ]
         }

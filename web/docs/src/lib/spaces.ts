@@ -40,8 +40,8 @@ export const SPACES: readonly Space[] = [
     featured: ['microservices', 'microservices/twitch-ingress', 'microservices/sesame', 'microservices/outgress'],
     groups: [
       { pages: ['microservices'] },
-      { label: 'space.groupEvents', pages: ['microservices/twitch-ingress', 'microservices/sesame', 'microservices/outgress', 'microservices/dingress', 'microservices/discord-engine', 'microservices/discord-outgress', 'microservices/automod', 'microservices/projector'] },
-      { label: 'space.groupData', pages: ['microservices/users', 'microservices/commands', 'microservices/modules', 'microservices/loyalty', 'microservices/discord-data', 'microservices/notifications', 'microservices/transactions'] },
+      { label: 'space.groupEvents', pages: ['microservices/twitch-ingress', 'microservices/sesame', 'microservices/outgress', 'microservices/automod', 'microservices/projector'] },
+      { label: 'space.groupData', pages: ['microservices/users', 'microservices/commands', 'microservices/modules', 'microservices/loyalty', 'microservices/notifications', 'microservices/transactions'] },
       { label: 'space.groupWeb', pages: ['microservices/console', 'microservices/admin', 'microservices/web', 'microservices/controls-gateway', 'microservices/desktop'] },
       { label: 'space.groupRuntime', pages: ['microservices/gossip', 'microservices/warp'] },
     ],

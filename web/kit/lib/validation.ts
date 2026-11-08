@@ -46,13 +46,12 @@ const CURATED_TLDS = [
 	'xn--[a-z0-9]{2,}'
 ].join('|');
 
-const reScheme = /\b(?:https?|ftps?|sftp|ssh|wss?|mailto|tel|sms|magnet|steam|discord|ircs?|xmpp):/i;
+const reScheme = /\b(?:https?|ftps?|sftp|ssh|wss?|mailto|tel|sms|magnet|steam|ircs?|xmpp):/i;
 const reAuthy = /[a-z][a-z0-9+.\-]{0,30}:\/\//i;
 const reProtoRl = /(?:^|[^a-z0-9+.\-/])\/\/[a-z0-9]/i;
 const reDataURI = /\bdata:\s*(?:[a-z]+\/|;base64)/i;
 const reScript = /\b(?:java|vb)script\s*:/i;
 const reWWW = /\bwww\d{0,3}\.[a-z0-9-]/i;
-const reEmail = /[a-z0-9._%+\-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/i;
 const reTLD2 = /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.[a-z]{2}\b/i;
 const reTLDCur = new RegExp('\\b(?:[a-z0-9-]+\\.)+(?:' + CURATED_TLDS + ')\\b', 'i');
 const reTLDPath = /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]{1,63})*\.[a-z]{2,63}(?::\d{1,5})?[/?#]/i;
@@ -61,27 +60,57 @@ const reIPv6 = /\[[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}\]/i;
 
 const LINK_PATTERNS = [
 	reScheme, reAuthy, reProtoRl, reDataURI, reScript,
-	reWWW, reEmail, reTLD2, reTLDCur, reTLDPath, reIPv4, reIPv6
+	reWWW, reTLD2, reTLDCur, reTLDPath, reIPv4, reIPv6
 ];
 
 const STRONG_PATTERNS = [
 	reScheme, reAuthy, reProtoRl, reDataURI, reScript,
-	reWWW, reEmail, reTLDCur, reIPv4
+	reWWW, reTLDCur, reIPv4
 ];
+
+// Anchoring both checks prevents retrying a match at each character. Segments
+// are disjoint, so their total length is bounded by the input length.
+const emailLocalEnd = /[a-z0-9._%+\-]$/i;
+const emailDomain = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/i;
+
+function containsEmail(s: string): boolean {
+	const segments = s.split('@');
+	for (let i = 1; i < segments.length; i++) {
+		if (!emailLocalEnd.test(segments[i - 1])) continue;
+		if (emailDomain.test(segments[i])) return true;
+	}
+	return false;
+}
+
+class LinkText {
+	private readonly normalized: string;
+	private readonly deobfuscated: string;
+	private readonly despaced: string;
+
+	constructor(raw: string) {
+		this.normalized = normalizeForLink(raw);
+		this.deobfuscated = deobfuscateLinks(this.normalized);
+		this.despaced = this.deobfuscated.replace(/\s+/g, '');
+	}
+
+	private hasEmail(): boolean {
+		return [this.normalized, this.deobfuscated, this.despaced].some(containsEmail);
+	}
+
+	private hasPattern(): boolean {
+		if (LINK_PATTERNS.some((pattern) => pattern.test(this.normalized))) return true;
+		if (LINK_PATTERNS.some((pattern) => pattern.test(this.deobfuscated))) return true;
+		return STRONG_PATTERNS.some((pattern) => pattern.test(this.despaced));
+	}
+
+	containsLink(): boolean {
+		return this.hasEmail() || this.hasPattern();
+	}
+}
 
 export function containsLink(s: string): boolean {
 	if (!s) return false;
-	const normalized = normalizeForLink(s);
-	const deobfuscated = deobfuscateLinks(normalized);
-	const despaced = deobfuscated.replace(/\s+/g, '');
-
-	for (const re of LINK_PATTERNS) {
-		if (re.test(normalized) || re.test(deobfuscated)) return true;
-	}
-	for (const re of STRONG_PATTERNS) {
-		if (re.test(despaced)) return true;
-	}
-	return false;
+	return new LinkText(s).containsLink();
 }
 
 export function normalizeCounterName(raw: unknown): string {

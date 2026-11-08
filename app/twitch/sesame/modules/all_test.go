@@ -84,7 +84,7 @@ const (
 	roleLeadModerator = module.RoleLeadModerator
 )
 
-var variableOnlyModules = []string{"stream", "timers", "counters", "discord", "accountage", "followage", "clip", "title", "game", "tags", "commercial", "marker", "uptime"}
+var variableOnlyModules = []string{"stream", "timers", "counters", "accountage", "followage", "clip", "title", "game", "tags", "commercial", "marker", "uptime"}
 
 var shippedContract = map[string]moduleSpec{
 	"~ping": {module.KindCore, []commandSpec{
@@ -155,7 +155,7 @@ var shippedContract = map[string]moduleSpec{
 		command("skip", roleModerator, "next"), command("clear", roleModerator), command("remove", roleEveryone), command("srlist", roleEveryone, "songlist"),
 	}},
 	"trial": {module.KindCore, []commandSpec{
-		command("ign", roleEveryone), command("event", roleEveryone), command("discord", roleEveryone), command("drop", roleEveryone, "drops"),
+		command("ign", roleEveryone), command("event", roleEveryone), command("drop", roleEveryone, "drops"),
 		command("cape", roleEveryone), command("socials", roleEveryone), command("twitter", roleEveryone, "x"),
 		command("youtube", roleEveryone, "yt"), command("tiktok", roleEveryone), command("instagram", roleEveryone, "ig"),
 		command("schedule", roleEveryone), command("merch", roleEveryone), command("sens", roleEveryone, "settings", "crosshair"),

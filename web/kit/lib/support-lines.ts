@@ -20,7 +20,6 @@ export function supportMenuLinks(t: (key: MessageKey) => string): ProfileMenuLin
 
 export function supportLines(t: (key: MessageKey) => string): readonly SupportLine[] {
   return [
-    { title: 'Discord', hint: t('topbar.supportDiscordHint'), href: SITE.discord, icon: 'discord', external: true },
     { title: t('topbar.support'), hint: SITE.supportEmail, href: `mailto:${SITE.supportEmail}`, icon: 'link', external: false },
     { title: t('topbar.enterprise'), hint: SITE.enterpriseEmail, href: `mailto:${SITE.enterpriseEmail}`, icon: 'server', external: false },
     { title: 'GitHub', hint: t('topbar.supportGithubHint'), href: SITE.github, icon: 'github', external: true }

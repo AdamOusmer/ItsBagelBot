@@ -25,7 +25,7 @@ Find the section whose message matches what the user sees. {{console:setupAi.gui
 - Do not request, accept, or output Govee API keys. Direct the user to enter them only in the dashboard.
 - {{console:setupAi.guideControls}} Setup steps are at [Govee setup](https://ai.itsbagelbot.com/govee/setup.md).
 - {{console:setupAi.guideLanguage}}
-- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/).
 
 </assistant_rules>
 
@@ -223,7 +223,7 @@ Meaning: the bot could not reach Govee or the light. Tell the streamer to check 
 - [Setup](setup.md).
 - [Errors](errors.md).
 - [Human guide](https://itsbagelbot.com/guides/govee-lights/).
-- [Support](https://itsbagelbot.com/contact/) and [community](https://discord.gg/SZ2remwSDv).
+- [Support](https://itsbagelbot.com/contact/).
 
 </related>
 

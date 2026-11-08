@@ -13,7 +13,7 @@
       "Timers can wait for chat activity, stop after a set number of posts per stream, or end on a date. Timer messages now expand channel variables such as emotes and follower counts.",
       "!time answers for any place: a city, a time zone, a UTC offset, or a state, province or country with one main zone, such as !time texas or !time japan.",
       "Streamers can hide their public commands page from Settings, and !commands then replies with a short line instead of a dead link. The bot personality module, with !bagels and !bagelboard, can now be switched off per channel.",
-      "Discord servers show their real icons, and the gateway no longer drops fresh sessions after 60 seconds. Sub renewals post the welcome once, song request replies show the name instead of a literal @{user}, and a duplicate channel-points title now says so.",
+      "Sub renewals post the welcome once, song request replies show the name instead of a literal @{user}, and a duplicate channel-points title now says so.",
       "French now covers bot replies, emails, guides and all 47 documentation pages. The variables reference is grouped by category with a live Try it field, and the site uses far less memory in Safari and on iOS."
     ],
     "fr": [
@@ -22,7 +22,7 @@
       "Les minuteries peuvent attendre de l'activité dans le chat, s'arrêter après un nombre fixé d'envois par live, ou prendre fin à une date. Leurs messages développent désormais les variables de la chaîne comme les emotes et le nombre de followers.",
       "!time répond pour n'importe quel lieu : une ville, un fuseau horaire, un décalage UTC, ou un État, une province ou un pays à fuseau principal unique, comme !time texas ou !time japan.",
       "Les streamers peuvent masquer leur page publique des commandes dans les Réglages, et !commands répond alors par une courte phrase au lieu d'un lien mort. Le module Personnalité du bot, avec !bagels et !bagelboard, peut désormais être désactivé par chaîne.",
-      "Les serveurs Discord affichent leur vraie icône, et la passerelle ne coupe plus les nouvelles sessions après 60 secondes. Un renouvellement d'abonnement publie la bienvenue une seule fois, les demandes de chansons affichent le nom au lieu d'un @{user} littéral, et un titre de récompense de points de chaîne déjà pris le signale clairement.",
+      "Un renouvellement d'abonnement publie la bienvenue une seule fois, les demandes de chansons affichent le nom au lieu d'un @{user} littéral, et un titre de récompense de points de chaîne déjà pris le signale clairement.",
       "Le français couvre désormais les réponses du bot, les courriels, les guides et les 47 pages de documentation. La référence des variables est regroupée par catégorie avec un champ Essayer en direct, et le site consomme beaucoup moins de mémoire sur Safari et iOS."
     ]
   },

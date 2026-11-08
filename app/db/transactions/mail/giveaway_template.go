@@ -143,7 +143,7 @@ func giveawayText(msg GiveawayMessage, dashboardURL string) string {
 		return ""
 	}
 	intro := fmt.Sprintf(i18n.T(msg.Locale, "mail.giveaway.text_intro"), data.Giveaway.MonthsText)
-	return fmt.Sprintf("%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n\n%s: %s\n\n%s %s\nDiscord: %s\n\n%s\nhttps://itsbagelbot.com\n",
+	return fmt.Sprintf("%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n\n%s: %s\n\n%s %s\n%s\n\n%s\nhttps://itsbagelbot.com\n",
 		intro, data.Giveaway.PeriodText, data.Giveaway.Situation,
-		data.StatusLine, data.StatusDetail, i18n.T(msg.Locale, "mail.beta.label")+" "+i18n.T(msg.Locale, "mail.beta.body"), i18n.T(msg.Locale, "mail.giveaway.action"), data.DashboardURL, i18n.T(msg.Locale, "mail.safety.label"), i18n.T(msg.Locale, "mail.safety.body")+" Discord.", discordURL, data.Footer)
+		data.StatusLine, data.StatusDetail, i18n.T(msg.Locale, "mail.beta.label")+" "+i18n.T(msg.Locale, "mail.beta.body"), i18n.T(msg.Locale, "mail.giveaway.action"), data.DashboardURL, i18n.T(msg.Locale, "mail.safety.label"), i18n.T(msg.Locale, "mail.safety.body")+" itsbagelbot.com.", supportURL, data.Footer)
 }

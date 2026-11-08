@@ -33,13 +33,12 @@ function bolota(name: string, size: number, palette: number) {
 }
 
 const mascot = bolota('oven_fresh', 260, 0);
-const communityFaces = [bolota('kiki_bakes', 34, 2), bolota('ren_exe', 34, 1), bolota('sesame_sam', 34, 0)];
 const supportFaces = [bolota('kassidy_mod', 34, 1)];
 
 const ext = { target: '_blank', rel: 'noopener noreferrer' };
 
 interface Lane {
-    key: 'community' | 'support';
+    key: 'support';
     faces: ReturnType<typeof bolota>[];
     href: string;
     icon?: IconName;
@@ -47,7 +46,6 @@ interface Lane {
 }
 
 const lanes: Lane[] = [
-    { key: 'community', faces: communityFaces, href: SITE.discord, icon: 'discord', external: true },
     { key: 'support', faces: supportFaces, href: `mailto:${SITE.supportEmail}` },
 ];
 
@@ -71,7 +69,7 @@ const stateText = Object.fromEntries(
 
 const socials = [
     { label: 'Twitch', href: SITE.twitch, icon: 'twitch' as IconName },
-    ...SOCIAL_LINKS.filter((link) => link.icon !== 'discord' && link.icon !== 'github'),
+    ...SOCIAL_LINKS.filter((link) => link.icon !== 'github'),
 ];
 
 const titleWords = t('contact.title').split(' ');

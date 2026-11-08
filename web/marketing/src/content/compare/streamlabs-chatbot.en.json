@@ -19,8 +19,7 @@
     "them": [
       "You want to extend chat interactions through Python scripts. Reference: https://streamlabs.com/content-hub/post/chatbot-scripts-desktop.",
       "You already use a standalone application with command, timer and event-trigger customization. Reference: https://streamlabs.com/content-hub/post/choosing-the-right-chatbot.",
-      "You want command parameters that read local text files. Reference: https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf.",
-      "You want Twitch commands available in Discord after linking viewer accounts. Reference: https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop."
+      "You want command parameters that read local text files. Reference: https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf."
     ]
   },
   "rows": [
@@ -91,14 +90,8 @@
       "source": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
     },
     {
-      "feature": "Discord",
-      "us": "Discord is a Premium beta integration for go-live posts, clips, welcomes, tickets and community tools.",
-      "them": "The official desktop guide requires viewers to link their Discord and Twitch accounts before using commands in Discord. Each command must be configured for Discord use.",
-      "source": "https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop"
-    },
-    {
       "feature": "Price",
-      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod and Discord. Spotify Premium is a separate requirement.",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod. Spotify Premium is a separate requirement.",
       "them": "The official site still links to the desktop Chatbot download from its Cloudbot page. That page’s free-feature and Ultra pricing statements concern Cloudbot; they do not establish a current desktop Chatbot pricing table. Verify any paid requirements separately.",
       "source": "https://streamlabs.com/cloudbot"
     }
@@ -116,7 +109,7 @@
   "faq": [
     {
       "q": "When is ItsBagelBot a useful Streamlabs Chatbot alternative?",
-      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod and Discord are Premium beta modules."
+      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod is a Premium beta module."
     },
     {
       "q": "When should I keep Streamlabs Chatbot?",
@@ -155,10 +148,6 @@
     {
       "label": "Streamlabs Chatbot: desktop manual: commands, timers, quotes, music, giveaways and Mod Tools",
       "url": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
-    },
-    {
-      "label": "Streamlabs Chatbot: linking Twitch and Discord for desktop commands",
-      "url": "https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop"
     },
     {
       "label": "Streamlabs Chatbot: current page linking the desktop Chatbot download",

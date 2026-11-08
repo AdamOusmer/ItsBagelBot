@@ -17,7 +17,6 @@ The repository separates platform I/O, bot decisions, data ownership and web int
 | Twitch outgress | `app/twitch/outgress/` | Carry out Twitch actions |
 | Data services | `app/db/` | Own application records and expose operations |
 | Projector | `app/projector/`, `internal/projection/` | Maintain and serve derived state |
-| Discord | `app/discord/` | Discord ingress, decisions and outgress |
 | External APIs | `app/gossip/` | Provider integrations |
 | Web | `web/dashboard/`, `web/admin/`, `web/marketing/`, `web/docs/` | Dashboard, administration, marketing and documentation |
 

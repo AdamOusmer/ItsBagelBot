@@ -30,7 +30,7 @@ The user is in the {{console:common.appName}} dashboard, on the "{{console:nav.s
 - Spotify changes its own screens. If a label differs, tell the user to look for the closest match and describe what they see.
 - Follow only the buttons, fields, and limits documented on this page. If a setting is not covered, say so.
 - {{console:setupAi.guideLanguage}}
-- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/).
 
 </assistant_rules>
 
@@ -174,7 +174,7 @@ Ask the user to confirm completion or describe what they see before continuing.
 - [Setup](setup.md).
 - [Errors](errors.md).
 - [Human guide](https://itsbagelbot.com/guides/spotify-song-requests/).
-- [Support](https://itsbagelbot.com/contact/) and [community](https://discord.gg/SZ2remwSDv).
+- [Support](https://itsbagelbot.com/contact/).
 
 </related>
 

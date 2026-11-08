@@ -9,7 +9,7 @@ let failName = '';
 process.env.LOG_LEVEL = 'silent';
 mock.module('./commands-store', () => ({
   listCommands: async () => [
-    { name: 'discord', response: 'a', is_active: true },
+    { name: 'social', response: 'a', is_active: true },
     { name: 'lurk', response: 'b', is_active: true, cooldown: 5, user_cooldown: 60 }
   ],
   upsertCommand: async (_uid: string, c: { name: string; isActive: boolean }) => {
@@ -29,9 +29,9 @@ beforeEach(() => {
 });
 
 test('disable routes built-ins to modules and customs to commands', async () => {
-  const r = await runBulk('1', 'disable', ['uptime', 'discord']);
-  expect(r).toEqual([{ name: 'uptime', ok: true }, { name: 'discord', ok: true }]);
-  expect(calls).toEqual(['module:uptime:false', 'upsert:discord:false']);
+  const r = await runBulk('1', 'disable', ['uptime', 'social']);
+  expect(r).toEqual([{ name: 'uptime', ok: true }, { name: 'social', ok: true }]);
+  expect(calls).toEqual(['module:uptime:false', 'upsert:social:false']);
 });
 
 test('toggling keeps both cooldowns', async () => {
@@ -40,9 +40,9 @@ test('toggling keeps both cooldowns', async () => {
 });
 
 test('one failure is reported per item and does not stop the rest', async () => {
-  failName = 'discord';
-  const r = await runBulk('1', 'enable', ['discord', 'lurk']);
-  expect(r).toEqual([{ name: 'discord', ok: false }, { name: 'lurk', ok: true }]);
+  failName = 'social';
+  const r = await runBulk('1', 'enable', ['social', 'lurk']);
+  expect(r).toEqual([{ name: 'social', ok: false }, { name: 'lurk', ok: true }]);
 });
 
 test('delete refuses built-ins and unknown names', async () => {

@@ -28,7 +28,7 @@ Assistants guiding the signed-in channel owner through importing supported confi
 - Do not request, accept, or repeat secrets, API keys, tokens, or passwords. Direct the user to paste credentials only into the designated dashboard or provider field. If a secret is pasted into chat, instruct the user to revoke or rotate it and enter only the replacement in the dashboard.
 - If an error occurs, match it to the corresponding error reference page and follow its remediation steps.
 - {{console:setupAi.guideLanguage}}
-- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/).
 
 </assistant_rules>
 

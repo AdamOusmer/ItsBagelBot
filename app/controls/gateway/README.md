@@ -4,7 +4,7 @@
 
 Elixir/Cowboy WebSocket server the desktop app connects to at `GET /v1/connect`.
 Verifies access tokens, relays device events to core NATS, and delivers
-commands and revocation back to the right connection. No Discord/Twitch logic
+commands and revocation back to the right connection. No Twitch logic
 here, and no BEAM cluster: pods route to each other through NATS, not
 distribution.
 

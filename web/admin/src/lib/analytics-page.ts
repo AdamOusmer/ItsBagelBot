@@ -162,8 +162,6 @@ export function buildAnalytics(r: AnalyticsReads): AnalyticsView {
     libraryTable(r),
     list(latest(r.day, 'modules.breadth'), { key: 'breadth', metric: 'modules.breadth' }),
     list(latest(r.day, 'integrations.connected'), { key: 'integrations', metric: 'integrations.connected' }),
-    list(r.day, { key: 'discordInteractions', metric: 'discord.interactions' }),
-    list(r.day, { key: 'discordEvents', metric: 'discord.events' }),
     list(r.day, { key: 'outgress', metric: 'outgress.failures' }),
     list(r.day, { key: 'pages', metric: 'web.views', index: 1, limit: 40 }),
     matrix(r.day, { key: 'actions', metric: 'web.actions', labelAt: 1, colAt: 2, cols: ['ok', 'invalid', 'failed', 'denied'] }),

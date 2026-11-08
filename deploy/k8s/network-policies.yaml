@@ -11,7 +11,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, discord-ingress, discord-engine, discord-outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
     - Egress
@@ -58,7 +58,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, discord-ingress, discord-engine, discord-outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Egress
   egress:
@@ -77,7 +77,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, discord-ingress, discord-outgress, console-dashboard, console-admin, gossip, notifications]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications]
   policyTypes:
     - Egress
   egress:

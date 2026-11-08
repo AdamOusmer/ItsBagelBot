@@ -24,9 +24,9 @@ function demoManifest(): ImportManifest {
 function demoCommands(): NonNullable<ImportManifest['commands']> {
   return [
     {
-      name: 'discord',
-      aliases: ['dc', 'social'],
-      responses: ['Come hang out: discord.gg/bagelfam'],
+      name: 'social' ,
+      aliases: ['links'],
+      responses: ['Find the stream schedule on our channel'],
       permission: 'everyone',
       cooldown_seconds: 10
     },
@@ -129,7 +129,7 @@ export function demoImportPreview(_source: ImportSource): PreviewResponse {
   return {
     manifest,
     diagnostics,
-    collisions: [{ kind: 'command', name: 'discord' }],
+    collisions: [{ kind: 'command', name: 'social'  }],
     stats: stats(manifest)
   };
 }
@@ -137,13 +137,13 @@ export function demoImportPreview(_source: ImportSource): PreviewResponse {
 export function demoImportCommit(manifest: ImportManifest, overwrite: boolean): CommitResponse {
   const applied = stats(manifest);
   let skipped: CommitResponse['skipped'];
-  if (!overwrite && manifest.commands?.some((c) => c.name === 'discord')) {
+  if (!overwrite && manifest.commands?.some((c) => c.name === 'social')) {
     manifest = {
       ...manifest,
-      commands: manifest.commands.filter((c) => c.name !== 'discord')
+      commands: manifest.commands.filter((c) => c.name !== 'social')
     };
     applied.commands -= 1;
-    skipped = [{ kind: 'command', name: 'discord' }];
+    skipped = [{ kind: 'command', name: 'social'  }];
   }
   return { applied, skipped, audit_id: 4311 };
 }

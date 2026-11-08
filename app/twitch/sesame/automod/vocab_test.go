@@ -35,10 +35,10 @@ func TestVocabKnown(t *testing.T) {
 			"never learns from a single sender flood",
 			func(v *Vocab) {
 				for i := 0; i < 1000; i++ {
-					v.Observe(1, "launderer", []string{"freediscord"})
+					v.Observe(1, "launderer", []string{"freecommunity"})
 				}
 			},
-			1, "freediscord", false,
+			1, "freecommunity", false,
 		},
 		{
 			"keeps a heavy hitter through one-off churn",

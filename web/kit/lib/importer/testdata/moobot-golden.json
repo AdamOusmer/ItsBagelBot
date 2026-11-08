@@ -5,14 +5,14 @@
     "manifest": {
       "commands": [
         {
-          "name": "discord",
+          "name": "community",
           "permission": "everyone",
           "cooldown_seconds": 10,
           "responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "source_responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "aliases": [
             "ds"
@@ -118,7 +118,7 @@
       ],
       "timers": [
         {
-          "message": "Join the community at https://discord.gg/example - see you there!",
+          "message": "Join the community at https://example.com/example - see you there!",
           "interval_seconds": 900,
           "online_only": true
         },
@@ -237,14 +237,14 @@
     "manifest": {
       "commands": [
         {
-          "name": "discord",
+          "name": "community",
           "permission": "everyone",
           "cooldown_seconds": 10,
           "responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "source_responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "aliases": [
             "ds"
@@ -350,7 +350,7 @@
       ],
       "timers": [
         {
-          "message": "Join the community at https://discord.gg/example - see you there!",
+          "message": "Join the community at https://example.com/example - see you there!",
           "interval_seconds": 900,
           "online_only": true
         },
@@ -486,14 +486,14 @@
     "manifest": {
       "commands": [
         {
-          "name": "discord",
+          "name": "community",
           "permission": "everyone",
           "cooldown_seconds": 10,
           "responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "source_responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "aliases": [
             "ds"
@@ -599,7 +599,7 @@
       ],
       "timers": [
         {
-          "message": "Join the community at https://discord.gg/example - see you there!",
+          "message": "Join the community at https://example.com/example - see you there!",
           "interval_seconds": 900,
           "online_only": true
         },
@@ -742,14 +742,14 @@
     "manifest": {
       "commands": [
         {
-          "name": "discord",
+          "name": "community",
           "permission": "everyone",
           "cooldown_seconds": 10,
           "responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "source_responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ]
         },
         {
@@ -849,7 +849,7 @@
       ],
       "timers": [
         {
-          "message": "Join the community at https://discord.gg/example - see you there!",
+          "message": "Join the community at https://example.com/example - see you there!",
           "interval_seconds": 900,
           "online_only": true
         },
@@ -1020,14 +1020,14 @@
     "manifest": {
       "commands": [
         {
-          "name": "discord",
+          "name": "community",
           "permission": "everyone",
           "cooldown_seconds": 10,
           "responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "source_responses": [
-            "Join the community at https://discord.gg/example - see you there!"
+            "Join the community at https://example.com/example - see you there!"
           ],
           "aliases": [
             "ds"

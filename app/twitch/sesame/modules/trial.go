@@ -15,8 +15,7 @@ func TrialTemplate() module.Module {
 	m := module.NewModule("trial", module.KindCore).Trial()
 
 	m.Command("ign").Run(broadcasterLine("%[1]s's in-game name is %[1]s. Add them to squad up."))
-	m.Command("event").Run(chatLine("No community event is running right now. Watch !discord for the next one."))
-	m.Command("discord").Run(loginLine("Join the community Discord: discord.gg/%s"))
+	m.Command("event").Run(chatLine("No community event is running right now. Check the channel for the next one."))
 	m.Command("drop").Aliases("drops").Run(chatLine("Drops are on while the stream is tagged Drops Enabled. Link your game account at twitch.tv/drops/campaigns and claim rewards from your inventory."))
 	m.Command("cape").Run(chatLine("The cape is a Drops reward: watch with Drops enabled, then claim it from your Twitch inventory. See !drop."))
 	m.Command("socials").Run(loginLine("Socials: x.com/%[1]s · youtube.com/@%[1]s · tiktok.com/@%[1]s · instagram.com/%[1]s"))

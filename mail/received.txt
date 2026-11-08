@@ -11,15 +11,12 @@ tight.
 Open hours: 10am - 5pm on our most active days. Messages sent outside those
 hours are answered when we're back.
 
-Need a faster answer? Our Discord is usually the quickest way to reach someone:
-https://discord.gg/SZ2remwSDv
-
 the ItsBagelBot support team
 
 Staying safe: ItsBagelBot will never ask for your password, payment or card
 details, or login and verification codes by email. We only send from
 @itsbagelbot.com. If a message asks for any of that, it isn't us. Ignore it and
-reach the real team on Discord: https://discord.gg/SZ2remwSDv
+reach the real team through the contact page: https://itsbagelbot.com/contact
 
 Automatic confirmation that we received your message. No need to reply to this one.
 https://itsbagelbot.com

@@ -25,7 +25,7 @@ Find the section whose message matches what the user sees. {{console:setupAi.gui
 - Do not request, accept, or output Client Secrets, tokens, or passwords. Direct the user to enter them only in the dashboard.
 - {{console:setupAi.guideControls}} Setup steps are at [Spotify setup](https://ai.itsbagelbot.com/spotify/setup.md).
 - {{console:setupAi.guideLanguage}}
-- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/).
 
 </assistant_rules>
 
@@ -443,7 +443,7 @@ Each message below means the bot refunded the viewer's points. In chat the line 
 - [Setup](setup.md).
 - [Errors](errors.md).
 - [Human guide](https://itsbagelbot.com/guides/spotify-song-requests/).
-- [Support](https://itsbagelbot.com/contact/) and [community](https://discord.gg/SZ2remwSDv).
+- [Support](https://itsbagelbot.com/contact/).
 
 </related>
 

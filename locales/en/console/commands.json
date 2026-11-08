@@ -94,10 +94,6 @@
   "noneYetBody": "Create your first custom response. Viewers trigger it with !{name} in chat.",
   "startersTitle": "Or start from a template",
   "starters": {
-    "discord": {
-      "name": "discord",
-      "response": "Join the community on Discord: discord.gg/your-invite"
-    },
     "socials": {
       "name": "socials",
       "response": "Find me elsewhere: twitter.com/yourname and instagram.com/yourname"

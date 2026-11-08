@@ -14,15 +14,9 @@ flowchart LR
   TI --> Sesame
   Sesame --> TO[Twitch outgress]
   TO --> Twitch
-  Discord --> DI[Discord ingress]
-  DI --> DE[Discord engine]
-  DE --> DO[Discord outgress]
-  DO --> Discord
   Owners[Data owners] --> Projector
   Projector --> Sesame
-  Projector --> DE
   Sesame --> Gossip
-  DE --> Owners
   Dashboard --> Owners
 ```
 
@@ -33,8 +27,7 @@ The diagram shows the main paths, not every event or RPC. For message types and 
 | Area | Service | Source |
 | --- | --- | --- |
 | Twitch | [Ingress](/microservices/twitch-ingress/), [Sesame](/microservices/sesame/), [AutoMod](/microservices/automod/), [Outgress](/microservices/outgress/) | `app/twitch/` |
-| Discord | [Ingress](/microservices/dingress/), [Engine](/microservices/discord-engine/), [Outgress](/microservices/discord-outgress/) | `app/discord/` |
-| Data | [Users](/microservices/users/), [Commands](/microservices/commands/), [Modules](/microservices/modules/), [Loyalty](/microservices/loyalty/), [Discord data](/microservices/discord-data/), [Notifications](/microservices/notifications/), [Transactions](/microservices/transactions/) | `app/db/` |
+| Data | [Users](/microservices/users/), [Commands](/microservices/commands/), [Modules](/microservices/modules/), [Loyalty](/microservices/loyalty/), [Notifications](/microservices/notifications/), [Transactions](/microservices/transactions/) | `app/db/` |
 | Shared runtime | [Projector](/microservices/projector/), [Gossip](/microservices/gossip/), [WARP image](/microservices/warp/) | `app/projector/`, `app/gossip/`, `app/warp/` |
 | Desktop | [Controls gateway](/microservices/controls-gateway/), [Desktop app](/microservices/desktop/) | `app/controls/gateway/`, `app/desktop/` |
 | Web | [Dashboard](/microservices/console/), [Admin](/microservices/admin/), [Marketing](/microservices/web/) | `web/` |

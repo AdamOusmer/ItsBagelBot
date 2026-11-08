@@ -177,15 +177,14 @@ test.describe('ItsBagelBot site', () => {
         }
     });
 
-    test('contact shows both lanes, the live status and the socials', async ({ page }) => {
+    test('contact shows support, the live status and the socials', async ({ page }) => {
         await page.route('https://status.itsbagelbot.com/**', (route) =>
             route.fulfill({ json: { data: { attributes: { aggregate_state: 'degraded' } } } }),
         );
         await page.goto('/contact');
 
         await expect(page.locator('h1')).toContainText('Talk to a human.');
-        await expect(page.locator('.lane')).toHaveCount(2);
-        await expect(page.locator('a[href^="https://discord.gg/"]').first()).toBeVisible();
+        await expect(page.locator('.lane')).toHaveCount(1);
         await expect(page.locator('a[href="mailto:support@itsbagelbot.com"]')).toBeVisible();
 
         const status = page.locator('.contact-status');
@@ -285,7 +284,7 @@ test.describe('ItsBagelBot site', () => {
     });
 
     test('every guide is indexable with hreflang in every locale', async ({ page, request }) => {
-        const slugs = ['commands', 'counters', 'data-sources', 'discord-setup', 'getting-started', 'govee-lights', 'modules', 'setup-errors', 'share-access', 'spotify-song-requests'];
+        const slugs = ['commands', 'counters', 'data-sources', 'getting-started', 'govee-lights', 'modules', 'setup-errors', 'share-access', 'spotify-song-requests'];
         for (const locale of ['de', 'es', 'fr', 'pt-br', 'ru']) {
             for (const slug of slugs) {
                 await page.goto(`/${locale}/guides/${slug}`);
@@ -385,11 +384,16 @@ test.describe('reduced motion', () => {
 });
 
 test.describe('guides & command builder', () => {
-    test('guides hub lists the ten guides and the builder tool', async ({ page }) => {
+    test('guides hub lists the nine guides and the builder tool', async ({ page }) => {
         await page.goto('/guides');
 
         await expect(page.locator('.bb-page-hero__title')).toContainText('Learn the bot.');
-        await expect(page.locator('.gcard')).toHaveCount(10);
+        await expect(page.locator('.gcard')).toHaveCount(9);
+        expect(await page.locator('.gcard').evaluateAll((cards) => cards.map((card) => card.getAttribute('href')))).toEqual([
+            '/guides/getting-started/', '/guides/commands/', '/guides/data-sources/',
+            '/guides/modules/', '/guides/counters/', '/guides/spotify-song-requests/',
+            '/guides/govee-lights/', '/guides/share-access/', '/guides/setup-errors/'
+        ]);
         await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started/');
         await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources/');
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
@@ -432,7 +436,9 @@ test.describe('guides & command builder', () => {
         await page.goto('/guides/modules');
         const catalog = page.locator('.mcat');
 
-        await expect(catalog.locator('.mcat__cell')).toHaveCount(24);
+        await expect(catalog.locator('.mcat__cell')).toHaveCount(23);
+        await expect(catalog.locator('.mcat__cell', { hasText: 'Song Requests' })).toHaveCount(1);
+        await expect(catalog.locator('.mcat__cell', { hasText: 'Govee Lights' })).toHaveCount(1);
         const stats = catalog.locator('.mcat-chip', { hasText: 'Stats' });
         await stats.click();
         await expect(stats).toHaveAttribute('aria-pressed', 'true');

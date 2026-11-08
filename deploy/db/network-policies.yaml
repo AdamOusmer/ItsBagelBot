@@ -11,7 +11,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, discord-data, loyalty, modules, transactions, projector, notifications, notifications-cleanup, backup-mysql, backup-k3s]
+        values: [users, commands, loyalty, modules, transactions, projector, notifications, notifications-cleanup, backup-mysql, backup-k3s]
   policyTypes:
     - Ingress
     - Egress
@@ -62,7 +62,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, discord-data, loyalty, modules, transactions, projector, notifications, backup-mysql, backup-k3s]
+        values: [users, commands, loyalty, modules, transactions, projector, notifications, backup-mysql, backup-k3s]
   policyTypes:
     - Egress
   egress:
@@ -81,7 +81,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, discord-data, loyalty, modules, transactions, notifications, backup-mysql]
+        values: [users, commands, loyalty, modules, transactions, notifications, backup-mysql]
   policyTypes:
     - Egress
   egress:

@@ -8,7 +8,7 @@ docType: reference
 
 ## Responsabilités
 
-Il vérifie les jetons signés émis par Users, relaie les événements et commandes sur NATS et ferme les connexions lors d’une révocation ou d’une reprise. L’identité de l’appareil provient du jeton vérifié. Il ne délivre pas de jetons et ne gère pas la logique Twitch ou Discord.
+Il vérifie les jetons signés émis par Users, relaie les événements et commandes sur NATS et ferme les connexions lors d’une révocation ou d’une reprise. L’identité de l’appareil provient du jeton vérifié. Il ne délivre pas de jetons et ne gère pas la logique Twitch.
 
 ## Interfaces
 

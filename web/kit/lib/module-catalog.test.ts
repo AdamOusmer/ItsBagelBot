@@ -115,7 +115,7 @@ const POLICY_ROWS: PolicyRow[] = [
       ]
     }
   },
-  { name: 'govee shares Gear with Song Requests and Discord', id: 'govee', want: { category: 'Gear' } },
+  { name: 'govee shares Gear with Song Requests', id: 'govee', want: { category: 'Gear' } },
   {
     name: 'songqueue shares Gear and is a bespoke href module listing !sr, !remove, !skip, !clear, !srlist and !current',
     id: 'songqueue',
@@ -133,7 +133,6 @@ const POLICY_ROWS: PolicyRow[] = [
     }
   },
   { name: 'songqueue opens for modules and channel-points delegates', id: 'songqueue', want: { delegates: ['modules', 'channelpoints'] } },
-  { name: 'discord shares Gear and delegates on its own grant, not modules', id: 'discord', want: { category: 'Gear', href: '/discord', delegates: ['discord'] } },
   { name: 'AutoMod stays a visible Moderation row', id: 'automod', want: { listed: true, category: 'Moderation' } },
   { name: 'loyalty owns the /loyalty page', id: 'loyalty', want: { href: '/loyalty' } }
 ];
@@ -160,13 +159,6 @@ describe('module catalog', () => {
 
   test.each(POLICY_ROWS)('$name', ({ id, want }) => {
     expect(policyOf(moduleDef(id)!)).toMatchObject(want);
-  });
-
-  test('a sectioned module is kept out of the modules grid', () => {
-    const discord = moduleDef('discord')!;
-    expect(discord.section).toBe(true);
-    expect(catalogIndexable(discord)).toBe(false);
-    expect(discord.hidden).toBeUndefined();
   });
 
   test('every other listed module still indexes', () => {

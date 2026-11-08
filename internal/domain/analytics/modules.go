@@ -7,7 +7,7 @@ package analytics
 // Mirrors web/kit/lib/catalog ids; a new module is uncounted until listed here.
 var storedModules = map[string]struct{}{
 	"accountage": {}, "alerts": {}, "automod": {}, "channelpoints": {}, "clashroyale": {}, "clip": {},
-	"codm": {}, "commercial": {}, "counters": {}, "discord": {}, "duel": {}, "emoteplay": {},
+	"codm": {}, "commercial": {}, "counters": {}, "duel": {}, "emoteplay": {},
 	"followage": {}, "fortnite": {}, "gamble": {}, "game": {}, "govee": {}, "loyalty": {},
 	"marker": {}, "mcsr": {}, "moderation": {}, "personality": {}, "queue": {}, "quotes": {},
 	"raffle": {}, "shoutout": {}, "songqueue": {}, "stream": {}, "system": {}, "tags": {},

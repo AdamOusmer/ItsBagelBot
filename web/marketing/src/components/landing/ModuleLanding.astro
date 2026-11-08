@@ -14,7 +14,7 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 const k = (name: string) => t(spec.ns + '.' + name);
 const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
-const configured = feature === 'timers' || feature === 'discordBot';
+const configured = feature === 'timers';
 const table = {
     eyebrow: k('tblEyebrow'),
     title: k('tblTitle'),

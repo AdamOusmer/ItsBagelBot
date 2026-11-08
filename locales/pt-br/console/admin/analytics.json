@@ -40,8 +40,6 @@
     "commands": "Comandos integrados",
     "toggles": "Interruptores de módulo",
     "customCommands": "Comandos personalizados",
-    "discordInteractions": "Comandos e botões do Discord",
-    "discordEvents": "Eventos do Discord processados",
     "outgress": "Chamadas com falha à Twitch",
     "pages": "Visualizações de página do console",
     "actions": "Resultados de formulários do console",

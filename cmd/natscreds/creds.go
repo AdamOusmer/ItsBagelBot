@@ -36,17 +36,12 @@ var servicesProjects = map[string]string{
 	"transactions":   "transactions",
 	"notifications":  "notifications",
 	"gossip":         "gossip",
-	"discord_data":   "discord-data",
 	"deployer":       "deployer",
 }
 
 // sharedProjects holds stems whose credentials share one Doppler project and
 // so need a per-stem env prefix.
-var sharedProjects = map[string]string{
-	"discord_ingress":  "discord-svc",
-	"discord_engine":   "discord-svc",
-	"discord_outgress": "discord-svc",
-}
+var sharedProjects = map[string]string{}
 
 // noBus holds stems with no worker-bus role; every stem has an RPC role.
 var noBus = map[string]bool{
