@@ -1,67 +1,95 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { exactDisplay } from './stats-values';
-import type { PublicStats } from './server/public-stats';
+// Play one snapshot interval behind the source. Most frames can then interpolate
+// confirmed totals instead of repeatedly easing toward a moving prediction.
+export const COUNTER_BUFFER_MS = 2000;
+const STALE_MS = 10_000;
+const MAX_SAMPLES = 16;
 
-export type Frame = { messages: number; events: number; msgRate: number; eventRate: number };
+interface Sample {
+  total: number;
+  rate: number | null;
+  at: number;
+}
 
-const TAU_MS = 200;
-const RATE_TAU_MS = 300;
-const MAX_DT_MS = 250;
-const RESUME_GAP_MS = 1000;
-const MAX_PROJECT_S = 10;
-const MIN_CRAWL = 0.25;
+export interface CounterReading {
+  total: number;
+  rate: number | null;
+}
 
-export function seedFrame(seed: PublicStats): Frame {
+function interpolate(first: Sample, next: Sample, at: number): CounterReading {
+  const speed = (next.total - first.total) * 1000 / (next.at - first.at);
+  const measured = first.rate ?? next.rate;
   return {
-    messages: exactDisplay(Number(seed.messages_total)),
-    events: exactDisplay(Number(seed.events_total)),
-    msgRate: seed.msg_rate_now ?? seed.msg_rate ?? 0,
-    eventRate: seed.event_rate_now ?? seed.event_rate ?? 0
+    total: first.total + speed * (at - first.at) / 1000,
+    rate: measured === null && first.total === next.total ? null : speed
   };
 }
 
-export function targetFrame(live: PublicStats, snapAt: number, now: number): Frame {
-  const secs = Math.min(Math.max(0, now - snapAt) / 1000, MAX_PROJECT_S);
-  const msgAvg = live.msg_rate ?? 0;
-  const eventAvg = live.event_rate ?? 0;
+function project(last: Sample, now: number): CounterReading {
+  // A late frame or the 5s fallback poll can exhaust the buffer. Continue
+  // at the last measured rate, but stop after ten seconds without truth.
+  const limit = last.at + STALE_MS - COUNTER_BUFFER_MS;
+  const elapsed = Math.max(0, Math.min(now - COUNTER_BUFFER_MS, limit) - last.at);
   return {
-    messages: exactDisplay(Number(live.messages_total) + msgAvg * secs),
-    events: exactDisplay(Number(live.events_total) + eventAvg * secs),
-    msgRate: live.msg_rate_now ?? msgAvg,
-    eventRate: live.event_rate_now ?? eventAvg
+    total: last.total + (last.rate ?? 0) * elapsed / 1000,
+    rate: now < last.at + STALE_MS ? last.rate : 0
   };
 }
 
-function lerp(from: number, to: number, eased: number): number {
-  return from + (to - from) * eased;
-}
+export class StatsCounter {
+  private samples: Sample[];
+  private printed = 0;
 
-function advance(cur: number, target: number, rate: number, tick: { dt: number; k: number }): number {
-  return exactDisplay(Math.max(lerp(cur, target, tick.k), cur + rate * (tick.dt / 1000) * MIN_CRAWL));
-}
+  constructor(total: number, rate: number | null, at: number, minimum = 0) {
+    // Keep a resumed view (including a reduced-motion toggle) from moving
+    // backward just to refill the buffer. A source reset may still lower it.
+    this.printed = Math.min(total, minimum);
+    // Supply the initial interval from the known rate, until two real samples
+    // exist. The counter starts running immediately, with the same short delay
+    // it will have during normal playback. There is no entrance tween.
+    this.samples = [
+      { total: Math.max(0, total - (rate ?? 0) * COUNTER_BUFFER_MS / 1000), rate, at: at - COUNTER_BUFFER_MS },
+      { total, rate, at }
+    ];
+  }
 
-export const resumedAfterGap = (now: number, lastFrame: number): boolean => now - lastFrame > RESUME_GAP_MS;
+  push(total: number, rate: number | null, at: number): void {
+    const last = this.samples[this.samples.length - 1];
+    // Cached snapshots and out-of-order responses cannot change the trajectory.
+    if (at <= last.at) return;
+    if (total < last.total) {
+      // An actual source reset is allowed to lower the displayed total.
+      this.samples = [{ total, rate, at }];
+      this.printed = total;
+      return;
+    }
+    this.samples.push({ total, rate, at });
+    if (this.samples.length > MAX_SAMPLES) this.samples.shift();
+  }
 
-export const frameDelta = (now: number, lastFrame: number): number => Math.min(now - lastFrame, MAX_DT_MS);
+  read(now: number): CounterReading {
+    const at = now - COUNTER_BUFFER_MS;
+    this.trim(at);
+    const reading = this.position(at, now);
 
-export function stepFrame(display: Frame, target: Frame, dt: number): Frame {
-  const k = 1 - Math.exp(-dt / TAU_MS);
-  const rateK = 1 - Math.exp(-dt / RATE_TAU_MS);
-  const tick = { dt, k };
-  return {
-    messages: advance(display.messages, target.messages, target.msgRate, tick),
-    events: advance(display.events, target.events, target.eventRate, tick),
-    msgRate: lerp(display.msgRate, target.msgRate, rateK),
-    eventRate: lerp(display.eventRate, target.eventRate, rateK)
-  };
-}
+    // When an unusually late sample corrects a prediction downward, hold until
+    // confirmed growth catches up. The rate readout must describe that hold too.
+    if (reading.total < this.printed) return { total: this.printed, rate: 0 };
+    this.printed = reading.total;
+    return reading;
+  }
 
-export function rewindTotals(display: Frame, prev: PublicStats, next: PublicStats): Frame {
-  return {
-    ...display,
-    messages: BigInt(next.messages_total) < BigInt(prev.messages_total) ? exactDisplay(Number(next.messages_total)) : display.messages,
-    events: BigInt(next.events_total) < BigInt(prev.events_total) ? exactDisplay(Number(next.events_total)) : display.events
-  };
+  private trim(at: number): void {
+    while (this.samples.length > 2 && this.samples[1].at <= at) this.samples.shift();
+  }
+
+  private position(at: number, now: number): CounterReading {
+    const last = this.samples[this.samples.length - 1];
+    if (at >= last.at) return project(last, now);
+    const first = this.samples[0];
+    if (at < first.at) return { total: first.total, rate: 0 };
+    return interpolate(first, this.samples[1], at);
+  }
 }

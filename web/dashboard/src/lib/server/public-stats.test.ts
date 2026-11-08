@@ -19,6 +19,8 @@ test('samples on its own timer so the rate windows fill without viewers', async 
   const first = await publicStats();
   expect(first.degraded).toBe(false);
   expect(first.messages_total).toBe('100');
+  expect(first.sampled_at).toBeNumber();
+  expect((await publicStats()).sampled_at).toBe(first.sampled_at);
 
   await new Promise((resolve) => setTimeout(resolve, 2300));
   const readsAfterIdle = reads;
@@ -27,5 +29,6 @@ test('samples on its own timer so the rate windows fill without viewers', async 
   const later = await publicStats();
   expect(later.msg_rate_now).toBeGreaterThan(0);
   expect(later.msg_rate).toBeGreaterThan(0);
+  expect(later.sampled_at!).toBeGreaterThan(first.sampled_at!);
   expect(reads).toBe(readsAfterIdle);
 });
