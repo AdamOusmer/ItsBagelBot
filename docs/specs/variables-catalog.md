@@ -56,4 +56,4 @@ Samples are one const each in `preview-values.ts`; `rehearsal.ts` and `forms[].o
 4. `feat/variables-guide-redesign` (off 3): page, components, golden of the localized reference.
 5. Later, separate decision: Go export of module reply token maps and a second golden.
 
-Out of scope: Discord (no token resolver), importers (their target names are asserted to exist in the manifest, nothing else changes).
+Out of scope: importers (their target names are asserted to exist in the manifest, nothing else changes).

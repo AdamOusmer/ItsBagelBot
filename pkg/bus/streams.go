@@ -117,34 +117,6 @@ var TwitchIngressRetryStream = StreamSpec{
 	BatchPublish: true,
 }
 
-var DiscordIngressStream = StreamSpec{
-	Name: "DISCORD_INGRESS",
-	Subjects: []string{
-		"discord.ingress.event.message",
-		"discord.ingress.event.member",
-		"discord.ingress.event.voice",
-		"discord.ingress.event.interaction",
-		"discord.ingress.event.audit",
-		"discord.ingress.event.guild",
-	},
-	MaxAge:       60 * time.Second,
-	MaxBytes:     128 << 20,
-	Storage:      nats.MemoryStorage,
-	BatchPublish: true,
-	Replicas:     3,
-}
-
-var DiscordOutgressStream = StreamSpec{
-	Name:         "DISCORD_OUTGRESS",
-	Subjects:     []string{"discord.outgress.mod", "discord.outgress.default"},
-	Retention:    nats.WorkQueuePolicy,
-	MaxAge:       60 * time.Second,
-	MaxBytes:     64 << 20,
-	Storage:      nats.MemoryStorage,
-	BatchPublish: true,
-	Replicas:     3,
-}
-
 var YouTubeOutgressStream = StreamSpec{
 	Name:         "YOUTUBE_OUTGRESS",
 	Subjects:     []string{"youtube.outgress.premium", "youtube.outgress.standard"},
@@ -238,8 +210,7 @@ func resolveStreamForTopic(topic string) (string, error) {
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
 	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
-		YouTubeOutgressStream, YouTubeIngressStream,
-		DiscordIngressStream, DiscordOutgressStream)
+		YouTubeOutgressStream, YouTubeIngressStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {

@@ -63,7 +63,7 @@
   "setup.b1.items.8.title": "Connecter votre compte Spotify",
   "setup.b1.items.9.html": "<p>Spotify vous ramène à la page Demandes de musiques. La zone Connexion affiche le badge <strong>Connecté</strong> et un message «Spotify connecté.» apparaît. Vous pouvez maintenant activer les demandes.</p>",
   "setup.b1.items.9.title": "Vérifier le résultat",
-  "setup.b2.html": "\n                <b>Gardez votre Client Secret privé</b>\n                Collez le Client ID et le Client Secret uniquement dans les champs du tableau de bord\n                ItsBagelBot indiqués ci-dessus. Ne collez jamais un Client Secret dans une discussion\n                avec une IA, sur un serveur Discord ou dans un message au support. S'il fuit, changez-le\n                dans le tableau de bord développeur de Spotify et collez le nouveau dans ItsBagelBot.",
+  "setup.b2.html": "<b>Gardez votre Client Secret privé</b> Saisissez-le uniquement dans le tableau de bord et changez-le en cas de fuite.",
   "setup.heading": "Configurer Spotify dans le tableau de bord",
   "setup.note": "Une page de configuration, quatre étapes: Bienvenue, Créer ton application, Ajouter tes clés, Connecter Spotify.",
   "trouble.b0.html": "\n            <p>\n                Le premier tableau liste les messages que vous voyez dans le tableau de bord. Le\n                second liste ce que les spectateurs voient dans le chat. Les messages sont copiés tels\n                que le tableau de bord les affiche. La liste couvre les messages que vous êtes susceptible de voir.\n            </p>",

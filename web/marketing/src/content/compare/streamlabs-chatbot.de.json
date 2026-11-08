@@ -19,8 +19,7 @@
     "them": [
       "Du willst Chat-Interaktionen mit Python-Skripten erweitern. Referenz: https://streamlabs.com/content-hub/post/chatbot-scripts-desktop.",
       "Du nutzt bereits eine eigenständige Anwendung mit Anpassung von Befehlen, Timern und Ereignis-Auslösern. Referenz: https://streamlabs.com/content-hub/post/choosing-the-right-chatbot.",
-      "Du willst Befehlsparameter, die lokale Textdateien lesen. Referenz: https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf.",
-      "Du willst Twitch-Befehle nach der Verknüpfung von Zuschauerkonten auf Discord verfügbar machen. Referenz: https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop."
+      "Du willst Befehlsparameter, die lokale Textdateien lesen. Referenz: https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf."
     ]
   },
   "rows": [
@@ -91,14 +90,8 @@
       "source": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
     },
     {
-      "feature": "Discord",
-      "us": "Discord ist eine Premium-Beta-Integration für Live-Ankündigungen, Clips, Willkommensnachrichten, Tickets und Community-Werkzeuge.",
-      "them": "Die offizielle Desktop-Anleitung verlangt, dass Zuschauer ihr Discord- und Twitch-Konto verknüpfen, bevor sie Befehle auf Discord nutzen. Jeder Befehl muss für die Nutzung auf Discord konfiguriert werden.",
-      "source": "https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop"
-    },
-    {
       "feature": "Preis",
-      "us": "Jede fertige Funktion ist kostenlos. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen, derzeit AutoMod und Discord. Spotify Premium ist eine separate Voraussetzung.",
+      "us": "Jede fertige Funktion ist kostenlos. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen, derzeit AutoMod. Spotify Premium ist eine separate Voraussetzung.",
       "them": "Die offizielle Website verlinkt weiterhin den Desktop-Download des Chatbots über ihre Cloudbot-Seite. Die Aussagen dort zu kostenlosen Funktionen und Ultra-Preisen betreffen Cloudbot; sie belegen keine aktuelle Preisliste für den Desktop-Chatbot. Prüfe kostenpflichtige Voraussetzungen separat.",
       "source": "https://streamlabs.com/cloudbot"
     }
@@ -116,7 +109,7 @@
   "faq": [
     {
       "q": "Wann ist ItsBagelBot eine sinnvolle Alternative zu Streamlabs Chatbot?",
-      "a": "Zieh es in Betracht für Anfragen in deiner echten Spotify-Warteschlange, eingebaute Abfragen für die unterstützten Spiele oder Twitch-Belohnungen für kompatible Govee-Lampen. Diese fertigen Funktionen und der Import-Assistent sind kostenlos. AutoMod und Discord sind Premium-Beta-Module."
+      "a": "Zieh es in Betracht für Anfragen in deiner echten Spotify-Warteschlange, eingebaute Abfragen für die unterstützten Spiele oder Twitch-Belohnungen für kompatible Govee-Lampen. Diese fertigen Funktionen und der Import-Assistent sind kostenlos. AutoMod ist ein Premium-Beta-Modul."
     },
     {
       "q": "Wann solltest du bei Streamlabs Chatbot bleiben?",
@@ -155,10 +148,6 @@
     {
       "label": "Streamlabs Chatbot: Desktop-Handbuch: Befehle, Timer, Zitate, Musik, Verlosungen und Mod-Werkzeuge",
       "url": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
-    },
-    {
-      "label": "Streamlabs Chatbot: Verknüpfung von Twitch und Discord für Desktop-Befehle",
-      "url": "https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop"
     },
     {
       "label": "Streamlabs Chatbot: aktuelle Seite mit dem Desktop-Download des Chatbots",

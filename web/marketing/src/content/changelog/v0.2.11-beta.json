@@ -3,15 +3,14 @@
   "version": "v0.2.11-beta",
   "date": "2026-10-21",
   "title": {
-    "en": "Raffles That Pay Out, a Rebuilt Discord Bot and a Searchable Leaderboard",
-    "fr": "Des tirages qui paient, un bot Discord reconstruit et un classement consultable"
+    "en": "Raffles That Pay Out, a Searchable Leaderboard",
+    "fr": "Des tirages qui paient, un classement consultable"
   },
   "highlights": {
     "en": [
       "Raffles now pay their points prize straight into the winners' balances and announce timed draws with your own wording. !raffle opens a single-winner raffle for 1000 points, !mraffle splits the pot across several winners, and the StreamElements raffle commands work as you know them.",
       "Every raffle chat line can be switched off on its own, and !claim is now optional. Raffles run even with Loyalty off; only the points prize needs it.",
       "A raffle opened with a duration outside 5 seconds to 2 hours now announces the time it will actually run, instead of saying 0 minutes or 1440 minutes.",
-      "The Discord bot was rebuilt: each feature has its own settings page in the dashboard, you can preview the server template and apply it when you choose, and setup no longer fails with Missing Permissions on fresh servers.",
       "The public leaderboard is searchable and paged, matches the stats page look, and links straight to your chat.",
       "You can reset every viewer's points from the Loyalty page, and the public leaderboard updates right after.",
       "Gifted subs now earn points scaled by sub tier.",
@@ -25,7 +24,6 @@
       "Les tirages versent maintenant leur prix en points directement dans le solde des gagnants et annoncent les tirages programmés avec vos propres messages. !raffle ouvre un tirage à un gagnant pour 1000 points, !mraffle partage la cagnotte entre plusieurs gagnants, et les commandes de tirage StreamElements fonctionnent comme vous les connaissez.",
       "Chaque message de tirage dans le chat peut être désactivé séparément, et !claim est maintenant facultatif. Les tirages fonctionnent même sans Fidélité ; seul le prix en points en a besoin.",
       "Un tirage ouvert avec une durée hors de 5 secondes à 2 heures annonce maintenant la durée réelle, au lieu de dire 0 minute ou 1440 minutes.",
-      "Le bot Discord a été reconstruit : chaque fonction a sa propre page de réglages dans le tableau de bord, vous pouvez prévisualiser le modèle de serveur et l’appliquer quand vous le décidez, et la configuration n’échoue plus avec Missing Permissions sur un nouveau serveur.",
       "Le classement public est consultable par recherche et par pages, reprend le style de la page de statistiques et renvoie directement vers votre chat.",
       "Vous pouvez remettre à zéro les points de tous les spectateurs depuis la page Fidélité, et le classement public se met à jour juste après.",
       "Les abonnements offerts rapportent maintenant des points selon leur palier.",

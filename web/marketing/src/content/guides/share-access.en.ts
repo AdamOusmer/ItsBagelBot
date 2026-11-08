@@ -94,10 +94,6 @@ const guide: GuideContent = {
               "The \"Modules\" page and the module pages you can open from it."
             ],
             [
-              "Discord",
-              "The \"Discord\" page. Discord is a Premium beta module."
-            ],
-            [
               "Channel Points",
               "The \"Channel Points\" page."
             ],

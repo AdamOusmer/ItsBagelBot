@@ -1,6 +1,6 @@
 # ItsBagelBot
 
-> ItsBagelBot (also written Bagel Bot or BagelBot) is a web-based Twitch chat bot for streamers and their moderators, with free Spotify song requests, custom commands, timers, loyalty points, giveaways, channel-point rewards and game-stat integrations. Every finished feature is on the free plan. AutoMod and Discord are Premium beta modules. This index covers product questions, comparisons, migration and setup, with human guides and references for AI assistants.
+> ItsBagelBot (also written Bagel Bot or BagelBot) is a web-based Twitch chat bot for streamers and their moderators, with free Spotify song requests, custom commands, timers, loyalty points, giveaways, channel-point rewards and game-stat integrations. Every finished feature is on the free plan. AutoMod are Premium beta modules. This index covers product questions, comparisons, migration and setup, with human guides and references for AI assistants.
 
 It suits Twitch streamers who want viewers to request Spotify tracks, look up game ranks in chat, interact with lights or community games, and use commands and automation managed from a browser. Reading about the product does not require a login; configuring a channel requires signing in with Twitch. ItsBagelBot is source-available (not open source): its public repository permits review, but publication grants no license to run, modify or redistribute the software.
 
@@ -9,7 +9,7 @@ For setup help, start with https://ai.itsbagelbot.com/llms.txt and select the re
 ## Plans and prerequisites
 
 - [Free plan](https://itsbagelbot.com/pricing/): $0 per month, with no card required; includes every finished feature, including Spotify song requests, commands, counters, game stats and the import wizard.
-- [Premium plan](https://itsbagelbot.com/pricing/): $7 CAD plus tax per month; includes Free, priority message handling, faster command responses, priority support and early access to beta modules, currently AutoMod and Discord.
+- [Premium plan](https://itsbagelbot.com/pricing/): $7 CAD plus tax per month; includes Free, priority message handling, faster command responses, priority support and early access to beta modules, currently AutoMod.
 - [Enterprise plan](https://itsbagelbot.com/pricing/): custom pricing for dedicated hardware, multi-streamer management, custom terms and an account manager, with Premium features included.
 - [Twitch connection](https://itsbagelbot.com/guides/getting-started/): sign in with Twitch and connect the channel before configuring the bot; some actions require additional Twitch permissions.
 - [Spotify prerequisites](https://itsbagelbot.com/guides/spotify-song-requests/): song requests are free in ItsBagelBot, but Spotify Premium is required for both the connected account and the account owning the streamer's Spotify developer app; Spotify must be playing on a device.
@@ -35,7 +35,6 @@ For setup help, start with https://ai.itsbagelbot.com/llms.txt and select the re
 - [Channel Points](https://itsbagelbot.com/guides/modules/): custom rewards tied to bot actions, with fulfillment, refund or manual handling options.
 - [Stream Management and Local Time](https://ai.itsbagelbot.com/features/automation.md): chat commands for stream title, category, tags, ads and markers, plus `!time` for the streamer's timezone or another location.
 - [AutoMod (Premium beta)](https://itsbagelbot.com/guides/modules/): configurable checks for harmful messages, spam and raid floods, with warnings, removals, timeouts or bans; a small safety floor for hate slurs and IP-grabber links remains active even when the module is off.
-- [Discord (Premium beta)](https://itsbagelbot.com/guides/discord-setup/): connect a server for go-live and clip posts, community announcements, welcomes, join-to-create voice, support tickets, staff logs, slash moderation and ranks.
 - [Configuration import](https://itsbagelbot.com/import/): import commands from Nightbot, StreamElements, Moobot, Streamlabs Chatbot, Fossabot or WizeBot; timers from Nightbot, StreamElements, Moobot or Streamlabs Chatbot; and quotes from Streamlabs Chatbot, reviewing each item before writing.
 - [Shared dashboard access](https://itsbagelbot.com/guides/share-access/): give a moderator access to channel configuration through a share link.
 
@@ -79,7 +78,6 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Counters guide](https://itsbagelbot.com/guides/counters/): loyalty and counter commands.
 - [Spotify song requests guide](https://itsbagelbot.com/guides/spotify-song-requests/): create a Spotify app, connect the account and enable requests.
 - [Govee lights guide](https://itsbagelbot.com/guides/govee-lights/): obtain a Govee API key, connect a light and create a reward.
-- [Discord setup guide](https://itsbagelbot.com/guides/discord-setup/): server connection, permissions, channels and roles for the Premium beta module.
 - [Share access guide](https://itsbagelbot.com/guides/share-access/): give a moderator dashboard access with a share link.
 - [Setup errors guide](https://itsbagelbot.com/guides/setup-errors/): setup messages, their meaning and next steps.
 - [Command Builder](https://itsbagelbot.com/command-builder/): interactive tool for composing custom commands with variables and sending them to the dashboard.
@@ -90,7 +88,6 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Death counter](https://itsbagelbot.com/death-counter/): custom channel and per-viewer counters with moderator chat controls.
 - [Timers](https://itsbagelbot.com/timers/): scheduled Twitch chat messages, activity thresholds, offline settings and stop conditions.
 - [Viewer queue](https://itsbagelbot.com/viewer-queue/): first-come play queues with viewer entry and moderator controls.
-- [Discord bot](https://itsbagelbot.com/discord-bot/): Premium beta server integration with stream posts and community tools.
 
 ## Reference for AI assistants
 
@@ -108,7 +105,6 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Loyalty reference](https://ai.itsbagelbot.com/features/loyalty.md): loyalty points, counters, Gamble and Duels.
 - [Engagement reference](https://ai.itsbagelbot.com/features/engagement.md): raffles, Play Queue, Quotes, Emoteplay and Bot Personality.
 - [Automation reference](https://ai.itsbagelbot.com/features/automation.md): timers, triggers, alerts, shoutouts, stream management, local time, channel points and AutoMod boundaries.
-- [Discord reference](https://ai.itsbagelbot.com/features/discord.md): Premium beta server integration and community tools.
 - [Getting started setup](https://ai.itsbagelbot.com/setup/getting-started.md): guide a new streamer through login and channel connection.
 - [Commands setup](https://ai.itsbagelbot.com/setup/commands.md): guide command creation and configuration.
 - [Import setup](https://ai.itsbagelbot.com/setup/import.md): connect an import source, review items and save selected configuration.
@@ -118,10 +114,8 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Spotify errors](https://ai.itsbagelbot.com/spotify/errors.md): match Spotify setup or playback messages to corrective steps.
 - [Govee errors](https://ai.itsbagelbot.com/govee/errors.md): match Govee key, device or connection messages to corrective steps.
 - [Migration reference](https://ai.itsbagelbot.com/migration.md): supported import sources, transferable configuration and checks after moving bots.
-- [Discord setup](https://ai.itsbagelbot.com/setup/discord.md): connect a Discord server, grant required access, and configure channels, roles, tickets, announcements and community features.
 - [Commands errors](https://ai.itsbagelbot.com/errors/commands.md): validation, naming conflicts, editor warnings and failed custom-command changes with recovery actions.
 - [Import errors](https://ai.itsbagelbot.com/errors/import.md): import input errors, connection failures, review diagnostics, conflicts, partial writes and retry results.
-- [Discord errors](https://ai.itsbagelbot.com/errors/discord.md): Discord authorization, server binding, permission, saved destination and gateway notices with recovery actions.
 - [Modules errors](https://ai.itsbagelbot.com/errors/modules.md): game-stat module toggle and save failures, shared lookup failures and empty or unavailable results.
 - [Full reference](https://ai.itsbagelbot.com/llms-full.txt): the complete AI reference in one file.
 
@@ -129,7 +123,6 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 
 - [Changelog](https://itsbagelbot.com/changelog/): public releases, release status and GitHub links.
 - [Engineering documentation](https://docs.itsbagelbot.com/): architecture and technical reference for the source-available project.
-- [Discord community](https://discord.gg/SZ2remwSDv): community support and discussion.
 - [GitHub](https://github.com/AdamOusmer/ItsBagelBot/): published source code and issue tracker, subject to the repository's proprietary license.
 - [French / Français](https://itsbagelbot.com/fr/): French-language product pages.
 - [Privacy Policy](https://itsbagelbot.com/privacy/): data handling and privacy terms.

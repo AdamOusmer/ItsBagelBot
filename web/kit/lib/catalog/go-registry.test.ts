@@ -14,8 +14,6 @@ const NO_GO_MODULE: Record<string, string> = {
     'a catalog tool, not a module: counters are rows on the loyalty service, and the tile carries toggleable:false so no ModuleView row is ever written',
   stream:
     'KindCore stream-editor commands live on StreamEditors(); the tile is discovery plus the commands grant, toggleable:false so no ModuleView row named stream is ever written',
-  discord:
-    'companion module served directly by outgress (live/clips); outgress reads the ModuleView row on stream events without hopping through sesame'
 };
 
 const NOT_IN_DASHBOARD: Record<string, string> = {

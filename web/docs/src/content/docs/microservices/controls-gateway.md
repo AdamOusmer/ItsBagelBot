@@ -8,7 +8,7 @@ docType: reference
 
 ## Responsibilities
 
-It verifies signed access tokens issued by Users, relays device events and commands over core NATS, and closes connections on revocation or takeover. Device identity comes from the verified token. It does not issue tokens or run Twitch or Discord logic.
+It verifies signed access tokens issued by Users, relays device events and commands over core NATS, and closes connections on revocation or takeover. Device identity comes from the verified token. It does not issue tokens or run Twitch logic.
 
 ## Interfaces
 

@@ -6,8 +6,8 @@
       "type": "commands_custom",
       "data": [
         {
-          "identifier": "discord",
-          "text": "Join the community at https://discord.gg/example - see you there!",
+          "identifier": "community",
+          "text": "Join the community at https://example.com/example - see you there!",
           "cooldown": 10,
           "trigger_usergroups": [
             0
@@ -101,9 +101,9 @@
       "data": [
         {
           "alias": "ds",
-          "id": "discord",
+          "id": "community",
           "type": "custom",
-          "arguments": "https://discord.gg/example"
+          "arguments": "https://example.com/example"
         },
         {
           "alias": "8b",
@@ -134,7 +134,7 @@
           "enabled": true,
           "time": 15,
           "commands": [
-            "discord",
+            "community",
             "rules"
           ]
         },

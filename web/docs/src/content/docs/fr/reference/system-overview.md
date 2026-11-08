@@ -17,7 +17,6 @@ Le dépôt sépare les entrées et sorties des plateformes, les décisions du bo
 | Sortie Twitch | `app/twitch/outgress/` | Exécuter les actions Twitch |
 | Services de données | `app/db/` | Posséder les données et exposer les opérations |
 | Projecteur | `app/projector/`, `internal/projection/` | Maintenir et servir l'état dérivé |
-| Discord | `app/discord/` | Entrée, décisions et sortie Discord |
 | API externes | `app/gossip/` | Intégrations des fournisseurs |
 | Web | `web/dashboard/`, `web/admin/`, `web/marketing/`, `web/docs/` | Tableau de bord, administration, marketing et documentation |
 

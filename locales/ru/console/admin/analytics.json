@@ -40,8 +40,6 @@
     "commands": "Встроенные команды",
     "toggles": "Переключатели модулей",
     "customCommands": "Пользовательские команды",
-    "discordInteractions": "Команды и кнопки Discord",
-    "discordEvents": "Обработанные события Discord",
     "outgress": "Неудачные вызовы Twitch",
     "pages": "Просмотры страниц консоли",
     "actions": "Результаты форм в консоли",

@@ -94,10 +94,6 @@
   "noneYetBody": "Crie sua primeira resposta personalizada. Os espectadores a acionam com !{name} no chat.",
   "startersTitle": "Ou comece com um modelo",
   "starters": {
-    "discord": {
-      "name": "discord",
-      "response": "Entre na comunidade no Discord: discord.gg/your-invite"
-    },
     "socials": {
       "name": "socials",
       "response": "Me encontre em outras redes: twitter.com/yourname e instagram.com/yourname"

@@ -98,7 +98,7 @@
     },
     {
       "feature": "Цена",
-      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и бета-доступ, сейчас это AutoMod и Discord. Spotify Premium требуется отдельно.",
+      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и бета-доступ, сейчас это AutoMod. Spotify Premium требуется отдельно.",
       "them": "Официальный сайт рекламирует чат-бот, оповещения и оверлеи как бесплатные. Здесь сравнивается доступ к боту: донаты и спонсорские выплаты не входят в цену чат-бота.",
       "source": "https://streamelements.com/"
     }
@@ -116,7 +116,7 @@
   "faq": [
     {
       "q": "Когда ItsBagelBot является полезной альтернативой StreamElements?",
-      "a": "Рассмотрите его для запросов в очередь Spotify, встроенных проверок для поддерживаемых игр или нативных действий за баллы канала Twitch для совместимого освещения Govee. Эти готовые функции и мастер импорта бесплатны. AutoMod и Discord доступны как бета-модули Premium."
+      "a": "Рассмотрите его для запросов в очередь Spotify, встроенных проверок для поддерживаемых игр или нативных действий за баллы канала Twitch для совместимого освещения Govee. Эти готовые функции и мастер импорта бесплатны. AutoMod доступен как бета-модуль Premium."
     },
     {
       "q": "Когда мне больше подойдёт StreamElements?",
@@ -140,16 +140,49 @@
     }
   ],
   "sources": [
-    { "label": "StreamElements: обзор платформы и бесплатные инструменты", "url": "https://streamelements.com/" },
-    { "label": "StreamElements: пользовательские команды", "url": "https://docs.streamelements.com/chatbot/commands/custom" },
-    { "label": "StreamElements: переменные и игровая статистика", "url": "https://docs.streamelements.com/chatbot/variables" },
-    { "label": "StreamElements: таймерные сообщения и условия", "url": "https://docs.streamelements.com/chatbot/timers" },
-    { "label": "StreamElements: спам-фильтры и наказания", "url": "https://docs.streamelements.com/chatbot/filters" },
-    { "label": "StreamElements: модуль Song Request и медиаисточники", "url": "https://docs.streamelements.com/chatbot/modules/songrequest" },
-    { "label": "StreamElements: руководство по пользовательской API-команде для Valorant", "url": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT" },
-    { "label": "StreamElements: Activity Feed и баллы канала Twitch", "url": "https://support.streamelements.com/hc/en-us/articles/10474542090770-Activity-Feed-Overview" },
-    { "label": "StreamElements: команда баллов лояльности", "url": "https://docs.streamelements.com/chatbot/commands/default/points" },
-    { "label": "StreamElements: билеты розыгрышей и условия участия", "url": "https://docs.streamelements.com/chatbot/modules/giveaways" },
-    { "label": "StreamElements: обзор оверлеев, оповещений, донатов и чат-бота", "url": "https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide" }
+    {
+      "label": "StreamElements: обзор платформы и бесплатные инструменты",
+      "url": "https://streamelements.com/"
+    },
+    {
+      "label": "StreamElements: пользовательские команды",
+      "url": "https://docs.streamelements.com/chatbot/commands/custom"
+    },
+    {
+      "label": "StreamElements: переменные и игровая статистика",
+      "url": "https://docs.streamelements.com/chatbot/variables"
+    },
+    {
+      "label": "StreamElements: таймерные сообщения и условия",
+      "url": "https://docs.streamelements.com/chatbot/timers"
+    },
+    {
+      "label": "StreamElements: спам-фильтры и наказания",
+      "url": "https://docs.streamelements.com/chatbot/filters"
+    },
+    {
+      "label": "StreamElements: модуль Song Request и медиаисточники",
+      "url": "https://docs.streamelements.com/chatbot/modules/songrequest"
+    },
+    {
+      "label": "StreamElements: руководство по пользовательской API-команде для Valorant",
+      "url": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT"
+    },
+    {
+      "label": "StreamElements: Activity Feed и баллы канала Twitch",
+      "url": "https://support.streamelements.com/hc/en-us/articles/10474542090770-Activity-Feed-Overview"
+    },
+    {
+      "label": "StreamElements: команда баллов лояльности",
+      "url": "https://docs.streamelements.com/chatbot/commands/default/points"
+    },
+    {
+      "label": "StreamElements: билеты розыгрышей и условия участия",
+      "url": "https://docs.streamelements.com/chatbot/modules/giveaways"
+    },
+    {
+      "label": "StreamElements: обзор оверлеев, оповещений, донатов и чат-бота",
+      "url": "https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide"
+    }
   ]
 }

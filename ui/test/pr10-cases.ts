@@ -126,7 +126,7 @@ export const CASES: ParityCase[] = [
     astro: AstroSocialRail,
     props: {
       items: [
-        { label: 'Discord', href: 'https://discord.example.test', icon: 'discord' },
+        { label: 'Twitch', href: 'https://twitch.example.test', icon: 'twitch' },
         { label: 'GitHub', href: 'https://github.example.test', icon: 'github' },
       ],
       label: 'Social links',
@@ -161,7 +161,7 @@ export const CASES: ParityCase[] = [
         { title: 'Product', links: [{ href: '/pricing', label: 'Pricing', current: true }] },
         {
           title: 'Community',
-          links: [{ href: 'https://d.example.test', label: 'Discord', external: true }],
+          links: [{ href: 'https://community.example.test', label: 'Community', external: true }],
         },
       ],
       legal: [{ href: '/privacy', label: 'Privacy' }],

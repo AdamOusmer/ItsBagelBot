@@ -79,14 +79,8 @@
       "source": "https://docs.nightbot.tv/control-panel/commands"
     },
     {
-      "feature": "Discord",
-      "us": "O Discord é uma integração beta do Premium para posts de live, clipes, boas-vindas, tickets e ferramentas da comunidade.",
-      "them": "O Nightbot documenta acesso a comandos no Discord, mapeamento de cargos e filtragem opcional de spam. Isso serve para levar comandos existentes para um servidor.",
-      "source": "https://docs.nightbot.tv/discord"
-    },
-    {
       "feature": "Preço",
-      "us": "Todo recurso finalizado é gratuito. O Premium custa $7 CAD mais impostos por mês e adiciona processamento prioritário, suporte e acesso antecipado a módulos beta, atualmente AutoMod e Discord. O Spotify Premium é um requisito separado.",
+      "us": "Todo recurso finalizado é gratuito. O Premium custa $7 CAD mais impostos por mês e adiciona processamento prioritário, suporte e acesso antecipado a módulos beta, atualmente AutoMod. O Spotify Premium é um requisito separado.",
       "them": "Serviço gratuito, conforme descrito pelo desenvolvedor do Nightbot na resposta oficial de suporte vinculada, de março de 2025. Trata-se de uma declaração do desenvolvedor, e não de uma tabela de preços publicada.",
       "source": "https://community.nightdev.com/t/messages-command/1534655926634549409"
     }
@@ -104,7 +98,7 @@
   "faq": [
     {
       "q": "Quando o ItsBagelBot é uma boa alternativa ao Nightbot?",
-      "a": "Considere se a sua configuração da Twitch precisa de pedidos do Spotify na fila, consultas integradas para os jogos suportados ou ações de Pontos do Canal para luzes Govee. Comandos, timers e o assistente de importação são recursos finalizados no plano gratuito. AutoMod e Discord são módulos beta do Premium."
+      "a": "Considere se a sua configuração da Twitch precisa de pedidos do Spotify na fila, consultas integradas para os jogos suportados ou ações de Pontos do Canal para luzes Govee. Comandos, timers e o assistente de importação são recursos finalizados no plano gratuito. AutoMod é um módulo beta do Premium."
     },
     {
       "q": "Quando devo manter o Nightbot?",
@@ -124,16 +118,45 @@
     }
   ],
   "sources": [
-    { "label": "Nightbot: plataformas de streaming suportadas", "url": "https://docs.nightbot.tv/" },
-    { "label": "Nightbot: comandos, permissões e aliases", "url": "https://docs.nightbot.tv/control-panel/commands" },
-    { "label": "Nightbot: variáveis e consultas de jogos", "url": "https://docs.nightbot.tv/variables" },
-    { "label": "Nightbot: variável de rank do League of Legends", "url": "https://docs.nightbot.tv/variables/leagueoflegends" },
-    { "label": "Nightbot: variável de rank do Teamfight Tactics", "url": "https://docs.nightbot.tv/variables/teamfighttactics" },
-    { "label": "Nightbot: timers e limites de atividade do chat", "url": "https://docs.nightbot.tv/control-panel/timers" },
-    { "label": "Nightbot: proteção contra spam", "url": "https://docs.nightbot.tv/control-panel/spam-protection" },
-    { "label": "Nightbot: pedidos de músicas do YouTube e SoundCloud", "url": "https://docs.nightbot.tv/control-panel/song-requests" },
-    { "label": "Nightbot: formatos de sorteio", "url": "https://docs.nightbot.tv/control-panel/giveaways" },
-    { "label": "Nightbot: integração com Discord", "url": "https://docs.nightbot.tv/discord" },
-    { "label": "Nightbot: declaração oficial do desenvolvedor sobre o serviço gratuito (março de 2025)", "url": "https://community.nightdev.com/t/messages-command/1534655926634549409" }
+    {
+      "label": "Nightbot: plataformas de streaming suportadas",
+      "url": "https://docs.nightbot.tv/"
+    },
+    {
+      "label": "Nightbot: comandos, permissões e aliases",
+      "url": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "label": "Nightbot: variáveis e consultas de jogos",
+      "url": "https://docs.nightbot.tv/variables"
+    },
+    {
+      "label": "Nightbot: variável de rank do League of Legends",
+      "url": "https://docs.nightbot.tv/variables/leagueoflegends"
+    },
+    {
+      "label": "Nightbot: variável de rank do Teamfight Tactics",
+      "url": "https://docs.nightbot.tv/variables/teamfighttactics"
+    },
+    {
+      "label": "Nightbot: timers e limites de atividade do chat",
+      "url": "https://docs.nightbot.tv/control-panel/timers"
+    },
+    {
+      "label": "Nightbot: proteção contra spam",
+      "url": "https://docs.nightbot.tv/control-panel/spam-protection"
+    },
+    {
+      "label": "Nightbot: pedidos de músicas do YouTube e SoundCloud",
+      "url": "https://docs.nightbot.tv/control-panel/song-requests"
+    },
+    {
+      "label": "Nightbot: formatos de sorteio",
+      "url": "https://docs.nightbot.tv/control-panel/giveaways"
+    },
+    {
+      "label": "Nightbot: declaração oficial do desenvolvedor sobre o serviço gratuito (março de 2025)",
+      "url": "https://community.nightdev.com/t/messages-command/1534655926634549409"
+    }
   ]
 }

@@ -90,8 +90,8 @@ func giftTextLocale(giftedByLogin, personalMessage, dashboardURL, locale string)
 	}
 	lines = append(lines,
 		i18n.T(locale, "mail.gift.action")+": "+dashboardURL, "",
-		i18n.T(locale, "mail.safety.label")+" "+i18n.T(locale, "mail.safety.body")+" Discord.",
-		"Discord: "+discordURL, "", i18n.T(locale, "mail.gift.footer"), "https://itsbagelbot.com", "",
+		i18n.T(locale, "mail.safety.label")+" "+i18n.T(locale, "mail.safety.body")+" itsbagelbot.com.",
+		"https://itsbagelbot.com", "", i18n.T(locale, "mail.gift.footer"), "https://itsbagelbot.com", "",
 	)
 	return strings.Join(lines, "\n")
 }

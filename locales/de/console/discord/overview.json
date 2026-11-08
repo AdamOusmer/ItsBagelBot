@@ -1,9 +1,0 @@
-{
-  "modulesTitle": "Module",
-  "modulesHelp": "Alles, was Bagel auf diesem Server kann. Öffne ein Modul, um es ein- oder auszuschalten und einzurichten.",
-  "configure": "Konfigurieren",
-  "notSetUp": "Bagel ist verbunden, aber dieser Server hat noch keine gespeicherten Einstellungen. Sieh dir die optionale Server-Vorlage in den Einstellungen an oder öffne ein Modul, um dessen Kanäle zu wählen.",
-  "botState": "Bot",
-  "modulesOn": "Aktive Module",
-  "notSetUpCta": "Server-Vorlage ansehen"
-}

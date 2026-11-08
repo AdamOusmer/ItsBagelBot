@@ -27,8 +27,6 @@ const (
 	ingressDestinationPrefix      = "twitch.ingress.event."
 	outgressDestinationPrefix     = "twitch.outgress."
 	cacheDestinationPrefix        = "bagel.cache.invalidate"
-	discordIngressPrefix          = "discord.ingress.event."
-	discordOutgressPrefix         = "discord.outgress."
 	clipDestinationPrefix         = "data.twitch.clip."
 	usersDestinationPrefix        = "data.users."
 )
@@ -40,7 +38,7 @@ const (
 
 var rpcDestinations = map[string]struct{}{
 	"admin": {}, "broadcaster": {}, "commands": {}, "dashboard": {},
-	"delegation": {}, "discord-data": {}, "discord-outgress": {}, "gossip": {}, "health": {}, "ingress": {},
+	"delegation": {}, "gossip": {}, "health": {}, "ingress": {},
 	"internal": {}, "loyalty": {}, "modules": {}, "notifications": {},
 	"outgress": {}, "projector": {}, "transactions": {}, "users": {},
 }
@@ -109,8 +107,6 @@ type prefixedFamily struct {
 var familyDestinations = []prefixedFamily{
 	{ingressDestinationPrefix, ingressDestinations},
 	{outgressDestinationPrefix, outgressDestinations},
-	{discordIngressPrefix, newDestinationFamily(discordIngressPrefix, "message", "member", "voice", "interaction", "audit", "guild")},
-	{discordOutgressPrefix, newDestinationFamily(discordOutgressPrefix, "mod", "default")},
 	{clipDestinationPrefix, newDestinationFamily(clipDestinationPrefix, "created")},
 	{usersDestinationPrefix, newDestinationFamily(usersDestinationPrefix, "changed")},
 }

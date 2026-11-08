@@ -373,7 +373,7 @@ async function prInfo(p: Pull): Promise<DeployPRInfo> {
   };
 }
 
-const SERVICE_DIR = /^app\/(?:db\/|twitch\/|discord\/)?([a-z-]+)\//;
+const SERVICE_DIR = /^app\/(?:db\/|twitch\/)?([a-z-]+)\//;
 
 function changedServices(files: { filename: string }[] = []): string[] {
   const out = new Set<string>();

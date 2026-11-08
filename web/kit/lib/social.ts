@@ -11,7 +11,6 @@ export interface SocialLink {
 }
 
 export const SOCIAL_LINKS: readonly SocialLink[] = [
-  { label: 'Discord', href: SITE.discord, icon: 'discord' },
   { label: 'X', href: 'https://x.com/itsbagelbot', icon: 'brandX' },
   { label: 'TikTok', href: 'https://tiktok.com/@itsbagelbot', icon: 'tiktok' },
   { label: 'YouTube', href: 'https://youtube.com/@itsbagelbot', icon: 'youtube' },

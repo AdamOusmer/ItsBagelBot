@@ -22,10 +22,10 @@ on:
           - loyalty
           - modules
           - notifications
-          - discord-data
-          - discord-ingress
-          - discord-engine
-          - discord-outgress
+
+
+
+
           - outgress
           - projector
           - transactions
@@ -98,30 +98,6 @@ jobs:
               "context": ".",
               "containerfile": "app/db/notifications/Containerfile",
               "description": "ItsBagelBot notifications data service"
-            },
-            {
-              "image": "discord-data",
-              "context": ".",
-              "containerfile": "app/db/discord/Containerfile",
-              "description": "ItsBagelBot Discord data service"
-            },
-            {
-              "image": "discord-ingress",
-              "context": ".",
-              "containerfile": "app/discord/ingress/Containerfile",
-              "description": "ItsBagelBot Discord gateway session (singleton)"
-            },
-            {
-              "image": "discord-engine",
-              "context": ".",
-              "containerfile": "app/discord/engine/Containerfile",
-              "description": "ItsBagelBot Discord engine"
-            },
-            {
-              "image": "discord-outgress",
-              "context": ".",
-              "containerfile": "app/discord/outgress/Containerfile",
-              "description": "ItsBagelBot Discord REST executor"
             },
             {
               "image": "outgress",
@@ -213,10 +189,10 @@ jobs:
             add "loyalty"
             add "modules"
             add "notifications"
-            add "discord-data"
-            add "discord-ingress"
-            add "discord-engine"
-            add "discord-outgress"
+
+
+
+
             add "outgress"
             add "projector"
             add "transactions"
@@ -231,10 +207,10 @@ jobs:
             add "loyalty"
             add "modules"
             add "notifications"
-            add "discord-data"
-            add "discord-ingress"
-            add "discord-engine"
-            add "discord-outgress"
+
+
+
+
             add "outgress"
             add "projector"
             add "transactions"
@@ -290,18 +266,6 @@ jobs:
                 ;;
               app/db/notifications/*)
                 add "notifications"
-                ;;
-              app/db/discord/*)
-                add "discord-data"
-                ;;
-              app/discord/ingress/*)
-                add "discord-ingress"
-                ;;
-              app/discord/engine/*)
-                add "discord-engine"
-                ;;
-              app/discord/outgress/*)
-                add "discord-outgress"
                 ;;
               app/twitch/outgress/*)
                 add "outgress"

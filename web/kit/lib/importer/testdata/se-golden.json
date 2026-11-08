@@ -321,7 +321,7 @@
         "severity": "warn",
         "item_index": -1,
         "code": "timer_disabled_skipped",
-        "message": "timer \"retired discord plug\" is disabled upstream and was skipped"
+        "message": "timer \"retired community plug\" is disabled upstream and was skipped"
       },
       {
         "severity": "warn",

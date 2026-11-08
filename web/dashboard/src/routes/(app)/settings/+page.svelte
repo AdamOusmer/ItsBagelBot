@@ -114,14 +114,12 @@
   const unreadIds = $derived(notifications.filter((n) => !n.read).map((n) => n.id));
 
   const grantable = $derived(
-    (data.grantableSections ?? ['commands', 'modules', 'discord', 'channelpoints', 'billing']) as string[]
+    (data.grantableSections ?? ['commands', 'modules', 'channelpoints', 'billing']) as string[]
   );
   function sectionLabel(sec: string): string {
     switch (sec) {
       case 'modules':
         return t('settings.modules');
-      case 'discord':
-        return t('nav.discord');
       case 'channelpoints':
         return t('nav.channelpoints');
       case 'timers':

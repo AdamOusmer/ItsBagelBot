@@ -12,7 +12,6 @@ resources:
   - ../../../k8s/outgress.yaml
   - ../../../k8s/sesame.yaml
   - ../../../k8s/automod.yaml
-  - ../../../k8s/discord.yaml
   - ../../../k8s/twitch-ingress.yaml
   - ../../../k8s/console-dashboard.yaml
   - ../../../k8s/console-admin.yaml

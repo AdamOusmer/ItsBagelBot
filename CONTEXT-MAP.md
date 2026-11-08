@@ -15,14 +15,6 @@ These guides describe the merged source used to prepare this documentation branc
 | AutoMod (Rust) | Documentation placeholder; no standalone Rust implementation on main. Incoming AutoMod lives in Sesame. | [app/twitch/automod](app/twitch/automod/context.md) |
 | Outgress (Go) | Twitch API effects, chat sends, token lifecycle, authorization, and rate-limited action execution. | [app/twitch/outgress](app/twitch/outgress/context.md) |
 
-### Discord processing
-
-| App | Owns / answers | Context |
-| --- | --- | --- |
-| Ingress (Go) | The fleet's Discord gateway session (lease holder only), event relay, and immediate interaction defer. Both replicas serve the HTTP interactions endpoint (signature verified, inline type-5 ack, published as `INTERACTION_CREATE` with id `interaction-<id>`); Discord stops gateway INTERACTION_CREATE once the endpoint URL is set. | [app/discord/ingress](app/discord/ingress/context.md) |
-| Engine (Go) | Module decisions from Discord events and selected Twitch events; emits actions without calling Discord REST directly. | [app/discord/engine](app/discord/engine/context.md) |
-| Outgress (Go) | Discord REST effects, setup/layout operations, command execution, and engine-facing RPCs. | [app/discord/outgress](app/discord/outgress/context.md) |
-
 ### Persistent data services (Go + Ent/MySQL)
 
 Each service owns its schema. Its repository, RPC handlers, and `ent/schema` are the places to start; most other `ent` files are generated.
@@ -35,7 +27,6 @@ Each service owns its schema. Its repository, RPC handlers, and `ent/schema` are
 | Loyalty | Viewer loyalty balances, watchtime, and channel counters/entries. | [app/db/loyalty](app/db/loyalty/context.md) |
 | Transactions | Billing/Tebex integration and webhook audits, giveaway orchestration, winners and award delivery. | [app/db/transactions](app/db/transactions/context.md) |
 | Notifications | Account-facing notification records and their cleanup. | [app/db/notifications](app/db/notifications/context.md) |
-| Discord-data | Persistent guild configuration, tickets, and XP; shared RPC-backed Discord store. | [app/db/discord](app/db/discord/context.md) |
 
 ### Shared runtime and scaffolds
 
@@ -74,7 +65,6 @@ The [web workspace guide](web/context.md) explains app/package boundaries and wo
 
 - **Twitch Ingress → Sesame / Projector**: normalized events use the shared lane envelope. Premium/standard are routing tiers; stream lifecycle has additional consumers. See Ingress for current dual-publication. Incoming moderation runs in Sesame; no standalone Rust consumer is present on main.
 - **Sesame → Twitch Outgress**: the engine generates action messages; Outgress owns platform effects and delivery limits. Incoming AutoMod and completed outgoing reply safety are separate concerns.
-- **Discord Ingress → Engine → Outgress**: receive, decide, act. Ingress's immediate interaction defer is a deliberate REST exception and shares the fleet rate budget. Run one gateway session per bot token.
 - **DB owners → Projector → consumers**: owner events update shared read models, then invalidations evict process caches. A cache miss may fall back to owner RPC; no service should read another owner's MySQL schema directly.
 - **Commands / Modules → Gossip**: owners retain definitions and secrets; Gossip resolves them when performing upstream requests. Projected configuration must not expose decrypted credentials.
 - **Users ↔ Transactions**: Users owns account eligibility and access state; Transactions owns giveaway draws, winner records, billing, and award orchestration. A promotional Premium award is not a Tebex subscription.
@@ -91,14 +81,12 @@ The [web workspace guide](web/context.md) explains app/package boundaries and wo
 | [internal/domain/event/data/](internal/domain/event/data/) | Data-owner change events and activity/loyalty contracts. |
 | [internal/domain/rpc/](internal/domain/rpc/) | Cross-service Go request/reply DTOs, refusals, guards, subject conventions. |
 | [internal/domain/outgress/](internal/domain/outgress/) | Twitch outbound action and job contracts. |
-| [internal/domain/discord/](internal/domain/discord/) | Discord events/actions, identities, config, permissions, and validation. |
 | [app/twitch/sesame/automod/](app/twitch/sesame/automod/) / [moderation engine](app/twitch/sesame/engine/moderate.go) | Current incoming-chat moderation rules, evidence, decisions and enforcement wiring. |
 | [internal/projection/](internal/projection/) | Shared Valkey key layout, revision/incarnation protection, settings views, and client read caches. |
 | [internal/domain/modulevars/](internal/domain/modulevars/) and [Kit variable source](web/kit/lib/variables/) | Module-template variable catalog and shared generated representation. |
 | [locales/](locales/) / [internal/domain/i18n/](internal/domain/i18n/) | Canonical locale manifest and `<language>/<surface>` catalogs (`chat`, `console`, `website`, `docs`); Go bot formatting/lookup loads the chat surface. |
 | [internal/moderation/](internal/moderation/) / [Sesame pipeline](app/twitch/sesame/engine/pipeline.go) | Shared banned-word matching/normalization and completed outgoing reply floor guard. |
 | [internal/watchtime/](internal/watchtime/) / [internal/activity/](internal/activity/) | Viewer watchtime/activity storage and reporting infrastructure. |
-| [internal/discordstore/](internal/discordstore/) | RPC-backed Discord persistence seam and ephemeral/cache state. |
 | [pkg/bus/streams.go](pkg/bus/streams.go) / [pkg/bus/](pkg/bus/) | JetStream catalog, provisioning, publication, consumption, retry/failback, RPC pools and transport conventions. |
 | [pkg/svcboot/](pkg/svcboot/) / [pkg/svcboot/databoot/](pkg/svcboot/databoot/) | Shared Go lifecycle and database-service boot. |
 | [pkg/db/](pkg/db/) / [pkg/valkey/](pkg/valkey/) | Infrastructure connectors, pool/health behavior, and primary/replica routing. |

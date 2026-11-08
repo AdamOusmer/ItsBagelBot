@@ -94,10 +94,6 @@
   "noneYetBody": "Создайте первый ответ для своей команды. Зрители вызывают его с помощью !{name} в чате.",
   "startersTitle": "Или начните с шаблона",
   "starters": {
-    "discord": {
-      "name": "discord",
-      "response": "Присоединяйтесь к сообществу в Discord: discord.gg/your-invite"
-    },
     "socials": {
       "name": "socials",
       "response": "Мои другие страницы: twitter.com/yourname и instagram.com/yourname"

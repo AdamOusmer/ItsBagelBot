@@ -9,7 +9,7 @@ The gateway is the WebSocket server the desktop app connects to at `GET /v1/conn
 It verifies access tokens, relays device events to core NATS, and delivers
 commands and revocation back to the right connection. It never issues tokens
 (Users owns device grants and signing; see the device-authorization contract),
-never runs Discord/Twitch logic, and never clusters with other pods: routing
+never runs Twitch logic, and never clusters with other pods: routing
 across pods goes through core NATS, not BEAM distribution
 (`RELEASE_DISTRIBUTION=none`).
 

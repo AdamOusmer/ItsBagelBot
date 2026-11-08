@@ -3,8 +3,6 @@
 
 import { moduleDef } from '@bagel/kit/catalog';
 import { blankTimer } from '@bagel/kit/timers';
-import { blankDiscordConfig } from '../../../kit/lib/discord-config';
-import { guildModuleTiles } from '../../../kit/lib/discord-overview';
 import type { ModuleDef, ModuleReply } from '@bagel/kit/catalog/module-def';
 import { defaultLang, type Lang } from '../i18n/lang';
 import { localizePath } from '../i18n/ui';
@@ -366,9 +364,8 @@ export const FEATURES = {
     giveaways: { ns: 'giveaways', path: '/giveaways', modules: ['raffle'], ai: 'engagement', guide: '/guides/modules', related: ['viewerQueue', 'loyaltyPoints', 'timers'] },
     loyaltyPoints: { ns: 'loyaltyPoints', path: '/loyalty-points', modules: ['loyalty', 'gamble', 'duel'], ai: 'loyalty', guide: '/guides/counters', related: ['deathCounter', 'giveaways', 'viewerQueue'] },
     deathCounter: { ns: 'deathCounter', path: '/death-counter', modules: ['counters'], ai: 'engagement', guide: '/guides/counters', related: ['loyaltyPoints', 'timers', 'viewerQueue'] },
-    timers: { ns: 'timers', path: '/timers', modules: ['timers'], ai: 'engagement', guide: '/guides/commands', related: ['giveaways', 'viewerQueue', 'discordBot'] },
-    viewerQueue: { ns: 'viewerQueue', path: '/viewer-queue', modules: ['queue'], ai: 'engagement', guide: '/guides/modules', related: ['giveaways', 'loyaltyPoints', 'discordBot'] },
-    discordBot: { ns: 'discordBot', path: '/discord-bot', modules: ['discord'], ai: 'discord', guide: '/guides/discord-setup', related: ['timers', 'viewerQueue', 'giveaways'] },
+    timers: { ns: 'timers', path: '/timers', modules: ['timers'], ai: 'engagement', guide: '/guides/commands', related: ['giveaways', 'viewerQueue'] },
+    viewerQueue: { ns: 'viewerQueue', path: '/viewer-queue', modules: ['queue'], ai: 'engagement', guide: '/guides/modules', related: ['giveaways', 'loyaltyPoints'] },
 } as const;
 
 export type FeatureId = keyof typeof FEATURES;
@@ -414,9 +411,6 @@ export function featureRows(id: FeatureId, lang: Lang, t: Translate): CommandRow
     const k = (key: string) => t(spec.ns + '.' + key);
     if (id === 'timers') return Object.entries(blankTimer()).filter(([key]) => key !== 'id').map(([key, value]) => ({
         cells: [k('fields.' + key + '.label'), k('fields.' + key + '.value').replace('{value}', String(value)), k('fields.' + key + '.outcome')],
-    }));
-    if (id === 'discordBot') return guildModuleTiles(blankDiscordConfig()).map((tile) => ({
-        cells: [k('tiles.' + tile.id + '.label'), k('tiles.' + tile.id + '.configure'), k('tiles.' + tile.id + '.outcome')],
     }));
     if (id === 'deathCounter') return DEATH_COUNTER_ROWS.map(([trigger, who, outcome]) => ({ cells: [trigger, k(who), k(outcome)], copy: trigger }));
     return featureCommands(id).map((command) => ({

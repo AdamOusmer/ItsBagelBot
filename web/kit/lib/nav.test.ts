@@ -25,7 +25,6 @@ describe('nav registry', () => {
     for (const p of ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty']) {
       expect(sectionForPath(p)).toBe('modules');
     }
-    expect(sectionForPath('/discord')).toBe('discord');
     expect(sectionForPath('/songqueue')).toBe('songqueue');
     expect(sectionForPath('/billing')).toBe('billing');
     expect(sectionForPath('/settings')).toBe('settings');
@@ -40,7 +39,6 @@ describe('nav registry', () => {
       '/flows',
       '/modules',
       '/songqueue',
-      '/discord',
       '/billing',
       '/settings'
     ]);
@@ -186,16 +184,6 @@ describe('pathnameAllowed', () => {
     ['/billing', false]
   ] as [string, boolean][])('a commands delegate on %s -> %p', (path, want) => {
     expect(pathnameAllowed(path, delegateAllowedPaths(['commands']), ['commands'])).toBe(want);
-  });
-
-  test.each([
-    ['/discord', true],
-    ['/discord/123456789012345678', true],
-    ['/discord/123456789012345678/channels', true],
-    ['/discord/123456789012345678/tickets', true],
-    ['/commands', false]
-  ] as [string, boolean][])('a discord delegate on %s -> %p', (path, want) => {
-    expect(pathnameAllowed(path, delegateAllowedPaths(['discord']), ['discord'])).toBe(want);
   });
 
   test.each([

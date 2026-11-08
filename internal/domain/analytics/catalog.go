@@ -37,28 +37,26 @@ type Spec struct {
 }
 
 const (
-	ChatMessages        Metric = "chat.messages"
-	ChatAnswered        Metric = "chat.answered"
-	CommandUses         Metric = "command.uses"
-	ModuleEvents        Metric = "module.events"
-	ModuleErrors        Metric = "module.errors"
-	ModuleLatency       Metric = "module.latency"
-	TimerFires          Metric = "timer.fires"
-	DiscordInteractions Metric = "discord.interactions"
-	DiscordEvents       Metric = "discord.events"
-	OutgressFailures    Metric = "outgress.failures"
-	Lifecycle           Metric = "lifecycle"
-	OnboardingPreset    Metric = "onboarding.preset"
-	ModuleToggles       Metric = "module.toggles"
-	CustomCommands      Metric = "custom.commands"
-	WebViews            Metric = "web.views"
-	WebActions          Metric = "web.actions"
-	LiveStarts          Metric = "live.starts"
-	ChannelsLive        Metric = "channels.live"
-	ChannelsActive      Metric = "channels.active"
-	ModuleActive        Metric = "module.active"
-	CohortActive        Metric = "cohort.active"
-	BillingEvents       Metric = "billing.events"
+	ChatMessages     Metric = "chat.messages"
+	ChatAnswered     Metric = "chat.answered"
+	CommandUses      Metric = "command.uses"
+	ModuleEvents     Metric = "module.events"
+	ModuleErrors     Metric = "module.errors"
+	ModuleLatency    Metric = "module.latency"
+	TimerFires       Metric = "timer.fires"
+	OutgressFailures Metric = "outgress.failures"
+	Lifecycle        Metric = "lifecycle"
+	OnboardingPreset Metric = "onboarding.preset"
+	ModuleToggles    Metric = "module.toggles"
+	CustomCommands   Metric = "custom.commands"
+	WebViews         Metric = "web.views"
+	WebActions       Metric = "web.actions"
+	LiveStarts       Metric = "live.starts"
+	ChannelsLive     Metric = "channels.live"
+	ChannelsActive   Metric = "channels.active"
+	ModuleActive     Metric = "module.active"
+	CohortActive     Metric = "cohort.active"
+	BillingEvents    Metric = "billing.events"
 
 	AccountsTotal         Metric = "accounts.total"
 	AccountsBotEnabled    Metric = "accounts.bot_enabled"
@@ -83,7 +81,6 @@ const (
 const (
 	KindModule    Kind = "module"
 	KindCommand   Kind = "command"
-	KindDiscord   Kind = "discord"
 	KindErr       Kind = "err"
 	KindBucket    Kind = "bucket"
 	KindFail      Kind = "fail"
@@ -116,28 +113,26 @@ const SuppressBelow = 10
 const CustomCommand = "custom"
 
 var catalog = map[Metric]Spec{
-	ChatMessages:        {Type: Counter},
-	ChatAnswered:        {Type: Counter},
-	CommandUses:         {Type: Counter, Dims: []Kind{KindCommand}},
-	ModuleEvents:        {Type: Counter, Dims: []Kind{KindModule}},
-	ModuleErrors:        {Type: Counter, Dims: []Kind{KindModule, KindErr}},
-	ModuleLatency:       {Type: Counter, Dims: []Kind{KindModule, KindBucket}},
-	TimerFires:          {Type: Counter},
-	DiscordInteractions: {Type: Counter, Dims: []Kind{KindDiscord}},
-	DiscordEvents:       {Type: Counter, Dims: []Kind{KindDiscord}},
-	OutgressFailures:    {Type: Counter, Dims: []Kind{KindFail}},
-	Lifecycle:           {Type: Counter, Dims: []Kind{KindLifecycle}},
-	OnboardingPreset:    {Type: Counter, Dims: []Kind{KindPreset}},
-	ModuleToggles:       {Type: Counter, Dims: []Kind{KindModule, KindToggle}},
-	CustomCommands:      {Type: Counter, Dims: []Kind{KindChange}},
-	WebViews:            {Type: Counter, Dims: []Kind{KindApp, KindRoute}},
-	WebActions:          {Type: Counter, Dims: []Kind{KindApp, KindAction, KindOutcome}},
-	LiveStarts:          {Type: Counter},
-	ChannelsLive:        {Type: Distinct, Windows: Day | Week | Month},
-	ChannelsActive:      {Type: Distinct, Windows: Day | Week | Month},
-	ModuleActive:        {Type: Distinct, Dims: []Kind{KindModule}, Windows: Day | Week},
-	CohortActive:        {Type: Distinct, Dims: []Kind{KindWeek}, Windows: Week},
-	BillingEvents:       {Type: Counter, Dims: []Kind{KindBilling}},
+	ChatMessages:     {Type: Counter},
+	ChatAnswered:     {Type: Counter},
+	CommandUses:      {Type: Counter, Dims: []Kind{KindCommand}},
+	ModuleEvents:     {Type: Counter, Dims: []Kind{KindModule}},
+	ModuleErrors:     {Type: Counter, Dims: []Kind{KindModule, KindErr}},
+	ModuleLatency:    {Type: Counter, Dims: []Kind{KindModule, KindBucket}},
+	TimerFires:       {Type: Counter},
+	OutgressFailures: {Type: Counter, Dims: []Kind{KindFail}},
+	Lifecycle:        {Type: Counter, Dims: []Kind{KindLifecycle}},
+	OnboardingPreset: {Type: Counter, Dims: []Kind{KindPreset}},
+	ModuleToggles:    {Type: Counter, Dims: []Kind{KindModule, KindToggle}},
+	CustomCommands:   {Type: Counter, Dims: []Kind{KindChange}},
+	WebViews:         {Type: Counter, Dims: []Kind{KindApp, KindRoute}},
+	WebActions:       {Type: Counter, Dims: []Kind{KindApp, KindAction, KindOutcome}},
+	LiveStarts:       {Type: Counter},
+	ChannelsLive:     {Type: Distinct, Windows: Day | Week | Month},
+	ChannelsActive:   {Type: Distinct, Windows: Day | Week | Month},
+	ModuleActive:     {Type: Distinct, Dims: []Kind{KindModule}, Windows: Day | Week},
+	CohortActive:     {Type: Distinct, Dims: []Kind{KindWeek}, Windows: Week},
+	BillingEvents:    {Type: Counter, Dims: []Kind{KindBilling}},
 
 	AccountsTotal:         {Type: Level, Dims: []Kind{KindTier}},
 	AccountsBotEnabled:    {Type: Level, Dims: []Kind{KindTier}},
@@ -163,7 +158,7 @@ var enums = map[Kind][]string{
 	KindErr:       {"timeout", "upstream", "invalid", "ratelimited", "internal"},
 	KindBucket:    {"lt10ms", "lt50ms", "lt250ms", "lt1s", "ge1s"},
 	KindFail:      {"ratelimited", "banned", "unauthorized", "client", "server", "network"},
-	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted", "guild_bound", "guild_unbound", "guild_removed"},
+	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted"},
 	KindPreset:    {"start-new", "integrate", "quiet", "import", "songs"},
 	KindToggle:    {"on", "off"},
 	KindChange:    {"created", "deleted"},
@@ -184,7 +179,6 @@ var enums = map[Kind][]string{
 var shapes = map[Kind]*regexp.Regexp{
 	KindModule:  regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
 	KindCommand: regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
-	KindDiscord: regexp.MustCompile(`^[a-z0-9][a-z0-9_.:-]{0,63}$`),
 	KindRoute:   regexp.MustCompile(`^/[A-Za-z0-9_()\[\]./=-]{0,110}$`),
 	KindAction:  regexp.MustCompile(`^/[A-Za-z0-9_()\[\]./=-]{0,90}\?/[A-Za-z0-9_]{1,32}$`),
 	KindWeek:    regexp.MustCompile(`^[0-9]{4}-W[0-9]{2}$`),
@@ -269,7 +263,7 @@ func valueOK(kind Kind, v string, reg Registry) bool {
 }
 
 func registered(kind Kind) bool {
-	return kind == KindModule || kind == KindCommand || kind == KindDiscord
+	return kind == KindModule || kind == KindCommand
 }
 
 func ShapeOK(kind Kind, v string) bool {

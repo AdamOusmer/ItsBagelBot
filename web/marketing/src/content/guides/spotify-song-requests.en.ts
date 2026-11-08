@@ -126,7 +126,7 @@ const guide: GuideContent = {
           html: `
                 <b>Keep your Client Secret private</b>
                 Paste the Client ID and Client Secret only into the ItsBagelBot dashboard fields shown
-                above. Never paste a Client Secret into a chat with an AI, a Discord server or a
+                above. Never paste a Client Secret into a chat with an AI, a public forum or a
                 support message. If it leaks, rotate it in the Spotify developer dashboard and paste
                 the new one in ItsBagelBot.`,
         },

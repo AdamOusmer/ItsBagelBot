@@ -18,19 +18,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: discord-engine-status
-  namespace: app
-spec:
-  selector:
-    app: discord-engine
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
   name: sesame-status
   namespace: app
 spec:
@@ -99,14 +86,6 @@ spec:
           port: 443
           scheme: https
           serversTransport: sesame-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/discord`)
-      kind: Rule
-      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
-      services:
-        - name: discord-engine-status
-          port: 443
-          scheme: https
-          serversTransport: discord-engine-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/console`)
       kind: Rule
       middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
@@ -244,16 +223,6 @@ spec:
   serverName: gossip-status
   rootCAsSecrets:
     - gossip-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: discord-engine-status-transport
-  namespace: app
-spec:
-  serverName: discord-engine-status
-  rootCAsSecrets:
-    - discord-engine-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport

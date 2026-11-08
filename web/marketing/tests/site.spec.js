@@ -177,15 +177,14 @@ test.describe('ItsBagelBot site', () => {
         }
     });
 
-    test('contact shows both lanes, the live status and the socials', async ({ page }) => {
+    test('contact shows support, the live status and the socials', async ({ page }) => {
         await page.route('https://status.itsbagelbot.com/**', (route) =>
             route.fulfill({ json: { data: { attributes: { aggregate_state: 'degraded' } } } }),
         );
         await page.goto('/contact');
 
         await expect(page.locator('h1')).toContainText('Talk to a human.');
-        await expect(page.locator('.lane')).toHaveCount(2);
-        await expect(page.locator('a[href^="https://discord.gg/"]').first()).toBeVisible();
+        await expect(page.locator('.lane')).toHaveCount(1);
         await expect(page.locator('a[href="mailto:support@itsbagelbot.com"]')).toBeVisible();
 
         const status = page.locator('.contact-status');
@@ -285,7 +284,7 @@ test.describe('ItsBagelBot site', () => {
     });
 
     test('every guide is indexable with hreflang in every locale', async ({ page, request }) => {
-        const slugs = ['commands', 'counters', 'data-sources', 'discord-setup', 'getting-started', 'govee-lights', 'modules', 'setup-errors', 'share-access', 'spotify-song-requests'];
+        const slugs = ['commands', 'counters', 'data-sources', 'getting-started', 'govee-lights', 'modules', 'setup-errors', 'share-access', 'spotify-song-requests'];
         for (const locale of ['de', 'es', 'fr', 'pt-br', 'ru']) {
             for (const slug of slugs) {
                 await page.goto(`/${locale}/guides/${slug}`);

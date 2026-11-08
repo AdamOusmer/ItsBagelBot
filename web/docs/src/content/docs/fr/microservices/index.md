@@ -14,15 +14,9 @@ flowchart LR
   TI --> Sesame
   Sesame --> TO[Twitch outgress]
   TO --> Twitch
-  Discord --> DI[Discord ingress]
-  DI --> DE[Discord engine]
-  DE --> DO[Discord outgress]
-  DO --> Discord
   Owners[Services de données] --> Projector
   Projector --> Sesame
-  Projector --> DE
   Sesame --> Gossip
-  DE --> Owners
   Dashboard[Tableau de bord] --> Owners
 ```
 
@@ -33,8 +27,7 @@ Le diagramme présente les principaux flux, pas tous les événements et RPC. Po
 | Domaine | Service | Source |
 | --- | --- | --- |
 | Twitch | [Ingress](/fr/microservices/twitch-ingress/), [Sesame](/fr/microservices/sesame/), [AutoMod](/fr/microservices/automod/), [Outgress](/fr/microservices/outgress/) | `app/twitch/` |
-| Discord | [Ingress](/fr/microservices/dingress/), [Engine](/fr/microservices/discord-engine/), [Outgress](/fr/microservices/discord-outgress/) | `app/discord/` |
-| Données | [Users](/fr/microservices/users/), [Commands](/fr/microservices/commands/), [Modules](/fr/microservices/modules/), [Loyalty](/fr/microservices/loyalty/), [Discord data](/fr/microservices/discord-data/), [Notifications](/fr/microservices/notifications/), [Transactions](/fr/microservices/transactions/) | `app/db/` |
+| Données | [Users](/fr/microservices/users/), [Commands](/fr/microservices/commands/), [Modules](/fr/microservices/modules/), [Loyalty](/fr/microservices/loyalty/), [Notifications](/fr/microservices/notifications/), [Transactions](/fr/microservices/transactions/) | `app/db/` |
 | Services partagés | [Projector](/fr/microservices/projector/), [Gossip](/fr/microservices/gossip/), [Image WARP](/fr/microservices/warp/) | `app/projector/`, `app/gossip/`, `app/warp/` |
 | Bureau | [Controls gateway](/fr/microservices/controls-gateway/), [Application de bureau](/fr/microservices/desktop/) | `app/controls/gateway/`, `app/desktop/` |
 | Web | [Tableau de bord](/fr/microservices/console/), [Admin](/fr/microservices/admin/), [Marketing](/fr/microservices/web/) | `web/` |

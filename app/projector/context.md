@@ -52,7 +52,7 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 - Hydration fetch retries are bounded and stop at once on an owner not-found reply, which logs at debug; store failures do not replay stale snapshots blindly. Protect newer events from older hydration responses.
 - Emit invalidations after successful shared-store mutation. Core NATS broadcasts evict every process cache; a queue subscription would notify only one replica.
 - Stream lifecycle writes must remain synchronous before acknowledging the source event. Go-live side effects are best effort and must not turn into lifecycle redelivery requirements.
-- This service aggregates Users, Commands, Modules, Loyalty, Notifications, and Discord-data health. Transactions has its separate billing endpoint.
+- This service aggregates Users, Commands, Modules, Loyalty and Notifications health. Transactions has its separate billing endpoint.
 - Live counter seeding stamps after owner reads so an already-included batch is not counted again. Keep dedup, source-storage-time and seed-barrier behavior in the shared projection implementation.
 - Incoming AutoMod currently lives in [Sesame](../twitch/sesame/context.md). This service has no AutoMod journal RPC or Rust enforcement role in the merged source.
 

@@ -91,14 +91,8 @@
       "source": "https://support.wizebot.tv/docs/tags"
     },
     {
-      "feature": "Discord",
-      "us": "Discord ist eine Premium-Beta-Integration für Live-Ankündigungen, Clips, Willkommensnachrichten, Tickets und Community-Werkzeuge.",
-      "them": "Die Dienstübersicht nennt Discord-Benachrichtigungen für Livestarts sowie Spiel- und Statusänderungen.",
-      "source": "https://wizebot.tv/en/services"
-    },
-    {
       "feature": "Preis",
-      "us": "Jede fertige Funktion ist kostenlos. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen, derzeit AutoMod und Discord. Spotify Premium ist eine separate Voraussetzung.",
+      "us": "Jede fertige Funktion ist kostenlos. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen, derzeit AutoMod. Spotify Premium ist eine separate Voraussetzung.",
       "them": "Die offizielle Startseite beschreibt einen kostenlosen Cloud-Dienst. Prüfe im Dashboard die Anforderungen für die einzelnen Werkzeuge, die du aktivieren willst.",
       "source": "https://wizebot.tv/en/index"
     }
@@ -116,7 +110,7 @@
   "faq": [
     {
       "q": "Wann ist ItsBagelBot eine sinnvolle Alternative zu WizeBot?",
-      "a": "Zieh es in Betracht für Anfragen in deiner echten Spotify-Warteschlange, eingebaute Abfragen für die unterstützten Spiele oder Twitch-Belohnungen für kompatible Govee-Lampen. Diese fertigen Funktionen und der Import-Assistent sind kostenlos. AutoMod und Discord sind Premium-Beta-Module."
+      "a": "Zieh es in Betracht für Anfragen in deiner echten Spotify-Warteschlange, eingebaute Abfragen für die unterstützten Spiele oder Twitch-Belohnungen für kompatible Govee-Lampen. Diese fertigen Funktionen und der Import-Assistent sind kostenlos. AutoMod ist ein Premium-Beta-Modul."
     },
     {
       "q": "Wann solltest du bei WizeBot bleiben?",
@@ -139,10 +133,6 @@
     {
       "label": "WizeBot: Überblick über den kostenlosen Cloud-Dienst",
       "url": "https://wizebot.tv/en/index"
-    },
-    {
-      "label": "WizeBot: periodische Ankündigungen, Schutz, Twitch-Belohnungen, Discord und Overlays",
-      "url": "https://wizebot.tv/en/services"
     },
     {
       "label": "WizeBot: eigene Befehle, YouTube-Anfragen und Verlosungsbefehle",

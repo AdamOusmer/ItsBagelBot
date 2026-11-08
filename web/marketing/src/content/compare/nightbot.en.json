@@ -79,14 +79,8 @@
       "source": "https://docs.nightbot.tv/control-panel/commands"
     },
     {
-      "feature": "Discord",
-      "us": "Discord is a Premium beta integration for go-live posts, clips, welcomes, tickets and community tools.",
-      "them": "Nightbot documents Discord command access, role mapping and optional spam filtering. This suits carrying existing commands into a server.",
-      "source": "https://docs.nightbot.tv/discord"
-    },
-    {
       "feature": "Price",
-      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod and Discord. Spotify Premium is a separate requirement.",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod. Spotify Premium is a separate requirement.",
       "them": "Free service, as described by Nightbot's developer in the linked official support answer from March 2025. This is a developer statement rather than a published pricing table.",
       "source": "https://community.nightdev.com/t/messages-command/1534655926634549409"
     }
@@ -104,7 +98,7 @@
   "faq": [
     {
       "q": "When is ItsBagelBot a useful Nightbot alternative?",
-      "a": "Consider it if your Twitch setup needs Spotify queue requests, built-in lookups for the supported games or channel-point actions for Govee lights. Commands, timers and the import wizard are finished features on the free plan. AutoMod and Discord are Premium beta modules."
+      "a": "Consider it if your Twitch setup needs Spotify queue requests, built-in lookups for the supported games or channel-point actions for Govee lights. Commands, timers and the import wizard are finished features on the free plan. AutoMod is a Premium beta module."
     },
     {
       "q": "When should I keep Nightbot?",
@@ -124,16 +118,45 @@
     }
   ],
   "sources": [
-    { "label": "Nightbot: supported streaming platforms", "url": "https://docs.nightbot.tv/" },
-    { "label": "Nightbot: commands, permissions and aliases", "url": "https://docs.nightbot.tv/control-panel/commands" },
-    { "label": "Nightbot: variables and game lookups", "url": "https://docs.nightbot.tv/variables" },
-    { "label": "Nightbot: League of Legends rank variable", "url": "https://docs.nightbot.tv/variables/leagueoflegends" },
-    { "label": "Nightbot: Teamfight Tactics rank variable", "url": "https://docs.nightbot.tv/variables/teamfighttactics" },
-    { "label": "Nightbot: timers and chat activity thresholds", "url": "https://docs.nightbot.tv/control-panel/timers" },
-    { "label": "Nightbot: spam protection", "url": "https://docs.nightbot.tv/control-panel/spam-protection" },
-    { "label": "Nightbot: YouTube and SoundCloud song requests", "url": "https://docs.nightbot.tv/control-panel/song-requests" },
-    { "label": "Nightbot: giveaway formats", "url": "https://docs.nightbot.tv/control-panel/giveaways" },
-    { "label": "Nightbot: Discord integration", "url": "https://docs.nightbot.tv/discord" },
-    { "label": "Nightbot: official developer statement on the free service (March 2025)", "url": "https://community.nightdev.com/t/messages-command/1534655926634549409" }
+    {
+      "label": "Nightbot: supported streaming platforms",
+      "url": "https://docs.nightbot.tv/"
+    },
+    {
+      "label": "Nightbot: commands, permissions and aliases",
+      "url": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "label": "Nightbot: variables and game lookups",
+      "url": "https://docs.nightbot.tv/variables"
+    },
+    {
+      "label": "Nightbot: League of Legends rank variable",
+      "url": "https://docs.nightbot.tv/variables/leagueoflegends"
+    },
+    {
+      "label": "Nightbot: Teamfight Tactics rank variable",
+      "url": "https://docs.nightbot.tv/variables/teamfighttactics"
+    },
+    {
+      "label": "Nightbot: timers and chat activity thresholds",
+      "url": "https://docs.nightbot.tv/control-panel/timers"
+    },
+    {
+      "label": "Nightbot: spam protection",
+      "url": "https://docs.nightbot.tv/control-panel/spam-protection"
+    },
+    {
+      "label": "Nightbot: YouTube and SoundCloud song requests",
+      "url": "https://docs.nightbot.tv/control-panel/song-requests"
+    },
+    {
+      "label": "Nightbot: giveaway formats",
+      "url": "https://docs.nightbot.tv/control-panel/giveaways"
+    },
+    {
+      "label": "Nightbot: official developer statement on the free service (March 2025)",
+      "url": "https://community.nightdev.com/t/messages-command/1534655926634549409"
+    }
   ]
 }

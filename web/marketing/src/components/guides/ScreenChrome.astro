@@ -9,7 +9,7 @@ import Topbar from '@bagel/ui/astro/Topbar.astro';
 import PageHead from '@bagel/ui/astro/PageHead.astro';
 import type { UiNavLink } from '@bagel/ui/lib/nav-types';
 
-export type SectionId = 'overview' | 'commands' | 'modules' | 'discord' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'modules' | 'billing' | 'settings';
 
 interface Props {
     console: string;
@@ -45,7 +45,6 @@ const SECTIONS: readonly { id: SectionId; icon: UiNavLink['icon'] }[] = [
     { id: 'overview', icon: 'overview' },
     { id: 'commands', icon: 'commands' },
     { id: 'modules', icon: 'modules' },
-    { id: 'discord', icon: 'discord' },
     { id: 'billing', icon: 'card' },
     { id: 'settings', icon: 'settings' },
 ];

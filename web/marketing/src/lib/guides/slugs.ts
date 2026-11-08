@@ -9,7 +9,6 @@ export const guideSlugs = [
   'counters',
   'spotify-song-requests',
   'govee-lights',
-  'discord-setup',
   'share-access',
   'setup-errors',
 ] as const;

@@ -70,7 +70,7 @@ metadata. Optional Valkey startup does not promise every dependent operation can
 continue safely without Valkey: examine each action's fallback/fail-closed contract.
 
 Clip creation is a compound flow: parse the accepted clip ID, send the chat
-reply, publish `data.twitch.clip.created` for Discord, then schedule asynchronous
+reply, publish `data.twitch.clip.created`, then schedule asynchronous
 publish verification. The fact precedes that verification in current code; do
 not assume it proves the clip is already fully published. A chat-reply failure
 currently returns before fact publication.

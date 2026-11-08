@@ -22,9 +22,9 @@ import (
 
 func trialCommandModule(ran *int) module.Module {
 	m := module.NewModule("trial", module.KindCore).Trial()
-	m.Command("discord").Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
+	m.Command("socials").Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
 		*ran++
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: "trial discord"})
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: "trial socials"})
 		return nil
 	})
 	return m.Build()
@@ -77,13 +77,13 @@ func trialMarks(pub *fakePublisher) []trialMark {
 
 func TestTrialMarksEveryLineOfABatchedReply(t *testing.T) {
 	m := module.NewModule("trial", module.KindCore).Trial()
-	m.Command("discord").Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
+	m.Command("socials").Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
 		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: "line one\nline two"})
 		return nil
 	})
 	pub := &fakePublisher{}
 
-	require.NoError(t, newPipelineWith(pub, fakeReader{}, m.Build()).Process(trialLine{text: "!discord", gen: 9}.message(t)))
+	require.NoError(t, newPipelineWith(pub, fakeReader{}, m.Build()).Process(trialLine{text: "!socials", gen: 9}.message(t)))
 
 	require.Len(t, pub.snapshot(), 1)
 	batch := pub.snapshot()[0].msg
@@ -125,20 +125,20 @@ func TestTrialOriginDecidesWhatRuns(t *testing.T) {
 		{
 			name:      "a trial module's command runs for trial origin and is marked",
 			modules:   func(ran *int) []module.Module { return []module.Module{trialCommandModule(ran)} },
-			line:      trialLine{text: "!discord", gen: 4},
+			line:      trialLine{text: "!socials", gen: 4},
 			wantRan:   1,
-			wantTexts: []string{"trial discord"},
+			wantTexts: []string{"trial socials"},
 			wantMarks: []trialMark{{"trial", 4}},
 		},
 		{
 			name:    "a trial module never runs for a real channel",
 			modules: func(ran *int) []module.Module { return []module.Module{trialCommandModule(ran)} },
 			reader: fakeReader{
-				cmd:      projection.Command{Name: "discord", Response: "the streamer's own discord", IsActive: true},
+				cmd:      projection.Command{Name: "socials", Response: "the streamer's own socials", IsActive: true},
 				cmdFound: true,
 			},
-			line:      trialLine{text: "!discord", real: true},
-			wantTexts: []string{"the streamer's own discord"},
+			line:      trialLine{text: "!socials", real: true},
+			wantTexts: []string{"the streamer's own socials"},
 			wantMarks: []trialMark{{}},
 		},
 	}
@@ -198,7 +198,7 @@ func TestTrialCountersReachTheBumperUnderTrialNames(t *testing.T) {
 		{
 			name:    "TestTrialCountersGoToTheLoyaltyReporterUnderTrialNames",
 			modules: func(ran *int) []module.Module { return []module.Module{trialCommandModule(ran)} },
-			line:    trialLine{text: "!discord", gen: 4},
+			line:    trialLine{text: "!socials", gen: 4},
 			want: map[string]int64{
 				"trial_decoded": 1, "trial_processed": 1, "trial_answered": 1, "trial_blocked": 1,
 				"trial_latency_ns_samples": 1, "trial_latency_ns_total": 1,

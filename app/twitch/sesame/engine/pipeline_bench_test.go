@@ -121,7 +121,7 @@ func benchAutomodConfigBlob() codec.RawMessage {
 		"level":       "strict",
 		"harassment":  "on",
 		"clips_only":  "off",
-		"block_terms": "kappa scam, free follows, discord.gg/x, buy viewers, cheap prime",
+		"block_terms": "kappa scam, free follows, example.gg/x, buy viewers, cheap prime",
 		"allow_terms": "gg, poggers, kekw",
 	})
 	if err != nil {

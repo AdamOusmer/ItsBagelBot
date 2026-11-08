@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Tutoriales de configuración del bot de Twitch | ItsBagelBot",
-    "description": "Sigue nuestros tutoriales ilustrados: configuración del bot de Twitch, comandos, API, contadores, peticiones de Spotify, Govee, Discord y acceso compartido al panel.",
+    "description": "Sigue nuestros tutoriales ilustrados: configuración del bot de Twitch, comandos, API, contadores, peticiones de Spotify, Govee y acceso compartido al panel.",
     "eyebrow": "Guías",
     "heading": "Domina el bot.",
     "lead": "Cada guía funciona con el plan gratuito, salvo las partes marcadas como beta Premium, y cada una se lee en diez minutos o menos."
@@ -19,11 +19,6 @@
   "help": {
     "prompt": "¿Una guía no cubre tu pregunta?",
     "links": [
-      {
-        "href": "https://discord.gg/SZ2remwSDv",
-        "label": "Pregunta en Discord",
-        "external": true
-      },
       {
         "href": "/es/contact",
         "label": "Contacta con soporte"

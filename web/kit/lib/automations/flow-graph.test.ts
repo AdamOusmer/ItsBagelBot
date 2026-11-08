@@ -616,11 +616,11 @@ describe('compare value step', () => {
 });
 
 describe('reading stored definitions', () => {
-  test('a stored Discord post, an action that no longer exists, cannot be drawn', () => {
+  test('a stored removed post, an action that no longer exists, cannot be drawn', () => {
     const stored: Definition = {
       version: 1,
       trigger: { type: 'event', params: { kind: 'channel.raid' } },
-      actions: [chat('a'), { type: 'discord_post', params: { guild_id: '123456789012345678', channel_id: '223456789012345678', text: 'hi' } }]
+      actions: [chat('a'), { type: 'removed_post', params: { text: 'hi' } }]
     };
     expect(definitionToFlow(stored, meta)).toEqual({ ok: false, issues: [{ path: 'actions[1]', code: 'unsupported_action' }] });
     expect(validateDefinition(stored)).toEqual([{ path: 'actions[1].type', code: 'unknown_type' }]);

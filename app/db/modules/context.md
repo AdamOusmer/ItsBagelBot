@@ -9,8 +9,7 @@ Owns broadcaster module enablement/config JSON, channel quote books, lifetime
 personality feed tallies, recipe variables, named countdowns, recipe cooldown windows over one day,
 and sealed Govee/Spotify credentials in `bagel_modules`.
 Sesame implements module behavior, Gossip contacts external integrations, and
-Projector maintains the shared configuration projection. Per-guild Discord
-settings belong to Discord Data; the Discord module retains channel-level controls.
+Projector maintains the shared configuration projection.
 Loyalty module configuration lives here, but balances/counters live in Loyalty.
 
 ## Nomenclature

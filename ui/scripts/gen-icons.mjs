@@ -56,7 +56,6 @@ const ICONS = {
   coins: 'lucide:coins',
   gamepad: 'lucide:gamepad-2',
   githubLine: 'lucide:github',
-  discord: 'simple-icons:discord',
   brandX: 'simple-icons:x',
   tiktok: 'simple-icons:tiktok',
   youtube: 'simple-icons:youtube',

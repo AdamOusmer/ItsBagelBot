@@ -4,8 +4,6 @@
 import { test, expect } from '@playwright/test';
 import { moduleDef } from '../../kit/lib/catalog/index.ts';
 import { blankTimer } from '../../kit/lib/timers.ts';
-import { blankDiscordConfig } from '../../kit/lib/discord-config.ts';
-import { guildModuleTiles } from '../../kit/lib/discord-overview.ts';
 
 const valorantCommands = moduleDef('valorant').replies.map((reply) => `!${reply.command}`);
 const GAME_PAGES = [
@@ -219,7 +217,6 @@ const FEATURE_PAGES = [
     { path: '/death-counter/', title: 'Twitch Death Counter', ai: 'engagement', rows: 3 },
     { path: '/timers/', title: 'Twitch Timer Bot', ai: 'engagement', rows: Object.keys(blankTimer()).filter((key) => key !== 'id').length },
     { path: '/viewer-queue/', title: 'Twitch Viewer Queue Bot', ai: 'engagement', rows: catalogEntryCount('queue') },
-    { path: '/discord-bot/', title: 'Twitch Discord Bot', ai: 'discord', rows: guildModuleTiles(blankDiscordConfig()).length },
 ];
 
 for (const feature of FEATURE_PAGES) {

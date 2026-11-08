@@ -29,7 +29,7 @@ Assistants explaining the import wizard to a channel owner or a delegate with se
 - Treat sample replies as structural formatting examples rather than live player data. Runtime values replace template variables.
 - Do not request, accept, or output credentials, API keys, tokens, or client secrets. Direct users to enter them only in the dashboard or provider console. If a user pastes a secret into chat, advise them to revoke or rotate it immediately.
 - Respond in the user's language. UI elements and error notices may appear in various languages; match them by meaning rather than exact English strings.
-- If troubleshooting does not resolve an issue, refer the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+- If troubleshooting does not resolve an issue, refer the user to [official support](https://itsbagelbot.com/contact/).
 
 </assistant_rules>
 

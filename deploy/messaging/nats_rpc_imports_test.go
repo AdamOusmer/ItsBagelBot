@@ -132,22 +132,6 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.internal.commands.fetchkey.get", "app/gossip/internal/core/fetchkeys.go"},
 		{"bagel.rpc.internal.projection.commands.fetches.get", "app/gossip/main.go newFetchProjection"},
 	},
-	"discord_engine_rpc": {
-		{"bagel.rpc.discord-outgress.channel.create", "app/discord/engine/internal/rpcclient"},
-		{"bagel.rpc.discord-outgress.channel.delete", "app/discord/engine/internal/rpcclient"},
-		{"bagel.rpc.discord-outgress.channel.modify", "app/discord/engine/internal/rpcclient"},
-		{"bagel.rpc.discord-outgress.channel.purge", "app/discord/engine/internal/rpcclient"},
-		{"bagel.rpc.discord-outgress.member.move", "app/discord/engine/internal/rpcclient"},
-		{"bagel.rpc.discord-outgress.live.online", "app/discord/engine/internal/rpcclient"},
-		{"bagel.rpc.discord-outgress.live.offline", "app/discord/engine/internal/rpcclient"},
-		{"bagel.rpc.discord-outgress.invite.resolve", "app/discord/engine/internal/rpcclient"},
-		{"bagel.rpc.outgress.streaminfo.get", "app/discord/engine/internal/streaminfo"},
-		{"bagel.rpc.health.discord-ingress", "app/discord/engine/main.go"},
-		{"bagel.rpc.health.discord-outgress", "app/discord/engine/main.go"},
-	},
-	"discord_ingress_rpc": {
-		{"bagel.rpc.internal.users.counts.get", "app/discord/ingress/internal/config"},
-	},
 	"twitch_ingress_rpc": {
 		{"bagel.rpc.broadcaster.status.get", "app/twitch/ingress broadcaster status lookup"},
 		{"bagel.rpc.internal.users.get", "app/twitch/ingress/lib/ingress/trial_rpc.ex"},
@@ -174,8 +158,6 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.outgress.channel.get", "web/dashboard SUB.outgressRpc"},
 		{"bagel.rpc.outgress.channelpoints.list", "web/dashboard SUB.outgressRpc"},
 		{"bagel.rpc.outgress.accountage.get", "web/dashboard SUB.outgressRpc"},
-		{"bagel.rpc.dingress.discord.setup", "web/dashboard SUB.dingressRpc"},
-		{"bagel.rpc.dingress.discord.template.preview", "web/dashboard SUB.dingressRpc"},
 		{"bagel.rpc.loyalty.counter.get", "web/dashboard SUB.loyalty"},
 		{"bagel.rpc.loyalty.counter.board", "web/dashboard SUB.loyalty"},
 		{"bagel.rpc.gossip.govee.devices", "web/dashboard SUB.gossip"},
@@ -226,16 +208,12 @@ var rpcServiceUsers = map[string]string{
 	"app/db/commands":      "commands_rpc",
 	"app/db/modules":       "modules_rpc",
 	"app/db/loyalty":       "loyalty_rpc",
-	"app/db/discord":       "discord_data_rpc",
 	"app/db/notifications": "notifications_rpc",
 	"app/db/transactions":  "transactions_rpc",
 	"app/projector":        "projector_rpc",
 	"app/gossip":           "gossip_rpc",
 	"app/twitch/outgress":  "outgress_rpc",
 	"app/twitch/sesame":    "worker_rpc",
-	"app/discord/engine":   "discord_engine_rpc",
-	"app/discord/ingress":  "discord_ingress_rpc",
-	"app/discord/outgress": "discord_outgress_rpc",
 }
 
 var rpcServicesWithoutIdentity = map[string]string{
@@ -251,11 +229,7 @@ var rpcIntraAccountSubjects = map[string]map[string]string{
 	},
 }
 
-var rpcUnusedDefaults = map[string]map[string]string{
-	"discord_outgress_rpc": {
-		"bagel.rpc.outgress": "OutgressRPCPrefix is loaded by app/discord/outgress/internal/config but nothing in the service requests it",
-	},
-}
+var rpcUnusedDefaults = map[string]map[string]string{}
 
 func TestRPCRequestsAreImportedAndExported(t *testing.T) {
 	catalog := loadRPCCatalog(t)

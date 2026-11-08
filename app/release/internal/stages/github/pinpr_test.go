@@ -14,8 +14,7 @@ import (
 )
 
 var allServices = []string{
-	"commands", "console-admin", "console-dashboard", "discord-data", "discord-ingress", "discord-engine",
-	"discord-outgress", "gossip", "loyalty", "modules", "notifications", "outgress", "projector", "sesame",
+	"commands", "console-admin", "console-dashboard", "gossip", "loyalty", "modules", "notifications", "outgress", "projector", "sesame",
 	"transactions", "twitch-ingress", "users",
 }
 
@@ -109,14 +108,7 @@ func TestPinPRStage(t *testing.T) {
 				PinPR: 1002, PinSHA: "merge1002", Services: []string{"gossip"}, OnMain: true,
 			},
 		},
-		{
-			name:  "bump lists the services of one file in manifest order",
-			setup: bumpOf("discord-engine", "discord-ingress"),
-			want: pinResult{
-				Title: "chore(deploy): bump discord-ingress and discord-engine", Branch: "chore/deploy-bump-abcdef123456-run1", Files: 1,
-				PinPR: 1002, PinSHA: "merge1002", Services: []string{"discord-ingress", "discord-engine"}, OnMain: true,
-			},
-		},
+
 		{
 			name: "pins already on main are done without a PR",
 			setup: func(t *testing.T, r *deploy.Run) {
@@ -156,9 +148,9 @@ func TestPinPRRollback(t *testing.T) {
 		pinned int
 	}{
 		{"rolls back to the release builds", true, pinResult{
-			Title: "Rollback to v0.2.1-beta", Branch: "chore/rollback-v0.2.1-beta-run1", Files: 15,
+			Title: "Rollback to v0.2.1-beta", Branch: "chore/rollback-v0.2.1-beta-run1", Files: 13,
 			PinPR: 1002, PinSHA: "merge1002", Services: allServices, OnMain: true,
-		}, 17},
+		}, 13},
 		{"unknown release is refused", false, pinResult{Code: "invalid"}, 0},
 	}
 	for _, tc := range cases {

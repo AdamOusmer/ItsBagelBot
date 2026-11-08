@@ -4,7 +4,7 @@
 
 Zero downtime, infinite bagels. Because a monolith wasn't complicated enough.
 
-I built ItsBagelBot because I was running too many bots to get the features I wanted. It handles Twitch commands, modules, timers, moderation, song requests and loyalty, with Discord integration and a web console to configure it.
+I built ItsBagelBot because I was running too many bots to get the features I wanted. It handles Twitch commands, modules, timers, moderation, song requests and loyalty, with a web console to configure it.
 
 Some might say it's over-engineered for a Twitch bot. It is. I also use it to learn, experiment and build something I want to run.
 
@@ -23,8 +23,7 @@ Streamer setup guides live on [the product site](https://itsbagelbot.com/guides/
 ```mermaid
 flowchart LR
     Twitch["Twitch ingress · Elixir"] --> Bus["NATS"]
-    Discord["Discord ingress · Go"] --> Bus
-    Bus --> Engines["Sesame and Discord engine"]
+    Bus --> Engines["Sesame"]
     Engines --> Bus
     Bus --> Outgress["Platform outgress"]
     Web["Dashboard and admin · SvelteKit"] --> Bus

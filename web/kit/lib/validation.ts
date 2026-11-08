@@ -46,7 +46,7 @@ const CURATED_TLDS = [
 	'xn--[a-z0-9]{2,}'
 ].join('|');
 
-const reScheme = /\b(?:https?|ftps?|sftp|ssh|wss?|mailto|tel|sms|magnet|steam|discord|ircs?|xmpp):/i;
+const reScheme = /\b(?:https?|ftps?|sftp|ssh|wss?|mailto|tel|sms|magnet|steam|ircs?|xmpp):/i;
 const reAuthy = /[a-z][a-z0-9+.\-]{0,30}:\/\//i;
 const reProtoRl = /(?:^|[^a-z0-9+.\-/])\/\/[a-z0-9]/i;
 const reDataURI = /\bdata:\s*(?:[a-z]+\/|;base64)/i;

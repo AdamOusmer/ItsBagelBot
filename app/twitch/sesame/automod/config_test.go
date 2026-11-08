@@ -106,7 +106,7 @@ func TestDisabledConfigKeepsOnlyTheFloor(t *testing.T) {
 		{"still enforces the floor", `{}`, ipLoggerLine, ActionTimeout},
 		{"ignores block terms", `{"block_terms":"badword"}`, "this has badword in it", ActionNone},
 		{"ignores the caps heuristic", `{}`, shoutLine, ActionNone},
-		{"ignores clips only", `{"clips_only":"on"}`, "join discord.gg/abcd please friends", ActionNone},
+		{"ignores clips only", `{"clips_only":"on"}`, "join example.gg/abcd please friends", ActionNone},
 	}
 	g := newGateWithEmotes()
 	for _, tt := range tests {
@@ -133,15 +133,15 @@ func TestClipsOnly(t *testing.T) {
 		{"passes a bare www clips host", clipsOnlyCfg, "see www.clips.twitch.tv/AnotherClip!", Verdict{}},
 		{"passes a channel clip path", clipsOnlyCfg, "https://www.twitch.tv/itsmavey/clip/CoolClip", Verdict{}},
 		{"passes a scheme-less channel clip path", clipsOnlyCfg, "twitch.tv/someone/clip/Slug_here", Verdict{}},
-		{"deletes a discord invite", clipsOnlyCfg, "join discord.gg/abcd please friends", deleted},
+		{"deletes a community invite", clipsOnlyCfg, "join example.gg/abcd please friends", deleted},
 		{"deletes an ordinary site", clipsOnlyCfg, "open https://example.com/watch", deleted},
 		{"deletes a bare channel page", clipsOnlyCfg, "follow twitch.tv/itsmavey thanks", deleted},
 		{"deletes a clips host without a slug", clipsOnlyCfg, "visit clips.twitch.tv later", deleted},
-		{"deletes a clip beside a discord invite", clipsOnlyCfg, "clip https://clips.twitch.tv/CoolClip and discord.gg/x", deleted},
+		{"deletes a clip beside a community invite", clipsOnlyCfg, "clip https://clips.twitch.tv/CoolClip and example.gg/x", deleted},
 		{"deletes a shortener", clipsOnlyCfg, "https://bit.ly/abc", deleted},
 		{"stays off by default", "", "check https://example.com/watch tonight friends", Verdict{}},
 		{"stays off when set off", `{"clips_only":"off"}`, "check https://example.com/watch tonight friends", Verdict{}},
-		{"lets an allow term suppress it", `{"clips_only":"on","allow_terms":"discord"}`, "join discord.gg/abcd please friends", Verdict{}},
+		{"lets an allow term suppress it", `{"clips_only":"on","allow_terms":"example"}`, "join example.gg/abcd please friends", Verdict{}},
 	}
 	g := New()
 	for _, tt := range tests {
@@ -154,5 +154,5 @@ func TestClipsOnly(t *testing.T) {
 func TestClipsOnlyExemptsVIPs(t *testing.T) {
 	cfg := ParseConfig(codec.RawMessage(`{"clips_only":"on"}`))
 
-	assert.Equal(t, Verdict{}, New().InspectWith(module.RoleVIP, "join discord.gg/abcd please", cfg))
+	assert.Equal(t, Verdict{}, New().InspectWith(module.RoleVIP, "join example.gg/abcd please", cfg))
 }

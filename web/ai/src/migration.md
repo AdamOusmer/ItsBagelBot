@@ -28,7 +28,7 @@ Assistants answering migration questions or helping the channel owner evaluate a
 - If the user asks to configure or connect a feature, refer them to the matching setup guide. Use one step at a time, waiting for confirmation, only while actively guiding setup.
 - Do not request, accept, or output credentials, API keys, tokens, or secrets. Direct users to enter them only in dashboard or provider fields. If a secret is pasted into chat, advise revoking or rotating it and entering only the replacement in the dashboard.
 - {{console:setupAi.guideLanguage}}
-- If troubleshooting does not resolve an issue, refer the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+- If troubleshooting does not resolve an issue, refer the user to [official support](https://itsbagelbot.com/contact/).
 
 </assistant_rules>
 
@@ -47,7 +47,7 @@ Assistants answering migration questions or helping the channel owner evaluate a
 - Manifest validation caps: 2000 commands, 300 timers, 1000 triggers, and 5000 quotes.
 - Imported timers and triggers are merged into existing module configuration and enable those modules. Review the result before going live.
 - Imported quotes receive destination quote numbers; source numbering is not guaranteed to survive.
-- General module settings are not part of supported exports. Connect Spotify, Govee, and Discord separately.
+- General module settings are not part of supported exports. Connect Spotify and Govee separately.
 - Imported AutoMod terms do not remove the Premium beta gate on optional AutoMod functionality.
 
 </facts>

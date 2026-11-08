@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Anleitungen zur Einrichtung des Twitch-Bots | ItsBagelBot",
-    "description": "Folge unseren bebilderten Anleitungen: Einrichtung des Twitch-Bots, Befehle, API, Zähler, Spotify-Songwünsche, Govee, Discord und Freigabe des Dashboards.",
+    "description": "Folge unseren bebilderten Anleitungen: Einrichtung des Twitch-Bots, Befehle, API, Zähler, Spotify-Songwünsche, Govee und Freigabe des Dashboards.",
     "eyebrow": "Anleitungen",
     "heading": "Lerne den Bot kennen.",
     "lead": "Jede Anleitung funktioniert mit dem kostenlosen Tarif, außer den Teilen, die als Premium-Beta markiert sind, und jede lässt sich in zehn Minuten oder weniger lesen."
@@ -19,11 +19,6 @@
   "help": {
     "prompt": "Eine Frage, die keine Anleitung abdeckt?",
     "links": [
-      {
-        "href": "https://discord.gg/SZ2remwSDv",
-        "label": "Auf Discord fragen",
-        "external": true
-      },
       {
         "href": "/de/contact",
         "label": "Support kontaktieren"

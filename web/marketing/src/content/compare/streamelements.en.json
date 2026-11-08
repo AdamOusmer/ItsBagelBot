@@ -98,7 +98,7 @@
     },
     {
       "feature": "Price",
-      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and beta access, currently AutoMod and Discord. Spotify Premium is required separately.",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and beta access, currently AutoMod. Spotify Premium is required separately.",
       "them": "The official site advertises its chatbot, alerts and overlays as free. This compares bot access; tips and sponsorship payments are separate from the chatbot price.",
       "source": "https://streamelements.com/"
     }
@@ -116,7 +116,7 @@
   "faq": [
     {
       "q": "When is ItsBagelBot a useful StreamElements alternative?",
-      "a": "Consider it for Spotify queue requests, built-in lookups for its supported games or native Twitch Channel Point actions for compatible Govee lights. Those finished features and the import wizard are free. AutoMod and Discord are Premium beta modules."
+      "a": "Consider it for Spotify queue requests, built-in lookups for its supported games or native Twitch Channel Point actions for compatible Govee lights. Those finished features and the import wizard are free. AutoMod is a Premium beta module."
     },
     {
       "q": "When does StreamElements suit me more?",
@@ -140,16 +140,49 @@
     }
   ],
   "sources": [
-    { "label": "StreamElements: platform overview and free tools", "url": "https://streamelements.com/" },
-    { "label": "StreamElements: custom commands", "url": "https://docs.streamelements.com/chatbot/commands/custom" },
-    { "label": "StreamElements: variables and game lookups", "url": "https://docs.streamelements.com/chatbot/variables" },
-    { "label": "StreamElements: timer messages and conditions", "url": "https://docs.streamelements.com/chatbot/timers" },
-    { "label": "StreamElements: spam filters and penalties", "url": "https://docs.streamelements.com/chatbot/filters" },
-    { "label": "StreamElements: Song Request module and media sources", "url": "https://docs.streamelements.com/chatbot/modules/songrequest" },
-    { "label": "StreamElements: Valorant custom API command guide", "url": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT" },
-    { "label": "StreamElements: Activity Feed and Twitch Channel Points", "url": "https://support.streamelements.com/hc/en-us/articles/10474542090770-Activity-Feed-Overview" },
-    { "label": "StreamElements: loyalty points command", "url": "https://docs.streamelements.com/chatbot/commands/default/points" },
-    { "label": "StreamElements: giveaway tickets and entry controls", "url": "https://docs.streamelements.com/chatbot/modules/giveaways" },
-    { "label": "StreamElements: overlays, alerts, tipping and chatbot overview", "url": "https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide" }
+    {
+      "label": "StreamElements: platform overview and free tools",
+      "url": "https://streamelements.com/"
+    },
+    {
+      "label": "StreamElements: custom commands",
+      "url": "https://docs.streamelements.com/chatbot/commands/custom"
+    },
+    {
+      "label": "StreamElements: variables and game lookups",
+      "url": "https://docs.streamelements.com/chatbot/variables"
+    },
+    {
+      "label": "StreamElements: timer messages and conditions",
+      "url": "https://docs.streamelements.com/chatbot/timers"
+    },
+    {
+      "label": "StreamElements: spam filters and penalties",
+      "url": "https://docs.streamelements.com/chatbot/filters"
+    },
+    {
+      "label": "StreamElements: Song Request module and media sources",
+      "url": "https://docs.streamelements.com/chatbot/modules/songrequest"
+    },
+    {
+      "label": "StreamElements: Valorant custom API command guide",
+      "url": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT"
+    },
+    {
+      "label": "StreamElements: Activity Feed and Twitch Channel Points",
+      "url": "https://support.streamelements.com/hc/en-us/articles/10474542090770-Activity-Feed-Overview"
+    },
+    {
+      "label": "StreamElements: loyalty points command",
+      "url": "https://docs.streamelements.com/chatbot/commands/default/points"
+    },
+    {
+      "label": "StreamElements: giveaway tickets and entry controls",
+      "url": "https://docs.streamelements.com/chatbot/modules/giveaways"
+    },
+    {
+      "label": "StreamElements: overlays, alerts, tipping and chatbot overview",
+      "url": "https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide"
+    }
   ]
 }

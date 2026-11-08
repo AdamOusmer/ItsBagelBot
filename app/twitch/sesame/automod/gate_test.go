@@ -163,7 +163,7 @@ func TestAssessReportsLinkishAndSimHashOnTheDeepPath(t *testing.T) {
 		{"http", "check http://example.com now", true},
 		{"www", "visit www.example.com", true},
 		{"com", "example.com", true},
-		{"gg", "join discord.gg/abc", true},
+		{"gg", "join example.gg/abc", true},
 		{"net", "mynetwork.net", true},
 		{"org", "wikipedia.org", true},
 		{"io", "myproject.io", true},

@@ -25,7 +25,6 @@ accounts:
         publish:
           allow: [a.>]
       outgress_rpc: {}
-      discord_engine_bus: {}
       worker_bus: {}
       twitch_ingress_rpc: {}
 `
@@ -57,7 +56,6 @@ func TestRoleCredentialsLandInTheirDopplerProject(t *testing.T) {
 	h.apply(t)
 
 	assert.Equal(t, []string{
-		"discord-svc/DISCORD_ENGINE_BUS_JWT", "discord-svc/DISCORD_ENGINE_BUS_NKEY_SEED",
 		"outgress/NATS_JWT", "outgress/NATS_NKEY_SEED",
 		"outgress/NATS_RPC_JWT", "outgress/NATS_RPC_NKEY_SEED",
 		"sesame/NATS_JWT", "sesame/NATS_NKEY_SEED",

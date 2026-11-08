@@ -26,7 +26,7 @@ Assistants helping a streamer identify a dashboard connection notice or explain 
 - {{console:setupAi.guideControls}}
 - {{console:setupAi.guideLanguage}}
 - Do not request, accept, or output secrets, API keys, tokens, or passwords. Direct the user to enter them only in provider or dashboard fields. If a secret is pasted into chat, instruct the user to revoke or rotate it and enter only the replacement in the dashboard.
-- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/).
 
 </assistant_rules>
 
@@ -139,7 +139,7 @@ Ask the user for the exact command and visible notice, never for credentials.
 - [Spotify errors](../spotify/errors.md).
 - [Govee errors](../govee/errors.md).
 - [Human setup-errors guide](https://itsbagelbot.com/guides/setup-errors/).
-- [Support](https://itsbagelbot.com/contact/) and [community](https://discord.gg/SZ2remwSDv).
+- [Support](https://itsbagelbot.com/contact/).
 
 </related>
 

@@ -8,8 +8,8 @@ human: https://itsbagelbot.com/
 
 [Human guide](https://itsbagelbot.com/).
 
-ItsBagelBot (also written Bagel Bot or BagelBot) is a Twitch chat bot managed through a web dashboard. It provides commands, song requests, game statistics, community features, and optional Discord integration.
-Finished features are free; AutoMod and Discord are Premium beta modules.
+ItsBagelBot (also written Bagel Bot or BagelBot) is a Twitch chat bot managed through a web dashboard. It provides commands, song requests, game statistics and community features.
+Finished features are free; AutoMod is a Premium beta module.
 
 <page type="overview">
 
@@ -28,7 +28,7 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 - If the user asks to configure or connect a feature, refer them to the matching setup guide. Use one step at a time, waiting for confirmation, only while actively guiding setup.
 - Do not request, accept, or output credentials, API keys, tokens, or secrets. Direct users to enter them only in dashboard or provider fields. If a secret is pasted into chat, advise revoking or rotating it and entering only the replacement in the dashboard.
 - {{console:setupAi.guideLanguage}}
-- If troubleshooting does not resolve an issue, refer the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+- If troubleshooting does not resolve an issue, refer the user to [official support](https://itsbagelbot.com/contact/).
 
 </assistant_rules>
 
@@ -39,7 +39,7 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 - Plans: {{website:pricingTiers.free}}, {{website:pricingTiers.premium}}, and {{website:pricingTiers.enterprise}}. [Current pricing](https://itsbagelbot.com/pricing/) is the human source for amounts.
 - The free plan includes the finished toolkit. Premium provides beta access, message priority, faster command responses, and priority support.
 - Enterprise is described for teams managing many channels, with dedicated hardware and custom terms.
-- AutoMod and Discord are marked beta and gated on the broadcaster's Premium status.
+- AutoMod is marked beta and gated on the broadcaster's Premium status.
 - The repository is source-available. Its license is proprietary; describe it using those terms.
 - Twitch chat controls and OAuth permissions are distinct. Moderating the bot in chat does not grant missing OAuth scopes.
 - Modules have their own enable state. A working bot connection does not automatically enable every module.
@@ -67,7 +67,6 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 | Channel currency and wagers | [Loyalty](features/loyalty.md) | Earning rates, balance transfers, gamble, duels |
 | Giveaways and viewer participation | [Engagement](features/engagement.md) | Raffles, play queue, raid shoutouts, quotes, counters, timers |
 | Automated chat and stream controls | [Automation](features/automation.md) | Triggers, chat alerts, emoteplay, personality, local time, stream metadata |
-| Discord community tools | [Discord](features/discord.md) | Announcements, roles, tickets, voice rooms, logs, crumb ranks |
 | Moving existing settings | [Migration](migration.md) | Six source-specific import strategies with review before writing |
 
 ## Evaluating a fit

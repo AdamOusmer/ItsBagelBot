@@ -19,8 +19,7 @@
     "them": [
       "Вам нужны таймеры с ротацией сообщений, которые зависят от прошедшего времени и активности в чате. Справка: https://moo.bot/docs/auto-post-twitch-chat-messages.",
       "Вы предпочитаете запросы песен YouTube с ограничениями по длительности и очереди на зрителя. Справка: https://moo.bot/docs/song-requests-music-through-twitch-bot.",
-      "Вам нужны розыгрыши по ключевым словам или угадыванию числа с настройками участия для подписчиков. Справка: https://moo.bot/docs/twitch-giveaways-for-increased-engagement.",
-      "Вам нужны пользовательские команды Twitch в виде слеш-команд Discord. Справка: https://moo.bot/docs/using-your-twitch-bot-on-discord."
+      "Вам нужны розыгрыши по ключевым словам или угадыванию числа с настройками участия для подписчиков. Справка: https://moo.bot/docs/twitch-giveaways-for-increased-engagement."
     ]
   },
   "rows": [
@@ -79,14 +78,8 @@
       "source": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings"
     },
     {
-      "feature": "Discord",
-      "us": "Интеграция с Discord доступна как бета-функция Premium для постов о начале эфира, клипов, приветствий, тикетов и инструментов сообщества.",
-      "them": "Интеграция с Discord включает объявления о начале эфира, ссылки на VOD, синхронизированные пользовательские слеш-команды и автоматические сообщения. В руководстве отмечено, что встроенные команды и ограничения времени для пользовательских команд там не поддерживаются.",
-      "source": "https://moo.bot/docs/using-your-twitch-bot-on-discord"
-    },
-    {
       "feature": "Цена",
-      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и ранний доступ к бета-модулям, сейчас это AutoMod и Discord. Spotify Premium требуется отдельно.",
+      "us": "Каждая готовая функция бесплатна. Premium стоит $7 CAD плюс налог в месяц и добавляет приоритетную обработку, поддержку и ранний доступ к бета-модулям, сейчас это AutoMod. Spotify Premium требуется отдельно.",
       "them": "Базовая функциональность бесплатна. В опубликованном сравнении без тарифа указаны 25 пользовательских команд и 3 таймера. Тарифы Affiliate, Partner и Business добавляют слоты и возможности. Суммы оплаты показываются в панели при подписке, поэтому актуальную цену проверяйте там.",
       "source": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
     }
@@ -104,7 +97,7 @@
   "faq": [
     {
       "q": "Когда ItsBagelBot является полезной альтернативой Moobot?",
-      "a": "Рассмотрите его для запросов в вашу реальную очередь Spotify, встроенных проверок для поддерживаемых игр или наград Twitch для совместимого освещения Govee. Эти готовые функции и мастер импорта бесплатны. AutoMod и Discord доступны как бета-модули Premium."
+      "a": "Рассмотрите его для запросов в вашу реальную очередь Spotify, встроенных проверок для поддерживаемых игр или наград Twitch для совместимого освещения Govee. Эти готовые функции и мастер импорта бесплатны. AutoMod доступен как бета-модуль Premium."
     },
     {
       "q": "Когда стоит оставить Moobot?",
@@ -124,14 +117,37 @@
     }
   ],
   "sources": [
-    { "label": "Moobot: пользовательские команды, ограничения и истечение срока", "url": "https://moo.bot/docs/custom-twitch-bot-chat-commands" },
-    { "label": "Moobot: URL-запросы и JSON-ответы", "url": "https://moo.bot/docs/building-your-own-dream-twitch-bot-chat-commands" },
-    { "label": "Moobot: ротации таймеров и условия публикации", "url": "https://moo.bot/docs/auto-post-twitch-chat-messages" },
-    { "label": "Moobot: фильтры сообщений и исключения для сообщений за баллы канала", "url": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters" },
-    { "label": "Moobot: запросы песен YouTube и настройки плеера", "url": "https://moo.bot/docs/song-requests-music-through-twitch-bot" },
-    { "label": "Moobot: форматы розыгрышей и условия участия", "url": "https://moo.bot/docs/twitch-giveaways-for-increased-engagement" },
-    { "label": "Moobot: экспорт выбранных настроек в файл", "url": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings" },
-    { "label": "Moobot: объявления и слеш-команды в Discord", "url": "https://moo.bot/docs/using-your-twitch-bot-on-discord" },
-    { "label": "Moobot: бесплатные лимиты и тарифы MoobotPlus", "url": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus" }
+    {
+      "label": "Moobot: пользовательские команды, ограничения и истечение срока",
+      "url": "https://moo.bot/docs/custom-twitch-bot-chat-commands"
+    },
+    {
+      "label": "Moobot: URL-запросы и JSON-ответы",
+      "url": "https://moo.bot/docs/building-your-own-dream-twitch-bot-chat-commands"
+    },
+    {
+      "label": "Moobot: ротации таймеров и условия публикации",
+      "url": "https://moo.bot/docs/auto-post-twitch-chat-messages"
+    },
+    {
+      "label": "Moobot: фильтры сообщений и исключения для сообщений за баллы канала",
+      "url": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
+    },
+    {
+      "label": "Moobot: запросы песен YouTube и настройки плеера",
+      "url": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+    },
+    {
+      "label": "Moobot: форматы розыгрышей и условия участия",
+      "url": "https://moo.bot/docs/twitch-giveaways-for-increased-engagement"
+    },
+    {
+      "label": "Moobot: экспорт выбранных настроек в файл",
+      "url": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings"
+    },
+    {
+      "label": "Moobot: бесплатные лимиты и тарифы MoobotPlus",
+      "url": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
+    }
   ]
 }

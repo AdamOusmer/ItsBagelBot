@@ -6,10 +6,10 @@ import type { NavChild, NavGroupDef, NavLink } from './types';
 import type { MessageKey } from './i18n/keys';
 import { navGroups, navItems, resolveSection, type SectionDef } from './nav-core';
 
-export const GRANTABLE_SECTIONS = ['commands', 'modules', 'discord', 'channelpoints', 'billing'] as const;
+export const GRANTABLE_SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'songqueue' | 'discord' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'songqueue' | 'billing' | 'settings';
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
@@ -19,7 +19,6 @@ export interface DashboardSectionDef extends SectionDef {
     | 'nav.flows'
     | 'nav.modules'
     | 'nav.songqueue'
-    | 'nav.discord'
     | 'nav.billing'
     | 'nav.settings';
   icon: IconName;
@@ -74,15 +73,6 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     href: '/songqueue',
     match: ['/songqueue'],
     grantsAny: ['modules', 'channelpoints']
-  },
-  {
-    id: 'discord',
-    labelKey: 'nav.discord',
-    icon: 'discord',
-    href: '/discord',
-    match: ['/discord'],
-    grant: 'discord',
-    offline: true
   },
   {
     id: 'billing',

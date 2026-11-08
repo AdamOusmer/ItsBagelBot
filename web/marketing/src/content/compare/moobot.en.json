@@ -19,8 +19,7 @@
     "them": [
       "You want rotating timer messages gated by elapsed time and chat activity. Reference: https://moo.bot/docs/auto-post-twitch-chat-messages.",
       "You prefer YouTube song requests with duration and per-viewer queue limits. Reference: https://moo.bot/docs/song-requests-music-through-twitch-bot.",
-      "You want keyword or number-guessing giveaways with subscriber eligibility settings. Reference: https://moo.bot/docs/twitch-giveaways-for-increased-engagement.",
-      "You want custom Twitch commands available as Discord slash commands. Reference: https://moo.bot/docs/using-your-twitch-bot-on-discord."
+      "You want keyword or number-guessing giveaways with subscriber eligibility settings. Reference: https://moo.bot/docs/twitch-giveaways-for-increased-engagement."
     ]
   },
   "rows": [
@@ -79,14 +78,8 @@
       "source": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings"
     },
     {
-      "feature": "Discord",
-      "us": "Discord is a Premium beta integration for go-live posts, clips, welcomes, tickets and community tools.",
-      "them": "Discord integration includes go-live announcements, VOD links, synced custom slash commands and automatic messages. The guide notes that built-in commands and custom-command timing restrictions are not supported there.",
-      "source": "https://moo.bot/docs/using-your-twitch-bot-on-discord"
-    },
-    {
       "feature": "Price",
-      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod and Discord. Spotify Premium is a separate requirement.",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod. Spotify Premium is a separate requirement.",
       "them": "Core functionality is free. The published comparison lists 25 custom commands and 3 timers without a plan; Affiliate, Partner and Business add slots and perks. Paid amounts are shown through the dashboard subscription flow, so check the current quote there.",
       "source": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
     }
@@ -104,7 +97,7 @@
   "faq": [
     {
       "q": "When is ItsBagelBot a useful Moobot alternative?",
-      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod and Discord are Premium beta modules."
+      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod is a Premium beta module."
     },
     {
       "q": "When should I keep Moobot?",
@@ -151,10 +144,6 @@
     {
       "label": "Moobot: exporting selected settings to a file",
       "url": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings"
-    },
-    {
-      "label": "Moobot: Discord announcements and slash commands",
-      "url": "https://moo.bot/docs/using-your-twitch-bot-on-discord"
     },
     {
       "label": "Moobot: free limits and MoobotPlus subscription plans",

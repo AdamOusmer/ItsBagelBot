@@ -41,8 +41,8 @@
    "enabled_offline": true,
    "enabled_online": true,
    "id": "90027",
-   "name": "discord",
-   "response": "@$(user) Join Myth's Discord server! https://discord.gg/gHzjE7nNrW - Check pins if you're a sub! FeelsOkayMan",
+   "name": "community",
+   "response": "@$(user) Join Myth's Community server! https://example.com/gHzjE7nNrW - Check pins if you're a sub! FeelsOkayMan",
    "type": "custom",
    "aliases": [],
    "role_ids": []

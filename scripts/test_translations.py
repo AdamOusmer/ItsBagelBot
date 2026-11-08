@@ -415,7 +415,8 @@ class StaticMailTranslations(unittest.TestCase):
                     markers = lambda text: Counter(re.findall(r'\[\[[\s\S]*?\]\]', text))
                     self.assertEqual(markers(french), markers(english))
                     self.assertIn('@itsbagelbot.com', french)
-                    self.assertIn('https://discord.gg/SZ2remwSDv', french)
+                    for template in (english, french):
+                        self.assertIn('https://itsbagelbot.com/contact', template)
                     if extension == 'html':
                         self.assertIn('lang="fr"', french)
                         a, b = Tags(), Tags()
