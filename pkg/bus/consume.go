@@ -70,6 +70,10 @@ func newConsumeLane(app *newrelic.Application, subject string, handle func(*Mess
 }
 
 func (lane consumeLane) process(msg *Message) {
+	if msg.Context().Err() != nil {
+		msg.Nack()
+		return
+	}
 	wait := msg.deliveryWait(time.Now())
 
 	if lane.stats.sample() {

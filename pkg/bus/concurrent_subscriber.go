@@ -63,6 +63,7 @@ const (
 	terminateDelivery      = time.Duration(-1)
 	subscriberDrainTimeout = 30 * time.Second
 	laneAckWait            = 4 * time.Second
+	handlerDeadlineMargin  = 2 * time.Second
 	ackSyncTimeout         = laneAckWait / 2
 
 	durableQueueBytesBudget = 8 << 20
@@ -276,10 +277,11 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 			s.terminateMalformed(natsMsg, subject, err)
 			return
 		}
-		msg.SetContext(ctx)
+		deliveryCtx, cancel := context.WithTimeout(ctx, s.handlerWindow())
+		msg.SetContext(deliveryCtx)
 		s.markFinalDelivery(natsMsg, msg)
 		// The watch must exist before the handoff, or a fast worker's resolve drops the ack.
-		w := s.newResultWatch(natsMsg, msg)
+		w := s.newResultWatch(natsMsg, msg, cancel)
 		select {
 		case queue <- pendingDelivery{msg: msg, watch: w}:
 		default:
@@ -303,8 +305,14 @@ func (s *concurrentDurableSubscriber) markFinalDelivery(natsMsg *nats.Msg, msg *
 	}
 }
 
-func (s *concurrentDurableSubscriber) newResultWatch(natsMsg *nats.Msg, msg *Message) *resultWatch {
-	w := &resultWatch{s: s, natsMsg: natsMsg, msg: msg}
+// Leave time for a cooperative handler to return and resolve before the
+// keepalive wheel expires; its first tick can arrive up to one interval early.
+func (s *concurrentDurableSubscriber) handlerWindow() time.Duration {
+	return s.handlerDeadline - min(handlerDeadlineMargin, s.handlerDeadline/4)
+}
+
+func (s *concurrentDurableSubscriber) newResultWatch(natsMsg *nats.Msg, msg *Message, cancel context.CancelFunc) *resultWatch {
+	w := &resultWatch{s: s, natsMsg: natsMsg, msg: msg, cancel: cancel}
 	// Add before registering: the wheel may release the seat as soon as the watch is registered.
 	s.acks.Add(1)
 	msg.setResolveHandler(w.resolve)
@@ -318,7 +326,14 @@ func (s *concurrentDurableSubscriber) deliver(
 	callbacks *callbackGate,
 	d pendingDelivery,
 ) bool {
+	if d.msg.Context().Err() != nil {
+		d.msg.Nack()
+		return true
+	}
 	select {
+	case <-d.msg.Context().Done():
+		d.msg.Nack()
+		return true
 	case output <- d.msg:
 		return true
 	case <-ctx.Done():
@@ -452,11 +467,13 @@ type resultWatch struct {
 	natsMsg  *nats.Msg
 	msg      *Message
 	armEpoch uint64
+	cancel   context.CancelFunc
 	finished atomic.Bool
 }
 
 func (w *resultWatch) unwind() {
 	if w.finished.CompareAndSwap(false, true) {
+		w.cancel()
 		w.s.acks.Done()
 	}
 }
@@ -466,6 +483,7 @@ func (w *resultWatch) resolve(acked bool) {
 		return
 	}
 	defer w.s.acks.Done()
+	defer w.cancel()
 	select {
 	case <-w.s.closeCh:
 		return
@@ -551,6 +569,7 @@ func (w *keepAliveWheel) sweepDue(epoch uint64, watch *resultWatch) bool {
 		return true
 	}
 	if watch.finished.CompareAndSwap(false, true) {
+		watch.cancel()
 		watch.s.acks.Done()
 	}
 	return false
