@@ -68,7 +68,7 @@ func (w *Worker) skipTyped(payload *outgress.Message, reason string) {
 		zap.String("type", payload.Type), zap.String("broadcaster_id", payload.BroadcasterID))
 }
 
-type createFunc func(context.Context, string, twitch.CreateOptions) error
+type createFunc func(context.Context, twitch.ContestCreation) error
 type createJob struct {
 	limits  createLimits
 	options twitch.CreateOptions
@@ -110,7 +110,7 @@ func (w *Worker) runCreate(ctx context.Context, payload *outgress.Message, job c
 	}
 	options = twitch.CreateOptions{Title: title, Items: items, Seconds: limits.seconds(options.Seconds)}
 	return w.runTyped(ctx, payload, typedJob{as: outgress.AsBroadcaster, call: func(ctx context.Context) error {
-		return job.create(ctx, payload.BroadcasterID, options)
+		return job.create(ctx, twitch.ContestCreation{Channel: twitch.ContestChannel{BroadcasterID: payload.BroadcasterID}, Options: options})
 	}})
 }
 
@@ -154,7 +154,7 @@ func (w *Worker) processPollEnd(ctx context.Context, payload *outgress.Message) 
 }
 
 func (w *Worker) endLatestPoll(ctx context.Context, payload *outgress.Message, in outgress.PollEnd) error {
-	poll, found, err := w.twitch.LatestPoll(ctx, payload.BroadcasterID)
+	poll, found, err := w.twitch.LatestPoll(ctx, twitch.ContestChannel{BroadcasterID: payload.BroadcasterID})
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (w *Worker) endLatestPoll(ctx context.Context, payload *outgress.Message, i
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
-	return w.twitch.EndPoll(ctx, payload.BroadcasterID, twitch.PollResolution{ID: poll.ID, Status: in.Status})
+	return w.twitch.EndPoll(ctx, twitch.PollUpdate{Channel: twitch.ContestChannel{BroadcasterID: payload.BroadcasterID}, Resolution: twitch.PollResolution{ID: poll.ID, Status: in.Status}})
 }
 
 func (w *Worker) processPredictionCreate(ctx context.Context, payload *outgress.Message) error {
@@ -193,7 +193,7 @@ func (w *Worker) processPredictionEnd(ctx context.Context, payload *outgress.Mes
 }
 
 func (w *Worker) endLatestPrediction(ctx context.Context, payload *outgress.Message, in outgress.PredictionEnd) error {
-	prediction, found, err := w.twitch.LatestPrediction(ctx, payload.BroadcasterID)
+	prediction, found, err := w.twitch.LatestPrediction(ctx, twitch.ContestChannel{BroadcasterID: payload.BroadcasterID})
 	if err != nil {
 		return err
 	}
@@ -213,5 +213,5 @@ func (w *Worker) resolvePrediction(ctx context.Context, payload *outgress.Messag
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
-	return w.twitch.EndPrediction(ctx, payload.BroadcasterID, twitch.PredictionResolution{ID: prediction.ID, Status: in.Status, WinningOutcomeID: winnerID})
+	return w.twitch.EndPrediction(ctx, twitch.PredictionUpdate{Channel: twitch.ContestChannel{BroadcasterID: payload.BroadcasterID}, Resolution: twitch.PredictionResolution{ID: prediction.ID, Status: in.Status, WinningOutcomeID: winnerID}})
 }

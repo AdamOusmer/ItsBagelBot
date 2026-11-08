@@ -40,9 +40,9 @@ type titled struct {
 	Title string `json:"title"`
 }
 
-func titles(items []string) []titled {
-	out := make([]titled, len(items))
-	for i, item := range items {
+func titles(options CreateOptions) []titled {
+	out := make([]titled, len(options.Items))
+	for i, item := range options.Items {
 		out[i] = titled{Title: item}
 	}
 	return out
@@ -56,20 +56,36 @@ type CreateOptions struct {
 type PollResolution struct{ ID, Status string }
 type PredictionResolution struct{ ID, Status, WinningOutcomeID string }
 
-func (c *Client) CreatePoll(ctx context.Context, broadcasterID string, options CreateOptions) error {
+type ContestChannel struct{ BroadcasterID string }
+type ContestCreation struct {
+	Channel ContestChannel
+	Options CreateOptions
+}
+type PollUpdate struct {
+	Channel    ContestChannel
+	Resolution PollResolution
+}
+type PredictionUpdate struct {
+	Channel    ContestChannel
+	Resolution PredictionResolution
+}
+
+func (c *Client) CreatePoll(ctx context.Context, request ContestCreation) error {
+	broadcasterID, options := request.Channel.BroadcasterID, request.Options
 	return c.sendJSON(ctx, broadcasterTarget(broadcasterID), HelixCall{Method: http.MethodPost, Endpoint: "/helix/polls"}, map[string]any{
 		"broadcaster_id": broadcasterID,
 		"title":          options.Title,
-		"choices":        titles(options.Items),
+		"choices":        titles(options),
 		"duration":       options.Seconds,
 	})
 }
 
-func (c *Client) LatestPoll(ctx context.Context, broadcasterID string) (Poll, bool, error) {
-	return readFirst[Poll](ctx, c, helixRead{broadcasterTarget(broadcasterID), pollResource.latestEndpoint(broadcasterID)})
+func (c *Client) LatestPoll(ctx context.Context, channel ContestChannel) (Poll, bool, error) {
+	return readFirst[Poll](ctx, c, helixRead{broadcasterTarget(channel.BroadcasterID), pollResource.latestEndpoint(channel)})
 }
 
-func (c *Client) EndPoll(ctx context.Context, broadcasterID string, resolution PollResolution) error {
+func (c *Client) EndPoll(ctx context.Context, update PollUpdate) error {
+	broadcasterID, resolution := update.Channel.BroadcasterID, update.Resolution
 	return c.sendJSON(ctx, broadcasterTarget(broadcasterID), HelixCall{Method: http.MethodPatch, Endpoint: "/helix/polls"}, map[string]any{
 		"broadcaster_id": broadcasterID,
 		"id":             resolution.ID,
@@ -77,20 +93,22 @@ func (c *Client) EndPoll(ctx context.Context, broadcasterID string, resolution P
 	})
 }
 
-func (c *Client) CreatePrediction(ctx context.Context, broadcasterID string, options CreateOptions) error {
+func (c *Client) CreatePrediction(ctx context.Context, request ContestCreation) error {
+	broadcasterID, options := request.Channel.BroadcasterID, request.Options
 	return c.sendJSON(ctx, broadcasterTarget(broadcasterID), HelixCall{Method: http.MethodPost, Endpoint: "/helix/predictions"}, map[string]any{
 		"broadcaster_id":    broadcasterID,
 		"title":             options.Title,
-		"outcomes":          titles(options.Items),
+		"outcomes":          titles(options),
 		"prediction_window": options.Seconds,
 	})
 }
 
-func (c *Client) LatestPrediction(ctx context.Context, broadcasterID string) (Prediction, bool, error) {
-	return readFirst[Prediction](ctx, c, helixRead{broadcasterTarget(broadcasterID), predictionResource.latestEndpoint(broadcasterID)})
+func (c *Client) LatestPrediction(ctx context.Context, channel ContestChannel) (Prediction, bool, error) {
+	return readFirst[Prediction](ctx, c, helixRead{broadcasterTarget(channel.BroadcasterID), predictionResource.latestEndpoint(channel)})
 }
 
-func (c *Client) EndPrediction(ctx context.Context, broadcasterID string, resolution PredictionResolution) error {
+func (c *Client) EndPrediction(ctx context.Context, update PredictionUpdate) error {
+	broadcasterID, resolution := update.Channel.BroadcasterID, update.Resolution
 	body := map[string]any{
 		"broadcaster_id": broadcasterID,
 		"id":             resolution.ID,
@@ -109,9 +127,9 @@ var (
 	predictionResource = contestResource{path: "/helix/predictions"}
 )
 
-func (resource contestResource) latestEndpoint(broadcasterID string) string {
+func (resource contestResource) latestEndpoint(channel ContestChannel) string {
 	q := url.Values{}
-	q.Set("broadcaster_id", broadcasterID)
+	q.Set("broadcaster_id", channel.BroadcasterID)
 	q.Set("first", "1")
 	return resource.path + "?" + q.Encode()
 }
