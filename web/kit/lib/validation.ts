@@ -68,47 +68,16 @@ const STRONG_PATTERNS = [
 	reWWW, reTLDCur, reIPv4
 ];
 
-function isLetter(c: number): boolean {
-	return c >= 97 && c <= 122;
-}
+// Anchoring both checks prevents retrying a match at each character. Segments
+// are disjoint, so their total length is bounded by the input length.
+const emailLocalEnd = /[a-z0-9._%+\-]$/i;
+const emailDomain = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/i;
 
-function isDigit(c: number): boolean {
-	return c >= 48 && c <= 57;
-}
-
-function isLocalChar(s: string, i: number): boolean {
-	const c = s.charCodeAt(i);
-	return isLetter(c) || isDigit(c) || '._%+-'.includes(s[i]);
-}
-
-function isDomainChar(c: number): boolean {
-	return isLetter(c) || isDigit(c) || c === 45;
-}
-
-function endOfDomainLabel(s: string, start: number): number {
-	let i = start;
-	while (i < s.length && isDomainChar(s.charCodeAt(i))) i++;
-	return i;
-}
-
-function hasEmailDomain(s: string, start: number): boolean {
-	let end = endOfDomainLabel(s, start);
-	if (end === start) return false;
-	while (s.charCodeAt(end) === 46) {
-		if (isLetter(s.charCodeAt(end + 1)) && isLetter(s.charCodeAt(end + 2))) return true;
-		const next = end + 1;
-		end = endOfDomainLabel(s, next);
-		if (end === next) return false;
-	}
-	return false;
-}
-
-// Domain scans after different @ signs do not overlap; the whole scan is linear.
 function containsEmail(s: string): boolean {
-	let local = false;
-	for (let i = 0; i < s.length; i++) {
-		if (s.charCodeAt(i) === 64 && local && hasEmailDomain(s, i + 1)) return true;
-		local = isLocalChar(s, i);
+	const segments = s.split('@');
+	for (let i = 1; i < segments.length; i++) {
+		if (!emailLocalEnd.test(segments[i - 1])) continue;
+		if (emailDomain.test(segments[i])) return true;
 	}
 	return false;
 }

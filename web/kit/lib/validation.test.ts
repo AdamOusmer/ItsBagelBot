@@ -65,6 +65,7 @@ describe('containsLink', () => {
 		expect(containsLink('%'.repeat(100_000) + '@a.co')).toBe(true);
 		expect(containsLink('name@sub.example.com')).toBe(true);
 		expect(containsLink('name@localhost')).toBe(false);
+		expect(containsLink('name@' + '12-34.'.repeat(5_000) + '12-34')).toBe(false);
 	});
 
 	test('allows clean gift notes', () => {
