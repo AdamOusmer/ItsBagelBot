@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Glide from '@bagel/ui/astro/Glide.astro';
 import Label from '@bagel/ui/astro/Label.astro';
+import RailItem from '@bagel/ui/astro/RailItem.astro';
 import { docsI18n } from '../i18n/ui';
 import type { DocPage } from '../lib/pages';
 import type { Space } from '../lib/spaces';
@@ -20,25 +22,23 @@ const { t } = docsI18n(locale);
 ---
 
 <nav class="doc-section" aria-label={label}>
+  <Glide />
   {space.groups.map((group) => (
     <div class="doc-section__group">
       {group.label && <Label mono as="span" class="doc-section__title">{t(group.label)}</Label>}
-      <ul class="doc-section__list">
+      <div class="doc-section__list">
         {group.pages.map((id) => {
           const page = pages.get(id)!;
-          return (
-            <li>
-              <a class="doc-section__link" href={page.href} aria-current={id === current ? 'page' : undefined}>{page.label}</a>
-            </li>
-          );
+          return <RailItem href={page.href} label={page.label} current={id === current} title={page.label} />;
         })}
-      </ul>
+      </div>
     </div>
   ))}
 </nav>
 
 <style>
   .doc-section {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-5);
@@ -57,26 +57,26 @@ const { t } = docsI18n(locale);
   .doc-section__list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-  }
-
-  .doc-section__link {
-    display: block;
-    padding: 6px 12px;
-    border-radius: var(--bb-radius-sm);
-    font-size: 0.875rem;
-    line-height: 1.4;
-    color: var(--bb-muted-light);
-    transition: color var(--bb-dur-fast) var(--bb-ease-out-expo), background-color var(--bb-dur-fast) var(--bb-ease-out-expo);
-  }
-
-  .doc-section__link:hover {
-    color: var(--bb-white);
-  }
-
-  .doc-section__link[aria-current='page'] {
-    color: var(--bb-white);
-    font-weight: 500;
-    background: rgba(var(--bb-tan-rgb), 0.1);
+    gap: var(--bb-space-1);
   }
 </style>
+
+<script>
+  import { mountGlide } from '@bagel/ui/lib/glide';
+
+  let cleanups: (() => void)[] = [];
+  function dispose() {
+    cleanups.forEach((cleanup) => cleanup());
+    cleanups = [];
+  }
+  function mount() {
+    dispose();
+    document.querySelectorAll<HTMLElement>('.doc-section').forEach((nav) => {
+      cleanups.push(mountGlide(nav, { observe: nav, selector: '.bb-rail-item.is-active', watch: true }));
+    });
+  }
+
+  mount();
+  document.addEventListener('astro:page-load', mount);
+  document.addEventListener('astro:before-swap', dispose);
+</script>
