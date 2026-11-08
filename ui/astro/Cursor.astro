@@ -13,7 +13,6 @@ import '../styles/elements/cursor.css';
     import { prefersReducedMotion, reduceMotion } from '../lib/motion-query';
 
     let dispose: (() => void) | null = null;
-    const mounted = new WeakSet<HTMLElement>();
 
     function unmount(): void {
         dispose?.();
@@ -24,8 +23,7 @@ import '../styles/elements/cursor.css';
         if (dispose || prefersReducedMotion()) return;
         const dot = document.querySelector<HTMLElement>('.bb-cursor');
         const ring = document.querySelector<HTMLElement>('.bb-cursor-ring');
-        if (!dot || !ring || mounted.has(dot)) return;
-        mounted.add(dot);
+        if (!dot || !ring) return;
         dispose = mountCursor({ dot, ring });
     }
 
@@ -33,5 +31,6 @@ import '../styles/elements/cursor.css';
     document.addEventListener('astro:page-load', mount);
     document.addEventListener('astro:before-swap', unmount);
     window.addEventListener('pagehide', unmount);
+    window.addEventListener('pageshow', mount);
     reduceMotion.addEventListener('change', () => (prefersReducedMotion() ? unmount() : mount()));
 </script>

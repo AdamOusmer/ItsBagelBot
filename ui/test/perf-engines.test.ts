@@ -18,19 +18,24 @@ const restoreGlobals = snapshotGlobals([
 ]);
 
 let matchMediaCalls = 0;
+const queries = new Map<string, ReturnType<typeof target> & { matches: boolean }>();
 const media = (feature: string) => {
   matchMediaCalls += 1;
-  return {
+  const query = Object.assign(target(), {
     matches: !feature.includes('reduced-motion'),
-    addEventListener() {},
-    removeEventListener() {},
-  };
+  });
+  queries.set(feature, query);
+  return query;
 };
 
 const win = Object.assign(target(), { innerWidth: 1000, innerHeight: 500, matchMedia: media });
+let cursorEnabled = false;
 const doc = Object.assign(target(), {
   hidden: false,
-  documentElement: { classList: { toggle() {}, remove() {} } },
+  documentElement: { classList: {
+    toggle(_name: string, enabled: boolean) { cursorEnabled = enabled; },
+    remove() { cursorEnabled = false; },
+  } },
   createElement: (tag: string) => {
     if (tag === 'div') return { style: {} as Record<string, string>, className: '', append() {}, remove: () => removed.push('div') };
     const canvas: StubCanvas = {
@@ -170,26 +175,40 @@ beforeEach(() => {
   doc.hidden = false;
   observers.intersection = [];
   observers.resize = [];
+  for (const [feature, query] of queries) query.matches = !feature.includes('reduced-motion');
 });
 
 describe('cursor', () => {
   function stage(top = (_read: number) => 100) {
     let rects = 0;
+    const operations: string[] = [];
     const link = {
       isConnected: true,
       parentElement: null,
       matches: (selector: string) => selector === 'a, button, .bb-input',
       closest: () => link,
       getBoundingClientRect: () => {
+        operations.push('measure');
         rects += 1;
         return { left: 100, top: top(rects), width: 80, height: 20 };
       },
     };
-    const paint = () => ({ style: {} as Record<string, string>, classList: { toggle() {} } });
+    const paint = () => ({
+      style: new Proxy({} as Record<string, string>, {
+        set(styles, name: string, value: string) {
+          // Browsers skip style invalidation for an unchanged declaration.
+          if (styles[name] !== value) operations.push(name);
+          styles[name] = value;
+          return true;
+        },
+      }),
+      classList: { toggle() {} },
+    });
     computed = { borderRadius: '8px', getPropertyValue: () => '' };
     const ring = paint();
-    const dispose = mountCursor({ dot: paint() as never, ring: ring as never });
-    return { link, ring, dispose, rects: () => rects };
+    const dot = paint();
+    const dispose = mountCursor({ dot: dot as never, ring: ring as never });
+    return { link, ring, dot, dispose, operations, rects: () => rects };
   }
 
   test('a hovered element that moves mid-hover is tracked, then the loop sleeps on the settled ring', () => {
@@ -199,11 +218,80 @@ describe('cursor', () => {
     expect(styleReads).toBe(1);
     expect(frames).toHaveLength(0);
     expect([ring.style.transform, ring.style.width, ring.style.height]).toEqual([
-      'translate(94.0px, 91.0px)',
-      '92.0px',
-      '32.0px',
+      'translate(94.0px, 91.0px) scale(1, 1)',
+      '92px',
+      '32px',
     ]);
     dispose();
+  });
+
+  test('measures before writing styles and does not resize a settled shape on pointer movement', () => {
+    const { link, dispose, operations } = stage();
+    doc.dispatch('pointerover', { target: link });
+    flush(1000);
+    expect(operations[0]).toBe('measure');
+    settle();
+    for (const property of ['width', 'height', 'borderRadius']) {
+      expect(operations.filter((op) => op === property)).toHaveLength(1);
+    }
+    operations.length = 0;
+    win.dispatch('pointermove', { clientX: 120, clientY: 110 });
+    flush(2000);
+    expect(operations[0]).toBe('measure');
+    expect(operations.filter((op) => ['width', 'height', 'borderRadius'].includes(op))).toEqual([]);
+    expect(frames).toHaveLength(0);
+    dispose();
+  });
+
+  test('free movement batches pointer events into one frame and sleeps as soon as it settles', () => {
+    const { dot, dispose } = stage();
+    settle();
+    for (let i = 0; i < 100; i++) win.dispatch('pointermove', { clientX: i, clientY: i });
+    expect(frames).toHaveLength(1);
+    const start = performance.now();
+    const end = settle(start);
+    expect(dot.style.transform).toBe('translate(99px, 99px)');
+    expect(end - start).toBeLessThan(500);
+    expect(frames).toHaveLength(0);
+    dispose();
+  });
+
+  test('easing covers the same distance in the same time at 30 and 60 Hz', () => {
+    const position = (interval: number) => {
+      const { ring, dispose } = stage();
+      win.dispatch('pointermove', { clientX: 500, clientY: 250 });
+      settle();
+      win.dispatch('pointermove', { clientX: 900, clientY: 450 });
+      flush(1000);
+      for (let elapsed = interval; elapsed <= 100 + 0.001; elapsed += interval) flush(1000 + elapsed);
+      const transform = ring.style.transform;
+      dispose();
+      return transform;
+    };
+    expect(position(1000 / 30)).toBe(position(1000 / 60));
+  });
+
+  test('media changes restore the native cursor and resume when eligible again', () => {
+    const { link, dispose, rects } = stage();
+    settle();
+    const pointer = queries.get('(min-width: 901px) and (hover: hover) and (pointer: fine)')!;
+    const motion = queries.get('(prefers-reduced-motion: reduce)')!;
+    expect(cursorEnabled).toBe(true);
+    for (const [query, disabled] of [[pointer, false], [motion, true]] as const) {
+      query.matches = disabled;
+      query.dispatch('change');
+      expect(cursorEnabled).toBe(false);
+      win.dispatch('pointermove', { clientX: 10, clientY: 20 });
+      doc.dispatch('pointerover', { target: link });
+      expect(frames).toHaveLength(0);
+      expect(rects()).toBe(0);
+      query.matches = !disabled;
+      query.dispatch('change');
+      expect(cursorEnabled).toBe(true);
+      settle();
+    }
+    dispose();
+    expect([pointer.count('change'), motion.count('change')]).toEqual([0, 0]);
   });
 
   test('scroll and resize remeasure the hovered element and settle again', () => {
