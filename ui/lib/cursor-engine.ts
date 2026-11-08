@@ -28,16 +28,17 @@ const SETTLE_PX = 0.1;
 const FRAME_MS = 1000 / 60;
 const cursorPointer = mediaQuery('(min-width: 901px) and (hover: hover) and (pointer: fine)');
 
-let pointerX = -1;
-let pointerY = -1;
+type Point = { x: number; y: number };
+const pointer: Point = { x: -1, y: -1 };
 
-type Box = { x: number; y: number; w: number; h: number; r: number };
+type Box = Point & { w: number; h: number; r: number };
+type OutlineAttributes = { transform: string; rx: string; ry: string };
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-function idleBox(x: number, y: number): Box {
+function idleBox(point: Point): Box {
     const half = IDLE_SIZE / 2;
-    return { x: x - half, y: y - half, w: IDLE_SIZE, h: IDLE_SIZE, r: half };
+    return { x: point.x - half, y: point.y - half, w: IDLE_SIZE, h: IDLE_SIZE, r: half };
 }
 
 function radiusOf(style: CSSStyleDeclaration): number {
@@ -58,8 +59,8 @@ function hoverBox(el: HTMLElement, radius: number): Box {
 
 function warpBox(box: Box): Box {
     // Only the edges nearest the pointer yield, by at most two pixels.
-    const px = (pointerX - box.x) / box.w;
-    const py = (pointerY - box.y) / box.h;
+    const px = (pointer.x - box.x) / box.w;
+    const py = (pointer.y - box.y) / box.h;
     const dx = px >= 0 && px <= 1 ? (px - 0.5) * 4 : 0;
     const dy = py >= 0 && py <= 1 ? (py - 0.5) * 4 : 0;
     return { ...box, x: box.x + Math.min(0, dx), y: box.y + Math.min(0, dy),
@@ -74,8 +75,11 @@ function morphBox(box: Box, to: Box, factor: number): Box {
     };
 }
 
-function setAttribute(el: Element, name: string, value: string): void {
-    if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+function paintOutline(el: Element, attributes: OutlineAttributes): void {
+    for (const name of ['transform', 'rx', 'ry'] as const) {
+        const value = attributes[name];
+        if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+    }
 }
 
 function paintRing(ring: HTMLElement, box: Box, shape: Box): void {
@@ -93,9 +97,7 @@ function paintRing(ring: HTMLElement, box: Box, shape: Box): void {
     // Counter-scale the corners so a circle never stretches into an ellipse.
     ring.style.borderRadius = `${radius / sx}px / ${radius / sy}px`;
     if (outline) {
-        setAttribute(outline, 'transform', scale);
-        setAttribute(outline, 'rx', String(radius / sx));
-        setAttribute(outline, 'ry', String(radius / sy));
+        paintOutline(outline, { transform: scale, rx: String(radius / sx), ry: String(radius / sy) });
     }
 }
 
@@ -106,12 +108,12 @@ function arrived(box: Box, to: Box): boolean {
 export function mountCursor(options: CursorOptions): () => void {
     const { dot, ring, fill, selector = SELECTOR, ease = EASE } = options;
 
-    if (pointerX < 0) {
-        pointerX = window.innerWidth / 2;
-        pointerY = window.innerHeight / 2;
+    if (pointer.x < 0) {
+        pointer.x = window.innerWidth / 2;
+        pointer.y = window.innerHeight / 2;
     }
 
-    let box = idleBox(pointerX, pointerY);
+    let box = idleBox(pointer);
     let target: HTMLElement | null = null;
     let overText = false;
     let lastFrame = 0;
@@ -128,7 +130,7 @@ export function mountCursor(options: CursorOptions): () => void {
     }
 
     function paint(el: HTMLElement | null, shape: Box): void {
-        dot.style.transform = `translate(${pointerX}px, ${pointerY}px)`;
+        dot.style.transform = `translate(${pointer.x}px, ${pointer.y}px)`;
         dot.style.opacity = el && !overText ? '0' : '1';
         dot.classList.toggle('is-text', overText);
 
@@ -155,7 +157,7 @@ export function mountCursor(options: CursorOptions): () => void {
         if (!active) return false;
         const el = hovered();
         // Read geometry before any cursor writes, avoiding a forced layout.
-        const shape = el ? hoverBox(el, radius) : idleBox(pointerX, pointerY);
+        const shape = el ? hoverBox(el, radius) : idleBox(pointer);
         const done = advance(shape, el, now);
         paint(el, shape);
         if (done) return false;
@@ -170,8 +172,8 @@ export function mountCursor(options: CursorOptions): () => void {
 
     const onMove = (event: PointerEvent): void => {
         if (!active || event.pointerType === 'touch') return;
-        pointerX = event.clientX;
-        pointerY = event.clientY;
+        pointer.x = event.clientX;
+        pointer.y = event.clientY;
         wake(tick);
     };
 
