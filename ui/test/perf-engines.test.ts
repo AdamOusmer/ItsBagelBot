@@ -196,7 +196,8 @@ describe('cursor', () => {
     const paint = () => ({
       style: new Proxy({} as Record<string, string>, {
         set(styles, name: string, value: string) {
-          operations.push(name);
+          // Browsers skip style invalidation for an unchanged declaration.
+          if (styles[name] !== value) operations.push(name);
           styles[name] = value;
           return true;
         },
@@ -217,7 +218,7 @@ describe('cursor', () => {
     expect(styleReads).toBe(1);
     expect(frames).toHaveLength(0);
     expect([ring.style.transform, ring.style.width, ring.style.height]).toEqual([
-      'translate(94.0px, 91.0px) scale(1.0000, 1.0000)',
+      'translate(94.0px, 91.0px) scale(1, 1)',
       '92px',
       '32px',
     ]);

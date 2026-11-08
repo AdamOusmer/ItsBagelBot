@@ -71,13 +71,10 @@ function lerpBox(from: Box, to: Box, e: number): Box {
 
 function paintRing(ring: HTMLElement, box: Box, shape: Box): void {
     // Lay out the destination shape once; animate its position and scale only.
-    ring.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px) scale(${(box.w / shape.w).toFixed(4)}, ${(box.h / shape.h).toFixed(4)})`;
-    const width = `${Number(shape.w.toFixed(1))}px`;
-    const height = `${Number(shape.h.toFixed(1))}px`;
-    const radius = `${Number(shape.r.toFixed(1))}px`;
-    if (ring.style.width !== width) ring.style.width = width;
-    if (ring.style.height !== height) ring.style.height = height;
-    if (ring.style.borderRadius !== radius) ring.style.borderRadius = radius;
+    ring.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px) scale(${box.w / shape.w}, ${box.h / shape.h})`;
+    ring.style.width = `${shape.w}px`;
+    ring.style.height = `${shape.h}px`;
+    ring.style.borderRadius = `${shape.r}px`;
 }
 
 function arrived(box: Box, to: Box): boolean {
