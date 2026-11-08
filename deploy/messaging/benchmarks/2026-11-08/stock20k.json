@@ -1,0 +1,47 @@
+{
+  "name": "stock20k",
+  "target_per_s": 20000,
+  "duration_s": 60,
+  "payload_bytes": 1024,
+  "admitted": 1199488,
+  "consumed": 1199488,
+  "admitted_per_s": 19991.466666666667,
+  "completed_per_s": 19988.531611982926,
+  "publisher_errors": 0,
+  "flush_errors": [],
+  "global_checksum_match": true,
+  "duplicates": 0,
+  "e2e_p50_ms_per_consumer": [
+    6.380438,
+    7.010522,
+    6.336471
+  ],
+  "e2e_p99_ms_per_consumer": [
+    9.413406,
+    10.228611,
+    9.586591
+  ],
+  "broker_avg_cpu_cores": {
+    "b0": 1.5553451047516735,
+    "b1": 1.4029971183985304,
+    "b2": 1.610806038360846
+  },
+  "broker_throttled_usec": {
+    "b0": 0,
+    "b1": 0,
+    "b2": 0
+  },
+  "broker_rss_mib": {
+    "b0": 584.5,
+    "b1": 569.27734375,
+    "b2": 545.52734375
+  },
+  "slow_consumer_delta": {
+    "b0": 0,
+    "b1": 0,
+    "b2": 0
+  },
+  "broker_image": "nats:2.15.2-alpine@sha256:afae2fdbe2e326c65e1246cb83b9d05d319188734f3bd577ac8072daae78a10f",
+  "client_revision": "5ee7ccfc086dd10011740b89aceb467d59179c31",
+  "environment": "Isolated R3 cluster on live node1/node2/node3; mTLS, JWT operator auth, s2_fast routes, atomic publish, shared R3 AckNone pull consumer"
+}
