@@ -143,12 +143,12 @@
     }
   }
 
-  :global(.bb-shell:has(.bb-editor-stage)) {
+  .bb-shell:has(.bb-editor-stage) {
     touch-action: pan-x pan-y;
   }
 
   @media (pointer: coarse), (max-width: 760px) {
-    :global(.bb-shell:has(.bb-editor-stage)) {
+    .bb-shell:has(.bb-editor-stage) {
       height: 100dvh;
       min-height: 0;
       overflow: hidden;
@@ -161,13 +161,13 @@
       touch-action: none;
     }
 
-    .bb-editor-stage__bar-end :global(.bb-btn) {
+    .bb-editor-stage__bar-end .bb-btn {
       min-height: 44px;
     }
   }
 
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
-    :global(body:has(.bb-editor-stage) .bb-popover--bottom) {
+    body:has(.bb-editor-stage) .bb-popover--bottom {
       display: none;
     }
 
@@ -190,7 +190,7 @@
       padding: 4px;
     }
 
-    .bb-editor-stage__bar-end :global(.bb-btn) {
+    .bb-editor-stage__bar-end .bb-btn {
       min-width: 44px;
       min-height: 44px;
       --btn-pad: 0 12px;
@@ -208,7 +208,7 @@
       padding: 4px;
     }
 
-    .bb-editor-stage__rail > :global(*) {
+    .bb-editor-stage__rail > * {
       flex: 1;
       min-width: 0;
     }
@@ -258,32 +258,32 @@
       background: rgba(var(--bb-white-rgb), 0.24);
     }
 
-    .bb-editor-stage__panel :global(header) {
+    .bb-editor-stage__panel header {
       padding-top: 24px;
       touch-action: none;
     }
 
-    .bb-editor-stage__panel :global(aside) {
+    .bb-editor-stage__panel aside {
       border-radius: inherit;
       box-shadow: none;
     }
 
-    .bb-editor-stage__panel :global(footer) {
+    .bb-editor-stage__panel footer {
       padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     }
 
-    .bb-editor-stage__panel :global(header .bb-btn--icon.bb-btn--sm) {
+    .bb-editor-stage__panel header .bb-btn--icon.bb-btn--sm {
       min-width: 44px;
       width: 44px;
       height: 44px;
     }
 
-    .bb-editor-stage__panel :global(:is(input, textarea, select)) {
+    .bb-editor-stage__panel :is(input, textarea, select) {
       font-size: 16px;
     }
 
-    .bb-editor-stage__panel :global(.scroll),
-    .bb-editor-stage__panel :global(.bb-scroller) {
+    .bb-editor-stage__panel .scroll,
+    .bb-editor-stage__panel .bb-scroller {
       overscroll-behavior: contain;
     }
   }

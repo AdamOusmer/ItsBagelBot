@@ -891,7 +891,7 @@
                   expanded={!selecting && expanded === c.name}
                   {selecting}
                   checked={selected.has(c.name)}
-                  bind:rowEl={rowEls[c.name]}
+                  bind:rowEl={() => rowEls[c.name] ?? null, (element) => (rowEls[c.name] = element)}
                   onExpand={() => onRowActivate(c)}
                   onDelete={() => requestDelete(c)}
                   toggleSubmit={toggleSubmit(c)}
