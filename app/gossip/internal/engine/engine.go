@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
@@ -26,46 +27,72 @@ var badRequestReply = []byte(`{"error":"bad request"}`)
 var handlerPolicy = bus.RPCPoolPolicy{MinWorkers: 1, MaxWorkers: 4, QueueDepth: 4}
 
 // Handlers run concurrently with themselves; one closing over mutable state must guard it.
-func Serve(nc *nats.Conn, prefix, queueGroup string, providers []provider.Provider, nrApp *newrelic.Application, log *zap.Logger) error {
+func Serve(wiring bus.RPCWiring, prefix string, providers []provider.Provider) error {
+	wiring.Pool = handlerPolicy
 	for _, p := range providers {
 		for _, ep := range p.Endpoints() {
 			subject := gossiprpc.Subject(prefix, p.Name(), ep.Name)
-			if err := subscribe(nc, subject, queueGroup, ep, nrApp, log); err != nil {
+			endpoint := serverEndpoint{provider: p.Name(), subject: subject, spec: ep, log: wiring.Log}
+			if err := endpoint.subscribe(wiring); err != nil {
 				return err
 			}
-			log.Debug("gossip endpoint registered", zap.String("subject", subject))
+			wiring.Log.Debug("gossip endpoint registered", zap.String("subject", subject))
 		}
 	}
-	if err := nc.Flush(); err != nil {
+	if err := wiring.NC.Flush(); err != nil {
 		return fmt.Errorf("flush subscriptions: %w", err)
 	}
 	return nil
 }
 
-func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, nrApp *newrelic.Application, log *zap.Logger) error {
-	timeout := ep.Timeout
+type serverEndpoint struct {
+	provider string
+	subject  string
+	spec     provider.Endpoint
+	log      *zap.Logger
+}
+
+func (e serverEndpoint) subscribe(wiring bus.RPCWiring) error {
+	timeout := e.spec.Timeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	handle := ep.Handle
+	return bus.ServeMsg(wiring.Within(timeout), e.subject, e.handle)
+}
 
-	wiring := bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log, Timeout: timeout, Pool: handlerPolicy}
-	return bus.ServeMsg(wiring, subject, func(ctx context.Context, msg *nats.Msg) {
-		start := time.Now()
-		txn := newrelic.FromContext(ctx)
-		log := monitor.TraceLogger(txn, log)
+func (e serverEndpoint) handle(ctx context.Context, msg *nats.Msg) {
+	start := time.Now()
+	txn := newrelic.FromContext(ctx)
+	// Both names come from the provider registry, never from request fields.
+	txn.SetName("gossip " + e.provider + "." + e.spec.Name)
+	txn.AddAttribute("gossip.provider", e.provider)
+	txn.AddAttribute("gossip.endpoint", e.spec.Name)
+	ctx = core.WithRequestTelemetry(ctx, e.provider, e.spec.Name)
+	log := monitor.TraceLogger(txn, e.log)
 
-		var req gossiprpc.Request
-		if len(msg.Data) > 0 {
-			if err := codec.Unmarshal(msg.Data, &req); err != nil {
-				monitor.NoticeError(txn, err)
-				respondAndLog(msg, subject, start, log, badRequestReply)
-				return
-			}
+	var req gossiprpc.Request
+	if len(msg.Data) > 0 {
+		if err := codec.Unmarshal(msg.Data, &req); err != nil {
+			txn.AddAttribute("gossip.outcome", "invalid")
+			e.respondAndLog(msg, start, txn, badRequestReply)
+			return
 		}
+	}
 
-		respondAndLog(msg, subject, start, log, encode(subject, handle(ctx, req), log))
-	})
+	fetchCtx, cancel := core.FetchContext(ctx)
+	defer cancel()
+	body := encode(e.subject, e.spec.Handle(fetchCtx, req), log)
+	recordOutcome(txn, core.ReplyOutcome(fetchCtx, body))
+	e.respondAndLog(msg, start, txn, body)
+}
+
+func recordOutcome(txn *newrelic.Transaction, outcome string) {
+	txn.AddAttribute("gossip.outcome", outcome)
+	switch outcome {
+	case "timeout", "canceled", "upstream_error", "internal_error":
+		// The bounded outcome is safe even when provider error text contains credentials or URLs.
+		monitor.NoticeError(txn, fmt.Errorf("gossip %s", outcome))
+	}
 }
 
 func encode(subject string, result any, log *zap.Logger) []byte {
@@ -84,13 +111,17 @@ func encode(subject string, result any, log *zap.Logger) []byte {
 	}
 }
 
-func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logger, body []byte) {
+func (e serverEndpoint) respondAndLog(msg *nats.Msg, start time.Time, txn *newrelic.Transaction, body []byte) {
+	log := monitor.TraceLogger(txn, e.log)
 	elapsed := time.Since(start)
 	if err := msg.Respond(body); err != nil {
-		log.Warn("rpc respond failed", zap.String("subject", subject), zap.Duration("elapsed", elapsed), zap.Error(err))
+		txn.AddAttribute("gossip.reply", "error")
+		monitor.NoticeError(txn, fmt.Errorf("gossip reply failed"))
+		log.Warn("rpc respond failed", zap.String("subject", e.subject), zap.Duration("elapsed", elapsed), zap.Error(err))
 		return
 	}
+	txn.AddAttribute("gossip.reply", "ok")
 	if elapsed > 250*time.Millisecond {
-		log.Debug("slow rpc handler", zap.String("subject", subject), zap.Duration("elapsed", elapsed))
+		log.Debug("slow rpc handler", zap.String("subject", e.subject), zap.Duration("elapsed", elapsed))
 	}
 }

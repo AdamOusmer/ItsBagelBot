@@ -287,7 +287,7 @@ func (p *api) resolveStatsWindow(ctx context.Context, q statsQuery) (accountRef,
 		return err
 	})
 	g.Go(func() error {
-		sctx, cancel := context.WithTimeout(context.WithoutCancel(gctx), seasonResolveTimeout)
+		sctx, cancel := core.WithFetchTimeout(context.WithoutCancel(gctx), seasonResolveTimeout)
 		defer cancel()
 		season = p.seasonStartTime(sctx)
 		return nil
@@ -403,6 +403,9 @@ func (p *api) sessionStart(ctx context.Context, req gossiprpc.Request) any {
 	if err := p.writeSnapshot(ctx, req.ChannelID, account, stats); err != nil {
 		monitor.TxnLogger(ctx, p.log).Warn("fortnite snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
 		return gossiprpc.FortniteSnapshotReply{Player: stats.Player, Error: "snapshot store failed"}
+	}
+	if payload, err := codec.Marshal(stats); err == nil {
+		core.StoreCachedBytes(ctx, p.cache, core.BytesEntry{Key: lifetimeStatsKey(account), Value: payload, TTL: statsTTL})
 	}
 	return gossiprpc.FortniteSnapshotReply{Player: stats.Player}
 }

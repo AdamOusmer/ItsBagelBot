@@ -253,24 +253,61 @@ func TestAutoRegionIsResolvedOnceAndSharedAcrossEndpoints(t *testing.T) {
 	assert.Equal(t, 1, counter.get("account"), "an explicit region never touches the resolve at all")
 }
 
-func TestAccountEndpointKeepsItsOwnCacheEntry(t *testing.T) {
+func TestFreshAccountDataIsSharedWithAutoRegionInEitherOrder(t *testing.T) {
+	for _, first := range []string{"rank", "account"} {
+		t.Run(first, func(t *testing.T) {
+			var counter hitCounter
+			p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasPrefix(r.URL.Path, "/valorant/v2/account/") {
+					counter.count("account")
+					fmt.Fprint(w, accountBody)
+					return
+				}
+				fmt.Fprint(w, mmrBody)
+			}), providertest.Forbid(t))
+			req := gossiprpc.Request{Account: "Frosty#EUW1"}
+			assert.Empty(t, providertest.ErrorOf(t, providertest.Endpoint(t, p, first)(t.Context(), req)))
+			assert.Empty(t, providertest.Call[rankReply](t, p, "rank", req).Error)
+			assert.Empty(t, providertest.Call[accountReply](t, p, "account", req).Error)
+			assert.Empty(t, providertest.Call[accountReply](t, p, "account", gossiprpc.Request{
+				Account: "frosty#euw1", Region: "na", Platform: "console",
+			}).Error)
+			assert.Equal(t, 1, counter.get("account"), "one fresh result must serve both endpoints and account scopes")
+		})
+	}
+}
+
+func TestResolverHitDoesNotRejuvenateTheShorterAccountCache(t *testing.T) {
 	var counter hitCounter
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	store := providertest.NewMemStore()
+	p := newProviderWithStore(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/valorant/v2/account/") {
 			counter.count("account")
-			fmt.Fprint(w, accountBody)
+			fmt.Fprint(w, strings.Replace(accountBody, `"account_level":231`, fmt.Sprintf(`"account_level":%d`, 230+counter.get("account")), 1))
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/valorant/v4/matches/") {
+			fmt.Fprint(w, `{"data":[]}`)
 			return
 		}
 		fmt.Fprint(w, mmrBody)
-	}), providertest.Forbid(t))
+	}), providertest.Forbid(t), store)
 	req := gossiprpc.Request{Account: "Frosty#EUW1"}
 
-	assert.Empty(t, providertest.Call[rankReply](t, p, "rank", req).Error, "warms the identity resolve")
-	assert.Empty(t, providertest.Call[accountReply](t, p, "account", req).Error, "must not ride the still-warm resolve entry")
+	require.Empty(t, providertest.Call[rankReply](t, p, "rank", req).Error)
+	accountKey := "gossip:valorant:account:frosty#euw1"
+	assert.Equal(t, 2*accountTTL, store.Retention(accountKey))
+	// Emulate expiration of the shorter entry while the resolver is still fresh.
+	require.NoError(t, store.Del(t.Context(), accountKey))
+	require.Empty(t, providertest.Call[matchesReply](t, p, "matches", req).Error)
+	_, found, err := store.Get(t.Context(), accountKey)
+	require.NoError(t, err)
+	assert.False(t, found, "a cached identity cannot create a fresh account reply")
+	assert.Equal(t, 1, counter.get("account"))
+	reply := providertest.Call[accountReply](t, p, "account", req)
+	require.Empty(t, reply.Error)
+	assert.Equal(t, 232, reply.AccountLevel, "the account endpoint must fetch new data after its own cache expires")
 	assert.Equal(t, 2, counter.get("account"))
-
-	assert.Empty(t, providertest.Call[accountReply](t, p, "account", req).Error)
-	assert.Equal(t, 2, counter.get("account"), "the account endpoint's own byte-flow cache absorbs the repeat")
 }
 
 func TestMatchesSummarizesCompletedGamesOnly(t *testing.T) {

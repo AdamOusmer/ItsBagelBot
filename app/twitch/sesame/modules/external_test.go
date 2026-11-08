@@ -170,3 +170,49 @@ func gossipText(t *testing.T, tc gossipCase) string {
 	require.Len(t, out, 1)
 	return out[0].Text
 }
+
+func TestAutomaticSnapshotsSkipInvalidAccountsButStillClearSessions(t *testing.T) {
+	for _, tc := range []struct {
+		name, provider, event, config string
+		clear                         bool
+	}{
+		{"fortnite missing account", "fortnite", "stream.online", `{}`, false},
+		{"mcsr missing account", "mcsr", "stream.online", `{}`, false},
+		{"fortnite unsupported account type", "fortnite", "stream.online", `{"account":"Ninja","accountType":"psn"}`, false},
+		{"fortnite invalid config", "fortnite", "stream.online", `{"account":`, false},
+		{"mcsr invalid config", "mcsr", "stream.online", `{"account":`, false},
+		{"fortnite invalid enabled type", "fortnite", "stream.online", `{"account":"Ninja","sessionEnabled":true}`, false},
+		{"fortnite invalid account type field", "fortnite", "stream.online", `{"account":"Ninja","accountType":true}`, false},
+		{"mcsr invalid account field", "mcsr", "stream.online", `{"account":true}`, false},
+		{"fortnite clearing needs no account", "fortnite", "stream.offline", `{}`, true},
+		{"mcsr clearing needs no account", "mcsr", "stream.offline", `{}`, true},
+		{"fortnite clearing ignores account type", "fortnite", "stream.offline", `{"account":"Ninja","accountType":"psn"}`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := &fakeGossip{replies: map[string]any{
+				"fortnite.session_end": gossiprpc.FortniteSnapshotReply{},
+				"mcsr.session_end":     gossiprpc.McsrSnapshotReply{},
+			}}
+			d := gossipDeps(gw)
+			d.Seq = engine.NewSequencer()
+			c := eventCtx(eventInput{tc.event, "", tc.config})
+			assert.Empty(t, runEvent(t, gossipModules[tc.provider](d), c))
+			drained := make(chan struct{})
+			d.Seq.Do(c.BroadcasterID, func() { close(drained) })
+			select {
+			case <-drained:
+			case <-time.After(time.Second):
+				t.Fatal("snapshot work did not drain")
+			}
+			gw.mu.Lock()
+			defer gw.mu.Unlock()
+			if !tc.clear {
+				assert.Empty(t, gw.calls, "invalid automatic snapshots must not reach Gossip")
+				return
+			}
+			require.Len(t, gw.calls, 1)
+			assert.Equal(t, "session_end", gw.calls[0].endpoint)
+			assert.Equal(t, gossiprpc.Request{ChannelID: "2"}, gw.calls[0].req)
+		})
+	}
+}

@@ -6,6 +6,7 @@ package paceman_test
 import (
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -116,6 +117,79 @@ func TestSessionReplies(t *testing.T) {
 				Upstream: providertest.Respond(http.StatusBadGateway, `{}`),
 				Want:     gossiprpc.PacemanSessionReply{Player: "Feinberg", Error: "stats lookup failed"}},
 		})
+}
+
+func TestSessionFetchesIndependentStatsTogetherAndCachesBoth(t *testing.T) {
+	entered := make(chan string, 2)
+	release := make(chan struct{})
+	var calls atomic.Int32
+	p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		entered <- r.URL.Path
+		<-release
+		if r.URL.Path == "/getSessionStats/" {
+			_, _ = w.Write([]byte(sessionStatsBody))
+		} else {
+			_, _ = w.Write([]byte(sessionNethersBody))
+		}
+	}))
+	req := gossiprpc.Request{Account: "Feinberg"}
+	done := make(chan any, 1)
+	go func() { done <- providertest.Endpoint(t, p, "session")(t.Context(), req) }()
+	paths := make([]string, 0, 2)
+	for range 2 {
+		select {
+		case path := <-entered:
+			paths = append(paths, path)
+		case <-time.After(time.Second):
+			close(release)
+			t.Fatal("both independent requests must start before either response is released")
+		}
+	}
+	close(release)
+	assert.ElementsMatch(t, []string{"/getSessionStats/", "/getSessionNethers/"}, paths)
+	var reply gossiprpc.PacemanSessionReply
+	select {
+	case result := <-done:
+		reply = providertest.Decode[gossiprpc.PacemanSessionReply](t, result)
+	case <-time.After(time.Second):
+		t.Fatal("session did not complete after both responses were released")
+	}
+	require.Empty(t, reply.Error)
+	assert.Equal(t, 21.4, reply.NPH)
+	assert.Empty(t, providertest.Call[gossiprpc.PacemanSessionReply](t, p, "session", req).Error)
+	assert.EqualValues(t, 2, calls.Load(), "both existing caches must absorb the repeat")
+}
+
+func TestSessionReturnsTheUpstreamFailureWithoutWaitingForTheOtherRead(t *testing.T) {
+	for _, blockedPath := range []string{"/getSessionStats/", "/getSessionNethers/"} {
+		t.Run(blockedPath, func(t *testing.T) {
+			started := make(chan struct{})
+			release := make(chan struct{})
+			defer close(release)
+			p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == blockedPath {
+					close(started)
+					<-release
+					_, _ = w.Write([]byte(`{}`))
+					return
+				}
+				<-started
+				w.WriteHeader(http.StatusTooManyRequests)
+			}))
+			done := make(chan any, 1)
+			go func() {
+				done <- providertest.Endpoint(t, p, "session")(t.Context(), gossiprpc.Request{Account: "Feinberg"})
+			}()
+			select {
+			case result := <-done:
+				reply := providertest.Decode[gossiprpc.PacemanSessionReply](t, result)
+				assert.Equal(t, "PaceMan is busy, try again in a minute", reply.Error)
+			case <-time.After(time.Second):
+				t.Fatal("an upstream failure must not wait for an unrelated response")
+			}
+		})
+	}
 }
 
 func TestNethersReplies(t *testing.T) {

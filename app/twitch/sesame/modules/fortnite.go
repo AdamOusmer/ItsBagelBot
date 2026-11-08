@@ -85,11 +85,21 @@ func Fortnite(d engine.Deps) module.Module {
 		provider: "fortnite",
 		enabled:  func(cfg fortniteConfig) bool { return alertOn(cfg.SessionEnabled) },
 		request:  fortniteSnapshotRequest,
+		validate: fortniteSnapshotSupported,
 		stored:   func(r *gossiprpc.FortniteSnapshotReply) zap.Field { return zap.String("player", r.Player) },
 	})
 	m.On("stream.online", online)
 	m.On("stream.offline", offline)
 	return m.Build()
+}
+
+func fortniteSnapshotSupported(req gossiprpc.Request) bool {
+	switch strings.ToLower(strings.TrimSpace(req.AccountType)) {
+	case "", "epic":
+		return true
+	default:
+		return false
+	}
 }
 
 func fortniteSnapshotRequest(c *module.Context, cfg fortniteConfig, channelID string) gossiprpc.Request {

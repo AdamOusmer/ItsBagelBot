@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providers"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/pkg/svcboot"
@@ -47,7 +48,8 @@ func main() {
 	if len(active) == 0 {
 		log.Warn("no providers configured; gossip will answer nothing")
 	}
-	svcboot.FatalIf(log, engine.Serve(nc, cfg.SubjectPrefix, queueGroup, active, core.NR, log),
+	wiring := bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log}
+	svcboot.FatalIf(log, engine.Serve(wiring, cfg.SubjectPrefix, active),
 		"failed to subscribe provider endpoints")
 
 	svcboot.ServeHealth(svcboot.Health{

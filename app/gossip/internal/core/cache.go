@@ -127,18 +127,24 @@ func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL t
 	var zero T
 
 	if entry, ok := f.read(ctx); ok {
+		outcome := "hit"
 		if entry.negative == nil && entry.stale() {
-			f.refresh()
+			outcome = "stale"
+			f.refresh(ctx)
 		}
+		RecordCacheOutcome(ctx, outcome)
 		return entry.answer()
 	}
+	RecordCacheOutcome(ctx, "miss")
 
 	if err := spend(ctx, admit); err != nil {
+		RecordFetchError(ctx, err)
 		return zero, err
 	}
 
-	res, err, _ := c.sf.Do(key, func() (any, error) { return f.fill(ctx) })
+	res, err := c.load(ctx, key, f.fill)
 	if err != nil {
+		RecordFetchError(ctx, err)
 		return zero, err
 	}
 	if v, ok := res.(T); ok {
@@ -158,12 +164,13 @@ type envelopeFlight[T any] struct {
 
 func (f envelopeFlight[T]) read(ctx context.Context) (envelope[T], bool) {
 	b, found, err := f.cache.store.Get(ctx, f.key)
+	RecordCacheError(ctx, "read", err)
 	if err != nil || !found {
 		return envelope[T]{}, false
 	}
 	entry, ok := decodeEnvelope[T](b)
 	if !ok {
-		_ = f.cache.store.Del(ctx, f.key)
+		RecordCacheError(ctx, "delete", f.cache.store.Del(ctx, f.key))
 		return envelope[T]{}, false
 	}
 	return entry, true
@@ -186,13 +193,12 @@ func (f envelopeFlight[T]) fill(ctx context.Context) (any, error) {
 
 func (f envelopeFlight[T]) refetch(ctx context.Context) (any, error) {
 	v, ferr := f.fetch(ctx)
+	RecordFetchError(ctx, ferr)
 	env, cacheTTL, err := f.envelopeFor(v, ferr)
 	if err != nil {
 		return nil, err
 	}
-	if b, merr := codec.Marshal(env); merr == nil {
-		_ = f.cache.store.Set(ctx, f.key, b, cacheTTL)
-	}
+	f.cache.storeEnvelope(ctx, f.key, env, cacheTTL)
 	if env.Error != nil {
 		return v, env.Error
 	}
@@ -210,21 +216,26 @@ func (f envelopeFlight[T]) envelopeFor(v T, ferr error) (cacheEnvelope[T], time.
 	return cacheEnvelope[T]{}, 0, ferr
 }
 
-func (f envelopeFlight[T]) refresh() {
+func (f envelopeFlight[T]) refresh(parent context.Context) {
 	if _, busy := f.cache.refreshing.LoadOrStore(f.key, struct{}{}); busy {
 		return
 	}
 	go func() {
 		defer f.cache.refreshing.Delete(f.key)
-		ctx, cancel := context.WithTimeout(context.Background(), swrRefreshTimeout)
+		ctx, cancel := WithFetchTimeout(DetachedRequestTelemetry(parent), swrRefreshTimeout)
 		defer cancel()
-		if won, err := f.cache.store.SetNX(ctx, f.key+":swr", swrRefreshTimeout); err != nil || !won {
+		won, err := f.cache.store.SetNX(ctx, f.key+":swr", swrRefreshTimeout)
+		RecordCacheError(ctx, "claim", err)
+		if err != nil || !won {
 			return
 		}
 		if err := spend(ctx, f.admit); err != nil {
+			RecordFetchError(ctx, err)
 			return
 		}
-		_, _, _ = f.cache.sf.Do(f.key, func() (any, error) { return f.refetch(ctx) })
+		RecordCacheOutcome(ctx, "refresh")
+		_, err = f.cache.load(ctx, f.key, f.refetch)
+		RecordCacheError(ctx, "refresh", err)
 	}()
 }
 
@@ -242,9 +253,15 @@ func StoreCached[T any](ctx context.Context, c *Cache, req StoreRequest[T]) {
 	if err != nil {
 		return
 	}
-	if b, merr := codec.Marshal(env); merr == nil {
-		_ = c.store.Set(ctx, req.Key, b, storeTTL)
+	c.storeEnvelope(ctx, req.Key, env, storeTTL)
+}
+
+func (c *Cache) storeEnvelope(ctx context.Context, key string, env any, ttl time.Duration) {
+	b, err := codec.Marshal(env)
+	if err == nil {
+		err = c.store.Set(ctx, key, b, ttl)
 	}
+	RecordCacheError(ctx, "write", err)
 }
 
 func (c *Cache) GetJSON(ctx context.Context, key string, out any) (bool, error) {

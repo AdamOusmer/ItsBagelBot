@@ -63,6 +63,7 @@ func BuildReply(ctx context.Context, ttl, negativeTTL time.Duration, fetch func(
 func BuildReplyWithMapper(ctx context.Context, ttl, negativeTTL time.Duration, fetch func(context.Context) (any, error), errReply func(msg string) any, mapper func(error) (string, Pin)) ([]byte, time.Duration, *UpstreamError, error) {
 	v, err := fetch(ctx)
 	if err != nil {
+		RecordFetchError(ctx, err)
 		if mapper == nil {
 			mapper = FriendlyUpstream
 		}

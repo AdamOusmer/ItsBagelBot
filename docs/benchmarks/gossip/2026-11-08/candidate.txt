@@ -1,0 +1,33 @@
+goos: darwin
+goarch: arm64
+pkg: ItsBagelBot/app/gossip/internal/providers/paceman
+cpu: Apple M1 Pro
+BenchmarkPacemanColdSession-10    	      10	  52297208 ns/op	         2.000 http/op	 1572072 B/op	     315 allocs/op
+BenchmarkPacemanColdSession-10    	      10	  52174196 ns/op	         2.000 http/op	 1363781 B/op	     314 allocs/op
+BenchmarkPacemanColdSession-10    	      10	  52018842 ns/op	         2.000 http/op	 1377080 B/op	     315 allocs/op
+BenchmarkPacemanColdSession-10    	      10	  51386867 ns/op	         2.000 http/op	  943287 B/op	     315 allocs/op
+BenchmarkPacemanColdSession-10    	      10	  51344712 ns/op	         2.000 http/op	  972849 B/op	     314 allocs/op
+PASS
+ok  	ItsBagelBot/app/gossip/internal/providers/paceman	3.125s
+goos: darwin
+goarch: arm64
+pkg: ItsBagelBot/app/gossip/internal/providers/fortnite
+cpu: Apple M1 Pro
+BenchmarkFortniteStatsAfterSnapshot-10    	      10	     33233 ns/op	         0 command_http/op	    2208 B/op	      17 allocs/op
+BenchmarkFortniteStatsAfterSnapshot-10    	      10	     28667 ns/op	         0 command_http/op	    2208 B/op	      17 allocs/op
+BenchmarkFortniteStatsAfterSnapshot-10    	      10	     34225 ns/op	         0 command_http/op	    2208 B/op	      17 allocs/op
+BenchmarkFortniteStatsAfterSnapshot-10    	      10	     46004 ns/op	         0 command_http/op	    2208 B/op	      17 allocs/op
+BenchmarkFortniteStatsAfterSnapshot-10    	      10	     33879 ns/op	         0 command_http/op	    2208 B/op	      17 allocs/op
+PASS
+ok  	ItsBagelBot/app/gossip/internal/providers/fortnite	5.980s
+goos: darwin
+goarch: arm64
+pkg: ItsBagelBot/app/gossip/internal/providers/valorant
+cpu: Apple M1 Pro
+BenchmarkValorantRankThenAccount-10    	      10	 104683733 ns/op	         2.000 http/op	  958475 B/op	     330 allocs/op
+BenchmarkValorantRankThenAccount-10    	      10	 103219462 ns/op	         2.000 http/op	  478412 B/op	     322 allocs/op
+BenchmarkValorantRankThenAccount-10    	      10	 103503250 ns/op	         2.000 http/op	  478464 B/op	     322 allocs/op
+BenchmarkValorantRankThenAccount-10    	      10	 102958292 ns/op	         2.000 http/op	 1140898 B/op	     332 allocs/op
+BenchmarkValorantRankThenAccount-10    	      10	 106110204 ns/op	         2.000 http/op	  732608 B/op	     325 allocs/op
+PASS
+ok  	ItsBagelBot/app/gossip/internal/providers/valorant	5.975s

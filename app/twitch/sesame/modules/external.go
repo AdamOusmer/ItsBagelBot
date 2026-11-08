@@ -265,6 +265,7 @@ type snapshotSpec[C any, R any] struct {
 	provider string
 	enabled  func(C) bool
 	request  func(*module.Context, C, string) gossiprpc.Request
+	validate func(gossiprpc.Request) bool
 	stored   func(*R) zap.Field
 }
 
@@ -279,10 +280,13 @@ func snapshotHandlers[C any, R any](d engine.Deps, spec snapshotSpec[C, R]) (onl
 func (spec snapshotSpec[C, R]) onlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 	return func(_ context.Context, c *module.Context, _ module.Emit) error {
 		cfg, channelID, ok := spec.begin(d, c)
-		if !ok {
+		if !ok || c.Decode(&cfg) != nil {
 			return nil
 		}
 		req := spec.request(c, cfg, channelID)
+		if !spec.validRequest(req) {
+			return nil
+		}
 		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), snapshotTimeout)
 			defer cancel()
@@ -298,6 +302,15 @@ func (spec snapshotSpec[C, R]) onlineHandler(d engine.Deps, log *zap.Logger) mod
 		})
 		return nil
 	}
+}
+
+// Reject invalid inputs before scheduling background work; offline clearing only
+// needs the channel ID and deliberately does not use this validation.
+func (spec snapshotSpec[C, R]) validRequest(req gossiprpc.Request) bool {
+	if strings.TrimSpace(req.Account) == "" || strings.TrimSpace(req.ChannelID) == "" {
+		return false
+	}
+	return spec.validate == nil || spec.validate(req)
 }
 
 func (spec snapshotSpec[C, R]) offlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
@@ -321,7 +334,7 @@ func (spec snapshotSpec[C, R]) offlineHandler(d engine.Deps, log *zap.Logger) mo
 }
 
 func (spec snapshotSpec[C, R]) begin(d engine.Deps, c *module.Context) (cfg C, channelID string, ok bool) {
-	if d.Gossip == nil {
+	if d.Gossip == nil || c.BroadcasterID == 0 {
 		return cfg, "", false
 	}
 	_ = c.Decode(&cfg)
