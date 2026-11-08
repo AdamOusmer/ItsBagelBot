@@ -1,16 +1,31 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Console
-description: SvelteKit application for the broadcaster dashboard and public commands pages.
+title: Dashboard
+description: "Provides broadcaster onboarding, configuration, account management and public channel pages."
+docType: reference
 ---
 
-The Console (`web/dashboard/`) is a SvelteKit (SSR) application, the broadcaster-facing dashboard. Staff operations live in the separate [Admin](/microservices/admin/) app.
+## Responsibilities
 
-## Architecture
+Server routes call owning services over RPC. Delegates operate permitted sections of a broadcaster’s board, and staff can inspect it through view-as. The dashboard does not execute bot commands.
 
-- **Broadcaster Dashboard**: Self-serve onboarding, custom commands, modules and timers, quotes, counters, integrations (Discord, Spotify, Govee), settings, and Premium billing. Delegates can operate the sections an owner grants them, and staff can inspect a board through a short-lived view-as session.
-- **Public pages**: A channel's public commands directory, plus stats, status and leaderboard hosts. A channel can hide its commands page; hiding it does not disable the commands.
-- **Authentication**: End users sign in with Twitch OAuth (`oauth4webapi`). The grant is verified and persisted by the [Users](/microservices/users/) service via `grant_save`.
-- **Communication**: The Console does not connect to the database. Server routes call the owning Go services over NATS RPC through shared adapters, with an in-process cache and an optional Valkey projection in front.
-- **Exposure**: Routed through the `cloudflared` tunnel to Traefik on `dashboard.itsbagelbot.com` and the stats, commands and leaderboard hostnames. Only anonymous default renders are edge-cached.
+## Interfaces
+
+The session guard checks account and delegation state; `board.ts` selects the effective broadcaster for a delegate. Module and command actions validate inputs and call their data owners. Kit supplies shared catalogs and server helpers, while UI supplies reusable presentation.
+
+## State and dependencies
+
+Data services own configuration and account state; Kit supplies shared catalogs and helpers.
+
+## Failure behavior
+
+Session, account and delegation guards restrict access before protected routes act.
+
+## Code map
+
+Source: [web/dashboard/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/web/dashboard). See `src/hooks.server.ts`, `src/lib/server/services.ts`, `guard.ts`, and `board.ts`; shared product definitions live in `web/kit/`.
+
+## Validation
+
+From `web/`, run `bun run --filter dashboard check`; see `web/dashboard/package.json` for available checks.

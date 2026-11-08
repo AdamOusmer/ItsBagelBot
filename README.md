@@ -1,224 +1,53 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
      Proprietary. No license granted. See LICENSE.md. -->
-[forks-shield]: https://img.shields.io/github/forks/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
+# ItsBagelBot
 
-[forks-url]: https://github.com/AdamOusmer/ItsBagelBot/network/members
+Zero downtime, infinite bagels. Because a monolith wasn't complicated enough.
 
-[stars-shield]: https://img.shields.io/github/stars/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
+I built ItsBagelBot because I was running too many bots to get the features I wanted. It handles Twitch commands, modules, timers, moderation, song requests and loyalty, with Discord integration and a web console to configure it.
 
-[stars-url]: https://github.com/AdamOusmer/ItsBagelBot/stargazers
+Some might say it's over-engineered for a Twitch bot. It is. I also use it to learn, experiment and build something I want to run.
 
-[issues-shield]: https://img.shields.io/github/issues/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
+## Start with the code
 
-[issues-url]: https://github.com/AdamOusmer/ItsBagelBot/issues
+- [Engineering docs](https://docs.itsbagelbot.com): architecture, services, state, contracts and decisions.
+- [Context map](CONTEXT-MAP.md): find the owner of a behavior and its local code guide.
+- [Product glossary](CONTEXT.md): the terms used across the project.
+- [Developer setup](web/docs/src/content/docs/guides/getting-started.md): toolchains and focused checks.
+- [Testing](web/docs/src/content/docs/guides/testing.md): validate the area you changed.
 
-[license-shield]: https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge
+Streamer setup guides live on [the product site](https://itsbagelbot.com/guides/).
 
-[license-url]: LICENSE.md
+## How it fits together
 
+```mermaid
+flowchart LR
+    Twitch["Twitch ingress · Elixir"] --> Bus["NATS"]
+    Discord["Discord ingress · Go"] --> Bus
+    Bus --> Engines["Sesame and Discord engine"]
+    Engines --> Bus
+    Bus --> Outgress["Platform outgress"]
+    Web["Dashboard and admin · SvelteKit"] --> Bus
+    Bus <--> Owners["Data services · Go / Ent / MySQL"]
+    Owners --> Projector["Projector"]
+    Projector --> State["Valkey read models"]
+    Engines --> Gossip["Gossip · external APIs"]
+```
 
-<!-- PROJECT LOGO -->
-<div align="center">
+Ingress receives events. Engines decide what to do. Outgress performs platform effects. Data services own their schemas and expose contracts over NATS; other services do not reach into their tables. Projector builds shared read models from owner events and snapshots. Gossip owns external API calls and their upstream budgets.
 
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![Personal][license-shield]][license-url]
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q8P121QNHK)
+`app/` contains service implementations. `internal/` contains shared product contracts and engine support. `pkg/` contains reusable runtime packages, including bus, database, Valkey, boot and rate limiting. Service code uses these packages instead of opening its own backend clients.
 
-  <a href="https://github.com/AdamOusmer/ItsBagelBot">
-    <img src=".github/assets/logo.png" alt="Logo" width="200" height="200">
-  </a>
+`web/` is the Bun workspace for the SvelteKit consoles, Astro sites and `@bagel/kit`. `ui/` contains shared components and design tokens. `locales/` contains translated catalogs. `deploy/` contains deployment configuration and operational tooling; it is not needed to understand the command engine.
 
-<h3 align="center">ItsBagelBot</h3>
-
-  <p align="center">
-    Zero downtime, Infinite bagels.
-    <br />
-    Because a monolith wasn't complicated enough.
-    <br />
-    <br />
-    <a href="https://docs.itsbagelbot.com"><strong>Explore the docs »</strong></a>
-    <br />
-    <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
-    &middot;
-    <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
-    <br />
-    <br />
-    </p>
-
-[![CodeScene Hotspot Code Health](https://codescene.io/projects/73601/status-badges/hotspot-code-health)](https://codescene.io/projects/73601)
-[![CodeScene Average Code Health](https://codescene.io/projects/73601/status-badges/average-code-health)](https://codescene.io/projects/73601)
-[![CodeScene System Mastery](https://codescene.io/projects/73601/status-badges/system-mastery)](https://codescene.io/projects/73601)
-
-<br />
-
-[![Email](https://img.shields.io/badge/contact%40itsbagelbot.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:contact@itsbagelbot.com)
-[![GitHub](https://img.shields.io/badge/AdamOusmer-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/AdamOusmer)
-
-
-</div>
-
-***
-
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li><a href="#about-the-project">About The Project</a></li>
-    <li><a href="#architecture-overview">Architecture Overview</a>
-        <ul>
-            <li><a href="#tech-stack">Tech Stack</a></li>
-        </ul>
-        <ul>
-            <li><a href="#security">Security</a></li>
-        </ul>
-    </li>
-    <li><a href="#contributors">Contributors</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgements">Acknowledgements</a></li>
-  </ol>
-</details>
-
-***
-
-## About The Project
-
-There are thousands of Twitch bots out there, yet none that quite fit my needs. ItsBagelBot is my attempt at creating a
-bot that is.
-
-I have been running so many bots at once to get the features I want, that I decided to make my own bot that can handle
-everything I need in one place. ItsBagelBot is designed to be modular, so I can easily add or remove features as needed.
-
-After years of research on making my stream better, I have finally decided to share my creation with the world.
-ItsBagelBot is the culmination of all my knowledge and experience in the Twitch community.
-All this in a single cloud-native, zero-downtime, microservices-based Twitch bot.
-
-Some might say it's over-engineered for a Twitch bot. It is.
-
-The reason? Because I can.
-
-And because I want to learn more and apply modern software engineering practices to a fun project while showcasing my
-capabilities.
-
-The entirety of the bot is hosted on Oracle Cloud Infrastructure in a Canadian region. The location was chosen for higher
-availability of the resources I need, as well as the advantages of data sovereignty and Canadian privacy laws. Moreover, the 
-data centers are located in a region where hydroelectric power is abundant, making it an environmentally conscious choice.
-
-***
-
-## Architecture Overview
-
-ItsBagelBot is built using a microservices architecture, with each feature being its own service. This allows for
-zero-downtime updates, as services can be updated independently without affecting the entire system.
-
-The main flow of the bot is as follows:
-- **Twitch Ingress** (Elixir/OTP): Handles incoming Twitch events and routes them to the appropriate service.
-It is based on Twitch's Conduit architecture for scalability and reliability. Twitch's EventSub WebSocket connections are managed here, normalized, filtered, and published to the message bus.
-- **Discord Ingress** (Go): Holds the fleet's Discord gateway session and relays Discord events to the message bus.
-- **Message Bus**: NATS is the only inter-service transport, carrying both subject-based events (pub/sub) and request-reply RPC. No service reads another service's database directly.
-- **Processing services** (Go): Sesame handles Twitch chat, modules, commands and moderation. The Discord engine decides module actions from Discord events.
-- **Data services** (Go): Users, Commands, Modules, Loyalty, Transactions, Notifications and Discord-data each own their own MySQL schema, subscribe to relevant subjects, and answer RPC for cross-service reads.
-- **Projector** (Go): Folds data-owner events into shared Valkey read models and serves cache-oriented reads.
-- **Gossip** (Go): Gateway for external APIs, with caching, upstream budgets and credential resolution. A WARP sidecar image serves its untrusted HTTP route.
-- **Outgress Services** (Go): Twitch Outgress sends messages and runs Twitch API actions, applying per-broadcaster rate limiting and the bot account token lifecycle. Discord Outgress performs Discord REST actions.
-- **Release and Flux** (Go, GitHub Actions): The Release workflow tags, builds and pins a release, then moves the `deploy` branch, which Flux syncs to the cluster. clusterops rolls the consoles on TLS renewal and keeps NATS account claims in sync.
-  Pin changes merge into `main` before promotion. `deploy` points directly at that
-  main commit and only fast-forwards; it never receives its own pin or promotion
-  commits. Rollbacks merge a new pin PR into `main` and promote that commit.
-  Reapply must also target a main commit at or ahead of the current deployment.
-  If legacy deploy history diverges, reconcile it into `main` with a merge that
-  preserves main's tree and both parents, then promote. Squashing that history
-  reconciliation would lose the ancestry needed for fast-forward promotion.
-- **Web Interface** (SvelteKit, Astro, Bun): The dashboard and admin console use SvelteKit. The marketing site and documentation use Astro. All run in a Bun workspace.
-
-
-### Tech Stack
-
-Currently in development, but will be built with the following technologies:
-
-#### Languages
-
-![Go](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
-![Elixir](https://img.shields.io/badge/elixir-%234B275F.svg?style=for-the-badge&logo=elixir&logoColor=white)
-![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
-
-#### Technologies & Tools
-
-![Svelte](https://img.shields.io/badge/svelte-%23f1413d.svg?style=for-the-badge&logo=svelte&logoColor=white)
-![Astro](https://img.shields.io/badge/astro-%232C2052.svg?style=for-the-badge&logo=astro&logoColor=white)
-![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=for-the-badge&logo=bun&logoColor=white)
-![NATS](https://img.shields.io/badge/NATS-%2327AAE1.svg?style=for-the-badge&logo=natsdotio&logoColor=white)
-![Ent](https://img.shields.io/badge/ent-%235164E3.svg?style=for-the-badge&logo=go&logoColor=white)
-![MySQL](https://img.shields.io/badge/mysql-%234479A1.svg?style=for-the-badge&logo=mysql&logoColor=white)
-![Valkey](https://img.shields.io/badge/valkey-%23DC382D.svg?style=for-the-badge&logo=valkey&logoColor=white)
-
-#### Security & Encryption
-
-![Tink](https://img.shields.io/badge/Tink-4285F4?style=for-the-badge&logo=google&logoColor=white)
-![Doppler](https://img.shields.io/badge/Doppler-%233426A4.svg?style=for-the-badge&logo=doppler&logoColor=white)
-
-#### DevOps
-
-![Podman](https://img.shields.io/badge/podman-%23892CA0.svg?style=for-the-badge&logo=podman&logoColor=white)
-![k3s](https://img.shields.io/badge/k3s-%23FFC61C.svg?style=for-the-badge&logo=k3s&logoColor=black)
-![GitHub Actions](https://img.shields.io/badge/github%20actions-%232671E5.svg?style=for-the-badge&logo=githubactions&logoColor=white)
-
-#### Infrastructure
-
-![Oracle](https://img.shields.io/badge/Oracle-F80000?style=for-the-badge&logo=oracle&logoColor=white)
-![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tailscale](https://img.shields.io/badge/Tailscale-121212?style=for-the-badge&logo=tailscale&logoColor=white)
-
-#### Monitoring & Logging
-
-![Zap](https://img.shields.io/badge/Zap-000000?style=for-the-badge&logo=uber&logoColor=white)
-![New Relic](https://img.shields.io/badge/newrelic-%2300b1cc.svg?style=for-the-badge&logo=newrelic&logoColor=white)
-
-
-### Security
-
-I take security seriously. ItsBagelBot uses Tink for encryption of sensitive data at rest and in transit.
-
-Every service connects to the NATS message bus over mutual TLS and authenticates with its own JWT account.
-
-The Oracle VPS hosting the bot is secured using Tailscale VPN, ensuring that only authorized devices can access the services.
-The VPS is completely locked down with a strict firewall allowing only necessary ports. A VCN will eventually be used for
-further isolation and avoiding Kubernetes public exposure.
-
-Cloudflare is used for DNS management and DDoS protection.
-
-***
+The [architecture guide](web/docs/src/content/docs/architecture/index.md) explains the paths in detail. The [decision log](web/docs/src/content/docs/adr/index.md) records why the consequential boundaries exist.
 
 ## Contributing
 
-If you have suggestions for how ItsBagelBot could be improved, or want to report a bug, please open an issue! I'd love
-to hear your ideas and help you fix any problems.
+Issues and suggestions are welcome. Translation-only pull requests do not need prior contact; see [TRANSLATIONS.md](TRANSLATIONS.md).
 
-Translation-only pull requests are welcome without prior contact. See [the translation guide](TRANSLATIONS.md) for file locations, browser-based editing, and validation.
-
-For contributing code, please contact me directly at [contact@adam-ousmer.dev](mailto:contact@adam-ousmer.dev) before making
-any changes or submitting a pull request.
-
-***
+For code contributions, contact [contact@adam-ousmer.dev](mailto:contact@adam-ousmer.dev) before submitting changes.
 
 ## License
 
-This project is licensed under the Proprietary License Agreement - see the [LICENSE](LICENSE.md) file for details.
-
-***
-
-## Contact
-
-Adam Ousmer - [GitHub](https://github.com/adam-ousmer.dev) - [Email](mailto:contact@adam-ousmer.dev)
-
-***
-
-## Acknowledgements
-
-README template inspired by [othneildrew/Best-README-Template](https://github.com/othneildrew/Best-README-Template)
-
- 
- 
+Proprietary. See [LICENSE.md](LICENSE.md).

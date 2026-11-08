@@ -1,23 +1,31 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: "Commands"
-description: "Gère les commandes de chat personnalisées, leurs compteurs d’utilisation et les définitions de requêtes externes."
+title: Commands
+description: "Gère les commandes personnalisées, leurs alias et compteurs, les sources de données externes et leurs clés chiffrées."
+docType: reference
 ---
 
-Le service Commands (`app/db/commands/`) possède les commandes de chat personnalisées définies par les diffuseurs, leurs compteurs d’utilisation et les définitions nommées de requêtes externes (fetch) avec leurs clés d’API chiffrées.
+## Responsabilités
 
-## Architecture
+Sesame lit la configuration par projection ou RPC. Gossip résout les définitions et les clés au besoin ; une projection ne doit pas exposer les identifiants déchiffrés. Les modifications alimentent Projector.
 
-Il s’agit d’un service de données standard de l’architecture ItsBagelBot :
+## Interfaces
 
-- **Propriété** : il est le seul propriétaire du schéma MySQL des commandes personnalisées. Aucun autre service ne lit directement sa base.
-- **Interface RPC** : il expose `bagel.rpc.commands.*` pour le tableau de bord (`list`, `upsert`, `delete` et les opérations `fetch_*` pour les requêtes externes), ainsi que `bagel.rpc.internal.projection.commands.get` (et `...commands.fetches.get`) pour des vues de lecture sans secret destinées aux services internes.
-- **Émission d’événements** : les créations et modifications ordinaires sont acceptées aussitôt puis écrites par lots (fenêtre de 2 secondes ou 256 éléments). Le renommage et la suppression sont immédiats. Les changements validés sont publiés sur `data.commands.changed`, et ceux des requêtes externes sur `data.commands.fetch_changed`.
-- **Compteurs d’utilisation** : Sesame signale chaque utilisation sur `data.commands.used`. Chaque lot est enregistré avec un reçu et son incrément dans une seule transaction SQL.
-- **Invalidation du cache** : il diffuse sur `bagel.cache.invalidate.<portée>` pour que Projector et Sesame abandonnent leurs caches périmés et récupèrent les nouvelles définitions.
-- **Clés de requêtes externes** : les clés d’API sont chiffrées au repos (`TINK_KEYSET_PATH`). Le tableau de bord ne voit que des métadonnées ; Gossip déchiffre une clé par un RPC interne quand il effectue la requête.
+Le préfixe RPC par défaut est `bagel.rpc.commands`. Les écritures ordinaires sont regroupées : une réponse positive signifie leur acceptation, pas leur persistance immédiate. Le renommage et la suppression sont immédiats. Un consommateur durable traite `data.commands.used` et persiste le reçu du lot avec son incrément avant acquittement. La suppression d’un compte retire ses commandes et identifiants de sources selon la date limite de suppression.
 
-## Exécution
+## État et dépendances
 
-Le service Commands **n’exécute pas** les commandes. Il en conserve uniquement les définitions. L’exécution est assurée par le moteur principal [Sesame](/fr/microservices/sesame/), qui intègre les commandes personnalisées dans sa table de routage aux côtés des commandes intégrées. Gossip effectue les requêtes HTTP externes des requêtes personnalisées. L’affichage de la page publique des commandes d’une chaîne est un réglage de Users et ne désactive pas l’exécution dans le chat.
+Commands possède son schéma ; Projector et Gossip utilisent ses vues et RPC internes.
+
+## Comportement en cas d’échec
+
+Une écriture regroupée acceptée n’est pas encore persistée. Le reçu du compteur et son incrément sont enregistrés ensemble.
+
+## Code
+
+Source : [app/db/commands/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/db/commands). Voir `main.go`, `rpc/`, `repository/` et `ent/schema/`.
+
+## Validation
+
+Depuis la racine, exécuter `go test ./app/db/commands/...`.

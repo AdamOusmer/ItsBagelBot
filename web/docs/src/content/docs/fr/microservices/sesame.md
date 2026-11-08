@@ -2,104 +2,39 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Sesame
-description: Moteur principal et processeur de commandes d'ItsBagelBot.
+description: "Traite les événements Twitch, les modules intégrés et commandes personnalisées, la modération entrante, les minuteries et les réponses."
+docType: reference
 ---
 
-Sesame est le moteur principal d'ItsBagelBot. Il consomme les événements d'ingress, évalue les conditions, distribue les commandes, exécute les gestionnaires d'événements des modules et achemine les sorties vers le service outgress.
+## Responsabilités
 
-## Architecture
+Ingress transmet les événements normalisés ; Sesame résout la configuration par projection et RPC, applique les conditions et publie des actions typées pour Outgress. Les événements d’essai sont traités sans sortie. L’application automatique d’AutoMod est désactivée par défaut ; les réponses sortantes complètes passent aussi une vérification.
 
-Sesame fonctionne comme un consommateur NATS JetStream fortement concurrent. Il tire les messages des sujets `twitch.ingress.event.*` sur deux voies (Premium et Standard) et les vide dans un pool partagé qui réserve une capacité aux événements Premium.
+## Interfaces
 
-### Le pipeline
+Ingress fournit les enveloppes normalisées ; Sesame publie les messages typés `internal/domain/outgress` sur la voie Twitch Outgress appropriée.
 
-Chaque message passe par `engine.Pipeline`, une étape de décodage et de distribution sans allocation (hors émissions) :
-1. **Décodage** : le payload JSON est désérialisé dans un `lane.Envelope` mis en pool.
-2. **Éligibilité** : les événements non pris en charge et les enveloppes sans broadcaster valide sont écartés avant toute projection ou commande.
-3. **Vues des modules** : si l'événement requiert un comportement configurable, le `Projector` est interrogé pour obtenir l'ensemble `ModuleView` du broadcaster.
-4. **Modération entrante** : le chat passe par la porte AutoMod (`automod/`, `engine/moderate.go`). L'application des sanctions est désactivée par défaut (`SESAME_AUTOMOD_ENFORCE=false`) : les verdicts sont alors enregistrés et le traitement continue. Une action appliquée consomme la ligne.
-5. **Distribution de commande** : si l'événement est un message de chat (`channel.chat.message`) non consommé, le pipeline consulte le registre des commandes. Les commandes intégrées et personnalisées sont évaluées selon leurs permissions, leurs cooldowns et leurs conditions d'exécution uniquement en direct.
-6. **Gestionnaires d'événements** : les gestionnaires non liés aux commandes enregistrés par les modules sont exécutés dans l'ordre d'enregistrement.
-7. **Émission** : les gestionnaires de modules ne publient pas directement sur NATS. Ils produisent une structure `Output` pour un callback `Emit`, qui construit le contrat filaire `outgress.Message` et le publie sur `twitch.outgress.premium` ou `twitch.outgress.standard` (les tâches système utilisent `twitch.outgress.system`). Le texte de chat, d'annonce et d'épinglage passe d'abord par la vérification partagée du plancher de sortie.
+Le pipeline résout l’état de la chaîne, exécute les observateurs et la modération, distribue les commandes admissibles, développe les variables et publie les sorties décrites. Le registre `modules/all.go` définit les handlers disponibles ; chaque chaîne garde le contrôle de ses réglages. Un séquenceur borné traite les suites des événements de diffusion par chaîne ; en cas de débordement, le traitement en ligne ne conserve pas l’ordre FIFO. Les sorties issues des essais sont supprimées.
 
-Les événements d'une chaîne d'essai (chaîne observée non inscrite) ignorent la modération, exécutent les gestionnaires, et leurs sorties reçoivent le marqueur d'origine d'essai pour qu'Outgress Twitch les refuse.
-
-La relecture du transport ne revendique aucune clé Valkey. Les sorties dérivées d'une entrée possédant un identifiant d'événement stable utilisent un identifiant de publication stable et attendent la confirmation NATS avant que l'entrée soit acquittée. Valkey reste l'état du domaine, et non un second système d'acquittement du transport.
-
-### Création des modules
-
-Les fonctionnalités de Sesame sont écrites dans le paquet `module`. Pour conserver une excellente testabilité et une surface d'auteur totalement dépourvue de câblage d'exécution (Valkey, Projector ou NATS), les fonctionnalités sont déclarées avec un **motif de builder fluent**.
-
-Un module est instancié, ses commandes et gestionnaires d'événements sont chaînés, puis il renvoie un `Module` immuable consommé au démarrage par `engine.Registry`.
-
-#### Le builder fluent
-
-Voici un exemple de création d'un module avec le builder :
-
-```go
-func MyModule() module.Module {
-    // 1. Initialize with name and kind (Core, Default, Opt-In)
-	m := module.NewModule("my_feature", module.KindDefault)
-
-    // 2. Register non-command EventSub handlers
-	m.On("channel.chat.message", handleChat)
-    m.On("stream.online", handleStreamOnline)
-
-    // 3. Declare commands with chained gates
-	m.Command("ping").Everyone().Run(pingRun)
-	m.Command("announce").Mod().Cooldown(10 * time.Second).Run(announceRun)
-    m.Command("shoutout").Aliases("so").Mod().LiveOnly().Run(soRun)
-
-    // 4. Validate and build the immutable artifact
-	return m.Build()
-}
+```mermaid
+flowchart LR
+  Event[Événement] --> Pipeline --> Gate[Réglages et conditions]
+  Gate --> Handler --> Reply[Développer la réponse]
+  Reply --> Safety[Vérification] --> Outgress
 ```
 
-#### Types de modules
+## État et dépendances
 
-Les modules sont déclarés avec l'un des trois types suivants, qui déterminent leur logique d'activation. Un builder peut aussi marquer un module `.Beta()` (s'exécute uniquement pour les chaînes Premium ; interdit sur Core) ou `.Trial()` (Core uniquement, s'exécute pour les chaînes d'essai) :
-- **Core** : toujours activé, jamais basculé, et sans lecture de projection.
-- **Default** : activé par défaut, mais désactivable depuis le dashboard.
-- **Opt-In** : désactivé par défaut, et doit être activé explicitement depuis le dashboard.
+Les réglages et commandes proviennent des projections et RPC des propriétaires ; Sesame ne possède pas leurs schémas SQL.
 
-#### Conditions de commande
+## Comportement en cas d’échec
 
-La méthode `.Command("name")` renvoie un `CmdBuilder` qui permet d'enchaîner les conditions d'exécution avant la finalisation avec `.Run()`.
-- **Permissions** : `.Everyone()`, `.Sub()`, `.VIP()`, `.Mod()`, `.LeadMod()`, `.Broadcaster()`, ou `.AllowUser(id)` pour un seul spectateur nommé
-- **État** : `.LiveOnly()`, `.Cooldown(time.Duration)`
-- **Routage** : `.Aliases("trigger")`, `.NumericSuffix()` (absorbe les chiffres finaux directement ; par exemple `!clip30` devient `clip`).
+Les sorties d’essai sont supprimées. En cas de débordement du séquenceur, le traitement en ligne ne conserve pas l’ordre FIFO par chaîne.
 
-Au démarrage, `engine.Registry` indexe ces modules construits en créant un index plat et insensible à la casse des commandes ainsi qu'une table de routage des types d'événements.
+## Code
 
-### Variables et modèles
+Source : [app/twitch/sesame/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/twitch/sesame). Voir `main.go`, `engine/pipeline.go`, `engine/dispatch.go`, `modules/all.go` et `automod/`.
 
-Sesame fournit un système de modèles de chaînes rapide et économe en allocations pour les réponses de commandes dynamiques. Les fonctions `module.Expand` (et `module.ExpandString`) analysent les chaînes à la recherche de jetons `{key}` et les résolvent avec un callback fourni.
+## Validation
 
-Le système peut laisser passer les jetons littéraux `{key}` si le callback ne les reconnaît pas, au lieu de les supprimer silencieusement.
-
-En outre, `tmpl.Dynamic` (`pkg/tmpl/dynamic.go`) prend en charge les variables dynamiques génériques :
-- `{random}` : génère un nombre aléatoire entre 1 et 100.
-- `{random:min-max}` : génère un nombre aléatoire entre `min` et `max`.
-- `{random:min-max:,}` : regroupe les chiffres par trois avec le séparateur d'un seul caractère indiqué (par exemple `1,000,000`). Utilisez `'` à la place de `,` pour obtenir `1'000'000`.
-- `{choice:a,b,c}` : choisit une chaîne aléatoire dans une liste séparée par des virgules.
-
-### État et cache
-
-Sesame conserve un débit élevé en évitant les lectures de base de données sur le chemin critique :
-- **Cache de projection** : `projection.Reader` fournit un cache mémoire des paramètres du broadcaster (modules, utilisateurs et commandes personnalisées), avec repli vers le RPC NATS (`bagel.rpc.internal.projection.*`) et écoute des diffusions `bagel.cache.invalidate.*`.
-- **Stockage live** : `ValkeyLiveStore` vérifie si un broadcaster est actuellement en direct. Il met les résultats en cache localement, se replie sur Valkey et peut déclencher une vérification de la voie outgress système vers Twitch si la clé est absente.
-- **État du domaine** : les cooldowns, minuteries, vues live de fidélité, fenêtres de salutations et état de réputation sont stockés dans Valkey. La relecture du transport ne l'est pas.
-
-### Déduplication des alertes de follow
-
-Twitch renvoie `channel.follow` lors de chaque nouveau follow ; une boucle unfollow/refollow pourrait donc déclencher l'alerte de chat aussi vite qu'un spectateur peut cliquer. Le module d'alertes revendique `alert:follow:<broadcaster>:<follower>` pendant 72 heures avec la même idiome `SET key 1 NX PX` qu'un cooldown de commande, et ne publie le remerciement que s'il remporte la revendication. Les deux moitiés de la clé sont des identifiants Twitch numériques : un changement de nom ne rouvre donc pas la fenêtre et la revendication d'une chaîne n'en supprime jamais une autre. La revendication est faite après la lecture de l'activation ; une chaîne dont les alertes de follow sont désactivées ne consomme jamais une fenêtre qu'elle voudrait utiliser dès leur réactivation.
-
-Les abonnements utilisent la même réservation avec une fenêtre de 15 minutes (`alert:sub:...`, abonnements offerts exclus). Les cadeaux, cheers et raids coûtent chacun quelque chose à l'émetteur, tandis que les pauses publicitaires sont l'événement propre à la chaîne : ils ne sont donc pas limités.
-
-Trois propriétés de la flotte rendent sûre la conservation d'une fenêtre de plusieurs jours dans Valkey :
-
-- **La revendication arrive toujours sur le primaire.** `SET ... NX` est une écriture ; le retard d'un réplica ne peut donc pas faire croire à deux réplicas qu'ils ont tous deux remporté la fenêtre.
-- **La fenêtre survit aux redémarrages.** L'espace de clés utilise AOF avec `appendfsync everysec` sur un volume persistant (`save ""`, sans snapshots RDB). L'AOF enregistre les expirations comme des horodatages absolus ; un redémarrage de pod ou de toute la flotte restaure donc chaque revendication avec son temps *restant*, et non avec 72 heures renouvelées. La seule fenêtre de perte est la fraction de seconde d'écritures qu'un arrêt brutal peut perdre, plus les quelques millisecondes d'écritures non répliquées supprimées par un basculement Sentinel. Dans les deux cas, le coût maximal est une alerte en double.
-- **L'ensemble de clés reste réduit.** À 5 000 follows par jour, une chaîne conserve environ 15 000 revendications d'environ 120 octets chacune : moins de 2 Mio sur le budget `maxmemory` de 512 Mio. La fenêtre pourrait être portée à une semaine avec le même ordre de coût. La pression à surveiller n'est pas la taille mais la politique : `maxmemory-policy volatile-lru` évince d'abord les clés portant un TTL, et ces revendications sont écrites une fois et rarement lues, ce qui en fait les clés les plus froides de l'espace. Une pression mémoire prolongée les évincerait et rouvrirait les alertes.
-
-La condition échoue en mode permissif. Si Valkey est inaccessible, l'alerte est tout de même publiée et l'absence est journalisée, car perdre un remerciement est pire qu'un doublon, et l'abus contre lequel la condition existe ne doit pas provoquer la panne.
+Depuis la racine, exécuter `go test ./app/twitch/sesame/...`. Voir `engine/pipeline.go`, `engine/moderate.go` et `internal/consumer/` pour le traitement et les reprises.

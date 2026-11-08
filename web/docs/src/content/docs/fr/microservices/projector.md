@@ -1,20 +1,31 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: "Projector"
-description: "Construit et sert les modèles de lecture Valkey partagés : réglages, état en direct et compteurs en direct."
+title: Projector
+description: "Maintient des modèles de lecture Valkey à partir des événements des propriétaires et sert les lectures de statut, de direct, de diffusion et du tableau de bord."
+docType: reference
 ---
 
-Le service Projector (`app/projector/`) intègre les événements des services de données dans des modèles de lecture Valkey partagés et sert des lectures orientées cache. Les services consommateurs, principalement [Sesame](/fr/microservices/sesame/), les utilisent pour les lectures à haut débit.
+## Responsabilités
 
-## Architecture
+Il applique les événements des comptes, commandes, modules, automatisations et compteurs. L’écriture précède l’invalidation du cache ; les données invalides sont acquittées et les erreurs de stockage entraînent une nouvelle livraison. Une lecture à froid peut interroger le propriétaire et une hydratation en arrière-plan répare les sections manquantes. Les révisions protègent les données récentes.
 
-Au lieu de laisser les workers à fort trafic exécuter des requêtes SQL sur les différents services de données (Users, Modules, Commands), le Projector construit des modèles de lecture aplatis.
+## Interfaces
 
-- **Intégration des événements** : Users, Commands et Modules publient `data.users.changed`, `data.users.deleted`, `data.modules.changed` et `data.commands.changed`. Le Projector les consomme, écrit la projection Valkey, puis diffuse une invalidation sur `bagel.cache.invalidate.<portée>` (par exemple `status`, `modules`, `commands`, `live`) pour que chaque cache de processus abandonne sa copie.
-- **Cycle de vie du stream** : lorsqu’un stream passe en direct (`twitch.ingress.event.stream`), le Projector enregistre l’état en direct puis préchauffe la projection complète en arrière-plan.
-- **Hydratation** : une lecture à froid interroge le service propriétaire via `bagel.rpc.internal.projection.*` et renvoie cette section. Les sections manquantes sont remplies en arrière-plan.
-- **Lectures** : il sert `bagel.rpc.broadcaster.status.get`, `bagel.rpc.broadcaster.live.get`, `bagel.rpc.broadcaster.stream_info.get` et les lectures du tableau de bord sous `bagel.rpc.projector.dashboard.*`.
-- **Compteurs en direct** : il intègre les incréments `data.loyalty.counters` dans des totaux en direct par bot et par chaîne, et initialise les classements à partir de Loyalty.
+Un consommateur durable valide les événements, met à jour l’état partagé puis diffuse les invalidations. Une section absente du tableau de bord peut être obtenue de son propriétaire ; l’hydratation asynchrone répare le cache sans bloquer toutes les lectures. Les écritures de cycle de vie précèdent l’acquittement ; les travaux consécutifs au début d’un direct sont exécutés au mieux. Projector n’écrit pas la clé `live:<id>` de Sesame.
 
-En isolant la charge de lecture dans une projection Valkey dédiée, les bases MySQL de configuration sont protégées du volume massif de lectures généré par les chats Twitch actifs.
+## État et dépendances
+
+Projector stocke des vues dérivées dans Valkey ; les services de données restent les sources de vérité.
+
+## Comportement en cas d’échec
+
+Les événements invalides sont acquittés ; les erreurs de stockage entraînent une nouvelle livraison. Les contrôles de révision protègent les mises à jour récentes.
+
+## Code
+
+Source : [app/projector/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/projector). Voir `main.go`, `hydration/`, `rpc/` et `internal/projection/`.
+
+## Validation
+
+Depuis la racine, exécuter `go test ./app/projector/... ./internal/projection/...`. Voir `hydration/` et `rpc/live.go` pour l’ordre et les lectures.

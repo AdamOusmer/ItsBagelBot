@@ -1,44 +1,31 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Dingress
-description: Discord ingress, the gateway receiver of the Discord vertical, and how it hands off to the engine and outgress.
+title: Discord ingress
+description: "Owns the Discord gateway session, heartbeat, resume, presence and relay of selected events."
+docType: reference
 ---
 
-Dingress (`app/discord/ingress/`, deployed as `discord-ingress`) is the Discord **gateway** receiver. It holds the fleet bot token's Identify session, wraps selected gateway events, and publishes them to NATS. It does not decide community behavior and it does not run general Discord REST calls.
+## Responsibilities
 
-The Discord side is three services plus a data service:
+A Valkey lease permits one active gateway session per bot token; a standby can resume using the checkpoint. Ingress immediately defers gateway interactions. It also serves `POST /discord/interactions`, verifies signatures, acknowledges inline, and publishes the interaction for Engine. General REST effects belong to Outgress.
 
-| Service | Path | Role |
-|---|---|---|
-| Discord Ingress (this page) | `app/discord/ingress/` | Gateway session, event relay, immediate interaction defer. |
-| Discord Engine | `app/discord/engine/` | Decides what to do: welcomes, tickets, voice rooms, audit logs, link guard, live and clip posts. Emits described commands; makes no Discord REST call. |
-| Discord Outgress | `app/discord/outgress/` | Executes the commands over Discord REST, runs guild setup and layout, registers slash commands. |
-| Discord data | `app/db/discord/` | Owns guild bindings, per-guild settings, tickets and member XP. |
+## Interfaces
 
-## Architecture
+The lease holder opens the gateway session and checkpoints session ID, resume URL and sequence. A successor can resume from that checkpoint. Gateway interaction acknowledgement is an immediate REST exception; the HTTP endpoint instead acknowledges inline after signature verification. Both paths publish an interaction for later handling, so acknowledgement is not proof of successful execution.
 
-1. Ingress dials the Discord gateway with the fleet bot token and keeps the session alive (heartbeat, Resume, reconnect).
-2. For each recognized dispatch it publishes a wrapped event to one of six subjects: `discord.ingress.event.{message,member,voice,interaction,audit,guild}`. Unknown event types are dropped. Ingress only publishes; the Discord Engine provisions the `DISCORD_INGRESS` stream and binds its consumers.
-3. The engine resolves the guild binding and settings (from Discord data over RPC, with Valkey caches) and publishes commands to `discord.outgress.mod` (urgent moderation) or `discord.outgress.default`.
-4. Outgress consumes both lanes, moderation first, and calls Discord REST.
+## State and dependencies
 
-Two replicas run for availability, but a Valkey lease decides which one holds the gateway socket. The standby holds none and takes over from the lease holder's saved Resume checkpoint, so a rollout does not spend a fresh Identify. This is why one bot token never has two live sessions.
+A Valkey lease selects the active gateway session; checkpoints support resume by a successor.
 
-### Interaction defer
+## Failure behavior
 
-Ingress makes one REST call itself: for `INTERACTION_CREATE` it defers the interaction before Discord's three-second deadline. If the defer fails, the event is dropped. The engine and outgress finish the interaction later through a followup. The defer shares the fleet-wide Valkey rate budget with outgress.
+A deferred interaction has been acknowledged, not necessarily completed. Standby instances do not open another gateway session.
 
-### Presence
+## Code map
 
-Ingress sets the bot's presence from the public users counts RPC (`NATS_INTERNAL_USERS_COUNTS_SUBJECT`, default `bagel.rpc.internal.users.counts.get`).
+Source: [app/discord/ingress/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/discord/ingress). See `main.go`, `internal/gateway/`, and `internal/relay/`; event contracts live in `internal/domain/discord/`.
 
-### Privileged intents
+## Validation
 
-The gateway session requests the Guilds, Guild Members, Guild Moderation, Guild Expressions, Guild Invites, Guild Voice States, Guild Messages and Message Content intents. Server Members Intent and Message Content Intent are privileged and must be enabled on the Discord application. Without them, welcomes and crumb ranks never fire.
-
-## Deploy
-
-`deploy/k8s/discord.yaml` runs `discord-ingress` (2 replicas), `discord-engine` (3) and `discord-outgress` (3), all with rolling updates. Their secrets come from the Doppler project behind the `discord-env` secret. `DISCORD_BOT_TOKEN` is the only Discord credential and reaches ingress and outgress; it never lives in a module blob. An empty `DISCORD_BOT_TOKEN` leaves ingress idle: health still serves, the gateway stays dark.
-
-The dashboard's Discord setup RPC keeps its historical `bagel.rpc.dingress` prefix, but it is served by Discord Outgress, not by this service.
+Run `go test ./app/discord/ingress/...` from the repository root. See `internal/gateway/session.go`, `lease.go` and `internal/relay/interactions.go`.

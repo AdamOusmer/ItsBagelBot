@@ -1,13 +1,16 @@
 {
-  "start": "Démarrer",
-  "platform": "Plateforme",
-  "records": "Archives",
+  "start": "Guides",
+  "platform": "Architecture",
+  "records": "Décisions",
   "groupEvents": "Parcours des événements",
   "groupData": "Propriétaires des données",
   "groupWeb": "Applications web",
-  "startLead": "Lancez la pile en local, puis voyez comment les pièces s’assemblent.",
-  "servicesLead": "Chaque service possède son schéma et parle aux autres par NATS.",
-  "platformLead": "Où vit l’état et sur quoi tourne la flotte.",
-  "referenceLead": "Les contrats à vérifier quand vous modifiez le code.",
-  "recordsLead": "Pourquoi le système a cette forme, et des preuves datées de son comportement."
+  "startLead": "Accomplir une tâche, diagnostiquer un échec ou vérifier une modification.",
+  "servicesLead": "Qui reçoit les événements, décide, possède les données et exécute les actions.",
+  "platformLead": "Comprendre les frontières, les flux d’état, la cohérence et les invariants de publication.",
+  "referenceLead": "Consulter les contrats, la configuration, les packages partagés et les conventions documentaires.",
+  "recordsLead": "Lire le contexte, la décision et les conséquences de chaque choix architectural.",
+  "groupRuntime": "Intégrations externes",
+  "groupDevelopment": "Développement",
+  "groupValidation": "Diagnostic et validation"
 }

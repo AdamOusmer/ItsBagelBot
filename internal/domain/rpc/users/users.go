@@ -50,6 +50,7 @@ type AdminUserView struct {
 	SubscriptionRef           *string          `json:"subscription_ref,omitempty"`
 	SubscriptionCancelPending bool             `json:"subscription_cancel_pending"`
 	TestAccount               bool             `json:"test_account"`
+	Onboarded                 bool             `json:"onboarded"`
 	CreatedAt                 time.Time        `json:"created_at"`
 	UpdatedAt                 time.Time        `json:"updated_at"`
 }
