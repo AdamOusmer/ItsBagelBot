@@ -16,6 +16,8 @@
     dismissMenu: () => boolean;
     zoomBy: (factor: number) => void;
     settle: (retidy: boolean) => void;
+    nodeIdAt: (el: unknown) => string | undefined;
+    hasTarget: (el: unknown) => boolean;
   };
 </script>
 
@@ -80,7 +82,6 @@
   const KEY_INSET = { top: 104, right: 24, bottom: 80, left: 112 };
   const DRAG_SLOP = 3;
   const TOUCH_SLOP = 8;
-  const OWN_TAPS = 'button, [data-flow-ui]:not([data-pan-through])';
   const TOUCH_MIN_ZOOM = 0.25;
   const READABLE_ZOOM = 0.75;
   const ADD_ROOM = 48;
@@ -94,6 +95,13 @@
   };
 
   let host = $state<HTMLDivElement>();
+  let zoomEl = $state<HTMLElement | null>(null);
+  let hintEl = $state<HTMLElement | null>(null);
+  let edgeToolbarEl = $state<HTMLElement | null>(null);
+  let startEl = $state<HTMLElement | null>(null);
+  const nodeEls: Record<string, HTMLElement | null> = {};
+  const cards: Record<string, { portAt: (el: Element | null) => string | undefined; addButton: (port: string) => HTMLButtonElement | null } | null> = {};
+  const edgeEls: Record<string, SVGElement | null> = {};
   let view = $state({ x: 0, y: 0, k: 1 });
   let disp = $state<Record<string, Pt>>({});
   let dragging = $state(false);
@@ -133,6 +141,16 @@
   const at = (id: string): Pt => disp[id] ?? nodeById(id) ?? { x: 0, y: 0 };
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const snap = (v: number) => Math.round(v / GRID) * GRID;
+
+  export const nodeIdAt = (el: unknown): string | undefined => Object.keys(nodeEls).find((id) => nodeEls[id]?.contains(el as Node | null));
+  export const hasTarget = (el: unknown): boolean => Boolean(host?.contains(el as Node | null));
+  const portAt = (id: string | undefined, el: Element | null) => (id ? cards[id]?.portAt(el) : undefined);
+  const edgeAt = (el: Element | null) => Object.keys(edgeEls).find((id) => edgeEls[id] === el);
+
+  function inOwnUi(el: Element, withStart: boolean): boolean {
+    const surfaces = withStart ? [zoomEl, hintEl, edgeToolbarEl, startEl] : [zoomEl, hintEl, edgeToolbarEl];
+    return el.closest('button') !== null || surfaces.some((s) => s?.contains(el));
+  }
 
   function toWorld(clientX: number, clientY: number): Pt {
     const r = (host as HTMLElement).getBoundingClientRect();
@@ -263,7 +281,7 @@
   const stopGesture = (e: Event) => e.preventDefault();
   // Tap logic runs on pointerup. A follow-up click would land on the + a just selected step reveals, and its focus would reselect.
   const stopCompatClick = (e: TouchEvent) => {
-    if (!(e.target as Element).closest(OWN_TAPS)) e.preventDefault();
+    if (!inOwnUi(e.target as Element, false)) e.preventDefault();
   };
 
   function scheduleToolbarPosition() {
@@ -310,7 +328,7 @@
   function onTouchDown(e: PointerEvent) {
     const aimed = e.target as HTMLElement;
     viewOpen = viewOpen && Boolean(aimed.closest('.zoom, .view-toggle'));
-    if (aimed.closest(OWN_TAPS)) return;
+    if (inOwnUi(aimed, false)) return;
     // Browsers retarget a touch to a nearby clickable, which would steal taps on wires next to a card.
     const el = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null) ?? aimed;
     (host as HTMLElement).setPointerCapture(e.pointerId);
@@ -322,13 +340,13 @@
       return;
     }
     start = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y, nx: 0, ny: 0, moved: false };
-    const port = el.closest<HTMLElement>('[data-port]');
-    const id = el.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+    const id = nodeIdAt(el);
+    const port = portAt(id, el);
     const n = id ? nodeById(id) : undefined;
-    tapped = { port: port?.dataset.port, node: id, edge: el.closest<SVGElement>('[data-edge]')?.dataset.edge };
+    tapped = { port, node: id, edge: edgeAt(el) };
     if (port && id && !connecting) {
       const p = toWorld(e.clientX, e.clientY);
-      wire = { from: id, port: port.dataset.port as string, x: p.x, y: p.y };
+      wire = { from: id, port, x: p.x, y: p.y };
       selectedEdge = null;
       wireTarget = null;
       mode = 'wire';
@@ -446,9 +464,9 @@
     }
     if (e.button !== 0) return;
     const el = e.target as HTMLElement;
-    if (el.closest('[data-flow-ui], button')) return;
+    if (inOwnUi(el, true)) return;
     if (connecting) {
-      const id = el.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+      const id = nodeIdAt(el);
       if (id && targetFor(id)) {
         const made = connect(flow, { ...connecting, to: id });
         connecting = null;
@@ -463,25 +481,23 @@
     start = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y, nx: 0, ny: 0, moved: false };
     closeMenu();
 
-    const edge = el.closest<SVGElement>('[data-edge]')?.dataset.edge;
+    const edge = edgeAt(el);
     if (edge) {
       selectEdge(edge);
       mode = 'idle';
       return;
     }
-    const port = el.closest<HTMLElement>('[data-port]');
-    const nodeEl = el.closest<HTMLElement>('[data-node-id]');
-    if (port && nodeEl) {
-      const id = nodeEl.dataset.nodeId as string;
+    const id = nodeIdAt(el);
+    const port = portAt(id, el);
+    if (port && id) {
       const p = toWorld(e.clientX, e.clientY);
-      wire = { from: id, port: port.dataset.port as string, x: p.x, y: p.y };
+      wire = { from: id, port, x: p.x, y: p.y };
       selectedEdge = null;
       wireTarget = null;
       mode = 'wire';
       return;
     }
-    if (nodeEl) {
-      const id = nodeEl.dataset.nodeId as string;
+    if (id) {
       const n = nodeById(id);
       if (!n) return;
       finishTween();
@@ -524,8 +540,7 @@
       disp[n.id] = { x: n.x, y: n.y };
     } else if (mode === 'wire' && wire) {
       const p = toWorld(e.clientX, e.clientY);
-      const under = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-node-id]');
-      wireTarget = under?.dataset.nodeId ?? null;
+      wireTarget = nodeIdAt(document.elementFromPoint(e.clientX, e.clientY)) ?? null;
       wire = { ...wire, x: p.x, y: p.y };
     }
   }
@@ -557,9 +572,9 @@
     wire = null;
     wireTarget = null;
     if (!start.moved) return;
-    const under = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-node-id]');
+    const under = nodeIdAt(document.elementFromPoint(e.clientX, e.clientY));
     if (under) {
-      if (connect(flow, { from: w.from, port: w.port, to: under.dataset.nodeId as string })) {
+      if (connect(flow, { from: w.from, port: w.port, to: under })) {
         announce(t('flows.noteConnected'));
         if (autoTidy) runTidy(true);
       }
@@ -627,7 +642,7 @@
 
   function onCanvasKey(e: KeyboardEvent) {
     if (!connecting || (e.key !== 'Enter' && e.key !== ' ')) return;
-    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+    const id = nodeIdAt(e.target);
     if (!id || !targetFor(id)) return;
     const made = connect(flow, { ...connecting, to: id });
     connecting = null;
@@ -671,7 +686,7 @@
   }
 
   export function focusNode(id: string) {
-    void tick().then(() => host?.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(id)}"] [role="button"]`)?.focus({ preventScroll: true }));
+    void tick().then(() => nodeEls[id]?.querySelector<HTMLElement>('[role="button"]')?.focus({ preventScroll: true }));
   }
 
   function keepInView(id: string) {
@@ -744,7 +759,7 @@
     if (!n || !spec) return false;
     const outs = outputsFor(spec);
     const port = outs[other ? outs.length - 1 : 0].id;
-    const anchor = host?.querySelector(`[data-node-id="${CSS.escape(n.id)}"] [data-port="${CSS.escape(port)}"]`)?.parentElement?.querySelector('button');
+    const anchor = cards[n.id]?.addButton(port);
     if (!anchor) return false;
     menuByKey = true;
     addFromPort(n.id, port, anchor);
@@ -859,14 +874,13 @@
   class="canvas bb-dot-canvas"
   class:dragging
   class:view-open={viewOpen}
-  data-touch={touch ? '' : undefined}
-  data-connecting={connecting ? '' : undefined}
+  class:touch
+  class:connecting={connecting !== null}
   style:background-size="{dotGap}px {dotGap}px"
   style:background-position="{view.x}px {view.y}px"
   bind:this={host}
   role="application"
   aria-label={t('flows.board.boardLabel')}
-  data-flow-canvas
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
@@ -915,7 +929,7 @@
         <path
           class="hit"
           d={edge.d}
-          data-edge={edge.id}
+          bind:this={edgeEls[edge.id]}
           role="button"
           tabindex="0"
           aria-label={t('flows.board.connectionSelection')}
@@ -936,7 +950,7 @@
       {/if}
     </svg>
 
-    <FlowStart x={startAt.x} y={startAt.y} empty={triggers.length === 0} onadd={onstart} />
+    <FlowStart x={startAt.x} y={startAt.y} empty={triggers.length === 0} {touch} bind:el={startEl} onadd={onstart} />
 
     {#each flow.nodes as node (node.id)}
       <div
@@ -946,7 +960,7 @@
         class:source={(connecting ?? wire)?.from === node.id}
         class:target={(connecting && targetFor(node.id)) || (wireTarget === node.id && targetFor(node.id))}
         class:invalid-target={wireTarget === node.id && !targetFor(node.id)}
-        data-node-id={node.id}
+        bind:this={nodeEls[node.id]}
         style:transform="translate({at(node.id).x}px, {at(node.id).y}px)"
         style:z-index={selectedId === node.id || trace?.current === node.id ? 2 : 1}
         role="presentation"
@@ -956,7 +970,7 @@
           if (mode === 'idle') keepInView(node.id);
         }}
       >
-        <FlowNodeCard {node} selected={selectedId === node.id} tabbable={stopId === node.id} onadd={(port, el) => addFromPort(node.id, port, el)} />
+        <FlowNodeCard bind:this={cards[node.id]} {node} selected={selectedId === node.id} tabbable={stopId === node.id} {touch} connecting={connecting !== null} onadd={(port, el) => addFromPort(node.id, port, el)} />
       </div>
     {/each}
   </div>
@@ -995,7 +1009,7 @@
   {/if}
 
   {#if selectedEdge && flow.edges.some((edge) => edge.id === selectedEdge)}
-    <div class="edge-toolbar" data-flow-ui style:bottom="{toolbarBottom}px" style:left="calc(50% - {room / 2}px)">
+    <div class="edge-toolbar" bind:this={edgeToolbarEl} style:bottom="{toolbarBottom}px" style:left="calc(50% - {room / 2}px)">
       <Button variant="ghost" onclick={() => selectedEdge && deleteEdge(selectedEdge)}>
         <Icon name="trash" size={16} />
         {t('flows.board.removeConnection')}
@@ -1004,7 +1018,7 @@
   {/if}
 
   {#if connecting}
-    <div class="connect-hint" data-flow-ui role="status">
+    <div class="connect-hint" bind:this={hintEl} role="status">
       <span>{t('flows.connectHint')}</span>
       <Button variant="ghost" onclick={() => (connecting = null)}>{t('flows.connectCancel')}</Button>
     </div>
@@ -1015,7 +1029,7 @@
     <span>{t('flows.viewTools')}</span>
   </button>
 
-  <div class="zoom" data-flow-ui>
+  <div class="zoom" bind:this={zoomEl}>
     <Cluster gap={2} align="stretch" nowrap>
       <IconButton label={t('flows.board.zoomOut')} size="sm" tooltip onclick={() => zoomCenter(1 / 1.2)}><Icon name="minus" size={14} /></IconButton>
       <span class="zoom-pct">{Math.round(shownK * 100)}%</span>
@@ -1133,7 +1147,7 @@
     background: var(--bb-bg-1);
     box-shadow: 0 8px 28px rgba(var(--bb-shadow-rgb), 0.55);
   }
-  .canvas[data-touch] .edge-toolbar { --btn-min-h: 44px; }
+  .canvas.touch .edge-toolbar { --btn-min-h: 44px; }
   .menu-anchor {
     position: absolute;
     width: 1px;
@@ -1238,11 +1252,11 @@
     font-size: 14px;
     translate: -50% 0;
   }
-  .canvas[data-connecting] .slot {
+  .canvas.connecting .slot {
     opacity: 0.35;
   }
-  .canvas[data-connecting] .slot.source,
-  .canvas[data-connecting] .slot.target {
+  .canvas.connecting .slot.source,
+  .canvas.connecting .slot.target {
     opacity: 1;
   }
   .slot.source :global(.node) {
@@ -1256,10 +1270,10 @@
       0 0 28px rgba(var(--bb-green-glow-rgb), 0.25);
   }
   .slot.invalid-target :global(.node) { opacity: 0.55; }
-  .canvas[data-touch] .hit {
+  .canvas.touch .hit {
     stroke-width: calc(32px * var(--inv, 1));
   }
-  .canvas[data-touch] .slot::before {
+  .canvas.touch .slot::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -1268,16 +1282,16 @@
     height: max(100%, 44px * var(--inv, 1));
     translate: 0 -50%;
   }
-  .canvas[data-touch] .zoom :global(.bb-btn--icon),
-  .canvas[data-touch] .connect-hint :global(button) {
+  .canvas.touch .zoom :global(.bb-btn--icon),
+  .canvas.touch .connect-hint :global(button) {
     min-width: 44px;
     width: 44px;
     height: 44px;
   }
-  .canvas[data-touch] .connect-hint :global(button) {
+  .canvas.touch .connect-hint :global(button) {
     width: auto;
   }
-  .canvas[data-touch] .auto {
+  .canvas.touch .auto {
     min-height: 44px;
   }
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {

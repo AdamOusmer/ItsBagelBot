@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import ClientProps from '@bagel/kit/components/ClientProps.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
 import ChatPreview from '@bagel/ui/astro/ChatPreview.astro';
 import Divider from '@bagel/ui/astro/Divider.astro';
@@ -64,21 +65,21 @@ for (const surface of builderData(defaultLang).surfaces) {
 }
 ---
 
-<div class="builder" data-builder>
+<div class="builder">
     <div class="layout">
         <Card>
             <div class="compose">
-                <SegmentedControl options={modeOptions} value="custom" label={ui.step1Title} class="bb-tabs--even" data-modes />
+                <SegmentedControl options={modeOptions} value="custom" label={ui.step1Title} class="bb-tabs--even cb-modes" />
 
-                <div class="module-pick" hidden data-module-pick>
+                <div class="module-pick" hidden>
                     <Field label={ui.surfaceLabel} for="cb-surface" hint={firstSurfaceHint} hintId="cb-surface-hint">
-                        <Select id="cb-surface" fill options={surfaceOptions} label={ui.surfaceLabel} data-cb-surface aria-describedby="cb-surface-hint" />
+                        <Select id="cb-surface" name="surface" fill options={surfaceOptions} label={ui.surfaceLabel} aria-describedby="cb-surface-hint" />
                     </Field>
                 </div>
 
-                <div class="f-name" data-command-fields>
+                <div class="f-name">
                     <Field label={ui.nameLabel} for="cb-name" hint={ui.nameHint} hintId="cb-name-hint">
-                        <Input id="cb-name" value="welcome" fill maxlength={LIMITS.nameMax} data-name aria-describedby="cb-name-hint">
+                        <Input id="cb-name" value="welcome" fill maxlength={LIMITS.nameMax} aria-describedby="cb-name-hint">
                             <span slot="leading" class="f-name__prefix" aria-hidden="true">!</span>
                         </Input>
                     </Field>
@@ -86,43 +87,43 @@ for (const surface of builderData(defaultLang).surfaces) {
 
                 <div class="response">
                     <Field label={ui.responseLabel} for="cb-template">
-                        <Textarea id="cb-template" name="template" rows={4} fill maxlength={LIMITS.lineMax * LIMITS.linesMax + LIMITS.linesMax - 1} data-template />
+                        <Textarea id="cb-template" name="template" rows={4} fill maxlength={LIMITS.lineMax * LIMITS.linesMax + LIMITS.linesMax - 1} />
                     </Field>
-                    <Text as="small" size="xs" tone="muted" class="response__count"><b data-count>0</b>/{LIMITS.lineMax}</Text>
+                    <Text as="small" size="xs" tone="muted" class="response__count"><b class="cb-count">0</b>/{LIMITS.lineMax}</Text>
                 </div>
-                <div class="recipes" data-recipes><Label mono as="span" class="recipes__label"><bb-fit>{ui.recipesLabel}</bb-fit></Label></div>
+                <div class="recipes"><Label mono as="span" class="recipes__label"><bb-fit>{ui.recipesLabel}</bb-fit></Label></div>
 
                 <section class="palette">
                     <Divider />
                     <div class="palette__head">
                         <Heading level={5} as="h3" class="palette__title"><bb-fit>{ui.step3Title}</bb-fit></Heading>
-                        <Tag tone="live" bare class="palette__scope"><bb-fit data-scope></bb-fit></Tag>
+                        <Tag tone="live" bare class="palette__scope"><bb-fit class="cb-scope"></bb-fit></Tag>
                     </div>
                     <Text size="sm" tone="muted-light" class="palette__sub"><bb-fit mode="block">{ui.step3Sub}</bb-fit></Text>
-                    <div class="vars" data-vars></div>
+                    <div class="vars"></div>
                     <Disclosure size="sm" summary={ui.bracesSummary} class="palette__braces">
                         <Text size="xs" tone="muted-light" class="palette__braces-body"><bb-fit mode="block">{ui.bracesBody}</bb-fit></Text>
                     </Disclosure>
                 </section>
 
-                <div class="more" data-more>
+                <div class="more">
                     <Divider />
                     <Disclosure size="sm" summary={ui.moreOptions}>
                         <div class="more-grid">
                             <div class="span2">
                                 <Field label={ui.aliasLabel} for="cb-aliases" hint={ui.aliasHint} hintId="cb-alias-hint">
-                                    <Input id="cb-aliases" fill placeholder="hi, heya" data-aliases aria-describedby="cb-alias-hint" />
+                                    <Input id="cb-aliases" fill placeholder="hi, heya" aria-describedby="cb-alias-hint" />
                                 </Field>
                             </div>
                             <Field label={ui.permLabel} for="cb-perm">
-                                <Select id="cb-perm" name="perm" fill options={data.perms} label={ui.permLabel} data-perm />
+                                <Select id="cb-perm" name="perm" fill options={data.perms} label={ui.permLabel} />
                             </Field>
                             <Field label={ui.cooldownLabel} for="cb-cooldown" hint={ui.cooldownHint} hintId="cb-cd-hint">
-                                <Input id="cb-cooldown" type="number" value="0" fill min={0} max={LIMITS.cooldownMax} data-cooldown aria-describedby="cb-cd-hint" />
+                                <Input id="cb-cooldown" type="number" value="0" fill min={0} max={LIMITS.cooldownMax} aria-describedby="cb-cd-hint" />
                             </Field>
                             <div class="span2">
                                 <Field label={ui.styleLabel} for="cb-style">
-                                    <Select id="cb-style" name="style" fill options={styleOptions} label={ui.styleLabel} data-style />
+                                    <Select id="cb-style" name="style" fill options={styleOptions} label={ui.styleLabel} />
                                 </Field>
                             </div>
                         </div>
@@ -135,32 +136,32 @@ for (const surface of builderData(defaultLang).surfaces) {
             <Card>
                 <div class="card-head">
                     <Label mono as="span" class="card-head__start"><i class="bb-mark card-head__rec" aria-hidden="true"></i><bb-fit>{ui.previewTitle}</bb-fit></Label>
-                    <Label mono as="span" class="card-head__end"><bb-fit data-context></bb-fit></Label>
+                    <Label mono as="span" class="card-head__end"><bb-fit class="cb-context"></bb-fit></Label>
                 </div>
-                <ChatPreview title={ui.rehearsal} class="bb-chat--fixed" data-chat data-avatar={avatarImage.src}>
-                    <bb-fit slot="heading" data-chat-tag-text>{ui.rehearsal}</bb-fit>
+                <ChatPreview title={ui.rehearsal} class="bb-chat--fixed cb-chat">
+                    <bb-fit class="cb-chat-tag-text" slot="heading">{ui.rehearsal}</bb-fit>
                 </ChatPreview>
-                <Text as="small" size="xs" tone="muted-light" class="preview__note"><bb-fit mode="block" data-preview-note></bb-fit></Text>
+                <Text as="small" size="xs" tone="muted-light" class="preview__note"><bb-fit class="cb-preview-note" mode="block"></bb-fit></Text>
             </Card>
 
             <Card>
                 <div class="card-head">
-                    <Label mono as="span" class="card-head__start"><bb-fit data-action-title>{ui.sendTitle}</bb-fit></Label>
-                    <Text as="span" size="xs" tone="danger" class="card-head__end"><bb-fit data-valid aria-live="polite"></bb-fit></Text>
+                    <Label mono as="span" class="card-head__start"><bb-fit class="cb-action-title">{ui.sendTitle}</bb-fit></Label>
+                    <Text as="span" size="xs" tone="danger" class="card-head__end"><bb-fit class="cb-valid" aria-live="polite"></bb-fit></Text>
                 </div>
-                <div class="send" data-send-wrap>
-                    <ButtonLink block data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'} tone="success">
+                <div class="send">
+                    <ButtonLink class="cb-send" block target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'} tone="success">
                         <bb-fit>{ui.sendCta}{' '}<span aria-hidden="true">→</span></bb-fit>
                     </ButtonLink>
                     <Text size="xs" tone="muted" class="send__help"><bb-fit mode="block">{ui.sendHelp}</bb-fit></Text>
                 </div>
-                <div class="copyw" data-copy-wrap>
+                <div class="copyw">
                     <Divider />
-                    <Label mono as="span" class="copyw__label"><bb-fit mode="block" data-copy-title>{ui.copyTitleCustom}</bb-fit></Label>
-                    <Code block wrap maxHeight="150px" data-output />
-                    <Chip class="copyw__btn" data-copy-cta><bb-fit data-copy-label>{ui.copyCta}</bb-fit></Chip>
-                    <div class="copyw__module" data-module-wrap hidden>
-                        <TextLink variant="quiet" href={data.dashboardOrigin} external data-module-link>{ui.openModule} →</TextLink>
+                    <Label mono as="span" class="copyw__label"><bb-fit class="cb-copy-title" mode="block">{ui.copyTitleCustom}</bb-fit></Label>
+                    <Code class="cb-output" block wrap maxHeight="150px" />
+                    <Chip class="copyw__btn"><bb-fit class="cb-copy-label">{ui.copyCta}</bb-fit></Chip>
+                    <div class="copyw__module" hidden>
+                        <TextLink class="cb-module-link" variant="quiet" href={data.dashboardOrigin} external>{ui.openModule} →</TextLink>
                     </div>
                 </div>
             </Card>
@@ -169,7 +170,8 @@ for (const surface of builderData(defaultLang).surfaces) {
 
     <Text size="sm" tone="muted-light" class="learn"><bb-fit mode="block">{ui.learnMore}{' '}<TextLink variant="inline" href={guideHref}>{ui.learnMoreCta} →</TextLink></bb-fit></Text>
 
-    <script type="application/json" is:inline data-builder-json set:html={JSON.stringify({
+    <ClientProps value={{
+        avatarSrc: avatarImage.src,
         data,
         ui: {
             statusName: ui.statusName,
@@ -198,10 +200,11 @@ for (const surface of builderData(defaultLang).surfaces) {
             recipes: builderRecipes(lang),
         },
         descSize,
-    })} />
+    }} />
 </div>
 
 <script>
+    import { readClientProps } from '@bagel/kit/client-props';
     import { bindOnce } from '../../script/bind';
     import { copyFlash } from '@bagel/ui/lib/clipboard';
 
@@ -209,6 +212,7 @@ for (const surface of builderData(defaultLang).surfaces) {
     type Var = { token: string; sample: string; name: string; desc: string; scopes?: CounterScope[]; pinned?: boolean };
     type Surface = { id: string; group: string; label: string; dashPath: string; hint: string; example: string; prompt: string; vars: Var[] };
     type Payload = {
+        avatarSrc: string;
         data: {
             lang: string;
             defaultLang: string;
@@ -262,29 +266,29 @@ for (const surface of builderData(defaultLang).surfaces) {
     }
 
     function initBuilder(root: HTMLElement) {
-        const payload: Payload = JSON.parse(root.querySelector('[data-builder-json]')?.textContent || 'null');
+        const payload = readClientProps<Payload>(root);
         if (!payload) return;
         const { data, ui } = payload;
         const surfaces = new Map(data.surfaces.map((s) => [s.id, s]));
 
         const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
-        const ta = $<HTMLTextAreaElement>('[data-template]');
-        const nameInput = $<HTMLInputElement>('[data-name]');
-        const aliasInput = $<HTMLInputElement>('[data-aliases]');
-        const permSel = $<HTMLSelectElement>('[data-perm]');
-        const cdInput = $<HTMLInputElement>('[data-cooldown]');
-        const styleSel = $<HTMLSelectElement>('[data-style]');
-        const surfaceSel = $<HTMLSelectElement>('[data-cb-surface]');
+        const ta = $<HTMLTextAreaElement>('#cb-template');
+        const nameInput = $<HTMLInputElement>('#cb-name');
+        const aliasInput = $<HTMLInputElement>('#cb-aliases');
+        const permSel = $<HTMLSelectElement>('select[name="perm"]');
+        const cdInput = $<HTMLInputElement>('#cb-cooldown');
+        const styleSel = $<HTMLSelectElement>('select[name="style"]');
+        const surfaceSel = $<HTMLSelectElement>('select[name="surface"]');
         const surfaceHint = root.querySelector<HTMLElement>('#cb-surface-hint');
-        const modeGroup = $<HTMLElement>('[data-modes]');
-        const sendLink = $<HTMLAnchorElement>('[data-send]');
-        const moduleWrap = $<HTMLElement>('[data-module-wrap]');
-        const moduleLink = $<HTMLAnchorElement>('[data-module-link]');
-        const copyWrap = $<HTMLElement>('[data-copy-wrap]');
-        const output = $<HTMLElement>('[data-output] code');
-        const copyBtn = $<HTMLButtonElement>('[data-copy-cta]');
-        const avatarSrc = $<HTMLElement>('[data-chat]').dataset.avatar ?? '';
-        const chat = $<HTMLElement>('[data-chat] .bb-chat__feed');
+        const modeGroup = $<HTMLElement>('.cb-modes');
+        const sendLink = $<HTMLAnchorElement>('.cb-send');
+        const moduleWrap = $<HTMLElement>('.copyw__module');
+        const moduleLink = $<HTMLAnchorElement>('.cb-module-link');
+        const copyWrap = $<HTMLElement>('.copyw');
+        const output = $<HTMLElement>('.cb-output');
+        const copyBtn = $<HTMLButtonElement>('.copyw__btn');
+        const avatarSrc = payload.avatarSrc;
+        const chat = $<HTMLElement>('.cb-chat .bb-chat__feed');
 
         const setFitText = (sel: string, text: string) => {
             const node = $<HTMLElement>(sel);
@@ -480,7 +484,7 @@ for (const surface of builderData(defaultLang).surfaces) {
 
         function renderReplies() {
             clearChat();
-            setFitText('[data-chat-tag-text]', promptKind() === 'event' ? current().prompt : ui.rehearsal);
+            setFitText('.cb-chat-tag-text', promptKind() === 'event' ? current().prompt : ui.rehearsal);
             const viewer = viewerLine();
             if (viewer) chat.append(viewer);
 
@@ -496,7 +500,7 @@ for (const surface of builderData(defaultLang).surfaces) {
 
         function renderTyping() {
             clearChat();
-            setFitText('[data-chat-tag-text]', promptKind() === 'event' ? current().prompt : ui.rehearsal);
+            setFitText('.cb-chat-tag-text', promptKind() === 'event' ? current().prompt : ui.rehearsal);
             const viewer = viewerLine();
             if (viewer) chat.append(viewer);
             const line = el('div', 'bb-chat__line');
@@ -611,7 +615,7 @@ for (const surface of builderData(defaultLang).surfaces) {
         }
 
         function renderVars() {
-            const box = $<HTMLElement>('[data-vars]');
+            const box = $<HTMLElement>('.vars');
             const all = current().vars;
             const shown = surfaceId === 'custom' ? all.filter((item) => item.pinned) : all;
 
@@ -621,7 +625,7 @@ for (const surface of builderData(defaultLang).surfaces) {
             }
         }
 
-        const recipesBox = $<HTMLElement>('[data-recipes]');
+        const recipesBox = $<HTMLElement>('.recipes');
         for (const recipe of ui.recipes) {
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -663,14 +667,14 @@ for (const surface of builderData(defaultLang).surfaces) {
 
         function syncSend(err: string | null) {
             const custom = mode === 'custom';
-            $('[data-send-wrap]').toggleAttribute('hidden', !custom);
+            $('.send').toggleAttribute('hidden', !custom);
             if (!custom) return;
             sendLink.href = err ? '#' : dashboardURL();
             sendLink.setAttribute('aria-disabled', String(Boolean(err)));
         }
 
         function showCustomCopy(out: string[]) {
-            setFitText('[data-copy-title]', ui.copyTitleCustom);
+            setFitText('.cb-copy-title', ui.copyTitleCustom);
             moduleWrap.hidden = true;
             const single = out.length === 1;
             copyWrap.toggleAttribute('hidden', !single);
@@ -678,7 +682,7 @@ for (const surface of builderData(defaultLang).surfaces) {
         }
 
         function showModuleCopy(surface: Surface) {
-            setFitText('[data-copy-title]', ui.copyBodyModule);
+            setFitText('.cb-copy-title', ui.copyBodyModule);
             copyWrap.removeAttribute('hidden');
             output.textContent = ta.value.trim();
             moduleWrap.hidden = false;
@@ -692,12 +696,12 @@ for (const surface of builderData(defaultLang).surfaces) {
             const out = lines();
             const custom = mode === 'custom';
 
-            $('[data-count]').textContent = String(Math.max(0, ...out.map((l) => l.length), 0));
-            setFitText('[data-context]', custom ? `!${cleanName() || 'yourcommand'}` : surface.label);
-            setFitText('[data-scope]', surface.label);
-            setFitText('[data-preview-note]', surface.hint);
-            setFitText('[data-valid]', err ?? '');
-            setFitText('[data-action-title]', custom ? ui.sendTitle : ui.copyTitleModule);
+            $('.cb-count').textContent = String(Math.max(0, ...out.map((l) => l.length), 0));
+            setFitText('.cb-context', custom ? `!${cleanName() || 'yourcommand'}` : surface.label);
+            setFitText('.cb-scope', surface.label);
+            setFitText('.cb-preview-note', surface.hint);
+            setFitText('.cb-valid', err ?? '');
+            setFitText('.cb-action-title', custom ? ui.sendTitle : ui.copyTitleModule);
 
             syncSend(err);
             if (custom) showCustomCopy(out);
@@ -719,15 +723,15 @@ for (const surface of builderData(defaultLang).surfaces) {
         function setMode(next: 'custom' | 'module') {
             mode = next;
             const custom = next === 'custom';
-            $('[data-module-pick]').toggleAttribute('hidden', custom);
-            $('[data-command-fields]').toggleAttribute('hidden', !custom);
-            $('[data-more]').toggleAttribute('hidden', !custom);
+            $('.module-pick').toggleAttribute('hidden', custom);
+            $('.f-name').toggleAttribute('hidden', !custom);
+            $('.more').toggleAttribute('hidden', !custom);
             recipesBox.toggleAttribute('hidden', !custom);
             setSurface(custom ? 'custom' : surfaceSel.value);
         }
 
         function showCopyState(label: string, done: boolean) {
-            setFitText('[data-copy-label]', label);
+            setFitText('.cb-copy-label', label);
             copyBtn.classList.toggle('is-done', done);
         }
 
@@ -755,7 +759,7 @@ for (const surface of builderData(defaultLang).surfaces) {
         setSurface('custom');
     }
 
-    bindOnce('[data-builder]', initBuilder);
+    bindOnce('.builder', initBuilder);
 </script>
 
 <style>
@@ -819,7 +823,7 @@ for (const surface of builderData(defaultLang).surfaces) {
 
     .send__help { height: calc(2 * 1lh); margin-top: 10px; text-align: center; }
 
-    [data-send-wrap][hidden] + .copyw > .bb-divider { display: none; }
+    .send[hidden] + .copyw > .bb-divider { display: none; }
     .copyw__label { display: block; height: calc(2 * 1lh); margin-bottom: 10px; }
     .copyw :global(.bb-code-block) { height: calc(4 * 1lh + 2 * var(--bb-space-4) + 2px); overflow-y: auto; }
     .copyw :global(.bb-code-block .bb-code) { display: block; }

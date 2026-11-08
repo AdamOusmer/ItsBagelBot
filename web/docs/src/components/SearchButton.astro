@@ -13,7 +13,7 @@ interface Props {
 const { t } = docsI18n(Astro.props.locale);
 ---
 
-<button type="button" class="doc-search-button" data-doc-search-open>
+<button type="button" class="doc-search-button">
   <Icon name="search" size={15} />
   <span class="doc-search-button__label">{t('chrome.search')}</span>
   <span class="doc-search-button__key"><Kbd>/</Kbd></span>

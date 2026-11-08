@@ -17,7 +17,7 @@ const titleWords = t('pricing.eyebrow').split(' ');
 const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val', 88, 'green'), staticBolota('caramel_cass', 64, 'tan')];
 ---
 
-<section class="stage">
+<section class="stage pricing-stage">
     <div class="starfield" aria-hidden="true"><LightField class="bb-light-field--bleed" /></div>
     <div class="bg" aria-hidden="true">
         <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"><i class="bb-orb__pulse"></i></div>
@@ -49,6 +49,7 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
 </section>
 
 <script>
+    import { bolotaProps } from '../../lib/bolota-props';
     import '@luzir/bolota/motion.css';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
     import type { EngineHandle } from '@luzir/bolota/engine';
@@ -74,23 +75,24 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
     }
 
     function startExpressions(live: Live): void {
-        const fixed = live.svg.dataset.expression;
+        const fixed = bolotaProps(live.svg).expression;
         if (fixed) live.handle.setExpression(fixed);
         else scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
     }
 
     async function mountBolotas(): Promise<void> {
         if (engines.length || mounting || prefersReducedMotion()) return;
-        const svgs = Array.from(document.querySelectorAll<SVGSVGElement>('.stage [data-live-bolota]'));
+        const svgs = Array.from(document.querySelectorAll<SVGSVGElement>('.pricing-stage .live-bolota'));
         if (!svgs.length) return;
         mounting = true;
         const { mountEngine } = await import('@luzir/bolota/engine');
         if (!mounting) return;
 
         engines = svgs.map((svg) => {
-            const handle = mountEngine(svg, svg.dataset.liveBolota ?? 'oven_fresh', {
-                size: Number(svg.dataset.size) || 100,
-                palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
+            const props = bolotaProps(svg);
+            const handle = mountEngine(svg, props.name, {
+                size: props.size,
+                palette: props.palette,
                 background: false,
             });
             handle.loop('idle');
@@ -241,7 +243,7 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
         overflow: visible;
     }
 
-    .donate__crowd :global(.donate__face + .donate__face) { margin-left: -12px; }
+    .donate__crowd :global(.donate__face ~ .donate__face) { margin-left: -12px; }
 
     .donate__label {
         display: flex;

@@ -2,13 +2,23 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
 import type { Flow } from './model';
-import { allowed, neighbor, neighborAfterRemove, readingOrder, resolveShortcut, stepDelta, stepIndex, type KeyLike, type Target } from './keyboard';
+import { allowed, neighbor, neighborAfterRemove, readingOrder, resolveShortcut, stepDelta, stepIndex, type KeyLike, type Scopes, type Target } from './keyboard';
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({ key: k, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods });
 
 function el(tagName: string, within: string[] = [], id?: string): Target {
   return { tagName, id, closest: (selector: string) => (within.some((w) => selector.includes(w)) ? {} : null) };
 }
+
+const canvasEl = el('DIV');
+const editorEl = el('DIV');
+const nodeEl = el('DIV');
+const nodeButtonEl = el('BUTTON', ['button']);
+const scopes: Scopes = {
+  canvas: (t) => t === canvasEl,
+  editor: (t) => t === editorEl || t === canvasEl,
+  node: (t) => t === nodeEl || t === nodeButtonEl
+};
 
 const flow: Flow = {
   id: 'f',
@@ -76,36 +86,38 @@ describe('allowed', () => {
   const save = resolveShortcut(key('s', { metaKey: true })) as typeof walk;
   const open = resolveShortcut(key('Enter')) as typeof walk;
 
+  const everywhere: Scopes = { canvas: () => true, editor: () => true, node: () => true };
+
   test('plain keys need the canvas or an unfocused page', () => {
-    expect(allowed(walk, el('DIV', ['data-flow-canvas']))).toBe(true);
-    expect(allowed(walk, el('BODY'))).toBe(true);
-    expect(allowed(walk, el('MAIN', [], 'main-content'))).toBe(true);
-    expect(allowed(walk, el('BUTTON', ['data-flow-editor']))).toBe(false);
-    expect(allowed(walk, el('A'))).toBe(false);
+    expect(allowed(walk, canvasEl, scopes)).toBe(true);
+    expect(allowed(walk, el('BODY'), scopes)).toBe(true);
+    expect(allowed(walk, el('MAIN', [], 'main-content'), scopes)).toBe(true);
+    expect(allowed(walk, editorEl, scopes)).toBe(false);
+    expect(allowed(walk, el('A'), scopes)).toBe(false);
   });
 
   test('typing targets block everything except Escape and Save', () => {
-    const field = el('INPUT', ['input', 'data-flow-editor', 'data-flow-canvas']);
-    expect(allowed(walk, field)).toBe(false);
-    expect(allowed(undo, field)).toBe(false);
-    expect(allowed(esc, field)).toBe(true);
-    expect(allowed(save, field)).toBe(true);
+    const field = el('INPUT', ['input']);
+    expect(allowed(walk, field, everywhere)).toBe(false);
+    expect(allowed(undo, field, everywhere)).toBe(false);
+    expect(allowed(esc, field, everywhere)).toBe(true);
+    expect(allowed(save, field, everywhere)).toBe(true);
   });
 
   test('app chrome outside the editor is ignored', () => {
-    expect(allowed(undo, el('DIV'))).toBe(false);
-    expect(allowed(undo, el('DIV', ['data-flow-editor']))).toBe(true);
+    expect(allowed(undo, el('DIV'), scopes)).toBe(false);
+    expect(allowed(undo, editorEl, scopes)).toBe(true);
   });
 
   test('portaled overlays keep their own keys', () => {
-    expect(allowed(esc, el('DIV', ['aria-modal', 'data-flow-editor']))).toBe(false);
-    expect(allowed(esc, el('DIV', ['bb-picker-panel', 'data-flow-editor']))).toBe(false);
+    expect(allowed(esc, el('DIV', ['aria-modal']), everywhere)).toBe(false);
+    expect(allowed(esc, el('DIV', ['bb-picker-panel']), everywhere)).toBe(false);
   });
 
   test('Enter opens a step only from the step itself', () => {
-    expect(allowed(open, el('DIV', ['data-node-id']))).toBe(true);
-    expect(allowed(open, el('BUTTON', ['data-node-id', 'button']))).toBe(false);
-    expect(allowed(open, el('DIV', ['data-flow-canvas']))).toBe(false);
+    expect(allowed(open, nodeEl, scopes)).toBe(true);
+    expect(allowed(open, nodeButtonEl, scopes)).toBe(false);
+    expect(allowed(open, canvasEl, scopes)).toBe(false);
   });
 });
 

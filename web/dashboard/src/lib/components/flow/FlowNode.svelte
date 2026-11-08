@@ -15,13 +15,28 @@
     node,
     selected = false,
     tabbable = true,
+    touch = false,
+    connecting = false,
     onadd
   }: {
     node: FlowNode;
     selected?: boolean;
     tabbable?: boolean;
+    touch?: boolean;
+    connecting?: boolean;
     onadd?: (port: string, anchor: HTMLElement) => void;
   } = $props();
+
+  const ports: Record<string, HTMLElement | null> = {};
+  const adds: Record<string, HTMLElement | null> = {};
+
+  export function portAt(el: Element | null): string | undefined {
+    return Object.keys(ports).find((id) => ports[id]?.contains(el));
+  }
+
+  export function addButton(port: string): HTMLButtonElement | null {
+    return adds[port]?.querySelector('button') ?? null;
+  }
 
   const spec = $derived(specFor(node.type));
   const outputs = $derived(spec ? outputsFor(spec) : []);
@@ -31,13 +46,15 @@
   const line = $derived(describe(t, node));
   const title = $derived(spec ? stepLabel(t, spec) : '');
   const kindLabel = $derived(spec ? t(`flows.board.kind.${spec.kind}` as MessageKey) : '');
+  const cardClass = $derived(['node', spec && `kind-${spec.kind}`, touch && 'touch', connecting && 'connecting'].filter(Boolean).join(' '));
 </script>
 
 {#snippet outPort(id: string, label: string, y: number, tone: 'yes' | 'no')}
   <span class="out" style:top="{y}px">
-    <span class="port port--out" data-port={id} data-tone={tone}></span>
-    <span class="add" data-tone={tone}>
+    <span class="port port--out tone-{tone}" bind:this={ports[id]}></span>
+    <span class="add tone-{tone}" bind:this={adds[id]}>
       <FlowAddButton
+        {touch}
         {label}
         tabindex={tabbable ? 0 : -1}
         onclick={(e) => {
@@ -51,10 +68,9 @@
 
 {#if spec}
   <CanvasCard
-    class="node"
+    class={cardClass}
     background
     {selected}
-    data-kind={spec.kind}
     style="width: {NODE_W}px; height: {nodeHeight(spec)}px;"
     role="button"
     tabindex={tabbable ? 0 : -1}
@@ -80,7 +96,7 @@
     {#if branching}
       <div class="rows" style:top="{HEADER_H}px">
         {#each outputs as out, i (out.id)}
-          <div class="row" style:height="{ROW_H}px" data-tone={i === 0 ? 'yes' : 'no'}>
+          <div class="row" class:tone-yes={i === 0} style:height="{ROW_H}px">
             <span class="row-label">{portLabel(t, node, out.id)}</span>
           </div>
         {/each}
@@ -104,15 +120,15 @@
     user-select: none;
     font-family: var(--bb-font-body);
   }
-  :global(.node[data-kind='trigger']) {
+  :global(.node.kind-trigger) {
     --accent: var(--bb-green-glow);
     --accent-rgb: var(--bb-green-glow-rgb);
   }
-  :global(.node[data-kind='condition']) {
+  :global(.node.kind-condition) {
     --accent: var(--bb-tan);
     --accent-rgb: var(--bb-tan-rgb);
   }
-  :global(.node[data-kind='reply']) {
+  :global(.node.kind-reply) {
     --accent-rgb: var(--bb-muted-rgb);
   }
   .head {
@@ -184,15 +200,15 @@
     line-height: 18px;
     color: rgba(var(--bb-white-rgb), 0.92);
   }
-  .row[data-tone='yes'] .row-label {
+  .row.tone-yes .row-label {
     color: var(--bb-green-glow);
   }
-  :global(.node[data-kind='condition']) .title {
+  :global(.node.kind-condition) .title {
     font-size: 14px;
     font-weight: 500;
     color: rgba(var(--bb-white-rgb), 0.92);
   }
-  :global(.node[data-kind='condition']) .line {
+  :global(.node.kind-condition) .line {
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
@@ -232,15 +248,15 @@
     z-index: 1;
     cursor: crosshair;
   }
-  .port--out[data-tone='yes'] {
+  .port--out.tone-yes {
     border-color: var(--bb-green-glow);
   }
   .port--out:hover,
   .out:focus-within .port--out {
     background: var(--bb-muted);
   }
-  .port--out[data-tone='yes']:hover,
-  .out:focus-within .port--out[data-tone='yes'] {
+  .port--out.tone-yes:hover,
+  .out:focus-within .port--out.tone-yes {
     background: var(--bb-green-glow);
   }
   .add {
@@ -258,30 +274,30 @@
     opacity: 1;
     pointer-events: auto;
   }
-  :global(.canvas[data-touch] .node):not(.selected) .out {
+  :global(.node.touch):not(.selected) .out {
     pointer-events: none;
   }
-  :global(.canvas[data-touch] .node):not(.selected):hover .add {
+  :global(.node.touch):not(.selected):hover .add {
     opacity: 0;
     pointer-events: none;
   }
-  :global(.canvas[data-touch] .node.selected) .add {
+  :global(.node.touch.selected) .add {
     left: 26px;
     opacity: 1;
     pointer-events: auto;
     transform-origin: left center;
     scale: calc(var(--inv, 1) * 1.375);
   }
-  :global(.canvas[data-touch] .node.selected) .add[data-tone='yes'] {
+  :global(.node.touch.selected) .add.tone-yes {
     translate: 0 calc(-48px * var(--inv, 1));
   }
-  :global(.canvas[data-touch] .node.selected) .add[data-tone='no'] {
+  :global(.node.touch.selected) .add.tone-no {
     translate: 0 calc(48px * var(--inv, 1));
   }
-  :global(.canvas[data-touch] .node.selected) .port--out::before {
+  :global(.node.touch.selected) .port--out::before {
     inset: calc((8px - 46px * var(--inv, 1)) / 2);
   }
-  :global(.canvas[data-touch][data-connecting]) .add {
+  :global(.node.touch.connecting) .add {
     opacity: 0;
     pointer-events: none;
   }

@@ -169,18 +169,21 @@
 
   // Scroll-spy: the sidebar lights up the module block currently under the reading line.
   $effect(() => {
-    const keys = groups.map((g) => g.key);
-    const sections = keys.map((key) => document.getElementById(`group-${key}`)).filter((el) => el !== null);
-    if (!sections.length || typeof IntersectionObserver === 'undefined') return;
+    const keyOf = new Map<Element, string>();
+    for (const g of groups) {
+      const el = document.getElementById(`group-${g.key}`);
+      if (el) keyOf.set(el, g.key);
+    }
+    if (!keyOf.size || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) activeGroup = (entry.target as HTMLElement).dataset.group ?? null;
+          if (entry.isIntersecting) activeGroup = keyOf.get(entry.target) ?? null;
         }
       },
       { rootMargin: '-35% 0px -55% 0px' }
     );
-    for (const section of sections) observer.observe(section);
+    for (const section of keyOf.keys()) observer.observe(section);
     return () => observer.disconnect();
   });
 
@@ -279,7 +282,6 @@
           <section
             class="group reveal"
             id={`group-${group.key}`}
-            data-group={group.key}
             style:--i={i}
             aria-labelledby={`group-${group.key}-title`}
           >

@@ -33,7 +33,7 @@ const { path = '/', notes = [], caption } = Astro.props;
     {notes.length > 0 && (
         <Stack as="ul" gap={2} class="dframe__legend">
             {notes.map((note) => (
-                <Cluster as="li" gap={3} align="baseline" nowrap class="dframe__note" data-note-for={note.n} tabindex={0}>
+                <Cluster as="li" gap={3} align="baseline" nowrap class="dframe__note" style={`--n: ${note.n}`} tabindex={0}>
                     <i class="dframe__idx" aria-hidden="true">{String(note.n).padStart(2, '0')}</i>
                     <Text as="span" tone="muted-soft">{note.text}</Text>
                 </Cluster>
@@ -106,10 +106,10 @@ const { path = '/', notes = [], caption } = Astro.props;
     import { bindOnce } from '../../script/bind';
 
     function setupFrame(frame: HTMLElement) {
-        const lines = frame.querySelectorAll<HTMLElement>('[data-note-for]');
+        const lines = frame.querySelectorAll<HTMLElement>('.dframe__note');
         const marks = Array.from(frame.querySelectorAll<HTMLElement>('.gs-mark'));
         lines.forEach((line) => {
-            const n = line.dataset.noteFor;
+            const n = line.style.getPropertyValue('--n').trim();
             const target = marks.find((mark) => mark.style.getPropertyValue('--n').trim() === n)?.parentElement;
             if (!target) return;
             const on = () => target.classList.add('is-hot');

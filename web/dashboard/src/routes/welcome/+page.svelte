@@ -190,11 +190,6 @@
     if (reactionTimer) clearTimeout(reactionTimer);
     reactionTimer = setTimeout(() => (reaction = null), ms);
   }
-  function reactionFor(target: EventTarget | null): string | null {
-    const el = target instanceof Element ? target.closest<HTMLElement>('button, a') : null;
-    if (!el || el.hasAttribute('disabled')) return null;
-    return el.dataset.react ?? 'curious';
-  }
 
   function go(i: number) {
     const target = Math.max(0, Math.min(i, maxStep));
@@ -376,12 +371,18 @@
   };
 
   const ARROW_BLOCKERS =
-    'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="group"]:not([data-arrows-ok]), [role="radiogroup"], [role="tablist"]';
+    'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="group"], [role="radiogroup"], [role="tablist"]';
   const MODIFIER_KEYS = ['metaKey', 'ctrlKey', 'altKey', 'shiftKey'] as const;
+  let actionsEl = $state<HTMLElement | null>(null);
+
+  function arrowBlocker(from: Element | null): Element | null {
+    const hit = from?.closest(ARROW_BLOCKERS) ?? null;
+    return hit !== null && hit === actionsEl ? arrowBlocker(hit.parentElement) : hit;
+  }
 
   function arrowsBlocked(e: KeyboardEvent): boolean {
     if (MODIFIER_KEYS.some((key) => e[key])) return true;
-    return e.target instanceof Element && e.target.closest(ARROW_BLOCKERS) !== null;
+    return e.target instanceof Element && arrowBlocker(e.target) !== null;
   }
 
   const keysPaused = (e: KeyboardEvent) => leaving || importActive || arrowsBlocked(e);
@@ -514,23 +515,22 @@
       <div
         class="bb-setup-actions"
         role="group"
-        data-arrows-ok
-        onpointerover={(e) => (hover = reactionFor(e.target))}
+        bind:this={actionsEl}
         onpointerout={() => (hover = null)}
       >
         {#if current.kind === 'hero'}
-          <Button data-react="excited" onclick={goNext}>{tr('onboarding.heroCta')}</Button>
+          <Button onpointerover={() => (hover = 'excited')} onclick={goNext}>{tr('onboarding.heroCta')}</Button>
         {:else}
-          <Button variant="ghost" onclick={goBack}>{tr('onboarding.back')}</Button>
+          <Button variant="ghost" onpointerover={() => (hover = 'curious')} onclick={goBack}>{tr('onboarding.back')}</Button>
           {#if last}
             {#if setup === 'import'}
-              <Button data-react="excited" onclick={startImport} tone="success">{tr('onboarding.choiceImportCta')}</Button>
+              <Button onpointerover={() => (hover = 'excited')} onclick={startImport} tone="success">{tr('onboarding.choiceImportCta')}</Button>
             {:else}
-              <Button data-react="excited" onclick={finish} tone="success">{tr('onboarding.finishCta')}</Button>
+              <Button onpointerover={() => (hover = 'excited')} onclick={finish} tone="success">{tr('onboarding.finishCta')}</Button>
             {/if}
           {:else}
             <Button
-              data-react="excited"
+              onpointerover={() => (hover = nextDisabled ? null : 'excited')}
               onclick={goNext}
               disabled={nextDisabled}
               aria-describedby={current.kind === 'consent' ? 'wlc-consent-hint' : undefined}

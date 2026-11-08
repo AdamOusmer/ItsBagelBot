@@ -38,26 +38,26 @@ const sourceOptions = ['1', '2', '3', '4'];
 ---
 
 <Card flush class="gbudget-card">
-    <div class="gbudget" data-fetchbudget>
+    <div class="gbudget">
         <div class="gbudget__controls">
             <label class="gbudget__field">
                 <Label mono as="span">{L.runsLabel}</Label>
-                <Slider min={1} max={60} value={runs} data-fb-runs />
-                <output><Text as="span" size="sm" data-fb-runs-out>{`${runs} ${L.runsUnit}`}</Text></output>
+                <Slider class="fb-runs" min={1} max={60} value={runs} />
+                <output><Text class="fb-runs-out" as="span" size="sm">{`${runs} ${L.runsUnit}`}</Text></output>
             </label>
             <fieldset class="gbudget__field">
                 <Label mono as="legend">{L.sourcesLabel}</Label>
-                <SegmentedControl options={sourceOptions} value={String(sources)} label={L.sourcesLabel} data-fb-sources />
+                <SegmentedControl class="fb-sources" options={sourceOptions} value={String(sources)} label={L.sourcesLabel} />
             </fieldset>
         </div>
         <Well class="gbudget__readout" aria-live="polite">
             <FactList>
-                <Fact term={L.fetchesLabel}><span data-fb-made>{made}</span> {L.fetchesUnit}</Fact>
-                <Fact term={L.cachedLabel}><span data-fb-cached>{runs * sources - wanted}</span> {L.fetchesUnit}</Fact>
-                <Fact term={L.blockedLabel}><span data-fb-blocked>{wanted - made}</span> {L.fetchesUnit}</Fact>
+                <Fact term={L.fetchesLabel}><span class="fb-made">{made}</span> {L.fetchesUnit}</Fact>
+                <Fact term={L.cachedLabel}><span class="fb-cached">{runs * sources - wanted}</span> {L.fetchesUnit}</Fact>
+                <Fact term={L.blockedLabel}><span class="fb-blocked">{wanted - made}</span> {L.fetchesUnit}</Fact>
             </FactList>
         </Well>
-        <Text size="sm" tone="muted-light" data-fb-blocked-line hidden={wanted <= 6}>{L.blockedLine}</Text>
+        <Text size="sm" tone="muted-light" class="fb-blocked-line" hidden={wanted <= 6}>{L.blockedLine}</Text>
         <Text size="sm" tone="muted-light">{L.why}</Text>
     </div>
 </Card>
@@ -82,14 +82,14 @@ const sourceOptions = ['1', '2', '3', '4'];
     }
 
     function setupFetchBudget(root: HTMLElement) {
-        const runsInput = root.querySelector<HTMLInputElement>('[data-fb-runs]')!;
-        const runsOut = root.querySelector<HTMLElement>('[data-fb-runs-out]')!;
+        const runsInput = root.querySelector<HTMLInputElement>('.fb-runs')!;
+        const runsOut = root.querySelector<HTMLElement>('.fb-runs-out')!;
         const unit = runsOut.textContent!.replace(/^\s*\d+\s*/, '');
-        const sourceGroup = root.querySelector<HTMLElement>('[data-fb-sources]')!;
-        const made = root.querySelector<HTMLElement>('[data-fb-made]')!;
-        const cached = root.querySelector<HTMLElement>('[data-fb-cached]')!;
-        const blocked = root.querySelector<HTMLElement>('[data-fb-blocked]')!;
-        const blockedLine = root.querySelector<HTMLElement>('[data-fb-blocked-line]')!;
+        const sourceGroup = root.querySelector<HTMLElement>('.fb-sources')!;
+        const made = root.querySelector<HTMLElement>('.fb-made')!;
+        const cached = root.querySelector<HTMLElement>('.fb-cached')!;
+        const blocked = root.querySelector<HTMLElement>('.fb-blocked')!;
+        const blockedLine = root.querySelector<HTMLElement>('.fb-blocked-line')!;
         let sources = chosenSources(sourceGroup);
 
         function update() {
@@ -115,5 +115,5 @@ const sourceOptions = ['1', '2', '3', '4'];
         update();
     }
 
-    bindOnce('[data-fetchbudget]', setupFetchBudget);
+    bindOnce('.gbudget', setupFetchBudget);
 </script>

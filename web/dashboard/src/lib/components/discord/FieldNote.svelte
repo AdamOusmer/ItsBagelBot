@@ -16,5 +16,5 @@
 {#if invalid.byField[field]}
   <span class="field-note"><FieldError message={t('discord.fieldInvalid')} /></span>
 {:else if warning}
-  <span class="field-note" data-quiet={quiet || undefined}><FieldError message={warning} /></span>
+  <span class="field-note" class:quiet><FieldError message={warning} /></span>
 {/if}

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import BolotaSvg from './BolotaSvg.astro';
 import brandTokens from '@bagel/ui/styles/brand.css?raw';
 import { parts } from '@luzir/bolota';
 
@@ -18,17 +19,10 @@ const palette = { head: token('bb-green-glow'), eye: token('bb-black') };
 const { inner } = parts(NAME, { size: SIZE, palette, background: false });
 ---
 
-<svg
-    viewBox="0 0 100 100"
-    aria-hidden="true"
-    data-error-bolota={NAME}
-    data-size={SIZE}
-    data-head={palette.head}
-    data-eye={palette.eye}
-    set:html={inner}
-/>
+<BolotaSvg class="error-bolota" bolota={{ name: NAME, size: SIZE, head: palette.head, eye: palette.eye, inner }} />
 
 <script>
+    import { bolotaProps } from '../lib/bolota-props';
     import '@luzir/bolota/motion.css';
     import '@luzir/bolota/gaze.css';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
@@ -42,15 +36,16 @@ const { inner } = parts(NAME, { size: SIZE, palette, background: false });
     let mounting = false;
 
     async function mount(): Promise<void> {
-        const svg = document.querySelector<SVGSVGElement>('[data-error-bolota]');
+        const svg = document.querySelector<SVGSVGElement>('.error-bolota');
         if (!svg || handle || mounting || prefersReducedMotion()) return;
         mounting = true;
         const { mountEngine } = await import('@luzir/bolota/engine');
         if (!mounting) return;
 
-        handle = mountEngine(svg, svg.dataset.errorBolota ?? 'oven_fresh', {
-            size: Number(svg.dataset.size) || 240,
-            palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
+        const props = bolotaProps(svg);
+        handle = mountEngine(svg, props.name, {
+            size: props.size,
+            palette: props.palette,
             background: false,
         });
         handle.loop('idle');
@@ -78,5 +73,5 @@ const { inner } = parts(NAME, { size: SIZE, palette, background: false });
 </script>
 
 <style>
-    svg { scale: 0.9; }
+    :global(.error-bolota) { scale: 0.9; }
 </style>
