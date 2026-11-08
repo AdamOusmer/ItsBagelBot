@@ -31,7 +31,9 @@ const BUDGETS: Record<string, Budget> = {
   // (+545 B) on macOS, ~2% room.
   // css raised from 22800 (2026-11-03) for the shared avatar plate stylesheet (aurora circle behind small bolotas):
   // CI measured 22849, ~2% room.
-  '/(public)/login': { js: 100900, css: 23300, catalog: 2900, lazy: 0 },
+  // js raised from 100900 (2026-11-08): shared cursor pointer sampling changed the shell bundle;
+  // CI measured 100926 B gzip after integration, ~0.3% room.
+  '/(public)/login': { js: 101200, css: 23300, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
   // css raised from 45200 (2026-10-29) for the shared .bb-prose style in typography.css (+213 B gzip there): CI measured 45295, ~1% room.
@@ -49,7 +51,9 @@ const BUDGETS: Record<string, Budget> = {
   // js raised from 142000 (2026-11-04) for the rehearsed chat line row shared with the Recipes builder preview: main
   // measured 141937, this change 142123 (+186 B) on macOS, ~2% room for CI's larger linux gzip.
   // css raised from 47200 (2026-11-07) for the shared Rail fold and account menu styles: measured 47604 on macOS, ~1.5% room.
-  '/(app)/commands': { js: 145000, css: 48300, catalog: 4600, lazy: 31200 },
+  // js raised from 145000 (2026-11-08): the shared cursor shell change measured 145040 B gzip
+  // on this route in CI after integration, ~0.25% room.
+  '/(app)/commands': { js: 145400, css: 48300, catalog: 4600, lazy: 31200 },
   // js and css raised from 100000 / 21500 (2026-10-29) for the aurora footer: CI measured main at 99484 / 21152 and
   // this change at 100323 / 21571 (+839 / +419 B), ~1-2% room.
   // css raised from 22000 (2026-10-30) for the leaderboard-style title and orbs: measured 22146 B, ~1.6% room.
