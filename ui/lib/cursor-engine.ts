@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { CURSOR_PROP } from './cursor-prop';
-import { finePointer, reduceMotion } from './motion-query';
+import { mediaQuery, reduceMotion } from './motion-query';
 import { subscribe, wake } from './raf-loop';
 
 export type CursorEase = {
@@ -28,7 +28,8 @@ const IDLE_SIZE = 36;
 const HOVER_PAD = 6;
 const FALLBACK_RADIUS = 8;
 const SETTLE_PX = 0.3;
-const IDLE_MS = 500;
+const FRAME_MS = 1000 / 60;
+const cursorPointer = mediaQuery('(min-width: 901px) and (hover: hover) and (pointer: fine)');
 
 let pointerX = -1;
 let pointerY = -1;
@@ -64,15 +65,19 @@ function lerpBox(from: Box, to: Box, e: number): Box {
         y: lerp(from.y, to.y, e),
         w: lerp(from.w, to.w, e),
         h: lerp(from.h, to.h, e),
-        r: lerp(from.r, to.r, e),
+        r: to.r,
     };
 }
 
-function paintRing(ring: HTMLElement, box: Box, hovering: boolean, text: boolean): void {
-    ring.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px)`;
-    ring.style.width = `${box.w.toFixed(1)}px`;
-    ring.style.height = `${box.h.toFixed(1)}px`;
-    ring.style.borderRadius = `${box.r.toFixed(1)}px`;
+function paintRing(ring: HTMLElement, box: Box, shape: Box, hovering: boolean, text: boolean): void {
+    // Lay out the destination shape once; animate its position and scale only.
+    ring.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px) scale(${(box.w / shape.w).toFixed(4)}, ${(box.h / shape.h).toFixed(4)})`;
+    const width = `${Number(shape.w.toFixed(1))}px`;
+    const height = `${Number(shape.h.toFixed(1))}px`;
+    const radius = `${Number(shape.r.toFixed(1))}px`;
+    if (ring.style.width !== width) ring.style.width = width;
+    if (ring.style.height !== height) ring.style.height = height;
+    if (ring.style.borderRadius !== radius) ring.style.borderRadius = radius;
     ring.classList.toggle('is-morphed', hovering);
     ring.classList.toggle('is-text', text);
 }
@@ -82,14 +87,12 @@ function arrived(box: Box, to: Box): boolean {
         Math.abs(box.x - to.x) < SETTLE_PX &&
         Math.abs(box.y - to.y) < SETTLE_PX &&
         Math.abs(box.w - to.w) < SETTLE_PX &&
-        Math.abs(box.h - to.h) < SETTLE_PX &&
-        Math.abs(box.r - to.r) < SETTLE_PX
+        Math.abs(box.h - to.h) < SETTLE_PX
     );
 }
 
 export function mountCursor(options: CursorOptions): () => void {
     const { dot, ring, selector = SELECTOR, ease = EASE } = options;
-    if (!finePointer.matches) return () => {};
 
     if (pointerX < 0) {
         pointerX = window.innerWidth / 2;
@@ -99,7 +102,8 @@ export function mountCursor(options: CursorOptions): () => void {
     let box = idleBox(pointerX, pointerY);
     let target: HTMLElement | null = null;
     let overText = false;
-    let lastMove = 0;
+    let lastFrame = 0;
+    let active = false;
     let radius = FALLBACK_RADIUS;
 
     function setTarget(next: HTMLElement | null, style?: CSSStyleDeclaration): void {
@@ -111,25 +115,27 @@ export function mountCursor(options: CursorOptions): () => void {
         return target?.isConnected ? target : null;
     }
 
-    function paint(el: HTMLElement | null): Box {
+    function paint(el: HTMLElement | null, shape: Box): void {
         dot.style.transform = `translate(${pointerX}px, ${pointerY}px)`;
         dot.style.opacity = el && !overText ? '0' : '1';
         dot.classList.toggle('is-text', overText);
 
-        const to = el ? hoverBox(el, radius) : idleBox(pointerX, pointerY);
-        box = lerpBox(box, to, el ? ease.hover : ease.release);
-        paintRing(ring, box, !!el, overText);
-        return to;
+        paintRing(ring, box, shape, !!el, overText);
     }
 
     function tick(now: number): boolean | void {
+        if (!active) return false;
         const el = hovered();
-        const to = paint(el);
-        if (reduceMotion.matches) return false;
-        if (!arrived(box, to) || now - lastMove <= IDLE_MS) return;
-        box = to;
-        paintRing(ring, box, !!el, overText);
-        return false;
+        // Read geometry before any cursor writes, avoiding a forced layout.
+        const to = el ? hoverBox(el, radius) : idleBox(pointerX, pointerY);
+        const elapsed = lastFrame ? now - lastFrame : FRAME_MS;
+        const factor = 1 - (1 - (el ? ease.hover : ease.release)) ** (elapsed / FRAME_MS);
+        box = lerpBox(box, to, factor);
+        const done = arrived(box, to);
+        if (done) box = to;
+        lastFrame = done ? 0 : now;
+        paint(el, to);
+        if (done) return false;
     }
 
     const nearest = (event: PointerEvent): HTMLElement | null => {
@@ -140,14 +146,14 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const onMove = (event: PointerEvent): void => {
-        if (event.pointerType === 'touch') return;
+        if (!active || event.pointerType === 'touch') return;
         pointerX = event.clientX;
         pointerY = event.clientY;
-        lastMove = performance.now();
         wake(tick);
     };
 
     const onOver = (event: PointerEvent): void => {
+        if (!active || event.pointerType === 'touch') return;
         const hit = (event.target as Element | null)?.closest(`${selector}, ${TEXT}`);
         const text = !!hit?.matches(TEXT);
         if (text !== overText) {
@@ -163,13 +169,13 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const onOut = (event: PointerEvent): void => {
-        if (!target || nearest(event) !== target) return;
+        if (!active || !target || nearest(event) !== target) return;
         setTarget(null);
         wake(tick);
     };
 
     const remeasure = (): void => {
-        if (target) wake(tick);
+        if (active && target) wake(tick);
     };
 
     const layered = [ring, dot].filter((el) => typeof el.showPopover === 'function');
@@ -188,8 +194,10 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const syncMotion = (): void => {
-        document.documentElement.classList.toggle('bb-cursor-on', !reduceMotion.matches);
-        wake(tick);
+        active = cursorPointer.matches && !reduceMotion.matches;
+        lastFrame = 0;
+        document.documentElement.classList.toggle('bb-cursor-on', active);
+        if (active) wake(tick);
     };
 
     const unsubscribe = subscribe(tick);
@@ -197,6 +205,7 @@ export function mountCursor(options: CursorOptions): () => void {
     raise();
     syncMotion();
     reduceMotion.addEventListener('change', syncMotion);
+    cursorPointer.addEventListener('change', syncMotion);
     window.addEventListener('pointermove', onMove, { passive: true });
     window.addEventListener('scroll', remeasure, { passive: true, capture: true });
     window.addEventListener('resize', remeasure, { passive: true });
@@ -207,6 +216,7 @@ export function mountCursor(options: CursorOptions): () => void {
     return () => {
         unsubscribe();
         reduceMotion.removeEventListener('change', syncMotion);
+        cursorPointer.removeEventListener('change', syncMotion);
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('scroll', remeasure, true);
         window.removeEventListener('resize', remeasure);

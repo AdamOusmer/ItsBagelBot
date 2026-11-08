@@ -9,6 +9,17 @@
 }
 
 @layer bb.elements {
+    .bb-cursor,
+    .bb-cursor-ring {
+        display: none;
+        mix-blend-mode: difference;
+    }
+
+    html.bb-cursor-on .bb-cursor,
+    html.bb-cursor-on .bb-cursor-ring {
+        display: block;
+    }
+
     .bb-cursor {
         position: fixed;
         top: -6px;
@@ -19,7 +30,6 @@
         background: var(--bb-tan);
         pointer-events: none;
         z-index: var(--bb-z-cursor);
-        mix-blend-mode: difference;
         transition: opacity 200ms, width 150ms, height 150ms, top 150ms, left 150ms, border-radius 150ms;
         will-change: transform, opacity;
     }
@@ -58,6 +68,7 @@
         pointer-events: none;
         z-index: calc(var(--bb-z-cursor) - 1);
         contain: layout paint style;
+        transform-origin: top left;
         transition: opacity 250ms, background 250ms, border-color 250ms;
         will-change: transform;
     }
@@ -76,12 +87,5 @@
     html.bb-cursor-on,
     html.bb-cursor-on * {
         cursor: none !important;
-    }
-
-    @media (max-width: 900px), (pointer: coarse) {
-        .bb-cursor,
-        .bb-cursor-ring {
-            display: none;
-        }
     }
 }
