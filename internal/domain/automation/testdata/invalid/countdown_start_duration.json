@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "manual"
+  },
+  "actions": [
+    {
+      "type": "countdown_start",
+      "params": {
+        "name": "break",
+        "seconds": 2592001
+      }
+    }
+  ]
+}

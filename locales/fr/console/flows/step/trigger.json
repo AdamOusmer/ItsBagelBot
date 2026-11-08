@@ -70,5 +70,14 @@
   "streamOnline": {
     "label": "Le stream passe en direct",
     "summary": "Votre stream démarre"
+  },
+    "countdownFinished": {
+    "label": "Compte à rebours terminé",
+    "summary": "Un compte à rebours atteint zéro",
+    "field": {
+      "name": {
+        "label": "Compte à rebours"
+      }
+    }
   }
 }

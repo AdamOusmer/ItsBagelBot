@@ -58,7 +58,6 @@
 
   const node = $derived(flow.nodes.find((n) => n.id === selectedId));
   const spec = $derived(node ? specFor(node.type) : undefined);
-  const tokens = $derived(node ? variablesFor(flow, node.id) : []);
   const moduleFlags = $derived((page.data.moduleFlags as Record<string, boolean> | undefined) ?? {});
   const rehearsal = $derived(node ? rehearseFlow(flow, t, { until: node.id, modules: moduleFlags }) : []);
 
@@ -95,6 +94,10 @@
 
   let focusedKey = $state<string>();
   const insertKey = $derived(templateFields.find((f) => f.key === focusedKey)?.key ?? templateFields[0]?.key);
+  const tokens = $derived(node ? [
+    ...variablesFor(flow, node.id).filter((v) => !(node.type === 'reply.countdown_start' && insertKey === 'leftReply' && v.token === '{countdown:left}')),
+    ...(node.type === 'reply.countdown_start' && insertKey === 'leftReply' ? [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }] : [])
+  ] : []);
 
   let query = $state('');
   const needle = $derived(query.trim().toLowerCase());
@@ -234,7 +237,7 @@
                 />
               </Field>
             {:else if field.type === 'number'}
-              <Field {label} for="{uid}-{field.key}" hint={spec.type === 'reply.cooldown_add' && field.key === 'per' ? t('flows.step.reply.cooldownAdd.field.per.hint') : undefined}>
+              <Field {label} for="{uid}-{field.key}" hint={spec.type === 'reply.cooldown_add' && field.key === 'per' ? t('flows.step.reply.cooldownAdd.field.per.hint') : spec.type === 'reply.countdown_add' && field.key === 'per' ? t('flows.step.reply.countdownAdd.field.per.hint') : undefined}>
                 <Input
                   id="{uid}-{field.key}"
                   type="number"

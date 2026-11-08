@@ -120,7 +120,7 @@
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    padding: 14px 14px 0;
+    padding: 14px 56px 0 14px;
   }
   .head :global(.tile) {
     --tile: 36px;
@@ -176,7 +176,7 @@
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
-    padding: 0 20px 0 14px;
+    padding: 0 56px 0 14px;
   }
   .row-label {
     font-size: 14px;
@@ -225,14 +225,6 @@
     height: 12px;
     margin-top: -6px;
   }
-  .out::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: -10px;
-    width: 52px;
-    height: 32px;
-  }
   .port--out {
     position: absolute;
     left: 0;
@@ -253,29 +245,18 @@
   }
   .add {
     position: absolute;
-    left: 22px;
+    left: -38px;
     top: -6px;
     z-index: 2;
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
-  :global(.node):hover::after {
-    content: '';
-    position: absolute;
-    top: -8px;
-    bottom: -8px;
-    left: 100%;
-    width: 48px;
-  }
   :global(.node):hover .add,
+  :global(.node.selected) .add,
   .out:focus-within .add {
     opacity: 1;
     pointer-events: auto;
-  }
-  :global(.canvas[data-touch]) .out::before,
-  :global(.canvas[data-touch] .node):hover::after {
-    display: none;
   }
   :global(.canvas[data-touch] .node):not(.selected) .out {
     pointer-events: none;
@@ -285,16 +266,17 @@
     pointer-events: none;
   }
   :global(.canvas[data-touch] .node.selected) .add {
+    left: 26px;
     opacity: 1;
     pointer-events: auto;
     transform-origin: left center;
-    scale: calc(var(--inv, 1) * 1.25);
+    scale: calc(var(--inv, 1) * 1.375);
   }
   :global(.canvas[data-touch] .node.selected) .add[data-tone='yes'] {
-    translate: 0 calc(-1 * max(0px, 22px * var(--inv, 1) - 16px));
+    translate: 0 calc(-48px * var(--inv, 1));
   }
   :global(.canvas[data-touch] .node.selected) .add[data-tone='no'] {
-    translate: 0 max(0px, 22px * var(--inv, 1) - 16px);
+    translate: 0 calc(48px * var(--inv, 1));
   }
   :global(.canvas[data-touch] .node.selected) .port--out::before {
     inset: calc((8px - 46px * var(--inv, 1)) / 2);

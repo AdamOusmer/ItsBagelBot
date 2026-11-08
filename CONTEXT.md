@@ -1,6 +1,6 @@
 # ItsBagelBot
 
-Shared language for ItsBagelBot: Premium access, giveaways, and public channel pages.
+Shared language for ItsBagelBot: Premium access, giveaways, public channel pages, and recipes.
 
 For app responsibilities, local terminology, code navigation, and focused checks, start with the [context map](CONTEXT-MAP.md), then read the relevant app's `context.md`.
 
@@ -63,6 +63,19 @@ _Avoid_: Command list (that is the dashboard's management view), channel page.
 **Public commands page** / **Hidden commands page**:
 A commands page is public (anyone with the link can open it, `!commands` shares the link) or hidden (the link answers as if the channel did not exist, `!commands` says the list is not public). Hiding the page does not disable any command.
 _Avoid_: Private, disabled, unpublished.
+
+## Language: recipes
+
+**Countdown**:
+A named channel timer that a recipe starts or restarts and other recipes can extend while it runs. Reaching zero is a recipe trigger.
+_Avoid_: Cooldown when referring to an independently running timer.
+
+**Cooldown**:
+A waiting period between runs of a recipe, shared by the channel or applied per viewer.
+_Avoid_: Countdown when referring to a restriction on recipe frequency.
+
+**Time left command**:
+A chat command that reports whether a countdown or cooldown is still running and how much time remains. Querying it does not start or extend the timer.
 
 ## Language: reply templates
 

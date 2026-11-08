@@ -15,6 +15,15 @@ type ChannelFeedCounter func(*sql.Selector)
 // CooldownClaim is the predicate function for cooldownclaim builders.
 type CooldownClaim func(*sql.Selector)
 
+// Countdown is the predicate function for countdown builders.
+type Countdown func(*sql.Selector)
+
+// CountdownDelivery is the predicate function for countdowndelivery builders.
+type CountdownDelivery func(*sql.Selector)
+
+// CountdownOperation is the predicate function for countdownoperation builders.
+type CountdownOperation func(*sql.Selector)
+
 // FeedCounter is the predicate function for feedcounter builders.
 type FeedCounter func(*sql.Selector)
 

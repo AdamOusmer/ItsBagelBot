@@ -35,5 +35,7 @@
   "math": "Hacer cálculos",
   "loop": "Repetir pasos",
   "reward_update": "Cambiar una recompensa",
-  "cooldown_add": "Añadir tiempo a un enfriamiento"
+  "cooldown_add": "Añadir tiempo a un enfriamiento",
+  "countdown_start": "Iniciar cuenta atrás",
+  "countdown_add": "Añadir tiempo a la cuenta atrás"
 }

@@ -65,5 +65,6 @@
   "statusDoneOne": "Fertig, 1 Schritt ausgeführt. Es wurde nichts an den Chat gesendet.",
   "statusDoneMany": "Fertig, {count} Schritte ausgeführt. Es wurde nichts an den Chat gesendet.",
   "viewerTyped": "{name} hat {text} eingegeben",
-  "nothingToSend": "Noch nichts zu senden"
+  "nothingToSend": "Noch nichts zu senden",
+  "connectionSelection": "Verbindung auswählen"
 }

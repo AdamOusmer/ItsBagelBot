@@ -65,5 +65,6 @@
   "statusDoneOne": "Concluído, 1 etapa foi executada. Nada foi enviado ao chat.",
   "statusDoneMany": "Concluído, {count} etapas foram executadas. Nada foi enviado ao chat.",
   "viewerTyped": "{name} digitou {text}",
-  "nothingToSend": "Nada para enviar ainda"
+  "nothingToSend": "Nada para enviar ainda",
+  "connectionSelection": "Selecionar conexão"
 }

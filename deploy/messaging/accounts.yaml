@@ -928,6 +928,8 @@ accounts:
               from: MODULES_RPC
             - service: bagel.rpc.modules.cooldown.>
               from: MODULES_RPC
+            - service: bagel.rpc.modules.countdown.>
+              from: MODULES_RPC
             - service: bagel.rpc.modules.personality.feed
               from: MODULES_RPC
             - service: bagel.rpc.modules.personality.feed.node.*

@@ -149,5 +149,48 @@
       "seconds": { "label": "Add", "range": "Use 1 second to {days} days." },
       "per": { "label": "Per", "hint": "Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event." }
     }
+  },
+    "countdownStart": {
+    "label": "Start countdown",
+    "summary": "Start or restart a named countdown",
+    "field": {
+      "name": {
+        "label": "Name",
+        "placeholder": "subathon"
+      },
+      "seconds": {
+        "label": "Duration",
+        "range": "Use 1 second to {days} days."
+      },
+      "leftCommand": {
+        "label": "Time left command",
+        "placeholder": "!timeleft"
+      },
+      "leftReply": {
+        "label": "Time left reply",
+        "placeholder": "{countdown:left} left"
+      },
+      "readyReply": {
+        "label": "Time left reply when finished",
+        "placeholder": "The countdown has finished!"
+      }
+    }
+  },
+    "countdownAdd": {
+    "label": "Add time to countdown",
+    "summary": "Extend a running countdown",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      },
+      "seconds": {
+        "label": "Add",
+        "range": "Use 1 second to {days} days."
+      },
+      "per": {
+        "label": "Per",
+        "hint": "Add this time for each full amount. Leave empty to add it once per event."
+      }
+    }
   }
 }

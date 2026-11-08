@@ -18,12 +18,16 @@ func (p *Pipeline) runAutomationCommand(ctx context.Context, c *module.Context, 
 	}
 	for _, t := range p.channelIndex(ctx, c, views).Command(name) {
 		if t.Command.Match != "exact" || args == "" {
-			p.runChatTrigger(ctx, c, triggerMatch{plan: t.Plan, args: args, left: t.Left}, emit)
+			p.runChatTrigger(ctx, c, triggerMatch{plan: t.Plan, args: args, left: t.Left, countdownLeft: t.CountdownLeft}, emit)
 		}
 	}
 }
 
 func (p *Pipeline) runChatTrigger(ctx context.Context, c *module.Context, m triggerMatch, emit module.Emit) {
+	if m.countdownLeft != nil {
+		p.answerCountdownLeft(ctx, c, m, emit)
+		return
+	}
 	if m.left != nil {
 		p.answerTimeLeft(ctx, c, m, emit)
 		return

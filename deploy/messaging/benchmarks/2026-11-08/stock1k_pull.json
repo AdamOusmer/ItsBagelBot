@@ -1,0 +1,62 @@
+{
+  "name": "stock1k_pull",
+  "target_per_s": 1000,
+  "duration_s": 60,
+  "payload_bytes": 1024,
+  "admitted": 59984,
+  "consumed": 59984,
+  "admitted_per_s": 999.7333333333333,
+  "completed_per_s": 999.3687590295991,
+  "publisher_errors": 0,
+  "flush_errors": [],
+  "global_checksum_match": true,
+  "duplicates": 0,
+  "e2e_p50_ms_per_consumer": [
+    3.672873,
+    3.51281,
+    3.246852
+  ],
+  "e2e_p99_ms_per_consumer": [
+    5.215605,
+    4.885518,
+    4.834431
+  ],
+  "broker_avg_cpu_cores": {
+    "b0": 0.13604538915094486,
+    "b1": 0.29866797017398977,
+    "b2": 0.15691726872576653
+  },
+  "broker_throttled_usec": {
+    "b0": 0,
+    "b1": 0,
+    "b2": 0
+  },
+  "broker_rss_mib": {
+    "b0": 142.734375,
+    "b1": 138.69921875,
+    "b2": 156.30859375
+  },
+  "slow_consumer_delta": {
+    "b0": 0,
+    "b1": 0,
+    "b2": 0
+  },
+  "e2e_p50_ms": 3.510824,
+  "e2e_p99_ms": 5.058311,
+  "latency_samples": 58032,
+  "negative_latency_samples": 0,
+  "seat": {
+    "consumer": "stock1k_pull_twitch_ingress_retry_canary_stock1k_pull",
+    "leader": "b1",
+    "stream_leader": "b1",
+    "attempts": 7
+  },
+  "broker_versions": {
+    "b0": "2.15.2",
+    "b1": "2.15.2",
+    "b2": "2.15.2"
+  },
+  "environment": "Isolated live-worker R3 cluster; 1 KiB payload; mTLS; JWT; atomic publishing; R3 AckNone pull; colocated stream and consumer leaders",
+  "client_revision": "5ee7ccfc086dd10011740b89aceb467d59179c31",
+  "metric": "Combined produced-to-handler-entry p99 from individual samples, excluding first two seconds"
+}

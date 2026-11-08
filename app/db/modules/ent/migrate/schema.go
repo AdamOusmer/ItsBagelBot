@@ -85,6 +85,92 @@ var (
 			},
 		},
 	}
+	// CountdownsColumns holds the columns for the "countdowns" table.
+	CountdownsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "name", Type: field.TypeString, Size: 128},
+		{Name: "expires_at_ms", Type: field.TypeInt64},
+		{Name: "generation", Type: field.TypeString, Size: 128},
+	}
+	// CountdownsTable holds the schema information for the "countdowns" table.
+	CountdownsTable = &schema.Table{
+		Name:       "countdowns",
+		Columns:    CountdownsColumns,
+		PrimaryKey: []*schema.Column{CountdownsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "countdown_user_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{CountdownsColumns[1], CountdownsColumns[2]},
+			},
+			{
+				Name:    "countdown_expires_at_ms",
+				Unique:  false,
+				Columns: []*schema.Column{CountdownsColumns[3]},
+			},
+		},
+	}
+	// CountdownDeliveriesColumns holds the columns for the "countdown_deliveries" table.
+	CountdownDeliveriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "name", Type: field.TypeString, Size: 32},
+		{Name: "generation", Type: field.TypeString, Size: 128},
+		{Name: "expires_at_ms", Type: field.TypeInt64},
+		{Name: "lease_token", Type: field.TypeString, Size: 128, Default: ""},
+		{Name: "lease_until_ms", Type: field.TypeInt64, Default: 0},
+		{Name: "progress", Type: field.TypeJSON},
+	}
+	// CountdownDeliveriesTable holds the schema information for the "countdown_deliveries" table.
+	CountdownDeliveriesTable = &schema.Table{
+		Name:       "countdown_deliveries",
+		Columns:    CountdownDeliveriesColumns,
+		PrimaryKey: []*schema.Column{CountdownDeliveriesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "countdowndelivery_generation",
+				Unique:  true,
+				Columns: []*schema.Column{CountdownDeliveriesColumns[3]},
+			},
+			{
+				Name:    "countdowndelivery_lease_until_ms",
+				Unique:  false,
+				Columns: []*schema.Column{CountdownDeliveriesColumns[6]},
+			},
+		},
+	}
+	// CountdownOperationsColumns holds the columns for the "countdown_operations" table.
+	CountdownOperationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "operation_id", Type: field.TypeString, Size: 256},
+		{Name: "name", Type: field.TypeString, Size: 32},
+		{Name: "verb", Type: field.TypeString, Size: 8},
+		{Name: "seconds", Type: field.TypeInt64},
+		{Name: "found", Type: field.TypeBool},
+		{Name: "capped", Type: field.TypeBool},
+		{Name: "expires_at_ms", Type: field.TypeInt64},
+		{Name: "created_at_ms", Type: field.TypeInt64},
+	}
+	// CountdownOperationsTable holds the schema information for the "countdown_operations" table.
+	CountdownOperationsTable = &schema.Table{
+		Name:       "countdown_operations",
+		Columns:    CountdownOperationsColumns,
+		PrimaryKey: []*schema.Column{CountdownOperationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "countdownoperation_user_id_operation_id",
+				Unique:  true,
+				Columns: []*schema.Column{CountdownOperationsColumns[1], CountdownOperationsColumns[2]},
+			},
+			{
+				Name:    "countdownoperation_created_at_ms",
+				Unique:  false,
+				Columns: []*schema.Column{CountdownOperationsColumns[9]},
+			},
+		},
+	}
 	// FeedCountersColumns holds the columns for the "feed_counters" table.
 	FeedCountersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -232,6 +318,9 @@ var (
 		AutomationsTable,
 		ChannelFeedCountersTable,
 		CooldownClaimsTable,
+		CountdownsTable,
+		CountdownDeliveriesTable,
+		CountdownOperationsTable,
 		FeedCountersTable,
 		FeedReceiptsTable,
 		GoveeCredentialsTable,

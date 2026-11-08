@@ -18,6 +18,7 @@ import {
   RECIPE_NAME_PATTERN,
 } from './limits';
 import type * as T from './types';
+import { commandName } from './triggers';
 
 const ANNOUNCE_COLORS = ['', 'primary', 'blue', 'green', 'orange', 'purple'];
 const COMMERCIAL_LENGTHS = [30, 60, 90, 120, 150, 180];
@@ -225,6 +226,14 @@ export const SIMPLE_ACTIONS: Table = {
     { mode: 'color' },
   ),
   stop: empty,
+  countdown_start: register<Wide<T.CountdownStartAction>>({ name: 'string', seconds: 'int', left_command: 'string', left_reply: 'string', ready_reply: 'string' }, (c, p) => {
+    c.simpleWord('name', p.name, RECIPE_NAME_PATTERN);
+    c.inRange('seconds', p.seconds, 1, MAX_COOLDOWN_SECONDS);
+    if (p.left_command !== '') commandName(c, 'left_command', p.left_command, 'start');
+    c.text('left_reply', p.left_reply, 0, MAX_TEMPLATE_LENGTH);
+    c.text('ready_reply', p.ready_reply, 0, MAX_TEMPLATE_LENGTH);
+  }),
+  countdown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
   cooldown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
 };
 

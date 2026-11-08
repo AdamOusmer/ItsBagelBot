@@ -49,7 +49,8 @@ spec:
       priorityClassName: bagel-data-plane
       containers:
         - name: nats
-          image: ghcr.io/adamousmer/itsbagelbot/nats-server:main-1792658170-def7d9409034@sha256:1234142f09bfe47c94a2a8d0646e04f4c0610b007ad898861b16864ce929e72e
+          # Stock upstream; capacity validated on the live worker nodes (README.md).
+          image: nats:2.15.2-alpine@sha256:afae2fdbe2e326c65e1246cb83b9d05d319188734f3bd577ac8072daae78a10f
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:

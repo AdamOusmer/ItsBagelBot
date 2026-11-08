@@ -35,5 +35,7 @@
   "math": "Faire un calcul",
   "loop": "Répéter des étapes",
   "reward_update": "Modifier une récompense",
-  "cooldown_add": "Ajouter du temps à un délai de récupération"
+  "cooldown_add": "Ajouter du temps à un délai de récupération",
+  "countdown_start": "Démarrer un compte à rebours",
+  "countdown_add": "Ajouter du temps au compte à rebours"
 }

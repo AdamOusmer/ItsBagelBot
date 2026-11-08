@@ -3,5 +3,6 @@
   "event": "Twitch-Ereignis",
   "timer": "Timer",
   "reward": "Kanalpunkte-Belohnung",
-  "manual": "Manuell"
+  "manual": "Manuell",
+  "countdown": "Countdown beendet"
 }

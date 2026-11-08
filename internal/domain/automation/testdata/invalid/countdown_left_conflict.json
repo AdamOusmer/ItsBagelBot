@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "manual"
+  },
+  "conditions": [
+    {
+      "type": "cooldown",
+      "params": {
+        "global_s": 60,
+        "left_command": "!left"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "countdown_start",
+      "params": {
+        "name": "break",
+        "seconds": 120,
+        "left_command": "!LEFT"
+      }
+    }
+  ]
+}
