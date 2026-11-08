@@ -49,6 +49,16 @@ told not to.
 | Build command | `bun --version && bun install --cwd .. --frozen-lockfile && bun run build` |
 | Build output directory | `dist` |
 
+The CSP in `public/_headers` and `src/layouts/Layout.astro` allows Cloudflare's
+inline challenge scripts, Web Analytics and Rocket Loader. The inline script-tag
+allowance is needed for this static deployment's per-response Cloudflare snippets;
+inline event handlers and `eval` remain blocked in production. Keep both policies
+in sync when changing CDN settings.
+
+The empty `/speculation-rules.json` overrides Cloudflare Speed Brain: Astro's
+ClientRouter already prefetches routes, while Speed Brain's cache-only fetches
+can return 503.
+
 ## Guides
 
 The guide pages under `/guides` are content, not markup, and a guide is two
@@ -99,7 +109,7 @@ Two conventions inside a section:
   `Rehearsal` (expands the response tokens as you type), `PathPicker`,
   `FetchBudget` and `FetchOutcomes` (data sources), `ModuleCatalog` (filterable
   module grid) and `CounterPlay` (replays `!death` and `!death 5`). Same `labels` rule. Client
-  code is an Astro `<script>` (the CSP has no inline allowance) that binds through
+  code is a bundled Astro `<script>` that binds through
   `src/script/bind.ts` on `astro:page-load` behind a `data-ready` guard, so the page transition router
   re-wires a widget after a navigation without binding it twice.
 
