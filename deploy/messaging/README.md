@@ -25,8 +25,8 @@ S2 route compression, one R3 memory stream with 384 MiB / 6 s retention,
 three publisher pods and three consumer pods sharing one R3 AckNone pull durable.
 Publisher settings matched sesame: 4 connections, 8 in-flight atomic cohorts,
 256-message / 1 ms batches, queue 512, ACK_FIRST and a 5 s publish wait.
-Consumers used 8 pull loops of 250 per pod. The 20k run had separate stream and
-consumer leaders; the 40k run had both leaders on the same broker.
+Consumers used 8 pull loops of 250 per pod. Both capacity runs had separate
+stream and consumer leaders; the matched 1k comparisons below colocated them.
 
 | target | admitted and received | completed rate | consumer p50 range | worst consumer p99 | average broker CPU range |
 |---|---|---|---|---|---|
