@@ -29,5 +29,7 @@
   "donateTitle": "Grâce aux dons, le forfait Gratuit reste gratuit.",
   "donateText": "Chaque chaîne, gratuite ou Premium, fonctionne sur les mêmes serveurs. Le Premium et les dons servent à les payer, alors un don sur Ko-fi garde le bot en ligne pour tout le monde.",
   "donateCta": "Donner sur Ko-fi",
-  "donateNote": "N’importe quel montant. Aucun avantage en échange."
+  "donateNote": "N’importe quel montant. Aucun avantage en échange.",
+  "supportBotTitle": "Soutenez le bot de votre streamer.",
+  "supportBotCta": "Soutenir sur Ko-fi"
 }

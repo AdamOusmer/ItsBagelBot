@@ -3463,6 +3463,8 @@ export type KnownMessageKey =
   | 'leaderboard.searchLabel'
   | 'leaderboard.searchPlaceholder'
   | 'leaderboard.soloNote'
+  | 'leaderboard.supportBotCta'
+  | 'leaderboard.supportBotTitle'
   | 'leaderboard.tagline'
   | 'leaderboard.title'
   | 'leaderboard.visitChannel'

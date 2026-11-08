@@ -1483,3 +1483,17 @@ test('chat preview: astro adapter passes extra attributes to the root', async ()
 
   expect(astro).toContain('<div class="bb-chat bb-chat--fixed" role="group" data-chat aria-live="polite">');
 });
+
+test('DonateCard compact: both adapters use the landing panel and omit long copy', async () => {
+  const props = { compact: true, title: 'Support your streamer’s bot.', cta: 'Support on Ko-fi', href: '/k', text: 'Long donation explanation', note: 'Donation note' };
+  const container = await experimental_AstroContainer.create();
+  const svelte = normalise(render(SvelteDonateCard, { props }).body);
+  const astro = normalise(await container.renderToString(AstroDonateCard, { props }));
+
+  expect(astro).toBe(svelte);
+  expect(svelte).toContain('bb-halo-panel bb-halo-panel--green bb-donate-card__panel');
+  expect(svelte).toContain('bb-btn--primary');
+  expect(svelte).toContain('Support your streamer’s bot.');
+  expect(svelte).not.toContain('Long donation explanation');
+  expect(svelte).not.toContain('Donation note');
+});

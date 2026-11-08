@@ -29,5 +29,7 @@
   "donateTitle": "Donations keep the free plan free.",
   "donateText": "Every channel, free or Premium, runs on the same servers. Premium and donations are what pay for them, so a Ko-fi donation keeps the bot online for everyone.",
   "donateCta": "Donate on Ko-fi",
-  "donateNote": "Any amount. No perks attached."
+  "donateNote": "Any amount. No perks attached.",
+  "supportBotTitle": "Support your streamer’s bot.",
+  "supportBotCta": "Support on Ko-fi"
 }

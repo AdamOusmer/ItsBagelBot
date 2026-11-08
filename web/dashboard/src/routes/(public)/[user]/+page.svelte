@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
-  import DonateCard from '@bagel/ui/svelte/DonateCard.svelte';
+  import PublicStreamerHeader from '#lib/components/public/PublicStreamerHeader.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import Pager from '@bagel/ui/svelte/Pager.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
@@ -13,7 +13,7 @@
   import { goto } from '$app/navigation';
   import { page as route } from '$app/state';
   import { formatPointValue, getI18n } from '@bagel/kit';
-  import { SITE, commandsHref } from '@bagel/kit/site-links';
+  import { commandsHref } from '@bagel/kit/site-links';
   import PublicHead from '#lib/components/public/PublicHead.svelte';
   import { boardHref, cleanQuery, emptyCopyKeys, MAX_QUERY_LENGTH } from '#lib/leaderboard-board';
   import type { PageData } from './$types';
@@ -24,14 +24,6 @@
 
   type Viewer = PageData['podium'][number];
 
-  const GREEN = { head: '#62a593', eye: '#111113' };
-  const TAN = { head: '#eadbbd', eye: '#111113' };
-  const PALE = { head: '#f6efe1', eye: '#111113' };
-  const donors = [
-    { name: 'oven_mitt', size: 64, palette: PALE },
-    { name: 'glazed_val', size: 88, palette: GREEN },
-    { name: 'caramel_cass', size: 64, palette: TAN }
-  ];
   const PODIUM_ORDER = [1, 0, 2];
 
   const rowName = (v: Viewer) => v.viewerName || v.viewerLogin || t('leaderboard.anonymousViewer');
@@ -110,18 +102,20 @@
 </div>
 
 <main class="lb">
-  <header class="lb-head">
-    <span class="lb-eyebrow"><bb-fit>{t('leaderboard.eyebrow')}</bb-fit></span>
-    <h1 class="lb-title{titleSize ? ` lb-title--${titleSize}` : ''}">
-      {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="lb-word">{word}</span>{/each}
-    </h1>
-    <p class="lb-tagline"><bb-fit mode="block">{t('leaderboard.tagline')}</bb-fit></p>
-    <div class="lb-visit" aria-hidden={!data.commandsPage}>
-      {#if data.commandsPage}
-        <TextLink variant="arrow" tone="go" href={channelHref} label={t('leaderboard.visitChannel')}><bb-fit>{t('leaderboard.visitChannel')}</bb-fit></TextLink>
-      {/if}
+  <PublicStreamerHeader>
+    <div class="lb-intro">
+      <span class="lb-eyebrow"><bb-fit>{t('leaderboard.eyebrow')}</bb-fit></span>
+      <h1 class="lb-title{titleSize ? ` lb-title--${titleSize}` : ''}">
+        {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="lb-word">{word}</span>{/each}
+      </h1>
+      <p class="lb-tagline"><bb-fit mode="block">{t('leaderboard.tagline')}</bb-fit></p>
+      <div class="lb-visit" aria-hidden={!data.commandsPage}>
+        {#if data.commandsPage}
+          <TextLink variant="arrow" tone="go" href={channelHref} label={t('leaderboard.visitChannel')}><bb-fit>{t('leaderboard.visitChannel')}</bb-fit></TextLink>
+        {/if}
+      </div>
     </div>
-  </header>
+  </PublicStreamerHeader>
 
   {#if data.degraded}
     <AlertBanner tone="warning">{t('leaderboard.degraded')}</AlertBanner>
@@ -223,19 +217,6 @@
 
   <p class="lb-earn"><bb-fit mode="block">{t('leaderboard.earnNote')}</bb-fit></p>
 
-  <DonateCard
-    class="lb-donate"
-    label={t('leaderboard.donateLabel')}
-    title={t('leaderboard.donateTitle')}
-    text={t('leaderboard.donateText')}
-    cta={t('leaderboard.donateCta')}
-    href={SITE.kofi}
-    note={t('leaderboard.donateNote')}
-  >
-    {#each donors as donor (donor.name)}
-      <span style="--s: {donor.size}px"><Bolota name={donor.name} size={donor.size} palette={donor.palette} expression="excited" motionState="idle" active gate /></span>
-    {/each}
-  </DonateCard>
 </main>
 
 <style>
@@ -256,13 +237,13 @@
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: var(--bb-space-8);
+    gap: var(--bb-space-6);
     width: min(100% - 32px, 1080px);
     margin-inline: auto;
     padding: calc(var(--bb-nav-height) + var(--bb-space-8)) 0 var(--bb-space-section);
   }
 
-  .lb-head {
+  .lb-intro {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -302,7 +283,7 @@
 
   .lb-tagline {
     width: min(100%, 46ch);
-    height: calc(2 * 1lh);
+    min-height: 1lh;
     margin: 0;
     font-size: var(--bb-text-md);
     line-height: 1.6;
@@ -321,7 +302,7 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: end;
     gap: var(--bb-space-5);
-    padding-top: var(--bb-space-6);
+    padding-top: var(--bb-space-4);
   }
 
   .lb-spot {
@@ -635,13 +616,11 @@
     color: var(--bb-muted);
   }
 
-  .lb :global(.lb-donate) {
-    margin-top: calc(var(--bb-space-section) * 0.6);
-  }
+
 
   @media (max-width: 760px) {
     .lb { padding-top: calc(var(--bb-nav-height) + var(--bb-space-6)); }
-    .lb-tagline { height: calc(3 * 1lh); }
+    .lb-tagline { height: auto; }
     .lb-podium { grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-8); }
     .lb-spot--1 { order: -1; transform: none; }
     .lb :global(.lb-board) { padding: var(--bb-space-5) var(--bb-space-4) var(--bb-space-4); }
