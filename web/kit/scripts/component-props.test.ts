@@ -19,19 +19,36 @@ async function files(dir: string): Promise<string[]> {
   return groups.flat();
 }
 
+function markupAttributes(source: string): string[] {
+  const tags = source.matchAll(/<[A-Za-z][\w.-]*(?:\s[^<>]*?)?\/?>/g);
+  return Array.from(tags).flatMap(([tag]) =>
+    Array.from(tag.matchAll(/\b(data-[a-z][\w-]*)(?=[\s=/>])/g), (attr) => attr[1]));
+}
+
+function domAttributes(source: string): string[] {
+  const accesses = source.matchAll(/\[\s*(data-[a-z][\w-]*)\b|(?:getAttribute|setAttribute|hasAttribute|removeAttribute|toggleAttribute)\(\s*['"](data-[a-z][\w-]*)['"]/g);
+  return Array.from(accesses, (attr) => attr[1] ?? attr[2]);
+}
+
+function customContracts(source: string): string[] {
+  const attributes = new Set([...markupAttributes(source), ...domAttributes(source)]);
+  return Array.from(attributes).filter((attribute) => !integrations.test(attribute));
+}
+
+function customDatasetAccesses(source: string): string[] {
+  return Array.from(source.matchAll(/\.dataset(?:\.([\w]+)|\[)/g))
+    .filter((access) => access[1] !== 'lenisPrevent')
+    .map((access) => access[0]);
+}
+
+async function violations(path: string): Promise<string[]> {
+  const source = await readFile(path, 'utf8');
+  return [...customContracts(source), ...customDatasetAccesses(source)]
+    .map((contract) => `${relative(root, path)}: ${contract}`);
+}
+
 test('production components use props and refs instead of custom data attribute contracts', async () => {
-  const offenders: string[] = [];
-  for (const path of (await Promise.all(sources.map((dir) => files(resolve(root, dir))))).flat()) {
-    const source = await readFile(path, 'utf8');
-    const attributes = new Set<string>();
-    for (const tag of source.matchAll(/<[A-Za-z][\w.-]*(?:\s[^<>]*?)?\/?>/g)) {
-      for (const attr of tag[0].matchAll(/\b(data-[a-z][\w-]*)(?=[\s=/>])/g)) attributes.add(attr[1]);
-    }
-    for (const attr of source.matchAll(/\[\s*(data-[a-z][\w-]*)\b|(?:getAttribute|setAttribute|hasAttribute|removeAttribute|toggleAttribute)\(\s*['"](data-[a-z][\w-]*)['"]/g)) attributes.add(attr[1] ?? attr[2]);
-    for (const attr of attributes) if (!integrations.test(attr)) offenders.push(`${relative(root, path)}: ${attr}`);
-    for (const access of source.matchAll(/\.dataset(?:\.([\w]+)|\[)/g)) {
-      if (access[1] !== 'lenisPrevent') offenders.push(`${relative(root, path)}: ${access[0]}`);
-    }
-  }
+  const paths = (await Promise.all(sources.map((dir) => files(resolve(root, dir))))).flat();
+  const offenders = (await Promise.all(paths.map(violations))).flat();
   expect(offenders).toEqual([]);
 });
