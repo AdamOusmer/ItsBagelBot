@@ -2107,7 +2107,7 @@
     ],
     "name": "Aléatoire 1-100",
     "hint": "un nombre aléatoire de 1 à 100, ou {random:min-max}",
-    "description": "Un nombre entier de 1 à 100, différent à chaque fois. {random:1-6} choisit votre propre plage; les deux bornes comptent.",
+    "description": "Un nombre entier de 1 à 100, différent à chaque fois. {random:1-6} choisit votre propre plage; les deux bornes comptent. Ajoutez un séparateur avec {random:1-1000000:,}.",
     "group": "fun",
     "groups": [
       "fun"
