@@ -149,6 +149,12 @@
       </span>
     </Cluster>
 
+    <FactList>
+      <Fact term={t('admin.users.termsLabel')} truncate>
+        {user.onboarded ? t('admin.users.termsAccepted') : t('admin.users.termsPending')}
+      </Fact>
+    </FactList>
+
     <section class="block">
       <Heading level={3} variant="label">{t('admin.users.tierTitle')}</Heading>
       <Cluster gap={2}>

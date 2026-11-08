@@ -505,6 +505,7 @@ func viewOf(u *ent.User) usersrpc.AdminUserView {
 		SubscriptionRef:           u.SubscriptionRef,
 		SubscriptionCancelPending: u.SubscriptionCancelPending,
 		TestAccount:               u.TestAccount,
+		Onboarded:                 u.Onboarded,
 		CreatedAt:                 u.CreatedAt,
 		UpdatedAt:                 u.UpdatedAt,
 	}
