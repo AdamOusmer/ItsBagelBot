@@ -4,6 +4,9 @@
 
 import Modal from '@bagel/ui/astro/Modal.astro';
 import SearchInput from '@bagel/ui/astro/SearchInput.astro';
+import NavLink from '@bagel/ui/astro/NavLink.astro';
+import EmptyState from '@bagel/ui/astro/EmptyState.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import { docsI18n } from '../i18n/ui';
 
 interface Props {
@@ -14,7 +17,15 @@ const { t } = docsI18n(Astro.props.locale);
 ---
 
 <Modal class="doc-search-modal" open={false} label={t('chrome.search')} closeLabel={t('diagram.close')}>
-  <template class="doc-search-empty">{t('chrome.searchEmpty')}</template>
+  <template class="doc-search-empty"><EmptyState title={t('chrome.searchEmpty')} /></template>
+  <template class="doc-search-result">
+    <NavLink href="#" block class="doc-search__link">
+      <span class="doc-search__content">
+        <Text as="span" class="doc-search__title" />
+        <Text as="span" size="sm" tone="muted" class="doc-search__excerpt" />
+      </span>
+    </NavLink>
+  </template>
   <div class="doc-search">
     <SearchInput id="doc-search-input" fill placeholder={t('chrome.searchPlaceholder')} autocomplete="off" />
     <ul class="doc-search__results" aria-live="polite"></ul>
@@ -37,35 +48,10 @@ const { t } = docsI18n(Astro.props.locale);
     overflow-y: auto;
   }
 
-  .doc-search__empty {
-    padding: 12px;
-    color: var(--bb-muted);
-    font-size: 0.875rem;
-  }
-
-  .doc-search__link {
+  .doc-search__content {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 10px 12px;
-    border-radius: var(--bb-radius-sm);
-  }
-
-  .doc-search__link:hover,
-  .doc-search__link:focus-visible {
-    background: rgba(var(--bb-tan-rgb), 0.1);
-  }
-
-  .doc-search__title {
-    color: var(--bb-white);
-    font-size: 0.9375rem;
-    font-weight: 500;
-  }
-
-  .doc-search__excerpt {
-    color: var(--bb-muted);
-    font-size: 0.8125rem;
-    line-height: 1.5;
+    gap: var(--bb-space-1);
   }
 
   .doc-search__excerpt mark {
@@ -106,24 +92,19 @@ const { t } = docsI18n(Astro.props.locale);
 
   function renderItem(data: Awaited<ReturnType<PagefindResult['data']>>): HTMLElement {
     const item = document.createElement('li');
-    const link = document.createElement('a');
-    link.className = 'doc-search__link';
+    const template = dialog()!.querySelector<HTMLTemplateElement>('.doc-search-result')!;
+    const link = template.content.firstElementChild!.cloneNode(true) as HTMLAnchorElement;
     link.href = data.url;
-    const title = document.createElement('span');
-    title.className = 'doc-search__title';
-    title.textContent = data.meta.title ?? data.url;
-    const excerpt = document.createElement('span');
-    excerpt.className = 'doc-search__excerpt';
-    excerpt.innerHTML = data.excerpt;
-    link.append(title, excerpt);
+    link.querySelector<HTMLElement>('.doc-search__title')!.textContent = data.meta.title ?? data.url;
+    link.querySelector<HTMLElement>('.doc-search__excerpt')!.innerHTML = data.excerpt;
     item.append(link);
     return item;
   }
 
   function renderEmpty(): HTMLElement {
     const item = document.createElement('li');
-    item.className = 'doc-search__empty';
-    item.textContent = dialog()?.querySelector<HTMLTemplateElement>('.doc-search-empty')?.content.textContent ?? '';
+    const template = dialog()!.querySelector<HTMLTemplateElement>('.doc-search-empty')!;
+    item.append(template.content.cloneNode(true));
     return item;
   }
 

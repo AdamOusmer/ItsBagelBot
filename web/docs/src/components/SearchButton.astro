@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Button from '@bagel/ui/astro/Button.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
 import Kbd from '@bagel/ui/astro/Kbd.astro';
 import { docsI18n } from '../i18n/ui';
@@ -13,31 +14,24 @@ interface Props {
 const { t } = docsI18n(Astro.props.locale);
 ---
 
-<button type="button" class="doc-search-button">
-  <Icon name="search" size={15} />
-  <span class="doc-search-button__label">{t('chrome.search')}</span>
-  <span class="doc-search-button__key"><Kbd>/</Kbd></span>
-</button>
+<Button variant="secondary" block class="doc-search-button" aria-haspopup="dialog">
+  <span class="doc-search-button__content">
+    <Icon name="search" size={15} />
+    <span class="doc-search-button__label">{t('chrome.search')}</span>
+    <span class="doc-search-button__key"><Kbd>/</Kbd></span>
+  </span>
+</Button>
 
 <style>
-  .doc-search-button {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  :global(.doc-search-button > .bb-btn__content) {
     width: 100%;
-    min-height: 40px;
-    padding: 0 12px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(var(--bb-white-pure-rgb), 0.02);
-    color: var(--bb-muted);
-    font-size: 0.875rem;
-    transition: border-color var(--bb-dur-fast) var(--bb-ease-out-expo), color var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
 
-  .doc-search-button:hover {
-    border-color: var(--bb-border-strong);
-    color: var(--bb-white);
+  .doc-search-button__content {
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-2);
+    width: 100%;
   }
 
   .doc-search-button__label {
