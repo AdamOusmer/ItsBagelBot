@@ -5,6 +5,7 @@ package repository_test
 import (
 	"context"
 	"database/sql"
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -99,4 +100,32 @@ func TestEarnedCancellationLeavesBatchRetryable(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	require.EqualValues(t, 10, balance.Points)
+}
+
+func TestEarnedEntryValidationAndDuplicateViewerOverflow(t *testing.T) {
+	r, raw := sqliteRetentionRepo(t)
+	dto := data.LoyaltyEarnedDTO{BatchID: "entry-validation", UserID: 17, Entries: []data.LoyaltyEarnEntry{
+		{ViewerID: 0, Points: 50},
+		{ViewerID: 8, ViewerLogin: "ignored"},
+		{ViewerID: 7, Points: 10},
+		{ViewerID: 7, Points: 20, WatchSeconds: 3},
+	}}
+	require.NoError(t, r.ApplyEarned(t.Context(), dto))
+	var count int
+	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM balances").Scan(&count))
+	require.Equal(t, 1, count)
+	balance, found, err := r.BalanceGet(t.Context(), 17, 7)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.EqualValues(t, 30, balance.Points)
+	require.EqualValues(t, 3, balance.WatchSeconds)
+	dto.BatchID = "duplicate-overflow"
+	dto.Entries = []data.LoyaltyEarnEntry{{ViewerID: 7, WatchSeconds: math.MaxUint64}, {ViewerID: 7, WatchSeconds: 1}}
+	require.ErrorIs(t, r.ApplyEarned(t.Context(), dto), loyaltyrepo.ErrInvalidInput)
+	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM loyalty_earned_receipts").Scan(&count))
+	require.Equal(t, 1, count, "invalid duplicate sum must roll back the new receipt")
+	balance, _, err = r.BalanceGet(t.Context(), 17, 7)
+	require.NoError(t, err)
+	require.EqualValues(t, 30, balance.Points)
+	require.EqualValues(t, 3, balance.WatchSeconds)
 }
