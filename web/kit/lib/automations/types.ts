@@ -327,6 +327,7 @@ export interface LightsAction {
   device: string;
   sku: string;
   device_name?: string;
+  extra_lights?: string[];
   mode?: 'color' | 'scene';
   color?: string;
   scene_id?: string;

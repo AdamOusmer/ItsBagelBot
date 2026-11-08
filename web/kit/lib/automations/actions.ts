@@ -10,6 +10,7 @@ import {
   MAX_COOLDOWN_SECONDS,
   MAX_COOLDOWN_ADD_PER,
   MAX_DELAY_MS,
+  MAX_EXTRA_LIGHTS,
   MAX_FETCH_URL_LENGTH,
   MAX_REWARD_COST,
   MAX_TEMPLATE_LENGTH,
@@ -22,6 +23,7 @@ const ANNOUNCE_COLORS = ['', 'primary', 'blue', 'green', 'orange', 'purple'];
 const COMMERCIAL_LENGTHS = [30, 60, 90, 120, 150, 180];
 const LIGHTS_MODES = ['color', 'scene'];
 const LIGHTS_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+const LIGHT_REF_PATTERN = /^[^/]{1,64}\/[^/]{1,32}$/;
 const MAX_AMOUNT =1000000;
 const MAX_SET_AMOUNT = 1000000000;
 const MAX_TIMEOUT_SECONDS = 1209600;
@@ -155,6 +157,7 @@ function checkLights(c: Chk, p: Wide<T.LightsAction>): void {
   c.text('device', p.device, 1, 64);
   c.text('sku', p.sku, 1, 32);
   c.text('device_name', p.device_name, 0, 100);
+  c.stringList('extra_lights', p.extra_lights, MAX_EXTRA_LIGHTS, (f, s) => c.format(f, s, LIGHT_REF_PATTERN));
   c.oneOf('mode', p.mode, LIGHTS_MODES);
   if (p.mode === 'scene') checkLightsScene(c, p);
   else c.format('color', p.color, LIGHTS_COLOR_PATTERN);
@@ -209,6 +212,7 @@ export const SIMPLE_ACTIONS: Table = {
       device: 'string',
       sku: 'string',
       device_name: 'string',
+      extra_lights: 'strings',
       mode: 'string',
       color: 'string',
       scene_id: 'string',

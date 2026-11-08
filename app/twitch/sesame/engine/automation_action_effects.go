@@ -6,6 +6,7 @@ package engine
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/automation"
@@ -191,13 +192,27 @@ func (x *actionExec) sendLights(req gossiprpc.Request) error {
 }
 
 func lightsRequest(channelID string, p automation.LightsAction) gossiprpc.Request {
-	req := gossiprpc.Request{ChannelID: channelID, Device: p.Device, SKU: p.SKU, ColorRGB: p.RGB}
+	req := gossiprpc.Request{ChannelID: channelID, Device: p.Device, SKU: p.SKU, ColorRGB: p.RGB, Lights: lightGroup(p)}
 	if p.Mode == automation.LightsModeScene {
 		req.Scene = &gossiprpc.GoveeScene{
 			ID: p.SceneID, Name: p.SceneName, Type: p.SceneType, Instance: p.SceneInstance, Value: codec.RawMessage(p.SceneValue),
 		}
 	}
 	return req
+}
+
+func lightGroup(p automation.LightsAction) []gossiprpc.GoveeLight {
+	if len(p.ExtraLights) == 0 {
+		return nil
+	}
+	lights := make([]gossiprpc.GoveeLight, 0, len(p.ExtraLights)+1)
+	lights = append(lights, gossiprpc.GoveeLight{Device: p.Device, SKU: p.SKU})
+	for _, ref := range p.ExtraLights {
+		if device, sku, ok := strings.Cut(ref, "/"); ok {
+			lights = append(lights, gossiprpc.GoveeLight{Device: device, SKU: sku})
+		}
+	}
+	return lights
 }
 
 func gossipFailure(err error) error {

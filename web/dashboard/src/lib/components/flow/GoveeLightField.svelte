@@ -7,7 +7,9 @@
   import { actionPayload, getI18n, type ActionOk, type GoveeDevice } from '@bagel/kit';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
@@ -48,6 +50,17 @@
     node.config.device = light.device;
     node.config.sku = light.sku;
     node.config.deviceName = light.name || light.sku;
+  }
+
+  const refOf = (d: GoveeDevice) => `${d.device}/${d.sku}`;
+  const extras = $derived(new Set(configText(node, 'extraLights').split(',').filter(Boolean)));
+
+  function toggleExtra(d: GoveeDevice, on: boolean) {
+    const next = new Set(extras);
+    if (on) next.add(refOf(d));
+    else next.delete(refOf(d));
+    if (next.size) node.config.extraLights = [...next].join(',');
+    else delete node.config.extraLights;
   }
 
   async function refresh() {
@@ -108,6 +121,17 @@
           onchange={(e) => choose(devices, e.currentTarget.value)}
         />
       </Field>
+      {@const others = devices.filter((d) => d.color && d.device !== device)}
+      {#if device && others.length}
+        <fieldset class="more">
+          <Label as="legend">{t('govee.groupLightsLabel')}</Label>
+          {#each others as light (light.device)}
+            <Checkbox bind:checked={() => extras.has(refOf(light)), (on) => toggleExtra(light, on)}>
+              <Text as="span" size="sm" truncate>{light.name || light.device}</Text>
+            </Checkbox>
+          {/each}
+        </fieldset>
+      {/if}
     {/if}
     {#if code === 'unreachable'}
       <Text size="sm" tone="muted">{t('govee.devicesError')}</Text>
@@ -124,6 +148,14 @@
   .row {
     display: flex;
     align-items: center;
+    gap: 8px;
+  }
+  .more {
+    border: none;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    display: grid;
     gap: 8px;
   }
   .key {

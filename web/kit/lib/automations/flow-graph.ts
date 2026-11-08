@@ -207,6 +207,8 @@ const DEFAULT_LIGHT_COLOR = '#ffffff';
 function lightParams(config: FlowConfig): Params {
   const params: Params = { device: str(config.device), sku: str(config.sku) };
   if (str(config.deviceName)) params.device_name = str(config.deviceName);
+  const extra = str(config.extraLights).split(',').filter(Boolean);
+  if (extra.length) params.extra_lights = extra;
   return params;
 }
 
@@ -786,7 +788,9 @@ function conditionToNode(condition: Condition): { type: string; config: FlowConf
 function lightsNode(params: Params): { type: string; config: FlowConfig } | null {
   const config: FlowConfig = { device: str(params.device), sku: str(params.sku) };
   if (str(params.device_name)) config.deviceName = str(params.device_name);
-  const mode = str(params.mode) || 'color';
+  const extra = (params.extra_lights ?? []) as string[];
+  if (extra.length) config.extraLights = extra.join(',');
+  const mode =str(params.mode) || 'color';
   if (mode === 'color') return { type: 'reply.lights', config: { ...config, mode, color: str(params.color) } };
   if (mode !== 'scene') return null;
   const scene: FlowConfig = {

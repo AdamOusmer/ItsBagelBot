@@ -183,6 +183,7 @@ export const ACTION_TYPES: TypeDef[] = [
     f('device', 'text', { required: true, min: 1, max: 64 }),
     f('sku', 'text', { required: true, min: 1, max: 32 }),
     f('device_name', 'text', { max: 100 }),
+    f('extra_lights', 'list', { max: 31 }),
     f('mode', 'enum', { values: ['color', 'scene'] }),
     f('color', 'text', { min: 7, max: 7 }),
     f('scene_id', 'text', { max: 100 }),

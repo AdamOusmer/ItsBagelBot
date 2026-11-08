@@ -22,6 +22,7 @@ export const MAX_EVENT_FILTERS = 10;
 export const MAX_FILTER_VALUE = 100;
 export const MAX_COMMAND_ALIASES = 10;
 export const MAX_LIST_ENTRIES = 100;
+export const MAX_EXTRA_LIGHTS = 31;
 export const MAX_PATTERN_LENGTH = 200;
 export const MAX_FETCH_URL_LENGTH = 512;
 export const MAX_REWARD_COST = 10000000;
