@@ -18,6 +18,26 @@ export interface CounterReading {
   rate: number | null;
 }
 
+function interpolate(first: Sample, next: Sample, at: number): CounterReading {
+  const speed = (next.total - first.total) * 1000 / (next.at - first.at);
+  const measured = first.rate ?? next.rate;
+  return {
+    total: first.total + speed * (at - first.at) / 1000,
+    rate: measured === null && first.total === next.total ? null : speed
+  };
+}
+
+function project(last: Sample, now: number): CounterReading {
+  // A late frame or the 5s fallback poll can exhaust the buffer. Continue
+  // at the last measured rate, but stop after ten seconds without truth.
+  const limit = last.at + STALE_MS - COUNTER_BUFFER_MS;
+  const elapsed = Math.max(0, Math.min(now - COUNTER_BUFFER_MS, limit) - last.at);
+  return {
+    total: last.total + (last.rate ?? 0) * elapsed / 1000,
+    rate: now < last.at + STALE_MS ? last.rate : 0
+  };
+}
+
 export class StatsCounter {
   private samples: Sample[];
   private printed = 0;
@@ -51,29 +71,25 @@ export class StatsCounter {
 
   read(now: number): CounterReading {
     const at = now - COUNTER_BUFFER_MS;
-    while (this.samples.length > 2 && this.samples[1].at <= at) this.samples.shift();
-    const first = this.samples[0];
-    const last = this.samples[this.samples.length - 1];
-    let total = first.total;
-    let rate: number | null = 0;
-
-    if (at >= last.at) {
-      // A late frame or the 5s fallback poll can exhaust the buffer. Continue
-      // at the last measured rate, but stop after ten seconds without truth.
-      const elapsed = Math.max(0, Math.min(at, last.at + STALE_MS - COUNTER_BUFFER_MS) - last.at);
-      total = last.total + (last.rate ?? 0) * elapsed / 1000;
-      rate = now < last.at + STALE_MS ? last.rate : 0;
-    } else if (at >= first.at) {
-      const next = this.samples[1];
-      rate = (next.total - first.total) * 1000 / (next.at - first.at);
-      total = first.total + rate * (at - first.at) / 1000;
-      if (first.rate === null && next.rate === null && first.total === next.total) rate = null;
-    }
+    this.trim(at);
+    const reading = this.position(at, now);
 
     // When an unusually late sample corrects a prediction downward, hold until
     // confirmed growth catches up. The rate readout must describe that hold too.
-    if (total < this.printed) return { total: this.printed, rate: 0 };
-    this.printed = total;
-    return { total, rate };
+    if (reading.total < this.printed) return { total: this.printed, rate: 0 };
+    this.printed = reading.total;
+    return reading;
+  }
+
+  private trim(at: number): void {
+    while (this.samples.length > 2 && this.samples[1].at <= at) this.samples.shift();
+  }
+
+  private position(at: number, now: number): CounterReading {
+    const last = this.samples[this.samples.length - 1];
+    if (at >= last.at) return project(last, now);
+    const first = this.samples[0];
+    if (at < first.at) return { total: first.total, rate: 0 };
+    return interpolate(first, this.samples[1], at);
   }
 }

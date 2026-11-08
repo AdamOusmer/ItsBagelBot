@@ -15,7 +15,14 @@ function rate(raw: unknown): raw is number | null {
   return raw === null || (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0);
 }
 
-function validRates(stats: Record<string, unknown>): boolean {
+function sampleTime(raw: unknown): boolean {
+  if (raw == null) return true;
+  if (typeof raw !== 'number') return false;
+  return Number.isSafeInteger(raw) && raw >= 0;
+}
+
+function validSample(stats: Record<string, unknown>): boolean {
+  if (!sampleTime(stats.sampled_at)) return false;
   return ['msg_rate', 'event_rate', 'msg_rate_now', 'event_rate_now']
     .every((key) => rate(stats[key]));
 }
@@ -24,9 +31,7 @@ export function validStats(raw: unknown): PublicStats | null {
   const stats = record(raw);
   if (!stats) return null;
   if (typeof stats.degraded !== 'boolean') return null;
-  if (!validRates(stats)) return null;
-  if (stats.sampled_at !== undefined && stats.sampled_at !== null &&
-    (typeof stats.sampled_at !== 'number' || !Number.isSafeInteger(stats.sampled_at) || stats.sampled_at < 0)) return null;
+  if (!validSample(stats)) return null;
   const messages = parseCounterValue(stats.messages_total);
   const events = parseCounterValue(stats.events_total);
   if (messages === null || events === null) return null;
