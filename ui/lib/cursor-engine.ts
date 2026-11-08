@@ -13,34 +13,32 @@ export type CursorEase = {
 export type CursorOptions = {
     dot: HTMLElement;
     ring: HTMLElement;
+    fill: HTMLElement;
     selector?: string;
     ease?: CursorEase;
 };
 
 const SELECTOR = 'a, button, .bb-input';
-const TEXT =
-    '.bb-input:not(.bb-input--select), textarea, [contenteditable]:not([contenteditable="false"]), ' +
-    'input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], ' +
-    '[type="button"], [type="submit"], [type="reset"], [type="image"], [type="hidden"])';
-const EASE: CursorEase = { hover: 0.3, release: 0.28 };
+const EASE: CursorEase = { hover: 0.16, release: 0.28 };
 
 const IDLE_SIZE = 36;
 const HOVER_PAD = 6;
 const FALLBACK_RADIUS = 8;
-const SETTLE_PX = 0.3;
+const SETTLE_PX = 0.1;
 const FRAME_MS = 1000 / 60;
 const cursorPointer = mediaQuery('(min-width: 901px) and (hover: hover) and (pointer: fine)');
 
-let pointerX = -1;
-let pointerY = -1;
+type Point = { x: number; y: number };
+const pointer: Point = { x: -1, y: -1 };
 
-type Box = { x: number; y: number; w: number; h: number; r: number };
+type Box = Point & { w: number; h: number; r: number };
+type OutlineAttributes = { transform: string; rx: string; ry: string };
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-function idleBox(x: number, y: number): Box {
+function idleBox(point: Point): Box {
     const half = IDLE_SIZE / 2;
-    return { x: x - half, y: y - half, w: IDLE_SIZE, h: IDLE_SIZE, r: half };
+    return { x: point.x - half, y: point.y - half, w: IDLE_SIZE, h: IDLE_SIZE, r: half };
 }
 
 function radiusOf(style: CSSStyleDeclaration): number {
@@ -59,42 +57,63 @@ function hoverBox(el: HTMLElement, radius: number): Box {
     };
 }
 
-function lerpBox(from: Box, to: Box, e: number): Box {
+function warpBox(box: Box): Box {
+    // Only the edges nearest the pointer yield, by at most two pixels.
+    const px = (pointer.x - box.x) / box.w;
+    const py = (pointer.y - box.y) / box.h;
+    const dx = px >= 0 && px <= 1 ? (px - 0.5) * 4 : 0;
+    const dy = py >= 0 && py <= 1 ? (py - 0.5) * 4 : 0;
+    return { ...box, x: box.x + Math.min(0, dx), y: box.y + Math.min(0, dy),
+        w: box.w + Math.abs(dx), h: box.h + Math.abs(dy) };
+}
+
+function morphBox(box: Box, to: Box, factor: number): Box {
     return {
-        x: lerp(from.x, to.x, e),
-        y: lerp(from.y, to.y, e),
-        w: lerp(from.w, to.w, e),
-        h: lerp(from.h, to.h, e),
-        r: to.r,
+        x: lerp(box.x, to.x, factor), y: lerp(box.y, to.y, factor),
+        w: lerp(box.w, to.w, factor), h: lerp(box.h, to.h, factor),
+        r: lerp(box.r, to.r, factor),
     };
+}
+
+function paintOutline(el: Element, attributes: OutlineAttributes): void {
+    for (const name of ['transform', 'rx', 'ry'] as const) {
+        const value = attributes[name];
+        if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+    }
 }
 
 function paintRing(ring: HTMLElement, box: Box, shape: Box): void {
     // Lay out the destination shape once; animate its position and scale only.
-    ring.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px) scale(${box.w / shape.w}, ${box.h / shape.h})`;
+    const sx = box.w / shape.w;
+    const sy = box.h / shape.h;
+    const radius = Math.max(0, Math.min(box.r, box.w / 2, box.h / 2));
+    const translate = `translate(${box.x.toFixed(3)}px, ${box.y.toFixed(3)}px)`;
+    const scale = `scale(${sx}, ${sy})`;
+    const outline = ring.firstElementChild?.firstElementChild;
+    // SVG must own the scale so vector-effect keeps the stroke weight constant.
+    ring.style.transform = outline ? translate : `${translate} ${scale}`;
     ring.style.width = `${shape.w}px`;
     ring.style.height = `${shape.h}px`;
-    ring.style.borderRadius = `${shape.r}px`;
+    // Counter-scale the corners so a circle never stretches into an ellipse.
+    ring.style.borderRadius = `${radius / sx}px / ${radius / sy}px`;
+    if (outline) {
+        paintOutline(outline, { transform: scale, rx: String(radius / sx), ry: String(radius / sy) });
+    }
 }
 
 function arrived(box: Box, to: Box): boolean {
-    return (
-        Math.abs(box.x - to.x) < SETTLE_PX &&
-        Math.abs(box.y - to.y) < SETTLE_PX &&
-        Math.abs(box.w - to.w) < SETTLE_PX &&
-        Math.abs(box.h - to.h) < SETTLE_PX
-    );
+    return (['x', 'y', 'w', 'h', 'r'] as const).every((key) => Math.abs(box[key] - to[key]) < SETTLE_PX);
 }
 
 export function mountCursor(options: CursorOptions): () => void {
-    const { dot, ring, selector = SELECTOR, ease = EASE } = options;
+    const { dot, ring, fill, selector = SELECTOR, ease = EASE } = options;
 
-    if (pointerX < 0) {
-        pointerX = window.innerWidth / 2;
-        pointerY = window.innerHeight / 2;
+    if (pointer.x < 0) {
+        pointer.x = window.innerWidth / 2;
+        pointer.y = window.innerHeight / 2;
     }
 
-    let box = idleBox(pointerX, pointerY);
+    let box = idleBox(pointer);
     let target: HTMLElement | null = null;
     let overText = false;
     let lastFrame = 0;
@@ -111,27 +130,36 @@ export function mountCursor(options: CursorOptions): () => void {
     }
 
     function paint(el: HTMLElement | null, shape: Box): void {
-        dot.style.transform = `translate(${pointerX}px, ${pointerY}px)`;
+        dot.style.transform = `translate(${pointer.x}px, ${pointer.y}px)`;
         dot.style.opacity = el && !overText ? '0' : '1';
         dot.classList.toggle('is-text', overText);
 
-        ring.classList.toggle('is-morphed', !!el);
-        ring.classList.toggle('is-text', overText);
-        paintRing(ring, box, shape);
+        for (const layer of [fill, ring]) {
+            layer.classList.toggle('is-morphed', !!el);
+            layer.classList.toggle('is-text', overText);
+            paintRing(layer, box, shape);
+        }
+    }
+
+    function advance(shape: Box, el: HTMLElement | null, now: number): boolean {
+        const to = el ? warpBox(shape) : shape;
+        const elapsed = lastFrame ? now - lastFrame : FRAME_MS;
+        const speed = el ? ease.hover : ease.release;
+        const factor = 1 - (1 - speed) ** (elapsed / FRAME_MS);
+        box = morphBox(box, to, factor);
+        const done = arrived(box, to);
+        if (done) box = to;
+        lastFrame = done ? 0 : now;
+        return done;
     }
 
     function tick(now: number): boolean | void {
         if (!active) return false;
         const el = hovered();
         // Read geometry before any cursor writes, avoiding a forced layout.
-        const to = el ? hoverBox(el, radius) : idleBox(pointerX, pointerY);
-        const elapsed = lastFrame ? now - lastFrame : FRAME_MS;
-        const factor = 1 - (1 - (el ? ease.hover : ease.release)) ** (elapsed / FRAME_MS);
-        box = lerpBox(box, to, factor);
-        const done = arrived(box, to);
-        if (done) box = to;
-        lastFrame = done ? 0 : now;
-        paint(el, to);
+        const shape = el ? hoverBox(el, radius) : idleBox(pointer);
+        const done = advance(shape, el, now);
+        paint(el, shape);
         if (done) return false;
     }
 
@@ -144,24 +172,22 @@ export function mountCursor(options: CursorOptions): () => void {
 
     const onMove = (event: PointerEvent): void => {
         if (!active || event.pointerType === 'touch') return;
-        pointerX = event.clientX;
-        pointerY = event.clientY;
+        pointer.x = event.clientX;
+        pointer.y = event.clientY;
         wake(tick);
     };
 
     const onOver = (event: PointerEvent): void => {
         if (!active || event.pointerType === 'touch') return;
-        const hit = (event.target as Element | null)?.closest(`${selector}, ${TEXT}`);
-        const text = !!hit?.matches(TEXT);
+        const el = nearest(event);
+        const style = el ? getComputedStyle(el) : undefined;
+        const mode = style?.getPropertyValue(CURSOR_PROP).trim();
+        const text = mode === 'text';
         if (text !== overText) {
             overText = text;
             wake(tick);
         }
-        const el = nearest(event);
-        if (!el) return;
-        const style = getComputedStyle(el);
-        const quiet = style.getPropertyValue(CURSOR_PROP).trim() === 'quiet';
-        setTarget(quiet ? null : el, style);
+        setTarget(mode === 'quiet' ? null : el, style);
         wake(tick);
     };
 
@@ -176,7 +202,7 @@ export function mountCursor(options: CursorOptions): () => void {
         if (active && target) wake(tick);
     };
 
-    const layered = [ring, dot].filter((el) => typeof el.showPopover === 'function');
+    const layered = [fill, ring, dot].filter((el) => typeof el.showPopover === 'function');
 
     const raise = (): void => {
         for (const el of layered) {

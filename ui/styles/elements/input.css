@@ -5,6 +5,7 @@
 
 @layer bb.elements {
     .bb-input--select {
+        --bb-cursor: follow;
         position: relative;
         padding-right: 10px;
     }
@@ -96,6 +97,7 @@
     }
 
     .bb-input.bb-input--color {
+        --bb-cursor: follow;
         width: fit-content;
         padding: 3px;
     }

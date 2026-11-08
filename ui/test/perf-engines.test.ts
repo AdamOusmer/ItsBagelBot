@@ -207,7 +207,8 @@ describe('cursor', () => {
     computed = { borderRadius: '8px', getPropertyValue: () => '' };
     const ring = paint();
     const dot = paint();
-    const dispose = mountCursor({ dot: dot as never, ring: ring as never });
+    const fill = paint();
+    const dispose = mountCursor({ dot: dot as never, ring: ring as never, fill: fill as never });
     return { link, ring, dot, dispose, operations, rects: () => rects };
   }
 
@@ -218,27 +219,27 @@ describe('cursor', () => {
     expect(styleReads).toBe(1);
     expect(frames).toHaveLength(0);
     expect([ring.style.transform, ring.style.width, ring.style.height]).toEqual([
-      'translate(94.0px, 91.0px) scale(1, 1)',
+      'translate(94.000px, 91.000px) scale(1, 1)',
       '92px',
       '32px',
     ]);
     dispose();
   });
 
-  test('measures before writing styles and does not resize a settled shape on pointer movement', () => {
+  test('measures before writing styles and keeps layout dimensions fixed while edges warp', () => {
     const { link, dispose, operations } = stage();
     doc.dispatch('pointerover', { target: link });
     flush(1000);
     expect(operations[0]).toBe('measure');
     settle();
-    for (const property of ['width', 'height', 'borderRadius']) {
-      expect(operations.filter((op) => op === property)).toHaveLength(1);
+    for (const property of ['width', 'height']) {
+      expect(operations.filter((op) => op === property)).toHaveLength(2);
     }
     operations.length = 0;
     win.dispatch('pointermove', { clientX: 120, clientY: 110 });
-    flush(2000);
+    settle(2000);
     expect(operations[0]).toBe('measure');
-    expect(operations.filter((op) => ['width', 'height', 'borderRadius'].includes(op))).toEqual([]);
+    expect(operations.filter((op) => ['width', 'height'].includes(op))).toEqual([]);
     expect(frames).toHaveLength(0);
     dispose();
   });
@@ -347,20 +348,21 @@ describe('cursor', () => {
     };
     const dot = layer('dot');
     const ring = layer('ring');
-    const dispose = mountCursor({ dot: dot as never, ring: ring as never });
-    expect([dot.popover, ring.popover, shown]).toEqual(['manual', 'manual', ['ring', 'dot']]);
+    const fill = layer('fill');
+    const dispose = mountCursor({ dot: dot as never, ring: ring as never, fill: fill as never });
+    expect([dot.popover, ring.popover, fill.popover, shown]).toEqual(['manual', 'manual', 'manual', ['fill', 'ring', 'dot']]);
 
     doc.dispatch('beforetoggle', { newState: 'open', target: {} });
-    expect(shown).toHaveLength(2);
+    expect(shown).toHaveLength(3);
     await Promise.resolve();
-    expect(shown).toEqual(['ring', 'dot', 'ring', 'dot']);
+    expect(shown).toEqual(['fill', 'ring', 'dot', 'fill', 'ring', 'dot']);
     doc.dispatch('beforetoggle', { newState: 'closed', target: {} });
     doc.dispatch('beforetoggle', { newState: 'open', target: dot });
     await Promise.resolve();
-    expect(shown).toHaveLength(4);
+    expect(shown).toHaveLength(6);
 
     dispose();
-    expect([dot.popover, ring.popover, doc.count('beforetoggle')]).toEqual([null, null, 0]);
+    expect([dot.popover, ring.popover, fill.popover, doc.count('beforetoggle')]).toEqual([null, null, null, 0]);
   });
 });
 

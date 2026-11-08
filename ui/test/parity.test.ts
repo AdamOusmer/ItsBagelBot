@@ -59,7 +59,8 @@ test('the two adapters agree', async () => {
 
 const CURSOR_HTML =
   '<div class="bb-cursor" aria-hidden="true"></div>' +
-  '<div class="bb-cursor-ring" aria-hidden="true"></div>';
+  '<div class="bb-cursor-fill" aria-hidden="true"></div>' +
+  '<div class="bb-cursor-ring" aria-hidden="true"><svg aria-hidden="true"><rect width="100%" height="100%" vector-effect="non-scaling-stroke"></rect></svg></div>';
 
 test('cursor: both adapters emit the contract markup', async () => {
   const container = await experimental_AstroContainer.create();

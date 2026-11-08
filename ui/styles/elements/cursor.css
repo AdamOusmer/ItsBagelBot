@@ -10,13 +10,19 @@
 
 @layer bb.elements {
     .bb-cursor,
-    .bb-cursor-ring {
+    .bb-cursor-ring,
+    .bb-cursor-fill {
         display: none;
+    }
+
+    .bb-cursor,
+    .bb-cursor-ring {
         mix-blend-mode: difference;
     }
 
     html.bb-cursor-on .bb-cursor,
-    html.bb-cursor-on .bb-cursor-ring {
+    html.bb-cursor-on .bb-cursor-ring,
+    html.bb-cursor-on .bb-cursor-fill {
         display: block;
     }
 
@@ -30,12 +36,13 @@
         background: var(--bb-tan);
         pointer-events: none;
         z-index: var(--bb-z-cursor);
-        transition: opacity 200ms, width 150ms, height 150ms, top 150ms, left 150ms, border-radius 150ms;
+        transition: opacity 120ms;
         will-change: transform, opacity;
     }
 
     .bb-cursor[popover],
-    .bb-cursor-ring[popover] {
+    .bb-cursor-ring[popover],
+    .bb-cursor-fill[popover] {
         right: auto;
         bottom: auto;
         margin: 0;
@@ -55,8 +62,10 @@
         border-radius: 1px;
     }
 
-    .bb-cursor-ring {
+    .bb-cursor-ring,
+    .bb-cursor-fill {
         position: fixed;
+        box-sizing: border-box;
         top: 0;
         left: 0;
         width: 36px;
@@ -74,14 +83,42 @@
     }
 
     .bb-cursor-ring.is-morphed {
-        background: rgba(var(--bb-tan-rgb), 0.22);
-        border-color: var(--bb-tan);
         opacity: 1;
     }
 
     .bb-cursor-ring.is-text {
-        background: transparent;
-        opacity: 0.18;
+        opacity: 0.35;
+    }
+
+    .bb-cursor-ring {
+        border: 0;
+        contain: layout style;
+    }
+
+    .bb-cursor-ring svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        fill: none;
+        stroke: var(--bb-tan);
+        stroke-width: 2px;
+    }
+
+    .bb-cursor-fill {
+        border: 0;
+        background: rgba(var(--bb-tan-rgb), 0.22);
+        opacity: 0;
+    }
+
+    .bb-cursor-fill.is-morphed {
+        opacity: 1;
+    }
+
+    .bb-cursor-fill.is-text {
+        opacity: 0;
+        transition: none;
     }
 
     html.bb-cursor-on,

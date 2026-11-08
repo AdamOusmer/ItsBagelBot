@@ -6,7 +6,8 @@ import '../styles/elements/cursor.css';
 ---
 
 <div class="bb-cursor" aria-hidden="true"></div>
-<div class="bb-cursor-ring" aria-hidden="true"></div>
+<div class="bb-cursor-fill" aria-hidden="true"></div>
+<div class="bb-cursor-ring" aria-hidden="true"><svg aria-hidden="true"><rect width="100%" height="100%" vector-effect="non-scaling-stroke" /></svg></div>
 
 <script>
     import { mountCursor } from '../lib/cursor-engine';
@@ -23,8 +24,9 @@ import '../styles/elements/cursor.css';
         if (dispose || prefersReducedMotion()) return;
         const dot = document.querySelector<HTMLElement>('.bb-cursor');
         const ring = document.querySelector<HTMLElement>('.bb-cursor-ring');
-        if (!dot || !ring) return;
-        dispose = mountCursor({ dot, ring });
+        const fill = document.querySelector<HTMLElement>('.bb-cursor-fill');
+        if (!dot || !ring || !fill) return;
+        dispose = mountCursor({ dot, ring, fill });
     }
 
     mount();
