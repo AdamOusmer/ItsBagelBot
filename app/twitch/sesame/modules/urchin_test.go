@@ -7,8 +7,14 @@ import (
 	"context"
 	"testing"
 
+	"ItsBagelBot/app/twitch/sesame/engine"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestUrchinCommands(t *testing.T) {
@@ -43,9 +49,9 @@ func TestUrchinCommands(t *testing.T) {
 		{name: "a custom template fills the stats tokens", chat: gossipChat{"urchin", "!bwstats", `{"statsMessage":"{player} is {stars} stars with {wlr} WLR"}`},
 			replies: map[string]any{"hypixel.stats": gossiprpc.HypixelStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100}},
 			exact:   "Techno is 402 stars with 10.00 WLR"},
-		{name: "tags list each tag with its date", chat: gossipChat{module: "urchin", text: "!tag"}, replies: map[string]any{"urchin.tags": sus},
+		{name: "tags list each tag with its date", chat: gossipChat{module: "urchin", text: "!bwtag"}, replies: map[string]any{"urchin.tags": sus},
 			exact: "Sus: Blatant Cheater (added Jul 3, 2024), Sniper (added Jul 3, 2024)"},
-		{name: "a clean player has no tags", chat: gossipChat{module: "urchin", text: "!tag"},
+		{name: "a clean player has no tags", chat: gossipChat{module: "urchin", text: "!bwtag"},
 			replies: map[string]any{"urchin.tags": gossiprpc.UrchinTagsReply{Player: "Clean"}}, exact: "Clean: No tags"},
 		{name: "tagdescription adds the reasons", chat: gossipChat{module: "urchin", text: "!tagdescription"}, replies: map[string]any{"urchin.tags": sus},
 			exact: "Sus: Blatant Cheater (bhop - added Jul 3, 2024), Sniper (added Jul 3, 2024)"},
@@ -56,3 +62,56 @@ func TestUrchinCommands(t *testing.T) {
 }
 
 func urchinChat(text string) gossipChat { return gossipChat{module: "urchin", text: text} }
+
+func TestBedwarsTagRoutes(t *testing.T) {
+	for _, trigger := range []string{"!bw tag", "!bwtag", "!bwtags", "!bedwars tag", "!BW TAG"} {
+		t.Run(trigger, func(t *testing.T) {
+			runGossipCase(t, gossipCase{
+				chat:    gossipChat{"urchin", trigger + " @SomePlayer", `{"account":"LinkedAcc","statsEnabled":"off"}`},
+				replies: map[string]any{"urchin.tags": gossiprpc.UrchinTagsReply{Player: "SomePlayer"}},
+				exact:   "SomePlayer: No tags",
+				call:    &gossipCall{"urchin.tags", gossiprpc.Request{Account: "SomePlayer"}},
+			})
+		})
+	}
+}
+
+func TestBedwarsNamespacePreservesStatsAndTagSettings(t *testing.T) {
+	for _, trigger := range []string{"!bw", "!bedwars", "!bwstats", "!bw stats"} {
+		t.Run(trigger, func(t *testing.T) {
+			runGossipCase(t, gossipCase{
+				chat:     gossipChat{"urchin", trigger + " @SomePlayer", `{"tagsEnabled":"off"}`},
+				replies:  map[string]any{"hypixel.stats": gossiprpc.HypixelStatsReply{Player: "SomePlayer"}},
+				contains: []string{"SomePlayer"},
+				call:     &gossipCall{"hypixel.stats", gossiprpc.Request{Account: "SomePlayer"}},
+			})
+		})
+	}
+	for _, trigger := range []string{"!bw tag", "!bwtag", "!bwtags", "!bedwars tag"} {
+		t.Run(trigger+" disabled", func(t *testing.T) {
+			runGossipCase(t, gossipCase{chat: gossipChat{"urchin", trigger, `{"tagsEnabled":"off"}`}, silent: true})
+		})
+	}
+}
+
+func TestUrchinRetiresGenericTagTriggersWithoutShadowingCore(t *testing.T) {
+	urchin := engine.NewRegistry(zap.NewNop(), Urchin(engine.Deps{}))
+	for _, trigger := range []string{"tag", "tags"} {
+		_, found := urchin.Command(trigger)
+		assert.False(t, found, trigger)
+	}
+	alias, found := urchin.Command("bwtags")
+	require.True(t, found)
+	assert.Equal(t, "bwtag", alias.Cmd.Name)
+	core, logs := observer.New(zap.WarnLevel)
+	reg := engine.NewRegistry(zap.New(core), All(engine.Deps{})...)
+	owner, found := reg.Command("tags")
+	require.True(t, found)
+	assert.Empty(t, owner.Owner.Name, "Twitch stream tag editing stays owned by the core module")
+	assert.Equal(t, "tags", owner.Cmd.Name)
+	assert.Equal(t, roleLeadModerator, owner.Cmd.Perm)
+	alias, found = reg.Command("settags")
+	require.True(t, found)
+	assert.Equal(t, "tags", alias.Cmd.Name)
+	assert.Empty(t, logs.FilterMessage("engine: shadowed command trigger is unreachable").All())
+}

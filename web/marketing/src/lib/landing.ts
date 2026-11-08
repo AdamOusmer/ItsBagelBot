@@ -203,9 +203,9 @@ export const GAMES = {
             daily: '!bwdaily',
             weekly: '!bwweekly',
             monthly: '!bwmonthly',
-            bwstats: '!bedwars',
+            bwstats: '!bw, !bedwars',
             sniper: '!urchin',
-            tag: '!tags, !bwtags',
+            bwtag: '!bwtags, !bw tag, !bedwars tag',
         },
         lookup: { command: 'bwstats', arg: 'Technoblade' },
         demo: [

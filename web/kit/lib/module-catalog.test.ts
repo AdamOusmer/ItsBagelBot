@@ -161,6 +161,15 @@ describe('module catalog', () => {
     expect(policyOf(moduleDef(id)!)).toMatchObject(want);
   });
 
+  test('Bedwars tag replies expose the renamed commands without changing saved settings', () => {
+    const reply = moduleDef('urchin')!.replies.find((reply) => reply.key === 'tags')!;
+    expect(reply).toMatchObject({ command: 'bwtag', enableKey: 'tagsEnabled', messageKey: 'tagsMessage' });
+    expect(reply.label).toContain('!bwtag');
+    expect(reply.label).toContain('!bwtags');
+    expect(reply.event).toContain('!bw tag');
+    expect(reply.event).toContain('!bedwars tag');
+  });
+
   test('every other listed module still indexes', () => {
     const listed = MODULE_CATALOG.filter((d) => !d.hidden && !d.parent && !d.section);
     expect(listed.length).toBeGreaterThan(0);

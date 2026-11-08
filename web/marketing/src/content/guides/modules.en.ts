@@ -141,7 +141,7 @@ const modules = [
     cat: 'Stats',
     start: 'Off by default',
     needs: 'Your Minecraft username.',
-    commands: '!daily, !bwdaily, !weekly, !bwweekly, !monthly, !bwmonthly, !bwstats, !bedwars, !sniper, !urchin, !tag, !tags, !bwtags, !tagdescription',
+    commands: '!daily, !bwdaily, !weekly, !bwweekly, !monthly, !bwmonthly, !bwstats, !bw, !bedwars, !sniper, !urchin, !bw tag, !bwtag, !bwtags, !bedwars tag, !tagdescription',
   },
   {
     name: 'MCSR Ranked',
@@ -461,7 +461,7 @@ const guide: GuideContent = {
               title: 'Bedwars Stats',
               html: `
                 <p>Set your Minecraft username. Seven reply templates, cooldown per command.</p>
-                <p><code>!daily</code> <code>!weekly</code> <code>!monthly</code> <code>!bwstats</code> <code>!sniper</code> <code>!tag</code></p>
+                <p><code>!daily</code> <code>!weekly</code> <code>!monthly</code> <code>!bwstats</code> <code>!sniper</code> <code>!bwtag</code></p>
                 <p>PrincessBarney today: 12W 4L · 210 finals · 34 beds · 3.1 FKDR</p>`,
               chips: ['Hypixel'],
             },
