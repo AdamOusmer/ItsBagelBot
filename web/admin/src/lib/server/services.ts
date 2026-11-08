@@ -107,6 +107,7 @@ export interface AdminUserWire {
   created_at?: string;
   updated_at?: string;
   test_account?: boolean;
+  onboarded?: boolean;
 }
 
 export interface TokenStatus {
