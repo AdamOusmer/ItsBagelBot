@@ -27,7 +27,7 @@ const testRepo = "ghcr.io/adamousmer/itsbagelbot"
 
 func testConfig() ports.Config {
 	return ports.Config{
-		Owner: "AdamOusmer", Repo: "ItsBagelBot", MainBranch: "main", ImageRepo: testRepo,
+		Owner: "AdamOusmer", Repo: "ItsBagelBot", MainBranch: "main", DeployBranch: "deploy", ImageRepo: testRepo,
 		Workflow: "publish-images.yml", ManifestDir: "deploy/k8s", ChangelogDir: "web/marketing/src/content/changelog",
 		UpdateBranchLimit: 3, MergeablePollLimit: 3, LogTailLines: 50, PollEvery: time.Microsecond,
 	}
@@ -224,7 +224,13 @@ func (g *fakeGitHub) resolve(ref ports.Ref) deploy.SHA {
 func (g *fakeGitHub) BranchHead(_ context.Context, b ports.Branch) (deploy.SHA, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.resolve(ports.Ref(b)), nil
+	if b == "main" {
+		return g.head(), nil
+	}
+	if sha, ok := g.branches[b]; ok {
+		return sha, nil
+	}
+	return "", ports.ErrNotFound
 }
 
 func (g *fakeGitHub) MoveBranch(_ context.Context, b ports.Branch, sha deploy.SHA) error {
@@ -233,12 +239,6 @@ func (g *fakeGitHub) MoveBranch(_ context.Context, b ports.Branch, sha deploy.SH
 	g.branches[b] = sha
 	g.log("move %s %s", b, sha)
 	return nil
-}
-
-func (g *fakeGitHub) BranchHasTreeOf(_ context.Context, b ports.Branch, sha deploy.SHA) (bool, error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.resolve(ports.Ref(b)) == sha, nil
 }
 
 func (g *fakeGitHub) LatestTag(context.Context) (ports.TagRef, error) {

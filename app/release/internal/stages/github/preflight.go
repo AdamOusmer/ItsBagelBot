@@ -5,6 +5,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"ItsBagelBot/app/release/internal/ports"
@@ -75,19 +76,38 @@ func blocking(c ports.Check, codescene string) bool {
 }
 
 func promoteDone(ctx context.Context, rc *stage.RunCtx) (bool, error) {
-	matches, err := rc.Deps.GitHub.BranchHasTreeOf(ctx, rc.Deps.Config.DeployBranch, promoteTarget(rc.View()))
+	sha, err := promotionSHA(ctx, rc)
 	if err != nil {
+		return false, err
+	}
+	head, err := rc.Deps.GitHub.BranchHead(ctx, rc.Deps.Config.DeployBranch)
+	if errors.Is(err, ports.ErrNotFound) {
 		return false, nil
 	}
-	return matches, nil
+	return head == sha, err
 }
 
 func runPromote(ctx context.Context, rc *stage.RunCtx) error {
-	sha := promoteTarget(rc.View())
-	if sha == "" {
-		return fail(deploy.FailInternal, "no pin or target commit to promote")
+	sha, err := promotionSHA(ctx, rc)
+	if err != nil {
+		return err
 	}
 	return rc.Deps.GitHub.MoveBranch(ctx, rc.Deps.Config.DeployBranch, sha)
+}
+
+func promotionSHA(ctx context.Context, rc *stage.RunCtx) (deploy.SHA, error) {
+	sha := promoteTarget(rc.View())
+	if sha == "" {
+		return "", fail(deploy.FailInternal, "no pin or target commit to promote")
+	}
+	onMain, err := OnMain(ctx, rc.Deps.GitHub, rc.Deps.Config.MainBranch, sha)
+	if err != nil {
+		return "", err
+	}
+	if !onMain {
+		return "", fail(deploy.FailGitHub, "refusing to promote %s: it is not on %s", short(sha), rc.Deps.Config.MainBranch)
+	}
+	return sha, nil
 }
 
 func promoteTarget(run deploy.Run) deploy.SHA {
