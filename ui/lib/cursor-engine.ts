@@ -139,18 +139,24 @@ export function mountCursor(options: CursorOptions): () => void {
         }
     }
 
+    function advance(shape: Box, now: number, hovering: boolean): boolean {
+        const to = hovering ? warpBox(shape) : shape;
+        const elapsed = lastFrame ? now - lastFrame : FRAME_MS;
+        const speed = hovering ? ease.hover : ease.release;
+        const factor = 1 - (1 - speed) ** (elapsed / FRAME_MS);
+        box = morphBox(box, to, factor);
+        const done = arrived(box, to);
+        if (done) box = to;
+        lastFrame = done ? 0 : now;
+        return done;
+    }
+
     function tick(now: number): boolean | void {
         if (!active) return false;
         const el = hovered();
         // Read geometry before any cursor writes, avoiding a forced layout.
         const shape = el ? hoverBox(el, radius) : idleBox(pointerX, pointerY);
-        const to = el ? warpBox(shape) : shape;
-        const elapsed = lastFrame ? now - lastFrame : FRAME_MS;
-        const factor = 1 - (1 - (el ? ease.hover : ease.release)) ** (elapsed / FRAME_MS);
-        box = morphBox(box, to, factor);
-        const done = arrived(box, to);
-        if (done) box = to;
-        lastFrame = done ? 0 : now;
+        const done = advance(shape, now, !!el);
         paint(el, shape);
         if (done) return false;
     }
