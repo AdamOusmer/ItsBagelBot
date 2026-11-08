@@ -666,7 +666,7 @@
     .columns > .list__head { order: 2; width: 100%; }
     .list-wrap { flex: 0 0 auto; order: 3; }
     .side { display: contents; }
-    .modules { --card-pad: 14px; order: 2; }
+    .modules { --card-pad: 14px; order: 1; }
     .legend { --card-pad: 14px 16px; order: 4; }
     .mods { flex-direction: row; gap: 8px; overflow-x: auto; scrollbar-width: none; }
     .mods::-webkit-scrollbar { display: none; }
