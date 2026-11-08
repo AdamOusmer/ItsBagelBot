@@ -109,26 +109,13 @@ type earnedProcessor interface {
 }
 
 func recordEarned(repo earnedProcessor, log *zap.Logger) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		log := monitor.TxnLogger(msg.Context(), log)
-		var dto data.LoyaltyEarnedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("loyalty: bad earned payload", zap.Error(err))
-			return nil
-		}
+	return loyaltyBatchHandler("earned", log, func(ctx context.Context, dto data.LoyaltyEarnedDTO, messageID string) error {
 		if dto.UserID == 0 || len(dto.Entries) == 0 {
 			return nil
 		}
-		if dto.BatchID == "" {
-			dto.BatchID = msg.UUID
-		}
-		err := repo.ApplyEarned(msg.Context(), dto)
-		if errors.Is(err, repository.ErrInvalidInput) {
-			log.Warn("loyalty: dropping invalid earned batch", zap.String("batch_id", dto.BatchID), zap.Error(err))
-			return nil
-		}
-		return err
-	}
+		dto.BatchID = batchIdentity(dto.BatchID, messageID)
+		return repo.ApplyEarned(ctx, dto)
+	})
 }
 
 type counterProcessor interface {
@@ -136,22 +123,32 @@ type counterProcessor interface {
 }
 
 func recordBumps(repo counterProcessor, log *zap.Logger) func(*bus.Message) error {
+	return loyaltyBatchHandler("counter", log, func(ctx context.Context, dto data.CounterBumpedDTO, messageID string) error {
+		dto.BatchID = batchIdentity(dto.BatchID, messageID)
+		return repo.Process(ctx, dto)
+	})
+}
+
+func batchIdentity(batchID, messageID string) string {
+	if batchID != "" {
+		return batchID
+	}
+	return messageID
+}
+
+// All additive batches share decode and invalid-input policy. The callback
+// supplies domain validation and persistence; transient failures reach the bus.
+func loyaltyBatchHandler[T any](kind string, log *zap.Logger, apply func(context.Context, T, string) error) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
-		var dto data.CounterBumpedDTO
+		var dto T
 		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("loyalty: bad counter payload", zap.Error(err))
+			log.Warn("loyalty: bad "+kind+" payload", zap.Error(err))
 			return nil
 		}
-		if dto.BatchID == "" {
-			dto.BatchID = msg.UUID
-		}
-		err := repo.Process(msg.Context(), dto)
+		err := apply(msg.Context(), dto, msg.UUID)
 		if errors.Is(err, repository.ErrInvalidInput) {
-			log.Warn("loyalty: dropping invalid counter batch",
-				zap.String("batch_id", dto.BatchID),
-				zap.Uint64("user_id", dto.UserID),
-				zap.Error(err))
+			log.Warn("loyalty: dropping invalid "+kind+" batch", zap.String("message_id", msg.UUID), zap.Error(err))
 			return nil
 		}
 		return err

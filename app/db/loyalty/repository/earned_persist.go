@@ -58,30 +58,46 @@ func (r *Loyalty) commitEarned(ctx context.Context, dto data.LoyaltyEarnedDTO, i
 		return err
 	}
 	defer tx.Rollback()
+	if err := r.applyEarnedDelivery(ctx, tx, dto, identity, digest); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// The account lock serializes receipt admission with retirement and restore.
+func (r *Loyalty) applyEarnedDelivery(ctx context.Context, tx *sql.Tx, dto data.LoyaltyEarnedDTO, identity, digest string) error {
 	_, deleted, err := r.fence(ctx, tx, dto.UserID, 0)
 	if err != nil {
 		return err
 	}
-	var previous string
-	err = tx.QueryRowContext(ctx, "SELECT payload_hash FROM loyalty_earned_receipts WHERE batch_id=?", identity).Scan(&previous)
-	if err == nil {
-		if previous != digest {
-			return fmt.Errorf("%w: earned batch payload mismatch", ErrInvalidInput)
-		}
+	added, err := recordEarnedReceipt(ctx, tx, identity, digest)
+	if err != nil {
+		return err
+	}
+	if deleted || !added {
 		return nil
 	}
+	return r.writeEarnedTransaction(ctx, tx, dto)
+}
+
+func recordEarnedReceipt(ctx context.Context, tx *sql.Tx, identity, digest string) (bool, error) {
+	var previous string
+	err := tx.QueryRowContext(ctx, "SELECT payload_hash FROM loyalty_earned_receipts WHERE batch_id=?", identity).Scan(&previous)
+	if err == nil {
+		return false, verifyEarnedDigest(previous, digest)
+	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return err
+		return false, err
 	}
-	if _, err = tx.ExecContext(ctx, "INSERT INTO loyalty_earned_receipts (batch_id,payload_hash) VALUES (?, ?)", identity, digest); err != nil {
-		return err
+	_, err = tx.ExecContext(ctx, "INSERT INTO loyalty_earned_receipts (batch_id,payload_hash) VALUES (?, ?)", identity, digest)
+	return err == nil, err
+}
+
+func verifyEarnedDigest(previous, digest string) error {
+	if previous != digest {
+		return fmt.Errorf("%w: earned batch payload mismatch", ErrInvalidInput)
 	}
-	if !deleted {
-		if err := r.writeEarnedTransaction(ctx, tx, dto); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
+	return nil
 }
 
 // Bound SQL work by chunks rather than issuing two statements per viewer.
