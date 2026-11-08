@@ -2,20 +2,32 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Modules
-description: Manages per-broadcaster module settings, quotes, feed tallies and integration credentials.
+description: "Owns broadcaster module settings, quotes, feed and personality state, and integration credentials."
+docType: reference
 ---
 
-The Modules service (`app/db/modules/`) manages the configuration and enablement state of feature modules for each broadcaster. It also stores channel quote books, lifetime bagel feed tallies, and the sealed Govee and Spotify credentials.
+## Responsibilities
 
-## Architecture
+Dashboard writes go to the owner; Sesame reads projected settings. Gossip resolves integration credentials when needed. Module changes feed Projector; the presence of a module in code does not mean a channel enabled it.
 
-Like other data services in the system, Modules follows a strict ownership model:
-- **Ownership**: Sole owner of the modules MySQL schema.
-- **RPC Interface**: Serves the dashboard under `bagel.rpc.modules.*` (`list`, `upsert`, `patch`, `patch-existing`, plus quote and personality verbs), and provides secret-free repair views via `bagel.rpc.internal.projection.modules.get`.
-- **Event Emission**: Emits `data.modules.changed` with the persisted revision. A dashboard upsert is written before the reply returns; background writes are batched.
-- **Cache Invalidation**: Broadcasts on `bagel.cache.invalidate.<scope>` when a module is toggled or reconfigured, so the Sesame engine adapts its execution pipeline.
-- **Credentials**: Govee keys and Spotify app and refresh tokens are encrypted in separate tables and never enter module config blobs or projections. Gossip reads them through internal unseal RPCs.
+## Interfaces
 
-## Module Configuration
+The default RPC prefix is `bagel.rpc.modules`, including `list`, `upsert`, `patch` and `patch-existing`. Projection repair uses `bagel.rpc.internal.projection.modules.get`.
 
-Modules in ItsBagelBot can be configured per channel. This service stores JSON configuration blobs and enablement booleans (`IsEnabled`) that map to the module identities declared in the [Sesame](/microservices/sesame/) engine. When Sesame processes an event, it queries its local `ModuleView` projection (populated by this service) to determine if a module's handler or commands should execute.
+Dashboard upserts persist before returning; background writes may coalesce. A patch with a stale expected revision returns a conflict. `patch-existing` also requires the expected row ID and never creates a replacement. Committed changes invalidate local caches, and the internal projection RPC returns a secret-free view.
+
+## State and dependencies
+
+Modules owns channel settings and integration credentials; Projector stores secret-free derived views.
+
+## Failure behavior
+
+A stale expected revision produces a conflict. Background writes can remain pending after acceptance.
+
+## Code map
+
+Source: [app/db/modules/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/db/modules). Start at `main.go`, `rpc/`, `repository/`, and `ent/schema/`.
+
+## Validation
+
+Run `go test ./app/db/modules/...` from the repository root.

@@ -18,8 +18,21 @@ export const SPACES: readonly Space[] = [
   {
     key: 'start',
     label: 'space.start',
-    featured: ['guides/getting-started', 'architecture', 'reference/system-overview'],
-    groups: [{ pages: ['guides/getting-started', 'architecture', 'reference/system-overview'] }],
+    featured: ['guides/getting-started', 'guides/testing', 'reference/sesame-module-builder'],
+    groups: [
+      { label: 'space.groupDevelopment', pages: ['guides/getting-started', 'guides/testing', 'reference/sesame-module-builder'] },
+      { label: 'space.groupValidation', pages: ['infrastructure/observability', 'infrastructure/performance', 'qa', 'qa/outgress-hot-path-canary', 'qa/monkey', 'qa/ai-review'] },
+    ],
+  },
+  {
+    key: 'platform',
+    label: 'space.platform',
+    featured: ['architecture', 'data-and-state', 'data-and-state/projection', 'infrastructure/releases'],
+    groups: [
+      { pages: ['architecture'] },
+      { label: 'data', pages: ['data-and-state', 'data-and-state/database', 'data-and-state/design', 'data-and-state/caching', 'data-and-state/projection'] },
+      { pages: ['infrastructure/releases'] },
+    ],
   },
   {
     key: 'services',
@@ -27,72 +40,23 @@ export const SPACES: readonly Space[] = [
     featured: ['microservices', 'microservices/twitch-ingress', 'microservices/sesame', 'microservices/outgress'],
     groups: [
       { pages: ['microservices'] },
-      {
-        label: 'space.groupEvents',
-        pages: [
-          'microservices/twitch-ingress',
-          'microservices/sesame',
-          'microservices/outgress',
-          'microservices/dingress',
-          'microservices/projector',
-        ],
-      },
-      {
-        label: 'space.groupData',
-        pages: [
-          'microservices/users',
-          'microservices/commands',
-          'microservices/modules',
-          'microservices/notifications',
-          'microservices/transactions',
-        ],
-      },
-      {
-        label: 'space.groupWeb',
-        pages: ['microservices/console', 'microservices/admin', 'microservices/web'],
-      },
-    ],
-  },
-  {
-    key: 'platform',
-    label: 'space.platform',
-    featured: ['data-and-state', 'data-and-state/database', 'infrastructure/hardware-and-cluster', 'infrastructure/networking'],
-    groups: [
-      {
-        label: 'data',
-        pages: [
-          'data-and-state',
-          'data-and-state/database',
-          'data-and-state/caching',
-          'data-and-state/design',
-          'data-and-state/projection',
-        ],
-      },
-      {
-        label: 'infrastructure',
-        pages: [
-          'infrastructure/hardware-and-cluster',
-          'infrastructure/networking',
-          'infrastructure/performance-roadmap',
-          'infrastructure/new-relic-bottleneck-plan',
-        ],
-      },
+      { label: 'space.groupEvents', pages: ['microservices/twitch-ingress', 'microservices/sesame', 'microservices/outgress', 'microservices/dingress', 'microservices/discord-engine', 'microservices/discord-outgress', 'microservices/automod', 'microservices/projector'] },
+      { label: 'space.groupData', pages: ['microservices/users', 'microservices/commands', 'microservices/modules', 'microservices/loyalty', 'microservices/discord-data', 'microservices/notifications', 'microservices/transactions'] },
+      { label: 'space.groupWeb', pages: ['microservices/console', 'microservices/admin', 'microservices/web', 'microservices/controls-gateway', 'microservices/desktop'] },
+      { label: 'space.groupRuntime', pages: ['microservices/gossip', 'microservices/warp'] },
     ],
   },
   {
     key: 'reference',
     label: 'reference',
-    featured: ['reference/rpc-contracts', 'reference/module-variables', 'reference/sesame-module-builder'],
-    groups: [{ pages: ['reference/rpc-contracts', 'reference/module-variables', 'reference/sesame-module-builder'] }],
+    featured: ['reference/system-overview', 'reference/rpc-contracts', 'reference/shared-packages'],
+    groups: [{ pages: ['reference/system-overview', 'reference/rpc-contracts', 'reference/module-variables', 'reference/shared-packages', 'infrastructure/runtime-configuration', 'reference/documentation-standards'] }],
   },
   {
     key: 'records',
     label: 'space.records',
-    featured: ['adr', 'qa'],
-    groups: [
-      { label: 'adr', pages: ['adr'], prefix: 'adr/' },
-      { label: 'qa', pages: ['qa', 'qa/monkey', 'qa/ai-review', 'qa/outgress-hot-path-canary'] },
-    ],
+    featured: ['adr'],
+    groups: [{ label: 'adr', pages: ['adr'], prefix: 'adr/' }],
   },
 ];
 

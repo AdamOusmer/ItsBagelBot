@@ -2,123 +2,48 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Caching and write-behind
-description: "The read path with stampede protection and the write path through the coalescing batcher, as UML sequence and state machine diagrams."
-sidebar:
-  order: 3
+description: "Read caches, batching and durability boundaries."
+docType: explanation
 ---
 
-Two mechanisms keep the free HeatWave instance off the hot path: an in-process cache with stampede protection on
-the read side, and a coalescing write-behind batcher on the write side. Both publish and consume the change events
-from the [overview](/data-and-state/), so a fleet of instances stays coherent without sharing memory.
+## Scope and read path
 
-## Read path
+`pkg/cache` provides bounded in-process caches and load coalescing. Data-service repositories use them to avoid repeated database reads; invalidation messages let other instances discard old entries. Exact TTLs and stale-on-error behaviour depend on the caller, so inspect the repository rather than assuming every cache has the same policy.
 
-Reads are served from a bounded in-process TTL cache (`pkg/cache`, built on Theine). Two protections target the two
-classic stampede vectors: concurrent misses on one key collapse into a single query through singleflight, and TTLs
-carry a random jitter of up to 10% so entries written together never expire together. Errors are never cached.
-The commands and modules repositories also set a stale-on-error window equal to the TTL: when a reload fails, the
-previous value keeps being served instead of failing the read.
+## Write path and durability
 
-The sequence below shows two goroutines missing the same key at the same time. The second one blocks on the flight
-opened by the first and shares its result; the database sees exactly one query.
+`pkg/batch` coalesces pending writes by key and calls a service-provided flush function. Commands, modules and some user preferences use write-behind. The pending values live in process memory: an accepted update can be lost if the process stops before a successful flush. A failed flush is retried; it does not turn the earlier response into a durable commit. Do not use this mechanism for money or tokens.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant A as Caller A
-    participant B as Caller B
-    participant R as Modules repository
-    participant C as Cache shard
-    participant F as singleflight
-    participant DB as MySQL bagel_modules
-
-    A->>R: List(ctx, 1001)
-    R->>C: get "modules:1001"
-    C-->>R: miss
-    R->>+F: Do("modules:1001", loader)
-    B->>R: List(ctx, 1001)
-    R->>F: Do("modules:1001", loader)
-    Note over F: Caller B joins the in-flight load and waits
-    F->>DB: SELECT rows for user 1001
-    DB-->>F: rows
-    F->>C: Set(key, views) with jittered TTL
-    F-->>-R: views, shared by both flights
-    R-->>A: views
-    R-->>B: views
+    participant C as Caller
+    participant R as Repository
+    participant B as In-memory batch
+    participant D as Database
+    participant N as NATS
+    C->>R: Update setting
+    R->>B: Queue latest value by key
+    R-->>C: Accepted
+    B->>D: Flush
+    alt Commit succeeds
+        D-->>B: Committed
+        B->>N: Publish change
+    else Flush fails
+        D-->>B: Error
+        Note over B: Retry pending work
+    end
 ```
 
-A change event arriving from any instance invalidates the key and also forgets any in-flight load for it, so a
-stale flight cannot repopulate the cache after the new state landed. The 5 minute TTL is therefore a ceiling, not
-the norm: events invalidate ahead of expiry.
+For implementation and failure details, start with `pkg/batch/batcher.go`, `pkg/cache`, and the relevant `app/db/<service>/repository/`. The projection is another derived read model, described [separately](/data-and-state/projection/).
 
-## Write path
+## What happens when writes overlap
 
-Settings writes go through the write-behind batcher (`pkg/batch`). Writes to the same key within a flush window
-(2 seconds, or 256 pending keys, whichever comes first) collapse into the latest value, and the whole window lands
-in one database transaction. Events publish only after the commit and carry the full new state.
+Suppose updates A and B use the same batch key. `Add` replaces the pending value, so a flush that has not yet taken the map sees B. If A is already being flushed when B arrives, B enters the new pending map. If A fails, the batcher restores A only if no newer value for that key is pending; B is not overwritten. See [`Add` and `flushPending`](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/batch/batcher.go) and their tests.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant D as Dashboard
-    participant R as Modules repository, instance A
-    participant B as Batcher
-    participant DB as MySQL bagel_modules
-    participant N as NATS JetStream
-    participant I as Instance B
-    participant P as Projector
+A normal close attempts to drain pending work within the supplied context. A crash cannot run that drain. The flush callback decides its own database transaction and event publication, so check the particular repository rather than assuming every batch has identical effects.
 
-    D->>R: Set(1001, "welcome", on, config v1)
-    R->>R: validate input
-    R->>B: Add(key, v1)
-    D->>R: Set(1001, "welcome", off, config v2)
-    R->>B: Add(key, v2)
-    Note over B: v2 replaces v1 in the pending window
-    Note over B: window elapses or maxSize reached
-    B->>DB: one transaction, upsert per coalesced key
-    DB-->>B: commit
-    B->>R: invalidate local cache
-    B->>N: publish data.modules.changed, full state v2
-    N-->>I: broadcast delivery, no queue group
-    I->>I: Invalidate "modules:1001"
-    N-->>P: durable group delivery
-    P->>P: fold into Valkey, overwrite
-```
+## Read failures and invalidation
 
-The flush window is also the durability window: a value sits in memory for at most the flush interval before it is
-persisted. That trade is acceptable only for state a user can re-submit, so the money path never goes through the
-batcher:
+The [projection client](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/projection/client.go) configures local caches with stale-on-error and listens for invalidations. Its users, modules and commands have separate caches. On a cold read it can request an owner snapshot; the modules path also uses a short outage backoff. The [RPC tests](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/projection/client_rpc_test.go) cover retry after errors and clearing that backoff on invalidation. These are client-specific policies, not guarantees of every `pkg/cache` user.
 
-- **Always direct:** Tebex agreements and webhook events (duplicate IDs from retries count as already recorded),
-  billing and giveaway records, status and ban changes, token writes, command deletions.
-- **Write-behind:** module toggles and configs, command creations and edits, and user preferences (active flag,
-  locale, cursor, onboarding, creator code). The preference writer excludes status and ban by design
-  (`app/db/users/repository/preferences.go`).
-
-## Lifecycle of a batched write
-
-The state machine of one pending entry. A failed flush returns the value to the pending window, unless a newer
-write for the same key arrived in the meantime, in which case the newer value wins.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Pending : Add(key, value)
-    Pending --> Pending : Add(same key), newer value replaces older
-    Pending --> Flushing : window elapses or maxSize reached
-    Flushing --> Published : transaction commits, event sent
-    Flushing --> Pending : flush fails, value restored if no newer write
-    Published --> [*]
-```
-
-Shutdown closes the batcher, which flushes whatever is pending before the process exits.
-
-## Invalidation correctness
-
-The invalidation rules, stated once:
-
-- The instance that wrote invalidates its own cache synchronously, so it reads its own writes immediately.
-- Every other instance invalidates when the change event arrives on the broadcast subscription.
-- The projector consumes the same events through its durable group and overwrites, so redelivery is harmless.
-- Consumers must stay idempotent: the bus is at-least-once
-  ([ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/)), and full-state payloads are what make replay
-  safe.
+When modifying a cached write, test the local value, invalidation on another instance, a failed reload, and a newer write arriving during a failed flush. For durable state, choose a direct path and test what happens when the caller retries after an ambiguous timeout.

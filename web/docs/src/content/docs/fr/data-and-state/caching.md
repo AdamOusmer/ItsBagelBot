@@ -1,105 +1,49 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Cache et write-behind
-description: "Chemin de lecture protégé contre le stampede et chemin d'écriture via le batcher coalescent, avec diagrammes UML de séquence et d'état."
-sidebar:
-  order: 3
+title: Cache et écritures différées
+description: "Caches de lecture, lots et limites de persistance."
+docType: explanation
 ---
 
-Deux mécanismes gardent l'instance HeatWave gratuite hors du hot path : un cache en processus protégé contre le stampede à la lecture et un batcher write-behind coalescent à l'écriture. Tous deux publient et consomment les événements de changement de la [vue d'ensemble](/fr/data-and-state/), afin que la flotte converge sans mémoire partagée.
+## Portée et lecture
 
-## Chemin de lecture
+`pkg/cache` fournit des caches locaux bornés et regroupe les chargements concurrents. Les dépôts des services de données les utilisent pour réduire les lectures; les messages d'invalidation permettent aux autres instances d'écarter leurs anciennes entrées. Les TTL et le comportement en cas d'erreur dépendent de l'appelant : consultez le dépôt concerné.
 
-Les lectures sont servies par un cache TTL borné en processus (`pkg/cache`, construit sur Theine). Deux protections ciblent les deux formes classiques de stampede : les échecs simultanés sur une clé sont regroupés en une seule requête par singleflight, et les TTL reçoivent une gigue aléatoire allant jusqu'à 10 %, afin que les entrées écrites ensemble n'expirent jamais ensemble. Les erreurs ne sont jamais mises en cache. Les dépôts commands et modules fixent aussi une fenêtre de données périmées en cas d'erreur, égale au TTL : si un rechargement échoue, la valeur précédente continue d'être servie au lieu de faire échouer la lecture.
+## Écriture et durabilité
 
-La séquence montre deux goroutines qui manquent la même clé au même moment. La seconde se bloque sur le flight ouvert par la première et partage son résultat ; la base ne voit exactement qu'une requête.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant A as Caller A
-    participant B as Caller B
-    participant R as Modules repository
-    participant C as Cache shard
-    participant F as singleflight
-    participant DB as MySQL bagel_modules
-
-    A->>R: List(ctx, 1001)
-    R->>C: get "modules:1001"
-    C-->>R: miss
-    R->>+F: Do("modules:1001", loader)
-    B->>R: List(ctx, 1001)
-    R->>F: Do("modules:1001", loader)
-    Note over F: Caller B joins the in-flight load and waits
-    F->>DB: SELECT rows for user 1001
-    DB-->>F: rows
-    F->>C: Set(key, views) with jittered TTL
-    F-->>-R: views, shared by both flights
-    R-->>A: views
-    R-->>B: views
-```
-
-Un événement de changement provenant de n'importe quelle instance invalide la clé et oublie aussi tout chargement en cours pour celle-ci. Un flight périmé ne peut donc pas repeupler le cache après l'arrivée du nouvel état. Le TTL de 5 minutes est ainsi un plafond, pas la norme : les événements invalident avant l'expiration.
-
-## Chemin d'écriture
-
-Les écritures de réglages passent par le batcher write-behind (`pkg/batch`). Les écritures de la même clé pendant une fenêtre de flush (2 secondes ou 256 clés en attente, selon la première limite atteinte) sont réduites à la dernière valeur, puis toute la fenêtre est enregistrée dans une transaction de base unique. Les événements ne sont publiés qu'après le commit et portent le nouvel état complet.
+`pkg/batch` regroupe les écritures en attente par clé et appelle une fonction de flush fournie par le service. Les commandes, modules et certaines préférences utilisent cette écriture différée. Les valeurs attendent en mémoire : une mise à jour acceptée peut être perdue si le processus s'arrête avant un flush réussi. Un échec est réessayé; la réponse initiale ne devient pas pour autant un commit durable. N'utilisez pas ce mécanisme pour l'argent ou les jetons.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant D as Dashboard
-    participant R as Modules repository, instance A
-    participant B as Batcher
-    participant DB as MySQL bagel_modules
-    participant N as NATS JetStream
-    participant I as Instance B
-    participant P as Projector
-
-    D->>R: Set(1001, "welcome", on, config v1)
-    R->>R: validate input
-    R->>B: Add(key, v1)
-    D->>R: Set(1001, "welcome", off, config v2)
-    R->>B: Add(key, v2)
-    Note over B: v2 replaces v1 in the pending window
-    Note over B: window elapses or maxSize reached
-    B->>DB: one transaction, upsert per coalesced key
-    DB-->>B: commit
-    B->>R: invalidate local cache
-    B->>N: publish data.modules.changed, full state v2
-    N-->>I: broadcast delivery, no queue group
-    I->>I: Invalidate "modules:1001"
-    N-->>P: durable group delivery
-    P->>P: fold into Valkey, overwrite
+    participant C as Appelant
+    participant R as Dépôt
+    participant B as Lot en mémoire
+    participant D as Base de données
+    participant N as NATS
+    C->>R: Modifier un paramètre
+    R->>B: Placer la dernière valeur par clé
+    R-->>C: Accepté
+    B->>D: Flush
+    alt Commit réussi
+        D-->>B: Commit effectué
+        B->>N: Publier le changement
+    else Échec du flush
+        D-->>B: Erreur
+        Note over B: Réessayer le travail en attente
+    end
 ```
 
-La fenêtre de flush est aussi la fenêtre de durabilité : une valeur reste en mémoire au plus pendant l'intervalle de flush avant d'être persistée. Ce compromis n'est acceptable que pour un état qu'un utilisateur peut soumettre à nouveau ; le chemin financier ne passe donc jamais par le batcher :
+Pour les détails d'implémentation et d'échec, consultez `pkg/batch/batcher.go`, `pkg/cache` et `app/db/<service>/repository/`. La projection est un autre modèle de lecture dérivé, décrit [séparément](/fr/data-and-state/projection/).
 
-- **Toujours direct :** accords et événements webhook Tebex (les IDs dupliqués lors des nouvelles tentatives sont déjà enregistrés), enregistrements de facturation et de concours, changements de statut et de bannissement, écritures de jetons et suppressions de commandes.
-- **Write-behind :** options et configurations de modules, créations et modifications de commandes, et préférences utilisateur (activation, langue, curseur, intégration, code créateur). L'écriture des préférences exclut volontairement le statut et le bannissement (`app/db/users/repository/preferences.go`).
+## Écritures simultanées
 
-## Cycle de vie d'une écriture groupée
+Supposons que les mises à jour A et B utilisent la même clé de lot. `Add` remplace la valeur en attente : un flush qui n'a pas encore pris la table voit B. Si A est déjà en cours de flush lorsque B arrive, B entre dans la nouvelle table. Si A échoue, le batcher ne restaure A que si aucune valeur plus récente n'attend pour cette clé; B n'est pas écrasée. Voir [`Add` et `flushPending`](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/batch/batcher.go) et leurs tests.
 
-La machine d'état d'une entrée en attente. Un flush échoué renvoie la valeur dans la fenêtre en attente, sauf si une écriture plus récente de la même clé est arrivée entre-temps ; dans ce cas, la nouvelle valeur gagne.
+Une fermeture normale tente de vider les données en attente dans le contexte fourni. Un crash ne peut pas le faire. La fonction de flush décide de sa transaction et de la publication d'événements; vérifiez le dépôt concerné avant de supposer des effets identiques pour tous les lots.
 
-```mermaid
-stateDiagram-v2
-    [*] --> Pending : Add(key, value)
-    Pending --> Pending : Add(same key), newer value replaces older
-    Pending --> Flushing : window elapses or maxSize reached
-    Flushing --> Published : transaction commits, event sent
-    Flushing --> Pending : flush fails, value restored if no newer write
-    Published --> [*]
-```
+## Échecs de lecture et invalidation
 
-À l'arrêt, le batcher se ferme et flush tout ce qui reste en attente avant la sortie du processus.
+Le [client de projection](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/projection/client.go) configure des caches locaux avec données périmées en cas d'erreur et écoute les invalidations. Utilisateurs, modules et commandes ont des caches distincts. À froid, il peut demander un instantané au propriétaire; le chemin modules utilise aussi un court délai de repli pendant une panne. Les [tests RPC](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/projection/client_rpc_test.go) couvrent les nouvelles tentatives et l'effacement de ce délai à l'invalidation. Ces politiques sont propres à ce client.
 
-## Exactitude des invalidations
-
-Les règles d'invalidation, réunies ici :
-
-- L'instance qui écrit invalide son propre cache de façon synchrone et lit donc immédiatement ses propres écritures.
-- Chaque autre instance invalide à l'arrivée de l'événement de changement sur son abonnement broadcast.
-- Le projector consomme les mêmes événements via son groupe durable et écrase l'état ; une redelivery est donc inoffensive.
-- Les consommateurs doivent rester idempotents : le bus fournit une livraison au moins une fois ([ADR 0003](/fr/adr/0003-adoption-of-nats-as-communication-bridge/)) et les payloads complets rendent le replay sûr.
+Pour modifier une écriture mise en cache, testez la valeur locale, l'invalidation sur une autre instance, l'échec d'un rechargement et l'arrivée d'une nouvelle écriture pendant un flush échoué. Pour les données durables, choisissez un chemin direct et testez une nouvelle tentative après un délai au résultat ambigu.

@@ -2,16 +2,30 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Transactions
-description: Handles Tebex webhooks and checkout, and runs giveaway draws and awards.
+description: "Owns Tebex integration and webhook audits, checkout baskets, giveaway draws, winners, and award delivery."
+docType: reference
 ---
 
-The Transactions service (`app/db/transactions/`) handles the billing and giveaway workflow. Tebex is the merchant of record, so this service keeps an audit of verified webhooks, not a payment ledger.
+## Responsibilities
 
-## Architecture
+The `/tebex` webhook and transaction RPC handlers enter this service. Users owns account eligibility and access; a promotional award and a Tebex subscription are distinct.
 
-- **Webhooks**: Tebex posts to `/tebex` or `/webhooks/tebex` over HTTPS (`webhooks.itsbagelbot.com` routes there). The service verifies the signature, records the event in its audit table, and applies accepted billing events synchronously through the [Users](/microservices/users/) service (`bagel.rpc.internal.billing.apply`). If Users cannot apply an event, the webhook fails so Tebex retries.
-- **Checkout**: `bagel.rpc.transactions.basket_create` creates a Tebex basket. It refuses to create one when the account already has future coverage or a pending award.
-- **Giveaways**: Admins preview and freeze a candidate pool from the Users eligibility snapshot, then draw winners. A draw stores the selected awards in the same transaction as the work that delivers them. A worker then prepares and commits the Premium grant in Users, protects recurring Tebex billing when needed, and sends award emails.
-- **Ownership**: It owns its own MySQL schema and never opens the Users database. In-app notices go through [Notifications](/microservices/notifications/), and emails through the Resend mail adapter.
+## Interfaces
 
-A promotional Premium award is not a Tebex subscription: Users keeps the two apart.
+The Tebex handler verifies a bounded request body before parsing. Accepted billing events call Users synchronously; an application failure allows Tebex to retry. A giveaway draw persists awards and outbox intent together, then a dispatcher handles grant and delivery work. Winner selection and confirmed fulfillment are separate states.
+
+## State and dependencies
+
+Transactions owns billing records and giveaway awards; Users owns account access and eligibility.
+
+## Failure behavior
+
+A failed entitlement application permits Tebex to retry. Selection does not by itself establish award fulfillment.
+
+## Code map
+
+Source: [app/db/transactions/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/db/transactions). See `main.go`, `tebex/`, `web/`, `giveaway/`, `rpc/`, and `repository/`.
+
+## Validation
+
+Run `go test ./app/db/transactions/...` from the repository root. See `tebex/` and `giveaway/`.

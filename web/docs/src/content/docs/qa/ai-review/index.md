@@ -1,35 +1,28 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: AI code reviews
-description: Model-assisted reads of a subsystem or PR. Records the model's verdict alongside human triage.
+title: Review a candidate finding
+description: Validate a candidate against a concrete trigger and supporting evidence.
+docType: how-to
 ---
 
-Each entry below is a dated review of a specific commit or PR. The model is given the same brief every time:
-flag correctness bugs, security issues, and contracts that are easy to misuse. Its raw output is preserved in
-the report, human triage is added in a separate section so a future reader can tell what came from the model and
-what came from the team.
+Use this procedure to distinguish a model's candidate finding from a validated conclusion.
 
-## Reports
+## Prerequisites
 
-| # | Date | Scope | Commit | Model | Verdict |
-|---|------|-------|--------|-------|---------|
+Identify the affected source and the scope of the review. The template is `web/docs/.qa/template-ai-review.md`. Focused working reviews exist in `docs/reviews/`; check their scope and date before treating a conclusion as current.
 
-*No reviews published yet.*
+## Procedure
 
-## Why we keep these
+1. Identify the relevant source and the concrete input or state that triggers the candidate issue.
+2. Trace the code path or run a suitable test to establish the observed consequence. Review the owning schema or shared contract when generated code is involved.
+3. Record whether the candidate is confirmed, rejected or unresolved, and explain the evidence and reasoning.
+4. If fixed, link the change and the validation that covers the trigger.
 
-AI reviews are noisy. They flag real bugs, they flag false positives, and occasionally they invent things that
-are not in the diff. Publishing the raw verdict alongside the human triage makes it possible to look back and
-ask "did the model actually help here?" with a real answer rather than a vibe.
+## Verify and record
 
-## What is in scope
+Check that another reviewer can follow the trigger, source and evidence to the stated conclusion. A confident paragraph alone is not evidence. Follow the [validation evidence](/qa/) guidance and use [testing](/guides/testing/) for test commands.
 
-- New microservices and significant subsystems on their first merge.
-- ADR-significant changes. A change that has its own ADR gets a review once the implementation lands.
-- Security-relevant surfaces. Auth, token storage, anything that handles broadcaster credentials.
+## Limitations
 
-## What is not in scope
-
-- Day-to-day refactors, renames, and bug fixes. The model would just generate noise.
-- Generated code (mocks, protobufs, OpenAPI stubs). The contract belongs to the schema, not the output.
+Keep model-generated candidates separate from human validation. No numbered AI-review reports are published in this section.

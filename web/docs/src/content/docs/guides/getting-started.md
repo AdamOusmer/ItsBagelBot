@@ -1,67 +1,60 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Developer Setup
-description: Architecture overview and local setup notes for contributors to ItsBagelBot.
-sidebar:
-  order: 1
+title: Developer setup
+description: "Commands and starting points for contributors."
+docType: how-to
 ---
 
-Setting up the bot on your channel? Follow the [streamer guide](https://itsbagelbot.com/guides/getting-started/) instead. This page is for contributors.
-
-Welcome to **ItsBagelBot**, a cloud-native, high-performance ecosystem designed for Twitch.
-
-This guide covers the core concepts and steps needed to spin up the environment locally for development.
-
-## Architecture Overview
-
-ItsBagelBot uses a decoupled, microservice-oriented architecture:
-
-*   **Backend Services:** Powered by **Go** and **Elixir** (the Twitch ingress).
-*   **Event Driven:** **NATS JetStream** carries events and **NATS request-reply** carries RPC between services.
-*   **Real-Time Communication:** Twitch events arrive over EventSub **WebSocket** shards. Tebex purchase webhooks are the one inbound webhook, and they land on the transactions service.
-*   **Web apps:**
-    *   **Dashboard and Admin:** SvelteKit apps in `web/dashboard` and `web/admin`, served by the cluster.
-    *   **Marketing and Docs:** Astro apps in `web/marketing` and `web/docs`.
-*   **Infrastructure:** Runs on **k3s** with Cilium, default-deny network policies, **Cloudflare Tunnel** for public ingress and **Tailscale** for operator access.
-
-See the [system overview](/reference/system-overview/) and `CONTEXT-MAP.md` at the repository root for service ownership.
+This guide prepares contributors to run checks and a development server. For channel setup, use the [streamer guide](https://itsbagelbot.com/guides/getting-started/). These paths are independent; none starts a complete service stack.
 
 ## Prerequisites
 
-*   **Go** 1.26.5 (`go.mod`).
-*   **Bun** 1.4.4 (`packageManager` in `web/package.json`).
-*   **Elixir** 1.17 or newer, only for the Twitch ingress (`app/twitch/ingress/mix.exs`).
+Install the versions specified in `go.mod`, `web/package.json` and, for Twitch ingress, `app/twitch/ingress/mix.exs`. Some integration tests require NATS, Valkey, MySQL or service-specific environment variables; read the test and service `context.md` for their setup.
 
-## Local Setup
+## 1. Check Go services
 
-Go services, from the repository root:
+From the **repository root**, run:
 
 ```sh
 go test ./...
 ```
 
-Web apps, from `web/`:
+The command exits successfully when the selected tests pass. Inspect skipped tests before assuming an integration path was exercised.
+
+## 2. Check and run the web workspace
+
+In a separate terminal, start from the **repository root**:
 
 ```sh
+cd web
 bun install --frozen-lockfile
-bun run dev:dashboard
-bun run dev:admin
 bun run check
 bun run test
+bun run dev:dashboard
 ```
 
-Docs, from `web/docs/`:
+The checks should exit successfully. The final command stays running and prints a local address; stop it with Ctrl+C. To run the documentation site instead, start from the **repository root** in a separate terminal:
 
 ```sh
+cd web/docs
 bun run dev
 ```
 
-Twitch ingress, from `app/twitch/ingress/`:
+The docs server prints its local address and stays running until stopped.
+
+## 3. Check Twitch ingress
+
+In a separate terminal, start from the **repository root**:
 
 ```sh
+cd app/twitch/ingress
 mix deps.get
 mix test
 ```
 
-Each app's `context.md` lists its focused checks.
+The test command should exit successfully. This step is only needed when working on the Elixir ingress.
+
+## Troubleshooting and next steps
+
+If dependency installation fails, check the required tool versions. If an integration test cannot connect, check its backend and environment requirements; these commands do not provision them. See [testing](/guides/testing/) for focused checks and [system state](/reference/system-overview/) for service locations.

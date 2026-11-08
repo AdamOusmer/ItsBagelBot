@@ -1,91 +1,83 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
      Proprietary. No license granted. See LICENSE.md. -->
-# ItsBagelBot Documentation
+# Engineering documentation
 
-This directory contains the documentation for ItsBagelBot, a static [Astro](https://astro.build) site that shares its navigation, footer and design tokens with the marketing site through `@bagel/ui`.
+This Astro site explains the code: service ownership, event paths, state, contracts and architecture decisions. Product setup guides live on the marketing site.
 
-## Project Structure
+## Work locally
 
-- `src/content/docs/`: Markdown pages.
-  - `fr/`: French counterparts of the English documentation pages.
-  - `adr/`: Architecture Decision Records.
-  - `architecture/`: General architecture documentation.
-  - `infrastructure/`: Infrastructure setup and deployment docs.
-  - `data-and-state/`: Data models and state management.
-  - `guides/`: Contributor and operator onboarding guides.
-  - `microservices/`: Details of individual microservices.
-  - `qa/`: QA Reports and testing docs.
-  - `reference/`: API and system references.
-- `src/lib/spaces.ts`: The five top-level sections and which page sits in each.
-- `src/layouts/Base.astro`: The page frame (head, shared nav, shared footer, search).
-- `src/pages/`: The home page and the route that renders every Markdown page.
-- `src/styles/`: The page grid (`docs.css`) and the rendered Markdown look (`prose.css`).
-- `public/`: Static assets like favicons.
-
-## Adding a page
-
-Add the Markdown file, then list its id in `src/lib/spaces.ts`. A page in no section fails the build. ADRs are the exception: numbered files under `adr/` join the Records section on their own.
-
-## Cloudflare Pages
-
-This site deploys as the `itsbagelbotdocs` Pages project. Production and
-preview both pin `BUN_VERSION=1.4.2` and `SKIP_DEPENDENCY_INSTALL=true`,
-because Pages v3 still defaults to Bun 1.2.15 and will `npm install` unless
-told not to.
-
-| Setting | Value |
-| :------ | :---- |
-| Root directory | `web/docs` |
-| Build command | `bun --version && bun install --cwd .. --frozen-lockfile && bun run build` |
-| Build output directory | `dist` |
-
-## Commands
-
-Run these from the `docs/` directory using `bun`:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `bun install`             | Installs dependencies                            |
-| `bun run dev`             | Starts local dev server at `localhost:4321`      |
-| `bun run build`           | Builds the site and search index to `./dist/`    |
-| `bun run preview`         | Preview your build locally, before deploying     |
-| `bun astro ...`           | Run CLI commands like `astro add`, `astro check` |
-
-Search needs the index from `bun run build`, so it returns nothing under `bun run dev`.
-
-## Architecture Decision Records (ADRs)
-
-ADRs are managed with [`adr-tools`](https://github.com/npryce/adr-tools) (install with `brew install adr-tools`) and live under `src/content/docs/adr/`.
-
-Use the project wrapper so the local template is picked up:
+From the repository root:
 
 ```sh
-./bin/adr new "Short title of the decision"
-./bin/adr new -s 3 "Supersede decision 3"
-./bin/adr list
+cd web
+bun install --frozen-lockfile
+cd docs
+bun run dev
 ```
 
-## Writing Documentation
+Use the Bun version declared in `web/package.json`. The workspace postinstall links `@bagel/ui` from `ui/` and installs its production dependencies.
 
-- Pages are standard Markdown with `title` and optional `description` frontmatter.
-- We have integrated `astro-mermaid` for diagrams. See `astro.config.mjs` for custom theme configuration.
+```sh
+# From web/docs
+bun test src
+bun run check:content
+bun run check:diagrams
+bun run build
+bun run preview
+```
 
-## Localized documentation
+The build generates the site and Pagefind search index in `dist/`. Search needs a completed build; the dev server alone does not generate its index.
 
-English is at the root and each locale folder with a `docs/` directory under
-`locales/` gets a prefixed route (currently `fr`, `es`, `pt-br`, `de` and `ru`).
-Page bodies are translated only for French today; other locales get translated
-site chrome and English page content. Translated pages mirror the English content
-path below `src/content/docs/fr/`; for example, `src/content/docs/guides/getting-started.md`
-is translated at `src/content/docs/fr/guides/getting-started.md`. A missing French
-page keeps the English documentation available, with a notice, so contributors can
-translate one page at a time without creating broken navigation. Keep technical
-names, code, links, and diagram identifiers unchanged unless the translated page
-needs a localized explanation around them.
+## Documentation model
 
-Shared navigation, section, metadata, and diagram-control labels live in
-`locales/<code>/docs/` at the repository root. Locale configuration is discovered
-from the locale folders that contain a `docs/` directory. Run
-`python3 scripts/translations.py check --strict fr` from the repository root to
-verify French catalog and page coverage. Read
-[the contribution guide](../../TRANSLATIONS.md) for editing steps and new languages.
+The navigation separates **Guides**, **Architecture**, **Services**, **Reference**, and **Decisions**. Published URLs stay stable even when a page changes navigation groups. Task guides state prerequisites and completion checks; references define interfaces; explanations cover architecture and trade-offs; ADRs retain decision history.
+
+Read the [documentation standard](src/content/docs/reference/documentation-standards.md) for the writing rules and review criteria. Reusable starting points live in [templates/](templates/); the ADR generator uses [.adr/template.md](.adr/template.md).
+
+## Content layout
+
+| Path | Owns |
+| --- | --- |
+| `src/content/docs/guides/` | Setup and testing |
+| `src/content/docs/architecture/` | System boundaries and event paths |
+| `src/content/docs/microservices/` | Service implementation guides |
+| `src/content/docs/data-and-state/` | Persistence, projections and caching |
+| `src/content/docs/infrastructure/` | Runtime configuration, observability, performance and release code |
+| `src/content/docs/reference/` | Contracts, shared packages and extension points |
+| `src/content/docs/adr/` | Sequential architecture decision records |
+| `src/content/docs/qa/` | Evidence conventions and validation notes |
+| `src/content/docs/fr/` | Matching French pages |
+
+`src/lib/spaces.ts` assigns pages to navigation groups. Every English page must appear exactly once. Numbered ADRs are discovered through the `adr/` prefix. `src/pages/[...slug].astro` renders the content; `src/layouts/Base.astro` supplies the shared frame.
+
+## Write a page
+
+Use Markdown with required `title`, `description`, and `docType` frontmatter. Choose `tutorial`, `how-to`, `reference`, `explanation`, `decision`, or `record` according to the page's purpose. The Astro schema and content policy validate the metadata. Quote YAML values containing colons. Explain ownership, the normal path, failure behavior and the code to read next. Link implementation sources and distinguish implemented behavior from a proposal. Use Mermaid for a path that is easier to follow as a diagram; keep node labels short and quote punctuation.
+
+Add the page ID to navigation and add the French page at the same relative path under `fr/`. Internal site links use routes such as `/microservices/sesame/`; French pages use `/fr/microservices/sesame/`. Source links point to repository files rather than local filesystem paths.
+
+When moving a page, add a redirect in `astro.config.mjs`. Keep old decision URLs resolvable after renumbering. Run the content check, docs tests, site build and French coverage check before finishing:
+
+```sh
+# From the repository root
+python3 scripts/translations.py check --strict fr
+```
+
+The content check parses YAML and Markdown, validates page types and heading structure, and checks navigation, translation parity, local routes and anchors, source targets, image targets, and ADR numbering. The diagram check renders every Mermaid block in Chromium; run `bunx playwright install chromium` once to install the browser. The site build checks that Astro can render the result.
+
+## Continuous validation
+
+[The documentation workflow](../../.github/workflows/docs.yml) runs policy tests, content checks, French coverage, browser diagram rendering, and the production build on pull requests and main pushes. It also runs for source changes because a rename can break a documentation source link. These checks support source review; they cannot prove a claim or translation correct.
+
+## Decisions
+
+```sh
+# From web/docs
+bun run adr:new "Short title"
+```
+
+The generator needs Python 3 and creates the next numbered English record with frontmatter. Complete its context, decision and trade-off, then add the French counterpart. Keep original dates when editing an existing record; describe a later change as a supersession rather than inventing a new history.
+
+## Localization
+
+English is canonical. French mirrors page bodies; other configured locales use English fallback with translated chrome. Locale catalogs are discovered from `locales/*/docs/`. See [TRANSLATIONS.md](../../TRANSLATIONS.md) for the catalog workflow.

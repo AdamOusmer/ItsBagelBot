@@ -1,13 +1,16 @@
 {
-  "start": "Começar",
-  "platform": "Plataforma",
-  "records": "Registros",
+  "start": "Guias",
+  "platform": "Arquitetura",
+  "records": "Decisões",
   "groupEvents": "Caminho dos eventos",
   "groupData": "Donos dos dados",
   "groupWeb": "Apps web",
-  "startLead": "Rode a stack localmente e depois veja como as peças se encaixam.",
-  "servicesLead": "Cada serviço é dono do próprio esquema e fala com os outros por NATS.",
-  "platformLead": "Onde o estado fica e em que a frota roda.",
-  "referenceLead": "Os contratos para conferir enquanto você muda o código.",
-  "recordsLead": "Por que o sistema tem essa forma, e evidências datadas de como ele se comportou."
+  "startLead": "Conclua uma tarefa, investigue uma falha ou verifique uma alteração.",
+  "servicesLead": "Quem recebe eventos, toma decisões, possui os dados e executa ações.",
+  "platformLead": "Entenda os limites, os fluxos de estado, a consistência e os invariantes de publicação.",
+  "referenceLead": "Consulte contratos, configuração, pacotes compartilhados e convenções de documentação.",
+  "recordsLead": "Leia o contexto, a decisão e as consequências de cada escolha arquitetural.",
+  "groupRuntime": "Integrações externas",
+  "groupDevelopment": "Desenvolvimento",
+  "groupValidation": "Diagnóstico e validação"
 }

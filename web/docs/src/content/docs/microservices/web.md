@@ -1,14 +1,31 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Web
-description: Astro application for the public marketing site, next to the documentation site.
+title: Marketing site
+description: "Builds the public Astro site, localized product content and command builder."
+docType: reference
 ---
 
-The Web project (`web/marketing/`) is an Astro application that builds the public product site: feature and pricing pages, localized guides, a command builder, a changelog, and legal pages.
+## Responsibilities
 
-## Architecture
+The builder rehearses templates in the browser; it does not persist settings or execute live commands. Shared catalogs and preview logic live in `web/kit/`.
 
-- **Technology**: Built with [Astro](https://astro.build/) into static, localized pages, in the `web/` Bun workspace. English is unprefixed; other locales use `/<code>/`.
-- **Separation of Concerns**: Kept intentionally separate from the [Console](/microservices/console/) and [Admin](/microservices/admin/) (SvelteKit apps that need server-side rendering and NATS access). The marketing site does not store broadcaster settings or run bot commands. The command builder rehearses templates in the browser and links to the dashboard.
-- **Documentation**: The documentation itself (which you are reading now) is built with Astro in `web/docs/`, a separate package in the same workspace.
+## Interfaces
+
+Locale catalogs and page routing live in `src/i18n/`; guides and the command builder use shared Kit definitions. The builder’s samples illustrate template behavior and are not saved broadcaster state.
+
+## State and dependencies
+
+Kit provides shared catalogs and preview logic. The marketing site does not own broadcaster settings.
+
+## Failure behavior
+
+Builder examples are local previews and do not establish that a command was saved or executed.
+
+## Code map
+
+Source: [web/marketing/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/web/marketing). See `astro.config.mjs`, `src/i18n/`, `src/content/`, and `src/components/builder/`.
+
+## Validation
+
+From `web/marketing/`, use the scripts in `package.json` to build and check content.

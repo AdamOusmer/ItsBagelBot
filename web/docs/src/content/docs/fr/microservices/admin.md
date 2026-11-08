@@ -1,34 +1,31 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Administration
-description: Console SvelteKit réservée au staff pour les comptes, la flotte de shards, les voies, les concours, les essais et les déploiements, accessible via le tailnet.
+title: Admin
+description: "Fournit la console du personnel pour les comptes, Ingress, les accès, les notifications et les opérations."
+docType: reference
 ---
-
-La console Admin (`web/admin/`) est l’application SvelteKit (SSR) des opérateurs. Elle remplace l’ancien outil Go d’administration en lecture seule. Elle ne possède aucune donnée : chaque lecture et chaque écriture est un RPC NATS vers le service propriétaire, et elle n’ouvre jamais MySQL.
-
-L’accès comporte deux couches. La première est le réseau : l’application n’est servie que par l’ingress Tailscale (`ORIGIN` est le nom du tailnet, `deploy/k8s/console-admin.yaml`), sans nom d’hôte public. La seconde est l’identité : l’opérateur se connecte avec Twitch et doit être un membre actif du staff. Chaque action refait sa propre vérification de rôle.
 
 ## Responsabilités
 
-- **Shards** : état en direct de la flotte de shards de [Twitch Ingress](/fr/microservices/twitch-ingress/) (`twitch.ingress.admin.shards.get`, avec des commandes de mise à l’échelle et d’autoscale), actualisé par les événements `twitch.ingress.status.>`.
-- **Utilisateurs** : consulter les comptes, bannir, accorder un accès, définir des indicateurs de test, réinitialiser un compte, relancer ses abonnements EventSub et ouvrir une session « voir en tant que » sur le tableau de bord d’un diffuseur (`bagel.rpc.admin.user.*`).
-- **Voies** : inspecter et administrer les pipelines JetStream et leurs débits de livraison.
-- **Concours** : créer des campagnes, prévisualiser et figer l’ensemble des candidats, tirer les gagnants et relancer les attributions via [Transactions](/fr/microservices/transactions/).
-- **Essais** : gérer les chaînes d’essai observées (`twitch.ingress.admin.trials.*`).
-- **Notifications, audit, staff et secrets** : envoyer des annonces via [Notifications](/fr/microservices/notifications/), lire le journal d’audit des opérateurs, gérer les rôles du staff et renouveler les identifiants des services.
-- **Déploiements** : exécutions de déploiement réservées au propriétaire, avec plan, approbation et événements en direct, appuyées par les adaptateurs RPC de déploiement.
+Les actions serveur autorisent les opérateurs et appellent les services propriétaires. L’accès réseau et l’autorisation active du personnel sont deux contrôles distincts ; un échec d’autorisation ne doit pas être traité comme une réussite.
 
-## Contrôle d’accès
+## Interfaces
 
-Les rôles du staff sont `moderator`, `admin` et `owner`. Une table de rôles unique associe chaque clé d’accès nommée au rôle minimal autorisé. Les mutations passent par des assistants audités. Un bouton masqué dans l’interface est une commodité, pas une protection.
+`hooks.server.ts` établit la session et vérifie la révocation du personnel. Les fonctions serveur vérifient à nouveau le statut actif et appliquent les droits requis aux actions protégées. Les opérations de tirage et de déploiement appellent leurs propriétaires ; l’indisponibilité d’un service ne prouve pas la réussite.
 
-## Déploiement
+## État et dépendances
 
-`deploy/k8s/console-admin.yaml` exécute 3 réplicas avec des mises à jour progressives et un PodDisruptionBudget (`minAvailable: 1`). Il est exposé par un Ingress de classe `tailscale`. La configuration (secret Doppler `console-admin-env`) comprend les points d’accès NATS et Valkey et les préfixes de sujets RPC utilisés (`NATS_ADMIN_SUBJECT`, `NATS_ADMIN_USER_SUBJECT_PREFIX`, `NATS_ADMIN_DEPLOY_SUBJECT_PREFIX`, entre autres). Voir [Réseau](/fr/infrastructure/networking/) pour le modèle à deux plans qui donne son sens à « tailnet uniquement ».
+Users et les autres services conservent les données métier ; Kit et UI fournissent le code partagé.
 
-## Références
+## Comportement en cas d’échec
 
-- [Twitch Ingress](/fr/microservices/twitch-ingress/) : le service dont cette console observe les shards.
-- [Réseau](/fr/infrastructure/networking/) : la posture du tailnet.
-- [Contrats RPC](/fr/reference/rpc-contracts/) : la surface `bagel.rpc.admin.*`.
+L’autorisation est vérifiée à nouveau côté serveur. Une panne du service appelé ne constitue pas une opération réussie.
+
+## Code
+
+Source : [web/admin/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/web/admin). Voir `src/hooks.server.ts`, `src/lib/server/access.ts`, `services.ts` et `admin-action.ts`.
+
+## Validation
+
+Depuis `web/`, exécuter `bun run --filter admin check` pour les vérifications configurées ; consulter `web/admin/package.json` pour les scripts actuels.

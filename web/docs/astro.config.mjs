@@ -9,6 +9,31 @@ import { readFlatCatalogs } from '@bagel/kit/i18n/fs';
 
 const docsLocales = Object.keys(readFlatCatalogs('docs'));
 
+
+// Preserve published URLs after the code-focused documentation reorganization.
+const movedPages = {
+  "infrastructure/hardware-and-cluster": "infrastructure/runtime-configuration",
+  "infrastructure/networking": "infrastructure/runtime-configuration",
+  "infrastructure/new-relic-bottleneck-plan": "infrastructure/observability",
+  "infrastructure/performance-roadmap": "infrastructure/performance",
+  "adr/0001-rewriting-to-microservices": "adr/0001-rewrite-as-services",
+  "adr/0002-adoption-of-go-as-primary-service-language": "adr/0002-go-for-services",
+  "adr/0003-adoption-of-nats-as-communication-bridge": "adr/0003-nats-service-communication",
+  "adr/0004-adoption-of-oracle-cloud": "adr",
+  "adr/0005-adoption-of-mysql-heatwave": "adr/0004-mysql-durable-state",
+  "adr/0006-adoption-of-elixir-for-twitch-ingress": "adr/0005-elixir-twitch-ingress",
+  "adr/0007-adoption-of-per-schema-data-microservices": "adr/0006-data-service-ownership",
+  "adr/0008-caching-and-write-behind-strategy": "adr/0007-cache-and-write-behind",
+  "adr/0009-adoption-of-valkey-for-the-settings-projection": "adr/0008-shared-read-projection",
+  "adr/0010-adoption-of-new-relic-for-observability": "adr",
+  "adr/0011-transactions-owns-giveaway-winner-records": "adr/0009-transactions-own-giveaway-awards",
+  "adr/0012-kit-variables-manifest-is-the-public-inventory": "adr/0010-kit-variable-inventory"
+};
+const redirects = Object.fromEntries(docsLocales.flatMap((locale) => {
+	const prefix = locale === "en" ? "" : `/${locale}`;
+	return Object.entries(movedPages).map(([from, to]) => [`${prefix}/${from}`, `${prefix}/${to}/`]);
+}));
+
 const mermaidDarkVars = {
 	fontFamily: '"DM Sans", system-ui, sans-serif; font-weight: 600',
 	fontSize: '25px',
@@ -90,6 +115,7 @@ const codeTheme = {
 
 export default defineConfig({
 	site: 'https://docs.itsbagelbot.com',
+	redirects,
 	trailingSlash: 'ignore',
 	markdown: {
 		shikiConfig: { theme: codeTheme },

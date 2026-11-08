@@ -1,55 +1,24 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Architecture Decision Records
-description: "Le journal des décisions d'ItsBagelBot et les raisons de la forme actuelle du système."
+title: Décisions d’architecture
+description: Journal des décisions d’architecture.
+docType: reference
 ---
 
-Les Architecture Decision Records (ADR) consignent le **raisonnement** derrière les choix d'architecture : le contexte, l'option retenue, ses conséquences et les alternatives étudiées.
+Les décisions conservent leur date et leur statut d’origine. Les descriptions résument les choix et leurs compromis à la lumière du code actuel. Les décisions remplacées restent dans le journal. Les anciennes décisions propres aux fournisseurs d’hébergement et d’observabilité ont été retirées lors de la réorganisation; elles restent accessibles dans l’historique Git.
 
-Les ADR sont **immuables** une fois acceptés. Si une décision ultérieure change de direction, nous n'éditons pas l'original : nous rédigeons un nouvel ADR qui le remplace et mettons à jour le statut de l'ancien pour pointer vers l'avenir.
+| Décision | Date | Statut |
+| --- | --- | --- |
+| [0001 - Réécrire en services](/fr/adr/0001-rewrite-as-services/) | 2025-12-25 | Remplacée en partie par l’[ADR 0005](/fr/adr/0005-elixir-twitch-ingress/); la réécriture et les frontières entre services demeurent. |
+| [0002 - Go pour les services](/fr/adr/0002-go-for-services/) | 2026-01-04 | Acceptée; précisée par l’[ADR 0005](/fr/adr/0005-elixir-twitch-ingress/). |
+| [0003 - NATS pour la communication entre services](/fr/adr/0003-nats-service-communication/) | 2026-05-23 | Acceptée. |
+| [0004 - MySQL pour les données durables](/fr/adr/0004-mysql-durable-state/) | 2026-05-23 | Acceptée. |
+| [0005 - Elixir pour l’ingress Twitch](/fr/adr/0005-elixir-twitch-ingress/) | 2026-05-23 | Acceptée; remplace en partie l’[ADR 0001](/fr/adr/0001-rewrite-as-services/). |
+| [0006 - Propriété des données par service](/fr/adr/0006-data-service-ownership/) | 2026-06-09 | Acceptée. |
+| [0007 - Cache et écriture différée](/fr/adr/0007-cache-and-write-behind/) | 2026-06-09 | Acceptée. |
+| [0008 - Projection de lecture partagée](/fr/adr/0008-shared-read-projection/) | 2026-06-09 | Acceptée. |
+| [0009 - Transactions possède les prix de concours](/fr/adr/0009-transactions-own-giveaway-awards/) | 2026-09-15 | Acceptée et mise en œuvre; les chemins d’attribution ont des contrôles distincts. |
+| [0010 - Kit possède l’inventaire public des variables](/fr/adr/0010-kit-variable-inventory/) | 2026-09-18 | Acceptée et mise en œuvre. |
 
-## Le journal
-
-Les ADR apparaissent dans la barre latérale par ordre numérique. Chaque nom suit le modèle `NNNN-kebab-case-title.md`.
-
-## Rédiger un ADR
-
-Depuis le répertoire `web/docs/` :
-
-```sh
-bun run adr:new "Short title of the decision"
-# ou : npm run adr:new "Short title of the decision"
-```
-
-Le wrapper utilise le modèle du projet (`web/docs/.adr/template.md`) et écrit le nouveau fichier dans ce dossier avec le prochain numéro séquentiel.
-
-Pour remplacer ou relier un enregistrement existant :
-
-```sh
-bun run adr:new -- -s 3 "Replaces decision 3"
-bun run adr:new -- -l "3:Amends:Amended by" "Amends decision 3"
-adr list
-```
-
-## Quand faut-il un ADR ?
-
-Rédigez un ADR lorsqu'un choix est :
-
-- **Important pour l'architecture :** il façonne les autres composants ou limite les options futures.
-- **Coûteux à inverser :** revenir dessus demanderait une coordination entre services, infrastructure ou données.
-- **Non évident :** un mainteneur futur demanderait raisonnablement « pourquoi de cette façon ? » en lisant le code.
-
-Les refactorings quotidiens, corrections de bugs et préférences de nommage n'ont pas besoin d'un ADR. Les messages de commit et descriptions de PR sont adaptés.
-
-## Anatomie d'un enregistrement
-
-Chaque ADR contient :
-
-- **Statut :** Proposed, Accepted, Deprecated ou Superseded by `[ADR-NNNN]`.
-- **Contexte :** contraintes, exigences, décisions antérieures et incidents à l'origine du choix.
-- **Décision :** le choix, à la voix active (« Nous allons… »).
-- **Conséquences :** ce qui devient plus simple, plus difficile ou plus risqué.
-- **Alternatives étudiées :** les options évaluées et les raisons de leur rejet.
-
-Consultez [`adr help`](https://github.com/npryce/adr-tools) pour la référence complète.
+Pour ajouter une décision, lancez `bun run adr:new "Titre court"` depuis `web/docs/`, puis ajoutez sa traduction dans `fr/adr/` avec le même numéro et le même nom de fichier. Réservez les ADR aux choix difficiles à inverser, non évidents et fondés sur un compromis réel.
