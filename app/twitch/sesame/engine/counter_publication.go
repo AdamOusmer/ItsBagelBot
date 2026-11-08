@@ -52,7 +52,7 @@ func retryCounterPublications(ctx context.Context, pub bus.Publisher, log *zap.L
 		}
 		cancel()
 		if err != nil {
-			log.Error("counter batch retained for retry", zap.String("subject", publication.subject), zap.Error(err))
+			log.Error("loyalty batch retained for retry", zap.String("subject", publication.subject), zap.Error(err))
 			return pending
 		}
 		pending[0] = counterPublication{}

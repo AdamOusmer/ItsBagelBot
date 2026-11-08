@@ -104,7 +104,11 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 	return bus.ConsumeConcurrent(ctx, nrApp, grouped, data.SubjectLoyaltyCounters, counterWorkers, recordBumps(counters, log), log)
 }
 
-func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
+type earnedProcessor interface {
+	ApplyEarned(context.Context, data.LoyaltyEarnedDTO) error
+}
+
+func recordEarned(repo earnedProcessor, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.LoyaltyEarnedDTO
@@ -112,8 +116,18 @@ func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) 
 			log.Warn("loyalty: bad earned payload", zap.Error(err))
 			return nil
 		}
-		repo.RecordEarned(dto)
-		return nil
+		if dto.UserID == 0 || len(dto.Entries) == 0 {
+			return nil
+		}
+		if dto.BatchID == "" {
+			dto.BatchID = msg.UUID
+		}
+		err := repo.ApplyEarned(msg.Context(), dto)
+		if errors.Is(err, repository.ErrInvalidInput) {
+			log.Warn("loyalty: dropping invalid earned batch", zap.String("batch_id", dto.BatchID), zap.Error(err))
+			return nil
+		}
+		return err
 	}
 }
 

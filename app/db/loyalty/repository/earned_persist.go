@@ -1,0 +1,163 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package repository
+
+import (
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"math"
+	"slices"
+	"strings"
+	"time"
+
+	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
+)
+
+// ApplyEarned commits the receipt and credits atomically. Receipts deliberately
+// have no expiry: an uncertain commit or a delayed broker replay must never
+// award a balance twice. Legacy messages use their stable broker UUID.
+func (r *Loyalty) ApplyEarned(ctx context.Context, dto data.LoyaltyEarnedDTO) error {
+	if dto.BatchID == "" || dto.UserID == 0 {
+		return fmt.Errorf("%w: earned identity", ErrInvalidInput)
+	}
+	ctx, cancel := context.WithTimeout(ctx, flushTimeout)
+	defer cancel()
+	body, err := codec.Marshal(dto)
+	if err != nil {
+		return err
+	}
+	identity := sha256.Sum256([]byte(dto.BatchID))
+	digest := sha256.Sum256(body)
+	r.persistMu.Lock()
+	defer r.persistMu.Unlock()
+	err = db.WithExec(ctx, func(ctx context.Context) error {
+		return retryTx(ctx, func(ctx context.Context) error {
+			return r.commitEarned(ctx, dto, hex.EncodeToString(identity[:]), hex.EncodeToString(digest[:]))
+		})
+	})
+	if err == nil {
+		window := &Loyalty{earnPend: map[balKey]*earnSum{}}
+		for _, e := range dto.Entries {
+			window.foldEarn(balKey{dto.UserID, e.ViewerID}, e)
+		}
+		r.publishEarned(window.earnPend)
+	}
+	return err
+}
+
+func (r *Loyalty) commitEarned(ctx context.Context, dto data.LoyaltyEarnedDTO, identity, digest string) error {
+	tx, err := r.sqldb.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, deleted, err := r.fence(ctx, tx, dto.UserID, 0)
+	if err != nil {
+		return err
+	}
+	var previous string
+	err = tx.QueryRowContext(ctx, "SELECT payload_hash FROM loyalty_earned_receipts WHERE batch_id=?", identity).Scan(&previous)
+	if err == nil {
+		if previous != digest {
+			return fmt.Errorf("%w: earned batch payload mismatch", ErrInvalidInput)
+		}
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "INSERT INTO loyalty_earned_receipts (batch_id,payload_hash) VALUES (?, ?)", identity, digest); err != nil {
+		return err
+	}
+	if !deleted {
+		if err := r.writeEarnedTransaction(ctx, tx, dto); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// Bound SQL work by chunks rather than issuing two statements per viewer.
+func (r *Loyalty) writeEarnedTransaction(ctx context.Context, tx *sql.Tx, dto data.LoyaltyEarnedDTO) error {
+	sums, err := collectEarned(dto)
+	if err != nil {
+		return err
+	}
+	ids := make([]uint64, 0, len(sums))
+	for key := range sums {
+		ids = append(ids, key.viewerID)
+	}
+	slices.Sort(ids)
+	for start := 0; start < len(ids); start += upsertChunk {
+		chunk := ids[start:min(start+upsertChunk, len(ids))]
+		if err := checkEarnedChunk(ctx, tx, dto.UserID, chunk, sums); err != nil {
+			return err
+		}
+		stmt := r.earnedChunk(dto.UserID, chunk, sums)
+		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func collectEarned(dto data.LoyaltyEarnedDTO) (map[balKey]*earnSum, error) {
+	window := &Loyalty{earnPend: map[balKey]*earnSum{}}
+	for _, e := range dto.Entries {
+		if e.ViewerID == 0 || (e.Points == 0 && e.WatchSeconds == 0) {
+			continue
+		}
+		key := balKey{dto.UserID, e.ViewerID}
+		if old := window.earnPend[key]; old != nil && old.watchSeconds > math.MaxUint64-e.WatchSeconds {
+			return nil, fmt.Errorf("%w: earned watch sum overflow", ErrInvalidInput)
+		}
+		window.foldEarn(key, e)
+	}
+	return window.earnPend, nil
+}
+
+func checkEarnedChunk(ctx context.Context, tx *sql.Tx, user uint64, ids []uint64, sums map[balKey]*earnSum) error {
+	args := []any{user}
+	marks := make([]string, len(ids))
+	for i, id := range ids {
+		args = append(args, id)
+		marks[i] = "?"
+	}
+	rows, err := tx.QueryContext(ctx, "SELECT viewer_id,watch_seconds FROM balances WHERE user_id=? AND viewer_id IN ("+strings.Join(marks, ",")+")", args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	return checkEarnedRows(rows, user, sums)
+}
+
+func checkEarnedRows(rows *sql.Rows, user uint64, sums map[balKey]*earnSum) error {
+	for rows.Next() {
+		var id, seconds uint64
+		if err := rows.Scan(&id, &seconds); err != nil {
+			return err
+		}
+		if seconds > math.MaxUint64-sums[balKey{user, id}].watchSeconds {
+			return fmt.Errorf("%w: watch balance overflow", ErrInvalidInput)
+		}
+	}
+	return rows.Err()
+}
+
+func (r *Loyalty) earnedChunk(user uint64, ids []uint64, sums map[balKey]*earnSum) chunkStmt {
+	now := time.Now()
+	rows := make([][]any, 0, len(ids))
+	for _, id := range ids {
+		e := sums[balKey{user, id}]
+		rows = append(rows, []any{user, id, e.login, e.name, e.points, e.watchSeconds, now, now})
+	}
+	spec := upsertSpec{insert: "INSERT INTO balances (user_id,viewer_id,viewer_login,viewer_name,points,watch_seconds,created_at,updated_at) VALUES ", placeholder: "(?, ?, ?, ?, ?, ?, ?, ?)", suffix: r.earnedBalanceConflict()}
+	return spec.render(rows)
+}
