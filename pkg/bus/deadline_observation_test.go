@@ -50,6 +50,7 @@ func deadlineTestSubscriber(t *testing.T, nc *nats.Conn, js nats.JetStreamContex
 	t.Helper()
 	sub := newConcurrentDurableSubscriber(concurrentSubscriberConfig{nc: nc, js: js, stream: "TEST", consumer: "worker", group: "worker", log: zap.NewNop()})
 	if !timing.real {
+		sub.handlerDeadline = 400 * time.Millisecond
 		sub.wheel = newKeepAliveWheel(20, 20*time.Millisecond, sub.closeCh)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,49 +72,30 @@ func receiveDeadlineMessage(t *testing.T, deliveries <-chan *Message, timeout ti
 	}
 }
 
-func findDeadlineWatch(sub *concurrentDurableSubscriber, msg *Message) *resultWatch {
-	sub.wheel.mu.Lock()
-	defer sub.wheel.mu.Unlock()
-	for _, bucket := range sub.wheel.buckets {
-		for _, candidate := range bucket {
-			if candidate.msg == msg {
-				return candidate
-			}
-		}
-	}
-	return nil
-}
-
-func waitForDeadlineWatch(t *testing.T, sub *concurrentDurableSubscriber, msg *Message, timeout time.Duration) {
-	t.Helper()
-	var watch *resultWatch
-	require.Eventually(t, func() bool {
-		watch = findDeadlineWatch(sub, msg)
-		return watch != nil
-	}, 300*time.Millisecond, 5*time.Millisecond)
-	require.Eventually(t, watch.finished.Load, timeout, 10*time.Millisecond)
-}
-
 // Test the production subscriber and resultWatch against JetStream, shortening
 // only the test's wheel and consumer AckWait unless BUS_REAL_DEADLINE is set.
-func TestObservedExpiredWatchIgnoresLateAckAndRedelivers(t *testing.T) {
+func TestHandlerDeadlineNacksBeforeWatchExpiry(t *testing.T) {
 	timing := deadlineTestTiming()
 	nc, js := deadlineTestJetStream(t, timing.ackWait)
-	sub, deliveries := deadlineTestSubscriber(t, nc, js, timing)
+	_, deliveries := deadlineTestSubscriber(t, nc, js, timing)
 	_, err := js.Publish("test.deadline", []byte("first"))
 	require.NoError(t, err)
 	first := receiveDeadlineMessage(t, deliveries, 2*time.Second)
 	_, hasDeadline := first.Context().Deadline()
-	require.False(t, hasDeadline, "subscriber supplies an unbounded subscription context")
-	waitForDeadlineWatch(t, sub, first, timing.watchTimeout)
-	require.NoError(t, first.Context().Err(), "handler remains live after keepalive expires")
-	require.True(t, first.Ack(), "local acknowledgement is accepted")
+	require.True(t, hasDeadline)
+	select {
+	case <-first.Context().Done():
+	case <-time.After(timing.watchTimeout):
+		t.Fatal("handler deadline did not expire")
+	}
+	require.ErrorIs(t, first.Context().Err(), context.DeadlineExceeded)
+	require.True(t, first.Nack())
 	second := receiveDeadlineMessage(t, deliveries, timing.redeliveryTimeout)
 	require.Equal(t, first.UUID, second.UUID)
-	require.NoError(t, first.Context().Err(), "the first handler can still run concurrently with redelivery")
 	require.True(t, second.Ack())
 	require.Eventually(t, func() bool {
 		info, e := js.ConsumerInfo("TEST", "worker")
 		return e == nil && info.NumAckPending == 0 && info.AckFloor.Stream == 1
 	}, 2*time.Second, 20*time.Millisecond)
+	require.ErrorIs(t, second.Context().Err(), context.Canceled)
 }
