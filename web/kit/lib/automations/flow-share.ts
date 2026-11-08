@@ -160,7 +160,7 @@ const FILE_KEYS = new Set(['format', 'version', 'flows']);
 const SAFE_KEY = /^[a-z0-9_]+$/;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const FILTERS_WITH_CHANNEL_VALUES = new Set(['user', 'login', 'user_id', 'reward', 'reward_id']);
-const LOGIN_TARGET_ACTIONS = new Set(['timeout', 'ban', 'warn', 'shoutout', 'points_add', 'points_set']);
+const LOGIN_TARGET_ACTIONS = new Set(['timeout', 'ban', 'warn', 'shoutout', 'points_add', 'points_set', 'raid', 'mod', 'vip', 'whisper']);
 const CHAT_TEXT_ACTIONS = new Set(['chat', 'reply', 'announce']);
 const PRIVILEGED_ACTIONS = new Set([
   'ban',
@@ -173,7 +173,21 @@ const PRIVILEGED_ACTIONS = new Set([
   'points_set',
   'set_title',
   'set_game',
-  'set_tags'
+  'set_tags',
+  'whisper',
+  'poll',
+  'poll_end',
+  'prediction',
+  'prediction_end',
+  'raid',
+  'raid_cancel',
+  'mod',
+  'vip',
+  'clear_chat',
+  'ad_snooze',
+  'chat_mode',
+  'unban_resolve',
+  'branded_content',
 ]);
 // Types whose params are rewritten by a rule below. Any type in neither list has its params dropped on the way through.
 export const SHARE_REWRITTEN = {
@@ -219,7 +233,21 @@ export const SHARE_REVIEWED = {
     'loop',
     'countdown_start',
     'countdown_add',
-    'cooldown_add'
+    'cooldown_add',
+    'whisper',
+    'poll',
+    'poll_end',
+    'prediction',
+    'prediction_end',
+    'raid',
+    'raid_cancel',
+    'mod',
+    'vip',
+    'clear_chat',
+    'ad_snooze',
+    'chat_mode',
+    'unban_resolve',
+    'branded_content',
   ]
 } as const;
 const SHAREABLE: Record<keyof typeof SHARE_REVIEWED, ReadonlySet<string>> = {

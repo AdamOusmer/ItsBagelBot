@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "mod"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "prediction",
+      "params": {
+        "title": "",
+        "outcomes": [
+          "a"
+        ],
+        "seconds": 10
+      }
+    },
+    {
+      "type": "prediction",
+      "params": {
+        "title": "t",
+        "outcomes": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "h",
+          "i",
+          "j",
+          "k"
+        ],
+        "seconds": 30
+      }
+    }
+  ]
+}

@@ -212,5 +212,169 @@
         "hint": "Ajoute cette durée pour chaque tranche complète. Laissez vide pour l’ajouter une fois par événement."
       }
     }
+  },
+  "poll": {
+    "label": "Lancer un sondage",
+    "summary": "Lancer un sondage",
+    "field": {
+      "title": {
+        "label": "Titre"
+      },
+      "choices": {
+        "label": "Choix (un par ligne)"
+      },
+      "seconds": {
+        "label": "Durée (secondes)"
+      }
+    }
+  },
+  "pollEnd": {
+    "label": "Terminer un sondage",
+    "summary": "Terminer un sondage",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "terminate": "Arrêter les votes",
+          "archive": "Archiver"
+        }
+      }
+    }
+  },
+  "prediction": {
+    "label": "Lancer une prédiction",
+    "summary": "Lancer une prédiction",
+    "field": {
+      "title": {
+        "label": "Titre"
+      },
+      "outcomes": {
+        "label": "Résultats (un par ligne)"
+      },
+      "seconds": {
+        "label": "Durée (secondes)"
+      }
+    }
+  },
+  "predictionEnd": {
+    "label": "Terminer une prédiction",
+    "summary": "Terminer une prédiction",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "lock": "Verrouiller les votes",
+          "cancel": "Annuler et rembourser",
+          "resolve": "Choisir un gagnant"
+        }
+      },
+      "winner": {
+        "label": "Numéro du résultat gagnant"
+      }
+    }
+  },
+  "raidStart": {
+    "label": "Lancer un raid",
+    "summary": "Lancer un raid",
+    "field": {
+      "target": {
+        "label": "Identifiant de chaîne ou de spectateur"
+      }
+    }
+  },
+  "raidCancel": {
+    "label": "Annuler un raid",
+    "summary": "Annuler un raid"
+  },
+  "mod": {
+    "label": "Modifier le rôle de modérateur",
+    "summary": "Modifier le rôle de modérateur",
+    "field": {
+      "target": {
+        "label": "Identifiant de chaîne ou de spectateur"
+      },
+      "on": {
+        "label": "Activé"
+      }
+    }
+  },
+  "vip": {
+    "label": "Modifier le rôle VIP",
+    "summary": "Modifier le rôle VIP",
+    "field": {
+      "target": {
+        "label": "Identifiant de chaîne ou de spectateur"
+      },
+      "on": {
+        "label": "Activé"
+      }
+    }
+  },
+  "chatMode": {
+    "label": "Modifier le mode du chat",
+    "summary": "Modifier le mode du chat",
+    "field": {
+      "mode": {
+        "label": "Mode du chat",
+        "option": {
+          "emote_only": "Émoticônes uniquement",
+          "followers": "Personnes qui suivent la chaîne",
+          "slow": "Mode lent",
+          "subscribers": "Abonnés uniquement",
+          "unique": "Messages uniques"
+        }
+      },
+      "on": {
+        "label": "Activé"
+      },
+      "value": {
+        "label": "Secondes en mode lent; minutes en mode followers"
+      }
+    }
+  },
+  "clearChat": {
+    "label": "Effacer le chat",
+    "summary": "Effacer le chat"
+  },
+  "adSnooze": {
+    "label": "Reporter la prochaine publicité",
+    "summary": "Reporter la prochaine publicité"
+  },
+  "whisper": {
+    "label": "Envoyer un message privé",
+    "summary": "Envoyer un message privé",
+    "field": {
+      "target": {
+        "label": "Identifiant de chaîne ou de spectateur"
+      },
+      "text": {
+        "label": "Message"
+      }
+    }
+  },
+  "unbanResolve": {
+    "label": "Traiter la demande de déban",
+    "summary": "Traiter la demande de déban",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "approve": "Accepter",
+          "deny": "Refuser"
+        }
+      },
+      "resolution": {
+        "label": "Message de décision (facultatif)"
+      }
+    }
+  },
+  "brandedContent": {
+    "label": "Définir le contenu sponsorisé",
+    "summary": "Définir le contenu sponsorisé",
+    "field": {
+      "on": {
+        "label": "Activé"
+      }
+    }
   }
 }

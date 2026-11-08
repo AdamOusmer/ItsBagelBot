@@ -15,6 +15,7 @@ func init() {
 		Steps(outputActions).
 		Steps(effectActions).
 		Steps(flowActions).
+		Steps(streamActions).
 		build()
 }
 

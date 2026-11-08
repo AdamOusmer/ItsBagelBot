@@ -192,5 +192,169 @@
         "hint": "Add this time for each full amount. Leave empty to add it once per event."
       }
     }
+  },
+  "poll": {
+    "label": "Start a poll",
+    "summary": "Start a poll",
+    "field": {
+      "title": {
+        "label": "Title"
+      },
+      "choices": {
+        "label": "Choices (one per line)"
+      },
+      "seconds": {
+        "label": "Duration (seconds)"
+      }
+    }
+  },
+  "pollEnd": {
+    "label": "End a poll",
+    "summary": "End a poll",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "terminate": "Stop voting",
+          "archive": "Archive"
+        }
+      }
+    }
+  },
+  "prediction": {
+    "label": "Start a prediction",
+    "summary": "Start a prediction",
+    "field": {
+      "title": {
+        "label": "Title"
+      },
+      "outcomes": {
+        "label": "Outcomes (one per line)"
+      },
+      "seconds": {
+        "label": "Duration (seconds)"
+      }
+    }
+  },
+  "predictionEnd": {
+    "label": "End a prediction",
+    "summary": "End a prediction",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "lock": "Lock voting",
+          "cancel": "Cancel and refund",
+          "resolve": "Choose a winner"
+        }
+      },
+      "winner": {
+        "label": "Winning outcome number"
+      }
+    }
+  },
+  "raidStart": {
+    "label": "Start a raid",
+    "summary": "Start a raid",
+    "field": {
+      "target": {
+        "label": "Channel or viewer login"
+      }
+    }
+  },
+  "raidCancel": {
+    "label": "Cancel a raid",
+    "summary": "Cancel a raid"
+  },
+  "mod": {
+    "label": "Set moderator role",
+    "summary": "Set moderator role",
+    "field": {
+      "target": {
+        "label": "Channel or viewer login"
+      },
+      "on": {
+        "label": "Enabled"
+      }
+    }
+  },
+  "vip": {
+    "label": "Set VIP role",
+    "summary": "Set VIP role",
+    "field": {
+      "target": {
+        "label": "Channel or viewer login"
+      },
+      "on": {
+        "label": "Enabled"
+      }
+    }
+  },
+  "chatMode": {
+    "label": "Set chat mode",
+    "summary": "Set chat mode",
+    "field": {
+      "mode": {
+        "label": "Chat mode",
+        "option": {
+          "emote_only": "Emotes only",
+          "followers": "Followers only",
+          "slow": "Slow mode",
+          "subscribers": "Subscribers only",
+          "unique": "Unique messages"
+        }
+      },
+      "on": {
+        "label": "Enabled"
+      },
+      "value": {
+        "label": "Seconds in slow mode; minutes in follower-only mode"
+      }
+    }
+  },
+  "clearChat": {
+    "label": "Clear chat",
+    "summary": "Clear chat"
+  },
+  "adSnooze": {
+    "label": "Snooze the next ad",
+    "summary": "Snooze the next ad"
+  },
+  "whisper": {
+    "label": "Send a whisper",
+    "summary": "Send a whisper",
+    "field": {
+      "target": {
+        "label": "Channel or viewer login"
+      },
+      "text": {
+        "label": "Message"
+      }
+    }
+  },
+  "unbanResolve": {
+    "label": "Resolve the unban request",
+    "summary": "Resolve the unban request",
+    "field": {
+      "status": {
+        "label": "Action",
+        "option": {
+          "approve": "Approve",
+          "deny": "Deny"
+        }
+      },
+      "resolution": {
+        "label": "Resolution message (optional)"
+      }
+    }
+  },
+  "brandedContent": {
+    "label": "Set branded content",
+    "summary": "Set branded content",
+    "field": {
+      "on": {
+        "label": "Enabled"
+      }
+    }
   }
 }

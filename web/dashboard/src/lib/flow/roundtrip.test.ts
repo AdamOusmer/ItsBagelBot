@@ -24,6 +24,8 @@ const LIGHT: Config = { device: 'AA:BB:CC:DD:EE:FF:00:11', sku: 'H6008', deviceN
 
 const TEXT: Record<string, string> = {
   trigger: '!hug',
+  choices: 'One\nTwo',
+  outcomes: 'Yes\nNo',
   word: 'bagel',
   message: 'Thanks {user}!',
   left: '{bits}',
@@ -98,7 +100,9 @@ function drawn(spec: NodeSpec, config: Config): Flow {
   if (spec.kind === 'trigger') {
     return { id: 'f', name: 'f', enabled: true, nodes: [node('a', spec.type, config), chat], edges: [{ id: 'e1', from: 'a', port, to: 'z' }] };
   }
-  const trigger = node('t', 'twitch.cheer', { minBits: 100 });
+  const trigger = spec.type === 'reply.unban_resolve'
+    ? node('t', 'twitch.unban_request', {})
+    : node('t', 'twitch.cheer', { minBits: 100 });
   return {
     id: 'f',
     name: 'f',

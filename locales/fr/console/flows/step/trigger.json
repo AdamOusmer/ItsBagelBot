@@ -79,5 +79,9 @@
         "label": "Compte à rebours"
       }
     }
+  },
+  "unbanRequest": {
+    "label": "Demande de déban",
+    "summary": "Un spectateur demande à être débanni"
   }
 }

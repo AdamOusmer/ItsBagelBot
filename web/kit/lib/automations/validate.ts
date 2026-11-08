@@ -76,6 +76,10 @@ function triggerHasAmount(trigger: TypedNode): boolean {
 function check(root: Root): Issue[] {
   const out: Issue[] = [];
   const c = new Chk(out, '', root.trigger.type, 0, permRank(root.conditions), triggerHasAmount(root.trigger));
+  if (root.trigger.type === 'event') {
+    const { value, err } = decodeParams<{ kind: string }>({ kind: 'string', filters: 'strmap' }, {}, root.trigger.params);
+    if (!err) c.kind = value.kind;
+  }
   if (root.version !== VERSION) c.add('version', CODE.unsupportedVersion);
   if (root.queue !== '') c.simpleWord('queue', root.queue, QUEUE_NAME_PATTERN);
   typed(c.sub('trigger'), triggerRegistry, root.trigger);

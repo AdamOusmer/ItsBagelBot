@@ -1,0 +1,10 @@
+[
+  {
+    "path": "actions[0].params.login",
+    "code": "required"
+  },
+  {
+    "path": "actions[1].params",
+    "code": "unknown_field"
+  }
+]

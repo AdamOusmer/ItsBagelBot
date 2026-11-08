@@ -37,5 +37,19 @@
   "reward_update": "Alterar uma recompensa",
   "cooldown_add": "Adicionar tempo a um intervalo de uso",
   "countdown_start": "Iniciar contagem regressiva",
-  "countdown_add": "Adicionar tempo à contagem regressiva"
+  "countdown_add": "Adicionar tempo à contagem regressiva",
+  "poll": "Iniciar uma enquete",
+  "poll_end": "Encerrar uma enquete",
+  "prediction": "Iniciar uma previsão",
+  "prediction_end": "Encerrar uma previsão",
+  "raid": "Iniciar uma raid",
+  "raid_cancel": "Cancelar uma raid",
+  "mod": "Alterar cargo de moderador",
+  "vip": "Alterar cargo VIP",
+  "chat_mode": "Alterar modo do chat",
+  "clear_chat": "Limpar o chat",
+  "ad_snooze": "Adiar o próximo anúncio",
+  "whisper": "Enviar um sussurro",
+  "unban_resolve": "Resolver pedido de desbanimento",
+  "branded_content": "Definir conteúdo de marca"
 }

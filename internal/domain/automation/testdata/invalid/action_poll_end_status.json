@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "mod"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "poll_end",
+      "params": {
+        "status": "stop"
+      }
+    }
+  ]
+}

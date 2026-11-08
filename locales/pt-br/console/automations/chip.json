@@ -21,6 +21,8 @@
     "reward_id": "ID da recompensa",
     "cost": "Custo da recompensa",
     "input": "Texto digitado pelo espectador",
-    "type": "Tipo de live"
+    "type": "Tipo de live",
+    "id": "ID do pedido de desbanimento",
+    "text": "Texto do pedido de desbanimento"
   }
 }

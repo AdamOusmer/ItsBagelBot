@@ -17,7 +17,16 @@ export function scopes(): string[] {
   const bot = 'moderation:read channel:moderate channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads'
     .split(/\s+/)
     .filter(Boolean);
-  return ['openid', 'user:read:email', ...bot];
+  const streamActions = [
+    'channel:manage:polls',
+    'channel:manage:predictions',
+    'channel:manage:raids',
+    'channel:manage:moderators',
+    'channel:manage:vips',
+    'channel:manage:ads',
+    'moderator:read:unban_requests'
+  ];
+  return ['openid', 'user:read:email', ...bot, ...streamActions];
 }
 
 export function twitch(): Twitch {

@@ -212,5 +212,169 @@
         "hint": "Añade este tiempo por cada cantidad completa. Déjalo vacío para añadirlo una vez por evento."
       }
     }
+  },
+  "poll": {
+    "label": "Iniciar una encuesta",
+    "summary": "Iniciar una encuesta",
+    "field": {
+      "title": {
+        "label": "Título"
+      },
+      "choices": {
+        "label": "Opciones (una por línea)"
+      },
+      "seconds": {
+        "label": "Duración (segundos)"
+      }
+    }
+  },
+  "pollEnd": {
+    "label": "Finalizar una encuesta",
+    "summary": "Finalizar una encuesta",
+    "field": {
+      "status": {
+        "label": "Acción",
+        "option": {
+          "terminate": "Detener la votación",
+          "archive": "Archivar"
+        }
+      }
+    }
+  },
+  "prediction": {
+    "label": "Iniciar una predicción",
+    "summary": "Iniciar una predicción",
+    "field": {
+      "title": {
+        "label": "Título"
+      },
+      "outcomes": {
+        "label": "Resultados (uno por línea)"
+      },
+      "seconds": {
+        "label": "Duración (segundos)"
+      }
+    }
+  },
+  "predictionEnd": {
+    "label": "Finalizar una predicción",
+    "summary": "Finalizar una predicción",
+    "field": {
+      "status": {
+        "label": "Acción",
+        "option": {
+          "lock": "Bloquear la votación",
+          "cancel": "Cancelar y reembolsar",
+          "resolve": "Elegir un ganador"
+        }
+      },
+      "winner": {
+        "label": "Número del resultado ganador"
+      }
+    }
+  },
+  "raidStart": {
+    "label": "Iniciar una incursión",
+    "summary": "Iniciar una incursión",
+    "field": {
+      "target": {
+        "label": "Nombre de canal o espectador"
+      }
+    }
+  },
+  "raidCancel": {
+    "label": "Cancelar una incursión",
+    "summary": "Cancelar una incursión"
+  },
+  "mod": {
+    "label": "Cambiar el rol de moderador",
+    "summary": "Cambiar el rol de moderador",
+    "field": {
+      "target": {
+        "label": "Nombre de canal o espectador"
+      },
+      "on": {
+        "label": "Activado"
+      }
+    }
+  },
+  "vip": {
+    "label": "Cambiar el rol VIP",
+    "summary": "Cambiar el rol VIP",
+    "field": {
+      "target": {
+        "label": "Nombre de canal o espectador"
+      },
+      "on": {
+        "label": "Activado"
+      }
+    }
+  },
+  "chatMode": {
+    "label": "Cambiar el modo del chat",
+    "summary": "Cambiar el modo del chat",
+    "field": {
+      "mode": {
+        "label": "Modo del chat",
+        "option": {
+          "emote_only": "Solo emotes",
+          "followers": "Solo seguidores",
+          "slow": "Modo lento",
+          "subscribers": "Solo suscriptores",
+          "unique": "Mensajes únicos"
+        }
+      },
+      "on": {
+        "label": "Activado"
+      },
+      "value": {
+        "label": "Segundos en modo lento; minutos en modo solo seguidores"
+      }
+    }
+  },
+  "clearChat": {
+    "label": "Borrar el chat",
+    "summary": "Borrar el chat"
+  },
+  "adSnooze": {
+    "label": "Posponer el próximo anuncio",
+    "summary": "Posponer el próximo anuncio"
+  },
+  "whisper": {
+    "label": "Enviar un susurro",
+    "summary": "Enviar un susurro",
+    "field": {
+      "target": {
+        "label": "Nombre de canal o espectador"
+      },
+      "text": {
+        "label": "Mensaje"
+      }
+    }
+  },
+  "unbanResolve": {
+    "label": "Resolver la solicitud de desbloqueo",
+    "summary": "Resolver la solicitud de desbloqueo",
+    "field": {
+      "status": {
+        "label": "Acción",
+        "option": {
+          "approve": "Aprobar",
+          "deny": "Rechazar"
+        }
+      },
+      "resolution": {
+        "label": "Mensaje de resolución (opcional)"
+      }
+    }
+  },
+  "brandedContent": {
+    "label": "Indicar contenido de marca",
+    "summary": "Indicar contenido de marca",
+    "field": {
+      "on": {
+        "label": "Activado"
+      }
+    }
   }
 }

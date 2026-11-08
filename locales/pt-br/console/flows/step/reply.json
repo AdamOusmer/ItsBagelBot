@@ -212,5 +212,169 @@
         "hint": "Adiciona este tempo para cada valor completo. Deixe vazio para adicionar uma vez por evento."
       }
     }
+  },
+  "poll": {
+    "label": "Iniciar uma enquete",
+    "summary": "Iniciar uma enquete",
+    "field": {
+      "title": {
+        "label": "Título"
+      },
+      "choices": {
+        "label": "Opções (uma por linha)"
+      },
+      "seconds": {
+        "label": "Duração (segundos)"
+      }
+    }
+  },
+  "pollEnd": {
+    "label": "Encerrar uma enquete",
+    "summary": "Encerrar uma enquete",
+    "field": {
+      "status": {
+        "label": "Ação",
+        "option": {
+          "terminate": "Parar a votação",
+          "archive": "Arquivar"
+        }
+      }
+    }
+  },
+  "prediction": {
+    "label": "Iniciar uma previsão",
+    "summary": "Iniciar uma previsão",
+    "field": {
+      "title": {
+        "label": "Título"
+      },
+      "outcomes": {
+        "label": "Resultados (um por linha)"
+      },
+      "seconds": {
+        "label": "Duração (segundos)"
+      }
+    }
+  },
+  "predictionEnd": {
+    "label": "Encerrar uma previsão",
+    "summary": "Encerrar uma previsão",
+    "field": {
+      "status": {
+        "label": "Ação",
+        "option": {
+          "lock": "Bloquear a votação",
+          "cancel": "Cancelar e reembolsar",
+          "resolve": "Escolher vencedor"
+        }
+      },
+      "winner": {
+        "label": "Número do resultado vencedor"
+      }
+    }
+  },
+  "raidStart": {
+    "label": "Iniciar uma raid",
+    "summary": "Iniciar uma raid",
+    "field": {
+      "target": {
+        "label": "Nome do canal ou espectador"
+      }
+    }
+  },
+  "raidCancel": {
+    "label": "Cancelar uma raid",
+    "summary": "Cancelar uma raid"
+  },
+  "mod": {
+    "label": "Alterar cargo de moderador",
+    "summary": "Alterar cargo de moderador",
+    "field": {
+      "target": {
+        "label": "Nome do canal ou espectador"
+      },
+      "on": {
+        "label": "Ativado"
+      }
+    }
+  },
+  "vip": {
+    "label": "Alterar cargo VIP",
+    "summary": "Alterar cargo VIP",
+    "field": {
+      "target": {
+        "label": "Nome do canal ou espectador"
+      },
+      "on": {
+        "label": "Ativado"
+      }
+    }
+  },
+  "chatMode": {
+    "label": "Alterar modo do chat",
+    "summary": "Alterar modo do chat",
+    "field": {
+      "mode": {
+        "label": "Modo do chat",
+        "option": {
+          "emote_only": "Somente emotes",
+          "followers": "Somente seguidores",
+          "slow": "Modo lento",
+          "subscribers": "Somente inscritos",
+          "unique": "Mensagens únicas"
+        }
+      },
+      "on": {
+        "label": "Ativado"
+      },
+      "value": {
+        "label": "Segundos no modo lento; minutos no modo de seguidores"
+      }
+    }
+  },
+  "clearChat": {
+    "label": "Limpar o chat",
+    "summary": "Limpar o chat"
+  },
+  "adSnooze": {
+    "label": "Adiar o próximo anúncio",
+    "summary": "Adiar o próximo anúncio"
+  },
+  "whisper": {
+    "label": "Enviar um sussurro",
+    "summary": "Enviar um sussurro",
+    "field": {
+      "target": {
+        "label": "Nome do canal ou espectador"
+      },
+      "text": {
+        "label": "Mensagem"
+      }
+    }
+  },
+  "unbanResolve": {
+    "label": "Resolver pedido de desbanimento",
+    "summary": "Resolver pedido de desbanimento",
+    "field": {
+      "status": {
+        "label": "Ação",
+        "option": {
+          "approve": "Aprovar",
+          "deny": "Negar"
+        }
+      },
+      "resolution": {
+        "label": "Mensagem da decisão (opcional)"
+      }
+    }
+  },
+  "brandedContent": {
+    "label": "Definir conteúdo de marca",
+    "summary": "Definir conteúdo de marca",
+    "field": {
+      "on": {
+        "label": "Ativado"
+      }
+    }
   }
 }

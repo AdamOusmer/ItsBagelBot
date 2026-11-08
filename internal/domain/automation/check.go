@@ -37,6 +37,7 @@ func nonEmpty(hi quantity) span { return span{lo: 1, hi: hi} }
 type chk struct {
 	out         *[]Issue
 	path        path
+	kind        string
 	trigger     string
 	perm        int
 	depth       int

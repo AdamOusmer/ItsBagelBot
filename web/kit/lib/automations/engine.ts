@@ -31,6 +31,7 @@ export const conditionRegistry = new Map<string, Entry>();
 export const actionRegistry = new Map<string, Entry>();
 
 const ROLE_MODERATOR = 3;
+const ROLE_LEAD_MODERATOR = 4;
 
 const REQUIRED_TRIGGER: Record<string, string> = {
   delete_message: 'command',
@@ -38,6 +39,20 @@ const REQUIRED_TRIGGER: Record<string, string> = {
 };
 
 const ACTION_ROLE: Record<string, number> = {
+  poll: ROLE_MODERATOR,
+  poll_end: ROLE_MODERATOR,
+  prediction: ROLE_MODERATOR,
+  prediction_end: ROLE_MODERATOR,
+  raid: ROLE_LEAD_MODERATOR,
+  raid_cancel: ROLE_LEAD_MODERATOR,
+  mod: ROLE_LEAD_MODERATOR,
+  vip: ROLE_LEAD_MODERATOR,
+  chat_mode: ROLE_MODERATOR,
+  clear_chat: ROLE_MODERATOR,
+  ad_snooze: ROLE_LEAD_MODERATOR,
+  whisper: ROLE_MODERATOR,
+  unban_resolve: ROLE_MODERATOR,
+  branded_content: ROLE_MODERATOR,
   timeout: ROLE_MODERATOR,
   ban: ROLE_MODERATOR,
   warn: ROLE_MODERATOR,
@@ -97,6 +112,7 @@ export function actions(c: Chk, list: ActionNode[]): void {
 }
 
 function triggerMismatch(at: Chk, type: string): boolean {
+  if (type === 'unban_resolve') return at.trigger !== 'event' || at.kind !== 'channel.unban_request.create';
   const want = REQUIRED_TRIGGER[type];
   return want !== undefined && at.trigger !== want;
 }

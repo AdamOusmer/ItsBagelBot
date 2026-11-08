@@ -79,5 +79,9 @@
         "label": "Contagem regressiva"
       }
     }
+  },
+  "unbanRequest": {
+    "label": "Pedido de desbanimento",
+    "summary": "Um espectador pede para ser desbanido"
   }
 }

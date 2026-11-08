@@ -1,0 +1,10 @@
+[
+  {
+    "path": "actions[0].params.resolution",
+    "code": "too_long"
+  },
+  {
+    "path": "actions[0].params.status",
+    "code": "invalid_enum"
+  }
+]

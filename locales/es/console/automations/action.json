@@ -37,5 +37,19 @@
   "reward_update": "Cambiar una recompensa",
   "cooldown_add": "Añadir tiempo a un enfriamiento",
   "countdown_start": "Iniciar cuenta atrás",
-  "countdown_add": "Añadir tiempo a la cuenta atrás"
+  "countdown_add": "Añadir tiempo a la cuenta atrás",
+  "poll": "Iniciar una encuesta",
+  "poll_end": "Finalizar una encuesta",
+  "prediction": "Iniciar una predicción",
+  "prediction_end": "Finalizar una predicción",
+  "raid": "Iniciar una incursión",
+  "raid_cancel": "Cancelar una incursión",
+  "mod": "Cambiar el rol de moderador",
+  "vip": "Cambiar el rol VIP",
+  "chat_mode": "Cambiar el modo del chat",
+  "clear_chat": "Borrar el chat",
+  "ad_snooze": "Posponer el próximo anuncio",
+  "whisper": "Enviar un susurro",
+  "unban_resolve": "Resolver la solicitud de desbloqueo",
+  "branded_content": "Indicar contenido de marca"
 }

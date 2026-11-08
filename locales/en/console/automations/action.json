@@ -37,5 +37,19 @@
   "reward_update": "Change a reward",
   "cooldown_add": "Add time to a cooldown",
   "countdown_start": "Start countdown",
-  "countdown_add": "Add time to countdown"
+  "countdown_add": "Add time to countdown",
+  "poll": "Start a poll",
+  "poll_end": "End a poll",
+  "prediction": "Start a prediction",
+  "prediction_end": "End a prediction",
+  "raid": "Start a raid",
+  "raid_cancel": "Cancel a raid",
+  "mod": "Set moderator role",
+  "vip": "Set VIP role",
+  "chat_mode": "Set chat mode",
+  "clear_chat": "Clear chat",
+  "ad_snooze": "Snooze the next ad",
+  "whisper": "Send a whisper",
+  "unban_resolve": "Resolve the unban request",
+  "branded_content": "Set branded content"
 }

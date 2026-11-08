@@ -212,5 +212,169 @@
         "hint": "Diese Zeit für jeden vollen Betrag hinzufügen. Leer lassen, um sie einmal pro Ereignis hinzuzufügen."
       }
     }
+  },
+  "poll": {
+    "label": "Umfrage starten",
+    "summary": "Umfrage starten",
+    "field": {
+      "title": {
+        "label": "Titel"
+      },
+      "choices": {
+        "label": "Antworten (eine pro Zeile)"
+      },
+      "seconds": {
+        "label": "Dauer (Sekunden)"
+      }
+    }
+  },
+  "pollEnd": {
+    "label": "Umfrage beenden",
+    "summary": "Umfrage beenden",
+    "field": {
+      "status": {
+        "label": "Aktion",
+        "option": {
+          "terminate": "Abstimmung stoppen",
+          "archive": "Archivieren"
+        }
+      }
+    }
+  },
+  "prediction": {
+    "label": "Vorhersage starten",
+    "summary": "Vorhersage starten",
+    "field": {
+      "title": {
+        "label": "Titel"
+      },
+      "outcomes": {
+        "label": "Ergebnisse (eines pro Zeile)"
+      },
+      "seconds": {
+        "label": "Dauer (Sekunden)"
+      }
+    }
+  },
+  "predictionEnd": {
+    "label": "Vorhersage beenden",
+    "summary": "Vorhersage beenden",
+    "field": {
+      "status": {
+        "label": "Aktion",
+        "option": {
+          "lock": "Abstimmung sperren",
+          "cancel": "Abbrechen und erstatten",
+          "resolve": "Gewinner wählen"
+        }
+      },
+      "winner": {
+        "label": "Nummer des Gewinnergebnisses"
+      }
+    }
+  },
+  "raidStart": {
+    "label": "Raid starten",
+    "summary": "Raid starten",
+    "field": {
+      "target": {
+        "label": "Kanal- oder Zuschauername"
+      }
+    }
+  },
+  "raidCancel": {
+    "label": "Raid abbrechen",
+    "summary": "Raid abbrechen"
+  },
+  "mod": {
+    "label": "Moderatorrolle ändern",
+    "summary": "Moderatorrolle ändern",
+    "field": {
+      "target": {
+        "label": "Kanal- oder Zuschauername"
+      },
+      "on": {
+        "label": "Aktiviert"
+      }
+    }
+  },
+  "vip": {
+    "label": "VIP-Rolle ändern",
+    "summary": "VIP-Rolle ändern",
+    "field": {
+      "target": {
+        "label": "Kanal- oder Zuschauername"
+      },
+      "on": {
+        "label": "Aktiviert"
+      }
+    }
+  },
+  "chatMode": {
+    "label": "Chatmodus ändern",
+    "summary": "Chatmodus ändern",
+    "field": {
+      "mode": {
+        "label": "Chatmodus",
+        "option": {
+          "emote_only": "Nur Emotes",
+          "followers": "Nur Follower",
+          "slow": "Langsamer Modus",
+          "subscribers": "Nur Abonnenten",
+          "unique": "Einzigartige Nachrichten"
+        }
+      },
+      "on": {
+        "label": "Aktiviert"
+      },
+      "value": {
+        "label": "Sekunden im langsamen Modus; Minuten im Follower-Modus"
+      }
+    }
+  },
+  "clearChat": {
+    "label": "Chat leeren",
+    "summary": "Chat leeren"
+  },
+  "adSnooze": {
+    "label": "Nächste Werbung verschieben",
+    "summary": "Nächste Werbung verschieben"
+  },
+  "whisper": {
+    "label": "Flüsternachricht senden",
+    "summary": "Flüsternachricht senden",
+    "field": {
+      "target": {
+        "label": "Kanal- oder Zuschauername"
+      },
+      "text": {
+        "label": "Nachricht"
+      }
+    }
+  },
+  "unbanResolve": {
+    "label": "Entbannungsantrag bearbeiten",
+    "summary": "Entbannungsantrag bearbeiten",
+    "field": {
+      "status": {
+        "label": "Aktion",
+        "option": {
+          "approve": "Genehmigen",
+          "deny": "Ablehnen"
+        }
+      },
+      "resolution": {
+        "label": "Entscheidungsnachricht (optional)"
+      }
+    }
+  },
+  "brandedContent": {
+    "label": "Markeninhalte kennzeichnen",
+    "summary": "Markeninhalte kennzeichnen",
+    "field": {
+      "on": {
+        "label": "Aktiviert"
+      }
+    }
   }
 }

@@ -58,11 +58,22 @@
   },
   "status": {
     "fulfill": "Fulfill",
-    "cancel": "Cancel and refund"
+    "cancel": "Cancel and refund",
+    "terminate": "Stop voting",
+    "archive": "Archive",
+    "lock": "Lock voting",
+    "resolve": "Choose a winner",
+    "approve": "Approve",
+    "deny": "Deny"
   },
   "mode": {
     "color": "Color",
-    "scene": "Scene"
+    "scene": "Scene",
+    "emote_only": "Emotes only",
+    "followers": "Followers only",
+    "slow": "Slow mode",
+    "subscribers": "Subscribers only",
+    "unique": "Unique messages"
   },
   "kind": {
     "text": "Text",
@@ -82,6 +93,9 @@
       },
       "channel_points_custom_reward_redemption": {
         "add": "Reward redeemed"
+      },
+      "unban_request": {
+        "create": "Unban request"
       }
     },
     "stream": {

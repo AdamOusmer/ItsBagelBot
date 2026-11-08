@@ -245,6 +245,36 @@
     ]
   },
   {
+    "kind": "channel.unban_request.create",
+    "fields": [
+      {
+        "name": "user",
+        "path": "user_name",
+        "numeric": false
+      },
+      {
+        "name": "login",
+        "path": "user_login",
+        "numeric": false
+      },
+      {
+        "name": "user_id",
+        "path": "user_id",
+        "numeric": false
+      },
+      {
+        "name": "id",
+        "path": "id",
+        "numeric": false
+      },
+      {
+        "name": "text",
+        "path": "text",
+        "numeric": false
+      }
+    ]
+  },
+  {
     "kind": "stream.offline",
     "fields": []
   },

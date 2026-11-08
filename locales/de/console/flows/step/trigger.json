@@ -79,5 +79,9 @@
         "label": "Countdown"
       }
     }
+  },
+  "unbanRequest": {
+    "label": "Entbannungsantrag",
+    "summary": "Ein Zuschauer bittet um Entbannung"
   }
 }

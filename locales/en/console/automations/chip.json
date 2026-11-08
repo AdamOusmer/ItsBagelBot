@@ -21,6 +21,8 @@
     "reward_id": "Reward ID",
     "cost": "Reward cost",
     "input": "Text the viewer entered",
-    "type": "Stream type"
+    "type": "Stream type",
+    "id": "Unban request ID",
+    "text": "Text of the unban request"
   }
 }

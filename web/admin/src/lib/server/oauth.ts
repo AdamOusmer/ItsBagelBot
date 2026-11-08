@@ -37,6 +37,9 @@ export function botScopes(): string[] {
     'moderator:manage:chat_messages',
     'moderator:manage:announcements',
     'moderator:manage:shoutouts',
+    'moderator:manage:chat_settings',
+    'moderator:manage:unban_requests',
+    'user:manage:whispers',
     // Without this scope the bot token 401s; any new scope needs a bot re-auth.
     'user:read:moderated_channels',
     'moderator:read:suspicious_users',

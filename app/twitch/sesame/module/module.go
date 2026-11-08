@@ -51,6 +51,7 @@ type Output struct {
 	Status        string
 	Reward        *outgress.RewardUpdate
 	RunID         string
+	Action        any
 	ActionSlot    string
 }
 

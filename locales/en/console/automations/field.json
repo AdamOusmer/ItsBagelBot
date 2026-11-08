@@ -77,5 +77,9 @@
   "content": "Content",
   "position": "Position",
   "volume": "Volume",
-  "per": "Per"
+  "per": "Per",
+  "choices": "Choices (one per line)",
+  "outcomes": "Outcomes (one per line)",
+  "winner": "Winning outcome number",
+  "resolution": "Resolution message (optional)"
 }
