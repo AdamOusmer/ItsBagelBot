@@ -26,6 +26,7 @@ const (
 	MaxFilterValue    = 100
 	MaxCommandAliases = 10
 	MaxListEntries    = 100
+	MaxExtraLights    = 31
 	MaxPatternLength  = 200
 )
 

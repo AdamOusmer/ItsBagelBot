@@ -481,6 +481,14 @@ describe('set lights step', () => {
     ]);
   });
 
+  test('extra lights in a group round-trip with the first light', () => {
+    const group = node('l', 'reply.lights', { ...color.config, extraLights: 'CC:DD/H6159,EE:FF/H6008' });
+    expect(lowered(withStep(group)).actions).toEqual([
+      { type: 'lights', params: { device: 'AA:BB', sku: 'H6008', device_name: 'Desk', extra_lights: ['CC:DD/H6159', 'EE:FF/H6008'], mode: 'color', color: '#f5a524' } }
+    ]);
+    expect(rebuilt(lowered(withStep(group))).nodes[1]).toMatchObject({ type: 'reply.lights', config: group.config });
+  });
+
   test('a scene carries what the lights service needs to set it', () => {
     const definition = lowered(withStep(scene));
     expect(definition.actions).toEqual([

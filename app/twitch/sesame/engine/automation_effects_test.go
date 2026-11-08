@@ -85,6 +85,15 @@ func TestAutomationLightsWithoutGoveeModule(t *testing.T) {
 	assert.Equal(t, gossiprpc.Request{ChannelID: "1", Device: "AA:BB", SKU: "H6008", ColorRGB: 0xf5a524}, fx.gossip.req)
 }
 
+func TestAutomationLightsGroupSendsEveryLight(t *testing.T) {
+	params := lightsParams()
+	params["extra_lights"] = []string{"CC:DD/H6159", "EE:FF/H6008"}
+	fx := newAutoFixture(manual("main", act("lights", params)))
+	rec := fx.run(t, "main", "req-lights-group", nil)
+	assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
+	assert.Equal(t, []gossiprpc.GoveeLight{{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}, {Device: "EE:FF", SKU: "H6008"}}, fx.gossip.req.Lights)
+}
+
 func TestAutomationLightsSceneFailsAgainstAnOutdatedGossip(t *testing.T) {
 	scene := obj{"device": "AA:BB", "sku": "H6008", "mode": "scene", "scene_type": "devices.capabilities.dynamic_scene", "scene_instance": "lightScene", "scene_value": "101"}
 	cases := []struct {

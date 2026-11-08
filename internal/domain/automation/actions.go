@@ -19,6 +19,7 @@ var (
 
 	lightsModes        = enum{LightsModeColor, LightsModeScene}
 	lightsColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+	lightRefPattern    = regexp.MustCompile(`^[^/]{1,64}/[^/]{1,32}$`)
 )
 
 type TextAction struct {
@@ -139,17 +140,18 @@ const (
 )
 
 type LightsAction struct {
-	Device        string `json:"device"`
-	SKU           string `json:"sku"`
-	DeviceName    string `json:"device_name"`
-	Mode          string `json:"mode"`
-	Color         string `json:"color"`
-	SceneID       string `json:"scene_id"`
-	SceneName     string `json:"scene_name"`
-	SceneType     string `json:"scene_type"`
-	SceneInstance string `json:"scene_instance"`
-	SceneValue    string `json:"scene_value"`
-	RGB           int    `json:"-"`
+	Device        string   `json:"device"`
+	SKU           string   `json:"sku"`
+	DeviceName    string   `json:"device_name"`
+	ExtraLights   []string `json:"extra_lights,omitempty"`
+	Mode          string   `json:"mode"`
+	Color         string   `json:"color"`
+	SceneID       string   `json:"scene_id"`
+	SceneName     string   `json:"scene_name"`
+	SceneType     string   `json:"scene_type"`
+	SceneInstance string   `json:"scene_instance"`
+	SceneValue    string   `json:"scene_value"`
+	RGB           int      `json:"-"`
 }
 
 func (a *LightsAction) setDefaults() { a.Mode = LightsModeColor }
@@ -250,6 +252,7 @@ func checkLights(c chk, p LightsAction) {
 	c.text("device", p.Device, nonEmpty(64))
 	c.text("sku", p.SKU, nonEmpty(32))
 	c.text("device_name", p.DeviceName, upTo(100))
+	c.stringList("extra_lights", p.ExtraLights, MaxExtraLights, c.eachFormat(lightRefPattern))
 	c.oneOf("mode", p.Mode, lightsModes)
 	if p.Mode == LightsModeScene {
 		checkLightsScene(c, p)
