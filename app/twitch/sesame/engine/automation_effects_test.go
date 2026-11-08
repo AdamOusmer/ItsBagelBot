@@ -94,6 +94,14 @@ func TestAutomationLightsGroupSendsEveryLight(t *testing.T) {
 	assert.Equal(t, []gossiprpc.GoveeLight{{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}, {Device: "EE:FF", SKU: "H6008"}}, fx.gossip.req.Lights)
 }
 
+func TestAutomationLightsGroupSkipsMalformedRefs(t *testing.T) {
+	params := lightsParams()
+	params["extra_lights"] = []string{"no-sku", "CC:DD/H6159"}
+	fx := newAutoFixture(manual("main", act("lights", params)))
+	fx.run(t, "main", "req-lights-malformed", nil)
+	assert.Equal(t, []gossiprpc.GoveeLight{{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}}, fx.gossip.req.Lights)
+}
+
 func TestAutomationLightsSceneFailsAgainstAnOutdatedGossip(t *testing.T) {
 	scene := obj{"device": "AA:BB", "sku": "H6008", "mode": "scene", "scene_type": "devices.capabilities.dynamic_scene", "scene_instance": "lightScene", "scene_value": "101"}
 	cases := []struct {
