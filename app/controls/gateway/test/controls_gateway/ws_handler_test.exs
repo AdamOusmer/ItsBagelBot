@@ -92,13 +92,23 @@ defmodule ControlsGateway.WsHandlerTest do
     private_key: priv
   } do
     {:ok, client_a} = connect_device(port, priv, @device_id)
-    {:ok, client_b} = connect_device(port, priv, @other_device_id)
+    # A pong proves websocket_init has registered the handler, not just that
+    # Cowboy sent the HTTP 101 response.
+    client_a = ping_and_drain(client_a)
+    [handler_a] = Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :_}, [], [:"$1"]}])
 
+    {:ok, client_b} = connect_device(port, priv, @other_device_id)
+    client_b = ping_and_drain(client_b)
     pids = Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :_}, [], [:"$1"]}])
     assert length(pids) == 2
-    Enum.each(pids, &Process.exit(&1, :kill))
+    assert handler_a in pids
 
-    # Both handler processes are now dead; the listener and app must survive.
+    ref = Process.monitor(handler_a)
+    Process.exit(handler_a, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^handler_a, :killed}
+
+    # The other connection stays usable and the listener accepts a new one.
+    client_b = ping_and_drain(client_b)
     assert Process.whereis(ControlsGateway.HttpServer) |> Process.alive?()
     assert Process.whereis(ControlsGateway.Supervisor) |> Process.alive?()
 
