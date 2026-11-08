@@ -22,29 +22,29 @@ const controls = [
 ---
 
 <Modal
-  variant="viewer"
+ class="mermaid-viewer"  variant="viewer"
   open={false}
   label={t('diagram.viewer')}
   toolbarLabel={t('diagram.controls')}
   closeLabel={t('diagram.close')}
-  data-mermaid-viewer
+
 >
   <Fragment slot="toolbar">
     {controls.map(({ action, label, icon }) => (
-      <IconButton label={label} title={label} data-action={action}><Icon name={icon} /></IconButton>
+      <IconButton label={label} title={label} value={action}><Icon name={icon} /></IconButton>
     ))}
   </Fragment>
   <Fragment slot="hint">{t('diagram.hint')}</Fragment>
 </Modal>
 
-<template data-mermaid-expand>
+<template class="mermaid-expand-template">
   <span class="mermaid-expand">
     <Button variant="secondary" size="sm" aria-label={t('diagram.open')} title={t('diagram.fullscreen')}><Icon name="expand" size={14} />{t('diagram.expand')}</Button>
   </span>
 </template>
 
 <script>
-  import { pushOverlay, registerOverlayShell, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
+  import { pushOverlay, portal, registerOverlayShell, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
   import panzoom, { type PanZoom } from 'panzoom';
 
   const READY = 'mermaid-interactive-ready';
@@ -70,12 +70,12 @@ const controls = [
       closeModal();
       return;
     }
-    const action = target.closest('[data-action]')?.getAttribute('data-action');
+    const action = target.closest<HTMLButtonElement>('button[value]')?.value;
     if (action) actions[action]?.();
   }
 
   function mountViewer() {
-    const found = document.querySelector<HTMLElement>('[data-mermaid-viewer]');
+    const found = document.querySelector<HTMLElement>('.mermaid-viewer');
     if (!found || found === viewer) return;
     viewer = found;
     stage = found.querySelector<HTMLElement>('.bb-modal__stage');
@@ -120,6 +120,7 @@ const controls = [
 
     const host = diagramHost(source);
     stage.replaceChildren(host);
+    if (viewer.parentElement !== document.body) portal(viewer);
     viewer.hidden = false;
     registerOverlayShell(viewer);
     overlayId = pushOverlay();
@@ -149,7 +150,7 @@ const controls = [
   }
 
   function expandButton(): HTMLElement | null {
-    const template = document.querySelector<HTMLTemplateElement>('template[data-mermaid-expand]');
+    const template = document.querySelector<HTMLTemplateElement>('template.mermaid-expand-template');
     const button = template?.content.firstElementChild?.cloneNode(true);
     return button instanceof HTMLElement ? button : null;
   }

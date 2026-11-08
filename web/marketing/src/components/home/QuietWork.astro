@@ -127,7 +127,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         </FeatureCard>
 
         <FeatureCard index={4} tone="gold" href={localizePath('/giveaways', lang)}>
-            <div slot="demo" class="qw__demo qw__demo--win" data-qw-draw>
+            <div slot="demo" class="qw__demo qw__demo--win">
                 <span class="qw-win__chat bb-layers">
                     <span class="qw-win__msg qw-win__msg--open"><b class="qw__user">Ayshacinder</b>!raffle 1000 60</span>
                     <span class="qw-win__msg qw-win__msg--join1"><b class="qw__user">Lotti</b>!join</span>
@@ -141,11 +141,11 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
                     </span>
                     <i class="qw-win__pulse"></i>
                     <i class="qw-win__pick"></i>
-                    <i class="qw-win__ring" data-qw-ring></i>
+                    <i class="qw-win__ring"></i>
                 </span>
                 <span class="qw-win__result">
                     <span class="qw-win__label"><bb-fit>{t('quietWork.winLabel')}</bb-fit></span>
-                    <span class="qw-win__name"><bb-fit><span class="fcard-value" data-qw-winner>MikanMeerkat</span></bb-fit></span>
+                    <span class="qw-win__name"><bb-fit><span class="fcard-value">MikanMeerkat</span></bb-fit></span>
                 </span>
             </div>
             {t('quietWork.winTitle')}
@@ -1066,8 +1066,8 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
     // cycle (and every restart after the motion gate), so the decode is
     // armed from them instead of a free-running timer that would drift.
     function setupDraw(root: HTMLElement) {
-        const ring = root.querySelector<HTMLElement>('[data-qw-ring]');
-        const name = root.querySelector<HTMLElement>('[data-qw-winner]');
+        const ring = root.querySelector<HTMLElement>('.qw-win__ring');
+        const name = root.querySelector<HTMLElement>('.fcard-value');
         if (!ring || !name || reduceMotion.matches) return;
 
         let timer = 0;
@@ -1095,5 +1095,5 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         });
     }
 
-    bindOnce('[data-qw-draw]', setupDraw);
+    bindOnce('.qw__demo--win', setupDraw);
 </script>

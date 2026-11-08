@@ -38,27 +38,27 @@ const L = {
 ---
 
 <Card flush class="rh-card">
-    <div class="rh" data-rehearsal data-counter-sample="128">
+    <div class="rh">
         <Heading level={6} as="div">{L.heading}</Heading>
         <div class="rh__grid">
             <label class="rh__field rh__field--wide">
                 <Label mono as="span">{L.responseLabel}</Label>
-                <Textarea fill rows={2} maxlength={500} data-rh-response value={L.responseDefault} />
+                <Textarea class="rh-response" fill rows={2} maxlength={500} value={L.responseDefault} />
             </label>
             <label class="rh__field">
                 <Label mono as="span">{L.whoLabel}</Label>
-                <Input fill data-rh-who value={L.whoDefault} maxlength={25} />
+                <Input class="rh-who" fill value={L.whoDefault} maxlength={25} />
             </label>
             <label class="rh__field">
                 <Label mono as="span">{L.argsLabel}</Label>
-                <Input fill data-rh-args value={L.argsDefault} maxlength={80} />
+                <Input class="rh-args" fill value={L.argsDefault} maxlength={80} />
             </label>
         </div>
         <ChatPreview title={L.outputLabel} aria-live="polite">
             <ChatLines lines={[{ who: 'bot', name: L.botName, text: L.outputDefault, hook: 'rh-content' }]} />
         </ChatPreview>
         <Text size="xs" tone="muted">{L.builderNote}{' '}<TextLink variant="inline" href={L.builderHref}>{L.builderLinkText}</TextLink></Text>
-        <template data-rh-pill><Badge shape="pill" tone="paid">{L.pillLabel}</Badge></template>
+        <template class="rh-pill"><Badge shape="pill" tone="paid">{L.pillLabel}</Badge></template>
     </div>
 </Card>
 
@@ -138,15 +138,15 @@ const L = {
     }
 
     function setupRehearsal(root: HTMLElement) {
-        const counterSample = root.dataset.counterSample ?? '128';
-        const response = root.querySelector<HTMLTextAreaElement>('[data-rh-response]');
-        const who = root.querySelector<HTMLInputElement>('[data-rh-who]');
-        const args = root.querySelector<HTMLInputElement>('[data-rh-args]');
-        const content = root.querySelector<HTMLElement>('[data-chat-hook="rh-content"]');
+        const counterSample = '128';
+        const response = root.querySelector<HTMLTextAreaElement>('.rh-response textarea');
+        const who = root.querySelector<HTMLInputElement>('.rh-who input');
+        const args = root.querySelector<HTMLInputElement>('.rh-args input');
+        const content = root.querySelector<HTMLElement>('.chat-line--rh-content');
         const fields = [response, who, args];
         if (fields.some((field) => !field) || !content) return;
 
-        const makePill = pillFrom(root.querySelector<HTMLTemplateElement>('[data-rh-pill]'));
+        const makePill = pillFrom(root.querySelector<HTMLTemplateElement>('.rh-pill'));
         const reduceMotion = prefersReducedMotion();
 
         function render(animate: boolean) {
@@ -163,5 +163,5 @@ const L = {
         render(false);
     }
 
-    bindOnce('[data-rehearsal]', setupRehearsal);
+    bindOnce('.rh', setupRehearsal);
 </script>

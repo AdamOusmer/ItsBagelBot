@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import ClientProps from '@bagel/kit/components/ClientProps.astro';
 import Button from '@bagel/ui/astro/Button.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import JsonTree from '@bagel/ui/astro/JsonTree.astro';
@@ -51,28 +52,26 @@ const sample =
 ---
 
 <Card flush class="gpath-card">
-    <div class="gpath" data-pathpicker data-name={L.defName}>
+    <div class="gpath">
         <div class="gpath__grid">
             <label class="gpath__col">
                 <Label mono as="span">{L.sampleLabel}</Label>
-                <Textarea mono fill rows={10} spellcheck="false" data-pp-input value={sample} />
+                <Textarea class="gpath-input" mono fill rows={10} spellcheck="false" value={sample} />
             </label>
             <div class="gpath__col">
                 <Label mono as="span">{L.treeLabel}</Label>
-                <Well container class="gpath__well"><JsonTree nodes={[]} data-pp-tree><small class="gpath__hint">{L.empty}</small></JsonTree></Well>
+                <Well container class="gpath__well"><JsonTree class="gpath-tree" nodes={[]}><small class="gpath__hint">{L.empty}</small></JsonTree></Well>
             </div>
         </div>
-        <Well class="gpath__out" data-pp-out hidden>
-            <p><i>{L.savedPathLabel}</i><code data-pp-path></code></p>
-            <p><i>{L.tokenLabel}</i><code data-pp-token></code></p>
-            <p data-pp-override-row><i>{L.overrideLabel}</i><code data-pp-override></code></p>
-            <p><i>{L.chatLabel}</i><code data-pp-chat></code><em data-pp-cut hidden>{L.cutHere}</em></p>
-            <p class="gpath__note" data-pp-note hidden>{L.wholeNote}</p>
+        <Well class="gpath__out" hidden>
+            <p><i>{L.savedPathLabel}</i><code class="gpath-path"></code></p>
+            <p><i>{L.tokenLabel}</i><code class="gpath-token"></code></p>
+            <p class="gpath-override-row"><i>{L.overrideLabel}</i><code class="gpath-override"></code></p>
+            <p><i>{L.chatLabel}</i><code class="gpath-chat"></code><em class="gpath-cut" hidden>{L.cutHere}</em></p>
+            <p class="gpath__note" hidden>{L.wholeNote}</p>
         </Well>
-        <Button variant="secondary" size="sm" class="gpath__whole" data-pp-whole>{L.wholeButton}</Button>
-        <p class="gpath__strings" hidden data-pp-strings
-            data-too-deep={L.tooDeep} data-bad-segment={L.badSegment} data-not-usable={L.notUsable}
-            data-bad-json={L.badJson} data-empty={L.empty} data-whole={L.wholeLabel}></p>
+        <Button variant="secondary" size="sm" class="gpath__whole">{L.wholeButton}</Button>
+        <ClientProps value={{ name: L.defName, strings: { tooDeep: L.tooDeep, badSegment: L.badSegment, notUsable: L.notUsable, badJson: L.badJson, empty: L.empty, whole: L.wholeLabel } }} />
     </div>
 </Card>
 
@@ -94,6 +93,7 @@ const sample =
 </style>
 
 <script>
+    import { readClientProps } from '@bagel/kit/client-props';
     import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE } from '@bagel/kit/engine/fetch-validate';
     import { buildJsonPath } from '@bagel/kit/engine/fetch-tokens';
     import { intactSpan } from '@bagel/kit/engine/tmpl';
@@ -130,23 +130,22 @@ const sample =
     }
 
     function setupPathPicker(root: HTMLElement) {
-        const input = root.querySelector<HTMLTextAreaElement>('[data-pp-input]')!;
-        const tree = root.querySelector<HTMLElement>('[data-pp-tree]')!;
-        const out = root.querySelector<HTMLElement>('[data-pp-out]')!;
-        const strings = root.querySelector<HTMLElement>('[data-pp-strings]')!.dataset;
-        const name = root.dataset.name ?? 'weather';
+        const input = root.querySelector<HTMLTextAreaElement>('.gpath-input textarea')!;
+        const tree = root.querySelector<HTMLElement>('.gpath-tree')!;
+        const out = root.querySelector<HTMLElement>('.gpath__out')!;
+        const { strings, name } = readClientProps<{ name: string; strings: Record<string, string> }>(root);
         const field = (sel: string) => root.querySelector<HTMLElement>(sel)!;
 
         function show(segs: string[] | null, value: string) {
             const cleaned = chatValue(value);
             const path = segs ? buildJsonPath(segs) : '';
-            field('[data-pp-path]').textContent = segs ? path : (strings.whole ?? '');
-            field('[data-pp-token]').textContent = intactSpan('urlfetch', name);
-            field('[data-pp-override]').textContent = segs ? intactSpan('urlfetch', `${name}.${path}`) : '';
-            field('[data-pp-override-row]').hidden = !segs;
-            field('[data-pp-chat]').textContent = cleaned.out;
-            field('[data-pp-cut]').hidden = !cleaned.cut;
-            field('[data-pp-note]').hidden = Boolean(segs);
+            field('.gpath-path').textContent = segs ? path : (strings.whole ?? '');
+            field('.gpath-token').textContent = intactSpan('urlfetch', name);
+            field('.gpath-override').textContent = segs ? intactSpan('urlfetch', `${name}.${path}`) : '';
+            field('.gpath-override-row').hidden = !segs;
+            field('.gpath-chat').textContent = cleaned.out;
+            field('.gpath-cut').hidden = !cleaned.cut;
+            field('.gpath__note').hidden = Boolean(segs);
             out.hidden = false;
         }
 
@@ -214,12 +213,12 @@ const sample =
         }
 
         input.addEventListener('input', rebuild);
-        root.querySelector<HTMLButtonElement>('[data-pp-whole]')!.addEventListener('click', () => {
+        root.querySelector<HTMLButtonElement>('.gpath__whole')!.addEventListener('click', () => {
             clearPicked();
             show(null, input.value);
         });
         rebuild();
     }
 
-    bindOnce('[data-pathpicker]', setupPathPicker);
+    bindOnce('.gpath', setupPathPicker);
 </script>

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import ClientProps from '@bagel/kit/components/ClientProps.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import ChatPreview from '@bagel/ui/astro/ChatPreview.astro';
 import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
@@ -34,15 +35,15 @@ const options = outcomes.map((outcome) => ({
     value: outcome.id,
     label: outcome.label,
     attrs: {
-        'data-go-bot': outcome.bot,
         'aria-controls': `gout-why-${outcome.id}`,
     },
 }));
 ---
 
 <Card flush class="gout-card">
-    <div class="gout" data-fetchoutcomes>
-        <SegmentedControl options={options} value={outcomes[0]?.id} label={L.legend} data-go-tabs />
+    <div class="gout">
+        <ClientProps value={{ replies: outcomes.map((outcome) => outcome.bot) }} />
+        <SegmentedControl class="gout-tabs" options={options} value={outcomes[0]?.id} label={L.legend} />
         <ChatPreview title={L.title}>
             <ChatLines
                 lines={[
@@ -53,7 +54,7 @@ const options = outcomes.map((outcome) => ({
         </ChatPreview>
         <div aria-live="polite">
             {outcomes.map((outcome, i) => (
-                <Text size="sm" tone="muted-light" id={`gout-why-${outcome.id}`} data-go-why={outcome.id} data-go-bot={outcome.bot} hidden={i !== 0}>
+                <Text size="sm" tone="muted-light" id={`gout-why-${outcome.id}`} class="gout-why" hidden={i !== 0}>
                     {outcome.why}
                 </Text>
             ))}
@@ -67,6 +68,7 @@ const options = outcomes.map((outcome) => ({
 </style>
 
 <script>
+    import { readClientProps } from '@bagel/kit/client-props';
     import { bindOnce } from '../../../script/bind';
 
     function replay(line: HTMLElement) {
@@ -76,14 +78,15 @@ const options = outcomes.map((outcome) => ({
     }
 
     function setupFetchOutcomes(root: HTMLElement) {
-        const group = root.querySelector<HTMLElement>('[data-go-tabs]')!;
+        const { replies } = readClientProps<{ replies: string[] }>(root);
+        const group = root.querySelector<HTMLElement>('.gout-tabs')!;
         const buttons = Array.from(group.querySelectorAll<HTMLButtonElement>('button[role="radio"]'));
-        const line = root.querySelector<HTMLElement>('[data-chat-hook="go-line"]')!;
-        const whys = Array.from(root.querySelectorAll<HTMLElement>('[data-go-why]'));
+        const line = root.querySelector<HTMLElement>('.chat-line--go-line')!;
+        const whys = Array.from(root.querySelectorAll<HTMLElement>('.gout-why'));
 
         function select(index: number) {
             whys.forEach((why, i) => { why.hidden = i !== index; });
-            line.textContent = whys[index]?.dataset.goBot ?? line.textContent;
+            line.textContent = replies[index] ?? line.textContent;
             replay(line);
         }
 
@@ -93,5 +96,5 @@ const options = outcomes.map((outcome) => ({
         });
     }
 
-    bindOnce('[data-fetchoutcomes]', setupFetchOutcomes);
+    bindOnce('.gout', setupFetchOutcomes);
 </script>

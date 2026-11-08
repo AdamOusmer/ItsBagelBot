@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import ClientProps from '@bagel/kit/components/ClientProps.astro';
 import Button from '@bagel/ui/astro/Button.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import Checkbox from '@bagel/ui/astro/Checkbox.astro';
@@ -24,15 +25,16 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
 ---
 
 <Card flush class="gcheck-card">
-    <div class="gcheck" data-checklist data-key={storageKey}>
+    <div class="gcheck" >
+        <ClientProps value={{ storageKey }} />
         <div class="gcheck__head">
             <Heading level={6} as="span">{L.heading}</Heading>
-            <Button variant="ghost" size="sm" data-checklist-reset>{L.reset}</Button>
+            <Button class="gcheck-reset" variant="ghost" size="sm">{L.reset}</Button>
         </div>
         <ul class="gcheck__list">
             {items.map((item, i) => (
                 <li class="gcheck__row">
-                    <Checkbox data-checklist-item={String(i)}><Text as="span" tone="muted-light" class="gcheck__label"><Fragment set:html={item} /></Text></Checkbox>
+                    <Checkbox value={String(i)}><Text as="span" tone="muted-light" class="gcheck__label"><Fragment set:html={item} /></Text></Checkbox>
                 </li>
             ))}
         </ul>
@@ -61,11 +63,12 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
 </style>
 
 <script>
+    import { readClientProps } from '@bagel/kit/client-props';
     import { bindOnce } from '../../../script/bind';
 
     function setupChecklist(root: HTMLElement) {
-        const key = root.dataset.key ?? 'guides.checklist';
-        const boxes = Array.from(root.querySelectorAll<HTMLInputElement>('[data-checklist-item]'));
+        const { storageKey: key } = readClientProps<{ storageKey: string }>(root);
+        const boxes = Array.from(root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
 
         function read(): string[] {
             try {
@@ -86,21 +89,21 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
 
         const ticked = new Set(read());
         boxes.forEach((box) => {
-            box.checked = ticked.has(box.dataset.checklistItem ?? '');
+            box.checked = ticked.has(box.value);
             box.addEventListener('change', () => {
-                const id = box.dataset.checklistItem ?? '';
+                const id = box.value;
                 if (box.checked) ticked.add(id);
                 else ticked.delete(id);
                 write(Array.from(ticked));
             });
         });
 
-        root.querySelector<HTMLButtonElement>('[data-checklist-reset]')?.addEventListener('click', () => {
+        root.querySelector<HTMLButtonElement>('.gcheck-reset')?.addEventListener('click', () => {
             ticked.clear();
             boxes.forEach((box) => { box.checked = false; });
             write([]);
         });
     }
 
-    bindOnce('[data-checklist]', setupChecklist);
+    bindOnce('.gcheck', setupChecklist);
 </script>

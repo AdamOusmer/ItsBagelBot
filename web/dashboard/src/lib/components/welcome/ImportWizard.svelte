@@ -211,13 +211,13 @@
     play('entrance');
   }
 
-  let flowEl = $state<HTMLElement | null>(null);
+  let sceneEl = $state<HTMLElement | null>(null);
   let focusedStep: Step | null = null;
   let hydrated = false;
   let finished = false;
 
-  function focusHeading(target: Step) {
-    const heading = flowEl?.querySelector<HTMLElement>(`.scene[data-step="${target}"] h2`);
+  function focusHeading() {
+    const heading = sceneEl?.querySelector<HTMLElement>('h2');
     if (!heading) return;
     heading.tabIndex = -1;
     heading.focus({ preventScroll: true });
@@ -230,7 +230,7 @@
       return;
     }
     focusedStep = current;
-    tick().then(() => focusHeading(current));
+    tick().then(focusHeading);
   });
 
   $effect(() => {
@@ -397,9 +397,9 @@
   {#snippet art()}
     <Bolota name={page.data.name ?? 'ItsBagelBot'} size={240} active follow cycle={false} {expression} {sequence} {sequenceKey} sequenceFor={1000} sequenceHold={200} />
   {/snippet}
-    <div class="flow" bind:this={flowEl}>
+    <div class="flow">
   {#key step}
-  <div class="scene" data-step={step} in:sceneIn out:sceneOut>
+  <div class="scene" bind:this={sceneEl} in:sceneIn out:sceneOut>
 
   {#if step === 'pick'}
     <Card style={cardPad}>

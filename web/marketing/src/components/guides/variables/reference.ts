@@ -12,12 +12,14 @@ function scrollToHash(): void {
     document.getElementById(id)?.scrollIntoView({ block: 'start' });
 }
 
+const ready = new WeakSet<HTMLElement>();
+
 export function bootVariableReference(root: HTMLElement): void {
-    if (root.dataset.vrefReady === 'true') return;
-    root.dataset.vrefReady = 'true';
+    if (ready.has(root)) return;
+    ready.add(root);
     scrollToHash();
 }
 
 export function bootAllVariableReferences(): void {
-    document.querySelectorAll<HTMLElement>('[data-vref-root]').forEach(bootVariableReference);
+    document.querySelectorAll<HTMLElement>('.vref').forEach(bootVariableReference);
 }

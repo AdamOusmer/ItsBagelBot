@@ -192,7 +192,7 @@ describe('offendingParts', () => {
     { name: 'flags any .bb-* class, including inside :global()', rule: { selector: '.editor :global(.bb-field)', body: 'margin: 0;' }, parts: ['.bb-field'] },
     { name: 'ignores a reset that only inherits type', rule: { selector: 'input, button', body: 'font: inherit;' }, parts: [] },
     { name: 'flags a literal fallback on a brand token', rule: { selector: '.row', body: 'color: var(--bb-muted, #888077);' }, parts: ['--bb-muted, …'] },
-    { name: 'does not read element names inside attribute selectors', rule: { selector: '[data-kind="span"] .label', body: 'color: red;' }, parts: [] }
+    { name: 'does not read element names inside attribute selectors', rule: { selector: '[aria-label="span"] .label', body: 'color: red;' }, parts: [] }
   ];
 
   test.each(PARTS_ROWS)('$name', ({ rule, parts }) => {

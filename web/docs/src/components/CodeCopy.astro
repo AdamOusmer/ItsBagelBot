@@ -13,7 +13,7 @@ interface Props {
 const { t } = docsI18n(Astro.props.locale);
 ---
 
-<template data-code-copy>
+<template class="code-copy-template">
   <span class="doc-code-copy"><IconButton label={t('chrome.copy')} size="sm"><Icon name="copy" size={14} /></IconButton></span>
 </template>
 
@@ -61,7 +61,7 @@ const { t } = docsI18n(Astro.props.locale);
   }
 
   function enhance() {
-    const template = document.querySelector<HTMLTemplateElement>('template[data-code-copy]');
+    const template = document.querySelector<HTMLTemplateElement>('template.code-copy-template');
     if (!template) return;
     document.querySelectorAll<HTMLElement>('.doc-prose pre.astro-code').forEach((block) => {
       const control = template.content.firstElementChild?.cloneNode(true);

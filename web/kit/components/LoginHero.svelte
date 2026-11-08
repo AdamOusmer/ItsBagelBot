@@ -63,7 +63,9 @@
   const next = $derived(page.url.searchParams.get('next'));
   const loginHref = $derived(next ? `/auth/login?next=${encodeURIComponent(next)}` : '/auth/login');
 
-  onMount(playHeroTitle);
+  let titleEl = $state<HTMLHeadingElement | null>(null);
+  const wordEls: HTMLElement[] = [];
+  onMount(() => playHeroTitle(titleEl, wordEls));
 </script>
 
 <header class="hero">
@@ -88,7 +90,7 @@
       <Brand title="ItsBagelBot" logoSrc={logo320} wordmark size="lg" class="eyebrow__brand" />
     </div>
 
-    <h1 data-hero-title aria-label={titleWords.join(' ')}><bb-fit mode="block" aria-hidden="true">{#each titleWords as word, i (i)}{#if i > 0}{' '}{/if}<span class="word" data-hero-word>{word}</span>{/each}</bb-fit></h1>
+    <h1 bind:this={titleEl} aria-label={titleWords.join(' ')}><bb-fit mode="block" aria-hidden="true">{#each titleWords as word, i (i)}{#if i > 0}{' '}{/if}<span class="word" bind:this={wordEls[i]}>{word}</span>{/each}</bb-fit></h1>
 
     <Text tone="muted-soft" size="md" class="lede"><bb-fit mode="block">{t('login.lede')}</bb-fit></Text>
 

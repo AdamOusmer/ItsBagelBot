@@ -34,6 +34,7 @@
     expanded = false,
     selecting = false,
     checked = false,
+    rowEl = $bindable<HTMLElement | null>(null),
     onExpand,
     onDelete,
     toggleSubmit
@@ -46,6 +47,7 @@
     expanded?: boolean;
     selecting?: boolean;
     checked?: boolean;
+    rowEl?: HTMLElement | null;
     onExpand: () => void;
     onDelete: () => void;
     toggleSubmit: SubmitFunction;
@@ -70,7 +72,7 @@
   const usesShare = $derived(usesMax > 0n ? Math.min(100, Number((uses * 100n + usesMax / 2n) / usesMax)) / 100 : 0);
 </script>
 
-<div class="row-wrap" class:flash-save={status === 'saved'} data-row-name={c.name}>
+<div class="row-wrap" class:flash-save={status === 'saved'} bind:this={rowEl}>
   <ManagementRow
     accent
     stackActions

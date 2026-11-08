@@ -90,7 +90,12 @@
   <div class="scroll">
     <ol class="path">
       {#each steps as step, i (step.id)}
-        <li class="step" data-state={i < shown - 1 || finished ? 'done' : i === shown - 1 ? 'running' : 'waiting'}>
+        <li
+          class="step"
+          class:done={i < shown - 1 || finished}
+          class:running={!(i < shown - 1 || finished) && i === shown - 1}
+          class:waiting={!(i < shown - 1 || finished) && i !== shown - 1}
+        >
           <IconTile size="sm" style="--tile: 32px"><Icon name={step.icon} size={16} /></IconTile>
           <div class="copy">
             <span class="step-name">{step.label}</span>
@@ -200,14 +205,14 @@
     border-radius: var(--bb-radius-pill);
     background: rgba(var(--bb-white-rgb), 0.12);
   }
-  .step[data-state='done']:not(:last-child)::before {
+  .step.done:not(:last-child)::before {
     background: var(--bb-green-glow);
   }
-  .step[data-state='waiting'] {
+  .step.waiting {
     opacity: 0.35;
   }
-  .step[data-state='running'] :global(.bb-icon-tile),
-  .step[data-state='running'] .step-name {
+  .step.running :global(.bb-icon-tile),
+  .step.running .step-name {
     color: var(--bb-green-glow);
   }
   .copy {
