@@ -55,7 +55,9 @@ const BUDGETS: Record<string, Budget> = {
   // css raised from 22000 (2026-10-30) for the leaderboard-style title and orbs: measured 22146 B, ~1.6% room.
   // js and css raised from 101500 / 22500 (2026-11-02) for the public reading progress bar: measured 101025 / 22271
   // before and 101572 / 22597 after (+547 / +326 B) on macOS, ~2% room for CI's larger linux gzip.
-  '/(public)/user/[channel]': { js: 103600, css: 23050, catalog: 2800, lazy: 0 }
+  // js raised from 103600 (2026-11-08): the compact support card brings the shared animated Bolota
+  // renderer onto the commands page for the first time. CI measured 111599 B gzip; ~2% room.
+  '/(public)/user/[channel]': { js: 114000, css: 23050, catalog: 2800, lazy: 0 }
 };
 
 interface RouteEntry {
