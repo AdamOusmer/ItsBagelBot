@@ -43,6 +43,7 @@
   "title": "Название",
   "device": "Устройство",
   "device_name": "Имя устройства",
+  "extra_lights": "Другие лампы",
   "sku": "SKU",
   "allow_ids": "ID разрешённых",
   "deny_ids": "ID запрещённых",
