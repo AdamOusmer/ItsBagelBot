@@ -50,6 +50,7 @@
 
   let activeSection = $state<SectionId>(DEV_SECTION ?? 'overview');
   let collapsed = $state(readCollapsed());
+  let overlayCollapsed = $state(true);
 
   const groups = $derived([
     {
@@ -73,6 +74,15 @@
 
   function navigate(href: string): void {
     activeSection = href.slice(1) as SectionId;
+  }
+
+  function railCollapsed(): boolean {
+    return activeSection === 'overlay' ? overlayCollapsed : collapsed;
+  }
+
+  function setRailCollapsed(next: boolean): void {
+    if (activeSection === 'overlay') overlayCollapsed = next;
+    else collapsed = next;
   }
 
   // A webview ignores target=_blank, so web and mail links have to leave through the OS.
@@ -99,7 +109,7 @@
       account={ACCOUNT}
       collapsible
       alwaysVisible
-      bind:collapsed
+      bind:collapsed={railCollapsed, setRailCollapsed}
       topInset={RAIL_TOP_INSET}
       collapsedWidth={RAIL_COLLAPSED_WIDTH}
       onnavigate={navigate}

@@ -83,7 +83,7 @@
       <h2 class="name">{layer.name}</h2>
       <p class="kind">{KIND_LABEL[layer.kind]}</p>
     </div>
-    <IconButton label="Back to layers" tooltip size="sm" onclick={onClose}><Icon name="arrowLeft" size={14} /></IconButton>
+    <IconButton label="Close settings" tooltip size="sm" onclick={onClose}><Icon name="x" size={14} /></IconButton>
   </header>
 
   <div class="scroll">
