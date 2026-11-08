@@ -52,7 +52,6 @@ const reProtoRl = /(?:^|[^a-z0-9+.\-/])\/\/[a-z0-9]/i;
 const reDataURI = /\bdata:\s*(?:[a-z]+\/|;base64)/i;
 const reScript = /\b(?:java|vb)script\s*:/i;
 const reWWW = /\bwww\d{0,3}\.[a-z0-9-]/i;
-const reEmail = /[a-z0-9._%+\-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/i;
 const reTLD2 = /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.[a-z]{2}\b/i;
 const reTLDCur = new RegExp('\\b(?:[a-z0-9-]+\\.)+(?:' + CURATED_TLDS + ')\\b', 'i');
 const reTLDPath = /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]{1,63})*\.[a-z]{2,63}(?::\d{1,5})?[/?#]/i;
@@ -61,19 +60,47 @@ const reIPv6 = /\[[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}\]/i;
 
 const LINK_PATTERNS = [
 	reScheme, reAuthy, reProtoRl, reDataURI, reScript,
-	reWWW, reEmail, reTLD2, reTLDCur, reTLDPath, reIPv4, reIPv6
+	reWWW, reTLD2, reTLDCur, reTLDPath, reIPv4, reIPv6
 ];
 
 const STRONG_PATTERNS = [
 	reScheme, reAuthy, reProtoRl, reDataURI, reScript,
-	reWWW, reEmail, reTLDCur, reIPv4
+	reWWW, reTLDCur, reIPv4
 ];
+
+// Scan email candidates once. Runs of local-part characters and domain labels
+// are disjoint between @ signs, so long non-matching inputs stay linear.
+function containsEmail(s: string): boolean {
+	let local = false;
+	for (let i = 0; i < s.length; i++) {
+		const c = s.charCodeAt(i);
+		const localChar = (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || '._%+-'.includes(s[i]);
+		if (c === 64 && local) {
+			let j = i + 1;
+			let label = false;
+			while (j < s.length) {
+				const d = s.charCodeAt(j);
+				if ((d >= 97 && d <= 122) || (d >= 48 && d <= 57) || d === 45) {
+					label = true;
+				} else if (d === 46 && label) {
+					const a = s.charCodeAt(j + 1), b = s.charCodeAt(j + 2);
+					if (a >= 97 && a <= 122 && b >= 97 && b <= 122) return true;
+					label = false;
+				} else break;
+				j++;
+			}
+		}
+		local = localChar;
+	}
+	return false;
+}
 
 export function containsLink(s: string): boolean {
 	if (!s) return false;
 	const normalized = normalizeForLink(s);
 	const deobfuscated = deobfuscateLinks(normalized);
 	const despaced = deobfuscated.replace(/\s+/g, '');
+	if (containsEmail(normalized) || containsEmail(deobfuscated) || containsEmail(despaced)) return true;
 
 	for (const re of LINK_PATTERNS) {
 		if (re.test(normalized) || re.test(deobfuscated)) return true;

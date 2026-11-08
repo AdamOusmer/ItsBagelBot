@@ -101,7 +101,11 @@ export const SITE_LEGAL: readonly SiteLinkDef[] = [
   { path: '/creator-terms', key: 'creatorTerms' },
 ];
 
-const trimPath = (path: string) => path.replace(/\/+$/, '') || '/';
+function trimPath(path: string): string {
+  let end = path.length;
+  while (end > 0 && path[end - 1] === '/') end--;
+  return path.slice(0, end) || '/';
+}
 
 function isCurrentHref(href: string, url: SiteLinkContext['url']): boolean {
   if (!url) return false;

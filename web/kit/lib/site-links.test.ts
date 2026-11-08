@@ -27,3 +27,9 @@ test.each([
 ] as const)('%s marks %j current', (url, want) => {
   expect(currentKeys(url)).toEqual([...want]);
 });
+
+test('normalizes long trailing slash runs without changing path identity', () => {
+  expect(currentKeys(`https://itsbagelbot.com/pricing${'/'.repeat(100_000)}`)).toEqual(['pricing']);
+  expect(currentKeys(`https://itsbagelbot.com/pricing${'/'.repeat(100_000)}other`)).toEqual([]);
+  expect(currentKeys('https://stats.itsbagelbot.com////')).toEqual(['stats']);
+});
