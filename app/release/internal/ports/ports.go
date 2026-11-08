@@ -192,7 +192,6 @@ type Job struct {
 type GitHub interface {
 	BranchHead(ctx context.Context, branch Branch) (deploy.SHA, error)
 	MoveBranch(ctx context.Context, branch Branch, sha deploy.SHA) error
-	BranchHasTreeOf(ctx context.Context, branch Branch, sha deploy.SHA) (bool, error)
 	LatestTag(ctx context.Context) (TagRef, error)
 	Tag(ctx context.Context, name deploy.Version) (TagRef, bool, error)
 	UpsertTag(ctx context.Context, spec TagSpec) (TagRef, error)

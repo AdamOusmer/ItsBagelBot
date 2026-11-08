@@ -125,6 +125,13 @@ It is based on Twitch's Conduit architecture for scalability and reliability. Tw
 - **Gossip** (Go): Gateway for external APIs, with caching, upstream budgets and credential resolution. A WARP sidecar image serves its untrusted HTTP route.
 - **Outgress Services** (Go): Twitch Outgress sends messages and runs Twitch API actions, applying per-broadcaster rate limiting and the bot account token lifecycle. Discord Outgress performs Discord REST actions.
 - **Release and Flux** (Go, GitHub Actions): The Release workflow tags, builds and pins a release, then moves the `deploy` branch, which Flux syncs to the cluster. clusterops rolls the consoles on TLS renewal and keeps NATS account claims in sync.
+  Pin changes merge into `main` before promotion. `deploy` points directly at that
+  main commit and only fast-forwards; it never receives its own pin or promotion
+  commits. Rollbacks merge a new pin PR into `main` and promote that commit.
+  Reapply must also target a main commit at or ahead of the current deployment.
+  If legacy deploy history diverges, reconcile it into `main` with a merge that
+  preserves main's tree and both parents, then promote. Squashing that history
+  reconciliation would lose the ancestry needed for fast-forward promotion.
 - **Web Interface** (SvelteKit, Astro, Bun): The dashboard and admin console use SvelteKit. The marketing site and documentation use Astro. All run in a Bun workspace.
 
 
