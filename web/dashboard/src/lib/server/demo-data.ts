@@ -429,11 +429,11 @@ const DEMO_EPOCH = Date.parse('2026-01-01T00:00:00Z');
 
 export function demoStats(now: number): PublicStats {
   const secs = (now - DEMO_EPOCH) / 1000;
-  const msgRate = 3;
-  const eventRate = 137 + 18 * Math.sin(now / 60_000 + 1.7);
+  const msgRate = 14;
+  const eventRate = 25;
   return {
     messages_total: String(Math.floor(1_508_000_000 + secs * msgRate)),
-    events_total: String(Math.floor(2_430_000_000 + secs * 137)),
+    events_total: String(Math.floor(2_430_000_000 + secs * eventRate)),
     sampled_at: now,
     msg_rate: msgRate,
     event_rate: eventRate,

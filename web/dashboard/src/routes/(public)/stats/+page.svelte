@@ -17,7 +17,7 @@
   import type { PageData } from './$types';
   import { SITE, commandsHref } from '@bagel/kit/site-links';
   import { exactDisplay, formatStatTotal, validBoards, validStats } from '#lib/stats-values';
-  import { COUNTER_BUFFER_MS, StatsCounter } from '#lib/stats-odometer';
+  import { StatsCounter } from '#lib/stats-odometer';
   import { isLoginShape } from '#lib/public-login';
   import { formatCounterValue } from '@bagel/kit/validation';
 
@@ -47,13 +47,12 @@
 
   let boards = $state(untrack(() => validBoards(data.boards) ?? emptyBoards()));
 
-  // Play one update behind the source so the total and its rate share a
-  // linear timeline. Sampling timestamps keep cached polls from restarting it.
-  const seedAt = seed.sampled_at ?? 0;
-  const counter = (total: string, rate: number | null, at: number, minimum = 0) =>
-    new StatsCounter(exactDisplay(Number(total)), rate, at, minimum);
-  let messages = counter(seed.messages_total, seed.msg_rate_now ?? seed.msg_rate, seedAt);
-  let events = counter(seed.events_total, seed.event_rate_now ?? seed.event_rate, seedAt);
+  // The total is seeded once per page load. Fetches update the rate, while
+  // the clock adds that rate per second independently of the polling cadence.
+  const counter = (total: string, rate: number | null, now: number) =>
+    new StatsCounter(exactDisplay(Number(total)), rate, now);
+  let messages = counter(seed.messages_total, seed.msg_rate_now ?? seed.msg_rate, 0);
+  let events = counter(seed.events_total, seed.event_rate_now ?? seed.event_rate, 0);
 
   function frame(now: number) {
     const msg = messages.read(now);
@@ -64,27 +63,16 @@
     };
   }
 
-  function exact(snapshot: typeof seed) {
-    return {
-      messages: exactDisplay(Number(snapshot.messages_total)),
-      events: exactDisplay(Number(snapshot.events_total)),
-      msgRate: snapshot.msg_rate_now ?? snapshot.msg_rate,
-      eventRate: snapshot.event_rate_now ?? snapshot.event_rate
-    };
-  }
-
-  let display = $state(frame(seedAt));
-  let clockOffset = 0; // server sampling clock minus performance.now()
+  let display = $state(frame(0));
+  let mountedAt = 0;
   let reduced = false;
-  let missedWhileHidden = false;
 
   function tick(now: number): boolean {
-    // Projection expires on the source clock, even during a degraded response.
-    display = frame(now + clockOffset);
+    display = frame(now - mountedAt);
     return true;
   }
 
-  function applySnapshot(raw: unknown, resync = false): void {
+  function applySnapshot(raw: unknown): void {
     const next = validStats(raw);
     if (!next) {
       degraded = true;
@@ -92,21 +80,19 @@
     }
     degraded = next.degraded;
     if (next.degraded) return;
-    const at = next.sampled_at ?? Date.now();
-    if (live.sampled_at != null && (at < live.sampled_at || (!resync && at === live.sampled_at))) return;
-    const now = performance.now();
-    // A cached HTML seed or a resumed view starts at the latest sample. Keep
-    // printed totals monotonic, except when the source counter actually resets.
-    if (resync || live.degraded || at > now + clockOffset + COUNTER_BUFFER_MS) {
-      clockOffset = at - now;
-      messages = counter(next.messages_total, next.msg_rate_now ?? next.msg_rate, at, display.messages);
-      events = counter(next.events_total, next.event_rate_now ?? next.event_rate, at, display.events);
+    if (next.sampled_at != null && next.sampled_at <= (live.sampled_at ?? -1)) return;
+    const now = performance.now() - mountedAt;
+    // If SSR was unavailable, the first healthy fetch supplies the initial
+    // totals. After that, only a page reload reconciles them with the server.
+    if (live.degraded) {
+      messages = counter(next.messages_total, next.msg_rate_now ?? next.msg_rate, now);
+      events = counter(next.events_total, next.event_rate_now ?? next.event_rate, now);
     } else {
-      messages.push(exactDisplay(Number(next.messages_total)), next.msg_rate_now ?? next.msg_rate, at);
-      events.push(exactDisplay(Number(next.events_total)), next.event_rate_now ?? next.event_rate, at);
+      messages.update(next.msg_rate_now, now, next.msg_rate);
+      events.update(next.event_rate_now, now, next.event_rate);
     }
     live = next;
-    display = reduced ? exact(next) : frame(now + clockOffset);
+    display = frame(now);
   }
   async function fetchJson(path: string): Promise<unknown> {
     const res = await fetch(path, { headers: { accept: 'application/json' } });
@@ -114,37 +100,27 @@
     return res.json();
   }
 
-  function applyStats(result: PromiseSettledResult<unknown>, resync: boolean): void {
-    if (result.status !== 'fulfilled') return;
-    applySnapshot(result.value, resync);
+  function applyStats(result: PromiseSettledResult<unknown>): void {
+    if (result.status === 'fulfilled') applySnapshot(result.value);
   }
 
   async function poll(): Promise<boolean> {
-    if (document.hidden) {
-      missedWhileHidden = true;
-      return false;
-    }
-    const resync = missedWhileHidden;
-    missedWhileHidden = false;
+    if (document.hidden) return false;
     const [stats, next] = await Promise.allSettled([fetchJson('/stats/data'), fetchJson('/stats/boards')]);
-    applyStats(stats, resync);
+    applyStats(stats);
     if (next.status === 'fulfilled') boards = validBoards(next.value) ?? emptyBoards();
     return false;
   }
 
   onMount(() => {
     reduced = reduceMotion.matches;
-    clockOffset = seedAt - performance.now();
-    if (reduced) display = exact(live);
+    mountedAt = performance.now();
     let stopOdometer = reduced ? () => {} : subscribe(tick);
     const onMotionChange = () => {
       reduced = reduceMotion.matches;
       stopOdometer();
-      if (reduced) display = exact(live);
-      else {
-        applySnapshot(live, true);
-        stopOdometer = subscribe(tick);
-      }
+      display = frame(performance.now() - mountedAt);
+      if (!reduced) stopOdometer = subscribe(tick);
     };
     reduceMotion.addEventListener('change', onMotionChange);
     const stopPoll = livePoll(poll, {

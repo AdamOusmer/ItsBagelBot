@@ -4,121 +4,99 @@
 import { describe, expect, test } from 'bun:test';
 import { StatsCounter } from './stats-odometer';
 
-describe('stats counter playback', () => {
-  test('the 3 msg/s preview adds three every second across updates', () => {
-    const counter = new StatsCounter(1_500_000_000, 3, 0);
-    let previous = counter.read(0).total;
-    for (let second = 1; second <= 20; second++) {
-      if (second % 2 === 0) counter.push(1_500_000_000 + second * 3, 3, second * 1000);
-      const current = counter.read(second * 1000);
-      expect(current.total - previous).toBe(3);
-      expect(current.rate).toBe(3);
-      previous = current.total;
-    }
-  });
-
-  test.each([30, 60, 144])('14 msg/s adds fourteen in EVERY second at %i fps, across snapshot updates', (fps) => {
-    const counter = new StatsCounter(1_500_000_000, 14, 0);
-    let previous = counter.read(0).total;
-    for (let second = 1; second <= 20; second++) {
-      for (let frame = 1; frame <= fps; frame++) {
-        const now = (second - 1) * 1000 + frame * 1000 / fps;
-        if (frame === fps && second % 2 === 0) {
-          counter.push(1_500_000_000 + second * 14, 14, now);
+describe('stats counter rate clock', () => {
+  for (const rate of [1, 3, 14, 25]) {
+    test.each([30, 60, 144])(`${rate}/s adds ${rate} in EACH single second at %i fps with two-second polling`, (fps) => {
+      const counter = new StatsCounter(1_500_000_000, rate, 0);
+      let previous = counter.read(0).total;
+      for (let second = 1; second <= 20; second++) {
+        for (let frame = 1; frame <= fps; frame++) {
+          const now = (second - 1) * 1000 + frame * 1000 / fps;
+          if (frame === fps && second % 2 === 0) counter.update(rate, now);
+          const reading = counter.read(now);
+          expect(reading.rate).toBe(rate);
+          expect(reading.total).toBeCloseTo(1_500_000_000 + rate * now / 1000, 5);
         }
-        expect(counter.read(now).rate).toBe(14);
+        const current = counter.read(second * 1000).total;
+        expect(current - previous).toBe(rate);
+        previous = current;
       }
-      const current = counter.read(second * 1000).total;
-      expect(current - previous).toBe(14);
-      previous = current;
+    });
+  }
+
+  test('fourteen means +14 after one second, +28 after two, and +42 after three', () => {
+    const counter = new StatsCounter(1000, 14, 0);
+    expect(counter.read(1000)).toEqual({ total: 1014, rate: 14 });
+    expect(counter.read(2000)).toEqual({ total: 1028, rate: 14 });
+    expect(counter.read(3000)).toEqual({ total: 1042, rate: 14 });
+  });
+
+  test('missing fetches do not expire the last known rate, even after minutes', () => {
+    const counter = new StatsCounter(1000, 14, 0);
+    expect(counter.read(10_000)).toEqual({ total: 1140, rate: 14 });
+    expect(counter.read(60_000)).toEqual({ total: 1840, rate: 14 });
+    expect(counter.read(300_000)).toEqual({ total: 5200, rate: 14 });
+  });
+
+  test('unknown rates preserve the latest value and every elapsed second', () => {
+    const counter = new StatsCounter(1000, 14, 0);
+    for (let second = 2; second <= 60; second += 2) {
+      counter.update(null, second * 1000);
+      expect(counter.read(second * 1000)).toEqual({ total: 1000 + second * 14, rate: 14 });
     }
   });
 
-  test('source timestamps absorb arrival jitter and duplicate cached frames without changing speed', () => {
-    const counter = new StatsCounter(10_000, 14, 0);
-    counter.push(10_000, 14, 0); // same cached snapshot at connection open
-    expect(counter.read(2200)).toEqual({ total: 10_002.8, rate: 14 });
-    counter.push(10_028, 14, 2000); // arrives 200 ms late
-    counter.push(10_028, 14, 2000); // cached replay, not another sample
-    expect(counter.read(3000)).toEqual({ total: 10_014, rate: 14 });
-    counter.push(10_056, 14, 4000); // arrives early enough for buffered playback
-    counter.push(10_028, 14, 2000); // late older response cannot reset anything
-    expect(counter.read(5000)).toEqual({ total: 10_042, rate: 14 });
-  });
-
-  test('rate changes play linearly, and the badge equals the actual growth in each interval', () => {
+  test('a missing current rate cannot replace the last known rate with an average of zero', () => {
     const counter = new StatsCounter(1000, 14, 0);
-    counter.push(1028, 14, 2000);
-    counter.push(1068, 20, 4000);
-    let previous = counter.read(4000).total;
-    for (const now of [4500, 5000, 5500, 6000]) {
-      const reading = counter.read(now);
-      expect(reading.total - previous).toBe(10);
-      expect(reading.rate).toBe(20);
-      previous = reading.total;
-    }
+    counter.update(null, 2000, 0);
+    expect(counter.read(3000)).toEqual({ total: 1042, rate: 14 });
   });
 
-  test('a five-second fallback poll keeps steady growth between responses', () => {
+  test('a real zero stops immediately and missing data keeps zero until a new rate arrives', () => {
     const counter = new StatsCounter(1000, 14, 0);
-    expect(counter.read(4000)).toEqual({ total: 1028, rate: 14 });
-    counter.push(1070, 14, 5000);
-    expect(counter.read(5000)).toEqual({ total: 1042, rate: 14 });
-    expect(counter.read(9000)).toEqual({ total: 1098, rate: 14 });
-    counter.push(1140, 14, 10_000);
-    expect(counter.read(10_000)).toEqual({ total: 1112, rate: 14 });
+    counter.update(0, 2500);
+    expect(counter.read(2500)).toEqual({ total: 1035, rate: 0 });
+    counter.update(null, 4000, 20);
+    expect(counter.read(60_000)).toEqual({ total: 1035, rate: 0 });
+    counter.update(3, 60_000);
+    expect(counter.read(61_000)).toEqual({ total: 1038, rate: 3 });
   });
 
-  test('a stalled or degraded stream stops projecting and reports zero growth', () => {
+  test('rate changes finish elapsed time at the old rate without easing or losing fractions', () => {
     const counter = new StatsCounter(1000, 14, 0);
-    expect(counter.read(9000)).toEqual({ total: 1098, rate: 14 });
-    expect(counter.read(10_000)).toEqual({ total: 1112, rate: 0 });
-    counter.push(1000, 14, 0); // cached data does not extend freshness
-    expect(counter.read(60_000)).toEqual({ total: 1112, rate: 0 });
-    counter.push(1840, 14, 60_000);
-    expect(counter.read(60_000)).toEqual({ total: 1812, rate: 14 });
+    counter.update(5, 1500);
+    expect(counter.read(1500)).toEqual({ total: 1021, rate: 5 });
+    expect(counter.read(2000)).toEqual({ total: 1023.5, rate: 5 });
+    expect(counter.read(2500)).toEqual({ total: 1026, rate: 5 });
   });
 
-  test('zero and unknown rates do not invent growth', () => {
-    const unknown = new StatsCounter(1000, null, 0);
-    expect(unknown.read(1000)).toEqual({ total: 1000, rate: null });
-    unknown.push(1028, 14, 2000);
-    expect(unknown.read(3000)).toEqual({ total: 1014, rate: 14 });
-    const idle = new StatsCounter(1000, 0, 0);
-    idle.push(1000, 0, 2000);
-    expect(idle.read(3000)).toEqual({ total: 1000, rate: 0 });
+  test('an unknown initial rate stays pending until a measurement exists', () => {
+    const counter = new StatsCounter(1000, null, 0);
+    expect(counter.read(1000)).toEqual({ total: 1000, rate: null });
+    counter.update(null, 2000, 7);
+    expect(counter.read(3000)).toEqual({ total: 1007, rate: 7 });
+    counter.update(14, 3000);
+    expect(counter.read(4000)).toEqual({ total: 1021, rate: 14 });
   });
 
-  test('fractional event rates accumulate instead of disappearing in per-frame rounding', () => {
+  test('fractional event rates accumulate without per-frame rounding', () => {
     const counter = new StatsCounter(1000, 0.25, 0);
-    const start = counter.read(0).total;
-    for (let now = 1000; now <= 8000; now += 1000) counter.read(now);
-    expect(counter.read(8000).total - start).toBe(2);
+    for (let now = 0; now < 8000; now += 1000 / 60) counter.read(now);
+    expect(counter.read(8000)).toEqual({ total: 1002, rate: 0.25 });
   });
 
-  test('late downward corrections hold without reporting a false positive rate', () => {
+  test('resuming a suspended tab counts the full elapsed time at the latest rate', () => {
     const counter = new StatsCounter(1000, 14, 0);
-    expect(counter.read(5000).total).toBe(1042);
-    counter.push(1028, 0, 5000);
-    expect(counter.read(5000)).toEqual({ total: 1042, rate: 0 });
-    counter.push(1100, 14, 7000);
-    expect(counter.read(8000).total).toBeGreaterThan(1042);
+    counter.read(1000);
+    counter.update(14, 120_000);
+    expect(counter.read(121_000)).toEqual({ total: 2694, rate: 14 });
   });
 
-  test('a genuine counter reset can lower the total and then resume', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    counter.read(2000);
-    counter.push(10, 2, 2000);
-    expect(counter.read(2000)).toEqual({ total: 10, rate: 0 });
-    counter.push(14, 2, 4000);
-    expect(counter.read(5000)).toEqual({ total: 12, rate: 2 });
-  });
-
-  test('resuming from an exact snapshot never rolls backward to refill the buffer', () => {
-    const counter = new StatsCounter(1000, 14, 0, 1000);
-    expect(counter.read(0)).toEqual({ total: 1000, rate: 0 });
-    expect(counter.read(1000)).toEqual({ total: 1000, rate: 0 });
-    counter.push(1028, 14, 2000);
-    expect(counter.read(3000)).toEqual({ total: 1014, rate: 14 });
+  test('a reload seeds the server total instead of carrying over the old projection', () => {
+    const beforeReload = new StatsCounter(1000, 14, 0);
+    expect(beforeReload.read(60_000).total).toBe(1840);
+    const afterReload = new StatsCounter(1500, 14, 0);
+    expect(afterReload.read(0).total).toBe(1500);
+    expect(afterReload.read(1000)).toEqual({ total: 1514, rate: 14 });
   });
 });
