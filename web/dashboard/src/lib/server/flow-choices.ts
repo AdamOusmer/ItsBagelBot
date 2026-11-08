@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { ownedCooldownNames, ownedCountdownNames } from '@bagel/kit/automations';
+import { ownedCooldownNames, ownedCountdownNames, type Definition } from '@bagel/kit/automations';
 import { logger } from '@bagel/kit/server/logger';
 import { unavailable, type ChoiceList, type ChoiceSource } from '#lib/flow/choices';
 import { specFor } from '#lib/flow/model';
@@ -38,30 +38,16 @@ export const manageableRewardChoices = (userId: BroadcasterId) =>
 export const counterChoices = (userId: BroadcasterId) =>
   settled('counters', async () => ({ options: (await listCounters(userId)).map((counter) => ({ value: counter.name, label: counter.name })) }));
 
-// Every recipe's own cooldown condition can own a name; cooldown_add picks among them by name alone, so a channel
-// naming the same timer twice just offers one option for it, labelled with whichever recipe comes first.
-export const namedCooldownChoices = (userId: BroadcasterId) =>
-  settled('namedCooldowns', async () => {
-    const automations = await listAutomations(userId);
-    const seen = new Set<string>();
-    const options: ChoiceList['options'] = [];
-    for (const automation of automations) {
-      for (const name of ownedCooldownNames(automation.definition)) {
-        if (seen.has(name)) continue;
-        seen.add(name);
-        options.push({ value: name, label: `${name}, in ${automation.name}` });
-      }
-    }
-    return { options };
-  });
+type NameCollector = (definition: Definition) => string[];
 
-export const namedCountdownChoices = (userId: BroadcasterId) =>
-  settled('namedCountdowns', async () => {
+// A name used by several recipes appears once, labelled with the first recipe that owns it.
+function namedTimerChoices(userId: BroadcasterId, source: ChoiceSource, namesOf: NameCollector): Promise<ChoiceList> {
+  return settled(source, async () => {
     const automations = await listAutomations(userId);
     const seen = new Set<string>();
     const options: ChoiceList['options'] = [];
     for (const automation of automations) {
-      for (const name of ownedCountdownNames(automation.definition)) {
+      for (const name of namesOf(automation.definition)) {
         if (seen.has(name)) continue;
         seen.add(name);
         options.push({ value: name, label: `${name}, in ${automation.name}` });
@@ -69,6 +55,10 @@ export const namedCountdownChoices = (userId: BroadcasterId) =>
     }
     return { options };
   });
+}
+
+export const namedCooldownChoices = (userId: BroadcasterId) => namedTimerChoices(userId, 'namedCooldowns', ownedCooldownNames);
+export const namedCountdownChoices = (userId: BroadcasterId) => namedTimerChoices(userId, 'namedCountdowns', ownedCountdownNames);
 
 export const sceneChoices = (userId: BroadcasterId, target: GoveeTarget) =>
   settled('scenes', async () => {

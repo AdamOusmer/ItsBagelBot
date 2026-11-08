@@ -11,16 +11,23 @@ const start = { type: 'countdown_start', params: { name: 'Subathon', seconds: 36
 const recipe: Definition = { version: 1, trigger: { type: 'command', params: { name: '!start' } }, conditions: [{ type: 'perm', params: { level: 'mod' } }], actions: [start] };
 const empty = { count: 0, names: [], commands: [], alerts: [] };
 
+function throughBuilder(definition: Definition): Definition {
+  const graph = definitionToFlow(definition, { id: 'f', name: 'one', enabled: true });
+  if (!graph.ok) throw new Error(JSON.stringify(graph.issues));
+  const result = flowToDefinition(graph.value);
+  if (!result.ok) throw new Error(JSON.stringify(result.issues));
+  return result.value;
+}
+
 describe('countdowns', () => {
-  test('start and finished trigger survive the builder', () => {
-    for (const def of [recipe, { version: 1, trigger: { type: 'countdown', params: { name: 'subathon' } }, actions: [{ type: 'chat', params: { text: 'Done!' } }] }]) {
-      const graph = definitionToFlow(def, { id: 'f', name: 'one', enabled: true });
-      if (!graph.ok) throw new Error(JSON.stringify(graph.issues));
-      const result = flowToDefinition(graph.value);
-      if (!result.ok) throw new Error(JSON.stringify(result.issues));
-      expect(result.value.trigger.type).toBe(def.trigger.type);
-      if (def === recipe) expect(result.value.actions?.[0]?.params).toEqual({ ...start.params, name: 'subathon' });
-    }
+  test('start survives the builder', () => {
+    const result = throughBuilder(recipe);
+    expect(result.trigger.type).toBe(recipe.trigger.type);
+    expect(result.actions?.[0]?.params).toEqual({ ...start.params, name: 'subathon' });
+  });
+  test('finished trigger survives the builder', () => {
+    const definition: Definition = { version: 1, trigger: { type: 'countdown', params: { name: 'subathon' } }, actions: [{ type: 'chat', params: { text: 'Done!' } }] };
+    expect(throughBuilder(definition).trigger).toEqual(definition.trigger);
   });
   test('finds nested starts and detects collisions with legacy cooldown commands', () => {
     const def: Definition = { ...recipe, conditions: [{ type: 'perm', params: { level: 'mod' } }, { type: 'cooldown', params: { global_s: 5, left_command: '!LEFT' } }], actions: [{ type: 'loop', params: { times: '2', actions: [start] } }] };

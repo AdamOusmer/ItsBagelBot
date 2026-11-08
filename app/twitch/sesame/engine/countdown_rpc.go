@@ -10,8 +10,8 @@ import (
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 )
 
-func (c *RecipeStateRPC) countdownWrite(ctx context.Context, verb string, channel uint64, name string, seconds int64, operation string) (CountdownResult, error) {
-	r, err := recipeStateCall[modulesrpc.CountdownReply](ctx, c, "countdown."+verb, modulesrpc.CountdownRequest{UserID: fmtID(channel), Name: name, Seconds: seconds, OperationID: operation})
+func (c *RecipeStateRPC) countdownWrite(ctx context.Context, verb string, mutation CountdownMutation) (CountdownResult, error) {
+	r, err := recipeStateCall[modulesrpc.CountdownReply](ctx, c, "countdown."+verb, modulesrpc.CountdownRequest{UserID: fmtID(mutation.Ref.BroadcasterID), Name: mutation.Ref.Name, Seconds: mutation.Seconds, OperationID: mutation.OperationID})
 	if err != nil {
 		return CountdownResult{}, err
 	}
@@ -20,14 +20,14 @@ func (c *RecipeStateRPC) countdownWrite(ctx context.Context, verb string, channe
 	}
 	return CountdownResult{Found: r.Found, Capped: r.Capped, ExpiresAtMS: r.ExpiresAtMS}, nil
 }
-func (c *RecipeStateRPC) StartCountdown(ctx context.Context, channel uint64, name string, seconds int64, operation string) (CountdownResult, error) {
-	return c.countdownWrite(ctx, "start", channel, name, seconds, operation)
+func (c *RecipeStateRPC) StartCountdown(ctx context.Context, mutation CountdownMutation) (CountdownResult, error) {
+	return c.countdownWrite(ctx, "start", mutation)
 }
-func (c *RecipeStateRPC) AddCountdown(ctx context.Context, channel uint64, name string, seconds int64, operation string) (CountdownResult, error) {
-	return c.countdownWrite(ctx, "add", channel, name, seconds, operation)
+func (c *RecipeStateRPC) AddCountdown(ctx context.Context, mutation CountdownMutation) (CountdownResult, error) {
+	return c.countdownWrite(ctx, "add", mutation)
 }
-func (c *RecipeStateRPC) PeekCountdown(ctx context.Context, channel uint64, name string) (CountdownResult, error) {
-	return c.countdownWrite(ctx, "peek", channel, name, 0, "")
+func (c *RecipeStateRPC) PeekCountdown(ctx context.Context, ref CountdownRef) (CountdownResult, error) {
+	return c.countdownWrite(ctx, "peek", CountdownMutation{Ref: ref})
 }
 func (c *RecipeStateRPC) ClaimCountdown(ctx context.Context) (CountdownDue, bool, error) {
 	r, err := recipeStateCall[modulesrpc.CountdownDeliveryReply](ctx, c, "countdown.claim", modulesrpc.CountdownDeliveryRequest{})
@@ -41,9 +41,11 @@ func (c *RecipeStateRPC) ClaimCountdown(ctx context.Context) (CountdownDue, bool
 	d := r.Delivery
 	return CountdownDue{BroadcasterID: id, Name: d.Name, Generation: d.Generation, Token: d.Token, ExpiresAtMS: d.ExpiresAtMS, Progress: d.Progress}, true, nil
 }
-func (c *RecipeStateRPC) AckCountdown(ctx context.Context, d CountdownDue) error {
-	req := modulesrpc.CountdownDeliveryRequest{Delivery: modulesrpc.CountdownDelivery{UserID: fmtID(d.BroadcasterID), Name: d.Name, Generation: d.Generation, Token: d.Token, ExpiresAtMS: d.ExpiresAtMS}}
-	r, err := recipeStateCall[modulesrpc.CountdownDeliveryReply](ctx, c, "countdown.ack", req)
+func countdownDeliveryRPC(d CountdownDue) modulesrpc.CountdownDelivery {
+	return modulesrpc.CountdownDelivery{UserID: fmtID(d.BroadcasterID), Name: d.Name, Generation: d.Generation, Token: d.Token, ExpiresAtMS: d.ExpiresAtMS}
+}
+func (c *RecipeStateRPC) countdownDeliveryCall(ctx context.Context, verb string, req any) error {
+	r, err := recipeStateCall[modulesrpc.CountdownDeliveryReply](ctx, c, "countdown."+verb, req)
 	if err != nil {
 		return err
 	}
@@ -52,15 +54,9 @@ func (c *RecipeStateRPC) AckCountdown(ctx context.Context, d CountdownDue) error
 	}
 	return nil
 }
-
-func (c *RecipeStateRPC) ProgressCountdown(ctx context.Context, d CountdownDue, key, status string) error {
-	req := modulesrpc.CountdownProgressRequest{Delivery: modulesrpc.CountdownDelivery{UserID: fmtID(d.BroadcasterID), Name: d.Name, Generation: d.Generation, Token: d.Token, ExpiresAtMS: d.ExpiresAtMS}, Key: key, Status: status}
-	r, err := recipeStateCall[modulesrpc.CountdownDeliveryReply](ctx, c, "countdown.progress", req)
-	if err != nil {
-		return err
-	}
-	if !r.Found {
-		return errors.New("countdown lease lost")
-	}
-	return nil
+func (c *RecipeStateRPC) AckCountdown(ctx context.Context, d CountdownDue) error {
+	return c.countdownDeliveryCall(ctx, "ack", modulesrpc.CountdownDeliveryRequest{Delivery: countdownDeliveryRPC(d)})
+}
+func (c *RecipeStateRPC) ProgressCountdown(ctx context.Context, d CountdownDue, checkpoint CountdownCheckpoint) error {
+	return c.countdownDeliveryCall(ctx, "progress", modulesrpc.CountdownProgressRequest{Delivery: countdownDeliveryRPC(d), Key: checkpoint.Key, Status: checkpoint.Status})
 }

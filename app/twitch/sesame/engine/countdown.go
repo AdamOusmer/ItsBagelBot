@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/utils"
 	"go.uber.org/zap"
 )
@@ -45,13 +46,23 @@ type CountdownDue struct {
 	ExpiresAtMS             int64
 	Progress                map[string]string
 }
+type CountdownRef struct {
+	BroadcasterID uint64
+	Name          string
+}
+type CountdownMutation struct {
+	Ref         CountdownRef
+	Seconds     int64
+	OperationID string
+}
+type CountdownCheckpoint struct{ Key, Status string }
 type CountdownStore interface {
-	StartCountdown(context.Context, uint64, string, int64, string) (CountdownResult, error)
-	AddCountdown(context.Context, uint64, string, int64, string) (CountdownResult, error)
-	PeekCountdown(context.Context, uint64, string) (CountdownResult, error)
+	StartCountdown(context.Context, CountdownMutation) (CountdownResult, error)
+	AddCountdown(context.Context, CountdownMutation) (CountdownResult, error)
+	PeekCountdown(context.Context, CountdownRef) (CountdownResult, error)
 	ClaimCountdown(context.Context) (CountdownDue, bool, error)
 	AckCountdown(context.Context, CountdownDue) error
-	ProgressCountdown(context.Context, CountdownDue, string, string) error
+	ProgressCountdown(context.Context, CountdownDue, CountdownCheckpoint) error
 }
 
 func (x *actionExec) countdownStart(s step, p automation.CountdownStartAction) error {
@@ -62,7 +73,7 @@ func (x *actionExec) countdownStart(s step, p automation.CountdownStartAction) e
 	if x.p.automations.Countdowns == nil {
 		return failure("no_countdowns")
 	}
-	result, err := x.p.automations.Countdowns.StartCountdown(x.ctx, x.run.BroadcasterID, name, int64(p.Seconds), nestedReplayKey(x.run.replayKey(), s.EffectKey+x.iter))
+	result, err := x.p.automations.Countdowns.StartCountdown(x.ctx, x.countdownMutation(s, name, int64(p.Seconds)))
 	if err != nil {
 		if errors.Is(err, ErrVariableLimit) {
 			return limited("countdown_limit")
@@ -84,7 +95,7 @@ func (x *actionExec) countdownAdd(s step, p automation.CountdownAddAction) error
 	if x.p.automations.Countdowns == nil {
 		return failure("no_countdowns")
 	}
-	result, err := x.p.automations.Countdowns.AddCountdown(x.ctx, x.run.BroadcasterID, name, seconds, nestedReplayKey(x.run.replayKey(), s.EffectKey+x.iter))
+	result, err := x.p.automations.Countdowns.AddCountdown(x.ctx, x.countdownMutation(s, name, seconds))
 	if err != nil {
 		if errors.Is(err, ErrVariableLimit) {
 			return limited("countdown_limit")
@@ -101,6 +112,10 @@ func (x *actionExec) countdownAdd(s step, p automation.CountdownAddAction) error
 	return succeeded(strconv.FormatInt(seconds, 10) + "s")
 }
 
+func (x *actionExec) countdownMutation(s step, name string, seconds int64) CountdownMutation {
+	return CountdownMutation{Ref: CountdownRef{BroadcasterID: x.run.BroadcasterID, Name: name}, Seconds: seconds, OperationID: nestedReplayKey(x.run.replayKey(), s.EffectKey+x.iter)}
+}
+
 func (p *Pipeline) startCountdownWorker() {
 	if p.automations.Countdowns == nil {
 		return
@@ -108,104 +123,169 @@ func (p *Pipeline) startCountdownWorker() {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.countdownCancel = cancel
 	p.countdownDone = make(chan struct{})
-	go func() {
-		defer close(p.countdownDone)
-		for ctx.Err() == nil {
-			call, done := context.WithTimeout(ctx, 10*time.Second)
-			due, found, err := p.automations.Countdowns.ClaimCountdown(call)
-			done()
-			if err != nil && ctx.Err() == nil {
-				p.log.Warn("automations: countdown claim failed", zap.Error(err))
-			}
-			if err == nil && found {
-				call, done = context.WithTimeout(ctx, 45*time.Second)
-				err = p.fireCountdown(call, due)
-				if err == nil {
-					err = p.automations.Countdowns.AckCountdown(call, due)
-				}
-				done()
-				if err != nil && ctx.Err() == nil {
-					p.log.Warn("automations: countdown delivery failed", zap.Error(err))
-				}
-				if err == nil {
-					continue
-				}
-			}
-			if !sleepContext(ctx, time.Second) {
-				return
-			}
+	go p.countdownLoop(ctx)
+}
+
+func (p *Pipeline) countdownLoop(ctx context.Context) {
+	defer close(p.countdownDone)
+	for ctx.Err() == nil {
+		if p.pollCountdown(ctx) {
+			continue
 		}
-	}()
+		if !sleepContext(ctx, time.Second) {
+			return
+		}
+	}
+}
+
+func (p *Pipeline) pollCountdown(ctx context.Context) bool {
+	call, done := context.WithTimeout(ctx, 10*time.Second)
+	due, found, err := p.automations.Countdowns.ClaimCountdown(call)
+	done()
+	if err != nil {
+		p.logCountdownError(ctx, "automations: countdown claim failed", err)
+		return false
+	}
+	if !found {
+		return false
+	}
+	err = p.deliverCountdown(ctx, due)
+	if err != nil {
+		p.logCountdownError(ctx, "automations: countdown delivery failed", err)
+	}
+	return err == nil
+}
+
+func (p *Pipeline) logCountdownError(ctx context.Context, message string, err error) {
+	if ctx.Err() == nil {
+		p.log.Warn(message, zap.Error(err))
+	}
+}
+
+func (p *Pipeline) deliverCountdown(ctx context.Context, due CountdownDue) error {
+	call, done := context.WithTimeout(ctx, 45*time.Second)
+	defer done()
+	if err := p.fireCountdown(call, due); err != nil {
+		return err
+	}
+	return p.automations.Countdowns.AckCountdown(call, due)
+}
+
+type countdownDelivery struct {
+	p    *Pipeline
+	due  CountdownDue
+	user projection.User
 }
 
 func (p *Pipeline) fireCountdown(ctx context.Context, due CountdownDue) error {
-	if p.automations.Source == nil {
-		return errors.New("no automation source")
-	}
-	u, err := p.proj.User(ctx, due.BroadcasterID)
-	if err != nil {
+	user, allowed, err := p.countdownChannel(ctx, due.BroadcasterID)
+	if err != nil || !allowed {
 		return err
-	}
-	if u.Banned || !u.IsActive {
-		return nil
-	}
-	if p.automationsBeta && !u.Premium() {
-		return nil
-	}
-	regress := module.RegressStandard
-	if u.Premium() {
-		regress = module.RegressPremium
-	}
-	_, state, err := (ModuleLookup{Proj: p.proj, BroadcasterID: due.BroadcasterID, Name: AutomationsModuleName, Absent: ModuleOff}).Resolve(ctx)
-	if err != nil {
-		return err
-	}
-	if state != ModuleOn {
-		return nil
 	}
 	index, err := p.automations.Source.AutomationIndex(ctx, due.BroadcasterID)
 	if err != nil {
 		return err
 	}
-	identity := "countdown:" + strconv.FormatUint(due.BroadcasterID, 10) + ":" + due.Name + ":" + due.Generation
+	delivery := countdownDelivery{p: p, due: due, user: user}
 	for _, trigger := range index.Countdown(due.Name) {
-		key := countdownProgressKey(trigger.Plan.Automation.ID, trigger.Plan.Automation.Revision)
-		state := due.Progress[key]
-		if state == "completed" {
-			continue
-		}
-		id, err := utils.NewID()
-		if err != nil {
-			return err
-		}
-		admitted := &countdownAdmission{}
-		run := &AutomationRun{CountdownAdmission: admitted, Plan: trigger.Plan, BroadcasterID: due.BroadcasterID, Channel: strconv.FormatUint(due.BroadcasterID, 10), Viewer: Viewer{ID: due.BroadcasterID}, Source: "countdown", ID: id.String(), Identity: identity, Regress: regress, Locale: u.Locale, Event: map[string]string{"name": due.Name}}
-		run.countdownSkipConditions = state == "conditions_passed"
-		run.countdownConditionsPassed = func() error { return p.automations.Countdowns.ProgressCountdown(ctx, due, key, "conditions_passed") }
-		out := p.detachedEmit(ctx, due.BroadcasterID, u.Locale, run.replayKey())
-		p.runAutomation(ctx, run, out.emit)
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if run.Record.Outcome == automationrpc.OutcomeFailed || run.Record.Reason == queueReasonFull || run.Record.Reason == queueReasonTimeout {
-			return errors.New("countdown run failed")
-		}
-		for _, action := range run.Record.Actions {
-			if action.Detail == "store_error" {
-				return errors.New("countdown action store error")
-			}
-		}
-		if admitted.failed.Load() || (run.Record.Outcome == outcomeDeferred && !admitted.saved.Load()) {
-			return errors.New("countdown run not persisted")
-		}
-		if err := p.flushDetached(ctx, out); err != nil {
-			return err
-		}
-		if err := p.automations.Countdowns.ProgressCountdown(ctx, due, key, "completed"); err != nil {
+		if err := delivery.run(ctx, trigger.Plan); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (p *Pipeline) countdownChannel(ctx context.Context, channel uint64) (projection.User, bool, error) {
+	if p.automations.Source == nil {
+		return projection.User{}, false, errors.New("no automation source")
+	}
+	user, err := p.proj.User(ctx, channel)
+	if err != nil {
+		return user, false, err
+	}
+	if !p.countdownUserAllowed(user) {
+		return user, false, nil
+	}
+	_, state, err := (ModuleLookup{Proj: p.proj, BroadcasterID: channel, Name: AutomationsModuleName, Absent: ModuleOff}).Resolve(ctx)
+	return user, state == ModuleOn, err
+}
+
+func (p *Pipeline) countdownUserAllowed(user projection.User) bool {
+	return !user.Banned && user.IsActive && (!p.automationsBeta || user.Premium())
+}
+
+func (d countdownDelivery) run(ctx context.Context, plan *automation.Plan) error {
+	key := countdownProgressKey(plan.Automation.ID, plan.Automation.Revision)
+	state := d.due.Progress[key]
+	if state == "completed" {
+		return nil
+	}
+	run, err := d.newRun(plan, state)
+	if err != nil {
+		return err
+	}
+	run.countdownConditionsPassed = func() error { return d.checkpoint(ctx, key, "conditions_passed") }
+	out := d.p.detachedEmit(ctx, d.due.BroadcasterID, d.user.Locale, run.replayKey())
+	d.p.runAutomation(ctx, run, out.emit)
+	if err := countdownRunError(ctx, run); err != nil {
+		return err
+	}
+	if err := d.p.flushDetached(ctx, out); err != nil {
+		return err
+	}
+	return d.checkpoint(ctx, key, "completed")
+}
+
+func (d countdownDelivery) checkpoint(ctx context.Context, key, status string) error {
+	return d.p.automations.Countdowns.ProgressCountdown(ctx, d.due, CountdownCheckpoint{Key: key, Status: status})
+}
+
+func (d countdownDelivery) newRun(plan *automation.Plan, state string) (*AutomationRun, error) {
+	id, err := utils.NewID()
+	if err != nil {
+		return nil, err
+	}
+	regress := module.RegressStandard
+	if d.user.Premium() {
+		regress = module.RegressPremium
+	}
+	channel := strconv.FormatUint(d.due.BroadcasterID, 10)
+	identity := "countdown:" + channel + ":" + d.due.Name + ":" + d.due.Generation
+	return &AutomationRun{CountdownAdmission: &countdownAdmission{}, Plan: plan, BroadcasterID: d.due.BroadcasterID, Channel: channel, Viewer: Viewer{ID: d.due.BroadcasterID}, Source: "countdown", ID: id.String(), Identity: identity, Regress: regress, Locale: d.user.Locale, Event: map[string]string{"name": d.due.Name}, countdownSkipConditions: state == "conditions_passed"}, nil
+}
+
+func countdownRunError(ctx context.Context, run *AutomationRun) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if countdownRunFailed(run) {
+		return errors.New("countdown run failed")
+	}
+	if countdownStoreFailed(run) {
+		return errors.New("countdown action store error")
+	}
+	if countdownNotPersisted(run) {
+		return errors.New("countdown run not persisted")
+	}
+	return nil
+}
+
+func countdownRunFailed(run *AutomationRun) bool {
+	return run.Record.Outcome == automationrpc.OutcomeFailed || run.Record.Reason == queueReasonFull || run.Record.Reason == queueReasonTimeout
+}
+
+func countdownStoreFailed(run *AutomationRun) bool {
+	for _, action := range run.Record.Actions {
+		if action.Detail == "store_error" {
+			return true
+		}
+	}
+	return false
+}
+
+func countdownNotPersisted(run *AutomationRun) bool {
+	admitted := run.CountdownAdmission
+	return admitted.failed.Load() || (run.Record.Outcome == outcomeDeferred && !admitted.saved.Load())
 }
 
 func (p *Pipeline) answerCountdownLeft(ctx context.Context, c *module.Context, m triggerMatch, emit module.Emit) {
@@ -216,7 +296,7 @@ func (p *Pipeline) answerCountdownLeft(ctx context.Context, c *module.Context, m
 	if !ok {
 		return
 	}
-	result, err := p.automations.Countdowns.PeekCountdown(ctx, c.BroadcasterID, name)
+	result, err := p.automations.Countdowns.PeekCountdown(ctx, CountdownRef{BroadcasterID: c.BroadcasterID, Name: name})
 	if err != nil {
 		p.log.Warn("automations: countdown lookup failed", zap.Error(err))
 		return

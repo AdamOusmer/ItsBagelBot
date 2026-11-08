@@ -996,10 +996,10 @@
 
   {#if selectedEdge && flow.edges.some((edge) => edge.id === selectedEdge)}
     <div class="edge-toolbar" data-flow-ui style:bottom="{toolbarBottom}px" style:left="calc(50% - {room / 2}px)">
-      <button type="button" onclick={() => selectedEdge && deleteEdge(selectedEdge)}>
+      <Button variant="ghost" onclick={() => selectedEdge && deleteEdge(selectedEdge)}>
         <Icon name="trash" size={16} />
         {t('flows.board.removeConnection')}
-      </button>
+      </Button>
     </div>
   {/if}
 
@@ -1120,6 +1120,8 @@
       0 0 28px rgba(var(--bb-green-glow-rgb), 0.35);
   }
   .edge-toolbar {
+    --btn-radius: var(--bb-radius-pill);
+    --btn-min-h: 38px;
     position: absolute;
     left: 50%;
     bottom: calc(var(--flow-dock-room, 0px) + 20px);
@@ -1131,22 +1133,7 @@
     background: var(--bb-bg-1);
     box-shadow: 0 8px 28px rgba(var(--bb-shadow-rgb), 0.55);
   }
-  .edge-toolbar button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 38px;
-    padding: 0 14px;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--bb-white);
-    font: 600 14px var(--bb-font-body);
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .edge-toolbar button:hover, .edge-toolbar button:focus-visible { background: var(--bb-elev-2); }
-  .canvas[data-touch] .edge-toolbar button { min-height: 44px; }
+  .canvas[data-touch] .edge-toolbar { --btn-min-h: 44px; }
   .menu-anchor {
     position: absolute;
     width: 1px;

@@ -35,5 +35,7 @@
   "math": "Fazer cálculos",
   "loop": "Repetir etapas",
   "reward_update": "Alterar uma recompensa",
-  "cooldown_add": "Adicionar tempo a um intervalo de uso"
+  "cooldown_add": "Adicionar tempo a um intervalo de uso",
+  "countdown_start": "Iniciar contagem regressiva",
+  "countdown_add": "Adicionar tempo à contagem regressiva"
 }

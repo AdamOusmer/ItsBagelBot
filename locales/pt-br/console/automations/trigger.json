@@ -3,5 +3,6 @@
   "event": "Evento da Twitch",
   "timer": "Temporizador",
   "reward": "Recompensa de pontos do canal",
-  "manual": "Manual"
+  "manual": "Manual",
+  "countdown": "Contagem regressiva encerrada"
 }

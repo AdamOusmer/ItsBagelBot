@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/modules/ent/countdown"
+	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/pkg/codec"
 	"github.com/stretchr/testify/require"
+	"slices"
+	"strings"
 )
 
 func TestCountdownRecipeThroughRPCAndWorker(t *testing.T) {
@@ -27,26 +30,19 @@ func TestCountdownRecipeThroughRPCAndWorker(t *testing.T) {
 	r.source.set(r.channel, start, finished)
 	r.say(t, r.channel, "!start")
 	require.Eventually(t, func() bool {
-		result, err := r.vars.PeekCountdown(context.Background(), r.channel, "subathon")
+		result, err := r.vars.PeekCountdown(context.Background(), engine.CountdownRef{BroadcasterID: r.channel, Name: "subathon"})
 		return err == nil && result.Found
 	}, 3*time.Second, 20*time.Millisecond)
 	r.say(t, 123, "!left")
-	require.Eventually(t, func() bool {
-		for _, line := range r.channelChat() {
-			if len(line) > 10 && line[:10] == "remaining " {
-				return true
-			}
-		}
-		return false
-	}, 3*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return countdownChatStartsWith(r, "remaining ") }, 3*time.Second, 20*time.Millisecond)
 	_, err := r.service.client.Countdown.Update().Where(countdown.UserIDEQ(r.channel), countdown.NameEQ("subathon")).SetExpiresAtMs(time.Now().Add(-time.Second).UnixMilli()).Save(context.Background())
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		for _, line := range r.channelChat() {
-			if line == "finished subathon" {
-				return true
-			}
-		}
-		return false
-	}, 5*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return slices.Contains(r.channelChat(), "finished subathon") }, 5*time.Second, 20*time.Millisecond)
+}
+
+func countdownChatStartsWith(r *cooldownRig, prefix string) bool {
+	return slices.ContainsFunc(r.channelChat(), func(line string) bool {
+		rest, ok := strings.CutPrefix(line, prefix)
+		return ok && len(rest) > 0
+	})
 }

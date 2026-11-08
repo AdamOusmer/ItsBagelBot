@@ -810,16 +810,23 @@ function ownedNamesAcross(entries: readonly FlowImportEntry[], countdown = false
   return owned;
 }
 
-// A cooldown_add step naming a timer with no owner still saves: this only tells the importer so, the same way
-// noteLinks tells it where a run points.
-function noteUnownedTimers(entry: FlowImportEntry, owned: Set<string>, countdowns: Set<string>): FlowImportEntry {
+type TimerOwners = { cooldowns: Set<string>; countdowns: Set<string> };
+
+function unownedTimerNote(action: Action, path: string, owners: TimerOwners): SetupNote | undefined {
+  const names = action.type === 'cooldown_add' ? owners.cooldowns : action.type === 'countdown_add' ? owners.countdowns : undefined;
+  if (!names) return undefined;
+  const name = str(action.params?.name);
+  if (!name || names.has(name.toLowerCase())) return undefined;
+  return { code: 'timer_unowned', path, detail: name };
+}
+
+// An add step with no owner still saves; the note tells the importer about the missing timer.
+function noteUnownedTimers(entry: FlowImportEntry, owners: TimerOwners): FlowImportEntry {
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
   mapDefinitionActions(entry.definition!, (action, path) => {
-    if (action.type === 'cooldown_add' || action.type === 'countdown_add') {
-      const name = str(action.params?.name);
-      if (name && !(action.type === 'countdown_add' ? countdowns : owned).has(name.toLowerCase())) notes.push({ code: 'timer_unowned', path, detail: name });
-    }
+    const note = unownedTimerNote(action, path, owners);
+    if (note) notes.push(note);
     return action;
   });
   return notes.length === 0 ? entry : { ...entry, setup: [...entry.setup, ...notes] };
@@ -836,9 +843,8 @@ function settleLandings(candidates: FlowImportEntry[], context: FlowImportContex
     const next = current.map((entry) => dropDeadRuns(entry, byRef));
     if (next.every((entry, i) => entry === current[i])) {
       const linked = landed.map((entry) => noteLinks(entry, byRef));
-      const owned = ownedNamesAcross(linked);
-      const countdowns = ownedNamesAcross(linked, true);
-      return linked.map((entry) => noteUnownedTimers(entry, owned, countdowns));
+      const owners = { cooldowns: ownedNamesAcross(linked), countdowns: ownedNamesAcross(linked, true) };
+      return linked.map((entry) => noteUnownedTimers(entry, owners));
     }
     current = next;
   }

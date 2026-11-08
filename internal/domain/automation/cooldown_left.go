@@ -26,34 +26,48 @@ func IsCooldownLeftToken(t tmpl.Token) bool {
 	return t.Kind == tmpl.KindVar && t.Name == CooldownTokenName && t.Payload == CooldownLeftPayload
 }
 
-// LeftCommandNames lists the time left commands of every cooldown in the definition, wherever it sits: conditions hold one at the top level and an if holds one in its condition, and nothing else can hold a cooldown.
+// LeftCommandNames lists time-left commands from cooldown conditions and countdown starts, including nested steps.
 func LeftCommandNames(def Definition) []string {
 	var names []string
-	collect := func(c Condition) {
-		if c.Type != conditionCooldown {
-			return
-		}
-		if p, err := DecodeParams[CooldownCondition](c.Params); err == nil && p.LeftCommand != "" {
-			names = append(names, p.LeftCommand)
+	collect := func(name string) {
+		if name != "" {
+			names = append(names, name)
 		}
 	}
 	for _, c := range def.Conditions {
-		collect(c)
+		collect(cooldownLeftCommand(c))
 	}
 	for _, a := range def.Flatten() {
-		if a.Type == "countdown_start" {
-			if p, err := DecodeParams[CountdownStartAction](a.Params); err == nil && p.LeftCommand != "" {
-				names = append(names, p.LeftCommand)
-			}
-		}
-		if a.Type != actionIf {
-			continue
-		}
-		if p, err := DecodeParams[IfAction](a.Params); err == nil {
-			collect(p.Condition)
-		}
+		collect(actionLeftCommand(a))
 	}
 	return names
+}
+
+func cooldownLeftCommand(c Condition) string {
+	if c.Type != conditionCooldown {
+		return ""
+	}
+	p, err := DecodeParams[CooldownCondition](c.Params)
+	if err != nil {
+		return ""
+	}
+	return p.LeftCommand
+}
+
+func actionLeftCommand(a Action) string {
+	switch a.Type {
+	case "countdown_start":
+		p, err := DecodeParams[CountdownStartAction](a.Params)
+		if err == nil {
+			return p.LeftCommand
+		}
+	case actionIf:
+		p, err := DecodeParams[IfAction](a.Params)
+		if err == nil {
+			return cooldownLeftCommand(p.Condition)
+		}
+	}
+	return ""
 }
 
 // TriggerCommandNames lists the names a command trigger answers to, normalized; a pattern is not a name.

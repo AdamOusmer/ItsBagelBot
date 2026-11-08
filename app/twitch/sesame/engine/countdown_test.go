@@ -33,29 +33,29 @@ type fakeCountdown struct {
 	writeErr        error
 }
 
-func (s *fakeCountdown) StartCountdown(_ context.Context, channel uint64, name string, seconds int64, op string) (CountdownResult, error) {
-	s.channel, s.name, s.seconds, s.operation = channel, name, seconds, op
+func (s *fakeCountdown) StartCountdown(_ context.Context, mutation CountdownMutation) (CountdownResult, error) {
+	s.channel, s.name, s.seconds, s.operation = mutation.Ref.BroadcasterID, mutation.Ref.Name, mutation.Seconds, mutation.OperationID
 	s.calls++
 	return s.result, s.writeErr
 }
-func (s *fakeCountdown) AddCountdown(ctx context.Context, channel uint64, name string, seconds int64, op string) (CountdownResult, error) {
-	return s.StartCountdown(ctx, channel, name, seconds, op)
+func (s *fakeCountdown) AddCountdown(ctx context.Context, mutation CountdownMutation) (CountdownResult, error) {
+	return s.StartCountdown(ctx, mutation)
 }
-func (s *fakeCountdown) PeekCountdown(context.Context, uint64, string) (CountdownResult, error) {
+func (s *fakeCountdown) PeekCountdown(context.Context, CountdownRef) (CountdownResult, error) {
 	return s.result, nil
 }
 func (s *fakeCountdown) ClaimCountdown(context.Context) (CountdownDue, bool, error) {
 	return CountdownDue{}, false, nil
 }
 func (s *fakeCountdown) AckCountdown(context.Context, CountdownDue) error { return nil }
-func (s *fakeCountdown) ProgressCountdown(_ context.Context, _ CountdownDue, key, status string) error {
+func (s *fakeCountdown) ProgressCountdown(_ context.Context, _ CountdownDue, checkpoint CountdownCheckpoint) error {
 	if s.progressErr != nil {
 		return s.progressErr
 	}
 	if s.progress == nil {
 		s.progress = map[string]string{}
 	}
-	s.progress[key] = status
+	s.progress[checkpoint.Key] = checkpoint.Status
 	return nil
 }
 

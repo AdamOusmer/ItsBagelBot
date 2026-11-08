@@ -111,22 +111,36 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 	defer p.endRunSegment(ctx, run)
 	x := p.newActionExec(ctx, run, emit)
 	defer releaseActionExec(x)
-	if !run.countdownSkipConditions {
-		pass, reason, err := x.conditionsPass()
-		if err != nil || !pass {
-			run.Record.Outcome, run.Record.Reason = skippedOutcome(err, reason)
-			return
-		}
-		if run.countdownConditionsPassed != nil {
-			if err := run.countdownConditionsPassed(); err != nil {
-				run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeFailed, "countdown_checkpoint"
-				return
-			}
-		}
+	if !x.countdownConditions() {
+		return
 	}
 	if p.admitToQueue(ctx, run) {
 		x.execute()
 	}
+}
+
+func (x *actionExec) countdownConditions() bool {
+	run := x.run
+	if run.countdownSkipConditions {
+		return true
+	}
+	pass, reason, err := x.conditionsPass()
+	if err != nil || !pass {
+		run.Record.Outcome, run.Record.Reason = skippedOutcome(err, reason)
+		return false
+	}
+	return run.checkpointConditions()
+}
+
+func (run *AutomationRun) checkpointConditions() bool {
+	if run.countdownConditionsPassed == nil {
+		return true
+	}
+	if run.countdownConditionsPassed() == nil {
+		return true
+	}
+	run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeFailed, "countdown_checkpoint"
+	return false
 }
 
 // A child that joined its parent's slot shares the parent's reference.
