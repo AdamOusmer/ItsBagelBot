@@ -69,7 +69,7 @@ function lerpBox(from: Box, to: Box, e: number): Box {
     };
 }
 
-function paintRing(ring: HTMLElement, box: Box, shape: Box, hovering: boolean, text: boolean): void {
+function paintRing(ring: HTMLElement, box: Box, shape: Box): void {
     // Lay out the destination shape once; animate its position and scale only.
     ring.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px) scale(${(box.w / shape.w).toFixed(4)}, ${(box.h / shape.h).toFixed(4)})`;
     const width = `${Number(shape.w.toFixed(1))}px`;
@@ -78,8 +78,6 @@ function paintRing(ring: HTMLElement, box: Box, shape: Box, hovering: boolean, t
     if (ring.style.width !== width) ring.style.width = width;
     if (ring.style.height !== height) ring.style.height = height;
     if (ring.style.borderRadius !== radius) ring.style.borderRadius = radius;
-    ring.classList.toggle('is-morphed', hovering);
-    ring.classList.toggle('is-text', text);
 }
 
 function arrived(box: Box, to: Box): boolean {
@@ -120,7 +118,9 @@ export function mountCursor(options: CursorOptions): () => void {
         dot.style.opacity = el && !overText ? '0' : '1';
         dot.classList.toggle('is-text', overText);
 
-        paintRing(ring, box, shape, !!el, overText);
+        ring.classList.toggle('is-morphed', !!el);
+        ring.classList.toggle('is-text', overText);
+        paintRing(ring, box, shape);
     }
 
     function tick(now: number): boolean | void {
@@ -169,7 +169,8 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const onOut = (event: PointerEvent): void => {
-        if (!active || !target || nearest(event) !== target) return;
+        if (!active || !target) return;
+        if (nearest(event) !== target) return;
         setTarget(null);
         wake(tick);
     };
