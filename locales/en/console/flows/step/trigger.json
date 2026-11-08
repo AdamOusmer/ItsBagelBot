@@ -60,5 +60,9 @@
         "label": "Countdown"
       }
     }
+  },
+  "unbanRequest": {
+    "label": "Unban request",
+    "summary": "A viewer asks to be unbanned"
   }
 }

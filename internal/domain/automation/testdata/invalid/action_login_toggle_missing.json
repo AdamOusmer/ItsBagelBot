@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "lead_mod"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "mod",
+      "params": {
+        "on": true
+      }
+    },
+    {
+      "type": "vip",
+      "params": {
+        "login": "x",
+        "extra": 1
+      }
+    }
+  ]
+}

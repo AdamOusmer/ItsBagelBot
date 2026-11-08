@@ -1,0 +1,22 @@
+{
+  "label": "Отправить по веб-адресу",
+  "summary": "Отправить на вебхук по https",
+  "field": {
+    "url": {
+      "label": "Адрес",
+      "placeholder": "https://example.com/hook"
+    },
+    "body": {
+      "label": "Тело",
+      "placeholder": "{user} сделал это"
+    },
+    "saveAs": {
+      "label": "Сохранить как",
+      "placeholder": "answer"
+    }
+  },
+  "out": {
+    "ok": "Сработало",
+    "failure": "Не сработало"
+  }
+}

@@ -68,6 +68,7 @@ const (
 
 func ChannelOptionalSubscriptions(broadcasterID string) []SubSpec {
 	return []SubSpec{
+		{"channel.unban_request.create", "1", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
 		{"channel.channel_points_custom_reward_redemption.add", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 		{"channel.ad_break.begin", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 	}

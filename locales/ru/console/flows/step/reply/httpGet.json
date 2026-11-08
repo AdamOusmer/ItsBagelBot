@@ -1,0 +1,22 @@
+{
+  "label": "Прочитать по веб-адресу",
+  "summary": "Получить значение по https",
+  "field": {
+    "url": {
+      "label": "Адрес",
+      "placeholder": "https://example.com/data"
+    },
+    "jsonPath": {
+      "label": "Путь JSON",
+      "placeholder": "data.value"
+    },
+    "saveAs": {
+      "label": "Сохранить как",
+      "placeholder": "answer"
+    }
+  },
+  "out": {
+    "ok": "Сработало",
+    "failure": "Не сработало"
+  }
+}

@@ -27,7 +27,7 @@ func Parse(raw []byte) (Definition, []Issue) {
 
 func Validate(def Definition) []Issue {
 	var out []Issue
-	c := chk{out: &out, trigger: def.Trigger.Type, perm: permRank(def.Conditions), eventAmount: triggerHasAmount(def.Trigger)}
+	c := chk{out: &out, trigger: def.Trigger.Type, kind: eventKindOf(def.Trigger), perm: permRank(def.Conditions), eventAmount: triggerHasAmount(def.Trigger)}
 	if def.Version != Version {
 		c.add("version", CodeUnsupportedVer)
 	}

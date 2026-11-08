@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "mod"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "prediction_end",
+      "params": {
+        "status": "resolve"
+      }
+    },
+    {
+      "type": "prediction_end",
+      "params": {
+        "status": "resolve",
+        "winner": 11
+      }
+    },
+    {
+      "type": "prediction_end",
+      "params": {
+        "status": "nope"
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "label": "Read from a web address",
+  "summary": "Fetch a value over https",
+  "field": {
+    "url": {
+      "label": "Address",
+      "placeholder": "https://example.com/data"
+    },
+    "jsonPath": {
+      "label": "JSON path",
+      "placeholder": "data.value"
+    },
+    "saveAs": {
+      "label": "Save as",
+      "placeholder": "answer"
+    }
+  },
+  "out": {
+    "ok": "Worked",
+    "failure": "Failed"
+  }
+}

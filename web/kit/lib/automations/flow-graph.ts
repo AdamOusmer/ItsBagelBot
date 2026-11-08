@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { streamActionReaders, streamActionWriters } from './stream-flow';
 import { COMPARE_OPS } from './compare';
 import { SETUP_LOGIN } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
@@ -72,6 +73,7 @@ const THRESHOLD_FILTERS: Record<string, { key: string; filter: string }> = {
 
 const FIXED_EVENT_NODES: Record<string, string> = {
   'twitch.follow': 'channel.follow',
+  'twitch.unban_request': 'channel.unban_request.create',
   'twitch.stream.online': 'stream.online'
 };
 
@@ -127,6 +129,7 @@ const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = 
   'twitch.chat.command': commandTrigger,
   'twitch.chat.word': wordTrigger,
   'twitch.follow': () => eventTrigger('channel.follow'),
+  'twitch.unban_request': () => eventTrigger('channel.unban_request.create'),
   'twitch.stream.online': () => eventTrigger('stream.online'),
   'twitch.sub': subTrigger,
   'twitch.cheer': (config) => thresholdTrigger('channel.cheer', config),
@@ -135,6 +138,13 @@ const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = 
 };
 
 const TEMPLATE_FIELDS: Record<string, string[]> = {
+  'reply.poll': ['title', 'choices'],
+  'reply.prediction': ['title', 'outcomes'],
+  'reply.raid': ['target'],
+  'reply.mod': ['target'],
+  'reply.vip': ['target'],
+  'reply.whisper': ['target', 'text'],
+  'reply.unban_resolve': ['resolution'],
   'reply.chat': ['message'],
   'cond.compare': ['left', 'right'],
   'cond.var': ['value'],
@@ -267,6 +277,7 @@ function cooldownConditionAction(config: FlowConfig): Condition {
 }
 
 const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
+  ...streamActionWriters,
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
   'reply.lights': lightsAction,
   'reply.points': (config) => ({ type: 'points_add', params: { amount: num(config.amount) } }),
@@ -835,6 +846,7 @@ const API_READERS: Record<string, (params: Params) => { type: string; config: Fl
 };
 
 const ACTION_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig } | null> = {
+  ...streamActionReaders,
   chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text) } }),
   lights: lightsNode,
   points_add: (params) => (params.login ? null : { type: 'reply.points', config: { amount: num(params.amount) } }),

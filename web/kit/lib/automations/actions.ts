@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { STREAM_ACTIONS } from './stream-actions';
 import type { Chk } from './check';
 import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE, validateFetchDef } from '../engine/fetch-validate';
 import { checkVarIdentity, counterName } from './conditions';
@@ -170,6 +171,7 @@ const empty = register<Record<string, never>>({}, noop);
 const text = register<Wide<T.TextAction>>({ text: 'string' }, checkText);
 
 export const SIMPLE_ACTIONS: Table = {
+  ...STREAM_ACTIONS,
   chat: text,
   announce: register<Wide<T.AnnounceAction>>({ text: 'string', color: 'string' }, checkAnnounce),
   reply: text,

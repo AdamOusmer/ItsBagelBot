@@ -80,6 +80,22 @@ func buildOutgressMessage(o *module.Output) (outgress.Message, error) {
 }
 
 var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error){
+	outgress.TypePollCreate:       streamActionOutgress,
+	outgress.TypePollEnd:          streamActionOutgress,
+	outgress.TypePredictionCreate: streamActionOutgress,
+	outgress.TypePredictionEnd:    streamActionOutgress,
+	outgress.TypeRaidStart:        streamActionOutgress,
+	outgress.TypeRaidCancel:       streamActionOutgress,
+	outgress.TypeModAdd:           streamActionOutgress,
+	outgress.TypeModRemove:        streamActionOutgress,
+	outgress.TypeVIPAdd:           streamActionOutgress,
+	outgress.TypeVIPRemove:        streamActionOutgress,
+	outgress.TypeChatSettings:     streamActionOutgress,
+	outgress.TypeClearChat:        streamActionOutgress,
+	outgress.TypeAdSnooze:         streamActionOutgress,
+	outgress.TypeWhisper:          streamActionOutgress,
+	outgress.TypeUnbanResolve:     streamActionOutgress,
+	outgress.TypeBrandedContent:   streamActionOutgress,
 	outgress.TypeChat:             chatOutgress,
 	outgress.TypeAnnounce:         announceOutgress,
 	outgress.TypeShoutout:         shoutoutOutgress,
@@ -223,4 +239,14 @@ func redemptionUpdateOutgress(o *module.Output) (outgress.Message, error) {
 		RedemptionID:  o.RedemptionID,
 		Status:        o.Status,
 	}, nil
+}
+
+func streamActionOutgress(o *module.Output) (outgress.Message, error) {
+	payload := o.Action
+	if payload == nil {
+		payload = struct{}{}
+	}
+	msg, err := payloadMessage(o.Type, o.BroadcasterID, payload)
+	msg.To = o.To
+	return msg, err
 }

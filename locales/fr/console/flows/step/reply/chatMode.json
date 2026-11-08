@@ -1,0 +1,22 @@
+{
+  "label": "Modifier le mode du chat",
+  "summary": "Modifier le mode du chat",
+  "field": {
+    "mode": {
+      "label": "Mode du chat",
+      "option": {
+        "emote_only": "Émoticônes uniquement",
+        "followers": "Personnes qui suivent la chaîne",
+        "slow": "Mode lent",
+        "subscribers": "Abonnés uniquement",
+        "unique": "Messages uniques"
+      }
+    },
+    "on": {
+      "label": "Activé"
+    },
+    "value": {
+      "label": "Secondes en mode lent; minutes en mode followers"
+    }
+  }
+}

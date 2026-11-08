@@ -1,0 +1,18 @@
+[
+  {
+    "path": "actions[0].params.outcomes",
+    "code": "too_short"
+  },
+  {
+    "path": "actions[0].params.seconds",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[0].params.title",
+    "code": "required"
+  },
+  {
+    "path": "actions[1].params.outcomes",
+    "code": "too_many"
+  }
+]

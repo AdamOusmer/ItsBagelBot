@@ -37,5 +37,19 @@
   "reward_update": "Belohnung ändern",
   "cooldown_add": "Zeit zu einem Cooldown hinzufügen",
   "countdown_start": "Countdown starten",
-  "countdown_add": "Zeit zum Countdown hinzufügen"
+  "countdown_add": "Zeit zum Countdown hinzufügen",
+  "poll": "Umfrage starten",
+  "poll_end": "Umfrage beenden",
+  "prediction": "Vorhersage starten",
+  "prediction_end": "Vorhersage beenden",
+  "raid": "Raid starten",
+  "raid_cancel": "Raid abbrechen",
+  "mod": "Moderatorrolle ändern",
+  "vip": "VIP-Rolle ändern",
+  "chat_mode": "Chatmodus ändern",
+  "clear_chat": "Chat leeren",
+  "ad_snooze": "Nächste Werbung verschieben",
+  "whisper": "Flüsternachricht senden",
+  "unban_resolve": "Entbannungsantrag bearbeiten",
+  "branded_content": "Markeninhalte kennzeichnen"
 }

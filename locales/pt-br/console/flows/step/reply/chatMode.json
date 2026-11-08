@@ -1,0 +1,22 @@
+{
+  "label": "Alterar modo do chat",
+  "summary": "Alterar modo do chat",
+  "field": {
+    "mode": {
+      "label": "Modo do chat",
+      "option": {
+        "emote_only": "Somente emotes",
+        "followers": "Somente seguidores",
+        "slow": "Modo lento",
+        "subscribers": "Somente inscritos",
+        "unique": "Mensagens únicas"
+      }
+    },
+    "on": {
+      "label": "Ativado"
+    },
+    "value": {
+      "label": "Segundos no modo lento; minutos no modo de seguidores"
+    }
+  }
+}

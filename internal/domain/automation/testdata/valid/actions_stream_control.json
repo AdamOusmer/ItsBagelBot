@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!hi"
+    }
+  },
+  "conditions": [
+    {
+      "type": "perm",
+      "params": {
+        "level": "lead_mod"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "poll",
+      "params": {
+        "title": "Best",
+        "choices": [
+          "a",
+          "b"
+        ],
+        "seconds": 60
+      }
+    },
+    {
+      "type": "poll_end",
+      "params": {
+        "status": "archive"
+      }
+    },
+    {
+      "type": "prediction",
+      "params": {
+        "title": "Win?",
+        "outcomes": [
+          "yes",
+          "no"
+        ],
+        "seconds": 120
+      }
+    },
+    {
+      "type": "prediction_end",
+      "params": {
+        "status": "resolve",
+        "winner": 2
+      }
+    },
+    {
+      "type": "prediction_end",
+      "params": {
+        "status": "lock"
+      }
+    },
+    {
+      "type": "raid",
+      "params": {
+        "login": "{args}"
+      }
+    },
+    {
+      "type": "raid_cancel",
+      "params": {}
+    },
+    {
+      "type": "mod",
+      "params": {
+        "login": "{args}",
+        "on": true
+      }
+    },
+    {
+      "type": "vip",
+      "params": {
+        "login": "{args}",
+        "on": false
+      }
+    },
+    {
+      "type": "chat_mode",
+      "params": {
+        "mode": "slow",
+        "on": true,
+        "value": 30
+      }
+    },
+    {
+      "type": "clear_chat",
+      "params": {}
+    },
+    {
+      "type": "ad_snooze",
+      "params": {}
+    },
+    {
+      "type": "whisper",
+      "params": {
+        "login": "{user}",
+        "text": "hi"
+      }
+    },
+    {
+      "type": "branded_content",
+      "params": {
+        "on": true
+      }
+    }
+  ]
+}

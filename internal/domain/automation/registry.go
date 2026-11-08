@@ -30,6 +30,7 @@ var (
 )
 
 const roleModerator = 3
+const roleLeadModerator = 4
 
 var requiredTrigger = map[string]string{
 	"delete_message": "command",
@@ -37,6 +38,21 @@ var requiredTrigger = map[string]string{
 }
 
 var actionRole = map[string]int{
+	"poll":            roleModerator,
+	"poll_end":        roleModerator,
+	"prediction":      roleModerator,
+	"prediction_end":  roleModerator,
+	"raid":            roleLeadModerator,
+	"raid_cancel":     roleLeadModerator,
+	"mod":             roleLeadModerator,
+	"vip":             roleLeadModerator,
+	"chat_mode":       roleModerator,
+	"clear_chat":      roleModerator,
+	"ad_snooze":       roleLeadModerator,
+	"whisper":         roleModerator,
+	"unban_resolve":   roleModerator,
+	"branded_content": roleModerator,
+
 	"timeout": roleModerator, "ban": roleModerator, "warn": roleModerator, "shield": roleModerator,
 	"delete_message": roleModerator, "cooldown_add": roleModerator,
 	"countdown_start": roleModerator, "countdown_add": roleModerator,
@@ -136,6 +152,9 @@ func IsBranching(typ string) bool {
 
 func (c chk) triggerMismatch(typ string) bool {
 	want, ok := requiredTrigger[typ]
+	if typ == "unban_resolve" {
+		return c.trigger != "event" || c.kind != "channel.unban_request.create"
+	}
 	return ok && c.trigger != want
 }
 
@@ -189,6 +208,21 @@ func init() {
 		"var":       register(checkVarCondition),
 	}
 	actionRegistry = map[string]entry{
+		"poll":            register(checkPoll),
+		"poll_end":        register(checkPollEnd),
+		"prediction":      register(checkPrediction),
+		"prediction_end":  register(checkPredictionEnd),
+		"raid":            register(checkLogin),
+		"raid_cancel":     register(checkEmpty),
+		"mod":             register(checkLoginToggle),
+		"vip":             register(checkLoginToggle),
+		"chat_mode":       register(checkChatMode),
+		"clear_chat":      register(checkEmpty),
+		"ad_snooze":       register(checkEmpty),
+		"whisper":         register(checkWhisper),
+		"unban_resolve":   register(checkUnbanResolve),
+		"branded_content": register(checkBrandedContent),
+
 		"chat":            register(checkText),
 		"announce":        register(checkAnnounce),
 		"reply":           register(checkText),
@@ -229,4 +263,15 @@ func init() {
 		"countdown_start": register(checkCountdownStart),
 		"countdown_add":   register(checkCountdownAdd),
 	}
+}
+
+func eventKindOf(t Trigger) string {
+	if t.Type != "event" {
+		return ""
+	}
+	p, err := DecodeParams[EventTrigger](t.Params)
+	if err != nil {
+		return ""
+	}
+	return p.Kind
 }

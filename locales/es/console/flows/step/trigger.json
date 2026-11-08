@@ -79,5 +79,9 @@
         "label": "Cuenta atrás"
       }
     }
+  },
+  "unbanRequest": {
+    "label": "Solicitud de desbloqueo",
+    "summary": "Un espectador solicita que se retire su bloqueo"
   }
 }

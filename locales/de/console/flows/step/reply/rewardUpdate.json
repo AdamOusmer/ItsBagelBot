@@ -1,0 +1,24 @@
+{
+  "label": "Belohnung ändern",
+  "summary": "Eine Belohnung aktivieren oder deaktivieren oder ihre Kosten ändern",
+  "field": {
+    "reward": {
+      "label": "Belohnung"
+    },
+    "setEnabled": {
+      "label": "Aktiviert",
+      "option": {
+        "keep": "Unverändert lassen",
+        "on": "Aktivieren",
+        "off": "Deaktivieren"
+      }
+    },
+    "cost": {
+      "label": "Neue Kosten",
+      "unit": "Punkte"
+    },
+    "reset": {
+      "label": "Beim Stream-Ende zurücksetzen"
+    }
+  }
+}

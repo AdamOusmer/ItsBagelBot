@@ -1,0 +1,22 @@
+{
+  "label": "Lire depuis une adresse web",
+  "summary": "Récupérer une valeur via https",
+  "field": {
+    "url": {
+      "label": "Adresse",
+      "placeholder": "https://example.com/data"
+    },
+    "jsonPath": {
+      "label": "Chemin JSON",
+      "placeholder": "data.value"
+    },
+    "saveAs": {
+      "label": "Enregistrer sous",
+      "placeholder": "reponse"
+    }
+  },
+  "out": {
+    "ok": "Succès",
+    "failure": "Échec"
+  }
+}

@@ -89,7 +89,7 @@ spec:
             - name: NATS_CLIENT_KEY_FILE
               value: /etc/nats-client/tls/tls.key
             - name: DASHBOARD_LOGIN_SCOPES
-              value: "openid user:read:email channel:bot channel:moderate moderation:read moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads"
+              value: "openid user:read:email channel:bot channel:moderate moderation:read moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads channel:manage:polls channel:manage:predictions channel:manage:raids channel:manage:moderators channel:manage:vips channel:manage:ads moderator:read:unban_requests"
             - name: NODE_ENV
               value: production
             - name: PROTOCOL_HEADER

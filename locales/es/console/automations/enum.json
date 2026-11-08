@@ -58,11 +58,22 @@
   },
   "status": {
     "fulfill": "Completar",
-    "cancel": "Cancelar y reembolsar"
+    "cancel": "Cancelar y reembolsar",
+    "terminate": "Detener la votación",
+    "archive": "Archivar",
+    "lock": "Bloquear la votación",
+    "resolve": "Elegir un ganador",
+    "approve": "Aprobar",
+    "deny": "Rechazar"
   },
   "mode": {
     "color": "Color",
-    "scene": "Escena"
+    "scene": "Escena",
+    "emote_only": "Solo emotes",
+    "followers": "Solo seguidores",
+    "slow": "Modo lento",
+    "subscribers": "Solo suscriptores",
+    "unique": "Mensajes únicos"
   },
   "kind": {
     "text": "Texto",
@@ -82,6 +93,9 @@
       },
       "channel_points_custom_reward_redemption": {
         "add": "Recompensa canjeada"
+      },
+      "unban_request": {
+        "create": "Solicitud de desbloqueo"
       }
     },
     "stream": {

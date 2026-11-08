@@ -1,0 +1,50 @@
+{
+  "label": "Изменить текст",
+  "summary": "Очистить или разобрать текст",
+  "field": {
+    "op": {
+      "label": "Что сделать",
+      "option": {
+        "upper": "Сделать заглавными",
+        "lower": "Сделать строчными",
+        "trim": "Убрать пробелы",
+        "length": "Посчитать символы",
+        "replace": "Заменить",
+        "substring": "Взять часть",
+        "split_pick": "Разделить и выбрать",
+        "contains": "Проверить, содержит ли",
+        "url_encode": "Подготовить для ссылки"
+      }
+    },
+    "input": {
+      "label": "Текст",
+      "placeholder": "{args}"
+    },
+    "find": {
+      "label": "Найти"
+    },
+    "replaceWith": {
+      "label": "Заменить на"
+    },
+    "start": {
+      "label": "Начиная с"
+    },
+    "count": {
+      "label": "Сколько символов"
+    },
+    "separator": {
+      "label": "Разделитель"
+    },
+    "pick": {
+      "label": "Какой выбрать",
+      "placeholder": "1, или random"
+    },
+    "needle": {
+      "label": "Что искать"
+    },
+    "saveAs": {
+      "label": "Сохранить как",
+      "placeholder": "cleaned"
+    }
+  }
+}

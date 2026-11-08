@@ -48,6 +48,7 @@ func kind(name eventName, fields ...EventField) EventKind {
 }
 
 var eventKinds = []EventKind{
+	kind("channel.unban_request.create", viewer(text("id", "id"), text("text", "text"))...),
 	kind("channel.follow", viewer()...),
 	kind("channel.subscribe", viewer(text("tier", "tier"), text("is_gift", "is_gift"))...),
 	kind("channel.subscription.message", viewer(

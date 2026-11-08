@@ -1,0 +1,22 @@
+{
+  "label": "Von Webadresse lesen",
+  "summary": "Einen Wert über https abrufen",
+  "field": {
+    "url": {
+      "label": "Adresse",
+      "placeholder": "https://example.com/data"
+    },
+    "jsonPath": {
+      "label": "JSON-Pfad",
+      "placeholder": "data.value"
+    },
+    "saveAs": {
+      "label": "Speichern als",
+      "placeholder": "antwort"
+    }
+  },
+  "out": {
+    "ok": "Geklappt",
+    "failure": "Fehlgeschlagen"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "label": "Set chat mode",
+  "summary": "Set chat mode",
+  "field": {
+    "mode": {
+      "label": "Chat mode",
+      "option": {
+        "emote_only": "Emotes only",
+        "followers": "Followers only",
+        "slow": "Slow mode",
+        "subscribers": "Subscribers only",
+        "unique": "Unique messages"
+      }
+    },
+    "on": {
+      "label": "Enabled"
+    },
+    "value": {
+      "label": "Seconds in slow mode; minutes in follower-only mode"
+    }
+  }
+}

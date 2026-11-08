@@ -1,0 +1,325 @@
+{
+  "chat": {
+    "label": "Chatnachricht senden",
+    "summary": "Bot antwortet im Chat",
+    "field": {
+      "message": {
+        "label": "Nachricht",
+        "placeholder": "Danke {user}!"
+      }
+    }
+  },
+  "points": {
+    "label": "Treuepunkte vergeben",
+    "summary": "Punkte hinzufügen oder abziehen",
+    "field": {
+      "amount": {
+        "label": "Menge",
+        "unit": "Punkte"
+      }
+    }
+  },
+  "counter": {
+    "label": "Zähler erhöhen",
+    "summary": "Einen Zähler erhöhen",
+    "field": {
+      "counter": {
+        "label": "Zähler"
+      }
+    }
+  },
+  "lights": {
+    "label": "Lichter einstellen",
+    "summary": "Eine Govee-Farbe oder -Szene einstellen",
+    "field": {
+      "device": {
+        "label": "Licht"
+      },
+      "mode": {
+        "label": "Einstellen",
+        "option": {
+          "color": "Farbe",
+          "scene": "Szene"
+        }
+      },
+      "color": {
+        "label": "Farbe"
+      },
+      "scene": {
+        "label": "Szene"
+      }
+    }
+  },
+  "wait": {
+    "label": "Warten",
+    "summary": "Pause vor dem nächsten Schritt",
+    "field": {
+      "seconds": {
+        "label": "Verzögerung",
+        "unit": "Sekunden, max. {max}"
+      }
+    }
+  },
+  "loop": {
+    "label": "Schritte wiederholen",
+    "summary": "Einen Pfad bis zu 100-mal ausführen",
+    "field": {
+      "times": {
+        "label": "Wie oft",
+        "placeholder": "3"
+      }
+    },
+    "out": {
+      "body": "Jedes Mal",
+      "done": "Wenn fertig"
+    }
+  },
+  "varSet": {
+    "label": "Variable setzen",
+    "summary": "Einen Wert für später speichern",
+    "field": {
+      "scope": {
+        "label": "Gespeichert für",
+        "option": {
+          "channel": "Der Kanal",
+          "viewer": "Dieser Zuschauer"
+        }
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "tode"
+      },
+      "value": {
+        "label": "Wert",
+        "placeholder": "{user}"
+      }
+    }
+  },
+  "varAdd": {
+    "label": "Zu Variable hinzufügen",
+    "summary": "Hoch- oder herunterzählen",
+    "field": {
+      "scope": {
+        "label": "Gespeichert für",
+        "option": {
+          "channel": "Der Kanal",
+          "viewer": "Dieser Zuschauer"
+        }
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "tode"
+      },
+      "amount": {
+        "label": "Menge"
+      }
+    }
+  },
+  "varDelete": {
+    "label": "Variable löschen",
+    "summary": "Einen Wert vergessen",
+    "field": {
+      "scope": {
+        "label": "Gespeichert für",
+        "option": {
+          "channel": "Der Kanal",
+          "viewer": "Dieser Zuschauer"
+        }
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "tode"
+      }
+    }
+  },
+  "math": {
+    "label": "Berechnen",
+    "summary": "Eine Zahl berechnen",
+    "field": {
+      "expression": {
+        "label": "Ausdruck",
+        "placeholder": "({bits} / 100) + 1"
+      },
+      "saveAs": {
+        "label": "Speichern als",
+        "placeholder": "summe"
+      }
+    }
+  },
+  "cooldownAdd": {
+    "label": "Zeit zu einem Cooldown hinzufügen",
+    "summary": "Einen benannten Timer verlängern, während er läuft",
+    "field": {
+      "name": {
+        "label": "Timer"
+      },
+      "seconds": {
+        "label": "Hinzufügen",
+        "range": "Verwende 1 Sekunde bis {days} Tage."
+      },
+      "per": {
+        "label": "Pro",
+        "hint": "Fügt die Zeit oben für jeden vollen Betrag hinzu. Trage in einem Bits-Rezept 100 ein, um je 100 Bits zu zählen. Leer lassen, um sie einmal pro Ereignis hinzuzufügen."
+      }
+    }
+  },
+  "countdownAdd": {
+    "label": "Zeit zum Countdown hinzufügen",
+    "summary": "Einen laufenden Countdown verlängern",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      },
+      "seconds": {
+        "label": "Hinzufügen",
+        "range": "1 Sekunde bis {days} Tage eingeben."
+      },
+      "per": {
+        "label": "Pro",
+        "hint": "Diese Zeit für jeden vollen Betrag hinzufügen. Leer lassen, um sie einmal pro Ereignis hinzuzufügen."
+      }
+    }
+  },
+  "poll": {
+    "label": "Umfrage starten",
+    "summary": "Umfrage starten",
+    "field": {
+      "title": {
+        "label": "Titel"
+      },
+      "choices": {
+        "label": "Antworten (eine pro Zeile)"
+      },
+      "seconds": {
+        "label": "Dauer (Sekunden)"
+      }
+    }
+  },
+  "pollEnd": {
+    "label": "Umfrage beenden",
+    "summary": "Umfrage beenden",
+    "field": {
+      "status": {
+        "label": "Aktion",
+        "option": {
+          "terminate": "Abstimmung stoppen",
+          "archive": "Archivieren"
+        }
+      }
+    }
+  },
+  "prediction": {
+    "label": "Vorhersage starten",
+    "summary": "Vorhersage starten",
+    "field": {
+      "title": {
+        "label": "Titel"
+      },
+      "outcomes": {
+        "label": "Ergebnisse (eines pro Zeile)"
+      },
+      "seconds": {
+        "label": "Dauer (Sekunden)"
+      }
+    }
+  },
+  "predictionEnd": {
+    "label": "Vorhersage beenden",
+    "summary": "Vorhersage beenden",
+    "field": {
+      "status": {
+        "label": "Aktion",
+        "option": {
+          "lock": "Abstimmung sperren",
+          "cancel": "Abbrechen und erstatten",
+          "resolve": "Gewinner wählen"
+        }
+      },
+      "winner": {
+        "label": "Nummer des Gewinnergebnisses"
+      }
+    }
+  },
+  "raidStart": {
+    "label": "Raid starten",
+    "summary": "Raid starten",
+    "field": {
+      "target": {
+        "label": "Kanal- oder Zuschauername"
+      }
+    }
+  },
+  "raidCancel": {
+    "label": "Raid abbrechen",
+    "summary": "Raid abbrechen"
+  },
+  "mod": {
+    "label": "Moderatorrolle ändern",
+    "summary": "Moderatorrolle ändern",
+    "field": {
+      "target": {
+        "label": "Kanal- oder Zuschauername"
+      },
+      "on": {
+        "label": "Aktiviert"
+      }
+    }
+  },
+  "vip": {
+    "label": "VIP-Rolle ändern",
+    "summary": "VIP-Rolle ändern",
+    "field": {
+      "target": {
+        "label": "Kanal- oder Zuschauername"
+      },
+      "on": {
+        "label": "Aktiviert"
+      }
+    }
+  },
+  "clearChat": {
+    "label": "Chat leeren",
+    "summary": "Chat leeren"
+  },
+  "adSnooze": {
+    "label": "Nächste Werbung verschieben",
+    "summary": "Nächste Werbung verschieben"
+  },
+  "whisper": {
+    "label": "Flüsternachricht senden",
+    "summary": "Flüsternachricht senden",
+    "field": {
+      "target": {
+        "label": "Kanal- oder Zuschauername"
+      },
+      "text": {
+        "label": "Nachricht"
+      }
+    }
+  },
+  "unbanResolve": {
+    "label": "Entbannungsantrag bearbeiten",
+    "summary": "Entbannungsantrag bearbeiten",
+    "field": {
+      "status": {
+        "label": "Aktion",
+        "option": {
+          "approve": "Genehmigen",
+          "deny": "Ablehnen"
+        }
+      },
+      "resolution": {
+        "label": "Entscheidungsnachricht (optional)"
+      }
+    }
+  },
+  "brandedContent": {
+    "label": "Markeninhalte kennzeichnen",
+    "summary": "Markeninhalte kennzeichnen",
+    "field": {
+      "on": {
+        "label": "Aktiviert"
+      }
+    }
+  }
+}

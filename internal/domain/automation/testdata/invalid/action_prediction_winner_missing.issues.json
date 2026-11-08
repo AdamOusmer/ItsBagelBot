@@ -1,0 +1,14 @@
+[
+  {
+    "path": "actions[0].params.winner",
+    "code": "required"
+  },
+  {
+    "path": "actions[1].params.winner",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[2].params.status",
+    "code": "invalid_enum"
+  }
+]

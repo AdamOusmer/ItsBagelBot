@@ -25,6 +25,7 @@ const viewer = (...extra: EventField[]): EventField[] => [
 const kind = (name: string, fields: EventField[] = []): EventKind => ({ kind: name, fields });
 
 const KINDS: EventKind[] = [
+  kind('channel.unban_request.create', viewer(text('id', 'id'), text('text', 'text'))),
   kind('channel.follow', viewer()),
   kind('channel.subscribe', viewer(text('tier', 'tier'), text('is_gift', 'is_gift'))),
   kind(

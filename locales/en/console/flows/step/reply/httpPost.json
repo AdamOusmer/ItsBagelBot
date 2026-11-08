@@ -1,0 +1,22 @@
+{
+  "label": "Send to a web address",
+  "summary": "Post to a webhook over https",
+  "field": {
+    "url": {
+      "label": "Address",
+      "placeholder": "https://example.com/hook"
+    },
+    "body": {
+      "label": "Body",
+      "placeholder": "{user} did it"
+    },
+    "saveAs": {
+      "label": "Save as",
+      "placeholder": "answer"
+    }
+  },
+  "out": {
+    "ok": "Worked",
+    "failure": "Failed"
+  }
+}

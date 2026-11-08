@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { STREAM_STEPS } from './stream-steps';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
 import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
@@ -401,7 +402,8 @@ export const NODE_SPECS: readonly NodeSpec[] = [
       { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
       { key: 'per', type: 'number', min: 0 }
     ]
-  }
+  },
+  ...STREAM_STEPS
 ];
 
 function gateMatches(wanted: string | readonly string[] | boolean, value: unknown): boolean {

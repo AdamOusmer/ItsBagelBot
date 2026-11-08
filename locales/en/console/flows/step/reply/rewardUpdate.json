@@ -1,0 +1,24 @@
+{
+  "label": "Change a reward",
+  "summary": "Turn a reward on or off, or set its cost",
+  "field": {
+    "reward": {
+      "label": "Reward"
+    },
+    "setEnabled": {
+      "label": "Turned on",
+      "option": {
+        "keep": "Leave as it is",
+        "on": "Turn on",
+        "off": "Turn off"
+      }
+    },
+    "cost": {
+      "label": "New cost",
+      "unit": "points"
+    },
+    "reset": {
+      "label": "Put it back when stream ends"
+    }
+  }
+}

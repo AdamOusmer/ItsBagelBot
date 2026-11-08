@@ -119,6 +119,39 @@ export const CONDITION_TYPES: TypeDef[] = [
 ];
 
 export const ACTION_TYPES: TypeDef[] = [
+  action('poll', [
+    f('title', 'text', { required: true, min: 1, max: 60 }),
+    f('choices', 'list', { required: true, min: 2, max: 5 }),
+    f('seconds', 'int', { required: true, min: 15, max: 1800 }),
+  ]),
+  action('poll_end', [f('status', 'enum', { required: true, values: ['terminate', 'archive'] })]),
+  action('prediction', [
+    f('title', 'text', { required: true, min: 1, max: 45 }),
+    f('outcomes', 'list', { required: true, min: 2, max: 10 }),
+    f('seconds', 'int', { required: true, min: 30, max: 1800 }),
+  ]),
+  action('prediction_end', [
+    f('status', 'enum', { required: true, values: ['lock', 'cancel', 'resolve'] }),
+    f('winner', 'int', { min: 1, max: 10 }),
+  ]),
+  action('raid', [loginReq]),
+  action('raid_cancel'),
+  action('mod', [loginReq, f('on', 'bool')]),
+  action('vip', [loginReq, f('on', 'bool')]),
+  action('chat_mode', [
+    f('mode', 'enum', { required: true, values: ['emote_only', 'followers', 'slow', 'subscribers', 'unique'] }),
+    f('on', 'bool'),
+    f('value', 'int', { min: 0, max: 86400 }),
+  ]),
+  action('clear_chat'),
+  action('ad_snooze'),
+  action('whisper', [loginReq, textReq]),
+  action('unban_resolve', [
+    f('status', 'enum', { required: true, values: ['approve', 'deny'] }),
+    f('resolution', 'template', { max: 500 }),
+  ]),
+  action('branded_content', [f('on', 'bool')]),
+
   action('chat', [textReq]),
   action('announce', [textReq, f('color', 'enum', { values: ['', 'primary', 'blue', 'green', 'orange', 'purple'] })]),
   action('reply', [textReq]),

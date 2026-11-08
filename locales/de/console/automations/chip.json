@@ -21,6 +21,8 @@
     "reward_id": "Belohnungs-ID",
     "cost": "Kosten der Belohnung",
     "input": "Vom Zuschauer eingegebener Text",
-    "type": "Stream-Typ"
+    "type": "Stream-Typ",
+    "id": "ID des Entbannungsantrags",
+    "text": "Text des Entbannungsantrags"
   }
 }

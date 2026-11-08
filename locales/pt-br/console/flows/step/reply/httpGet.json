@@ -1,0 +1,22 @@
+{
+  "label": "Ler de um endereço web",
+  "summary": "Buscar um valor via https",
+  "field": {
+    "url": {
+      "label": "Endereço",
+      "placeholder": "https://example.com/data"
+    },
+    "jsonPath": {
+      "label": "Caminho JSON",
+      "placeholder": "data.value"
+    },
+    "saveAs": {
+      "label": "Salvar como",
+      "placeholder": "resposta"
+    }
+  },
+  "out": {
+    "ok": "Funcionou",
+    "failure": "Falhou"
+  }
+}

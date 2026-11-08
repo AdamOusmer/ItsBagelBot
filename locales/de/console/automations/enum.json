@@ -58,11 +58,22 @@
   },
   "status": {
     "fulfill": "Erfüllen",
-    "cancel": "Abbrechen und erstatten"
+    "cancel": "Abbrechen und erstatten",
+    "terminate": "Abstimmung stoppen",
+    "archive": "Archivieren",
+    "lock": "Abstimmung sperren",
+    "resolve": "Gewinner wählen",
+    "approve": "Genehmigen",
+    "deny": "Ablehnen"
   },
   "mode": {
     "color": "Farbe",
-    "scene": "Szene"
+    "scene": "Szene",
+    "emote_only": "Nur Emotes",
+    "followers": "Nur Follower",
+    "slow": "Langsamer Modus",
+    "subscribers": "Nur Abonnenten",
+    "unique": "Einzigartige Nachrichten"
   },
   "kind": {
     "text": "Text",
@@ -82,6 +93,9 @@
       },
       "channel_points_custom_reward_redemption": {
         "add": "Belohnung eingelöst"
+      },
+      "unban_request": {
+        "create": "Entbannungsantrag"
       }
     },
     "stream": {

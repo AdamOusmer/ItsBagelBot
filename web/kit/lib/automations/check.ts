@@ -16,6 +16,13 @@ interface Bounds {
 }
 
 export class Chk {
+  kind = '';
+
+  private withKind(c: Chk): Chk {
+    c.kind = this.kind;
+    return c;
+  }
+
   constructor(
     readonly out: Issue[],
     readonly path: Field = '',
@@ -30,15 +37,15 @@ export class Chk {
   }
 
   sub(field: Field): Chk {
-    return new Chk(this.out, joinPath(this.path, field), this.trigger, this.depth, this.perm, this.eventAmount);
+    return this.withKind(new Chk(this.out, joinPath(this.path, field), this.trigger, this.depth, this.perm, this.eventAmount));
   }
 
   elem(i: Count): Chk {
-    return new Chk(this.out, `${this.path}[${i}]`, this.trigger, this.depth, this.perm, this.eventAmount);
+    return this.withKind(new Chk(this.out, `${this.path}[${i}]`, this.trigger, this.depth, this.perm, this.eventAmount));
   }
 
   nest(): Chk {
-    return new Chk(this.out, this.path, this.trigger, this.depth + 1, this.perm, this.eventAmount);
+    return this.withKind(new Chk(this.out, this.path, this.trigger, this.depth + 1, this.perm, this.eventAmount));
   }
 
   bound(field: Field, n: Count, { lo, hi, over }: Bounds): boolean {

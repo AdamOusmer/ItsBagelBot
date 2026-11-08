@@ -1,0 +1,22 @@
+{
+  "label": "Chatmodus ändern",
+  "summary": "Chatmodus ändern",
+  "field": {
+    "mode": {
+      "label": "Chatmodus",
+      "option": {
+        "emote_only": "Nur Emotes",
+        "followers": "Nur Follower",
+        "slow": "Langsamer Modus",
+        "subscribers": "Nur Abonnenten",
+        "unique": "Einzigartige Nachrichten"
+      }
+    },
+    "on": {
+      "label": "Aktiviert"
+    },
+    "value": {
+      "label": "Sekunden im langsamen Modus; Minuten im Follower-Modus"
+    }
+  }
+}
