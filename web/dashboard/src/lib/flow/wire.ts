@@ -34,3 +34,10 @@ export function wirePath(a: Pt, b: Pt, { turn = 28, radius = 14 } = {}): string 
     `H${b.x}`
   ].join(' ');
 }
+
+// A smooth, directional lead follows the pointer without the sharp turns of a settled wire.
+export function previewPath(a: Pt, b: Pt): string {
+  const dx = b.x - a.x;
+  const reach = dx > 0 ? Math.min(160, dx / 2) : Math.max(36, Math.min(160, Math.abs(dx) * 0.5));
+  return `M${a.x},${a.y} C${a.x + reach},${a.y} ${b.x - reach},${b.y} ${b.x},${b.y}`;
+}

@@ -84,6 +84,30 @@ export const newFlow = (name: string): Flow => ({ id: 'new', name, enabled: true
 
 export const NODE_SPECS: readonly NodeSpec[] = [
   {
+    type: 'countdown.finished', slug: 'countdownFinished', kind: 'trigger', group: 'basics', icon: 'timer',
+    fields: [{ key: 'name', type: 'choice', source: 'namedCountdowns' }]
+  },
+  {
+    type: 'reply.countdown_start', slug: 'countdownStart', kind: 'reply', group: 'basics', icon: 'timer',
+    fields: [
+      { key: 'name', type: 'text', placeholder: true },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'leftCommand', type: 'text', placeholder: true },
+      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
+      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
+    ],
+    provides: [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }]
+  },
+  {
+    type: 'reply.countdown_add', slug: 'countdownAdd', kind: 'reply', group: 'basics', icon: 'timer',
+    fields: [
+      { key: 'name', type: 'choice', source: 'namedCountdowns' },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'per', type: 'number', min: 0 }
+    ],
+    provides: [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }]
+  },
+  {
     type: 'twitch.chat.command',
     slug: 'chatCommand',
     kind: 'trigger',

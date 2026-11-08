@@ -17,12 +17,13 @@ const (
 )
 
 type CompiledTrigger struct {
-	Plan     *Plan
-	Command  CommandTrigger
-	Filters  map[string]string
-	Kind     EventKind
-	RewardID string
-	Left     *CooldownCondition
+	Plan          *Plan
+	Command       CommandTrigger
+	Filters       map[string]string
+	Kind          EventKind
+	RewardID      string
+	Left          *CooldownCondition
+	CountdownLeft *CountdownStartAction
 
 	scanNames, allNames []matchName
 	regex               *regexp.Regexp
@@ -33,22 +34,25 @@ type TriggerIndex struct {
 	plans      map[string]*Plan
 	commands   map[string][]*CompiledTrigger
 	kinds      map[string][]*CompiledTrigger
+	countdowns map[string][]*CompiledTrigger
 	chatScan   []*CompiledTrigger
 	subMessage []*CompiledTrigger
 }
 
 var triggerCompilers = map[string]func(*TriggerIndex, *Plan){
-	"command": (*TriggerIndex).addCommand,
-	"event":   (*TriggerIndex).addEvent,
-	"reward":  (*TriggerIndex).addReward,
+	"command":   (*TriggerIndex).addCommand,
+	"event":     (*TriggerIndex).addEvent,
+	"reward":    (*TriggerIndex).addReward,
+	"countdown": (*TriggerIndex).addCountdown,
 }
 
 func CompileIndex(list []Automation) *TriggerIndex {
 	ordered := runOrder(list)
 	idx := &TriggerIndex{
-		plans:    make(map[string]*Plan, len(ordered)),
-		commands: map[string][]*CompiledTrigger{},
-		kinds:    map[string][]*CompiledTrigger{},
+		plans:      make(map[string]*Plan, len(ordered)),
+		commands:   map[string][]*CompiledTrigger{},
+		kinds:      map[string][]*CompiledTrigger{},
+		countdowns: map[string][]*CompiledTrigger{},
 	}
 	for _, a := range ordered {
 		plan := NewPlan(a)
@@ -57,6 +61,7 @@ func CompileIndex(list []Automation) *TriggerIndex {
 			add(idx, plan)
 		}
 		idx.addLeftCommands(plan)
+		idx.addCountdownLeftCommands(plan)
 	}
 	return idx
 }

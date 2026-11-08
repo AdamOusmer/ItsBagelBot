@@ -6,6 +6,9 @@ import (
 	"ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
+	"ItsBagelBot/app/db/modules/ent/countdown"
+	"ItsBagelBot/app/db/modules/ent/countdowndelivery"
+	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
@@ -165,6 +168,106 @@ func init() {
 			return nil
 		}
 	}()
+	countdownFields := schema.Countdown{}.Fields()
+	_ = countdownFields
+	// countdownDescName is the schema descriptor for name field.
+	countdownDescName := countdownFields[1].Descriptor()
+	// countdown.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	countdown.NameValidator = func() func(string) error {
+		validators := countdownDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// countdownDescGeneration is the schema descriptor for generation field.
+	countdownDescGeneration := countdownFields[3].Descriptor()
+	// countdown.GenerationValidator is a validator for the "generation" field. It is called by the builders before save.
+	countdown.GenerationValidator = func() func(string) error {
+		validators := countdownDescGeneration.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(generation string) error {
+			for _, fn := range fns {
+				if err := fn(generation); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	countdowndeliveryFields := schema.CountdownDelivery{}.Fields()
+	_ = countdowndeliveryFields
+	// countdowndeliveryDescName is the schema descriptor for name field.
+	countdowndeliveryDescName := countdowndeliveryFields[1].Descriptor()
+	// countdowndelivery.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	countdowndelivery.NameValidator = countdowndeliveryDescName.Validators[0].(func(string) error)
+	// countdowndeliveryDescGeneration is the schema descriptor for generation field.
+	countdowndeliveryDescGeneration := countdowndeliveryFields[2].Descriptor()
+	// countdowndelivery.GenerationValidator is a validator for the "generation" field. It is called by the builders before save.
+	countdowndelivery.GenerationValidator = func() func(string) error {
+		validators := countdowndeliveryDescGeneration.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(generation string) error {
+			for _, fn := range fns {
+				if err := fn(generation); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// countdowndeliveryDescLeaseToken is the schema descriptor for lease_token field.
+	countdowndeliveryDescLeaseToken := countdowndeliveryFields[4].Descriptor()
+	// countdowndelivery.DefaultLeaseToken holds the default value on creation for the lease_token field.
+	countdowndelivery.DefaultLeaseToken = countdowndeliveryDescLeaseToken.Default.(string)
+	// countdowndelivery.LeaseTokenValidator is a validator for the "lease_token" field. It is called by the builders before save.
+	countdowndelivery.LeaseTokenValidator = countdowndeliveryDescLeaseToken.Validators[0].(func(string) error)
+	// countdowndeliveryDescLeaseUntilMs is the schema descriptor for lease_until_ms field.
+	countdowndeliveryDescLeaseUntilMs := countdowndeliveryFields[5].Descriptor()
+	// countdowndelivery.DefaultLeaseUntilMs holds the default value on creation for the lease_until_ms field.
+	countdowndelivery.DefaultLeaseUntilMs = countdowndeliveryDescLeaseUntilMs.Default.(int64)
+	countdownoperationFields := schema.CountdownOperation{}.Fields()
+	_ = countdownoperationFields
+	// countdownoperationDescOperationID is the schema descriptor for operation_id field.
+	countdownoperationDescOperationID := countdownoperationFields[1].Descriptor()
+	// countdownoperation.OperationIDValidator is a validator for the "operation_id" field. It is called by the builders before save.
+	countdownoperation.OperationIDValidator = func() func(string) error {
+		validators := countdownoperationDescOperationID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(operation_id string) error {
+			for _, fn := range fns {
+				if err := fn(operation_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// countdownoperationDescName is the schema descriptor for name field.
+	countdownoperationDescName := countdownoperationFields[2].Descriptor()
+	// countdownoperation.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	countdownoperation.NameValidator = countdownoperationDescName.Validators[0].(func(string) error)
+	// countdownoperationDescVerb is the schema descriptor for verb field.
+	countdownoperationDescVerb := countdownoperationFields[3].Descriptor()
+	// countdownoperation.VerbValidator is a validator for the "verb" field. It is called by the builders before save.
+	countdownoperation.VerbValidator = countdownoperationDescVerb.Validators[0].(func(string) error)
 	feedcounterFields := schema.FeedCounter{}.Fields()
 	_ = feedcounterFields
 	// feedcounterDescCount is the schema descriptor for count field.

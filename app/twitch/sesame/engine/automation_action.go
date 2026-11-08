@@ -87,7 +87,9 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("var_delete", typed((*actionExec).varDelete)).
 		Step("text", typed((*actionExec).textStep)).
 		Step("math", typed((*actionExec).mathStep)).
-		Step("cooldown_add", typed((*actionExec).cooldownAdd))
+		Step("cooldown_add", typed((*actionExec).cooldownAdd)).
+		Step("countdown_start", typed((*actionExec).countdownStart)).
+		Step("countdown_add", typed((*actionExec).countdownAdd))
 }
 
 func flowActions(b *actionTableBuilder) *actionTableBuilder {

@@ -9,7 +9,7 @@ import { NEW_FLOW_ID } from '#lib/flow/ref';
 import type { ChoiceList } from '#lib/flow/choices';
 import { effectiveId } from '#lib/server/board';
 import { lookupTwitchUser } from '#lib/server/identity-heal';
-import { counterChoices, manageableRewardChoices, namedCooldownChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
+import { counterChoices, manageableRewardChoices, namedCooldownChoices, namedCountdownChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
 import { listRuns } from '#lib/server/automations-store';
 import { parseFlowRouteId } from '#lib/flow/ref';
 import { flowDenial, liveEditor, liveSave, lowerSaveRequest, newEditor, type EditorData } from '#lib/server/flow-page';
@@ -42,6 +42,7 @@ type Choices = {
   manageableRewards: Promise<ChoiceList>;
   counters: Promise<ChoiceList>;
   namedCooldowns: Promise<ChoiceList>;
+  namedCountdowns: Promise<ChoiceList>;
 };
 
 async function choicesFor(locals: App.Locals, url: URL): Promise<Choices> {
@@ -52,11 +53,12 @@ async function choicesFor(locals: App.Locals, url: URL): Promise<Choices> {
       rewards: Promise.resolve(lists.rewards),
       manageableRewards: Promise.resolve(lists.rewards),
       counters: Promise.resolve(lists.counters),
-      namedCooldowns: Promise.resolve(lists.namedCooldowns)
+      namedCooldowns: Promise.resolve(lists.namedCooldowns),
+      namedCountdowns: Promise.resolve(lists.namedCountdowns)
     };
   }
   const uid = effectiveId(locals.session);
-  return { rewards: rewardChoices(uid), manageableRewards: manageableRewardChoices(uid), counters: counterChoices(uid), namedCooldowns: namedCooldownChoices(uid) };
+  return { rewards: rewardChoices(uid), manageableRewards: manageableRewardChoices(uid), counters: counterChoices(uid), namedCooldowns: namedCooldownChoices(uid), namedCountdowns: namedCountdownChoices(uid) };
 }
 
 export const load: PageServerLoad = async ({ params, locals, url, depends }) => {

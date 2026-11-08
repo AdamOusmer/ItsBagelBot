@@ -16,6 +16,7 @@
     "loopIndex": "Welcher Durchlauf dies ist",
     "apiError": "Warum es fehlgeschlagen ist",
     "cooldownLeft": "Verbleibender Cooldown",
+    "countdownLeft": "Verbleibende Zeit des Countdowns",
     "saved": "Von einem früheren Schritt gespeichert"
   }
 }

@@ -320,6 +320,7 @@ func serveRecipeState(t *testing.T, nc *nats.Conn, target recipeDB) recipeStateS
 	require.NoError(t, modulesrepo.MigrateSchema(context.Background(), client, target.Dialect))
 	state := modulesrepo.NewRecipeState(client, drv)
 	require.NoError(t, modulesserver.SubscribeRecipeState(bus.RPCWiring{NC: nc, Log: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))}, state, modulesPrefix))
+	require.NoError(t, modulesserver.SubscribeCountdown(bus.RPCWiring{NC: nc, Log: zaptest.NewLogger(t, zaptest.Level(zap.WarnLevel))}, state, modulesPrefix))
 	return recipeStateService{client: client, state: state}
 }
 
@@ -469,6 +470,7 @@ func (s *stack) replica(t *testing.T) *engine.Pipeline {
 			Source: s.source, Runs: s.runs,
 			Variables: s.vars, Queue: engine.NewValkeyRunQueue(s.vc),
 			LongCooldowns: engine.NewMarkedLongCooldowns(s.vc, s.vars, log),
+			Countdowns:    s.vars,
 		},
 		Proj: premiumChannels{}, Live: live, RewardResets: engine.NewValkeyRewardResets(s.vc),
 		Greet: engine.NewValkeyGreetStore(s.vc, time.Hour, log), Cooldown: cooldown,

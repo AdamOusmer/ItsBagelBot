@@ -44,6 +44,42 @@ func (f CooldownClaimFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Valu
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CooldownClaimMutation", m)
 }
 
+// The CountdownFunc type is an adapter to allow the use of ordinary
+// function as Countdown mutator.
+type CountdownFunc func(context.Context, *ent.CountdownMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CountdownFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CountdownMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CountdownMutation", m)
+}
+
+// The CountdownDeliveryFunc type is an adapter to allow the use of ordinary
+// function as CountdownDelivery mutator.
+type CountdownDeliveryFunc func(context.Context, *ent.CountdownDeliveryMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CountdownDeliveryFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CountdownDeliveryMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CountdownDeliveryMutation", m)
+}
+
+// The CountdownOperationFunc type is an adapter to allow the use of ordinary
+// function as CountdownOperation mutator.
+type CountdownOperationFunc func(context.Context, *ent.CountdownOperationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CountdownOperationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CountdownOperationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CountdownOperationMutation", m)
+}
+
 // The FeedCounterFunc type is an adapter to allow the use of ordinary
 // function as FeedCounter mutator.
 type FeedCounterFunc func(context.Context, *ent.FeedCounterMutation) (ent.Value, error)

@@ -6,6 +6,9 @@ import (
 	"ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/cooldownclaim"
+	"ItsBagelBot/app/db/modules/ent/countdown"
+	"ItsBagelBot/app/db/modules/ent/countdowndelivery"
+	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
@@ -85,6 +88,9 @@ func checkColumn(t, c string) error {
 			automation.Table:         automation.ValidColumn,
 			channelfeedcounter.Table: channelfeedcounter.ValidColumn,
 			cooldownclaim.Table:      cooldownclaim.ValidColumn,
+			countdown.Table:          countdown.ValidColumn,
+			countdowndelivery.Table:  countdowndelivery.ValidColumn,
+			countdownoperation.Table: countdownoperation.ValidColumn,
 			feedcounter.Table:        feedcounter.ValidColumn,
 			feedreceipt.Table:        feedreceipt.ValidColumn,
 			goveecredential.Table:    goveecredential.ValidColumn,

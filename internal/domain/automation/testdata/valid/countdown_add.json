@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "event",
+    "params": {
+      "kind": "channel.cheer"
+    }
+  },
+  "actions": [
+    {
+      "type": "countdown_add",
+      "params": {
+        "name": "subathon",
+        "seconds": 30,
+        "per": 100
+      }
+    }
+  ]
+}

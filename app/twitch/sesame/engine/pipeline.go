@@ -95,9 +95,11 @@ type Pipeline struct {
 	autoExec    autoExecState
 	autoSegment time.Duration
 
-	queueWaiters *queueWaiters
-	queueTiming  queueTiming
-	durable      *durableRuns
+	queueWaiters    *queueWaiters
+	queueTiming     queueTiming
+	durable         *durableRuns
+	countdownCancel context.CancelFunc
+	countdownDone   chan struct{}
 }
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
@@ -159,10 +161,15 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		p.stats = newBotStats(d.Stats, d.Log)
 	}
 	p.durable = newDurableRuns(p, p.automations)
+	p.startCountdownWorker()
 	return p
 }
 
 func (p *Pipeline) Close() {
+	if p.countdownCancel != nil {
+		p.countdownCancel()
+		<-p.countdownDone
+	}
 	p.durable.halt()
 	p.queueWaiters.close()
 	p.durable.handOff()

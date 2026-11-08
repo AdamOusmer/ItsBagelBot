@@ -3,7 +3,7 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
-import { MAX_COOLDOWN_SECONDS } from './limits';
+import { MAX_COOLDOWN_SECONDS, MAX_TEMPLATE_LENGTH } from './limits';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
 export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
@@ -83,6 +83,7 @@ export const TRIGGER_TYPES: TypeDef[] = [
     f('min_chat_lines', 'int', { min: 0, max: 100 }),
     f('offline_ok', 'bool'),
   ]),
+  trigger('countdown', [varName]),
   trigger('reward', [f('reward_id', 'text', { required: true, min: 1, max: 64 })]),
   trigger('manual'),
 ];
@@ -193,6 +194,8 @@ export const ACTION_TYPES: TypeDef[] = [
     f('scene_value', 'text', { min: 1, max: 200 }),
   ]),
   action('stop'),
+  action('countdown_start', [varName, f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }), f('left_command', 'text', { max: 64 }), f('left_reply', 'text', { max: MAX_TEMPLATE_LENGTH }), f('ready_reply', 'text', { max: MAX_TEMPLATE_LENGTH })]),
+  action('countdown_add', [varName, f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }), f('per', 'int', { min: 0 })]),
   action('cooldown_add', [
     f('name', 'text', { required: true, min: 1, max: 32 }),
     f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }),

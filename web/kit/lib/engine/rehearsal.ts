@@ -238,8 +238,8 @@ const RECIPE_VALUE_TOKENS = new Set(['local', 'var', 'viewervar', 'cooldown']);
 
 function recipeValueScope(samples: Samples): SampleScope {
   return {
-    owns: ({ name }) => RECIPE_VALUE_TOKENS.has(name),
-    get: (token) => samples[token.key] ?? token.payload
+    owns: ({ name, payload }) => RECIPE_VALUE_TOKENS.has(name) || (name === 'countdown' && payload === 'left'),
+    get: (token) => samples[token.key] ?? (token.name === 'countdown' ? '' : token.payload)
   };
 }
 

@@ -78,6 +78,7 @@ type durableRecord struct {
 	ArgMap       map[string]string       `json:"arg_map,omitempty"`
 	Event        map[string]string       `json:"event,omitempty"`
 	Locals       map[string]string       `json:"locals,omitempty"`
+	CountdownEnd int64                   `json:"countdown_end_ms,omitempty"`
 	CooldownEnd  int64                   `json:"cooldown_end_ms,omitempty"`
 	Iter         string                  `json:"iter,omitempty"`
 	Started      time.Time               `json:"started"`
@@ -106,6 +107,7 @@ func baseDurableRecord(run *AutomationRun) durableRecord {
 		Event:        run.Event,
 		Locals:       run.Locals,
 		CooldownEnd:  run.CooldownEndMS,
+		CountdownEnd: run.CountdownEndMS,
 		Iter:         run.Iter,
 		Started:      run.Started,
 		Env:          run.Env,
@@ -179,28 +181,29 @@ func branchPath(s step, index int, target step, prefix []int) ([]int, bool) {
 
 func (r *durableRecord) run(ref DurableRef) *AutomationRun {
 	return &AutomationRun{
-		BroadcasterID: ref.BroadcasterID,
-		Channel:       r.channel(ref),
-		Regress:       r.Regress,
-		Locale:        r.Locale,
-		Env:           r.Env,
-		Viewer:        r.Viewer,
-		Args:          r.Args,
-		ArgMap:        r.ArgMap,
-		Event:         r.Event,
-		Source:        r.Source,
-		ID:            r.RunID,
-		Identity:      r.Identity,
-		Depth:         r.Depth,
-		Started:       r.Started,
-		Record:        r.Record,
-		Locals:        r.Locals,
-		CooldownEndMS: r.CooldownEnd,
-		Iter:          r.Iter,
-		Replay:        r.Replay,
-		Tree:          r.Tree.tree(),
-		DetachedRole:  r.Role,
-		Durable:       &durableTicket{ref: ref, ticket: r.ticket()},
+		BroadcasterID:  ref.BroadcasterID,
+		Channel:        r.channel(ref),
+		Regress:        r.Regress,
+		Locale:         r.Locale,
+		Env:            r.Env,
+		Viewer:         r.Viewer,
+		Args:           r.Args,
+		ArgMap:         r.ArgMap,
+		Event:          r.Event,
+		Source:         r.Source,
+		ID:             r.RunID,
+		Identity:       r.Identity,
+		Depth:          r.Depth,
+		Started:        r.Started,
+		Record:         r.Record,
+		Locals:         r.Locals,
+		CooldownEndMS:  r.CooldownEnd,
+		CountdownEndMS: r.CountdownEnd,
+		Iter:           r.Iter,
+		Replay:         r.Replay,
+		Tree:           r.Tree.tree(),
+		DetachedRole:   r.Role,
+		Durable:        &durableTicket{ref: ref, ticket: r.ticket()},
 	}
 }
 

@@ -65,5 +65,6 @@
   "statusDoneOne": "Завершено, выполнен 1 шаг. В чат ничего не отправлено.",
   "statusDoneMany": "Завершено, выполнено шагов: {count}. В чат ничего не отправлено.",
   "viewerTyped": "{name} написал {text}",
-  "nothingToSend": "Пока нечего отправлять"
+  "nothingToSend": "Пока нечего отправлять",
+  "connectionSelection": "Выбрать связь"
 }

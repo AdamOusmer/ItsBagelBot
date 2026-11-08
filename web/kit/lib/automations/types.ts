@@ -83,6 +83,8 @@ export interface TimerTrigger {
   offline_ok?: boolean;
 }
 
+export interface CountdownTrigger { name: string; }
+
 export interface RewardTrigger {
   reward_id: string;
 }
@@ -288,6 +290,14 @@ export interface VarAddAction {
 export interface VarDeleteAction {
   scope: VarScope;
   name: string;
+}
+
+export interface CountdownStartAction {
+  name: string;
+  seconds: number;
+  left_command?: string;
+  left_reply?: string;
+  ready_reply?: string;
 }
 
 export interface CooldownAddAction {
