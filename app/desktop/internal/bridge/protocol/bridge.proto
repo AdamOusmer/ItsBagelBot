@@ -1,0 +1,60 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+syntax = "proto3";
+package bagel.bridge.v1;
+option go_package = "ItsBagelBot/app/desktop/internal/bridge/protocol";
+
+enum Kind {
+ UNKNOWN = 0;
+ SESSION_STARTED = 1;
+ SESSION_BOUND = 2;
+ RECONNECT = 3;
+ HANDOFF_READY = 4;
+ EVENT = 5;
+ AUTH_ERROR = 6;
+ KEEPALIVE = 7;
+}
+enum EventKind {
+ EVENT_UNSPECIFIED = 0;
+ CHAT = 1;
+ ALERT = 2;
+}
+message ServerMessage {
+ uint32 version = 1;
+ Kind kind = 2;
+ string session_id = 3;
+ int64 bind_within_ms = 4;
+ string migration = 5;
+ int64 within_ms = 6;
+ string target = 7;
+ uint64 through = 8;
+ Event event = 9;
+ string code = 10;
+}
+message Event {
+ uint64 sequence = 1;
+ int64 sent_unix_nano = 2;
+ EventKind kind = 3;
+ ChatEvent chat = 4;
+ AlertEvent alert = 5;
+}
+message ChatEvent {
+ string channel_id = 1;
+ string user_id = 2;
+ string display_name = 3;
+ string text = 4;
+}
+message AlertEvent {
+ string kind = 1;
+ string name = 2;
+ int64 amount = 3;
+}
+message BindAccount {
+ string session_id = 1;
+ string migration = 2;
+ uint64 after = 3;
+}
+message MigrationRequest {
+ string session_id = 1;
+ uint64 after = 2;
+}

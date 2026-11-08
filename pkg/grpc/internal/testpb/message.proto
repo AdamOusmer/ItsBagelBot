@@ -1,0 +1,12 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+syntax = "proto3";
+package bagel.grpctest;
+option go_package = "ItsBagelBot/pkg/grpc/internal/testpb";
+message Packet {
+ uint64 sequence = 1;
+ string label = 2;
+ Child child = 3;
+ bytes payload = 4;
+}
+message Child { string value = 1; }

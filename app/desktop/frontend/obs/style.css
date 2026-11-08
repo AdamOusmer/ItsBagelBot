@@ -1,0 +1,7 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+@import '@bagel/ui/styles/layers.css';
+@import '@bagel/ui/styles/brand.css';
+@import '@bagel/ui/styles/fonts.css';
+html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+body { font-family: var(--bb-font-body); color: var(--bb-white); }

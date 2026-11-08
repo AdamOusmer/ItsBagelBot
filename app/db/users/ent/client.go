@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
+	"ItsBagelBot/app/db/users/ent/deviceproof"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
@@ -45,6 +46,8 @@ type Client struct {
 	Delegation *DelegationClient
 	// DeviceGrant is the client for interacting with the DeviceGrant builders.
 	DeviceGrant *DeviceGrantClient
+	// DeviceProof is the client for interacting with the DeviceProof builders.
+	DeviceProof *DeviceProofClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
 	LifecycleErasure *LifecycleErasureClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
@@ -70,6 +73,7 @@ func (c *Client) init() {
 	c.AuthorizationCode = NewAuthorizationCodeClient(c.config)
 	c.Delegation = NewDelegationClient(c.config)
 	c.DeviceGrant = NewDeviceGrantClient(c.config)
+	c.DeviceProof = NewDeviceProofClient(c.config)
 	c.LifecycleErasure = NewLifecycleErasureClient(c.config)
 	c.PremiumGrant = NewPremiumGrantClient(c.config)
 	c.Tokens = NewTokensClient(c.config)
@@ -172,6 +176,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		AuthorizationCode: NewAuthorizationCodeClient(cfg),
 		Delegation:        NewDelegationClient(cfg),
 		DeviceGrant:       NewDeviceGrantClient(cfg),
+		DeviceProof:       NewDeviceProofClient(cfg),
 		LifecycleErasure:  NewLifecycleErasureClient(cfg),
 		PremiumGrant:      NewPremiumGrantClient(cfg),
 		Tokens:            NewTokensClient(cfg),
@@ -201,6 +206,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		AuthorizationCode: NewAuthorizationCodeClient(cfg),
 		Delegation:        NewDelegationClient(cfg),
 		DeviceGrant:       NewDeviceGrantClient(cfg),
+		DeviceProof:       NewDeviceProofClient(cfg),
 		LifecycleErasure:  NewLifecycleErasureClient(cfg),
 		PremiumGrant:      NewPremiumGrantClient(cfg),
 		Tokens:            NewTokensClient(cfg),
@@ -235,7 +241,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.AuthorizationCode, c.Delegation,
-		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.DeviceGrant, c.DeviceProof, c.LifecycleErasure, c.PremiumGrant, c.Tokens,
+		c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -246,7 +253,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.AuthorizationCode, c.Delegation,
-		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.DeviceGrant, c.DeviceProof, c.LifecycleErasure, c.PremiumGrant, c.Tokens,
+		c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -267,6 +275,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Delegation.mutate(ctx, m)
 	case *DeviceGrantMutation:
 		return c.DeviceGrant.mutate(ctx, m)
+	case *DeviceProofMutation:
+		return c.DeviceProof.mutate(ctx, m)
 	case *LifecycleErasureMutation:
 		return c.LifecycleErasure.mutate(ctx, m)
 	case *PremiumGrantMutation:
@@ -1110,6 +1120,139 @@ func (c *DeviceGrantClient) mutate(ctx context.Context, m *DeviceGrantMutation) 
 	}
 }
 
+// DeviceProofClient is a client for the DeviceProof schema.
+type DeviceProofClient struct {
+	config
+}
+
+// NewDeviceProofClient returns a client for the DeviceProof from the given config.
+func NewDeviceProofClient(c config) *DeviceProofClient {
+	return &DeviceProofClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `deviceproof.Hooks(f(g(h())))`.
+func (c *DeviceProofClient) Use(hooks ...Hook) {
+	c.hooks.DeviceProof = append(c.hooks.DeviceProof, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `deviceproof.Intercept(f(g(h())))`.
+func (c *DeviceProofClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DeviceProof = append(c.inters.DeviceProof, interceptors...)
+}
+
+// Create returns a builder for creating a DeviceProof entity.
+func (c *DeviceProofClient) Create() *DeviceProofCreate {
+	mutation := newDeviceProofMutation(c.config, OpCreate)
+	return &DeviceProofCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of DeviceProof entities.
+func (c *DeviceProofClient) CreateBulk(builders ...*DeviceProofCreate) *DeviceProofCreateBulk {
+	return &DeviceProofCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DeviceProofClient) MapCreateBulk(slice any, setFunc func(*DeviceProofCreate, int)) *DeviceProofCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DeviceProofCreateBulk{err: fmt.Errorf("calling to DeviceProofClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DeviceProofCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DeviceProofCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for DeviceProof.
+func (c *DeviceProofClient) Update() *DeviceProofUpdate {
+	mutation := newDeviceProofMutation(c.config, OpUpdate)
+	return &DeviceProofUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DeviceProofClient) UpdateOne(_m *DeviceProof) *DeviceProofUpdateOne {
+	mutation := newDeviceProofMutation(c.config, OpUpdateOne, withDeviceProof(_m))
+	return &DeviceProofUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DeviceProofClient) UpdateOneID(id int) *DeviceProofUpdateOne {
+	mutation := newDeviceProofMutation(c.config, OpUpdateOne, withDeviceProofID(id))
+	return &DeviceProofUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for DeviceProof.
+func (c *DeviceProofClient) Delete() *DeviceProofDelete {
+	mutation := newDeviceProofMutation(c.config, OpDelete)
+	return &DeviceProofDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DeviceProofClient) DeleteOne(_m *DeviceProof) *DeviceProofDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DeviceProofClient) DeleteOneID(id int) *DeviceProofDeleteOne {
+	builder := c.Delete().Where(deviceproof.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DeviceProofDeleteOne{builder}
+}
+
+// Query returns a query builder for DeviceProof.
+func (c *DeviceProofClient) Query() *DeviceProofQuery {
+	return &DeviceProofQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDeviceProof},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a DeviceProof entity by its id.
+func (c *DeviceProofClient) Get(ctx context.Context, id int) (*DeviceProof, error) {
+	return c.Query().Where(deviceproof.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DeviceProofClient) GetX(ctx context.Context, id int) *DeviceProof {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *DeviceProofClient) Hooks() []Hook {
+	return c.hooks.DeviceProof
+}
+
+// Interceptors returns the client interceptors.
+func (c *DeviceProofClient) Interceptors() []Interceptor {
+	return c.inters.DeviceProof
+}
+
+func (c *DeviceProofClient) mutate(ctx context.Context, m *DeviceProofMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DeviceProofCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DeviceProofUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DeviceProofUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DeviceProofDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown DeviceProof mutation op: %q", m.Op())
+	}
+}
+
 // LifecycleErasureClient is a client for the LifecycleErasure schema.
 type LifecycleErasureClient struct {
 	config
@@ -1743,10 +1886,12 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		AdminAudit, AdminUser, AnalyticsRollup, AuthorizationCode, Delegation,
-		DeviceGrant, LifecycleErasure, PremiumGrant, Tokens, User []ent.Hook
+		DeviceGrant, DeviceProof, LifecycleErasure, PremiumGrant, Tokens,
+		User []ent.Hook
 	}
 	inters struct {
 		AdminAudit, AdminUser, AnalyticsRollup, AuthorizationCode, Delegation,
-		DeviceGrant, LifecycleErasure, PremiumGrant, Tokens, User []ent.Interceptor
+		DeviceGrant, DeviceProof, LifecycleErasure, PremiumGrant, Tokens,
+		User []ent.Interceptor
 	}
 )

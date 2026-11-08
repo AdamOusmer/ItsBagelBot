@@ -71,6 +71,32 @@ func (_u *DeviceGrantUpdate) SetNillablePlatform(v *devicegrant.Platform) *Devic
 	return _u
 }
 
+// SetDpopJkt sets the "dpop_jkt" field.
+func (_u *DeviceGrantUpdate) SetDpopJkt(v string) *DeviceGrantUpdate {
+	_u.mutation.SetDpopJkt(v)
+	return _u
+}
+
+// SetNillableDpopJkt sets the "dpop_jkt" field if the given value is not nil.
+func (_u *DeviceGrantUpdate) SetNillableDpopJkt(v *string) *DeviceGrantUpdate {
+	if v != nil {
+		_u.SetDpopJkt(*v)
+	}
+	return _u
+}
+
+// SetRefreshResult sets the "refresh_result" field.
+func (_u *DeviceGrantUpdate) SetRefreshResult(v []byte) *DeviceGrantUpdate {
+	_u.mutation.SetRefreshResult(v)
+	return _u
+}
+
+// ClearRefreshResult clears the value of the "refresh_result" field.
+func (_u *DeviceGrantUpdate) ClearRefreshResult() *DeviceGrantUpdate {
+	_u.mutation.ClearRefreshResult()
+	return _u
+}
+
 // SetRefreshHash sets the "refresh_hash" field.
 func (_u *DeviceGrantUpdate) SetRefreshHash(v []byte) *DeviceGrantUpdate {
 	_u.mutation.SetRefreshHash(v)
@@ -232,6 +258,11 @@ func (_u *DeviceGrantUpdate) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "DeviceGrant.platform": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DpopJkt(); ok {
+		if err := devicegrant.DpopJktValidator(v); err != nil {
+			return &ValidationError{Name: "dpop_jkt", err: fmt.Errorf(`ent: validator failed for field "DeviceGrant.dpop_jkt": %w`, err)}
+		}
+	}
 	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "DeviceGrant.user"`)
 	}
@@ -255,6 +286,15 @@ func (_u *DeviceGrantUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(devicegrant.FieldPlatform, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.DpopJkt(); ok {
+		_spec.SetField(devicegrant.FieldDpopJkt, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.RefreshResult(); ok {
+		_spec.SetField(devicegrant.FieldRefreshResult, field.TypeBytes, value)
+	}
+	if _u.mutation.RefreshResultCleared() {
+		_spec.ClearField(devicegrant.FieldRefreshResult, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.RefreshHash(); ok {
 		_spec.SetField(devicegrant.FieldRefreshHash, field.TypeBytes, value)
@@ -377,6 +417,32 @@ func (_u *DeviceGrantUpdateOne) SetNillablePlatform(v *devicegrant.Platform) *De
 	if v != nil {
 		_u.SetPlatform(*v)
 	}
+	return _u
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (_u *DeviceGrantUpdateOne) SetDpopJkt(v string) *DeviceGrantUpdateOne {
+	_u.mutation.SetDpopJkt(v)
+	return _u
+}
+
+// SetNillableDpopJkt sets the "dpop_jkt" field if the given value is not nil.
+func (_u *DeviceGrantUpdateOne) SetNillableDpopJkt(v *string) *DeviceGrantUpdateOne {
+	if v != nil {
+		_u.SetDpopJkt(*v)
+	}
+	return _u
+}
+
+// SetRefreshResult sets the "refresh_result" field.
+func (_u *DeviceGrantUpdateOne) SetRefreshResult(v []byte) *DeviceGrantUpdateOne {
+	_u.mutation.SetRefreshResult(v)
+	return _u
+}
+
+// ClearRefreshResult clears the value of the "refresh_result" field.
+func (_u *DeviceGrantUpdateOne) ClearRefreshResult() *DeviceGrantUpdateOne {
+	_u.mutation.ClearRefreshResult()
 	return _u
 }
 
@@ -554,6 +620,11 @@ func (_u *DeviceGrantUpdateOne) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "DeviceGrant.platform": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DpopJkt(); ok {
+		if err := devicegrant.DpopJktValidator(v); err != nil {
+			return &ValidationError{Name: "dpop_jkt", err: fmt.Errorf(`ent: validator failed for field "DeviceGrant.dpop_jkt": %w`, err)}
+		}
+	}
 	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "DeviceGrant.user"`)
 	}
@@ -594,6 +665,15 @@ func (_u *DeviceGrantUpdateOne) sqlSave(ctx context.Context) (_node *DeviceGrant
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(devicegrant.FieldPlatform, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.DpopJkt(); ok {
+		_spec.SetField(devicegrant.FieldDpopJkt, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.RefreshResult(); ok {
+		_spec.SetField(devicegrant.FieldRefreshResult, field.TypeBytes, value)
+	}
+	if _u.mutation.RefreshResultCleared() {
+		_spec.ClearField(devicegrant.FieldRefreshResult, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.RefreshHash(); ok {
 		_spec.SetField(devicegrant.FieldRefreshHash, field.TypeBytes, value)

@@ -61,8 +61,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 function reparse(form: FormData): ReturnType<typeof parseAuthorizeParams> {
   const params = new URLSearchParams();
-  for (const key of ['response_type', 'client_id', 'redirect_uri', 'code_challenge', 'code_challenge_method', 'state', 'device_name', 'platform']) {
-    params.set(key, String(form.get(key) ?? ''));
+  for (const key of ['response_type', 'client_id', 'redirect_uri', 'code_challenge', 'code_challenge_method', 'dpop_jkt', 'state', 'device_name', 'platform']) {
+    for (const value of form.getAll(key)) params.append(key, String(value));
   }
   return parseAuthorizeParams(params);
 }
@@ -100,6 +100,7 @@ export const actions: Actions = {
         : await deviceCodeCreate({
             userId: s.user_id,
             codeChallenge: r.codeChallenge,
+            dpopJkt: r.dpopJkt,
             redirectUri: r.redirectUri,
             deviceName: r.deviceName,
             platform: r.platform

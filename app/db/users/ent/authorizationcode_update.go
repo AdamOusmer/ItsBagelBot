@@ -63,6 +63,20 @@ func (_u *AuthorizationCodeUpdate) SetNillableCodeChallenge(v *string) *Authoriz
 	return _u
 }
 
+// SetDpopJkt sets the "dpop_jkt" field.
+func (_u *AuthorizationCodeUpdate) SetDpopJkt(v string) *AuthorizationCodeUpdate {
+	_u.mutation.SetDpopJkt(v)
+	return _u
+}
+
+// SetNillableDpopJkt sets the "dpop_jkt" field if the given value is not nil.
+func (_u *AuthorizationCodeUpdate) SetNillableDpopJkt(v *string) *AuthorizationCodeUpdate {
+	if v != nil {
+		_u.SetDpopJkt(*v)
+	}
+	return _u
+}
+
 // SetRedirectURI sets the "redirect_uri" field.
 func (_u *AuthorizationCodeUpdate) SetRedirectURI(v string) *AuthorizationCodeUpdate {
 	_u.mutation.SetRedirectURI(v)
@@ -209,6 +223,11 @@ func (_u *AuthorizationCodeUpdate) check() error {
 			return &ValidationError{Name: "code_challenge", err: fmt.Errorf(`ent: validator failed for field "AuthorizationCode.code_challenge": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DpopJkt(); ok {
+		if err := authorizationcode.DpopJktValidator(v); err != nil {
+			return &ValidationError{Name: "dpop_jkt", err: fmt.Errorf(`ent: validator failed for field "AuthorizationCode.dpop_jkt": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.RedirectURI(); ok {
 		if err := authorizationcode.RedirectURIValidator(v); err != nil {
 			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf(`ent: validator failed for field "AuthorizationCode.redirect_uri": %w`, err)}
@@ -252,6 +271,9 @@ func (_u *AuthorizationCodeUpdate) sqlSave(ctx context.Context) (_node int, err 
 	}
 	if value, ok := _u.mutation.CodeChallenge(); ok {
 		_spec.SetField(authorizationcode.FieldCodeChallenge, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DpopJkt(); ok {
+		_spec.SetField(authorizationcode.FieldDpopJkt, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.RedirectURI(); ok {
 		_spec.SetField(authorizationcode.FieldRedirectURI, field.TypeString, value)
@@ -356,6 +378,20 @@ func (_u *AuthorizationCodeUpdateOne) SetCodeChallenge(v string) *AuthorizationC
 func (_u *AuthorizationCodeUpdateOne) SetNillableCodeChallenge(v *string) *AuthorizationCodeUpdateOne {
 	if v != nil {
 		_u.SetCodeChallenge(*v)
+	}
+	return _u
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (_u *AuthorizationCodeUpdateOne) SetDpopJkt(v string) *AuthorizationCodeUpdateOne {
+	_u.mutation.SetDpopJkt(v)
+	return _u
+}
+
+// SetNillableDpopJkt sets the "dpop_jkt" field if the given value is not nil.
+func (_u *AuthorizationCodeUpdateOne) SetNillableDpopJkt(v *string) *AuthorizationCodeUpdateOne {
+	if v != nil {
+		_u.SetDpopJkt(*v)
 	}
 	return _u
 }
@@ -519,6 +555,11 @@ func (_u *AuthorizationCodeUpdateOne) check() error {
 			return &ValidationError{Name: "code_challenge", err: fmt.Errorf(`ent: validator failed for field "AuthorizationCode.code_challenge": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DpopJkt(); ok {
+		if err := authorizationcode.DpopJktValidator(v); err != nil {
+			return &ValidationError{Name: "dpop_jkt", err: fmt.Errorf(`ent: validator failed for field "AuthorizationCode.dpop_jkt": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.RedirectURI(); ok {
 		if err := authorizationcode.RedirectURIValidator(v); err != nil {
 			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf(`ent: validator failed for field "AuthorizationCode.redirect_uri": %w`, err)}
@@ -579,6 +620,9 @@ func (_u *AuthorizationCodeUpdateOne) sqlSave(ctx context.Context) (_node *Autho
 	}
 	if value, ok := _u.mutation.CodeChallenge(); ok {
 		_spec.SetField(authorizationcode.FieldCodeChallenge, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DpopJkt(); ok {
+		_spec.SetField(authorizationcode.FieldDpopJkt, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.RedirectURI(); ok {
 		_spec.SetField(authorizationcode.FieldRedirectURI, field.TypeString, value)

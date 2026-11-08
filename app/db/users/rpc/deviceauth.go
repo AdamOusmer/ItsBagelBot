@@ -23,15 +23,12 @@ type deviceAuthRPC struct {
 	repo *repository.Users
 }
 
-// SubscribeDeviceAuth wires desktop device authorization. Only exchange and
-// refresh require the Ed25519 signing key; they fail closed on their own
-// when it is unconfigured, so the rest of this surface keeps working.
+// SubscribeDeviceAuth exposes browser consent and account management only.
+// Native exchange, refresh and authorization use the independent overlay prefix.
 func SubscribeDeviceAuth(w Wiring, prefix string) error {
 	d := &deviceAuthRPC{repo: w.Repo}
 	verbs := map[string]func(context.Context, *nats.Msg){
 		"create_code": d.handleCreateCode,
-		"exchange":    d.handleExchange,
-		"refresh":     d.handleRefresh,
 		"list":        d.handleList,
 		"revoke":      d.handleRevoke,
 		"revoke_all":  d.handleRevokeAll,
@@ -56,6 +53,7 @@ func (d *deviceAuthRPC) handleCreateCode(ctx context.Context, msg *nats.Msg) {
 	code, err := d.repo.CreateDeviceAuthorizationCode(ctx, userID, repository.DeviceCodeRequest{
 		Challenge: req.CodeChallenge, RedirectURI: req.RedirectURI,
 		DeviceName: validate.DeviceName(req.DeviceName), Platform: req.Platform,
+		DPoPJKT: req.DPoPJKT,
 	})
 	if err != nil {
 		respondFail(msg, err)
@@ -65,6 +63,9 @@ func (d *deviceAuthRPC) handleCreateCode(ctx context.Context, msg *nats.Msg) {
 }
 
 func validateDeviceCreateInput(req usersrpc.DeviceCreateCodeRequest) error {
+	if err := validate.DeviceThumbprint(req.DPoPJKT); err != nil {
+		return err
+	}
 	if err := validate.DeviceChallenge(req.CodeChallenge); err != nil {
 		return err
 	}
@@ -114,7 +115,7 @@ func (d *deviceAuthRPC) handleRefresh(ctx context.Context, msg *nats.Msg) {
 
 func deviceTokenReply(t repository.DeviceTokens) usersrpc.DeviceTokenReply {
 	return usersrpc.DeviceTokenReply{
-		AccessToken: t.AccessToken, TokenType: "Bearer", ExpiresIn: t.ExpiresIn,
+		AccessToken: t.AccessToken, TokenType: t.TokenType, ExpiresIn: t.ExpiresIn,
 		RefreshToken: t.RefreshToken, GrantID: t.GrantID, DeviceID: t.DeviceID,
 	}
 }

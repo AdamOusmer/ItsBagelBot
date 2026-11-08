@@ -13,14 +13,12 @@
   import Recipes from './shell/Recipes.svelte';
   import Settings from './shell/Settings.svelte';
 
-  // Sample account until device pairing exists; see lib/auth.svelte.ts.
-  const SAMPLE_DASHBOARDS = [{ href: 'https://dashboard.itsbagelbot.com/', name: 'sample_channel' }];
   const BRAND = { title: 'ItsBagelBot', sub: 'Console', logoSrc: '/logo.png', logoAlt: '' };
 
   const ACCOUNT = {
-    name: 'Mavey',
+    name: 'Your account',
     caption: 'Broadcaster',
-    links: SAMPLE_DASHBOARDS.map((d) => ({ href: d.href, label: d.name })),
+    links: [{ href: 'https://dashboard.itsbagelbot.com/', label: 'Open dashboard' }],
     linksLabel: 'Shared dashboards',
     help: SUPPORT_LINKS,
     helpLabel: 'Support',
@@ -28,7 +26,7 @@
     logoutLabel: 'Log out',
     onLogout(event: SubmitEvent): void {
       event.preventDefault();
-      signOut();
+      void signOut();
     },
   };
 

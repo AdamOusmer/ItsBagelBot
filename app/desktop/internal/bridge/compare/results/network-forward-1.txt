@@ -1,0 +1,18 @@
+goos: darwin
+goarch: arm64
+pkg: ItsBagelBot/app/desktop/internal/bridge/compare
+cpu: Apple M1 Pro
+BenchmarkNetworkReceive/chat/ws-json-10         	   98457	      6535 ns/op	       227.0 TCP-read-B/event	         0.0008836 TCP-write-B/event	         1.000 TLS-connections	      5314 cpu-ns/event	    1013 B/op	      11 allocs/op
+BenchmarkNetworkReceive/chat/ws-protobuf-10     	   98804	      5834 ns/op	       118.0 TCP-read-B/event	         0.0008805 TCP-write-B/event	         1.000 TLS-connections	      4789 cpu-ns/event	     504 B/op	      13 allocs/op
+BenchmarkNetworkReceive/chat/grpc-protobuf-10   	   40138	     15146 ns/op	       134.5 TCP-read-B/event	         8.580 TCP-write-B/event	         1.000 TLS-connections	     22437 cpu-ns/event	     415 B/op	       9 allocs/op
+BenchmarkNetworkReceive/chat_large/ws-json-10   	   41691	     14190 ns/op	      5136 TCP-read-B/event	         0.002087 TCP-write-B/event	         1.000 TLS-connections	     12304 cpu-ns/event	    8999 B/op	      11 allocs/op
+BenchmarkNetworkReceive/chat_large/ws-protobuf-10         	   46435	     13230 ns/op	      5031 TCP-read-B/event	         0.001874 TCP-write-B/event	         1.000 TLS-connections	     12279 cpu-ns/event	    5832 B/op	      13 allocs/op
+BenchmarkNetworkReceive/chat_large/grpc-protobuf-10       	   17229	     34546 ns/op	      5062 TCP-read-B/event	        22.21 TCP-write-B/event	         1.000 TLS-connections	     58797 cpu-ns/event	    7239 B/op	      11 allocs/op
+BenchmarkNetworkReceive/alert/ws-json-10                  	  101856	      6326 ns/op	       156.0 TCP-read-B/event	         0.0008541 TCP-write-B/event	         1.000 TLS-connections	      5100 cpu-ns/event	     853 B/op	      11 allocs/op
+BenchmarkNetworkReceive/alert/ws-protobuf-10              	  107575	      5663 ns/op	        69.00 TCP-read-B/event	         0.0008087 TCP-write-B/event	         1.000 TLS-connections	      4603 cpu-ns/event	     408 B/op	      11 allocs/op
+BenchmarkNetworkReceive/alert/grpc-protobuf-10            	   39607	     14891 ns/op	        85.55 TCP-read-B/event	         8.526 TCP-write-B/event	         1.000 TLS-connections	     22265 cpu-ns/event	     266 B/op	       7 allocs/op
+BenchmarkNetworkLifecycle/ws-json-10                      	     325	   1778668 ns/op	       325.0 TLS-connections	    635905 cpu-ns/session	  268918 B/op	     610 allocs/op
+BenchmarkNetworkLifecycle/ws-protobuf-10                  	     326	   1801692 ns/op	       326.0 TLS-connections	    664423 cpu-ns/session	  107787 B/op	     612 allocs/op
+BenchmarkNetworkLifecycle/grpc-cold-10                    	     291	   2049912 ns/op	       291.0 TLS-connections	   1087495 cpu-ns/session	  172942 B/op	    1151 allocs/op
+BenchmarkNetworkLifecycle/grpc-warm-stream-10             	    3573	    164090 ns/op	         1.000 TLS-connections	    178069 cpu-ns/session	   24661 B/op	     106 allocs/op
+PASS

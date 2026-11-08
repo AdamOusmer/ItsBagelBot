@@ -23,6 +23,7 @@ import (
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/pkg/bus/bustest"
+	sharedcrypto "ItsBagelBot/pkg/crypto"
 
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
@@ -34,12 +35,15 @@ type deviceHarness struct {
 	repo   *repository.Users
 	nc     *nats.Conn
 	pub    ed25519.PublicKey
+	packer *sharedcrypto.Crypto
+	signer *tokensign.Signer
 }
 
 func setupDeviceAuth(t *testing.T) deviceHarness {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), bustest.NewPublisher(), nil, zap.NewNop())
+	packer := dbtest.NewPacker(t)
+	repo := repository.NewUsers(client, packer, bustest.NewPublisher(), nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
 	nc := testnats.Connect(t)
@@ -51,7 +55,7 @@ func setupDeviceAuth(t *testing.T) deviceHarness {
 	require.NoError(t, err)
 	repo.SetDeviceAuthSigner(signer)
 
-	return deviceHarness{client: client, repo: repo, nc: nc, pub: pub}
+	return deviceHarness{client: client, repo: repo, nc: nc, pub: pub, packer: packer, signer: signer}
 }
 
 func pkceChallenge(verifier string) string {

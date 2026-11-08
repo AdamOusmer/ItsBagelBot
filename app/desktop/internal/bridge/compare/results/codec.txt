@@ -1,0 +1,59 @@
+goos: darwin
+goarch: arm64
+pkg: ItsBagelBot/app/desktop/internal/bridge/compare
+cpu: Apple M1 Pro
+BenchmarkEncode/chat/protobuf-10         	 1882459	       187.3 ns/op	      96 B/op	       1 allocs/op
+BenchmarkEncode/chat/protobuf-10         	 1922019	       184.8 ns/op	      96 B/op	       1 allocs/op
+BenchmarkEncode/chat/protobuf-10         	 1911312	       189.6 ns/op	      96 B/op	       1 allocs/op
+BenchmarkEncode/chat/json-10             	  619869	       596.4 ns/op	     232 B/op	       2 allocs/op
+BenchmarkEncode/chat/json-10             	  635139	       592.1 ns/op	     231 B/op	       2 allocs/op
+BenchmarkEncode/chat/json-10             	  642006	       586.7 ns/op	     231 B/op	       2 allocs/op
+BenchmarkEncode/chat/protobuf_reuse-10   	 2233572	       160.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncode/chat/protobuf_reuse-10   	 2245434	       161.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncode/chat/protobuf_reuse-10   	 2219120	       162.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncode/chat_large/protobuf-10   	  228531	      1616 ns/op	    5376 B/op	       1 allocs/op
+BenchmarkEncode/chat_large/protobuf-10   	  202624	      1671 ns/op	    5376 B/op	       1 allocs/op
+BenchmarkEncode/chat_large/protobuf-10   	  231492	      1872 ns/op	    5376 B/op	       1 allocs/op
+BenchmarkEncode/chat_large/json-10       	  173463	      2036 ns/op	    5678 B/op	       2 allocs/op
+BenchmarkEncode/chat_large/json-10       	  179740	      2039 ns/op	    5661 B/op	       2 allocs/op
+BenchmarkEncode/chat_large/json-10       	  176362	      2123 ns/op	    5687 B/op	       2 allocs/op
+BenchmarkEncode/chat_large/protobuf_reuse-10         	  358750	       995.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncode/chat_large/protobuf_reuse-10         	  360901	      1009 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncode/chat_large/protobuf_reuse-10         	  361077	       997.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncode/alert/protobuf-10                    	 2622870	       138.4 ns/op	      48 B/op	       1 allocs/op
+BenchmarkEncode/alert/protobuf-10                    	 2654300	       135.9 ns/op	      48 B/op	       1 allocs/op
+BenchmarkEncode/alert/protobuf-10                    	 2648941	       136.5 ns/op	      48 B/op	       1 allocs/op
+BenchmarkEncode/alert/json-10                        	  768422	       470.0 ns/op	     164 B/op	       2 allocs/op
+BenchmarkEncode/alert/json-10                        	  791803	       462.3 ns/op	     163 B/op	       2 allocs/op
+BenchmarkEncode/alert/json-10                        	  795968	       468.4 ns/op	     165 B/op	       2 allocs/op
+BenchmarkEncode/alert/protobuf_reuse-10              	 2941225	       122.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncode/alert/protobuf_reuse-10              	 2905214	       123.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncode/alert/protobuf_reuse-10              	 2947101	       122.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecode/chat/protobuf-10                     	 1470427	       244.2 ns/op	 384.99 MB/s	     200 B/op	       5 allocs/op
+BenchmarkDecode/chat/protobuf-10                     	 1439227	       249.6 ns/op	 376.63 MB/s	     200 B/op	       5 allocs/op
+BenchmarkDecode/chat/protobuf-10                     	 1508394	       239.8 ns/op	 391.97 MB/s	     200 B/op	       5 allocs/op
+BenchmarkDecode/chat/json-10                         	  725062	       478.0 ns/op	 420.50 MB/s	     502 B/op	       7 allocs/op
+BenchmarkDecode/chat/json-10                         	  672807	       479.9 ns/op	 418.80 MB/s	     507 B/op	       7 allocs/op
+BenchmarkDecode/chat/json-10                         	  706562	       646.8 ns/op	 310.75 MB/s	     502 B/op	       7 allocs/op
+BenchmarkDecode/chat/json_borrowed-10                	  811663	       435.8 ns/op	 461.25 MB/s	     389 B/op	       3 allocs/op
+BenchmarkDecode/chat/json_borrowed-10                	  739947	       436.2 ns/op	 460.82 MB/s	     409 B/op	       3 allocs/op
+BenchmarkDecode/chat/json_borrowed-10                	  771896	       478.3 ns/op	 420.20 MB/s	     401 B/op	       3 allocs/op
+BenchmarkDecode/chat_large/protobuf-10               	  182899	      1960 ns/op	2542.10 MB/s	    5528 B/op	       5 allocs/op
+BenchmarkDecode/chat_large/protobuf-10               	  183607	      1976 ns/op	2521.86 MB/s	    5528 B/op	       5 allocs/op
+BenchmarkDecode/chat_large/protobuf-10               	  175521	      1979 ns/op	2517.61 MB/s	    5528 B/op	       5 allocs/op
+BenchmarkDecode/chat_large/json-10                   	  155107	      2212 ns/op	2300.48 MB/s	   13515 B/op	       7 allocs/op
+BenchmarkDecode/chat_large/json-10                   	  166791	      1993 ns/op	2552.96 MB/s	   13319 B/op	       7 allocs/op
+BenchmarkDecode/chat_large/json-10                   	  174994	      1944 ns/op	2616.78 MB/s	   13193 B/op	       7 allocs/op
+BenchmarkDecode/chat_large/json_borrowed-10          	  255624	      1336 ns/op	3808.63 MB/s	    6885 B/op	       3 allocs/op
+BenchmarkDecode/chat_large/json_borrowed-10          	  283474	      1326 ns/op	3835.82 MB/s	    6894 B/op	       3 allocs/op
+BenchmarkDecode/chat_large/json_borrowed-10          	  254276	      1337 ns/op	3806.18 MB/s	    6909 B/op	       3 allocs/op
+BenchmarkDecode/alert/protobuf-10                    	 2243133	       163.1 ns/op	 275.88 MB/s	     104 B/op	       3 allocs/op
+BenchmarkDecode/alert/protobuf-10                    	 2211272	       168.1 ns/op	 267.74 MB/s	     104 B/op	       3 allocs/op
+BenchmarkDecode/alert/protobuf-10                    	 2121056	       170.8 ns/op	 263.46 MB/s	     104 B/op	       3 allocs/op
+BenchmarkDecode/alert/json-10                        	  904230	       399.5 ns/op	 325.37 MB/s	     345 B/op	       5 allocs/op
+BenchmarkDecode/alert/json-10                        	  779010	       395.0 ns/op	 329.08 MB/s	     350 B/op	       5 allocs/op
+BenchmarkDecode/alert/json-10                        	  864613	       399.1 ns/op	 325.72 MB/s	     351 B/op	       5 allocs/op
+BenchmarkDecode/alert/json_borrowed-10               	  925250	       375.8 ns/op	 345.92 MB/s	     321 B/op	       3 allocs/op
+BenchmarkDecode/alert/json_borrowed-10               	  931556	       367.3 ns/op	 353.94 MB/s	     318 B/op	       3 allocs/op
+BenchmarkDecode/alert/json_borrowed-10               	 1000000	       370.8 ns/op	 350.61 MB/s	     313 B/op	       3 allocs/op
+PASS

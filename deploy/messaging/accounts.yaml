@@ -865,6 +865,14 @@ accounts:
             twitch_ingress_rpc: {}
     USERS_RPC:
         exports:
+            # Overlay auth is separate from dashboard approval. No existing
+            # account imports these; provision its dedicated identity before deploy.
+            - service: bagel.rpc.overlay.device.token
+            - service: bagel.rpc.overlay.device.token.node.*
+            - service: bagel.rpc.overlay.device.authorize
+            - service: bagel.rpc.overlay.device.authorize.node.*
+            - service: bagel.rpc.overlay.device.revoke
+            - service: bagel.rpc.overlay.device.revoke.node.*
             - service: bagel.rpc.internal.users.lifecycle
             - service: bagel.rpc.internal.users.lifecycle.node.*
             - service: bagel.rpc.health.users

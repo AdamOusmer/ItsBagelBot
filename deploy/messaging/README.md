@@ -12,6 +12,29 @@ run stock 2.15.0. This file
 records what the broker can actually do, because the number is lower than it
 looks and the way past it is not a broker setting.
 
+## Desktop OAuth authority
+
+Dashboard keeps browser login, new-device consent and grant management under
+`bagel.rpc.dashboard.device.{create_code,list,revoke,revoke_all}`. Native token
+exchange, refresh, connection authorization and self-revocation belong to the
+independent overlay auth service, which calls Users through the exact
+`bagel.rpc.overlay.device.{token,authorize,revoke}` exports and their `.node.*`
+variants. Users remains the grant, signing and persistence owner.
+
+Those six exports are staged in `accounts.yaml`. No current account imports
+them, including `DASHBOARD_RPC`; the dashboard cannot use its broad dashboard
+import to reach the separate overlay prefix. Before enabling the Elixir auth
+service, provision a dedicated account/role with only these service imports and
+the required reply permissions, and register its runtime RPC calls in the
+messaging contract tests. Do not reuse the dashboard identity.
+
+The deployed account table comes from the operator-signed `nats-accounts.conf`,
+not directly from `accounts.yaml`. Publishing this source change requires the
+normal credential/operator workflow (`cmd/natscreds`) after the dedicated
+identity is provisioned. The signed preload, account keys and live broker are
+unchanged by the app-side OAuth work. These staged exports alone do not make the
+future auth service deployable.
+
 ## What one stream can do
 
 A stream's ingest loop and its apply loop hand one lock back and forth, so a

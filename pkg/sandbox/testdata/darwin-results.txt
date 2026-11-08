@@ -1,0 +1,40 @@
+Mac sandbox host validation, 2026-11-08
+macOS 27.0.1 arm64; ad-hoc signed CGO-free helper; synthetic data only.
+
+=== RUN   TestOpenPipeRegistersInheritedBlockingDescriptor
+--- PASS: TestOpenPipeRegistersInheritedBlockingDescriptor (0.00s)
+=== RUN   TestOpenPipeRejectsRegularFilesAndStandardDescriptors
+--- PASS: TestOpenPipeRejectsRegularFilesAndStandardDescriptors (0.00s)
+=== RUN   TestDarwinSignedSandboxRoundTrip
+    sandbox_darwin_test.go:86: signed helper: hardened runtime; home/network/exec/Keychain-Mach/parent-memory denied; inherited pipe roundtrip passed
+--- PASS: TestDarwinSignedSandboxRoundTrip (0.63s)
+=== RUN   TestDarwinRejectsUnsignedAndOverprivilegedHelper
+--- PASS: TestDarwinRejectsUnsignedAndOverprivilegedHelper (0.24s)
+=== RUN   TestDarwinMinimalEntitlements
+--- PASS: TestDarwinMinimalEntitlements (0.00s)
+=== RUN   TestDarwinSyntheticDefaultKeychainDenied
+    sandbox_darwin_test.go:158: synthetic default-keychain item: parent readable; isolated child denied without UI; fixture removed by cleanup
+--- PASS: TestDarwinSyntheticDefaultKeychainDenied (0.52s)
+PASS
+ok  	ItsBagelBot/pkg/sandbox	2.583s
+
+Additional observed controls:
+- Minimal App Sandbox alone allowed a spawned security CLI to read an owned synthetic legacy Keychain item.
+- The fixed deny-only SBPL layer closes that path; the same regression test passes.
+- Recursive outer codesign --deep removed nested helper sandbox entitlements/runtime flag.
+- Bottom-up separate signing preserves both.
+- Standalone signed CLI without app bundle metadata trapped; proper helper .app starts.
+- Actual production cmd/networkworker built via Darwin Taskfile: universal x86_64 + arm64, fixed signed entitlements, strict code verification passed.
+- Intel Mac test executable cross-compilation passed; Intel runtime was not tested.
+- Developer ID/notarization/App Store approval not attempted.
+- Synthetic Keychain items and exploratory canaries/artifacts removed.
+
+ACTUAL PRODUCTION NETWORK WORKER (ad-hoc signed universal binary)
+=== RUN   TestSandboxWorkerTLSAndOAuthParsing
+    sandbox_integration_test.go:76: real sandbox; parent-owned raw TCP; TLS and OAuth JSON parsed in isolated worker
+--- PASS: TestSandboxWorkerTLSAndOAuthParsing (0.50s)
+=== RUN   TestSandboxWorkerTypedStreamLease
+    sandbox_integration_test.go:113: real sandbox; binary WebSocket decoded and validated before bounded typed IPC
+--- PASS: TestSandboxWorkerTypedStreamLease (0.08s)
+PASS
+ok  	ItsBagelBot/app/desktop/internal/network	1.776s

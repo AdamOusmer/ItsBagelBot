@@ -1,0 +1,41 @@
+goos: darwin
+goarch: arm64
+pkg: ItsBagelBot/app/desktop/internal/bridge/compare
+cpu: Apple M1 Pro
+BenchmarkOptimizedEncode/chat/vt_owned-10         	 6434530	        56.53 ns/op	      96 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/chat/vt_owned-10         	 6440776	        56.39 ns/op	      96 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/chat/vt_owned-10         	 6435350	        56.56 ns/op	      96 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/chat/vt_reuse-10         	14556382	        25.01 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedEncode/chat/vt_reuse-10         	14366430	        24.87 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedEncode/chat/vt_reuse-10         	14627901	        24.98 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedEncode/chat_large/vt_owned-10   	  428889	       859.4 ns/op	    5376 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/chat_large/vt_owned-10   	  437010	       861.8 ns/op	    5376 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/chat_large/vt_owned-10   	  472269	       859.5 ns/op	    5376 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/chat_large/vt_reuse-10   	 4099028	        87.18 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedEncode/chat_large/vt_reuse-10   	 3988483	        88.66 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedEncode/chat_large/vt_reuse-10   	 4263895	        86.64 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedEncode/alert/vt_owned-10        	 9422859	        38.58 ns/op	      48 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/alert/vt_owned-10        	 9456295	        38.33 ns/op	      48 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/alert/vt_owned-10        	 9507889	        38.41 ns/op	      48 B/op	       1 allocs/op
+BenchmarkOptimizedEncode/alert/vt_reuse-10        	17689584	        20.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedEncode/alert/vt_reuse-10        	17697736	        20.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedEncode/alert/vt_reuse-10        	17816232	        20.17 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOptimizedDecode/chat/vt_reset-10         	 2446695	       147.4 ns/op	 637.64 MB/s	     200 B/op	       5 allocs/op
+BenchmarkOptimizedDecode/chat/vt_reset-10         	 2416554	       148.2 ns/op	 634.25 MB/s	     200 B/op	       5 allocs/op
+BenchmarkOptimizedDecode/chat/vt_reset-10         	 2410112	       149.5 ns/op	 628.82 MB/s	     200 B/op	       5 allocs/op
+BenchmarkOptimizedDecode/chat/vt_pool-10          	 3423675	       105.3 ns/op	 893.08 MB/s	      88 B/op	       4 allocs/op
+BenchmarkOptimizedDecode/chat/vt_pool-10          	 3386832	       105.5 ns/op	 891.01 MB/s	      88 B/op	       4 allocs/op
+BenchmarkOptimizedDecode/chat/vt_pool-10          	 3478684	       104.7 ns/op	 898.02 MB/s	      88 B/op	       4 allocs/op
+BenchmarkOptimizedDecode/chat_large/vt_reset-10   	  400398	       931.5 ns/op	5349.25 MB/s	    5531 B/op	       5 allocs/op
+BenchmarkOptimizedDecode/chat_large/vt_reset-10   	  379429	       954.7 ns/op	5219.50 MB/s	    5531 B/op	       5 allocs/op
+BenchmarkOptimizedDecode/chat_large/vt_reset-10   	  353076	       955.4 ns/op	5215.89 MB/s	    5531 B/op	       5 allocs/op
+BenchmarkOptimizedDecode/chat_large/vt_pool-10    	  413682	       935.7 ns/op	5325.63 MB/s	    5418 B/op	       4 allocs/op
+BenchmarkOptimizedDecode/chat_large/vt_pool-10    	  404300	       913.5 ns/op	5455.00 MB/s	    5419 B/op	       4 allocs/op
+BenchmarkOptimizedDecode/chat_large/vt_pool-10    	  378423	       933.6 ns/op	5337.23 MB/s	    5419 B/op	       4 allocs/op
+BenchmarkOptimizedDecode/alert/vt_reset-10        	 3500924	       102.1 ns/op	 440.61 MB/s	     104 B/op	       3 allocs/op
+BenchmarkOptimizedDecode/alert/vt_reset-10        	 3514744	       100.9 ns/op	 445.96 MB/s	     104 B/op	       3 allocs/op
+BenchmarkOptimizedDecode/alert/vt_reset-10        	 3548217	       101.3 ns/op	 444.22 MB/s	     104 B/op	       3 allocs/op
+BenchmarkOptimizedDecode/alert/vt_pool-10         	 5186186	        69.89 ns/op	 643.90 MB/s	      24 B/op	       2 allocs/op
+BenchmarkOptimizedDecode/alert/vt_pool-10         	 5125222	        69.50 ns/op	 647.44 MB/s	      24 B/op	       2 allocs/op
+BenchmarkOptimizedDecode/alert/vt_pool-10         	 5061416	        69.96 ns/op	 643.18 MB/s	      24 B/op	       2 allocs/op
+PASS

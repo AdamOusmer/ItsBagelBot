@@ -83,3 +83,6 @@ deploy/ansible/inventory.cluster.ini
 /bus-bench
 deploy/k8s/bus-bench/bus-bench
 /natscreds
+
+# Isolated OBS browser renderer
+app/desktop/frontend/obs-dist/

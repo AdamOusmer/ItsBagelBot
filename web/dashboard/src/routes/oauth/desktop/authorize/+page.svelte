@@ -89,6 +89,7 @@
   <input type="hidden" name="redirect_uri" value={data.request.redirectUri} />
   <input type="hidden" name="code_challenge" value={data.request.codeChallenge} />
   <input type="hidden" name="code_challenge_method" value="S256" />
+  <input type="hidden" name="dpop_jkt" value={data.request.dpopJkt} />
   <input type="hidden" name="state" value={data.request.state} />
   <input type="hidden" name="device_name" value={data.request.deviceName} />
   <input type="hidden" name="platform" value={data.request.platform} />

@@ -5,7 +5,11 @@ and the [app map](../../../CONTEXT-MAP.md) for neighboring owners.
 
 ## Purpose and boundary
 
-The gateway is the WebSocket server the desktop app connects to at `GET /v1/connect`.
+The legacy controls gateway serves `GET /v1/connect`. Its JSON duplex protocol is
+separate from the new receive-only protobuf desktop bridge. It deliberately rejects
+new sealed device tokens until a server using the authoritative binding contract
+is implemented. The service also hosts the independent native OAuth adapter; see
+[Users native authentication](../../db/users/native-auth.md).
 It verifies access tokens, relays device events to core NATS, and delivers
 commands and revocation back to the right connection. It never issues tokens
 (Users owns device grants and signing; see the device-authorization contract),

@@ -61,6 +61,26 @@ func (_c *DeviceGrantCreate) SetPlatform(v devicegrant.Platform) *DeviceGrantCre
 	return _c
 }
 
+// SetDpopJkt sets the "dpop_jkt" field.
+func (_c *DeviceGrantCreate) SetDpopJkt(v string) *DeviceGrantCreate {
+	_c.mutation.SetDpopJkt(v)
+	return _c
+}
+
+// SetNillableDpopJkt sets the "dpop_jkt" field if the given value is not nil.
+func (_c *DeviceGrantCreate) SetNillableDpopJkt(v *string) *DeviceGrantCreate {
+	if v != nil {
+		_c.SetDpopJkt(*v)
+	}
+	return _c
+}
+
+// SetRefreshResult sets the "refresh_result" field.
+func (_c *DeviceGrantCreate) SetRefreshResult(v []byte) *DeviceGrantCreate {
+	_c.mutation.SetRefreshResult(v)
+	return _c
+}
+
 // SetRefreshHash sets the "refresh_hash" field.
 func (_c *DeviceGrantCreate) SetRefreshHash(v []byte) *DeviceGrantCreate {
 	_c.mutation.SetRefreshHash(v)
@@ -199,6 +219,10 @@ func (_c *DeviceGrantCreate) defaults() {
 		v := devicegrant.DefaultDeviceName
 		_c.mutation.SetDeviceName(v)
 	}
+	if _, ok := _c.mutation.DpopJkt(); !ok {
+		v := devicegrant.DefaultDpopJkt
+		_c.mutation.SetDpopJkt(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := devicegrant.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -244,6 +268,14 @@ func (_c *DeviceGrantCreate) check() error {
 	if v, ok := _c.mutation.Platform(); ok {
 		if err := devicegrant.PlatformValidator(v); err != nil {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "DeviceGrant.platform": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.DpopJkt(); !ok {
+		return &ValidationError{Name: "dpop_jkt", err: errors.New(`ent: missing required field "DeviceGrant.dpop_jkt"`)}
+	}
+	if v, ok := _c.mutation.DpopJkt(); ok {
+		if err := devicegrant.DpopJktValidator(v); err != nil {
+			return &ValidationError{Name: "dpop_jkt", err: fmt.Errorf(`ent: validator failed for field "DeviceGrant.dpop_jkt": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.RefreshHash(); !ok {
@@ -306,6 +338,14 @@ func (_c *DeviceGrantCreate) createSpec() (*DeviceGrant, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Platform(); ok {
 		_spec.SetField(devicegrant.FieldPlatform, field.TypeEnum, value)
 		_node.Platform = value
+	}
+	if value, ok := _c.mutation.DpopJkt(); ok {
+		_spec.SetField(devicegrant.FieldDpopJkt, field.TypeString, value)
+		_node.DpopJkt = value
+	}
+	if value, ok := _c.mutation.RefreshResult(); ok {
+		_spec.SetField(devicegrant.FieldRefreshResult, field.TypeBytes, value)
+		_node.RefreshResult = value
 	}
 	if value, ok := _c.mutation.RefreshHash(); ok {
 		_spec.SetField(devicegrant.FieldRefreshHash, field.TypeBytes, value)
@@ -445,6 +485,36 @@ func (u *DeviceGrantUpsert) SetPlatform(v devicegrant.Platform) *DeviceGrantUpse
 // UpdatePlatform sets the "platform" field to the value that was provided on create.
 func (u *DeviceGrantUpsert) UpdatePlatform() *DeviceGrantUpsert {
 	u.SetExcluded(devicegrant.FieldPlatform)
+	return u
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (u *DeviceGrantUpsert) SetDpopJkt(v string) *DeviceGrantUpsert {
+	u.Set(devicegrant.FieldDpopJkt, v)
+	return u
+}
+
+// UpdateDpopJkt sets the "dpop_jkt" field to the value that was provided on create.
+func (u *DeviceGrantUpsert) UpdateDpopJkt() *DeviceGrantUpsert {
+	u.SetExcluded(devicegrant.FieldDpopJkt)
+	return u
+}
+
+// SetRefreshResult sets the "refresh_result" field.
+func (u *DeviceGrantUpsert) SetRefreshResult(v []byte) *DeviceGrantUpsert {
+	u.Set(devicegrant.FieldRefreshResult, v)
+	return u
+}
+
+// UpdateRefreshResult sets the "refresh_result" field to the value that was provided on create.
+func (u *DeviceGrantUpsert) UpdateRefreshResult() *DeviceGrantUpsert {
+	u.SetExcluded(devicegrant.FieldRefreshResult)
+	return u
+}
+
+// ClearRefreshResult clears the value of the "refresh_result" field.
+func (u *DeviceGrantUpsert) ClearRefreshResult() *DeviceGrantUpsert {
+	u.SetNull(devicegrant.FieldRefreshResult)
 	return u
 }
 
@@ -649,6 +719,41 @@ func (u *DeviceGrantUpsertOne) SetPlatform(v devicegrant.Platform) *DeviceGrantU
 func (u *DeviceGrantUpsertOne) UpdatePlatform() *DeviceGrantUpsertOne {
 	return u.Update(func(s *DeviceGrantUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (u *DeviceGrantUpsertOne) SetDpopJkt(v string) *DeviceGrantUpsertOne {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.SetDpopJkt(v)
+	})
+}
+
+// UpdateDpopJkt sets the "dpop_jkt" field to the value that was provided on create.
+func (u *DeviceGrantUpsertOne) UpdateDpopJkt() *DeviceGrantUpsertOne {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.UpdateDpopJkt()
+	})
+}
+
+// SetRefreshResult sets the "refresh_result" field.
+func (u *DeviceGrantUpsertOne) SetRefreshResult(v []byte) *DeviceGrantUpsertOne {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.SetRefreshResult(v)
+	})
+}
+
+// UpdateRefreshResult sets the "refresh_result" field to the value that was provided on create.
+func (u *DeviceGrantUpsertOne) UpdateRefreshResult() *DeviceGrantUpsertOne {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.UpdateRefreshResult()
+	})
+}
+
+// ClearRefreshResult clears the value of the "refresh_result" field.
+func (u *DeviceGrantUpsertOne) ClearRefreshResult() *DeviceGrantUpsertOne {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.ClearRefreshResult()
 	})
 }
 
@@ -1037,6 +1142,41 @@ func (u *DeviceGrantUpsertBulk) SetPlatform(v devicegrant.Platform) *DeviceGrant
 func (u *DeviceGrantUpsertBulk) UpdatePlatform() *DeviceGrantUpsertBulk {
 	return u.Update(func(s *DeviceGrantUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (u *DeviceGrantUpsertBulk) SetDpopJkt(v string) *DeviceGrantUpsertBulk {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.SetDpopJkt(v)
+	})
+}
+
+// UpdateDpopJkt sets the "dpop_jkt" field to the value that was provided on create.
+func (u *DeviceGrantUpsertBulk) UpdateDpopJkt() *DeviceGrantUpsertBulk {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.UpdateDpopJkt()
+	})
+}
+
+// SetRefreshResult sets the "refresh_result" field.
+func (u *DeviceGrantUpsertBulk) SetRefreshResult(v []byte) *DeviceGrantUpsertBulk {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.SetRefreshResult(v)
+	})
+}
+
+// UpdateRefreshResult sets the "refresh_result" field to the value that was provided on create.
+func (u *DeviceGrantUpsertBulk) UpdateRefreshResult() *DeviceGrantUpsertBulk {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.UpdateRefreshResult()
+	})
+}
+
+// ClearRefreshResult clears the value of the "refresh_result" field.
+func (u *DeviceGrantUpsertBulk) ClearRefreshResult() *DeviceGrantUpsertBulk {
+	return u.Update(func(s *DeviceGrantUpsert) {
+		s.ClearRefreshResult()
 	})
 }
 

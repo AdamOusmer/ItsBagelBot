@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
+	"ItsBagelBot/app/db/users/ent/deviceproof"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
@@ -88,6 +89,7 @@ func checkColumn(t, c string) error {
 			authorizationcode.Table: authorizationcode.ValidColumn,
 			delegation.Table:        delegation.ValidColumn,
 			devicegrant.Table:       devicegrant.ValidColumn,
+			deviceproof.Table:       deviceproof.ValidColumn,
 			lifecycleerasure.Table:  lifecycleerasure.ValidColumn,
 			premiumgrant.Table:      premiumgrant.ValidColumn,
 			tokens.Table:            tokens.ValidColumn,

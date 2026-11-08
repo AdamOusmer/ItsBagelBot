@@ -21,6 +21,8 @@ const (
 	FieldUserID = "user_id"
 	// FieldCodeChallenge holds the string denoting the code_challenge field in the database.
 	FieldCodeChallenge = "code_challenge"
+	// FieldDpopJkt holds the string denoting the dpop_jkt field in the database.
+	FieldDpopJkt = "dpop_jkt"
 	// FieldRedirectURI holds the string denoting the redirect_uri field in the database.
 	FieldRedirectURI = "redirect_uri"
 	// FieldDeviceName holds the string denoting the device_name field in the database.
@@ -54,6 +56,7 @@ var Columns = []string{
 	FieldCodeHash,
 	FieldUserID,
 	FieldCodeChallenge,
+	FieldDpopJkt,
 	FieldRedirectURI,
 	FieldDeviceName,
 	FieldPlatform,
@@ -76,6 +79,10 @@ func ValidColumn(column string) bool {
 var (
 	// CodeChallengeValidator is a validator for the "code_challenge" field. It is called by the builders before save.
 	CodeChallengeValidator func(string) error
+	// DefaultDpopJkt holds the default value on creation for the "dpop_jkt" field.
+	DefaultDpopJkt string
+	// DpopJktValidator is a validator for the "dpop_jkt" field. It is called by the builders before save.
+	DpopJktValidator func(string) error
 	// RedirectURIValidator is a validator for the "redirect_uri" field. It is called by the builders before save.
 	RedirectURIValidator func(string) error
 	// DefaultDeviceName holds the default value on creation for the "device_name" field.
@@ -128,6 +135,11 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByCodeChallenge orders the results by the code_challenge field.
 func ByCodeChallenge(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCodeChallenge, opts...).ToFunc()
+}
+
+// ByDpopJkt orders the results by the dpop_jkt field.
+func ByDpopJkt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDpopJkt, opts...).ToFunc()
 }
 
 // ByRedirectURI orders the results by the redirect_uri field.

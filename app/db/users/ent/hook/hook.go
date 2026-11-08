@@ -80,6 +80,18 @@ func (f DeviceGrantFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DeviceGrantMutation", m)
 }
 
+// The DeviceProofFunc type is an adapter to allow the use of ordinary
+// function as DeviceProof mutator.
+type DeviceProofFunc func(context.Context, *ent.DeviceProofMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DeviceProofFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DeviceProofMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DeviceProofMutation", m)
+}
+
 // The LifecycleErasureFunc type is an adapter to allow the use of ordinary
 // function as LifecycleErasure mutator.
 type LifecycleErasureFunc func(context.Context, *ent.LifecycleErasureMutation) (ent.Value, error)

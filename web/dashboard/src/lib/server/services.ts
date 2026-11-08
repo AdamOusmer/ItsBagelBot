@@ -74,15 +74,10 @@ export {
 export { auditDashboardImpersonation, auditImpersonation, type AuditEntry } from './services/audit';
 export {
   deviceCodeCreate,
-  deviceCodeExchange,
-  deviceTokenRefresh,
   deviceGrantList,
   deviceGrantRevoke,
   deviceGrantRevokeAll,
-  type DeviceTokens,
-  type DeviceGrantView,
-  type TokenOutcome,
-  type TokenOauthError
+  type DeviceGrantView
 } from './services/device-auth';
 export {
   notificationMarkPeeked,

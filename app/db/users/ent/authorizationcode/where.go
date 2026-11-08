@@ -70,6 +70,11 @@ func CodeChallenge(v string) predicate.AuthorizationCode {
 	return predicate.AuthorizationCode(sql.FieldEQ(FieldCodeChallenge, v))
 }
 
+// DpopJkt applies equality check predicate on the "dpop_jkt" field. It's identical to DpopJktEQ.
+func DpopJkt(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldEQ(FieldDpopJkt, v))
+}
+
 // RedirectURI applies equality check predicate on the "redirect_uri" field. It's identical to RedirectURIEQ.
 func RedirectURI(v string) predicate.AuthorizationCode {
 	return predicate.AuthorizationCode(sql.FieldEQ(FieldRedirectURI, v))
@@ -223,6 +228,71 @@ func CodeChallengeEqualFold(v string) predicate.AuthorizationCode {
 // CodeChallengeContainsFold applies the ContainsFold predicate on the "code_challenge" field.
 func CodeChallengeContainsFold(v string) predicate.AuthorizationCode {
 	return predicate.AuthorizationCode(sql.FieldContainsFold(FieldCodeChallenge, v))
+}
+
+// DpopJktEQ applies the EQ predicate on the "dpop_jkt" field.
+func DpopJktEQ(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldEQ(FieldDpopJkt, v))
+}
+
+// DpopJktNEQ applies the NEQ predicate on the "dpop_jkt" field.
+func DpopJktNEQ(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldNEQ(FieldDpopJkt, v))
+}
+
+// DpopJktIn applies the In predicate on the "dpop_jkt" field.
+func DpopJktIn(vs ...string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldIn(FieldDpopJkt, vs...))
+}
+
+// DpopJktNotIn applies the NotIn predicate on the "dpop_jkt" field.
+func DpopJktNotIn(vs ...string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldNotIn(FieldDpopJkt, vs...))
+}
+
+// DpopJktGT applies the GT predicate on the "dpop_jkt" field.
+func DpopJktGT(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldGT(FieldDpopJkt, v))
+}
+
+// DpopJktGTE applies the GTE predicate on the "dpop_jkt" field.
+func DpopJktGTE(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldGTE(FieldDpopJkt, v))
+}
+
+// DpopJktLT applies the LT predicate on the "dpop_jkt" field.
+func DpopJktLT(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldLT(FieldDpopJkt, v))
+}
+
+// DpopJktLTE applies the LTE predicate on the "dpop_jkt" field.
+func DpopJktLTE(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldLTE(FieldDpopJkt, v))
+}
+
+// DpopJktContains applies the Contains predicate on the "dpop_jkt" field.
+func DpopJktContains(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldContains(FieldDpopJkt, v))
+}
+
+// DpopJktHasPrefix applies the HasPrefix predicate on the "dpop_jkt" field.
+func DpopJktHasPrefix(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldHasPrefix(FieldDpopJkt, v))
+}
+
+// DpopJktHasSuffix applies the HasSuffix predicate on the "dpop_jkt" field.
+func DpopJktHasSuffix(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldHasSuffix(FieldDpopJkt, v))
+}
+
+// DpopJktEqualFold applies the EqualFold predicate on the "dpop_jkt" field.
+func DpopJktEqualFold(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldEqualFold(FieldDpopJkt, v))
+}
+
+// DpopJktContainsFold applies the ContainsFold predicate on the "dpop_jkt" field.
+func DpopJktContainsFold(v string) predicate.AuthorizationCode {
+	return predicate.AuthorizationCode(sql.FieldContainsFold(FieldDpopJkt, v))
 }
 
 // RedirectURIEQ applies the EQ predicate on the "redirect_uri" field.

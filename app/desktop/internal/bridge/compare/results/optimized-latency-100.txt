@@ -1,0 +1,43 @@
+=== RUN   TestPacedNetworkLatency
+=== RUN   TestPacedNetworkLatency/grpc-native-vtprotobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=263.383 local send-to-decoded: p50=196µs p95=444µs p99=1.621ms
+=== RUN   TestPacedNetworkLatency/ws-vtprotobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=117.503 local send-to-decoded: p50=175µs p95=328µs p99=1.959ms
+=== RUN   TestPacedNetworkLatency/grpc-native-protobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=247.083 local send-to-decoded: p50=196µs p95=591µs p99=3.617ms
+=== RUN   TestPacedNetworkLatency/ws-protobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=113.117 local send-to-decoded: p50=175µs p95=307µs p99=1.472ms
+--- PASS: TestPacedNetworkLatency (12.04s)
+    --- PASS: TestPacedNetworkLatency/grpc-native-vtprotobuf (3.01s)
+    --- PASS: TestPacedNetworkLatency/ws-vtprotobuf (3.01s)
+    --- PASS: TestPacedNetworkLatency/grpc-native-protobuf (3.01s)
+    --- PASS: TestPacedNetworkLatency/ws-protobuf (3.01s)
+=== RUN   TestPacedNetworkLatency
+=== RUN   TestPacedNetworkLatency/grpc-native-vtprotobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=255.120 local send-to-decoded: p50=199µs p95=497µs p99=3.386ms
+=== RUN   TestPacedNetworkLatency/ws-vtprotobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=119.207 local send-to-decoded: p50=180µs p95=1.33ms p99=3.428ms
+=== RUN   TestPacedNetworkLatency/grpc-native-protobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=269.623 local send-to-decoded: p50=217µs p95=733µs p99=3.67ms
+=== RUN   TestPacedNetworkLatency/ws-protobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=127.560 local send-to-decoded: p50=211µs p95=646µs p99=3.755ms
+--- PASS: TestPacedNetworkLatency (12.04s)
+    --- PASS: TestPacedNetworkLatency/grpc-native-vtprotobuf (3.00s)
+    --- PASS: TestPacedNetworkLatency/ws-vtprotobuf (3.01s)
+    --- PASS: TestPacedNetworkLatency/grpc-native-protobuf (3.01s)
+    --- PASS: TestPacedNetworkLatency/ws-protobuf (3.01s)
+=== RUN   TestPacedNetworkLatency
+=== RUN   TestPacedNetworkLatency/grpc-native-vtprotobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=232.617 local send-to-decoded: p50=186µs p95=512µs p99=2.989ms
+=== RUN   TestPacedNetworkLatency/ws-vtprotobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=119.157 local send-to-decoded: p50=191µs p95=481µs p99=3.391ms
+=== RUN   TestPacedNetworkLatency/grpc-native-protobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=250.087 local send-to-decoded: p50=212µs p95=441µs p99=2.993ms
+=== RUN   TestPacedNetworkLatency/ws-protobuf
+    network_test.go:510: rate=100 samples=300 client_cpu_us/event=108.373 local send-to-decoded: p50=177µs p95=292µs p99=1.869ms
+--- PASS: TestPacedNetworkLatency (12.04s)
+    --- PASS: TestPacedNetworkLatency/grpc-native-vtprotobuf (3.00s)
+    --- PASS: TestPacedNetworkLatency/ws-vtprotobuf (3.01s)
+    --- PASS: TestPacedNetworkLatency/grpc-native-protobuf (3.00s)
+    --- PASS: TestPacedNetworkLatency/ws-protobuf (3.01s)
+PASS

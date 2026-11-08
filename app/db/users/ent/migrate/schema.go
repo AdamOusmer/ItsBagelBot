@@ -101,6 +101,7 @@ var (
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "code_hash", Type: field.TypeBytes, Unique: true, SchemaType: map[string]string{"mysql": "binary(32)"}},
 		{Name: "code_challenge", Type: field.TypeString, Size: 128},
+		{Name: "dpop_jkt", Type: field.TypeString, Size: 43, Default: ""},
 		{Name: "redirect_uri", Type: field.TypeString, Size: 255},
 		{Name: "device_name", Type: field.TypeString, Size: 64, Default: ""},
 		{Name: "platform", Type: field.TypeEnum, Enums: []string{"macos", "windows", "linux"}},
@@ -118,7 +119,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "authorization_codes_users_authorization_codes",
-				Columns:    []*schema.Column{AuthorizationCodesColumns[10]},
+				Columns:    []*schema.Column{AuthorizationCodesColumns[11]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -127,7 +128,7 @@ var (
 			{
 				Name:    "authorizationcode_expires_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{AuthorizationCodesColumns[7], AuthorizationCodesColumns[0]},
+				Columns: []*schema.Column{AuthorizationCodesColumns[8], AuthorizationCodesColumns[0]},
 			},
 		},
 	}
@@ -169,6 +170,8 @@ var (
 		{Name: "device_id", Type: field.TypeString, Unique: true, Size: 36},
 		{Name: "device_name", Type: field.TypeString, Size: 64, Default: ""},
 		{Name: "platform", Type: field.TypeEnum, Enums: []string{"macos", "windows", "linux"}},
+		{Name: "dpop_jkt", Type: field.TypeString, Size: 43, Default: ""},
+		{Name: "refresh_result", Type: field.TypeBytes, Nullable: true},
 		{Name: "refresh_hash", Type: field.TypeBytes, Unique: true, SchemaType: map[string]string{"mysql": "binary(32)"}},
 		{Name: "prev_refresh_hash", Type: field.TypeBytes, Nullable: true, SchemaType: map[string]string{"mysql": "binary(32)"}},
 		{Name: "prev_rotated_at", Type: field.TypeTime, Nullable: true},
@@ -188,7 +191,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "device_grants_users_device_grants",
-				Columns:    []*schema.Column{DeviceGrantsColumns[14]},
+				Columns:    []*schema.Column{DeviceGrantsColumns[16]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -197,17 +200,36 @@ var (
 			{
 				Name:    "devicegrant_prev_refresh_hash",
 				Unique:  false,
-				Columns: []*schema.Column{DeviceGrantsColumns[6]},
+				Columns: []*schema.Column{DeviceGrantsColumns[8]},
 			},
 			{
 				Name:    "devicegrant_user_id_revoked_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{DeviceGrantsColumns[14], DeviceGrantsColumns[12], DeviceGrantsColumns[0]},
+				Columns: []*schema.Column{DeviceGrantsColumns[16], DeviceGrantsColumns[14], DeviceGrantsColumns[0]},
 			},
 			{
 				Name:    "devicegrant_revoked_at_refresh_absolute_expires_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{DeviceGrantsColumns[12], DeviceGrantsColumns[9], DeviceGrantsColumns[0]},
+				Columns: []*schema.Column{DeviceGrantsColumns[14], DeviceGrantsColumns[11], DeviceGrantsColumns[0]},
+			},
+		},
+	}
+	// DeviceProofsColumns holds the columns for the "device_proofs" table.
+	DeviceProofsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "proof_hash", Type: field.TypeBytes, Unique: true, SchemaType: map[string]string{"mysql": "binary(32)"}},
+		{Name: "expires_at", Type: field.TypeTime},
+	}
+	// DeviceProofsTable holds the schema information for the "device_proofs" table.
+	DeviceProofsTable = &schema.Table{
+		Name:       "device_proofs",
+		Columns:    DeviceProofsColumns,
+		PrimaryKey: []*schema.Column{DeviceProofsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "deviceproof_expires_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{DeviceProofsColumns[2], DeviceProofsColumns[0]},
 			},
 		},
 	}
@@ -400,6 +422,7 @@ var (
 		AuthorizationCodesTable,
 		DelegationsTable,
 		DeviceGrantsTable,
+		DeviceProofsTable,
 		LifecycleErasuresTable,
 		PremiumGrantsTable,
 		TokensTable,

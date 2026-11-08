@@ -75,6 +75,16 @@ func DeviceName(v string) predicate.DeviceGrant {
 	return predicate.DeviceGrant(sql.FieldEQ(FieldDeviceName, v))
 }
 
+// DpopJkt applies equality check predicate on the "dpop_jkt" field. It's identical to DpopJktEQ.
+func DpopJkt(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldEQ(FieldDpopJkt, v))
+}
+
+// RefreshResult applies equality check predicate on the "refresh_result" field. It's identical to RefreshResultEQ.
+func RefreshResult(v []byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldEQ(FieldRefreshResult, v))
+}
+
 // RefreshHash applies equality check predicate on the "refresh_hash" field. It's identical to RefreshHashEQ.
 func RefreshHash(v []byte) predicate.DeviceGrant {
 	return predicate.DeviceGrant(sql.FieldEQ(FieldRefreshHash, v))
@@ -353,6 +363,121 @@ func PlatformIn(vs ...Platform) predicate.DeviceGrant {
 // PlatformNotIn applies the NotIn predicate on the "platform" field.
 func PlatformNotIn(vs ...Platform) predicate.DeviceGrant {
 	return predicate.DeviceGrant(sql.FieldNotIn(FieldPlatform, vs...))
+}
+
+// DpopJktEQ applies the EQ predicate on the "dpop_jkt" field.
+func DpopJktEQ(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldEQ(FieldDpopJkt, v))
+}
+
+// DpopJktNEQ applies the NEQ predicate on the "dpop_jkt" field.
+func DpopJktNEQ(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldNEQ(FieldDpopJkt, v))
+}
+
+// DpopJktIn applies the In predicate on the "dpop_jkt" field.
+func DpopJktIn(vs ...string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldIn(FieldDpopJkt, vs...))
+}
+
+// DpopJktNotIn applies the NotIn predicate on the "dpop_jkt" field.
+func DpopJktNotIn(vs ...string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldNotIn(FieldDpopJkt, vs...))
+}
+
+// DpopJktGT applies the GT predicate on the "dpop_jkt" field.
+func DpopJktGT(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldGT(FieldDpopJkt, v))
+}
+
+// DpopJktGTE applies the GTE predicate on the "dpop_jkt" field.
+func DpopJktGTE(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldGTE(FieldDpopJkt, v))
+}
+
+// DpopJktLT applies the LT predicate on the "dpop_jkt" field.
+func DpopJktLT(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldLT(FieldDpopJkt, v))
+}
+
+// DpopJktLTE applies the LTE predicate on the "dpop_jkt" field.
+func DpopJktLTE(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldLTE(FieldDpopJkt, v))
+}
+
+// DpopJktContains applies the Contains predicate on the "dpop_jkt" field.
+func DpopJktContains(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldContains(FieldDpopJkt, v))
+}
+
+// DpopJktHasPrefix applies the HasPrefix predicate on the "dpop_jkt" field.
+func DpopJktHasPrefix(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldHasPrefix(FieldDpopJkt, v))
+}
+
+// DpopJktHasSuffix applies the HasSuffix predicate on the "dpop_jkt" field.
+func DpopJktHasSuffix(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldHasSuffix(FieldDpopJkt, v))
+}
+
+// DpopJktEqualFold applies the EqualFold predicate on the "dpop_jkt" field.
+func DpopJktEqualFold(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldEqualFold(FieldDpopJkt, v))
+}
+
+// DpopJktContainsFold applies the ContainsFold predicate on the "dpop_jkt" field.
+func DpopJktContainsFold(v string) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldContainsFold(FieldDpopJkt, v))
+}
+
+// RefreshResultEQ applies the EQ predicate on the "refresh_result" field.
+func RefreshResultEQ(v []byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldEQ(FieldRefreshResult, v))
+}
+
+// RefreshResultNEQ applies the NEQ predicate on the "refresh_result" field.
+func RefreshResultNEQ(v []byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldNEQ(FieldRefreshResult, v))
+}
+
+// RefreshResultIn applies the In predicate on the "refresh_result" field.
+func RefreshResultIn(vs ...[]byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldIn(FieldRefreshResult, vs...))
+}
+
+// RefreshResultNotIn applies the NotIn predicate on the "refresh_result" field.
+func RefreshResultNotIn(vs ...[]byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldNotIn(FieldRefreshResult, vs...))
+}
+
+// RefreshResultGT applies the GT predicate on the "refresh_result" field.
+func RefreshResultGT(v []byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldGT(FieldRefreshResult, v))
+}
+
+// RefreshResultGTE applies the GTE predicate on the "refresh_result" field.
+func RefreshResultGTE(v []byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldGTE(FieldRefreshResult, v))
+}
+
+// RefreshResultLT applies the LT predicate on the "refresh_result" field.
+func RefreshResultLT(v []byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldLT(FieldRefreshResult, v))
+}
+
+// RefreshResultLTE applies the LTE predicate on the "refresh_result" field.
+func RefreshResultLTE(v []byte) predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldLTE(FieldRefreshResult, v))
+}
+
+// RefreshResultIsNil applies the IsNil predicate on the "refresh_result" field.
+func RefreshResultIsNil() predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldIsNull(FieldRefreshResult))
+}
+
+// RefreshResultNotNil applies the NotNil predicate on the "refresh_result" field.
+func RefreshResultNotNil() predicate.DeviceGrant {
+	return predicate.DeviceGrant(sql.FieldNotNull(FieldRefreshResult))
 }
 
 // RefreshHashEQ applies the EQ predicate on the "refresh_hash" field.

@@ -1,0 +1,55 @@
+=== RUN   TestTypedPayloadEquivalence
+=== RUN   TestTypedPayloadEquivalence/chat
+    codec_test.go:112: protobuf=94 bytes JSON=201 bytes
+=== RUN   TestTypedPayloadEquivalence/chat_large
+    codec_test.go:112: protobuf=4983 bytes JSON=5088 bytes
+=== RUN   TestTypedPayloadEquivalence/alert
+    codec_test.go:112: protobuf=45 bytes JSON=130 bytes
+--- PASS: TestTypedPayloadEquivalence (0.00s)
+    --- PASS: TestTypedPayloadEquivalence/chat (0.00s)
+    --- PASS: TestTypedPayloadEquivalence/chat_large (0.00s)
+    --- PASS: TestTypedPayloadEquivalence/alert (0.00s)
+=== RUN   TestIdleFootprint
+    idle_test.go:35: explicit fresh-process idle measurements
+--- SKIP: TestIdleFootprint (0.00s)
+=== RUN   TestIdleClientProcess
+    idle_test.go:68: isolated client helper
+--- SKIP: TestIdleClientProcess (0.00s)
+=== RUN   TestNetworkServerProcess
+    network_test.go:137: isolated benchmark helper
+--- SKIP: TestNetworkServerProcess (0.00s)
+=== RUN   TestPacedNetworkLatency
+    network_test.go:463: explicit one-second paced network measurements
+--- SKIP: TestPacedNetworkLatency (0.00s)
+=== RUN   TestNetworkStreamOverlapAndEOF
+--- PASS: TestNetworkStreamOverlapAndEOF (0.02s)
+=== RUN   TestVTCodecEquivalence
+=== RUN   TestVTCodecEquivalence/chat
+=== RUN   TestVTCodecEquivalence/chat_large
+=== RUN   TestVTCodecEquivalence/alert
+--- PASS: TestVTCodecEquivalence (0.00s)
+    --- PASS: TestVTCodecEquivalence/chat (0.00s)
+    --- PASS: TestVTCodecEquivalence/chat_large (0.00s)
+    --- PASS: TestVTCodecEquivalence/alert (0.00s)
+=== RUN   TestVTPooledDecodeClearsAbsentFields
+--- PASS: TestVTPooledDecodeClearsAbsentFields (0.00s)
+=== RUN   TestVTSafeDecodeOwnsStrings
+--- PASS: TestVTSafeDecodeOwnsStrings (0.00s)
+=== RUN   TestVTResetClearsUnknownFields
+--- PASS: TestVTResetClearsUnknownFields (0.00s)
+=== RUN   TestNativeGRPCStreamIsolation
+=== RUN   TestNativeGRPCStreamIsolation/grpc-native-protobuf
+=== RUN   TestNativeGRPCStreamIsolation/grpc-native-vtprotobuf
+--- PASS: TestNativeGRPCStreamIsolation (0.01s)
+    --- PASS: TestNativeGRPCStreamIsolation/grpc-native-protobuf (0.00s)
+    --- PASS: TestNativeGRPCStreamIsolation/grpc-native-vtprotobuf (0.00s)
+=== RUN   TestWSVTNetworkPayloads
+=== RUN   TestWSVTNetworkPayloads/chat
+=== RUN   TestWSVTNetworkPayloads/chat_large
+=== RUN   TestWSVTNetworkPayloads/alert
+--- PASS: TestWSVTNetworkPayloads (0.02s)
+    --- PASS: TestWSVTNetworkPayloads/chat (0.00s)
+    --- PASS: TestWSVTNetworkPayloads/chat_large (0.00s)
+    --- PASS: TestWSVTNetworkPayloads/alert (0.00s)
+PASS
+ok  	ItsBagelBot/app/desktop/internal/bridge/compare	0.270s

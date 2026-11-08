@@ -20,7 +20,11 @@ func (r *Users) CleanupDeviceAuth(ctx context.Context, now time.Time) (int, erro
 		return codes, err
 	}
 	grants, err := r.deleteStaleDeviceGrants(ctx, now)
-	return codes + grants, err
+	if err != nil {
+		return codes + grants, err
+	}
+	proofs, err := r.deleteExpiredDeviceProofs(ctx, now)
+	return codes + grants + proofs, err
 }
 
 func (r *Users) deleteExpiredAuthorizationCodes(ctx context.Context, now time.Time) (int, error) {

@@ -89,6 +89,7 @@ tasks:
       - "../../../locales/en/console/**/*"
     generates:
       - dist/**/*
+      - obs-dist/**/*
     deps:
       - task: install:frontend:deps
       - task: generate:bindings

@@ -1,0 +1,30 @@
+Existing Tunnel with real macOS OS sandbox, DPoP and binary protobuf, 2026-11-08
+Synthetic fixture only; no production credentials or private origin addresses retained.
+
+CLIENT
+=== RUN   TestExistingTunnelWebSocketProtobuf
+    tunnel_client_test.go:166: public Cloudflare edge verified; origin TLS remains pinned at Traefik
+    tunnel_client_test.go:169: OS sandbox verified; TLS/system trust, WebSocket and protobuf parsing use the isolated worker; DPoP key remains in parent
+    tunnel_client_test.go:171: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:171: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:171: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:171: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:171: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:179: PASS: 8 contiguous protobuf events; 2 handoffs; 3 socket attempts; elapsed 150.8s
+--- PASS: TestExistingTunnelWebSocketProtobuf (151.49s)
+PASS
+
+SERVER
+=== RUN   TestTunnelProbeServer
+    tunnel_server_test.go:125: probe listener started
+    tunnel_server_test.go:159: first migration completed; idle soak started
+    tunnel_server_test.go:163: idle soak completed after 150 seconds
+    tunnel_server_test.go:171: probe sequence completed; two migrations; cursor 8
+
+ISOLATION
+PASS: temporary Job, Pod, Secret, ClusterIP Service, ServersTransport and IngressRoute removed.
+PASS: all NetworkPolicy and Cilium policy specifications match the pre-test SHA-256 baseline.
+No DNS, Tunnel, firewall, public-origin or account credential changes.
+
+WORKER RESOURCE SNAPSHOTS (coarse ps observations, not load benchmark)
+[{"rssKiB": 28624, "cpuPercent": 0.0}]

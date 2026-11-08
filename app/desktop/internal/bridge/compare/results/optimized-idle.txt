@@ -1,0 +1,31 @@
+=== RUN   TestIdleFootprint
+    idle_test.go:59: IDLE ws-protobuf apps=1 heap_delta_B=27328 rss_delta_KiB=2080 goroutines_delta=0 idle_cpu_us_per_s=74 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE ws-protobuf apps=20 heap_delta_B=375496 rss_delta_KiB=4816 goroutines_delta=0 idle_cpu_us_per_s=47 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE ws-vtprotobuf apps=1 heap_delta_B=26944 rss_delta_KiB=2192 goroutines_delta=0 idle_cpu_us_per_s=48 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE ws-vtprotobuf apps=20 heap_delta_B=380272 rss_delta_KiB=4832 goroutines_delta=0 idle_cpu_us_per_s=73 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE grpc-native-protobuf apps=1 heap_delta_B=223560 rss_delta_KiB=3616 goroutines_delta=6 idle_cpu_us_per_s=65 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE grpc-native-protobuf apps=20 heap_delta_B=1515384 rss_delta_KiB=8032 goroutines_delta=120 idle_cpu_us_per_s=102 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE grpc-native-vtprotobuf apps=1 heap_delta_B=190320 rss_delta_KiB=3296 goroutines_delta=6 idle_cpu_us_per_s=85 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE grpc-native-vtprotobuf apps=20 heap_delta_B=1487632 rss_delta_KiB=7680 goroutines_delta=120 idle_cpu_us_per_s=86 idle_TLS_B_per_s=0 TLS_connections=20
+--- PASS: TestIdleFootprint (9.18s)
+=== RUN   TestIdleFootprint
+    idle_test.go:59: IDLE ws-protobuf apps=1 heap_delta_B=26968 rss_delta_KiB=2032 goroutines_delta=0 idle_cpu_us_per_s=105 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE ws-protobuf apps=20 heap_delta_B=377416 rss_delta_KiB=4416 goroutines_delta=0 idle_cpu_us_per_s=53 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE ws-vtprotobuf apps=1 heap_delta_B=27096 rss_delta_KiB=2048 goroutines_delta=0 idle_cpu_us_per_s=81 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE ws-vtprotobuf apps=20 heap_delta_B=371544 rss_delta_KiB=4784 goroutines_delta=0 idle_cpu_us_per_s=72 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE grpc-native-protobuf apps=1 heap_delta_B=222696 rss_delta_KiB=3584 goroutines_delta=6 idle_cpu_us_per_s=88 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE grpc-native-protobuf apps=20 heap_delta_B=1517336 rss_delta_KiB=7216 goroutines_delta=120 idle_cpu_us_per_s=81 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE grpc-native-vtprotobuf apps=1 heap_delta_B=256784 rss_delta_KiB=3456 goroutines_delta=6 idle_cpu_us_per_s=63 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE grpc-native-vtprotobuf apps=20 heap_delta_B=1513376 rss_delta_KiB=7408 goroutines_delta=120 idle_cpu_us_per_s=132 idle_TLS_B_per_s=0 TLS_connections=20
+--- PASS: TestIdleFootprint (9.20s)
+=== RUN   TestIdleFootprint
+    idle_test.go:59: IDLE ws-protobuf apps=1 heap_delta_B=27560 rss_delta_KiB=2128 goroutines_delta=0 idle_cpu_us_per_s=63 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE ws-protobuf apps=20 heap_delta_B=376568 rss_delta_KiB=4528 goroutines_delta=0 idle_cpu_us_per_s=65 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE ws-vtprotobuf apps=1 heap_delta_B=27584 rss_delta_KiB=2272 goroutines_delta=0 idle_cpu_us_per_s=46 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE ws-vtprotobuf apps=20 heap_delta_B=378256 rss_delta_KiB=4976 goroutines_delta=0 idle_cpu_us_per_s=52 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE grpc-native-protobuf apps=1 heap_delta_B=222648 rss_delta_KiB=3360 goroutines_delta=6 idle_cpu_us_per_s=52 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE grpc-native-protobuf apps=20 heap_delta_B=1513576 rss_delta_KiB=7248 goroutines_delta=120 idle_cpu_us_per_s=119 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE grpc-native-vtprotobuf apps=1 heap_delta_B=190688 rss_delta_KiB=3536 goroutines_delta=6 idle_cpu_us_per_s=114 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE grpc-native-vtprotobuf apps=20 heap_delta_B=1484800 rss_delta_KiB=7264 goroutines_delta=120 idle_cpu_us_per_s=54 idle_TLS_B_per_s=0 TLS_connections=20
+--- PASS: TestIdleFootprint (9.17s)
+PASS

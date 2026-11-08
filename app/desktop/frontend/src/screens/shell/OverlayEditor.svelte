@@ -9,7 +9,8 @@
   import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
   import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
-  import { untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import { readScene, sourceURL as readSourceURL } from '../../lib/overlay/client';
   import { clampLayer } from '../../lib/overlay/clamp';
   import {
     moveBox,
@@ -30,11 +31,34 @@
   import LayerInspector from './overlay/LayerInspector.svelte';
   import LayersPanel from './overlay/LayersPanel.svelte';
   import SelectionChrome from './overlay/SelectionChrome.svelte';
+  import OBSPanel from './overlay/OBSPanel.svelte';
 
   type Gesture =
     | { kind: 'pan'; startX: number; startY: number; view: View }
     | { kind: 'move'; id: string; startX: number; startY: number; box: Box; targets: SnapTargets; moved: boolean }
     | { kind: 'resize'; id: string; handle: Handle; startX: number; startY: number; box: Box; targets: SnapTargets; moved: boolean };
+
+  let sourceURL = $state('');
+  let loadError = $state('');
+  let loaded = $state(false);
+  onMount(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const [saved, url] = await Promise.all([readScene(), readSourceURL()]);
+        if (!mounted) return;
+        layers = saved.layers;
+        resolution = saved.resolution;
+        history = new LayerHistory($state.snapshot(layers));
+        syncHistoryFlags();
+        sourceURL = url;
+        loaded = true;
+      } catch {
+        if (mounted) loadError = 'Could not load the local overlay. Reopen the desktop app.';
+      }
+    })();
+    return () => { mounted = false; };
+  });
 
   const BAR_H = 44;
   const SNAP_PX = 6;
@@ -81,7 +105,7 @@
   const resolutionOptions = RESOLUTION_OPTIONS.map((value) => ({ value, label: RESOLUTIONS[value].label }));
 
   // $state.snapshot gives a plain copy: structuredClone in LayerHistory can't clone a Svelte state proxy.
-  const history = new LayerHistory(untrack(() => $state.snapshot(layers)));
+  let history = new LayerHistory(untrack(() => $state.snapshot(layers)));
   let canUndo = $state(false);
   let canRedo = $state(false);
 
@@ -377,6 +401,7 @@
 {/snippet}
 
 {#snippet topEnd()}
+  <OBSPanel scene={{ resolution, layers }} {sourceURL} ready={loaded} {loadError} />
   {#if !tightBar}
     <IconButton label="Zoom out" tooltip size="sm" onclick={() => zoomCenter(1 / ZOOM_STEP)}>
       <Icon name="minus" size={15} />

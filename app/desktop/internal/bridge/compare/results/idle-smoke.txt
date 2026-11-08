@@ -1,0 +1,9 @@
+=== RUN   TestIdleFootprint
+    idle_test.go:59: IDLE ws-json apps=1 heap_delta_B=32424 rss_delta_KiB=2384 goroutines_delta=0 idle_cpu_us_per_s=40 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE ws-json apps=20 heap_delta_B=378176 rss_delta_KiB=4624 goroutines_delta=0 idle_cpu_us_per_s=62 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE ws-protobuf apps=1 heap_delta_B=32392 rss_delta_KiB=2208 goroutines_delta=0 idle_cpu_us_per_s=64 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE ws-protobuf apps=20 heap_delta_B=374984 rss_delta_KiB=4480 goroutines_delta=0 idle_cpu_us_per_s=64 idle_TLS_B_per_s=0 TLS_connections=20
+    idle_test.go:59: IDLE grpc-protobuf apps=1 heap_delta_B=190936 rss_delta_KiB=3248 goroutines_delta=6 idle_cpu_us_per_s=93 idle_TLS_B_per_s=0 TLS_connections=1
+    idle_test.go:59: IDLE grpc-protobuf apps=20 heap_delta_B=1491432 rss_delta_KiB=7616 goroutines_delta=120 idle_cpu_us_per_s=177 idle_TLS_B_per_s=0 TLS_connections=20
+--- PASS: TestIdleFootprint (6.89s)
+PASS

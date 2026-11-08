@@ -1,0 +1,34 @@
+=== RUN   TestPacedNetworkLatency
+=== RUN   TestPacedNetworkLatency/ws-json
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=102.400 local send-to-decoded: p50=166µs p95=552µs p99=3.116ms
+=== RUN   TestPacedNetworkLatency/ws-protobuf
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=86.240 local send-to-decoded: p50=124µs p95=464µs p99=1.766ms
+=== RUN   TestPacedNetworkLatency/grpc-protobuf
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=239.700 local send-to-decoded: p50=230µs p95=525µs p99=2.528ms
+--- PASS: TestPacedNetworkLatency (9.03s)
+    --- PASS: TestPacedNetworkLatency/ws-json (3.01s)
+    --- PASS: TestPacedNetworkLatency/ws-protobuf (3.00s)
+    --- PASS: TestPacedNetworkLatency/grpc-protobuf (3.01s)
+=== RUN   TestPacedNetworkLatency
+=== RUN   TestPacedNetworkLatency/ws-json
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=77.250 local send-to-decoded: p50=164µs p95=464µs p99=884µs
+=== RUN   TestPacedNetworkLatency/ws-protobuf
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=102.287 local send-to-decoded: p50=184µs p95=631µs p99=1.236ms
+=== RUN   TestPacedNetworkLatency/grpc-protobuf
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=202.623 local send-to-decoded: p50=240µs p95=925µs p99=6.909ms
+--- PASS: TestPacedNetworkLatency (9.03s)
+    --- PASS: TestPacedNetworkLatency/ws-json (3.00s)
+    --- PASS: TestPacedNetworkLatency/ws-protobuf (3.00s)
+    --- PASS: TestPacedNetworkLatency/grpc-protobuf (3.01s)
+=== RUN   TestPacedNetworkLatency
+=== RUN   TestPacedNetworkLatency/ws-json
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=96.320 local send-to-decoded: p50=188µs p95=379µs p99=665µs
+=== RUN   TestPacedNetworkLatency/ws-protobuf
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=83.930 local send-to-decoded: p50=174µs p95=272µs p99=342µs
+=== RUN   TestPacedNetworkLatency/grpc-protobuf
+    network_test.go:476: rate=100 samples=300 client_cpu_us/event=182.307 local send-to-decoded: p50=220µs p95=315µs p99=487µs
+--- PASS: TestPacedNetworkLatency (9.03s)
+    --- PASS: TestPacedNetworkLatency/ws-json (3.01s)
+    --- PASS: TestPacedNetworkLatency/ws-protobuf (3.00s)
+    --- PASS: TestPacedNetworkLatency/grpc-protobuf (3.00s)
+PASS

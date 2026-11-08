@@ -93,6 +93,23 @@ Section
     
     !insertmacro wails.files
 
+    !ifdef SUPPORTS_AMD64
+        !ifndef ARG_BAGEL_AMD64_WORKER
+            !error "Missing AMD64 isolated network worker"
+        !endif
+        ${if} ${IsNativeAMD64}
+            File "/oname=BagelNetworkWorker.exe" "${ARG_BAGEL_AMD64_WORKER}"
+        ${EndIf}
+    !endif
+    !ifdef SUPPORTS_ARM64
+        !ifndef ARG_BAGEL_ARM64_WORKER
+            !error "Missing ARM64 isolated network worker"
+        !endif
+        ${if} ${IsNativeARM64}
+            File "/oname=BagelNetworkWorker.exe" "${ARG_BAGEL_ARM64_WORKER}"
+        ${EndIf}
+    !endif
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 

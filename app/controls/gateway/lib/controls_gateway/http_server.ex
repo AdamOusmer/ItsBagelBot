@@ -27,6 +27,8 @@ defmodule ControlsGateway.HttpServer do
         {:_,
          [
            {"/v1/connect", WsHandler, []},
+           {"/oauth/desktop/token", ControlsGateway.TokenHandler, []},
+           {"/oauth/desktop/revoke", ControlsGateway.RevokeHandler, []},
            {"/healthz", HttpHandler, :healthz},
            {"/readyz", HttpHandler, :readyz},
            {"/metrics", HttpHandler, :metrics}

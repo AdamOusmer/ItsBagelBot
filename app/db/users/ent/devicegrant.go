@@ -28,6 +28,10 @@ type DeviceGrant struct {
 	DeviceName string `json:"device_name,omitempty"`
 	// Platform holds the value of the "platform" field.
 	Platform devicegrant.Platform `json:"platform,omitempty"`
+	// DpopJkt holds the value of the "dpop_jkt" field.
+	DpopJkt string `json:"dpop_jkt,omitempty"`
+	// RefreshResult holds the value of the "refresh_result" field.
+	RefreshResult []byte `json:"-"`
 	// RefreshHash holds the value of the "refresh_hash" field.
 	RefreshHash []byte `json:"-"`
 	// PrevRefreshHash holds the value of the "prev_refresh_hash" field.
@@ -77,11 +81,11 @@ func (*DeviceGrant) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case devicegrant.FieldRefreshHash, devicegrant.FieldPrevRefreshHash:
+		case devicegrant.FieldRefreshResult, devicegrant.FieldRefreshHash, devicegrant.FieldPrevRefreshHash:
 			values[i] = new([]byte)
 		case devicegrant.FieldID, devicegrant.FieldUserID:
 			values[i] = new(sql.NullInt64)
-		case devicegrant.FieldGrantID, devicegrant.FieldDeviceID, devicegrant.FieldDeviceName, devicegrant.FieldPlatform, devicegrant.FieldRevokedReason:
+		case devicegrant.FieldGrantID, devicegrant.FieldDeviceID, devicegrant.FieldDeviceName, devicegrant.FieldPlatform, devicegrant.FieldDpopJkt, devicegrant.FieldRevokedReason:
 			values[i] = new(sql.NullString)
 		case devicegrant.FieldPrevRotatedAt, devicegrant.FieldRefreshSlidingExpiresAt, devicegrant.FieldRefreshAbsoluteExpiresAt, devicegrant.FieldCreatedAt, devicegrant.FieldLastUsedAt, devicegrant.FieldRevokedAt:
 			values[i] = new(sql.NullTime)
@@ -135,6 +139,18 @@ func (_m *DeviceGrant) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field platform", values[i])
 			} else if value.Valid {
 				_m.Platform = devicegrant.Platform(value.String)
+			}
+		case devicegrant.FieldDpopJkt:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field dpop_jkt", values[i])
+			} else if value.Valid {
+				_m.DpopJkt = value.String
+			}
+		case devicegrant.FieldRefreshResult:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field refresh_result", values[i])
+			} else if value != nil {
+				_m.RefreshResult = *value
 			}
 		case devicegrant.FieldRefreshHash:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -248,6 +264,11 @@ func (_m *DeviceGrant) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("platform=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Platform))
+	builder.WriteString(", ")
+	builder.WriteString("dpop_jkt=")
+	builder.WriteString(_m.DpopJkt)
+	builder.WriteString(", ")
+	builder.WriteString("refresh_result=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("refresh_hash=<sensitive>")
 	builder.WriteString(", ")

@@ -75,3 +75,29 @@ func TestNewSignerRejectsEmptyKID(t *testing.T) {
 	_, err := tokensign.NewSigner(make([]byte, ed25519.SeedSize), "")
 	require.Error(t, err)
 }
+
+func TestBoundTokenVerificationRetainsRotatedPublicKey(t *testing.T) {
+	old, err := tokensign.NewSigner(make([]byte, 32), "old")
+	require.NoError(t, err)
+	payload := vectorPayload()
+	payload.Confirmation = &tokensign.Confirmation{JKT: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+	token, err := old.SignBound(payload)
+	require.NoError(t, err)
+	seed := make([]byte, 32)
+	seed[0] = 1
+	next, err := tokensign.NewSigner(seed, "next")
+	require.NoError(t, err)
+	_, err = next.VerifyBound(token)
+	require.Error(t, err)
+	oldPublic := ed25519.NewKeyFromSeed(make([]byte, 32)).Public().(ed25519.PublicKey)
+	next, err = next.WithVerificationKeys(map[string][]byte{"old": oldPublic})
+	require.NoError(t, err)
+	claims, err := next.VerifyBound(token)
+	require.NoError(t, err)
+	require.Equal(t, "old", claims.Kid)
+	_, err = tokensign.Verify(oldPublic, token)
+	require.Error(t, err, "bound token cannot downgrade to legacy bearer")
+	oldPublic[0] ^= 1
+	_, err = next.VerifyBound(token)
+	require.NoError(t, err, "verification keyring owns supplied key bytes")
+}

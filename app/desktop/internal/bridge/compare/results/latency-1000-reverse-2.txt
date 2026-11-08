@@ -1,0 +1,12 @@
+=== RUN   TestPacedNetworkLatency
+=== RUN   TestPacedNetworkLatency/grpc-protobuf
+    network_test.go:476: rate=1000 samples=1000 client_cpu_us/event=132.653 local send-to-decoded: p50=80µs p95=249µs p99=721µs
+=== RUN   TestPacedNetworkLatency/ws-protobuf
+    network_test.go:476: rate=1000 samples=1000 client_cpu_us/event=66.998 local send-to-decoded: p50=78µs p95=320µs p99=1.286ms
+=== RUN   TestPacedNetworkLatency/ws-json
+    network_test.go:476: rate=1000 samples=1000 client_cpu_us/event=67.172 local send-to-decoded: p50=80µs p95=189µs p99=689µs
+--- PASS: TestPacedNetworkLatency (3.22s)
+    --- PASS: TestPacedNetworkLatency/grpc-protobuf (1.08s)
+    --- PASS: TestPacedNetworkLatency/ws-protobuf (1.08s)
+    --- PASS: TestPacedNetworkLatency/ws-json (1.05s)
+PASS

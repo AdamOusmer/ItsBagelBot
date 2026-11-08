@@ -1,0 +1,26 @@
+Existing Cloudflare Tunnel, 2026-11-08
+Synthetic fixture only; credentials and certificate material excluded.
+
+CLIENT
+=== RUN   TestExistingTunnelWebSocketProtobuf
+    tunnel_client_test.go:147: public Cloudflare edge verified; origin TLS remains pinned at Traefik
+    tunnel_client_test.go:152: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:152: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:152: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:152: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:152: tunnel soak: cursor=5 socket_attempts=2
+    tunnel_client_test.go:160: PASS: 8 contiguous protobuf events; 2 handoffs; 3 socket attempts; elapsed 150.5s
+--- PASS: TestExistingTunnelWebSocketProtobuf (150.64s)
+PASS
+
+SERVER
+=== RUN   TestTunnelProbeServer
+    tunnel_server_test.go:117: probe listener started
+    tunnel_server_test.go:151: first migration completed; idle soak started
+    tunnel_server_test.go:155: idle soak completed after 150 seconds
+    tunnel_server_test.go:163: probe sequence completed; two migrations; cursor 8
+
+ISOLATION
+PASS: all NetworkPolicy, CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy specifications match the pre-probe SHA-256 baseline.
+PASS: no remaining resources with the unique fixture label after Job deletion.
+No DNS, Tunnel, redirect or firewall settings were changed.

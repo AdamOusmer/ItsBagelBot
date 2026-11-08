@@ -38,11 +38,11 @@ async function runLoad(url: string, session: unknown): Promise<Thrown | { data: 
   }
 }
 
-const GOOD_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXkabc';
+const GOOD_JKT = 'a'.repeat(42) + 'A';
 const GOOD_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 const GOOD_QUERY =
   'response_type=code&client_id=itsbagelbot-desktop&redirect_uri=http%3A%2F%2F127.0.0.1%3A51123%2Fcallback' +
-  `&code_challenge=${GOOD_CHALLENGE}&code_challenge_method=S256&state=xyz&device_name=My+Laptop&platform=macos`;
+  `&code_challenge=${GOOD_CHALLENGE}&code_challenge_method=S256&dpop_jkt=${GOOD_JKT}&state=xyz&device_name=My+Laptop&platform=macos`;
 const AUTHORIZE_URL = `https://dashboard.itsbagelbot.com/oauth/desktop/authorize?${GOOD_QUERY}`;
 
 const SESSION = { user_id: '42', login: 'streamer', display_name: 'Streamer' };
@@ -83,6 +83,14 @@ describe('GET /oauth/desktop/authorize (load)', () => {
     expect(next).toBe(`/oauth/desktop/authorize?${GOOD_QUERY}`);
   });
 
+  test('a missing DPoP binding is refused before login or device approval', async () => {
+    const url = new URL(AUTHORIZE_URL);
+    url.searchParams.delete('dpop_jkt');
+    const result = await runLoad(url.toString(), SESSION);
+    expect((result as Thrown).location).toBe('http://127.0.0.1:51123/callback?error=invalid_request&state=xyz');
+    expect(createCodeCalls.length).toBe(0);
+  });
+
   test('an impersonated session gets a refusal, not a redirect', async () => {
     const result = await runLoad(AUTHORIZE_URL, { ...SESSION, impersonator_id: 'staff-1' });
     expect('data' in result).toBe(true);
@@ -101,6 +109,7 @@ describe('GET /oauth/desktop/authorize (load)', () => {
     expect(data.refusal).toBeNull();
     expect(data.request.deviceName).toBe('My Laptop');
     expect(data.request.platform).toBe('macos');
+    expect((data.request as { dpopJkt?: string }).dpopJkt).toBe(GOOD_JKT);
   });
 });
 
@@ -116,6 +125,7 @@ const GOOD_FIELDS = {
   redirect_uri: 'http://127.0.0.1:51123/callback',
   code_challenge: GOOD_CHALLENGE,
   code_challenge_method: 'S256',
+  dpop_jkt: GOOD_JKT,
   state: 'xyz',
   device_name: 'My Laptop',
   platform: 'macos'
@@ -130,6 +140,28 @@ function postEvent(session: unknown, fields: Record<string, string>) {
 }
 
 describe('POST /oauth/desktop/authorize (approve)', () => {
+  test('malformed thumbprints never reach Users', async () => {
+    try {
+      await actions.approve(postEvent(SESSION, { ...GOOD_FIELDS, dpop_jkt: 'not-a-thumbprint' }));
+      throw new Error('expected invalid_request redirect');
+    } catch (error) {
+      expect((error as Thrown).location).toBe('http://127.0.0.1:51123/callback?error=invalid_request&state=xyz');
+    }
+    expect(createCodeCalls.length).toBe(0);
+  });
+
+  test('duplicate submitted thumbprints cannot select a different key', async () => {
+    const form = formFrom(GOOD_FIELDS);
+    form.append('dpop_jkt', 'b'.repeat(42) + 'A');
+    try {
+      await actions.approve({ request: { formData: async () => form }, locals: { session: SESSION } } as never);
+      throw new Error('expected invalid_request redirect');
+    } catch (error) {
+      expect((error as Thrown).location).toBe('http://127.0.0.1:51123/callback?error=invalid_request&state=xyz');
+    }
+    expect(createCodeCalls.length).toBe(0);
+  });
+
   test('rate limited answers 429 before touching the session or Users', async () => {
     rateDecision = { allowed: false, retryAfterSec: 5 };
     const result = await actions.approve(postEvent(SESSION, GOOD_FIELDS));
@@ -172,6 +204,7 @@ describe('POST /oauth/desktop/authorize (approve)', () => {
       {
         userId: '42',
         codeChallenge: GOOD_CHALLENGE,
+        dpopJkt: GOOD_JKT,
         redirectUri: 'http://127.0.0.1:51123/callback',
         deviceName: 'My Laptop',
         platform: 'macos'

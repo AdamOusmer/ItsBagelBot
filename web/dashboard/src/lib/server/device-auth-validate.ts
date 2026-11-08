@@ -13,10 +13,8 @@ const DEVICE_NAME_MAX = 64;
 
 // S256 challenge is base64url(sha256(verifier)): always 43 characters, no padding.
 const CODE_CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
-// RFC 7636 unreserved charset, 43-128 characters.
-const CODE_VERIFIER_RE = /^[A-Za-z0-9._~-]{43,128}$/;
-const CODE_RE = /^[A-Za-z0-9_-]{1,512}$/;
-const REFRESH_TOKEN_RE = /^bbr_[A-Za-z0-9_-]{1,512}$/;
+// SHA-256 JWK thumbprints use canonical unpadded base64url (the final two bits are zero).
+const DPOP_THUMBPRINT_RE = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 // Bidi overrides are format characters; on the consent page they would reorder what the user reads.
 const UNSAFE_NAME_CHARS = /[\p{Cc}\p{Cf}]/gu;
 
@@ -67,16 +65,8 @@ export function validCodeChallenge(value: string | null, method: string | null):
   return method === 'S256' && !!value && CODE_CHALLENGE_RE.test(value);
 }
 
-export function validCodeVerifier(value: string | null): value is string {
-  return !!value && CODE_VERIFIER_RE.test(value);
-}
-
-export function validCode(value: string | null): value is string {
-  return !!value && CODE_RE.test(value);
-}
-
-export function validRefreshToken(value: string | null): value is string {
-  return !!value && REFRESH_TOKEN_RE.test(value);
+export function validDPoPThumbprint(value: string | null): value is string {
+  return !!value && DPOP_THUMBPRINT_RE.test(value);
 }
 
 export function sanitizeDeviceName(value: string | null): string {
@@ -88,6 +78,7 @@ export type AuthorizeRequest = {
   clientId: string;
   redirectUri: string;
   codeChallenge: string;
+  dpopJkt: string;
   state: string;
   deviceName: string;
   platform: Platform;
@@ -111,6 +102,10 @@ export function parseAuthorizeParams(params: URLSearchParams): AuthorizeParseRes
   if (!validCodeChallenge(params.get('code_challenge'), params.get('code_challenge_method'))) {
     return { ok: false, fatal: false, redirectUri, state };
   }
+  const dpopJkt = params.get('dpop_jkt');
+  if (params.getAll('dpop_jkt').length !== 1 || !validDPoPThumbprint(dpopJkt)) {
+    return { ok: false, fatal: false, redirectUri, state };
+  }
   const platform = params.get('platform');
   if (!isPlatform(platform)) return { ok: false, fatal: false, redirectUri, state };
 
@@ -120,43 +115,12 @@ export function parseAuthorizeParams(params: URLSearchParams): AuthorizeParseRes
       clientId,
       redirectUri,
       codeChallenge: params.get('code_challenge') as string,
+      dpopJkt,
       state,
       deviceName: sanitizeDeviceName(params.get('device_name')),
       platform
     }
   };
-}
-
-export type TokenRequest =
-  | { grantType: 'authorization_code'; code: string; codeVerifier: string; redirectUri: string }
-  | { grantType: 'refresh_token'; refreshToken: string };
-
-export type TokenParseError = 'invalid_request' | 'unsupported_grant_type' | 'invalid_client';
-export type TokenParseResult = { ok: true; value: TokenRequest } | { ok: false; error: TokenParseError };
-
-function parseAuthCodeGrant(form: URLSearchParams): TokenParseResult {
-  const code = form.get('code');
-  const codeVerifier = form.get('code_verifier');
-  const redirectUri = form.get('redirect_uri');
-  if (!validCode(code)) return { ok: false, error: 'invalid_request' };
-  if (!validCodeVerifier(codeVerifier)) return { ok: false, error: 'invalid_request' };
-  if (!validRedirectUri(redirectUri)) return { ok: false, error: 'invalid_request' };
-  return { ok: true, value: { grantType: 'authorization_code', code, codeVerifier, redirectUri } };
-}
-
-function parseRefreshGrant(form: URLSearchParams): TokenParseResult {
-  const refreshToken = form.get('refresh_token');
-  if (!validRefreshToken(refreshToken)) return { ok: false, error: 'invalid_request' };
-  return { ok: true, value: { grantType: 'refresh_token', refreshToken } };
-}
-
-export function parseTokenRequest(form: URLSearchParams): TokenParseResult {
-  if (!validClientId(form.get('client_id'))) return { ok: false, error: 'invalid_client' };
-
-  const grantType = form.get('grant_type');
-  if (grantType === 'authorization_code') return parseAuthCodeGrant(form);
-  if (grantType === 'refresh_token') return parseRefreshGrant(form);
-  return { ok: false, error: 'unsupported_grant_type' };
 }
 
 export function callbackUrl(redirectUri: string, params: Record<string, string>): string {

@@ -24,6 +24,9 @@ type Delegation func(*sql.Selector)
 // DeviceGrant is the predicate function for devicegrant builders.
 type DeviceGrant func(*sql.Selector)
 
+// DeviceProof is the predicate function for deviceproof builders.
+type DeviceProof func(*sql.Selector)
+
 // LifecycleErasure is the predicate function for lifecycleerasure builders.
 type LifecycleErasure func(*sql.Selector)
 

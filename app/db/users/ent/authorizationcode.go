@@ -24,6 +24,8 @@ type AuthorizationCode struct {
 	UserID uint64 `json:"user_id,omitempty"`
 	// CodeChallenge holds the value of the "code_challenge" field.
 	CodeChallenge string `json:"code_challenge,omitempty"`
+	// DpopJkt holds the value of the "dpop_jkt" field.
+	DpopJkt string `json:"dpop_jkt,omitempty"`
 	// RedirectURI holds the value of the "redirect_uri" field.
 	RedirectURI string `json:"redirect_uri,omitempty"`
 	// DeviceName holds the value of the "device_name" field.
@@ -73,7 +75,7 @@ func (*AuthorizationCode) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case authorizationcode.FieldID, authorizationcode.FieldUserID:
 			values[i] = new(sql.NullInt64)
-		case authorizationcode.FieldCodeChallenge, authorizationcode.FieldRedirectURI, authorizationcode.FieldDeviceName, authorizationcode.FieldPlatform, authorizationcode.FieldProducedGrantID:
+		case authorizationcode.FieldCodeChallenge, authorizationcode.FieldDpopJkt, authorizationcode.FieldRedirectURI, authorizationcode.FieldDeviceName, authorizationcode.FieldPlatform, authorizationcode.FieldProducedGrantID:
 			values[i] = new(sql.NullString)
 		case authorizationcode.FieldCreatedAt, authorizationcode.FieldExpiresAt, authorizationcode.FieldConsumedAt:
 			values[i] = new(sql.NullTime)
@@ -115,6 +117,12 @@ func (_m *AuthorizationCode) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field code_challenge", values[i])
 			} else if value.Valid {
 				_m.CodeChallenge = value.String
+			}
+		case authorizationcode.FieldDpopJkt:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field dpop_jkt", values[i])
+			} else if value.Valid {
+				_m.DpopJkt = value.String
 			}
 		case authorizationcode.FieldRedirectURI:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -208,6 +216,9 @@ func (_m *AuthorizationCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge=")
 	builder.WriteString(_m.CodeChallenge)
+	builder.WriteString(", ")
+	builder.WriteString("dpop_jkt=")
+	builder.WriteString(_m.DpopJkt)
 	builder.WriteString(", ")
 	builder.WriteString("redirect_uri=")
 	builder.WriteString(_m.RedirectURI)

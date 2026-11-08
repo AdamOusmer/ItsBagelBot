@@ -31,7 +31,7 @@
   </div>
 {:else if layer.kind === 'chat'}
   <div class="chat">
-    {#each layer.messages.slice(0, layer.rows) as message (message.user)}
+    {#each layer.messages.slice(0, layer.rows) as message}
       <p class="chat__line">
         <span class="chat__user">{message.user}</span>
         <span class="chat__text">{message.message}</span>

@@ -86,6 +86,7 @@ type Users struct {
 	revoker            TokenRevoker
 	analytics          *analytics.Recorder
 	deviceSigner       *tokensign.Signer
+	deviceAuth         DeviceAuthConfig
 }
 
 func (r *Users) SetAnalytics(rec *analytics.Recorder) {
@@ -651,4 +652,3 @@ func (o tokenOwner) aad(tokenType tokens.Type, platform tokens.Platform) []byte 
 
 	return aad
 }
-

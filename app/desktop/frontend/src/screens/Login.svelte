@@ -3,7 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
   import AmbientSky from '@bagel/ui/svelte/AmbientSky.svelte';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import { authState, startPairing, retryAuthorization } from '../lib/auth.svelte';
   import { mountEngine } from '@luzir/bolota/engine';
   import '@luzir/bolota/motion.css';
   import { Browser } from '@wailsio/runtime';
@@ -12,8 +13,6 @@
 
   type Row = 'back' | 'front' | 'hero';
   type Seat = { name: string; x: number; row: Row; size: number; head: string };
-
-  const LOGIN_URL = 'https://dashboard.itsbagelbot.com/auth/login';
 
   const SEATS: Seat[] = [
     { name: 'noodle_arms', x: 7, row: 'back', size: 96, head: '--bb-tan-pale' },
@@ -69,7 +68,9 @@
     <h1 class="auth__title">
       {#each words as word, i (i)}<span class="auth__word" style="--w: {i}">{word}</span>{' '}{/each}
     </h1>
-    <ButtonLink href={LOGIN_URL} variant="twitch">{login.cta}</ButtonLink>
+    <Button variant="twitch" disabled={!authState.configured} busy={authState.pending || authState.working} onclick={() => { void (authState.paired ? retryAuthorization() : startPairing()); }}>{authState.paired ? 'Reconnect' : login.cta}</Button>
+    {#if authState.pending}<p role="status">Approve this device in your browser.</p>{/if}
+    {#if authState.error}<p role="status">{authState.error}</p>{/if}
     <p class="auth__consent">{@html login.consent}</p>
   </div>
 

@@ -21,6 +21,7 @@ type DeviceCodeRequest struct {
 	RedirectURI string
 	DeviceName  string
 	Platform    string
+	DPoPJKT     string
 }
 
 // CreateDeviceAuthorizationCode stores a single-use code hash; the raw code
@@ -44,6 +45,7 @@ func (r *Users) CreateDeviceAuthorizationCode(ctx context.Context, userID uint64
 			SetCodeHash(hash).
 			SetUserID(userID).
 			SetCodeChallenge(req.Challenge).
+			SetDpopJkt(req.DPoPJKT).
 			SetRedirectURI(req.RedirectURI).
 			SetDeviceName(req.DeviceName).
 			SetPlatform(authorizationcode.Platform(req.Platform)).
@@ -61,6 +63,10 @@ func (r *Users) CreateDeviceAuthorizationCode(ctx context.Context, userID uint64
 // token pair. It never consumes the code on a verifier or redirect mismatch,
 // so a mistyped retry can still succeed before the code expires.
 func (r *Users) ExchangeDeviceCode(ctx context.Context, code, verifier, redirectURI string) (DeviceTokens, error) {
+	return r.exchangeDeviceCode(ctx, code, verifier, redirectURI, "")
+}
+
+func (r *Users) exchangeDeviceCode(ctx context.Context, code, verifier, redirectURI, jkt string) (DeviceTokens, error) {
 	if r.deviceSigner == nil {
 		return DeviceTokens{}, ErrDeviceSigningKeyUnavailable
 	}
@@ -75,7 +81,13 @@ func (r *Users) ExchangeDeviceCode(ctx context.Context, code, verifier, redirect
 	if err != nil {
 		return DeviceTokens{}, err
 	}
+	if !constantTimeEqual([]byte(row.DpopJkt), []byte(jkt)) {
+		return DeviceTokens{}, ErrDeviceInvalidGrant
+	}
 
+	if row.DpopJkt != "" {
+		return r.redeemBoundCode(ctx, row, redirectURI, verifier)
+	}
 	if outcome := r.checkConsumedCode(ctx, row); outcome != nil {
 		return DeviceTokens{}, outcome
 	}
@@ -129,6 +141,7 @@ func (r *Users) redeemCode(ctx context.Context, row *ent.AuthorizationCode) (Dev
 	grant := &ent.DeviceGrant{
 		GrantID: newDeviceUUID(), DeviceID: newDeviceUUID(), UserID: row.UserID,
 		DeviceName: row.DeviceName, Platform: devicegrant.Platform(row.Platform), RefreshHash: refreshHash,
+		DpopJkt:   row.DpopJkt,
 		CreatedAt: now,
 	}
 	var tokens DeviceTokens
@@ -138,10 +151,16 @@ func (r *Users) redeemCode(ctx context.Context, row *ent.AuthorizationCode) (Dev
 		}
 		var err error
 		tokens, err = r.deviceTokensFor(grant, refreshRaw, now)
-		return err
+		if err != nil || grant.DpopJkt == "" {
+			return err
+		}
+		return r.saveBoundCodeResult(ctx, tx, grant.GrantID, tokens)
 	})
 
 	if errors.Is(err, errDeviceCodeRace) {
+		if row.DpopJkt != "" {
+			return r.recoverBoundCodeRace(ctx, row.ID)
+		}
 		r.revokeProducedGrant(ctx, refetchProducedGrantID(ctx, r, row.ID))
 		return DeviceTokens{}, ErrDeviceInvalidGrant
 	}
@@ -162,6 +181,7 @@ func mintGrantInTx(ctx context.Context, tx *ent.Tx, codeRowID int, grant *ent.De
 		SetUserID(grant.UserID).
 		SetDeviceName(grant.DeviceName).
 		SetPlatform(grant.Platform).
+		SetDpopJkt(grant.DpopJkt).
 		SetRefreshHash(grant.RefreshHash).
 		SetRefreshSlidingExpiresAt(now.Add(deviceRefreshSlidingTTL)).
 		SetRefreshAbsoluteExpiresAt(now.Add(deviceRefreshAbsoluteTTL)).
@@ -201,4 +221,41 @@ func decodeDeviceSecret(raw string) []byte {
 		return nil
 	}
 	return b
+}
+
+func (r *Users) redeemBoundCode(ctx context.Context, row *ent.AuthorizationCode, redirectURI, verifier string) (DeviceTokens, error) {
+	now := time.Now().UTC()
+	if !codeStillUsable(row, redirectURI, verifier, now) {
+		return DeviceTokens{}, ErrDeviceInvalidGrant
+	}
+	if row.ConsumedAt == nil {
+		return r.redeemCode(ctx, row)
+	}
+	return r.recoverConsumedBoundCode(ctx, row)
+}
+func (r *Users) recoverConsumedBoundCode(ctx context.Context, row *ent.AuthorizationCode) (DeviceTokens, error) {
+	now := time.Now().UTC()
+	if row.ProducedGrantID == nil || row.ConsumedAt == nil || now.Sub(*row.ConsumedAt) > deviceBoundRecoveryGrace {
+		return DeviceTokens{}, ErrDeviceInvalidGrant
+	}
+	grant, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.DeviceGrant, error) {
+		return r.client.DeviceGrant.Query().Where(devicegrant.GrantIDEQ(*row.ProducedGrantID), devicegrant.RevokedAtIsNil(), devicegrant.DpopJktEQ(row.DpopJkt)).Only(ctx)
+	})
+	if ent.IsNotFound(err) {
+		return DeviceTokens{}, ErrDeviceInvalidGrant
+	}
+	if err != nil {
+		return DeviceTokens{}, err
+	}
+	return r.recoverBoundRefresh(grant)
+}
+
+func (r *Users) recoverBoundCodeRace(ctx context.Context, id int) (DeviceTokens, error) {
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.AuthorizationCode, error) {
+		return r.client.AuthorizationCode.Get(ctx, id)
+	})
+	if err != nil {
+		return DeviceTokens{}, err
+	}
+	return r.recoverConsumedBoundCode(ctx, row)
 }

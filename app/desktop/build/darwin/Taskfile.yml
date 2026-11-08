@@ -6,6 +6,8 @@ includes:
 vars:
   # Docker image for cross-compilation (used when building on non-macOS)
   CROSS_IMAGE: wails-cross
+  SIGN_IDENTITY: '{{.DARWIN_SIGN_IDENTITY | default ""}}'
+  NOTARY_PROFILE: '{{.DARWIN_NOTARY_PROFILE | default ""}}'
 
 tasks:
   build:
@@ -174,14 +176,57 @@ tasks:
         fi
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
       - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents"
+      - task: network:worker:bundle
       - task: '{{if eq OS "darwin"}}codesign:adhoc{{else}}codesign:skip{{end}}'
+
+  network:worker:build:
+    summary: Builds the isolated worker for both Mac architectures
+    internal: true
+    run: once
+    cmds:
+      - task: network:worker:build:arch
+        vars: {WORKER_ARCH: arm64}
+      - task: network:worker:build:arch
+        vars: {WORKER_ARCH: amd64}
+      - wails3 tool lipo -output "{{.BIN_DIR}}/BagelNetworkWorker" -input "{{.BIN_DIR}}/BagelNetworkWorker-arm64" -input "{{.BIN_DIR}}/BagelNetworkWorker-amd64"
+
+  network:worker:build:arch:
+    summary: Builds one pure-Go Mac helper slice
+    internal: true
+    env:
+      GOOS: darwin
+      GOARCH: '{{.WORKER_ARCH}}'
+      CGO_ENABLED: '0'
+    cmds:
+      - go build -trimpath -buildvcs=false -ldflags="-s -w" -o "{{.BIN_DIR}}/BagelNetworkWorker-{{.WORKER_ARCH}}" ./cmd/networkworker
+
+  network:worker:bundle:
+    summary: Embeds a separately sandboxed network helper app
+    internal: true
+    deps: [network:worker:build]
+    vars:
+      BUNDLE: '{{.BUNDLE | default (printf "%s/%s.app" .BIN_DIR .APP_NAME)}}'
+    cmds:
+      - mkdir -p "{{.BUNDLE}}/Contents/Helpers/BagelNetworkWorker.app/Contents/MacOS"
+      - cp "{{.BIN_DIR}}/BagelNetworkWorker" "{{.BUNDLE}}/Contents/Helpers/BagelNetworkWorker.app/Contents/MacOS/BagelNetworkWorker"
+      - cp build/darwin/NetworkWorker.Info.plist "{{.BUNDLE}}/Contents/Helpers/BagelNetworkWorker.app/Contents/Info.plist"
+      - task: '{{if eq OS "darwin"}}network:worker:sign:adhoc{{else}}codesign:skip{{end}}'
+        vars: {BUNDLE: '{{.BUNDLE}}'}
+
+  network:worker:sign:adhoc:
+    summary: Signs the helper with its independent App Sandbox
+    internal: true
+    cmds:
+      - xattr -cr "{{.BUNDLE}}/Contents/Helpers/BagelNetworkWorker.app"
+      - codesign --force --sign - --options runtime --entitlements build/darwin/NetworkWorker.entitlements "{{.BUNDLE}}/Contents/Helpers/BagelNetworkWorker.app"
+      - codesign --verify --deep --strict "{{.BUNDLE}}/Contents/Helpers/BagelNetworkWorker.app"
 
   codesign:adhoc:
     summary: Ad-hoc signs the app bundle (macOS only)
     internal: true
     cmds:
       - xattr -cr "{{.BIN_DIR}}/{{.APP_NAME}}.app"
-      - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+      - codesign --force --sign - --options runtime "{{.BIN_DIR}}/{{.APP_NAME}}.app"
       - codesign --verify --deep --strict "{{.BIN_DIR}}/{{.APP_NAME}}.app"
 
   codesign:skip:
@@ -203,31 +248,38 @@ tasks:
         fi
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS"
       - cp "build/darwin/Info.dev.plist" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Info.plist"
+      - task: network:worker:bundle
+        vars: {BUNDLE: '{{.BIN_DIR}}/{{.APP_NAME}}.dev.app'}
       - xattr -cr "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
-      - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
+      - codesign --force --sign - --options runtime "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
       - codesign --verify --deep --strict "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
       - '"{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"'
 
   sign:
-    summary: Signs the application bundle with Developer ID
+    summary: Signs the sandbox helper and app from the inside out
     desc: |
-      Signs the .app bundle for distribution.
-      Uses signing identity from `wails3 setup` (stored in ~/.config/wails/defaults.yaml).
-      Override with: task darwin:sign -- --identity "Developer ID Application: ..."
-    deps:
-      - task: package
+      Set DARWIN_SIGN_IDENTITY to your Developer ID Application identity.
+      Nested helper signing must retain its own minimal entitlements; recursive
+      signing would strip or replace the worker's sandbox and is prohibited.
+    deps: [package]
+    platforms: [darwin]
+    preconditions:
+      - sh: 'test -n "{{.SIGN_IDENTITY}}"'
+        msg: "Set DARWIN_SIGN_IDENTITY to your Developer ID Application identity."
     cmds:
-      - wails3 tool sign --input "{{.BIN_DIR}}/{{.APP_NAME}}.app" {{.CLI_ARGS}}
+      - xattr -cr "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+      - codesign --force --sign "{{.SIGN_IDENTITY}}" --options runtime --timestamp --entitlements build/darwin/NetworkWorker.entitlements "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Helpers/BagelNetworkWorker.app"
+      - codesign --force --sign "{{.SIGN_IDENTITY}}" --options runtime --timestamp "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+      - codesign --verify --deep --strict "{{.BIN_DIR}}/{{.APP_NAME}}.app"
 
   sign:notarize:
     summary: Signs and notarizes the application bundle
-    desc: |
-      Signs the .app bundle and submits it for notarization.
-      Uses signing identity and keychain profile from `wails3 setup`.
-
-      First-time setup:
-        wails3 setup
-    deps:
-      - task: package
+    deps: [sign]
+    platforms: [darwin]
+    preconditions:
+      - sh: 'test -n "{{.NOTARY_PROFILE}}"'
+        msg: "Set DARWIN_NOTARY_PROFILE to an existing notarytool keychain profile."
     cmds:
-      - wails3 tool sign --input "{{.BIN_DIR}}/{{.APP_NAME}}.app" --notarize {{.CLI_ARGS}}
+      - ditto -c -k --keepParent "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.BIN_DIR}}/{{.APP_NAME}}-notarization.zip"
+      - xcrun notarytool submit "{{.BIN_DIR}}/{{.APP_NAME}}-notarization.zip" --keychain-profile "{{.NOTARY_PROFILE}}" --wait
+      - xcrun stapler staple "{{.BIN_DIR}}/{{.APP_NAME}}.app"

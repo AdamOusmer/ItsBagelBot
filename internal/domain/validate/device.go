@@ -4,6 +4,7 @@
 package validate
 
 import (
+	"encoding/base64"
 	"errors"
 	"net/url"
 	"strconv"
@@ -133,4 +134,16 @@ func firstRunes(runes []rune, limit int) []rune {
 		return runes
 	}
 	return runes[:limit]
+}
+
+// DeviceThumbprint is a canonical SHA-256 JWK thumbprint (RFC 7638).
+func DeviceThumbprint(value string) error {
+	if len(value) != 43 {
+		return ErrChallenge
+	}
+	decoded, err := base64.RawURLEncoding.Strict().DecodeString(value)
+	if err != nil || len(decoded) != 32 {
+		return ErrChallenge
+	}
+	return nil
 }

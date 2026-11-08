@@ -41,6 +41,20 @@ func (_c *AuthorizationCodeCreate) SetCodeChallenge(v string) *AuthorizationCode
 	return _c
 }
 
+// SetDpopJkt sets the "dpop_jkt" field.
+func (_c *AuthorizationCodeCreate) SetDpopJkt(v string) *AuthorizationCodeCreate {
+	_c.mutation.SetDpopJkt(v)
+	return _c
+}
+
+// SetNillableDpopJkt sets the "dpop_jkt" field if the given value is not nil.
+func (_c *AuthorizationCodeCreate) SetNillableDpopJkt(v *string) *AuthorizationCodeCreate {
+	if v != nil {
+		_c.SetDpopJkt(*v)
+	}
+	return _c
+}
+
 // SetRedirectURI sets the "redirect_uri" field.
 func (_c *AuthorizationCodeCreate) SetRedirectURI(v string) *AuthorizationCodeCreate {
 	_c.mutation.SetRedirectURI(v)
@@ -155,6 +169,10 @@ func (_c *AuthorizationCodeCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *AuthorizationCodeCreate) defaults() {
+	if _, ok := _c.mutation.DpopJkt(); !ok {
+		v := authorizationcode.DefaultDpopJkt
+		_c.mutation.SetDpopJkt(v)
+	}
 	if _, ok := _c.mutation.DeviceName(); !ok {
 		v := authorizationcode.DefaultDeviceName
 		_c.mutation.SetDeviceName(v)
@@ -179,6 +197,14 @@ func (_c *AuthorizationCodeCreate) check() error {
 	if v, ok := _c.mutation.CodeChallenge(); ok {
 		if err := authorizationcode.CodeChallengeValidator(v); err != nil {
 			return &ValidationError{Name: "code_challenge", err: fmt.Errorf(`ent: validator failed for field "AuthorizationCode.code_challenge": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.DpopJkt(); !ok {
+		return &ValidationError{Name: "dpop_jkt", err: errors.New(`ent: missing required field "AuthorizationCode.dpop_jkt"`)}
+	}
+	if v, ok := _c.mutation.DpopJkt(); ok {
+		if err := authorizationcode.DpopJktValidator(v); err != nil {
+			return &ValidationError{Name: "dpop_jkt", err: fmt.Errorf(`ent: validator failed for field "AuthorizationCode.dpop_jkt": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.RedirectURI(); !ok {
@@ -253,6 +279,10 @@ func (_c *AuthorizationCodeCreate) createSpec() (*AuthorizationCode, *sqlgraph.C
 	if value, ok := _c.mutation.CodeChallenge(); ok {
 		_spec.SetField(authorizationcode.FieldCodeChallenge, field.TypeString, value)
 		_node.CodeChallenge = value
+	}
+	if value, ok := _c.mutation.DpopJkt(); ok {
+		_spec.SetField(authorizationcode.FieldDpopJkt, field.TypeString, value)
+		_node.DpopJkt = value
 	}
 	if value, ok := _c.mutation.RedirectURI(); ok {
 		_spec.SetField(authorizationcode.FieldRedirectURI, field.TypeString, value)
@@ -384,6 +414,18 @@ func (u *AuthorizationCodeUpsert) SetCodeChallenge(v string) *AuthorizationCodeU
 // UpdateCodeChallenge sets the "code_challenge" field to the value that was provided on create.
 func (u *AuthorizationCodeUpsert) UpdateCodeChallenge() *AuthorizationCodeUpsert {
 	u.SetExcluded(authorizationcode.FieldCodeChallenge)
+	return u
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (u *AuthorizationCodeUpsert) SetDpopJkt(v string) *AuthorizationCodeUpsert {
+	u.Set(authorizationcode.FieldDpopJkt, v)
+	return u
+}
+
+// UpdateDpopJkt sets the "dpop_jkt" field to the value that was provided on create.
+func (u *AuthorizationCodeUpsert) UpdateDpopJkt() *AuthorizationCodeUpsert {
+	u.SetExcluded(authorizationcode.FieldDpopJkt)
 	return u
 }
 
@@ -555,6 +597,20 @@ func (u *AuthorizationCodeUpsertOne) SetCodeChallenge(v string) *AuthorizationCo
 func (u *AuthorizationCodeUpsertOne) UpdateCodeChallenge() *AuthorizationCodeUpsertOne {
 	return u.Update(func(s *AuthorizationCodeUpsert) {
 		s.UpdateCodeChallenge()
+	})
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (u *AuthorizationCodeUpsertOne) SetDpopJkt(v string) *AuthorizationCodeUpsertOne {
+	return u.Update(func(s *AuthorizationCodeUpsert) {
+		s.SetDpopJkt(v)
+	})
+}
+
+// UpdateDpopJkt sets the "dpop_jkt" field to the value that was provided on create.
+func (u *AuthorizationCodeUpsertOne) UpdateDpopJkt() *AuthorizationCodeUpsertOne {
+	return u.Update(func(s *AuthorizationCodeUpsert) {
+		s.UpdateDpopJkt()
 	})
 }
 
@@ -906,6 +962,20 @@ func (u *AuthorizationCodeUpsertBulk) SetCodeChallenge(v string) *AuthorizationC
 func (u *AuthorizationCodeUpsertBulk) UpdateCodeChallenge() *AuthorizationCodeUpsertBulk {
 	return u.Update(func(s *AuthorizationCodeUpsert) {
 		s.UpdateCodeChallenge()
+	})
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (u *AuthorizationCodeUpsertBulk) SetDpopJkt(v string) *AuthorizationCodeUpsertBulk {
+	return u.Update(func(s *AuthorizationCodeUpsert) {
+		s.SetDpopJkt(v)
+	})
+}
+
+// UpdateDpopJkt sets the "dpop_jkt" field to the value that was provided on create.
+func (u *AuthorizationCodeUpsertBulk) UpdateDpopJkt() *AuthorizationCodeUpsertBulk {
+	return u.Update(func(s *AuthorizationCodeUpsert) {
+		s.UpdateDpopJkt()
 	})
 }
 

@@ -27,6 +27,7 @@ func (AuthorizationCode) Fields() []ent.Field {
 		field.Uint64("user_id"),
 
 		field.String("code_challenge").NotEmpty().MaxLen(128),
+		field.String("dpop_jkt").Default("").MaxLen(43),
 		field.String("redirect_uri").NotEmpty().MaxLen(255),
 		field.String("device_name").Default("").MaxLen(64),
 		field.Enum("platform").Values("macos", "windows", "linux"),

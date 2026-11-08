@@ -6,19 +6,16 @@ import {
   DESKTOP_CLIENT_ID,
   callbackUrl,
   parseAuthorizeParams,
-  parseTokenRequest,
   sanitizeDeviceName,
   validClientId,
-  validCode,
   validCodeChallenge,
-  validCodeVerifier,
+  validDPoPThumbprint,
   validRedirectUri,
-  validRefreshToken,
   validState
 } from './device-auth-validate';
 
 const GOOD_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
-const GOOD_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'.padEnd(43, 'x');
+const GOOD_JKT = 'a'.repeat(42) + 'A';
 
 function goodParams(overrides: Record<string, string | undefined> = {}): URLSearchParams {
   const base: Record<string, string> = {
@@ -27,6 +24,7 @@ function goodParams(overrides: Record<string, string | undefined> = {}): URLSear
     redirect_uri: 'http://127.0.0.1:51123/callback',
     code_challenge: GOOD_CHALLENGE,
     code_challenge_method: 'S256',
+    dpop_jkt: GOOD_JKT,
     state: 'xyz',
     device_name: "Adam's MacBook",
     platform: 'macos'
@@ -95,11 +93,28 @@ describe('PKCE validation', () => {
     expect(validCodeChallenge(GOOD_CHALLENGE.slice(0, 42), 'S256')).toBe(false);
     expect(validCodeChallenge(`${GOOD_CHALLENGE.slice(0, 42)}=`, 'S256')).toBe(false);
   });
-  test('verifier accepts the 43-128 character unreserved charset', () => {
-    expect(validCodeVerifier(GOOD_VERIFIER)).toBe(true);
-    expect(validCodeVerifier('a'.repeat(42))).toBe(false);
-    expect(validCodeVerifier('a'.repeat(129))).toBe(false);
-    expect(validCodeVerifier('has a space'.padEnd(43, 'x'))).toBe(false);
+});
+
+describe('DPoP authorization binding', () => {
+  test('accepts canonical SHA-256 thumbprints only', () => {
+    expect(validDPoPThumbprint(GOOD_JKT)).toBe(true);
+    for (const value of [null, '', 'a'.repeat(42), 'a'.repeat(44), 'a'.repeat(42) + 'B', GOOD_JKT + '=', '+' + GOOD_JKT.slice(1)]) {
+      expect(validDPoPThumbprint(value)).toBe(false);
+    }
+  });
+
+  test('missing and malformed thumbprints cannot create unbound authorization codes', () => {
+    for (const dpop_jkt of [undefined, '', 'a'.repeat(42) + 'B']) {
+      expect(parseAuthorizeParams(goodParams({ dpop_jkt }))).toEqual({
+        ok: false, fatal: false, redirectUri: 'http://127.0.0.1:51123/callback', state: 'xyz'
+      });
+    }
+  });
+
+  test('duplicate thumbprints are refused instead of choosing one key', () => {
+    const params = goodParams();
+    params.append('dpop_jkt', 'b'.repeat(42) + 'A');
+    expect(parseAuthorizeParams(params).ok).toBe(false);
   });
 });
 
@@ -138,6 +153,7 @@ describe('parseAuthorizeParams', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.platform).toBe('macos');
+      expect(result.value.dpopJkt).toBe(GOOD_JKT);
       expect(result.value.deviceName).toBe("Adam's MacBook");
     }
   });
@@ -174,100 +190,6 @@ describe('parseAuthorizeParams', () => {
     const result = parseAuthorizeParams(goodParams({ state: undefined }));
     expect(result.ok).toBe(false);
     if (!result.ok && !result.fatal) expect(result.state).toBeNull();
-  });
-});
-
-describe('parseTokenRequest', () => {
-  function form(overrides: Record<string, string | undefined>): URLSearchParams {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(overrides)) {
-      if (value !== undefined) params.set(key, value);
-    }
-    return params;
-  }
-
-  test('authorization_code grant parses with all three required fields', () => {
-    const result = parseTokenRequest(
-      form({
-        grant_type: 'authorization_code',
-        client_id: DESKTOP_CLIENT_ID,
-        code: 'abc123_-',
-        code_verifier: GOOD_VERIFIER,
-        redirect_uri: 'http://127.0.0.1:51123/callback'
-      })
-    );
-    expect(result).toEqual({
-      ok: true,
-      value: {
-        grantType: 'authorization_code',
-        code: 'abc123_-',
-        codeVerifier: GOOD_VERIFIER,
-        redirectUri: 'http://127.0.0.1:51123/callback'
-      }
-    });
-  });
-
-  test('refresh_token grant requires the bbr_ prefix', () => {
-    const good = form({ grant_type: 'refresh_token', client_id: DESKTOP_CLIENT_ID, refresh_token: 'bbr_abc123' });
-    expect(parseTokenRequest(good)).toEqual({
-      ok: true,
-      value: { grantType: 'refresh_token', refreshToken: 'bbr_abc123' }
-    });
-
-    const missingPrefix = form({ grant_type: 'refresh_token', client_id: DESKTOP_CLIENT_ID, refresh_token: 'abc123' });
-    expect(parseTokenRequest(missingPrefix)).toEqual({ ok: false, error: 'invalid_request' });
-  });
-
-  test('wrong client_id refuses before the grant type is even read', () => {
-    expect(parseTokenRequest(form({ grant_type: 'authorization_code', client_id: 'other' }))).toEqual({
-      ok: false,
-      error: 'invalid_client'
-    });
-  });
-
-  test('an unsupported grant type is refused', () => {
-    expect(parseTokenRequest(form({ grant_type: 'password', client_id: DESKTOP_CLIENT_ID }))).toEqual({
-      ok: false,
-      error: 'unsupported_grant_type'
-    });
-  });
-
-  test('authorization_code grant with a malformed verifier is refused', () => {
-    const result = parseTokenRequest(
-      form({
-        grant_type: 'authorization_code',
-        client_id: DESKTOP_CLIENT_ID,
-        code: 'abc123',
-        code_verifier: 'too-short',
-        redirect_uri: 'http://127.0.0.1:51123/callback'
-      })
-    );
-    expect(result).toEqual({ ok: false, error: 'invalid_request' });
-  });
-
-  test('authorization_code grant with a non-loopback redirect_uri is refused', () => {
-    const result = parseTokenRequest(
-      form({
-        grant_type: 'authorization_code',
-        client_id: DESKTOP_CLIENT_ID,
-        code: 'abc123',
-        code_verifier: GOOD_VERIFIER,
-        redirect_uri: 'https://evil.example/callback'
-      })
-    );
-    expect(result).toEqual({ ok: false, error: 'invalid_request' });
-  });
-});
-
-describe('validCode / validRefreshToken', () => {
-  test('code accepts the base64url alphabet only', () => {
-    expect(validCode('abc-_123')).toBe(true);
-    expect(validCode('has a space')).toBe(false);
-    expect(validCode(null)).toBe(false);
-  });
-  test('refresh token requires the bbr_ prefix', () => {
-    expect(validRefreshToken('bbr_abc')).toBe(true);
-    expect(validRefreshToken('abc')).toBe(false);
   });
 });
 

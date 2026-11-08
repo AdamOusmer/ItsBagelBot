@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { Resolution } from './resolutions';
+
 export type LayerKind = 'text' | 'image' | 'alert' | 'chat';
 
 export type LayerTone = 'free' | 'paid' | 'vip';
@@ -54,3 +56,8 @@ export interface ChatLayer extends LayerBase {
 }
 
 export type Layer = TextLayer | ImageLayer | AlertLayer | ChatLayer;
+
+export interface OverlayScene {
+  resolution: Resolution;
+  layers: Layer[];
+}

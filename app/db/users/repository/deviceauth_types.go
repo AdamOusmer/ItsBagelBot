@@ -18,15 +18,17 @@ import (
 )
 
 const (
-	deviceCodeTTL            = 60 * time.Second
-	deviceAccessTokenTTL     = 15 * time.Minute
-	deviceRefreshSlidingTTL  = 60 * 24 * time.Hour
-	deviceRefreshAbsoluteTTL = 180 * 24 * time.Hour
-	deviceRefreshReuseGrace  = 10 * time.Second
-	deviceRefreshTokenPrefix = "bbr_"
-	deviceCleanupCodeGrace   = 5 * time.Minute
-	deviceCleanupGrantRetain = 7 * 24 * time.Hour
-	deviceRandomBytes        = 32
+	deviceCodeTTL             = 60 * time.Second
+	deviceAccessTokenTTL      = 15 * time.Minute
+	deviceBoundAccessTokenTTL = 24 * time.Hour
+	deviceRefreshSlidingTTL   = 60 * 24 * time.Hour
+	deviceRefreshAbsoluteTTL  = 180 * 24 * time.Hour
+	deviceRefreshReuseGrace   = 10 * time.Second
+	deviceBoundRecoveryGrace  = 2 * time.Minute
+	deviceRefreshTokenPrefix  = "bbr_"
+	deviceCleanupCodeGrace    = 5 * time.Minute
+	deviceCleanupGrantRetain  = 7 * 24 * time.Hour
+	deviceRandomBytes         = 32
 )
 
 // ErrDeviceInvalidGrant covers every exchange/refresh failure that an OAuth
@@ -50,6 +52,7 @@ type DeviceTokens struct {
 	ExpiresIn    int64
 	GrantID      string
 	DeviceID     string
+	TokenType    string
 }
 
 type DeviceGrantView struct {

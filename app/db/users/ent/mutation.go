@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
+	"ItsBagelBot/app/db/users/ent/deviceproof"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
@@ -40,6 +41,7 @@ const (
 	TypeAuthorizationCode = "AuthorizationCode"
 	TypeDelegation        = "Delegation"
 	TypeDeviceGrant       = "DeviceGrant"
+	TypeDeviceProof       = "DeviceProof"
 	TypeLifecycleErasure  = "LifecycleErasure"
 	TypePremiumGrant      = "PremiumGrant"
 	TypeTokens            = "Tokens"
@@ -2232,6 +2234,7 @@ type AuthorizationCodeMutation struct {
 	id                *int
 	code_hash         *[]byte
 	code_challenge    *string
+	dpop_jkt          *string
 	redirect_uri      *string
 	device_name       *string
 	platform          *authorizationcode.Platform
@@ -2451,6 +2454,42 @@ func (m *AuthorizationCodeMutation) OldCodeChallenge(ctx context.Context) (v str
 // ResetCodeChallenge resets all changes to the "code_challenge" field.
 func (m *AuthorizationCodeMutation) ResetCodeChallenge() {
 	m.code_challenge = nil
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (m *AuthorizationCodeMutation) SetDpopJkt(s string) {
+	m.dpop_jkt = &s
+}
+
+// DpopJkt returns the value of the "dpop_jkt" field in the mutation.
+func (m *AuthorizationCodeMutation) DpopJkt() (r string, exists bool) {
+	v := m.dpop_jkt
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDpopJkt returns the old "dpop_jkt" field's value of the AuthorizationCode entity.
+// If the AuthorizationCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthorizationCodeMutation) OldDpopJkt(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDpopJkt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDpopJkt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDpopJkt: %w", err)
+	}
+	return oldValue.DpopJkt, nil
+}
+
+// ResetDpopJkt resets all changes to the "dpop_jkt" field.
+func (m *AuthorizationCodeMutation) ResetDpopJkt() {
+	m.dpop_jkt = nil
 }
 
 // SetRedirectURI sets the "redirect_uri" field.
@@ -2792,7 +2831,7 @@ func (m *AuthorizationCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthorizationCodeMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.code_hash != nil {
 		fields = append(fields, authorizationcode.FieldCodeHash)
 	}
@@ -2801,6 +2840,9 @@ func (m *AuthorizationCodeMutation) Fields() []string {
 	}
 	if m.code_challenge != nil {
 		fields = append(fields, authorizationcode.FieldCodeChallenge)
+	}
+	if m.dpop_jkt != nil {
+		fields = append(fields, authorizationcode.FieldDpopJkt)
 	}
 	if m.redirect_uri != nil {
 		fields = append(fields, authorizationcode.FieldRedirectURI)
@@ -2837,6 +2879,8 @@ func (m *AuthorizationCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.UserID()
 	case authorizationcode.FieldCodeChallenge:
 		return m.CodeChallenge()
+	case authorizationcode.FieldDpopJkt:
+		return m.DpopJkt()
 	case authorizationcode.FieldRedirectURI:
 		return m.RedirectURI()
 	case authorizationcode.FieldDeviceName:
@@ -2866,6 +2910,8 @@ func (m *AuthorizationCodeMutation) OldField(ctx context.Context, name string) (
 		return m.OldUserID(ctx)
 	case authorizationcode.FieldCodeChallenge:
 		return m.OldCodeChallenge(ctx)
+	case authorizationcode.FieldDpopJkt:
+		return m.OldDpopJkt(ctx)
 	case authorizationcode.FieldRedirectURI:
 		return m.OldRedirectURI(ctx)
 	case authorizationcode.FieldDeviceName:
@@ -2909,6 +2955,13 @@ func (m *AuthorizationCodeMutation) SetField(name string, value ent.Value) error
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCodeChallenge(v)
+		return nil
+	case authorizationcode.FieldDpopJkt:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDpopJkt(v)
 		return nil
 	case authorizationcode.FieldRedirectURI:
 		v, ok := value.(string)
@@ -3034,6 +3087,9 @@ func (m *AuthorizationCodeMutation) ResetField(name string) error {
 		return nil
 	case authorizationcode.FieldCodeChallenge:
 		m.ResetCodeChallenge()
+		return nil
+	case authorizationcode.FieldDpopJkt:
+		m.ResetDpopJkt()
 		return nil
 	case authorizationcode.FieldRedirectURI:
 		m.ResetRedirectURI()
@@ -4067,6 +4123,8 @@ type DeviceGrantMutation struct {
 	device_id                   *string
 	device_name                 *string
 	platform                    *devicegrant.Platform
+	dpop_jkt                    *string
+	refresh_result              *[]byte
 	refresh_hash                *[]byte
 	prev_refresh_hash           *[]byte
 	prev_rotated_at             *time.Time
@@ -4360,6 +4418,91 @@ func (m *DeviceGrantMutation) OldPlatform(ctx context.Context) (v devicegrant.Pl
 // ResetPlatform resets all changes to the "platform" field.
 func (m *DeviceGrantMutation) ResetPlatform() {
 	m.platform = nil
+}
+
+// SetDpopJkt sets the "dpop_jkt" field.
+func (m *DeviceGrantMutation) SetDpopJkt(s string) {
+	m.dpop_jkt = &s
+}
+
+// DpopJkt returns the value of the "dpop_jkt" field in the mutation.
+func (m *DeviceGrantMutation) DpopJkt() (r string, exists bool) {
+	v := m.dpop_jkt
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDpopJkt returns the old "dpop_jkt" field's value of the DeviceGrant entity.
+// If the DeviceGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceGrantMutation) OldDpopJkt(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDpopJkt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDpopJkt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDpopJkt: %w", err)
+	}
+	return oldValue.DpopJkt, nil
+}
+
+// ResetDpopJkt resets all changes to the "dpop_jkt" field.
+func (m *DeviceGrantMutation) ResetDpopJkt() {
+	m.dpop_jkt = nil
+}
+
+// SetRefreshResult sets the "refresh_result" field.
+func (m *DeviceGrantMutation) SetRefreshResult(b []byte) {
+	m.refresh_result = &b
+}
+
+// RefreshResult returns the value of the "refresh_result" field in the mutation.
+func (m *DeviceGrantMutation) RefreshResult() (r []byte, exists bool) {
+	v := m.refresh_result
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshResult returns the old "refresh_result" field's value of the DeviceGrant entity.
+// If the DeviceGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceGrantMutation) OldRefreshResult(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshResult is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshResult requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshResult: %w", err)
+	}
+	return oldValue.RefreshResult, nil
+}
+
+// ClearRefreshResult clears the value of the "refresh_result" field.
+func (m *DeviceGrantMutation) ClearRefreshResult() {
+	m.refresh_result = nil
+	m.clearedFields[devicegrant.FieldRefreshResult] = struct{}{}
+}
+
+// RefreshResultCleared returns if the "refresh_result" field was cleared in this mutation.
+func (m *DeviceGrantMutation) RefreshResultCleared() bool {
+	_, ok := m.clearedFields[devicegrant.FieldRefreshResult]
+	return ok
+}
+
+// ResetRefreshResult resets all changes to the "refresh_result" field.
+func (m *DeviceGrantMutation) ResetRefreshResult() {
+	m.refresh_result = nil
+	delete(m.clearedFields, devicegrant.FieldRefreshResult)
 }
 
 // SetRefreshHash sets the "refresh_hash" field.
@@ -4799,7 +4942,7 @@ func (m *DeviceGrantMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DeviceGrantMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 16)
 	if m.grant_id != nil {
 		fields = append(fields, devicegrant.FieldGrantID)
 	}
@@ -4814,6 +4957,12 @@ func (m *DeviceGrantMutation) Fields() []string {
 	}
 	if m.platform != nil {
 		fields = append(fields, devicegrant.FieldPlatform)
+	}
+	if m.dpop_jkt != nil {
+		fields = append(fields, devicegrant.FieldDpopJkt)
+	}
+	if m.refresh_result != nil {
+		fields = append(fields, devicegrant.FieldRefreshResult)
 	}
 	if m.refresh_hash != nil {
 		fields = append(fields, devicegrant.FieldRefreshHash)
@@ -4860,6 +5009,10 @@ func (m *DeviceGrantMutation) Field(name string) (ent.Value, bool) {
 		return m.DeviceName()
 	case devicegrant.FieldPlatform:
 		return m.Platform()
+	case devicegrant.FieldDpopJkt:
+		return m.DpopJkt()
+	case devicegrant.FieldRefreshResult:
+		return m.RefreshResult()
 	case devicegrant.FieldRefreshHash:
 		return m.RefreshHash()
 	case devicegrant.FieldPrevRefreshHash:
@@ -4897,6 +5050,10 @@ func (m *DeviceGrantMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldDeviceName(ctx)
 	case devicegrant.FieldPlatform:
 		return m.OldPlatform(ctx)
+	case devicegrant.FieldDpopJkt:
+		return m.OldDpopJkt(ctx)
+	case devicegrant.FieldRefreshResult:
+		return m.OldRefreshResult(ctx)
 	case devicegrant.FieldRefreshHash:
 		return m.OldRefreshHash(ctx)
 	case devicegrant.FieldPrevRefreshHash:
@@ -4958,6 +5115,20 @@ func (m *DeviceGrantMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPlatform(v)
+		return nil
+	case devicegrant.FieldDpopJkt:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDpopJkt(v)
+		return nil
+	case devicegrant.FieldRefreshResult:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshResult(v)
 		return nil
 	case devicegrant.FieldRefreshHash:
 		v, ok := value.([]byte)
@@ -5055,6 +5226,9 @@ func (m *DeviceGrantMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *DeviceGrantMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(devicegrant.FieldRefreshResult) {
+		fields = append(fields, devicegrant.FieldRefreshResult)
+	}
 	if m.FieldCleared(devicegrant.FieldPrevRefreshHash) {
 		fields = append(fields, devicegrant.FieldPrevRefreshHash)
 	}
@@ -5081,6 +5255,9 @@ func (m *DeviceGrantMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *DeviceGrantMutation) ClearField(name string) error {
 	switch name {
+	case devicegrant.FieldRefreshResult:
+		m.ClearRefreshResult()
+		return nil
 	case devicegrant.FieldPrevRefreshHash:
 		m.ClearPrevRefreshHash()
 		return nil
@@ -5115,6 +5292,12 @@ func (m *DeviceGrantMutation) ResetField(name string) error {
 		return nil
 	case devicegrant.FieldPlatform:
 		m.ResetPlatform()
+		return nil
+	case devicegrant.FieldDpopJkt:
+		m.ResetDpopJkt()
+		return nil
+	case devicegrant.FieldRefreshResult:
+		m.ResetRefreshResult()
 		return nil
 	case devicegrant.FieldRefreshHash:
 		m.ResetRefreshHash()
@@ -5219,6 +5402,386 @@ func (m *DeviceGrantMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown DeviceGrant edge %s", name)
+}
+
+// DeviceProofMutation represents an operation that mutates the DeviceProof nodes in the graph.
+type DeviceProofMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	proof_hash    *[]byte
+	expires_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*DeviceProof, error)
+	predicates    []predicate.DeviceProof
+}
+
+var _ ent.Mutation = (*DeviceProofMutation)(nil)
+
+// deviceproofOption allows management of the mutation configuration using functional options.
+type deviceproofOption func(*DeviceProofMutation)
+
+// newDeviceProofMutation creates new mutation for the DeviceProof entity.
+func newDeviceProofMutation(c config, op Op, opts ...deviceproofOption) *DeviceProofMutation {
+	m := &DeviceProofMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeDeviceProof,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withDeviceProofID sets the ID field of the mutation.
+func withDeviceProofID(id int) deviceproofOption {
+	return func(m *DeviceProofMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *DeviceProof
+		)
+		m.oldValue = func(ctx context.Context) (*DeviceProof, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().DeviceProof.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withDeviceProof sets the old DeviceProof of the mutation.
+func withDeviceProof(node *DeviceProof) deviceproofOption {
+	return func(m *DeviceProofMutation) {
+		m.oldValue = func(context.Context) (*DeviceProof, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m DeviceProofMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m DeviceProofMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *DeviceProofMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *DeviceProofMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().DeviceProof.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetProofHash sets the "proof_hash" field.
+func (m *DeviceProofMutation) SetProofHash(b []byte) {
+	m.proof_hash = &b
+}
+
+// ProofHash returns the value of the "proof_hash" field in the mutation.
+func (m *DeviceProofMutation) ProofHash() (r []byte, exists bool) {
+	v := m.proof_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProofHash returns the old "proof_hash" field's value of the DeviceProof entity.
+// If the DeviceProof object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceProofMutation) OldProofHash(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProofHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProofHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProofHash: %w", err)
+	}
+	return oldValue.ProofHash, nil
+}
+
+// ResetProofHash resets all changes to the "proof_hash" field.
+func (m *DeviceProofMutation) ResetProofHash() {
+	m.proof_hash = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *DeviceProofMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *DeviceProofMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the DeviceProof entity.
+// If the DeviceProof object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceProofMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *DeviceProofMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// Where appends a list predicates to the DeviceProofMutation builder.
+func (m *DeviceProofMutation) Where(ps ...predicate.DeviceProof) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the DeviceProofMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *DeviceProofMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.DeviceProof, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *DeviceProofMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *DeviceProofMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (DeviceProof).
+func (m *DeviceProofMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *DeviceProofMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.proof_hash != nil {
+		fields = append(fields, deviceproof.FieldProofHash)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, deviceproof.FieldExpiresAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *DeviceProofMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case deviceproof.FieldProofHash:
+		return m.ProofHash()
+	case deviceproof.FieldExpiresAt:
+		return m.ExpiresAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *DeviceProofMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case deviceproof.FieldProofHash:
+		return m.OldProofHash(ctx)
+	case deviceproof.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown DeviceProof field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DeviceProofMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case deviceproof.FieldProofHash:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProofHash(v)
+		return nil
+	case deviceproof.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown DeviceProof field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *DeviceProofMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *DeviceProofMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DeviceProofMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown DeviceProof numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *DeviceProofMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *DeviceProofMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *DeviceProofMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown DeviceProof nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *DeviceProofMutation) ResetField(name string) error {
+	switch name {
+	case deviceproof.FieldProofHash:
+		m.ResetProofHash()
+		return nil
+	case deviceproof.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown DeviceProof field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *DeviceProofMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *DeviceProofMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *DeviceProofMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *DeviceProofMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *DeviceProofMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *DeviceProofMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *DeviceProofMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown DeviceProof unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *DeviceProofMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown DeviceProof edge %s", name)
 }
 
 // LifecycleErasureMutation represents an operation that mutates the LifecycleErasure nodes in the graph.

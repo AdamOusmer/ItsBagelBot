@@ -18,6 +18,10 @@ import (
 // the just-rotated token revokes the grant unless it lands inside the 10s
 // grace window, which reports invalid_grant without revoking.
 func (r *Users) RefreshDeviceGrant(ctx context.Context, refreshToken string) (DeviceTokens, error) {
+	return r.refreshDeviceGrant(ctx, refreshToken, "")
+}
+
+func (r *Users) refreshDeviceGrant(ctx context.Context, refreshToken, jkt string) (DeviceTokens, error) {
 	if r.deviceSigner == nil {
 		return DeviceTokens{}, ErrDeviceSigningKeyUnavailable
 	}
@@ -41,10 +45,16 @@ func (r *Users) RefreshDeviceGrant(ctx context.Context, refreshToken string) (De
 	if row.RevokedAt != nil {
 		return DeviceTokens{}, ErrDeviceInvalidGrant
 	}
+	if !constantTimeEqual([]byte(row.DpopJkt), []byte(jkt)) {
+		return DeviceTokens{}, ErrDeviceInvalidGrant
+	}
 
 	now := time.Now().UTC()
 	if constantTimeEqual(row.RefreshHash, hash) {
 		return r.rotateDeviceGrant(ctx, row, hash, now)
+	}
+	if row.DpopJkt != "" && withinBoundRefreshGrace(row, now) {
+		return r.recoverBoundRefresh(row)
 	}
 	return DeviceTokens{}, r.settleRefreshReplay(ctx, row, now)
 }
@@ -61,18 +71,31 @@ func (r *Users) rotateDeviceGrant(ctx context.Context, row *ent.DeviceGrant, cur
 	if err != nil {
 		return DeviceTokens{}, err
 	}
+	tokens, result, err := r.prepareDeviceRotation(row, newRaw, now)
+	if err != nil {
+		return DeviceTokens{}, err
+	}
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
-		return r.client.DeviceGrant.Update().
+		update := r.client.DeviceGrant.Update().
 			Where(devicegrant.IDEQ(row.ID), devicegrant.RefreshHashEQ(currentHash), devicegrant.RevokedAtIsNil()).
 			SetRefreshHash(newHash).SetPrevRefreshHash(currentHash).SetPrevRotatedAt(now).
-			SetRefreshSlidingExpiresAt(now.Add(deviceRefreshSlidingTTL)).SetLastUsedAt(now).
-			Save(ctx)
+			SetRefreshSlidingExpiresAt(now.Add(deviceRefreshSlidingTTL)).SetLastUsedAt(now)
+		if result != nil {
+			update.SetRefreshResult(result)
+		}
+		return update.Save(ctx)
 	})
 	if err != nil {
 		return DeviceTokens{}, err
 	}
 	if n != 1 {
+		if row.DpopJkt != "" {
+			return r.recoverLostBoundRotation(ctx, row.ID, now)
+		}
 		return DeviceTokens{}, r.settleLostRotation(ctx, row.ID, now)
+	}
+	if row.DpopJkt != "" {
+		return tokens, nil
 	}
 	return r.deviceTokensFor(row, newRaw, now)
 }
@@ -92,6 +115,9 @@ func (r *Users) settleLostRotation(ctx context.Context, grantRowID int, now time
 }
 
 func (r *Users) deviceTokensFor(row *ent.DeviceGrant, refreshRaw []byte, now time.Time) (DeviceTokens, error) {
+	if row.DpopJkt != "" {
+		return r.boundDeviceTokensFor(row, refreshRaw, now)
+	}
 	access, err := r.signDeviceAccessToken(row.UserID, row.DeviceID, row.GrantID, now)
 	if err != nil {
 		return DeviceTokens{}, err
@@ -102,6 +128,7 @@ func (r *Users) deviceTokensFor(row *ent.DeviceGrant, refreshRaw []byte, now tim
 		ExpiresIn:    int64(deviceAccessTokenTTL.Seconds()),
 		GrantID:      row.GrantID,
 		DeviceID:     row.DeviceID,
+		TokenType:    "Bearer",
 	}, nil
 }
 
@@ -135,4 +162,26 @@ func decodeRefreshToken(token string) []byte {
 		return nil
 	}
 	return raw
+}
+
+func (r *Users) recoverLostBoundRotation(ctx context.Context, id int, now time.Time) (DeviceTokens, error) {
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.DeviceGrant, error) { return r.client.DeviceGrant.Get(ctx, id) })
+	if err != nil {
+		return DeviceTokens{}, err
+	}
+	if row.RevokedAt != nil || !withinBoundRefreshGrace(row, now) {
+		return DeviceTokens{}, ErrDeviceInvalidGrant
+	}
+	return r.recoverBoundRefresh(row)
+}
+
+func (r *Users) prepareDeviceRotation(row *ent.DeviceGrant, raw []byte, now time.Time) (DeviceTokens, []byte, error) {
+	if row.DpopJkt == "" {
+		return DeviceTokens{}, nil, nil
+	}
+	return r.prepareBoundRotation(row, raw, now)
+}
+
+func withinBoundRefreshGrace(row *ent.DeviceGrant, now time.Time) bool {
+	return row.PrevRotatedAt != nil && now.Sub(*row.PrevRotatedAt) >= -30*time.Second && now.Sub(*row.PrevRotatedAt) <= deviceBoundRecoveryGrace
 }

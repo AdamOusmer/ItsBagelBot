@@ -110,8 +110,14 @@ func init() {
 			return nil
 		}
 	}()
+	// authorizationcodeDescDpopJkt is the schema descriptor for dpop_jkt field.
+	authorizationcodeDescDpopJkt := authorizationcodeFields[3].Descriptor()
+	// authorizationcode.DefaultDpopJkt holds the default value on creation for the dpop_jkt field.
+	authorizationcode.DefaultDpopJkt = authorizationcodeDescDpopJkt.Default.(string)
+	// authorizationcode.DpopJktValidator is a validator for the "dpop_jkt" field. It is called by the builders before save.
+	authorizationcode.DpopJktValidator = authorizationcodeDescDpopJkt.Validators[0].(func(string) error)
 	// authorizationcodeDescRedirectURI is the schema descriptor for redirect_uri field.
-	authorizationcodeDescRedirectURI := authorizationcodeFields[3].Descriptor()
+	authorizationcodeDescRedirectURI := authorizationcodeFields[4].Descriptor()
 	// authorizationcode.RedirectURIValidator is a validator for the "redirect_uri" field. It is called by the builders before save.
 	authorizationcode.RedirectURIValidator = func() func(string) error {
 		validators := authorizationcodeDescRedirectURI.Validators
@@ -129,17 +135,17 @@ func init() {
 		}
 	}()
 	// authorizationcodeDescDeviceName is the schema descriptor for device_name field.
-	authorizationcodeDescDeviceName := authorizationcodeFields[4].Descriptor()
+	authorizationcodeDescDeviceName := authorizationcodeFields[5].Descriptor()
 	// authorizationcode.DefaultDeviceName holds the default value on creation for the device_name field.
 	authorizationcode.DefaultDeviceName = authorizationcodeDescDeviceName.Default.(string)
 	// authorizationcode.DeviceNameValidator is a validator for the "device_name" field. It is called by the builders before save.
 	authorizationcode.DeviceNameValidator = authorizationcodeDescDeviceName.Validators[0].(func(string) error)
 	// authorizationcodeDescCreatedAt is the schema descriptor for created_at field.
-	authorizationcodeDescCreatedAt := authorizationcodeFields[6].Descriptor()
+	authorizationcodeDescCreatedAt := authorizationcodeFields[7].Descriptor()
 	// authorizationcode.DefaultCreatedAt holds the default value on creation for the created_at field.
 	authorizationcode.DefaultCreatedAt = authorizationcodeDescCreatedAt.Default.(func() time.Time)
 	// authorizationcodeDescProducedGrantID is the schema descriptor for produced_grant_id field.
-	authorizationcodeDescProducedGrantID := authorizationcodeFields[9].Descriptor()
+	authorizationcodeDescProducedGrantID := authorizationcodeFields[10].Descriptor()
 	// authorizationcode.ProducedGrantIDValidator is a validator for the "produced_grant_id" field. It is called by the builders before save.
 	authorizationcode.ProducedGrantIDValidator = authorizationcodeDescProducedGrantID.Validators[0].(func(string) error)
 	delegationFields := schema.Delegation{}.Fields()
@@ -200,12 +206,18 @@ func init() {
 	devicegrant.DefaultDeviceName = devicegrantDescDeviceName.Default.(string)
 	// devicegrant.DeviceNameValidator is a validator for the "device_name" field. It is called by the builders before save.
 	devicegrant.DeviceNameValidator = devicegrantDescDeviceName.Validators[0].(func(string) error)
+	// devicegrantDescDpopJkt is the schema descriptor for dpop_jkt field.
+	devicegrantDescDpopJkt := devicegrantFields[5].Descriptor()
+	// devicegrant.DefaultDpopJkt holds the default value on creation for the dpop_jkt field.
+	devicegrant.DefaultDpopJkt = devicegrantDescDpopJkt.Default.(string)
+	// devicegrant.DpopJktValidator is a validator for the "dpop_jkt" field. It is called by the builders before save.
+	devicegrant.DpopJktValidator = devicegrantDescDpopJkt.Validators[0].(func(string) error)
 	// devicegrantDescCreatedAt is the schema descriptor for created_at field.
-	devicegrantDescCreatedAt := devicegrantFields[10].Descriptor()
+	devicegrantDescCreatedAt := devicegrantFields[12].Descriptor()
 	// devicegrant.DefaultCreatedAt holds the default value on creation for the created_at field.
 	devicegrant.DefaultCreatedAt = devicegrantDescCreatedAt.Default.(func() time.Time)
 	// devicegrantDescRevokedReason is the schema descriptor for revoked_reason field.
-	devicegrantDescRevokedReason := devicegrantFields[13].Descriptor()
+	devicegrantDescRevokedReason := devicegrantFields[15].Descriptor()
 	// devicegrant.DefaultRevokedReason holds the default value on creation for the revoked_reason field.
 	devicegrant.DefaultRevokedReason = devicegrantDescRevokedReason.Default.(string)
 	lifecycleerasureFields := schema.LifecycleErasure{}.Fields()

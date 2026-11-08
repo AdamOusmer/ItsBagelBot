@@ -25,6 +25,10 @@ const (
 	FieldDeviceName = "device_name"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
+	// FieldDpopJkt holds the string denoting the dpop_jkt field in the database.
+	FieldDpopJkt = "dpop_jkt"
+	// FieldRefreshResult holds the string denoting the refresh_result field in the database.
+	FieldRefreshResult = "refresh_result"
 	// FieldRefreshHash holds the string denoting the refresh_hash field in the database.
 	FieldRefreshHash = "refresh_hash"
 	// FieldPrevRefreshHash holds the string denoting the prev_refresh_hash field in the database.
@@ -64,6 +68,8 @@ var Columns = []string{
 	FieldUserID,
 	FieldDeviceName,
 	FieldPlatform,
+	FieldDpopJkt,
+	FieldRefreshResult,
 	FieldRefreshHash,
 	FieldPrevRefreshHash,
 	FieldPrevRotatedAt,
@@ -94,6 +100,10 @@ var (
 	DefaultDeviceName string
 	// DeviceNameValidator is a validator for the "device_name" field. It is called by the builders before save.
 	DeviceNameValidator func(string) error
+	// DefaultDpopJkt holds the default value on creation for the "dpop_jkt" field.
+	DefaultDpopJkt string
+	// DpopJktValidator is a validator for the "dpop_jkt" field. It is called by the builders before save.
+	DpopJktValidator func(string) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultRevokedReason holds the default value on creation for the "revoked_reason" field.
@@ -155,6 +165,11 @@ func ByDeviceName(opts ...sql.OrderTermOption) OrderOption {
 // ByPlatform orders the results by the platform field.
 func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPlatform, opts...).ToFunc()
+}
+
+// ByDpopJkt orders the results by the dpop_jkt field.
+func ByDpopJkt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDpopJkt, opts...).ToFunc()
 }
 
 // ByPrevRotatedAt orders the results by the prev_rotated_at field.

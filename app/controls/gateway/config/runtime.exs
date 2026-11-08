@@ -23,7 +23,10 @@ end
 
 config :controls_gateway,
   port: String.to_integer(System.get_env("CONTROLS_GATEWAY_PORT", "4000")),
-  token_public_keys: parse_keys.(System.get_env("CONTROLS_TOKEN_PUBLIC_KEYS"))
+  token_public_keys: parse_keys.(System.get_env("CONTROLS_TOKEN_PUBLIC_KEYS")),
+  auth_token_url: System.get_env("DEVICE_AUTH_TOKEN_URL", ""),
+  auth_revoke_url: System.get_env("DEVICE_AUTH_REVOKE_URL", ""),
+  auth_prefix: System.get_env("NATS_OVERLAY_AUTH_SUBJECT_PREFIX", "bagel.rpc.overlay.device")
 
 nats_host = System.get_env("NATS_HOST", "127.0.0.1")
 nats_port = String.to_integer(System.get_env("NATS_PORT", "4222"))

@@ -33,6 +33,16 @@ defmodule ControlsGateway.Nats do
       {:error, {:exit, reason}}
   end
 
+  @doc "One bounded core-NATS request, with no mutation retries."
+  def request(subject, body, timeout \\ 3_000) do
+    case Process.whereis(@connection) do
+      nil -> {:error, :not_connected}
+      pid -> Gnat.request(pid, subject, body, receive_timeout: timeout)
+    end
+  catch
+    :exit, _ -> {:error, :not_connected}
+  end
+
   @doc """
   Subscribes the caller to a device's cmd/takeover/revoked subjects on the
   current connection. Returns subscription ids for unsubscribe_all/1 and the

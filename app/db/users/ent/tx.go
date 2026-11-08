@@ -24,6 +24,8 @@ type Tx struct {
 	Delegation *DelegationClient
 	// DeviceGrant is the client for interacting with the DeviceGrant builders.
 	DeviceGrant *DeviceGrantClient
+	// DeviceProof is the client for interacting with the DeviceProof builders.
+	DeviceProof *DeviceProofClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
 	LifecycleErasure *LifecycleErasureClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
@@ -169,6 +171,7 @@ func (tx *Tx) init() {
 	tx.AuthorizationCode = NewAuthorizationCodeClient(tx.config)
 	tx.Delegation = NewDelegationClient(tx.config)
 	tx.DeviceGrant = NewDeviceGrantClient(tx.config)
+	tx.DeviceProof = NewDeviceProofClient(tx.config)
 	tx.LifecycleErasure = NewLifecycleErasureClient(tx.config)
 	tx.PremiumGrant = NewPremiumGrantClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)

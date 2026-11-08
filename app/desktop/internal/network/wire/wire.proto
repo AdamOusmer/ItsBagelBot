@@ -1,0 +1,41 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+syntax = "proto3";
+package bagel.desktop.network.v1;
+option go_package = "ItsBagelBot/app/desktop/internal/network/wire";
+import "app/desktop/internal/bridge/protocol/bridge.proto";
+
+// This private pipe protocol grants fixed operations, not arbitrary host APIs.
+message Frame {
+ uint64 id = 1;
+ uint32 kind = 2;
+ uint32 stream = 3;
+ uint32 slot = 4;
+ uint64 epoch = 5;
+ uint32 origin = 6;
+ string auth_endpoint = 7;
+ string bridge_endpoint = 8;
+ bytes roots_pem = 9;
+ string path = 10;
+ string token = 11;
+ string proof = 12;
+ string form = 13;
+ bool revoke = 14;
+ string content_type = 15;
+ bytes body = 16;
+ int32 status = 17;
+ string nonce = 18;
+ uint32 error = 19;
+ bool isolated = 20;
+ bagel.bridge.v1.ServerMessage message = 21;
+ OAuthReply oauth = 22;
+}
+message OAuthReply {
+ string access = 1;
+ string token_type = 2;
+ int64 expires = 3;
+ string refresh = 4;
+ string grant = 5;
+ string device = 6;
+ string error = 7;
+}

@@ -24,6 +24,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/svcboot"
@@ -68,6 +69,10 @@ func main() {
 	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
 	repo.SetAnalytics(recorder)
 	repo.SetDeviceAuthSigner(loadDeviceAuthSigner(log))
+	repo.SetDeviceAuthConfig(repository.DeviceAuthConfig{
+		TokenURL:     strings.TrimSpace(env.Get("DEVICE_AUTH_TOKEN_URL", "")),
+		ResourceURLs: strings.Fields(env.Get("DEVICE_AUTH_RESOURCE_URLS", "")),
+	})
 	go recorder.SeedOnce(ctx, serviceName, ownedAccountLevels(), repo.AnalyticsSeed)
 	repo.SetInvalidationPrefix(env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"))
 	repo.SetInvalidationConn(n.RPC)
@@ -123,7 +128,33 @@ func loadDeviceAuthSigner(log *zap.Logger) *tokensign.Signer {
 		log.Error("device authorization signing key rejected", zap.Error(err))
 		return nil
 	}
-	return signer
+	return loadDeviceAuthVerificationKeys(log, signer)
+}
+func loadDeviceAuthVerificationKeys(log *zap.Logger, signer *tokensign.Signer) *tokensign.Signer {
+	raw := strings.TrimSpace(env.Get("DEVICE_AUTH_VERIFY_PUBLIC_KEYS", ""))
+	if raw == "" {
+		return signer
+	}
+	var encoded map[string]string
+	if codec.Unmarshal([]byte(raw), &encoded) != nil {
+		log.Error("invalid device authorization verification key map")
+		return nil
+	}
+	keys := make(map[string][]byte, len(encoded))
+	for kid, value := range encoded {
+		key, err := base64.StdEncoding.DecodeString(value)
+		if err != nil {
+			log.Error("invalid device authorization public key encoding")
+			return nil
+		}
+		keys[kid] = key
+	}
+	result, err := signer.WithVerificationKeys(keys)
+	if err != nil {
+		log.Error("device authorization public key map rejected")
+		return nil
+	}
+	return result
 }
 
 func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *crypto.Crypto) {
@@ -210,6 +241,9 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 	svcboot.FatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation"), invalidationPrefix),
 		"failed to subscribe delegation rpc")
 	svcboot.FatalIf(log, rpc.SubscribeDeviceAuth(wiring, s.device), "failed to subscribe device authorization rpc")
+	if strings.TrimSpace(env.Get("DEVICE_AUTH_TOKEN_URL", "")) != "" {
+		svcboot.FatalIf(log, rpc.SubscribeDeviceOAuth(wiring, env.Get("NATS_OVERLAY_AUTH_SUBJECT_PREFIX", "bagel.rpc.overlay.device")), "failed to subscribe native device auth rpc")
+	}
 
 	return s
 }

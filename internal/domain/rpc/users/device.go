@@ -23,6 +23,7 @@ type DeviceCreateCodeRequest struct {
 	RedirectURI   string `json:"redirect_uri"`
 	DeviceName    string `json:"device_name"`
 	Platform      string `json:"platform"`
+	DPoPJKT       string `json:"dpop_jkt"`
 }
 
 type DeviceCreateCodeReply struct {
@@ -49,6 +50,41 @@ type DeviceTokenReply struct {
 	GrantID      string `json:"grant_id,omitempty"`
 	DeviceID     string `json:"device_id,omitempty"`
 	OAuthError   string `json:"oauth_error,omitempty"`
+	rpc.Refusal
+}
+
+// DeviceOAuthRequest is sent only by the independent native auth HTTP boundary.
+// URL is its configured public URL, never a client-controlled forwarding header.
+type DeviceOAuthRequest struct {
+	GrantType    string `json:"grant_type"`
+	ClientID     string `json:"client_id"`
+	Code         string `json:"code,omitempty"`
+	CodeVerifier string `json:"code_verifier,omitempty"`
+	RedirectURI  string `json:"redirect_uri,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	Proof        string `json:"proof"`
+	URL          string `json:"url"`
+}
+
+type DeviceOAuthReply struct {
+	DeviceTokenReply
+	Nonce string `json:"dpop_nonce,omitempty"`
+}
+
+type DeviceAuthorizeRequest struct {
+	Token  string `json:"token"`
+	Proof  string `json:"proof"`
+	Method string `json:"method"`
+	URL    string `json:"url"`
+}
+
+type DeviceAuthorizeReply struct {
+	UserID     string `json:"user_id,omitempty"`
+	DeviceID   string `json:"device_id,omitempty"`
+	GrantID    string `json:"grant_id,omitempty"`
+	ExpiresAt  int64  `json:"expires_at,omitempty"`
+	OAuthError string `json:"oauth_error,omitempty"`
+	Nonce      string `json:"dpop_nonce,omitempty"`
 	rpc.Refusal
 }
 

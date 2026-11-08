@@ -28,6 +28,8 @@ func (DeviceGrant) Fields() []ent.Field {
 
 		field.String("device_name").Default("").MaxLen(64),
 		field.Enum("platform").Values("macos", "windows", "linux"),
+		field.String("dpop_jkt").Default("").MaxLen(43),
+		field.Bytes("refresh_result").Optional().Sensitive(),
 
 		field.Bytes("refresh_hash").Unique().Sensitive().
 			SchemaType(map[string]string{dialect.MySQL: "binary(32)"}),
