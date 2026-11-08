@@ -149,12 +149,12 @@ const tiers: Tier[] = [
         animation: bob 6.5s ease-in-out infinite alternate;
     }
 
-    .tier__faces :global(.tier__face + .tier__face) {
+    .tier__faces :global(.tier__face ~ .tier__face) {
         margin-left: -14px;
         animation-delay: -1.8s;
     }
 
-    .tier__faces :global(.tier__face:nth-child(3)) { animation-delay: -3.4s; }
+    .tier__faces :global(.tier__face:nth-of-type(3)) { animation-delay: -3.4s; }
 
     .tier :global(.tier__card) {
         grid-row: 2 / span 8;

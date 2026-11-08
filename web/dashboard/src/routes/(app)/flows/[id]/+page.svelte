@@ -258,9 +258,9 @@
   }
 
   const scopes: Scopes = {
-    canvas: (t) => canvas?.hasTarget(t) ?? false,
-    editor: (t) => editorEl?.contains(t as Node | null) ?? false,
-    node: (t) => canvas?.nodeIdAt(t) !== undefined
+    canvas: (target) => canvas?.hasTarget(target) ?? false,
+    editor: (target) => editorEl?.contains(target as Node | null) ?? false,
+    node: (target) => canvas?.nodeIdAt(target) !== undefined
   };
 
   function onKeyDown(e: KeyboardEvent) {

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import ClientProps from '@bagel/kit/components/ClientProps.astro';
 import Button from '@bagel/ui/astro/Button.astro';
 import Label from '@bagel/ui/astro/Label.astro';
 import ChatWindow from '../ChatWindow.astro';
@@ -25,7 +26,6 @@ const L = {
     modReplyTemplate: 'The boss wins again.',
     ...labels,
 };
-const counterName = typeof props.counterName === 'string' ? props.counterName : 'deaths';
 const start = typeof props.start === 'number' ? props.start : 12;
 const withStart = (template: string) => template.replace('{value}', String(start));
 const lines = [
@@ -41,19 +41,13 @@ const actions = [
 ];
 ---
 
-<div
-    class="gcplay"
-    data-counter-play
-    data-start={start}
-    data-name={counterName}
-    data-mod-template={L.modReplyTemplate}
-    data-token-template={L.viewerReplyTemplate}
->
+<div class="gcplay">
+    <ClientProps value={{ start, modTemplate: L.modReplyTemplate, tokenTemplate: L.viewerReplyTemplate, actions }} />
     <Label mono as="span" class="gcplay__heading">{L.heading}</Label>
     <ChatWindow title={L.windowTitle} label={L.windowTitle} lines={lines} />
     <div class="gcplay__row">
         {actions.map((action) => (
-            <Button variant="secondary" size="sm" data-counter-play-btn={action.kind} data-command={action.command}>{action.command}</Button>
+            <Button variant="secondary" size="sm" class="gcplay__action">{action.command}</Button>
         ))}
     </div>
 </div>
@@ -67,6 +61,7 @@ const actions = [
 </style>
 
 <script>
+    import { readClientProps } from '@bagel/kit/client-props';
     import { bindOnce } from '../../../script/bind';
 
     const STEP: Record<string, (value: number) => number> = {
@@ -85,20 +80,17 @@ const actions = [
     }
 
     function setupCounterPlay(root: HTMLElement) {
-        const start = Number(root.dataset.start ?? '0');
-        const name = root.dataset.name ?? 'deaths';
+        const { start, modTemplate: modReplyTemplate, tokenTemplate: tokenReplyTemplate, actions } = readClientProps<{ start: number; modTemplate: string; tokenTemplate: string; actions: { kind: string; command: string }[] }>(root);
         let value = Number.isFinite(start) ? start : 0;
 
-        const line = (hook: string) => root.querySelector<HTMLElement>(`[data-chat-hook="${hook}"]`);
+        const line = (hook: string) => root.querySelector<HTMLElement>(`.chat-line--${hook}`);
         const modCmd = line('mod-cmd');
         const modReply = line('mod-reply');
         const tokenReply = line('token-reply');
-        const modReplyTemplate = root.dataset.modTemplate ?? `Counter ${name} is now {value}.`;
-        const tokenReplyTemplate = root.dataset.tokenTemplate ?? '{value}';
 
-        root.querySelectorAll<HTMLButtonElement>('[data-counter-play-btn]').forEach((btn) => {
-            const step = STEP[btn.dataset.counterPlayBtn ?? ''] ?? ((current: number) => current);
-            const command = btn.dataset.command ?? '';
+        root.querySelectorAll<HTMLButtonElement>('.gcplay__action').forEach((btn, index) => {
+            const step = STEP[actions[index].kind] ?? ((current: number) => current);
+            const command = actions[index].command;
             btn.addEventListener('click', () => {
                 value = step(value);
                 swap(modCmd, command);
@@ -108,5 +100,5 @@ const actions = [
         });
     }
 
-    bindOnce('[data-counter-play]', setupCounterPlay);
+    bindOnce('.gcplay', setupCounterPlay);
 </script>

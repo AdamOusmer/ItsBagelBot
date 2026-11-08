@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import BolotaSvg from '../BolotaSvg.astro';
 import { getImage } from 'astro:assets';
 import Brand from '@bagel/ui/astro/Brand.astro';
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
@@ -9,7 +10,7 @@ import Text from '@bagel/ui/astro/Text.astro';
 import logoImage from '../../assets/LogoBOT.png';
 import LightField from '@bagel/ui/astro/LightField.astro';
 import brandTokens from '@bagel/ui/styles/brand.css?raw';
-import { parts, type Palette } from '@luzir/bolota';
+import { parts } from '@luzir/bolota';
 
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath } from '../../i18n/ui';
 
@@ -23,7 +24,7 @@ function token(name: string): string {
     return value;
 }
 
-const PALETTES: Palette[] = ['bb-green-glow', 'bb-tan-light', 'bb-tan-pale'].map((head) => ({
+const PALETTES = ['bb-green-glow', 'bb-tan-light', 'bb-tan-pale'].map((head) => ({
     head: token(head),
     eye: token('bb-black'),
 }));
@@ -82,7 +83,7 @@ const layers = LAYERS.map((rows) => ({
 const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 ---
 
-<header class="hero" data-hero-progress>
+<header class="hero">
 
     <div class="starfield" aria-hidden="true">
         <LightField class="bb-light-field--bleed" />
@@ -111,7 +112,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         </div>
     </div>
 
-    <div class="crowd" aria-hidden="true" data-crowd>
+    <div class="crowd" aria-hidden="true">
         {layers.map((layer) => (
             <div class={`row row--${layer.name}`}>
                 {layer.poses.map(({ seat, delay, inner }) => (
@@ -120,15 +121,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
                         style={`--x: ${seat.x}%; --s: ${seat.size}px; --d: ${delay}`}
                     >
                         <div class="bob">
-                            <svg
-                                class="bolota"
-                                viewBox="0 0 100 100"
-                                data-bolota={seat.name}
-                                data-size={seat.size}
-                                data-head={PALETTES[seat.palette].head}
-                                data-eye={PALETTES[seat.palette].eye}
-                                set:html={inner}
-                            />
+                            <BolotaSvg class="bolota" bolota={{ name: seat.name, size: seat.size, head: PALETTES[seat.palette].head, eye: PALETTES[seat.palette].eye, inner }} />
                         </div>
                     </div>
                 ))}
@@ -139,6 +132,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 </header>
 
 <script>
+    import { bolotaProps } from '../../lib/bolota-props';
     import '@luzir/bolota/motion.css';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
     import type { EngineHandle } from '@luzir/bolota/engine';
@@ -245,15 +239,16 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     function unmountedSeats(crowd: HTMLElement): SVGSVGElement[] {
         const mounted = new Set(engines.map((live) => live.svg));
-        return Array.from(crowd.querySelectorAll<SVGSVGElement>('[data-bolota]'))
+        return Array.from(crowd.querySelectorAll<SVGSVGElement>('.live-bolota'))
             .filter((svg) => !mounted.has(svg) && svg.getClientRects().length > 0)
             .sort((a, b) => seatRank(a) - seatRank(b));
     }
 
     function mountOne(svg: SVGSVGElement, mountEngine: MountEngine): void {
-        const handle = mountEngine(svg, svg.dataset.bolota ?? 'chatter', {
-            size: Number(svg.dataset.size) || 100,
-            palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
+        const props = bolotaProps(svg);
+        const handle = mountEngine(svg, props.name, {
+            size: props.size,
+            palette: props.palette,
             background: false,
         });
         handle.loop('idle');
@@ -329,7 +324,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function watchHeroFade(crowd: HTMLElement): void {
-        heroEl = crowd.closest<HTMLElement>('[data-hero-progress]');
+        heroEl = crowd.closest<HTMLElement>('.hero');
         if (!heroEl) return;
         crowdFaded = heroEl.style.getPropertyValue('--hero-ui-pointer-events') === 'none';
         heroFadeListener = (event) => onHeroFade(crowd, event);
@@ -355,10 +350,12 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         engines = [];
     }
 
+    let readyCrowd: HTMLElement | null = null;
+
     function crowdSetup(): void {
-        const crowd = document.querySelector<HTMLElement>('[data-crowd]');
-        if (!crowd || crowd.dataset.heroMotionReady === 'true') return;
-        crowd.dataset.heroMotionReady = 'true';
+        const crowd = document.querySelector<HTMLElement>('.crowd');
+        if (!crowd || readyCrowd === crowd) return;
+        readyCrowd = crowd;
         if (prefersReducedMotion()) return;
 
         watchHeroFade(crowd);
@@ -373,6 +370,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     }
 
     function teardown(): void {
+        readyCrowd = null;
         observer?.disconnect();
         observer = null;
         unwatchHeroFade();

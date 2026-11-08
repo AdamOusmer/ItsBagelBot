@@ -22,7 +22,7 @@ const home = localizePath('/', lang);
         description={t('error.404.desc')}
         aside={t('error.aside')}
         primary={{ label: t('error.home'), href: home }}
-        secondary={{ label: t('error.back'), 'data-error-back': home }}
+        secondary={{ label: t('error.back'), href: home, class: 'bb-error-scene__action bb-error-scene__action--quiet error-back' }}
     >
         <ErrorBolota slot="mascot" />
     </ErrorScene>

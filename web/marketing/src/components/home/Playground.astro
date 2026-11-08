@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import ClientProps from '@bagel/kit/components/ClientProps.astro';
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 import Container from '@bagel/ui/astro/Container.astro';
@@ -45,7 +46,7 @@ const playStrings = {
 
 <Container class="play-wrap">
 <Section size="page" class="play" id="playground">
-    <script type="application/json" data-play-i18n set:html={JSON.stringify(playStrings)}></script>
+    <ClientProps value={playStrings} />
     <div class="play__copy">
         <Eyebrow class="play__eyebrow reveal-in"><bb-fit>{t('playground.eyebrow')}</bb-fit></Eyebrow>
         <Heading level={2} class="play__title reveal-in"><bb-fit mode="block">{t('playground.title')}</bb-fit></Heading>
@@ -53,9 +54,9 @@ const playStrings = {
 
         <div class="play__chips reveal-in">
             {chips.map((chip) => (
-                <Chip class="play__chip" data-play-cmd={chip.cmd}><span class="play__chip-label"><bb-fit>{chip.label}</bb-fit></span></Chip>
+                <Chip class="play__chip" value={chip.cmd}><span class="play__chip-label"><bb-fit>{chip.label}</bb-fit></span></Chip>
             ))}
-            <Chip tone="danger" class="play__chip play__chip--spam" data-play-spam><span class="play__chip-label"><bb-fit>{t('playground.sendSpam')}<span class="play__skull" aria-hidden="true">&nbsp;☠</span></bb-fit></span></Chip>
+            <Chip tone="danger" class="play__chip play__chip--spam"><span class="play__chip-label"><bb-fit>{t('playground.sendSpam')}<span class="play__skull" aria-hidden="true">&nbsp;☠</span></bb-fit></span></Chip>
         </div>
 
         <Text size="xs" mono tone="muted" class="play__hint reveal-in"><bb-fit mode="block">{t('playground.hint')}</bb-fit></Text>
@@ -63,20 +64,20 @@ const playStrings = {
         <ButtonLink class="play__cta reveal-in" href={dashLoginHref(lang)} variant="twitch"><bb-fit>{t('nav.cta')}</bb-fit></ButtonLink>
     </div>
 
-    <div class="play__stage reveal-in" data-playground>
+    <div class="play__stage reveal-in">
         <HaloPanel tone="green" class="play__window">
             <div class="play__bar">
                 <span class="play__channel">your_channel</span>
             </div>
 
-            <div class="play__feed" data-play-feed role="log" aria-label={t('playground.feedAria')}></div>
+            <div class="play__feed" role="log" aria-label={t('playground.feedAria')}></div>
 
-            <form class="play__composer" data-play-form>
+            <form class="play__composer">
                 <input
-                    class="play__input"
+                    class="play__input play-input"
                     id="play-input"
                     name="message"
-                    data-play-input
+
                     maxlength={80}
                     placeholder={t('playground.inputPlaceholder')}
                     aria-label={t('playground.inputAria')}
@@ -374,6 +375,7 @@ const playStrings = {
 </style>
 
 <script>
+    import { readClientProps } from '@bagel/kit/client-props';
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
     const VIEWERS = [
@@ -396,17 +398,7 @@ const playStrings = {
         spamRemoved: string; quiet: string; unknown: string; seedTry: string;
         ambient: string[]; seed1: string;
     };
-    const S: PlayStrings = JSON.parse(
-        document.querySelector('[data-play-i18n]')?.textContent || '{}',
-    );
 
-    const REPLIES: Record<string, string | null> = {
-        '!bagel': S.replyBagel,
-        '!song': S.replySong,
-        '!lurk': S.replyLurk,
-        '!help': S.replyHelp,
-        '!join': S.replyJoin,
-    };
 
 
     type PlayParts = {
@@ -418,21 +410,29 @@ const playStrings = {
 
     function findParts(root: HTMLElement): PlayParts | null {
         const parts = {
-            feed: root.querySelector<HTMLElement>('[data-play-feed]'),
-            form: root.querySelector<HTMLFormElement>('[data-play-form]'),
-            input: root.querySelector<HTMLInputElement>('[data-play-input]'),
+            feed: root.querySelector<HTMLElement>('.play__feed'),
+            form: root.querySelector<HTMLFormElement>('.play__composer'),
+            input: root.querySelector<HTMLInputElement>('.play-input'),
             section: root.closest('section'),
         };
         return Object.values(parts).every(Boolean) ? (parts as PlayParts) : null;
     }
 
+    const ready = new WeakSet<HTMLElement>();
+
     function setupPlayground(root: HTMLElement): (() => void) | undefined {
-        if (root.dataset.playReady === 'true') return;
-        root.dataset.playReady = 'true';
+        if (ready.has(root)) return;
 
         const parts = findParts(root);
         if (!parts) return;
         const { feed, form, input, section } = parts;
+        ready.add(root);
+        const S = readClientProps<PlayStrings>(section);
+        const REPLIES: Record<string, string | null> = {
+            '!bagel': S.replyBagel, '!song': S.replySong, '!lurk': S.replyLurk,
+            '!help': S.replyHelp, '!join': S.replyJoin,
+        };
+        const listeners = new AbortController();
 
         let alive = true;
         let visible = false;
@@ -553,15 +553,17 @@ const playStrings = {
             handleCommand(input.value);
             input.value = '';
             input.focus();
+        }, { signal: listeners.signal });
+
+        section.querySelectorAll<HTMLButtonElement>('.play__chip[value]').forEach((btn) => {
+            btn.addEventListener('click', () => handleCommand(btn.value), { signal: listeners.signal });
         });
 
-        section.querySelectorAll<HTMLButtonElement>('[data-play-cmd]').forEach((btn) => {
-            btn.addEventListener('click', () => handleCommand(btn.dataset.playCmd ?? ''));
-        });
-
-        section.querySelector<HTMLButtonElement>('[data-play-spam]')?.addEventListener('click', () => addSpam());
+        section.querySelector<HTMLButtonElement>('.play__chip--spam')?.addEventListener('click', () => addSpam(), { signal: listeners.signal });
 
         return () => {
+            ready.delete(root);
+            listeners.abort();
             alive = false;
             window.clearTimeout(ambientTimer);
             io.disconnect();
@@ -577,7 +579,7 @@ const playStrings = {
     }
 
     function setup() {
-        document.querySelectorAll<HTMLElement>('[data-playground]').forEach((root) => {
+        document.querySelectorAll<HTMLElement>('.play__stage').forEach((root) => {
             const cleanup = setupPlayground(root);
             if (cleanup) cleanups.push(cleanup);
         });

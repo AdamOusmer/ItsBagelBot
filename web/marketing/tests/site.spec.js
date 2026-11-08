@@ -65,11 +65,11 @@ test.describe('ItsBagelBot site', () => {
 
         const play = page.locator('#playground');
         await expect(play.locator('h2')).toContainText('Try it here.');
-        await expect(play.locator('[data-play-cmd]')).toHaveCount(4);
-        await expect(play.locator('[data-play-spam]')).toHaveCount(1);
-        await expect(play.locator('[data-play-feed] .pmsg')).not.toHaveCount(0);
+        await expect(play.locator('.play__chip[value]')).toHaveCount(4);
+        await expect(play.locator('.play__chip--spam')).toHaveCount(1);
+        await expect(play.locator('.play__feed .pmsg')).not.toHaveCount(0);
 
-        await play.locator('[data-play-input]').fill('!bagel');
+        await play.locator('.play-input').fill('!bagel');
         await play.locator('.play__send').click();
         await expect(play.locator('.pmsg--you').last()).toContainText('!bagel');
         await expect(play.locator('.pmsg--bot').last()).toContainText('fresh from the oven', { timeout: 5000 });
@@ -188,8 +188,8 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('a[href^="https://discord.gg/"]').first()).toBeVisible();
         await expect(page.locator('a[href="mailto:support@itsbagelbot.com"]')).toBeVisible();
 
-        const status = page.locator('[data-contact-status]');
-        await expect(status).toHaveAttribute('data-state', 'degraded');
+        const status = page.locator('.contact-status');
+        await expect(status).toHaveClass(/is-degraded/);
         await expect(status).toContainText('Some services are degraded.');
 
         await expect(page.locator('.social')).toHaveCount(4);
@@ -419,24 +419,44 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.gshell__content .bb-prose')).toHaveCount(7);
         await expect(page.locator('.dframe__win')).toHaveCount(2);
 
-        const picker = page.locator('[data-pathpicker]');
-        await picker.locator('[data-pp-tree] button:not([disabled])').first().click();
-        await expect(picker.locator('[data-pp-token]')).toContainText('{urlfetch:');
+        const picker = page.locator('.gpath');
+        await picker.locator('.gpath-tree button:not([disabled])').first().click();
+        await expect(picker.locator('.gpath-token')).toContainText('{urlfetch:');
 
-        const outcomes = page.locator('[data-fetchoutcomes]');
+        const outcomes = page.locator('.gout');
         await outcomes.getByRole('radio').nth(2).click();
-        await expect(outcomes.locator('[data-chat-hook="go-line"]')).toContainText('It is °C in Montreal right now.');
+        await expect(outcomes.locator('.chat-line--go-line')).toContainText('It is °C in Montreal right now.');
     });
 
     test('module catalog filters by category', async ({ page }) => {
         await page.goto('/guides/modules');
-        const catalog = page.locator('[data-mcat]');
+        const catalog = page.locator('.mcat');
 
         await expect(catalog.locator('.mcat__cell')).toHaveCount(24);
-        const stats = catalog.locator('[data-mcat-chip]', { hasText: 'Stats' });
+        const stats = catalog.locator('.mcat-chip', { hasText: 'Stats' });
         await stats.click();
         await expect(stats).toHaveAttribute('aria-pressed', 'true');
         await expect(catalog.locator('.mcat__cell:visible')).toHaveCount(5);
+    });
+
+    test('guide counter props drive replies and checklist values survive reload', async ({ page }) => {
+        await page.goto('/guides/counters');
+        const counter = page.locator('.gcplay');
+        const reply = counter.locator('.chat-line--token-reply');
+        const initial = await reply.textContent();
+        const value = Number(initial.match(/\d+/)[0]);
+        await counter.locator('.gcplay__action').first().click();
+        await expect(reply).toHaveText(initial.replace(/\d+/, String(value + 1)));
+        await counter.locator('.gcplay__action').nth(1).click();
+        await expect(reply).toHaveText(initial);
+
+        await page.goto('/guides/getting-started');
+        const first = page.locator('.gcheck input[type="checkbox"]').first();
+        await page.locator('.gcheck .bb-check').first().click();
+        await page.reload();
+        await expect(first).toBeChecked();
+        await page.locator('.gcheck-reset').click();
+        await expect(first).not.toBeChecked();
     });
 
     test('french mirrors pair with english via the language switcher', async ({ page }) => {
@@ -492,60 +512,61 @@ test.describe('guides & command builder', () => {
 
     test('builder composes a command end to end', async ({ page }) => {
         await page.goto('/command-builder');
-        await page.waitForSelector('[data-builder][data-ready="1"]');
+        await expect(page.locator('.cb-output')).not.toBeEmpty();
 
-        const tokens = page.locator('[data-vars] .bb-var-card__token');
+        const tokens = page.locator('.vars .bb-var-card__token');
         await expect(tokens).toHaveCount(6);
         await expect(tokens.first()).toHaveText('{user}');
 
-        await page.fill('[data-name]', 'greet');
-        await page.fill('[data-template]', 'Hello ');
-        await page.click('[data-vars] .bb-var-card:first-child');
-        await expect(page.locator('[data-output]')).toHaveText('!cmd add greet Hello {user}');
-        await expect(page.locator('[data-chat] .bb-chat__msg.bb-chat__reply')).toHaveText('Hello PrincessBarney');
-        await expect(page.locator('[data-chat] .bb-chat__msg.bb-chat__reply mark')).toHaveText('PrincessBarney');
+        await page.fill('#cb-name', 'greet');
+        await page.fill('#cb-template', 'Hello ');
+        await page.click('.vars .bb-var-card:first-child');
+        await expect(page.locator('.cb-output')).toHaveText('!cmd add greet Hello {user}');
+        await expect(page.locator('.cb-chat .bb-chat__msg.bb-chat__reply')).toHaveText('Hello PrincessBarney');
+        await expect(page.locator('.cb-chat .bb-chat__msg.bb-chat__reply mark')).toHaveText('PrincessBarney');
 
-        const href = await page.getAttribute('[data-send]', 'href');
+        const href = await page.getAttribute('.cb-send', 'href');
         expect(href).toContain('dashboard.itsbagelbot.com/commands?compose=1');
         expect(href).toContain('name=greet');
         expect(href).toContain('perm=everyone');
 
-        await page.fill('[data-template]', 'line one\nline two');
-        await expect(page.locator('[data-copy-wrap]')).toBeHidden();
-        await expect(page.locator('[data-send-wrap]')).toBeVisible();
+        await page.fill('#cb-template', 'line one\nline two');
+        await expect(page.locator('.copyw')).toBeHidden();
+        await expect(page.locator('.send')).toBeVisible();
     });
 
     test('builder enforces the dashboard caps while typing', async ({ page }) => {
         await page.goto('/command-builder');
-        await page.waitForSelector('[data-builder][data-ready="1"]');
+        await expect(page.locator('.cb-output')).not.toBeEmpty();
 
-        await page.fill('[data-template]', 'a\nb\nc\nd\ne\nf\ng');
-        await expect(page.locator('[data-template]')).toHaveValue('a\nb\nc\nd\ne');
-        await page.fill('[data-template]', 'x'.repeat(600));
-        const len = await page.inputValue('[data-template]');
+        await page.fill('#cb-template', 'a\nb\nc\nd\ne\nf\ng');
+        await expect(page.locator('#cb-template')).toHaveValue('a\nb\nc\nd\ne');
+        await page.fill('#cb-template', 'x'.repeat(600));
+        const len = await page.inputValue('#cb-template');
         expect(len.length).toBe(500);
     });
 
     test('french builder mirrors the english one', async ({ page }) => {
         await page.goto('/fr/command-builder');
-        await page.waitForSelector('[data-builder][data-ready="1"]');
+        await expect(page.locator('.cb-output')).not.toBeEmpty();
 
         await expect(page.locator('.bb-page-hero__title')).toContainText('Des commandes puissantes.');
-        await expect(page.locator('[data-vars] .bb-var-card__token')).toHaveCount(6);
-        const href = await page.getAttribute('[data-send]', 'href');
+        await expect(page.locator('.vars .bb-var-card__token')).toHaveCount(6);
+        const href = await page.getAttribute('.cb-send', 'href');
         expect(href).toContain('lang=fr');
     });
 
     test('builder module mode scopes the palette to the surface', async ({ page }) => {
         await page.goto('/command-builder');
-        await page.waitForSelector('[data-builder][data-ready="1"]');
+        await expect(page.locator('.cb-output')).not.toBeEmpty();
 
         await page.getByRole('radio', { name: 'Module message' }).click();
-        await page.selectOption('[data-cb-surface]', 'shoutout');
+        await page.locator('#cb-surface').click();
+        await page.getByRole('option', { name: 'Auto Shoutout', exact: true }).click();
 
-        await expect(page.locator('[data-vars] .bb-var-card__token').first()).toHaveText('{shoutout:raider}');
-        await expect(page.locator('[data-send-wrap]')).toBeHidden();
-        await expect(page.locator('[data-module-link]')).toHaveAttribute(
+        await expect(page.locator('.vars .bb-var-card__token').first()).toHaveText('{shoutout:raider}');
+        await expect(page.locator('.send')).toBeHidden();
+        await expect(page.locator('.cb-module-link')).toHaveAttribute(
             'href',
             'https://dashboard.itsbagelbot.com/modules/shoutout'
         );

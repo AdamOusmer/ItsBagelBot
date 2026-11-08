@@ -38,7 +38,7 @@ const controller = () => smooth ?? nativeScroll;
 const HERO_PROGRESS_READERS = '.material, .starfield, .orb, .crowd .row';
 // Where the stylesheet runs the hero exit on the scroll timeline, writing --hero-p would only restyle it per frame.
 const heroOnScrollTimeline = typeof CSS !== 'undefined' && CSS.supports('animation-timeline: scroll()');
-let hero = document.querySelector('[data-hero-progress]');
+let hero = document.querySelector('.hero');
 let heroReaders = readersOf(hero);
 let viewportHeight = Math.max(1, window.innerHeight);
 let viewportWidth = window.innerWidth;
@@ -164,7 +164,7 @@ function restoreRouteScroll(top) {
 
 // The swap brings a new hero without inline style, so the cached values no longer match what is on the page.
 function forgetHeroState() {
-    hero = document.querySelector('[data-hero-progress]');
+    hero = document.querySelector('.hero');
     heroReaders = readersOf(hero);
     lastHeroProgress = -1;
     lastHeroUiHidden = null;

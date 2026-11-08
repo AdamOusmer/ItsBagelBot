@@ -9,7 +9,7 @@ interface Props {
 const { tone = 'green' } = Astro.props;
 ---
 
-<div class="seam" data-tone={tone} aria-hidden="true">
+<div class:list={['seam', tone === 'tan' && 'seam--tan']} aria-hidden="true">
     <i class="seam__glow"></i>
     <i class="seam__line"></i>
     <i class="seam__node"></i>
@@ -23,7 +23,7 @@ const { tone = 'green' } = Astro.props;
         pointer-events: none;
     }
 
-    .seam[data-tone='tan'] {
+    .seam--tan {
         --seam-rgb: var(--bb-tan-rgb);
     }
 

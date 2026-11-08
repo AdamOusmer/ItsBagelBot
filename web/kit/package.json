@@ -105,7 +105,8 @@
     "./rates": "./lib/rates.ts",
     "./social": "./lib/social.ts",
     "./site-links": "./lib/site-links.ts",
-    "./site-footer": "./lib/site-footer.ts"
+    "./site-footer": "./lib/site-footer.ts",
+    "./client-props": "./lib/client-props.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.2.8",

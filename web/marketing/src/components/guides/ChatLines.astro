@@ -35,8 +35,8 @@ const nameOf = (line: ChatLine) => (line.who === 'bot' ? (line.name ?? 'ItsBagel
                 </b>
             )}
             {line.html
-                ? <span class={msgClass} data-chat-hook={line.hook} set:html={line.html} />
-                : <span class={msgClass} data-chat-hook={line.hook}>{line.text}</span>}
+                ? <span class:list={[msgClass, line.hook && `chat-line--${line.hook}`]} set:html={line.html} />
+                : <span class:list={[msgClass, line.hook && `chat-line--${line.hook}`]}>{line.text}</span>}
         </p>
     );
 })}

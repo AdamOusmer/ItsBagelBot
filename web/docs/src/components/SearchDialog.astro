@@ -13,10 +13,11 @@ interface Props {
 const { t } = docsI18n(Astro.props.locale);
 ---
 
-<Modal open={false} label={t('chrome.search')} closeLabel={t('diagram.close')} data-doc-search data-empty={t('chrome.searchEmpty')}>
+<Modal class="doc-search-modal" open={false} label={t('chrome.search')} closeLabel={t('diagram.close')}>
+  <template class="doc-search-empty">{t('chrome.searchEmpty')}</template>
   <div class="doc-search">
-    <SearchInput fill placeholder={t('chrome.searchPlaceholder')} data-doc-search-input autocomplete="off" />
-    <ul class="doc-search__results" data-doc-search-results aria-live="polite"></ul>
+    <SearchInput id="doc-search-input" fill placeholder={t('chrome.searchPlaceholder')} autocomplete="off" />
+    <ul class="doc-search__results" aria-live="polite"></ul>
   </div>
 </Modal>
 
@@ -91,9 +92,9 @@ const { t } = docsI18n(Astro.props.locale);
   let overlayId: number | null = null;
   let focusTrap: ReturnType<typeof trapFocus> | null = null;
 
-  const dialog = () => document.querySelector<HTMLElement>('[data-doc-search]');
-  const input = () => document.querySelector<HTMLInputElement>('[data-doc-search-input]');
-  const list = () => document.querySelector<HTMLElement>('[data-doc-search-results]');
+  const dialog = () => document.querySelector<HTMLElement>('.doc-search-modal');
+  const input = () => document.querySelector<HTMLInputElement>('#doc-search-input');
+  const list = () => document.querySelector<HTMLElement>('.doc-search__results');
 
   function loadPagefind(): Promise<Pagefind> {
     pagefind ??= import(/* @vite-ignore */ PAGEFIND_URL).then(async (module: Pagefind) => {
@@ -122,7 +123,7 @@ const { t } = docsI18n(Astro.props.locale);
   function renderEmpty(): HTMLElement {
     const item = document.createElement('li');
     item.className = 'doc-search__empty';
-    item.textContent = dialog()?.dataset.empty ?? '';
+    item.textContent = dialog()?.querySelector<HTMLTemplateElement>('.doc-search-empty')?.content.textContent ?? '';
     return item;
   }
 
@@ -189,7 +190,7 @@ const { t } = docsI18n(Astro.props.locale);
 
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
-    if (target.closest('[data-doc-search-open]')) open();
+    if (target.closest('.doc-search-button')) open();
     if (dialog()?.contains(target) && target.closest('.bb-modal__backdrop, .doc-search__link')) close();
   });
 
