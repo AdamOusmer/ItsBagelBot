@@ -29,6 +29,8 @@ import (
 const (
 	serviceName = "projector"
 	queueGroup  = "projector-rpc"
+	// Optional owner checks must finish before Kubernetes' one-second readiness timeout.
+	dataTierHealthTimeout = 500 * time.Millisecond
 )
 
 var dataTierServices = []string{"users", "commands", "modules", "loyalty", "notifications", "discord-data"}
@@ -133,9 +135,22 @@ func tierChecks(nc *nats.Conn, sub bus.Subscriber) []health.Check {
 		bus.LaneCheck("stream", sub),
 	}
 	for _, service := range dataTierServices {
-		checks = append(checks, bus.HealthProbe(nc, service))
+		checks = append(checks, dataTierCheck(nc, service))
 	}
 	return checks
+}
+
+func dataTierCheck(nc *nats.Conn, service string) health.Check {
+	check := bus.HealthProbe(nc, service)
+	probe := check.Probe
+	check.Probe = func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, dataTierHealthTimeout)
+		defer cancel()
+		return probe(ctx)
+	}
+	// Owners repair cold/stale sections independently; their outage must not remove
+	// the healthy projection paths from service. Keep their failures in diagnostics.
+	return health.Degrades(check)
 }
 
 func connectBus(core svcboot.Core) (*nats.Conn, bus.Publisher, bus.Subscriber) {

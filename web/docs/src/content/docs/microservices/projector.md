@@ -22,6 +22,8 @@ Projector stores derived views in Valkey; data services remain authoritative.
 
 Invalid events are acknowledged; storage errors are returned for redelivery. Revision checks protect newer updates.
 
+An unavailable data owner degrades diagnostics without removing Projector from service. Owner probes run concurrently with a 500 ms deadline each: `/readyz` stays HTTP 200 while `/status` reports HTTP 207 and the failing owner. Warm projections and work from other owners continue; a cold read that needs the unavailable owner can still fail. Projector’s own NATS connection, RPC subscription, and stream consumer remain required readiness checks. `/healthz` remains process-local.
+
 ## Code map
 
 Source: [app/projector/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/projector). See `main.go`, `hydration/`, `rpc/`, and `internal/projection/`.

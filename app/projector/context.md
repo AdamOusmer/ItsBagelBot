@@ -67,3 +67,7 @@ go test ./app/projector -run 'Counter|Stream|Watchtime'
 ```
 
 For new projected fields, follow the whole path: owning schema/repository → event/owner snapshot contract → shared store → Projector fold → consuming client.
+
+## Readiness isolation
+
+Data-owner health checks are optional diagnostics with concurrent 500 ms deadlines. An unavailable owner reports degraded status while `/readyz` remains available; warm projections and other owners' events keep working. Cold reads that need the unavailable owner retain their existing errors. Projector's own NATS connection, RPC subscription and stream-consumer checks remain required.
