@@ -82,36 +82,35 @@ function containsEmail(s: string): boolean {
 	return false;
 }
 
-interface LinkText {
-	normalized: string;
-	deobfuscated: string;
-	despaced: string;
-}
+class LinkText {
+	private readonly normalized: string;
+	private readonly deobfuscated: string;
+	private readonly despaced: string;
 
-function linkText(s: string): LinkText {
-	const normalized = normalizeForLink(s);
-	const deobfuscated = deobfuscateLinks(normalized);
-	return { normalized, deobfuscated, despaced: deobfuscated.replace(/\s+/g, '') };
-}
+	constructor(raw: string) {
+		this.normalized = normalizeForLink(raw);
+		this.deobfuscated = deobfuscateLinks(this.normalized);
+		this.despaced = this.deobfuscated.replace(/\s+/g, '');
+	}
 
-function matchesAny(text: string, patterns: readonly RegExp[]): boolean {
-	return patterns.some((pattern) => pattern.test(text));
-}
+	private hasEmail(): boolean {
+		return [this.normalized, this.deobfuscated, this.despaced].some(containsEmail);
+	}
 
-function hasEmail(text: LinkText): boolean {
-	return [text.normalized, text.deobfuscated, text.despaced].some(containsEmail);
-}
+	private hasPattern(): boolean {
+		if (LINK_PATTERNS.some((pattern) => pattern.test(this.normalized))) return true;
+		if (LINK_PATTERNS.some((pattern) => pattern.test(this.deobfuscated))) return true;
+		return STRONG_PATTERNS.some((pattern) => pattern.test(this.despaced));
+	}
 
-function hasLinkPattern(text: LinkText): boolean {
-	return matchesAny(text.normalized, LINK_PATTERNS)
-		|| matchesAny(text.deobfuscated, LINK_PATTERNS)
-		|| matchesAny(text.despaced, STRONG_PATTERNS);
+	containsLink(): boolean {
+		return this.hasEmail() || this.hasPattern();
+	}
 }
 
 export function containsLink(s: string): boolean {
 	if (!s) return false;
-	const text = linkText(s);
-	return hasEmail(text) || hasLinkPattern(text);
+	return new LinkText(s).containsLink();
 }
 
 export function normalizeCounterName(raw: unknown): string {
