@@ -115,3 +115,33 @@ func TestShutdownBudgetFitsTheManifestGracePeriod(t *testing.T) {
 	assert.LessOrEqual(t, preStopDrain+shutdownBudget+exitReserve, terminationGrace)
 	assert.Positive(t, shutdownBudget)
 }
+
+type earnedApplier struct {
+	err error
+	got data.LoyaltyEarnedDTO
+}
+
+func (s *earnedApplier) ApplyEarned(_ context.Context, dto data.LoyaltyEarnedDTO) error {
+	s.got = dto
+	return s.err
+}
+func TestRecordEarnedWaitsForDurableResult(t *testing.T) {
+	failure := errors.New("SQL unavailable")
+	repo := &earnedApplier{err: failure}
+	payload, err := codec.Marshal(data.LoyaltyEarnedDTO{UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 10}}})
+	require.NoError(t, err)
+	msg := bus.NewMessage("stable-broker-id", payload)
+	require.ErrorIs(t, recordEarned(repo, zap.NewNop())(msg), failure)
+	require.Equal(t, "stable-broker-id", repo.got.BatchID)
+	repo.err = nil
+	require.NoError(t, recordEarned(repo, zap.NewNop())(msg))
+	require.Equal(t, "stable-broker-id", repo.got.BatchID)
+}
+
+func TestRecordEarnedDropsInvalidInput(t *testing.T) {
+	repo := &earnedApplier{err: fmt.Errorf("%w: watch balance overflow", repository.ErrInvalidInput)}
+	payload, err := codec.Marshal(data.LoyaltyEarnedDTO{BatchID: "invalid-earned", UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 10}}})
+	require.NoError(t, err)
+	require.NoError(t, recordEarned(repo, zap.NewNop())(bus.NewMessage("id", payload)))
+	require.Equal(t, "invalid-earned", repo.got.BatchID)
+}

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 
@@ -62,9 +61,12 @@ type LoyaltyReporter struct {
 	now     func() time.Time
 	flushMu sync.Mutex
 	pending []counterPublication
-	mu      sync.Mutex
-	earn    map[earnKey]*earnAgg
-	bumps   map[counterAgg]*bumpAgg
+	// Earned publications never use the loss-tolerant counter retry horizon.
+	// This queue still requires the producer process to remain alive.
+	earnPending []counterPublication
+	mu          sync.Mutex
+	earn        map[earnKey]*earnAgg
+	bumps       map[counterAgg]*bumpAgg
 }
 
 func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
@@ -230,10 +232,14 @@ func (r *LoyaltyReporter) nudge() {
 func (r *LoyaltyReporter) flush(ctx context.Context) {
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
+	r.earnPending = retryCounterPublications(ctx, r.pub, r.log, r.earnPending)
 	r.pending = abandonStaleCounterPublications(r.log, r.pending, r.clock())
 	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
 	r.mu.Lock()
-	earn := r.earn
+	var earn map[earnKey]*earnAgg
+	if len(r.earnPending) == 0 {
+		earn = r.earn
+	}
 	var bumps map[counterAgg]*bumpAgg
 	if len(r.pending) == 0 {
 		bumps = r.bumps
@@ -248,6 +254,7 @@ func (r *LoyaltyReporter) flush(ctx context.Context) {
 
 	r.publishEarned(ctx, earn)
 	r.publishBumps(ctx, bumps)
+	r.earnPending = retryCounterPublications(ctx, r.pub, r.log, r.earnPending)
 	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
 }
 
@@ -270,7 +277,7 @@ func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*e
 		})
 	}
 	publishPerUser(ctx, r, perUser, data.SubjectLoyaltyEarned, func(userID uint64, chunk []data.LoyaltyEarnEntry) any {
-		return data.LoyaltyEarnedDTO{UserID: userID, Entries: chunk}
+		return data.LoyaltyEarnedDTO{BatchID: uuid.NewString(), UserID: userID, Entries: chunk}
 	})
 }
 
@@ -304,14 +311,10 @@ func publishPerUser[E any](ctx context.Context, r *LoyaltyReporter, perUser map[
 				})
 				continue
 			}
-			if err := bus.PublishJSON(ctx, r.pub, subject, payload); err != nil {
-				r.log.Debug("failed to publish loyalty window",
-					zap.String("subject", subject),
-					module.BIDField(userID),
-					zap.Int("entries", len(chunk)),
-					zap.Error(err),
-				)
-			}
+			r.earnPending = append(r.earnPending, counterPublication{
+				id: payload.(data.LoyaltyEarnedDTO).BatchID, subject: subject, payload: payload,
+				entries: len(chunk), firstAttempt: r.clock(),
+			})
 		}
 	}
 }
@@ -320,6 +323,9 @@ func (r *LoyaltyReporter) Close() {
 	close(r.done)
 	<-r.finished
 	r.flush(context.Background())
+	if len(r.earnPending) > 0 {
+		r.log.Error("earned batches remain unconfirmed at shutdown", zap.Int("batches", len(r.earnPending)))
+	}
 	if len(r.pending) > 0 {
 		r.log.Error("counter batches remain unconfirmed at shutdown", zap.Int("batches", len(r.pending)))
 	}

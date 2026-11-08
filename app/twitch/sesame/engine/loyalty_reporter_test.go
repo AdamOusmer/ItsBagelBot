@@ -147,6 +147,10 @@ func (p *blockedLoyaltyPublisher) PublishOwned(ctx context.Context, subject stri
 	return p.rawPublisher.PublishOwned(ctx, subject, body)
 }
 
+func (p *blockedLoyaltyPublisher) PublishOwnedWithID(ctx context.Context, subject, _ string, body []byte) error {
+	return p.PublishOwned(ctx, subject, body)
+}
+
 func TestLoyaltyReporterCloseWaitsForPublish(t *testing.T) {
 	pub := &blockedLoyaltyPublisher{started: make(chan struct{}), release: make(chan struct{})}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
@@ -315,3 +319,25 @@ func (p *rawPublisher) PublishOwnedWithID(ctx context.Context, subject, _ string
 func (p *rawPublisher) Flush(context.Context) error { return nil }
 
 func (p *rawPublisher) Close() error { return nil }
+
+func TestEarnedPublicationRetriesImmutableIdentity(t *testing.T) {
+	pub := &uncertainCounterPublisher{fail: true}
+	r := retryReporter(pub, zap.NewNop(), nil)
+	r.Earn(1, 7, "viewer", "", 10, 0)
+	r.flush(t.Context())
+	require.Len(t, r.earnPending, 1)
+	original := pub.payloads[data.SubjectLoyaltyEarned][0]
+	r.Earn(1, 7, "viewer", "", 20, 0)
+	pub.fail = false
+	r.flush(t.Context())
+	require.Empty(t, r.earnPending)
+	bodies := pub.payloads[data.SubjectLoyaltyEarned]
+	require.Equal(t, original, bodies[len(bodies)-2])
+	var first, second data.LoyaltyEarnedDTO
+	require.NoError(t, codec.Unmarshal(bodies[len(bodies)-2], &first))
+	require.NoError(t, codec.Unmarshal(bodies[len(bodies)-1], &second))
+	require.NotEmpty(t, first.BatchID)
+	require.NotEqual(t, first.BatchID, second.BatchID)
+	require.EqualValues(t, 10, first.Entries[0].Points)
+	require.EqualValues(t, 20, second.Entries[0].Points)
+}

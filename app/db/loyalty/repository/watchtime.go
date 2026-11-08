@@ -150,6 +150,7 @@ var watchHistoryTables = []watchHistoryTable{
 
 func (r *Loyalty) ensureWatchTables(ctx context.Context) error {
 	for _, stmt := range []string{
+		`CREATE TABLE IF NOT EXISTS loyalty_earned_receipts (batch_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS loyalty_account_fences (user_id BIGINT PRIMARY KEY, account_created_at BIGINT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)`,
 		`CREATE TABLE IF NOT EXISTS loyalty_watch_operations (operation_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0)`,
 		`CREATE TABLE IF NOT EXISTS loyalty_watch_viewers (award_id VARCHAR(64) PRIMARY KEY, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0)`,

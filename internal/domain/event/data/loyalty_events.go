@@ -69,7 +69,10 @@ type LoyaltyEarnEntry struct {
 	WatchSeconds uint64 `json:"watch_seconds,omitempty"`
 }
 
+// BatchID is stable across uncertain publish retries; old deliveries fall back
+// to their broker message UUID. SQL receipts have no expiry.
 type LoyaltyEarnedDTO struct {
+	BatchID string             `json:"batch_id,omitempty"`
 	UserID  uint64             `json:"user_id"`
 	Entries []LoyaltyEarnEntry `json:"entries"`
 }
