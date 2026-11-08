@@ -68,29 +68,47 @@ const STRONG_PATTERNS = [
 	reWWW, reTLDCur, reIPv4
 ];
 
-// Scan email candidates once. Runs of local-part characters and domain labels
-// are disjoint between @ signs, so long non-matching inputs stay linear.
+function isLetter(c: number): boolean {
+	return c >= 97 && c <= 122;
+}
+
+function isDigit(c: number): boolean {
+	return c >= 48 && c <= 57;
+}
+
+function isLocalChar(s: string, i: number): boolean {
+	const c = s.charCodeAt(i);
+	return isLetter(c) || isDigit(c) || '._%+-'.includes(s[i]);
+}
+
+function isDomainChar(c: number): boolean {
+	return isLetter(c) || isDigit(c) || c === 45;
+}
+
+function endOfDomainLabel(s: string, start: number): number {
+	let i = start;
+	while (i < s.length && isDomainChar(s.charCodeAt(i))) i++;
+	return i;
+}
+
+function hasEmailDomain(s: string, start: number): boolean {
+	let end = endOfDomainLabel(s, start);
+	if (end === start) return false;
+	while (s.charCodeAt(end) === 46) {
+		if (isLetter(s.charCodeAt(end + 1)) && isLetter(s.charCodeAt(end + 2))) return true;
+		const next = end + 1;
+		end = endOfDomainLabel(s, next);
+		if (end === next) return false;
+	}
+	return false;
+}
+
+// Domain scans after different @ signs do not overlap; the whole scan is linear.
 function containsEmail(s: string): boolean {
 	let local = false;
 	for (let i = 0; i < s.length; i++) {
-		const c = s.charCodeAt(i);
-		const localChar = (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || '._%+-'.includes(s[i]);
-		if (c === 64 && local) {
-			let j = i + 1;
-			let label = false;
-			while (j < s.length) {
-				const d = s.charCodeAt(j);
-				if ((d >= 97 && d <= 122) || (d >= 48 && d <= 57) || d === 45) {
-					label = true;
-				} else if (d === 46 && label) {
-					const a = s.charCodeAt(j + 1), b = s.charCodeAt(j + 2);
-					if (a >= 97 && a <= 122 && b >= 97 && b <= 122) return true;
-					label = false;
-				} else break;
-				j++;
-			}
-		}
-		local = localChar;
+		if (s.charCodeAt(i) === 64 && local && hasEmailDomain(s, i + 1)) return true;
+		local = isLocalChar(s, i);
 	}
 	return false;
 }
