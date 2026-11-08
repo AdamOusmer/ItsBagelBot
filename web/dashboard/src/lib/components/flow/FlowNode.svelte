@@ -54,6 +54,7 @@
     <span class="port port--out tone-{tone}" bind:this={ports[id]}></span>
     <span class="add tone-{tone}" bind:this={adds[id]}>
       <FlowAddButton
+        {touch}
         {label}
         tabindex={tabbable ? 0 : -1}
         onclick={(e) => {

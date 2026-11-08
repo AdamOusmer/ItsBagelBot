@@ -7,11 +7,12 @@
     label,
     tabindex = 0,
     showLabel = false,
+    touch = false,
     onclick
-  }: { label: string; tabindex?: number; showLabel?: boolean; onclick: (event: MouseEvent & { currentTarget: HTMLButtonElement }) => void } = $props();
+  }: { label: string; tabindex?: number; showLabel?: boolean; touch?: boolean; onclick: (event: MouseEvent & { currentTarget: HTMLButtonElement }) => void } = $props();
 </script>
 
-<button class="add" class:labelled={showLabel} type="button" aria-label={label} title={label} {tabindex} {onclick}>
+<button class="add" class:labelled={showLabel} class:touch type="button" aria-label={label} title={label} {tabindex} {onclick}>
   <Icon name="plus" size={14} strokeWidth={2} />
   {#if showLabel}<span>{label}</span>{/if}
 </button>
@@ -51,7 +52,7 @@
     inset: -4px;
     border-radius: var(--bb-radius-pill);
   }
-  :global(.canvas[data-touch]) .add.labelled::before {
+  .add.labelled.touch::before {
     inset: -10px;
   }
   .add:hover {
