@@ -1,0 +1,49 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import Showcase from '../../layouts/Showcase.astro';
+import Button from '../../../../astro/Button.astro';
+import Cursor from '../../../../astro/Cursor.astro';
+import Field from '../../../../astro/Field.astro';
+import Input from '../../../../astro/Input.astro';
+import SearchInput from '../../../../astro/SearchInput.astro';
+import Textarea from '../../../../astro/Textarea.astro';
+---
+
+<Showcase title="Cursor" lead="Move along a pill’s edges for a subtle pull. The shared fields use the dashboard’s custom text pointer.">
+  <Cursor />
+  <section class="sc-block">
+    <h2>Shape and surface</h2>
+    <div class="sc-row">
+      <Button class="cursor-pill">Move around this pill</Button>
+      <Button variant="secondary" class="cursor-circle" aria-label="Round button">↗</Button>
+      <Button variant="ghost">Small target</Button>
+    </div>
+    <div class="cursor-light sc-row">
+      <Button class="cursor-white cursor-pill">White pill, tan overlay</Button>
+      <Button class="cursor-white cursor-circle" aria-label="White round button">↗</Button>
+    </div>
+  </section>
+  <section class="sc-block">
+    <h2>Dashboard text controls</h2>
+    <div class="sc-grid">
+      <div>
+        <Field label="Input" for="cursor-input"><Input id="cursor-input" placeholder="Type here" fill /></Field>
+        <div class="bb-field">
+          <label class="bb-field__label" for="cursor-search">Search</label>
+          <SearchInput id="cursor-search" placeholder="Search" fill />
+        </div>
+      </div>
+      <Field label="Textarea" for="cursor-area"><Textarea id="cursor-area" placeholder="Select and edit text here" rows={4} fill /></Field>
+    </div>
+  </section>
+</Showcase>
+
+<style>
+  @layer bb.app {
+    .cursor-pill { border-radius: var(--bb-radius-pill); }
+    .cursor-circle { width: 48px; height: 48px; padding: 0; border-radius: var(--bb-radius-pill); }
+    .cursor-light { padding: 24px; border-radius: var(--bb-radius-md); background: rgb(var(--bb-white-pure-rgb)); }
+    .cursor-white { background: rgb(var(--bb-white-pure-rgb)); color: var(--bb-bg-0); border: 1px solid var(--bb-tan); }
+  }
+</style>

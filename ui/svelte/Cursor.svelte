@@ -9,14 +9,18 @@
 
     let dot = $state<HTMLDivElement>();
     let ring = $state<HTMLDivElement>();
+    let fill = $state<HTMLDivElement>();
 
     $effect(() => {
-        if (!enabled || !dot || !ring) return;
-        return mountCursor({ dot, ring });
+        if (!enabled || !dot || !ring || !fill) return;
+        return mountCursor({ dot, ring, fill });
     });
 </script>
 
 {#if enabled}
     <div class="bb-cursor" aria-hidden="true" bind:this={dot}></div>
-    <div class="bb-cursor-ring" aria-hidden="true" bind:this={ring}></div>
+    <div class="bb-cursor-fill" aria-hidden="true" bind:this={fill}></div>
+    <div class="bb-cursor-ring" aria-hidden="true" bind:this={ring}>
+        <svg aria-hidden="true"><rect width="100%" height="100%" vector-effect="non-scaling-stroke" /></svg>
+    </div>
 {/if}
