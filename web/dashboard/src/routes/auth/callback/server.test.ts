@@ -13,17 +13,38 @@ const { RpcError } = await import('@bagel/kit/server/nats');
 let existing: () => Promise<{ username: string }> = async () => ({ username: 'streamer' });
 const purged: { kind: 'pages' | 'board'; userId: string; logins: readonly string[] }[] = [];
 
+let banned = false;
+const events: string[] = [];
+
+async function step<T>(name: string, value: T): Promise<T> {
+  events.push(`start:${name}`);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  events.push(`end:${name}`);
+  return value;
+}
+
 const services = await import('../../../lib/server/services');
 mock.module('#lib/server/services', () => ({
   ...services,
-  isBanned: async () => false,
-  accountState: () => existing(),
-  userLocale: async () => 'en',
-  userCursor: async () => true,
-  saveGrant: async () => {}
+  isBanned: () => step('banned', banned),
+  accountState: async () => {
+    events.push('start:prior');
+    const state = await existing();
+    events.push('end:prior');
+    return state;
+  },
+  userLocale: () => step('locale', 'fr'),
+  userCursor: () => step('cursor', true),
+  saveGrant: () => step('grant', undefined)
 }));
 const nats = await import('@bagel/kit/server/nats');
-mock.module('@bagel/kit/server/nats', () => ({ ...nats, rpc: async () => ({ ok: true }) }));
+mock.module('@bagel/kit/server/nats', () => ({
+  ...nats,
+  rpc: async () => {
+    events.push('register');
+    return { ok: true };
+  }
+}));
 mock.module('#lib/server/edge-purge', () => ({
   schedulePurgeChannel: (userId: string, logins: readonly string[] = []) => void purged.push({ kind: 'pages', userId, logins }),
   purgeRenamedChannel: (userId: string, logins: readonly string[] = []) => {
@@ -33,7 +54,7 @@ mock.module('#lib/server/edge-purge', () => ({
 }));
 mock.module('#lib/server/oauth', () => ({
   safeNextPath: () => null,
-  fetchAccountEmail: async () => null,
+  fetchAccountEmail: () => step('email', null),
   twitch: () => ({
     validateAuthorizationCode: async () => ({
       claims: () => ({ sub: '42', preferred_username: 'Streamer', aud: 'client', iss: 'https://id.twitch.tv/oauth2', nonce: 'n' }),
@@ -46,22 +67,61 @@ mock.module('#lib/server/oauth', () => ({
 
 const { GET } = await import('./+server');
 
-async function signIn(): Promise<number> {
+let written = new Map<string, string>();
+
+async function signInTo(): Promise<{ status: number; location: string | null }> {
   const jar = new Map([
     ['oauth_state', 's'],
     ['oauth_nonce', 'n']
   ]);
-  const cookies = { get: (n: string) => jar.get(n), set: () => {}, delete: (n: string) => void jar.delete(n) };
+  written = new Map();
+  const cookies = {
+    get: (n: string) => jar.get(n),
+    set: (n: string, value: string) => void written.set(n, value),
+    delete: (n: string) => void jar.delete(n)
+  };
   try {
     await GET({ url: new URL('https://dashboard.itsbagelbot.com/auth/callback?code=c&state=s'), cookies } as never);
-    return 200;
+    return { status: 200, location: null };
   } catch (e) {
-    return (e as { status: number }).status;
+    const { status, location } = e as { status: number; location: string };
+    return { status, location };
   }
+}
+
+async function signIn(): Promise<number> {
+  return (await signInTo()).status;
 }
 
 beforeEach(() => {
   purged.length = 0;
+  events.length = 0;
+  banned = false;
+  existing = async () => ({ username: 'streamer' });
+});
+
+describe('auth callback ordering', () => {
+  test('a banned user is sent to the banned page with no write and no cookie', async () => {
+    banned = true;
+    expect(await signInTo()).toEqual({ status: 302, location: '/login?e=banned' });
+    expect(events.filter((e) => e === 'register' || e.endsWith(':grant'))).toEqual([]);
+    expect([...written.keys()]).toEqual([]);
+  });
+
+  test('the ban, email and prior-login reads overlap and all finish before the user is registered', async () => {
+    await signInTo();
+    expect(events.slice(0, 3)).toEqual(['start:banned', 'start:email', 'start:prior']);
+    expect(events.slice(3, 6).sort()).toEqual(['end:banned', 'end:email', 'end:prior']);
+    expect(events[6]).toBe('register');
+  });
+
+  test('locale, cursor and grant run together after registration and set the same cookies', async () => {
+    const result = await signInTo();
+    expect(events.slice(7, 10).sort()).toEqual(['start:cursor', 'start:grant', 'start:locale']);
+    expect(result).toEqual({ status: 302, location: '/' });
+    expect([...written.keys()].sort()).toEqual(['bagel_cursor', 'bagel_session', 'locale']);
+    expect([written.get('locale'), written.get('bagel_cursor')]).toEqual(['fr', '1']);
+  });
 });
 
 describe('auth callback channel purge', () => {

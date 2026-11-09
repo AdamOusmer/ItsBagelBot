@@ -235,19 +235,24 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
     displayName: claims.preferred_username
   };
 
-  if (await isBanned(identity.userId)) throw redirect(302, '/login?e=banned');
+  const [banned, email, prior] = await Promise.all([
+    isBanned(identity.userId),
+    fetchAccountEmail(tokens.accessToken()),
+    priorLogin(identity.userId)
+  ]);
+  if (banned) throw redirect(302, '/login?e=banned');
 
   // Register before the delegation accept, or the ghost-session gate bounces a first-time invitee.
-  const email = await fetchAccountEmail(tokens.accessToken());
-  const prior = await priorLogin(identity.userId);
   await registerUser(identity, email);
   purgeNewChannelPages(identity, prior);
 
   const landing = await acceptPendingDelegation(cookies, url, identity);
 
   setSessionCookie(cookies, url, { ...streamerSession(identity), ...grantedScopes(tokens) });
-  await seedLocaleCookie(cookies, url, identity.userId);
-  await seedCursorCookie(cookies, url, identity.userId);
-  await persistGrant(identity.userId, tokens);
+  await Promise.all([
+    seedLocaleCookie(cookies, url, identity.userId),
+    seedCursorCookie(cookies, url, identity.userId),
+    persistGrant(identity.userId, tokens)
+  ]);
   return landing;
 }
