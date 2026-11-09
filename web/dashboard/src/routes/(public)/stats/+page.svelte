@@ -19,7 +19,7 @@
   import StatNumber from '#lib/components/public/StatNumber.svelte';
   import type { PageData } from './$types';
   import { SITE, commandsHref } from '@bagel/kit/site-links';
-  import { exactDisplay, validBoards, validStats } from '#lib/stats-values';
+  import { exactDisplay, formatStatTotal, validBoards, validStats } from '#lib/stats-values';
   import { StatsCounter } from '#lib/stats-odometer';
   import { isLoginShape } from '#lib/public-login';
   import { formatCounterValue } from '@bagel/kit/validation';
@@ -163,27 +163,35 @@
   });
 
   const rateFmt = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const compactFmt = new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    maximumFractionDigits: 2
+  });
   const PENDING = t('stats.rateNa');
 
-  function totalValue(raw: string, animated: number): number | bigint {
+  function compactTotal(raw: string, animated: number): { value: string; unit: string } {
     const exact = BigInt(raw);
-    return exact > BigInt(Number.MAX_SAFE_INTEGER) ? exact : animated;
+    const value = exact > BigInt(Number.MAX_SAFE_INTEGER) ? exact : Math.round(animated);
+    const parts = compactFmt.formatToParts(value);
+    return {
+      value: parts.filter((part) => part.type !== 'compact').map((part) => part.value).join('').trim(),
+      unit: parts.find((part) => part.type === 'compact')?.value ?? ''
+    };
   }
 
   const messageRate = $derived(display.msgRate);
   const eventRate = $derived(display.eventRate);
-  const rates = new Tween([seed.msg_rate_now ?? seed.msg_rate ?? 0, seed.event_rate_now ?? seed.event_rate ?? 0]);
+  const rateValue = (rate: number | null) => Math.round((rate ?? 0) * 10) / 10;
+  const rates = new Tween([rateValue(seed.msg_rate_now ?? seed.msg_rate), rateValue(seed.event_rate_now ?? seed.event_rate)]);
   $effect(() => {
-    void rates.set([messageRate ?? 0, eventRate ?? 0], { duration: reduced ? 0 : 320, easing: cubicOut });
+    void rates.set([rateValue(messageRate), rateValue(eventRate)], { duration: reduced ? 0 : 320, easing: cubicOut });
   });
-  const detailParts = $derived(t('stats.processedTotal', { count: '\uFFFC' }).split('\uFFFC'));
-
   const tiles = $derived([
     {
       id: 'messages',
       label: t('stats.messagesShortLabel'),
-      total: totalValue(live.messages_total, display.messages),
-      countRate: messageRate ?? 0,
+      ...compactTotal(live.messages_total, display.messages),
+      detail: t('stats.processedTotal', { count: formatStatTotal(live.messages_total, display.messages, locale) }),
       rate: messageRate === null ? null : rates.current[0],
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel'),
@@ -192,8 +200,8 @@
     {
       id: 'events',
       label: t('stats.eventsShortLabel'),
-      total: totalValue(live.events_total, display.events),
-      countRate: eventRate ?? 0,
+      ...compactTotal(live.events_total, display.events),
+      detail: t('stats.processedTotal', { count: formatStatTotal(live.events_total, display.events, locale) }),
       rate: eventRate === null ? null : rates.current[1],
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel'),
@@ -292,8 +300,8 @@
             <span class="st-counter__label"><bb-fit>{tile.label}</bb-fit></span>
             <span class="st-counter__period"><bb-fit>{t('stats.allTime')}</bb-fit></span>
           </div>
-          <div class="st-counter__value"><bb-fit><StatNumber value={tile.total} rate={tile.countRate} {locale} {reduced} /></bb-fit></div>
-          <div class="st-counter__exact"><bb-fit><span class="st-counter__detail">{detailParts[0]}</span><StatNumber value={tile.total} rate={tile.countRate} {locale} compact decimals={2} {reduced} /><span class="st-counter__detail">{detailParts[1]}</span></bb-fit></div>
+          <div class="st-counter__value">{tile.value}<span class="st-counter__unit">{tile.unit}</span></div>
+          <div class="st-counter__exact"><bb-fit>{tile.detail}</bb-fit></div>
           <div class="st-rule"></div>
           <div class="st-counter__rate">
             <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden>{#if tile.rate === null}{PENDING}{:else}<StatNumber value={tile.rate} {locale} decimals={1} {reduced} /><small class="st-counter__per">{t('stats.perSecond')}</small>{/if}</span>
@@ -608,13 +616,17 @@
     color: var(--bb-paper);
   }
 
+  .st-counter__unit {
+    font-size: 0.42em;
+    letter-spacing: -0.02em;
+    color: var(--bb-muted-light);
+  }
+
   .st-counter__exact {
     display: flex;
     font: var(--bb-text-sm)/1.4 var(--bb-font-mono);
     color: var(--bb-muted);
   }
-
-  .st-counter__detail { white-space: pre; }
 
   .st-counter__rate {
     display: flex;
