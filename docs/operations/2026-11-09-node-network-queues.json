@@ -1,0 +1,2495 @@
+{
+  "rows": [
+    {
+      "label": "probe-eth0-node1-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.217974322579098,
+      "received_Gbps": 8.216498956824234,
+      "retransmits": 8940,
+      "cpu": {
+        "host_total": 38.89196375530774,
+        "host_user": 0.7780760989524537,
+        "host_system": 38.11355503859364,
+        "remote_total": 87.93067279007406,
+        "remote_user": 4.697529669966678,
+        "remote_system": 83.23319306814477
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node1-node2-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 5.48777879701389,
+      "received_Gbps": 5.487888110657482,
+      "retransmits": 1254,
+      "cpu": {
+        "host_total": 32.465547532929065,
+        "host_user": 0.2999421827106313,
+        "host_system": 32.16555536985072,
+        "remote_total": 25.027510471776342,
+        "remote_user": 1.257902949174566,
+        "remote_system": 23.76961752095605
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node1-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.22450216773083,
+      "received_Gbps": 8.227830622986016,
+      "retransmits": 7475,
+      "cpu": {
+        "host_total": 38.449877418100584,
+        "host_user": 0.7112775647016052,
+        "host_system": 37.738629808654814,
+        "remote_total": 87.0181729883269,
+        "remote_user": 5.097341834701171,
+        "remote_system": 81.92085114712184
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node2-node1-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 4.209535338425557,
+      "received_Gbps": 4.21022069438381,
+      "retransmits": 461,
+      "cpu": {
+        "host_total": 27.72376691296421,
+        "host_user": 0.32944295173207944,
+        "host_system": 27.394333957073858,
+        "remote_total": 14.42637593174933,
+        "remote_user": 0.736611592672255,
+        "remote_system": 13.689764339077076
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.6452381551539235,
+      "received_Gbps": 6.6496408524332535,
+      "retransmits": 5609,
+      "cpu": {
+        "host_total": 35.18616528711912,
+        "host_user": 0.9757222594128473,
+        "host_system": 34.21045301176672,
+        "remote_total": 40.66038466632183,
+        "remote_user": 2.4572466647175975,
+        "remote_system": 38.20314799683151
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node1-node3-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 5.160857658427874,
+      "received_Gbps": 5.161720631554584,
+      "retransmits": 1760,
+      "cpu": {
+        "host_total": 22.20262800619667,
+        "host_user": 0.3874716790719312,
+        "host_system": 21.81522629853442,
+        "remote_total": 19.28257967143438,
+        "remote_user": 0.8329315860542672,
+        "remote_system": 18.44964808538011
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node1-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.387403359192536,
+      "received_Gbps": 8.390100784846332,
+      "retransmits": 37234,
+      "cpu": {
+        "host_total": 38.887314087731674,
+        "host_user": 0.8351906331759397,
+        "host_system": 38.05212345455573,
+        "remote_total": 76.51136930411356,
+        "remote_user": 3.80645675341633,
+        "remote_system": 72.70492254793098
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node3-node1-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 4.357565097037747,
+      "received_Gbps": 4.357482103776844,
+      "retransmits": 754,
+      "cpu": {
+        "host_total": 39.135066842532815,
+        "host_user": 0.3401658412194186,
+        "host_system": 38.79494098906915,
+        "remote_total": 16.48453449709144,
+        "remote_user": 0.704808101298629,
+        "remote_system": 15.779746393469079
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node3-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.635531370146225,
+      "received_Gbps": 6.639726535446635,
+      "retransmits": 22509,
+      "cpu": {
+        "host_total": 31.77888493949439,
+        "host_user": 0.8124026518630936,
+        "host_system": 30.9664922720556,
+        "remote_total": 42.58753050135757,
+        "remote_user": 2.6417953346914365,
+        "remote_system": 39.94574516055786
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node2-node3-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 4.838626305637283,
+      "received_Gbps": 4.838109017907042,
+      "retransmits": 1410,
+      "cpu": {
+        "host_total": 55.409630012891085,
+        "host_user": 0.4709106772141169,
+        "host_system": 54.93870933948352,
+        "remote_total": 22.708125054985484,
+        "remote_user": 1.107237689250038,
+        "remote_system": 21.600887365735446
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node2-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.59856085716157,
+      "received_Gbps": 8.603067131719246,
+      "retransmits": 13653,
+      "cpu": {
+        "host_total": 41.43381354714028,
+        "host_user": 1.0358603120857357,
+        "host_system": 40.397953235054544,
+        "remote_total": 77.60163737370456,
+        "remote_user": 4.38314344763128,
+        "remote_system": 73.2185139184262
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node3-node2-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 5.37173940573726,
+      "received_Gbps": 5.370874149051146,
+      "retransmits": 1602,
+      "cpu": {
+        "host_total": 72.6645465645299,
+        "host_user": 0.4393639293759093,
+        "host_system": 72.225182635154,
+        "remote_total": 28.515856589351117,
+        "remote_user": 1.3704865742724561,
+        "remote_system": 27.14537001507866
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth0-node3-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.371079627018547,
+      "received_Gbps": 8.374471844350305,
+      "retransmits": 6352,
+      "cpu": {
+        "host_total": 36.66433671176794,
+        "host_user": 1.068460731938689,
+        "host_system": 35.59584602326626,
+        "remote_total": 83.37944669168478,
+        "remote_user": 4.9399443320657666,
+        "remote_system": 78.4397122990305
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node1-node2-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.29249584727408,
+      "received_Gbps": 7.290900320976838,
+      "retransmits": 495,
+      "cpu": {
+        "host_total": 41.7553377584913,
+        "host_user": 0.39567125669181524,
+        "host_system": 41.35964650982026,
+        "remote_total": 43.21022669050655,
+        "remote_user": 1.3714298282138733,
+        "remote_system": 41.8388268537601
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node1-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.88907437868025,
+      "received_Gbps": 8.892126150171384,
+      "retransmits": 928,
+      "cpu": {
+        "host_total": 34.0562434517383,
+        "host_user": 0.7440203361098163,
+        "host_system": 33.31223310154034,
+        "remote_total": 104.93753214356936,
+        "remote_user": 5.480987750332494,
+        "remote_system": 99.45655438929343
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node2-node1-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.563020211236798,
+      "received_Gbps": 6.563180424318418,
+      "retransmits": 347,
+      "cpu": {
+        "host_total": 38.7535747874321,
+        "host_user": 0.41802820483292064,
+        "host_system": 38.335466609725984,
+        "remote_total": 28.73790047835696,
+        "remote_user": 1.1289104269219636,
+        "remote_system": 27.608990051434994
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.760925996986469,
+      "received_Gbps": 8.764287400135402,
+      "retransmits": 557,
+      "cpu": {
+        "host_total": 41.815486874878985,
+        "host_user": 1.0640359870705542,
+        "host_system": 40.751450887808424,
+        "remote_total": 81.93673887819573,
+        "remote_user": 3.9009179241910887,
+        "remote_system": 78.0358509410742
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node1-node3-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.3941204273545615,
+      "received_Gbps": 7.39427076153768,
+      "retransmits": 228,
+      "cpu": {
+        "host_total": 31.54081110895075,
+        "host_user": 0.4071189332896152,
+        "host_system": 31.133702172197335,
+        "remote_total": 37.202154250089,
+        "remote_user": 1.281206738365029,
+        "remote_system": 35.920957509357535
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node1-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.828774580360907,
+      "received_Gbps": 8.83191054508589,
+      "retransmits": 371,
+      "cpu": {
+        "host_total": 36.55160131293787,
+        "host_user": 0.6772052095197884,
+        "host_system": 35.87439610341808,
+        "remote_total": 103.164456419843,
+        "remote_user": 4.780805318228656,
+        "remote_system": 98.3836810934296
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node3-node1-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.5861196786329295,
+      "received_Gbps": 6.586870689091643,
+      "retransmits": 173,
+      "cpu": {
+        "host_total": 46.025906902529535,
+        "host_user": 0.521528807539156,
+        "host_system": 45.50438809132572,
+        "remote_total": 28.67723175998706,
+        "remote_user": 0.9912823383017426,
+        "remote_system": 27.68594942168532
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node3-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.89388841577148,
+      "received_Gbps": 8.897807501884957,
+      "retransmits": 715,
+      "cpu": {
+        "host_total": 42.6713622711442,
+        "host_user": 1.160674345783941,
+        "host_system": 41.51069791034284,
+        "remote_total": 90.3605001416427,
+        "remote_user": 4.338824511602605,
+        "remote_system": 86.02168562599573
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node2-node3-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.276544317932685,
+      "received_Gbps": 7.277628530565204,
+      "retransmits": 72,
+      "cpu": {
+        "host_total": 46.38773117823717,
+        "host_user": 0.5155393020121857,
+        "host_system": 45.87219187622498,
+        "remote_total": 39.53769919984131,
+        "remote_user": 1.0749432914324473,
+        "remote_system": 38.46277590437768
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node2-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.91348757648308,
+      "received_Gbps": 8.91704183538326,
+      "retransmits": 374,
+      "cpu": {
+        "host_total": 41.478430032718556,
+        "host_user": 1.1593759415909741,
+        "host_system": 40.31904410408377,
+        "remote_total": 108.34610101687913,
+        "remote_user": 5.44023789331172,
+        "remote_system": 102.90588311863462
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node3-node2-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.459451375979825,
+      "received_Gbps": 7.461442597625047,
+      "retransmits": 95,
+      "cpu": {
+        "host_total": 46.60182994995706,
+        "host_user": 0.47018214735239416,
+        "host_system": 46.131657798398436,
+        "remote_total": 42.4149055634917,
+        "remote_user": 1.3923326225467063,
+        "remote_system": 41.02253294919929
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "baseline-eth1-node3-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.96137597993556,
+      "received_Gbps": 8.96424754807782,
+      "retransmits": 191,
+      "cpu": {
+        "host_total": 45.12142251716292,
+        "host_user": 1.0483959320528062,
+        "host_system": 44.07303657211602,
+        "remote_total": 112.0846350624775,
+        "remote_user": 6.145481159179494,
+        "remote_system": 105.93916390025792
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "cache-before-eth0-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.058564516237878,
+      "received_Gbps": 7.061438163060383,
+      "retransmits": 3650,
+      "cpu": {
+        "host_total": 33.6434067811013,
+        "host_user": 0.8273296274435422,
+        "host_system": 32.8160971246818,
+        "remote_total": 68.99566426894567,
+        "remote_user": 3.6104467806307223,
+        "remote_system": 65.3852474781544
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "cache-after-eth0-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.6764535991780525,
+      "received_Gbps": 6.675927026953404,
+      "retransmits": 10752,
+      "cpu": {
+        "host_total": 34.19516223590441,
+        "host_user": 0.981030926476635,
+        "host_system": 33.2141213271234,
+        "remote_total": 57.71087638500967,
+        "remote_user": 3.078936617255164,
+        "remote_system": 54.631959760135416
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node1-node2-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 5.345866802189125,
+      "received_Gbps": 5.346568382188898,
+      "retransmits": 1245,
+      "cpu": {
+        "host_total": 27.283204695630182,
+        "host_user": 0.315327720021451,
+        "host_system": 26.96788697141549,
+        "remote_total": 21.42036747321374,
+        "remote_user": 1.010483352369252,
+        "remote_system": 20.409874122988032
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node1-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.995063496776425,
+      "received_Gbps": 7.9982681916820635,
+      "retransmits": 26992,
+      "cpu": {
+        "host_total": 39.13005264772209,
+        "host_user": 0.7162219563962643,
+        "host_system": 38.41384067894218,
+        "remote_total": 83.51963111848947,
+        "remote_user": 4.337982505798762,
+        "remote_system": 79.18170859212375
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node2-node1-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 4.3945993777411,
+      "received_Gbps": 4.394126125414488,
+      "retransmits": 528,
+      "cpu": {
+        "host_total": 64.32884478356036,
+        "host_user": 0.31213987705137625,
+        "host_system": 64.0166849135625,
+        "remote_total": 16.461990207243975,
+        "remote_user": 0.8118171348335108,
+        "remote_system": 15.650163074293111
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.527635876267946,
+      "received_Gbps": 6.531401077319872,
+      "retransmits": 22236,
+      "cpu": {
+        "host_total": 38.26579240380059,
+        "host_user": 0.9720099510146438,
+        "host_system": 37.293792436146674,
+        "remote_total": 37.00724053098094,
+        "remote_user": 2.302998414837576,
+        "remote_system": 34.70428209754
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node1-node3-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 5.30943538347745,
+      "received_Gbps": 5.30957738813596,
+      "retransmits": 1366,
+      "cpu": {
+        "host_total": 22.377409936278838,
+        "host_user": 0.3943086797691707,
+        "host_system": 21.983201220682506,
+        "remote_total": 23.074717223514156,
+        "remote_user": 0.9411418164845947,
+        "remote_system": 22.133555409753193
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node1-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.476351513174627,
+      "received_Gbps": 8.479918383588734,
+      "retransmits": 4819,
+      "cpu": {
+        "host_total": 36.665991092611016,
+        "host_user": 0.773021201471666,
+        "host_system": 35.892969891139344,
+        "remote_total": 85.23130649749214,
+        "remote_user": 4.6478339443476,
+        "remote_system": 80.5834925476121
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node3-node1-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 4.602442267524328,
+      "received_Gbps": 4.602346093624805,
+      "retransmits": 1071,
+      "cpu": {
+        "host_total": 25.37564795586133,
+        "host_user": 0.3261996792684714,
+        "host_system": 25.049458273212,
+        "remote_total": 18.55821374991651,
+        "remote_user": 0.8242286754627588,
+        "remote_system": 17.733995073345874
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node3-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.85111427632004,
+      "received_Gbps": 6.857957230778574,
+      "retransmits": 17566,
+      "cpu": {
+        "host_total": 33.89342600105078,
+        "host_user": 0.9666488474878653,
+        "host_system": 32.92677715356292,
+        "remote_total": 43.55645378323983,
+        "remote_user": 2.545139873324837,
+        "remote_system": 41.011313909915
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node2-node3-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 5.169808695826076,
+      "received_Gbps": 5.169433084729698,
+      "retransmits": 1179,
+      "cpu": {
+        "host_total": 68.59121737039263,
+        "host_user": 0.4444869129739203,
+        "host_system": 68.1467804334602,
+        "remote_total": 23.86314149487556,
+        "remote_user": 0.9851487385545353,
+        "remote_system": 22.877972761623617
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node2-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.03068564329583,
+      "received_Gbps": 8.034302970588552,
+      "retransmits": 17707,
+      "cpu": {
+        "host_total": 40.3889601596287,
+        "host_user": 1.0498750828695023,
+        "host_system": 39.33900519050923,
+        "remote_total": 92.2796474675388,
+        "remote_user": 3.812720204076063,
+        "remote_system": 88.46693726052658
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node3-node2-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 4.823383151022836,
+      "received_Gbps": 4.823180474811894,
+      "retransmits": 1543,
+      "cpu": {
+        "host_total": 79.1502836469334,
+        "host_user": 0.3442745600361437,
+        "host_system": 78.8060190823843,
+        "remote_total": 21.533798404909,
+        "remote_user": 1.08892174392243,
+        "remote_system": 20.444886658799057
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth0-node3-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.464047224511498,
+      "received_Gbps": 8.467776317037346,
+      "retransmits": 11610,
+      "cpu": {
+        "host_total": 49.58710959541943,
+        "host_user": 1.068545329074636,
+        "host_system": 48.51859422248002,
+        "remote_total": 84.81390598607226,
+        "remote_user": 4.672017634683677,
+        "remote_system": 80.14185836314998
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node1-node2-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.1162257372638065,
+      "received_Gbps": 7.117186745701225,
+      "retransmits": 102,
+      "cpu": {
+        "host_total": 51.33254771087081,
+        "host_user": 0.42441206014779953,
+        "host_system": 50.90814564676758,
+        "remote_total": 42.390861725642814,
+        "remote_user": 1.4252434301381773,
+        "remote_system": 40.96561829550463
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node1-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.92440737823884,
+      "received_Gbps": 8.927729778495737,
+      "retransmits": 480,
+      "cpu": {
+        "host_total": 33.980749007039854,
+        "host_user": 0.6578254846953807,
+        "host_system": 33.322933509371325,
+        "remote_total": 111.62335605284142,
+        "remote_user": 5.730222277180264,
+        "remote_system": 105.89315376848174
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node2-node1-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.73834199161199,
+      "received_Gbps": 6.739008408820744,
+      "retransmits": 240,
+      "cpu": {
+        "host_total": 44.177497062068234,
+        "host_user": 0.397655412492018,
+        "host_system": 43.779851645941534,
+        "remote_total": 31.98683882307245,
+        "remote_user": 1.2210180916193476,
+        "remote_system": 30.76583072930856
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.70058416106121,
+      "received_Gbps": 8.70421322812139,
+      "retransmits": 574,
+      "cpu": {
+        "host_total": 39.83999774700977,
+        "host_user": 1.0053169970236762,
+        "host_system": 38.8346807499861,
+        "remote_total": 77.5638475924782,
+        "remote_user": 4.037535585843015,
+        "remote_system": 73.5265119341215
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node1-node3-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.258514917052498,
+      "received_Gbps": 7.259579383488483,
+      "retransmits": 286,
+      "cpu": {
+        "host_total": 29.486794098338564,
+        "host_user": 0.375939060404268,
+        "host_system": 29.11086503471833,
+        "remote_total": 39.39032148759413,
+        "remote_user": 1.068769103820299,
+        "remote_system": 38.32156238217509
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node1-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.854116918530336,
+      "received_Gbps": 8.857069039766898,
+      "retransmits": 517,
+      "cpu": {
+        "host_total": 31.67512113375058,
+        "host_user": 0.9064642988165943,
+        "host_system": 30.76874672825758,
+        "remote_total": 105.63226154647553,
+        "remote_user": 5.528399321166892,
+        "remote_system": 100.10405215623078
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node3-node1-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.560110139270328,
+      "received_Gbps": 6.560021372153012,
+      "retransmits": 322,
+      "cpu": {
+        "host_total": 46.72984007251083,
+        "host_user": 0.43915756840800557,
+        "host_system": 46.29069250063303,
+        "remote_total": 28.42595605675482,
+        "remote_user": 1.3078501500848523,
+        "remote_system": 27.1181259013214
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node3-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.81963501917733,
+      "received_Gbps": 8.8232555285834,
+      "retransmits": 533,
+      "cpu": {
+        "host_total": 42.30066287486278,
+        "host_user": 1.054163694904376,
+        "host_system": 41.2464991799584,
+        "remote_total": 80.73952805261526,
+        "remote_user": 3.944554139516137,
+        "remote_system": 76.79498390961233
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node2-node3-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.367786736147595,
+      "received_Gbps": 7.367970208569511,
+      "retransmits": 354,
+      "cpu": {
+        "host_total": 44.0592843949899,
+        "host_user": 0.527872558824341,
+        "host_system": 43.53141183616557,
+        "remote_total": 40.15271394644804,
+        "remote_user": 1.1017476089642333,
+        "remote_system": 39.0509663374838
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node2-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.91345673526833,
+      "received_Gbps": 8.916717525245506,
+      "retransmits": 279,
+      "cpu": {
+        "host_total": 39.4634408976934,
+        "host_user": 1.1435789509006886,
+        "host_system": 38.31979203733245,
+        "remote_total": 107.54209236193158,
+        "remote_user": 5.386674733146886,
+        "remote_system": 102.1554176287847
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node3-node2-tcp-p1",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.194361096587436,
+      "received_Gbps": 7.199534861307592,
+      "retransmits": 224,
+      "cpu": {
+        "host_total": 45.480900264383216,
+        "host_user": 0.6061951577757744,
+        "host_system": 44.874735094495335,
+        "remote_total": 40.62001334406884,
+        "remote_user": 1.3564703838249252,
+        "remote_system": 39.26353296318904
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "tuned-eth1-node3-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.976726268369744,
+      "received_Gbps": 8.98011280669334,
+      "retransmits": 472,
+      "cpu": {
+        "host_total": 46.29659178324681,
+        "host_user": 1.0641091594327468,
+        "host_system": 45.2324926089801,
+        "remote_total": 110.16911828063614,
+        "remote_user": 5.906444755567986,
+        "remote_system": 104.26275349399224
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "final-bbr-eth0-node1-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.188486633309507,
+      "received_Gbps": 8.1885345609496,
+      "retransmits": 14935,
+      "cpu": {
+        "host_total": 34.01875432801019,
+        "host_user": 0.6911434056154728,
+        "host_system": 33.32762090915028,
+        "remote_total": 96.49061791887873,
+        "remote_user": 4.908044578618334,
+        "remote_system": 91.5826133271807
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "final-bbr-eth0-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.571820107497154,
+      "received_Gbps": 6.57523120542203,
+      "retransmits": 5243,
+      "cpu": {
+        "host_total": 39.772065843517844,
+        "host_user": 0.7144361394625838,
+        "host_system": 39.057629704055266,
+        "remote_total": 37.44501103653228,
+        "remote_user": 2.366513644480999,
+        "remote_system": 35.078517386674726
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "final-bbr-eth0-node1-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.66932665744199,
+      "received_Gbps": 8.672365991294525,
+      "retransmits": 1785,
+      "cpu": {
+        "host_total": 41.55613367469173,
+        "host_user": 0.8224082066639194,
+        "host_system": 40.733725468027814,
+        "remote_total": 78.65227441513277,
+        "remote_user": 4.70778855638261,
+        "remote_system": 73.9444958554982
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "final-bbr-eth0-node3-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.488758933985766,
+      "received_Gbps": 6.488045670799236,
+      "retransmits": 19838,
+      "cpu": {
+        "host_total": 35.598173720274964,
+        "host_user": 0.7916621809937562,
+        "host_system": 34.80650155262538,
+        "remote_total": 38.57154139449886,
+        "remote_user": 2.2994655614004573,
+        "remote_system": 36.27211582102205
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "final-bbr-eth0-node2-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.089497822293447,
+      "received_Gbps": 8.09414290808026,
+      "retransmits": 32371,
+      "cpu": {
+        "host_total": 60.65287319051348,
+        "host_user": 1.2103791796651666,
+        "host_system": 59.44252396035046,
+        "remote_total": 76.5709633617383,
+        "remote_user": 3.730144966793124,
+        "remote_system": 72.84103829148386
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "final-bbr-eth0-node3-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.471316009447847,
+      "received_Gbps": 8.470219176959256,
+      "retransmits": 11442,
+      "cpu": {
+        "host_total": 44.168694060309036,
+        "host_user": 1.0916676118074982,
+        "host_system": 43.077026448501535,
+        "remote_total": 85.0831308425602,
+        "remote_user": 5.198201713997594,
+        "remote_system": 79.8849191323092
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr"
+    },
+    {
+      "label": "cubic-trial-eth0-node1-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.571846972373956,
+      "received_Gbps": 8.57153732924494,
+      "retransmits": 6181,
+      "cpu": {
+        "host_total": 37.651299262344615,
+        "host_user": 0.6750970139190627,
+        "host_system": 36.97619225986246,
+        "remote_total": 74.7411492641864,
+        "remote_user": 4.83300640834279,
+        "remote_system": 69.9084226917758
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth0-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.762343752019397,
+      "received_Gbps": 6.763903690139226,
+      "retransmits": 5673,
+      "cpu": {
+        "host_total": 36.951768817546835,
+        "host_user": 0.7616653441819025,
+        "host_system": 36.19011345940644,
+        "remote_total": 44.1585653602648,
+        "remote_user": 2.4711232945485913,
+        "remote_system": 41.68747204464702
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth0-node1-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.28018068860814,
+      "received_Gbps": 8.279946055493497,
+      "retransmits": 3737,
+      "cpu": {
+        "host_total": 35.67043397999225,
+        "host_user": 0.6904038735810398,
+        "host_system": 34.98000014183234,
+        "remote_total": 74.57708838191667,
+        "remote_user": 3.598789119587034,
+        "remote_system": 70.978329246492
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth0-node3-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.886740588733035,
+      "received_Gbps": 6.886665854922298,
+      "retransmits": 7697,
+      "cpu": {
+        "host_total": 36.1379145590328,
+        "host_user": 0.83660847186923,
+        "host_system": 35.301326061580326,
+        "remote_total": 42.648873135413986,
+        "remote_user": 2.490454262790129,
+        "remote_system": 40.15882851803479
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth0-node2-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.23584412605645,
+      "received_Gbps": 8.233518564589346,
+      "retransmits": 3410,
+      "cpu": {
+        "host_total": 37.868974105719076,
+        "host_user": 0.9273314274433184,
+        "host_system": 36.941652664076955,
+        "remote_total": 84.01736778261937,
+        "remote_user": 4.293079033741747,
+        "remote_system": 79.72430873113937
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth0-node3-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.34536572622897,
+      "received_Gbps": 8.343649351053184,
+      "retransmits": 2847,
+      "cpu": {
+        "host_total": 38.8166930249083,
+        "host_user": 0.7388029730259228,
+        "host_system": 38.07788006643914,
+        "remote_total": 77.3256003902973,
+        "remote_user": 4.58300566272756,
+        "remote_system": 72.7426147100231
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth1-node1-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.935173255738091,
+      "received_Gbps": 8.93323301791386,
+      "retransmits": 838,
+      "cpu": {
+        "host_total": 33.823989621453336,
+        "host_user": 0.8646424918101036,
+        "host_system": 32.95935711823527,
+        "remote_total": 111.80382708528145,
+        "remote_user": 5.510547936808026,
+        "remote_system": 106.29322922875433
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth1-node2-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.786312844981618,
+      "received_Gbps": 8.79064525330402,
+      "retransmits": 906,
+      "cpu": {
+        "host_total": 44.66116239667259,
+        "host_user": 1.1481822245890774,
+        "host_system": 43.5130101350852,
+        "remote_total": 93.0120708610706,
+        "remote_user": 4.21835504695533,
+        "remote_system": 88.79372580068035
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth1-node1-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.922586663513894,
+      "received_Gbps": 8.917598248889654,
+      "retransmits": 336,
+      "cpu": {
+        "host_total": 35.9312500536878,
+        "host_user": 0.952386564925877,
+        "host_system": 34.9790832341649,
+        "remote_total": 113.55218804809,
+        "remote_user": 5.3166999438260785,
+        "remote_system": 108.23545816080913
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth1-node3-node1-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.793288474233718,
+      "received_Gbps": 8.7983018900043,
+      "retransmits": 780,
+      "cpu": {
+        "host_total": 43.0491184445077,
+        "host_user": 1.123757308846513,
+        "host_system": 41.92536113566118,
+        "remote_total": 92.885040869861,
+        "remote_user": 4.188923561585227,
+        "remote_system": 88.69613728230554
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth1-node2-node3-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.843156270472596,
+      "received_Gbps": 8.84704580424472,
+      "retransmits": 439,
+      "cpu": {
+        "host_total": 41.48520084144324,
+        "host_user": 0.9231747624552694,
+        "host_system": 40.56203606573356,
+        "remote_total": 116.49310808967324,
+        "remote_user": 5.13505292043589,
+        "remote_system": 111.35909378434793
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "cubic-trial-eth1-node3-node2-tcp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.936948027712392,
+      "received_Gbps": 8.93521736493293,
+      "retransmits": 700,
+      "cpu": {
+        "host_total": 41.131510764006414,
+        "host_user": 1.0127075568111852,
+        "host_system": 40.11883316866178,
+        "remote_total": 118.23795447721146,
+        "remote_user": 5.804117606659596,
+        "remote_system": 112.43387680002044
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "cubic"
+    },
+    {
+      "label": "final-bidir-eth0-node1-node2-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.998959454150111,
+      "received_Gbps": 7.999059894616488,
+      "retransmits": 33016,
+      "cpu": {
+        "host_total": 94.9630387286699,
+        "host_user": 3.190942381509739,
+        "host_system": 91.77209634716017,
+        "remote_total": 155.07869530576016,
+        "remote_user": 5.512462187396136,
+        "remote_system": 149.56634553041565
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 6.16631305650484,
+      "exclude_from_duplex_comparison": "reused server retained CUBIC; mixed CUBIC/BBR; rerun with explicit BBR"
+    },
+    {
+      "label": "final-bidir-eth0-node1-node3-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.890190084356372,
+      "received_Gbps": 7.894148423992862,
+      "retransmits": 31942,
+      "cpu": {
+        "host_total": 89.17213985104495,
+        "host_user": 3.097738620387262,
+        "host_system": 86.0744012306577,
+        "remote_total": 177.24531580189594,
+        "remote_user": 5.01992203113382,
+        "remote_system": 172.22544374920267
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 4.689913124465285,
+      "exclude_from_duplex_comparison": "reused server retained CUBIC; mixed CUBIC/BBR; rerun with explicit BBR"
+    },
+    {
+      "label": "final-bidir-eth0-node2-node3-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.882411848075538,
+      "received_Gbps": 7.885580734797363,
+      "retransmits": 115106,
+      "cpu": {
+        "host_total": 106.79635231238007,
+        "host_user": 3.930198102531491,
+        "host_system": 102.86615420984859,
+        "remote_total": 184.13142192905886,
+        "remote_user": 3.80695497931771,
+        "remote_system": 180.324516908469
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 4.573029114672216,
+      "exclude_from_duplex_comparison": "reused server retained CUBIC; mixed CUBIC/BBR; rerun with explicit BBR"
+    },
+    {
+      "label": "final-bidir-eth1-node1-node2-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 0.641431770391664,
+      "received_Gbps": 0.6416082104605386,
+      "retransmits": 0,
+      "cpu": {
+        "host_total": 103.89355066720074,
+        "host_user": 4.46157291869833,
+        "host_system": 99.4319777485024,
+        "remote_total": 56.22387241679473,
+        "remote_user": 1.9937499984379996,
+        "remote_system": 54.230197394383154
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 8.87121199708388,
+      "exclude_from_duplex_comparison": "reused server retained CUBIC; mixed CUBIC/BBR; rerun with explicit BBR"
+    },
+    {
+      "label": "final-bidir-eth1-node1-node3-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 0.6347981869272595,
+      "received_Gbps": 0.6352582308080275,
+      "retransmits": 0,
+      "cpu": {
+        "host_total": 105.07485070264036,
+        "host_user": 4.63636141433933,
+        "host_system": 100.43843940612274,
+        "remote_total": 59.09055184079172,
+        "remote_user": 1.9057606905166544,
+        "remote_system": 57.18484113121358
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 8.909164731461429,
+      "exclude_from_duplex_comparison": "reused server retained CUBIC; mixed CUBIC/BBR; rerun with explicit BBR"
+    },
+    {
+      "label": "final-bidir-eth1-node2-node3-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 0.6574431189176839,
+      "received_Gbps": 0.657850192685369,
+      "retransmits": 0,
+      "cpu": {
+        "host_total": 131.047816163077,
+        "host_user": 5.804767692743205,
+        "host_system": 125.24306093547655,
+        "remote_total": 62.278280691110034,
+        "remote_user": 1.9517621346825949,
+        "remote_system": 60.3265685340125
+      },
+      "udp": null,
+      "sender_congestion": "cubic",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 8.98264218227821,
+      "exclude_from_duplex_comparison": "reused server retained CUBIC; mixed CUBIC/BBR; rerun with explicit BBR"
+    },
+    {
+      "label": "final-udp10g-eth0-node1-node2-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.08270455459761,
+      "received_Gbps": 1.3552805478793704,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 795.1856047501227,
+        "host_user": 49.60237456176396,
+        "host_system": 745.5832301883587,
+        "remote_total": 188.24489869377766,
+        "remote_user": 20.737692173864357,
+        "remote_system": 167.50726901141445
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.000883,
+        "seconds": 6.000883,
+        "bytes": 5312536600,
+        "bits_per_second": 7082704554.59761,
+        "jitter_ms": 0.08024882557619273,
+        "lost_packets": 3088324,
+        "packets": 3794661,
+        "lost_percent": 81.3860315849031,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth0-node2-node1-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 10.125782357284756,
+      "received_Gbps": 1.2382488613633316,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 797.2706991227136,
+        "host_user": 92.7883116067257,
+        "host_system": 704.482387515988,
+        "remote_total": 156.73767896897274,
+        "remote_user": 17.490314061600593,
+        "remote_system": 139.2473899017297
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.001695,
+        "seconds": 6.001695,
+        "bytes": 7595277200,
+        "bits_per_second": 10125782357.284756,
+        "jitter_ms": 0.10524151148475942,
+        "lost_packets": 4778366,
+        "packets": 5425190,
+        "lost_percent": 88.0773945244314,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth0-node1-node3-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.99864780057625,
+      "received_Gbps": 1.4352823438981688,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 786.3140720723893,
+        "host_user": 199.52622771070176,
+        "host_system": 586.7877819131218,
+        "remote_total": 191.3881926378577,
+        "remote_user": 21.234808008014415,
+        "remote_system": 170.1533846298433
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.001387,
+        "seconds": 6.001387,
+        "bytes": 7500098200,
+        "bits_per_second": 9998647800.57625,
+        "jitter_ms": 0.0794893990795735,
+        "lost_packets": 4604299,
+        "packets": 5357206,
+        "lost_percent": 85.94590165097254,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth0-node3-node1-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.96104343142666,
+      "received_Gbps": 1.2043973593448554,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 795.7000714371353,
+        "host_user": 100.3195063344257,
+        "host_system": 695.3805651027096,
+        "remote_total": 148.15121244509677,
+        "remote_user": 16.58497213970839,
+        "remote_system": 131.56626530116412
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.001238,
+        "seconds": 6.001238,
+        "bytes": 7471798600,
+        "bits_per_second": 9961043431.42666,
+        "jitter_ms": 0.08925898408626465,
+        "lost_packets": 4708731,
+        "packets": 5336992,
+        "lost_percent": 88.2281817173419,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth0-node2-node3-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 10.024221957956934,
+      "received_Gbps": 1.207943260709521,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 801.424235710623,
+        "host_user": 109.8721007807682,
+        "host_system": 691.5521973733278,
+        "remote_total": 179.3018003971665,
+        "remote_user": 20.629972157853235,
+        "remote_system": 158.6721656895815
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.001062,
+        "seconds": 6.001062,
+        "bytes": 7519048600,
+        "bits_per_second": 10024221957.956934,
+        "jitter_ms": 0.16145578819688008,
+        "lost_packets": 4735787,
+        "packets": 5370741,
+        "lost_percent": 88.1775345338753,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth0-node3-node2-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 10.280068479921395,
+      "received_Gbps": 1.269443533041866,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 790.4820093958932,
+        "host_user": 114.63747734791492,
+        "host_system": 675.84451955975,
+        "remote_total": 182.59726265168416,
+        "remote_user": 21.065328941851188,
+        "remote_system": 161.5318962156774
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.001129,
+        "seconds": 6.001129,
+        "bytes": 7710810800,
+        "bits_per_second": 10280068479.921394,
+        "jitter_ms": 0.16063163854702847,
+        "lost_packets": 4852513,
+        "packets": 5507714,
+        "lost_percent": 88.1039393113005,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth1-node1-node2-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.999112744449404,
+      "received_Gbps": 5.906517004969315,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 793.5098918025932,
+        "host_user": 736.6712541041494,
+        "host_system": 56.838637698443726,
+        "remote_total": 208.87737422357148,
+        "remote_user": 20.121894285885478,
+        "remote_system": 188.75549242045977
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.01089,
+        "seconds": 6.01089,
+        "bytes": 7499992000,
+        "bits_per_second": 9999112744.449404,
+        "jitter_ms": 0.07967935984907842,
+        "lost_packets": 383670,
+        "packets": 937499,
+        "lost_percent": 40.92484365316656,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth1-node2-node1-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.99904608998551,
+      "received_Gbps": 4.344182256451567,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 790.1128899525606,
+        "host_user": 724.942588326924,
+        "host_system": 65.1703141152595,
+        "remote_total": 119.04772366684932,
+        "remote_user": 11.045898655708278,
+        "remote_system": 108.00188742602276
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.010827,
+        "seconds": 6.010827,
+        "bytes": 7499992000,
+        "bits_per_second": 9999046089.98551,
+        "jitter_ms": 0.116255902888657,
+        "lost_packets": 532196,
+        "packets": 937499,
+        "lost_percent": 56.767633885476144,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth1-node1-node3-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.99935934977669,
+      "received_Gbps": 5.24723199637382,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 794.7559463820045,
+        "host_user": 734.8326848521218,
+        "host_system": 59.923274021494564,
+        "remote_total": 159.52225643345878,
+        "remote_user": 17.059397358687008,
+        "remote_system": 142.4628715732954
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.000805,
+        "seconds": 6.000805,
+        "bytes": 7499712000,
+        "bits_per_second": 9999359349.77669,
+        "jitter_ms": 0.12848310064952315,
+        "lost_packets": 446474,
+        "packets": 937464,
+        "lost_percent": 47.62572216106432,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth1-node3-node1-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.99889311898971,
+      "received_Gbps": 4.077412806499412,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 799.7412883249377,
+        "host_user": 686.2318750070258,
+        "host_system": 113.50942580821636,
+        "remote_total": 109.0986320494202,
+        "remote_user": 10.90040462267619,
+        "remote_system": 98.19825238342547
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.013837,
+        "seconds": 6.013837,
+        "bytes": 7499976000,
+        "bits_per_second": 9998893118.98971,
+        "jitter_ms": 0.1570257021040019,
+        "lost_packets": 557429,
+        "packets": 937497,
+        "lost_percent": 59.459283603040866,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth1-node2-node3-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.998694509356987,
+      "received_Gbps": 5.13875440393602,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 801.1465858954634,
+        "host_user": 746.972291350842,
+        "host_system": 54.17424458717287,
+        "remote_total": 170.948300213065,
+        "remote_user": 18.296239481930687,
+        "remote_system": 152.65207321882454
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.007694,
+        "seconds": 6.007694,
+        "bytes": 7500032000,
+        "bits_per_second": 9998694509.356987,
+        "jitter_ms": 0.151100426711181,
+        "lost_packets": 457810,
+        "packets": 937504,
+        "lost_percent": 48.83285831313786,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "final-udp10g-eth1-node3-node2-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.999230390925748,
+      "received_Gbps": 5.7983977303867045,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 785.8846275581744,
+        "host_user": 662.0615008589805,
+        "host_system": 123.82312669919393,
+        "remote_total": 202.89681859592469,
+        "remote_user": 20.58420777921423,
+        "remote_system": 182.31275708928308
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.2037,
+        "seconds": 6.2037,
+        "bytes": 7499984000,
+        "bits_per_second": 9999230390.925747,
+        "jitter_ms": 0.06751113291418236,
+        "lost_packets": 377033,
+        "packets": 937498,
+        "lost_percent": 40.21693912947014,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "fq1000-trial-eth0-node1-node2-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 9.928643402326433,
+      "received_Gbps": 1.3066519267361483,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 798.5405126766482,
+        "host_user": 125.70184305739912,
+        "host_system": 672.8386571287715,
+        "remote_total": 194.88486063194512,
+        "remote_user": 22.226877473319078,
+        "remote_system": 172.6580206449904
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.002742,
+        "seconds": 6.002742,
+        "bytes": 7447227200,
+        "bits_per_second": 9928643402.326433,
+        "jitter_ms": 0.0987034736498313,
+        "lost_packets": 4645015,
+        "packets": 5319447,
+        "lost_percent": 87.3213888586539,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "fq1000-trial-eth1-node1-node2-udp-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 5.45010473782885,
+      "received_Gbps": 5.453926506870404,
+      "retransmits": null,
+      "cpu": {
+        "host_total": 93.5798799385767,
+        "host_user": 9.569081529487363,
+        "host_system": 84.01082338806017,
+        "remote_total": 189.1454660878215,
+        "remote_user": 21.305925664884644,
+        "remote_system": 167.839552919594
+      },
+      "udp": {
+        "start": 0,
+        "end": 6.001976,
+        "seconds": 6.001976,
+        "bytes": 4088704000,
+        "bits_per_second": 5450104737.82885,
+        "jitter_ms": 0.0858162584369708,
+        "lost_packets": 5,
+        "packets": 511087,
+        "lost_percent": 0.000978307020135515,
+        "sender": true
+      },
+      "sender_congestion": null,
+      "receiver_congestion": null
+    },
+    {
+      "label": "pinned-fq1000-eth0-node1-node2-udp-p8",
+      "exit": 0,
+      "sent_Gbps": 10.067766470006422,
+      "received_Gbps": 2.977099279456156,
+      "retransmits": null,
+      "udp": {
+        "lost_packets": 3799759,
+        "packets": 5394977,
+        "lost_percent": 70.43142167241862
+      }
+    },
+    {
+      "label": "pinned-fq1000-eth1-node1-node2-udp-p8",
+      "exit": 0,
+      "sent_Gbps": 9.998445015784533,
+      "received_Gbps": 5.733506707747635,
+      "retransmits": null,
+      "udp": {
+        "lost_packets": 394580,
+        "packets": 939107,
+        "lost_percent": 42.016511430539865
+      }
+    },
+    {
+      "label": "pinned-fq100-eth0-node1-node2-udp-p8",
+      "exit": 0,
+      "sent_Gbps": 9.847260965793255,
+      "received_Gbps": 3.1876470346360346,
+      "retransmits": null,
+      "udp": {
+        "lost_packets": 3568577,
+        "packets": 5276720,
+        "lost_percent": 67.62869737261026
+      }
+    },
+    {
+      "label": "pinned-fq100-eth1-node1-node2-udp-p8",
+      "exit": 0,
+      "sent_Gbps": 9.99928838794054,
+      "received_Gbps": 5.837027022134155,
+      "retransmits": null,
+      "udp": {
+        "lost_packets": 391426,
+        "packets": 939294,
+        "lost_percent": 41.67236243391313
+      }
+    },
+    {
+      "label": "pinned-low1g-eth0-node1-node2-udp-p8",
+      "exit": 0,
+      "sent_Gbps": 0.9999311470292485,
+      "received_Gbps": 0.9993382700920916,
+      "retransmits": null,
+      "udp": {
+        "lost_packets": 235,
+        "packets": 535692,
+        "lost_percent": 0.043868491595917054
+      }
+    },
+    {
+      "label": "pinned-low4g-eth1-node1-node2-udp-p8",
+      "exit": 0,
+      "sent_Gbps": 3.999688941821573,
+      "received_Gbps": 3.9991499981080993,
+      "retransmits": null,
+      "udp": {
+        "lost_packets": 0,
+        "packets": 374988,
+        "lost_percent": 0.0
+      }
+    },
+    {
+      "label": "verified-bidir-eth0-node1-node2-bidir-p8",
+      "exit": 1,
+      "error": "unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Connection timed out",
+      "sent_Gbps": 0.0,
+      "received_Gbps": 0.0,
+      "retransmits": null,
+      "cpu": null,
+      "udp": null,
+      "sender_congestion": null,
+      "receiver_congestion": null,
+      "exclude_from_capacity_comparison": "listener setup attempt failed; retried under verified-bbr-bidir"
+    },
+    {
+      "label": "verified-bidir-eth0-node1-node3-bidir-p8",
+      "exit": 1,
+      "error": "unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Connection timed out",
+      "sent_Gbps": 0.0,
+      "received_Gbps": 0.0,
+      "retransmits": null,
+      "cpu": null,
+      "udp": null,
+      "sender_congestion": null,
+      "receiver_congestion": null,
+      "exclude_from_capacity_comparison": "listener setup attempt failed; retried under verified-bbr-bidir"
+    },
+    {
+      "label": "verified-bidir-eth0-node2-node3-bidir-p8",
+      "exit": 1,
+      "error": "unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Connection timed out",
+      "sent_Gbps": 0.0,
+      "received_Gbps": 0.0,
+      "retransmits": null,
+      "cpu": null,
+      "udp": null,
+      "sender_congestion": null,
+      "receiver_congestion": null,
+      "exclude_from_capacity_comparison": "listener setup attempt failed; retried under verified-bbr-bidir"
+    },
+    {
+      "label": "verified-bidir-eth1-node1-node2-bidir-p8",
+      "exit": 1,
+      "error": "unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: No route to host",
+      "sent_Gbps": 0.0,
+      "received_Gbps": 0.0,
+      "retransmits": null,
+      "cpu": null,
+      "udp": null,
+      "sender_congestion": null,
+      "receiver_congestion": null,
+      "exclude_from_capacity_comparison": "listener setup attempt failed; retried under verified-bbr-bidir"
+    },
+    {
+      "label": "verified-bidir-eth1-node1-node3-bidir-p8",
+      "exit": 1,
+      "error": "unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: No route to host",
+      "sent_Gbps": 0.0,
+      "received_Gbps": 0.0,
+      "retransmits": null,
+      "cpu": null,
+      "udp": null,
+      "sender_congestion": null,
+      "receiver_congestion": null,
+      "exclude_from_capacity_comparison": "listener setup attempt failed; retried under verified-bbr-bidir"
+    },
+    {
+      "label": "verified-bidir-eth1-node2-node3-bidir-p8",
+      "exit": 1,
+      "error": "unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: No route to host",
+      "sent_Gbps": 0.0,
+      "received_Gbps": 0.0,
+      "retransmits": null,
+      "cpu": null,
+      "udp": null,
+      "sender_congestion": null,
+      "receiver_congestion": null,
+      "exclude_from_capacity_comparison": "listener setup attempt failed; retried under verified-bbr-bidir"
+    },
+    {
+      "label": "verified-bbr-bidir-eth0-node1-node2-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 6.53840256458578,
+      "received_Gbps": 6.538735762628473,
+      "retransmits": 7928,
+      "cpu": {
+        "host_total": 103.3588780657792,
+        "host_user": 3.71276035162394,
+        "host_system": 99.64609278760133,
+        "remote_total": 126.74309052682506,
+        "remote_user": 5.523505066476337,
+        "remote_system": 121.22024771216986
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 6.63709545574734
+    },
+    {
+      "label": "verified-bbr-bidir-eth0-node1-node3-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.398838703786825,
+      "received_Gbps": 7.397156064765193,
+      "retransmits": 79690,
+      "cpu": {
+        "host_total": 77.59161372841665,
+        "host_user": 2.65410419853424,
+        "host_system": 74.93753446497948,
+        "remote_total": 183.3115038857,
+        "remote_user": 4.046185147863484,
+        "remote_system": 179.26545616091394
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 5.161956192171257
+    },
+    {
+      "label": "verified-bbr-bidir-eth0-node2-node3-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 7.382092507715198,
+      "received_Gbps": 7.3877238774437135,
+      "retransmits": 76382,
+      "cpu": {
+        "host_total": 100.12376371810088,
+        "host_user": 3.927152010035691,
+        "host_system": 96.1966241704273,
+        "remote_total": 180.86917626521034,
+        "remote_user": 4.228855162104158,
+        "remote_system": 176.64037106624588
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 4.28520119098001
+    },
+    {
+      "label": "verified-bbr-bidir-eth1-node1-node2-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.620081730684326,
+      "received_Gbps": 8.61962491683738,
+      "retransmits": 1349,
+      "cpu": {
+        "host_total": 143.1148946358063,
+        "host_user": 5.13269734705062,
+        "host_system": 137.98219728875569,
+        "remote_total": 170.68657212386506,
+        "remote_user": 6.7094282958809925,
+        "remote_system": 163.97719379775236
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 8.580324918736334
+    },
+    {
+      "label": "verified-bbr-bidir-eth1-node1-node3-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.342025300485545,
+      "received_Gbps": 8.34387174477909,
+      "retransmits": 1996,
+      "cpu": {
+        "host_total": 151.46457188113754,
+        "host_user": 4.97410569385469,
+        "host_system": 146.49046618728286,
+        "remote_total": 205.2685062709695,
+        "remote_user": 5.97388181774234,
+        "remote_system": 199.29466192802064
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 7.770280762449553
+    },
+    {
+      "label": "verified-bbr-bidir-eth1-node2-node3-bidir-p8",
+      "exit": 0,
+      "error": null,
+      "sent_Gbps": 8.687950499135056,
+      "received_Gbps": 8.686877484740195,
+      "retransmits": 1089,
+      "cpu": {
+        "host_total": 145.9719853668328,
+        "host_user": 5.4895184663308445,
+        "host_system": 140.48245444080442,
+        "remote_total": 176.99617822270181,
+        "remote_user": 6.140524541650903,
+        "remote_system": 170.85567866243665
+      },
+      "udp": null,
+      "sender_congestion": "bbr",
+      "receiver_congestion": "bbr",
+      "reverse_received_Gbps": 7.033290260089889
+    }
+  ],
+  "completed_commands": 101,
+  "failed_setup_attempts": 6,
+  "drops": {
+    "baseline": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 24
+    },
+    "final-udp10g": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 36267123,
+      "softnet_drops": 0,
+      "time_squeeze": 44
+    },
+    "final-bbr": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 18
+    },
+    "cubic-trial": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 5
+    },
+    "verified-bbr-bidir": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 14
+    },
+    "tuned": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 1
+    },
+    "final-bidir": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 21
+    },
+    "pinned-fq1000": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 659949,
+      "softnet_drops": 0,
+      "time_squeeze": 0
+    },
+    "pinned-fq100": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 109843,
+      "softnet_drops": 0,
+      "time_squeeze": 0
+    },
+    "probe": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 2
+    },
+    "fq1000-trial": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 6127244,
+      "softnet_drops": 0,
+      "time_squeeze": 14
+    },
+    "pinned-low1g": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 0
+    },
+    "verified-bidir": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 0
+    },
+    "cache-after": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 0
+    },
+    "cache-before": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 0
+    },
+    "pinned-low4g": {
+      "nic_rx_drops": 0,
+      "nic_tx_drops": 0,
+      "qdisc_drops": 0,
+      "softnet_drops": 0,
+      "time_squeeze": 0
+    }
+  },
+  "irq": {
+    "baseline": {
+      "total": 15710757,
+      "outside_paired_cpu": 5157875
+    },
+    "final-udp10g": {
+      "total": 4436666,
+      "outside_paired_cpu": 0
+    },
+    "final-bbr": {
+      "total": 4186794,
+      "outside_paired_cpu": 0
+    },
+    "cubic-trial": {
+      "total": 10682565,
+      "outside_paired_cpu": 0
+    },
+    "verified-bbr-bidir": {
+      "total": 5250716,
+      "outside_paired_cpu": 0
+    },
+    "tuned": {
+      "total": 15393936,
+      "outside_paired_cpu": 0
+    },
+    "final-bidir": {
+      "total": 4857102,
+      "outside_paired_cpu": 0
+    },
+    "pinned-fq1000": {
+      "total": 1923122,
+      "outside_paired_cpu": 0
+    },
+    "pinned-fq100": {
+      "total": 2097385,
+      "outside_paired_cpu": 0
+    },
+    "probe": {
+      "total": 461545,
+      "outside_paired_cpu": 391380
+    },
+    "fq1000-trial": {
+      "total": 772241,
+      "outside_paired_cpu": 0
+    },
+    "pinned-low1g": {
+      "total": 370294,
+      "outside_paired_cpu": 0
+    },
+    "verified-bidir": {
+      "total": 6850,
+      "outside_paired_cpu": 0
+    },
+    "cache-after": {
+      "total": 593275,
+      "outside_paired_cpu": 0
+    },
+    "cache-before": {
+      "total": 599945,
+      "outside_paired_cpu": 505757
+    },
+    "pinned-low4g": {
+      "total": 325767,
+      "outside_paired_cpu": 0
+    }
+  },
+  "groups": {
+    "probe:eth0:tcp:p8": {
+      "count": 1,
+      "min_Gbps": 8.216498956824234,
+      "mean_Gbps": 8.216498956824234,
+      "max_Gbps": 8.216498956824234
+    },
+    "baseline:eth0:tcp:p1": {
+      "count": 6,
+      "min_Gbps": 4.21022069438381,
+      "mean_Gbps": 4.904382451221818,
+      "max_Gbps": 5.487888110657482
+    },
+    "baseline:eth0:tcp:p8": {
+      "count": 6,
+      "min_Gbps": 6.639726535446635,
+      "mean_Gbps": 7.814139628630298,
+      "max_Gbps": 8.603067131719246
+    },
+    "baseline:eth1:tcp:p1": {
+      "count": 6,
+      "min_Gbps": 6.563180424318418,
+      "mean_Gbps": 7.095715554019138,
+      "max_Gbps": 7.461442597625047
+    },
+    "baseline:eth1:tcp:p8": {
+      "count": 6,
+      "min_Gbps": 8.764287400135402,
+      "mean_Gbps": 8.877903496789786,
+      "max_Gbps": 8.96424754807782
+    },
+    "cache-before:eth0:tcp:p8": {
+      "count": 1,
+      "min_Gbps": 7.061438163060383,
+      "mean_Gbps": 7.061438163060383,
+      "max_Gbps": 7.061438163060383
+    },
+    "cache-after:eth0:tcp:p8": {
+      "count": 1,
+      "min_Gbps": 6.675927026953404,
+      "mean_Gbps": 6.675927026953404,
+      "max_Gbps": 6.675927026953404
+    },
+    "tuned:eth0:tcp:p1": {
+      "count": 6,
+      "min_Gbps": 4.394126125414488,
+      "mean_Gbps": 4.940871924817624,
+      "max_Gbps": 5.346568382188898
+    },
+    "tuned:eth0:tcp:p8": {
+      "count": 6,
+      "min_Gbps": 6.531401077319872,
+      "mean_Gbps": 7.728270695165857,
+      "max_Gbps": 8.479918383588734
+    },
+    "tuned:eth1:tcp:p1": {
+      "count": 6,
+      "min_Gbps": 6.560021372153012,
+      "mean_Gbps": 7.040550163340095,
+      "max_Gbps": 7.367970208569511
+    },
+    "tuned:eth1:tcp:p8": {
+      "count": 6,
+      "min_Gbps": 8.70421322812139,
+      "mean_Gbps": 8.868182984484378,
+      "max_Gbps": 8.98011280669334
+    },
+    "final-bbr:eth0:tcp:p8": {
+      "count": 6,
+      "min_Gbps": 6.488045670799236,
+      "mean_Gbps": 7.7480899189174846,
+      "max_Gbps": 8.672365991294525
+    },
+    "cubic-trial:eth0:tcp:p8": {
+      "count": 6,
+      "min_Gbps": 6.763903690139226,
+      "mean_Gbps": 7.846536807573749,
+      "max_Gbps": 8.57153732924494
+    },
+    "cubic-trial:eth1:tcp:p8": {
+      "count": 6,
+      "min_Gbps": 8.79064525330402,
+      "mean_Gbps": 8.870340263214914,
+      "max_Gbps": 8.93521736493293
+    },
+    "final-bidir:eth0:bidir:p8": {
+      "count": 3,
+      "min_Gbps": 7.885580734797363,
+      "mean_Gbps": 7.9262630178022375,
+      "max_Gbps": 7.999059894616488
+    },
+    "final-bidir:eth1:bidir:p8": {
+      "count": 3,
+      "min_Gbps": 0.6352582308080275,
+      "mean_Gbps": 0.6449055446513117,
+      "max_Gbps": 0.657850192685369
+    },
+    "final-udp10g:eth0:udp:p8": {
+      "count": 6,
+      "min_Gbps": 1.2043973593448554,
+      "mean_Gbps": 1.2850993177061856,
+      "max_Gbps": 1.4352823438981688
+    },
+    "final-udp10g:eth1:udp:p8": {
+      "count": 6,
+      "min_Gbps": 4.077412806499412,
+      "mean_Gbps": 5.085416033102806,
+      "max_Gbps": 5.906517004969315
+    },
+    "fq1000-trial:eth0:udp:p8": {
+      "count": 1,
+      "min_Gbps": 1.3066519267361483,
+      "mean_Gbps": 1.3066519267361483,
+      "max_Gbps": 1.3066519267361483
+    },
+    "fq1000-trial:eth1:udp:p8": {
+      "count": 1,
+      "min_Gbps": 5.453926506870404,
+      "mean_Gbps": 5.453926506870404,
+      "max_Gbps": 5.453926506870404
+    },
+    "pinned-fq1000:eth0:udp:p8": {
+      "count": 1,
+      "min_Gbps": 2.977099279456156,
+      "mean_Gbps": 2.977099279456156,
+      "max_Gbps": 2.977099279456156
+    },
+    "pinned-fq1000:eth1:udp:p8": {
+      "count": 1,
+      "min_Gbps": 5.733506707747635,
+      "mean_Gbps": 5.733506707747635,
+      "max_Gbps": 5.733506707747635
+    },
+    "pinned-fq100:eth0:udp:p8": {
+      "count": 1,
+      "min_Gbps": 3.1876470346360346,
+      "mean_Gbps": 3.1876470346360346,
+      "max_Gbps": 3.1876470346360346
+    },
+    "pinned-fq100:eth1:udp:p8": {
+      "count": 1,
+      "min_Gbps": 5.837027022134155,
+      "mean_Gbps": 5.837027022134155,
+      "max_Gbps": 5.837027022134155
+    },
+    "pinned-low1g:eth0:udp:p8": {
+      "count": 1,
+      "min_Gbps": 0.9993382700920916,
+      "mean_Gbps": 0.9993382700920916,
+      "max_Gbps": 0.9993382700920916
+    },
+    "pinned-low4g:eth1:udp:p8": {
+      "count": 1,
+      "min_Gbps": 3.9991499981080993,
+      "mean_Gbps": 3.9991499981080993,
+      "max_Gbps": 3.9991499981080993
+    },
+    "verified-bidir:eth0:bidir:p8": {
+      "count": 3,
+      "min_Gbps": 0.0,
+      "mean_Gbps": 0.0,
+      "max_Gbps": 0.0
+    },
+    "verified-bidir:eth1:bidir:p8": {
+      "count": 3,
+      "min_Gbps": 0.0,
+      "mean_Gbps": 0.0,
+      "max_Gbps": 0.0
+    },
+    "verified-bbr-bidir:eth0:bidir:p8": {
+      "count": 3,
+      "min_Gbps": 6.538735762628473,
+      "mean_Gbps": 7.10787190161246,
+      "max_Gbps": 7.397156064765193
+    },
+    "verified-bbr-bidir:eth1:bidir:p8": {
+      "count": 3,
+      "min_Gbps": 8.34387174477909,
+      "mean_Gbps": 8.550124715452222,
+      "max_Gbps": 8.686877484740195
+    }
+  }
+}

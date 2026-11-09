@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+[Unit]
+Description=Pin virtio IRQs and set XPS/RPS
+After=network-online.target NetworkManager-wait-online.service
+Wants=network-online.target NetworkManager-wait-online.service
+Before=k3s.service k3s-agent.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/fleet-irq-affinity.sh
+
+[Install]
+WantedBy=multi-user.target
