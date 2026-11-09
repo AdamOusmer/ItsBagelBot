@@ -477,7 +477,7 @@ func (p *batchPublisher) completeBatch(batch []publishRequest, err error) {
 	p.ensureResolutionCapacityLocked()
 	for i := range batch {
 		sequence := batch[i].sequence
-		p.resolved[sequence%uint64(len(p.resolved))] = publishResolution{sequence: sequence, err: err}
+		p.resolved[sequence%uint64(len(p.resolved))] = publishResolution{sequence: sequence, err: flushVisibleError(batch[i], err)}
 	}
 	p.advanceCompletedLocked()
 	p.signal.Broadcast()
@@ -485,6 +485,14 @@ func (p *batchPublisher) completeBatch(batch []publishRequest, err error) {
 	if err != nil {
 		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", len(batch)), zap.Error(err))
 	}
+}
+
+// A confirmed request reports its failure to its own caller; recording it too fails the next unrelated Flush.
+func flushVisibleError(request publishRequest, err error) error {
+	if request.confirmed != nil {
+		return nil
+	}
+	return err
 }
 
 func (p *batchPublisher) completeSequences(sequences []uint64, err error) {
