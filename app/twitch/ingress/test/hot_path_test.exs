@@ -6,15 +6,16 @@ defmodule Ingress.HotPathTest do
 
   import Ingress.EnvCase
 
-  alias Ingress.{Config, JSON}
+  alias Ingress.Config
+  alias Platform.Sift
 
   test "native JSON preserves Elixir nil and atom-key wire semantics" do
-    encoded = JSON.encode(%{lane: :standard, optional: nil}) |> IO.iodata_to_binary()
+    encoded = Sift.encode!(%{lane: :standard, optional: nil})
 
     assert encoded =~ ~s("lane":"standard")
     assert encoded =~ ~s("optional":null)
-    assert JSON.decode(encoded) == {:ok, %{"lane" => "standard", "optional" => nil}}
-    assert {:error, _reason} = JSON.decode("not json")
+    assert Sift.decode(encoded) == {:ok, %{"lane" => "standard", "optional" => nil}}
+    assert {:error, _reason} = Sift.decode("not json")
   end
 
   test "hot configuration is one immutable persistent-term snapshot" do

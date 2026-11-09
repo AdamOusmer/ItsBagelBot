@@ -78,19 +78,17 @@ defmodule Ingress.Nats.Publisher.WireTest do
                {:error, :not_connected}
     end
 
-    test "prepared opts are still the shape Gnat's own command builder accepts", %{wire: wire} do
+    test "traced and plain entries reach the connection with reply and header options", %{
+      wire: wire
+    } do
       admit(wire, 2)
       Single.send_cohort([{@subject, "{}", [{"traceparent", "00-a-b-01"}], nil}], wire)
-      assert_receive {:pub, @subject, traced, traced_opts}, 500
+      assert_receive {:pub, @subject, _traced, traced_opts}, 500
       Single.send_cohort([entry(1)], wire)
-      assert_receive {:pub, @subject, plain, plain_opts}, 500
+      assert_receive {:pub, @subject, _plain, plain_opts}, 500
 
       assert [headers: _, reply_to: _] = traced_opts
       assert [reply_to: _] = plain_opts
-
-      for {json, opts} <- [{traced, traced_opts}, {plain, plain_opts}] do
-        assert is_list(Gnat.Command.build(:pub, @subject, json, opts))
-      end
     end
   end
 

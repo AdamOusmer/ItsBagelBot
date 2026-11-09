@@ -63,10 +63,10 @@ defmodule Ingress.TrialAdmission do
   defp admit_batch(items) do
     commands =
       Enum.map(items, fn {id, generation, chat_id, _, _} ->
-        Trials.admit_command(id, generation, chat_id)
+        Trials.admit_operation(id, generation, chat_id)
       end)
 
-    case TrialValkey.pipeline(commands) do
+    case Platform.Valkey.ManagedRecords.admit_batch(TrialValkey, Trials.policy(), commands) do
       {:ok, results} ->
         failed = items |> Enum.zip(results) |> Enum.flat_map(&settle/1)
         count_failed(failed)
@@ -100,8 +100,8 @@ defmodule Ingress.TrialAdmission do
   defp count_failed(ids) do
     ids
     |> Enum.frequencies()
-    |> Enum.map(fn {id, n} -> ["HINCRBY", "trial:channel:" <> id, "failed", n] end)
-    |> TrialValkey.pipeline()
+    |> Enum.map(fn {id, n} -> {"trial:channel:" <> id, "failed", n} end)
+    |> then(&Platform.Valkey.hash_increments(TrialValkey, &1))
 
     :ok
   end

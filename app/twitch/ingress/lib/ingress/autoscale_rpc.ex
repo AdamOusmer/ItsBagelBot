@@ -6,9 +6,10 @@ defmodule Ingress.AutoscaleRpc do
 
   import Ingress.RpcServer, only: [decode_field: 3, scaler_reply: 1]
 
-  alias Ingress.{AdminRpc, JSON, ShardScaler}
+  alias Ingress.{AdminRpc, ShardScaler}
+  alias Platform.Sift
 
-  @impl Gnat.Server
+  @impl true
   def request(%{body: body}) do
     reply =
       with {:ok, enabled} <- decode_field(body, "enabled", &is_boolean/1),
@@ -19,6 +20,6 @@ defmodule Ingress.AutoscaleRpc do
         error -> scaler_reply(error)
       end
 
-    {:reply, JSON.encode(reply)}
+    {:reply, Sift.encode_to_iodata!(reply)}
   end
 end

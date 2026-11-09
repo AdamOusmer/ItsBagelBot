@@ -4,17 +4,27 @@
 FROM docker.io/library/elixir:1.20-otp-28@sha256:d974bbda306220023bb684d895f846b0774f5ef0536274c5a6794a02b9312bc9 AS build
 
 ENV MIX_ENV=prod
-WORKDIR /src
+# Torque picks its NIF by the build host's CPU; pin the AVX2 build the EPYC nodes run.
+ENV TORQUE_CPU_VARIANT=v3
+WORKDIR /src/app/twitch/ingress
 
 RUN mix local.hex --force && mix local.rebar --force
 
-COPY mix.exs mix.lock* ./
+COPY app/twitch/ingress/mix.exs app/twitch/ingress/mix.lock ./
+COPY pkg/elixir/cowboy /src/pkg/elixir/cowboy
+COPY pkg/elixir/nats /src/pkg/elixir/nats
+COPY pkg/elixir/startup /src/pkg/elixir/startup
+COPY pkg/elixir/new_relic /src/pkg/elixir/new_relic
+COPY pkg/elixir/valkey /src/pkg/elixir/valkey
+COPY pkg/elixir/sift /src/pkg/elixir/sift
+COPY pkg/elixir/websocket /src/pkg/elixir/websocket
 RUN mix deps.get --only prod
 
-COPY config config
-RUN mix deps.compile
+COPY app/twitch/ingress/config config
+# GitHub release downloads (Torque's NIF) return 504s for minutes at a time.
+RUN mix deps.compile || (sleep 30 && mix deps.compile) || (sleep 120 && mix deps.compile)
 
-COPY lib lib
+COPY app/twitch/ingress/lib lib
 RUN mix compile && mix release
 
 # Must match the builder's base distro: the release links against its glibc.
@@ -25,7 +35,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --home /app --shell /usr/sbin/nologin ingress
 
-COPY --from=build --chown=ingress:ingress /src/_build/prod/rel/ingress /app
+COPY --from=build --chown=ingress:ingress /src/app/twitch/ingress/_build/prod/rel/ingress /app
 
 USER ingress
 WORKDIR /app

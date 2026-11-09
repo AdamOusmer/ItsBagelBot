@@ -1,0 +1,6 @@
+%{
+  "nimble_options": {:hex, :nimble_options, "1.2.0", "73e5c5fecb08e59f390e0f59c2320b585d72470dbdd9230a469e06881b9dd4a8", [:mix], [], "hexpm", "3a784a75ef9e407619c8c9e98239b1acd29216deb737044a8c1063e2671ce6d9"},
+  "redix": {:hex, :redix, "1.10.0", "457dbacfb679a6294cb00f1afabc67de73dc2fefee53e1c486fab9d5ee505e95", [:mix], [{:castore, "~> 0.1.0 or ~> 1.0", [hex: :castore, repo: "hexpm", optional: true]}, {:nimble_options, "~> 0.5.0 or ~> 1.0", [hex: :nimble_options, repo: "hexpm", optional: false]}, {:telemetry, "~> 0.4.0 or ~> 1.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "a5e383ecbf7b4364a710167e0c1a34edb157aeb00f722367a66c320664f33dec"},
+  "telemetry": {:hex, :telemetry, "1.4.2", "a0cb522801dffb1c49fe6e30561badffc7b6d0e180db1300df759faa22062855", [:rebar3], [], "hexpm", "928f6495066506077862c0d1646609eed891a4326bee3126ba54b60af61febb1"},
+  "torque": {:git, "https://github.com/pluralsh/torque.git", "56c3e69f3847e00bbe0b073ab8c99ee409b01c95", [ref: "56c3e69f3847e00bbe0b073ab8c99ee409b01c95"]},
+}

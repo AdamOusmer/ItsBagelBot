@@ -6,7 +6,8 @@ defmodule Ingress.ShardSession do
   require Logger
 
   alias Ingress.Config.Twitch, as: TwitchConfig
-  alias Ingress.{Metrics, Nats, WS}
+  alias Platform.WebSocket.Client, as: WS
+  alias Ingress.{Metrics, Nats}
   alias Ingress.Twitch.Api
 
   @welcome_deadline_ms 15_000
@@ -314,7 +315,7 @@ defmodule Ingress.ShardSession do
   defp handle_event(_which, :upgraded, state), do: {:noreply, state}
 
   defp handle_event(which, {:frame, {:text, data}}, state) do
-    case Ingress.JSON.decode(data) do
+    case Platform.Sift.decode(data) do
       {:ok, message} ->
         handle_twitch(which, message, state)
 

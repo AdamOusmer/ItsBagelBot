@@ -29,7 +29,7 @@ defmodule Ingress.StatusPlugTest do
     assert get_resp_header(conn, "content-type") |> hd() =~ "application/json"
     assert get_resp_header(conn, "cache-control") == ["no-store"]
 
-    body = Jason.decode!(conn.resp_body)
+    {:ok, body} = Platform.Sift.decode(conn.resp_body)
     assert body["service"] == "ingress"
     assert body["status"] == "down"
     assert Enum.map(body["checks"], & &1["name"]) == ["nats_rpc", "nats_bus"]
@@ -43,7 +43,7 @@ defmodule Ingress.StatusPlugTest do
 
     conn = call("/status")
     assert conn.status == 200
-    body = Jason.decode!(conn.resp_body)
+    {:ok, body} = Platform.Sift.decode(conn.resp_body)
     assert body["status"] == "ok"
     assert Enum.all?(body["checks"], & &1["ok"])
     assert call("/readyz").status == 200

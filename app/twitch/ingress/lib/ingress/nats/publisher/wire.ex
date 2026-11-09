@@ -14,7 +14,7 @@ defmodule Ingress.Nats.Publisher.Wire do
   """
   @type entry ::
           {String.t(), iodata(), GenServer.from() | nil}
-          | {String.t(), iodata(), Gnat.headers(), GenServer.from() | nil}
+          | {String.t(), iodata(), [{binary(), binary()}], GenServer.from() | nil}
 
   @typedoc "A PubAck body read as an outcome, independent of which wire asked."
   @type outcome :: :ok | :rejected | :ambiguous
@@ -60,32 +60,16 @@ defmodule Ingress.Nats.Publisher.Wire do
     end
   end
 
-  @spec parts(entry()) :: {String.t(), iodata(), Gnat.headers()}
+  @spec parts(entry()) :: {String.t(), iodata(), [{binary(), binary()}]}
   def parts({subject, json, _from}), do: {subject, json, []}
   def parts({subject, json, trace_headers, _from}), do: {subject, json, trace_headers}
 
-  @spec publish_opts(keyword(), Gnat.headers()) :: keyword()
+  @spec publish_opts(keyword(), [{binary(), binary()}]) :: keyword()
   def publish_opts(opts, []), do: opts
   def publish_opts(opts, headers), do: Keyword.put(opts, :headers, headers)
 
   @spec safe_pub(GenServer.server(), message(), pos_integer()) :: :ok | {:error, term()}
-  def safe_pub(conn, {subject, json, opts}, timeout) do
-    started = :erlang.monotonic_time()
-    result = GenServer.call(conn, {:pub, subject, json, prepare_headers(opts)}, timeout)
-    latency = :erlang.monotonic_time() - started
-    :telemetry.execute([:gnat, :pub], %{latency: latency}, %{topic: subject})
-    result
-  catch
-    :exit, _ -> {:error, :not_connected}
-  end
-
-  # Gnat.Command.build/4 matches the exact [headers: _, reply_to: _] order Keyword.put produces.
-  defp prepare_headers(opts) do
-    case Keyword.fetch(opts, :headers) do
-      {:ok, headers} -> Keyword.put(opts, :headers, :cow_http.headers(headers))
-      :error -> opts
-    end
-  end
+  def safe_pub(conn, message, timeout), do: Platform.Nats.Wire.publish(conn, message, timeout)
 
   @spec reply(GenServer.from() | nil, term()) :: :ok
   def reply(nil, _result), do: :ok

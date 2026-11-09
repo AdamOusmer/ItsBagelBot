@@ -3,11 +3,12 @@
 
 defmodule Ingress.TrialUserChanged do
   use Ingress.RpcServer, log: "trial user changed"
-  alias Ingress.{JSON, Trials}
+  alias Ingress.Trials
+  alias Platform.Sift
 
   @impl true
   def request(%{body: body}) do
-    with {:ok, %{"user_id" => id}} <- JSON.decode(body),
+    with {:ok, %{"user_id" => id}} <- Sift.decode(body),
          id = to_string(id),
          true <- Trials.valid_id?(id),
          {:error, reason} <- Trials.stop(id, "promoted") do

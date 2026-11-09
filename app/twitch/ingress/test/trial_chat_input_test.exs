@@ -55,14 +55,14 @@ defmodule Ingress.TrialChatInputTest do
 
     refute Map.has_key?(input.envelope, :shard_id)
 
-    assert %{"envelope" => %{"lane" => "standard"}} =
-             input |> Ingress.JSON.encode() |> IO.iodata_to_binary() |> :json.decode()
+    assert {:ok, %{"envelope" => %{"lane" => "standard"}}} =
+             input |> Platform.Sift.encode!() |> Platform.Sift.decode()
 
     assert nil ==
              Pipeline.trial_chat_input(notification("channel.follow", event), meta, ingested_at)
 
     if path = System.get_env("AUTOMOD_TRIAL_FIXTURE_OUT") do
-      File.write!(path, Ingress.JSON.encode(input))
+      File.write!(path, Platform.Sift.encode_to_iodata!(input))
     end
   end
 end

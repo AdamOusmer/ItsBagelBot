@@ -11,28 +11,27 @@ defmodule Ingress.Application do
 
   @impl true
   def start(_type, _args) do
-    children =
-      if Application.get_env(:ingress, :server, true) do
-        Config.install_hot_path()
-        server_children()
-      else
-        []
-      end
-
-    Supervisor.start_link(children, strategy: :one_for_one, name: Ingress.Supervisor)
+    Platform.Startup.start_link(
+      name: Ingress.Supervisor,
+      enabled: Application.get_env(:ingress, :server, true),
+      base: fn -> [] end,
+      service: &server_children/0,
+      install: &Config.install_hot_path/0,
+      uninstall: &Config.uninstall_hot_path/0
+    )
   end
 
   @impl true
-  def prep_stop(state) do
-    if Application.get_env(:ingress, :server, true), do: Ingress.Drain.run()
-    state
-  end
+  def prep_stop(state),
+    do:
+      Platform.Startup.prep_stop(
+        state,
+        Application.get_env(:ingress, :server, true),
+        &Ingress.Drain.run/0
+      )
 
   @impl true
-  def stop(_state) do
-    Config.uninstall_hot_path()
-    :ok
-  end
+  def stop(_state), do: Platform.Startup.stop(&Config.uninstall_hot_path/0)
 
   defp server_children do
     base_children() ++
@@ -48,8 +47,8 @@ defmodule Ingress.Application do
       {Cluster.Supervisor, [Config.cluster_topologies(), [name: Ingress.ClusterSupervisor]]},
       {Horde.Registry, [name: Ingress.Registry, keys: :unique, members: :auto]},
       {Horde.DynamicSupervisor, shard_supervisor_options()},
-      connection_child(:nats_connection, :gnat, Config.nats()),
-      connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
+      Platform.Nats.connection_child(:nats_connection, :gnat, Config.nats()),
+      Platform.Nats.connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
       Ingress.NatsFailback,
       Ingress.NatsHubFailback,
       Ingress.Metrics,
@@ -86,14 +85,11 @@ defmodule Ingress.Application do
       {Ingress.TrialReceiver, slot: 0},
       {Ingress.TrialReceiver, slot: 1},
       {Ingress.TrialReceiver, slot: 2},
-      Supervisor.child_spec(
-        {Gnat.ConsumerSupervisor,
-         %{
-           connection_name: :gnat_bus,
-           module: Ingress.TrialUserChanged,
-           subscription_topics: [%{topic: "data.users.changed"}]
-         }},
-        id: :trial_user_changed_consumer
+      Platform.Nats.consumer_child(
+        :trial_user_changed_consumer,
+        :gnat_bus,
+        Ingress.TrialUserChanged,
+        [%{topic: "data.users.changed"}]
       ),
       rpc_consumer_child(
         :trial_list_consumer,
@@ -150,28 +146,21 @@ defmodule Ingress.Application do
     ]
   end
 
-  defp status_listener do
+  @doc false
+  def status_listener do
     port = String.to_integer(System.get_env("STATUS_PORT", "8080"))
-    base = [plug: Ingress.StatusPlug, port: port, thousand_island_options: [num_acceptors: 2]]
+    base = [name: :ingress_status, plug: Ingress.StatusPlug, port: port, num_acceptors: 2]
 
     case {System.get_env("TLS_CERT_FILE", ""), System.get_env("TLS_KEY_FILE", "")} do
       {"", ""} ->
-        {Bandit, [{:scheme, :http} | base]}
+        {Platform.Cowboy.Server, [{:scheme, :http} | base]}
 
       {cert, key} when cert != "" and key != "" ->
-        {Bandit, [{:scheme, :https}, {:certfile, cert}, {:keyfile, key} | base]}
+        {Platform.Cowboy.Server, [{:scheme, :https}, {:certfile, cert}, {:keyfile, key} | base]}
 
       _half_set ->
         raise "TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty"
     end
-  end
-
-  defp connection_child(id, name, connection_settings) do
-    Supervisor.child_spec(
-      {Gnat.ConnectionSupervisor,
-       %{name: name, backoff_period: 4_000, connection_settings: connection_settings}},
-      id: id
-    )
   end
 
   defp consumer_child(id, module, topic, opts \\ []) do
@@ -185,10 +174,6 @@ defmodule Ingress.Application do
   defp consumer_topics_child(id, module, topics, opts) do
     subscriptions = Enum.map(topics, &Enum.into(opts, %{topic: &1}))
 
-    Supervisor.child_spec(
-      {Gnat.ConsumerSupervisor,
-       %{connection_name: :gnat, module: module, subscription_topics: subscriptions}},
-      id: id
-    )
+    Platform.Nats.consumer_child(id, :gnat, module, subscriptions)
   end
 end

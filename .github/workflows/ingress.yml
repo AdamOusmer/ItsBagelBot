@@ -3,20 +3,33 @@
 
 name: Ingress Elixir Pipeline
 
-# app/twitch/ingress is the only BEAM service in the repo, so nothing in the Go
-# pipeline covers it. Two defects reached main unnoticed for want of this job:
-# a mix.lock pinning req 0.6.1 against a mix.exs requiring ~> 0.7 (the tree
-# could not compile at all), and formatter drift. Both are checked below.
+# Validate the ingress service and its shared Elixir boundaries.
 on:
   pull_request:
     branches: [ "main" ]
     paths:
       - 'app/twitch/ingress/**'
+      - 'pkg/elixir/cowboy/**'
+      - 'pkg/elixir/nats/**'
+      - 'pkg/elixir/startup/**'
+      - 'pkg/elixir/new_relic/**'
+      - 'pkg/elixir/valkey/**'
+      - 'pkg/elixir/sift/**'
+      - 'pkg/elixir/websocket/**'
+      - 'pkg/elixir/boundary/**'
       - '.github/workflows/ingress.yml'
   push:
     branches: [ "main" ]
     paths:
       - 'app/twitch/ingress/**'
+      - 'pkg/elixir/cowboy/**'
+      - 'pkg/elixir/nats/**'
+      - 'pkg/elixir/startup/**'
+      - 'pkg/elixir/new_relic/**'
+      - 'pkg/elixir/valkey/**'
+      - 'pkg/elixir/sift/**'
+      - 'pkg/elixir/websocket/**'
+      - 'pkg/elixir/boundary/**'
       - '.github/workflows/ingress.yml'
 
 # Superseded PR runs are cancelled; main runs are grouped by commit and never are.
@@ -30,6 +43,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
+    services:
+      valkey:
+        image: valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      VALKEY_TEST_PORT: '6379'
 
     defaults:
       run:
@@ -76,6 +103,27 @@ jobs:
 
       - name: Compile
         run: MIX_ENV=test mix compile --warnings-as-errors
+
+      - name: Install nats-server
+        run: |
+          curl -sf https://binaries.nats.dev/nats-io/nats-server/v2@v2.15.2 | PREFIX=. sh
+          sudo mv nats-server /usr/local/bin/nats-server
+
+      - name: Test shared service boundaries
+        working-directory: pkg/elixir
+        run: |
+          for package in nats startup new_relic websocket boundary sift valkey; do
+            (cd "$package" && mix deps.get && git diff --exit-code -- mix.lock && mix format --check-formatted && MIX_ENV=test mix compile --warnings-as-errors && if [ -d test ]; then MIX_ENV=test mix test; fi) || exit 1
+          done
+
+      - name: Test shared Cowboy boundary
+        working-directory: pkg/elixir/cowboy
+        run: |
+          mix deps.get
+          git diff --exit-code -- mix.lock ../websocket/mix.lock
+          mix format --check-formatted
+          MIX_ENV=test mix compile --warnings-as-errors
+          MIX_ENV=test mix test
 
       - name: Run Tests
         run: MIX_ENV=test mix test

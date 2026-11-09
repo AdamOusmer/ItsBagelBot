@@ -143,7 +143,8 @@ defmodule Ingress.TrialReceiverProtocolTest do
   if is_nil(System.find_executable("valkey-server")),
     do: @moduletag(skip: "valkey-server is not installed")
 
-  alias Ingress.{JSON, TrialAdmission, TrialReceiver, TrialValkey, Trials}
+  alias Ingress.{TrialAdmission, TrialReceiver, TrialValkey, Trials}
+  alias Platform.Sift
 
   setup do
     if System.find_executable("valkey-server") do
@@ -167,8 +168,7 @@ defmodule Ingress.TrialReceiverProtocolTest do
   end
 
   defp frame(type, payload) do
-    body =
-      JSON.encode(%{metadata: %{message_type: type}, payload: payload}) |> IO.iodata_to_binary()
+    body = Sift.encode!(%{metadata: %{message_type: type}, payload: payload})
 
     {:frame, {:text, body}}
   end
@@ -202,7 +202,7 @@ defmodule Ingress.TrialReceiverProtocolTest do
     send(pid, {:fake_ws, pending, [frame("session_welcome", %{session: %{id: "s2"}})]})
     assert :sys.get_state(pid).socket.id == pending
     assert :sys.get_state(pid).session_id == "s2"
-    {:ok, owner_session} = TrialValkey.command(["GET", "trial:owner_session"])
+    {:ok, owner_session} = Platform.Valkey.get(TrialValkey, "trial:owner_session")
     assert String.ends_with?(owner_session, ":s2")
     assert_receive {:trial_closed, ^primary}, 1_000
 
@@ -231,7 +231,7 @@ defmodule Ingress.TrialReceiverProtocolTest do
     send(pid, :tick)
     :sys.get_state(pid)
     assert_receive {:trial_closed, ^primary}, 1_000
-    {:ok, nil} = TrialValkey.command(["GET", "trial:owner_session"])
+    {:ok, nil} = Platform.Valkey.get(TrialValkey, "trial:owner_session")
   end
 
   test "chat is admitted off the socket loop, deduplicated by chat ID" do

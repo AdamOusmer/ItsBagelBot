@@ -32,8 +32,8 @@ defmodule Ingress.TrialValkeyFixture do
 
   def await_ready do
     Enum.reduce_while(1..50, :unavailable, fn _, _ ->
-      case TrialValkey.command(["PING"]) do
-        {:ok, "PONG"} ->
+      case Platform.Valkey.ready?(TrialValkey) do
+        true ->
           {:halt, :ok}
 
         _ ->
@@ -44,7 +44,10 @@ defmodule Ingress.TrialValkeyFixture do
   end
 
   def stop({dir, previous}) do
-    _ = TrialValkey.command(["SHUTDOWN", "NOSAVE"])
+    case File.read(Path.join(dir, "valkey.pid")) do
+      {:ok, pid} -> System.cmd("kill", [String.trim(pid)])
+      _ -> :ok
+    end
 
     if previous,
       do: System.put_env("VALKEY_ADDR", previous),

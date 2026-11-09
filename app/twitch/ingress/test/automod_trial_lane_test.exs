@@ -50,7 +50,7 @@ defmodule Ingress.AutomodTrialLaneTest do
     assert_receive {:pub, @subject, json, _opts}, 1_000
 
     assert {:ok, %{"kind" => "chat_input"}} =
-             json |> IO.iodata_to_binary() |> Ingress.JSON.decode()
+             json |> IO.iodata_to_binary() |> Platform.Sift.decode()
   end
 
   test "a missing lane process drops the copy and returns" do

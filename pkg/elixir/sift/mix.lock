@@ -1,0 +1,3 @@
+%{
+  "torque": {:git, "https://github.com/pluralsh/torque.git", "56c3e69f3847e00bbe0b073ab8c99ee409b01c95", [ref: "56c3e69f3847e00bbe0b073ab8c99ee409b01c95"]},
+}

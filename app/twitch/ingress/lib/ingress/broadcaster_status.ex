@@ -2,18 +2,19 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.BroadcasterStatus do
-  alias Ingress.{JSON, Trace}
+  alias Ingress.Trace
+  alias Platform.Sift
 
   @connection :gnat
 
   @spec lane_for(String.t()) :: {:ok, :premium | :standard | :drop} | {:error, term()}
   def lane_for(broadcaster_id) do
-    request = JSON.encode(%{broadcaster_id: broadcaster_id})
+    request = Sift.encode_to_iodata!(%{broadcaster_id: broadcaster_id})
 
     Trace.span("broadcaster_status.request", [dependency: "nats"], fn ->
       result =
         with {:ok, %{body: body}} <- request_status(request),
-             {:ok, reply} <- JSON.decode(body) do
+             {:ok, reply} <- Sift.decode(body) do
           case reply do
             %{"banned" => true} -> {:ok, :drop}
             %{"runtime_allowed" => false} -> {:ok, :drop}

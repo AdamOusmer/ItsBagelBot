@@ -5,17 +5,19 @@ defmodule Ingress.TrialReceiver do
   use GenServer
   require Logger
 
+  alias Platform.WebSocket.Client, as: WS
+
   alias Ingress.{
     Capacity,
-    JSON,
     LoadCounter,
     Rpc,
     TrialAdmission,
     TrialConduit,
     TrialRpc,
-    Trials,
-    WS
+    Trials
   }
+
+  alias Platform.Sift
 
   @tick_ms 5_000
   @reconnect_ms 2_000
@@ -311,7 +313,7 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp handle_event({:frame, {:text, data}}, state, which) do
-    case JSON.decode(data) do
+    case Sift.decode(data) do
       {:ok, %{"metadata" => meta, "payload" => payload}} ->
         handle_twitch(meta["message_type"], meta, payload, state, which)
 
@@ -689,13 +691,13 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp subscription_rpc(verb, fields) do
-    request = JSON.encode(Map.put(fields, :version, 1))
+    request = Sift.encode_to_iodata!(Map.put(fields, :version, 1))
 
     case Rpc.request(:gnat, "bagel.rpc.outgress.trial_subscription." <> verb, request,
            receive_timeout: 4_000
          ) do
       {:ok, %{body: body}} ->
-        case JSON.decode(body) do
+        case Sift.decode(body) do
           {:ok, reply} -> reply
           _ -> %{"error" => "invalid_reply"}
         end

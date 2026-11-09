@@ -16,7 +16,7 @@ defmodule Ingress.Nats.Publisher do
   @gauge_interval_ms 5_000
   @failback_poll_ms 100
 
-  @spec enqueue(String.t(), iodata(), Gnat.headers()) :: :ok | {:error, term()}
+  @spec enqueue(String.t(), iodata(), [{binary(), binary()}]) :: :ok | {:error, term()}
   def enqueue(subject, json, trace_headers \\ []) do
     case :persistent_term.get({__MODULE__, :n}, 0) do
       0 ->
@@ -65,7 +65,7 @@ defmodule Ingress.Nats.Publisher do
         Pending.release(counter)
         {:error, :overloaded}
 
-      not Process.alive?(pid) or is_nil(Process.whereis(conn)) ->
+      not Process.alive?(pid) or is_nil(Platform.Nats.connection_pid(conn)) ->
         Pending.release(counter)
         {:error, :not_connected}
 
@@ -226,7 +226,7 @@ defmodule Ingress.Nats.Publisher do
           "nats cohort publisher #{state.index} drained, reconnecting toward the node-local hub"
         )
 
-        stop_conn(state.wire.conn)
+        Platform.Nats.stop(state.wire.conn)
         {:noreply, end_failback(state)}
 
       Pending.now_ms() >= state.failback_deadline ->
@@ -272,12 +272,6 @@ defmodule Ingress.Nats.Publisher do
     state = %{state | failback_deadline: nil}
     publish_context(state)
     state
-  end
-
-  defp stop_conn(conn) do
-    Gnat.stop(conn)
-  catch
-    :exit, _ -> :ok
   end
 
   defp ensure_flush_scheduled(%{flush_token: token} = state) when not is_nil(token), do: state
@@ -359,7 +353,7 @@ defmodule Ingress.Nats.Publisher do
   defp row_wire({_id, :batch_hold, _stamp}), do: Atomic
 
   defp ensure_subscribed(state) do
-    case Process.whereis(state.wire.conn) do
+    case Platform.Nats.connection_pid(state.wire.conn) do
       nil ->
         schedule(:connect, 500)
         state
@@ -374,7 +368,7 @@ defmodule Ingress.Nats.Publisher do
   end
 
   defp subscribe(state, pid) do
-    case Gnat.sub(state.wire.conn, self(), state.sub_topic) do
+    case Platform.Nats.subscribe(state.wire.conn, self(), state.sub_topic) do
       {:ok, sid} ->
         Logger.info("nats cohort publisher #{state.index} awaiting acks on #{state.sub_topic}")
 

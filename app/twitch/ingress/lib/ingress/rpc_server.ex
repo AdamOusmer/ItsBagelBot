@@ -2,16 +2,16 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.RpcServer do
-  alias Ingress.JSON
+  alias Platform.Sift
 
   defmacro __using__(opts) do
     label = Keyword.fetch!(opts, :log)
 
     quote do
-      use Gnat.Server
+      use Platform.Nats.Server
       require Logger
 
-      @impl Gnat.Server
+      @impl true
       def error(_message, error) do
         Logger.error("#{unquote(label)} error: #{inspect(error)}")
         :ok
@@ -22,15 +22,15 @@ defmodule Ingress.RpcServer do
   @spec decode_field(binary(), String.t(), (term() -> boolean())) ::
           {:ok, term()} | :invalid | {:error, String.t()}
   def decode_field(body, field, guard) do
-    case JSON.decode(body) do
+    case Sift.decode(body) do
       {:ok, %{^field => value}} ->
         checked(value, guard)
 
       {:ok, _other} ->
         :invalid
 
-      {:error, {_kind, _reason} = decode_error} ->
-        {:error, "json decode error: #{inspect(decode_error)}"}
+      {:error, error} ->
+        {:error, "json decode error: #{Exception.message(error)}"}
     end
   end
 

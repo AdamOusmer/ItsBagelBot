@@ -10,7 +10,7 @@ defmodule Ingress.NatsCohortIntegrationTest do
 
   @stream "ELIXIR_BATCH_TEST"
 
-  test "Gnat-managed connection receives individual PubAcks from NATS" do
+  test "shared NATS connection receives individual PubAcks from NATS" do
     with_integration_publisher([publish_wire: :single], fn conn, ctx ->
       assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1})) == :ok
       assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2})) == :ok
@@ -22,14 +22,7 @@ defmodule Ingress.NatsCohortIntegrationTest do
 
   test "atomic wire lands whole cohorts with one commit PubAck" do
     with_integration_publisher([publish_wire: :atomic, publish_batch_size: 3], fn conn, ctx ->
-      for n <- 1..3 do
-        assert Publisher.enqueue(
-                 "twitch.ingress.event.standard",
-                 ~s({"n":#{n}})
-               ) == :ok
-      end
-
-      assert eventually(fn -> :atomics.get(ctx.counter, @idx_pending) == 0 end)
+      publish_cohort(ctx)
       assert stream_messages(conn) == 3
       assert :ets.info(ctx.table, :size) == 0
     end)
@@ -37,22 +30,19 @@ defmodule Ingress.NatsCohortIntegrationTest do
 
   test "atomic wire stores repeated cohorts because broker dedup is disabled" do
     with_integration_publisher([publish_wire: :atomic, publish_batch_size: 3], fn conn, ctx ->
-      replay = fn ->
-        for n <- 1..3 do
-          assert Publisher.enqueue(
-                   "twitch.ingress.event.standard",
-                   ~s({"n":#{n}})
-                 ) == :ok
-        end
-
-        assert eventually(fn -> :atomics.get(ctx.counter, @idx_pending) == 0 end)
-      end
-
-      replay.()
+      publish_cohort(ctx)
       assert stream_messages(conn) == 3
-      replay.()
+      publish_cohort(ctx)
       assert stream_messages(conn) == 6
     end)
+  end
+
+  defp publish_cohort(ctx) do
+    for n <- 1..3 do
+      assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":#{n}})) == :ok
+    end
+
+    assert eventually(fn -> :atomics.get(ctx.counter, @idx_pending) == 0 end)
   end
 
   defp with_integration_publisher(overrides, run) do
@@ -66,17 +56,19 @@ defmodule Ingress.NatsCohortIntegrationTest do
 
       put_env(Keyword.merge([publish_batch_size: 2, publish_batch_wait_ms: 100], overrides))
 
-      {:ok, gnat} = Gnat.start_link(%{host: ~c"127.0.0.1", port: port}, name: conn)
+      start_supervised!(
+        Platform.Nats.connection_child(conn, conn, [%{host: "127.0.0.1", port: port}])
+      )
+
+      assert eventually(fn -> Platform.Nats.connected?(conn) end)
       ensure_stream(conn)
       purge_stream(conn)
-
-      on_exit(fn -> if Process.alive?(gnat), do: GenServer.stop(gnat) end)
       %{ctx: ctx} = start_publisher(conn)
 
       try do
         run.(conn, ctx)
       after
-        _ = Gnat.request(conn, "$JS.API.STREAM.DELETE." <> @stream, "")
+        _ = Platform.Nats.request(conn, "$JS.API.STREAM.DELETE." <> @stream, "")
       end
     end
   end
@@ -95,9 +87,13 @@ defmodule Ingress.NatsCohortIntegrationTest do
     }
 
     {:ok, %{body: body}} =
-      Gnat.request(conn, "$JS.API.STREAM.CREATE." <> @stream, Ingress.JSON.encode(config))
+      Platform.Nats.request(
+        conn,
+        "$JS.API.STREAM.CREATE." <> @stream,
+        Platform.Sift.encode_to_iodata!(config)
+      )
 
-    case Ingress.JSON.decode(body) do
+    case Platform.Sift.decode(body) do
       {:ok, %{"error" => %{"err_code" => 10_058}}} -> :ok
       {:ok, %{"error" => error}} -> raise "stream create failed: #{inspect(error)}"
       {:ok, _} -> :ok
@@ -105,13 +101,13 @@ defmodule Ingress.NatsCohortIntegrationTest do
   end
 
   defp purge_stream(conn) do
-    {:ok, _} = Gnat.request(conn, "$JS.API.STREAM.PURGE." <> @stream, "")
+    {:ok, _} = Platform.Nats.request(conn, "$JS.API.STREAM.PURGE." <> @stream, "")
     :ok
   end
 
   defp stream_messages(conn) do
-    {:ok, %{body: body}} = Gnat.request(conn, "$JS.API.STREAM.INFO." <> @stream, "")
-    {:ok, %{"state" => %{"messages" => messages}}} = Ingress.JSON.decode(body)
+    {:ok, %{body: body}} = Platform.Nats.request(conn, "$JS.API.STREAM.INFO." <> @stream, "")
+    {:ok, %{"state" => %{"messages" => messages}}} = Platform.Sift.decode(body)
     messages
   end
 end

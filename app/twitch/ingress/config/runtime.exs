@@ -219,9 +219,12 @@ if level = System.get_env("LOG_LEVEL") do
   config :logger, level: String.to_existing_atom(level)
 end
 
+# Ingress preserves its existing log-forwarder and error reporting.
 config :new_relic_agent,
-  app_name: System.get_env("NEW_RELIC_APP_NAME", "itsbagelbot-twitch-ingress"),
-  license_key: System.get_env("NEW_RELIC_LICENSE_KEY")
+       Platform.NewRelic.runtime_config("itsbagelbot-twitch-ingress",
+         logs_in_context: :forwarder,
+         error_collector: true
+       )
 
 if System.get_env("NEW_RELIC_LICENSE_KEY", "") != "" do
   config :logger, :default_formatter, format: "$message\n", metadata: []

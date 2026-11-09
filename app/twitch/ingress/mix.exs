@@ -28,18 +28,18 @@ defmodule Ingress.MixProject do
 
   defp deps do
     [
+      {:platform_sift, path: "../../../pkg/elixir/sift"},
+      {:platform_cowboy, path: "../../../pkg/elixir/cowboy"},
+      {:platform_nats, path: "../../../pkg/elixir/nats"},
+      {:platform_startup, path: "../../../pkg/elixir/startup"},
+      {:platform_new_relic, path: "../../../pkg/elixir/new_relic"},
+      {:platform_valkey, path: "../../../pkg/elixir/valkey"},
+      {:platform_websocket, path: "../../../pkg/elixir/websocket"},
       {:libcluster, "~> 3.5"},
       {:horde, "~> 0.9"},
-      {:gnat, "~> 1.10"},
-      # Keep >= 2.19: EEF-CVE-2026-59248.
-      {:cowlib, "~> 2.19"},
-      {:mint_web_socket, "~> 1.0"},
       {:castore, "~> 1.0"},
-      {:redix, "~> 1.9"},
       {:req, "~> 0.7"},
-      {:jason, "~> 1.4"},
-      {:bandit, "~> 1.8"},
-      {:new_relic_agent, "~> 1.30"}
+      {:platform_boundary, path: "../../../pkg/elixir/boundary", only: :test}
     ]
   end
 
