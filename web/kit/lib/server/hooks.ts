@@ -19,6 +19,7 @@ export type HookEvent = {
 };
 
 export type TransactionAgent = {
+  getTransaction(): { ignore(): void };
   setTransactionName(name: string): void;
   addCustomAttributes(atts: Record<string, string | number | boolean>): void;
 };
@@ -60,6 +61,10 @@ export function tagTransaction(
   event: HookEvent,
   session: { user_id?: string | number } | null
 ): void {
+  if (event.request.headers.get('accept')?.includes('text/event-stream')) {
+    nr.getTransaction().ignore();
+    return;
+  }
   nr.setTransactionName(`${event.request.method} ${event.route.id ?? 'unmatched'}`);
   nr.addCustomAttributes({
     'route.id': event.route.id ?? 'unmatched',
