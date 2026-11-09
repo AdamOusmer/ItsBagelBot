@@ -100,3 +100,73 @@ describe('stats counter rate clock', () => {
     expect(afterReload.read(1000)).toEqual({ total: 1514, rate: 14 });
   });
 });
+
+describe('stats counter shared numeric animation', () => {
+  test.each([
+    [0, 14, 1000],
+    [250, 17.5, 1007],
+    [500, 21, 1014],
+    [1000, 28, 1028],
+    [2000, 28, 1056]
+  ])('uses the same linear clock at %i ms', (now, rate, total) => {
+    const counter = new StatsCounter(1000, 14, 0);
+    counter.update(28, 0);
+    expect({ ...counter.read(now, { animateRate: true }), actualRate: counter.read(now).rate })
+      .toEqual({ total, rate, actualRate: 28 });
+  });
+
+  test('a new rate continues from the number currently displayed', () => {
+    const counter = new StatsCounter(1000, 14, 0);
+    counter.update(28, 0);
+    const before = counter.read(500, { animateRate: true });
+    counter.update(7, 500);
+    expect([
+      before,
+      counter.read(500, { animateRate: true }),
+      counter.read(750, { animateRate: true }),
+      counter.read(1500, { animateRate: true })
+    ]).toEqual([
+      { total: 1014, rate: 21 },
+      { total: 1014, rate: 21 },
+      { total: 1015.75, rate: 17.5 },
+      { total: 1021, rate: 7 }
+    ]);
+  });
+
+  test('unchanged and missing samples do not restart the animation', () => {
+    const counter = new StatsCounter(1000, 14, 0);
+    counter.update(28, 0);
+    counter.update(null, 250, 0);
+    counter.update(28, 500);
+    expect(counter.read(750, { animateRate: true })).toEqual({ total: 1021, rate: 24.5 });
+  });
+
+  test('confirmed zero stops the total immediately while its rate counts down', () => {
+    const counter = new StatsCounter(1000, 14, 0);
+    counter.update(0, 2500);
+    expect([
+      counter.read(2500),
+      counter.read(3000, { animateRate: true }),
+      counter.read(3500, { animateRate: true }),
+      counter.read(60_000)
+    ]).toEqual([
+      { total: 1035, rate: 0 },
+      { total: 1035, rate: 7 },
+      { total: 1035, rate: 0 },
+      { total: 1035, rate: 0 }
+    ]);
+  });
+
+  test('the first known rate seeds immediately like the initial total', () => {
+    const counter = new StatsCounter(1000, null, 0);
+    counter.update(14, 500);
+    expect(counter.read(500, { animateRate: true })).toEqual({ total: 1000, rate: 14 });
+  });
+
+  test('turning motion back on does not replay a rate already shown without motion', () => {
+    const counter = new StatsCounter(1000, 14, 0);
+    counter.update(28, 0);
+    expect(counter.read(250, { animateRate: false })).toEqual({ total: 1007, rate: 28 });
+    expect(counter.read(500, { animateRate: true })).toEqual({ total: 1014, rate: 28 });
+  });
+});

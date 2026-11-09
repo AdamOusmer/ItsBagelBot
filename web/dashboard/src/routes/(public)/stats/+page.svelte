@@ -5,8 +5,6 @@
   import { subscribe } from '@bagel/ui/lib/raf-loop';
   import { livePoll } from '@bagel/ui/lib/live-poll';
   import { onMount, untrack } from 'svelte';
-  import { Tween } from 'svelte/motion';
-  import { cubicOut } from 'svelte/easing';
   import { getI18n } from '@bagel/kit/i18n/context';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -16,7 +14,6 @@
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import PublicHead from '#lib/components/public/PublicHead.svelte';
-  import StatNumber from '#lib/components/public/StatNumber.svelte';
   import type { PageData } from './$types';
   import { SITE, commandsHref } from '@bagel/kit/site-links';
   import { exactDisplay, formatStatTotal, validBoards, validStats } from '#lib/stats-values';
@@ -42,6 +39,7 @@
   });
   let live = $state(seed);
   let degraded = $state(seed.degraded);
+  let reduced = $state(false);
 
   const emptyBoards = () => ({
     channels: [],
@@ -59,8 +57,8 @@
   let events = counter(seed.events_total, seed.event_rate_now ?? seed.event_rate, 0);
 
   function frame(now: number) {
-    const msg = messages.read(now);
-    const event = events.read(now);
+    const msg = messages.read(now, { animateRate: !reduced });
+    const event = events.read(now, { animateRate: !reduced });
     return {
       messages: exactDisplay(msg.total), events: exactDisplay(event.total),
       msgRate: msg.rate, eventRate: event.rate
@@ -69,7 +67,6 @@
 
   let display = $state(frame(0));
   let mountedAt = 0;
-  let reduced = $state(false);
 
   function tick(now: number): boolean {
     display = frame(now - mountedAt);
@@ -179,20 +176,13 @@
     };
   }
 
-  const messageRate = $derived(display.msgRate);
-  const eventRate = $derived(display.eventRate);
-  const rateValue = (rate: number | null) => Math.round((rate ?? 0) * 10) / 10;
-  const rates = new Tween([rateValue(seed.msg_rate_now ?? seed.msg_rate), rateValue(seed.event_rate_now ?? seed.event_rate)]);
-  $effect(() => {
-    void rates.set([rateValue(messageRate), rateValue(eventRate)], { duration: reduced ? 0 : 320, easing: cubicOut });
-  });
   const tiles = $derived([
     {
       id: 'messages',
       label: t('stats.messagesShortLabel'),
       ...compactTotal(live.messages_total, display.messages),
       detail: t('stats.processedTotal', { count: formatStatTotal(live.messages_total, display.messages, locale) }),
-      rate: messageRate === null ? null : rates.current[0],
+      rate: display.msgRate === null ? PENDING : rateFmt.format(display.msgRate),
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel'),
       tone: 'green' as const
@@ -202,7 +192,7 @@
       label: t('stats.eventsShortLabel'),
       ...compactTotal(live.events_total, display.events),
       detail: t('stats.processedTotal', { count: formatStatTotal(live.events_total, display.events, locale) }),
-      rate: eventRate === null ? null : rates.current[1],
+      rate: display.eventRate === null ? PENDING : rateFmt.format(display.eventRate),
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel'),
       tone: 'tan' as const
@@ -304,7 +294,7 @@
           <div class="st-counter__exact"><bb-fit>{tile.detail}</bb-fit></div>
           <div class="st-rule"></div>
           <div class="st-counter__rate">
-            <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden>{#if tile.rate === null}{PENDING}{:else}<StatNumber value={tile.rate} {locale} decimals={1} {reduced} /><small class="st-counter__per">{t('stats.perSecond')}</small>{/if}</span>
+            <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden>{tile.rate}{#if tile.rate !== PENDING}<small class="st-counter__per">{t('stats.perSecond')}</small>{/if}</span>
             <span class="st-counter__avg"><bb-fit mode="block">{tile.average === null ? t('stats.rightNow') : `${t('stats.rightNow')} · ${t('stats.minuteAverage', { rate: tile.average })}`}</bb-fit></span>
           </div>
         </Card>
