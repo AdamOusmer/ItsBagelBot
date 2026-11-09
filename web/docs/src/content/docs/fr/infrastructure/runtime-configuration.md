@@ -8,6 +8,8 @@ docType: reference
 
 Le déploiement fournit les adresses et les identifiants. Le code détermine leur utilisation. Consultez le point d’entrée du service et son chargeur de configuration avant de copier une variable d’environnement d’un autre service.
 
+Pour les interfaces réseau des hôtes, les files, l’affinité des interruptions, les offloads et leur persistance sur node1–3, voir les [réglages réseau des workers](/fr/infrastructure/node-network-tuning/).
+
 ## Démarrage d’un service Go
 
 `pkg/svcboot` gère la journalisation, la surveillance, l’annulation par signal et les constructeurs de dépendances partagées. `NewCore` renvoie le contexte du service et la fonction de nettoyage. Les services de données utilisent `pkg/svcboot/databoot` pour leur pilote Ent. Le test de garde `pkg/svcboot/guard_test.go` vérifie que les points d’entrée des services passent par cette interface.

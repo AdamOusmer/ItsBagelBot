@@ -8,6 +8,8 @@ docType: how-to
 
 Un chiffre de débit exige une charge de travail définie. La taille des données, l’état du cache, le débit de sortie, la persistance, la réplication et la latence des dépendances changent tous le sens du résultat. Conservez ces éléments avec le résultat.
 
+La [référence des réglages réseau des workers](/fr/infrastructure/node-network-tuning/) décrit les huit files, l’affinité CPU, les offloads et les limites de débit mesurées pour node1–3.
+
 
 ## Prérequis et résultat attendu
 

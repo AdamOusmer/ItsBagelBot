@@ -8,6 +8,8 @@ docType: how-to
 
 A throughput number needs a workload. Payload size, cache state, output rate, persistence, replication and dependency latency all change what the result means. Keep them with the result.
 
+The [worker network tuning reference](/infrastructure/node-network-tuning/) records the eight-queue NIC settings, CPU affinity, offloads and measured throughput limits for node1–3.
+
 
 ## Prerequisites and outcome
 
