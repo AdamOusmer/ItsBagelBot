@@ -23,21 +23,62 @@ defmodule Ingress.Metrics do
   @spec count_drop(String.t(), atom() | String.t()) :: :ok
   def count_drop(total, reason) do
     count(total)
-    count("#{total}/#{reason}")
+    reason = to_string(reason)
+
+    if total in [
+         "Nats/PublishDropped",
+         "Trial/AdmissionDropped",
+         "Dispatcher/Dropped",
+         "Trial/AutomodLaneDropped"
+       ] and
+         reason in [
+           "not_connected",
+           "encode_error",
+           "overloaded",
+           "enqueue_error",
+           "unavailable",
+           "capacity",
+           "broadcaster_cap",
+           "publish_failed",
+           "crashed"
+         ] do
+      count("#{total}/#{reason}")
+    end
   end
 
   @spec event(String.t(), map()) :: :ok
   def event(name, attributes \\ %{}) do
-    NewRelic.report_custom_event(
-      "IngressEvent",
-      Map.merge(%{name: name, node: to_string(node())}, attributes)
-    )
+    if name in [
+         "Nats/PublishInflight",
+         "ShardLoadConcentration",
+         "ShardUp",
+         "ShardDown",
+         "Dispatcher/Workers"
+       ] do
+      allowed = [
+        :pending,
+        :max_pending,
+        :utilization_pct,
+        :queued,
+        :batch_size,
+        :batches_inflight,
+        :max_load,
+        :avg_load,
+        :responsive_count,
+        :active,
+        :admitted
+      ]
+
+      safe =
+        Map.take(attributes, allowed)
+        |> Enum.filter(fn {_, value} -> is_number(value) end)
+        |> Map.new()
+        |> Map.put(:name, name)
+
+      GenServer.cast(__MODULE__, {:event, safe})
+    end
 
     :ok
-  rescue
-    _exception -> :ok
-  catch
-    _kind, _reason -> :ok
   end
 
   @doc false
@@ -65,6 +106,41 @@ defmodule Ingress.Metrics do
   end
 
   @impl true
+  def handle_cast({:event, attrs}, state) do
+    policy =
+      Map.new(
+        [
+          :pending,
+          :max_pending,
+          :utilization_pct,
+          :queued,
+          :batch_size,
+          :batches_inflight,
+          :max_load,
+          :avg_load,
+          :responsive_count,
+          :active,
+          :admitted
+        ],
+        &{&1, :number}
+      )
+      |> Map.put(
+        :name,
+        {:enum,
+         [
+           "Nats/PublishInflight",
+           "ShardLoadConcentration",
+           "ShardUp",
+           "ShardDown",
+           "Dispatcher/Workers"
+         ]}
+      )
+
+    Platform.NewRelic.event("IngressEvent", attrs, policy)
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info(:flush, state) do
     flush_counters()
     schedule(state.flush_ms)
@@ -82,12 +158,14 @@ defmodule Ingress.Metrics do
   end
 
   defp report_counter(name, value) do
-    NewRelic.increment_custom_metric("Custom/Ingress/" <> name, value)
-    true
+    Application.get_env(:ingress, :metrics_reporter, Platform.NewRelic).increment(
+      "Custom/Ingress/" <> name,
+      value
+    ) == :ok
   rescue
-    _exception -> false
+    _ -> false
   catch
-    _kind, _reason -> false
+    _, _ -> false
   end
 
   defp schedule(ms), do: Process.send_after(self(), :flush, ms)

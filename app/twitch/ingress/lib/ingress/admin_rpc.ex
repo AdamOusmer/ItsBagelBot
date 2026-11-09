@@ -4,13 +4,14 @@
 defmodule Ingress.AdminRpc do
   use Ingress.RpcServer, log: "admin rpc"
 
-  alias Ingress.{Capacity, JSON, ShardInventory, ShardScaler, Singleton, TrialReceiver}
+  alias Ingress.{Capacity, ShardInventory, ShardScaler, Singleton, TrialReceiver}
+  alias Platform.Sift
 
   @call_timeout_ms 2_000
 
   @impl true
   def request(%{body: _body}) do
-    {:reply, JSON.encode(snapshot())}
+    {:reply, Sift.encode_to_iodata!(snapshot())}
   end
 
   def snapshot do

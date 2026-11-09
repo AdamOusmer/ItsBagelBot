@@ -4,11 +4,12 @@
 defmodule Ingress.CacheInvalidator do
   use Ingress.RpcServer, log: "cache invalidator"
 
-  alias Ingress.{BroadcasterCache, JSON}
+  alias Ingress.BroadcasterCache
+  alias Platform.Sift
 
   @impl true
   def request(%{body: body}) do
-    case JSON.decode(body) do
+    case Sift.decode(body) do
       {:ok, %{"all" => true}} ->
         Logger.info("cache invalidation: flush all")
         BroadcasterCache.invalidate_all()

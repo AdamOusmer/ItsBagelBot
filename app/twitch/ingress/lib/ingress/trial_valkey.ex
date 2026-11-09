@@ -11,23 +11,9 @@ defmodule Ingress.TrialValkey do
 
   def start_link(opts \\ []) do
     case connection_options() do
-      {:ok, config} -> Redix.start_link(config ++ [name: __MODULE__] ++ opts)
+      {:ok, config} -> Platform.Valkey.start_link(config ++ [name: __MODULE__] ++ opts)
       {:error, :unconfigured} -> :ignore
       error -> error
-    end
-  end
-
-  def command(parts) when is_list(parts) do
-    case Process.whereis(__MODULE__) do
-      nil -> {:error, :unavailable}
-      conn -> Redix.command(conn, parts, timeout: @timeout)
-    end
-  end
-
-  def pipeline(commands) when is_list(commands) do
-    case Process.whereis(__MODULE__) do
-      nil -> {:error, :unavailable}
-      conn -> Redix.pipeline(conn, commands, timeout: @timeout)
     end
   end
 

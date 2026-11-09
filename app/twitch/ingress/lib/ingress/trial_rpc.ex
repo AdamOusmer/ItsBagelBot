@@ -4,7 +4,8 @@
 defmodule Ingress.TrialRpc do
   @moduledoc false
   require Logger
-  alias Ingress.{JSON, Rpc, Trials}
+  alias Ingress.{Rpc, Trials}
+  alias Platform.Sift
 
   def reply_list do
     case Trials.list() do
@@ -22,7 +23,7 @@ defmodule Ingress.TrialRpc do
   end
 
   def reply_add(body) do
-    with {:ok, %{"broadcaster_id" => id}} <- JSON.decode(body),
+    with {:ok, %{"broadcaster_id" => id}} <- Sift.decode(body),
          true <- Trials.valid_id?(id),
          {:ok, false} <- registered?(id),
          {:ok, result} <- Trials.add(id) do
@@ -49,7 +50,7 @@ defmodule Ingress.TrialRpc do
   end
 
   def reply_set_enabled(body) do
-    with {:ok, %{"broadcaster_id" => id, "enabled" => enabled}} <- JSON.decode(body),
+    with {:ok, %{"broadcaster_id" => id, "enabled" => enabled}} <- Sift.decode(body),
          true <- Trials.valid_id?(id),
          true <- is_boolean(enabled),
          {:ok, false} <- if(enabled, do: registered?(id), else: {:ok, false}),
@@ -65,7 +66,7 @@ defmodule Ingress.TrialRpc do
   end
 
   def reply_remove(body) do
-    with {:ok, %{"broadcaster_id" => id}} <- JSON.decode(body),
+    with {:ok, %{"broadcaster_id" => id}} <- Sift.decode(body),
          true <- Trials.valid_id?(id),
          {:ok, result} <- Trials.stop(id, "removed") do
       %{broadcaster_id: id, state: removed_state(result)}
@@ -96,11 +97,11 @@ defmodule Ingress.TrialRpc do
   defp removed_state(_result), do: "stopping"
 
   def registered?(id) do
-    request = JSON.encode(%{user_id: id})
+    request = Sift.encode_to_iodata!(%{user_id: id})
     result = Rpc.request(:gnat, "bagel.rpc.internal.users.get", request, receive_timeout: 2_000)
 
     with {:ok, %{body: body}} <- result,
-         {:ok, response} <- JSON.decode(body) do
+         {:ok, response} <- Sift.decode(body) do
       cond do
         is_map(response["user"]) -> {:ok, true}
         response["code"] == "not_found" -> {:ok, false}
@@ -114,28 +115,33 @@ end
 
 defmodule Ingress.TrialListRpc do
   use Ingress.RpcServer, log: "trial list rpc"
-  alias Ingress.{JSON, TrialRpc}
+  alias Ingress.TrialRpc
+  alias Platform.Sift
   @impl true
-  def request(%{body: _}), do: {:reply, JSON.encode(TrialRpc.reply_list())}
+  def request(%{body: _}), do: {:reply, Sift.encode_to_iodata!(TrialRpc.reply_list())}
 end
 
 defmodule Ingress.TrialAddRpc do
   use Ingress.RpcServer, log: "trial add rpc"
-  alias Ingress.{JSON, TrialRpc}
+  alias Ingress.TrialRpc
+  alias Platform.Sift
   @impl true
-  def request(%{body: body}), do: {:reply, JSON.encode(TrialRpc.reply_add(body))}
+  def request(%{body: body}), do: {:reply, Sift.encode_to_iodata!(TrialRpc.reply_add(body))}
 end
 
 defmodule Ingress.TrialRemoveRpc do
   use Ingress.RpcServer, log: "trial remove rpc"
-  alias Ingress.{JSON, TrialRpc}
+  alias Ingress.TrialRpc
+  alias Platform.Sift
   @impl true
-  def request(%{body: body}), do: {:reply, JSON.encode(TrialRpc.reply_remove(body))}
+  def request(%{body: body}), do: {:reply, Sift.encode_to_iodata!(TrialRpc.reply_remove(body))}
 end
 
 defmodule Ingress.TrialSetEnabledRpc do
   use Ingress.RpcServer, log: "trial set enabled rpc"
-  alias Ingress.{JSON, TrialRpc}
+  alias Ingress.TrialRpc
+  alias Platform.Sift
   @impl true
-  def request(%{body: body}), do: {:reply, JSON.encode(TrialRpc.reply_set_enabled(body))}
+  def request(%{body: body}),
+    do: {:reply, Sift.encode_to_iodata!(TrialRpc.reply_set_enabled(body))}
 end

@@ -119,11 +119,23 @@ defmodule Ingress.NatsHubFailbackTest do
 
   defp connect(port) do
     conn = :"hub_failback_test_#{System.unique_integer([:positive])}"
-    {:ok, pid} = Gnat.start_link(%{host: "127.0.0.1", port: port}, name: conn)
-    Process.unlink(pid)
+
+    start_supervised!(
+      Platform.Nats.connection_child(conn, conn, [%{host: "127.0.0.1", port: port}])
+    )
+
+    pid = await_connection(conn, 50)
     Process.monitor(pid)
-    on_exit(fn -> if Process.alive?(pid), do: Gnat.stop(pid) end)
     {conn, pid}
+  end
+
+  defp await_connection(conn, 0), do: flunk("#{conn} never connected")
+
+  defp await_connection(conn, attempts) do
+    with nil <- Platform.Nats.connection_pid(conn) do
+      Process.sleep(20)
+      await_connection(conn, attempts - 1)
+    end
   end
 
   defp start_failback(conn, local_port) do
@@ -131,7 +143,7 @@ defmodule Ingress.NatsHubFailbackTest do
       {NatsHubFailback,
        name: :"#{conn}_failback",
        enabled: true,
-       connections: fn -> [{conn, fn -> Gnat.stop(conn) end}] end,
+       connections: fn -> [{conn, fn -> Platform.Nats.stop(conn) end}] end,
        probe_settings: %{host: "127.0.0.1", port: local_port, connection_timeout: 200},
        interval: 30,
        required: 2}

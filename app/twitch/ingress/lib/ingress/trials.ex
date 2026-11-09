@@ -4,6 +4,52 @@
 defmodule Ingress.Trials do
   alias Ingress.TrialConduit
   alias Ingress.TrialValkey, as: VK
+  alias Platform.Valkey.ManagedRecords, as: Records
+
+  @policy Platform.Valkey.ManagedRecords.Policy.new!(
+            fields: %{
+              generation: "generation",
+              state: "state",
+              enabled: "enabled",
+              slot: "slot",
+              moved_at: "moved_at",
+              load: "load",
+              stop_reason: "stop_reason",
+              subscription_id: "subscription_id",
+              received: "received",
+              error: "error",
+              display_name: "display_name"
+            },
+            states: %{
+              pending: "pending",
+              stopping: "stopping",
+              disabled: "disabled",
+              receiving: "receiving",
+              failed: "failed",
+              removed: "removed",
+              promoted: "promoted"
+            },
+            initial: %{
+              "state" => "pending",
+              "enabled" => 1,
+              "received" => 0,
+              "decoded" => 0,
+              "processed" => 0,
+              "failed" => 0,
+              "retried" => 0,
+              "blocked" => 0,
+              "latency_samples" => 0,
+              "latency_total_ms" => 0
+            },
+            clear_on_add: ["error", "stop_reason", "display_name"],
+            sticky_reasons: ["promoted", "removed"],
+            promote_reason: "promoted",
+            dedup_seconds: 120,
+            history_seconds: 604_800,
+            lease_ms: 60_000
+          )
+  def policy, do: @policy
+  @channel_prefix "trial:channel:"
 
   @max_channels 30
 
@@ -12,101 +58,6 @@ defmodule Ingress.Trials do
   @generation "trial:generation"
   @history "trial:history"
   @socket_target "trial:socket_target"
-
-  @add_script """
-  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then return 'duplicate' end
-  if redis.call('SCARD', KEYS[1]) >= tonumber(ARGV[3]) then return 'full' end
-  local generation = redis.call('INCR', KEYS[3])
-  redis.call('SADD', KEYS[1], ARGV[1])
-  redis.call('ZREM', KEYS[4], ARGV[1])
-  redis.call('HSET', 'trial:channel:' .. ARGV[1], 'generation', generation, 'state', 'pending', 'enabled', 1, 'received', 0, 'decoded', 0, 'processed', 0, 'failed', 0, 'retried', 0, 'blocked', 0, 'latency_samples', 0, 'latency_total_ms', 0)
-  redis.call('HSET', 'trial:channel:' .. ARGV[1], 'slot', ARGV[2])
-  redis.call('HDEL', 'trial:channel:' .. ARGV[1], 'error', 'stop_reason', 'display_name')
-  redis.call('INCR', KEYS[2])
-  return tostring(generation)
-  """
-
-  @move_script """
-  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 0 end
-  local key = 'trial:channel:' .. ARGV[1]
-  if redis.call('HGET', key, 'generation') ~= ARGV[2] then return 0 end
-  if redis.call('HGET', key, 'enabled') == '0' then return 0 end
-  local state = redis.call('HGET', key, 'state')
-  if state == 'stopping' or state == 'disabled' then return 0 end
-  redis.call('HSET', key, 'slot', ARGV[3], 'moved_at', ARGV[4])
-  redis.call('INCR', KEYS[2])
-  return 1
-  """
-
-  @load_script """
-  if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
-  if (redis.call('HGET', KEYS[1], 'slot') or '0') ~= ARGV[2] then return 0 end
-  redis.call('HSET', KEYS[1], 'load', ARGV[3])
-  return 1
-  """
-
-  @stop_script """
-  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'absent' end
-  local key = 'trial:channel:' .. ARGV[1]
-  local current = redis.call('HGET', key, 'stop_reason')
-  local stopping = redis.call('HGET', key, 'state') == 'stopping'
-  local sticky = current == 'promoted' or current == 'removed'
-  local replace = not current or (current ~= ARGV[2] and not sticky)
-  if stopping and not replace then return 'unchanged' end
-  redis.call('HSET', key, 'state', 'stopping')
-  if replace then redis.call('HSET', key, 'stop_reason', ARGV[2]) end
-  redis.call('INCR', KEYS[2])
-  return 'changed'
-  """
-
-  @set_enabled_script """
-  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'absent' end
-  local key = 'trial:channel:' .. ARGV[1]
-  if redis.call('HGET', key, 'state') == 'stopping' then return 'stopping' end
-  local current = redis.call('HGET', key, 'enabled') or '1'
-  if current == ARGV[2] then return redis.call('HGET', key, 'state') or 'pending' end
-  local state = 'disabled'
-  if ARGV[2] == '1' and not redis.call('HGET', key, 'subscription_id') then
-    state = 'pending'
-  end
-  redis.call('HSET', key, 'enabled', ARGV[2], 'state', state)
-  redis.call('HDEL', key, 'error')
-  redis.call('INCR', KEYS[2])
-  return state
-  """
-
-  @admit_script """
-  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'inactive' end
-  if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 'inactive' end
-  if redis.call('HGET', KEYS[2], 'enabled') == '0' then return 'inactive' end
-  if redis.call('HGET', KEYS[2], 'state') ~= 'receiving' then return 'inactive' end
-  if not redis.call('SET', KEYS[3], '1', 'NX', 'EX', 120) then return 'duplicate' end
-  redis.call('HINCRBY', KEYS[2], 'received', 1)
-  return 'first'
-  """
-
-  @fail_script """
-  if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
-  if redis.call('HGET', KEYS[1], 'enabled') == '0' then return 0 end
-  local state = redis.call('HGET', KEYS[1], 'state')
-  if state == 'stopping' or state == 'disabled' then return 0 end
-  redis.call('HSET', KEYS[1], 'state', 'failed', 'error', ARGV[2])
-  return 1
-  """
-
-  @finish_script """
-  local key = 'trial:channel:' .. ARGV[1]
-  if redis.call('HGET', key, 'state') ~= 'stopping' then return 0 end
-  if redis.call('HGET', key, 'subscription_id') then return 0 end
-  local state = 'removed'
-  if redis.call('HGET', key, 'stop_reason') == 'promoted' then state = 'promoted' end
-  redis.call('SREM', KEYS[1], ARGV[1])
-  redis.call('INCR', KEYS[2])
-  redis.call('HSET', key, 'state', state)
-  redis.call('EXPIRE', key, 604800)
-  redis.call('ZADD', KEYS[3], ARGV[2], ARGV[1])
-  return 1
-  """
 
   def valid_id?(id) when is_binary(id) do
     String.match?(id, ~r/^[1-9][0-9]{0,19}$/) &&
@@ -122,17 +73,11 @@ defmodule Ingress.Trials do
          {:ok, %{trials: rows, socket_target: target}} <- list(),
          slot = TrialConduit.slot_for_new(rows, target),
          {:ok, value} <-
-           VK.command([
-             "EVAL",
-             @add_script,
-             4,
-             @members,
-             @revision,
-             @generation,
-             @history,
+           records(:add, [@members, @revision, @generation, @history], [
              id,
              slot,
-             @max_channels
+             @max_channels,
+             @channel_prefix
            ]) do
       case value do
         "full" -> {:error, "full"}
@@ -145,27 +90,23 @@ defmodule Ingress.Trials do
     end
   end
 
-  def move(id, generation, slot) do
-    VK.command([
-      "EVAL",
-      @move_script,
-      2,
-      @members,
-      @revision,
-      id,
-      generation,
-      slot,
-      System.system_time(:second)
-    ])
-  end
+  def move(id, generation, slot),
+    do:
+      records(:move, [@members, @revision], [
+        id,
+        generation,
+        slot,
+        System.system_time(:second),
+        @channel_prefix
+      ])
 
-  def set_socket_target(target), do: VK.command(["SET", @socket_target, target])
+  def set_socket_target(target), do: Platform.Valkey.set(VK, @socket_target, target)
 
   def record_load(id, generation, slot, load),
-    do: VK.command(["EVAL", @load_script, 1, "trial:channel:" <> id, generation, slot, load])
+    do: records(:load, [@channel_prefix <> id], [generation, slot, load])
 
   def stop(id, reason) when reason in ["promoted", "removed", "registration_check_unavailable"] do
-    case VK.command(["EVAL", @stop_script, 2, @members, @revision, id, reason]) do
+    case records(:stop, [@members, @revision], [id, reason, @channel_prefix]) do
       {:ok, "changed"} -> {:ok, :changed}
       {:ok, "unchanged"} -> {:ok, :unchanged}
       {:ok, "absent"} -> {:ok, :absent}
@@ -176,7 +117,11 @@ defmodule Ingress.Trials do
   def set_enabled(id, enabled) when is_boolean(enabled) do
     value = if enabled, do: "1", else: "0"
 
-    case VK.command(["EVAL", @set_enabled_script, 2, @members, @revision, id, value]) do
+    case records(:set_enabled, [@members, @revision], [
+           id,
+           value,
+           @channel_prefix
+         ]) do
       {:ok, "absent"} -> {:error, "not_found"}
       {:ok, "stopping"} -> {:error, "stopping"}
       {:ok, state} -> {:ok, state}
@@ -184,27 +129,22 @@ defmodule Ingress.Trials do
     end
   end
 
-  def finish(id) do
-    VK.command([
-      "EVAL",
-      @finish_script,
-      3,
-      @members,
-      @revision,
-      @history,
-      id,
-      System.system_time(:second)
-    ])
-  end
+  def finish(id),
+    do:
+      records(:finish, [@members, @revision, @history], [
+        id,
+        System.system_time(:second),
+        @channel_prefix
+      ])
 
   def list do
-    cutoff = System.system_time(:second) - 604_800
+    cutoff = System.system_time(:second) - @policy.history_seconds
 
-    with {:ok, ids} <- VK.command(["SMEMBERS", @members]),
-         {:ok, _} <- VK.command(["ZREMRANGEBYSCORE", @history, "-inf", cutoff]),
-         {:ok, history_ids} <- VK.command(["ZRANGE", @history, 0, -1]),
-         {:ok, revision} <- VK.command(["GET", @revision]),
-         {:ok, target} <- VK.command(["GET", @socket_target]),
+    with {:ok, ids} <- Platform.Valkey.set_members(VK, @members),
+         {:ok, _} <- Platform.Valkey.sorted_remove_before(VK, @history, cutoff),
+         {:ok, history_ids} <- Platform.Valkey.sorted_members(VK, @history),
+         {:ok, revision} <- Platform.Valkey.get(VK, @revision),
+         {:ok, target} <- Platform.Valkey.get(VK, @socket_target),
          {:ok, rows} <- rows(Enum.uniq(ids ++ history_ids)) do
       {:ok,
        %{
@@ -219,7 +159,7 @@ defmodule Ingress.Trials do
 
   defp rows(ids) do
     Enum.reduce_while(ids, {:ok, []}, fn id, {:ok, acc} ->
-      case VK.command(["HGETALL", "trial:channel:" <> id]) do
+      case Platform.Valkey.hash_get_all(VK, @channel_prefix <> id) do
         {:ok, fields} ->
           row = fields |> Enum.chunk_every(2) |> Map.new(fn [k, v] -> {k, v} end)
 
@@ -271,42 +211,28 @@ defmodule Ingress.Trials do
     if samples == 0, do: 0, else: div(integer(row["latency_total_ms"]), samples)
   end
 
-  def field(id, name, value), do: VK.command(["HSET", "trial:channel:" <> id, name, value])
+  def field(id, name, value), do: Platform.Valkey.hash_set(VK, @channel_prefix <> id, name, value)
 
   def fail(id, generation, reason),
-    do: VK.command(["EVAL", @fail_script, 1, "trial:channel:" <> id, generation, reason])
+    do: records(:fail, [@channel_prefix <> id], [generation, reason])
 
   def display_name(id, generation, name) when is_binary(name) and name != "" do
-    script = """
-    if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
-    redis.call('HSET', KEYS[1], 'display_name', ARGV[2])
-    return 1
-    """
-
-    VK.command(["EVAL", script, 1, "trial:channel:" <> id, generation, name])
+    records(:display_name, [@channel_prefix <> id], [generation, name])
   end
 
-  def increment(id, name), do: VK.command(["HINCRBY", "trial:channel:" <> id, name, 1])
+  def increment(id, name), do: Platform.Valkey.hash_increment(VK, @channel_prefix <> id, name, 1)
 
   def admit(id, generation, chat_id) do
-    case VK.command(admit_command(id, generation, chat_id)) do
+    case Records.run(VK, @policy, :admit, admit_operation(id, generation, chat_id)) do
       {:ok, value} -> admit_result(value)
       _ -> :unavailable
     end
   end
 
-  def admit_command(id, generation, chat_id) do
-    [
-      "EVAL",
-      @admit_script,
-      3,
-      @members,
-      "trial:channel:" <> id,
-      "trial:dedup:" <> id <> ":" <> chat_id,
-      id,
-      generation
-    ]
-  end
+  def admit_operation(id, generation, chat_id),
+    do:
+      {[@members, @channel_prefix <> id, "trial:dedup:" <> id <> ":" <> chat_id],
+       [id, generation]}
 
   def admit_result("first"), do: :first
   def admit_result("duplicate"), do: :duplicate
@@ -314,83 +240,45 @@ defmodule Ingress.Trials do
   def admit_result(_error), do: :unavailable
 
   def owners do
-    VK.command(["MGET" | Enum.map(TrialConduit.slots(), &lease_key/1)])
+    Platform.Valkey.get_many(VK, Enum.map(TrialConduit.slots(), &lease_key/1))
   end
 
   def acquire(owner, slot \\ 0) do
-    with {:ok, epoch} <- VK.command(["INCR", "trial:owner_epoch"]),
+    with {:ok, epoch} <- Platform.Valkey.increment(VK, "trial:owner_epoch"),
          {:ok, result} <-
-           VK.command(["SET", lease_key(slot), "#{epoch}:#{owner}", "NX", "PX", 60_000]) do
+           Platform.Valkey.set_if_absent_ms(
+             VK,
+             lease_key(slot),
+             "#{epoch}:#{owner}",
+             @policy.lease_ms
+           ) do
       if result == "OK", do: {:ok, epoch}, else: {:error, :owned}
     end
   end
 
-  @renew_script """
-    if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-    redis.call('PEXPIRE', KEYS[1], 60000)
-    local session = redis.call('GET', KEYS[2]) or ''
-    if string.sub(session, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. ':' then
-      redis.call('PEXPIRE', KEYS[2], 60000)
-    end
-    return 1
-  """
+  def renew(owner, epoch, slot \\ 0), do: owner_script(:renew, owner, epoch, slot)
 
-  def renew(owner, epoch, slot \\ 0), do: owner_script(@renew_script, owner, epoch, slot)
-
-  @owner_session_script """
-    if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-    redis.call('SET', KEYS[2], ARGV[2] .. ':' .. ARGV[3], 'PX', 60000)
-    return 1
-  """
-
-  def owner_session(owner, epoch, session_id, slot \\ 0) when is_binary(session_id) do
-    VK.command([
-      "EVAL",
-      @owner_session_script,
-      2,
-      lease_key(slot),
-      session_key(slot),
-      "#{epoch}:#{owner}",
-      epoch,
-      session_id
-    ])
-  end
-
-  @clear_owner_session_script """
-    if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-    local session = redis.call('GET', KEYS[2]) or ''
-    if string.sub(session, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. ':' then
-      redis.call('DEL', KEYS[2])
-    end
-    return 1
-  """
+  def owner_session(owner, epoch, session_id, slot \\ 0) when is_binary(session_id),
+    do:
+      records(:owner_session, [lease_key(slot), session_key(slot)], [
+        "#{epoch}:#{owner}",
+        epoch,
+        session_id
+      ])
 
   def clear_owner_session(owner, epoch, slot \\ 0),
-    do: owner_script(@clear_owner_session_script, owner, epoch, slot)
+    do: owner_script(:clear_owner_session, owner, epoch, slot)
 
-  @release_script """
-    if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-    redis.call('DEL', KEYS[1])
-    local session = redis.call('GET', KEYS[2]) or ''
-    if string.sub(session, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. ':' then
-      redis.call('DEL', KEYS[2])
-    end
-    return 1
-  """
+  def release(owner, epoch, slot), do: owner_script(:release, owner, epoch, slot)
 
-  def release(owner, epoch, slot), do: owner_script(@release_script, owner, epoch, slot)
+  defp owner_script(operation, owner, epoch, slot),
+    do:
+      records(operation, [lease_key(slot), session_key(slot)], [
+        "#{epoch}:#{owner}",
+        epoch
+      ])
 
-  defp owner_script(script, owner, epoch, slot) do
-    VK.command([
-      "EVAL",
-      script,
-      2,
-      lease_key(slot),
-      session_key(slot),
-      "#{epoch}:#{owner}",
-      epoch
-    ])
-  end
+  defp records(operation, keys, args), do: Records.run(VK, @policy, operation, {keys, args})
 
   # Slot 0 keeps the single-socket key names that outgress already reads.
   defp lease_key(0), do: "trial:owner"

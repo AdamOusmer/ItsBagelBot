@@ -4,7 +4,8 @@
 defmodule Ingress.ConduitRpc do
   use Ingress.RpcServer, log: "conduit rpc"
 
-  alias Ingress.{JSON, Singleton}
+  alias Ingress.Singleton
+  alias Platform.Sift
 
   @call_timeout_ms 5_000
 
@@ -15,7 +16,7 @@ defmodule Ingress.ConduitRpc do
       |> Singleton.call(:status, @call_timeout_ms, &unreachable/1)
       |> conduit_reply()
 
-    {:reply, JSON.encode(reply)}
+    {:reply, Sift.encode_to_iodata!(reply)}
   end
 
   defp unreachable(:down), do: %{error: "conduit manager down"}

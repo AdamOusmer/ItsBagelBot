@@ -20,11 +20,7 @@ defmodule Ingress.Nats.PublisherPool do
         conn = connection_name(i)
 
         [
-          Supervisor.child_spec(
-            {Gnat.ConnectionSupervisor,
-             %{name: conn, backoff_period: 4_000, connection_settings: Config.nats_bus()}},
-            id: {:pub_conn, i}
-          ),
+          Platform.Nats.connection_child({:pub_conn, i}, conn, Config.nats_bus()),
           Supervisor.child_spec(
             {Ingress.Nats.Publisher, [index: i, conn: conn]},
             id: {:publisher, i}

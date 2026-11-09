@@ -23,14 +23,14 @@ defmodule Ingress.TrialRegistrationFakeGnat do
   def handle_call({:unsub, _sid, _opts}, _from, state), do: {:reply, :ok, state}
 
   defp reply("bagel.rpc.internal.users.get" <> _, body, state) do
-    %{"user_id" => id} = Jason.decode!(body)
+    {:ok, %{"user_id" => id}} = body |> IO.iodata_to_binary() |> Platform.Sift.decode()
 
     if MapSet.member?(state.registered, id),
-      do: Jason.encode!(%{user: %{id: id}}),
-      else: Jason.encode!(%{code: "not_found"})
+      do: Platform.Sift.encode!(%{user: %{id: id}}),
+      else: Platform.Sift.encode!(%{code: "not_found"})
   end
 
-  defp reply(_topic, _body, _state), do: Jason.encode!(%{deleted: true})
+  defp reply(_topic, _body, _state), do: Platform.Sift.encode!(%{deleted: true})
 end
 
 defmodule Ingress.TrialRegistrationFakeWs do
@@ -130,7 +130,8 @@ defmodule Ingress.TrialRegistrationTest do
     assert EnvCase.eventually(fn -> TrialReceiver.status(pid).owned end)
     flush_requests()
 
-    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
+    assert :ok ==
+             TrialUserChanged.request(%{body: Platform.Sift.encode!(%{user_id: 42})})
 
     assert row("42").stop_reason == "promoted"
 
@@ -145,7 +146,8 @@ defmodule Ingress.TrialRegistrationTest do
   test "registration event for an unknown broadcaster changes nothing" do
     add_on_slot_zero("42")
 
-    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 777})})
+    assert :ok ==
+             TrialUserChanged.request(%{body: Platform.Sift.encode!(%{user_id: 777})})
 
     assert row("777") == nil
     assert row("42").state == "pending"
@@ -155,7 +157,8 @@ defmodule Ingress.TrialRegistrationTest do
   test "registration event stops and marks a trial promoted in one step before any membership refresh" do
     add_on_slot_zero("42")
 
-    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
+    assert :ok ==
+             TrialUserChanged.request(%{body: Platform.Sift.encode!(%{user_id: 42})})
 
     assert %{state: "stopping", stop_reason: "promoted"} = row("42")
     assert {:ok, :unchanged} == Trials.stop("42", "promoted")
@@ -178,14 +181,17 @@ defmodule Ingress.TrialRegistrationTest do
     add_on_slot_zero("42")
     {:ok, :changed} = Trials.stop("42", "registration_check_unavailable")
 
-    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
+    assert :ok ==
+             TrialUserChanged.request(%{body: Platform.Sift.encode!(%{user_id: 42})})
 
     assert %{state: "stopping", stop_reason: "promoted"} = row("42")
   end
 
   test "an unchecked registration stop landing after promotion keeps the promotion" do
     add_on_slot_zero("42")
-    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
+
+    assert :ok ==
+             TrialUserChanged.request(%{body: Platform.Sift.encode!(%{user_id: 42})})
 
     assert {:ok, :unchanged} == Trials.stop("42", "registration_check_unavailable")
     assert row("42").stop_reason == "promoted"
@@ -193,9 +199,11 @@ defmodule Ingress.TrialRegistrationTest do
 
   test "admin removal after promotion keeps the promotion" do
     add_on_slot_zero("42")
-    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
 
-    reply = TrialRpc.reply_remove(Jason.encode!(%{broadcaster_id: "42"}))
+    assert :ok ==
+             TrialUserChanged.request(%{body: Platform.Sift.encode!(%{user_id: 42})})
+
+    reply = TrialRpc.reply_remove(Platform.Sift.encode!(%{broadcaster_id: "42"}))
 
     assert %{state: "stopping"} = reply
     assert row("42").stop_reason == "promoted"

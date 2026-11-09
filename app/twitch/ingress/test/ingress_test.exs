@@ -6,11 +6,12 @@ defmodule Ingress.PipelineTest do
 
   import Ingress.EnvCase
 
-  alias Ingress.{JSON, LaneMessage, Pipeline}
+  alias Ingress.Pipeline
+  alias Platform.Sift
 
   @special MapSet.new(["1001", "1002"])
 
-  defp wire(message), do: message |> JSON.encode() |> IO.iodata_to_binary() |> JSON.decode()
+  defp wire(message), do: message |> Sift.encode!() |> Sift.decode()
 
   describe "decide/3" do
     test "special user goes premium even when the message is not a command" do
@@ -60,8 +61,8 @@ defmodule Ingress.PipelineTest do
 
       assert {:publish_many,
               [
-                {"twitch.ingress.event.stream", %LaneMessage{lane: :stream} = live},
-                {"twitch.ingress.event.premium", %LaneMessage{lane: :premium} = own}
+                {"twitch.ingress.event.stream", %{lane: :stream} = live},
+                {"twitch.ingress.event.premium", %{lane: :premium} = own}
               ]} = Pipeline.route(notification("stream.online", event), @meta)
 
       assert {:ok, %{"lane" => "stream", "type" => "stream.online", "event" => ^event}} =
@@ -70,7 +71,7 @@ defmodule Ingress.PipelineTest do
       assert {:ok, %{"lane" => "premium", "type" => "stream.online", "event" => ^event}} =
                wire(own)
 
-      assert live.body === own.body
+      assert Map.delete(live, :lane) == Map.delete(own, :lane)
     end
 
     test "stream.offline rides both the live lane and the broadcaster's event lane" do
@@ -78,13 +79,13 @@ defmodule Ingress.PipelineTest do
 
       assert {:publish_many,
               [
-                {"twitch.ingress.event.stream", %LaneMessage{lane: :stream} = live},
-                {"twitch.ingress.event.premium", %LaneMessage{lane: :premium} = own}
+                {"twitch.ingress.event.stream", %{lane: :stream} = live},
+                {"twitch.ingress.event.premium", %{lane: :premium} = own}
               ]} = Pipeline.route(notification("stream.offline", event), @meta)
 
       assert {:ok, %{"lane" => "stream", "type" => "stream.offline"}} = wire(live)
       assert {:ok, %{"lane" => "premium", "type" => "stream.offline"}} = wire(own)
-      assert live.body === own.body
+      assert Map.delete(live, :lane) == Map.delete(own, :lane)
     end
 
     test "a live event without a broadcaster still hits the live lane on the standard event lane" do

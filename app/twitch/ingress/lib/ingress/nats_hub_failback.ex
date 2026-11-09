@@ -78,7 +78,7 @@ defmodule Ingress.NatsHubFailback do
 
     with {name, recycle} <- candidate do
       Logger.info(
-        "NatsHubFailback: moving #{name} from #{server_name(name)} back to node-local hub #{state.local_name}"
+        "NatsHubFailback: moving #{name} from #{Platform.Nats.server_name(name)} back to node-local hub #{state.local_name}"
       )
 
       recycle.()
@@ -103,7 +103,7 @@ defmodule Ingress.NatsHubFailback do
           []
       end
 
-    [{@connection, fn -> stop_connection(@connection) end} | pool]
+    [{@connection, fn -> Platform.Nats.stop(@connection) end} | pool]
   end
 
   @doc false
@@ -126,7 +126,7 @@ defmodule Ingress.NatsHubFailback do
   end
 
   defp locality(state, name) do
-    case server_name(name) do
+    case Platform.Nats.server_name(name) do
       nil ->
         {:unknown, state}
 
@@ -157,41 +157,7 @@ defmodule Ingress.NatsHubFailback do
   @doc false
   @spec probe_server_name(map()) :: String.t() | nil
   def probe_server_name(settings) do
-    case Gnat.start_link(settings) do
-      {:ok, pid} ->
-        name =
-          try do
-            Gnat.server_info(pid).server_name
-          catch
-            :exit, _ -> nil
-          end
-
-        stop_connection(pid)
-        name
-
-      _error ->
-        nil
-    end
-  catch
-    :exit, _ -> nil
-  end
-
-  defp server_name(connection) do
-    if Process.whereis(connection) do
-      try do
-        Gnat.server_info(connection).server_name
-      catch
-        :exit, _ -> nil
-      end
-    end
-  end
-
-  defp stop_connection(name_or_pid) do
-    try do
-      Gnat.stop(name_or_pid)
-    catch
-      :exit, _ -> :ok
-    end
+    Platform.Nats.probe_server_name(settings)
   end
 
   defp enabled? do

@@ -5,7 +5,8 @@ defmodule Ingress.StatusPlug do
   @behaviour Plug
   import Plug.Conn
 
-  alias Ingress.{Health, JSON}
+  alias Ingress.Health
+  alias Platform.Sift
 
   @impl true
   def init(opts), do: opts
@@ -27,7 +28,7 @@ defmodule Ingress.StatusPlug do
     conn
     |> put_resp_content_type("application/json")
     |> put_resp_header("cache-control", "no-store")
-    |> send_resp(Health.http_status(report.status), JSON.encode(report))
+    |> send_resp(Health.http_status(report.status), Sift.encode_to_iodata!(report))
   end
 
   def call(conn, _opts), do: send_resp(conn, 404, "not found\n")

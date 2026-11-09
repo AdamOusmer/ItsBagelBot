@@ -150,7 +150,7 @@ jobs:
             },
             {
               "image": "twitch-ingress",
-              "context": "app/twitch/ingress",
+              "context": ".",
               "containerfile": "app/twitch/ingress/Containerfile",
               "layer_cache": false,
               "description": "ItsBagelBot Twitch ingress service"
@@ -230,6 +230,12 @@ jobs:
             case "$path" in
               .github/workflows/publish-images.yml)
                 add_all_services
+                ;;
+              pkg/elixir/cowboy/*|pkg/elixir/nats/*|pkg/elixir/startup/*|pkg/elixir/new_relic/*|pkg/elixir/valkey/*|pkg/elixir/websocket/*|pkg/elixir/sift/*)
+                add "twitch-ingress"
+                ;;
+              pkg/elixir/*)
+                # Other BEAM boundaries are not dependencies of root Go images.
                 ;;
               .containerignore|go.mod|go.sum|pkg/*)
                 add_root_go_services

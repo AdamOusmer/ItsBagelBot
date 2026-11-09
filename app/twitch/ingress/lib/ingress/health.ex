@@ -28,7 +28,7 @@ defmodule Ingress.Health do
 
   @spec check(String.t(), atom()) :: check()
   def check(name, connection) do
-    %{name: name, ok: is_pid(Process.whereis(connection)), latency_ms: 0}
+    %{name: name, ok: Platform.Nats.connected?(connection), latency_ms: 0}
   end
 
   @spec aggregate([check()]) :: String.t()

@@ -64,16 +64,10 @@ defmodule Ingress.NatsFailback do
 
     successes =
       if candidate do
-        server =
-          try do
-            Gnat.server_info(candidate).server_name
-          catch
-            :exit, _ -> "(unavailable)"
-          end
-
+        server = Platform.Nats.server_name(candidate) || "(unavailable)"
         Logger.info("NatsFailback: recycling #{candidate} from #{server} back to node-local leaf")
 
-        stop_connection(candidate)
+        Platform.Nats.stop(candidate)
         Map.put(successes, candidate, 0)
       else
         successes
@@ -89,81 +83,15 @@ defmodule Ingress.NatsFailback do
 
   @spec local_connection?(atom(), String.t()) :: boolean() | :unknown
   defp local_connection?(name, node) do
-    case Process.whereis(name) do
-      nil ->
-        :unknown
-
-      _pid ->
-        try do
-          Gnat.server_info(name).server_name |> String.starts_with?(node <> "--")
-        catch
-          :exit, _ -> :unknown
-        end
-    end
-  end
-
-  defp stop_connection(name) do
-    if Process.whereis(name) do
-      try do
-        Gnat.stop(name)
-      catch
-        :exit, _ -> :ok
-      end
+    case Platform.Nats.server_name(name) do
+      nil -> :unknown
+      server -> String.starts_with?(server, node <> "--")
     end
   end
 
   @doc false
-  def local_leaf_ready?(health_url, timeout, cacerts \\ fleet_cacerts()) do
-    with %URI{scheme: scheme, host: host, port: port, path: path}
-         when scheme in ["http", "https"] and is_binary(host) <- URI.parse(health_url),
-         {:ok, transport, socket} <- connect(scheme, host, port, timeout, cacerts) do
-      request = [
-        "GET ",
-        if(path in [nil, ""], do: "/healthz", else: path),
-        " HTTP/1.1\r\nHost: ",
-        host,
-        "\r\nConnection: close\r\n\r\n"
-      ]
-
-      result =
-        with :ok <- transport.send(socket, request),
-             {:ok, response} <- transport.recv(socket, 0, timeout) do
-          response
-          |> :binary.split("\r\n", [:global])
-          |> List.first()
-          |> then(&(&1 in ["HTTP/1.1 200 OK", "HTTP/1.0 200 OK"]))
-        else
-          _ -> false
-        end
-
-      transport.close(socket)
-      result
-    else
-      _ -> false
-    end
-  end
-
-  defp connect("http", host, port, timeout, _cacerts) do
-    with {:ok, socket} <-
-           :gen_tcp.connect(String.to_charlist(host), port, [:binary, active: false], timeout) do
-      {:ok, :gen_tcp, socket}
-    end
-  end
-
-  defp connect("https", host, port, timeout, cacerts) do
-    opts = [
-      :binary,
-      active: false,
-      verify: :verify_peer,
-      cacerts: cacerts,
-      server_name_indication: String.to_charlist(host),
-      depth: 3
-    ]
-
-    with {:ok, socket} <- :ssl.connect(String.to_charlist(host), port, opts, timeout) do
-      {:ok, :ssl, socket}
-    end
-  end
+  def local_leaf_ready?(health_url, timeout, cacerts \\ fleet_cacerts()),
+    do: Platform.Nats.Probe.http_ready?(health_url, timeout, cacerts)
 
   defp fleet_cacerts do
     case System.get_env("NATS_CA_PEM") do

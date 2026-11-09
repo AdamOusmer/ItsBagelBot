@@ -7,6 +7,21 @@ defmodule Ingress.Trace do
   alias Ingress.Config
 
   @active_key {__MODULE__, :active}
+  @policy %{
+    "dispatcher.wait_ms": :number,
+    "event.type": {:enum, ["chat", "other", "invalid"]},
+    result: {:enum, ["ok", "timeout", "error", "filtered", "invalid", "dropped"]},
+    dependency: {:enum, ["nats"]},
+    "event.lane": {:enum, ["premium", "standard", "stream", "other", "none"]},
+    "messaging.destination":
+      {:enum,
+       [
+         "twitch.ingress.event.premium",
+         "twitch.ingress.event.standard",
+         "twitch.ingress.event.stream",
+         "twitch.ingress.event.other"
+       ]}
+  }
 
   def notification(enqueued_at, payload, meta, fun) when is_function(fun, 0) do
     if sampled?(meta) do
@@ -23,19 +38,18 @@ defmodule Ingress.Trace do
       |> max(0)
       |> System.convert_time_unit(:native, :microsecond)
 
-    NewRelic.start_transaction("Ingress", "Notification")
     Process.put(@active_key, true)
 
-    NewRelic.add_attributes(
-      "dispatcher.wait_ms": wait_us / 1_000,
-      "event.type": event_type(payload)
-    )
-
     try do
-      fun.()
+      Platform.NewRelic.transaction(
+        "Ingress",
+        "Notification",
+        ["dispatcher.wait_ms": wait_us / 1_000, "event.type": event_type(payload)],
+        fun,
+        @policy
+      )
     after
       Process.delete(@active_key)
-      NewRelic.stop_transaction()
     end
   end
 
@@ -47,14 +61,13 @@ defmodule Ingress.Trace do
     end
   end
 
-  defp event_type(%{"subscription" => %{"type" => type}}) when is_binary(type), do: type
+  defp event_type(%{"subscription" => %{"type" => "channel.chat.message"}}), do: "chat"
+  defp event_type(%{"subscription" => %{"type" => type}}) when is_binary(type), do: "other"
   defp event_type(_payload), do: "invalid"
 
   def trace_headers do
     if active?() do
-      :other
-      |> NewRelic.distributed_trace_headers()
-      |> Map.to_list()
+      Platform.NewRelic.trace_headers()
     else
       []
     end
@@ -62,21 +75,14 @@ defmodule Ingress.Trace do
 
   def span(name, attributes \\ [], fun) when is_function(fun, 0) do
     if active?() do
-      id = make_ref()
-      NewRelic.Tracer.Direct.start_span(id, name, attributes: attributes)
-
-      try do
-        fun.()
-      after
-        NewRelic.Tracer.Direct.stop_span(id)
-      end
+      Platform.NewRelic.span(name, attributes, fun, @policy)
     else
       fun.()
     end
   end
 
   def add_span_attributes(attributes) do
-    if active?(), do: NewRelic.add_span_attributes(attributes)
+    if active?(), do: Platform.NewRelic.add_span_attributes(attributes, @policy)
     :ok
   end
 

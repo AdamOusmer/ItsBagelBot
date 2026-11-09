@@ -4,14 +4,15 @@
 defmodule Ingress.HealthRpc do
   use Ingress.RpcServer, log: "health rpc"
 
-  alias Ingress.{Health, JSON}
+  alias Ingress.Health
+  alias Platform.Sift
 
   @impl true
   def request(%{body: _body}) do
     report = Health.report()
 
     {:reply,
-     JSON.encode(%{
+     Sift.encode_to_iodata!(%{
        service: report.service,
        ok: Health.up?(report),
        status: report.status,

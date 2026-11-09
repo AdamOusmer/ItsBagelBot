@@ -13,7 +13,7 @@ full design: [microservices/twitch-ingress](../../../web/docs/src/content/docs/m
   re-home to survivors in seconds.
 - A cluster-singleton `ConduitManager` reconciles the Conduit against Twitch (creates it, grows shard count, heals
   missing shard sessions) every 15s.
-- One `ShardSession` GenServer per Conduit shard owns one WebSocket (raw Mint socket, no hidden lifecycle):
+- One `ShardSession` GenServer per Conduit shard owns one WebSocket via the shared `Platform.WebSocket.Client` (no hidden lifecycle):
   - **Fresh connect:** waits for `session_welcome`, then binds the `session_id` to the shard via
     `PATCH /eventsub/conduits/shards`.
   - **No zombie connections:** a watchdog re-arms on every inbound frame; if Twitch's keepalive window (plus 5s
@@ -65,7 +65,7 @@ to standard.
 | `INGRESS_CAPACITY_WEBSOCKET_RATED_EPS` | Rated read/decode capacity per conduit WebSocket.            | `16000`                                       |
 | `INGRESS_CAPACITY_TARGET_UTILIZATION_PCT` | Autoscale and dashboard operating target.                  | `75`                                          |
 | `INGRESS_PUBLISH_BATCH_SIZE`          | Scheduler-local JetStream publish cohort size.                 | `128`                                         |
-| `INGRESS_PUBLISH_SEND_CONCURRENCY`    | Persistent Gnat send lanes per publisher connection.           | `22`                                          |
+| `INGRESS_PUBLISH_SEND_CONCURRENCY`    | Persistent NATS send lanes per publisher connection.           | `22`                                          |
 | `INGRESS_PUBLISH_BATCH_WAIT_MS`       | Maximum wait for a partially full publish cohort.               | `1`                                           |
 | `INGRESS_PUBLISH_WIRE`                | Cohort wire: `atomic` (one commit PubAck per cohort, ADR-050) or `single` (per-event PubAck). An ambiguous outcome drops the whole cohort on `atomic` (up to `INGRESS_PUBLISH_BATCH_SIZE` = 128 events) against exactly 1 on `single` (see the blast-radius note below). Anything else warns on stderr and stays `atomic`. | `atomic` |
 | `INGRESS_PUBLISH_BATCH_INFLIGHT`      | Unresolved atomic batches per shard. Sized by the FLEET budget, not by local latency: the broker caps open batches at 50 per stream and 3 replicas × 2 schedulers × 8 = 48. Cohorts over budget publish individually. | `8` |
@@ -130,13 +130,17 @@ stored the cohort as ordinary publishes because it never read the
 
 ## Monitoring
 
-New Relic via the official `new_relic_agent`. With `NEW_RELIC_LICENSE_KEY` unset the agent is disabled and every
+New Relic through `pkg/elixir/new_relic`, which isolates the official agent. With `NEW_RELIC_LICENSE_KEY` unset the agent is disabled and every
 instrumentation call is a no-op (dev and test run unchanged). Counters land under `Custom/Ingress/*`:
 `Published/<lane>`, `Dropped`, `Shard/Reconnects`, `Shard/ZombieTimeouts`, `Shard/SessionReconnects`,
 `Cache/Loads`, `Cache/LoadErrors`, `Nats/PublishDropped`. Every drop total also emits a `<total>/<reason>`
-sibling (`Dispatcher/Dropped/capacity`, `Nats/PublishDropped/overloaded`). Shard lifecycle is queryable as the `IngressEvent`
-custom event type (`ShardUp` / `ShardDown` with `shard_id`, `node`, `reason`). BEAM VM metrics (run queues, memory,
-GC) are collected automatically by the agent.
+sibling for declared bounded reasons (`Dispatcher/Dropped/capacity`,
+`Nats/PublishDropped/overloaded`). Shard lifecycle is queryable as the
+`IngressEvent` custom event type (`ShardUp` / `ShardDown`); attributes follow the
+service-owned numeric/enum policy. BEAM VM metrics (run queues, memory, GC) are
+collected automatically by the agent. Ingress retains its existing external
+log-forwarder mode and licensed logger formatting; direct SDK log export and
+automatic request/query/argument capture are disabled.
 
 ## Running
 
@@ -165,9 +169,19 @@ The capacity figures those measurements produced are not lost with the
 harnesses: the per-pod event rating and the shard ceiling live as documented
 constants in `config/runtime.exs`, and `test/capacity_test.exs` holds them.
 
-The release builds on OTP 27 and uses its native `:json` codec for Twitch frame
-decoding and NATS event encoding. Control-plane RPCs retain Jason where protocol
-implementations such as `DateTime` are useful and are not on the firehose.
+The release reaches JSON only through `Platform.Sift` (Torque, sonic-rs) for
+Twitch frame decoding, NATS event encoding and the control-plane RPCs.
+`DateTime` values encode as ISO 8601 strings.
 
 Production runs as a Mix release (`MIX_ENV=prod mix release`), one BEAM node per container, distribution bound to
 the tailnet only.
+
+## Shared infrastructure
+
+NATS connections, consumers and the timed publisher transport use `Platform.Nats`;
+Twitch sockets use `Platform.WebSocket.Client`. Ingress retains its own routing,
+PubAck tracking, cohort batching and reconnect policy. The publisher keeps its
+single JSON-to-binary flattening step and passes that binary through the shared
+wire without an extra payload copy. Trial state and telemetry use the shared
+Valkey and New Relic packages. The shared Cowboy package serves the status listener
+with two acceptors and the existing optional paired TLS configuration.

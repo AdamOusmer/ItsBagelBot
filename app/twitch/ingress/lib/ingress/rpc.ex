@@ -14,12 +14,12 @@ defmodule Ingress.Rpc do
   def request(connection, subject, body, opts \\ []) do
     case subjects(subject) do
       [generic] ->
-        Gnat.request(connection, generic, body, opts)
+        Platform.Nats.request(connection, generic, body, opts)
 
       [generic, local] ->
         # Only :no_responders proves nothing ran; retrying a timeout can repeat a mutation.
-        case Gnat.request(connection, local, body, opts) do
-          {:error, :no_responders} -> Gnat.request(connection, generic, body, opts)
+        case Platform.Nats.request(connection, local, body, opts) do
+          {:error, :no_responders} -> Platform.Nats.request(connection, generic, body, opts)
           result -> result
         end
     end

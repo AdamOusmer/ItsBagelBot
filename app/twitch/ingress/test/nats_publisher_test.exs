@@ -104,7 +104,7 @@ defmodule Ingress.Nats.PublisherTest do
 
       assert_receive {:pub, "twitch.ingress.event.standard", body, _opts}, 500
       assert is_binary(body)
-      assert JSON.decode!(body) == %{"n" => 1}
+      assert Platform.Sift.decode(body) == {:ok, %{"n" => 1}}
     end
 
     test "two concurrent events retain individual PubAcks without atomic headers", %{

@@ -32,7 +32,7 @@ It obtains broadcaster status through RPC, never by reading MySQL.
 | Change | Read first |
 | --- | --- |
 | Boot/cluster/service ownership | [application.ex](lib/ingress/application.ex), [bootstrapper.ex](lib/ingress/bootstrapper.ex), [singleton.ex](lib/ingress/singleton.ex) |
-| Socket watchdog, reconnect, handoff | [shard_session.ex](lib/ingress/shard_session.ex), [ws.ex](lib/ingress/ws.ex), [drain.ex](lib/ingress/drain.ex) |
+| Socket watchdog, reconnect, handoff | [shard_session.ex](lib/ingress/shard_session.ex), [shared WebSocket client](../../../pkg/elixir/websocket/lib/platform/web_socket/client.ex), [drain.ex](lib/ingress/drain.ex) |
 | Conduit reconciliation and placement | [conduit_manager.ex](lib/ingress/conduit_manager.ex), [shard_distribution.ex](lib/ingress/shard_distribution.ex) |
 | Event shape and priority | [pipeline.ex](lib/ingress/pipeline.ex): `handle_event/2`, `route/2`, `decide/3`, `emote_spans/1` |
 | Duplicate chat handling | [squash.ex](lib/ingress/squash.ex), [squash/pool.ex](lib/ingress/squash/pool.ex) |
@@ -42,6 +42,18 @@ It obtains broadcaster status through RPC, never by reading MySQL.
 | Capacity and scaling | [capacity.ex](lib/ingress/capacity.ex), [shard_scaler.ex](lib/ingress/shard_scaler.ex), [shard_scaler/policy.ex](lib/ingress/shard_scaler/policy.ex) |
 | Effective configuration | [runtime.exs](config/runtime.exs), [config.ex](lib/ingress/config.ex), `lib/ingress/config/` |
 | HTTP/RPC health and telemetry | [status_plug.ex](lib/ingress/status_plug.ex), [health.ex](lib/ingress/health.ex), [metrics.ex](lib/ingress/metrics.ex), [trace.ex](lib/ingress/trace.ex) |
+
+## Shared transport boundaries
+
+Ingress uses `Platform.Nats` for connection and consumer builders, requests and
+subscriptions, `Platform.Valkey` for trial storage, and `Platform.WebSocket.Client`
+for Twitch sockets. Service code retains EventSub session policy, NATS subject
+routing, and PubAck/atomic-batch handling. The shared NATS wire preserves the
+bounded publish timeout, headers and existing binary/iodata path; keep the
+single JSON flattening step in `publish_acked` and avoid copying or collecting
+per event. `Platform.NewRelic` owns telemetry integration and `Platform.Startup` owns
+shared startup facilities. The shared Cowboy package serves the ingress HTTP status listener with
+two acceptors and the existing paired TLS certificate/key configuration.
 
 ## Routing and shared contracts
 

@@ -4,7 +4,7 @@
 defmodule Ingress.Pipeline do
   require Logger
 
-  alias Ingress.{BroadcasterCache, Config, JSON, LaneMessage, Metrics, Nats, Squash, Trace}
+  alias Ingress.{BroadcasterCache, Config, Metrics, Nats, Squash, Trace}
 
   @type decision :: :special | :command | :chat
 
@@ -66,20 +66,19 @@ defmodule Ingress.Pipeline do
        when type in @stream_types do
     event_lane = event_lane(event)
 
-    body =
-      JSON.members(%{
-        type: type,
-        event: event,
-        shard_id: meta.shard_id,
-        msg_id: meta.msg_id,
-        received_at: meta.ts
-      })
+    body = %{
+      type: type,
+      event: event,
+      shard_id: meta.shard_id,
+      msg_id: meta.msg_id,
+      received_at: meta.ts
+    }
 
     publishes =
-      [{hot.lane_subjects.stream, %LaneMessage{lane: :stream, body: body}}] ++
+      [{hot.lane_subjects.stream, Map.put(body, :lane, :stream)}] ++
         case event_lane do
           :drop -> []
-          lane -> [{Map.fetch!(hot.lane_subjects, lane), %LaneMessage{lane: lane, body: body}}]
+          lane -> [{Map.fetch!(hot.lane_subjects, lane), Map.put(body, :lane, lane)}]
         end
 
     {:publish_many, publishes}
@@ -282,6 +281,14 @@ defmodule Ingress.Pipeline do
           %{id: String.t() | nil, begin: non_neg_integer(), end: non_neg_integer()}
         ]
   def emote_spans(%{"message" => %{"fragments" => fragments}}) when is_list(fragments) do
+    if Enum.any?(fragments, &(is_map(&1) and &1["type"] in @emote_fragment_types)),
+      do: spans(fragments),
+      else: []
+  end
+
+  def emote_spans(_event), do: []
+
+  defp spans(fragments) do
     {spans, _offset} =
       Enum.flat_map_reduce(fragments, 0, fn fragment, offset ->
         width = codepoint_width(fragment["text"])
@@ -299,12 +306,14 @@ defmodule Ingress.Pipeline do
     spans
   end
 
-  def emote_spans(_event), do: []
-
-  defp codepoint_width(text) when is_binary(text),
-    do: for(<<_::utf8 <- text>>, reduce: 0, do: (n -> n + 1))
-
+  defp codepoint_width(text) when is_binary(text), do: codepoint_width(text, 0)
   defp codepoint_width(_text), do: 0
+
+  defp codepoint_width(<<c, rest::binary>>, n) when c < 0x80 or c >= 0xC0,
+    do: codepoint_width(rest, n + 1)
+
+  defp codepoint_width(<<_continuation, rest::binary>>, n), do: codepoint_width(rest, n)
+  defp codepoint_width(<<>>, n), do: n
 
   defp fragment_id(%{"emote" => %{"id" => id}}) when is_binary(id), do: id
   defp fragment_id(%{"cheermote" => %{"prefix" => prefix}}) when is_binary(prefix), do: prefix
