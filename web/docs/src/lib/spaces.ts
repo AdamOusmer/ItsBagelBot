@@ -50,7 +50,7 @@ export const SPACES: readonly Space[] = [
     key: 'reference',
     label: 'reference',
     featured: ['reference/system-overview', 'reference/rpc-contracts', 'reference/shared-packages'],
-    groups: [{ pages: ['reference/system-overview', 'reference/rpc-contracts', 'reference/module-variables', 'reference/shared-packages', 'infrastructure/runtime-configuration', 'reference/documentation-standards'] }],
+    groups: [{ pages: ['reference/system-overview', 'reference/rpc-contracts', 'reference/module-variables', 'reference/shared-packages', 'infrastructure/runtime-configuration', 'infrastructure/node-network-tuning', 'reference/documentation-standards'] }],
   },
   {
     key: 'records',

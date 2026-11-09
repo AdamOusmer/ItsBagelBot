@@ -8,6 +8,8 @@ docType: reference
 
 The deployment supplies addresses and credentials. The code decides how they are used. Start with the service entry point and its config loader before copying an environment variable from another service.
 
+For host NIC settings, queue counts, interrupt affinity, offloads and persistence on node1–3, see [worker network tuning](/infrastructure/node-network-tuning/).
+
 ## Go service lifecycle
 
 `pkg/svcboot` owns logging, monitoring, signal cancellation and shared dependency constructors. `NewCore` returns the service context and cleanup function. Database services use `pkg/svcboot/databoot` for their Ent driver. The guard in `pkg/svcboot/guard_test.go` checks that service entry points use this boundary.
