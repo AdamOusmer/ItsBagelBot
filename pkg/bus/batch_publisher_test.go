@@ -80,6 +80,19 @@ func TestConcurrentFlushesBothReportTheSameFailedWindow(t *testing.T) {
 	assert.NoError(t, pub.Flush(context.Background()), "a healthy Flush after reporting the failure")
 }
 
+func TestFlushRegressionConfirmedFailureStaysWithItsCaller(t *testing.T) {
+	pub := newTestBatchPublisher()
+	worker := &publishBatchWorker{owner: pub}
+	confirmed := publishRequest{confirmed: make(chan error, 1), sequence: pub.markAccepted()}
+	want := errors.New("PubAck timeout")
+
+	worker.finish([]publishRequest{confirmed}, want)
+
+	require.ErrorIs(t, <-confirmed.confirmed, want, "the confirmed caller owns its failure")
+	pub.acceptAndResolve(nil)
+	assert.NoError(t, pub.Flush(context.Background()), "a later Flush must not inherit another caller's confirmed failure")
+}
+
 func TestPublishCompletionPreservesGapsAcrossGrowthAndWrap(t *testing.T) {
 	pub := newTestBatchPublisher()
 	first := pub.markAccepted()
