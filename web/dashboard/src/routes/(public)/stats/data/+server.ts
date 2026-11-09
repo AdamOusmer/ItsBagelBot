@@ -7,4 +7,7 @@ import { publicStats } from '#lib/server/public-stats';
 import { STATS_EDGE_HEADERS } from '../edge-headers';
 
 export const GET: RequestHandler = async () =>
-  json(await publicStats(), { headers: STATS_EDGE_HEADERS });
+  json(await publicStats(), { headers: {
+    ...STATS_EDGE_HEADERS,
+    'cdn-cache-control': 'max-age=1, stale-if-error=60'
+  } });

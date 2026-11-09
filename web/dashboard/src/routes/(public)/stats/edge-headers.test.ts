@@ -9,16 +9,18 @@ mock.module('#lib/server/public-boards', () => ({ publicBoards: async () => ({ d
 const { GET: statsGet } = await import('./data/+server');
 const { GET: boardsGet } = await import('./boards/+server');
 
-const handlers = [['data', statsGet], ['boards', boardsGet]] as [string, () => Response | Promise<Response>][];
+const handlers = [
+  ['data', statsGet, 'max-age=1, stale-if-error=60'],
+  ['boards', boardsGet, 'max-age=1, stale-while-revalidate=2, stale-if-error=60']
+] as [string, () => Response | Promise<Response>, string][];
 
-for (const [name, get] of handlers) {
-  test(`${name} is edge-cacheable with stale-while-revalidate and no s-maxage`, async () => {
+for (const [name, get, cdn] of handlers) {
+  test(`${name} uses its declared edge freshness without cookies`, async () => {
     const res = await get();
-    const cdn = res.headers.get('cdn-cache-control') ?? '';
-    expect(res.headers.get('cache-control')).toBe('public, max-age=0');
-    expect(cdn).toContain('max-age=1');
-    expect(cdn).toContain('stale-while-revalidate=');
-    expect(`${res.headers.get('cache-control')} ${cdn}`).not.toContain('s-maxage');
-    expect(res.headers.get('set-cookie')).toBeNull();
+    expect({
+      browser: res.headers.get('cache-control'),
+      edge: res.headers.get('cdn-cache-control'),
+      cookie: res.headers.get('set-cookie')
+    }).toEqual({ browser: 'public, max-age=0', edge: cdn, cookie: null });
   });
 }

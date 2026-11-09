@@ -5,6 +5,8 @@
   import { subscribe } from '@bagel/ui/lib/raf-loop';
   import { livePoll } from '@bagel/ui/lib/live-poll';
   import { onMount, untrack } from 'svelte';
+  import { Tween } from 'svelte/motion';
+  import { cubicOut } from 'svelte/easing';
   import { getI18n } from '@bagel/kit/i18n/context';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -14,9 +16,10 @@
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import PublicHead from '#lib/components/public/PublicHead.svelte';
+  import StatNumber from '#lib/components/public/StatNumber.svelte';
   import type { PageData } from './$types';
   import { SITE, commandsHref } from '@bagel/kit/site-links';
-  import { exactDisplay, formatStatTotal, validBoards, validStats } from '#lib/stats-values';
+  import { exactDisplay, validBoards, validStats } from '#lib/stats-values';
   import { StatsCounter } from '#lib/stats-odometer';
   import { isLoginShape } from '#lib/public-login';
   import { formatCounterValue } from '@bagel/kit/validation';
@@ -25,7 +28,8 @@
 
   const { t, locale } = getI18n();
 
-  const POLL_MS = 2000;
+  const STATS_POLL_MS = 1000;
+  const BOARDS_POLL_MS = 10000;
 
   const seed = untrack(() => validStats(data.stats) ?? {
     messages_total: '0',
@@ -65,7 +69,7 @@
 
   let display = $state(frame(0));
   let mountedAt = 0;
-  let reduced = false;
+  let reduced = $state(false);
 
   function tick(now: number): boolean {
     display = frame(now - mountedAt);
@@ -92,22 +96,32 @@
       events.update(next.event_rate_now, now, next.event_rate);
     }
     live = next;
-    display = frame(now);
+    const reading = frame(now);
+    display = reduced ? { ...display, msgRate: reading.msgRate, eventRate: reading.eventRate } : reading;
   }
   async function fetchJson(path: string): Promise<unknown> {
-    const res = await fetch(path, { headers: { accept: 'application/json' } });
+    const res = await fetch(path, {
+      headers: { accept: 'application/json' }, signal: AbortSignal.timeout(5000)
+    });
     if (!res.ok) throw new Error(`${path} ${res.status}`);
     return res.json();
   }
 
   function applyStats(result: PromiseSettledResult<unknown>): void {
     if (result.status === 'fulfilled') applySnapshot(result.value);
+    else degraded = true;
   }
 
-  async function poll(): Promise<boolean> {
+  async function pollStats(): Promise<boolean> {
     if (document.hidden) return false;
-    const [stats, next] = await Promise.allSettled([fetchJson('/stats/data'), fetchJson('/stats/boards')]);
+    const [stats] = await Promise.allSettled([fetchJson('/stats/data')]);
     applyStats(stats);
+    return false;
+  }
+
+  async function pollBoards(): Promise<boolean> {
+    if (document.hidden) return false;
+    const [next] = await Promise.allSettled([fetchJson('/stats/boards')]);
     if (next.status === 'fulfilled') boards = validBoards(next.value) ?? emptyBoards();
     return false;
   }
@@ -123,47 +137,54 @@
       if (!reduced) stopOdometer = subscribe(tick);
     };
     reduceMotion.addEventListener('change', onMotionChange);
-    const stopPoll = livePoll(poll, {
+    const reducedClock = setInterval(() => {
+      if (reduced) display = frame(performance.now() - mountedAt);
+    }, 1000);
+    const stopStatsPoll = livePoll(pollStats, {
       firstDelayMs: 0,
-      delayMs: () => POLL_MS,
+      delayMs: () => STATS_POLL_MS,
+      timeoutMs: Infinity,
+      refreshOnVisible: true
+    });
+    const stopBoardsPoll = livePoll(pollBoards, {
+      firstDelayMs: 0,
+      delayMs: () => BOARDS_POLL_MS,
       timeoutMs: Infinity,
       refreshOnVisible: true
     });
 
     return () => {
-      stopPoll();
+      stopStatsPoll();
+      stopBoardsPoll();
       stopOdometer();
+      clearInterval(reducedClock);
       reduceMotion.removeEventListener('change', onMotionChange);
     };
   });
 
   const rateFmt = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const compactFmt = new Intl.NumberFormat(locale, {
-    notation: 'compact',
-    maximumFractionDigits: 2
-  });
   const PENDING = t('stats.rateNa');
 
-  // Keep the locale's compact suffix separate for the larger counter type.
-  // The exact odometer reading remains printed below it, so compact rounding
-  // never hides the live count (or substitutes a made-up scale).
-  function compactTotal(raw: string, animated: number): { value: string; unit: string } {
+  function totalValue(raw: string, animated: number): number | bigint {
     const exact = BigInt(raw);
-    const value = exact > BigInt(Number.MAX_SAFE_INTEGER) ? exact : Math.round(animated);
-    const parts = compactFmt.formatToParts(value);
-    return {
-      value: parts.filter((part) => part.type !== 'compact').map((part) => part.value).join('').trim(),
-      unit: parts.find((part) => part.type === 'compact')?.value ?? ''
-    };
+    return exact > BigInt(Number.MAX_SAFE_INTEGER) ? exact : animated;
   }
+
+  const messageRate = $derived(display.msgRate);
+  const eventRate = $derived(display.eventRate);
+  const rates = new Tween([seed.msg_rate_now ?? seed.msg_rate ?? 0, seed.event_rate_now ?? seed.event_rate ?? 0]);
+  $effect(() => {
+    void rates.set([messageRate ?? 0, eventRate ?? 0], { duration: reduced ? 0 : 320, easing: cubicOut });
+  });
+  const detailParts = $derived(t('stats.processedTotal', { count: '\uFFFC' }).split('\uFFFC'));
 
   const tiles = $derived([
     {
       id: 'messages',
       label: t('stats.messagesShortLabel'),
-      ...compactTotal(live.messages_total, display.messages),
-      detail: t('stats.processedTotal', { count: formatStatTotal(live.messages_total, display.messages, locale) }),
-      rate: display.msgRate === null ? PENDING : rateFmt.format(display.msgRate),
+      total: totalValue(live.messages_total, display.messages),
+      countRate: messageRate ?? 0,
+      rate: messageRate === null ? null : rates.current[0],
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel'),
       tone: 'green' as const
@@ -171,9 +192,9 @@
     {
       id: 'events',
       label: t('stats.eventsShortLabel'),
-      ...compactTotal(live.events_total, display.events),
-      detail: t('stats.processedTotal', { count: formatStatTotal(live.events_total, display.events, locale) }),
-      rate: display.eventRate === null ? PENDING : rateFmt.format(display.eventRate),
+      total: totalValue(live.events_total, display.events),
+      countRate: eventRate ?? 0,
+      rate: eventRate === null ? null : rates.current[1],
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel'),
       tone: 'tan' as const
@@ -271,11 +292,11 @@
             <span class="st-counter__label"><bb-fit>{tile.label}</bb-fit></span>
             <span class="st-counter__period"><bb-fit>{t('stats.allTime')}</bb-fit></span>
           </div>
-          <div class="st-counter__value">{tile.value}<span class="st-counter__unit">{tile.unit}</span></div>
-          <div class="st-counter__exact"><bb-fit>{tile.detail}</bb-fit></div>
+          <div class="st-counter__value"><bb-fit><StatNumber value={tile.total} rate={tile.countRate} {locale} {reduced} /></bb-fit></div>
+          <div class="st-counter__exact"><bb-fit><span class="st-counter__detail">{detailParts[0]}</span><StatNumber value={tile.total} rate={tile.countRate} {locale} compact decimals={2} {reduced} /><span class="st-counter__detail">{detailParts[1]}</span></bb-fit></div>
           <div class="st-rule"></div>
           <div class="st-counter__rate">
-            <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden>{tile.rate}{#if tile.rate !== PENDING}<small class="st-counter__per">{t('stats.perSecond')}</small>{/if}</span>
+            <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden>{#if tile.rate === null}{PENDING}{:else}<StatNumber value={tile.rate} {locale} decimals={1} {reduced} /><small class="st-counter__per">{t('stats.perSecond')}</small>{/if}</span>
             <span class="st-counter__avg"><bb-fit mode="block">{tile.average === null ? t('stats.rightNow') : `${t('stats.rightNow')} · ${t('stats.minuteAverage', { rate: tile.average })}`}</bb-fit></span>
           </div>
         </Card>
@@ -587,17 +608,13 @@
     color: var(--bb-paper);
   }
 
-  .st-counter__unit {
-    font-size: 0.42em;
-    letter-spacing: -0.02em;
-    color: var(--bb-muted-light);
-  }
-
   .st-counter__exact {
     display: flex;
     font: var(--bb-text-sm)/1.4 var(--bb-font-mono);
     color: var(--bb-muted);
   }
+
+  .st-counter__detail { white-space: pre; }
 
   .st-counter__rate {
     display: flex;
