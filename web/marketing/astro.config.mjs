@@ -23,7 +23,8 @@ function hasGuideBody(url) {
 
 export default defineConfig({
   site: 'https://itsbagelbot.com',
-  prefetch:  true,
+  // src/script/prefetch.ts owns prefetching: the edge answers 503 to <link rel="prefetch">.
+  prefetch: false,
   compressHTML: true,
   integrations: [
     sitemap({
