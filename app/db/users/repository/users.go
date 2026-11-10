@@ -387,7 +387,25 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 	counted := r.trackAccounts(ctx, id)
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.eraseRow(ctx, createdAt, &deleted)
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+			row, err := tx.User.Get(ctx, id)
+			if err != nil {
+				return err
+			}
+			erasure, err := tx.LifecycleErasure.Create().SetUserID(id).SetAccountCreatedAt(deleted.AccountCreatedAt).SetLifecycle(lifecycleView(row)).Save(ctx)
+			if err != nil {
+				return err
+			}
+			deleted.DeletedAt = erasure.DeletedAt
+			n, err := tx.User.Delete().Where(user.IDEQ(id), user.CreatedAtEQ(createdAt)).Exec(ctx)
+			if err != nil {
+				return err
+			}
+			if n != 1 {
+				return fmt.Errorf("user account changed during deletion")
+			}
+			return nil
+		})
 	}); err != nil {
 		return err
 	}
@@ -397,28 +415,6 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 	r.analytics.Count(catalog.Lifecycle, "account_deleted")
 
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, deleted)
-}
-
-func (r *Users) eraseRow(ctx context.Context, createdAt time.Time, deleted *data.UserDeletedDTO) error {
-	return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-		row, err := tx.User.Get(ctx, deleted.UserID)
-		if err != nil {
-			return err
-		}
-		erasure, err := tx.LifecycleErasure.Create().SetUserID(deleted.UserID).SetAccountCreatedAt(deleted.AccountCreatedAt).SetLifecycle(lifecycleView(row)).Save(ctx)
-		if err != nil {
-			return err
-		}
-		deleted.DeletedAt = erasure.DeletedAt
-		n, err := tx.User.Delete().Where(user.IDEQ(deleted.UserID), user.CreatedAtEQ(createdAt)).Exec(ctx)
-		if err != nil {
-			return err
-		}
-		if n != 1 {
-			return fmt.Errorf("user account changed during deletion")
-		}
-		return nil
-	})
 }
 
 func (r *Users) Invalidate(id uint64) {

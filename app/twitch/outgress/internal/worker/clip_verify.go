@@ -27,18 +27,17 @@ const (
 
 func (w *Worker) scheduleClipVerify(broadcasterID, clipper, clipID string) {
 	probe := clipProbe{broadcasterID: broadcasterID, clipper: clipper, clipID: clipID}
-	runBounded(w.clipVerify, clipVerifyTimeout, func() {
+	if !runBounded(w.clipVerify, clipVerifyTimeout, func(ctx context.Context) { w.verifyClipPublished(ctx, probe) }) {
 		w.log.Warn("clip verify skipped: checks saturated",
 			zap.String("broadcaster_id", broadcasterID), zap.String("clip_id", clipID))
-	}, func(ctx context.Context) { w.verifyClipPublished(ctx, probe) })
+	}
 }
 
-func runBounded(slots chan struct{}, timeout time.Duration, onSaturated func(), run func(context.Context)) {
+func runBounded(slots chan struct{}, timeout time.Duration, run func(context.Context)) bool {
 	select {
 	case slots <- struct{}{}:
 	default:
-		onSaturated()
-		return
+		return false
 	}
 	go func() {
 		defer func() { <-slots }()
@@ -46,6 +45,7 @@ func runBounded(slots chan struct{}, timeout time.Duration, onSaturated func(), 
 		defer cancel()
 		run(ctx)
 	}()
+	return true
 }
 
 type clipProbe struct {

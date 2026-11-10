@@ -7,18 +7,16 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/zap"
-
 	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	giveawayengine "ItsBagelBot/app/db/transactions/giveaway"
 	"ItsBagelBot/app/db/transactions/mail"
-	"ItsBagelBot/app/db/transactions/repository"
 	transactionsrpc "ItsBagelBot/app/db/transactions/rpc"
 	"ItsBagelBot/app/db/transactions/tebex"
 	transactionsweb "ItsBagelBot/app/db/transactions/web"
 	"ItsBagelBot/pkg/env"
+	"go.uber.org/zap"
 )
 
 type giveawayRuntimeConfig struct {
@@ -57,22 +55,30 @@ func recordGiveawayBillingIncident(ctx context.Context, db *ent.Client, incident
 }
 
 func upsertBillingAlert(ctx context.Context, db *ent.Client, input billingAlertInput) error {
-	return repository.UpsertAlert(ctx, db, repository.AlertUpsert{
-		Match:  giveawayalert.IDEQ(input.alertID),
-		Create: input.create,
-		Update: input.update,
-	})
+	alert, err := db.GiveawayAlert.Query().Where(giveawayalert.IDEQ(input.alertID)).Only(ctx)
+	if ent.IsNotFound(err) {
+		return createBillingAlert(ctx, db, input)
+	}
+	if err != nil {
+		return err
+	}
+	if alert.State == "resolved" {
+		return nil
+	}
+	_, err = alert.Update().SetOperationID(input.eventID).SetState("unresolved").SetMessage(input.message).SetLastSeenAt(time.Now().UTC()).Save(ctx)
+	return err
 }
 
-func (input billingAlertInput) create(builder *ent.GiveawayAlertCreate) {
-	builder.SetID(input.alertID).SetAwardID(input.award.ID).SetOperationID(input.eventID).SetCategory("billing-event:" + input.eventID).SetState("unresolved").SetMessage(input.message)
+func createBillingAlert(ctx context.Context, db *ent.Client, input billingAlertInput) error {
+	builder := db.GiveawayAlert.Create().SetID(input.alertID).SetAwardID(input.award.ID).SetOperationID(input.eventID).SetCategory("billing-event:" + input.eventID).SetState("unresolved").SetMessage(input.message)
 	if !input.award.PlannedStart.IsZero() {
 		builder.SetAffectedBoundary(input.award.PlannedStart)
 	}
-}
-
-func (input billingAlertInput) update(builder *ent.GiveawayAlertUpdateOne) {
-	builder.SetOperationID(input.eventID).SetState("unresolved").SetMessage(input.message).SetLastSeenAt(time.Now().UTC())
+	_, err := builder.Save(ctx)
+	if ent.IsConstraintError(err) {
+		return nil
+	}
+	return err
 }
 
 func billingIncidentAffectsAward(award *ent.GiveawayAward, occurredAt time.Time) bool {

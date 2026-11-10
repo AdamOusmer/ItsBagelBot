@@ -15,7 +15,7 @@ func hasNonClipLink(text string) bool {
 		if start == end {
 			return false
 		}
-		if isNonClipLink(linkcheck.TrimLinkToken(text[start:end])) {
+		if linkToken(linkcheck.TrimLinkToken(text[start:end])).nonClipLink() {
 			return true
 		}
 		i = end
@@ -23,11 +23,13 @@ func hasNonClipLink(text string) bool {
 	return false
 }
 
-func isNonClipLink(tok string) bool {
-	if tok == "" || isTwitchClipToken(tok) {
+type linkToken string
+
+func (tok linkToken) nonClipLink() bool {
+	if tok == "" || isTwitchClipToken(string(tok)) {
 		return false
 	}
-	return looksLikeLinkHost(tok)
+	return looksLikeLinkHost(string(tok))
 }
 
 func maybeLinkText(text string) bool {
@@ -42,50 +44,39 @@ func looksLikeLinkHost(tok string) bool {
 	if len(host) < 4 || len(host) > 253 {
 		return false
 	}
-	labels, ok := hostLabelCount(host)
-	return ok && labels >= 2 && endsInLetter(host)
-}
-
-func hostLabelCount(host string) (int, bool) {
-	labels := 1
+	labels := 0
 	lastDot := true
+	alphaTLD := false
 	for i := 0; i < len(host); i++ {
-		if !isLinkHostByte(host[i]) {
-			return 0, false
-		}
-		isDot := host[i] == '.'
-		if isDot && lastDot {
-			return 0, false
-		}
-		if isDot {
-			labels++
-		}
-		lastDot = isDot
-	}
-	return labels, !lastDot
-}
-
-func isLinkHostByte(c byte) bool {
-	return c == '.' || c == '-' || c == '_' || isAlnumByte(c)
-}
-
-func isAlnumByte(c byte) bool {
-	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
-}
-
-func endsInLetter(host string) bool {
-	for i := len(host) - 1; i >= 0; i-- {
 		c := host[i]
+		if c == '.' {
+			if lastDot {
+				return false
+			}
+			labels++
+			lastDot = true
+			alphaTLD = false
+			continue
+		}
+		lastDot = false
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
 		switch {
-		case c == '.':
-			return false
+		case c == '-' || c == '_':
+		case c >= 'a' && c <= 'z':
+			alphaTLD = true
 		case c >= '0' && c <= '9':
+			alphaTLD = false
+		default:
 			return false
-		case c != '-' && c != '_':
-			return true
 		}
 	}
-	return false
+	if lastDot {
+		return false
+	}
+	labels++
+	return labels >= 2 && alphaTLD
 }
 
 func isTwitchClipToken(tok string) bool {
@@ -114,15 +105,14 @@ func clipSlugOK(rest string) bool {
 		return false
 	}
 	for i := 0; i < len(rest); i++ {
-		if !isSlugByte(rest[i]) {
+		c := rest[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '-' || c == '_':
+		default:
 			return false
 		}
 	}
 	return true
-}
-
-func isSlugByte(c byte) bool {
-	return isAlnumByte(c) || c == '-' || c == '_'
 }
 
 func hasFoldPrefix(s, prefix string) bool {

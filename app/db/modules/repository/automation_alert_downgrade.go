@@ -47,30 +47,29 @@ func (a *Automations) DowngradeToAlert(ctx context.Context, userID uint64, id st
 }
 
 func (a *Automations) commitAlertDowngrade(ctx context.Context, w alertDowngradeWrite) (*alertFlip, error) {
-	var flip *alertFlip
-	err := db.WithExec(ctx, func(ctx context.Context) error {
+	return db.WithQuery(ctx, func(ctx context.Context) (*alertFlip, error) {
 		tx, err := a.client.Tx(ctx)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		defer tx.Rollback()
 		row, err := loadOwnedAutomation(ctx, tx, w.userID, AutomationInput{ID: w.id, ExpectedRevision: w.alert.ExpectedRevision})
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if flip, err = writeAlertLine(ctx, tx, w.userID, w.alert); err != nil {
-			return err
+		flip, err := writeAlertLine(ctx, tx, w.userID, w.alert)
+		if err != nil {
+			return nil, err
 		}
 		deleted, err := tx.Automation.Delete().Where(entautomation.ID(row.ID), entautomation.Revision(row.Revision)).Exec(ctx)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if deleted == 0 {
-			return ErrRevisionConflict
+			return nil, ErrRevisionConflict
 		}
-		return tx.Commit()
+		return flip, tx.Commit()
 	})
-	return flip, err
 }
 
 func alertLinePatch(alert AlertDowngrade) (map[string]codec.RawMessage, error) {

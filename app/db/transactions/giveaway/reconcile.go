@@ -7,6 +7,7 @@ import (
 
 	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/billingoperation"
+	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	"ItsBagelBot/app/db/transactions/tebex"
 	"ItsBagelBot/pkg/codec"
@@ -270,5 +271,17 @@ type providerAlert struct {
 }
 
 func upsertProviderAlert(ctx context.Context, alertData providerAlert) error {
-	return upsertAwardAlert(ctx, alertData.db, awardAlert{awardID: alertData.awardID, category: "billing-reconciliation", operationID: alertData.operationID, message: alertData.message, now: alertData.now})
+	alert, err := alertData.db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(alertData.awardID), giveawayalert.CategoryEQ("billing-reconciliation")).Only(ctx)
+	if ent.IsNotFound(err) {
+		_, err = alertData.db.GiveawayAlert.Create().SetID(alertData.awardID + ":billing-reconciliation").SetAwardID(alertData.awardID).SetOperationID(alertData.operationID).SetCategory("billing-reconciliation").SetState("unresolved").SetMessage(alertData.message).SetLastSeenAt(alertData.now).Save(ctx)
+		if ent.IsConstraintError(err) {
+			return nil
+		}
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	_, err = alert.Update().SetState("unresolved").SetMessage(alertData.message).SetLastSeenAt(alertData.now).Save(ctx)
+	return err
 }

@@ -131,9 +131,9 @@ func (l *loyaltyRPC) handleBalanceAdd(ctx context.Context, req loyaltyrpc.Reques
 }
 
 func (l *loyaltyRPC) handleBalanceReset(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req, false)
-	if !ok {
-		return reply
+	userID, err := bus.UserID(req.UserID)
+	if err != nil || userID == 0 {
+		return refuse(domainrpc.CodeInvalid, bus.ErrInvalidUserID.Error())
 	}
 	return l.resetBalances(ctx, userID)
 }

@@ -176,22 +176,11 @@ func emitRewardAction(p rewardChatParams, emit module.Emit) {
 }
 
 func emitRedemptionResolution(b rewardBinding, ev engine.RedemptionEvent, emit module.Emit) {
-	emitRedemptionStatus(emit, ev, explicitResolutionStatus(b.OnRedeem))
-}
-
-func explicitResolutionStatus(onRedeem string) string {
-	switch onRedeem {
+	switch b.OnRedeem {
 	case onRedeemFulfill:
-		return outgress.RedemptionFulfilled
+		emit(ev.Resolve(outgress.RedemptionFulfilled))
 	case onRedeemCancel:
-		return outgress.RedemptionCanceled
-	}
-	return ""
-}
-
-func emitRedemptionStatus(emit module.Emit, ev engine.RedemptionEvent, status string) {
-	if status != "" {
-		emit(ev.Resolve(status))
+		emit(ev.Resolve(outgress.RedemptionCanceled))
 	}
 }
 

@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
@@ -50,7 +51,7 @@ func (s *streamInfoRPC) handleGet(ctx context.Context, req projectorrpc.StreamIn
 	}
 
 	live := false
-	if id, perr := bus.UserID(req.BroadcasterID); perr == nil {
+	if id, perr := strconv.ParseUint(req.BroadcasterID, 10, 64); perr == nil {
 		state, liveErr := s.store.GetStreamLive(ctx, id)
 		if liveErr != nil {
 			log.Warn("stream info rpc: live read failed", zap.String("broadcaster_id", req.BroadcasterID), zap.Error(liveErr))

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"ItsBagelBot/app/db/notifications/ent/connectionguard"
+
 	"ItsBagelBot/app/db/notifications/ent"
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/ent/notificationread"
@@ -87,7 +89,11 @@ func createNotification(ctx context.Context, client *ent.Client, p CreateParams)
 
 // Both acknowledgement and direct-send transactions serialize against erasure.
 func lockNotificationIncarnation(ctx context.Context, tx *ent.Tx, recipient Recipient) error {
-	guard, err := guardUpsert{accountID: recipient.UserID, incarnation: recipient.Incarnation, retainUntil: time.Now().Add(8 * 24 * time.Hour)}.lock(ctx, tx)
+	id, incarnation := recipient.UserID, recipient.Incarnation
+	if err := tx.ConnectionGuard.Create().SetAccountID(id).SetIncarnation(incarnation).SetRetainUntil(time.Now().Add(8*24*time.Hour)).OnConflictColumns(connectionguard.FieldAccountID, connectionguard.FieldIncarnation).Update(func(u *ent.ConnectionGuardUpsert) { u.SetAccountID(id) }).Exec(ctx); err != nil {
+		return err
+	}
+	guard, err := tx.ConnectionGuard.Query().Where(connectionguard.AccountIDEQ(id), connectionguard.IncarnationEQ(incarnation)).Only(ctx)
 	if err != nil {
 		return err
 	}
@@ -322,25 +328,12 @@ func (r *Notifications) insertLegacyPeeksIndividually(ctx context.Context, recip
 
 const CleanupBatchSize = 500
 
-func sweepBatch(ctx context.Context, selectIDs func(context.Context) ([]int, error), deleteIDs func(context.Context, []int) (int, error)) (int, bool, error) {
-	ids, err := selectIDs(ctx)
-	if err != nil || len(ids) == 0 {
-		return 0, false, err
-	}
-	deleted, err := deleteIDs(ctx, ids)
-	return deleted, len(ids) == CleanupBatchSize, err
-}
-
 func (r *Notifications) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	expired := notification.ExpiresAtLTE(now)
-	deleted, _, err := sweepBatch(ctx,
-		func(ctx context.Context) ([]int, error) {
-			return r.client.Notification.Query().Where(expired).Order(ent.Asc(notification.FieldExpiresAt), ent.Asc(notification.FieldID)).Limit(CleanupBatchSize).IDs(ctx)
-		},
-		func(ctx context.Context, ids []int) (int, error) {
-			return r.client.Notification.Delete().Where(notification.IDIn(ids...), expired).Exec(ctx)
-		})
-	return deleted, err
+	ids, err := r.client.Notification.Query().Where(notification.ExpiresAtLTE(now)).Order(ent.Asc(notification.FieldExpiresAt), ent.Asc(notification.FieldID)).Limit(CleanupBatchSize).IDs(ctx)
+	if err != nil || len(ids) == 0 {
+		return 0, err
+	}
+	return r.client.Notification.Delete().Where(notification.IDIn(ids...), notification.ExpiresAtLTE(now)).Exec(ctx)
 }
 
 func (r *Notifications) Delete(ctx context.Context, id int) error {

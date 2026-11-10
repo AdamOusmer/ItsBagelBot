@@ -243,15 +243,6 @@ func specialText[C any, R any](special func(statsCall[C], *R) (string, bool), ca
 	return special(call, reply)
 }
 
-func specialWhen[C any, R any](empty func(*R) bool, text func(*R) string) func(statsCall[C], *R) (string, bool) {
-	return func(_ statsCall[C], reply *R) (string, bool) {
-		if !empty(reply) {
-			return "", false
-		}
-		return text(reply), true
-	}
-}
-
 func ignoreArgs(run module.RunFunc) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
 		return run(ctx, c, "", emit)

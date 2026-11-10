@@ -2,14 +2,12 @@ package giveaway
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
-	"ItsBagelBot/pkg/db"
 )
 
 type fulfillmentPlan struct {
@@ -58,37 +56,31 @@ func (e *Engine) newFulfillmentPlan(ctx context.Context, award *ent.GiveawayAwar
 }
 
 func (e *Engine) saveFulfillmentPlan(ctx context.Context, award *ent.GiveawayAward, plan fulfillmentPlan) (*ent.GiveawayAward, error) {
-	updated, err := db.WithTxResult(ctx, e.store.DB, func(tx *ent.Tx) (*ent.GiveawayAward, error) {
-		return e.persistFulfillmentPlan(ctx, tx, award, plan)
-	})
-	switch {
-	case errors.Is(err, errPlanRaced):
-		return e.recoverFulfillmentPlan(ctx, award, plan)
-	case errors.Is(err, errPlanChanged):
-		return nil, e.needsReview(ctx, award, "durable fulfillment plan changed")
-	case err != nil:
+	tx, err := e.store.DB.Tx(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return updated.Unwrap(), nil
-}
-
-var (
-	errPlanRaced   = errors.New("fulfillment plan created concurrently")
-	errPlanChanged = errors.New("durable fulfillment plan changed")
-)
-
-func (e *Engine) persistFulfillmentPlan(ctx context.Context, tx *ent.Tx, award *ent.GiveawayAward, plan fulfillmentPlan) (*ent.GiveawayAward, error) {
+	defer tx.Rollback()
 	row, err := e.ensurePlanRow(ctx, tx, award.ID, plan)
 	if ent.IsConstraintError(err) {
-		return nil, errPlanRaced
+		_ = tx.Rollback()
+		return e.recoverFulfillmentPlan(ctx, award, plan)
 	}
 	if err != nil {
 		return nil, err
 	}
 	if !plan.matches(row) {
-		return nil, errPlanChanged
+		_ = tx.Rollback()
+		return nil, e.needsReview(ctx, award, "durable fulfillment plan changed")
 	}
-	return e.projectFulfillmentPlan(ctx, tx, award, row)
+	updated, err := e.projectFulfillmentPlan(ctx, tx, award, row)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return updated.Unwrap(), nil
 }
 
 func (e *Engine) ensurePlanRow(ctx context.Context, tx *ent.Tx, awardID string, plan fulfillmentPlan) (*ent.GiveawayFulfillmentPlan, error) {

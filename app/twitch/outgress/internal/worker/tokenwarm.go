@@ -40,9 +40,9 @@ func (w *Worker) scheduleTokenWarm(broadcasterID string) {
 	if !w.backgroundAllowed(context.Background(), broadcasterID) {
 		return
 	}
-	runBounded(w.tokenWarm, tokenWarmTimeout, func() {
+	if !runBounded(w.tokenWarm, tokenWarmTimeout, func(ctx context.Context) { w.warmBroadcasterToken(ctx, broadcasterID) }) {
 		w.log.Warn("token-warm skipped: checks saturated", zap.String("broadcaster_id", broadcasterID))
-	}, func(ctx context.Context) { w.warmBroadcasterToken(ctx, broadcasterID) })
+	}
 }
 
 func (w *Worker) warmBroadcasterToken(ctx context.Context, broadcasterID string) {

@@ -52,7 +52,7 @@ func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopi
 	// No queue group: every pod must drop its cached decision on a user change.
 	if invalidateSubject != "" {
 		if _, err := nc.Subscribe(invalidateSubject, func(msg *nats.Msg) {
-			id, err := bus.UserID(string(msg.Data))
+			id, err := strconv.ParseUint(string(msg.Data), 10, 64)
 			if err != nil {
 				return
 			}
@@ -78,7 +78,7 @@ func (s *statusRPC) handleGet(ctx context.Context, req projectorrpc.StatusReques
 		return projectorrpc.StatusReply{Error: "bad request"}
 	}
 
-	id, err := bus.UserID(req.BroadcasterID)
+	id, err := strconv.ParseUint(req.BroadcasterID, 10, 64)
 	if err != nil {
 		return projectorrpc.StatusReply{BroadcasterID: req.BroadcasterID, Tier: "standard"}
 	}

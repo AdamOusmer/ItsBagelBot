@@ -112,7 +112,10 @@ func (r *RecipeState) CountdownAck(ctx context.Context, d CountdownDelivery) (bo
 
 // Retry identities remain for 31 days. Each claim removes at most one batch.
 func (r *RecipeState) pruneCountdownOperations(ctx context.Context, now int64) error {
-	query := db.BatchDelete{Table: "countdown_operations", Column: "created_at_ms"}.Query(r.dialect)
+	query := "DELETE FROM countdown_operations WHERE id IN (SELECT id FROM countdown_operations WHERE created_at_ms<? ORDER BY created_at_ms LIMIT ?)"
+	if r.dialect != "sqlite3" {
+		query = "DELETE FROM countdown_operations WHERE created_at_ms<? ORDER BY created_at_ms LIMIT ?"
+	}
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := r.sqldb.ExecContext(ctx, query, now-int64(31*24*time.Hour/time.Millisecond), 1000)
 		return err

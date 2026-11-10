@@ -254,7 +254,23 @@ func (e *Engine) needsReview(ctx context.Context, award *ent.GiveawayAward, reas
 }
 
 func (e *Engine) alert(ctx context.Context, awardID, category, message string) error {
-	return upsertAwardAlert(ctx, e.store.DB, awardAlert{awardID: awardID, category: category, message: message, now: e.now(), retryOnRace: true})
+	row, findErr := e.store.DB.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(awardID), giveawayalert.CategoryEQ(category)).Only(ctx)
+	if findErr == nil {
+		_, err := row.Update().SetState("unresolved").SetMessage(message).SetLastSeenAt(e.now()).Save(ctx)
+		return err
+	}
+	if !ent.IsNotFound(findErr) {
+		return findErr
+	}
+	_, err := e.store.DB.GiveawayAlert.Create().SetID(awardID + ":" + category).SetAwardID(awardID).SetCategory(category).SetState("unresolved").SetMessage(message).SetLastSeenAt(e.now()).Save(ctx)
+	if ent.IsConstraintError(err) {
+		row, findErr = e.store.DB.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(awardID), giveawayalert.CategoryEQ(category)).Only(ctx)
+		if findErr != nil {
+			return findErr
+		}
+		_, err = row.Update().SetState("unresolved").SetMessage(message).SetLastSeenAt(e.now()).Save(ctx)
+	}
+	return err
 }
 
 func (e *Engine) reconcileLifecycle(ctx context.Context) error {
@@ -385,8 +401,29 @@ func markBillingReview(ctx context.Context, db *ent.Client, awardID string, reas
 	return err
 }
 
-func persistReviewAlert(ctx context.Context, client *ent.Client, awardID string, reason error) error {
-	return upsertAwardAlert(ctx, client, awardAlert{awardID: awardID, category: "billing", message: reason.Error(), now: time.Now(), reopen: true, retryOnRace: true})
+func persistReviewAlert(ctx context.Context, db *ent.Client, awardID string, reason error) error {
+	now := time.Now()
+	alert, err := db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(awardID), giveawayalert.CategoryEQ("billing")).Only(ctx)
+	if err == nil {
+		return reopenReviewAlert(ctx, alert, reason, now)
+	}
+	if !ent.IsNotFound(err) {
+		return err
+	}
+	_, err = db.GiveawayAlert.Create().SetID(awardID + ":billing").SetAwardID(awardID).SetCategory("billing").SetState("unresolved").SetMessage(reason.Error()).SetLastSeenAt(now).Save(ctx)
+	if !ent.IsConstraintError(err) {
+		return err
+	}
+	alert, err = db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(awardID), giveawayalert.CategoryEQ("billing")).Only(ctx)
+	if err != nil {
+		return err
+	}
+	return reopenReviewAlert(ctx, alert, reason, now)
+}
+
+func reopenReviewAlert(ctx context.Context, alert *ent.GiveawayAlert, reason error, now time.Time) error {
+	_, err := alert.Update().SetState("unresolved").SetMessage(reason.Error()).SetLastSeenAt(now).ClearAcknowledgedBy().ClearAcknowledgedAt().ClearResolvedAt().Save(ctx)
+	return err
 }
 
 func valueTime(v time.Time) time.Time {

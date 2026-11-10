@@ -78,12 +78,10 @@ func (q *Quotes) Close() {
 
 func (q *Quotes) cached(ctx context.Context, userID uint64) ([]modulesrpc.Quote, error) {
 	return q.views.GetOrLoad(ctx, cache.UserKey(quotesKeyPrefix, userID), func(ctx context.Context) ([]modulesrpc.Quote, error) {
-		rows, err := db.WithRead(ctx, func(ctx context.Context) ([]*ent.Quote, error) {
-			return q.client.Quote.Query().
-				Where(quote.UserID(userID)).
-				Order(ent.Asc(quote.FieldNumber)).
-				All(ctx)
-		})
+		rows, err := db.WithRead(ctx, q.client.Quote.Query().
+			Where(quote.UserID(userID)).
+			Order(ent.Asc(quote.FieldNumber)).
+			All)
 		if err != nil {
 			return nil, err
 		}
@@ -124,9 +122,17 @@ func (q *Quotes) Add(ctx context.Context, userID uint64, draft QuoteDraft) (*mod
 
 	var lastErr error
 	for range quoteAddAttempts {
-		row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Quote, error) {
-			return quoteOwner{quotes: q, userID: userID}.insertNext(ctx, draft)
-		})
+		next, err := q.nextNumber(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		row, err := db.WithQuery(ctx, q.client.Quote.Create().
+			SetUserID(userID).
+			SetNumber(next).
+			SetText(draft.Text).
+			SetAddedBy(draft.AddedBy).
+			SetCreatedAt(draft.CreatedAt.UTC()).
+			Save)
 		if err == nil {
 			q.Announce(ctx, userID)
 			return quoteView(row), nil
@@ -139,32 +145,12 @@ func (q *Quotes) Add(ctx context.Context, userID uint64, draft QuoteDraft) (*mod
 	return nil, fmt.Errorf("quote add: numbering contention: %w", lastErr)
 }
 
-type quoteOwner struct {
-	quotes *Quotes
-	userID uint64
-	number uint64
-}
-
-func (o quoteOwner) insertNext(ctx context.Context, draft QuoteDraft) (*ent.Quote, error) {
-	next, err := o.nextNumber(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return o.quotes.client.Quote.Create().
-		SetUserID(o.userID).
-		SetNumber(next).
-		SetText(draft.Text).
-		SetAddedBy(draft.AddedBy).
-		SetCreatedAt(draft.CreatedAt.UTC()).
-		Save(ctx)
-}
-
-func (o quoteOwner) nextNumber(ctx context.Context) (uint64, error) {
-	last, err := o.quotes.client.Quote.Query().
-		Where(quote.UserID(o.userID)).
+func (q *Quotes) nextNumber(ctx context.Context, userID uint64) (uint64, error) {
+	last, err := db.WithRead(ctx, q.client.Quote.Query().
+		Where(quote.UserID(userID)).
 		Order(ent.Desc(quote.FieldNumber)).
 		Select(quote.FieldNumber).
-		First(ctx)
+		First)
 	switch {
 	case ent.IsNotFound(err):
 		return 1, nil
@@ -201,30 +187,26 @@ func (q *Quotes) Search(ctx context.Context, userID uint64, term string) (*modul
 	if term == "" {
 		return nil, false, nil
 	}
-	row, err := db.WithRead(ctx, func(ctx context.Context) (*ent.Quote, error) {
-		return quoteOwner{quotes: q, userID: userID}.randomMatch(ctx, term)
-	})
-	if err != nil || row == nil {
+	match := q.client.Quote.Query().
+		Where(quote.UserID(userID), quote.TextContainsFold(term))
+	n, err := db.WithRead(ctx, match.Count)
+	if err != nil {
+		return nil, false, err
+	}
+	if n == 0 {
+		return nil, false, nil
+	}
+	row, err := db.WithRead(ctx, match.
+		Order(ent.Asc(quote.FieldNumber)).
+		Offset(rand.IntN(n)).
+		First)
+	if ent.IsNotFound(err) {
+		return nil, false, nil
+	}
+	if err != nil {
 		return nil, false, err
 	}
 	return quoteView(row), true, nil
-}
-
-func (o quoteOwner) randomMatch(ctx context.Context, term string) (*ent.Quote, error) {
-	match := o.quotes.client.Quote.Query().
-		Where(quote.UserID(o.userID), quote.TextContainsFold(term))
-	n, err := match.Count(ctx)
-	if err != nil || n == 0 {
-		return nil, err
-	}
-	row, err := match.
-		Order(ent.Asc(quote.FieldNumber)).
-		Offset(rand.IntN(n)).
-		First(ctx)
-	if ent.IsNotFound(err) {
-		return nil, nil
-	}
-	return row, err
 }
 
 type QuoteUpdate struct {
@@ -240,31 +222,25 @@ func (q *Quotes) Update(ctx context.Context, userID, number uint64, upd QuoteUpd
 	if len(upd.Text) > QuoteTextMaxLen {
 		return nil, false, ErrQuoteTooLong
 	}
-	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Quote, error) {
-		return quoteOwner{quotes: q, userID: userID, number: number}.rewrite(ctx, upd)
-	})
-	if err != nil || row == nil {
-		return nil, false, err
-	}
-	q.Announce(ctx, userID)
-	return quoteView(row), true, nil
-}
-
-func (o quoteOwner) rewrite(ctx context.Context, upd QuoteUpdate) (*ent.Quote, error) {
-	row, err := o.quotes.client.Quote.Query().
-		Where(quote.UserID(o.userID), quote.Number(o.number)).
-		Only(ctx)
+	row, err := db.WithRead(ctx, q.client.Quote.Query().
+		Where(quote.UserID(userID), quote.Number(number)).
+		Only)
 	switch {
 	case ent.IsNotFound(err):
-		return nil, nil
+		return nil, false, nil
 	case err != nil:
-		return nil, err
+		return nil, false, err
 	}
 	write := row.Update().SetText(upd.Text)
 	if !upd.CreatedAt.IsZero() {
 		write.SetCreatedAt(upd.CreatedAt.UTC())
 	}
-	return write.Save(ctx)
+	row, err = db.WithQuery(ctx, write.Save)
+	if err != nil {
+		return nil, false, err
+	}
+	q.Announce(ctx, userID)
+	return quoteView(row), true, nil
 }
 
 func (q *Quotes) List(ctx context.Context, userID uint64) ([]modulesrpc.Quote, error) {
@@ -273,14 +249,9 @@ func (q *Quotes) List(ctx context.Context, userID uint64) ([]modulesrpc.Quote, e
 }
 
 func (q *Quotes) Remove(ctx context.Context, userID, number uint64) (bool, error) {
-	var n int
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		var err error
-		n, err = q.client.Quote.Delete().
-			Where(quote.UserID(userID), quote.Number(number)).
-			Exec(ctx)
-		return err
-	})
+	n, err := db.WithQuery(ctx, q.client.Quote.Delete().
+		Where(quote.UserID(userID), quote.Number(number)).
+		Exec)
 	if err != nil {
 		return false, err
 	}
@@ -291,10 +262,7 @@ func (q *Quotes) Remove(ctx context.Context, userID, number uint64) (bool, error
 }
 
 func (q *Quotes) DeleteAllForUser(ctx context.Context, userID uint64) error {
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := q.client.Quote.Delete().Where(quote.UserID(userID)).Exec(ctx)
-		return err
-	})
+	_, err := db.WithQuery(ctx, q.client.Quote.Delete().Where(quote.UserID(userID)).Exec)
 	if err == nil {
 		q.Announce(ctx, userID)
 	}

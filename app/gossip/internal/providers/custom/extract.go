@@ -8,20 +8,26 @@ import (
 	"fmt"
 	"strings"
 
-	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/codec"
 )
 
 // Dot-path indexing only: no JSONPath query language on broadcaster-controlled input.
 
+// Must match the console and commands-service validation.
+const maxPathDepth = 8
+
 var errPathInvalid = errors.New("invalid json path")
 
 func buildPath(segments []string) (codec.Path, error) {
-	if err := validate.FetchPath(segments); err != nil {
-		return nil, fmt.Errorf("%w: %w", errPathInvalid, err)
+	full := segments
+	if len(full) > maxPathDepth {
+		return nil, fmt.Errorf("%w: deeper than %d", errPathInvalid, maxPathDepth)
 	}
-	out := make(codec.Path, 0, len(segments))
-	for _, seg := range segments {
+	out := make(codec.Path, 0, len(full))
+	for _, seg := range full {
+		if !validSegment(seg) {
+			return nil, fmt.Errorf("%w: %q", errPathInvalid, seg)
+		}
 		if isDigits(seg) {
 			out = append(out, "["+seg+"]")
 			continue
@@ -29,6 +35,22 @@ func buildPath(segments []string) (codec.Path, error) {
 		out = append(out, seg)
 	}
 	return out, nil
+}
+
+// Must match the segment grammar the console and commands service enforce.
+func validSegment(s string) bool {
+	if s == "" || len(s) > 64 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_', c == '-':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func isDigits(s string) bool {

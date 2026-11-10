@@ -89,13 +89,11 @@ func automationViews(rows []*ent.Automation) ([]automation.Automation, error) {
 }
 
 func (a *Automations) List(ctx context.Context, userID uint64) ([]automation.Automation, error) {
-	rows, err := db.WithRead(ctx, func(ctx context.Context) ([]*ent.Automation, error) {
-		return a.client.Automation.Query().
-			Where(entautomation.UserID(userID)).
-			Order(ent.Asc(entautomation.FieldNameKey)).
-			Select(runtimeColumns...).
-			All(ctx)
-	})
+	rows, err := db.WithRead(ctx, a.client.Automation.Query().
+		Where(entautomation.UserID(userID)).
+		Order(ent.Asc(entautomation.FieldNameKey)).
+		Select(runtimeColumns...).
+		All)
 	if err != nil {
 		return nil, err
 	}
@@ -103,11 +101,9 @@ func (a *Automations) List(ctx context.Context, userID uint64) ([]automation.Aut
 }
 
 func (a *Automations) Get(ctx context.Context, userID uint64, id string) (*automation.Automation, bool, error) {
-	row, err := db.WithRead(ctx, func(ctx context.Context) (*ent.Automation, error) {
-		return a.client.Automation.Query().
-			Where(entautomation.UserID(userID), entautomation.ID(id)).
-			Only(ctx)
-	})
+	row, err := db.WithRead(ctx, a.client.Automation.Query().
+		Where(entautomation.UserID(userID), entautomation.ID(id)).
+		Only)
 	switch {
 	case ent.IsNotFound(err):
 		return nil, false, nil
@@ -174,14 +170,9 @@ func (a *Automations) commitAutomation(ctx context.Context, draft automationDraf
 }
 
 func (a *Automations) Delete(ctx context.Context, userID uint64, id string) (bool, error) {
-	var n int
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		var err error
-		n, err = a.client.Automation.Delete().
-			Where(entautomation.UserID(userID), entautomation.ID(id)).
-			Exec(ctx)
-		return err
-	})
+	n, err := db.WithQuery(ctx, a.client.Automation.Delete().
+		Where(entautomation.UserID(userID), entautomation.ID(id)).
+		Exec)
 	if err != nil || n == 0 {
 		return false, err
 	}

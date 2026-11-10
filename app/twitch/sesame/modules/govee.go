@@ -225,3 +225,9 @@ func defaultFulfillStatus(onRedeem string) string {
 		return outgress.RedemptionFulfilled
 	}
 }
+
+func emitRedemptionStatus(emit module.Emit, ev engine.RedemptionEvent, status string) {
+	if status != "" {
+		emit(ev.Resolve(status))
+	}
+}

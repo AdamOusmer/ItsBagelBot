@@ -332,7 +332,11 @@ func (r *RecipeState) pruneCooldownBatch(ctx context.Context, nowMS int64) (int6
 }
 
 func (r *RecipeState) cooldownPruneQuery() string {
-	return db.BatchDelete{Table: "cooldown_claims", Column: "expires_at_ms", Inclusive: true}.Query(r.dialect)
+	expired := " WHERE expires_at_ms<=? ORDER BY expires_at_ms LIMIT ?"
+	if r.dialect == "sqlite3" {
+		return "DELETE FROM cooldown_claims WHERE id IN (SELECT id FROM cooldown_claims" + expired + ")"
+	}
+	return "DELETE FROM cooldown_claims" + expired
 }
 
 // CooldownRow is one stored window due to leave the database.
