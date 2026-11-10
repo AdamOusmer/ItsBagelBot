@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"strconv"
-	"sync"
 	"time"
 
 	"ItsBagelBot/app/projector/hydration"
@@ -22,42 +21,18 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 type Dashboard struct {
 	nc                    *nats.Conn
 	store                 *projection.Store
-	commandsTopic         string
-	modulesTopic          string
 	cacheInvalidatePrefix string
 	hydrator              *hydration.Hydrator
 	log                   *zap.Logger
 	writeGate             chan struct{}
-	mu                    sync.Mutex
-	commandMisses         map[uint64]*commandInFlight
-	moduleMisses          map[uint64]*moduleInFlight
 	commandsRead          sectionRead[[]projection.CommandView]
 	modulesRead           sectionRead[[]projection.ModuleView]
-}
-
-type commandFill struct {
-	commands []projection.CommandView
-	err      string
-}
-
-type moduleFill struct {
-	modules []projection.ModuleView
-	err     string
-}
-
-type commandInFlight struct {
-	done chan struct{}
-	fill commandFill
-}
-
-type moduleInFlight struct {
-	done chan struct{}
-	fill moduleFill
 }
 
 func SubscribeDashboard(
@@ -80,32 +55,32 @@ func SubscribeDashboard(
 	d := &Dashboard{
 		nc:                    nc,
 		store:                 store,
-		commandsTopic:         commandsTopic,
-		modulesTopic:          modulesTopic,
 		cacheInvalidatePrefix: cacheInvalidatePrefix,
 		hydrator:              hydrator,
 		log:                   log,
 		writeGate:             make(chan struct{}, writeConcurrency),
-		commandMisses:         map[uint64]*commandInFlight{},
-		moduleMisses:          map[uint64]*moduleInFlight{},
+	}
+	commandsFlight := &sectionFlight[rpcprojection.CommandsReply, []projection.CommandView]{
+		nc:    nc,
+		topic: commandsTopic,
+		pick:  func(r rpcprojection.CommandsReply) ([]projection.CommandView, string) { return r.Commands, r.Error },
 	}
 	d.commandsRead = sectionRead[[]projection.CommandView]{
 		readFailure: "projector command valkey read failed",
 		cached:      store.GetCommands,
-		fill: func(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) ([]projection.CommandView, string) {
-			fill := d.loadCommands(ctx, userID, req)
-			return fill.commands, fill.err
-		},
-		seed: hydration.CommandsSeed,
+		fill:        commandsFlight.load,
+		seed:        hydration.CommandsSeed,
+	}
+	modulesFlight := &sectionFlight[rpcprojection.ModulesReply, []projection.ModuleView]{
+		nc:    nc,
+		topic: modulesTopic,
+		pick:  func(r rpcprojection.ModulesReply) ([]projection.ModuleView, string) { return r.Modules, r.Error },
 	}
 	d.modulesRead = sectionRead[[]projection.ModuleView]{
 		readFailure: "projector module valkey read failed",
 		cached:      d.cachedModuleList,
-		fill: func(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) ([]projection.ModuleView, string) {
-			fill := d.loadModules(ctx, userID, req)
-			return fill.modules, fill.err
-		},
-		seed: hydration.ModulesSeed,
+		fill:        modulesFlight.load,
+		seed:        hydration.ModulesSeed,
 	}
 
 	if err := bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.CommandsReply](nc, prefix+".commands.get", queueGroup, 2*time.Second, app, log, d.handleCommandsGet); err != nil {
@@ -131,6 +106,44 @@ type sectionRead[T any] struct {
 	seed        func(T) hydration.Seed
 }
 
+type sectionFill[T any] struct {
+	items T
+	err   string
+}
+
+type sectionFlight[Rep, T any] struct {
+	group singleflight.Group
+	nc    *nats.Conn
+	topic string
+	pick  func(Rep) (T, string)
+}
+
+func (f *sectionFlight[Rep, T]) load(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) (T, string) {
+	done := f.group.DoChan(strconv.FormatUint(userID, 10), func() (any, error) {
+		return f.fetch(ctx, req), nil
+	})
+	select {
+	case res := <-done:
+		fill := res.Val.(sectionFill[T])
+		return fill.items, fill.err
+	case <-ctx.Done():
+		var zero T
+		return zero, ctx.Err().Error()
+	}
+}
+
+func (f *sectionFlight[Rep, T]) fetch(ctx context.Context, req projectorrpc.DashboardRequest) sectionFill[T] {
+	source, err := bus.RequestJSONTimeout[Rep](ctx, f.nc, f.topic, req, 1500*time.Millisecond)
+	if err != nil {
+		return sectionFill[T]{err: err.Error()}
+	}
+	items, failure := f.pick(source)
+	if failure != "" {
+		return sectionFill[T]{err: failure}
+	}
+	return sectionFill[T]{items: items}
+}
+
 type sectionResult[T any] struct {
 	userID  string
 	items   T
@@ -139,7 +152,7 @@ type sectionResult[T any] struct {
 
 func readSection[T any](ctx context.Context, d *Dashboard, req projectorrpc.DashboardRequest, s sectionRead[T]) sectionResult[T] {
 	log := monitor.TxnLogger(ctx, d.log)
-	userID, err := parseUserID(req.UserID)
+	userID, err := bus.NonZeroUserID(req.UserID)
 	if err != nil {
 		return sectionResult[T]{refusal: bus.Classify(err)}
 	}
@@ -168,7 +181,7 @@ func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.Dash
 }
 
 func (d *Dashboard) handleCommandsReplace(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
-	userID, err := parseUserID(req.UserID)
+	userID, err := bus.NonZeroUserID(req.UserID)
 	if err != nil {
 		return rpcprojection.CommandsReply{Refusal: bus.Classify(err)}
 	}
@@ -190,7 +203,7 @@ func (d *Dashboard) cachedModuleList(ctx context.Context, userID uint64) ([]proj
 }
 
 func (d *Dashboard) handleModulesReplace(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.ModulesReply {
-	userID, err := parseUserID(req.UserID)
+	userID, err := bus.NonZeroUserID(req.UserID)
 	if err != nil {
 		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
 	}
@@ -250,109 +263,4 @@ func (d *Dashboard) writeAsync(userID uint64, w projectionWrite) {
 			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, w.section, strconv.FormatUint(userID, 10), w.keys...)
 		}
 	}()
-}
-
-func (d *Dashboard) loadCommands(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) commandFill {
-	inFlight, owner := d.commandFillSlot(userID)
-	if !owner {
-		select {
-		case <-inFlight.done:
-			return inFlight.fill
-		case <-ctx.Done():
-			return commandFill{err: ctx.Err().Error()}
-		}
-	}
-
-	fill := commandFill{}
-	source, err := bus.RequestJSONTimeout[rpcprojection.CommandsReply](ctx, d.nc, d.commandsTopic, req, 1500*time.Millisecond)
-	switch {
-	case err != nil:
-		fill.err = err.Error()
-	case source.Error != "":
-		fill.err = source.Error
-	default:
-		fill.commands = source.Commands
-	}
-
-	d.finishCommandFill(userID, inFlight, fill)
-	return fill
-}
-
-func (d *Dashboard) commandFillSlot(userID uint64) (*commandInFlight, bool) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if inFlight, ok := d.commandMisses[userID]; ok {
-		return inFlight, false
-	}
-	inFlight := &commandInFlight{done: make(chan struct{})}
-	d.commandMisses[userID] = inFlight
-	return inFlight, true
-}
-
-func (d *Dashboard) finishCommandFill(userID uint64, inFlight *commandInFlight, fill commandFill) {
-	d.mu.Lock()
-	delete(d.commandMisses, userID)
-	inFlight.fill = fill
-	d.mu.Unlock()
-
-	close(inFlight.done)
-}
-
-func (d *Dashboard) loadModules(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) moduleFill {
-	inFlight, owner := d.moduleFillSlot(userID)
-	if !owner {
-		select {
-		case <-inFlight.done:
-			return inFlight.fill
-		case <-ctx.Done():
-			return moduleFill{err: ctx.Err().Error()}
-		}
-	}
-
-	fill := moduleFill{}
-	source, err := bus.RequestJSONTimeout[rpcprojection.ModulesReply](ctx, d.nc, d.modulesTopic, req, 1500*time.Millisecond)
-	switch {
-	case err != nil:
-		fill.err = err.Error()
-	case source.Error != "":
-		fill.err = source.Error
-	default:
-		fill.modules = source.Modules
-	}
-
-	d.finishModuleFill(userID, inFlight, fill)
-	return fill
-}
-
-func (d *Dashboard) moduleFillSlot(userID uint64) (*moduleInFlight, bool) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if inFlight, ok := d.moduleMisses[userID]; ok {
-		return inFlight, false
-	}
-	inFlight := &moduleInFlight{done: make(chan struct{})}
-	d.moduleMisses[userID] = inFlight
-	return inFlight, true
-}
-
-func (d *Dashboard) finishModuleFill(userID uint64, inFlight *moduleInFlight, fill moduleFill) {
-	d.mu.Lock()
-	delete(d.moduleMisses, userID)
-	inFlight.fill = fill
-	d.mu.Unlock()
-
-	close(inFlight.done)
-}
-
-func parseUserID(raw string) (uint64, error) {
-	if raw == "" {
-		return 0, bus.RPCReplyError{Message: "bad request"}
-	}
-	id, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil || id == 0 {
-		return 0, bus.RPCReplyError{Message: "invalid user_id"}
-	}
-	return id, nil
 }

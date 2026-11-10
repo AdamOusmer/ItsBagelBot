@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -51,7 +52,7 @@ func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopi
 	// No queue group: every pod must drop its cached decision on a user change.
 	if invalidateSubject != "" {
 		if _, err := nc.Subscribe(invalidateSubject, func(msg *nats.Msg) {
-			id, err := strconv.ParseUint(string(msg.Data), 10, 64)
+			id, err := bus.UserID(string(msg.Data))
 			if err != nil {
 				return
 			}
@@ -77,7 +78,7 @@ func (s *statusRPC) handleGet(ctx context.Context, req projectorrpc.StatusReques
 		return projectorrpc.StatusReply{Error: "bad request"}
 	}
 
-	id, err := strconv.ParseUint(req.BroadcasterID, 10, 64)
+	id, err := bus.UserID(req.BroadcasterID)
 	if err != nil {
 		return projectorrpc.StatusReply{BroadcasterID: req.BroadcasterID, Tier: "standard"}
 	}
@@ -96,10 +97,12 @@ func (s *statusRPC) handleGet(ctx context.Context, req projectorrpc.StatusReques
 }
 
 func tierFromStatus(status string) string {
-	if status == "premium" || status == "vip" || status == "paid" {
+	switch strings.ToLower(status) {
+	case "premium", "vip", "paid":
 		return "premium"
+	default:
+		return "standard"
 	}
-	return "standard"
 }
 
 func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry, bool) {
