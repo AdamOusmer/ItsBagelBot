@@ -30,7 +30,7 @@ function warm(anchor: HTMLAnchorElement): void {
 function hoverAnchor(target: EventTarget | null): HTMLAnchorElement | null {
     if (!(target instanceof Element)) return null;
     const anchor = target.closest<HTMLAnchorElement>('a[href]');
-    return (anchor?.dataset.astroPrefetch ?? 'hover') === 'hover' ? anchor : null;
+    return (anchor?.getAttribute('data-astro-prefetch') ?? 'hover') === 'hover' ? anchor : null;
 }
 
 function onPointAt(event: Event): void {
