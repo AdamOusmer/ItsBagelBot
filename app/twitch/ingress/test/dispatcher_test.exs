@@ -29,7 +29,6 @@ defmodule Ingress.DispatcherTest do
       max_running: 2,
       max_queue: 2,
       max_per_broadcaster: 2,
-      sweep_ms: 60_000,
       handler: handler
     ]
 
@@ -228,7 +227,6 @@ defmodule Ingress.DispatcherTest do
         max_running: 16,
         max_queue: 256,
         max_per_broadcaster: 256,
-        sweep_ms: 60_000,
         scale_interval_ms: 5,
         shrink_after_ms: 40,
         retire_grace_ms: 10,
@@ -392,13 +390,18 @@ defmodule Ingress.DispatcherTest do
     end
   end
 
-  test "the sweep removes zeroed attribution counters" do
-    dispatcher = start_dispatcher(max_running: 1, max_queue: 1, sweep_ms: 20)
+  test "completing and reclaiming leave no attribution rows behind" do
+    dispatcher = start_dispatcher(max_running: 2, max_queue: 4, max_per_broadcaster: 4)
 
-    assert Dispatcher.dispatch(%{n: 1}, meta("b1"), dispatcher) == :ok
-    assert_receive {:processed, worker, %{n: 1}, _}, 500
-    send(worker, :finish)
+    for broadcaster <- ["b1", "b2"], do: Dispatcher.dispatch(%{}, meta(broadcaster), dispatcher)
+    for _ <- 1..2, do: assert_receive({:processed, _worker, _payload, _meta}, 500)
+    assert :ets.info(dispatcher, :size) > 0
 
-    assert eventually(fn -> :ets.lookup(dispatcher, {:bc, "b1"}) == [] end)
+    [crashed, survivor] = workers(dispatcher)
+    Process.exit(crashed, :kill)
+    send(survivor, :finish)
+
+    assert eventually(fn -> :ets.info(dispatcher, :size) == 0 end)
+    assert Dispatcher.admitted_count(dispatcher) == 0
   end
 end
