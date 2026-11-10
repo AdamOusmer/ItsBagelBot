@@ -35,6 +35,20 @@ defmodule ControlsGateway.DrainTest do
     assert Task.await(task, 10_000) == :ok
   end
 
+  test "a socket that registers after drain enumerated is told to close" do
+    assert Drain.run() == :ok
+
+    state = %{
+      device_id: @device_id,
+      user_id: "user-1",
+      exp_ms: System.system_time(:millisecond) + 60_000
+    }
+
+    ControlsGateway.WsHandler.websocket_init(state)
+
+    assert_receive {:shutdown_close, _jitter_ms}
+  end
+
   defp eventually(fun, attempts \\ 50) do
     cond do
       fun.() ->

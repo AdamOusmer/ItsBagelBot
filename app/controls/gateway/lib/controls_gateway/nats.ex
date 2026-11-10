@@ -35,36 +35,64 @@ defmodule ControlsGateway.Nats do
 
   @doc """
   Subscribes the caller to a device's cmd/takeover/revoked subjects on the
-  current connection. Returns subscription ids for unsubscribe_all/1 and the
-  connection pid so the caller can monitor it for reconnects.
+  current connection, all or nothing. The returned subscription remembers the
+  connection it belongs to: Gnat hands out small sequential sids per
+  connection process, so a stale sid is only valid on its own connection.
   """
-  @spec subscribe_device(String.t()) :: {:ok, map(), pid()} | {:error, :not_connected}
+  @spec subscribe_device(String.t()) :: {:ok, map()} | {:error, :not_connected}
   def subscribe_device(device_id) do
     case Process.whereis(@connection) do
       nil -> {:error, :not_connected}
       pid -> do_subscribe_device(pid, device_id)
     end
-  catch
-    :exit, _reason -> {:error, :not_connected}
   end
 
   defp do_subscribe_device(pid, device_id) do
-    {:ok, cmd} = Gnat.sub(pid, self(), Subjects.device_cmd(device_id))
-    {:ok, takeover} = Gnat.sub(pid, self(), Subjects.device_takeover(device_id))
-    {:ok, revoked} = Gnat.sub(pid, self(), Subjects.revoked(device_id))
-    {:ok, %{cmd: cmd, takeover: takeover, revoked: revoked}, pid}
+    subjects = [
+      cmd: Subjects.device_cmd(device_id),
+      takeover: Subjects.device_takeover(device_id),
+      revoked: Subjects.revoked(device_id)
+    ]
+
+    case subscribe_all(pid, subjects, %{}) do
+      {:ok, sids} ->
+        {:ok, %{gnat: pid, sids: sids}}
+
+      {:error, sids} ->
+        unsubscribe_sids(pid, sids)
+        {:error, :not_connected}
+    end
+  end
+
+  defp subscribe_all(_pid, [], sids), do: {:ok, sids}
+
+  defp subscribe_all(pid, [{key, subject} | rest], sids) do
+    case subscribe(pid, subject) do
+      {:ok, sid} -> subscribe_all(pid, rest, Map.put(sids, key, sid))
+      _failure -> {:error, sids}
+    end
+  end
+
+  defp subscribe(pid, subject) do
+    Gnat.sub(pid, self(), subject)
+  catch
+    :exit, reason -> {:error, {:exit, reason}}
   end
 
   @spec unsubscribe_device(map() | nil) :: :ok
   def unsubscribe_device(nil), do: :ok
 
-  def unsubscribe_device(subs) do
-    case Process.whereis(@connection) do
-      nil -> :ok
-      pid -> Enum.each(subs, fn {_key, sid} -> Gnat.unsub(pid, sid) end)
-    end
-
+  def unsubscribe_device(%{gnat: pid, sids: sids}) do
+    if Process.whereis(@connection) == pid, do: unsubscribe_sids(pid, sids)
     :ok
+  end
+
+  defp unsubscribe_sids(pid, sids) do
+    Enum.each(sids, fn {_key, sid} -> unsubscribe(pid, sid) end)
+  end
+
+  defp unsubscribe(pid, sid) do
+    Gnat.unsub(pid, sid)
   catch
     :exit, _reason -> :ok
   end
