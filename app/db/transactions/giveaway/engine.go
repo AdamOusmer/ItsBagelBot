@@ -7,11 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/billingoperation"
@@ -19,11 +19,12 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
-	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
+	"ItsBagelBot/app/db/transactions/repository"
 	"ItsBagelBot/app/db/transactions/tebex"
 	giveawaysrpc "ItsBagelBot/internal/domain/rpc/giveaways"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 )
 
 type UsersPort interface {
@@ -253,23 +254,7 @@ func (e *Engine) needsReview(ctx context.Context, award *ent.GiveawayAward, reas
 }
 
 func (e *Engine) alert(ctx context.Context, awardID, category, message string) error {
-	row, findErr := e.store.DB.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(awardID), giveawayalert.CategoryEQ(category)).Only(ctx)
-	if findErr == nil {
-		_, err := row.Update().SetState("unresolved").SetMessage(message).SetLastSeenAt(e.now()).Save(ctx)
-		return err
-	}
-	if !ent.IsNotFound(findErr) {
-		return findErr
-	}
-	_, err := e.store.DB.GiveawayAlert.Create().SetID(awardID + ":" + category).SetAwardID(awardID).SetCategory(category).SetState("unresolved").SetMessage(message).SetLastSeenAt(e.now()).Save(ctx)
-	if ent.IsConstraintError(err) {
-		row, findErr = e.store.DB.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(awardID), giveawayalert.CategoryEQ(category)).Only(ctx)
-		if findErr != nil {
-			return findErr
-		}
-		_, err = row.Update().SetState("unresolved").SetMessage(message).SetLastSeenAt(e.now()).Save(ctx)
-	}
-	return err
+	return upsertAwardAlert(ctx, e.store.DB, awardAlert{awardID: awardID, category: category, message: message, now: e.now(), retryOnRace: true})
 }
 
 func (e *Engine) reconcileLifecycle(ctx context.Context) error {
@@ -339,7 +324,7 @@ func (a *engineAwardAdapter) NeedsReview(ctx context.Context, id string, reason 
 	return err
 }
 
-const leaseReleaseTimeout = 2 * time.Second
+var errUserLeased = errors.New("user fulfillment already leased")
 
 func (a *engineAwardAdapter) AcquireUserLease(ctx context.Context, userID string) (func(), error) {
 	if !a.leaseEnabled {
@@ -349,68 +334,14 @@ func (a *engineAwardAdapter) AcquireUserLease(ctx context.Context, userID string
 	if err != nil || uid == 0 {
 		return nil, errors.New("invalid user id")
 	}
-	now := time.Now()
-	owner := uuid.NewString()
-	until := now.Add(2 * time.Minute)
-	tx, err := a.db.Tx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	request := userLeaseRequest{id: userID, uid: uid, owner: owner, until: until, now: now}
-	row, findErr := lockUserLease(ctx, tx, uid)
-	err = request.save(ctx, tx, row, findErr)
-	if err != nil {
-		_ = tx.Rollback()
-		return nil, err
-	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), leaseReleaseTimeout)
-		defer cancel()
-		_, _ = a.db.GiveawayUserLease.UpdateOneID("user:" + userID).Where(giveawayuserlease.OwnerEQ(owner)).SetLeaseUntil(time.Now()).SetUpdatedAt(time.Now()).Save(ctx)
-	}, nil
+	lease := repository.UserLease{TTL: 2 * time.Minute, Busy: errUserLeased, Now: time.Now}
+	return lease.Acquire(ctx, a.db, uid)
 }
 
-type userLeaseRequest struct {
-	id, owner  string
-	uid        uint64
-	until, now time.Time
-}
-
-func lockUserLease(ctx context.Context, tx *ent.Tx, userID uint64) (*ent.GiveawayUserLease, error) {
-	row, err := tx.GiveawayUserLease.Query().Where(giveawayuserlease.UserIDEQ(userID)).ForUpdate().Only(ctx)
-	if err != nil && strings.Contains(err.Error(), "FOR UPDATE/SHARE not supported") {
-		return tx.GiveawayUserLease.Query().Where(giveawayuserlease.UserIDEQ(userID)).Only(ctx)
-	}
-	return row, err
-}
-
-func (request userLeaseRequest) save(ctx context.Context, tx *ent.Tx, row *ent.GiveawayUserLease, findErr error) error {
-	if findErr == nil {
-		if row.LeaseUntil.After(request.now) {
-			return errors.New("user fulfillment already leased")
-		}
-		_, err := row.Update().SetOwner(request.owner).SetLeaseUntil(request.until).SetUpdatedAt(request.now).Save(ctx)
-		return err
-	}
-	if !ent.IsNotFound(findErr) {
-		return findErr
-	}
-	_, err := tx.GiveawayUserLease.Create().SetID("user:" + request.id).SetUserID(request.uid).SetOwner(request.owner).SetLeaseUntil(request.until).SetUpdatedAt(request.now).Save(ctx)
-	return err
-}
 func (a *engineAwardAdapter) Scheduled(ctx context.Context, id, grantID string) error {
-	tx, err := a.db.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err = a.scheduleInTx(ctx, tx, id, grantID); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.WithTx(ctx, a.db, func(tx *ent.Tx) error {
+		return a.scheduleInTx(ctx, tx, id, grantID)
+	})
 }
 
 func (a *engineAwardAdapter) scheduleInTx(ctx context.Context, tx *ent.Tx, id, grantID string) error {
@@ -454,30 +385,10 @@ func markBillingReview(ctx context.Context, db *ent.Client, awardID string, reas
 	return err
 }
 
-func persistReviewAlert(ctx context.Context, db *ent.Client, awardID string, reason error) error {
-	now := time.Now()
-	alert, err := db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(awardID), giveawayalert.CategoryEQ("billing")).Only(ctx)
-	if err == nil {
-		return reopenReviewAlert(ctx, alert, reason, now)
-	}
-	if !ent.IsNotFound(err) {
-		return err
-	}
-	_, err = db.GiveawayAlert.Create().SetID(awardID + ":billing").SetAwardID(awardID).SetCategory("billing").SetState("unresolved").SetMessage(reason.Error()).SetLastSeenAt(now).Save(ctx)
-	if !ent.IsConstraintError(err) {
-		return err
-	}
-	alert, err = db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(awardID), giveawayalert.CategoryEQ("billing")).Only(ctx)
-	if err != nil {
-		return err
-	}
-	return reopenReviewAlert(ctx, alert, reason, now)
+func persistReviewAlert(ctx context.Context, client *ent.Client, awardID string, reason error) error {
+	return upsertAwardAlert(ctx, client, awardAlert{awardID: awardID, category: "billing", message: reason.Error(), now: time.Now(), reopen: true, retryOnRace: true})
 }
 
-func reopenReviewAlert(ctx context.Context, alert *ent.GiveawayAlert, reason error, now time.Time) error {
-	_, err := alert.Update().SetState("unresolved").SetMessage(reason.Error()).SetLastSeenAt(now).ClearAcknowledgedBy().ClearAcknowledgedAt().ClearResolvedAt().Save(ctx)
-	return err
-}
 func valueTime(v time.Time) time.Time {
 	return v.UTC()
 }
@@ -574,15 +485,11 @@ func (a engineProviderAdapter) protectionEvidence(ctx context.Context, reference
 func providerState(payment tebex.RecurringPayment, ref string) ProviderState {
 	state := ProviderState{
 		Reference:             ref,
-		CancellationRequested: paymentHasCancellation(payment),
+		CancellationRequested: payment.HasCancellation(),
 		Ambiguous:             paymentIsAmbiguous(payment, ref),
 	}
 	state.ProtectedUntil = providerProtectedUntil(payment, state.Ambiguous)
 	return state
-}
-
-func paymentHasCancellation(payment tebex.RecurringPayment) bool {
-	return payment.CancellationRequested || payment.Cancelled || payment.CancellationDate != nil
 }
 
 func paymentIsAmbiguous(payment tebex.RecurringPayment, reference string) bool {

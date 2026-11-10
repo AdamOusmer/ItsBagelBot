@@ -7,7 +7,6 @@ import (
 
 	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/billingoperation"
-	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	"ItsBagelBot/app/db/transactions/tebex"
 	"ItsBagelBot/pkg/codec"
@@ -161,10 +160,10 @@ func providerDrift(payment tebex.RecurringPayment, reference string, end, now ti
 	if !payment.MatchesReference(reference) {
 		return errors.New("provider recurring reference no longer matches the award")
 	}
-	if paymentHasCancellation(payment) {
+	if payment.HasCancellation() {
 		return errors.New("provider reports cancellation intent for a protected award")
 	}
-	if paymentStateAmbiguous(payment, reference) {
+	if paymentIsAmbiguous(payment, reference) {
 		return errors.New("provider subscription state is ambiguous for a protected award")
 	}
 	if protectionExpired(payment, reference, end, now) {
@@ -178,10 +177,6 @@ func protectionExpired(payment tebex.RecurringPayment, reference string, end, no
 		return false
 	}
 	return !payment.ProtectedThrough(reference, end)
-}
-
-func paymentStateAmbiguous(payment tebex.RecurringPayment, reference string) bool {
-	return payment.Ambiguous || !payment.CanProtect(reference)
 }
 
 type agreementSnapshot struct {
@@ -206,12 +201,12 @@ func (snapshot agreementSnapshot) persist(ctx context.Context, db *ent.Client) e
 }
 
 func (snapshot agreementSnapshot) create(ctx context.Context, db *ent.Client, encoded string) error {
-	_, err := db.TebexAgreement.Create().SetID(snapshot.operation.AgreementID).SetUserID(snapshot.userID).SetStoreID("tebex-checkout").SetRecurringReference(snapshot.operation.RecurringReference).SetInterval(snapshot.payment.Interval).SetProviderStatus(providerStatus(snapshot.payment)).SetCancelRequested(paymentHasCancellation(snapshot.payment)).SetNillableNextCollectionAt(snapshot.payment.NextPaymentDate).SetNillablePausedUntil(snapshot.payment.PausedUntil).SetLastSnapshotJSON(encoded).SetVerifiedAt(snapshot.now).SetCreatedAt(snapshot.now).SetUpdatedAt(snapshot.now).Save(ctx)
+	_, err := db.TebexAgreement.Create().SetID(snapshot.operation.AgreementID).SetUserID(snapshot.userID).SetStoreID("tebex-checkout").SetRecurringReference(snapshot.operation.RecurringReference).SetInterval(snapshot.payment.Interval).SetProviderStatus(providerStatus(snapshot.payment)).SetCancelRequested(snapshot.payment.HasCancellation()).SetNillableNextCollectionAt(snapshot.payment.NextPaymentDate).SetNillablePausedUntil(snapshot.payment.PausedUntil).SetLastSnapshotJSON(encoded).SetVerifiedAt(snapshot.now).SetCreatedAt(snapshot.now).SetUpdatedAt(snapshot.now).Save(ctx)
 	return err
 }
 
 func (snapshot agreementSnapshot) update(ctx context.Context, agreement *ent.TebexAgreement, encoded string) error {
-	update := agreement.Update().SetProviderStatus(providerStatus(snapshot.payment)).SetCancelRequested(paymentHasCancellation(snapshot.payment)).SetLastSnapshotJSON(string(encoded)).SetVerifiedAt(snapshot.now).SetUpdatedAt(snapshot.now)
+	update := agreement.Update().SetProviderStatus(providerStatus(snapshot.payment)).SetCancelRequested(snapshot.payment.HasCancellation()).SetLastSnapshotJSON(string(encoded)).SetVerifiedAt(snapshot.now).SetUpdatedAt(snapshot.now)
 	if snapshot.payment.NextPaymentDate != nil {
 		update.SetNextCollectionAt(*snapshot.payment.NextPaymentDate)
 	} else {
@@ -275,17 +270,5 @@ type providerAlert struct {
 }
 
 func upsertProviderAlert(ctx context.Context, alertData providerAlert) error {
-	alert, err := alertData.db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(alertData.awardID), giveawayalert.CategoryEQ("billing-reconciliation")).Only(ctx)
-	if ent.IsNotFound(err) {
-		_, err = alertData.db.GiveawayAlert.Create().SetID(alertData.awardID + ":billing-reconciliation").SetAwardID(alertData.awardID).SetOperationID(alertData.operationID).SetCategory("billing-reconciliation").SetState("unresolved").SetMessage(alertData.message).SetLastSeenAt(alertData.now).Save(ctx)
-		if ent.IsConstraintError(err) {
-			return nil
-		}
-		return err
-	}
-	if err != nil {
-		return err
-	}
-	_, err = alert.Update().SetState("unresolved").SetMessage(alertData.message).SetLastSeenAt(alertData.now).Save(ctx)
-	return err
+	return upsertAwardAlert(ctx, alertData.db, awardAlert{awardID: alertData.awardID, category: "billing-reconciliation", operationID: alertData.operationID, message: alertData.message, now: alertData.now})
 }

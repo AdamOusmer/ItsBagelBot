@@ -8,14 +8,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	stdmail "net/mail"
 	"time"
 
 	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/awardemail"
 	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
 	"ItsBagelBot/app/db/transactions/mail"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 )
 
 type GiveawayMailer interface {
@@ -115,18 +116,13 @@ func (e *Engine) sendAwardEmail(ctx context.Context, row *ent.AwardEmail, userID
 	if err != nil {
 		return errors.New("winner email lookup unavailable")
 	}
-	if !usableEmail(address) {
+	if validate.Email(address) != nil {
 		return e.missingEmail(ctx, row)
 	}
 	if row.RecipientHash != "" && row.RecipientHash != recipientHash(address) {
 		return e.reviewEmail(ctx, row, "winner contact changed after the first delivery attempt")
 	}
 	return e.deliverEmail(ctx, row, address)
-}
-
-func usableEmail(value string) bool {
-	address, err := stdmail.ParseAddress(value)
-	return err == nil && address.Address == value
 }
 
 func recipientHash(value string) string {
@@ -244,20 +240,15 @@ func confirmationNeeded(selection *ent.AwardEmail) bool {
 
 func (e *Engine) saveConfirmationQueue(ctx context.Context, selection *ent.AwardEmail, payload string) error {
 	awardID := selection.AwardID
-	tx, err := e.store.DB.Tx(ctx)
-	if err != nil {
+	return db.WithTx(ctx, e.store.DB, func(tx *ent.Tx) error {
+		if err := tx.GiveawayOutbox.Create().SetID(awardID + ":email:confirmation").SetAggregateID(awardID).
+			SetEventType("award.email.confirmation").SetPayloadJSON(payload).
+			OnConflict().DoNothing().Exec(ctx); err != nil {
+			return err
+		}
+		_, err := tx.AwardEmail.UpdateOneID(selection.ID).SetConfirmationQueued(true).Save(ctx)
 		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := tx.GiveawayOutbox.Create().SetID(awardID + ":email:confirmation").SetAggregateID(awardID).
-		SetEventType("award.email.confirmation").SetPayloadJSON(payload).
-		OnConflict().DoNothing().Exec(ctx); err != nil {
-		return err
-	}
-	if _, err := tx.AwardEmail.UpdateOneID(selection.ID).SetConfirmationQueued(true).Save(ctx); err != nil {
-		return err
-	}
-	return tx.Commit()
+	})
 }
 
 func (e *Engine) reconcileEmails(ctx context.Context) error {

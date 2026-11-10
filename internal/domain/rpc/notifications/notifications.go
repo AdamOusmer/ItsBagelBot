@@ -3,9 +3,11 @@
 
 package notificationsrpc
 
-import "ItsBagelBot/internal/domain/rpc"
+import (
+	"time"
 
-import "time"
+	"ItsBagelBot/internal/domain/rpc"
+)
 
 type NotificationView struct {
 	ID             int64      `json:"id"`
@@ -74,6 +76,10 @@ type MarkReadRequest struct {
 	UserID         string `json:"user_id"`
 	NotificationID string `json:"notification_id"`
 }
+
+func (r UserListRequest) Requested() string   { return r.UserID }
+func (r MarkReadRequest) Requested() string   { return r.UserID }
+func (r MarkPeekedRequest) Requested() string { return r.UserID }
 
 type MarkReadReply struct {
 	rpc.Refusal

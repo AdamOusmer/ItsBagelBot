@@ -1,15 +1,17 @@
 package repository
 
 import (
+	"context"
+	"fmt"
+	"strconv"
+	"time"
+
 	"ItsBagelBot/app/db/notifications/ent"
 	"ItsBagelBot/app/db/notifications/ent/connectionguard"
 	"ItsBagelBot/app/db/notifications/ent/connectionreceipt"
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/ent/notificationread"
-	"context"
-	"fmt"
-	"strconv"
-	"time"
+	"ItsBagelBot/pkg/db"
 )
 
 // ConnectionParams binds all retries to the original incident and delivery window.
@@ -56,16 +58,11 @@ func (r *Notifications) connectionTx(ctx context.Context, change connectionChang
 	if err := change.Params.validate(); err != nil {
 		return ConnectionResult{}, err
 	}
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return ConnectionResult{}, err
-	}
-	defer tx.Rollback()
-	result, err := change.apply(ctx, tx)
-	if err != nil {
-		return result, err
-	}
-	return result, tx.Commit()
+	return db.WithQuery(ctx, func(ctx context.Context) (ConnectionResult, error) {
+		return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (ConnectionResult, error) {
+			return change.apply(ctx, tx)
+		})
+	})
 }
 func (change connectionChange) apply(ctx context.Context, tx *ent.Tx) (ConnectionResult, error) {
 	guard, err := lockConnectionGuard(ctx, tx, change.Params)
@@ -82,11 +79,7 @@ func (change connectionChange) apply(ctx context.Context, tx *ent.Tx) (Connectio
 	return change.recordDelivery(ctx, tx, guard)
 }
 func lockConnectionGuard(ctx context.Context, tx *ent.Tx, p ConnectionParams) (*ent.ConnectionGuard, error) {
-	err := tx.ConnectionGuard.Create().SetAccountID(p.AccountID).SetIncarnation(p.Incarnation).SetRetainUntil(p.retention()).OnConflictColumns(connectionguard.FieldAccountID, connectionguard.FieldIncarnation).Update(func(u *ent.ConnectionGuardUpsert) { u.SetAccountID(p.AccountID) }).Exec(ctx)
-	if err != nil {
-		return nil, err
-	}
-	guard, err := tx.ConnectionGuard.Query().Where(connectionguard.AccountIDEQ(p.AccountID), connectionguard.IncarnationEQ(p.Incarnation)).Only(ctx)
+	guard, err := guardUpsert{accountID: p.AccountID, incarnation: p.Incarnation, retainUntil: p.retention()}.lock(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +88,29 @@ func lockConnectionGuard(ctx context.Context, tx *ent.Tx, p ConnectionParams) (*
 		err = tx.ConnectionGuard.UpdateOne(guard).SetRetainUntil(p.retention()).Exec(ctx)
 	}
 	return guard, err
+}
+
+type guardUpsert struct {
+	accountID   uint64
+	incarnation string
+	retainUntil time.Time
+	create      func(*ent.ConnectionGuardCreate)
+	onConflict  func(*ent.ConnectionGuardUpsert)
+}
+
+func (g guardUpsert) lock(ctx context.Context, tx *ent.Tx) (*ent.ConnectionGuard, error) {
+	builder := tx.ConnectionGuard.Create().SetAccountID(g.accountID).SetIncarnation(g.incarnation).SetRetainUntil(g.retainUntil)
+	if g.create != nil {
+		g.create(builder)
+	}
+	onConflict := g.onConflict
+	if onConflict == nil {
+		onConflict = func(u *ent.ConnectionGuardUpsert) { u.SetAccountID(g.accountID) }
+	}
+	if err := builder.OnConflictColumns(connectionguard.FieldAccountID, connectionguard.FieldIncarnation).Update(onConflict).Exec(ctx); err != nil {
+		return nil, err
+	}
+	return tx.ConnectionGuard.Query().Where(connectionguard.AccountIDEQ(g.accountID), connectionguard.IncarnationEQ(g.incarnation)).Only(ctx)
 }
 func connectionReceipt(ctx context.Context, client *ent.Client, p ConnectionParams) (*ent.ConnectionReceipt, error) {
 	row, err := client.ConnectionReceipt.Query().Where(connectionreceipt.AccountIDEQ(p.AccountID), connectionreceipt.IncarnationEQ(p.Incarnation), connectionreceipt.IncidentIDEQ(p.IncidentID)).Only(ctx)
@@ -214,27 +230,24 @@ func (r *Notifications) EraseConnection(ctx context.Context, accountID uint64, i
 	if err != nil {
 		return err
 	}
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err = erasure.lockGuard(ctx, tx); err != nil {
-		return err
-	}
-	if err = erasure.deleteHistory(ctx, tx); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+			if err := erasure.lockGuard(ctx, tx); err != nil {
+				return err
+			}
+			return erasure.deleteHistory(ctx, tx)
+		})
+	})
 }
 func (erasure *notificationErasure) lockGuard(ctx context.Context, tx *ent.Tx) error {
-	p := erasure.Recipient
 	deadline := erasure.DeletedAt.Add(8 * 24 * time.Hour)
-	err := tx.ConnectionGuard.Create().SetAccountID(p.UserID).SetIncarnation(p.Incarnation).SetRetainUntil(deadline).SetErasedAt(erasure.DeletedAt).SetErased(true).OnConflictColumns(connectionguard.FieldAccountID, connectionguard.FieldIncarnation).Update(func(u *ent.ConnectionGuardUpsert) { u.SetErased(true); u.SetRetainUntil(deadline) }).Exec(ctx)
-	if err != nil {
-		return err
-	}
-	guard, err := tx.ConnectionGuard.Query().Where(connectionguard.AccountIDEQ(p.UserID), connectionguard.IncarnationEQ(p.Incarnation)).Only(ctx)
+	guard, err := guardUpsert{
+		accountID:   erasure.Recipient.UserID,
+		incarnation: erasure.Recipient.Incarnation,
+		retainUntil: deadline,
+		create:      func(c *ent.ConnectionGuardCreate) { c.SetErasedAt(erasure.DeletedAt).SetErased(true) },
+		onConflict:  func(u *ent.ConnectionGuardUpsert) { u.SetErased(true); u.SetRetainUntil(deadline) },
+	}.lock(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -264,26 +277,25 @@ func (r *Notifications) CleanupDelivery(ctx context.Context, now time.Time) (int
 	return deleted, more || guardsMore, err
 }
 func (r *Notifications) cleanupConnectionReceipts(ctx context.Context, now time.Time) (int, bool, error) {
-	ids, err := r.client.ConnectionReceipt.Query().Where(connectionreceipt.RetainUntilLTE(now)).Order(ent.Asc(connectionreceipt.FieldRetainUntil), ent.Asc(connectionreceipt.FieldID)).Limit(CleanupBatchSize).IDs(ctx)
-	if err != nil {
-		return 0, false, err
-	}
-	if len(ids) == 0 {
-		return 0, false, nil
-	}
-	n, err := r.client.ConnectionReceipt.Delete().Where(connectionreceipt.IDIn(ids...), connectionreceipt.RetainUntilLTE(now)).Exec(ctx)
-	return n, len(ids) == CleanupBatchSize, err
+	expired := connectionreceipt.RetainUntilLTE(now)
+	return sweepBatch(ctx,
+		func(ctx context.Context) ([]int, error) {
+			return r.client.ConnectionReceipt.Query().Where(expired).Order(ent.Asc(connectionreceipt.FieldRetainUntil), ent.Asc(connectionreceipt.FieldID)).Limit(CleanupBatchSize).IDs(ctx)
+		},
+		func(ctx context.Context, ids []int) (int, error) {
+			return r.client.ConnectionReceipt.Delete().Where(connectionreceipt.IDIn(ids...), expired).Exec(ctx)
+		})
 }
 func (r *Notifications) cleanupConnectionGuards(ctx context.Context, now time.Time) (bool, error) {
-	// Retention and cooldown must both have elapsed. The delete rechecks retention
+	// Retention and cooldown must both have elapsed. The delete rechecks both
 	// so a delivery that extended a guard after selection cannot lose its lock.
-	ids, err := r.client.ConnectionGuard.Query().Where(connectionguard.RetainUntilLTE(now), connectionguard.Or(connectionguard.LastCreatedAtIsNil(), connectionguard.LastCreatedAtLTE(now.Add(-24*time.Hour)))).Order(ent.Asc(connectionguard.FieldRetainUntil), ent.Asc(connectionguard.FieldID)).Limit(CleanupBatchSize).IDs(ctx)
-	if err != nil {
-		return false, err
-	}
-	if len(ids) == 0 {
-		return false, nil
-	}
-	_, err = r.client.ConnectionGuard.Delete().Where(connectionguard.IDIn(ids...), connectionguard.RetainUntilLTE(now)).Exec(ctx)
-	return len(ids) == CleanupBatchSize, err
+	expired := connectionguard.And(connectionguard.RetainUntilLTE(now), connectionguard.Or(connectionguard.LastCreatedAtIsNil(), connectionguard.LastCreatedAtLTE(now.Add(-24*time.Hour))))
+	_, more, err := sweepBatch(ctx,
+		func(ctx context.Context) ([]int, error) {
+			return r.client.ConnectionGuard.Query().Where(expired).Order(ent.Asc(connectionguard.FieldRetainUntil), ent.Asc(connectionguard.FieldID)).Limit(CleanupBatchSize).IDs(ctx)
+		},
+		func(ctx context.Context, ids []int) (int, error) {
+			return r.client.ConnectionGuard.Delete().Where(connectionguard.IDIn(ids...), expired).Exec(ctx)
+		})
+	return more, err
 }

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	stdmail "net/mail"
 	"strings"
 	"time"
 
@@ -133,8 +132,7 @@ func (msg renderedMessage) valid() bool {
 			return false
 		}
 	}
-	address, err := stdmail.ParseAddress(msg.To)
-	return err == nil && address.Address == msg.To
+	return validate.Email(msg.To) == nil
 }
 
 func safeDeliveryError(err error) error {
