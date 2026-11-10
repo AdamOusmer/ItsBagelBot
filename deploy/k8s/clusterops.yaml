@@ -137,7 +137,7 @@ spec:
       priorityClassName: bagel-operator
       containers:
         - name: clusterops
-          image: ghcr.io/adamousmer/itsbagelbot/clusterops:main-1794136500-fbe6fb7682ce@sha256:8c86a23223e6c6b7c3d0a930ab86de20d20fe9c52b859dfc9552c39257624e08
+          image: ghcr.io/adamousmer/itsbagelbot/clusterops:v0.4.1-beta@sha256:2f3e2881376aa91a21f8a68696e81414d8f079698f8e1e285520e109894479a3
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HUB_URL
