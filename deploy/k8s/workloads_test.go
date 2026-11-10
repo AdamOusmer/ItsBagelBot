@@ -105,6 +105,18 @@ func TestNoWorkloadSelectsNodesByHostname(t *testing.T) {
 	}
 }
 
+func TestNoProbeRunsAReleaseRPC(t *testing.T) {
+	for filename, workloads := range allWorkloads(t) {
+		for _, w := range workloads {
+			for _, command := range w.probeCommands() {
+				assert.False(t, slices.Contains(command, "pid") || slices.Contains(command, "rpc"),
+					"%s/%s probes with %v; each run joins the node under a random name and leaves an atom that is never freed",
+					filename, w.Metadata.Name, command)
+			}
+		}
+	}
+}
+
 var pinningIsWorthIt = map[string]string{}
 
 func TestOnlyDocumentedStatefulSetsPinAVolume(t *testing.T) {
