@@ -20,10 +20,11 @@ interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'description' 
   /** IDs are unique. Use named slots `leading-${item.id}` for item artwork. */
   items: readonly RankingItem[];
   emptyLabel?: string;
+  compact?: boolean;
   class?: string;
 }
 const { t } = uiI18n(Astro);
-const { title, headingLevel = 2, description = '', items, emptyLabel = t('data.empty'), class: cls = '', ...rest } = Astro.props;
+const { title, headingLevel = 2, description = '', items, emptyLabel = t('data.empty'), compact = false, class: cls = '', ...rest } = Astro.props;
 const HeadingTag = `h${headingLevel}`;
 const maximum = items.reduce((max, item) =>
   Number.isFinite(item.value) ? Math.max(max, item.value) : max, 0) || 1;
@@ -36,7 +37,7 @@ function proportion(value: number): string {
 }
 ---
 
-<section class={['bb-ranking-card', cls].filter(Boolean).join(' ')} aria-label={title} {...rest}>
+<section class={['bb-ranking-card', compact && 'bb-ranking-card--compact', cls].filter(Boolean).join(' ')} aria-label={title} {...rest}>
   <header class="bb-ranking-card__head"><div class="bb-ranking-card__intro"><HeadingTag class="bb-ranking-card__title">{title}</HeadingTag>{description && <p class="bb-ranking-card__description">{description}</p>}</div>{Astro.slots.has('actions') && <div class="bb-ranking-card__actions"><slot name="actions" /></div>}</header>
   {items.length ? (
     <ol class="bb-ranking-card__list">

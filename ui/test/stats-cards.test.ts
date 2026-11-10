@@ -89,6 +89,12 @@ test('RankingCard: zero, negative and nonfinite values do not produce invalid ba
   expect(html).not.toContain('Infinity');
 });
 
+test('RankingCard: compact is an opt-in modifier on the root', async () => {
+  const items = [{ id: 'a', label: 'A', value: 1, valueLabel: '1' }];
+  const html = await pair(RankingCard, AstroRankingCard, { title: 'Dense', items, compact: true });
+  expect(html).toContain('class="bb-ranking-card bb-ranking-card--compact"');
+});
+
 test('RankingCard: fractional values compare to their largest value', async () => {
   const items = [0.25, 0.5].map((value, index) => ({ id: `${index}`, label: `Item ${index}`, value, valueLabel: `${value}` }));
   const html = await pair(RankingCard, AstroRankingCard, { title: 'Shares', items });

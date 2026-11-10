@@ -137,7 +137,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
-| **AreaSeries** | `values*`: readonly number[]<br>`ticks`: readonly number[]<br>`label*`: string<br>`height`: number<br>`uid`: string | svelte + astro | stable | `styles/elements/area-series.css` |
+| **AreaSeries** | `values*`: readonly number[]<br>`ticks`: readonly number[]<br>`labels`: readonly string[]<br>`formatValue`: (value: number) => string<br>`unit`: string<br>`label*`: string<br>`height`: number<br>`uid`: string | svelte + astro | stable | `styles/elements/area-series.css` |
 | **AvatarPlate** | `size`: number | svelte + astro | stable | `styles/elements/avatar-plate.css` |
 | **Bolota** | `name*`: string<br>`size`: number<br>`palette`: Palette<br>`active`: boolean<br>`cycle`: boolean<br>`motionState`: string<br>`follow`: boolean<br>`expression`: string \| null<br>`sequence`: 'entrance' \| 'burst' \| 'orbit' \| 'comet' \| null<br>`sequenceKey`: unknown<br>`sequenceHold`: number<br>`sequenceFor`: number<br>`gate`: boolean<br>`plate`: boolean<br>`title`: string | svelte | svelte-only | — |
 | **CanvasCard** | `background`: boolean<br>`selected`: boolean | svelte | svelte-only | `styles/elements/canvas-card.css` |
@@ -159,7 +159,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **ManagementRow** | `as`: T<br>`href`: string<br>`selectable`: boolean<br>`selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`wrap`: boolean<br>`stackActions`: boolean<br>`label`: string<br>`title`: string<br>`meta`: string<br>`onSelect`: () => void<br>`leading`: Snippet<br>`badge`: Snippet<br>`marks`: Snippet<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | stable | `styles/elements/management-row.css` |
 | **MarkBadge** | `src`: string<br>`alt`: string<br>`size`: 'xs' \| 'sm' \| 'md' \| 'lg'<br>`tone`: 'premium' \| 'success' | svelte | svelte-only | `styles/elements/mark-badge.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | stable | `styles/elements/overview-grid.css` |
-| **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
+| **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean<br>`compact`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`text`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |
 | **StepCard** | `index*`: number<br>`title`: string | svelte + astro | stable | `styles/elements/step-card.css` |
 | **Table** | `label*`: string<br>`zebra`: boolean<br>`compact`: boolean<br>`roomy`: boolean<br>`minWidth`: string | svelte + astro | stable | `styles/elements/table.css` |
