@@ -1,0 +1,22 @@
+{
+  "netAccounts": "Cuentas netas (registros menos eliminaciones)",
+  "netBot": "Cuentas netas con el bot habilitado",
+  "cancelPending": "Cancelaciones pendientes",
+  "paymentFailed": "Pagos fallidos pendientes",
+  "messages": "Mensajes leídos",
+  "answered": "Comandos respondidos",
+  "answerRate": "Tasa de respuesta",
+  "liveStarts": "Directos iniciados",
+  "timerFires": "Mensajes de temporizador enviados",
+  "liveWeek": "Canales en directo, última semana completa",
+  "avgModules": "Media de módulos activos",
+  "medianModules": "Mediana de módulos activos",
+  "customCreated": "Creados",
+  "customDeleted": "Eliminados",
+  "customNet": "Creados netos",
+  "customUses": "Usos",
+  "customChannels": "Canales con comandos personalizados",
+  "customChannelsWeek": "Canales que usan comandos personalizados, última semana completa",
+  "customActive": "Comandos activos",
+  "customInactive": "Comandos inactivos"
+}

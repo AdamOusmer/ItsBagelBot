@@ -1,0 +1,7 @@
+{
+  "summary": "Moyenne de {average} par jour, pic de {peak}",
+  "gainLossSummary": "Gagnés {gained}, perdus {lost}, net {net}",
+  "gained": "Gagnés",
+  "lost": "Perdus",
+  "lossDays": "Jours avec plus de pertes que de gains : {days}"
+}

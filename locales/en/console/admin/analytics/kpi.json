@@ -1,0 +1,11 @@
+{
+  "dau": "Active channels, yesterday",
+  "wau": "Active channels, last full week",
+  "mau": "Active channels, last full month",
+  "stickiness": "Daily over monthly active",
+  "accounts": "Accounts, latest snapshot",
+  "botShare": "Accounts with the bot enabled",
+  "paid": "Paid accounts",
+  "signups": "Signups in the window",
+  "paidShare": "{share} of all accounts"
+}

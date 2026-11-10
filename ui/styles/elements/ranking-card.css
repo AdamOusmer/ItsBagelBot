@@ -55,4 +55,10 @@
     .bb-ranking-card__label { font-size: 13px; }
     .bb-ranking-card__value { font-size: 15px; }
   }
+  .bb-ranking-card.bb-ranking-card--compact { --ranking-card-pad: var(--card-pad, 24px); --ranking-card-radius: var(--bb-radius-md); }
+  .bb-ranking-card--compact .bb-ranking-card__head { margin-bottom: 8px; }
+  .bb-ranking-card--compact .bb-ranking-card__title { font: 700 16px/1.3 var(--bb-font-display); letter-spacing: -0.01em; }
+  .bb-ranking-card--compact .bb-ranking-card__row { padding: 10px 0; }
+  .bb-ranking-card--compact .bb-ranking-card__track { margin: 6px 0 4px; }
+  .bb-ranking-card--compact .bb-ranking-card__value { font-size: 14px; }
 }

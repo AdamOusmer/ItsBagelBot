@@ -26,9 +26,6 @@ import { purgeEdgeByTag, purgeRenamedChannel } from '#lib/server/edge-purge';
 import { enumerableChannelQuery } from '#lib/server/channel-urls';
 import { preloadCatalog, preloadSlices } from '#lib/server/catalog-preload';
 import { errorTarget } from '#lib/error-routes';
-import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
-
-setAnalyticsApp('dashboard');
 
 // process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 export const init: ServerInit = async () => {
@@ -196,7 +193,6 @@ async function prepareRequest(event: HookEvent): Promise<void> {
   event.locals.locale = locale;
   event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
   tagTransaction(newrelic, event, event.locals.session);
-  countView(event);
 }
 
 function pageChunkTransform(locale: Locale): NonNullable<ResolveOptions['transformPageChunk']> {

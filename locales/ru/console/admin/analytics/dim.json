@@ -1,0 +1,61 @@
+{
+  "lifecycle": {
+    "signup": "Зарегистрировался",
+    "onboarded": "Завершил настройку",
+    "bot_enabled": "Включил бота",
+    "bot_disabled": "Отключил бота",
+    "revoked": "Отозвал доступ",
+    "chat_banned": "Забанен в чате",
+    "account_deleted": "Удалил аккаунт"
+  },
+  "billing": {
+    "activate": "Тариф активирован",
+    "cancel_requested": "Запрошена отмена",
+    "cancel_aborted": "Отмена возвращена",
+    "revoke": "Тариф отозван",
+    "payment_failed": "Ошибка платежа",
+    "expired": "Тариф истёк"
+  },
+  "tier": {
+    "free": "Бесплатный",
+    "paid": "Платный",
+    "vip": "VIP"
+  },
+  "source": {
+    "tebex": "Покупка в магазине",
+    "admin": "Выдача админом",
+    "giveaway": "Розыгрыш",
+    "vip": "Выдача VIP"
+  },
+  "preset": {
+    "start-new": "С нуля",
+    "integrate": "Интеграция",
+    "quiet": "Тихий",
+    "import": "Импорт",
+    "songs": "Песни"
+  },
+  "link": {
+    "spotify": "Spotify",
+    "govee": "Govee",
+    "fetch_key": "Ключ запроса"
+  },
+  "page": {
+    "commands": "Команды",
+    "leaderboard": "Таблица лидеров",
+    "songqueue": "Очередь песен"
+  },
+  "perm": {
+    "everyone": "Все",
+    "sub": "Подписчики",
+    "vip": "VIP",
+    "mod": "Модераторы",
+    "lead_mod": "Главные модераторы",
+    "broadcaster": "Стример"
+  },
+  "flag": {
+    "online_only": "Только в эфире",
+    "aliased": "С псевдонимами",
+    "cooldown": "С перезарядкой",
+    "counter": "Со счётчиком"
+  }
+}

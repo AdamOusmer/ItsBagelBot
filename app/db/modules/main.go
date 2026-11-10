@@ -93,9 +93,11 @@ func main() {
 	recipeState := repository.NewRecipeState(client, driver)
 	go repository.NewCooldownMover(recipeState, valkeyClient, rand.Text(), log).Run(core.Ctx)
 	repo.SetAnalytics(recorder)
-	go recorder.SeedOnce(core.Ctx, serviceName,
-		[]string{"modules.rows", "modules.breadth", "integrations.connected|spotify", "integrations.connected|govee"},
-		repo.AnalyticsSeed)
+	go recorder.ReconcileDaily(core.Ctx, analytics.Owner{
+		Service: serviceName,
+		Owned:   analytics.Owned{"modules.rows", "modules.breadth", "integrations.connected|spotify", "integrations.connected|govee"},
+		Seed:    repo.AnalyticsSeed,
+	})
 
 	consumeEvents(core.Ctx, eventsWiring{
 		app: core.NR, broadcast: n.Broadcast, grouped: n.Grouped,

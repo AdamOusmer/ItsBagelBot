@@ -1,0 +1,34 @@
+{
+  "overview": {
+    "title": "Überblick",
+    "question": "Wie ausgelastet ist der Bot, und wächst er?"
+  },
+  "growth": {
+    "title": "Wachstum",
+    "question": "Kommen neue Streamer und schließen sie die Einrichtung ab?"
+  },
+  "engagement": {
+    "title": "Aktivität",
+    "question": "Wie viel Arbeit erledigt der Bot pro Tag?"
+  },
+  "retention": {
+    "title": "Retention",
+    "question": "Nutzen Kanäle den Bot nach der Registrierung weiter?"
+  },
+  "revenue": {
+    "title": "Umsatz",
+    "question": "Wer zahlt, wie wurde gezahlt, und wer geht?"
+  },
+  "features": {
+    "title": "Funktionen",
+    "question": "Welche Module und Integrationen aktivieren Kanäle?"
+  },
+  "commands": {
+    "title": "Befehle",
+    "question": "Welche Befehle nutzen Kanäle, und wie bauen sie eigene?"
+  },
+  "audience": {
+    "title": "Zielgruppe",
+    "question": "Welche Sprachen nutzen Streamer?"
+  }
+}

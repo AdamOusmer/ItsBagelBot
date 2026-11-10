@@ -1,0 +1,8 @@
+{
+  "day": "{delta} par rapport à la veille",
+  "week": "{delta} par rapport à la semaine précédente",
+  "month": "{delta} par rapport au mois précédent",
+  "window": "{delta} par rapport aux {days} jours précédents",
+  "since": "{delta} sur les {days} derniers jours",
+  "none": "Aucune période antérieure à comparer"
+}

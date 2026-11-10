@@ -4,8 +4,6 @@
 package engine
 
 import (
-	"context"
-	"errors"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -47,39 +45,13 @@ func (p *Pipeline) recordBaked(c *module.Context, bc BoundCommand, engaged bool)
 	}
 	p.analytics.Count(catalog.CommandUses, bc.Cmd.Name)
 	p.analytics.Distinct(catalog.ModuleActive, c.BroadcasterID, moduleLabel(bc.Owner))
+	p.analytics.Distinct(catalog.CommandChannels, c.BroadcasterID, bc.Cmd.Name)
 }
 
-func (p *Pipeline) recordFailure(m module.Module, err error) {
-	p.analytics.Count(catalog.ModuleErrors, moduleLabel(m), errorClass(err))
-}
-
-func (p *Pipeline) recordHandled(mctx *module.Context, m module.Module, emittedBefore int, took time.Duration) {
-	label := moduleLabel(m)
-	p.analytics.Count(catalog.ModuleLatency, label, latencyBucket(took))
+func (p *Pipeline) recordHandled(mctx *module.Context, m module.Module, emittedBefore int) {
 	if mctx.Emitted > emittedBefore {
+		label := moduleLabel(m)
 		p.analytics.Count(catalog.ModuleEvents, label)
 		p.analytics.Distinct(catalog.ModuleActive, mctx.BroadcasterID, label)
 	}
-}
-
-func latencyBucket(d time.Duration) string {
-	switch {
-	case d < 10*time.Millisecond:
-		return "lt10ms"
-	case d < 50*time.Millisecond:
-		return "lt50ms"
-	case d < 250*time.Millisecond:
-		return "lt250ms"
-	case d < time.Second:
-		return "lt1s"
-	default:
-		return "ge1s"
-	}
-}
-
-func errorClass(err error) string {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return "timeout"
-	}
-	return "internal"
 }

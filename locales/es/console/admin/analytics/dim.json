@@ -1,0 +1,61 @@
+{
+  "lifecycle": {
+    "signup": "Se registró",
+    "onboarded": "Terminó la configuración",
+    "bot_enabled": "Habilitó el bot",
+    "bot_disabled": "Deshabilitó el bot",
+    "revoked": "Revocó el acceso",
+    "chat_banned": "Bloqueado en el chat",
+    "account_deleted": "Eliminó la cuenta"
+  },
+  "billing": {
+    "activate": "Plan activado",
+    "cancel_requested": "Cancelación solicitada",
+    "cancel_aborted": "Cancelación retirada",
+    "revoke": "Plan revocado",
+    "payment_failed": "Pago fallido",
+    "expired": "Plan caducado"
+  },
+  "tier": {
+    "free": "Gratis",
+    "paid": "De pago",
+    "vip": "VIP"
+  },
+  "source": {
+    "tebex": "Compra en tienda",
+    "admin": "Concesión de admin",
+    "giveaway": "Sorteo",
+    "vip": "Concesión VIP"
+  },
+  "preset": {
+    "start-new": "Empezar de cero",
+    "integrate": "Integrar",
+    "quiet": "Discreto",
+    "import": "Importar",
+    "songs": "Canciones"
+  },
+  "link": {
+    "spotify": "Spotify",
+    "govee": "Govee",
+    "fetch_key": "Clave de consulta"
+  },
+  "page": {
+    "commands": "Comandos",
+    "leaderboard": "Clasificación",
+    "songqueue": "Cola de canciones"
+  },
+  "perm": {
+    "everyone": "Todos",
+    "sub": "Suscriptores",
+    "vip": "VIPs",
+    "mod": "Moderadores",
+    "lead_mod": "Moderadores principales",
+    "broadcaster": "Streamer"
+  },
+  "flag": {
+    "online_only": "Solo en directo",
+    "aliased": "Con alias",
+    "cooldown": "Con enfriamiento",
+    "counter": "Con contador"
+  }
+}

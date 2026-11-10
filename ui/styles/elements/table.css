@@ -59,9 +59,20 @@
         text-transform: none;
     }
 
-    .bb-tbl .r { text-align: right; }
+    .bb-tbl .r,
+    .bb-tbl th[scope="col"].r { text-align: right; }
     .bb-tbl .mut { color: var(--bb-muted); }
     .bb-tbl .acc { color: var(--bb-tan-light); }
+    .bb-tbl .heat {
+        background: rgba(var(--bb-green-glow-rgb), calc(var(--heat, 0) * 0.42));
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+    }
+    .bb-tbl .heat small {
+        display: block;
+        color: var(--bb-muted);
+        font-size: 11px;
+    }
 
     .bb-tbl--zebra tbody tr:nth-child(even) td {
         background: rgba(var(--bb-white-rgb), 0.02);

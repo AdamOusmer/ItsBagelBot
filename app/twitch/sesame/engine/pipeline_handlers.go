@@ -6,7 +6,6 @@ package engine
 import (
 	"context"
 	"strings"
-	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/projection"
@@ -43,12 +42,11 @@ func (p *Pipeline) runHandler(ctx context.Context, mctx *module.Context, h *boun
 		return
 	}
 	before := mctx.Emitted
-	started := time.Now()
 	if err := h.handle(ctx, mctx, emit); err != nil {
 		p.handlerFailed(ctx, mctx, h.m, err)
 		return
 	}
-	p.recordHandled(mctx, h.m, before, time.Since(started))
+	p.recordHandled(mctx, h.m, before)
 	if engagedBy(mctx, h.m, before) {
 		mctx.Engaged = true
 	}
@@ -74,7 +72,6 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 		zap.String("type", mctx.Env.Type),
 		module.BIDField(mctx.BroadcasterID),
 		zap.Error(err))
-	p.recordFailure(m, err)
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("module.failed", moduleLabel(m))
 		monitor.NoticeError(txn, err)

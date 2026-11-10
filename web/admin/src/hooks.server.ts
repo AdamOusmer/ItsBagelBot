@@ -21,9 +21,6 @@ import { startInvalidationListener } from '#lib/server/services';
 import { assertConfigSane } from '#lib/server/config-sanity';
 import { ensureLaneStoreHA } from '#lib/server/lanes';
 import { isPublicAdminRoute } from '#lib/server/public-routes';
-import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
-
-setAnalyticsApp('admin');
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -64,7 +61,6 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   tagTransaction(newrelic, event, event.locals.session);
-  countView(event);
 
   const res = await resolve(event, { preload: preloadStrategy });
 

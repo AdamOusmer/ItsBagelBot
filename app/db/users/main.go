@@ -68,7 +68,7 @@ func main() {
 	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
 	repo.SetAnalytics(recorder)
 	repo.SetDeviceAuthSigner(loadDeviceAuthSigner(log))
-	go recorder.SeedOnce(ctx, serviceName, ownedAccountLevels(), repo.AnalyticsSeed)
+	go recorder.ReconcileDaily(ctx, analytics.Owner{Service: serviceName, Owned: ownedAccountLevels(), Seed: repo.AnalyticsSeed})
 	repo.SetInvalidationPrefix(conf.CacheInvalidationPrefix.Get())
 	repo.SetInvalidationConn(n.RPC)
 	defer func() {

@@ -21,7 +21,7 @@
   const i18n = getUiI18n();
   let {
     title, headingLevel = 2, description = '', items, actions, leading, footer, empty, scale,
-    emptyLabel = i18n.t('data.empty'), board = false, class: cls = '', ...rest
+    emptyLabel = i18n.t('data.empty'), board = false, compact = false, class: cls = '', ...rest
   }: {
     title: string;
     headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
@@ -35,6 +35,7 @@
     scale?: number;
     emptyLabel?: string;
     board?: boolean;
+    compact?: boolean;
     class?: string;
   } & Omit<SvelteHTMLElements['section'], 'title' | 'class'> = $props();
   const maximum = $derived(scale || items.reduce((max, item) =>
@@ -44,7 +45,7 @@
   }
 </script>
 
-<section class={['bb-ranking-card', board && 'bb-ranking-card--board', cls].filter(Boolean).join(' ')} aria-label={title} {...rest}>
+<section class={['bb-ranking-card', board && 'bb-ranking-card--board', compact && 'bb-ranking-card--compact', cls].filter(Boolean).join(' ')} aria-label={title} {...rest}>
   <header class="bb-ranking-card__head"><div class="bb-ranking-card__intro"><svelte:element this={`h${headingLevel}`} class="bb-ranking-card__title">{title}</svelte:element>{#if description}<p class="bb-ranking-card__description">{description}</p>{/if}</div>{#if actions}<div class="bb-ranking-card__actions">{@render actions()}</div>{/if}</header>
   {#if items.length}
     <ol class="bb-ranking-card__list">

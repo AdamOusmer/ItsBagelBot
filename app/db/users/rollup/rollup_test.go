@@ -117,6 +117,45 @@ func TestRunFoldsClosedDayAndClearsValkey(t *testing.T) {
 	require.Zero(t, again)
 }
 
+func (f fixture) seedLegacySketch(t *testing.T, elements int) {
+	t.Helper()
+	ctx := context.Background()
+	yesterday := f.now.AddDate(0, 0, -1)
+	key := "an:hd:" + yesterday.UTC().Format("20060102") + ":channels.active"
+	members := make([]string, elements)
+	for i := range members {
+		members[i] = fmt.Sprint("legacy", i)
+	}
+	require.NoError(t, f.vc.Do(ctx, f.vc.B().Pfadd().Key(key).Element(members...).Build()).Error())
+	require.NoError(t, f.vc.Do(ctx, f.vc.B().Sadd().Key(catalog.IndexKey(catalog.Day, yesterday)).Member(key).Build()).Error())
+}
+
+func TestRunFoldsLegacySketchesWithExactSets(t *testing.T) {
+	cases := []struct {
+		name     string
+		recorded bool
+		legacy   int
+		want     int64
+	}{
+		{"legacy larger wins", true, 20, 20},
+		{"set larger wins", true, 3, 15},
+		{"legacy only", false, 7, 7},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := setup(t)
+			if tc.recorded {
+				f.recordYesterday(t)
+			}
+			f.seedLegacySketch(t, tc.legacy)
+
+			_, err := rollup.New(f.vc, f.repo).Run(context.Background(), f.now)
+			require.NoError(t, err)
+			require.Equal(t, map[string]int64{"channels.active": tc.want}, f.day(t, catalog.ChannelsActive))
+		})
+	}
+}
+
 type failingStore struct{ rollup.Store }
 
 func (failingStore) UpsertAnalytics(context.Context, []repository.AnalyticsRow) (int, error) {

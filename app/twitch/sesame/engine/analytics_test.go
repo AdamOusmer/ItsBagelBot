@@ -34,15 +34,23 @@ func TestProcessRecordsAggregateAnalytics(t *testing.T) {
 	today := time.Now()
 	counts, err := vc.Do(ctx, vc.B().Hgetall().Key(catalog.CounterKey(today)).Build()).AsIntMap()
 	require.NoError(t, err)
-	require.Equal(t, int64(2), counts["chat.messages"])
-	require.Equal(t, int64(1), counts["chat.answered"])
-	require.Equal(t, int64(1), counts["command.uses|ping"])
-	require.Equal(t, int64(2), counts["module.events|greeter"])
-	require.Equal(t, int64(2), counts["module.latency|greeter|lt10ms"])
-
-	for _, field := range []string{"channels.active", "module.active|core", "module.active|greeter"} {
-		n, err := vc.Do(ctx, vc.B().Pfcount().Key(catalog.DistinctKey(catalog.Day, today, field)).Build()).AsInt64()
-		require.NoError(t, err)
-		require.Equal(t, int64(1), n, field)
+	wantCounts := map[string]int64{"chat.messages": 2, "chat.answered": 1, "command.uses|ping": 1, "module.events|greeter": 2}
+	gotCounts := map[string]int64{}
+	for field := range wantCounts {
+		gotCounts[field] = counts[field]
 	}
+	require.Equal(t, wantCounts, gotCounts)
+
+	wantDistinct, gotDistinct := map[string]int64{}, map[string]int64{}
+	for _, key := range []string{
+		catalog.DistinctKey(catalog.Day, today, "channels.active"),
+		catalog.DistinctKey(catalog.Day, today, "module.active|core"),
+		catalog.DistinctKey(catalog.Day, today, "module.active|greeter"),
+		catalog.DistinctKey(catalog.Week, today, catalog.Field(catalog.CommandChannels, "ping")),
+	} {
+		n, err := vc.Do(ctx, vc.B().Scard().Key(key).Build()).AsInt64()
+		require.NoError(t, err)
+		wantDistinct[key], gotDistinct[key] = 1, n
+	}
+	require.Equal(t, wantDistinct, gotDistinct)
 }

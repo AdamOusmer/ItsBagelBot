@@ -220,6 +220,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 
 	p.recordUse(ctx, c, cc.Name)
 	p.analytics.Count(catalog.CommandUses, catalog.CustomCommand)
+	p.analytics.Distinct(catalog.CommandChannels, c.BroadcasterID, catalog.CustomCommand)
 	p.bumpCommandCounter(ctx, c, cc, args)
 	c.Engaged = true
 	return true, nil

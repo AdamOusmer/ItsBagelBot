@@ -1,0 +1,12 @@
+{
+  "eyebrow": "Análise de produto",
+  "title": "Uso e crescimento",
+  "description": "Quantos canais usam o bot, como os novos streamers avançam na configuração, quais recursos ativam e como vão os planos pagos.",
+  "exactNote": "Os números são totais exatos de todos os canais, e nenhuma linha identifica um canal.",
+  "windowLabel": "Período de tempo",
+  "window": "{days} dias",
+  "period": "Período: {start} a {end} (UTC).",
+  "degraded": "As análises estão indisponíveis no momento; os painéis abaixo mostram valores vazios.",
+  "empty": "Ainda não há dados agregados. Cada dia aparece logo após seu término, em UTC.",
+  "noRows": "Nenhum dado neste período."
+}

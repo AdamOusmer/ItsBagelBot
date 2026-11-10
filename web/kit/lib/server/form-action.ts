@@ -3,7 +3,6 @@
 
 import { fail, type ActionFailure } from '@sveltejs/kit';
 import type { ActionOk } from '../action-result';
-import { countAction, type ActionOutcome } from './analytics';
 
 export type MutationRefusal = ActionFailure<ActionOk>;
 
@@ -17,14 +16,14 @@ export type MutationSpec<Ctx> = {
   invalid: string;
 };
 
-type ActionEvent = { request: Request; route?: { id: string | null }; url?: URL };
+type ActionEvent = { request: Request };
 
 export async function mutateAction<Ctx>(
   event: ActionEvent,
   spec: MutationSpec<Ctx>
 ): Promise<MutationRefusal | { ok: true }> {
   const ctx = await spec.gate();
-  if (ctx === null) return counted(event, 'denied', spec.refusal());
+  if (ctx === null) return spec.refusal();
 
   const form = await event.request.formData();
   if (spec.demo) return { ok: true };
@@ -33,15 +32,10 @@ export async function mutateAction<Ctx>(
   try {
     detail = await spec.run(ctx, form);
   } catch (err) {
-    return counted(event, 'failed', spec.failed(err, form, ctx));
+    return spec.failed(err, form, ctx);
   }
-  if (detail === null) return counted(event, 'invalid', fail(400, { ok: false, error: spec.invalid }));
-  if (typeof detail !== 'string') return counted(event, 'invalid', detail);
+  if (detail === null) return fail(400, { ok: false, error: spec.invalid });
+  if (typeof detail !== 'string') return detail;
   spec.audited(ctx, detail);
-  return counted(event, 'ok', { ok: true as const });
-}
-
-function counted<R>(event: ActionEvent, outcome: ActionOutcome, result: R): R {
-  countAction(event, outcome);
-  return result;
+  return { ok: true };
 }

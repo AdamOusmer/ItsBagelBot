@@ -35,7 +35,7 @@ type slot struct {
 	field string
 }
 
-type sketch struct {
+type distinctSet struct {
 	window catalog.Window
 	at     time.Time
 	key    string
@@ -47,7 +47,7 @@ type saltRef struct {
 }
 
 // Recorder buffers aggregate analytics in process and flushes them to Valkey.
-// Channel ids reach Valkey only as salted HMACs inside HyperLogLog sketches.
+// Channel ids reach Valkey only as salted HMACs inside sets, so counts are exact.
 // A nil Recorder records nothing.
 type Recorder struct {
 	client valkey.Client
@@ -55,11 +55,11 @@ type Recorder struct {
 	reg    catalog.Registry
 	now    func() time.Time
 
-	mu       sync.Mutex
-	counts   map[slot]int64
-	sketches map[sketch]map[uint64]struct{}
-	levels   map[string]int64
-	ids      int
+	mu        sync.Mutex
+	counts    map[slot]int64
+	distincts map[distinctSet]map[uint64]struct{}
+	levels    map[string]int64
+	ids       int
 
 	saltMu sync.Mutex
 	salts  map[saltRef][]byte
@@ -78,16 +78,16 @@ func WithoutTicker() Option { return func(r *Recorder) { r.done = nil } }
 
 func New(client valkey.Client, log *zap.Logger, registered map[catalog.Kind][]string, opts ...Option) *Recorder {
 	r := &Recorder{
-		client:   client,
-		log:      log,
-		reg:      catalog.NewRegistry(registered),
-		now:      time.Now,
-		counts:   map[slot]int64{},
-		sketches: map[sketch]map[uint64]struct{}{},
-		levels:   map[string]int64{},
-		salts:    map[saltRef][]byte{},
-		done:     make(chan struct{}),
-		kick:     make(chan struct{}, 1),
+		client:    client,
+		log:       log,
+		reg:       catalog.NewRegistry(registered),
+		now:       time.Now,
+		counts:    map[slot]int64{},
+		distincts: map[distinctSet]map[uint64]struct{}{},
+		levels:    map[string]int64{},
+		salts:     map[saltRef][]byte{},
+		done:      make(chan struct{}),
+		kick:      make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -151,7 +151,7 @@ func (r *Recorder) Distinct(m catalog.Metric, channelID uint64, dims ...string) 
 	defer r.mu.Unlock()
 	for _, w := range []catalog.Window{catalog.Day, catalog.Week, catalog.Month} {
 		if spec.Windows&w != 0 {
-			r.addID(sketch{window: w, at: catalog.PeriodStart(w, at), key: catalog.DistinctKey(w, at, field)}, channelID)
+			r.addID(distinctSet{window: w, at: catalog.PeriodStart(w, at), key: catalog.DistinctKey(w, at, field)}, channelID)
 		}
 	}
 }
@@ -167,18 +167,18 @@ func (r *Recorder) Cohort(channelID uint64, signup time.Time) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.addID(sketch{window: catalog.Week, at: catalog.PeriodStart(catalog.Week, at), key: catalog.CohortKey(signup, at)}, channelID)
+	r.addID(distinctSet{window: catalog.Week, at: catalog.PeriodStart(catalog.Week, at), key: catalog.CohortKey(signup, at)}, channelID)
 }
 
-func (r *Recorder) addID(s sketch, id uint64) {
-	set := r.sketches[s]
+func (r *Recorder) addID(s distinctSet, id uint64) {
+	set := r.distincts[s]
 	if set == nil {
-		if len(r.sketches) >= maxSlots {
+		if len(r.distincts) >= maxSlots {
 			r.nudge()
 			return
 		}
 		set = map[uint64]struct{}{}
-		r.sketches[s] = set
+		r.distincts[s] = set
 	}
 	if _, seen := set[id]; seen {
 		return
@@ -199,20 +199,20 @@ func (r *Recorder) nudge() {
 }
 
 type pending struct {
-	counts   map[slot]int64
-	sketches map[sketch]map[uint64]struct{}
-	levels   map[string]int64
+	counts    map[slot]int64
+	distincts map[distinctSet]map[uint64]struct{}
+	levels    map[string]int64
 }
 
 func (p pending) empty() bool {
-	return len(p.counts)+len(p.sketches)+len(p.levels) == 0
+	return len(p.counts)+len(p.distincts)+len(p.levels) == 0
 }
 
 func (r *Recorder) drain() pending {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	p := pending{counts: r.counts, sketches: r.sketches, levels: r.levels}
-	r.counts, r.sketches, r.levels, r.ids = map[slot]int64{}, map[sketch]map[uint64]struct{}{}, map[string]int64{}, 0
+	p := pending{counts: r.counts, distincts: r.distincts, levels: r.levels}
+	r.counts, r.distincts, r.levels, r.ids = map[slot]int64{}, map[distinctSet]map[uint64]struct{}{}, map[string]int64{}, 0
 	return p
 }
 
@@ -230,7 +230,7 @@ func (r *Recorder) Flush(ctx context.Context) {
 	defer cancel()
 
 	cmds := r.counterCmds(p.counts)
-	cmds = append(cmds, r.sketchCmds(ctx, p.sketches)...)
+	cmds = append(cmds, r.distinctCmds(ctx, p.distincts)...)
 	cmds = append(cmds, r.levelCmds(p.levels)...)
 	r.reportErrors(pkg_valkey.ExecMulti(ctx, r.client, cmds...))
 }
@@ -245,10 +245,10 @@ func (r *Recorder) counterCmds(counts map[slot]int64) valkey.Commands {
 	return append(cmds, r.expireCmds(expiries)...)
 }
 
-func (r *Recorder) sketchCmds(ctx context.Context, sketches map[sketch]map[uint64]struct{}) valkey.Commands {
-	cmds := make(valkey.Commands, 0, 2*len(sketches))
+func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]map[uint64]struct{}) valkey.Commands {
+	cmds := make(valkey.Commands, 0, 2*len(distincts))
 	expiries := map[string]time.Time{}
-	for s, ids := range sketches {
+	for s, ids := range distincts {
 		salt, err := r.salt(ctx, s.window, s.at)
 		if err != nil {
 			r.log.Debug("analytics salt unavailable", zap.Error(err))
@@ -260,7 +260,7 @@ func (r *Recorder) sketchCmds(ctx context.Context, sketches map[sketch]map[uint6
 		}
 		index := catalog.IndexKey(s.window, s.at)
 		cmds = append(cmds,
-			pkg_valkey.PfaddCmd(r.client, s.key, elements...),
+			pkg_valkey.SaddCmd(r.client, s.key, elements...),
 			pkg_valkey.SaddCmd(r.client, index, s.key),
 		)
 		expiry := catalog.DataExpiry(s.window, s.at)

@@ -74,13 +74,11 @@ type AdminEnrollmentView struct {
 	Stats AdminStats           `json:"stats"`
 }
 
-// Value is zero and Suppressed true when the true count is below the suppression floor.
 type AdminAnalyticsRow struct {
-	Start      string   `json:"start"`
-	Metric     string   `json:"metric"`
-	Dims       []string `json:"dims"`
-	Value      int64    `json:"value"`
-	Suppressed bool     `json:"suppressed,omitempty"`
+	Start  string   `json:"start"`
+	Metric string   `json:"metric"`
+	Dims   []string `json:"dims"`
+	Value  int64    `json:"value"`
 }
 
 type AdminAnalyticsView struct {

@@ -56,8 +56,11 @@ Twitch moderation privileges and ItsBagelBot staff roles are separate concepts.
 ## Route areas and request flow
 
 - `src/routes/(admin)/+layout.server.ts` gates the group and streams recent notification data.
-- `(admin)/+page.*` shows overview; `shards/` handles Conduit operation, `analytics/` telemetry,
-  and `lanes/` pipeline operations.
+- `(admin)/+page.*` shows overview; `shards/` handles Conduit operation, `analytics/` product
+  analytics, and `lanes/` pipeline operations.
+- `analytics/` renders a pure view model from [analytics-page.ts](src/lib/analytics-page.ts):
+  exact aggregate rows only (no per-channel rows); counters cover closed UTC days, levels read the
+  latest daily snapshot, and the open day is never shown.
 - `users/` inspects accounts, bans, grants, test flags, restarts and view-as links.
 - `giveaways/` and `giveaways/[id]/` manage promotion creation, freeze, draw and retries.
 - `events/` renders a live event feed backed by the `events/stream` SSE endpoint.

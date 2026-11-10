@@ -15,7 +15,7 @@ import type {
 } from './services';
 import type { AdminIdentity } from './access';
 import type { AnalyticsReads } from '#lib/analytics-page';
-import type { AnalyticsRow } from '#lib/analytics-view';
+import { isoWeek, type AnalyticsRow } from '#lib/analytics-view';
 import type { FeedEvent } from './feed';
 import type { LaneView } from './lanes';
 import type { DbCredentialStatus, ScopeReport, SecretServiceId } from './secrets';
@@ -496,72 +496,355 @@ export function demoDeployApi(): DeployApi {
   };
 }
 
-export function demoAnalytics(days = 30): AnalyticsReads {
-  const today = Date.UTC(2026, 9, 18);
-  const dayAt = (i: number) => new Date(today - (days - i) * 86_400_000).toISOString().slice(0, 10);
-  const row = (start: string, metric: string, dims: string[], value: number): AnalyticsRow => ({
-    start,
-    metric,
-    dims,
-    value: value < 10 && value > 0 ? 0 : value,
-    suppressed: value < 10 && value > 0
-  });
-  const day: AnalyticsRow[] = [];
-  for (let i = 0; i < days; i++) {
-    const at = dayAt(i);
-    const wave = 120 + Math.round(30 * Math.sin(i / 3)) + i * 2;
-    day.push(
-      row(at, 'channels.active', [], wave),
-      row(at, 'chat.messages', [], wave * 410),
-      row(at, 'chat.answered', [], wave * 37),
-      row(at, 'channels.live', [], Math.round(wave * 0.6)),
-      row(at, 'lifecycle', ['signup'], 14 + (i % 5)),
-      row(at, 'lifecycle', ['bot_enabled'], 11 + (i % 4)),
-      row(at, 'lifecycle', ['revoked'], i % 3),
-      row(at, 'command.uses', ['followage'], 900 + i * 7),
-      row(at, 'command.uses', ['uptime'], 420 + i * 3),
-      row(at, 'command.uses', ['custom'], 2600 + i * 11),
-      row(at, 'module.events', ['alerts'], 1300 + i * 9),
-      row(at, 'module.events', ['loyalty'], 780 + i * 4),
-      row(at, 'module.errors', ['loyalty', 'timeout'], 12),
-      row(at, 'module.latency', ['alerts', 'lt10ms'], 1250),
-      row(at, 'module.latency', ['loyalty', 'lt50ms'], 700),
-      row(at, 'module.latency', ['loyalty', 'lt1s'], 90),
-      row(at, 'web.views', ['dashboard', '/(app)/commands'], 340 + i),
-      row(at, 'web.actions', ['dashboard', '/(app)/timers?/toggle', 'ok'], 60),
-      row(at, 'web.actions', ['dashboard', '/(app)/timers?/toggle', 'invalid'], 14),
-      row(at, 'outgress.failures', ['ratelimited'], 22)
+const DEMO_DAY_MS = 86_400_000;
+const DEMO_MODULES = ['alerts', 'loyalty', 'timers', 'songrequests', 'moderation', 'counters', 'giveaways', 'quotes'];
+
+type DemoDay = number;
+type DemoSeed = number;
+type DemoFactor = number;
+type DemoKey = string;
+type DemoDate = string;
+type DemoMetric = string;
+type DemoSeries = { metric: DemoMetric; dims: string[]; ratio: DemoFactor };
+type DemoLevels = Record<string, Record<string, number>>;
+type DemoSpan = { start: DemoDay; length: number };
+type DemoSnapshot = 'full' | 'totals';
+type DemoSignups = Map<DemoDate, number>;
+
+const demoDims = (key: DemoKey): string[] => (key === '' ? [] : key.split('|'));
+
+const demoRatios = (metric: DemoMetric, ratios: Record<string, DemoFactor>): DemoSeries[] =>
+  Object.entries(ratios).map(([key, ratio]) => ({ metric, dims: demoDims(key), ratio }));
+
+const DEMO_COMMAND_RATIOS: Record<string, number> = {
+  followage: 12,
+  uptime: 8,
+  so: 1.5,
+  lurk: 3,
+  points: 9,
+  song: 5,
+  queue: 2,
+  watchtime: 4,
+  title: 0.6,
+  game: 0.5,
+  quote: 0.9,
+  hug: 0.12,
+  custom: 35
+};
+
+const DEMO_MODULE_SHARES: Record<string, number> = {
+  alerts: 0.8,
+  loyalty: 0.7,
+  timers: 0.55,
+  songrequests: 0.4,
+  moderation: 0.5,
+  counters: 0.2,
+  giveaways: 0.08,
+  quotes: 0.05
+};
+
+const DEMO_COMMAND_SHARES: Record<string, number> = {
+  followage: 0.5,
+  uptime: 0.4,
+  so: 0.1,
+  lurk: 0.2,
+  points: 0.45,
+  song: 0.3,
+  queue: 0.15,
+  watchtime: 0.25,
+  title: 0.06,
+  game: 0.05,
+  quote: 0.09,
+  hug: 0.02,
+  custom: 0.75
+};
+
+const DEMO_SERIES: DemoSeries[] = [
+  ...demoRatios('channels.live', { '': 0.55 }),
+  ...demoRatios('chat.messages', { '': 400 }),
+  ...demoRatios('chat.answered', { '': 26 }),
+  ...demoRatios('live.starts', { '': 0.7 }),
+  ...demoRatios('timer.fires', { '': 60 }),
+  ...demoRatios('lifecycle', {
+    signup: 0.07,
+    onboarded: 0.053,
+    bot_enabled: 0.042,
+    bot_disabled: 0.03,
+    revoked: 0.02,
+    chat_banned: 0.008,
+    account_deleted: 0.014
+  }),
+  ...demoRatios('billing.events', {
+    activate: 0.02,
+    cancel_requested: 0.008,
+    cancel_aborted: 0.003,
+    revoke: 0.004,
+    payment_failed: 0.006,
+    expired: 0.005
+  }),
+  ...demoRatios('onboarding.preset', {
+    'start-new': 0.04,
+    integrate: 0.02,
+    quiet: 0.015,
+    import: 0.008,
+    songs: 0.012
+  }),
+  ...demoRatios('command.uses', DEMO_COMMAND_RATIOS),
+  ...demoRatios('module.events', {
+    alerts: 30,
+    loyalty: 25,
+    timers: 15,
+    songrequests: 10,
+    moderation: 20,
+    counters: 6,
+    giveaways: 1.5,
+    quotes: 0.8
+  }),
+  ...demoRatios(
+    'module.toggles',
+    Object.fromEntries(
+      DEMO_MODULES.flatMap((name) => [
+        [`${name}|on`, 0.03 * (DEMO_MODULE_SHARES[name] ?? 0.1)],
+        [`${name}|off`, 0.01 * (DEMO_MODULE_SHARES[name] ?? 0.1)]
+      ])
+    )
+  ),
+  ...demoRatios('custom.commands', { created: 0.2, deleted: 0.05 })
+];
+
+const DEMO_TOTALS: DemoLevels = { 'accounts.total': { free: 2100, paid: 180, vip: 4 } };
+
+const DEMO_LEVELS: DemoLevels = {
+  ...DEMO_TOTALS,
+  'accounts.bot_enabled': { free: 1300, paid: 165, vip: 3 },
+  'accounts.onboarded': { '': 1900 },
+  'accounts.paid_source': { tebex: 150, admin: 22, giveaway: 8, vip: 4 },
+  'accounts.cancel_pending': { '': 6 },
+  'accounts.payment_failed': { '': 4 },
+  'accounts.locale': { en: 1300, fr: 380, de: 210, es: 160, 'pt-BR': 130, ru: 70 },
+  'accounts.pages_hidden': { commands: 140, leaderboard: 90, songqueue: 210 },
+  'modules.rows': {
+    'alerts|on': 1250,
+    'alerts|off': 140,
+    'loyalty|on': 1100,
+    'loyalty|off': 90,
+    'timers|on': 900,
+    'timers|off': 50,
+    'songrequests|on': 650,
+    'songrequests|off': 110,
+    'moderation|on': 780,
+    'moderation|off': 40,
+    'counters|on': 300,
+    'counters|off': 25,
+    'giveaways|on': 140,
+    'giveaways|off': 18,
+    'quotes|on': 70,
+    'quotes|off': 9
+  },
+  'modules.breadth': {
+    '1': 210,
+    '2': 260,
+    '3': 340,
+    '4': 300,
+    '5': 240,
+    '6': 170,
+    '7': 110,
+    '8': 70,
+    '9': 35,
+    '10': 18,
+    '11': 7,
+    '12': 4
+  },
+  'integrations.connected': { spotify: 520, govee: 48, fetch_key: 7 },
+  'custom.total': { active: 9200, inactive: 1100 },
+  'custom.perm': { everyone: 6100, sub: 900, vip: 300, mod: 1800, lead_mod: 150, broadcaster: 450 },
+  'custom.flags': { online_only: 700, aliased: 520, cooldown: 3100, counter: 410 },
+  'custom.channels': { '': 1210 }
+};
+
+const demoDate = (day: DemoDay): DemoDate => new Date(day * DEMO_DAY_MS).toISOString().slice(0, 10);
+const demoMonday = (day: DemoDay): DemoDay => day - ((day + 3) % 7);
+const demoLastClosedMonday = (end: DemoDay): DemoDay => demoMonday(end - ((end + 4) % 7));
+const demoGrowth = (day: DemoDay, end: DemoDay): DemoFactor => 1 - 0.0006 * (end - day);
+
+function demoNoise(day: DemoDay, seed: DemoSeed): DemoFactor {
+  const x = Math.sin(day * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function demoActive(day: DemoDay, end: DemoDay): number {
+  const trend = 220 + 0.2 * (day - end);
+  const weekly = 1 + 0.12 * Math.sin((2 * Math.PI * day) / 7);
+  return Math.round(trend * weekly * (0.97 + 0.06 * demoNoise(day, 1)));
+}
+
+function demoMeanActive(span: DemoSpan, end: DemoDay): number {
+  let sum = 0;
+  for (let n = span.start; n < span.start + span.length; n++) sum += demoActive(n, end);
+  return sum / span.length;
+}
+
+function demoSeriesRow(series: DemoSeries, seed: DemoSeed, day: DemoDay, active: number): AnalyticsRow[] {
+  const value = Math.round(active * series.ratio * (0.7 + 0.6 * demoNoise(day, seed + 2)));
+  return value > 0 ? [{ start: demoDate(day), metric: series.metric, dims: series.dims, value }] : [];
+}
+
+function demoDayRows(day: DemoDay, end: DemoDay): AnalyticsRow[] {
+  const active = demoActive(day, end);
+  const first: AnalyticsRow = { start: demoDate(day), metric: 'channels.active', dims: [], value: active };
+  return [first, ...DEMO_SERIES.flatMap((series, seed) => demoSeriesRow(series, seed, day, active))];
+}
+
+function demoCounterRows(span: DemoSpan, end: DemoDay): AnalyticsRow[] {
+  const rows: AnalyticsRow[] = [];
+  for (let n = span.start; n < span.start + span.length; n++) rows.push(...demoDayRows(n, end));
+  return rows;
+}
+
+function demoLevelRows(day: DemoDay, end: DemoDay, tables: DemoLevels): AnalyticsRow[] {
+  const growth = demoGrowth(day, end);
+  const start = demoDate(day);
+  return Object.entries(tables).flatMap(([metric, keys]) =>
+    Object.entries(keys).map(([key, base]) => ({
+      start,
+      metric,
+      dims: demoDims(key),
+      value: Math.round(base * growth)
+    }))
+  );
+}
+
+function demoSignupWeekRows(day: DemoDay, end: DemoDay): AnalyticsRow[] {
+  const growth = demoGrowth(day, end);
+  const monday = demoMonday(day);
+  const rows: AnalyticsRow[] = [];
+  for (let i = 0; i < 20; i++) {
+    const week = monday - 7 * i;
+    const size = Math.round(90 * growth * (0.8 + 0.5 * demoNoise(week, 40)));
+    const dims = [isoWeek(demoDate(week))];
+    const start = demoDate(day);
+    rows.push(
+      { start, metric: 'accounts.by_signup_week', dims, value: size },
+      { start, metric: 'accounts.paid_by_signup_week', dims, value: Math.round(size * 0.09) }
     );
   }
-  const last = dayAt(days - 1);
-  day.push(
-    row(last, 'accounts.total', ['free'], 2140),
-    row(last, 'accounts.total', ['paid'], 186),
-    row(last, 'accounts.total', ['vip'], 4),
-    row(last, 'accounts.bot_enabled', ['free'], 1710),
-    row(last, 'accounts.bot_enabled', ['paid'], 179),
-    row(last, 'accounts.onboarded', [], 1980),
-    row(last, 'accounts.locale', ['en'], 1400),
-    row(last, 'accounts.locale', ['fr'], 520),
-    row(last, 'modules.rows', ['alerts', 'off'], 140),
-    row(last, 'modules.rows', ['loyalty', 'on'], 610),
-    row(last, 'modules.rows', ['loyalty', 'off'], 45),
-    row(last, 'modules.breadth', ['1'], 400),
-    row(last, 'modules.breadth', ['3-5'], 520),
-    row(last, 'integrations.connected', ['spotify'], 230),
-    row(last, 'integrations.connected', ['govee'], 6),
-    row(last, 'custom.channels', [], 1320),
-    row(last, 'custom.total', ['active'], 9800),
-    row(last, 'custom.perm', ['mod'], 2100)
-  );
-  const week = [row(dayAt(days - 7), 'channels.active', [], 410), row(dayAt(days - 7), 'module.active', ['alerts'], 380)];
-  const month = [row('2026-10-01', 'channels.active', [], 760)];
-  const cohortWeeks = [
-    row('2026-09-21', 'cohort.active', ['2026-W39'], 80),
-    row('2026-09-28', 'cohort.active', ['2026-W39'], 61),
-    row('2026-10-05', 'cohort.active', ['2026-W39'], 55),
-    row('2026-09-28', 'cohort.active', ['2026-W40'], 77),
-    row('2026-10-05', 'cohort.active', ['2026-W40'], 58)
+  return rows;
+}
+
+function demoSnapshotRows(day: DemoDay, end: DemoDay, kind: DemoSnapshot): AnalyticsRow[] {
+  if (kind === 'totals') return demoLevelRows(day, end, DEMO_TOTALS);
+  return [...demoLevelRows(day, end, DEMO_LEVELS), ...demoSignupWeekRows(day, end)];
+}
+
+function demoLevelSeries(span: DemoSpan, end: DemoDay): AnalyticsRow[] {
+  const rows: AnalyticsRow[] = [];
+  for (let n = span.start; n < span.start + span.length; n++) {
+    const edge = n === span.start || n === end;
+    rows.push(...demoSnapshotRows(n, end, edge ? 'full' : 'totals'));
+  }
+  return rows;
+}
+
+function demoPeriodRows(span: DemoSpan, end: DemoDay, factor: DemoFactor): AnalyticsRow[] {
+  const mean = demoMeanActive(span, end);
+  const start = demoDate(span.start);
+  return [
+    { start, metric: 'channels.active', dims: [], value: Math.round(mean * factor) },
+    { start, metric: 'channels.live', dims: [], value: Math.round(mean * 0.55 * factor) }
   ];
-  return { day, week, month, cohortWeeks, cohortDays: day };
+}
+
+function demoWeekSeries(start: DemoDay, active: number, series: DemoSeries[]): AnalyticsRow[] {
+  return series.map((entry, seed) => ({
+    start: demoDate(start),
+    metric: entry.metric,
+    dims: entry.dims,
+    value: Math.round(active * entry.ratio * (0.9 + 0.2 * demoNoise(start, seed + 60)))
+  }));
+}
+
+function demoWeekRows(end: DemoDay): AnalyticsRow[] {
+  const lastMonday = demoLastClosedMonday(end);
+  const shares = [
+    ...demoRatios('module.active', DEMO_MODULE_SHARES),
+    ...demoRatios('command.channels', DEMO_COMMAND_SHARES)
+  ];
+  const rows: AnalyticsRow[] = [];
+  for (let k = 0; k < 4; k++) {
+    const start = lastMonday - 7 * k;
+    const period = demoPeriodRows({ start, length: 7 }, end, 1.5);
+    rows.push(...period, ...demoWeekSeries(start, period[0].value, shares));
+  }
+  return rows;
+}
+
+function demoMonthRows(end: DemoDay): AnalyticsRow[] {
+  const next = new Date((end + 1) * DEMO_DAY_MS);
+  const year = next.getUTCFullYear();
+  const month = next.getUTCMonth();
+  const rows: AnalyticsRow[] = [];
+  for (let k = 1; k <= 2; k++) {
+    const start = Date.UTC(year, month - k, 1) / DEMO_DAY_MS;
+    const length = Date.UTC(year, month - k + 1, 1) / DEMO_DAY_MS - start;
+    rows.push(...demoPeriodRows({ start, length }, end, 2.4));
+  }
+  return rows;
+}
+
+function demoSignupSize(signups: DemoSignups, start: DemoDay): number {
+  let size = 0;
+  for (let d = 0; d < 7; d++) size += signups.get(demoDate(start + d)) ?? 0;
+  return size;
+}
+
+function demoCohortWeek(size: number, signupStart: DemoDay, lastMonday: DemoDay): AnalyticsRow[] {
+  const rows: AnalyticsRow[] = [];
+  for (let k = 0; k < 8 && signupStart + 7 * k <= lastMonday; k++) {
+    const retention = 0.38 + 0.5 * Math.exp(-k / 1.8);
+    const noise = 0.96 + 0.08 * demoNoise(signupStart + 7 * k, 90);
+    rows.push({
+      start: demoDate(signupStart + 7 * k),
+      metric: 'cohort.active',
+      dims: [isoWeek(demoDate(signupStart))],
+      value: Math.round(size * retention * noise)
+    });
+  }
+  return rows;
+}
+
+function demoCohortRows(cohortDays: AnalyticsRow[], end: DemoDay): AnalyticsRow[] {
+  const signups: DemoSignups = new Map();
+  for (const row of cohortDays) if (row.dims[0] === 'signup') signups.set(row.start, row.value);
+  const lastMonday = demoLastClosedMonday(end);
+  const openMonday = demoMonday(end);
+  const rows: AnalyticsRow[] = [];
+  for (let j = 0; j < 13; j++) {
+    const signupStart = openMonday - 7 * j;
+    rows.push(...demoCohortWeek(demoSignupSize(signups, signupStart), signupStart, lastMonday));
+  }
+  return rows;
+}
+
+function demoLifecycleRows(span: DemoSpan, end: DemoDay): AnalyticsRow[] {
+  const rows: AnalyticsRow[] = [];
+  for (let n = span.start; n < span.start + span.length; n++) {
+    rows.push(...demoDayRows(n, end).filter((row) => row.metric === 'lifecycle'));
+  }
+  return rows;
+}
+
+export function demoAnalytics(days = 30): AnalyticsReads {
+  const end = Math.floor(Date.now() / DEMO_DAY_MS) - 1;
+  const counterSpan = Math.min(2 * days, 400);
+  const cohortDays = demoLifecycleRows({ start: end - 119, length: 120 }, end);
+  return {
+    end: demoDate(end),
+    days,
+    counters: demoCounterRows({ start: end - counterSpan + 1, length: counterSpan }, end),
+    levels: demoLevelSeries({ start: end - days, length: days + 1 }, end),
+    week: demoWeekRows(end),
+    month: demoMonthRows(end),
+    cohortWeeks: demoCohortRows(cohortDays, end),
+    cohortDays
+  };
 }

@@ -1,0 +1,22 @@
+{
+  "netAccounts": "Comptes nets (inscriptions moins suppressions)",
+  "netBot": "Comptes nets avec le bot activé",
+  "cancelPending": "Résiliations en attente",
+  "paymentFailed": "Paiements échoués en attente",
+  "messages": "Messages lus",
+  "answered": "Commandes traitées",
+  "answerRate": "Taux de réponse",
+  "liveStarts": "Streams démarrés",
+  "timerFires": "Messages de minuteur envoyés",
+  "liveWeek": "Chaînes en direct, dernière semaine complète",
+  "avgModules": "Moyenne de modules activés",
+  "medianModules": "Médiane de modules activés",
+  "customCreated": "Créées",
+  "customDeleted": "Supprimées",
+  "customNet": "Créées nettes",
+  "customUses": "Usages",
+  "customChannels": "Chaînes avec commandes personnalisées",
+  "customChannelsWeek": "Chaînes utilisant des commandes personnalisées, dernière semaine complète",
+  "customActive": "Commandes actives",
+  "customInactive": "Commandes inactives"
+}

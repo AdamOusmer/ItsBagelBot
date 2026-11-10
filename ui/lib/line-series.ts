@@ -40,6 +40,7 @@ export type LineChart = {
   dots: LineDot[];
   dotRadius: number;
   sampling: boolean;
+  gapMs: number;
 };
 
 export const LINE_DEFAULT_WIDTH = 800;
@@ -118,7 +119,7 @@ function seriesPath(chart: LineChart, key: SeriesKey): string {
         previousAt = null;
         return '';
       }
-      const command = previousAt !== null && point.at - previousAt <= GAP_MS ? 'L' : 'M';
+      const command = previousAt !== null && point.at - previousAt <= chart.gapMs ? 'L' : 'M';
       previousAt = point.at;
       return `${command}${lineX(chart, point.at).toFixed(2)},${lineY(chart, value).toFixed(2)}`;
     })
@@ -134,7 +135,7 @@ function seriesDots(chart: LineChart, keys: SeriesKeys): LineDot[] {
   );
 }
 
-function frame(readings: LinePoint[], keys: SeriesKeys, containerWidth: Px): LineChart {
+function frame(readings: LinePoint[], keys: SeriesKeys, containerWidth: Px, gapMs: Millis): LineChart {
   const width = Math.max(MIN_WIDTH, containerWidth || LINE_DEFAULT_WIDTH);
   const height = width < NARROW_WIDTH ? 220 : 260;
   const firstAt = readings[0]?.at ?? 0;
@@ -157,12 +158,13 @@ function frame(readings: LinePoint[], keys: SeriesKeys, containerWidth: Px): Lin
     dots: [],
     dotRadius: readings.length < 3 ? 3.5 : 1.5,
     sampling: readings.filter((point) => hasValue(point, keys)).length < 2,
+    gapMs,
   };
 }
 
-export function lineChart(points: readonly LinePoint[], keys: SeriesKeys, containerWidth: Px): LineChart {
+export function lineChart(points: readonly LinePoint[], keys: SeriesKeys, containerWidth: Px, gapMs: Millis = GAP_MS): LineChart {
   const readings = points.filter((point) => Number.isFinite(point.at)).toSorted((a, b) => a.at - b.at);
-  const chart = frame(readings, keys, containerWidth);
+  const chart = frame(readings, keys, containerWidth, gapMs);
   const timeCount = chart.width < NARROW_WIDTH ? 3 : 5;
   chart.valueTicks = Array.from({ length: VALUE_TICKS }, (_, index) => {
     const value = (chart.ceiling * index) / (VALUE_TICKS - 1);
