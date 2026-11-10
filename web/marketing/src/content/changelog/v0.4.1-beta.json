@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.4.1-beta",
+  "date": "2026-11-10",
+  "title": {
+    "en": "Recipes get variables, countdowns and stream controls",
+    "fr": "Les Recettes gagnent des variables, des comptes à rebours et le contrôle du stream"
+  },
+  "highlights": {
+    "en": [
+      "Recipes have new steps: variables kept per channel or per viewer, loops, text and math, and API calls with a Worked path and a Failed path. Runs wait their turn in order for each channel, and the editor shows a run history.",
+      "A recipe can start a named countdown, another recipe can add time to it, and a recipe can run when it ends. Cooldowns now go up to 30 days, {countdown:left} and {cooldown:left} show the time left in chat, and a recipe can wait up to one minute.",
+      "Recipes can control your stream on Twitch: polls and predictions, raids, moderator and VIP roles, chat modes, clearing chat, snoozing ads and updating channel point rewards.",
+      "Govee lights can be grouped, so one channel point reward changes all of them, and the lights step in Recipes can drive a group. If some lights fail the others still change, and points are refunded only when every light fails.",
+      "The song queue has a public page you can turn on in Settings. The !sr queue, !sr list, !srlist and !songlist commands reply with its link.",
+      "Random number variables accept a thousands separator, so a large number can print as 1,000,000. The chat preview in the editors is redesigned around the bot's reply.",
+      "Points earned from subs, gifts, bits and channel point rewards are saved before they are confirmed, so a restart cannot lose them. The go-live message is posted once per stream start."
+    ],
+    "fr": [
+      "Les Recettes ont de nouvelles étapes : des variables conservées par chaîne ou par spectateur, des boucles, du texte et des calculs, et des appels d'API avec un chemin Réussi et un chemin Échoué. Les exécutions attendent leur tour dans l'ordre pour chaque chaîne, et l'éditeur affiche un historique des exécutions.",
+      "Une recette peut lancer un compte à rebours nommé, une autre recette peut y ajouter du temps, et une recette peut se déclencher quand il se termine. Les temps de recharge vont maintenant jusqu'à 30 jours, {countdown:left} et {cooldown:left} affichent le temps restant dans le chat, et une recette peut attendre jusqu'à une minute.",
+      "Les Recettes peuvent contrôler votre stream sur Twitch : sondages et prédictions, raids, rôles de modérateur et de VIP, modes du chat, nettoyage du chat, report des publicités et mise à jour des récompenses de points de chaîne.",
+      "Les lumières Govee peuvent être regroupées, pour qu'une seule récompense de points de chaîne les change toutes, et l'étape des lumières dans les Recettes peut piloter un groupe. Si certaines lumières échouent, les autres changent quand même, et les points ne sont remboursés que si toutes échouent.",
+      "La file de chansons a une page publique que vous pouvez activer dans les Paramètres. Les commandes !sr queue, !sr list, !srlist et !songlist répondent avec son lien.",
+      "Les variables de nombre aléatoire acceptent un séparateur de milliers, pour qu'un grand nombre puisse s'afficher comme 1,000,000. L'aperçu du chat dans les éditeurs est repensé autour de la réponse du bot.",
+      "Les points gagnés avec les abonnements, les cadeaux, les bits et les récompenses de points de chaîne sont enregistrés avant d'être confirmés, pour qu'un redémarrage ne puisse pas les perdre. Le message de début de stream est publié une seule fois par lancement."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.4.1-beta"
+}
