@@ -29,6 +29,9 @@ defmodule Ingress.FakeGnat do
   def handle_call({:pub, _topic, _message, _opts}, _from, %{mode: :stalled} = state),
     do: {:noreply, state}
 
+  def handle_call({:pub, _topic, "oversized", _opts}, _from, %{mode: :limited} = state),
+    do: {:reply, {:error, :max_payload_exceeded}, state}
+
   def handle_call({:pub, topic, message, opts}, from, %{mode: :coalesce} = state) do
     {publishes, callers} = drain([{topic, message, opts}], [from], @drain_limit)
     Enum.each(publishes, fn {t, m, o} -> send(state.test, {:pub, t, m, o}) end)

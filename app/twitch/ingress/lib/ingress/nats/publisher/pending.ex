@@ -70,17 +70,12 @@ defmodule Ingress.Nats.Publisher.Pending do
 
   @spec expired(table(), integer(), integer()) :: [row()]
   def expired(table, ack_deadline, batch_deadline) do
-    table
-    |> :ets.tab2list()
-    |> Enum.filter(&expired?(&1, ack_deadline, batch_deadline))
+    :ets.select(table, [
+      {{:_, :single, :_, :_, :_, :"$1"}, [{:"=<", :"$1", ack_deadline}], [:"$_"]},
+      {{:_, :batch, :_, :"$1"}, [{:"=<", :"$1", ack_deadline}], [:"$_"]},
+      {{:_, :batch_hold, :"$1"}, [{:"=<", :"$1", batch_deadline}], [:"$_"]}
+    ])
   end
-
-  defp expired?({_id, :single, _subject, _payload, _attempts, stamp}, ack_deadline, _batch),
-    do: stamp <= ack_deadline
-
-  defp expired?({_id, :batch, _entries, stamp}, ack_deadline, _batch), do: stamp <= ack_deadline
-  defp expired?({_id, :batch_hold, stamp}, _ack, batch_deadline), do: stamp <= batch_deadline
-  defp expired?(_row, _ack_deadline, _batch_deadline), do: false
 
   # Settle via resolve/fail only: deleting a row without releasing its slot leaks the slot.
   @spec resolve(table(), counter(), id(), pos_integer()) :: :ok

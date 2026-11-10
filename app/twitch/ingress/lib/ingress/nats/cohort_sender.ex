@@ -68,18 +68,11 @@ defmodule Ingress.Nats.CohortSender do
   end
 
   defp publish_lane(connection, requests, timeout) do
-    {results, _open} =
-      Enum.map_reduce(requests, true, fn {token, subject, payload, opts}, open ->
-        result = lane_publish(open, connection, subject, payload, opts, timeout)
-        {{token, result}, open and result == :ok}
-      end)
+    {tokens, messages} =
+      Enum.unzip(
+        for {token, subject, payload, opts} <- requests, do: {token, {subject, payload, opts}}
+      )
 
-    results
+    Enum.zip(tokens, Wire.safe_pub_many(connection, messages, timeout))
   end
-
-  defp lane_publish(false, _connection, _subject, _payload, _opts, _timeout),
-    do: {:error, :not_connected}
-
-  defp lane_publish(true, connection, subject, payload, opts, timeout),
-    do: Wire.safe_pub(connection, {subject, payload, opts}, timeout)
 end
