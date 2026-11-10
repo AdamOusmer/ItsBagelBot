@@ -4,7 +4,6 @@
 package twitch
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"bytes"
 	"context"
 	"errors"
@@ -15,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 )
@@ -77,8 +78,7 @@ func (c *Client) warmupSource(ctx context.Context, src *Source, endpoint string)
 	}
 	defer drain(res)
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return &StatusError{Status: res.StatusCode, Body: string(body)}
+		return statusError(res, "GET "+endpoint)
 	}
 	return nil
 }
@@ -243,8 +243,7 @@ func (c *Client) getStream(ctx context.Context, broadcasterID string) (helixStre
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return helixStream{}, false, &StatusError{Status: res.StatusCode, Body: string(body)}
+		return helixStream{}, false, statusError(res, "GET /helix/streams")
 	}
 
 	var payload struct {
@@ -326,27 +325,7 @@ type UserInfo struct {
 }
 
 func (c *Client) getUser(ctx context.Context, query string) (helixUser, bool, error) {
-	res, err := c.request(ctx, c.app, getCall("/helix/users?"+query))
-	if err != nil {
-		return helixUser{}, false, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return helixUser{}, false, &StatusError{Status: res.StatusCode, Body: string(body)}
-	}
-
-	var payload struct {
-		Data []helixUser `json:"data"`
-	}
-	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return helixUser{}, false, err
-	}
-	if len(payload.Data) == 0 {
-		return helixUser{}, false, nil
-	}
-	return payload.Data[0], true, nil
+	return readFirst[helixUser](ctx, c, helixRead{appTarget(), "/helix/users?" + query})
 }
 
 func (c *Client) UserIDByLogin(ctx context.Context, login string) (string, error) {
@@ -369,27 +348,10 @@ func (c *Client) FollowedAt(ctx context.Context, broadcasterID, targetID string)
 	q := url.Values{}
 	q.Set("broadcaster_id", broadcasterID)
 	q.Set("user_id", targetID)
-	res, err := c.ExecuteAs(ctx, IdentityBot, broadcasterID, getCall("/helix/channels/followers?"+q.Encode()))
-	if err != nil {
-		return time.Time{}, false, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return time.Time{}, false, &StatusError{Status: res.StatusCode, Body: string(body)}
-	}
-	var payload struct {
-		Data []struct {
-			FollowedAt time.Time `json:"followed_at"`
-		} `json:"data"`
-	}
-	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return time.Time{}, false, err
-	}
-	if len(payload.Data) == 0 {
-		return time.Time{}, false, nil
-	}
-	return payload.Data[0].FollowedAt, true, nil
+	row, found, err := readFirst[struct {
+		FollowedAt time.Time `json:"followed_at"`
+	}](ctx, c, helixRead{botTarget(broadcasterID), "/helix/channels/followers?" + q.Encode()})
+	return row.FollowedAt, found, err
 }
 
 func (c *Client) IsModerator(ctx context.Context, botID, broadcasterID string) (bool, error) {

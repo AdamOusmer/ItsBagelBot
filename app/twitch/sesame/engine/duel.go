@@ -4,10 +4,8 @@
 package engine
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"math/big"
 	"sort"
 	"strconv"
 	"strings"
@@ -106,19 +104,11 @@ func PickDuelWinner(sorted []DuelStake, roll int64) string {
 }
 
 func RollDuel(total int64) int64 {
-	n, err := rand.Int(rand.Reader, big.NewInt(total))
-	if err != nil {
-		panic("duel: crypto/rand unavailable: " + err.Error())
-	}
-	return n.Int64()
+	return mustCryptoInt("duel", total)
 }
 
 var FlipDuelCoin = func() bool {
-	n, err := rand.Int(rand.Reader, big.NewInt(2))
-	if err != nil {
-		panic("duel: crypto/rand unavailable: " + err.Error())
-	}
-	return n.Int64() == 0
+	return mustCryptoInt("duel", 2) == 0
 }
 
 func DigestDuelPool(sorted []DuelStake) string {

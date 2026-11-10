@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -96,10 +97,12 @@ func (s *statusRPC) handleGet(ctx context.Context, req projectorrpc.StatusReques
 }
 
 func tierFromStatus(status string) string {
-	if status == "premium" || status == "vip" || status == "paid" {
+	switch strings.ToLower(status) {
+	case "premium", "vip", "paid":
 		return "premium"
+	default:
+		return "standard"
 	}
-	return "standard"
 }
 
 func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry, bool) {

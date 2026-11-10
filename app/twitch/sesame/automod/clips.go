@@ -3,20 +3,33 @@
 
 package automod
 
-import "strings"
+import (
+	"strings"
+
+	"ItsBagelBot/app/twitch/sesame/automod/linkcheck"
+)
 
 func hasNonClipLink(text string) bool {
 	for i := 0; i < len(text); {
-		start, end := nextSpaceToken(text, i)
+		start, end := linkcheck.NextToken(text, i)
 		if start == end {
 			return false
 		}
-		if tok := trimLinkToken(text[start:end]); tok != "" && looksLikeLinkHost(tok) && !isTwitchClipToken(tok) {
+		if linkToken(linkcheck.TrimLinkToken(text[start:end])).nonClipLink() {
 			return true
 		}
 		i = end
 	}
 	return false
+}
+
+type linkToken string
+
+func (tok linkToken) nonClipLink() bool {
+	if tok == "" || isTwitchClipToken(string(tok)) {
+		return false
+	}
+	return looksLikeLinkHost(string(tok))
 }
 
 func maybeLinkText(text string) bool {
@@ -26,57 +39,8 @@ func maybeLinkText(text string) bool {
 	return containsFoldASCII(text, "http://") || containsFoldASCII(text, "https://")
 }
 
-func nextSpaceToken(text string, i int) (start, end int) {
-	for i < len(text) && isSpaceByte(text[i]) {
-		i++
-	}
-	start = i
-	for i < len(text) && !isSpaceByte(text[i]) {
-		i++
-	}
-	return start, i
-}
-
-func isSpaceByte(b byte) bool {
-	switch b {
-	case ' ', '\t', '\n', '\r', '\v', '\f':
-		return true
-	}
-	return false
-}
-
-func trimLinkToken(tok string) string {
-	tok = stripScheme(tok)
-	if len(tok) >= 4 && equalFoldASCII(tok[:4], "www.") {
-		tok = tok[4:]
-	}
-	return stripTrailingPunct(tok)
-}
-
-func stripScheme(tok string) string {
-	switch {
-	case len(tok) >= 8 && equalFoldASCII(tok[:8], "https://"):
-		return tok[8:]
-	case len(tok) >= 7 && equalFoldASCII(tok[:7], "http://"):
-		return tok[7:]
-	}
-	return tok
-}
-
-func stripTrailingPunct(tok string) string {
-	for len(tok) > 0 {
-		switch tok[len(tok)-1] {
-		case '.', ',', '!', '?', ';', ':', '"', '\'', ')', ']', '>':
-			tok = tok[:len(tok)-1]
-		default:
-			return tok
-		}
-	}
-	return tok
-}
-
 func looksLikeLinkHost(tok string) bool {
-	host := hostOf(tok)
+	host := linkcheck.HostOf(tok)
 	if len(host) < 4 || len(host) > 253 {
 		return false
 	}
@@ -115,32 +79,6 @@ func looksLikeLinkHost(tok string) bool {
 	return labels >= 2 && alphaTLD
 }
 
-func hostOf(token string) string {
-	host := token
-	if k := strings.IndexAny(host, "/?#"); k >= 0 {
-		host = host[:k]
-	}
-	if k := strings.LastIndexByte(host, '@'); k >= 0 {
-		host = host[k+1:]
-	}
-	if k := strings.LastIndexByte(host, ':'); k >= 0 && isPortSuffix(host[k+1:]) {
-		host = host[:k]
-	}
-	return host
-}
-
-func isPortSuffix(s string) bool {
-	if len(s) == 0 || len(s) > 5 {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
-}
-
 func isTwitchClipToken(tok string) bool {
 	const clipsHost = "clips.twitch.tv/"
 	const twitchHost = "twitch.tv/"
@@ -177,27 +115,8 @@ func clipSlugOK(rest string) bool {
 	return true
 }
 
-func equalFoldASCII(a, b string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := 0; i < len(a); i++ {
-		ca, cb := a[i], b[i]
-		if 'A' <= ca && ca <= 'Z' {
-			ca += 'a' - 'A'
-		}
-		if 'A' <= cb && cb <= 'Z' {
-			cb += 'a' - 'A'
-		}
-		if ca != cb {
-			return false
-		}
-	}
-	return true
-}
-
 func hasFoldPrefix(s, prefix string) bool {
-	return len(s) >= len(prefix) && equalFoldASCII(s[:len(prefix)], prefix)
+	return len(s) >= len(prefix) && linkcheck.EqualFoldASCII(s[:len(prefix)], prefix)
 }
 
 func indexFold(s, sub string) int {
@@ -206,7 +125,7 @@ func indexFold(s, sub string) int {
 		return 0
 	}
 	for i := 0; i+n <= len(s); i++ {
-		if equalFoldASCII(s[i:i+n], sub) {
+		if linkcheck.EqualFoldASCII(s[i:i+n], sub) {
 			return i
 		}
 	}

@@ -20,7 +20,7 @@ import (
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
@@ -201,7 +201,7 @@ func main() {
 
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
-	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
+	invalidationPrefix := conf.CacheInvalidationPrefix.Get()
 	repo.SetInvalidation(nc, invalidationPrefix)
 
 	grouped, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
@@ -212,7 +212,7 @@ func main() {
 	counterConsumer, err = registerConsumers(core.Ctx, core.NR, repo, counters, grouped, log)
 	svcboot.FatalIf(log, err, "failed to subscribe to events")
 
-	loyaltyPrefix := env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty")
+	loyaltyPrefix := conf.LoyaltyPrefix.Get()
 	svcboot.FatalIf(log, rpc.Subscribe(rpc.Wiring{
 		RPCWiring:          bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:               repo,

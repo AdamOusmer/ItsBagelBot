@@ -56,7 +56,8 @@ func watchFixture(t *testing.T, id uint64) *loyaltyClockFixture {
 			for _, entry := range entries {
 				var award data.WatchAwardDTO
 				if codec.Unmarshal([]byte(entry.FieldValues["payload"]), &award) == nil && award.UserID == id {
-					client.Do(ctx, client.B().Eval().Script("redis.call('XDEL',KEYS[1],ARGV[1]); redis.call('ZREM',KEYS[2],ARGV[1]); return 1").Numkeys(2).Key(watchtime.Stream, watchtime.OutboxWindowIndex).Arg(entry.ID).Build())
+					client.Do(ctx, client.B().Xdel().Key(watchtime.Stream).Id(entry.ID).Build())
+					client.Do(ctx, client.B().Zrem().Key(watchtime.OutboxWindowIndex).Member(entry.ID).Build())
 				}
 			}
 		}

@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 )
 
 type AlertUpgrade struct {
@@ -60,21 +61,24 @@ func (a *Automations) UpgradeAlert(ctx context.Context, userID uint64, in Automa
 }
 
 func (a *Automations) commitAlertUpgrade(ctx context.Context, w alertUpgradeWrite) (*ent.Automation, *alertFlip, error) {
-	tx, err := a.client.Tx(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer tx.Rollback()
-	flip, err := turnAlertOff(ctx, tx, w.userID, w.alert)
-	if err != nil {
-		return nil, nil, err
-	}
-	w.input.lockChannelCap = a.rowLocks
-	row, err := writeAutomation(ctx, tx, automationDraft{userID: w.userID, in: w.input, def: w.def})
-	if err != nil {
-		return nil, nil, err
-	}
-	return row, flip, tx.Commit()
+	var row *ent.Automation
+	var flip *alertFlip
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		tx, err := a.client.Tx(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if flip, err = turnAlertOff(ctx, tx, w.userID, w.alert); err != nil {
+			return err
+		}
+		w.input.lockChannelCap = a.rowLocks
+		if row, err = writeAutomation(ctx, tx, automationDraft{userID: w.userID, in: w.input, def: w.def}); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
+	return row, flip, err
 }
 
 func turnAlertOff(ctx context.Context, tx *ent.Tx, userID uint64, alert AlertUpgrade) (*alertFlip, error) {

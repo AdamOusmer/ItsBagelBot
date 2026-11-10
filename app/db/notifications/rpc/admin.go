@@ -9,12 +9,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/repository"
-	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -23,12 +21,10 @@ import (
 )
 
 type adminRPC struct {
-	repo               *repository.Notifications
-	nc                 *nats.Conn
+	Wiring
 	invalidationPrefix string
 	userGetSubject     string
 	defaultTTL         time.Duration
-	log                *zap.Logger
 }
 
 type AdminConfig struct {
@@ -40,12 +36,10 @@ type AdminConfig struct {
 
 func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 	a := &adminRPC{
-		repo:               w.Repo,
-		nc:                 w.NC,
+		Wiring:             w,
 		invalidationPrefix: cfg.InvalidationPrefix,
 		userGetSubject:     cfg.UserGetSubject,
 		defaultTTL:         cfg.DefaultTTL,
-		log:                w.Log,
 	}
 
 	read := w.Within(readBudget)
@@ -92,14 +86,14 @@ func parseSendRequest(req notificationsrpc.SendRequest) (repository.CreateParams
 }
 
 func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) notificationsrpc.SendReply {
-	log := monitor.TxnLogger(ctx, a.log)
+	log := monitor.TxnLogger(ctx, a.Log)
 	params, err := parseSendRequest(req)
 	if err != nil {
 		return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
 	}
 
 	if params.Scope == notification.ScopeDirect {
-		recipient, err := notificationAccount(ctx, a.nc, a.userGetSubject, usersrpc.AdminRequest{UserID: req.TargetUserID, Username: req.TargetUsername})
+		recipient, err := notificationAccount(ctx, a.NC, a.userGetSubject, usersrpc.AdminRequest{UserID: req.TargetUserID, Username: req.TargetUsername})
 		if err != nil {
 			return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
 		}
@@ -112,7 +106,7 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 		params.ExpiresAt = &exp
 	}
 
-	row, created, err := a.repo.Create(ctx, params)
+	row, created, err := a.Repo.Create(ctx, params)
 	if err != nil {
 		return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
 	}
@@ -130,35 +124,17 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 	return notificationsrpc.SendReply{Notification: &view}
 }
 
-func clampAdminPage(req notificationsrpc.ListAdminRequest) (page, pageSize, fetchLimit int) {
-	pageSize = req.Limit
-	if pageSize <= 0 || pageSize > repository.AdminPageSize {
-		pageSize = repository.AdminPageSize
-	}
-	page = req.Page
-	if page < 1 {
-		page = 1
-	}
-	if page > repository.AdminMaxPages {
-		page = repository.AdminMaxPages
-	}
-	fetchLimit = pageSize
-	if page < repository.AdminMaxPages {
-		fetchLimit++
-	}
-	return page, pageSize, fetchLimit
-}
-
 func (a *adminRPC) list(ctx context.Context, req notificationsrpc.ListAdminRequest) notificationsrpc.ListAdminReply {
-	page, pageSize, fetchLimit := clampAdminPage(req)
-	rows, err := a.repo.ListForAdmin(ctx, fetchLimit, (page-1)*pageSize)
+	size := req.Limit
+	if size <= 0 {
+		size = repository.AdminPageSize
+	}
+	page := domainrpc.ClampPage(req.Page, size, repository.AdminPageSize, repository.AdminMaxPages)
+	rows, err := a.Repo.ListForAdmin(ctx, page.FetchLimit(), page.Offset())
 	if err != nil {
 		return notificationsrpc.ListAdminReply{Refusal: bus.Classify(err)}
 	}
-	hasMore := page < repository.AdminMaxPages && len(rows) > pageSize
-	if hasMore {
-		rows = rows[:pageSize]
-	}
+	rows, hasMore := domainrpc.PageRows(page, rows)
 
 	views := make([]notificationsrpc.NotificationView, 0, len(rows))
 	for _, row := range rows {
@@ -167,8 +143,8 @@ func (a *adminRPC) list(ctx context.Context, req notificationsrpc.ListAdminReque
 
 	return notificationsrpc.ListAdminReply{
 		Notifications: views,
-		Page:          page,
-		PageSize:      pageSize,
+		Page:          page.Number,
+		PageSize:      page.Size,
 		MaxPages:      repository.AdminMaxPages,
 		HasMore:       hasMore,
 	}
@@ -178,37 +154,17 @@ func (a *adminRPC) delete(ctx context.Context, req notificationsrpc.DeleteReques
 	if req.ID <= 0 {
 		return notificationsrpc.DeleteReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "id required")}
 	}
-	if err := a.repo.Delete(ctx, int(req.ID)); err != nil {
+	if err := a.Repo.Delete(ctx, int(req.ID)); err != nil {
 		return notificationsrpc.DeleteReply{Refusal: bus.Classify(err)}
 	}
 	a.invalidate(nil)
 	return notificationsrpc.DeleteReply{}
 }
 
-func (a *adminRPC) resolveTarget(ctx context.Context, userID, username string) (uint64, error) {
-	if userID == "" && username == "" {
-		return 0, fmt.Errorf("target_user_id or target_username required")
-	}
-	reply, err := bus.RequestJSONTimeout[usersrpc.AdminReply](ctx, a.nc, a.userGetSubject,
-		usersrpc.AdminRequest{UserID: userID, Username: username}, 3*time.Second)
-	if err != nil {
-		return 0, fmt.Errorf("resolve target user: %w", err)
-	}
-	if reply.Error != "" {
-		return 0, fmt.Errorf("resolve target user: %s", reply.Error)
-	}
-	if reply.User == nil {
-		return 0, fmt.Errorf("target user not found")
-	}
-	return reply.User.ID, nil
-}
-
 func (a *adminRPC) invalidate(targetUserID *uint64) {
 	id := "*"
 	if targetUserID != nil {
-		id = fmt.Sprint(*targetUserID)
+		id = accountKey(*targetUserID)
 	}
-	if err := invalidate.Publish(a.nc, a.invalidationPrefix, "notifications", id); err != nil {
-		a.log.Warn("cache invalidation publish failed", zap.Error(err))
-	}
+	a.invalidateNotifications(a.invalidationPrefix, id)
 }

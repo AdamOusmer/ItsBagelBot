@@ -6,7 +6,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
-	"ItsBagelBot/pkg/env"
 
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/pkg/tmpl"
@@ -75,22 +73,9 @@ func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publishe
 }
 
 func NewFetchesFromEnv(log *zap.Logger) domaincrypto.Packer {
-	path := env.Get("TINK_KEYSET_PATH", "")
-	if path == "" {
-		log.Warn("fetch key custody disabled: TINK_KEYSET_PATH not set")
+	packer := crypto.OptionalFromEnv("fetch", log)
+	if packer == nil {
 		return nil
-	}
-	keysetJSON, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		log.Warn("fetch key custody disabled: keyset not provisioned yet", zap.String("path", path))
-		return nil
-	}
-	if err != nil {
-		log.Fatal("failed to read tink keyset", zap.Error(err))
-	}
-	packer, err := crypto.NewCrypto(keysetJSON)
-	if err != nil {
-		log.Fatal("failed to initialize crypto", zap.Error(err))
 	}
 	return packer
 }
@@ -104,7 +89,7 @@ type FetchSpec struct {
 }
 
 func (s *FetchSpec) normalize() {
-	s.Name = normalizeName(s.Name)
+	s.Name = tmpl.NormalizeName(s.Name)
 	s.KeyLabel = strings.TrimSpace(s.KeyLabel)
 }
 
@@ -189,7 +174,7 @@ func (r *Fetches) UpsertDef(ctx context.Context, userID uint64, spec FetchSpec) 
 
 func (r *Fetches) RenameDef(ctx context.Context, userID uint64, originalName string, spec FetchSpec) error {
 
-	originalName = normalizeName(originalName)
+	originalName = tmpl.NormalizeName(originalName)
 	spec.normalize()
 
 	if err := validate.UserID(userID); err != nil {
@@ -249,7 +234,7 @@ type DefDelete struct {
 func (r *Fetches) DeleteDef(ctx context.Context, userID uint64, del DefDelete) error {
 	name, force := del.Name, del.Force
 
-	name = normalizeName(name)
+	name = tmpl.NormalizeName(name)
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -375,53 +360,45 @@ func (r *Fetches) Close() {
 }
 
 func (r *Fetches) upsertDefWithinQuota(ctx context.Context, userID uint64, spec FetchSpec) error {
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if err := lockBroadcasterDefs(ctx, tx, userID); err != nil {
-		return err
-	}
-	exists, err := tx.FetchDefinition.Query().
-		Where(fetchdefinition.UserIDEQ(userID), fetchdefinition.NameEQ(spec.Name)).
-		Exist(ctx)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		count, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(userID)).Count(ctx)
+	return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+		if err := lockBroadcasterDefs(ctx, tx, userID); err != nil {
+			return err
+		}
+		exists, err := tx.FetchDefinition.Query().
+			Where(fetchdefinition.UserIDEQ(userID), fetchdefinition.NameEQ(spec.Name)).
+			Exist(ctx)
 		if err != nil {
 			return err
 		}
-		if count >= validate.MaxFetchDefsPerBroadcaster {
-			return validate.FetchDefQuotaError()
+		if !exists {
+			count, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(userID)).Count(ctx)
+			if err != nil {
+				return err
+			}
+			if count >= validate.MaxFetchDefsPerBroadcaster {
+				return validate.FetchDefQuotaError()
+			}
 		}
-	}
 
-	err = tx.FetchDefinition.Create().
-		SetUserID(userID).
-		SetName(spec.Name).
-		SetURL(spec.URL).
-		SetJSONPath(spec.Path).
-		SetKeyLabel(spec.KeyLabel).
-		SetIsActive(spec.IsActive).
-		OnConflictColumns(fetchdefinition.FieldUserID, fetchdefinition.FieldName).
-		Update(
-			func(u *ent.FetchDefinitionUpsert) {
-				u.UpdateURL()
-				u.UpdateJSONPath()
-				u.UpdateKeyLabel()
-				u.UpdateIsActive()
-				u.UpdateUpdatedAt()
-			},
-		).
-		Exec(ctx)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+		return tx.FetchDefinition.Create().
+			SetUserID(userID).
+			SetName(spec.Name).
+			SetURL(spec.URL).
+			SetJSONPath(spec.Path).
+			SetKeyLabel(spec.KeyLabel).
+			SetIsActive(spec.IsActive).
+			OnConflictColumns(fetchdefinition.FieldUserID, fetchdefinition.FieldName).
+			Update(
+				func(u *ent.FetchDefinitionUpsert) {
+					u.UpdateURL()
+					u.UpdateJSONPath()
+					u.UpdateKeyLabel()
+					u.UpdateIsActive()
+					u.UpdateUpdatedAt()
+				},
+			).
+			Exec(ctx)
+	})
 }
 
 // Row locks make concurrent creates queue (RC has no gap locks); the caller's fresh count then sees the winner's commit.

@@ -7,10 +7,10 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strings"
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -25,7 +25,7 @@ type BalanceAdjustment struct {
 // balance. Creating or locking the row and adjusting it share a transaction:
 // simultaneous earnings cannot be overwritten by an earlier balance snapshot.
 func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustment) (*ent.Balance, bool, error) {
-	target.ViewerLogin = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(target.ViewerLogin), "@"))
+	target.ViewerLogin = validate.NormalizeLogin(target.ViewerLogin)
 	if target.UserID == 0 || target.ViewerID == 0 {
 		return nil, false, fmt.Errorf("%w: user_id/viewer_id", ErrInvalidInput)
 	}

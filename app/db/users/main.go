@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +25,7 @@ import (
 	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
 
@@ -69,7 +69,7 @@ func main() {
 	repo.SetAnalytics(recorder)
 	repo.SetDeviceAuthSigner(loadDeviceAuthSigner(log))
 	go recorder.SeedOnce(ctx, serviceName, ownedAccountLevels(), repo.AnalyticsSeed)
-	repo.SetInvalidationPrefix(env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"))
+	repo.SetInvalidationPrefix(conf.CacheInvalidationPrefix.Get())
 	repo.SetInvalidationConn(n.RPC)
 	defer func() {
 		flushCtx, cancel := context.WithTimeout(context.Background(), shutdownFlushBudget)
@@ -129,11 +129,7 @@ func loadDeviceAuthSigner(log *zap.Logger) *tokensign.Signer {
 func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *crypto.Crypto) {
 	log := core.Log
 
-	keysetJSON, err := os.ReadFile(env.MustGet("TINK_KEYSET_PATH"))
-	svcboot.FatalIf(log, err, "failed to read tink keyset")
-
-	packer, err := crypto.NewCrypto(keysetJSON)
-	svcboot.FatalIf(log, err, "failed to initialize crypto")
+	packer := crypto.MustFromEnv(log)
 
 	driver := databoot.MustEntDriver(core, "bagel_users")
 	client := ent.NewClient(ent.Driver(driver))
@@ -172,13 +168,13 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 }
 
 func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, log *zap.Logger) rpcSubjects {
-	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
+	invalidationPrefix := conf.CacheInvalidationPrefix.Get()
 
 	s := rpcSubjects{
 		dashboard:  env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard"),
 		admin:      env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user"),
-		billing:    env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply"),
-		projection: env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
+		billing:    conf.BillingApplySubject.Get(),
+		projection: conf.ProjectionUsersSubject.Get(),
 		giveaway:   env.Get("NATS_INTERNAL_USERS_GIVEAWAY_SUBJECT_PREFIX", "bagel.rpc.internal.users.giveaway"),
 		device:     env.Get("NATS_DASHBOARD_DEVICE_SUBJECT_PREFIX", "bagel.rpc.dashboard.device"),
 	}
@@ -187,7 +183,7 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 	adminCfg := rpc.AdminConfig{
 		BotUserID:          strings.TrimSpace(env.Get("TWITCH_BOT_USER_ID", "")),
 		Prefix:             s.admin,
-		InternalGetSubject: env.Get("NATS_INTERNAL_USERS_GET_SUBJECT", "bagel.rpc.internal.users.get"),
+		InternalGetSubject: conf.UsersGetSubject.Get(),
 		InvalidationPrefix: invalidationPrefix,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, client, adminCfg), "failed to subscribe admin rpc")
@@ -201,9 +197,9 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 
 	svcboot.FatalIf(log, rpc.SubscribeLifecycle(wiring), "failed to subscribe lifecycle rpc")
 	svcboot.FatalIf(log, rpc.SubscribeProjection(wiring, s.projection), "failed to subscribe projection rpc")
-	svcboot.FatalIf(log, rpc.SubscribeEmail(wiring, env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")),
+	svcboot.FatalIf(log, rpc.SubscribeEmail(wiring, conf.UsersEmailSubject.Get()),
 		"failed to subscribe email rpc")
-	svcboot.FatalIf(log, rpc.SubscribeTokens(wiring, env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")),
+	svcboot.FatalIf(log, rpc.SubscribeTokens(wiring, conf.TokensSubjectPrefix.Get()),
 		"failed to subscribe tokens rpc")
 	svcboot.FatalIf(log, rpc.SubscribeCounts(wiring, env.Get("NATS_INTERNAL_USERS_COUNTS_SUBJECT", "bagel.rpc.internal.users.counts.get")),
 		"failed to subscribe counts rpc")

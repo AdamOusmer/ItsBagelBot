@@ -4,8 +4,6 @@
 package engine
 
 import (
-	"crypto/rand"
-	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -105,11 +103,11 @@ func ResolveGambleBet(arg string, balance, minBet, maxBet int64) (int64, GambleB
 }
 
 var RollGamble = func() (int64, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(100))
+	n, err := cryptoInt(100)
 	if err != nil {
 		return 0, err
 	}
-	return n.Int64() + 1, nil
+	return n + 1, nil
 }
 
 func GambleWins(roll, winPercent int64) bool { return roll <= winPercent }

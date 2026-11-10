@@ -19,9 +19,13 @@ func Publish(nc *nats.Conn, prefix, scope, broadcasterID string) error {
 }
 
 func PublishKeys(nc *nats.Conn, prefix, scope, broadcasterID string, keys ...string) error {
-	body, err := codec.Marshal(DTO{BroadcasterID: broadcasterID, Keys: keys})
+	return PublishEvent(nc, prefix+"."+scope, DTO{BroadcasterID: broadcasterID, Keys: keys})
+}
+
+func PublishEvent(nc *nats.Conn, subject string, payload any) error {
+	body, err := codec.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	return nc.Publish(prefix+"."+scope, body)
+	return nc.Publish(subject, body)
 }

@@ -128,7 +128,7 @@ func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
 var storeRules = []domainrpc.Rule{
 	domainrpc.Is(repository.ErrUserNotFound, domainrpc.CodeNotFound),
 	domainrpc.Is(repository.ErrNoContactEmail, domainrpc.CodeNotFound),
-	domainrpc.When(ent.IsNotFound, domainrpc.CodeNotFound),
+	entNotFound,
 }
 
 func refusal(err error) domainrpc.Refusal { return bus.Classify(err, storeRules...) }
@@ -207,24 +207,16 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 }
 
 func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
-	page := clamp(req.Page, 1, adminUserMaxPages)
-	pageSize := clamp(adminListLimit(req.Limit), 1, adminUserPageSize)
-	fetchLimit := pageSize
-	if page < adminUserMaxPages {
-		fetchLimit++
-	}
-	rows, err := a.repo.ListUsers(ctx, adminUserQuery(req, fetchLimit, (page-1)*pageSize))
+	page := domainrpc.ClampPage(req.Page, adminListLimit(req.Limit), adminUserPageSize, adminUserMaxPages)
+	rows, err := a.repo.ListUsers(ctx, adminUserQuery(req, page.FetchLimit(), page.Offset()))
 	if err != nil {
 		return adminError(refusal(err))
 	}
-	hasMore := page < adminUserMaxPages && len(rows) > pageSize
-	if hasMore {
-		rows = rows[:pageSize]
-	}
+	rows, hasMore := domainrpc.PageRows(page, rows)
 	return usersrpc.AdminReply{
 		Users:    userViewsOf(rows),
-		Page:     page,
-		PageSize: pageSize,
+		Page:     page.Number,
+		PageSize: page.Size,
 		MaxPages: adminUserMaxPages,
 		HasMore:  hasMore,
 	}

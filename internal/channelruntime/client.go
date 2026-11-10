@@ -9,12 +9,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	"ItsBagelBot/internal/domain/lifecycle"
 	contract "ItsBagelBot/internal/domain/rpc/projection"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
-	"github.com/nats-io/nats.go"
+	"ItsBagelBot/pkg/env/conf"
 )
 
 type Snapshot struct {
@@ -43,7 +45,7 @@ type Client struct {
 
 func NewClient(store *projection.Store, nc *nats.Conn, usersSubject string) *Client {
 	if usersSubject == "" {
-		usersSubject = "bagel.rpc.internal.projection.users.get"
+		usersSubject = conf.ProjectionUsersSubject.Get()
 	}
 	return &Client{store: store, nc: nc, usersSubject: usersSubject}
 }

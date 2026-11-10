@@ -303,29 +303,19 @@ func (r *Users) PreparePremiumGrant(ctx context.Context, req usersrpc.PreparePre
 }
 
 func (r *Users) prepareGrantTx(ctx context.Context, req usersrpc.PreparePremiumGrantRequest) (*ent.PremiumGrant, error) {
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if lockErr := lockGrantUser(ctx, tx, req.UserID); lockErr != nil {
-		return nil, lockErr
-	}
-	existing, err := overlappingGrants(ctx, tx, req)
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range existing {
-		return reuseOrRejectGrant(tx, row, req)
-	}
-	row, err := insertGrant(ctx, tx, req)
-	if err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return row, nil
+	return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.PremiumGrant, error) {
+		if lockErr := lockGrantUser(ctx, tx, req.UserID); lockErr != nil {
+			return nil, lockErr
+		}
+		existing, err := overlappingGrants(ctx, tx, req)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range existing {
+			return reuseOrRejectGrant(row, req)
+		}
+		return insertGrant(ctx, tx, req)
+	})
 }
 
 func lockGrantUser(ctx context.Context, tx *ent.Tx, id uint64) error {
@@ -343,15 +333,12 @@ func overlappingGrants(ctx context.Context, tx *ent.Tx, req usersrpc.PreparePrem
 	).Order(ent.Asc(premiumgrant.FieldStartAt), ent.Asc(premiumgrant.FieldID)).All(ctx)
 }
 
-func reuseOrRejectGrant(tx *ent.Tx, row *ent.PremiumGrant, req usersrpc.PreparePremiumGrantRequest) (*ent.PremiumGrant, error) {
+func reuseOrRejectGrant(row *ent.PremiumGrant, req usersrpc.PreparePremiumGrantRequest) (*ent.PremiumGrant, error) {
 	if row.GiveawayID != strings.TrimSpace(req.GiveawayID) || row.AwardID != strings.TrimSpace(req.AwardID) {
 		return nil, errors.New("award interval overlaps existing premium coverage")
 	}
 	if !grantIntervalMatches(row, req) {
 		return nil, errors.New("award identity already prepared with different interval")
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
 	}
 	return row, nil
 }
@@ -440,7 +427,7 @@ func (r *Users) CancelPremiumGrant(ctx context.Context, req usersrpc.CommitPremi
 	if row.State != premiumgrant.StatePrepared {
 		return errors.New("committed premium grants cannot be cancelled")
 	}
-	_, err = r.client.PremiumGrant.UpdateOneID(row.ID).Where(premiumgrant.StateEQ(premiumgrant.StatePrepared)).SetState(premiumgrant.StateCancelled).Save(ctx)
+	_, err = db.WithQuery(ctx, r.client.PremiumGrant.UpdateOneID(row.ID).Where(premiumgrant.StateEQ(premiumgrant.StatePrepared)).SetState(premiumgrant.StateCancelled).Save)
 	return err
 }
 
@@ -539,7 +526,7 @@ func (r *Users) expireGrantRows(ctx context.Context, rows []*ent.PremiumGrant, n
 	count := 0
 	for _, row := range rows {
 		if row.State == premiumgrant.StateCommitted {
-			if _, err := r.client.PremiumGrant.UpdateOneID(row.ID).SetState(premiumgrant.StateExpired).Save(ctx); err != nil {
+			if _, err := db.WithQuery(ctx, r.client.PremiumGrant.UpdateOneID(row.ID).SetState(premiumgrant.StateExpired).Save); err != nil {
 				return count, err
 			}
 			count++
@@ -561,6 +548,6 @@ func (r *Users) publishGrantPhase(ctx context.Context, row *ent.PremiumGrant, ph
 	if err := r.publishStatusInvalidation(ctx, row.UserID); err != nil {
 		return err
 	}
-	_, err := r.client.PremiumGrant.UpdateOneID(row.ID).SetProjectionPhase(phase).Save(ctx)
+	_, err := db.WithQuery(ctx, r.client.PremiumGrant.UpdateOneID(row.ID).SetProjectionPhase(phase).Save)
 	return err
 }

@@ -75,29 +75,25 @@ func (s *stack) channelVariable(t *testing.T, broadcaster uint64, name string) s
 	return got[name]
 }
 
-func (s *stack) recentRuns(t *testing.T, broadcaster uint64, count int) []automationrpc.RunRecord {
+func (s *stack) awaitRun(t *testing.T, broadcaster uint64, automationID string, ready func([]automationrpc.RunRecord) bool) automationrpc.RunRecord {
 	t.Helper()
-	var runs []automationrpc.RunRecord
+	var latest automationrpc.RunRecord
 	require.Eventually(t, func() bool {
-		var err error
-		runs, err = s.runs.Recent(context.Background(), broadcaster, e2eID, 10)
-		return err == nil && len(runs) >= count
+		runs, err := s.runs.Recent(context.Background(), broadcaster, automationID, automation.RunsKept)
+		if err != nil || !ready(runs) {
+			return false
+		}
+		latest = runs[0]
+		return true
 	}, settle, 20*time.Millisecond)
-	return runs
+	return latest
 }
 
 func (s *stack) awaitRewardStep(t *testing.T, broadcaster uint64, want string) automationrpc.RunRecord {
 	t.Helper()
-	var rec automationrpc.RunRecord
-	require.Eventually(t, func() bool {
-		runs, err := s.runs.Recent(context.Background(), broadcaster, e2eID, 10)
-		if err != nil || len(runs) == 0 {
-			return false
-		}
-		rec = runs[0]
-		return slices.Contains(stepStatuses(rec), want)
-	}, settle, 20*time.Millisecond, "wanted step %s", want)
-	return rec
+	return s.awaitRun(t, broadcaster, e2eID, func(runs []automationrpc.RunRecord) bool {
+		return len(runs) > 0 && slices.Contains(stepStatuses(runs[0]), want)
+	})
 }
 
 func stepStatuses(rec automationrpc.RunRecord) []string {

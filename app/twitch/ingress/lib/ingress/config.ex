@@ -4,6 +4,13 @@
 defmodule Ingress.Config do
   @hot_path_key {__MODULE__, :hot_path}
 
+  def positive_env(key, fallback) do
+    case Integer.parse(System.get_env(key, "")) do
+      {value, ""} when value > 0 -> value
+      _ -> fallback
+    end
+  end
+
   @doc false
   def install_hot_path do
     :persistent_term.put(@hot_path_key, hot_path_from_env())

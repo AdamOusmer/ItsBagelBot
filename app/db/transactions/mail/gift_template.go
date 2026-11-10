@@ -24,10 +24,6 @@ func giftMessageHTML(msg string) template.HTML {
 	return template.HTML(escaped) //nolint:gosec // escaped just above
 }
 
-func giftHTML(giftedByLogin, personalMessage, dashboardURL string) (string, error) {
-	return giftHTMLLocale(giftedByLogin, personalMessage, dashboardURL, "")
-}
-
 func giftHTMLLocale(giftedByLogin, personalMessage, dashboardURL, locale string) (string, error) {
 
 	preheader := fmt.Sprintf(i18n.T(locale, "mail.gift.preheader"), i18n.T(locale, "mail.month.one"))
@@ -64,10 +60,6 @@ func giftHTMLLocale(giftedByLogin, personalMessage, dashboardURL, locale string)
 		Signature:     i18n.T(locale, "mail.signature"),
 		ProductPeriod: fmt.Sprintf(i18n.T(locale, "mail.product_period"), localizedPrizeMonths(locale, 1)),
 	})
-}
-
-func giftText(giftedByLogin, personalMessage, dashboardURL string) string {
-	return giftTextLocale(giftedByLogin, personalMessage, dashboardURL, "")
 }
 
 func giftTextLocale(giftedByLogin, personalMessage, dashboardURL, locale string) string {

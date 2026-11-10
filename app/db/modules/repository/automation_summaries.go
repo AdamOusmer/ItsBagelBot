@@ -11,6 +11,7 @@ import (
 	entautomation "ItsBagelBot/app/db/modules/ent/automation"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/db"
 )
 
 var runtimeColumns = slices.DeleteFunc(slices.Clone(entautomation.Columns), func(c string) bool {
@@ -18,7 +19,7 @@ var runtimeColumns = slices.DeleteFunc(slices.Clone(entautomation.Columns), func
 })
 
 func (a *Automations) ListSummaries(ctx context.Context, userID uint64) ([]automation.Summary, error) {
-	rows, err := a.client.Automation.Query().
+	rows, err := db.WithRead(ctx, a.client.Automation.Query().
 		Where(entautomation.UserID(userID)).
 		Order(ent.Asc(entautomation.FieldNameKey)).
 		Select(
@@ -30,7 +31,7 @@ func (a *Automations) ListSummaries(ctx context.Context, userID uint64) ([]autom
 			entautomation.FieldPreview,
 			entautomation.FieldUpdatedAt,
 		).
-		All(ctx)
+		All)
 	if err != nil {
 		return nil, err
 	}
@@ -55,10 +56,10 @@ type EnabledChange struct {
 
 // SetEnabled leaves the edit time alone: a toggle is not an edit of the flow.
 func (a *Automations) SetEnabled(ctx context.Context, userID uint64, change EnabledChange) (automation.Automation, error) {
-	row, err := a.client.Automation.Query().
+	row, err := db.WithRead(ctx, a.client.Automation.Query().
 		Where(entautomation.UserID(userID), entautomation.ID(change.ID)).
 		Select(runtimeColumns...).
-		Only(ctx)
+		Only)
 	if ent.IsNotFound(err) {
 		return automation.Automation{}, ErrAutomationNotFound
 	}
@@ -75,12 +76,12 @@ func (a *Automations) SetEnabled(ctx context.Context, userID uint64, change Enab
 }
 
 func (a *Automations) writeEnabled(ctx context.Context, userID uint64, row *ent.Automation, enabled bool) (automation.Automation, error) {
-	affected, err := a.client.Automation.Update().
+	affected, err := db.WithQuery(ctx, a.client.Automation.Update().
 		Where(entautomation.ID(row.ID), entautomation.Revision(row.Revision)).
 		SetEnabled(enabled).
-		SetRevision(row.Revision + 1).
+		SetRevision(row.Revision+1).
 		SetUpdatedAt(row.UpdatedAt).
-		Save(ctx)
+		Save)
 	if err != nil {
 		return automation.Automation{}, err
 	}

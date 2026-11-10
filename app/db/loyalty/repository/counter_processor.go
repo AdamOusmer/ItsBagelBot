@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/tmpl"
 	"ItsBagelBot/pkg/valkey"
 	"github.com/google/uuid"
 	valkey_go "github.com/valkey-io/valkey-go"
@@ -258,7 +259,7 @@ func validateCounterBatchSize(dto data.CounterBumpedDTO) error {
 }
 
 func validatedCounterTarget(userID uint64, bump data.CounterBumpEntry) (bumpKey, error) {
-	name := normalizeName(bump.Name)
+	name := tmpl.NormalizeName(bump.Name)
 	if !usableCounterName(name) {
 		return bumpKey{}, fmt.Errorf("%w: counter name", ErrInvalidInput)
 	}

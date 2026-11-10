@@ -15,11 +15,11 @@ type Lanes struct {
 
 func LoadLanes() Lanes {
 	return Lanes{
-		PremiumSubject:  env.Get("NATS_INGRESS_PREMIUM_SUBJECT", "twitch.ingress.event.premium"),
-		StandardSubject: env.Get("NATS_INGRESS_STANDARD_SUBJECT", "twitch.ingress.event.standard"),
+		PremiumSubject:  IngressPremiumSubject.Get(),
+		StandardSubject: IngressStandardSubject.Get(),
 
-		OutgressPremiumSubject:  env.Get("NATS_OUTGRESS_PREMIUM_SUBJECT", "twitch.outgress.premium"),
-		OutgressStandardSubject: env.Get("NATS_OUTGRESS_STANDARD_SUBJECT", "twitch.outgress.standard"),
+		OutgressPremiumSubject:  OutgressPremiumSubject.Get(),
+		OutgressStandardSubject: OutgressStandardSubject.Get(),
 	}
 }
 
@@ -33,17 +33,17 @@ type Projection struct {
 
 func LoadProjection() Projection {
 	return Projection{
-		ProjectionUsersSubject:    env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
-		ProjectionModulesSubject:  env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),
-		ProjectionCommandsSubject: env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
+		ProjectionUsersSubject:    ProjectionUsersSubject.Get(),
+		ProjectionModulesSubject:  ProjectionModulesSubject.Get(),
+		ProjectionCommandsSubject: ProjectionCommandsSubject.Get(),
 
-		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
+		CacheInvalidationPrefix: CacheInvalidationPrefix.Get(),
 	}
 }
 
 func LoadProjectionViaProjector() Projection {
 	p := LoadProjection()
-	prefix := env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard")
+	prefix := ProjectorDashboardPrefix.Get()
 	p.ProjectionModulesSubject = env.Get("NATS_PROJECTOR_DASHBOARD_MODULES_SUBJECT", prefix+".modules.get")
 	p.ProjectionCommandsSubject = env.Get("NATS_PROJECTOR_DASHBOARD_COMMANDS_SUBJECT", prefix+".commands.get")
 	return p

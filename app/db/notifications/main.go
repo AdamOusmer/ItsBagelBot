@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/db/notifications/rpc"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
 
@@ -46,15 +47,15 @@ func main() {
 	defer nc.Close()
 
 	repo := repository.New(client)
-	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
+	invalidationPrefix := conf.CacheInvalidationPrefix.Get()
 
 	defaultTTL := env.GetDuration("NOTIF_DEFAULT_TTL", 90*24*time.Hour)
 	fullReadTTL := env.GetDuration("NOTIF_FULL_READ_TTL", 24*time.Hour)
 	peekTTL := env.GetDuration("NOTIF_PEEK_TTL", 7*24*time.Hour)
 
-	userGetSubject := env.Get("NATS_INTERNAL_USERS_GET_SUBJECT", "bagel.rpc.internal.users.get")
+	userGetSubject := conf.UsersGetSubject.Get()
 
-	adminPrefix := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications")
+	adminPrefix := conf.AdminNotifications.Get()
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:      repo,
@@ -79,7 +80,7 @@ func main() {
 	svcboot.FatalIf(log, rpc.SubscribeUser(wiring, userCfg), "failed to subscribe user rpc")
 
 	// Must stay unexported from the NATS account.
-	cleanupSubject := env.Get("NATS_NOTIFICATIONS_CLEANUP_SUBJECT", "bagel.rpc.internal.notifications.cleanup")
+	cleanupSubject := conf.NotificationsCleanup.Get()
 	svcboot.FatalIf(log, rpc.SubscribeMaintenance(wiring, cleanupSubject), "failed to subscribe maintenance rpc")
 
 	databoot.ServeHealth(databoot.Health{

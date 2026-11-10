@@ -4,12 +4,13 @@
 package main
 
 import (
-	"ItsBagelBot/internal/analytics"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
 	"strconv"
+
+	"ItsBagelBot/internal/analytics"
 
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/domain/rpc/projection"
@@ -26,7 +27,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
-	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
 
@@ -66,7 +67,7 @@ func main() {
 		if err != nil {
 			return 0, err
 		}
-		msg, err := bus.RequestWithContext(ctx, n.RPC, env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"), body)
+		msg, err := bus.RequestWithContext(ctx, n.RPC, conf.ProjectionUsersSubject.Get(), body)
 		if err != nil {
 			return 0, err
 		}
@@ -184,12 +185,12 @@ func subscribeRPCs(w rpcWiring) string {
 		Repo:      w.repo,
 	}
 
-	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
+	projectionSubject := conf.ProjectionModulesSubject.Get()
 	if err := rpc.SubscribeProjection(wiring, projectionSubject); err != nil {
 		w.log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
-	dashboardSubject := env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules")
+	dashboardSubject := conf.ModulesPrefix.Get()
 	if err := rpc.SubscribeDashboard(wiring, dashboardSubject); err != nil {
 		w.log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}

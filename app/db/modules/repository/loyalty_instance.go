@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 )
 
 const accountInstanceKey = "__account_created_at"
@@ -95,7 +96,9 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 	if epoch <= 0 || r.instanceResolver == nil {
 		return nil
 	}
-	snapshot, err := r.captureAccountCleanup(ctx, id)
+	snapshot, err := db.WithRead(ctx, func(ctx context.Context) (accountCleanupSnapshot, error) {
+		return r.captureAccountCleanup(ctx, id)
+	})
 	if err != nil {
 		return err
 	}
@@ -104,7 +107,9 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 		return err
 	}
 	done := r.trackAccount(ctx, id)
-	applied, err := r.deleteAccountSnapshot(ctx, id, epoch, snapshot)
+	applied, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
+		return r.deleteAccountSnapshot(ctx, id, epoch, snapshot)
+	})
 	if err != nil {
 		return err
 	}

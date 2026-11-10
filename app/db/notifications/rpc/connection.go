@@ -1,16 +1,16 @@
 package rpc
 
 import (
-	"ItsBagelBot/app/db/notifications/ent/notification"
-	"ItsBagelBot/app/db/notifications/repository"
-	"ItsBagelBot/internal/domain/invalidate"
-	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
-	usersrpc "ItsBagelBot/internal/domain/rpc/users"
-	"ItsBagelBot/pkg/bus"
 	"context"
 	"fmt"
 	"strconv"
 	"time"
+
+	"ItsBagelBot/app/db/notifications/ent/notification"
+	"ItsBagelBot/app/db/notifications/repository"
+	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/pkg/bus"
 )
 
 type connectionRPC struct {
@@ -105,5 +105,5 @@ func (c *connectionRPC) erase(ctx context.Context, req notificationsrpc.Connecti
 	return notificationsrpc.ConnectionReply{Outcome: notificationsrpc.OutcomeErased}
 }
 func (c *connectionRPC) invalidate(accountID uint64) {
-	_ = invalidate.Publish(c.NC, c.invalidationPrefix, "notifications", strconv.FormatUint(accountID, 10))
+	c.invalidateNotifications(c.invalidationPrefix, accountKey(accountID))
 }

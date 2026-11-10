@@ -32,6 +32,14 @@ func UserID(raw string) (uint64, error) {
 	return id, nil
 }
 
+func NonZeroUserID(raw string) (uint64, error) {
+	id, err := UserID(raw)
+	if err == nil && id == 0 {
+		return 0, ErrInvalidUserID
+	}
+	return id, err
+}
+
 type Requesting interface{ Requested() string }
 
 type Failing interface{ Failed(message string) }

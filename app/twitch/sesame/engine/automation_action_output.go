@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/codec"
 )
 
@@ -104,7 +105,7 @@ func (x *actionExec) clip(_ step, _ automation.EmptyParams) error {
 
 func (x *actionExec) marker(_ step, p automation.MarkerAction) error {
 	o := x.out(outgress.TypeStreamMarker)
-	o.Text, o.Template, o.To = truncateRunes(strings.TrimSpace(x.expand(p.Description)), maxMarkerRunes), x.context().Locale, x.viewerName()
+	o.Text, o.Template, o.To = utils.TruncateRunes(strings.TrimSpace(x.expand(p.Description)), maxMarkerRunes), x.context().Locale, x.viewerName()
 	return x.queue(o)
 }
 

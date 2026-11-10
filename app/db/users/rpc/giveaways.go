@@ -16,20 +16,20 @@ import (
 
 func SubscribeGiveaways(w Wiring, prefix string, invalidationPrefixes ...string) error {
 	rpc := giveawayRPC{w: w, invalidationPrefix: firstPrefix(invalidationPrefixes)}
-	bind := func(suffix string, handler any) error { return bindGiveawayVerb(w, prefix+"."+suffix, handler) }
-	if err := bind("pool", rpc.pool); err != nil {
+	budgeted := w.Within(giveawayBudget)
+	if err := bus.Serve(budgeted, prefix+".pool", rpc.pool); err != nil {
 		return err
 	}
-	if err := bind("coverage", rpc.coverage); err != nil {
+	if err := bus.Serve(budgeted, prefix+".coverage", rpc.coverage); err != nil {
 		return err
 	}
-	if err := bind("prepare", rpc.prepare); err != nil {
+	if err := bus.Serve(budgeted, prefix+".prepare", rpc.prepare); err != nil {
 		return err
 	}
-	if err := bind("commit", rpc.commit); err != nil {
+	if err := bus.Serve(budgeted, prefix+".commit", rpc.commit); err != nil {
 		return err
 	}
-	return bind("cancel", rpc.cancel)
+	return bus.Serve(budgeted, prefix+".cancel", rpc.cancel)
 }
 
 type giveawayRPC struct {
@@ -42,23 +42,6 @@ func firstPrefix(prefixes []string) string {
 		return ""
 	}
 	return prefixes[0]
-}
-
-func bindGiveawayVerb(w Wiring, subject string, handler any) error {
-	switch h := handler.(type) {
-	case func(context.Context, usersrpc.GiveawayPoolRequest) usersrpc.GiveawayPoolReply:
-		return bus.Serve(w.Within(giveawayBudget), subject, h)
-	case func(context.Context, usersrpc.GiveawayCoverageRequest) usersrpc.GiveawayCoverageReply:
-		return bus.Serve(w.Within(giveawayBudget), subject, h)
-	case func(context.Context, usersrpc.PreparePremiumGrantRequest) usersrpc.PreparePremiumGrantReply:
-		return bus.Serve(w.Within(giveawayBudget), subject, h)
-	case func(context.Context, usersrpc.CommitPremiumGrantRequest) usersrpc.CommitPremiumGrantReply:
-		return bus.Serve(w.Within(giveawayBudget), subject, h)
-	case func(context.Context, usersrpc.CommitPremiumGrantRequest) usersrpc.GiveawayCancelReply:
-		return bus.Serve(w.Within(giveawayBudget), subject, h)
-	default:
-		return fmt.Errorf("unsupported giveaway handler for %s", subject)
-	}
 }
 
 func (g giveawayRPC) pool(ctx context.Context, req usersrpc.GiveawayPoolRequest) usersrpc.GiveawayPoolReply {

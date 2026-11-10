@@ -21,6 +21,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
@@ -55,12 +56,12 @@ func main() {
 	dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
 	checkoutConfigured, checkoutAuth := setupCheckout(checkoutRuntime{nc: nc, db: client, nrApp: core.NR, dashboardOrigin: dashboardOrigin, log: log})
 
-	sendSubject := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications") + ".send"
+	sendSubject := conf.AdminNotifications.Get() + ".send"
 	mailer := newMailer(dashboardOrigin, log)
 
-	emailSubject := env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")
+	emailSubject := conf.UsersEmailSubject.Get()
 	notifier := rpc.NewGiftNotifier(bus.RPCWiring{NC: nc, Log: log.Named("gift")}, rpc.GiftNotifierConfig{SendSubject: sendSubject, EmailSubject: emailSubject, Mailer: mailer})
-	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
+	billingSubject := conf.BillingApplySubject.Get()
 	billing := rpc.NewBillingApplier(nc, billingSubject)
 
 	giveawayConfig := giveawayengine.ConfigFromEnv()
@@ -160,7 +161,7 @@ func setupCheckout(runtime checkoutRuntime) (configured, auth bool) {
 		log.Fatal("failed to build tebex client", zap.Error(err))
 	}
 
-	userGetSubject := env.Get("NATS_INTERNAL_USERS_GET_SUBJECT", "bagel.rpc.internal.users.get")
+	userGetSubject := conf.UsersGetSubject.Get()
 	prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
 	usersGiveaways := rpc.NewUsersGiveawayClient(nc)
 	guard := rpc.NewCheckoutGuard(db, usersGiveaways)

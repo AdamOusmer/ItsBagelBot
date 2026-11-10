@@ -4,10 +4,11 @@
 package main
 
 import (
-	"ItsBagelBot/internal/analytics"
 	"context"
 	"fmt"
 	"time"
+
+	"ItsBagelBot/internal/analytics"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -23,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
@@ -130,7 +132,7 @@ func main() {
 		Fetches:   fetches,
 	}
 
-	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
+	projectionSubject := conf.ProjectionCommandsSubject.Get()
 	if err := rpc.SubscribeProjection(wiring, projectionSubject); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
@@ -140,7 +142,7 @@ func main() {
 		log.Fatal("failed to subscribe fetches projection rpc", zap.Error(err))
 	}
 
-	commandsPrefix := env.Get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands")
+	commandsPrefix := conf.CommandsPrefix.Get()
 	if err := rpc.SubscribeDashboard(wiring, commandsPrefix); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
@@ -148,7 +150,7 @@ func main() {
 		log.Fatal("failed to subscribe fetch dashboard rpc", zap.Error(err))
 	}
 
-	fetchKeySubject := env.Get("NATS_INTERNAL_FETCH_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.commands.fetchkey") + ".get"
+	fetchKeySubject := conf.FetchKeyPrefix.Get() + ".get"
 	if err := rpc.SubscribeFetchKey(wiring, fetchKeySubject); err != nil {
 		log.Fatal("failed to subscribe fetch key rpc", zap.Error(err))
 	}

@@ -52,16 +52,6 @@ type DeviceTokens struct {
 	DeviceID     string
 }
 
-type DeviceGrantView struct {
-	GrantID    string     `json:"grant_id"`
-	DeviceID   string     `json:"device_id"`
-	DeviceName string     `json:"device_name"`
-	Platform   string     `json:"platform"`
-	CreatedAt  time.Time  `json:"created_at"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-}
-
 func (r *Users) SetDeviceAuthSigner(signer *tokensign.Signer) {
 	r.deviceSigner = signer
 }

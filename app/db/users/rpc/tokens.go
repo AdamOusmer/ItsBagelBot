@@ -8,19 +8,13 @@ import (
 
 	"go.uber.org/zap"
 
-	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/repository"
-	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/monitor"
 
 	"ItsBagelBot/app/db/users/ent/tokens"
 )
-
-var tokensGetRules = []domainrpc.Rule{
-	domainrpc.When(ent.IsNotFound, domainrpc.CodeNotFound),
-}
 
 type tokensRPC struct {
 	repo *repository.Users
@@ -39,7 +33,7 @@ func SubscribeTokens(w Wiring, prefix string) error {
 func (t *tokensRPC) handleGet(ctx context.Context, _ usersrpc.TokensRequest, id uint64) (usersrpc.TokensReply, error) {
 	access, refresh, expiresAt, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	if err != nil {
-		return usersrpc.TokensReply{Refusal: bus.Classify(err, tokensGetRules...)}, nil
+		return usersrpc.TokensReply{Refusal: bus.Classify(err, entNotFound)}, nil
 	}
 
 	return usersrpc.TokensReply{

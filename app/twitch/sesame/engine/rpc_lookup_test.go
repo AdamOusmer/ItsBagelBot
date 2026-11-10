@@ -24,49 +24,46 @@ func TestRPCLookupsAreServedFromSesameCacheOnRepeat(t *testing.T) {
 		{
 			name: "followage",
 			lookup: func(calls *atomic.Int32) (func(context.Context) (bool, error), func()) {
-				f := &FollowageRPC{
-					cache: cache.New[FollowageResult](100, time.Minute),
-					request: func(_ context.Context, req outgressrpc.FollowageRequest) (outgressrpc.FollowageReply, error) {
+				results := cache.New[FollowageResult](100, time.Minute)
+				f := &FollowageRPC{rpc: newCachedRPC(results,
+					func(_ context.Context, req outgressrpc.FollowageRequest) (outgressrpc.FollowageReply, error) {
 						calls.Add(1)
 						return outgressrpc.FollowageReply{TargetID: req.TargetID, UserFound: true, Following: true}, nil
-					},
-				}
+					}, decodeFollowage)}
 				return func(ctx context.Context) (bool, error) {
 					result, err := f.Lookup(ctx, FollowageQuery{BroadcasterID: "channel", TargetID: "viewer"})
 					return result.Following, err
-				}, f.cache.Close
+				}, results.Close
 			},
 		},
 		{
 			name: "account age",
 			lookup: func(calls *atomic.Int32) (func(context.Context) (bool, error), func()) {
-				a := &AccountAgeRPC{
-					cache: cache.New[AccountAgeResult](100, time.Minute),
-					request: func(_ context.Context, req outgressrpc.AccountAgeRequest) (outgressrpc.AccountAgeReply, error) {
+				results := cache.New[AccountAgeResult](100, time.Minute)
+				a := &AccountAgeRPC{rpc: newCachedRPC(results,
+					func(_ context.Context, req outgressrpc.AccountAgeRequest) (outgressrpc.AccountAgeReply, error) {
 						calls.Add(1)
 						return outgressrpc.AccountAgeReply{TargetID: req.TargetID, UserFound: true}, nil
-					},
-				}
+					}, decodeAccountAge)}
 				return func(ctx context.Context) (bool, error) {
 					result, err := a.Lookup(ctx, "viewer", "")
 					return result.UserFound, err
-				}, a.cache.Close
+				}, results.Close
 			},
 		},
 		{
 			name: "uptime",
 			lookup: func(calls *atomic.Int32) (func(context.Context) (bool, error), func()) {
-				u := &UptimeRPC{
-					cache: cache.New[UptimeResult](100, 30*time.Second),
-					request: func(context.Context, outgressrpc.UptimeRequest) (outgressrpc.UptimeReply, error) {
+				results := cache.New[UptimeResult](100, 30*time.Second)
+				u := &UptimeRPC{rpc: newCachedRPC(results,
+					func(context.Context, outgressrpc.UptimeRequest) (outgressrpc.UptimeReply, error) {
 						calls.Add(1)
 						return outgressrpc.UptimeReply{Live: true, StartedAt: time.Now()}, nil
-					},
-				}
+					}, decodeUptime)}
 				return func(ctx context.Context) (bool, error) {
 					result, err := u.Lookup(ctx, "channel")
 					return result.Live, err
-				}, u.cache.Close
+				}, results.Close
 			},
 		},
 	}
@@ -88,13 +85,12 @@ func TestRPCLookupsAreServedFromSesameCacheOnRepeat(t *testing.T) {
 }
 
 func TestUptimeLookupSurfacesRPCError(t *testing.T) {
-	u := &UptimeRPC{
-		cache: cache.New[UptimeResult](100, 30*time.Second),
-		request: func(_ context.Context, _ outgressrpc.UptimeRequest) (outgressrpc.UptimeReply, error) {
+	results := cache.New[UptimeResult](100, 30*time.Second)
+	u := &UptimeRPC{rpc: newCachedRPC(results,
+		func(_ context.Context, _ outgressrpc.UptimeRequest) (outgressrpc.UptimeReply, error) {
 			return outgressrpc.UptimeReply{Error: "lookup failed"}, nil
-		},
-	}
-	defer u.cache.Close()
+		}, decodeUptime)}
+	defer results.Close()
 
 	_, err := u.Lookup(context.Background(), "channel")
 	require.Error(t, err)
@@ -102,18 +98,17 @@ func TestUptimeLookupSurfacesRPCError(t *testing.T) {
 
 func TestResolveLoginBypassesAccountAgeCache(t *testing.T) {
 	var calls int
-	a := &AccountAgeRPC{
-		cache: cache.New[AccountAgeResult](100, time.Minute),
-		request: func(_ context.Context, req outgressrpc.AccountAgeRequest) (outgressrpc.AccountAgeReply, error) {
+	results := cache.New[AccountAgeResult](100, time.Minute)
+	a := &AccountAgeRPC{rpc: newCachedRPC(results,
+		func(_ context.Context, req outgressrpc.AccountAgeRequest) (outgressrpc.AccountAgeReply, error) {
 			calls++
 			require.Equal(t, "alice", req.TargetLogin)
 			if calls == 1 {
 				return outgressrpc.AccountAgeReply{TargetID: "8", UserFound: true}, nil
 			}
 			return outgressrpc.AccountAgeReply{UserFound: false}, nil
-		},
-	}
-	defer a.cache.Close()
+		}, decodeAccountAge)}
+	defer results.Close()
 	cached, err := a.Lookup(context.Background(), "", "alice")
 	require.NoError(t, err)
 	require.True(t, cached.UserFound)

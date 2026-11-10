@@ -11,23 +11,11 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-const redemptionAddType = "channel.channel_points_custom_reward_redemption.add"
-
-type refundRedemption struct {
-	ID                   string `json:"id"`
-	BroadcasterUserID    string `json:"broadcaster_user_id"`
-	BroadcasterUserLogin string `json:"broadcaster_user_login"`
-	UserID               string `json:"user_id"`
-	Reward               struct {
-		ID string `json:"id"`
-	} `json:"reward"`
-}
-
 func (p *Pipeline) refundSpecialRedemption(mctx *module.Context, emit module.Emit) bool {
-	if p.autoRefundChannel == "" || mctx.Env.Type != redemptionAddType {
+	if p.autoRefundChannel == "" || mctx.Env.Type != RedemptionAddType {
 		return false
 	}
-	var ev refundRedemption
+	var ev RedemptionEvent
 	if codec.Unmarshal(mctx.Env.Event, &ev) != nil {
 		return false
 	}
@@ -37,17 +25,11 @@ func (p *Pipeline) refundSpecialRedemption(mctx *module.Context, emit module.Emi
 	if !p.refundChannelMatches(ev) || !p.special.Has(ev.UserID) {
 		return false
 	}
-	emit(&module.Output{
-		Type:          outgress.TypeRedemptionUpdate,
-		BroadcasterID: ev.BroadcasterUserID,
-		RewardID:      ev.Reward.ID,
-		RedemptionID:  ev.ID,
-		Status:        outgress.RedemptionCanceled,
-	})
+	emit(ev.Resolve(outgress.RedemptionCanceled))
 	return true
 }
 
-func (p *Pipeline) refundChannelMatches(ev refundRedemption) bool {
+func (p *Pipeline) refundChannelMatches(ev RedemptionEvent) bool {
 	return ev.BroadcasterUserID == p.autoRefundChannel ||
 		strings.EqualFold(ev.BroadcasterUserLogin, p.autoRefundChannel)
 }

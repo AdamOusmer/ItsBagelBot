@@ -8,10 +8,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	giveaways "ItsBagelBot/internal/domain/rpc/giveaways"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
-	"github.com/nats-io/nats.go"
+	"ItsBagelBot/pkg/env/conf"
 )
 
 const defaultUsersAuthSubject = "bagel.rpc.admin.user.auth.check"
@@ -77,8 +79,7 @@ func (c *UsersGiveawayClient) grant(ctx context.Context, subject string, payload
 }
 
 func (c *UsersGiveawayClient) Email(ctx context.Context, id uint64) (string, error) {
-	subject := "bagel.rpc.internal.users.email.get"
-	r, err := bus.RequestJSONTimeout[usersrpc.EmailGetReply](ctx, c.nc, subject, usersrpc.EmailGetRequest{UserID: strconv.FormatUint(id, 10)}, 5*time.Second)
+	r, err := bus.RequestJSONTimeout[usersrpc.EmailGetReply](ctx, c.nc, conf.UsersEmailSubject.Get(), usersrpc.EmailGetRequest{UserID: strconv.FormatUint(id, 10)}, 5*time.Second)
 	if err != nil {
 		return "", err
 	}

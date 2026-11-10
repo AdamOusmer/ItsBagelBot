@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 )
 
@@ -85,7 +86,7 @@ func Load() *Config {
 	return &Config{
 		Infra: svcboot.LoadInfra(),
 
-		SubjectPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", "bagel.rpc.gossip"),
+		SubjectPrefix: conf.GossipPrefix.Get(),
 
 		UrchinBaseURL:   env.Get("URCHIN_BASE_URL", "https://api.urchin.gg"),
 		UrchinAPIKey:    env.Get("URCHIN_API_KEY", ""),
@@ -128,18 +129,18 @@ func Load() *Config {
 
 		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
 		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),
-		GoveeKeySubjectPrefix: env.Get("NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.govee.key"),
+		GoveeKeySubjectPrefix: conf.GoveeKeyPrefix.Get(),
 
 		SpotifyBaseURL:          env.Get("SPOTIFY_BASE_URL", "https://api.spotify.com"),
 		SpotifyAccountsURL:      env.Get("SPOTIFY_ACCOUNTS_URL", "https://accounts.spotify.com"),
 		SpotifyRateLimit:        env.GetFloat("SPOTIFY_RATE_LIMIT", 30.0),
-		SpotifyKeySubjectPrefix: env.Get("NATS_INTERNAL_SPOTIFY_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.spotify.key"),
+		SpotifyKeySubjectPrefix: conf.SpotifyKeyPrefix.Get(),
 
 		ClashRoyaleBaseURL:   env.Get("CLASHROYALE_BASE_URL", "https://proxy.royaleapi.dev/v1"),
 		ClashRoyaleAPIKey:    env.Get("CLASHROYALE_API_KEY", ""),
 		ClashRoyaleRateLimit: env.GetFloat("CLASHROYALE_RATE_LIMIT", 600.0),
 
-		FetchKeySubjectPrefix:  env.Get("NATS_INTERNAL_FETCH_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.commands.fetchkey"),
+		FetchKeySubjectPrefix:  conf.FetchKeyPrefix.Get(),
 		FetchProjectionSubject: env.Get("PROJECTION_FETCHES_SUBJECT", "bagel.rpc.internal.projection.commands.fetches.get"),
 
 		CustomChannelRateLimit: env.GetFloat("CUSTOM_FETCH_CHANNEL_RATE_LIMIT", 6.0),

@@ -10,33 +10,19 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	dbgate "ItsBagelBot/pkg/db"
-
-	"github.com/go-sql-driver/mysql"
-)
-
-const (
-	staffTxAttempts  = 3
-	mysqlErrDeadlock = 1213
 )
 
 var errStaffRaced = errors.New("staff row created concurrently")
 
-func retryableStaffTx(err error) bool {
-	var me *mysql.MySQLError
-	return errors.Is(err, errStaffRaced) || (errors.As(err, &me) && me.Number == mysqlErrDeadlock)
-}
-
 func (g staffGate) inStaffTx(ctx context.Context, fn func(context.Context, *ent.Tx) (string, error)) (string, error) {
 	var errMsg string
-	var err error
-	for range staffTxAttempts {
+	err := dbgate.RetryTx(ctx, func(ctx context.Context) error {
+		var err error
 		errMsg, err = dbgate.WithQuery(ctx, func(ctx context.Context) (string, error) {
 			return runStaffTx(ctx, g.db, fn)
 		})
-		if !retryableStaffTx(err) {
-			break
-		}
-	}
+		return err
+	}, errStaffRaced)
 	return errMsg, err
 }
 

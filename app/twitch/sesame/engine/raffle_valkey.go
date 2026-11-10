@@ -342,21 +342,8 @@ func (s *ValkeyRaffleStore) recordPayout(ctx context.Context, broadcasterID uint
 
 // Expiry events are lost while no replica is subscribed; the due sweep still draws and pays those raffles.
 func (s *ValkeyRaffleStore) StartExpiryWatcher(ctx context.Context) {
-	go s.sweepOverdue(ctx)
+	go sweepEvery(ctx, raffleSweepInterval, s.drawOverdue)
 	pkg_valkey.ExpiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, raffleDeadlinePrefix, raffleRemindPrefix)
-}
-
-func (s *ValkeyRaffleStore) sweepOverdue(ctx context.Context) {
-	ticker := time.NewTicker(raffleSweepInterval)
-	defer ticker.Stop()
-	for {
-		s.drawOverdue(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
 }
 
 func (s *ValkeyRaffleStore) drawOverdue(ctx context.Context) {

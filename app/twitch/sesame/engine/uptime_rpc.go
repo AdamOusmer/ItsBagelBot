@@ -5,13 +5,9 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"time"
 
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/cache"
 
 	"github.com/nats-io/nats.go"
 )
@@ -34,34 +30,22 @@ type UptimeLookup interface {
 }
 
 type UptimeRPC struct {
-	cache   *cache.Cache[UptimeResult]
-	request func(context.Context, outgressrpc.UptimeRequest) (outgressrpc.UptimeReply, error)
+	rpc *cachedRPC[outgressrpc.UptimeRequest, outgressrpc.UptimeReply, UptimeResult]
 }
 
 func NewUptimeRPC(nc *nats.Conn, prefix string) *UptimeRPC {
-	subject := strings.TrimSuffix(prefix, ".") + ".uptime.get"
-	return &UptimeRPC{
-		cache: cache.New[UptimeResult](uptimeCacheCapacity, uptimeOfflineTTL),
-		request: func(ctx context.Context, req outgressrpc.UptimeRequest) (outgressrpc.UptimeReply, error) {
-			return bus.RequestJSONTimeout[outgressrpc.UptimeReply](ctx, nc, subject, req, uptimeRPCTimeout)
-		},
-	}
+	return &UptimeRPC{rpc: newBusRPC[outgressrpc.UptimeRequest](nc, rpcEndpoint{
+		subject:  rpcSubject(prefix, "uptime"),
+		timeout:  uptimeRPCTimeout,
+		capacity: uptimeCacheCapacity,
+		missTTL:  uptimeOfflineTTL,
+	}, decodeUptime)}
+}
+
+func decodeUptime(reply outgressrpc.UptimeReply) (UptimeResult, time.Duration, string) {
+	return UptimeResult{Live: reply.Live, StartedAt: reply.StartedAt}, ttlWhen(reply.Live, uptimePositiveTTL, uptimeOfflineTTL), reply.Error
 }
 
 func (u *UptimeRPC) Lookup(ctx context.Context, broadcasterID string) (UptimeResult, error) {
-	return u.cache.GetOrLoadTTL(ctx, broadcasterID, func(ctx context.Context) (UptimeResult, time.Duration, error) {
-		reply, err := u.request(ctx, outgressrpc.UptimeRequest{BroadcasterID: broadcasterID})
-		if err != nil {
-			return UptimeResult{}, 0, err
-		}
-		if reply.Error != "" {
-			return UptimeResult{}, 0, errors.New(reply.Error)
-		}
-		result := UptimeResult{Live: reply.Live, StartedAt: reply.StartedAt}
-		ttl := uptimeOfflineTTL
-		if result.Live {
-			ttl = uptimePositiveTTL
-		}
-		return result, ttl, nil
-	})
+	return u.rpc.lookup(ctx, broadcasterID, outgressrpc.UptimeRequest{BroadcasterID: broadcasterID})
 }

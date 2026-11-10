@@ -146,7 +146,7 @@ func TestChannelPointsRedemptions(t *testing.T) {
 			if userID == "" {
 				userID = "9"
 			}
-			c := eventCtx(eventInput{redemptionAddType, redemptionPayload(userID, tc.input), tc.config})
+			c := eventCtx(eventInput{engine.RedemptionAddType, redemptionPayload(userID, tc.input), tc.config})
 			assert.Equal(t, tc.want, runEvent(t, ChannelPoints(d), c))
 			assert.Equal(t, tc.earns, fake.earns)
 			assert.Equal(t, tc.bumps, fake.bumps)

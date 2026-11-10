@@ -17,7 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var rpcSubjectDefaultPattern = regexp.MustCompile(`env\.Get\("[A-Z0-9_]+",\s*"(bagel\.rpc\.[^"]+)"\)`)
+var (
+	rpcSubjectDefaultPattern = regexp.MustCompile(`env\.Get\("[A-Z0-9_]+",\s*"(bagel\.rpc\.[^"]+)"\)`)
+	confSubjectUsePattern    = regexp.MustCompile(`conf\.([A-Za-z]+)\.Get\(\)`)
+	confSubjectDeclPattern   = regexp.MustCompile(`([A-Za-z]+)\s*=\s*Subject\{"[A-Z0-9_]+",\s*"(bagel\.rpc\.[^"]+)"\}`)
+)
 
 type rpcGrant struct {
 	kind     string
@@ -456,6 +460,7 @@ func (a rpcAccount) importsDescend(literal string) bool {
 
 func rpcSubjectDefaults(t *testing.T, service goService) map[string]struct{} {
 	t.Helper()
+	shared := confSubjectDefaults(t)
 	literals := make(map[string]struct{})
 	err := filepath.WalkDir(service.dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -471,10 +476,31 @@ func rpcSubjectDefaults(t *testing.T, service goService) map[string]struct{} {
 		for _, m := range rpcSubjectDefaultPattern.FindAllStringSubmatch(string(body), -1) {
 			literals[m[1]] = struct{}{}
 		}
+		for _, m := range confSubjectUsePattern.FindAllStringSubmatch(string(body), -1) {
+			addSharedDefault(literals, shared, m[1])
+		}
 		return nil
 	})
 	require.NoError(t, err)
 	return literals
+}
+
+func addSharedDefault(literals map[string]struct{}, shared map[string]string, name string) {
+	if literal, ok := shared[name]; ok {
+		literals[literal] = struct{}{}
+	}
+}
+
+func confSubjectDefaults(t *testing.T) map[string]string {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("..", "..", "pkg", "env", "conf", "subjects.go"))
+	require.NoError(t, err)
+	defaults := make(map[string]string)
+	for _, m := range confSubjectDeclPattern.FindAllStringSubmatch(string(body), -1) {
+		defaults[m[1]] = m[2]
+	}
+	require.NotEmpty(t, defaults, "the shared subject catalog scan stopped matching")
+	return defaults
 }
 
 func isGoSource(d os.DirEntry, path string) bool {

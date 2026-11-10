@@ -31,7 +31,7 @@ func Core(d engine.Deps) module.Module {
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: c.Env.BroadcasterUserID,
-			Text:          fmt.Sprintf(i18n.T(c.Locale, "ping"), humanizeUptime(time.Since(started))),
+			Text:          fmt.Sprintf(i18n.T(c.Locale, "ping"), i18n.CompactDuration(c.Locale, time.Since(started))),
 		})
 		return nil
 	})
@@ -127,18 +127,4 @@ func greetAllowed(ctx context.Context, c *module.Context, d engine.Deps, log *za
 		return false
 	}
 	return first
-}
-
-func humanizeUptime(d time.Duration) string {
-	d = d.Round(time.Second)
-	h := int(d.Hours())
-	mn := int(d.Minutes()) % 60
-	s := int(d.Seconds()) % 60
-	if h > 0 {
-		return fmt.Sprintf("%dh %dm", h, mn)
-	}
-	if mn > 0 {
-		return fmt.Sprintf("%dm %ds", mn, s)
-	}
-	return fmt.Sprintf("%ds", s)
 }

@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/db"
+	"ItsBagelBot/pkg/tmpl"
 
 	entsql "entgo.io/ent/dialect/sql"
 
@@ -38,13 +39,8 @@ const (
 	flushTimeout = 30 * time.Second
 )
 
-// Must match the ent schema's normalizeNameHook.
-func normalizeName(name string) string {
-	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")))
-}
-
 func normalizeCommand(command string) string {
-	return utils.TruncateRunes(normalizeName(command), maxCounterName)
+	return utils.TruncateRunes(tmpl.NormalizeName(command), maxCounterName)
 }
 
 // Strict mode fails the whole INSERT on invalid UTF-8 or an over-long VARCHAR, which counts characters, not bytes.
@@ -144,7 +140,7 @@ func (r *Loyalty) RecordEarned(dto data.LoyaltyEarnedDTO) {
 	}
 	r.mu.Lock()
 	for _, e := range dto.Entries {
-		if e.ViewerID == 0 || (e.Points == 0 && e.WatchSeconds == 0) {
+		if !earnsAnything(e) {
 			continue
 		}
 		r.foldEarn(balKey{userID: dto.UserID, viewerID: e.ViewerID}, e)
@@ -152,6 +148,10 @@ func (r *Loyalty) RecordEarned(dto data.LoyaltyEarnedDTO) {
 	overflow := len(r.earnPend) >= flushMaxKeys
 	r.mu.Unlock()
 	r.maybeFlush(overflow)
+}
+
+func earnsAnything(e data.LoyaltyEarnEntry) bool {
+	return e.ViewerID != 0 && (e.Points != 0 || e.WatchSeconds != 0)
 }
 
 // Caller must hold r.mu.
@@ -198,7 +198,7 @@ func (r *Loyalty) foldBump(key bumpKey, scope string, b data.CounterBumpEntry) {
 }
 
 func bumpTarget(userID uint64, b data.CounterBumpEntry) (bumpKey, string, bool) {
-	name := normalizeName(b.Name)
+	name := tmpl.NormalizeName(b.Name)
 	if !usableBump(userID, name, b) {
 		return bumpKey{}, "", false
 	}

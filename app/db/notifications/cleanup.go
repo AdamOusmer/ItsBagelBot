@@ -11,19 +11,18 @@ import (
 
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
+	"ItsBagelBot/pkg/svcboot"
 )
 
 func runCleanup(ctx context.Context, log *zap.Logger) error {
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-
-	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName+"-cleanup")
+	nc, err := bus.Connect(bus.RPCURL(svcboot.LoadInfra().NATSURL), serviceName+"-cleanup")
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
 
-	subject := env.Get("NATS_NOTIFICATIONS_CLEANUP_SUBJECT", "bagel.rpc.internal.notifications.cleanup")
+	subject := conf.NotificationsCleanup.Get()
 
 	for {
 		reply, err := bus.RequestJSONTimeout[notificationsrpc.CleanupReply](

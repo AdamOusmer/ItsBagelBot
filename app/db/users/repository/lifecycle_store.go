@@ -5,6 +5,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/pkg/db"
 	"context"
 	"time"
 )
@@ -17,7 +18,7 @@ func (r *Users) commitLifecycle(ctx context.Context, m lifecycleMutation) (bool,
 	setDormancyDeadline(update, s)
 	setLifecycleDue(update, s)
 	setNoticeDue(update, s)
-	n, err := update.Save(ctx)
+	n, err := db.WithQuery(ctx, update.Save)
 	return n != 0, err
 }
 func lifecycleServing(s lifecycle.State, serviceBanned bool) bool {
@@ -84,7 +85,7 @@ func (r *Users) publishCommittedLifecycle(ctx context.Context, m lifecycleMutati
 	if err := r.publishLifecycleProjection(ctx, m.row, m.row.StateRevision+1); err != nil {
 		return usersrpc.LifecycleReply{}, err
 	}
-	committed, err := r.client.User.Get(ctx, m.request.UserID)
+	committed, err := db.WithRead(ctx, func(ctx context.Context) (*ent.User, error) { return r.client.User.Get(ctx, m.request.UserID) })
 	if err != nil {
 		return usersrpc.LifecycleReply{}, err
 	}
@@ -97,6 +98,6 @@ func (r *Users) publishLifecycleProjection(ctx context.Context, row *ent.User, r
 	if err := r.publishStatusInvalidation(ctx, row.ID); err != nil {
 		return err
 	}
-	_, err := r.client.User.Update().Where(user.IDEQ(row.ID), user.CreatedAtEQ(row.CreatedAt), user.StateRevisionEQ(revision)).SetLifecycleProjectionPending(false).Save(ctx)
+	_, err := db.WithQuery(ctx, r.client.User.Update().Where(user.IDEQ(row.ID), user.CreatedAtEQ(row.CreatedAt), user.StateRevisionEQ(revision)).SetLifecycleProjectionPending(false).Save)
 	return err
 }

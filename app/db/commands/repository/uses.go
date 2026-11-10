@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
+	"ItsBagelBot/pkg/tmpl"
 	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
@@ -23,7 +24,7 @@ type commandUseBatch struct {
 // ambiguous commit cannot apply the same batch twice. Missing commands are
 // consumed without recreation, preserving deletion behavior.
 func (r *Commands) RecordUse(ctx context.Context, batchID string, dto data.CommandUsedDTO) error {
-	batch := commandUseBatch{id: batchID, userID: dto.UserID, name: normalizeName(dto.Name), count: dto.Count}
+	batch := commandUseBatch{id: batchID, userID: dto.UserID, name: tmpl.NormalizeName(dto.Name), count: dto.Count}
 	if batch.count == 0 {
 		batch.count = 1 // legacy event semantics
 	}
@@ -58,22 +59,16 @@ func (b commandUseBatch) validate() error {
 }
 
 func (r *Commands) commitUseBatch(ctx context.Context, batch commandUseBatch) error {
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	seen, err := batch.receiptExists(ctx, tx)
-	if err != nil || seen {
-		return err
-	}
-	if err := tx.CommandUseBatch.Create().SetID(batch.id).SetUserID(batch.userID).SetName(batch.name).SetCount(batch.count).Exec(ctx); err != nil {
-		return err
-	}
-	if err := batch.apply(ctx, tx); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+		seen, err := batch.receiptExists(ctx, tx)
+		if err != nil || seen {
+			return err
+		}
+		if err := tx.CommandUseBatch.Create().SetID(batch.id).SetUserID(batch.userID).SetName(batch.name).SetCount(batch.count).Exec(ctx); err != nil {
+			return err
+		}
+		return batch.apply(ctx, tx)
+	})
 }
 
 func (b commandUseBatch) receiptExists(ctx context.Context, tx *ent.Tx) (bool, error) {

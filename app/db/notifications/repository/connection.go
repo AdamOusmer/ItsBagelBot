@@ -1,15 +1,17 @@
 package repository
 
 import (
+	"context"
+	"fmt"
+	"strconv"
+	"time"
+
 	"ItsBagelBot/app/db/notifications/ent"
 	"ItsBagelBot/app/db/notifications/ent/connectionguard"
 	"ItsBagelBot/app/db/notifications/ent/connectionreceipt"
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/ent/notificationread"
-	"context"
-	"fmt"
-	"strconv"
-	"time"
+	"ItsBagelBot/pkg/db"
 )
 
 // ConnectionParams binds all retries to the original incident and delivery window.
@@ -56,16 +58,11 @@ func (r *Notifications) connectionTx(ctx context.Context, change connectionChang
 	if err := change.Params.validate(); err != nil {
 		return ConnectionResult{}, err
 	}
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return ConnectionResult{}, err
-	}
-	defer tx.Rollback()
-	result, err := change.apply(ctx, tx)
-	if err != nil {
-		return result, err
-	}
-	return result, tx.Commit()
+	return db.WithQuery(ctx, func(ctx context.Context) (ConnectionResult, error) {
+		return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (ConnectionResult, error) {
+			return change.apply(ctx, tx)
+		})
+	})
 }
 func (change connectionChange) apply(ctx context.Context, tx *ent.Tx) (ConnectionResult, error) {
 	guard, err := lockConnectionGuard(ctx, tx, change.Params)
@@ -214,18 +211,14 @@ func (r *Notifications) EraseConnection(ctx context.Context, accountID uint64, i
 	if err != nil {
 		return err
 	}
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err = erasure.lockGuard(ctx, tx); err != nil {
-		return err
-	}
-	if err = erasure.deleteHistory(ctx, tx); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+			if err := erasure.lockGuard(ctx, tx); err != nil {
+				return err
+			}
+			return erasure.deleteHistory(ctx, tx)
+		})
+	})
 }
 func (erasure *notificationErasure) lockGuard(ctx context.Context, tx *ent.Tx) error {
 	p := erasure.Recipient

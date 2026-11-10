@@ -40,18 +40,9 @@ func (w *Worker) scheduleTokenWarm(broadcasterID string) {
 	if !w.backgroundAllowed(context.Background(), broadcasterID) {
 		return
 	}
-	select {
-	case w.tokenWarm <- struct{}{}:
-	default:
+	if !runBounded(w.tokenWarm, tokenWarmTimeout, func(ctx context.Context) { w.warmBroadcasterToken(ctx, broadcasterID) }) {
 		w.log.Warn("token-warm skipped: checks saturated", zap.String("broadcaster_id", broadcasterID))
-		return
 	}
-	go func() {
-		defer func() { <-w.tokenWarm }()
-		ctx, cancel := context.WithTimeout(context.Background(), tokenWarmTimeout)
-		defer cancel()
-		w.warmBroadcasterToken(ctx, broadcasterID)
-	}()
 }
 
 func (w *Worker) warmBroadcasterToken(ctx context.Context, broadcasterID string) {

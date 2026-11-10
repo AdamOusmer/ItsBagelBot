@@ -7,17 +7,13 @@ import (
 	"context"
 
 	"ItsBagelBot/app/db/loyalty/repository"
-	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 )
 
 func (l *loyaltyRPC) handleBalanceSpend(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, viewerID, ok, reply := parseIDs(req, false)
+	userID, viewerID, ok, reply := requireViewer(req)
 	if !ok {
 		return reply
-	}
-	if viewerID == 0 {
-		return refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 	}
 	row, found, spent, err := l.repo.BalanceSpendViewer(ctx, repository.Spend{UserID: userID, ViewerID: viewerID, ViewerLogin: req.ViewerLogin, Amount: req.Value})
 	if err != nil {

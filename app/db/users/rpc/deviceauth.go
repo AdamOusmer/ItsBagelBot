@@ -154,18 +154,7 @@ func (d *deviceAuthRPC) handleList(ctx context.Context, msg *nats.Msg) {
 		respondFail(msg, err)
 		return
 	}
-	bus.Respond(msg, usersrpc.DeviceListReply{Grants: deviceGrantViews(views)})
-}
-
-func deviceGrantViews(views []repository.DeviceGrantView) []usersrpc.DeviceGrantView {
-	grants := make([]usersrpc.DeviceGrantView, 0, len(views))
-	for _, v := range views {
-		grants = append(grants, usersrpc.DeviceGrantView{
-			GrantID: v.GrantID, DeviceID: v.DeviceID, DeviceName: v.DeviceName, Platform: v.Platform,
-			CreatedAt: v.CreatedAt, LastUsedAt: v.LastUsedAt, ExpiresAt: v.ExpiresAt,
-		})
-	}
-	return grants
+	bus.Respond(msg, usersrpc.DeviceListReply{Grants: views})
 }
 
 func (d *deviceAuthRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {

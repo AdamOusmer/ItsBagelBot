@@ -105,5 +105,5 @@ defmodule Ingress.ShardScaler.Policy do
     end
   end
 
-  defp clamp(value, min_v, max_v), do: value |> max(min_v) |> min(max_v)
+  def clamp(value, min_v, max_v), do: value |> max(min_v) |> min(max_v)
 end

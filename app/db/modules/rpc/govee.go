@@ -13,6 +13,7 @@ import (
 	goveerpc "ItsBagelBot/internal/domain/rpc/govee"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 )
 
 // Dashboard verbs must never echo the key; only the gossip-scoped decrypt verb returns it.
@@ -21,7 +22,7 @@ func wireGovee(w bus.RPCWiring, creds *repository.GoveeCreds) error {
 		return nil
 	}
 	dash := env.Get("NATS_MODULES_GOVEE_SUBJECT_PREFIX", "bagel.rpc.modules.govee")
-	internal := env.Get("NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.govee.key")
+	internal := conf.GoveeKeyPrefix.Get()
 	g := &goveeRPC{creds: creds, log: w.Log}
 
 	custody := w.Within(custodyBudget)
