@@ -112,16 +112,24 @@ func (r *Recorder) reconcile(ctx context.Context, o Owner) error {
 func (r *Recorder) writeLevels(ctx context.Context, set map[string]string, stale []string) error {
 	var cmds []valkey.Completed
 	if len(set) > 0 {
-		pairs := make([]pkg_valkey.HashFieldValue, 0, len(set))
-		for field, v := range set {
-			pairs = append(pairs, pkg_valkey.HashFieldValue{Field: field, Value: v})
-		}
-		cmds = append(cmds, pkg_valkey.HSetCmd(r.client, catalog.LevelKey, pairs...))
+		cmds = append(cmds, pkg_valkey.HSetCmd(r.client, catalog.LevelKey, fieldValues(set)...))
 	}
 	if len(stale) > 0 {
 		cmds = append(cmds, pkg_valkey.HDelCmd(r.client, catalog.LevelKey, stale...))
 	}
-	for _, res := range pkg_valkey.ExecMulti(ctx, r.client, cmds...) {
+	return firstError(pkg_valkey.ExecMulti(ctx, r.client, cmds...))
+}
+
+func fieldValues(set map[string]string) []pkg_valkey.HashFieldValue {
+	pairs := make([]pkg_valkey.HashFieldValue, 0, len(set))
+	for field, v := range set {
+		pairs = append(pairs, pkg_valkey.HashFieldValue{Field: field, Value: v})
+	}
+	return pairs
+}
+
+func firstError(results []valkey.ValkeyResult) error {
+	for _, res := range results {
 		if err := res.Error(); err != nil {
 			return err
 		}
