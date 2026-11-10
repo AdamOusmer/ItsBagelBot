@@ -194,21 +194,14 @@ func displayTagType(tagType string) string {
 }
 
 func formatUrchinTags(tags []gossiprpc.UrchinTag) string {
-	if len(tags) == 0 {
-		return "No tags"
-	}
-	parts := make([]string, 0, len(tags))
-	for _, t := range tags {
-		name := displayTagType(t.Type)
-		if t.AddedOn > 0 {
-			name += fmt.Sprintf(" (added %s)", time.Unix(t.AddedOn, 0).UTC().Format("Jan 2, 2006"))
-		}
-		parts = append(parts, name)
-	}
-	return strings.Join(parts, ", ")
+	return formatUrchinTagList(tags, false)
 }
 
 func formatUrchinTagDescriptions(tags []gossiprpc.UrchinTag) string {
+	return formatUrchinTagList(tags, true)
+}
+
+func formatUrchinTagList(tags []gossiprpc.UrchinTag, withReason bool) string {
 	if len(tags) == 0 {
 		return "No tags"
 	}
@@ -216,7 +209,7 @@ func formatUrchinTagDescriptions(tags []gossiprpc.UrchinTag) string {
 	for _, t := range tags {
 		name := displayTagType(t.Type)
 		var extras []string
-		if t.Reason != "" {
+		if withReason && t.Reason != "" {
 			extras = append(extras, t.Reason)
 		}
 		if t.AddedOn > 0 {

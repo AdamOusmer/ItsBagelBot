@@ -18,8 +18,6 @@ import (
 
 const channelPointsModuleName = "channelpoints"
 
-const redemptionAddType = "channel.channel_points_custom_reward_redemption.add"
-
 const (
 	rewardActionChat = "chat"
 	rewardActionNone = "none"
@@ -47,32 +45,17 @@ type rewardBinding struct {
 	LiveOnly bool   `json:"liveOnly"`
 }
 
-type redemptionEvent struct {
-	ID                   string `json:"id"`
-	BroadcasterUserID    string `json:"broadcaster_user_id"`
-	BroadcasterUserLogin string `json:"broadcaster_user_login"`
-	UserID               string `json:"user_id"`
-	UserName             string `json:"user_name"`
-	UserLogin            string `json:"user_login"`
-	UserInput            string `json:"user_input"`
-	Reward               struct {
-		ID    string `json:"id"`
-		Title string `json:"title"`
-		Cost  int    `json:"cost"`
-	} `json:"reward"`
-}
-
 func ChannelPoints(d engine.Deps) module.Module {
 	m := module.NewModule(channelPointsModuleName, module.KindOptIn)
 
-	m.On(redemptionAddType, func(ctx context.Context, c *module.Context, emit module.Emit) error {
+	m.On(engine.RedemptionAddType, func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		var cfg channelPointsConfig
 		_ = c.Decode(&cfg)
 		if len(cfg.Rewards) == 0 || len(c.Env.Event) == 0 {
 			return nil
 		}
 
-		var ev redemptionEvent
+		var ev engine.RedemptionEvent
 		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
@@ -115,7 +98,7 @@ type rewardAward struct {
 	d       engine.Deps
 	c       *module.Context
 	binding rewardBinding
-	ev      redemptionEvent
+	ev      engine.RedemptionEvent
 }
 
 func (a rewardAward) grant(ctx context.Context) {
@@ -141,7 +124,7 @@ func (a rewardAward) points(ctx context.Context, viewerID uint64) int64 {
 	return cfg.AutomaticPoints(a.c.BroadcasterID, viewerID, a.binding.Points)
 }
 
-func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b rewardBinding, ev redemptionEvent) string {
+func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b rewardBinding, ev engine.RedemptionEvent) string {
 	if b.Counter == "" || d.Loyalty == nil {
 		return ""
 	}
@@ -179,7 +162,7 @@ func findBinding(rewards []rewardBinding, rewardID string) (rewardBinding, bool)
 type rewardChatParams struct {
 	locale       string
 	binding      rewardBinding
-	event        redemptionEvent
+	event        engine.RedemptionEvent
 	counterValue string
 }
 
@@ -192,23 +175,24 @@ func emitRewardAction(p rewardChatParams, emit module.Emit) {
 	}
 }
 
-func emitRedemptionResolution(b rewardBinding, ev redemptionEvent, emit module.Emit) {
-	var status string
-	switch b.OnRedeem {
+func emitRedemptionResolution(b rewardBinding, ev engine.RedemptionEvent, emit module.Emit) {
+	emitRedemptionStatus(emit, ev, explicitResolutionStatus(b.OnRedeem))
+}
+
+func explicitResolutionStatus(onRedeem string) string {
+	switch onRedeem {
 	case onRedeemFulfill:
-		status = outgress.RedemptionFulfilled
+		return outgress.RedemptionFulfilled
 	case onRedeemCancel:
-		status = outgress.RedemptionCanceled
-	default:
-		return
+		return outgress.RedemptionCanceled
 	}
-	emit(&module.Output{
-		Type:          outgress.TypeRedemptionUpdate,
-		BroadcasterID: ev.BroadcasterUserID,
-		RewardID:      ev.Reward.ID,
-		RedemptionID:  ev.ID,
-		Status:        status,
-	})
+	return ""
+}
+
+func emitRedemptionStatus(emit module.Emit, ev engine.RedemptionEvent, status string) {
+	if status != "" {
+		emit(ev.Resolve(status))
+	}
 }
 
 func sanitizeRewardInput(raw string) string {

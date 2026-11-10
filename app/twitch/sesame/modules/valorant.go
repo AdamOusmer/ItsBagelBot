@@ -50,33 +50,24 @@ type valorantConfig struct {
 	ShopMessage  string `json:"shopMessage"`
 }
 
-func valRankSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantRankReply) (string, bool) {
-	if !r.Unranked {
-		return "", false
-	}
-	return r.Player + " " + valUnrankedText, true
-}
-
-func valMatchSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantMatchesReply) (string, bool) {
-	if !r.Empty {
-		return "", false
-	}
-	return r.Player + " " + valNoMatchesText, true
-}
-
-func valBoardSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantLeaderboardReply) (string, bool) {
-	if !r.Empty {
-		return "", false
-	}
-	return r.Board + " " + valEmptyBoardText, true
-}
-
-func valShopSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantShopReply) (string, bool) {
-	if !r.Empty {
-		return "", false
-	}
-	return valEmptyShopText, true
-}
+var (
+	valRankSpecial = specialWhen[valorantConfig](
+		func(r *gossiprpc.ValorantRankReply) bool { return r.Unranked },
+		func(r *gossiprpc.ValorantRankReply) string { return r.Player + " " + valUnrankedText },
+	)
+	valMatchSpecial = specialWhen[valorantConfig](
+		func(r *gossiprpc.ValorantMatchesReply) bool { return r.Empty },
+		func(r *gossiprpc.ValorantMatchesReply) string { return r.Player + " " + valNoMatchesText },
+	)
+	valBoardSpecial = specialWhen[valorantConfig](
+		func(r *gossiprpc.ValorantLeaderboardReply) bool { return r.Empty },
+		func(r *gossiprpc.ValorantLeaderboardReply) string { return r.Board + " " + valEmptyBoardText },
+	)
+	valShopSpecial = specialWhen[valorantConfig](
+		func(r *gossiprpc.ValorantShopReply) bool { return r.Empty },
+		func(*gossiprpc.ValorantShopReply) string { return valEmptyShopText },
+	)
+)
 
 func valRoute(endpoint string) engine.GossipRoute {
 	return engine.GossipRoute{Provider: "valorant", Endpoint: endpoint}

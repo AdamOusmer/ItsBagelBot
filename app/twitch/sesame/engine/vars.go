@@ -167,7 +167,7 @@ func stripControls(s rawText) rawText {
 	return rawText(out)
 }
 
-func trimLeftSlashSpace(s rawText) rawText {
+func trimLeftSlashSpace[T ~string](s T) T {
 	i := 0
 	for i < len(s) && (s[i] == ' ' || s[i] == '/') {
 		i++

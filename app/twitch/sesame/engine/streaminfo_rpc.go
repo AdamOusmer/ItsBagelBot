@@ -5,13 +5,9 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"time"
 
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/cache"
 
 	"github.com/nats-io/nats.go"
 )
@@ -32,31 +28,20 @@ type StreamInfoLookup interface {
 }
 
 type StreamInfoRPC struct {
-	cache   *cache.Cache[StreamInfoResult]
-	request func(context.Context, outgressrpc.StreamInfoRequest) (outgressrpc.StreamInfoReply, error)
+	rpc *cachedRPC[outgressrpc.StreamInfoRequest, outgressrpc.StreamInfoReply, StreamInfoResult]
 }
 
 func NewStreamInfoRPC(nc *nats.Conn, prefix string) *StreamInfoRPC {
-	subject := strings.TrimSuffix(prefix, ".") + ".streaminfo.get"
-	return &StreamInfoRPC{
-		cache: cache.New[StreamInfoResult](streamInfoCacheCapacity, uptimeOfflineTTL),
-		request: func(ctx context.Context, req outgressrpc.StreamInfoRequest) (outgressrpc.StreamInfoReply, error) {
-			return bus.RequestJSONTimeout[outgressrpc.StreamInfoReply](ctx, nc, subject, req, uptimeRPCTimeout)
-		},
-	}
+	return &StreamInfoRPC{rpc: newBusRPC[outgressrpc.StreamInfoRequest](nc, rpcEndpoint{
+		subject:  rpcSubject(prefix, "streaminfo"),
+		timeout:  uptimeRPCTimeout,
+		capacity: streamInfoCacheCapacity,
+		missTTL:  uptimeOfflineTTL,
+	}, decodeStreamInfo)}
 }
 
 func (s *StreamInfoRPC) Lookup(ctx context.Context, broadcasterID, login string) (StreamInfoResult, error) {
-	return s.cache.GetOrLoadTTL(ctx, streamInfoKey(broadcasterID, login), func(ctx context.Context) (StreamInfoResult, time.Duration, error) {
-		reply, err := s.request(ctx, outgressrpc.StreamInfoRequest{BroadcasterID: broadcasterID, TargetLogin: login})
-		if err != nil {
-			return StreamInfoResult{}, 0, err
-		}
-		if reply.Error != "" {
-			return StreamInfoResult{}, 0, errors.New(reply.Error)
-		}
-		return streamInfoOf(reply), streamInfoTTL(reply.Live), nil
-	})
+	return s.rpc.lookup(ctx, streamInfoKey(broadcasterID, login), outgressrpc.StreamInfoRequest{BroadcasterID: broadcasterID, TargetLogin: login})
 }
 
 func streamInfoKey(broadcasterID, login string) string {
@@ -66,16 +51,10 @@ func streamInfoKey(broadcasterID, login string) string {
 	return "login:" + login
 }
 
-func streamInfoOf(reply outgressrpc.StreamInfoReply) StreamInfoResult {
-	return StreamInfoResult{
+func decodeStreamInfo(reply outgressrpc.StreamInfoReply) (StreamInfoResult, time.Duration, string) {
+	result := StreamInfoResult{
 		UserFound: reply.UserFound, Live: reply.Live, Title: reply.Title,
 		GameName: reply.GameName, ViewerCount: reply.ViewerCount, StartedAt: reply.StartedAt,
 	}
-}
-
-func streamInfoTTL(live bool) time.Duration {
-	if live {
-		return uptimePositiveTTL
-	}
-	return uptimeOfflineTTL
+	return result, ttlWhen(reply.Live, uptimePositiveTTL, uptimeOfflineTTL), reply.Error
 }

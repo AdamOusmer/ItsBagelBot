@@ -35,16 +35,7 @@ func NewTrialPromotion(store valkey.Client, promoter TrialPromoter, log *zap.Log
 }
 
 func (t *TrialPromotion) Run(ctx context.Context) {
-	ticker := time.NewTicker(trialPromotionEvery)
-	defer ticker.Stop()
-	for {
-		t.Sweep(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
+	sweepEvery(ctx, trialPromotionEvery, t.Sweep)
 }
 
 func (t *TrialPromotion) Sweep(ctx context.Context) {

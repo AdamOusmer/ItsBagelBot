@@ -54,7 +54,7 @@ func TestCooldownAddOnBitsCheerScalesWithTheBitCount(t *testing.T) {
 
 	r.cheer(t, dispatchAt{replica: 1, eventID: r.nextEvent("cheer"), viewer: carol}, 350)
 	added := r.awaitAutomationRun(t, addAutomationID, 1)
-	require.Equal(t, automationrpc.OutcomeOK, added.Outcome, statusesOf(added))
+	require.Equal(t, automationrpc.OutcomeOK, added.Outcome, stepStatuses(added))
 	assert.Equal(t, "60s", added.Actions[0].Detail, "floor(350/100)=3 lots of 20s, the 50 leftover bits carry nothing")
 
 	after := r.storedWindows(t)
@@ -69,7 +69,7 @@ func TestCooldownAddOnBitsCheerBelowTheRateAddsNothing(t *testing.T) {
 
 	r.cheer(t, dispatchAt{eventID: r.nextEvent("cheer-low"), viewer: bob}, 40)
 	added := r.awaitAutomationRun(t, addAutomationID, 1)
-	assert.Equal(t, automationrpc.OutcomeOK, added.Outcome, statusesOf(added))
+	assert.Equal(t, automationrpc.OutcomeOK, added.Outcome, stepStatuses(added))
 	assert.Equal(t, "below_rate", added.Actions[0].Detail)
 
 	assert.Equal(t, before, r.storedWindows(t))
@@ -200,7 +200,7 @@ func TestMixedStepsAreNotAllOrNothingOnlyTheWindowClaimIs(t *testing.T) {
 	r.runAutomationCommandAsMod(t, r.nextEvent("mixed"), alice, "!mixed")
 	rec := r.awaitAutomationRun(t, "mixed", 1)
 
-	require.Len(t, rec.Actions, 4, statusesOf(rec))
+	require.Len(t, rec.Actions, 4, stepStatuses(rec))
 	assert.Equal(t, automationrpc.StatusOK, rec.Actions[0].Status, "the chat step before the failure ran")
 	assert.Equal(t, "not_running", rec.Actions[1].Detail, "the unowned named window was never armed")
 	assert.Equal(t, automationrpc.StatusFailed, rec.Actions[2].Status, "the math step failed outright")

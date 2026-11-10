@@ -5,7 +5,6 @@ package scope
 
 import (
 	"context"
-	"math/rand/v2"
 	"slices"
 	"strconv"
 )
@@ -57,12 +56,12 @@ func (c Chatters) Plan(ctx context.Context, _ []Var) (Values, error) {
 	if c.Roster != nil {
 		c.Roster.View(func(v RosterView) {
 			out.count = v.Len()
-			out.draws = c.drawRoster(v)
+			out.draws.items = c.drawRoster(v)
 		})
 	}
 	if c.ViewerDraws > 0 && c.Viewers != nil {
 		if viewers, ok := c.Viewers.Viewers(ctx); ok {
-			out.viewerDraws = c.drawFrom(chatterDrawPool(viewers, c.ViewerExclude), c.ViewerDraws)
+			out.viewerDraws.items = c.drawFrom(chatterDrawPool(viewers, c.ViewerExclude), c.ViewerDraws)
 		}
 	}
 	return out, nil
@@ -80,7 +79,7 @@ func (c Chatters) drawRoster(v RosterView) []string {
 	wanted := min(c.Draws, MaxChatterDraws)
 	draws := make([]string, 0, wanted)
 	for range wanted {
-		who := v.At(slotAfterSkips(c.pick(size), skip))
+		who := v.At(slotAfterSkips(pickIndex(c.Pick, size), skip))
 		if who.Name == "" {
 			return c.drawFrom(chatterDrawPool(rosterEntries(v), c.Exclude), c.Draws)
 		}
@@ -125,16 +124,9 @@ func (c Chatters) drawFrom(names []string, n int) []string {
 	wanted := min(n, MaxChatterDraws)
 	draws := make([]string, 0, wanted)
 	for i := 0; i < wanted; i++ {
-		draws = append(draws, names[c.pick(len(names))])
+		draws = append(draws, names[pickIndex(c.Pick, len(names))])
 	}
 	return draws
-}
-
-func (c Chatters) pick(n int) int {
-	if c.Pick != nil {
-		return c.Pick(n)
-	}
-	return rand.IntN(n)
 }
 
 func chatterDrawPool(entries []Chatter, exclude []uint64) []string {
@@ -159,10 +151,8 @@ func idExcluded(list []uint64, id uint64) bool {
 
 type chatterValues struct {
 	count       int
-	draws       []string
-	drawn       int
-	viewerDraws []string
-	viewerDrawn int
+	draws       drawCursor
+	viewerDraws drawCursor
 }
 
 func (v *chatterValues) Get(tok Var) (string, bool) {
@@ -173,16 +163,9 @@ func (v *chatterValues) Get(tok Var) (string, bool) {
 	case ChattersToken:
 		return strconv.Itoa(v.count), true
 	case RandomViewerToken:
-		return nextDraw(v.viewerDraws, &v.viewerDrawn), true
+		name, _ := v.viewerDraws.next()
+		return name, true
 	}
-	return nextDraw(v.draws, &v.drawn), true
-}
-
-func nextDraw(draws []string, drawn *int) string {
-	if len(draws) == 0 {
-		return ""
-	}
-	name := draws[min(*drawn, len(draws)-1)]
-	*drawn++
-	return name
+	name, _ := v.draws.next()
+	return name, true
 }

@@ -5,13 +5,9 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"time"
 
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/cache"
 
 	"github.com/nats-io/nats.go"
 )
@@ -36,37 +32,26 @@ type ChannelCountsLookup interface {
 }
 
 type ChannelCountsRPC struct {
-	cache   *cache.Cache[ChannelCountsResult]
-	request func(context.Context, outgressrpc.ChannelCountsRequest) (outgressrpc.ChannelCountsReply, error)
+	rpc *cachedRPC[outgressrpc.ChannelCountsRequest, outgressrpc.ChannelCountsReply, ChannelCountsResult]
 }
 
 func NewChannelCountsRPC(nc *nats.Conn, prefix string) *ChannelCountsRPC {
-	subject := strings.TrimSuffix(prefix, ".") + ".channelcounts.get"
-	return &ChannelCountsRPC{
-		cache: cache.New[ChannelCountsResult](channelCountsCacheCapacity, channelCountsNegativeTTL),
-		request: func(ctx context.Context, req outgressrpc.ChannelCountsRequest) (outgressrpc.ChannelCountsReply, error) {
-			return bus.RequestJSONTimeout[outgressrpc.ChannelCountsReply](ctx, nc, subject, req, channelCountsRPCTimeout)
-		},
+	return &ChannelCountsRPC{rpc: newBusRPC[outgressrpc.ChannelCountsRequest](nc, rpcEndpoint{
+		subject:  rpcSubject(prefix, "channelcounts"),
+		timeout:  channelCountsRPCTimeout,
+		capacity: channelCountsCacheCapacity,
+		missTTL:  channelCountsNegativeTTL,
+	}, decodeChannelCounts)}
+}
+
+func decodeChannelCounts(reply outgressrpc.ChannelCountsReply) (ChannelCountsResult, time.Duration, string) {
+	result := ChannelCountsResult{
+		Followers: reply.Followers, FollowersOK: reply.FollowersOK,
+		Subs: reply.Subs, SubsOK: reply.SubsOK,
 	}
+	return result, ttlWhen(result.FollowersOK && result.SubsOK, channelCountsPositiveTTL, channelCountsNegativeTTL), reply.Error
 }
 
 func (r *ChannelCountsRPC) Lookup(ctx context.Context, broadcasterID string) (ChannelCountsResult, error) {
-	return r.cache.GetOrLoadTTL(ctx, broadcasterID, func(ctx context.Context) (ChannelCountsResult, time.Duration, error) {
-		reply, err := r.request(ctx, outgressrpc.ChannelCountsRequest{BroadcasterID: broadcasterID})
-		if err != nil {
-			return ChannelCountsResult{}, 0, err
-		}
-		if reply.Error != "" {
-			return ChannelCountsResult{}, 0, errors.New(reply.Error)
-		}
-		result := ChannelCountsResult{
-			Followers: reply.Followers, FollowersOK: reply.FollowersOK,
-			Subs: reply.Subs, SubsOK: reply.SubsOK,
-		}
-		ttl := channelCountsNegativeTTL
-		if result.FollowersOK && result.SubsOK {
-			ttl = channelCountsPositiveTTL
-		}
-		return result, ttl, nil
-	})
+	return r.rpc.lookup(ctx, broadcasterID, outgressrpc.ChannelCountsRequest{BroadcasterID: broadcasterID})
 }

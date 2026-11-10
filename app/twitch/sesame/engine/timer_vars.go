@@ -88,15 +88,7 @@ func (p *Pipeline) expandTimerText(ctx context.Context, run timerRun, text strin
 func defangTimerSlashLines(text string) string {
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
-		lines[i] = defangLeadingSlash(line)
+		lines[i] = trimLeftSlashSpace(line)
 	}
 	return strings.Join(lines, "\n")
-}
-
-func defangLeadingSlash(s string) string {
-	i := 0
-	for i < len(s) && (s[i] == ' ' || s[i] == '/') {
-		i++
-	}
-	return s[i:]
 }

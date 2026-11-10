@@ -99,7 +99,7 @@ func SongQueue(d engine.Deps) module.Module {
 		Aliases("songlist").
 		Run(songQueueList(d, log, warn))
 
-	m.On(redemptionAddType, songqueueRedemption(d, log, warn))
+	m.On(engine.RedemptionAddType, songqueueRedemption(d, log, warn))
 	return m.Build()
 }
 

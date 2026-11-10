@@ -4,10 +4,8 @@
 package engine
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"math/big"
 	"strings"
 	"time"
 
@@ -73,11 +71,7 @@ func pickWinners(members []string, n int64) []string {
 }
 
 func drawIndex(total int64) int64 {
-	j, err := rand.Int(rand.Reader, big.NewInt(total))
-	if err != nil {
-		panic("raffle: crypto/rand unavailable: " + err.Error())
-	}
-	return j.Int64()
+	return mustCryptoInt("raffle", total)
 }
 
 func DigestPool(members []string) string {

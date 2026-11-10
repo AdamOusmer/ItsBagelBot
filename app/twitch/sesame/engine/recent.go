@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/moderation"
+	"ItsBagelBot/internal/utils"
 )
 
 const (
@@ -92,7 +93,7 @@ func chatEntriesFromEnvelope(env *lane.Envelope, now time.Time) []recentEntry {
 	if env.Text == "" || isCommandShape(env.Text) {
 		return nil
 	}
-	text := truncateRunes(env.Text, recentMaxTextRunes)
+	text := utils.TruncateRunes(env.Text, recentMaxTextRunes)
 	at := stamp(now.UnixNano())
 	var out []recentEntry
 	add := func(id string, role module.Role) {
@@ -268,17 +269,6 @@ func isCommandShape(text string) bool {
 func senderRole(env *lane.Envelope, s *lane.Sender) module.Role {
 	probe := lane.Envelope{ChatterUserID: s.ChatterUserID, BroadcasterUserID: env.BroadcasterUserID, Badges: s.Badges}
 	return module.ParseRole(probe)
-}
-
-func truncateRunes(s string, max int) string {
-	n := 0
-	for i := range s {
-		if n == max {
-			return s[:i]
-		}
-		n++
-	}
-	return s
 }
 
 func parseTwitchID(s string) (uint64, bool) {
