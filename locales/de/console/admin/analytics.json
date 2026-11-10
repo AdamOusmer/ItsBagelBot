@@ -51,6 +51,7 @@
   },
   "card": {
     "signups": "Registrierungen pro Tag",
+    "gainLoss": "Gewonnene und verlorene Konten pro Tag",
     "funnel": "Einrichtungstrichter",
     "churn": "Abgänge",
     "presets": "Gewählte Onboarding-Voreinstellungen",
@@ -76,6 +77,7 @@
   },
   "hint": {
     "signups": "Neue Konten, die an jedem Tag des Zeitraums erstellt wurden.",
+    "gainLoss": "Neue Konten im Vergleich zu verlorenen Konten pro Tag. Verloren zählt Konten, bei denen der Bot ausgeschaltet, der Zugriff widerrufen, das Konto gelöscht oder der Nutzer im Chat gesperrt wurde.",
     "funnel": "Registrierungen, abgeschlossene Einrichtungen und Bot-Aktivierungen im Zeitraum. Jeder Schritt zählt Ereignisse im Zeitraum, spätere Schritte können also frühere Registrierungen enthalten.",
     "churn": "Bot deaktiviert, Zugriff widerrufen, Konten gelöscht und Chat-Banns, summiert über den Zeitraum.",
     "presets": "Bei der Einrichtung gewählte Voreinstellungen, summiert über den Zeitraum.",
@@ -161,7 +163,11 @@
     "share": "Anteil der Kanäle"
   },
   "chart": {
-    "summary": "Durchschnitt {average} pro Tag, Spitze {peak}"
+    "summary": "Durchschnitt {average} pro Tag, Spitze {peak}",
+    "gainLossSummary": "Gewonnen {gained}, verloren {lost}, netto {net}",
+    "gained": "Gewonnen",
+    "lost": "Verloren",
+    "lossDays": "Tage mit mehr Verlusten als Zugängen: {days}"
   },
   "dim": {
     "lifecycle": {

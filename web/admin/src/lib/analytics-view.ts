@@ -126,11 +126,16 @@ function averageText(n: number): string {
   return n < 10 ? n.toFixed(1) : fmt(Math.round(n));
 }
 
+export function byDay(rows: AnalyticsRow[]): Map<Day, Count> {
+  const sums = new Map<Day, Count>();
+  for (const row of rows) sums.set(row.start, (sums.get(row.start) ?? 0) + row.value);
+  return sums;
+}
+
 export function dailySeries(rows: AnalyticsRow[], range: DateRange): Daily {
   const inside = inRange(rows, range);
   if (inside.length === 0) return { values: [], labels: [], ticks: [], average: '-', peak: '-' };
-  const sums = new Map<string, number>();
-  for (const row of inside) sums.set(row.start, (sums.get(row.start) ?? 0) + row.value);
+  const sums = byDay(inside);
   const days = daysIn(range);
   const values = days.map((d) => sums.get(d) ?? 0);
   const monthly = days.length >= MONTHLY_TICKS_FROM;

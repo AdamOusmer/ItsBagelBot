@@ -569,10 +569,10 @@ const DEMO_SERIES: DemoSeries[] = [
     signup: 0.07,
     onboarded: 0.053,
     bot_enabled: 0.042,
-    bot_disabled: 0.007,
-    revoked: 0.004,
-    chat_banned: 0.002,
-    account_deleted: 0.003
+    bot_disabled: 0.03,
+    revoked: 0.02,
+    chat_banned: 0.008,
+    account_deleted: 0.014
   }),
   ...demoRatios('billing.events', {
     activate: 0.02,

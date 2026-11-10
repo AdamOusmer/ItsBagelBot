@@ -51,6 +51,7 @@
   },
   "card": {
     "signups": "Inscriptions par jour",
+    "gainLoss": "Comptes gagnés et perdus par jour",
     "funnel": "Entonnoir de configuration",
     "churn": "Départs",
     "presets": "Préréglages d'accueil choisis",
@@ -76,6 +77,7 @@
   },
   "hint": {
     "signups": "Nouveaux comptes créés chaque jour de la fenêtre.",
+    "gainLoss": "Nouveaux comptes face aux comptes perdus chaque jour. Les pertes comptent les comptes dont le bot a été désactivé, l'accès révoqué, le compte supprimé ou l'utilisateur banni du chat.",
     "funnel": "Inscriptions, configurations terminées et activations du bot sur la fenêtre. Chaque étape compte les événements de la fenêtre, donc les étapes suivantes peuvent inclure des inscriptions antérieures.",
     "churn": "Bot désactivé, accès révoqué, comptes supprimés et bannissements du chat, additionnés sur la fenêtre.",
     "presets": "Préréglages choisis pendant l'accueil, additionnés sur la fenêtre.",
@@ -161,7 +163,11 @@
     "share": "Part des chaînes"
   },
   "chart": {
-    "summary": "Moyenne de {average} par jour, pic de {peak}"
+    "summary": "Moyenne de {average} par jour, pic de {peak}",
+    "gainLossSummary": "Gagnés {gained}, perdus {lost}, net {net}",
+    "gained": "Gagnés",
+    "lost": "Perdus",
+    "lossDays": "Jours avec plus de pertes que de gains : {days}"
   },
   "dim": {
     "lifecycle": {

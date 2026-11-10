@@ -16,5 +16,5 @@ export type CodeTone = Extract<Tone, 'success' | 'danger'> | 'token';
 export type StatTone = Extract<Tone, 'accent' | 'success'>;
 export type SwitchRowTone = Extract<Tone, 'warning'>;
 export type CardTone = Extract<Tone, 'accent' | 'warm'>;
-export type SeriesTone = CardTone;
+export type SeriesTone = Extract<Tone, 'accent' | 'warm' | 'danger'>;
 export type ToastKind = Extract<Tone, 'success' | 'danger' | 'info'>;

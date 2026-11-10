@@ -12,6 +12,8 @@
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import AreaSeries from '@bagel/ui/svelte/AreaSeries.svelte';
+  import LineSeries from '@bagel/ui/svelte/LineSeries.svelte';
+  import type { LineSeriesSpec } from '@bagel/ui/lib/line-series';
   import RankingCard, { type RankingItem } from '@bagel/ui/svelte/RankingCard.svelte';
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Fact from '@bagel/ui/svelte/Fact.svelte';
@@ -22,7 +24,8 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AnalyticsView, Bar, DataTable, Fact as ViewFact, Name, Phrase, Series } from '#lib/analytics-page';
+  import type { AnalyticsView, Bar, DataTable, Fact as ViewFact, GainLoss, Name, Phrase, Series } from '#lib/analytics-page';
+  import { dateLabel, signed } from '#lib/analytics-view';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -35,10 +38,12 @@
     builtIn: 'command',
     breadth: 'modulesOn',
   };
-  const SKELETON_HEIGHT = { series: '178px', bars: '220px', table: '240px', facts: '120px', cohort: '320px' } as const;
+  const DAY_MS = 86_400_000;
+  const SKELETON_HEIGHT = { series: '178px', lines: '330px', bars: '220px', table: '240px', facts: '120px', cohort: '320px' } as const;
   type TagTone = ComponentProps<typeof Tag>['tone'];
   const number = new Intl.NumberFormat('en-US');
   const formatCount = (value: number) => number.format(value);
+  const formatDay = (at: number) => dateLabel(new Date(at).toISOString().slice(0, 10));
 
   let view = $state<AnalyticsView | null>(null);
   let degraded = $state(false);
@@ -57,6 +62,10 @@
   const labels = $derived(data.windows.map((d: number) => t('admin.analytics.window', { days: String(d) })));
   const current = $derived(labels[data.windows.indexOf(data.days)] ?? labels[0]);
   const navItems = $derived(SECTIONS.map((id) => ({ href: `#${id}`, label: t(`admin.analytics.nav.${id}`) })));
+  const gainLossSeries = $derived<LineSeriesSpec[]>([
+    { key: 'gained', label: t('admin.analytics.chart.gained'), tone: 'accent' },
+    { key: 'lost', label: t('admin.analytics.chart.lost'), tone: 'danger' }
+  ]);
   const weekColumns = $derived(Array.from({ length: view?.retention.horizon ?? 0 }, (_, week) => week));
 
   function pick(label: string) {
@@ -112,6 +121,38 @@
           <Text as="span" size="xs" tone="muted">{series.labels[0]}</Text>
           <Text as="span" size="xs" tone="muted">{series.labels[series.labels.length - 1]}</Text>
         </div>
+      {:else}
+        <div class="chart-box"><EmptyState title={t('admin.analytics.noRows')} /></div>
+      {/if}
+    </Card>
+  {/if}
+{/snippet}
+
+{#snippet gainLossCard(flow: GainLoss | undefined)}
+  {#if !flow}
+    {@render loadingCard('gainLoss', SKELETON_HEIGHT.lines)}
+  {:else}
+    {#snippet summary()}
+      <Text as="span" size="xs" tone="muted">
+        {t('admin.analytics.chart.gainLossSummary', {
+          gained: formatCount(flow.gained),
+          lost: formatCount(flow.lost),
+          net: signed(flow.net)
+        })}
+      </Text>
+    {/snippet}
+    <Card as="section">
+      {@render head('gainLoss', summary)}
+      {#if flow.points.length > 1}
+        <LineSeries
+          points={flow.points}
+          series={gainLossSeries}
+          label={t('admin.analytics.card.gainLoss')}
+          formatValue={(value) => (value == null ? '' : formatCount(value))}
+          formatTime={formatDay}
+          gapMs={DAY_MS}
+        />
+        <Text as="span" size="xs" tone="muted">{t('admin.analytics.chart.lossDays', { days: formatCount(flow.lossDays) })}</Text>
       {:else}
         <div class="chart-box"><EmptyState title={t('admin.analytics.noRows')} /></div>
       {/if}
@@ -280,6 +321,7 @@
   <section id="growth" class="block">
     {@render heading('growth')}
     {@render seriesCard('signups', view?.growth.signups)}
+    {@render gainLossCard(view?.growth.gainLoss)}
     <Grid cols={3} stackAt="md">
       {@render barCard('funnel', view?.growth.funnel)}
       {@render barCard('churn', view?.growth.churn, view?.growth.churnFacts)}

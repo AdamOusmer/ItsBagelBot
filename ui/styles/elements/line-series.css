@@ -23,6 +23,13 @@
     --line-tone: var(--bb-tan);
   }
 
+  .bb-line-series__key--danger,
+  .bb-line-series__line--danger,
+  .bb-line-series__point--danger,
+  .bb-line-series__value--danger {
+    --line-tone: var(--bb-status-danger);
+  }
+
   .bb-line-series__legend {
     display: flex;
     flex-wrap: wrap;

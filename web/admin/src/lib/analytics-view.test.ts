@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, it } from 'bun:test';
-import { buildAnalytics, type AnalyticsReads, type AnalyticsView, type Bar, type DataTable } from './analytics-page';
+import { buildAnalytics, gainLoss, type AnalyticsReads, type AnalyticsView, type Bar, type DataTable } from './analytics-page';
 import {
   addDays,
   daysIn,
@@ -351,6 +351,62 @@ describe('growth and engagement', () => {
       liveStarts: '7',
       timerFires: '3',
       liveWeek: '40'
+    });
+  });
+});
+
+describe('gained and lost accounts', () => {
+  const range = { from: '2026-11-01', to: '2026-11-04' };
+  const life = (day: string, dim: string, value: number): AnalyticsRow => row(day, 'lifecycle', [dim], value);
+  const shape = (rows: AnalyticsRow[]) => {
+    const result = gainLoss(rows, range);
+    return {
+      points: result.points.map((p) => [p.at, p.gained, p.lost]),
+      totals: [result.gained, result.lost, result.net, result.lossDays]
+    };
+  };
+  const at = (day: string) => Date.parse(day);
+
+  it.each([
+    ['empty window', [], { points: [], totals: [0, 0, 0, 0] }],
+    [
+      'only other lifecycle events',
+      [life('2026-11-02', 'onboarded', 9), row('2026-11-02', 'chat.messages', [], 5)],
+      { points: [], totals: [0, 0, 0, 0] }
+    ],
+    [
+      'loss only, none, and mixed days',
+      [
+        life('2026-11-01', 'revoked', 3),
+        life('2026-11-03', 'signup', 4),
+        life('2026-11-03', 'bot_disabled', 1),
+        life('2026-11-03', 'chat_banned', 1),
+        life('2026-11-04', 'account_deleted', 2),
+        life('2026-11-04', 'signup', 2),
+        life('2026-10-31', 'signup', 50)
+      ],
+      {
+        points: [
+          [at('2026-11-01'), 0, 3],
+          [at('2026-11-02'), 0, 0],
+          [at('2026-11-03'), 4, 2],
+          [at('2026-11-04'), 2, 2]
+        ],
+        totals: [6, 7, -1, 1]
+      }
+    ]
+  ])('%s', (_name, rows, expected) => {
+    expect(shape(rows)).toEqual(expected);
+  });
+
+  it('feeds the growth section from the window', () => {
+    const { points, gained, lost, net, lossDays } = view.growth.gainLoss;
+    expect({ length: points.length, gained, lost, net, lossDays }).toEqual({
+      length: 30,
+      gained: 30,
+      lost: 6,
+      net: 24,
+      lossDays: 3
     });
   });
 });

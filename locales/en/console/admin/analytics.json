@@ -51,6 +51,7 @@
   },
   "card": {
     "signups": "Signups per day",
+    "gainLoss": "Gained and lost accounts per day",
     "funnel": "Setup funnel",
     "churn": "Exits",
     "presets": "Onboarding presets chosen",
@@ -76,6 +77,7 @@
   },
   "hint": {
     "signups": "New accounts created on each day of the window.",
+    "gainLoss": "New accounts against lost accounts on each day. Lost counts accounts where the bot was switched off, access was revoked, the account was deleted or the user was banned from chat.",
     "funnel": "Signups, finished setups and bot enables in the window. Each step counts events in the window, so later steps can include earlier signups.",
     "churn": "Bot disabled, access revoked, accounts deleted and chat bans, summed over the window.",
     "presets": "Setup presets picked during onboarding, summed over the window.",
@@ -161,7 +163,11 @@
     "share": "Share of channels"
   },
   "chart": {
-    "summary": "Average {average} a day, peak {peak}"
+    "summary": "Average {average} a day, peak {peak}",
+    "gainLossSummary": "Gained {gained}, lost {lost}, net {net}",
+    "gained": "Gained",
+    "lost": "Lost",
+    "lossDays": "Days with more lost than gained: {days}"
   },
   "dim": {
     "lifecycle": {

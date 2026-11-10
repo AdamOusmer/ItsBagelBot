@@ -30,6 +30,7 @@
     emptyLabel?: string;
     formatValue?: (value: number | null | undefined) => string;
     formatTime?: (at: number) => string;
+    gapMs?: number;
     class?: string;
   };
 
@@ -42,6 +43,7 @@
     emptyLabel = i18n.t('data.empty'),
     formatValue = plainValue,
     formatTime = clockTime,
+    gapMs,
     class: className = '',
     ...rest
   }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
@@ -50,7 +52,7 @@
   let hoveredAt = $state<number | null>(null);
 
   const keys = $derived(series.map((s) => s.key));
-  const chart = $derived(lineChart(points, keys, containerWidth));
+  const chart = $derived(lineChart(points, keys, containerWidth, gapMs));
   const active = $derived(hoveredAt === null ? null : nearestPoint(chart.readings, hoveredAt));
   const tip = $derived(active ? tooltipBox(chart, lineX(chart, active.at), series.length) : null);
   const classes = $derived(['bb-line-series', className || null].filter(Boolean).join(' '));

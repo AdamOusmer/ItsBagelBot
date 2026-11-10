@@ -51,6 +51,7 @@
   },
   "card": {
     "signups": "Registros por día",
+    "gainLoss": "Cuentas ganadas y perdidas por día",
     "funnel": "Embudo de configuración",
     "churn": "Bajas",
     "presets": "Ajustes iniciales elegidos",
@@ -76,6 +77,7 @@
   },
   "hint": {
     "signups": "Cuentas nuevas creadas cada día del período.",
+    "gainLoss": "Cuentas nuevas frente a cuentas perdidas cada día. Las perdidas cuentan las cuentas donde se apagó el bot, se revocó el acceso, se eliminó la cuenta o se baneó al usuario del chat.",
     "funnel": "Registros, configuraciones terminadas y activaciones del bot en el período. Cada paso cuenta eventos del período, así que los pasos posteriores pueden incluir registros anteriores.",
     "churn": "Bot deshabilitado, acceso revocado, cuentas eliminadas y bloqueos de chat, sumados en el período.",
     "presets": "Ajustes iniciales elegidos durante la configuración, sumados en el período.",
@@ -161,7 +163,11 @@
     "share": "Proporción de canales"
   },
   "chart": {
-    "summary": "Media de {average} al día, pico de {peak}"
+    "summary": "Media de {average} al día, pico de {peak}",
+    "gainLossSummary": "Ganadas {gained}, perdidas {lost}, neto {net}",
+    "gained": "Ganadas",
+    "lost": "Perdidas",
+    "lossDays": "Días con más pérdidas que altas: {days}"
   },
   "dim": {
     "lifecycle": {

@@ -4,6 +4,7 @@
 import {
   addDays,
   bounds,
+  byDay,
   byDim,
   cohorts,
   dailySeries,
@@ -56,7 +57,9 @@ export type Kpi = { key: string; value: string; unit: Phrase | null; delta: Phra
 export type Bar = { id: string; name: Name; value: number; valueText: string; secondary: Phrase | null };
 export type Fact = { key: string; value: string };
 export type Series = { values: number[]; labels: string[]; ticks: number[]; average: string; peak: string };
-export type TableCell = { text: string };
+export type GainLossPoint = { at: number; gained: number; lost: number };
+export type GainLoss = { points: GainLossPoint[]; gained: number; lost: number; net: number; lossDays: number };
+export type TableCell ={ text: string };
 export type TableRow = { id: string; name: Name; cells: TableCell[] };
 export type DataTable = { columns: string[]; rows: TableRow[] };
 export type CohortCell = { percent: string; count: string; heat: number };
@@ -66,7 +69,7 @@ export type AnalyticsView = {
   empty: boolean;
   period: { start: string; end: string };
   kpis: Kpi[];
-  growth: { signups: Series; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[] };
+  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[] };
   engagement: { active: Series; live: Series; messages: Series; answered: Series; facts: Fact[] };
   retention: { horizon: number; rows: CohortLine[] };
   revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable };
@@ -267,12 +270,28 @@ function stepOf(values: number[]): (value: number, index: number) => Phrase | nu
         };
 }
 
+const isLoss = (row: AnalyticsRow): boolean => (CHURN as readonly string[]).includes(row.dims[0]);
+
+export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
+  const inside = inRange(pick(counters, 'lifecycle'), range);
+  const gainedByDay = byDay(withDim(inside, 'signup'));
+  const lostByDay = byDay(inside.filter(isLoss));
+  const points =
+    gainedByDay.size + lostByDay.size === 0
+      ? []
+      : daysIn(range).map((day) => ({ at: Date.parse(day), gained: get(gainedByDay, day), lost: get(lostByDay, day) }));
+  const gained = total(gainedByDay);
+  const lost = total(lostByDay);
+  return { points, gained, lost, net: gained - lost, lossDays: points.filter((p) => p.lost > p.gained).length };
+}
+
 function growth(c: Ctx): AnalyticsView['growth'] {
   const life = byDim(counter(c, 'lifecycle'));
   const n = (id: string) => get(life, id);
   const presets = byDim(counter(c, 'onboarding.preset'));
   return {
     signups: dailySeries(withDim(pick(c.r.counters, 'lifecycle'), 'signup'), c.cur),
+    gainLoss: gainLoss(c.r.counters, c.cur),
     funnel: bars(life, { ids: FUNNEL, enum: 'lifecycle', order: 'keep', secondary: stepOf(FUNNEL.map(n)) }),
     churn: bars(life, { ids: CHURN, enum: 'lifecycle', order: 'keep' }),
     churnFacts: facts({
