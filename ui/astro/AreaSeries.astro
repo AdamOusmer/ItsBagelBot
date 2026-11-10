@@ -6,6 +6,10 @@ import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/area-series.css';
 import {
     areaGeometry,
+    percent,
+    plainValue,
+    pointAt,
+    valueText,
     AREA_W,
     AREA_H,
     AREA_PLOT_BOTTOM,
@@ -13,20 +17,28 @@ import {
     AREA_TICK_BOTTOM,
 } from '../lib/area-series';
 
-interface Props extends Omit<HTMLAttributes<'svg'>, 'values' | 'ticks' | 'label' | 'height' | 'uid' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'values' | 'ticks' | 'labels' | 'formatValue' | 'unit' | 'label' | 'height' | 'uid' | 'class'> {
     values: readonly number[];
     ticks?: readonly number[];
+    labels?: readonly string[];
+    formatValue?: (value: number) => string;
+    unit?: string;
     label: string;
     height?: number;
     uid?: string;
     class?: string;
 }
 
-const { values, ticks = [], label, height = 178, uid, class: className = '', ...rest } =
+const { values, ticks = [], labels = [], formatValue = plainValue, unit = '', label, height = 178, uid, class: className = '', ...rest } =
     Astro.props;
 const gradientId = `bb-area-fill-${uid ?? 'auto'}`;
 const geo = areaGeometry(values, ticks);
+const last = pointAt(values, values.length - 1);
+const interactive = values.length > 1;
+const reading = interactive ? valueText(values[values.length - 1], formatValue, unit) : '';
+const caption = labels[values.length - 1] ?? '';
+const spoken = caption ? `${caption}, ${reading}` : reading;
 const classes = ['bb-area', className].filter(Boolean).join(' ');
 ---
 
-<svg class={classes} style={`height: ${height}px`} viewBox={`0 0 ${AREA_W} ${AREA_H}`} preserveAspectRatio="none" role="img" aria-label={label} {...rest}><defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--bb-green-glow)" stop-opacity="0.3" /><stop offset="100%" stop-color="var(--bb-green-glow)" stop-opacity="0.02" /></linearGradient></defs><line x1="0" y1="44" x2={AREA_W} y2="44" class="bb-area__grid" /><line x1="0" y1="94" x2={AREA_W} y2="94" class="bb-area__grid" /><line x1="0" y1={AREA_PLOT_BOTTOM} x2={AREA_W} y2={AREA_PLOT_BOTTOM} class="bb-area__grid bb-area__grid--base" /><path d={geo.fill} fill={`url(#${gradientId})`} /><path d={geo.line} class="bb-area__line" /><g class="bb-area__ticks">{geo.marks.map((tx) => (<line x1={tx} y1={AREA_TICK_TOP} x2={tx} y2={AREA_TICK_BOTTOM} />))}</g>{geo.last && (<circle cx={geo.last.x} cy={geo.last.y} r="3.5" class="bb-area__dot" />)}</svg>
+<div class={classes} style={`height: ${height}px`} role={interactive ? 'slider' : 'img'} aria-label={label} tabindex={interactive ? 0 : undefined} aria-orientation={interactive ? 'horizontal' : undefined} aria-readonly={interactive ? 'true' : undefined} aria-valuemin={interactive ? 0 : undefined} aria-valuemax={interactive ? values.length - 1 : undefined} aria-valuenow={interactive ? values.length - 1 : undefined} aria-valuetext={spoken || undefined} {...rest}><svg class="bb-area__svg" viewBox={`0 0 ${AREA_W} ${AREA_H}`} preserveAspectRatio="none" aria-hidden="true" focusable="false"><defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--bb-green-glow)" stop-opacity="0.3" /><stop offset="100%" stop-color="var(--bb-green-glow)" stop-opacity="0.02" /></linearGradient></defs><line x1="0" y1="44" x2={AREA_W} y2="44" class="bb-area__grid" /><line x1="0" y1="94" x2={AREA_W} y2="94" class="bb-area__grid" /><line x1="0" y1={AREA_PLOT_BOTTOM} x2={AREA_W} y2={AREA_PLOT_BOTTOM} class="bb-area__grid bb-area__grid--base" /><path d={geo.fill} fill={`url(#${gradientId})`} /><path d={geo.line} class="bb-area__line" /><g class="bb-area__ticks">{geo.marks.map((tx) => (<line x1={tx} y1={AREA_TICK_TOP} x2={tx} y2={AREA_TICK_BOTTOM} />))}</g></svg>{last && (<span class="bb-area__dot" style={`left: ${percent(last.x)}; top: ${percent(last.y)}`} />)}</div>

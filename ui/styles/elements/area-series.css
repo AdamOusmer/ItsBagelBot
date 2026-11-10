@@ -5,7 +5,17 @@
 
 @layer bb.elements {
   .bb-area {
+    position: relative;
     width: 100%;
+    display: block;
+    touch-action: pan-y;
+  }
+
+  .bb-area__svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     display: block;
   }
 
@@ -33,7 +43,76 @@
     opacity: 0.7;
   }
 
+  .bb-area__dot,
+  .bb-area__guide,
+  .bb-area__tip {
+    position: absolute;
+    pointer-events: none;
+  }
+
   .bb-area__dot {
-    fill: var(--bb-green-glow);
+    width: 7px;
+    height: 7px;
+    translate: -50% -50%;
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-green-glow);
+  }
+
+  .bb-area__dot--active {
+    width: 11px;
+    height: 11px;
+    box-shadow: 0 0 0 2px var(--bb-card-bg);
+  }
+
+  .bb-area__guide {
+    width: 0;
+    translate: -50% 0;
+    border-left: 1px dashed var(--bb-muted);
+    opacity: 0.6;
+  }
+
+  .bb-area__tip {
+    top: 4px;
+    display: grid;
+    gap: 2px;
+    padding: 6px 9px;
+    border-radius: var(--bb-radius-sm);
+    background: var(--bb-card-bg);
+    border: 1px solid var(--bb-border-strong);
+    box-shadow: 0 8px 30px rgba(var(--bb-shadow-rgb), 0.45);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    line-height: 1.3;
+    white-space: nowrap;
+    animation: bb-area-tip 120ms var(--bb-ease-out-expo);
+  }
+
+  .bb-area__tip--low {
+    top: auto;
+    bottom: 22%;
+  }
+
+  .bb-area__tip--center {
+    translate: -50% 0;
+  }
+
+  .bb-area__tip--end {
+    translate: -100% 0;
+  }
+
+  .bb-area__tip-label {
+    color: var(--bb-muted);
+  }
+
+  .bb-area__tip-value {
+    color: var(--bb-white);
+    font-size: var(--bb-text-xs);
+    font-weight: 500;
+  }
+
+  @keyframes bb-area-tip {
+    from {
+      opacity: 0;
+    }
   }
 }

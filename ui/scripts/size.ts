@@ -266,7 +266,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/stat-tile", budget: 980 },
   { name: "elements/toggle", budget: 1150 }, // 1000 B: borderless switch, shadowed knob, press stretch, light theme (2026-10-29)
   { name: "elements/alert", budget: 1100 }, // 847 B: tip/note callouts, exit action, phone stack and second row (2026-09-29)
-  { name: "elements/area-series", budget: 390 },
+  { name: "elements/area-series", budget: 690 }, // 643 B: hover readout, guide and round overlay dots replace svg-drawn dot (2026-11-10)
   { name: "elements/aurora", budget: 450 },
   { name: "elements/bg-orbs", budget: 370 },
   { name: "elements/brackets", budget: 660 },
