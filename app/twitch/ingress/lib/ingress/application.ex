@@ -72,7 +72,8 @@ defmodule Ingress.Application do
       distribution_strategy: Ingress.ShardDistribution,
       # Different CRDT availability views can route a start back and forth.
       # Horde starts locally when this finite forwarding budget is exhausted.
-      proxy_message_ttl: 5
+      proxy_message_ttl: 5,
+      delta_crdt_options: [sync_interval: 2_000]
     ]
   end
 

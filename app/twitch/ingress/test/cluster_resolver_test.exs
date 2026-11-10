@@ -58,4 +58,13 @@ defmodule Ingress.ClusterResolverTest do
     assert {:ok, {:hostent, _fqdn, [], :inet, _len, [{10, 0, 0, 1}, {10, 0, 0, 2}]}} =
              ClusterResolver.resolve(@service, fn _ -> {:error, :timeout} end)
   end
+
+  test "a reordered answer keeps the remembered set in place" do
+    _ = ClusterResolver.resolve(@service, fn _ -> hostent([{10, 0, 0, 2}, {10, 0, 0, 1}]) end)
+    remembered = :persistent_term.get(@key)
+
+    _ = ClusterResolver.resolve(@service, fn _ -> hostent([{10, 0, 0, 1}, {10, 0, 0, 2}]) end)
+
+    assert :erts_debug.same(remembered, :persistent_term.get(@key))
+  end
 end
