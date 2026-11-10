@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 )
 
 const accountInstanceKey = "__account_created_at"
@@ -167,6 +168,12 @@ type accountCleanupSnapshot struct {
 }
 
 func (r *Modules) captureAccountCleanup(ctx context.Context, id uint64) (accountCleanupSnapshot, error) {
+	return db.WithRead(ctx, func(ctx context.Context) (accountCleanupSnapshot, error) {
+		return r.readAccountCleanup(ctx, id)
+	})
+}
+
+func (r *Modules) readAccountCleanup(ctx context.Context, id uint64) (accountCleanupSnapshot, error) {
 	var snapshot accountCleanupSnapshot
 	var err error
 	snapshot.modules, err = r.client.Modules.Query().Where(modules.UserIDEQ(id)).All(ctx)
@@ -215,6 +222,12 @@ func (s accountCleanupSnapshot) hasNewerLoyalty(epoch int64) bool {
 }
 
 func (r *Modules) deleteAccountSnapshot(ctx context.Context, id uint64, epoch int64, snapshot accountCleanupSnapshot) (bool, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
+		return r.deleteSnapshotTx(ctx, id, epoch, snapshot)
+	})
+}
+
+func (r *Modules) deleteSnapshotTx(ctx context.Context, id uint64, epoch int64, snapshot accountCleanupSnapshot) (bool, error) {
 	tx, err := r.client.Tx(ctx)
 	if err != nil {
 		return false, err
