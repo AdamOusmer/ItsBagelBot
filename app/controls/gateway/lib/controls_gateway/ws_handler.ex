@@ -69,6 +69,7 @@ defmodule ControlsGateway.WsHandler do
         conn_id: conn_id,
         subs: nil,
         gnat_mon: nil,
+        takeover_announced: false,
         rate_second: 0,
         rate_count: 0
       })
@@ -76,7 +77,8 @@ defmodule ControlsGateway.WsHandler do
     schedule_expiry(state.exp_ms)
     send(self(), :subscribe)
     Metrics.count("connect")
-    Registry.register(ControlsGateway.Connections, :conn, conn_id)
+    Registry.register(ControlsGateway.Connections, conn_id, nil)
+    if Drain.draining?(), do: send(self(), {:shutdown_close, 0})
 
     {:ok, state, :hibernate}
   end
@@ -163,15 +165,23 @@ defmodule ControlsGateway.WsHandler do
 
   defp subscribe_or_retry(state) do
     case Nats.subscribe_device(state.device_id) do
-      {:ok, subs, gnat_pid} ->
-        mon = Process.monitor(gnat_pid)
-        Nats.publish(Subjects.device_takeover(state.device_id), %{"conn_id" => state.conn_id})
-        {:ok, %{state | subs: subs, gnat_mon: mon}, :hibernate}
+      {:ok, subs} ->
+        mon = Process.monitor(subs.gnat)
+        state = announce_takeover(%{state | subs: subs, gnat_mon: mon})
+        {:ok, state, :hibernate}
 
       {:error, :not_connected} ->
         schedule_resubscribe()
         {:ok, state, :hibernate}
     end
+  end
+
+  defp announce_takeover(%{takeover_announced: true} = state), do: state
+
+  defp announce_takeover(state) do
+    payload = %{"conn_id" => state.conn_id}
+    announced = Nats.publish(Subjects.device_takeover(state.device_id), payload) == :ok
+    %{state | takeover_announced: announced}
   end
 
   # Jittered so every socket on the shared NATS connection does not resubscribe

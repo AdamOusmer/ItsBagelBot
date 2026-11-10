@@ -33,8 +33,10 @@ defmodule ControlsGateway.HttpServer do
          ]}
       ])
 
+    transport_opts = %{socket_opts: [port: port], max_connections: :infinity}
+
     {:ok, _pid} =
-      :cowboy.start_clear(@listener, %{socket_opts: [port: port]}, %{env: %{dispatch: dispatch}})
+      :cowboy.start_clear(@listener, transport_opts, %{env: %{dispatch: dispatch}})
 
     {:ok, %{}}
   end

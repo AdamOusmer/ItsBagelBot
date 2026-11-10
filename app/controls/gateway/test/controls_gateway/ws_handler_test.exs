@@ -139,6 +139,41 @@ defmodule ControlsGateway.WsHandlerTest do
     assert Jason.decode!(body) == %{"t" => "pong"}
   end
 
+  @tag timeout: 15_000
+  test "an older socket resubscribing after a NATS restart does not close the newer one", %{
+    http_port: port,
+    private_key: priv
+  } do
+    {:ok, older} = connect_device(port, priv, @device_id)
+    older = ping_and_drain(older)
+
+    old_gnat = Process.whereis(:gnat)
+    Process.exit(old_gnat, :kill)
+    eventually(fn -> is_pid(Process.whereis(:gnat)) and Process.whereis(:gnat) != old_gnat end)
+
+    {:ok, newer} = connect_device(port, priv, @device_id)
+    newer = ping_and_drain(newer)
+
+    command = %{"t" => "set_scene", "scene" => "brb"}
+
+    assert_frame_eventually(
+      older,
+      fn
+        {:text, body} -> Jason.decode!(body) == command
+        _other -> false
+      end,
+      100,
+      fn ->
+        ControlsGateway.Nats.publish(Subjects.device_cmd(@device_id), command)
+      end
+    )
+
+    Process.sleep(300)
+    pids = Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :_}, [], [:"$1"]}])
+    assert length(pids) == 2
+    WsClient.close(newer)
+  end
+
   test "revocation closes the connection with 4003", %{http_port: port, private_key: priv} do
     {:ok, client} = connect_device(port, priv, @device_id)
     client = ping_and_drain(client)
@@ -249,22 +284,24 @@ defmodule ControlsGateway.WsHandlerTest do
     end
   end
 
-  defp assert_frame_eventually(client, matcher, attempts \\ 60) do
+  defp assert_frame_eventually(client, matcher, attempts \\ 60, before_recv \\ fn -> :ok end) do
+    before_recv.()
+
     case WsClient.recv_frames(client, 500) do
       {:ok, frames, client} ->
         if Enum.any?(frames, matcher) do
           :ok
         else
-          retry_frame(client, matcher, attempts)
+          retry_frame(client, matcher, attempts, before_recv)
         end
 
       {:error, :timeout, client} ->
-        retry_frame(client, matcher, attempts)
+        retry_frame(client, matcher, attempts, before_recv)
     end
   end
 
-  defp retry_frame(_client, _matcher, 0), do: flunk("expected frame never arrived")
+  defp retry_frame(_client, _matcher, 0, _before_recv), do: flunk("expected frame never arrived")
 
-  defp retry_frame(client, matcher, attempts),
-    do: assert_frame_eventually(client, matcher, attempts - 1)
+  defp retry_frame(client, matcher, attempts, before_recv),
+    do: assert_frame_eventually(client, matcher, attempts - 1, before_recv)
 end
