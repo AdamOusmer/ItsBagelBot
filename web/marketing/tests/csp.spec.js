@@ -39,6 +39,7 @@ function cloudflareInjection(path) {
         /* Per-response Cloudflare bootstrap: ${path} */
         (function () {
             document.documentElement.dataset.bootstrap = location.pathname;
+            window.__bootstrapRuns = (window.__bootstrapRuns ?? 0) + 1;
             const challenge = document.createElement('script');
             challenge.src = '/cdn-cgi/challenge-platform/scripts/jsd/api.js';
             document.head.append(challenge);
@@ -62,15 +63,24 @@ async function serveWithProductionPolicy(route) {
     await route.fulfill({
         response,
         headers: { ...response.headers(), 'content-security-policy': policy },
-        body: (await response.text()).replace('</head>', `${cloudflareInjection(path)}</head>`),
+        body: deferUnmarkedModules(await response.text()).replace('</head>', `${cloudflareInjection(path)}</head>`),
     });
+}
+
+function deferUnmarkedModules(html) {
+    // Rocket Loader retypes every script that lacks data-cfasync="false" ahead of its src.
+    return html.replaceAll('<script type="module"', '<script type="edge-deferred-module"');
+}
+
+async function serveAsProduction(page) {
+    await mockCloudflareScripts(page);
+    // Astro preview does not apply Pages' _headers. Enforce both real policies.
+    await page.route('http://localhost:4399/**', serveWithProductionPolicy);
 }
 
 test('Cloudflare scripts and site interactions work across client navigation', async ({ page }) => {
     const { violations, errors } = collectBrowserErrors(page);
-    await mockCloudflareScripts(page);
-    // Astro preview does not apply Pages' _headers. Enforce both real policies.
-    await page.route('http://localhost:4399/**', serveWithProductionPolicy);
+    await serveAsProduction(page);
 
     await page.goto('/');
     for (const flag of ['analytics', 'rocket', 'challenge']) {
@@ -86,11 +96,47 @@ test('Cloudflare scripts and site interactions work across client navigation', a
     for (const path of ['/pricing/', '/guides/']) {
         await page.locator(`.bb-nav__links a[href="${path}"]`).click();
         await expect(page).toHaveURL(new RegExp(`${path}$`));
-        await expect(page.locator('html')).toHaveAttribute('data-bootstrap', path);
         expect(await page.evaluate(() => window.__cspNavigationMarker)).toBe(true);
     }
+    expect(await page.evaluate(() => window.__bootstrapRuns)).toBe(1);
     expect(violations).toEqual([]);
     expect(errors).toEqual([]);
+});
+
+test('each page runs its own scripts after repeated client navigation', async ({ page }) => {
+    const { errors } = collectBrowserErrors(page);
+    await serveAsProduction(page);
+    await page.route('https://status.itsbagelbot.com/**', (route) => route.fulfill({
+        json: { data: { attributes: { aggregate_state: 'operational' } } },
+        headers: { 'access-control-allow-origin': '*' },
+    }));
+
+    await page.goto('/');
+    await page.evaluate(() => { window.__cspNavigationMarker = true; });
+    for (const [selector, path] of [
+        ['.bb-footer a[href="/privacy/"]', '/privacy/'],
+        ['.bb-nav__brand', '/'],
+        ['.bb-nav__links a[href="/contact/"]', '/contact/'],
+    ]) {
+        await page.locator(selector).first().click();
+        await expect(page).toHaveURL(new RegExp(`${path}$`));
+    }
+
+    await expect(page.locator('.contact-status')).toHaveClass(/is-operational/);
+    expect(await page.evaluate(() => window.__cspNavigationMarker)).toBe(true);
+    expect(await page.locator('script[type="edge-deferred-module"]').count()).toBe(0);
+    expect(errors).toEqual([]);
+});
+
+test('hovering a link warms the page with a plain fetch', async ({ page }) => {
+    await page.goto('/');
+    const warmed = page.waitForRequest((request) => new URL(request.url()).pathname === '/pricing/');
+    await page.locator('.bb-nav__links a[href="/pricing/"]').hover();
+
+    const request = await warmed;
+    expect(request.resourceType()).toBe('fetch');
+    expect(request.headers()['sec-purpose']).toBeUndefined();
+    expect(await page.locator('link[rel="prefetch"]').count()).toBe(0);
 });
 
 test('production CSP still blocks inline event handlers and eval', async ({ page }) => {

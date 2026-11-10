@@ -9,6 +9,10 @@
   X-Frame-Options: DENY
   Link: <https://ai.itsbagelbot.com/llms.txt>; rel="describedby"; type="text/markdown"
 
+# Browsers reject a Speculation-Rules rule set served under any other type.
+/speculation-rules.json
+  Content-Type: application/speculationrules+json
+
 # Content-hashed by the build, so immutable is safe.
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable
