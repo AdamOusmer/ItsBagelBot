@@ -21,6 +21,7 @@ defmodule Ingress.TrialReceiver do
 
   @tick_ms 5_000
   @reconnect_ms 2_000
+  @max_reconnect_ms 60_000
   @welcome_ms 15_000
   @handshake_ms 30_000
   @stagger_ms 700
@@ -92,6 +93,8 @@ defmodule Ingress.TrialReceiver do
        epoch: nil,
        socket: nil,
        pending: nil,
+       reconnect: nil,
+       reconnect_attempts: 0,
        session_id: nil,
        session_aliases: MapSet.new(),
        rows: %{},
@@ -167,7 +170,7 @@ defmodule Ingress.TrialReceiver do
     {:noreply, state}
   end
 
-  def handle_info(:reconnect, state), do: {:noreply, connect(state)}
+  def handle_info(:reconnect, state), do: {:noreply, connect(%{state | reconnect: nil})}
 
   def handle_info(message, state) do
     case state.ws.stream(state.socket, message) do
@@ -247,6 +250,7 @@ defmodule Ingress.TrialReceiver do
 
   defp connect(%{epoch: nil} = state), do: state
   defp connect(%{socket: socket} = state) when not is_nil(socket), do: state
+  defp connect(%{reconnect: timer} = state) when not is_nil(timer), do: state
 
   defp connect(state) do
     if active_own_rows(state) != [] do
@@ -258,8 +262,7 @@ defmodule Ingress.TrialReceiver do
 
         {:error, reason} ->
           Logger.warning("trial WebSocket connect failed: #{inspect(reason)}")
-          Process.send_after(self(), :reconnect, @reconnect_ms)
-          state
+          schedule_reconnect(state)
       end
     else
       state
@@ -270,10 +273,9 @@ defmodule Ingress.TrialReceiver do
     state.ws.close(state.socket)
     state.ws.close(state.pending)
     if state.epoch, do: Trials.clear_owner_session(state.owner, state.epoch, state.slot)
-    Process.send_after(self(), :reconnect, @reconnect_ms)
 
     %{
-      state
+      schedule_reconnect(state)
       | socket: nil,
         pending: nil,
         session_id: nil,
@@ -282,6 +284,15 @@ defmodule Ingress.TrialReceiver do
         pending_at: nil
     }
   end
+
+  defp schedule_reconnect(%{reconnect: nil} = state) do
+    attempts = state.reconnect_attempts + 1
+    backoff = min(@reconnect_ms * Integer.pow(2, min(attempts - 1, 5)), @max_reconnect_ms)
+    timer = Process.send_after(self(), :reconnect, backoff + :rand.uniform(1_000))
+    %{state | reconnect: timer, reconnect_attempts: attempts}
+  end
+
+  defp schedule_reconnect(state), do: state
 
   defp check_deadlines(state) do
     now = now_ms()
@@ -487,6 +498,7 @@ defmodule Ingress.TrialReceiver do
     state = %{
       state
       | session_id: session_id,
+        reconnect_attempts: 0,
         session_aliases: MapSet.new([session_id]),
         keepalive_ms: keepalive * 1_000 + 5_000
     }

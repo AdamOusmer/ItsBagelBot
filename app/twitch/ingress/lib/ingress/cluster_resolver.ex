@@ -30,6 +30,8 @@ defmodule Ingress.ClusterResolver do
   end
 
   defp remember(addresses) do
+    addresses = Enum.sort(addresses)
+
     if :persistent_term.get(@key, :none) != addresses do
       :persistent_term.put(@key, addresses)
     end

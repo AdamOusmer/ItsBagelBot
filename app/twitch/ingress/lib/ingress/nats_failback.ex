@@ -39,12 +39,14 @@ defmodule Ingress.NatsFailback do
   end
 
   def handle_info(:check, state) do
-    local_ready = local_leaf_ready?(state.health_url, state.timeout)
+    localities = Enum.map(@connections, &{&1, local_connection?(&1, state.node)})
+
+    local_ready =
+      Enum.any?(localities, &match?({_, false}, &1)) and
+        local_leaf_ready?(state.health_url, state.timeout)
 
     {successes, candidate} =
-      Enum.reduce(@connections, {state.successes, nil}, fn name, {counts, candidate} ->
-        locality = local_connection?(name, state.node)
-
+      Enum.reduce(localities, {state.successes, nil}, fn {name, locality}, {counts, candidate} ->
         cond do
           locality == true ->
             {Map.put(counts, name, 0), candidate}

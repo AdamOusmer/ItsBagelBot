@@ -125,6 +125,21 @@ defmodule Ingress.Dispatcher.WorkerTest do
                    500
   end
 
+  test "a raw EventSub frame reaches the handler as its decoded payload" do
+    test = self()
+    pid = start_worker(handler: fn payload, _meta -> send(test, {:handled, payload}) end)
+    payload = %{"subscription" => %{"type" => "channel.chat.message"}, "event" => %{"n" => 1}}
+    frame = Platform.Sift.encode!(%{"metadata" => %{}, "payload" => payload})
+
+    send(pid, {:process, System.monotonic_time(), frame, %{broadcaster_id: "b1"}})
+    send(pid, {:process, System.monotonic_time(), "{", %{broadcaster_id: "b1"}})
+
+    assert_receive {:handled, ^payload}, 500
+
+    assert_receive {:trace, ^pid, :call, {Dispatcher, :complete_batch, [_, _, %{"b1" => 2}, 2]}},
+                   500
+  end
+
   test "batch size flush is immediate" do
     pid = start_worker(completion_batch_size: 2, completion_flush_ms: 60_000)
 

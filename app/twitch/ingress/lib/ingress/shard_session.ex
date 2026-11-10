@@ -18,6 +18,16 @@ defmodule Ingress.ShardSession do
   @base_backoff_ms 1_000
   @max_backoff_ms 60_000
   @registry_check_interval_ms 30_000
+  @routing_paths [
+    ["metadata", "message_type"],
+    ["metadata", "message_id"],
+    ["metadata", "message_timestamp"],
+    ["payload", "subscription", "type"],
+    ["payload", "event", "broadcaster_user_id"],
+    ["payload", "event", "to_broadcaster_user_id"],
+    ["payload", "event", "message_id"]
+  ]
+  @control_notification_types ["user.update", "channel.ban", "channel.unban"]
 
   defstruct shard_id: nil,
             conduit_id: nil,
@@ -36,6 +46,7 @@ defmodule Ingress.ShardSession do
             takeover: nil,
             name_state: :named,
             ws_connect_opts: [],
+            routing: nil,
             load_counter: Ingress.LoadCounter.new(),
             burst_counter: Ingress.LoadCounter.new(Ingress.Capacity.burst_window_seconds())
 
@@ -74,7 +85,8 @@ defmodule Ingress.ShardSession do
       shard_id: shard_id,
       conduit_id: Keyword.fetch!(opts, :conduit_id),
       name_state: if(Keyword.get(opts, :rescue?, false), do: :rescue, else: :named),
-      ws_connect_opts: Keyword.get(opts, :ws_connect_opts, [])
+      ws_connect_opts: Keyword.get(opts, :ws_connect_opts, []),
+      routing: Platform.Sift.pointers(@routing_paths)
     }
 
     schedule_registry_check()
@@ -315,9 +327,9 @@ defmodule Ingress.ShardSession do
   defp handle_event(_which, :upgraded, state), do: {:noreply, state}
 
   defp handle_event(which, {:frame, {:text, data}}, state) do
-    case Platform.Sift.decode(data) do
-      {:ok, message} ->
-        handle_twitch(which, message, state)
+    case Platform.Sift.scan(data, state.routing) do
+      {:ok, fields} ->
+        handle_frame(which, data, fields, state)
 
       {:error, reason} ->
         {:stop, {:bad_payload, reason}, state}
@@ -343,6 +355,20 @@ defmodule Ingress.ShardSession do
   defp handle_event(which, {:closed, reason}, state), do: socket_down(which, reason, state)
 
   defp handle_event(_which, _event, state), do: {:noreply, state}
+
+  defp handle_frame(which, frame, ["notification", _id, _ts, type | _] = fields, state) do
+    if routed_notification?(type) do
+      dispatch_notification(frame, fields, state)
+    else
+      handle_twitch(which, Platform.Sift.decode!(frame), state)
+    end
+  end
+
+  defp handle_frame(which, frame, _fields, state),
+    do: handle_twitch(which, Platform.Sift.decode!(frame), state)
+
+  defp routed_notification?("user.authorization." <> _action), do: false
+  defp routed_notification?(type), do: type not in @control_notification_types
 
   defp socket(state, :primary), do: state.primary
   defp socket(state, :pending), do: state.pending
@@ -511,19 +537,6 @@ defmodule Ingress.ShardSession do
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end
 
-  defp handle_twitch(_which, "notification", payload, meta, state) do
-    admission = %{
-      shard_id: state.shard_id,
-      msg_id: meta["message_id"],
-      ts: meta["message_timestamp"],
-      broadcaster_id: Ingress.Pipeline.broadcaster_id(payload["event"] || %{})
-    }
-
-    dispatch_notification(payload, admission)
-
-    {:noreply, state |> count_notification() |> pet_watchdog()}
-  end
-
   defp handle_twitch(_which, "revocation", payload, meta, state) do
     sub = payload["subscription"] || %{}
     Logger.warning("subscription revoked: #{inspect(sub)}")
@@ -548,26 +561,25 @@ defmodule Ingress.ShardSession do
     {:noreply, pet_watchdog(state)}
   end
 
-  defp dispatch_notification(payload, admission) do
-    case {Ingress.TrialMembership.lookup(admission.broadcaster_id),
-          get_in(payload, ["subscription", "type"])} do
+  defp dispatch_notification(frame, [_type, id, ts, sub_type, bc, to_bc, chat_id], state) do
+    admission = %{shard_id: state.shard_id, msg_id: id, ts: ts, broadcaster_id: bc || to_bc}
+
+    case {Ingress.TrialMembership.lookup(admission.broadcaster_id), sub_type} do
       {%{generation: generation}, "channel.chat.message"} ->
-        dispatch_trial_notification(payload, admission, generation)
+        dispatch_trial_notification(frame, admission, generation, chat_id)
 
       _ ->
-        Ingress.Dispatcher.dispatch(payload, admission)
-    end
-  end
-
-  defp dispatch_trial_notification(payload, admission, generation) do
-    chat_id = get_in(payload, ["event", "message_id"])
-
-    if is_binary(chat_id) and chat_id != "" do
-      Ingress.TrialAdmission.submit(payload, admission, generation)
+        Ingress.Dispatcher.dispatch(frame, admission)
     end
 
-    :ok
+    {:noreply, state |> count_notification() |> pet_watchdog()}
   end
+
+  defp dispatch_trial_notification(frame, admission, generation, chat_id)
+       when is_binary(chat_id) and chat_id != "",
+       do: Ingress.TrialAdmission.submit(frame, admission, generation, chat_id)
+
+  defp dispatch_trial_notification(_frame, _admission, _generation, _chat_id), do: :ok
 
   @doc false
   def permanent_bind_error?({:shard_errors, errors}) when is_list(errors) do

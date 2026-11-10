@@ -58,6 +58,12 @@ defmodule Ingress.Pipeline do
     Nats.publish_acked(subject, message)
   end
 
+  @spec notification_payload(binary() | map()) :: map()
+  def notification_payload(frame) when is_binary(frame),
+    do: Platform.Sift.decode!(frame)["payload"] || %{}
+
+  def notification_payload(payload), do: payload
+
   @spec route(map(), map()) ::
           {:publish, String.t(), map()} | {:publish_many, [{String.t(), map()}]} | :drop
   def route(payload, meta), do: do_route(payload, meta, Config.hot_path())
