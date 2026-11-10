@@ -6,6 +6,7 @@ defmodule Ingress.Nats.Publisher.Wire.Atomic do
 
   require Logger
 
+  alias Ingress.Nats.CohortSender
   alias Ingress.Nats.Publisher.{AckPath, Pending, Wire}
   alias Ingress.Nats.Publisher.Wire.Single
 
@@ -29,18 +30,30 @@ defmodule Ingress.Nats.Publisher.Wire.Atomic do
   defp write(entries, batch_id, id, wire) do
     last = length(entries)
 
-    entries
-    |> Enum.with_index(1)
-    |> Enum.reduce_while(:ok, fn {entry, seq}, :ok ->
-      {subject, json, trace_headers} = Wire.parts(entry)
-      headers = batch_headers(batch_id, seq, last) ++ trace_headers
-      opts = pub_opts(headers, reply_for(seq, last, id, wire))
+    {body, [commit]} =
+      entries
+      |> Enum.with_index(1)
+      |> Enum.map(fn {entry, seq} -> message(entry, seq, last, {batch_id, id, wire}) end)
+      |> Enum.split(-1)
 
-      case Wire.safe_pub(wire.conn, {subject, json, opts}, wire.call_timeout_ms) do
-        :ok -> {:cont, :ok}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
+    with :ok <- publish_body(body, wire) do
+      Wire.safe_pub(wire.conn, commit, wire.call_timeout_ms)
+    end
+  end
+
+  defp message(entry, seq, last, {batch_id, id, wire}) do
+    {subject, json, trace_headers} = Wire.parts(entry)
+    headers = batch_headers(batch_id, seq, last) ++ trace_headers
+    {subject, json, pub_opts(headers, reply_for(seq, last, id, wire))}
+  end
+
+  # The commit goes out only after every earlier entry is confirmed written.
+  defp publish_body(body, wire) do
+    requests = for {subject, json, opts} <- body, do: {nil, subject, json, opts}
+
+    [hd(wire.senders)]
+    |> CohortSender.publish(wire.conn, requests, wire.call_timeout_ms)
+    |> Enum.find_value(:ok, fn {_token, result} -> if result != :ok, do: result end)
   end
 
   defp batch_headers(batch_id, seq, last) do

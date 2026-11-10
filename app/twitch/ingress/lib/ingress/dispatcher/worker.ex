@@ -8,7 +8,7 @@ defmodule Ingress.Dispatcher.Worker do
 
   require Logger
 
-  alias Ingress.{Dispatcher, Trace}
+  alias Ingress.{Dispatcher, Pipeline, Trace}
 
   @hibernate_after_ms 1_000
 
@@ -49,9 +49,10 @@ defmodule Ingress.Dispatcher.Worker do
   end
 
   @impl true
-  def handle_info({:process, enqueued_at, payload, meta}, state) do
+  def handle_info({:process, enqueued_at, notification, meta}, state) do
     _result =
       try do
+        payload = Pipeline.notification_payload(notification)
         Trace.notification(enqueued_at, payload, meta, fn -> state.handler.(payload, meta) end)
       catch
         kind, reason ->

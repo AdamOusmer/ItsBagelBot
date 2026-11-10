@@ -151,31 +151,27 @@ defmodule Ingress.Squash do
   def handle_info(:sweep, state) do
     now = now_ms()
 
-    expired =
-      :ets.select(state.table, [
-        {{:"$1", :"$2", :"$3"}, [{:"=<", :"$2", now}], [{{:"$1", :"$2", :"$3"}}]}
-      ])
-
     cohorts =
-      Enum.reduce(expired, state.cohorts, fn {key, expires_at, generation}, acc ->
-        if current?(state.table, key, expires_at, generation) do
-          :ets.delete(state.table, key)
-
-          case Map.pop(acc, {key, generation}) do
-            {nil, acc} ->
-              acc
-
-            {cohort, acc} ->
-              emit(cohort, state)
-              acc
-          end
-        else
-          acc
-        end
+      state.cohorts
+      |> Enum.filter(fn {{key, generation}, _cohort} ->
+        expired?(state.table, key, generation, now)
+      end)
+      |> Enum.reduce(state.cohorts, fn {{key, _generation} = cohort_key, cohort}, acc ->
+        :ets.delete(state.table, key)
+        emit(cohort, state)
+        Map.delete(acc, cohort_key)
       end)
 
+    :ets.select_delete(state.table, [{{:_, :"$1", :_}, [{:"=<", :"$1", now}], [true]}])
     Process.send_after(self(), :sweep, state.sweep_ms)
     {:noreply, %{state | cohorts: cohorts}}
+  end
+
+  defp expired?(table, key, generation, now) do
+    case :ets.lookup(table, key) do
+      [{^key, expires_at, ^generation}] -> expires_at <= now
+      _ -> false
+    end
   end
 
   defp emit(%{base: base, senders: senders, count: count}, state) do

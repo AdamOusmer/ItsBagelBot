@@ -217,9 +217,13 @@ defmodule Ingress.Nats.Publisher do
 
   def handle_info(:failback_check, %{failback_deadline: nil} = state), do: {:noreply, state}
 
+  # Settles behind every reply already queued, so delivered acks count before the drain test.
   def handle_info(:failback_check, state) do
-    state = state |> flush_queue() |> drain_replies()
+    send(self(), :failback_settled)
+    {:noreply, flush_queue(state)}
+  end
 
+  def handle_info(:failback_settled, state) do
     cond do
       state.queue_count == 0 and Pending.pending(state.wire.counter) == 0 ->
         Logger.info(
@@ -242,10 +246,13 @@ defmodule Ingress.Nats.Publisher do
     end
   end
 
+  # Expires behind every reply already queued, so a delivered ack never loses its row.
   def handle_info(:sweep, state) do
-    state = drain_replies(state)
-    now = Pending.now_ms()
+    send(self(), {:expire, Pending.now_ms()})
+    {:noreply, state}
+  end
 
+  def handle_info({:expire, now}, state) do
     expired =
       Pending.expired(
         state.wire.table,
@@ -315,22 +322,6 @@ defmodule Ingress.Nats.Publisher do
   end
 
   defp cohort_wire(_state, _entries), do: Single
-
-  defp drain_replies(state) do
-    {:message_queue_len, queued} = Process.info(self(), :message_queue_len)
-    drain_replies(state, queued)
-  end
-
-  defp drain_replies(state, 0), do: state
-
-  defp drain_replies(state, remaining) do
-    receive do
-      {:msg, %{topic: topic, body: body}} ->
-        drain_replies(apply_reply(topic, body, state), remaining - 1)
-    after
-      0 -> state
-    end
-  end
 
   defp apply_reply(topic, body, state) do
     case AckPath.parse(topic, state.wire.prefix) do

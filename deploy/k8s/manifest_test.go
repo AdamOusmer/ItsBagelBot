@@ -52,8 +52,25 @@ type podSpec struct {
 }
 
 type container struct {
-	Env     []envVar `yaml:"env"`
-	EnvFrom []any    `yaml:"envFrom"`
+	Env            []envVar `yaml:"env"`
+	EnvFrom        []any    `yaml:"envFrom"`
+	LivenessProbe  probe    `yaml:"livenessProbe"`
+	ReadinessProbe probe    `yaml:"readinessProbe"`
+	StartupProbe   probe    `yaml:"startupProbe"`
+}
+
+type probe struct {
+	Exec struct {
+		Command []string `yaml:"command"`
+	} `yaml:"exec"`
+}
+
+func (w workload) probeCommands() [][]string {
+	var commands [][]string
+	for _, c := range w.Spec.Template.Spec.Containers {
+		commands = append(commands, c.LivenessProbe.Exec.Command, c.ReadinessProbe.Exec.Command, c.StartupProbe.Exec.Command)
+	}
+	return commands
 }
 
 type envVar struct {

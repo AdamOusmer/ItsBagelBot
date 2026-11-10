@@ -16,18 +16,29 @@ defmodule Ingress.BroadcasterCache do
   @spec lane(String.t(), GenServer.server()) :: :premium | :standard | :drop
   def lane(broadcaster_id, server \\ __MODULE__) do
     table = table_name(server)
+    now = now_ms()
 
     case :ets.lookup(table, broadcaster_id) do
-      [{^broadcaster_id, lane, expires_at}] ->
-        if expires_at > now_ms() do
-          lane
-        else
-          GenServer.call(server, {:lookup, broadcaster_id})
-        end
+      [{^broadcaster_id, lane, expires_at, _refreshing}] when expires_at > now ->
+        lane
+
+      [{^broadcaster_id, lane, _expires_at, refreshing} = row] ->
+        refresh_stale(refreshing, row, table, server)
+        lane
 
       [] ->
         GenServer.call(server, {:lookup, broadcaster_id})
     end
+  end
+
+  defp refresh_stale(false, row, table, server) do
+    if claim_refresh(row, table), do: GenServer.cast(server, {:refresh, elem(row, 0)})
+  end
+
+  defp refresh_stale(true, _row, _table, _server), do: :ok
+
+  defp claim_refresh(row, table) do
+    :ets.select_replace(table, [{row, [], [{:const, put_elem(row, 3, true)}]}]) == 1
   end
 
   @spec invalidate(String.t(), GenServer.server()) :: :ok
@@ -43,7 +54,7 @@ defmodule Ingress.BroadcasterCache do
   @impl true
   def init(opts) do
     table = Keyword.get(opts, :table, @default_table)
-    :ets.new(table, [:set, :protected, :named_table, read_concurrency: true])
+    :ets.new(table, [:set, :public, :named_table, read_concurrency: true])
     sweep_interval_ms = Keyword.get(opts, :sweep_interval_ms, @sweep_interval_ms)
     Process.send_after(self(), :sweep, sweep_interval_ms)
 
@@ -63,15 +74,8 @@ defmodule Ingress.BroadcasterCache do
   @impl true
   def handle_call({:lookup, id}, from, state) do
     case :ets.lookup(state.table, id) do
-      [{^id, lane, expires_at}] when expires_at > 0 ->
-        if expires_at > now_ms() do
-          {:reply, lane, state}
-        else
-          do_lookup(id, from, state)
-        end
-
-      _ ->
-        do_lookup(id, from, state)
+      [{^id, lane, _expires_at, _refreshing}] -> {:reply, lane, state}
+      [] -> {:noreply, await_load(id, from, state)}
     end
   end
 
@@ -97,16 +101,28 @@ defmodule Ingress.BroadcasterCache do
         state
 
       {:ok, ref} ->
-        state = %{state | stale_refs: MapSet.put(state.stale_refs, ref)}
-
-        task =
-          Task.Supervisor.async_nolink(Ingress.BroadcasterCache.TaskSupervisor, fn ->
-            state.loader.(id)
-          end)
-
-        Ingress.Metrics.count("Cache/Loads")
-        track_task(state, id, task.ref)
+        start_load(%{state | stale_refs: MapSet.put(state.stale_refs, ref)}, id)
     end
+  end
+
+  @impl true
+  def handle_cast({:refresh, id}, state) do
+    if Map.has_key?(state.pending_by_id, id) do
+      {:noreply, state}
+    else
+      Ingress.Metrics.count("Cache/Refreshes")
+      {:noreply, start_load(%{state | pending_by_id: Map.put(state.pending_by_id, id, [])}, id)}
+    end
+  end
+
+  defp start_load(state, id) do
+    task =
+      Task.Supervisor.async_nolink(Ingress.BroadcasterCache.TaskSupervisor, fn ->
+        state.loader.(id)
+      end)
+
+    Ingress.Metrics.count("Cache/Loads")
+    track_task(state, id, task.ref)
   end
 
   defp track_task(state, id, ref) do
@@ -140,29 +156,22 @@ defmodule Ingress.BroadcasterCache do
   end
 
   def handle_info(:sweep, state) do
-    now = now_ms()
-    :ets.select_delete(state.table, [{{:_, :_, :"$1"}, [{:"=<", :"$1", now}], [true]}])
+    idle_before = now_ms() - state.ttl_ms
+
+    :ets.select_delete(state.table, [{{:_, :_, :"$1", :_}, [{:"=<", :"$1", idle_before}], [true]}])
+
     Process.send_after(self(), :sweep, state.sweep_interval_ms)
     {:noreply, state}
   end
 
-  defp do_lookup(id, from, state) do
-    if Map.has_key?(state.pending_by_id, id) do
-      Ingress.Metrics.count("Cache/LoadsCoalesced")
-      waiters = state.pending_by_id[id]
-      state = %{state | pending_by_id: Map.put(state.pending_by_id, id, [from | waiters])}
-      {:noreply, state}
-    else
-      task =
-        Task.Supervisor.async_nolink(Ingress.BroadcasterCache.TaskSupervisor, fn ->
-          state.loader.(id)
-        end)
+  defp await_load(id, from, state) do
+    case Map.fetch(state.pending_by_id, id) do
+      {:ok, waiters} ->
+        Ingress.Metrics.count("Cache/LoadsCoalesced")
+        %{state | pending_by_id: Map.put(state.pending_by_id, id, [from | waiters])}
 
-      Ingress.Metrics.count("Cache/Loads")
-
-      state = %{state | pending_by_id: Map.put(state.pending_by_id, id, [from])}
-
-      {:noreply, track_task(state, id, task.ref)}
+      :error ->
+        start_load(%{state | pending_by_id: Map.put(state.pending_by_id, id, [from])}, id)
     end
   end
 
@@ -192,15 +201,23 @@ defmodule Ingress.BroadcasterCache do
   end
 
   defp cache_result(id, {:ok, lane}, state) when lane in [:premium, :standard, :drop] do
-    :ets.insert(state.table, {id, lane, now_ms() + state.ttl_ms})
+    :ets.insert(state.table, {id, lane, now_ms() + state.ttl_ms, false})
     lane
   end
 
   defp cache_result(id, {:error, reason}, state) do
     Logger.warning("broadcaster status lookup failed for #{id}: #{inspect(reason)}")
     Ingress.Metrics.count("Cache/LoadErrors")
-    :ets.insert(state.table, {id, :standard, now_ms() + @error_ttl_ms})
-    :standard
+    lane = last_known_lane(state.table, id)
+    :ets.insert(state.table, {id, lane, now_ms() + @error_ttl_ms, false})
+    lane
+  end
+
+  defp last_known_lane(table, id) do
+    case :ets.lookup(table, id) do
+      [{^id, lane, _expires_at, _refreshing}] -> lane
+      [] -> :standard
+    end
   end
 
   defp table_name(__MODULE__), do: @default_table

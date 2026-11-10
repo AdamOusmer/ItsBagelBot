@@ -116,8 +116,6 @@ config :ingress,
     String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_QUEUE", "20000")),
   dispatcher_max_per_broadcaster:
     String.to_integer(System.get_env("INGRESS_DISPATCHER_MAX_PER_BROADCASTER", "2048")),
-  dispatcher_broadcaster_sweep_ms:
-    String.to_integer(System.get_env("INGRESS_DISPATCHER_BROADCASTER_SWEEP_MS", "60000")),
   dispatcher_completion_batch_size:
     String.to_integer(System.get_env("INGRESS_DISPATCHER_COMPLETION_BATCH_SIZE", "4")),
   dispatcher_completion_flush_ms:

@@ -15,6 +15,7 @@ defmodule Ingress.FakeGnat do
      %{
        test: Keyword.get(opts, :test),
        mode: Keyword.get(opts, :mode, :reply),
+       server_name: Keyword.get(opts, :server_name),
        sid: 0
      }}
   end
@@ -22,12 +23,18 @@ defmodule Ingress.FakeGnat do
   @impl true
   def handle_call(:stop, _from, state), do: {:stop, :normal, :ok, state}
 
+  def handle_call(:server_info, _from, state),
+    do: {:reply, %{server_name: state.server_name}, state}
+
   def handle_call({:sub, _receiver, _topic, _opts}, _from, state) do
     {:reply, {:ok, state.sid + 1}, %{state | sid: state.sid + 1}}
   end
 
   def handle_call({:pub, _topic, _message, _opts}, _from, %{mode: :stalled} = state),
     do: {:noreply, state}
+
+  def handle_call({:pub, _topic, "oversized", _opts}, _from, %{mode: :limited} = state),
+    do: {:reply, {:error, :max_payload_exceeded}, state}
 
   def handle_call({:pub, topic, message, opts}, from, %{mode: :coalesce} = state) do
     {publishes, callers} = drain([{topic, message, opts}], [from], @drain_limit)

@@ -7,7 +7,7 @@ defmodule Ingress.Dispatcher do
   alias Ingress.Config.Dispatcher, as: DispatcherConfig
   alias Ingress.Metrics
 
-  defstruct [:name, :table, :admitted, :sweep_ms, worker_refs: %{}]
+  defstruct [:name, :table, :admitted, worker_refs: %{}]
 
   @type context :: %{
           table: atom(),
@@ -24,7 +24,7 @@ defmodule Ingress.Dispatcher do
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
   end
 
-  @spec dispatch(map(), map(), GenServer.server()) :: :ok
+  @spec dispatch(binary() | map(), map(), GenServer.server()) :: :ok
   def dispatch(payload, meta, server \\ __MODULE__) do
     case context(server) do
       nil ->
@@ -52,7 +52,7 @@ defmodule Ingress.Dispatcher do
 
       ctx ->
         Enum.each(completed_by_broadcaster, fn {broadcaster_id, count} ->
-          :ets.update_counter(ctx.table, {:worker, worker, broadcaster_id}, {2, -count})
+          decrement_worker(ctx.table, worker, broadcaster_id, count)
           release_broadcaster_slot(ctx.table, broadcaster_id, count)
         end)
 
@@ -165,7 +165,7 @@ defmodule Ingress.Dispatcher do
       )
 
     if count > ctx.max_per_broadcaster do
-      :ets.update_counter(ctx.table, {:bc, broadcaster_id}, {2, -1})
+      release_broadcaster_slot(ctx.table, broadcaster_id, 1)
       drop(meta, "broadcaster_cap")
       false
     else
@@ -174,9 +174,7 @@ defmodule Ingress.Dispatcher do
   end
 
   defp release(ctx, worker, broadcaster_id, count) do
-    if worker do
-      :ets.update_counter(ctx.table, {:worker, worker, broadcaster_id}, {2, -count})
-    end
+    if worker, do: decrement_worker(ctx.table, worker, broadcaster_id, count)
 
     :atomics.sub(ctx.admitted, 1, count)
     release_broadcaster_slot(ctx.table, broadcaster_id, count)
@@ -185,10 +183,22 @@ defmodule Ingress.Dispatcher do
     ArgumentError -> :ok
   end
 
+  defp decrement_worker(table, worker, broadcaster_id, count) do
+    key = {:worker, worker, broadcaster_id}
+
+    if :ets.update_counter(table, key, {2, -count}) == 0 do
+      :ets.delete_object(table, {key, 0})
+    end
+  end
+
   defp release_broadcaster_slot(_table, nil, _count), do: :ok
 
   defp release_broadcaster_slot(table, broadcaster_id, count) do
-    :ets.update_counter(table, {:bc, broadcaster_id}, {2, -count})
+    key = {:bc, broadcaster_id}
+
+    if :ets.update_counter(table, key, {2, -count}) == 0 do
+      :ets.delete_object(table, {key, 0})
+    end
   end
 
   defp drop(_meta, reason), do: Metrics.count_drop("Dispatcher/Dropped", reason)
@@ -203,7 +213,6 @@ defmodule Ingress.Dispatcher do
     max_per_broadcaster =
       Keyword.get(opts, :max_per_broadcaster, DispatcherConfig.max_per_broadcaster())
 
-    sweep_ms = Keyword.get(opts, :sweep_ms, DispatcherConfig.broadcaster_sweep_ms())
     capacity = worker_count + max_queue
     workers = worker_names_tuple(name, worker_count)
     admitted = :atomics.new(2, signed: true)
@@ -229,8 +238,7 @@ defmodule Ingress.Dispatcher do
       }
     )
 
-    schedule_sweep(sweep_ms)
-    {:ok, %__MODULE__{name: name, table: table, admitted: admitted, sweep_ms: sweep_ms}}
+    {:ok, %__MODULE__{name: name, table: table, admitted: admitted}}
   end
 
   @impl true
@@ -243,13 +251,6 @@ defmodule Ingress.Dispatcher do
     {_worker, worker_refs} = Map.pop(state.worker_refs, ref)
     reclaim_worker(state.table, pid, state.admitted)
     {:noreply, %{state | worker_refs: worker_refs}}
-  end
-
-  def handle_info(:sweep, state) do
-    :ets.select_delete(state.table, [{{{:bc, :_}, 0}, [], [true]}])
-    :ets.select_delete(state.table, [{{{:worker, :_, :_}, 0}, [], [true]}])
-    schedule_sweep(state.sweep_ms)
-    {:noreply, state}
   end
 
   @impl true
@@ -282,6 +283,4 @@ defmodule Ingress.Dispatcher do
     |> Enum.map(fn index -> String.to_atom("#{server}.Worker.#{index}") end)
     |> List.to_tuple()
   end
-
-  defp schedule_sweep(sweep_ms), do: Process.send_after(self(), :sweep, sweep_ms)
 end

@@ -91,3 +91,39 @@ defmodule Ingress.NatsFailbackTest do
     end
   end
 end
+
+defmodule Ingress.NatsFailbackScheduleTest do
+  use ExUnit.Case, async: false
+
+  @env ~w(NODE_NAME NATS_LOCAL_LEAF_HEALTH_URL NATS_FAILBACK_INTERVAL_MS)
+
+  setup do
+    previous = Map.new(@env, &{&1, System.get_env(&1)})
+
+    on_exit(fn ->
+      Enum.each(previous, fn
+        {key, nil} -> System.delete_env(key)
+        {key, value} -> System.put_env(key, value)
+      end)
+    end)
+
+    {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listener)
+    System.put_env("NODE_NAME", "node1")
+    System.put_env("NATS_LOCAL_LEAF_HEALTH_URL", "http://127.0.0.1:#{port}/healthz")
+    System.put_env("NATS_FAILBACK_INTERVAL_MS", "5")
+    [listener: listener]
+  end
+
+  for {label, server_name, probed} <- [
+        {"a connection on the node-local leaf skips the health probe", "node1--leaf", false},
+        {"a displaced connection probes the node-local leaf", "node2--leaf", true}
+      ] do
+    test label, %{listener: listener} do
+      start_supervised!({Ingress.FakeGnat, name: :gnat, server_name: unquote(server_name)})
+      start_supervised!(Ingress.NatsFailback)
+
+      assert match?({:ok, _}, :gen_tcp.accept(listener, 200)) == unquote(probed)
+    end
+  end
+end
