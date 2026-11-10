@@ -10,7 +10,7 @@ defmodule Ingress.AutomodTrialLane do
 
   def start_link(_opts), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
 
-  @spec publish(map(), map()) :: :ok
+  @spec publish(binary() | map(), map()) :: :ok
   def publish(payload, meta) do
     case Config.automod_trial_subject() do
       subject when is_binary(subject) ->
@@ -50,7 +50,10 @@ defmodule Ingress.AutomodTrialLane do
   end
 
   defp copy(subject, payload, meta, ingested_at) do
-    with input when is_map(input) <- Pipeline.trial_chat_input(payload, meta, ingested_at),
+    with input when is_map(input) <-
+           payload
+           |> Pipeline.notification_payload()
+           |> Pipeline.trial_chat_input(meta, ingested_at),
          :ok <- Nats.publish(subject, input) do
       :ok
     else
