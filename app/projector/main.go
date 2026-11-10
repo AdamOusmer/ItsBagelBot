@@ -4,10 +4,11 @@
 package main
 
 import (
-	"ItsBagelBot/internal/analytics"
-	"ItsBagelBot/internal/channelruntime"
 	"context"
 	"time"
+
+	"ItsBagelBot/internal/analytics"
+	"ItsBagelBot/internal/channelruntime"
 
 	"ItsBagelBot/app/projector/hydration"
 	"ItsBagelBot/app/projector/rpc"
@@ -17,6 +18,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/svcboot"
 
@@ -56,19 +58,19 @@ type projectorTopics struct {
 
 func loadTopics() projectorTopics {
 	return projectorTopics{
-		stream:            env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
-		users:             env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
-		modules:           env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),
-		commands:          env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
+		stream:            conf.StreamLaneSubject.Get(),
+		users:             conf.ProjectionUsersSubject.Get(),
+		modules:           conf.ProjectionModulesSubject.Get(),
+		commands:          conf.ProjectionCommandsSubject.Get(),
 		invalidate:        env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate"),
-		cacheInvalidate:   env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
+		cacheInvalidate:   conf.CacheInvalidationPrefix.Get(),
 		status:            env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
-		dashboard:         env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard"),
-		live:              env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
+		dashboard:         conf.ProjectorDashboardPrefix.Get(),
+		live:              conf.BroadcasterLive.Get(),
 		liveList:          env.Get("NATS_BROADCASTER_LIVE_LIST_SUBJECT", "bagel.rpc.broadcaster.live.list"),
 		streamInfo:        env.Get("NATS_BROADCASTER_STREAM_INFO_SUBJECT", "bagel.rpc.broadcaster.stream_info.get"),
-		loyalty:           env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
-		outgressSystem:    env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
+		loyalty:           conf.LoyaltyPrefix.Get(),
+		outgressSystem:    conf.OutgressSystemSubject.Get(),
 		hydrationConcurr:  env.GetInt("PROJECTOR_HYDRATION_CONCURRENCY", 8),
 		queryHydrationTTL: env.GetDuration("PROJECTOR_QUERY_HYDRATION_TTL", 2*time.Hour),
 		liveHydrationTTL:  env.GetDuration("PROJECTOR_LIVE_HYDRATION_TTL", projection.DefaultTTL),

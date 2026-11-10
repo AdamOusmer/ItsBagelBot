@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 )
 
@@ -67,20 +68,20 @@ type Config struct {
 func Load() *Config {
 	return &Config{
 		Infra:                  svcboot.LoadInfra(),
-		PremiumSubject:         env.Get("NATS_OUTGRESS_PREMIUM_SUBJECT", "twitch.outgress.premium"),
-		StandardSubject:        env.Get("NATS_OUTGRESS_STANDARD_SUBJECT", "twitch.outgress.standard"),
-		SystemSubject:          env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
-		RPCPrefix:              env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
+		PremiumSubject:         conf.OutgressPremiumSubject.Get(),
+		StandardSubject:        conf.OutgressStandardSubject.Get(),
+		SystemSubject:          conf.OutgressSystemSubject.Get(),
+		RPCPrefix:              conf.OutgressRPCPrefix.Get(),
 		TwitchClientID:         env.MustGet("TWITCH_CLIENT_ID"),
 		TwitchClientSecret:     env.MustGet("TWITCH_CLIENT_SECRET"),
 		TwitchConduitID:        env.Get("TWITCH_CONDUIT_ID", ""),
 		ConduitSubject:         env.Get("NATS_CONDUIT_SUBJECT", "bagel.rpc.ingress.conduit.get"),
 		TwitchBotUserID:        env.Get("TWITCH_BOT_USER_ID", ""),
 		TwitchBotRefreshToken:  env.Get("TWITCH_BOT_REFRESH_TOKEN", ""),
-		TokensSubjectPrefix:    env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens"),
-		CacheInvalidatePrefix:  env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
+		TokensSubjectPrefix:    conf.TokensSubjectPrefix.Get(),
+		CacheInvalidatePrefix:  conf.CacheInvalidationPrefix.Get(),
 		LiveTTL:                env.GetDuration("WORKER_LIVE_TTL", 12*time.Hour),
-		StreamLaneSubject:      env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
+		StreamLaneSubject:      conf.StreamLaneSubject.Get(),
 		AuthzGrantedSubject:    env.Get("NATS_SUBJECT_AUTHZ_GRANTED", "twitch.ingress.status.authz.granted"),
 		AuthzRevokedSubject:    env.Get("NATS_SUBJECT_AUTHZ_REVOKED", "twitch.ingress.status.authz.revoked"),
 		AuthzSubRevokedSubject: env.Get("NATS_SUBJECT_AUTHZ_SUBREVOKED", "twitch.ingress.status.authz.subrevoked"),

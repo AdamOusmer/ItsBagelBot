@@ -6,7 +6,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
-	"ItsBagelBot/pkg/env"
 
 	"go.uber.org/zap"
 )
@@ -62,22 +60,9 @@ func NewSpotifyCreds(client *ent.Client, packer domaincrypto.Packer) *SpotifyCre
 }
 
 func NewSpotifyCredsFromEnv(client *ent.Client, log *zap.Logger) *SpotifyCreds {
-	path := env.Get("TINK_KEYSET_PATH", "")
-	if path == "" {
-		log.Warn("spotify key custody disabled: TINK_KEYSET_PATH not set")
+	packer := crypto.OptionalFromEnv("spotify", log)
+	if packer == nil {
 		return nil
-	}
-	keysetJSON, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		log.Warn("spotify key custody disabled: keyset not provisioned yet", zap.String("path", path))
-		return nil
-	}
-	if err != nil {
-		log.Fatal("failed to read tink keyset", zap.Error(err))
-	}
-	packer, err := crypto.NewCrypto(keysetJSON)
-	if err != nil {
-		log.Fatal("failed to initialize crypto", zap.Error(err))
 	}
 	return NewSpotifyCreds(client, packer)
 }

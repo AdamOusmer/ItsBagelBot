@@ -36,15 +36,24 @@ type TxStarter[T Tx] interface {
 
 // WithTx commits when fn succeeds and rolls back when it fails.
 func WithTx[T Tx](ctx context.Context, client TxStarter[T], fn func(tx T) error) error {
+	_, err := WithTxResult(ctx, client, func(tx T) (struct{}, error) {
+		return struct{}{}, fn(tx)
+	})
+	return err
+}
+
+func WithTxResult[R any, T Tx](ctx context.Context, client TxStarter[T], fn func(tx T) (R, error)) (R, error) {
+	var zero R
 	tx, err := client.Tx(ctx)
 	if err != nil {
-		return err
+		return zero, err
 	}
-	if err := fn(tx); err != nil {
+	out, err := fn(tx)
+	if err != nil {
 		_ = tx.Rollback()
-		return err
+		return zero, err
 	}
-	return tx.Commit()
+	return out, tx.Commit()
 }
 
 // Each attempt must begin and roll back its own transaction; after 1213 the server has already discarded every earlier statement.

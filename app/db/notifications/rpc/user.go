@@ -17,6 +17,7 @@ import (
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/env/conf"
 )
 
 type userRPC struct {
@@ -39,7 +40,7 @@ type UserConfig struct {
 
 func SubscribeUser(w Wiring, cfg UserConfig) error {
 	if cfg.UserGetSubject == "" {
-		cfg.UserGetSubject = "bagel.rpc.internal.users.get"
+		cfg.UserGetSubject = conf.UsersGetSubject.Get()
 	}
 	u := &userRPC{nc: w.NC, userGetSubject: cfg.UserGetSubject, invalidationPrefix: cfg.InvalidationPrefix, repo: w.Repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: w.Log}
 

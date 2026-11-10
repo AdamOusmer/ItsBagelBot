@@ -13,6 +13,7 @@ import (
 	spotifyrpc "ItsBagelBot/internal/domain/rpc/spotify"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 )
 
 // Dashboard verbs must never echo the token or client secret; only gossip's key.get returns them.
@@ -21,7 +22,7 @@ func wireSpotify(w bus.RPCWiring, creds *repository.SpotifyCreds) error {
 		return nil
 	}
 	dash := env.Get("NATS_MODULES_SPOTIFY_SUBJECT_PREFIX", "bagel.rpc.modules.spotify")
-	internal := env.Get("NATS_INTERNAL_SPOTIFY_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.spotify.key")
+	internal := conf.SpotifyKeyPrefix.Get()
 	s := &spotifyRPC{creds: creds, log: w.Log}
 
 	custody := w.Within(custodyBudget)

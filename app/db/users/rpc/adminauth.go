@@ -412,26 +412,18 @@ func (a *adminAuthRPC) auditListAll(ctx context.Context, q *ent.AdminAuditQuery,
 }
 
 func (a *adminAuthRPC) auditListPage(ctx context.Context, q *ent.AdminAuditQuery, page, limit int) usersrpc.AuthReply {
-	page = clamp(page, 1, auditMaxPages)
-	pageSize := clamp(auditListLimit(limit), 1, auditPageSize)
-	fetchLimit := pageSize
-	if page < auditMaxPages {
-		fetchLimit++
-	}
+	p := domainrpc.ClampPage(page, auditListLimit(limit), auditPageSize, auditMaxPages)
 	rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminAudit, error) {
-		return q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
+		return q.Offset(p.Offset()).Limit(p.FetchLimit()).All(ctx)
 	})
 	if err != nil {
 		return authError(refusal(err))
 	}
-	hasMore := page < auditMaxPages && len(rows) > pageSize
-	if hasMore {
-		rows = rows[:pageSize]
-	}
+	rows, hasMore := domainrpc.PageRows(p, rows)
 	return usersrpc.AuthReply{
 		Entries:  auditViewsOf(rows),
-		Page:     page,
-		PageSize: pageSize,
+		Page:     p.Number,
+		PageSize: p.Size,
 		MaxPages: auditMaxPages,
 		HasMore:  hasMore,
 	}

@@ -130,35 +130,17 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 	return notificationsrpc.SendReply{Notification: &view}
 }
 
-func clampAdminPage(req notificationsrpc.ListAdminRequest) (page, pageSize, fetchLimit int) {
-	pageSize = req.Limit
-	if pageSize <= 0 || pageSize > repository.AdminPageSize {
-		pageSize = repository.AdminPageSize
-	}
-	page = req.Page
-	if page < 1 {
-		page = 1
-	}
-	if page > repository.AdminMaxPages {
-		page = repository.AdminMaxPages
-	}
-	fetchLimit = pageSize
-	if page < repository.AdminMaxPages {
-		fetchLimit++
-	}
-	return page, pageSize, fetchLimit
-}
-
 func (a *adminRPC) list(ctx context.Context, req notificationsrpc.ListAdminRequest) notificationsrpc.ListAdminReply {
-	page, pageSize, fetchLimit := clampAdminPage(req)
-	rows, err := a.repo.ListForAdmin(ctx, fetchLimit, (page-1)*pageSize)
+	size := req.Limit
+	if size <= 0 {
+		size = repository.AdminPageSize
+	}
+	page := domainrpc.ClampPage(req.Page, size, repository.AdminPageSize, repository.AdminMaxPages)
+	rows, err := a.repo.ListForAdmin(ctx, page.FetchLimit(), page.Offset())
 	if err != nil {
 		return notificationsrpc.ListAdminReply{Refusal: bus.Classify(err)}
 	}
-	hasMore := page < repository.AdminMaxPages && len(rows) > pageSize
-	if hasMore {
-		rows = rows[:pageSize]
-	}
+	rows, hasMore := domainrpc.PageRows(page, rows)
 
 	views := make([]notificationsrpc.NotificationView, 0, len(rows))
 	for _, row := range rows {
@@ -167,8 +149,8 @@ func (a *adminRPC) list(ctx context.Context, req notificationsrpc.ListAdminReque
 
 	return notificationsrpc.ListAdminReply{
 		Notifications: views,
-		Page:          page,
-		PageSize:      pageSize,
+		Page:          page.Number,
+		PageSize:      page.Size,
 		MaxPages:      repository.AdminMaxPages,
 		HasMore:       hasMore,
 	}

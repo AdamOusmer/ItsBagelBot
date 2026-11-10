@@ -4,11 +4,12 @@
 package validate
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -66,6 +67,10 @@ func Username(username string) error {
 	}
 
 	return nil
+}
+
+func NormalizeLogin(login string) string {
+	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(login), "@"))
 }
 
 func isPrintableAsciiNoSpace(c byte) bool {

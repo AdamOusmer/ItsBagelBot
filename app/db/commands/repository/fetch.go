@@ -6,7 +6,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
-	"ItsBagelBot/pkg/env"
 
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/pkg/tmpl"
@@ -75,22 +73,9 @@ func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publishe
 }
 
 func NewFetchesFromEnv(log *zap.Logger) domaincrypto.Packer {
-	path := env.Get("TINK_KEYSET_PATH", "")
-	if path == "" {
-		log.Warn("fetch key custody disabled: TINK_KEYSET_PATH not set")
+	packer := crypto.OptionalFromEnv("fetch", log)
+	if packer == nil {
 		return nil
-	}
-	keysetJSON, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		log.Warn("fetch key custody disabled: keyset not provisioned yet", zap.String("path", path))
-		return nil
-	}
-	if err != nil {
-		log.Fatal("failed to read tink keyset", zap.Error(err))
-	}
-	packer, err := crypto.NewCrypto(keysetJSON)
-	if err != nil {
-		log.Fatal("failed to initialize crypto", zap.Error(err))
 	}
 	return packer
 }

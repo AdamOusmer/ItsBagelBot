@@ -83,9 +83,9 @@ func Load() *Config {
 
 		DrainTimeout: env.GetDuration("SESAME_DRAIN_TIMEOUT", 25*time.Second),
 
-		OutgressSystemSubject: env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
+		OutgressSystemSubject: conf.OutgressSystemSubject.Get(),
 
-		ProjectionLiveSubject: env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
+		ProjectionLiveSubject: conf.BroadcasterLive.Get(),
 
 		SpecialUserIDs: env.Get("TWITCH_SPECIAL_USER_IDS", ""),
 
@@ -109,19 +109,19 @@ func Load() *Config {
 		IdempotencyEnabled: env.Get("SESAME_IDEMPOTENCY", "on") != "off",
 		IdempotencyTTL:     env.GetDuration("SESAME_IDEMPOTENCY_TTL", 15*time.Minute),
 
-		CommandsDashboardPrefix: env.Get("NATS_COMMANDS_DASHBOARD_PREFIX", "bagel.rpc.commands"),
+		CommandsDashboardPrefix: conf.CommandsPrefix.Get(),
 
-		ModulesRPCPrefix: env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules"),
+		ModulesRPCPrefix: conf.ModulesPrefix.Get(),
 
 		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://commands.itsbagelbot.com"), "/"),
 
 		LeaderboardBaseURL: strings.TrimRight(env.Get("SESAME_LEADERBOARD_BASE_URL", "https://leaderboard.itsbagelbot.com"), "/"),
 		QueueBaseURL:       strings.TrimRight(env.Get("SESAME_QUEUE_BASE_URL", "https://queue.itsbagelbot.com"), "/"),
 
-		GossipRPCPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", "bagel.rpc.gossip"),
+		GossipRPCPrefix: conf.GossipPrefix.Get(),
 
-		LoyaltyRPCPrefix: env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
+		LoyaltyRPCPrefix: conf.LoyaltyPrefix.Get(),
 
-		OutgressRPCPrefix: env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
+		OutgressRPCPrefix: conf.OutgressRPCPrefix.Get(),
 	}
 }
