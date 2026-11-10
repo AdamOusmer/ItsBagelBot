@@ -21,9 +21,11 @@ defmodule Ingress.TrialAdmission do
   def start_link(partition),
     do: GenServer.start_link(__MODULE__, partition, name: name(partition))
 
-  def submit(payload, %{broadcaster_id: broadcaster_id} = meta, generation) do
+  def submit(payload, meta, generation),
+    do: submit(payload, meta, generation, get_in(payload, ["event", "message_id"]))
+
+  def submit(payload, %{broadcaster_id: broadcaster_id} = meta, generation, chat_id) do
     server = Process.whereis(name(:erlang.phash2(broadcaster_id, @partitions)))
-    chat_id = get_in(payload, ["event", "message_id"])
 
     if server && queue_len(server) < @max_queue do
       send(server, {:admit, {broadcaster_id, generation, chat_id, payload, meta}})

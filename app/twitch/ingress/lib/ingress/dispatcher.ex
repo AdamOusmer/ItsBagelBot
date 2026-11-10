@@ -24,7 +24,7 @@ defmodule Ingress.Dispatcher do
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
   end
 
-  @spec dispatch(map(), map(), GenServer.server()) :: :ok
+  @spec dispatch(binary() | map(), map(), GenServer.server()) :: :ok
   def dispatch(payload, meta, server \\ __MODULE__) do
     case context(server) do
       nil ->
