@@ -14,7 +14,7 @@ defmodule Ingress.NatsFailback do
 
   @impl true
   def init(_opts) do
-    interval = positive_env("NATS_FAILBACK_INTERVAL_MS", 30_000)
+    interval = Ingress.Config.positive_env("NATS_FAILBACK_INTERVAL_MS", 30_000)
 
     state = %{
       node: System.get_env("NODE_NAME", ""),
@@ -24,8 +24,8 @@ defmodule Ingress.NatsFailback do
           "https://nats-leaf-local.messaging:8222/healthz"
         ),
       interval: interval,
-      required: positive_env("NATS_FAILBACK_SUCCESSES", 3),
-      timeout: positive_env("NATS_FAILBACK_PROBE_TIMEOUT_MS", 1_000),
+      required: Ingress.Config.positive_env("NATS_FAILBACK_SUCCESSES", 3),
+      timeout: Ingress.Config.positive_env("NATS_FAILBACK_PROBE_TIMEOUT_MS", 1_000),
       successes: Map.new(@connections, &{&1, 0})
     }
 
@@ -102,13 +102,6 @@ defmodule Ingress.NatsFailback do
 
       _ ->
         []
-    end
-  end
-
-  defp positive_env(key, fallback) do
-    case Integer.parse(System.get_env(key, "")) do
-      {value, ""} when value > 0 -> value
-      _ -> fallback
     end
   end
 end

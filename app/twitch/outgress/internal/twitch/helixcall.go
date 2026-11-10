@@ -30,6 +30,7 @@ type helixTarget struct {
 
 func broadcasterTarget(id string) helixTarget { return helixTarget{IdentityBroadcaster, id} }
 func botTarget(id string) helixTarget         { return helixTarget{IdentityBot, id} }
+func appTarget() helixTarget                  { return helixTarget{identity: IdentityApp} }
 
 func (c *Client) sendJSON(ctx context.Context, target helixTarget, call HelixCall, body any) error {
 	raw, err := codec.Marshal(body)

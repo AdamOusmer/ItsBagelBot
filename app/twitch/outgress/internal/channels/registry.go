@@ -468,10 +468,7 @@ func (r *Registry) publishPause(paused bool, version int64) {
 	if r.nc == nil || r.invalidatePrefix == "" {
 		return
 	}
-	body, err := codec.Marshal(pauseEvent{Paused: paused, Version: version})
-	if err == nil {
-		err = r.nc.Publish(r.invalidatePrefix+"."+pauseInvalidateScope, body)
-	}
+	err := invalidate.PublishEvent(r.nc, r.invalidatePrefix+"."+pauseInvalidateScope, pauseEvent{Paused: paused, Version: version})
 	if err != nil && r.log != nil {
 		r.log.Warn("failed to publish pause cache invalidation", zap.Error(err))
 	}

@@ -92,7 +92,7 @@ defmodule Ingress.ShardScaler do
 
   @impl true
   def handle_call({:set_target, count}, _from, state) do
-    clamped = clamp(count, min_shards(), TwitchConfig.max_shards())
+    clamped = Ingress.ShardScaler.Policy.clamp(count, min_shards(), TwitchConfig.max_shards())
     Logger.info("shard_scaler: manual target #{state.target} → #{clamped}")
     {:reply, :ok, %{state | target: clamped, ticks: Ingress.ShardScaler.Policy.reset_ticks()}}
   end
@@ -131,7 +131,12 @@ defmodule Ingress.ShardScaler do
 
   defp compute_desired(state) do
     min_s = min_shards()
-    clamp(state.target, min_s, effective_max_shards(state.autoscale, min_s))
+
+    Ingress.ShardScaler.Policy.clamp(
+      state.target,
+      min_s,
+      effective_max_shards(state.autoscale, min_s)
+    )
   end
 
   defp effective_max_shards(true, min_s) do
@@ -240,8 +245,6 @@ defmodule Ingress.ShardScaler do
   defp schedule_autoscale do
     Process.send_after(self(), :autoscale_tick, @autoscale_interval_ms)
   end
-
-  defp clamp(value, min_v, max_v), do: value |> max(min_v) |> min(max_v)
 
   defp fallback_status do
     %{

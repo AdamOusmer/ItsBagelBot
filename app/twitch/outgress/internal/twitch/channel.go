@@ -4,11 +4,12 @@
 package twitch
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"context"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 type ChannelInfo struct {
@@ -24,31 +25,18 @@ type Category struct {
 }
 
 func (c *Client) ChannelInfo(ctx context.Context, broadcasterID string) (ChannelInfo, error) {
-	res, err := c.request(ctx, c.app, getCall("/helix/channels?broadcaster_id="+url.QueryEscape(broadcasterID)))
+	row, found, err := readFirst[struct {
+		Title    string   `json:"title"`
+		GameID   string   `json:"game_id"`
+		GameName string   `json:"game_name"`
+		Tags     []string `json:"tags"`
+	}](ctx, c, helixRead{appTarget(), "/helix/channels?broadcaster_id=" + url.QueryEscape(broadcasterID)})
 	if err != nil {
 		return ChannelInfo{}, err
 	}
-	defer drain(res)
-
-	if res.StatusCode != http.StatusOK {
-		return ChannelInfo{}, statusError(res, "get channel")
-	}
-
-	var payload struct {
-		Data []struct {
-			Title    string   `json:"title"`
-			GameID   string   `json:"game_id"`
-			GameName string   `json:"game_name"`
-			Tags     []string `json:"tags"`
-		} `json:"data"`
-	}
-	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return ChannelInfo{}, err
-	}
-	if len(payload.Data) == 0 {
+	if !found {
 		return ChannelInfo{}, &StatusError{Status: http.StatusNotFound, Op: "get channel", Body: "empty data"}
 	}
-	row := payload.Data[0]
 	return ChannelInfo{Title: row.Title, GameID: row.GameID, GameName: row.GameName, Tags: row.Tags}, nil
 }
 

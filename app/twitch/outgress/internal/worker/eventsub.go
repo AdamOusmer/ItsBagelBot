@@ -129,7 +129,7 @@ func (w *Worker) underEnrollLock(ctx context.Context, op string, e enrollment, f
 	if !got {
 		w.log.Info(op+" waiting on enroll lock",
 			zap.String("broadcaster_id", e.broadcasterID))
-		got, err = waitForEnrollLock(ctx, enrollLockWaitTimeout, enrollLockPollInterval, func() (bool, error) {
+		got, err = pollUntilAcquired(ctx, enrollLockWaitTimeout, enrollLockPollInterval, func() (bool, error) {
 			return w.registry.AcquireEnrollLock(ctx, e.broadcasterID, w.owner, enrollLockTTL)
 		})
 		if err != nil {
@@ -146,7 +146,7 @@ func (w *Worker) underEnrollLock(ctx context.Context, op string, e enrollment, f
 	return fn()
 }
 
-func waitForEnrollLock(
+func pollUntilAcquired(
 	ctx context.Context,
 	timeout time.Duration,
 	pollInterval time.Duration,

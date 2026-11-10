@@ -4,7 +4,6 @@
 package twitch
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"context"
 	"errors"
 	"io"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const chattersPath = "/helix/chat/chatters"
@@ -196,6 +197,5 @@ func chatterResponseStatus(res *http.Response) error {
 	if res.StatusCode >= http.StatusOK && res.StatusCode < http.StatusMultipleChoices {
 		return nil
 	}
-	body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-	return &StatusError{Status: res.StatusCode, Body: string(body)}
+	return statusError(res, "GET "+chattersPath)
 }

@@ -107,30 +107,19 @@ func (w *Worker) holdingRewardChanges(ctx context.Context, broadcasterID string,
 }
 
 func awaitRewardLock(ctx context.Context, lock pkg_valkey.OwnerLock) error {
-	deadline := time.Now().Add(rewardChangeLockWait)
-	for {
-		won, err := lock.Acquire(ctx, rewardRestoreLockTTL)
-		if err != nil || won {
-			return err
-		}
-		if time.Now().After(deadline) {
-			return errRewardsBusy
-		}
-		if err := sleepRewardLockPoll(ctx); err != nil {
-			return err
-		}
+	acquire := func() (bool, error) { return lock.Acquire(ctx, rewardRestoreLockTTL) }
+	won, err := acquire()
+	if err != nil || won {
+		return err
 	}
-}
-
-func sleepRewardLockPoll(ctx context.Context) error {
-	timer := time.NewTimer(rewardChangeLockPoll)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	won, err = pollUntilAcquired(ctx, rewardChangeLockWait, rewardChangeLockPoll, acquire)
+	if err != nil {
+		return err
 	}
+	if !won {
+		return errRewardsBusy
+	}
+	return nil
 }
 
 func (w *Worker) releaseRewardLock(broadcasterID string, lock pkg_valkey.OwnerLock) {

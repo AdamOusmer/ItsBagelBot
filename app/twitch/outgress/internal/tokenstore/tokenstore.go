@@ -11,6 +11,7 @@ import (
 	"time"
 
 	domainrpc "ItsBagelBot/internal/domain/rpc"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
@@ -28,12 +29,6 @@ func New(nc *nats.Conn, prefix, userID string) *Store {
 	return &Store{nc: nc, prefix: prefix, userID: userID}
 }
 
-type reply struct {
-	AccessToken          string     `json:"access_token"`
-	RefreshToken         string     `json:"refresh_token"`
-	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
-}
-
 type Loaded struct {
 	AccessToken          string
 	AccessTokenExpiresAt *time.Time
@@ -41,7 +36,7 @@ type Loaded struct {
 }
 
 func (s *Store) Load(ctx context.Context) (Loaded, error) {
-	r, err := bus.RequestJSONTimeout[reply](ctx, s.nc, s.prefix+".get", map[string]string{"user_id": s.userID}, rpcTimeout)
+	r, err := bus.RequestJSONTimeout[usersrpc.TokensReply](ctx, s.nc, s.prefix+".get", usersrpc.TokensRequest{UserID: s.userID}, rpcTimeout)
 	if err != nil {
 		return Loaded{}, fmt.Errorf("tokens get rpc: %w", err)
 	}
@@ -75,16 +70,13 @@ func legacyNotFoundMessage(message string) bool {
 }
 
 func (s *Store) Save(ctx context.Context, accessToken, refreshToken string, expiresAt *time.Time) error {
-	req := map[string]any{
-		"user_id":       s.userID,
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
+	req := usersrpc.TokensRequest{
+		UserID:               s.userID,
+		AccessToken:          accessToken,
+		RefreshToken:         refreshToken,
+		AccessTokenExpiresAt: expiresAt,
 	}
-	if expiresAt != nil {
-		req["access_token_expires_at"] = *expiresAt
-	}
-
-	if _, err := bus.RequestJSONTimeout[reply](ctx, s.nc, s.prefix+".save", req, rpcTimeout); err != nil {
+	if _, err := bus.RequestJSONTimeout[usersrpc.TokensReply](ctx, s.nc, s.prefix+".save", req, rpcTimeout); err != nil {
 		return fmt.Errorf("tokens save rpc: %w", err)
 	}
 	return nil
