@@ -15,12 +15,19 @@ func hasNonClipLink(text string) bool {
 		if start == end {
 			return false
 		}
-		if tok := linkcheck.TrimLinkToken(text[start:end]); tok != "" && looksLikeLinkHost(tok) && !isTwitchClipToken(tok) {
+		if isNonClipLink(linkcheck.TrimLinkToken(text[start:end])) {
 			return true
 		}
 		i = end
 	}
 	return false
+}
+
+func isNonClipLink(tok string) bool {
+	if tok == "" || isTwitchClipToken(tok) {
+		return false
+	}
+	return looksLikeLinkHost(tok)
 }
 
 func maybeLinkText(text string) bool {

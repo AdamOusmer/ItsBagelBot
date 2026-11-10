@@ -140,7 +140,7 @@ func (r *Loyalty) RecordEarned(dto data.LoyaltyEarnedDTO) {
 	}
 	r.mu.Lock()
 	for _, e := range dto.Entries {
-		if e.ViewerID == 0 || (e.Points == 0 && e.WatchSeconds == 0) {
+		if !earnsAnything(e) {
 			continue
 		}
 		r.foldEarn(balKey{userID: dto.UserID, viewerID: e.ViewerID}, e)
@@ -148,6 +148,10 @@ func (r *Loyalty) RecordEarned(dto data.LoyaltyEarnedDTO) {
 	overflow := len(r.earnPend) >= flushMaxKeys
 	r.mu.Unlock()
 	r.maybeFlush(overflow)
+}
+
+func earnsAnything(e data.LoyaltyEarnEntry) bool {
+	return e.ViewerID != 0 && (e.Points != 0 || e.WatchSeconds != 0)
 }
 
 // Caller must hold r.mu.
