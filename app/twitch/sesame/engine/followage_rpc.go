@@ -5,13 +5,9 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"time"
 
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/cache"
 
 	"github.com/nats-io/nats.go"
 )
@@ -43,43 +39,29 @@ type FollowageLookup interface {
 }
 
 type FollowageRPC struct {
-	cache   *cache.Cache[FollowageResult]
-	request func(context.Context, outgressrpc.FollowageRequest) (outgressrpc.FollowageReply, error)
+	rpc *cachedRPC[outgressrpc.FollowageRequest, outgressrpc.FollowageReply, FollowageResult]
 }
 
 func NewFollowageRPC(nc *nats.Conn, prefix string) *FollowageRPC {
-	subject := strings.TrimSuffix(prefix, ".") + ".followage.get"
-	return &FollowageRPC{
-		cache: cache.New[FollowageResult](followageCacheCapacity, followageNegativeTTL),
-		request: func(ctx context.Context, req outgressrpc.FollowageRequest) (outgressrpc.FollowageReply, error) {
-			return bus.RequestJSONTimeout[outgressrpc.FollowageReply](ctx, nc, subject, req, followageRPCTimeout)
-		},
+	return &FollowageRPC{rpc: newBusRPC[outgressrpc.FollowageRequest](nc, rpcEndpoint{
+		subject:  rpcSubject(prefix, "followage"),
+		timeout:  followageRPCTimeout,
+		capacity: followageCacheCapacity,
+		missTTL:  followageNegativeTTL,
+	}, decodeFollowage)}
+}
+
+func decodeFollowage(reply outgressrpc.FollowageReply) (FollowageResult, time.Duration, string) {
+	result := FollowageResult{
+		TargetID: reply.TargetID, UserFound: reply.UserFound,
+		Following: reply.Following, FollowedAt: reply.FollowedAt,
 	}
+	return result, ttlWhen(result.Following, followagePositiveTTL, followageNegativeTTL), reply.Error
 }
 
 func (f *FollowageRPC) Lookup(ctx context.Context, query FollowageQuery) (FollowageResult, error) {
-	keyTarget := query.TargetID
-	if keyTarget == "" {
-		keyTarget = "login:" + strings.ToLower(strings.TrimPrefix(query.TargetLogin, "@"))
-	}
-	return f.cache.GetOrLoadTTL(ctx, query.BroadcasterID+":"+keyTarget, func(ctx context.Context) (FollowageResult, time.Duration, error) {
-		reply, err := f.request(ctx, outgressrpc.FollowageRequest{
-			BroadcasterID: query.BroadcasterID, TargetID: query.TargetID, TargetLogin: query.TargetLogin, Trial: query.Trial,
-		})
-		if err != nil {
-			return FollowageResult{}, 0, err
-		}
-		if reply.Error != "" {
-			return FollowageResult{}, 0, errors.New(reply.Error)
-		}
-		result := FollowageResult{
-			TargetID: reply.TargetID, UserFound: reply.UserFound,
-			Following: reply.Following, FollowedAt: reply.FollowedAt,
-		}
-		ttl := followageNegativeTTL
-		if result.Following {
-			ttl = followagePositiveTTL
-		}
-		return result, ttl, nil
+	key := query.BroadcasterID + ":" + targetCacheKey(query.TargetID, query.TargetLogin)
+	return f.rpc.lookup(ctx, key, outgressrpc.FollowageRequest{
+		BroadcasterID: query.BroadcasterID, TargetID: query.TargetID, TargetLogin: query.TargetLogin, Trial: query.Trial,
 	})
 }

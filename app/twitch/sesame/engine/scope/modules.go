@@ -120,8 +120,7 @@ func quoteNumberOf(v Var) (uint64, bool) {
 }
 
 type moduleValues struct {
-	draws       []string
-	drawn       int
+	draws       drawCursor
 	numbered    map[uint64]string
 	clock       string
 	clockDone   bool
@@ -133,8 +132,8 @@ type moduleValues struct {
 }
 
 func (o *moduleValues) planDraws(ctx context.Context, quotes Quotes, want int) {
-	for len(o.draws) < min(want, MaxQuoteDraws) {
-		o.draws = append(o.draws, quotes.Random(ctx))
+	for len(o.draws.items) < min(want, MaxQuoteDraws) {
+		o.draws.items = append(o.draws.items, quotes.Random(ctx))
 	}
 }
 
@@ -212,12 +211,7 @@ func (o *moduleValues) quote(tok Var) (string, bool) {
 		value, planned := o.numbered[number]
 		return value, planned
 	}
-	if len(o.draws) == 0 {
-		return "", false
-	}
-	value := o.draws[min(o.drawn, len(o.draws)-1)]
-	o.drawn++
-	return value, true
+	return o.draws.next()
 }
 
 func (o *moduleValues) song(name string) string {

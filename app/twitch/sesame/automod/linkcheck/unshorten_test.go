@@ -30,7 +30,7 @@ func redirectServer(t *testing.T, location string) *httptest.Server {
 	return s
 }
 
-func tok(url string) string { return trimLinkToken(url) }
+func tok(url string) string { return TrimLinkToken(url) }
 
 type dnsMap map[string]string
 

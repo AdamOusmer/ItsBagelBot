@@ -55,7 +55,7 @@ func bindingsOf(c *module.Context) []goveeConfig {
 
 func Govee(d engine.Deps) module.Module {
 	m := module.NewModule(goveeModuleName, module.KindOptIn)
-	m.On(redemptionAddType, goveeRedemption(d))
+	m.On(engine.RedemptionAddType, goveeRedemption(d))
 	return m.Build()
 }
 
@@ -81,7 +81,7 @@ func goveeRedemption(d engine.Deps) module.EventHandler {
 type goveeRun struct {
 	d      engine.Deps
 	emit   module.Emit
-	ev     redemptionEvent
+	ev     engine.RedemptionEvent
 	cfg    goveeConfig
 	locale string
 }
@@ -97,7 +97,7 @@ func (r goveeRun) apply(ctx context.Context) {
 		return
 	}
 	r.chat(renderGoveeReply(r.locale, r.cfg.ReplyMessage, r.ev, label))
-	emitRedemptionStatus(r.emit, r.ev, goveeSuccessStatus(r.cfg.OnRedeem))
+	emitRedemptionStatus(r.emit, r.ev, defaultFulfillStatus(r.cfg.OnRedeem))
 }
 
 func (r goveeRun) control(ctx context.Context, req gossiprpc.Request) error {
@@ -131,7 +131,7 @@ func isOffInput(input string) bool {
 
 const defaultGoveeReply = "@{govee:user} set the lights to {govee:color}!"
 
-func renderGoveeReply(locale, text string, ev redemptionEvent, color string) string {
+func renderGoveeReply(locale, text string, ev engine.RedemptionEvent, color string) string {
 	if strings.TrimSpace(text) == "" {
 		text = defaultGoveeReply
 	}
@@ -143,12 +143,12 @@ func renderGoveeReply(locale, text string, ev redemptionEvent, color string) str
 	).WithLocale(module.Locale(locale)).WithNamespace("govee").ExpandString(text)
 }
 
-func decodeGoveeRedemption(c *module.Context) (goveeConfig, redemptionEvent, bool) {
+func decodeGoveeRedemption(c *module.Context) (goveeConfig, engine.RedemptionEvent, bool) {
 	bindings := bindingsOf(c)
 	if len(bindings) == 0 || len(c.Env.Event) == 0 {
-		return goveeConfig{}, redemptionEvent{}, false
+		return goveeConfig{}, engine.RedemptionEvent{}, false
 	}
-	var ev redemptionEvent
+	var ev engine.RedemptionEvent
 	if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 		return goveeConfig{}, ev, false
 	}
@@ -215,7 +215,7 @@ func (r goveeRun) chat(text string) {
 	})
 }
 
-func goveeSuccessStatus(onRedeem string) string {
+func defaultFulfillStatus(onRedeem string) string {
 	switch onRedeem {
 	case onRedeemCancel:
 		return outgress.RedemptionCanceled
@@ -224,17 +224,4 @@ func goveeSuccessStatus(onRedeem string) string {
 	default:
 		return outgress.RedemptionFulfilled
 	}
-}
-
-func emitRedemptionStatus(emit module.Emit, ev redemptionEvent, status string) {
-	if status == "" {
-		return
-	}
-	emit(&module.Output{
-		Type:          outgress.TypeRedemptionUpdate,
-		BroadcasterID: ev.BroadcasterUserID,
-		RewardID:      ev.Reward.ID,
-		RedemptionID:  ev.ID,
-		Status:        status,
-	})
 }

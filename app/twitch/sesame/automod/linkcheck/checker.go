@@ -127,7 +127,7 @@ func (c *Checker) Evaluate(text string, channel uint64, sender string) bool {
 	var seen map[string]struct{}
 
 	iterLinkTokens(text, func(token string) {
-		host := strings.ToLower(hostOf(token))
+		host := strings.ToLower(HostOf(token))
 		if !validHost(host) {
 			return
 		}

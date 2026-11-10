@@ -4,7 +4,6 @@
 package e2e
 
 import (
-	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -127,7 +126,7 @@ func TestCooldownAddOnAGiftSubScalesWithTheGiftCount(t *testing.T) {
 
 	r.gift(t, dispatchAt{replica: 1, eventID: r.nextEvent("gift"), viewer: carol}, 5)
 	added := r.awaitAutomationRun(t, addAutomationID, 1)
-	require.Equal(t, automationrpc.OutcomeOK, added.Outcome, statusesOf(added))
+	require.Equal(t, automationrpc.OutcomeOK, added.Outcome, stepStatuses(added))
 	assert.Equal(t, "150s", added.Actions[0].Detail, "5 gifts at 30s each")
 
 	after := r.storedWindows(t)
@@ -137,24 +136,7 @@ func TestCooldownAddOnAGiftSubScalesWithTheGiftCount(t *testing.T) {
 
 func (r *cooldownRig) awaitAutomationRun(t *testing.T, automationID string, atLeast int) automationrpc.RunRecord {
 	t.Helper()
-	var latest automationrpc.RunRecord
-	require.Eventually(t, func() bool {
-		runs, err := r.runs.Recent(context.Background(), r.channel, automationID, automation.RunsKept)
-		if err != nil || len(runs) < atLeast {
-			return false
-		}
-		latest = runs[0]
-		return true
-	}, settle, 20*time.Millisecond)
-	return latest
-}
-
-func statusesOf(rec automationrpc.RunRecord) []string {
-	out := make([]string, len(rec.Actions))
-	for i, a := range rec.Actions {
-		out[i] = a.Type + ":" + a.Status + ":" + a.Detail
-	}
-	return out
+	return r.awaitRun(t, r.channel, automationID, func(runs []automationrpc.RunRecord) bool { return len(runs) >= atLeast })
 }
 
 func TestNamedCooldownExtendedPastADayStillShowsTheRightTimeLeft(t *testing.T) {
@@ -174,7 +156,7 @@ func TestNamedCooldownExtendedPastADayStillShowsTheRightTimeLeft(t *testing.T) {
 
 	r.subscribe(t, dispatchAt{replica: 1, eventID: r.nextEvent("sub"), viewer: carol}, false)
 	added := r.awaitAutomationRun(t, addAutomationID, 1)
-	require.Equal(t, automationrpc.OutcomeOK, added.Outcome, statusesOf(added))
+	require.Equal(t, automationrpc.OutcomeOK, added.Outcome, stepStatuses(added))
 	require.Equal(t, "82800s", added.Actions[0].Detail)
 
 	after := r.storedWindows(t)
@@ -223,7 +205,7 @@ func TestCooldownAddRedeliveryAcrossReplicasAddsOnlyOnce(t *testing.T) {
 	redelivered := r.nextEvent("redelivered-sub")
 	r.subscribe(t, dispatchAt{eventID: redelivered, viewer: bob}, false)
 	first := r.awaitAutomationRun(t, addAutomationID, 1)
-	require.Equal(t, automationrpc.OutcomeOK, first.Outcome, statusesOf(first))
+	require.Equal(t, automationrpc.OutcomeOK, first.Outcome, stepStatuses(first))
 
 	r.subscribe(t, dispatchAt{replica: 1, eventID: redelivered, viewer: bob}, false)
 	second := r.awaitAutomationRun(t, addAutomationID, 2)

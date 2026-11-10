@@ -139,7 +139,7 @@ func hostFromURLLine(line string) string {
 	if k := strings.Index(line, "://"); k >= 0 {
 		line = line[k+3:]
 	}
-	return strings.ToLower(strings.TrimSuffix(hostOf(line), "."))
+	return strings.ToLower(strings.TrimSuffix(HostOf(line), "."))
 }
 
 func hostFromHostsLine(line string) string {

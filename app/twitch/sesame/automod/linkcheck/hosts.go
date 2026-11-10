@@ -11,18 +11,18 @@ import (
 
 func iterLinkTokens(text string, fn func(token string)) {
 	for i := 0; i < len(text); {
-		start, end := nextToken(text, i)
+		start, end := NextToken(text, i)
 		if start == end {
 			return
 		}
-		if tok := trimLinkToken(text[start:end]); tok != "" && strings.Contains(tok, ".") {
+		if tok := TrimLinkToken(text[start:end]); tok != "" && strings.Contains(tok, ".") {
 			fn(tok)
 		}
 		i = end
 	}
 }
 
-func nextToken(text string, i int) (start, end int) {
+func NextToken(text string, i int) (start, end int) {
 	for i < len(text) && isSpaceByte(text[i]) {
 		i++
 	}
@@ -41,9 +41,9 @@ func isSpaceByte(b byte) bool {
 	return false
 }
 
-func trimLinkToken(tok string) string {
+func TrimLinkToken(tok string) string {
 	tok = stripScheme(tok)
-	if len(tok) >= 4 && equalFoldASCII(tok[:4], "www.") {
+	if len(tok) >= 4 && EqualFoldASCII(tok[:4], "www.") {
 		tok = tok[4:]
 	}
 	return stripTrailingPunct(tok)
@@ -51,9 +51,9 @@ func trimLinkToken(tok string) string {
 
 func stripScheme(tok string) string {
 	switch {
-	case len(tok) >= 8 && equalFoldASCII(tok[:8], "https://"):
+	case len(tok) >= 8 && EqualFoldASCII(tok[:8], "https://"):
 		return tok[8:]
-	case len(tok) >= 7 && equalFoldASCII(tok[:7], "http://"):
+	case len(tok) >= 7 && EqualFoldASCII(tok[:7], "http://"):
 		return tok[7:]
 	}
 	return tok
@@ -71,7 +71,7 @@ func stripTrailingPunct(tok string) string {
 	return tok
 }
 
-func equalFoldASCII(a, b string) bool {
+func EqualFoldASCII(a, b string) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -90,7 +90,7 @@ func equalFoldASCII(a, b string) bool {
 	return true
 }
 
-func hostOf(token string) string {
+func HostOf(token string) string {
 	host := token
 	if k := strings.IndexAny(host, "/?#"); k >= 0 {
 		host = host[:k]

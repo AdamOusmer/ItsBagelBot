@@ -22,7 +22,7 @@ const (
 
 func redemptionTestModule() module.Module {
 	m := module.NewModule("", module.KindCore)
-	m.On(redemptionAddType, func(_ context.Context, c *module.Context, emit module.Emit) error {
+	m.On(RedemptionAddType, func(_ context.Context, c *module.Context, emit module.Emit) error {
 		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: "handled"})
 		return nil
 	})
@@ -63,7 +63,7 @@ func TestAutoRefundCancelsSpecialRedemptionsOnTheConfiguredChannel(t *testing.T)
 				OutgressPremium: premiumSubj, OutgressStandard: standardSubj, AutoRefundChannel: tc.channel,
 			})
 			redemption := envelopeMsg(t, "u", map[string]any{
-				"type": redemptionAddType, "broadcaster_user_id": tc.broadcast,
+				"type": RedemptionAddType, "broadcaster_user_id": tc.broadcast,
 				"event": map[string]any{
 					"id": "redeem-1", "broadcaster_user_id": tc.broadcast, "broadcaster_user_login": tc.login,
 					"user_id": tc.redeemer, "reward": map[string]any{"id": "reward-1"},

@@ -20,7 +20,7 @@ import (
 
 func songRedeemCtx(config, input string) *module.Context {
 	payload := fmt.Sprintf(`{"id":"redeem-1","broadcaster_user_id":"100","user_id":"42","user_name":"Alice","user_login":"alice","user_input":%q,"reward":{"id":"rw-sr","title":"Song request","cost":500}}`, input)
-	c := eventCtx(eventInput{redemptionAddType, payload, config})
+	c := eventCtx(eventInput{engine.RedemptionAddType, payload, config})
 	c.BroadcasterID = 100
 	return c
 }

@@ -38,15 +38,15 @@ func songqueueRedemption(d engine.Deps, log *zap.Logger, warn *cache.Keyed[strin
 	}
 }
 
-func decodeSongqueueRedemption(d engine.Deps, c *module.Context, log *zap.Logger, warn *cache.Keyed[string, bool]) (songQueueCmd, songqueueRedeem, redemptionEvent, bool) {
+func decodeSongqueueRedemption(d engine.Deps, c *module.Context, log *zap.Logger, warn *cache.Keyed[string, bool]) (songQueueCmd, songqueueRedeem, engine.RedemptionEvent, bool) {
 	var none songQueueCmd
 	qc, ok := newSongQueueCmd(d, c, log, warn)
 	if !ok {
-		return none, songqueueRedeem{}, redemptionEvent{}, false
+		return none, songqueueRedeem{}, engine.RedemptionEvent{}, false
 	}
 	cfg, bound := qc.redeemBinding()
 	if !bound {
-		return none, songqueueRedeem{}, redemptionEvent{}, false
+		return none, songqueueRedeem{}, engine.RedemptionEvent{}, false
 	}
 	ev, read := redemptionOf(c)
 	if !read {
@@ -68,11 +68,11 @@ func (qc songQueueCmd) redeemBinding() (songqueueRedeem, bool) {
 	return *qc.cfg.Redeem, true
 }
 
-func redemptionOf(c *module.Context) (redemptionEvent, bool) {
+func redemptionOf(c *module.Context) (engine.RedemptionEvent, bool) {
 	if len(c.Env.Event) == 0 {
-		return redemptionEvent{}, false
+		return engine.RedemptionEvent{}, false
 	}
-	var ev redemptionEvent
+	var ev engine.RedemptionEvent
 	if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 		return ev, false
 	}
@@ -82,7 +82,7 @@ func redemptionOf(c *module.Context) (redemptionEvent, bool) {
 type songqueueRedeemRun struct {
 	qc   songQueueCmd
 	cfg  songqueueRedeem
-	ev   redemptionEvent
+	ev   engine.RedemptionEvent
 	emit module.Emit
 }
 
@@ -129,7 +129,7 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		track:  track.Name,
 		pos:    pos,
 	}))
-	emitRedemptionStatus(r.emit, r.ev, goveeSuccessStatus(r.cfg.OnRedeem))
+	emitRedemptionStatus(r.emit, r.ev, defaultFulfillStatus(r.cfg.OnRedeem))
 	return nil
 }
 
@@ -160,7 +160,7 @@ const defaultSongqueueRedeemReply = "@{songqueue:user} queued {songqueue:track},
 type songqueueRedeemReplyParams struct {
 	locale string
 	text   string
-	event  redemptionEvent
+	event  engine.RedemptionEvent
 	track  string
 	pos    int
 }

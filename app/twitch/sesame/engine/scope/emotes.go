@@ -5,7 +5,6 @@ package scope
 
 import (
 	"context"
-	"math/rand/v2"
 	"strings"
 )
 
@@ -67,7 +66,7 @@ func emoteFamily(tok Var) (string, bool) {
 
 func (e Emotes) Plan(_ context.Context, wants []Var) (Values, error) {
 	sets := e.snapshot()
-	vals := &emoteValues{draws: e.drawCodes(sets)}
+	vals := &emoteValues{draws: drawCursor{items: e.drawCodes(sets)}}
 	for _, want := range wants {
 		if family, ok := emoteFamily(want); ok {
 			vals.fill(family, sets)
@@ -94,7 +93,7 @@ func (e Emotes) drawCodes(sets EmoteSets) []string {
 	wanted := min(e.Draws, MaxEmoteDraws)
 	draws := make([]string, 0, wanted)
 	for i := 0; i < wanted; i++ {
-		draws = append(draws, sets.at(e.pick(total)))
+		draws = append(draws, sets.at(pickIndex(e.Pick, total)))
 	}
 	return draws
 }
@@ -111,19 +110,11 @@ func (sets EmoteSets) at(i int) string {
 	return sets.FFZ[i-len(sets.BTTV)]
 }
 
-func (e Emotes) pick(n int) int {
-	if e.Pick != nil {
-		return e.Pick(n)
-	}
-	return rand.IntN(n)
-}
-
 type emoteValues struct {
 	sevenTV string
 	bttv    string
 	ffz     string
-	draws   []string
-	drawn   int
+	draws   drawCursor
 }
 
 func (v *emoteValues) fill(name string, sets EmoteSets) {
@@ -142,7 +133,8 @@ func (v *emoteValues) Get(tok Var) (string, bool) {
 		return v.list(family), true
 	}
 	if tok.Name == RandomEmoteToken && !tok.HasPayload {
-		return v.nextDraw(), true
+		code, _ := v.draws.next()
+		return code, true
 	}
 	return "", false
 }
@@ -157,15 +149,6 @@ func (v *emoteValues) list(family string) string {
 		return v.ffz
 	}
 	return ""
-}
-
-func (v *emoteValues) nextDraw() string {
-	if len(v.draws) == 0 {
-		return ""
-	}
-	code := v.draws[min(v.drawn, len(v.draws)-1)]
-	v.drawn++
-	return code
 }
 
 func joinEmoteLine(codes []string) string {

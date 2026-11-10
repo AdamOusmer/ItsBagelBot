@@ -112,7 +112,7 @@ func TestRecipesDownstreamOwnsTheBuckets(t *testing.T) {
 		light := step{"type": "lights", "params": step{"device": "AA:BB", "sku": "H6008", "color": "#f5a524"}}
 		s.source.set(lights, recipeWith(t, lights, "!lights", loopStep(lightsLoopTimes, light)))
 		s.command(t, chatCommand{Broadcaster: lights, Viewer: "alice", Text: "!lights"})
-		rec := s.awaitLatestRun(t, lights)
+		rec := s.awaitRun(t, lights, "", func(runs []automationrpc.RunRecord) bool { return len(runs) > 0 })
 		statuses := stepStatuses(rec)
 		t.Logf("lights outcome=%s steps=%v", rec.Outcome, statuses)
 		sent := countOf(statuses, "lights:ok")
@@ -142,20 +142,6 @@ func TestRecipesDownstreamOwnsTheBuckets(t *testing.T) {
 		assert.Len(t, runs, automation.RunsKept)
 		assert.Less(t, longest, 2*time.Second)
 	})
-}
-
-func (s *stack) awaitLatestRun(t *testing.T, broadcaster uint64) automationrpc.RunRecord {
-	t.Helper()
-	var rec automationrpc.RunRecord
-	require.Eventually(t, func() bool {
-		runs, err := s.runs.Recent(context.Background(), broadcaster, "", 1)
-		if err != nil || len(runs) == 0 {
-			return false
-		}
-		rec = runs[0]
-		return true
-	}, settle, 20*time.Millisecond)
-	return rec
 }
 
 func countOf(values []string, want string) int {

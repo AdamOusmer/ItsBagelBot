@@ -90,7 +90,7 @@ func TestGoveeRedemptions(t *testing.T) {
 			config: `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"},{"rewardId":"rw-2","device":"BB:BB:BB","sku":"H2"}]}`,
 			kinds:  []string{chat, fulfilled}, call: &gossiprpc.Request{ChannelID: "2", Device: "BB:BB:BB", SKU: "H2", ColorRGB: 0xFF0000}},
 		{name: "a multi binding config ignores an unbound reward", live: liveOnline, payload: goveePayload("other", "red"),
-			config: `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"}]}`},	}
+			config: `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"}]}`}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			gw := goveeGossip(tc.gossip)
@@ -98,7 +98,7 @@ func TestGoveeRedemptions(t *testing.T) {
 			if payload == "" {
 				payload = goveePayload("rw-1", "blue")
 			}
-			out := runGovee(t, engine.Deps{Live: tc.live.store(), Gossip: gw}, eventCtx(eventInput{redemptionAddType, payload, tc.config}))
+			out := runGovee(t, engine.Deps{Live: tc.live.store(), Gossip: gw}, eventCtx(eventInput{engine.RedemptionAddType, payload, tc.config}))
 			assert.Equal(t, tc.kinds, outputKinds(out))
 			if tc.chat != "" {
 				require.NotEmpty(t, out)
@@ -122,7 +122,7 @@ func TestGoveeGroupSendsAllItsLightsInOneCall(t *testing.T) {
 	gw := goveeGossip(nil)
 	config := `{"bindings":[{"rewardId":"rw-1","device":"CC:CC:CC","sku":"H3"}],"groups":[{"rewardId":"rw-g","allowOff":true,"lights":` + lights + `}]}`
 
-	out := runGovee(t, engine.Deps{Live: liveOnline.store(), Gossip: gw}, eventCtx(eventInput{redemptionAddType, goveePayload("rw-g", "off"), config}))
+	out := runGovee(t, engine.Deps{Live: liveOnline.store(), Gossip: gw}, eventCtx(eventInput{engine.RedemptionAddType, goveePayload("rw-g", "off"), config}))
 
 	assert.Equal(t, []string{"chat", "update:" + outgress.RedemptionFulfilled}, outputKinds(out))
 	require.Len(t, gw.calls, 1)
@@ -133,7 +133,7 @@ func TestGoveeGroupWithNoLightsDrivesNothing(t *testing.T) {
 	gw := goveeGossip(nil)
 	config := `{"groups":[{"rewardId":"rw-g","lights":[]}]}`
 
-	out := runGovee(t, engine.Deps{Live: liveOnline.store(), Gossip: gw}, eventCtx(eventInput{redemptionAddType, goveePayload("rw-g", "red"), config}))
+	out := runGovee(t, engine.Deps{Live: liveOnline.store(), Gossip: gw}, eventCtx(eventInput{engine.RedemptionAddType, goveePayload("rw-g", "red"), config}))
 
 	assert.Empty(t, out)
 	assert.Empty(t, gw.calls)
@@ -152,7 +152,7 @@ func TestGoveeReplyTemplates(t *testing.T) {
 		t.Run(tc.template, func(t *testing.T) {
 			cfg := fmt.Sprintf(`{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","replyMessage":%q}`, tc.template)
 			d := engine.Deps{Live: &fakeLive{live: true}, Gossip: goveeGossip(nil)}
-			out := runGovee(t, d, eventCtx(eventInput{redemptionAddType, goveePayload("rw-1", "blue"), cfg}))
+			out := runGovee(t, d, eventCtx(eventInput{engine.RedemptionAddType, goveePayload("rw-1", "blue"), cfg}))
 			require.NotEmpty(t, out)
 			assert.Equal(t, tc.want, out[0].Text)
 		})
@@ -188,7 +188,7 @@ func TestGoveeColourInput(t *testing.T) {
 		t.Run(fmt.Sprintf("%q", tc.input), func(t *testing.T) {
 			gw := goveeGossip(nil)
 			d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-			out := runGovee(t, d, eventCtx(eventInput{redemptionAddType, goveePayload("rw-1", tc.input), goveeCfg}))
+			out := runGovee(t, d, eventCtx(eventInput{engine.RedemptionAddType, goveePayload("rw-1", tc.input), goveeCfg}))
 			if !tc.ok {
 				assertRefund(t, out)
 				assert.Empty(t, gw.calls, "a bad colour must refund before gossip")

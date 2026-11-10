@@ -95,12 +95,10 @@ func clashRoute(endpoint string) engine.GossipRoute {
 	return engine.GossipRoute{Provider: "clashroyale", Endpoint: endpoint}
 }
 
-func clashRankedSpecial(_ statsCall[clashroyaleConfig], r *gossiprpc.ClashRoyaleRankedReply) (string, bool) {
-	if !r.Unranked {
-		return "", false
-	}
-	return unrankedText(r.Player), true
-}
+var clashRankedSpecial = specialWhen[clashroyaleConfig](
+	func(r *gossiprpc.ClashRoyaleRankedReply) bool { return r.Unranked },
+	func(r *gossiprpc.ClashRoyaleRankedReply) string { return unrankedText(r.Player) },
+)
 
 func clashStatsTokens() module.TokenExpander[gossiprpc.ClashRoyaleStatsReply] {
 	type reply = gossiprpc.ClashRoyaleStatsReply
