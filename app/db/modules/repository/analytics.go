@@ -31,22 +31,7 @@ func (r *Modules) SetAnalytics(rec *analytics.Recorder) {
 // shifts the running totals once it lands. A default-on module with no row is absent,
 // so its enabled count is accounts minus its "off" rows.
 func (r *Modules) track(ctx context.Context, ids ...uint64) func() {
-	return trackShift(r.analytics, func() (analytics.Tally, error) { return r.moduleState(ctx, ids) })
-}
-
-func trackShift(rec *analytics.Recorder, state func() (analytics.Tally, error)) func() {
-	if rec == nil {
-		return func() {}
-	}
-	before, err := state()
-	if err != nil {
-		return func() {}
-	}
-	return func() {
-		if after, err := state(); err == nil {
-			rec.Shift(before, after)
-		}
-	}
+	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.moduleState(ctx, ids) })
 }
 
 func (r *Modules) moduleState(ctx context.Context, ids []uint64) (analytics.Tally, error) {
@@ -194,14 +179,14 @@ func changedUsers(items []data.ModuleChangedDTO) []uint64 {
 }
 
 func (g *GoveeCreds) track(ctx context.Context, userID uint64) func() {
-	return trackShift(g.analytics, func() (analytics.Tally, error) {
+	return analytics.Track(g.analytics, func() (analytics.Tally, error) {
 		n, err := db.WithQuery(ctx, g.client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(userID)).Count)
 		return linkTally("govee", n > 0), err
 	})
 }
 
 func (s *SpotifyCreds) track(ctx context.Context, userID uint64) func() {
-	return trackShift(s.analytics, func() (analytics.Tally, error) {
+	return analytics.Track(s.analytics, func() (analytics.Tally, error) {
 		n, err := db.WithQuery(ctx, s.client.SpotifyCredential.Query().
 			Where(spotifycredential.UserIDEQ(userID), spotifycredential.TokenEncNotNil()).Count)
 		return linkTally("spotify", n > 0), err

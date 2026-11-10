@@ -10,47 +10,32 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	dbgate "ItsBagelBot/pkg/db"
-
-	"github.com/go-sql-driver/mysql"
 )
 
-const (
-	staffTxAttempts  = 3
-	mysqlErrDeadlock = 1213
+var (
+	errStaffRaced   = errors.New("staff row created concurrently")
+	errStaffRefused = errors.New("staff change refused")
 )
-
-var errStaffRaced = errors.New("staff row created concurrently")
-
-func retryableStaffTx(err error) bool {
-	var me *mysql.MySQLError
-	return errors.Is(err, errStaffRaced) || (errors.As(err, &me) && me.Number == mysqlErrDeadlock)
-}
 
 func (g staffGate) inStaffTx(ctx context.Context, fn func(context.Context, *ent.Tx) (string, error)) (string, error) {
 	var errMsg string
-	var err error
-	for range staffTxAttempts {
-		errMsg, err = dbgate.WithQuery(ctx, func(ctx context.Context) (string, error) {
-			return runStaffTx(ctx, g.db, fn)
+	err := dbgate.RetryTx(ctx, func(ctx context.Context) error {
+		errMsg = ""
+		return dbgate.WithExec(ctx, func(ctx context.Context) error {
+			return dbgate.WithTx(ctx, g.db, func(tx *ent.Tx) error {
+				msg, err := fn(ctx, tx)
+				if err == nil && msg != "" {
+					errMsg = msg
+					return errStaffRefused
+				}
+				return err
+			})
 		})
-		if !retryableStaffTx(err) {
-			break
-		}
+	}, errStaffRaced)
+	if errors.Is(err, errStaffRefused) {
+		return errMsg, nil
 	}
 	return errMsg, err
-}
-
-func runStaffTx(ctx context.Context, db *ent.Client, fn func(context.Context, *ent.Tx) (string, error)) (string, error) {
-	tx, err := db.Tx(ctx)
-	if err != nil {
-		return "", err
-	}
-	errMsg, err := fn(ctx, tx)
-	if err != nil || errMsg != "" {
-		_ = tx.Rollback()
-		return errMsg, err
-	}
-	return "", tx.Commit()
 }
 
 // Ascending id order makes concurrent transactions queue instead of deadlock; SQLite has no row locks and serializes writers.

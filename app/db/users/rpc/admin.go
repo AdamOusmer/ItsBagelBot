@@ -128,7 +128,7 @@ func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
 var storeRules = []domainrpc.Rule{
 	domainrpc.Is(repository.ErrUserNotFound, domainrpc.CodeNotFound),
 	domainrpc.Is(repository.ErrNoContactEmail, domainrpc.CodeNotFound),
-	domainrpc.When(ent.IsNotFound, domainrpc.CodeNotFound),
+	entNotFound,
 }
 
 func refusal(err error) domainrpc.Refusal { return bus.Classify(err, storeRules...) }

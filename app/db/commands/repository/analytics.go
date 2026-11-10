@@ -23,26 +23,11 @@ func (r *Fetches) SetAnalytics(rec *analytics.Recorder) { r.analytics = rec }
 // track reads the channels' command shapes before a write and returns the step that
 // shifts the running totals once it lands. Only shape columns are read, never name or response.
 func (r *Commands) track(ctx context.Context, ids ...uint64) func() {
-	return trackShift(r.analytics, func() (analytics.Tally, error) { return r.commandState(ctx, ids) })
+	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.commandState(ctx, ids) })
 }
 
 func (r *Fetches) trackKeys(ctx context.Context, ids ...uint64) func() {
-	return trackShift(r.analytics, func() (analytics.Tally, error) { return r.keyState(ctx, ids) })
-}
-
-func trackShift(rec *analytics.Recorder, state func() (analytics.Tally, error)) func() {
-	if rec == nil {
-		return func() {}
-	}
-	before, err := state()
-	if err != nil {
-		return func() {}
-	}
-	return func() {
-		if after, err := state(); err == nil {
-			rec.Shift(before, after)
-		}
-	}
+	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.keyState(ctx, ids) })
 }
 
 func (r *Commands) commandState(ctx context.Context, ids []uint64) (analytics.Tally, error) {

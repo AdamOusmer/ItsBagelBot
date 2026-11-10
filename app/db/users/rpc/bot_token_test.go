@@ -4,18 +4,14 @@
 package rpc
 
 import (
+	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/repository"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
-	"ItsBagelBot/pkg/crypto"
-	"bytes"
 	"context"
 	"errors"
 	"github.com/stretchr/testify/require"
-	"github.com/tink-crypto/tink-go/v2/aead"
-	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
-	"github.com/tink-crypto/tink-go/v2/keyset"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -46,13 +42,7 @@ func botRequest() usersrpc.AdminRequest {
 func TestBotTokenSaveWithoutStaffAccount(t *testing.T) {
 	a, client := setupAdminRPCTest(t)
 	ctx := context.Background()
-	handle, err := keyset.NewHandle(aead.AES256GCMKeyTemplate())
-	require.NoError(t, err)
-	buf := new(bytes.Buffer)
-	require.NoError(t, insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(buf)))
-	packer, err := crypto.NewCrypto(buf.Bytes())
-	require.NoError(t, err)
-	a.repo = repository.NewUsers(client, packer, nil, nil, zap.NewNop())
+	a.repo = repository.NewUsers(client, dbtest.NewPacker(t), nil, nil, zap.NewNop())
 	t.Cleanup(func() { a.repo.Close(ctx) })
 	a.gate = staffGate{db: client}
 	a.botUserID = testBotID

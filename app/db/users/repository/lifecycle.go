@@ -4,6 +4,7 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/pkg/db"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -133,7 +134,7 @@ func (m lifecycleMutation) noticeEligible() bool {
 	return m.state.DesiredEnabled
 }
 func (r *Users) lifecycleAttempt(ctx context.Context, req usersrpc.LifecycleRequest) (usersrpc.LifecycleReply, bool, error) {
-	row, err := r.client.User.Get(ctx, req.UserID)
+	row, err := db.WithRead(ctx, func(ctx context.Context) (*ent.User, error) { return r.client.User.Get(ctx, req.UserID) })
 	if err != nil {
 		return usersrpc.LifecycleReply{}, false, err
 	}

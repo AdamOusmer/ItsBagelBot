@@ -80,6 +80,14 @@ func parseIDs(req loyaltyrpc.Request, allowBotNS bool) (userID, viewerID uint64,
 	return uid, viewerID, true, loyaltyrpc.Reply{}
 }
 
+func requireViewer(req loyaltyrpc.Request) (userID, viewerID uint64, ok bool, reply loyaltyrpc.Reply) {
+	userID, viewerID, ok, reply = parseIDs(req, false)
+	if ok && viewerID == 0 {
+		return 0, 0, false, refuse(domainrpc.CodeInvalid, "invalid viewer_id")
+	}
+	return userID, viewerID, ok, reply
+}
+
 func (l *loyaltyRPC) fail(op string, err error) loyaltyrpc.Reply {
 	if errors.Is(err, repository.ErrInvalidInput) {
 		return refuse(domainrpc.CodeInvalid, err.Error())
@@ -100,12 +108,9 @@ func balanceView(row *ent.Balance) *loyaltyrpc.Balance {
 }
 
 func (l *loyaltyRPC) handleBalanceGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, viewerID, ok, reply := parseIDs(req, false)
+	userID, viewerID, ok, reply := requireViewer(req)
 	if !ok {
 		return reply
-	}
-	if viewerID == 0 {
-		return refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 	}
 	row, found, err := l.repo.BalanceGet(ctx, userID, viewerID)
 	if err != nil {
@@ -126,9 +131,9 @@ func (l *loyaltyRPC) handleBalanceAdd(ctx context.Context, req loyaltyrpc.Reques
 }
 
 func (l *loyaltyRPC) handleBalanceReset(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, err := bus.UserID(req.UserID)
-	if err != nil || userID == 0 {
-		return refuse(domainrpc.CodeInvalid, bus.ErrInvalidUserID.Error())
+	userID, _, ok, reply := parseIDs(req, false)
+	if !ok {
+		return reply
 	}
 	return l.resetBalances(ctx, userID)
 }
@@ -193,12 +198,9 @@ func transferTargetID(id string) (uint64, error) {
 }
 
 func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, viewerID, ok, reply := parseIDs(req, false)
+	userID, viewerID, ok, reply := requireViewer(req)
 	if !ok {
 		return reply
-	}
-	if viewerID == 0 {
-		return refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 	}
 	targetID, err := transferTargetID(req.TargetViewerID)
 	if err != nil {

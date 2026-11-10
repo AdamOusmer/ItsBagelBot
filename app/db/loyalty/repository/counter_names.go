@@ -8,10 +8,11 @@ import (
 	"strings"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/tmpl"
 )
 
 func ValidCounterName(name string) (string, error) {
-	n := normalizeName(name)
+	n := tmpl.NormalizeName(name)
 	if n == "" || len(n) > maxCounterName {
 		return "", fmt.Errorf("%w: counter name", ErrInvalidInput)
 	}
