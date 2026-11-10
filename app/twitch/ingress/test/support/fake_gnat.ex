@@ -15,12 +15,16 @@ defmodule Ingress.FakeGnat do
      %{
        test: Keyword.get(opts, :test),
        mode: Keyword.get(opts, :mode, :reply),
+       server_name: Keyword.get(opts, :server_name),
        sid: 0
      }}
   end
 
   @impl true
   def handle_call(:stop, _from, state), do: {:stop, :normal, :ok, state}
+
+  def handle_call(:server_info, _from, state),
+    do: {:reply, %{server_name: state.server_name}, state}
 
   def handle_call({:sub, _receiver, _topic, _opts}, _from, state) do
     {:reply, {:ok, state.sid + 1}, %{state | sid: state.sid + 1}}
