@@ -119,3 +119,12 @@ func TestStatusCachesAbsentAccountAsStandard(t *testing.T) {
 	}
 	require.EqualValues(t, 1, served.Load())
 }
+
+func TestStatusTierIgnoresStatusCase(t *testing.T) {
+	s, _ := statusTestRPC(t, `{"user_id":"7","status":"Premium","is_active":true}`)
+
+	reply := s.handleGet(context.Background(), projectorrpc.StatusRequest{BroadcasterID: "7"})
+
+	require.Empty(t, reply.Error)
+	require.Equal(t, "premium", reply.Tier)
+}

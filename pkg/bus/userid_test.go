@@ -39,6 +39,30 @@ func TestUserIDRefusals(t *testing.T) {
 	}
 }
 
+func TestNonZeroUserID(t *testing.T) {
+	for _, tc := range []struct {
+		name, raw string
+		want      uint64
+		wantErr   string
+	}{
+		{"empty", "", 0, "bad request"},
+		{"zero", "0", 0, "invalid user_id"},
+		{"not numeric", "abc", 0, "invalid user_id"},
+		{"parsed", "42", 42, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id, err := NonZeroUserID(tc.raw)
+
+			assert.Equal(t, tc.want, id)
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tc.wantErr)
+		})
+	}
+}
+
 func TestForUserGuard(t *testing.T) {
 	handle := ForUser[idReq, idRep](func(_ context.Context, _ idReq, id uint64) (idRep, error) {
 		if id == 7 {

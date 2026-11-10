@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"ItsBagelBot/internal/channelruntime"
@@ -62,7 +61,7 @@ func (l *liveRPC) handleGet(ctx context.Context, req projectorrpc.LiveRequest) p
 	if req.BroadcasterID == "" {
 		return projectorrpc.LiveReply{Error: "bad request"}
 	}
-	id, err := strconv.ParseUint(req.BroadcasterID, 10, 64)
+	id, err := bus.UserID(req.BroadcasterID)
 	if err != nil {
 		return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Error: "bad request"}
 	}
@@ -107,7 +106,7 @@ func (l *liveRPC) claimEscalation(ctx context.Context, broadcasterID string) (ch
 	if l.runtime == nil {
 		return channelruntime.Snapshot{}, true
 	}
-	id, err := strconv.ParseUint(broadcasterID, 10, 64)
+	id, err := bus.UserID(broadcasterID)
 	if err != nil {
 		return channelruntime.Snapshot{}, false
 	}

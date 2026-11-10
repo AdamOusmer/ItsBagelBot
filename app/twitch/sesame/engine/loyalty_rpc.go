@@ -11,7 +11,6 @@ import (
 
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 )
@@ -34,25 +33,7 @@ type loyaltyVerb string
 func (l *LoyaltyRPC) call(ctx context.Context, verb loyaltyVerb, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
 	subject := string(l.prefix) + "." + string(verb)
 
-	ctx, cancel := context.WithTimeout(ctx, loyaltyRPCTimeout)
-	defer cancel()
-
-	body, err := codec.Marshal(req)
-	if err != nil {
-		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s marshal request: %w", subject, err)
-	}
-	msg, err := bus.RequestWithContext(ctx, l.nc, subject, body)
-	if err != nil {
-		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s request: %w", subject, err)
-	}
-	var reply loyaltyrpc.Reply
-	if err := codec.Unmarshal(msg.Data, &reply); err != nil {
-		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
-	}
-	if reply.Error != "" {
-		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s: %s", subject, reply.Error)
-	}
-	return reply, nil
+	return bus.RequestJSONTimeout[loyaltyrpc.Reply](ctx, l.nc, subject, req, loyaltyRPCTimeout)
 }
 
 func fmtID(id uint64) string { return strconv.FormatUint(id, 10) }
