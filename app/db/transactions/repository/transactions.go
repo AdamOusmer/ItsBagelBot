@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/tebexwebhookevents"
+	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -124,11 +125,5 @@ func webhookStatus(status WebhookStatus) (tebexwebhookevents.Status, error) {
 }
 
 func truncateWebhookError(msg string) string {
-
-	msg = strings.TrimSpace(msg)
-	if len(msg) <= 500 {
-		return msg
-	}
-
-	return msg[:500]
+	return utils.TruncateRunes(strings.TrimSpace(msg), 500)
 }

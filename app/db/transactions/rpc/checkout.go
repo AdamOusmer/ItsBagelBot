@@ -6,27 +6,25 @@ package rpc
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
-	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
+	"ItsBagelBot/app/db/transactions/repository"
 	"ItsBagelBot/app/db/transactions/tebex"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	transactionsrpc "ItsBagelBot/internal/domain/rpc/transactions"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
 )
 
@@ -144,60 +142,14 @@ type entAwardReader struct{ db *ent.Client }
 
 type entCheckoutLease struct{ db *ent.Client }
 
-const leaseReleaseTimeout = 2 * time.Second
+var errCheckoutInProgress = errors.New("user checkout already in progress")
 
 func (r entCheckoutLease) AcquireUserLease(ctx context.Context, userID uint64) (func(), error) {
 	if userID == 0 {
 		return nil, errors.New("invalid user id")
 	}
-	req := checkoutLeaseRequest{userID: userID, owner: uuid.NewString(), now: time.Now().UTC()}
-	tx, err := r.db.Tx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	row, findErr := checkoutLeaseRow(ctx, tx, userID)
-	if err = req.save(ctx, tx, row, findErr); err != nil {
-		_ = tx.Rollback()
-		return nil, err
-	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), leaseReleaseTimeout)
-		defer cancel()
-		now := time.Now().UTC()
-		_, _ = r.db.GiveawayUserLease.UpdateOneID("user:" + fmt.Sprint(userID)).Where(giveawayuserlease.OwnerEQ(req.owner)).SetLeaseUntil(now).SetUpdatedAt(now).Save(ctx)
-	}, nil
-}
-
-type checkoutLeaseRequest struct {
-	userID uint64
-	owner  string
-	now    time.Time
-}
-
-func checkoutLeaseRow(ctx context.Context, tx *ent.Tx, userID uint64) (*ent.GiveawayUserLease, error) {
-	row, err := tx.GiveawayUserLease.Query().Where(giveawayuserlease.UserIDEQ(userID)).ForUpdate().Only(ctx)
-	if db.RowLocksUnsupported(err) {
-		return tx.GiveawayUserLease.Query().Where(giveawayuserlease.UserIDEQ(userID)).Only(ctx)
-	}
-	return row, err
-}
-
-func (r checkoutLeaseRequest) save(ctx context.Context, tx *ent.Tx, row *ent.GiveawayUserLease, findErr error) error {
-	if findErr == nil {
-		if row.LeaseUntil.After(r.now) {
-			return errors.New("user checkout already in progress")
-		}
-		_, err := row.Update().SetOwner(r.owner).SetLeaseUntil(r.now.Add(30 * time.Second)).SetUpdatedAt(r.now).Save(ctx)
-		return err
-	}
-	if !ent.IsNotFound(findErr) {
-		return findErr
-	}
-	_, err := tx.GiveawayUserLease.Create().SetID("user:" + fmt.Sprint(r.userID)).SetUserID(r.userID).SetOwner(r.owner).SetLeaseUntil(r.now.Add(30 * time.Second)).SetUpdatedAt(r.now).Save(ctx)
-	return err
+	lease := repository.UserLease{TTL: 30 * time.Second, Busy: errCheckoutInProgress, Now: time.Now}
+	return lease.Acquire(ctx, r.db, userID)
 }
 
 func (r entAwardReader) HasPendingOrActiveAward(ctx context.Context, userID uint64) (bool, error) {
@@ -390,17 +342,11 @@ func (e constError) Error() string { return string(e) }
 const twitchLoginMaxLen = 25
 
 func normalizeLogin(input string) login {
-	l := strings.TrimSpace(input)
-	l = strings.TrimPrefix(l, "@")
-	return login(strings.ToLower(l))
+	return login(validate.NormalizeLogin(input))
 }
 
 func clampLogin(input string) string {
-	trimmed := strings.TrimSpace(input)
-	if utf8.RuneCountInString(trimmed) <= twitchLoginMaxLen {
-		return trimmed
-	}
-	return string([]rune(trimmed)[:twitchLoginMaxLen])
+	return utils.TruncateRunes(strings.TrimSpace(input), twitchLoginMaxLen)
 }
 
 const giftMessageMaxRunes = 280
@@ -410,7 +356,6 @@ func noteHasLink(sanitized string) bool {
 }
 
 func sanitizeGiftMessage(input string) string {
-
 	cleaned := strings.Map(func(r rune) rune {
 		if r == '\n' {
 			return r
@@ -424,11 +369,5 @@ func sanitizeGiftMessage(input string) string {
 		return r
 	}, input)
 
-	cleaned = strings.TrimSpace(cleaned)
-	if utf8.RuneCountInString(cleaned) <= giftMessageMaxRunes {
-		return cleaned
-	}
-
-	runes := []rune(cleaned)
-	return strings.TrimSpace(string(runes[:giftMessageMaxRunes]))
+	return strings.TrimSpace(utils.TruncateRunes(strings.TrimSpace(cleaned), giftMessageMaxRunes))
 }

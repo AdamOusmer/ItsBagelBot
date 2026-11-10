@@ -8,11 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
-
 	"ItsBagelBot/app/db/notifications/repository"
-	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -21,13 +17,11 @@ import (
 )
 
 type userRPC struct {
-	nc                 *nats.Conn
+	Wiring
 	userGetSubject     string
 	invalidationPrefix string
-	repo               *repository.Notifications
 	fullReadTTL        time.Duration
 	peekTTL            time.Duration
-	log                *zap.Logger
 }
 
 type UserConfig struct {
@@ -42,31 +36,30 @@ func SubscribeUser(w Wiring, cfg UserConfig) error {
 	if cfg.UserGetSubject == "" {
 		cfg.UserGetSubject = conf.UsersGetSubject.Get()
 	}
-	u := &userRPC{nc: w.NC, userGetSubject: cfg.UserGetSubject, invalidationPrefix: cfg.InvalidationPrefix, repo: w.Repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: w.Log}
+	u := &userRPC{Wiring: w, userGetSubject: cfg.UserGetSubject, invalidationPrefix: cfg.InvalidationPrefix, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL}
 
 	read := w.Within(readBudget)
-	if err := bus.Serve(read, cfg.Prefix+".list", u.list); err != nil {
+	if err := bus.ServeForUser[notificationsrpc.UserListRequest, notificationsrpc.UserListReply](read, cfg.Prefix+".list", u.list); err != nil {
 		return err
 	}
-	if err := bus.Serve(read, cfg.Prefix+".mark_read", u.markRead); err != nil {
+	if err := bus.ServeForUser[notificationsrpc.MarkReadRequest, notificationsrpc.MarkReadReply](read, cfg.Prefix+".mark_read", u.markRead); err != nil {
 		return err
 	}
-	return bus.Serve(read, cfg.Prefix+".mark_peeked", u.markPeeked)
+	return bus.ServeForUser[notificationsrpc.MarkPeekedRequest, notificationsrpc.MarkPeekedReply](read, cfg.Prefix+".mark_peeked", u.markPeeked)
 }
 
-func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest) notificationsrpc.UserListReply {
-	_, err := parseUserID(req.UserID)
-	if err != nil {
-		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
-	}
+func (u *userRPC) recipient(ctx context.Context, userID string) (repository.Recipient, error) {
+	return notificationAccount(ctx, u.NC, u.userGetSubject, usersrpc.AdminRequest{UserID: userID})
+}
 
-	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
+func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest, _ uint64) (notificationsrpc.UserListReply, error) {
+	recipient, err := u.recipient(ctx, req.UserID)
 	if err != nil {
-		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
+		return notificationsrpc.UserListReply{}, err
 	}
-	rows, read, err := u.repo.ListForIncarnation(ctx, recipient, repository.UserListLimit)
+	rows, read, err := u.Repo.ListForIncarnation(ctx, recipient, repository.UserListLimit)
 	if err != nil {
-		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
+		return notificationsrpc.UserListReply{}, err
 	}
 
 	views := make([]notificationsrpc.NotificationView, 0, len(rows))
@@ -79,55 +72,36 @@ func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest
 		views = append(views, viewOf(row, isRead))
 	}
 
-	return notificationsrpc.UserListReply{Notifications: views, UnreadCount: unread}
+	return notificationsrpc.UserListReply{Notifications: views, UnreadCount: unread}, nil
 }
 
-func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadRequest) notificationsrpc.MarkReadReply {
-	userID, err := parseUserID(req.UserID)
-	if err != nil {
-		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
-	}
+func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadRequest, userID uint64) (notificationsrpc.MarkReadReply, error) {
 	notifID, err := strconv.Atoi(req.NotificationID)
 	if err != nil {
-		return notificationsrpc.MarkReadReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "notification_id must be numeric")}
+		return notificationsrpc.MarkReadReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "notification_id must be numeric")}, nil
 	}
-	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
+	recipient, err := u.recipient(ctx, req.UserID)
 	if err != nil {
-		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
+		return notificationsrpc.MarkReadReply{}, err
 	}
-	if err := u.repo.MarkReadForIncarnation(ctx, notifID, recipient, time.Now().Add(u.fullReadTTL)); err != nil {
-		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
+	if err := u.Repo.MarkReadForIncarnation(ctx, notifID, recipient, time.Now().Add(u.fullReadTTL)); err != nil {
+		return notificationsrpc.MarkReadReply{}, err
 	}
-	u.invalidate(userID)
-	return notificationsrpc.MarkReadReply{}
+	u.invalidateNotifications(u.invalidationPrefix, accountKey(userID))
+	return notificationsrpc.MarkReadReply{}, nil
 }
 
-func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeekedRequest) notificationsrpc.MarkPeekedReply {
-	userID, err := parseUserID(req.UserID)
+func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeekedRequest, userID uint64) (notificationsrpc.MarkPeekedReply, error) {
+	recipient, err := u.recipient(ctx, req.UserID)
 	if err != nil {
-		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
+		return notificationsrpc.MarkPeekedReply{}, err
 	}
-	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
+	peeked, err := u.Repo.MarkPeekedForIncarnation(ctx, recipient, time.Now().Add(u.peekTTL))
 	if err != nil {
-		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
-	}
-	peeked, err := u.repo.MarkPeekedForIncarnation(ctx, recipient, time.Now().Add(u.peekTTL))
-	if err != nil {
-		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
+		return notificationsrpc.MarkPeekedReply{}, err
 	}
 	if peeked > 0 {
-		u.invalidate(userID)
+		u.invalidateNotifications(u.invalidationPrefix, accountKey(userID))
 	}
-	return notificationsrpc.MarkPeekedReply{Peeked: peeked}
+	return notificationsrpc.MarkPeekedReply{Peeked: peeked}, nil
 }
-
-func (u *userRPC) invalidate(userID uint64) {
-	if u.nc == nil || u.invalidationPrefix == "" {
-		return
-	}
-	if err := invalidate.Publish(u.nc, u.invalidationPrefix, "notifications", strconv.FormatUint(userID, 10)); err != nil && u.log != nil {
-		u.log.Warn("notification read invalidation publish failed", zap.Error(err))
-	}
-}
-
-func parseUserID(s string) (uint64, error) { return bus.UserID(s) }

@@ -4,9 +4,13 @@
 package rpc
 
 import (
+	"strconv"
 	"time"
 
+	"go.uber.org/zap"
+
 	"ItsBagelBot/app/db/notifications/repository"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -20,3 +24,11 @@ const (
 	sendBudget    = 5 * time.Second
 	cleanupBudget = 30 * time.Second
 )
+
+func accountKey(accountID uint64) string { return strconv.FormatUint(accountID, 10) }
+
+func (w Wiring) invalidateNotifications(prefix, broadcasterID string) {
+	if err := invalidate.Publish(w.NC, prefix, "notifications", broadcasterID); err != nil {
+		w.Log.Warn("notification invalidation publish failed", zap.Error(err))
+	}
+}

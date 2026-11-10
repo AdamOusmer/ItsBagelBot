@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +20,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/internal/domain/rpc/giveaways"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 )
 
 var (
@@ -127,19 +127,9 @@ func (s *Store) FreezeCandidates(ctx context.Context, req giveaways.FreezeReques
 	if err := validateFreezeRequest(req); err != nil {
 		return nil, err
 	}
-	tx, err := s.DB.Tx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	updated, err := freezeOperation{store: s, tx: tx, request: req, candidates: candidates, now: now}.run(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return updated, nil
+	return db.WithTxResult(ctx, s.DB, func(tx *ent.Tx) (*ent.Giveaway, error) {
+		return freezeOperation{store: s, tx: tx, request: req, candidates: candidates, now: now}.run(ctx)
+	})
 }
 
 func (s *Store) FreezeReplay(ctx context.Context, req giveaways.FreezeRequest) (*ent.Giveaway, bool, error) {
@@ -254,19 +244,9 @@ func (s *Store) Draw(ctx context.Context, req giveaways.DrawRequest, now time.Ti
 	if err := validateDraw(req); err != nil {
 		return nil, err
 	}
-	tx, err := s.DB.Tx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	result, err := s.drawTransaction(ctx, tx, req, now)
-	if err != nil {
-		return nil, err
-	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return db.WithTxResult(ctx, s.DB, func(tx *ent.Tx) (*DrawResult, error) {
+		return s.drawTransaction(ctx, tx, req, now)
+	})
 }
 
 func (s *Store) drawTransaction(ctx context.Context, tx *ent.Tx, req giveaways.DrawRequest, now time.Time) (*DrawResult, error) {
@@ -426,7 +406,7 @@ func parseID(raw string) (uint64, error) {
 
 func lockedCampaign(ctx context.Context, tx *ent.Tx, id string) (*ent.Giveaway, error) {
 	campaign, err := tx.Giveaway.Query().Where(giveaway.IDEQ(id)).ForUpdate().Only(ctx)
-	if err == nil || !strings.Contains(err.Error(), "FOR UPDATE/SHARE not supported") {
+	if !db.RowLocksUnsupported(err) {
 		return campaign, err
 	}
 	return tx.Giveaway.Query().Where(giveaway.IDEQ(id)).Only(ctx)
