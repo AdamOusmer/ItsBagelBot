@@ -55,9 +55,18 @@ allowance is needed for this static deployment's per-response Cloudflare snippet
 inline event handlers and `eval` remain blocked in production. Keep both policies
 in sync when changing CDN settings.
 
-The empty `/speculation-rules.json` overrides Cloudflare Speed Brain: Astro's
-ClientRouter already prefetches routes, while Speed Brain's cache-only fetches
-can return 503.
+The empty `/speculation-rules.json` overrides Cloudflare Speed Brain, and
+`_headers` serves it as `application/speculationrules+json` because browsers
+reject any other type. The edge answers 503 to every request that carries
+`Sec-Purpose: prefetch` for uncached HTML, which covers `<link rel="prefetch">`,
+so Astro's prefetch is off and `src/script/prefetch.ts` warms links with a plain
+`fetch` while still reading the `data-astro-prefetch` attributes.
+
+Rocket Loader retypes scripts per response, and a page the ClientRouter swaps in
+would never run them. `src/middleware.ts` marks every module script
+`data-cfasync="false"` (ahead of `src`, as Rocket Loader requires), and
+`src/script/edge-scripts.ts` drops the per-response `/cdn-cgi/` bootstraps from
+swapped-in documents so the challenge script runs once per real page load.
 
 ## Guides
 
