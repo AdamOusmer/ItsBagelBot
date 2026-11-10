@@ -290,6 +290,18 @@ defmodule Ingress.Nats.Publisher.WireTest do
              }
     end
 
+    test "atomic withholds the commit once an earlier entry fails to write", %{wire: wire} do
+      start_fake_gnat(:gnat_bus_pub_wire_limited, mode: :limited, id: :limited_gnat)
+      wire = %{wire | conn: :gnat_bus_pub_wire_limited}
+      admit(wire, 3)
+
+      Atomic.send_cohort([entry(1), {@subject, "oversized", nil}, entry(3)], wire)
+
+      assert_receive {:pub, @subject, _json, _opts}, 500
+      require_dropped(wire, 3)
+      assert Pending.batches_inflight(wire.counter) == 0
+    end
+
     test "atomic drops a swept cohort whole", %{wire: wire} do
       publish_cohort(wire, 3)
       row = swept_row(wire, 3)

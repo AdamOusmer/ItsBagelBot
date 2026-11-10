@@ -71,6 +71,11 @@ defmodule Ingress.Nats.Publisher.Wire do
   @spec safe_pub(GenServer.server(), message(), pos_integer()) :: :ok | {:error, term()}
   def safe_pub(conn, message, timeout), do: Platform.Nats.Wire.publish(conn, message, timeout)
 
+  @spec safe_pub_many(GenServer.server(), [message()], pos_integer()) ::
+          [:ok | {:error, term()}]
+  def safe_pub_many(conn, messages, timeout),
+    do: Platform.Nats.Wire.publish_many(conn, messages, timeout)
+
   @spec reply(GenServer.from() | nil, term()) :: :ok
   def reply(nil, _result), do: :ok
   def reply(from, result), do: GenServer.reply(from, result)

@@ -161,6 +161,34 @@ defmodule Platform.NatsTest do
     assert :ok = Platform.Nats.unsubscribe(pid, sid)
   end
 
+  test "pipelined publish keeps wire order and answers every message" do
+    pid = Platform.Nats.connection_pid(:test_nats)
+    assert {:ok, sid} = Platform.Nats.subscribe(pid, self(), "test.many")
+    messages = for n <- 1..40, do: {"test.many", Integer.to_string(n), [reply_to: "test.r"]}
+
+    assert Platform.Nats.Wire.publish_many(pid, messages ++ [{"bad subject", "x", []}], 500) ==
+             List.duplicate(:ok, 40) ++ [{:error, :invalid_publish}]
+
+    bodies = for _ <- 1..40, do: receive_body()
+    assert bodies == Enum.map(1..40, &Integer.to_string/1)
+    assert :ok = Platform.Nats.unsubscribe(pid, sid)
+  end
+
+  test "pipelined publish shares one deadline across a stalled connection" do
+    pid = spawn(fn -> Process.sleep(1_000) end)
+    started = System.monotonic_time(:millisecond)
+
+    assert Platform.Nats.Wire.publish_many(pid, List.duplicate({"test.s", "x", []}, 5), 50) ==
+             List.duplicate({:error, :not_connected}, 5)
+
+    assert System.monotonic_time(:millisecond) - started < 200
+  end
+
+  defp receive_body do
+    assert_receive {:msg, %{body: body}}, 1_000
+    body
+  end
+
   test "server name and stop tolerate a missing connection" do
     assert is_binary(Platform.Nats.server_name(:test_nats))
     assert Platform.Nats.server_name(:missing_nats) == nil
