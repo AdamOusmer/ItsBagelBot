@@ -137,6 +137,17 @@ defmodule Ingress.TrialFakeWS do
   end
 end
 
+defmodule Ingress.TrialOutageWS do
+  def connect(_url) do
+    send(Application.fetch_env!(:ingress, :trial_test_pid), :trial_connect_failed)
+    {:error, :outage}
+  end
+
+  def stream(_, _), do: :unknown
+  def send_frame(socket, _), do: {:ok, socket}
+  def close(_), do: :ok
+end
+
 defmodule Ingress.TrialReceiverProtocolTest do
   use ExUnit.Case, async: false
 
@@ -314,6 +325,35 @@ defmodule Ingress.TrialReceiverProtocolTest do
 
     assert %{slot: 0, owned: true, channels: 1} = TrialReceiver.status(zero)
     assert %{slot: 1, owned: true, channels: 1} = TrialReceiver.status(one)
+  end
+
+  test "ownership ticks during an outage wait for the single pending reconnect" do
+    {:ok, _} = Trials.add("4242")
+    pid = start_supervised!({TrialReceiver, [ws_module: Ingress.TrialOutageWS]})
+    assert_receive :trial_connect_failed, 1_000
+
+    for _ <- 1..5, do: send(pid, :tick)
+    :sys.get_state(pid)
+    refute_receive :trial_connect_failed, 200
+  end
+
+  test "membership publishes generations and ignores counter churn" do
+    {:ok, generation} = Trials.add("4242")
+    pid = start_supervised!(Ingress.TrialMembership)
+    :sys.get_state(pid)
+    assert %{generation: ^generation} = Ingress.TrialMembership.lookup("4242")
+    published = :persistent_term.get({Ingress.TrialMembership, :rows})
+
+    {:ok, _} = Trials.increment("4242", "received")
+    send(pid, :refresh)
+    :sys.get_state(pid)
+    assert :erts_debug.same(published, :persistent_term.get({Ingress.TrialMembership, :rows}))
+
+    {:ok, :changed} = Trials.stop("4242", "removed")
+    {:ok, 1} = Trials.finish("4242")
+    send(pid, :refresh)
+    :sys.get_state(pid)
+    assert Ingress.TrialMembership.lookup("4242") == nil
   end
 
   test "a disabled channel rejects a frame still present in the receiver snapshot" do
