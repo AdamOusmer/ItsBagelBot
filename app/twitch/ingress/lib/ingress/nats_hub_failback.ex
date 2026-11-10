@@ -28,12 +28,12 @@ defmodule Ingress.NatsHubFailback do
 
       interval =
         Keyword.get_lazy(opts, :interval, fn ->
-          positive_env("NATS_FAILBACK_INTERVAL_MS", 30_000)
+          Config.positive_env("NATS_FAILBACK_INTERVAL_MS", 30_000)
         end)
 
       timeout =
         Keyword.get_lazy(opts, :timeout, fn ->
-          positive_env("NATS_FAILBACK_PROBE_TIMEOUT_MS", 1_000)
+          Config.positive_env("NATS_FAILBACK_PROBE_TIMEOUT_MS", 1_000)
         end)
 
       state = %{
@@ -42,7 +42,9 @@ defmodule Ingress.NatsHubFailback do
           Keyword.get_lazy(opts, :probe_settings, fn -> probe_settings(timeout) end),
         interval: interval,
         required:
-          Keyword.get_lazy(opts, :required, fn -> positive_env("NATS_FAILBACK_SUCCESSES", 3) end),
+          Keyword.get_lazy(opts, :required, fn ->
+            Config.positive_env("NATS_FAILBACK_SUCCESSES", 3)
+          end),
         local_name: nil,
         checked_at: nil,
         streaks: %{}
@@ -175,12 +177,5 @@ defmodule Ingress.NatsHubFailback do
       :ssl_opts,
       &Keyword.put(&1, :server_name_indication, String.to_charlist(host))
     )
-  end
-
-  defp positive_env(key, fallback) do
-    case Integer.parse(System.get_env(key, "")) do
-      {value, ""} when value > 0 -> value
-      _ -> fallback
-    end
   end
 end

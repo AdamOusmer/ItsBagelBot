@@ -5,12 +5,8 @@ package twitch
 
 import (
 	"context"
-	"io"
-	"net/http"
 	"net/url"
 	"slices"
-
-	"ItsBagelBot/pkg/codec"
 )
 
 const SubscriptionsPath = "/helix/subscriptions"
@@ -31,25 +27,14 @@ func (c *Client) SubscriberTiers(ctx context.Context, broadcasterID string, user
 
 func (c *Client) subscriberTierBatch(ctx context.Context, broadcasterID string, userIDs []string, into map[string]string) error {
 	q := url.Values{"broadcaster_id": {broadcasterID}, "user_id": userIDs}
-	res, err := c.ExecuteAs(ctx, IdentityBroadcaster, broadcasterID, getCall(SubscriptionsPath+"?"+q.Encode()))
+	subs, err := readData[struct {
+		UserID string `json:"user_id"`
+		Tier   string `json:"tier"`
+	}](ctx, c, helixRead{broadcasterTarget(broadcasterID), SubscriptionsPath + "?" + q.Encode()})
 	if err != nil {
 		return err
 	}
-	defer drain(res)
-	if res.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return &StatusError{Status: res.StatusCode, Body: string(body)}
-	}
-	var payload struct {
-		Data []struct {
-			UserID string `json:"user_id"`
-			Tier   string `json:"tier"`
-		} `json:"data"`
-	}
-	if err := codec.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&payload); err != nil {
-		return err
-	}
-	for _, sub := range payload.Data {
+	for _, sub := range subs {
 		into[sub.UserID] = sub.Tier
 	}
 	return nil

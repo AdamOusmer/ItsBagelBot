@@ -792,8 +792,7 @@ defmodule Ingress.ShardSession do
 
   defp schedule_retry(state) do
     attempts = state.attempts + 1
-    backoff = min(@base_backoff_ms * Integer.pow(2, min(attempts - 1, 6)), @max_backoff_ms)
-    delay = backoff + :rand.uniform(1_000)
+    delay = Ingress.Backoff.jittered_ms(attempts, @base_backoff_ms, @max_backoff_ms, 6)
     Logger.info("reconnecting in #{delay}ms (attempt #{attempts})")
     Metrics.count("Shard/Reconnects")
     Process.send_after(self(), :retry_connect, delay)

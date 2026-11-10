@@ -34,12 +34,12 @@ func TestRedundantEnrollRequiresHealthyState(t *testing.T) {
 
 func TestWaitForEnrollLockAcquiresAfterHolderFinishes(t *testing.T) {
 	attempts := 0
-	got, err := waitForEnrollLock(context.Background(), 100*time.Millisecond, time.Millisecond, func() (bool, error) {
+	got, err := pollUntilAcquired(context.Background(), 100*time.Millisecond, time.Millisecond, func() (bool, error) {
 		attempts++
 		return attempts == 2, nil
 	})
 	if err != nil || !got {
-		t.Fatalf("waitForEnrollLock() = %v, %v; want acquired", got, err)
+		t.Fatalf("pollUntilAcquired() = %v, %v; want acquired", got, err)
 	}
 	if attempts != 2 {
 		t.Fatalf("attempts = %d, want 2", attempts)
@@ -47,20 +47,20 @@ func TestWaitForEnrollLockAcquiresAfterHolderFinishes(t *testing.T) {
 }
 
 func TestWaitForEnrollLockTimesOut(t *testing.T) {
-	got, err := waitForEnrollLock(context.Background(), 5*time.Millisecond, time.Millisecond, func() (bool, error) {
+	got, err := pollUntilAcquired(context.Background(), 5*time.Millisecond, time.Millisecond, func() (bool, error) {
 		return false, nil
 	})
 	if err != nil || got {
-		t.Fatalf("waitForEnrollLock() = %v, %v; want clean timeout", got, err)
+		t.Fatalf("pollUntilAcquired() = %v, %v; want clean timeout", got, err)
 	}
 }
 
 func TestWaitForEnrollLockReturnsAcquireError(t *testing.T) {
 	boom := errors.New("valkey unavailable")
-	got, err := waitForEnrollLock(context.Background(), 100*time.Millisecond, time.Millisecond, func() (bool, error) {
+	got, err := pollUntilAcquired(context.Background(), 100*time.Millisecond, time.Millisecond, func() (bool, error) {
 		return false, boom
 	})
 	if got || !errors.Is(err, boom) {
-		t.Fatalf("waitForEnrollLock() = %v, %v; want acquire error", got, err)
+		t.Fatalf("pollUntilAcquired() = %v, %v; want acquire error", got, err)
 	}
 }

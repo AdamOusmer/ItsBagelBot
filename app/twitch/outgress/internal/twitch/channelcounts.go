@@ -4,11 +4,11 @@
 package twitch
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"context"
-	"io"
 	"net/http"
 	"net/url"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 func (c *Client) FollowersTotal(ctx context.Context, broadcasterID string) (int, bool, error) {
@@ -34,8 +34,7 @@ func (c *Client) helixTotal(ctx context.Context, id Identity, broadcasterID, end
 		return 0, false, nil
 	}
 	if res.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return 0, false, &StatusError{Status: res.StatusCode, Body: string(body)}
+		return 0, false, statusError(res, "GET "+endpoint)
 	}
 
 	var payload struct {
