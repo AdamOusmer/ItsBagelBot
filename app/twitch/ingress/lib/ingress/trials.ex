@@ -137,6 +137,8 @@ defmodule Ingress.Trials do
         @channel_prefix
       ])
 
+  def revision, do: Platform.Valkey.get(VK, @revision)
+
   def list do
     cutoff = System.system_time(:second) - @policy.history_seconds
 
