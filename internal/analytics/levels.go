@@ -19,6 +19,21 @@ func (t Tally) AddN(n int64, m catalog.Metric, dims ...string) {
 	}
 }
 
+func Track(rec *Recorder, state func() (Tally, error)) func() {
+	if rec == nil {
+		return func() {}
+	}
+	before, err := state()
+	if err != nil {
+		return func() {}
+	}
+	return func() {
+		if after, err := state(); err == nil {
+			rec.Shift(before, after)
+		}
+	}
+}
+
 // Shift moves the running totals by after minus before.
 func (r *Recorder) Shift(before, after Tally) {
 	if r == nil {

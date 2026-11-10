@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/predicate"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 
@@ -19,7 +20,7 @@ import (
 
 const controlsRevokedSubjectPrefix = "controls.revoked."
 
-func (r *Users) ListDeviceGrants(ctx context.Context, userID uint64) ([]DeviceGrantView, error) {
+func (r *Users) ListDeviceGrants(ctx context.Context, userID uint64) ([]usersrpc.DeviceGrantView, error) {
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.DeviceGrant, error) {
 		return r.client.DeviceGrant.Query().
 			Where(devicegrant.UserIDEQ(userID), devicegrant.RevokedAtIsNil()).
@@ -29,9 +30,9 @@ func (r *Users) ListDeviceGrants(ctx context.Context, userID uint64) ([]DeviceGr
 	if err != nil {
 		return nil, err
 	}
-	out := make([]DeviceGrantView, 0, len(rows))
+	out := make([]usersrpc.DeviceGrantView, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, DeviceGrantView{
+		out = append(out, usersrpc.DeviceGrantView{
 			GrantID: row.GrantID, DeviceID: row.DeviceID, DeviceName: row.DeviceName,
 			Platform: string(row.Platform), CreatedAt: row.CreatedAt,
 			LastUsedAt: row.LastUsedAt, ExpiresAt: row.RefreshAbsoluteExpiresAt,
@@ -59,10 +60,12 @@ func (r *Users) RevokeDeviceGrant(ctx context.Context, userID uint64, grantID st
 // authorization codes die with the grants, so none can mint a grant afterwards.
 func (r *Users) RevokeAllDeviceGrants(ctx context.Context, userID uint64, reason string) ([]string, error) {
 	var deviceIDs []string
-	err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-		var err error
-		deviceIDs, err = revokeAllInTx(ctx, tx, userID, reason)
-		return err
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+			var err error
+			deviceIDs, err = revokeAllInTx(ctx, tx, userID, reason)
+			return err
+		})
 	})
 	if err != nil {
 		return nil, err

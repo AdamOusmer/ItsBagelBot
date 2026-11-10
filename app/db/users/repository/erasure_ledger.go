@@ -136,7 +136,7 @@ func (r *Users) republishRecent(ctx context.Context, rows []*ent.User, pending m
 // The ledger record precedes the commit by the token revokes; consumers fence
 // on the deletion time, so prefer the committed one.
 func (r *Users) deletedAt(ctx context.Context, ref erasureRef, recordedAt time.Time) time.Time {
-	row, err := r.client.LifecycleErasure.Query().Where(lifecycleerasure.UserIDEQ(ref.userID), lifecycleerasure.AccountCreatedAtEQ(ref.accountCreatedAt)).Only(ctx)
+	row, err := db.WithRead(ctx, r.client.LifecycleErasure.Query().Where(lifecycleerasure.UserIDEQ(ref.userID), lifecycleerasure.AccountCreatedAtEQ(ref.accountCreatedAt)).Only)
 	if err != nil {
 		return recordedAt
 	}

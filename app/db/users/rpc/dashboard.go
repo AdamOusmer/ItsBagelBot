@@ -78,8 +78,10 @@ func respondErr(msg *nats.Msg, text string) {
 	bus.Respond(msg, domainrpc.Refused(domainrpc.CodeInvalid, text))
 }
 
+var entNotFound = domainrpc.When(ent.IsNotFound, domainrpc.CodeNotFound)
+
 func respondFail(msg *nats.Msg, err error, rules ...domainrpc.Rule) {
-	rules = append(rules, domainrpc.When(ent.IsNotFound, domainrpc.CodeNotFound))
+	rules = append(rules, entNotFound)
 	bus.Respond(msg, domainrpc.Fail(err, rules...))
 }
 

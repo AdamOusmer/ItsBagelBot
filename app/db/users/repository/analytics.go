@@ -29,19 +29,10 @@ type AnalyticsRow struct {
 // that shifts the running totals once it lands. A missing row tallies empty, so creates
 // and deletes count as +/-.
 func (r *Users) trackAccounts(ctx context.Context, ids ...uint64) func() {
-	rec := r.analytics
-	if rec == nil || len(ids) == 0 {
+	if len(ids) == 0 {
 		return func() {}
 	}
-	before, err := r.accountState(ctx, ids)
-	if err != nil {
-		return func() {}
-	}
-	return func() {
-		if after, err := r.accountState(ctx, ids); err == nil {
-			rec.Shift(before, after)
-		}
-	}
+	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.accountState(ctx, ids) })
 }
 
 // Must run outside db.WithExec: accountState takes its own gate slot.

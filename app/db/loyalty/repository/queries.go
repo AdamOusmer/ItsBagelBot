@@ -7,13 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -47,7 +47,7 @@ func (r *Loyalty) Top(ctx context.Context, userID uint64, limit int) ([]*ent.Bal
 }
 
 func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin string, value int64, absolute bool) (*ent.Balance, bool, error) {
-	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
+	login := validate.NormalizeLogin(viewerLogin)
 	if login == "" {
 		return nil, false, fmt.Errorf("%w: viewer_login", ErrInvalidInput)
 	}
@@ -105,7 +105,7 @@ func (r *Loyalty) spendRow(ctx context.Context, rowID int, amount int64, login s
 }
 
 func normalizeSpendTarget(viewerLogin string, amount int64) (string, error) {
-	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
+	login := validate.NormalizeLogin(viewerLogin)
 	if login == "" || amount <= 0 {
 		return "", fmt.Errorf("%w: viewer_login/amount", ErrInvalidInput)
 	}
@@ -380,7 +380,7 @@ func (r *Loyalty) CounterEntryDelete(ctx context.Context, userID uint64, name st
 }
 
 func normalizeLogin(login string) string {
-	l := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(login), "@"))
+	l := validate.NormalizeLogin(login)
 	if len(l) > maxCounterName {
 		l = l[:maxCounterName]
 	}

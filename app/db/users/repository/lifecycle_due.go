@@ -5,6 +5,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/pkg/db"
 	"context"
 	"time"
 )
@@ -29,10 +30,10 @@ func (r *Users) lifecycleDue(ctx context.Context) (usersrpc.LifecycleReply, erro
 	return reply, err
 }
 func (r *Users) dueLifecycleRows(ctx context.Context, now time.Time) ([]*ent.User, error) {
-	return r.client.User.Query().Where(user.Or(user.And(user.LifecycleStateEQ(lifecycle.Active), user.DormantAfterLTE(now)), user.LifecycleDueAtLTE(now), user.NoticeDueAtLTE(now), user.LifecycleProjectionPendingEQ(true))).Order(ent.Asc(user.FieldID)).Limit(100).All(ctx)
+	return db.WithRead(ctx, r.client.User.Query().Where(user.Or(user.And(user.LifecycleStateEQ(lifecycle.Active), user.DormantAfterLTE(now)), user.LifecycleDueAtLTE(now), user.NoticeDueAtLTE(now), user.LifecycleProjectionPendingEQ(true))).Order(ent.Asc(user.FieldID)).Limit(100).All)
 }
 func (r *Users) seedLegacyLifecycles(ctx context.Context) error {
-	rows, err := r.client.User.Query().Where(user.LifecycleStateEQ(""), user.LifecycleIsNil()).Order(ent.Asc(user.FieldID)).Limit(200).All(ctx)
+	rows, err := db.WithRead(ctx, r.client.User.Query().Where(user.LifecycleStateEQ(""), user.LifecycleIsNil()).Order(ent.Asc(user.FieldID)).Limit(200).All)
 	if err != nil {
 		return err
 	}
@@ -45,7 +46,7 @@ func (r *Users) seedLegacyLifecycles(ctx context.Context) error {
 	return nil
 }
 func (r *Users) pendingLifecycleSeeds(ctx context.Context, reply *usersrpc.LifecycleReply) error {
-	rows, err := r.client.User.Query().Where(user.LifecycleMigrationPendingEQ(true)).Order(ent.Asc(user.FieldID)).Limit(200).All(ctx)
+	rows, err := db.WithRead(ctx, r.client.User.Query().Where(user.LifecycleMigrationPendingEQ(true)).Order(ent.Asc(user.FieldID)).Limit(200).All)
 	if err != nil {
 		return err
 	}

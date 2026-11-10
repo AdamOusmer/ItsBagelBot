@@ -30,10 +30,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func normalizeName(name string) string {
-	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")))
-}
-
 func normalizeResponse(response string) string {
 	response = strings.ReplaceAll(response, "\r\n", "\n")
 	response = strings.ReplaceAll(response, "\r", "\n")
@@ -56,7 +52,7 @@ func normalizeAliases(aliases []string) []string {
 	out := make([]string, 0, len(aliases))
 	seen := map[string]struct{}{}
 	for _, a := range aliases {
-		n := normalizeName(a)
+		n := tmpl.NormalizeName(a)
 		if n == "" {
 			continue
 		}
@@ -162,7 +158,7 @@ type CommandSpec struct {
 }
 
 func (s *CommandSpec) normalize() {
-	s.Name = normalizeName(s.Name)
+	s.Name = tmpl.NormalizeName(s.Name)
 	s.Aliases = normalizeAliases(s.Aliases)
 	s.Response = normalizeResponse(s.Response)
 	s.BumpCounter = tmpl.NormalizeName(s.BumpCounter)
@@ -283,7 +279,7 @@ func (r *Commands) createIfAbsent(ctx context.Context, userID uint64, spec Comma
 
 func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, spec CommandSpec) error {
 
-	oldName = normalizeName(oldName)
+	oldName = tmpl.NormalizeName(oldName)
 	spec.normalize()
 
 	if err := validate.UserID(userID); err != nil {
@@ -358,7 +354,7 @@ func applyEdit(m *ent.CommandsMutation, item data.CommandChangedDTO) {
 
 func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error {
 
-	name = normalizeName(name)
+	name = tmpl.NormalizeName(name)
 
 	if err := validate.UserID(userID); err != nil {
 		return err
