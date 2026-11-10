@@ -1,0 +1,7 @@
+{
+  "summary": "Durchschnitt {average} pro Tag, Spitze {peak}",
+  "gainLossSummary": "Gewonnen {gained}, verloren {lost}, netto {net}",
+  "gained": "Gewonnen",
+  "lost": "Verloren",
+  "lossDays": "Tage mit mehr Verlusten als Zugängen: {days}"
+}

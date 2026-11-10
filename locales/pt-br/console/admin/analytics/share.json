@@ -1,0 +1,7 @@
+{
+  "ofTotal": "{share} do total",
+  "ofAccounts": "{share} das contas",
+  "ofBotEnabled": "{share} das contas com o bot ativado",
+  "ofCommands": "{share} dos comandos personalizados",
+  "ofChannels": "{share} dos canais"
+}

@@ -1,0 +1,11 @@
+{
+  "dau": "Aktive Kanäle, gestern",
+  "wau": "Aktive Kanäle, letzte volle Woche",
+  "mau": "Aktive Kanäle, letzter voller Monat",
+  "stickiness": "Täglich zu monatlich aktiv",
+  "accounts": "Konten, letzter Snapshot",
+  "botShare": "Konten mit aktiviertem Bot",
+  "paid": "Bezahlte Konten",
+  "signups": "Registrierungen im Zeitraum",
+  "paidShare": "{share} aller Konten"
+}

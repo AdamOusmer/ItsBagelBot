@@ -1,0 +1,7 @@
+{
+  "summary": "В среднем {average} в день, пик {peak}",
+  "gainLossSummary": "Получено {gained}, потеряно {lost}, итого {net}",
+  "gained": "Получено",
+  "lost": "Потеряно",
+  "lossDays": "Дней, когда потерь больше, чем новых: {days}"
+}

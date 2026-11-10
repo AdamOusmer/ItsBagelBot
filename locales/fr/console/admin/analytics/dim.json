@@ -1,0 +1,61 @@
+{
+  "lifecycle": {
+    "signup": "Inscrit",
+    "onboarded": "Configuration terminée",
+    "bot_enabled": "Bot activé",
+    "bot_disabled": "Bot désactivé",
+    "revoked": "Accès révoqué",
+    "chat_banned": "Banni du chat",
+    "account_deleted": "Compte supprimé"
+  },
+  "billing": {
+    "activate": "Offre activée",
+    "cancel_requested": "Résiliation demandée",
+    "cancel_aborted": "Résiliation annulée",
+    "revoke": "Offre révoquée",
+    "payment_failed": "Paiement échoué",
+    "expired": "Offre expirée"
+  },
+  "tier": {
+    "free": "Gratuit",
+    "paid": "Payant",
+    "vip": "VIP"
+  },
+  "source": {
+    "tebex": "Achat en boutique",
+    "admin": "Octroi admin",
+    "giveaway": "Tirage au sort",
+    "vip": "Octroi VIP"
+  },
+  "preset": {
+    "start-new": "Partir de zéro",
+    "integrate": "Intégrer",
+    "quiet": "Discret",
+    "import": "Importer",
+    "songs": "Musiques"
+  },
+  "link": {
+    "spotify": "Spotify",
+    "govee": "Govee",
+    "fetch_key": "Clé de requête"
+  },
+  "page": {
+    "commands": "Commandes",
+    "leaderboard": "Classement",
+    "songqueue": "File de musiques"
+  },
+  "perm": {
+    "everyone": "Tout le monde",
+    "sub": "Abonnés",
+    "vip": "VIP",
+    "mod": "Modérateurs",
+    "lead_mod": "Modérateurs principaux",
+    "broadcaster": "Streamer"
+  },
+  "flag": {
+    "online_only": "En direct seulement",
+    "aliased": "Avec alias",
+    "cooldown": "Avec délai de recharge",
+    "counter": "Avec compteur"
+  }
+}

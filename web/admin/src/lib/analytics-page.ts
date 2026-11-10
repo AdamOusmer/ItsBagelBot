@@ -32,7 +32,12 @@ import {
   type AnalyticsRow,
   type Change,
   type CohortRow,
+  type Count,
   type DateRange,
+  type Day,
+  type Dim,
+  type Metric,
+  type Slot,
   type Unit
 } from './analytics-view';
 
@@ -116,8 +121,8 @@ type BarSpec = {
   enum?: EnumName;
   order?: 'value' | 'numeric' | 'keep';
   limit?: number;
-  name?: (id: string) => Name;
-  secondary?: (value: number, index: number) => Phrase | null;
+  name?: (id: Dim) => Name;
+  secondary?: (value: Count, index: Slot) => Phrase | null;
 };
 type ModuleStats = { on: Map<string, number>; active: Map<string, number>; outputs: Map<string, number>; up: Map<string, number>; down: Map<string, number> };
 
@@ -134,25 +139,25 @@ function context(r: AnalyticsReads): Ctx {
   return { r, days: r.days, cur, prev, prevComplete: first !== undefined && first <= prev.from };
 }
 
-const counter = (c: Ctx, metric: string): AnalyticsRow[] => inRange(pick(c.r.counters, metric), c.cur);
-const level = (c: Ctx, metric: string): AnalyticsRow[] => latest(pick(c.r.levels, metric));
-const weekly = (c: Ctx, metric: string): AnalyticsRow[] => latest(pick(c.r.week, metric));
-const get = (values: Map<string, number>, id: string): number => values.get(id) ?? 0;
+const counter = (c: Ctx, metric: Metric): AnalyticsRow[] => inRange(pick(c.r.counters, metric), c.cur);
+const level = (c: Ctx, metric: Metric): AnalyticsRow[] => latest(pick(c.r.levels, metric));
+const weekly = (c: Ctx, metric: Metric): AnalyticsRow[] => latest(pick(c.r.week, metric));
+const get = (values: Map<string, number>, id: Dim): number => values.get(id) ?? 0;
 
 function facts(values: Record<string, string>): Fact[] {
   return Object.entries(values).map(([key, value]) => ({ key, value }));
 }
 
-function row(id: string, name: Name, texts: string[]): TableRow {
+function row(id: Dim, name: Name, texts: string[]): TableRow {
   return { id, name, cells: texts.map((text) => ({ text })) };
 }
 
-function enumName(id: string, group?: EnumName): Name {
+function enumName(id: Dim, group?: EnumName): Name {
   const known = group !== undefined && (ENUMS[group] as readonly string[]).includes(id);
   return known ? { key: `admin.analytics.dim.${group}.${id}` } : { text: id };
 }
 
-function ofShare(name: ShareName, whole: number): (value: number) => Phrase {
+function ofShare(name: ShareName, whole: Count): (value: Count) => Phrase {
   return (value) => ({ key: `admin.analytics.share.${name}`, params: { share: pct(value, whole) } });
 }
 
@@ -187,14 +192,14 @@ function kpi(spec: KpiSpec): Kpi {
   };
 }
 
-function activeKpi(key: string, rows: AnalyticsRow[], unit: Unit): Kpi {
+function activeKpi(key: Dim, rows: AnalyticsRow[], unit: Unit): Kpi {
   const edge = bounds(rows);
   const now = edge ? valueAt(rows, edge.last) : 0;
   const before = edge ? valueAt(rows, previousStart(edge.last, unit)) : 0;
   return kpi({ key, value: fmt(now), change: relativeChange(now, before), delta: { name: UNIT_DELTA[unit] } });
 }
 
-function stickiness(c: Ctx, month: string): number | null {
+function stickiness(c: Ctx, month: Day): number | null {
   const daily = pick(c.r.counters, 'channels.active');
   const first = bounds(daily)?.first ?? month;
   const full = monthRange(month);
@@ -260,7 +265,7 @@ function kpis(c: Ctx): Kpi[] {
   ];
 }
 
-function stepOf(values: number[]): (value: number, index: number) => Phrase | null {
+function stepOf(values: Count[]): (value: Count, index: Slot) => Phrase | null {
   return (value, index) =>
     index === 0
       ? null
@@ -287,7 +292,7 @@ export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
 
 function growth(c: Ctx): AnalyticsView['growth'] {
   const life = byDim(counter(c, 'lifecycle'));
-  const n = (id: string) => get(life, id);
+  const n = (id: Dim) => get(life, id);
   const presets = byDim(counter(c, 'onboarding.preset'));
   return {
     signups: dailySeries(withDim(pick(c.r.counters, 'lifecycle'), 'signup'), c.cur),
@@ -303,8 +308,8 @@ function growth(c: Ctx): AnalyticsView['growth'] {
 }
 
 function engagement(c: Ctx): AnalyticsView['engagement'] {
-  const series = (metric: string) => dailySeries(pick(c.r.counters, metric), c.cur);
-  const count = (metric: string) => sum(counter(c, metric));
+  const series = (metric: Metric) => dailySeries(pick(c.r.counters, metric), c.cur);
+  const count = (metric: Metric) => sum(counter(c, metric));
   const messages = count('chat.messages');
   const answered = count('chat.answered');
   return {
@@ -324,7 +329,7 @@ function engagement(c: Ctx): AnalyticsView['engagement'] {
 }
 
 function cohortLine(line: CohortRow): CohortLine {
-  const cell = (active: number | null) =>
+  const cell = (active: Count | null) =>
     active === null
       ? null
       : { percent: pct(active, line.size), count: fmt(active), heat: Math.min(1, Math.max(0, active / line.size)) };
@@ -372,7 +377,7 @@ function revenue(c: Ctx): AnalyticsView['revenue'] {
   };
 }
 
-function moduleLine(name: string, stats: ModuleStats, bot: number): TableRow {
+function moduleLine(name: Dim, stats: ModuleStats, bot: Count): TableRow {
   const [on, active, up, down] = [get(stats.on, name), get(stats.active, name), get(stats.up, name), get(stats.down, name)];
   const texts = [fmt(on), pct(on, bot), fmt(active), pct(active, on), fmt(get(stats.outputs, name)), fmt(up), fmt(down), signed(up - down)];
   return row(name, { text: name }, texts);
@@ -394,7 +399,7 @@ function moduleTable(c: Ctx): DataTable {
   return { columns: MODULE_COLUMNS, rows: ordered.map((name) => moduleLine(name, stats, bot)) };
 }
 
-function valueAtRank(counts: Rank[], rank: number): number {
+function valueAtRank(counts: Rank[], rank: Slot): number {
   let seen = 0;
   for (const [modules, channels] of counts) {
     seen += channels;
@@ -485,7 +490,7 @@ function commands(c: Ctx): AnalyticsView['commands'] {
   };
 }
 
-function localeName(code: string): Name {
+function localeName(code: Dim): Name {
   try {
     const label = LANGUAGES.of(code);
     return { text: label && label !== code ? `${label} (${code})` : code };

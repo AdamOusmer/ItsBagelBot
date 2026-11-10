@@ -1,0 +1,34 @@
+{
+  "overview": {
+    "title": "Overview",
+    "question": "How busy is the bot, and is it growing?"
+  },
+  "growth": {
+    "title": "Growth",
+    "question": "Are new streamers arriving and finishing setup?"
+  },
+  "engagement": {
+    "title": "Engagement",
+    "question": "How much of the bot's work happens each day?"
+  },
+  "retention": {
+    "title": "Retention",
+    "question": "Do channels keep using the bot after they sign up?"
+  },
+  "revenue": {
+    "title": "Revenue",
+    "question": "Who pays, how did they pay, and who is leaving?"
+  },
+  "features": {
+    "title": "Features",
+    "question": "Which modules and integrations do channels turn on?"
+  },
+  "commands": {
+    "title": "Commands",
+    "question": "Which commands do channels use, and how do they build their own?"
+  },
+  "audience": {
+    "title": "Audience",
+    "question": "Which languages do streamers use?"
+  }
+}

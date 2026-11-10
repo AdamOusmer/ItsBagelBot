@@ -57,8 +57,12 @@ export function areaGeometry(
   };
 }
 
+function inside(index: AreaIndex, count: AreaCount): boolean {
+  return index >= 0 && index < count;
+}
+
 export function pointAt(values: readonly number[], index: AreaIndex): AreaPoint | null {
-  if (values.length < 2 || index < 0 || index >= values.length) return null;
+  if (values.length < 2 || !inside(index, values.length)) return null;
   return {
     x: index / (values.length - 1),
     y: plotY(values[index], ceiling(values)) / AREA_H,

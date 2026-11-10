@@ -1,0 +1,34 @@
+{
+  "overview": {
+    "title": "Aperçu",
+    "question": "Le bot est-il très sollicité, et grandit-il ?"
+  },
+  "growth": {
+    "title": "Croissance",
+    "question": "De nouveaux streamers arrivent-ils et terminent-ils la configuration ?"
+  },
+  "engagement": {
+    "title": "Activité",
+    "question": "Quelle part du travail du bot se fait chaque jour ?"
+  },
+  "retention": {
+    "title": "Rétention",
+    "question": "Les chaînes continuent-elles d'utiliser le bot après l'inscription ?"
+  },
+  "revenue": {
+    "title": "Revenus",
+    "question": "Qui paie, comment, et qui part ?"
+  },
+  "features": {
+    "title": "Fonctions",
+    "question": "Quels modules et intégrations les chaînes activent-elles ?"
+  },
+  "commands": {
+    "title": "Commandes",
+    "question": "Quelles commandes les chaînes utilisent-elles, et comment créent-elles les leurs ?"
+  },
+  "audience": {
+    "title": "Audience",
+    "question": "Quelles langues les streamers utilisent-ils ?"
+  }
+}

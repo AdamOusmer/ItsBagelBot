@@ -1,0 +1,61 @@
+{
+  "lifecycle": {
+    "signup": "Signed up",
+    "onboarded": "Finished setup",
+    "bot_enabled": "Enabled the bot",
+    "bot_disabled": "Disabled the bot",
+    "revoked": "Revoked access",
+    "chat_banned": "Banned from chat",
+    "account_deleted": "Deleted account"
+  },
+  "billing": {
+    "activate": "Plan activated",
+    "cancel_requested": "Cancellation requested",
+    "cancel_aborted": "Cancellation withdrawn",
+    "revoke": "Plan revoked",
+    "payment_failed": "Payment failed",
+    "expired": "Plan expired"
+  },
+  "tier": {
+    "free": "Free",
+    "paid": "Paid",
+    "vip": "VIP"
+  },
+  "source": {
+    "tebex": "Store purchase",
+    "admin": "Admin grant",
+    "giveaway": "Giveaway",
+    "vip": "VIP grant"
+  },
+  "preset": {
+    "start-new": "Start new",
+    "integrate": "Integrate",
+    "quiet": "Quiet",
+    "import": "Import",
+    "songs": "Songs"
+  },
+  "link": {
+    "spotify": "Spotify",
+    "govee": "Govee",
+    "fetch_key": "Fetch key"
+  },
+  "page": {
+    "commands": "Commands",
+    "leaderboard": "Leaderboard",
+    "songqueue": "Song queue"
+  },
+  "perm": {
+    "everyone": "Everyone",
+    "sub": "Subscribers",
+    "vip": "VIPs",
+    "mod": "Moderators",
+    "lead_mod": "Lead moderators",
+    "broadcaster": "Broadcaster"
+  },
+  "flag": {
+    "online_only": "Online only",
+    "aliased": "Has aliases",
+    "cooldown": "Has a cooldown",
+    "counter": "Has a counter"
+  }
+}

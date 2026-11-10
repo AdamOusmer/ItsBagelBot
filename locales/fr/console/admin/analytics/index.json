@@ -1,0 +1,12 @@
+{
+  "eyebrow": "Analytique produit",
+  "title": "Utilisation et croissance",
+  "description": "Combien de chaînes utilisent le bot, comment les nouveaux streamers avancent dans la configuration, quelles fonctions ils activent et comment se portent les offres payantes.",
+  "exactNote": "Les chiffres sont des totaux exacts sur toutes les chaînes, et aucune ligne ne nomme de chaîne.",
+  "windowLabel": "Fenêtre temporelle",
+  "window": "{days} jours",
+  "period": "Fenêtre : {start} à {end} (UTC).",
+  "degraded": "Les analyses sont indisponibles pour le moment ; les panneaux ci-dessous affichent des valeurs vides.",
+  "empty": "Aucune donnée agrégée pour l'instant. Chaque jour apparaît peu après sa fin, en UTC.",
+  "noRows": "Aucune donnée sur cette fenêtre."
+}

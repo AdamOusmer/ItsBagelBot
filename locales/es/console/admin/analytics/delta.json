@@ -1,0 +1,8 @@
+{
+  "day": "{delta} frente al día anterior",
+  "week": "{delta} frente a la semana anterior",
+  "month": "{delta} frente al mes anterior",
+  "window": "{delta} frente a los {days} días anteriores",
+  "since": "{delta} en los últimos {days} días",
+  "none": "Sin período anterior con el que comparar"
+}

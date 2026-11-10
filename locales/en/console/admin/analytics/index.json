@@ -1,0 +1,12 @@
+{
+  "eyebrow": "Product analytics",
+  "title": "Usage and growth",
+  "description": "How many channels use the bot, how new streamers move through setup, which features they switch on, and how paid plans are doing.",
+  "exactNote": "Numbers are exact totals across all channels, and no row names a channel.",
+  "windowLabel": "Time window",
+  "window": "{days} days",
+  "period": "Window: {start} to {end} (UTC).",
+  "degraded": "Analytics are unavailable right now; the panels below show empty values.",
+  "empty": "No rolled-up data yet. Each day appears shortly after it ends, in UTC.",
+  "noRows": "No data for this window."
+}
