@@ -76,8 +76,13 @@ func windowCode(w Window) string {
 
 func CounterKey(day time.Time) string { return keyPrefix + "c:" + Period(Day, day) }
 
+const (
+	setTag = "s"
+	hllTag = "h"
+)
+
 func DistinctKey(w Window, t time.Time, field string) string {
-	return keyPrefix + "h" + windowCode(w) + ":" + Period(w, t) + ":" + field
+	return keyPrefix + setTag + windowCode(w) + ":" + Period(w, t) + ":" + field
 }
 
 // Element salts rotate per active week, so a channel is not linkable across cells.
@@ -85,14 +90,25 @@ func CohortKey(signup, active time.Time) string {
 	return DistinctKey(Week, active, Field(CohortActive, Period(Week, signup)))
 }
 
-// ParseDistinctKey returns the field of a key built by DistinctKey.
-func ParseDistinctKey(key string) (string, bool) {
-	rest, ok := strings.CutPrefix(key, keyPrefix+"h")
-	if !ok || len(rest) < 2 {
-		return "", false
+// DistinctRef is a parsed distinct key. Legacy keys are HyperLogLog sketches written
+// before distinct counts became exact sets.
+type DistinctRef struct {
+	Field  string
+	Legacy bool
+}
+
+// ParseDistinctKey reads a key built by DistinctKey, or a legacy an:h sketch key.
+func ParseDistinctKey(key string) (DistinctRef, bool) {
+	rest, ok := strings.CutPrefix(key, keyPrefix)
+	if !ok || len(rest) < 3 {
+		return DistinctRef{}, false
 	}
-	_, field, ok := strings.Cut(rest[2:], ":")
-	return field, ok
+	tag := rest[:1]
+	if tag != setTag && tag != hllTag {
+		return DistinctRef{}, false
+	}
+	_, field, ok := strings.Cut(rest[3:], ":")
+	return DistinctRef{Field: field, Legacy: tag == hllTag}, ok
 }
 
 func IndexKey(w Window, t time.Time) string {
@@ -109,12 +125,14 @@ func RollupClaimKey(w Window, t time.Time) string {
 
 func WindowCode(w Window) string { return windowCode(w) }
 
-// LevelKey holds running totals moved only by write-time deltas. It never expires and is
-// never reconciled, so a lost or doubled delta stays in the total.
+// LevelKey holds running totals. Write-time deltas move them between reconciles, and each
+// owning service rewrites its fields from SQL once per UTC day, so drift lasts a day at most.
 const LevelKey = keyPrefix + "lvl"
 
-// Permanent once a service's seed finishes; deleting it re-seeds that service on next boot.
-func SeedMarkerKey(service string) string { return keyPrefix + "seed:" + service }
+// ReconcileClaimKey is held by the one pod of a service that reconciles its totals for a day.
+func ReconcileClaimKey(service string, day time.Time) string {
+	return keyPrefix + "rec:" + service + ":" + Period(Day, day)
+}
 
 // Data keys outlive their period so a late rollup still finds them.
 func DataExpiry(w Window, t time.Time) time.Time { return PeriodEnd(w, t).Add(retainAfter) }

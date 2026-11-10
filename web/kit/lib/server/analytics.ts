@@ -4,9 +4,6 @@
 // Must match internal/domain/analytics: key layout and the values its catalog accepts.
 import { masterClient } from './valkey-master';
 
-export type AnalyticsApp = 'dashboard' | 'admin';
-export type ActionOutcome = 'ok' | 'invalid' | 'failed' | 'denied';
-
 type Pipeline = {
   hincrby(key: string, field: string, n: number): Pipeline;
   expireat(key: string, at: number): Pipeline;
@@ -18,29 +15,20 @@ const FLUSH_MS = 10_000;
 const MAX_SLOTS = 2048;
 const RETAIN_SECONDS = 7 * 24 * 60 * 60;
 
-const ROUTE = /^\/[A-Za-z0-9_()[\]./=-]{0,110}$/;
-const ACTION = /^\/[A-Za-z0-9_()[\]./=-]{0,90}\?\/[A-Za-z0-9_]{1,32}$/;
 const NAME = /^[a-z0-9][a-z0-9_.-]{0,63}$/;
 
 const one = (values: readonly string[]) => (v: string) => values.includes(v);
 const shape = (re: RegExp) => (v: string) => re.test(v);
 
 const CATALOG: Record<string, ((v: string) => boolean)[]> = {
-  'web.views': [one(['dashboard', 'admin']), shape(ROUTE)],
-  'web.actions': [one(['dashboard', 'admin']), shape(ACTION), one(['ok', 'invalid', 'failed', 'denied'])],
   'onboarding.preset': [one(['start-new', 'integrate', 'quiet', 'import', 'songs'])],
   'module.toggles': [shape(NAME), one(['on', 'off'])],
   'custom.commands': [one(['created', 'deleted'])]
 };
 
-let app: AnalyticsApp | null = null;
 let clientOverride: Client | null | undefined;
 let pending = new Map<string, number>();
 let timer: ReturnType<typeof setInterval> | null = null;
-
-export function setAnalyticsApp(name: AnalyticsApp): void {
-  app = name;
-}
 
 function valid(metric: string, dims: string[]): boolean {
   const checks = CATALOG[metric];
@@ -59,35 +47,6 @@ function startTimer(): ReturnType<typeof setInterval> {
   const t = setInterval(() => void flushAnalytics(), FLUSH_MS);
   (t as { unref?: () => void }).unref?.();
   return t;
-}
-
-type ViewEvent = { request: Request; route: { id: string | null }; isDataRequest?: boolean };
-
-function pageRoute(event: ViewEvent): string | null {
-  const route = event.route.id;
-  if (event.request.method !== 'GET' || !route) return null;
-  const html = event.isDataRequest || (event.request.headers.get('accept') ?? '').includes('text/html');
-  return html ? route : null;
-}
-
-export function countView(event: ViewEvent): void {
-  const route = pageRoute(event);
-  if (app && route) count('web.views', app, route);
-}
-
-type ActionEvent = { route?: { id: string | null }; url?: URL };
-
-function actionField(event: ActionEvent): string | null {
-  const route = event.route?.id;
-  if (!route || !event.url) return null;
-  const search = event.url.search;
-  const name = search.startsWith('?/') ? search.slice(2).split('&')[0] : 'default';
-  return `${route}?/${name}`;
-}
-
-export function countAction(event: ActionEvent, outcome: ActionOutcome): void {
-  const field = actionField(event);
-  if (app && field) count('web.actions', app, field, outcome);
 }
 
 function dayKey(now: Date): { key: string; expireAt: number } {
@@ -113,7 +72,6 @@ export async function flushAnalytics(now = new Date()): Promise<void> {
 export function setAnalyticsClientForTests(client: Client | null | undefined): void {
   clientOverride = client;
   pending = new Map();
-  app = null;
   if (timer) clearInterval(timer);
   timer = null;
 }

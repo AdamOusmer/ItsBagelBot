@@ -58,11 +58,9 @@ func TestFlushWritesAggregatesOnly(t *testing.T) {
 		catalog.DistinctKey(catalog.Day, day, "module.active|loyalty"),
 		catalog.CohortKey(day.AddDate(0, 0, -21), day),
 	} {
-		require.Equal(t, int64(1), pfcount(t, client, key), key)
+		require.Equal(t, int64(1), scard(t, client, key), key)
 	}
-	monthly, err := client.Do(ctx, client.B().Exists().Key(catalog.DistinctKey(catalog.Month, day, "module.active|loyalty")).Build()).AsInt64()
-	require.NoError(t, err)
-	require.Zero(t, monthly)
+	require.Zero(t, scard(t, client, catalog.DistinctKey(catalog.Month, day, "module.active|loyalty")))
 	weekIndex, err := client.Do(ctx, client.B().Smembers().Key(catalog.IndexKey(catalog.Week, day)).Build()).AsStrSlice()
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{
@@ -85,7 +83,7 @@ func TestRecorderDropsValuesOutsideCatalog(t *testing.T) {
 	r.Count(catalog.CommandUses, "hug")
 	r.Count(catalog.ModuleEvents, "unregistered")
 	r.Count(catalog.ModuleEvents)
-	r.Count(catalog.ModuleErrors, "quotes", "stack trace text")
+	r.Count(catalog.ModuleEvents, "quotes", "stack trace text")
 	r.Count(catalog.AccountsOnboarded)
 	r.Count("made.up")
 	r.Distinct(catalog.ChannelsActive, 0)
@@ -109,14 +107,14 @@ func TestPodsShareSaltWithinPeriodAndRotateAcross(t *testing.T) {
 	podB.Distinct(catalog.ChannelsActive, channel)
 	podB.Distinct(catalog.ChannelsActive, channel+1)
 	podB.Flush(ctx)
-	require.Equal(t, int64(2), pfcount(t, client, catalog.DistinctKey(catalog.Day, day, "channels.active")))
+	require.Equal(t, int64(2), scard(t, client, catalog.DistinctKey(catalog.Day, day, "channels.active")))
 
 	saltToday := get(t, client, catalog.SaltKey(catalog.Day, day))
 	at = day.AddDate(0, 0, 1)
 	podA.Distinct(catalog.ChannelsActive, channel)
 	podA.Flush(ctx)
 	require.NotEqual(t, saltToday, get(t, client, catalog.SaltKey(catalog.Day, at)))
-	require.Equal(t, int64(1), pfcount(t, client, catalog.DistinctKey(catalog.Day, at, "channels.active")))
+	require.Equal(t, int64(1), scard(t, client, catalog.DistinctKey(catalog.Day, at, "channels.active")))
 
 	saltTTL, err := client.Do(ctx, client.B().Expiretime().Key(catalog.SaltKey(catalog.Day, day)).Build()).AsInt64()
 	require.NoError(t, err)
@@ -132,9 +130,9 @@ func TestNilRecorderIsInert(t *testing.T) {
 	r.Close()
 }
 
-func pfcount(t *testing.T, client valkey.Client, key string) int64 {
+func scard(t *testing.T, client valkey.Client, key string) int64 {
 	t.Helper()
-	n, err := client.Do(context.Background(), client.B().Pfcount().Key(key).Build()).AsInt64()
+	n, err := client.Do(context.Background(), client.B().Scard().Key(key).Build()).AsInt64()
 	require.NoError(t, err)
 	return n
 }
@@ -186,7 +184,11 @@ func TestDistinctDedupesWithinAPeriodWhileTheClockMoves(t *testing.T) {
 	}
 	r.Flush(ctx)
 
-	require.InDelta(t, 5000, pfcount(t, client, catalog.DistinctKey(catalog.Day, day, "channels.active")), 100)
+	key := catalog.DistinctKey(catalog.Day, day, "channels.active")
+	require.Equal(t, int64(5000), scard(t, client, key))
+	kind, err := client.Do(ctx, client.B().Type().Key(key).Build()).ToString()
+	require.NoError(t, err)
+	require.Equal(t, "set", kind)
 }
 
 func TestShiftMovesRunningTotalsByTheWriteDifference(t *testing.T) {

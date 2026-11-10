@@ -34,7 +34,7 @@ func (a *adminRPC) analytics(ctx context.Context, req usersrpc.AdminRequest) use
 	if err != nil {
 		return adminError(refusal(err))
 	}
-	return usersrpc.AdminReply{Analytics: &usersrpc.AdminAnalyticsView{Window: catalog.WindowCode(window), Rows: suppressed(rows)}}
+	return usersrpc.AdminReply{Analytics: &usersrpc.AdminAnalyticsView{Window: catalog.WindowCode(window), Rows: analyticsRows(rows)}}
 }
 
 func analyticsQuery(req usersrpc.AdminRequest) (catalog.Window, []catalog.Metric, domainrpc.Refusal) {
@@ -55,20 +55,15 @@ func analyticsQuery(req usersrpc.AdminRequest) (catalog.Window, []catalog.Metric
 	return window, metrics, domainrpc.Refusal{}
 }
 
-// Suppression happens here, not in the console, so a UI bug cannot reveal a small cell.
-func suppressed(rows []repository.AnalyticsRow) []usersrpc.AdminAnalyticsRow {
+func analyticsRows(rows []repository.AnalyticsRow) []usersrpc.AdminAnalyticsRow {
 	out := make([]usersrpc.AdminAnalyticsRow, 0, len(rows))
 	for _, row := range rows {
-		view := usersrpc.AdminAnalyticsRow{
+		out = append(out, usersrpc.AdminAnalyticsRow{
 			Start:  row.Start.Format(time.DateOnly),
 			Metric: string(row.Metric),
 			Dims:   row.Dims,
 			Value:  row.Value,
-		}
-		if row.Value > 0 && row.Value < catalog.SuppressBelow {
-			view.Value, view.Suppressed = 0, true
-		}
-		out = append(out, view)
+		})
 	}
 	return out
 }

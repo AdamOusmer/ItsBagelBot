@@ -48,7 +48,7 @@ func TestAnalyticsSeedMatchesWriteTimeFields(t *testing.T) {
 		"modules.rows|counters|on":       1,
 		"modules.rows|quotes|off":        1,
 		"modules.breadth|2":              1,
-		"modules.breadth|6+":             1,
+		"modules.breadth|6":              1,
 		"integrations.connected|spotify": 1,
 		"integrations.connected|govee":   2,
 	}, got)

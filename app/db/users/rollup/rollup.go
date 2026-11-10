@@ -94,15 +94,15 @@ func (r *Rollup) move(ctx context.Context, p period, now time.Time) (int, error)
 }
 
 func (r *Rollup) collect(ctx context.Context, p period, now time.Time) ([]repository.AnalyticsRow, []string, error) {
-	sketchRows, keys, err := r.sketches(ctx, p)
+	distinctRows, keys, err := r.distincts(ctx, p)
 	if err != nil || p.window != catalog.Day {
-		return sketchRows, keys, err
+		return distinctRows, keys, err
 	}
 	counters, err := r.hash(ctx, p, catalog.CounterKey(p.at))
 	if err != nil {
 		return nil, nil, err
 	}
-	rows := append(sketchRows, counters...)
+	rows := append(distinctRows, counters...)
 	if catalog.Period(catalog.Day, p.at) == catalog.Period(catalog.Day, now.AddDate(0, 0, -1)) {
 		levels, err := r.levels(ctx, p)
 		if err != nil {
@@ -113,25 +113,32 @@ func (r *Rollup) collect(ctx context.Context, p period, now time.Time) ([]reposi
 	return rows, append(keys, catalog.CounterKey(p.at)), nil
 }
 
-func (r *Rollup) sketches(ctx context.Context, p period) ([]repository.AnalyticsRow, []string, error) {
+func (r *Rollup) distincts(ctx context.Context, p period) ([]repository.AnalyticsRow, []string, error) {
 	index := catalog.IndexKey(p.window, p.at)
 	keys, err := pkgvalkey.SetMembers(ctx, r.vc, index)
 	if err != nil {
 		return nil, nil, err
 	}
-	rows := make([]repository.AnalyticsRow, 0, len(keys))
+	counts := make(map[string]int64, len(keys))
 	for _, key := range keys {
-		field, ok := catalog.ParseDistinctKey(key)
+		ref, ok := catalog.ParseDistinctKey(key)
 		if !ok {
 			continue
 		}
-		n, err := pkgvalkey.HyperLogLogCount(ctx, r.vc, key)
+		n, err := r.count(ctx, ref, key)
 		if err != nil {
 			return nil, nil, err
 		}
-		rows = append(rows, row(p, field, n))
+		counts[ref.Field] = max(counts[ref.Field], n)
 	}
-	return rows, append(keys, index), nil
+	return rowsOf(p, counts), append(keys, index), nil
+}
+
+func (r *Rollup) count(ctx context.Context, ref catalog.DistinctRef, key string) (int64, error) {
+	if ref.Legacy {
+		return pkgvalkey.HyperLogLogCount(ctx, r.vc, key)
+	}
+	return pkgvalkey.SetCard(ctx, r.vc, key)
 }
 
 func (r *Rollup) hash(ctx context.Context, p period, key string) ([]repository.AnalyticsRow, error) {

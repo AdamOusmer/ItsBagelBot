@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"slices"
+	"strconv"
 
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
@@ -62,7 +63,7 @@ func moduleTally(rows []*ent.Modules) analytics.Tally {
 		tally.Add(catalog.ModulesRows, m.Name, state)
 	}
 	for _, n := range enabled {
-		tally.Add(catalog.ModulesBreadth, breadthBucket(n))
+		tally.Add(catalog.ModulesBreadth, strconv.Itoa(n))
 	}
 	return tally
 }
@@ -87,7 +88,7 @@ func (r *Modules) seedModules(ctx context.Context, tally analytics.Tally) error 
 	enabled := 0
 	flush := func() {
 		if enabled > 0 {
-			tally.Add(catalog.ModulesBreadth, breadthBucket(enabled))
+			tally.Add(catalog.ModulesBreadth, strconv.Itoa(enabled))
 		}
 		enabled = 0
 	}
@@ -154,19 +155,6 @@ func (r *Modules) seedGovee(ctx context.Context, tally analytics.Tally) error {
 	n, err := db.WithQuery(ctx, r.client.GoveeCredential.Query().Count)
 	tally.AddN(int64(n), catalog.IntegrationsConnected, "govee")
 	return err
-}
-
-func breadthBucket(n int) string {
-	switch {
-	case n <= 1:
-		return "1"
-	case n == 2:
-		return "2"
-	case n <= 5:
-		return "3-5"
-	default:
-		return "6+"
-	}
 }
 
 func changedUsers(items []data.ModuleChangedDTO) []uint64 {

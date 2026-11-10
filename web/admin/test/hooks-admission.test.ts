@@ -14,7 +14,6 @@ mock.module('#lib/server/lanes', () => ({ ensureLaneStoreHA: async () => {} }));
 mock.module('#lib/server/services', () => ({ startInvalidationListener() {} }));
 mock.module('@bagel/kit/server/boot', () => ({ initConsoleRuntime() {} }));
 mock.module('newrelic', () => ({ default: { noticeError() {}, addCustomAttributes() {}, setTransactionName() {}, getTransaction: () => ({ ignore() {} }) } }));
-mock.module('@bagel/kit/server/analytics', () => ({ countView() {}, setAnalyticsApp() {} }));
 mock.module('virtual:bagel-i18n', () => ({ urls: {}, loaders: {}, sliced: false }));
 mock.module('@bagel/kit/i18n', () => ({
   DEFAULT_LOCALE: 'en',

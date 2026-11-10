@@ -201,9 +201,7 @@ func (d *deps) newTwitchClient(ctx context.Context) *twitch.Client {
 	broadcasterTokens := d.broadcasterTokens()
 	broadcasterTokens.StartRefreshSweep(ctx)
 
-	client := twitch.NewClient(d.cfg.TwitchClientID, appTokens, bot, broadcasterTokens)
-	client.SetAttemptObserver(worker.CountHelixFailures(d.analytics))
-	return client
+	return twitch.NewClient(d.cfg.TwitchClientID, appTokens, bot, broadcasterTokens)
 }
 
 func (d *deps) botTokenSource() *twitch.Source {

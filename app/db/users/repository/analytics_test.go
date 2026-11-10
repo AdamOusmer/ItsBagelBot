@@ -130,25 +130,25 @@ func TestAnalyticsSeedPagesPastOnePage(t *testing.T) {
 	require.EqualValues(t, total, got["accounts.locale|en"])
 }
 
-func TestAnalyticsSeedOnceWritesLevelsOnce(t *testing.T) {
+func TestAnalyticsReconcileWritesLevelsOncePerDay(t *testing.T) {
 	client, _, repo := setup(t)
 	vc := valkeytest.Spawn(t)
 	rec := analytics.New(vc, zap.NewNop(), nil, analytics.WithoutTicker())
 	t.Cleanup(rec.Close)
 	ctx := context.Background()
 	require.NoError(t, client.User.Create().SetID(1).SetUsername("seed1").SetEmail("seed1@example.test").Exec(ctx))
-	owned := []string{string(catalog.AccountsTotal)}
+	owned := analytics.Owned{string(catalog.AccountsTotal)}
 
-	rec.SeedOnce(ctx, "users", owned, repo.AnalyticsSeed)
+	rec.Reconcile(ctx, analytics.Owner{Service: "users", Owned: owned, Seed: repo.AnalyticsSeed})
 	got, err := vc.Do(ctx, vc.B().Hget().Key(catalog.LevelKey).Field("accounts.total|free").Build()).AsInt64()
 	require.NoError(t, err)
 	require.EqualValues(t, 1, got)
 
 	ran := false
-	rec.SeedOnce(ctx, "users", owned, func(context.Context) (analytics.Tally, error) {
+	rec.Reconcile(ctx, analytics.Owner{Service: "users", Owned: owned, Seed: func(context.Context) (analytics.Tally, error) {
 		ran = true
 		return analytics.Tally{}, nil
-	})
+	}})
 	require.False(t, ran)
 }
 

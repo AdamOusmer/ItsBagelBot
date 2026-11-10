@@ -13,3 +13,8 @@ import (
 func SetMembers(ctx context.Context, client valkey_go.Client, key string) ([]string, error) {
 	return client.Do(ctx, client.B().Smembers().Key(key).Build()).AsStrSlice()
 }
+
+// SetCard returns a set's exact cardinality.
+func SetCard(ctx context.Context, client valkey_go.Client, key string) (int64, error) {
+	return client.Do(ctx, client.B().Scard().Key(key).Build()).AsInt64()
+}
