@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 
 	"entgo.io/ent/dialect"
 	"github.com/google/uuid"
@@ -88,11 +89,13 @@ func automationViews(rows []*ent.Automation) ([]automation.Automation, error) {
 }
 
 func (a *Automations) List(ctx context.Context, userID uint64) ([]automation.Automation, error) {
-	rows, err := a.client.Automation.Query().
-		Where(entautomation.UserID(userID)).
-		Order(ent.Asc(entautomation.FieldNameKey)).
-		Select(runtimeColumns...).
-		All(ctx)
+	rows, err := db.WithRead(ctx, func(ctx context.Context) ([]*ent.Automation, error) {
+		return a.client.Automation.Query().
+			Where(entautomation.UserID(userID)).
+			Order(ent.Asc(entautomation.FieldNameKey)).
+			Select(runtimeColumns...).
+			All(ctx)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -100,9 +103,11 @@ func (a *Automations) List(ctx context.Context, userID uint64) ([]automation.Aut
 }
 
 func (a *Automations) Get(ctx context.Context, userID uint64, id string) (*automation.Automation, bool, error) {
-	row, err := a.client.Automation.Query().
-		Where(entautomation.UserID(userID), entautomation.ID(id)).
-		Only(ctx)
+	row, err := db.WithRead(ctx, func(ctx context.Context) (*ent.Automation, error) {
+		return a.client.Automation.Query().
+			Where(entautomation.UserID(userID), entautomation.ID(id)).
+			Only(ctx)
+	})
 	switch {
 	case ent.IsNotFound(err):
 		return nil, false, nil
@@ -122,7 +127,9 @@ func (a *Automations) Validate(ctx context.Context, userID uint64, name string, 
 		return issues, nil
 	}
 	def, _ := automation.Parse(raw)
-	known, err := knownAutomationIDs(ctx, a.client.Automation, userID)
+	known, err := db.WithRead(ctx, func(ctx context.Context) (map[string]bool, error) {
+		return knownAutomationIDs(ctx, a.client.Automation, userID)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -135,18 +142,12 @@ func (a *Automations) Upsert(ctx context.Context, userID uint64, in AutomationIn
 	if len(issues) > 0 {
 		return automation.Automation{}, &AutomationRefusal{Code: rpc.CodeInvalid, Issues: issues}
 	}
-	tx, err := a.client.Tx(ctx)
+	in.lockChannelCap = a.rowLocks
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Automation, error) {
+		return a.commitAutomation(ctx, automationDraft{userID: userID, in: in, def: def})
+	})
 	if err != nil {
 		return automation.Automation{}, err
-	}
-	defer tx.Rollback()
-	in.lockChannelCap = a.rowLocks
-	row, err := writeAutomation(ctx, tx, automationDraft{userID: userID, in: in, def: def})
-	if err != nil {
-		return automation.Automation{}, mapAutomationConstraint(err)
-	}
-	if err := tx.Commit(); err != nil {
-		return automation.Automation{}, mapAutomationConstraint(err)
 	}
 	view, err := automationView(row)
 	if err != nil {
@@ -156,10 +157,31 @@ func (a *Automations) Upsert(ctx context.Context, userID uint64, in AutomationIn
 	return view, nil
 }
 
+func (a *Automations) commitAutomation(ctx context.Context, draft automationDraft) (*ent.Automation, error) {
+	tx, err := a.client.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	row, err := writeAutomation(ctx, tx, draft)
+	if err != nil {
+		return nil, mapAutomationConstraint(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, mapAutomationConstraint(err)
+	}
+	return row, nil
+}
+
 func (a *Automations) Delete(ctx context.Context, userID uint64, id string) (bool, error) {
-	n, err := a.client.Automation.Delete().
-		Where(entautomation.UserID(userID), entautomation.ID(id)).
-		Exec(ctx)
+	var n int
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		var err error
+		n, err = a.client.Automation.Delete().
+			Where(entautomation.UserID(userID), entautomation.ID(id)).
+			Exec(ctx)
+		return err
+	})
 	if err != nil || n == 0 {
 		return false, err
 	}
