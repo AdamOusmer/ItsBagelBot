@@ -69,8 +69,8 @@ func Username(username string) error {
 	return nil
 }
 
-func NormalizeLogin(login string) string {
-	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(login), "@"))
+func NormalizeLogin[T ~string](login T) T {
+	return T(strings.ToLower(strings.TrimPrefix(strings.TrimSpace(string(login)), "@")))
 }
 
 func isPrintableAsciiNoSpace(c byte) bool {
