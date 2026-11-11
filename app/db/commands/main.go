@@ -139,7 +139,7 @@ func main() {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
-	fetchesProjectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_FETCHES_SUBJECT", "bagel.rpc.internal.projection.commands.fetches.get")
+	fetchesProjectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_FETCHES_SUBJECT", "rpc.internal.projection.commands.fetches.get")
 	if err := rpc.SubscribeFetchProjection(wiring, fetchesProjectionSubject); err != nil {
 		log.Fatal("failed to subscribe fetches projection rpc", zap.Error(err))
 	}

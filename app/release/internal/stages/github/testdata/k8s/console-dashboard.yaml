@@ -236,9 +236,9 @@ spec:
             - name: DASHBOARD_L1_CACHE_CAPACITY
               value: "1000"
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
-              value: bagel.rpc.projector.dashboard
+              value: rpc.projector.dashboard
             - name: NATS_NOTIFICATIONS_SUBJECT_PREFIX
-              value: bagel.rpc.notifications
+              value: rpc.notifications
             # Reuse the old tier's 32-byte AES key as the session key.
             - name: SESSION_KEY
               valueFrom:

@@ -69,7 +69,7 @@ func submitAll(pool *RPCPool, n int, handler nats.MsgHandler) *sync.WaitGroup {
 		senders.Add(1)
 		go func() {
 			defer senders.Done()
-			callback(&nats.Msg{Subject: "bagel.rpc.test"})
+			callback(&nats.Msg{Subject: "rpc.test"})
 		}()
 	}
 	return &senders
@@ -175,7 +175,7 @@ func TestRPCPoolBoundsOutstandingMessages(t *testing.T) {
 				senders.Add(1)
 				go func() {
 					defer senders.Done()
-					callback(&nats.Msg{Subject: "bagel.rpc.test"})
+					callback(&nats.Msg{Subject: "rpc.test"})
 					accepted.Add(1)
 				}()
 			}
@@ -231,12 +231,12 @@ func TestRPCPoolRejectsSubmitsAfterDrain(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 2})
 	var ran atomic.Int64
 	callback := pool.callback(func(*nats.Msg) { ran.Add(1) })
-	callback(&nats.Msg{Subject: "bagel.rpc.test"})
+	callback(&nats.Msg{Subject: "rpc.test"})
 	waitFor(t, func() bool { return ran.Load() == 1 }, "the first message was never handled")
 	drainWithin(t, pool)
 
 	for range 8 {
-		callback(&nats.Msg{Subject: "bagel.rpc.test"})
+		callback(&nats.Msg{Subject: "rpc.test"})
 	}
 
 	assert.EqualValues(t, 1, ran.Load(), "a post-drain delivery was executed")
@@ -314,7 +314,7 @@ func TestDrainRPCHandlersCoversRegisteredPools(t *testing.T) {
 	registerRPCPool(pool)
 	var ran atomic.Int64
 	callback := pool.callback(func(*nats.Msg) { ran.Add(1) })
-	callback(&nats.Msg{Subject: "bagel.rpc.test"})
+	callback(&nats.Msg{Subject: "rpc.test"})
 	waitFor(t, func() bool { return ran.Load() == 1 }, "the message was never handled")
 	ctx, cancel := context.WithTimeout(context.Background(), rpcPoolTestTimeout)
 	defer cancel()

@@ -162,7 +162,7 @@ func setupCheckout(runtime checkoutRuntime) (configured, auth bool) {
 	}
 
 	userGetSubject := conf.UsersGetSubject.Get()
-	prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
+	prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "rpc.transactions")
 	usersGiveaways := rpc.NewUsersGiveawayClient(nc)
 	guard := rpc.NewCheckoutGuard(db, usersGiveaways)
 	if err := rpc.SubscribeCheckout(

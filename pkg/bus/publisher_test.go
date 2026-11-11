@@ -63,7 +63,7 @@ func TestPublisherStoresEveryMessageOnEveryWire(t *testing.T) {
 
 	for _, wire := range []string{"single", "fast", "atomic"} {
 		t.Run(wire, func(t *testing.T) {
-			require.NoError(t, f.js.PurgeStream(BagelDataStream.Name))
+			require.NoError(t, f.js.PurgeStream(DataStream.Name))
 			t.Setenv("NATS_PUBLISH_WIRE", wire)
 			pub := openPublisher(t, f.url)
 			ctx := WithPublishPartition(context.Background(), "channel-123")
@@ -73,10 +73,10 @@ func TestPublisherStoresEveryMessageOnEveryWire(t *testing.T) {
 			})
 
 			require.NoError(t, flush(t, pub))
-			assert.EqualValues(t, 64, f.storedMessages(t, BagelDataStream.Name))
-			stored, err := f.js.GetLastMsg(BagelDataStream.Name, publishBurstSubject)
+			assert.EqualValues(t, 64, f.storedMessages(t, DataStream.Name))
+			stored, err := f.js.GetLastMsg(DataStream.Name, publishBurstSubject)
 			require.NoError(t, err)
-			assert.NotEmpty(t, stored.Header.Get(MessageIDHeader), "every message carries the fleet identity")
+			assert.NotEmpty(t, stored.Header.Get("Event-Message-Id"), "every message carries the fleet identity")
 			assert.Empty(t, stored.Header.Get(nats.MsgIdHdr), "the broker dedup header must stay unset")
 		})
 	}
@@ -95,7 +95,7 @@ func TestConfirmedPublishesKeepTheirIdentityWithoutBrokerDeduplication(t *testin
 	publishConcurrently(t, 16, confirmed)
 
 	require.NoError(t, flush(t, pub))
-	assert.EqualValues(t, 16, f.storedMessages(t, BagelDataStream.Name), "a repeated identity must be stored again")
+	assert.EqualValues(t, 16, f.storedMessages(t, DataStream.Name), "a repeated identity must be stored again")
 	assert.Error(t, PublishConfirmed(context.Background(), pub, Publication{Subject: publishBurstSubject}), "a confirmed publish needs an ID")
 }
 
@@ -107,7 +107,7 @@ func TestPublishRoutesEverySubjectToItsCatalogStream(t *testing.T) {
 		subject string
 		stream  string
 	}{
-		{"data.users.updated", "BAGEL_DATA"},
+		{"data.users.updated", "DATA"},
 		{"twitch.ingress.event.premium", "TWITCH_INGRESS"},
 		{"twitch.ingress.event.stream", "TWITCH_INGRESS"},
 		{"twitch.ingress.status.authz.revoked", "TWITCH_INGRESS"},
@@ -158,7 +158,7 @@ func TestBatchWiresFallBackToPerMessagePublishingWhenTheStreamRefusesBatches(t *
 		t.Run(wire, func(t *testing.T) {
 			url := privateBroker(t)
 			js := jetStreamOf(t, url)
-			_, err := js.AddStream(&nats.StreamConfig{Name: BagelDataStream.Name, Subjects: BagelDataStream.Subjects})
+			_, err := js.AddStream(&nats.StreamConfig{Name: DataStream.Name, Subjects: DataStream.Subjects})
 			require.NoError(t, err)
 			t.Setenv("NATS_PUBLISH_WIRE", wire)
 			t.Setenv("NATS_PUBLISH_ACK_WAIT", "1s")
@@ -169,13 +169,13 @@ func TestBatchWiresFallBackToPerMessagePublishingWhenTheStreamRefusesBatches(t *
 			})
 
 			require.NoError(t, flush(t, pub))
-			info, err := js.StreamInfo(BagelDataStream.Name)
+			info, err := js.StreamInfo(DataStream.Name)
 			require.NoError(t, err)
 			assert.EqualValues(t, 32, info.State.Msgs)
-			stored, err := js.GetLastMsg(BagelDataStream.Name, publishBurstSubject)
+			stored, err := js.GetLastMsg(DataStream.Name, publishBurstSubject)
 			require.NoError(t, err)
 			assert.Empty(t, stored.Header.Get("Nats-Batch-Id"), "the replayed message must not carry batch framing")
-			assert.NotEmpty(t, stored.Header.Get(MessageIDHeader), "the replayed message must keep the fleet identity")
+			assert.NotEmpty(t, stored.Header.Get("Event-Message-Id"), "the replayed message must keep the fleet identity")
 		})
 	}
 }
@@ -187,7 +187,7 @@ func TestFlushReportsAFailedPublicationOnceAndRecoversOnceTheStreamExists(t *tes
 
 	require.NoError(t, PublishRaw(context.Background(), pub, publishBurstSubject, []byte(`{}`)))
 	failed := flush(t, pub)
-	_, err := js.AddStream(&nats.StreamConfig{Name: BagelDataStream.Name, Subjects: BagelDataStream.Subjects})
+	_, err := js.AddStream(&nats.StreamConfig{Name: DataStream.Name, Subjects: DataStream.Subjects})
 	require.NoError(t, err)
 	require.NoError(t, PublishRaw(context.Background(), pub, publishBurstSubject, []byte(`{}`)))
 	recovered := flush(t, pub)

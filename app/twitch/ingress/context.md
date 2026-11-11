@@ -78,8 +78,8 @@ Trial provenance is derived from receiver metadata only; trial reception and
 Conduit membership have their own lifecycle and generation handling.
 
 The RPC plane and BUS firehose use separate NATS identities/connections.
-Status lookup defaults to `bagel.rpc.broadcaster.status.get`; invalidations to
-`bagel.cache.invalidate.status`. Admin/scale/trial/Conduit responders are wired
+Status lookup defaults to `rpc.broadcaster.status.get`; invalidations to
+`cache.invalidate.status`. Admin/scale/trial/Conduit responders are wired
 in `application.ex`; consult `rpc.ex` before changing subject aliases.
 
 ## Invariants and pitfalls

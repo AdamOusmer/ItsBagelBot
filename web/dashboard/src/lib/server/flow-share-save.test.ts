@@ -33,9 +33,9 @@ mock.module('@bagel/kit/server/rate-limit', () => ({
 const { fabric } = await import('./services');
 const { flowShareActions } = await import('./flow-share');
 
-const AUTO = 'bagel.rpc.modules.automation';
-const PATCH = 'bagel.rpc.modules.patch';
-const COMMAND_UPSERT = 'bagel.rpc.commands.upsert';
+const AUTO = 'rpc.modules.automation';
+const PATCH = 'rpc.modules.patch';
+const COMMAND_UPSERT = 'rpc.commands.upsert';
 const actions = flowShareActions({ flowPreview: (flow: Flow) => ({ steps: flow.nodes.length }) });
 
 const chat = (text: string) => ({ type: 'chat', params: { text } });
@@ -46,12 +46,12 @@ const callsTo = (subject: string) => calls.filter((call) => call.subject === sub
 const flowFile = (flows: unknown[]) => JSON.stringify({ format: FLOW_FILE_FORMAT, version: 1, flows });
 
 function stubChannel(modules: unknown[], commands: unknown[] = []) {
-  replies['bagel.rpc.commands.list'] = { commands };
-  replies['bagel.rpc.modules.list'] = { modules };
-  replies['bagel.rpc.projector.dashboard.modules.get'] = { modules };
-  replies['bagel.rpc.projector.dashboard.commands.get'] = { commands };
-  replies['bagel.rpc.projector.dashboard.commands.replace'] = { commands };
-  replies['bagel.rpc.projector.dashboard.modules.replace'] = { modules };
+  replies['rpc.commands.list'] = { commands };
+  replies['rpc.modules.list'] = { modules };
+  replies['rpc.projector.dashboard.modules.get'] = { modules };
+  replies['rpc.projector.dashboard.commands.get'] = { commands };
+  replies['rpc.projector.dashboard.commands.replace'] = { commands };
+  replies['rpc.projector.dashboard.modules.replace'] = { modules };
   replies[COMMAND_UPSERT] = {};
   replies[`${AUTO}.list`] = { automations: [] };
   let next = 0;

@@ -69,7 +69,7 @@ type trialSubscriptions struct {
 
 func SubscribeTrialSubscriptions(wiring bus.RPCWiring, store valkey.Client, tw *twitch.Client, botID string) error {
 	h := &trialSubscriptions{store: store, twitch: tw, botID: botID}
-	return bus.ServeVerbs(wiring, "bagel.rpc.outgress.trial_subscription",
+	return bus.ServeVerbs(wiring, "rpc.outgress.trial_subscription",
 		bus.At("create", h.create),
 		bus.At("delete", h.delete),
 	)

@@ -44,7 +44,7 @@ func TestLiveACLPermissions(t *testing.T) {
 			role    roleEndpoint
 			subject string
 		}{
-			{roleEndpoint{"BUS", "users_bus"}, "$JS.API.STREAM.DELETE.BAGEL_DATA"},
+			{roleEndpoint{"BUS", "users_bus"}, "$JS.API.STREAM.DELETE.DATA"},
 			{roleEndpoint{"BUS", "outgress_bus"}, "twitch.ingress.event.premium"},
 		} {
 			err := server.publishOutcome(t, probe.role, probe.subject, 500*time.Millisecond)
@@ -68,15 +68,15 @@ func TestLiveACLPermissions(t *testing.T) {
 	})
 	t.Run("serves a request across an account import", func(t *testing.T) {
 		for _, probe := range []crossAccountProbe{
-			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OUTGRESS_RPC", "outgress_rpc"}, "bagel.rpc.internal.tokens.get"},
-			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "bagel.rpc.admin.user.auth.check"},
-			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "bagel.rpc.internal.admin.audit.append"},
-			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "bagel.rpc.admin.user.audit.append"},
-			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"ADMIN_RPC", "admin_rpc"}, "bagel.rpc.admin.analytics"},
-			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "bagel.rpc.internal.admin.staff.active"},
-			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "bagel.rpc.health.admin"},
-			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"TRANSACTIONS_RPC", "transactions_rpc"}, "bagel.rpc.admin.user.auth.check"},
-			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"ADMIN_RPC", "admin_rpc"}, "bagel.rpc.admin.user.test.set"},
+			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OUTGRESS_RPC", "outgress_rpc"}, "rpc.internal.tokens.get"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.admin.user.auth.check"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.internal.admin.audit.append"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.admin.user.audit.append"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"ADMIN_RPC", "admin_rpc"}, "rpc.admin.analytics"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.internal.admin.staff.active"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.health.admin"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"TRANSACTIONS_RPC", "transactions_rpc"}, "rpc.admin.user.auth.check"},
+			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"ADMIN_RPC", "admin_rpc"}, "rpc.admin.user.test.set"},
 		} {
 			server.assertCrossAccountRequest(t, probe)
 		}
@@ -86,7 +86,7 @@ func TestLiveACLPermissions(t *testing.T) {
 func TestAuditDeliveryCannotBeCalledByConsoles(t *testing.T) {
 	server := newLiveACLServer(t, committedACL(t))
 	responder := server.connectRole(t, roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"})
-	_, err := responder.Subscribe("bagel.rpc.internal.admin.audit.>", func(msg *nats.Msg) { _ = msg.Respond([]byte("ok")) })
+	_, err := responder.Subscribe("rpc.internal.admin.audit.>", func(msg *nats.Msg) { _ = msg.Respond([]byte("ok")) })
 	require.NoError(t, err)
 	require.NoError(t, responder.Flush())
 
@@ -97,7 +97,7 @@ func TestAuditDeliveryCannotBeCalledByConsoles(t *testing.T) {
 	} {
 		t.Run(caller.account, func(t *testing.T) {
 			nc := server.connectRole(t, caller)
-			for _, subject := range []string{"bagel.rpc.internal.admin.audit.append", "bagel.rpc.internal.admin.audit.append.node.n1"} {
+			for _, subject := range []string{"rpc.internal.admin.audit.append", "rpc.internal.admin.audit.append.node.n1"} {
 				_, err := nc.Request(subject, nil, time.Second)
 				require.ErrorIs(t, err, nats.ErrNoResponders)
 			}

@@ -47,7 +47,7 @@ import (
 )
 
 const (
-	gossipPrefix    = "bagel.rpc.gossip"
+	gossipPrefix    = "rpc.gossip"
 	modulesPrefix   = "modules"
 	premiumSubject  = "twitch.outgress.premium"
 	standardSubject = "twitch.outgress.standard"

@@ -58,7 +58,7 @@ Generated Ent code is not the schema source.
 
 ## Flow and contracts
 
-- Default RPC prefix is `bagel.rpc.loyalty`; balance verbs require a real owner,
+- Default RPC prefix is `rpc.loyalty`; balance verbs require a real owner,
   counter verbs can admit the reserved bot namespace `user_id="0"`.
 - Grouped earned events accumulate in memory and bulk-add standings. Reads hit
   Ent directly; a just-accepted legacy delta may not yet appear in an RPC read.

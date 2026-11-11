@@ -133,7 +133,7 @@ spec:
             # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
             # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
             # node-local leaf. NATS_URL is the local-dev fallback only.
-            # BAGEL_DATA folds remain pinned to nats-1. The independent publisher
+            # DATA folds remain pinned to nats-1. The independent publisher
             # pool uses the PreferSameNode hub Service so its TLS/socket/batch
             # work is distributed across the three brokers before NATS routes
             # each commit to the stream leader.
@@ -187,7 +187,7 @@ spec:
             - name: VALKEY_LOCAL_ADDR
               value: valkey-local.cache.svc.cluster.local:6380
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
-              value: bagel.rpc.projector.dashboard
+              value: rpc.projector.dashboard
             - name: PROJECTOR_WRITE_CONCURRENCY
               value: "8"
             # Stream-online refreshes keep a full settings snapshot warm for a

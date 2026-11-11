@@ -12,7 +12,7 @@ import {
 } from '#lib/overview-live';
 
 const STREAM_INFO_SUBJECT =
-  process.env.NATS_BROADCASTER_STREAM_INFO_SUBJECT || 'bagel.rpc.broadcaster.stream_info.get';
+  process.env.NATS_BROADCASTER_STREAM_INFO_SUBJECT || 'rpc.broadcaster.stream_info.get';
 
 const RPC_TIMEOUT_MS = 2000;
 

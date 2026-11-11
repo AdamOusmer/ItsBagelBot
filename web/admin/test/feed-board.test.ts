@@ -41,7 +41,7 @@ describe('admin feed board read', () => {
         { id: '28807154', name: '', count: '4' }
       ]
     });
-    expect(calls).toEqual([{ subject: 'bagel.rpc.modules.personality.feed.board', payload: { limit: FEED_BOARD_SIZE } }]);
+    expect(calls).toEqual([{ subject: 'rpc.modules.personality.feed.board', payload: { limit: FEED_BOARD_SIZE } }]);
   });
 
   test('an untouched bagel reads as zero with no channels', async () => {

@@ -103,7 +103,7 @@ func (ps *PermitService) Close() {
 }
 
 func permitSubject(region, podID string) string {
-	return "bagel.outgress.permit.v2." + region + "." + podID
+	return "outgress.permit.v2." + region + "." + podID
 }
 
 func borrowDeadline(ctx context.Context, now time.Time) time.Time {

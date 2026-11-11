@@ -170,18 +170,18 @@ func TestMalformedDataMessageIsDeadLetteredInsteadOfDelivered(t *testing.T) {
 	f.appendMessage(t, "data.test.malformed", `{}`, "Traceparent", "one", "Traceparent", "two")
 
 	requireSilence(t, messages, time.Second)
-	letter, err := f.js.GetLastMsg(BagelDeadLetterStream.Name, "dlq.data.test.malformed")
+	letter, err := f.js.GetLastMsg(DataDeadLetterStream.Name, "dlq.data.test.malformed")
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		DeadLetterSubjectHeader: "data.test.malformed",
-		DeadLetterStreamHeader:  BagelDataStream.Name,
+		DeadLetterStreamHeader:  DataStream.Name,
 		DeadLetterReasonHeader:  "malformed",
 	}, map[string]string{
 		DeadLetterSubjectHeader: letter.Header.Get(DeadLetterSubjectHeader),
 		DeadLetterStreamHeader:  letter.Header.Get(DeadLetterStreamHeader),
 		DeadLetterReasonHeader:  letter.Header.Get(DeadLetterReasonHeader),
 	})
-	assert.Equal(t, uint64(1), f.storedMessages(t, BagelDeadLetterStream.Name))
+	assert.Equal(t, uint64(1), f.storedMessages(t, DataDeadLetterStream.Name))
 }
 
 func TestAcknowledgedWorkQueueMessageLeavesTheStream(t *testing.T) {

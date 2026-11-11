@@ -12,9 +12,9 @@ Les RPC servent les notifications du tableau de bord et les annonces administrat
 
 ## Interfaces
 
-Les opérations utilisateur utilisent `bagel.rpc.notifications.*` ; les opérations administratives utilisent `bagel.rpc.admin.notifications.*`.
+Les opérations utilisateur utilisent `rpc.notifications.*` ; les opérations administratives utilisent `rpc.admin.notifications.*`.
 
-`bagel.rpc.notifications.*` liste et marque les notifications ; `bagel.rpc.admin.notifications.*` les envoie, liste et supprime. Un identifiant de requête permet à une création répétée de renvoyer la ligne existante. L’expiration globale et celle par utilisateur ont des rôles distincts ; marquer une notification comme lue ne supprime pas l’annonce globale. Le nettoyage utilise une RPC interne.
+`rpc.notifications.*` liste et marque les notifications ; `rpc.admin.notifications.*` les envoie, liste et supprime. Un identifiant de requête permet à une création répétée de renvoyer la ligne existante. L’expiration globale et celle par utilisateur ont des rôles distincts ; marquer une notification comme lue ne supprime pas l’annonce globale. Le nettoyage utilise une RPC interne.
 
 ## État et dépendances
 

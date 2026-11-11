@@ -220,15 +220,15 @@ spec:
             - name: NATS_STATUS_SUBJECT_PREFIX
               value: twitch.ingress.status
             - name: NATS_ADMIN_USER_SUBJECT_PREFIX
-              value: bagel.rpc.admin.user
+              value: rpc.admin.user
             # DB-backed staff auth + audit (users service). Defaults match the
             # service; pinned here for clarity.
             - name: NATS_ADMIN_AUTH_SUBJECT_PREFIX
-              value: bagel.rpc.admin.user.auth
+              value: rpc.admin.user.auth
             - name: NATS_ADMIN_AUDIT_SUBJECT_PREFIX
-              value: bagel.rpc.admin.user.audit
+              value: rpc.admin.user.audit
             - name: NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX
-              value: bagel.rpc.admin.notifications
+              value: rpc.admin.notifications
             # Twitch OAuth callback for operator sign-in (admin host).
             - name: TWITCH_REDIRECT_URI
               value: https://admin.tail451e6d.ts.net/auth/callback

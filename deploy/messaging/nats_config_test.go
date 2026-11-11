@@ -93,7 +93,7 @@ func TestPreloadedDeadLetterOwnersHaveRuntimePermissions(t *testing.T) {
 			require.True(t, ok, "missing scoped signer for %s", role)
 
 			for _, action := range []string{"INFO", "CREATE", "UPDATE"} {
-				want := "$JS.API.STREAM." + action + ".BAGEL_DLQ"
+				want := "$JS.API.STREAM." + action + ".DATA_DLQ"
 				assert.True(t, slices.Contains(scope.Template.Pub.Allow, want), "preload %s lacks %s", role, want)
 			}
 		})
@@ -233,7 +233,7 @@ func TestCountdownRPCsReachModulesInCompiledAndPreloadedClaims(t *testing.T) {
 	require.NotNil(t, preload)
 	require.True(t, committedOperator(t).DidSign(preload))
 	for _, name := range []string{"start", "add", "peek", "claim", "ack", "progress"} {
-		subject := "bagel.rpc.modules.countdown." + name
+		subject := "rpc.modules.countdown." + name
 		for label, claim := range map[string]*jwt.AccountClaims{"compiled": worker, "preloaded": preload} {
 			t.Run(label+"/"+name, func(t *testing.T) {
 				ok := slices.ContainsFunc(claim.Imports, func(imp *jwt.Import) bool {

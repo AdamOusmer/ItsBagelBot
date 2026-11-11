@@ -6,8 +6,8 @@ and [app map](../../../CONTEXT-MAP.md), especially account activity and Premium.
 ## Responsibility and boundaries
 
 Owns registered broadcaster identity, bot-enable state, preferences, Twitch token
-custody, contact email, effective access, promotional grants and dashboard delegation in the MySQL schema selected by `DB_SCHEMA`. It provisions the shared `BAGEL_DATA`
-stream and `BAGEL_DLQ`; Sesame owns Twitch ingress streams. Transactions owns provider HTTP calls
+custody, contact email, effective access, promotional grants and dashboard delegation in the MySQL schema selected by `DB_SCHEMA`. It provisions the shared `DATA`
+stream and `DATA_DLQ`; Sesame owns Twitch ingress streams. Transactions owns provider HTTP calls
 and giveaway campaigns/draws, while Users owns authoritative eligibility/access.
 Admin owns staff membership, audit history and aggregate analytics in its own schema.
 Modules, Commands and Loyalty own their separate feature records. Users also
@@ -61,7 +61,7 @@ gateway only verifies access tokens and listens for revocation.
 | [rpc/tokens.go](rpc/tokens.go), [email.go](rpc/email.go), [projection.go](rpc/projection.go), [counts.go](rpc/counts.go), [delegation.go](rpc/delegation.go) | Scoped read/custody/delegation endpoints. |
 | [rpc/bot_token.go](rpc/bot_token.go) | Bot OAuth grant validation for the dedicated bot-token save path. |
 | [rpc/budgets.go](rpc/budgets.go) | Explicit deadlines protected by tests. |
-| [rpc/deviceauth.go](rpc/deviceauth.go) | Desktop device-authorization RPCs (`bagel.rpc.dashboard.device.*`); OAuth-error mapping for the token endpoint. |
+| [rpc/deviceauth.go](rpc/deviceauth.go) | Desktop device-authorization RPCs (`rpc.dashboard.device.*`); OAuth-error mapping for the token endpoint. |
 | [repository/deviceauth_codes.go](repository/deviceauth_codes.go), [deviceauth_refresh.go](repository/deviceauth_refresh.go), [deviceauth_grants.go](repository/deviceauth_grants.go), [deviceauth_cleanup.go](repository/deviceauth_cleanup.go) | Code issuance/exchange, refresh rotation with reuse detection, grant listing/revocation, and the expired-code/stale-grant sweep. |
 | [tokensign/tokensign.go](tokensign/tokensign.go) | Ed25519 access-token signing/verification (`v1.<payload>.<sig>`), keyed by `kid`. |
 | [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, LifecycleErasure, DeviceGrant, AuthorizationCode and pending AdminAuditDelivery definitions. |
@@ -75,10 +75,10 @@ Edit schemas rather than generated Ent code.
 
 ## Flow and contracts
 
-- Dashboard defaults to `bagel.rpc.dashboard.*`; admin accounts to
-  `bagel.rpc.admin.user.*`. Admin owns the `.auth` and `.audit` surfaces; Users
+- Dashboard defaults to `rpc.dashboard.*`; admin accounts to
+  `rpc.admin.user.*`. Admin owns the `.auth` and `.audit` surfaces; Users
   asks Admin to authorize every staff account operation.
-  Desktop device authorization sits at `bagel.rpc.dashboard.device.*`
+  Desktop device authorization sits at `rpc.dashboard.device.*`
   (`create_code`, `exchange`, `refresh`, `list`, `revoke`, `revoke_all`) under
   the same wildcard export.
 - Registration persists identity immediately; contact-email capture is a separate
@@ -97,7 +97,7 @@ Edit schemas rather than generated Ent code.
   tokens. `ReplayErasures` (boot + every 15m) re-deletes any account a database
   restore brought back and resends `data.users.deleted` for records under 1h
   whose account is gone; the ledger lives outside MySQL so it survives losing it.
-- Transactions calls `bagel.rpc.internal.billing.apply` and Users' internal
+- Transactions calls `rpc.internal.billing.apply` and Users' internal
   giveaway prefix for eligibility, coverage and grant lifecycle. `main.go` holds
   subject overrides, token/email/count reads and the projection subject.
 

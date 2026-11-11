@@ -7,9 +7,9 @@ import { requestLocalFirst, rpcSubjectsForNode } from './nats-rpc-locality';
 
 describe('RPC node locality', () => {
   test('builds a restricted node-qualified subject', () => {
-    expect(rpcSubjectsForNode('bagel.rpc.users.get', 'node2')).toEqual([
-      'bagel.rpc.users.get.node.node2',
-      'bagel.rpc.users.get'
+    expect(rpcSubjectsForNode('rpc.users.get', 'node2')).toEqual([
+      'rpc.users.get.node.node2',
+      'rpc.users.get'
     ]);
   });
 

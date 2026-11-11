@@ -141,7 +141,7 @@ func Load() *Config {
 		ClashRoyaleRateLimit: env.GetFloat("CLASHROYALE_RATE_LIMIT", 600.0),
 
 		FetchKeySubjectPrefix:  conf.FetchKeyPrefix.Get(),
-		FetchProjectionSubject: env.Get("PROJECTION_FETCHES_SUBJECT", "bagel.rpc.internal.projection.commands.fetches.get"),
+		FetchProjectionSubject: env.Get("PROJECTION_FETCHES_SUBJECT", "rpc.internal.projection.commands.fetches.get"),
 
 		CustomChannelRateLimit: env.GetFloat("CUSTOM_FETCH_CHANNEL_RATE_LIMIT", 6.0),
 		CustomDefRateLimit:     env.GetFloat("CUSTOM_FETCH_DEF_RATE_LIMIT", 30.0),

@@ -21,7 +21,7 @@ func wireGovee(w bus.RPCWiring, creds *repository.GoveeCreds) error {
 	if creds == nil {
 		return nil
 	}
-	dash := env.Get("NATS_MODULES_GOVEE_SUBJECT_PREFIX", "bagel.rpc.modules.govee")
+	dash := env.Get("NATS_MODULES_GOVEE_SUBJECT_PREFIX", "rpc.modules.govee")
 	internal := conf.GoveeKeyPrefix.Get()
 	g := &goveeRPC{creds: creds, log: w.Log}
 

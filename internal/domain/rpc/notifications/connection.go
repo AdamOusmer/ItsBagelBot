@@ -7,7 +7,7 @@ import (
 
 const OutcomeErased = "erased"
 
-const ConnectionSubject = "bagel.rpc.internal.notifications.connection"
+const ConnectionSubject = "rpc.internal.notifications.connection"
 
 type ConnectionRequest struct {
 	AccountID        uint64    `json:"account_id"`

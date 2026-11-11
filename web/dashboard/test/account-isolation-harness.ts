@@ -57,7 +57,7 @@ try {
     catch { await Bun.sleep(100); }
   }
   if (!nc) throw new Error('Local NATS did not start');
-  const sub=nc.subscribe('bagel.rpc.>');
+  const sub=nc.subscribe('rpc.>');
   const responder=(async()=>{
     for await (const m of sub) {
       const body=JSON.parse(new TextDecoder().decode(m.data));
@@ -66,16 +66,16 @@ try {
       const user=db.query('SELECT * FROM users WHERE id=?').get(id) as any;
       let result: any = {};
       if(m.subject.endsWith('.state_get')) result=user?{active:true,status:'paid',onboarded:true,username:user.login,display_name:user.login}:{error:'no such user',code:'not_found'};
-      else if(m.subject==='bagel.rpc.broadcaster.status.get') result={active:true,tier:'premium',banned:false};
-      else if(m.subject==='bagel.rpc.delegation.access') result={grants:db.query('SELECT owner_id,sections FROM grants WHERE delegate_id=?').all(id).map((g:any)=>({owner_user_id:g.owner_id,owner_login:people.find(p=>p.id===g.owner_id)?.login,sections:JSON.parse(g.sections)}))};
+      else if(m.subject==='rpc.broadcaster.status.get') result={active:true,tier:'premium',banned:false};
+      else if(m.subject==='rpc.delegation.access') result={grants:db.query('SELECT owner_id,sections FROM grants WHERE delegate_id=?').all(id).map((g:any)=>({owner_user_id:g.owner_id,owner_login:people.find(p=>p.id===g.owner_id)?.login,sections:JSON.parse(g.sections)}))};
       else if(m.subject.endsWith('.commands.get')) result={commands:commands(id)};
-      else if(m.subject==='bagel.rpc.commands.upsert') {
+      else if(m.subject==='rpc.commands.upsert') {
         db.query('INSERT INTO commands VALUES (?,?,?) ON CONFLICT(user_id,name) DO UPDATE SET response=excluded.response').run(id,String(body.name),String(body.response));
         result={ok:true};
       } else if(m.subject.endsWith('.commands.replace')) result={ok:true};
-      else if(m.subject.endsWith('.modules.get')||m.subject==='bagel.rpc.modules.list') result={modules:[]};
+      else if(m.subject.endsWith('.modules.get')||m.subject==='rpc.modules.list') result={modules:[]};
       else if(m.subject.includes('.fetch')) result={defs:[],keys:[]};
-      else if(m.subject.startsWith('bagel.rpc.notifications.')) result={notifications:[],unread_count:0};
+      else if(m.subject.startsWith('rpc.notifications.')) result={notifications:[],unread_count:0};
       m.respond(new TextEncoder().encode(JSON.stringify(result)));
     }
   })();
@@ -126,7 +126,7 @@ try {
     const own=people[i],other=people[1-i],before=wireCalls.length;
     const form=new URLSearchParams({name:'isolationwrite',response:'WRITE_'+own.id,perm:'everyone',cooldown:'0',is_active:'on',user_id:other.id,broadcaster_user_id:other.id,owner_user_id:other.id});
     const saved=await clients[i].request('/commands?/save',{method:'POST',headers:{Origin:origin,Accept:'application/json','Content-Type':'application/x-www-form-urlencoded'},body:form});
-    const writes=wireCalls.slice(before).filter(c=>c.subject==='bagel.rpc.commands.upsert');
+    const writes=wireCalls.slice(before).filter(c=>c.subject==='rpc.commands.upsert');
     assert(saved.status===200&&writes.length===1&&writes[0].body.user_id===own.id,own.login+' forged write targets authenticated user at RPC boundary');
     assert(!commands(other.id).some(c=>c.name==='isolationwrite'&&c.response==='WRITE_'+own.id),own.login+' cannot mutate other account record');
   }
@@ -138,7 +138,7 @@ try {
   assert(invalid.status===302&&invalid.location?.startsWith('/login'),'tampered authenticated cookie rejected');
   // Positive control: a real grant admits the delegate and scopes the board.
   db.query('INSERT INTO grants VALUES (?,?,?)').run(people[0].id,people[1].id,JSON.stringify(['commands']));
-  nc.publish('bagel.cache.invalidate.delegation',new TextEncoder().encode(JSON.stringify({broadcaster_id:people[1].id})));
+  nc.publish('cache.invalidate.delegation',new TextEncoder().encode(JSON.stringify({broadcaster_id:people[1].id})));
   await nc.flush();await Bun.sleep(100);
   const grant=await clients[1].request('/delegate/enter?owner='+people[0].id);
   assert(grant.status===302&&grant.location==='/commands','explicit commands grant allows delegated dashboard');

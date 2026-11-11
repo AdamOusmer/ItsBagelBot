@@ -10,8 +10,8 @@ await import('../../../../lib/server/action-errors');
 const fake = await installAutomationsRpcFake();
 const { actions, load } = await import('./+page.server');
 
-const MOD = 'bagel.rpc.modules.automation';
-const RUNS = 'bagel.rpc.automations.runs';
+const MOD = 'rpc.modules.automation';
+const RUNS = 'rpc.automations.runs';
 const manual = { version: 1, trigger: { type: 'manual', params: {} }, actions: [] };
 const stored = { id: 'a1', user_id: 7, name: 'Hello', enabled: true, revision: 4, definition: manual };
 const other = { ...stored, id: 'b2', name: 'Other' };
@@ -133,7 +133,7 @@ describe('premium beta', () => {
 
 describe('automation editor run', () => {
   test('runs by name through Sesame', async () => {
-    fake.replies['bagel.rpc.automations.run'] = { accepted: true, run_id: 'r1' };
+    fake.replies['rpc.automations.run'] = { accepted: true, run_id: 'r1' };
     const request = formRequest('https://dashboard.itsbagelbot.com/automations/a1', { name: 'Hello' });
     const locals = { session, locale: 'en', accountState: { value: { status: 'paid' } } };
     expect(await actions.run({ request, locals } as never)).toEqual({ ok: true });

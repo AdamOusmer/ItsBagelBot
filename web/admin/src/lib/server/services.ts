@@ -21,16 +21,16 @@ const SUB = {
   autoscale: process.env.NATS_SHARD_AUTOSCALE_SUBJECT || 'twitch.ingress.admin.shards.autoscale',
   trials: process.env.NATS_TRIAL_SUBJECT_PREFIX || 'twitch.ingress.admin.trials',
   status: process.env.NATS_STATUS_SUBJECT_PREFIX || 'twitch.ingress.status',
-  user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX || 'bagel.rpc.admin.user',
-  auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX || 'bagel.rpc.admin.user.auth',
-  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'bagel.rpc.admin.user.audit',
-  analytics: process.env.NATS_ADMIN_ANALYTICS_SUBJECT || 'bagel.rpc.admin.analytics',
+  user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX || 'rpc.admin.user',
+  auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX || 'rpc.admin.user.auth',
+  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'rpc.admin.user.audit',
+  analytics: process.env.NATS_ADMIN_ANALYTICS_SUBJECT || 'rpc.admin.analytics',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT || 'twitch.outgress.system',
-  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',
-  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX || 'bagel.rpc.admin.notifications',
-  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'bagel.rpc.loyalty',
-  modules: process.env.NATS_MODULES_SUBJECT_PREFIX || 'bagel.rpc.modules',
-  health: process.env.NATS_RPC_HEALTH_PREFIX || 'bagel.rpc.health'
+  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'rpc.outgress',
+  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX || 'rpc.admin.notifications',
+  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'rpc.loyalty',
+  modules: process.env.NATS_MODULES_SUBJECT_PREFIX || 'rpc.modules',
+  health: process.env.NATS_RPC_HEALTH_PREFIX || 'rpc.health'
 };
 
 export const STATUS_PREFIX = SUB.status;
@@ -456,7 +456,7 @@ function userSetBoolean(setting: UserBooleanSetting) {
 
 export const userSetActive = userSetBoolean({ subject: `${SUB.user}.set_active`, field: 'active' });
 
-export const userSetTestAccount = userSetBoolean({ subject: 'bagel.rpc.admin.user.test.set', field: 'test_account' });
+export const userSetTestAccount = userSetBoolean({ subject: 'rpc.admin.user.test.set', field: 'test_account' });
 
 export const userSetCreatorCode = defineWrite({
   subject: `${SUB.user}.set_creator_code`,

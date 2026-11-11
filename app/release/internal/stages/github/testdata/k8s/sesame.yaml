@@ -209,7 +209,7 @@ spec:
             # step. Sesame carries it because sesame is the only service that
             # can: pkg/bus admits receipt-level consumption on the hot ingress
             # lanes alone (isHotIngressLane), and nothing else binds them. The
-            # read-side consumers on BAGEL_DATA and the outgress work queues are
+            # read-side consumers on DATA and the outgress work queues are
             # push consumers by construction and the flag is inert there, so
             # there is no lower-risk service to soak it on first.
             #
@@ -344,7 +344,7 @@ spec:
             - name: NATS_OUTGRESS_SYSTEM_SUBJECT
               value: twitch.outgress.system
             - name: NATS_BROADCASTER_LIVE_SUBJECT
-              value: bagel.rpc.broadcaster.live.get
+              value: rpc.broadcaster.live.get
             # Serve HTTPS on 8080 with the cert-manager sesame-tls cert so the
             # traefik hop to /status is TLS end-to-end (pkg/health reads the
             # pair; both or neither, a half-set pair fails the listener).

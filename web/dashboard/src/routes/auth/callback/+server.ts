@@ -17,7 +17,7 @@ import { cookieOptions, YEAR_SECONDS } from '#lib/server/cookies';
 import { isBotAccount } from '#lib/server/bot-account';
 import { purgeRenamedChannel, schedulePurgeChannel } from '#lib/server/edge-purge';
 
-const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard';
+const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'rpc.dashboard';
 
 type IdTokenClaims = {
   sub: string;

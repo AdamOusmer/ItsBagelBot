@@ -34,8 +34,8 @@ func TestPageSetRoundTripIntegration(t *testing.T) {
 
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
-	prefix := "bagel.rpc.users.dashboard." + nuid.Next()
-	invalidationPrefix := "bagel.invalidate." + nuid.Next()
+	prefix := "rpc.users.dashboard." + nuid.Next()
+	invalidationPrefix := "cache.invalidate." + nuid.Next()
 
 	require.NoError(t, SubscribeDashboard(Wiring{
 		RPCWiring: bus.RPCWiring{NC: nc, Queue: "dashboardrpc-test-" + nuid.Next(), Log: zap.NewNop()},

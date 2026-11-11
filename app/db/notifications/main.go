@@ -69,7 +69,7 @@ func main() {
 	svcboot.FatalIf(log, rpc.SubscribeConnection(wiring, invalidationPrefix), "failed to subscribe connection rpc")
 	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, adminCfg), "failed to subscribe admin rpc")
 
-	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.notifications")
+	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "rpc.notifications")
 	userCfg := rpc.UserConfig{
 		UserGetSubject:     userGetSubject,
 		Prefix:             userPrefix,

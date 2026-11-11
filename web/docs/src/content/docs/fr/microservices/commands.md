@@ -12,7 +12,7 @@ Sesame lit la configuration par projection ou RPC. Gossip résout les définitio
 
 ## Interfaces
 
-Le préfixe RPC par défaut est `bagel.rpc.commands`. Les écritures ordinaires sont regroupées : une réponse positive signifie leur acceptation, pas leur persistance immédiate. Le renommage et la suppression sont immédiats. Un consommateur durable traite `data.commands.used` et persiste le reçu du lot avec son incrément avant acquittement. La suppression d’un compte retire ses commandes et identifiants de sources selon la date limite de suppression.
+Le préfixe RPC par défaut est `rpc.commands`. Les écritures ordinaires sont regroupées : une réponse positive signifie leur acceptation, pas leur persistance immédiate. Le renommage et la suppression sont immédiats. Un consommateur durable traite `data.commands.used` et persiste le reçu du lot avec son incrément avant acquittement. La suppression d’un compte retire ses commandes et identifiants de sources selon la date limite de suppression.
 
 ## État et dépendances
 

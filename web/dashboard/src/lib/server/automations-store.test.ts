@@ -35,7 +35,7 @@ const sample = (id: string, revision = 1): Automation => ({
   updated_at: '2026-01-01T00:00:00Z'
 });
 
-const MOD = 'bagel.rpc.modules.automation';
+const MOD = 'rpc.modules.automation';
 
 beforeEach(() => {
   calls.length = 0;
@@ -65,7 +65,7 @@ describe('automations store reads', () => {
   });
 
   test('runs asks the run log for the broadcaster, optionally one automation', async () => {
-    replies['bagel.rpc.automations.runs'] = { runs: [{ run_id: 'r1' }] };
+    replies['rpc.automations.runs'] = { runs: [{ run_id: 'r1' }] };
     expect(await store.listRuns('7', 'a')).toEqual([{ run_id: 'r1' }] as never);
     expect(calls[0].body).toEqual({ broadcaster_id: '7', automation_id: 'a', limit: 50 });
     await store.listRuns('7');
@@ -129,7 +129,7 @@ describe('automations store writes', () => {
   });
 
   test('run now tags the dashboard source with a fresh request id', async () => {
-    replies['bagel.rpc.automations.run'] = { accepted: true, run_id: 'r9' };
+    replies['rpc.automations.run'] = { accepted: true, run_id: 'r9' };
     expect(await store.runNow('7', 'Hello')).toEqual({ ok: true, runId: 'r9' });
     await store.runNow('7', 'Hello');
     const [a, b] = calls.map((c) => c.body);
@@ -138,7 +138,7 @@ describe('automations store writes', () => {
   });
 
   test('run now relays a refusal', async () => {
-    replies['bagel.rpc.automations.run'] = { accepted: false, code: 'not_found', error: 'no such automation' };
+    replies['rpc.automations.run'] = { accepted: false, code: 'not_found', error: 'no such automation' };
     expect(await store.runNow('7', 'x')).toEqual({ ok: false, error: 'no such automation', code: 'not_found' });
   });
 });

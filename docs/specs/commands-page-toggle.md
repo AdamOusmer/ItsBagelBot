@@ -44,7 +44,7 @@ field.Bool("commands_page_hidden").Default(false),
 
 ## 4. RPC surface
 
-### 4.1 Dashboard verbs (`bagel.rpc.users.dashboard.*`, [dashboard.go:44](../../app/db/users/rpc/dashboard.go:44))
+### 4.1 Dashboard verbs (`rpc.users.dashboard.*`, [dashboard.go:44](../../app/db/users/rpc/dashboard.go:44))
 
 - New verb `commands_page_set`, request `usersrpc.CommandsPageSetRequest{ BroadcasterUserID string; Hidden bool }` in [internal/domain/rpc/users/users.go](../../internal/domain/rpc/users/users.go) next to `CursorSetRequest`. Handler is one `setBoolPref` call with scope `"commands_page"`, op `"commands_page_set"`, mirroring `handleCursorSet`. `setBoolPref` runs the repo write and only then publishes the invalidation ([dashboard.go:117](../../app/db/users/rpc/dashboard.go:117)), so with the write-through repo method the scope broadcast always trails the commit.
 - `state_get` reply map ([dashboard.go:274](../../app/db/users/rpc/dashboard.go:274)) gains `"commands_page_hidden": view.CommandsPageHidden`.

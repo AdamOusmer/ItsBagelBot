@@ -12,7 +12,7 @@ It consumes earned and counter events and handles user lifecycle events. A watch
 
 ## Interfaces
 
-The default RPC prefix is `bagel.rpc.loyalty`. The service consumes earned and counter events as well as user lifecycle events.
+The default RPC prefix is `rpc.loyalty`. The service consumes earned and counter events as well as user lifecycle events.
 
 Legacy earned events accumulate in memory, so an accepted delta may not appear in an immediate read. Counter events are acknowledged after SQL processing, with a time-limited Valkey receipt: a crash between SQL and the receipt can cause a replay to count again. Watch awards use a separate outbox; deduplication and credit commit together, and errors leave delivery pending. These paths do not share an exactly-once guarantee.
 

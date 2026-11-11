@@ -65,7 +65,7 @@ and [billing](../../../internal/domain/rpc/billing/). Other Ent files are genera
 - Accepted billing events synchronously call Users. Application failure makes
   Tebex retry; webhook audit records can update for the same event identity.
   Gift notification failures are best-effort after entitlement application.
-- Default checkout prefix `bagel.rpc.transactions` exposes `.basket_create`.
+- Default checkout prefix `rpc.transactions` exposes `.basket_create`.
   Missing webstore token/package ID disables checkout while webhook handling runs.
 - Giveaway preview/freeze obtains the full authoritative Users pool. Draw persists
   selected awards and outbox intent transactionally. RPC subjects come from the

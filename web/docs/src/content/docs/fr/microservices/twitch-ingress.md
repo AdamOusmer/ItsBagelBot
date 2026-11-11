@@ -12,7 +12,7 @@ Ingress normalise et dirige les événements vers Sesame et les autres consommat
 
 ## Interfaces
 
-Les sujets d’événements historiques sont `twitch.ingress.event.{premium,standard,stream}`. La recherche du statut utilise par défaut `bagel.rpc.broadcaster.status.get` et les invalidations `bagel.cache.invalidate.status`.
+Les sujets d’événements historiques sont `twitch.ingress.event.{premium,standard,stream}`. La recherche du statut utilise par défaut `rpc.broadcaster.status.get` et les invalidations `cache.invalidate.status`.
 
 Les sessions transmettent les notifications à un répartiteur borné. Le pipeline vérifie l’événement, choisit une voie et publie l’enveloppe partagée. L’admission d’une publication ne constitue pas un acquittement JetStream. Les événements de début et de fin de diffusion sont publiés sur la voie dédiée et sur la voie ordinaire, selon l’admissibilité de la chaîne. Le statut vient d’une RPC et non de la base d’un autre service.
 

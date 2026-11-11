@@ -92,7 +92,7 @@ type loyaltyService struct {
 
 func newLoyalty(t *testing.T, mode loyaltyMode, values map[string]int64, board []loyaltyrpc.CounterRank) (*loyaltyService, *loyaltyCounters) {
 	t.Helper()
-	const prefix = "bagel.rpc.loyalty"
+	const prefix = "rpc.loyalty"
 	service := &loyaltyService{values: values, board: board}
 	nc := testnats.Connect(t)
 	if mode != loyaltyAbsent {

@@ -12,7 +12,7 @@ Sesame reads command settings through projections or owner RPC. Gossip resolves 
 
 ## Interfaces
 
-The default RPC prefix is `bagel.rpc.commands`. Ordinary upserts are coalesced, so success means acceptance rather than immediate persistence; rename and delete persist immediately. A durable consumer records `data.commands.used`, committing its batch receipt and increment together before acknowledgement. Account deletion removes owned commands and fetch credentials subject to the deletion cutoff.
+The default RPC prefix is `rpc.commands`. Ordinary upserts are coalesced, so success means acceptance rather than immediate persistence; rename and delete persist immediately. A durable consumer records `data.commands.used`, committing its batch receipt and increment together before acknowledgement. Account deletion removes owned commands and fetch credentials subject to the deletion cutoff.
 
 ## State and dependencies
 

@@ -47,4 +47,4 @@ L'[hydrateur](https://github.com/AdamOusmer/ItsBagelBot/blob/main/app/projector/
 2. Modifiez la représentation lue et écrite sous [internal/projection](https://github.com/AdamOusmer/ItsBagelBot/tree/main/internal/projection/), ainsi que le gestionnaire ou l'hydratation du projecteur. Préservez les contrôles de révision et d'incarnation appropriés.
 3. Adaptez les consommateurs et les tests pour une section vide, une mise à jour périmée ou rejouée et une panne du propriétaire ou de Valkey. Vérifiez une lecture à froid et un changement après hydratation.
 
-Le flux d'événements n'est pas la base de données : [BAGEL_DATA](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/bus/streams.go) a une rétention limitée. Un hash sain reste un état dérivé qui peut avoir du retard pendant la livraison ou l'hydratation.
+Le flux d'événements n'est pas la base de données : [DATA](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/bus/streams.go) a une rétention limitée. Un hash sain reste un état dérivé qui peut avoir du retard pendant la livraison ou l'hydratation.

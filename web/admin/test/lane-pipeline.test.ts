@@ -66,7 +66,7 @@ describe('Twitch processing pipeline filters', () => {
   });
 
   test('all preserves unrelated lanes while traffic selections target the pipeline', () => {
-    const unrelated = lane('DATA', 'projector_changes', 'bagel.data.>');
+    const unrelated = lane('DATA', 'projector_changes', 'data.>');
     expect(matchesPipeline(unrelated, 'all', 'all')).toBe(true);
     expect(matchesPipeline(unrelated, 'all', 'standard')).toBe(false);
     const premium = lane('TWITCH_INGRESS', 'worker_premium', 'twitch.ingress.event.premium');

@@ -173,12 +173,12 @@ function requireCampaign(campaign: CampaignRaw | undefined): CampaignRaw {
 }
 
 export async function giveawaysList(input: { actorId: string }): Promise<GiveawayWire[]> {
-  const reply = await rpc<ListReply>('bagel.rpc.admin.giveaways.list', { ...buildMutation(input), limit: 100 }, READ_TIMEOUT);
+  const reply = await rpc<ListReply>('rpc.admin.giveaways.list', { ...buildMutation(input), limit: 100 }, READ_TIMEOUT);
   return (reply.campaigns ?? []).map(mapCampaign);
 }
 
 export async function giveawayGet(input: { actorId: string; campaignId: string }): Promise<GiveawayDetailWire> {
-  const reply = await rpc<GetReply>('bagel.rpc.admin.giveaways.get', { ...buildMutation(input), campaign_id: input.campaignId }, READ_TIMEOUT);
+  const reply = await rpc<GetReply>('rpc.admin.giveaways.get', { ...buildMutation(input), campaign_id: input.campaignId }, READ_TIMEOUT);
   const campaign = mapCampaign(requireCampaign(reply.campaign));
   const logins = new Map((reply.candidates ?? []).map((candidate) => [String(candidate.user_id), candidate.username ?? String(candidate.user_id)]));
   const draw = mapDrawMetadata(reply.draw);
@@ -198,42 +198,42 @@ export async function giveawayPreview(input: GiveawayPreviewInput): Promise<Give
     ...buildMutation(input),
     ...('campaignId' in input ? { campaign_id: input.campaignId } : { winner_count: input.winnerCount, prize_months: input.prizeMonths })
   };
-  const reply = await rpc<PreviewReply>('bagel.rpc.admin.giveaways.preview', request, READ_TIMEOUT);
+  const reply = await rpc<PreviewReply>('rpc.admin.giveaways.preview', request, READ_TIMEOUT);
   return mapPreview(reply);
 }
 
 export async function giveawayInclusion(input: { actorId: string; campaignId: string; userId: string; include: boolean }): Promise<GiveawayPreviewWire> {
   const verb = input.include ? 'include' : 'exclude';
-  const reply = await rpc<PreviewReply>(`bagel.rpc.admin.giveaways.${verb}`, { ...buildMutation(input), campaign_id: input.campaignId, user_id: Number(input.userId) }, READ_TIMEOUT);
+  const reply = await rpc<PreviewReply>(`rpc.admin.giveaways.${verb}`, { ...buildMutation(input), campaign_id: input.campaignId, user_id: Number(input.userId) }, READ_TIMEOUT);
   return mapPreview(reply);
 }
 
 export async function giveawayFreeze(operation: FreezeOperation): Promise<void> {
-  await rpc('bagel.rpc.admin.giveaways.freeze', { ...buildMutation(operation), campaign_id: operation.campaignId, pool_digest: operation.poolDigest }, READ_TIMEOUT);
+  await rpc('rpc.admin.giveaways.freeze', { ...buildMutation(operation), campaign_id: operation.campaignId, pool_digest: operation.poolDigest }, READ_TIMEOUT);
 }
 
 export async function giveawayCreate(input: { actorId: string; title: string; reason: string; winnerCount: number; prizeMonths: number }): Promise<GiveawayWire> {
-  const reply = await rpc<CampaignReply>('bagel.rpc.admin.giveaways.create', {
+  const reply = await rpc<CampaignReply>('rpc.admin.giveaways.create', {
     ...buildMutation(input), title: input.title, reason: input.reason, winner_count: input.winnerCount, prize_months: input.prizeMonths,
   }, READ_TIMEOUT);
   return mapCampaign(requireCampaign(reply.campaign));
 }
 
 export async function giveawayDraw(operation: DrawOperation): Promise<{ awards: GiveawayWinnerWire[] }> {
-  const reply = await rpc<DrawReply>('bagel.rpc.admin.giveaways.draw', { ...buildMutation(operation), campaign_id: operation.campaignId }, READ_TIMEOUT);
+  const reply = await rpc<DrawReply>('rpc.admin.giveaways.draw', { ...buildMutation(operation), campaign_id: operation.campaignId }, READ_TIMEOUT);
   return { awards: (reply.awards ?? []).map((award) => mapAward(award)) };
 }
 
 export async function giveawayRetry(input: { actorId: string; awardId: string }): Promise<void> {
-  await rpc('bagel.rpc.admin.giveaways.retry', { ...buildMutation(input), award_id: input.awardId }, READ_TIMEOUT);
+  await rpc('rpc.admin.giveaways.retry', { ...buildMutation(input), award_id: input.awardId }, READ_TIMEOUT);
 }
 
 export async function giveawayAlerts(input: { actorId: string }): Promise<GiveawayAlertWire[]> {
-  const reply = await rpc<{ alerts?: AlertRaw[] }>('bagel.rpc.admin.giveaways.alerts', { ...buildMutation(input), unresolved_only: true, limit: 100 }, READ_TIMEOUT);
+  const reply = await rpc<{ alerts?: AlertRaw[] }>('rpc.admin.giveaways.alerts', { ...buildMutation(input), unresolved_only: true, limit: 100 }, READ_TIMEOUT);
   return (reply.alerts ?? []).map(mapAlert);
 }
 
 export async function giveawayHistory(input: { actorId: string; userId: string }): Promise<GiveawayWinnerWire[]> {
-  const reply = await rpc<{ awards?: AwardRaw[] }>('bagel.rpc.admin.giveaways.history', { ...buildMutation(input), user_id: input.userId }, READ_TIMEOUT);
+  const reply = await rpc<{ awards?: AwardRaw[] }>('rpc.admin.giveaways.history', { ...buildMutation(input), user_id: input.userId }, READ_TIMEOUT);
   return (reply.awards ?? []).map((award) => mapAward(award));
 }

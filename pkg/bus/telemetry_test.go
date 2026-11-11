@@ -44,9 +44,9 @@ func TestNormalizedDestinationNamesLanes(t *testing.T) {
 		"twitch.ingress.event.nope":    "twitch.ingress.event.other",
 		"twitch.outgress.system":       "twitch.outgress.system",
 		"twitch.outgress.nope":         "twitch.outgress.other",
-		"bagel.rpc.users.get":          "bagel.rpc.users",
-		"bagel.rpc.bogus.x":            "bagel.rpc.other",
-		"bagel.cache.invalidate.users": "bagel.cache.invalidate",
+		"rpc.users.get":                "rpc.users",
+		"rpc.bogus.x":                  "rpc.other",
+		"cache.invalidate.users":       "cache.invalidate",
 		"something.else":               "other",
 	}
 	for subject, want := range cases {

@@ -21,7 +21,7 @@ func wireSpotify(w bus.RPCWiring, creds *repository.SpotifyCreds) error {
 	if creds == nil {
 		return nil
 	}
-	dash := env.Get("NATS_MODULES_SPOTIFY_SUBJECT_PREFIX", "bagel.rpc.modules.spotify")
+	dash := env.Get("NATS_MODULES_SPOTIFY_SUBJECT_PREFIX", "rpc.modules.spotify")
 	internal := conf.SpotifyKeyPrefix.Get()
 	s := &spotifyRPC{creds: creds, log: w.Log}
 

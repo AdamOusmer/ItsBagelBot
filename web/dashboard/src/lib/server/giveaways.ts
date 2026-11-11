@@ -1,6 +1,6 @@
 import { rpc } from '@bagel/kit/server/nats';
 
-const SUBJECT = 'bagel.rpc.transactions.giveaways.mine';
+const SUBJECT = 'rpc.transactions.giveaways.mine';
 
 export type PrizeAward = {
   id: string;

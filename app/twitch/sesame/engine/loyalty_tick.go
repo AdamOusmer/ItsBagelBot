@@ -93,7 +93,7 @@ func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, proj projection.
 		log = zap.NewNop()
 	}
 	if cfg.OutgressRPCPrefix == "" {
-		cfg.OutgressRPCPrefix = "bagel.rpc.outgress"
+		cfg.OutgressRPCPrefix = "rpc.outgress"
 	}
 	primary := pkg_valkey.Primary(client)
 	return &ValkeyLoyaltyClock{client: primary, proj: proj, live: live, reporter: reporter, awards: watchtime.NewStore(primary), viewers: cfg.ViewerSnapshots, nc: nc,

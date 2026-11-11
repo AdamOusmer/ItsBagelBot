@@ -5,112 +5,112 @@ system_account: SYS
 accounts:
     ADMIN_RPC:
         imports:
-            - service: bagel.rpc.health.users
+            - service: rpc.health.users
               from: USERS_RPC
-            - service: bagel.rpc.health.users.node.*
+            - service: rpc.health.users.node.*
               from: USERS_RPC
-            - service: bagel.rpc.health.commands
+            - service: rpc.health.commands
               from: COMMANDS_RPC
-            - service: bagel.rpc.health.commands.node.*
+            - service: rpc.health.commands.node.*
               from: COMMANDS_RPC
-            - service: bagel.rpc.health.modules
+            - service: rpc.health.modules
               from: MODULES_RPC
-            - service: bagel.rpc.health.modules.node.*
+            - service: rpc.health.modules.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.health.loyalty
+            - service: rpc.health.loyalty
               from: LOYALTY_RPC
-            - service: bagel.rpc.health.loyalty.node.*
+            - service: rpc.health.loyalty.node.*
               from: LOYALTY_RPC
-            - service: bagel.rpc.health.projector
+            - service: rpc.health.projector
               from: PROJECTOR_RPC
-            - service: bagel.rpc.health.projector.node.*
+            - service: rpc.health.projector.node.*
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.live.list
+            - service: rpc.broadcaster.live.list
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.live.list.node.*
+            - service: rpc.broadcaster.live.list.node.*
               from: PROJECTOR_RPC
-            - service: bagel.rpc.health.outgress
+            - service: rpc.health.outgress
               from: OUTGRESS_RPC
-            - service: bagel.rpc.health.outgress.node.*
+            - service: rpc.health.outgress.node.*
               from: OUTGRESS_RPC
-            - service: bagel.rpc.health.transactions
+            - service: rpc.health.transactions
               from: TRANSACTIONS_RPC
-            - service: bagel.rpc.health.transactions.node.*
+            - service: rpc.health.transactions.node.*
               from: TRANSACTIONS_RPC
-            - service: bagel.rpc.admin.giveaways.>
+            - service: rpc.admin.giveaways.>
               from: TRANSACTIONS_RPC
-            - service: bagel.rpc.health.notifications
+            - service: rpc.health.notifications
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.health.notifications.node.*
+            - service: rpc.health.notifications.node.*
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.health.gossip
+            - service: rpc.health.gossip
               from: GOSSIP_RPC
-            - service: bagel.rpc.health.gossip.node.*
+            - service: rpc.health.gossip.node.*
               from: GOSSIP_RPC
-            - service: bagel.rpc.health.sesame
+            - service: rpc.health.sesame
               from: WORKER_RPC
-            - service: bagel.rpc.health.sesame.node.*
+            - service: rpc.health.sesame.node.*
               from: WORKER_RPC
-            - service: bagel.rpc.health.ingress
+            - service: rpc.health.ingress
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.health.ingress.node.*
+            - service: rpc.health.ingress.node.*
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.admin.user.*
+            - service: rpc.admin.user.*
               from: USERS_RPC
-            - service: bagel.rpc.admin.user.*.node.*
+            - service: rpc.admin.user.*.node.*
               from: USERS_RPC
-            - service: bagel.rpc.admin.user.test.set
+            - service: rpc.admin.user.test.set
               from: USERS_RPC
-            - service: bagel.rpc.admin.user.test.set.node.*
+            - service: rpc.admin.user.test.set.node.*
               from: USERS_RPC
-            - service: bagel.rpc.admin.user.auth.>
+            - service: rpc.admin.user.auth.>
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.user.audit.>
+            - service: rpc.admin.user.audit.>
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.analytics
+            - service: rpc.admin.analytics
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.analytics.node.*
+            - service: rpc.admin.analytics.node.*
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.health.admin
+            - service: rpc.health.admin
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.health.admin.node.*
+            - service: rpc.health.admin.node.*
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.loyalty.counter.>
+            - service: rpc.loyalty.counter.>
               from: LOYALTY_RPC
-            - service: bagel.rpc.modules.personality.feed.board
+            - service: rpc.modules.personality.feed.board
               from: MODULES_RPC
-            - service: bagel.rpc.modules.personality.feed.board.node.*
+            - service: rpc.modules.personality.feed.board.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.outgress.channel.get
+            - service: rpc.outgress.channel.get
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.channel.get.node.*
+            - service: rpc.outgress.channel.get.node.*
               from: OUTGRESS_RPC
             - service: twitch.ingress.admin.shards.>
               from: TWITCH_INGRESS_RPC
             - service: twitch.ingress.admin.trials.>
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.admin.notifications.>
+            - service: rpc.admin.notifications.>
               from: NOTIFICATIONS_RPC
-            - stream: bagel.cache.invalidate.status
+            - stream: cache.invalidate.status
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.grant
+            - stream: cache.invalidate.grant
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.notifications
+            - stream: cache.invalidate.notifications
               from: NOTIFICATIONS_RPC
         roles:
             admin_rpc: {}
     ADMIN_SERVICE_RPC:
         exports:
-            - service: bagel.rpc.health.admin
-            - service: bagel.rpc.health.admin.node.*
-            - service: bagel.rpc.admin.user.auth.>
-            - service: bagel.rpc.admin.user.audit.>
-            - service: bagel.rpc.admin.analytics
-            - service: bagel.rpc.admin.analytics.node.*
-            - service: bagel.rpc.internal.admin.audit.append
-            - service: bagel.rpc.internal.admin.audit.append.node.*
-            - service: bagel.rpc.internal.admin.staff.active
-            - service: bagel.rpc.internal.admin.staff.active.node.*
+            - service: rpc.health.admin
+            - service: rpc.health.admin.node.*
+            - service: rpc.admin.user.auth.>
+            - service: rpc.admin.user.audit.>
+            - service: rpc.admin.analytics
+            - service: rpc.admin.analytics.node.*
+            - service: rpc.internal.admin.audit.append
+            - service: rpc.internal.admin.audit.append.node.*
+            - service: rpc.internal.admin.staff.active
+            - service: rpc.internal.admin.staff.active.node.*
         roles:
             admin_service_rpc: {}
     BUS:
@@ -149,13 +149,13 @@ accounts:
                 publish:
                     allow:
                         - data.commands.>
-                        - $JS.API.STREAM.INFO.BAGEL_DATA
-                        - $JS.API.CONSUMER.INFO.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DURABLE.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
-                        - $JS.ACK.BAGEL_DATA.>
-                        - $JS.ACK.*.*.BAGEL_DATA.>
+                        - $JS.API.STREAM.INFO.DATA
+                        - $JS.API.CONSUMER.INFO.DATA.>
+                        - $JS.API.CONSUMER.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DELETE.DATA.>
+                        - $JS.ACK.DATA.>
+                        - $JS.ACK.*.*.DATA.>
                         - dlq.data.commands.>
                         - dlq.data.users.deleted
                 subscribe:
@@ -172,13 +172,13 @@ accounts:
             loyalty_bus:
                 publish:
                     allow:
-                        - $JS.API.STREAM.INFO.BAGEL_DATA
-                        - $JS.API.CONSUMER.INFO.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DURABLE.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
-                        - $JS.ACK.BAGEL_DATA.>
-                        - $JS.ACK.*.*.BAGEL_DATA.>
+                        - $JS.API.STREAM.INFO.DATA
+                        - $JS.API.CONSUMER.INFO.DATA.>
+                        - $JS.API.CONSUMER.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DELETE.DATA.>
+                        - $JS.ACK.DATA.>
+                        - $JS.ACK.*.*.DATA.>
                         - dlq.data.loyalty.>
                         - dlq.data.users.deleted
                         - dlq.data.users.changed
@@ -192,13 +192,13 @@ accounts:
                 publish:
                     allow:
                         - data.modules.>
-                        - $JS.API.STREAM.INFO.BAGEL_DATA
-                        - $JS.API.CONSUMER.INFO.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DURABLE.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
-                        - $JS.ACK.BAGEL_DATA.>
-                        - $JS.ACK.*.*.BAGEL_DATA.>
+                        - $JS.API.STREAM.INFO.DATA
+                        - $JS.API.CONSUMER.INFO.DATA.>
+                        - $JS.API.CONSUMER.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DELETE.DATA.>
+                        - $JS.ACK.DATA.>
+                        - $JS.ACK.*.*.DATA.>
                         - dlq.data.modules.>
                         - dlq.data.reproject.request
                         - dlq.data.users.deleted
@@ -269,23 +269,23 @@ accounts:
                     allow:
                         - data.reproject.request
                         - twitch.outgress.system
-                        - $JS.API.STREAM.INFO.BAGEL_DATA
-                        - $JS.API.STREAM.CREATE.BAGEL_DATA
-                        - $JS.API.STREAM.UPDATE.BAGEL_DATA
-                        - $JS.API.STREAM.INFO.BAGEL_DLQ
-                        - $JS.API.STREAM.CREATE.BAGEL_DLQ
-                        - $JS.API.STREAM.UPDATE.BAGEL_DLQ
+                        - $JS.API.STREAM.INFO.DATA
+                        - $JS.API.STREAM.CREATE.DATA
+                        - $JS.API.STREAM.UPDATE.DATA
+                        - $JS.API.STREAM.INFO.DATA_DLQ
+                        - $JS.API.STREAM.CREATE.DATA_DLQ
+                        - $JS.API.STREAM.UPDATE.DATA_DLQ
                         - $JS.API.STREAM.CREATE.TWITCH_INGRESS
                         - $JS.API.STREAM.UPDATE.TWITCH_INGRESS
                         - $JS.API.STREAM.INFO.TWITCH_INGRESS_STANDARD
                         - $JS.API.STREAM.CREATE.TWITCH_INGRESS_STANDARD
                         - $JS.API.STREAM.UPDATE.TWITCH_INGRESS_STANDARD
-                        - $JS.API.CONSUMER.INFO.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DURABLE.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
-                        - $JS.ACK.BAGEL_DATA.>
-                        - $JS.ACK.*.*.BAGEL_DATA.>
+                        - $JS.API.CONSUMER.INFO.DATA.>
+                        - $JS.API.CONSUMER.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DELETE.DATA.>
+                        - $JS.ACK.DATA.>
+                        - $JS.ACK.*.*.DATA.>
                         - dlq.data.users.>
                         - dlq.data.modules.>
                         - dlq.data.commands.>
@@ -335,18 +335,18 @@ accounts:
                 publish:
                     allow:
                         - data.users.>
-                        - $JS.API.STREAM.INFO.BAGEL_DATA
-                        - $JS.API.STREAM.CREATE.BAGEL_DATA
-                        - $JS.API.STREAM.UPDATE.BAGEL_DATA
-                        - $JS.API.STREAM.INFO.BAGEL_DLQ
-                        - $JS.API.STREAM.CREATE.BAGEL_DLQ
-                        - $JS.API.STREAM.UPDATE.BAGEL_DLQ
-                        - $JS.API.CONSUMER.INFO.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DURABLE.CREATE.BAGEL_DATA.>
-                        - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
-                        - $JS.ACK.BAGEL_DATA.>
-                        - $JS.ACK.*.*.BAGEL_DATA.>
+                        - $JS.API.STREAM.INFO.DATA
+                        - $JS.API.STREAM.CREATE.DATA
+                        - $JS.API.STREAM.UPDATE.DATA
+                        - $JS.API.STREAM.INFO.DATA_DLQ
+                        - $JS.API.STREAM.CREATE.DATA_DLQ
+                        - $JS.API.STREAM.UPDATE.DATA_DLQ
+                        - $JS.API.CONSUMER.INFO.DATA.>
+                        - $JS.API.CONSUMER.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.DATA.>
+                        - $JS.API.CONSUMER.DELETE.DATA.>
+                        - $JS.ACK.DATA.>
+                        - $JS.ACK.*.*.DATA.>
                         - dlq.data.users.>
                         - dlq.data.reproject.request
                 subscribe:
@@ -411,283 +411,283 @@ accounts:
                         - _INBOX.>
     COMMANDS_RPC:
         exports:
-            - service: bagel.rpc.health.commands
-            - service: bagel.rpc.health.commands.node.*
-            - service: bagel.rpc.commands.>
-            - service: bagel.rpc.internal.projection.commands.get
-            - service: bagel.rpc.internal.projection.commands.get.node.*
-            - service: bagel.rpc.internal.projection.commands.fetches.get
-            - service: bagel.rpc.internal.projection.commands.fetches.get.node.*
-            - service: bagel.rpc.internal.commands.fetchkey.get
-            - service: bagel.rpc.internal.commands.fetchkey.get.node.*
+            - service: rpc.health.commands
+            - service: rpc.health.commands.node.*
+            - service: rpc.commands.>
+            - service: rpc.internal.projection.commands.get
+            - service: rpc.internal.projection.commands.get.node.*
+            - service: rpc.internal.projection.commands.fetches.get
+            - service: rpc.internal.projection.commands.fetches.get.node.*
+            - service: rpc.internal.commands.fetchkey.get
+            - service: rpc.internal.commands.fetchkey.get.node.*
         roles:
             commands_rpc: {}
     DASHBOARD_RPC:
         imports:
-            - service: bagel.rpc.dashboard.>
+            - service: rpc.dashboard.>
               from: USERS_RPC
-            - service: bagel.rpc.admin.user.audit.>
+            - service: rpc.admin.user.audit.>
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.delegation.>
+            - service: rpc.delegation.>
               from: USERS_RPC
-            - service: bagel.rpc.commands.>
+            - service: rpc.commands.>
               from: COMMANDS_RPC
-            - service: bagel.rpc.modules.>
+            - service: rpc.modules.>
               from: MODULES_RPC
-            - service: bagel.rpc.projector.dashboard.>
+            - service: rpc.projector.dashboard.>
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.status.get
+            - service: rpc.broadcaster.status.get
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.status.get.node.*
+            - service: rpc.broadcaster.status.get.node.*
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.stream_info.get
+            - service: rpc.broadcaster.stream_info.get
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.stream_info.get.node.*
+            - service: rpc.broadcaster.stream_info.get.node.*
               from: PROJECTOR_RPC
-            - service: bagel.rpc.outgress.channel.get
+            - service: rpc.outgress.channel.get
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.channel.get.node.*
+            - service: rpc.outgress.channel.get.node.*
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.channelpoints.>
+            - service: rpc.outgress.channelpoints.>
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.accountage.get
+            - service: rpc.outgress.accountage.get
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.accountage.get.node.*
+            - service: rpc.outgress.accountage.get.node.*
               from: OUTGRESS_RPC
-            - service: bagel.rpc.loyalty.>
+            - service: rpc.loyalty.>
               from: LOYALTY_RPC
-            - service: bagel.rpc.gossip.govee.devices
+            - service: rpc.gossip.govee.devices
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.govee.devices.node.*
+            - service: rpc.gossip.govee.devices.node.*
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.govee.scenes
+            - service: rpc.gossip.govee.scenes
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.govee.scenes.node.*
+            - service: rpc.gossip.govee.scenes.node.*
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.spotify.exchange
+            - service: rpc.gossip.spotify.exchange
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.spotify.exchange.node.*
+            - service: rpc.gossip.spotify.exchange.node.*
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.spotify.playerqueue
+            - service: rpc.gossip.spotify.playerqueue
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.spotify.playerqueue.node.*
+            - service: rpc.gossip.spotify.playerqueue.node.*
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.spotify.next
+            - service: rpc.gossip.spotify.next
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.spotify.next.node.*
+            - service: rpc.gossip.spotify.next.node.*
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.custom.fetch
+            - service: rpc.gossip.custom.fetch
               from: GOSSIP_RPC
-            - service: bagel.rpc.gossip.custom.fetch.node.*
+            - service: rpc.gossip.custom.fetch.node.*
               from: GOSSIP_RPC
-            - service: bagel.rpc.notifications.>
+            - service: rpc.notifications.>
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.transactions.>
+            - service: rpc.transactions.>
               from: TRANSACTIONS_RPC
-            - stream: bagel.cache.invalidate.grant
+            - stream: cache.invalidate.grant
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.status
+            - stream: cache.invalidate.status
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.rename
+            - stream: cache.invalidate.rename
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.delegation
+            - stream: cache.invalidate.delegation
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.locale
+            - stream: cache.invalidate.locale
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.commands
+            - stream: cache.invalidate.commands
               from: PROJECTOR_RPC
-            - stream: bagel.cache.invalidate.modules
+            - stream: cache.invalidate.modules
               from: PROJECTOR_RPC
-            - stream: bagel.cache.invalidate.automations
+            - stream: cache.invalidate.automations
               from: PROJECTOR_RPC
-            - stream: bagel.cache.invalidate.notifications
+            - stream: cache.invalidate.notifications
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.automations.run
+            - service: rpc.automations.run
               from: WORKER_RPC
-            - service: bagel.rpc.automations.run.node.*
+            - service: rpc.automations.run.node.*
               from: WORKER_RPC
-            - service: bagel.rpc.automations.runs
+            - service: rpc.automations.runs
               from: WORKER_RPC
-            - service: bagel.rpc.automations.runs.node.*
+            - service: rpc.automations.runs.node.*
               from: WORKER_RPC
-            - stream: bagel.cache.invalidate.loyalty
+            - stream: cache.invalidate.loyalty
               from: LOYALTY_RPC
         roles:
             dashboard_rpc: {}
     GOSSIP_RPC:
         exports:
-            - service: bagel.rpc.health.gossip
-            - service: bagel.rpc.health.gossip.node.*
-            - service: bagel.rpc.gossip.>
+            - service: rpc.health.gossip
+            - service: rpc.health.gossip.node.*
+            - service: rpc.gossip.>
         imports:
-            - service: bagel.rpc.internal.govee.key.>
+            - service: rpc.internal.govee.key.>
               from: MODULES_RPC
-            - service: bagel.rpc.internal.spotify.key.>
+            - service: rpc.internal.spotify.key.>
               from: MODULES_RPC
-            - service: bagel.rpc.internal.projection.commands.fetches.get
+            - service: rpc.internal.projection.commands.fetches.get
               from: COMMANDS_RPC
-            - service: bagel.rpc.internal.projection.commands.fetches.get.node.*
+            - service: rpc.internal.projection.commands.fetches.get.node.*
               from: COMMANDS_RPC
-            - service: bagel.rpc.internal.commands.fetchkey.get
+            - service: rpc.internal.commands.fetchkey.get
               from: COMMANDS_RPC
-            - service: bagel.rpc.internal.commands.fetchkey.get.node.*
+            - service: rpc.internal.commands.fetchkey.get.node.*
               from: COMMANDS_RPC
         roles:
             gossip_rpc: {}
     LOYALTY_RPC:
         exports:
-            - service: bagel.rpc.health.loyalty
-            - service: bagel.rpc.health.loyalty.node.*
-            - service: bagel.rpc.loyalty.>
-            - stream: bagel.cache.invalidate.loyalty
+            - service: rpc.health.loyalty
+            - service: rpc.health.loyalty.node.*
+            - service: rpc.loyalty.>
+            - stream: cache.invalidate.loyalty
         roles:
             loyalty_rpc: {}
     MODULES_RPC:
         exports:
-            - service: bagel.rpc.health.modules
-            - service: bagel.rpc.health.modules.node.*
-            - service: bagel.rpc.modules.>
-            - service: bagel.rpc.internal.projection.modules.get
-            - service: bagel.rpc.internal.projection.modules.get.node.*
-            - service: bagel.rpc.internal.projection.modules.automations.get
-            - service: bagel.rpc.internal.projection.modules.automations.get.node.*
-            - service: bagel.rpc.internal.govee.key.>
-            - service: bagel.rpc.internal.spotify.key.>
+            - service: rpc.health.modules
+            - service: rpc.health.modules.node.*
+            - service: rpc.modules.>
+            - service: rpc.internal.projection.modules.get
+            - service: rpc.internal.projection.modules.get.node.*
+            - service: rpc.internal.projection.modules.automations.get
+            - service: rpc.internal.projection.modules.automations.get.node.*
+            - service: rpc.internal.govee.key.>
+            - service: rpc.internal.spotify.key.>
         imports:
-            - service: bagel.rpc.internal.projection.users.get
+            - service: rpc.internal.projection.users.get
               from: USERS_RPC
-            - service: bagel.rpc.internal.projection.users.get.node.*
+            - service: rpc.internal.projection.users.get.node.*
               from: USERS_RPC
         roles:
             modules_rpc: {}
     NOTIFICATIONS_RPC:
         exports:
-            - service: bagel.rpc.internal.notifications.connection.>
-            - service: bagel.rpc.health.notifications
-            - service: bagel.rpc.health.notifications.node.*
-            - service: bagel.rpc.notifications.>
-            - service: bagel.rpc.admin.notifications.>
-            - stream: bagel.cache.invalidate.notifications
+            - service: rpc.internal.notifications.connection.>
+            - service: rpc.health.notifications
+            - service: rpc.health.notifications.node.*
+            - service: rpc.notifications.>
+            - service: rpc.admin.notifications.>
+            - stream: cache.invalidate.notifications
         imports:
-            - service: bagel.rpc.internal.users.lifecycle
+            - service: rpc.internal.users.lifecycle
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.lifecycle.node.*
+            - service: rpc.internal.users.lifecycle.node.*
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.get
+            - service: rpc.internal.users.get
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.get.node.*
+            - service: rpc.internal.users.get.node.*
               from: USERS_RPC
         roles:
             notifications_rpc: {}
     OUTGRESS_RPC:
         exports:
-            - service: bagel.rpc.health.outgress
-            - service: bagel.rpc.health.outgress.node.*
-            - service: bagel.rpc.outgress.>
+            - service: rpc.health.outgress
+            - service: rpc.health.outgress.node.*
+            - service: rpc.outgress.>
         imports:
-            - service: bagel.rpc.internal.users.lifecycle
+            - service: rpc.internal.users.lifecycle
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.lifecycle.node.*
+            - service: rpc.internal.users.lifecycle.node.*
               from: USERS_RPC
-            - service: bagel.rpc.internal.projection.users.get
+            - service: rpc.internal.projection.users.get
               from: USERS_RPC
-            - service: bagel.rpc.internal.projection.users.get.node.*
+            - service: rpc.internal.projection.users.get.node.*
               from: USERS_RPC
-            - service: bagel.rpc.internal.notifications.connection.>
+            - service: rpc.internal.notifications.connection.>
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.internal.tokens.>
+            - service: rpc.internal.tokens.>
               from: USERS_RPC
-            - service: bagel.rpc.ingress.conduit.get
+            - service: rpc.ingress.conduit.get
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.ingress.conduit.get.node.*
+            - service: rpc.ingress.conduit.get.node.*
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.dashboard.state_get
+            - service: rpc.dashboard.state_get
               from: USERS_RPC
-            - service: bagel.rpc.dashboard.state_get.node.*
+            - service: rpc.dashboard.state_get.node.*
               from: USERS_RPC
-            - service: bagel.rpc.dashboard.identity_sync
+            - service: rpc.dashboard.identity_sync
               from: USERS_RPC
-            - service: bagel.rpc.dashboard.identity_sync.node.*
+            - service: rpc.dashboard.identity_sync.node.*
               from: USERS_RPC
-            - service: bagel.rpc.dashboard.active_set
+            - service: rpc.dashboard.active_set
               from: USERS_RPC
-            - service: bagel.rpc.dashboard.active_set.node.*
+            - service: rpc.dashboard.active_set.node.*
               from: USERS_RPC
-            - service: bagel.rpc.admin.notifications.send
+            - service: rpc.admin.notifications.send
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.admin.notifications.send.node.*
+            - service: rpc.admin.notifications.send.node.*
               from: NOTIFICATIONS_RPC
         roles:
             outgress_rpc: {}
     PROJECTOR_RPC:
         exports:
-            - service: bagel.rpc.health.projector
-            - service: bagel.rpc.health.projector.node.*
-            - service: bagel.rpc.projector.dashboard.>
-            - service: bagel.rpc.broadcaster.status.get
-            - service: bagel.rpc.broadcaster.status.get.node.*
-            - service: bagel.rpc.broadcaster.live.get
-            - service: bagel.rpc.broadcaster.live.get.node.*
-            - service: bagel.rpc.broadcaster.live.list
-            - service: bagel.rpc.broadcaster.live.list.node.*
-            - service: bagel.rpc.broadcaster.stream_info.get
-            - service: bagel.rpc.broadcaster.stream_info.get.node.*
-            - stream: bagel.cache.invalidate.commands
-            - stream: bagel.cache.invalidate.modules
-            - stream: bagel.cache.invalidate.automations
-            - stream: bagel.cache.invalidate.live
+            - service: rpc.health.projector
+            - service: rpc.health.projector.node.*
+            - service: rpc.projector.dashboard.>
+            - service: rpc.broadcaster.status.get
+            - service: rpc.broadcaster.status.get.node.*
+            - service: rpc.broadcaster.live.get
+            - service: rpc.broadcaster.live.get.node.*
+            - service: rpc.broadcaster.live.list
+            - service: rpc.broadcaster.live.list.node.*
+            - service: rpc.broadcaster.stream_info.get
+            - service: rpc.broadcaster.stream_info.get.node.*
+            - stream: cache.invalidate.commands
+            - stream: cache.invalidate.modules
+            - stream: cache.invalidate.automations
+            - stream: cache.invalidate.live
         imports:
-            - service: bagel.rpc.health.admin
+            - service: rpc.health.admin
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.health.admin.node.*
+            - service: rpc.health.admin.node.*
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.internal.users.lifecycle
+            - service: rpc.internal.users.lifecycle
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.lifecycle.node.*
+            - service: rpc.internal.users.lifecycle.node.*
               from: USERS_RPC
-            - service: bagel.rpc.health.users
+            - service: rpc.health.users
               from: USERS_RPC
-            - service: bagel.rpc.health.users.node.*
+            - service: rpc.health.users.node.*
               from: USERS_RPC
-            - service: bagel.rpc.health.commands
+            - service: rpc.health.commands
               from: COMMANDS_RPC
-            - service: bagel.rpc.health.commands.node.*
+            - service: rpc.health.commands.node.*
               from: COMMANDS_RPC
-            - service: bagel.rpc.health.modules
+            - service: rpc.health.modules
               from: MODULES_RPC
-            - service: bagel.rpc.health.modules.node.*
+            - service: rpc.health.modules.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.health.loyalty
+            - service: rpc.health.loyalty
               from: LOYALTY_RPC
-            - service: bagel.rpc.health.loyalty.node.*
+            - service: rpc.health.loyalty.node.*
               from: LOYALTY_RPC
-            - service: bagel.rpc.health.notifications
+            - service: rpc.health.notifications
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.health.notifications.node.*
+            - service: rpc.health.notifications.node.*
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.internal.projection.users.get
+            - service: rpc.internal.projection.users.get
               from: USERS_RPC
-            - service: bagel.rpc.internal.projection.users.get.node.*
+            - service: rpc.internal.projection.users.get.node.*
               from: USERS_RPC
-            - service: bagel.rpc.internal.projection.commands.get
+            - service: rpc.internal.projection.commands.get
               from: COMMANDS_RPC
-            - service: bagel.rpc.internal.projection.commands.get.node.*
+            - service: rpc.internal.projection.commands.get.node.*
               from: COMMANDS_RPC
-            - service: bagel.rpc.internal.projection.modules.get
+            - service: rpc.internal.projection.modules.get
               from: MODULES_RPC
-            - service: bagel.rpc.internal.projection.modules.get.node.*
+            - service: rpc.internal.projection.modules.get.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.internal.projection.modules.automations.get
+            - service: rpc.internal.projection.modules.automations.get
               from: MODULES_RPC
-            - service: bagel.rpc.internal.projection.modules.automations.get.node.*
+            - service: rpc.internal.projection.modules.automations.get.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.loyalty.counter.get
+            - service: rpc.loyalty.counter.get
               from: LOYALTY_RPC
-            - service: bagel.rpc.loyalty.counter.get.node.*
+            - service: rpc.loyalty.counter.get.node.*
               from: LOYALTY_RPC
-            - service: bagel.rpc.loyalty.counter.board
+            - service: rpc.loyalty.counter.board
               from: LOYALTY_RPC
-            - service: bagel.rpc.loyalty.counter.board.node.*
+            - service: rpc.loyalty.counter.board.node.*
               from: LOYALTY_RPC
         roles:
             projector_rpc: {}
@@ -696,200 +696,200 @@ accounts:
             sys: {}
     TRANSACTIONS_RPC:
         exports:
-            - service: bagel.rpc.health.transactions
-            - service: bagel.rpc.health.transactions.node.*
-            - service: bagel.rpc.transactions.>
-            - service: bagel.rpc.admin.giveaways.>
+            - service: rpc.health.transactions
+            - service: rpc.health.transactions.node.*
+            - service: rpc.transactions.>
+            - service: rpc.admin.giveaways.>
         imports:
-            - service: bagel.rpc.internal.users.get
+            - service: rpc.internal.users.get
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.get.node.*
+            - service: rpc.internal.users.get.node.*
               from: USERS_RPC
-            - service: bagel.rpc.internal.billing.apply
+            - service: rpc.internal.billing.apply
               from: USERS_RPC
-            - service: bagel.rpc.internal.billing.apply.node.*
+            - service: rpc.internal.billing.apply.node.*
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.email.get
+            - service: rpc.internal.users.email.get
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.email.get.node.*
+            - service: rpc.internal.users.email.get.node.*
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.giveaway.>
+            - service: rpc.internal.users.giveaway.>
               from: USERS_RPC
-            - service: bagel.rpc.admin.user.auth.check
+            - service: rpc.admin.user.auth.check
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.user.auth.check.node.*
+            - service: rpc.admin.user.auth.check.node.*
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.notifications.send
+            - service: rpc.admin.notifications.send
               from: NOTIFICATIONS_RPC
-            - service: bagel.rpc.admin.notifications.send.node.*
+            - service: rpc.admin.notifications.send.node.*
               from: NOTIFICATIONS_RPC
         roles:
             transactions_rpc: {}
     TWITCH_INGRESS_RPC:
         exports:
-            - service: bagel.rpc.health.ingress
-            - service: bagel.rpc.health.ingress.node.*
+            - service: rpc.health.ingress
+            - service: rpc.health.ingress.node.*
             - service: twitch.ingress.admin.shards.>
             - service: twitch.ingress.admin.trials.>
-            - service: bagel.rpc.ingress.conduit.get
-            - service: bagel.rpc.ingress.conduit.get.node.*
+            - service: rpc.ingress.conduit.get
+            - service: rpc.ingress.conduit.get.node.*
         imports:
-            - service: bagel.rpc.broadcaster.status.get
+            - service: rpc.broadcaster.status.get
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.status.get.node.*
+            - service: rpc.broadcaster.status.get.node.*
               from: PROJECTOR_RPC
-            - service: bagel.rpc.internal.users.get
+            - service: rpc.internal.users.get
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.get.node.*
+            - service: rpc.internal.users.get.node.*
               from: USERS_RPC
-            - service: bagel.rpc.outgress.trial_subscription.>
+            - service: rpc.outgress.trial_subscription.>
               from: OUTGRESS_RPC
-            - stream: bagel.cache.invalidate.status
+            - stream: cache.invalidate.status
               from: USERS_RPC
         roles:
             twitch_ingress_rpc: {}
     USERS_RPC:
         exports:
-            - service: bagel.rpc.internal.users.lifecycle
-            - service: bagel.rpc.internal.users.lifecycle.node.*
-            - service: bagel.rpc.health.users
-            - service: bagel.rpc.health.users.node.*
-            - service: bagel.rpc.dashboard.>
-            - service: bagel.rpc.admin.user.*
-            - service: bagel.rpc.admin.user.*.node.*
-            - service: bagel.rpc.admin.user.test.set
-            - service: bagel.rpc.admin.user.test.set.node.*
-            - service: bagel.rpc.delegation.>
-            - service: bagel.rpc.internal.billing.apply
-            - service: bagel.rpc.internal.billing.apply.node.*
-            - service: bagel.rpc.internal.projection.users.get
-            - service: bagel.rpc.internal.projection.users.get.node.*
-            - service: bagel.rpc.internal.tokens.>
-            - service: bagel.rpc.internal.users.email.get
-            - service: bagel.rpc.internal.users.email.get.node.*
-            - service: bagel.rpc.internal.users.giveaway.>
-            - service: bagel.rpc.internal.users.get
-            - service: bagel.rpc.internal.users.get.node.*
-            - service: bagel.rpc.internal.users.counts.get
-            - service: bagel.rpc.internal.users.counts.get.node.*
-            - stream: bagel.cache.invalidate.grant
-            - stream: bagel.cache.invalidate.status
-            - stream: bagel.cache.invalidate.rename
-            - stream: bagel.cache.invalidate.delegation
-            - stream: bagel.cache.invalidate.locale
+            - service: rpc.internal.users.lifecycle
+            - service: rpc.internal.users.lifecycle.node.*
+            - service: rpc.health.users
+            - service: rpc.health.users.node.*
+            - service: rpc.dashboard.>
+            - service: rpc.admin.user.*
+            - service: rpc.admin.user.*.node.*
+            - service: rpc.admin.user.test.set
+            - service: rpc.admin.user.test.set.node.*
+            - service: rpc.delegation.>
+            - service: rpc.internal.billing.apply
+            - service: rpc.internal.billing.apply.node.*
+            - service: rpc.internal.projection.users.get
+            - service: rpc.internal.projection.users.get.node.*
+            - service: rpc.internal.tokens.>
+            - service: rpc.internal.users.email.get
+            - service: rpc.internal.users.email.get.node.*
+            - service: rpc.internal.users.giveaway.>
+            - service: rpc.internal.users.get
+            - service: rpc.internal.users.get.node.*
+            - service: rpc.internal.users.counts.get
+            - service: rpc.internal.users.counts.get.node.*
+            - stream: cache.invalidate.grant
+            - stream: cache.invalidate.status
+            - stream: cache.invalidate.rename
+            - stream: cache.invalidate.delegation
+            - stream: cache.invalidate.locale
         imports:
-            - service: bagel.rpc.internal.admin.audit.append
+            - service: rpc.internal.admin.audit.append
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.internal.admin.audit.append.node.*
+            - service: rpc.internal.admin.audit.append.node.*
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.user.auth.check
+            - service: rpc.admin.user.auth.check
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.user.auth.check.node.*
+            - service: rpc.admin.user.auth.check.node.*
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.user.audit.append
+            - service: rpc.admin.user.audit.append
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.admin.user.audit.append.node.*
+            - service: rpc.admin.user.audit.append.node.*
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.internal.admin.staff.active
+            - service: rpc.internal.admin.staff.active
               from: ADMIN_SERVICE_RPC
-            - service: bagel.rpc.internal.admin.staff.active.node.*
+            - service: rpc.internal.admin.staff.active.node.*
               from: ADMIN_SERVICE_RPC
         roles:
             users_rpc: {}
     WORKER_RPC:
         exports:
-            - service: bagel.rpc.health.sesame
-            - service: bagel.rpc.health.sesame.node.*
-            - service: bagel.rpc.automations.run
-            - service: bagel.rpc.automations.run.node.*
-            - service: bagel.rpc.automations.runs
-            - service: bagel.rpc.automations.runs.node.*
+            - service: rpc.health.sesame
+            - service: rpc.health.sesame.node.*
+            - service: rpc.automations.run
+            - service: rpc.automations.run.node.*
+            - service: rpc.automations.runs
+            - service: rpc.automations.runs.node.*
         imports:
-            - service: bagel.rpc.internal.projection.modules.automations.get
+            - service: rpc.internal.projection.modules.automations.get
               from: MODULES_RPC
-            - service: bagel.rpc.internal.projection.modules.automations.get.node.*
+            - service: rpc.internal.projection.modules.automations.get.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.internal.users.lifecycle
+            - service: rpc.internal.users.lifecycle
               from: USERS_RPC
-            - service: bagel.rpc.internal.users.lifecycle.node.*
+            - service: rpc.internal.users.lifecycle.node.*
               from: USERS_RPC
-            - service: bagel.rpc.health.ingress
+            - service: rpc.health.ingress
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.health.ingress.node.*
+            - service: rpc.health.ingress.node.*
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.health.outgress
+            - service: rpc.health.outgress
               from: OUTGRESS_RPC
-            - service: bagel.rpc.health.outgress.node.*
+            - service: rpc.health.outgress.node.*
               from: OUTGRESS_RPC
-            - service: bagel.rpc.internal.projection.users.get
+            - service: rpc.internal.projection.users.get
               from: USERS_RPC
-            - service: bagel.rpc.internal.projection.users.get.node.*
+            - service: rpc.internal.projection.users.get.node.*
               from: USERS_RPC
-            - service: bagel.rpc.commands.>
+            - service: rpc.commands.>
               from: COMMANDS_RPC
-            - service: bagel.rpc.modules.quote.>
+            - service: rpc.modules.quote.>
               from: MODULES_RPC
-            - service: bagel.rpc.modules.variable.>
+            - service: rpc.modules.variable.>
               from: MODULES_RPC
-            - service: bagel.rpc.modules.cooldown.>
+            - service: rpc.modules.cooldown.>
               from: MODULES_RPC
-            - service: bagel.rpc.modules.countdown.>
+            - service: rpc.modules.countdown.>
               from: MODULES_RPC
-            - service: bagel.rpc.modules.personality.feed
+            - service: rpc.modules.personality.feed
               from: MODULES_RPC
-            - service: bagel.rpc.modules.personality.feed.node.*
+            - service: rpc.modules.personality.feed.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.modules.personality.feed.board
+            - service: rpc.modules.personality.feed.board
               from: MODULES_RPC
-            - service: bagel.rpc.modules.personality.feed.board.node.*
+            - service: rpc.modules.personality.feed.board.node.*
               from: MODULES_RPC
-            - service: bagel.rpc.projector.dashboard.commands.get
+            - service: rpc.projector.dashboard.commands.get
               from: PROJECTOR_RPC
-            - service: bagel.rpc.projector.dashboard.commands.get.node.*
+            - service: rpc.projector.dashboard.commands.get.node.*
               from: PROJECTOR_RPC
-            - service: bagel.rpc.projector.dashboard.modules.get
+            - service: rpc.projector.dashboard.modules.get
               from: PROJECTOR_RPC
-            - service: bagel.rpc.projector.dashboard.modules.get.node.*
+            - service: rpc.projector.dashboard.modules.get.node.*
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.live.get
+            - service: rpc.broadcaster.live.get
               from: PROJECTOR_RPC
-            - service: bagel.rpc.broadcaster.live.get.node.*
+            - service: rpc.broadcaster.live.get.node.*
               from: PROJECTOR_RPC
-            - service: bagel.rpc.gossip.>
+            - service: rpc.gossip.>
               from: GOSSIP_RPC
-            - service: bagel.rpc.loyalty.>
+            - service: rpc.loyalty.>
               from: LOYALTY_RPC
-            - service: bagel.rpc.outgress.chatters.get
+            - service: rpc.outgress.chatters.get
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.chatters.get.node.*
+            - service: rpc.outgress.chatters.get.node.*
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.followage.get
+            - service: rpc.outgress.followage.get
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.followage.get.node.*
+            - service: rpc.outgress.followage.get.node.*
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.accountage.get
+            - service: rpc.outgress.accountage.get
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.accountage.get.node.*
+            - service: rpc.outgress.accountage.get.node.*
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.uptime.get
+            - service: rpc.outgress.uptime.get
               from: OUTGRESS_RPC
-            - service: bagel.rpc.outgress.uptime.get.node.*
+            - service: rpc.outgress.uptime.get.node.*
               from: OUTGRESS_RPC
-            - stream: bagel.cache.invalidate.status
+            - stream: cache.invalidate.status
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.grant
+            - stream: cache.invalidate.grant
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.locale
+            - stream: cache.invalidate.locale
               from: USERS_RPC
-            - stream: bagel.cache.invalidate.commands
+            - stream: cache.invalidate.commands
               from: PROJECTOR_RPC
-            - stream: bagel.cache.invalidate.modules
+            - stream: cache.invalidate.modules
               from: PROJECTOR_RPC
-            - stream: bagel.cache.invalidate.automations
+            - stream: cache.invalidate.automations
               from: PROJECTOR_RPC
-            - stream: bagel.cache.invalidate.live
+            - stream: cache.invalidate.live
               from: PROJECTOR_RPC
-            - stream: bagel.cache.invalidate.loyalty
+            - stream: cache.invalidate.loyalty
               from: LOYALTY_RPC
         roles:
             worker_rpc: {}

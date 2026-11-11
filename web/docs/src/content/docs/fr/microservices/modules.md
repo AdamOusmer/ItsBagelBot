@@ -12,7 +12,7 @@ Le tableau de bord écrit auprès du service propriétaire ; Sesame lit les proj
 
 ## Interfaces
 
-Le préfixe RPC par défaut est `bagel.rpc.modules`, notamment `list`, `upsert`, `patch` et `patch-existing`. La réparation des projections utilise `bagel.rpc.internal.projection.modules.get`.
+Le préfixe RPC par défaut est `rpc.modules`, notamment `list`, `upsert`, `patch` et `patch-existing`. La réparation des projections utilise `rpc.internal.projection.modules.get`.
 
 Les écritures du tableau de bord sont persistées avant la réponse ; celles en arrière-plan peuvent être regroupées. Une modification avec une révision attendue périmée renvoie un conflit. `patch-existing` exige aussi l’identifiant attendu et ne crée jamais de remplacement. Les changements persistés invalident les caches locaux et la RPC interne de projection renvoie une vue sans secrets.
 

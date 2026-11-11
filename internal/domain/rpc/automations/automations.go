@@ -6,7 +6,7 @@ package automationsrpc
 import "ItsBagelBot/internal/domain/rpc"
 
 const (
-	SubjectRun      = "bagel.rpc.automations.run"
+	SubjectRun      = "rpc.automations.run"
 	SourceDashboard = "dashboard"
 )
 

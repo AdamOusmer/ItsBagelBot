@@ -29,7 +29,7 @@ func deadLetterJetStream(t *testing.T) nats.JetStreamContext {
 	t.Cleanup(nc.Close)
 	js, err := nc.JetStream()
 	require.NoError(t, err)
-	for _, spec := range []StreamSpec{BagelDataStream, BagelDeadLetterStream, {Name: "OTHER", Subjects: []string{"other.>"}}} {
+	for _, spec := range []StreamSpec{DataStream, DataDeadLetterStream, {Name: "OTHER", Subjects: []string{"other.>"}}} {
 		_, err := js.AddStream(&nats.StreamConfig{Name: spec.Name, Subjects: spec.Subjects, Duplicates: spec.Duplicates})
 		require.NoError(t, err)
 	}
@@ -38,7 +38,7 @@ func deadLetterJetStream(t *testing.T) nats.JetStreamContext {
 
 func deadLetters(t *testing.T, js nats.JetStreamContext) uint64 {
 	t.Helper()
-	info, err := js.StreamInfo(BagelDeadLetterStream.Name)
+	info, err := js.StreamInfo(DataDeadLetterStream.Name)
 	require.NoError(t, err)
 	return info.State.Msgs
 }
@@ -70,7 +70,7 @@ func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
 	step := time.Millisecond
 	delay := newBackoffRetryDelay([]time.Duration{step, step, step}).withDeferral(10 * step)
 	core, logs := observer.New(zap.WarnLevel)
-	s := &concurrentDurableSubscriber{js: js, stream: BagelDataStream.Name, consumer: "loyalty", delay: delay, log: zap.New(core)}
+	s := &concurrentDurableSubscriber{js: js, stream: DataStream.Name, consumer: "loyalty", delay: delay, log: zap.New(core)}
 	_, err := js.Publish("data.loyalty.counters", []byte(`{"batch_id":"b1"}`))
 	require.NoError(t, err)
 	sub, err := js.PullSubscribe("data.loyalty.counters", "loyalty", nats.MaxDeliver(int(delay.deliveries())), nats.AckWait(time.Minute))
@@ -90,7 +90,7 @@ func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
 	terminated := logs.FilterMessage("message terminated after max deliveries").All()
 	require.Len(t, terminated, 1)
 	require.Equal(t, map[string]any{
-		"subject": "data.loyalty.counters", "stream": BagelDataStream.Name,
+		"subject": "data.loyalty.counters", "stream": DataStream.Name,
 		"consumer": "loyalty", "deliveries": uint64(delay.deliveries()),
 	}, terminated[0].ContextMap())
 }

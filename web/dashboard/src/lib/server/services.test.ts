@@ -95,7 +95,7 @@ test('account, billing and preference reads share one state_get per board', asyn
     services.userLocale('42'),
     services.userCommandsPage('42')
   ]);
-  expect(rpcCalls).toEqual(['bagel.rpc.dashboard.state_get']);
+  expect(rpcCalls).toEqual(['rpc.dashboard.state_get']);
   expect([account.status, billing.expiresAt, locale, commandsPage]).toEqual(['paid', '2026-12-01', 'fr', false]);
 });
 
@@ -105,9 +105,9 @@ test('every public page reads visible unless its hidden flag is true and writes 
   expect(visible).toEqual([false, true, true]);
   await Promise.all(PUBLIC_PAGES.map((page) => services.pageToggles[page].write('42', true)));
   expect(rpcCalls.filter((subject) => subject.endsWith('_page_set')).sort()).toEqual([
-    'bagel.rpc.dashboard.commands_page_set',
-    'bagel.rpc.dashboard.leaderboard_page_set',
-    'bagel.rpc.dashboard.songqueue_page_set'
+    'rpc.dashboard.commands_page_set',
+    'rpc.dashboard.leaderboard_page_set',
+    'rpc.dashboard.songqueue_page_set'
   ]);
 });
 
@@ -116,7 +116,7 @@ test('a preference write evicts the shared state for that board', async () => {
   await services.userLocale('42');
   await services.setLocale('42', 'de');
   await services.accountState('42');
-  expect(rpcCalls).toEqual(['bagel.rpc.dashboard.state_get', 'bagel.rpc.dashboard.locale_set', 'bagel.rpc.dashboard.state_get']);
+  expect(rpcCalls).toEqual(['rpc.dashboard.state_get', 'rpc.dashboard.locale_set', 'rpc.dashboard.state_get']);
 });
 
 test('a fetches event evicts that board fetch list without refreshing open tabs', async () => {
@@ -142,10 +142,10 @@ test('cached notifications reload once the earliest one expires', async () => {
   await services.notificationsForUser('42');
   setSystemTime(new Date(NOW + 29_000));
   await services.notificationsForUser('42');
-  expect(rpcCalls).toEqual(['bagel.rpc.notifications.list']);
+  expect(rpcCalls).toEqual(['rpc.notifications.list']);
   setSystemTime(new Date(NOW + 30_000));
   await services.notificationsForUser('42');
-  expect(rpcCalls).toEqual(['bagel.rpc.notifications.list', 'bagel.rpc.notifications.list']);
+  expect(rpcCalls).toEqual(['rpc.notifications.list', 'rpc.notifications.list']);
   setSystemTime();
 });
 

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const LifecycleSubject = "bagel.rpc.internal.users.lifecycle"
+const LifecycleSubject = "rpc.internal.users.lifecycle"
 
 type LifecycleRequest struct {
 	SubscriptionIDs         []string  `json:"subscription_ids,omitempty"`

@@ -27,7 +27,7 @@ type echoReply struct {
 	Error string `json:"error,omitempty"`
 }
 
-func rpcSubjectName() string { return "bagel.rpc.test." + nuid.Next() }
+func rpcSubjectName() string { return "rpc.test." + nuid.Next() }
 
 func respondFrom(name string, calls *atomic.Int64) nats.MsgHandler {
 	return func(msg *nats.Msg) {

@@ -12,7 +12,7 @@ Callers request facts rather than calling providers directly. Trusted and untrus
 
 ## Interfaces
 
-The default RPC subject prefix is `bagel.rpc.gossip`; individual provider endpoints are registered in `internal/providers/`.
+The default RPC subject prefix is `rpc.gossip`; individual provider endpoints are registered in `internal/providers/`.
 
 Providers are registered in `internal/providers/`; each declares endpoints and trust before constructing clients. Cached absence differs from an infrastructure failure. Custom fetches revalidate destinations and apply channel, definition and host budgets. WARP listener health alone does not prove that upstream traffic succeeds; trusted providers can remain available when the untrusted route is down.
 

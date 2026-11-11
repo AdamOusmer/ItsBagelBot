@@ -6,7 +6,7 @@ package modulesrpc
 import "ItsBagelBot/internal/domain/rpc"
 
 // FeedBumpRequest asks the modules service to record one "feed the bagel"
-// (bagel.rpc.modules.personality.feed): always on the permanent fleet-wide
+// (rpc.modules.personality.feed): always on the permanent fleet-wide
 // counter, and on the feeding channel's own row when the caller names one. A
 // zero BroadcasterID bumps the fleet counter only.
 type FeedBumpRequest struct {
@@ -29,7 +29,7 @@ type FeedBumpReply struct {
 }
 
 // FeedBoardRequest reads the feed leaderboard
-// (bagel.rpc.modules.personality.feed.board) without feeding anything. Limit
+// (rpc.modules.personality.feed.board) without feeding anything. Limit
 // caps the returned entries; 0 means every ranked channel and a negative limit
 // asks for no entries at all (the !bagels command, which wants a standing and
 // nothing else). A non-zero BroadcasterID also asks for that channel's own

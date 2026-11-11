@@ -75,13 +75,13 @@ config :ingress,
   lane_subject_stream: System.get_env("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
   automod_trial_subject: System.get_env("NATS_SUBJECT_AUTOMOD_TRIAL"),
   invalidation_subject:
-    System.get_env("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.status"),
+    System.get_env("NATS_CACHE_INVALIDATION_SUBJECT", "cache.invalidate.status"),
   admin_subject: System.get_env("NATS_ADMIN_SUBJECT", "twitch.ingress.admin.shards.get"),
   scale_subject: System.get_env("NATS_SCALE_SUBJECT", "twitch.ingress.admin.shards.scale"),
   autoscale_subject:
     System.get_env("NATS_AUTOSCALE_SUBJECT", "twitch.ingress.admin.shards.autoscale"),
-  conduit_subject: System.get_env("NATS_CONDUIT_SUBJECT", "bagel.rpc.ingress.conduit.get"),
-  rpc_health_subject: System.get_env("NATS_RPC_HEALTH_SUBJECT", "bagel.rpc.health.ingress"),
+  conduit_subject: System.get_env("NATS_CONDUIT_SUBJECT", "rpc.ingress.conduit.get"),
+  rpc_health_subject: System.get_env("NATS_RPC_HEALTH_SUBJECT", "rpc.health.ingress"),
   max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "11")),
   capacity_pod_rated_eps:
     String.to_integer(System.get_env("INGRESS_CAPACITY_POD_RATED_EPS", "140000")),
@@ -97,7 +97,7 @@ config :ingress,
        eps -> String.to_integer(eps)
      end),
   broadcaster_status_subject:
-    System.get_env("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
+    System.get_env("NATS_BROADCASTER_STATUS_SUBJECT", "rpc.broadcaster.status.get"),
   broadcaster_status_timeout_ms:
     String.to_integer(System.get_env("BROADCASTER_STATUS_TIMEOUT_MS", "2000")),
   broadcaster_cache_ttl_ms:

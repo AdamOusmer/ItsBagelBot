@@ -22,16 +22,16 @@ accounts:
   SYS: {}
   DEPLOYER_RPC:
     exports:
-      - service: bagel.rpc.admin.deploy.>
+      - service: rpc.admin.deploy.>
         accounts: [ADMIN_RPC]
-      - stream: bagel.deploy.events.>
+      - stream: deploy.events.>
         accounts: [ADMIN_RPC]
       - service: svc.public.>
   ADMIN_RPC:
     imports:
-      - service: bagel.rpc.admin.deploy.>
+      - service: rpc.admin.deploy.>
         from: DEPLOYER_RPC
-      - stream: bagel.deploy.events.>
+      - stream: deploy.events.>
         from: DEPLOYER_RPC
 `
 
@@ -82,7 +82,7 @@ func TestGatedExportsGetActivationsSignedByTheExporter(t *testing.T) {
 
 	keys := h.keys(t)
 	require.Len(t, keys.Activations, 1, "an ungated export needs no activation")
-	wantType := map[string]string{"bagel.rpc.admin.deploy.>": "service", "bagel.deploy.events.>": "stream"}
+	wantType := map[string]string{"rpc.admin.deploy.>": "service", "deploy.events.>": "stream"}
 	entries := keys.Activations["ADMIN_RPC"]
 	require.Len(t, entries, 2)
 	for _, entry := range entries {
