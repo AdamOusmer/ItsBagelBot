@@ -1,3 +1,4 @@
+deploy/k8s/admin.yaml:109 Deployment/admin admin sha-58ae20005197@sha256:3d390129d15d383116cebd7c7cc5f1f764afd12db5634f8dc53a5bf0fd572d91
 deploy/k8s/commands.yaml:121 Deployment/commands commands v0.2.2-beta@sha256:1af3696526c1d72b8011d486a236c147e5abe6d620a9517d8133c2afbf3067e0
 deploy/k8s/console-admin.yaml:142 Deployment/console-admin console-admin v0.2.2-beta@sha256:1de64ab3871f745e769d8589d3a3398a79e3668c73feaba9f2de81c1054dcd9b
 deploy/k8s/console-dashboard.yaml:149 Deployment/console-dashboard console-dashboard v0.2.2-beta@sha256:9de6638346662314c11d3e23377d9ae8b9b8f52c4a6cc2cab3bf9bf4d3e45434

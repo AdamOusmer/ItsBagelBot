@@ -1,0 +1,236 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: admin-env
+  namespace: db
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: admin-doppler-token
+  managedSecret:
+    name: admin-env
+    namespace: db
+    type: Opaque
+  secrets:
+    - ADMIN_BOOTSTRAP_IDS
+    - APP_ENV
+    - DB_ADDR
+    - DB_CA_CERT
+    - DB_CLIENT_CERT
+    - DB_CLIENT_KEY
+    - DB_PASS
+    - DB_SCHEMA
+    - DB_TLS_MODE
+    - DB_USER
+    - NATS_RPC_JWT
+    - NATS_RPC_NKEY_SEED
+    - NEW_RELIC_APP_NAME
+    - NEW_RELIC_LICENSE_KEY
+    - NEW_RELIC_SECURITY_ENABLED
+    - OWNER_BOOTSTRAP_IDS
+    - VALKEY_PASSWORD
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin
+  namespace: db
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: admin
+  template:
+    metadata:
+      labels:
+        app: admin
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: admin
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: admin
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
+      containers:
+        - name: admin
+          image: ghcr.io/adamousmer/itsbagelbot/admin:sha-58ae20005197@sha256:3d390129d15d383116cebd7c7cc5f1f764afd12db5634f8dc53a5bf0fd572d91
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DB_MAX_OPEN_CONNS
+              value: "8"
+            - name: DB_QUERY_CONCURRENCY
+              value: "16"
+            - name: DB_AUTO_MIGRATE
+              value: "true"
+            - name: GOMEMLIMIT
+              value: 160MiB
+            - name: TLS_CERT_FILE
+              value: /etc/admin/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/admin/tls/tls.key
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+          envFrom:
+            - secretRef:
+                name: admin-env
+          volumeMounts:
+            - {name: valkey-client-tls, mountPath: /etc/valkey/client-tls, readOnly: true}
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/admin/tls, readOnly: true}
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
+      volumes:
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: admin-tls
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: admin
+  namespace: db
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: admin
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: admin-tls
+  namespace: db
+spec:
+  secretName: admin-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - admin-status
+    - admin-status.db
+    - admin-status.db.svc
+    - admin-status.db.svc.cluster.local

@@ -1,3 +1,6 @@
+deploy/k8s/admin.yaml:109
+-          image: ghcr.io/adamousmer/itsbagelbot/admin:sha-58ae20005197@sha256:3d390129d15d383116cebd7c7cc5f1f764afd12db5634f8dc53a5bf0fd572d91
++          image: ghcr.io/adamousmer/itsbagelbot/admin:v9.9.9-beta@sha256:61646d696e61646d696e61646d696e61646d696e61646d696e61646d696e6164
 deploy/k8s/commands.yaml:121
 -          image: ghcr.io/adamousmer/itsbagelbot/commands:v0.2.2-beta@sha256:1af3696526c1d72b8011d486a236c147e5abe6d620a9517d8133c2afbf3067e0
 +          image: ghcr.io/adamousmer/itsbagelbot/commands:v9.9.9-beta@sha256:636f6d6d616e6473636f6d6d616e6473636f6d6d616e6473636f6d6d616e6473

@@ -14,6 +14,7 @@ import (
 )
 
 var allServices = []string{
+	"admin",
 	"commands", "console-admin", "console-dashboard", "gossip", "loyalty", "modules", "notifications", "outgress", "projector", "sesame",
 	"transactions", "twitch-ingress", "users",
 }
@@ -148,9 +149,9 @@ func TestPinPRRollback(t *testing.T) {
 		pinned int
 	}{
 		{"rolls back to the release builds", true, pinResult{
-			Title: "Rollback to v0.2.1-beta", Branch: "chore/rollback-v0.2.1-beta-run1", Files: 13,
+			Title: "Rollback to v0.2.1-beta", Branch: "chore/rollback-v0.2.1-beta-run1", Files: 14,
 			PinPR: 1002, PinSHA: "merge1002", Services: allServices, OnMain: true,
-		}, 13},
+		}, 14},
 		{"unknown release is refused", false, pinResult{Code: "invalid"}, 0},
 	}
 	for _, tc := range cases {
