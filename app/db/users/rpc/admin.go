@@ -14,10 +14,10 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/users/ent"
-	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
+	"ItsBagelBot/internal/adminauth"
 	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -29,7 +29,7 @@ type adminRPC struct {
 	botUserID          string
 	validateBotGrant   grantValidator
 	repo               *repository.Users
-	gate               staffGate
+	gate               *adminauth.Client
 	nc                 *nats.Conn
 	invalidationPrefix string
 	log                *zap.Logger
@@ -37,22 +37,21 @@ type adminRPC struct {
 
 type adminVerb struct {
 	name   string
-	min    adminuser.Role
+	min    adminauth.Role
 	handle func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply
 }
 
 func (a *adminRPC) verbs() []adminVerb {
 	const (
-		mod   = adminuser.RoleModerator
-		admin = adminuser.RoleAdmin
-		owner = adminuser.RoleOwner
+		mod   = adminauth.Moderator
+		admin = adminauth.Admin
+		owner = adminauth.Owner
 	)
 	return []adminVerb{
 		{"get", mod, a.get},
 		{"list", mod, a.list},
 		{"stats", mod, a.stats},
 		{"enrollment", mod, a.enrollment},
-		{"analytics", admin, a.analytics},
 		{"overview", mod, a.overview},
 		{"token_status", mod, a.tokenStatus},
 		{"ban", mod, a.ban},
@@ -68,13 +67,9 @@ func (a *adminRPC) verbs() []adminVerb {
 	}
 }
 
-func (a *adminRPC) authorize(ctx context.Context, actorID string, min adminuser.Role) domainrpc.Refusal {
-	actor, errMsg := a.gate.resolveActiveActor(ctx, actorID)
-	if errMsg != "" {
-		return domainrpc.Refused(domainrpc.CodeForbidden, errMsg)
-	}
-	if rank(actor.Role) < rank(min) {
-		return domainrpc.Refused(domainrpc.CodeForbidden, "forbidden: "+string(min)+" role or higher required")
+func (a *adminRPC) authorize(ctx context.Context, actorID string, min adminauth.Role) domainrpc.Refusal {
+	if _, err := a.gate.Authorize(ctx, actorID, min); err != nil {
+		return domainrpc.Refused(domainrpc.CodeForbidden, err.Error())
 	}
 	return domainrpc.Refusal{}
 }
@@ -94,19 +89,20 @@ const (
 )
 
 type AdminConfig struct {
+	AuthPrefix         string
 	BotUserID          string
 	Prefix             string
 	InternalGetSubject string
 	InvalidationPrefix string
 }
 
-func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
+func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 	logBotIdentity(w.Log, cfg.BotUserID)
 	a := &adminRPC{
 		botUserID:          cfg.BotUserID,
 		validateBotGrant:   twitchGrantValidator(&http.Client{Timeout: twitchValidateTimeout}, twitchValidateURL),
 		repo:               w.Repo,
-		gate:               staffGate{db: db},
+		gate:               adminauth.New(w.NC, adminauth.Config{AuthPrefix: cfg.AuthPrefix}),
 		nc:                 w.NC,
 		invalidationPrefix: cfg.InvalidationPrefix,
 		log:                w.Log,
@@ -261,7 +257,7 @@ func (a *adminRPC) enrollment(ctx context.Context, req usersrpc.AdminRequest) us
 	if days <= 0 {
 		days = enrollmentDefaultDays
 	}
-	series, err := a.repo.EnrollmentSeries(ctx, clamp(days, 1, enrollmentMaxDays))
+	series, err := a.repo.EnrollmentSeries(ctx, max(1, min(days, enrollmentMaxDays)))
 	if err != nil {
 		return adminError(refusal(err))
 	}

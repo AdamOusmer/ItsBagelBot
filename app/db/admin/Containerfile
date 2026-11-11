@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+FROM docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
+
+COPY internal/adminauth internal/adminauth
+COPY internal/domain internal/domain
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY locales locales
+COPY app/db/admin app/db/admin
+RUN go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock ./app/db/admin/ent/schema \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /admin ./app/db/admin
+
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+
+COPY --from=build /admin /admin
+
+USER nonroot
+ENTRYPOINT ["/admin"]

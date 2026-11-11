@@ -11,9 +11,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent/migrate"
 
-	"ItsBagelBot/app/db/users/ent/adminaudit"
-	"ItsBagelBot/app/db/users/ent/adminuser"
-	"ItsBagelBot/app/db/users/ent/analyticsrollup"
+	"ItsBagelBot/app/db/users/ent/adminauditdelivery"
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
@@ -26,6 +24,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/google/uuid"
 )
 
 // Client is the client that holds all ent builders.
@@ -33,12 +32,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
-	// AdminAudit is the client for interacting with the AdminAudit builders.
-	AdminAudit *AdminAuditClient
-	// AdminUser is the client for interacting with the AdminUser builders.
-	AdminUser *AdminUserClient
-	// AnalyticsRollup is the client for interacting with the AnalyticsRollup builders.
-	AnalyticsRollup *AnalyticsRollupClient
+	// AdminAuditDelivery is the client for interacting with the AdminAuditDelivery builders.
+	AdminAuditDelivery *AdminAuditDeliveryClient
 	// AuthorizationCode is the client for interacting with the AuthorizationCode builders.
 	AuthorizationCode *AuthorizationCodeClient
 	// Delegation is the client for interacting with the Delegation builders.
@@ -64,9 +59,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
-	c.AdminAudit = NewAdminAuditClient(c.config)
-	c.AdminUser = NewAdminUserClient(c.config)
-	c.AnalyticsRollup = NewAnalyticsRollupClient(c.config)
+	c.AdminAuditDelivery = NewAdminAuditDeliveryClient(c.config)
 	c.AuthorizationCode = NewAuthorizationCodeClient(c.config)
 	c.Delegation = NewDelegationClient(c.config)
 	c.DeviceGrant = NewDeviceGrantClient(c.config)
@@ -164,18 +157,16 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:               ctx,
-		config:            cfg,
-		AdminAudit:        NewAdminAuditClient(cfg),
-		AdminUser:         NewAdminUserClient(cfg),
-		AnalyticsRollup:   NewAnalyticsRollupClient(cfg),
-		AuthorizationCode: NewAuthorizationCodeClient(cfg),
-		Delegation:        NewDelegationClient(cfg),
-		DeviceGrant:       NewDeviceGrantClient(cfg),
-		LifecycleErasure:  NewLifecycleErasureClient(cfg),
-		PremiumGrant:      NewPremiumGrantClient(cfg),
-		Tokens:            NewTokensClient(cfg),
-		User:              NewUserClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		AdminAuditDelivery: NewAdminAuditDeliveryClient(cfg),
+		AuthorizationCode:  NewAuthorizationCodeClient(cfg),
+		Delegation:         NewDelegationClient(cfg),
+		DeviceGrant:        NewDeviceGrantClient(cfg),
+		LifecycleErasure:   NewLifecycleErasureClient(cfg),
+		PremiumGrant:       NewPremiumGrantClient(cfg),
+		Tokens:             NewTokensClient(cfg),
+		User:               NewUserClient(cfg),
 	}, nil
 }
 
@@ -193,25 +184,23 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:               ctx,
-		config:            cfg,
-		AdminAudit:        NewAdminAuditClient(cfg),
-		AdminUser:         NewAdminUserClient(cfg),
-		AnalyticsRollup:   NewAnalyticsRollupClient(cfg),
-		AuthorizationCode: NewAuthorizationCodeClient(cfg),
-		Delegation:        NewDelegationClient(cfg),
-		DeviceGrant:       NewDeviceGrantClient(cfg),
-		LifecycleErasure:  NewLifecycleErasureClient(cfg),
-		PremiumGrant:      NewPremiumGrantClient(cfg),
-		Tokens:            NewTokensClient(cfg),
-		User:              NewUserClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		AdminAuditDelivery: NewAdminAuditDeliveryClient(cfg),
+		AuthorizationCode:  NewAuthorizationCodeClient(cfg),
+		Delegation:         NewDelegationClient(cfg),
+		DeviceGrant:        NewDeviceGrantClient(cfg),
+		LifecycleErasure:   NewLifecycleErasureClient(cfg),
+		PremiumGrant:       NewPremiumGrantClient(cfg),
+		Tokens:             NewTokensClient(cfg),
+		User:               NewUserClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		AdminAudit.
+//		AdminAuditDelivery.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -234,8 +223,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.AuthorizationCode, c.Delegation,
-		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.AdminAuditDelivery, c.AuthorizationCode, c.Delegation, c.DeviceGrant,
+		c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -245,8 +234,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.AuthorizationCode, c.Delegation,
-		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.AdminAuditDelivery, c.AuthorizationCode, c.Delegation, c.DeviceGrant,
+		c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -255,12 +244,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
-	case *AdminAuditMutation:
-		return c.AdminAudit.mutate(ctx, m)
-	case *AdminUserMutation:
-		return c.AdminUser.mutate(ctx, m)
-	case *AnalyticsRollupMutation:
-		return c.AnalyticsRollup.mutate(ctx, m)
+	case *AdminAuditDeliveryMutation:
+		return c.AdminAuditDelivery.mutate(ctx, m)
 	case *AuthorizationCodeMutation:
 		return c.AuthorizationCode.mutate(ctx, m)
 	case *DelegationMutation:
@@ -280,107 +265,107 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	}
 }
 
-// AdminAuditClient is a client for the AdminAudit schema.
-type AdminAuditClient struct {
+// AdminAuditDeliveryClient is a client for the AdminAuditDelivery schema.
+type AdminAuditDeliveryClient struct {
 	config
 }
 
-// NewAdminAuditClient returns a client for the AdminAudit from the given config.
-func NewAdminAuditClient(c config) *AdminAuditClient {
-	return &AdminAuditClient{config: c}
+// NewAdminAuditDeliveryClient returns a client for the AdminAuditDelivery from the given config.
+func NewAdminAuditDeliveryClient(c config) *AdminAuditDeliveryClient {
+	return &AdminAuditDeliveryClient{config: c}
 }
 
 // Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `adminaudit.Hooks(f(g(h())))`.
-func (c *AdminAuditClient) Use(hooks ...Hook) {
-	c.hooks.AdminAudit = append(c.hooks.AdminAudit, hooks...)
+// A call to `Use(f, g, h)` equals to `adminauditdelivery.Hooks(f(g(h())))`.
+func (c *AdminAuditDeliveryClient) Use(hooks ...Hook) {
+	c.hooks.AdminAuditDelivery = append(c.hooks.AdminAuditDelivery, hooks...)
 }
 
 // Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `adminaudit.Intercept(f(g(h())))`.
-func (c *AdminAuditClient) Intercept(interceptors ...Interceptor) {
-	c.inters.AdminAudit = append(c.inters.AdminAudit, interceptors...)
+// A call to `Intercept(f, g, h)` equals to `adminauditdelivery.Intercept(f(g(h())))`.
+func (c *AdminAuditDeliveryClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AdminAuditDelivery = append(c.inters.AdminAuditDelivery, interceptors...)
 }
 
-// Create returns a builder for creating a AdminAudit entity.
-func (c *AdminAuditClient) Create() *AdminAuditCreate {
-	mutation := newAdminAuditMutation(c.config, OpCreate)
-	return &AdminAuditCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+// Create returns a builder for creating a AdminAuditDelivery entity.
+func (c *AdminAuditDeliveryClient) Create() *AdminAuditDeliveryCreate {
+	mutation := newAdminAuditDeliveryMutation(c.config, OpCreate)
+	return &AdminAuditDeliveryCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
-// CreateBulk returns a builder for creating a bulk of AdminAudit entities.
-func (c *AdminAuditClient) CreateBulk(builders ...*AdminAuditCreate) *AdminAuditCreateBulk {
-	return &AdminAuditCreateBulk{config: c.config, builders: builders}
+// CreateBulk returns a builder for creating a bulk of AdminAuditDelivery entities.
+func (c *AdminAuditDeliveryClient) CreateBulk(builders ...*AdminAuditDeliveryCreate) *AdminAuditDeliveryCreateBulk {
+	return &AdminAuditDeliveryCreateBulk{config: c.config, builders: builders}
 }
 
 // MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
 // a builder and applies setFunc on it.
-func (c *AdminAuditClient) MapCreateBulk(slice any, setFunc func(*AdminAuditCreate, int)) *AdminAuditCreateBulk {
+func (c *AdminAuditDeliveryClient) MapCreateBulk(slice any, setFunc func(*AdminAuditDeliveryCreate, int)) *AdminAuditDeliveryCreateBulk {
 	rv := reflect.ValueOf(slice)
 	if rv.Kind() != reflect.Slice {
-		return &AdminAuditCreateBulk{err: fmt.Errorf("calling to AdminAuditClient.MapCreateBulk with wrong type %T, need slice", slice)}
+		return &AdminAuditDeliveryCreateBulk{err: fmt.Errorf("calling to AdminAuditDeliveryClient.MapCreateBulk with wrong type %T, need slice", slice)}
 	}
-	builders := make([]*AdminAuditCreate, rv.Len())
+	builders := make([]*AdminAuditDeliveryCreate, rv.Len())
 	for i := 0; i < rv.Len(); i++ {
 		builders[i] = c.Create()
 		setFunc(builders[i], i)
 	}
-	return &AdminAuditCreateBulk{config: c.config, builders: builders}
+	return &AdminAuditDeliveryCreateBulk{config: c.config, builders: builders}
 }
 
-// Update returns an update builder for AdminAudit.
-func (c *AdminAuditClient) Update() *AdminAuditUpdate {
-	mutation := newAdminAuditMutation(c.config, OpUpdate)
-	return &AdminAuditUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+// Update returns an update builder for AdminAuditDelivery.
+func (c *AdminAuditDeliveryClient) Update() *AdminAuditDeliveryUpdate {
+	mutation := newAdminAuditDeliveryMutation(c.config, OpUpdate)
+	return &AdminAuditDeliveryUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *AdminAuditClient) UpdateOne(_m *AdminAudit) *AdminAuditUpdateOne {
-	mutation := newAdminAuditMutation(c.config, OpUpdateOne, withAdminAudit(_m))
-	return &AdminAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+func (c *AdminAuditDeliveryClient) UpdateOne(_m *AdminAuditDelivery) *AdminAuditDeliveryUpdateOne {
+	mutation := newAdminAuditDeliveryMutation(c.config, OpUpdateOne, withAdminAuditDelivery(_m))
+	return &AdminAuditDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
 // UpdateOneID returns an update builder for the given id.
-func (c *AdminAuditClient) UpdateOneID(id int) *AdminAuditUpdateOne {
-	mutation := newAdminAuditMutation(c.config, OpUpdateOne, withAdminAuditID(id))
-	return &AdminAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+func (c *AdminAuditDeliveryClient) UpdateOneID(id uuid.UUID) *AdminAuditDeliveryUpdateOne {
+	mutation := newAdminAuditDeliveryMutation(c.config, OpUpdateOne, withAdminAuditDeliveryID(id))
+	return &AdminAuditDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
-// Delete returns a delete builder for AdminAudit.
-func (c *AdminAuditClient) Delete() *AdminAuditDelete {
-	mutation := newAdminAuditMutation(c.config, OpDelete)
-	return &AdminAuditDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+// Delete returns a delete builder for AdminAuditDelivery.
+func (c *AdminAuditDeliveryClient) Delete() *AdminAuditDeliveryDelete {
+	mutation := newAdminAuditDeliveryMutation(c.config, OpDelete)
+	return &AdminAuditDeliveryDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *AdminAuditClient) DeleteOne(_m *AdminAudit) *AdminAuditDeleteOne {
+func (c *AdminAuditDeliveryClient) DeleteOne(_m *AdminAuditDelivery) *AdminAuditDeliveryDeleteOne {
 	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *AdminAuditClient) DeleteOneID(id int) *AdminAuditDeleteOne {
-	builder := c.Delete().Where(adminaudit.ID(id))
+func (c *AdminAuditDeliveryClient) DeleteOneID(id uuid.UUID) *AdminAuditDeliveryDeleteOne {
+	builder := c.Delete().Where(adminauditdelivery.ID(id))
 	builder.mutation.id = &id
 	builder.mutation.op = OpDeleteOne
-	return &AdminAuditDeleteOne{builder}
+	return &AdminAuditDeliveryDeleteOne{builder}
 }
 
-// Query returns a query builder for AdminAudit.
-func (c *AdminAuditClient) Query() *AdminAuditQuery {
-	return &AdminAuditQuery{
+// Query returns a query builder for AdminAuditDelivery.
+func (c *AdminAuditDeliveryClient) Query() *AdminAuditDeliveryQuery {
+	return &AdminAuditDeliveryQuery{
 		config: c.config,
-		ctx:    &QueryContext{Type: TypeAdminAudit},
+		ctx:    &QueryContext{Type: TypeAdminAuditDelivery},
 		inters: c.Interceptors(),
 	}
 }
 
-// Get returns a AdminAudit entity by its id.
-func (c *AdminAuditClient) Get(ctx context.Context, id int) (*AdminAudit, error) {
-	return c.Query().Where(adminaudit.ID(id)).Only(ctx)
+// Get returns a AdminAuditDelivery entity by its id.
+func (c *AdminAuditDeliveryClient) Get(ctx context.Context, id uuid.UUID) (*AdminAuditDelivery, error) {
+	return c.Query().Where(adminauditdelivery.ID(id)).Only(ctx)
 }
 
 // GetX is like Get, but panics if an error occurs.
-func (c *AdminAuditClient) GetX(ctx context.Context, id int) *AdminAudit {
+func (c *AdminAuditDeliveryClient) GetX(ctx context.Context, id uuid.UUID) *AdminAuditDelivery {
 	obj, err := c.Get(ctx, id)
 	if err != nil {
 		panic(err)
@@ -389,293 +374,27 @@ func (c *AdminAuditClient) GetX(ctx context.Context, id int) *AdminAudit {
 }
 
 // Hooks returns the client hooks.
-func (c *AdminAuditClient) Hooks() []Hook {
-	return c.hooks.AdminAudit
+func (c *AdminAuditDeliveryClient) Hooks() []Hook {
+	return c.hooks.AdminAuditDelivery
 }
 
 // Interceptors returns the client interceptors.
-func (c *AdminAuditClient) Interceptors() []Interceptor {
-	return c.inters.AdminAudit
+func (c *AdminAuditDeliveryClient) Interceptors() []Interceptor {
+	return c.inters.AdminAuditDelivery
 }
 
-func (c *AdminAuditClient) mutate(ctx context.Context, m *AdminAuditMutation) (Value, error) {
+func (c *AdminAuditDeliveryClient) mutate(ctx context.Context, m *AdminAuditDeliveryMutation) (Value, error) {
 	switch m.Op() {
 	case OpCreate:
-		return (&AdminAuditCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+		return (&AdminAuditDeliveryCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
 	case OpUpdate:
-		return (&AdminAuditUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+		return (&AdminAuditDeliveryUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
 	case OpUpdateOne:
-		return (&AdminAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+		return (&AdminAuditDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
 	case OpDelete, OpDeleteOne:
-		return (&AdminAuditDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+		return (&AdminAuditDeliveryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
-		return nil, fmt.Errorf("ent: unknown AdminAudit mutation op: %q", m.Op())
-	}
-}
-
-// AdminUserClient is a client for the AdminUser schema.
-type AdminUserClient struct {
-	config
-}
-
-// NewAdminUserClient returns a client for the AdminUser from the given config.
-func NewAdminUserClient(c config) *AdminUserClient {
-	return &AdminUserClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `adminuser.Hooks(f(g(h())))`.
-func (c *AdminUserClient) Use(hooks ...Hook) {
-	c.hooks.AdminUser = append(c.hooks.AdminUser, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `adminuser.Intercept(f(g(h())))`.
-func (c *AdminUserClient) Intercept(interceptors ...Interceptor) {
-	c.inters.AdminUser = append(c.inters.AdminUser, interceptors...)
-}
-
-// Create returns a builder for creating a AdminUser entity.
-func (c *AdminUserClient) Create() *AdminUserCreate {
-	mutation := newAdminUserMutation(c.config, OpCreate)
-	return &AdminUserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of AdminUser entities.
-func (c *AdminUserClient) CreateBulk(builders ...*AdminUserCreate) *AdminUserCreateBulk {
-	return &AdminUserCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *AdminUserClient) MapCreateBulk(slice any, setFunc func(*AdminUserCreate, int)) *AdminUserCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &AdminUserCreateBulk{err: fmt.Errorf("calling to AdminUserClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*AdminUserCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &AdminUserCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for AdminUser.
-func (c *AdminUserClient) Update() *AdminUserUpdate {
-	mutation := newAdminUserMutation(c.config, OpUpdate)
-	return &AdminUserUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *AdminUserClient) UpdateOne(_m *AdminUser) *AdminUserUpdateOne {
-	mutation := newAdminUserMutation(c.config, OpUpdateOne, withAdminUser(_m))
-	return &AdminUserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *AdminUserClient) UpdateOneID(id uint64) *AdminUserUpdateOne {
-	mutation := newAdminUserMutation(c.config, OpUpdateOne, withAdminUserID(id))
-	return &AdminUserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for AdminUser.
-func (c *AdminUserClient) Delete() *AdminUserDelete {
-	mutation := newAdminUserMutation(c.config, OpDelete)
-	return &AdminUserDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *AdminUserClient) DeleteOne(_m *AdminUser) *AdminUserDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *AdminUserClient) DeleteOneID(id uint64) *AdminUserDeleteOne {
-	builder := c.Delete().Where(adminuser.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &AdminUserDeleteOne{builder}
-}
-
-// Query returns a query builder for AdminUser.
-func (c *AdminUserClient) Query() *AdminUserQuery {
-	return &AdminUserQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeAdminUser},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a AdminUser entity by its id.
-func (c *AdminUserClient) Get(ctx context.Context, id uint64) (*AdminUser, error) {
-	return c.Query().Where(adminuser.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *AdminUserClient) GetX(ctx context.Context, id uint64) *AdminUser {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *AdminUserClient) Hooks() []Hook {
-	return c.hooks.AdminUser
-}
-
-// Interceptors returns the client interceptors.
-func (c *AdminUserClient) Interceptors() []Interceptor {
-	return c.inters.AdminUser
-}
-
-func (c *AdminUserClient) mutate(ctx context.Context, m *AdminUserMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&AdminUserCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&AdminUserUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&AdminUserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&AdminUserDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown AdminUser mutation op: %q", m.Op())
-	}
-}
-
-// AnalyticsRollupClient is a client for the AnalyticsRollup schema.
-type AnalyticsRollupClient struct {
-	config
-}
-
-// NewAnalyticsRollupClient returns a client for the AnalyticsRollup from the given config.
-func NewAnalyticsRollupClient(c config) *AnalyticsRollupClient {
-	return &AnalyticsRollupClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `analyticsrollup.Hooks(f(g(h())))`.
-func (c *AnalyticsRollupClient) Use(hooks ...Hook) {
-	c.hooks.AnalyticsRollup = append(c.hooks.AnalyticsRollup, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `analyticsrollup.Intercept(f(g(h())))`.
-func (c *AnalyticsRollupClient) Intercept(interceptors ...Interceptor) {
-	c.inters.AnalyticsRollup = append(c.inters.AnalyticsRollup, interceptors...)
-}
-
-// Create returns a builder for creating a AnalyticsRollup entity.
-func (c *AnalyticsRollupClient) Create() *AnalyticsRollupCreate {
-	mutation := newAnalyticsRollupMutation(c.config, OpCreate)
-	return &AnalyticsRollupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of AnalyticsRollup entities.
-func (c *AnalyticsRollupClient) CreateBulk(builders ...*AnalyticsRollupCreate) *AnalyticsRollupCreateBulk {
-	return &AnalyticsRollupCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *AnalyticsRollupClient) MapCreateBulk(slice any, setFunc func(*AnalyticsRollupCreate, int)) *AnalyticsRollupCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &AnalyticsRollupCreateBulk{err: fmt.Errorf("calling to AnalyticsRollupClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*AnalyticsRollupCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &AnalyticsRollupCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for AnalyticsRollup.
-func (c *AnalyticsRollupClient) Update() *AnalyticsRollupUpdate {
-	mutation := newAnalyticsRollupMutation(c.config, OpUpdate)
-	return &AnalyticsRollupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *AnalyticsRollupClient) UpdateOne(_m *AnalyticsRollup) *AnalyticsRollupUpdateOne {
-	mutation := newAnalyticsRollupMutation(c.config, OpUpdateOne, withAnalyticsRollup(_m))
-	return &AnalyticsRollupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *AnalyticsRollupClient) UpdateOneID(id int) *AnalyticsRollupUpdateOne {
-	mutation := newAnalyticsRollupMutation(c.config, OpUpdateOne, withAnalyticsRollupID(id))
-	return &AnalyticsRollupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for AnalyticsRollup.
-func (c *AnalyticsRollupClient) Delete() *AnalyticsRollupDelete {
-	mutation := newAnalyticsRollupMutation(c.config, OpDelete)
-	return &AnalyticsRollupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *AnalyticsRollupClient) DeleteOne(_m *AnalyticsRollup) *AnalyticsRollupDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *AnalyticsRollupClient) DeleteOneID(id int) *AnalyticsRollupDeleteOne {
-	builder := c.Delete().Where(analyticsrollup.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &AnalyticsRollupDeleteOne{builder}
-}
-
-// Query returns a query builder for AnalyticsRollup.
-func (c *AnalyticsRollupClient) Query() *AnalyticsRollupQuery {
-	return &AnalyticsRollupQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeAnalyticsRollup},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a AnalyticsRollup entity by its id.
-func (c *AnalyticsRollupClient) Get(ctx context.Context, id int) (*AnalyticsRollup, error) {
-	return c.Query().Where(analyticsrollup.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *AnalyticsRollupClient) GetX(ctx context.Context, id int) *AnalyticsRollup {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *AnalyticsRollupClient) Hooks() []Hook {
-	return c.hooks.AnalyticsRollup
-}
-
-// Interceptors returns the client interceptors.
-func (c *AnalyticsRollupClient) Interceptors() []Interceptor {
-	return c.inters.AnalyticsRollup
-}
-
-func (c *AnalyticsRollupClient) mutate(ctx context.Context, m *AnalyticsRollupMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&AnalyticsRollupCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&AnalyticsRollupUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&AnalyticsRollupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&AnalyticsRollupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown AnalyticsRollup mutation op: %q", m.Op())
+		return nil, fmt.Errorf("ent: unknown AdminAuditDelivery mutation op: %q", m.Op())
 	}
 }
 
@@ -1742,11 +1461,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AdminAudit, AdminUser, AnalyticsRollup, AuthorizationCode, Delegation,
-		DeviceGrant, LifecycleErasure, PremiumGrant, Tokens, User []ent.Hook
+		AdminAuditDelivery, AuthorizationCode, Delegation, DeviceGrant,
+		LifecycleErasure, PremiumGrant, Tokens, User []ent.Hook
 	}
 	inters struct {
-		AdminAudit, AdminUser, AnalyticsRollup, AuthorizationCode, Delegation,
-		DeviceGrant, LifecycleErasure, PremiumGrant, Tokens, User []ent.Interceptor
+		AdminAuditDelivery, AuthorizationCode, Delegation, DeviceGrant,
+		LifecycleErasure, PremiumGrant, Tokens, User []ent.Interceptor
 	}
 )

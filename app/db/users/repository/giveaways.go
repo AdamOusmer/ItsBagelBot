@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
-	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/adminauth"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
+	"go.uber.org/zap"
 )
 
 const giveawayRuleVersion = "eligibility-v1"
@@ -105,17 +106,7 @@ func (r *Users) giveawayUsers(ctx context.Context, createdBefore *time.Time) ([]
 }
 
 func (r *Users) activeStaffIDs(ctx context.Context) (map[uint64]struct{}, error) {
-	staff, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminUser, error) {
-		return r.client.AdminUser.Query().Where(adminuser.ActiveEQ(true)).Select(adminuser.FieldID).All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	ids := make(map[uint64]struct{}, len(staff))
-	for _, s := range staff {
-		ids[s.ID] = struct{}{}
-	}
-	return ids, nil
+	return r.adminAuth.ActiveIDs(ctx)
 }
 
 func pendingEligibility(p pendingGiveawayPrefs, active, onboarded bool) (bool, bool) {
@@ -196,31 +187,25 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 	if err := validate.UserID(actorID); err != nil {
 		return err
 	}
-	counted := r.trackAccounts(ctx, targetID)
-	err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-		actor, err := tx.AdminUser.Query().Where(
-			adminuser.IDEQ(actorID), adminuser.ActiveEQ(true),
-			adminuser.RoleIn(adminuser.RoleAdmin, adminuser.RoleOwner),
-		).Only(ctx)
-		if err != nil {
-			if ent.IsNotFound(err) {
-				return errors.New("test-account marker requires an active admin")
-			}
-			return err
-		}
-		if _, err := tx.User.UpdateOneID(targetID).SetTestAccount(enabled).Save(ctx); err != nil {
-			return err
-		}
-		_, err = tx.AdminAudit.Create().
-			SetActorID(actor.ID).SetActorLogin(actor.Login).
-			SetAction("set_test_account").SetTarget(fmt.Sprint(targetID)).
-			SetDetail(fmt.Sprintf("enabled=%t", enabled)).SetOk(true).Save(ctx)
+	actor, err := r.adminAuth.Authorize(ctx, fmt.Sprint(actorID), adminauth.Admin)
+	if err != nil {
 		return err
-	})
-	if err == nil {
-		counted()
 	}
-	return err
+	counted := r.trackAccounts(ctx, targetID)
+	delivery, err := db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.AdminAuditDelivery, error) {
+		if _, err := tx.User.UpdateOneID(targetID).SetTestAccount(enabled).Save(ctx); err != nil {
+			return nil, err
+		}
+		return tx.AdminAuditDelivery.Create().SetPayload(usersrpc.AuthRequest{ActorID: fmt.Sprint(actorID), ActorLogin: actor.Login, Action: "set_test_account", Target: fmt.Sprint(targetID), Detail: fmt.Sprintf("enabled=%t", enabled), OK: true}).Save(ctx)
+	})
+	if err != nil {
+		return err
+	}
+	counted()
+	if err := r.deliverAdminAudit(ctx, delivery); err != nil {
+		r.log.Warn("admin audit delivery pending", zap.String("operation_id", delivery.ID.String()), zap.Error(err))
+	}
+	return nil
 }
 
 func validateGrantRequest(req usersrpc.PreparePremiumGrantRequest) error {

@@ -76,6 +76,7 @@ export type KnownMessageKey =
   | 'admin.analytics.column.usesPerChannel'
   | 'admin.analytics.column.usesWeek'
   | 'admin.analytics.column.weekN'
+  | 'admin.analytics.daily'
   | 'admin.analytics.degraded'
   | 'admin.analytics.delta.day'
   | 'admin.analytics.delta.month'

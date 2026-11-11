@@ -6,10 +6,10 @@ and [app map](../../../CONTEXT-MAP.md), especially account activity and Premium.
 ## Responsibility and boundaries
 
 Owns registered broadcaster identity, bot-enable state, preferences, Twitch token
-custody, contact email, effective access, promotional grants, staff/audit records
-and dashboard delegation in `bagel_users`. It provisions the shared `BAGEL_DATA`
+custody, contact email, effective access, promotional grants and dashboard delegation in `bagel_users`. It provisions the shared `BAGEL_DATA`
 stream and `BAGEL_DLQ`; Sesame owns Twitch ingress streams. Transactions owns provider HTTP calls
 and giveaway campaigns/draws, while Users owns authoritative eligibility/access.
+Admin owns staff membership, audit history and aggregate analytics in its own schema.
 Modules, Commands and Loyalty own their separate feature records. Users also
 owns all desktop device-authorization state and token logic (device grants,
 authorization codes, Ed25519 access-token signing); the dashboard owns HTTP
@@ -34,7 +34,7 @@ gateway only verifies access tokens and listens for revocation.
 | Token / grant | Twitch OAuth token custody; in giveaway files, grant means a Premium interval. |
 | Contact email | Real address sealed in `email_enc`; legacy `email` is a synthetic placeholder. |
 | Premium grant | Users-owned promotional interval identified by giveaway+award. |
-| Staff / `AdminUser` | Active role membership: moderator, admin or owner; distinct from Premium/VIP. |
+| Staff | Admin-owned active role membership: moderator, admin or owner; distinct from Premium/VIP. |
 | Delegation | Single-use invitation leading to scoped access to an owner's dashboard. |
 | Preference write | Locale/cursor/onboarding/creator-code batching; active intent changes persist immediately through lifecycle CAS. |
 | Payment failed | Separate billing condition; does not itself mean access has expired. |
@@ -46,7 +46,7 @@ gateway only verifies access tokens and listens for revocation.
 
 | File | Role |
 | --- | --- |
-| [main.go](main.go) | Mandatory keyset, schema/stream boot, consumers, RPC registration, staff bootstrap and expiry sweeps. |
+| [main.go](main.go) | Mandatory keyset, schema/stream boot, consumers, RPC registration, account analytics reconciliation and expiry sweeps. |
 | [repository/users.go](repository/users.go) | Registration, cached safe views, lookup, token custody, account deletion and change/reprojection events. |
 | [repository/preferences.go](repository/preferences.go) | Per-user/field coalescing, transactional flush, failure isolation and pending preference overlay state. |
 | [repository/contact_email.go](repository/contact_email.go) | Sealed contact-email writes and internal read. |
@@ -56,7 +56,7 @@ gateway only verifies access tokens and listens for revocation.
 | [repository/users_admin.go](repository/users_admin.go) | Admin directory/statistics, searches and token-reset helpers. |
 | [repository/delegations.go](repository/delegations.go) | Invite issuance, one-time consumption and scoped dashboard grants. |
 | [rpc/dashboard.go](rpc/dashboard.go), [admin.go](rpc/admin.go) | User-facing setup/settings/state and admin account operations. |
-| [rpc/adminauth.go](rpc/adminauth.go) | Staff hierarchy, bootstrap membership, authorization and audit surfaces. |
+| [../../../internal/adminauth/](../../../internal/adminauth/) | Trusted Admin RPC client for role checks, current staff eligibility and audit writes. |
 | [rpc/billing.go](rpc/billing.go), [giveaways.go](rpc/giveaways.go) | Internal access application/eligibility/grant RPCs and invalidations. |
 | [rpc/tokens.go](rpc/tokens.go), [email.go](rpc/email.go), [projection.go](rpc/projection.go), [counts.go](rpc/counts.go), [delegation.go](rpc/delegation.go) | Scoped read/custody/delegation endpoints. |
 | [rpc/bot_token.go](rpc/bot_token.go) | Bot OAuth grant validation for the dedicated bot-token save path. |
@@ -64,7 +64,7 @@ gateway only verifies access tokens and listens for revocation.
 | [rpc/deviceauth.go](rpc/deviceauth.go) | Desktop device-authorization RPCs (`bagel.rpc.dashboard.device.*`); OAuth-error mapping for the token endpoint. |
 | [repository/deviceauth_codes.go](repository/deviceauth_codes.go), [deviceauth_refresh.go](repository/deviceauth_refresh.go), [deviceauth_grants.go](repository/deviceauth_grants.go), [deviceauth_cleanup.go](repository/deviceauth_cleanup.go) | Code issuance/exchange, refresh rotation with reuse detection, grant listing/revocation, and the expired-code/stale-grant sweep. |
 | [tokensign/tokensign.go](tokensign/tokensign.go) | Ed25519 access-token signing/verification (`v1.<payload>.<sig>`), keyed by `kid`. |
-| [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, AdminUser, AdminAudit, DeviceGrant and AuthorizationCode definitions. |
+| [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, LifecycleErasure, DeviceGrant, AuthorizationCode and pending AdminAuditDelivery definitions. |
 
 Shared contracts: [Users RPC](../../../internal/domain/rpc/users/),
 [billing RPC](../../../internal/domain/rpc/billing/),
@@ -76,7 +76,8 @@ Edit schemas rather than generated Ent code.
 ## Flow and contracts
 
 - Dashboard defaults to `bagel.rpc.dashboard.*`; admin accounts to
-  `bagel.rpc.admin.user.*`, with `.auth` and `.audit` surfaces for staff operations.
+  `bagel.rpc.admin.user.*`. Admin owns the `.auth` and `.audit` surfaces; Users
+  asks Admin to authorize every staff account operation.
   Desktop device authorization sits at `bagel.rpc.dashboard.device.*`
   (`create_code`, `exchange`, `refresh`, `list`, `revoke`, `revoke_all`) under
   the same wildcard export.
@@ -127,7 +128,11 @@ Users) running.
   a second account on retry. Intervals use UTC microsecond precision.
 - Eligibility comes from the complete Users snapshot, not a paged admin list:
   banned/inactive/not-onboarded/test/VIP/current-staff exclusions, with pending
-  active/onboarding preference values overlaid. Former staff can be eligible.
+  active/onboarding preference values overlaid. Current staff membership comes from
+  Admin over trusted internal RPC; unavailable membership fails the pool read.
+  Former staff can be eligible. Test-account flag changes commit atomically with an
+  audit-delivery intent; startup and periodic delivery retry the same operation ID
+  until Admin confirms it, even if the original staff member has since been revoked.
 - Every user update increments state revision through the schema hook. Keep
   `ent/runtime` imported and propagate instance/revision with events/projections.
 - Billing apply compares provider event time and recurring reference; old
@@ -140,8 +145,8 @@ Users) running.
   treated as expired by downstream token readers; never assume valid forever.
 - Login collisions after Twitch renames are possible: username index is not
   unique and lookup selects the most recently updated matching row.
-- Staff hierarchy is an authorization boundary; bootstrap IDs and audit records
-  must not be replaced by a client-supplied role. Delegation invites are single use.
+- Staff hierarchy is an Admin authorization boundary; Users must recheck the
+  persisted active role through Admin and never trust a client-supplied role. Delegation invites are single use.
 - Subscription sweeps default to 5 minutes with 24-hour Tebex grace; Premium-grant
   sweeps run independently at 30 seconds. Each replica runs its own periodic sweeps.
 
@@ -155,7 +160,7 @@ go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock ./ap
 ```
 
 Choose preference tests for batching, giveaways tests for eligibility/access,
-watchtime_lifecycle tests for instance metadata, and contact-email/adminauth tests
+watchtime_lifecycle tests for instance metadata, and contact-email/admin tests
 for custody/roles; bot-token tests protect its dedicated identity/scopes gate.
 Dashboard commands-page integration tests cover visibility and
 invalidation. `deviceauth_test.go` covers the device-authorization business

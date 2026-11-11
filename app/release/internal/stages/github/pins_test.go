@@ -87,7 +87,7 @@ func TestRewritePinsProperties(t *testing.T) {
 	delete(readBack, "warp")
 
 	assert.Equal(t,
-		rewriteFacts{Files: 13, Again: 0, Pins: pins, Untouched: true},
+		rewriteFacts{Files: 14, Again: 0, Pins: pins, Untouched: true},
 		rewriteFacts{Files: len(changed), Again: len(again), Pins: readBack, Untouched: changed["deploy/k8s/priorityclasses.yaml"] == nil})
 }
 

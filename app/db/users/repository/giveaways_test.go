@@ -6,22 +6,27 @@ package repository_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/users/ent"
-	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/enttest"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
+	"ItsBagelBot/internal/adminauth"
 	"ItsBagelBot/internal/domain/event/data"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/testdb"
+	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 
 	"github.com/stretchr/testify/assert"
@@ -49,10 +54,7 @@ func TestGiveawayPoolUsesAuthoritativeRulesAndPendingFlags(t *testing.T) {
 	require.NoError(t, client.User.UpdateOneID(5).SetTestAccount(true).Exec(ctx))
 	require.NoError(t, client.User.UpdateOneID(6).SetStatus(user.StatusVip).Exec(ctx))
 	require.NoError(t, repo.SetBanned(ctx, 7, true))
-	_, err := client.AdminUser.Create().SetID(3).SetLogin("staff").SetDisplayName("Staff").SetRole(adminuser.RoleAdmin).Save(ctx)
-	require.NoError(t, err)
-	_, err = client.AdminUser.Create().SetID(4).SetLogin("former").SetDisplayName("Former").SetRole(adminuser.RoleAdmin).SetActive(false).Save(ctx)
-	require.NoError(t, err)
+	staffService(t, repo, []usersrpc.AdminAcctView{{ID: 3, Active: true, Role: "admin", Login: "staff"}, {ID: 4, Active: false, Role: "admin", Login: "former"}})
 
 	p, err := repo.GiveawayPoolSnapshot(ctx, nil)
 	require.NoError(t, err)
@@ -71,16 +73,57 @@ func TestSetTestAccountRequiresAdminAndAudits(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	require.NoError(t, repo.Register(ctx, 10, "target", "target", "target@example.com"))
-	_, err := client.AdminUser.Create().SetID(11).SetLogin("mod").SetDisplayName("Mod").SetRole(adminuser.RoleModerator).Save(ctx)
-	require.NoError(t, err)
+	audit := staffService(t, repo, []usersrpc.AdminAcctView{{ID: 11, Role: "moderator", Active: true, Login: "mod"}, {ID: 12, Role: "admin", Active: true, Login: "admin"}})
 	assert.Error(t, repo.SetTestAccount(ctx, 10, true, 11))
-	_, err = client.AdminUser.Create().SetID(12).SetLogin("admin").SetDisplayName("Admin").SetRole(adminuser.RoleAdmin).Save(ctx)
-	require.NoError(t, err)
 	require.NoError(t, repo.SetTestAccount(ctx, 10, true, 12))
 	assert.True(t, client.User.GetX(ctx, 10).TestAccount)
-	audit, err := client.AdminAudit.Query().Only(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "set_test_account", audit.Action)
+	select {
+	case got := <-audit.audit:
+		assert.Equal(t, "set_test_account", got.Action)
+	default:
+		t.Fatal("Admin service did not receive an audit entry")
+	}
+}
+
+type auditFixture struct {
+	actors      []usersrpc.AdminAcctView
+	unavailable atomic.Bool
+	revoked     atomic.Bool
+	applied     sync.Map
+	audit       chan usersrpc.AuthRequest
+}
+
+func staffService(t *testing.T, repo *repository.Users, actors []usersrpc.AdminAcctView) *auditFixture {
+	t.Helper()
+	nc := testnats.Connect(t)
+	wiring := bus.RPCWiring{NC: nc, Log: zap.NewNop()}
+	fixture := &auditFixture{actors: actors, audit: make(chan usersrpc.AuthRequest, 1)}
+	require.NoError(t, bus.Serve(wiring, adminauth.DefaultAuthPrefix+".check", fixture.check))
+	require.NoError(t, bus.Serve(wiring, adminauth.ActiveStaffSubject, func(context.Context, usersrpc.AuthRequest) usersrpc.AuthReply {
+		return usersrpc.AuthReply{Admins: actors}
+	}))
+	require.NoError(t, bus.Serve(wiring, adminauth.AuditDeliverySubject, fixture.deliver))
+	repo.SetAdminAuth(adminauth.New(nc, adminauth.Config{}))
+	return fixture
+}
+
+func (f *auditFixture) check(_ context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
+	for _, actor := range f.actors {
+		if fmt.Sprint(actor.ID) == req.UserID {
+			return usersrpc.AuthReply{Admin: actor.Active && !f.revoked.Load(), Role: actor.Role, Login: actor.Login}
+		}
+	}
+	return usersrpc.AuthReply{}
+}
+
+func (f *auditFixture) deliver(_ context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
+	if f.unavailable.Load() {
+		return usersrpc.AuthReply{Refusal: domainrpc.Refused(domainrpc.CodeUnavailable, "audit store unavailable")}
+	}
+	if _, exists := f.applied.LoadOrStore(req.AuditID, req); !exists {
+		f.audit <- req
+	}
+	return usersrpc.AuthReply{}
 }
 
 func TestPremiumGrantPreparationIsIdempotentAndConcurrent(t *testing.T) {

@@ -201,7 +201,7 @@ func TestAppEgressAllowlists(t *testing.T) {
 		},
 		{
 			name: "TestDBHeatWaveEgressAllowlist", path: dbPolicies, policy: "allow-heatwave",
-			wantApps: sorted("backup-mysql", "commands", "loyalty", "modules",
+			wantApps: sorted("admin", "backup-mysql", "commands", "loyalty", "modules",
 				"notifications", "transactions", "users"),
 			wantCIDRs: sorted("10.0.0.0/16", "204.216.107.73/32"),
 		},
@@ -264,11 +264,11 @@ func TestNatsLeafIngressIsExact(t *testing.T) {
 func TestDBNamespaceCoversEveryDataService(t *testing.T) {
 	policies := loadNetworkPolicies(t, dbPolicies)
 	want := map[string][]string{
-		"default-deny-db": sorted("backup-k3s", "backup-mysql", "commands", "loyalty",
+		"default-deny-db": sorted("admin", "backup-k3s", "backup-mysql", "commands", "loyalty",
 			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
-		"allow-public-https": sorted("backup-k3s", "backup-mysql", "commands", "loyalty",
+		"allow-public-https": sorted("admin", "backup-k3s", "backup-mysql", "commands", "loyalty",
 			"modules", "notifications", "projector", "transactions", "users"),
-		"allow-heatwave": sorted("backup-mysql", "commands", "loyalty", "modules",
+		"allow-heatwave": sorted("admin", "backup-mysql", "commands", "loyalty", "modules",
 			"notifications", "transactions", "users"),
 	}
 	for name, apps := range want {

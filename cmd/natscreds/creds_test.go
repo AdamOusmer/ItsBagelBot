@@ -24,6 +24,7 @@ accounts:
       outgress_bus:
         publish:
           allow: [a.>]
+      admin_service_rpc: {}
       outgress_rpc: {}
       worker_bus: {}
       twitch_ingress_rpc: {}
@@ -56,6 +57,7 @@ func TestRoleCredentialsLandInTheirDopplerProject(t *testing.T) {
 	h.apply(t)
 
 	assert.Equal(t, []string{
+		"admin-db/NATS_RPC_JWT", "admin-db/NATS_RPC_NKEY_SEED",
 		"outgress/NATS_JWT", "outgress/NATS_NKEY_SEED",
 		"outgress/NATS_RPC_JWT", "outgress/NATS_RPC_NKEY_SEED",
 		"sesame/NATS_JWT", "sesame/NATS_NKEY_SEED",

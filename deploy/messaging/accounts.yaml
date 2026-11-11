@@ -55,8 +55,26 @@ accounts:
               from: TWITCH_INGRESS_RPC
             - service: bagel.rpc.health.ingress.node.*
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.admin.user.>
+            - service: bagel.rpc.admin.user.*
               from: USERS_RPC
+            - service: bagel.rpc.admin.user.*.node.*
+              from: USERS_RPC
+            - service: bagel.rpc.admin.user.test.set
+              from: USERS_RPC
+            - service: bagel.rpc.admin.user.test.set.node.*
+              from: USERS_RPC
+            - service: bagel.rpc.admin.user.auth.>
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.admin.user.audit.>
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.admin.analytics
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.admin.analytics.node.*
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.health.admin
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.health.admin.node.*
+              from: ADMIN_SERVICE_RPC
             - service: bagel.rpc.loyalty.counter.>
               from: LOYALTY_RPC
             - service: bagel.rpc.modules.personality.feed.board
@@ -81,6 +99,20 @@ accounts:
               from: NOTIFICATIONS_RPC
         roles:
             admin_rpc: {}
+    ADMIN_SERVICE_RPC:
+        exports:
+            - service: bagel.rpc.health.admin
+            - service: bagel.rpc.health.admin.node.*
+            - service: bagel.rpc.admin.user.auth.>
+            - service: bagel.rpc.admin.user.audit.>
+            - service: bagel.rpc.admin.analytics
+            - service: bagel.rpc.admin.analytics.node.*
+            - service: bagel.rpc.internal.admin.audit.append
+            - service: bagel.rpc.internal.admin.audit.append.node.*
+            - service: bagel.rpc.internal.admin.staff.active
+            - service: bagel.rpc.internal.admin.staff.active.node.*
+        roles:
+            admin_service_rpc: {}
     BUS:
         jetstream:
             cluster_traffic: owner
@@ -395,7 +427,7 @@ accounts:
             - service: bagel.rpc.dashboard.>
               from: USERS_RPC
             - service: bagel.rpc.admin.user.audit.>
-              from: USERS_RPC
+              from: ADMIN_SERVICE_RPC
             - service: bagel.rpc.delegation.>
               from: USERS_RPC
             - service: bagel.rpc.commands.>
@@ -605,6 +637,10 @@ accounts:
             - stream: bagel.cache.invalidate.automations
             - stream: bagel.cache.invalidate.live
         imports:
+            - service: bagel.rpc.health.admin
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.health.admin.node.*
+              from: ADMIN_SERVICE_RPC
             - service: bagel.rpc.internal.users.lifecycle
               from: USERS_RPC
             - service: bagel.rpc.internal.users.lifecycle.node.*
@@ -680,9 +716,9 @@ accounts:
             - service: bagel.rpc.internal.users.giveaway.>
               from: USERS_RPC
             - service: bagel.rpc.admin.user.auth.check
-              from: USERS_RPC
+              from: ADMIN_SERVICE_RPC
             - service: bagel.rpc.admin.user.auth.check.node.*
-              from: USERS_RPC
+              from: ADMIN_SERVICE_RPC
             - service: bagel.rpc.admin.notifications.send
               from: NOTIFICATIONS_RPC
             - service: bagel.rpc.admin.notifications.send.node.*
@@ -719,7 +755,10 @@ accounts:
             - service: bagel.rpc.health.users
             - service: bagel.rpc.health.users.node.*
             - service: bagel.rpc.dashboard.>
-            - service: bagel.rpc.admin.user.>
+            - service: bagel.rpc.admin.user.*
+            - service: bagel.rpc.admin.user.*.node.*
+            - service: bagel.rpc.admin.user.test.set
+            - service: bagel.rpc.admin.user.test.set.node.*
             - service: bagel.rpc.delegation.>
             - service: bagel.rpc.internal.billing.apply
             - service: bagel.rpc.internal.billing.apply.node.*
@@ -738,6 +777,23 @@ accounts:
             - stream: bagel.cache.invalidate.rename
             - stream: bagel.cache.invalidate.delegation
             - stream: bagel.cache.invalidate.locale
+        imports:
+            - service: bagel.rpc.internal.admin.audit.append
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.internal.admin.audit.append.node.*
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.admin.user.auth.check
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.admin.user.auth.check.node.*
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.admin.user.audit.append
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.admin.user.audit.append.node.*
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.internal.admin.staff.active
+              from: ADMIN_SERVICE_RPC
+            - service: bagel.rpc.internal.admin.staff.active.node.*
+              from: ADMIN_SERVICE_RPC
         roles:
             users_rpc: {}
     WORKER_RPC:

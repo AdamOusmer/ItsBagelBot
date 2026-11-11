@@ -35,7 +35,7 @@ const (
 	dataTierHealthTimeout = 500 * time.Millisecond
 )
 
-var dataTierServices = []string{"users", "commands", "modules", "loyalty", "notifications"}
+var dataTierServices = []string{"admin", "users", "commands", "modules", "loyalty", "notifications"}
 
 type projectorTopics struct {
 	stream            string

@@ -8,93 +8,17 @@ import (
 )
 
 var (
-	// AdminAuditsColumns holds the columns for the "admin_audits" table.
-	AdminAuditsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "actor_id", Type: field.TypeUint64},
-		{Name: "actor_login", Type: field.TypeString},
-		{Name: "action", Type: field.TypeString},
-		{Name: "target", Type: field.TypeString, Nullable: true},
-		{Name: "detail", Type: field.TypeString, Nullable: true},
-		{Name: "ok", Type: field.TypeBool, Default: true},
-		{Name: "error", Type: field.TypeString, Nullable: true},
+	// AdminAuditDeliveriesColumns holds the columns for the "admin_audit_deliveries" table.
+	AdminAuditDeliveriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "payload", Type: field.TypeJSON},
 		{Name: "created_at", Type: field.TypeTime},
 	}
-	// AdminAuditsTable holds the schema information for the "admin_audits" table.
-	AdminAuditsTable = &schema.Table{
-		Name:       "admin_audits",
-		Columns:    AdminAuditsColumns,
-		PrimaryKey: []*schema.Column{AdminAuditsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "adminaudit_created_at_id",
-				Unique:  false,
-				Columns: []*schema.Column{AdminAuditsColumns[8], AdminAuditsColumns[0]},
-			},
-			{
-				Name:    "adminaudit_actor_id_created_at_id",
-				Unique:  false,
-				Columns: []*schema.Column{AdminAuditsColumns[1], AdminAuditsColumns[8], AdminAuditsColumns[0]},
-			},
-		},
-	}
-	// AdminUsersColumns holds the columns for the "admin_users" table.
-	AdminUsersColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeUint64, Increment: true},
-		{Name: "login", Type: field.TypeString},
-		{Name: "display_name", Type: field.TypeString},
-		{Name: "role", Type: field.TypeEnum, Enums: []string{"moderator", "admin", "owner"}, Default: "moderator"},
-		{Name: "active", Type: field.TypeBool, Default: true},
-		{Name: "added_by", Type: field.TypeUint64, Default: 0},
-		{Name: "created_at", Type: field.TypeTime},
-		{Name: "updated_at", Type: field.TypeTime},
-	}
-	// AdminUsersTable holds the schema information for the "admin_users" table.
-	AdminUsersTable = &schema.Table{
-		Name:       "admin_users",
-		Columns:    AdminUsersColumns,
-		PrimaryKey: []*schema.Column{AdminUsersColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "adminuser_active",
-				Unique:  false,
-				Columns: []*schema.Column{AdminUsersColumns[4]},
-			},
-			{
-				Name:    "adminuser_role_active",
-				Unique:  false,
-				Columns: []*schema.Column{AdminUsersColumns[3], AdminUsersColumns[4]},
-			},
-		},
-	}
-	// AnalyticsRollupsColumns holds the columns for the "analytics_rollups" table.
-	AnalyticsRollupsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "window", Type: field.TypeEnum, Enums: []string{"d", "w", "m"}},
-		{Name: "period_start", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "date"}},
-		{Name: "metric", Type: field.TypeString, Size: 64},
-		{Name: "d1", Type: field.TypeString, Size: 128, Default: ""},
-		{Name: "d2", Type: field.TypeString, Size: 128, Default: ""},
-		{Name: "d3", Type: field.TypeString, Size: 128, Default: ""},
-		{Name: "value", Type: field.TypeInt64},
-	}
-	// AnalyticsRollupsTable holds the schema information for the "analytics_rollups" table.
-	AnalyticsRollupsTable = &schema.Table{
-		Name:       "analytics_rollups",
-		Columns:    AnalyticsRollupsColumns,
-		PrimaryKey: []*schema.Column{AnalyticsRollupsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "analyticsrollup_window_period_start_metric_d1_d2_d3",
-				Unique:  true,
-				Columns: []*schema.Column{AnalyticsRollupsColumns[1], AnalyticsRollupsColumns[2], AnalyticsRollupsColumns[3], AnalyticsRollupsColumns[4], AnalyticsRollupsColumns[5], AnalyticsRollupsColumns[6]},
-			},
-			{
-				Name:    "analyticsrollup_metric_window_period_start",
-				Unique:  false,
-				Columns: []*schema.Column{AnalyticsRollupsColumns[3], AnalyticsRollupsColumns[1], AnalyticsRollupsColumns[2]},
-			},
-		},
+	// AdminAuditDeliveriesTable holds the schema information for the "admin_audit_deliveries" table.
+	AdminAuditDeliveriesTable = &schema.Table{
+		Name:       "admin_audit_deliveries",
+		Columns:    AdminAuditDeliveriesColumns,
+		PrimaryKey: []*schema.Column{AdminAuditDeliveriesColumns[0]},
 	}
 	// AuthorizationCodesColumns holds the columns for the "authorization_codes" table.
 	AuthorizationCodesColumns = []*schema.Column{
@@ -394,9 +318,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
-		AdminAuditsTable,
-		AdminUsersTable,
-		AnalyticsRollupsTable,
+		AdminAuditDeliveriesTable,
 		AuthorizationCodesTable,
 		DelegationsTable,
 		DeviceGrantsTable,

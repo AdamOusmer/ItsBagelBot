@@ -1,0 +1,80 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package rpc
+
+import (
+	"context"
+	"errors"
+
+	"ItsBagelBot/app/db/admin/ent"
+	"ItsBagelBot/app/db/admin/ent/adminuser"
+	dbgate "ItsBagelBot/pkg/db"
+)
+
+var errStaffRaced = errors.New("staff row created concurrently")
+
+func (g staffGate) inStaffTx(ctx context.Context, fn func(context.Context, *ent.Tx) (string, error)) (string, error) {
+	var errMsg string
+	err := dbgate.RetryTx(ctx, func(ctx context.Context) error {
+		var err error
+		errMsg, err = dbgate.WithQuery(ctx, func(ctx context.Context) (string, error) {
+			return runStaffTx(ctx, g.db, fn)
+		})
+		return err
+	}, errStaffRaced)
+	return errMsg, err
+}
+
+func runStaffTx(ctx context.Context, db *ent.Client, fn func(context.Context, *ent.Tx) (string, error)) (string, error) {
+	return dbgate.WithTxResult(ctx, db, func(tx *ent.Tx) (string, error) {
+		return fn(ctx, tx)
+	})
+}
+
+func lockStaff(ctx context.Context, tx *ent.Tx, rawIDs ...string) (map[uint64]*ent.AdminUser, error) {
+	ids := make([]uint64, 0, len(rawIDs))
+	for _, raw := range rawIDs {
+		if id, err := parseID(raw); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	query := func() *ent.AdminUserQuery {
+		return tx.AdminUser.Query().Where(adminuser.IDIn(ids...)).Order(ent.Asc(adminuser.FieldID))
+	}
+	rows, err := query().ForUpdate().All(ctx)
+	if dbgate.RowLocksUnsupported(err) {
+		rows, err = query().All(ctx)
+	}
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uint64]*ent.AdminUser, len(rows))
+	for _, r := range rows {
+		byID[r.ID] = r
+	}
+	return byID, nil
+}
+
+func writeStaffRow(ctx context.Context, tx *ent.Tx, existing *ent.AdminUser, row staffRow) error {
+	if existing != nil {
+		return tx.AdminUser.UpdateOneID(row.id).
+			SetLogin(row.login).
+			SetDisplayName(row.display).
+			SetRole(row.role).
+			SetActive(true).
+			Exec(ctx)
+	}
+	err := tx.AdminUser.Create().
+		SetID(row.id).
+		SetLogin(row.login).
+		SetDisplayName(row.display).
+		SetRole(row.role).
+		SetAddedBy(row.addedBy).
+		SetActive(true).
+		Exec(ctx)
+	if ent.IsConstraintError(err) {
+		return errStaffRaced
+	}
+	return err
+}

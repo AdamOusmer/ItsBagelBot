@@ -24,6 +24,7 @@ const SUB = {
   user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX || 'bagel.rpc.admin.user',
   auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX || 'bagel.rpc.admin.user.auth',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'bagel.rpc.admin.user.audit',
+  analytics: process.env.NATS_ADMIN_ANALYTICS_SUBJECT || 'bagel.rpc.admin.analytics',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT || 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',
   notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX || 'bagel.rpc.admin.notifications',
@@ -294,7 +295,7 @@ export const userEnrollment = defineRead({
 export type AnalyticsWindow = 'd' | 'w' | 'm';
 
 export const analyticsSeries = defineRead({
-  subject: `${SUB.user}.analytics`,
+  subject: SUB.analytics,
   request: (actorId: string, window: AnalyticsWindow, metrics: string[], days: number) => ({
     actor_id: actorId,
     window,
@@ -566,6 +567,7 @@ interface HealthProbe {
 
 const HEALTH_PROBES: HealthProbe[] = [
   { id: 'users', label: 'Users', subject: `${SUB.health}.users`, payload: {} },
+  { id: 'admin', label: 'Admin', subject: `${SUB.health}.admin`, payload: {} },
   { id: 'commands', label: 'Commands', subject: `${SUB.health}.commands`, payload: {} },
   { id: 'modules', label: 'Modules', subject: `${SUB.health}.modules`, payload: {} },
   { id: 'loyalty', label: 'Loyalty', subject: `${SUB.health}.loyalty`, payload: {} },

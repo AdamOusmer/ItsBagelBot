@@ -33,6 +33,7 @@ var servicesProjects = map[string]string{
 	"automod":        "automod",
 	"dashboard":      "dashboard",
 	"admin":          "admin",
+	"admin_service":  "admin-db",
 	"transactions":   "transactions",
 	"notifications":  "notifications",
 	"gossip":         "gossip",

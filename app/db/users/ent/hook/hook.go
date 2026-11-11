@@ -8,40 +8,16 @@ import (
 	"fmt"
 )
 
-// The AdminAuditFunc type is an adapter to allow the use of ordinary
-// function as AdminAudit mutator.
-type AdminAuditFunc func(context.Context, *ent.AdminAuditMutation) (ent.Value, error)
+// The AdminAuditDeliveryFunc type is an adapter to allow the use of ordinary
+// function as AdminAuditDelivery mutator.
+type AdminAuditDeliveryFunc func(context.Context, *ent.AdminAuditDeliveryMutation) (ent.Value, error)
 
 // Mutate calls f(ctx, m).
-func (f AdminAuditFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.AdminAuditMutation); ok {
+func (f AdminAuditDeliveryFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AdminAuditDeliveryMutation); ok {
 		return f(ctx, mv)
 	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AdminAuditMutation", m)
-}
-
-// The AdminUserFunc type is an adapter to allow the use of ordinary
-// function as AdminUser mutator.
-type AdminUserFunc func(context.Context, *ent.AdminUserMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f AdminUserFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.AdminUserMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AdminUserMutation", m)
-}
-
-// The AnalyticsRollupFunc type is an adapter to allow the use of ordinary
-// function as AnalyticsRollup mutator.
-type AnalyticsRollupFunc func(context.Context, *ent.AnalyticsRollupMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f AnalyticsRollupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.AnalyticsRollupMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AnalyticsRollupMutation", m)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AdminAuditDeliveryMutation", m)
 }
 
 // The AuthorizationCodeFunc type is an adapter to allow the use of ordinary

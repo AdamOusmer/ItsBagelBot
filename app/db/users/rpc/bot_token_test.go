@@ -44,7 +44,6 @@ func TestBotTokenSaveWithoutStaffAccount(t *testing.T) {
 	ctx := context.Background()
 	a.repo = repository.NewUsers(client, dbtest.NewPacker(t), nil, nil, zap.NewNop())
 	t.Cleanup(func() { a.repo.Close(ctx) })
-	a.gate = staffGate{db: client}
 	a.botUserID = testBotID
 	var presented string
 	a.validateBotGrant = func(_ context.Context, accessToken string) (twitchGrant, error) {
@@ -66,7 +65,6 @@ func TestBotTokenSaveWithoutStaffAccount(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, req.AccessToken, string(access))
 	require.Equal(t, req.RefreshToken, string(refresh))
-	require.Zero(t, client.AdminUser.Query().CountX(ctx))
 }
 
 func TestBotTokenSaveRejectsOtherTargetsAndMissingConfiguration(t *testing.T) {

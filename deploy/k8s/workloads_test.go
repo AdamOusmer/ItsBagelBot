@@ -60,6 +60,7 @@ func TestClusterOpsRunsOneRoller(t *testing.T) {
 
 func TestSpreadIsHardWithoutMinDomains(t *testing.T) {
 	tests := []struct{ file, name string }{
+		{"admin.yaml", "admin"},
 		{"console-admin.yaml", "console-admin"},
 		{"console-dashboard.yaml", "console-dashboard"},
 		{"notifications.yaml", "notifications"},

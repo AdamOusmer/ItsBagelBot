@@ -44,7 +44,7 @@ func TestDigestsReleaseResolvesEveryImage(t *testing.T) {
 	_, err := f.runStage(t, deploy.StageDigests)
 
 	require.NoError(t, err)
-	assert.Len(t, pins, 14)
+	assert.Len(t, pins, 15)
 	assert.Equal(t, pins, f.sink.View().Outputs.Digests)
 }
 
@@ -81,7 +81,7 @@ func TestDigestsRefusals(t *testing.T) {
 			fl, ok := ports.AsFail(err)
 			require.True(t, ok, "err = %v, want a refusal", err)
 			assert.Equal(t,
-				deploy.Failure{Code: deploy.FailDigestRefused, Message: "1 of 14 images refused", LogTail: []string{tc.want}},
+				deploy.Failure{Code: deploy.FailDigestRefused, Message: "1 of 15 images refused", LogTail: []string{tc.want}},
 				deploy.Failure{Code: fl.Code, Message: fl.Message, LogTail: fl.LogTail})
 		})
 	}

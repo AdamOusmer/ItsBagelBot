@@ -4,6 +4,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - ../../../k8s/admin.yaml
   - ../../../k8s/commands.yaml
   - ../../../k8s/loyalty.yaml
   - ../../../k8s/modules.yaml
