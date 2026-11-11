@@ -12,7 +12,7 @@ Il consomme les événements de gains et de compteurs ainsi que ceux du cycle de
 
 ## Interfaces
 
-Le préfixe RPC par défaut est `bagel.rpc.loyalty`. Le service consomme les événements de gains, de compteurs et du cycle de vie des comptes.
+Le préfixe RPC par défaut est `rpc.loyalty`. Le service consomme les événements de gains, de compteurs et du cycle de vie des comptes.
 
 Les anciens événements de gains s’accumulent en mémoire : un gain accepté peut manquer dans une lecture immédiate. Les compteurs sont acquittés après traitement SQL, avec un reçu Valkey temporaire : un arrêt entre SQL et ce reçu peut entraîner un double comptage. Les gains de visionnement utilisent une boîte d’envoi distincte ; déduplication et crédit sont persistés ensemble, et une erreur laisse la livraison en attente. Ces voies ne garantissent pas toutes une exécution unique.
 

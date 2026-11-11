@@ -1,5 +1,5 @@
 {
-  "subject": "bagel.rpc.automations.run",
+  "subject": "rpc.automations.run",
   "request": {
     "broadcaster_id": "1001",
     "name": "welcome",

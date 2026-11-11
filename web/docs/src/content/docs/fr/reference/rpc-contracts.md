@@ -10,7 +10,7 @@ Les services utilisent NATS request-reply pour franchir les limites de propriét
 
 ## Exemple : instantané utilisateur pour la projection
 
-Le service users utilise par défaut `bagel.rpc.internal.projection.users.get` (`app/db/users/main.go`). La variable `NATS_INTERNAL_PROJECTION_USERS_SUBJECT` peut remplacer ce sujet. `internal/domain/rpc/projection/projection.go` définit la requête et la réponse JSON. La requête contient un identifiant utilisateur sous forme de chaîne :
+Le service users utilise par défaut `rpc.internal.projection.users.get` (`app/db/users/main.go`). La variable `NATS_INTERNAL_PROJECTION_USERS_SUBJECT` peut remplacer ce sujet. `internal/domain/rpc/projection/projection.go` définit la requête et la réponse JSON. La requête contient un identifiant utilisateur sous forme de chaîne :
 
 ```json
 {"user_id":"12345"}

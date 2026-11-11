@@ -60,7 +60,7 @@ func BenchmarkPublishMessageHeaderBuild(b *testing.B) {
 
 func BenchmarkFleetMetadata(b *testing.B) {
 	headers := nats.Header{
-		"Bagelbot-Message-Id":     {"01ABCDEF0123456789ABCDEF01"},
+		"Event-Message-Id":        {"01ABCDEF0123456789ABCDEF01"},
 		"_watermill_message_uuid": {"01ABCDEF0123456789ABCDEF01"},
 		"Traceparent":             {"00-abcdef0123456789abcdef0123456789-0123456789abcdef-01"},
 		"Content-Type":            {"application/json"},

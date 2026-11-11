@@ -12,9 +12,9 @@ Les autres services utilisent ses RPC plutôt que son schéma. Il émet des év�
 
 ## Interfaces
 
-Les RPC du tableau de bord utilisent par défaut `bagel.rpc.dashboard.*` ; l’autorisation des appareils utilise `bagel.rpc.dashboard.device.*`. Les changements et suppressions publient `data.users.changed` et `data.users.deleted`.
+Les RPC du tableau de bord utilisent par défaut `rpc.dashboard.*` ; l’autorisation des appareils utilise `rpc.dashboard.device.*`. Les changements et suppressions publient `data.users.changed` et `data.users.deleted`.
 
-L’inscription et les changements de droits sont persistés immédiatement. Certaines préférences sont regroupées avant écriture : acceptation et persistance sont donc distinctes. Une modification persistée publie `data.users.changed`. La suppression écrit d’abord dans un registre d’effacement, révoque les jetons et émet `data.users.deleted` ; un échec du registre empêche la suppression. Les lectures sensibles utilisent des RPC internes, pas les projections. Les opérations du tableau de bord et des appareils utilisent par défaut `bagel.rpc.dashboard.*`.
+L’inscription et les changements de droits sont persistés immédiatement. Certaines préférences sont regroupées avant écriture : acceptation et persistance sont donc distinctes. Une modification persistée publie `data.users.changed`. La suppression écrit d’abord dans un registre d’effacement, révoque les jetons et émet `data.users.deleted` ; un échec du registre empêche la suppression. Les lectures sensibles utilisent des RPC internes, pas les projections. Les opérations du tableau de bord et des appareils utilisent par défaut `rpc.dashboard.*`.
 
 ## État et dépendances
 

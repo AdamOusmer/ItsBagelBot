@@ -47,4 +47,4 @@ The [hydrator](https://github.com/AdamOusmer/ItsBagelBot/blob/main/app/projector
 2. Update the store's read/write representation under [internal/projection](https://github.com/AdamOusmer/ItsBagelBot/tree/main/internal/projection/) and the projector handler or hydration path. Preserve the appropriate revision and account-incarnation checks.
 3. Update consumers and tests for an empty section, a stale or replayed update, and owner/Valkey failure. Check both a cold read and a change after hydration.
 
-Do not treat the event stream as the database: [BAGEL_DATA](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/bus/streams.go) has bounded retention. Likewise, a healthy hash is derived state and may lag its owner while events or hydration are in flight.
+Do not treat the event stream as the database: [DATA](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/bus/streams.go) has bounded retention. Likewise, a healthy hash is derived state and may lag its owner while events or hydration are in flight.

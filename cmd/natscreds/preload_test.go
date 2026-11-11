@@ -62,7 +62,7 @@ func preloadedExports(t *testing.T, path, accountPub string) int {
 }
 
 func TestPreloadRewritesOnlyWhenAnAccountChanges(t *testing.T) {
-	const exportingBus = "system_account: SYS\naccounts:\n  SYS: {}\n  BUS:\n    exports:\n      - service: bagel.rpc.probe\n"
+	const exportingBus = "system_account: SYS\naccounts:\n  SYS: {}\n  BUS:\n    exports:\n      - service: rpc.probe\n"
 	h := newHarness(t, systemACL+"  BUS: {}\n")
 	h.apply(t)
 	bus := h.keys(t).Accounts["BUS"]

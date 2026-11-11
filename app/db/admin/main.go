@@ -30,7 +30,7 @@ const (
 func main() {
 	core, done := svcboot.NewCore(serviceName)
 	defer done()
-	driver := databoot.MustEntDriver(core, "bagel_admin")
+	driver := databoot.MustEntDriver(core)
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 	databoot.AutoMigrate(core.Ctx, core.Log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
@@ -53,14 +53,14 @@ func main() {
 }
 
 func subscribe(w rpc.Wiring, client *ent.Client) {
-	auth := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.user.auth")
-	audit := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
+	auth := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "rpc.admin.user.auth")
+	audit := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "rpc.admin.user.audit")
 	svcboot.FatalIf(w.Log, rpc.SubscribeAdminAuth(w, client, auth, audit), "failed to subscribe staff and audit rpc")
-	subject := env.Get("NATS_ADMIN_ANALYTICS_SUBJECT", "bagel.rpc.admin.analytics")
+	subject := env.Get("NATS_ADMIN_ANALYTICS_SUBJECT", "rpc.admin.analytics")
 	svcboot.FatalIf(w.Log, rpc.SubscribeAnalytics(w, client, subject), "failed to subscribe analytics rpc")
-	active := env.Get("NATS_INTERNAL_ADMIN_ACTIVE_STAFF_SUBJECT", "bagel.rpc.internal.admin.staff.active")
+	active := env.Get("NATS_INTERNAL_ADMIN_ACTIVE_STAFF_SUBJECT", "rpc.internal.admin.staff.active")
 	svcboot.FatalIf(w.Log, rpc.SubscribeActiveStaff(w, client, active), "failed to subscribe active staff rpc")
-	delivery := env.Get("NATS_INTERNAL_ADMIN_AUDIT_SUBJECT", "bagel.rpc.internal.admin.audit.append")
+	delivery := env.Get("NATS_INTERNAL_ADMIN_AUDIT_SUBJECT", "rpc.internal.admin.audit.append")
 	svcboot.FatalIf(w.Log, rpc.SubscribeAuditDelivery(w, client, delivery), "failed to subscribe audit delivery rpc")
 }
 

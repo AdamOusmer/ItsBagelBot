@@ -18,22 +18,19 @@ interface ServiceDef {
   label: string;
   project: string;
   config: string;
-  schema: string;
   expectedUserPrefix: string;
 }
 
+type DatabaseSchema = string;
+
 const services: Record<SecretServiceId, ServiceDef> = {
-  users: { id: 'users', label: 'Users', project: 'users', config: 'prd', schema: 'bagel_users', expectedUserPrefix: 'users_svc' },
-  commands: { id: 'commands', label: 'Commands', project: 'commands', config: 'prd', schema: 'bagel_commands', expectedUserPrefix: 'commands_svc' },
-  modules: { id: 'modules', label: 'Modules', project: 'modules', config: 'prd', schema: 'bagel_modules', expectedUserPrefix: 'modules_svc' },
-  transactions: { id: 'transactions', label: 'Transactions', project: 'transactions', config: 'prd', schema: 'bagel_transactions', expectedUserPrefix: 'transactions_svc' },
-  notifications: { id: 'notifications', label: 'Notifications', project: 'notifications', config: 'prd', schema: 'bagel_notifications', expectedUserPrefix: 'notifications_svc' },
+  users: { id: 'users', label: 'Users', project: 'users', config: 'prd', expectedUserPrefix: 'users_svc' },
+  commands: { id: 'commands', label: 'Commands', project: 'commands', config: 'prd', expectedUserPrefix: 'commands_svc' },
+  modules: { id: 'modules', label: 'Modules', project: 'modules', config: 'prd', expectedUserPrefix: 'modules_svc' },
+  transactions: { id: 'transactions', label: 'Transactions', project: 'transactions', config: 'prd', expectedUserPrefix: 'transactions_svc' },
+  notifications: { id: 'notifications', label: 'Notifications', project: 'notifications', config: 'prd', expectedUserPrefix: 'notifications_svc' },
 };
 
-// Every live service account is `<svc>_svc@'10.0.%' ... REQUIRE X509`: reachable only from the
-// VCN and only with the client certificate (CN=<svc>.db.itsbagelbot) each service carries in its
-// Doppler DB_CLIENT_CERT/DB_CLIENT_KEY. Accounts the console creates must match, or a rotation
-// quietly downgrades a service to password-only access from anywhere.
 const SERVICE_ACCOUNT_HOST = '10.0.%';
 const SERVICE_ACCOUNT_TLS = 'REQUIRE X509';
 
@@ -140,13 +137,14 @@ export async function credentialStatuses(): Promise<DbCredentialStatus[]> {
         const secrets = await dopplerSecrets(svc);
         return {
           ...svc,
+          schema: String(secrets.DB_SCHEMA ?? ''),
           dbUser: String(secrets.DB_USER ?? ''),
           autoMigrate: String(secrets.DB_AUTO_MIGRATE ?? ''),
           canReadDoppler: true,
           tokenSource: source
         };
       } catch {
-        return { ...svc, dbUser: '', autoMigrate: '', canReadDoppler: false, tokenSource: source };
+        return { ...svc, schema: '', dbUser: '', autoMigrate: '', canReadDoppler: false, tokenSource: source };
       }
     })
   );
@@ -162,7 +160,8 @@ const FORMATS = {
     re: /^[A-Za-z0-9_]{3,32}$/,
     message: 'database user must be 3-32 characters of letters, numbers, or underscore'
   },
-  dbPassword: { re: /^[\s\S]{32,128}$/, message: 'password must be 32-128 characters' }
+  dbPassword: { re: /^[\s\S]{32,128}$/, message: 'password must be 32-128 characters' },
+  dbSchema: { re: /^[A-Za-z0-9_]{1,64}$/, message: 'DB_SCHEMA must be a configured SQL identifier of 1-64 letters, numbers, or underscores' }
 } satisfies Record<string, FormatRule>;
 
 function assertFormat(value: string, rule: FormatRule): void {
@@ -174,11 +173,10 @@ export interface DbCredentialInput {
   dbPass: string;
 }
 
-function dbEnvOf(cred: DbCredentialInput, svc: ServiceDef): Record<string, string> {
+function dbEnvOf(cred: DbCredentialInput): Record<string, string> {
   return {
     DB_USER: cred.dbUser,
-    DB_PASS: cred.dbPass,
-    DB_SCHEMA: svc.schema
+    DB_PASS: cred.dbPass
   };
 }
 
@@ -190,10 +188,10 @@ function assertManageable(cred: Pick<DbCredentialInput, 'dbUser'>, svc: ServiceD
   }
 }
 
-// The account is created with REQUIRE X509, so a service with no client certificate in Doppler
-// would be locked out the moment it restarts onto the new user. Refuse up front instead.
-async function assertClientIdentity(svc: ServiceDef): Promise<void> {
+async function configuredSchema(svc: ServiceDef): Promise<DatabaseSchema> {
   const secrets = await dopplerSecrets(svc);
+  const schema = secrets.DB_SCHEMA ?? '';
+  assertFormat(schema, FORMATS.dbSchema);
   const configured = ['DB_CLIENT_CERT', 'DB_CLIENT_KEY'].every((key) => (secrets[key] ?? '').trim());
   if (!configured) {
     throw new Error(
@@ -201,6 +199,7 @@ async function assertClientIdentity(svc: ServiceDef): Promise<void> {
         `the new account would ${SERVICE_ACCOUNT_TLS} and lock the service out. Issue its client certificate first.`
     );
   }
+  return schema;
 }
 
 export async function rotateCredential(id: SecretServiceId): Promise<{ dbUser: string }> {
@@ -209,14 +208,9 @@ export async function rotateCredential(id: SecretServiceId): Promise<{ dbUser: s
     dbUser: `${svc.expectedUserPrefix}_r${Date.now().toString(36).slice(-8)}`,
     dbPass: generatePassword()
   };
-  await assertClientIdentity(svc);
-  await provisionDbUser(cred, svc);
-  try {
-    await updateDoppler(svc, dbEnvOf(cred, svc));
-  } catch (e) {
-    await dropDbUser(cred).catch(() => {});
-    throw e;
-  }
+  const schema = await configuredSchema(svc);
+  await provisionDbUser(cred, schema);
+  await updateDoppler(svc, dbEnvOf(cred));
   return { dbUser: cred.dbUser };
 }
 
@@ -227,9 +221,9 @@ export async function setCredential(
   const svc = services[id];
   assertManageable(cred, svc);
   assertFormat(cred.dbPass, FORMATS.dbPassword);
-  await assertClientIdentity(svc);
-  await provisionDbUser(cred, svc);
-  await updateDoppler(svc, dbEnvOf(cred, svc));
+  const schema = await configuredSchema(svc);
+  await provisionDbUser(cred, schema);
+  await updateDoppler(svc, dbEnvOf(cred));
   return { dbUser: cred.dbUser };
 }
 
@@ -250,27 +244,18 @@ export async function revokeCredential(
   return { dbUser: input.dbUser };
 }
 
-async function dropDbUser(cred: Pick<DbCredentialInput, 'dbUser'>): Promise<void> {
-  const conn = await adminConnection();
-  try {
-    await conn.query(`DROP USER IF EXISTS ${accountSql(cred)}`);
-  } finally {
-    await conn.end();
-  }
-}
-
-async function provisionDbUser(cred: DbCredentialInput, svc: ServiceDef): Promise<void> {
+async function provisionDbUser(cred: DbCredentialInput, schema: DatabaseSchema): Promise<void> {
   const account = accountSql(cred);
   const conn = await adminConnection();
   try {
-    // ALTER repeats the TLS clause so re-pointing at an existing password-only account tightens it too.
+    const grantSchema = await schemaSql(conn, schema);
     await conn.query(
       `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ? ${SERVICE_ACCOUNT_TLS}`,
       [cred.dbPass]
     );
     await conn.query(`ALTER USER ${account} IDENTIFIED BY ? ${SERVICE_ACCOUNT_TLS}`, [cred.dbPass]);
-    await conn.query(`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${account}`).catch(() => {});
-    await conn.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${schemaSql(svc)}.* TO ${account}`);
+    await conn.query(`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${account}`);
+    await conn.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${grantSchema}.* TO ${account}`);
   } finally {
     await conn.end();
   }
@@ -362,10 +347,10 @@ function accountSql(cred: Pick<DbCredentialInput, 'dbUser'>): string {
   return `'${cred.dbUser}'@'${SERVICE_ACCOUNT_HOST}'`;
 }
 
-function schemaSql(svc: ServiceDef): string {
-  // Allowlist, not an escape: the name is interpolated into DDL. Each service above needs an arm.
-  if (!/^bagel_(users|commands|modules|transactions|notifications)$/.test(svc.schema)) {
-    throw new Error('invalid database schema');
-  }
-  return `\`${svc.schema}\``;
+async function schemaSql(conn: mysql.Connection, schema: DatabaseSchema): Promise<string> {
+  const [rows] = await conn.query<mysql.RowDataPacket[]>('SELECT @@GLOBAL.partial_revokes AS partialRevokes');
+  const value: unknown = rows[0]?.partialRevokes;
+  if (value === 1) return `\`${schema}\``;
+  if (value === 0) return `\`${schema.replaceAll('_', '\\_')}\``;
+  throw new Error('could not determine MySQL schema grant semantics');
 }

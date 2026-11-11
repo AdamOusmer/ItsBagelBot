@@ -47,7 +47,7 @@ func flowConsumerConfig(lane laneBinding) jsapi.ConsumerConfig {
 		FilterSubject:     lane.subject,
 		ReplayPolicy:      jsapi.ReplayInstantPolicy,
 		MaxAckPending:     flowMaxAckPending,
-		DeliverSubject:    "_INBOX.BAGEL." + subjectToken(lane.consumer),
+		DeliverSubject:    "_INBOX.LANE." + subjectToken(lane.consumer),
 		FlowControl:       true,
 		IdleHeartbeat:     flowControlHeartbeat,
 		InactiveThreshold: flowInactiveThreshold,

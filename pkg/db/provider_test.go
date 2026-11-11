@@ -44,7 +44,7 @@ func TestNewDriverRejectsUnusableTLSConfiguration(t *testing.T) {
 				t.Setenv(key, value)
 			}
 
-			driver, err := NewDriver(Config{Address: testDBAddr, Schema: "bagel_test"})
+			driver, err := NewDriver(Config{Address: testDBAddr, Schema: "test_schema"})
 
 			require.ErrorContains(t, err, tc.wantErr)
 			require.Nil(t, driver)
@@ -57,7 +57,7 @@ func TestNewDriverOpensPoolWhoseHealthProbeReportsAnUnreachableServer(t *testing
 	t.Setenv("DB_CA_CERT", string(caPEM))
 	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
 
-	driver, err := NewDriver(Config{Address: "127.0.0.1:1", Schema: "bagel_test", MaxConns: 2})
+	driver, err := NewDriver(Config{Address: "127.0.0.1:1", Schema: "test_schema", MaxConns: 2})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, driver.Close()) })
 
@@ -218,7 +218,7 @@ func TestRegisterTLSEnablesSessionResumption(t *testing.T) {
 }
 
 func TestNewMySQLConfigSetsNetworkTimeouts(t *testing.T) {
-	mc := newMySQLConfig(Config{Address: testDBAddr, Schema: "bagel_test"})
+	mc := newMySQLConfig(Config{Address: testDBAddr, Schema: "test_schema"})
 
 	require.Equal(t, dialTimeout, mc.Timeout)
 	require.Equal(t, readTimeout, mc.ReadTimeout)

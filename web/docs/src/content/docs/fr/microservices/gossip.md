@@ -12,7 +12,7 @@ Les appelants demandent des données au lieu d’appeler directement les fournis
 
 ## Interfaces
 
-Le préfixe RPC par défaut est `bagel.rpc.gossip` ; les points d’accès des fournisseurs sont enregistrés dans `internal/providers/`.
+Le préfixe RPC par défaut est `rpc.gossip` ; les points d’accès des fournisseurs sont enregistrés dans `internal/providers/`.
 
 Les fournisseurs sont enregistrés dans `internal/providers/` ; chacun déclare ses points d’accès et leur niveau de confiance avant de construire les clients. Une absence en cache diffère d’une panne d’infrastructure. Les requêtes personnalisées vérifient à nouveau les destinations et appliquent des budgets par chaîne, définition et hôte. La disponibilité du port WARP ne prouve pas le succès du trafic externe ; les fournisseurs fiables peuvent rester disponibles si la route non fiable tombe.
 

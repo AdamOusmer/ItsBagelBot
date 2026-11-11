@@ -18,7 +18,7 @@ import (
 )
 
 func TestRPCHealthSubject(t *testing.T) {
-	assert.Equal(t, "bagel.rpc.health.projector", RPCHealthSubject("projector"))
+	assert.Equal(t, "rpc.health.projector", RPCHealthSubject("projector"))
 }
 
 func TestSubscribeRPCHealthRejectsBadArgumentsBeforeDial(t *testing.T) {

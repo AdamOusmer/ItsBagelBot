@@ -29,8 +29,8 @@ New RPC verbs (versioned request/reply DTOs in a shared contract):
 | `twitch.ingress.admin.trials.add` | `{broadcaster_id}` | accepted enabled pending state or explicit `invalid_id`, `already_registered`, `full`, `unavailable` |
 | `twitch.ingress.admin.trials.set_enabled` | `{broadcaster_id, enabled}` | saved enabled flag and observed state; duplicate requests are idempotent |
 | `twitch.ingress.admin.trials.remove` | `{broadcaster_id}` | accepted stopping state; removal is idempotent |
-| `bagel.rpc.outgress.trial_subscription.create` | `{broadcaster_id, session_id, owner_epoch, trial_generation}` | subscription ID or Twitch rejection |
-| `bagel.rpc.outgress.trial_subscription.delete` | `{broadcaster_id, subscription_id, owner_epoch, trial_generation}` | deleted/already absent or retryable error |
+| `rpc.outgress.trial_subscription.create` | `{broadcaster_id, session_id, owner_epoch, trial_generation}` | subscription ID or Twitch rejection |
+| `rpc.outgress.trial_subscription.delete` | `{broadcaster_id, subscription_id, owner_epoch, trial_generation}` | deleted/already absent or retryable error |
 
 The admin server derives and audits the actor ID from its authenticated session; the browser does not choose it. The ingress RPC acknowledges a saved desired-state change, not completed Twitch setup. The page reads observed state until it becomes receiving or failed. All RPCs are bounded, and the NATS account permissions permit only the listed callers and subjects. The outgress RPC uses the existing bot-token source and fixed chat subscription type. It verifies the active owner epoch and trial generation against the Valkey record, stores the returned subscription ID with its session, and deletes only subscriptions recorded as owned by that trial; callers cannot name arbitrary Twitch subscriptions or sessions.
 

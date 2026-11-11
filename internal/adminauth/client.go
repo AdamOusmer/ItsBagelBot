@@ -21,10 +21,10 @@ const (
 	Moderator            Role = "moderator"
 	Admin                Role = "admin"
 	Owner                Role = "owner"
-	DefaultAuthPrefix         = "bagel.rpc.admin.user.auth"
-	DefaultAuditPrefix        = "bagel.rpc.admin.user.audit"
-	ActiveStaffSubject        = "bagel.rpc.internal.admin.staff.active"
-	AuditDeliverySubject      = "bagel.rpc.internal.admin.audit.append"
+	DefaultAuthPrefix         = "rpc.admin.user.auth"
+	DefaultAuditPrefix        = "rpc.admin.user.audit"
+	ActiveStaffSubject        = "rpc.internal.admin.staff.active"
+	AuditDeliverySubject      = "rpc.internal.admin.audit.append"
 )
 
 type Config struct{ AuthPrefix, AuditPrefix string }

@@ -705,7 +705,7 @@ defmodule Ingress.TrialReceiver do
   defp subscription_rpc(verb, fields) do
     request = Sift.encode_to_iodata!(Map.put(fields, :version, 1))
 
-    case Rpc.request(:gnat, "bagel.rpc.outgress.trial_subscription." <> verb, request,
+    case Rpc.request(:gnat, "rpc.outgress.trial_subscription." <> verb, request,
            receive_timeout: 4_000
          ) do
       {:ok, %{body: body}} ->

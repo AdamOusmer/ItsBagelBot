@@ -6,7 +6,7 @@ and [app map](../../../CONTEXT-MAP.md), especially Premium versus Tebex subscrip
 ## Responsibility and boundaries
 
 Owns verified Tebex webhook audit records, checkout coordination and the durable
-giveaway workflow in `bagel_transactions`. Tebex is merchant of record; this app
+giveaway workflow in the MySQL schema selected by `DB_SCHEMA`. Tebex is merchant of record; this app
 does not hold the payment ledger. Users owns billing/access application, account
 eligibility and promotional Premium grants. This service reaches Users through
 RPC and never opens Users' database. Notifications stores in-app notices; Resend
@@ -65,7 +65,7 @@ and [billing](../../../internal/domain/rpc/billing/). Other Ent files are genera
 - Accepted billing events synchronously call Users. Application failure makes
   Tebex retry; webhook audit records can update for the same event identity.
   Gift notification failures are best-effort after entitlement application.
-- Default checkout prefix `bagel.rpc.transactions` exposes `.basket_create`.
+- Default checkout prefix `rpc.transactions` exposes `.basket_create`.
   Missing webstore token/package ID disables checkout while webhook handling runs.
 - Giveaway preview/freeze obtains the full authoritative Users pool. Draw persists
   selected awards and outbox intent transactionally. RPC subjects come from the

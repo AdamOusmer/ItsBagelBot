@@ -441,7 +441,7 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 }
 
 func (r *Users) publishStatusInvalidation(_ context.Context, id uint64) error {
-	// Must be core NATS: bagel.cache.invalidate.* has no JetStream stream.
+	// Must be core NATS: cache.invalidate.* has no JetStream stream.
 	if r.nc == nil || r.invalidationPrefix == "" {
 		return nil
 	}

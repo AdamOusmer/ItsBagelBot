@@ -3,7 +3,7 @@
 
 # gossip: the fleet's external-API gossip. Sesame requests third-party data
 # (urchin.gg Coral, MCSR Ranked, fortnite-api.com) over NATS RPC
-# (bagel.rpc.gossip.>); the gossip fetches, normalizes, and caches replies in
+# (rpc.gossip.>); the gossip fetches, normalizes, and caches replies in
 # Valkey. It is the only app that dials those external hosts.
 #
 # gossip-env (Doppler) carries VALKEY_*, URCHIN_API_KEY (provider disabled
@@ -296,7 +296,7 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             # gossip is RPC-only: it answers sesame's requests over
-            # bagel.rpc.gossip.> and never touches JetStream, so it dials the
+            # rpc.gossip.> and never touches JetStream, so it dials the
             # leaf exclusively (no NATS_HUB_URL) and carries no BUS credential.
             - name: NATS_URL
               value: tls://nats-leaf.messaging:4222

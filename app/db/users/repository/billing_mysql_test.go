@@ -25,7 +25,7 @@ import (
 const billingDeliveries = 12
 
 func TestApplyBillingMySQLConcurrentDuplicateCountsGiftOnce(t *testing.T) {
-	raw := testdb.MySQL(t, "bagel_billing_")
+	raw := testdb.MySQL(t, "users_billing_")
 	client := ent.NewClient(ent.Driver(entsql.OpenDB("mysql", raw)))
 	require.NoError(t, client.Schema.Create(t.Context()))
 	repo := repository.NewUsers(client, dbtest.NewPacker(t), bustest.NewPublisher(), nil, zap.NewNop())

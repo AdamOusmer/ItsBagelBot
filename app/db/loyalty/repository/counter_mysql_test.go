@@ -80,7 +80,7 @@ func flushReplica(replica int, p *CounterProcessor, errs chan<- error) {
 }
 
 func TestCounterMySQLReplicasFlushOtherChannelsWithoutLockConflicts(t *testing.T) {
-	raw := testdb.MySQL(t, "bagel_counter_")
+	raw := testdb.MySQL(t, "loyalty_counter_")
 	replicas := []*CounterProcessor{counterMySQLReplica(t, raw), counterMySQLReplica(t, raw)}
 	before := readInnodbLocks(t, raw)
 	errs := make(chan error, len(replicas)*replicaWriters*writerBatches)

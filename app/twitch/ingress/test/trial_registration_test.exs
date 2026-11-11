@@ -22,7 +22,7 @@ defmodule Ingress.TrialRegistrationFakeGnat do
 
   def handle_call({:unsub, _sid, _opts}, _from, state), do: {:reply, :ok, state}
 
-  defp reply("bagel.rpc.internal.users.get" <> _, body, state) do
+  defp reply("rpc.internal.users.get" <> _, body, state) do
     {:ok, %{"user_id" => id}} = body |> IO.iodata_to_binary() |> Platform.Sift.decode()
 
     if MapSet.member?(state.registered, id),
@@ -92,7 +92,7 @@ defmodule Ingress.TrialRegistrationTest do
   end
 
   defp user_lookups(topics),
-    do: Enum.count(topics, &String.starts_with?(&1, "bagel.rpc.internal.users.get"))
+    do: Enum.count(topics, &String.starts_with?(&1, "rpc.internal.users.get"))
 
   test "ticks never ask the users service about registration" do
     add_on_slot_zero("42")

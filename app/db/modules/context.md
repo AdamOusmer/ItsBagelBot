@@ -7,7 +7,7 @@ and [app map](../../../CONTEXT-MAP.md).
 
 Owns broadcaster module enablement/config JSON, channel quote books, lifetime
 personality feed tallies, recipe variables, named countdowns, recipe cooldown windows over one day,
-and sealed Govee/Spotify credentials in `bagel_modules`.
+and sealed Govee/Spotify credentials in the MySQL schema selected by `DB_SCHEMA`.
 Sesame implements module behavior, Gossip contacts external integrations, and
 Projector maintains the shared configuration projection.
 Loyalty module configuration lives here, but balances/counters live in Loyalty.
@@ -60,7 +60,7 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
 
 ## Flow and contracts
 
-- Default dashboard prefix `bagel.rpc.modules`: `list`, `upsert`, `patch`,
+- Default dashboard prefix `rpc.modules`: `list`, `upsert`, `patch`,
   `patch-existing`, with quote verbs under `.quote`, feed verbs under `.personality`,
   and recipe state under `.variable`, `.cooldown`, and `.countdown`.
 - A long cooldown is refused from a Valkey marker first (key and TTL rules in
@@ -74,7 +74,7 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
   or replaced rows, and never creates a new module.
 - Module-change broadcasts invalidate every local cache; grouped reprojection
   requests republish persisted rows, and grouped account deletion sweeps owned data.
-- `bagel.rpc.internal.projection.modules.get` serves secret-free repair views.
+- `rpc.internal.projection.modules.get` serves secret-free repair views.
   Loyalty config resolves Users' current account creation timestamp before writes.
 - Govee/Spotify use optional `TINK_KEYSET_PATH` custody, with distinct internal
   decrypt surfaces for Gossip. Read the RPC files for subject environment overrides.

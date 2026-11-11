@@ -26,7 +26,7 @@ const ownerRemovalRounds = 40
 
 func newMySQLStaffHarness(t *testing.T) harness {
 	t.Helper()
-	raw := testdb.MySQL(t, "bagel_staff_")
+	raw := testdb.MySQL(t, "admin_staff_")
 	client := ent.NewClient(ent.Driver(entsql.OpenDB("mysql", raw)))
 	require.NoError(t, client.Schema.Create(t.Context()))
 	nc := testnats.Connect(t)

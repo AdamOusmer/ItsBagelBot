@@ -3,7 +3,7 @@
 
 // Every subject and payload shape the Users service's device-authorization RPCs use lives in
 // this one file: a subject rename there is a one-file fix. Confirmed against the Users agent's
-// scratchpad note (bagel.rpc.dashboard.device.*) and internal/domain/rpc/users/device.go.
+// scratchpad note (rpc.dashboard.device.*) and internal/domain/rpc/users/device.go.
 import { rpc, rpcReply } from '@bagel/kit/server/nats';
 import { WRITE_TIMEOUT_MS } from '@bagel/kit/server/service';
 import { SUB } from './subjects';

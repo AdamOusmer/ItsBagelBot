@@ -1,7 +1,7 @@
 # Admin data service
 
 Owns staff membership, staff audit history, aggregate analytics rollups and annual
-analytics snapshots in `bagel_admin`. The [admin console](../../../web/admin/context.md)
+analytics snapshots in the MySQL schema selected by `DB_SCHEMA`. The [admin console](../../../web/admin/context.md)
 provides the interface. Users owns broadcaster accounts and customer mutations;
 Transactions owns billing-provider operations and giveaways.
 
@@ -17,11 +17,11 @@ Transactions owns billing-provider operations and giveaways.
 | Annual snapshot | Immutable archive of the previous calendar year's cells whose periods closed by January 1 UTC, including persisted year-end levels when available. |
 
 Staff authentication and audit keep the existing
-`bagel.rpc.admin.user.auth.*` and `bagel.rpc.admin.user.audit.*` contracts.
-`bagel.rpc.internal.admin.staff.active` supplies authoritative active staff to
-other services. `bagel.rpc.internal.admin.audit.append` accepts durable test-account
+`rpc.admin.user.auth.*` and `rpc.admin.user.audit.*` contracts.
+`rpc.internal.admin.staff.active` supplies authoritative active staff to
+other services. `rpc.internal.admin.audit.append` accepts durable test-account
 audit deliveries from Users, including retries after the original staff membership
-changes. Public audit append checks current active membership. Analytics reads use `bagel.rpc.admin.analytics` and require an
+changes. Public audit append checks current active membership. Analytics reads use `rpc.admin.analytics` and require an
 active admin or owner. Consumers use the shared `internal/adminauth` client for
 staff authorization and audit writes.
 

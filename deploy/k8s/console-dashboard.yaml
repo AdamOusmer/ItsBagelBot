@@ -142,9 +142,9 @@ spec:
             - name: DASHBOARD_L1_CACHE_CAPACITY
               value: "5000"
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
-              value: bagel.rpc.projector.dashboard
+              value: rpc.projector.dashboard
             - name: NATS_NOTIFICATIONS_SUBJECT_PREFIX
-              value: bagel.rpc.notifications
+              value: rpc.notifications
             - name: SESSION_KEY
               valueFrom:
                 secretKeyRef:

@@ -118,7 +118,7 @@ func TestRetryDialer(t *testing.T) {
 func TestMySQLConnectorCapsRetryDialerAtDialTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		script := newScriptedDial(t, dialBlocks)
-		mc := newMySQLConfig(Config{Address: testDBAddr, Schema: "bagel_test"})
+		mc := newMySQLConfig(Config{Address: testDBAddr, Schema: "test_schema"})
 		mc.DialFunc = script.dialer().DialContext
 		connector, err := mysql.NewConnector(mc)
 		require.NoError(t, err)

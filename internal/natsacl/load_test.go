@@ -17,9 +17,9 @@ system_account: SYS
 accounts:
   OUTGRESS_RPC:
     exports:
-      - service: bagel.rpc.outgress.>
+      - service: rpc.outgress.>
     imports:
-      - {service: bagel.rpc.internal.tokens.>, from: USERS_RPC}
+      - {service: rpc.internal.tokens.>, from: USERS_RPC}
     roles:
       outgress_rpc: {}
   USERS_RPC:
@@ -52,8 +52,8 @@ func TestParseACL(t *testing.T) {
 
 	assert.Equal(t, "SYS", acl.SystemAccount)
 	outgress := acl.Accounts["OUTGRESS_RPC"]
-	assert.Equal(t, []natsacl.ExportSpec{{Service: "bagel.rpc.outgress.>"}}, outgress.Exports)
-	assert.Equal(t, []natsacl.ImportSpec{{Service: "bagel.rpc.internal.tokens.>", From: "USERS_RPC"}}, outgress.Imports)
+	assert.Equal(t, []natsacl.ExportSpec{{Service: "rpc.outgress.>"}}, outgress.Exports)
+	assert.Equal(t, []natsacl.ImportSpec{{Service: "rpc.internal.tokens.>", From: "USERS_RPC"}}, outgress.Imports)
 	bus := acl.Accounts["BUS"]
 	assert.Equal(t, &natsacl.JetStreamSpec{ClusterTraffic: "owner"}, bus.JetStream)
 	assert.Equal(t, "hub-domain", bus.Mappings)

@@ -36,7 +36,7 @@ const localsFor = (status: string, session: Record<string, unknown> = { user_id:
 const premium = localsFor('paid');
 const free = localsFor('free');
 
-const AUTO = 'bagel.rpc.modules.automation';
+const AUTO = 'rpc.modules.automation';
 const hugRow: CommandView = {
   name: 'hug',
   aliases: ['cuddle'],
@@ -70,16 +70,16 @@ const savedAutomation = (id: string, definition: Definition, revision = 1) => ({
 const hugSimple = { name: 'hug', aliases: ['cuddle'], response: 'hi {user}', perm: 'mod' as const, cooldown: 30, userCooldown: 5 };
 
 const callsTo = (subject: string) => calls.filter((c) => c.subject === subject);
-const moduleWrites = () => callsTo('bagel.rpc.modules.upsert').map((c) => ({ name: c.body.name, is_enabled: c.body.is_enabled }));
+const moduleWrites = () => callsTo('rpc.modules.upsert').map((c) => ({ name: c.body.name, is_enabled: c.body.is_enabled }));
 
 function stubStorage(commands: CommandView[], modules: unknown[]) {
-  replies['bagel.rpc.commands.list'] = { commands };
-  replies['bagel.rpc.modules.list'] = { modules };
-  replies['bagel.rpc.modules.upsert'] = { modules };
-  replies['bagel.rpc.projector.dashboard.modules.get'] = { modules };
-  replies['bagel.rpc.projector.dashboard.commands.get'] = { commands };
-  replies['bagel.rpc.projector.dashboard.commands.replace'] = { commands };
-  replies['bagel.rpc.projector.dashboard.modules.replace'] = { modules };
+  replies['rpc.commands.list'] = { commands };
+  replies['rpc.modules.list'] = { modules };
+  replies['rpc.modules.upsert'] = { modules };
+  replies['rpc.projector.dashboard.modules.get'] = { modules };
+  replies['rpc.projector.dashboard.commands.get'] = { commands };
+  replies['rpc.projector.dashboard.commands.replace'] = { commands };
+  replies['rpc.projector.dashboard.modules.replace'] = { modules };
   replies[`${AUTO}.list`] = { automations: [] };
 }
 
@@ -118,21 +118,21 @@ describe('read-through', () => {
 
   test('an alert line loads in the engine form and saves back in the module form', async () => {
     stubStorage([], [alerts({ cheerMessage: 'thanks for {bits}' })]);
-    replies['bagel.rpc.modules.patch'] = { rev: 5, modules: [alerts({ cheerMessage: 'thanks for {bits}' }, true, 5)] };
+    replies['rpc.modules.patch'] = { rev: 5, modules: [alerts({ cheerMessage: 'thanks for {bits}' }, true, 5)] };
     const loaded = (await store.loadFlow('7', { layer: 'alert', alert: 'cheer' }))!;
     expect(loaded.definition.actions?.[0]?.params?.text).toBe('thanks for {event.amount}');
 
     const res = await store.saveFlow(premium,{ ref: loaded.ref, name: loaded.name, enabled: true, definition: loaded.definition, expectedRevision: loaded.revision });
 
     expect(res.ok).toBe(true);
-    expect(callsTo('bagel.rpc.modules.patch')[0]!.body.configs.cheerMessage).toBe('thanks for {bits}');
+    expect(callsTo('rpc.modules.patch')[0]!.body.configs.cheerMessage).toBe('thanks for {bits}');
   });
 });
 
 describe('saving to the row a flow came from', () => {
   test('a simple command saves back to its row and keeps fields the board cannot show', async () => {
     stubStorage([hugRow], []);
-    replies['bagel.rpc.commands.upsert'] = {};
+    replies['rpc.commands.upsert'] = {};
     const loaded = (await store.loadFlow('7', { layer: 'command', name: 'hug' }))!;
 
     const res = await store.saveFlow(premium,{
@@ -145,7 +145,7 @@ describe('saving to the row a flow came from', () => {
 
     expect(res.ok).toBe(true);
     expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
-    expect(callsTo('bagel.rpc.commands.upsert')[0]!.body).toMatchObject({
+    expect(callsTo('rpc.commands.upsert')[0]!.body).toMatchObject({
       name: 'hug',
       response: 'changed',
       stream_online_only: true,
@@ -165,13 +165,13 @@ describe('saving to the row a flow came from', () => {
       expectedRevision: 'stale'
     });
     expect(res).toMatchObject({ ok: false, reason: 'conflict' });
-    expect(callsTo('bagel.rpc.commands.upsert')).toEqual([]);
+    expect(callsTo('rpc.commands.upsert')).toEqual([]);
   });
 
   test('the revision a save returns still matches once the service omits empty fields', async () => {
     const bare: CommandView = { name: 'bare', response: 'hi', is_active: true };
     stubStorage([], []);
-    replies['bagel.rpc.commands.upsert'] = {};
+    replies['rpc.commands.upsert'] = {};
     const saved = await store.saveFlow(premium, { ref: null, name: '!bare', enabled: true, definition: commandDefinition({ name: 'bare', aliases: [], response: 'hi', perm: 'everyone', cooldown: 0, userCooldown: 0 }) });
     expect(saved.ok).toBe(true);
     stubStorage([bare], []);
@@ -182,7 +182,7 @@ describe('saving to the row a flow came from', () => {
     stubStorage([hugRow], []);
     const loaded = (await store.loadFlow('7', { layer: 'command', name: 'hug' }))!;
     stubStorage([{ ...hugRow, uses: '42' }], []);
-    replies['bagel.rpc.commands.upsert'] = {};
+    replies['rpc.commands.upsert'] = {};
     const res = await store.saveFlow(premium,{
       ref: loaded.ref,
       name: loaded.name,
@@ -201,7 +201,7 @@ describe('saving to the row a flow came from', () => {
 
   test('an alert saves through a module patch with the current revision', async () => {
     stubStorage([], [alerts({ followMessage: 'old' })]);
-    replies['bagel.rpc.modules.patch'] = { rev: 5, modules: [alerts({ followEnabled: 'on', followMessage: 'new' }, true, 5)] };
+    replies['rpc.modules.patch'] = { rev: 5, modules: [alerts({ followEnabled: 'on', followMessage: 'new' }, true, 5)] };
     const loaded = (await store.loadFlow('7', { layer: 'alert', alert: 'follow' }))!;
 
     const res = await store.saveFlow(premium,{
@@ -213,7 +213,7 @@ describe('saving to the row a flow came from', () => {
     });
 
     expect(res.ok).toBe(true);
-    expect(callsTo('bagel.rpc.modules.patch')[0]!.body).toMatchObject({
+    expect(callsTo('rpc.modules.patch')[0]!.body).toMatchObject({
       name: 'alerts',
       is_enabled: true,
       expected_rev: 4,
@@ -225,7 +225,7 @@ describe('saving to the row a flow came from', () => {
     stubStorage([], [alerts({ followMessage: 'old' })]);
     const loaded = (await store.loadFlow('7', { layer: 'alert', alert: 'follow' }))!;
     stubStorage([], [alerts({ followMessage: 'old', subMessage: 'changed' }, true, 9)]);
-    replies['bagel.rpc.modules.patch'] = { rev: 10, modules: [] };
+    replies['rpc.modules.patch'] = { rev: 10, modules: [] };
     const res = await store.saveFlow(premium,{
       ref: loaded.ref,
       name: loaded.name,
@@ -234,12 +234,12 @@ describe('saving to the row a flow came from', () => {
       expectedRevision: loaded.revision
     });
     expect(res.ok).toBe(true);
-    expect(callsTo('bagel.rpc.modules.patch')[0]!.body.expected_rev).toBe(9);
+    expect(callsTo('rpc.modules.patch')[0]!.body.expected_rev).toBe(9);
   });
 
   test('a module patch conflict is a conflict', async () => {
     stubStorage([], [alerts({})]);
-    replies['bagel.rpc.modules.patch'] = { conflict: true, rev: 6, modules: [] };
+    replies['rpc.modules.patch'] = { conflict: true, rev: 6, modules: [] };
     const res = await store.saveFlow(premium,{ ref: { layer: 'alert', alert: 'raid' }, name: 'Raid', enabled: true, definition: alertDefinition('raid', 'x') });
     expect(res).toMatchObject({ ok: false, reason: 'conflict' });
   });
@@ -269,7 +269,7 @@ describe('automation rows', () => {
 
   test('a recipe converted to a command opens right away, before the commands service flushes', async () => {
     stubStorage([], [automationsOn]);
-    replies['bagel.rpc.commands.upsert'] = {};
+    replies['rpc.commands.upsert'] = {};
     const res = await store.saveFlow(premium,{ ref: null, name: 'Flow', enabled: true, definition: commandDefinition(hugSimple) });
     expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'command', name: 'hug' } } });
     expect(await store.loadFlow('7', { layer: 'command', name: 'hug' })).not.toBeNull();
@@ -382,10 +382,10 @@ describe('landing list and toggles', () => {
 
   test('toggling a command changes only is_active on its row', async () => {
     stubStorage([hugRow], []);
-    replies['bagel.rpc.commands.upsert'] = {};
+    replies['rpc.commands.upsert'] = {};
     const res = await store.setFlowEnabled(premium,{ layer: 'command', name: 'hug' }, false);
     expect(res).toMatchObject({ ok: true, enabled: false });
-    expect(callsTo('bagel.rpc.commands.upsert')[0]!.body).toMatchObject({
+    expect(callsTo('rpc.commands.upsert')[0]!.body).toMatchObject({
       name: 'hug',
       aliases: ['cuddle'],
       response: 'hi {user}',
@@ -403,20 +403,20 @@ describe('landing list and toggles', () => {
   test('a command already in that state writes nothing', async () => {
     stubStorage([hugRow], []);
     expect(await store.setFlowEnabled(premium,{ layer: 'command', name: 'hug' }, true)).toMatchObject({ ok: true });
-    expect(callsTo('bagel.rpc.commands.upsert')).toEqual([]);
+    expect(callsTo('rpc.commands.upsert')).toEqual([]);
   });
 
   test('toggling an alert patches only its switch', async () => {
     stubStorage([], [alerts({ followMessage: 'keep' })]);
-    replies['bagel.rpc.modules.patch'] = { rev: 5, modules: [] };
+    replies['rpc.modules.patch'] = { rev: 5, modules: [] };
     expect(await store.setFlowEnabled(premium,{ layer: 'alert', alert: 'follow' }, false)).toMatchObject({ ok: true, warnings: [] });
-    expect(callsTo('bagel.rpc.modules.patch')[0]!.body).toMatchObject({ is_enabled: true, expected_rev: 4, configs: { followEnabled: 'off' } });
-    expect(callsTo('bagel.rpc.modules.patch')[0]!.body.configs).not.toHaveProperty('followMessage');
+    expect(callsTo('rpc.modules.patch')[0]!.body).toMatchObject({ is_enabled: true, expected_rev: 4, configs: { followEnabled: 'off' } });
+    expect(callsTo('rpc.modules.patch')[0]!.body.configs).not.toHaveProperty('followMessage');
   });
 
   test('turning an alert on with the module off says the module came on', async () => {
     stubStorage([], [alerts({}, false)]);
-    replies['bagel.rpc.modules.patch'] = { rev: 5, modules: [] };
+    replies['rpc.modules.patch'] = { rev: 5, modules: [] };
     expect(await store.setFlowEnabled(premium,{ layer: 'alert', alert: 'raid' }, true)).toMatchObject({ ok: true, warnings: ['alerts_module_turned_on'] });
   });
 });
@@ -436,8 +436,8 @@ describe('a simple flow never lives in the automation table', () => {
 
   function stubTable(deleteWorks = true) {
     stubStorage(commands, [alerts({ followEnabled: 'off', cheerEnabled: 'off' }), automationsOn]);
-    replies['bagel.rpc.commands.list'] = () => ({ commands });
-    replies['bagel.rpc.commands.upsert'] = (body: CommandView & { original_name?: string }) => {
+    replies['rpc.commands.list'] = () => ({ commands });
+    replies['rpc.commands.upsert'] = (body: CommandView & { original_name?: string }) => {
       commands = [...commands.filter((row) => row.name !== body.original_name && row.name !== body.name), body];
       return {};
     };
@@ -457,7 +457,7 @@ describe('a simple flow never lives in the automation table', () => {
       table.delete(body.id);
       return {};
     };
-    replies['bagel.rpc.modules.patch'] = { rev: 5, modules: [] };
+    replies['rpc.modules.patch'] = { rev: 5, modules: [] };
   }
 
   beforeEach(() => {
@@ -491,7 +491,7 @@ describe('a simple flow never lives in the automation table', () => {
     table.set('a', automation('a', complex));
     await store.saveFlow(premium, { ref: { layer: 'automation', id: 'a' }, name: 'Wave', enabled: true, definition: simpleCommandDef });
     const order = calls.map((c) => c.subject);
-    expect(order.indexOf('bagel.rpc.commands.upsert')).toBeLessThan(order.indexOf(`${AUTO}.delete`));
+    expect(order.indexOf('rpc.commands.upsert')).toBeLessThan(order.indexOf(`${AUTO}.delete`));
   });
 
   test.each([true, false])('edit-down keeps enabled=%s', async (enabled) => {
@@ -514,7 +514,7 @@ describe('a simple flow never lives in the automation table', () => {
       expected_revision: 3,
       expected_module_rev: 4
     });
-    expect(callsTo('bagel.rpc.modules.patch')).toEqual([]);
+    expect(callsTo('rpc.modules.patch')).toEqual([]);
   });
 
   test('a stale revision on edit-down changes nothing', async () => {
@@ -588,7 +588,7 @@ describe('a simple flow never lives in the automation table', () => {
     table.clear();
     replies[`${AUTO}.list`] = { automations: [] };
     expect(await store.saveFlow(premium, { ref: null, name: 'Flow', enabled, definition })).toEqual(refusal as never);
-    expect(callsTo('bagel.rpc.modules.patch')).toEqual([]);
+    expect(callsTo('rpc.modules.patch')).toEqual([]);
     expect(callsTo(`${AUTO}.downgrade_alert`)).toEqual([]);
   });
 
@@ -597,19 +597,19 @@ describe('a simple flow never lives in the automation table', () => {
     stubStorage(commands, [alerts({ followEnabled: 'off', followMessage: 'mine' })]);
     const res = await store.saveFlow(premium, { ref: { layer: 'command', name: 'hug' }, name: 'Follow', enabled: true, definition: alertDefinition('follow', 'hi'), confirmUpgrade: true });
     expect(res).toEqual({ ok: false, reason: 'conflict', issues: taken });
-    expect(callsTo('bagel.rpc.commands.delete')).toEqual([]);
+    expect(callsTo('rpc.commands.delete')).toEqual([]);
   });
 
   test('saving the same line an alert already shows changes nothing, so it passes', async () => {
     stubStorage(commands, [alerts({})]);
-    replies['bagel.rpc.modules.patch'] = { rev: 5, modules: [] };
+    replies['rpc.modules.patch'] = { rev: 5, modules: [] };
     const res = await store.saveFlow(premium, { ref: null, name: 'Follow', enabled: true, definition: alertDefinition('follow', defaultFollow) });
     expect(res).toMatchObject({ ok: true });
   });
 
   test('editing the alert itself stays allowed, custom line included', async () => {
     stubStorage(commands, [alerts({ followMessage: 'mine' })]);
-    replies['bagel.rpc.modules.patch'] = { rev: 5, modules: [] };
+    replies['rpc.modules.patch'] = { rev: 5, modules: [] };
     const res = await store.saveFlow(premium, { ref: { layer: 'alert', alert: 'follow' }, name: 'Follow', enabled: false, definition: alertDefinition('follow', 'new') });
     expect(res.ok).toBe(true);
   });
@@ -659,7 +659,7 @@ describe('a simple flow never lives in the automation table', () => {
 
   test('a failed command write restores the row', async () => {
     table.set('a', automation('a', complex));
-    replies['bagel.rpc.commands.upsert'] = new Error('commands down');
+    replies['rpc.commands.upsert'] = new Error('commands down');
     const res = await store.saveFlow(premium, { ref: { layer: 'automation', id: 'a' }, name: 'Wave', enabled: true, definition: simpleCommandDef });
     expect(res).toMatchObject({ ok: false, reason: 'failed' });
     expect(table.get('a')!.definition).toEqual(complex);
@@ -668,21 +668,21 @@ describe('a simple flow never lives in the automation table', () => {
   test('a command edited into an alert skips the table', async () => {
     commands = [hugRow];
     stubTable();
-    replies['bagel.rpc.commands.delete'] = {};
+    replies['rpc.commands.delete'] = {};
     const res = await store.saveFlow(premium, { ref: { layer: 'command', name: 'hug' }, name: 'Follow', enabled: true, definition: alertDefinition('follow', 'hi'), confirmUpgrade: true });
     expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'alert', alert: 'follow' } }, upgrade: { from: 'command', uses: 41 } });
     expect(table.size).toBe(0);
-    expect(callsTo('bagel.rpc.commands.delete')).toHaveLength(1);
+    expect(callsTo('rpc.commands.delete')).toHaveLength(1);
   });
 
   test('an alert edited into a command skips the table and turns the alert off', async () => {
     stubStorage(commands, [alerts({})]);
-    replies['bagel.rpc.commands.upsert'] = {};
-    replies['bagel.rpc.modules.patch'] = { rev: 5, modules: [] };
+    replies['rpc.commands.upsert'] = {};
+    replies['rpc.modules.patch'] = { rev: 5, modules: [] };
     const res = await store.saveFlow(premium, { ref: { layer: 'alert', alert: 'raid' }, name: 'Wave', enabled: true, definition: simpleCommandDef, confirmUpgrade: true });
     expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'command', name: 'wave' } } });
     expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
-    expect(callsTo('bagel.rpc.modules.patch')[0]!.body.configs).toEqual({ raidEnabled: 'off' });
+    expect(callsTo('rpc.modules.patch')[0]!.body.configs).toEqual({ raidEnabled: 'off' });
   });
 
   test('a misplaced row with the same command is cleaned up by saving that command', async () => {
@@ -741,11 +741,11 @@ describe('premium beta', () => {
 
   test('a delegate acts on the channel they manage, gated by that channel', async () => {
     stubStorage([hugRow], []);
-    replies['bagel.rpc.commands.upsert'] = {};
-    replies['bagel.rpc.dashboard.state_get'] = { active: true, status: 'paid' };
+    replies['rpc.commands.upsert'] = {};
+    replies['rpc.dashboard.state_get'] = { active: true, status: 'paid' };
     const delegate = { session: { user_id: '9', delegate_of: '7', sections: ['modules'] }, locale: 'en' } as unknown as App.Locals;
     expect(await store.setFlowEnabled(delegate, { layer: 'command', name: 'hug' }, false)).toMatchObject({ ok: true });
-    expect(callsTo('bagel.rpc.commands.upsert')[0]!.body.user_id).toBe('7');
+    expect(callsTo('rpc.commands.upsert')[0]!.body.user_id).toBe('7');
   });
 });
 
@@ -759,7 +759,7 @@ describe('deleting', () => {
 
   test('a command row is deleted if it exists', async () => {
     stubStorage([hugRow], []);
-    replies['bagel.rpc.commands.delete'] = {};
+    replies['rpc.commands.delete'] = {};
     expect(await store.deleteFlow(premium, { layer: 'command', name: 'hug' })).toEqual({ ok: true });
     expect(await store.deleteFlow(premium, { layer: 'command', name: 'ghost' })).toEqual({ ok: false, reason: 'not_found' });
   });
@@ -792,13 +792,13 @@ describe('upgrades', () => {
   test('a confirmed command upgrade writes the automation before deleting the command', async () => {
     stubStorage([hugRow], [automationsOn]);
     replies[`${AUTO}.upsert`] = { automation: savedAutomation('a', complexHug) };
-    replies['bagel.rpc.commands.delete'] = {};
+    replies['rpc.commands.delete'] = {};
 
     const res = await store.saveFlow(premium,{ ...commandInput, confirmUpgrade: true });
 
     expect(res).toMatchObject({ ok: true, flow: { ref: { layer: 'automation', id: 'a' } }, upgrade: { from: 'command', uses: 41 }, warnings: [] });
     const order = calls.map((c) => c.subject);
-    expect(order.indexOf(`${AUTO}.upsert`)).toBeLessThan(order.indexOf('bagel.rpc.commands.delete'));
+    expect(order.indexOf(`${AUTO}.upsert`)).toBeLessThan(order.indexOf('rpc.commands.delete'));
   });
 
   test('a refused automation leaves the command in place', async () => {
@@ -806,7 +806,7 @@ describe('upgrades', () => {
     replies[`${AUTO}.upsert`] = { issues: [{ path: 'name', code: 'duplicate' }], code: 'conflict' };
     const res = await store.saveFlow(premium,{ ...commandInput, confirmUpgrade: true });
     expect(res).toMatchObject({ ok: false, reason: 'invalid' });
-    expect(callsTo('bagel.rpc.commands.delete')).toEqual([]);
+    expect(callsTo('rpc.commands.delete')).toEqual([]);
   });
 
   test('a reply using the uses token is flagged and cannot move to an automation', async () => {
@@ -820,13 +820,13 @@ describe('upgrades', () => {
       issues: [{ path: 'actions', code: 'uses_token' }]
     });
     expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
-    expect(callsTo('bagel.rpc.commands.delete')).toEqual([]);
+    expect(callsTo('rpc.commands.delete')).toEqual([]);
   });
 
   test('a failed delete after the write is reported, not hidden', async () => {
     stubStorage([hugRow], [automationsOn]);
     replies[`${AUTO}.upsert`] = { automation: savedAutomation('a', complexHug) };
-    replies['bagel.rpc.commands.delete'] = new Error('down');
+    replies['rpc.commands.delete'] = new Error('down');
     const res = await store.saveFlow(premium,{ ...commandInput, confirmUpgrade: true });
     expect(res).toMatchObject({ ok: true, warnings: ['command_delete_failed'] });
   });
@@ -851,7 +851,7 @@ describe('upgrades', () => {
 
     expect(res).toMatchObject({ ok: true, upgrade: { from: 'alert', alert: 'follow' }, warnings: [] });
     expect(callsTo(`${AUTO}.upgrade_alert`)[0]!.body).toMatchObject({ enable_key: 'followEnabled', expected_module_rev: 4 });
-    expect(callsTo('bagel.rpc.modules.patch')).toEqual([]);
+    expect(callsTo('rpc.modules.patch')).toEqual([]);
     expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
   });
 

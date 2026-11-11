@@ -42,7 +42,7 @@ describe('giveaway RPC wire mapping', () => {
   it('preserves an explicit operation key and expected version for retries', async () => {
     await giveawayFreeze({ actorId: 'admin-1', campaignId: 'c-1', poolDigest: 'sha256:preview', idempotencyKey: 'c-1:freeze:4', expectedVersion: 4 });
     expect(requests.at(-1)).toEqual({
-      subject: 'bagel.rpc.admin.giveaways.freeze',
+      subject: 'rpc.admin.giveaways.freeze',
       body: { actor_id: 'admin-1', idempotency_key: 'c-1:freeze:4', expected_version: 4, campaign_id: 'c-1', pool_digest: 'sha256:preview' }
     });
   });
@@ -83,14 +83,14 @@ describe('giveaway RPC wire mapping', () => {
       }
     };
     const preview = await giveawayInclusion({ actorId: 'admin-1', campaignId: 'c-1', userId: '2', include: true });
-    expect(requests.at(-1)).toMatchObject({ subject: 'bagel.rpc.admin.giveaways.include', body: { actor_id: 'admin-1', campaign_id: 'c-1', user_id: 2 } });
+    expect(requests.at(-1)).toMatchObject({ subject: 'rpc.admin.giveaways.include', body: { actor_id: 'admin-1', campaign_id: 'c-1', user_id: 2 } });
     expect(preview.included).toBe(1);
     expect(preview.excluded).toEqual([
       { userId: '2', login: 'two', reason: 'vip', included: true, includable: true },
       { userId: '3', login: '3', reason: 'banned', included: false, includable: false }
     ]);
     await giveawayInclusion({ actorId: 'admin-1', campaignId: 'c-1', userId: '2', include: false });
-    expect(requests.at(-1)?.subject).toBe('bagel.rpc.admin.giveaways.exclude');
+    expect(requests.at(-1)?.subject).toBe('rpc.admin.giveaways.exclude');
   });
 
   it('keeps draw algorithm metadata separate from the selection method', () => {

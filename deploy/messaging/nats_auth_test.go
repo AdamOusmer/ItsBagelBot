@@ -95,20 +95,20 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	blocks := busUserBlocks(t)
 
 	consumers := map[string][]string{
-		"users_bus":     {"BAGEL_DATA"},
-		"commands_bus":  {"BAGEL_DATA"},
-		"modules_bus":   {"BAGEL_DATA"},
-		"loyalty_bus":   {"BAGEL_DATA"},
-		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
+		"users_bus":     {"DATA"},
+		"commands_bus":  {"DATA"},
+		"modules_bus":   {"DATA"},
+		"loyalty_bus":   {"DATA"},
+		"projector_bus": {"DATA", "TWITCH_INGRESS"},
 		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
 		"automod_bus":   {"TWITCH_AUTOMOD_TRIAL"},
 	}
 	owners := map[string][]string{
 		"automod_bus":   {"TWITCH_AUTOMOD_TRIAL"},
-		"users_bus":     {"BAGEL_DATA", "BAGEL_DLQ"},
+		"users_bus":     {"DATA", "DATA_DLQ"},
 		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"projector_bus": {"BAGEL_DATA", "BAGEL_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+		"projector_bus": {"DATA", "DATA_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
@@ -168,9 +168,9 @@ func TestCoordinationBucketPublishIsolation(t *testing.T) {
 
 func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	want := map[string][]string{
-		"users":     {"[]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}"},
+		"users":     {"[]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}"},
 		"sesame":    {"bus.IngressLaneSpecs()"},
-		"projector": {"append([]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}, bus.IngressLaneSpecs()...)"},
+		"projector": {"append([]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}, bus.IngressLaneSpecs()...)"},
 		"outgress": {
 			"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},

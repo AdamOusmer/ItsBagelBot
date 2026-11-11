@@ -15,7 +15,7 @@ import (
 
 func TestGiveawayGrantCustody(t *testing.T) {
 	for _, verb := range []string{"pool", "coverage", "prepare", "commit", "cancel"} {
-		subject := "bagel.rpc.internal.users.giveaway." + verb
+		subject := "rpc.internal.users.giveaway." + verb
 		for _, account := range loadRPCCatalog(t).accounts {
 			if account.name == "TRANSACTIONS_RPC" || account.name == "USERS_RPC" {
 				continue
@@ -32,14 +32,14 @@ func TestDashboardCannotAdministerGiveaways(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	dashboard := catalog.byUser["dashboard_rpc"]
 	for _, verb := range []string{"create", "preview", "freeze", "draw", "get", "list", "retry", "alerts", "history", "capabilities", "include", "exclude"} {
-		subject := "bagel.rpc.admin.giveaways." + verb
+		subject := "rpc.admin.giveaways." + verb
 		for _, candidate := range []string{subject, subject + ".node.n1"} {
 			_, imported := dashboard.importCovering(candidate)
 			assert.False(t, imported, "dashboard can reach privileged giveaway subject %s", candidate)
 		}
 	}
 
-	assert.Empty(t, catalog.crossAccountProblem(dashboard, "bagel.rpc.transactions.giveaways.mine"))
+	assert.Empty(t, catalog.crossAccountProblem(dashboard, "rpc.transactions.giveaways.mine"))
 }
 
 func TestExactRPCGrantsIncludeNodeLocalVariant(t *testing.T) {

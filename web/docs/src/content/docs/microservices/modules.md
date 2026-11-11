@@ -12,7 +12,7 @@ Dashboard writes go to the owner; Sesame reads projected settings. Gossip resolv
 
 ## Interfaces
 
-The default RPC prefix is `bagel.rpc.modules`, including `list`, `upsert`, `patch` and `patch-existing`. Projection repair uses `bagel.rpc.internal.projection.modules.get`.
+The default RPC prefix is `rpc.modules`, including `list`, `upsert`, `patch` and `patch-existing`. Projection repair uses `rpc.internal.projection.modules.get`.
 
 Dashboard upserts persist before returning; background writes may coalesce. A patch with a stale expected revision returns a conflict. `patch-existing` also requires the expected row ID and never creates a replacement. Committed changes invalidate local caches, and the internal projection RPC returns a secret-free view.
 

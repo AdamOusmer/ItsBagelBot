@@ -132,7 +132,7 @@ func TestCounterReceiptOutlivesTheLastRepublishedCopy(t *testing.T) {
 	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "an immediate duplicate is absorbed")
 	assert.Equal(t, counterCompletedTTL, cache.ttl(event))
 
-	lastCopy := data.CounterRepublishWindow + 2*counterCacheTimeout + bus.BagelDataStream.MaxAge + counterSQLTimeout
+	lastCopy := data.CounterRepublishWindow + 2*counterCacheTimeout + bus.DataStream.MaxAge + counterSQLTimeout
 	cache.advance(lastCopy)
 	require.NoError(t, p.Process(ctx, event))
 	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "the receipt must still absorb the last republished copy")

@@ -87,7 +87,7 @@ type CounterBumpEntry struct {
 	Delta       int64  `json:"delta"`
 }
 
-// The receipt must outlive the last republish plus BAGEL_DATA's MaxAge, or a late copy counts twice.
+// The receipt must outlive the last republish plus DATA's MaxAge, or a late copy counts twice.
 const (
 	CounterRepublishWindow = time.Hour
 	CounterReceiptTTL      = CounterRepublishWindow + 10*time.Minute

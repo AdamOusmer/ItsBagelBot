@@ -140,7 +140,7 @@ spec:
             - name: VALKEY_LOCAL_ADDR
               value: valkey-local.cache.svc.cluster.local:6380
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
-              value: bagel.rpc.projector.dashboard
+              value: rpc.projector.dashboard
             - name: PROJECTOR_WRITE_CONCURRENCY
               value: "8"
             - name: PROJECTOR_LIVE_HYDRATION_TTL

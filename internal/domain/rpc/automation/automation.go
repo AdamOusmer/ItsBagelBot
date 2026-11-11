@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	AutomationPrefix          = "bagel.rpc.modules.automation"
-	ProjectionAutomationsSubj = "bagel.rpc.internal.projection.modules.automations.get"
-	RunsSubject               = "bagel.rpc.automations.runs"
+	AutomationPrefix          = "rpc.modules.automation"
+	ProjectionAutomationsSubj = "rpc.internal.projection.modules.automations.get"
+	RunsSubject               = "rpc.automations.runs"
 )
 
 const (

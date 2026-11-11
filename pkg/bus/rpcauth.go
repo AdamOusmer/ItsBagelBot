@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	HeaderUserClaim    = "Bagelbot-User-Claim"
-	HeaderUserClaimSig = "Bagelbot-User-Claim-Signature"
+	HeaderUserClaim    = "Rpc-User-Claim"
+	HeaderUserClaimSig = "Rpc-User-Claim-Signature"
 
 	DefaultCallerSkew = time.Minute
 

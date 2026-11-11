@@ -186,7 +186,7 @@ spec:
             - name: NATS_OUTGRESS_SYSTEM_SUBJECT
               value: twitch.outgress.system
             - name: NATS_BROADCASTER_LIVE_SUBJECT
-              value: bagel.rpc.broadcaster.live.get
+              value: rpc.broadcaster.live.get
             - name: TLS_CERT_FILE
               value: /etc/sesame/tls/tls.crt
             - name: TLS_KEY_FILE

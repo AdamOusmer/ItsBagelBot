@@ -17,7 +17,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const RPCHealthPrefix = "bagel.rpc.health"
+const RPCHealthPrefix = "rpc.health"
 
 // Must stay under pkg/health's checkTimeout, or the reply is never heard.
 const rpcHealthTimeout = 4 * time.Second

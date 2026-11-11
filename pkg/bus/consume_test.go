@@ -38,11 +38,11 @@ func (s *feedSubscriber) Close() error { return nil }
 func testLane(app *newrelic.Application, rate uint64, log *zap.Logger, handle func(*Message) error) consumeLane {
 	return consumeLane{
 		app:     app,
-		txnName: "consume bagel.rpc.commands",
-		subject: "bagel.rpc.commands.run",
+		txnName: "consume rpc.commands",
+		subject: "rpc.commands.run",
 		handle:  handle,
 		log:     log,
-		stats:   &laneStats{destination: "bagel.rpc.commands", sampleRate: rate},
+		stats:   &laneStats{destination: "rpc.commands", sampleRate: rate},
 	}
 }
 
@@ -101,7 +101,7 @@ func TestConsumeResolvesEveryDeliveryByTheHandlerOutcome(t *testing.T) {
 			t.Run(tc.name+" "+app.name, func(t *testing.T) {
 				core, logs := observer.New(zap.DebugLevel)
 				feed := &feedSubscriber{messages: make(chan *Message, 2)}
-				require.NoError(t, Consume(context.Background(), app.app, feed, "bagel.rpc.commands.run", tc.handler, zap.New(core)))
+				require.NoError(t, Consume(context.Background(), app.app, feed, "rpc.commands.run", tc.handler, zap.New(core)))
 				msg := NewMessage("delivery", nil)
 
 				feed.messages <- msg

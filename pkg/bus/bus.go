@@ -28,7 +28,7 @@ const (
 	fleetNakDelay               = 3 * time.Second
 )
 
-// The whole schedule, the deferral and every handler deadline must fit inside BAGEL_DATA's MaxAge, or a retrying message expires before it is dead-lettered.
+// The whole schedule, the deferral and every handler deadline must fit inside DATA's MaxAge, or a retrying message expires before it is dead-lettered.
 var dataRetryBackoff = []time.Duration{5 * time.Second, 20 * time.Second, time.Minute}
 
 const dataRetryDeferral = time.Minute
@@ -78,7 +78,7 @@ func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay maxRetryDelay, log 
 	return sub, nc, nil
 }
 
-const managedConsumerMetadata = "itsbagelbot.dev/managed"
+const managedConsumerMetadata = "bus.managed"
 
 func ensureConsumer(js nats.JetStreamManager, stream string, desired *nats.ConsumerConfig) error {
 	info, err := js.ConsumerInfo(stream, desired.Name)
@@ -136,7 +136,7 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.Co
 		FilterSubject:  subject,
 		ReplayPolicy:   nats.ReplayInstantPolicy,
 		MaxAckPending:  positiveInt(env.GetInt("NATS_LANE_MAX_ACK_PENDING", 20000), 20000),
-		DeliverSubject: "_INBOX.BAGEL." + subjectToken(name),
+		DeliverSubject: "_INBOX.LANE." + subjectToken(name),
 		DeliverGroup:   group,
 		Metadata:       map[string]string{managedConsumerMetadata: "true"},
 	}

@@ -26,7 +26,7 @@ import (
 const fetchQuotaRacers = 8
 
 func TestFetchDefQuotaHoldsUnderConcurrentCreatesMySQL(t *testing.T) {
-	raw := testdb.MySQL(t, "bagel_fetchquota_")
+	raw := testdb.MySQL(t, "commands_fetchquota_")
 	client := ent.NewClient(ent.Driver(entsql.OpenDB("mysql", raw)))
 	require.NoError(t, client.Schema.Create(t.Context()))
 	repo := repository.NewFetches(client, dbtest.NewPacker(t), bustest.NewPublisher(), zap.NewNop())

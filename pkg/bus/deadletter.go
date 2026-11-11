@@ -15,12 +15,12 @@ import (
 const (
 	DeadLetterPrefix = "dlq."
 
-	DeadLetterSubjectHeader    = "Bagel-Dlq-Subject"
-	DeadLetterMsgIDHeader      = "Bagel-Dlq-Msg-Id"
-	DeadLetterStreamHeader     = "Bagel-Dlq-Stream"
-	DeadLetterConsumerHeader   = "Bagel-Dlq-Consumer"
-	DeadLetterDeliveriesHeader = "Bagel-Dlq-Deliveries"
-	DeadLetterReasonHeader     = "Bagel-Dlq-Reason"
+	DeadLetterSubjectHeader    = "Dlq-Subject"
+	DeadLetterMsgIDHeader      = "Dlq-Msg-Id"
+	DeadLetterStreamHeader     = "Dlq-Stream"
+	DeadLetterConsumerHeader   = "Dlq-Consumer"
+	DeadLetterDeliveriesHeader = "Dlq-Deliveries"
+	DeadLetterReasonHeader     = "Dlq-Reason"
 
 	deadLetterMaxDeliveries = "max_deliveries"
 	deadLetterMalformed     = "malformed"
@@ -33,7 +33,7 @@ func deadLetterSubject(subject string) string {
 }
 
 func deadLettersStream(stream string) bool {
-	return stream == BagelDataStream.Name
+	return stream == DataStream.Name
 }
 
 func (s *concurrentDurableSubscriber) terminate(msg *nats.Msg, reason string) {

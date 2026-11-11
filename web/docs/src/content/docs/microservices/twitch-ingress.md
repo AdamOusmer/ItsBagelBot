@@ -12,7 +12,7 @@ Ingress normalizes and routes events to lanes for Sesame and other consumers. It
 
 ## Interfaces
 
-The legacy event subjects are `twitch.ingress.event.{premium,standard,stream}`. Status lookup defaults to `bagel.rpc.broadcaster.status.get`; status invalidations use `bagel.cache.invalidate.status`.
+The legacy event subjects are `twitch.ingress.event.{premium,standard,stream}`. Status lookup defaults to `rpc.broadcaster.status.get`; status invalidations use `cache.invalidate.status`.
 
 Shard sessions hand notifications to a bounded dispatcher. The pipeline checks the event, chooses a lane and publishes the shared envelope. A publish admission is not the same as a JetStream acknowledgement. Stream online/offline events are published both to the stream lane and the ordinary lane, subject to channel eligibility. Status comes from RPC rather than another service’s database.
 

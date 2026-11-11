@@ -23,7 +23,7 @@ mock.module('@bagel/kit/server/nats', () => ({
   }
 }));
 mock.module('./services', () => ({
-  SUB: { outgressRpc: 'bagel.rpc.outgress' },
+  SUB: { outgressRpc: 'rpc.outgress' },
   syncIdentity: (...args: [string, string, string]) => {
     syncCalls.push(args);
     return sync(...args);
@@ -49,7 +49,7 @@ describe('healLogin', () => {
   test('Twitch names the id and identity_sync moves the account onto the new login', async () => {
     const login = fresh();
     expect(await healLogin(login)).toEqual({ kind: 'found', value: { userId: '42', username: login, displayName: 'NewName' } });
-    expect(twitchCalls).toEqual([['bagel.rpc.outgress.accountage.get', { target_login: login }]]);
+    expect(twitchCalls).toEqual([['rpc.outgress.accountage.get', { target_login: login }]]);
     expect(syncCalls).toEqual([['42', login, 'NewName']]);
   });
 

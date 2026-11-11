@@ -12,9 +12,9 @@ Other services use its RPCs instead of reading its schema. It emits user change 
 
 ## Interfaces
 
-Dashboard RPCs default to `bagel.rpc.dashboard.*`; device authorization uses `bagel.rpc.dashboard.device.*`. User changes and deletions publish `data.users.changed` and `data.users.deleted`.
+Dashboard RPCs default to `rpc.dashboard.*`; device authorization uses `rpc.dashboard.device.*`. User changes and deletions publish `data.users.changed` and `data.users.deleted`.
 
-Registration and access changes persist immediately. Some preferences coalesce in a write-behind window; accepted and committed are therefore different states. Committed mutations publish `data.users.changed`. Deletion writes an erasure ledger first, revokes tokens and emits `data.users.deleted`; a ledger failure prevents deletion. Sensitive token and email reads use internal RPCs, not projections. Dashboard and device operations default to `bagel.rpc.dashboard.*`.
+Registration and access changes persist immediately. Some preferences coalesce in a write-behind window; accepted and committed are therefore different states. Committed mutations publish `data.users.changed`. Deletion writes an erasure ledger first, revokes tokens and emits `data.users.deleted`; a ledger failure prevents deletion. Sensitive token and email reads use internal RPCs, not projections. Dashboard and device operations default to `rpc.dashboard.*`.
 
 ## State and dependencies
 

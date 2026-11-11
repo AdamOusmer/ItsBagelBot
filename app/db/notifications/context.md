@@ -6,7 +6,7 @@ and [app map](../../../CONTEXT-MAP.md).
 ## Responsibility and boundaries
 
 Owns dashboard in-app notifications, their per-user acknowledgments and expiry
-in `bagel_notifications`. It serves request/reply only, with no JetStream event
+in the MySQL schema selected by `DB_SCHEMA`. It serves request/reply only, with no JetStream event
 consumers. Email delivery belongs to callers such as Transactions, not this app.
 The console owns display and session authorization; RPC contracts and NATS access
 boundaries define who can invoke the admin/user surfaces.
@@ -49,16 +49,16 @@ Other `ent/` files are generated from the two schemas.
 
 ## Flow and contracts
 
-- Admin default prefix `bagel.rpc.admin.notifications`: `.send`, `.list`, `.delete`.
+- Admin default prefix `rpc.admin.notifications`: `.send`, `.list`, `.delete`.
   Direct sends resolve a numeric ID or username through Users' internal lookup.
 - Create returns whether a row was new; replay of a request ID returns the
   existing row and avoids another insert/cache invalidation.
-- User prefix `bagel.rpc.notifications`: `.list`, `.mark_read`, `.mark_peeked`.
+- User prefix `rpc.notifications`: `.list`, `.mark_read`, `.mark_peeked`.
   Lists combine broadcast and direct-to-user items, excluding global and
   per-user expiry, then return receipt state plus unread count.
 - Opening the bell creates receipts for previously unacknowledged candidates.
   A later full read updates the existing receipt's cutoff; peek preserves it.
-- Internal janitor defaults to `bagel.rpc.internal.notifications.cleanup`.
+- Internal janitor defaults to `rpc.internal.notifications.cleanup`.
   The cleanup binary mode requests this RPC; it does not open MySQL itself.
 - Send/retract publishes the applicable cache invalidation via RPC-plane NATS;
   this service does not publish notification data events to JetStream.

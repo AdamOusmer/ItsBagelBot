@@ -11,7 +11,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const rpcDeadlineHeader = "Bagel-Rpc-Deadline"
+const rpcDeadlineHeader = "Rpc-Deadline"
 
 func stampRequestDeadline(ctx context.Context, msg *nats.Msg) {
 	deadline, ok := ctx.Deadline()

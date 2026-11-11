@@ -62,13 +62,13 @@ func loadTopics() projectorTopics {
 		users:             conf.ProjectionUsersSubject.Get(),
 		modules:           conf.ProjectionModulesSubject.Get(),
 		commands:          conf.ProjectionCommandsSubject.Get(),
-		invalidate:        env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate"),
+		invalidate:        env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "internal.projector.tier.invalidate"),
 		cacheInvalidate:   conf.CacheInvalidationPrefix.Get(),
-		status:            env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
+		status:            env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "rpc.broadcaster.status.get"),
 		dashboard:         conf.ProjectorDashboardPrefix.Get(),
 		live:              conf.BroadcasterLive.Get(),
-		liveList:          env.Get("NATS_BROADCASTER_LIVE_LIST_SUBJECT", "bagel.rpc.broadcaster.live.list"),
-		streamInfo:        env.Get("NATS_BROADCASTER_STREAM_INFO_SUBJECT", "bagel.rpc.broadcaster.stream_info.get"),
+		liveList:          env.Get("NATS_BROADCASTER_LIVE_LIST_SUBJECT", "rpc.broadcaster.live.list"),
+		streamInfo:        env.Get("NATS_BROADCASTER_STREAM_INFO_SUBJECT", "rpc.broadcaster.stream_info.get"),
 		loyalty:           conf.LoyaltyPrefix.Get(),
 		outgressSystem:    conf.OutgressSystemSubject.Get(),
 		hydrationConcurr:  env.GetInt("PROJECTOR_HYDRATION_CONCURRENCY", 8),
@@ -157,7 +157,7 @@ func dataTierCheck(nc *nats.Conn, service string) health.Check {
 
 func connectBus(core svcboot.Core) (*nats.Conn, bus.Publisher, bus.Subscriber) {
 	log := core.Log
-	specs := append([]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}, bus.IngressLaneSpecs()...)
+	specs := append([]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}, bus.IngressLaneSpecs()...)
 	svcboot.FatalIf(log, bus.EnsureStreams(core.Ctx, core.NATSURL, specs, log), "failed to provision projector streams")
 
 	sub, err := bus.NewSubscriber(core.NATSURL, serviceName, log)

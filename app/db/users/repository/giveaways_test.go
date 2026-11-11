@@ -259,7 +259,7 @@ type rejectInvalidateStatus struct {
 
 func (p *rejectInvalidateStatus) PublishOwned(ctx context.Context, subject string, payload []byte) error {
 	if strings.Contains(subject, "cache.invalidate") && strings.HasSuffix(subject, ".status") {
-		return errors.New(`bus: no stream matches subject "bagel.cache.invalidate.status"`)
+		return errors.New(`bus: no stream matches subject "cache.invalidate.status"`)
 	}
 	return p.inner.PublishOwned(ctx, subject, payload)
 }
@@ -276,7 +276,7 @@ func TestPremiumGrantBoundarySweepIgnoresJetStreamStatusInvalidation(t *testing.
 	inner := bustest.NewPublisher()
 	repo := repository.NewUsers(client, dbtest.NewPacker(t), &rejectInvalidateStatus{inner: inner}, nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
-	repo.SetInvalidationPrefix("bagel.cache.invalidate")
+	repo.SetInvalidationPrefix("cache.invalidate")
 
 	ctx := context.Background()
 	require.NoError(t, repo.Register(ctx, 33, "jsboundary", "jsboundary", "jsboundary@example.com"))
@@ -295,7 +295,7 @@ func TestPremiumGrantBoundarySweepIgnoresJetStreamStatusInvalidation(t *testing.
 	grant := client.PremiumGrant.Query().OnlyX(ctx)
 	assert.Equal(t, "active", string(grant.ProjectionPhase))
 	assert.NotEmpty(t, inner.On(data.SubjectUserChanged))
-	assert.Empty(t, inner.On("bagel.cache.invalidate.status"))
+	assert.Empty(t, inner.On("cache.invalidate.status"))
 
 	count, err = repo.ExpirePremiumGrants(ctx, end)
 	require.NoError(t, err)

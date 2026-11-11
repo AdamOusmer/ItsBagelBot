@@ -27,7 +27,7 @@ export function initConsoleRuntime(env: Env, assertConfigSane: (env: Env) => voi
           tlsClientKeyFile: env.VALKEY_TLS_CLIENT_KEY_FILE
         }
       : undefined,
-    cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate'
+    cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? 'cache.invalidate'
   });
 
   warm();

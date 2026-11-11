@@ -59,7 +59,7 @@ one-second paced retries with three redeliveries; control jobs have a longer bud
 Stream migration order prevents overlapping subjects while narrowing old streams.
 
 NATS bus publication and authenticated RPC use separate connections. RPC prefix
-is normally `bagel.rpc.outgress`; trial subscription calls are separately wired.
+is normally `rpc.outgress`; trial subscription calls are separately wired.
 Stream events and authorization-status subjects feed background system behavior.
 Chatter reads check the watch-window generation/live session before paging Helix;
 stream-info reads fill projected facts. Preserve these admission checks.

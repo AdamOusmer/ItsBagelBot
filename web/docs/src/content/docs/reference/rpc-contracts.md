@@ -10,7 +10,7 @@ Services use NATS request-reply for operations across ownership boundaries. Cont
 
 ## Example: user projection snapshot
 
-The users service defaults to `bagel.rpc.internal.projection.users.get` (`app/db/users/main.go`). Its subject can be overridden with `NATS_INTERNAL_PROJECTION_USERS_SUBJECT`. `internal/domain/rpc/projection/projection.go` defines the JSON request and response. A request has a string user ID:
+The users service defaults to `rpc.internal.projection.users.get` (`app/db/users/main.go`). Its subject can be overridden with `NATS_INTERNAL_PROJECTION_USERS_SUBJECT`. `internal/domain/rpc/projection/projection.go` defines the JSON request and response. A request has a string user ID:
 
 ```json
 {"user_id":"12345"}

@@ -285,7 +285,7 @@ spec:
                 # error: pkg/bus/connect.go sets nats.RetryOnFailedConnect(true),
                 # so Connect returns a handle that never finishes its handshake
                 # and the failure appears 30s later as
-                # "rpc bagel.rpc.internal.notifications.cleanup request:
+                # "rpc rpc.internal.notifications.cleanup request:
                 # context deadline exceeded". Mirror of the Deployment above.
                 - name: NATS_CLIENT_CERT_FILE
                   value: /etc/nats-client/tls/tls.crt

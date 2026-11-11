@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const RetryCountHeader = "Bagelbot-Retry"
+const RetryCountHeader = "Event-Retry"
 
 const (
 	flowRetryTimeout = 5 * time.Second

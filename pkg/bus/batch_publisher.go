@@ -31,7 +31,7 @@ const (
 	maxInflightCohorts      = 4
 	maxInflightCohortSlots  = 64
 
-	messageIDHeader = "Bagelbot-Message-Id"
+	messageIDHeader = "Event-Message-Id"
 )
 
 func publishInflightCohorts() int {

@@ -55,8 +55,8 @@ func main() {
 	client, dbPool, packer := openStore(ctx, core)
 	defer func() { _ = client.Close() }()
 
-	svcboot.FatalIf(log, bus.EnsureStreams(ctx, core.NATSURL, []bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}, log),
-		"failed to provision BAGEL_DATA streams")
+	svcboot.FatalIf(log, bus.EnsureStreams(ctx, core.NATSURL, []bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}, log),
+		"failed to provision DATA streams")
 	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 
@@ -131,7 +131,7 @@ func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *c
 
 	packer := crypto.MustFromEnv(log)
 
-	driver := databoot.MustEntDriver(core, "bagel_users")
+	driver := databoot.MustEntDriver(core)
 	client := ent.NewClient(ent.Driver(driver))
 	databoot.AutoMigrate(ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 	return client, driver.DB(), packer
@@ -171,12 +171,12 @@ func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 	invalidationPrefix := conf.CacheInvalidationPrefix.Get()
 
 	s := rpcSubjects{
-		dashboard:  env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard"),
-		admin:      env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user"),
+		dashboard:  env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "rpc.dashboard"),
+		admin:      env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "rpc.admin.user"),
 		billing:    conf.BillingApplySubject.Get(),
 		projection: conf.ProjectionUsersSubject.Get(),
-		giveaway:   env.Get("NATS_INTERNAL_USERS_GIVEAWAY_SUBJECT_PREFIX", "bagel.rpc.internal.users.giveaway"),
-		device:     env.Get("NATS_DASHBOARD_DEVICE_SUBJECT_PREFIX", "bagel.rpc.dashboard.device"),
+		giveaway:   env.Get("NATS_INTERNAL_USERS_GIVEAWAY_SUBJECT_PREFIX", "rpc.internal.users.giveaway"),
+		device:     env.Get("NATS_DASHBOARD_DEVICE_SUBJECT_PREFIX", "rpc.dashboard.device"),
 	}
 
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
@@ -197,9 +197,9 @@ func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 		"failed to subscribe email rpc")
 	svcboot.FatalIf(log, rpc.SubscribeTokens(wiring, conf.TokensSubjectPrefix.Get()),
 		"failed to subscribe tokens rpc")
-	svcboot.FatalIf(log, rpc.SubscribeCounts(wiring, env.Get("NATS_INTERNAL_USERS_COUNTS_SUBJECT", "bagel.rpc.internal.users.counts.get")),
+	svcboot.FatalIf(log, rpc.SubscribeCounts(wiring, env.Get("NATS_INTERNAL_USERS_COUNTS_SUBJECT", "rpc.internal.users.counts.get")),
 		"failed to subscribe counts rpc")
-	svcboot.FatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation"), invalidationPrefix),
+	svcboot.FatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "rpc.delegation"), invalidationPrefix),
 		"failed to subscribe delegation rpc")
 	svcboot.FatalIf(log, rpc.SubscribeDeviceAuth(wiring, s.device), "failed to subscribe device authorization rpc")
 

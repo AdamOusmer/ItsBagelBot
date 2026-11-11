@@ -5,9 +5,9 @@ defmodule Ingress.RpcTest do
   use ExUnit.Case, async: true
 
   test "builds generic and node-qualified subscription subjects" do
-    assert Ingress.Rpc.subjects("bagel.rpc.health.ingress", "node2") == [
-             "bagel.rpc.health.ingress",
-             "bagel.rpc.health.ingress.node.node2"
+    assert Ingress.Rpc.subjects("rpc.health.ingress", "node2") == [
+             "rpc.health.ingress",
+             "rpc.health.ingress.node.node2"
            ]
   end
 

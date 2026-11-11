@@ -70,7 +70,7 @@ func main() {
 	flag.BoolVar(&opts.apply, "apply", false, "apply changes through modules.patch-existing; otherwise preview only")
 	flag.StringVar(&opts.dsnEnv, "dsn-env", "MODULES_MIGRATION_DSN", "environment variable containing the read-only MySQL DSN")
 	flag.StringVar(&opts.natsEnv, "nats-url-env", "NATS_URL", "environment variable containing the NATS RPC fallback URL")
-	flag.StringVar(&opts.prefix, "subject-prefix", env.Get("NATS_MODULES_SUBJECT_PREFIX", ""), "modules RPC subject prefix; defaults to bagel.rpc.modules")
+	flag.StringVar(&opts.prefix, "subject-prefix", env.Get("NATS_MODULES_SUBJECT_PREFIX", ""), "modules RPC subject prefix; defaults to rpc.modules")
 	flag.StringVar(&opts.backup, "backup", "", "new exclusive 0600 JSONL journal; required with --apply")
 	flag.StringVar(&opts.restore, "restore", "", "preview or restore changed keys from a migration journal")
 	flag.Uint64Var(&opts.userID, "user-id", 0, "restrict to one Twitch user ID; zero scans all users")
@@ -130,7 +130,7 @@ func openMigration(opts options) (*migration, error) {
 		return nil, errors.New("the selected DSN environment variable is empty")
 	}
 	if opts.prefix == "" {
-		opts.prefix = "bagel.rpc.modules"
+		opts.prefix = "rpc.modules"
 	}
 	db, err := ent.Open("mysql", dsn)
 	if err != nil {

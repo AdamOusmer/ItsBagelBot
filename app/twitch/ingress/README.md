@@ -78,9 +78,9 @@ to standard.
 | `NATS_SUBJECT_LANE_STREAM`          | Dedicated lane for stream.online / stream.offline only.        | `twitch.ingress.event.stream`                 |
 | `NEW_RELIC_LICENSE_KEY`             | Enables the New Relic agent; absent: agent disabled, no-op.    | (empty)                                       |
 | `NEW_RELIC_APP_NAME`                | New Relic application name.                                    | `itsbagelbot-twitch-ingress`                  |
-| `NATS_BROADCASTER_STATUS_SUBJECT`   | Request-reply subject for broadcaster status.                  | `bagel.rpc.broadcaster.status.get`            |
+| `NATS_BROADCASTER_STATUS_SUBJECT`   | Request-reply subject for broadcaster status.                  | `rpc.broadcaster.status.get`            |
 | `BROADCASTER_STATUS_TIMEOUT_MS`     | RPC timeout.                                                   | `2000`                                        |
-| `NATS_CACHE_INVALIDATION_SUBJECT`   | Cache invalidation subject the ingress subscribes to.          | `bagel.cache.invalidate.status`               |
+| `NATS_CACHE_INVALIDATION_SUBJECT`   | Cache invalidation subject the ingress subscribes to.          | `cache.invalidate.status`               |
 | `BROADCASTER_CACHE_TTL_SECONDS`     | Status cache TTL.                                              | `300`                                         |
 | `INGRESS_SQUASH_PARTITIONS`         | Independent duplicate-cohort owners.                           | Online scheduler count                        |
 | `INGRESS_DISPATCHER_MAX_RUNNING`    | Direct-dispatch worker ceiling; also part of admission capacity. | `512`                                         |

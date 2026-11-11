@@ -84,12 +84,12 @@ func TestSongQueueRPCFailuresReplyWithChatKeys(t *testing.T) {
 	for _, tc := range songQueueFailureCases {
 		t.Run(tc.endpoint, func(t *testing.T) {
 			failure := fmt.Errorf("gossip call: %w", bus.RPCReplyError{
-				Subject: "bagel.rpc.gossip.spotify." + tc.endpoint,
+				Subject: "rpc.gossip.spotify." + tc.endpoint,
 				Message: tc.reason,
 			})
 			text := songQueueFailureReply(t, tc, songQueueFailureGossip(tc, failure))
 			assert.Equal(t, tc.want, text)
-			assert.NotContains(t, text, "bagel.rpc")
+			assert.NotContains(t, text, "rpc.")
 		})
 	}
 }
@@ -107,7 +107,7 @@ func TestSongQueueTransportErrorsStayGeneric(t *testing.T) {
 
 func checkSongQueueSensitiveError(t *testing.T, tc songQueueFailureCase, sensitive string) {
 	t.Helper()
-	failure := bus.RPCReplyError{Subject: "bagel.rpc.gossip.spotify." + tc.endpoint, Message: sensitive}
+	failure := bus.RPCReplyError{Subject: "rpc.gossip.spotify." + tc.endpoint, Message: sensitive}
 	base := srSearchGossip(srTrack("t1", "Human", "The Killers"))
 	base.replies["spotify."+tc.endpoint] = map[string]string{"error": sensitive}
 	for _, g := range []engine.GossipCaller{songQueueFailureGossip(tc, failure), base} {
@@ -115,7 +115,7 @@ func checkSongQueueSensitiveError(t *testing.T, tc songQueueFailureCase, sensiti
 		assert.Contains(t, text, "music lookup is down")
 		assert.NotContains(t, text, sensitive)
 		assert.NotContains(t, text, "private-")
-		assert.NotContains(t, text, "bagel.rpc")
+		assert.NotContains(t, text, "rpc.")
 		assert.NotContains(t, text, "internal.example")
 	}
 }
@@ -138,7 +138,7 @@ func TestSongQueueHiddenSpotifyFailuresAreLogged(t *testing.T) {
 	const sensitive = "client_secret=private-secret"
 	for _, tc := range songQueueFailureCases {
 		t.Run(tc.endpoint, func(t *testing.T) {
-			failure := bus.RPCReplyError{Subject: "bagel.rpc.gossip.spotify." + tc.endpoint, Message: sensitive}
+			failure := bus.RPCReplyError{Subject: "rpc.gossip.spotify." + tc.endpoint, Message: sensitive}
 			base := srSearchGossip(srTrack("t1", "Human", "The Killers"))
 			base.replies["spotify."+tc.endpoint] = map[string]string{"error": sensitive}
 			for _, g := range []engine.GossipCaller{songQueueFailureGossip(tc, failure), base} {

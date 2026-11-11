@@ -53,8 +53,8 @@ var OutgressSystemStream = StreamSpec{
 	Replicas:     3,
 }
 
-var BagelDataStream = StreamSpec{
-	Name:         "BAGEL_DATA",
+var DataStream = StreamSpec{
+	Name:         "DATA",
 	Subjects:     []string{"data.>"},
 	MaxAge:       5 * time.Minute,
 	MaxBytes:     512 << 20,
@@ -64,8 +64,8 @@ var BagelDataStream = StreamSpec{
 }
 
 // Loyalty's counter batch receipts must outlive MaxAge, or a replayed letter double counts.
-var BagelDeadLetterStream = StreamSpec{
-	Name:       "BAGEL_DLQ",
+var DataDeadLetterStream = StreamSpec{
+	Name:       "DATA_DLQ",
 	Subjects:   []string{DeadLetterPrefix + ">"},
 	MaxAge:     7 * 24 * time.Hour,
 	MaxBytes:   256 << 20,
@@ -148,7 +148,7 @@ var YouTubeIngressStream = StreamSpec{
 
 // TwitchIngressStream must precede TwitchIngressStandardStream, or the create is refused.
 var DataStreams = []StreamSpec{
-	BagelDataStream,
+	DataStream,
 	TwitchIngressStream,
 	TwitchIngressStandardStream,
 	TwitchIngressRetryStream,
@@ -207,7 +207,7 @@ func streamForTopic(topic string) (string, error) {
 
 func resolveStreamForTopic(topic string) (string, error) {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
-	specs = append(specs, BagelDataStream)
+	specs = append(specs, DataStream)
 	specs = append(specs, IngressLaneSpecs()...)
 	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
 		YouTubeOutgressStream, YouTubeIngressStream)

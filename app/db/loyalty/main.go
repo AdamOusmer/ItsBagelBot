@@ -178,7 +178,7 @@ func main() {
 	log := core.Log
 	shutdown := shutdownContext(core.Ctx, shutdownBudget)
 
-	driver := databoot.MustEntDriver(core, "bagel_loyalty")
+	driver := databoot.MustEntDriver(core)
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 

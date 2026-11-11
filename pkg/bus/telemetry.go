@@ -23,10 +23,10 @@ const (
 	queueMillisAttribute          = "messaging.queue_ms"
 	sampledAttribute              = "sampled"
 	resultAttribute               = "result"
-	rpcDestinationPrefix          = "bagel.rpc."
+	rpcDestinationPrefix          = "rpc."
 	ingressDestinationPrefix      = "twitch.ingress.event."
 	outgressDestinationPrefix     = "twitch.outgress."
-	cacheDestinationPrefix        = "bagel.cache.invalidate"
+	cacheDestinationPrefix        = "cache.invalidate"
 	clipDestinationPrefix         = "data.twitch.clip."
 	usersDestinationPrefix        = "data.users."
 )
@@ -230,7 +230,7 @@ const (
 
 	laneTelemetryInterval = 5 * time.Second
 
-	laneTelemetryEventType = "BagelBusConsume"
+	laneTelemetryEventType = "BusConsume"
 )
 
 type laneStats struct {

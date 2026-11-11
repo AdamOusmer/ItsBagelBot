@@ -395,7 +395,7 @@ spec:
       app: twitch-ingress
 # No twitch-ingress-status Service: the health surface collapsed to six
 # vertical endpoints, and Twitch's is health.itsbagelbot.com/twitch on sesame,
-# which folds this service in over bagel.rpc.health.ingress. Nothing dials this
+# which folds this service in over rpc.health.ingress. Nothing dials this
 # pod's /status by service name any more, so the Service was removed.
 #
 # The listener itself stays: kubelet still probes /healthz and /readyz on the

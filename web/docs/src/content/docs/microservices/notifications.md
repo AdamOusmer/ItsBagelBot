@@ -12,9 +12,9 @@ RPCs serve dashboard notifications and administrative announcement operations. O
 
 ## Interfaces
 
-User operations use `bagel.rpc.notifications.*`; administrative operations use `bagel.rpc.admin.notifications.*`.
+User operations use `rpc.notifications.*`; administrative operations use `rpc.admin.notifications.*`.
 
-`bagel.rpc.notifications.*` lists and marks notifications; `bagel.rpc.admin.notifications.*` sends, lists and deletes them. Request IDs make repeated creates return the existing row. Broadcast and per-user expiry have distinct roles; marking one user’s notification read does not delete the broadcast. Cleanup uses an internal RPC.
+`rpc.notifications.*` lists and marks notifications; `rpc.admin.notifications.*` sends, lists and deletes them. Request IDs make repeated creates return the existing row. Broadcast and per-user expiry have distinct roles; marking one user’s notification read does not delete the broadcast. Cleanup uses an internal RPC.
 
 ## State and dependencies
 

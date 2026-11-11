@@ -32,7 +32,7 @@ mock.module('@bagel/kit/server/rate-limit', () => ({
 const { fabric, SUB } = await import('./services');
 const { flowShareActions } = await import('./flow-share');
 
-const AUTO = 'bagel.rpc.modules.automation';
+const AUTO = 'rpc.modules.automation';
 const AUDIT = `${SUB.audit}.append`;
 const actions = flowShareActions({ flowPreview: (flow: Flow) => ({ steps: flow.nodes.length }) });
 
@@ -82,10 +82,10 @@ const moduleRows = (userId: string) =>
 
 function stubChannels() {
   const byUser = (rows: (id: string) => unknown[], key: string) => (body: any) => ({ [key]: rows(String(body.user_id)) });
-  replies['bagel.rpc.commands.list'] = byUser(commandRows, 'commands');
-  replies['bagel.rpc.projector.dashboard.commands.get'] = byUser(commandRows, 'commands');
-  replies['bagel.rpc.modules.list'] = byUser(moduleRows, 'modules');
-  replies['bagel.rpc.projector.dashboard.modules.get'] = byUser(moduleRows, 'modules');
+  replies['rpc.commands.list'] = byUser(commandRows, 'commands');
+  replies['rpc.projector.dashboard.commands.get'] = byUser(commandRows, 'commands');
+  replies['rpc.modules.list'] = byUser(moduleRows, 'modules');
+  replies['rpc.projector.dashboard.modules.get'] = byUser(moduleRows, 'modules');
   replies[`${AUTO}.list`] = (body: any) => ({ automations: String(body.user_id) === '7' ? [mine] : [theirs] });
   replies[AUDIT] = {};
   replies[`${SUB.dashboard}.state_get`] = { status: 'paid' };
@@ -136,7 +136,7 @@ describe('what reaches an exported file', () => {
 
   test('nothing is read outside the three stores an export needs', async () => {
     await post('flowExport', withKeys(...ALL_OWN), { user_id: '7' });
-    const allowed = [`${AUTO}.list`, 'bagel.rpc.commands.list', 'bagel.rpc.projector.dashboard.commands.get', 'bagel.rpc.modules.list', 'bagel.rpc.projector.dashboard.modules.get'];
+    const allowed = [`${AUTO}.list`, 'rpc.commands.list', 'rpc.projector.dashboard.commands.get', 'rpc.modules.list', 'rpc.projector.dashboard.modules.get'];
     expect(calls.map((call) => call.subject).filter((subject) => !allowed.includes(subject))).toEqual([]);
   });
 });

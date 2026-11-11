@@ -10,7 +10,7 @@ await import('../../../lib/server/action-errors');
 const fake = await installAutomationsRpcFake();
 const { actions, load } = await import('./+page.server');
 
-const MOD = 'bagel.rpc.modules.automation';
+const MOD = 'rpc.modules.automation';
 const manual = { version: 1, trigger: { type: 'manual', params: {} }, actions: [] };
 const stored = { id: 'a1', user_id: 7, name: 'Hello', enabled: true, revision: 4, definition: manual };
 const session = { user_id: '7' };
@@ -85,13 +85,13 @@ describe('automations list actions', () => {
   });
 
   test('run asks Sesame to run the named automation as the dashboard', async () => {
-    fake.replies['bagel.rpc.automations.run'] = { accepted: true, run_id: 'r1' };
+    fake.replies['rpc.automations.run'] = { accepted: true, run_id: 'r1' };
     expect(await post('run', { name: 'Hello' })).toEqual({ ok: true });
     expect(fake.calls[0].body).toMatchObject({ broadcaster_id: '7', name: 'Hello', source: 'dashboard' });
   });
 
   test('run surfaces the refusal code', async () => {
-    fake.replies['bagel.rpc.automations.run'] = { accepted: false, code: 'forbidden' };
+    fake.replies['rpc.automations.run'] = { accepted: false, code: 'forbidden' };
     expect(await post('run', { name: 'Hello' })).toMatchObject({ data: { ok: false, code: 'forbidden' } });
   });
 

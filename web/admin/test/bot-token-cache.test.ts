@@ -24,16 +24,16 @@ const { botTokenSet, tokenStatus } = await import('../src/lib/server/services');
 describe('bot token re-authorization', () => {
   test('refreshes the cached token status the overview reads', async () => {
     const bot = { actorId: 'bot', userId: 'bot' };
-    replies['bagel.rpc.admin.user.token_status'] = { token: { present: false } };
+    replies['rpc.admin.user.token_status'] = { token: { present: false } };
     expect(await tokenStatus(bot)).toEqual({ present: false });
 
-    replies['bagel.rpc.admin.user.bot_token_set'] = { token: { present: true } };
+    replies['rpc.admin.user.bot_token_set'] = { token: { present: true } };
     await botTokenSet(bot, { accessToken: 'access-token', refreshToken: 'refresh-token' });
 
     expect(await tokenStatus(bot)).toEqual({ present: true });
     expect(calls.map((c) => c.subject)).toEqual([
-      'bagel.rpc.admin.user.token_status',
-      'bagel.rpc.admin.user.bot_token_set'
+      'rpc.admin.user.token_status',
+      'rpc.admin.user.bot_token_set'
     ]);
     expect(calls[1].payload).toEqual({
       actor_id: 'bot',

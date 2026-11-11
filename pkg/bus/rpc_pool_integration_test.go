@@ -14,7 +14,7 @@ import (
 
 func TestQueueSubscribeRPCConcurrentIntegration(t *testing.T) {
 	nc := dialIntegrationBroker(t)
-	subject := "bagel.rpc.pooltest." + nuid.Next()
+	subject := "rpc.pooltest." + nuid.Next()
 	probe := newOverlapProbe(4)
 
 	registration := RPCSubscription{

@@ -47,7 +47,7 @@ func requestPermit(t *testing.T, nc *nats.Conn, subject string, request BorrowRe
 }
 
 func TestPermitServiceGrantsPeerLeasesAndDedupesRetries(t *testing.T) {
-	const donorSubject = "bagel.outgress.permit.v2.local.pod-b"
+	const donorSubject = "outgress.permit.v2.local.pod-b"
 	members := []Member{{PodID: "pod-a", Region: "local"}, {PodID: "pod-b", Region: "local"}}
 	request := peerShareRequest(t, members)
 	request.RequestID = "req-1"

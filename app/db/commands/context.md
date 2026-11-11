@@ -6,7 +6,7 @@ and [app map](../../../CONTEXT-MAP.md) for terms and neighboring owners.
 ## Responsibility and boundaries
 
 Owns custom chat command rows, command-use totals, named URL-fetch definitions,
-and sealed fetch API keys in MySQL schema `bagel_commands`.
+and sealed fetch API keys in the MySQL schema selected by `DB_SCHEMA`.
 This service stores definitions; Sesame executes chat commands, Gossip performs
 external fetches, and Projector builds the shared read projection.
 Public commands-page visibility belongs to Users; hiding that page does not
@@ -56,7 +56,7 @@ The rest of `ent/` is generated; edit schema sources and regenerate.
 
 ## Flow and contracts
 
-- Dashboard requests default to `bagel.rpc.commands.*`; user guards parse the
+- Dashboard requests default to `rpc.commands.*`; user guards parse the
   owner ID before repository work.
 - Ordinary command upserts validate and coalesce in a 2-second / 256-item
   write-behind window. Success means accepted; events describe committed state.
@@ -67,9 +67,9 @@ The rest of `ent/` is generated; edit schema sources and regenerate.
   Legacy messages fall back to transport UUID when DTO BatchID is absent.
 - Command/fetch change broadcasts invalidate every instance's local cached list.
   Grouped user-deletion events sweep commands, fetch definitions and sealed keys.
-- Default repair subjects are `bagel.rpc.internal.projection.commands.get` and
-  `bagel.rpc.internal.projection.commands.fetches.get`; key reads use
-  `bagel.rpc.internal.commands.fetchkey.get`. `main.go` lists environment overrides.
+- Default repair subjects are `rpc.internal.projection.commands.get` and
+  `rpc.internal.projection.commands.fetches.get`; key reads use
+  `rpc.internal.commands.fetchkey.get`. `main.go` lists environment overrides.
 
 ## Invariants and pitfalls
 

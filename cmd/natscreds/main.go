@@ -18,6 +18,7 @@ type Config struct {
 	OperatorJWTPath string
 	PreloadPath     string
 	DryRun          bool
+	PreloadOnly     bool
 	Rotate          string
 }
 
@@ -35,6 +36,7 @@ func parseFlags() Config {
 	operatorJWT := flag.String("operator-jwt", "deploy/messaging/operator.jwt", "path to write the operator jwt")
 	preload := flag.String("preload", "deploy/messaging/nats-accounts.conf", "path to write signed account jwts as resolver_preload")
 	dryRun := flag.Bool("dry-run", false, "print planned doppler writes (names and actions only); changes nothing")
+	preloadOnly := flag.Bool("preload-only", false, "compile and sign only the public preload using existing keys; never write Doppler or mint credentials")
 	rotate := flag.String("rotate", "", `re-mint one role's user credentials by name, or "all" for every role; never rotates keys`)
 	flag.Parse()
 	return Config{
@@ -43,6 +45,7 @@ func parseFlags() Config {
 		OperatorJWTPath: *operatorJWT,
 		PreloadPath:     *preload,
 		DryRun:          *dryRun,
+		PreloadOnly:     *preloadOnly,
 		Rotate:          *rotate,
 	}
 }
@@ -51,6 +54,9 @@ func execute(cfg Config, store Doppler, stdout io.Writer) error {
 	acl, err := natsacl.LoadACL(cfg.AccountsPath)
 	if err != nil {
 		return err
+	}
+	if cfg.PreloadOnly {
+		return runPreloadOnly(cfg, acl, store, stdout)
 	}
 	if cfg.DryRun {
 		return runDryRun(cfg, acl, store, stdout)

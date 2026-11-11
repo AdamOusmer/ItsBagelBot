@@ -26,7 +26,7 @@ func TestEndpointHandlerUsesRegisteredIdentityAndLeavesReplyTime(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { app.Shutdown(time.Second) })
-	txn := app.StartTransaction("rpc bagel.rpc.gossip")
+	txn := app.StartTransaction("rpc rpc.gossip")
 	defer txn.End()
 	ctx, cancel := context.WithTimeout(newrelic.NewContext(context.Background(), txn), time.Second)
 	defer cancel()
@@ -56,13 +56,13 @@ func TestEndpointHandlerRejectsInvalidRequestsBeforeFetching(t *testing.T) {
 		called = true
 		return nil
 	}}
-	endpoint := serverEndpoint{provider: "fortnite", subject: "bagel.rpc.gossip.fortnite.stats", spec: ep, log: zap.NewNop()}
+	endpoint := serverEndpoint{provider: "fortnite", subject: "rpc.gossip.fortnite.stats", spec: ep, log: zap.NewNop()}
 	endpoint.handle(context.Background(), &nats.Msg{Data: []byte(`{"account":`)})
 	assert.False(t, called)
 }
 
 func TestUnencodableReplyBecomesAnInternalFailure(t *testing.T) {
-	body := encode("bagel.rpc.gossip.fortnite.stats", func() {}, zap.NewNop())
+	body := encode("rpc.gossip.fortnite.stats", func() {}, zap.NewNop())
 	assert.JSONEq(t, `{"error":"internal error"}`, string(body))
 	assert.Equal(t, "internal_error", core.ReplyOutcome(context.Background(), body))
 }

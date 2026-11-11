@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	AdminPrefix          = "bagel.rpc.admin.giveaways"
-	MineSubject          = "bagel.rpc.transactions.giveaways.mine"
-	UsersPoolSubject     = "bagel.rpc.internal.users.giveaway.pool"
-	UsersCoverageSubject = "bagel.rpc.internal.users.giveaway.coverage"
-	UsersPrepareSubject  = "bagel.rpc.internal.users.giveaway.prepare"
-	UsersCommitSubject   = "bagel.rpc.internal.users.giveaway.commit"
-	UsersCancelSubject   = "bagel.rpc.internal.users.giveaway.cancel"
+	AdminPrefix          = "rpc.admin.giveaways"
+	MineSubject          = "rpc.transactions.giveaways.mine"
+	UsersPoolSubject     = "rpc.internal.users.giveaway.pool"
+	UsersCoverageSubject = "rpc.internal.users.giveaway.coverage"
+	UsersPrepareSubject  = "rpc.internal.users.giveaway.prepare"
+	UsersCommitSubject   = "rpc.internal.users.giveaway.commit"
+	UsersCancelSubject   = "rpc.internal.users.giveaway.cancel"
 	VerbCreate           = "create"
 	VerbList             = "list"
 	VerbPreview          = "preview"

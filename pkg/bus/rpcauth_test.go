@@ -21,9 +21,9 @@ func claimMessage(t *testing.T, claim *UserClaim) *nats.Msg {
 	claim.Nonce = nuid.Next()
 	value, sig, err := SignUserClaim(claim, webTierKey)
 	require.NoError(t, err)
-	msg := nats.NewMsg("bagel.rpc.delegation.create")
-	msg.Header.Set(HeaderUserClaim, value)
-	msg.Header.Set(HeaderUserClaimSig, sig)
+	msg := nats.NewMsg("rpc.delegation.create")
+	msg.Header.Set("Rpc-User-Claim", value)
+	msg.Header.Set("Rpc-User-Claim-Signature", sig)
 	return msg
 }
 
@@ -38,8 +38,9 @@ func TestUserClaimRoundTripRejectsReplayAndForgery(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, [2]string{"42", "ave"}, [2]string{got.UserID, got.Login})
-	assert.Error(t, replayErr, "a replayed claim must be rejected")
-	assert.Error(t, forgedErr, "a forged claim must be rejected")
+	for name, rejected := range map[string]error{"replay": replayErr, "forgery": forgedErr} {
+		t.Run(name, func(t *testing.T) { assert.Error(t, rejected) })
+	}
 }
 
 func TestVerifyUserClaimRejectsMissingAndStale(t *testing.T) {
