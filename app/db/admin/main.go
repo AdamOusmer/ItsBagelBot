@@ -30,7 +30,7 @@ const (
 func main() {
 	core, done := svcboot.NewCore(serviceName)
 	defer done()
-	driver := databoot.MustEntDriver(core, "bagel_admin")
+	driver := databoot.MustEntDriver(core)
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 	databoot.AutoMigrate(core.Ctx, core.Log, func(ctx context.Context) error { return client.Schema.Create(ctx) })

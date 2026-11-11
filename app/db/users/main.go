@@ -131,7 +131,7 @@ func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *c
 
 	packer := crypto.MustFromEnv(log)
 
-	driver := databoot.MustEntDriver(core, "bagel_users")
+	driver := databoot.MustEntDriver(core)
 	client := ent.NewClient(ent.Driver(driver))
 	databoot.AutoMigrate(ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 	return client, driver.DB(), packer

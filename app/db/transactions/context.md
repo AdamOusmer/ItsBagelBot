@@ -6,7 +6,7 @@ and [app map](../../../CONTEXT-MAP.md), especially Premium versus Tebex subscrip
 ## Responsibility and boundaries
 
 Owns verified Tebex webhook audit records, checkout coordination and the durable
-giveaway workflow in `bagel_transactions`. Tebex is merchant of record; this app
+giveaway workflow in the MySQL schema selected by `DB_SCHEMA`. Tebex is merchant of record; this app
 does not hold the payment ledger. Users owns billing/access application, account
 eligibility and promotional Premium grants. This service reaches Users through
 RPC and never opens Users' database. Notifications stores in-app notices; Resend

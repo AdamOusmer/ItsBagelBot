@@ -47,7 +47,7 @@ func newMySQLDeviceHarness(t *testing.T, prefix string) (*ent.Client, *repositor
 // authorization code mints exactly one grant under real concurrent exchange,
 // with every other racer reported as a replay.
 func TestDeviceAuthMySQLConcurrentCodeExchangeNoDoubleSpend(t *testing.T) {
-	client, repo := newMySQLDeviceHarness(t, "bagel_device_exchange_")
+	client, repo := newMySQLDeviceHarness(t, "users_device_exchange_")
 	ctx := t.Context()
 	require.NoError(t, repo.Register(ctx, 6001, "racer", "Racer", "racer@example.invalid"))
 
@@ -91,7 +91,7 @@ func TestDeviceAuthMySQLConcurrentCodeExchangeNoDoubleSpend(t *testing.T) {
 // same still-current refresh token concurrently rotates exactly once; every
 // other racer lands in the grace window and the grant stays usable.
 func TestDeviceAuthMySQLConcurrentRefreshNoDoubleSpend(t *testing.T) {
-	client, repo := newMySQLDeviceHarness(t, "bagel_device_refresh_")
+	client, repo := newMySQLDeviceHarness(t, "users_device_refresh_")
 	ctx := t.Context()
 	require.NoError(t, repo.Register(ctx, 6002, "racer2", "Racer2", "racer2@example.invalid"))
 

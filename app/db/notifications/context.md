@@ -6,7 +6,7 @@ and [app map](../../../CONTEXT-MAP.md).
 ## Responsibility and boundaries
 
 Owns dashboard in-app notifications, their per-user acknowledgments and expiry
-in `bagel_notifications`. It serves request/reply only, with no JetStream event
+in the MySQL schema selected by `DB_SCHEMA`. It serves request/reply only, with no JetStream event
 consumers. Email delivery belongs to callers such as Transactions, not this app.
 The console owns display and session authorization; RPC contracts and NATS access
 boundaries define who can invoke the admin/user surfaces.

@@ -70,7 +70,7 @@ func (w balanceWriter) run(errs chan<- error) {
 }
 
 func TestBalanceMySQLReplicasPostOtherChannelsWithoutLockConflicts(t *testing.T) {
-	raw := testdb.MySQL(t, "bagel_balance_")
+	raw := testdb.MySQL(t, "loyalty_balance_")
 	replicas := make([]*Loyalty, balanceReplicas)
 	for i := range replicas {
 		replicas[i] = mysqlReplica(t, raw)

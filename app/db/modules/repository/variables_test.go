@@ -45,7 +45,7 @@ func sqliteStateRepo(t *testing.T) (*repository.RecipeState, *sql.DB) {
 
 func mysqlStateRepo(t *testing.T) (*repository.RecipeState, *sql.DB) {
 	t.Helper()
-	raw := testdb.MySQL(t, "bagel_recipe_state_")
+	raw := testdb.MySQL(t, "modules_recipe_state_")
 	return stateRepoOn(t, raw, "mysql"), raw
 }
 

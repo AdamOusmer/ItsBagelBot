@@ -245,7 +245,7 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
       label: id.charAt(0).toUpperCase() + id.slice(1),
       project: id,
       config: 'prd',
-      schema: `bagel_${id}`,
+      schema: id,
       expectedUserPrefix: `${id.replace(/-/g, '_')}_svc`,
       dbUser: `${id.replace(/-/g, '_')}_svc_r1demo00`,
       autoMigrate: 'false',

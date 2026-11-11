@@ -6,7 +6,7 @@ and [app map](../../../CONTEXT-MAP.md), especially account activity and Premium.
 ## Responsibility and boundaries
 
 Owns registered broadcaster identity, bot-enable state, preferences, Twitch token
-custody, contact email, effective access, promotional grants and dashboard delegation in `bagel_users`. It provisions the shared `BAGEL_DATA`
+custody, contact email, effective access, promotional grants and dashboard delegation in the MySQL schema selected by `DB_SCHEMA`. It provisions the shared `BAGEL_DATA`
 stream and `BAGEL_DLQ`; Sesame owns Twitch ingress streams. Transactions owns provider HTTP calls
 and giveaway campaigns/draws, while Users owns authoritative eligibility/access.
 Admin owns staff membership, audit history and aggregate analytics in its own schema.

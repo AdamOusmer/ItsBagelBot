@@ -1,7 +1,7 @@
 # Admin data service
 
 Owns staff membership, staff audit history, aggregate analytics rollups and annual
-analytics snapshots in `bagel_admin`. The [admin console](../../../web/admin/context.md)
+analytics snapshots in the MySQL schema selected by `DB_SCHEMA`. The [admin console](../../../web/admin/context.md)
 provides the interface. Users owns broadcaster accounts and customer mutations;
 Transactions owns billing-provider operations and giveaways.
 

@@ -6,7 +6,7 @@ and [app map](../../../CONTEXT-MAP.md).
 ## Responsibility and boundaries
 
 Owns channel/viewer point standings, lifetime watch seconds, named counter
-definitions and buckets in `bagel_loyalty`. It persists decisions made by
+definitions and buckets in the MySQL schema selected by `DB_SCHEMA`. It persists decisions made by
 Sesame/watchtime producers; it does not decide whether a viewer was watching.
 Loyalty module enablement/configuration belongs to Modules, account identity to
 Users. The service consumes deltas and watch awards and exposes direct SQL-backed

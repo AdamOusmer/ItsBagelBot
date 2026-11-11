@@ -16,12 +16,12 @@ import (
 	"ItsBagelBot/pkg/svcboot"
 )
 
-func MustEntDriver(core svcboot.Core, defaultSchema string) *entsql.Driver {
+func MustEntDriver(core svcboot.Core) *entsql.Driver {
 	driver, err := db.NewDriver(db.Config{
 		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
 		Username: env.MustGet("DB_USER"),
 		Password: env.MustGet("DB_PASS"),
-		Schema:   env.Get("DB_SCHEMA", defaultSchema),
+		Schema:   env.MustGet("DB_SCHEMA"),
 		Monitor:  core.NR,
 	})
 	svcboot.FatalIf(core.Log, err, "failed to open database")

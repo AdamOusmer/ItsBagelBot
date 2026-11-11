@@ -49,7 +49,7 @@ func main() {
 	defer done()
 	log := core.Log
 
-	driver := databoot.MustEntDriver(core, "bagel_modules")
+	driver := databoot.MustEntDriver(core)
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 

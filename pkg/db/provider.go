@@ -103,7 +103,7 @@ func newMySQLConfig(cfg Config) *mysql.Config {
 	return mc
 }
 
-const tlsConfigName = "bagel-mysql"
+const tlsConfigName = "service-mysql"
 
 const tlsSessionCacheSize = 64
 

@@ -7,7 +7,7 @@ and [app map](../../../CONTEXT-MAP.md).
 
 Owns broadcaster module enablement/config JSON, channel quote books, lifetime
 personality feed tallies, recipe variables, named countdowns, recipe cooldown windows over one day,
-and sealed Govee/Spotify credentials in `bagel_modules`.
+and sealed Govee/Spotify credentials in the MySQL schema selected by `DB_SCHEMA`.
 Sesame implements module behavior, Gossip contacts external integrations, and
 Projector maintains the shared configuration projection.
 Loyalty module configuration lives here, but balances/counters live in Loyalty.

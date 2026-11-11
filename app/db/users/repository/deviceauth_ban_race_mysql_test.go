@@ -20,7 +20,7 @@ const banRaceVerifier = "banrace0123456789abcdefghijklmnopqrstuvwxyz"
 // A redemption already past its ban check must not leave a live grant behind
 // the ban: the ban waits on the owner row, then its revoke sweep catches it.
 func TestDeviceAuthMySQLBanDuringRedemptionRevokesNewGrant(t *testing.T) {
-	client, repo := newMySQLDeviceHarness(t, "bagel_device_ban_race_")
+	client, repo := newMySQLDeviceHarness(t, "users_device_ban_race_")
 	ctx := t.Context()
 	require.NoError(t, repo.Register(ctx, 6101, "banrace", "BanRace", "banrace@example.invalid"))
 

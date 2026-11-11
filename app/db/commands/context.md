@@ -6,7 +6,7 @@ and [app map](../../../CONTEXT-MAP.md) for terms and neighboring owners.
 ## Responsibility and boundaries
 
 Owns custom chat command rows, command-use totals, named URL-fetch definitions,
-and sealed fetch API keys in MySQL schema `bagel_commands`.
+and sealed fetch API keys in the MySQL schema selected by `DB_SCHEMA`.
 This service stores definitions; Sesame executes chat commands, Gossip performs
 external fetches, and Projector builds the shared read projection.
 Public commands-page visibility belongs to Users; hiding that page does not
