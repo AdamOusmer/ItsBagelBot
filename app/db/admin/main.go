@@ -35,18 +35,17 @@ func main() {
 	defer func() { _ = client.Close() }()
 	databoot.AutoMigrate(core.Ctx, core.Log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
-	n, closeIntake := svcboot.MustNATS(core)
-	defer func() { _ = n.Pub.Close() }()
-	defer closeIntake()
+	nc := svcboot.MustRPCConn(core, core.NATSRPCURL)
+	defer nc.Close()
 	vc := svcboot.MustValkey(core)
 	repo := repository.New(client)
-	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: core.Log}, Repo: repo}
+	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: core.Log}, Repo: repo}
 	subscribe(w, client)
 	seedStaff(core, client)
 	go rollupAnalytics(core.Ctx, rollup.New(vc, repo), core.Log)
 
 	databoot.ServeHealth(databoot.Health{
-		Health: svcboot.Health{Log: core.Log, NC: n.RPC, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr},
+		Health: svcboot.Health{Log: core.Log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr},
 		Pool:   driver.DB(),
 	})
 	core.Log.Info("admin service ready")

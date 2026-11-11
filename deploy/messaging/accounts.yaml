@@ -118,13 +118,6 @@ accounts:
             cluster_traffic: owner
         mappings: hub-domain
         roles:
-            admin_service_bus:
-                publish:
-                    deny:
-                        - ">"
-                subscribe:
-                    allow:
-                        - _INBOX.>
             admin_bus:
                 publish:
                     allow:

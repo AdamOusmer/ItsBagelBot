@@ -24,7 +24,7 @@ const realAccountsYAML = "../../deploy/messaging/accounts.yaml"
 
 const (
 	wantAccounts  = 16
-	wantRoles     = 27
+	wantRoles     = 26
 	wantKeySeeds  = 2 + wantAccounts + wantRoles
 	wantRoleCreds = wantRoles - 1
 )
