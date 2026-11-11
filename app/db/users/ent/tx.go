@@ -12,12 +12,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
-	// AdminAudit is the client for interacting with the AdminAudit builders.
-	AdminAudit *AdminAuditClient
-	// AdminUser is the client for interacting with the AdminUser builders.
-	AdminUser *AdminUserClient
-	// AnalyticsRollup is the client for interacting with the AnalyticsRollup builders.
-	AnalyticsRollup *AnalyticsRollupClient
+	// AdminAuditDelivery is the client for interacting with the AdminAuditDelivery builders.
+	AdminAuditDelivery *AdminAuditDeliveryClient
 	// AuthorizationCode is the client for interacting with the AuthorizationCode builders.
 	AuthorizationCode *AuthorizationCodeClient
 	// Delegation is the client for interacting with the Delegation builders.
@@ -163,9 +159,7 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
-	tx.AdminAudit = NewAdminAuditClient(tx.config)
-	tx.AdminUser = NewAdminUserClient(tx.config)
-	tx.AnalyticsRollup = NewAnalyticsRollupClient(tx.config)
+	tx.AdminAuditDelivery = NewAdminAuditDeliveryClient(tx.config)
 	tx.AuthorizationCode = NewAuthorizationCodeClient(tx.config)
 	tx.Delegation = NewDelegationClient(tx.config)
 	tx.DeviceGrant = NewDeviceGrantClient(tx.config)
@@ -182,7 +176,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: AdminAudit.QueryXXX(), the query will be executed
+// applies a query, for example: AdminAuditDelivery.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
+	"ItsBagelBot/internal/adminauth"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
@@ -54,7 +54,7 @@ func oldestFirst(from, to int) []string {
 func moderatorHarness(t *testing.T) harness {
 	t.Helper()
 	h := newHarness(t)
-	h.staff(staffFixture{modActor, adminuser.RoleModerator, true})
+	h.staff(staffFixture{modActor, adminauth.Moderator, true})
 	return h
 }
 
@@ -221,9 +221,9 @@ func TestAdminEnrollmentWindow(t *testing.T) {
 func TestAdminVerbsRequireTheirMinimumRole(t *testing.T) {
 	h := newHarness(t)
 	h.staff(
-		staffFixture{modActor, adminuser.RoleModerator, true},
-		staffFixture{adminActor, adminuser.RoleAdmin, true},
-		staffFixture{ownerActor, adminuser.RoleOwner, true},
+		staffFixture{modActor, adminauth.Moderator, true},
+		staffFixture{adminActor, adminauth.Admin, true},
+		staffFixture{ownerActor, adminauth.Owner, true},
 	)
 	actors := []uint64{modActor, adminActor, ownerActor}
 
@@ -254,8 +254,8 @@ func TestAdminVerbsRequireTheirMinimumRole(t *testing.T) {
 func TestAdminGuardRefusesUnidentifiedActors(t *testing.T) {
 	h := newHarness(t)
 	h.staff(
-		staffFixture{modActor, adminuser.RoleModerator, true},
-		staffFixture{inactiveMod, adminuser.RoleModerator, false},
+		staffFixture{modActor, adminauth.Moderator, true},
+		staffFixture{inactiveMod, adminauth.Moderator, false},
 	)
 
 	for _, tc := range []struct {

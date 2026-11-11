@@ -6,14 +6,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
-// AdminAudit is the predicate function for adminaudit builders.
-type AdminAudit func(*sql.Selector)
-
-// AdminUser is the predicate function for adminuser builders.
-type AdminUser func(*sql.Selector)
-
-// AnalyticsRollup is the predicate function for analyticsrollup builders.
-type AnalyticsRollup func(*sql.Selector)
+// AdminAuditDelivery is the predicate function for adminauditdelivery builders.
+type AdminAuditDelivery func(*sql.Selector)
 
 // AuthorizationCode is the predicate function for authorizationcode builders.
 type AuthorizationCode func(*sql.Selector)

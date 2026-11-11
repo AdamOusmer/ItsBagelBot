@@ -7,16 +7,17 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/users/ent"
-	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/enttest"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/app/db/users/rpc"
+	"ItsBagelBot/internal/adminauth"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/internal/testnats"
@@ -39,8 +40,9 @@ const (
 )
 
 type harness struct {
-	nc     *nats.Conn
-	client *ent.Client
+	nc        *nats.Conn
+	client    *ent.Client
+	staffRows *sync.Map
 }
 
 func newHarness(t *testing.T) harness {
@@ -50,11 +52,22 @@ func newHarness(t *testing.T) harness {
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	nc := testnats.Connect(t)
 	wiring := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo}
-	require.NoError(t, rpc.SubscribeAdmin(wiring, client, rpc.AdminConfig{
-		Prefix: adminPrefix, InternalGetSubject: internalGet, InvalidationPrefix: "admin.invalidate",
+	rows := &sync.Map{}
+	repo.SetAdminAuth(adminauth.New(nc, adminauth.Config{AuthPrefix: authPrefix, AuditPrefix: auditPrefix}))
+	require.NoError(t, rpc.SubscribeAdmin(wiring, rpc.AdminConfig{
+		AuthPrefix: authPrefix,
+		Prefix:     adminPrefix, InternalGetSubject: internalGet, InvalidationPrefix: "admin.invalidate",
 	}))
-	require.NoError(t, rpc.SubscribeAdminAuth(wiring, client, authPrefix, auditPrefix))
-	return harness{nc: nc, client: client}
+	require.NoError(t, bus.Serve(wiring.RPCWiring, authPrefix+".check", func(_ context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
+		id, _ := strconv.ParseUint(req.UserID, 10, 64)
+		value, ok := rows.Load(id)
+		if !ok {
+			return usersrpc.AuthReply{}
+		}
+		actor := value.(staffFixture)
+		return usersrpc.AuthReply{Admin: actor.active, Role: string(actor.role), Login: fmt.Sprintf("staff-%d", actor.id)}
+	}))
+	return harness{nc: nc, client: client, staffRows: rows}
 }
 
 func call[Reply any](t *testing.T, h harness, subject string, req any) Reply {
@@ -74,26 +87,15 @@ func (h harness) admin(t *testing.T, verb string, actor uint64, req usersrpc.Adm
 	return call[usersrpc.AdminReply](t, h, adminPrefix+"."+verb, req)
 }
 
-func (h harness) auth(t *testing.T, verb string, req usersrpc.AuthRequest) usersrpc.AuthReply {
-	t.Helper()
-	return call[usersrpc.AuthReply](t, h, authPrefix+"."+verb, req)
-}
-
-func (h harness) audit(t *testing.T, verb string, req usersrpc.AuthRequest) usersrpc.AuthReply {
-	t.Helper()
-	return call[usersrpc.AuthReply](t, h, auditPrefix+"."+verb, req)
-}
-
 type staffFixture struct {
 	id     uint64
-	role   adminuser.Role
+	role   adminauth.Role
 	active bool
 }
 
 func (h harness) staff(fixtures ...staffFixture) {
 	for _, f := range fixtures {
-		login := fmt.Sprintf("staff-%d", f.id)
-		h.client.AdminUser.Create().SetID(f.id).SetLogin(login).SetDisplayName(login).SetRole(f.role).SetActive(f.active).ExecX(context.Background())
+		h.staffRows.Store(f.id, f)
 	}
 }
 

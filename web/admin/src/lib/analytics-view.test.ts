@@ -229,6 +229,30 @@ describe('windows', () => {
   it('reports the period as formatted dates', () => {
     expect(view.period).toEqual({ start: 'Oct 11, 2026', end: 'Nov 9, 2026' });
   });
+
+  it.each([
+    { days: 1, start: 'Nov 9, 2026', active: [120], signups: 2, delta: 'day' },
+    { days: 7, start: 'Nov 3, 2026', active: [100, 100, 100, 100, 100, 100, 120], signups: 6, delta: 'window' }
+  ])('builds the closed-day window %j', ({ days, start, active, signups, delta }) => {
+    const short = buildAnalytics(reads({
+      days,
+      counters: [
+        ...counters,
+        row('2026-11-02', 'lifecycle', ['signup'], 10),
+        row('2026-11-03', 'lifecycle', ['signup'], 3),
+        row('2026-11-08', 'lifecycle', ['signup'], 1),
+        row('2026-11-09', 'lifecycle', ['signup'], 2),
+        row('2026-11-10', 'lifecycle', ['signup'], 99)
+      ]
+    }));
+    const signupKpi = short.kpis.find((k) => k.key === 'signups');
+    expect({ period: short.period, active: short.engagement.active.values, signups: signupKpi?.value, delta: signupKpi?.delta.key }).toEqual({
+      period: { start, end: 'Nov 9, 2026' },
+      active: [...active],
+      signups: String(signups),
+      delta: `admin.analytics.delta.${delta}`
+    });
+  });
 });
 
 describe('kpis', () => {

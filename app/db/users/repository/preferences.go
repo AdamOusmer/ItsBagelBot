@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
@@ -60,6 +61,24 @@ func (r *Users) queuePref(id uint64, field prefField, w prefWrite) {
 
 func (r *Users) SetCustomCursor(ctx context.Context, id uint64, on bool) error {
 	r.queuePref(id, prefCursor, prefWrite{flag: on})
+	return nil
+}
+
+func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
+	r.queuePref(id, prefLocale, prefWrite{str: locale})
+	return nil
+}
+
+// SetLocaleNow commits interactive language changes before reads and invalidation.
+func (r *Users) SetLocaleNow(ctx context.Context, id uint64, locale string) error {
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLocale(locale) })
+}
+
+func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
+	r.queuePref(id, prefOnboarded, prefWrite{flag: onboarded})
+	if onboarded {
+		r.analytics.Count(catalog.Lifecycle, "onboarded")
+	}
 	return nil
 }
 

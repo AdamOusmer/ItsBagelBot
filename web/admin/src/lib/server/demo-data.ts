@@ -153,6 +153,7 @@ export const sampleFeedBoard: FeedBoard = {
 
 export const sampleHealth: ServiceHealth[] = [
   { id: 'users', label: 'Users', ok: true, ms: 4 },
+  { id: 'admin', label: 'Admin', ok: true, ms: 3 },
   { id: 'commands', label: 'Commands', ok: true, ms: 6 },
   { id: 'modules', label: 'Modules', ok: true, ms: 7 },
   { id: 'loyalty', label: 'Loyalty', ok: true, ms: 9 },

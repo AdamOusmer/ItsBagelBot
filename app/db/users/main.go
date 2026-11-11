@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,9 +14,9 @@ import (
 	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/users/ent/runtime"
 	"ItsBagelBot/app/db/users/repository"
-	"ItsBagelBot/app/db/users/rollup"
 	"ItsBagelBot/app/db/users/rpc"
 	"ItsBagelBot/app/db/users/tokensign"
+	"ItsBagelBot/internal/adminauth"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
@@ -67,6 +66,7 @@ func main() {
 
 	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
 	repo.SetAnalytics(recorder)
+	repo.SetAdminAuth(adminauth.New(n.RPC, adminauth.Config{AuthPrefix: env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", adminauth.DefaultAuthPrefix), AuditPrefix: env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", adminauth.DefaultAuditPrefix)}))
 	repo.SetDeviceAuthSigner(loadDeviceAuthSigner(log))
 	go recorder.ReconcileDaily(ctx, analytics.Owner{Service: serviceName, Owned: ownedAccountLevels(), Seed: repo.AnalyticsSeed})
 	repo.SetInvalidationPrefix(conf.CacheInvalidationPrefix.Get())
@@ -85,13 +85,13 @@ func main() {
 	go expireSubscriptions(ctx, repo, log)
 	go expirePremiumGrants(ctx, repo, log)
 	go cleanupDeviceAuth(ctx, repo, log)
-	go rollupAnalytics(ctx, rollup.New(vc, repo), log)
+	go deliverAdminAudits(ctx, repo, log)
 
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:      repo,
 	}
-	subjects := subscribeRPCs(ctx, wiring, client, log)
+	subjects := subscribeRPCs(wiring, log)
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{
 			Log: log, NC: n.RPC, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
@@ -167,7 +167,7 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 		zap.String("device_prefix", s.device))
 }
 
-func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, log *zap.Logger) rpcSubjects {
+func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 	invalidationPrefix := conf.CacheInvalidationPrefix.Get()
 
 	s := rpcSubjects{
@@ -181,19 +181,15 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
 	adminCfg := rpc.AdminConfig{
+		AuthPrefix:         env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", adminauth.DefaultAuthPrefix),
 		BotUserID:          strings.TrimSpace(env.Get("TWITCH_BOT_USER_ID", "")),
 		Prefix:             s.admin,
 		InternalGetSubject: conf.UsersGetSubject.Get(),
 		InvalidationPrefix: invalidationPrefix,
 	}
-	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, client, adminCfg), "failed to subscribe admin rpc")
+	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, adminCfg), "failed to subscribe admin rpc")
 	svcboot.FatalIf(log, rpc.SubscribeBilling(wiring, s.billing, invalidationPrefix), "failed to subscribe billing rpc")
 	svcboot.FatalIf(log, rpc.SubscribeGiveaways(wiring, s.giveaway, invalidationPrefix), "failed to subscribe giveaway rpc")
-
-	seedBootstrapStaff(ctx, client, log)
-	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.user.auth")
-	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
-	svcboot.FatalIf(log, rpc.SubscribeAdminAuth(wiring, client, authPrefix, auditPrefix), "failed to subscribe admin auth rpc")
 
 	svcboot.FatalIf(log, rpc.SubscribeLifecycle(wiring), "failed to subscribe lifecycle rpc")
 	svcboot.FatalIf(log, rpc.SubscribeProjection(wiring, s.projection), "failed to subscribe projection rpc")
@@ -210,16 +206,6 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 	return s
 }
 
-func seedBootstrapStaff(ctx context.Context, client *ent.Client, log *zap.Logger) {
-	owners := parseIDs(env.Get("OWNER_BOOTSTRAP_IDS", "804932984"))
-	admins := parseIDs(env.Get("ADMIN_BOOTSTRAP_IDS", ""))
-	if len(owners) == 0 && len(admins) == 0 {
-		return
-	}
-	svcboot.FatalIf(log, rpc.SeedStaff(ctx, client, rpc.StaffSeed{Owners: owners, Admins: admins}, log),
-		"failed to seed bootstrap staff")
-}
-
 func subscriptionSweepInterval() time.Duration {
 	return env.GetDuration("USERS_SUBSCRIPTION_SWEEP_INTERVAL", 5*time.Minute)
 }
@@ -233,11 +219,6 @@ func expireSubscriptions(ctx context.Context, repo *repository.Users, log *zap.L
 		})
 }
 
-func rollupAnalytics(ctx context.Context, r *rollup.Rollup, log *zap.Logger) {
-	runPeriodicSweep(ctx, log, env.GetDuration("USERS_ANALYTICS_ROLLUP_INTERVAL", 15*time.Minute), 2*time.Minute,
-		"failed to roll up analytics", "rolled up analytics", r.Run)
-}
-
 func premiumGrantSweepInterval() time.Duration {
 	return env.GetDuration("USERS_PREMIUM_GRANT_SWEEP_INTERVAL", 30*time.Second)
 }
@@ -248,6 +229,17 @@ func expirePremiumGrants(ctx context.Context, repo *repository.Users, log *zap.L
 		func(runCtx context.Context, now time.Time) (int, error) {
 			return repo.ExpirePremiumGrants(runCtx, now)
 		})
+}
+
+func deliverAdminAudits(ctx context.Context, repo *repository.Users, log *zap.Logger) {
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	_, err := repo.DeliverAdminAudits(runCtx, time.Now().UTC())
+	cancel()
+	if err != nil {
+		log.Error("failed to deliver admin audit records", zap.Error(err))
+	}
+	runPeriodicSweep(ctx, log, env.GetDuration("USERS_ADMIN_AUDIT_DELIVERY_INTERVAL", 30*time.Second), 30*time.Second,
+		"failed to deliver admin audit records", "delivered admin audit records", repo.DeliverAdminAudits)
 }
 
 func cleanupDeviceAuth(ctx context.Context, repo *repository.Users, log *zap.Logger) {
@@ -275,18 +267,4 @@ func runPeriodicSweep(ctx context.Context, log *zap.Logger, interval, timeout ti
 			}
 		}
 	}
-}
-
-func parseIDs(csv string) []uint64 {
-	var out []uint64
-	for _, part := range strings.Split(csv, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		if id, err := strconv.ParseUint(part, 10, 64); err == nil {
-			out = append(out, id)
-		}
-	}
-	return out
 }

@@ -10,22 +10,23 @@ import (
 
 	"github.com/nats-io/nats.go"
 
+	"ItsBagelBot/internal/adminauth"
 	giveaways "ItsBagelBot/internal/domain/rpc/giveaways"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env/conf"
 )
 
-const defaultUsersAuthSubject = "bagel.rpc.admin.user.auth.check"
+const defaultUsersAuthSubject = adminauth.DefaultAuthPrefix + ".check"
 
 type UsersGiveawayClient struct {
-	nc                                    *nats.Conn
-	pool, coverage, prepare, commit, auth string
+	nc                              *nats.Conn
+	pool, coverage, prepare, commit string
 }
 
 func NewUsersGiveawayClient(nc *nats.Conn) *UsersGiveawayClient {
 	return &UsersGiveawayClient{nc: nc, pool: giveaways.UsersPoolSubject, coverage: giveaways.UsersCoverageSubject,
-		prepare: giveaways.UsersPrepareSubject, commit: giveaways.UsersCommitSubject, auth: defaultUsersAuthSubject}
+		prepare: giveaways.UsersPrepareSubject, commit: giveaways.UsersCommitSubject}
 }
 
 func (c *UsersGiveawayClient) Pool(ctx context.Context, before *time.Time) (usersrpc.GiveawayPoolReply, error) {
@@ -94,22 +95,6 @@ func (c *UsersGiveawayClient) Authorize(ctx context.Context, actor string) (uint
 	if err != nil {
 		return 0, err
 	}
-	r, err := bus.RequestJSONTimeout[usersrpc.AuthReply](ctx, c.nc, c.auth, usersrpc.AuthRequest{UserID: actor}, 5*time.Second)
-	if err != nil {
-		return 0, err
-	}
-	if r.Error != "" {
-		return 0, errors.New(r.Error)
-	}
-	if !adminRole(r) {
-		return 0, errors.New("giveaway admin role required")
-	}
-	return id, nil
-}
-
-func adminRole(reply usersrpc.AuthReply) bool {
-	if !reply.Admin {
-		return false
-	}
-	return reply.Role == "admin" || reply.Role == "owner"
+	_, err = adminauth.New(c.nc, adminauth.Config{}).Authorize(ctx, actor, adminauth.Admin)
+	return id, err
 }

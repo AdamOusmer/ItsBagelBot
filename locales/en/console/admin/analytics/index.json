@@ -4,6 +4,7 @@
   "description": "How many channels use the bot, how new streamers move through setup, which features they switch on, and how paid plans are doing.",
   "exactNote": "Numbers are exact totals across all channels, and no row names a channel.",
   "windowLabel": "Time window",
+  "daily": "Daily",
   "window": "{days} days",
   "period": "Window: {start} to {end} (UTC).",
   "degraded": "Analytics are unavailable right now; the panels below show empty values.",

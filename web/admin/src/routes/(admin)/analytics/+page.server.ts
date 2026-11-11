@@ -6,7 +6,7 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows } from '#lib/server/access';
 import { analyticsSeries, type AnalyticsWindow } from '#lib/server/services';
-import { ANALYTICS_WINDOWS, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
+import { ANALYTICS_WINDOWS, DEFAULT_ANALYTICS_WINDOW, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
 import { lastClosedDay, type AnalyticsRow } from '#lib/analytics-view';
 
 const DEMO = dev && process.env.DEMO === '1';
@@ -31,7 +31,7 @@ const MONTH_SPAN = 70;
 
 function windowDays(raw: string | null): number {
   const n = Number(raw);
-  return ANALYTICS_WINDOWS.find((d) => d === n) ?? ANALYTICS_WINDOWS[0];
+  return ANALYTICS_WINDOWS.find((d) => d === n) ?? DEFAULT_ANALYTICS_WINDOW;
 }
 
 async function read(actorId: string, days: number): Promise<AnalyticsReads> {
@@ -70,5 +70,5 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   const bundle: Promise<{ view: AnalyticsView; degraded: boolean }> = reads
     .then((r) => ({ view: buildAnalytics(r), degraded: false }))
     .catch(() => ({ view: buildAnalytics(emptyReads(days)), degraded: true }));
-  return { days: days as number, windows: [...ANALYTICS_WINDOWS] as number[], bundle };
+  return { days: days as number, defaultDays: DEFAULT_ANALYTICS_WINDOW, windows: [...ANALYTICS_WINDOWS] as number[], bundle };
 };

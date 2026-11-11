@@ -47,6 +47,12 @@ type rpcRequest struct {
 }
 
 var rpcRequests = map[string][]rpcRequest{
+	"users_rpc": {
+		{"bagel.rpc.internal.admin.audit.append", "internal/adminauth durable audit delivery"},
+		{"bagel.rpc.admin.user.auth.check", "internal/adminauth"},
+		{"bagel.rpc.admin.user.audit.append", "app/db/users audit writer"},
+		{"bagel.rpc.internal.admin.staff.active", "app/db/users giveaway eligibility"},
+	},
 	"projector_rpc": {
 		{"bagel.rpc.internal.projection.users.get", "internal/projection/hydration"},
 		{"bagel.rpc.internal.projection.modules.get", "internal/projection/hydration"},
@@ -54,6 +60,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.internal.projection.modules.automations.get", "app/projector/automations.go"},
 		{"bagel.rpc.loyalty.counter.get", "app/projector/loyalty.go"},
 		{"bagel.rpc.loyalty.counter.board", "app/projector/loyalty.go"},
+		{"bagel.rpc.health.admin", "app/projector/main.go healthSet"},
 		{"bagel.rpc.health.users", "app/projector/main.go healthSet"},
 		{"bagel.rpc.health.commands", "app/projector/main.go healthSet"},
 		{"bagel.rpc.health.modules", "app/projector/main.go healthSet"},
@@ -190,6 +197,8 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.admin.user.get", "web/admin"},
 		{"bagel.rpc.admin.user.bot_token_set", "web/admin bot OAuth self-authorization"},
 		{"bagel.rpc.admin.user.auth.check", "web/admin"},
+		{"bagel.rpc.admin.analytics", "web/admin analytics"},
+		{"bagel.rpc.health.admin", "web/admin health page"},
 		{"bagel.rpc.admin.user.audit.list", "web/admin"},
 		{"bagel.rpc.admin.notifications.send", "web/admin"},
 		{"bagel.rpc.modules.personality.feed.board", "web/admin/src/lib/server/services.ts feedBoard"},
@@ -208,6 +217,7 @@ var rpcRequests = map[string][]rpcRequest{
 }
 
 var rpcServiceUsers = map[string]string{
+	"app/db/admin":         "admin_service_rpc",
 	"app/db/users":         "users_rpc",
 	"app/db/commands":      "commands_rpc",
 	"app/db/modules":       "modules_rpc",

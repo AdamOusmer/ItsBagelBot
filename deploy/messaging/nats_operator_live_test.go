@@ -45,6 +45,7 @@ func TestLiveACLPermissions(t *testing.T) {
 			subject string
 		}{
 			{roleEndpoint{"BUS", "users_bus"}, "$JS.API.STREAM.DELETE.BAGEL_DATA"},
+			{roleEndpoint{"BUS", "admin_service_bus"}, "data.users.changed"},
 			{roleEndpoint{"BUS", "outgress_bus"}, "twitch.ingress.event.premium"},
 		} {
 			err := server.publishOutcome(t, probe.role, probe.subject, 500*time.Millisecond)
@@ -67,10 +68,40 @@ func TestLiveACLPermissions(t *testing.T) {
 		}
 	})
 	t.Run("serves a request across an account import", func(t *testing.T) {
-		server.assertCrossAccountRequest(t, crossAccountProbe{
-			responder: roleEndpoint{"USERS_RPC", "users_rpc"},
-			requester: roleEndpoint{"OUTGRESS_RPC", "outgress_rpc"},
-			subject:   "bagel.rpc.internal.tokens.get",
-		})
+		for _, probe := range []crossAccountProbe{
+			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OUTGRESS_RPC", "outgress_rpc"}, "bagel.rpc.internal.tokens.get"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "bagel.rpc.admin.user.auth.check"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "bagel.rpc.internal.admin.audit.append"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "bagel.rpc.admin.user.audit.append"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"ADMIN_RPC", "admin_rpc"}, "bagel.rpc.admin.analytics"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "bagel.rpc.internal.admin.staff.active"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "bagel.rpc.health.admin"},
+			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"TRANSACTIONS_RPC", "transactions_rpc"}, "bagel.rpc.admin.user.auth.check"},
+			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"ADMIN_RPC", "admin_rpc"}, "bagel.rpc.admin.user.test.set"},
+		} {
+			server.assertCrossAccountRequest(t, probe)
+		}
 	})
+}
+
+func TestAuditDeliveryCannotBeCalledByConsoles(t *testing.T) {
+	server := newLiveACLServer(t, committedACL(t))
+	responder := server.connectRole(t, roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"})
+	_, err := responder.Subscribe("bagel.rpc.internal.admin.audit.>", func(msg *nats.Msg) { _ = msg.Respond([]byte("ok")) })
+	require.NoError(t, err)
+	require.NoError(t, responder.Flush())
+
+	for _, caller := range []roleEndpoint{
+		{"ADMIN_RPC", "admin_rpc"},
+		{"DASHBOARD_RPC", "dashboard_rpc"},
+		{"TRANSACTIONS_RPC", "transactions_rpc"},
+	} {
+		t.Run(caller.account, func(t *testing.T) {
+			nc := server.connectRole(t, caller)
+			for _, subject := range []string{"bagel.rpc.internal.admin.audit.append", "bagel.rpc.internal.admin.audit.append.node.n1"} {
+				_, err := nc.Request(subject, nil, time.Second)
+				require.ErrorIs(t, err, nats.ErrNoResponders)
+			}
+		})
+	}
 }

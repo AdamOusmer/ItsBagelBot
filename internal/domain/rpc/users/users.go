@@ -105,6 +105,7 @@ type AdminReply struct {
 }
 
 type AuthRequest struct {
+	AuditID string `json:"audit_id,omitempty"`
 	ActorID string `json:"actor_id"`
 	// ActorRole is client-supplied; never authorize on it.
 	ActorRole string `json:"actor_role"`

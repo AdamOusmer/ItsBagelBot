@@ -23,10 +23,10 @@ import (
 const realAccountsYAML = "../../deploy/messaging/accounts.yaml"
 
 const (
-	wantAccounts  = 15
-	wantRoles     = 25
+	wantAccounts  = 16
+	wantRoles     = 27
 	wantKeySeeds  = 2 + wantAccounts + wantRoles
-	wantRoleCreds = 24 // 25 roles minus "sys", which owns no service credential
+	wantRoleCreds = wantRoles - 1
 )
 
 type harness struct {

@@ -59,7 +59,8 @@
     };
   });
 
-  const labels = $derived(data.windows.map((d: number) => t('admin.analytics.window', { days: String(d) })));
+  const labels = $derived(data.windows.map((d: number) =>
+    d === 1 ? t('admin.analytics.daily') : t('admin.analytics.window', { days: String(d) })));
   const current = $derived(labels[data.windows.indexOf(data.days)] ?? labels[0]);
   const navItems = $derived(SECTIONS.map((id) => ({ href: `#${id}`, label: t(`admin.analytics.nav.${id}`) })));
   const gainLossSeries = $derived<LineSeriesSpec[]>([
@@ -70,7 +71,7 @@
 
   function pick(label: string) {
     const days = data.windows[labels.indexOf(label)];
-    if (days) goto(days === data.windows[0] ? '/analytics' : `/analytics?days=${days}`, { reset: false });
+    if (days) goto(days === data.defaultDays ? '/analytics' : `/analytics?days=${days}`, { reset: false });
   }
 
   const phrase = (p: Phrase) => t(p.key, p.params);
@@ -121,6 +122,8 @@
           <Text as="span" size="xs" tone="muted">{series.labels[0]}</Text>
           <Text as="span" size="xs" tone="muted">{series.labels[series.labels.length - 1]}</Text>
         </div>
+      {:else if series.values.length === 1}
+        <div class="chart-box"><StatTile label={series.labels[0]} value={formatCount(series.values[0])} static /></div>
       {:else}
         <div class="chart-box"><EmptyState title={t('admin.analytics.noRows')} /></div>
       {/if}
@@ -153,6 +156,14 @@
           gapMs={DAY_MS}
         />
         <Text as="span" size="xs" tone="muted">{t('admin.analytics.chart.lossDays', { days: formatCount(flow.lossDays) })}</Text>
+      {:else if flow.points.length === 1}
+        <div class="chart-box">
+          <FactList layout="tiles">
+            {#each gainLossSeries as line (line.key)}
+              <Fact term={line.label}>{formatCount(flow.points[0][line.key as 'gained' | 'lost'])}</Fact>
+            {/each}
+          </FactList>
+        </div>
       {:else}
         <div class="chart-box"><EmptyState title={t('admin.analytics.noRows')} /></div>
       {/if}

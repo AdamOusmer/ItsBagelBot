@@ -60,7 +60,10 @@ Twitch moderation privileges and ItsBagelBot staff roles are separate concepts.
   analytics, and `lanes/` pipeline operations.
 - `analytics/` renders a pure view model from [analytics-page.ts](src/lib/analytics-page.ts):
   exact aggregate rows only (no per-channel rows); counters cover closed UTC days, levels read the
-  latest daily snapshot, and the open day is never shown.
+  latest daily snapshot, and the open day is never shown. Daily and seven-day
+  windows supplement the 30-day default, 90-day and 365-day windows. Analytics, staff
+  authorization and audit records come from the Admin data service; customer account
+  reads and mutations remain with Users.
 - `users/` inspects accounts, bans, grants, test flags, restarts and view-as links.
 - `giveaways/` and `giveaways/[id]/` manage promotion creation, freeze, draw and retries.
 - `events/` renders a live event feed backed by the `events/stream` SSE endpoint.

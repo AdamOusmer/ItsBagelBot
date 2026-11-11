@@ -3,9 +3,7 @@
 package runtime
 
 import (
-	"ItsBagelBot/app/db/users/ent/adminaudit"
-	"ItsBagelBot/app/db/users/ent/adminuser"
-	"ItsBagelBot/app/db/users/ent/analyticsrollup"
+	"ItsBagelBot/app/db/users/ent/adminauditdelivery"
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
@@ -14,82 +12,24 @@ import (
 	"ItsBagelBot/app/db/users/ent/schema"
 	"ItsBagelBot/app/db/users/ent/user"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // The init function reads all schema descriptors with runtime code
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
-	adminauditFields := schema.AdminAudit{}.Fields()
-	_ = adminauditFields
-	// adminauditDescActorLogin is the schema descriptor for actor_login field.
-	adminauditDescActorLogin := adminauditFields[1].Descriptor()
-	// adminaudit.ActorLoginValidator is a validator for the "actor_login" field. It is called by the builders before save.
-	adminaudit.ActorLoginValidator = adminauditDescActorLogin.Validators[0].(func(string) error)
-	// adminauditDescAction is the schema descriptor for action field.
-	adminauditDescAction := adminauditFields[2].Descriptor()
-	// adminaudit.ActionValidator is a validator for the "action" field. It is called by the builders before save.
-	adminaudit.ActionValidator = adminauditDescAction.Validators[0].(func(string) error)
-	// adminauditDescOk is the schema descriptor for ok field.
-	adminauditDescOk := adminauditFields[5].Descriptor()
-	// adminaudit.DefaultOk holds the default value on creation for the ok field.
-	adminaudit.DefaultOk = adminauditDescOk.Default.(bool)
-	// adminauditDescCreatedAt is the schema descriptor for created_at field.
-	adminauditDescCreatedAt := adminauditFields[7].Descriptor()
-	// adminaudit.DefaultCreatedAt holds the default value on creation for the created_at field.
-	adminaudit.DefaultCreatedAt = adminauditDescCreatedAt.Default.(func() time.Time)
-	adminuserFields := schema.AdminUser{}.Fields()
-	_ = adminuserFields
-	// adminuserDescLogin is the schema descriptor for login field.
-	adminuserDescLogin := adminuserFields[1].Descriptor()
-	// adminuser.LoginValidator is a validator for the "login" field. It is called by the builders before save.
-	adminuser.LoginValidator = adminuserDescLogin.Validators[0].(func(string) error)
-	// adminuserDescDisplayName is the schema descriptor for display_name field.
-	adminuserDescDisplayName := adminuserFields[2].Descriptor()
-	// adminuser.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
-	adminuser.DisplayNameValidator = adminuserDescDisplayName.Validators[0].(func(string) error)
-	// adminuserDescActive is the schema descriptor for active field.
-	adminuserDescActive := adminuserFields[4].Descriptor()
-	// adminuser.DefaultActive holds the default value on creation for the active field.
-	adminuser.DefaultActive = adminuserDescActive.Default.(bool)
-	// adminuserDescAddedBy is the schema descriptor for added_by field.
-	adminuserDescAddedBy := adminuserFields[5].Descriptor()
-	// adminuser.DefaultAddedBy holds the default value on creation for the added_by field.
-	adminuser.DefaultAddedBy = adminuserDescAddedBy.Default.(uint64)
-	// adminuserDescCreatedAt is the schema descriptor for created_at field.
-	adminuserDescCreatedAt := adminuserFields[6].Descriptor()
-	// adminuser.DefaultCreatedAt holds the default value on creation for the created_at field.
-	adminuser.DefaultCreatedAt = adminuserDescCreatedAt.Default.(func() time.Time)
-	// adminuserDescUpdatedAt is the schema descriptor for updated_at field.
-	adminuserDescUpdatedAt := adminuserFields[7].Descriptor()
-	// adminuser.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	adminuser.DefaultUpdatedAt = adminuserDescUpdatedAt.Default.(func() time.Time)
-	// adminuser.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	adminuser.UpdateDefaultUpdatedAt = adminuserDescUpdatedAt.UpdateDefault.(func() time.Time)
-	analyticsrollupFields := schema.AnalyticsRollup{}.Fields()
-	_ = analyticsrollupFields
-	// analyticsrollupDescMetric is the schema descriptor for metric field.
-	analyticsrollupDescMetric := analyticsrollupFields[2].Descriptor()
-	// analyticsrollup.MetricValidator is a validator for the "metric" field. It is called by the builders before save.
-	analyticsrollup.MetricValidator = analyticsrollupDescMetric.Validators[0].(func(string) error)
-	// analyticsrollupDescD1 is the schema descriptor for d1 field.
-	analyticsrollupDescD1 := analyticsrollupFields[3].Descriptor()
-	// analyticsrollup.DefaultD1 holds the default value on creation for the d1 field.
-	analyticsrollup.DefaultD1 = analyticsrollupDescD1.Default.(string)
-	// analyticsrollup.D1Validator is a validator for the "d1" field. It is called by the builders before save.
-	analyticsrollup.D1Validator = analyticsrollupDescD1.Validators[0].(func(string) error)
-	// analyticsrollupDescD2 is the schema descriptor for d2 field.
-	analyticsrollupDescD2 := analyticsrollupFields[4].Descriptor()
-	// analyticsrollup.DefaultD2 holds the default value on creation for the d2 field.
-	analyticsrollup.DefaultD2 = analyticsrollupDescD2.Default.(string)
-	// analyticsrollup.D2Validator is a validator for the "d2" field. It is called by the builders before save.
-	analyticsrollup.D2Validator = analyticsrollupDescD2.Validators[0].(func(string) error)
-	// analyticsrollupDescD3 is the schema descriptor for d3 field.
-	analyticsrollupDescD3 := analyticsrollupFields[5].Descriptor()
-	// analyticsrollup.DefaultD3 holds the default value on creation for the d3 field.
-	analyticsrollup.DefaultD3 = analyticsrollupDescD3.Default.(string)
-	// analyticsrollup.D3Validator is a validator for the "d3" field. It is called by the builders before save.
-	analyticsrollup.D3Validator = analyticsrollupDescD3.Validators[0].(func(string) error)
+	adminauditdeliveryFields := schema.AdminAuditDelivery{}.Fields()
+	_ = adminauditdeliveryFields
+	// adminauditdeliveryDescCreatedAt is the schema descriptor for created_at field.
+	adminauditdeliveryDescCreatedAt := adminauditdeliveryFields[2].Descriptor()
+	// adminauditdelivery.DefaultCreatedAt holds the default value on creation for the created_at field.
+	adminauditdelivery.DefaultCreatedAt = adminauditdeliveryDescCreatedAt.Default.(func() time.Time)
+	// adminauditdeliveryDescID is the schema descriptor for id field.
+	adminauditdeliveryDescID := adminauditdeliveryFields[0].Descriptor()
+	// adminauditdelivery.DefaultID holds the default value on creation for the id field.
+	adminauditdelivery.DefaultID = adminauditdeliveryDescID.Default.(func() uuid.UUID)
 	authorizationcodeFields := schema.AuthorizationCode{}.Fields()
 	_ = authorizationcodeFields
 	// authorizationcodeDescCodeChallenge is the schema descriptor for code_challenge field.

@@ -21,7 +21,8 @@ Each service owns its schema. Its repository, RPC handlers, and `ent/schema` are
 
 | App | Owns / answers | Context |
 | --- | --- | --- |
-| Users | Registered accounts, preferences, Twitch credentials, status/access, staff/delegation, and giveaway eligibility inputs. | [app/db/users](app/db/users/context.md) |
+| Users | Registered accounts, preferences, Twitch credentials, status/access, delegations, and giveaway eligibility inputs. | [app/db/users](app/db/users/context.md) |
+| Admin | Staff membership and permissions, audit history, aggregate analytics rollups, and annual snapshots. | [app/db/admin](app/db/admin/context.md) |
 | Commands | Custom commands/aliases, command-use totals, and custom-fetch definitions/keys. | [app/db/commands](app/db/commands/context.md) |
 | Modules | Per-channel module configuration, feature integrations/credentials, quotes, and personality/feed state. | [app/db/modules](app/db/modules/context.md) |
 | Loyalty | Viewer loyalty balances, watchtime, and channel counters/entries. | [app/db/loyalty](app/db/loyalty/context.md) |

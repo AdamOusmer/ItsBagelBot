@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/tokensign"
+	"ItsBagelBot/internal/adminauth"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
@@ -85,8 +86,11 @@ type Users struct {
 	erasures           ErasureStore
 	revoker            TokenRevoker
 	analytics          *analytics.Recorder
+	adminAuth          *adminauth.Client
 	deviceSigner       *tokensign.Signer
 }
+
+func (r *Users) SetAdminAuth(client *adminauth.Client) { r.adminAuth = client }
 
 func (r *Users) SetAnalytics(rec *analytics.Recorder) {
 	r.analytics = rec
@@ -311,16 +315,6 @@ func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error 
 	return nil
 }
 
-func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
-	r.queuePref(id, prefLocale, prefWrite{str: locale})
-	return nil
-}
-
-// SetLocaleNow commits interactive language changes before reads and invalidation.
-func (r *Users) SetLocaleNow(ctx context.Context, id uint64, locale string) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLocale(locale) })
-}
-
 // SetBanned is moderation enforcement, so it writes through. Banning also
 // revokes every desktop device grant; the DB write commits regardless of
 // whether the best-effort revocation publish succeeds.
@@ -357,14 +351,6 @@ func (r *Users) SetPageHidden(ctx context.Context, id uint64, page PublicPage, h
 		return fmt.Errorf("unknown public page %q", page)
 	}
 	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { set(u, hidden) })
-}
-
-func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
-	r.queuePref(id, prefOnboarded, prefWrite{flag: onboarded})
-	if onboarded {
-		r.analytics.Count(catalog.Lifecycle, "onboarded")
-	}
-	return nil
 }
 
 func (r *Users) Delete(ctx context.Context, id uint64) error {
@@ -653,4 +639,3 @@ func (o tokenOwner) aad(tokenType tokens.Type, platform tokens.Platform) []byte 
 
 	return aad
 }
-

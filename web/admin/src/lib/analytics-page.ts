@@ -41,7 +41,8 @@ import {
   type Unit
 } from './analytics-view';
 
-export const ANALYTICS_WINDOWS = [30, 90, 365] as const;
+export const ANALYTICS_WINDOWS = [1, 7, 30, 90, 365] as const;
+export const DEFAULT_ANALYTICS_WINDOW = 30;
 
 export type AnalyticsReads = {
   end: string;
@@ -227,7 +228,7 @@ function levelKpis(c: Ctx): Kpi[] {
   const [now, before] = [sum(accounts.last), sum(accounts.first)];
   const [botNow, botBefore] = [sum(bot.last), sum(bot.first)];
   const [paidNow, paidBefore] = [sum(withDim(accounts.last, 'paid')), sum(withDim(accounts.first, 'paid'))];
-  const delta: DeltaSpec = { name: 'since', days: accounts.days };
+  const delta: DeltaSpec = { name: accounts.days === 1 ? 'day' : 'since', days: accounts.days };
   const gate = (change: Change): Change => (accounts.days > 0 ? change : null);
   const share = { key: 'admin.analytics.kpi.paidShare', params: { share: pct(paidNow, now) } };
   return [
@@ -250,7 +251,7 @@ function signupsKpi(c: Ctx): Kpi {
     key: 'signups',
     value: fmt(now),
     change: c.prevComplete ? relativeChange(now, before) : null,
-    delta: { name: 'window', days: c.days }
+    delta: { name: c.days === 1 ? 'day' : 'window', days: c.days }
   });
 }
 

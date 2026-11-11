@@ -18,6 +18,7 @@ on:
         type: choice
         options:
           - all
+          - admin
           - commands
           - loyalty
           - modules
@@ -75,6 +76,12 @@ jobs:
           set -euo pipefail
 
           all_services='[
+            {
+              "image": "admin",
+              "context": ".",
+              "containerfile": "app/db/admin/Containerfile",
+              "description": "ItsBagelBot administration data service"
+            },
             {
               "image": "commands",
               "context": ".",
@@ -185,6 +192,7 @@ jobs:
           # belongs in an operator's working copy, not in the registry the
           # cluster pulls from.
           add_root_go_services() {
+            add "admin"
             add "commands"
             add "loyalty"
             add "modules"
@@ -203,6 +211,7 @@ jobs:
           }
 
           add_all_services() {
+            add "admin"
             add "commands"
             add "loyalty"
             add "modules"
@@ -257,6 +266,9 @@ jobs:
               locales/*/console/*)
                 add "console-dashboard"
                 add "console-admin"
+                ;;
+              app/db/admin/*)
+                add "admin"
                 ;;
               app/db/commands/*)
                 add "commands"
