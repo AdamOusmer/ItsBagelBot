@@ -46,17 +46,10 @@ func (r *Loyalty) insertIgnore() string {
 func (r *Loyalty) fence(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (int64, bool, error) {
 	stmt := r.insertIgnore() + " INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0)"
 	if r.dialect != "sqlite3" {
-		// Duplicate-key UPDATE takes an exclusive lock immediately. INSERT
-		// IGNORE followed by UPDATE can deadlock concurrent duplicate awards
-		// as both transactions upgrade shared duplicate-key locks.
+		// The duplicate-key UPDATE is the exclusive fence lock that serializes retirement, recreation and posting.
 		stmt = "INSERT INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE user_id=user_id"
 	}
 	if _, err := tx.ExecContext(ctx, stmt, id, instance); err != nil {
-		return 0, false, err
-	}
-	// An UPDATE takes an exclusive row lock on MySQL, serializing retirement,
-	// recreation and posting. SQLite serializes its writer transactions.
-	if _, err := tx.ExecContext(ctx, "UPDATE loyalty_account_fences SET deleted=deleted WHERE user_id=?", id); err != nil {
 		return 0, false, err
 	}
 	var current int64

@@ -69,7 +69,7 @@ func (m *CooldownMover) Tick(ctx context.Context) (bool, error) {
 func (m *CooldownMover) MoveDue(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, cooldownMoveBudget)
 	defer cancel()
-	pruned := m.state.PruneExpiredCooldowns(ctx)
+	pruned := errors.Join(m.state.PruneExpiredCooldowns(ctx), m.state.PruneCountdownOperations(ctx))
 	for ctx.Err() == nil {
 		moved, err := m.moveBatch(ctx)
 		if err != nil || moved < cooldownMoveBatch {
