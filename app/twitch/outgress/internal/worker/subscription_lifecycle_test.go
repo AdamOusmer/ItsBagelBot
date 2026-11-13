@@ -73,6 +73,10 @@ func TestBotOwnershipExcludesIndependentStreamsAndOtherChatUsers(t *testing.T) {
 	require.False(t, w.botOwnedSubscription(sub))
 	sub.Condition.UserID = "bot"
 	require.True(t, w.botOwnedSubscription(sub))
+	sub.Type = twitch.ChatNotificationType
+	require.True(t, w.botOwnedSubscription(sub))
+	sub.Condition.UserID = "other"
+	require.False(t, w.botOwnedSubscription(sub))
 }
 func TestBannedGrantRepairCreatesOnlyRecoveryListeners(t *testing.T) {
 	var kinds []string

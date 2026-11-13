@@ -20,7 +20,7 @@ func (w *Worker) liveSubscription(sub twitch.EventSubEntry, e enrollment) bool {
 	if sub.Status != subscriptionStatusEnabled || !ownedSub(sub, e) {
 		return false
 	}
-	return sub.Type != twitch.ChatMessageType || sub.Condition.UserID == w.botID
+	return !(twitch.SubSpec{Type: sub.Type}).BotChat() || sub.Condition.UserID == w.botID
 }
 
 // Provider pagination is bounded; an incomplete inventory never becomes durable ownership.

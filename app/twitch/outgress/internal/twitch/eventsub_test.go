@@ -45,10 +45,23 @@ func TestChannelSubscriptionsOrder(t *testing.T) {
 
 func TestChannelSubscriptionsOmitChatWithoutBot(t *testing.T) {
 	for _, s := range ChannelSubscriptions("123", "") {
-		if s.Type == ChatMessageType {
-			t.Fatal("chat subscription built without a bot id")
+		if s.BotChat() {
+			t.Fatalf("%s built without a bot id", s.Type)
 		}
 	}
+}
+
+func TestChatNotificationReadsAsBot(t *testing.T) {
+	want := map[string]string{"broadcaster_user_id": "123", "user_id": "bot"}
+	for _, s := range ChannelSubscriptions("123", "bot") {
+		if s.Type == ChatNotificationType {
+			if !reflect.DeepEqual(s.Condition, want) || s.Version != "1" {
+				t.Fatalf("notification spec = %+v", s)
+			}
+			return
+		}
+	}
+	t.Fatal("no chat notification spec")
 }
 
 func userUpdateSpecs(specs []SubSpec) []SubSpec {
