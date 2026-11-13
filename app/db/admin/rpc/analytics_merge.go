@@ -41,12 +41,7 @@ func cell(row repository.AnalyticsRow) analyticsCell {
 
 func mergeAnalytics(live []analytics.Row, stored []repository.AnalyticsRow, q analytics.Query) []repository.AnalyticsRow {
 	cells := map[analyticsCell]repository.AnalyticsRow{}
-	for _, metric := range q.Metrics {
-		spec, _ := catalog.Lookup(metric)
-		if len(spec.Dims) == 0 {
-			zeroCurrent(cells, repository.AnalyticsRow{Metric: metric}, q)
-		}
-	}
+	zeroTotals(cells, q)
 	for _, row := range stored {
 		zeroCurrent(cells, row, q)
 	}
@@ -55,18 +50,29 @@ func mergeAnalytics(live []analytics.Row, stored []repository.AnalyticsRow, q an
 		zeroCurrent(cells, value, q)
 		cells[cell(value)] = value
 	}
-	for _, row := range stored {
-		if catalog.PeriodEnd(q.Window, row.Start).After(q.Now) {
-			continue
-		}
-		cells[cell(row)] = row
-	}
+	keepClosed(cells, stored, q)
 	rows := make([]repository.AnalyticsRow, 0, len(cells))
 	for _, row := range cells {
 		rows = append(rows, row)
 	}
 	slices.SortFunc(rows, compareAnalytics)
 	return rows
+}
+
+func zeroTotals(cells map[analyticsCell]repository.AnalyticsRow, q analytics.Query) {
+	for _, metric := range q.Metrics {
+		if spec, _ := catalog.Lookup(metric); len(spec.Dims) == 0 {
+			zeroCurrent(cells, repository.AnalyticsRow{Metric: metric}, q)
+		}
+	}
+}
+
+func keepClosed(cells map[analyticsCell]repository.AnalyticsRow, stored []repository.AnalyticsRow, q analytics.Query) {
+	for _, row := range stored {
+		if !catalog.PeriodEnd(q.Window, row.Start).After(q.Now) {
+			cells[cell(row)] = row
+		}
+	}
 }
 
 func zeroCurrent(cells map[analyticsCell]repository.AnalyticsRow, row repository.AnalyticsRow, q analytics.Query) {
