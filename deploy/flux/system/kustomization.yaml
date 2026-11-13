@@ -7,6 +7,14 @@ resources:
   - gotk-components.yaml
   - sync.yaml
 
+secretGenerator:
+  - name: git-signing-keys
+    namespace: flux-system
+    files:
+      - github-web-flow.asc
+    options:
+      disableNameSuffixHash: true
+
 images:
   - name: ghcr.io/fluxcd/source-controller
     newTag: v1.9.5@sha256:6f20d232d596a758c923d2861f23511718fc303b8a2e36a1434a7c736b9f4268

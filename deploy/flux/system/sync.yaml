@@ -12,6 +12,10 @@ spec:
   url: https://github.com/AdamOusmer/ItsBagelBot
   ref:
     branch: deploy
+  verify:
+    mode: HEAD
+    secretRef:
+      name: git-signing-keys
   ignore: |
     /*
     !/deploy/
