@@ -12,7 +12,7 @@ func TestClientSubscriptionsWatchConduitShards(t *testing.T) {
 	want := []SubSpec{
 		{"user.authorization.grant", "1", map[string]string{"client_id": "client"}},
 		{"user.authorization.revoke", "1", map[string]string{"client_id": "client"}},
-		{"conduit.shard.disabled", "1", map[string]string{"conduit_id": "conduit"}},
+		{"conduit.shard.disabled", "1", map[string]string{"client_id": "client", "conduit_id": "conduit"}},
 	}
 	if got := ClientSubscriptions("client", "conduit"); !reflect.DeepEqual(got, want) {
 		t.Fatalf("ClientSubscriptions = %v, want %v", got, want)
