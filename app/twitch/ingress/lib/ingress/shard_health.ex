@@ -7,10 +7,21 @@ defmodule Ingress.ShardHealth do
   @max_unhealthy_observations 2
 
   def unhealthy_ids(shards, desired) when is_list(shards) do
-    for %{"id" => id, "status" => status} <- shards,
+    for {int_id, _shard} <- unhealthy(shards, desired), do: int_id
+  end
+
+  def unhealthy(shards, desired) when is_list(shards) do
+    for %{"id" => id, "status" => status} = shard <- shards,
         {int_id, ""} <- [Integer.parse(to_string(id))],
         int_id < desired and status != "enabled",
-        do: int_id
+        do: {int_id, shard}
+  end
+
+  def describe(%{"status" => status} = shard) do
+    transport = shard["transport"] || %{}
+
+    "status=#{status} session=#{transport["session_id"]} " <>
+      "connected_at=#{transport["connected_at"]} disconnected_at=#{transport["disconnected_at"]}"
   end
 
   def heal_action(probe, seen, now \\ DateTime.utc_now())

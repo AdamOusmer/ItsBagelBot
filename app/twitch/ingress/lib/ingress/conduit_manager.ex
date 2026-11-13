@@ -451,7 +451,15 @@ defmodule Ingress.ConduitManager do
 
   defp run_health_pass(state, desired, {:ok, shards}) do
     state = refresh_rescues(state)
-    unhealthy = ShardHealth.unhealthy_ids(shards, desired)
+    unhealthy = ShardHealth.unhealthy(shards, desired)
+
+    for {shard_id, shard} <- unhealthy,
+        do:
+          Logger.warning(
+            "shard #{shard_id} not enabled on Twitch: #{ShardHealth.describe(shard)}"
+          )
+
+    unhealthy = Enum.map(unhealthy, &elem(&1, 0))
     {counts, rescues} = heal_all(state, unhealthy)
     rescues = reap_rescues(unhealthy, rescues, desired)
     %{state | unhealthy_counts: counts, rescues: rescues}

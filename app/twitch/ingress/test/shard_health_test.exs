@@ -42,6 +42,25 @@ defmodule Ingress.ShardHealthTest do
     end
   end
 
+  describe "describe/1" do
+    test "reports the Twitch status and transport times of a disabled shard" do
+      shard = %{
+        "id" => "2",
+        "status" => "websocket_disconnected",
+        "transport" => %{
+          "method" => "websocket",
+          "session_id" => "abc",
+          "connected_at" => "2026-11-13T03:00:00Z",
+          "disconnected_at" => "2026-11-13T03:17:00Z"
+        }
+      }
+
+      assert ShardHealth.describe(shard) ==
+               "status=websocket_disconnected session=abc " <>
+                 "connected_at=2026-11-13T03:00:00Z disconnected_at=2026-11-13T03:17:00Z"
+    end
+  end
+
   describe "unmanaged_action/2" do
     defp unmanaged(id, name_state \\ :named),
       do: %{shard_id: id, name_state: name_state, state: "connected", bound: true}

@@ -6,6 +6,13 @@ defmodule Ingress.ShardSessionTest do
 
   alias Ingress.ShardSession
 
+  test "reconnect stagger puts each of ten shards in its own second" do
+    slots = for id <- 0..9, do: div(ShardSession.stagger_ms(id), 1_000)
+
+    assert slots == Enum.to_list(0..9)
+    assert ShardSession.stagger_ms(10) == ShardSession.stagger_ms(0)
+  end
+
   describe "permanent_bind_error?/1" do
     test "invalid shard id is permanent" do
       errors = [
