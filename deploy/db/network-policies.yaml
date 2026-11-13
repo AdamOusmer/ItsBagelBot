@@ -62,11 +62,91 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [admin, users, commands, loyalty, modules, transactions, projector, notifications, backup-mysql, backup-k3s]
+        values: [users, transactions]
   policyTypes:
     - Egress
   egress:
     - ports:
+        - port: 443
+          protocol: TCP
+---
+# New Relic's published ingest blocks; telemetry stops for every selected service if one is missing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-newrelic
+  namespace: db
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [admin, users, commands, loyalty, modules, transactions, projector, notifications]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 162.247.240.0/22
+        - ipBlock:
+            cidr: 152.38.128.0/19
+        - ipBlock:
+            cidr: 185.221.84.0/22
+        - ipBlock:
+            cidr: 212.32.0.0/20
+        - ipBlock:
+            cidr: 64.251.192.0/20
+      ports:
+        - port: 443
+          protocol: TCP
+---
+# Cloudflare's published ranges (cloudflare.com/ips-v4), where R2 resolves; backups stop uploading if R2 moves outside them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-r2
+  namespace: db
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [backup-mysql, backup-k3s]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 173.245.48.0/20
+        - ipBlock:
+            cidr: 103.21.244.0/22
+        - ipBlock:
+            cidr: 103.22.200.0/22
+        - ipBlock:
+            cidr: 103.31.4.0/22
+        - ipBlock:
+            cidr: 141.101.64.0/18
+        - ipBlock:
+            cidr: 108.162.192.0/18
+        - ipBlock:
+            cidr: 190.93.240.0/20
+        - ipBlock:
+            cidr: 188.114.96.0/20
+        - ipBlock:
+            cidr: 197.234.240.0/22
+        - ipBlock:
+            cidr: 198.41.128.0/17
+        - ipBlock:
+            cidr: 162.158.0.0/15
+        - ipBlock:
+            cidr: 104.16.0.0/13
+        - ipBlock:
+            cidr: 104.24.0.0/14
+        - ipBlock:
+            cidr: 172.64.0.0/13
+        - ipBlock:
+            cidr: 131.0.72.0/22
+      ports:
         - port: 443
           protocol: TCP
 ---

@@ -181,6 +181,8 @@ func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
 	assert.False(t, base.grantsEgressPort(3306), "default policy grants blanket external port 3306")
 }
 
+var newRelicIngestCIDRs = sorted("152.38.128.0/19", "162.247.240.0/22", "185.221.84.0/22", "212.32.0.0/20", "64.251.192.0/20")
+
 func TestAppEgressAllowlists(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -191,8 +193,31 @@ func TestAppEgressAllowlists(t *testing.T) {
 	}{
 		{
 			name: "TestPublicHTTPSEgressAllowlist", path: appPolicies, policy: "allow-public-https",
+			wantApps: sorted("console-admin", "console-dashboard", "gossip", "outgress", "sesame", "transactions",
+				"twitch-ingress", "users"),
+		},
+		{
+			name: "TestNewRelicEgressAllowlist", path: appPolicies, policy: "allow-newrelic",
 			wantApps: sorted("commands", "console-admin", "console-dashboard", "gossip", "loyalty", "modules",
 				"notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users"),
+			wantCIDRs: newRelicIngestCIDRs,
+		},
+		{
+			name: "TestDBPublicHTTPSEgressAllowlist", path: dbPolicies, policy: "allow-public-https",
+			wantApps: sorted("transactions", "users"),
+		},
+		{
+			name: "TestDBNewRelicEgressAllowlist", path: dbPolicies, policy: "allow-newrelic",
+			wantApps: sorted("admin", "commands", "loyalty", "modules", "notifications", "projector",
+				"transactions", "users"),
+			wantCIDRs: newRelicIngestCIDRs,
+		},
+		{
+			name: "TestDBR2EgressAllowlist", path: dbPolicies, policy: "allow-r2",
+			wantApps: sorted("backup-k3s", "backup-mysql"),
+			wantCIDRs: sorted("103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "104.16.0.0/13", "104.24.0.0/14",
+				"108.162.192.0/18", "131.0.72.0/22", "141.101.64.0/18", "162.158.0.0/15", "172.64.0.0/13",
+				"173.245.48.0/20", "188.114.96.0/20", "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17"),
 		},
 		{
 			name: "TestHeatWaveEgressAllowlist", path: appPolicies, policy: "allow-heatwave",
@@ -237,11 +262,12 @@ func TestMessagingPodsDenyByDefault(t *testing.T) {
 	}
 }
 
-func TestNatsLeafIngressIsExact(t *testing.T) {
+func TestNatsPoliciesAreExact(t *testing.T) {
 	policies := loadNetworkPolicies(t, messagingPolicies)
 	got := map[string][]string{}
-	for _, name := range []string{"allow-nats-leaf-data-plane", "allow-nats-leaf-monitor"} {
-		got[name] = ruleSummary(requirePolicy(t, policies, name).Spec.Ingress)
+	for _, name := range []string{"allow-nats-leaf-data-plane", "allow-nats-leaf-monitor", "allow-nats-egress", "allow-nats-leaf-egress"} {
+		spec := requirePolicy(t, policies, name).Spec
+		got[name] = ruleSummary(slices.Concat(spec.Ingress, spec.Egress))
 	}
 	assert.Equal(t, map[string][]string{
 		"allow-nats-leaf-data-plane": {
@@ -258,6 +284,14 @@ func TestNatsLeafIngressIsExact(t *testing.T) {
 			"kubernetes.io/metadata.name=db | any | 8223/TCP",
 			"kubernetes.io/metadata.name=observability | app.kubernetes.io/name=newrelic-prometheus-agent | 7778/TCP",
 		},
+		"allow-nats-egress": {
+			"kubernetes.io/metadata.name=kube-system | any | 53/UDP,53/TCP",
+			"any | app=nats | 6222/TCP",
+		},
+		"allow-nats-leaf-egress": {
+			"kubernetes.io/metadata.name=kube-system | any | 53/UDP,53/TCP",
+			"any | app=nats-leaf | 6223/TCP",
+		},
 	}, got)
 }
 
@@ -266,8 +300,6 @@ func TestDBNamespaceCoversEveryDataService(t *testing.T) {
 	want := map[string][]string{
 		"default-deny-db": sorted("admin", "backup-k3s", "backup-mysql", "commands", "loyalty",
 			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
-		"allow-public-https": sorted("admin", "backup-k3s", "backup-mysql", "commands", "loyalty",
-			"modules", "notifications", "projector", "transactions", "users"),
 		"allow-heatwave": sorted("admin", "backup-mysql", "commands", "loyalty", "modules",
 			"notifications", "transactions", "users"),
 	}

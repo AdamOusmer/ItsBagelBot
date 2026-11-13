@@ -77,11 +77,41 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications]
+        values: [users, transactions, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip]
   policyTypes:
     - Egress
   egress:
     - ports:
+        - port: 443
+          protocol: TCP
+---
+# New Relic's published ingest blocks; telemetry stops for every selected service if one is missing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-newrelic
+  namespace: app
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 162.247.240.0/22
+        - ipBlock:
+            cidr: 152.38.128.0/19
+        - ipBlock:
+            cidr: 185.221.84.0/22
+        - ipBlock:
+            cidr: 212.32.0.0/20
+        - ipBlock:
+            cidr: 64.251.192.0/20
+      ports:
         - port: 443
           protocol: TCP
 ---
