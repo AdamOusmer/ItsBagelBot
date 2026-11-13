@@ -415,9 +415,10 @@ spec:
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=127.0.0.1:8080
         - --leader-elect
+        - --zap-log-level=error
         command:
         - /manager
-        image: dopplerhq/kubernetes-operator:1.7.1
+        image: dopplerhq/kubernetes-operator:1.7.5@sha256:3ec7141f18e700d9b121f072d0cd37bf14bbeb5310b2cc3b547385d1238ceaf6
         livenessProbe:
           httpGet:
             path: /healthz
@@ -442,11 +443,15 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - NET_RAW
+            - ALL
           privileged: false
           runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
       securityContext:
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       nodeSelector:
         role: cp
       serviceAccountName: doppler-operator-controller-manager
