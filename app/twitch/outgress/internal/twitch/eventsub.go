@@ -40,8 +40,10 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 	}
 	specs = append(specs[:4], append(controls, specs[4:]...)...)
 	if botID != "" {
+		chatCondition := map[string]string{"broadcaster_user_id": broadcasterID, "user_id": botID}
 		specs = append(specs,
-			SubSpec{ChatMessageType, "1", map[string]string{"broadcaster_user_id": broadcasterID, "user_id": botID}},
+			SubSpec{ChatNotificationType, "1", chatCondition},
+			SubSpec{ChatMessageType, "1", chatCondition},
 		)
 	}
 
@@ -62,9 +64,14 @@ func ControlSubscriptions(specs []SubSpec) []SubSpec {
 }
 
 const (
-	ChatMessageType = "channel.chat.message"
-	UserUpdateType  = "user.update"
+	ChatMessageType      = "channel.chat.message"
+	ChatNotificationType = "channel.chat.notification"
+	UserUpdateType       = "user.update"
 )
+
+func (s SubSpec) BotChat() bool {
+	return s.Type == ChatMessageType || s.Type == ChatNotificationType
+}
 
 func ChannelOptionalSubscriptions(broadcasterID string) []SubSpec {
 	return []SubSpec{

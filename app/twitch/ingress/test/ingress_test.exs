@@ -98,6 +98,20 @@ defmodule Ingress.PipelineTest do
               ]} = Pipeline.route(notification("stream.online", event), @meta)
     end
 
+    test "a chat notification rides the broadcaster's chat lane with its event intact" do
+      event = %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "1001",
+        "notice_type" => "resub",
+        "resub" => %{"cumulative_months" => 12},
+        "message" => %{"text" => "!not a command"}
+      }
+
+      assert {:publish, "twitch.ingress.event.premium",
+              %{type: "channel.chat.notification", lane: :premium, event: ^event}} =
+               Pipeline.route(notification("channel.chat.notification", event), @meta)
+    end
+
     test "special-user chat routes premium without the cache" do
       event = %{
         "broadcaster_user_id" => "77",

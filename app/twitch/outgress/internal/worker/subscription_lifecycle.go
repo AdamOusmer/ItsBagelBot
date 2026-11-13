@@ -17,7 +17,7 @@ func (w *Worker) botOwnedSubscription(sub twitch.EventSubEntry) bool {
 	switch sub.Type {
 	case "stream.online", "stream.offline", "channel.update", "channel.raid":
 		return false
-	case twitch.ChatMessageType:
+	case twitch.ChatMessageType, twitch.ChatNotificationType:
 		return sub.Condition.UserID == w.botID
 	}
 	if subscriptionSpecContains(twitch.ChannelSubscriptions(sub.Condition.BroadcasterUserID, w.botID), sub.Type) {
