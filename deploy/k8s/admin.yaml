@@ -32,7 +32,7 @@ spec:
     - NEW_RELIC_SECURITY_ENABLED
     - OWNER_BOOTSTRAP_IDS
     - VALKEY_PASSWORD
-  resyncSeconds: 60
+  resyncSeconds: 300
 ---
 apiVersion: apps/v1
 kind: Deployment

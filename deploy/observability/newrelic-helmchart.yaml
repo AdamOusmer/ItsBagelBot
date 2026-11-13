@@ -90,7 +90,7 @@ spec:
         ksm:
           resources:
             limits:
-              cpu: 100m
+              cpu: 300m
               memory: 128Mi
             requests:
               cpu: 10m
@@ -113,7 +113,7 @@ spec:
           resources:
             # 128Mi OOMKilled the agent 4-5 times per worker pod in 16 days (2026-10-10).
             limits:
-              cpu: 100m
+              cpu: 300m
               memory: 256Mi
             requests:
               cpu: 10m
@@ -121,7 +121,7 @@ spec:
         kubelet:
           resources:
             limits:
-              cpu: 100m
+              cpu: 500m
               memory: 128Mi
             requests:
               cpu: 10m
@@ -210,7 +210,7 @@ spec:
             memory: 32Mi
         prometheus:
           limits:
-            cpu: 100m
+            cpu: 300m
             memory: 256Mi
           requests:
             cpu: 10m

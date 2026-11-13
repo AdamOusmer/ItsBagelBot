@@ -14,7 +14,7 @@ spec:
     name: twitch-ingress-env
     namespace: app
     type: Opaque
-  resyncSeconds: 60
+  resyncSeconds: 300
 ---
 # publishNotReadyAddresses: BEAM nodes must find each other before readiness to form the cluster.
 apiVersion: v1

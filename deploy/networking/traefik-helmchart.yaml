@@ -131,8 +131,7 @@ spec:
       periodSeconds: 2
 
     podDisruptionBudget:
-      enabled: true
-      maxUnavailable: 1
+      enabled: false
 
     securityContext:
       runAsNonRoot: true
