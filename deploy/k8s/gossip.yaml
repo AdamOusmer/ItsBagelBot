@@ -133,11 +133,15 @@ spec:
             runAsUser: 0
             runAsGroup: 0
             runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           volumeMounts:
             - name: warp-state
               mountPath: /var/lib/cloudflare-warp
+            - name: warp-run
+              mountPath: /run/cloudflare-warp
           ports:
             - name: warp-socks
               containerPort: 40000
@@ -234,6 +238,7 @@ spec:
               memory: 128Mi
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: {drop: ["ALL"]}
           lifecycle:
             preStop:
@@ -263,6 +268,9 @@ spec:
             secretName: valkey-client-tls
         - name: warp-state
           emptyDir: {}
+        - name: warp-run
+          emptyDir:
+            sizeLimit: 16Mi
       terminationGracePeriodSeconds: 45
 ---
 apiVersion: policy/v1
