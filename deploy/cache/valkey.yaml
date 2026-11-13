@@ -121,6 +121,7 @@ spec:
         app.kubernetes.io/instance: valkey
         app.kubernetes.io/name: valkey
     spec:
+      automountServiceAccountToken: false
       dnsConfig:
         options:
           - {name: ndots, value: "1"}

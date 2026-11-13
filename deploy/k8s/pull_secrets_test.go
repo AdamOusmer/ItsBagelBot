@@ -4,10 +4,12 @@
 package k8s
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type pullContainer struct {
@@ -84,7 +86,7 @@ func TestOwnServiceAccountsCarryThePullSecret(t *testing.T) {
 
 func TestDefaultAccountPodsMountNoToken(t *testing.T) {
 	var mounting []string
-	for _, filename := range manifestFilenames(t) {
+	for _, filename := range append(manifestFilenames(t), dataTierFilenames(t)...) {
 		for _, m := range decodeFile[pullManifest](t, filename) {
 			if m.mountsDefaultToken() {
 				mounting = append(mounting, m.Kind+" "+m.Metadata.Namespace+"/"+m.Metadata.Name)
@@ -92,6 +94,18 @@ func TestDefaultAccountPodsMountNoToken(t *testing.T) {
 		}
 	}
 	assert.Empty(t, mounting, "pods on the default service account never call the API; set automountServiceAccountToken: false")
+}
+
+func dataTierFilenames(t *testing.T) []string {
+	t.Helper()
+	var filenames []string
+	for _, dir := range []string{"../messaging", "../cache", "../operators"} {
+		matches, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+		require.NoError(t, err)
+		require.NotEmpty(t, matches, "no manifests in %s", dir)
+		filenames = append(filenames, matches...)
+	}
+	return filenames
 }
 
 func (m pullManifest) mountsDefaultToken() bool {
