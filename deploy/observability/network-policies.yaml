@@ -29,33 +29,8 @@ spec:
       app.kubernetes.io/name: falco
   policyTypes: [Egress]
   egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: falcosidekick
-              app.kubernetes.io/component: core
-      ports:
-        - port: 2801
     - ports:
         - {port: 443, protocol: TCP}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: falcosidekick
-  namespace: observability
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: falcosidekick
-  policyTypes: [Ingress, Egress]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: falco
-      ports:
-        - port: 2801
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

@@ -48,21 +48,14 @@ spec:
     # this fleet.
     resources:
       requests:
-        cpu: 10m
-        memory: 128Mi
+        cpu: 50m
+        memory: 160Mi
       limits:
         cpu: 200m
         memory: 256Mi
 
-    # Falcosidekick forwards events; the web UI (and its Redis) stays off to
-    # reclaim RAM (2026-10-10). Single replica: not an alerting path, the log
-    # pipeline stays the durable record.
     falcosidekick:
-      enabled: true
-      replicaCount: 1
-      webui:
-        enabled: false
-        replicaCount: 1
+      enabled: false
 
     falcoctl:
       artifact:

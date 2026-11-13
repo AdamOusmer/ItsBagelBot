@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  placeholder.server: |
+    # Matches the Corefile's custom/*.server import.
+  placeholder.override: |
+    # Matches the Corefile's custom/*.override import.
