@@ -14,7 +14,7 @@ spec:
     name: outgress-env
     namespace: app
     type: Opaque
-  resyncSeconds: 60
+  resyncSeconds: 300
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -129,7 +129,7 @@ spec:
             - name: VALKEY_LOCAL_ADDR
               value: valkey-local.cache.svc.cluster.local:6380
             - name: GOMEMLIMIT
-              value: 512MiB
+              value: 460MiB
             # No NATS_CONSUME_FLOW/MODE: outgress_bus has no MSG.NEXT grant, so a pull lane delivers nothing.
             - name: OUTGRESS_MIN_ROUTINES
               value: "50"

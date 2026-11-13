@@ -82,7 +82,7 @@ spec:
     name: clusterops-env
     namespace: ops
     type: Opaque
-  resyncSeconds: 60
+  resyncSeconds: 300
 ---
 apiVersion: apps/v1
 kind: Deployment

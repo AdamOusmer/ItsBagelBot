@@ -14,7 +14,7 @@ spec:
     name: loyalty-env
     namespace: db
     type: Opaque
-  resyncSeconds: 60
+  resyncSeconds: 300
 ---
 apiVersion: apps/v1
 kind: Deployment
