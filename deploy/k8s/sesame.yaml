@@ -65,6 +65,7 @@ spec:
           labelSelector:
             matchLabels:
               app: sesame
+      automountServiceAccountToken: false
       securityContext:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle

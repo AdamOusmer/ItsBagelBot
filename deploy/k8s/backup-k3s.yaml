@@ -119,6 +119,7 @@ spec:
             app: backup-k3s
         spec:
           restartPolicy: OnFailure
+          automountServiceAccountToken: false
           nodeSelector:
             role: cp
           tolerations:

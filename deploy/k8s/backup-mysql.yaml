@@ -153,6 +153,7 @@ spec:
             app: backup-mysql
         spec:
           restartPolicy: OnFailure
+          automountServiceAccountToken: false
           nodeSelector:
             role: node
           securityContext:

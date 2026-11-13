@@ -16,6 +16,7 @@ type pullContainer struct {
 
 type pullPodSpec struct {
 	ServiceAccountName string          `yaml:"serviceAccountName"`
+	AutomountToken     *bool           `yaml:"automountServiceAccountToken"`
 	Containers         []pullContainer `yaml:"containers"`
 }
 
@@ -79,6 +80,26 @@ func TestOwnServiceAccountsCarryThePullSecret(t *testing.T) {
 		}
 	}
 	assert.Empty(t, missing, "first-party images need ghcr-pull on the service account they run as")
+}
+
+func TestDefaultAccountPodsMountNoToken(t *testing.T) {
+	var mounting []string
+	for _, filename := range manifestFilenames(t) {
+		for _, m := range decodeFile[pullManifest](t, filename) {
+			if m.mountsDefaultToken() {
+				mounting = append(mounting, m.Kind+" "+m.Metadata.Namespace+"/"+m.Metadata.Name)
+			}
+		}
+	}
+	assert.Empty(t, mounting, "pods on the default service account never call the API; set automountServiceAccountToken: false")
+}
+
+func (m pullManifest) mountsDefaultToken() bool {
+	pod := m.pod()
+	if len(pod.Containers) == 0 || pod.ServiceAccountName != "" {
+		return false
+	}
+	return pod.AutomountToken == nil || *pod.AutomountToken
 }
 
 func pullingAccounts(manifests []pullManifest) map[string]bool {
