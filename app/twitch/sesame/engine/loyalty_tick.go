@@ -40,6 +40,7 @@ const (
 	watchTickReconfirmInterval = time.Hour
 	watchCollectionMaxAge      = 10 * time.Minute
 	loyaltyEscalationLevel     = 3
+	loyaltyUnauthorizedPark    = 30 * time.Minute
 	loyaltyReconcileInterval   = time.Minute
 	loyaltyReconcileClaimKey   = loyaltyTickClaimPrefix + "reconcile"
 	loyaltyReconcileClaimTTL   = 30 * time.Second

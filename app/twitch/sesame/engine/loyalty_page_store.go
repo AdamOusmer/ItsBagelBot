@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
@@ -19,10 +20,10 @@ import (
 )
 
 type loyaltySchedule struct {
-	generation, liveSession, window, cursor, pending, nextCursor string
-	chunk                                                        uint32
-	confirmedAt, startedAt, dueAt                                int64
-	complete                                                     bool
+	generation, liveSession, window, cursor, pending, nextCursor, lastError string
+	chunk                                                                   uint32
+	confirmedAt, startedAt, dueAt                                           int64
+	complete                                                                bool
 }
 
 func (s *ValkeyLoyaltyClock) readSchedule(ctx context.Context, id uint64) (loyaltySchedule, error) {
@@ -37,7 +38,7 @@ func (s *ValkeyLoyaltyClock) readSchedule(ctx context.Context, id uint64) (loyal
 	confirmed, _ := strconv.ParseInt(fields["confirmed_at"], 10, 64)
 	started, _ := strconv.ParseInt(fields["window_started_at"], 10, 64)
 	due, _ := strconv.ParseInt(fields["due"], 10, 64)
-	return loyaltySchedule{generation: fields["generation"], liveSession: fields["live_session"], window: fields["window"], cursor: fields["cursor"], pending: fields["pending"], nextCursor: fields["pending_cursor"], chunk: uint32(chunk), confirmedAt: confirmed, startedAt: started, dueAt: due, complete: fields["pending_complete"] == "1"}, nil
+	return loyaltySchedule{generation: fields["generation"], liveSession: fields["live_session"], window: fields["window"], cursor: fields["cursor"], pending: fields["pending"], nextCursor: fields["pending_cursor"], lastError: fields["last_error"], chunk: uint32(chunk), confirmedAt: confirmed, startedAt: started, dueAt: due, complete: fields["pending_complete"] == "1"}, nil
 }
 
 func (s *ValkeyLoyaltyClock) collectionExpired(state loyaltySchedule) bool {
@@ -92,10 +93,25 @@ func (p *loyaltyPage) stop(ctx context.Context, reason string) {
 }
 
 func (p *loyaltyPage) abandon(ctx context.Context, reason string) {
-	_, err := p.clock.eval(ctx, loyaltyAbandonScript, []string{loyaltyScheduleKey(p.id), loyaltyDueKey, loyaltyClaimKey(p.id)}, p.owner, strconv.FormatUint(p.id, 10), strconv.FormatInt(p.clock.now().Add(watchTickInterval).UnixMilli(), 10), reason)
+	p.dropWindow(ctx, reason, watchTickInterval)
+}
+
+func (p *loyaltyPage) park(ctx context.Context, cause error) {
+	reason := cause.Error()
+	if !p.dropWindow(ctx, reason, loyaltyUnauthorizedPark) {
+		return
+	}
+	if p.state.lastError != reason {
+		p.clock.log.Warn("loyalty: watch window parked", module.BIDField(p.id), zap.Duration("parked_for", loyaltyUnauthorizedPark), zap.Error(cause))
+	}
+}
+
+func (p *loyaltyPage) dropWindow(ctx context.Context, reason string, delay time.Duration) bool {
+	_, err := p.clock.eval(ctx, loyaltyAbandonScript, []string{loyaltyScheduleKey(p.id), loyaltyDueKey, loyaltyClaimKey(p.id)}, p.owner, strconv.FormatUint(p.id, 10), strconv.FormatInt(p.clock.now().Add(delay).UnixMilli(), 10), reason)
 	if err != nil {
 		p.clock.log.Warn("loyalty: failed to abandon invalid window", module.BIDField(p.id), zap.Error(err))
 	}
+	return err == nil
 }
 
 func (p *loyaltyPage) retry(ctx context.Context, cause error, retryAt int64) {
