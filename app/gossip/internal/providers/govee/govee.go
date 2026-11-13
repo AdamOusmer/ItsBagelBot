@@ -455,6 +455,7 @@ type controlCapability struct {
 type controlResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+	Msg     string `json:"msg"`
 }
 
 func (p *api) control(ctx context.Context, req gossiprpc.Request) any {
@@ -503,7 +504,9 @@ func (p *api) driveLights(ctx context.Context, broadcaster string, headers map[s
 func (p *api) driveLight(ctx context.Context, broadcaster string, target goveeTarget, steps []controlStep) error {
 	for _, step := range steps {
 		if err := target.set(ctx, step.capType, step.instance, step.value); err != nil {
-			monitor.TxnLogger(ctx, p.log).Warn("govee control step failed", zap.String("broadcaster", broadcaster), zap.String("capability", step.capType), zap.Error(err))
+			monitor.TxnLogger(ctx, p.log).Warn("govee control step failed",
+				zap.String("broadcaster", broadcaster), zap.String("sku", target.sku), zap.String("device", target.device),
+				zap.String("capability", step.capType), zap.String("instance", step.instance), zap.Any("value", step.value), zap.Error(err))
 			return err
 		}
 	}
@@ -625,7 +628,7 @@ func (t goveeTarget) set(ctx context.Context, capType, instance string, value an
 	if err := t.http.Do(ctx, req, &resp); err != nil {
 		return err
 	}
-	return goveeCodeError(resp.Code, resp.Message)
+	return goveeCodeError(resp.Code, resp.Message+resp.Msg)
 }
 
 func goveeCodeError(code int, message string) error {
@@ -648,8 +651,21 @@ func controlStepError(req gossiprpc.Request, err error) string {
 
 func friendlyControlError(err error) string {
 	var ue *core.UpstreamError
-	if errors.As(err, &ue) && ue.Status == 429 {
+	if !errors.As(err, &ue) {
+		return "could not reach your lights"
+	}
+	switch ue.Status {
+	case http.StatusTooManyRequests:
 		return "too many light changes, slow down"
+	case http.StatusBadRequest:
+		return rejectedCommand(ue.Message)
 	}
 	return "could not reach your lights"
+}
+
+func rejectedCommand(reason string) string {
+	if reason == "" {
+		return "Govee rejected this command for your light"
+	}
+	return "Govee rejected this command for your light: " + reason
 }
