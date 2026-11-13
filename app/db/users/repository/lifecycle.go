@@ -154,6 +154,7 @@ func (r *Users) lifecycleAttempt(ctx context.Context, req usersrpc.LifecycleRequ
 	if !committed {
 		return reply, true, nil
 	}
+	r.recordLifecycle(m)
 	reply, err = r.publishCommittedLifecycle(ctx, m)
 	return reply, false, err
 }

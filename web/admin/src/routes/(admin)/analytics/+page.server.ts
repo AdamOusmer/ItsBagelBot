@@ -6,8 +6,8 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows } from '#lib/server/access';
 import { analyticsSeries, type AnalyticsWindow } from '#lib/server/services';
-import { ANALYTICS_WINDOWS, DEFAULT_ANALYTICS_WINDOW, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
-import { lastClosedDay, type AnalyticsRow } from '#lib/analytics-view';
+import { ANALYTICS_LIVE, ANALYTICS_WINDOWS, DEFAULT_ANALYTICS_WINDOW, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
+import { currentDay, type AnalyticsRow } from '#lib/analytics-view';
 
 const DEMO = dev && process.env.DEMO === '1';
 const COHORT_DAYS = 120;
@@ -45,12 +45,12 @@ async function read(actorId: string, days: number): Promise<AnalyticsReads> {
     series('w', ['cohort.active'], COHORT_DAYS),
     series('d', ['lifecycle'], COHORT_DAYS)
   ]);
-  return { end: lastClosedDay(new Date()), days, counters, levels, week, month, cohortWeeks, cohortDays };
+  return { end: currentDay(new Date()), days, counters, levels, week, month, cohortWeeks, cohortDays };
 }
 
 const NONE: AnalyticsRow[] = [];
 const emptyReads = (days: number): AnalyticsReads => ({
-  end: lastClosedDay(new Date()),
+  end: currentDay(new Date()),
   days,
   counters: NONE,
   levels: NONE,
@@ -60,7 +60,8 @@ const emptyReads = (days: number): AnalyticsReads => ({
   cohortDays: NONE
 });
 
-export const load: PageServerLoad = async ({ parent, url }) => {
+export const load: PageServerLoad = async ({ parent, url, depends }) => {
+  depends(ANALYTICS_LIVE);
   const layout = await parent();
   if (!allows(layout.role, 'analytics.read')) throw redirect(302, '/');
   const days = windowDays(url.searchParams.get('days'));

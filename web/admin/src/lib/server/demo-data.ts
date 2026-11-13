@@ -835,7 +835,7 @@ function demoLifecycleRows(span: DemoSpan, end: DemoDay): AnalyticsRow[] {
 }
 
 export function demoAnalytics(days = 30): AnalyticsReads {
-  const end = Math.floor(Date.now() / DEMO_DAY_MS) - 1;
+  const end = Math.floor(Date.now() / DEMO_DAY_MS);
   const counterSpan = Math.min(2 * days, 400);
   const cohortDays = demoLifecycleRows({ start: end - 119, length: 120 }, end);
   return {

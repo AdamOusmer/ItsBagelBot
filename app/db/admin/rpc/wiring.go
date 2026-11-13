@@ -8,6 +8,7 @@ import (
 
 	"ItsBagelBot/app/db/admin/ent"
 	"ItsBagelBot/app/db/admin/repository"
+	"ItsBagelBot/internal/analytics"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/bus"
 )
@@ -16,7 +17,8 @@ const adminBudget = 3 * time.Second
 
 type Wiring struct {
 	bus.RPCWiring
-	Repo *repository.Admin
+	Repo      *repository.Admin
+	Analytics *analytics.Reader
 }
 
 func refusal(err error) domainrpc.Refusal {

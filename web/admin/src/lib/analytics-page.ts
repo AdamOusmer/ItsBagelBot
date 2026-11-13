@@ -43,6 +43,8 @@ import {
 
 export const ANALYTICS_WINDOWS = [1, 7, 30, 90, 365] as const;
 export const DEFAULT_ANALYTICS_WINDOW = 30;
+export const ANALYTICS_LIVE = 'admin:analytics';
+export const ANALYTICS_REFRESH_MS = 15_000;
 
 export type AnalyticsReads = {
   end: string;

@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/db/admin/ent/enttest"
 	"ItsBagelBot/app/db/admin/repository"
 	"ItsBagelBot/app/db/admin/rpc"
+	"ItsBagelBot/internal/analytics"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/internal/testnats"
@@ -41,11 +42,14 @@ type harness struct {
 	client *ent.Client
 }
 
-func newHarness(t *testing.T) harness {
+func newHarness(t *testing.T, readers ...*analytics.Reader) harness {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	nc := testnats.Connect(t)
 	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repository.New(client)}
+	if len(readers) > 0 {
+		w.Analytics = readers[0]
+	}
 	require.NoError(t, rpc.SubscribeAdminAuth(w, client, authPrefix, auditPrefix))
 	for _, binding := range []struct {
 		subject   string
