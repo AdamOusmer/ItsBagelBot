@@ -137,12 +137,16 @@ data:
     export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
     export RCLONE_CONFIG_R2_ACL=private
     export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
-    BINLOG_REMOTE="r2:${R2_BUCKET}/mysql/daily/binlog"
+    BINLOG_REMOTE="r2:${R2_BUCKET}/mysql/daily/binlogs"
   binlog-fetch.sh: |
     #!/bin/sh
     set -eu
     . /scripts/r2-env.sh
-    rclone copy "$BINLOG_REMOTE" /work/binlog --include "*.json" --stats-one-line
+    LAST=$(rclone lsf "$BINLOG_REMOTE" --dirs-only | sort | tail -1)
+    mkdir -p /work/prev /work/binlog
+    if [ -n "$LAST" ]; then
+      rclone copy "$BINLOG_REMOTE/$LAST" "/work/prev/$LAST" --include "*.json" --stats-one-line
+    fi
   binlog-dump.sh: |
     #!/bin/sh
     set -eu
@@ -156,11 +160,14 @@ data:
 
     CONN="--host=$DB_HOST --port=$DB_PORT --user=$BINLOG_DB_USER --ssl-mode=VERIFY_IDENTITY --ssl-ca=ca.pem --ssl-cert=client-cert.pem --ssl-key=client-key.pem"
 
-    START=""
-    if [ ! -f binlog/@.binlog.info.json ]; then
-      START="--startFrom=$(MYSQL_PWD="$BINLOG_DB_PASS" mysql $CONN -N -B -e 'SHOW BINARY LOG STATUS' | awk '{print $1 ":" $2}')"
+    PREV=$(ls prev | tail -1)
+    if [ -n "$PREV" ]; then
+      FROM="--since=/work/prev/$PREV"
+    else
+      FROM="--startFrom=$(MYSQL_PWD="$BINLOG_DB_PASS" mysql $CONN -N -B -e 'SHOW BINARY LOG STATUS' | awk '{print $1 ":" $2}')"
     fi
-    printf '%s\n' "$BINLOG_DB_PASS" | mysqlsh --no-defaults --passwords-from-stdin $CONN -- util dump-binlogs /work/binlog $START
+    printf '%s\n' "$BINLOG_DB_PASS" | mysqlsh --no-defaults --passwords-from-stdin $CONN \
+      -- util dump-binlogs "/work/binlog/$(date -u +%Y%m%dT%H%M%SZ)" "$FROM"
 
     find binlog -name '*.zst' | while read -r f; do
       openssl smime -encrypt -binary -aes-256-cbc -outform DER -in "$f" -out "$f.enc" pub.pem
@@ -171,10 +178,9 @@ data:
     #!/bin/sh
     set -eu
     . /scripts/r2-env.sh
+    # The bucket lock forbids overwrites, so every run writes a new dump root chained to the last one.
     rclone copy /work/binlog "$BINLOG_REMOTE" --include "*.enc" --stats-one-line
     rclone copy /work/binlog "$BINLOG_REMOTE" --include "*.json" --stats-one-line
-    # Rewritten every run so the 30d daily/ lifecycle rule never expires the dump root while it is in use.
-    rclone copyto /work/binlog/@.binlog.info.json "$BINLOG_REMOTE/@.binlog.info.json" --ignore-times
 ---
 apiVersion: batch/v1
 kind: CronJob
