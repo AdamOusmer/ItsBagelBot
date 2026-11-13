@@ -308,9 +308,20 @@ func (r *RecipeState) cooldownExtendQuery() string {
 
 // PruneExpiredCooldowns walks the expiry index in bounded batches; it only removes rows a claim would overwrite anyway.
 func (r *RecipeState) PruneExpiredCooldowns(ctx context.Context) error {
-	now := time.Now().UnixMilli()
+	return r.pruneBefore(ctx, pruneTarget{table: "cooldown_claims", column: "expires_at_ms"}, time.Now().UnixMilli()+1)
+}
+
+// PruneCountdownOperations drops retry identities older than 31 days.
+func (r *RecipeState) PruneCountdownOperations(ctx context.Context) error {
+	return r.pruneBefore(ctx, pruneTarget{table: "countdown_operations", column: "created_at_ms"}, time.Now().Add(-31*24*time.Hour).UnixMilli())
+}
+
+type pruneTarget struct{ table, column string }
+
+func (r *RecipeState) pruneBefore(ctx context.Context, target pruneTarget, beforeMS int64) error {
+	query := r.pruneQuery(target)
 	for ctx.Err() == nil {
-		deleted, err := r.pruneCooldownBatch(ctx, now)
+		deleted, err := r.pruneBatch(ctx, query, beforeMS)
 		if err != nil || deleted < cooldownPruneBatch {
 			return err
 		}
@@ -318,10 +329,10 @@ func (r *RecipeState) PruneExpiredCooldowns(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (r *RecipeState) pruneCooldownBatch(ctx context.Context, nowMS int64) (int64, error) {
+func (r *RecipeState) pruneBatch(ctx context.Context, query string, beforeMS int64) (int64, error) {
 	var deleted int64
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		result, err := r.sqldb.ExecContext(ctx, r.cooldownPruneQuery(), nowMS, cooldownPruneBatch)
+		result, err := r.sqldb.ExecContext(ctx, query, beforeMS, cooldownPruneBatch)
 		if err != nil {
 			return err
 		}
@@ -331,12 +342,12 @@ func (r *RecipeState) pruneCooldownBatch(ctx context.Context, nowMS int64) (int6
 	return deleted, err
 }
 
-func (r *RecipeState) cooldownPruneQuery() string {
-	expired := " WHERE expires_at_ms<=? ORDER BY expires_at_ms LIMIT ?"
+func (r *RecipeState) pruneQuery(target pruneTarget) string {
+	expired := " WHERE " + target.column + "<? ORDER BY " + target.column + " LIMIT ?"
 	if r.dialect == "sqlite3" {
-		return "DELETE FROM cooldown_claims WHERE id IN (SELECT id FROM cooldown_claims" + expired + ")"
+		return "DELETE FROM " + target.table + " WHERE id IN (SELECT id FROM " + target.table + expired + ")"
 	}
-	return "DELETE FROM cooldown_claims" + expired
+	return "DELETE FROM " + target.table + expired
 }
 
 // CooldownRow is one stored window due to leave the database.

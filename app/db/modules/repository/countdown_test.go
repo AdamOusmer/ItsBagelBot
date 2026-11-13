@@ -5,6 +5,7 @@ package repository_test
 import (
 	"ItsBagelBot/app/db/modules/repository"
 	"context"
+	"database/sql"
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -111,11 +112,19 @@ func TestCountdownOperationRetention(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = repo.CountdownClaim(ctx)
 	require.NoError(t, err)
-	var n int
-	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM countdown_operations WHERE operation_id=?", "old").Scan(&n))
-	require.Zero(t, n)
-	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM countdown_operations WHERE operation_id=?", "recent").Scan(&n))
-	require.Equal(t, 1, n)
+	require.Equal(t, map[string]int{"old": 1, "recent": 1}, countdownOperationCounts(t, raw))
+	require.NoError(t, repo.PruneCountdownOperations(ctx))
+	require.Equal(t, map[string]int{"old": 0, "recent": 1}, countdownOperationCounts(t, raw))
+}
+
+func countdownOperationCounts(t *testing.T, raw *sql.DB) map[string]int {
+	counts := map[string]int{}
+	for _, id := range []string{"old", "recent"} {
+		var n int
+		require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM countdown_operations WHERE operation_id=?", id).Scan(&n))
+		counts[id] = n
+	}
+	return counts
 }
 
 func TestCountdownNameLimitAllowsRestartAndFreesCompletedNames(t *testing.T) {
