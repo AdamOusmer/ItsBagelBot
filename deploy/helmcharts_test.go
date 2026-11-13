@@ -126,15 +126,13 @@ func TestNewRelicBundleKeepsControlPlaneToleration(t *testing.T) {
 		"controlplane, ksm, kubelet, kube-state-metrics, logging and prometheus-agent must tolerate the cp1 taint")
 }
 
-func TestFalcoUIStaysOff(t *testing.T) {
+func TestFalcoSidekickStaysOff(t *testing.T) {
 	c := loadHelmCharts(t)["falco"]
 	var values struct {
 		Sidekick struct {
-			WebUI struct {
-				Enabled bool `yaml:"enabled"`
-			} `yaml:"webui"`
+			Enabled bool `yaml:"enabled"`
 		} `yaml:"falcosidekick"`
 	}
 	require.NoError(t, yaml.Unmarshal([]byte(c.Spec.ValuesContent), &values))
-	require.False(t, values.Sidekick.WebUI.Enabled)
+	require.False(t, values.Sidekick.Enabled)
 }

@@ -6,3 +6,4 @@ kind: Kustomization
 resources:
   # Corefile deliberately not listed: applying it would delete the k3s-managed NodeHosts key.
   - coredns.yaml
+  - coredns-custom.yaml

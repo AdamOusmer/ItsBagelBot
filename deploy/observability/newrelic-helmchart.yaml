@@ -142,6 +142,7 @@ spec:
     newrelic-logging:
       enabled: true
       fluentBit:
+        logLevel: warn
         config:
           extraInputs: |
             [INPUT]
