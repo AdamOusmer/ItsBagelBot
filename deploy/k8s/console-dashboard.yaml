@@ -411,8 +411,8 @@ metadata:
   namespace: app
 spec:
   serverName: console-dashboard
-  rootCAsSecrets:
-    - console-dashboard-tls
+  rootCAs:
+    - secret: console-dashboard-tls
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

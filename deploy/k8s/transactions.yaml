@@ -225,8 +225,8 @@ metadata:
   namespace: db
 spec:
   serverName: transactions
-  rootCAsSecrets:
-    - transactions-tls
+  rootCAs:
+    - secret: transactions-tls
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

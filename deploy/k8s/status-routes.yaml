@@ -211,8 +211,8 @@ metadata:
   namespace: db
 spec:
   serverName: projector-status
-  rootCAsSecrets:
-    - projector-tls
+  rootCAs:
+    - secret: projector-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
@@ -221,8 +221,8 @@ metadata:
   namespace: app
 spec:
   serverName: gossip-status
-  rootCAsSecrets:
-    - gossip-tls
+  rootCAs:
+    - secret: gossip-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
@@ -231,5 +231,5 @@ metadata:
   namespace: app
 spec:
   serverName: sesame-status
-  rootCAsSecrets:
-    - sesame-tls
+  rootCAs:
+    - secret: sesame-tls

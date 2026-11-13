@@ -527,11 +527,11 @@ metadata:
   namespace: app
 spec:
   # Verify the console pod's serve-node.js cert against the fleet CA. serverName
-  # matches the cert SAN (the Service name). rootCAsSecrets reads the CA from the
+  # matches the cert SAN (the Service name). rootCAs reads the CA from the
   # cert-manager secret's ca.crt key (Traefik v3). No InsecureSkipVerify.
   serverName: console-dashboard
-  rootCAsSecrets:
-    - console-dashboard-tls
+  rootCAs:
+    - secret: console-dashboard-tls
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
