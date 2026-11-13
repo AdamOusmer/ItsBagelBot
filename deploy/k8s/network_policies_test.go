@@ -214,7 +214,7 @@ func TestAppEgressAllowlists(t *testing.T) {
 		},
 		{
 			name: "TestDBR2EgressAllowlist", path: dbPolicies, policy: "allow-r2",
-			wantApps: sorted("backup-k3s", "backup-mysql"),
+			wantApps: sorted("backup-binlog", "backup-k3s", "backup-mysql"),
 			wantCIDRs: sorted("103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "104.16.0.0/13", "104.24.0.0/14",
 				"108.162.192.0/18", "131.0.72.0/22", "141.101.64.0/18", "162.158.0.0/15", "172.64.0.0/13",
 				"173.245.48.0/20", "188.114.96.0/20", "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17"),
@@ -226,7 +226,7 @@ func TestAppEgressAllowlists(t *testing.T) {
 		},
 		{
 			name: "TestDBHeatWaveEgressAllowlist", path: dbPolicies, policy: "allow-heatwave",
-			wantApps: sorted("admin", "backup-mysql", "commands", "loyalty", "modules",
+			wantApps: sorted("admin", "backup-binlog", "backup-mysql", "commands", "loyalty", "modules",
 				"notifications", "transactions", "users"),
 			wantCIDRs: sorted("10.0.0.0/16", "204.216.107.73/32"),
 		},
@@ -298,9 +298,9 @@ func TestNatsPoliciesAreExact(t *testing.T) {
 func TestDBNamespaceCoversEveryDataService(t *testing.T) {
 	policies := loadNetworkPolicies(t, dbPolicies)
 	want := map[string][]string{
-		"default-deny-db": sorted("admin", "backup-k3s", "backup-mysql", "commands", "loyalty",
+		"default-deny-db": sorted("admin", "backup-binlog", "backup-k3s", "backup-mysql", "commands", "loyalty",
 			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
-		"allow-heatwave": sorted("admin", "backup-mysql", "commands", "loyalty", "modules",
+		"allow-heatwave": sorted("admin", "backup-binlog", "backup-mysql", "commands", "loyalty", "modules",
 			"notifications", "transactions", "users"),
 	}
 	for name, apps := range want {
