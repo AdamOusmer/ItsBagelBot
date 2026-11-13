@@ -143,7 +143,22 @@ spec:
       enabled: true
       fluentBit:
         config:
+          extraInputs: |
+            [INPUT]
+                Name              tail
+                Alias             kube-audit-tailer
+                Tag               kube-audit
+                Path              /var/log/kube-audit/audit.log
+                DB                /var/log/flb_kube_audit.db
+                Mem_Buf_Limit     5MB
+                Skip_Long_Lines   On
+                Refresh_Interval  10
           extraFilters: |
+            [FILTER]
+                Name         modify
+                Alias        kube-audit-logtype
+                Match        kube-audit
+                Add          logtype kube-audit
             [FILTER]
                 Name         grep
                 Alias        warp-noise-filter
