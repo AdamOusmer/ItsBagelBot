@@ -80,7 +80,7 @@ func ClientSubscriptions(clientID string, conduit ConduitID) []SubSpec {
 	return []SubSpec{
 		{"user.authorization.grant", "1", map[string]string{"client_id": clientID}},
 		{"user.authorization.revoke", "1", map[string]string{"client_id": clientID}},
-		{"conduit.shard.disabled", "1", map[string]string{"conduit_id": string(conduit)}},
+		{"conduit.shard.disabled", "1", map[string]string{"client_id": clientID, "conduit_id": string(conduit)}},
 	}
 }
 
