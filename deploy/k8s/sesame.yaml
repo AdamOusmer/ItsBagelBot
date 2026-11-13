@@ -219,6 +219,7 @@ spec:
               memory: 768Mi
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: {drop: ["ALL"]}
           lifecycle:
             preStop:
