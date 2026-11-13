@@ -18,6 +18,8 @@ defmodule Ingress.ShardSession do
   @base_backoff_ms 1_000
   @max_backoff_ms 60_000
   @registry_check_interval_ms 30_000
+  @stagger_slot_ms 1_000
+  @stagger_slots 10
   @routing_paths [
     ["metadata", "message_type"],
     ["metadata", "message_id"],
@@ -41,6 +43,7 @@ defmodule Ingress.ShardSession do
             handshake_timer: nil,
             attempts: 0,
             bound_at: nil,
+            edge: %{},
             last_frame_mono_ms: nil,
             last_frame_system_ms: nil,
             takeover: nil,
@@ -368,6 +371,7 @@ defmodule Ingress.ShardSession do
     do: handle_twitch(which, Platform.Sift.decode!(frame), state)
 
   defp routed_notification?("user.authorization." <> _action), do: false
+  defp routed_notification?("conduit.shard.disabled"), do: false
   defp routed_notification?(type), do: type not in @control_notification_types
 
   defp socket(state, :primary), do: state.primary
@@ -387,11 +391,13 @@ defmodule Ingress.ShardSession do
     cancel(state.handshake_timer)
     WS.close(state.primary)
 
-    Logger.info("reconnect handshake complete, session #{session["id"]} moved")
+    edge = edge(state.pending)
+    Logger.info("reconnect handshake complete, session #{session["id"]} moved #{edge_text(edge)}")
 
     state = %{
       state
       | primary: state.pending,
+        edge: edge,
         pending: nil,
         handshake_timer: nil,
         session_id: session["id"] || state.session_id,
@@ -416,6 +422,7 @@ defmodule Ingress.ShardSession do
       state
       | welcome_timer: nil,
         session_id: session_id,
+        edge: edge(state.primary),
         keepalive_ms: keepalive_ms(session, state)
     }
 
@@ -424,7 +431,10 @@ defmodule Ingress.ShardSession do
 
     case Api.assign_shard(state.conduit_id, state.shard_id, session_id) do
       :ok ->
-        Logger.info("shard bound, session #{session_id}")
+        Logger.info(
+          "shard #{state.shard_id} bound, session #{session_id} #{edge_text(state.edge)}"
+        )
+
         Metrics.event("ShardUp", %{shard_id: state.shard_id, session_id: session_id})
 
         Nats.publish("twitch.ingress.status.shard.up", %{
@@ -537,6 +547,26 @@ defmodule Ingress.ShardSession do
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end
 
+  defp handle_twitch(
+         _which,
+         "notification",
+         %{"subscription" => %{"type" => "conduit.shard.disabled"}} = payload,
+         _meta,
+         state
+       ) do
+    event = payload["event"] || %{}
+    transport = event["transport"] || %{}
+    Metrics.count("Shard/TwitchDisabled")
+
+    Logger.warning(
+      "twitch disabled conduit shard: conduit=#{event["conduit_id"]} shard=#{event["shard_id"]} " <>
+        "status=#{event["status"]} session=#{transport["session_id"]} " <>
+        "connected_at=#{transport["connected_at"]} disconnected_at=#{transport["disconnected_at"]}"
+    )
+
+    {:noreply, pet_watchdog(state)}
+  end
+
   defp handle_twitch(_which, "revocation", payload, meta, state) do
     sub = payload["subscription"] || %{}
     Logger.warning("subscription revoked: #{inspect(sub)}")
@@ -643,7 +673,12 @@ defmodule Ingress.ShardSession do
   end
 
   defp socket_down(:primary, reason, state) do
-    Logger.warning("socket down: #{inspect(reason)}; reconnecting")
+    Logger.warning(
+      "socket down: close=#{inspect(reason)} shard=#{state.shard_id} session=#{state.session_id} " <>
+        "connected_ms=#{since_ms(state.bound_at)} last_frame_age_ms=#{last_frame_age_ms(state)} " <>
+        "#{edge_text(state.edge)}; reconnecting"
+    )
+
     {:noreply, reconnect(state)}
   end
 
@@ -652,6 +687,24 @@ defmodule Ingress.ShardSession do
     cancel(state.handshake_timer)
     {:noreply, reconnect(%{state | pending: nil, handshake_timer: nil})}
   end
+
+  defp edge(ws) do
+    %{
+      peer: WS.peer(ws),
+      pop: WS.response_header(ws, "x-amz-cf-pop"),
+      via: WS.response_header(ws, "via")
+    }
+  end
+
+  defp edge_text(edge), do: "peer=#{edge[:peer]} pop=#{edge[:pop]} via=#{inspect(edge[:via])}"
+
+  defp since_ms(%DateTime{} = at), do: DateTime.diff(DateTime.utc_now(), at, :millisecond)
+  defp since_ms(_at), do: nil
+
+  defp last_frame_age_ms(%{last_frame_mono_ms: nil}), do: nil
+
+  defp last_frame_age_ms(%{last_frame_mono_ms: at}),
+    do: System.monotonic_time(:millisecond) - at
 
   defp connect(state) do
     case WS.connect(TwitchConfig.eventsub_url(), state.ws_connect_opts) do
@@ -786,18 +839,27 @@ defmodule Ingress.ShardSession do
         watchdog: nil,
         welcome_timer: nil,
         handshake_timer: nil,
-        bound_at: nil
+        bound_at: nil,
+        edge: %{}
     }
   end
 
   defp schedule_retry(state) do
     attempts = state.attempts + 1
-    delay = Ingress.Backoff.jittered_ms(attempts, @base_backoff_ms, @max_backoff_ms, 6)
+
+    delay =
+      Ingress.Backoff.jittered_ms(attempts, @base_backoff_ms, @max_backoff_ms, 6) +
+        stagger_ms(state.shard_id)
+
     Logger.info("reconnecting in #{delay}ms (attempt #{attempts})")
     Metrics.count("Shard/Reconnects")
     Process.send_after(self(), :retry_connect, delay)
     %{state | attempts: attempts}
   end
+
+  @doc false
+  def stagger_ms(shard_id) when is_integer(shard_id),
+    do: rem(shard_id, @stagger_slots) * @stagger_slot_ms
 
   defp count_notification(state) do
     now = System.monotonic_time(:millisecond)

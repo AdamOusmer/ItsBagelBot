@@ -4,7 +4,7 @@
 defmodule Platform.WebSocket.Client do
   alias Platform.WebSocket.Frame
 
-  defstruct [:conn, :ref, :websocket, :status, :headers, frames: %Frame{}]
+  defstruct [:conn, :ref, :websocket, :status, :headers, :peer, frames: %Frame{}]
 
   @opaque t :: %__MODULE__{}
   @type frame ::
@@ -36,7 +36,7 @@ defmodule Platform.WebSocket.Client do
                transport_opts: transport_opts
              ),
            {:ok, conn, ref} <- Mint.WebSocket.upgrade(ws_scheme, conn, path, headers) do
-        {:ok, %__MODULE__{conn: conn, ref: ref}}
+        {:ok, %__MODULE__{conn: conn, ref: ref, peer: peer(conn, scheme)}}
       else
         {:error, reason} ->
           {:error, reason(reason)}
@@ -49,6 +49,23 @@ defmodule Platform.WebSocket.Client do
       _ -> {:error, :invalid_url}
     end
   end
+
+  defp peer(conn, :https), do: format_peer(:ssl.peername(Mint.HTTP.get_socket(conn)))
+  defp peer(conn, :http), do: format_peer(:inet.peername(Mint.HTTP.get_socket(conn)))
+
+  defp format_peer({:ok, {ip, port}}), do: "#{:inet.ntoa(ip)}:#{port}"
+  defp format_peer(_error), do: nil
+
+  @spec peer(t() | nil) :: String.t() | nil
+  def peer(nil), do: nil
+  def peer(%__MODULE__{peer: peer}), do: peer
+
+  @spec response_header(t() | nil, String.t()) :: String.t() | nil
+  def response_header(%__MODULE__{headers: headers}, name) when is_list(headers) do
+    Enum.find_value(headers, fn {key, value} -> if key == name, do: value end)
+  end
+
+  def response_header(_ws, _name), do: nil
 
   defp schemes("wss"), do: {:ok, :https, :wss, 443}
   defp schemes("https"), do: {:ok, :https, :wss, 443}

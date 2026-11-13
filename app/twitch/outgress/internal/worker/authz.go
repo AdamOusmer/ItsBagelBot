@@ -317,11 +317,11 @@ func (w *Worker) EnsureClientEventSubs(ctx context.Context) {
 func (w *Worker) tryCreateClientEventSubs(ctx context.Context, clientID string, attempt int) bool {
 	err := w.createClientEventSubs(ctx, clientID)
 	if err == nil {
-		w.log.Info("user.authorization eventsubs ensured on conduit")
+		w.log.Info("user.authorization and conduit.shard.disabled eventsubs ensured on conduit")
 		return true
 	}
 	if ctx.Err() == nil {
-		w.log.Warn("ensuring user.authorization eventsubs failed, will retry",
+		w.log.Warn("ensuring client eventsubs failed, will retry",
 			zap.Int("attempt", attempt), zap.Error(err))
 	}
 	return false
@@ -341,7 +341,7 @@ func (w *Worker) createClientEventSubs(ctx context.Context, clientID string) err
 	if err != nil {
 		return err
 	}
-	for _, spec := range twitch.ClientSubscriptions(clientID) {
+	for _, spec := range twitch.ClientSubscriptions(clientID, twitch.ConduitID(conduitID)) {
 		if err := w.takeSystemHelix(ctx); err != nil {
 			return err
 		}

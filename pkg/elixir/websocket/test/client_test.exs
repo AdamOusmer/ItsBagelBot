@@ -22,6 +22,21 @@ defmodule Platform.WebSocket.ClientTest do
     assert Task.await(server) =~ "back"
   end
 
+  test "exposes the connected peer and upgrade response headers" do
+    {port, server} =
+      serve(fn _request, key ->
+        String.replace_suffix(switching(key), "\r\n", "x-amz-cf-pop: YUL62-P3\r\n\r\n")
+      end)
+
+    {:ok, ws} = Client.connect("ws://127.0.0.1:#{port}/")
+    assert Client.peer(ws) == "127.0.0.1:#{port}"
+    assert {:ok, ws, [:upgraded]} = receive_stream(ws)
+    assert Client.response_header(ws, "x-amz-cf-pop") == "YUL62-P3"
+    assert Client.response_header(ws, "via") == nil
+    Client.close(ws)
+    Task.await(server)
+  end
+
   test "reports a refused upgrade by HTTP status" do
     {port, server} =
       serve(fn _request, _key ->
