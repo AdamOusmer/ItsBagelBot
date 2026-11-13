@@ -100,8 +100,8 @@ The following existing policy was preserved in [`deploy/cilium/values.yaml`](htt
 | `kubeProxyReplacement` / `loadBalancer.serviceTopology` | `true` / `true` |
 | Worker devices / direct routing device | `eth0 eth1 tailscale0` / `eth1` |
 | Worker Cilium MTU | `9000`; public eth0 link MTU remains `1500` |
-| BPF trace / policy-verdict events / drop events | Disabled / disabled / enabled |
-| Hubble / L7 proxy / Envoy | Disabled / disabled / disabled |
+| BPF trace / policy-verdict events / drop events | Enabled / disabled / enabled |
+| Hubble / L7 proxy / Envoy | Enabled with relay / disabled / disabled |
 | Cilium rolling update | `maxUnavailable: 1` |
 
 Each NIC has an `mq` root with eight `fq` leaves. Observed leaf parameters were `limit=10000`, `flow_limit=100`, `buckets=32768`, `horizon=2s` and `horizon_drop`. Host TCP congestion control remains `bbr`; busy polling remains off.

@@ -7,7 +7,7 @@ bpf:
   masquerade: true
   events:
     trace:
-      enabled: false
+      enabled: true
     policyVerdict:
       enabled: false
     drop:
@@ -39,7 +39,21 @@ loadBalancer:
   serviceTopology: true
 
 hubble:
-  enabled: false
+  enabled: true
+  eventBufferCapacity: "4095"
+  metrics:
+    enabled: ~
+  relay:
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  ui:
+    enabled: false
 
 # Off because no policy uses L7 or toFQDNs rules; turn l7Proxy and envoy back on before adding one.
 l7Proxy: false

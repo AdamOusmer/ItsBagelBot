@@ -100,8 +100,8 @@ La politique existante a été préservée dans [`deploy/cilium/values.yaml`](ht
 | `kubeProxyReplacement` / `loadBalancer.serviceTopology` | `true` / `true` |
 | Interfaces workers / routage direct | `eth0 eth1 tailscale0` / `eth1` |
 | MTU Cilium des workers | `9000`; le MTU du lien public eth0 reste `1500` |
-| Événements BPF trace / verdict de politique / rejet | Désactivés / désactivés / activés |
-| Hubble / proxy L7 / Envoy | Désactivés / désactivé / désactivé |
+| Événements BPF trace / verdict de politique / rejet | Activés / désactivés / activés |
+| Hubble / proxy L7 / Envoy | Activé avec relay / désactivé / désactivé |
 | Mise à jour progressive Cilium | `maxUnavailable: 1` |
 
 Chaque interface a une racine `mq` et huit feuilles `fq`. Les paramètres observés étaient `limit=10000`, `flow_limit=100`, `buckets=32768`, `horizon=2s` et `horizon_drop`. Le contrôle de congestion TCP de l’hôte reste `bbr`; le busy polling reste désactivé.
