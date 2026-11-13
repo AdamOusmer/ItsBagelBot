@@ -16,11 +16,7 @@ import (
 
 // CountdownClaim promotes expired countdowns into immutable deliveries, then leases one.
 func (r *RecipeState) CountdownClaim(ctx context.Context) (CountdownDelivery, bool, error) {
-	now := time.Now().UnixMilli()
-	if err := r.pruneCountdownOperations(ctx, now); err != nil {
-		return CountdownDelivery{}, false, err
-	}
-	if err := r.promoteCountdowns(ctx, now); err != nil {
+	if err := r.promoteCountdowns(ctx, time.Now().UnixMilli()); err != nil {
 		return CountdownDelivery{}, false, err
 	}
 	return r.claimCountdownDelivery(ctx, time.Now().UnixMilli())
@@ -110,17 +106,6 @@ func (r *RecipeState) CountdownAck(ctx context.Context, d CountdownDelivery) (bo
 	return n == 1, err
 }
 
-// Retry identities remain for 31 days. Each claim removes at most one batch.
-func (r *RecipeState) pruneCountdownOperations(ctx context.Context, now int64) error {
-	query := "DELETE FROM countdown_operations WHERE id IN (SELECT id FROM countdown_operations WHERE created_at_ms<? ORDER BY created_at_ms LIMIT ?)"
-	if r.dialect != "sqlite3" {
-		query = "DELETE FROM countdown_operations WHERE created_at_ms<? ORDER BY created_at_ms LIMIT ?"
-	}
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := r.sqldb.ExecContext(ctx, query, now-int64(31*24*time.Hour/time.Millisecond), 1000)
-		return err
-	})
-}
 func (req *CountdownProgressRequest) validate() error {
 	if err := req.Delivery.validate(); err != nil {
 		return err

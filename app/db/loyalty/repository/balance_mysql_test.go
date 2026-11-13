@@ -96,3 +96,45 @@ func TestBalanceMySQLReplicasPostOtherChannelsWithoutLockConflicts(t *testing.T)
 	assert.EqualValues(t, channels*(1+4*balanceRounds), rows)
 	assert.EqualValues(t, channels*balanceRounds*(10+10+5+3), points)
 }
+
+type sharedChannelWriter struct {
+	repo    *Loyalty
+	replica int
+}
+
+func (w sharedChannelWriter) round(ctx context.Context, round int) error {
+	award := balanceWriter{channel: 1}.award(round)
+	award.WindowID = fmt.Sprint("w", round, "-", w.replica/2)
+	if err := w.repo.ApplyWatchAward(ctx, award); err != nil {
+		return fmt.Errorf("watch award: %w", err)
+	}
+	adjust := BalanceAdjustment{UserID: 1, ViewerID: balanceSender, ViewerLogin: "sender", Value: 5}
+	if _, _, err := w.repo.BalanceAdjustViewer(ctx, adjust); err != nil {
+		return fmt.Errorf("adjust: %w", err)
+	}
+	w.repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: balanceSender, ViewerLogin: "sender", Points: 3}}})
+	w.repo.Flush(ctx)
+	return nil
+}
+
+func TestBalanceMySQLReplicasPostSameChannelExactly(t *testing.T) {
+	raw := testdb.MySQL(t, "loyalty_shared_")
+	errs := make(chan error, balanceReplicas*balanceRounds)
+	var writers sync.WaitGroup
+	for replica := range balanceReplicas {
+		w := sharedChannelWriter{repo: mysqlReplica(t, raw), replica: replica}
+		writers.Go(func() {
+			for round := range balanceRounds {
+				errs <- w.round(context.Background(), round)
+			}
+		})
+	}
+	writers.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	var points int64
+	require.NoError(t, raw.QueryRow("SELECT points FROM balances WHERE user_id=1 AND viewer_id=?", uint64(balanceSender)).Scan(&points))
+	assert.EqualValues(t, balanceReplicas/2*balanceRounds*10+balanceReplicas*balanceRounds*(5+3), points)
+}
