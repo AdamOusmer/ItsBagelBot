@@ -91,7 +91,7 @@ data:
         --routines --triggers --events \
         --hex-blob \
         --no-tablespaces \
-        --set-gtid-purged=OFF
+        --set-gtid-purged=COMMENTED
     } | gzip -9 > dump.sql.gz
 
     # Sanity gate before encryption: a truncated dump still gzips fine, so
@@ -129,6 +129,52 @@ data:
     # daily/, which keeps pruning if this CronJob is broken or deleted. The
     # privacy policy promises backups expire after 30 days: no longer-lived copy.
     rclone lsf "r2:${R2_BUCKET}/mysql/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
+  r2-env.sh: |
+    export RCLONE_CONFIG_R2_TYPE=s3
+    export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+    export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+    export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+    export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
+    export RCLONE_CONFIG_R2_ACL=private
+    export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+    BINLOG_REMOTE="r2:${R2_BUCKET}/mysql/daily/binlog"
+  binlog-fetch.sh: |
+    #!/bin/sh
+    set -eu
+    . /scripts/r2-env.sh
+    rclone copy "$BINLOG_REMOTE" /work/binlog --include "*.json" --stats-one-line
+  binlog-dump.sh: |
+    #!/bin/sh
+    set -eu
+    umask 077
+    cd /work
+
+    printf '%s\n' "$DB_CA_CERT" > ca.pem
+    printf '%s\n' "$BACKUP_CERT_PEM" > pub.pem
+    printf '%s\n' "$DB_CLIENT_CERT" > client-cert.pem
+    printf '%s\n' "$DB_CLIENT_KEY" > client-key.pem
+
+    CONN="--host=$DB_HOST --port=$DB_PORT --user=$BINLOG_DB_USER --ssl-mode=VERIFY_IDENTITY --ssl-ca=ca.pem --ssl-cert=client-cert.pem --ssl-key=client-key.pem"
+
+    START=""
+    if [ ! -f binlog/@.binlog.info.json ]; then
+      START="--startFrom=$(MYSQL_PWD="$BINLOG_DB_PASS" mysql $CONN -N -B -e 'SHOW BINARY LOG STATUS' | awk '{print $1 ":" $2}')"
+    fi
+    printf '%s\n' "$BINLOG_DB_PASS" | mysqlsh --no-defaults --passwords-from-stdin $CONN -- util dump-binlogs /work/binlog $START
+
+    find binlog -name '*.zst' | while read -r f; do
+      openssl smime -encrypt -binary -aes-256-cbc -outform DER -in "$f" -out "$f.enc" pub.pem
+      rm "$f"
+    done
+    rm -f ca.pem pub.pem client-cert.pem client-key.pem
+  binlog-upload.sh: |
+    #!/bin/sh
+    set -eu
+    . /scripts/r2-env.sh
+    rclone copy /work/binlog "$BINLOG_REMOTE" --include "*.enc" --stats-one-line
+    rclone copy /work/binlog "$BINLOG_REMOTE" --include "*.json" --stats-one-line
+    # Rewritten every run so the 30d daily/ lifecycle rule never expires the dump root while it is in use.
+    rclone copyto /work/binlog/@.binlog.info.json "$BINLOG_REMOTE/@.binlog.info.json" --ignore-times
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -207,4 +253,101 @@ spec:
                 capabilities: {drop: ["ALL"]}
               resources:
                 requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-binlog
+  namespace: db
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 540
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: backup-binlog
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          nodeSelector:
+            role: node
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile: {type: RuntimeDefault}
+          volumes:
+            - name: work
+              emptyDir: {medium: Memory, sizeLimit: 512Mi}
+            - name: scripts
+              configMap:
+                name: backup-mysql-scripts
+                defaultMode: 0555
+          initContainers:
+            - name: fetch
+              image: rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/binlog-fetch.sh"]
+              env:
+                - {name: HOME, value: /work}
+              envFrom:
+                - secretRef: {name: backup-env}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {memory: 256Mi}
+            - name: dump
+              image: mysql:26.10-oracle@sha256:7b16ec7caa94ca7e92f4c5ec287de69d2e8738db056ceb629022951a6f6d910b
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/binlog-dump.sh"]
+              env:
+                - {name: HOME, value: /work}
+                - {name: DB_PORT, value: "3306"}
+              envFrom:
+                - secretRef: {name: backup-env}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 50m, memory: 192Mi}
+                limits: {memory: 512Mi}
+          containers:
+            - name: upload
+              image: rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/binlog-upload.sh"]
+              env:
+                - {name: HOME, value: /work}
+              envFrom:
+                - secretRef: {name: backup-env}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
                 limits: {memory: 256Mi}
