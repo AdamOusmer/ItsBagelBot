@@ -106,8 +106,8 @@ metadata:
   namespace: db
 spec:
   serverName: projector-status
-  rootCAsSecrets:
-    - projector-tls
+  rootCAs:
+    - secret: projector-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
@@ -116,5 +116,5 @@ metadata:
   namespace: db
 spec:
   serverName: transactions
-  rootCAsSecrets:
-    - transactions-tls
+  rootCAs:
+    - secret: transactions-tls
