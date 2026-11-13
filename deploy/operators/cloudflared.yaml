@@ -18,7 +18,7 @@ spec:
     type: Opaque
   secrets:
     - TUNNEL_CREDENTIALS_JSON
-  resyncSeconds: 60
+  resyncSeconds: 300
 ---
 # The Origin CA RSA root, not the ECC one: pinning the wrong root fails the handshake.
 apiVersion: v1
@@ -118,17 +118,6 @@ data:
 
       # Required terminal rule.
       - service: http_status:404
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: cloudflared
-  namespace: operators
-spec:
-  maxUnavailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: cloudflared
 ---
 apiVersion: apps/v1
 kind: DaemonSet

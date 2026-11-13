@@ -14,7 +14,7 @@ spec:
     name: projector-env
     namespace: db
     type: Opaque
-  resyncSeconds: 60
+  resyncSeconds: 300
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -151,7 +151,7 @@ spec:
             - name: PROJECTOR_HYDRATION_CONCURRENCY
               value: "8"
             - name: GOMEMLIMIT
-              value: 256MiB
+              value: 230MiB
             - name: TLS_CERT_FILE
               value: /etc/projector/tls/tls.crt
             - name: TLS_KEY_FILE

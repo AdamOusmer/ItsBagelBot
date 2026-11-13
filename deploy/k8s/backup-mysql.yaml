@@ -15,7 +15,7 @@ spec:
     name: backup-env
     namespace: db
     type: Opaque
-  resyncSeconds: 60
+  resyncSeconds: 300
 ---
 apiVersion: v1
 kind: ConfigMap
