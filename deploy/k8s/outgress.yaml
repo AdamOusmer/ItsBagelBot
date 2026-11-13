@@ -82,7 +82,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1794576144-6e792fd889ea@sha256:b8ec50c516f377b270e60fd6d9582f9d57943935f78b63c6b019c038545d3882
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1794578263-c4c1a822df52@sha256:f9df54f234433bfa2b64742a48e1ca17d5c5aa8fc1cb0cf4fe6adaaa350b4cb4
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
