@@ -203,8 +203,10 @@ func (p *loyaltyPage) handleReplyFailure(ctx context.Context, reply manage.Chatt
 		p.stop(ctx, "tenant inactive")
 	case "invalid", "repeated_cursor":
 		p.abandon(ctx, reply.Error)
+	case "authorization":
+		p.park(ctx, &chattersError{message: reply.Error, missingScope: true})
 	default:
-		p.retry(ctx, &chattersError{message: reply.Error, missingScope: reply.MissingScope}, reply.RetryAtUnixMilli)
+		p.retry(ctx, &chattersError{message: reply.Error}, reply.RetryAtUnixMilli)
 	}
 }
 

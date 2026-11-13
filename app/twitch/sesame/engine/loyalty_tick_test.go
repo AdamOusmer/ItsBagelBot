@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 var setLiveScript = pkg_valkey.VersionedSlotSetScript
@@ -145,6 +146,43 @@ func TestWatchTickRetryStateSharedAndTypedDelay(t *testing.T) {
 		require.Equal(t, strconv.Itoa(i), fields["failures"])
 		require.Equal(t, strconv.FormatInt(retryAt, 10), fields["retry_at"])
 	}
+}
+
+type parkedWindow struct {
+	failures, window, due string
+	calls, logs           int
+}
+
+func TestWatchTickUnauthorizedChattersParksWindow(t *testing.T) {
+	f := watchFixture(t, 77113)
+	ctx := context.Background()
+	core, logs := observer.New(zap.WarnLevel)
+	f.clock.log = zap.New(core)
+	calls := 0
+	f.clock.request = func(_ context.Context, _ string, body []byte) (*nats.Msg, error) {
+		var req manage.ChattersRequest
+		require.NoError(t, codec.Unmarshal(body, &req))
+		calls++
+		reply := correlatedWatchReply(req)
+		reply.CheckedAtUnixMilli, reply.Live = f.now.UnixMilli(), true
+		reply.Error, reply.ErrorCode, reply.MissingScope = "bot does not have moderator access to this channel", "authorization", true
+		encoded, err := codec.Marshal(reply)
+		return &nats.Msg{Data: encoded}, err
+	}
+	observe := func() parkedWindow {
+		fields := f.fields(t)
+		return parkedWindow{failures: fields["failures"], window: fields["window"], due: fields["due"], calls: calls, logs: logs.Len()}
+	}
+	f.clock.fire(ctx, f.id)
+	parkedUntil := strconv.FormatInt(f.now.Add(loyaltyUnauthorizedPark).UnixMilli(), 10)
+	require.Equal(t, parkedWindow{failures: "0", due: parkedUntil, calls: 1, logs: 1}, observe())
+	f.now = f.now.Add(watchTickQuickRetry)
+	f.clock.fire(ctx, f.id)
+	require.Equal(t, parkedWindow{failures: "0", due: parkedUntil, calls: 1, logs: 1}, observe(), "a parked window is not retried early")
+	f.now = f.now.Add(loyaltyUnauthorizedPark)
+	f.clock.fire(ctx, f.id)
+	parkedUntil = strconv.FormatInt(f.now.Add(loyaltyUnauthorizedPark).UnixMilli(), 10)
+	require.Equal(t, parkedWindow{failures: "0", due: parkedUntil, calls: 2, logs: 1}, observe(), "a repeated park logs nothing new")
 }
 
 func TestWatchTickTenantAndLeaseFences(t *testing.T) {
