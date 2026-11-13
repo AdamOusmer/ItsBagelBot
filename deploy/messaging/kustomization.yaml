@@ -21,5 +21,6 @@ configMapGenerator:
       - auth.conf=nats-operator.conf
       - operator.jwt
       - accounts.conf=nats-accounts.conf
+      - liveness.sh=nats-leaf-liveness.sh
 generatorOptions:
   disableNameSuffixHash: true
