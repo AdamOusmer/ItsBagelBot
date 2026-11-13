@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/app/db/admin/ent"
 	"ItsBagelBot/app/db/admin/ent/adminuser"
 	"ItsBagelBot/app/db/admin/repository"
+	"ItsBagelBot/internal/analytics"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
@@ -17,10 +18,11 @@ import (
 type adminRPC struct {
 	repo *repository.Admin
 	gate staffGate
+	live *analytics.Reader
 }
 
 func SubscribeAnalytics(w Wiring, client *ent.Client, subject string) error {
-	a := &adminRPC{repo: w.Repo, gate: staffGate{db: client}}
+	a := &adminRPC{repo: w.Repo, gate: staffGate{db: client}, live: w.Analytics}
 	return bus.Serve(w.Within(adminBudget), subject, a.guardedAnalytics)
 }
 

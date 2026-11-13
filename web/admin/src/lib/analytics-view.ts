@@ -28,8 +28,8 @@ export function daysBetween(from: Day, to: Day): Count {
   return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
 }
 
-export function lastClosedDay(now: Date): Day {
-  return addDays(now.toISOString().slice(0, 10), -1);
+export function currentDay(now: Date): Day {
+  return now.toISOString().slice(0, 10);
 }
 
 export function daysIn(range: DateRange): Day[] {

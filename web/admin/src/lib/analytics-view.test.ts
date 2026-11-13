@@ -8,7 +8,7 @@ import {
   daysIn,
   fmt,
   isoWeek,
-  lastClosedDay,
+  currentDay,
   pct,
   pointsChange,
   relativeChange,
@@ -195,10 +195,10 @@ describe('formatting', () => {
   });
 
   it.each([
-    ['2026-11-10T00:00:30Z', '2026-11-09'],
-    ['2026-01-01T12:00:00Z', '2025-12-31']
-  ])('lastClosedDay(%p) is %p', (now, day) => {
-    expect(lastClosedDay(new Date(now))).toBe(day);
+    ['2026-11-10T00:00:30Z', '2026-11-10'],
+    ['2026-01-01T23:59:59Z', '2026-01-01']
+  ])('currentDay(%p) is %p', (now, day) => {
+    expect(currentDay(new Date(now))).toBe(day);
   });
 });
 

@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/admin/repository"
 	"ItsBagelBot/app/db/admin/rollup"
 	"ItsBagelBot/app/db/admin/rpc"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/svcboot"
@@ -39,7 +40,7 @@ func main() {
 	defer nc.Close()
 	vc := svcboot.MustValkey(core)
 	repo := repository.New(client)
-	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: core.Log}, Repo: repo}
+	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: core.Log}, Repo: repo, Analytics: analytics.NewReader(vc)}
 	subscribe(w, client)
 	seedStaff(core, client)
 	go rollupAnalytics(core.Ctx, rollup.New(vc, repo), core.Log)

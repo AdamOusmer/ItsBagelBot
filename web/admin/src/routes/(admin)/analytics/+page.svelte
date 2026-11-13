@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { goto } from '$app/navigation';
+  import { goto, invalidate } from '$app/navigation';
   import type { ComponentProps, Snippet } from 'svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -24,7 +24,7 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AnalyticsView, Bar, DataTable, Fact as ViewFact, GainLoss, Name, Phrase, Series } from '#lib/analytics-page';
+  import { ANALYTICS_LIVE, ANALYTICS_REFRESH_MS, type AnalyticsView, type Bar, type DataTable, type Fact as ViewFact, type GainLoss, type Name, type Phrase, type Series } from '#lib/analytics-page';
   import { dateLabel, signed } from '#lib/analytics-view';
 
   let { data } = $props();
@@ -56,6 +56,17 @@
     });
     return () => {
       alive = false;
+    };
+  });
+  $effect(() => {
+    const refresh = () => {
+      if (!document.hidden) invalidate(ANALYTICS_LIVE);
+    };
+    const timer = setInterval(refresh, ANALYTICS_REFRESH_MS);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
     };
   });
 
