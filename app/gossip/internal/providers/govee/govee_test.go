@@ -130,7 +130,16 @@ func TestRequestsThatCannotBeServedExplainWhyAndOnlyDialWhenTheyShould(t *testin
 			gossiprpc.Request{ChannelID: channel, SKU: "H6159", ColorRGB: 1}, nil, "missing device", 0, false},
 		{"control: surfaces an API level failure", "control", fakeKeys{key: "k"},
 			gossiprpc.Request{ChannelID: channel, Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0xFF0000},
-			[]providertest.Reply{{Body: `{"code":400,"message":"invalid device"}`}}, "could not reach your lights", 1, false},
+			[]providertest.Reply{{Body: `{"code":500,"message":"internal error"}`}}, "could not reach your lights", 1, false},
+		{"control: names a rejection Govee explains in message", "control", fakeKeys{key: "k"},
+			gossiprpc.Request{ChannelID: channel, Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0xFF0000},
+			[]providertest.Reply{{Body: `{"code":400,"message":"invalid device"}`}}, "Govee rejected this command for your light: invalid device", 1, false},
+		{"control: names a rejection Govee explains in msg, without retrying it", "control", fakeKeys{key: "k"},
+			gossiprpc.Request{ChannelID: channel, Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0xFF0000},
+			[]providertest.Reply{{Body: `{"code":400,"msg":"Parameter value out of range"}`}}, "Govee rejected this command for your light: Parameter value out of range", 1, false},
+		{"control: reports an unexplained rejection", "control", fakeKeys{key: "k"},
+			gossiprpc.Request{ChannelID: channel, Device: "AB:CD:EF", SKU: "H6159", PowerOff: true},
+			[]providertest.Reply{{Status: http.StatusBadRequest, Body: `{}`}}, "Govee rejected this command for your light", 1, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			upstream := providertest.NewSequence(t, tc.upstream...)
