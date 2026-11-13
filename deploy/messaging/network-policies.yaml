@@ -163,3 +163,59 @@ spec:
               app.kubernetes.io/name: newrelic-prometheus-agent
       ports:
         - port: 7778
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nats-egress
+  namespace: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app: nats
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: nats
+      ports:
+        - port: 6222
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nats-leaf-egress
+  namespace: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app: nats-leaf
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: nats-leaf
+      ports:
+        - port: 6223
+          protocol: TCP
