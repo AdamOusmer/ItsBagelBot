@@ -162,6 +162,7 @@ spec:
                   - key: role
                     operator: NotIn
                     values: [cp]
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532
