@@ -156,8 +156,19 @@ func TestLeafMonitoringIsHTTPSOnly(t *testing.T) {
 
 	assert.Regexp(t, `(?m)^https_port: 8223$`, conf)
 	assert.NotRegexp(t, `(?m)^http_port:`, conf)
-	assert.Equal(t, 3, strings.Count(manifest, "port: monitor, scheme: HTTPS}"), "startup, liveness and readiness probes must use HTTPS")
+	assert.Equal(t, 2, strings.Count(manifest, "port: monitor, scheme: HTTPS}"), "startup and readiness probes must use HTTPS")
 	assert.Contains(t, manifest, `"https://localhost:8223"`)
+	assert.Contains(t, readText(t, "nats-leaf-liveness.sh"), "monitor=https://localhost:8223")
+}
+
+func TestLeafLivenessRestartsOnIncompleteAccounts(t *testing.T) {
+	manifest := readText(t, "nats-leaf.yaml")
+	probe := readText(t, "nats-leaf-liveness.sh")
+	kustomization := readText(t, "kustomization.yaml")
+
+	assert.Contains(t, kustomization, "liveness.sh=nats-leaf-liveness.sh")
+	assert.Contains(t, manifest, `command: ["sh", "/etc/nats/liveness.sh"]`)
+	assert.Regexp(t, `(?s)"\$monitor/healthz".*grep -q '"complete": false'`, probe)
 }
 
 func TestPodNetworkOnly(t *testing.T) {
