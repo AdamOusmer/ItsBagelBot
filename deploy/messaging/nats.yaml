@@ -45,6 +45,7 @@ spec:
                 matchLabels:
                   app: nats
       shareProcessNamespace: true
+      automountServiceAccountToken: false
       securityContext:
         # PREREQUISITE: every kubelet must allow net.ipv4.tcp_slow_start_after_idle, or pods fail SysctlForbidden.
         sysctls:

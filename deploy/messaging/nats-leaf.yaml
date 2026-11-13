@@ -30,6 +30,7 @@ spec:
         app: nats-leaf
     spec:
       shareProcessNamespace: true
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: 45
       securityContext:
         sysctls:
