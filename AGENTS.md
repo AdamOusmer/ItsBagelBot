@@ -34,7 +34,7 @@ This repository is public. Keep operator runbooks, host scripts, benchmark resul
 - If a shared package lacks the operation you need, add it to that package and call it from there. Extend the package; do not work around it.
 - Declare things through the existing builders, so timeouts, metrics and identity checks stay in place.
 - A service owns exactly one MySQL schema. The Elixir ingress (`app/ingress`) never opens a database connection; it fetches data over NATS request-reply from the owning Go service.
-- The firehose JetStream streams (`TWITCH_*`, `DISCORD_*`) and their consumers stay on memory storage, including in recovery fixes.
+- The firehose JetStream streams (`TWITCH_*`) and their consumers stay on memory storage, including in recovery fixes.
 - No defensive scaffolding: no rollback-on-partial-failure loops, guard wrappers or cleanup-on-error unwinds. Let errors propagate to the coarse failure path. Remove such code when touching it.
 - No fixed global or per-channel internal capacity caps. Rate limits toward Twitch and outside APIs stay, and outgress and gossip own their buckets. Never change their rates without a stated number.
 - Viewer identity is the Twitch user id. Chat commands use ids from event data only. Dashboard search may match names and reconcile a stored login on a miss. Add no other login resolution.
