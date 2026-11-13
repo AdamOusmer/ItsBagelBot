@@ -72,6 +72,7 @@ spec:
           labelSelector:
             matchLabels:
               app: modules
+      automountServiceAccountToken: false
       securityContext:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle

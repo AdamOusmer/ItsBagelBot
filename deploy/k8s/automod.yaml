@@ -55,6 +55,7 @@ spec:
                   - key: role
                     operator: NotIn
                     values: [cp, worker]
+      automountServiceAccountToken: false
       priorityClassName: bagel-service
       containers:
         - name: automod

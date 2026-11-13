@@ -77,6 +77,7 @@ spec:
           - {name: single-request-reopen}
           - {name: timeout, value: "1"}
           - {name: attempts, value: "3"}
+      automountServiceAccountToken: false
       securityContext:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
@@ -199,6 +200,7 @@ spec:
             app: notifications-cleanup
         spec:
           restartPolicy: OnFailure
+          automountServiceAccountToken: false
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532
