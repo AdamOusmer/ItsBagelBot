@@ -206,7 +206,7 @@ function stickiness(c: Ctx, month: Day): number | null {
   const daily = pick(c.r.counters, 'channels.active');
   const first = bounds(daily)?.first ?? month;
   const full = monthRange(month);
-  const covered: DateRange = { from: first > full.from ? first : full.from, to: full.to };
+  const covered: DateRange = { from: first > full.from ? first : full.from, to: full.to < c.r.end ? full.to : c.r.end };
   const length = daysIn(covered).length;
   const active = valueAt(pick(c.r.month, 'channels.active'), month);
   return ratio(sum(inRange(daily, covered)), length * active);
@@ -278,7 +278,7 @@ function stepOf(values: Count[]): (value: Count, index: Slot) => Phrase | null {
         };
 }
 
-const isLoss = (row: AnalyticsRow): boolean => (CHURN as readonly string[]).includes(row.dims[0]);
+const isLoss = (row: AnalyticsRow): boolean => row.dims[0] === 'account_deleted';
 
 export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
   const inside = inRange(pick(counters, 'lifecycle'), range);

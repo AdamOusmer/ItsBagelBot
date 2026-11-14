@@ -1,6 +1,6 @@
 {
   "signups": "Novas contas criadas em cada dia do período.",
-  "gainLoss": "Contas novas contra contas perdidas em cada dia. Perdidas contam as contas em que o bot foi desligado, o acesso foi revogado, a conta foi excluída ou o usuário foi banido do chat.",
+  "gainLoss": "Contas novas contra contas excluídas em cada dia.",
   "funnel": "Cadastros, configurações concluídas e ativações do bot no período. Cada etapa conta eventos do período, então as etapas posteriores podem incluir cadastros anteriores.",
   "churn": "Bot desativado, acesso revogado, contas excluídas e banimentos do chat, somados no período.",
   "presets": "Predefinições escolhidas durante a configuração, somadas no período.",

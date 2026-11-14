@@ -1,6 +1,6 @@
 {
   "signups": "Nouveaux comptes créés chaque jour de la fenêtre.",
-  "gainLoss": "Nouveaux comptes face aux comptes perdus chaque jour. Les pertes comptent les comptes dont le bot a été désactivé, l'accès révoqué, le compte supprimé ou l'utilisateur banni du chat.",
+  "gainLoss": "Nouveaux comptes face aux comptes supprimés chaque jour.",
   "funnel": "Inscriptions, configurations terminées et activations du bot sur la fenêtre. Chaque étape compte les événements de la fenêtre, donc les étapes suivantes peuvent inclure des inscriptions antérieures.",
   "churn": "Bot désactivé, accès révoqué, comptes supprimés et bannissements du chat, additionnés sur la fenêtre.",
   "presets": "Préréglages choisis pendant l'accueil, additionnés sur la fenêtre.",
