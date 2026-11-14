@@ -1,6 +1,6 @@
 {
   "signups": "New accounts created on each day of the window.",
-  "gainLoss": "New accounts against lost accounts on each day. Lost counts accounts where the bot was switched off, access was revoked, the account was deleted or the user was banned from chat.",
+  "gainLoss": "New accounts against deleted accounts on each day.",
   "funnel": "Signups, finished setups and bot enables in the window. Each step counts events in the window, so later steps can include earlier signups.",
   "churn": "Bot disabled, access revoked, accounts deleted and chat bans, summed over the window.",
   "presets": "Setup presets picked during onboarding, summed over the window.",

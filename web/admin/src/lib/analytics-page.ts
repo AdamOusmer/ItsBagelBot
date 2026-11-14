@@ -278,7 +278,7 @@ function stepOf(values: Count[]): (value: Count, index: Slot) => Phrase | null {
         };
 }
 
-const isLoss = (row: AnalyticsRow): boolean => (CHURN as readonly string[]).includes(row.dims[0]);
+const isLoss = (row: AnalyticsRow): boolean => row.dims[0] === 'account_deleted';
 
 export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
   const inside = inRange(pick(counters, 'lifecycle'), range);

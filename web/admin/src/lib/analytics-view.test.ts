@@ -405,7 +405,7 @@ describe('gained and lost accounts', () => {
       { points: [], totals: [0, 0, 0, 0] }
     ],
     [
-      'loss only, none, and mixed days',
+      'bot and access losses keep the account, deletions lose it',
       [
         life('2026-11-01', 'revoked', 3),
         life('2026-11-03', 'signup', 4),
@@ -417,12 +417,12 @@ describe('gained and lost accounts', () => {
       ],
       {
         points: [
-          [at('2026-11-01'), 0, 3],
+          [at('2026-11-01'), 0, 0],
           [at('2026-11-02'), 0, 0],
-          [at('2026-11-03'), 4, 2],
+          [at('2026-11-03'), 4, 0],
           [at('2026-11-04'), 2, 2]
         ],
-        totals: [6, 7, -1, 1]
+        totals: [6, 2, 4, 0]
       }
     ]
   ])('%s', (_name, rows, expected) => {
@@ -434,9 +434,9 @@ describe('gained and lost accounts', () => {
     expect({ length: points.length, gained, lost, net, lossDays }).toEqual({
       length: 30,
       gained: 30,
-      lost: 6,
-      net: 24,
-      lossDays: 3
+      lost: 3,
+      net: 27,
+      lossDays: 1
     });
   });
 });
