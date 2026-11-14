@@ -514,6 +514,20 @@ describe('set lights step', () => {
     expect(rebuilt(lowered(withStep(step))).nodes[1]).toMatchObject({ type: 'reply.lights', config: step.config });
   });
 
+  test.each([
+    ['missing', color.config, false],
+    ['on', { ...color.config, liveOnly: true }, false],
+    ['off', { ...color.config, liveOnly: false }, true]
+  ])('live only %s lowers any_time %s and reopens stable', (_label, config, anyTime) => {
+    const step = node('l', 'reply.lights', config);
+    const action = lowered(withStep(step)).actions?.[0];
+    expect(action?.params?.any_time).toBe(anyTime ? true : undefined);
+    expect(validateDefinition(lowered(withStep(step)))).toEqual([]);
+    const reopened = rebuilt(lowered(withStep(step))).nodes[1];
+    expect(reopened?.config.liveOnly).toBe(!anyTime);
+    expect(lowered(rebuilt(lowered(withStep(step))))).toEqual(lowered(withStep(step)));
+  });
+
   test('a colour left on the picker default saves white', () => {
     const untouched = node('l', 'reply.lights', { device: 'AA:BB', sku: 'H6008' });
     expect(lowered(withStep(untouched)).actions?.[0]?.params).toMatchObject({ mode: 'color', color: '#ffffff' });

@@ -220,6 +220,7 @@ function lightParams(config: FlowConfig): Params {
   if (str(config.deviceName)) params.device_name = str(config.deviceName);
   const extra = str(config.extraLights).split(',').filter(Boolean);
   if (extra.length) params.extra_lights = extra;
+  if (config.liveOnly === false) params.any_time = true;
   return params;
 }
 
@@ -805,7 +806,8 @@ function lightsNode(params: Params): { type: string; config: FlowConfig } | null
   if (str(params.device_name)) config.deviceName = str(params.device_name);
   const extra = (params.extra_lights ?? []) as string[];
   if (extra.length) config.extraLights = extra.join(',');
-  const mode =str(params.mode) || 'color';
+  config.liveOnly = params.any_time !== true;
+  const mode = str(params.mode) || 'color';
   if (mode === 'color') return { type: 'reply.lights', config: { ...config, mode, color: str(params.color) } };
   if (mode !== 'scene') return null;
   const scene: FlowConfig = {

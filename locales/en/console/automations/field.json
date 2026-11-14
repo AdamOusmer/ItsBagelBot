@@ -2,6 +2,7 @@
   "aliases": "Aliases",
   "allow": "Allowed",
   "amount": "Amount",
+  "any_time": "Run while offline",
   "automation_id": "Automation",
   "body": "Body",
   "branches": "Branches",

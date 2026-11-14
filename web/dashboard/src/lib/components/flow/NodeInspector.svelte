@@ -223,7 +223,7 @@
                 <span class="toggle-label">{label}</span>
                 <Switch
                   {label}
-                  checked={Boolean(node.config[field.key])}
+                  checked={node.config[field.key] === undefined ? field.defaultOn === true : Boolean(node.config[field.key])}
                   onCheckedChange={(v) => (node.config[field.key] = v)}
                 />
               </div>

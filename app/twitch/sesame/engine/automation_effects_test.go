@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
@@ -151,6 +152,37 @@ func TestAutomationLightsFailuresDoNotStopFlow(t *testing.T) {
 			assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome)
 			assert.Equal(t, tc.calls, fx.gossip.calls)
 			assert.Len(t, fx.messages(t), 1)
+		})
+	}
+}
+
+func TestAutomationLightsLiveGate(t *testing.T) {
+	cases := []struct {
+		name    string
+		live    fakeLive
+		anyTime bool
+		want    string
+		calls   int
+	}{
+		{"offline default skips", fakeLive{}, false, "0:lights:skipped:offline", 0},
+		{"offline any time runs", fakeLive{}, true, "0:lights:ok:", 1},
+		{"live default runs", fakeLive{live: true}, false, "0:lights:ok:", 1},
+		{"live lookup failure", fakeLive{err: errors.New("down")}, false, "0:lights:failed:", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			params := lightsParams()
+			if tc.anyTime {
+				params["any_time"] = true
+			}
+			fx := newAutoFixture(manual("main", act("lights", params), act("chat", obj{"text": "after"})))
+			fx.p.live = tc.live
+			rec := fx.run(t, "main", "req-live-"+tc.name, nil)
+			got := statuses(rec)
+			require.Len(t, got, 2)
+			assert.True(t, strings.HasPrefix(got[0], tc.want), got[0])
+			assert.Equal(t, "1:chat:ok:", got[1])
+			assert.Equal(t, tc.calls, fx.gossip.calls)
 		})
 	}
 }

@@ -20,7 +20,7 @@ export type FieldSpec = { when?: { key: string; value: string | readonly string[
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[] }
-  | { key: string; type: 'toggle' }
+  | { key: string; type: 'toggle'; defaultOn?: true }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
   | { key: string; type: 'goveeLight' }
@@ -285,7 +285,8 @@ export const NODE_SPECS: readonly NodeSpec[] = [
       { key: 'device', type: 'goveeLight' },
       { key: 'mode', type: 'select', options: ['color', 'scene'] },
       { key: 'color', type: 'color', when: { key: 'mode', value: 'color' } },
-      { key: 'scene', type: 'choice', source: 'scenes', nameKey: 'sceneName', when: { key: 'mode', value: 'scene' } }
+      { key: 'scene', type: 'choice', source: 'scenes', nameKey: 'sceneName', when: { key: 'mode', value: 'scene' } },
+      { key: 'liveOnly', type: 'toggle', defaultOn: true }
     ]
   },
   {
