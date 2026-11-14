@@ -5,7 +5,7 @@ import type { FlowWarning, UpgradeReport } from '#lib/server/flow-store';
 import type { FlowRef } from './ref';
 
 export type SaveReply =
-  | { ok: true; id: string; name: string; enabled: boolean; revision: string; warnings: FlowWarning[]; upgrade?: UpgradeReport }
+  | { ok: true; id: string; name: string; enabled: boolean; revision: string; warnings: FlowWarning[]; upgrade?: UpgradeReport; rewardId?: string }
   | {
       ok: false;
       reason: 'invalid' | 'conflict' | 'needs_upgrade' | 'not_found' | 'failed' | 'denied';
@@ -14,6 +14,10 @@ export type SaveReply =
       error?: string;
       latestRevision?: string;
     };
+
+export type RewardReply =
+  | { ok: true; rewardId: string; title: string; cost: number; color: string; cooldown: number }
+  | { ok: false; error: string; missingScope?: boolean };
 
 export type ToggleReply =
   | { ok: true; enabled: boolean; revision: string; warnings: FlowWarning[] }

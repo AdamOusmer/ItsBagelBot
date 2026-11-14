@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import { definitionToFlow, flowStepRefs, flowToDefinition, locateIssues, type Flow, type FlowConfig, type FlowEdge, type FlowNode } from './flow-graph';
 import { classifyFlow } from './flow-layer';
+import { SETUP_REWARD_ID } from './flow-setup';
 import { validateDefinition } from './validate';
 import type { Definition } from './types';
 
@@ -925,5 +926,49 @@ describe('containers keep their drawn shape through save and reload', () => {
       ]
     };
     expect(lowered(rebuilt(definition))).toEqual(definition);
+  });
+});
+
+describe('reward trigger', () => {
+  const managed = { title: 'Hydrate', cost: 500, color: '#00ccff', cooldown: 60, onRedeem: 'cancel', userInput: true };
+  const settings = { title: 'Hydrate', cost: 500, color: '#00ccff', cooldown_s: 60, on_redeem: 'cancel', input_required: true };
+  const trigger = (config: FlowConfig) => flow([node('t', 'twitch.reward', config)], []);
+
+  test.each([
+    ['a linked reward keeps only its id', { reward: 'r1' }, { reward_id: 'r1' }, { reward: 'r1' }],
+    [
+      'a saved managed reward carries its settings',
+      { reward: 'r1', ...managed },
+      { reward_id: 'r1', ...settings },
+      { reward: 'r1', ...managed }
+    ],
+    [
+      'an unset outcome writes fulfil and a stored blank draws as leave',
+      { reward: 'r1', title: 'Hydrate', cost: 5 },
+      { reward_id: 'r1', title: 'Hydrate', cost: 5, color: '', cooldown_s: 0, on_redeem: 'fulfill', input_required: false },
+      { reward: 'r1', title: 'Hydrate', cost: 5, color: '', cooldown: 0, onRedeem: 'fulfill', userInput: false }
+    ],
+    [
+      'a managed reward not yet created waits on the setup id',
+      { reward: '', ...managed },
+      { reward_id: SETUP_REWARD_ID, ...settings },
+      { reward: '', ...managed }
+    ]
+  ] as [string, FlowConfig, Record<string, unknown>, FlowConfig][])('%s', (_name, config, params, drawn) => {
+    const definition = lowered(trigger(config));
+    expect(definition.trigger).toEqual({ type: 'reward', params });
+    expect(rebuilt(definition).nodes[0]!.config).toEqual(drawn);
+    expect(lowered(rebuilt(definition))).toEqual(definition);
+  });
+
+  test.each([
+    ['a cost of zero', { ...managed, cost: 0 }, 'trigger.params.cost'],
+    ['a bad colour', { ...managed, color: 'blue' }, 'trigger.params.color'],
+    ['a title over 45 characters', { ...managed, title: 'x'.repeat(46) }, 'trigger.params.title'],
+    ['a cooldown over a week', { ...managed, cooldown: 604801 }, 'trigger.params.cooldown_s'],
+    ['an unknown outcome', { ...managed, onRedeem: 'refund' }, 'trigger.params.on_redeem']
+  ] as [string, FlowConfig, string][])('%s is refused', (_name, config, path) => {
+    const issues = validateDefinition(lowered(flow([node('t', 'twitch.reward', config), node('a', 'reply.chat', { message: 'hi' })], [edge('t', 'next', 'a')])));
+    expect(issues.map((issue) => issue.path)).toEqual([path]);
   });
 });

@@ -94,5 +94,7 @@
   "checkoutInProgress": "Ya hay una página de pago abierta para esa cuenta. Espera 30 segundos e inténtalo de nuevo.",
   "missingDevice": "Falta el dispositivo.",
   "deviceRevoke": "No se pudo revocar ese dispositivo. Inténtalo de nuevo en un momento.",
-  "devicesRevokeAll": "No se pudieron revocar tus dispositivos. Inténtalo de nuevo en un momento."
+  "devicesRevokeAll": "No se pudieron revocar tus dispositivos. Inténtalo de nuevo en un momento.",
+  "rewardScope": "Vuelve a conectar tu cuenta de Twitch para gestionar los puntos del canal. Hace falta un permiso adicional.",
+  "rewardFailed": "Twitch no aceptó la recompensa. Revisa el título y el coste e inténtalo de nuevo."
 }

@@ -350,7 +350,7 @@ function neutralTrigger(definition: Definition, notes: Notes): Definition {
   if (!SHAREABLE.trigger.has(trigger.type)) return { ...definition, trigger: { ...trigger, params: {} } };
   if (trigger.type === 'reward') {
     notes.push({ code: 'reward_trigger', path: 'trigger.params.reward_id' });
-    return { ...definition, trigger: { ...trigger, params: { reward_id: SETUP_REWARD_ID } } };
+    return { ...definition, trigger: { ...trigger, params: { ...params, reward_id: SETUP_REWARD_ID } } };
   }
   if (trigger.type !== 'event' || !params.filters) return definition;
   const filters = neutralFilters(params.filters as Record<string, string>, 'trigger.params.filters', notes);

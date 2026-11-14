@@ -1,0 +1,18 @@
+[
+  {
+    "path": "trigger.params.color",
+    "code": "invalid_format"
+  },
+  {
+    "path": "trigger.params.cooldown_s",
+    "code": "out_of_range"
+  },
+  {
+    "path": "trigger.params.cost",
+    "code": "out_of_range"
+  },
+  {
+    "path": "trigger.params.on_redeem",
+    "code": "invalid_enum"
+  }
+]

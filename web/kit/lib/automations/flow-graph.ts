@@ -3,7 +3,7 @@
 
 import { streamActionReaders, streamActionWriters } from './stream-flow';
 import { COMPARE_OPS } from './compare';
-import { SETUP_LOGIN } from './flow-setup';
+import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
 
@@ -87,6 +87,21 @@ function eventTrigger(kind: string, filters?: Record<string, string>): Trigger {
   return { type: 'event', params: filters ? { kind, filters } : { kind } };
 }
 
+function rewardTrigger(config: FlowConfig): Trigger {
+  const title = str(config.title).trim();
+  if (title === '') return { type: 'reward', params: { reward_id: str(config.reward) } };
+  const params = {
+    reward_id: str(config.reward) || SETUP_REWARD_ID,
+    title,
+    cost: num(config.cost),
+    color: str(config.color),
+    cooldown_s: num(config.cooldown),
+    on_redeem: str(config.onRedeem) || 'fulfill',
+    input_required: config.userInput === true
+  };
+  return { type: 'reward', params };
+}
+
 function thresholdTrigger(kind: string, config: FlowConfig): Trigger {
   const threshold = THRESHOLD_FILTERS[kind]!;
   const min = num(config[threshold.key]);
@@ -134,7 +149,7 @@ const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = 
   'twitch.sub': subTrigger,
   'twitch.cheer': (config) => thresholdTrigger('channel.cheer', config),
   'twitch.raid': (config) => thresholdTrigger('channel.raid', config),
-  'twitch.reward': (config) => ({ type: 'reward', params: { reward_id: str(config.reward) } })
+  'twitch.reward': rewardTrigger
 };
 
 const TEMPLATE_FIELDS: Record<string, string[]> = {
@@ -753,12 +768,29 @@ function commandNode(params: Params): { type: string; config: FlowConfig } | nul
   return { type: 'twitch.chat.command', config };
 }
 
+function rewardNode(params: Params): { type: string; config: FlowConfig } {
+  const id = str(params.reward_id);
+  const title = str(params.title);
+  if (title === '') return { type: 'twitch.reward', config: { reward: id } };
+  const reward = id === SETUP_REWARD_ID ? '' : id;
+  const config: FlowConfig = {
+    reward,
+    title,
+    cost: num(params.cost),
+    color: str(params.color),
+    cooldown: num(params.cooldown_s),
+    onRedeem: str(params.on_redeem) || 'leave',
+    userInput: params.input_required === true
+  };
+  return { type: 'twitch.reward', config };
+}
+
 function triggerToNode(trigger: Trigger): { type: string; config: FlowConfig } | null {
   const params = trigger.params ?? {};
   if (trigger.type === 'countdown') return { type: 'countdown.finished', config: { name: str(params.name) } };
   if (trigger.type === 'command') return commandNode(params);
   if (trigger.type === 'event') return eventNode(params);
-  if (trigger.type === 'reward') return { type: 'twitch.reward', config: { reward: str(params.reward_id) } };
+  if (trigger.type === 'reward') return rewardNode(params);
   return null;
 }
 

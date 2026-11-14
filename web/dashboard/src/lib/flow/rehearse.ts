@@ -29,6 +29,8 @@ export type StepWords = {
   label: string;
   line: string;
   event: string;
+  lightsLiveOnly: string;
+  lightsAnyTime: string;
   fallback: string;
   choices: BranchChoice[];
 };
@@ -61,7 +63,16 @@ function subEvent(t: Translate, node: FlowNode): string {
   return variant === 'gift' ? t('flows.line.eventGift') : t('flows.line.eventSub');
 }
 
+function managedRewardEvent(t: Translate, title: string, node: FlowNode): string {
+  const cost = Number(node.config.cost);
+  const priced = cost === 1 ? t('flows.line.eventRewardCostOne', { reward: title, cost }) : t('flows.line.eventRewardCost', { reward: title, cost });
+  const base = Number.isFinite(cost) ? priced : t('flows.line.eventRewardNamed', { reward: title });
+  return node.config.userInput === true ? `${base} ${t('flows.line.eventRewardInput')}` : base;
+}
+
 function rewardEvent(t: Translate, spec: NodeSpec, node: FlowNode): string {
+  const title = configText(node, 'title');
+  if (title) return managedRewardEvent(t, title, node);
   const reward = optionLabel(t, spec, node, 'reward');
   return reward ? t('flows.line.eventRewardNamed', { reward }) : t('flows.line.eventReward');
 }
@@ -95,6 +106,8 @@ function wordsFor(t: Translate, spec: NodeSpec, node: FlowNode): StepWords {
     label: stepLabel(t, spec),
     line: describe(t, node),
     event: eventLine(t, spec, node),
+    lightsLiveOnly: t('flows.line.lightsLiveOnly'),
+    lightsAnyTime: t('flows.line.lightsAnyTime'),
     fallback: fallbackText(t, node),
     choices: outputsFor(spec).map((o) => ({ id: o.id, label: portLabel(t, node, o.id) }))
   };
@@ -124,6 +137,10 @@ const REHEARSERS: Readonly<Record<string, Rehearser>> = {
   'twitch.reward': event,
   'twitch.stream.online': event,
   'cond.compare': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: comparePasses(ctx) }),
+  'reply.lights': (ctx) => {
+    const when = ctx.node.config.liveOnly === false ? ctx.words.lightsAnyTime : ctx.words.lightsLiveOnly;
+    return { kind: 'event', segments: ctx.segments([ctx.words.line, when].filter(Boolean).join(', ')) };
+  },
   'reply.chat': (ctx) => ({ kind: 'bot', lines: ctx.lines(configText(ctx.node, 'message')) }),
   'reply.http_get': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true }),
   'reply.http_post': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true })
@@ -219,10 +236,34 @@ function visit(t: Translate, walk: Walk, id: string, via?: string): void {
   }
 }
 
+function redeemOutcome(t: Translate, node: FlowNode): string {
+  switch (configText(node, 'onRedeem')) {
+    case 'cancel':
+      return t('flows.line.outcomeCancel');
+    case 'leave':
+      return t('flows.line.outcomeLeave');
+    default:
+      return t('flows.line.outcomeFulfill');
+  }
+}
+
+const isManagedReward = (node: FlowNode) => node.type === 'twitch.reward' && configText(node, 'title') !== '';
+
+function outcomeStep(t: Translate, walk: Walk, rootId: string): RehearsalStep | undefined {
+  const node = walk.flow.nodes.find((n) => n.id === rootId);
+  const spec = node && specFor(node.type);
+  if (!node || !spec) return undefined;
+  if (!isManagedReward(node)) return undefined;
+  const segments = rehearseAutomation(redeemOutcome(t, node), walk.samples as Samples, walk.modules)[0]?.segments ?? [];
+  return { id: `${node.id}:after`, icon: spec.icon, label: t('flows.reward.afterTitle'), kind: 'event', segments };
+}
+
 export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalStep[] {
   const { decisions = {}, until, modules = {} } = options;
   const traced = until ? traceBack(flow, until) : { root: firstTrigger(flow), forced: {} as Record<string, string> };
   const walk: Walk = { flow, decisions, forced: traced.forced, until, modules, samples: {}, steps: [], seen: new Set(), done: false };
-  if (traced.root) visit(t, walk, traced.root);
-  return walk.steps;
+  if (!traced.root) return walk.steps;
+  visit(t, walk, traced.root);
+  const after = until ? undefined : outcomeStep(t, walk, traced.root);
+  return after ? [...walk.steps, after] : walk.steps;
 }

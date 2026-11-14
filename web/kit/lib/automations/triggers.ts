@@ -4,7 +4,17 @@
 import type { Chk } from './check';
 import { register, type Wide, type Table } from './engine';
 import { lookupEventKind, type EventKind } from './event-kinds';
-import { CODE, MAX_COMMAND_ALIASES, MAX_EVENT_FILTERS, MAX_FILTER_VALUE, MAX_PATTERN_LENGTH, RECIPE_NAME_PATTERN } from './limits';
+import {
+  CODE,
+  MAX_COMMAND_ALIASES,
+  MAX_EVENT_FILTERS,
+  MAX_FILTER_VALUE,
+  MAX_PATTERN_LENGTH,
+  MAX_REWARD_COOLDOWN,
+  MAX_REWARD_COST,
+  MAX_REWARD_TITLE,
+  RECIPE_NAME_PATTERN
+} from './limits';
 import { compilesAsRe2 } from './regex';
 import { compareBytes, isCommandChar, isPrintChar, parsesAsInt64 } from './text';
 import type { CommandTrigger, EventTrigger, RewardTrigger, TimerTrigger } from './types';
@@ -13,6 +23,8 @@ const MATCH_MODES = ['start', 'exact', 'anywhere', 'regex'];
 const COMMAND_SOURCES = ['chat', 'sub_message'];
 const REGEX_MATCH = 'regex';
 const MAX_COMMAND_NAME = 64;
+const REWARD_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+const REDEEM_OUTCOMES = ['', 'fulfill', 'cancel', 'leave'];
 
 type Command = Wide<CommandTrigger>;
 
@@ -72,6 +84,12 @@ function checkTimer(c: Chk, p: Wide<TimerTrigger>): void {
 
 function checkReward(c: Chk, p: Wide<RewardTrigger>): void {
   c.text('reward_id', p.reward_id, 1, 64);
+  if (p.title === '') return;
+  c.text('title', p.title, 1, MAX_REWARD_TITLE);
+  c.inRange('cost', p.cost, 1, MAX_REWARD_COST);
+  if (p.color !== '') c.format('color', p.color, REWARD_COLOR_PATTERN);
+  c.inRange('cooldown_s', p.cooldown_s, 0, MAX_REWARD_COOLDOWN);
+  c.oneOf('on_redeem', p.on_redeem, REDEEM_OUTCOMES);
 }
 
 export const TRIGGERS: Table = {
@@ -86,6 +104,6 @@ export const TRIGGERS: Table = {
     checkTimer,
   ),
   countdown: register<{ name: string }>({ name: 'string' }, (c, p) => c.simpleWord('name', p.name, RECIPE_NAME_PATTERN)),
-  reward: register<Wide<RewardTrigger>>({ reward_id: 'string' }, checkReward),
+  reward: register<Wide<RewardTrigger>>({ reward_id: 'string', title: 'string', cost: 'int', color: 'string', cooldown_s: 'int', on_redeem: 'string', input_required: 'bool' }, checkReward),
   manual: register<Record<string, never>>({}, () => {}),
 };

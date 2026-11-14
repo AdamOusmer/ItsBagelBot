@@ -42,8 +42,21 @@ type TimerTrigger struct {
 }
 
 type RewardTrigger struct {
-	RewardID string `json:"reward_id"`
+	RewardID      string `json:"reward_id"`
+	Title         string `json:"title"`
+	Cost          int    `json:"cost"`
+	Color         string `json:"color"`
+	CooldownS     int    `json:"cooldown_s"`
+	OnRedeem      string `json:"on_redeem"`
+	InputRequired bool   `json:"input_required"`
 }
+
+const (
+	maxRewardTitle    = 45
+	maxRewardCooldown = 604800
+)
+
+var redeemOutcomes = enum{"", "fulfill", "cancel", "leave"}
 
 type EmptyParams struct{}
 
@@ -139,4 +152,16 @@ func checkTimer(c chk, p TimerTrigger) {
 	inRange(c, "min_chat_lines", p.MinChatLines, between(0, 100))
 }
 
-func checkReward(c chk, p RewardTrigger) { c.text("reward_id", p.RewardID, nonEmpty(64)) }
+func checkReward(c chk, p RewardTrigger) {
+	c.text("reward_id", p.RewardID, nonEmpty(64))
+	if p.Title == "" {
+		return
+	}
+	c.text("title", p.Title, upTo(maxRewardTitle))
+	inRange(c, "cost", p.Cost, between(1, maxRewardCost))
+	if p.Color != "" {
+		c.format("color", p.Color, lightsColorPattern)
+	}
+	inRange(c, "cooldown_s", p.CooldownS, between(0, maxRewardCooldown))
+	c.oneOf("on_redeem", p.OnRedeem, redeemOutcomes)
+}

@@ -592,3 +592,18 @@ describe('commitFlowImport', () => {
     expect(results[0]!.issues).toEqual([{ path: '', code: 'write_failed' }]);
   });
 });
+
+describe('exporting a managed reward trigger', () => {
+  const definition: Definition = {
+    version: 1,
+    trigger: { type: 'reward', params: { reward_id: '7e0f9a58-real-reward-id', title: 'Hydrate', cost: 500, color: '#00ccff', cooldown_s: 60, on_redeem: 'cancel', input_required: true } },
+    actions: [chat('drink up {user}')]
+  };
+
+  test('keeps the settings and swaps the reward id for the setup marker', () => {
+    const { file, report } = exportFlows([{ id: '11111111-aaaa-4bbb-8ccc-000000000001', name: 'Hydrate', definition }]);
+    expect(file.flows[0]!.definition.trigger.params).toEqual({ reward_id: SETUP_REWARD_ID, title: 'Hydrate', cost: 500, color: '#00ccff', cooldown_s: 60, on_redeem: 'cancel', input_required: true });
+    expect(serializeFlowFile(file)).not.toContain('7e0f9a58');
+    expect(report[0]!.setup.map((note) => note.code)).toContain('reward_trigger');
+  });
+});

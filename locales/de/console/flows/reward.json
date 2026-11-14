@@ -1,0 +1,23 @@
+{
+  "fieldTitle": "Belohnungstitel",
+  "fieldCost": "Kosten (Punkte)",
+  "fieldColor": "Kachelfarbe",
+  "fieldCooldown": "Abklingzeit",
+  "fieldCooldownTag": "0 = aus",
+  "errCost": "Gib eine ganze Zahl von mindestens 1 Punkt ein.",
+  "errCooldown": "Gib eine Abklingzeit zwischen 0 Sekunden und 7 Tagen ein.",
+  "afterTitle": "Nach der Ausführung",
+  "afterFulfill": "Als erfüllt markieren",
+  "afterCancel": "Punkte zurückgeben",
+  "afterLeave": "Einem Mod überlassen",
+  "inputLabel": "Zuschauer nach einem Text fragen",
+  "inputHint": "Was eingegeben wird, steht im Rezept als Variable input zur Verfügung.",
+  "modeLabel": "Quelle der Belohnung",
+  "modeExisting": "Vorhandene nutzen",
+  "modeCreate": "Neue erstellen",
+  "create": "Belohnung erstellen",
+  "update": "Belohnung aktualisieren",
+  "created": "Belohnung auf Twitch erstellt.",
+  "updated": "Belohnung auf Twitch aktualisiert.",
+  "requestFailed": "Twitch ist nicht erreichbar. Versuche es gleich erneut."
+}

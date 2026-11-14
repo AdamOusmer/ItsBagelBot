@@ -12,8 +12,10 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/utils"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -90,8 +92,26 @@ func (p *Pipeline) runKindAutomations(ctx context.Context, mctx *module.Context,
 	for _, t := range triggers {
 		if compiledPasses(t, event) {
 			p.startAutomation(ctx, mctx, triggerMatch{plan: t.Plan, event: event}, emit)
+			resolveRedemption(t, mctx, emit)
 		}
 	}
+}
+
+var redeemOutcomeStatuses = map[string]string{
+	"fulfill": outgress.RedemptionFulfilled,
+	"cancel":  outgress.RedemptionCanceled,
+}
+
+func resolveRedemption(t *automation.CompiledTrigger, mctx *module.Context, emit module.Emit) {
+	status, ok := redeemOutcomeStatuses[t.OnRedeem]
+	if !ok {
+		return
+	}
+	var ev RedemptionEvent
+	if err := codec.Unmarshal(mctx.Env.Event, &ev); err != nil || ev.ID == "" {
+		return
+	}
+	emit(ev.Resolve(status))
 }
 
 func compiledPasses(t *automation.CompiledTrigger, event map[string]string) bool {

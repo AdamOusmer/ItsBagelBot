@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "reward",
+    "params": {
+      "reward_id": "7e0f9a58-1c2b-4d3e-8f90-123456789abc",
+      "title": "Hydrate",
+      "cost": 0,
+      "color": "blue",
+      "cooldown_s": 999999,
+      "on_redeem": "refund"
+    }
+  }
+}

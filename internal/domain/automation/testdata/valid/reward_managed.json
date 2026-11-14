@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "reward",
+    "params": {
+      "reward_id": "7e0f9a58-1c2b-4d3e-8f90-123456789abc",
+      "title": "Hydrate",
+      "cost": 500,
+      "color": "#00ccff",
+      "cooldown_s": 60,
+      "on_redeem": "fulfill",
+      "input_required": true
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "chat",
+      "params": {
+        "text": "drink up {user}"
+      }
+    }
+  ]
+}

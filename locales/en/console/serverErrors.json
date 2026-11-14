@@ -94,5 +94,7 @@
   "checkoutInProgress": "A checkout for that account is already open. Wait 30 seconds, then try again.",
   "missingDevice": "Missing device.",
   "deviceRevoke": "Could not revoke that device. Try again in a moment.",
-  "devicesRevokeAll": "Could not revoke your devices. Try again in a moment."
+  "devicesRevokeAll": "Could not revoke your devices. Try again in a moment.",
+  "rewardScope": "Reconnect your Twitch account to manage channel points. One extra permission is needed.",
+  "rewardFailed": "Twitch did not accept the reward. Check the title and cost, then try again."
 }

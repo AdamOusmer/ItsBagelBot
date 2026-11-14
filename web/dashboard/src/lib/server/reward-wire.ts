@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { rpcRefusal, rpcReply } from '@bagel/kit/server/nats';
+import { rpcCode } from '@bagel/kit/server/rpc-code';
 import { SUB, publishEventSubEnsureOptional } from './services';
 
 export interface RewardWire {
@@ -55,10 +56,16 @@ async function callRewardOrThrow(userId: string, verb: string, req: Record<strin
   return reply;
 }
 
+export interface RewardFlags {
+  enabled?: boolean;
+  userInput?: boolean;
+}
+
 function rewardWire(
   draft: { title: string; cost: number; color: string; cooldown: number },
   id: string,
-  prompt: string
+  prompt: string,
+  flags: RewardFlags
 ): RewardWire {
   const cooldown = Number.isFinite(draft.cooldown) && draft.cooldown > 0 ? Math.trunc(draft.cooldown) : 0;
   return {
@@ -67,9 +74,9 @@ function rewardWire(
     cost: draft.cost,
     prompt,
     background_color: draft.color || undefined,
-    is_enabled: true,
+    is_enabled: flags.enabled ?? true,
     is_paused: false,
-    is_user_input_required: true,
+    is_user_input_required: flags.userInput ?? true,
     should_skip_queue: false,
     max_per_stream_enabled: false,
     max_per_stream: 1,
@@ -94,15 +101,16 @@ export interface RewardSave {
   draft: { title: string; cost: number; color: string; cooldown: number };
   prompt: string;
   existingId: string;
+  flags?: RewardFlags;
 }
 
 export async function saveRewardFlow(
   userId: string,
-  { draft, prompt, existingId }: RewardSave,
+  { draft, prompt, existingId, flags = {} }: RewardSave,
   persist: (reward: MirroredReward) => Promise<void>
 ): Promise<RewardRemoteResult> {
   const verb = existingId ? 'update' : 'create';
-  const req: Record<string, unknown> = { reward: rewardWire(draft, existingId, prompt) };
+  const req: Record<string, unknown> = { reward: rewardWire(draft, existingId, prompt, flags) };
   if (existingId) req.reward_id = existingId;
 
   const reply = await callRewardOrThrow(userId, verb, req);
@@ -115,8 +123,10 @@ export async function saveRewardFlow(
 }
 
 export async function deleteRemoteReward(userId: string, rewardId: string): Promise<RewardRemoteResult> {
-  const reply = await callRewardOrThrow(userId, 'delete', { reward_id: rewardId });
+  const reply = await callReward('delete', { broadcaster_id: userId, reward_id: rewardId });
   if (reply.missing_scope) return { ok: false, missingScope: true };
-  if (reply.error) return { ok: false, error: reply.error };
+  if (rpcCode(reply) === 'not_found') return { ok: true };
+  const refusal = rpcRefusal(reply);
+  if (refusal) throw refusal;
   return { ok: true };
 }

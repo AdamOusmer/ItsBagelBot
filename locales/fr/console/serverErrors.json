@@ -94,5 +94,7 @@
   "checkoutInProgress": "Une page de paiement est déjà ouverte pour ce compte. Attendez 30 secondes, puis réessayez.",
   "missingDevice": "Appareil manquant.",
   "deviceRevoke": "Impossible de révoquer cet appareil. Réessayez dans un instant.",
-  "devicesRevokeAll": "Impossible de révoquer vos appareils. Réessayez dans un instant."
+  "devicesRevokeAll": "Impossible de révoquer vos appareils. Réessayez dans un instant.",
+  "rewardScope": "Reconnectez votre compte Twitch pour gérer les points de chaîne. Une autorisation supplémentaire est requise.",
+  "rewardFailed": "Twitch n’a pas accepté la récompense. Vérifiez le titre et le coût, puis réessayez."
 }

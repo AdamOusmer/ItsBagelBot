@@ -28,6 +28,7 @@
   import ChoiceField from './ChoiceField.svelte';
   import FlowRehearsal from './FlowRehearsal.svelte';
   import GoveeLightField from './GoveeLightField.svelte';
+  import RewardField from './RewardField.svelte';
   import UserField from './UserField.svelte';
 
   let {
@@ -310,6 +311,8 @@
               </Field>
             {:else if field.type === 'choice'}
               <ChoiceField {node} {field} {label} id="{uid}-{field.key}" />
+            {:else if field.type === 'reward'}
+              <RewardField {node} {label} id="{uid}-{field.key}" />
             {:else if field.type === 'goveeLight'}
               <GoveeLightField {node} id="{uid}-{field.key}" />
             {:else if field.type === 'login'}
