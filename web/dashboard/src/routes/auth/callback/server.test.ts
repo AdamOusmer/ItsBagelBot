@@ -35,7 +35,8 @@ mock.module('#lib/server/services', () => ({
   },
   userLocale: () => step('locale', 'fr'),
   userCursor: () => step('cursor', true),
-  saveGrant: () => step('grant', undefined)
+  saveGrant: () => step('grant', undefined),
+  delegationConsume: () => step('delegation', { ok: true, owner_user_id: '7', owner_login: 'owner', sections: [] })
 }));
 const nats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
@@ -69,11 +70,8 @@ const { GET } = await import('./+server');
 
 let written = new Map<string, string>();
 
-async function signInTo(): Promise<{ status: number; location: string | null }> {
-  const jar = new Map([
-    ['oauth_state', 's'],
-    ['oauth_nonce', 'n']
-  ]);
+async function signInTo(extra: [string, string][] = []): Promise<{ status: number; location: string | null }> {
+  const jar = new Map([['oauth_state', 's'], ['oauth_nonce', 'n'], ...extra]);
   written = new Map();
   const cookies = {
     get: (n: string) => jar.get(n),
@@ -121,6 +119,12 @@ describe('auth callback ordering', () => {
     expect(result).toEqual({ status: 302, location: '/' });
     expect([...written.keys()].sort()).toEqual(['bagel_cursor', 'bagel_session', 'locale']);
     expect([written.get('locale'), written.get('bagel_cursor')]).toEqual(['fr', '1']);
+  });
+
+  test('an invitee accepting a team link still stores their own Twitch grant', async () => {
+    const result = await signInTo([['pending_delegation', 'invite']]);
+    expect(result).toEqual({ status: 302, location: '/' });
+    expect(events.filter((e) => e === 'end:grant' || e === 'start:delegation')).toEqual(['end:grant', 'start:delegation']);
   });
 });
 

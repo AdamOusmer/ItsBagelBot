@@ -47,6 +47,9 @@
       },
       "scene": {
         "label": "Scene"
+      },
+      "liveOnly": {
+        "label": "Only while live"
       }
     }
   },

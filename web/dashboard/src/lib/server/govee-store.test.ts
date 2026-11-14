@@ -8,6 +8,8 @@ import { stubSvelteKit } from '../../../test/sveltekit';
 stubSvelteKit();
 
 let reply: Record<string, unknown> | Error = {};
+const savedReward = { reward: { id: 'rw-g', title: 'Whole room', cost: 900 } };
+let rewardReply: Record<string, unknown> = savedReward;
 const calls: { subject: string; payload: unknown }[] = [];
 let moduleRows: unknown[] = [];
 const moduleReads = mock(async () => moduleRows);
@@ -17,12 +19,12 @@ const realNats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
   ...realNats,
   rpcReply: async (subject: string, payload: unknown) => {
+    if (subject.includes('.channelpoints.')) return rewardReply;
     calls.push({ subject, payload });
     if (reply instanceof Error) throw reply;
     return reply;
   },
-  rpc: async (subject: string) =>
-    subject.includes('.channelpoints.') ? { reward: { id: 'rw-g', title: 'Whole room', cost: 900 } } : { present: true }
+  rpc: async () => ({ present: true })
 }));
 mock.module('./commands-store', () => ({
   listModules: moduleReads,
@@ -106,13 +108,14 @@ describe('light groups', () => {
     { device: 'AA', sku: 'H1', name: 'Desk' },
     { device: 'BB', sku: 'H2', name: 'Lamp' }
   ];
+  const draft = { title: 'Whole room', cost: 900, color: '', cooldown: 0, onRedeem: 'fulfill', replyMessage: '', allowOff: false, allowOffline: false } as const;
 
   test('saving a group keeps the single light bindings and its place in the list', async () => {
     const binding = { device: 'AA', sku: 'H1', rewardId: 'rw-1' };
     const group = (rewardId: string, name: string) => ({ rewardId, name, lights });
     moduleRows = [{ name: 'govee', is_enabled: true, configs: { bindings: [binding], groups: [group('rw-g', 'Old'), group('rw-z', 'Other')] } }];
     moduleWrites.length = 0;
-    const draft = { title: 'Whole room', cost: 900, color: '', cooldown: 0, onRedeem: 'fulfill', replyMessage: '', allowOff: false, allowOffline: false } as const;
+    rewardReply = savedReward;
 
     expect(await goveeStore('1').saveGroup(group('rw-g', 'Room'), draft)).toEqual({ ok: true });
 
@@ -121,9 +124,19 @@ describe('light groups', () => {
     expect(written.groups.map((g) => g.name)).toEqual(['Room', 'Other']);
   });
 
+  test('a dead Twitch grant asks for a reconnect and writes nothing', async () => {
+    moduleRows = [{ name: 'govee', is_enabled: true, configs: { groups: [] } }];
+    moduleWrites.length = 0;
+    rewardReply = { error: 'reconnect required', code: 'forbidden', missing_scope: true };
+
+    expect(await goveeStore('1').saveGroup({ rewardId: '', name: 'Room', lights }, draft)).toEqual({ ok: false, missingScope: true });
+    expect(moduleWrites).toHaveLength(0);
+  });
+
   test('deleting a group leaves the other groups', async () => {
     moduleRows = [{ name: 'govee', is_enabled: true, configs: { groups: [{ rewardId: 'rw-g', name: 'A', lights }, { rewardId: 'rw-z', name: 'B', lights }] } }];
     moduleWrites.length = 0;
+    rewardReply = {};
 
     expect(await goveeStore('1').deleteGroup('rw-g')).toEqual({ ok: true });
 

@@ -47,6 +47,9 @@
       },
       "scene": {
         "label": "Scène"
+      },
+      "liveOnly": {
+        "label": "Seulement en direct"
       }
     }
   },

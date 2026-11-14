@@ -223,6 +223,7 @@ export const SIMPLE_ACTIONS: Table = {
       scene_type: 'string',
       scene_instance: 'string',
       scene_value: 'string',
+      any_time: 'bool',
     },
     checkLights,
     { mode: 'color' },

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { rpc, rpcReply } from '@bagel/kit/server/nats';
+import { rpcRefusal, rpcReply } from '@bagel/kit/server/nats';
 import { SUB, publishEventSubEnsureOptional } from './services';
 
 export interface RewardWire {
@@ -47,8 +47,12 @@ export function callReward(verb: string, req: Record<string, unknown>): Promise<
   return rpcReply<RewardReplyWire>(rewardSubject(verb), req, 8000);
 }
 
-function callRewardOrThrow(userId: string, verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
-  return rpc<RewardReplyWire>(rewardSubject(verb), { broadcaster_id: userId, ...req }, 8000);
+async function callRewardOrThrow(userId: string, verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
+  const reply = await callReward(verb, { broadcaster_id: userId, ...req });
+  if (reply.missing_scope) return reply;
+  const refusal = rpcRefusal(reply);
+  if (refusal) throw refusal;
+  return reply;
 }
 
 function rewardWire(
