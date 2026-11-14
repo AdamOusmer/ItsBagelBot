@@ -245,14 +245,14 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
   // Register before the delegation accept, or the ghost-session gate bounces a first-time invitee.
   await registerUser(identity, email);
   purgeNewChannelPages(identity, prior);
-
-  const landing = await acceptPendingDelegation(cookies, url, identity);
-
-  setSessionCookie(cookies, url, { ...streamerSession(identity), ...grantedScopes(tokens) });
   await Promise.all([
     seedLocaleCookie(cookies, url, identity.userId),
     seedCursorCookie(cookies, url, identity.userId),
     persistGrant(identity.userId, tokens)
   ]);
+
+  const landing = await acceptPendingDelegation(cookies, url, identity);
+
+  setSessionCookie(cookies, url, { ...streamerSession(identity), ...grantedScopes(tokens) });
   return landing;
 }
