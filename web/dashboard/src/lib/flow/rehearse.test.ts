@@ -156,6 +156,26 @@ describe('rehearseFlow', () => {
     for (const node of flow.nodes) expect(describeNode(english, node)).toBe('Off until set up');
   });
 
+  const rewardRun = (config: Flow['nodes'][number]['config']) =>
+    transcript(flowOf([n('t', 'twitch.reward', config), n('c', 'reply.chat', { message: 'ok' })], [e('e1', 't', 'next', 'c')]));
+
+  test.each([
+    ['a linked reward keeps its name line', { reward: 'r1', rewardTitle: 'Hydrate' }, ['PrincessBarney redeemed Hydrate', 'ok']],
+    ['a managed reward shows title and cost, then the default outcome', { title: 'Hydrate', cost: 500 }, ['PrincessBarney redeemed Hydrate for 500 points', 'ok', 'Redemption marked fulfilled']],
+    ['one point is singular', { title: 'Hydrate', cost: 1, onRedeem: 'cancel' }, ['PrincessBarney redeemed Hydrate for 1 point', 'ok', 'Points refunded to the viewer']],
+    ['required text shows the sample input', { title: 'Song', cost: 100, userInput: true, onRedeem: 'leave' }, ['PrincessBarney redeemed Song for 100 points and typed: lofi beats', 'ok', 'Redemption left for a mod']]
+  ])('%s', (_name, config, expected) => {
+    expect(rewardRun(config)).toEqual(expected);
+  });
+
+  test.each([
+    ['unset runs only while live', {}, 'only while you are live'],
+    ['off runs any time', { liveOnly: false }, 'any time, live or not']
+  ])('lights %s', (_name, config, note) => {
+    const [step] = rehearse(flowOf([n('l', 'reply.lights', { mode: 'color', color: 'red', deviceName: 'Desk', ...config })], []), { until: 'l' });
+    expect(said(step)).toBe(`Set Desk to red, ${note}`);
+  });
+
   test('every step type rehearses', () => {
     for (const spec of NODE_SPECS) {
       expect(rehearse(flowOf([n('n', spec.type)], []), { until: 'n' }).length).toBe(1);
