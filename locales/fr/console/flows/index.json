@@ -119,21 +119,6 @@
     "name": "Donnez un nom à la recette en utilisant des lettres, des chiffres et des espaces, jusqu’à 64 caractères.",
     "generic": "Un élément de cette recette ne peut pas être enregistré ({code})."
   },
-  "reward": {
-    "fieldTitle": "Titre de la récompense",
-    "fieldCost": "Coût (points)",
-    "fieldColor": "Couleur de la tuile",
-    "fieldCooldown": "Délai de recharge",
-    "fieldCooldownTag": "0 = désactivé",
-    "errCost": "Saisissez un nombre entier de points, au moins 1.",
-    "errCooldown": "Saisissez un délai entre 0 seconde et 7 jours.",
-    "afterTitle": "Après l’exécution",
-    "afterFulfill": "Marquer comme honorée",
-    "afterCancel": "Rembourser les points",
-    "afterLeave": "Laisser à un modérateur",
-    "inputLabel": "Demander un texte au spectateur",
-    "inputHint": "Ce qu’il saisit est disponible dans la recette via la variable input."
-  },
   "choose": {
     "reward": "Choisir une récompense",
     "counter": "Choisir un compteur",

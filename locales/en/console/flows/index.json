@@ -119,21 +119,6 @@
     "name": "Give the recipe a name using letters, numbers and spaces, up to 64 characters.",
     "generic": "Something in this recipe cannot be saved ({code})."
   },
-  "reward": {
-    "fieldTitle": "Reward title",
-    "fieldCost": "Cost (points)",
-    "fieldColor": "Tile colour",
-    "fieldCooldown": "Cooldown",
-    "fieldCooldownTag": "0 = off",
-    "errCost": "Enter a whole number of points, at least 1.",
-    "errCooldown": "Enter a cooldown between 0 seconds and 7 days.",
-    "afterTitle": "After it runs",
-    "afterFulfill": "Mark fulfilled",
-    "afterCancel": "Refund the points",
-    "afterLeave": "Leave for a mod",
-    "inputLabel": "Ask the viewer for text",
-    "inputHint": "What they type is available to the recipe as the input variable."
-  },
   "choose": {
     "reward": "Choose a reward",
     "counter": "Choose a counter",

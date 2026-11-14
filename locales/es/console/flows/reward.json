@@ -1,0 +1,15 @@
+{
+  "fieldTitle": "Título de la recompensa",
+  "fieldCost": "Coste (puntos)",
+  "fieldColor": "Color de la tarjeta",
+  "fieldCooldown": "Tiempo de espera",
+  "fieldCooldownTag": "0 = desactivado",
+  "errCost": "Introduce un número entero de puntos, al menos 1.",
+  "errCooldown": "Introduce un tiempo de espera de entre 0 segundos y 7 días.",
+  "afterTitle": "Después de ejecutarse",
+  "afterFulfill": "Marcar como completada",
+  "afterCancel": "Devolver los puntos",
+  "afterLeave": "Dejar para un moderador",
+  "inputLabel": "Pedir un texto al espectador",
+  "inputHint": "Lo que escriba está disponible en la receta como la variable input."
+}

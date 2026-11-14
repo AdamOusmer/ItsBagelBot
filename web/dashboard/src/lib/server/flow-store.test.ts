@@ -12,10 +12,15 @@ import { stubSvelteKit } from '../../../test/sveltekit';
 stubSvelteKit();
 process.env.NEW_RELIC_ENABLED = 'false';
 
-const calls: Array<{ subject: string; body: any }> = [];
+type Subject = string & {};
+type AccountStatus = string & {};
+type EntityId = string & {};
+type Verb = string & {};
+
+const calls: Array<{ subject: Subject; body: any }> = [];
 let replies: Record<string, unknown | ((body: any) => unknown)> = {};
 const nats = await import('@bagel/kit/server/nats');
-const answer = async (subject: string, body: any) => {
+const answer = async (subject: Subject, body: any) => {
   calls.push({ subject, body });
   if (!(subject in replies)) throw new Error(`Unexpected RPC: ${subject}`);
   const reply = replies[subject];
@@ -28,8 +33,8 @@ mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {}, scheduleLea
 const { fabric } = await import('./services');
 const store = await import('./flow-store');
 
-const account = (status: string) => ({ value: { status, active: true, onboarded: true } });
-const localsFor = (status: string, session: Record<string, unknown> = { user_id: '7' }) =>
+const account = (status: AccountStatus) => ({ value: { status, active: true, onboarded: true } });
+const localsFor = (status: AccountStatus, session: Record<string, unknown> = { user_id: '7' }) =>
   ({ session, locale: 'en', accountState: account(status) }) as unknown as App.Locals;
 const premium = localsFor('paid');
 const free = localsFor('free');
@@ -55,7 +60,7 @@ const followFlow: Definition = {
   trigger: { type: 'event', params: { kind: 'channel.follow' } },
   actions: [{ type: 'chat', params: { text: 'hi' } }, { type: 'points_add', params: { amount: 5 } }]
 };
-const savedAutomation = (id: string, definition: Definition, revision = 1) => ({
+const savedAutomation = (id: EntityId, definition: Definition, revision = 1) => ({
   id,
   user_id: 7,
   name: 'Flow',
@@ -67,7 +72,7 @@ const savedAutomation = (id: string, definition: Definition, revision = 1) => ({
 });
 const hugSimple = { name: 'hug', aliases: ['cuddle'], response: 'hi {user}', perm: 'mod' as const, cooldown: 30, userCooldown: 5 };
 
-const callsTo = (subject: string) => calls.filter((c) => c.subject === subject);
+const callsTo = (subject: Subject) => calls.filter((c) => c.subject === subject);
 const moduleWrites = () => callsTo('rpc.modules.upsert').map((c) => ({ name: c.body.name, is_enabled: c.body.is_enabled }));
 
 function stubStorage(commands: CommandView[], modules: unknown[]) {
@@ -101,7 +106,7 @@ describe('read-through', () => {
       definition: commandDefinition(hugSimple)
     });
     expect(flows.filter((f) => f.ref.layer === 'command')).toHaveLength(1);
-    const alert = (key: string) => flows.find((f) => f.ref.layer === 'alert' && f.ref.alert === key)!;
+    const alert = (key: EntityId) => flows.find((f) => f.ref.layer === 'alert' && f.ref.alert === key)!;
     expect(alert('follow')).toMatchObject({ enabled: true, definition: alertDefinition('follow', 'hey {user}') });
     expect(alert('sub').enabled).toBe(false);
     expect(flows.filter((f) => f.ref.layer === 'alert')).toHaveLength(5);
@@ -302,7 +307,7 @@ describe('automation rows', () => {
 });
 
 describe('landing list and toggles', () => {
-  const summary = (id: string, preview?: string) => ({ id, name: 'Flow', enabled: true, revision: 3, trigger_type: 'event', preview, updated_at: '' });
+  const summary = (id: EntityId, preview?: string) => ({ id, name: 'Flow', enabled: true, revision: 3, trigger_type: 'event', preview, updated_at: '' });
 
   test('the landing list holds saved recipes only, never commands or modules', async () => {
     stubStorage([hugRow], [alerts({})]);
@@ -428,7 +433,7 @@ describe('a simple flow never lives in the automation table', () => {
     conditions: [{ type: 'chance', params: { percent: 50 } }],
     actions: [{ type: 'chat', params: { text: 'x' } }]
   };
-  const automation = (id: string, definition: Definition, enabled = true, revision = 3) => ({ ...savedAutomation(id, definition, revision), enabled });
+  const automation = (id: EntityId, definition: Definition, enabled = true, revision = 3) => ({ ...savedAutomation(id, definition, revision), enabled });
 
   let table: Map<string, ReturnType<typeof automation>>;
   let commands: CommandView[];
@@ -535,7 +540,7 @@ describe('a simple flow never lives in the automation table', () => {
     expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
   });
 
-  const withLeftCommand = (left_command: string): Definition => ({ ...complex, conditions: [{ type: 'cooldown', params: { global_s: 60, left_command } }] });
+  const withLeftCommand = (left_command: EntityId): Definition => ({ ...complex, conditions: [{ type: 'cooldown', params: { global_s: 60, left_command } }] });
 
   test.each([
     ['a custom command', 'hug'],
@@ -695,7 +700,7 @@ describe('a simple flow never lives in the automation table', () => {
 
   test('only the flow store and the form editor can write automation rows, and the form editor refuses simple flows', () => {
     const root = join(import.meta.dir, '../..');
-    const sources = (dir: string): string[] =>
+    const sources = (dir: EntityId): string[] =>
       readdirSync(dir).flatMap((name) => {
         const path = join(dir, name);
         if (statSync(path).isDirectory()) return sources(path);
@@ -876,13 +881,13 @@ describe('upgrades', () => {
 
 describe('recipe channel point rewards', () => {
   const REWARD = 'rpc.outgress.channelpoints';
-  const managed = (rewardId: string, extra: Record<string, unknown> = {}): Definition => ({
+  const managed = (rewardId: EntityId, extra: Record<string, unknown> = {}): Definition => ({
     version: 1,
     trigger: { type: 'reward', params: { reward_id: rewardId, title: 'Hydrate', cost: 500, color: '#00ccff', cooldown_s: 60, ...extra } },
     actions: [{ type: 'chat', params: { text: 'drink up {user}' } }]
   });
-  const wire = (verb: string) => callsTo(`${REWARD}.${verb}`)[0]!.body.reward;
-  const twitchReward = (id: string, is_enabled: boolean) => ({ reward: { id, title: 'Hydrate', cost: 500, background_color: '#00ccff', global_cooldown_enabled: true, global_cooldown_seconds: 60, is_enabled } });
+  const wire = (verb: Verb) => callsTo(`${REWARD}.${verb}`)[0]!.body.reward;
+  const twitchReward = (id: EntityId, is_enabled: boolean) => ({ reward: { id, title: 'Hydrate', cost: 500, background_color: '#00ccff', global_cooldown_enabled: true, global_cooldown_seconds: 60, is_enabled } });
   const ref = { layer: 'automation', id: 'a' } as const;
 
   test.each([

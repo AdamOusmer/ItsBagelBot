@@ -1,0 +1,15 @@
+{
+  "fieldTitle": "Título da recompensa",
+  "fieldCost": "Custo (pontos)",
+  "fieldColor": "Cor do bloco",
+  "fieldCooldown": "Intervalo entre usos",
+  "fieldCooldownTag": "0 = desativado",
+  "errCost": "Informe um número inteiro de pontos, no mínimo 1.",
+  "errCooldown": "Informe um intervalo entre 0 segundos e 7 dias.",
+  "afterTitle": "Após a execução",
+  "afterFulfill": "Marcar como atendida",
+  "afterCancel": "Devolver os pontos",
+  "afterLeave": "Deixar para um moderador",
+  "inputLabel": "Pedir um texto ao espectador",
+  "inputHint": "O que for digitado fica disponível na receita como a variável input."
+}
