@@ -27,7 +27,7 @@ func (TebexAgreement) Fields() []ent.Field {
 		field.Time("paid_through_at").Optional().SchemaType(map[string]string{dialect.MySQL: "datetime(6)"}),
 		field.String("paid_through_source").Optional(),
 		field.Time("paused_until").Optional().SchemaType(map[string]string{dialect.MySQL: "datetime(6)"}),
-		field.String("last_snapshot_json").Optional(),
+		field.Text("last_snapshot_json").Optional(),
 		field.Time("verified_at").Optional(),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
