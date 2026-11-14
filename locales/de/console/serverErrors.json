@@ -94,5 +94,7 @@
   "checkoutInProgress": "Für dieses Konto ist bereits eine Bezahlseite geöffnet. Warte 30 Sekunden und versuche es dann erneut.",
   "missingDevice": "Fehlendes Gerät.",
   "deviceRevoke": "Das Gerät konnte nicht entzogen werden. Versuche es gleich erneut.",
-  "devicesRevokeAll": "Deine Geräte konnten nicht entzogen werden. Versuche es gleich erneut."
+  "devicesRevokeAll": "Deine Geräte konnten nicht entzogen werden. Versuche es gleich erneut.",
+  "rewardScope": "Verbinde dein Twitch-Konto erneut, um Kanalpunkte zu verwalten. Eine zusätzliche Berechtigung ist erforderlich.",
+  "rewardFailed": "Twitch hat die Belohnung nicht angenommen. Prüfe Titel und Kosten und versuche es erneut."
 }

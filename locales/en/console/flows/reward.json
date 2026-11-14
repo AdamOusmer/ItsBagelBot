@@ -11,5 +11,13 @@
   "afterCancel": "Refund the points",
   "afterLeave": "Leave for a mod",
   "inputLabel": "Ask the viewer for text",
-  "inputHint": "What they type is available to the recipe as the input variable."
+  "inputHint": "What they type is available to the recipe as the input variable.",
+  "modeLabel": "Reward source",
+  "modeExisting": "Use existing",
+  "modeCreate": "Create new",
+  "create": "Create reward",
+  "update": "Update reward",
+  "created": "Reward created on Twitch.",
+  "updated": "Reward updated on Twitch.",
+  "requestFailed": "Could not reach Twitch. Try again in a moment."
 }

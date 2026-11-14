@@ -15,6 +15,10 @@ export type SaveReply =
       latestRevision?: string;
     };
 
+export type RewardReply =
+  | { ok: true; rewardId: string; title: string; cost: number; color: string; cooldown: number }
+  | { ok: false; error: string; missingScope?: boolean };
+
 export type ToggleReply =
   | { ok: true; enabled: boolean; revision: string; warnings: FlowWarning[] }
   | { ok: false; reason: 'conflict' | 'not_found' | 'failed' | 'denied' | 'needs_setup'; error?: string };

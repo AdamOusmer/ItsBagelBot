@@ -11,5 +11,13 @@
   "afterCancel": "Devolver os pontos",
   "afterLeave": "Deixar para um moderador",
   "inputLabel": "Pedir um texto ao espectador",
-  "inputHint": "O que for digitado fica disponível na receita como a variável input."
+  "inputHint": "O que for digitado fica disponível na receita como a variável input.",
+  "modeLabel": "Origem da recompensa",
+  "modeExisting": "Usar existente",
+  "modeCreate": "Criar nova",
+  "create": "Criar recompensa",
+  "update": "Atualizar recompensa",
+  "created": "Recompensa criada na Twitch.",
+  "updated": "Recompensa atualizada na Twitch.",
+  "requestFailed": "Não foi possível falar com a Twitch. Tente novamente em um instante."
 }

@@ -97,7 +97,9 @@ const KEYS: Record<string, MessageKey> = {
   'User restriction must be a numeric Twitch user id.': 'serverErrors.userIdNumeric',
   'Pick a light first.': 'serverErrors.pickLight',
   'Enter a valid point cost.': 'serverErrors.pointCost',
-  'Pick a valid colour.': 'serverErrors.colour'
+  'Pick a valid colour.': 'serverErrors.colour',
+  'missing_scope': 'serverErrors.rewardScope',
+  'reward_failed': 'serverErrors.rewardFailed'
 };
 
 export function actionError(locale: Locale, fallback: string): string {

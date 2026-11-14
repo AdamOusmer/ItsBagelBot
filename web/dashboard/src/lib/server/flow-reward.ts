@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { isSetupValue, setupGaps, type Definition, type Issue, type Params } from '@bagel/kit/automations';
+import { REWARD_COOLDOWN_MAX, isHexColor, isValidRewardCost, isValidRewardTitle, wholeBetween } from '#lib/reward-fields';
 import { callReward, deleteRemoteReward, saveRewardFlow, type MirroredReward, type RewardRemoteResult } from './reward-wire';
 
 type UserId = string;
@@ -82,6 +83,36 @@ export async function deleteManagedReward(userId: UserId, definition: Definition
   if (!reward || existingId(reward) === '') return { ok: true };
   const result = await deleteRemoteReward(userId, reward.rewardId);
   return result.ok ? { ok: true } : failure(result);
+}
+
+export type RewardSaved = { ok: true; reward: MirroredReward } | { ok: false; error: string };
+
+export async function saveManagedReward(userId: UserId, reward: ManagedReward): Promise<RewardSaved> {
+  const { result, mirrored } = await pushReward(userId, reward, true);
+  return result.ok ? { ok: true, reward: mirrored! } : failure(result);
+}
+
+function parseJson(text: string): Record<string, unknown> | null {
+  try {
+    const body: unknown = JSON.parse(text);
+    return typeof body === 'object' && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+const validRewardFields = (title: string, cost: number, cooldown: number, color: string) =>
+  isValidRewardTitle(title) && isValidRewardCost(cost) && wholeBetween(cooldown, 0, REWARD_COOLDOWN_MAX) && (color === '' || isHexColor(color));
+
+export function parseRewardDraft(text: string): ManagedReward | null {
+  const body = parseJson(text);
+  if (!body) return null;
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const color = typeof body.color === 'string' ? body.color : '';
+  const cost = Number(body.cost);
+  const cooldown = Number(body.cooldown ?? 0);
+  if (!validRewardFields(title, cost, cooldown, color)) return null;
+  return { rewardId: typeof body.rewardId === 'string' ? body.rewardId : '', title, cost, color, cooldown, inputRequired: body.inputRequired === true };
 }
 
 const CREATED_ON_SAVE = 'created-on-save';

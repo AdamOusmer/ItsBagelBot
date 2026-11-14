@@ -17,11 +17,12 @@ import { MOD, moduleDef } from '@bagel/kit/catalog';
 import { cardFromSummary, type FlowCard } from '#lib/flow/cards';
 import { newFlow } from '#lib/flow/model';
 import { NEW_FLOW_ID, flowRouteId, parseFlowRouteId, type FlowRef } from '#lib/flow/ref';
-import type { DeleteReply, SaveReply, SaveRequest, ToggleReply } from '#lib/flow/replies';
+import type { DeleteReply, RewardReply, SaveReply, SaveRequest, ToggleReply } from '#lib/flow/replies';
 import { flowPreview } from '#lib/flow/thumb';
 import { effectiveId } from './board';
 import { attachChoiceNames } from './flow-choices';
-import { managedReward } from './flow-reward';
+import { actionError } from './action-errors';
+import { managedReward, saveManagedReward, type ManagedReward, type RewardSaved } from './flow-reward';
 import { deleteFlow, listFlowSummaries, loadFlow, saveFlow, setFlowEnabled, type SaveFlowResult } from './flow-store';
 import { moduleWriteDenial } from './module-gate';
 import { attachLogins } from './user-login';
@@ -170,6 +171,12 @@ export async function liveSave(locals: App.Locals, { request, flow, definition, 
     confirmUpgrade: request.confirmUpgrade
   });
   return withLatestRevision(locals, request.ref, saveReply(result));
+}
+
+export async function liveRewardSave(locals: App.Locals, draft: ManagedReward): Promise<RewardReply> {
+  const saved = await saveManagedReward(effectiveId(locals.session), draft).catch((): RewardSaved => ({ ok: false, error: 'reward_failed' }));
+  if (!saved.ok) return { ok: false, error: actionError(locals.locale, saved.error), missingScope: saved.error === 'missing_scope' };
+  return { ok: true, ...saved.reward };
 }
 
 export async function liveToggle(locals: App.Locals, ref: FlowRef, enabled: boolean, revision?: string): Promise<ToggleReply> {

@@ -1,13 +1,16 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { dev } from '$app/env';
-import { definitionToFlow, flowToDefinition, setupGaps, SETUP_REWARD_ID, SETUP_URL, type Definition, type FlowExportRow, type RunRecord } from '@bagel/kit/automations';
+import { definitionToFlow, flowToDefinition, isSetupValue, setupGaps, SETUP_REWARD_ID, SETUP_URL, type Definition, type FlowExportRow, type RunRecord } from '@bagel/kit/automations';
+import type { Locale } from '@bagel/kit';
+import { actionError } from '#lib/server/action-errors';
 import type { EditorData, Lowered } from '#lib/server/flow-page';
+import type { ManagedReward } from '#lib/server/flow-reward';
 import { cardFromSummary, type FlowCard } from './cards';
 import { unavailable, type ChoiceList, type ChoiceOption } from './choices';
 import { MAX_WAIT_SECONDS, specFor, type Flow } from './model';
 import { flowRouteId, parseFlowRouteId, type FlowRef } from './ref';
-import type { DeleteReply, SaveReply, ToggleReply } from './replies';
+import type { DeleteReply, RewardReply, SaveReply, ToggleReply } from './replies';
 import { flowPreview } from './thumb';
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
@@ -305,10 +308,24 @@ export function demoRuns(automationId?: string): RunRecord[] {
   return DEMO_RUNS.filter((run) => !automationId || run.automation_id === automationId);
 }
 
-const DEMO_REWARDS: ChoiceOption[] = [
-  { value: 'hydrate', label: 'Hydrate (demo reward)' },
-  { value: 'song', label: 'Song request (demo reward)' }
-];
+const demoRewards = new Map<string, string>([
+  ['hydrate', 'Hydrate'],
+  ['song', 'Song request']
+]);
+
+const DEMO_NO_SCOPE_TITLE = 'noscope';
+
+const demoRewardOptions = (): ChoiceOption[] => [...demoRewards].map(([value, title]) => ({ value, label: `${title} (demo reward)` }));
+
+const sameTitle = (left: string, right: string) => left.trim().toLowerCase() === right.trim().toLowerCase();
+
+export function demoRewardSave(locale: Locale, draft: ManagedReward): RewardReply {
+  if (sameTitle(draft.title, DEMO_NO_SCOPE_TITLE)) return { ok: false, error: actionError(locale, 'missing_scope'), missingScope: true };
+  const known = draft.rewardId !== '' && !isSetupValue(draft.rewardId) ? draft.rewardId : '';
+  const adopted = known || [...demoRewards].find(([, title]) => sameTitle(title, draft.title))?.[0] || `demo-reward-${demoRewards.size + 1}`;
+  demoRewards.set(adopted, draft.title);
+  return { ok: true, rewardId: adopted, title: draft.title, cost: draft.cost, color: draft.color, cooldown: draft.cooldown };
+}
 
 const DEMO_COUNTERS: ChoiceOption[] = [
   { value: 'deaths', label: 'deaths' },
@@ -339,7 +356,7 @@ function demoList(options: ChoiceOption[], mode: DemoChoiceMode): ChoiceList {
 
 export function demoChoices(mode: DemoChoiceMode) {
   return {
-    rewards: demoList(DEMO_REWARDS, mode),
+    rewards: demoList(demoRewardOptions(), mode),
     counters: demoList(DEMO_COUNTERS, mode),
     namedCooldowns: demoList(DEMO_NAMED_COOLDOWNS, mode),
     namedCountdowns: demoList(DEMO_NAMED_COOLDOWNS, mode)

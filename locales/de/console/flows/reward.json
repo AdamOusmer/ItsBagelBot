@@ -11,5 +11,13 @@
   "afterCancel": "Punkte zurückgeben",
   "afterLeave": "Einem Mod überlassen",
   "inputLabel": "Zuschauer nach einem Text fragen",
-  "inputHint": "Was eingegeben wird, steht im Rezept als Variable input zur Verfügung."
+  "inputHint": "Was eingegeben wird, steht im Rezept als Variable input zur Verfügung.",
+  "modeLabel": "Quelle der Belohnung",
+  "modeExisting": "Vorhandene nutzen",
+  "modeCreate": "Neue erstellen",
+  "create": "Belohnung erstellen",
+  "update": "Belohnung aktualisieren",
+  "created": "Belohnung auf Twitch erstellt.",
+  "updated": "Belohnung auf Twitch aktualisiert.",
+  "requestFailed": "Twitch ist nicht erreichbar. Versuche es gleich erneut."
 }

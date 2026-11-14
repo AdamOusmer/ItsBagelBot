@@ -11,5 +11,13 @@
   "afterCancel": "Rembourser les points",
   "afterLeave": "Laisser à un modérateur",
   "inputLabel": "Demander un texte au spectateur",
-  "inputHint": "Ce qu’il saisit est disponible dans la recette via la variable input."
+  "inputHint": "Ce qu’il saisit est disponible dans la recette via la variable input.",
+  "modeLabel": "Source de la récompense",
+  "modeExisting": "Utiliser l’existante",
+  "modeCreate": "En créer une",
+  "create": "Créer la récompense",
+  "update": "Mettre à jour la récompense",
+  "created": "Récompense créée sur Twitch.",
+  "updated": "Récompense mise à jour sur Twitch.",
+  "requestFailed": "Impossible de joindre Twitch. Réessayez dans un instant."
 }

@@ -12,7 +12,9 @@ import { lookupTwitchUser } from '#lib/server/identity-heal';
 import { counterChoices, manageableRewardChoices, namedCooldownChoices, namedCountdownChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
 import { listRuns } from '#lib/server/automations-store';
 import { parseFlowRouteId } from '#lib/flow/ref';
-import { flowDenial, liveEditor, liveSave, lowerSaveRequest, newEditor, type EditorData } from '#lib/server/flow-page';
+import { actionError } from '#lib/server/action-errors';
+import { parseRewardDraft } from '#lib/server/flow-reward';
+import { flowDenial, liveEditor, liveRewardSave, liveSave, lowerSaveRequest, newEditor, type EditorData } from '#lib/server/flow-page';
 import { goveeStore, type GoveeDevice } from '#lib/server/govee-store';
 import { broadcasterPremium } from '#lib/server/module-gate';
 
@@ -113,6 +115,14 @@ export const actions: Actions = {
     const lowered = lowerSaveRequest(String((await request.formData()).get('payload') ?? ''));
     if (!lowered.ok) return lowered.reply;
     return DEMO ? (await import('#lib/flow/demo')).demoSave(lowered.lowered) : liveSave(locals, lowered.lowered);
+  },
+  reward: async ({ request, locals }) => {
+    const denied = await flowDenial(locals);
+    if (denied) return denied;
+    const draft = parseRewardDraft(String((await request.formData()).get('payload') ?? ''));
+    if (!draft) return fail(400, { ok: false, error: actionError(locals.locale, 'Invalid reward.') });
+    const reply = DEMO ? (await import('#lib/flow/demo')).demoRewardSave(locals.locale, draft) : await liveRewardSave(locals, draft);
+    return reply.ok ? reply : fail(reply.missingScope ? 403 : 502, reply);
   },
   scenes: async ({ request, locals }) => {
     if (!(await broadcasterPremium(locals))) return fail(403, { ok: false });
