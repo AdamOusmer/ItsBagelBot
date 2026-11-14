@@ -108,7 +108,7 @@ func (cp *channelPoints) handleDelete(ctx context.Context, req manage.RewardRequ
 }
 
 func (cp *channelPoints) fail(op, broadcasterID string, err error) manage.RewardReply {
-	if errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken) {
+	if errors.Is(err, twitch.ErrMissingScope) || twitch.GrantDead(err) {
 		return manage.RewardReply{MissingScope: true, Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "reconnect required")}
 	}
 	if errors.Is(err, twitch.ErrDuplicateReward) {
