@@ -39,7 +39,7 @@ async function read(actorId: string, days: number): Promise<AnalyticsReads> {
     analyticsSeries(actorId, w, metrics, span);
   const [counters, levels, week, month, cohortWeeks, cohortDays] = await Promise.all([
     series('d', COUNTERS, Math.min(2 * days, MAX_SPAN)),
-    series('d', LEVELS, days + 1),
+    series('d', LEVELS, days),
     series('w', WEEKLY, WEEK_SPAN),
     series('m', MONTHLY, MONTH_SPAN),
     series('w', ['cohort.active'], COHORT_DAYS),

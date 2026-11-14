@@ -296,6 +296,12 @@ describe('kpis', () => {
     });
   });
 
+  it('measures stickiness of the open month over its elapsed days', () => {
+    const open = buildAnalytics(reads({ month: [...month, row('2026-11-01', 'channels.active', [], 200)] }));
+    const found = open.kpis.find((k) => k.key === 'stickiness');
+    expect({ value: found?.value, delta: found?.delta.params?.delta }).toEqual({ value: '51%', delta: '+31.1 pts' });
+  });
+
   it('shows no comparison for an empty read', () => {
     const empty = buildAnalytics(reads({ counters: [], levels: [], week: [], month: [], cohortWeeks: [], cohortDays: [] }));
     expect(empty.kpis.map((k) => [k.value, k.delta.key, k.trend])).toEqual([
