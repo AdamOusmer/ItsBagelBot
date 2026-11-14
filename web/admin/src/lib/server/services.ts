@@ -389,6 +389,18 @@ export const userSetStatus = defineWrite({
   after: (user, ref) => refreshUser(user, ref)
 });
 
+export type GrantEmailOutcome = 'sent' | 'no_email';
+
+export const premiumGrantEmail = defineWrite({
+  subject: 'rpc.admin.premium.grant_email',
+  request: (ref: UserRef, expiresAt: string) => ({
+    actor_id: ref.actorId,
+    user_id: ref.userId,
+    expires_at: expiresAt
+  }),
+  map: (reply: { outcome: GrantEmailOutcome }) => reply.outcome
+});
+
 export const userReset = defineWrite({
   subject: `${SUB.user}.reset`,
   request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),

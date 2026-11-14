@@ -24,6 +24,7 @@ var (
 	ErrInvalidMessage = errors.New("transactional email is invalid")
 	ErrUnconfirmed    = errors.New("email provider acceptance is unconfirmed")
 	ErrRateLimited    = errors.New("email provider rate limit reached")
+	ErrDisabled       = errors.New("email delivery is not configured")
 )
 
 type Receipt struct{ ProviderID string }

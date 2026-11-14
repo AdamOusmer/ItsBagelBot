@@ -39,6 +39,8 @@ accounts:
               from: TRANSACTIONS_RPC
             - service: rpc.admin.giveaways.>
               from: TRANSACTIONS_RPC
+            - service: rpc.admin.premium.>
+              from: TRANSACTIONS_RPC
             - service: rpc.health.notifications
               from: NOTIFICATIONS_RPC
             - service: rpc.health.notifications.node.*
@@ -700,6 +702,7 @@ accounts:
             - service: rpc.health.transactions.node.*
             - service: rpc.transactions.>
             - service: rpc.admin.giveaways.>
+            - service: rpc.admin.premium.>
         imports:
             - service: rpc.internal.users.get
               from: USERS_RPC

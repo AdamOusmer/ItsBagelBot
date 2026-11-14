@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { goto } from '$app/navigation';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
@@ -304,11 +305,13 @@
   let statusForms = $state<Record<string, HTMLFormElement | null>>({});
   let grantOpen = $state(false);
   let grantDate = $state('');
+  let grantNotify = $state(false);
 
   function requestStatus(status: string) {
     if (!selected || selected.status === status) return;
     if (status === 'paid') {
       grantDate = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+      grantNotify = false;
       grantOpen = true;
       return;
     }
@@ -526,7 +529,10 @@
   >
     <input type="hidden" name="user_id" value={selected?.id ?? ''} />
     <input type="hidden" name="status" value={st} />
-    {#if st === 'paid'}<input type="hidden" name="expires_at" value={grantDate} />{/if}
+    {#if st === 'paid'}
+      <input type="hidden" name="expires_at" value={grantDate} />
+      {#if grantNotify}<input type="hidden" name="notify_email" value="on" />{/if}
+    {/if}
   </form>
 {/each}
 
@@ -562,6 +568,7 @@
       min={new Date(Date.now() + 864e5).toISOString().slice(0, 10)}
     />
   </Field>
+  <Checkbox bind:checked={grantNotify}>{t('admin.users.grantEmail.notify')}</Checkbox>
 </ConfirmDialog>
 
 {#if selected}

@@ -64,5 +64,15 @@
   "date.month.9": "сентября",
   "date.month.10": "октября",
   "date.month.11": "ноября",
-  "date.month.12": "декабря"
+  "date.month.12": "декабря",
+  "subject.grant": "Команда ItsBagelBot подарила вам Premium 🥯",
+  "grant.title": "У вас есть Premium",
+  "grant.heading": "Небольшой подарок от нас.",
+  "grant.category": "От команды",
+  "grant.intro": "Команда ItsBagelBot подарила вам",
+  "grant.product": "ItsBagelBot Premium",
+  "grant.detail": "Ваш Premium действует до %s.",
+  "grant.perk": "Доступно весь период Premium.",
+  "grant.preheader": "ItsBagelBot Premium действует на вашем аккаунте до %s.",
+  "grant.footer": "ItsBagelBot отправил это письмо, потому что команда подарила вам Premium."
 }

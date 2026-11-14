@@ -1,0 +1,6 @@
+{
+  "notify": "Email the user about their Premium",
+  "sent": "email sent",
+  "noAddress": "no contact email on file, nothing sent",
+  "failed": "email could not be sent"
+}

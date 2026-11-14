@@ -1,0 +1,6 @@
+{
+  "notify": "Avisar o usuário sobre o Premium por e-mail",
+  "sent": "e-mail enviado",
+  "noAddress": "nenhum e-mail de contato registrado, nada enviado",
+  "failed": "não foi possível enviar o e-mail"
+}

@@ -76,6 +76,9 @@ func main() {
 	if err := rpc.SubscribeGiveaways(bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log.Named("giveaways")}, giveawayRPC); err != nil {
 		log.Fatal("failed to subscribe giveaways rpc", zap.Error(err))
 	}
+	if err := rpc.SubscribeGrantEmail(bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log.Named("grant-email")}, rpc.GrantEmailConfig{Users: usersGiveaways, Mailer: mailer}); err != nil {
+		log.Fatal("failed to subscribe premium grant email rpc", zap.Error(err))
+	}
 	go func() {
 		if err := giveawayEngine.Run(core.Ctx); err != nil && core.Ctx.Err() == nil {
 			log.Warn("giveaway engine stopped", zap.Error(err))

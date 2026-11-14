@@ -193,6 +193,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.admin.giveaways.capabilities", "web/admin/src/lib/server/giveaways.ts"},
 		{"rpc.admin.giveaways.include", "web/admin/src/lib/server/giveaways.ts"},
 		{"rpc.admin.giveaways.exclude", "web/admin/src/lib/server/giveaways.ts"},
+		{"rpc.admin.premium.grant_email", "web/admin paid grant email"},
 		{"rpc.admin.user.test.set", "web/admin user inspector"},
 		{"rpc.admin.user.get", "web/admin"},
 		{"rpc.admin.user.bot_token_set", "web/admin bot OAuth self-authorization"},
