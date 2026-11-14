@@ -96,6 +96,9 @@ func TestProviderSendHasDeadline(t *testing.T) {
 		"gift": func(m *Mailer) error {
 			return m.SendGift(context.Background(), GiftMessage{To: "winner@example.com", IdempotencyKey: "gift-1"})
 		},
+		"grant": func(m *Mailer) error {
+			return m.SendGrant(context.Background(), GrantMessage{To: "winner@example.com", ExpiresAt: sept20, IdempotencyKey: "grant-1"})
+		},
 		"prepared giveaway": func(m *Mailer) error {
 			_, err := m.DeliverPrepared(context.Background(), Delivery{To: "winner@example.com", Key: "award-1", Content: PreparedContent{Subject: "s", HTML: "<p>h</p>", Text: "t"}})
 			return err

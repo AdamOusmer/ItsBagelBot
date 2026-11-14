@@ -80,14 +80,19 @@ func (c *UsersGiveawayClient) grant(ctx context.Context, subject string, payload
 }
 
 func (c *UsersGiveawayClient) Email(ctx context.Context, id uint64) (string, error) {
+	r, err := c.Contact(ctx, id)
+	return r.Email, err
+}
+
+func (c *UsersGiveawayClient) Contact(ctx context.Context, id uint64) (usersrpc.EmailGetReply, error) {
 	r, err := bus.RequestJSONTimeout[usersrpc.EmailGetReply](ctx, c.nc, conf.UsersEmailSubject.Get(), usersrpc.EmailGetRequest{UserID: strconv.FormatUint(id, 10)}, 5*time.Second)
 	if err != nil {
-		return "", err
+		return usersrpc.EmailGetReply{}, err
 	}
 	if r.Error != "" {
-		return "", errors.New(r.Error)
+		return usersrpc.EmailGetReply{}, errors.New(r.Error)
 	}
-	return r.Email, nil
+	return r, nil
 }
 
 func (c *UsersGiveawayClient) Authorize(ctx context.Context, actor string) (uint64, error) {
