@@ -87,6 +87,12 @@ export interface CountdownTrigger { name: string; }
 
 export interface RewardTrigger {
   reward_id: string;
+  title?: string;
+  cost?: number;
+  color?: string;
+  cooldown_s?: number;
+  on_redeem?: string;
+  input_required?: boolean;
 }
 
 export type EmptyParams = Record<string, never>;

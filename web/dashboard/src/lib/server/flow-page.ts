@@ -21,6 +21,7 @@ import type { DeleteReply, SaveReply, SaveRequest, ToggleReply } from '#lib/flow
 import { flowPreview } from '#lib/flow/thumb';
 import { effectiveId } from './board';
 import { attachChoiceNames } from './flow-choices';
+import { managedReward } from './flow-reward';
 import { deleteFlow, listFlowSummaries, loadFlow, saveFlow, setFlowEnabled, type SaveFlowResult } from './flow-store';
 import { moduleWriteDenial } from './module-gate';
 import { attachLogins } from './user-login';
@@ -132,7 +133,7 @@ export function lowerSaveRequest(text: string): { ok: true; lowered: Lowered } |
 export function saveReply(result: SaveFlowResult): SaveReply {
   if (result.ok) {
     const { flow } = result;
-    return { ok: true, id: flowRouteId(flow.ref), name: flow.name, enabled: flow.enabled, revision: flow.revision, warnings: result.warnings, upgrade: result.upgrade };
+    return { ok: true, id: flowRouteId(flow.ref), name: flow.name, enabled: flow.enabled, revision: flow.revision, warnings: result.warnings, upgrade: result.upgrade, rewardId: managedReward(flow.definition)?.rewardId };
   }
   switch (result.reason) {
     case 'invalid':

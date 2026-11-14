@@ -4,7 +4,7 @@
 import { ownedCooldownNames, ownedCountdownNames, type Definition } from '@bagel/kit/automations';
 import { logger } from '@bagel/kit/server/logger';
 import { unavailable, type ChoiceList, type ChoiceSource } from '#lib/flow/choices';
-import { specFor } from '#lib/flow/model';
+import { LINKED_REWARD_CHOICE, specFor } from '#lib/flow/model';
 import { readRewards } from './channelpoints-store';
 import { listAutomations } from './automations-store';
 import { goveeStore, type GoveeTarget } from './govee-store';
@@ -84,7 +84,8 @@ const NAMED_SOURCES: Partial<Record<ChoiceSource, (userId: BroadcasterId) => Pro
 };
 
 function lookupsFor(node: Named): [ChoiceSource, Lookup][] {
-  return (specFor(node.type)?.fields ?? []).flatMap((field): [ChoiceSource, Lookup][] => {
+  return (specFor(node.type)?.fields ?? []).flatMap((spec): [ChoiceSource, Lookup][] => {
+    const field = spec.type === 'reward' ? LINKED_REWARD_CHOICE : spec;
     if (field.type !== 'choice' || !field.nameKey || !NAMED_SOURCES[field.source]) return [];
     const value = String(node.config[field.key] ?? '');
     return value && !node.config[field.nameKey] ? [[field.source, { node, value, nameKey: field.nameKey }]] : [];

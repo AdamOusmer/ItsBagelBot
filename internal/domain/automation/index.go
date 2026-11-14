@@ -22,6 +22,7 @@ type CompiledTrigger struct {
 	Filters       map[string]string
 	Kind          EventKind
 	RewardID      string
+	OnRedeem      string
 	Left          *CooldownCondition
 	CountdownLeft *CountdownStartAction
 
@@ -173,7 +174,7 @@ func (i *TriggerIndex) addEvent(plan *Plan) {
 func (i *TriggerIndex) addReward(plan *Plan) {
 	addKinded(i, plan, kindedTrigger[RewardTrigger]{
 		kindName: func(RewardTrigger) string { return RewardRedemptionKind },
-		fill:     func(e *CompiledTrigger, t RewardTrigger) { e.RewardID = t.RewardID },
+		fill:     func(e *CompiledTrigger, t RewardTrigger) { e.RewardID, e.OnRedeem = t.RewardID, t.OnRedeem },
 	})
 }
 

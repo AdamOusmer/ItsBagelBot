@@ -25,7 +25,10 @@ export type FieldSpec = { when?: { key: string; value: string | readonly string[
   | (Typed & { type: 'login' })
   | { key: string; type: 'goveeLight' }
   | { key: string; type: 'choice'; source: ChoiceSource; nameKey?: string }
+  | { key: string; type: 'reward' }
 );
+
+export const LINKED_REWARD_CHOICE = { key: 'reward', type: 'choice', source: 'rewards', nameKey: 'rewardTitle' } as const;
 
 export type VariableSpec = { token: string; name: string; sample: string };
 
@@ -168,7 +171,7 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     kind: 'trigger',
     group: 'modules',
     icon: 'ticket',
-    fields: [{ key: 'reward', type: 'choice', source: 'rewards', nameKey: 'rewardTitle' }],
+    fields: [{ key: 'reward', type: 'reward' }],
     provides: [...user, { token: '{input}', name: 'input', sample: 'lofi beats' }]
   },
   {

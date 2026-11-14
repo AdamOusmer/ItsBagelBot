@@ -18,20 +18,22 @@
     idPrefix,
     labels,
     afterOptions,
+    withReply = true,
     surface,
-    defaultReply,
-    replySamples,
-    previewTag
+    defaultReply = '',
+    replySamples = {},
+    previewTag = ''
   }: {
     draft: RewardCoreDraft;
     errors: RewardCoreErrors;
     idPrefix: string;
-    labels: { title: string; cost: string; color: string; cooldown: string; cooldownTag: string; reply: string; after: string };
-    afterOptions: { value: string; label: string }[];
-    surface: VariableSurface;
-    defaultReply: string;
-    replySamples: Record<string, string>;
-    previewTag: string;
+    labels: { title: string; cost: string; color: string; cooldown: string; cooldownTag: string; reply?: string; after?: string };
+    afterOptions?: { value: string; label: string }[];
+    withReply?: boolean;
+    surface?: VariableSurface;
+    defaultReply?: string;
+    replySamples?: Record<string, string>;
+    previewTag?: string;
   } = $props();
 
   const { t } = getI18n();
@@ -84,14 +86,18 @@
   />
 </Field>
 
-<Field label={labels.reply} tag={t('common.optional')}>
-  <ResponseEditor bind:value={draft.replyMessage} {surface} placeholder={defaultReply} />
-</Field>
-<ChatPreview kind="reply" response={draft.replyMessage || defaultReply} showViewer={false} tag={previewTag} samples={replySamples} />
+{#if withReply && surface}
+  <Field label={labels.reply ?? ''} tag={t('common.optional')}>
+    <ResponseEditor bind:value={draft.replyMessage} {surface} placeholder={defaultReply} />
+  </Field>
+  <ChatPreview kind="reply" response={draft.replyMessage || defaultReply} showViewer={false} tag={previewTag} samples={replySamples} />
+{/if}
 
-<Field label={labels.after}>
-  <Select fill options={afterOptions} bind:value={draft.onRedeem} />
-</Field>
+{#if afterOptions}
+  <Field label={labels.after ?? ''}>
+    <Select fill options={afterOptions} bind:value={draft.onRedeem} />
+  </Field>
+{/if}
 
 <style>
   .field-row { display: flex; gap: 12px; align-items: flex-start; }

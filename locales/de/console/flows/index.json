@@ -119,6 +119,21 @@
     "name": "Gib dem Rezept einen Namen mit Buchstaben, Zahlen und Leerzeichen, bis zu 64 Zeichen.",
     "generic": "Etwas in diesem Rezept kann nicht gespeichert werden ({code})."
   },
+  "reward": {
+    "fieldTitle": "Belohnungstitel",
+    "fieldCost": "Kosten (Punkte)",
+    "fieldColor": "Kachelfarbe",
+    "fieldCooldown": "Abklingzeit",
+    "fieldCooldownTag": "0 = aus",
+    "errCost": "Gib eine ganze Zahl von mindestens 1 Punkt ein.",
+    "errCooldown": "Gib eine Abklingzeit zwischen 0 Sekunden und 7 Tagen ein.",
+    "afterTitle": "Nach der Ausführung",
+    "afterFulfill": "Als erfüllt markieren",
+    "afterCancel": "Punkte zurückgeben",
+    "afterLeave": "Einem Mod überlassen",
+    "inputLabel": "Zuschauer nach einem Text fragen",
+    "inputHint": "Was eingegeben wird, steht im Rezept als Variable input zur Verfügung."
+  },
   "choose": {
     "reward": "Belohnung auswählen",
     "counter": "Zähler auswählen",

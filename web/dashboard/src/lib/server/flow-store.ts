@@ -36,6 +36,7 @@ import {
   type AlertDowngradeResult,
   type UpsertResult
 } from './automations-store';
+import { gapsBeforeSync, setRewardEnabled, syncReward } from './flow-reward';
 import { recipeTimeLeftNames } from './recipe-time-left';
 import {
   deleteCommand,
@@ -388,11 +389,14 @@ async function leftCommandRefusal(userId: UserId, definition: Definition, droppi
 async function writeAutomation(userId: UserId, input: SaveFlowInput, id?: FlowId, dropping?: CommandName): Promise<SaveFlowResult> {
   const refusal = usesTokenRefusal(input.definition) ?? (await leftCommandRefusal(userId, input.definition, dropping));
   if (refusal) return refusal;
+  const synced = await syncReward(userId, input.definition, input.enabled);
+  if (!synced.ok) return { ok: false, reason: 'failed', error: synced.error };
+  const definition = synced.definition;
   const expected = id && input.expectedRevision !== undefined ? Number(input.expectedRevision) : undefined;
-  const result = await upsertAutomation(userId, { id, name: input.name, enabled: input.enabled, definition: input.definition, preview: input.preview, expectedRevision: expected });
+  const result = await upsertAutomation(userId, { id, name: input.name, enabled: input.enabled, definition, preview: input.preview, expectedRevision: expected });
   if (!result.ok) return upsertFailure(result);
   if (input.enabled) await turnOnAutomations(userId);
-  return { ok: true, flow: automationFlow(result.automation), warnings: await automationWarnings(userId, input.definition, dropping) };
+  return { ok: true, flow: automationFlow(result.automation), warnings: await automationWarnings(userId, definition, dropping) };
 }
 
 const asNewFlow = (input: SaveFlowInput): SaveFlowInput => ({ ...input, ref: null, expectedRevision: undefined });
@@ -528,13 +532,17 @@ function route(userId: UserId, target: FlowLayer, input: SaveFlowInput): Promise
 const TOGGLE_CONFLICT: SetFlowEnabledResult = { ok: false, reason: 'conflict' };
 const TOGGLE_NOT_FOUND: SetFlowEnabledResult = { ok: false, reason: 'not_found' };
 
-async function stillNeedsSetup(userId: UserId, id: FlowId): Promise<boolean> {
+async function toggleRefusal(userId: UserId, id: FlowId, enabled: Enabled): Promise<SetFlowEnabledResult | null> {
   const row = await getAutomation(userId, id);
-  return row ? setupGaps(row.definition).length > 0 : false;
+  if (!row) return null;
+  if (enabled && setupGaps(row.definition).length > 0) return { ok: false, reason: 'needs_setup' };
+  const reward = await setRewardEnabled(userId, row.definition, enabled);
+  return reward.ok ? null : { ok: false, reason: 'failed', error: reward.error };
 }
 
 async function toggleAutomation(userId: UserId, id: FlowId, enabled: Enabled, expected?: Revision): Promise<SetFlowEnabledResult> {
-  if (enabled && (await stillNeedsSetup(userId, id))) return { ok: false, reason: 'needs_setup' };
+  const refusal = await toggleRefusal(userId, id, enabled);
+  if (refusal) return refusal;
   const result = await setAutomationEnabled(userId, id, enabled, expected === undefined ? undefined : Number(expected));
   if (!result.ok) {
     if (result.conflict) return TOGGLE_CONFLICT;
@@ -593,7 +601,7 @@ export async function setFlowEnabled(locals: App.Locals, ref: FlowRef, enabled: 
 export async function saveFlow(locals: App.Locals, input: SaveFlowInput): Promise<SaveFlowResult> {
   const denied = await writeDenial(locals);
   if (denied) return denied;
-  const issues = [...validateDefinition(input.definition), ...(input.enabled ? setupGaps(input.definition) : [])];
+  const issues = [...validateDefinition(input.definition), ...(input.enabled ? gapsBeforeSync(input.definition) : [])];
   if (issues.length > 0) return { ok: false, reason: 'invalid', issues };
   return route(effectiveId(locals.session), classifyFlow(input.definition), input).catch(failed);
 }

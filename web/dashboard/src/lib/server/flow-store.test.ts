@@ -15,16 +15,14 @@ process.env.NEW_RELIC_ENABLED = 'false';
 const calls: Array<{ subject: string; body: any }> = [];
 let replies: Record<string, unknown | ((body: any) => unknown)> = {};
 const nats = await import('@bagel/kit/server/nats');
-mock.module('@bagel/kit/server/nats', () => ({
-  ...nats,
-  rpc: async (subject: string, body: any) => {
-    calls.push({ subject, body });
-    if (!(subject in replies)) throw new Error(`Unexpected RPC: ${subject}`);
-    const reply = replies[subject];
-    if (reply instanceof Error) throw reply;
-    return typeof reply === 'function' ? (reply as (b: any) => unknown)(body) : reply;
-  }
-}));
+const answer = async (subject: string, body: any) => {
+  calls.push({ subject, body });
+  if (!(subject in replies)) throw new Error(`Unexpected RPC: ${subject}`);
+  const reply = replies[subject];
+  if (reply instanceof Error) throw reply;
+  return typeof reply === 'function' ? (reply as (b: any) => unknown)(body) : reply;
+};
+mock.module('@bagel/kit/server/nats', () => ({ ...nats, publish: async () => {}, rpc: answer, rpcReply: answer }));
 mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {}, scheduleLeaderboardPurge: () => {} }));
 
 const { fabric } = await import('./services');
@@ -331,6 +329,7 @@ describe('landing list and toggles', () => {
     stubStorage([], [automationsOn]);
     replies[`${AUTO}.summaries`] = { automations: [summary('a')] };
     await store.listFlowSummaries('7');
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', followFlow, 3) };
     replies[`${AUTO}.set_enabled`] = { automation: savedAutomation('a', followFlow, 4) };
 
     const res = await store.setFlowEnabled(premium,{ layer: 'automation', id: 'a' }, false, '3');
@@ -871,5 +870,92 @@ describe('upgrades', () => {
     };
     const res = await store.saveFlow(premium,{ ref: { layer: 'alert', alert: 'sub' }, name: 'Sub', enabled: true, definition });
     expect(res).toMatchObject({ reason: 'needs_upgrade', upgrade: { resubsNoLongerCovered: true, repeatGuardWindowHours: 0.25 } });
+  });
+});
+
+describe('recipe channel point rewards', () => {
+  const REWARD = 'rpc.outgress.channelpoints';
+  const managed = (rewardId: string, extra: Record<string, unknown> = {}): Definition => ({
+    version: 1,
+    trigger: { type: 'reward', params: { reward_id: rewardId, title: 'Hydrate', cost: 500, color: '#00ccff', cooldown_s: 60, ...extra } },
+    actions: [{ type: 'chat', params: { text: 'drink up {user}' } }]
+  });
+  const wire = (verb: string) => callsTo(`${REWARD}.${verb}`)[0]!.body.reward;
+  const twitchReward = (id: string, is_enabled: boolean) => ({ reward: { id, title: 'Hydrate', cost: 500, background_color: '#00ccff', global_cooldown_enabled: true, global_cooldown_seconds: 60, is_enabled } });
+  const ref = { layer: 'automation', id: 'a' } as const;
+
+  test.each([
+    ['a new enabled reward is created on, and its id is stored', SETUP_REWARD_ID, true, 'create'],
+    ['a new disabled reward is created off', SETUP_REWARD_ID, false, 'create'],
+    ['a saved reward is updated in place', 'rw-1', true, 'update'],
+    ['a saved reward saved disabled is hidden', 'rw-1', false, 'update']
+  ] as [string, string, boolean, string][])('%s', async (_name, rewardId, enabled, verb) => {
+    stubStorage([], [automationsOn]);
+    replies[`${REWARD}.${verb}`] = twitchReward('rw-9', enabled);
+    replies[`${AUTO}.upsert`] = (body: any) => ({ automation: savedAutomation('a', body.definition) });
+
+    const res = await store.saveFlow(premium, { ref: null, name: 'Flow', enabled, definition: managed(rewardId) });
+
+    expect(res).toMatchObject({ ok: true, flow: { definition: { trigger: { params: { reward_id: 'rw-9', title: 'Hydrate', cost: 500, color: '#00ccff', cooldown_s: 60 } } } } });
+    expect(wire(verb)).toMatchObject({ title: 'Hydrate', cost: 500, background_color: '#00ccff', global_cooldown_seconds: 60, is_enabled: enabled, is_user_input_required: false });
+    expect(callsTo(`${AUTO}.upsert`)[0]!.body.definition.trigger.params.reward_id).toBe('rw-9');
+  });
+
+  test('the outcome and the input requirement reach Twitch and the stored recipe', async () => {
+    stubStorage([], [automationsOn]);
+    replies[`${REWARD}.create`] = twitchReward('rw-9', true);
+    replies[`${AUTO}.upsert`] = (body: any) => ({ automation: savedAutomation('a', body.definition) });
+
+    await store.saveFlow(premium, { ref: null, name: 'Flow', enabled: true, definition: managed(SETUP_REWARD_ID, { on_redeem: 'cancel', input_required: true }) });
+
+    expect(wire('create').is_user_input_required).toBe(true);
+    expect(callsTo(`${AUTO}.upsert`)[0]!.body.definition.trigger.params).toMatchObject({ on_redeem: 'cancel', input_required: true });
+  });
+
+  test('a reward Twitch refuses stops the save before the recipe is written', async () => {
+    stubStorage([], [automationsOn]);
+    replies[`${REWARD}.create`] = { missing_scope: true };
+    const res = await store.saveFlow(premium, { ref: null, name: 'Flow', enabled: true, definition: managed(SETUP_REWARD_ID) });
+    expect(res).toEqual({ ok: false, reason: 'failed', error: 'missing_scope' });
+    expect(callsTo(`${AUTO}.upsert`)).toEqual([]);
+  });
+
+  test('a recipe that only links a reward never calls Twitch', async () => {
+    stubStorage([], [automationsOn]);
+    const linked: Definition = { version: 1, trigger: { type: 'reward', params: { reward_id: 'rw-1' } }, actions: [{ type: 'chat', params: { text: 'hi' } }] };
+    replies[`${AUTO}.upsert`] = { automation: savedAutomation('a', linked) };
+    expect(await store.saveFlow(premium, { ref: null, name: 'Flow', enabled: true, definition: linked })).toMatchObject({ ok: true });
+    expect(calls.filter((c) => c.subject.startsWith(REWARD))).toEqual([]);
+  });
+
+  test.each([
+    ['off', false],
+    ['on', true]
+  ] as [string, boolean][])('turning the recipe %s turns its reward %s', async (_name, enabled) => {
+    stubStorage([], [automationsOn]);
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', managed('rw-1'), 3) };
+    replies[`${REWARD}.update`] = twitchReward('rw-1', enabled);
+    replies[`${AUTO}.set_enabled`] = { automation: savedAutomation('a', managed('rw-1'), 4) };
+
+    expect(await store.setFlowEnabled(premium, ref, enabled)).toMatchObject({ ok: true, enabled });
+
+    expect(callsTo(`${REWARD}.update`)[0]!.body).toMatchObject({ broadcaster_id: '7', reward_id: 'rw-1', reward: { id: 'rw-1', title: 'Hydrate', is_enabled: enabled } });
+  });
+
+  test('a reward that cannot be switched leaves the recipe as it was', async () => {
+    stubStorage([], [automationsOn]);
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', managed('rw-1'), 3) };
+    replies[`${REWARD}.update`] = { error: 'twitch down' };
+    expect(await store.setFlowEnabled(premium, ref, false)).toEqual({ ok: false, reason: 'failed', error: 'twitch down' });
+    expect(callsTo(`${AUTO}.set_enabled`)).toEqual([]);
+  });
+
+  test('a linked-only recipe toggles without touching Twitch', async () => {
+    stubStorage([], [automationsOn]);
+    const linked: Definition = { version: 1, trigger: { type: 'reward', params: { reward_id: 'rw-1' } }, actions: [{ type: 'chat', params: { text: 'hi' } }] };
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', linked, 3) };
+    replies[`${AUTO}.set_enabled`] = { automation: savedAutomation('a', linked, 4) };
+    expect(await store.setFlowEnabled(premium, ref, false)).toMatchObject({ ok: true });
+    expect(calls.filter((c) => c.subject.startsWith(REWARD))).toEqual([]);
   });
 });

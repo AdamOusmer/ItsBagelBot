@@ -3,7 +3,7 @@
 import type { MessageKey } from '@bagel/kit';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
-import { specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
+import { LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
 import { awaitingSetup, configText } from './setup';
 
 const COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
@@ -57,11 +57,17 @@ function selectLabel(t: Translate, spec: NodeSpec, field: SelectField, value: st
   return value || (first ? optionText(t, spec, field, first) : '');
 }
 
+function namedLabel(node: FlowNode, field: FieldSpec, value: string): string | null {
+  if (field.type === 'reward') return text(node, 'title') || (text(node, LINKED_REWARD_CHOICE.nameKey) || value);
+  if (field.type === 'choice') return text(node, field.nameKey ?? field.key) || value;
+  return null;
+}
+
 export function optionLabel(t: Translate, spec: NodeSpec, node: FlowNode, key: string): string {
   const field = spec.fields.find((f) => f.key === key);
   const value = text(node, key);
-  if (field?.type === 'choice') return text(node, field.nameKey ?? key) || value;
-  return field?.type === 'select' ? selectLabel(t, spec, field, value) : value;
+  if (!field) return value;
+  return namedLabel(node, field, value) ?? (field.type === 'select' ? selectLabel(t, spec, field, value) : value);
 }
 
 function triggerLine(t: Translate, n: FlowNode, spec: NodeSpec): string {

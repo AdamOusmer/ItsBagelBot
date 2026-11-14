@@ -337,12 +337,18 @@
     for (const text of warningMessages(t, warnings)) toast('info', text, { ttlMs: 8000 });
   }
 
+  function adoptRewardId(drawn: Flow, rewardId: string | undefined) {
+    if (!rewardId) return;
+    for (const node of drawn.nodes) if (node.type === 'twitch.reward') node.config.reward = rewardId;
+  }
+
   function saved(reply: Extract<SaveReply, { ok: true }>, sent: Flow) {
     ref = parseFlowRouteId(reply.id);
     revision = reply.revision;
     enabled = reply.enabled;
     flow.name = reply.name;
     flow.enabled = reply.enabled;
+    for (const drawn of [flow, sent]) adoptRewardId(drawn, reply.rewardId);
     baseline = contentOf({ ...sent, name: reply.name });
     toast('success', t('flows.saved', { name: reply.name }));
     announceWarnings(reply.warnings);

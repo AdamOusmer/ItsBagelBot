@@ -55,10 +55,16 @@ async function callRewardOrThrow(userId: string, verb: string, req: Record<strin
   return reply;
 }
 
+export interface RewardFlags {
+  enabled?: boolean;
+  userInput?: boolean;
+}
+
 function rewardWire(
   draft: { title: string; cost: number; color: string; cooldown: number },
   id: string,
-  prompt: string
+  prompt: string,
+  flags: RewardFlags
 ): RewardWire {
   const cooldown = Number.isFinite(draft.cooldown) && draft.cooldown > 0 ? Math.trunc(draft.cooldown) : 0;
   return {
@@ -67,9 +73,9 @@ function rewardWire(
     cost: draft.cost,
     prompt,
     background_color: draft.color || undefined,
-    is_enabled: true,
+    is_enabled: flags.enabled ?? true,
     is_paused: false,
-    is_user_input_required: true,
+    is_user_input_required: flags.userInput ?? true,
     should_skip_queue: false,
     max_per_stream_enabled: false,
     max_per_stream: 1,
@@ -94,15 +100,16 @@ export interface RewardSave {
   draft: { title: string; cost: number; color: string; cooldown: number };
   prompt: string;
   existingId: string;
+  flags?: RewardFlags;
 }
 
 export async function saveRewardFlow(
   userId: string,
-  { draft, prompt, existingId }: RewardSave,
+  { draft, prompt, existingId, flags = {} }: RewardSave,
   persist: (reward: MirroredReward) => Promise<void>
 ): Promise<RewardRemoteResult> {
   const verb = existingId ? 'update' : 'create';
-  const req: Record<string, unknown> = { reward: rewardWire(draft, existingId, prompt) };
+  const req: Record<string, unknown> = { reward: rewardWire(draft, existingId, prompt, flags) };
   if (existingId) req.reward_id = existingId;
 
   const reply = await callRewardOrThrow(userId, verb, req);
