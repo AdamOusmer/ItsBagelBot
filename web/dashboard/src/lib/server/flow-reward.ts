@@ -45,13 +45,15 @@ function withReward(definition: Definition, mirrored: MirroredReward): Definitio
   return { ...definition, trigger: { ...definition.trigger, params } };
 }
 
-const sameTitle = (left: string, right: string) => left.trim().toLowerCase() === right.trim().toLowerCase();
+type Titled = { title: string };
+
+const sameTitle = (left: Titled, right: Titled) => left.title.trim().toLowerCase() === right.title.trim().toLowerCase();
 
 async function adoptableId(userId: UserId, reward: ManagedReward): Promise<string> {
   const known = existingId(reward);
   if (known !== '') return known;
   const { rewards = [] } = await callReward('list', { broadcaster_id: userId });
-  return rewards.find((listed) => listed.id && sameTitle(listed.title, reward.title))?.id ?? '';
+  return rewards.find((listed) => listed.id && sameTitle(listed, reward))?.id ?? '';
 }
 
 async function pushReward(userId: UserId, reward: ManagedReward, enabled: boolean): Promise<{ result: RewardRemoteResult; mirrored?: MirroredReward }> {
@@ -92,7 +94,9 @@ export async function saveManagedReward(userId: UserId, reward: ManagedReward): 
   return result.ok ? { ok: true, reward: mirrored! } : failure(result);
 }
 
-function parseJson(text: string): Record<string, unknown> | null {
+type DraftJson = string;
+
+function parseJson(text: DraftJson): Record<string, unknown> | null {
   try {
     const body: unknown = JSON.parse(text);
     return typeof body === 'object' && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : null;
@@ -101,17 +105,21 @@ function parseJson(text: string): Record<string, unknown> | null {
   }
 }
 
-const validRewardFields = (title: string, cost: number, cooldown: number, color: string) =>
-  isValidRewardTitle(title) && isValidRewardCost(cost) && wholeBetween(cooldown, 0, REWARD_COOLDOWN_MAX) && (color === '' || isHexColor(color));
+type RewardFields = Pick<ManagedReward, 'title' | 'cost' | 'cooldown' | 'color'>;
 
-export function parseRewardDraft(text: string): ManagedReward | null {
+const validColor = (fields: RewardFields) => fields.color === '' || isHexColor(fields.color);
+
+const validRewardFields = (fields: RewardFields) =>
+  isValidRewardTitle(fields.title) && isValidRewardCost(fields.cost) && wholeBetween(fields.cooldown, 0, REWARD_COOLDOWN_MAX) && validColor(fields);
+
+export function parseRewardDraft(text: DraftJson): ManagedReward | null {
   const body = parseJson(text);
   if (!body) return null;
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const color = typeof body.color === 'string' ? body.color : '';
   const cost = Number(body.cost);
   const cooldown = Number(body.cooldown ?? 0);
-  if (!validRewardFields(title, cost, cooldown, color)) return null;
+  if (!validRewardFields({ title, cost, cooldown, color })) return null;
   return { rewardId: typeof body.rewardId === 'string' ? body.rewardId : '', title, cost, color, cooldown, inputRequired: body.inputRequired === true };
 }
 
