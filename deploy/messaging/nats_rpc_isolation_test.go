@@ -31,11 +31,14 @@ func TestGiveawayGrantCustody(t *testing.T) {
 func TestDashboardCannotAdministerGiveaways(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	dashboard := catalog.byUser["dashboard_rpc"]
+	subjects := []string{"rpc.admin.premium.grant_email"}
 	for _, verb := range []string{"create", "preview", "freeze", "draw", "get", "list", "retry", "alerts", "history", "capabilities", "include", "exclude"} {
-		subject := "rpc.admin.giveaways." + verb
+		subjects = append(subjects, "rpc.admin.giveaways."+verb)
+	}
+	for _, subject := range subjects {
 		for _, candidate := range []string{subject, subject + ".node.n1"} {
 			_, imported := dashboard.importCovering(candidate)
-			assert.False(t, imported, "dashboard can reach privileged giveaway subject %s", candidate)
+			assert.False(t, imported, "dashboard can reach privileged subject %s", candidate)
 		}
 	}
 

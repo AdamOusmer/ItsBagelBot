@@ -45,6 +45,7 @@ delivers emails through the app's mail adapter.
 | [rpc/giveaways.go](rpc/giveaways.go), [giveaways_campaign.go](rpc/giveaways_campaign.go) | Admin/user views, authorization, preview/freeze/draw/retry. |
 | [rpc/giveaways_inclusion.go](rpc/giveaways_inclusion.go) | Draft-only add-back and removal of excluded accounts. |
 | [rpc/giveaways_users.go](rpc/giveaways_users.go) | RPC adapter for Users eligibility, coverage and grants. |
+| [rpc/premium_grant_email.go](rpc/premium_grant_email.go) | Admin-only `rpc.admin.premium.grant_email`: emails a user about a console paid grant. |
 | [giveaway/store.go](giveaway/store.go), [draw.go](giveaway/draw.go) | Transactional campaign/draw/outbox persistence and random/calendar primitives. |
 | [giveaway/engine.go](giveaway/engine.go), [worker.go](giveaway/worker.go), [planning.go](giveaway/planning.go) | Dispatch/recovery, provider protection before grant commit and immutable interval plan. |
 | [giveaway/billing.go](giveaway/billing.go), [reconcile.go](giveaway/reconcile.go) | Billing intent and provider reconciliation evidence/alerts. |

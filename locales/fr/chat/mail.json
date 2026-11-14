@@ -64,5 +64,15 @@
   "date.month.9": "septembre",
   "date.month.10": "octobre",
   "date.month.11": "novembre",
-  "date.month.12": "décembre"
+  "date.month.12": "décembre",
+  "subject.grant": "L'équipe ItsBagelBot vous offre Premium 🥯",
+  "grant.title": "Vous avez Premium",
+  "grant.heading": "Une petite attention de notre part.",
+  "grant.category": "De l'équipe",
+  "grant.intro": "L'équipe ItsBagelBot vous offre",
+  "grant.product": "Premium ItsBagelBot",
+  "grant.detail": "Votre Premium est actif jusqu'au %s.",
+  "grant.perk": "Débloqué pendant toute votre période Premium.",
+  "grant.preheader": "Premium ItsBagelBot est actif sur votre compte jusqu'au %s.",
+  "grant.footer": "Envoyé par ItsBagelBot parce que l'équipe vous a offert Premium."
 }

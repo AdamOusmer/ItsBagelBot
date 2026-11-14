@@ -19,8 +19,10 @@ import {
   restartUserEventSub,
   publishUserEventSub,
   channelSubState,
+  premiumGrantEmail,
   isForbidden,
   type AdminUserWire,
+  type GrantEmailOutcome,
   type ChannelSubState,
   type UserRef
 } from '#lib/server/services';
@@ -161,15 +163,40 @@ function parsePaidGrant(f: FormData): { expiresAt: string; detail: string } | Pa
   return { expiresAt: end.toISOString(), detail: `status=paid start=${start} end=${raw}` };
 }
 
-type StatusGrant = { status: string; expiresAt?: string; detail: string };
+type GrantEmailResult = GrantEmailOutcome | 'failed';
+
+type StatusGrant = { status: string; expiresAt?: string; detail: string; notify: boolean; email?: GrantEmailResult };
+
+const GRANT_EMAIL_NOTICE: Record<GrantEmailResult, string> = {
+  sent: 'admin.users.grantEmailSent',
+  no_email: 'admin.users.grantEmailNoAddress',
+  failed: 'admin.users.grantEmailFailed'
+};
 
 function parseStatus(f: FormData): ParseResult<StatusGrant> {
   const status = String(f.get('status') ?? '').trim();
   if (!STATUSES.has(status)) return badRequest('invalid status');
-  if (status !== 'paid') return { value: { status, detail: `status=${status}` } };
+  if (status !== 'paid') return { value: { status, detail: `status=${status}`, notify: false } };
   const grant = parsePaidGrant(f);
   if ('refuse' in grant) return grant;
-  return { value: { status, expiresAt: grant.expiresAt, detail: grant.detail } };
+  const notify = f.get('notify_email') === 'on';
+  const detail = notify ? `${grant.detail} email=requested` : grant.detail;
+  return { value: { status, expiresAt: grant.expiresAt, detail, notify } };
+}
+
+async function grantEmail(ref: UserRef, user: AdminUserWire | null): Promise<GrantEmailResult | undefined> {
+  if (!user?.subscription_expires_at) return undefined;
+  try {
+    return await premiumGrantEmail(ref, user.subscription_expires_at);
+  } catch {
+    return 'failed';
+  }
+}
+
+async function applyStatus(ref: UserRef, grant: StatusGrant): Promise<AdminUserWire | null> {
+  const user = await userSetStatus(ref, grant.status, grant.expiresAt);
+  if (grant.notify) grant.email = await grantEmail(ref, user);
+  return user;
 }
 
 function statusNotice(user: AdminUserWire | null, grant: StatusGrant, locale: App.Locals['locale']): string {
@@ -177,7 +204,8 @@ function statusNotice(user: AdminUserWire | null, grant: StatusGrant, locale: Ap
   const until = user.subscription_expires_at
     ? ` until ${user.subscription_expires_at.slice(0, 10)}`
     : '';
-  return adminText(locale, 'admin.users.statusSetUntil', { status: user.status, until });
+  const notice = adminText(locale, 'admin.users.statusSetUntil', { status: user.status, until });
+  return grant.email ? `${notice} · ${adminText(locale, GRANT_EMAIL_NOTICE[grant.email])}` : notice;
 }
 
 type CreatorCode = { code: string; detail: string };
@@ -263,7 +291,7 @@ export const actions: Actions = {
     demo: (ctx) => okReply(`status set to ${ctx.payload.status} (demo)`),
     detail: (p) => p.detail,
     notice: statusNotice,
-    run: (ref, p) => userSetStatus(ref, p.status, p.expiresAt)
+    run: applyStatus
   }),
 
   reset: userAction({
