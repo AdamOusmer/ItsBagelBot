@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { isSetupValue, setupGaps, type Definition, type Issue, type Params } from '@bagel/kit/automations';
-import { saveRewardFlow, type MirroredReward, type RewardRemoteResult } from './reward-wire';
+import { callReward, deleteRemoteReward, saveRewardFlow, type MirroredReward, type RewardRemoteResult } from './reward-wire';
 
 type UserId = string;
 
@@ -44,10 +44,19 @@ function withReward(definition: Definition, mirrored: MirroredReward): Definitio
   return { ...definition, trigger: { ...definition.trigger, params } };
 }
 
+const sameTitle = (left: string, right: string) => left.trim().toLowerCase() === right.trim().toLowerCase();
+
+async function adoptableId(userId: UserId, reward: ManagedReward): Promise<string> {
+  const known = existingId(reward);
+  if (known !== '') return known;
+  const { rewards = [] } = await callReward('list', { broadcaster_id: userId });
+  return rewards.find((listed) => listed.id && sameTitle(listed.title, reward.title))?.id ?? '';
+}
+
 async function pushReward(userId: UserId, reward: ManagedReward, enabled: boolean): Promise<{ result: RewardRemoteResult; mirrored?: MirroredReward }> {
   let mirrored: MirroredReward | undefined;
   const flags = { enabled, userInput: reward.inputRequired };
-  const result = await saveRewardFlow(userId, { draft: { ...reward }, prompt: reward.title, existingId: existingId(reward), flags }, async (reply) => {
+  const result = await saveRewardFlow(userId, { draft: { ...reward }, prompt: reward.title, existingId: await adoptableId(userId, reward), flags }, async (reply) => {
     mirrored = reply;
   });
   return { result, mirrored };
@@ -66,6 +75,13 @@ export async function setRewardEnabled(userId: UserId, definition: Definition, e
   if (!reward || existingId(reward) === '') return { ok: true, definition };
   const { result } = await pushReward(userId, reward, enabled);
   return result.ok ? { ok: true, definition } : failure(result);
+}
+
+export async function deleteManagedReward(userId: UserId, definition: Definition): Promise<{ ok: true } | { ok: false; error: string }> {
+  const reward = managedReward(definition);
+  if (!reward || existingId(reward) === '') return { ok: true };
+  const result = await deleteRemoteReward(userId, reward.rewardId);
+  return result.ok ? { ok: true } : failure(result);
 }
 
 const CREATED_ON_SAVE = 'created-on-save';

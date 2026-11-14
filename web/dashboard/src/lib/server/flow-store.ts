@@ -36,7 +36,7 @@ import {
   type AlertDowngradeResult,
   type UpsertResult
 } from './automations-store';
-import { gapsBeforeSync, setRewardEnabled, syncReward } from './flow-reward';
+import { deleteManagedReward, gapsBeforeSync, setRewardEnabled, syncReward } from './flow-reward';
 import { recipeTimeLeftNames } from './recipe-time-left';
 import {
   deleteCommand,
@@ -532,16 +532,17 @@ function route(userId: UserId, target: FlowLayer, input: SaveFlowInput): Promise
 const TOGGLE_CONFLICT: SetFlowEnabledResult = { ok: false, reason: 'conflict' };
 const TOGGLE_NOT_FOUND: SetFlowEnabledResult = { ok: false, reason: 'not_found' };
 
-async function toggleRefusal(userId: UserId, id: FlowId, enabled: Enabled): Promise<SetFlowEnabledResult | null> {
+async function toggleRefusal(userId: UserId, id: FlowId, enabled: Enabled, expected?: Revision): Promise<SetFlowEnabledResult | null> {
   const row = await getAutomation(userId, id);
   if (!row) return null;
+  if (staleRevision(expected, String(row.revision))) return TOGGLE_CONFLICT;
   if (enabled && setupGaps(row.definition).length > 0) return { ok: false, reason: 'needs_setup' };
   const reward = await setRewardEnabled(userId, row.definition, enabled);
   return reward.ok ? null : { ok: false, reason: 'failed', error: reward.error };
 }
 
 async function toggleAutomation(userId: UserId, id: FlowId, enabled: Enabled, expected?: Revision): Promise<SetFlowEnabledResult> {
-  const refusal = await toggleRefusal(userId, id, enabled);
+  const refusal = await toggleRefusal(userId, id, enabled, expected);
   if (refusal) return refusal;
   const result = await setAutomationEnabled(userId, id, enabled, expected === undefined ? undefined : Number(expected));
   if (!result.ok) {
@@ -616,7 +617,15 @@ async function removeCommand(userId: UserId, name: CommandName): Promise<DeleteF
 async function routeDelete(userId: UserId, ref: FlowRef): Promise<DeleteFlowResult> {
   if (ref.layer === 'alert') return { ok: false, reason: 'not_deletable' };
   if (ref.layer === 'command') return removeCommand(userId, ref.name);
-  return (await deleteAutomation(userId, ref.id)) ? { ok: true } : { ok: false, reason: 'not_found' };
+  return removeAutomation(userId, ref.id);
+}
+
+async function removeAutomation(userId: UserId, id: FlowId): Promise<DeleteFlowResult> {
+  const row = await getAutomation(userId, id);
+  if (!row) return { ok: false, reason: 'not_found' };
+  const reward = await deleteManagedReward(userId, row.definition);
+  if (!reward.ok) return { ok: false, reason: 'failed', error: reward.error };
+  return (await deleteAutomation(userId, id)) ? { ok: true } : { ok: false, reason: 'not_found' };
 }
 
 export async function deleteFlow(locals: App.Locals, ref: FlowRef): Promise<DeleteFlowResult> {

@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { rpcRefusal, rpcReply } from '@bagel/kit/server/nats';
+import { rpcCode } from '@bagel/kit/server/rpc-code';
 import { SUB, publishEventSubEnsureOptional } from './services';
 
 export interface RewardWire {
@@ -122,8 +123,10 @@ export async function saveRewardFlow(
 }
 
 export async function deleteRemoteReward(userId: string, rewardId: string): Promise<RewardRemoteResult> {
-  const reply = await callRewardOrThrow(userId, 'delete', { reward_id: rewardId });
+  const reply = await callReward('delete', { broadcaster_id: userId, reward_id: rewardId });
   if (reply.missing_scope) return { ok: false, missingScope: true };
-  if (reply.error) return { ok: false, error: reply.error };
+  if (rpcCode(reply) === 'not_found') return { ok: true };
+  const refusal = rpcRefusal(reply);
+  if (refusal) throw refusal;
   return { ok: true };
 }

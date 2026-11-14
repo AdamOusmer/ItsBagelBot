@@ -750,6 +750,7 @@ describe('premium beta', () => {
 
 describe('deleting', () => {
   test('an automation row goes through the owner', async () => {
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', followFlow) };
     replies[`${AUTO}.delete`] = { deleted: true };
     expect(await store.deleteFlow(premium, { layer: 'automation', id: 'a' })).toEqual({ ok: true });
     replies[`${AUTO}.delete`] = { deleted: false };
@@ -891,6 +892,7 @@ describe('recipe channel point rewards', () => {
     ['a saved reward saved disabled is hidden', 'rw-1', false, 'update']
   ] as [string, string, boolean, string][])('%s', async (_name, rewardId, enabled, verb) => {
     stubStorage([], [automationsOn]);
+    replies[`${REWARD}.list`] = { rewards: [] };
     replies[`${REWARD}.${verb}`] = twitchReward('rw-9', enabled);
     replies[`${AUTO}.upsert`] = (body: any) => ({ automation: savedAutomation('a', body.definition) });
 
@@ -903,6 +905,7 @@ describe('recipe channel point rewards', () => {
 
   test('the outcome and the input requirement reach Twitch and the stored recipe', async () => {
     stubStorage([], [automationsOn]);
+    replies[`${REWARD}.list`] = { rewards: [] };
     replies[`${REWARD}.create`] = twitchReward('rw-9', true);
     replies[`${AUTO}.upsert`] = (body: any) => ({ automation: savedAutomation('a', body.definition) });
 
@@ -914,6 +917,7 @@ describe('recipe channel point rewards', () => {
 
   test('a reward Twitch refuses stops the save before the recipe is written', async () => {
     stubStorage([], [automationsOn]);
+    replies[`${REWARD}.list`] = { rewards: [] };
     replies[`${REWARD}.create`] = { missing_scope: true };
     const res = await store.saveFlow(premium, { ref: null, name: 'Flow', enabled: true, definition: managed(SETUP_REWARD_ID) });
     expect(res).toEqual({ ok: false, reason: 'failed', error: 'missing_scope' });
@@ -948,6 +952,59 @@ describe('recipe channel point rewards', () => {
     replies[`${REWARD}.update`] = { error: 'twitch down' };
     expect(await store.setFlowEnabled(premium, ref, false)).toEqual({ ok: false, reason: 'failed', error: 'twitch down' });
     expect(callsTo(`${AUTO}.set_enabled`)).toEqual([]);
+  });
+
+  test.each([
+    ['removes the reward', {}],
+    ['treats a reward already gone as removed', { error: 'gone', code: 'not_found' }]
+  ] as [string, unknown][])('deleting a recipe %s', async (_name, reply) => {
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', managed('rw-1')) };
+    replies[`${REWARD}.delete`] = reply;
+    replies[`${AUTO}.delete`] = { deleted: true };
+
+    expect(await store.deleteFlow(premium, ref)).toEqual({ ok: true });
+
+    expect(callsTo(`${REWARD}.delete`)[0]!.body).toEqual({ broadcaster_id: '7', reward_id: 'rw-1' });
+    expect(callsTo(`${AUTO}.delete`)).toHaveLength(1);
+  });
+
+  test('deleting a recipe leaves a reward it only links', async () => {
+    const linked: Definition = { version: 1, trigger: { type: 'reward', params: { reward_id: 'rw-1' } }, actions: [{ type: 'chat', params: { text: 'hi' } }] };
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', linked) };
+    replies[`${AUTO}.delete`] = { deleted: true };
+    expect(await store.deleteFlow(premium, ref)).toEqual({ ok: true });
+    expect(calls.filter((c) => c.subject.startsWith(REWARD))).toEqual([]);
+  });
+
+  test('a reward that cannot be deleted keeps the recipe', async () => {
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', managed('rw-1')) };
+    replies[`${REWARD}.delete`] = { missing_scope: true };
+    expect(await store.deleteFlow(premium, ref)).toEqual({ ok: false, reason: 'failed', error: 'missing_scope' });
+    expect(callsTo(`${AUTO}.delete`)).toEqual([]);
+  });
+
+  test('a save retried after a failed write adopts the reward instead of creating it again', async () => {
+    stubStorage([], [automationsOn]);
+    const input = { ref: null, name: 'Flow', enabled: true, definition: managed(SETUP_REWARD_ID) };
+    replies[`${REWARD}.list`] = { rewards: [] };
+    replies[`${REWARD}.create`] = twitchReward('rw-9', true);
+    replies[`${AUTO}.upsert`] = { conflict: true, code: 'conflict' };
+    expect(await store.saveFlow(premium, input)).toMatchObject({ ok: false, reason: 'conflict' });
+
+    replies[`${REWARD}.list`] = { rewards: [{ ...twitchReward('rw-9', true).reward, title: 'hydrate ' }] };
+    replies[`${REWARD}.update`] = twitchReward('rw-9', true);
+    replies[`${AUTO}.upsert`] = (body: any) => ({ automation: savedAutomation('a', body.definition) });
+    expect(await store.saveFlow(premium, input)).toMatchObject({ ok: true, flow: { definition: { trigger: { params: { reward_id: 'rw-9' } } } } });
+
+    expect(callsTo(`${REWARD}.create`)).toHaveLength(1);
+    expect(callsTo(`${REWARD}.update`)[0]!.body).toMatchObject({ reward_id: 'rw-9' });
+  });
+
+  test('a stale revision stops the toggle before Twitch is called', async () => {
+    stubStorage([], [automationsOn]);
+    replies[`${AUTO}.get`] = { automation: savedAutomation('a', managed('rw-1'), 3) };
+    expect(await store.setFlowEnabled(premium, ref, false, '2')).toMatchObject({ ok: false, reason: 'conflict' });
+    expect(calls.filter((c) => c.subject.startsWith(REWARD))).toEqual([]);
   });
 
   test('a linked-only recipe toggles without touching Twitch', async () => {
