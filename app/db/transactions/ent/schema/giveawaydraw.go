@@ -20,8 +20,8 @@ func (GiveawayDraw) Fields() []ent.Field {
 		field.String("operation_key").NotEmpty(),
 		field.String("pool_digest").NotEmpty(),
 		field.String("algorithm_version").NotEmpty(),
-		field.String("audit_json").NotEmpty(),
-		field.String("winner_ids_json").NotEmpty(),
+		field.Text("audit_json").NotEmpty(),
+		field.Text("winner_ids_json").NotEmpty(),
 		field.Uint64("actor_id").Positive(),
 		field.Time("created_at").Default(time.Now).Immutable(),
 	}

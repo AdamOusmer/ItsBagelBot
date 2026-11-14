@@ -19,7 +19,7 @@ func (GiveawayCandidate) Fields() []ent.Field {
 		field.String("giveaway_id").NotEmpty(),
 		field.Uint64("user_id").Positive(),
 		field.String("twitch_login").Optional().MaxLen(25),
-		field.String("eligibility_json").NotEmpty(),
+		field.Text("eligibility_json").NotEmpty(),
 		field.String("exclusion_reason").Optional().MaxLen(200),
 		field.Bool("eligible").Default(true),
 		field.Uint64("included_by").Optional().Nillable(),

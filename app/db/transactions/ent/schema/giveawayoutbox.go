@@ -19,7 +19,7 @@ func (GiveawayOutbox) Fields() []ent.Field {
 		field.String("id").Unique().Immutable().NotEmpty(),
 		field.String("aggregate_id").NotEmpty(),
 		field.String("event_type").NotEmpty(),
-		field.String("payload_json").NotEmpty(),
+		field.Text("payload_json").NotEmpty(),
 		field.String("state").Default("queued"),
 		field.Uint64("attempts").Default(0),
 		field.String("last_error").Optional().MaxLen(1000),
