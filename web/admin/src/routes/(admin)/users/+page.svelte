@@ -568,7 +568,7 @@
       min={new Date(Date.now() + 864e5).toISOString().slice(0, 10)}
     />
   </Field>
-  <Checkbox bind:checked={grantNotify}>{t('admin.users.grantNotify')}</Checkbox>
+  <Checkbox bind:checked={grantNotify}>{t('admin.users.grantEmail.notify')}</Checkbox>
 </ConfirmDialog>
 
 {#if selected}

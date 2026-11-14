@@ -168,9 +168,9 @@ type GrantEmailResult = GrantEmailOutcome | 'failed';
 type StatusGrant = { status: string; expiresAt?: string; detail: string; notify: boolean; email?: GrantEmailResult };
 
 const GRANT_EMAIL_NOTICE: Record<GrantEmailResult, string> = {
-  sent: 'admin.users.grantEmailSent',
-  no_email: 'admin.users.grantEmailNoAddress',
-  failed: 'admin.users.grantEmailFailed'
+  sent: 'admin.users.grantEmail.sent',
+  no_email: 'admin.users.grantEmail.noAddress',
+  failed: 'admin.users.grantEmail.failed'
 };
 
 function parseStatus(f: FormData): ParseResult<StatusGrant> {

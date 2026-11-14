@@ -48,8 +48,8 @@ const notify = { ...paid, notify_email: 'on' };
 describe('paid grant email', () => {
   test.each([
     { label: 'stays silent unless asked', fields: paid, reply: async () => 'sent', calls: 0, suffix: '' },
-    { label: 'sends with the stored end date', fields: notify, reply: async () => 'sent', calls: 1, suffix: ' · admin.users.grantEmailSent' },
-    { label: 'reports a missing contact email', fields: notify, reply: async () => 'no_email', calls: 1, suffix: ' · admin.users.grantEmailNoAddress' },
+    { label: 'sends with the stored end date', fields: notify, reply: async () => 'sent', calls: 1, suffix: ' · admin.users.grantEmail.sent' },
+    { label: 'reports a missing contact email', fields: notify, reply: async () => 'no_email', calls: 1, suffix: ' · admin.users.grantEmail.noAddress' },
     {
       label: 'keeps the grant when the email fails',
       fields: notify,
@@ -57,7 +57,7 @@ describe('paid grant email', () => {
         throw new Error('unavailable');
       },
       calls: 1,
-      suffix: ' · admin.users.grantEmailFailed'
+      suffix: ' · admin.users.grantEmail.failed'
     }
   ])('$label', async ({ fields, reply, calls, suffix }) => {
     emailReply = reply;
