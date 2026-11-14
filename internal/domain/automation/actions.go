@@ -151,6 +151,7 @@ type LightsAction struct {
 	SceneType     string   `json:"scene_type"`
 	SceneInstance string   `json:"scene_instance"`
 	SceneValue    string   `json:"scene_value"`
+	AnyTime       bool     `json:"any_time,omitempty"`
 	RGB           int      `json:"-"`
 }
 

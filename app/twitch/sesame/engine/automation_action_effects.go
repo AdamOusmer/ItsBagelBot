@@ -164,8 +164,27 @@ func (x *actionExec) lights(s step, p automation.LightsAction) error {
 	if refusal := x.lightsRefusal(p); refusal != nil {
 		return refusal
 	}
+	if !p.AnyTime {
+		if err := x.requireLive(); err != nil {
+			return err
+		}
+	}
 	req := lightsRequest(x.bid, p)
 	return x.once(s, func() error { return x.sendLights(req) })
+}
+
+func (x *actionExec) requireLive() error {
+	if x.p.live == nil {
+		return skipped("offline")
+	}
+	live, err := x.p.live.IsLive(x.ctx, x.run.BroadcasterID)
+	switch {
+	case err != nil:
+		return err
+	case !live:
+		return skipped("offline")
+	}
+	return nil
 }
 
 func hasLightTarget(p automation.LightsAction) bool { return p.Device != "" && p.SKU != "" }

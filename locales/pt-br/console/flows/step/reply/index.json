@@ -47,6 +47,9 @@
       },
       "scene": {
         "label": "Cena"
+      },
+      "liveOnly": {
+        "label": "Só durante a live"
       }
     }
   },

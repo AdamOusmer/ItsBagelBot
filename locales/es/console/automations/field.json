@@ -2,6 +2,7 @@
   "aliases": "Alias",
   "allow": "Permitidos",
   "amount": "Cantidad",
+  "any_time": "Ejecutar sin directo",
   "automation_id": "Automatización",
   "body": "Cuerpo",
   "branches": "Ramas",

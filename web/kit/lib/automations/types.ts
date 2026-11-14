@@ -345,6 +345,7 @@ export interface LightsAction {
   scene_type?: string;
   scene_instance?: string;
   scene_value?: string;
+  any_time?: boolean;
 }
 
 export type RefusalCode = 'invalid' | 'not_found' | 'forbidden' | 'conflict' | 'unavailable' | 'internal';

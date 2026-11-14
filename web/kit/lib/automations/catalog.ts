@@ -225,6 +225,7 @@ export const ACTION_TYPES: TypeDef[] = [
     f('scene_type', 'text', { min: 1, max: 64 }),
     f('scene_instance', 'text', { min: 1, max: 64 }),
     f('scene_value', 'text', { min: 1, max: 200 }),
+    f('any_time', 'bool'),
   ]),
   action('stop'),
   action('countdown_start', [varName, f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }), f('left_command', 'text', { max: 64 }), f('left_reply', 'text', { max: MAX_TEMPLATE_LENGTH }), f('ready_reply', 'text', { max: MAX_TEMPLATE_LENGTH })]),

@@ -47,6 +47,9 @@
       },
       "scene": {
         "label": "Szene"
+      },
+      "liveOnly": {
+        "label": "Nur während des Streams"
       }
     }
   },
