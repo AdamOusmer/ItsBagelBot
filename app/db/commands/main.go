@@ -25,6 +25,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/env/conf"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
@@ -33,33 +34,79 @@ import (
 )
 
 const (
-	serviceName = "commands"
-	queueGroup  = "commands-rpc"
+	serviceName      = "commands"
+	queueGroup       = "commands-rpc"
+	terminationGrace = 45 * time.Second
+	preStopDrain     = health.DrainDelay
+	exitReserve      = 5 * time.Second
+	shutdownBudget   = terminationGrace - preStopDrain - exitReserve
 )
 
-func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, fetches *repository.Fetches, broadcast, grouped bus.Subscriber, log *zap.Logger) error {
+type consumerWiring struct {
+	app       *newrelic.Application
+	repo      *repository.Commands
+	fetches   *repository.Fetches
+	broadcast bus.Subscriber
+	grouped   bus.Subscriber
+	log       *zap.Logger
+}
+
+func registerConsumers(ctx context.Context, w consumerWiring) (*bus.ConcurrentConsumer, error) {
 	subs := []struct {
 		name    string
 		sub     bus.Subscriber
 		subject string
 		handle  func(*bus.Message) error
 	}{
-		{"command changes", broadcast, data.SubjectCommandChanged, consumers.OnChangeInvalidate(changedUserID, repo.Invalidate)},
-		{"fetch changes", broadcast, data.SubjectFetchChanged, consumers.OnChangeInvalidate(fetchChangedUserID, fetches.Invalidate)},
-		{"command used events", grouped, data.SubjectCommandUsed, recordUse(repo, log)},
-		{"user deleted events", grouped, data.SubjectUserDeleted, deleteAllForUser(repo, fetches, log)},
+		{"command changes", w.broadcast, data.SubjectCommandChanged, consumers.OnChangeInvalidate(changedUserID, w.repo.Invalidate)},
+		{"fetch changes", w.broadcast, data.SubjectFetchChanged, consumers.OnChangeInvalidate(fetchChangedUserID, w.fetches.Invalidate)},
+		{"user deleted events", w.grouped, data.SubjectUserDeleted, deleteAllForUser(w.repo, w.fetches, w.log)},
 	}
 	for _, s := range subs {
-		if err := bus.Consume(ctx, nrApp, s.sub, s.subject, s.handle, log); err != nil {
-			return fmt.Errorf("subscribe to %s: %w", s.name, err)
+		if err := bus.Consume(ctx, w.app, s.sub, s.subject, s.handle, w.log); err != nil {
+			return nil, fmt.Errorf("subscribe to %s: %w", s.name, err)
 		}
 	}
-	return nil
+	return bus.ConsumeDemand(ctx, bus.DemandConsumerConfig{
+		App: w.app, Subscriber: w.grouped, Subject: data.SubjectCommandUsed,
+		Handle: recordUse(w.repo, w.log), Log: w.log,
+	})
 }
 
 func changedUserID(dto data.CommandChangedDTO) uint64 { return dto.UserID }
 
 func fetchChangedUserID(dto data.FetchChangedDTO) uint64 { return dto.UserID }
+
+type commandShutdown struct {
+	consumer    *bus.ConcurrentConsumer
+	closeIntake func()
+	repo        *repository.Commands
+	log         *zap.Logger
+	started     <-chan time.Time
+}
+
+func (s commandShutdown) stop() {
+	started := time.Now()
+	select {
+	case started = <-s.started:
+	default:
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), started.Add(shutdownBudget))
+	defer cancel()
+	intakeDone := make(chan struct{})
+	go func() { s.closeIntake(); close(intakeDone) }()
+	select {
+	case <-intakeDone:
+	case <-ctx.Done():
+		s.log.Fatal("command intake shutdown budget exhausted", zap.Error(ctx.Err()))
+	}
+	if err := s.consumer.Drain(ctx); err != nil {
+		s.log.Error("command use consumer drain failed", zap.Error(err))
+	}
+	if err := s.repo.Close(ctx); err != nil {
+		s.log.Fatal("commands shutdown budget exhausted with workers still active", zap.Error(err))
+	}
+}
 
 func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
@@ -92,6 +139,8 @@ func main() {
 	core, done := svcboot.NewCore(serviceName)
 	defer done()
 	log := core.Log
+	shutdownStarted := make(chan time.Time, 1)
+	context.AfterFunc(core.Ctx, func() { shutdownStarted <- time.Now() })
 
 	driver := databoot.MustEntDriver(core)
 	client := ent.NewClient(ent.Driver(driver))
@@ -107,8 +156,6 @@ func main() {
 
 	repo := repository.NewCommands(client, n.Pub, core.NR, log)
 	repo.SetAnalytics(recorder)
-	defer repo.Close(context.Background())
-	defer closeIntake() // stops intake before the repo flush above
 
 	// Must run before RPC and consumer traffic so a concurrent edit cannot race it.
 	if err := repo.BackfillBumpCounterFromTokens(core.Ctx); err != nil {
@@ -123,9 +170,11 @@ func main() {
 	})
 	defer fetches.Close()
 
-	if err := registerConsumers(core.Ctx, core.NR, repo, fetches, n.Broadcast, n.Grouped, log); err != nil {
+	consumer, err := registerConsumers(core.Ctx, consumerWiring{core.NR, repo, fetches, n.Broadcast, n.Grouped, log})
+	if err != nil {
 		log.Fatal("failed to subscribe to events", zap.Error(err))
 	}
+	defer (commandShutdown{consumer, closeIntake, repo, log, shutdownStarted}).stop()
 
 	svcboot.FatalIf(log, levels.Serve(bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log}), "failed to subscribe analytics levels rpc")
 

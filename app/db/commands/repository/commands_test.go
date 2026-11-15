@@ -63,6 +63,16 @@ func TestUpsertCoalescesEdits(t *testing.T) {
 	require.Len(t, pub.On(data.SubjectCommandChanged), 1)
 }
 
+func TestClosePersistsAcknowledgedEditsWithCanceledUseDrain(t *testing.T) {
+	client, pub, repo := setup(t)
+	require.NoError(t, repo.Upsert(1001, spec("hello", "saved", false, 0)))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	repo.Close(ctx)
+	assert.Equal(t, "saved", client.Commands.Query().OnlyX(t.Context()).Response)
+	assert.Len(t, pub.On(data.SubjectCommandChanged), 1)
+}
+
 func TestUpsertNormalizesMultiLineResponse(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
