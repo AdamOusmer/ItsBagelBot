@@ -15,6 +15,7 @@ import (
 type batchStore struct {
 	values        map[string]int64
 	pendingValues map[string]int64
+	receipts      [][]driver.Value
 	queries       []string
 	onShareLock   func(*batchStore)
 }
@@ -28,6 +29,7 @@ type batchTx struct{ store *batchStore }
 
 func (c *batchConn) Begin() (driver.Tx, error) {
 	c.store.pendingValues = map[string]int64{}
+	c.store.receipts = nil
 	return &batchTx{c.store}, nil
 }
 
@@ -72,13 +74,26 @@ func (tx *batchTx) Rollback() error {
 type coalescingConn struct{ *batchConn }
 
 func (c *coalescingConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	if strings.HasPrefix(query, "INSERT INTO loyalty_counter_receipts ") {
+		c.store.stageReceipts(args)
+		return driver.RowsAffected(1), nil
+	}
 	if strings.Contains(query, "(?, ?, ?, 0, ?, ?)") {
 		return driver.RowsAffected(0), nil
 	}
 	return c.batchConn.ExecContext(ctx, query, args)
 }
 
+func (s *batchStore) stageReceipts(args []driver.NamedValue) {
+	for i := 0; i < len(args); i += 5 {
+		s.receipts = append(s.receipts, []driver.Value{args[i].Value, args[i+1].Value, args[i+2].Value, args[i+3].Value})
+	}
+}
+
 func (c *coalescingConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if strings.HasPrefix(query, "SELECT user_id,batch_id,payload_hash,admission_id ") {
+		return &counterRows{cols: []string{"user_id", "batch_id", "payload_hash", "admission_id"}, rows: c.store.receipts}, nil
+	}
 	if !strings.HasPrefix(query, "SELECT user_id,name,value FROM counters") {
 		return c.batchConn.QueryContext(ctx, query, args)
 	}

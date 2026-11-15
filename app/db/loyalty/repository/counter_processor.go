@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/pkg/valkey"
 	"github.com/google/uuid"
 	valkey_go "github.com/valkey-io/valkey-go"
+	"go.uber.org/zap"
 )
 
 const (
@@ -25,11 +26,9 @@ const (
 	counterMaxBumps      = 4096
 	counterBatchBumps    = 8192
 	counterCompletedTTL  = data.CounterReceiptTTL
-	// SQL plus gate admission is bounded to 30 seconds after claims. The
-	// remaining margin lets completion/release finish before the owner expires.
-	counterPendingTTL   = 45 * time.Second
-	counterSQLTimeout   = 30 * time.Second
-	counterCacheTimeout = 5 * time.Second
+	counterPendingTTL    = 45 * time.Second
+	counterSQLTimeout    = 30 * time.Second
+	counterCacheTimeout  = 5 * time.Second
 )
 
 var (
@@ -50,11 +49,6 @@ type counterRequest struct {
 	result chan error
 }
 
-// CounterProcessor coalesces acknowledged counter writes into bounded SQL
-// transactions and explicit Valkey pipelines. Completion receipts outlive
-// Sesame's republish window. The SQL-to-Valkey crash gap and replays after
-// that expiry can count again; these counters tolerate that tradeoff. Watch
-// awards and balances retain their separate durable posting semantics.
 type CounterProcessor struct {
 	repo         *Loyalty
 	client       valkey_go.Client
@@ -65,9 +59,7 @@ type CounterProcessor struct {
 	mu           sync.Mutex
 	closed       bool
 	cacheWarning atomic.Int64
-	// admissions fences senders against shutdown without closing queue under a
-	// concurrent sender. The worker drains every admitted request before exit.
-	admissions sync.WaitGroup
+	admissions   sync.WaitGroup
 }
 
 func NewCounterProcessor(repo *Loyalty, client valkey_go.Client) *CounterProcessor {
@@ -76,10 +68,6 @@ func NewCounterProcessor(repo *Loyalty, client valkey_go.Client) *CounterProcess
 	return p
 }
 
-// Process returns success only once SQL has committed, or a completed receipt
-// proves this batch previously committed. Cancellation before admission makes
-// no write. Cancellation after admission can leave a committed write; a retry
-// keeps its BatchID and consults the same receipt.
 func (p *CounterProcessor) Process(ctx context.Context, dto data.CounterBumpedDTO) error {
 	if err := validateCounterBatch(dto); err != nil {
 		return err
@@ -114,8 +102,6 @@ func (p *CounterProcessor) enqueueCounter(ctx context.Context, dto data.CounterB
 		return nil, err
 	}
 	defer p.admissions.Done()
-	// Reserve bounded payload space before copying. The worker retains an
-	// immutable payload if its caller leaves while persistence is in flight.
 	select {
 	case p.slots <- struct{}{}:
 	case <-ctx.Done():
@@ -139,9 +125,6 @@ func newCounterRequest(ctx context.Context, dto data.CounterBumpedDTO) *counterR
 	return &counterRequest{ctx: ctx, dto: dto, result: make(chan error, 1)}
 }
 
-// Close rejects new calls and waits for all admitted batches. A caller's
-// shutdown deadline bounds the wait; the bounded worker continues draining
-// if that deadline expires. Close never closes the shared Valkey client.
 func (p *CounterProcessor) Close(ctx context.Context) error {
 	p.mu.Lock()
 	if !p.closed {
@@ -246,6 +229,9 @@ func validateCounterBatch(dto data.CounterBumpedDTO) error {
 }
 
 func validateCounterBatchSize(dto data.CounterBumpedDTO) error {
+	if dto.BatchID == "" {
+		return fmt.Errorf("%w: counter batch id is required", ErrInvalidInput)
+	}
 	if len(dto.BatchID) > 256 {
 		return fmt.Errorf("%w: counter batch size or id", ErrInvalidInput)
 	}
@@ -300,7 +286,6 @@ func (p *CounterProcessor) processBatch(batch []*counterRequest) {
 	if len(deliveries) == 0 {
 		return
 	}
-	// An individual caller's cancellation must not poison its neighbours.
 	ctx, cancel := context.WithTimeout(context.Background(), counterSQLTimeout)
 	defer cancel()
 	owner := "pending:" + uuid.NewString()
@@ -319,13 +304,14 @@ func (p *CounterProcessor) gatherCounterDeliveries(batch []*counterRequest) []*c
 			continue
 		}
 		key := counterReceiptKey(request.dto)
-		if previous := seen[key]; previous != nil {
+		identity := key + fmt.Sprintf(":%x", counterPayloadDigest(request.dto))
+		if previous := seen[identity]; previous != nil {
 			previous.aliases = append(previous.aliases, request)
 			continue
 		}
 		delivery := &counterDelivery{request: request, key: key}
 		if key != "" {
-			seen[key] = delivery
+			seen[identity] = delivery
 		}
 		deliveries = append(deliveries, delivery)
 	}
@@ -338,9 +324,6 @@ func setCounterDeliveryErrors(deliveries []*counterDelivery, err error) {
 	}
 }
 
-// Only proven permanent range failures are isolated. Each unsuccessful SQL
-// attempt rolls back in full before any smaller transaction is attempted.
-// Transient or uncertain commit failures remain retryable for every delivery.
 func (p *CounterProcessor) persistDeliveries(ctx context.Context, deliveries []*counterDelivery) {
 	if len(deliveries) == 0 {
 		return
@@ -350,7 +333,7 @@ func (p *CounterProcessor) persistDeliveries(ctx context.Context, deliveries []*
 		dtos[i] = delivery.request.dto
 	}
 	err := p.repo.persistCounterBatch(ctx, dtos)
-	if errors.Is(err, ErrInvalidInput) && len(deliveries) > 1 {
+	if splitCounterFailure(ctx, err, len(deliveries)) {
 		middle := len(deliveries) / 2
 		p.persistDeliveries(ctx, deliveries[:middle])
 		p.persistDeliveries(ctx, deliveries[middle:])
@@ -359,13 +342,29 @@ func (p *CounterProcessor) persistDeliveries(ctx context.Context, deliveries []*
 	setCounterDeliveryErrors(deliveries, err)
 }
 
+func splitCounterFailure(ctx context.Context, err error, count int) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	return errors.Is(err, ErrInvalidInput) && count > 1
+}
+
 func (p *CounterProcessor) finish(deliveries []*counterDelivery) {
 	for _, delivery := range deliveries {
+		p.noticeCounterMismatch(delivery)
 		p.finishCounterRequest(delivery.request, delivery.err)
 		for _, alias := range delivery.aliases {
 			p.finishCounterRequest(alias, delivery.err)
 		}
 	}
+}
+
+func (p *CounterProcessor) noticeCounterMismatch(delivery *counterDelivery) {
+	if !errors.Is(delivery.err, ErrCounterReceiptMismatch) || p.repo.log == nil {
+		return
+	}
+	dto := delivery.request.dto
+	p.repo.log.Warn("loyalty: counter receipt payload mismatch", zap.Uint64("user_id", dto.UserID), zap.String("batch_id", dto.BatchID), zap.Error(delivery.err))
 }
 
 func (p *CounterProcessor) finishCounterRequest(request *counterRequest, err error) {
