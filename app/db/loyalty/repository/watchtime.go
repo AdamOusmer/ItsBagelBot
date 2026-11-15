@@ -10,17 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math"
-	"strconv"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 )
 
-// EnsureWatchSchema installs the narrow durable inbox and lifecycle fences.
-// Called at service startup before accepting any events or outbox deliveries.
 func (r *Loyalty) EnsureWatchSchema(ctx context.Context) error {
 	if err := r.ensureWatchTables(ctx); err != nil {
 		return err
@@ -58,9 +55,6 @@ func (r *Loyalty) fence(ctx context.Context, tx *sql.Tx, id uint64, instance int
 	return current, deleted != 0, err
 }
 
-// ApplyWatchAward returns only after the inbox, per-window viewer dedup and
-// balance credits commit together. Retired account instances are consumed
-// without resurrecting rows; errors leave the outbox delivery pending.
 func (r *Loyalty) ApplyWatchAward(ctx context.Context, a data.WatchAwardDTO) error {
 	if err := watchtime.ValidateAward(a); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
@@ -70,19 +64,26 @@ func (r *Loyalty) ApplyWatchAward(ctx context.Context, a data.WatchAwardDTO) err
 		return err
 	}
 	digest := sha256.Sum256(body)
+	hash := hex.EncodeToString(digest[:])
+	return retryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return r.commitWatchAward(ctx, a, hash)
+		})
+	})
+}
+
+func (r *Loyalty) commitWatchAward(ctx context.Context, a data.WatchAwardDTO, hash string) error {
 	tx, err := r.sqldb.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err := r.applyWatchAward(ctx, tx, a, hex.EncodeToString(digest[:])); err != nil {
+	if err := r.applyWatchAward(ctx, tx, a, hash); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-// RestoreUser uses the source account creation timestamp, never event arrival
-// order, to distinguish a genuine recreation from delayed previous-instance work.
 func (r *Loyalty) RestoreUser(ctx context.Context, id uint64, instance int64) error {
 	if id == 0 || instance <= 0 {
 		return nil
@@ -130,7 +131,6 @@ func (r *Loyalty) DeleteAccount(ctx context.Context, id uint64, instance int64) 
 	return nil
 }
 
-// watchHistoryTable identifies a replay ledger and its deduplication key.
 type watchHistoryTable struct {
 	name     string
 	identity string
@@ -164,7 +164,7 @@ func (r *Loyalty) ensureWatchCreatedIndexes(ctx context.Context) error {
 	return nil
 }
 
-// Lock order remains retention, account, operation, viewer, then balance.
+// Acquire retention before the account fence or pruning can erase live receipts.
 func (r *Loyalty) applyWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, hash string) error {
 	allowed, err := r.recordAdmittedWatchAward(ctx, tx, a, hash)
 	if err != nil || !allowed {
@@ -217,7 +217,6 @@ func recordWatchOperation(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO,
 	return true, err
 }
 
-// loyaltyAccountState is the lifecycle fence read under the account row lock.
 type loyaltyAccountState struct {
 	instance int64
 	deleted  bool
@@ -229,7 +228,6 @@ type loyaltyAccountReplacement struct {
 	next   int64
 }
 
-// Accepted awards may outrun the independent UserChanged subscription.
 func admitWatchAccount(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, account loyaltyAccountState) (bool, error) {
 	if a.AccountCreatedAt > account.instance {
 		err := replaceLoyaltyAccount(ctx, tx, loyaltyAccountReplacement{userID: a.UserID, prior: account.instance, next: a.AccountCreatedAt})
@@ -260,66 +258,6 @@ func deleteLoyaltyRows(ctx context.Context, tx *sql.Tx, id uint64) error {
 	return nil
 }
 
-// watchPosting shares the accepted window and posting timestamp across viewers.
-type watchPosting struct {
-	award    data.WatchAwardDTO
-	postedAt time.Time
-}
-
-func (r *Loyalty) postWatchViewers(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) error {
-	posting := watchPosting{award: a, postedAt: time.Now()}
-	for _, e := range a.Entries {
-		if err := r.postWatchViewer(ctx, tx, posting, e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (r *Loyalty) postWatchViewer(ctx context.Context, tx *sql.Tx, posting watchPosting, e data.LoyaltyEarnEntry) error {
-	a := posting.award
-	added, err := r.recordWatchViewer(ctx, tx, a, e.ViewerID)
-	if err != nil || !added {
-		return err
-	}
-	if err := checkWatchBalance(ctx, tx, a.UserID, e); err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, r.watchBalanceUpsert(), a.UserID, e.ViewerID, e.ViewerLogin, e.ViewerName, e.Points, e.WatchSeconds, posting.postedAt, posting.postedAt)
-	return err
-}
-
-func (r *Loyalty) recordWatchViewer(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, viewer uint64) (bool, error) {
-	identity := strconv.FormatUint(a.UserID, 10) + ":" + strconv.FormatInt(a.AccountCreatedAt, 10) + ":" + a.LiveSession + ":" + a.WindowID + ":" + strconv.FormatUint(viewer, 10)
-	digest := sha256.Sum256([]byte(identity))
-	result, err := tx.ExecContext(ctx, r.insertIgnore()+" INTO loyalty_watch_viewers (award_id,user_id,created_at,window_started_at_ms) VALUES (?, ?, ?, ?)", hex.EncodeToString(digest[:]), a.UserID, time.Now().Unix(), watchtime.WindowStartUnixMilli(a))
-	if err != nil {
-		return false, err
-	}
-	n, err := result.RowsAffected()
-	return n != 0, err
-}
-
-func checkWatchBalance(ctx context.Context, tx *sql.Tx, user uint64, e data.LoyaltyEarnEntry) error {
-	var seconds uint64
-	err := tx.QueryRowContext(ctx, "SELECT watch_seconds FROM balances WHERE user_id=? AND viewer_id=?", user, e.ViewerID).Scan(&seconds)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		return err
-	}
-	if seconds > math.MaxUint64-e.WatchSeconds {
-		return fmt.Errorf("%w: watch balance overflow", ErrInvalidInput)
-	}
-	return nil
-}
-
-func (r *Loyalty) watchBalanceUpsert() string {
-	stmt := `INSERT INTO balances (user_id,viewer_id,viewer_login,viewer_name,points,watch_seconds,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	return stmt + r.earnedBalanceConflict()
-}
-
 func (r *Loyalty) retireLoyaltyAccount(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (bool, error) {
 	current, _, err := r.fence(ctx, tx, id, instance)
 	if err != nil {
@@ -343,8 +281,6 @@ func (r *Loyalty) discardPendingAccount(id uint64) {
 	maps.DeleteFunc(r.bumpPend, func(key bumpKey, _ *bumpSum) bool { return key.userID == id })
 }
 
-// Unknown lineage cannot retire a known incarnation; stamped older deletions
-// are likewise ignored. Preserve the existing legacy fence normalization.
 func retirementInstance(instance, current int64) (int64, bool) {
 	if instance == 0 && current > 0 {
 		return current, false
