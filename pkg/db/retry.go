@@ -23,18 +23,15 @@ const (
 	MySQLDeadlock        = 1213
 )
 
-// Tx is what every ent transaction offers.
 type Tx interface {
 	Commit() error
 	Rollback() error
 }
 
-// TxStarter is an ent client.
 type TxStarter[T Tx] interface {
 	Tx(ctx context.Context) (T, error)
 }
 
-// WithTx commits when fn succeeds and rolls back when it fails.
 func WithTx[T Tx](ctx context.Context, client TxStarter[T], fn func(tx T) error) error {
 	_, err := WithTxResult(ctx, client, func(tx T) (struct{}, error) {
 		return struct{}{}, fn(tx)
@@ -56,6 +53,28 @@ func WithTxResult[R any, T Tx](ctx context.Context, client TxStarter[T], fn func
 	return out, tx.Commit()
 }
 
+func RetryWithTx[T Tx](ctx context.Context, client TxStarter[T], fn func(tx T) error) error {
+	_, err := RetryWithTxResult(ctx, client, func(tx T) (struct{}, error) {
+		return struct{}{}, fn(tx)
+	})
+	return err
+}
+
+// The closure must have no external effects: a lock conflict replays the whole transaction with a fresh tx.
+func RetryWithTxResult[R any, T Tx](ctx context.Context, client TxStarter[T], fn func(tx T) (R, error)) (R, error) {
+	var out R
+	err := RetryTx(ctx, func(ctx context.Context) error {
+		var err error
+		out, err = WithTxResult(ctx, client, fn)
+		return err
+	})
+	if err != nil {
+		var zero R
+		return zero, err
+	}
+	return out, nil
+}
+
 // Each attempt must begin and roll back its own transaction; after 1213 the server has already discarded every earlier statement.
 func RetryTx(ctx context.Context, attempt func(context.Context) error, retryable ...error) error {
 	var err error
@@ -75,7 +94,7 @@ func RetryableTx(err error, sentinels []error) bool {
 	if err == nil {
 		return false
 	}
-	// First: a duplicate-key error wrapped with a sentinel also unwraps to its MySQL error.
+	// Check sentinels first: a wrapped duplicate-key race also unwraps to its MySQL error.
 	if slices.ContainsFunc(sentinels, func(target error) bool { return errors.Is(err, target) }) {
 		return true
 	}

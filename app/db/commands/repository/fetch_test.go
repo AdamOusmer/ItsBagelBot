@@ -357,11 +357,13 @@ func TestDeleteAllForUserClearsDefsAndKeys(t *testing.T) {
 	require.NoError(t, repo.DeleteAllForUser(ctx, 1001, time.Now().Add(-time.Hour)))
 	assert.Equal(t, 1, client.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(1001)).CountX(ctx), "rows a re-registered account wrote survive")
 	assert.Equal(t, 1, countKeysFor(client, 1001))
+	assert.Equal(t, 1, client.FetchQuota.Query().CountX(ctx), "quota survives with definitions newer than the cutoff")
 
 	require.NoError(t, repo.DeleteAllForUser(ctx, 1001, time.Now()))
 
 	assert.Zero(t, client.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(1001)).CountX(ctx))
 	assert.Zero(t, countKeysFor(client, 1001), "keys for 1001 gone")
+	assert.Zero(t, client.FetchQuota.Query().CountX(ctx), "erasure removes the user id from quota rows")
 	remaining := countKeysFor(client, 2002)
 	assert.Equal(t, 1, remaining, "other users untouched")
 }

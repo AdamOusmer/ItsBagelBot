@@ -20,6 +20,8 @@ type Tx struct {
 	FetchDefinition *FetchDefinitionClient
 	// FetchKey is the client for interacting with the FetchKey builders.
 	FetchKey *FetchKeyClient
+	// FetchQuota is the client for interacting with the FetchQuota builders.
+	FetchQuota *FetchQuotaClient
 	// Migrations is the client for interacting with the Migrations builders.
 	Migrations *MigrationsClient
 
@@ -157,6 +159,7 @@ func (tx *Tx) init() {
 	tx.Commands = NewCommandsClient(tx.config)
 	tx.FetchDefinition = NewFetchDefinitionClient(tx.config)
 	tx.FetchKey = NewFetchKeyClient(tx.config)
+	tx.FetchQuota = NewFetchQuotaClient(tx.config)
 	tx.Migrations = NewMigrationsClient(tx.config)
 }
 

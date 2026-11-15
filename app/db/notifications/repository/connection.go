@@ -58,11 +58,18 @@ func (r *Notifications) connectionTx(ctx context.Context, change connectionChang
 	if err := change.Params.validate(); err != nil {
 		return ConnectionResult{}, err
 	}
-	return db.WithQuery(ctx, func(ctx context.Context) (ConnectionResult, error) {
-		return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (ConnectionResult, error) {
-			return change.apply(ctx, tx)
+	var result ConnectionResult
+	err := db.RetryTx(ctx, func(ctx context.Context) error {
+		var err error
+		result, err = db.WithQuery(ctx, func(ctx context.Context) (ConnectionResult, error) {
+			return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (ConnectionResult, error) { return change.apply(ctx, tx) })
 		})
+		return err
 	})
+	if err != nil {
+		return ConnectionResult{}, err
+	}
+	return result, nil
 }
 func (change connectionChange) apply(ctx context.Context, tx *ent.Tx) (ConnectionResult, error) {
 	guard, err := lockConnectionGuard(ctx, tx, change.Params)
@@ -211,12 +218,14 @@ func (r *Notifications) EraseConnection(ctx context.Context, accountID uint64, i
 	if err != nil {
 		return err
 	}
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-			if err := erasure.lockGuard(ctx, tx); err != nil {
-				return err
-			}
-			return erasure.deleteHistory(ctx, tx)
+	return db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				if err := erasure.lockGuard(ctx, tx); err != nil {
+					return err
+				}
+				return erasure.deleteHistory(ctx, tx)
+			})
 		})
 	})
 }

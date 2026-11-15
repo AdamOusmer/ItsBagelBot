@@ -56,14 +56,16 @@ func (r *Notifications) Create(ctx context.Context, p CreateParams) (*ent.Notifi
 	}
 	var row *ent.Notification
 	var created bool
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-			if err := lockNotificationIncarnation(ctx, tx, Recipient{UserID: *p.TargetUserID, Incarnation: p.Incarnation}); err != nil {
+	err := db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				if err := lockNotificationIncarnation(ctx, tx, Recipient{UserID: *p.TargetUserID, Incarnation: p.Incarnation}); err != nil {
+					return err
+				}
+				var err error
+				row, created, err = createNotification(ctx, tx.Client(), p)
 				return err
-			}
-			var err error
-			row, created, err = createNotification(ctx, tx.Client(), p)
-			return err
+			})
 		})
 	})
 	if err != nil {
@@ -208,9 +210,9 @@ func (r *Notifications) MarkReadForIncarnation(ctx context.Context, notification
 	return r.acknowledgeIncarnation(ctx, readAcknowledgment{NotificationID: notificationID, Recipient: recipient, ExpiresAt: expiresAt})
 }
 func (r *Notifications) acknowledgeIncarnation(ctx context.Context, ack readAcknowledgment) error {
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-			return ack.apply(ctx, tx)
+	return db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error { return ack.apply(ctx, tx) })
 		})
 	})
 }

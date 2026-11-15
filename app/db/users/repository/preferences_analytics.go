@@ -5,6 +5,8 @@ package repository
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
@@ -33,9 +35,9 @@ func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) err
 }
 
 func (r *Users) persistPrefs(ctx context.Context, perUser map[uint64][]prefWrite) error {
-	return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-		for id, writes := range perUser {
-			if err := writeUserPrefs(ctx, tx, id, writes); err != nil {
+	return db.RetryWithTx(ctx, r.client, func(tx *ent.Tx) error {
+		for _, id := range slices.Sorted(maps.Keys(perUser)) {
+			if err := writeUserPrefs(ctx, tx, id, perUser[id]); err != nil {
 				return err
 			}
 		}

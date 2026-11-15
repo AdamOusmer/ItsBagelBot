@@ -102,6 +102,16 @@ var (
 			},
 		},
 	}
+	// FetchQuotaColumns holds the columns for the "fetch_quota" table.
+	FetchQuotaColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+	}
+	// FetchQuotaTable holds the schema information for the "fetch_quota" table.
+	FetchQuotaTable = &schema.Table{
+		Name:       "fetch_quota",
+		Columns:    FetchQuotaColumns,
+		PrimaryKey: []*schema.Column{FetchQuotaColumns[0]},
+	}
 	// MigrationsColumns holds the columns for the "migrations" table.
 	MigrationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -120,6 +130,7 @@ var (
 		CommandsTable,
 		FetchDefinitionsTable,
 		FetchKeysTable,
+		FetchQuotaTable,
 		MigrationsTable,
 	}
 )
