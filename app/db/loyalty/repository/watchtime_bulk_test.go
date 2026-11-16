@@ -60,8 +60,8 @@ func (f watchBulkFixture) totals(t *testing.T) watchTotals {
 	var totals watchTotals
 	require.NoError(t, f.raw.QueryRowContext(t.Context(), "SELECT COUNT(*),COALESCE(SUM(points),0),COALESCE(SUM(watch_seconds),0) FROM balances").Scan(&totals.viewers, &totals.points, &totals.seconds))
 	for table, count := range map[string]*int64{
-		"loyalty_watch_operations": &totals.operations,
-		"loyalty_watch_viewers":    &totals.receipts,
+		"loyalty_watch_operations WHERE completed=1": &totals.operations,
+		"loyalty_watch_viewers":                      &totals.receipts,
 	} {
 		require.NoError(t, f.raw.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM "+table).Scan(count))
 	}
@@ -115,10 +115,12 @@ func checkWatchBulkOverflow(t *testing.T, f watchBulkFixture) {
 	require.NoError(t, err)
 	a.WindowID = "overflow"
 	require.ErrorIs(t, f.repo.ApplyWatchAward(t.Context(), a), loyaltyrepo.ErrInvalidInput)
-	for _, table := range []string{"balances", "loyalty_watch_viewers", "loyalty_watch_operations"} {
+	for table, expected := range map[string]int{
+		"balances": 1, "loyalty_watch_viewers": 1, "loyalty_watch_operations": 1,
+	} {
 		var count int
 		require.NoError(t, f.raw.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM "+table).Scan(&count))
-		require.Equal(t, 1, count)
+		require.Equal(t, expected, count)
 	}
 	_, err = f.raw.ExecContext(t.Context(), "UPDATE balances SET watch_seconds=0 WHERE user_id=17 AND viewer_id=1000")
 	require.NoError(t, err)
@@ -133,4 +135,8 @@ func checkWatchBulkOverflow(t *testing.T, f watchBulkFixture) {
 		points  int64
 		seconds uint64
 	}{row.Points, row.WatchSeconds})
+	_, err = f.raw.ExecContext(t.Context(), "UPDATE balances SET watch_seconds=? WHERE user_id=17 AND viewer_id=1000", []byte(strconv.FormatUint(math.MaxUint64, 10)))
+	require.NoError(t, err)
+	a.Chunk++
+	require.NoError(t, f.repo.ApplyWatchAward(t.Context(), a))
 }

@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"maps"
 	"time"
@@ -15,11 +14,13 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/db"
 )
 
 func (r *Loyalty) EnsureWatchSchema(ctx context.Context) error {
 	if err := r.ensureWatchTables(ctx); err != nil {
+		return err
+	}
+	if err := r.ensureWatchOperationState(ctx); err != nil {
 		return err
 	}
 	if err := r.ensureWatchCreatedIndexes(ctx); err != nil {
@@ -64,24 +65,8 @@ func (r *Loyalty) ApplyWatchAward(ctx context.Context, a data.WatchAwardDTO) err
 		return err
 	}
 	digest := sha256.Sum256(body)
-	hash := hex.EncodeToString(digest[:])
-	return retryTx(ctx, func(ctx context.Context) error {
-		return db.WithExec(ctx, func(ctx context.Context) error {
-			return r.commitWatchAward(ctx, a, hash)
-		})
-	})
-}
-
-func (r *Loyalty) commitWatchAward(ctx context.Context, a data.WatchAwardDTO, hash string) error {
-	tx, err := r.sqldb.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := r.applyWatchAward(ctx, tx, a, hash); err != nil {
-		return err
-	}
-	return tx.Commit()
+	posting := watchPosting{award: a, postedAt: time.Now(), hash: hex.EncodeToString(digest[:])}
+	return r.applyWatchAward(ctx, posting)
 }
 
 func (r *Loyalty) RestoreUser(ctx context.Context, id uint64, instance int64) error {
@@ -145,7 +130,7 @@ func (r *Loyalty) ensureWatchTables(ctx context.Context) error {
 	for _, stmt := range []string{
 		`CREATE TABLE IF NOT EXISTS loyalty_earned_receipts (batch_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS loyalty_account_fences (user_id BIGINT PRIMARY KEY, account_created_at BIGINT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)`,
-		`CREATE TABLE IF NOT EXISTS loyalty_watch_operations (operation_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0)`,
+		`CREATE TABLE IF NOT EXISTS loyalty_watch_operations (operation_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0, completed INTEGER NOT NULL DEFAULT 1)`,
 		`CREATE TABLE IF NOT EXISTS loyalty_watch_viewers (award_id VARCHAR(64) PRIMARY KEY, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0)`,
 	} {
 		if _, err := r.sqldb.ExecContext(ctx, stmt); err != nil {
@@ -164,26 +149,9 @@ func (r *Loyalty) ensureWatchCreatedIndexes(ctx context.Context) error {
 	return nil
 }
 
-// Acquire retention before the account fence or pruning can erase live receipts.
-func (r *Loyalty) applyWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, hash string) error {
-	allowed, err := r.recordAdmittedWatchAward(ctx, tx, a, hash)
-	if err != nil || !allowed {
-		return err
-	}
-	return r.postWatchViewers(ctx, tx, a)
-}
-
-func (r *Loyalty) recordAdmittedWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, hash string) (bool, error) {
-	open, err := r.watchWindowOpen(ctx, tx, a)
-	if err != nil || !open {
-		return false, err
-	}
+func (r *Loyalty) admitWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) (bool, error) {
 	current, deleted, err := r.fence(ctx, tx, a.UserID, a.AccountCreatedAt)
 	if err != nil {
-		return false, err
-	}
-	added, err := recordWatchOperation(ctx, tx, a, hash)
-	if err != nil || !added {
 		return false, err
 	}
 	return admitWatchAccount(ctx, tx, a, loyaltyAccountState{instance: current, deleted: deleted})
@@ -198,23 +166,6 @@ func (r *Loyalty) watchWindowOpen(ctx context.Context, tx *sql.Tx, a data.WatchA
 		return true, nil
 	}
 	return watchtime.WindowStartUnixMilli(a) > finalized, nil
-}
-
-func recordWatchOperation(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, hash string) (bool, error) {
-	op := watchtime.OperationID(a)
-	var previous string
-	err := tx.QueryRowContext(ctx, "SELECT payload_hash FROM loyalty_watch_operations WHERE operation_id=?", op).Scan(&previous)
-	if err == nil {
-		if previous != hash {
-			return false, errors.New("watch operation payload mismatch")
-		}
-		return false, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return false, err
-	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO loyalty_watch_operations (operation_id,payload_hash,user_id,created_at,window_started_at_ms) VALUES (?, ?, ?, ?, ?)", op, hash, a.UserID, time.Now().Unix(), watchtime.WindowStartUnixMilli(a))
-	return true, err
 }
 
 type loyaltyAccountState struct {

@@ -21,7 +21,7 @@ import (
 
 const (
 	watchStatementBytes = 128 * 1024
-	watchStatementRows  = 128
+	watchStatementRows  = 64
 )
 
 type watchViewer struct {
@@ -32,6 +32,7 @@ type watchViewer struct {
 type watchPosting struct {
 	award    data.WatchAwardDTO
 	postedAt time.Time
+	hash     string
 }
 
 func watchViewers(a data.WatchAwardDTO) []watchViewer {
@@ -56,19 +57,6 @@ func watchChunkSize(viewers []watchViewer) int {
 		}
 	}
 	return min(watchStatementRows, len(viewers))
-}
-
-func (r *Loyalty) postWatchViewers(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) error {
-	posting := watchPosting{award: a, postedAt: time.Now()}
-	viewers := watchViewers(a)
-	for len(viewers) > 0 {
-		n := watchChunkSize(viewers)
-		if err := r.postWatchChunk(ctx, tx, posting, viewers[:n]); err != nil {
-			return err
-		}
-		viewers = viewers[n:]
-	}
-	return nil
 }
 
 func (r *Loyalty) postWatchChunk(ctx context.Context, tx *sql.Tx, posting watchPosting, viewers []watchViewer) error {
@@ -103,7 +91,7 @@ func newWatchViewers(ctx context.Context, tx *sql.Tx, viewers []watchViewer) ([]
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(viewers, func(viewer watchViewer) bool { return existing[viewer.receipt] }), nil
+	return slices.DeleteFunc(slices.Clone(viewers), func(viewer watchViewer) bool { return existing[viewer.receipt] }), nil
 }
 
 func watchReceiptSet(rows *sql.Rows) (map[string]bool, error) {
