@@ -49,12 +49,10 @@
 
   let boards = $state(untrack(() => validBoards(data.boards) ?? emptyBoards()));
 
-  // The total is seeded once per page load. Fetches update the rate, while
-  // the clock adds that rate per second independently of the polling cadence.
   const counter = (total: string, rate: number | null, now: number) =>
     new StatsCounter(exactDisplay(Number(total)), rate, now);
-  let messages = counter(seed.messages_total, seed.msg_rate_now ?? seed.msg_rate, 0);
-  let events = counter(seed.events_total, seed.event_rate_now ?? seed.event_rate, 0);
+  const messages = counter(seed.messages_total, seed.msg_rate_now ?? seed.msg_rate, 0);
+  const events = counter(seed.events_total, seed.event_rate_now ?? seed.event_rate, 0);
 
   function frame(now: number) {
     const msg = messages.read(now, { animateRate: !reduced });
@@ -67,6 +65,8 @@
 
   let display = $state(frame(0));
   let mountedAt = 0;
+  let snapNext = true;
+  let minOffset = Infinity;
 
   function tick(now: number): boolean {
     display = frame(now - mountedAt);
@@ -81,20 +81,22 @@
     }
     degraded = next.degraded;
     if (next.degraded) return;
-    if (next.sampled_at != null && next.sampled_at <= (live.sampled_at ?? -1)) return;
+    if (!snapNext && (next.sampled_at ?? Infinity) <= (live.sampled_at ?? -1)) return;
     const now = performance.now() - mountedAt;
-    // If SSR was unavailable, the first healthy fetch supplies the initial
-    // totals. After that, only a page reload reconciles them with the server.
-    if (live.degraded) {
-      messages = counter(next.messages_total, next.msg_rate_now ?? next.msg_rate, now);
-      events = counter(next.events_total, next.event_rate_now ?? next.event_rate, now);
-    } else {
-      messages.update(next.msg_rate_now, now, next.msg_rate);
-      events.update(next.event_rate_now, now, next.event_rate);
-    }
+    const wallNow = Date.now();
+    const offset = wallNow - (next.sampled_at ?? wallNow);
+    minOffset = Math.min(minOffset, offset);
+    const sampledAt = now - Math.min(3000, Math.max(0, offset - minOffset));
+    messages.update(next.msg_rate_now, now, next.msg_rate, {
+      total: exactDisplay(Number(next.messages_total)), sampledAt, snap: snapNext
+    });
+    events.update(next.event_rate_now, now, next.event_rate, {
+      total: exactDisplay(Number(next.events_total)), sampledAt, snap: snapNext
+    });
+    snapNext = false;
     live = next;
     const reading = frame(now);
-    display = reduced ? { ...display, msgRate: reading.msgRate, eventRate: reading.eventRate } : reading;
+    display = reading;
   }
   async function fetchJson(path: string): Promise<unknown> {
     const res = await fetch(path, {
@@ -134,6 +136,10 @@
       if (!reduced) stopOdometer = subscribe(tick);
     };
     reduceMotion.addEventListener('change', onMotionChange);
+    const onVisibilityChange = () => {
+      snapNext = true;
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     const reducedClock = setInterval(() => {
       if (reduced) display = frame(performance.now() - mountedAt);
     }, 1000);
@@ -156,6 +162,7 @@
       stopOdometer();
       clearInterval(reducedClock);
       reduceMotion.removeEventListener('change', onMotionChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   });
 
@@ -164,7 +171,6 @@
     notation: 'compact',
     maximumFractionDigits: 2
   });
-  const PENDING = t('stats.rateNa');
 
   function compactTotal(raw: string, animated: number): { value: string; unit: string } {
     const exact = BigInt(raw);
@@ -182,7 +188,7 @@
       label: t('stats.messagesShortLabel'),
       ...compactTotal(live.messages_total, display.messages),
       detail: t('stats.processedTotal', { count: formatStatTotal(live.messages_total, display.messages, locale) }),
-      rate: display.msgRate === null ? PENDING : rateFmt.format(display.msgRate),
+      rate: display.msgRate === null ? null : rateFmt.format(display.msgRate),
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel'),
       tone: 'green' as const
@@ -192,7 +198,7 @@
       label: t('stats.eventsShortLabel'),
       ...compactTotal(live.events_total, display.events),
       detail: t('stats.processedTotal', { count: formatStatTotal(live.events_total, display.events, locale) }),
-      rate: display.eventRate === null ? PENDING : rateFmt.format(display.eventRate),
+      rate: display.eventRate === null ? null : rateFmt.format(display.eventRate),
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel'),
       tone: 'tan' as const
@@ -293,8 +299,8 @@
           <div class="st-counter__value">{tile.value}<span class="st-counter__unit">{tile.unit}</span></div>
           <div class="st-counter__exact"><bb-fit>{tile.detail}</bb-fit></div>
           <div class="st-rule"></div>
-          <div class="st-counter__rate">
-            <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden>{tile.rate}{#if tile.rate !== PENDING}<small class="st-counter__per">{t('stats.perSecond')}</small>{/if}</span>
+          <div class="st-counter__rate" class:st-counter__rate--pending={tile.rate === null}>
+            <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden><span aria-hidden={tile.rate === null}>{tile.rate ?? rateFmt.format(0)}</span><small class="st-counter__per" aria-hidden={tile.rate === null}>{t('stats.perSecond')}</small></span>
             <span class="st-counter__avg"><bb-fit mode="block">{tile.average === null ? t('stats.rightNow') : `${t('stats.rightNow')} · ${t('stats.minuteAverage', { rate: tile.average })}`}</bb-fit></span>
           </div>
         </Card>
@@ -623,7 +629,10 @@
     align-items: baseline;
     justify-content: space-between;
     gap: var(--bb-space-3);
+    transition: opacity 180ms ease-out;
   }
+
+  .st-counter__rate--pending { opacity: 0; }
 
   .st-counter__now {
     display: inline-flex;
