@@ -97,7 +97,7 @@ func main() {
 	automations.SetAnalytics(recorder)
 	levels := analytics.NewLevelSource(analytics.Owner{
 		Service: serviceName,
-		Owned:   analytics.Owned{"modules.rows", "modules.defaults", "modules.breadth", "recipes.total", "integrations.connected|spotify", "integrations.connected|govee"},
+		Owned:   analytics.Owned{"modules.rows", "modules.defaults", "modules.breadth", "recipes.total", "timers.total", "integrations.connected|spotify", "integrations.connected|govee"},
 		Seed:    repo.AnalyticsSeed,
 	})
 

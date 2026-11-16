@@ -20,6 +20,9 @@ it.each([1, 7, 30, 90, 365])('builds demo analytics for a %s day window', (days)
     ages: view.growth.activationAge.some((bar) => bar.value > 0),
     dashboard: view.features.dashboard.some((bar) => bar.value > 0),
     checkout: view.revenue.checkout.rows.length,
-    delegating: view.audience.delegating[0].value !== '0'
-  }).toEqual({ days, recipes: true, channels: true, drops: days, providers: true, ages: true, dashboard: true, checkout: 3, delegating: true });
+    delegating: view.audience.delegating[0].value !== '0',
+    roadmap: [view.community.ticks, view.community.timers, view.community.points, view.audience.runtime,
+      view.audience.desktop, view.growth.login].every((bars) => bars.some((b) => b.value > 0)),
+    promotions: view.growth.trials[0].value !== '0'
+  }).toEqual({ days, recipes: true, channels: true, drops: days, providers: true, ages: true, dashboard: true, checkout: 3, delegating: true, roadmap: true, promotions: true });
 });

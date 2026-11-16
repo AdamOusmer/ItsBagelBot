@@ -44,7 +44,7 @@ func TestPublishedTimersRecordActivityAndActivationAge(t *testing.T) {
 			rec.Close()
 			counts, err := pkgvalkey.HashAllInts(context.Background(), vc, catalog.CounterKey(time.Now()))
 			require.NoError(t, err)
-			require.EqualValues(t, 2, counts["timer.fires"])
+			require.Equal(t, map[string]int64{"legacy": 2, "ticks": 2}, map[string]int64{"legacy": counts["timer.fires"], "ticks": counts["timers.ticks|fired"]})
 			for _, field := range []string{"channels.active", "activation.age|" + tc.age} {
 				n, err := pkgvalkey.SetCard(context.Background(), vc, catalog.DistinctKey(catalog.Day, time.Now(), field))
 				require.NoError(t, err)

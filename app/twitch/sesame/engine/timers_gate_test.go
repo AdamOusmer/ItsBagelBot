@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/analytics/analyticstest"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
@@ -27,7 +28,7 @@ func newGateStoreFixture(t *testing.T, proj projection.Reader) gateStoreFixture 
 	client := newHotPathTestClient(t)
 	pub := &fakePublisher{}
 	bid := uint64(time.Now().UnixNano())
-	store := NewValkeyTimerStore(client, pub, proj, fakeLive{live: true}, TimersConfig{OutgressStandardSubject: standardSubj})
+	store := NewValkeyTimerStore(client, pub, proj, TimersConfig{Live: fakeLive{live: true}, OutgressStandardSubject: standardSubj})
 	f := gateStoreFixture{store: store, pub: pub, bid: bid}
 	t.Cleanup(func() {
 		keys := []string{chatLog(bid).Key}
@@ -62,6 +63,8 @@ func (f gateStoreFixture) scheduleKeyExists(t *testing.T, timerID string) bool {
 
 func TestTimerTickGateSkipReArmsWithoutFiring(t *testing.T) {
 	f := newGateStoreFixture(t, fakeReader{})
+	capture := analyticstest.New(t)
+	f.store.WirePipeline(&Pipeline{analytics: capture.Recorder})
 	ctx := context.Background()
 	td := timerDef{ID: "t1", Message: "hi", Interval: 60, Enabled: true, MinChatLines: 5}
 
@@ -71,6 +74,7 @@ func TestTimerTickGateSkipReArmsWithoutFiring(t *testing.T) {
 
 	assert.Empty(t, f.pub.got, "a gate-skipped tick must not fire")
 	assert.True(t, f.scheduleKeyExists(t, "t1"), "a skip must still re-arm at the exact interval (D8)")
+	assert.Equal(t, map[string]int64{"timers.ticks|gated": 1}, capture.Counters())
 }
 
 func TestTimerTickGateSkipLeavesFireCapUntouched(t *testing.T) {
@@ -106,6 +110,8 @@ func TestTimerTickGatePassFires(t *testing.T) {
 
 func TestTimerTickCapReachedStopsWithoutFiringOrReArming(t *testing.T) {
 	f := newGateStoreFixture(t, fakeReader{})
+	capture := analyticstest.New(t)
+	f.store.WirePipeline(&Pipeline{analytics: capture.Recorder})
 	ctx := context.Background()
 	td := timerDef{ID: "t1", Message: "hi", Interval: 60, Enabled: true, MaxFires: 1}
 
@@ -117,6 +123,7 @@ func TestTimerTickCapReachedStopsWithoutFiringOrReArming(t *testing.T) {
 	assert.Empty(t, f.pub.got, "a capped timer must not fire again")
 	assert.False(t, f.scheduleKeyExists(t, "t1"), "a stop must not re-arm (§6 step 1)")
 	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.ref("t1")), "a stop must not itself bump the fire count")
+	assert.Equal(t, map[string]int64{"timers.ticks|stopped": 1}, capture.Counters())
 }
 
 func TestArmAllSkipsCappedAndEndedTimersButArmsAPlainOne(t *testing.T) {

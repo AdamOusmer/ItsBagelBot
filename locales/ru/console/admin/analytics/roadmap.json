@@ -1,0 +1,76 @@
+{
+  "tick": {
+    "fired": "Отправлено",
+    "gated": "Задержано",
+    "stopped": "Остановлено",
+    "floor": "Фильтр содержимого",
+    "blank": "Пусто",
+    "refused": "Отказано"
+  },
+  "opt": {
+    "plain": "Простой",
+    "gated": "Порог сообщений",
+    "capped": "Лимит отправок",
+    "ends": "Дата окончания",
+    "offline": "Разрешён вне эфира"
+  },
+  "runtime": {
+    "active": "Активен",
+    "dormant": "В ожидании",
+    "blocked": "Заблокирован",
+    "disabled": "Отключён",
+    "recovering": "Восстановление",
+    "degraded": "Сбой"
+  },
+  "game": {
+    "raffle": "Розыгрыш",
+    "mraffle": "Множественный розыгрыш",
+    "duel": "Дуэль",
+    "gamble": "Ставка"
+  },
+  "flow": {
+    "gamble": "Ставка",
+    "duel_stake": "Ставка дуэли",
+    "transfer": "Перевод",
+    "adjust": "Корректировка",
+    "reward_grant": "Начисление награды",
+    "raffle_payout": "Выплата розыгрыша"
+  },
+  "feature": {
+    "channelpoints": "Баллы канала",
+    "govee": "Govee"
+  },
+  "login": {
+    "started": "Начат",
+    "ok": "Успешно",
+    "declined": "Отклонён",
+    "oauth": "Ошибка OAuth",
+    "state": "Неверное состояние",
+    "bot": "Аккаунт бота",
+    "scope": "Нет разрешения",
+    "link": "Недействительная ссылка",
+    "retry": "Нужен повтор",
+    "banned": "Заблокирован"
+  },
+  "platform": {
+    "macos": "macOS",
+    "windows": "Windows",
+    "linux": "Linux"
+  },
+  "rule": {
+    "ip_logger": "Сбор IP-адресов",
+    "scam": "Мошенничество",
+    "phish": "Фишинг",
+    "heuristic": "Эвристика",
+    "block_term": "Запрещённый термин",
+    "lex_hate": "Язык ненависти",
+    "lex_harassment": "Травля",
+    "lex_sexual": "Сексуальный контент",
+    "lex_profanity": "Нецензурная речь",
+    "council_campaign": "Кампания по кворуму",
+    "repeat": "Повтор",
+    "campaign": "Кампания",
+    "shield_mode": "Режим щита",
+    "other": "Другое"
+  }
+}

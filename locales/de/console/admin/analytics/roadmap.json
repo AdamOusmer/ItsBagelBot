@@ -1,0 +1,76 @@
+{
+  "tick": {
+    "fired": "Gesendet",
+    "gated": "Zurückgehalten",
+    "stopped": "Gestoppt",
+    "floor": "Inhaltssperre",
+    "blank": "Leer",
+    "refused": "Verweigert"
+  },
+  "opt": {
+    "plain": "Einfach",
+    "gated": "Chat-Schwelle",
+    "capped": "Sendelimit",
+    "ends": "Enddatum",
+    "offline": "Offline erlaubt"
+  },
+  "runtime": {
+    "active": "Aktiv",
+    "dormant": "Ruhend",
+    "blocked": "Blockiert",
+    "disabled": "Deaktiviert",
+    "recovering": "Wiederherstellung",
+    "degraded": "Beeinträchtigt"
+  },
+  "game": {
+    "raffle": "Verlosung",
+    "mraffle": "Mehrfachverlosung",
+    "duel": "Duell",
+    "gamble": "Glücksspiel"
+  },
+  "flow": {
+    "gamble": "Glücksspiel",
+    "duel_stake": "Duelleinsatz",
+    "transfer": "Übertragung",
+    "adjust": "Anpassung",
+    "reward_grant": "Belohnungsgutschrift",
+    "raffle_payout": "Verlosungsauszahlung"
+  },
+  "feature": {
+    "channelpoints": "Kanalpunkte",
+    "govee": "Govee"
+  },
+  "login": {
+    "started": "Gestartet",
+    "ok": "Erfolgreich",
+    "declined": "Abgelehnt",
+    "oauth": "OAuth-Fehler",
+    "state": "Ungültiger Status",
+    "bot": "Botkonto",
+    "scope": "Berechtigung fehlt",
+    "link": "Ungültiger Link",
+    "retry": "Erneuter Versuch nötig",
+    "banned": "Gesperrt"
+  },
+  "platform": {
+    "macos": "macOS",
+    "windows": "Windows",
+    "linux": "Linux"
+  },
+  "rule": {
+    "ip_logger": "IP-Logger",
+    "scam": "Betrug",
+    "phish": "Phishing",
+    "heuristic": "Heuristik",
+    "block_term": "Gesperrter Begriff",
+    "lex_hate": "Hassrede",
+    "lex_harassment": "Belästigung",
+    "lex_sexual": "Sexuelle Inhalte",
+    "lex_profanity": "Schimpfwörter",
+    "council_campaign": "Kampagnenquorum",
+    "repeat": "Wiederholung",
+    "campaign": "Kampagne",
+    "shield_mode": "Schutzmodus",
+    "other": "Sonstige"
+  }
+}

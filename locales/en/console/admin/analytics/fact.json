@@ -1,4 +1,5 @@
 {
+  "trialPromoted": "Trial promotions",
   "netAccounts": "Net accounts (signups minus deletions)",
   "netBot": "Bot-enabled change between window snapshots",
   "cancelPending": "Cancellations pending",

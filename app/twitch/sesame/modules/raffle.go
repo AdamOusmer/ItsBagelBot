@@ -11,6 +11,8 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 
 	"go.uber.org/zap"
 )
@@ -47,6 +49,7 @@ func raffleRunning(d engine.Deps) module.ClaimFunc {
 }
 
 type raffleCmd struct {
+	analytics *analytics.Recorder
 	chatReplier
 	r       engine.RaffleStore
 	q       engine.QueueStore
@@ -59,7 +62,7 @@ func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleC
 	if d.Raffle == nil {
 		return raffleCmd{}, false
 	}
-	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log,
+	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log, analytics: d.Analytics,
 		loyalty: func(ctx context.Context) (string, bool) { return loyaltyVoice(ctx, d, c, "") }}
 	_ = c.Decode(&rc.cfg)
 	return rc, true
@@ -293,6 +296,7 @@ func (rc raffleCmd) cancel(ctx context.Context, _ string, emit module.Emit) erro
 		return err
 	}
 	if ok {
+		rc.analytics.Count(catalog.GamesRounds, "raffle", "cancelled")
 		rc.reply(emit, "", "raffle.cancelled")
 	} else {
 		rc.reply(emit, "", "raffle.status.closed")

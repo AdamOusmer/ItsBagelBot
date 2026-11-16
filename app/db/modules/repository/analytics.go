@@ -79,7 +79,7 @@ func (r *Modules) seedModules(ctx context.Context, tally analytics.Tally) error 
 			return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Modules, error) {
 				q := r.client.Modules.Query().
 					Order(modules.ByUserID(), modules.ByName()).
-					Select(modules.FieldUserID, modules.FieldName, modules.FieldIsEnabled).
+					Select(modules.FieldUserID, modules.FieldName, modules.FieldIsEnabled, modules.FieldConfigs).
 					Limit(limit)
 				if after != nil {
 					q = q.Where(modules.Or(
@@ -106,6 +106,7 @@ func (r *Modules) seedModules(ctx context.Context, tally analytics.Tally) error 
 				enabled++
 			}
 			tally.Add(catalog.ModulesRows, m.Name, state)
+			tallyTimers(tally, m)
 		})
 	flush()
 	return err

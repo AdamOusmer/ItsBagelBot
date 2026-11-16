@@ -1,4 +1,8 @@
 {
+  "community": {
+    "title": "Comunidad",
+    "question": "¿Cómo se usan los temporizadores, juegos, puntos y recompensas?"
+  },
   "overview": {
     "title": "Resumen",
     "question": "¿Cuánto trabaja el bot y está creciendo?"

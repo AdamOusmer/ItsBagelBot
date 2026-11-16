@@ -16,6 +16,7 @@ import { env } from '@bagel/kit/server/env';
 import { cookieOptions, YEAR_SECONDS } from '#lib/server/cookies';
 import { isBotAccount } from '#lib/server/bot-account';
 import { purgeRenamedChannel, schedulePurgeChannel } from '#lib/server/edge-purge';
+import { count } from '@bagel/kit/server/analytics';
 
 const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'rpc.dashboard';
 
@@ -29,6 +30,12 @@ type IdTokenClaims = {
 };
 
 type Identity = { userId: string; login: string; displayName: string };
+type LoginFailure = 'declined' | 'oauth' | 'state' | 'bot' | 'scope' | 'link' | 'retry' | 'banned';
+
+function rejectLogin(step: LoginFailure): never {
+  count('auth.login', step);
+  throw redirect(302, `/login?e=${step}`);
+}
 
 function audIssuerOk(claims: IdTokenClaims): boolean {
   const clientId = env.TWITCH_CLIENT_ID ?? '';
@@ -44,7 +51,7 @@ function missingOpenidScope(claims: IdTokenClaims): boolean {
   return !!claims.scope && !claims.scope.includes('openid');
 }
 
-function claimRejection(claims: IdTokenClaims, storedNonce: string | undefined): string | null {
+function claimRejection(claims: IdTokenClaims, storedNonce: string | undefined): LoginFailure | null {
   if (!audIssuerOk(claims)) return 'state';
   if (nonceMismatch(claims, storedNonce)) return 'state';
   if (isBotAccount(claims.sub, env)) return 'bot';
@@ -54,7 +61,7 @@ function claimRejection(claims: IdTokenClaims, storedNonce: string | undefined):
 
 function verifyClaims(claims: IdTokenClaims, storedNonce: string | undefined): void {
   const rejected = claimRejection(claims, storedNonce);
-  if (rejected) throw redirect(302, `/login?e=${rejected}`);
+  if (rejected) rejectLogin(rejected);
 }
 
 function setSessionCookie(cookies: Cookies, url: URL, session: Parameters<typeof seal>[0]): void {
@@ -80,12 +87,12 @@ function grantedScopes(tokens: { scopes(): string[] }): { scopes?: string[] } {
 }
 
 function delegationErrorLanding(err: unknown): string {
-  if (!(err instanceof RpcError)) throw redirect(302, '/login?e=retry');
+  if (!(err instanceof RpcError)) rejectLogin('retry');
   if (err.message === 'cannot delegate to yourself') return '/settings?e=self';
   if (['link already used', 'ent: delegation not found'].includes(err.message)) {
-    throw redirect(302, '/login?e=link');
+    rejectLogin('link');
   }
-  throw redirect(302, '/login?e=retry');
+  rejectLogin('retry');
 }
 
 async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity): Promise<string | null> {
@@ -99,7 +106,7 @@ async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity)
   } catch (err) {
     return delegationErrorLanding(err);
   }
-  if (!result.ok) throw redirect(302, '/login?e=link');
+  if (!result.ok) rejectLogin('link');
 
   setSessionCookie(cookies, url, {
     ...streamerSession(id),
@@ -107,6 +114,7 @@ async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity)
     delegate_login: result.owner_login,
     sections: result.sections ?? []
   });
+  count('auth.login', 'ok');
   throw redirect(302, '/');
 }
 
@@ -121,7 +129,7 @@ async function registerUser(id: Identity, email: string | null): Promise<void> {
     });
   } catch (err: unknown) {
     logger.error({ err }, '[callback] upsert_user failed, refusing session');
-    throw redirect(302, '/login?e=retry');
+    rejectLogin('retry');
   }
 }
 
@@ -188,7 +196,7 @@ async function persistGrant(userId: string, tokens: { accessToken(): string; ref
 function callbackGate(
   params: URLSearchParams,
   cookies: Cookies
-): { ok: true; code: string; storedNonce: string } | { ok: false; slug: string } {
+): { ok: true; code: string; storedNonce: string } | { ok: false; slug: LoginFailure } {
   const error = params.get('error');
   const code = params.get('code');
   const state = params.get('state');
@@ -206,7 +214,7 @@ async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: s
     return await completeLogin(cookies, url, code, storedNonce);
   } catch (e) {
     if (!isOAuthProtocolError(e)) throw e;
-    throw redirect(302, '/login?e=oauth');
+    rejectLogin('oauth');
   }
 }
 
@@ -217,10 +225,11 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   cookies.delete('oauth_nonce', { path: '/' });
   cookies.delete('login_next', { path: '/' });
 
-  if (!gate.ok) throw redirect(302, `/login?e=${gate.slug}`);
+  if (!gate.ok) rejectLogin(gate.slug);
 
   const landing = await runLogin(cookies, url, gate.code, gate.storedNonce);
 
+  count('auth.login', 'ok');
   throw redirect(302, landing ?? next ?? '/');
 };
 
@@ -240,7 +249,7 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
     fetchAccountEmail(tokens.accessToken()),
     priorLogin(identity.userId)
   ]);
-  if (banned) throw redirect(302, '/login?e=banned');
+  if (banned) rejectLogin('banned');
 
   // Register before the delegation accept, or the ghost-session gate bounces a first-time invitee.
   await registerUser(identity, email);

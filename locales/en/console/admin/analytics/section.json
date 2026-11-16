@@ -1,4 +1,8 @@
 {
+  "community": {
+    "title": "Community",
+    "question": "How are timers, games, points and rewards used?"
+  },
   "overview": {
     "title": "Overview",
     "question": "How busy is the bot, and is it growing?"

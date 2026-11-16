@@ -87,6 +87,16 @@ const (
 	ImportRuns         Metric = "import.runs"
 	OnboardingSteps    Metric = "onboarding.steps"
 	AccountsDelegating Metric = "accounts.delegating"
+	TimersTicks        Metric = "timers.ticks"
+	TimersTotal        Metric = "timers.total"
+	AutomodFlags       Metric = "automod.flags"
+	AccountsRuntime    Metric = "accounts.runtime"
+	GamesRounds        Metric = "games.rounds"
+	GamesEntrants      Metric = "games.entrants"
+	PointsFlows        Metric = "points.flows"
+	RewardsRedeems     Metric = "rewards.redeems"
+	AuthLogin          Metric = "auth.login"
+	DesktopGrants      Metric = "desktop.grants"
 )
 
 const (
@@ -124,6 +134,19 @@ const (
 	KindImport    Kind = "import"
 	KindStep      Kind = "step"
 	KindOnboard   Kind = "onboard"
+	KindTick      Kind = "tick"
+	KindOpt       Kind = "opt"
+	KindRule      Kind = "rule"
+	KindMode      Kind = "mode"
+	KindRuntime   Kind = "runtime"
+	KindGame      Kind = "game"
+	KindEnd       Kind = "end"
+	KindBucket    Kind = "bucket"
+	KindFlow      Kind = "flow"
+	KindFeature   Kind = "feature"
+	KindRedeem    Kind = "redeem"
+	KindLogin     Kind = "login"
+	KindPlatform  Kind = "platform"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -180,10 +203,20 @@ var catalog = map[Metric]Spec{
 	ImportRuns:         {Type: Counter, Dims: []Kind{KindImport, KindStep}},
 	OnboardingSteps:    {Type: Counter, Dims: []Kind{KindOnboard}},
 	AccountsDelegating: {Type: Level},
+	TimersTicks:        {Type: Counter, Dims: []Kind{KindTick}},
+	TimersTotal:        {Type: Level, Dims: []Kind{KindOpt}},
+	AutomodFlags:       {Type: Counter, Dims: []Kind{KindRule, KindMode}},
+	AccountsRuntime:    {Type: Level, Dims: []Kind{KindRuntime}},
+	GamesRounds:        {Type: Counter, Dims: []Kind{KindGame, KindEnd}},
+	GamesEntrants:      {Type: Counter, Dims: []Kind{KindGame, KindBucket}},
+	PointsFlows:        {Type: Counter, Dims: []Kind{KindFlow}},
+	RewardsRedeems:     {Type: Counter, Dims: []Kind{KindFeature, KindRedeem}},
+	AuthLogin:          {Type: Counter, Dims: []Kind{KindLogin}},
+	DesktopGrants:      {Type: Level, Dims: []Kind{KindPlatform}},
 }
 
 var enums = map[Kind][]string{
-	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted"},
+	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted", "trial_promoted"},
 	KindPreset:    {"start-new", "integrate", "quiet", "import", "songs"},
 	KindToggle:    {"on", "off"},
 	KindChange:    {"created", "deleted"},
@@ -214,6 +247,19 @@ var enums = map[Kind][]string{
 	KindImport:   {"streamelements", "fossabot", "moobot", "nightbot", "streamlabs_desktop", "wizebot"},
 	KindStep:     {"preview_ok", "preview_failed", "committed", "commit_failed"},
 	KindOnboard:  {"viewed", "consent_missing", "save_failed"},
+	KindTick:     {"fired", "gated", "stopped", "floor", "blank", "refused"},
+	KindOpt:      {"plain", "gated", "capped", "ends", "offline"},
+	KindRule:     {"ip_logger", "scam", "phish", "heuristic", "block_term", "lex_hate", "lex_harassment", "lex_sexual", "lex_profanity", "council_campaign", "repeat", "campaign", "shield_mode", "other"},
+	KindMode:     {"shadow", "enforced"},
+	KindRuntime:  {"active", "dormant", "blocked", "disabled", "recovering", "degraded"},
+	KindGame:     {"raffle", "mraffle", "duel", "gamble"},
+	KindEnd:      {"drawn", "empty", "cancelled", "declined", "no_show", "won", "lost"},
+	KindBucket:   {"1", "2_4", "5_19", "20_99", "100p"},
+	KindFlow:     {"gamble", "duel_stake", "transfer", "adjust", "reward_grant", "raffle_payout"},
+	KindFeature:  {"channelpoints", "govee"},
+	KindRedeem:   {"ok", "offline", "bad_input", "setup", "busy", "unreachable"},
+	KindLogin:    {"started", "ok", "declined", "oauth", "state", "bot", "scope", "link", "retry", "banned"},
+	KindPlatform: {"macos", "windows", "linux"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{

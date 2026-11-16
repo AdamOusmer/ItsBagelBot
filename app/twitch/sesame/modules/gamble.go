@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 
 	"go.uber.org/zap"
 )
@@ -130,10 +131,13 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return nil
 	}
 	wager.balance = out.Balance.Points
+	gc.d.Analytics.Count(catalog.PointsFlows, "gamble")
 	if engine.GambleWins(roll, gc.cfg.WinPercent) {
+		gc.d.Analytics.Count(catalog.GamesRounds, "gamble", "won")
 		gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", wager)
 		return nil
 	}
+	gc.d.Analytics.Count(catalog.GamesRounds, "gamble", "lost")
 	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
 		"roll", strconv.FormatInt(roll, 10),
 		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),

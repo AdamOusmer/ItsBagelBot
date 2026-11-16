@@ -20,6 +20,7 @@ const one = (values: readonly string[]) => (v: string) => values.includes(v);
 const shape = (re: RegExp) => (v: string) => re.test(v);
 
 const CATALOG: Record<string, ((v: string) => boolean)[]> = {
+  'auth.login': [one(['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned'])],
   'onboarding.preset': [one(['start-new', 'integrate', 'quiet', 'import', 'songs'])],
   'module.toggles': [shape(NAME), one(['on', 'off'])],
   'custom.commands': [one(['created', 'deleted'])],

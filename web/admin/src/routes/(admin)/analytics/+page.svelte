@@ -30,7 +30,7 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const SECTIONS = ['overview', 'growth', 'engagement', 'retention', 'revenue', 'features', 'recipes', 'reliability', 'commands', 'audience'] as const;
+  const SECTIONS = ['overview', 'growth', 'engagement', 'retention', 'revenue', 'features', 'community', 'recipes', 'reliability', 'commands', 'audience'] as const;
   const FIRST_COLUMN: Record<string, string> = {
     plans: 'plan',
     conversion: 'signupWeek',
@@ -43,6 +43,10 @@
     recipeTotals: 'trigger',
     drops: 'sendKind',
     providers: 'provider',
+    rounds: 'game',
+    entrants: 'game',
+    rewards: 'feature',
+    moderation: 'rule',
   };
   const DAY_MS = 86_400_000;
   const SKELETON_HEIGHT = { series: '178px', lines: '330px', bars: '220px', table: '240px', facts: '120px', cohort: '320px' } as const;
@@ -360,6 +364,10 @@
       {@render barCard('onboarding', view?.growth.onboarding, view?.growth.onboarded)}
     </Grid>
     {@render tableCard('imports', view?.growth.imports)}
+    <Grid cols={2} stackAt="md">
+      {@render barCard('login', view?.growth.login)}
+      {@render factsCard('trials', view?.growth.trials)}
+    </Grid>
   </section>
 
   <section id="engagement" class="block">
@@ -402,6 +410,20 @@
     {@render barCard('dashboard', view?.features.dashboard)}
   </section>
 
+  <section id="community" class="block">
+    {@render heading('community')}
+    <Grid cols={2} stackAt="md">
+      {@render barCard('ticks', view?.community.ticks)}
+      {@render barCard('timers', view?.community.timers)}
+    </Grid>
+    {@render tableCard('rounds', view?.community.rounds, '760px')}
+    {@render tableCard('entrants', view?.community.entrants, '620px')}
+    <Grid cols={2} stackAt="md">
+      {@render barCard('points', view?.community.points)}
+      {@render tableCard('rewards', view?.community.rewards, '640px')}
+    </Grid>
+  </section>
+
   <section id="recipes" class="block">
     {@render heading('recipes')}
     <Grid cols={2} stackAt="md">
@@ -432,6 +454,7 @@
       {@render barCard('blocked', view?.reliability.blocked)}
     </Grid>
     {@render tableCard('providers', view?.reliability.providers)}
+    {@render tableCard('moderation', view?.reliability.flags)}
   </section>
 
   <section id="commands" class="block">
@@ -448,6 +471,10 @@
     {@render heading('audience')}
     {@render barCard('locales', view?.audience.locales)}
     {@render factsCard('delegating', view?.audience.delegating)}
+    <Grid cols={2} stackAt="md">
+      {@render barCard('runtime', view?.audience.runtime)}
+      {@render barCard('desktop', view?.audience.desktop)}
+    </Grid>
   </section>
 </section>
 

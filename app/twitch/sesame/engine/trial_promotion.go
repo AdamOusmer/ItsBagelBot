@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	valkey "github.com/valkey-io/valkey-go"
@@ -25,9 +27,10 @@ type TrialPromoter interface {
 }
 
 type TrialPromotion struct {
-	store    valkey.Client
-	promoter TrialPromoter
-	log      *zap.Logger
+	analytics *analytics.Recorder
+	store     valkey.Client
+	promoter  TrialPromoter
+	log       *zap.Logger
 }
 
 func NewTrialPromotion(store valkey.Client, promoter TrialPromoter, log *zap.Logger) *TrialPromotion {
@@ -71,5 +74,9 @@ func (t *TrialPromotion) promote(ctx context.Context, id string) error {
 	if err := t.promoter.PromoteTrial(ctx, userID); err != nil {
 		return err
 	}
-	return claim.Done(ctx, t.store)
+	if err := claim.Done(ctx, t.store); err != nil {
+		return err
+	}
+	t.analytics.Count(catalog.Lifecycle, "trial_promoted")
+	return nil
 }

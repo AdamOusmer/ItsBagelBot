@@ -195,7 +195,8 @@ func newRuntime(w wireCtx) *channelruntime.Client {
 }
 
 func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore) *engine.ValkeyTimerStore {
-	return engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, live, engine.TimersConfig{
+	return engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, engine.TimersConfig{
+		Live:                     live,
 		Runtime:                  newRuntime(w),
 		OutgressPremiumSubject:   w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject:  w.cfg.OutgressStandardSubject,
@@ -229,14 +230,26 @@ func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, 
 	return store
 }
 
-func newRaffle(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyRaffleStore {
+func newRaffle(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore, rec *analytics.Recorder) *engine.ValkeyRaffleStore {
 	cfg := engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj), Expiry: w.expiry, Wallet: engine.NewRaffleWallet(loyalty)}
-	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, cfg, w.log))
+	store := engine.NewValkeyRaffleStore(w.in.vc, cfg, w.log)
+	store.SetAnalytics(rec)
+	return watchExpiry(w, store)
 }
 
-func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {
-	cfg := engine.DuelConfig{AnnouncementConfig: announcementConfig(w, proj), Wallet: engine.NewLoyaltyWallet(loyalty), Expiry: w.expiry}
-	return watchExpiry(w, engine.NewValkeyDuelStore(w.in.vc, cfg, w.log))
+func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore, rec *analytics.Recorder) *engine.ValkeyDuelStore {
+	wallet := engine.NewLoyaltyWallet(loyalty)
+	wallet.SetAnalytics(rec)
+	cfg := engine.DuelConfig{AnnouncementConfig: announcementConfig(w, proj), Wallet: wallet, Expiry: w.expiry}
+	store := engine.NewValkeyDuelStore(w.in.vc, cfg, w.log)
+	store.SetAnalytics(rec)
+	return watchExpiry(w, store)
+}
+
+func startTrialPromotion(w wireCtx, rec *analytics.Recorder) {
+	promotion := engine.NewTrialPromotion(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, engine.LoyaltyRPCPrefix(w.cfg.LoyaltyRPCPrefix)), w.log.Named("trial-promotion"))
+	promotion.SetAnalytics(rec)
+	go promotion.Run(w.ctx)
 }
 
 type loyaltyDeps struct {

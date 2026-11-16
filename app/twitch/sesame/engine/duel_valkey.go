@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/internal/analytics"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"ItsBagelBot/pkg/codec"
@@ -54,25 +54,6 @@ type DuelState struct {
 	OpenedAt    int64    `json:"opened_at"`
 }
 
-func (st DuelState) openerStake() DuelStake {
-	return DuelStake{Login: st.Opener, ViewerID: st.OpenerID, Stake: st.OpenerStake}
-}
-
-func (st DuelState) challengedParty() DuelParty {
-	return DuelParty{ID: st.ChallengeID, Login: st.Challenged}
-}
-
-func (st DuelState) openerParty() DuelParty {
-	return DuelParty{ID: st.OpenerID, Login: st.Opener}
-}
-
-func (p DuelParty) is(other DuelParty) bool {
-	if p.ID != 0 && other.ID != 0 {
-		return p.ID == other.ID
-	}
-	return p.Login == other.Login
-}
-
 type DuelOutcome string
 
 const (
@@ -97,39 +78,6 @@ type DuelReceipt struct {
 type DuelWallet interface {
 	Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (found, spent bool, err error)
 	Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) error
-}
-
-// Debit must stay on balance.spend's conditional UPDATE so concurrent spends never go negative.
-type LoyaltyWallet struct {
-	loyalty LoyaltyStore
-}
-
-func NewLoyaltyWallet(loyalty LoyaltyStore) *LoyaltyWallet { return &LoyaltyWallet{loyalty: loyalty} }
-
-func (w *LoyaltyWallet) Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, bool, error) {
-	_, found, spent, err := w.loyalty.BalanceSpend(ctx, PointSpend{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, Login: entry.Login, Amount: entry.Stake})
-	return found, spent, err
-}
-
-func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) error {
-	if entry.Stake <= 0 {
-		return nil
-	}
-	bal, found, err := w.credit(ctx, broadcasterID, entry)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("duel: credit target %q unseen by loyalty (bal %+v)", entry.Login, bal)
-	}
-	return nil
-}
-
-func (w *LoyaltyWallet) credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (loyaltyrpc.Balance, bool, error) {
-	if entry.ViewerID == 0 {
-		return w.loyalty.BalanceAdjust(ctx, broadcasterID, entry.Login, entry.Stake, false)
-	}
-	return w.loyalty.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, ViewerLogin: entry.Login, Value: entry.Stake})
 }
 
 type DuelOpenSpec struct {
@@ -220,9 +168,10 @@ type DuelConfig struct {
 }
 
 type ValkeyDuelStore struct {
-	client valkey.Client
-	cfg    DuelConfig
-	log    *zap.Logger
+	analytics *analytics.Recorder
+	client    valkey.Client
+	cfg       DuelConfig
+	log       *zap.Logger
 }
 
 func NewValkeyDuelStore(client valkey.Client, cfg DuelConfig, log *zap.Logger) *ValkeyDuelStore {
@@ -258,57 +207,6 @@ func (s *ValkeyDuelStore) Open(ctx context.Context, broadcasterID uint64, spec D
 		return res, nil
 	}
 	return s.install(ctx, broadcasterID, spec)
-}
-
-func prepareDuelOpen(spec DuelOpenSpec) (int64, error) {
-	if err := validateOpenSpec(spec); err != nil {
-		return 0, err
-	}
-	return openClock(spec), nil
-}
-
-func validateOpenSpec(spec DuelOpenSpec) error {
-	if spec.Stake <= 0 {
-		return fmt.Errorf("duel: stake below the floor (%d)", spec.Stake)
-	}
-	if spec.Stake > DuelMaxStake {
-		return fmt.Errorf("duel: stake above the ceiling (%d)", spec.Stake)
-	}
-	if spec.Opener.Login == "" || spec.Opener.ID == 0 {
-		return fmt.Errorf("duel: open without an opener")
-	}
-	if spec.Kind == DuelChallenge {
-		return validateChallenged(spec)
-	}
-	return validateKind(spec)
-}
-
-func validateChallenged(spec DuelOpenSpec) error {
-	if spec.Challenged.Login == "" || spec.Challenged.ID == 0 {
-		return fmt.Errorf("duel: challenge without a challenged party")
-	}
-	if spec.Opener.ID == spec.Challenged.ID {
-		return fmt.Errorf("duel: self-challenge (%q)", spec.Opener.Login)
-	}
-	return nil
-}
-
-func validateKind(spec DuelOpenSpec) error {
-	switch spec.Kind {
-	case DuelPot:
-		return nil
-	case DuelChallenge:
-		return nil
-	default:
-		return fmt.Errorf("duel: unknown kind %q", spec.Kind)
-	}
-}
-
-func openClock(spec DuelOpenSpec) int64 {
-	if spec.Kind == DuelChallenge {
-		return ClampDuelSeconds(spec.ChallengeSeconds, DuelDefaultChallengeSeconds)
-	}
-	return ClampDuelSeconds(spec.PotSeconds, DuelDefaultPotSeconds)
 }
 
 func (s *ValkeyDuelStore) install(ctx context.Context, broadcasterID uint64, spec DuelOpenSpec) (DuelOpenResult, error) {
@@ -710,7 +608,9 @@ func (s *ValkeyDuelStore) teardown(ctx context.Context, broadcasterID uint64, re
 	}
 	if err := pkg_valkey.CloseWithReceipt(ctx, s.client, spec); err != nil {
 		s.log.Warn("duel: teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
+		return
 	}
+	s.recordRound(receipt)
 }
 
 func (s *ValkeyDuelStore) StartExpiryWatcher(ctx context.Context) {
@@ -823,5 +723,7 @@ func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterI
 	spec := pkg_valkey.SnapshotReceiptSpec{Escrow: escrow, Receipt: lastKey, ReceiptValue: string(blob), Drop: drop}
 	if err := pkg_valkey.SnapshotThenReceipt(ctx, s.client, spec); err != nil {
 		s.log.Warn("duel: snapshot teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
+		return
 	}
+	s.recordRound(receipt)
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 
 	"go.uber.org/zap"
 )
@@ -109,6 +110,9 @@ func (s *ValkeyRaffleStore) credit(ctx context.Context, broadcasterID uint64, w 
 	for attempt := 1; err != nil && attempt < raffleCreditAttempts && ctx.Err() == nil; attempt++ {
 		time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
 		err = s.cfg.Wallet.Credit(ctx, broadcasterID, w)
+	}
+	if err == nil {
+		s.analytics.Count(catalog.PointsFlows, "raffle_payout")
 	}
 	return err
 }

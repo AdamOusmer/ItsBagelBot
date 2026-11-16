@@ -1,4 +1,8 @@
 {
+  "community": {
+    "title": "Community",
+    "question": "Wie werden Timer, Spiele, Punkte und Belohnungen genutzt?"
+  },
   "overview": {
     "title": "Überblick",
     "question": "Wie ausgelastet ist der Bot, und wächst er?"

@@ -1,4 +1,5 @@
 {
+  "trialPromoted": "Conversiones de prueba",
   "netAccounts": "Cuentas netas (registros menos eliminaciones)",
   "netBot": "Cambio de cuentas con bot entre capturas del período",
   "cancelPending": "Cancelaciones pendientes",

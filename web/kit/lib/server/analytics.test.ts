@@ -86,6 +86,7 @@ it('buffers every valid field without a fixed slot cap', async () => {
 });
 
 const metrics = [
+  { metric: 'auth.login', dims: [['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned']] },
   { metric: 'dashboard.views', dims: [
     ['overview', 'commands', 'flows', 'automations', 'modules', 'timers', 'loyalty', 'counters',
       'quotes', 'songqueue', 'channelpoints', 'govee', 'billing', 'settings', 'access'], ['owner', 'delegate']

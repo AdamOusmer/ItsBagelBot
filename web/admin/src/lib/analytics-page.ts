@@ -79,18 +79,28 @@ export type AnalyticsView = {
   empty: boolean;
   period: { start: string; end: string };
   kpis: Kpi[];
-  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; onboarded: Fact[] };
+  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[] };
   engagement: { active: Series; live: Series; messages: Series; answered: Series; facts: Fact[] };
   retention: { horizon: number; rows: CohortLine[] };
   revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable; checkout: DataTable; checkoutFacts: Fact[] };
   features: { modules: DataTable; breadth: DataTable; breadthFacts: Fact[]; integrations: Bar[]; pagesHidden: Bar[]; dashboard: Bar[] };
   commands: { builtIn: DataTable; custom: Fact[]; perms: Bar[]; flags: Bar[] };
-  audience: { locales: Bar[]; delegating: Fact[] };
+  audience: { locales: Bar[]; delegating: Fact[]; runtime: Bar[]; desktop: Bar[] };
+  community: { ticks: Bar[]; timers: Bar[]; rounds: DataTable; entrants: DataTable; points: Bar[]; rewards: DataTable };
   recipes: { runs: Bar[]; outcomes: DataTable; channels: Kpi; totals: DataTable };
-  reliability: { drops: DataTable; dailyDrops: Series; providers: DataTable; songs: Bar[]; songFacts: Fact[]; blocked: Bar[] };
+  reliability: { drops: DataTable; dailyDrops: Series; providers: DataTable; songs: Bar[]; songFacts: Fact[]; blocked: Bar[]; flags: DataTable };
 };
 
 const ENUMS = {
+  tick: ['fired', 'gated', 'stopped', 'floor', 'blank', 'refused'],
+  opt: ['plain', 'gated', 'capped', 'ends', 'offline'],
+  rule: ['ip_logger', 'scam', 'phish', 'heuristic', 'block_term', 'lex_hate', 'lex_harassment', 'lex_sexual', 'lex_profanity', 'council_campaign', 'repeat', 'campaign', 'shield_mode', 'other'],
+  runtime: ['active', 'dormant', 'blocked', 'disabled', 'recovering', 'degraded'],
+  game: ['raffle', 'mraffle', 'duel', 'gamble'],
+  flow: ['gamble', 'duel_stake', 'transfer', 'adjust', 'reward_grant', 'raffle_payout'],
+  feature: ['channelpoints', 'govee'],
+  login: ['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned'],
+  platform: ['macos', 'windows', 'linux'],
   lifecycle: ['signup', 'onboarded', 'bot_enabled', 'bot_disabled', 'revoked', 'chat_banned', 'account_deleted'],
   billing: ['activate', 'cancel_requested', 'cancel_aborted', 'revoke', 'payment_failed', 'expired'],
   tier: ['free', 'paid', 'vip'],
@@ -126,6 +136,7 @@ const UNIT_DELTA = { d: 'day', w: 'week', m: 'month' } as const;
 const LANGUAGES = new Intl.DisplayNames(['en'], { type: 'language' });
 
 type EnumName = keyof typeof ENUMS;
+const ROADMAP_ENUMS = new Set<EnumName>(['tick', 'opt', 'rule', 'runtime', 'game', 'flow', 'feature', 'login', 'platform']);
 type ShareName = 'ofTotal' | 'ofAccounts' | 'ofCommands' | 'ofChannels' | 'ofAttempts';
 type Entry = [string, number];
 type Rank = [number, number];
@@ -183,7 +194,8 @@ function row(id: Dim, name: Name, texts: string[]): TableRow {
 
 function enumName(id: Dim, group?: EnumName): Name {
   const known = group !== undefined && (ENUMS[group] as readonly string[]).includes(id);
-  return known ? { key: `admin.analytics.dim.${group}.${id}` } : { text: id };
+  const catalog = group !== undefined && ROADMAP_ENUMS.has(group) ? 'roadmap' : 'dim';
+  return known ? { key: `admin.analytics.${catalog}.${group}.${id}` } : { text: id };
 }
 
 function ofShare(name: ShareName, whole: Count): (value: Count) => Phrase {
@@ -337,7 +349,9 @@ function growth(c: Ctx): AnalyticsView['growth'] {
     activationAge: bars(byDim(weekly(c, 'activation.age')), { ids: ENUMS.age, enum: 'age', order: 'keep' }),
     onboarding: bars(byDim(counter(c, 'onboarding.steps')), { ids: ENUMS.onboard, enum: 'onboard', order: 'keep' }),
     imports: dimensionTable(counter(c, 'import.runs'), ['preview_ok', 'preview_failed', 'committed', 'commit_failed']),
-    onboarded: accountFacts(c, 'accounts.onboarded', 'onboarded')
+    onboarded: accountFacts(c, 'accounts.onboarded', 'onboarded'),
+    login: bars(byDim(counter(c, 'auth.login')), { ids: ENUMS.login, enum: 'login', order: 'keep' }),
+    trials: facts({ trialPromoted: fmt(n('trial_promoted')) })
   };
 }
 
@@ -546,7 +560,9 @@ function audience(c: Ctx): AnalyticsView['audience'] {
   const locales = byDim(level(c, 'accounts.locale'));
   return {
     locales: bars(locales, { name: localeName, secondary: ofShare('ofAccounts', accounts) }),
-    delegating: accountFacts(c, 'accounts.delegating', 'delegating')
+    delegating: accountFacts(c, 'accounts.delegating', 'delegating'),
+    runtime: bars(byDim(level(c, 'accounts.runtime')), { ids: ENUMS.runtime, enum: 'runtime', order: 'keep' }),
+    desktop: bars(byDim(level(c, 'desktop.grants')), { ids: ENUMS.platform, enum: 'platform', order: 'keep' })
   };
 }
 
@@ -630,7 +646,8 @@ function reliability(c: Ctx): AnalyticsView['reliability'] {
     providers: providers(c),
     songs: bars(byDim(songs), { ids: ENUMS.song, enum: 'song', secondary: ofShare('ofTotal', sum(songs)) }),
     songFacts: facts({ songSuccess: pct(sum(withDim(songs, 'queued')), sum(songs)) }),
-    blocked: bars(blocked, { ids: ENUMS.block, enum: 'block', secondary: ofShare('ofAttempts', attempts) })
+    blocked: bars(blocked, { ids: ENUMS.block, enum: 'block', secondary: ofShare('ofAttempts', attempts) }),
+    flags: dimensionTable(counter(c, 'automod.flags'), ['shadow', 'enforced'], 'rule')
   };
 }
 
@@ -652,6 +669,18 @@ export function buildAnalytics(r: AnalyticsReads): AnalyticsView {
     commands: commands(c),
     audience: audience(c),
     recipes: recipes(c),
-    reliability: reliability(c)
+    reliability: reliability(c),
+    community: community(c)
+  };
+}
+
+function community(c: Ctx): AnalyticsView['community'] {
+  return {
+    ticks: bars(byDim(counter(c, 'timers.ticks')), { ids: ENUMS.tick, enum: 'tick', order: 'keep' }),
+    timers: bars(byDim(level(c, 'timers.total')), { ids: ENUMS.opt, enum: 'opt', order: 'keep' }),
+    rounds: dimensionTable(counter(c, 'games.rounds'), ['drawn', 'empty', 'cancelled', 'declined', 'no_show', 'won', 'lost'], 'game'),
+    entrants: dimensionTable(counter(c, 'games.entrants'), ['1', '2_4', '5_19', '20_99', '100p'], 'game'),
+    points: bars(byDim(counter(c, 'points.flows')), { ids: ENUMS.flow, enum: 'flow' }),
+    rewards: dimensionTable(counter(c, 'rewards.redeems'), ['ok', 'offline', 'bad_input', 'setup', 'busy', 'unreachable'], 'feature')
   };
 }

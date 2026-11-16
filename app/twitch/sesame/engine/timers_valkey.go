@@ -111,6 +111,7 @@ func (s *ValkeyTimerStore) WirePipeline(p *Pipeline) {
 }
 
 type TimersConfig struct {
+	Live                     IsLiveChecker
 	Runtime                  channelruntime.Reader
 	OutgressPremiumSubject   string
 	OutgressStandardSubject  string
@@ -122,7 +123,7 @@ type TimersConfig struct {
 	Log                      *zap.Logger
 }
 
-func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projection.Reader, live IsLiveChecker, cfg TimersConfig) *ValkeyTimerStore {
+func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projection.Reader, cfg TimersConfig) *ValkeyTimerStore {
 	log := cfg.Log
 	if log == nil {
 		log = zap.NewNop()
@@ -132,7 +133,7 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 		client:           client,
 		pub:              pub,
 		proj:             proj,
-		live:             live,
+		live:             cfg.Live,
 		nc:               cfg.NC,
 		rearmSubject:     cfg.ModulesInvalidateSubject,
 		rearmExtra:       cfg.AutomationsInvalidate,
@@ -508,9 +509,11 @@ func runtimeFence(state channelruntime.Snapshot) string {
 
 func (s *ValkeyTimerStore) tick(ctx context.Context, at armedTimer) {
 	if s.hasStopped(ctx, at) {
+		s.recordTick("stopped")
 		return
 	}
 	if !s.gateOpen(ctx, at) {
+		s.recordTick("gated")
 		s.arm(ctx, at)
 		return
 	}
@@ -661,6 +664,7 @@ func findTimer(timers []timerDef, id string) (timerDef, bool) {
 
 func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 	if !s.admitted(ctx, at.ref.broadcasterID) {
+		s.recordTick("refused")
 		return
 	}
 	if strings.HasPrefix(at.ref.id, autoTimerPrefix) {
@@ -668,6 +672,7 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 		return
 	}
 	if term, hit := moderation.CheckFloor(at.def.Message); hit {
+		s.recordTick("floor")
 		s.log.Warn("timers: suppressed message carrying floor content",
 			module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.String("term", term))
 		return
@@ -683,6 +688,7 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 	text := s.timerText(ctx, at, user)
 	outputs := s.timerOutputs(idStr, text)
 	if len(outputs) == 0 {
+		s.recordTick("blank")
 		s.warnBlankFire(at)
 		return
 	}
@@ -753,7 +759,14 @@ func (s *ValkeyTimerStore) recordTimerOutput(broadcasterID uint64, createdAt int
 		return
 	}
 	s.pipeline.analytics.Count(catalog.TimerFires)
+	s.recordTick("fired")
 	s.pipeline.recordProcessed(broadcasterID, createdAt, false, 1)
+}
+
+func (s *ValkeyTimerStore) recordTick(tick string) {
+	if s.pipeline != nil {
+		s.pipeline.analytics.Count(catalog.TimersTicks, tick)
+	}
 }
 
 func (s *ValkeyTimerStore) admitted(ctx context.Context, id uint64) bool {

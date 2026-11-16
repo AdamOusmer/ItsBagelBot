@@ -51,6 +51,7 @@ func TestAccountLevelsFollowWrites(t *testing.T) {
 		"accounts.paid_source|admin":           1,
 		"accounts.locale|en":                   2,
 		"accounts.locale|fr":                   1,
+		"accounts.runtime|active":              3,
 		"accounts.pages_hidden|commands":       1,
 		"accounts.by_signup_week|" + week:      3,
 		"accounts.paid_by_signup_week|" + week: 2,

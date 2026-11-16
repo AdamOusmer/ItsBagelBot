@@ -18,6 +18,7 @@ var accountColumns = []string{
 	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
 	user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldCreatedAt,
 	user.FieldTestAccount, user.FieldBanned,
+	user.FieldLifecycleState,
 }
 
 func tallyCounted(t analytics.Tally, u *ent.User) {
@@ -44,7 +45,10 @@ func (r *Users) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r.tallyDelegating(ctx, tally, nil)
+	if _, err := r.tallyDelegating(ctx, tally, nil); err != nil {
+		return nil, err
+	}
+	return r.tallyDesktopGrants(ctx, tally)
 }
 
 func tallyAccount(t analytics.Tally, u *ent.User) {
@@ -53,6 +57,7 @@ func tallyAccount(t analytics.Tally, u *ent.User) {
 	t.Add(catalog.AccountsTotal, tier)
 	t.Add(catalog.AccountsBySignupWeek, week)
 	t.Add(catalog.AccountsLocale, u.Locale)
+	t.Add(catalog.AccountsRuntime, u.LifecycleState)
 	if u.IsActive {
 		t.Add(catalog.AccountsBotEnabled, tier)
 	}
