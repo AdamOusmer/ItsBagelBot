@@ -53,6 +53,17 @@ func TestParseAmounts(t *testing.T) {
 	}
 }
 
+func TestParseKinds(t *testing.T) {
+	for kofiType, kind := range map[string]kofi.Kind{
+		"Tip": kofi.KindDonation, "Donation": kofi.KindDonation, "Subscription": kofi.KindSubscription,
+		"Commission": kofi.KindCommission, "Shop Order": kofi.KindShopOrder,
+	} {
+		donation, err := kofi.Parse(payload(t, map[string]any{"type": kofiType}), token)
+		require.NoError(t, err, kofiType)
+		assert.Equal(t, kind, donation.Kind, kofiType)
+	}
+}
+
 func TestParseRejects(t *testing.T) {
 	for name, tc := range map[string]struct {
 		overrides map[string]any

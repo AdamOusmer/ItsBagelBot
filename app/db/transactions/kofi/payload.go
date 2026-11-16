@@ -27,6 +27,7 @@ const (
 var Kinds = []Kind{KindDonation, KindSubscription, KindCommission, KindShopOrder}
 
 var kindByType = map[string]Kind{
+	"Tip":          KindDonation,
 	"Donation":     KindDonation,
 	"Subscription": KindSubscription,
 	"Commission":   KindCommission,

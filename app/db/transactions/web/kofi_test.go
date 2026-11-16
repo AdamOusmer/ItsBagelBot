@@ -29,7 +29,7 @@ func (d *donationLog) RecordDonation(_ context.Context, donation kofi.Donation) 
 
 func kofiBody(token, transactionID string) string {
 	data := `{"verification_token":"` + token + `","message_id":"m-1","timestamp":"2026-11-02T13:04:30Z",` +
-		`"type":"Donation","amount":"3.00","currency":"USD","kofi_transaction_id":"` + transactionID + `"}`
+		`"type":"Tip","amount":"3.00","currency":"USD","kofi_transaction_id":"` + transactionID + `"}`
 	return url.Values{"data": {data}}.Encode()
 }
 
@@ -49,7 +49,7 @@ func TestKofiWebhook(t *testing.T) {
 			token: "tok", body: strings.Replace(kofiBody("tok", "t-1"), "3.00", "3.001", 1), status: http.StatusBadRequest,
 		},
 		"acks an unsupported type": {
-			token: "tok", body: strings.Replace(kofiBody("tok", "t-1"), "Donation", "Refund", 1), status: http.StatusOK,
+			token: "tok", body: strings.Replace(kofiBody("tok", "t-1"), "Tip", "Refund", 1), status: http.StatusOK,
 		},
 		"rejects an oversized body": {token: "tok", body: "data=" + strings.Repeat("a", maxBodyBytes), status: http.StatusRequestEntityTooLarge},
 		"acks the settings test":    {token: "tok", body: kofiBody("tok", "00000000-1111-2222-3333-444444444444"), status: http.StatusOK},
