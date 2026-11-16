@@ -3,6 +3,7 @@
 
 // Keep catalog validation aligned with Go or identifiers can leak into aggregate storage.
 import { masterClient } from './valkey-master';
+import { MARKETING_CTAS, PUBLIC_PAGES } from '../analytics-beacon-catalog';
 
 type Pipeline = {
   hincrby(key: string, field: string, n: number): Pipeline;
@@ -20,6 +21,8 @@ const one = (values: readonly string[]) => (v: string) => values.includes(v);
 const shape = (re: RegExp) => (v: string) => re.test(v);
 
 const CATALOG: Record<string, ((v: string) => boolean)[]> = {
+  'public.views': [one(PUBLIC_PAGES)],
+  'marketing.cta': [one(MARKETING_CTAS)],
   'auth.login': [one(['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned'])],
   'onboarding.preset': [one(['start-new', 'integrate', 'quiet', 'import', 'songs'])],
   'module.toggles': [shape(NAME), one(['on', 'off'])],

@@ -23,7 +23,7 @@ test.each([
   expect(route(href)).toBe(want);
 });
 
-test.each(['status', 'healthz', 'readyz', 'login', 'stats', 'auth', 'delegate', 'spotify', 'lang', 'cursor', 'events'])(
+test.each(['b', 'status', 'healthz', 'readyz', 'login', 'stats', 'auth', 'delegate', 'spotify', 'lang', 'cursor', 'events'])(
   'the %s route keeps its own handler on the queue host',
   (name) => {
     expect(route(`https://queue.itsbagelbot.com/${name}`)).toBeUndefined();

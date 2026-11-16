@@ -11,6 +11,7 @@ import { i18nCatalogs } from '../kit/scripts/i18n-catalogs.ts';
 import { i18nSlices } from '../kit/scripts/i18n-slices.ts';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
 import { consoleKitConfig } from '../kit/svelte-config.js';
+import { SITE } from '../kit/lib/site-links.ts';
 
 // Route files that import @bagel/kit/styles/ui-console.css.
 const consoleRoutes = /\/src\/routes\/(\(app\)\/|welcome\/\+page\.svelte$|\+error\.svelte$)/;
@@ -23,6 +24,7 @@ export default defineConfig({
     bundledUiSheets({ consoleRoutes }),
     sveltekit({
       ...consoleKitConfig({ directives: { 'frame-src': ['none'], 'form-action': ['self'] } }),
+      csrf: { trustedOrigins: [SITE.web] },
       compilerOptions: { discloseVersion: false }
     })
   ],

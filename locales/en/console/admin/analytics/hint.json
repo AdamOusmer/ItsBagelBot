@@ -1,4 +1,6 @@
 {
+  "cta": "Clicks on dashboard links by placement in this period. Counts are events, not unique people.",
+  "publicViews": "Client-reported views by public page in this period, including cached pages. Counts are views, not unique people.",
   "sizes": "Distinct channels in the last full week, grouped by current live viewer count. A channel may appear in more than one band during a week. Counts below 5 are shown as <5 and excluded from shares.",
   "ticks": "Tick outcomes in this period. Fired counts published messages.",
   "timers": "Enabled timers in enabled modules. Options can overlap; plain has none.",

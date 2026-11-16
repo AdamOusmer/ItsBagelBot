@@ -1,4 +1,6 @@
 {
+  "publicPage": { "commands": "Commandes", "leaderboard": "Classement", "songqueue": "File musicale", "queue": "File des spectateurs", "stats": "Statistiques publiques", "login": "Connexion" },
+  "cta": { "nav": "Navigation", "hero": "En-tête d’accueil", "playground": "Essai des commandes", "finale": "Fin de la page d’accueil", "pricing": "Tarifs", "footer": "Pied de page", "landing": "Pages des fonctionnalités", "compare": "Comparatifs", "guide": "Guides", "import": "Page d’importation", "builder": "Éditeur de commandes", "app": "Obtenir l’application" },
   "size": {
     "v0_9": "De 0 à 9 spectateurs",
     "v10_49": "De 10 à 49 spectateurs",

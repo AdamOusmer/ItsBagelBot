@@ -1,4 +1,6 @@
 {
+  "cta": "Klicks auf Dashboard-Links nach Platzierung in diesem Zeitraum. Gezählt werden Ereignisse, keine einzelnen Personen.",
+  "publicViews": "Vom Browser gemeldete Aufrufe nach öffentlicher Seite in diesem Zeitraum, einschließlich zwischengespeicherter Seiten. Gezählt werden Aufrufe, keine einzelnen Personen.",
   "sizes": "Eindeutige Kanäle der letzten vollständigen Woche, gruppiert nach aktueller Live-Zuschauerzahl. Ein Kanal kann innerhalb einer Woche in mehreren Gruppen erscheinen. Anzahlen unter 5 werden als <5 angezeigt und bei den Anteilen nicht berücksichtigt.",
   "ticks": "Ergebnisse im Zeitraum. Gesendet zählt veröffentlichte Nachrichten.",
   "timers": "Aktive Timer in aktivierten Modulen. Optionen können sich überschneiden; einfach hat keine.",

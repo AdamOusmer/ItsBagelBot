@@ -19,7 +19,8 @@ const COUNTERS = [
   'lifecycle', 'billing.events', 'onboarding.preset', 'command.uses', 'module.events', 'module.toggles',
   'custom.commands', 'recipe.runs', 'outgress.dropped', 'provider.calls', 'songs.requests',
   'command.blocked', 'onboarding.steps', 'import.runs', 'dashboard.views', 'billing.checkout',
-  'timers.ticks', 'automod.flags', 'games.rounds', 'games.entrants', 'points.flows', 'rewards.redeems', 'auth.login'
+  'timers.ticks', 'automod.flags', 'games.rounds', 'games.entrants', 'points.flows', 'rewards.redeems', 'auth.login',
+  'public.views', 'marketing.cta'
 ];
 const LEVELS = [
   'accounts.total', 'accounts.bot_enabled', 'accounts.onboarded', 'accounts.paid_source',

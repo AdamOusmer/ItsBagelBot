@@ -6,7 +6,7 @@ import type { Reroute } from '@sveltejs/kit/hooks';
 const QUEUE_PATH = /^\/(@?\w+)(\/data)?\/?$/;
 
 const TOP_LEVEL_ROUTES: ReadonlySet<string> = new Set([
-  'auth', 'cursor', 'delegate', 'events', 'goodbye', 'healthz', 'lang', 'login', 'queue', 'readyz', 'spotify', 'stats', 'status', 'user', 'welcome'
+  'auth', 'b', 'cursor', 'delegate', 'events', 'goodbye', 'healthz', 'lang', 'login', 'queue', 'readyz', 'spotify', 'stats', 'status', 'user', 'welcome'
 ]);
 
 function queueRoute(pathname: string): string | undefined {

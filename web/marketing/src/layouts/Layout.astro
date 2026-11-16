@@ -213,7 +213,7 @@ const contentSecurityPolicy = [
     // Keep this and public/_headers in sync; event handlers remain disallowed.
     `script-src 'self' 'unsafe-inline'${devScriptSources} https://static.cloudflareinsights.com https://ajax.cloudflare.com`,
     "script-src-attr 'none'",
-    `connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com${devConnectSources}`,
+    `connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com https://dashboard.itsbagelbot.com${devConnectSources}`,
     "base-uri 'self'",
     "form-action 'self'",
 ].join('; ');
@@ -320,6 +320,9 @@ const contentSecurityPolicy = [
         import '../script/easter-egg';
         import '../script/prefetch';
         import '../script/edge-scripts';
+        import { countCtaClicks } from '../lib/analytics-cta';
+
+        countCtaClicks();
     </script>
 
     <script>
