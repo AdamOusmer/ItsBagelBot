@@ -1,6 +1,10 @@
 {
-  "title": "{channel} play queue",
-  "metaDescription": "See who is in line to play with {channel} on ItsBagelBot, updated live.",
+  "title": "{channel} viewer queue on Twitch | ItsBagelBot",
+  "metaDescription": "See who is in line to play with {channel} on Twitch and who gets called next. Join from the Twitch chat with !join. Updated live.",
+  "aboutTitle": "Play with {channel}",
+  "aboutBody": "{channel} runs a viewer queue through ItsBagelBot, a free Twitch chat bot. Type !join in the Twitch chat to get in line and !leave to step out. The streamer calls viewers in the order they joined.",
+  "aboutTwitch": "Watch {channel} on Twitch",
+  "aboutLink": "Add a viewer queue to your channel",
   "eyebrow": "Play queue",
   "tagline": "Who is in line and who gets called next, updated live.",
   "joinHint": "Join from chat with !join or !queue join.",

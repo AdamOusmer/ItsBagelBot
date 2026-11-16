@@ -6,9 +6,11 @@
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
+  import LinkRow from '@bagel/ui/svelte/LinkRow.svelte';
 
   type Row = { key: string; position: number; name: string; detail?: string; face: string; wait: string; share: number; search: string };
   type Copy = { title: string; body: string };
+  type About = Copy & { links: { href: string; label: string; external?: boolean }[] };
 
   type Props = {
     eyebrow: string;
@@ -23,9 +25,10 @@
     statusLine: string;
     empty: Copy;
     noMatch: Copy;
+    about: About;
   };
 
-  let { eyebrow, channelName, tagline, hint, next, count, board, rows, trouble, statusLine, empty, noMatch }: Props = $props();
+  let { eyebrow, channelName, tagline, hint, next, count, board, rows, trouble, statusLine, empty, noMatch, about }: Props = $props();
 
   let search = $state('');
   const needle = $derived(search.trim().toLowerCase());
@@ -135,6 +138,12 @@
 
     <p class="qp-status" role="status" aria-live="polite"><bb-fit>{statusLine}</bb-fit></p>
   </Card>
+
+  <Card class="qp-about">
+    <h2 class="qp-board__title"><bb-fit>{about.title}</bb-fit></h2>
+    <p class="qp-about__body"><bb-fit mode="block">{about.body}</bb-fit></p>
+    <LinkRow links={about.links} class="qp-about__links" />
+  </Card>
 </main>
 
 <style>
@@ -159,6 +168,18 @@
     width: min(100% - 32px, 1080px);
     margin-inline: auto;
     padding: calc(var(--bb-nav-height) + var(--bb-space-8)) 0 var(--bb-space-section);
+  }
+
+  :global(.qp-about) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+  }
+
+  .qp-about__body {
+    height: calc(3 * 1lh);
+    margin: 0;
+    color: var(--bb-muted);
   }
 
   .qp-intro {
@@ -509,6 +530,7 @@
     .qp { padding-top: calc(var(--bb-nav-height) + var(--bb-space-6)); }
     .qp-spots { grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-6); }
     .qp :global(.qp-board) { padding: var(--bb-space-5) var(--bb-space-4) var(--bb-space-4); }
+    .qp-about__body { height: calc(5 * 1lh); }
     .qp-row { grid-template-columns: 2.25rem minmax(0, 1fr) 7rem; gap: var(--bb-space-3); padding: 0 var(--bb-space-2); }
     .qp-search { width: 100%; }
   }

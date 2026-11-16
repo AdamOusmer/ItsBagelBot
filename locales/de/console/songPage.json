@@ -1,6 +1,10 @@
 {
-  "title": "Song-Warteschlange von {channel}",
-  "metaDescription": "Sieh, was bei {channel} gerade läuft und was als Nächstes kommt, live aktualisiert.",
+  "title": "Spotify-Songwünsche bei {channel} | ItsBagelBot",
+  "metaDescription": "Sieh, was im Twitch-Stream von {channel} läuft und was als Nächstes kommt. Wünsch dir im Chat mit !sr einen Spotify-Song. Live aktualisiert.",
+  "aboutTitle": "Wünsch dir einen Song bei {channel}",
+  "aboutBody": "{channel} nimmt Spotify-Songwünsche über ItsBagelBot an, einen kostenlosen Twitch-Chatbot. Gib im Twitch-Chat !sr mit einem Songnamen, „Künstler - Titel“ oder einem Spotify-Link ein. Wünsche laufen der Reihe nach auf dem Spotify des Streamers.",
+  "aboutTwitch": "{channel} auf Twitch ansehen",
+  "aboutLink": "Songwünsche für deinen Kanal einrichten",
   "eyebrow": "Song-Warteschlange",
   "tagline": "Was gerade läuft und was als Nächstes kommt, live aktualisiert.",
   "requestHint": "Wünsche dir einen Song im Chat mit !sr <song>.",

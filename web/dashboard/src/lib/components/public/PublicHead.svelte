@@ -2,7 +2,9 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  let { title, description, url }: { title: string; description: string; url: string } = $props();
+  let { title, description, url, schema }: { title: string; description: string; url: string; schema?: Record<string, unknown> } = $props();
+
+  const jsonLd = $derived(schema ? `<script type="application/ld+json">${JSON.stringify(schema).replaceAll('<', '\\u003c')}<\/script>` : '');
 </script>
 
 <svelte:head>
@@ -14,4 +16,6 @@
   <meta property="og:description" content={description} />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+  {@html jsonLd}
 </svelte:head>

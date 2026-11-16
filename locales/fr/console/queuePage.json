@@ -1,6 +1,10 @@
 {
-  "title": "File d'attente de {channel}",
-  "metaDescription": "Voyez qui attend pour jouer avec {channel} sur ItsBagelBot, mis à jour en direct.",
+  "title": "File d'attente Twitch de {channel} | ItsBagelBot",
+  "metaDescription": "Voyez qui attend pour jouer avec {channel} sur Twitch et qui sera appelé ensuite. Rejoignez la file depuis le chat Twitch avec !join. Mis à jour en direct.",
+  "aboutTitle": "Jouez avec {channel}",
+  "aboutBody": "{channel} gère une file d'attente des viewers via ItsBagelBot, un bot de chat Twitch gratuit. Tapez !join dans le chat Twitch pour rejoindre la file et !leave pour en sortir. Le streamer appelle les viewers par ordre d'arrivée.",
+  "aboutTwitch": "Regarder {channel} sur Twitch",
+  "aboutLink": "Ajoutez une file d'attente à votre chaîne",
   "eyebrow": "File d'attente",
   "tagline": "Qui attend et qui sera appelé ensuite, mis à jour en direct.",
   "joinHint": "Rejoignez depuis le chat avec !join ou !queue join.",

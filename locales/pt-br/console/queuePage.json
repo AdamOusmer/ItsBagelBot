@@ -1,6 +1,10 @@
 {
-  "title": "Fila de jogo de {channel}",
-  "metaDescription": "Veja quem está na fila para jogar com {channel} no ItsBagelBot, atualizada ao vivo.",
+  "title": "Fila de espectadores de {channel} | ItsBagelBot",
+  "metaDescription": "Veja quem está na fila para jogar com {channel} na Twitch e quem é chamado em seguida. Entre pelo chat da Twitch com !join. Atualizado ao vivo.",
+  "aboutTitle": "Jogue com {channel}",
+  "aboutBody": "{channel} mantém uma fila de espectadores com o ItsBagelBot, um bot de chat grátis para Twitch. Digite !join no chat da Twitch para entrar na fila e !leave para sair. O streamer chama os espectadores por ordem de chegada.",
+  "aboutTwitch": "Assista a {channel} na Twitch",
+  "aboutLink": "Adicione uma fila de espectadores ao seu canal",
   "eyebrow": "Fila de jogo",
   "tagline": "Quem está na fila e quem é chamado em seguida, atualizado ao vivo.",
   "joinHint": "Entre pelo chat com !join ou !queue join.",
