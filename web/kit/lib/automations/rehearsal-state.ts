@@ -1,0 +1,459 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import { expandSegments } from '../engine/rehearsal';
+import { queryEscape, resolveComputedUtil } from '../engine/pure';
+import type { VarToken } from '../engine/tmpl';
+import { comparePasses } from './compare';
+import { MAX_COOLDOWN_SECONDS, MAX_TEMPLATE_LENGTH } from './limits';
+import { compareBytes, trimSpace } from './text';
+import { extractJson } from './rehearsal-json';
+import type { Action, Condition, Params } from './types';
+import type { RehearsalContext, RehearsalScenario, RehearsalState } from './rehearsal-types';
+
+type Text = string;
+type Context = RehearsalContext;
+export type ActionOutcome = { status: 'ok' | 'failed' | 'skipped'; detail?: Record<string, string> };
+type ActionHandler = (params: Params, context: Context) => ActionOutcome;
+type ConditionHandler = (params: Params, context: Context) => boolean;
+
+const text = (value: unknown): Text => String(value ?? '');
+const number = (value: unknown): number => Number(value) || 0;
+const nameOf = (params: Params): Text => text(params.name).toLowerCase();
+const capped = (value: Text): Text => [...value].slice(0, MAX_TEMPLATE_LENGTH).join('');
+const failed = (code: Text): ActionOutcome => ({ status: 'failed', detail: { code } });
+const ok = (): ActionOutcome => ({ status: 'ok' });
+const hasViewer = (context: Context): boolean => Number(context.scenario.userId) > 0;
+
+function sanitized(value: Text | null): Text | null {
+  return value === null ? null : value.replace(/[\x00-\x1f\x7f]/g, '').replace(/^[ /]+/, '');
+}
+
+export function createState(scenario: RehearsalScenario): RehearsalState {
+  const seed = scenario.state;
+  return {
+    channelVars: { ...seed?.channelVars }, viewerVars: { ...seed?.viewerVars },
+    counters: { ...seed?.counters }, points: seed?.points ?? 0,
+    cooldowns: {}, countdowns: { ...seed?.countdowns }
+  };
+}
+
+function variableStore(params: Params, context: Context): Record<string, string> {
+  return params.scope === 'viewer' ? context.state.viewerVars : context.state.channelVars;
+}
+
+function timerLeft(until: number | undefined, context: Context): Text | null {
+  if (until === undefined) return null;
+  return String(Math.max(0, Math.ceil((until - context.atMs) / 1000)));
+}
+
+function durationLeft(end: Text | undefined, context: Context): Text | null {
+  if (end === undefined) return null;
+  let seconds = Math.max(0, Math.ceil((Number(end) - context.atMs) / 1000));
+  const parts: Text[] = [];
+  for (const [size, suffix] of [[86400, 'd'], [3600, 'h'], [60, 'm'], [1, 's']] as const) {
+    const count = Math.floor(seconds / size);
+    if (count > 0) parts.push(`${count}${suffix}`);
+    seconds %= size;
+    if (parts.length === 2) break;
+  }
+  return parts.join(' ');
+}
+
+const TOKEN_READERS: Readonly<Record<string, (token: VarToken, context: Context) => Text | null>> = {
+  local: (token, context) => context.locals[text(token.payload).toLowerCase()] ?? null,
+  var: (token, context) => context.state.channelVars[text(token.payload).toLowerCase()] ?? null,
+  viewervar: (token, context) => context.state.viewerVars[text(token.payload).toLowerCase()] ?? null,
+  counter: (token, context) => context.state.counters[text(token.payload)]?.toString() ?? null,
+  points: (_, context) => String(context.state.points),
+  cooldown: (token, context) => token.payload === 'left' ? durationLeft(context.locals['cooldown:end'], context) : null,
+  countdown: (token, context) => token.payload === 'left' ? durationLeft(context.locals['countdown:end'], context) : null
+};
+
+function resolveValue(token: VarToken, context: Context): Text | null {
+  const reader = TOKEN_READERS[token.name];
+  if (reader) return sanitized(reader(token, context));
+  const value = context.scenario.values?.[token.key];
+  if (value !== undefined) return sanitized(value);
+  if (/^[1-9][0-9]*$/.test(token.name)) return positional(token, context);
+  if (token.name === 'querystring') return queryEscape(context.scenario.args ?? '');
+  return resolveComputedUtil(token);
+}
+
+function positional(token: VarToken, context: Context): Text {
+  const words = context.scenario.args?.split(/\s+/).filter(Boolean) ?? [];
+  const start = Number(token.name) - 1;
+  if (token.payload === null) return sanitized(words[start] ?? '')!;
+  const end = token.payload === '' ? words.length : Number(token.payload);
+  return sanitized(words.slice(start, end).join(' '))!;
+}
+
+export function expandTemplate(template: Text, context: Context): { text: Text; missing: Text[] } {
+  const missing: Text[] = [];
+  const segments = expandSegments(template, (token) => {
+    const value = resolveValue(token, context);
+    if (value === null) missing.push(token.key);
+    return value ?? '';
+  });
+  return { text: segments.map((segment) => segment.text).join(''), missing: [...new Set(missing)] };
+}
+
+const expand = (value: unknown, context: Context): Text => expandTemplate(text(value), context).text;
+const ROLE_RANK: Readonly<Record<string, number>> = { viewer: 0, everyone: 0, sub: 1, vip: 2, mod: 3, lead_mod: 4, broadcaster: 5 };
+const ORDER: Readonly<Record<string, (order: number) => boolean>> = {
+  eq: (order) => order === 0, ne: (order) => order !== 0, gt: (order) => order > 0,
+  gte: (order) => order >= 0, lt: (order) => order < 0, lte: (order) => order <= 0
+};
+const DECIMAL = /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
+
+function decimal(value: Text): number | null {
+  const trimmed = value.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+  const parsed = DECIMAL.test(trimmed) ? Number(trimmed) : NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function variableComparison(params: Params, context: Context): boolean {
+  if (params.scope === 'viewer' && !hasViewer(context)) return false;
+  const store = variableStore(params, context);
+  const current = store[nameOf(params)];
+  if (params.op === 'exists') return current !== undefined;
+  const right = expand(params.value, context);
+  if (params.op === 'contains') return comparePasses('contains', current ?? '', right);
+  const leftNumber = decimal(current ?? '');
+  const rightNumber = decimal(right);
+  const numeric = leftNumber !== null && rightNumber !== null;
+  const order = numeric ? Math.sign(leftNumber! - rightNumber!) : compareBytes(current ?? '', right);
+  return ORDER[text(params.op)]?.(order) ?? false;
+}
+
+function userComparison(params: Params, context: Context): boolean {
+  const denied = (params.deny_ids ?? []) as string[];
+  const allowed = (params.allow_ids ?? []) as string[];
+  if (denied.includes(context.scenario.userId ?? '')) return false;
+  return allowed.length === 0 || allowed.includes(context.scenario.userId ?? '');
+}
+
+function cooldownKeys(params: Params, context: Context): Text[] {
+  if (params.name) return [nameOf(params)];
+  const keys: Text[] = [];
+  if (number(params.global_s) > 0) keys.push('global');
+  if (number(params.user_s) > 0) keys.push(`viewer:${context.scenario.userId}`);
+  return keys;
+}
+
+function cooldownComparison(params: Params, context: Context): boolean {
+  const keys = cooldownKeys(params, context);
+  const windows = keys.map((key) => cooldownWindow(key, context));
+  if (context.overrides[context.path] === 'cooling' || windows.some((until) => until > context.atMs)) {
+    noteCooldown(windows, context);
+    return false;
+  }
+  for (const key of keys) armCooldown(key, params, context);
+  return true;
+}
+
+function cooldownWindow(key: Text, context: Context): number {
+  const seed = context.overrides[context.path] === 'ready' ? 0 : context.scenario.state?.cooldowns?.[key];
+  return context.state.cooldowns[key] ?? seed ?? 0;
+}
+
+function noteCooldown(windows: number[], context: Context): void {
+  const until = Math.max(0, ...windows);
+  if (until > context.atMs) context.locals['cooldown:end'] = String(until);
+}
+
+function armCooldown(key: Text, params: Params, context: Context): void {
+  const seconds = key.startsWith('viewer:') ? number(params.user_s) : number(params.global_s);
+  context.state.cooldowns[key] = context.atMs + seconds * 1000;
+}
+
+function chanceComparison(params: Params, context: Context): boolean {
+  const percent = number(params.percent);
+  if (percent >= 100) return true;
+  return percent > 0 && context.overrides[context.path] !== 'no';
+}
+
+const CONDITIONS: Readonly<Record<string, ConditionHandler>> = {
+  perm: (params, context) => ROLE_RANK[context.scenario.role ?? 'viewer']! >= (ROLE_RANK[text(params.level)] ?? 0),
+  users: userComparison,
+  compare: (params, context) => comparePasses(text(params.op), expand(params.left, context), expand(params.right, context)),
+  var: variableComparison,
+  chance: chanceComparison,
+  cooldown: cooldownComparison,
+  live: (params, context) => context.scenario.live === (params.state === 'live')
+};
+
+export function evaluateCondition(condition: Condition, context: Context): boolean {
+  return CONDITIONS[condition.type]?.(condition.params ?? {}, context) ?? false;
+}
+
+function saveLocal(params: Params, value: Text, context: Context): void {
+  const name = text(params.save_as).toLowerCase();
+  if (/^[a-z0-9]{1,32}$/.test(name)) context.locals[name] = capped(value);
+}
+
+function addVariable(current: Text, amount: number): Text | null {
+  const trimmed = trimSpace(current);
+  const sum = (decimal(trimmed) ?? 0) + amount;
+  const integerOverflow = /^[+-]?\d+$/.test(trimmed) && Math.abs(sum) >= 2 ** 63;
+  if (integerOverflow) return null;
+  if (!Number.isFinite(sum)) return null;
+  return fixedNumber(sum);
+}
+
+function integerValue(value: Text): bigint | null {
+  if (!/^[+-]?\d+$/.test(value)) return null;
+  const parsed = BigInt(value);
+  return parsed < -(2n ** 63n) || parsed > 2n ** 63n - 1n ? null : parsed;
+}
+
+function writeVariable(params: Params, context: Context, mode: Text): ActionOutcome {
+  if (params.scope === 'viewer' && !hasViewer(context)) return failed('no_viewer');
+  const store = variableStore(params, context);
+  const name = nameOf(params);
+  if (mode === 'delete') {
+    delete store[name];
+    return ok();
+  }
+  const value = mode === 'set' ? expand(params.value, context) : addVariable(store[name] ?? '', number(params.amount));
+  if (value === null) return failed('var_limit');
+  if ([...value].length > MAX_TEMPLATE_LENGTH) return failed('var_limit');
+  store[name] = value;
+  return ok();
+}
+
+type Operands = { input: Text; arg1: Text; arg2: Text };
+function simpleCase(input: Text, mode: 'upper' | 'lower'): Text {
+  return [...input].map((rune) => caseRune(rune, mode)).join('');
+}
+
+function caseRune(rune: Text, mode: 'upper' | 'lower'): Text {
+  if (mode === 'lower' && rune === 'İ') return 'i';
+  const changed = mode === 'upper' ? rune.toUpperCase() : rune.toLowerCase();
+  return [...changed].length === 1 ? changed : rune;
+}
+
+const TEXT_OPS: Readonly<Record<string, (operands: Operands) => Text>> = {
+  upper: ({ input }) => simpleCase(input, 'upper'), lower: ({ input }) => simpleCase(input, 'lower'),
+  trim: ({ input }) => trimSpace(input),
+  replace: ({ input, arg1, arg2 }) => arg1 === '' ? input : input.split(arg1).join(arg2),
+  contains: ({ input, arg1 }) => String(comparePasses('contains', input, arg1)),
+  url_encode: ({ input }) => queryEscape(input)
+};
+
+function optionalInteger(value: Text, fallback: number): number | null {
+  const trimmed = trimSpace(value);
+  if (trimmed === '') return fallback;
+  const parsed = integerValue(trimmed);
+  return parsed === null ? null : Number(parsed);
+}
+
+function substring({ input, arg1, arg2 }: Operands): Text | null {
+  const start = optionalInteger(arg1, 0);
+  const length = optionalInteger(arg2, 2 * MAX_TEMPLATE_LENGTH);
+  if (start === null || length === null) return null;
+  const runes = [...input];
+  const from = Math.min(Math.max(start, 0), runes.length);
+  return runes.slice(from, from + Math.max(length, 0)).join('');
+}
+
+function splitPick({ input, arg1, arg2 }: Operands): Text | null {
+  const parts = arg1 === '' ? [...input] : input.split(arg1);
+  if (trimSpace(arg2).toLowerCase() === 'random') return parts[0] ?? '';
+  const position = optionalInteger(arg2, NaN);
+  if (position === null || Number.isNaN(position)) return null;
+  return parts[position - 1] ?? '';
+}
+
+function textStep(params: Params, context: Context): ActionOutcome {
+  const input = expand(params.input, context);
+  if (params.op === 'length') {
+    saveLocal(params, String([...input].length), context);
+    return ok();
+  }
+  const capOperand = (value: Text) => [...value].slice(0, 2 * MAX_TEMPLATE_LENGTH).join('');
+  const operands = { input: capOperand(input), arg1: capOperand(expand(params.arg1, context)), arg2: capOperand(expand(params.arg2, context)) };
+  const complex: Readonly<Record<string, (operands: Operands) => Text | null>> = { substring, split_pick: splitPick };
+  const handler = TEXT_OPS[text(params.op)] ?? complex[text(params.op)];
+  const result = handler?.(operands);
+  if (result === null || result === undefined) return failed('text_error');
+  saveLocal(params, result, context);
+  return params.op === 'split_pick' && trimSpace(operands.arg2).toLowerCase() === 'random'
+    ? { status: 'ok', detail: { random: '1' } } : ok();
+}
+
+type MathFunction = { min: number; max: number; apply: (values: number[]) => number };
+const unary = (apply: (value: number) => number): MathFunction => ({ min: 1, max: 1, apply: (values) => apply(values[0]!) });
+const MATH_FUNCTIONS: Readonly<Record<string, MathFunction>> = {
+  round: unary((value) => Math.sign(value) * Math.floor(Math.abs(value) + 0.5)),
+  floor: unary(Math.floor), ceil: unary(Math.ceil), abs: unary(Math.abs),
+  min: { min: 1, max: 200, apply: (values) => Math.min(...values) },
+  max: { min: 1, max: 200, apply: (values) => Math.max(...values) },
+  random: { min: 2, max: 2, apply: (values) => Math.min(...values) }
+};
+const SUM: Readonly<Record<string, (left: number, right: number) => number>> = { '+': (a, b) => a + b, '-': (a, b) => a - b };
+const PRODUCT: Readonly<Record<string, (left: number, right: number) => number>> = {
+  '*': (a, b) => a * b, '/': (a, b) => b === 0 ? NaN : a / b, '%': (a, b) => b === 0 ? NaN : a % b
+};
+
+class MathParser {
+  position = 0;
+  failed = false;
+  random = false;
+  constructor(readonly source: Text) {}
+
+  fail(): number {
+    this.failed = true;
+    this.position = this.source.length;
+    return 0;
+  }
+
+  peek(): Text {
+    while (/[ \t]/.test(this.source[this.position] ?? '\0')) this.position++;
+    return this.source[this.position] ?? '';
+  }
+
+  take(want: Text): boolean {
+    if (this.peek() !== want) return false;
+    this.position++;
+    return true;
+  }
+
+  binary(operators: typeof SUM, operand: () => number): number {
+    let left = operand();
+    for (let apply = operators[this.peek()]; apply; apply = operators[this.peek()]) {
+      const operator = this.peek();
+      this.position++;
+      const right = operand();
+      const zeroDivision = (operator === '/' || operator === '%') && right === 0;
+      left = zeroDivision ? this.fail() : apply(left, right);
+    }
+    return left;
+  }
+
+  sum(): number { return this.binary(SUM, () => this.product()); }
+  product(): number { return this.binary(PRODUCT, () => this.unary()); }
+
+  unary(): number {
+    if (this.take('-')) return -this.unary();
+    const base = this.primary();
+    return this.take('^') ? base ** this.unary() : base;
+  }
+
+  primary(): number {
+    if (this.take('(')) return this.group();
+    const next = this.peek();
+    if (/[a-z]/.test(next) && next !== '') return this.call();
+    const match = /^[0-9.]+/.exec(this.source.slice(this.position));
+    if (!match) return this.fail();
+    this.position += match[0].length;
+    const value = /^(?:[0-9]+\.?[0-9]*|\.[0-9]+)$/.test(match[0]) ? Number(match[0]) : NaN;
+    return Number.isFinite(value) ? value : this.fail();
+  }
+
+  group(): number {
+    const value = this.sum();
+    return this.take(')') ? value : this.fail();
+  }
+
+  call(): number {
+    const name = /^[a-z]+/.exec(this.source.slice(this.position))![0];
+    this.position += name.length;
+    const fn = MATH_FUNCTIONS[name];
+    if (!fn || !this.take('(')) return this.fail();
+    const args = [this.sum()];
+    while (this.take(',')) args.push(this.sum());
+    const valid = this.take(')') && args.length >= fn.min && args.length <= fn.max;
+    if (!valid) return this.fail();
+    if (name === 'random') this.random = true;
+    return fn.apply(args);
+  }
+}
+
+function fixedNumber(value: number): Text {
+  const raw = String(value);
+  if (!/[eE]/.test(raw)) return raw;
+  const [coefficient, power] = raw.split('e');
+  const sign = coefficient!.startsWith('-') ? '-' : '';
+  const digits = coefficient!.replace('-', '').replace('.', '');
+  const point = coefficient!.replace('-', '').split('.')[0]!.length + Number(power);
+  if (point <= 0) return `${sign}0.${'0'.repeat(-point)}${digits}`;
+  return sign + digits.padEnd(point, '0').slice(0, point) + (point < digits.length ? `.${digits.slice(point)}` : '');
+}
+
+function mathStep(params: Params, context: Context): ActionOutcome {
+  const expression = expand(params.expression, context);
+  if ([...expression].length > 200) return failed('math_error');
+  const parser = new MathParser(expression);
+  const value = parser.sum();
+  const invalid = parser.failed || !Number.isFinite(value) || parser.peek() !== '';
+  if (invalid) return failed('math_error');
+  saveLocal(params, fixedNumber(value), context);
+  return parser.random ? { status: 'ok', detail: { random: '1' } } : ok();
+}
+
+function httpStep(params: Params, context: Context): ActionOutcome {
+  const outcome = context.overrides[context.path] ?? 'ok';
+  if (outcome === 'failure') {
+    const code = context.overrides[`${context.path}.error`] ?? 'upstream_error';
+    context.locals.error = code;
+    return failed(code);
+  }
+  const response = context.overrides[`${context.path}.response`] ?? '';
+  try {
+    const value = extractJson(response, (params.json_path ?? []) as Text[]);
+    delete context.locals.error;
+    saveLocal(params, value, context);
+    return { status: 'ok', detail: { response: value } };
+  } catch {
+    context.locals.error = 'bad_def';
+    return failed('bad_def');
+  }
+}
+
+function timerAdded(params: Params, context: Context): number {
+  const per = number(params.per);
+  const amount = number(context.scenario.values?.['event.amount']);
+  const multiples = per > 0 ? Math.trunc(amount / per) : 1;
+  return Math.min(MAX_COOLDOWN_SECONDS, number(params.seconds) * multiples) * 1000;
+}
+
+function timerStep(params: Params, context: Context, mode: Text): ActionOutcome {
+  const store = mode === 'cooldown_add' ? context.state.cooldowns : context.state.countdowns;
+  const name = nameOf(params);
+  const until = mode === 'cooldown_add' ? cooldownWindow(name, context) : store[name] ?? 0;
+  const running = until > context.atMs;
+  if (mode !== 'countdown_start' && !running) return { status: 'skipped', detail: { code: 'not_running' } };
+  const added = timerAdded(params, context);
+  if (added <= 0) return { status: 'skipped', detail: { code: 'below_rate' } };
+  const base = mode === 'countdown_start' ? context.atMs : Math.max(context.atMs, until);
+  store[name] = Math.min(context.atMs + MAX_COOLDOWN_SECONDS * 1000, base + added);
+  const token = mode === 'cooldown_add' ? 'cooldown:end' : 'countdown:end';
+  context.locals[token] = String(store[name]);
+  return { status: 'ok', detail: { name, left: timerLeft(store[name], context)! } };
+}
+
+const ACTIONS: Readonly<Record<string, ActionHandler>> = {
+  var_set: (params, context) => writeVariable(params, context, 'set'),
+  var_add: (params, context) => writeVariable(params, context, 'add'),
+  var_delete: (params, context) => writeVariable(params, context, 'delete'),
+  text: textStep, math: mathStep, http_get: httpStep, http_post: httpStep,
+  counter_add: (params, context) => {
+    const name = text(params.name);
+    context.state.counters[name] = (context.state.counters[name] ?? 0) + number(params.amount);
+    return { status: 'ok', detail: { value: String(context.state.counters[name]) } };
+  },
+  points_add: (params, context) => {
+    if (!hasViewer(context)) return failed('no_viewer');
+    context.state.points += number(params.amount);
+    return { status: 'ok', detail: { value: String(context.state.points) } };
+  },
+  countdown_start: (params, context) => timerStep(params, context, 'countdown_start'),
+  countdown_add: (params, context) => timerStep(params, context, 'countdown_add'),
+  cooldown_add: (params, context) => timerStep(params, context, 'cooldown_add'),
+  lights: (params, context) => params.any_time === true || context.scenario.live ? ok() : { status: 'skipped', detail: { code: 'offline' } }
+};
+
+export function applyAction(action: Action, context: Context): ActionOutcome {
+  return ACTIONS[action.type]?.(action.params ?? {}, context) ?? ok();
+}

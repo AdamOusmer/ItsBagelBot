@@ -123,7 +123,7 @@ const WORD_END = '(?:$|[^\\p{L}\\p{N}_])';
 
 // A backslash stays \x5c because the validator reads \1 anywhere in a pattern as a backreference.
 const escapeWord = (word: string) => word.replace(/[\\.*+?^$()[\]{}|]/g, (char) => (char === '\\' ? '\\x5c' : `\\${char}`));
-const unescapeWord = (body: string) => body.replace(/\\x5c|\\(.)/g, (_, char?: string) => char ?? '\\');
+export const unescapeWord = (body: string) => body.replace(/\\x5c|\\(.)/g, (_, char?: string) => char ?? '\\');
 
 function wordPattern(word: string): string {
   return word === '' ? '' : `${WORD_START}${escapeWord(word)}${WORD_END}`;
@@ -632,6 +632,15 @@ function lowerFlow(flow: Flow): Lowered {
 
 export function flowToDefinition(flow: Flow): FlowResult<Definition> {
   return lowerFlow(flow).result;
+}
+
+export function compileFlow(flow: Flow): FlowResult<{ definition: Definition; nodeByPath: ReadonlyMap<string, string> }> {
+  const { result, owners } = lowerFlow(flow);
+  if (!result.ok) return result;
+  const nodeByPath = stepPaths(result.value, owners).byPath;
+  const trigger = flow.nodes.find((node) => isTriggerType(node.type))!;
+  nodeByPath.set('trigger', trigger.id);
+  return { ok: true, value: { definition: result.value, nodeByPath } };
 }
 
 type StepPaths = { byPath: Map<string, string>; lastDelay: string | null };
