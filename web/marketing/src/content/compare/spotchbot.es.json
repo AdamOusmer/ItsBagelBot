@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs SpotchBot | Bots de peticiones de Spotify",
+    "description": "Compara peticiones de Spotify en Twitch: cola gratis, búsqueda, puntos del canal y precio. Descubre cuándo te conviene SpotchBot y cuándo ItsBagelBot."
+  },
+  "hero": {
+    "eyebrow": "Comparativa de bots de peticiones de canciones",
+    "title": "ItsBagelBot vs SpotchBot",
+    "lead": "¿Buscas una alternativa a SpotchBot? Ambos bots añaden las peticiones de los espectadores a tu propia cola de Spotify, y ambos necesitan Spotify Premium. Se diferencian en el tamaño de la cola gratis, en quién puede unirse y en qué más hace el bot por tu chat."
+  },
+  "reviewed": "2026-11-16",
+  "suits": {
+    "us": [
+      "Quieres una cola de peticiones larga en un plan gratuito: la cola admite 100 canciones.",
+      "Quieres un solo bot para peticiones de canciones, comandos personalizados, temporizadores, puntos de fidelidad, sorteos y estadísticas de juego.",
+      "Tu canal es nuevo o pequeño. Inicias sesión con Twitch y empiezas; no hay un mínimo de seguidores.",
+      "Quieres una búsqueda cuidadosa: artista y título en cualquier orden, y un rechazo cuando nada coincide."
+    ],
+    "them": [
+      "Quieres que los espectadores busquen y pidan desde una página web con resultados en vivo. Referencia: https://spotchbot.com/docs/streamer-page.",
+      "Quieres una fuente de navegador para OBS que muestre la canción actual y la cola. Referencia: https://spotchbot.com/docs/overlay.",
+      "Quieres votos para saltar o una duración máxima por canción. Referencia: https://spotchbot.com/docs/settings.",
+      "Quieres eliminatorias de Song Battle o una lista de reproducción de la comunidad. Referencia: https://spotchbot.com/docs/pro."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Fuente de música",
+      "us": "Spotify. !sr añade la pista a tu propia cola de Spotify y suena en tu dispositivo activo.",
+      "them": "Spotify. La reproducción se controla mediante las credenciales de la propia aplicación de Spotify del streamer.",
+      "source": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "feature": "Qué necesitas",
+      "us": "Spotify Premium, tu propia aplicación del panel de desarrolladores de Spotify y Spotify reproduciendo en un dispositivo.",
+      "them": "Spotify Premium y las credenciales de tu propia aplicación de desarrollador de Spotify (Client ID y Secret).",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Quién puede unirse",
+      "us": "Cualquier canal de Twitch. Inicia sesión con Twitch y activa Peticiones de canciones.",
+      "them": "Una beta abierta con plazas limitadas. Las plazas nuevas requieren al menos 100 seguidores en Twitch, y una plaza se retira tras 30 días sin transmitir salvo que el canal tenga Pro.",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Tamaño de la cola gratis",
+      "us": "La cola admite 100 canciones en el plan gratuito.",
+      "them": "El plan gratuito admite hasta 6 canciones en la cola. Pro figura como ilimitado.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Límites por espectador",
+      "us": "Límites separados para todos, suscriptores, VIP y moderadores. Un límite vacío significa sin límite.",
+      "them": "Un ajuste de máximo por usuario y un tiempo de espera, ambos desactivados por defecto. Los DJ designados quedan exentos.",
+      "source": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "feature": "Búsqueda de canciones",
+      "us": "Entiende \"song by artist\" y \"artist - song\", comprueba el título y el artista en Spotify y rechaza la petición cuando nada coincide.",
+      "them": "!sr busca en Spotify y añade la mejor coincidencia a la cola, o acepta un enlace de canción de Spotify.",
+      "source": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "feature": "Puntos del canal de Twitch",
+      "us": "Una recompensa nativa pone una canción en cola. Una petición que no se puede poner en cola se reembolsa, y el chat recibe el motivo.",
+      "them": "Las recompensas pueden pedir una canción, saltar una canción o votar para saltar. Las recompensas gestionadas por el bot reembolsan los puntos cuando una petición falla.",
+      "source": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "feature": "Herramientas de moderación",
+      "us": "!skip, !clear y !remove con una posición de la cola en el chat, además de la cola en vivo en el panel.",
+      "them": "Comandos del chat y un panel web donde los moderadores quitan, reordenan y saltan canciones.",
+      "source": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "feature": "Página pública de la cola",
+      "us": "Una página en vivo por canal en queue.itsbagelbot.com/sr/ muestra la pista actual y las próximas peticiones. Es solo de consulta.",
+      "them": "Una página por canal en spotchbot.com/s/ inserta la transmisión, muestra la cola y acepta peticiones mediante una búsqueda en vivo tras iniciar sesión con Twitch.",
+      "source": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "feature": "Overlay para OBS",
+      "us": "Sin overlay. !current y !srlist responden en el chat, y la página pública de la cola muestra la misma lista.",
+      "them": "Una fuente de navegador transparente muestra la canción actual y la próxima cola.",
+      "source": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "feature": "Bloqueos y acceso",
+      "us": "Los niveles de permiso y las cuotas deciden quién puede pedir. No hay lista de bloqueo de canciones ni de artistas.",
+      "them": "Las peticiones se pueden limitar a grupos como los suscriptores. Bloquear usuarios es gratis; bloquear canciones, álbumes y artistas requiere Pro.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Más allá de las peticiones",
+      "us": "Comandos personalizados, temporizadores, puntos de fidelidad, sorteos, una cola de espectadores, estadísticas de juego e importación desde otros seis bots.",
+      "them": "Centrado en las peticiones de canciones, con eliminatorias de Song Battle, una lista de la comunidad y estadísticas de peticiones.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Precio",
+      "us": "Todas las funciones terminadas son gratis, incluidas las peticiones de canciones. Premium cuesta $7 CAD más impuestos al mes y añade procesamiento prioritario, soporte y acceso anticipado a los módulos beta.",
+      "them": "Un plan gratuito con los límites anteriores y una prueba de Pro de 7 días. Pro figura a $4.99 al mes, $12.99 por tres meses o $39.99 al año.",
+      "source": "https://spotchbot.com/docs/pro"
+    }
+  ],
+  "migrate": {
+    "title": "Lleva tus peticiones de canciones a ItsBagelBot",
+    "path": "/guides/spotify-song-requests",
+    "steps": [
+      "Inicia sesión en ItsBagelBot con Twitch y abre Peticiones de canciones en el panel.",
+      "Añade el Client ID y el secreto de tu aplicación de Spotify. Sirve la aplicación que ya creaste: añade la URI de redirección que muestra el panel y luego conecta tu cuenta de Spotify.",
+      "Define quién puede poner canciones en cola y los límites por espectador. Activa !sr, la recompensa de puntos del canal o ambos.",
+      "Prueba !sr en el chat y luego desactiva las peticiones de canciones en el bot anterior para que el chat reciba una sola respuesta."
+    ],
+    "cta": "Lee la guía de configuración de Spotify"
+  },
+  "faq": [
+    {
+      "q": "¿Es ItsBagelBot una alternativa gratuita a SpotchBot?",
+      "a": "Las peticiones de canciones forman parte del plan gratuito de ItsBagelBot, con una cola de 100 canciones. Spotify Premium sigue siendo necesario, como en cualquier bot que controle una cola de Spotify."
+    },
+    {
+      "q": "¿Ambos bots necesitan Spotify Premium?",
+      "a": "Sí. Spotify solo permite que las aplicaciones controlen la cola en cuentas Premium. Ambos bots también te piden crear tu propia aplicación en el panel de desarrolladores de Spotify."
+    },
+    {
+      "q": "¿Cuándo debería seguir con SpotchBot?",
+      "a": "Quédate si dependes de su página web de peticiones, su overlay de la cola para OBS, los votos para saltar, Song Battle o la lista de la comunidad. ItsBagelBot no ofrece esas funciones."
+    },
+    {
+      "q": "¿Puede un canal con menos de 100 seguidores usar peticiones de Spotify?",
+      "a": "ItsBagelBot no exige un mínimo de seguidores: inicia sesión con Twitch y configúralo. La documentación de SpotchBot indica que las plazas nuevas de la beta requieren al menos 100 seguidores en Twitch. Referencia: https://spotchbot.com/docs/troubleshooting."
+    },
+    {
+      "q": "¿Cuántas canciones caben en la cola gratis?",
+      "a": "El plan gratuito de ItsBagelBot pone en cola 100 canciones. La tabla de planes de SpotchBot indica hasta 6 canciones en Free e ilimitadas en Pro. Referencia: https://spotchbot.com/docs/pro."
+    },
+    {
+      "q": "¿Puedo usar ambos bots a la vez?",
+      "a": "Ambos responden a !sr por defecto, así que una petición recibiría dos respuestas y podría ponerse en cola dos veces. Prueba un bot cada vez y desactiva !sr en el otro mientras lo haces."
+    }
+  ],
+  "sources": [
+    {
+      "label": "SpotchBot: configuración de la aplicación de Spotify",
+      "url": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "label": "SpotchBot: ajustes y límites por usuario",
+      "url": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "label": "SpotchBot: tabla de funciones Free y Pro y precios",
+      "url": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "label": "SpotchBot: comandos del chat",
+      "url": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "label": "SpotchBot: recompensas de puntos del canal",
+      "url": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "label": "SpotchBot: panel de moderadores",
+      "url": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "label": "SpotchBot: página del streamer",
+      "url": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "label": "SpotchBot: overlay de la cola para OBS",
+      "url": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "label": "SpotchBot: requisitos, plazas de la beta y seguidores",
+      "url": "https://spotchbot.com/docs/troubleshooting"
+    }
+  ]
+}

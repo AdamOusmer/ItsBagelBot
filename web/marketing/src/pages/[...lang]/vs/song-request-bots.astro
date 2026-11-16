@@ -1,0 +1,70 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../../layouts/Layout.astro';
+import RoundupPage from '../../../components/compare/RoundupPage.astro';
+import { getLangFromUrl, useTranslations, localizePath, langParam } from '../../../i18n/ui';
+import { getRoundup } from '../../../lib/compare/roundup';
+import { compareLocales, competitorNames } from '../../../lib/compare/slugs';
+
+export function getStaticPaths() {
+    return compareLocales.map((l) => ({ params: { lang: langParam(l) } }));
+}
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const content = getRoundup(lang);
+const origin = new URL(Astro.site!).origin;
+const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
+const hubHref = localizePath('/vs', lang);
+const schema: Record<string, unknown>[] = [
+    {
+        '@type': 'WebPage',
+        '@id': `${pageUrl}#webpage`,
+        url: pageUrl,
+        name: content.meta.title,
+        description: content.meta.description,
+        inLanguage: lang,
+        dateModified: content.reviewed,
+        isPartOf: { '@id': `${origin}/#website` },
+        about: { '@id': `${origin}/#software` },
+    },
+    {
+        '@type': 'BreadcrumbList',
+        '@id': `${pageUrl}#breadcrumbs`,
+        itemListElement: [
+            { '@type': 'ListItem', position: 1, name: t('compare.crumbHome'), item: new URL(localizePath('/', lang), Astro.site).href },
+            { '@type': 'ListItem', position: 2, name: t('footer.compare'), item: new URL(hubHref, Astro.site).href },
+            { '@type': 'ListItem', position: 3, name: content.hero.title, item: pageUrl },
+        ],
+    },
+    {
+        '@type': 'ItemList',
+        numberOfItems: content.table.rows.length,
+        itemListElement: content.table.rows.map((row, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            name: row.id === 'itsbagelbot' ? 'ItsBagelBot' : competitorNames[row.id],
+        })),
+    },
+    {
+        '@type': 'FAQPage',
+        mainEntity: content.faq.map((item) => ({
+            '@type': 'Question',
+            name: item.q,
+            acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+    },
+];
+---
+
+<Layout
+    title={content.meta.title}
+    description={content.meta.description}
+    aiDoc="https://ai.itsbagelbot.com/features/song-request-bots.md"
+    alternateLocales={compareLocales}
+    extraSchema={schema}
+>
+    <RoundupPage content={content} lang={lang} />
+</Layout>

@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs SpotchBot | Spotify-Songwunsch-Bots",
+    "description": "Vergleiche Spotify-Songwünsche auf Twitch: Gratis-Warteschlange, Suche, Kanalpunkte und Preis. Erfahre, wann SpotchBot passt und wann ItsBagelBot."
+  },
+  "hero": {
+    "eyebrow": "Vergleich von Songwunsch-Bots",
+    "title": "ItsBagelBot vs SpotchBot",
+    "lead": "Suchst du eine Alternative zu SpotchBot? Beide Bots fügen Zuschauerwünsche zu deiner eigenen Spotify-Warteschlange hinzu, und beide brauchen Spotify Premium. Sie unterscheiden sich bei der kostenlosen Warteschlangengröße, beim Zugang und dabei, was der Bot sonst für deinen Chat tut."
+  },
+  "reviewed": "2026-11-16",
+  "suits": {
+    "us": [
+      "Du willst eine lange Warteschlange im kostenlosen Tarif: Die Warteschlange fasst 100 Songs.",
+      "Du willst einen Bot für Song-Anfragen, eigene Befehle, Timer, Treuepunkte, Verlosungen und Spielstatistiken.",
+      "Dein Kanal ist neu oder klein. Du meldest dich mit Twitch an und legst los, ohne Mindestzahl an Followern.",
+      "Du willst genaue Treffer: Künstler und Titel in beliebiger Reihenfolge, und ohne Treffer wird abgelehnt."
+    ],
+    "them": [
+      "Du willst, dass Zuschauer auf einer Webseite mit Live-Ergebnissen suchen und wünschen. Referenz: https://spotchbot.com/docs/streamer-page.",
+      "Du willst eine OBS-Browserquelle, die den aktuellen Song und die Warteschlange zeigt. Referenz: https://spotchbot.com/docs/overlay.",
+      "Du willst Überspring-Abstimmungen oder eine maximale Songlänge. Referenz: https://spotchbot.com/docs/settings.",
+      "Du willst Song-Battle-Turniere oder eine Community-Playlist. Referenz: https://spotchbot.com/docs/pro."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Musikquelle",
+      "us": "Spotify. !sr fügt den Titel zu deiner eigenen Spotify-Warteschlange hinzu, abgespielt wird auf deinem aktiven Gerät.",
+      "them": "Spotify. Die Wiedergabe wird über die eigenen Spotify-App-Zugangsdaten des Streamers gesteuert.",
+      "source": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "feature": "Was du brauchst",
+      "us": "Spotify Premium, deine eigene App aus dem Entwicklerdashboard von Spotify und Spotify-Wiedergabe auf einem Gerät.",
+      "them": "Spotify Premium und die Zugangsdaten deiner eigenen Spotify-Entwickler-App (Client ID und Secret).",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Wer mitmachen kann",
+      "us": "Jeder Twitch-Kanal. Melde dich mit Twitch an und schalte Songwünsche ein.",
+      "them": "Eine offene Beta mit begrenzten Plätzen. Neue Plätze brauchen mindestens 100 Twitch-Follower, und ein Platz verfällt nach 30 Tagen ohne Stream, außer der Kanal hat Pro.",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Kostenlose Warteschlange",
+      "us": "Die Warteschlange fasst im kostenlosen Tarif 100 Songs.",
+      "them": "Der kostenlose Tarif fasst bis zu 6 Songs in der Warteschlange. Pro ist als unbegrenzt angegeben.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Limits pro Zuschauer",
+      "us": "Eigene Limits für alle, Abonnenten, VIPs und Moderatoren. Ein leeres Limit bedeutet unbegrenzt.",
+      "them": "Eine Einstellung für das Maximum pro Nutzer und eine Abklingzeit, beide standardmäßig aus. Ernannte DJs sind ausgenommen.",
+      "source": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "feature": "Songsuche",
+      "us": "Versteht „song by artist“ und „artist - song“, prüft Titel und Künstler bei Spotify und lehnt ab, wenn nichts passt.",
+      "them": "!sr sucht bei Spotify und fügt den besten Treffer zur Warteschlange hinzu oder nimmt einen Spotify-Songlink.",
+      "source": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "feature": "Twitch-Kanalpunkte",
+      "us": "Eine native Belohnung reiht einen Song ein. Kann ein Wunsch nicht eingereiht werden, gibt es die Punkte zurück, und der Chat erfährt den Grund.",
+      "them": "Belohnungen können einen Song wünschen, überspringen oder für das Überspringen abstimmen. Vom Bot verwaltete Belohnungen erstatten die Punkte, wenn ein Wunsch scheitert.",
+      "source": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "feature": "Werkzeuge für Moderatoren",
+      "us": "!skip, !clear und !remove mit einer Position in der Warteschlange im Chat, dazu die Live-Warteschlange im Dashboard.",
+      "them": "Chat-Befehle und ein Webpanel, in dem Moderatoren Songs entfernen, umsortieren und überspringen.",
+      "source": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "feature": "Öffentliche Warteschlange",
+      "us": "Eine Live-Seite pro Kanal unter queue.itsbagelbot.com/sr/ zeigt den aktuellen Titel und die nächsten Wünsche. Sie dient nur zum Ansehen.",
+      "them": "Eine Seite pro Kanal unter spotchbot.com/s/ bettet den Stream ein, zeigt die Warteschlange und nimmt nach einem Twitch-Login Wünsche über eine Live-Suche an.",
+      "source": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "feature": "OBS-Overlay",
+      "us": "Kein Overlay. !current und !srlist antworten im Chat, und die öffentliche Warteschlange zeigt dieselbe Liste.",
+      "them": "Eine transparente Browserquelle zeigt den aktuellen Song und die kommende Warteschlange.",
+      "source": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "feature": "Sperren und Zugang",
+      "us": "Berechtigungsstufen und Kontingente bestimmen, wer wünschen darf. Eine Sperrliste für Songs oder Künstler gibt es nicht.",
+      "them": "Wünsche lassen sich auf Gruppen wie Abonnenten beschränken. Nutzer sperren ist kostenlos; Songs, Alben und Künstler sperren braucht Pro.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Mehr als Song-Anfragen",
+      "us": "Eigene Befehle, Timer, Treuepunkte, Verlosungen, eine Zuschauerwarteschlange, Spielstatistiken und Importe aus sechs anderen Bots.",
+      "them": "Auf Song-Anfragen ausgerichtet, mit Song-Battle-Turnieren, einer Community-Playlist und Statistiken zu Wünschen.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Preis",
+      "us": "Jede fertige Funktion ist kostenlos, auch Song-Anfragen. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen.",
+      "them": "Ein kostenloser Tarif mit den Grenzen oben und eine 7-tägige Pro-Testphase. Pro ist mit 4,99 $ pro Monat, 12,99 $ für drei Monate oder 39,99 $ pro Jahr angegeben.",
+      "source": "https://spotchbot.com/docs/pro"
+    }
+  ],
+  "migrate": {
+    "title": "Zieh deine Song-Anfragen zu ItsBagelBot um",
+    "path": "/guides/spotify-song-requests",
+    "steps": [
+      "Melde dich bei ItsBagelBot mit Twitch an und öffne im Dashboard die Seite Songwünsche.",
+      "Trage Client ID und Secret deiner Spotify-App ein. Deine bestehende App funktioniert: Füge die Weiterleitungs-URI aus dem Dashboard hinzu und verbinde dann dein Spotify-Konto.",
+      "Lege fest, wer einreihen darf, und die Limits pro Zuschauer. Schalte !sr, die Kanalpunkte-Belohnung oder beides ein.",
+      "Teste !sr im Chat und schalte danach die Song-Anfragen im alten Bot aus, damit der Chat nur eine Antwort erhält."
+    ],
+    "cta": "Zur Anleitung zur Spotify-Einrichtung"
+  },
+  "faq": [
+    {
+      "q": "Ist ItsBagelBot eine kostenlose Alternative zu SpotchBot?",
+      "a": "Song-Anfragen gehören zum kostenlosen Tarif von ItsBagelBot, mit einer Warteschlange von 100 Songs. Spotify Premium ist trotzdem nötig, wie bei jedem Bot, der eine Spotify-Warteschlange steuert."
+    },
+    {
+      "q": "Brauchen beide Bots Spotify Premium?",
+      "a": "Ja. Spotify lässt Apps die Warteschlange nur bei Premium-Konten steuern. Bei beiden Bots erstellst du außerdem deine eigene App im Entwicklerdashboard von Spotify."
+    },
+    {
+      "q": "Wann solltest du bei SpotchBot bleiben?",
+      "a": "Bleib dabei, wenn du die Wunsch-Webseite, das OBS-Overlay für die Warteschlange, Überspring-Abstimmungen, Song Battle oder die Community-Playlist nutzt. ItsBagelBot bietet diese nicht."
+    },
+    {
+      "q": "Kann ein Kanal mit weniger als 100 Followern Spotify-Songwünsche nutzen?",
+      "a": "ItsBagelBot hat keine Mindestzahl an Followern: Melde dich mit Twitch an und richte es ein. Laut SpotchBot-Dokumentation brauchen neue Beta-Plätze mindestens 100 Twitch-Follower. Referenz: https://spotchbot.com/docs/troubleshooting."
+    },
+    {
+      "q": "Wie viele Songs fasst die kostenlose Warteschlange?",
+      "a": "Der kostenlose Tarif von ItsBagelBot reiht 100 Songs ein. Die Tariftabelle von SpotchBot nennt bis zu 6 Songs bei Free und unbegrenzt bei Pro. Referenz: https://spotchbot.com/docs/pro."
+    },
+    {
+      "q": "Kann ich beide Bots gleichzeitig nutzen?",
+      "a": "Beide reagieren standardmäßig auf !sr, ein Wunsch bekäme also zwei Antworten und könnte doppelt eingereiht werden. Teste einen Bot nach dem anderen und schalte dabei !sr im anderen aus."
+    }
+  ],
+  "sources": [
+    {
+      "label": "SpotchBot: Einrichtung der Spotify-App",
+      "url": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "label": "SpotchBot: Einstellungen und Limits pro Nutzer",
+      "url": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "label": "SpotchBot: Funktionstabelle Free und Pro, Preise",
+      "url": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "label": "SpotchBot: Chat-Befehle",
+      "url": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "label": "SpotchBot: Kanalpunkte-Belohnungen",
+      "url": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "label": "SpotchBot: Moderatorenpanel",
+      "url": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "label": "SpotchBot: Streamer-Seite",
+      "url": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "label": "SpotchBot: OBS-Overlay für die Warteschlange",
+      "url": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "label": "SpotchBot: Voraussetzungen, Beta-Plätze und Follower",
+      "url": "https://spotchbot.com/docs/troubleshooting"
+    }
+  ]
+}

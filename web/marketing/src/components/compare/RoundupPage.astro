@@ -1,0 +1,139 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import PageHero from '@bagel/ui/astro/PageHero.astro';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
+import Section from '@bagel/ui/astro/Section.astro';
+import Container from '@bagel/ui/astro/Container.astro';
+import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import Table from '@bagel/ui/astro/Table.astro';
+import Disclosure from '@bagel/ui/astro/Disclosure.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
+import Fact from '@bagel/ui/astro/Fact.astro';
+import FactList from '@bagel/ui/astro/FactList.astro';
+import LinkRow from '@bagel/ui/astro/LinkRow.astro';
+import Cluster from '@bagel/ui/astro/Cluster.astro';
+import { useTranslations, dashLoginHref, localizePath, type Lang } from '../../i18n/ui';
+import { competitorNames } from '../../lib/compare/slugs';
+import type { RoundupContent } from '../../lib/compare/roundup';
+
+interface Props {
+    content: RoundupContent;
+    lang: Lang;
+}
+
+const { content, lang } = Astro.props;
+const { hero, reviewed, table, picks, faqTitle, faq, sources } = content;
+const t = useTranslations(lang);
+const date = new Date(`${reviewed}T00:00:00Z`);
+const reviewedText = t('compare.reviewed').replace('{date}',
+    new Intl.DateTimeFormat(lang, { dateStyle: 'long', timeZone: 'UTC' }).format(date),
+);
+---
+
+<PageHero eyebrow={hero.eyebrow} title={hero.title} description={hero.lead} />
+
+<Text size="xs" mono tone="muted" class="rnd__reviewed"><time datetime={reviewed}>{reviewedText}</time></Text>
+
+<Section size="band">
+  <Container>
+    <SectionHeading eyebrow={table.eyebrow} title={table.title} />
+    <Card flush class="rnd__table reveal-in">
+        <Table roomy label={table.title} minWidth="64rem">
+            <thead>
+                <tr>
+                    <th scope="col">{table.columns.bot}</th>
+                    <th scope="col">{table.columns.music}</th>
+                    <th scope="col">{table.columns.plays}</th>
+                    <th scope="col">{table.columns.price}</th>
+                    <th scope="col">{table.columns.source}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {table.rows.map((row) => (
+                    <tr>
+                        <th scope="row" class="rnd__bot">
+                            <TextLink variant="inline" href={localizePath(row.id === 'itsbagelbot' ? '/song-requests' : `/vs/${row.id}`, lang)}>
+                                {row.id === 'itsbagelbot' ? 'ItsBagelBot' : competitorNames[row.id]}
+                            </TextLink>
+                        </th>
+                        <td>{row.music}</td>
+                        <td>{row.plays}</td>
+                        <td>{row.price}</td>
+                        <td><TextLink variant="inline" href={row.source} external>{table.sourceLink}</TextLink></td>
+                    </tr>
+                ))}
+            </tbody>
+        </Table>
+    </Card>
+  </Container>
+</Section>
+
+<Section size="band">
+  <Container>
+    <SectionHeading eyebrow={picks.eyebrow} title={picks.title} />
+    <FactList layout="list" class="rnd__picks">
+        {picks.items.map((item, i) => (
+            <Fact term={item.name} fit class="reveal-in" style={`--reveal-i: ${i}`}>{item.desc}</Fact>
+        ))}
+    </FactList>
+  </Container>
+</Section>
+
+<Section size="band">
+  <Container>
+    <SectionHeading eyebrow={t('compare.faqEyebrow')} title={faqTitle} />
+    <div class="rnd__faq">
+        {faq.map((item, i) => (
+            <Disclosure summary={item.q} index={String(i + 1).padStart(2, '0')} class="reveal-in" style={`--reveal-i: ${i}`}>
+                <Text size="sm" tone="muted">{item.a}</Text>
+            </Disclosure>
+        ))}
+    </div>
+  </Container>
+</Section>
+
+<Section size="band">
+  <Container>
+    <LinkRow title={t('compare.sourcesTitle')} links={sources.map((source) => ({ href: source.url, label: source.label, external: true }))} class="rnd__sources" />
+  </Container>
+</Section>
+
+<Section size="band" class="rnd--last">
+  <Container>
+    <Cluster justify="center" gap={3} class="rnd__actions reveal-in">
+        <ButtonLink variant="twitch" href={dashLoginHref(lang)}>{t('nav.cta')}</ButtonLink>
+        <ButtonLink variant="secondary" href={localizePath('/song-requests', lang)}>{t('footer.songRequests')}</ButtonLink>
+    </Cluster>
+  </Container>
+</Section>
+
+<style>
+    .rnd--last { padding-bottom: var(--bb-space-section); }
+
+    .rnd__reviewed {
+        margin: -8px 0 0;
+        text-align: center;
+    }
+
+    .rnd__picks,
+    .rnd__faq {
+        max-width: var(--bb-content-hero);
+        margin-inline: auto;
+    }
+
+    .rnd__picks { --fact-value-h: calc(2 * 1lh); }
+
+    .rnd__table { max-width: var(--bb-content-max); margin-inline: auto; }
+
+    .rnd__bot { min-width: 9rem; }
+
+    .rnd__actions { margin-top: 40px; }
+
+    @media (max-width: 640px) {
+        .rnd__picks { --fact-value-h: calc(3 * 1lh); }
+    }
+</style>

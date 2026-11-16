@@ -107,7 +107,7 @@ const labels = {
         content={content}
         labels={labels}
         loginHref={dashLoginHref(lang)}
-        importHref={localizePath('/import', lang)}
+        importHref={localizePath(content.migrate.path ?? '/import', lang)}
         other={{ href: localizePath(`/vs/${otherSlug}`, lang), label: fill('compare.otherVs', { name: otherName }) }}
         related={related}
     />
