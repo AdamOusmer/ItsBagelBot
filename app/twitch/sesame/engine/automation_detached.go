@@ -19,17 +19,20 @@ import (
 )
 
 type detachedEmission struct {
-	emit  module.Emit
-	state *emitState
+	emit             module.Emit
+	state            *emitState
+	broadcasterID    uint64
+	accountCreatedAt int64
 }
 
 func (p *Pipeline) detachedEmit(ctx context.Context, broadcasterID uint64, locale, replayKey string) detachedEmission {
 	regress := module.RegressStandard
-	if u, err := p.proj.User(ctx, broadcasterID); err == nil && u.Premium() {
+	u, _ := p.proj.User(ctx, broadcasterID)
+	if u.Premium() {
 		regress = module.RegressPremium
 	}
 	state := &emitState{subject: p.laneSubject(regress), locale: locale, baseDone: true, replayBase: detachedReplayBase(broadcasterID, replayKey)}
-	return detachedEmission{emit: p.newEmit(ctx, strconv.FormatUint(broadcasterID, 10), state), state: state}
+	return detachedEmission{emit: p.newEmit(ctx, strconv.FormatUint(broadcasterID, 10), state), state: state, broadcasterID: broadcasterID, accountCreatedAt: u.AccountCreatedAt}
 }
 
 func detachedReplayBase(broadcasterID uint64, key string) string {
@@ -42,6 +45,7 @@ func detachedReplayBase(broadcasterID uint64, key string) string {
 
 func (p *Pipeline) flushDetached(ctx context.Context, d detachedEmission) error {
 	p.flushLegacyOutput(ctx, d.state)
+	p.recordProcessed(d.broadcasterID, d.accountCreatedAt, false, d.state.accepted)
 	return d.state.err
 }
 

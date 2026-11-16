@@ -90,16 +90,18 @@ func main() {
 	if cfg.EmotesEnabled {
 		emotes = automod.NewEmoteFetcher(nil, automod.DefaultEmoteEndpoints)
 	}
+	recorder := analytics.New(valkeyClient, log, nil)
+	defer recorder.Close()
 	deps := buildDeps(w, engineRuntime{
-		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
+		analytics: recorder,
+		proj:      proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
 		stats: loyaltyReporter, raffle: raffle, duel: duel, emotes: emotes,
 		seq: engine.NewSequencer(), chatters: chatters, runs: runs,
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(w, guard, emotes)
 
-	deps.Analytics = analytics.New(valkeyClient, log, registry.AnalyticsNames())
-	defer deps.Analytics.Close()
+	deps.Analytics.Register(registry.AnalyticsNames())
 	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close()
 

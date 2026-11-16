@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 
@@ -38,18 +40,33 @@ type GossipCaller interface {
 }
 
 type GossipRPC struct {
-	nc     *nats.Conn
-	prefix string
+	nc        *nats.Conn
+	prefix    string
+	analytics *analytics.Recorder
 }
 
 func NewGossipRPC(nc *nats.Conn, prefix string) *GossipRPC {
 	return &GossipRPC{nc: nc, prefix: prefix}
 }
 
+func (g *GossipRPC) SetAnalytics(rec *analytics.Recorder) { g.analytics = rec }
+
 func (g *GossipRPC) Call(ctx context.Context, route GossipRoute, req gossiprpc.Request, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, gossipRPCTimeout)
 	defer cancel()
-	return bus.RequestInto(ctx, g.nc, bus.RPCRequest{Subject: gossiprpc.Subject(g.prefix, route.Provider, route.Endpoint), Body: req}, out)
+	err := bus.RequestInto(ctx, g.nc, bus.RPCRequest{Subject: gossiprpc.Subject(g.prefix, route.Provider, route.Endpoint), Body: req}, out)
+	g.analytics.Count(catalog.ProviderCalls, route.Provider, providerFetchStatus(out, err))
+	return err
+}
+
+func providerFetchStatus(out any, err error) string {
+	if err != nil {
+		return "error"
+	}
+	if reply, ok := out.(*gossiprpc.CustomFetchReply); ok {
+		return string(reply.Status)
+	}
+	return "ok"
 }
 
 func (g *GossipRPC) Fetch(ctx context.Context, req gossiprpc.Request) (gossiprpc.CustomFetchReply, error) {

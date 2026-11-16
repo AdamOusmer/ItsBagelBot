@@ -21,7 +21,6 @@ func userChat(env *lane.Envelope) bool {
 	return env.Type == chatType && env.Origin != "trial"
 }
 
-// recordProcessed runs after a live envelope: answered counts commands, active counts any output.
 func (p *Pipeline) recordProcessed(broadcasterID uint64, accountCreatedAtMicros int64, answered bool, outputs int) {
 	if answered {
 		p.analytics.Count(catalog.ChatAnswered)
@@ -31,27 +30,60 @@ func (p *Pipeline) recordProcessed(broadcasterID uint64, accountCreatedAtMicros 
 	}
 	p.analytics.Distinct(catalog.ChannelsActive, broadcasterID)
 	if accountCreatedAtMicros > 0 {
-		p.analytics.Cohort(broadcasterID, time.UnixMicro(accountCreatedAtMicros))
+		created := time.UnixMicro(accountCreatedAtMicros)
+		p.analytics.Cohort(broadcasterID, created)
+		p.analytics.Distinct(catalog.ActivationAge, broadcasterID, activationAge(created, time.Now()))
 	}
 }
 
-func newlyEngaged(err error, before, after bool) bool {
-	return err == nil && after && !before
+func activationAge(created, now time.Time) string {
+	days := int(now.Sub(created).Hours() / 24)
+	switch {
+	case days <= 0:
+		return "d0"
+	case days == 1:
+		return "d1"
+	case days < 7:
+		return "d2_6"
+	case days < 14:
+		return "d7_13"
+	case days < 30:
+		return "d14_29"
+	default:
+		return "d30p"
+	}
 }
 
-func (p *Pipeline) recordBaked(c *module.Context, bc BoundCommand, engaged bool) {
-	if !engaged {
+func (bc BoundCommand) analyticsModule() string {
+	if bc.Owner.Name == "" && configurableBuiltin(bc.Cmd.Name) {
+		return bc.Cmd.Name
+	}
+	return moduleLabel(bc.Owner)
+}
+
+func (p *Pipeline) recordBaked(c *module.Context, bc BoundCommand, emittedBefore int) {
+	if c.Env.Origin == "trial" || c.Emitted <= emittedBefore {
 		return
 	}
 	p.analytics.Count(catalog.CommandUses, bc.Cmd.Name)
-	p.analytics.Distinct(catalog.ModuleActive, c.BroadcasterID, moduleLabel(bc.Owner))
+	p.recordModuleOutputs(c, bc.analyticsModule(), emittedBefore)
 	p.analytics.Distinct(catalog.CommandChannels, c.BroadcasterID, bc.Cmd.Name)
 }
 
 func (p *Pipeline) recordHandled(mctx *module.Context, m module.Module, emittedBefore int) {
-	if mctx.Emitted > emittedBefore {
-		label := moduleLabel(m)
-		p.analytics.Count(catalog.ModuleEvents, label)
-		p.analytics.Distinct(catalog.ModuleActive, mctx.BroadcasterID, label)
+	p.recordModuleOutputs(mctx, moduleLabel(m), emittedBefore)
+}
+
+func (p *Pipeline) recordModuleOutputs(c *module.Context, label string, emittedBefore int) {
+	if c.Env.Origin == "trial" || c.Emitted <= emittedBefore {
+		return
+	}
+	p.analytics.Add(catalog.ModuleEvents, int64(c.Emitted-emittedBefore), label)
+	p.analytics.Distinct(catalog.ModuleActive, c.BroadcasterID, label)
+}
+
+func (p *Pipeline) recordBlocked(c *module.Context, reason string, err error) {
+	if c.Env.Origin != "trial" && err == nil {
+		p.analytics.Count(catalog.CommandBlocked, reason)
 	}
 }

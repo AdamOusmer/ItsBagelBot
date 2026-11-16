@@ -267,17 +267,17 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	p.flushLegacyOutput(ctx, &emission)
 	p.recordActivity(ctx, mctx, &emission, started)
 
-	if mctx.Command != "" {
+	if mctx.CommandAnswered {
 		p.stats.countAnswered(broadcasterID)
 	}
-	p.recordProcessed(broadcasterID, admission.AccountCreatedAt, mctx.Command != "", emission.ordinal)
+	p.recordProcessed(broadcasterID, admission.AccountCreatedAt, mctx.CommandAnswered, emission.accepted)
 
 	p.notifyObservers(ObservedEvent{
 		BroadcasterID: broadcasterID,
 		Type:          env.Type,
 		At:            started,
 		Locale:        p.observerLocale(ctx, mctx),
-		Handled:       mctx.Command != "",
+		Handled:       mctx.CommandAnswered,
 		Command:       mctx.Command,
 		Actor:         env.ChatterUserName,
 		DurationMS:    int(time.Since(started).Milliseconds()),
