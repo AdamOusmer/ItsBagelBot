@@ -634,6 +634,15 @@ export function flowToDefinition(flow: Flow): FlowResult<Definition> {
   return lowerFlow(flow).result;
 }
 
+export function compileFlow(flow: Flow): FlowResult<{ definition: Definition; nodeByPath: ReadonlyMap<string, string> }> {
+  const { result, owners } = lowerFlow(flow);
+  if (!result.ok) return result;
+  const nodeByPath = stepPaths(result.value, owners).byPath;
+  const trigger = flow.nodes.find((node) => isTriggerType(node.type))!;
+  nodeByPath.set('trigger', trigger.id);
+  return { ok: true, value: { definition: result.value, nodeByPath } };
+}
+
 type StepPaths = { byPath: Map<string, string>; lastDelay: string | null };
 
 function walkSteps(owners: Map<object, string>, list: Action[], base: string, into: StepPaths): void {
