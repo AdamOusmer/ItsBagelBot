@@ -23,7 +23,7 @@
     "field": {
       "variant": {
         "label": "Kind",
-        "option": { "any": "Any", "new": "New", "resub": "Resub", "gift": "Gift" }
+        "option": { "any": "New or gifted sub", "new": "New", "resub": "Resub", "gift": "Gift" }
       }
     }
   },

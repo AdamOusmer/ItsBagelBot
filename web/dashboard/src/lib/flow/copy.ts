@@ -8,6 +8,12 @@ export const stepLabel = (t: Translate, spec: NodeSpec): string => t(`flows.step
 
 export const stepSummary = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.summary` as MessageKey);
 
+export function stepKeywords(t: Translate, spec: NodeSpec): string {
+  const key = `flows.step.${spec.kind}.${spec.slug}.keywords` as MessageKey;
+  const translated = t(key);
+  return translated === key ? '' : translated;
+}
+
 export const groupLabel = (t: Translate, group: StepGroup): string => t(`flows.board.group.${group}` as MessageKey);
 
 export const fieldLabel = (t: Translate, spec: NodeSpec, field: FieldSpec): string =>

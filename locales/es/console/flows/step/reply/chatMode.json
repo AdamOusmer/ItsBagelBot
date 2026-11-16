@@ -1,6 +1,6 @@
 {
   "label": "Cambiar el modo del chat",
-  "summary": "Cambiar el modo del chat",
+  "summary": "Cambia quién puede chatear y con qué frecuencia",
   "field": {
     "mode": {
       "label": "Modo del chat",

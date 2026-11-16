@@ -30,7 +30,7 @@
       "variant": {
         "label": "Tipo",
         "option": {
-          "any": "Qualquer",
+          "any": "Sub nova ou de presente",
           "new": "Novo",
           "resub": "Resub",
           "gift": "Presente"

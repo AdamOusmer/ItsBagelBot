@@ -77,7 +77,7 @@ function triggerLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
     case 'twitch.chat.word':
       return given(text(n, 'word'), (word) => t('flows.line.word', { word }));
     case 'twitch.sub':
-      return subLine(t, text(n, 'variant'));
+      return subLine(t, text(n, 'variant') || 'any');
     case 'twitch.cheer':
       return given(num(n, 'minBits'), (bits) => t('flows.line.cheer', { bits }));
     case 'twitch.raid':
@@ -93,7 +93,7 @@ function compareLine(t: Translate, n: FlowNode): string {
   const left = text(n, 'left');
   const right = text(n, 'right');
   if (!left || !right) return '';
-  const op = text(n, 'op');
+  const op = text(n, 'op') || 'gte';
   return Object.hasOwn(COMPARISONS, op) ? t(COMPARISONS[op]!, { left, right }) : t('flows.line.compareIs', { left, right });
 }
 

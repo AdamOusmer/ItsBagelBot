@@ -1,7 +1,7 @@
 {
   "command": "Alguien escribe {trigger} en el chat",
   "word": "Alguien dice {word} en el chat",
-  "subAny": "Alguien se suscribe, se resuscribe o regala una suscripción",
+  "subAny": "Alguien recibe una sub nueva o regalada",
   "subNew": "Alguien se suscribe por primera vez",
   "subResub": "Alguien se resuscribe",
   "subGift": "Alguien regala una suscripción",

@@ -185,7 +185,7 @@
   },
   "poll": {
     "label": "Umfrage starten",
-    "summary": "Umfrage starten",
+    "summary": "Zuschauer über eine Frage abstimmen lassen",
     "field": {
       "title": {
         "label": "Titel"
@@ -200,7 +200,7 @@
   },
   "pollEnd": {
     "label": "Umfrage beenden",
-    "summary": "Umfrage beenden",
+    "summary": "Abstimmung stoppen oder Ergebnisse archivieren",
     "field": {
       "status": {
         "label": "Aktion",
@@ -213,7 +213,7 @@
   },
   "prediction": {
     "label": "Vorhersage starten",
-    "summary": "Vorhersage starten",
+    "summary": "Zuschauer mit Punkten auf ein Ergebnis wetten lassen",
     "field": {
       "title": {
         "label": "Titel"
@@ -228,7 +228,7 @@
   },
   "predictionEnd": {
     "label": "Vorhersage beenden",
-    "summary": "Vorhersage beenden",
+    "summary": "Wetten sperren, Punkte erstatten oder Gewinner wählen",
     "field": {
       "status": {
         "label": "Aktion",
@@ -245,7 +245,7 @@
   },
   "raidStart": {
     "label": "Raid starten",
-    "summary": "Raid starten",
+    "summary": "Deine Zuschauer zu einem anderen Kanal schicken",
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
@@ -254,11 +254,11 @@
   },
   "raidCancel": {
     "label": "Raid abbrechen",
-    "summary": "Raid abbrechen"
+    "summary": "Den Raid vor dem Kanalwechsel stoppen"
   },
   "mod": {
     "label": "Moderatorrolle ändern",
-    "summary": "Moderatorrolle ändern",
+    "summary": "Moderatorrechte geben oder entziehen",
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
@@ -270,7 +270,7 @@
   },
   "vip": {
     "label": "VIP-Rolle ändern",
-    "summary": "VIP-Rolle ändern",
+    "summary": "Einem Zuschauer das VIP-Abzeichen geben oder nehmen",
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
@@ -282,15 +282,15 @@
   },
   "clearChat": {
     "label": "Chat leeren",
-    "summary": "Chat leeren"
+    "summary": "Alle Nachrichten aus dem Chat entfernen"
   },
   "adSnooze": {
     "label": "Nächste Werbung verschieben",
-    "summary": "Nächste Werbung verschieben"
+    "summary": "Die nächste Werbepause später starten"
   },
   "whisper": {
     "label": "Flüsternachricht senden",
-    "summary": "Flüsternachricht senden",
+    "summary": "Einem Zuschauer eine private Nachricht schicken",
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
@@ -302,7 +302,7 @@
   },
   "unbanResolve": {
     "label": "Entbannungsantrag bearbeiten",
-    "summary": "Entbannungsantrag bearbeiten",
+    "summary": "Den Einspruch eines Zuschauers annehmen oder ablehnen",
     "field": {
       "status": {
         "label": "Aktion",
@@ -318,7 +318,7 @@
   },
   "brandedContent": {
     "label": "Markeninhalte kennzeichnen",
-    "summary": "Markeninhalte kennzeichnen",
+    "summary": "Den Hinweis auf bezahlte Werbung einblenden oder ausblenden",
     "field": {
       "on": {
         "label": "Aktiviert"

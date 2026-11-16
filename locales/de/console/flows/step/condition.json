@@ -36,7 +36,7 @@
   },
   "cooldown": {
     "label": "Abklingzeit",
-    "summary": "Zwischen Ausführungen warten",
+    "summary": "Nur alle paar Sekunden ausführen",
     "field": {
       "seconds": {
         "label": "Abklingzeit",
@@ -70,7 +70,7 @@
   },
   "compare": {
     "label": "Wert vergleichen",
-    "summary": "Variable prüfen",
+    "summary": "Zwei Zahlen oder Texte vergleichen",
     "field": {
       "left": {
         "label": "Wert",

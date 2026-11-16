@@ -36,7 +36,7 @@
   },
   "cooldown": {
     "label": "Délai de recharge",
-    "summary": "Attendre entre chaque exécution",
+    "summary": "Lancer une fois toutes les quelques secondes",
     "field": {
       "seconds": {
         "label": "Délai de recharge",
@@ -70,7 +70,7 @@
   },
   "compare": {
     "label": "Comparer une valeur",
-    "summary": "Vérifier une variable",
+    "summary": "Comparer deux nombres ou textes",
     "field": {
       "left": {
         "label": "Valeur",

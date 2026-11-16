@@ -30,7 +30,7 @@
       "variant": {
         "label": "Type",
         "option": {
-          "any": "Tous",
+          "any": "Sub nouveau ou offert",
           "new": "Nouveau",
           "resub": "Resub",
           "gift": "Offert"
