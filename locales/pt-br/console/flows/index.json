@@ -1,8 +1,9 @@
 {
   "lockedChip": "Beta Premium",
   "introTitle": "Boas-vindas ao {name}",
-  "introLead": "Feito para usuários avançados que querem controle total. Conecte gatilhos, condições e ações em um único sistema e teste cada caminho antes que chegue ao chat.",
-  "introCta": "Começar a criar",
+  "introLead": "Escolha uma receita e deixe do seu jeito. As etapas estão prontas para editar.",
+  "introCta": "Começar do zero",
+  "clarity": { "required": "Obrigatório", "liveOnSave": "Roda ao salvar", "staysOff": "Continua desligada ao salvar", "browse": "Ver minhas receitas" },
   "introDocs": "Ler o guia",
   "introStart": "Início",
   "introWhenLabel": "Quando",
@@ -86,8 +87,8 @@
   "warnAlertOff": "Salvo, mas o alerta integrado ainda está ativado, então os espectadores podem ver ambos.",
   "warnAlertsOn": "O módulo Alertas do chat estava desativado e agora está ativado.",
   "unsupportedTitle": "Esta receita ainda não pode ser aberta aqui",
-  "unsupportedBody": "Ela usa uma etapa que o construtor não consegue desenhar. Ela continua em execução e você pode editá-la em Automações.",
-  "unsupportedCta": "Abrir Automações",
+  "unsupportedBody": "Abra esta receita no editor original para alterá-la.",
+  "unsupportedCta": "Abrir editor original",
   "issue": {
     "permRequired": "Este comando precisa de um nível de usuário maior para este passo. Adicione uma verificação de nível de usuário antes dele.",
     "noTrigger": "Adicione uma etapa Quando para iniciar esta receita.",
@@ -119,7 +120,7 @@
     "nesting": "As verificações estão aninhadas profundamente demais.",
     "delayBudget": "As esperas somam mais do que uma receita pode pausar.",
     "name": "Dê um nome à receita usando letras, números e espaços, com até 64 caracteres.",
-    "generic": "Algo nesta receita não pode ser salvo ({code})."
+    "generic": "Confira os ajustes desta etapa e tente salvar de novo."
   },
   "choose": {
     "reward": "Escolha uma recompensa",
@@ -134,8 +135,8 @@
     "manageableRewards": "A Twitch só permite alterar recompensas criadas aqui. Crie uma em Pontos do canal.",
     "counters": "Ainda não há contadores. Crie um em Contadores.",
     "scenes": "Esta luz não tem cenas.",
-    "namedCooldowns": "Nenhuma receita nomeia um temporizador ainda. Dê um nome a um no seu intervalo de uso.",
-    "namedCountdowns": "Nenhuma contagem regressiva foi iniciada em uma receita."
+    "namedCooldowns": "Adicione uma etapa de intervalo de uso e dê um nome a ela primeiro.",
+    "namedCountdowns": "Adicione uma etapa para iniciar uma contagem regressiva primeiro."
   },
   "choiceProblem": {
     "rewards": "Não foi possível carregar suas recompensas.",

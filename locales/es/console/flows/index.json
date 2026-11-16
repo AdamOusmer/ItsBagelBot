@@ -1,8 +1,9 @@
 {
   "lockedChip": "Beta Premium",
   "introTitle": "Te damos la bienvenida a {name}",
-  "introLead": "Diseñado para usuarios avanzados que quieren control total. Conecta disparadores, condiciones y acciones en un solo sistema y prueba cada ruta antes de que llegue al chat.",
-  "introCta": "Empieza a crear",
+  "introLead": "Elige una receta y hazla tuya. Los pasos están listos para editar.",
+  "introCta": "Empezar de cero",
+  "clarity": { "required": "Obligatorio", "liveOnSave": "Se activa al guardar", "staysOff": "Sigue apagada al guardar", "browse": "Ver mis recetas" },
   "introDocs": "Lee la guía",
   "introStart": "Inicio",
   "introWhenLabel": "Cuando",
@@ -86,8 +87,8 @@
   "warnAlertOff": "Guardado, pero la alerta integrada sigue activada, por lo que los espectadores podrían ver ambas.",
   "warnAlertsOn": "El módulo de alertas de chat estaba desactivado y ahora está activado.",
   "unsupportedTitle": "Esta receta no se puede abrir aquí todavía",
-  "unsupportedBody": "Usa un paso que el creador no puede dibujar. Sigue ejecutándose y puedes editarla en Automatizaciones.",
-  "unsupportedCta": "Abrir Automatizaciones",
+  "unsupportedBody": "Abre esta receta en su editor original para cambiarla.",
+  "unsupportedCta": "Abrir editor original",
   "issue": {
     "permRequired": "Este comando necesita un nivel de usuario más alto para este paso. Añade antes una comprobación de nivel de usuario.",
     "noTrigger": "Añade un paso Cuando para iniciar esta receta.",
@@ -119,7 +120,7 @@
     "nesting": "Las comprobaciones están anidadas a demasiada profundidad.",
     "delayBudget": "Las esperas suman más de lo que una receta puede pausarse.",
     "name": "Asigna a la receta un nombre usando letras, números y espacios, de hasta 64 caracteres.",
-    "generic": "Algo en esta receta no se puede guardar ({code})."
+    "generic": "Revisa los ajustes de este paso e intenta guardar de nuevo."
   },
   "choose": {
     "reward": "Elige una recompensa",
@@ -134,8 +135,8 @@
     "manageableRewards": "Twitch solo nos permite cambiar recompensas creadas aquí. Crea una en Puntos del canal.",
     "counters": "Aún no hay contadores. Crea uno en Contadores.",
     "scenes": "Esta luz no tiene escenas.",
-    "namedCooldowns": "Ninguna receta nombra un temporizador todavía. Dale un nombre en su enfriamiento.",
-    "namedCountdowns": "Aún no se ha iniciado una cuenta atrás en una receta."
+    "namedCooldowns": "Añade primero un paso de enfriamiento y dale un nombre.",
+    "namedCountdowns": "Añade primero un paso para iniciar una cuenta atrás."
   },
   "choiceProblem": {
     "rewards": "No se pudieron cargar tus recompensas.",

@@ -2,7 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { onMount, tick, untrack } from 'svelte';
-  import { beforeNavigate, goto } from '$app/navigation';
+  import { beforeNavigate, goto, invalidate } from '$app/navigation';
   import { page } from '$app/state';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
@@ -20,14 +20,16 @@
   import { postAction } from '#lib/client-actions.svelte';
   import { FlowHistory } from '#lib/flow/history';
   import { allowed, resolveShortcut, type Scopes, type Shortcut } from '#lib/flow/keyboard';
-  import { isStale, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
+  import { isStale, issueMessage, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
+  import { fieldIssues, type FieldIssue } from '#lib/flow/issues';
+  import { starterFlow } from '#lib/flow/starters';
   import { awaitingSetup } from '#lib/flow/setup';
   import { addStep as insertStep, selectedAddPoint, selectedPlacement, selectionAfterHistory } from '#lib/flow/editor';
   import { keyboardSize, panelInsets } from '#lib/flow/editor-viewport';
   import { newFlow, specFor, type Flow } from '#lib/flow/model';
   import { rehearseFlow } from '#lib/flow/rehearse';
   import type { RehearsalScenario } from '#lib/flow/rehearse';
-  import { flowRouteId, parseFlowRouteId } from '#lib/flow/ref';
+  import { flowRouteId, legacyEditorHref, parseFlowRouteId } from '#lib/flow/ref';
   import type { SaveReply, ToggleReply } from '#lib/flow/replies';
   import type { UpgradeReport } from '#lib/server/flow-store';
   import { SHEET_QUERY, sheetDrag } from '#lib/flow/sheet';
@@ -59,12 +61,13 @@
 
   const { t } = getI18n();
 
-  const opened = untrack(() => structuredClone(data.flow ?? newFlow('')));
+  const starter = untrack(() => data.routeId === 'new' ? starterFlow(page.url.searchParams.get('starter'), t) : null);
+  const opened = untrack(() => structuredClone(starter ?? data.flow ?? newFlow('')));
   let flow = $state<Flow>({ ...opened, name: opened.name || t('flows.page.untitled') });
   const contentOf = (f: Flow) =>
     JSON.stringify({ name: f.name, queue: f.queue ?? '', edges: f.edges, nodes: f.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config })) });
 
-  let baseline = $state(contentOf(untrack(() => flow)));
+  let baseline = $state(contentOf(untrack(() => starter ? newFlow('') : flow)));
   const drawable = untrack(() => data.flow !== null);
   let ref = $state(untrack(() => data.ref));
   let revision = $state(untrack(() => data.revision));
@@ -86,7 +89,7 @@
   } : null);
   let autoTidy = $state(true);
   let canvas = $state<FlowCanvasApi>();
-  let libMode = $state<LibraryMode | null>(untrack(() => (data.flow?.nodes.length === 0 ? 'trigger' : null)));
+  let libMode = $state<LibraryMode | null>(untrack(() => (flow.nodes.length === 0 ? 'trigger' : null)));
   let editorEl = $state<HTMLDivElement>();
   let barEl = $state<HTMLElement>();
   let railEl = $state<HTMLElement>();
@@ -96,6 +99,8 @@
   let sheetMode = $state(false);
   let inspecting = $state(false);
   let inspectFocus = $state(0);
+  let inspectField = $state<string>();
+  let issues = $state<FieldIssue[]>([]);
   let libFocus = $state(0);
   let libReturn: HTMLElement | null = null;
   let runReturn: HTMLElement | null = null;
@@ -415,6 +420,8 @@
   }
 
   function saved(reply: Extract<SaveReply, { ok: true }>, sent: Flow) {
+    issues = [];
+    void invalidate('flows:choices');
     ref = parseFlowRouteId(reply.id);
     revision = reply.revision;
     enabled = reply.enabled;
@@ -430,14 +437,24 @@
   function refused(reply: Extract<SaveReply, { ok: false }>) {
     if (reply.reason === 'needs_upgrade' && reply.upgrade) {
       upgrade = reply.upgrade;
-    } else if (isStale(reply) && reply.latestRevision) {
-      staleLatest = reply.latestRevision;
-    } else {
-      const step = stepOf(reply.issues ?? [], flow.nodes);
-      const message = saveMessage(t, reply);
-      toast('danger', step ? `${message} ${t('flows.saveStep')}` : message, { ttlMs: 9000 });
-      if (step) focusStep(step);
+      return;
     }
+    if (isStale(reply) && reply.latestRevision) {
+      staleLatest = reply.latestRevision;
+      return;
+    }
+    showSaveIssues(reply);
+  }
+
+  function showSaveIssues(reply: Extract<SaveReply, { ok: false }>) {
+    issues = fieldIssues(reply.issues ?? [], flow.nodes);
+    const step = stepOf(reply.issues ?? [], flow.nodes);
+    const message = saveMessage(t, reply);
+    toast('danger', step ? `${message} ${t('flows.saveStep')}` : message, { ttlMs: 9000 });
+    if (!step) return;
+    inspectField = issues.find((issue) => issue.nodeId === step && issue.fieldKey)?.fieldKey;
+    testRunOpen = false;
+    focusStep(step);
   }
 
   async function save(extra: { revision?: string; confirmUpgrade?: boolean } = {}) {
@@ -542,7 +559,8 @@
   <span class="flow-name"><Input fill maxlength={64} aria-label={t('flows.nameLabel')} bind:value={flow.name} /></span>
   <Switch
     checked={enabled}
-    label={enabled ? t('flows.page.turnOff', { name: flow.name }) : t('flows.page.turnOn', { name: flow.name })}
+    label={enabled ? t('flows.clarity.liveOnSave') : t('flows.clarity.staysOff')}
+    title={enabled ? t('flows.clarity.liveOnSave') : t('flows.clarity.staysOff')}
     onCheckedChange={(next) => void setEnabled(next)}
   />
 {/snippet}
@@ -590,7 +608,7 @@
   {#if inspectorVisible}
     <div class="panel-slot">
     {#await loadInspector() then { default: NodeInspector }}
-      <NodeInspector bind:flow bind:selectedId {rehearsal} focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
+      <NodeInspector bind:flow bind:selectedId {rehearsal} {issues} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
     {/await}
     </div>
   {/if}
@@ -694,7 +712,8 @@
 {:else}
   <div class="unsupported">
     <EmptyState title={t('flows.unsupportedTitle')} body={t('flows.unsupportedBody')}>
-      <ButtonLink variant="primary" href="/automations">{t('flows.unsupportedCta')}</ButtonLink>
+      {#each data.issues ?? [] as issue, i (i)}<p class="note">{issueMessage(t, issue)}</p>{/each}
+      {#if data.ref}<ButtonLink variant="primary" href={legacyEditorHref(data.ref)}>{t('flows.unsupportedCta')}</ButtonLink>{/if}
     </EmptyState>
   </div>
 {/if}

@@ -13,14 +13,16 @@
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import VarCard from '@bagel/ui/svelte/VarCard.svelte';
-  import { getI18n } from '@bagel/kit';
-  import { chipHint, pinnedFor, sheetFor, type VariableChip } from '@bagel/kit/variables';
+  import { getI18n, type MessageKey } from '@bagel/kit';
+  import { chipHint, pinnedFor, sheetFor, variableById, type VariableChip } from '@bagel/kit/variables';
   import { portLabel } from '#lib/flow/describe';
+  import { fieldRequired, type FieldIssue } from '#lib/flow/issues';
+  import { issueMessage } from '#lib/flow/messages';
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
   import { durationOutside, durationRange, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
-  import { fieldVisible, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
+  import { fieldVisible, NODE_SPECS, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode } from '#lib/flow/ops';
   import { awaitingSetup, configText } from '#lib/flow/setup';
   import { SETUP_URL } from '@bagel/kit/automations';
@@ -35,9 +37,11 @@
     selectedId = $bindable(null),
     rehearsal,
     focusToken = 0,
+    focusField,
+    issues = [],
     onclose,
     onremove
-  }: { flow: Flow; selectedId?: string | null; rehearsal: RehearsalView; focusToken?: number; onclose?: () => void; onremove: (id: string) => void } = $props();
+  }: { flow: Flow; selectedId?: string | null; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; onclose?: () => void; onremove: (id: string) => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -48,9 +52,12 @@
   $effect(() => {
     if (focusToken > 0 && panel) {
       const root = panel;
+      const key = focusField;
       void tick().then(() => {
+        const field = Array.from(root.querySelectorAll<HTMLElement>('[data-field]')).find((el) => el.dataset.field === key);
+        const control = field?.querySelector<HTMLElement>('input, textarea, select, button');
         const fields = Array.from(root.querySelectorAll<HTMLElement>('.scroll :is(input, textarea, select, button):not([disabled], [tabindex="-1"])'));
-        (fields.find((el) => el.getClientRects().length > 0) ?? root).focus();
+        (control ?? field ?? fields.find((el) => el.getClientRects().length > 0) ?? root).focus();
       });
     }
   });
@@ -90,9 +97,16 @@
     if (node.config.perUser && node.config.name) delete node.config.name;
   });
 
-  const templateFields = $derived(spec?.fields.filter((f) => f.type === 'template') ?? []);
+  const templateFields = $derived(node && spec ? spec.fields.filter((f) => f.type === 'template' && fieldVisible(spec, node, f)) : []);
 
   let focusedKey = $state<string>();
+  let variableList = $state<HTMLElement>();
+  $effect(() => {
+    void node?.id;
+    caret.clear();
+    focusedKey = undefined;
+    query = '';
+  });
   const insertKey = $derived(templateFields.find((f) => f.key === focusedKey)?.key ?? templateFields[0]?.key);
   const tokens = $derived(node ? [
     ...variablesFor(flow, node.id).filter((v) => !(node.type === 'reply.countdown_start' && insertKey === 'leftReply' && v.token === '{countdown:left}')),
@@ -104,20 +118,28 @@
 
   const flowVars = $derived(
     tokens
-      .map((v) => ({ token: v.token, hint: t('flows.board.variableHint', { label: variableLabel(t, v), sample: v.sample }) }))
-      .filter((v) => matches(v.token, v.hint))
+      .map((v) => ({ token: v.token, label: variableLabel(t, v), hint: t('flows.board.variableSample', { sample: v.sample }) }))
+      .filter((v) => matches(v.token, `${v.label} ${v.hint}`))
   );
 
-  const catalogHint = (c: VariableChip) => chipHint(t, c) ?? (c.sample ? t('flows.board.variableSample', { sample: c.sample }) : undefined);
-
   const channelVars = $derived.by(() => {
-    const own = new Set(tokens.map((v) => v.token));
+    const contextual = new Set(NODE_SPECS.flatMap((spec) => [...spec.provides ?? [], ...spec.outputs?.flatMap((output) => output.provides ?? []) ?? []]).map((v) => v.token));
     const chips = needle ? sheetFor('custom') : pinnedFor('custom');
     return chips
-      .filter((c) => !own.has(c.token))
-      .map((c) => ({ token: c.token, hint: catalogHint(c) }))
-      .filter((v) => matches(v.token, v.hint));
+      .filter((c) => !contextual.has(c.token) && Boolean(chipHint(t, c)))
+      .map((c) => ({ token: c.token, label: catalogLabel(c), hint: catalogSample(c) }))
+      .filter((v) => matches(v.token, `${v.label} ${v.hint}`));
   });
+
+  function catalogLabel(chip: VariableChip): string {
+    return chip.id ? t(`vars.${chip.id}.name` as MessageKey) : chipHint(t, chip) ?? '';
+  }
+
+  function catalogSample(chip: VariableChip): string | undefined {
+    const forms = variableById(chip.id ?? '')?.forms ?? [];
+    const sample = chip.sample ?? forms.find((form) => form.example === chip.token)?.output ?? forms[0]?.output;
+    return sample ? t('flows.board.variableSample', { sample }) : undefined;
+  }
 
   function matches(token: Token, hint: Hint): boolean {
     return !needle || token.toLowerCase().includes(needle) || Boolean(hint?.toLowerCase().includes(needle));
@@ -126,6 +148,15 @@
   function trackCaret(key: FieldKey, field: HTMLInputElement | HTMLTextAreaElement) {
     focusedKey = key;
     caret.set(key, field.selectionStart ?? field.value.length);
+  }
+
+  function openVariables(event: KeyboardEvent, key: FieldKey) {
+    if (event.key !== '{' || event.isComposing) return;
+    event.preventDefault();
+    trackCaret(key, event.currentTarget as HTMLInputElement | HTMLTextAreaElement);
+    query = '';
+    variableList?.querySelector<HTMLInputElement>('input')?.focus();
+    variableList?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   async function insertToken(key: FieldKey, token: Token) {
@@ -200,14 +231,18 @@
         <div class="fields">
           {#each spec.fields.filter((f) => renderVisible(spec, node, f)) as field (field.key)}
             {@const label = fieldLabel(t, spec, field)}
+            {@const issue = issues.find((issue) => issue.nodeId === node.id && issue.fieldKey === field.key)}
+            {@const error = issue ? issueMessage(t, issue) : undefined}
+            {@const tag = fieldRequired(node, field.key) ? t('flows.clarity.required') : undefined}
             {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field)}
+            <div class="field" data-field={field.key} role="group" aria-label={label} tabindex="-1">
             {#if spec.type === 'cond.cooldown' && field.key === 'name'}
               {@const perViewer = Boolean(node.config.perUser)}
-              <Field {label} for="{uid}-{field.key}" hint={t('flows.step.condition.cooldown.field.name.hint')}>
+              <Field {label} {tag} {error} for="{uid}-{field.key}" hint={t('flows.step.condition.cooldown.field.name.hint')}>
                 <Input id="{uid}-{field.key}" {placeholder} value={perViewer ? '' : textOf(field.key)} disabled={perViewer} oninput={(e) => (node.config[field.key] = e.currentTarget.value)} />
               </Field>
             {:else if field.type === 'color'}
-              <Field {label} for="{uid}-{field.key}">
+              <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <ColorPicker
                   id="{uid}-{field.key}"
                   value={textOf(field.key) || '#ffffff'}
@@ -224,7 +259,7 @@
                 />
               </div>
             {:else if field.type === 'select'}
-              <Field {label} for="{uid}-{field.key}">
+              <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <Select
                   id="{uid}-{field.key}"
                   options={fieldOptions(t, spec, field)}
@@ -233,7 +268,7 @@
                 />
               </Field>
             {:else if field.type === 'number'}
-              <Field {label} for="{uid}-{field.key}" hint={spec.type === 'reply.cooldown_add' && field.key === 'per' ? t('flows.step.reply.cooldownAdd.field.per.hint') : spec.type === 'reply.countdown_add' && field.key === 'per' ? t('flows.step.reply.countdownAdd.field.per.hint') : undefined}>
+              <Field {label} {tag} {error} for="{uid}-{field.key}" hint={spec.type === 'reply.cooldown_add' && field.key === 'per' ? t('flows.step.reply.cooldownAdd.field.per.hint') : spec.type === 'reply.countdown_add' && field.key === 'per' ? t('flows.step.reply.countdownAdd.field.per.hint') : undefined}>
                 <Input
                   id="{uid}-{field.key}"
                   type="number"
@@ -252,15 +287,15 @@
             {:else if field.type === 'duration'}
               {@const outside = durationOutside(field, node.config[field.key])}
               {@const range = durationRange(t, spec, field)}
-              <Field {label} hint={outside ? undefined : range} error={outside ? range : undefined} errorId="{uid}-{field.key}-error">
+              <Field {label} {tag} hint={outside ? undefined : range} error={error ?? (outside ? range : undefined)} errorId="{uid}-{field.key}-error">
                 {#key node.id}
                   <DurationField
                     id="{uid}-{field.key}"
                     min={field.min}
                     max={field.max}
                     {label}
-                    invalid={outside}
-                    describedby={outside ? `${uid}-${field.key}-error` : undefined}
+                    invalid={outside || Boolean(error)}
+                    describedby={outside || error ? `${uid}-${field.key}-error` : undefined}
                     bind:value={
                       () => (node.config[field.key] === undefined ? Number.NaN : Number(node.config[field.key])),
                       (seconds) => {
@@ -272,7 +307,7 @@
                 {/key}
               </Field>
             {:else if field.type === 'template' && field.singleLine}
-              <Field {label} for="{uid}-{field.key}">
+              <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
                   {placeholder}
@@ -285,10 +320,11 @@
                   onblur={(e) => trackCaret(field.key, e.currentTarget)}
                   onclick={(e) => trackCaret(field.key, e.currentTarget)}
                   onkeyup={(e) => trackCaret(field.key, e.currentTarget)}
+                  onkeydown={(e) => openVariables(e, field.key)}
                 />
               </Field>
             {:else if field.type === 'template'}
-              <Field {label} for="{uid}-{field.key}">
+              <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <Textarea
                   id="{uid}-{field.key}"
                   rows={4}
@@ -302,10 +338,11 @@
                   onblur={(e) => trackCaret(field.key, e.currentTarget)}
                   onclick={(e) => trackCaret(field.key, e.currentTarget)}
                   onkeyup={(e) => trackCaret(field.key, e.currentTarget)}
+                  onkeydown={(e) => openVariables(e, field.key)}
                 />
               </Field>
             {:else if field.type === 'choice'}
-              <ChoiceField {node} {field} {label} id="{uid}-{field.key}" />
+              <ChoiceField {node} {field} {label} {tag} {error} draft={flow.nodes} id="{uid}-{field.key}" />
             {:else if field.type === 'reward'}
               <RewardField {node} {label} id="{uid}-{field.key}" />
             {:else if field.type === 'goveeLight'}
@@ -315,7 +352,7 @@
                 <UserField {node} id="{uid}-{field.key}" {label} {placeholder} />
               {/key}
             {:else}
-              <Field {label} for="{uid}-{field.key}">
+              <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
                   {placeholder}
@@ -324,6 +361,10 @@
                 />
               </Field>
             {/if}
+            {#if ['reward', 'goveeLight', 'login'].includes(field.type)}
+              <Field label="" {tag} {error}>{#snippet children()}{/snippet}</Field>
+            {/if}
+            </div>
           {/each}
         </div>
       {/if}
@@ -350,14 +391,14 @@
       {/if}
 
       {#if insertKey}
-        <section class="group">
+        <section class="group" bind:this={variableList}>
           <h3 class="group-title">{t('flows.board.variables')}</h3>
           <SearchInput fill bind:value={query} placeholder={t('flows.board.searchVariables')} />
           {#if flowVars.length}
             <h4 class="subgroup-title">{t('flows.board.variablesFlow')}</h4>
             <ul class="vars">
               {#each flowVars as v (v.token)}
-                <li><VarCard stacked token={v.token} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
+                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
               {/each}
             </ul>
           {:else if !tokens.length && !needle}
@@ -367,7 +408,7 @@
             <h4 class="subgroup-title">{needle ? t('flows.board.variablesAll') : t('flows.board.variablesPopular')}</h4>
             <ul class="vars">
               {#each channelVars as v (v.token)}
-                <li><VarCard stacked token={v.token} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
+                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
               {/each}
             </ul>
           {/if}
@@ -442,16 +483,6 @@
     gap: 20px;
     --field-mb: 0;
     --field-gap: 8px;
-  }
-  .fields :global(label) {
-    font-size: 14px;
-    font-weight: 500;
-    color: rgba(var(--bb-white-rgb), 0.92);
-  }
-  .fields :global(input),
-  .fields :global(textarea),
-  .fields :global(select) {
-    font-size: 15px;
   }
   .unit {
     font-size: 14px;

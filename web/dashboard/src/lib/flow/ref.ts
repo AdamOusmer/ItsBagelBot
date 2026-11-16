@@ -9,6 +9,12 @@ export type FlowRef =
 
 export const NEW_FLOW_ID = 'new';
 
+export function legacyEditorHref(ref: FlowRef): string {
+  if (ref.layer === 'automation') return `/automations/${encodeURIComponent(ref.id)}`;
+  if (ref.layer === 'command') return '/commands';
+  return '/modules/alerts';
+}
+
 const PREFIX = { automation: 'a-', command: 'c-', alert: 'l-' } as const;
 
 export function flowRouteId(ref: FlowRef): string {

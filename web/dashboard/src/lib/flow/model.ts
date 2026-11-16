@@ -446,22 +446,42 @@ function savedLocal(parent: FlowNode, spec: NodeSpec): VariableSpec[] {
 }
 
 function providedBy(parent: FlowNode, spec: NodeSpec, port: string): readonly VariableSpec[] {
+  if (parent.config.disabled) return [];
   const viaPort = spec.outputs?.find((output) => output.id === port)?.provides ?? [];
   const provided = spec.providesFor?.(parent.config) ?? spec.provides ?? [];
-  return [...provided, ...viaPort, ...savedLocal(parent, spec)];
+  const saved = spec.outputs === apiPorts && port !== 'ok' ? [] : savedLocal(parent, spec);
+  return [...provided, ...viaPort, ...saved];
 }
 
 export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
-  const seen = new Map<string, VariableSpec>();
-  const visit = (id: string, trail: Set<string>) => {
-    for (const e of flow.edges) {
-      if (e.to !== id || trail.has(e.from)) continue;
-      const parent = flow.nodes.find((n) => n.id === e.from);
-      const spec = parent && specFor(parent.type);
-      for (const v of parent && spec ? providedBy(parent, spec, e.port) : []) seen.set(v.token, v);
-      visit(e.from, new Set(trail).add(e.from));
+  const memo = new Map<string, VariableSpec[] | null>();
+  const visit = (id: string): VariableSpec[] | null => {
+    if (memo.has(id)) return memo.get(id)!;
+    memo.set(id, null);
+    const node = flow.nodes.find((node) => node.id === id);
+    if (node && specFor(node.type)?.kind === 'trigger') {
+      memo.set(id, []);
+      return [];
     }
+    const paths = flow.edges.filter((edge) => edge.to === id).map((edge) => pathVariables(flow, edge, visit));
+    const connected = paths.filter((path) => path !== null);
+    const common = intersectVariables(connected);
+    const result = connected.length ? common : null;
+    memo.set(id, result);
+    return result;
   };
-  visit(nodeId, new Set([nodeId]));
-  return [...seen.values()];
+  return visit(nodeId) ?? [];
+}
+
+function pathVariables(flow: Flow, edge: FlowEdge, visit: (id: string) => VariableSpec[] | null): VariableSpec[] | null {
+  const prior = visit(edge.from);
+  const parent = flow.nodes.find((node) => node.id === edge.from);
+  if (!parent || !prior) return null;
+  const spec = specFor(parent.type);
+  return spec ? [...prior, ...providedBy(parent, spec, edge.port)] : null;
+}
+
+function intersectVariables(paths: VariableSpec[][]): VariableSpec[] {
+  const first = new Map(paths[0]?.map((variable) => [variable.token, variable]));
+  return [...first.values()].filter((variable) => paths.every((path) => path.some((other) => other.token === variable.token)));
 }

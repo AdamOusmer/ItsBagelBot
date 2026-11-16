@@ -46,7 +46,7 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
 export function issueMessage(t: Translate, issue: Issue): string {
   if (issue.path === 'name') return t('flows.issue.name');
   const texts = issueTexts(t, issue);
-  return Object.hasOwn(texts, issue.code) ? texts[issue.code]! : t('flows.issue.generic', { code: issue.code });
+  return Object.hasOwn(texts, issue.code) ? texts[issue.code]! : t('flows.issue.generic');
 }
 
 const nodeIdIn = (path: string) => /^nodes\.([^.]+)/.exec(path)?.[1];

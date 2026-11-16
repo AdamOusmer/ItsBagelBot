@@ -1,0 +1,7 @@
+{
+  "title": "Recettes de départ",
+  "open": "Utiliser cette recette",
+  "hug": { "title": "Commande câlin", "body": "Envoie un câlin avec !hug.", "message": "{user} fait un gros câlin à {touser}." },
+  "follow": { "title": "Accueillir les followers", "body": "Salue chaque nouveau follower dans le chat.", "message": "Bienvenue sur le stream, {user} !" },
+  "sub": { "title": "Remercier les abonnés", "body": "Remercie chaque nouvel abonné dans le chat.", "message": "Merci pour ton abonnement, {user} !" }
+}

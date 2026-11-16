@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { FlowNode } from './model';
 
 export const CHOICE_SOURCES = ['rewards', 'manageableRewards', 'counters', 'scenes', 'namedCooldowns', 'namedCountdowns'] as const;
 
@@ -18,4 +19,13 @@ export const unavailable = (problem: ChoiceProblem = 'unavailable'): ChoiceList 
 export function withSaved(list: ChoiceList, value: string, name: string): ChoiceOption[] {
   if (!value || list.options.some((option) => option.value === value)) return list.options;
   return [...list.options, { value, label: name || value }];
+}
+
+export function withDraftNames(list: ChoiceList, source: ChoiceSource, nodes: readonly FlowNode[]): ChoiceList {
+  const type = { namedCooldowns: 'cond.cooldown', namedCountdowns: 'reply.countdown_start' }[source as 'namedCooldowns' | 'namedCountdowns'];
+  const names = nodes.filter((node) => node.type === type && !node.config.disabled && !node.config.perUser)
+    .map((node) => String(node.config.name ?? '').trim().toLowerCase()).filter((name) => /^[a-z]+$/.test(name));
+  const options = new Map(list.options.map((option) => [option.value, option]));
+  for (const name of names) options.set(name, { value: name, label: name });
+  return { ...list, options: [...options.values()] };
 }
