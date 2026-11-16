@@ -6,7 +6,6 @@ import {
   bounds,
   byDay,
   byDim,
-  closed,
   cohorts,
   dailySeries,
   dateLabel,
@@ -15,6 +14,7 @@ import {
   fmt,
   inRange,
   latest,
+  lastClosedStart,
   monthRange,
   pct,
   pctText,
@@ -23,6 +23,7 @@ import {
   previousStart,
   ratio,
   relativeChange,
+  rowsAt,
   signed,
   snapshots,
   sum,
@@ -78,13 +79,15 @@ export type AnalyticsView = {
   empty: boolean;
   period: { start: string; end: string };
   kpis: Kpi[];
-  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[] };
+  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; onboarded: Fact[] };
   engagement: { active: Series; live: Series; messages: Series; answered: Series; facts: Fact[] };
   retention: { horizon: number; rows: CohortLine[] };
-  revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable };
-  features: { modules: DataTable; breadth: DataTable; breadthFacts: Fact[]; integrations: Bar[]; pagesHidden: Bar[] };
+  revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable; checkout: DataTable; checkoutFacts: Fact[] };
+  features: { modules: DataTable; breadth: DataTable; breadthFacts: Fact[]; integrations: Bar[]; pagesHidden: Bar[]; dashboard: Bar[] };
   commands: { builtIn: DataTable; custom: Fact[]; perms: Bar[]; flags: Bar[] };
-  audience: { locales: Bar[] };
+  audience: { locales: Bar[]; delegating: Fact[] };
+  recipes: { runs: Bar[]; outcomes: DataTable; channels: Kpi; totals: DataTable };
+  reliability: { drops: DataTable; dailyDrops: Series; providers: DataTable; songs: Bar[]; songFacts: Fact[]; blocked: Bar[] };
 };
 
 const ENUMS = {
@@ -96,7 +99,16 @@ const ENUMS = {
   link: ['spotify', 'govee', 'fetch_key'],
   page: ['commands', 'leaderboard', 'songqueue'],
   perm: ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'],
-  flag: ['online_only', 'aliased', 'cooldown', 'counter']
+  flag: ['online_only', 'aliased', 'cooldown', 'counter'],
+  trigger: ['command', 'event', 'timer', 'reward', 'manual', 'countdown'],
+  age: ['d0', 'd1', 'd2_6', 'd7_13', 'd14_29', 'd30p'],
+  block: ['perm', 'offline', 'cooldown'],
+  song: ['queued', 'off', 'perm', 'offline', 'not_found', 'queue_full', 'player_refused'],
+  send: ['chat', 'helix'],
+  drop: ['auth', 'rejected', 'exhausted', 'chat_dropped'],
+  plan: ['monthly', 'single', 'gift'],
+  onboard: ['viewed', 'consent_missing', 'save_failed'],
+  section: ['overview', 'commands', 'flows', 'automations', 'modules', 'timers', 'loyalty', 'counters', 'quotes', 'songqueue', 'channelpoints', 'govee', 'billing', 'settings', 'access']
 } as const;
 
 const FUNNEL = ['signup', 'onboarded', 'bot_enabled'] as const;
@@ -111,11 +123,10 @@ const CONVERSION_COLUMNS = ['accounts', 'paid', 'conversion'];
 const MODULE_COLUMNS = ['on', 'adoption', 'activeWeek', 'activation', 'outputs', 'turnedOn', 'turnedOff', 'net'];
 const BUILT_IN_COLUMNS = ['uses', 'usesWeek', 'channelsWeek', 'usesPerChannel'];
 const UNIT_DELTA = { d: 'day', w: 'week', m: 'month' } as const;
-const ACTIVE_KPI = { d: 'dau', w: 'wau', m: 'mau' } as const;
 const LANGUAGES = new Intl.DisplayNames(['en'], { type: 'language' });
 
 type EnumName = keyof typeof ENUMS;
-type ShareName = 'ofTotal' | 'ofAccounts' | 'ofBotEnabled' | 'ofCommands' | 'ofChannels';
+type ShareName = 'ofTotal' | 'ofAccounts' | 'ofCommands' | 'ofChannels' | 'ofAttempts';
 type Entry = [string, number];
 type Rank = [number, number];
 type Ctx = { r: AnalyticsReads; days: number; cur: DateRange; prev: DateRange; prevComplete: boolean; tracked: Day };
@@ -127,7 +138,7 @@ type BarSpec = {
   order?: 'value' | 'numeric' | 'keep';
   limit?: number;
   name?: (id: Dim) => Name;
-  secondary?: (value: Count, index: Slot) => Phrase | null;
+  secondary?: (value: Count, index: Slot, id: Dim) => Phrase | null;
 };
 type ModuleStats = { on: Map<string, number>; active: Map<string, number>; outputs: Map<string, number>; up: Map<string, number>; down: Map<string, number> };
 
@@ -146,8 +157,7 @@ function context(r: AnalyticsReads): Ctx {
 
 const counter = (c: Ctx, metric: Metric): AnalyticsRow[] => inRange(pick(c.r.counters, metric), c.cur);
 const level = (c: Ctx, metric: Metric): AnalyticsRow[] => latest(pick(c.r.levels, metric));
-const fullWeeks = (c: Ctx, metric: Metric): AnalyticsRow[] => closed(pick(c.r.week, metric), c.r.end, 'w');
-const weekly = (c: Ctx, metric: Metric): AnalyticsRow[] => latest(fullWeeks(c, metric));
+const weekly = (c: Ctx, metric: Metric): AnalyticsRow[] => rowsAt(pick(c.r.week, metric), lastClosedStart(c.r.end, 'w'));
 const get = (values: Map<string, number>, id: Dim): number => values.get(id) ?? 0;
 
 function facts(values: Record<string, string>): Fact[] {
@@ -177,7 +187,7 @@ function bars(totals: Map<string, number>, spec: BarSpec): Bar[] {
       name: spec.name?.(id) ?? enumName(id, spec.enum),
       value,
       valueText: fmt(value),
-      secondary: spec.secondary?.(value, index) ?? null
+      secondary: spec.secondary?.(value, index, id) ?? null
     }));
 }
 
@@ -198,28 +208,27 @@ function kpi(spec: KpiSpec): Kpi {
   };
 }
 
-function activeKpi(c: Ctx, source: AnalyticsRow[], unit: Unit): Kpi {
-  const rows = closed(pick(source, 'channels.active'), c.r.end, unit);
-  const edge = bounds(rows);
-  const now = edge ? valueAt(rows, edge.last) : 0;
-  const before = edge ? valueAt(rows, previousStart(edge.last, unit)) : 0;
-  return kpi({ key: ACTIVE_KPI[unit], value: fmt(now), change: relativeChange(now, before), delta: { name: UNIT_DELTA[unit] } });
+function distinctKpi(c: Ctx, source: AnalyticsRow[], spec: { metric: Metric; key: Dim; unit: Unit }): Kpi {
+  const rows = pick(source, spec.metric);
+  const last = lastClosedStart(c.r.end, spec.unit);
+  const now = valueAt(rows, last);
+  const before = valueAt(rows, previousStart(last, spec.unit));
+  return kpi({ key: spec.key, value: fmt(now), change: relativeChange(now, before), delta: { name: UNIT_DELTA[spec.unit] } });
 }
 
 function stickiness(c: Ctx, month: Day): number | null {
   const daily = pick(c.r.counters, 'channels.active');
-  const first = bounds(daily)?.first ?? month;
   const full = monthRange(month);
-  const covered: DateRange = { from: first > full.from ? first : full.from, to: full.to };
+  const covered: DateRange = { from: c.tracked > full.from ? c.tracked : full.from, to: full.to };
   const length = daysIn(covered).length;
   const active = valueAt(pick(c.r.month, 'channels.active'), month);
   return ratio(sum(inRange(daily, covered)), length * active);
 }
 
 function stickinessKpi(c: Ctx): Kpi {
-  const last = bounds(closed(pick(c.r.month, 'channels.active'), c.r.end, 'm'))?.last;
-  const now = last ? stickiness(c, last) : null;
-  const before = last ? stickiness(c, previousStart(last, 'm')) : null;
+  const last = lastClosedStart(c.r.end, 'm');
+  const now = stickiness(c, last);
+  const before = stickiness(c, previousStart(last, 'm'));
   return kpi({
     key: 'stickiness',
     value: now === null ? '-' : pctText(now),
@@ -263,9 +272,9 @@ function signupsKpi(c: Ctx): Kpi {
 
 function kpis(c: Ctx): Kpi[] {
   return [
-    activeKpi(c, c.r.counters, 'd'),
-    activeKpi(c, c.r.week, 'w'),
-    activeKpi(c, c.r.month, 'm'),
+    distinctKpi(c, c.r.counters, { metric: 'channels.active', key: 'dau', unit: 'd' }),
+    distinctKpi(c, c.r.week, { metric: 'channels.active', key: 'wau', unit: 'w' }),
+    distinctKpi(c, c.r.month, { metric: 'channels.active', key: 'mau', unit: 'm' }),
     stickinessKpi(c),
     ...levelKpis(c),
     signupsKpi(c)
@@ -301,6 +310,7 @@ function growth(c: Ctx): AnalyticsView['growth'] {
   const life = byDim(counter(c, 'lifecycle'));
   const n = (id: Dim) => get(life, id);
   const presets = byDim(counter(c, 'onboarding.preset'));
+  const bot = snapshots(inRange(pick(c.r.levels, 'accounts.bot_enabled'), c.cur));
   return {
     signups: dailySeries(withDim(pick(c.r.counters, 'lifecycle'), 'signup'), c.cur, c.tracked),
     gainLoss: gainLoss(c.r.counters, c.cur),
@@ -308,9 +318,13 @@ function growth(c: Ctx): AnalyticsView['growth'] {
     churn: bars(life, { ids: CHURN, enum: 'lifecycle', order: 'keep' }),
     churnFacts: facts({
       netAccounts: signed(n('signup') - n('account_deleted')),
-      netBot: signed(n('bot_enabled') - n('bot_disabled') - n('revoked'))
+      netBot: signed(sum(bot.last) - sum(bot.first))
     }),
-    presets: bars(presets, { enum: 'preset', secondary: ofShare('ofTotal', total(presets)) })
+    presets: bars(presets, { enum: 'preset', secondary: ofShare('ofTotal', total(presets)) }),
+    activationAge: bars(byDim(weekly(c, 'activation.age')), { ids: ENUMS.age, enum: 'age', order: 'keep' }),
+    onboarding: bars(byDim(counter(c, 'onboarding.steps')), { ids: ENUMS.onboard, enum: 'onboard', order: 'keep' }),
+    imports: dimensionTable(counter(c, 'import.runs'), ['preview_ok', 'preview_failed', 'committed', 'commit_failed']),
+    onboarded: accountFacts(c, 'accounts.onboarded', 'onboarded')
   };
 }
 
@@ -344,7 +358,8 @@ function cohortLine(line: CohortRow): CohortLine {
 }
 
 function retention(c: Ctx): AnalyticsView['retention'] {
-  const lines = cohorts(c.r.cohortWeeks, c.r.cohortDays, HORIZON).slice(0, RETENTION_WEEKS);
+  const from = bounds(c.r.cohortDays)?.first ?? c.r.end;
+  const lines = cohorts(c.r.cohortWeeks, c.r.cohortDays, { from, to: c.r.end }, HORIZON).slice(0, RETENTION_WEEKS);
   return { horizon: HORIZON, rows: lines.map(cohortLine) };
 }
 
@@ -380,13 +395,15 @@ function revenue(c: Ctx): AnalyticsView['revenue'] {
       cancelPending: fmt(sum(level(c, 'accounts.cancel_pending'))),
       paymentFailed: fmt(sum(level(c, 'accounts.payment_failed')))
     }),
-    conversion: conversion(c)
+    conversion: conversion(c),
+    checkout: dimensionTable(counter(c, 'billing.checkout'), ['redirected', 'blocked', 'unavailable', 'rejected'], 'plan'),
+    checkoutFacts: checkoutFacts(c)
   };
 }
 
-function moduleLine(name: Dim, stats: ModuleStats, bot: Count): TableRow {
+function moduleLine(name: Dim, stats: ModuleStats, accounts: Count): TableRow {
   const [on, active, up, down] = [get(stats.on, name), get(stats.active, name), get(stats.up, name), get(stats.down, name)];
-  const texts = [fmt(on), pct(on, bot), fmt(active), pct(active, on), fmt(get(stats.outputs, name)), fmt(up), fmt(down), signed(up - down)];
+  const texts = [fmt(on), pct(on, accounts), fmt(active), pct(active, on), fmt(get(stats.outputs, name)), fmt(up), fmt(down), signed(up - down)];
   return row(name, { text: name }, texts);
 }
 
@@ -401,9 +418,9 @@ function moduleTable(c: Ctx): DataTable {
     down: byDim(withDim(toggles, 'off', 1))
   };
   const names = new Set([...byDim(switches).keys(), ...stats.active.keys(), ...stats.outputs.keys(), ...byDim(toggles).keys()]);
-  const bot = sum(level(c, 'accounts.bot_enabled'));
+  const accounts = sum(level(c, 'accounts.total'));
   const ordered = [...names].sort((a, b) => get(stats.on, b) - get(stats.on, a) || a.localeCompare(b));
-  return { columns: MODULE_COLUMNS, rows: ordered.map((name) => moduleLine(name, stats, bot)) };
+  return { columns: MODULE_COLUMNS, rows: ordered.map((name) => moduleLine(name, stats, accounts)) };
 }
 
 function valueAtRank(counts: Rank[], rank: Slot): number {
@@ -434,7 +451,6 @@ function breadthTable(breadth: Map<string, number>): DataTable {
 
 function features(c: Ctx): AnalyticsView['features'] {
   const breadth = byDim(level(c, 'modules.breadth'));
-  const bot = sum(level(c, 'accounts.bot_enabled'));
   const accounts = sum(level(c, 'accounts.total'));
   return {
     modules: moduleTable(c),
@@ -443,13 +459,14 @@ function features(c: Ctx): AnalyticsView['features'] {
     integrations: bars(byDim(level(c, 'integrations.connected')), {
       ids: ENUMS.link,
       enum: 'link',
-      secondary: ofShare('ofBotEnabled', bot)
+      secondary: ofShare('ofAccounts', accounts)
     }),
     pagesHidden: bars(byDim(level(c, 'accounts.pages_hidden')), {
       ids: ENUMS.page,
       enum: 'page',
       secondary: ofShare('ofAccounts', accounts)
-    })
+    }),
+    dashboard: dashboardViews(c)
   };
 }
 
@@ -457,8 +474,8 @@ function builtIn(c: Ctx): DataTable {
   const uses = pick(c.r.counters, 'command.uses');
   const window = byDim(inRange(uses, c.cur));
   window.delete('custom');
-  const edge = bounds(fullWeeks(c, 'command.channels'));
-  const week = edge ? byDim(inRange(uses, { from: edge.last, to: addDays(edge.last, 6) })) : new Map<string, number>();
+  const start = lastClosedStart(c.r.end, 'w');
+  const week = byDim(inRange(uses, { from: start, to: addDays(start, 6) }));
   const channels = byDim(weekly(c, 'command.channels'));
   const rows = [...window]
     .sort(byValue)
@@ -509,7 +526,94 @@ function localeName(code: Dim): Name {
 function audience(c: Ctx): AnalyticsView['audience'] {
   const accounts = sum(level(c, 'accounts.total'));
   const locales = byDim(level(c, 'accounts.locale'));
-  return { locales: bars(locales, { name: localeName, secondary: ofShare('ofAccounts', accounts) }) };
+  return {
+    locales: bars(locales, { name: localeName, secondary: ofShare('ofAccounts', accounts) }),
+    delegating: accountFacts(c, 'accounts.delegating', 'delegating')
+  };
+}
+
+function accountFacts(c: Ctx, metric: Metric, key: Dim): Fact[] {
+  const count = sum(level(c, metric));
+  const accounts = sum(level(c, 'accounts.total'));
+  return facts({ [key]: fmt(count), [`${key}Share`]: pct(count, accounts) });
+}
+
+function dimensionTable(rows: AnalyticsRow[], columns: string[], group?: EnumName): DataTable {
+  const ids = group ? ENUMS[group] : [...byDim(rows).keys()].sort();
+  return {
+    columns,
+    rows: ids.map((id) => {
+      const values = byDim(withDim(rows, id), 1);
+      return row(id, enumName(id, group), columns.map((column) => fmt(get(values, column))));
+    })
+  };
+}
+
+function checkoutFacts(c: Ctx): Fact[] {
+  const redirected = sum(withDim(counter(c, 'billing.checkout'), 'redirected', 1));
+  const activated = sum(withDim(counter(c, 'billing.events'), 'activate'));
+  return facts({ redirected: fmt(redirected), activated: fmt(activated), checkoutActivation: pct(activated, redirected) });
+}
+
+function dashboardViews(c: Ctx): Bar[] {
+  const rows = counter(c, 'dashboard.views');
+  const owners = byDim(withDim(rows, 'owner', 1));
+  const delegates = byDim(withDim(rows, 'delegate', 1));
+  const totals = byDim(rows);
+  return bars(totals, {
+    ids: ENUMS.section,
+    enum: 'section',
+    secondary: (_value, _index, id) => ({
+      key: 'admin.analytics.share.roles', params: { owner: fmt(get(owners, id)), delegate: fmt(get(delegates, id)) }
+    })
+  });
+}
+
+function recipeOutcomes(rows: AnalyticsRow[]): DataTable {
+  return {
+    columns: ['runs', 'ok', 'failedShare'],
+    rows: ENUMS.trigger.map((trigger) => {
+      const runs = withDim(rows, trigger);
+      return row(trigger, enumName(trigger, 'trigger'), [
+        fmt(sum(runs)), fmt(sum(withDim(runs, 'ok', 1))), pct(sum(withDim(runs, 'failed', 1)), sum(runs))
+      ]);
+    })
+  };
+}
+
+function recipes(c: Ctx): AnalyticsView['recipes'] {
+  const runs = counter(c, 'recipe.runs');
+  return {
+    runs: bars(byDim(runs), { ids: ENUMS.trigger, enum: 'trigger' }),
+    outcomes: recipeOutcomes(runs),
+    channels: distinctKpi(c, c.r.week, { metric: 'recipe.channels', key: 'recipeChannelsWeek', unit: 'w' }),
+    totals: dimensionTable(level(c, 'recipes.total'), ['on', 'off'], 'trigger')
+  };
+}
+
+function providers(c: Ctx): DataTable {
+  const rows = counter(c, 'provider.calls');
+  return {
+    columns: ['calls', 'errorShare'],
+    rows: [...byDim(rows)].sort(byValue).map(([provider, count]) => {
+      const ok = sum(withDim(withDim(rows, provider), 'ok', 1));
+      return row(provider, { text: provider }, [fmt(count), pct(count - ok, count)]);
+    })
+  };
+}
+
+function reliability(c: Ctx): AnalyticsView['reliability'] {
+  const songs = counter(c, 'songs.requests');
+  const blocked = byDim(counter(c, 'command.blocked'));
+  const attempts = sum(counter(c, 'command.uses')) + total(blocked);
+  return {
+    drops: dimensionTable(counter(c, 'outgress.dropped'), [...ENUMS.drop], 'send'),
+    dailyDrops: dailySeries(pick(c.r.counters, 'outgress.dropped'), c.cur, c.tracked),
+    providers: providers(c),
+    songs: bars(byDim(songs), { ids: ENUMS.song, enum: 'song', secondary: ofShare('ofTotal', sum(songs)) }),
+    songFacts: facts({ songSuccess: pct(sum(withDim(songs, 'queued')), sum(songs)) }),
+    blocked: bars(blocked, { ids: ENUMS.block, enum: 'block', secondary: ofShare('ofAttempts', attempts) })
+  };
 }
 
 function isEmpty(r: AnalyticsReads): boolean {
@@ -528,6 +632,8 @@ export function buildAnalytics(r: AnalyticsReads): AnalyticsView {
     revenue: revenue(c),
     features: features(c),
     commands: commands(c),
-    audience: audience(c)
+    audience: audience(c),
+    recipes: recipes(c),
+    reliability: reliability(c)
   };
 }

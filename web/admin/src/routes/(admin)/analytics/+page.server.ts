@@ -17,15 +17,17 @@ const TWO_FULL_MONTHS = 93;
 const COUNTERS = [
   'channels.active', 'channels.live', 'chat.messages', 'chat.answered', 'live.starts', 'timer.fires',
   'lifecycle', 'billing.events', 'onboarding.preset', 'command.uses', 'module.events', 'module.toggles',
-  'custom.commands'
+  'custom.commands', 'recipe.runs', 'outgress.dropped', 'provider.calls', 'songs.requests',
+  'command.blocked', 'onboarding.steps', 'import.runs', 'dashboard.views', 'billing.checkout'
 ];
 const LEVELS = [
   'accounts.total', 'accounts.bot_enabled', 'accounts.onboarded', 'accounts.paid_source',
   'accounts.cancel_pending', 'accounts.payment_failed', 'accounts.locale', 'accounts.pages_hidden',
   'accounts.by_signup_week', 'accounts.paid_by_signup_week', 'modules.rows', 'modules.breadth',
-  'integrations.connected', 'custom.total', 'custom.perm', 'custom.flags', 'custom.channels'
+  'integrations.connected', 'custom.total', 'custom.perm', 'custom.flags', 'custom.channels',
+  'recipes.total', 'accounts.delegating'
 ];
-const WEEKLY = ['channels.active', 'channels.live', 'module.active', 'command.channels'];
+const WEEKLY = ['channels.active', 'channels.live', 'module.active', 'command.channels', 'recipe.channels', 'activation.age'];
 const WEEK_SPAN = 28;
 const MONTHLY = ['channels.active', 'channels.live'];
 const MONTH_SPAN = 70;

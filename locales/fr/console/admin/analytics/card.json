@@ -22,5 +22,19 @@
   "custom": "Commandes personnalisées",
   "perms": "Commandes personnalisées par permission",
   "flags": "Options des commandes personnalisées",
-  "locales": "Comptes par langue"
+  "locales": "Comptes par langue",
+  "activationAge": "Chaînes actives par âge du compte",
+  "onboarding": "Étapes de configuration",
+  "imports": "Imports par source",
+  "checkout": "Résultats du paiement par offre",
+  "dashboard": "Vues du tableau de bord par section",
+  "recipeRuns": "Exécutions de recettes par déclencheur",
+  "recipeOutcomes": "Résultats des recettes",
+  "recipeTotals": "Recettes par déclencheur",
+  "drops": "Envois abandonnés",
+  "dailyDrops": "Envois abandonnés par jour",
+  "providers": "Appels aux fournisseurs",
+  "songs": "Résultats des demandes musicales",
+  "blocked": "Commandes bloquées par motif",
+  "delegating": "Comptes avec délégataires"
 }

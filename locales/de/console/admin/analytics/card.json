@@ -22,5 +22,19 @@
   "custom": "Eigene Befehle",
   "perms": "Eigene Befehle nach Berechtigung",
   "flags": "Optionen eigener Befehle",
-  "locales": "Konten nach Sprache"
+  "locales": "Konten nach Sprache",
+  "activationAge": "Aktive Kanäle nach Kontoalter",
+  "onboarding": "Einrichtungsschritte",
+  "imports": "Importe nach Quelle",
+  "checkout": "Kassenergebnisse nach Tarif",
+  "dashboard": "Dashboard-Aufrufe nach Bereich",
+  "recipeRuns": "Rezeptausführungen nach Auslöser",
+  "recipeOutcomes": "Ergebnisse der Rezeptausführungen",
+  "recipeTotals": "Rezepte nach Auslöser",
+  "drops": "Verworfene Sendungen",
+  "dailyDrops": "Verworfene Sendungen pro Tag",
+  "providers": "Anbieteraufrufe",
+  "songs": "Ergebnisse der Musikwünsche",
+  "blocked": "Blockierte Befehle nach Grund",
+  "delegating": "Konten mit Beauftragten"
 }
