@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent"
 	entautomation "ItsBagelBot/app/db/modules/ent/automation"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc"
@@ -48,14 +49,14 @@ type AutomationInput struct {
 }
 
 type Automations struct {
-	client   *ent.Client
-	pub      bus.Publisher
-	modules  *Modules
-	log      *zap.Logger
-	rowLocks bool
+	client    *ent.Client
+	pub       bus.Publisher
+	modules   *Modules
+	log       *zap.Logger
+	rowLocks  bool
+	analytics *analytics.Recorder
 }
 
-// SetDialect turns on the channel cap row lock; SQLite test databases have no FOR UPDATE.
 func (a *Automations) SetDialect(name string) {
 	a.rowLocks = name == dialect.MySQL
 }
@@ -154,25 +155,25 @@ func (a *Automations) Upsert(ctx context.Context, userID uint64, in AutomationIn
 }
 
 func (a *Automations) commitAutomation(ctx context.Context, draft automationDraft) (*ent.Automation, error) {
-	tx, err := a.client.Tx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	row, err := writeAutomation(ctx, tx, draft)
-	if err != nil {
-		return nil, mapAutomationConstraint(err)
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, mapAutomationConstraint(err)
-	}
-	return row, nil
+	var row *ent.Automation
+	err := a.commitRecipes(ctx, draft.userID, func(tx *ent.Tx) error {
+		var err error
+		row, err = writeAutomation(ctx, tx, draft)
+		return err
+	})
+	return row, mapAutomationConstraint(err)
 }
 
 func (a *Automations) Delete(ctx context.Context, userID uint64, id string) (bool, error) {
-	n, err := db.WithQuery(ctx, a.client.Automation.Delete().
-		Where(entautomation.UserID(userID), entautomation.ID(id)).
-		Exec)
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		var n int
+		err := a.commitRecipes(ctx, userID, func(tx *ent.Tx) error {
+			var err error
+			n, err = tx.Automation.Delete().Where(entautomation.UserID(userID), entautomation.ID(id)).Exec(ctx)
+			return err
+		})
+		return n, err
+	})
 	if err != nil || n == 0 {
 		return false, err
 	}

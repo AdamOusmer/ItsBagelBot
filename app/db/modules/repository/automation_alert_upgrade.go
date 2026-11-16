@@ -64,19 +64,15 @@ func (a *Automations) commitAlertUpgrade(ctx context.Context, w alertUpgradeWrit
 	var row *ent.Automation
 	var flip *alertFlip
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		tx, err := a.client.Tx(ctx)
-		if err != nil {
+		return a.commitRecipes(ctx, w.userID, func(tx *ent.Tx) error {
+			var err error
+			if flip, err = turnAlertOff(ctx, tx, w.userID, w.alert); err != nil {
+				return err
+			}
+			w.input.lockChannelCap = a.rowLocks
+			row, err = writeAutomation(ctx, tx, automationDraft{userID: w.userID, in: w.input, def: w.def})
 			return err
-		}
-		defer tx.Rollback()
-		if flip, err = turnAlertOff(ctx, tx, w.userID, w.alert); err != nil {
-			return err
-		}
-		w.input.lockChannelCap = a.rowLocks
-		if row, err = writeAutomation(ctx, tx, automationDraft{userID: w.userID, in: w.input, def: w.def}); err != nil {
-			return err
-		}
-		return tx.Commit()
+		})
 	})
 	return row, flip, err
 }

@@ -11,30 +11,19 @@ import (
 	"ItsBagelBot/app/db/commands/ent"
 	"ItsBagelBot/app/db/commands/repository"
 	"ItsBagelBot/internal/analytics"
+	"ItsBagelBot/internal/analytics/analyticstest"
 	catalog "ItsBagelBot/internal/domain/analytics"
-	"ItsBagelBot/internal/valkeytest"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func newRecorder(t *testing.T) (*analytics.Recorder, func(context.Context) map[string]int64) {
 	t.Helper()
-	client := valkeytest.Spawn(t)
-	rec := analytics.New(client, zap.NewNop(), nil, analytics.WithoutTicker())
+	capture := analyticstest.New(t)
 	read := func(ctx context.Context) map[string]int64 {
-		rec.Close()
-		raw, err := client.Do(ctx, client.B().Hgetall().Key(catalog.LevelKey).Build()).AsIntMap()
-		require.NoError(t, err)
-		out := map[string]int64{}
-		for field, n := range raw {
-			if n != 0 {
-				out[field] = n
-			}
-		}
-		return out
+		return capture.Read(catalog.LevelKey)
 	}
-	return rec, read
+	return capture.Recorder, read
 }
 
 func TestCommandWritesShiftLevelsWithoutContent(t *testing.T) {

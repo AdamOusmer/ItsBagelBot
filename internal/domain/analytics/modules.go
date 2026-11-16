@@ -3,16 +3,28 @@
 
 package analytics
 
-// Stored module row names are client-supplied; only these reach the aggregate store.
+import "slices"
+
 // Mirrors web/kit/lib/catalog ids; a new module is uncounted until listed here.
-var storedModules = map[string]struct{}{
-	"accountage": {}, "alerts": {}, "automations": {}, "cmd": {}, "automod": {}, "channelpoints": {}, "clashroyale": {}, "clip": {},
-	"codm": {}, "commercial": {}, "counters": {}, "duel": {}, "emoteplay": {},
-	"followage": {}, "fortnite": {}, "gamble": {}, "game": {}, "govee": {}, "loyalty": {},
-	"marker": {}, "mcsr": {}, "moderation": {}, "personality": {}, "queue": {}, "quotes": {},
-	"raffle": {}, "shoutout": {}, "songqueue": {}, "stream": {}, "system": {}, "tags": {},
-	"time": {}, "timers": {}, "title": {}, "triggers": {}, "uptime": {}, "urchin": {},
-	"valorant": {},
+var storedModules = map[string]bool{
+	"accountage": true, "alerts": true, "automations": false, "cmd": true, "automod": true, "channelpoints": false, "clashroyale": false, "clip": true,
+	"codm": false, "commercial": true, "counters": true, "duel": false, "emoteplay": false,
+	"followage": true, "fortnite": false, "gamble": false, "game": true, "govee": false, "loyalty": false,
+	"marker": true, "mcsr": false, "moderation": true, "personality": true, "queue": false, "quotes": false,
+	"raffle": false, "shoutout": false, "songqueue": false, "stream": true, "system": false, "tags": true,
+	"time": false, "timers": true, "title": true, "triggers": false, "uptime": true, "urchin": false,
+	"valorant": false,
+}
+
+func ModuleEnabledByDefault(name string) bool { return storedModules[name] }
+
+func ModuleNames() []string {
+	names := make([]string, 0, len(storedModules))
+	for name := range storedModules {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
 }
 
 func KnownModule(name string) bool {

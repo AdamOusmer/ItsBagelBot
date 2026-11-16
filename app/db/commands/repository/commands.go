@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/commands"
 	"ItsBagelBot/app/db/commands/ent/predicate"
 	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
@@ -22,8 +23,6 @@ import (
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/tmpl"
-
-	entsql "entgo.io/ent/dialect/sql"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -238,6 +237,7 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 		return false, nil
 	}
 	track()
+	r.analytics.Count(catalog.CustomCommands, "created")
 
 	r.Invalidate(userID)
 
@@ -364,18 +364,19 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 	}
 
 	track := r.track(ctx, userID)
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := r.client.Commands.Delete().
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Commands.Delete().
 			Where(
 				commands.UserIDEQ(userID),
 				commands.NameEQ(name),
 			).
 			Exec(ctx)
-		return err
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 	track()
+	r.analytics.Add(catalog.CustomCommands, int64(n), "deleted")
 
 	r.Invalidate(userID)
 
@@ -389,15 +390,16 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
 
 	track := r.track(ctx, userID)
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := r.client.Commands.Delete().
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Commands.Delete().
 			Where(commands.UserIDEQ(userID), commands.CreatedAtLTE(cutoff)).
 			Exec(ctx)
-		return err
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 	track()
+	r.analytics.Add(catalog.CustomCommands, int64(n), "deleted")
 
 	r.Invalidate(userID)
 	return nil
@@ -490,7 +492,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 
 	landed := items
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return bulkUpsertCommands(ctx, r.client, items)
+		return r.commitCommandBatch(ctx, items)
 	}); err != nil {
 		txn.NoticeError(err)
 		landed = r.upsertEach(ctx, txn, items)
@@ -526,43 +528,15 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	return nil
 }
 
-func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.CommandChangedDTO) error {
-
-	builders := make([]*ent.CommandsCreate, 0, len(items))
-	for _, item := range items {
-		b := client.Commands.Create().
-			SetUserID(item.UserID).
-			SetName(item.Name)
-		applyEdit(b.Mutation(), item)
-		builders = append(builders, b)
-	}
-
-	// On conflict, update only edit-owned columns: uses and created_at must not regress.
-	return client.Commands.CreateBulk(builders...).
-		OnConflict(entsql.ConflictColumns(commands.FieldUserID, commands.FieldName)).
-		Update(func(u *ent.CommandsUpsert) {
-			u.UpdateAliases()
-			u.UpdateResponse()
-			u.UpdateIsActive()
-			u.UpdateStreamOnlineOnly()
-			u.UpdatePerm()
-			u.UpdateCooldown()
-			u.UpdateUserCooldown()
-			u.UpdateAllowedUserID()
-			u.UpdateBumpCounter()
-			u.UpdateUpdatedAt()
-		}).
-		Exec(ctx)
-}
-
 func (r *Commands) upsertEach(ctx context.Context, txn *newrelic.Transaction, items []data.CommandChangedDTO) []data.CommandChangedDTO {
 
 	landed := make([]data.CommandChangedDTO, 0, len(items))
 	for _, item := range items {
-		err := db.WithExec(ctx, func(ctx context.Context) error {
+		created, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
 			return upsertCommand(ctx, r.client.Commands, item)
 		})
 		if err == nil {
+			r.recordCommandCreation(created)
 			landed = append(landed, item)
 			continue
 		}
@@ -585,28 +559,33 @@ func (r *Commands) upsertEach(ctx context.Context, txn *newrelic.Transaction, it
 	return landed
 }
 
-func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) error {
+func (r *Commands) recordCommandCreation(created bool) {
+	if created {
+		r.analytics.Count(catalog.CustomCommands, "created")
+	}
+}
+
+func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) (bool, error) {
 
 	updated, err := updateCommand(ctx, c, item)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if updated > 0 {
-		return nil
+		return false, nil
 	}
 
 	b := c.Create().
 		SetUserID(item.UserID).
 		SetName(item.Name)
 	applyEdit(b.Mutation(), item)
-	if err := b.Exec(ctx); err != nil {
-		if ent.IsConstraintError(err) {
-			_, err = updateCommand(ctx, c, item)
-		}
-		return err
+	err = b.Exec(ctx)
+	if ent.IsConstraintError(err) {
+		_, err = updateCommand(ctx, c, item)
+		return false, err
 	}
-	return nil
+	return err == nil, err
 }
 
 func updateCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) (int, error) {
