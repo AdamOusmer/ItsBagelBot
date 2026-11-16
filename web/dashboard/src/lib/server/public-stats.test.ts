@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterEach, expect, jest, mock, spyOn, test } from 'bun:test';
-import type { PublicStats } from './public-stats';
 
 mock.module('$app/env', () => ({ dev: false, browser: false, building: false }));
 
@@ -33,12 +32,11 @@ afterEach(() => {
 });
 
 const coldCases = [
-  { name: 'cold concurrent requests wait for a 5s span', initial: 'healthy', prewarm: 0, cap: false },
-  { name: 'cached degraded init sample retries successfully', initial: 'degraded', prewarm: 0, cap: false },
-  { name: 'rejected init sample retries successfully', initial: 'rejected', prewarm: 0, cap: false },
-  { name: 'prewarmed requests wait only for the remaining span', initial: 'healthy', prewarm: 2, cap: false },
-  { name: 'cap returns null rates 6s after the first successful sample', initial: 'degraded', prewarm: 2, cap: true },
-  { name: 'late requests share the cap started by init', initial: 'healthy', prewarm: 2, cap: true }
+  { name: 'cold concurrent requests return without warming rates', initial: 'healthy', prewarm: 0 },
+  { name: 'cached degraded init sample retries successfully', initial: 'degraded', prewarm: 0 },
+  { name: 'rejected init sample retries successfully', initial: 'rejected', prewarm: 0 },
+  { name: 'prewarmed requests return before the remaining span', initial: 'healthy', prewarm: 2 },
+  { name: 'late requests retry a degraded sample without warming rates', initial: 'degraded', prewarm: 2 }
 ];
 
 test.each(coldCases)('$name', async (row) => {
@@ -54,40 +52,42 @@ test.each(coldCases)('$name', async (row) => {
   await settle();
   expect(reads).toBe(1);
 
+  const firstSampleAt = sampledAt + (row.initial === 'healthy' ? 0 : row.prewarm * 1000);
+  sampledAt += row.prewarm * 1000;
   jest.advanceTimersByTime(row.prewarm * 1000);
   await settle();
   availability = 'healthy';
-  const firstSampleAt = sampledAt;
   let resolved = 0;
-  const pending = Array.from({ length: 2 }, () => publicStats().then((stats: PublicStats) => {
+  const pending = Array.from({ length: 2 }, () => publicStats().then((stats) => {
     resolved++;
     return stats;
   }));
   await settle();
+  expect(resolved).toBe(2);
   expect(reads).toBe(1 + Number(row.prewarm > 0) + Number(row.initial !== 'healthy'));
+  expect(await Promise.all(pending)).toEqual(Array(2).fill({
+    messages_total: '1000', events_total: '2000', sampled_at: sampledAt,
+    msg_rate: null, event_rate: null, msg_rate_now: null, event_rate_now: null, degraded: false
+  }));
 
-  const allSpans = row.cap ? [1000, 2000, 3000, 4000, 4999, 4999] : [1000, 2000, 3000, 4999, 5000];
-  const spans = row.initial === 'healthy' ? allSpans.slice(row.prewarm) : allSpans;
-  for (const span of spans) {
-    expect(resolved).toBe(0);
+  for (const span of [4999, 5000]) {
     sampledAt = firstSampleAt + span;
     messages = 1000 + Math.floor(span / 10);
     jest.advanceTimersByTime(1000);
     await settle();
+    const rate = span < 5000 ? null : 100;
+    expect(await publicStats()).toEqual({
+      messages_total: String(messages), events_total: String(messages * 2), sampled_at: sampledAt,
+      msg_rate: rate, event_rate: rate === null ? null : rate * 2,
+      msg_rate_now: rate, event_rate_now: rate === null ? null : rate * 2, degraded: false
+    });
   }
-  const results = await Promise.all(pending);
-  const rate = row.cap ? null : 100;
-  expect(results).toEqual(Array(2).fill({
-    messages_total: String(messages), events_total: String(messages * 2), sampled_at: sampledAt,
-    msg_rate: rate, event_rate: rate === null ? null : rate * 2,
-    msg_rate_now: rate, event_rate_now: rate === null ? null : rate * 2, degraded: false
-  }));
-  const readsAfterWarmup = reads;
+  const readsBeforeRequest = reads;
   await publicStats();
-  expect(reads).toBe(readsAfterWarmup);
+  expect(reads).toBe(readsBeforeRequest);
 });
 
-test('samples without viewers using 15s now and 60s average windows', async () => {
+test('samples without viewers using 10s now and 60s average windows', async () => {
   jest.useFakeTimers();
   reads = 0;
   messages = 0;
@@ -106,9 +106,9 @@ test('samples without viewers using 15s now and 60s average windows', async () =
   const samples = [
     { at: 5000, total: 200, now: 40, average: 40 },
     { at: 10_000, total: 200, now: 20, average: 20 },
-    { at: 15_000, total: 200, now: 200 / 15, average: 200 / 15 },
-    { at: 16_000, total: 230, now: 2, average: 230 / 16 },
-    { at: 20_000, total: 350, now: 10, average: 17.5 },
+    { at: 15_000, total: 200, now: 0, average: 200 / 15 },
+    { at: 16_000, total: 230, now: 30 / 11, average: 230 / 16 },
+    { at: 20_000, total: 350, now: 15, average: 17.5 },
     { at: 60_000, total: 1550, now: 30, average: 1550 / 60 }
   ];
   for (const row of samples) {

@@ -15,9 +15,8 @@ const COUNTERS = [COUNTER_MESSAGES, COUNTER_EVENTS] as const;
 
 // Viewer-driven sampling left each pod's windows holding one stale sample after idle; the timer keeps them full.
 const SAMPLE_MS = 1000;
-const PUBLIC_RATE_NOW_SECONDS = 15;
+const PUBLIC_RATE_NOW_SECONDS = 10;
 const RATE_MIN_SPAN_MS = 5000;
-const WARMUP_MS = 6000;
 
 export interface PublicStats {
   messages_total: string;
@@ -37,8 +36,6 @@ const sampleAverage = exactRateWindow(RATE_AVG_SECONDS * 1000, RATE_MIN_SPAN_MS)
 let latest: PublicStats | null = null;
 let inflight: Promise<void> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
-let warmup: Promise<void> | null = null;
-let resolveWarmup: (() => void) | null = null;
 
 function degradedStats(): PublicStats {
   return {
@@ -75,20 +72,10 @@ async function loadStats(): Promise<PublicStats> {
   };
 }
 
-function warmRates(stats: PublicStats): void {
-  if (stats.degraded) return;
-  warmup ??= new Promise<void>((resolve) => {
-    resolveWarmup = resolve;
-    setTimeout(resolve, WARMUP_MS).unref?.();
-  });
-  if (stats.msg_rate_now !== null) resolveWarmup?.();
-}
-
 function sample(): Promise<void> {
   inflight ??= loadStats()
     .then((stats) => {
       latest = stats;
-      warmRates(stats);
     })
     .catch(() => {
       latest = degradedStats();
@@ -111,8 +98,5 @@ export async function publicStats(): Promise<PublicStats> {
   if (DEMO) return (await import('./demo-data')).demoStats(Date.now());
   startPublicStats();
   if (!latest || latest.degraded) await sample();
-  if (latest?.msg_rate_now === null && !latest.degraded) {
-    await warmup;
-  }
   return latest ?? degradedStats();
 }

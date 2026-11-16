@@ -171,7 +171,6 @@
     notation: 'compact',
     maximumFractionDigits: 2
   });
-  const PENDING = t('stats.rateNa');
 
   function compactTotal(raw: string, animated: number): { value: string; unit: string } {
     const exact = BigInt(raw);
@@ -189,7 +188,7 @@
       label: t('stats.messagesShortLabel'),
       ...compactTotal(live.messages_total, display.messages),
       detail: t('stats.processedTotal', { count: formatStatTotal(live.messages_total, display.messages, locale) }),
-      rate: display.msgRate === null ? PENDING : rateFmt.format(display.msgRate),
+      rate: display.msgRate === null ? null : rateFmt.format(display.msgRate),
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel'),
       tone: 'green' as const
@@ -199,7 +198,7 @@
       label: t('stats.eventsShortLabel'),
       ...compactTotal(live.events_total, display.events),
       detail: t('stats.processedTotal', { count: formatStatTotal(live.events_total, display.events, locale) }),
-      rate: display.eventRate === null ? PENDING : rateFmt.format(display.eventRate),
+      rate: display.eventRate === null ? null : rateFmt.format(display.eventRate),
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel'),
       tone: 'tan' as const
@@ -300,8 +299,8 @@
           <div class="st-counter__value">{tile.value}<span class="st-counter__unit">{tile.unit}</span></div>
           <div class="st-counter__exact"><bb-fit>{tile.detail}</bb-fit></div>
           <div class="st-rule"></div>
-          <div class="st-counter__rate">
-            <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden>{tile.rate}{#if tile.rate !== PENDING}<small class="st-counter__per">{t('stats.perSecond')}</small>{/if}</span>
+          <div class="st-counter__rate" class:st-counter__rate--pending={tile.rate === null}>
+            <span class="st-counter__now"><span class="st-beacon" aria-hidden="true"></span><VisuallyHidden>{tile.rateLabel}</VisuallyHidden><span aria-hidden={tile.rate === null}>{tile.rate ?? rateFmt.format(0)}</span><small class="st-counter__per" aria-hidden={tile.rate === null}>{t('stats.perSecond')}</small></span>
             <span class="st-counter__avg"><bb-fit mode="block">{tile.average === null ? t('stats.rightNow') : `${t('stats.rightNow')} · ${t('stats.minuteAverage', { rate: tile.average })}`}</bb-fit></span>
           </div>
         </Card>
@@ -630,7 +629,10 @@
     align-items: baseline;
     justify-content: space-between;
     gap: var(--bb-space-3);
+    transition: opacity 180ms ease-out;
   }
+
+  .st-counter__rate--pending { opacity: 0; }
 
   .st-counter__now {
     display: inline-flex;
