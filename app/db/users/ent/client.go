@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent/adminauditdelivery"
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
+	"ItsBagelBot/app/db/users/ent/billingreceipt"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
@@ -36,6 +37,8 @@ type Client struct {
 	AdminAuditDelivery *AdminAuditDeliveryClient
 	// AuthorizationCode is the client for interacting with the AuthorizationCode builders.
 	AuthorizationCode *AuthorizationCodeClient
+	// BillingReceipt is the client for interacting with the BillingReceipt builders.
+	BillingReceipt *BillingReceiptClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
 	// DeviceGrant is the client for interacting with the DeviceGrant builders.
@@ -61,6 +64,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AdminAuditDelivery = NewAdminAuditDeliveryClient(c.config)
 	c.AuthorizationCode = NewAuthorizationCodeClient(c.config)
+	c.BillingReceipt = NewBillingReceiptClient(c.config)
 	c.Delegation = NewDelegationClient(c.config)
 	c.DeviceGrant = NewDeviceGrantClient(c.config)
 	c.LifecycleErasure = NewLifecycleErasureClient(c.config)
@@ -161,6 +165,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:             cfg,
 		AdminAuditDelivery: NewAdminAuditDeliveryClient(cfg),
 		AuthorizationCode:  NewAuthorizationCodeClient(cfg),
+		BillingReceipt:     NewBillingReceiptClient(cfg),
 		Delegation:         NewDelegationClient(cfg),
 		DeviceGrant:        NewDeviceGrantClient(cfg),
 		LifecycleErasure:   NewLifecycleErasureClient(cfg),
@@ -188,6 +193,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:             cfg,
 		AdminAuditDelivery: NewAdminAuditDeliveryClient(cfg),
 		AuthorizationCode:  NewAuthorizationCodeClient(cfg),
+		BillingReceipt:     NewBillingReceiptClient(cfg),
 		Delegation:         NewDelegationClient(cfg),
 		DeviceGrant:        NewDeviceGrantClient(cfg),
 		LifecycleErasure:   NewLifecycleErasureClient(cfg),
@@ -223,8 +229,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AdminAuditDelivery, c.AuthorizationCode, c.Delegation, c.DeviceGrant,
-		c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.AdminAuditDelivery, c.AuthorizationCode, c.BillingReceipt, c.Delegation,
+		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -234,8 +240,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AdminAuditDelivery, c.AuthorizationCode, c.Delegation, c.DeviceGrant,
-		c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.AdminAuditDelivery, c.AuthorizationCode, c.BillingReceipt, c.Delegation,
+		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -248,6 +254,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AdminAuditDelivery.mutate(ctx, m)
 	case *AuthorizationCodeMutation:
 		return c.AuthorizationCode.mutate(ctx, m)
+	case *BillingReceiptMutation:
+		return c.BillingReceipt.mutate(ctx, m)
 	case *DelegationMutation:
 		return c.Delegation.mutate(ctx, m)
 	case *DeviceGrantMutation:
@@ -544,6 +552,139 @@ func (c *AuthorizationCodeClient) mutate(ctx context.Context, m *AuthorizationCo
 		return (&AuthorizationCodeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown AuthorizationCode mutation op: %q", m.Op())
+	}
+}
+
+// BillingReceiptClient is a client for the BillingReceipt schema.
+type BillingReceiptClient struct {
+	config
+}
+
+// NewBillingReceiptClient returns a client for the BillingReceipt from the given config.
+func NewBillingReceiptClient(c config) *BillingReceiptClient {
+	return &BillingReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `billingreceipt.Hooks(f(g(h())))`.
+func (c *BillingReceiptClient) Use(hooks ...Hook) {
+	c.hooks.BillingReceipt = append(c.hooks.BillingReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `billingreceipt.Intercept(f(g(h())))`.
+func (c *BillingReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.BillingReceipt = append(c.inters.BillingReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a BillingReceipt entity.
+func (c *BillingReceiptClient) Create() *BillingReceiptCreate {
+	mutation := newBillingReceiptMutation(c.config, OpCreate)
+	return &BillingReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of BillingReceipt entities.
+func (c *BillingReceiptClient) CreateBulk(builders ...*BillingReceiptCreate) *BillingReceiptCreateBulk {
+	return &BillingReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *BillingReceiptClient) MapCreateBulk(slice any, setFunc func(*BillingReceiptCreate, int)) *BillingReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &BillingReceiptCreateBulk{err: fmt.Errorf("calling to BillingReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*BillingReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &BillingReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for BillingReceipt.
+func (c *BillingReceiptClient) Update() *BillingReceiptUpdate {
+	mutation := newBillingReceiptMutation(c.config, OpUpdate)
+	return &BillingReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *BillingReceiptClient) UpdateOne(_m *BillingReceipt) *BillingReceiptUpdateOne {
+	mutation := newBillingReceiptMutation(c.config, OpUpdateOne, withBillingReceipt(_m))
+	return &BillingReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *BillingReceiptClient) UpdateOneID(id string) *BillingReceiptUpdateOne {
+	mutation := newBillingReceiptMutation(c.config, OpUpdateOne, withBillingReceiptID(id))
+	return &BillingReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for BillingReceipt.
+func (c *BillingReceiptClient) Delete() *BillingReceiptDelete {
+	mutation := newBillingReceiptMutation(c.config, OpDelete)
+	return &BillingReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *BillingReceiptClient) DeleteOne(_m *BillingReceipt) *BillingReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *BillingReceiptClient) DeleteOneID(id string) *BillingReceiptDeleteOne {
+	builder := c.Delete().Where(billingreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &BillingReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for BillingReceipt.
+func (c *BillingReceiptClient) Query() *BillingReceiptQuery {
+	return &BillingReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeBillingReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a BillingReceipt entity by its id.
+func (c *BillingReceiptClient) Get(ctx context.Context, id string) (*BillingReceipt, error) {
+	return c.Query().Where(billingreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *BillingReceiptClient) GetX(ctx context.Context, id string) *BillingReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *BillingReceiptClient) Hooks() []Hook {
+	return c.hooks.BillingReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *BillingReceiptClient) Interceptors() []Interceptor {
+	return c.inters.BillingReceipt
+}
+
+func (c *BillingReceiptClient) mutate(ctx context.Context, m *BillingReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&BillingReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&BillingReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&BillingReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&BillingReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown BillingReceipt mutation op: %q", m.Op())
 	}
 }
 
@@ -1461,11 +1602,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AdminAuditDelivery, AuthorizationCode, Delegation, DeviceGrant,
+		AdminAuditDelivery, AuthorizationCode, BillingReceipt, Delegation, DeviceGrant,
 		LifecycleErasure, PremiumGrant, Tokens, User []ent.Hook
 	}
 	inters struct {
-		AdminAuditDelivery, AuthorizationCode, Delegation, DeviceGrant,
+		AdminAuditDelivery, AuthorizationCode, BillingReceipt, Delegation, DeviceGrant,
 		LifecycleErasure, PremiumGrant, Tokens, User []ent.Interceptor
 	}
 )
