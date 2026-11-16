@@ -2481,6 +2481,7 @@ export type KnownMessageKey =
   | 'flows.issue.unstructuredMerge'
   | 'flows.issue.unsupportedAction'
   | 'flows.issue.unsupportedCondition'
+  | 'flows.issue.unsupportedDisabledControlFlow'
   | 'flows.issue.unsupportedNode'
   | 'flows.issue.unsupportedTrigger'
   | 'flows.issue.userNotResolved'

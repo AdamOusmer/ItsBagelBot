@@ -98,6 +98,7 @@
     "unsupportedTrigger": "This start cannot be saved yet.",
     "unsupportedCondition": "This check cannot be saved yet.",
     "unsupportedAction": "This action cannot be saved yet.",
+    "unsupportedDisabledControlFlow": "A turned off check or group cannot open here. Edit it in Automations.",
     "waitTooLong": "This wait is longer than a recipe can pause.",
     "unmappableToken": "{token} is not available with this start. Remove it or change the start.",
     "userNotResolved": "Pick a Twitch user. Type a name and leave the field so it can be checked.",

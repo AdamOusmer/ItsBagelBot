@@ -98,6 +98,7 @@
     "unsupportedTrigger": "Este início ainda não pode ser salvo.",
     "unsupportedCondition": "Esta verificação ainda não pode ser salva.",
     "unsupportedAction": "Esta ação ainda não pode ser salva.",
+    "unsupportedDisabledControlFlow": "Uma verificação ou grupo desligado não pode abrir aqui. Edite em Automações.",
     "waitTooLong": "Esta espera é maior do que uma receita pode pausar.",
     "unmappableToken": "{token} não está disponível com este início. Remova-o ou altere o início.",
     "userNotResolved": "Escolha um usuário da Twitch. Digite um nome e saia do campo para que possa ser verificado.",

@@ -98,6 +98,7 @@
     "unsupportedTrigger": "Dieser Start kann noch nicht gespeichert werden.",
     "unsupportedCondition": "Diese Prüfung kann noch nicht gespeichert werden.",
     "unsupportedAction": "Diese Aktion kann noch nicht gespeichert werden.",
+    "unsupportedDisabledControlFlow": "Eine ausgeschaltete Prüfung oder Gruppe kann hier nicht geöffnet werden. Bearbeite sie in Automationen.",
     "waitTooLong": "Diese Wartezeit ist länger, als ein Rezept pausieren kann.",
     "unmappableToken": "{token} ist mit diesem Start nicht verfügbar. Entferne es oder ändere den Start.",
     "userNotResolved": "Wähle einen Twitch-Nutzer aus. Gib einen Namen ein und verlasse das Feld, damit er überprüft werden kann.",

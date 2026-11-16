@@ -20,6 +20,7 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     unsupported_trigger: t('flows.issue.unsupportedTrigger'),
     unsupported_condition: t('flows.issue.unsupportedCondition'),
     unsupported_action: t('flows.issue.unsupportedAction'),
+    unsupported_disabled_control_flow: t('flows.issue.unsupportedDisabledControlFlow'),
     wait_too_long: t('flows.issue.waitTooLong'),
     unmappable_token: t('flows.issue.unmappableToken', { token: `{${lastSegment(issue.path)}}` }),
     user_not_resolved: t('flows.issue.userNotResolved'),

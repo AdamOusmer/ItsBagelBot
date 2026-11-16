@@ -98,6 +98,7 @@
     "unsupportedTrigger": "Ce début ne peut pas encore être enregistré.",
     "unsupportedCondition": "Cette vérification ne peut pas encore être enregistrée.",
     "unsupportedAction": "Cette action ne peut pas encore être enregistrée.",
+    "unsupportedDisabledControlFlow": "Une vérification ou un groupe désactivé ne peut pas s'ouvrir ici. Modifie-le dans Automatisations.",
     "waitTooLong": "Cette attente est plus longue que la pause autorisée pour une recette.",
     "unmappableToken": "{token} n’est pas disponible avec ce début. Supprimez-le ou modifiez le début.",
     "userNotResolved": "Choisissez un utilisateur Twitch. Saisissez un nom et quittez le champ pour qu’il puisse être vérifié.",

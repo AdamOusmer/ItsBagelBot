@@ -98,6 +98,7 @@
     "unsupportedTrigger": "Este inicio no se puede guardar todavía.",
     "unsupportedCondition": "Esta comprobación no se puede guardar todavía.",
     "unsupportedAction": "Esta acción no se puede guardar todavía.",
+    "unsupportedDisabledControlFlow": "Una comprobación o grupo desactivado no se puede abrir aquí. Edítalo en Automatizaciones.",
     "waitTooLong": "Esta espera es más larga de lo que una receta puede pausarse.",
     "unmappableToken": "{token} no está disponible con este inicio. Elimínalo o cambia el inicio.",
     "userNotResolved": "Elige un usuario de Twitch. Escribe un nombre y sal del campo para que se pueda comprobar.",
