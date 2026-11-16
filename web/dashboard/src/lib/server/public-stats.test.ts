@@ -64,7 +64,7 @@ test.each(coldCases)('$name', async (row) => {
   }));
   await settle();
   expect(resolved).toBe(2);
-  expect(reads).toBe(1 + Number(row.prewarm > 0) + Number(row.initial !== 'healthy'));
+  expect(reads).toBe(1 + row.prewarm + Number(row.initial !== 'healthy'));
   expect(await Promise.all(pending)).toEqual(Array(2).fill({
     messages_total: '1000', events_total: '2000', sampled_at: sampledAt,
     msg_rate: null, event_rate: null, msg_rate_now: null, event_rate_now: null, degraded: false
