@@ -55,6 +55,13 @@ interface DemoSpec {
     lines: ChatLine[];
 }
 
+interface ListSpec {
+    eyebrow: string;
+    title: string;
+    items: Item[];
+    note?: string;
+}
+
 interface PrereqSpec {
     title: string;
     items: string[];
@@ -81,6 +88,7 @@ interface Props {
     listTitle: string;
     listItems: Item[];
     listNote?: string;
+    detail?: ListSpec;
     faqEyebrow: string;
     faqTitle: string;
     faqItems: { question: string; answer: string }[];
@@ -98,11 +106,16 @@ interface Props {
 
 const {
     eyebrow, title, lead, howEyebrow, howTitle, steps,
-    listEyebrow, listTitle, listItems, listNote,
+    listEyebrow, listTitle, listItems, listNote, detail,
     faqEyebrow, faqTitle, faqItems,
     ctaTitle, ctaPrimary, ctaSecondary, legal,
     updated, table, demo, prereq, convert, related,
 } = Astro.props;
+
+const lists: ListSpec[] = [
+    ...(detail ? [detail] : []),
+    { eyebrow: listEyebrow, title: listTitle, items: listItems, note: listNote },
+];
 ---
 
 <PageHero eyebrow={eyebrow} title={title} description={lead} style="--page-hero-title-lines: 3" />
@@ -201,17 +214,19 @@ const {
   </Container>
 </Section>
 
-<Section size="band" class="fllist">
-  <Container>
-    <SectionHeading eyebrow={listEyebrow} title={listTitle} />
-    <FactList layout="list" class="fllist__list">
-        {listItems.map((item, i) => (
-            <Fact term={item.name ?? ''} fit class="reveal-in" style={`--reveal-i: ${i}`}>{item.desc}</Fact>
-        ))}
-    </FactList>
-    {listNote && <Text size="sm" tone="muted" class="fllist__note reveal-in"><bb-fit mode="block">{listNote}</bb-fit></Text>}
-  </Container>
-</Section>
+{lists.map((list) => (
+    <Section size="band" class="fllist">
+      <Container>
+        <SectionHeading eyebrow={list.eyebrow} title={list.title} />
+        <FactList layout="list" class="fllist__list">
+            {list.items.map((item, i) => (
+                <Fact term={item.name ?? ''} fit class="reveal-in" style={`--reveal-i: ${i}`}>{item.desc}</Fact>
+            ))}
+        </FactList>
+        {list.note && <Text size="sm" tone="muted" class="fllist__note reveal-in"><bb-fit mode="block">{list.note}</bb-fit></Text>}
+      </Container>
+    </Section>
+))}
 
 {related && (
     <Section size="band">

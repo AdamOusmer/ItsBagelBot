@@ -20,8 +20,8 @@ async function commandCells(page) {
     return page.locator('.fltbl tbody tr td:first-child').allInnerTexts();
 }
 
-async function expectCommonLanding(page, secondaryHref) {
-    await expect(page.locator('.flupd time')).toHaveText(/Updated/);
+async function expectCommonLanding(page, secondaryHref, updated = /Updated/) {
+    await expect(page.locator('.flupd time')).toHaveText(updated);
     await expect(page.locator('.flupd time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}$/);
     await expect(page.locator('.flcta__btn').nth(1)).toHaveAttribute('href', secondaryHref);
 }
@@ -33,21 +33,81 @@ async function landingGraph(page) {
     return JSON.parse(raw)['@graph'];
 }
 
+async function expectPageMeta(page) {
+    expect(await page.title()).toMatch(/^.{1,60}$/);
+    expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
+}
+
+async function expectHreflangs(page) {
+    const hreflangs = await page.locator('head link[rel="alternate"][hreflang]').evaluateAll((links) => links.map((link) => link.hreflang.toLowerCase()).sort());
+    expect(hreflangs).toEqual(['de', 'en', 'es', 'fr', 'pt-br', 'ru', 'x-default']);
+}
+
+async function expectComparisonSchema(page, faqSelector) {
+    const graph = await landingGraph(page);
+    expect(graph.find((node) => node['@type'] === 'FAQPage').mainEntity).toHaveLength(await page.locator(faqSelector).count());
+    expect(graph.find((node) => node['@type'] === 'WebPage').dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(graph.find((node) => node['@type'] === 'BreadcrumbList').itemListElement).toHaveLength(3);
+}
+
+async function expectRowSources(rows) {
+    for (const row of await rows.all()) {
+        await expect(row.locator('a[href^="https://"][target="_blank"]')).toHaveCount(1);
+    }
+}
+
+function expectLandingNodes(graph) {
+    expect(graph.filter((node) => node['@type'] === 'WebPage')).toHaveLength(1);
+    expect(graph.filter((node) => node['@type'] === 'BreadcrumbList')).toHaveLength(1);
+    expect(graph.filter((node) => node['@type'] === 'ItemList')).toHaveLength(1);
+}
+
+async function expectLandingIdentity(page, webPage, path) {
+    expect(webPage.inLanguage).toBe(path.startsWith('/fr/') ? 'fr' : 'en');
+    expect(webPage.url).toBe(await page.locator('head link[rel="canonical"]').getAttribute('href'));
+    expect(webPage.about['@id']).toMatch(/\/#software$/);
+}
+
+async function expectGameContent(page, game) {
+    await expect(page.locator('.fltbl tbody tr').first().locator('td').nth(1)).not.toHaveText('None');
+    await expect(page.locator('.fltbl')).toContainText(game.sample);
+    await expect(page.locator('.fldemo')).toBeVisible();
+}
+
+async function expectGameLinks(page, game) {
+    await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/features/' + game.ai + '.md"]')).toHaveCount(1);
+    await expect(page.locator('.flrel a[href="/command-builder/"]')).toBeVisible();
+    await expect(page.locator('.flrel a[href="/valorant-stats/"]')).toBeVisible();
+}
+
+async function expectSongRelatedLinks(page) {
+    for (const href of ['/guides/setup-errors/', '/import/', '/pricing/']) {
+        await expect(page.locator(`.flrel a[href="${href}"]`)).toBeVisible();
+    }
+}
+
+async function expectFeatureContent(page, feature) {
+    await expect(page.locator('h1')).toBeVisible();
+    await expect(page).toHaveTitle(new RegExp(feature.title));
+    await expect(page.locator('.fltbl tbody tr')).toHaveCount(feature.rows);
+}
+
+async function expectFeatureReview(page) {
+    await expect(page.locator('.flprereq')).toBeVisible();
+    await expect(page.locator('.flupd time')).toHaveText('Updated October 14, 2026');
+    await expect(page.locator('.flupd time')).toHaveAttribute('datetime', '2026-10-14');
+}
+
 test.describe('feature landing pages', () => {
     for (const path of SCHEMA_PAGES) {
         test(`${path} describes itself with WebPage, BreadcrumbList and a command ItemList`, async ({ page }) => {
             await page.goto(path);
             const graph = await landingGraph(page);
-            const ofType = (type) => graph.filter((node) => node['@type'] === type);
-            const [webPage] = ofType('WebPage');
-            const [list] = ofType('ItemList');
-            expect(ofType('WebPage')).toHaveLength(1);
-            expect(ofType('BreadcrumbList')).toHaveLength(1);
-            expect(ofType('ItemList')).toHaveLength(1);
+            const webPage = graph.find((node) => node['@type'] === 'WebPage');
+            const list = graph.find((node) => node['@type'] === 'ItemList');
+            expectLandingNodes(graph);
             expect(webPage.dateModified).toBe(await page.locator('.flupd time').getAttribute('datetime'));
-            expect(webPage.inLanguage).toBe(path.startsWith('/fr/') ? 'fr' : 'en');
-            expect(webPage.url).toBe(await page.locator('head link[rel="canonical"]').getAttribute('href'));
-            expect(webPage.about['@id']).toMatch(/\/#software$/);
+            await expectLandingIdentity(page, webPage, path);
             expect(list.itemListElement).toHaveLength(await page.locator('.fltbl tbody tr').count());
         });
     }
@@ -67,25 +127,19 @@ test.describe('feature landing pages', () => {
             await page.goto(game.path);
             const cells = (await commandCells(page)).join('\n');
             for (const reply of moduleDef(game.module).replies) expect(cells).toContain(`!${reply.command}`);
-            await expect(page.locator('.fltbl tbody tr').first().locator('td').nth(1)).not.toHaveText('None');
-            await expect(page.locator('.fltbl')).toContainText(game.sample);
-            await expect(page.locator('.fldemo')).toBeVisible();
+            await expectGameContent(page, game);
             await expect(page.locator('.flprereq')).toBeVisible();
             await expect(page.locator('.flcta__legal')).toContainText(game.legal);
-            await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/features/' + game.ai + '.md"]')).toHaveCount(1);
-            await expect(page.locator('.flrel a[href="/command-builder/"]')).toBeVisible();
-            await expect(page.locator('.flrel a[href="/valorant-stats/"]')).toBeVisible();
-            expect(await page.title()).toMatch(/^.{1,60}$/);
-            expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
+            await expectGameLinks(page, game);
+            await expectPageMeta(page);
             await expectCommonLanding(page, '/guides/modules/');
         });
 
         test(`${game.path} has a French mirror`, async ({ page }) => {
             await page.goto(`/fr${game.path}`);
             expect(await page.title()).toMatch(game.frTitle);
-            await expect(page.locator('.flupd time')).toHaveText(/Mis à jour/);
+            await expectCommonLanding(page, '/fr/guides/modules/', /Mis à jour/);
             await expect(page.locator('.fltbl thead')).toContainText('Commande');
-            await expect(page.locator('.flcta__btn').nth(1)).toHaveAttribute('href', '/fr/guides/modules/');
         });
     }
 
@@ -95,9 +149,7 @@ test.describe('feature landing pages', () => {
         for (const command of songCommands) expect(cells).toContain(command);
         await expect(page.locator('.fltbl')).toContainText('!songrequest');
         await expect(page.locator('.flprereq')).toContainText('Spotify Premium');
-        await expect(page.locator('.flrel a[href="/guides/setup-errors/"]')).toBeVisible();
-        await expect(page.locator('.flrel a[href="/import/"]')).toBeVisible();
-        await expect(page.locator('.flrel a[href="/pricing/"]')).toBeVisible();
+        await expectSongRelatedLinks(page);
         await expectCommonLanding(page, '/guides/spotify-song-requests/');
     });
 
@@ -136,7 +188,16 @@ test.describe('feature landing pages', () => {
     });
 });
 
-const VS_SLUGS = ['nightbot', 'streamelements', 'fossabot', 'moobot', 'streamlabs-chatbot', 'wizebot'];
+const VS_MIGRATION_PATHS = {
+    nightbot: '/import/',
+    streamelements: '/import/',
+    fossabot: '/import/',
+    moobot: '/import/',
+    'streamlabs-chatbot': '/import/',
+    wizebot: '/import/',
+    spotchbot: '/guides/spotify-song-requests/',
+};
+const VS_SLUGS = Object.keys(VS_MIGRATION_PATHS);
 const VS_LOCALES = [['en', ''], ['fr', '/fr'], ['de', '/de'], ['es', '/es'], ['pt-br', '/pt-br'], ['ru', '/ru']];
 const VS_CASES = VS_SLUGS.flatMap((slug) => VS_LOCALES.map(([lang, prefix]) => ({ slug, lang, prefix })));
 const FOOTER_PAGES = ['/pricing/', '/guides/', '/command-builder/', '/changelog/', '/contact/'];
@@ -147,22 +208,27 @@ for (const { slug, lang, prefix } of VS_CASES) {
         await page.goto(`${prefix}/vs/${slug}/`);
         const rows = page.locator('.vs__table tbody tr');
         expect(await rows.count()).toBeGreaterThan(0);
-        for (const row of await rows.all()) {
-            await expect(row.locator('a[href^="https://"]')).toHaveCount(1);
-        }
+        await expectRowSources(rows);
         await expect(page.locator('html')).toHaveAttribute('lang', lang);
         await expect(page.locator('.vs__reviewed time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}$/);
-        await expect(page.locator('.vs__actions a').first()).toHaveAttribute('href', `${prefix}/import/`);
+        await expect(page.locator('.vs__actions a').first()).toHaveAttribute('href', `${prefix}${VS_MIGRATION_PATHS[slug]}`);
 
-        const graph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
-        const faq = graph.find((node) => node['@type'] === 'FAQPage');
-        expect(faq.mainEntity).toHaveLength(await page.locator('.vs__faq .bb-disclosure').count());
-        expect(graph.find((node) => node['@type'] === 'WebPage').dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-        expect(graph.find((node) => node['@type'] === 'BreadcrumbList').itemListElement).toHaveLength(3);
-
-        const hreflangs = await page.locator('head link[rel="alternate"][hreflang]').evaluateAll((links) => links.map((l) => l.hreflang));
-        expect(hreflangs.map((h) => h.toLowerCase()).sort()).toEqual(['de', 'en', 'es', 'fr', 'pt-br', 'ru', 'x-default']);
+        await expectComparisonSchema(page, '.vs__faq .bb-disclosure');
+        await expectHreflangs(page);
         await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/migration.md"]')).toHaveCount(1);
+    });
+}
+
+for (const [lang, prefix] of VS_LOCALES) {
+    test(`${prefix}/vs/song-request-bots/ renders sourced bots and matching FAQ schema`, async ({ page }) => {
+        await page.goto(`${prefix}/vs/song-request-bots/`);
+        await expect(page.locator('html')).toHaveAttribute('lang', lang);
+        const rows = page.locator('.rnd__table tbody tr');
+        await expect(rows).toHaveCount(8);
+        await expectRowSources(rows);
+        await expectComparisonSchema(page, '.rnd__faq .bb-disclosure');
+        await expectHreflangs(page);
+        await expectPageMeta(page);
     });
 }
 
@@ -185,7 +251,8 @@ test.describe('comparison pages', () => {
         await expect(links).toHaveCount(VS_SLUGS.length);
         await expect(links.last()).toHaveAttribute('href', '/de/vs/');
         await expect(links.last()).toHaveAccessibleName('Alle Vergleiche');
-        await expect(page.locator('.vs__sources a').first()).toHaveAccessibleName(/\S/);
+        const sources = page.locator('.vs__sources a');
+        await expect(sources.first()).toHaveAccessibleName(/\S/);
         await expect(page.locator('.vs__related a[href="/de/vs/nightbot/"]')).toHaveCount(0);
     });
 
@@ -196,12 +263,27 @@ test.describe('comparison pages', () => {
             for (const slug of VS_SLUGS) {
                 await expect(page.locator(`.vshub__grid a[href="${prefix}/vs/${slug}/"]`)).toHaveCount(1);
             }
-            expect(await page.title()).toMatch(/^.{1,60}$/);
-            expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
+            await expectPageMeta(page);
             const graph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
-            expect(graph.find((node) => node['@type'] === 'ItemList').numberOfItems).toBe(VS_SLUGS.length);
+            expect(graph.find((node) => node['@type'] === 'ItemList').numberOfItems).toBe(VS_SLUGS.length + 1);
         });
     }
+});
+
+test('comparison hub links the song request roundup', async ({ page }) => {
+    await page.goto('/vs/');
+    await expect(page.locator('.vshub__grid a').first()).toHaveAttribute('href', '/vs/song-request-bots/');
+});
+
+test('song-requests has eleven FAQ entries and links the roundup', async ({ page }) => {
+    await page.goto('/song-requests/');
+    const schemas = await page.locator('script[type="application/ld+json"]').allTextContents();
+    const nodes = schemas.flatMap((raw) => {
+        const schema = JSON.parse(raw);
+        return schema['@graph'] ?? [schema];
+    });
+    expect(nodes.find((node) => node['@type'] === 'FAQPage').mainEntity).toHaveLength(11);
+    await expect(page.locator('.flrel a[href="/vs/song-request-bots/"]')).toHaveCount(1);
 });
 
 function catalogEntryCount(id) {
@@ -222,20 +304,14 @@ const FEATURE_PAGES = [
 for (const feature of FEATURE_PAGES) {
     test(`${feature.path} renders its kit table, review date and landing schema`, async ({ page }) => {
         await page.goto(feature.path);
-        await expect(page.locator('h1')).toBeVisible();
-        await expect(page).toHaveTitle(new RegExp(feature.title));
-        await expect(page.locator('.fltbl tbody tr')).toHaveCount(feature.rows);
-        await expect(page.locator('.flprereq')).toBeVisible();
-        await expect(page.locator('.flupd time')).toHaveText('Updated October 14, 2026');
-        await expect(page.locator('.flupd time')).toHaveAttribute('datetime', '2026-10-14');
+        await expectFeatureContent(page, feature);
+        await expectFeatureReview(page);
         await expect(page.locator(`head link[rel="describedby"][href="https://ai.itsbagelbot.com/features/${feature.ai}.md"]`)).toHaveCount(1);
         const graph = await landingGraph(page);
-        expect(graph.filter((node) => node['@type'] === 'WebPage')).toHaveLength(1);
-        expect(graph.filter((node) => node['@type'] === 'BreadcrumbList')).toHaveLength(1);
+        expectLandingNodes(graph);
         expect(graph.find((node) => node['@type'] === 'WebPage').dateModified).toBe('2026-10-14');
         expect(graph.find((node) => node['@type'] === 'ItemList').numberOfItems).toBe(feature.rows);
-        expect(await page.title()).toMatch(/^.{1,60}$/);
-        expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
+        await expectPageMeta(page);
         const related = page.locator('.flrel a');
         await expect(related).toHaveCount(feature.related?.length ?? 4);
         if (feature.related) expect(await related.evaluateAll((links) => links.map((link) => link.getAttribute('href')))).toEqual(feature.related);
