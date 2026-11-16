@@ -1,6 +1,10 @@
 {
-  "title": "Warteschlange von {channel}",
-  "metaDescription": "Sieh, wer bei {channel} auf ItsBagelBot in der Schlange zum Mitspielen steht, live aktualisiert.",
+  "title": "Twitch-Warteschlange von {channel} | ItsBagelBot",
+  "metaDescription": "Sieh, wer bei {channel} auf Twitch zum Mitspielen ansteht und wer als Nächstes drankommt. Tritt im Twitch-Chat mit !join bei. Live aktualisiert.",
+  "aboutTitle": "Spiel mit {channel}",
+  "aboutBody": "{channel} führt über ItsBagelBot, einen kostenlosen Twitch-Chatbot, eine Zuschauer-Warteschlange. Gib im Twitch-Chat !join ein, um dich anzustellen, und !leave, um auszutreten. Der Streamer ruft Zuschauer der Reihe nach auf.",
+  "aboutTwitch": "{channel} auf Twitch ansehen",
+  "aboutLink": "Zuschauer-Warteschlange für deinen Kanal einrichten",
   "eyebrow": "Warteschlange",
   "tagline": "Wer ansteht und wer als Nächstes drankommt, live aktualisiert.",
   "joinHint": "Tritt im Chat mit !join oder !queue join bei.",

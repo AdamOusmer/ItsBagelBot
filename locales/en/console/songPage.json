@@ -1,6 +1,10 @@
 {
-  "title": "{channel} song queue",
-  "metaDescription": "See what is playing and what comes next on {channel}'s stream, updated live.",
+  "title": "{channel} song requests and Spotify queue | ItsBagelBot",
+  "metaDescription": "See what is playing on {channel}'s Twitch stream and what plays next. Request a Spotify song in chat with !sr. Updated live.",
+  "aboutTitle": "Request a song on {channel}'s stream",
+  "aboutBody": "{channel} takes Spotify song requests through ItsBagelBot, a free Twitch chat bot. Type !sr with a song name, \"artist - song\" or a Spotify link in the Twitch chat. Requests play in order on the streamer's Spotify.",
+  "aboutTwitch": "Watch {channel} on Twitch",
+  "aboutLink": "Add song requests to your channel",
   "eyebrow": "Song queue",
   "tagline": "What is playing and what plays next, updated live.",
   "requestHint": "Request a song from chat with !sr <song>.",

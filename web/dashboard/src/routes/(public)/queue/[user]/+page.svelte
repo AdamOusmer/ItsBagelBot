@@ -9,6 +9,8 @@
   import { liveBoard } from '#lib/live-board.svelte';
   import { MAX_QUEUE_ENTRIES, parseSnapshot, waitedSeconds } from '#lib/queue-snapshot';
   import { waitLabeler } from '#lib/wait-label';
+  import { channelAbout, channelPageSchema } from '#lib/public-channel-page';
+  import { SITE } from '@bagel/kit/site-links';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -57,12 +59,21 @@
   const statusText = $derived(
     t(snapshot.degraded ? 'queuePage.statusUnknown' : snapshot.open ? 'queuePage.statusOpen' : 'queuePage.statusClosed')
   );
+
+  const channelPage = $derived({
+    ns: 'queuePage' as const,
+    featurePath: '/viewer-queue/',
+    url: `${SITE.queue}/${data.login}`,
+    login: data.login,
+    channelName: data.channelName
+  });
 </script>
 
 <PublicHead
   title={t('queuePage.title', { channel: data.channelName })}
   description={t('queuePage.metaDescription', { channel: data.channelName })}
-  url="https://queue.itsbagelbot.com/{data.login}"
+  url={channelPage.url}
+  schema={channelPageSchema(channelPage, t, locale)}
 />
 
 <QueueBoardPage
@@ -90,4 +101,5 @@
   {statusLine}
   {empty}
   noMatch={{ title: t('queuePage.noMatchTitle'), body: t('queuePage.noMatchBody') }}
+  about={channelAbout(channelPage, t, locale)}
 />
