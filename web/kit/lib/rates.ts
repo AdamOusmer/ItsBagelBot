@@ -26,7 +26,8 @@ export interface Rates {
 function sampleWindow<T extends { at: number }>(
   windowMs: number,
   backwards: (last: T, next: T) => boolean,
-  calculate: (first: T, next: T, seconds: number) => Rates
+  calculate: (first: T, next: T, seconds: number) => Rates,
+  minSpanMs = MIN_SPAN_MS
 ): (next: T) => Rates {
   const samples: T[] = [];
   let rates: Rates = { msg: null, event: null };
@@ -37,7 +38,7 @@ function sampleWindow<T extends { at: number }>(
     while (samples.length > 1 && next.at - samples[1].at >= windowMs) samples.shift();
     const first = samples[0];
     const spanMs = next.at - first.at;
-    if (spanMs < MIN_SPAN_MS) return rates;
+    if (spanMs < minSpanMs) return rates;
     rates = calculate(first, next, spanMs / 1000);
     return rates;
   };
@@ -66,14 +67,15 @@ export interface ExactRateSample {
   at: number;
 }
 
-export function exactRateWindow(windowMs: number): (next: ExactRateSample) => Rates {
+export function exactRateWindow(windowMs: number, minSpanMs = MIN_SPAN_MS): (next: ExactRateSample) => Rates {
   return sampleWindow<ExactRateSample>(
     windowMs,
     (last, next) => next.messages < last.messages || next.events < last.events,
     (first, next, seconds) => ({
       msg: Number(next.messages - first.messages) / seconds,
       event: Number(next.events - first.events) / seconds
-    })
+    }),
+    minSpanMs
   );
 }
 

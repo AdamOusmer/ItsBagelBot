@@ -49,12 +49,10 @@
 
   let boards = $state(untrack(() => validBoards(data.boards) ?? emptyBoards()));
 
-  // The total is seeded once per page load. Fetches update the rate, while
-  // the clock adds that rate per second independently of the polling cadence.
   const counter = (total: string, rate: number | null, now: number) =>
     new StatsCounter(exactDisplay(Number(total)), rate, now);
-  let messages = counter(seed.messages_total, seed.msg_rate_now ?? seed.msg_rate, 0);
-  let events = counter(seed.events_total, seed.event_rate_now ?? seed.event_rate, 0);
+  const messages = counter(seed.messages_total, seed.msg_rate_now ?? seed.msg_rate, 0);
+  const events = counter(seed.events_total, seed.event_rate_now ?? seed.event_rate, 0);
 
   function frame(now: number) {
     const msg = messages.read(now, { animateRate: !reduced });
@@ -67,6 +65,8 @@
 
   let display = $state(frame(0));
   let mountedAt = 0;
+  let snapNext = true;
+  let minOffset = Infinity;
 
   function tick(now: number): boolean {
     display = frame(now - mountedAt);
@@ -81,20 +81,22 @@
     }
     degraded = next.degraded;
     if (next.degraded) return;
-    if (next.sampled_at != null && next.sampled_at <= (live.sampled_at ?? -1)) return;
+    if (!snapNext && (next.sampled_at ?? Infinity) <= (live.sampled_at ?? -1)) return;
     const now = performance.now() - mountedAt;
-    // If SSR was unavailable, the first healthy fetch supplies the initial
-    // totals. After that, only a page reload reconciles them with the server.
-    if (live.degraded) {
-      messages = counter(next.messages_total, next.msg_rate_now ?? next.msg_rate, now);
-      events = counter(next.events_total, next.event_rate_now ?? next.event_rate, now);
-    } else {
-      messages.update(next.msg_rate_now, now, next.msg_rate);
-      events.update(next.event_rate_now, now, next.event_rate);
-    }
+    const wallNow = Date.now();
+    const offset = wallNow - (next.sampled_at ?? wallNow);
+    minOffset = Math.min(minOffset, offset);
+    const sampledAt = now - Math.min(3000, Math.max(0, offset - minOffset));
+    messages.update(next.msg_rate_now, now, next.msg_rate, {
+      total: exactDisplay(Number(next.messages_total)), sampledAt, snap: snapNext
+    });
+    events.update(next.event_rate_now, now, next.event_rate, {
+      total: exactDisplay(Number(next.events_total)), sampledAt, snap: snapNext
+    });
+    snapNext = false;
     live = next;
     const reading = frame(now);
-    display = reduced ? { ...display, msgRate: reading.msgRate, eventRate: reading.eventRate } : reading;
+    display = reading;
   }
   async function fetchJson(path: string): Promise<unknown> {
     const res = await fetch(path, {
@@ -134,6 +136,10 @@
       if (!reduced) stopOdometer = subscribe(tick);
     };
     reduceMotion.addEventListener('change', onMotionChange);
+    const onVisibilityChange = () => {
+      snapNext = true;
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     const reducedClock = setInterval(() => {
       if (reduced) display = frame(performance.now() - mountedAt);
     }, 1000);
@@ -156,6 +162,7 @@
       stopOdometer();
       clearInterval(reducedClock);
       reduceMotion.removeEventListener('change', onMotionChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   });
 

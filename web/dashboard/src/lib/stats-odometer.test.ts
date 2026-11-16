@@ -4,6 +4,14 @@
 import { describe, expect, test } from 'bun:test';
 import { StatsCounter } from './stats-odometer';
 
+function outageSample(now: number) {
+  return {
+    healthy: now < 20_000 || now >= 80_000,
+    rate: now < 25_000 ? 12 : 4,
+    total: 1000 + 12 * Math.min(now, 25_000) / 1000 + 4 * Math.max(0, now - 25_000) / 1000
+  };
+}
+
 describe('stats counter rate clock', () => {
   for (const rate of [1, 3, 14, 25]) {
     test.each([30, 60, 144])(`${rate}/s adds ${rate} in EACH single second at %i fps with two-second polling`, (fps) => {
@@ -24,149 +32,153 @@ describe('stats counter rate clock', () => {
     });
   }
 
-  test('fourteen means +14 after one second, +28 after two, and +42 after three', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    expect(counter.read(1000)).toEqual({ total: 1014, rate: 14 });
-    expect(counter.read(2000)).toEqual({ total: 1028, rate: 14 });
-    expect(counter.read(3000)).toEqual({ total: 1042, rate: 14 });
-  });
-
-  test('missing fetches do not expire the last known rate, even after minutes', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    expect(counter.read(10_000)).toEqual({ total: 1140, rate: 14 });
-    expect(counter.read(60_000)).toEqual({ total: 1840, rate: 14 });
-    expect(counter.read(300_000)).toEqual({ total: 5200, rate: 14 });
-  });
-
-  test('unknown rates preserve the latest value and every elapsed second', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    for (let second = 2; second <= 60; second += 2) {
-      counter.update(null, second * 1000);
-      expect(counter.read(second * 1000)).toEqual({ total: 1000 + second * 14, rate: 14 });
+  test.each([
+    { rate: 14, times: [1000, 2000, 3000] },
+    { rate: 14, times: [10_000, 60_000, 300_000] },
+    { rate: 0.25, times: [2000, 4000, 8000] }
+  ])('bounds prediction at $rate per second without fetches or rounding', ({ rate, times }) => {
+    const counter = new StatsCounter(1000, rate, 0);
+    for (const now of times) {
+      expect(counter.read(now)).toEqual({ total: 1000 + rate * Math.min(now, 3000) / 1000, rate });
     }
   });
 
-  test('a missing current rate cannot replace the last known rate with an average of zero', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    counter.update(null, 2000, 0);
-    expect(counter.read(3000)).toEqual({ total: 1042, rate: 14 });
-  });
-
-  test('a real zero stops immediately and missing data keeps zero until a new rate arrives', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    counter.update(0, 2500);
-    expect(counter.read(2500)).toEqual({ total: 1035, rate: 0 });
-    counter.update(null, 4000, 20);
-    expect(counter.read(60_000)).toEqual({ total: 1035, rate: 0 });
-    counter.update(3, 60_000);
-    expect(counter.read(61_000)).toEqual({ total: 1038, rate: 3 });
-  });
-
-  test('rate changes finish elapsed time at the old rate without easing or losing fractions', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    counter.update(5, 1500);
-    expect(counter.read(1500)).toEqual({ total: 1021, rate: 5 });
-    expect(counter.read(2000)).toEqual({ total: 1023.5, rate: 5 });
-    expect(counter.read(2500)).toEqual({ total: 1026, rate: 5 });
-  });
-
-  test('an unknown initial rate stays pending until a measurement exists', () => {
-    const counter = new StatsCounter(1000, null, 0);
-    expect(counter.read(1000)).toEqual({ total: 1000, rate: null });
-    counter.update(null, 2000, 7);
-    expect(counter.read(3000)).toEqual({ total: 1007, rate: 7 });
-    counter.update(14, 3000);
-    expect(counter.read(4000)).toEqual({ total: 1021, rate: 14 });
-  });
-
-  test('fractional event rates accumulate without per-frame rounding', () => {
-    const counter = new StatsCounter(1000, 0.25, 0);
-    for (let now = 0; now < 8000; now += 1000 / 60) counter.read(now);
-    expect(counter.read(8000)).toEqual({ total: 1002, rate: 0.25 });
-  });
-
-  test('resuming a suspended tab counts the full elapsed time at the latest rate', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    counter.read(1000);
-    counter.update(14, 120_000);
-    expect(counter.read(121_000)).toEqual({ total: 2694, rate: 14 });
-  });
-
-  test('a reload seeds the server total instead of carrying over the old projection', () => {
-    const beforeReload = new StatsCounter(1000, 14, 0);
-    expect(beforeReload.read(60_000).total).toBe(1840);
-    const afterReload = new StatsCounter(1500, 14, 0);
-    expect(afterReload.read(0).total).toBe(1500);
-    expect(afterReload.read(1000)).toEqual({ total: 1514, rate: 14 });
+  test.each([
+    { initial: 14, fallback: 0, expected: 14 },
+    { initial: 0, fallback: 20, expected: 0 },
+    { initial: null, fallback: 7, expected: 7 },
+    { initial: null, fallback: null, expected: null }
+  ])('keeps the last known rate $initial through null polls with fallback $fallback', ({ initial, fallback, expected }) => {
+    const counter = new StatsCounter(1000, initial, 0);
+    counter.update(null, 0, fallback);
+    for (let second = 2; second <= 60; second += 2) {
+      counter.update(null, second * 1000, fallback);
+      expect(counter.read(second * 1000)).toEqual({ total: 1000 + Math.min(second, 3) * (expected ?? 0), rate: expected });
+    }
   });
 });
 
-describe('stats counter shared numeric animation', () => {
+describe('stats counter smoothing and truth', () => {
   test.each([
-    [0, 14, 1000],
-    [250, 17.5, 1007],
-    [500, 21, 1014],
-    [1000, 28, 1028],
-    [2000, 28, 1056]
-  ])('uses the same linear clock at %i ms', (now, rate, total) => {
-    const counter = new StatsCounter(1000, 14, 0);
-    counter.update(28, 0);
-    expect({ ...counter.read(now, { animateRate: true }), actualRate: counter.read(now).rate })
-      .toEqual({ total, rate, actualRate: 28 });
+    { from: 14, to: 28, fps: 30 },
+    { from: 28, to: 7, fps: 60 },
+    { from: 14, to: 0, fps: 144 }
+  ])('smooths $from to $to at $fps fps without overshooting', ({ from, to, fps }) => {
+    const counter = new StatsCounter(1000, from, 0);
+    counter.update(to, 0);
+    let previous: number = from;
+    for (let frame = 0; frame <= fps * 6; frame++) {
+      const now = frame * 1000 / fps;
+      const reading = counter.read(now);
+      expect(reading.rate).toBeCloseTo(to + (from - to) * Math.exp(-now / 2000), 10);
+      expect(Math.abs(reading.rate! - to)).toBeLessThanOrEqual(Math.abs(previous - to));
+      previous = reading.rate!;
+    }
+    expect(Math.abs(previous - to)).toBeLessThan(Math.abs(from - to) * 0.05);
   });
 
-  test('a new rate continues from the number currently displayed', () => {
+  test.each([30, 60, 144])('integrates the displayed exponential rate independently of %i fps', (fps) => {
     const counter = new StatsCounter(1000, 14, 0);
     counter.update(28, 0);
-    const before = counter.read(500, { animateRate: true });
+    for (let frame = 0; frame <= fps * 6; frame++) {
+      const now = frame * 1000 / fps;
+      if (frame % (fps * 2) === 0) counter.update(28, now);
+      counter.read(now);
+    }
+    expect(counter.read(6000).total).toBeCloseTo(1000 + 28 * 6 - 28 * (1 - Math.exp(-3)), 8);
+  });
+
+  test.each([900, 1100])('converges from %i to projected server truth without decreasing', (initial) => {
+    const counter = new StatsCounter(initial, 14, 0);
+    counter.update(14, 0, null, { total: 1000, sampledAt: -500 });
+    let previous: number = initial;
+    for (let now = 0; now <= 32_000; now += 100) {
+      if (now % 1000 === 0) counter.update(14, now, null, { total: 1000 + 14 * now / 1000, sampledAt: now - 500 });
+      const reading = counter.read(now);
+      expect(reading.total).toBeGreaterThanOrEqual(previous);
+      previous = reading.total;
+    }
+    expect(previous).toBeCloseTo(1007 + 14 * 32, 0);
+  });
+
+  test.each([
+    { initial: 1000, truth: 1800, at: 1000, sampledAt: 500, expected: 1807 },
+    { initial: 1000, truth: 900, at: 1000, sampledAt: 1000, expected: 900 },
+    { initial: 1000, truth: 900, at: 600_000, sampledAt: 0, expected: 942 },
+    { initial: 1000, truth: 2800, at: 120_000, sampledAt: 119_500, expected: 2807 }
+  ])('snaps stale seeds and resumed tabs to $truth with a fresh rate', ({ initial, truth, at, sampledAt, expected }) => {
+    const counter = new StatsCounter(initial, 3, 0);
+    counter.update(14, at, null, { total: truth, sampledAt, snap: true });
+    expect(counter.read(at)).toEqual({ total: expected, rate: 14 });
+  });
+
+  test.each([
+    { truth: false, gap: 60_000 },
+    { truth: true, gap: 60_000 },
+    { truth: false, gap: 600_000 },
+    { truth: true, gap: 600_000 }
+  ])('bounds lead across a $gap ms hidden gap, server truth $truth', ({ truth, gap }) => {
+    const counter = new StatsCounter(1000, 12, 0);
+    if (truth) counter.update(12, 0, null, { total: 1000, sampledAt: 0, snap: true });
+    const stopped = counter.read(30_000).total;
+    const resumed = counter.read(gap).total;
+    expect(resumed - 1000).toBeLessThanOrEqual(36);
+    expect(resumed).toBeCloseTo(stopped, 5);
+    counter.update(4, gap, null, { total: 1000 + 4 * gap / 1000, sampledAt: gap, snap: true });
+    expect(counter.read(gap).total).toBe(1000 + 4 * gap / 1000);
+  });
+
+  test.each([30, 60, 144])('recovers from a 60s degraded outage without a long freeze at %i fps', (fps) => {
+    const counter = new StatsCounter(1000, 12, 0);
+    let previous = 1000;
+    let unchangedAt = 80_000;
+    let longestFreeze = 0;
+    for (let frame = 0; frame <= fps * 140; frame++) {
+      const now = frame * 1000 / fps;
+      const sample = outageSample(now);
+      if (sample.healthy && frame % fps === 0) {
+        counter.update(sample.rate, now, null, { total: sample.total, sampledAt: now });
+      }
+      const shown = Math.round(counter.read(now).total);
+      expect(shown).toBeGreaterThanOrEqual(previous);
+      if (now === 80_000) unchangedAt = now;
+      if (shown !== previous) unchangedAt = now;
+      if (now >= 80_000) longestFreeze = Math.max(longestFreeze, now - unchangedAt);
+      previous = shown;
+    }
+    expect(longestFreeze).toBeLessThan(1000);
+    expect(previous).toBeCloseTo(1760, 0);
+  });
+
+  test.each([null, 14])('tracks totals through a null poll with previous rate %s', (rate) => {
+    const counter = new StatsCounter(1000, rate, 0);
+    counter.update(null, 1000, 14, { total: 1014, sampledAt: 1000, snap: true });
+    counter.update(null, 2000, 0, { total: 1028, sampledAt: 2000 });
+    expect(counter.read(3000)).toEqual({ total: 1042, rate: 14 });
+  });
+
+  test.each([false, true])('continues a changed target from the displayed rate, reduced motion %s', (reduced) => {
+    const counter = new StatsCounter(1000, 14, 0);
+    counter.update(28, 0);
+    const before = counter.read(500, { animateRate: !reduced });
     counter.update(7, 500);
-    expect([
-      before,
-      counter.read(500, { animateRate: true }),
-      counter.read(750, { animateRate: true }),
-      counter.read(1500, { animateRate: true })
-    ]).toEqual([
-      { total: 1014, rate: 21 },
-      { total: 1014, rate: 21 },
-      { total: 1015.75, rate: 17.5 },
-      { total: 1021, rate: 7 }
-    ]);
+    const after = counter.read(500, { animateRate: !reduced });
+    expect(after).toEqual({ total: before.total, rate: reduced ? 7 : before.rate });
   });
 
-  test('unchanged and missing samples do not restart the animation', () => {
+  test.each([250, 500, 750])('unchanged and null samples at %i ms preserve the smoothing clock', (at) => {
     const counter = new StatsCounter(1000, 14, 0);
     counter.update(28, 0);
-    counter.update(null, 250, 0);
-    counter.update(28, 500);
-    expect(counter.read(750, { animateRate: true })).toEqual({ total: 1021, rate: 24.5 });
+    counter.update(null, at, 0);
+    counter.update(28, at);
+    expect(counter.read(1000).rate).toBeCloseTo(28 - 14 * Math.exp(-0.5), 10);
   });
 
-  test('confirmed zero stops the total immediately while its rate counts down', () => {
-    const counter = new StatsCounter(1000, 14, 0);
-    counter.update(0, 2500);
-    expect([
-      counter.read(2500),
-      counter.read(3000, { animateRate: true }),
-      counter.read(3500, { animateRate: true }),
-      counter.read(60_000)
-    ]).toEqual([
-      { total: 1035, rate: 0 },
-      { total: 1035, rate: 7 },
-      { total: 1035, rate: 0 },
-      { total: 1035, rate: 0 }
-    ]);
-  });
-
-  test('the first known rate seeds immediately like the initial total', () => {
-    const counter = new StatsCounter(1000, null, 0);
-    counter.update(14, 500);
-    expect(counter.read(500, { animateRate: true })).toEqual({ total: 1000, rate: 14 });
-  });
-
-  test('turning motion back on does not replay a rate already shown without motion', () => {
+  test.each([250, 1000])('switching to reduced motion at %i ms preserves totals and does not replay smoothing', (at) => {
     const counter = new StatsCounter(1000, 14, 0);
     counter.update(28, 0);
-    expect(counter.read(250, { animateRate: false })).toEqual({ total: 1007, rate: 28 });
-    expect(counter.read(500, { animateRate: true })).toEqual({ total: 1014, rate: 28 });
+    const before = counter.read(at);
+    expect(counter.read(at, { animateRate: false })).toEqual({ total: before.total, rate: 28 });
+    expect(counter.read(at + 1000)).toEqual({ total: before.total + 28, rate: 28 });
   });
 });
