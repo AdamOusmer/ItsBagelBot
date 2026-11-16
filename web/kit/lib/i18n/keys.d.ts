@@ -2702,6 +2702,7 @@ export type KnownMessageKey =
   | 'flows.step.condition.role.label'
   | 'flows.step.condition.role.out.no'
   | 'flows.step.condition.role.out.yes'
+  | 'flows.step.condition.role.remove'
   | 'flows.step.condition.role.summary'
   | 'flows.step.condition.role.warning'
   | 'flows.step.condition.user.field.login.label'

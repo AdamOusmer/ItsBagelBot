@@ -12,7 +12,8 @@ export const stepSummary = (t: Translate, spec: NodeSpec): string => t(`flows.st
 export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined): string | undefined {
   if (node?.type !== 'cond.role') return undefined;
   const trigger = flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger');
-  return trigger?.type.startsWith('twitch.chat.') ? undefined : t('flows.step.condition.role.warning');
+  const knowsRole = trigger?.type.startsWith('twitch.chat.') || trigger?.type === 'countdown.finished';
+  return knowsRole ? undefined : t('flows.step.condition.role.warning');
 }
 
 export function stepKeywords(t: Translate, spec: NodeSpec): string {

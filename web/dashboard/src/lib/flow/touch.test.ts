@@ -1,10 +1,33 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { beginPinch, fitBox, pinchView, revealBox } from './touch';
+import { beginPinch, fitBox, openBox, panelInsets, pinchView, revealBox } from './touch';
 
 const ZOOM = { min: 0.25, max: 1.6 };
 const screenOf =(view: { x: number; y: number; k: number }, p: { x: number; y: number }) => ({ x: view.x + p.x * view.k, y: view.y + p.y * view.k });
+
+test.each([
+  { width: 600, zoom: 1 },
+  { width: 1200, zoom: 0.7 },
+  { width: 5000, zoom: 0.7 }
+])('recipe opening uses whole-flow fit or the readable anchor at width $width', ({ width, zoom }) => {
+  const frame = { width: 900, height: 900, inset: { top: 100, bottom: 100, left: 20, right: 40 } };
+  const anchor = { x0: 0, y0: 0, x1: 336, y1: 154 };
+  const view = openBox({ ...anchor, x1: width }, anchor, frame, ZOOM);
+  expect(view.k).toBeCloseTo(zoom);
+  expect(screenOf(view, { x: anchor.x0, y: anchor.y0 }).x).toBeGreaterThanOrEqual(20);
+});
+
+test('insets reserve both side panels and the toolbar', () => {
+  const board = { top: 0, left: 240, right: 1680, bottom: 900, width: 1440, height: 900 };
+  const bar = { ...board, bottom: 160, height: 160 };
+  const rail = { ...board, left: 256, right: 328, width: 72, height: 240 };
+  const panels = [
+    { ...board, left: 340, right: 660, width: 320 },
+    { ...board, left: 1304, right: 1664, width: 360 }
+  ];
+  expect(panelInsets({ board, bar, rail, panels })).toEqual({ top: 172, left: 432, right: 388, bottom: 76 });
+});
 
 describe('pinchView', () => {
   const start = { x: 40, y: -20, k: 0.5 };
@@ -66,12 +89,12 @@ describe('revealBox', () => {
     const view = revealBox({ x: 10, y: 300, k: 0.3 }, node, frame, { ...ZOOM, readable: 0.75 });
     const tl = screenOf(view, { x: node.x0, y: node.y0 });
     const br = screenOf(view, { x: node.x1, y: node.y1 });
-    expect([tl.x >= 16, br.x <= 359, tl.y >= 140, br.y <= 342, view.k]).toEqual([true, true, true, true, 0.75]);
+    expect([tl.x >= 16, br.x <= 359, tl.y >= 140, br.y <= 342, view.k]).toEqual([true, true, true, true, 1]);
   });
 
   test('shrinks when the step would not fit at the readable zoom', () => {
     const view = revealBox({ x: 0, y: 0, k: 1.5 }, node, frame, { ...ZOOM, readable: 0.75 });
-    expect(view.k).toBeCloseTo(343 / 336);
+    expect(view.k).toBe(1);
   });
 
   test('leaves the view alone when the step is already in the room', () => {

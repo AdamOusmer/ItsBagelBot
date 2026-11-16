@@ -12,8 +12,8 @@ const chain = (count: number): Flow => ({
 });
 
 test.each([
-  { width: 340, left: 736 },
-  { width: 480, left: 736 },
+  { width: 340, left: 1032 - 340 / 0.7 },
+  { width: 480, left: 368 },
   { width: 600, left: 368 },
   { width: 900, left: 0 }
 ])('focus includes only steps that fit at readable zoom in $width pixels', ({ width, left }) => {

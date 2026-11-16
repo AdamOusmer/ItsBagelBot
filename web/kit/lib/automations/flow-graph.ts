@@ -546,6 +546,7 @@ function lowerRest(ctx: Lowering, joins: string[], stop: Stops): Action[] {
 }
 
 function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
+  entries = entries.filter((id) => !stop.has(id));
   if (entries.length === 1) return lowerFrom(ctx, entries[0]!, stop);
   const joins = commonJoins(ctx, entries);
   const bound = extended(stop, joins);

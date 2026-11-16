@@ -109,6 +109,7 @@
     top: calc(var(--stage-top, 0px) + 80px);
     bottom: 16px;
     min-height: 0;
+    max-height: var(--stage-sheet-limit, none);
   }
 
   .bb-editor-stage__panel--left {
@@ -338,7 +339,7 @@
 
   @media (max-width: 760px), (pointer: coarse) and (max-width: 1023px) {
     body:has(.bb-editor-stage__panel) .bb-toast-stack {
-      top: calc(var(--bb-topbar-height) + 80px);
+      top: calc(var(--bb-topbar-height) + 140px);
       bottom: auto;
     }
   }

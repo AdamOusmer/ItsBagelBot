@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { tick, untrack } from 'svelte';
+  import { tick } from 'svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Icon from './FlowIcon.svelte';
@@ -87,18 +87,19 @@
   const textOf = (key: FieldKey) => (node ? configText(node, key) : '');
   const awaiting = $derived(node ? awaitingSetup(node) : false);
   const roleNote = $derived(roleWarning(t, flow, node));
-  const chosenComparisons = new Set(untrack(() => flow.nodes.filter((entry) => entry.type === 'cond.compare' && Boolean(entry.config.left || entry.config.right)).map((entry) => entry.id)));
+  const automaticComparisons = new Map<FlowNode['id'], boolean>();
 
   function setSelect(key: FieldKey, value: string) {
     if (!node) return;
     node.config[key] = value;
-    if (node.type === 'cond.compare') chosenComparisons.add(node.id);
+    if (node.type === 'cond.compare') automaticComparisons.set(node.id, false);
   }
 
   function setTemplate(key: FieldKey, value: string) {
     if (!node) return;
+    if (!automaticComparisons.has(node.id)) automaticComparisons.set(node.id, !node.config.left && !node.config.right);
     node.config[key] = value;
-    if (node.type !== 'cond.compare' || chosenComparisons.has(node.id)) return;
+    if (node.type !== 'cond.compare' || !automaticComparisons.get(node.id)) return;
     node.config.op = defaultComparison(flow, node);
   }
 
@@ -281,7 +282,12 @@
       {#if awaiting}
         <p class="note">{t('flows.setup.stepNote')}</p>
       {/if}
-      {#if roleNote}<p class="note role-note" role="status"><bb-fit mode="block"><span data-fit>{roleNote}</span></bb-fit></p>{/if}
+      {#if roleNote}
+        <div class="role-note">
+          <p class="note role-warning" role="status"><bb-fit mode="block"><span data-fit>{roleNote}</span></bb-fit></p>
+          <Button variant="ghost" onclick={remove}>{t('flows.step.condition.role.remove')}</Button>
+        </div>
+      {/if}
       {#if spec.fields.length}
         <div class="fields">
           {#each spec.fields.filter((f) => renderVisible(spec, node, f)) as field (field.key)}
@@ -614,7 +620,8 @@
     flex-direction: column;
     gap: 6px;
   }
-  .role-note { flex: none; height: 84px; }
+  .role-note { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+  .role-warning { width: 100%; height: 84px; }
   .note {
     margin: 0;
     font-size: 14px;

@@ -199,7 +199,12 @@
   }
 
   const layoutHeight = () => document.documentElement.clientHeight;
-  const sheetHeight = () => Math.round(layoutHeight() * (layoutHeight() >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE));
+  function sheetLimit() {
+    const headerBottom = barEl?.getBoundingClientRect().bottom ?? 190;
+    return Math.max(160, layoutHeight() - headerBottom - 320);
+  }
+
+  const sheetHeight = () => Math.min(sheetLimit(), Math.round(layoutHeight() * (layoutHeight() >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE)));
 
   function syncViewport() {
     const style = editorEl?.style;
@@ -208,6 +213,7 @@
     style.setProperty('--stage-kb', `${keyboard}px`);
     style.setProperty('--stage-vvh', `${height}px`);
     style.setProperty('--stage-sheet-h', `${sheetHeight()}px`);
+    style.setProperty('--stage-sheet-limit', `${sheetLimit()}px`);
     style.setProperty('--stage-board-left', `${boardEl?.getBoundingClientRect().left ?? 0}px`);
     if (keyboard === 0 && scrollY !== 0) scrollTo(0, 0);
     revealKeyboardField(keyboard);
@@ -224,8 +230,12 @@
     if (!boardFrame) return null;
     const { board, bar, rail } = boardFrame;
     const panelShown = panelRoom > 0 || Boolean(libMode);
-    if (sheetMode) return panelInsets({ board, bar, rail }, panelShown ? sheetHeight() : 0);
-    return { top: bar.bottom - board.top + 16, left: rail.right - board.left + 16, right: panelRoom + 16, bottom: 88 };
+    if (sheetMode) {
+      const height = libMode ? Math.min(sheetLimit(), sheetHeight() * 1.25) : sheetHeight();
+      return panelInsets({ board, bar, rail }, panelShown ? height : 0);
+    }
+    const panels = [libMode ? leftPanelEl : null, panelRoom > 0 ? rightPanelEl : null].filter((panel): panel is HTMLDivElement => Boolean(panel));
+    return panelInsets({ board, bar, rail, panels: panels.map((panel) => panel.getBoundingClientRect()) });
   }
 
   onMount(() => {
@@ -251,7 +261,7 @@
     wide.addEventListener('change', onWidth);
     const onQuery = () => {
       sheetMode = query.matches;
-      if (!sheetMode) for (const name of ['--stage-kb', '--stage-vvh', '--stage-sheet-h', '--stage-board-left']) editorEl?.style.removeProperty(name);
+      if (!sheetMode) for (const name of ['--stage-kb', '--stage-vvh', '--stage-sheet-h', '--stage-sheet-limit', '--stage-board-left']) editorEl?.style.removeProperty(name);
       syncViewport();
     };
     onQuery();
@@ -576,8 +586,7 @@
     await tick();
     syncViewport();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    const runStep = selectedId ?? rehearsal.steps.find((step) => step.id)?.id;
-    if (runStep) canvas?.revealNode(runStep);
+    canvas?.openView(rehearsal.steps.find((step) => step.id)?.id ?? undefined);
   }
 
   async function toggleRecipe() {

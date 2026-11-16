@@ -8,18 +8,28 @@ export type Frame = { width: number; height: number; inset: Inset };
 export type ZoomRange = { min: number; max: number };
 
 type Rect = Pick<DOMRect, 'top' | 'right' | 'bottom' | 'left' | 'width' | 'height'>;
-type Panels = { board: Rect; bar: Rect; rail: Rect };
+type Panels = { board: Rect; bar: Rect; rail: Rect; panels?: Rect[] };
 const PANEL_GAP = 12;
 
-export function panelInsets({ board, bar, rail }: Panels, panelHeight: number): Inset {
+export function panelInsets({ board, bar, rail, panels = [] }: Panels, panelHeight = 0): Inset {
   const railIsRow = rail.width > rail.height;
-  const toolbars = railIsRow ? board.bottom - rail.top : 72;
-  return {
+  const inset = {
     top: bar.bottom - board.top + PANEL_GAP,
     right: 16,
-    bottom: (panelHeight || toolbars) + PANEL_GAP,
+    bottom: Math.max(panelHeight, railIsRow ? board.bottom - rail.top : 0) + PANEL_GAP,
     left: railIsRow ? 16 : rail.right - board.left + PANEL_GAP
   };
+  for (const panel of panels) reservePanel(inset, board, panel);
+  return { ...inset, bottom: inset.bottom + 64 };
+}
+
+function reservePanel(inset: Inset, board: Rect, panel: Rect) {
+  if (panel.width >= board.width - 32) {
+    inset.bottom = Math.max(inset.bottom, board.bottom - panel.top + PANEL_GAP);
+    return;
+  }
+  if (panel.right >= board.right - 32) inset.right = Math.max(inset.right, board.right - panel.left + PANEL_GAP);
+  else inset.left = Math.max(inset.left, panel.right - board.left + PANEL_GAP);
 }
 
 export function keyboardSize(layoutHeight: number, viewport: Pick<VisualViewport, 'height' | 'offsetTop'> | null): { height: number; keyboard: number } {
@@ -61,15 +71,24 @@ export function revealBox(view: View, box: Box, frame: Frame, zoom: ZoomRange & 
   const roomH = height - inset.top - inset.bottom;
   const boxW = box.x1 - box.x0;
   const boxH = box.y1 - box.y0;
-  const k = clamp(Math.min(view.k, roomW / boxW, roomH / boxH), Math.max(zoom.min, zoom.readable), zoom.max);
+  const ceiling = view.k >= zoom.readable ? Math.min(1, view.k) : 1;
+  const k = clamp(Math.min(roomW / boxW, roomH / boxH), Math.max(zoom.min, zoom.readable), Math.min(ceiling, zoom.max));
   const left = view.x + box.x0 * k;
   const top = view.y + box.y0 * k;
-  const inside =
-    k === view.k && left >= inset.left && top >= inset.top && left + boxW * k <= width - inset.right && top + boxH * k <= height - inset.bottom;
+  const horizontal = left >= inset.left && left + boxW * k <= width - inset.right;
+  const vertical = top >= inset.top && top + boxH * k <= height - inset.bottom;
+  const inside = k === view.k && horizontal && vertical;
   if (inside) return view;
   return {
     k,
-    x: clamp(view.x, inset.left - box.x0 * k, width - inset.right - box.x1 * k),
-    y: clamp(view.y, inset.top - box.y0 * k, height - inset.bottom - box.y1 * k)
+    x: clamp(view.x, inset.left - box.x0 * k, Math.max(inset.left - box.x0 * k, width - inset.right - box.x1 * k)),
+    y: clamp(view.y, inset.top - box.y0 * k, Math.max(inset.top - box.y0 * k, height - inset.bottom - box.y1 * k))
   };
+}
+
+export function openBox(box: Box, anchor: Box, frame: Frame, zoom: ZoomRange): View {
+  const fitted = fitBox(box, frame, zoom);
+  if (fitted.k >= 0.5) return fitted;
+  const readable = fitBox(anchor, frame, { min: 0.7, max: 0.7 });
+  return revealBox(readable, anchor, frame, { ...zoom, readable: 0.7 });
 }

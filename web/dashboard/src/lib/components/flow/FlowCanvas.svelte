@@ -6,6 +6,7 @@
   export type FlowCanvasApi = {
     tidyNow: () => void;
     fitView: (reservedRight?: number, initial?: boolean) => void;
+    openView: (anchorId?: string) => void;
     announce: (message: string) => void;
     focusNode: (id: string) => void;
     revealNode: (id: string) => void;
@@ -42,14 +43,14 @@
   import { GRID, NODE_W, outputsFor, specFor, type Flow, type FlowKind } from '../../flow/model';
   import { connect, duplicateNode, removeEdge } from '../../flow/ops';
   import { addStep, connectionTarget, parallelPorts, portOccupied, removeStep as deleteStep, selectedPlacement } from '../../flow/editor';
-  import { currentPositions, edgePaths, flowBounds, focusBounds, loopPaths, startPaths, tweenPositions, windowEdges, windowNodes, wirePreview } from '../../flow/canvas-geometry';
+  import { currentPositions, edgePaths, flowBounds, focusBounds, loopPaths, nodeBounds, startPaths, tweenPositions, windowEdges, windowNodes, wirePreview } from '../../flow/canvas-geometry';
   import { searchSteps } from '../../flow/search';
   import { neighbor, readingOrder, stepDelta, stepIndex } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
   import { stepLabel, stepSummary } from '../../flow/copy';
   import { nodeHeight, tidy } from '../../flow/layout';
   import { graphIndex } from '../../flow/graph-index';
-  import { beginPinch, fitBox, pinchView, revealBox, type Inset, type Pinch } from '../../flow/touch';
+  import { beginPinch, fitBox, openBox, pinchView, revealBox, type Inset, type Pinch } from '../../flow/touch';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit';
 
@@ -259,26 +260,22 @@
 
   export function fitView(reservedRight = 0, initial = false) {
     if (!host) return;
+    if (initial) return openView();
     const bounds = flowBounds(flow, { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H }, initial);
-    const inset = cameraInset(insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight });
+    const inset = insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight };
     cancelAnimationFrame(glide);
     const frame = { width: host.clientWidth, height: host.clientHeight, inset };
-    const fitted = fitBox(bounds, frame, { min: minZoom(), max: MAX_ZOOM });
-    if (initial && fitted.k < 0.6) {
-      openAtTrigger(fitted);
-      return;
-    }
-    view = fitted;
+    view = fitBox(bounds, frame, { min: minZoom(), max: MAX_ZOOM });
   }
 
-  function openAtTrigger(fitted: typeof view) {
-    const trigger = flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
-    view = { ...fitted, k: READABLE_ZOOM };
-    if (trigger) revealNode(trigger.id);
-  }
-
-  function cameraInset(inset: Inset): Inset {
-    return { ...inset, bottom: inset.bottom + (inset.left > 16 ? 64 : 0) };
+  export function openView(anchorId?: NodeId) {
+    if (!host) return;
+    const anchor = nodeById(anchorId ?? '') ?? flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
+    const start = anchor ? nodeBounds(anchor) : { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H };
+    const bounds = flowBounds(flow, start, true);
+    const frame = { width: host.clientWidth, height: host.clientHeight, inset: insets?.(room > 0) ?? FIT_INSET };
+    cancelAnimationFrame(glide);
+    view = openBox(bounds, start, frame, { min: minZoom(), max: MAX_ZOOM });
   }
 
   function zoomAt(factor: number, { x: px, y: py }: Pt) {
@@ -325,7 +322,7 @@
     cancelAnimationFrame(toolbarFrame);
     toolbarFrame = requestAnimationFrame(() => {
       const inset = insets?.(room > 0);
-      toolbarBottom = Math.max(20, (inset?.bottom ?? 0) + 8);
+      toolbarBottom = Math.max(20, (inset?.bottom ?? 64) - 56);
       toolbarLeft = inset?.left ?? 16;
     });
   }
@@ -741,8 +738,8 @@
   export function revealNode(id: NodeId) {
     const n = nodeById(id);
     if (!n || !host) return;
-    const inset = cameraInset(insets?.(true) ?? { ...KEY_INSET, right: KEY_INSET.right + room });
-    const box = focusBounds(flow, n, { width: host.clientWidth - inset.left - inset.right, height: host.clientHeight - inset.top - inset.bottom, minZoom: READABLE_ZOOM });
+    const inset = insets?.(true) ?? { ...KEY_INSET, right: KEY_INSET.right + room };
+    const box = focusBounds(flow, n, { width: host.clientWidth - inset.left - inset.right, height: host.clientHeight - inset.top - inset.bottom, minZoom: READABLE_ZOOM, touch });
     const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: READABLE_ZOOM });
     if (target !== view) glideTo(target);
   }
@@ -903,7 +900,7 @@
   ondragover={onDragOver}
   ondrop={onDrop}
 >
-  <div class="viewport" style:clip-path="inset(0 0 0 {viewportInset.left}px)">
+  <div class="viewport" style:clip-path="inset({viewportInset.top}px {viewportInset.right}px {viewportInset.bottom}px {viewportInset.left}px)">
   <div class="world" style:transform="translate({view.x}px, {view.y}px) scale({view.k})" style:--inv={touch ? 1 / shownK : undefined}>
     <svg class="wires" width="1" height="1">
       <defs>

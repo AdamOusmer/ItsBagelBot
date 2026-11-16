@@ -9,7 +9,7 @@ import type { Box, View } from './touch';
 type Positions = Record<FlowNode['id'], { x: number; y: number }>;
 const ARROW_GAP = 8;
 const RETURN_DROP = 20;
-const ADD_ROOM = 48;
+const ADD_ROOM = 8;
 
 type Size = { width: number; height: number };
 
@@ -57,21 +57,30 @@ function overlaps(node: FlowNode, box: Box): boolean {
   return horizontal && vertical;
 }
 
-export function focusBounds(flow: Flow, node: FlowNode, frame: { width: number; height: number; minZoom: number }): Box {
+export function focusBounds(flow: Flow, node: FlowNode, frame: { width: number; height: number; minZoom: number; touch?: boolean }): Box {
   const index = graphIndex(flow);
   const parents = (index.incoming.get(node.id) ?? []).map((edge) => edge.from);
   const related = new Set([node.id, ...parents]);
-  const selected = nodeBounds(node);
+  const selected = focusFootprint(node, frame);
   const nearby = flowBounds({ ...flow, nodes: flow.nodes.filter((entry) => related.has(entry.id)) }, selected);
   const fits = (box: Box) => (box.x1 - box.x0) * frame.minZoom <= frame.width && (box.y1 - box.y0) * frame.minZoom <= frame.height;
-  const box = fits(nearby) ? nearby : selected;
+  let box = fits(nearby) ? nearby : { ...selected, x0: Math.max(nearby.x0, selected.x1 - frame.width / frame.minZoom) };
+  const siblings = new Set(parents.flatMap((id) => (index.outgoing.get(id) ?? []).map((edge) => edge.to)));
+  const parallel = flowBounds({ ...flow, nodes: flow.nodes.filter((entry) => siblings.has(entry.id)) }, box);
+  if (fits(parallel)) box = parallel;
   const trigger = flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger');
   if (!trigger) return box;
   const anchored = flowBounds({ ...flow, nodes: [trigger] }, box);
   return fits(anchored) ? anchored : box;
 }
 
-function nodeBounds(node: FlowNode): Box {
+export function focusFootprint(node: FlowNode, frame: { minZoom: number; touch?: boolean }): Box {
+  const box = nodeBounds(node);
+  if (!frame.touch) return box;
+  return { ...box, x1: box.x1 + 64 / frame.minZoom, y0: box.y0 - 48 / frame.minZoom, y1: box.y1 + 60 / frame.minZoom };
+}
+
+export function nodeBounds(node: FlowNode): Box {
   return { x0: node.x, y0: node.y, x1: node.x + NODE_W + ADD_ROOM, y1: node.y + nodeHeight(specFor(node.type)) + 24 };
 }
 

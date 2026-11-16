@@ -1,12 +1,24 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, stepLabel, stepSummary, variableLabel } from './copy';
+import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepSummary, variableLabel } from './copy';
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
-import { NODE_SPECS, type FlowNode } from './model';
+import { newFlow, NODE_SPECS, type FlowNode } from './model';
 
 const missing = (text: string | undefined) => text === undefined || text.startsWith('flows.');
+
+test.each([
+  ['twitch.chat.command', false],
+  ['countdown.finished', false],
+  ['twitch.reward', true],
+  ['twitch.raid', true]
+])('%s warns only when the trigger has no role', (type, warns) => {
+  const flow = newFlow('Roles');
+  flow.nodes = [{ id: 't', type, config: {}, x: 0, y: 0 }];
+  const role: FlowNode = { id: 'r', type: 'cond.role', config: { level: 'sub' }, x: 368, y: 0 };
+  expect(Boolean(roleWarning(english, flow, role))).toBe(warns);
+});
 
 describe('step copy', () => {
   test.each([
