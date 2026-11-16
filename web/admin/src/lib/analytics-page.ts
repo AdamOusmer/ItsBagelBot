@@ -6,6 +6,7 @@ import {
   bounds,
   byDay,
   byDim,
+  closed,
   cohorts,
   dailySeries,
   dateLabel,
@@ -110,13 +111,14 @@ const CONVERSION_COLUMNS = ['accounts', 'paid', 'conversion'];
 const MODULE_COLUMNS = ['on', 'adoption', 'activeWeek', 'activation', 'outputs', 'turnedOn', 'turnedOff', 'net'];
 const BUILT_IN_COLUMNS = ['uses', 'usesWeek', 'channelsWeek', 'usesPerChannel'];
 const UNIT_DELTA = { d: 'day', w: 'week', m: 'month' } as const;
+const ACTIVE_KPI = { d: 'dau', w: 'wau', m: 'mau' } as const;
 const LANGUAGES = new Intl.DisplayNames(['en'], { type: 'language' });
 
 type EnumName = keyof typeof ENUMS;
 type ShareName = 'ofTotal' | 'ofAccounts' | 'ofBotEnabled' | 'ofCommands' | 'ofChannels';
 type Entry = [string, number];
 type Rank = [number, number];
-type Ctx = { r: AnalyticsReads; days: number; cur: DateRange; prev: DateRange; prevComplete: boolean };
+type Ctx = { r: AnalyticsReads; days: number; cur: DateRange; prev: DateRange; prevComplete: boolean; tracked: Day };
 type DeltaSpec = { name: 'day' | 'week' | 'month' | 'since' | 'window'; days?: number };
 type KpiSpec = { key: string; value: string; unit?: Phrase; change: Change; delta: DeltaSpec };
 type BarSpec = {
@@ -139,12 +141,13 @@ const SORTS = {
 function context(r: AnalyticsReads): Ctx {
   const { cur, prev } = windows(r.end, r.days);
   const first = bounds(r.counters)?.first;
-  return { r, days: r.days, cur, prev, prevComplete: first !== undefined && first <= prev.from };
+  return { r, days: r.days, cur, prev, prevComplete: first !== undefined && first <= prev.from, tracked: first ?? cur.from };
 }
 
 const counter = (c: Ctx, metric: Metric): AnalyticsRow[] => inRange(pick(c.r.counters, metric), c.cur);
 const level = (c: Ctx, metric: Metric): AnalyticsRow[] => latest(pick(c.r.levels, metric));
-const weekly = (c: Ctx, metric: Metric): AnalyticsRow[] => latest(pick(c.r.week, metric));
+const fullWeeks = (c: Ctx, metric: Metric): AnalyticsRow[] => closed(pick(c.r.week, metric), c.r.end, 'w');
+const weekly = (c: Ctx, metric: Metric): AnalyticsRow[] => latest(fullWeeks(c, metric));
 const get = (values: Map<string, number>, id: Dim): number => values.get(id) ?? 0;
 
 function facts(values: Record<string, string>): Fact[] {
@@ -195,25 +198,26 @@ function kpi(spec: KpiSpec): Kpi {
   };
 }
 
-function activeKpi(key: Dim, rows: AnalyticsRow[], unit: Unit): Kpi {
+function activeKpi(c: Ctx, source: AnalyticsRow[], unit: Unit): Kpi {
+  const rows = closed(pick(source, 'channels.active'), c.r.end, unit);
   const edge = bounds(rows);
   const now = edge ? valueAt(rows, edge.last) : 0;
   const before = edge ? valueAt(rows, previousStart(edge.last, unit)) : 0;
-  return kpi({ key, value: fmt(now), change: relativeChange(now, before), delta: { name: UNIT_DELTA[unit] } });
+  return kpi({ key: ACTIVE_KPI[unit], value: fmt(now), change: relativeChange(now, before), delta: { name: UNIT_DELTA[unit] } });
 }
 
 function stickiness(c: Ctx, month: Day): number | null {
   const daily = pick(c.r.counters, 'channels.active');
   const first = bounds(daily)?.first ?? month;
   const full = monthRange(month);
-  const covered: DateRange = { from: first > full.from ? first : full.from, to: full.to < c.r.end ? full.to : c.r.end };
+  const covered: DateRange = { from: first > full.from ? first : full.from, to: full.to };
   const length = daysIn(covered).length;
   const active = valueAt(pick(c.r.month, 'channels.active'), month);
   return ratio(sum(inRange(daily, covered)), length * active);
 }
 
 function stickinessKpi(c: Ctx): Kpi {
-  const last = bounds(pick(c.r.month, 'channels.active'))?.last;
+  const last = bounds(closed(pick(c.r.month, 'channels.active'), c.r.end, 'm'))?.last;
   const now = last ? stickiness(c, last) : null;
   const before = last ? stickiness(c, previousStart(last, 'm')) : null;
   return kpi({
@@ -259,9 +263,9 @@ function signupsKpi(c: Ctx): Kpi {
 
 function kpis(c: Ctx): Kpi[] {
   return [
-    activeKpi('dau', pick(c.r.counters, 'channels.active'), 'd'),
-    activeKpi('wau', pick(c.r.week, 'channels.active'), 'w'),
-    activeKpi('mau', pick(c.r.month, 'channels.active'), 'm'),
+    activeKpi(c, c.r.counters, 'd'),
+    activeKpi(c, c.r.week, 'w'),
+    activeKpi(c, c.r.month, 'm'),
     stickinessKpi(c),
     ...levelKpis(c),
     signupsKpi(c)
@@ -298,7 +302,7 @@ function growth(c: Ctx): AnalyticsView['growth'] {
   const n = (id: Dim) => get(life, id);
   const presets = byDim(counter(c, 'onboarding.preset'));
   return {
-    signups: dailySeries(withDim(pick(c.r.counters, 'lifecycle'), 'signup'), c.cur),
+    signups: dailySeries(withDim(pick(c.r.counters, 'lifecycle'), 'signup'), c.cur, c.tracked),
     gainLoss: gainLoss(c.r.counters, c.cur),
     funnel: bars(life, { ids: FUNNEL, enum: 'lifecycle', order: 'keep', secondary: stepOf(FUNNEL.map(n)) }),
     churn: bars(life, { ids: CHURN, enum: 'lifecycle', order: 'keep' }),
@@ -311,7 +315,7 @@ function growth(c: Ctx): AnalyticsView['growth'] {
 }
 
 function engagement(c: Ctx): AnalyticsView['engagement'] {
-  const series = (metric: Metric) => dailySeries(pick(c.r.counters, metric), c.cur);
+  const series = (metric: Metric) => dailySeries(pick(c.r.counters, metric), c.cur, c.tracked);
   const count = (metric: Metric) => sum(counter(c, metric));
   const messages = count('chat.messages');
   const answered = count('chat.answered');
@@ -453,7 +457,7 @@ function builtIn(c: Ctx): DataTable {
   const uses = pick(c.r.counters, 'command.uses');
   const window = byDim(inRange(uses, c.cur));
   window.delete('custom');
-  const edge = bounds(pick(c.r.week, 'command.channels'));
+  const edge = bounds(fullWeeks(c, 'command.channels'));
   const week = edge ? byDim(inRange(uses, { from: edge.last, to: addDays(edge.last, 6) })) : new Map<string, number>();
   const channels = byDim(weekly(c, 'command.channels'));
   const rows = [...window]

@@ -12,6 +12,7 @@ import { currentDay, type AnalyticsRow } from '#lib/analytics-view';
 const DEMO = dev && process.env.DEMO === '1';
 const COHORT_DAYS = 120;
 const MAX_SPAN = 400;
+const TWO_FULL_MONTHS = 93;
 
 const COUNTERS = [
   'channels.active', 'channels.live', 'chat.messages', 'chat.answered', 'live.starts', 'timer.fires',
@@ -38,7 +39,7 @@ async function read(actorId: string, days: number): Promise<AnalyticsReads> {
   const series = (w: AnalyticsWindow, metrics: string[], span: number) =>
     analyticsSeries(actorId, w, metrics, span);
   const [counters, levels, week, month, cohortWeeks, cohortDays] = await Promise.all([
-    series('d', COUNTERS, Math.min(2 * days, MAX_SPAN)),
+    series('d', COUNTERS, Math.min(Math.max(2 * days, TWO_FULL_MONTHS), MAX_SPAN)),
     series('d', LEVELS, days),
     series('w', WEEKLY, WEEK_SPAN),
     series('m', MONTHLY, MONTH_SPAN),

@@ -265,7 +265,7 @@ describe('kpis', () => {
       k.trend
     ]);
     expect(summary).toEqual([
-      ['dau', '120', 'delta.day', '+20%', 'up'],
+      ['dau', '100', 'delta.day', '0%', 'flat'],
       ['wau', '300', 'delta.week', '+20%', 'up'],
       ['mau', '500', 'delta.month', '+25%', 'up'],
       ['stickiness', '20%', 'delta.month', '-5.0 pts', 'down'],
@@ -296,10 +296,22 @@ describe('kpis', () => {
     });
   });
 
-  it('measures stickiness of the open month over its elapsed days', () => {
-    const open = buildAnalytics(reads({ month: [...month, row('2026-11-01', 'channels.active', [], 200)] }));
-    const found = open.kpis.find((k) => k.key === 'stickiness');
-    expect({ value: found?.value, delta: found?.delta.params?.delta }).toEqual({ value: '51%', delta: '+31.1 pts' });
+  it('reads active channel tiles from closed periods only', () => {
+    const open = buildAnalytics(reads({
+      week: [...week, row(END, 'channels.active', [], 5)],
+      month: [...month, row('2026-11-01', 'channels.active', [], 200)]
+    }));
+    expect(open.kpis.slice(0, 4).map((k) => [k.key, k.value, k.delta.params?.delta])).toEqual([
+      ['dau', '100', '0%'],
+      ['wau', '300', '+20%'],
+      ['mau', '500', '+25%'],
+      ['stickiness', '20%', '-5.0 pts']
+    ]);
+  });
+
+  it('averages a series over complete days since tracking began', () => {
+    const wide = buildAnalytics(reads({ days: 90 }));
+    expect([wide.engagement.active.values.length, wide.engagement.active.average]).toEqual([90, '100']);
   });
 
   it('shows no comparison for an empty read', () => {
@@ -350,9 +362,9 @@ describe('growth and engagement', () => {
   });
 
   it.each([
-    ['active', view.engagement.active, { length: 30, last: 120, ticks: [1, 8, 15, 22, 29], average: '101', peak: '120' }],
+    ['active', view.engagement.active, { length: 30, last: 120, ticks: [1, 8, 15, 22, 29], average: '100', peak: '120' }],
     ['live', view.engagement.live, { length: 0, last: undefined, ticks: [], average: '-', peak: '-' }],
-    ['messages', view.engagement.messages, { length: 30, last: 0, ticks: [1, 8, 15, 22, 29], average: '33', peak: '1,000' }],
+    ['messages', view.engagement.messages, { length: 30, last: 0, ticks: [1, 8, 15, 22, 29], average: '34', peak: '1,000' }],
     ['signups', view.growth.signups, { length: 30, last: 0, ticks: [1, 8, 15, 22, 29], average: '1.0', peak: '20' }]
   ])('%s series', (_name, series, expected) => {
     expect({

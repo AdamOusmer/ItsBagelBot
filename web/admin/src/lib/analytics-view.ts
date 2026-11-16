@@ -57,6 +57,14 @@ export function previousStart(start: Day, unit: Unit): Day {
   return d.toISOString().slice(0, 10);
 }
 
+export function nextStart(start: Day, unit: Unit): Day {
+  return unit === 'm' ? addDays(monthRange(start).to, 1) : addDays(start, UNIT_DAYS[unit]);
+}
+
+export function closed(rows: AnalyticsRow[], today: Day, unit: Unit): AnalyticsRow[] {
+  return rows.filter((r) => nextStart(r.start, unit) <= today);
+}
+
 export function pick(rows: AnalyticsRow[], metric: Metric): AnalyticsRow[] {
   return rows.filter((r) => r.metric === metric);
 }
@@ -132,18 +140,25 @@ export function byDay(rows: AnalyticsRow[]): Map<Day, Count> {
   return sums;
 }
 
-export function dailySeries(rows: AnalyticsRow[], range: DateRange): Daily {
+function averaged(range: DateRange, tracked: Day): DateRange {
+  const from = tracked > range.from ? tracked : range.from;
+  const complete = { from, to: addDays(range.to, -1) };
+  return daysIn(complete).length > 0 ? complete : { from, to: range.to };
+}
+
+export function dailySeries(rows: AnalyticsRow[], range: DateRange, tracked: Day = range.from): Daily {
   const inside = inRange(rows, range);
   if (inside.length === 0) return { values: [], labels: [], ticks: [], average: '-', peak: '-' };
   const sums = byDay(inside);
   const days = daysIn(range);
   const values = days.map((d) => sums.get(d) ?? 0);
   const monthly = days.length >= MONTHLY_TICKS_FROM;
+  const basis = averaged(range, tracked);
   return {
     values,
     labels: days.map(dateLabel),
     ticks: days.flatMap((d, i) => (isTick(d, monthly) ? [i] : [])),
-    average: averageText(sum(inside) / values.length),
+    average: averageText(sum(inRange(inside, basis)) / daysIn(basis).length),
     peak: fmt(Math.max(...values))
   };
 }
