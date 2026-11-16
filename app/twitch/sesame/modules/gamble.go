@@ -108,11 +108,20 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 		return err
 	}
 	if !allowed {
-		gc.reply(emit, "", "gamble.cool", "secs", strconv.FormatInt(gc.cfg.CooldownSeconds, 10))
-		return nil
+		return gc.replyCooling(ctx, login, emit)
 	}
 
 	return gc.settle(ctx, login, wagerOutcome{bet: bet}, emit)
+}
+
+func (gc gambleCmd) replyCooling(ctx context.Context, login string, emit module.Emit) error {
+	left, err := gc.d.Cooldown.TimeLeft(ctx, gambleCooldownKey(gc.c.BroadcasterID, login))
+	if err != nil {
+		return err
+	}
+	secs := max(int64(math.Ceil(left.Seconds())), 1)
+	gc.reply(emit, "", "gamble.cool", "secs", strconv.FormatInt(secs, 10))
+	return nil
 }
 
 func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
@@ -122,7 +131,8 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return err
 	}
 	wager.roll = roll
-	out, err := gc.d.Loyalty.BalanceWager(ctx, engine.PointWager{BroadcasterID: gc.c.BroadcasterID, ViewerID: gc.viewerID(), Login: login, Amount: wager.bet, Won: engine.GambleWins(roll, gc.cfg.WinPercent)})
+	wager.won = engine.GambleWins(roll, gc.cfg.WinPercent)
+	out, err := gc.d.Loyalty.BalanceWager(ctx, engine.PointWager{BroadcasterID: gc.c.BroadcasterID, ViewerID: gc.viewerID(), Login: login, Amount: wager.bet, Won: wager.won})
 	if err != nil {
 		gc.log.Warn("gamble: settlement failed", gc.c.BID(), zap.Error(err))
 		return err
@@ -131,18 +141,8 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return nil
 	}
 	wager.balance = out.Balance.Points
-	gc.d.Analytics.Count(catalog.PointsFlows, "gamble")
-	if engine.GambleWins(roll, gc.cfg.WinPercent) {
-		gc.d.Analytics.Count(catalog.GamesRounds, "gamble", "won")
-		gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", wager)
-		return nil
-	}
-	gc.d.Analytics.Count(catalog.GamesRounds, "gamble", "lost")
-	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
-		"roll", strconv.FormatInt(roll, 10),
-		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
-		"amount", strconv.FormatInt(wager.bet, 10),
-		"balance", strconv.FormatInt(wager.balance, 10))
+	gc.recordRound(wager)
+	gc.announce(emit, wager)
 	return nil
 }
 
@@ -164,6 +164,7 @@ type wagerOutcome struct {
 	roll    int64
 	bet     int64
 	balance int64
+	won     bool
 }
 
 type refusal struct {
@@ -179,12 +180,23 @@ func (gc gambleCmd) refuse(arg string) (int64, refusal) {
 	case engine.BetEmpty, engine.BetInvalid:
 		return 0, refusal{key: "gamble.usage"}
 	case engine.BetBelowMin:
-		return 0, refusal{key: "gamble.min", tokens: boundKV("min", gc.cfg.MinBet)}
+		return 0, gc.belowMin()
 	case engine.BetAboveMax:
 		return 0, refusal{key: "gamble.max", tokens: boundKV("max", gc.cfg.MaxBet)}
 	default:
-		return 0, refusal{key: "gamble.broke", tokens: []string{"balance", strconv.FormatInt(gc.balance, 10)}}
+		return 0, gc.broke()
 	}
+}
+
+func (gc gambleCmd) belowMin() refusal {
+	if gc.balance < gc.cfg.MinBet {
+		return gc.broke()
+	}
+	return refusal{key: "gamble.min", tokens: boundKV("min", gc.cfg.MinBet)}
+}
+
+func (gc gambleCmd) broke() refusal {
+	return refusal{key: "gamble.broke", tokens: boundKV("balance", gc.balance)}
 }
 
 // Refuse a wager whose possible net win exceeds the cached balance capacity.
@@ -213,8 +225,15 @@ func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, erro
 	return allowed, nil
 }
 
-func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, wager wagerOutcome) {
-	gc.reply(emit, override, key,
+func (gc gambleCmd) announce(emit module.Emit, wager wagerOutcome) {
+	override, key := gc.tmpl.LoseMessage, "gamble.lose"
+	if wager.won {
+		override, key = gc.tmpl.WinMessage, "gamble.win"
+	}
+	if wager.bet == gc.balance {
+		key += ".all"
+	}
+	gc.reply(emit, override, replyKey(key),
 		"roll", strconv.FormatInt(wager.roll, 10),
 		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
 		"amount", strconv.FormatInt(wager.bet, 10),
@@ -224,4 +243,13 @@ func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, wa
 func (gc gambleCmd) viewerID() uint64 {
 	id, _ := strconv.ParseUint(gc.c.Env.ChatterUserID, 10, 64)
 	return id
+}
+
+func (gc gambleCmd) recordRound(wager wagerOutcome) {
+	end := "lost"
+	if wager.won {
+		end = "won"
+	}
+	gc.d.Analytics.Count(catalog.PointsFlows, "gamble")
+	gc.d.Analytics.Count(catalog.GamesRounds, "gamble", end)
 }

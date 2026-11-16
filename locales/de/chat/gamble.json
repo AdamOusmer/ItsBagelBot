@@ -1,12 +1,14 @@
 {
-  "broke": "@{gamble:user} dein Guthaben reicht nicht für diese Wette. Du hast {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} die Würfel brauchen eine Pause. Versuch es in {gamble:secs}s noch mal.",
-  "err": "@{gamble:user} das hat nicht geklappt, versuch es bitte noch mal.",
-  "lose": "@{gamble:user} hat {gamble:roll} gewürfelt (nötig: höchstens {gamble:chance}) und {gamble:amount} {gamble:points} verloren. Neuer Stand: {gamble:balance}.",
-  "range": "@{gamble:user} diese Wette könnte das Punktelimit überschreiten.",
-  "max": "@{gamble:user} die Höchstwette beträgt {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} die Mindestwette beträgt {gamble:min} {gamble:points}.",
-  "usage": "Verwendung: !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} ich habe dich in diesem Kanal noch nicht gesehen. Bleib erst mal hier und verdiene etwas {gamble:points}!",
-  "win": "@{gamble:user} hat {gamble:roll} gewürfelt (nötig: höchstens {gamble:chance}) und {gamble:amount} {gamble:points} gewonnen. Neuer Stand: {gamble:balance}!"
+  "broke": "@{gamble:user} du hast nur {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} langsam, versuch's in {gamble:secs}s nochmal.",
+  "err": "@{gamble:user} das hat nicht geklappt, versuch's nochmal.",
+  "lose": "@{gamble:user} du hast {gamble:amount} gesetzt und {gamble:amount} {gamble:points} verloren. Noch {gamble:balance} übrig. Die behalte ich, danke.",
+  "lose.all": "@{gamble:user} du bist all in gegangen und hast alles verloren. Zurück zu den Krümeln.",
+  "range": "@{gamble:user} diese Wette ist zu groß.",
+  "max": "@{gamble:user} maximal {gamble:max} {gamble:points} pro Wette.",
+  "min": "@{gamble:user} mindestens {gamble:min} {gamble:points} pro Wette.",
+  "usage": "@{gamble:user} probier !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} dich hab ich hier noch nicht gesehen. Bleib ein bisschen, um {gamble:points} zu sammeln.",
+  "win": "@{gamble:user} du hast {gamble:amount} gesetzt und {gamble:amount} {gamble:points} gewonnen! Du hast jetzt {gamble:balance}.",
+  "win.all": "@{gamble:user} du bist all in gegangen und hast {gamble:amount} {gamble:points} gewonnen! Du hast jetzt {gamble:balance}."
 }

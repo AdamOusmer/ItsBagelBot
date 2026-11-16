@@ -5632,7 +5632,6 @@ export type KnownMessageKey =
   | 'stats.perSecond'
   | 'stats.processedTotal'
   | 'stats.rankBy'
-  | 'stats.rateNa'
   | 'stats.rateNaSr'
   | 'stats.rightNow'
   | 'stats.tagline'

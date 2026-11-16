@@ -1,12 +1,14 @@
 {
-  "broke": "@{gamble:user} tu ne peux pas couvrir cette mise, tu as {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} les dés ont besoin de souffler. Réessaie dans {gamble:secs}s.",
-  "err": "@{gamble:user} ça n'a pas fonctionné, veuillez réessayer.",
-  "lose": "@{gamble:user} a tiré {gamble:roll} (il fallait {gamble:chance} ou moins) et perd {gamble:amount} {gamble:points}. Il te reste {gamble:balance}.",
-  "range": "@{gamble:user} cette mise pourrait dépasser la limite de points.",
-  "max": "@{gamble:user} la mise maximale est de {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} la mise minimale est de {gamble:min} {gamble:points}.",
-  "usage": "Utilisation : !gamble <montant|half|all>",
-  "unknown": "@{gamble:user} je ne t'ai pas encore vu sur cette chaîne. Reste dans le chat pour gagner des {gamble:points} !",
-  "win": "@{gamble:user} a tiré {gamble:roll} (il fallait {gamble:chance} ou moins) et gagne {gamble:amount} {gamble:points}. Il te reste {gamble:balance} !"
+  "broke": "@{gamble:user} tu n'as que {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} doucement, réessaie dans {gamble:secs}s.",
+  "err": "@{gamble:user} ça n'a pas marché, réessaie.",
+  "lose": "@{gamble:user} tu as misé {gamble:amount} et perdu {gamble:amount} {gamble:points}. Il te reste {gamble:balance}. Je garde ça, merci.",
+  "lose.all": "@{gamble:user} tu as tout misé et tout perdu. Retour aux miettes.",
+  "range": "@{gamble:user} cette mise est trop grosse.",
+  "max": "@{gamble:user} la mise max est de {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} la mise min est de {gamble:min} {gamble:points}.",
+  "usage": "@{gamble:user} essaie !gamble <montant|half|all>",
+  "unknown": "@{gamble:user} je ne t'ai pas encore vu ici. Reste un peu pour gagner des {gamble:points}.",
+  "win": "@{gamble:user} tu as misé {gamble:amount} et gagné {gamble:amount} {gamble:points} ! Tu as maintenant {gamble:balance}.",
+  "win.all": "@{gamble:user} tu as tout misé et gagné {gamble:amount} {gamble:points} ! Tu as maintenant {gamble:balance}."
 }

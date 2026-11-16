@@ -170,7 +170,12 @@ type fakeCooldown struct {
 	keys  []string
 	ttls  []time.Duration
 	allow []bool
+	left  time.Duration
 	err   error
+}
+
+func (f *fakeCooldown) TimeLeft(context.Context, string) (time.Duration, error) {
+	return f.left, f.err
 }
 
 func (f *fakeCooldown) Allow(_ context.Context, key string, ttl time.Duration) (bool, error) {
