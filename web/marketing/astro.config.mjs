@@ -4,7 +4,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { surfaceLocales } from '@bagel/kit/i18n/fs';
 
 const locales = surfaceLocales('website');
@@ -21,6 +21,15 @@ function hasGuideBody(url) {
   return existsSync(new URL(`${slug}.${lang}.json`, guideDir));
 }
 
+const distDir = new URL('./dist/', import.meta.url);
+
+/** @param {string} url */
+function declaredModified(url) {
+  const page = new URL(`.${new URL(url).pathname}index.html`, distDir);
+  if (!existsSync(page)) return undefined;
+  return readFileSync(page, 'utf8').match(/"dateModified":"(\d{4}-\d{2}-\d{2})"/)?.[1];
+}
+
 export default defineConfig({
   site: 'https://itsbagelbot.com',
   // src/script/prefetch.ts owns prefetching: the edge answers 503 to <link rel="prefetch">.
@@ -34,10 +43,11 @@ export default defineConfig({
         locales: Object.fromEntries(locales.map((l) => [l, l])),
       },
       serialize(item) {
+        const dated = { ...item, lastmod: declaredModified(item.url) };
         const links = item.links?.filter((l) => hasGuideBody(l.url));
         const fallback = links?.find((l) => l.lang === defaultLocale);
-        if (!links || !fallback) return item;
-        return { ...item, links: [...links, { lang: 'x-default', url: fallback.url }] };
+        if (!links || !fallback) return dated;
+        return { ...dated, links: [...links, { lang: 'x-default', url: fallback.url }] };
       },
     }),
   ],
