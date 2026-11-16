@@ -3,6 +3,7 @@
 
 import { describe, expect, mock, test } from 'bun:test';
 import { stubSvelteKit } from '../../../test/sveltekit';
+import { captureAnalytics } from '../../../test/analytics';
 
 stubSvelteKit();
 process.env.NEW_RELIC_ENABLED = 'false';
@@ -17,11 +18,14 @@ mock.module('#lib/server/services', () => ({
 
 const { scopes } = await import('../../lib/server/oauth');
 const { load } = await import('./+layout.server');
+const recorded = captureAnalytics();
 
 async function landing(session: Record<string, unknown>): Promise<string | null> {
   const event = {
     locals: { session: { user_id: '1001', ...session }, locale: 'en' },
-    url: new URL('https://dashboard.itsbagelbot.com/commands?tab=1')
+    url: new URL('https://dashboard.itsbagelbot.com/commands?tab=1'),
+    route: { id: '/(app)/commands' },
+    request: new Request('https://dashboard.itsbagelbot.com/commands')
   };
   try {
     await load(event as never);
@@ -49,4 +53,21 @@ describe('dashboard layout scope gate', () => {
   test('an impersonating admin is never sent to consent', async () => {
     expect(await landing({ scopes: [], impersonator_id: '3003' })).toBeNull();
   });
+});
+
+test.each([
+  { route: '/(app)', method: 'GET', delegate: false, field: 'dashboard.views|overview|owner' },
+  { route: '/(app)/settings/import', method: 'GET', delegate: true, field: 'dashboard.views|settings|delegate' },
+  { route: '/(app)/modules/[id]', method: 'GET', delegate: false, field: 'dashboard.views|modules|owner' },
+  { route: '/(app)/unknown', method: 'GET', delegate: false, field: null },
+  { route: null, method: 'GET', delegate: false, field: null },
+  { route: '/(app)/commands', method: 'POST', delegate: false, field: null }
+])('counts one page view for $method $route', async ({ route, method, delegate, field }) => {
+  await load({
+    locals: { session: { user_id: '1001', scopes: granted(), delegate_of: delegate ? '2002' : undefined }, locale: 'en' },
+    url: new URL('https://dashboard.itsbagelbot.com/settings/import?private=value'),
+    route: { id: route },
+    request: new Request('https://dashboard.itsbagelbot.com/settings/import', { method })
+  } as never);
+  expect(await recorded()).toEqual(field ? [[field, 1]] : []);
 });

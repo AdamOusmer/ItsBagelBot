@@ -52,6 +52,7 @@ async function markOnboarded(save: () => Promise<unknown>) {
     await save();
     return null;
   } catch {
+    count('onboarding.steps', 'save_failed');
     return fail(502, { error: 'Could not save your setup. Try again.' });
   }
 }
@@ -82,13 +83,14 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
   const s = await tourSession(locals);
   if (!s) throw redirect(302, `/login?next=${encodeURIComponent('/welcome')}`);
   if (!isOwnerSession(s)) throw redirect(303, '/');
+  count('onboarding.steps', 'viewed');
   return { name: s.display_name || s.login, connected: connectedSources(cookies) };
 };
 
 export const actions: Actions = {
   done: async ({ locals, request }) => {
     const form = await request.formData();
-    if (!consented(form)) return fail(400, { error: actionError(locals.locale, 'Accept the agreement.') });
+    if (!consented(form)) return consentMissing(locals);
     const value = form.get('preset');
     if (typeof value !== 'string' || !SETUP_PRESETS.has(value)) {
       return fail(400, { error: actionError(locals.locale, 'Choose a setup.') });
@@ -108,7 +110,12 @@ export const actions: Actions = {
   },
   finishImport: async ({ locals, request }) => {
     const form = await request.formData();
-    if (!consented(form)) return fail(400, { error: actionError(locals.locale, 'Accept the agreement.') });
+    if (!consented(form)) return consentMissing(locals);
     return finishSetup(locals, 'import', (uid) => setOnboarded(uid, true), () => ({ ok: true }));
   }
 };
+
+function consentMissing(locals: App.Locals) {
+  count('onboarding.steps', 'consent_missing');
+  return fail(400, { error: actionError(locals.locale, 'Accept the agreement.') });
+}
