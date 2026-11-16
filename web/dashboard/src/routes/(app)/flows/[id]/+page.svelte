@@ -25,6 +25,8 @@
   import { addStep as insertStep, selectedAddPoint, selectedPlacement, selectionAfterHistory } from '#lib/flow/editor';
   import { keyboardSize, panelInsets } from '#lib/flow/editor-viewport';
   import { newFlow, specFor, type Flow } from '#lib/flow/model';
+  import { rehearseFlow } from '#lib/flow/rehearse';
+  import type { RehearsalScenario } from '#lib/flow/rehearse';
   import { flowRouteId, parseFlowRouteId } from '#lib/flow/ref';
   import type { SaveReply, ToggleReply } from '#lib/flow/replies';
   import type { UpgradeReport } from '#lib/server/flow-store';
@@ -74,7 +76,14 @@
   let selectedId = $state<string | null>(null);
   let testRunOpen = $state(false);
   let recipeOpen = $state(false);
-  let trace = $state<FlowTrace | null>(null);
+  let scenario = $state<Partial<RehearsalScenario>>({});
+  let overrides = $state<Record<string, string>>({});
+  const rehearsal = $derived(rehearseFlow(flow, t, { scenario, overrides }));
+  const trace = $derived<FlowTrace | null>(testRunOpen ? {
+    nodes: new Set(rehearsal.steps.filter((step) => step.kind !== 'skip' && step.status !== 'skipped').flatMap((step) => step.id ? [step.id] : [])),
+    edges: new Set(flow.edges.filter((edge) => tracedEdge(edge)).map((edge) => edge.id)),
+    current: selectedId
+  } : null);
   let autoTidy = $state(true);
   let canvas = $state<FlowCanvasApi>();
   let libMode = $state<LibraryMode | null>(untrack(() => (data.flow?.nodes.length === 0 ? 'trigger' : null)));
@@ -84,7 +93,7 @@
   let boardEl = $state<HTMLDivElement>();
   let leftPanelEl = $state<HTMLDivElement>();
   let rightPanelEl = $state<HTMLDivElement>();
-  let sheetMode = false;
+  let sheetMode = $state(false);
   let inspecting = $state(false);
   let inspectFocus = $state(0);
   let libFocus = $state(0);
@@ -97,8 +106,21 @@
   let canRedo = $state(false);
   let deletionToast: { id: number; entry: object | null } | null = null;
   const dirty = $derived(contentOf(flow) !== baseline);
-  const inspectorVisible = $derived(Boolean(selectedId && inspecting && !testRunOpen));
-  const panelRoom = $derived((inspecting && selectedId) || testRunOpen || recipeOpen ? PANEL_ROOM : 0);
+  const inspectorVisible = $derived(Boolean(selectedId && inspecting && (!testRunOpen || !sheetMode)));
+  const panelRoom = $derived.by(() => {
+    if (testRunOpen && inspectorVisible) return PANEL_ROOM * 2;
+    return inspectorVisible || testRunOpen || recipeOpen ? PANEL_ROOM : 0;
+  });
+
+  function tracedEdge(edge: Flow['edges'][number]): boolean {
+    const source = rehearsal.steps.filter((step) => step.id === edge.from);
+    const reached = rehearsal.steps.some((step) => step.id === edge.to);
+    return reached && source.some((step) => !step.port || step.port === edge.port);
+  }
+
+  function changeScenario(patch: Partial<RehearsalScenario>) {
+    scenario = { ...rehearsal.scenario, ...patch };
+  }
 
   $effect(() => {
     edits.sync(flow);
@@ -223,9 +245,8 @@
 
   function openSettings(id: string) {
     selectedId = id;
-    if (testRunOpen) { canvas?.focusNode(id); return; }
     inspecting = true;
-    inspectFocus++;
+    if (!testRunOpen) inspectFocus++;
     void tick().then(() => canvas?.revealNode(id));
   }
 
@@ -565,19 +586,26 @@
 {/snippet}
 
 {#snippet rightPanel()}
+  <div class="panels">
   {#if inspectorVisible}
+    <div class="panel-slot">
     {#await loadInspector() then { default: NodeInspector }}
-      <NodeInspector bind:flow bind:selectedId focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
+      <NodeInspector bind:flow bind:selectedId {rehearsal} focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
     {/await}
-  {:else if testRunOpen}
+    </div>
+  {/if}
+  {#if testRunOpen}
+    <div class="panel-slot">
     {#await loadTestRun() then { default: TestRunPanel }}
-      <TestRunPanel {flow} onClose={closeTestRun} onTrace={(next) => (trace = next)} />
+      <TestRunPanel view={rehearsal} {overrides} onScenario={changeScenario} onOverride={(key, value) => (overrides = { ...overrides, [key]: value })} onSelect={openSettings} onClose={closeTestRun} />
     {/await}
+    </div>
   {:else if recipeOpen}
     {#await loadRecipe() then { default: RecipePanel }}
       <RecipePanel bind:flow {ref} onclose={() => closeRecipe(true)} />
     {/await}
   {/if}
+  </div>
 {/snippet}
 
 {#snippet boardChildren()}
@@ -590,7 +618,7 @@
     insets={viewInsets}
     room={panelRoom}
     onmoved={(moves) => { edits.moved(moves); refreshHistory(); }}
-    oninspect={() => { if (!testRunOpen) inspecting = true; }}
+    oninspect={() => { if (selectedId) openSettings(selectedId); }}
     onadded={openSettings}
     onremoved={removed}
     onundo={() => history('undo')}
@@ -603,6 +631,7 @@
 
 {#if drawable}
 <EditorStage
+  style="--editor-panel-right: {testRunOpen && inspectorVisible ? 'min(720px, calc(100vw - 112px))' : '360px'}"
   height="100dvh"
   topInset="calc(var(--bb-topbar-height) + var(--flows-top-gap, 6px))"
   bottomRoom="var(--flows-bottom-room, 0px)"
@@ -671,6 +700,8 @@
 {/if}
 
 <style>
+  .panels { display: flex; height: 100%; min-height: 0; gap: 12px; }
+  .panel-slot { flex: 1; min-width: 0; height: 100%; }
   .notes {
     display: flex;
     flex-direction: column;

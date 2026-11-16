@@ -932,6 +932,7 @@
     {#each flow.nodes as node (node.id)}
       <div
         class="slot"
+        class:taken={trace?.nodes.has(node.id)}
         class:off={trace && !trace.nodes.has(node.id)}
         class:running={trace?.current === node.id}
         class:source={(connecting ?? wire)?.from === node.id}
@@ -1116,6 +1117,10 @@
   }
   .slot.off {
     opacity: 0.35;
+  }
+  .slot.taken :global(.node) {
+    outline: 1px solid rgba(var(--bb-white-rgb), 0.4);
+    outline-offset: 2px;
   }
   .slot.running :global(.node) {
     box-shadow:

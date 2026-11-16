@@ -15,9 +15,8 @@
   import VarCard from '@bagel/ui/svelte/VarCard.svelte';
   import { getI18n } from '@bagel/kit';
   import { chipHint, pinnedFor, sheetFor, type VariableChip } from '@bagel/kit/variables';
-  import { page } from '$app/state';
   import { portLabel } from '#lib/flow/describe';
-  import { rehearseFlow } from '#lib/flow/rehearse';
+  import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
   import { durationOutside, durationRange, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
@@ -34,10 +33,11 @@
   let {
     flow = $bindable(),
     selectedId = $bindable(null),
+    rehearsal,
     focusToken = 0,
     onclose,
     onremove
-  }: { flow: Flow; selectedId?: string | null; focusToken?: number; onclose?: () => void; onremove: (id: string) => void } = $props();
+  }: { flow: Flow; selectedId?: string | null; rehearsal: RehearsalView; focusToken?: number; onclose?: () => void; onremove: (id: string) => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -63,16 +63,12 @@
 
   const node = $derived(flow.nodes.find((n) => n.id === selectedId));
   const spec = $derived(node ? specFor(node.type) : undefined);
-  const moduleFlags = $derived((page.data.moduleFlags as Record<string, boolean> | undefined) ?? {});
-  const rehearsal = $derived(node ? rehearseFlow(flow, t, { until: node.id, modules: moduleFlags }) : []);
 
   const compareExample = $derived.by(() => {
     if (node?.type !== 'cond.compare') return null;
-    const step = rehearsal.at(-1);
+    const step = rehearsal.steps.find((step) => step.id === node.id);
     if (step?.kind !== 'check') return null;
-    const sentence = step.segments.map((seg) => seg.text).join('');
-    const taken = step.choices.find((c) => c.id === step.taken)?.label;
-    return taken ? t('flows.board.compareExample', { sentence, branch: taken }) : null;
+    return t('flows.board.compareExample', { sentence: step.text, branch: portLabel(t, node, step.port ?? 'no') });
   });
 
   const caret = new Map<string, number>();
@@ -333,7 +329,7 @@
       {/if}
 
       {#if spec.kind !== 'condition'}
-        <FlowRehearsal steps={rehearsal} focusId={node.id} />
+        <FlowRehearsal steps={rehearsal.steps} focusId={node.id} />
       {/if}
 
       {#if branches.length}

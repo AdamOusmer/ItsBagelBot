@@ -1,184 +1,119 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { SETUP_REWARD_ID, SETUP_TEXT, SETUP_URL } from '@bagel/kit/automations';
-import { describe as describeNode } from './describe';
-import { NODE_SPECS, type Flow } from './model';
+import { expect, test } from 'bun:test';
 import { english } from './english.testing';
-import { rehearseFlow, type RehearsalOptions, type RehearsalStep } from './rehearse';
+import type { Flow, FlowNode } from './model';
+import { rehearseFlow, setStoredValue, type RehearsalOptions } from './rehearse';
 
-const COMPARE_CASES = join(import.meta.dir, '../../../../../internal/domain/automation/testdata/compare_cases.json');
+type Id = FlowNode['id'];
+type Kind = FlowNode['type'];
+const n = (id: Id, type: Kind, config: FlowNode['config'] = {}): FlowNode => ({ id, type, config, x: 0, y: 0 });
+const e = (from: Id, port: Id, to: Id) => ({ id: `${from}-${port}-${to}`, from, port, to });
+const flowOf = (nodes: readonly FlowNode[], edges: readonly Flow['edges'][number][]): Flow => ({ id: 'test', name: 'Test', enabled: true, nodes: [...nodes], edges: [...edges] });
+const run = (flow: Flow, options: RehearsalOptions = {}) => rehearseFlow(flow, english, options);
+const trigger = n('t', 'twitch.chat.command', { trigger: '!test' });
+const say = n('s', 'reply.chat', { message: 'hello {user}' });
+const left = n('a', 'reply.chat', { message: 'A' });
+const right = n('b', 'reply.chat', { message: 'B' });
+const join = n('j', 'reply.chat', { message: 'JOIN' });
+const wait = n('w', 'reply.wait', { seconds: 5 });
+const fork = [e('t', 'next', 'a'), e('t', 'next', 'b')];
+const loop = flowOf([trigger, n('l', 'reply.loop', { times: '3' }), n('s', 'reply.chat', { message: 'Pass {local:index}' }), join], [e('t', 'next', 'l'), e('l', 'body', 's'), e('l', 'done', 'j')]);
 
-const n = (id: string, type: string, config: Flow['nodes'][number]['config'] = {}) => ({ id, type, x: 0, y: 0, config });
-const e = (id: string, from: string, port: string, to: string) => ({ id, from, port, to });
-const flowOf = (nodes: Flow['nodes'], edges: Flow['edges']): Flow => ({ id: 'x', name: 'x', enabled: true, nodes, edges });
+test.each([
+  { name: 'parallel lanes', flow: flowOf([trigger, left, right], fork), expected: [['a', 0, [0], [], ['A']], ['b', 0, [1], [], ['B']]] },
+  { name: 'paused parallel lane', flow: flowOf([trigger, wait, left, right], [e('t', 'next', 'w'), e('t', 'next', 'b'), e('w', 'next', 'a')]), expected: [['b', 0, [1], [], ['B']], ['a', 5000, [0], [], ['A']]] },
+  { name: 'diamond continuation once after both arms', flow: flowOf([trigger, left, right, join], [...fork, e('a', 'next', 'j'), e('b', 'next', 'j')]), expected: [['a', 0, [0], [], ['A']], ['b', 0, [1], [], ['B']], ['j', 0, [], [], ['JOIN']]] },
+  { name: 'every loop iteration', flow: loop, expected: [['s', 0, [], [1], ['Pass 1']], ['s', 0, [], [2], ['Pass 2']], ['s', 0, [], [3], ['Pass 3']], ['j', 0, [], [], ['JOIN']]] }
+])('adapter maps $name', ({ flow, expected }) => {
+  const actual = run(flow).steps.filter((step) => step.kind === 'say').map((step) => [step.id, step.atMs, step.lane, step.iteration, step.lines]);
+  expect<unknown>(actual).toEqual(expected);
+});
 
-const hug = flowOf(
-  [
-    n('a1', 'twitch.chat.command', { trigger: '!hug' }),
-    n('a2', 'cond.chance', { percent: 85 }),
-    n('a3', 'reply.chat', { message: '{user} gives {touser} a big warm hug.' }),
-    n('a4', 'reply.chat', { message: 'The hug slipped away, {user}. Try again!' })
-  ],
-  [e('ae1', 'a1', 'next', 'a2'), e('ae2', 'a2', 'yes', 'a3'), e('ae3', 'a2', 'no', 'a4')]
-);
+test.each([
+  { name: 'missing trigger', flow: flowOf([say], []), text: 'Add a When step', node: null },
+  { name: 'cycle', flow: flowOf([trigger, say], [e('t', 'next', 's'), e('s', 'next', 's')]), text: 'loop', node: 's' },
+  { name: 'paused merge', flow: flowOf([trigger, wait, left, right, join], [e('t', 'next', 'w'), e('t', 'next', 'b'), e('w', 'next', 'a'), e('a', 'next', 'j'), e('b', 'next', 'j')]), text: 'Two paths join here', node: 'j' }
+])('structural error: $name', ({ flow, text, node }) => {
+  const result = run(flow);
+  expect([result.issue?.text.toLowerCase().includes(text.toLowerCase()), result.issue?.node, result.steps]).toEqual([true, node, []]);
+});
 
-const follow = flowOf(
-  [n('f1', 'twitch.follow'), n('f2', 'reply.chat', { message: 'Welcome to the stream, {user}!' }), n('f3', 'reply.points', { amount: 100 })],
-  [e('fe1', 'f1', 'next', 'f2'), e('fe2', 'f1', 'next', 'f3')]
-);
+test.each<{ type: Kind; config: FlowNode['config']; field: string; initial: string | number; expected: string | number; text: string }>([
+  { type: 'twitch.cheer', config: { minBits: 1000 }, field: 'bits', initial: 500, expected: 1000, text: '500 is below 1000 bits' },
+  { type: 'twitch.raid', config: { minViewers: 100 }, field: 'viewers', initial: 42, expected: 100, text: '42 is below 100 viewers' },
+  { type: 'twitch.chat.command', config: { trigger: '!test' }, field: 'message', initial: 'hello', expected: '!test @Lotti good luck', text: 'does not match !test' }
+])('would not start: $type, then accepts the explicit repair', ({ type, config, field, initial, expected, text }) => {
+  const flow = flowOf([n('t', type, config), say], [e('t', 'next', 's')]);
+  const before = run(flow, { scenario: { [field]: initial } });
+  const after = run(flow, { scenario: before.startPatch });
+  expect([before.starts, before.blocked?.includes(text), before.startPatch, after.steps.at(-1)?.id]).toEqual([false, true, { [field]: expected }, 's']);
+});
 
-const sub = flowOf(
-  [
-    n('s1', 'twitch.sub', { variant: 'any' }),
-    n('s2', 'cond.compare', { left: '{months}', op: 'gte', right: '12' }),
-    n('s3', 'reply.chat', { message: '{user} has been here {months} months. Legend!' }),
-    n('s4', 'reply.chat', { message: 'Thanks for the sub, {user}!' })
-  ],
-  [e('se1', 's1', 'next', 's2'), e('se2', 's2', 'yes', 's3'), e('se3', 's2', 'no', 's4')]
-);
+test.each([
+  { name: 'role', config: n('c', 'cond.role', { level: 'mod' }), patch: { role: 'mod' } },
+  { name: 'viewer ID', config: n('c', 'cond.user', { userId: '42', login: 'Lotti' }), patch: { userId: '42', user: 'Lotti' } },
+  { name: 'compare input', config: n('c', 'cond.compare', { left: '{user.id}', op: 'eq', right: '42' }), patch: { userId: '42' } }
+])('make it pass changes the $name input', ({ config, patch }) => {
+  const flow = flowOf([trigger, config, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
+  const before = run(flow);
+  const repair = before.steps.find((step) => step.id === 'c')?.repair;
+  const after = run(flow, { scenario: repair });
+  expect([repair, before.steps.some((step) => step.id === 's'), after.steps.at(-1)?.id]).toEqual([patch, false, 's']);
+});
 
-const textOf = (segments: { text: string }[]) => segments.map((s) => s.text).join('');
+test.each([
+  { name: 'chance', node: n('c', 'cond.chance', { percent: 50 }), overrides: { c: 'no' }, port: 'no' },
+  { name: 'cooldown', node: n('c', 'cond.cooldown', { seconds: 30 }), overrides: { c: 'cooling' }, port: 'no' },
+  { name: 'API', node: n('c', 'reply.http_get', { url: 'https://example.com' }), overrides: { c: 'failure' }, port: 'failure' }
+])('per-step pretend $name uses the compiled path', ({ node, overrides, port }) => {
+  const result = run(flowOf([trigger, node], [e('t', 'next', 'c')]), { overrides });
+  expect(result.steps.find((step) => step.id === 'c')?.port).toBe(port);
+});
 
-function said(step: RehearsalStep): string {
-  if (step.kind === 'viewer') return step.text;
-  if (step.kind === 'bot') return step.lines.map((l) => textOf(l.segments)).join(' / ');
-  return textOf(step.segments);
-}
+test.each([
+  { name: 'disconnected step', nodes: [trigger, say, left], edges: [e('t', 'next', 's')], expected: ['t', 's'] },
+  { name: 'unset viewer check', nodes: [trigger, n('c', 'cond.user'), say], edges: [e('t', 'next', 'c'), e('c', 'yes', 's')], expected: ['t', 'c'] },
+  { name: 'disabled action', nodes: [trigger, n('s', 'reply.chat', { message: 'hidden', disabled: true })], edges: [e('t', 'next', 's')], expected: ['t', 's'] }
+])('mid-build rehearsal tolerates $name', ({ nodes, edges, expected }) => {
+  const result = run(flowOf(nodes, edges));
+  expect<unknown>([result.issue, result.steps.map((step) => step.id)]).toEqual([undefined, expected]);
+});
 
-const rehearse = (flow: Flow, opts: RehearsalOptions = {}) => rehearseFlow(flow, english, opts);
+test('missing values stay marked and disconnected previews stay unreachable', () => {
+  const result = run(flowOf([trigger, n('s', 'reply.chat', { message: 'Bits: {bits}, value: {var:unset}' }), left], [e('t', 'next', 's')]));
+  expect([result.steps.at(-1)?.missing, result.steps.some((step) => step.id === 'a')]).toEqual([['bits', 'var:unset'], false]);
+});
 
-const transcript = (flow: Flow, opts: RehearsalOptions = {}) => rehearse(flow, opts).map(said);
+test('stored input is shared with checks and chat in the executor', () => {
+  const node = n('c', 'cond.var', { name: 'score', op: 'gte', value: '10' });
+  const flow = flowOf([trigger, node, n('s', 'reply.chat', { message: '{var:score}' })], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
+  const result = run(flow, { scenario: setStoredValue({}, node, '12') });
+  expect(result.steps.at(-1)?.lines).toEqual(['12']);
+});
 
-describe('rehearseFlow', () => {
-  test('a command shows the viewer line, then the passing branch', () => {
-    expect(transcript(hug)).toEqual([
-      '!hug Lotti good luck',
-      'Passes 85% of the time',
-      'PrincessBarney gives Lotti a big warm hug.'
-    ]);
-  });
+test('loop events have unique keys for repeated canvas nodes', () => {
+  const keys = run(loop).steps.map((step) => step.key);
+  expect(new Set(keys).size).toBe(keys.length);
+});
 
-  test('a decision flips the branch', () => {
-    const [, check, reply] = rehearse(hug, { decisions: { a2: 'no' } });
-    expect(check.kind === 'check' && check.taken).toBe('no');
-    expect(said(reply)).toBe('The hug slipped away, PrincessBarney. Try again!');
-  });
+test.each([
+  { name: 'an event cannot acquire a moderator role', trigger: n('t', 'twitch.follow'), check: n('c', 'cond.role', { level: 'mod' }) },
+  { name: 'a compare cannot replace the command itself', trigger, check: n('c', 'cond.compare', { left: '{message}', op: 'eq', right: 'different' }) }
+])('repairs remain truthful: $name', ({ trigger, check }) => {
+  const flow = flowOf([trigger, check, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
+  const result = run(flow);
+  expect(result.steps.find((step) => step.id === 'c')?.repair).toBeUndefined();
+});
 
-  test('each step names the wire it came through, on the taken branch', () => {
-    expect(rehearse(hug, { decisions: { a2: 'no' } }).map((s) => s.via)).toEqual([undefined, 'ae1', 'ae3']);
-  });
+test('draft tolerance leaves the edited flow untouched', () => {
+  const flow = flowOf([trigger, n('c', 'cond.user'), n('s', 'reply.chat', { message: '{bits}' }), left], [e('t', 'next', 'c'), e('c', 'no', 's')]);
+  const before = structuredClone(flow);
+  run(flow);
+  expect(flow).toEqual(before);
+});
 
-  test('a compare evaluates against the trigger samples', () => {
-    expect(transcript(sub)).toEqual([
-      'PrincessBarney subscribed at tier 1',
-      '14 is at least 12',
-      'PrincessBarney has been here 14 months. Legend!'
-    ]);
-  });
-
-  test('a compare takes the branch the engine takes for every shared case', () => {
-    const cases: { left: string; op: string; right: string; want: boolean }[] = JSON.parse(readFileSync(COMPARE_CASES, 'utf8'));
-    for (const { left, op, right, want } of cases) {
-      const drawn = flowOf([n('t', 'twitch.follow'), n('c', 'cond.compare', { left, op, right })], [e('e', 't', 'next', 'c')]);
-      const check = rehearse(drawn).find((step) => step.id === 'c');
-      expect([JSON.stringify({ left, op, right }), check?.kind === 'check' && check.taken]).toEqual([JSON.stringify({ left, op, right }), want ? 'yes' : 'no']);
-    }
-  });
-
-  test('fan-out runs every step in order, effects included', () => {
-    expect(transcript(follow)).toEqual(['PrincessBarney followed the channel', 'Welcome to the stream, PrincessBarney!', 'Give 100 points']);
-  });
-
-  test('a trigger floor raises the sample so the trigger would really fire', () => {
-    const raid = flowOf([n('r1', 'twitch.raid', { minViewers: 500 })], []);
-    expect(said(rehearse(raid)[0])).toBe('PrincessBarney raided with 500 viewers');
-  });
-
-  test('until walks the branch that reaches the node, then stops', () => {
-    const steps = rehearse(hug, { until: 'a4' });
-    expect(steps.map((s) => s.id)).toEqual(['a1', 'a2', 'a4']);
-    expect(said(steps[2])).toContain('slipped away');
-  });
-
-  test('an unconnected message stands alone, trigger tokens marked unknown', () => {
-    const loose = flowOf([n('c1', 'twitch.cheer'), n('c2', 'reply.chat', { message: 'Thanks for {bits} bits' })], []);
-    const [step] = rehearse(loose, { until: 'c2' });
-    expect(step.kind === 'bot' && step.lines[0].segments.some((s) => s.kind === 'unknown' && s.text === '{bits}')).toBe(true);
-  });
-
-  test('a loop ends', () => {
-    const looped = { ...follow, edges: [...follow.edges, e('back', 'f2', 'next', 'f2')] };
-    expect(rehearse(looped).length).toBe(3);
-  });
-
-  test('no trigger means nothing to rehearse', () => {
-    expect(rehearse(flowOf([], []))).toEqual([]);
-  });
-
-  test('a chat word trigger rehearses as the viewer saying it', () => {
-    const [step] = rehearse(flowOf([n('w', 'twitch.chat.word', { word: 'bagel' })], []), { until: 'w' });
-    expect(step.kind === 'viewer' && step.text).toBe('bagel');
-  });
-
-  test('a loop walks its body and then what comes after it', () => {
-    const flow = flowOf(
-      [n('t', 'twitch.follow'), n('l', 'reply.loop', { times: '3' }), n('b', 'reply.chat', { message: 'time {local:index}' }), n('a', 'reply.chat', { message: 'after' })],
-      [e('1', 't', 'next', 'l'), e('2', 'l', 'body', 'b'), e('3', 'l', 'done', 'a')]
-    );
-    const steps = rehearse(flow);
-    expect(steps.map((step) => step.id)).toEqual(['t', 'l', 'b', 'a']);
-    const body = steps[2]!;
-    expect(body.kind === 'bot' && body.lines[0]!.segments.map((seg) => seg.text).join('')).toBe('time 1');
-  });
-
-  test('an API node asks which path to rehearse and only walks that one', () => {
-    const flow = flowOf(
-      [n('t', 'twitch.follow'), n('g', 'reply.http_get', { url: 'https://api.example.com' }), n('w', 'reply.chat', { message: 'worked' }), n('f', 'reply.chat', { message: 'failed {local:error}' })],
-      [e('1', 't', 'next', 'g'), e('2', 'g', 'ok', 'w'), e('3', 'g', 'failure', 'f')]
-    );
-    expect(rehearse(flow).map((step) => step.id)).toEqual(['t', 'g', 'w']);
-    const failed = rehearse(flow, { decisions: { g: 'failure' } });
-    expect(failed.map((step) => step.id)).toEqual(['t', 'g', 'f']);
-    const last = failed[2]!;
-    expect(last.kind === 'bot' && last.lines[0]!.segments.map((seg) => seg.text).join('')).toBe('failed 503');
-  });
-
-  test('an imported step awaiting setup never shows its placeholder', () => {
-    const flow = flowOf(
-      [n('t', 'twitch.reward', { reward: SETUP_REWARD_ID }), n('c', 'reply.chat', { message: SETUP_TEXT, disabled: true }), n('g', 'reply.http_get', { url: SETUP_URL, disabled: true })],
-      [e('e1', 't', 'next', 'c'), e('e2', 'c', 'next', 'g')]
-    );
-    const shown = JSON.stringify(rehearse(flow));
-    expect(shown).not.toContain('setup-required');
-    for (const node of flow.nodes) expect(describeNode(english, node)).toBe('Off until set up');
-  });
-
-  const rewardRun = (config: Flow['nodes'][number]['config']) =>
-    transcript(flowOf([n('t', 'twitch.reward', config), n('c', 'reply.chat', { message: 'ok' })], [e('e1', 't', 'next', 'c')]));
-
-  test.each([
-    ['a linked reward keeps its name line', { reward: 'r1', rewardTitle: 'Hydrate' }, ['PrincessBarney redeemed Hydrate', 'ok']],
-    ['a managed reward shows title and cost, then the default outcome', { title: 'Hydrate', cost: 500 }, ['PrincessBarney redeemed Hydrate for 500 points', 'ok', 'Redemption marked fulfilled']],
-    ['one point is singular', { title: 'Hydrate', cost: 1, onRedeem: 'cancel' }, ['PrincessBarney redeemed Hydrate for 1 point', 'ok', 'Points refunded to the viewer']],
-    ['required text shows the sample input', { title: 'Song', cost: 100, userInput: true, onRedeem: 'leave' }, ['PrincessBarney redeemed Song for 100 points and typed: lofi beats', 'ok', 'Redemption left for a mod']]
-  ])('%s', (_name, config, expected) => {
-    expect(rewardRun(config)).toEqual(expected);
-  });
-
-  test.each([
-    ['unset runs only while live', {}, 'only while you are live'],
-    ['off runs any time', { liveOnly: false }, 'any time, live or not']
-  ])('lights %s', (_name, config, note) => {
-    const [step] = rehearse(flowOf([n('l', 'reply.lights', { mode: 'color', color: 'red', deviceName: 'Desk', ...config })], []), { until: 'l' });
-    expect(said(step)).toBe(`Set Desk to red, ${note}`);
-  });
-
-  test('every step type rehearses', () => {
-    for (const spec of NODE_SPECS) {
-      expect(rehearse(flowOf([n('n', spec.type)], []), { until: 'n' }).length).toBe(1);
-    }
-  });
+test('a changed event trigger does not reuse the prior chat message', () => {
+  const result = run(flowOf([n('t', 'twitch.follow')], []), { scenario: { message: '!old' } });
+  expect(result.steps[0]?.text).not.toBe('!old');
 });
