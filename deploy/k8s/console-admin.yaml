@@ -89,7 +89,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1794596386-2e75d3365918@sha256:fd28ed058958b0c11fa9ccd67878431cd9e1dd09b694a9c1bb96704ec265adbf
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1794846801-6fb0a727e5b5@sha256:9a41b46b698d44d86c64f70457ed1231500e7c2e1074a6364c5a5ef185acd44c
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_CLIENT_CERT_FILE

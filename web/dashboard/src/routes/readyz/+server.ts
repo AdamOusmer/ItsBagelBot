@@ -5,12 +5,11 @@ import type { RequestHandler } from './$types';
 import { ready } from '@bagel/kit/server/nats';
 import { ready as warmValkey } from '@bagel/kit/server/valkey-store';
 import { rateLimiterReady } from '@bagel/kit/server/rate-limit';
-import { publicStatsWarm } from '#lib/server/public-stats';
 
 export const GET: RequestHandler = async () => {
-  // Stats gate startup only: a Valkey outage must not pull running replicas out of rotation.
+  // NATS is the only readiness gate: a Valkey outage must not pull every replica out of rotation.
   const [natsReady] = await Promise.all([ready(), warmValkey(), rateLimiterReady()]);
-  if (!natsReady || !publicStatsWarm()) {
+  if (!natsReady) {
     return new Response('not ready', { status: 503, headers: { 'cache-control': 'no-store' } });
   }
   return new Response('ok', { headers: { 'cache-control': 'no-store' } });
