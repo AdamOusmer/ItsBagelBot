@@ -304,15 +304,7 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 
 // SetActiveNow commits interactive toggles before an RPC read or invalidation.
 func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error {
-	if err := r.setDesiredEnabled(ctx, id, active); err != nil {
-		return err
-	}
-	event := "bot_disabled"
-	if active {
-		event = "bot_enabled"
-	}
-	r.analytics.Count(catalog.Lifecycle, event)
-	return nil
+	return r.SetActive(ctx, id, active)
 }
 
 // SetBanned is moderation enforcement, so it writes through. Banning also

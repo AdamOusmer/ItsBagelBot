@@ -446,7 +446,7 @@ func TestDelegateCanOptOutOfConsumedDelegation(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.CreateDelegation(ctx, "share-token", 1001, "owner", []string{"commands"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "share-token", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"commands"}}))
 
 	_, err := repo.ConsumeDelegation(ctx, "share-token", 2002, "delegate")
 	require.NoError(t, err)
@@ -468,7 +468,7 @@ func TestDelegateOptOutIgnoresPendingLinks(t *testing.T) {
 	ctx := context.Background()
 	expires := time.Now().Add(time.Hour)
 
-	require.NoError(t, repo.CreateDelegation(ctx, "pending-token", 1001, "owner", []string{"commands"}, &expires))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "pending-token", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"commands"}, ExpiresAt: &expires}))
 
 	require.Error(t, repo.OptOutDelegation(ctx, 1001, 2002), "pending invite should remain owner-managed")
 }
@@ -477,8 +477,8 @@ func TestConsumeReclaimsInsteadOfDuplicatingForSameBoard(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.CreateDelegation(ctx, "link-one", 1001, "owner", []string{"commands"}, nil))
-	require.NoError(t, repo.CreateDelegation(ctx, "link-two", 1001, "owner", []string{"timers"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "link-one", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"commands"}}))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "link-two", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"timers"}}))
 
 	first, err := repo.ConsumeDelegation(ctx, "link-one", 2002, "delegate")
 	require.NoError(t, err)
@@ -499,8 +499,8 @@ func TestConsumeStillBindsDistinctBoards(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.CreateDelegation(ctx, "board-a", 1001, "alpha", []string{"commands"}, nil))
-	require.NoError(t, repo.CreateDelegation(ctx, "board-b", 3003, "beta", []string{"timers"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "board-a", OwnerID: 1001, OwnerLogin: "alpha", Sections: []string{"commands"}}))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "board-b", OwnerID: 3003, OwnerLogin: "beta", Sections: []string{"timers"}}))
 
 	_, err := repo.ConsumeDelegation(ctx, "board-a", 2002, "delegate")
 	require.NoError(t, err)
@@ -516,7 +516,7 @@ func TestCannotDelegateToYourself(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.CreateDelegation(ctx, "self-token", 1001, "owner", []string{"commands"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "self-token", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"commands"}}))
 
 	_, err := repo.ConsumeDelegation(ctx, "self-token", 1001, "owner")
 	require.Error(t, err)
@@ -527,8 +527,8 @@ func TestRevokeAndMutationReturnsConsumedDelegateID(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.CreateDelegation(ctx, "token-a", 1001, "owner", []string{"commands"}, nil))
-	require.NoError(t, repo.CreateDelegation(ctx, "token-b", 1001, "owner", []string{"billing"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "token-a", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"commands"}}))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "token-b", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"billing"}}))
 
 	delID, err := repo.RevokeDelegation(ctx, "token-b", 1001)
 	require.NoError(t, err)
@@ -550,9 +550,9 @@ func TestDeleteDelegationsByOwnerReturnsAllConsumedDelegateIDs(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.CreateDelegation(ctx, "tok-1", 1001, "owner", []string{"commands"}, nil))
-	require.NoError(t, repo.CreateDelegation(ctx, "tok-2", 1001, "owner", []string{"billing"}, nil))
-	require.NoError(t, repo.CreateDelegation(ctx, "tok-pending", 1001, "owner", []string{"modules"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "tok-1", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"commands"}}))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "tok-2", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"billing"}}))
+	require.NoError(t, repo.CreateDelegation(ctx, repository.DelegationLink{Token: "tok-pending", OwnerID: 1001, OwnerLogin: "owner", Sections: []string{"modules"}}))
 
 	_, err := repo.ConsumeDelegation(ctx, "tok-1", 2002, "delegate1")
 	require.NoError(t, err)

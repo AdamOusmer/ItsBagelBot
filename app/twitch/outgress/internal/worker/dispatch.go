@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -31,8 +32,16 @@ func (w *Worker) Process(msg *bus.Message) error {
 	err := w.processDecoded(ctx, &payload, msg.UUID)
 	if err != nil && msg.FinalDelivery() {
 		w.recordExhaustedRewards(ctx, &payload)
+		w.analytics.Count(catalog.OutgressDropped, sendKind(&payload), "exhausted")
 	}
 	return err
+}
+
+func sendKind(payload *outgress.Message) string {
+	if payload.Type == outgress.TypeChat {
+		return "chat"
+	}
+	return "helix"
 }
 
 func (w *Worker) processDecoded(ctx context.Context, payload *outgress.Message, uuid string) error {

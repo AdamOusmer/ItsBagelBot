@@ -70,7 +70,7 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, nil); err != nil {
+	if err := d.repo.CreateDelegation(ctx, repository.DelegationLink{Token: token, OwnerID: ownerID, OwnerLogin: req.OwnerLogin, Sections: req.Sections}); err != nil {
 		monitor.TxnLogger(ctx, d.log).Error("delegation create", zap.Error(err))
 		respondErr(msg, err.Error())
 		return
@@ -127,56 +127,11 @@ func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *delegationRPC) handleList(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.OwnerRequest](msg)
-	if !ok {
-		return
-	}
-	ownerID, ok := parseWireID(msg, req.OwnerUserID, "owner_user_id")
-	if !ok {
-		return
-	}
-
-	views, err := d.repo.ListDelegationsByOwner(ctx, ownerID)
-	if err != nil {
-		respondErr(msg, err.Error())
-		return
-	}
-
-	grants := make([]map[string]any, 0, len(views))
-	for _, v := range views {
-		grants = append(grants, map[string]any{
-			"token":          v.Token,
-			"sections":       v.Sections,
-			"delegate_login": v.DelegateLogin,
-			"consumed":       v.Consumed,
-		})
-	}
-	bus.Respond(msg, map[string]any{"grants": grants})
+	d.handleDelegationList(ctx, msg, false)
 }
 
 func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.RevokeDelegationRequest](msg)
-	if !ok {
-		return
-	}
-	ownerID, ok := parseWireID(msg, req.OwnerUserID, "owner_user_id")
-	if !ok {
-		return
-	}
-
-	delegateID, err := d.repo.RevokeDelegation(ctx, req.Token, ownerID)
-	if err != nil {
-		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-
-	d.publishInvalidation(ownerID)
-	res := map[string]any{"ok": true}
-	if delegateID != 0 {
-		d.publishInvalidation(delegateID)
-		res["delegate_user_id"] = strconv.FormatUint(delegateID, 10)
-	}
-	bus.Respond(msg, res)
+	d.handleGrantChange(ctx, msg, true)
 }
 
 func (d *delegationRPC) writeThenOK(msg *nats.Msg, write func() error, invalidateIDs ...uint64) {
@@ -191,6 +146,10 @@ func (d *delegationRPC) writeThenOK(msg *nats.Msg, write func() error, invalidat
 }
 
 func (d *delegationRPC) handleUpdate(ctx context.Context, msg *nats.Msg) {
+	d.handleGrantChange(ctx, msg, false)
+}
+
+func (d *delegationRPC) handleGrantChange(ctx context.Context, msg *nats.Msg, revoke bool) {
 	req, ok := decodeRequest[usersrpc.UpdateDelegationRequest](msg)
 	if !ok {
 		return
@@ -199,18 +158,33 @@ func (d *delegationRPC) handleUpdate(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-	if len(req.Sections) == 0 {
+	if !revoke && len(req.Sections) == 0 {
 		respondErr(msg, "at least one section required")
 		return
 	}
 
+	if revoke {
+		delegateID, err := d.repo.RevokeDelegation(ctx, req.Token, ownerID)
+		d.respondGrantChange(msg, grantChangeResult{ownerID, delegateID, err})
+		return
+	}
 	delegateID, err := d.repo.UpdateDelegationSections(ctx, req.Token, ownerID, req.Sections)
+	d.respondGrantChange(msg, grantChangeResult{ownerID, delegateID, err})
+}
+
+type grantChangeResult struct {
+	ownerID, delegateID uint64
+	err                 error
+}
+
+func (d *delegationRPC) respondGrantChange(msg *nats.Msg, result grantChangeResult) {
+	delegateID, err := result.delegateID, result.err
 	if err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
 
-	d.publishInvalidation(ownerID)
+	d.publishInvalidation(result.ownerID)
 	res := map[string]any{"ok": true}
 	if delegateID != 0 {
 		d.publishInvalidation(delegateID)
@@ -220,16 +194,27 @@ func (d *delegationRPC) handleUpdate(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.AccessRequest](msg)
+	d.handleDelegationList(ctx, msg, true)
+}
+
+func (d *delegationRPC) handleDelegationList(ctx context.Context, msg *nats.Msg, access bool) {
+	req, ok := decodeRequest[struct {
+		OwnerUserID    string `json:"owner_user_id"`
+		DelegateUserID string `json:"delegate_user_id"`
+	}](msg)
 	if !ok {
 		return
 	}
-	delegateID, ok := parseWireID(msg, req.DelegateUserID, "delegate_user_id")
+	id, field, query := req.OwnerUserID, "owner_user_id", d.repo.ListDelegationsByOwner
+	if access {
+		id, field, query = req.DelegateUserID, "delegate_user_id", d.repo.ListAccessByDelegate
+	}
+	userID, ok := parseWireID(msg, id, field)
 	if !ok {
 		return
 	}
 
-	views, err := d.repo.ListAccessByDelegate(ctx, delegateID)
+	views, err := query(ctx, userID)
 	if err != nil {
 		respondErr(msg, err.Error())
 		return
@@ -237,13 +222,16 @@ func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {
 
 	grants := make([]map[string]any, 0, len(views))
 	for _, v := range views {
-		grants = append(grants, map[string]any{
-			"owner_user_id": strconv.FormatUint(v.OwnerID, 10),
-			"owner_login":   v.OwnerLogin,
-			"sections":      v.Sections,
-		})
+		grants = append(grants, delegationGrant(v, access))
 	}
 	bus.Respond(msg, map[string]any{"grants": grants})
+}
+
+func delegationGrant(v repository.DelegationView, access bool) map[string]any {
+	if access {
+		return map[string]any{"owner_user_id": strconv.FormatUint(v.OwnerID, 10), "owner_login": v.OwnerLogin, "sections": v.Sections}
+	}
+	return map[string]any{"token": v.Token, "sections": v.Sections, "delegate_login": v.DelegateLogin, "consumed": v.Consumed}
 }
 
 func (d *delegationRPC) handleOptOut(ctx context.Context, msg *nats.Msg) {

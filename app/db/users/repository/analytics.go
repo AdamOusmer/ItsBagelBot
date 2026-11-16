@@ -13,9 +13,6 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// trackAccounts reads the accounts' counted columns before a write and returns the step
-// that shifts the running totals once it lands. A missing row tallies empty, so creates
-// and deletes count as +/-.
 func (r *Users) trackAccounts(ctx context.Context, ids ...uint64) func() {
 	if len(ids) == 0 {
 		return func() {}
@@ -23,7 +20,6 @@ func (r *Users) trackAccounts(ctx context.Context, ids ...uint64) func() {
 	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.accountState(ctx, ids) })
 }
 
-// Must run outside db.WithExec: accountState takes its own gate slot.
 func (r *Users) countCreated(ctx context.Context, id uint64) {
 	if r.analytics == nil {
 		return
@@ -47,7 +43,7 @@ func (r *Users) accountState(ctx context.Context, ids []uint64) (analytics.Tally
 	for _, u := range rows {
 		tallyCounted(tally, u)
 	}
-	return tally, nil
+	return r.tallyDelegating(ctx, tally, ids)
 }
 
 func accountTally(u *ent.User) analytics.Tally {
@@ -69,7 +65,6 @@ func tallyCounted(t analytics.Tally, u *ent.User) {
 	}
 }
 
-// AnalyticsSeed scans every account in id order and returns the true running totals.
 func (r *Users) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
 	tally := analytics.Tally{}
 	err := analytics.Pages(ctx,
@@ -85,7 +80,10 @@ func (r *Users) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
 		func(u *ent.User) uint64 { return u.ID },
 		func(u *ent.User) { tallyCounted(tally, u) },
 	)
-	return tally, err
+	if err != nil {
+		return nil, err
+	}
+	return r.tallyDelegating(ctx, tally, nil)
 }
 
 func tallyAccount(t analytics.Tally, u *ent.User) {
