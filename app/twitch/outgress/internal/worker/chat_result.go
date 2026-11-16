@@ -4,12 +4,12 @@
 package worker
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 )
 
 func (w *Worker) recordChatResult(payload *outgress.Message, res *http.Response) {
@@ -25,7 +25,8 @@ func (w *Worker) recordChatResult(payload *outgress.Message, res *http.Response)
 			} `json:"drop_reason"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(io.LimitReader(res.Body, maxResponseDrain)).Decode(&reply); err != nil {
+	body, err := io.ReadAll(io.LimitReader(res.Body, maxResponseDrain))
+	if err != nil || codec.Unmarshal(body, &reply) != nil {
 		return
 	}
 	if len(reply.Data) == 0 {
