@@ -352,6 +352,7 @@
 
   <section id="growth" class="block">
     {@render heading('growth')}
+    {@render barCard('cta', view?.growth.cta)}
     {@render seriesCard('signups', view?.growth.signups)}
     {@render gainLossCard(view?.growth.gainLoss)}
     <Grid cols={3} stackAt="md">
@@ -469,6 +470,7 @@
 
   <section id="audience" class="block">
     {@render heading('audience')}
+    {@render barCard('publicViews', view?.audience.publicViews)}
     {@render barCard('sizes', view?.audience.sizes)}
     {@render barCard('locales', view?.audience.locales)}
     {@render factsCard('delegating', view?.audience.delegating)}

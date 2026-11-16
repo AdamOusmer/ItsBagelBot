@@ -98,6 +98,8 @@ const (
 	RewardsRedeems     Metric = "rewards.redeems"
 	AuthLogin          Metric = "auth.login"
 	DesktopGrants      Metric = "desktop.grants"
+	PublicViews        Metric = "public.views"
+	MarketingCTA       Metric = "marketing.cta"
 )
 
 const (
@@ -149,6 +151,7 @@ const (
 	KindLogin     Kind = "login"
 	KindPlatform  Kind = "platform"
 	KindSize      Kind = "size"
+	KindCTA       Kind = "cta"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -216,6 +219,8 @@ var catalog = map[Metric]Spec{
 	RewardsRedeems:     {Type: Counter, Dims: []Kind{KindFeature, KindRedeem}},
 	AuthLogin:          {Type: Counter, Dims: []Kind{KindLogin}},
 	DesktopGrants:      {Type: Level, Dims: []Kind{KindPlatform}},
+	PublicViews:        {Type: Counter, Dims: []Kind{KindPage}},
+	MarketingCTA:       {Type: Counter, Dims: []Kind{KindCTA}},
 }
 
 var enums = map[Kind][]string{
@@ -226,7 +231,8 @@ var enums = map[Kind][]string{
 	KindTier:      {"free", "paid", "vip"},
 	KindSource:    {"tebex", "admin", "giveaway", "vip"},
 	KindBilling:   {"activate", "cancel_requested", "cancel_aborted", "revoke", "payment_failed", "expired"},
-	KindPage:      {"commands", "leaderboard", "songqueue"},
+	KindPage:      {"commands", "leaderboard", "songqueue", "queue", "stats", "login"},
+	KindCTA:       {"nav", "hero", "playground", "finale", "pricing", "footer", "landing", "compare", "guide", "import", "builder", "app"},
 	KindState:     {"on", "off"},
 	KindLink:      {"spotify", "govee", "fetch_key"},
 	KindActive:    {"active", "inactive"},

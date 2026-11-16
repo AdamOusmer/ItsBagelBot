@@ -1,4 +1,6 @@
 {
+  "publicPage": { "commands": "Comandos", "leaderboard": "Classificação", "songqueue": "Fila de músicas", "queue": "Fila de espectadores", "stats": "Estatísticas públicas", "login": "Entrar" },
+  "cta": { "nav": "Navegação", "hero": "Cabeçalho inicial", "playground": "Teste de comandos", "finale": "Seção final da página inicial", "pricing": "Preços", "footer": "Rodapé", "landing": "Páginas de recursos", "compare": "Comparações", "guide": "Guias", "import": "Página de importação", "builder": "Editor de comandos", "app": "Obter o aplicativo" },
   "size": {
     "v0_9": "De 0 a 9 espectadores",
     "v10_49": "De 10 a 49 espectadores",

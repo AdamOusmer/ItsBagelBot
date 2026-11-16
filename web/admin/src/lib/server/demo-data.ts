@@ -618,6 +618,8 @@ const DEMO_SERIES: DemoSeries[] = [
   ...demoRatios('points.flows', { gamble: 3.8, duel_stake: 1, transfer: 0.5, adjust: 0.1, reward_grant: 2, raffle_payout: 0.3 }),
   ...demoRatios('rewards.redeems', { 'channelpoints|ok': 2, 'channelpoints|offline': 0.1, 'govee|ok': 0.5, 'govee|busy': 0.1 }),
   ...demoRatios('auth.login', { started: 2, ok: 1.8, declined: 0.1, state: 0.02, banned: 0.01 }),
+  ...demoRatios('marketing.cta', { nav: 1.2, hero: 2.5, playground: 0.6, finale: 0.8, pricing: 1.3, footer: 0.3, landing: 1.1, compare: 0.5, guide: 0.4, import: 0.2, builder: 0.3, app: 0.1 }),
+  ...demoRatios('public.views', { commands: 4, leaderboard: 3, songqueue: 2, queue: 1.2, stats: 5, login: 3 }),
   ...demoRatios('lifecycle', { trial_promoted: 0.08 }),
   ...demoRatios('recipe.runs', { 'command|ok': 12, 'event|ok': 8, 'timer|ok': 6, 'reward|failed': 0.1, 'manual|partial': 0.2, 'countdown|ok': 1 }),
   ...demoRatios('outgress.dropped', { 'chat|chat_dropped': 0.12, 'helix|exhausted': 0.04, 'helix|auth': 0.02 }),

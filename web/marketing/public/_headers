@@ -5,7 +5,7 @@
 # Astro owns prefetching; override Speed Brain's separate cache-only speculation rules.
 /*
   Speculation-Rules: "/speculation-rules.json"
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://ajax.cloudflare.com; script-src-attr 'none'; connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://ajax.cloudflare.com; script-src-attr 'none'; connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com https://dashboard.itsbagelbot.com
   X-Frame-Options: DENY
   Link: <https://ai.itsbagelbot.com/llms.txt>; rel="describedby"; type="text/markdown"
 

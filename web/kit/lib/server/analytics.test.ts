@@ -3,6 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, setSystemTime } from 'bun:test';
 import { count, flushAnalytics, setAnalyticsClientForTests } from './analytics';
+import { MARKETING_CTAS, PUBLIC_PAGES } from '../analytics-beacon-catalog';
 
 type Call = [string, ...unknown[]];
 
@@ -86,6 +87,8 @@ it('buffers every valid field without a fixed slot cap', async () => {
 });
 
 const metrics = [
+  { metric: 'public.views', dims: [PUBLIC_PAGES] },
+  { metric: 'marketing.cta', dims: [MARKETING_CTAS] },
   { metric: 'auth.login', dims: [['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned']] },
   { metric: 'dashboard.views', dims: [
     ['overview', 'commands', 'flows', 'automations', 'modules', 'timers', 'loyalty', 'counters',

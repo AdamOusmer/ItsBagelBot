@@ -1,4 +1,6 @@
 {
+  "cta": "Cliques em links do painel por posição neste período. As contagens representam eventos, não pessoas únicas.",
+  "publicViews": "Visualizações informadas pelo navegador por página pública neste período, incluindo páginas em cache. As contagens representam visualizações, não pessoas únicas.",
   "sizes": "Canais únicos da última semana completa, agrupados pelo número atual de espectadores ao vivo. Um canal pode aparecer em mais de uma faixa durante uma semana. Contagens abaixo de 5 aparecem como <5 e são excluídas dos percentuais.",
   "ticks": "Resultados no período. Enviado conta as mensagens publicadas.",
   "timers": "Temporizadores ativos em módulos habilitados. As opções podem se sobrepor; simples não tem nenhuma.",

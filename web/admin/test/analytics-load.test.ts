@@ -26,6 +26,7 @@ test('reads every extension in its catalog window within the RPC metric limit', 
   } as never) as { bundle: Promise<{ view: AnalyticsView; degraded: boolean }> };
   const bundle = await data.bundle;
   const extensions = [
+    ['d', 'public.views'], ['d', 'marketing.cta'],
     ['d', 'recipe.runs'], ['d', 'outgress.dropped'], ['d', 'provider.calls'], ['d', 'songs.requests'],
     ['d', 'command.blocked'], ['d', 'onboarding.steps'], ['d', 'import.runs'], ['d', 'dashboard.views'],
     ['d', 'billing.checkout'], ['d', 'recipes.total'], ['d', 'accounts.onboarded'], ['d', 'accounts.delegating'],

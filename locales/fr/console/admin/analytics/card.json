@@ -1,4 +1,6 @@
 {
+  "cta": "Clics d’inscription sur le site",
+  "publicViews": "Vues des pages publiques",
   "sizes": "Chaînes par taille d’audience",
   "ticks": "Déclenchements des minuteurs",
   "timers": "Minuteurs actifs par option",

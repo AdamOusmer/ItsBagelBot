@@ -213,7 +213,7 @@ const contentSecurityPolicy = [
     // Keep this and public/_headers in sync; event handlers remain disallowed.
     `script-src 'self' 'unsafe-inline'${devScriptSources} https://static.cloudflareinsights.com https://ajax.cloudflare.com`,
     "script-src-attr 'none'",
-    `connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com${devConnectSources}`,
+    `connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com https://dashboard.itsbagelbot.com${devConnectSources}`,
     "base-uri 'self'",
     "form-action 'self'",
 ].join('; ');
@@ -298,7 +298,7 @@ const contentSecurityPolicy = [
     </main>
     <Nav {...navProps} locales={navLocales}>
         <Fragment slot="mobileFooter">
-            <ButtonLink variant="ghost" block href={getAppHref}>{t('nav.getApp')}</ButtonLink>
+            <ButtonLink variant="ghost" block href={getAppHref} data-analytics-cta="app">{t('nav.getApp')}</ButtonLink>
             <Cluster justify="center"><LanguageSwitcher options={navLocales} menuId="mobile-menu-lang" variant="field" /></Cluster>
         </Fragment>
     </Nav>

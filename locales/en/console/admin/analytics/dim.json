@@ -1,4 +1,6 @@
 {
+  "publicPage": { "commands": "Commands", "leaderboard": "Leaderboard", "songqueue": "Song queue", "queue": "Viewer queue", "stats": "Public stats", "login": "Login" },
+  "cta": { "nav": "Navigation", "hero": "Homepage hero", "playground": "Command playground", "finale": "Homepage closing section", "pricing": "Pricing", "footer": "Footer", "landing": "Feature pages", "compare": "Comparison pages", "guide": "Guides", "import": "Import page", "builder": "Command builder", "app": "Get the app" },
   "size": {
     "v0_9": "0 to 9 viewers",
     "v10_49": "10 to 49 viewers",

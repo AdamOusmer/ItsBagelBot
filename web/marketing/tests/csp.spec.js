@@ -7,6 +7,15 @@ import { readFileSync } from 'node:fs';
 const headers = readFileSync(new URL('../dist/_headers', import.meta.url), 'utf8');
 const policy = headers.match(/^\s+Content-Security-Policy: (.+)$/m)[1];
 
+test('both production policies allow the dashboard beacon connection', async ({ page }) => {
+    await page.goto('/');
+    const metaPolicy = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
+    for (const csp of [policy, metaPolicy]) {
+        const sources = csp.match(/connect-src ([^;]+)/)[1].split(' ');
+        expect(sources).toContain('https://dashboard.itsbagelbot.com');
+    }
+});
+
 function collectBrowserErrors(page) {
     const violations = [];
     const errors = [];

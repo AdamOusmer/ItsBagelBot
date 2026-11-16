@@ -27,6 +27,7 @@ import { enumerableChannelQuery } from '#lib/server/channel-urls';
 import { preloadCatalog, preloadSlices } from '#lib/server/catalog-preload';
 import { errorTarget } from '#lib/error-routes';
 import { startPublicStats } from '#lib/server/public-stats';
+import { marketingFormForbidden } from '#lib/server/beacon-origin';
 
 // process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 export const init: ServerInit = async () => {
@@ -248,6 +249,8 @@ function errorPageRedirect(event: HookEvent, res: Response): Response | null {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+  if (event.url.pathname === '/b' && event.request.method === 'POST') return resolve(event);
+  if (marketingFormForbidden(event.request)) return new Response(null, { status: 403 });
   if (event.url.pathname === '/readyz') return resolve(event);
 
   event.locals.session = openSessionCookie(event, COOKIE, open);

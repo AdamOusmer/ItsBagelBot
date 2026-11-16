@@ -46,6 +46,8 @@
     "./server/session-revocation": "./lib/server/session-revocation.ts",
     "./server/form-action": "./lib/server/form-action.ts",
     "./server/analytics": "./lib/server/analytics.ts",
+    "./analytics-beacon-catalog": "./lib/analytics-beacon-catalog.ts",
+    "./analytics-beacon": "./lib/analytics-beacon.ts",
     "./server/best-effort": "./lib/server/best-effort.ts",
     "./engine/tmpl": "./lib/engine/tmpl.ts",
     "./engine/pure": "./lib/engine/pure.ts",

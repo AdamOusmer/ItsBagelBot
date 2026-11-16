@@ -18,6 +18,28 @@ const { redirect } = await import('@sveltejs/kit');
 const { CHANNEL_ROUTE_NODES, URL_PURGED_ROUTES } = await import('./lib/server/channel-urls');
 
 type Event = Parameters<typeof edgeCacheHeaders>[0];
+
+test('beacon POST bypasses sessions, locale cookies, rate limits and request metadata', async () => {
+  const event = {
+    url: new URL('https://dashboard.itsbagelbot.com/b'),
+    request: { method: 'POST' }
+  };
+  const response = await handle({
+    event: event as never,
+    resolve: async () => new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+  });
+  expect({ status: response.status, headers: [...response.headers], event })
+    .toEqual({ status: 204, headers: [['cache-control', 'no-store']], event });
+});
+
+test.each(['/auth/login', '/welcome', '/b/'])('marketing origin cannot POST to %s through the beacon exception', async (path) => {
+  const event = {
+    url: new URL(path, 'https://dashboard.itsbagelbot.com'),
+    request: new Request(`https://dashboard.itsbagelbot.com${path}`, { method: 'POST', headers: { origin: 'https://itsbagelbot.com' } })
+  };
+  const response = await handle({ event: event as never, resolve: async () => { throw new Error('Must reject before resolve'); } });
+  expect(response.status).toBe(403);
+});
 type EventOptions = {
   routeId?: string;
   session?: unknown;

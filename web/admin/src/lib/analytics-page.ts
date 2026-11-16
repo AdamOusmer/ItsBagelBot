@@ -42,6 +42,7 @@ import {
   type Slot,
   type Unit
 } from './analytics-view';
+import { MARKETING_CTAS, PUBLIC_PAGES } from '@bagel/kit/analytics-beacon-catalog';
 
 export const ANALYTICS_WINDOWS = [1, 7, 30, 90, 365] as const;
 export const DEFAULT_ANALYTICS_WINDOW = 30;
@@ -79,19 +80,21 @@ export type AnalyticsView = {
   empty: boolean;
   period: { start: string; end: string };
   kpis: Kpi[];
-  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[] };
+  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[]; cta: Bar[] };
   engagement: { active: Series; live: Series; messages: Series; answered: Series; facts: Fact[] };
   retention: { horizon: number; rows: CohortLine[] };
   revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable; checkout: DataTable; checkoutFacts: Fact[] };
   features: { modules: DataTable; breadth: DataTable; breadthFacts: Fact[]; integrations: Bar[]; pagesHidden: Bar[]; dashboard: Bar[] };
   commands: { builtIn: DataTable; custom: Fact[]; perms: Bar[]; flags: Bar[] };
-  audience: { sizes: Bar[]; locales: Bar[]; delegating: Fact[]; runtime: Bar[]; desktop: Bar[] };
+  audience: { sizes: Bar[]; locales: Bar[]; delegating: Fact[]; runtime: Bar[]; desktop: Bar[]; publicViews: Bar[] };
   community: { ticks: Bar[]; timers: Bar[]; rounds: DataTable; entrants: DataTable; points: Bar[]; rewards: DataTable };
   recipes: { runs: Bar[]; outcomes: DataTable; channels: Kpi; totals: DataTable };
   reliability: { drops: DataTable; dailyDrops: Series; providers: DataTable; songs: Bar[]; songFacts: Fact[]; blocked: Bar[]; flags: DataTable };
 };
 
 const ENUMS = {
+  publicPage: PUBLIC_PAGES,
+  cta: MARKETING_CTAS,
   size: ['v0_9', 'v10_49', 'v50_199', 'v200_999', 'v1kp'],
   tick: ['fired', 'gated', 'stopped', 'floor', 'blank', 'refused'],
   opt: ['plain', 'gated', 'capped', 'ends', 'offline'],
@@ -352,7 +355,8 @@ function growth(c: Ctx): AnalyticsView['growth'] {
     imports: dimensionTable(counter(c, 'import.runs'), ['preview_ok', 'preview_failed', 'committed', 'commit_failed']),
     onboarded: accountFacts(c, 'accounts.onboarded', 'onboarded'),
     login: bars(byDim(counter(c, 'auth.login')), { ids: ENUMS.login, enum: 'login', order: 'keep' }),
-    trials: facts({ trialPromoted: fmt(n('trial_promoted')) })
+    trials: facts({ trialPromoted: fmt(n('trial_promoted')) }),
+    cta: bars(byDim(counter(c, 'marketing.cta')), { ids: ENUMS.cta, enum: 'cta', order: 'keep' })
   };
 }
 
@@ -561,6 +565,7 @@ function audience(c: Ctx): AnalyticsView['audience'] {
   const locales = byDim(level(c, 'accounts.locale'));
   return {
     sizes: audienceSizes(c),
+    publicViews: bars(byDim(counter(c, 'public.views')), { ids: ENUMS.publicPage, enum: 'publicPage', order: 'keep' }),
     locales: bars(locales, { name: localeName, secondary: ofShare('ofAccounts', accounts) }),
     delegating: accountFacts(c, 'accounts.delegating', 'delegating'),
     runtime: bars(byDim(level(c, 'accounts.runtime')), { ids: ENUMS.runtime, enum: 'runtime', order: 'keep' }),

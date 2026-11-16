@@ -113,7 +113,7 @@ const columns = [
     </Grid>
     <Cluster justify="center" gap={3} class="vs__actions reveal-in">
         <ButtonLink href={importHref}>{migrate.cta}</ButtonLink>
-        <ButtonLink variant="secondary" href={loginHref}>{labels.cta}</ButtonLink>
+        <ButtonLink variant="secondary" href={loginHref} data-analytics-cta="compare">{labels.cta}</ButtonLink>
         <ButtonLink variant="secondary" href={other.href}>{other.label}</ButtonLink>
     </Cluster>
   </Container>
