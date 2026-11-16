@@ -298,7 +298,7 @@ const contentSecurityPolicy = [
     </main>
     <Nav {...navProps} locales={navLocales}>
         <Fragment slot="mobileFooter">
-            <ButtonLink variant="ghost" block href={getAppHref} data-analytics-cta="app">{t('nav.getApp')}</ButtonLink>
+            <ButtonLink variant="ghost" block href={getAppHref}>{t('nav.getApp')}</ButtonLink>
             <Cluster justify="center"><LanguageSwitcher options={navLocales} menuId="mobile-menu-lang" variant="field" /></Cluster>
         </Fragment>
     </Nav>
@@ -320,6 +320,9 @@ const contentSecurityPolicy = [
         import '../script/easter-egg';
         import '../script/prefetch';
         import '../script/edge-scripts';
+        import { countCtaClicks } from '../lib/analytics-cta';
+
+        countCtaClicks();
     </script>
 
     <script>

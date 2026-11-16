@@ -86,7 +86,6 @@ interface Props {
     faqItems: { question: string; answer: string }[];
     ctaTitle: string;
     ctaPrimary: { href: string; label: string };
-    ctaPlacement?: 'landing' | 'import';
     ctaSecondary?: { href: string; label: string };
     legal?: string;
     updated?: { text: string; iso: string };
@@ -101,7 +100,7 @@ const {
     eyebrow, title, lead, howEyebrow, howTitle, steps,
     listEyebrow, listTitle, listItems, listNote,
     faqEyebrow, faqTitle, faqItems,
-    ctaTitle, ctaPrimary, ctaSecondary, legal, ctaPlacement = 'landing',
+    ctaTitle, ctaPrimary, ctaSecondary, legal,
     updated, table, demo, prereq, convert, related,
 } = Astro.props;
 ---
@@ -228,7 +227,7 @@ const {
   <Container>
     <SectionHeading title={ctaTitle} class="flcta__title" />
     <Cluster justify="center" gap={3} class="flcta__actions reveal-in">
-        <ButtonLink href={ctaPrimary.href} class="flcta__btn" variant="twitch" data-analytics-cta={ctaPlacement}><bb-fit>{ctaPrimary.label}</bb-fit></ButtonLink>
+        <ButtonLink href={ctaPrimary.href} class="flcta__btn" variant="twitch"><bb-fit>{ctaPrimary.label}</bb-fit></ButtonLink>
         {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href} class="flcta__btn"><bb-fit>{ctaSecondary.label}</bb-fit></ButtonLink>}
     </Cluster>
     {legal && <Text size="xs" mono tone="muted" class="flcta__legal"><bb-fit mode="block">{legal}</bb-fit></Text>}
