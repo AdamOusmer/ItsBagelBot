@@ -149,10 +149,23 @@ const SORTS = {
   keep: (): number => 0
 };
 
+// Stored lifecycle history starts months before every other metric, so it cannot mark when recording began.
+const isRecorded = (row: AnalyticsRow): boolean => row.metric !== 'lifecycle';
+
 function context(r: AnalyticsReads): Ctx {
   const { cur, prev } = windows(r.end, r.days);
   const first = bounds(r.counters)?.first;
-  return { r, days: r.days, cur, prev, prevComplete: first !== undefined && first <= prev.from, tracked: first ?? cur.from };
+  const tracked = bounds(r.counters.filter(isRecorded))?.first ?? cur.from;
+  return { r, days: r.days, cur, prev, prevComplete: first !== undefined && first <= prev.from, tracked };
+}
+
+function since(c: Ctx, rows: AnalyticsRow[]): Day {
+  const first = bounds(rows)?.first;
+  return first !== undefined && first < c.tracked ? first : c.tracked;
+}
+
+function daily(c: Ctx, rows: AnalyticsRow[]): Series {
+  return dailySeries(rows, c.cur, since(c, rows));
 }
 
 const counter = (c: Ctx, metric: Metric): AnalyticsRow[] => inRange(pick(c.r.counters, metric), c.cur);
@@ -312,7 +325,7 @@ function growth(c: Ctx): AnalyticsView['growth'] {
   const presets = byDim(counter(c, 'onboarding.preset'));
   const bot = snapshots(inRange(pick(c.r.levels, 'accounts.bot_enabled'), c.cur));
   return {
-    signups: dailySeries(withDim(pick(c.r.counters, 'lifecycle'), 'signup'), c.cur, c.tracked),
+    signups: daily(c, withDim(pick(c.r.counters, 'lifecycle'), 'signup')),
     gainLoss: gainLoss(c.r.counters, c.cur),
     funnel: bars(life, { ids: FUNNEL, enum: 'lifecycle', order: 'keep', secondary: stepOf(FUNNEL.map(n)) }),
     churn: bars(life, { ids: CHURN, enum: 'lifecycle', order: 'keep' }),
@@ -329,7 +342,7 @@ function growth(c: Ctx): AnalyticsView['growth'] {
 }
 
 function engagement(c: Ctx): AnalyticsView['engagement'] {
-  const series = (metric: Metric) => dailySeries(pick(c.r.counters, metric), c.cur, c.tracked);
+  const series = (metric: Metric) => daily(c, pick(c.r.counters, metric));
   const count = (metric: Metric) => sum(counter(c, metric));
   const messages = count('chat.messages');
   const answered = count('chat.answered');
@@ -613,7 +626,7 @@ function reliability(c: Ctx): AnalyticsView['reliability'] {
   const attempts = sum(counter(c, 'command.uses')) + total(blocked);
   return {
     drops: dimensionTable(counter(c, 'outgress.dropped'), [...ENUMS.drop], 'send'),
-    dailyDrops: dailySeries(pick(c.r.counters, 'outgress.dropped'), c.cur, c.tracked),
+    dailyDrops: daily(c, pick(c.r.counters, 'outgress.dropped')),
     providers: providers(c),
     songs: bars(byDim(songs), { ids: ENUMS.song, enum: 'song', secondary: ofShare('ofTotal', sum(songs)) }),
     songFacts: facts({ songSuccess: pct(sum(withDim(songs, 'queued')), sum(songs)) }),

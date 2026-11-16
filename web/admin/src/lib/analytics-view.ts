@@ -267,6 +267,8 @@ function cohortCells(rows: AnalyticsRow[], start: Day, coverage: DateRange, hori
 export function cohorts(weekRows: AnalyticsRow[], dayRows: AnalyticsRow[], coverage: DateRange, horizon: Slot = 8): CohortRow[] {
   const sizes = cohortSizes(dayRows);
   const active = pick(weekRows, 'cohort.active');
+  const tracked = bounds(active)?.first;
+  const cells: DateRange = { from: tracked && tracked > coverage.from ? tracked : coverage.from, to: coverage.to };
   return [...sizes]
     .filter(([, size]) => size > 0)
     .filter(([week]) => coveredWeek(weekStart(week), coverage))
@@ -274,6 +276,6 @@ export function cohorts(weekRows: AnalyticsRow[], dayRows: AnalyticsRow[], cover
     .map(([week, size]) => ({
       week,
       size,
-      cells: cohortCells(withDim(active, week), weekStart(week), coverage, horizon)
+      cells: cohortCells(withDim(active, week), weekStart(week), cells, horizon)
     }));
 }
