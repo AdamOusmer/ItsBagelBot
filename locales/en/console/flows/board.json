@@ -17,6 +17,7 @@
   "triggerReplaced": "Start step replaced",
   "stepRemoved": "Step removed",
   "stepsRemoved": "Removed {n} steps",
+  "checkRemovedKeepYes": "Removed the check and {n} steps on its No path",
   "undo": "Undo",
   "redo": "Redo",
   "noStepsMatch": "No steps match.",

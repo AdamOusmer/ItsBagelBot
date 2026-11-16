@@ -2,7 +2,7 @@
   "role": {
     "label": "Niveau utilisateur",
     "summary": "Vérifier le rôle du viewer",
-    "warning": "Les rôles sont connus seulement avec les déclencheurs du chat. Avec ce déclencheur, tout le monde compte comme viewer.",
+    "warning": "Les rôles sont connus seulement pour le chat et les comptes à rebours. Ici, tout le monde compte comme viewer.",
     "remove": "Retirer cette condition",
     "field": {
       "level": {

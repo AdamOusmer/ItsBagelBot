@@ -62,6 +62,7 @@ export function focusBounds(flow: Flow, node: FlowNode, frame: { width: number; 
   const parents = (index.incoming.get(node.id) ?? []).map((edge) => edge.from);
   const related = new Set([node.id, ...parents]);
   const selected = focusFootprint(node, frame);
+  if ((selected.y1 - selected.y0) * frame.minZoom > frame.height) return compactFocus(node, selected, frame);
   const nearby = flowBounds({ ...flow, nodes: flow.nodes.filter((entry) => related.has(entry.id)) }, selected);
   const fits = (box: Box) => (box.x1 - box.x0) * frame.minZoom <= frame.width && (box.y1 - box.y0) * frame.minZoom <= frame.height;
   let box = fits(nearby) ? nearby : { ...selected, x0: Math.max(nearby.x0, selected.x1 - frame.width / frame.minZoom) };
@@ -72,6 +73,11 @@ export function focusBounds(flow: Flow, node: FlowNode, frame: { width: number; 
   if (!trigger) return box;
   const anchored = flowBounds({ ...flow, nodes: [trigger] }, box);
   return fits(anchored) ? anchored : box;
+}
+
+function compactFocus(node: FlowNode, selected: Box, frame: { minZoom: number; height: number }): Box {
+  const compact = { ...selected, y0: node.y };
+  return (compact.y1 - compact.y0) * frame.minZoom <= frame.height ? compact : { ...nodeBounds(node), y1: node.y + 60 };
 }
 
 export function focusFootprint(node: FlowNode, frame: { minZoom: number; touch?: boolean }): Box {

@@ -2,7 +2,7 @@
   "role": {
     "label": "Nível de usuário",
     "summary": "Verificar o cargo do espectador",
-    "warning": "Os cargos só são conhecidos em gatilhos de chat. Neste gatilho, todos contam como espectadores.",
+    "warning": "Os cargos só são conhecidos em gatilhos de chat e contagens regressivas. Neste gatilho, todos contam como espectadores.",
     "remove": "Remover esta verificação",
     "field": {
       "level": {

@@ -113,6 +113,7 @@
   let rightPanelEl = $state<HTMLDivElement>();
   let boardFrame = $state<{ board: DOMRect; bar: DOMRect; rail: DOMRect }>();
   let sheetMode = $state(false);
+  let sheetRevision = $state(0);
   let wideBoard = $state(false);
   let inspecting = $state(false);
   let inspectFocus = $state(0);
@@ -181,13 +182,13 @@
     return changed;
   }
 
-  function removed(count: number) {
+  function removed(count: number, keepYes: boolean) {
     inspecting = false;
     if (edits.sync(flow)) graphRevision++;
     refreshHistory();
     if (deletionToast) dismissToast(deletionToast.id);
     const entry = edits.undoEntry;
-    const message = count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count });
+    const message = keepYes ? t('flows.board.checkRemovedKeepYes', { n: count - 1 }) : count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count });
     const id = toast('success', message, { undoLabel: t('flows.board.undo'), onUndo: () => undoRemoval(entry) });
     deletionToast = { id, entry };
   }
@@ -201,10 +202,10 @@
   const layoutHeight = () => document.documentElement.clientHeight;
   function sheetLimit() {
     const headerBottom = barEl?.getBoundingClientRect().bottom ?? 190;
-    return Math.max(160, layoutHeight() - headerBottom - 320);
+    return Math.max(280, layoutHeight() - headerBottom - 52);
   }
 
-  const sheetHeight = () => Math.min(sheetLimit(), Math.round(layoutHeight() * (layoutHeight() >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE)));
+  const sheetHeight = () => Math.min(sheetLimit(), Math.max(280, Math.round(layoutHeight() * (layoutHeight() >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE))));
 
   function syncViewport() {
     const style = editorEl?.style;
@@ -231,7 +232,8 @@
     const { board, bar, rail } = boardFrame;
     const panelShown = panelRoom > 0 || Boolean(libMode);
     if (sheetMode) {
-      const height = libMode ? Math.min(sheetLimit(), sheetHeight() * 1.25) : sheetHeight();
+      void sheetRevision;
+      const height = (libMode ? leftPanelEl : rightPanelEl)?.offsetHeight || sheetHeight();
       return panelInsets({ board, bar, rail }, panelShown ? height : 0);
     }
     const panels = [libMode ? leftPanelEl : null, panelRoom > 0 ? rightPanelEl : null].filter((panel): panel is HTMLDivElement => Boolean(panel));
@@ -331,7 +333,7 @@
     inspecting = false;
     testRunOpen = returnToTestRun || testRunOpen;
     returnToTestRun = false;
-    if (selectedId) canvas?.focusNode(selectedId);
+    if (selectedId) void tick().then(() => selectedId && canvas?.focusNode(selectedId));
   }
 
   function addStep(other: boolean): boolean {
@@ -453,15 +455,20 @@
     else if (recipeOpen) closeRecipe();
   }
 
+  function resizeSheet() {
+    sheetRevision++;
+    if (selectedId) canvas?.revealNode(selectedId);
+  }
+
   $effect(() => {
     if (!leftPanelEl) return;
-    const drag = sheetDrag(leftPanelEl, () => (libMode = null));
+    const drag = sheetDrag(leftPanelEl, () => (libMode = null), resizeSheet);
     return () => drag.destroy();
   });
 
   $effect(() => {
     if (!rightPanelEl) return;
-    const drag = sheetDrag(rightPanelEl, rightPanelDismiss);
+    const drag = sheetDrag(rightPanelEl, rightPanelDismiss, resizeSheet);
     return () => drag.destroy();
   });
 
@@ -503,7 +510,7 @@
     flow.enabled = reply.enabled;
     for (const drawn of [flow, sent]) adoptRewardId(drawn, reply.rewardId);
     baseline = contentOf({ ...sent, name: reply.name });
-    toast('success', t('flows.saved', { name: reply.name }));
+    toast('success', t('flows.saved', { name: reply.name }), { ttlMs: sheetMode ? 2000 : undefined });
     announceWarnings(reply.warnings);
     if (reply.id !== page.params.id) void goto(`/flows/${reply.id}`, { replaceState: true });
   }
@@ -586,7 +593,7 @@
     await tick();
     syncViewport();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    canvas?.openView(rehearsal.steps.find((step) => step.id)?.id ?? undefined);
+    canvas?.openView(rehearsal.stoppedAt ?? rehearsal.steps.find((step) => step.status === 'failed')?.id ?? selectedId ?? undefined);
   }
 
   async function toggleRecipe() {
@@ -694,7 +701,7 @@
   <div class="panels">
     <div class="panel-slot inspector-slot" class:parked={!inspectorVisible} inert={!inspectorVisible}>
     {#await loadInspector() then { default: NodeInspector }}
-      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
+      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id, keepYes) => canvas?.removeStep(id, keepYes)} />
     {/await}
     </div>
   {#if testRunOpen}

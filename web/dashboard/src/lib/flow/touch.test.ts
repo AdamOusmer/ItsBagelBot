@@ -8,6 +8,7 @@ const screenOf =(view: { x: number; y: number; k: number }, p: { x: number; y: n
 
 test.each([
   { width: 600, zoom: 1 },
+  { width: 1400, zoom: 0.7 },
   { width: 1200, zoom: 0.7 },
   { width: 5000, zoom: 0.7 }
 ])('recipe opening uses whole-flow fit or the readable anchor at width $width', ({ width, zoom }) => {
@@ -27,6 +28,16 @@ test('insets reserve both side panels and the toolbar', () => {
     { ...board, left: 1304, right: 1664, width: 360 }
   ];
   expect(panelInsets({ board, bar, rail, panels })).toEqual({ top: 172, left: 432, right: 388, bottom: 76 });
+});
+
+test.each([
+  { sheet: 0, bottom: 177 },
+  { sheet: 318, bottom: 330 }
+])('phone insets reserve the rail or the $sheet pixel sheet', ({ sheet, bottom }) => {
+  const board = { top: 0, left: 0, right: 320, bottom: 568, width: 320, height: 568 };
+  const bar = { ...board, bottom: 191, height: 191 };
+  const rail = { ...board, top: 403, bottom: 471, right: 232, width: 216, height: 68 };
+  expect(panelInsets({ board, bar, rail }, sheet)).toEqual({ top: 203, left: 16, right: 16, bottom });
 });
 
 describe('pinchView', () => {

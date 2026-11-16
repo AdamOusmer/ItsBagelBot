@@ -45,7 +45,7 @@
     issues = [],
     onclose,
     onremove
-  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; onclose?: () => void; onremove: (id: string) => void } = $props();
+  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -285,7 +285,7 @@
       {#if roleNote}
         <div class="role-note">
           <p class="note role-warning" role="status"><bb-fit mode="block"><span data-fit>{roleNote}</span></bb-fit></p>
-          <Button variant="ghost" onclick={remove}>{t('flows.step.condition.role.remove')}</Button>
+          <Button variant="ghost" onclick={() => onremove(node.id, true)}>{t('flows.step.condition.role.remove')}</Button>
         </div>
       {/if}
       {#if spec.fields.length}

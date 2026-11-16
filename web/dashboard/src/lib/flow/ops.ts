@@ -183,6 +183,21 @@ export function deleteNode(flow: Flow, id: NodeId): { removed: NodeId[]; healed:
   return { removed: pruneNode(flow, id), healed: false };
 }
 
+export function removeCheckKeepYes(flow: Flow, id: NodeId): { removed: NodeId[] } {
+  const node = flow.nodes.find((node) => node.id === id);
+  if (!node) return { removed: [] };
+  const noRoots = flow.edges.filter((edge) => edge.from === id && edge.port === 'no').map((edge) => edge.to);
+  const noPath = reachable(flow, noRoots);
+  const yesRoots = flow.edges.filter((edge) => edge.from === id && edge.port === 'yes').map((edge) => edge.to);
+  healNode(flow, node, 'yes');
+  const roots = flow.nodes.filter((node) => !noPath.has(node.id)).map((node) => node.id);
+  const kept = reachable(flow, [...roots, ...yesRoots]);
+  const lost = flow.nodes.filter((node) => noPath.has(node.id) && !kept.has(node.id)).map((node) => node.id);
+  flow.nodes = flow.nodes.filter((node) => !lost.includes(node.id));
+  flow.edges = flow.edges.filter((edge) => !lost.includes(edge.from) && !lost.includes(edge.to));
+  return { removed: [id, ...lost] };
+}
+
 function removeNode(flow: Flow, id: NodeId): void {
   flow.nodes = flow.nodes.filter((n) => n.id !== id);
   flow.edges = flow.edges.filter((e) => e.from !== id && e.to !== id);

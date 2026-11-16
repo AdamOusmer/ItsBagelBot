@@ -17,6 +17,7 @@
   "triggerReplaced": "Etapa inicial substituída",
   "stepRemoved": "Etapa removida",
   "stepsRemoved": "{n} etapas removidas",
+  "checkRemovedKeepYes": "Condição e {n} etapas do caminho Não removidas",
   "undo": "Desfazer",
   "redo": "Refazer",
   "noStepsMatch": "Nenhuma etapa encontrada.",

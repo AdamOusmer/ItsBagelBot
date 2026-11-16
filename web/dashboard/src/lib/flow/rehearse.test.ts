@@ -135,7 +135,7 @@ test.each(['twitch.chat.command', 'twitch.chat.word', 'twitch.follow', 'twitch.s
     const check = n('c', 'cond.role', { level: 'mod' });
     const root = n('t', type, { trigger: '!test', word: 'hello', reward: 'reward' });
     const step = run(flowOf([root, check], [e('t', 'next', 'c')])).steps.find((entry) => entry.id === 'c');
-    const note = type.startsWith('twitch.chat.') ? undefined : 'Viewer roles are only known for chat triggers. On this trigger everyone counts as a viewer.';
+    const note = type.startsWith('twitch.chat.') ? undefined : 'Roles are known only for chat triggers and countdowns. On this trigger everyone counts as a viewer.';
     expect([step?.status, step?.note, Boolean(step?.repair)]).toEqual(['no', note, type.startsWith('twitch.chat.')]);
   }
 );

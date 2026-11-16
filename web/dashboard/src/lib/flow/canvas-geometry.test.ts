@@ -34,6 +34,20 @@ test.each([1440, 1024, 834, 390])('reveals readable steps within a %i frame with
   expect(revealBox(view, box, size, { min: 0.4, max: 1.6, readable: view.k })).toEqual(view);
 });
 
+test.each([
+  { height: 35, whole: false },
+  { height: 78, whole: false },
+  { height: 188, whole: true },
+  { height: 213, whole: true }
+])('short touch frames prioritize the title, then the card and ports in $height pixels', ({ height, whole }) => {
+  const flow = chain(2);
+  const node = { ...flow.nodes[1], type: 'cond.compare' };
+  const box = focusBounds(flow, node, { width: 288, height, minZoom: 0.7, touch: true });
+  const frame = { width: 320, height: height + 203, inset: { left: 16, right: 16, top: 203, bottom: 0 } };
+  const view = revealBox({ x: 0, y: 0, k: 0.7 }, box, frame, { min: 0.1, max: 1.6, readable: 0.7 });
+  expect({ whole: box.y1 > node.y + 60, title: view.y + (node.y + 36) * view.k <= frame.height, left: view.x + box.x0 * view.k >= 16 }).toEqual({ whole, title: true, left: true });
+});
+
 test.each([0, 180000, 360000])('large boards render the viewport at %i and retain selected steps', (pan) => {
   const flow = chain(1001);
   const visible = windowNodes(flow, { x: -pan, y: 0, k: 1 }, { width: 1000, height: 900 }, '1000');

@@ -17,6 +17,7 @@
   "triggerReplaced": "Начальный шаг заменён",
   "stepRemoved": "Шаг удалён",
   "stepsRemoved": "Удалено шагов: {n}",
+  "checkRemovedKeepYes": "Удалена проверка и шаги на пути Нет: {n}",
   "undo": "Отменить",
   "redo": "Повторить",
   "noStepsMatch": "Нет подходящих шагов.",

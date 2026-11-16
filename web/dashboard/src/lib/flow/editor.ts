@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { outputsFor, specFor, type Flow, type FlowNode } from './model';
-import { canConnect, deleteNode, insertNode, replaceTrigger, type InsertRequest, type Placement } from './ops';
+import { canConnect, deleteNode, insertNode, removeCheckKeepYes, replaceTrigger, type InsertRequest, type Placement } from './ops';
 import { readingOrder } from './keyboard';
 import { graphIndex } from './graph-index';
 
@@ -32,10 +32,10 @@ export function addStep(flow: Flow, request: InsertRequest): { node: FlowNode; r
   return { node, replaced };
 }
 
-export function removeStep(flow: Flow, id: NodeId): { parent: NodeId | null; count: number } {
+export function removeStep(flow: Flow, id: NodeId, keepYes = false): { parent: NodeId | null; count: number } {
   const parents = flow.edges.filter((edge) => edge.to === id).map((edge) => edge.from);
   const children = flow.edges.filter((edge) => edge.from === id).map((edge) => edge.to);
-  const { removed } = deleteNode(flow, id);
+  const { removed } = keepYes ? removeCheckKeepYes(flow, id) : deleteNode(flow, id);
   if (!removed.length) return { parent: null, count: 0 };
   const parent = [...parents, ...children].find((id) => flow.nodes.some((node) => node.id === id)) ?? readingOrder(flow)[0]?.id ?? null;
   return { parent, count: removed.length };

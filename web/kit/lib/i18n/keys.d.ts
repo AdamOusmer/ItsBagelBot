@@ -2349,6 +2349,7 @@ export type KnownMessageKey =
   | 'flows.board.branchNone'
   | 'flows.board.branchOne'
   | 'flows.board.branchesTitle'
+  | 'flows.board.checkRemovedKeepYes'
   | 'flows.board.cleanUp'
   | 'flows.board.clearSearch'
   | 'flows.board.closeLibrary'

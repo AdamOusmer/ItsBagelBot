@@ -2,7 +2,7 @@
   "role": {
     "label": "Nutzerlevel",
     "summary": "Rolle des Zuschauers prüfen",
-    "warning": "Zuschauerrollen sind nur bei Chat-Auslösern bekannt. Bei diesem Auslöser zählt jeder als Zuschauer.",
+    "warning": "Rollen sind nur bei Chat-Auslösern und Countdowns bekannt. Bei diesem Auslöser zählt jeder als Zuschauer.",
     "remove": "Diese Prüfung entfernen",
     "field": {
       "level": {

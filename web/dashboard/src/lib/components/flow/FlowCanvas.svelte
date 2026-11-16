@@ -13,7 +13,7 @@
     walk: (dir: Dir) => boolean;
     nudge: (dir: Dir) => boolean;
     removeSelected: () => boolean;
-    removeStep: (id: string) => boolean;
+    removeStep: (id: string, keepYes?: boolean) => boolean;
     duplicateSelected: () => boolean;
     openAddMenu: (other?: boolean) => boolean;
     dismissMenu: () => boolean;
@@ -81,7 +81,7 @@
     onmoved?: (moves: Move[]) => void;
     oninspect?: (id: string) => void;
     onadded?: (id: string) => void;
-    onremoved?: (count: number) => void;
+    onremoved?: (count: number, keepYes: boolean) => void;
     onundo?: () => void;
     onredo?: () => void;
     canUndo?: boolean;
@@ -271,8 +271,9 @@
   export function openView(anchorId?: NodeId) {
     if (!host) return;
     const anchor = nodeById(anchorId ?? '') ?? flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
-    const start = anchor ? nodeBounds(anchor) : { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H };
-    const bounds = flowBounds(flow, start, true);
+    const pill = { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H };
+    const start = anchor ? nodeBounds(anchor) : pill;
+    const bounds = flowBounds(flow, pill);
     const frame = { width: host.clientWidth, height: host.clientHeight, inset: insets?.(room > 0) ?? FIT_INSET };
     cancelAnimationFrame(glide);
     view = openBox(bounds, start, frame, { min: minZoom(), max: MAX_ZOOM });
@@ -777,14 +778,14 @@
     return selectedId ? removeStep(selectedId) : false;
   }
 
-  export function removeStep(id: NodeId): boolean {
-    const { parent, count } = deleteStep(flow, id);
+  export function removeStep(id: NodeId, keepYes = false): boolean {
+    const { parent, count } = deleteStep(flow, id, keepYes);
     if (!count) return false;
     selectedEdge = null;
     selectedId = parent;
     if (autoTidy) runTidy(true);
     announce(count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count }));
-    onremoved?.(count);
+    onremoved?.(count, keepYes);
     if (parent) selectAndShow(parent);
     else void tick().then(() => startEl?.focus({ preventScroll: true }));
     return true;

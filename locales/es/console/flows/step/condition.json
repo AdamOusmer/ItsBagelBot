@@ -2,7 +2,7 @@
   "role": {
     "label": "Nivel de usuario",
     "summary": "Comprobar el rol del espectador",
-    "warning": "Los roles solo se conocen con activadores de chat. Con este activador todos cuentan como espectadores.",
+    "warning": "Los roles solo se conocen con activadores de chat y cuentas atrás. Con este activador todos cuentan como espectadores.",
     "remove": "Quitar esta comprobación",
     "field": {
       "level": {

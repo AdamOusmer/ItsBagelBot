@@ -17,6 +17,7 @@
   "triggerReplaced": "Startschritt ersetzt",
   "stepRemoved": "Schritt entfernt",
   "stepsRemoved": "{n} Schritte entfernt",
+  "checkRemovedKeepYes": "Prüfung und {n} Schritte im Nein-Pfad entfernt",
   "undo": "Rückgängig",
   "redo": "Wiederholen",
   "noStepsMatch": "Keine Schritte stimmen überein.",

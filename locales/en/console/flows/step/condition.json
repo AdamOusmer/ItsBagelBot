@@ -2,7 +2,7 @@
   "role": {
     "label": "User level",
     "summary": "Check the viewer's role",
-    "warning": "Viewer roles are only known for chat triggers. On this trigger everyone counts as a viewer.",
+    "warning": "Roles are known only for chat triggers and countdowns. On this trigger everyone counts as a viewer.",
     "remove": "Remove this check",
     "field": {
       "level": {

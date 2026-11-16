@@ -17,6 +17,7 @@
   "triggerReplaced": "Paso inicial reemplazado",
   "stepRemoved": "Paso eliminado",
   "stepsRemoved": "{n} pasos eliminados",
+  "checkRemovedKeepYes": "Se eliminó la condición y {n} pasos de su ruta No",
   "undo": "Deshacer",
   "redo": "Rehacer",
   "noStepsMatch": "Ningún paso coincide.",

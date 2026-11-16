@@ -20,7 +20,7 @@ export function panelInsets({ board, bar, rail, panels = [] }: Panels, panelHeig
     left: railIsRow ? 16 : rail.right - board.left + PANEL_GAP
   };
   for (const panel of panels) reservePanel(inset, board, panel);
-  return { ...inset, bottom: inset.bottom + 64 };
+  return { ...inset, bottom: inset.bottom + (panelHeight > 0 || railIsRow ? 0 : 64) };
 }
 
 function reservePanel(inset: Inset, board: Rect, panel: Rect) {
@@ -88,7 +88,7 @@ export function revealBox(view: View, box: Box, frame: Frame, zoom: ZoomRange & 
 
 export function openBox(box: Box, anchor: Box, frame: Frame, zoom: ZoomRange): View {
   const fitted = fitBox(box, frame, zoom);
-  if (fitted.k >= 0.5) return fitted;
+  if (fitted.k >= 0.7) return fitted;
   const readable = fitBox(anchor, frame, { min: 0.7, max: 0.7 });
   return revealBox(readable, anchor, frame, { ...zoom, readable: 0.7 });
 }
