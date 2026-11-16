@@ -11,12 +11,12 @@ import { rehearseFlow, type RehearsalStep } from './rehearse';
 import type { RehearsalMode } from '@bagel/kit/engine/rehearsal';
 import { searchSteps } from './search';
 
-type StepCase = { type: string; config: FlowNode['config']; line: string; kind: RehearsalStep['kind']; mode?: RehearsalMode; message?: string };
+type StepCase = { type: string; config: FlowNode['config']; line: string; effect?: string; kind: RehearsalStep['kind']; mode?: RehearsalMode; color?: string; message?: string };
 const steps: StepCase[] = [
-  { type: 'reply.shoutout', config: { target: '{user}' }, line: 'Shoutout to {user}', kind: 'effect' },
-  { type: 'reply.announce', config: { text: 'Welcome {user} and {viewers} viewers!', color: 'orange' }, line: 'Announce: Welcome {user} and {viewers} viewers!', kind: 'bot', mode: 'announce', message: 'Welcome PrincessBarney and 42 viewers!' },
-  { type: 'reply.reply', config: { text: 'Welcome {viewers} viewers!' }, line: 'Reply to viewer: Welcome {viewers} viewers!', kind: 'bot', mode: 'chat', message: '@PrincessBarney Welcome 42 viewers!' },
-  { type: 'reply.timeout', config: { target: '{user}', seconds: 60, reason: 'Please stop, {viewers} viewers are watching' }, line: 'Timeout {user} for 1 minute', kind: 'effect' }
+  { type: 'reply.shoutout', config: { target: '{user}' }, line: 'Shoutout to {user}', effect: 'Shoutout to PrincessBarney', kind: 'effect' },
+  { type: 'reply.announce', config: { text: 'Welcome {user} and {viewers} viewers!', color: 'orange' }, line: 'Announce: Welcome {user} and {viewers} viewers!', kind: 'say', mode: 'announce', color: 'orange', message: 'Welcome PrincessBarney and 42 viewers!' },
+  { type: 'reply.reply', config: { text: 'Welcome {viewers} viewers!' }, line: 'Reply to viewer: Welcome {viewers} viewers!', kind: 'say', mode: 'chat', message: '@PrincessBarney Welcome 42 viewers!' },
+  { type: 'reply.timeout', config: { target: '{user}', seconds: 60, reason: 'Please stop, {viewers} viewers are watching' }, line: 'Timeout {user} for 1 minute', effect: 'Timeout PrincessBarney for 1 minute', kind: 'effect' }
 ];
 
 function valueOf<T>(result: FlowResult<T>): T {
@@ -24,7 +24,7 @@ function valueOf<T>(result: FlowResult<T>): T {
   return result.value;
 }
 
-test.each(steps)('$type saves, reopens, describes and rehearses its fields', ({ type, config, line, kind, mode, message }) => {
+test.each(steps)('$type saves, reopens, describes and rehearses its fields', ({ type, config, line, effect, kind, mode, color, message }) => {
   const flow = newFlow('Stream steps');
   const root = addNode(flow, 'twitch.raid', { x: 0, y: 0 });
   const node = addNode(flow, type, { x: 0, y: 0 }, { from: root.id, port: 'next' });
@@ -33,9 +33,12 @@ test.each(steps)('$type saves, reopens, describes and rehearses its fields', ({ 
   const opened = valueOf(definitionToFlow(saved, flow));
   expect({ issues: validateDefinition(saved), config: opened.nodes.find((step) => step.type === type)!.config }).toEqual({ issues: [], config });
   expect(describe(english, node)).toBe(line);
-  const rehearsed = rehearseFlow(flow, english).at(-1)!;
-  const body = rehearsed.kind === 'bot' ? rehearsed.lines[0] : undefined;
-  expect({ kind: rehearsed.kind, mode: body?.mode, message: body?.segments.map((segment) => segment.text).join('') }).toEqual({ kind, mode, message });
+  const rehearsal = rehearseFlow(opened, english);
+  const rehearsed = rehearsal.steps.at(-1)!;
+  const body = rehearsed.chatLines.at(0);
+  expect({ starts: rehearsal.starts, kind: rehearsed.kind, mode: body?.mode, color: body?.color, message: rehearsed.lines?.[0], text: rehearsed.text })
+    .toEqual({ starts: true, kind, mode, color, message, text: effect ?? '' });
+  expect(body?.segments.map((segment) => segment.text).join('')).toBe(message);
 });
 
 test.each(steps)('$type validates immediately after adding', ({ type }) => {
@@ -96,6 +99,21 @@ test('offline trigger saves, reopens and rehearses', () => {
   expect({ trigger: saved.trigger, issues: validateDefinition(saved) }).toEqual({ trigger: { type: 'event', params: { kind: 'stream.offline' } }, issues: [] });
   const opened = valueOf(definitionToFlow(saved, flow));
   expect(opened.nodes[0]?.type).toBe(root.type);
-  const step = rehearseFlow(flow, english)[0]!;
-  expect(step.kind === 'event' && step.segments.map((segment) => segment.text).join('')).toBe('Your stream ends');
+  const rehearsal = rehearseFlow(opened, english);
+  expect({ starts: rehearsal.starts, live: rehearsal.scenario.live, summary: rehearsal.summary, steps: rehearsal.steps.map(({ kind, text, lines }) => ({ kind, text, lines })) })
+    .toEqual({ starts: true, live: false, summary: 'Your stream ends', steps: [
+      { kind: 'trigger', text: 'Your stream ends', lines: undefined },
+      { kind: 'say', text: '', lines: ['See you soon!'] }
+    ] });
+});
+
+test.each([
+  { user: 'Lotti', message: '@Lotti Thanks for coming!' },
+  { user: '@Lotti', message: '@Lotti Thanks for coming!' }
+])('viewer reply preserves the executor prefix for $user', ({ user, message }) => {
+  const flow = newFlow('Viewer reply');
+  const root = addNode(flow, 'twitch.raid', { x: 0, y: 0 });
+  addNode(flow, 'reply.reply', { x: 0, y: 0 }, { from: root.id, port: 'next' }).config.text = 'Thanks for coming!';
+  const step = rehearseFlow(flow, english, { scenario: { user } }).steps.at(-1)!;
+  expect([step.lines, step.chatLines[0]?.segments]).toEqual([[message], [{ kind: 'plain', text: message }]]);
 });

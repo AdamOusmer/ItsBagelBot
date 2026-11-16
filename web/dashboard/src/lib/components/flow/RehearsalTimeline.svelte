@@ -7,7 +7,7 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
-  import ChatBotName from '#lib/components/commands/ChatBotName.svelte';
+  import RehearsedLineRow from '#lib/components/commands/RehearsedLineRow.svelte';
   import '@bagel/ui/styles/elements/chat-preview.css';
   import { setStoredValue, type RehearsalStep } from '#lib/flow/rehearse';
 
@@ -90,14 +90,14 @@
             <button class="select" type="button" disabled={!step.id} onclick={() => step.id && onSelect(step.id)}>
               <span class="label"><bb-fit><span data-fit>{step.label}</span></bb-fit></span>
               {#if step.text}<span class="detail"><bb-fit mode="block"><span data-fit>{step.text}</span></bb-fit></span>{/if}
-              {#if step.kind === 'say'}
-                <span class="bubble">
-                  {#each step.lines ?? [] as line, index (index)}
-                    <span class="chat-line"><ChatBotName seed="ItsBagelBot" /><span class="chat-text">{line}</span></span>
-                  {/each}
-                </span>
-              {/if}
             </button>
+            {#if step.kind === 'say'}
+              <div class="bubble">
+                {#each step.chatLines as line, index (index)}
+                  <RehearsedLineRow {line} seed="ItsBagelBot" />
+                {/each}
+              </div>
+            {/if}
             {#if step.kind === 'check'}<span class="result">{status(step)}</span>{/if}
             {#if step.sample}<span class="context">{t('flows.test.sample')}</span>{/if}
             {#if step.missing.length}<span class="missing">{t('flows.test.missing', { names: step.missing.join(', ') })}</span>{/if}
@@ -146,9 +146,7 @@
   .context { font-size: 12px; line-height: 1.4; color: var(--bb-muted-light); }
   .result { font-weight: 600; }
   .muted { opacity: 0.6; }
-  .bubble { padding: 10px 12px; border-radius: var(--bb-radius-sm); background: var(--bb-bg-2); }
-  .chat-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; line-height: 1.5; }
-  .chat-text { overflow-wrap: anywhere; min-width: 0; }
+  .bubble { min-width: 0; }
   .missing { color: var(--bb-tan); }
   .pretend { display: flex; flex-direction: column; gap: 4px; }
   .repair { min-height: 32px; }

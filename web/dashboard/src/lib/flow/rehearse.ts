@@ -1,12 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import type { MessageKey } from '@bagel/kit';
-import { compileFlow } from '@bagel/kit/automations';
-import { defaultScenario, rehearseDefinition, SCENARIO_FIELDS, scenarioKind } from '../../../../kit/lib/automations/rehearsal';
-import type { RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '../../../../kit/lib/automations/rehearsal';
-import { scenarioIdentity } from '../../../../kit/lib/automations/rehearsal-scenario';
-export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '../../../../kit/lib/automations/rehearsal';
-import type { Definition, Issue } from '@bagel/kit/automations';
+import type { MessageKey, RehearsedLine } from '@bagel/kit';
+import { compileFlow, defaultScenario, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind } from '@bagel/kit/automations';
+import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
+export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldLabel, stepLabel } from './copy';
 import { describe } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
@@ -19,6 +16,7 @@ export type RehearsalStep = RehearsalEvent & {
   id: Text | null;
   label: Text;
   text: Text;
+  chatLines: RehearsedLine[];
   missing: Text[];
   sample: boolean;
   node?: FlowNode;
@@ -125,6 +123,7 @@ export function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind:
     reward: t('flows.test.summaryReward', { user, input: scenario.input ?? '' }),
     unban_request: t('flows.test.summaryUnban', { user, text: scenario.requestText ?? '' }),
     stream_online: t('flows.test.summaryLive'),
+    stream_offline: t('flows.line.eventOffline'),
     countdown_finished: t('flows.test.summaryCountdown', { name: scenario.name ?? '' })
   };
   return summaries[key] ?? t('flows.test.summaryEvent', { user });
@@ -166,19 +165,31 @@ function loopText(t: Translate, event: RehearsalEvent): Text {
   return event.port === 'done' ? t('flows.test.loopDone') : t('flows.test.loop', { count: event.detail?.times ?? '' });
 }
 
-function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, line: Text): Text {
+function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, line: Text, t: Translate): Text {
+  if (node?.type === 'twitch.stream.offline') return t('flows.line.eventOffline');
   return node?.type.startsWith('twitch.chat.') ? scenario.message ?? line : line;
 }
 
+function effectText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Text {
+  if (!node) return t('flows.test.effect');
+  const config = { ...node.config, target: event.detail?.login ?? node.config.target };
+  return describe(t, { ...node, config });
+}
+
 function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined, scenario: RehearsalScenario): Text {
-  const line = node ? describe(t, node) : t('flows.test.effect');
+  const line = effectText(t, event, node);
   const detail = event.detail ?? {};
   const texts = {
-    trigger: triggerText(node, scenario, line), parallel: '', loop: loopText(t, event),
+    trigger: triggerText(node, scenario, line, t), parallel: '', loop: loopText(t, event),
     wait: t('flows.test.wait', { seconds: Number(detail.ms) / 1000 }),
     check: node ? checkText(t, node, scenario) : line, effect: line, say: '', skip: line
   };
   return detail.code ? reasonText(t, detail.code) : texts[event.kind];
+}
+
+function chatLines(event: RehearsalEvent): RehearsedLine[] {
+  const mode = event.detail?.mode === 'announce' ? 'announce' : 'chat';
+  return (event.lines ?? []).map((text) => ({ mode, color: event.detail?.color, segments: [{ text, kind: 'plain' }] }));
 }
 
 function reasonText(t: Translate, code: Text): Text {
@@ -222,7 +233,7 @@ function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): R
   const spec = node ? specFor(node.type) : undefined;
   const tokens = (event.detail?.missing ?? '').split(',').filter(Boolean).map((token) => token.replace(/^unset:/, ''));
   const missing = [...tokens, ...unsetFields(t, node)];
-  return { ...event, id, node, missing, sample: /\{(?:random|choice)[}:]/.test(String(node?.config.message ?? '')),
+  return { ...event, id, node, missing, chatLines: chatLines(event), sample: /\{(?:random|choice)[}:]/.test(String(node?.config.message ?? '')),
     label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
     text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)), repair: verifiedRepair(node, event, context) };
 }

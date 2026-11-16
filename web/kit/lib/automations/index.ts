@@ -10,3 +10,4 @@ export * from './compare';
 export * from './flow-graph';
 export * from './flow-layer';
 export * from './flow-share';
+export * from './rehearsal';

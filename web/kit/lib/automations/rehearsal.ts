@@ -10,7 +10,7 @@ import type { Action, Condition, Definition } from './types';
 import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalResult, RehearsalScenario } from './rehearsal-types';
 
 export type * from './rehearsal-types';
-export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioKind } from './rehearsal-scenario';
+export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind } from './rehearsal-scenario';
 
 type Path = string;
 type Frame = { context: RehearsalContext; lane: number[]; iteration: number[]; delayMs: number; stopped: boolean };
@@ -175,7 +175,7 @@ function say(step: Step, run: Execution, frame: Frame): void {
   const outcome = applyAction(step.action, frame.context);
   const message = outcome.detail?.text ?? expanded.text;
   const lines = message.split('\n').filter((line) => trimSpace(line) !== '').slice(0, MAX_RESPONSE_LINES);
-  const style = step.action.type === 'announce' ? { mode: 'announce', color: String(step.action.params?.color || 'primary') } : {};
+  const style: Record<string, string> = step.action.type === 'announce' ? { mode: 'announce', color: String(step.action.params?.color || 'primary') } : {};
   const detail = { ...style, missing: expanded.missing.join(','), ...(lines.length === 0 ? { code: 'empty' } : {}) };
   emit(run, frame, { kind: 'say', status: lines.length > 0 ? 'ok' : 'skipped', lines, detail });
 }
