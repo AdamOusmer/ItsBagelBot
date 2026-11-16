@@ -1,12 +1,12 @@
 {
-  "broke": "@{gamble:user} tu mises de la pâte que tu n'as pas. tu as {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} doucement, flambeur. les dés refroidissent encore, réessaie dans {gamble:secs}s.",
-  "err": "@{gamble:user} les dés ont roulé sous le grille-pain. réessaie.",
-  "lose": "@{gamble:user} tu as fait {gamble:roll} et perdu {gamble:amount} {gamble:points}. il te reste {gamble:balance}. la maison te remercie pour ton don.",
-  "range": "@{gamble:user} ce gain ne rentrerait même pas dans mon coffre. mise un peu moins.",
-  "max": "@{gamble:user} holà, gros joueur. la mise max est de {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} c'est des miettes, ça. la mise minimale est de {gamble:min} {gamble:points}.",
-  "usage": "@{gamble:user} on risque combien ? !gamble <montant|half|all>",
-  "unknown": "@{gamble:user} t'es qui, toi ? je ne t'ai jamais vu ici. reste un peu et gagne des {gamble:points} d'abord.",
-  "win": "@{gamble:user} tu as fait {gamble:roll} et gagné {gamble:amount} {gamble:points} ! {gamble:balance} dans la poche. tout chaud sorti du four, comme moi."
+  "broke": "@{gamble:user} tu n'as que {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} doucement, réessaie dans {gamble:secs}s.",
+  "err": "@{gamble:user} ça n'a pas marché, réessaie.",
+  "lose": "@{gamble:user} tu as fait {gamble:roll} et perdu {gamble:amount} {gamble:points}. Il te reste {gamble:balance}.",
+  "range": "@{gamble:user} cette mise est trop grosse.",
+  "max": "@{gamble:user} la mise max est de {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} la mise min est de {gamble:min} {gamble:points}.",
+  "usage": "@{gamble:user} essaie !gamble <montant|half|all>",
+  "unknown": "@{gamble:user} je ne t'ai pas encore vu ici. Reste un peu pour gagner des {gamble:points}.",
+  "win": "@{gamble:user} tu as fait {gamble:roll} et gagné {gamble:amount} {gamble:points} ! Tu as maintenant {gamble:balance}."
 }

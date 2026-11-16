@@ -1,12 +1,12 @@
 {
-  "broke": "@{gamble:user} você tá apostando massa que não tem. seu saldo é {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} calma, apostador. os dados ainda estão esfriando, tenta de novo em {gamble:secs}s.",
-  "err": "@{gamble:user} os dados rolaram pra baixo da torradeira. tenta de novo.",
-  "lose": "@{gamble:user} tirou {gamble:roll} e perdeu {gamble:amount} {gamble:points}. sobraram {gamble:balance}. a casa agradece a doação.",
-  "range": "@{gamble:user} esse prêmio não caberia nem no meu cofre. aposta um pouco menos.",
-  "max": "@{gamble:user} opa, gastador. o máximo da mesa é {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} isso é migalha. a aposta mínima é {gamble:min} {gamble:points}.",
-  "usage": "@{gamble:user} quanto vamos arriscar? !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} quem é você? ainda não te vi por aqui. fica um pouco e ganha uns {gamble:points} primeiro.",
-  "win": "@{gamble:user} tirou {gamble:roll} e ganhou {gamble:amount} {gamble:points}! {gamble:balance} no bolso. saindo do forno, igualzinho a mim."
+  "broke": "@{gamble:user} você só tem {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} calma, tenta de novo em {gamble:secs}s.",
+  "err": "@{gamble:user} algo deu errado, tenta de novo.",
+  "lose": "@{gamble:user} tirou {gamble:roll} e perdeu {gamble:amount} {gamble:points}. Sobraram {gamble:balance}.",
+  "range": "@{gamble:user} essa aposta é grande demais.",
+  "max": "@{gamble:user} a aposta máxima é {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} a aposta mínima é {gamble:min} {gamble:points}.",
+  "usage": "@{gamble:user} tenta !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} ainda não te vi por aqui. Fica um pouco para ganhar {gamble:points}.",
+  "win": "@{gamble:user} tirou {gamble:roll} e ganhou {gamble:amount} {gamble:points}! Agora você tem {gamble:balance}."
 }

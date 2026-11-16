@@ -1,12 +1,12 @@
 {
-  "broke": "@{gamble:user} ставишь тесто, которого у тебя нет. у тебя {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} полегче, азартный. кубики ещё остывают, попробуй через {gamble:secs} сек.",
-  "err": "@{gamble:user} кубики закатились под тостер. попробуй ещё раз.",
-  "lose": "@{gamble:user} выпало {gamble:roll}, минус {gamble:amount} {gamble:points}. осталось {gamble:balance}. заведение благодарит за пожертвование.",
-  "range": "@{gamble:user} такой выигрыш даже в мой сейф не влезет. поставь поменьше.",
-  "max": "@{gamble:user} эй, транжира. максимальная ставка: {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} это крошки. минимальная ставка: {gamble:min} {gamble:points}.",
-  "usage": "@{gamble:user} сколько рискуем? !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} а ты кто? я тебя здесь ещё не видел. посиди тут и сначала заработай {gamble:points}.",
-  "win": "@{gamble:user} выпало {gamble:roll}, плюс {gamble:amount} {gamble:points}! теперь у тебя {gamble:balance}. прямо из печи, как и я."
+  "broke": "@{gamble:user} у тебя только {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} не спеши, попробуй через {gamble:secs} сек.",
+  "err": "@{gamble:user} что-то пошло не так, попробуй ещё раз.",
+  "lose": "@{gamble:user} выпало {gamble:roll}, минус {gamble:amount} {gamble:points}. Осталось {gamble:balance}.",
+  "range": "@{gamble:user} слишком большая ставка.",
+  "max": "@{gamble:user} максимальная ставка: {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} минимальная ставка: {gamble:min} {gamble:points}.",
+  "usage": "@{gamble:user} попробуй !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} я тебя здесь ещё не видел. Побудь тут, чтобы заработать {gamble:points}.",
+  "win": "@{gamble:user} выпало {gamble:roll}, плюс {gamble:amount} {gamble:points}! Теперь у тебя {gamble:balance}."
 }

@@ -1,12 +1,12 @@
 {
-  "broke": "@{gamble:user} you're betting dough you don't have. you've got {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} easy, high roller. the dice are still cooling, try again in {gamble:secs}s.",
-  "err": "@{gamble:user} the dice rolled under the toaster. try that again.",
-  "lose": "@{gamble:user} rolled {gamble:roll} and lost {gamble:amount} {gamble:points}. {gamble:balance} left. the house thanks you for your donation.",
-  "range": "@{gamble:user} that win wouldn't even fit in my vault. bet a little smaller.",
-  "max": "@{gamble:user} whoa there, big spender. table max is {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} that's crumbs. minimum bet is {gamble:min} {gamble:points}.",
-  "usage": "@{gamble:user} how much are we risking? !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} who are you? I haven't seen you here yet. stick around and earn some {gamble:points} first.",
-  "win": "@{gamble:user} rolled {gamble:roll} and won {gamble:amount} {gamble:points}! {gamble:balance} in the bag. fresh out the oven, just like me."
+  "broke": "@{gamble:user} you only have {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} slow down, try again in {gamble:secs}s.",
+  "err": "@{gamble:user} something went wrong, try again.",
+  "lose": "@{gamble:user} rolled {gamble:roll} and lost {gamble:amount} {gamble:points}. {gamble:balance} left.",
+  "range": "@{gamble:user} that bet is too big.",
+  "max": "@{gamble:user} max bet is {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} min bet is {gamble:min} {gamble:points}.",
+  "usage": "@{gamble:user} try !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} I haven't seen you here yet. Hang out a bit to earn some {gamble:points}.",
+  "win": "@{gamble:user} rolled {gamble:roll} and won {gamble:amount} {gamble:points}! You now have {gamble:balance}."
 }

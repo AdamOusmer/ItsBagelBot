@@ -69,16 +69,16 @@ func TestGamble(t *testing.T) {
 		{name: "all stakes the whole balance up to the cap", roll: 50, who: "bob", text: "!gamble all",
 			contains: []string{"won 1000"}, wagers: []engine.PointWager{wagerOf("bob", 1000, true)}},
 		{name: "a bet the balance cannot cover moves nothing", who: "bob", config: `{"maxBet":5000}`, text: "!gamble 2000",
-			contains: []string{"dough you don't have", "you've got 1234"}},
+			contains: []string{"you only have 1234"}},
 		{name: "no amount prints usage", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble", contains: []string{"!gamble"}},
 		{name: "a bet under the minimum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble 5",
-			contains: []string{"minimum bet is 10"}},
+			contains: []string{"min bet is 10"}},
 		{name: "all from a balance under the minimum says the chatter is short", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble all",
-			fake: fakeLoyalty{getPoints: 5}, contains: []string{"dough you don't have", "you've got 5"}, excludes: []string{"minimum"}},
+			fake: fakeLoyalty{getPoints: 5}, contains: []string{"you only have 5"}, excludes: []string{"min bet"}},
 		{name: "a bet over the maximum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble 900",
-			contains: []string{"table max is 500"}},
+			contains: []string{"max bet is 500"}},
 		{name: "bet limits saved as text by the dashboard are honored", who: "alice", config: `{"minBet":"10","maxBet":"500"}`, text: "!gamble 900",
-			contains: []string{"table max is 500"}},
+			contains: []string{"max bet is 500"}},
 		{name: "a win chance saved as text is honored", roll: 99, who: "alice", config: `{"winPercent":"100"}`, text: "!gamble 300",
 			contains: []string{"won 300"}, wagers: []engine.PointWager{wagerOf("alice", 300, true)}},
 		{name: "TestGambleUnknownViewer", roll: 50, who: "ghost", text: "!gamble 50",
@@ -89,11 +89,11 @@ func TestGamble(t *testing.T) {
 			view: loyaltyView(true, `{"pointsName":"bagels"}`), exact: "@erin busted 50 bagels, 1184 left", wagers: []engine.PointWager{wagerOf("erin", 50, false)}},
 		{name: "stays silent while loyalty is off", who: "alice", text: "!gamble 300", view: loyaltyView(false, `{}`), silent: true},
 		{name: "TestGambleRejectsBIGINTOverflowBeforeDebit doubled payout", who: "alice", config: maxBet, text: "!gamble 4611686018427387904",
-			fake: fakeLoyalty{getPoints: math.MaxInt64/2 + 1}, contains: []string{"fit in my vault"}},
+			fake: fakeLoyalty{getPoints: math.MaxInt64/2 + 1}, contains: []string{"too big"}},
 		{name: "TestGambleRejectsBIGINTOverflowBeforeDebit net winnings", who: "alice", config: maxBet, text: "!gamble 1",
-			fake: fakeLoyalty{getPoints: math.MaxInt64}, contains: []string{"fit in my vault"}},
+			fake: fakeLoyalty{getPoints: math.MaxInt64}, contains: []string{"too big"}},
 		{name: "TestGambleStaleCapacityRefusalDoesNotAnnounceWin", roll: 1, who: "alice", text: "!gamble 1",
-			fake: fakeLoyalty{getPoints: math.MaxInt64 - 2, wagerLimit: true}, contains: []string{"fit in my vault"}, excludes: []string{"won"},
+			fake: fakeLoyalty{getPoints: math.MaxInt64 - 2, wagerLimit: true}, contains: []string{"too big"}, excludes: []string{"won"},
 			wagers: []engine.PointWager{wagerOf("alice", 1, true)}},
 	}
 	for _, tc := range cases {
@@ -141,7 +141,7 @@ func TestGamblePerUserCooldown(t *testing.T) {
 
 	cd.allow = append(cd.allow, true)
 	dave := withConfig(chatCtx("42", "dave"), config)
-	assert.NotContains(t, runChat(t, m, dave, "!gamble 10")[0].Text, "cooling")
+	assert.NotContains(t, runChat(t, m, dave, "!gamble 10")[0].Text, "slow down")
 }
 
 func TestGambleRollFailureDoesNotMovePoints(t *testing.T) {

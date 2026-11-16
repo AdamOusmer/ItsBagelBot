@@ -1,12 +1,12 @@
 {
-  "broke": "@{gamble:user} du setzt Teig, den du nicht hast. du hast {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} langsam, Zocker. die Würfel kühlen noch ab, versuch's in {gamble:secs}s nochmal.",
-  "err": "@{gamble:user} die Würfel sind unter den Toaster gerollt. versuch's nochmal.",
-  "lose": "@{gamble:user} du hast {gamble:roll} gewürfelt und {gamble:amount} {gamble:points} verloren. noch {gamble:balance} übrig. das Haus dankt für deine Spende.",
-  "range": "@{gamble:user} dieser Gewinn passt nicht mal in meinen Tresor. setz etwas weniger.",
-  "max": "@{gamble:user} hoppla, Highroller. der Höchsteinsatz liegt bei {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} das sind Krümel. der Mindesteinsatz liegt bei {gamble:min} {gamble:points}.",
-  "usage": "@{gamble:user} wie viel riskieren wir? !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} wer bist du denn? dich hab ich hier noch nie gesehen. bleib ein bisschen und verdien dir erst mal {gamble:points}.",
-  "win": "@{gamble:user} du hast {gamble:roll} gewürfelt und {gamble:amount} {gamble:points} gewonnen! {gamble:balance} im Sack. frisch aus dem Ofen, genau wie ich."
+  "broke": "@{gamble:user} du hast nur {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} langsam, versuch's in {gamble:secs}s nochmal.",
+  "err": "@{gamble:user} das hat nicht geklappt, versuch's nochmal.",
+  "lose": "@{gamble:user} du hast {gamble:roll} gewürfelt und {gamble:amount} {gamble:points} verloren. Noch {gamble:balance} übrig.",
+  "range": "@{gamble:user} diese Wette ist zu groß.",
+  "max": "@{gamble:user} maximal {gamble:max} {gamble:points} pro Wette.",
+  "min": "@{gamble:user} mindestens {gamble:min} {gamble:points} pro Wette.",
+  "usage": "@{gamble:user} probier !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} dich hab ich hier noch nicht gesehen. Bleib ein bisschen, um {gamble:points} zu sammeln.",
+  "win": "@{gamble:user} du hast {gamble:roll} gewürfelt und {gamble:amount} {gamble:points} gewonnen! Du hast jetzt {gamble:balance}."
 }
