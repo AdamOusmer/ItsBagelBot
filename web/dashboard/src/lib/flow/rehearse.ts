@@ -91,6 +91,8 @@ function eventLine(t: Translate, spec: NodeSpec, node: FlowNode): string {
       return rewardEvent(t, spec, node);
     case 'twitch.stream.online':
       return t('flows.line.eventLive');
+    case 'twitch.stream.offline':
+      return t('flows.line.eventOffline');
     default:
       return '';
   }
@@ -119,7 +121,22 @@ function comparePasses(ctx: StepContext): boolean {
   return compare(String(ctx.node.config.op ?? 'gte'), left, right);
 }
 
+function announcement(ctx: StepContext): StepBody {
+  const color = String(ctx.node.config.color || 'primary');
+  const lines = ctx.lines(configText(ctx.node, 'text')).map((line): RehearsedLine => ({ ...line, mode: 'announce', color }));
+  return { kind: 'bot', lines };
+}
+
+function viewerReply(ctx: StepContext): StepBody {
+  const name = sampleOf(ctx, 'user').replace(/^@/, '');
+  const message = configText(ctx.node, 'text');
+  const prefix = name && ctx.value(message).trim() ? `@${name} ` : '';
+  return { kind: 'bot', lines: ctx.lines(prefix + message) };
+}
+
 const REHEARSERS: Readonly<Record<string, Rehearser>> = {
+  'reply.announce': announcement,
+  'reply.reply': viewerReply,
   'twitch.chat.command': (ctx) => ({
     kind: 'viewer',
     name: sampleOf(ctx, 'user'),
@@ -136,6 +153,7 @@ const REHEARSERS: Readonly<Record<string, Rehearser>> = {
   'twitch.raid': atLeast('viewers', 'minViewers'),
   'twitch.reward': event,
   'twitch.stream.online': event,
+  'twitch.stream.offline': event,
   'cond.compare': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: comparePasses(ctx) }),
   'reply.lights': (ctx) => {
     const when = ctx.node.config.liveOnly === false ? ctx.words.lightsAnyTime : ctx.words.lightsLiveOnly;

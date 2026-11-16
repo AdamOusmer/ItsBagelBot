@@ -15,6 +15,10 @@ import ru from '../../../../../locales/ru/console/flows/board.json';
 const at = { x: 0, y: 0 };
 
 const prefills = {
+  'reply.shoutout': { target: '{user}' },
+  'reply.announce': { text: 'Thanks {user}!', color: 'primary' },
+  'reply.reply': { text: 'Thanks {user}!' },
+  'reply.timeout': { target: '{user}', seconds: 60 },
   'reply.wait': { seconds: 5 },
   'cond.cooldown': { seconds: 30 },
   'reply.chat': { message: 'Thanks {user}!' },

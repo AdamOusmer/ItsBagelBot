@@ -75,7 +75,8 @@ const THRESHOLD_FILTERS: Record<string, { key: string; filter: string }> = {
 const FIXED_EVENT_NODES: Record<string, string> = {
   'twitch.follow': 'channel.follow',
   'twitch.unban_request': 'channel.unban_request.create',
-  'twitch.stream.online': 'stream.online'
+  'twitch.stream.online': 'stream.online',
+  'twitch.stream.offline': 'stream.offline'
 };
 
 const isTriggerType = (type: string) => (type.startsWith('twitch.') || type === 'countdown.finished');
@@ -147,6 +148,7 @@ const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = 
   'twitch.follow': () => eventTrigger('channel.follow'),
   'twitch.unban_request': () => eventTrigger('channel.unban_request.create'),
   'twitch.stream.online': () => eventTrigger('stream.online'),
+  'twitch.stream.offline': () => eventTrigger('stream.offline'),
   'twitch.sub': subTrigger,
   'twitch.cheer': (config) => thresholdTrigger('channel.cheer', config),
   'twitch.raid': (config) => thresholdTrigger('channel.raid', config),
@@ -154,6 +156,10 @@ const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = 
 };
 
 const TEMPLATE_FIELDS: Record<string, string[]> = {
+  'reply.shoutout': ['target'],
+  'reply.announce': ['text'],
+  'reply.reply': ['text'],
+  'reply.timeout': ['target', 'reason'],
   'reply.poll': ['title', 'choices'],
   'reply.prediction': ['title', 'outcomes'],
   'reply.raid': ['target'],

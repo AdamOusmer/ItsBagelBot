@@ -14,6 +14,10 @@ type NodeType = FlowNode['type'];
 type NodeId = FlowNode['id'];
 
 const NODE_PREFILLS: Record<NodeType, FlowNode['config']> = {
+  'reply.shoutout': { target: '{user}' },
+  'reply.announce': { text: '{user}' },
+  'reply.reply': { text: '{user}' },
+  'reply.timeout': { target: '{user}', seconds: 60 },
   'reply.wait': { seconds: 5 },
   'cond.cooldown': { seconds: 30 },
   'cond.chance': { percent: 50 }
@@ -45,6 +49,7 @@ function defaultConfig(flow: Flow, type: NodeType, chatMessage = ''): FlowNode['
   const defaults = specFor(type)?.fields.flatMap(fieldDefaults) ?? [];
   const config = { ...Object.fromEntries(defaults), ...NODE_PREFILLS[type] };
   if (type === 'reply.chat') config.message = hasViewer(flow) ? chatMessage : '';
+  if (['reply.announce', 'reply.reply'].includes(type) && chatMessage) config.text = chatMessage;
   return config;
 }
 

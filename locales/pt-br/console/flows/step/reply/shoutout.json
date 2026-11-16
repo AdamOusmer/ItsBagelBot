@@ -1,0 +1,6 @@
+{
+  "label": "Shoutout",
+  "summary": "Recomende um canal na Twitch",
+  "keywords": "shoutout so recomendar canal raid",
+  "field": { "target": { "label": "Login do canal" } }
+}

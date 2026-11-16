@@ -172,8 +172,11 @@ function effect(step: Step, run: Execution, frame: Frame): void {
 
 function say(step: Step, run: Execution, frame: Frame): void {
   const expanded = expandTemplate(String(step.action.params?.text ?? ''), frame.context);
-  const lines = expanded.text.split('\n').filter((line) => trimSpace(line) !== '').slice(0, MAX_RESPONSE_LINES);
-  const detail = { missing: expanded.missing.join(','), ...(lines.length === 0 ? { code: 'empty' } : {}) };
+  const outcome = applyAction(step.action, frame.context);
+  const message = outcome.detail?.text ?? expanded.text;
+  const lines = message.split('\n').filter((line) => trimSpace(line) !== '').slice(0, MAX_RESPONSE_LINES);
+  const style = step.action.type === 'announce' ? { mode: 'announce', color: String(step.action.params?.color || 'primary') } : {};
+  const detail = { ...style, missing: expanded.missing.join(','), ...(lines.length === 0 ? { code: 'empty' } : {}) };
   emit(run, frame, { kind: 'say', status: lines.length > 0 ? 'ok' : 'skipped', lines, detail });
 }
 
@@ -192,7 +195,7 @@ function* execute(step: Step, run: Execution, frame: Frame): Generator<number, v
   if (limited('effects', run, frame)) return;
   const handler = EFFECTS[step.action.type];
   if (handler) return yield* handler(step, run, frame);
-  if (step.action.type === 'chat') return say(step, run, frame);
+  if (['chat', 'announce', 'reply'].includes(step.action.type)) return say(step, run, frame);
   effect(step, run, frame);
 }
 

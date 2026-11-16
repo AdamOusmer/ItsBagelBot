@@ -1,0 +1,6 @@
+{
+  "label": "Reply to viewer",
+  "summary": "Mention the viewer in a chat reply",
+  "keywords": "reply thread answer mention message",
+  "field": { "text": { "label": "Message" } }
+}

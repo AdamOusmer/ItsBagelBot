@@ -26,6 +26,7 @@ export const SCENARIO_FIELDS: Readonly<Record<string, readonly ScenarioField[]>>
   'twitch.reward': [...VIEWER, { key: 'input', kind: 'text', default: 'lofi beats' }, LIVE],
   'twitch.unban_request': [...VIEWER, { key: 'requestText', kind: 'text', default: 'please unban me' }, LIVE],
   'twitch.stream.online': [LIVE],
+  'twitch.stream.offline': [{ ...LIVE, default: false }],
   'countdown.finished': [LIVE]
 };
 
@@ -37,7 +38,8 @@ const EVENT_SCENARIOS: Readonly<Record<string, string>> = {
   'channel.cheer': 'twitch.cheer',
   'channel.raid': 'twitch.raid',
   'channel.unban_request.create': 'twitch.unban_request',
-  'stream.online': 'twitch.stream.online'
+  'stream.online': 'twitch.stream.online',
+  'stream.offline': 'twitch.stream.offline'
 };
 
 export function scenarioKind(definition: Definition): string {

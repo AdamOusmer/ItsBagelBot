@@ -9,6 +9,10 @@ type Fields = Record<string, ValueKind>;
 type StreamNode = { type: string; config: FlowConfig };
 
 const STREAM_FIELDS: Record<string, Fields> = {
+  shoutout: { login: 'text' },
+  announce: { text: 'text', color: 'text' },
+  reply: { text: 'text' },
+  timeout: { login: 'text', seconds: 'number', reason: 'text' },
   poll: { title: 'text', choices: 'lines', seconds: 'number' },
   poll_end: { status: 'text' },
   prediction: { title: 'text', outcomes: 'lines', seconds: 'number' },
@@ -25,8 +29,6 @@ const STREAM_FIELDS: Record<string, Fields> = {
   branded_content: { on: 'toggle' }
 };
 
-// Login templates are resolved by outgress when the step runs, rather than bound
-// to the viewer ID field used by a condition in the editor.
 const configKey = (param: string): string => (param === 'login' ? 'target' : param);
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
@@ -53,7 +55,6 @@ function streamAction(type: string, config: FlowConfig): Action {
 
 function streamNode(type: string, params: Params): StreamNode | null {
   const fields = STREAM_FIELDS[type]!;
-  // A newline inside one option cannot be represented as one option per line.
   const lists = Object.entries(fields).filter(([, kind]) => kind === 'lines');
   if (lists.some(([key]) => hasMultilineOption(params[key]))) return null;
   const supplied = Object.entries(fields).filter(([key]) => params[key] !== undefined);

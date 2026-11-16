@@ -1,4 +1,9 @@
 {
+  "shoutout": "Shoutout para {target}",
+  "announce": "Anúncio: {message}",
+  "reply": "Resposta ao espectador: {message}",
+  "timeout": "Silenciar {target} por {amount}",
+  "eventOffline": "Sua live termina",
   "command": "Alguém digita {trigger} no chat",
   "word": "Alguém diz {word} no chat",
   "subAny": "Alguém recebe uma sub nova ou de presente",
