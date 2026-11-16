@@ -8,14 +8,8 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/pkg/bus"
 	"go.uber.org/zap"
 )
-
-func counterReceiptRetention() time.Duration {
-	window := data.CounterReceiptTTL + bus.DataStream.MaxAge
-	return (window + time.Hour - 1) / time.Hour * time.Hour
-}
 
 func (r *Loyalty) PruneCounterReceipts(ctx context.Context) error {
 	if !r.counterReady.Load() {
@@ -23,7 +17,7 @@ func (r *Loyalty) PruneCounterReceipts(ctx context.Context) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, watchHistoryPruneBudget)
 	defer cancel()
-	cutoff := time.Now().Add(-counterReceiptRetention()).Unix()
+	cutoff := time.Now().Add(-data.CounterReceiptRetention).Unix()
 	for range watchHistoryPrunePasses {
 		more, err := r.pruneCounterReceiptChunk(ctx, cutoff)
 		if err != nil || !more {

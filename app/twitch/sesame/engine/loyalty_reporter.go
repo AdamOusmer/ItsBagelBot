@@ -52,18 +52,20 @@ type bumpAgg struct {
 }
 
 type LoyaltyReporter struct {
-	pub      bus.Publisher
-	log      *zap.Logger
-	done     chan struct{}
-	finished chan struct{}
-	wake     chan struct{}
+	pub        bus.Publisher
+	log        *zap.Logger
+	done       chan struct{}
+	finished   chan struct{}
+	wake       chan struct{}
+	wakeup     counterReporterWake
+	earnWake   chan struct{}
+	earnWakeup counterReporterWake
 
-	now     func() time.Time
-	flushMu sync.Mutex
-	pending []counterPublication
-	// Earned publications never use the loss-tolerant counter retry horizon.
-	// This queue still requires the producer process to remain alive.
-	earnPending []counterPublication
+	now         func() time.Time
+	flushMu     sync.Mutex
+	pending     counterPublications
+	earnPending counterPublications
+	nextLog     time.Time
 	mu          sync.Mutex
 	earn        map[earnKey]*earnAgg
 	bumps       map[counterAgg]*bumpAgg
@@ -77,6 +79,7 @@ func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
 		done:     make(chan struct{}),
 		finished: make(chan struct{}),
 		wake:     make(chan struct{}, 1),
+		earnWake: make(chan struct{}, 1),
 		earn:     map[earnKey]*earnAgg{},
 		bumps:    map[counterAgg]*bumpAgg{},
 	}
@@ -89,7 +92,9 @@ func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
 			case <-ticker.C:
 				r.flush(context.Background())
 			case <-r.wake:
-				r.flush(context.Background())
+				r.wakeup.flush(r.flush)
+			case <-r.earnWake:
+				r.earnWakeup.flush(r.flush)
 			case <-r.done:
 				return
 			}
@@ -98,11 +103,14 @@ func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
 	return r
 }
 
-func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64) {
-	if broadcasterID == 0 || viewerID == 0 || (points == 0 && watchSeconds == 0) {
+func (r *LoyaltyReporter) Earn(e PointEarning) {
+	if e.BroadcasterID == 0 || e.ViewerID == 0 {
 		return
 	}
-	key := earnKey{broadcasterID: broadcasterID, viewerID: viewerID}
+	if e.Points == 0 && e.WatchSeconds == 0 {
+		return
+	}
+	key := earnKey{broadcasterID: e.BroadcasterID, viewerID: e.ViewerID}
 
 	r.mu.Lock()
 	agg := r.earn[key]
@@ -110,13 +118,13 @@ func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name strin
 		agg = &earnAgg{}
 		r.earn[key] = agg
 	}
-	agg.add(data.LoyaltyEarnEntry{ViewerLogin: login, ViewerName: name, Points: points, WatchSeconds: watchSeconds})
+	agg.add(data.LoyaltyEarnEntry{ViewerLogin: e.Login, ViewerName: e.Name, Points: e.Points, WatchSeconds: e.WatchSeconds})
 
 	overflow := len(r.earn) >= loyaltyMaxKeys
 	r.mu.Unlock()
 
 	if overflow {
-		r.nudge()
+		r.earnWakeup.nudge(r.earnWake)
 	}
 }
 
@@ -199,7 +207,6 @@ func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
 	}
 }
 
-// counterDelta is a signed change, including decrements for custom counters.
 type counterDelta int64
 
 func (target CounterBumpTarget) acceptsDelta(delta counterDelta) bool {
@@ -223,25 +230,41 @@ func (agg *bumpAgg) acceptsDelta(delta counterDelta) bool {
 }
 
 func (r *LoyaltyReporter) nudge() {
-	select {
-	case r.wake <- struct{}{}:
-	default:
-	}
+	r.wakeup.nudge(r.wake)
 }
 
 func (r *LoyaltyReporter) flush(ctx context.Context) {
+	r.flushWith(ctx, counterPublicationAttempt{now: r.clock()})
+}
+
+func (r *LoyaltyReporter) flushWith(ctx context.Context, attempt counterPublicationAttempt) {
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
-	r.earnPending = retryCounterPublications(ctx, r.pub, r.log, r.earnPending)
-	r.pending = abandonStaleCounterPublications(r.log, r.pending, r.clock())
-	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
+	defer r.reportBacklog()
+	if !attempt.final {
+		r.earnPending = r.earnPending.retry(ctx, r.pub, r.log, attempt)
+		r.pending = r.pending.retry(ctx, r.pub, r.log, attempt)
+	}
+	earn, bumps := r.drain(attempt)
+	r.publishEarned(earn)
+	r.publishBumps(bumps)
+	if attempt.final || len(earn) > 0 {
+		r.earnPending = r.earnPending.retry(ctx, r.pub, r.log, attempt)
+	}
+	if attempt.final || len(bumps) > 0 {
+		r.pending = r.pending.retry(ctx, r.pub, r.log, attempt)
+	}
+}
+
+func (r *LoyaltyReporter) drain(attempt counterPublicationAttempt) (map[earnKey]*earnAgg, map[counterAgg]*bumpAgg) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	var earn map[earnKey]*earnAgg
-	if len(r.earnPending) == 0 {
+	if attempt.drains(r.earnPending) {
 		earn = r.earn
 	}
 	var bumps map[counterAgg]*bumpAgg
-	if len(r.pending) == 0 {
+	if attempt.drains(r.pending) {
 		bumps = r.bumps
 	}
 	if len(earn) > 0 {
@@ -250,12 +273,20 @@ func (r *LoyaltyReporter) flush(ctx context.Context) {
 	if len(bumps) > 0 {
 		r.bumps = map[counterAgg]*bumpAgg{}
 	}
-	r.mu.Unlock()
+	return earn, bumps
+}
 
-	r.publishEarned(ctx, earn)
-	r.publishBumps(ctx, bumps)
-	r.earnPending = retryCounterPublications(ctx, r.pub, r.log, r.earnPending)
-	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
+func (r *LoyaltyReporter) backlog() counterReporterBacklog {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return counterReporterBacklog{bumps: len(r.bumps), earn: len(r.earn), pending: len(r.pending) + len(r.earnPending)}
+}
+
+func (r *LoyaltyReporter) reportBacklog() {
+	backlog := r.backlog()
+	r.wakeup.pending.Store(len(r.pending) > 0)
+	r.earnWakeup.pending.Store(len(r.earnPending) > 0)
+	backlog.log(r.log, &r.nextLog, r.clock())
 }
 
 func (r *LoyaltyReporter) clock() time.Time {
@@ -265,7 +296,7 @@ func (r *LoyaltyReporter) clock() time.Time {
 	return r.now()
 }
 
-func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*earnAgg) {
+func (r *LoyaltyReporter) publishEarned(earn map[earnKey]*earnAgg) {
 	perUser := map[uint64][]data.LoyaltyEarnEntry{}
 	for key, agg := range earn {
 		perUser[key.broadcasterID] = append(perUser[key.broadcasterID], data.LoyaltyEarnEntry{
@@ -276,12 +307,12 @@ func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*e
 			WatchSeconds: agg.watchSeconds,
 		})
 	}
-	publishPerUser(ctx, r, perUser, data.SubjectLoyaltyEarned, func(userID uint64, chunk []data.LoyaltyEarnEntry) any {
+	publishPerUser(r, perUser, data.SubjectLoyaltyEarned, func(userID uint64, chunk []data.LoyaltyEarnEntry) any {
 		return data.LoyaltyEarnedDTO{BatchID: uuid.NewString(), UserID: userID, Entries: chunk}
 	})
 }
 
-func (r *LoyaltyReporter) publishBumps(ctx context.Context, bumps map[counterAgg]*bumpAgg) {
+func (r *LoyaltyReporter) publishBumps(bumps map[counterAgg]*bumpAgg) {
 	perUser := map[uint64][]data.CounterBumpEntry{}
 	for key, agg := range bumps {
 		perUser[key.broadcasterID] = append(perUser[key.broadcasterID], data.CounterBumpEntry{
@@ -294,12 +325,12 @@ func (r *LoyaltyReporter) publishBumps(ctx context.Context, bumps map[counterAgg
 			Delta:       agg.delta,
 		})
 	}
-	publishPerUser(ctx, r, perUser, data.SubjectLoyaltyCounters, func(userID uint64, chunk []data.CounterBumpEntry) any {
+	publishPerUser(r, perUser, data.SubjectLoyaltyCounters, func(userID uint64, chunk []data.CounterBumpEntry) any {
 		return data.CounterBumpedDTO{BatchID: uuid.NewString(), UserID: userID, Bumps: chunk}
 	})
 }
 
-func publishPerUser[E any](ctx context.Context, r *LoyaltyReporter, perUser map[uint64][]E, subject string, wrap func(uint64, []E) any) {
+func publishPerUser[E any](r *LoyaltyReporter, perUser map[uint64][]E, subject string, wrap func(uint64, []E) any) {
 	for userID, entries := range perUser {
 		for start := 0; start < len(entries); start += loyaltyChunk {
 			chunk := entries[start:min(start+loyaltyChunk, len(entries))]
@@ -322,11 +353,8 @@ func publishPerUser[E any](ctx context.Context, r *LoyaltyReporter, perUser map[
 func (r *LoyaltyReporter) Close() {
 	close(r.done)
 	<-r.finished
-	r.flush(context.Background())
-	if len(r.earnPending) > 0 {
-		r.log.Error("earned batches remain unconfirmed at shutdown", zap.Int("batches", len(r.earnPending)))
-	}
-	if len(r.pending) > 0 {
-		r.log.Error("counter batches remain unconfirmed at shutdown", zap.Int("batches", len(r.pending)))
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	r.flushWith(ctx, counterPublicationAttempt{now: r.clock(), final: true})
+	r.backlog().shutdown(r.log)
 }

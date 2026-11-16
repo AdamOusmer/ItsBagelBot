@@ -87,10 +87,10 @@ type CounterBumpEntry struct {
 	Delta       int64  `json:"delta"`
 }
 
-// The receipt must outlive the last republish plus DATA's MaxAge, or a late copy counts twice.
+// Counter batches republished more than 24 hours after SQL admission may count twice.
 const (
-	CounterRepublishWindow = time.Hour
-	CounterReceiptTTL      = CounterRepublishWindow + 10*time.Minute
+	CounterReceiptTTL       = 70 * time.Minute
+	CounterReceiptRetention = 24 * time.Hour
 )
 
 type CounterBumpedDTO struct {

@@ -185,8 +185,9 @@ func counterBinaryIdentity(t *testing.T, repo *Loyalty, raw *sql.DB) {
 func counterReceiptPruning(t *testing.T, repo *Loyalty, raw *sql.DB) {
 	p := uncachedCounterProcessor(t, repo)
 	require.NoError(t, p.Process(t.Context(), counterTestEvent("retained", 2)))
-	require.Equal(t, 2*time.Hour, counterReceiptRetention())
-	cutoff := time.Now().Add(-counterReceiptRetention()).Unix()
+	require.Equal(t, 24*time.Hour, data.CounterReceiptRetention)
+	require.GreaterOrEqual(t, watchHistoryPruneBatch*watchHistoryPrunePasses, 200*int(flushInterval/time.Second))
+	cutoff := time.Now().Add(-data.CounterReceiptRetention).Unix()
 	seedExpiredCounterReceipts(t, raw, cutoff-60)
 	_, err := raw.Exec("UPDATE loyalty_counter_receipts SET created_at=? WHERE batch_id=?", cutoff+60, []byte(counterIdentity(counterTestEvent("retained", 2)).batch))
 	require.NoError(t, err)
@@ -212,7 +213,7 @@ func seedExpiredCounterReceipts(t *testing.T, raw *sql.DB, createdAt int64) {
 	tx, err := raw.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
 	defer tx.Rollback()
-	for i := range watchHistoryPruneBatch + 1 {
+	for i := range 200*int(flushInterval/time.Second) + 1 {
 		_, err := tx.ExecContext(t.Context(), "INSERT INTO loyalty_counter_receipts (user_id,batch_id,payload_hash,admission_id,created_at) VALUES (1,?,?,?,?)", []byte(fmt.Sprint(i)), make([]byte, 32), make([]byte, 16), createdAt)
 		require.NoError(t, err)
 	}
