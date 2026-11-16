@@ -22,8 +22,9 @@
   import { allowed, resolveShortcut, type Scopes, type Shortcut } from '#lib/flow/keyboard';
   import { isStale, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
   import { awaitingSetup } from '#lib/flow/setup';
-  import { addNode } from '#lib/flow/ops';
-  import { newFlow, outputsFor, specFor, type Flow } from '#lib/flow/model';
+  import { addStep as insertStep, selectedAddPoint, selectedPlacement, selectionAfterHistory } from '#lib/flow/editor';
+  import { keyboardSize, panelInsets } from '#lib/flow/editor-viewport';
+  import { newFlow, specFor, type Flow } from '#lib/flow/model';
   import { flowRouteId, parseFlowRouteId } from '#lib/flow/ref';
   import type { SaveReply, ToggleReply } from '#lib/flow/replies';
   import type { UpgradeReport } from '#lib/server/flow-store';
@@ -48,7 +49,6 @@
   const SHEET_SHARE = 0.56;
   const TALL_SHEET_SHARE = 0.44;
   const TALL_VIEWPORT = 900;
-  const SHEET_GAP = 12;
 
   const loadInspector = () => import('#lib/components/flow/NodeInspector.svelte');
   const loadLibrary = () => import('#lib/components/flow/StepLibrary.svelte');
@@ -93,44 +93,67 @@
   let recipeReturn: HTMLElement | null = null;
 
   const edits = new FlowHistory(untrack(() => flow));
+  let canUndo = $state(false);
+  let canRedo = $state(false);
   const dirty = $derived(contentOf(flow) !== baseline);
   const panelRoom = $derived((inspecting && selectedId) || testRunOpen || recipeOpen ? PANEL_ROOM : 0);
 
   $effect(() => {
     edits.sync(flow);
+    refreshHistory();
   });
 
-  // iOS shrinks innerHeight under the keyboard; fixed elements stay anchored to this layout viewport.
+  function refreshHistory() {
+    canUndo = edits.canUndo;
+    canRedo = edits.canRedo;
+  }
+
+  function history(way: 'undo' | 'redo'): boolean {
+    edits.sync(flow);
+    const before = new Set(flow.nodes.map((node) => node.id));
+    const parent = flow.edges.find((edge) => edge.to === selectedId)?.from ?? null;
+    const fallback = selectedId;
+    const kind = edits[way](flow);
+    selectedId = selectionAfterHistory(flow, before, fallback) ?? selectionAfterHistory(flow, before, parent);
+    refreshHistory();
+    const changed = settle(kind, way === 'undo' ? t('flows.noteUndo') : t('flows.noteRedo'));
+    if (changed && selectedId) canvas?.focusNode(selectedId);
+    return changed;
+  }
+
+  function removed(count: number) {
+    edits.sync(flow);
+    refreshHistory();
+    const message = count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count });
+    toast('success', message, { undoLabel: t('flows.board.undo'), onUndo: () => history('undo') });
+  }
+
   const layoutHeight = () => document.documentElement.clientHeight;
   const sheetHeight = () => Math.round(layoutHeight() * (layoutHeight() >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE));
 
   function syncViewport() {
     const style = editorEl?.style;
     if (!style || !sheetMode) return;
-    const height = visualViewport?.height ?? layoutHeight();
-    const keyboard = Math.max(0, layoutHeight() - height - (visualViewport?.offsetTop ?? 0));
+    const { height, keyboard } = keyboardSize(layoutHeight(), visualViewport);
     style.setProperty('--stage-kb', `${keyboard}px`);
     style.setProperty('--stage-vvh', `${height}px`);
     style.setProperty('--stage-sheet-h', `${sheetHeight()}px`);
     style.setProperty('--stage-board-left', `${boardEl?.getBoundingClientRect().left ?? 0}px`);
     if (keyboard === 0 && scrollY !== 0) scrollTo(0, 0);
+    revealKeyboardField(keyboard);
+  }
+
+  function revealKeyboardField(keyboard: number) {
+    if (keyboard <= 0) return;
     const field = document.activeElement;
-    if (keyboard > 0 && field?.matches('input, textarea, select') && field.closest('.bb-editor-stage__panel')) field.scrollIntoView({ block: 'center' });
+    if (!field?.matches('input, textarea, select')) return;
+    if (field.closest('.bb-editor-stage__panel')) field.scrollIntoView({ block: 'center' });
   }
 
   function viewInsets(withPanel: boolean) {
-    if (!sheetMode || !barEl || !railEl || !boardEl) return null;
-    const board = boardEl.getBoundingClientRect();
-    const bar = barEl.getBoundingClientRect();
-    const rail = railEl.getBoundingClientRect();
-    const railIsRow = rail.width > rail.height;
-    const toolbars = railIsRow ? board.bottom - rail.top : 72;
-    return {
-      top: bar.bottom - board.top + SHEET_GAP,
-      right: 16,
-      bottom: (withPanel ? sheetHeight() : toolbars) + SHEET_GAP,
-      left: railIsRow ? 16 : rail.right - board.left + SHEET_GAP
-    };
+    if (!sheetMode || !boardEl) return null;
+    if (!barEl || !railEl) return null;
+    return panelInsets({ board: boardEl.getBoundingClientRect(), bar: barEl.getBoundingClientRect(), rail: railEl.getBoundingClientRect() }, withPanel ? sheetHeight() : 0);
   }
 
   onMount(() => {
@@ -184,8 +207,10 @@
 
   function openSettings(id: string) {
     selectedId = id;
+    if (testRunOpen) { canvas?.focusNode(id); return; }
     inspecting = true;
     inspectFocus++;
+    void tick().then(() => canvas?.revealNode(id));
   }
 
   function closeInspector() {
@@ -211,50 +236,64 @@
 
   function escape(): boolean {
     if (canvas?.dismissMenu()) return true;
+    if (dismissPanel()) return true;
+    if (!selectedId) return false;
+    selectedId = null;
+    return true;
+  }
+
+  function dismissPanel(): boolean {
     if (libMode) closeLibrary(true);
     else if (inspecting && selectedId) closeInspector();
     else if (testRunOpen) closeTestRun(true);
     else if (recipeOpen) closeRecipe(true);
-    else if (selectedId) selectedId = null;
     else return false;
     return true;
   }
 
   function run(s: Shortcut, e: KeyboardEvent): boolean {
-    switch (s.id) {
-      case 'escape':
-        return escape();
-      case 'delete':
-        return canvas?.removeSelected() ?? false;
-      case 'walk':
-        return s.dir ? (canvas?.walk(s.dir) ?? false) : false;
-      case 'nudge':
-        return s.dir ? (canvas?.nudge(s.dir) ?? false) : false;
-      case 'open': {
-        const id = canvas?.nodeIdAt(e.target);
-        if (id) openSettings(id);
-        return Boolean(id);
-      }
-      case 'undo':
-        return settle(edits.undo(flow), t('flows.noteUndo'));
-      case 'redo':
-        return settle(edits.redo(flow), t('flows.noteRedo'));
-      case 'duplicate':
-        return canvas?.duplicateSelected() ?? false;
-      case 'save':
-        if (dirty) void save();
-        return true;
-      case 'zoom-in':
-      case 'zoom-out':
-        canvas?.zoomBy(s.id === 'zoom-in' ? 1.2 : 1 / 1.2);
-        return true;
-      case 'fit':
-        canvas?.fitView(panelRoom);
-        return true;
-      case 'add':
-      case 'add-other':
-        return addStep(s.id === 'add-other');
-    }
+    const actions = {
+      escape,
+      delete: () => canvas?.removeSelected() ?? false,
+      walk: () => moveSelection(s, 'walk'),
+      nudge: () => moveSelection(s, 'nudge'),
+      open: () => inspectTarget(e.target),
+      undo: () => history('undo'),
+      redo: () => history('redo'),
+      duplicate: () => canvas?.duplicateSelected() ?? false,
+      save: saveShortcut,
+      'zoom-in': () => zoomShortcut(1.2),
+      'zoom-out': () => zoomShortcut(1 / 1.2),
+      fit: fitShortcut,
+      add: () => addStep(false),
+      'add-other': () => addStep(true)
+    };
+    return actions[s.id]();
+  }
+
+  function moveSelection(shortcut: Shortcut, action: 'walk' | 'nudge'): boolean {
+    return shortcut.dir ? canvas?.[action](shortcut.dir) ?? false : false;
+  }
+
+  function inspectTarget(target: EventTarget | null): boolean {
+    const id = canvas?.nodeIdAt(target);
+    if (id) openSettings(id);
+    return Boolean(id);
+  }
+
+  function saveShortcut(): boolean {
+    if (dirty) void save();
+    return true;
+  }
+
+  function zoomShortcut(factor: number): boolean {
+    canvas?.zoomBy(factor);
+    return true;
+  }
+
+  function fitShortcut(): boolean {
+    canvas?.fitView(panelRoom);
+    return true;
   }
 
   const scopes: Scopes = {
@@ -268,31 +307,26 @@
     if (!s || e.isComposing) return;
     const target = e.target as HTMLElement | null;
     if (s.id === 'save') e.preventDefault();
-    if (!allowed(s, target, scopes) || (e.repeat && !s.repeat)) return;
+    if (!allowed(s, target, scopes)) return;
+    if (e.repeat && !s.repeat) return;
     if (run(s, e)) e.preventDefault();
   }
 
   function onAdd(type: string) {
-    const sel = selectedId ? flow.nodes.find((n) => n.id === selectedId) : undefined;
-    const selSpec = sel ? specFor(sel.type) : undefined;
-    const node = addNode(
-      flow,
+    const { node, replaced } = insertStep(flow, {
       type,
-      sel ? { x: sel.x + 360, y: sel.y } : { x: 0, y: 0 },
-      sel && selSpec ? { from: sel.id, port: outputsFor(selSpec)[0].id } : undefined
-    );
-    selectedId = node.id;
-    inspecting = true;
-    const fromList = Boolean(leftPanelEl?.contains(document.activeElement));
-    if (sheetMode || specFor(type)?.kind === 'trigger') {
-      libMode = null;
-      if (fromList) canvas?.focusNode(node.id);
-    }
+      at: selectedAddPoint(flow, selectedId),
+      placement: selectedPlacement(flow, selectedId)
+    });
+    if (sheetMode || specFor(type)?.kind === 'trigger') libMode = null;
+    openSettings(node.id);
+    if (replaced) canvas?.announce(t('flows.board.triggerReplaced'));
     if (autoTidy) queueMicrotask(() => canvas?.tidyNow());
   }
 
   function onBoardPointerDown(e: PointerEvent) {
-    if (libMode && leftPanelEl && !leftPanelEl.contains(e.target as Node)) libMode = null;
+    if (!libMode || !leftPanelEl) return;
+    if (!leftPanelEl.contains(e.target as Node)) libMode = null;
   }
 
   function rightPanelDismiss(): void {
@@ -453,7 +487,6 @@
 
   $effect(() => {
     if (inspecting && selectedId) {
-      testRunOpen = false;
       recipeOpen = false;
     }
   });
@@ -515,9 +548,9 @@
 {/snippet}
 
 {#snippet rightPanel()}
-  {#if selectedId && inspecting}
+  {#if selectedId && inspecting && !testRunOpen}
     {#await loadInspector() then { default: NodeInspector }}
-      <NodeInspector bind:flow bind:selectedId focusToken={inspectFocus} onclose={closeInspector} />
+      <NodeInspector bind:flow bind:selectedId focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
     {/await}
   {:else if testRunOpen}
     {#await loadTestRun() then { default: TestRunPanel }}
@@ -539,8 +572,14 @@
     {trace}
     insets={viewInsets}
     room={panelRoom}
-    onmoved={(moves) => edits.moved(moves)}
-    oninspect={() => (inspecting = true)}
+    onmoved={(moves) => { edits.moved(moves); refreshHistory(); }}
+    oninspect={() => { if (!testRunOpen) inspecting = true; }}
+    onadded={openSettings}
+    onremoved={removed}
+    onundo={() => history('undo')}
+    onredo={() => history('redo')}
+    {canUndo}
+    {canRedo}
     onstart={(byKey) => toggleLibrary('trigger', byKey)}
   />
 {/snippet}

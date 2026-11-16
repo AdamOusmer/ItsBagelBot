@@ -8,9 +8,11 @@
     fitView: (reservedRight?: number) => void;
     announce: (message: string) => void;
     focusNode: (id: string) => void;
+    revealNode: (id: string) => void;
     walk: (dir: Dir) => boolean;
     nudge: (dir: Dir) => boolean;
     removeSelected: () => boolean;
+    removeStep: (id: string) => boolean;
     duplicateSelected: () => boolean;
     openAddMenu: (other?: boolean) => boolean;
     dismissMenu: () => boolean;
@@ -37,13 +39,17 @@
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import FlowNodeCard from './FlowNode.svelte';
   import FlowStart, { START_H, START_W } from './FlowStart.svelte';
-  import { GRID, NODE_SPECS, NODE_W, isSecondPort, outputsFor, specFor, type Flow, type FlowKind } from '../../flow/model';
-  import { addNode, connect, duplicateNode, removeEdge, removeNode } from '../../flow/ops';
-  import { neighbor, neighborAfterRemove, readingOrder, stepDelta, stepFocus } from '../../flow/keyboard';
+  import { GRID, NODE_W, outputsFor, specFor, type Flow, type FlowKind } from '../../flow/model';
+  import { connect, duplicateNode, removeEdge } from '../../flow/ops';
+  import { addStep, connectionTarget, parallelPorts, portOccupied, removeStep as deleteStep, selectedPlacement } from '../../flow/editor';
+  import { currentPositions, tweenPositions } from '../../flow/canvas-positions';
+  import { edgePaths, flowBounds, loopPaths, startPaths, wirePreview } from '../../flow/canvas-geometry';
+  import { searchSteps } from '../../flow/search';
+  import { resultIndex } from '../../flow/picker';
+  import { neighbor, readingOrder, stepDelta } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
   import { stepLabel, stepSummary } from '../../flow/copy';
-  import { inputY, loopTails, nodeHeight, portY, tidy } from '../../flow/layout';
-  import { previewPath, returnPath, wirePath } from '../../flow/wire';
+  import { nodeHeight, tidy } from '../../flow/layout';
   import { beginPinch, fitBox, pinchView, revealBox, type Inset, type Pinch } from '../../flow/touch';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit';
@@ -57,7 +63,13 @@
     insets,
     room = 0,
     onmoved,
-    oninspect
+    oninspect,
+    onadded,
+    onremoved,
+    onundo,
+    onredo,
+    canUndo = false,
+    canRedo = false
   }: {
     flow: Flow;
     selectedId?: string | null;
@@ -68,6 +80,12 @@
     room?: number;
     onmoved?: (moves: Move[]) => void;
     oninspect?: (id: string) => void;
+    onadded?: (id: string) => void;
+    onremoved?: (count: number) => void;
+    onundo?: () => void;
+    onredo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
   } = $props();
 
   const { t } = getI18n();
@@ -75,6 +93,10 @@
   const startAt: Pt = { x: -START_W - 56, y: -24 };
 
   type Pt = { x: number; y: number };
+  type NodeId = Flow['nodes'][number]['id'];
+  type PortId = string;
+  type NodeType = Flow['nodes'][number]['type'];
+  type Link = { from: NodeId; port: PortId };
   const MIN_ZOOM = 0.4;
   const MAX_ZOOM = 1.6;
   const TIDY_MS = 320;
@@ -86,8 +108,6 @@
   const READABLE_ZOOM = 0.75;
   const ADD_ROOM = 48;
   const GLIDE_MS = 240;
-  const ARROW_GAP = 8;
-  const MENU_KINDS: FlowKind[] = ['condition', 'reply'];
   const MENU_TINT: Record<FlowKind, { color: string; rgb: string }> = {
     trigger: { color: 'var(--bb-green-glow)', rgb: 'var(--bb-green-glow-rgb)' },
     condition: { color: 'var(--bb-tan)', rgb: 'var(--bb-tan-rgb)' },
@@ -114,6 +134,10 @@
   let menuAnchor = $state<HTMLElement>();
   let menuOpen = $state(false);
   let query = $state('');
+  let menuSearch = $state<HTMLInputElement>();
+  let activeResult = $state(0);
+  let insertMode = $state<'insert' | 'parallel'>('insert');
+  const pickerId = $props.id();
   let touch = $state(false);
   let pinchK = $state<number | null>(null);
   let connecting = $state<{ from: string; port: string } | null>(null);
@@ -137,14 +161,13 @@
   const shownK = $derived(pinchK ?? view.k);
 
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const nodeById = (id: string) => flow.nodes.find((n) => n.id === id);
-  const at = (id: string): Pt => disp[id] ?? nodeById(id) ?? { x: 0, y: 0 };
-  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  const nodeById = (id: NodeId) => flow.nodes.find((n) => n.id === id);
+  const at = (id: NodeId): Pt => disp[id] ?? nodeById(id) ?? { x: 0, y: 0 };
   const snap = (v: number) => Math.round(v / GRID) * GRID;
 
   export const nodeIdAt = (el: unknown): string | undefined => Object.keys(nodeEls).find((id) => nodeEls[id]?.contains(el as Node | null));
   export const hasTarget = (el: unknown): boolean => Boolean(host?.contains(el as Node | null));
-  const portAt = (id: string | undefined, el: Element | null) => (id ? cards[id]?.portAt(el) : undefined);
+  const portAt = (id: NodeId | undefined, el: Element | null) => (id ? cards[id]?.portAt(el) : undefined);
   const edgeAt = (el: Element | null) => Object.keys(edgeEls).find((id) => edgeEls[id] === el);
 
   function inOwnUi(el: Element, withStart: boolean): boolean {
@@ -160,31 +183,21 @@
   function finishTween() {
     cancelAnimationFrame(tween);
     clearTimeout(tweenTimer);
-    for (const n of flow.nodes) disp[n.id] = { x: n.x, y: n.y };
+    disp = currentPositions(flow.nodes);
   }
 
   function applyPositions(targets: Map<string, Pt>, animate: boolean) {
     finishTween();
-    const from = new Map(flow.nodes.map((n) => [n.id, { x: disp[n.id]?.x ?? n.x, y: disp[n.id]?.y ?? n.y }]));
-    for (const n of flow.nodes) {
-      const target = targets.get(n.id);
-      if (target) {
-        n.x = target.x;
-        n.y = target.y;
-      }
-    }
+    const from = currentPositions(flow.nodes, disp);
+    flow.nodes.forEach((node) => Object.assign(node, targets.get(node.id) ?? {}));
     if (!animate || reduced()) {
-      for (const n of flow.nodes) disp[n.id] = { x: n.x, y: n.y };
+      disp = currentPositions(flow.nodes);
       return;
     }
     const t0 = performance.now();
     const step = (now: number) => {
       const p = Math.min(1, (now - t0) / TIDY_MS);
-      const e = p === 1 ? 1 : 1 - Math.pow(2, -10 * p);
-      for (const n of flow.nodes) {
-        const a = from.get(n.id) as Pt;
-        disp[n.id] = { x: a.x + (n.x - a.x) * e, y: a.y + (n.y - a.y) * e };
-      }
+      disp = tweenPositions(flow.nodes, from, p);
       if (p < 1) tween = requestAnimationFrame(step);
     };
     tween = requestAnimationFrame(step);
@@ -216,7 +229,8 @@
   function revealSelected() {
     const n = selectedId ? nodeById(selectedId) : undefined;
     const room = insets?.(true);
-    if (!n || !room || !host) return;
+    if (!host) return;
+    if (!n || !room) return;
     const box = { x0: n.x, y0: n.y, x1: n.x + NODE_W + ADD_ROOM, y1: n.y + nodeHeight(specFor(n.type)) };
     const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: room }, READABLE_ZOOM);
     if (target !== view) glideTo(target);
@@ -228,36 +242,27 @@
 
   export function fitView(reservedRight = 0) {
     if (!host) return;
-    let x0 = startAt.x;
-    let y0 = startAt.y;
-    let x1 = startAt.x + START_W;
-    let y1 = startAt.y + START_H;
-    for (const n of flow.nodes) {
-      x0 = Math.min(x0, n.x);
-      y0 = Math.min(y0, n.y);
-      x1 = Math.max(x1, n.x + NODE_W);
-      y1 = Math.max(y1, n.y + nodeHeight(specFor(n.type)));
-    }
+    const bounds = flowBounds(flow, { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H });
     const inset = insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight };
     cancelAnimationFrame(glide);
-    view = fitBox({ x0, y0, x1, y1 }, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM });
+    view = fitBox(bounds, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM });
   }
 
-  function zoomAt(factor: number, px: number, py: number) {
-    const k = clamp(view.k * factor, minZoom(), MAX_ZOOM);
+  function zoomAt(factor: number, { x: px, y: py }: Pt) {
+    const k = Math.min(MAX_ZOOM, Math.max(minZoom(), view.k * factor));
     const wx = (px - view.x) / view.k;
     const wy = (py - view.y) / view.k;
     view = { k, x: px - wx * k, y: py - wy * k };
   }
 
   function zoomCenter(factor: number) {
-    if (host) zoomAt(factor, host.clientWidth / 2, host.clientHeight / 2);
+    if (host) zoomAt(factor, { x: host.clientWidth / 2, y: host.clientHeight / 2 });
   }
 
   function onWheel(e: WheelEvent) {
     e.preventDefault();
     const r = (host as HTMLElement).getBoundingClientRect();
-    if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX - r.left, e.clientY - r.top);
+    if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), { x: e.clientX - r.left, y: e.clientY - r.top });
     else view = { ...view, x: view.x - e.deltaX, y: view.y - e.deltaY };
   }
 
@@ -279,7 +284,6 @@
   });
 
   const stopGesture = (e: Event) => e.preventDefault();
-  // Tap logic runs on pointerup. A follow-up click would land on the + a just selected step reveals, and its focus would reselect.
   const stopCompatClick = (e: TouchEvent) => {
     if (!inOwnUi(e.target as Element, false)) e.preventDefault();
   };
@@ -315,7 +319,6 @@
   });
 
   $effect(() => {
-    // The inset callback reads layout and does not itself provide reactive dependencies.
     void selectedEdge;
     void room;
     scheduleToolbarPosition();
@@ -329,7 +332,6 @@
     const aimed = e.target as HTMLElement;
     viewOpen = viewOpen && Boolean(aimed.closest('.zoom, .view-toggle'));
     if (inOwnUi(aimed, false)) return;
-    // Browsers retarget a touch to a nearby clickable, which would steal taps on wires next to a card.
     const el = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null) ?? aimed;
     (host as HTMLElement).setPointerCapture(e.pointerId);
     fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -342,23 +344,11 @@
     start = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y, nx: 0, ny: 0, moved: false };
     const id = nodeIdAt(el);
     const port = portAt(id, el);
-    const n = id ? nodeById(id) : undefined;
     tapped = { port, node: id, edge: edgeAt(el) };
-    if (port && id && !connecting) {
-      const p = toWorld(e.clientX, e.clientY);
-      wire = { from: id, port, x: p.x, y: p.y };
-      selectedEdge = null;
-      wireTarget = null;
-      mode = 'wire';
-    } else if (n && !connecting) {
-      finishTween();
-      activeNode = n.id;
-      start.nx = n.x;
-      start.ny = n.y;
-      mode = 'node';
-    } else {
-      mode = 'pan';
-    }
+    mode = 'pan';
+    if (connecting) return;
+    if (port && id) return startWire({ from: id, port }, e);
+    if (id) startNode(id, false);
   }
 
   function undoSingleFinger() {
@@ -383,56 +373,37 @@
   }
 
   function tap() {
-    (document.activeElement as HTMLElement | null)?.blur?.();
+    blurActive();
     const { port, node, edge } = tapped;
-    if (connecting) {
-      if (node && targetFor(node)) {
-        const made = connect(flow, { from: connecting.from, port: connecting.port, to: node });
-        connecting = null;
-        if (made) {
-          announce(t('flows.noteConnected'));
-          if (autoTidy) runTidy(true);
-        }
-      } else if (!node) {
-        connecting = null;
-      }
-      return;
-    }
+    if (connecting) return completeConnection(node);
     if (port && node) {
       connecting = { from: node, port };
       selectedId = null;
       hoverEdge = null;
       fitView();
-    } else if (edge) {
-      selectEdge(edge);
-    } else {
-      hoverEdge = null;
-      selectedEdge = null;
-      selectedId = node ?? null;
-      if (node) oninspect?.(node);
+      return;
     }
+    if (edge) return selectEdge(edge);
+    hoverEdge = null;
+    selectedEdge = null;
+    selectedId = node ?? null;
+    if (node) oninspect?.(node);
   }
 
-  function recordMove(id: string | null) {
+  function blurActive() {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement) focused.blur();
+  }
+
+  function recordMove(id: NodeId | null) {
     const n = id && !autoTidy ? nodeById(id) : undefined;
     if (n) onmoved?.([{ id: n.id, from: { x: start.nx, y: start.ny }, to: { x: n.x, y: n.y } }]);
   }
 
   function onTouchUp(e: PointerEvent, cancelled: boolean) {
     if (!fingers.delete(e.pointerId)) return;
-    if (host?.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId);
-    if (mode === 'pinch') {
-      if (fingers.size > 1) {
-        startPinch();
-        return;
-      }
-      pinch = null;
-      pinchK = null;
-      const [rest] = fingers.values();
-      mode = rest ? 'pan' : 'idle';
-      if (rest) start = { px: rest.x, py: rest.y, vx: view.x, vy: view.y, nx: 0, ny: 0, moved: true };
-      return;
-    }
+    releasePointer(e);
+    if (mode === 'pinch') return endPinch();
     if (fingers.size > 0) return;
     const was = mode;
     mode = 'idle';
@@ -447,40 +418,84 @@
       tap();
       return;
     }
-    if (was === 'node') {
-      dragging = false;
-      recordMove(activeNode);
-      activeNode = null;
-      if (autoTidy) runTidy(true);
-    }
+    finishGesture(was, e);
+  }
+
+  function releasePointer(e: PointerEvent) {
+    if (host?.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId);
+  }
+
+  function finishGesture(was: typeof mode, e: PointerEvent) {
+    if (was === 'node') completeNodeDrag();
     if (was === 'wire' && wire) endWire(e);
+  }
+
+  function endPinch() {
+    if (fingers.size > 1) return startPinch();
+    pinch = null;
+    pinchK = null;
+    const [rest] = fingers.values();
+    mode = rest ? 'pan' : 'idle';
+    if (rest) start = { px: rest.x, py: rest.y, vx: view.x, vy: view.y, nx: 0, ny: 0, moved: true };
+  }
+
+  function connectTo(id: NodeId, source: Link): boolean {
+    if (!targetFor(id, source)) return false;
+    if (!connect(flow, { from: source.from, port: source.port, to: id })) return false;
+    announce(t('flows.noteConnected'));
+    if (autoTidy) runTidy(true);
+    return true;
+  }
+
+  function completeConnection(id: NodeId | undefined) {
+    if (!connecting) return;
+    if (!id || connectTo(id, connecting)) connecting = null;
+  }
+
+  function startWire(source: Link, e: PointerEvent) {
+    const p = toWorld(e.clientX, e.clientY);
+    wire = { ...source, x: p.x, y: p.y };
+    selectedEdge = null;
+    wireTarget = null;
+    mode = 'wire';
+  }
+
+  function startNode(id: NodeId, inspect: boolean) {
+    const n = nodeById(id);
+    if (!n) return;
+    finishTween();
+    activeNode = id;
+    start.nx = n.x;
+    start.ny = n.y;
+    mode = 'node';
+    if (!inspect) return;
+    selectedEdge = null;
+    selectedId = id;
+    oninspect?.(id);
+  }
+
+  function completeNodeDrag() {
+    dragging = false;
+    if (!start.moved) return;
+    recordMove(activeNode);
+    activeNode = null;
+    if (autoTidy) runTidy(true);
   }
 
   function onPointerDown(e: PointerEvent) {
     touch = e.pointerType !== 'mouse';
-    if (touch) {
-      onTouchDown(e);
-      return;
-    }
+    if (touch) return onTouchDown(e);
     if (e.button !== 0) return;
     const el = e.target as HTMLElement;
     if (inOwnUi(el, true)) return;
-    if (connecting) {
-      const id = nodeIdAt(el);
-      if (id && targetFor(id)) {
-        const made = connect(flow, { ...connecting, to: id });
-        connecting = null;
-        if (made) {
-          announce(t('flows.noteConnected'));
-          if (autoTidy) runTidy(true);
-        }
-      } else if (!id) connecting = null;
-      return;
-    }
+    if (connecting) return completeConnection(nodeIdAt(el));
     (host as HTMLElement).setPointerCapture(e.pointerId);
     start = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y, nx: 0, ny: 0, moved: false };
     closeMenu();
+    pointerTarget(e, el);
+  }
 
+  function pointerTarget(e: PointerEvent, el: HTMLElement) {
     const edge = edgeAt(el);
     if (edge) {
       selectEdge(edge);
@@ -489,60 +504,60 @@
     }
     const id = nodeIdAt(el);
     const port = portAt(id, el);
-    if (port && id) {
-      const p = toWorld(e.clientX, e.clientY);
-      wire = { from: id, port, x: p.x, y: p.y };
-      selectedEdge = null;
-      wireTarget = null;
-      mode = 'wire';
-      return;
-    }
-    if (id) {
-      const n = nodeById(id);
-      if (!n) return;
-      finishTween();
-      activeNode = id;
-      selectedEdge = null;
-      selectedId = id;
-      oninspect?.(id);
-      start.nx = n.x;
-      start.ny = n.y;
-      mode = 'node';
-      return;
-    }
+    if (port && id) return startWire({ from: id, port }, e);
+    if (id) return startNode(id, true);
     mode = 'pan';
   }
 
   function onPointerMove(e: PointerEvent) {
     if (mode === 'idle') return;
+    if (trackFinger(e)) return;
     const finger = e.pointerType !== 'mouse';
-    if (finger) {
-      if (!fingers.has(e.pointerId)) return;
-      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (mode === 'pinch') {
-        const [a, b] = fingers.values();
-        if (pinch) view = pinchView(pinch, a, b, { min: minZoom(), max: MAX_ZOOM });
-        return;
-      }
-    }
     const dx = e.clientX - start.px;
     const dy = e.clientY - start.py;
-    if (!start.moved && Math.hypot(dx, dy) > (finger ? TOUCH_SLOP : DRAG_SLOP)) start.moved = true;
+    markMoved({ x: dx, y: dy }, finger);
     if (finger && !start.moved) return;
+    moveGesture(e, { x: dx, y: dy });
+  }
+
+  function markMoved(delta: Pt, finger: boolean) {
+    const threshold = finger ? TOUCH_SLOP : DRAG_SLOP;
+    if (!start.moved && Math.hypot(delta.x, delta.y) > threshold) start.moved = true;
+  }
+
+  function moveGesture(e: PointerEvent, { x: dx, y: dy }: Pt) {
     if (mode === 'pan') {
       view = { ...view, x: start.vx + dx, y: start.vy + dy };
-    } else if (mode === 'node' && activeNode && start.moved) {
-      dragging = true;
-      const n = nodeById(activeNode);
-      if (!n) return;
-      n.x = snap(start.nx + dx / view.k);
-      n.y = snap(start.ny + dy / view.k);
-      disp[n.id] = { x: n.x, y: n.y };
-    } else if (mode === 'wire' && wire) {
-      const p = toWorld(e.clientX, e.clientY);
-      wireTarget = nodeIdAt(document.elementFromPoint(e.clientX, e.clientY)) ?? null;
-      wire = { ...wire, x: p.x, y: p.y };
+      return;
     }
+    if (mode === 'node' && start.moved) return dragNode(dx, dy);
+    if (mode === 'wire') moveWire(e);
+  }
+
+  function trackFinger(e: PointerEvent): boolean {
+    if (e.pointerType === 'mouse') return false;
+    if (!fingers.has(e.pointerId)) return true;
+    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (mode !== 'pinch') return false;
+    const [a, b] = fingers.values();
+    if (pinch) view = pinchView(pinch, a, b, { min: minZoom(), max: MAX_ZOOM });
+    return true;
+  }
+
+  function dragNode(dx: number, dy: number) {
+    const n = activeNode ? nodeById(activeNode) : undefined;
+    if (!n) return;
+    dragging = true;
+    n.x = snap(start.nx + dx / view.k);
+    n.y = snap(start.ny + dy / view.k);
+    disp[n.id] = { x: n.x, y: n.y };
+  }
+
+  function moveWire(e: PointerEvent) {
+    if (!wire) return;
+    const p = toWorld(e.clientX, e.clientY);
+    wireTarget = nodeIdAt(document.elementFromPoint(e.clientX, e.clientY)) ?? null;
+    wire = { ...wire, x: p.x, y: p.y };
   }
 
   function onPointerUp(e: PointerEvent) {
@@ -552,18 +567,13 @@
     }
     const was = mode;
     mode = 'idle';
-    if (host?.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId);
+    releasePointer(e);
     if (e.type === 'pointercancel') {
       undoSingleFinger();
       return;
     }
     if (was === 'pan' && !start.moved) { selectedId = null; selectedEdge = null; }
-    if (was === 'node') {
-      dragging = false;
-      if (start.moved) recordMove(activeNode);
-      if (start.moved && autoTidy) runTidy(true);
-    }
-    if (was === 'wire' && wire) endWire(e);
+    finishGesture(was, e);
     activeNode = null;
   }
 
@@ -574,18 +584,17 @@
     if (!start.moved) return;
     const under = nodeIdAt(document.elementFromPoint(e.clientX, e.clientY));
     if (under) {
-      if (connect(flow, { from: w.from, port: w.port, to: under })) {
-        announce(t('flows.noteConnected'));
-        if (autoTidy) runTidy(true);
-      }
+      connectTo(under, w);
       return;
     }
     const r = (host as HTMLElement).getBoundingClientRect();
     openMenu({ from: w.from, port: w.port }, { x: w.x, y: w.y }, e.clientX - r.left, e.clientY - r.top);
   }
 
-  async function openMenu(link: { from: string; port: string } | undefined, atPt: Pt, sx: number, sy: number) {
+  async function openMenu(link: Link | undefined, atPt: Pt, sx: number, sy: number) {
     query = '';
+    activeResult = 0;
+    insertMode = 'insert';
     returnFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
     menu = { link, at: atPt, sx, sy };
     await tick();
@@ -601,7 +610,7 @@
     if (back) void tick().then(() => back.isConnected && back.focus({ preventScroll: true }));
   }
 
-  function addFromPort(from: string, port: string, anchor: HTMLElement) {
+  function addFromPort(from: NodeId, port: PortId, anchor: HTMLElement) {
     const r = (host as HTMLElement).getBoundingClientRect();
     const b = anchor.getBoundingClientRect();
     const n = nodeById(from);
@@ -621,41 +630,49 @@
     }
   }
 
-  function targetFor(id: string, c = connecting ?? wire ?? menu?.link) {
-    const n = nodeById(id);
-    return Boolean(
-      n && c && id !== c.from && specFor(n.type)?.kind !== 'trigger' && !flow.edges.some((e) => e.from === c.from && e.port === c.port && e.to === id)
-    );
+  function targetFor(id: NodeId, c = connecting ?? wire ?? menu?.link) {
+    return connectionTarget(flow, id, c);
   }
 
-  function pick(type: string) {
+  function pick(type: NodeType) {
     if (!menu) return;
-    const byKey = menuByKey;
-    const node = addNode(flow, type, menu.at, menu.link);
-    selectedId = node.id;
-    oninspect?.(node.id);
+    const placement = menu.link ? { kind: 'port' as const, ...menu.link, mode: insertMode } : { kind: 'canvas' as const };
+    const { node } = addStep(flow, { type, at: menu.at, placement });
     closeMenu();
+    showAdded(node);
+  }
+
+  function showAdded(node: Flow['nodes'][number]) {
+    selectedId = node.id;
     if (autoTidy) runTidy(true);
     else disp[node.id] = { x: node.x, y: node.y };
-    if (byKey) focusNode(node.id);
+    if (onadded) onadded(node.id);
+    else focusNode(node.id);
   }
 
   function onCanvasKey(e: KeyboardEvent) {
-    if (!connecting || (e.key !== 'Enter' && e.key !== ' ')) return;
+    if (!connecting) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
     const id = nodeIdAt(e.target);
     if (!id || !targetFor(id)) return;
-    const made = connect(flow, { ...connecting, to: id });
+    connectTo(id, connecting);
     connecting = null;
     e.preventDefault();
     e.stopPropagation();
-    if (made) {
-      announce(t('flows.noteConnected'));
-      if (autoTidy) runTidy(true);
-    }
   }
 
   function onMenuKey(e: KeyboardEvent) {
-    stepFocus(e, Array.from((e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('input, button:not(label button)')));
+    if (e.target !== menuSearch || e.isComposing) return;
+    if (e.key === 'Enter') return pickActive(e);
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    activeResult = resultIndex({ key: e.key, index: activeResult, length: results.length });
+  }
+
+  function pickActive(e: KeyboardEvent) {
+    e.preventDefault();
+    const spec = results[activeResult];
+    if (spec) pick(spec.type);
   }
 
   function onDragOver(e: DragEvent) {
@@ -670,14 +687,9 @@
     if (!type || !specFor(type)) return;
     e.preventDefault();
     const p = toWorld(e.clientX, e.clientY);
-    const sel = selectedId ? nodeById(selectedId) : undefined;
-    const selSpec = sel && specFor(sel.type);
-    const link = sel && selSpec && selSpec.kind !== 'trigger' ? { from: sel.id, port: outputsFor(selSpec)[0].id } : undefined;
-    const node = addNode(flow, type, { x: snap(p.x), y: snap(p.y) }, link);
-    selectedId = node.id;
-    oninspect?.(node.id);
-    if (autoTidy) runTidy(true);
-    else disp[node.id] = { x: node.x, y: node.y };
+    const { node, replaced } = addStep(flow, { type, at: { x: snap(p.x), y: snap(p.y) }, placement: selectedPlacement(flow, selectedId) });
+    if (replaced) announce(t('flows.board.triggerReplaced'));
+    showAdded(node);
   }
 
   export function announce(message: string) {
@@ -685,11 +697,11 @@
     void tick().then(() => (note = message));
   }
 
-  export function focusNode(id: string) {
+  export function focusNode(id: NodeId) {
     void tick().then(() => nodeEls[id]?.querySelector<HTMLElement>('[role="button"]')?.focus({ preventScroll: true }));
   }
 
-  function keepInView(id: string) {
+  export function revealNode(id: NodeId) {
     const n = nodeById(id);
     if (!n || !host) return;
     if (insets?.(true)) {
@@ -701,9 +713,9 @@
     if (target !== view) view = target;
   }
 
-  function selectAndShow(id: string) {
+  function selectAndShow(id: NodeId) {
     selectedId = id;
-    keepInView(id);
+    revealNode(id);
     focusNode(id);
   }
 
@@ -722,7 +734,7 @@
     n.y += dy;
     disp[n.id] = { x: n.x, y: n.y };
     onmoved?.([{ id: n.id, from, to: { x: n.x, y: n.y } }]);
-    keepInView(n.id);
+    revealNode(n.id);
     return true;
   }
 
@@ -731,14 +743,18 @@
       deleteEdge(selectedEdge);
       return true;
     }
-    const id = selectedId;
-    if (!id || !nodeById(id)) return false;
-    const next = neighborAfterRemove(flow, id);
-    removeNode(flow, id);
-    selectedId = next;
+    return selectedId ? removeStep(selectedId) : false;
+  }
+
+  export function removeStep(id: NodeId): boolean {
+    const { parent, count } = deleteStep(flow, id);
+    if (!count) return false;
+    selectedEdge = null;
+    selectedId = parent;
     if (autoTidy) runTidy(true);
-    if (next) selectAndShow(next);
-    announce(t('flows.noteRemoved'));
+    if (parent) selectAndShow(parent);
+    announce(count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count }));
+    onremoved?.(count);
     return true;
   }
 
@@ -787,7 +803,7 @@
     if (host) { host.scrollLeft = 0; host.scrollTop = 0; }
   }
 
-  function selectEdge(id: string) {
+  function selectEdge(id: Flow['edges'][number]['id']) {
     resetHostScroll();
     selectedEdge = id;
     selectedId = null;
@@ -795,7 +811,7 @@
     void tick().then(() => host?.querySelector<HTMLButtonElement>('.edge-toolbar button')?.focus({ preventScroll: true }));
   }
 
-  function deleteEdge(id: string) {
+  function deleteEdge(id: Flow['edges'][number]['id']) {
     removeEdge(flow, id);
     selectedEdge = null;
     hoverEdge = null;
@@ -805,67 +821,29 @@
 
   const dotGap = $derived(GRID * view.k * (view.k < 0.6 ? 2 : 1));
 
-  const edges = $derived(
-    flow.edges.flatMap((e) => {
-      const from = nodeById(e.from);
-      const to = nodeById(e.to);
-      if (!from || !to) return [];
-      const spec = specFor(from.type);
-      const a = at(from.id);
-      const b = at(to.id);
-      const p1 = { x: a.x + NODE_W, y: a.y + portY(spec, e.port) };
-      const p2 = { x: b.x - ARROW_GAP, y: b.y + inputY };
-      return [{ id: e.id, d: wirePath(p1, p2), tone: isSecondPort(spec, e.port) ? 'no' : 'yes' }];
-    })
-  );
-
-  const RETURN_DROP = 20;
-
-  const returns = $derived(
-    loopTails(flow).flatMap(({ loop, tail }) => {
-      const loopNode = nodeById(loop);
-      const tailNode = nodeById(tail);
-      if (!loopNode || !tailNode) return [];
-      const l = at(loop);
-      const a = at(tail);
-      const loopBottom = l.y + nodeHeight(specFor(loopNode.type));
-      const bottomY = Math.max(loopBottom, a.y + nodeHeight(specFor(tailNode.type))) + RETURN_DROP;
-      return [{ id: `${loop}:${tail}`, d: returnPath({ x: a.x + NODE_W, y: a.y + inputY }, { x: l.x + NODE_W / 2, y: loopBottom }, bottomY) }];
-    })
-  );
+  const edges = $derived(edgePaths(flow, disp));
+  const returns = $derived(loopPaths(flow, disp));
 
   const stopId = $derived(selectedId && nodeById(selectedId) ? selectedId : (readingOrder(flow)[0]?.id ?? null));
 
   const triggers = $derived(flow.nodes.filter((n) => specFor(n.type)?.kind === 'trigger'));
 
-  const startWires = $derived(
-    triggers.map((n) => {
-      const b = at(n.id);
-      const from = { x: startAt.x + START_W, y: startAt.y + START_H / 2 };
-      return { id: n.id, d: wirePath(from, { x: b.x - ARROW_GAP, y: b.y + inputY }) };
-    })
-  );
+  const startWires = $derived(startPaths(flow, disp, { x: startAt.x + START_W, y: startAt.y + START_H / 2 }));
 
-  const wireD = $derived.by(() => {
-    if (!wire) return '';
-    const n = nodeById(wire.from);
-    if (!n) return '';
-    const a = at(n.id);
-    const target = wireTarget && targetFor(wireTarget) ? at(wireTarget) : null;
-    const end = target ? { x: target.x - ARROW_GAP, y: target.y + inputY } : { x: wire.x, y: wire.y };
-    return previewPath({ x: a.x + NODE_W, y: a.y + portY(specFor(n.type), wire.port) }, end);
+  const wireD = $derived(wirePreview(flow, disp, wire, wireTarget && targetFor(wireTarget) ? wireTarget : null));
+
+  const results = $derived(searchSteps(t, query, ['reply', 'condition']));
+  const occupied = $derived(portOccupied(flow, menu?.link));
+  const activeResultId = $derived(results[activeResult] ? `${pickerId}-${results[activeResult].type}` : undefined);
+
+  $effect(() => {
+    menuSearch?.focus({ preventScroll: true });
   });
 
-  const needle = $derived(query.trim().toLowerCase());
-  const groups = $derived(
-    MENU_KINDS.map((kind) => ({
-      kind,
-      title: kind === 'condition' ? t('flows.board.onlyIf') : t('flows.board.do'),
-      specs: NODE_SPECS.filter(
-        (s) => s.kind === kind && (!needle || `${stepLabel(t, s)} ${stepSummary(t, s)}`.toLowerCase().includes(needle))
-      )
-    })).filter((g) => g.specs.length > 0)
-  );
+  $effect(() => {
+    const id = activeResultId;
+    if (id) void tick().then(() => document.getElementById(id)?.scrollIntoView({ block: 'nearest' }));
+  });
 
 
 </script>
@@ -967,18 +945,25 @@
         onfocusin={(e) => {
           if (!(e.target as HTMLElement).closest('button')) { selectedId = node.id; selectedEdge = null; }
           resetHostScroll();
-          if (mode === 'idle') keepInView(node.id);
+          if (mode === 'idle' && (e.target as HTMLElement).matches(':focus-visible')) revealNode(node.id);
         }}
       >
-        <FlowNodeCard bind:this={cards[node.id]} {node} selected={selectedId === node.id} tabbable={stopId === node.id} {touch} connecting={connecting !== null} onadd={(port, el) => addFromPort(node.id, port, el)} />
+        <FlowNodeCard bind:this={cards[node.id]} {node} parallel={parallelPorts(flow, node.id)} selected={selectedId === node.id} tabbable={stopId === node.id} {touch} connecting={connecting !== null} onadd={(port, el) => addFromPort(node.id, port, el)} />
       </div>
     {/each}
   </div>
 
   {#if menu}
     <span class="menu-anchor" bind:this={menuAnchor} style:left="{menu.sx}px" style:top="{menu.sy}px"></span>
-    <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label={t('flows.board.addStep')} width={300} maxHeight={380} onClose={() => closeMenu(true)}>
+    <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label={t('flows.board.addStep')} width={340} maxHeight={380} onClose={() => closeMenu(true)}>
       <div class="menu" role="presentation" onkeydown={onMenuKey}>
+        <SearchInput bind:element={menuSearch} value={query} onValueChange={(v) => { query = v; activeResult = 0; }} placeholder={t('flows.board.searchSteps')} aria-label={t('flows.board.searchSteps')} role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="{pickerId}-results" aria-activedescendant={activeResultId} fill />
+        {#if occupied}
+          <div class="insert-mode" role="group" aria-label={t('flows.board.addStep')}>
+            <Button block variant={insertMode === 'insert' ? 'primary' : 'ghost'} aria-pressed={insertMode === 'insert'} onclick={() => (insertMode = 'insert')}><bb-fit>{t('flows.board.insertHere')}</bb-fit></Button>
+            <Button block variant={insertMode === 'parallel' ? 'primary' : 'ghost'} aria-pressed={insertMode === 'parallel'} onclick={() => (insertMode = 'parallel')}><bb-fit>{t('flows.board.runParallel')}</bb-fit></Button>
+          </div>
+        {/if}
         {#if menu.link && flow.nodes.some((node) => targetFor(node.id, menu?.link))}
           <PickerOption onclick={connectFromMenu}>
             <span class="menu-row">
@@ -987,11 +972,12 @@
             </span>
           </PickerOption>
         {/if}
-        <SearchInput value={query} onValueChange={(v) => (query = v)} placeholder={t('flows.board.searchSteps')} fill />
-        {#each groups as g (g.kind)}
-          <span class="menu-title">{g.title}</span>
-          {#each g.specs as s (s.type)}
-            <PickerOption onclick={() => pick(s.type)}>
+        <div id="{pickerId}-results" role="listbox" aria-label={t('flows.board.searchSteps')}>
+          {#each results as s, index (s.type)}
+            {#if !query.trim() && results[index - 1]?.kind !== s.kind}
+              <div class="menu-title" role="presentation">{s.kind === 'reply' ? t('flows.board.do') : t('flows.board.onlyIf')}</div>
+            {/if}
+            <PickerOption id="{pickerId}-{s.type}" role="option" aria-selected={activeResult === index} selected={activeResult === index} tabindex={-1} onclick={() => pick(s.type)}>
               <span class="menu-row" style:--tint={MENU_TINT[s.kind].color} style:--tint-rgb={MENU_TINT[s.kind].rgb}>
                 <IconTile class="menu-tile"><Icon name={s.icon} size={16} /></IconTile>
                 <span class="menu-text">
@@ -1001,9 +987,11 @@
               </span>
             </PickerOption>
           {/each}
-        {:else}
+        </div>
+        {#if results.length === 0}
           <span class="menu-sum menu-empty">{t('flows.board.noStepsMatch')}</span>
-        {/each}
+          <Button variant="ghost" onclick={() => { query = ''; activeResult = 0; menuSearch?.focus(); }}>{t('flows.board.clearSearch')}</Button>
+        {/if}
       </div>
     </PickerPanel>
   {/if}
@@ -1030,6 +1018,8 @@
   </button>
 
   <div class="zoom" bind:this={zoomEl}>
+    <IconButton label={t('flows.board.undo')} size="sm" tooltip disabled={!canUndo} onclick={onundo}><Icon name="rotateCcw" size={14} /></IconButton>
+    <IconButton label={t('flows.board.redo')} size="sm" tooltip disabled={!canRedo} onclick={onredo}><Icon name="rotateCw" size={14} /></IconButton>
     <Cluster gap={2} align="stretch" nowrap>
       <IconButton label={t('flows.board.zoomOut')} size="sm" tooltip onclick={() => zoomCenter(1 / 1.2)}><Icon name="minus" size={14} /></IconButton>
       <span class="zoom-pct">{Math.round(shownK * 100)}%</span>
@@ -1165,6 +1155,13 @@
     font-size: 14px;
     font-weight: 600;
     color: rgba(var(--bb-white-rgb), 0.92);
+  }
+  .insert-mode {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 4px;
+    --btn-pad: 0 8px;
+    --btn-justify: center;
   }
   .menu-row {
     display: flex;

@@ -22,7 +22,7 @@
   import DurationField from '#lib/components/shared/DurationField.svelte';
   import { durationOutside, durationRange, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
   import { fieldVisible, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
-  import { duplicateNode, removeNode } from '#lib/flow/ops';
+  import { duplicateNode } from '#lib/flow/ops';
   import { awaitingSetup, configText } from '#lib/flow/setup';
   import { SETUP_URL } from '@bagel/kit/automations';
   import ChoiceField from './ChoiceField.svelte';
@@ -35,10 +35,14 @@
     flow = $bindable(),
     selectedId = $bindable(null),
     focusToken = 0,
-    onclose
-  }: { flow: Flow; selectedId?: string | null; focusToken?: number; onclose?: () => void } = $props();
+    onclose,
+    onremove
+  }: { flow: Flow; selectedId?: string | null; focusToken?: number; onclose?: () => void; onremove: (id: string) => void } = $props();
 
   const { t } = getI18n();
+  type FieldKey = FieldSpec['key'];
+  type Token = VariableChip['token'];
+  type Hint = string | undefined;
   let panel = $state<HTMLElement>();
 
   $effect(() => {
@@ -72,7 +76,7 @@
   });
 
   const caret = new Map<string, number>();
-  const textOf = (key: string) => (node ? configText(node, key) : '');
+  const textOf = (key: FieldKey) => (node ? configText(node, key) : '');
   const awaiting = $derived(node ? awaitingSetup(node) : false);
 
   let heldForSetup: string | null = null;
@@ -85,10 +89,9 @@
     }
   });
 
-  // A named window cannot also be per-viewer, so switching to per-viewer drops a name rather than letting an
-  // invalid combination sit unsaved.
   $effect(() => {
-    if (node && spec?.type === 'cond.cooldown' && node.config.perUser && node.config.name) delete node.config.name;
+    if (!node || spec?.type !== 'cond.cooldown') return;
+    if (node.config.perUser && node.config.name) delete node.config.name;
   });
 
   const templateFields = $derived(spec?.fields.filter((f) => f.type === 'template') ?? []);
@@ -120,16 +123,16 @@
       .filter((v) => matches(v.token, v.hint));
   });
 
-  function matches(token: string, hint: string | undefined): boolean {
+  function matches(token: Token, hint: Hint): boolean {
     return !needle || token.toLowerCase().includes(needle) || Boolean(hint?.toLowerCase().includes(needle));
   }
 
-  function trackCaret(key: string, field: HTMLInputElement | HTMLTextAreaElement) {
+  function trackCaret(key: FieldKey, field: HTMLInputElement | HTMLTextAreaElement) {
     focusedKey = key;
     caret.set(key, field.selectionStart ?? field.value.length);
   }
 
-  async function insertToken(key: string, token: string) {
+  async function insertToken(key: FieldKey, token: Token) {
     if (!node) return;
     const current = textOf(key);
     const at = Math.min(caret.get(key) ?? current.length, current.length);
@@ -142,7 +145,7 @@
     area?.setSelectionRange(next, next);
   }
 
-  function reach(from: string, port: string): number {
+  function reach(from: FlowNode['id'], port: NonNullable<NodeSpec['outputs']>[number]['id']): number {
     const seen = new Set<string>();
     const walk = (ids: string[]) => {
       for (const id of ids) {
@@ -163,10 +166,8 @@
 
   const countText = (count: number) =>
     count === 0 ? t('flows.board.branchNone') : count === 1 ? t('flows.board.branchOne') : t('flows.board.branchMany', { count });
-  const hintTitle = (token: string, hint: string | undefined) => (hint ? t('flows.board.variableTitle', { token, hint }) : token);
+  const hintTitle = (token: Token, hint: Hint) => (hint ? t('flows.board.variableTitle', { token, hint }) : token);
 
-  // The cooldown name field keeps its slot even while hidden, disabled rather than removed, so toggling
-  // per-viewer never shifts the fields below it.
   const RESERVE_SPACE = new Set(['cond.cooldown:name']);
   function renderVisible(s: NodeSpec, n: FlowNode, field: FieldSpec): boolean {
     return RESERVE_SPACE.has(`${s.type}:${field.key}`) || fieldVisible(s, n, field);
@@ -180,9 +181,7 @@
 
   function remove() {
     if (!node) return;
-    const id = node.id;
-    selectedId = null;
-    removeNode(flow, id);
+    onremove(node.id);
   }
 </script>
 

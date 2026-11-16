@@ -17,6 +17,7 @@
     tabbable = true,
     touch = false,
     connecting = false,
+    parallel = [],
     onadd
   }: {
     node: FlowNode;
@@ -24,6 +25,7 @@
     tabbable?: boolean;
     touch?: boolean;
     connecting?: boolean;
+    parallel?: string[];
     onadd?: (port: string, anchor: HTMLElement) => void;
   } = $props();
 
@@ -51,6 +53,9 @@
 
 {#snippet outPort(id: string, label: string, y: number, tone: 'yes' | 'no')}
   <span class="out" style:top="{y}px">
+    {#if parallel.includes(id)}
+      <span class="parallel"><Icon name="branch" size={12} />{t('flows.board.atSameTime')}</span>
+    {/if}
     <span class="port port--out tone-{tone}" bind:this={ports[id]}></span>
     <span class="add tone-{tone}" bind:this={adds[id]}>
       <FlowAddButton
@@ -111,9 +116,6 @@
 {/if}
 
 <style>
-  /* Background, idle/hover shadow and the selected/focus ring live in the
-     shared CanvasCard (ui/styles/elements/canvas-card.css); this file only
-     owns the node's own layout, accent tint and drag affordance. */
   :global(.node) {
     --accent: var(--bb-muted-light);
     cursor: grab;
@@ -233,6 +235,22 @@
   }
   .port--in {
     left: -6px;
+  }
+  .parallel {
+    position: absolute;
+    left: 18px;
+    bottom: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: max-content;
+    padding: 3px 7px;
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-bg-1);
+    color: var(--bb-white);
+    font-size: 12px;
+    line-height: 16px;
+    pointer-events: none;
   }
   .out {
     position: absolute;
