@@ -303,7 +303,7 @@ func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(
 		return
 	}
 
-	view, err := d.repo.Get(ctx, id)
+	view, err := d.repo.GetFresh(ctx, id)
 	if err != nil {
 		respondFail(msg, err)
 		return

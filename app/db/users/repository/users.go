@@ -249,6 +249,12 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 	})
 }
 
+// GetFresh skips this replica's view cache, which a write on the other replica only clears asynchronously.
+func (r *Users) GetFresh(ctx context.Context, id uint64) (UserView, error) {
+	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
+	return r.Get(ctx, id)
+}
+
 // Must order by updated_at and stay uncached: a renamed login can still sit on our old row.
 func (r *Users) IDByUsername(ctx context.Context, username string) (uint64, error) {
 	username = strings.ToLower(strings.TrimSpace(username))
