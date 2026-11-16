@@ -6,7 +6,7 @@ import { definitionToFlow, flowStepRefs, flowToDefinition, locateIssues, type Fl
 import { classifyFlow } from './flow-layer';
 import { SETUP_REWARD_ID } from './flow-setup';
 import { validateDefinition } from './validate';
-import type { Definition } from './types';
+import type { Action, Definition } from './types';
 
 const node = (id: FlowNode['id'], type: FlowNode['type'], config: FlowConfig = {}): FlowNode => ({ id, type, x: 0, y: 0, config });
 const edge = (from: FlowEdge['from'], port: FlowEdge['port'], to: FlowEdge['to']): FlowEdge => ({ id: `${from}-${port}-${to}`, from, port, to });
@@ -631,6 +631,26 @@ describe('compare value step', () => {
 });
 
 describe('reading stored definitions', () => {
+  const disabledControls: Record<string, Action> = {
+    if: { type: 'if', enabled: false, params: { condition: { type: 'chance', params: { percent: 50 } }, then: [chat('yes')], else: [chat('no')] } },
+    parallel: { type: 'parallel', enabled: false, params: { branches: [{ actions: [chat('a')] }, { actions: [chat('b')] }] } }
+  };
+
+  const placements: { name: string; wrap: (action: Action) => Action; path: string }[] = [
+    { name: 'root', wrap: (action) => action, path: 'actions[0]' },
+    { name: 'loop', wrap: (action) => ({ type: 'loop', params: { times: '2', actions: [action] } }), path: 'actions[0].params.actions[0]' },
+    { name: 'parallel', wrap: (action) => ({ type: 'parallel', params: { branches: [{ actions: [action] }] } }), path: 'actions[0].params.branches[0].actions[0]' },
+    { name: 'if', wrap: (action) => ({ type: 'if', params: { condition: { type: 'chance', params: { percent: 50 } }, then: [action] } }), path: 'actions[0].then[0]' }
+  ];
+
+  test.each(Object.entries(disabledControls).flatMap(([type, action]) => placements.map((placement) => ({ type, action, ...placement }))))(
+    'refuses disabled $type under $name without enabling its contents',
+    ({ action, wrap, path }) => {
+      const definition: Definition = { version: 1, trigger: { type: 'event', params: { kind: 'channel.follow' } }, actions: [wrap(action)] };
+      expect(definitionToFlow(definition, meta)).toEqual({ ok: false, issues: [{ path, code: 'unsupported_disabled_control_flow' }] });
+    }
+  );
+
   test('a stored removed post, an action that no longer exists, cannot be drawn', () => {
     const stored: Definition = {
       version: 1,

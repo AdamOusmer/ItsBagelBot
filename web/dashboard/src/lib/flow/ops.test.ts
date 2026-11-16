@@ -52,8 +52,7 @@ describe('adding steps', () => {
       const first = addNode(flow, 'reply.chat', at, { from: root.id, port: 'next' });
       const second = addNode(flow, 'reply.chat', at, { from: first.id, port: 'next' });
       const copy = duplicateNode(flow, second.id)!;
-      expect(new Set(flow.nodes.map((node) => node.id)).size).toBe(4);
-      expect(new Set(flow.edges.map((edge) => edge.id)).size).toBe(2);
+      expect({ nodes: new Set(flow.nodes.map((node) => node.id)).size, edges: new Set(flow.edges.map((edge) => edge.id)).size }).toEqual({ nodes: 4, edges: 2 });
       expect(copy.id).not.toBe(second.id);
       expect(flow.edges.map(({ from, to }) => [from, to])).toEqual([[root.id, first.id], [first.id, second.id]]);
     } finally {

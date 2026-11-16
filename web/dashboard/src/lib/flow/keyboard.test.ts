@@ -144,11 +144,15 @@ describe('neighbor', () => {
 });
 
 describe('neighborAfterRemove', () => {
-  test('prefers what came next, then the source, then anything left', () => {
-    expect(neighborAfterRemove(flow, 'c')).toBe('yes');
-    expect(neighborAfterRemove(flow, 'no')).toBe('c');
-    expect(neighborAfterRemove(flow, 'lone')).toBe('t');
-    expect(neighborAfterRemove({ ...flow, nodes: [flow.nodes[0]], edges: [] }, 't')).toBeNull();
+  const removals: { id: string; next: string | null; graph: Flow }[] = [
+    { id: 'c', next: 't', graph: flow },
+    { id: 'no', next: 'c', graph: flow },
+    { id: 'lone', next: 't', graph: flow },
+    { id: 't', next: 'c', graph: flow },
+    { id: 't', next: null, graph: { ...flow, nodes: [flow.nodes[0]], edges: [] } }
+  ];
+  test.each(removals)('prefers the source when removing $id', ({ id, next, graph }) => {
+    expect(neighborAfterRemove(graph, id)).toBe(next);
   });
 });
 

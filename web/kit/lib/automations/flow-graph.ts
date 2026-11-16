@@ -25,6 +25,7 @@ export const FLOW_ISSUE = {
   unsupportedTrigger: 'unsupported_trigger',
   unsupportedCondition: 'unsupported_condition',
   unsupportedAction: 'unsupported_action',
+  unsupportedDisabledControlFlow: 'unsupported_disabled_control_flow',
   waitTooLong: 'wait_too_long',
   unmappableToken: 'unmappable_token',
   userNotResolved: 'user_not_resolved'
@@ -943,6 +944,10 @@ function placeApi(b: Building, action: Action, path: string, tails: Tail[]): Tai
 }
 
 function placeAction(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
+  if (disabledControlFlow(action)) {
+    b.issues.push({ path, code: FLOW_ISSUE.unsupportedDisabledControlFlow });
+    return tails;
+  }
   if (action.type === 'if') return placeIf(b, action, path, tails);
   if (action.type === 'parallel') return placeParallel(b, action, path, tails);
   if (action.type === 'loop') return placeLoop(b, action, path, tails);
@@ -953,6 +958,10 @@ function placeAction(b: Building, action: Action, path: string, tails: Tail[]): 
     return tails;
   }
   return [{ from: addNode(b, node.type, placedConfig(action, node.config), tails), port: 'next' }];
+}
+
+function disabledControlFlow(action: Action): boolean {
+  return action.enabled === false && ['if', 'parallel'].includes(action.type);
 }
 
 function placeActions(b: Building, actions: Action[], path: string, tails: Tail[]): Tail[] {

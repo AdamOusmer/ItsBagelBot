@@ -42,6 +42,7 @@ export type NodeSpec = {
   icon: IconName;
   fields: readonly FieldSpec[];
   provides?: readonly VariableSpec[];
+  providesFor?(config: FlowNode['config']): readonly VariableSpec[];
   outputs?: readonly OutputSpec[];
 };
 
@@ -66,6 +67,13 @@ const user: VariableSpec[] = [
   { token: '{user}', name: 'user', sample: USER_SAMPLE },
   { token: '{user.id}', name: 'userId', sample: USERID_SAMPLE }
 ];
+
+const subVariables: Record<string, readonly VariableSpec[]> = {
+  resub: [{ token: '{months}', name: 'months', sample: '14' }],
+  gift: [{ token: '{count}', name: 'count', sample: '5' }]
+};
+
+const subViewer: readonly VariableSpec[] = [...user, { token: '{tier}', name: 'tier', sample: '1' }];
 
 const yesNo: OutputSpec[] = [{ id: 'yes' }, { id: 'no' }];
 
@@ -145,7 +153,8 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     group: 'twitch',
     icon: 'star',
     fields: [{ key: 'variant', type: 'select', options: ['any', 'new', 'resub', 'gift'] }],
-    provides: [...user, { token: '{tier}', name: 'tier', sample: '1' }, { token: '{months}', name: 'months', sample: '14' }]
+    provides: [...subViewer, ...subVariables.resub],
+    providesFor: (config) => [...subViewer, ...(subVariables[String(config.variant)] ?? [])]
   },
   {
     type: 'twitch.cheer',
@@ -438,7 +447,8 @@ function savedLocal(parent: FlowNode, spec: NodeSpec): VariableSpec[] {
 
 function providedBy(parent: FlowNode, spec: NodeSpec, port: string): readonly VariableSpec[] {
   const viaPort = spec.outputs?.find((output) => output.id === port)?.provides ?? [];
-  return [...(spec.provides ?? []), ...viaPort, ...savedLocal(parent, spec)];
+  const provided = spec.providesFor?.(parent.config) ?? spec.provides ?? [];
+  return [...provided, ...viaPort, ...savedLocal(parent, spec)];
 }
 
 export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
