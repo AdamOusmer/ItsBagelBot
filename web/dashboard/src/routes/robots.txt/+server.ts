@@ -75,11 +75,15 @@ Disallow: /
 `;
 
 const QUEUE = `# ItsBagelBot Queue: https://queue.itsbagelbot.com
-# One live line per channel at /<login>. The contents change every few seconds,
-# so there is nothing here to index.
+# Public channel pages: the play queue at /<login> and the Spotify song queue
+# at /sr/<login>. Each declares this host in its canonical URL.
 
 User-agent: *
-Disallow: /
+Allow: /
+
+# Not documents: the JSON endpoints behind each page.
+Disallow: /*/data
+Disallow: /sr/*/data
 `;
 
 const BODY: Readonly<Record<SeoHost, string>> = {
