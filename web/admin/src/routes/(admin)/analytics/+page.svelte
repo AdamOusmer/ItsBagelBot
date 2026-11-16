@@ -469,6 +469,7 @@
 
   <section id="audience" class="block">
     {@render heading('audience')}
+    {@render barCard('sizes', view?.audience.sizes)}
     {@render barCard('locales', view?.audience.locales)}
     {@render factsCard('delegating', view?.audience.delegating)}
     <Grid cols={2} stackAt="md">

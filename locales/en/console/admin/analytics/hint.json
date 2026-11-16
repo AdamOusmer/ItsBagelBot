@@ -1,4 +1,5 @@
 {
+  "sizes": "Distinct channels in the last full week, grouped by current live viewer count. A channel may appear in more than one band during a week. Counts below 5 are shown as <5 and excluded from shares.",
   "ticks": "Tick outcomes in this period. Fired counts published messages.",
   "timers": "Enabled timers in enabled modules. Options can overlap; plain has none.",
   "rounds": "Completed rounds by game and outcome in this period.",

@@ -618,6 +618,27 @@ describe('commands', () => {
 });
 
 describe('audience', () => {
+  it.each([1, 7, 30, 90, 365])('uses only the last full week for audience sizes with a %s day selection', (days) => {
+    const sizes = buildAnalytics(reads({
+      days,
+      week: [
+        ...snap('2026-11-02', 'channels.size', [['v0_9', 0], ['v10_49', 4], ['v50_199', 5], ['v200_999', 15], ['v1kp', 1]]),
+        row('2026-11-09', 'channels.size', ['v50_199'], 1000),
+        row('2026-10-26', 'channels.size', ['v50_199'], 2000)
+      ],
+      month: [row('2026-10-01', 'channels.size', ['v50_199'], 3000)]
+    })).audience.sizes;
+    expect({ labels: lines(sizes), values: sizes.map((bar) => bar.value) }).toEqual({
+      labels: ['v0_9:<5:-', 'v10_49:<5:-', 'v50_199:5:25%', 'v200_999:15:75%', 'v1kp:<5:-'],
+      values: [0, 0, 5, 15, 0]
+    });
+  });
+
+  it('masks missing and entirely suppressed audience buckets without shares', () => {
+    const sizes = buildAnalytics(reads({ week: [row('2026-11-02', 'channels.size', ['v0_9'], 4)] })).audience.sizes;
+    expect(lines(sizes)).toEqual(['v0_9:<5:-', 'v10_49:<5:-', 'v50_199:<5:-', 'v200_999:<5:-', 'v1kp:<5:-']);
+  });
+
   it('names locales in English and falls back to the code', () => {
     expect(view.audience.locales.map((b) => b.name)).toEqual([
       { text: 'English (en)' },

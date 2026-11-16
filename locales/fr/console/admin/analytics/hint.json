@@ -1,4 +1,5 @@
 {
+  "sizes": "Chaînes distinctes de la dernière semaine complète, regroupées par nombre actuel de spectateurs en direct. Une chaîne peut apparaître dans plusieurs tranches au cours d’une semaine. Les nombres inférieurs à 5 sont affichés sous la forme <5 et exclus des pourcentages.",
   "ticks": "Résultats sur la période. Envoyé compte les messages publiés.",
   "timers": "Minuteurs actifs dans les modules activés. Les options peuvent se cumuler ; simple n’en possède aucune.",
   "rounds": "Manches terminées par jeu et résultat sur la période.",

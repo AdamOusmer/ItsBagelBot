@@ -1,4 +1,11 @@
 {
+  "size": {
+    "v0_9": "De 0 a 9 espectadores",
+    "v10_49": "De 10 a 49 espectadores",
+    "v50_199": "De 50 a 199 espectadores",
+    "v200_999": "De 200 a 999 espectadores",
+    "v1kp": "1.000 espectadores ou mais"
+  },
   "lifecycle": {
     "signup": "Cadastrou-se",
     "onboarded": "Concluiu a configuração",

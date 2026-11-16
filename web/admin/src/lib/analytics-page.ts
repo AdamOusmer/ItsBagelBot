@@ -85,13 +85,14 @@ export type AnalyticsView = {
   revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable; checkout: DataTable; checkoutFacts: Fact[] };
   features: { modules: DataTable; breadth: DataTable; breadthFacts: Fact[]; integrations: Bar[]; pagesHidden: Bar[]; dashboard: Bar[] };
   commands: { builtIn: DataTable; custom: Fact[]; perms: Bar[]; flags: Bar[] };
-  audience: { locales: Bar[]; delegating: Fact[]; runtime: Bar[]; desktop: Bar[] };
+  audience: { sizes: Bar[]; locales: Bar[]; delegating: Fact[]; runtime: Bar[]; desktop: Bar[] };
   community: { ticks: Bar[]; timers: Bar[]; rounds: DataTable; entrants: DataTable; points: Bar[]; rewards: DataTable };
   recipes: { runs: Bar[]; outcomes: DataTable; channels: Kpi; totals: DataTable };
   reliability: { drops: DataTable; dailyDrops: Series; providers: DataTable; songs: Bar[]; songFacts: Fact[]; blocked: Bar[]; flags: DataTable };
 };
 
 const ENUMS = {
+  size: ['v0_9', 'v10_49', 'v50_199', 'v200_999', 'v1kp'],
   tick: ['fired', 'gated', 'stopped', 'floor', 'blank', 'refused'],
   opt: ['plain', 'gated', 'capped', 'ends', 'offline'],
   rule: ['ip_logger', 'scam', 'phish', 'heuristic', 'block_term', 'lex_hate', 'lex_harassment', 'lex_sexual', 'lex_profanity', 'council_campaign', 'repeat', 'campaign', 'shield_mode', 'other'],
@@ -559,11 +560,19 @@ function audience(c: Ctx): AnalyticsView['audience'] {
   const accounts = sum(level(c, 'accounts.total'));
   const locales = byDim(level(c, 'accounts.locale'));
   return {
+    sizes: audienceSizes(c),
     locales: bars(locales, { name: localeName, secondary: ofShare('ofAccounts', accounts) }),
     delegating: accountFacts(c, 'accounts.delegating', 'delegating'),
     runtime: bars(byDim(level(c, 'accounts.runtime')), { ids: ENUMS.runtime, enum: 'runtime', order: 'keep' }),
     desktop: bars(byDim(level(c, 'desktop.grants')), { ids: ENUMS.platform, enum: 'platform', order: 'keep' })
   };
+}
+
+function audienceSizes(c: Ctx): Bar[] {
+  const counts = byDim(weekly(c, 'channels.size'));
+  const visible = new Map(ENUMS.size.map((id): Entry => [id, get(counts, id) >= 5 ? get(counts, id) : 0]));
+  const result = bars(visible, { ids: ENUMS.size, enum: 'size', order: 'keep', secondary: ofShare('ofTotal', total(visible)) });
+  return result.map((bar) => get(counts, bar.id) < 5 ? { ...bar, valueText: '<5', secondary: null } : bar);
 }
 
 function accountFacts(c: Ctx, metric: Metric, key: Dim): Fact[] {

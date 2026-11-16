@@ -775,7 +775,8 @@ function demoPeriodRows(span: DemoSpan, end: DemoDay, factor: DemoFactor): Analy
   const start = demoDate(span.start);
   return [
     { start, metric: 'channels.active', dims: [], value: Math.round(mean * factor) },
-    { start, metric: 'channels.live', dims: [], value: Math.round(mean * 0.55 * factor) }
+    { start, metric: 'channels.live', dims: [], value: Math.round(mean * 0.55 * factor) },
+    ...demoWeekSeries(span.start, mean * factor, demoRatios('channels.size', { v0_9: 0.4, v10_49: 0.25, v50_199: 0.12, v200_999: 0.05, v1kp: 0.001 }))
   ];
 }
 

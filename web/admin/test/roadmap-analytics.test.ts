@@ -50,10 +50,10 @@ test.each(['en', 'de', 'es', 'fr', 'pt-br', 'ru'])('resolves every new view labe
   const tree = readConsoleTree(locale);
   const view = buildAnalytics(reads);
   const names = [...view.community.ticks, ...view.community.timers, ...view.community.points,
-    ...view.growth.login, ...view.audience.runtime, ...view.audience.desktop,
+    ...view.growth.login, ...view.audience.runtime, ...view.audience.desktop, ...view.audience.sizes,
     ...view.community.rounds.rows, ...view.community.rewards.rows, ...view.reliability.flags.rows];
   const keys = names.map((r) => 'key' in r.name ? r.name.key : '').filter(Boolean);
-  const cards = ['ticks', 'timers', 'rounds', 'entrants', 'points', 'rewards', 'login', 'trials', 'moderation', 'runtime', 'desktop'];
+  const cards = ['ticks', 'timers', 'rounds', 'entrants', 'points', 'rewards', 'login', 'trials', 'moderation', 'runtime', 'desktop', 'sizes'];
   keys.push(...cards.flatMap((id) => [`admin.analytics.card.${id}`, `admin.analytics.hint.${id}`]));
   expect(keys.every((key) => typeof lookup(tree, key) === 'string')).toBe(true);
 });

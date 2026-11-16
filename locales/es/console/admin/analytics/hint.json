@@ -1,4 +1,5 @@
 {
+  "sizes": "Canales únicos de la última semana completa, agrupados por el número actual de espectadores en directo. Un canal puede aparecer en más de un grupo durante una semana. Los recuentos inferiores a 5 se muestran como <5 y se excluyen de los porcentajes.",
   "ticks": "Resultados en este período. Enviado cuenta los mensajes publicados.",
   "timers": "Temporizadores activos en módulos habilitados. Las opciones pueden coincidir; simple no tiene ninguna.",
   "rounds": "Rondas completadas por juego y resultado en este período.",

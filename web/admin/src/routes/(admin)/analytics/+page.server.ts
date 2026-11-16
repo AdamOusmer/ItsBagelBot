@@ -28,9 +28,9 @@ const LEVELS = [
   'integrations.connected', 'custom.total', 'custom.perm', 'custom.flags', 'custom.channels',
   'recipes.total', 'accounts.delegating', 'timers.total', 'accounts.runtime', 'desktop.grants'
 ];
-const WEEKLY = ['channels.active', 'channels.live', 'module.active', 'command.channels', 'recipe.channels', 'activation.age'];
+const WEEKLY = ['channels.active', 'channels.live', 'module.active', 'command.channels', 'recipe.channels', 'activation.age', 'channels.size'];
 const WEEK_SPAN = 28;
-const MONTHLY = ['channels.active', 'channels.live'];
+const MONTHLY = ['channels.active', 'channels.live', 'channels.size'];
 const MONTH_SPAN = 70;
 
 function windowDays(raw: string | null): number {

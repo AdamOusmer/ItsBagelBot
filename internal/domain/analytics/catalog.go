@@ -49,6 +49,7 @@ const (
 	CustomCommands   Metric = "custom.commands"
 	LiveStarts       Metric = "live.starts"
 	ChannelsLive     Metric = "channels.live"
+	ChannelsSize     Metric = "channels.size"
 	ChannelsActive   Metric = "channels.active"
 	ModuleActive     Metric = "module.active"
 	CohortActive     Metric = "cohort.active"
@@ -147,6 +148,7 @@ const (
 	KindRedeem    Kind = "redeem"
 	KindLogin     Kind = "login"
 	KindPlatform  Kind = "platform"
+	KindSize      Kind = "size"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -165,6 +167,7 @@ var catalog = map[Metric]Spec{
 	CustomCommands:   {Type: Counter, Dims: []Kind{KindChange}},
 	LiveStarts:       {Type: Counter},
 	ChannelsLive:     {Type: Distinct, Windows: Day | Week | Month},
+	ChannelsSize:     {Type: Distinct, Dims: []Kind{KindSize}, Windows: Week | Month},
 	ChannelsActive:   {Type: Distinct, Windows: Day | Week | Month},
 	ModuleActive:     {Type: Distinct, Dims: []Kind{KindModule}, Windows: Day | Week},
 	CohortActive:     {Type: Distinct, Dims: []Kind{KindWeek}, Windows: Week},
@@ -260,6 +263,7 @@ var enums = map[Kind][]string{
 	KindRedeem:   {"ok", "offline", "bad_input", "setup", "busy", "unreachable"},
 	KindLogin:    {"started", "ok", "declined", "oauth", "state", "bot", "scope", "link", "retry", "banned"},
 	KindPlatform: {"macos", "windows", "linux"},
+	KindSize:     {"v0_9", "v10_49", "v50_199", "v200_999", "v1kp"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{
