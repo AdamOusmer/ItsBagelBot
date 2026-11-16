@@ -270,7 +270,7 @@
     }
 
     .bb-editor-stage__panel--left {
-      height: min(calc(var(--stage-sheet-h, 56dvh) * 1.25), calc(var(--stage-vvh, 100dvh) - 64px));
+      height: min(var(--stage-sheet-drag, calc(var(--stage-sheet-h, 56dvh) * 1.25)), calc(var(--stage-vvh, 100dvh) - 64px));
     }
 
     .bb-editor-stage__grip {

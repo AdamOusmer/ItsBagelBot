@@ -213,7 +213,7 @@
 
   function clearSheetSizing() {
     draggedSheet = null;
-    for (const name of ['--stage-kb', '--stage-vvh', '--stage-sheet-h', '--stage-sheet-limit', '--stage-board-left']) editorEl?.style.removeProperty(name);
+    for (const name of ['--stage-kb', '--stage-vvh', '--stage-sheet-h', '--stage-sheet-drag', '--stage-sheet-limit', '--stage-board-left']) editorEl?.style.removeProperty(name);
   }
 
   function syncViewport() {
@@ -223,6 +223,8 @@
     style.setProperty('--stage-kb', `${keyboard}px`);
     style.setProperty('--stage-vvh', `${height}px`);
     style.setProperty('--stage-sheet-h', `${sheetHeight()}px`);
+    if (draggedSheet === null) style.removeProperty('--stage-sheet-drag');
+    else style.setProperty('--stage-sheet-drag', `${sheetHeight()}px`);
     style.setProperty('--stage-sheet-limit', `${sheetLimit()}px`);
     style.setProperty('--stage-board-left', `${boardEl?.getBoundingClientRect().left ?? 0}px`);
     if (keyboard === 0 && scrollY !== 0) scrollTo(0, 0);
