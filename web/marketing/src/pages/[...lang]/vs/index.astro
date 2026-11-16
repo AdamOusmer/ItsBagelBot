@@ -12,6 +12,7 @@ import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Cluster from '@bagel/ui/astro/Cluster.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, langParam } from '../../../i18n/ui';
 import { getCompare } from '../../../lib/compare/content';
+import { getRoundup, roundupPath } from '../../../lib/compare/roundup';
 import { compareSlugs, compareLocales, competitorNames } from '../../../lib/compare/slugs';
 
 export function getStaticPaths() {
@@ -20,12 +21,18 @@ export function getStaticPaths() {
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
-const pages = compareSlugs.map((slug) => ({
+const roundup = getRoundup(lang);
+const pages = [{
+    name: roundup.hero.title,
+    href: localizePath(roundupPath, lang),
+    title: roundup.hero.title,
+    description: roundup.meta.description,
+}, ...compareSlugs.map((slug) => ({
     name: competitorNames[slug],
     href: localizePath(`/vs/${slug}`, lang),
     title: t('compare.vsTitle').replace('{name}', competitorNames[slug]),
     description: getCompare(slug, lang).meta.description,
-}));
+}))];
 
 const origin = new URL(Astro.site!).origin;
 const pageUrl = new URL(Astro.url.pathname, Astro.site).href;

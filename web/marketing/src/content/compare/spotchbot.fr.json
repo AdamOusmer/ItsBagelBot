@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs SpotchBot | Bots de demandes Spotify",
+    "description": "Comparez les demandes Spotify sur Twitch : taille de file gratuite, recherche, points de chaîne et tarif. Voyez à qui convient SpotchBot ou ItsBagelBot."
+  },
+  "hero": {
+    "eyebrow": "Comparatif de bots musicaux",
+    "title": "ItsBagelBot vs SpotchBot",
+    "lead": "Vous cherchez une alternative à SpotchBot ? Les deux bots ajoutent les demandes des spectateurs à votre propre file Spotify et exigent Spotify Premium. Ils diffèrent par la taille de la file gratuite, par les chaînes acceptées et par ce que le bot fait d'autre pour votre chat."
+  },
+  "reviewed": "2026-11-16",
+  "suits": {
+    "us": [
+      "Vous voulez une longue file de demandes avec un forfait gratuit : la file contient 100 titres.",
+      "Un seul bot pour les demandes de musique, commandes personnalisées, messages programmés, points de fidélité, tirages et stats de jeu.",
+      "Votre chaîne est nouvelle ou petite. Connectez-vous avec Twitch et commencez ; aucun minimum de followers n'est exigé.",
+      "Vous voulez une recherche rigoureuse : artiste et titre dans n'importe quel ordre, et un refus quand rien ne correspond."
+    ],
+    "them": [
+      "Vous voulez que les spectateurs cherchent et demandent depuis une page web avec résultats en direct. Référence : https://spotchbot.com/docs/streamer-page.",
+      "Vous voulez une source navigateur OBS qui affiche le titre en cours et la file. Référence : https://spotchbot.com/docs/overlay.",
+      "Vous voulez des votes pour passer ou une durée maximale de titre. Référence : https://spotchbot.com/docs/settings.",
+      "Vous voulez des tableaux Song Battle ou une playlist communautaire. Référence : https://spotchbot.com/docs/pro."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Source musicale",
+      "us": "Spotify. !sr ajoute le titre à votre propre file Spotify, et il est lu sur votre appareil actif.",
+      "them": "Spotify. La lecture est pilotée via les propres identifiants d'application Spotify du streamer.",
+      "source": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "feature": "Prérequis",
+      "us": "Spotify Premium, votre propre application du tableau de bord développeur Spotify et Spotify en cours de lecture sur un appareil.",
+      "them": "Spotify Premium et vos propres identifiants d'application de développeur Spotify (Client ID et Secret).",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Accès",
+      "us": "Toute chaîne Twitch. Connectez-vous avec Twitch et activez les demandes de musique.",
+      "them": "Une bêta ouverte aux places limitées. Les nouvelles places exigent au moins 100 followers Twitch, et une place est reprise après 30 jours sans diffusion, sauf si la chaîne a Pro.",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "File gratuite",
+      "us": "La file contient 100 titres avec le forfait gratuit.",
+      "them": "Le forfait gratuit contient jusqu'à 6 titres dans la file. Pro est indiqué comme illimité.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Limites par spectateur",
+      "us": "Des limites distinctes pour tout le monde, les abonnés, les VIP et les modérateurs. Une limite vide signifie illimité.",
+      "them": "Un réglage de maximum par utilisateur et un délai, tous deux désactivés par défaut. Les DJ désignés en sont exemptés.",
+      "source": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "feature": "Recherche",
+      "us": "Comprend « song by artist » et « artist - song », vérifie le titre et l'artiste sur Spotify et refuse quand rien ne correspond.",
+      "them": "!sr cherche sur Spotify et ajoute le meilleur résultat à la file, ou accepte un lien de titre Spotify.",
+      "source": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "feature": "Points de chaîne Twitch",
+      "us": "Une récompense native ajoute un titre à la file. Une demande impossible à ajouter est remboursée, et le chat en connaît la raison.",
+      "them": "Les récompenses peuvent demander un titre, passer un titre ou voter pour le passer. Les récompenses gérées par le bot remboursent les points quand une demande échoue.",
+      "source": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "feature": "Modération",
+      "us": "!skip, !clear et !remove avec une position dans la file dans le chat, plus la file en direct dans le tableau de bord.",
+      "them": "Des commandes de chat et un panneau web où les modérateurs retirent, réordonnent et passent des titres.",
+      "source": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "feature": "Page publique",
+      "us": "Une page en direct par chaîne sur queue.itsbagelbot.com/sr/ affiche le titre en cours et les demandes suivantes. Elle est en lecture seule.",
+      "them": "Une page par chaîne sur spotchbot.com/s/ intègre le stream, affiche la file et accepte des demandes via une recherche en direct après connexion Twitch.",
+      "source": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "feature": "Overlay OBS",
+      "us": "Pas d'overlay. !current et !srlist répondent dans le chat, et la page publique de la file affiche la même liste.",
+      "them": "Une source navigateur transparente affiche le titre en cours et la file à venir.",
+      "source": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "feature": "Blocages et accès",
+      "us": "Les niveaux de permission et les quotas décident qui peut demander. Il n'y a pas de liste de blocage de titres ou d'artistes.",
+      "them": "Les demandes peuvent être limitées à des groupes comme les abonnés. Bloquer des utilisateurs est gratuit ; bloquer titres, albums et artistes exige Pro.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Au-delà des demandes",
+      "us": "Commandes personnalisées, messages programmés, points de fidélité, tirages, file de spectateurs, stats de jeu et import depuis six autres bots.",
+      "them": "Centré sur les demandes de musique, avec tableaux Song Battle, playlist communautaire et statistiques des demandes.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Tarif",
+      "us": "Toutes les fonctionnalités finalisées sont gratuites, y compris les demandes de musique. Premium coûte 7 $ CAD plus taxes par mois et ajoute traitement prioritaire, assistance et accès anticipé aux modules en bêta.",
+      "them": "Un forfait gratuit avec les limites ci-dessus et un essai Pro de 7 jours. Pro est affiché à $4.99 par mois, $12.99 pour trois mois ou $39.99 par an.",
+      "source": "https://spotchbot.com/docs/pro"
+    }
+  ],
+  "migrate": {
+    "title": "Passez vos demandes de musique sur ItsBagelBot",
+    "path": "/guides/spotify-song-requests",
+    "steps": [
+      "Connectez-vous à ItsBagelBot avec Twitch et ouvrez Demandes de musique dans le tableau de bord.",
+      "Ajoutez le Client ID et le secret de votre application Spotify. Votre application actuelle convient : ajoutez l'URI de redirection indiquée, puis connectez votre compte Spotify.",
+      "Choisissez qui peut demander et les limites par spectateur. Activez !sr, la récompense en points de chaîne, ou les deux.",
+      "Testez !sr dans le chat, puis coupez les demandes dans l'ancien bot pour que le chat reçoive une seule réponse."
+    ],
+    "cta": "Lire le guide Spotify"
+  },
+  "faq": [
+    {
+      "q": "ItsBagelBot est-il une alternative gratuite à SpotchBot ?",
+      "a": "Les demandes de musique font partie du forfait gratuit d'ItsBagelBot, avec une file de 100 titres. Spotify Premium reste requis, comme pour tout bot qui contrôle une file Spotify."
+    },
+    {
+      "q": "Les deux bots exigent-ils Spotify Premium ?",
+      "a": "Oui. Spotify ne laisse piloter la file qu'aux comptes Premium. Les deux bots exigent aussi votre propre application dans le tableau de bord développeur Spotify."
+    },
+    {
+      "q": "Quand devriez-vous garder SpotchBot ?",
+      "a": "Gardez-le si vous comptez sur sa page web de demandes, son overlay OBS de la file, les votes pour passer, Song Battle ou la playlist communautaire. ItsBagelBot ne les propose pas."
+    },
+    {
+      "q": "Une chaîne de moins de 100 followers peut-elle utiliser les demandes Spotify ?",
+      "a": "ItsBagelBot n'exige aucun minimum de followers : connectez-vous avec Twitch et configurez-le. La documentation de SpotchBot indique que les nouvelles places en bêta exigent au moins 100 followers Twitch. Référence : https://spotchbot.com/docs/troubleshooting."
+    },
+    {
+      "q": "Combien de titres tient la file gratuite ?",
+      "a": "Le forfait gratuit d'ItsBagelBot accepte 100 titres dans la file. Le tableau des forfaits de SpotchBot indique jusqu'à 6 titres en Free et illimité en Pro. Référence : https://spotchbot.com/docs/pro."
+    },
+    {
+      "q": "Pouvez-vous lancer les deux bots ensemble ?",
+      "a": "Les deux répondent à !sr par défaut, donc une demande recevrait deux réponses et pourrait être ajoutée deux fois. Testez un bot à la fois et désactivez !sr dans l'autre pendant ce temps."
+    }
+  ],
+  "sources": [
+    {
+      "label": "SpotchBot : configuration de l'application Spotify",
+      "url": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "label": "SpotchBot : réglages et limites par utilisateur",
+      "url": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "label": "SpotchBot : tableau des fonctions Free et Pro et tarifs",
+      "url": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "label": "SpotchBot : commandes du chat",
+      "url": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "label": "SpotchBot : récompenses en points de chaîne",
+      "url": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "label": "SpotchBot : panneau des modérateurs",
+      "url": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "label": "SpotchBot : page du streamer",
+      "url": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "label": "SpotchBot : overlay OBS de la file",
+      "url": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "label": "SpotchBot : prérequis, places en bêta et followers",
+      "url": "https://spotchbot.com/docs/troubleshooting"
+    }
+  ]
+}

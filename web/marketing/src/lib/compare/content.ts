@@ -13,7 +13,7 @@ const compareSchema = z.object({
   reviewed: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   suits: z.object({ us: z.array(text).min(3).max(4), them: z.array(text).min(3).max(4) }),
   rows: z.array(z.object({ feature: text, us: text, them: text, source: link })).min(1),
-  migrate: z.object({ title: text, steps: z.array(text).min(3).max(4), cta: text }),
+  migrate: z.object({ title: text, steps: z.array(text).min(3).max(4), cta: text, path: z.string().regex(/^\/[a-z0-9/-]*$/).optional() }),
   faq: z.array(z.object({ q: text, a: text })).min(1),
   sources: z.array(z.object({ label: text, url: link })).min(1),
 });

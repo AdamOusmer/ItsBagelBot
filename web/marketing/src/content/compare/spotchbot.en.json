@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs SpotchBot | Spotify Song Request Bots",
+    "description": "Compare Spotify song requests on Twitch: free queue size, search, channel points and price. See when SpotchBot suits you and when ItsBagelBot does."
+  },
+  "hero": {
+    "eyebrow": "Song request bot comparison",
+    "title": "ItsBagelBot vs SpotchBot",
+    "lead": "Looking for a SpotchBot alternative? Both bots add viewer requests to your own Spotify queue, and both need Spotify Premium. They differ on free queue size, on who can join, and on what else the bot does for your chat."
+  },
+  "reviewed": "2026-11-16",
+  "suits": {
+    "us": [
+      "You want a long request queue on a free plan: the queue holds 100 songs.",
+      "You want one bot for song requests, custom commands, timers, loyalty points, giveaways and game stats.",
+      "Your channel is new or small. You sign in with Twitch and start; there is no follower minimum.",
+      "You want careful matching: artist and title in either order, and a refusal when nothing matches."
+    ],
+    "them": [
+      "You want viewers to search and request from a web page with live results. Reference: https://spotchbot.com/docs/streamer-page.",
+      "You want an OBS browser source that shows the current song and the queue. Reference: https://spotchbot.com/docs/overlay.",
+      "You want vote skips or a maximum song length. Reference: https://spotchbot.com/docs/settings.",
+      "You want Song Battle brackets or a community playlist. Reference: https://spotchbot.com/docs/pro."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Music source",
+      "us": "Spotify. !sr adds the track to your own Spotify queue, and it plays on your active device.",
+      "them": "Spotify. Playback is controlled through the streamer's own Spotify app credentials.",
+      "source": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "feature": "What you need",
+      "us": "Spotify Premium, your own app from Spotify's developer dashboard, and Spotify playing on a device.",
+      "them": "Spotify Premium and your own Spotify developer app credentials (Client ID and Secret).",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Who can join",
+      "us": "Any Twitch channel. Sign in with Twitch and turn on Song Requests.",
+      "them": "An open beta with limited places. New places need at least 100 Twitch followers, and a place is reclaimed after 30 days without streaming unless the channel has Pro.",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Free queue size",
+      "us": "The queue holds 100 songs on the free plan.",
+      "them": "The free plan holds up to 6 songs in the queue. Pro is listed as unlimited.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Per-viewer limits",
+      "us": "Separate limits for everyone, subscribers, VIPs and moderators. A blank limit means unlimited.",
+      "them": "One max-per-user setting and a cooldown, both off by default. Designated DJs are exempt.",
+      "source": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "feature": "Song search",
+      "us": "Understands \"song by artist\" and \"artist - song\", checks title and artist against Spotify, and refuses when nothing matches.",
+      "them": "!sr searches Spotify and adds the best match to the queue, or takes a Spotify song link.",
+      "source": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "feature": "Twitch Channel Points",
+      "us": "A native reward queues a song. A request that cannot be queued is refunded, and chat is told why.",
+      "them": "Rewards can request a song, skip a song or vote to skip. Bot-managed rewards refund points when a request fails.",
+      "source": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "feature": "Moderator tools",
+      "us": "!skip, !clear and !remove with a queue position in chat, plus the live queue on the dashboard.",
+      "them": "Chat commands plus a web panel where moderators remove, reorder and skip songs.",
+      "source": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "feature": "Public queue page",
+      "us": "A live page per channel at queue.itsbagelbot.com/sr/ shows the current track and the upcoming requests. It is view only.",
+      "them": "A page per channel at spotchbot.com/s/ embeds the stream, shows the queue and takes requests through a live search after a Twitch login.",
+      "source": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "feature": "OBS overlay",
+      "us": "No overlay. !current and !srlist answer in chat, and the public queue page shows the same list.",
+      "them": "A transparent browser source shows the current song and the upcoming queue.",
+      "source": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "feature": "Blocks and access",
+      "us": "Permission tiers and quotas decide who can request. There is no song or artist blocklist.",
+      "them": "Requests can be limited to groups such as subscribers. Blocking users is free; blocking songs, albums and artists needs Pro.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Beyond song requests",
+      "us": "Custom commands, timers, loyalty points, giveaways, a viewer queue, game stats and imports from six other bots.",
+      "them": "Focused on song requests, with Song Battle brackets, a community playlist and request analytics.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Price",
+      "us": "Every finished feature is free, including song requests. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules.",
+      "them": "A free plan with the limits above and a 7-day Pro trial. Pro is listed at $4.99 per month, $12.99 for three months or $39.99 per year.",
+      "source": "https://spotchbot.com/docs/pro"
+    }
+  ],
+  "migrate": {
+    "title": "Move your song requests to ItsBagelBot",
+    "path": "/guides/spotify-song-requests",
+    "steps": [
+      "Sign in to ItsBagelBot with Twitch and open Song Requests in the dashboard.",
+      "Add your Spotify app's Client ID and secret. The app you already created works: add the redirect URI the dashboard shows, then connect your Spotify account.",
+      "Set who may queue and the per-viewer limits. Turn on !sr, the channel-point reward, or both.",
+      "Test !sr in chat, then turn off song requests in the old bot so chat gets one reply."
+    ],
+    "cta": "Read the Spotify setup guide"
+  },
+  "faq": [
+    {
+      "q": "Is ItsBagelBot a free SpotchBot alternative?",
+      "a": "Song requests are part of ItsBagelBot's free plan, with a queue of 100 songs. Spotify Premium is still required, as it is for any bot that controls a Spotify queue."
+    },
+    {
+      "q": "Do both bots need Spotify Premium?",
+      "a": "Yes. Spotify only lets apps control the queue on Premium accounts. Both bots also ask you to create your own app in Spotify's developer dashboard."
+    },
+    {
+      "q": "When should I stay with SpotchBot?",
+      "a": "Stay if you rely on its web request page, OBS queue overlay, vote skips, Song Battle or community playlist. ItsBagelBot does not offer those."
+    },
+    {
+      "q": "Can a channel with fewer than 100 followers use Spotify song requests?",
+      "a": "ItsBagelBot has no follower minimum: sign in with Twitch and set it up. SpotchBot's documentation says new beta places need at least 100 Twitch followers. Reference: https://spotchbot.com/docs/troubleshooting."
+    },
+    {
+      "q": "How many songs can the free queue hold?",
+      "a": "ItsBagelBot's free plan queues 100 songs. SpotchBot's plan table lists up to 6 songs on Free and unlimited on Pro. Reference: https://spotchbot.com/docs/pro."
+    },
+    {
+      "q": "Can I run both bots at once?",
+      "a": "Both answer !sr by default, so one request would get two replies and could be queued twice. Test one bot at a time, and turn off !sr in the other while you do."
+    }
+  ],
+  "sources": [
+    {
+      "label": "SpotchBot: Spotify app setup",
+      "url": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "label": "SpotchBot: settings and per-user limits",
+      "url": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "label": "SpotchBot: Free and Pro feature table and prices",
+      "url": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "label": "SpotchBot: chat commands",
+      "url": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "label": "SpotchBot: Channel Points rewards",
+      "url": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "label": "SpotchBot: moderator panel",
+      "url": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "label": "SpotchBot: streamer page",
+      "url": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "label": "SpotchBot: OBS queue overlay",
+      "url": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "label": "SpotchBot: requirements, beta places and followers",
+      "url": "https://spotchbot.com/docs/troubleshooting"
+    }
+  ]
+}

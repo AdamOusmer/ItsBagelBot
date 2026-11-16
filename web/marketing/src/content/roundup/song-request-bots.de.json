@@ -1,0 +1,205 @@
+{
+  "meta": {
+    "title": "Twitch-Songwunsch-Bots im Vergleich: Spotify vs. YouTube",
+    "description": "Welche Twitch-Bots nutzen Spotify, welche nehmen YouTube-Wünsche an? Acht Songwunsch-Bots im Vergleich: Musikquelle, Wiedergabe, Preis, mit Quellen."
+  },
+  "hero": {
+    "eyebrow": "Songwunsch-Bots",
+    "title": "Twitch-Songwunsch-Bots im Vergleich",
+    "lead": "Songwunsch-Bots auf Twitch gibt es in zwei Arten. Die einen fügen Titel zu deiner eigenen Spotify-Warteschlange hinzu. Die anderen nehmen Wünsche von YouTube oder SoundCloud an. Die Tabelle zeigt, welcher Bot was tut, mit den Anbieterseiten, auf denen sie beruht."
+  },
+  "reviewed": "2026-11-16",
+  "table": {
+    "eyebrow": "Im direkten Vergleich",
+    "title": "Acht Bots, eine Tabelle",
+    "columns": {
+      "bot": "Bot",
+      "music": "Musikquelle",
+      "plays": "So laufen Anfragen",
+      "price": "Preis für Song-Anfragen",
+      "source": "Quelle"
+    },
+    "sourceLink": "Quelle",
+    "rows": [
+      {
+        "id": "itsbagelbot",
+        "music": "Spotify",
+        "plays": "!sr fügt den Titel zu deiner eigenen Spotify-Warteschlange hinzu. Braucht Spotify Premium und deine eigene Spotify-Entwickler-App.",
+        "price": "Kostenlos. Die Warteschlange fasst 100 Songs.",
+        "source": "https://itsbagelbot.com/song-requests/"
+      },
+      {
+        "id": "spotchbot",
+        "music": "Spotify",
+        "plays": "!sr sucht bei Spotify und fügt den besten Treffer zur Warteschlange hinzu. Braucht Spotify Premium und deine eigene Spotify-Entwickler-App.",
+        "price": "Der kostenlose Tarif fasst bis zu 6 Songs in der Warteschlange. Pro ist mit 4,99 $ pro Monat angegeben.",
+        "source": "https://spotchbot.com/docs/commands"
+      },
+      {
+        "id": "nightbot",
+        "music": "YouTube, SoundCloud",
+        "plays": "Anfragen laufen im Medienplayer von Nightbot, mit Warteschlangenlimits und einer Ersatzplaylist.",
+        "price": "Kostenlos laut Aussage des Entwicklers im Support.",
+        "source": "https://docs.nightbot.tv/control-panel/song-requests"
+      },
+      {
+        "id": "streamelements",
+        "music": "YouTube",
+        "plays": "Media Request nutzt einen eigenen Player mit Freigabewarteschlangen, Überspring-Abstimmungen und Ersatzplaylists.",
+        "price": "Der Chatbot wird als kostenlos beworben.",
+        "source": "https://docs.streamelements.com/chatbot/modules/songrequest"
+      },
+      {
+        "id": "fossabot",
+        "music": "YouTube, SoundCloud",
+        "plays": "!sr akzeptiert YouTube-Suchen und -Links oder SoundCloud-Links, mit optionaler Freigabewarteschlange.",
+        "price": "Die offizielle Website beschreibt es als kostenlos.",
+        "source": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+      },
+      {
+        "id": "moobot",
+        "music": "YouTube",
+        "plays": "Anfragen laufen über den Song-Player von Moobot, mit einer zweiten Playlist, wenn die Anfragen ausgehen.",
+        "price": "Die Kernfunktionen sind kostenlos; kostenpflichtige Tarife bringen mehr Plätze und Vorteile.",
+        "source": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+      },
+      {
+        "id": "streamlabs-chatbot",
+        "music": "YouTube",
+        "plays": "Das Handbuch beschreibt YouTube-Playlists, Anfragen von Zuschauern, Kosten in Währung und Überspring-Abstimmungen.",
+        "price": "Die verlinkten offiziellen Seiten belegen keinen aktuellen Preis für die Desktop-App.",
+        "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+      },
+      {
+        "id": "wizebot",
+        "music": "YouTube",
+        "plays": "!sr akzeptiert Liedtitel, YouTube-URLs oder Video-IDs. Chat-Befehle verwalten die Playlist.",
+        "price": "Die offizielle Startseite beschreibt einen kostenlosen Cloud-Dienst.",
+        "source": "https://support.wizebot.tv/docs/commands"
+      }
+    ]
+  },
+  "picks": {
+    "eyebrow": "Auswahl",
+    "title": "Wähle nach dem, was dein Stream braucht",
+    "items": [
+      {
+        "name": "Spotify-Warteschlange",
+        "desc": "ItsBagelBot und SpotchBot fügen Anfragen zu deiner eigenen Spotify-Warteschlange hinzu. Beide brauchen Spotify Premium."
+      },
+      {
+        "name": "Ohne Premium",
+        "desc": "Nightbot, StreamElements, Fossabot, Moobot und WizeBot nehmen YouTube-Wünsche an, Spotify Premium spielt also keine Rolle."
+      },
+      {
+        "name": "Lange Gratis-Warteschlange",
+        "desc": "Der kostenlose Tarif von ItsBagelBot reiht 100 Songs ein. Der kostenlose Tarif von SpotchBot fasst bis zu 6."
+      },
+      {
+        "name": "Ein Bot für den Chat",
+        "desc": "ItsBagelBot verbindet Spotify-Anfragen mit eigenen Befehlen, Timern, Treuepunkten, Verlosungen und Spielstatistiken."
+      },
+      {
+        "name": "Wünsche im Web",
+        "desc": "SpotchBot bietet Zuschauern eine Webseite mit Live-Suche bei Spotify, dazu ein OBS-Overlay für die Warteschlange."
+      },
+      {
+        "name": "Videowünsche",
+        "desc": "StreamElements und Nightbot spielen gewünschte YouTube-Videos im eigenen Medienplayer."
+      }
+    ]
+  },
+  "faqTitle": "Fragen zu Songwünschen",
+  "faq": [
+    {
+      "q": "Welche Twitch-Bots unterstützen Song-Anfragen über Spotify?",
+      "a": "ItsBagelBot und SpotchBot fügen Zuschauerwünsche zur eigenen Spotify-Warteschlange des Streamers hinzu. Nightbot, StreamElements, Fossabot, Moobot, Streamlabs Chatbot und WizeBot dokumentieren stattdessen Anfragen über YouTube oder SoundCloud."
+    },
+    {
+      "q": "Kann Nightbot Spotify-Songwünsche annehmen?",
+      "a": "Die Nightbot-Dokumentation nennt YouTube und SoundCloud als Quellen für Song-Anfragen. Um Spotify-Titel aus dem Chat einzureihen, nutze einen Bot, der auf der Spotify-Warteschlange aufbaut. Referenz: https://docs.nightbot.tv/control-panel/song-requests."
+    },
+    {
+      "q": "Kann StreamElements Spotify-Songwünsche annehmen?",
+      "a": "Die Dokumentation zu Media Request von StreamElements nennt YouTube. Eine Spotify-Anbindung ist dort nicht aufgeführt. Referenz: https://docs.streamelements.com/chatbot/modules/songrequest."
+    },
+    {
+      "q": "Gibt es einen kostenlosen Spotify-Songwunsch-Bot für Twitch?",
+      "a": "ItsBagelBot enthält Spotify-Songwünsche im kostenlosen Tarif, mit einer Warteschlange von 100 Songs. SpotchBot hat einen kostenlosen Tarif mit bis zu 6 Songs in der Warteschlange. Beide brauchen Spotify Premium, das Spotify für die Steuerung der Warteschlange verlangt."
+    },
+    {
+      "q": "Brauche ich Spotify Premium für Song-Anfragen?",
+      "a": "Für Spotify-Anfragen ja. Spotify lässt Apps die Warteschlange nur bei Premium-Konten steuern. Bei Bots, die Wünsche von YouTube oder SoundCloud annehmen, spielt Spotify Premium keine Rolle."
+    },
+    {
+      "q": "Wie wünschen sich Zuschauer einen Song?",
+      "a": "Bei mehreren Bots tippen Zuschauer !sr, gefolgt von einem Songnamen oder Link. Manche Bots nehmen auch Twitch-Kanalpunkte-Belohnungen an. ItsBagelBot akzeptiert einen Songnamen, Künstler und Titel in beliebiger Reihenfolge oder einen Spotify-Link."
+    }
+  ],
+  "sources": [
+    {
+      "label": "ItsBagelBot: Spotify-Songwünsche",
+      "url": "https://itsbagelbot.com/song-requests/"
+    },
+    {
+      "label": "SpotchBot: Chat-Befehle",
+      "url": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "label": "SpotchBot: Funktionstabelle Free und Pro, Preise",
+      "url": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "label": "SpotchBot: Spotify-Voraussetzungen",
+      "url": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "label": "Nightbot: Song-Anfragen von YouTube und SoundCloud",
+      "url": "https://docs.nightbot.tv/control-panel/song-requests"
+    },
+    {
+      "label": "Nightbot: Aussage des Entwicklers zum kostenlosen Dienst",
+      "url": "https://community.nightdev.com/t/messages-command/1534655926634549409"
+    },
+    {
+      "label": "StreamElements: Media-Request-Modul",
+      "url": "https://docs.streamelements.com/chatbot/modules/songrequest"
+    },
+    {
+      "label": "StreamElements: offizielle Website",
+      "url": "https://streamelements.com/"
+    },
+    {
+      "label": "Fossabot: Songs anfragen",
+      "url": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+    },
+    {
+      "label": "Fossabot: offizielle Website",
+      "url": "https://fossabot.com/"
+    },
+    {
+      "label": "Moobot: Song-Anfragen",
+      "url": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+    },
+    {
+      "label": "Moobot: Tarife",
+      "url": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
+    },
+    {
+      "label": "Streamlabs Chatbot: Twitch-Dokumentation",
+      "url": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "label": "Streamlabs: Cloudbot-Seite",
+      "url": "https://streamlabs.com/cloudbot"
+    },
+    {
+      "label": "WizeBot: Befehle",
+      "url": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "label": "WizeBot: offizielle Startseite",
+      "url": "https://wizebot.tv/en/index"
+    }
+  ]
+}

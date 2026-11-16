@@ -6,6 +6,7 @@ import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
 import { songRows, songExampleLines, landingSchema } from '../../lib/landing';
+import { roundupPath } from '../../lib/compare/roundup';
 
 export const getStaticPaths = localeStaticPaths;
 
@@ -23,7 +24,7 @@ const table = {
     rows: songRows(lang, t),
     note: t('songRequests.tblNote'),
 };
-const updated = { text: t('songRequests.updated'), iso: '2026-10-13' };
+const updated = { text: t('songRequests.updated'), iso: '2026-11-16' };
 const schema = landingSchema({
     site: Astro.site!,
     url: Astro.url,
@@ -60,6 +61,19 @@ const schema = landingSchema({
             { name: t('songRequests.item6Name'), desc: t('songRequests.item6Desc') },
         ]}
         listNote={t('songRequests.limitsNote')}
+        detail={{
+            eyebrow: t('songRequests.searchEyebrow'),
+            title: t('songRequests.searchTitle'),
+            items: [
+                { name: t('songRequests.search1Name'), desc: t('songRequests.search1Desc') },
+                { name: t('songRequests.search2Name'), desc: t('songRequests.search2Desc') },
+                { name: t('songRequests.search3Name'), desc: t('songRequests.search3Desc') },
+                { name: t('songRequests.search4Name'), desc: t('songRequests.search4Desc') },
+                { name: t('songRequests.search5Name'), desc: t('songRequests.search5Desc') },
+                { name: t('songRequests.search6Name'), desc: t('songRequests.search6Desc') },
+            ],
+            note: t('songRequests.searchNote'),
+        }}
         faqEyebrow={t('songRequests.faqEyebrow')}
         faqTitle={t('songRequests.faqTitle')}
         faqItems={[
@@ -71,6 +85,9 @@ const schema = landingSchema({
             { question: t('songRequests.faqQ6'), answer: t('songRequests.faqA6') },
             { question: t('songRequests.faqQ7'), answer: t('songRequests.faqA7') },
             { question: t('songRequests.faqQ8'), answer: t('songRequests.faqA8') },
+            { question: t('songRequests.faqQ9'), answer: t('songRequests.faqA9') },
+            { question: t('songRequests.faqQ10'), answer: t('songRequests.faqA10') },
+            { question: t('songRequests.faqQ11'), answer: t('songRequests.faqA11') },
         ]}
         ctaTitle={t('songRequests.ctaTitle')}
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
@@ -86,7 +103,7 @@ const schema = landingSchema({
         prereq={{ title: t('landing.prereqTitle'), items: [t('songRequests.prereq1'), t('songRequests.prereq2'), t('songRequests.prereq3')] }}
         related={{
             title: t('landing.relatedTitle'),
-            links: [link('/guides/setup-errors', t('landing.relSetupErrors')), link('/import', t('landing.relImport')), link('/pricing', t('landing.relPricing')), link('/guides/modules', t('landing.relModules')), link('/vs', t('landing.relCompare'))],
+            links: [link('/guides/setup-errors', t('landing.relSetupErrors')), link('/import', t('landing.relImport')), link('/pricing', t('landing.relPricing')), link('/guides/modules', t('landing.relModules')), link(roundupPath, t('landing.relSongBots'))],
         }}
     />
 </Layout>
