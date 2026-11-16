@@ -129,9 +129,30 @@
   let selectedEdge = $state<string | null>(null);
   let wireTarget = $state<string | null>(null);
   let toolbarBottom = $state(20);
+  let toolbarLeft = $state(16);
   let menu = $state<{ link?: { from: string; port: string }; at: Pt; sx: number; sy: number } | null>(null);
   let menuAnchor = $state<HTMLElement>();
   let menuOpen = $state(false);
+  const menuWidth = $derived.by(() => {
+    if (!host) return 340;
+    const inset = insets?.(room > 0) ?? FIT_INSET;
+    return Math.min(340, Math.max(160, host.clientWidth - inset.left - inset.right - 16));
+  });
+  const menuLeft = $derived.by(() => {
+    if (!menu || !host) return 0;
+    const inset = insets?.(room > 0) ?? FIT_INSET;
+    return Math.max(inset.left, Math.min(menu.sx, host.clientWidth - inset.right - menuWidth - 8));
+  });
+  const menuHeight = $derived.by(() => {
+    if (!host) return 380;
+    const inset = insets?.(room > 0) ?? FIT_INSET;
+    return Math.min(380, Math.max(160, host.clientHeight - inset.top - inset.bottom - 16));
+  });
+  const menuTop = $derived.by(() => {
+    if (!menu || !host) return 0;
+    const inset = insets?.(room > 0) ?? FIT_INSET;
+    return Math.max(inset.top, Math.min(menu.sy, host.clientHeight - inset.bottom - menuHeight));
+  });
   let query = $state('');
   let menuSearch = $state<HTMLInputElement>();
   let activeResult = $state(0);
@@ -245,6 +266,7 @@
     const inset = insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight };
     cancelAnimationFrame(glide);
     view = fitBox(bounds, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM });
+    view.x = Math.max(view.x, inset.left - bounds.x0 * view.k);
   }
 
   function zoomAt(factor: number, { x: px, y: py }: Pt) {
@@ -290,7 +312,9 @@
   function scheduleToolbarPosition() {
     cancelAnimationFrame(toolbarFrame);
     toolbarFrame = requestAnimationFrame(() => {
-      toolbarBottom = Math.max(20, (insets?.(room > 0)?.bottom ?? 0) + 8);
+      const inset = insets?.(room > 0);
+      toolbarBottom = Math.max(20, (inset?.bottom ?? 0) + 8);
+      toolbarLeft = inset?.left ?? 16;
     });
   }
 
@@ -636,7 +660,7 @@
   function pick(type: NodeType) {
     if (!menu) return;
     const placement = menu.link ? { kind: 'port' as const, ...menu.link, mode: insertMode } : { kind: 'canvas' as const };
-    const { node } = addStep(flow, { type, at: menu.at, placement, chatMessage: t('flows.board.defaultChatMessage') });
+    const { node } = addStep(flow, { type, at: menu.at, placement, chatMessage: t('flows.board.defaultChatMessage'), plainMessage: t('flows.board.defaultPlainMessage') });
     closeMenu();
     showAdded(node);
   }
@@ -685,7 +709,7 @@
     if (!type || !specFor(type)) return;
     e.preventDefault();
     const p = toWorld(e.clientX, e.clientY);
-    const { node, replaced } = addStep(flow, { type, at: { x: snap(p.x), y: snap(p.y) }, placement: selectedPlacement(flow, selectedId), chatMessage: t('flows.board.defaultChatMessage') });
+    const { node, replaced } = addStep(flow, { type, at: { x: snap(p.x), y: snap(p.y) }, placement: selectedPlacement(flow, selectedId), chatMessage: t('flows.board.defaultChatMessage'), plainMessage: t('flows.board.defaultPlainMessage') });
     if (replaced) announce(t('flows.board.triggerReplaced'));
     showAdded(node);
   }
@@ -857,6 +881,8 @@
   style:background-position="{view.x}px {view.y}px"
   bind:this={host}
   role="application"
+  style:--board-controls-bottom="{toolbarBottom}px"
+  style:--board-controls-left="{toolbarLeft}px"
   aria-label={t('flows.board.boardLabel')}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
@@ -954,8 +980,8 @@
   </div>
 
   {#if menu}
-    <span class="menu-anchor" bind:this={menuAnchor} style:left="{menu.sx}px" style:top="{menu.sy}px"></span>
-    <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label={t('flows.board.addStep')} width={340} maxHeight={380} onClose={() => closeMenu(true)}>
+    <span class="menu-anchor" bind:this={menuAnchor} style:left="{menuLeft}px" style:top="{menuTop}px"></span>
+    <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label={t('flows.board.addStep')} width={menuWidth} maxHeight={menuHeight} onClose={() => closeMenu(true)}>
       <div class="menu" role="presentation" onkeydown={onMenuKey}>
         <SearchInput bind:element={menuSearch} value={query} onValueChange={(v) => { query = v; activeResult = 0; }} placeholder={t('flows.board.searchSteps')} aria-label={t('flows.board.searchSteps')} role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="{pickerId}-results" aria-activedescendant={activeResultId} fill />
         {#if occupied}
@@ -968,7 +994,7 @@
           <PickerOption onclick={connectFromMenu}>
             <span class="menu-row">
               <IconTile class="menu-tile"><Icon name="branch" size={16} /></IconTile>
-              <span class="menu-name">{t('flows.connectExisting')}</span>
+              <span class="menu-name" data-fit><bb-fit>{t('flows.connectExisting')}</bb-fit></span>
             </span>
           </PickerOption>
         {/if}
@@ -981,8 +1007,8 @@
               <span class="menu-row" style:--tint={MENU_TINT[s.kind].color} style:--tint-rgb={MENU_TINT[s.kind].rgb}>
                 <IconTile class="menu-tile"><Icon name={s.icon} size={16} /></IconTile>
                 <span class="menu-text">
-                  <span class="menu-name">{stepLabel(t, s)}</span>
-                  <span class="menu-sum">{stepSummary(t, s)}</span>
+                  <span class="menu-name" data-fit><bb-fit>{stepLabel(t, s)}</bb-fit></span>
+                  <span class="menu-sum" data-fit><bb-fit>{stepSummary(t, s)}</bb-fit></span>
                 </span>
               </span>
             </PickerOption>
@@ -1149,6 +1175,8 @@
     pointer-events: none;
   }
   .menu {
+    min-width: 0;
+    width: 100%;
     display: grid;
     gap: var(--bb-space-2);
     padding: var(--bb-space-2);
@@ -1172,6 +1200,8 @@
     align-items: center;
     gap: 12px;
     min-width: 0;
+    height: 39px;
+    width: 100%;
   }
   .menu-row :global(.menu-tile) {
     --tile: 32px;
@@ -1181,18 +1211,26 @@
   .menu-text {
     min-width: 0;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1px;
+    flex: 1;
   }
   .menu-name {
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
     color: var(--bb-white);
+    height: 20px;
+    min-width: 0;
+    white-space: nowrap;
   }
   .menu-sum {
+    min-width: 0;
     font-size: 14px;
     line-height: 18px;
     color: rgba(var(--bb-white-rgb), 0.92);
+    height: 18px;
+    white-space: nowrap;
   }
   .menu-empty {
     padding: var(--bb-space-2);
@@ -1283,17 +1321,13 @@
     height: max(100%, 44px * var(--inv, 1));
     translate: 0 -50%;
   }
-  .canvas.touch .zoom :global(.bb-btn--icon),
-  .canvas.touch .connect-hint :global(button) {
-    min-width: 44px;
-    width: 44px;
-    height: 44px;
-  }
-  .canvas.touch .connect-hint :global(button) {
-    width: auto;
-  }
+  .canvas.touch .zoom { --btn-icon-size: 44px; --btn-icon-min-size: 44px; }
+  .canvas.touch .connect-hint { --btn-min-h: 44px; }
   .canvas.touch .auto {
     min-height: 44px;
+  }
+  @media (min-width: 761px) and (max-width: 1279px) {
+    .zoom { bottom: var(--board-controls-bottom, 16px); left: var(--board-controls-left, 16px); }
   }
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
     .canvas {

@@ -31,6 +31,7 @@
   import GoveeLightField from './GoveeLightField.svelte';
   import RewardField from './RewardField.svelte';
   import UserField from './UserField.svelte';
+  import TokenSuggestions from './TokenSuggestions.svelte';
 
   let {
     flow = $bindable(),
@@ -101,12 +102,26 @@
   const templateFields = $derived(node && spec ? spec.fields.filter((f) => f.type === 'template' && fieldVisible(spec, node, f)) : []);
 
   let focusedKey = $state<string>();
-  let variableList = $state<HTMLElement>();
+  type TextControl = HTMLInputElement | HTMLTextAreaElement;
+  let completion = $state<{ key: FieldKey; start: number; end: number; query: string; anchor: TextControl } | null>(null);
+  let activeSuggestion = $state(0);
+  const contextualTokens = new Set(NODE_SPECS.flatMap((entry) => [...entry.provides ?? [], ...entry.outputs?.flatMap((output) => output.provides ?? []) ?? []]).map((v) => v.token));
+  const channelChips = sheetFor('custom').filter((v) => !contextualTokens.has(v.token) && Boolean(chipHint(t, v)));
+  const suggestions = $derived.by(() => {
+    const search = completion?.query.toLowerCase() ?? '';
+    const available = [
+      ...tokens.map((v) => ({ token: v.token, label: variableLabel(t, v) })),
+      ...channelChips.map((v) => ({ token: v.token, label: catalogLabel(v) }))
+    ];
+    const unique = new Map(available.map((v) => [v.token, v]));
+    return [...unique.values()].filter((v) => `${v.token} ${v.label}`.toLowerCase().includes(search));
+  });
   $effect(() => {
     void node?.id;
     caret.clear();
     focusedKey = undefined;
     query = '';
+    completion = null;
   });
   const insertKey = $derived(templateFields.find((f) => f.key === focusedKey)?.key ?? templateFields[0]?.key);
   const tokens = $derived(node ? [
@@ -124,10 +139,9 @@
   );
 
   const channelVars = $derived.by(() => {
-    const contextual = new Set(NODE_SPECS.flatMap((spec) => [...spec.provides ?? [], ...spec.outputs?.flatMap((output) => output.provides ?? []) ?? []]).map((v) => v.token));
     const chips = needle ? sheetFor('custom') : pinnedFor('custom');
     return chips
-      .filter((c) => !contextual.has(c.token) && Boolean(chipHint(t, c)))
+      .filter((c) => !contextualTokens.has(c.token) && Boolean(chipHint(t, c)))
       .map((c) => ({ token: c.token, label: catalogLabel(c), hint: catalogSample(c) }))
       .filter((v) => matches(v.token, `${v.label} ${v.hint}`));
   });
@@ -149,22 +163,46 @@
   function trackCaret(key: FieldKey, field: HTMLInputElement | HTMLTextAreaElement) {
     focusedKey = key;
     caret.set(key, field.selectionStart ?? field.value.length);
+    if (completion?.key === key && completion.end !== field.selectionStart) completion = null;
   }
 
-  function openVariables(event: KeyboardEvent, key: FieldKey) {
-    if (event.key !== '{' || event.isComposing) return;
-    event.preventDefault();
-    trackCaret(key, event.currentTarget as HTMLInputElement | HTMLTextAreaElement);
-    query = '';
-    variableList?.querySelector<HTMLInputElement>('input')?.focus();
-    variableList?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  function updateTemplate(key: FieldKey, control: TextControl) {
+    if (!node) return;
+    node.config[key] = control.value;
+    trackCaret(key, control);
+    const end = control.selectionStart ?? control.value.length;
+    const match = /\{([^{}\s]*)$/.exec(control.value.slice(0, end));
+    completion = match ? { key, start: end - match[0].length, end, query: match[1], anchor: control } : null;
+    activeSuggestion = 0;
+  }
+
+  function suggestionKey(event: KeyboardEvent) {
+    if (!completion || event.isComposing) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      completion = null;
+      return;
+    }
+    const direction = { ArrowDown: 1, ArrowUp: -1 }[event.key];
+    if (direction) {
+      event.preventDefault();
+      activeSuggestion = (activeSuggestion + direction + suggestions.length) % Math.max(1, suggestions.length);
+      return;
+    }
+    if (['Enter', 'Tab'].includes(event.key) && suggestions[activeSuggestion]) {
+      event.preventDefault();
+      void insertToken(completion.key, suggestions[activeSuggestion].token);
+    }
   }
 
   async function insertToken(key: FieldKey, token: Token) {
     if (!node) return;
     const current = textOf(key);
-    const at = Math.min(caret.get(key) ?? current.length, current.length);
-    node.config[key] = current.slice(0, at) + token + current.slice(at);
+    const partial = completion?.key === key ? completion : null;
+    const at = partial?.start ?? Math.min(caret.get(key) ?? current.length, current.length);
+    node.config[key] = current.slice(0, at) + token + current.slice(partial?.end ?? at);
+    completion = null;
     const next = at + token.length;
     caret.set(key, next);
     await tick();
@@ -213,13 +251,17 @@
   }
 </script>
 
+{#if completion && suggestions.length}
+  <TokenSuggestions id={uid} anchor={completion.anchor} items={suggestions} active={activeSuggestion} label={t('flows.board.variables')} onselect={(token) => completion && insertToken(completion.key, token)} />
+{/if}
+
 {#if node && spec}
   <aside class="panel" aria-label={t('flows.board.settings', { label: stepLabel(t, spec) })} tabindex="-1" bind:this={panel}>
     <header class="head">
       <IconTile style="--tile: 40px; color: {KIND_TINT[spec.kind]}"><Icon name={spec.icon} size={20} /></IconTile>
       <div class="titles">
-        <h2 class="name">{stepLabel(t, spec)}</h2>
-        <p class="sentence">{t('flows.board.settingsSentence', { summary: stepSummary(t, spec) })}</p>
+        <h2 class="name"><bb-fit><span data-fit>{stepLabel(t, spec)}</span></bb-fit></h2>
+        <p class="sentence"><bb-fit><span data-fit>{t('flows.board.settingsSentence', { summary: stepSummary(t, spec) })}</span></bb-fit></p>
       </div>
       <IconButton label={t('flows.board.closeSettings')} size="sm" onclick={() => (onclose ? onclose() : (selectedId = null))}><Icon name="x" size={14} /></IconButton>
     </header>
@@ -318,15 +360,15 @@
                   aria-describedby={shown ? `${uid}-${field.key}-error` : undefined}
                   {placeholder}
                   value={textOf(field.key)}
-                  oninput={(e) => {
-                    node.config[field.key] = e.currentTarget.value;
-                    trackCaret(field.key, e.currentTarget);
-                  }}
+                  oninput={(e) => updateTemplate(field.key, e.currentTarget)}
                   onfocus={(e) => trackCaret(field.key, e.currentTarget)}
-                  onblur={(e) => trackCaret(field.key, e.currentTarget)}
+                  onblur={(e) => { trackCaret(field.key, e.currentTarget); completion = null; }}
                   onclick={(e) => trackCaret(field.key, e.currentTarget)}
                   onkeyup={(e) => trackCaret(field.key, e.currentTarget)}
-                  onkeydown={(e) => openVariables(e, field.key)}
+                  onkeydown={suggestionKey}
+                  aria-autocomplete="list"
+                  aria-controls={completion?.key === field.key ? `${uid}-suggestions` : undefined}
+                  aria-activedescendant={completion?.key === field.key ? `${uid}-suggestion-${activeSuggestion}` : undefined}
                 />
               </Field>
             {:else if field.type === 'template'}
@@ -336,26 +378,26 @@
                   rows={4}
                   {placeholder}
                   value={textOf(field.key)}
-                  oninput={(e) => {
-                    node.config[field.key] = e.currentTarget.value;
-                    trackCaret(field.key, e.currentTarget);
-                  }}
+                  oninput={(e) => updateTemplate(field.key, e.currentTarget)}
                   onfocus={(e) => trackCaret(field.key, e.currentTarget)}
-                  onblur={(e) => trackCaret(field.key, e.currentTarget)}
+                  onblur={(e) => { trackCaret(field.key, e.currentTarget); completion = null; }}
                   onclick={(e) => trackCaret(field.key, e.currentTarget)}
                   onkeyup={(e) => trackCaret(field.key, e.currentTarget)}
-                  onkeydown={(e) => openVariables(e, field.key)}
+                  onkeydown={suggestionKey}
+                  aria-autocomplete="list"
+                  aria-controls={completion?.key === field.key ? `${uid}-suggestions` : undefined}
+                  aria-activedescendant={completion?.key === field.key ? `${uid}-suggestion-${activeSuggestion}` : undefined}
                 />
               </Field>
             {:else if field.type === 'choice'}
               <ChoiceField {node} {field} {label} {tag} {error} draft={flow.nodes} id="{uid}-{field.key}" />
             {:else if field.type === 'reward'}
-              <RewardField {node} {label} id="{uid}-{field.key}" />
+              <RewardField {node} {label} {tag} {error} id="{uid}-{field.key}" />
             {:else if field.type === 'goveeLight'}
-              <GoveeLightField {node} id="{uid}-{field.key}" />
+              <GoveeLightField {node} {tag} fieldError={error} id="{uid}-{field.key}" />
             {:else if field.type === 'login'}
               {#key node.id}
-                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} />
+                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} {tag} {error} />
               {/key}
             {:else}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
@@ -367,16 +409,13 @@
                 />
               </Field>
             {/if}
-            {#if ['reward', 'goveeLight', 'login'].includes(field.type)}
-              <Field label="" {tag} {error}>{#snippet children()}{/snippet}</Field>
-            {/if}
             </div>
           {/each}
         </div>
       {/if}
 
       {#if spec.kind !== 'condition'}
-        <FlowRehearsal steps={rehearsal.steps} focusId={node.id} />
+        <FlowRehearsal steps={rehearsal.steps} focusId={node.id} title={['reply.chat', 'reply.announce', 'reply.reply'].includes(node.type) ? t('chatPreview.rehearsal') : t('flows.board.whatHappens')} />
       {/if}
 
       {#if branches.length}
@@ -387,7 +426,7 @@
           {/if}
           <ul class="branches">
             {#each branches as b (b.id)}
-              <li>
+              <li class="branch">
                 <span class="branch-name">{b.label}</span>
                 <span class="branch-count">{countText(b.count)}</span>
               </li>
@@ -397,7 +436,7 @@
       {/if}
 
       {#if insertKey}
-        <section class="group" bind:this={variableList}>
+        <section class="group">
           <h3 class="group-title">{t('flows.board.variables')}</h3>
           <SearchInput fill bind:value={query} placeholder={t('flows.board.searchVariables')} />
           {#if flowVars.length}
@@ -448,6 +487,8 @@
     align-items: flex-start;
     gap: 12px;
     flex: none;
+    height: 76px;
+    box-sizing: border-box;
     padding: 16px 12px 8px 16px;
   }
   .titles {
@@ -464,12 +505,16 @@
     font-weight: 600;
     line-height: 1.3;
     color: var(--bb-white);
+    height: 23px;
+    white-space: nowrap;
   }
   .sentence {
     margin: 2px 0 0;
     font-size: 14px;
     line-height: 1.4;
     color: rgba(var(--bb-white-rgb), 0.92);
+    height: 20px;
+    white-space: nowrap;
   }
   .scroll {
     flex: 1;
@@ -524,7 +569,7 @@
     flex-direction: column;
     gap: 8px;
   }
-  .branches li {
+  .branch {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -534,7 +579,7 @@
     font-weight: 500;
     color: rgba(var(--bb-white-rgb), 0.92);
   }
-  .branches li:first-child .branch-name {
+  .branch:first-child .branch-name {
     color: var(--bb-green-glow);
   }
   .branch-count {

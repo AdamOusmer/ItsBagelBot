@@ -80,7 +80,6 @@
     "role": "Rol",
     "live": "Stream",
     "message": "Mensaje de chat",
-    "args": "Palabras tras el comando",
     "bits": "bits",
     "viewers": "espectadores",
     "tier": "Nivel",

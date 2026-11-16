@@ -33,7 +33,7 @@
   import { flowRouteId, legacyEditorHref, parseFlowRouteId } from '#lib/flow/ref';
   import type { SaveReply, ToggleReply } from '#lib/flow/replies';
   import type { UpgradeReport } from '#lib/server/flow-store';
-  import { SHEET_QUERY, sheetDrag } from '#lib/flow/sheet';
+  import { sheetDrag } from '#lib/flow/sheet';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import type { PageData } from './$types';
 
@@ -112,6 +112,8 @@
   let canUndo = $state(false);
   let canRedo = $state(false);
   let deletionToast: { id: number; entry: object | null } | null = null;
+  let saveErrorToast: number | undefined;
+  const switchLabel = $derived(ref ? t('flows.clarity.liveNow') : t(enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff'));
   const dirty = $derived(contentOf(flow) !== baseline);
   const inspectorVisible = $derived(Boolean(selectedId && inspecting && (!testRunOpen || wideBoard)));
   const panelRoom = $derived.by(() => {
@@ -201,16 +203,24 @@
     if (field.closest('.bb-editor-stage__panel')) field.scrollIntoView({ block: 'center' });
   }
 
-  function viewInsets(withPanel: boolean) {
-    if (!sheetMode || !boardEl) return null;
+  function viewInsets() {
+    if (!boardEl) return null;
     if (!barEl || !railEl) return null;
-    return panelInsets({ board: boardEl.getBoundingClientRect(), bar: barEl.getBoundingClientRect(), rail: railEl.getBoundingClientRect() }, withPanel ? sheetHeight() : 0);
+    const board = boardEl.getBoundingClientRect();
+    const bar = barEl.getBoundingClientRect();
+    const rail = railEl.getBoundingClientRect();
+    const panelShown = panelRoom > 0 || Boolean(libMode);
+    if (sheetMode) return panelInsets({ board, bar, rail }, panelShown ? sheetHeight() : 0);
+    return { top: bar.bottom - board.top + 16, left: rail.right - board.left + 16, right: panelRoom + 16, bottom: 88 };
   }
 
   onMount(() => {
-    const query = matchMedia(SHEET_QUERY);
+    const query = matchMedia('(max-width: 1279px), (pointer: coarse) and (max-height: 520px)');
     const wide = matchMedia('(min-width: 1280px)');
-    const onWidth = () => { wideBoard = wide.matches; };
+    const onWidth = () => {
+      wideBoard = wide.matches;
+      if (!wideBoard && libMode) closeRightPanels();
+    };
     onWidth();
     wide.addEventListener('change', onWidth);
     const onQuery = () => {
@@ -251,7 +261,14 @@
   function toggleLibrary(mode: LibraryMode, byKey = false) {
     libReturn = active();
     libMode = libMode === mode ? null : mode;
+    if (!wideBoard) closeRightPanels();
     if (libMode && byKey) libFocus++;
+  }
+
+  function closeRightPanels() {
+    inspecting = false;
+    testRunOpen = false;
+    recipeOpen = false;
   }
 
   function closeLibrary(restore = false) {
@@ -262,6 +279,10 @@
   }
 
   function openSettings(id: string) {
+    if (!wideBoard) {
+      testRunOpen = false;
+      libMode = null;
+    }
     selectedId = id;
     inspecting = true;
     if (!testRunOpen) inspectFocus++;
@@ -418,9 +439,7 @@
   });
 
   function focusStep(id: string) {
-    selectedId = id;
-    inspecting = true;
-    inspectFocus++;
+    openSettings(id);
     canvas?.focusNode(id);
   }
 
@@ -434,6 +453,8 @@
   }
 
   function saved(reply: Extract<SaveReply, { ok: true }>, sent: Flow) {
+    if (saveErrorToast) dismissToast(saveErrorToast);
+    saveErrorToast = undefined;
     issues = [];
     void invalidate('flows:choices');
     ref = parseFlowRouteId(reply.id);
@@ -464,11 +485,16 @@
     issues = fieldIssues(reply.issues ?? [], flow.nodes);
     const step = stepOf(reply.issues ?? [], flow.nodes);
     const message = saveMessage(t, reply);
-    toast('danger', step ? `${message} ${t('flows.saveStep')}` : message, { ttlMs: 9000 });
+    failSave(step ? `${message} ${t('flows.saveStep')}` : message);
     if (!step) return;
     inspectField = issues.find((issue) => issue.nodeId === step && issue.fieldKey)?.fieldKey;
     testRunOpen = false;
     focusStep(step);
+  }
+
+  function failSave(message: string) {
+    if (saveErrorToast) dismissToast(saveErrorToast);
+    saveErrorToast = toast('danger', message, { ttlMs: 9000 });
   }
 
   async function save(extra: { revision?: string; confirmUpgrade?: boolean } = {}) {
@@ -479,7 +505,7 @@
     body.set('payload', JSON.stringify({ flow: sent, ref, expectedRevision: extra.revision ?? revision ?? undefined, confirmUpgrade: extra.confirmUpgrade }));
     const reply = await postAction<SaveReply>('save', body);
     saving = false;
-    if (!reply) toast('danger', t('flows.saveFailed'));
+    if (!reply) failSave(t('flows.saveFailed'));
     else if (reply.ok) saved(reply, sent);
     else refused(reply);
   }
@@ -515,6 +541,7 @@
   }
 
   async function testRun() {
+    if (!wideBoard) libMode = null;
     runReturn = active();
     selectedId = null;
     recipeOpen = false;
@@ -524,6 +551,7 @@
   }
 
   async function toggleRecipe() {
+    if (!wideBoard) libMode = null;
     recipeReturn = active();
     selectedId = null;
     testRunOpen = false;
@@ -568,20 +596,23 @@
 {#snippet topStart()}
   <a class="back" href="/flows">
     <Icon name="arrowLeft" size={16} />
-    <span class="back-text">{data.navLabels['nav.flows']}</span>
+    <span class="back-text" data-fit><bb-fit>{data.navLabels['nav.flows']}</bb-fit></span>
   </a>
   <span class="flow-name"><Input fill maxlength={64} aria-label={t('flows.nameLabel')} bind:value={flow.name} /></span>
+  <div class="live-control">
   <Switch
     checked={enabled}
-    label={enabled ? t('flows.clarity.liveOnSave') : t('flows.clarity.staysOff')}
-    title={enabled ? t('flows.clarity.liveOnSave') : t('flows.clarity.staysOff')}
+    label={switchLabel}
+    title={switchLabel}
     onCheckedChange={(next) => void setEnabled(next)}
   />
+  <span class="live-hint" class:invisible={Boolean(ref)} aria-hidden={Boolean(ref)}><bb-fit mode="block"><span data-fit>{t(enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff')}</span></bb-fit></span>
+  </div>
 {/snippet}
 
 {#snippet topEnd()}
-  <Button variant="ghost" onclick={testRun}><Icon name="play" size={14} /> <span class="run-text">{t('flows.board.testRun')}</span></Button>
-  <Button variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}>{t('flows.page.save')}</Button>
+  <Button class="run-button" variant="ghost" onclick={testRun}><Icon name="play" size={14} /> <span class="run-text" data-fit><bb-fit>{t('flows.board.testRun')}</bb-fit></span></Button>
+  <Button class="save-button" variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}><bb-fit><span data-fit>{t('flows.page.save')}</span></bb-fit></Button>
 {/snippet}
 
 {#snippet rail()}
@@ -594,7 +625,7 @@
       onclick={(e) => toggleLibrary(tool.mode, e.detail === 0)}
     >
       <Icon name={tool.icon} size={22} />
-      <span>{toolLabel(tool.mode)}</span>
+      <span class="tool-label" data-fit><bb-fit>{toolLabel(tool.mode)}</bb-fit></span>
     </button>
   {/each}
   <Tooltip text={t('flows.board.searchAll')} placement="bottom">
@@ -663,6 +694,7 @@
 
 {#if drawable}
 <EditorStage
+  class="bb-editor-stage--compact-panels"
   style="--editor-panel-right: {testRunOpen && inspectorVisible ? 'min(720px, calc(100vw - 112px))' : '360px'}"
   height="100dvh"
   topInset="calc(var(--bb-topbar-height) + var(--flows-top-gap, 6px))"
@@ -786,8 +818,17 @@
   .flow-name {
     display: block;
     min-width: 0;
-    width: min(280px, 36vw);
+    width: clamp(80px, 19vw, 280px);
+    flex: 1;
   }
+  .live-control { position: relative; display: flex; align-items: center; flex: none; }
+  .live-hint { position: absolute; top: calc(100% + 8px); right: -8px; box-sizing: border-box; width: 144px; height: 36px; padding: 4px 8px; border-radius: var(--bb-radius-xs); background: var(--bb-bg-1); font-size: 11px; line-height: 14px; color: var(--bb-muted-light); pointer-events: none; transition: opacity var(--bb-dur-fast); }
+  .invisible { visibility: hidden; opacity: 0; }
+  .run-text { display: block; width: 72px; white-space: nowrap; }
+  :global(.run-button) { width: 124px; --btn-pad: 0 10px; }
+  :global(.save-button) { width: 100px; --btn-pad: 0 12px; }
+  .back-text { width: 56px; white-space: nowrap; }
+  .tool-label { width: 100%; height: 18px; white-space: nowrap; }
   .tool {
     display: flex;
     flex-direction: column;
@@ -795,7 +836,8 @@
     justify-content: center;
     gap: 6px;
     width: 100%;
-    min-height: 60px;
+    height: 60px;
+    flex: none;
     padding: 8px 0;
     border: 0;
     border-radius: 8px;
@@ -826,6 +868,9 @@
     }
   }
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
+    .live-hint { width: 112px; font-size: 10px; }
+    :global(.run-button) { width: 44px; }
+    :global(.save-button) { width: 72px; }
     .back {
       justify-content: center;
       width: 44px;

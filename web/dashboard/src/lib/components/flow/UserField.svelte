@@ -9,7 +9,7 @@
   import type { FlowNode } from '#lib/flow/model';
   import { configText } from '#lib/flow/setup';
 
-  let { node, id, label, placeholder }: { node: FlowNode; id: string; label: string; placeholder?: string } = $props();
+  let { node, id, label, placeholder, tag, error }: { node: FlowNode; id: string; label: string; placeholder?: string; tag?: string; error?: string } = $props();
 
   type Resolved = { ok: boolean; userId?: string; login?: string; code?: string };
 
@@ -51,10 +51,12 @@
   }
 </script>
 
-<Field {label} for={id}>
+<Field {label} {tag} {error} errorId="{id}-error" for={id}>
   <Input
     {id}
     {placeholder}
+    aria-invalid={Boolean(error)}
+    aria-describedby={error ? `${id}-error` : undefined}
     autocomplete="off"
     spellcheck="false"
     value={login || userId}

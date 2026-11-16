@@ -23,7 +23,7 @@
 
   type GoveeLights ={ keyPresent: boolean; devices: GoveeDevice[]; code?: 'key_rejected' | 'unreachable' };
 
-  let { node, id }: { node: FlowNode; id: string } = $props();
+  let { node, id, tag, fieldError }: { node: FlowNode; id: string; tag?: string; fieldError?: string } = $props();
 
   const { t } = getI18n();
   const lights = $derived(page.data.govee as Promise<GoveeLights>);
@@ -112,10 +112,12 @@
     {#if notice}<AlertBanner tone="warning">{notice}</AlertBanner>{/if}
     {@const options = optionsFor(devices)}
     {#if options.length}
-      <Field label={t('flows.lightField')} for={id}>
+      <Field label={t('flows.lightField')} {tag} error={fieldError} errorId="{id}-error" for={id}>
         <Select
           {id}
           {options}
+          aria-invalid={Boolean(fieldError)}
+          aria-describedby={fieldError ? `${id}-error` : undefined}
           value={device}
           placeholder={t('flows.lightChoose')}
           onchange={(e) => choose(devices, e.currentTarget.value)}

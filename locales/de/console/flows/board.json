@@ -66,16 +66,8 @@
   "duplicate": "Duplizieren",
   "removeStep": "Schritt entfernen",
   "testRun": "Testlauf",
+  "whatHappens": "Was passiert",
   "closeTestRun": "Testlauf schließen",
-  "testChat": "Test-Chat",
-  "runAgain": "Erneut ausführen",
-  "goesTo": "Führt zu",
-  "branchFor": "Zweig für {label}",
-  "statusEmpty": "Füge einen Wenn-Schritt hinzu, um dieses System auszuführen.",
-  "statusRunning": "Schritt {shown} von {total} wird ausgeführt. Es wird nichts an den Chat gesendet.",
-  "statusDoneOne": "Fertig, 1 Schritt ausgeführt. Es wurde nichts an den Chat gesendet.",
-  "statusDoneMany": "Fertig, {count} Schritte ausgeführt. Es wurde nichts an den Chat gesendet.",
-  "viewerTyped": "{name} hat {text} eingegeben",
   "nothingToSend": "Noch nichts zu senden",
   "connectionSelection": "Verbindung auswählen"
 }

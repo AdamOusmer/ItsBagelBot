@@ -66,16 +66,8 @@
   "duplicate": "Duplicate",
   "removeStep": "Remove step",
   "testRun": "Test run",
+  "whatHappens": "What happens",
   "closeTestRun": "Close test run",
-  "testChat": "Test chat",
-  "runAgain": "Run again",
-  "goesTo": "Goes to",
-  "branchFor": "Branch for {label}",
-  "statusEmpty": "Add a When step to run this system.",
-  "statusRunning": "Running step {shown} of {total}. Nothing is sent to chat.",
-  "statusDoneOne": "Finished, 1 step ran. Nothing was sent to chat.",
-  "statusDoneMany": "Finished, {count} steps ran. Nothing was sent to chat.",
-  "viewerTyped": "{name} typed {text}",
   "nothingToSend": "Nothing to send yet",
   "connectionSelection": "Select connection"
 }

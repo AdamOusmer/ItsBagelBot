@@ -72,7 +72,6 @@
     if (!e.dataTransfer) return;
     e.dataTransfer.setData('application/x-flow-node', spec.type);
     e.dataTransfer.effectAllowed = 'copy';
-    setTimeout(onClose, 0);
   }
 </script>
 
@@ -100,6 +99,7 @@
             type="button"
             draggable="true"
             ondragstart={(e) => onDragStart(e, spec)}
+            ondragend={onClose}
             onclick={() => onAdd(spec.type)}
           >
             <IconTile size="sm" style="--tile: 32px; color: {TINTS[spec.kind]}"><Icon name={spec.icon} size={16} /></IconTile>

@@ -66,16 +66,8 @@
   "duplicate": "Duplicar",
   "removeStep": "Remover etapa",
   "testRun": "Execução de teste",
+  "whatHappens": "O que acontece",
   "closeTestRun": "Fechar execução de teste",
-  "testChat": "Chat de teste",
-  "runAgain": "Executar novamente",
-  "goesTo": "Vai para",
-  "branchFor": "Ramificação para {label}",
-  "statusEmpty": "Adicione uma etapa Quando para executar este sistema.",
-  "statusRunning": "Executando etapa {shown} de {total}. Nada é enviado ao chat.",
-  "statusDoneOne": "Concluído, 1 etapa foi executada. Nada foi enviado ao chat.",
-  "statusDoneMany": "Concluído, {count} etapas foram executadas. Nada foi enviado ao chat.",
-  "viewerTyped": "{name} digitou {text}",
   "nothingToSend": "Nada para enviar ainda",
   "connectionSelection": "Selecionar conexão"
 }

@@ -66,16 +66,8 @@
   "duplicate": "Дублировать",
   "removeStep": "Удалить шаг",
   "testRun": "Тестовый запуск",
+  "whatHappens": "Что произойдёт",
   "closeTestRun": "Закрыть тестовый запуск",
-  "testChat": "Тестовый чат",
-  "runAgain": "Запустить снова",
-  "goesTo": "Переход к",
-  "branchFor": "Ветка для {label}",
-  "statusEmpty": "Добавьте шаг «Когда», чтобы запустить эту систему.",
-  "statusRunning": "Выполняется шаг {shown} из {total}. В чат ничего не отправляется.",
-  "statusDoneOne": "Завершено, выполнен 1 шаг. В чат ничего не отправлено.",
-  "statusDoneMany": "Завершено, выполнено шагов: {count}. В чат ничего не отправлено.",
-  "viewerTyped": "{name} написал {text}",
   "nothingToSend": "Пока нечего отправлять",
   "connectionSelection": "Выбрать связь"
 }

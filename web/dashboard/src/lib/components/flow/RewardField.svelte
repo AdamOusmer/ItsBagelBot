@@ -15,7 +15,7 @@
   import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, REWARD_COST_MIN, wholeBetween, type RewardCoreDraft } from '#lib/reward-fields';
   import ChoiceField from './ChoiceField.svelte';
 
-  let { node, id, label }: { node: FlowNode; id: string; label: string } = $props();
+  let { node, id, label, tag, error }: { node: FlowNode; id: string; label: string; tag?: string; error?: string } = $props();
 
   const { t } = getI18n();
 
@@ -126,7 +126,7 @@
 
 <div class="stack">
   <div class="pane" class:hidden={mode !== 'existing'} inert={mode !== 'existing'}>
-    <ChoiceField {node} field={LINKED_REWARD_CHOICE} {label} {id} />
+    <ChoiceField {node} field={LINKED_REWARD_CHOICE} {label} {id} {tag} {error} />
   </div>
   <div class="pane" class:hidden={mode !== 'create'} inert={mode !== 'create'}>
     <RewardCoreFields

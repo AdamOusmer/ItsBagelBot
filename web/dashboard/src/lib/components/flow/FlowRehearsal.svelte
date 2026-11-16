@@ -3,21 +3,18 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit';
   import ChatPreview from '@bagel/ui/svelte/ChatPreview.svelte';
-  import ChatBotName from '#lib/components/commands/ChatBotName.svelte';
+  import RehearsedLineRow from '#lib/components/commands/RehearsedLineRow.svelte';
   import type { RehearsalStep } from '#lib/flow/rehearse';
 
   let { steps, focusId, title }: { steps: RehearsalStep[]; focusId?: string; title?: string } = $props();
   const { t } = getI18n();
   const visible = $derived(focusId ? steps.filter((step) => step.id === focusId) : steps);
-  const lines = $derived(visible.flatMap((step) => step.lines ?? []));
+  const lines = $derived(visible.flatMap((step) => step.chatLines ?? []));
 </script>
 
 <ChatPreview title={title ?? t('chatPreview.rehearsal')}>
   {#each lines as line, index (index)}
-    <div class="bb-chat__line">
-      <ChatBotName seed="ItsBagelBot" />
-      <span class="bb-chat__msg">{line}</span>
-    </div>
+    <RehearsedLineRow {line} {index} seed="ItsBagelBot" />
   {/each}
   {#each visible.filter((step) => step.missing.length) as step (step.key)}
     <p class="missing">{t('flows.test.missing', { names: step.missing.join(', ') })}</p>

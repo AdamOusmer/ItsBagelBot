@@ -80,7 +80,6 @@
     "role": "Cargo",
     "live": "Live",
     "message": "Mensagem no chat",
-    "args": "Palavras após o comando",
     "bits": "bits",
     "viewers": "espectadores",
     "tier": "Nível",

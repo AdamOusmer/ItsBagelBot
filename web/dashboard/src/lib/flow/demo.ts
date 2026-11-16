@@ -359,7 +359,7 @@ export function demoChoices(mode: DemoChoiceMode) {
     rewards: demoList(demoRewardOptions(), mode),
     counters: demoList(DEMO_COUNTERS, mode),
     namedCooldowns: demoList(DEMO_NAMED_COOLDOWNS, mode),
-    namedCountdowns: demoList(DEMO_NAMED_COOLDOWNS, mode)
+    namedCountdowns: demoList([], mode)
   };
 }
 

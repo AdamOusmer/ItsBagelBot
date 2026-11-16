@@ -5,7 +5,6 @@
   import { invalidate } from '$app/navigation';
   import { page } from '$app/state';
   import { actionPayload, getI18n } from '@bagel/kit';
-  import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
@@ -101,37 +100,44 @@
 </script>
 
 <Field {label} {tag} {error} errorId="{id}-error" for={id}>
+  <div class="choice-content">
   {#if list === null}
     <Text size="sm" tone="muted">{t('flows.choose.light')}</Text>
-    {#if value}<Select {id} options={[{ value, label: savedName || value }]} {value} disabled />{/if}
+    <Select {id} options={value ? [{ value, label: savedName || value }] : []} {value} disabled placeholder={chooseText(field.source)} />
   {:else}
     {#await list}
-      <div class="row"><Spinner /><Text size="sm" tone="muted">{t('flows.choiceLoading')}</Text></div>
+      <div class="loading"><Spinner /><Text size="sm" tone="muted">{t('flows.choiceLoading')}</Text></div>
     {:then loaded}
       {@const result = withDraftNames(loaded, field.source, draft)}
       {@const options = withSaved(result, value, savedName)}
-      {#if options.length}
-        <Select {id} {options} {value} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} placeholder={chooseText(field.source)} onchange={(e) => choose(options, e.currentTarget.value)} />
-      {/if}
+      <Select {id} {options} {value} disabled={!options.length} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} placeholder={chooseText(field.source)} onchange={(e) => choose(options, e.currentTarget.value)} />
+        <div class="row">
       {#if result.problem}
         <Text size="sm" tone="muted">{problemText(field.source, result.problem)}</Text>
         {#if result.problem !== 'keyRejected'}
-          <Button variant="ghost" busy={refreshing} onclick={retry}>{t('flows.choiceRetry')}</Button>
+          <button class="refresh" type="button" disabled={refreshing} onclick={retry}>{t('flows.choiceRetry')}</button>
         {/if}
       {:else if result.options.length === 0}
         <Text size="sm" tone="muted">{emptyText(field.source)}</Text>
-        <Button variant="ghost" busy={refreshing} onclick={retry}>{t('flows.choiceRetry')}</Button>
+        <button class="refresh" type="button" disabled={refreshing} onclick={retry}>{t('flows.choiceRetry')}</button>
       {:else if value && !result.options.some((option) => option.value === value)}
         <Text size="sm" tone="muted">{missingText(field.source, savedName || value)}</Text>
       {/if}
+        </div>
     {/await}
   {/if}
+  </div>
 </Field>
 
 <style>
-  .row {
+  .choice-content { display: flex; flex-direction: column; gap: 8px; min-height: 88px; }
+  .row, .loading {
     display: flex;
     align-items: center;
     gap: 8px;
   }
+  .row { min-height: 40px; align-items: baseline; }
+  .loading { height: 40px; }
+  .refresh { flex: none; padding: 0; border: 0; background: none; color: var(--bb-white); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .refresh:disabled { opacity: 0.5; cursor: wait; }
 </style>
