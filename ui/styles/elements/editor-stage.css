@@ -191,6 +191,18 @@
   }
 
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
+    .bb-editor-stage--stack-bar .bb-editor-stage__bar {
+      flex-wrap: wrap;
+    }
+
+    .bb-editor-stage--stack-bar .bb-editor-stage__bar-start {
+      flex-basis: 100%;
+    }
+
+    .bb-editor-stage--stack-bar .bb-editor-stage__bar-end {
+      margin-inline-start: auto;
+    }
+
     body:has(.bb-editor-stage) .bb-popover--bottom {
       display: none;
     }

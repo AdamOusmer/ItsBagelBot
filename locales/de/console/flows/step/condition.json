@@ -1,7 +1,8 @@
 {
   "role": {
     "label": "Nutzerlevel",
-    "summary": "Nur bestimmte Zuschauer durchlassen",
+    "summary": "Zuschauerrollen prüfen (nur Chat)",
+    "warning": "Zuschauerrollen sind nur bei Chat-Auslösern bekannt. Bei diesem Auslöser zählt jeder als Zuschauer.",
     "field": {
       "level": {
         "label": "Mindestens",

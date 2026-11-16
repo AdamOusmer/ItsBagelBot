@@ -1,7 +1,8 @@
 {
   "role": {
     "label": "User level",
-    "summary": "Only certain viewers pass",
+    "summary": "Check viewer roles (chat only)",
+    "warning": "Viewer roles are only known for chat triggers. On this trigger everyone counts as a viewer.",
     "field": {
       "level": {
         "label": "At least",

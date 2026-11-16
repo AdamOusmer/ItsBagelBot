@@ -47,10 +47,10 @@
 </div>
 
 <style>
-  .inputs { display: flex; flex-wrap: wrap; gap: 12px; }
+  .inputs { display: flex; flex: none; flex-wrap: wrap; gap: 12px; }
   .input { flex: 1 1 120px; min-width: 0; }
   .input.wide { flex-basis: 100%; }
   .toggle { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14px; }
-  .more { min-height: 32px; }
+  .more { flex: none; min-height: 32px; }
   .invisible { visibility: hidden; }
 </style>

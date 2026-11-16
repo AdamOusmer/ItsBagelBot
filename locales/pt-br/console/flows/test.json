@@ -1,5 +1,8 @@
 {
-  "emptyCompare": "{left} não corresponde a um valor vazio.",
+  "compareNotGte": "{left} não é no mínimo {right}.",
+  "compareNotLt": "{left} não é menor que {right}.",
+  "compareNotEq": "{left} não corresponde a {right}.",
+  "compareNotContains": "{left} não contém {right}.",
   "emptyValue": "um valor vazio",
   "repairBlocked": "Esta mudança não passa na condição. Tente outro valor.",
   "more": "Mais",

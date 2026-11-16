@@ -60,8 +60,7 @@ function overlaps(node: FlowNode, box: Box): boolean {
 export function focusBounds(flow: Flow, node: FlowNode, frame: { width: number; height: number; minZoom: number }): Box {
   const index = graphIndex(flow);
   const parents = (index.incoming.get(node.id) ?? []).map((edge) => edge.from);
-  const siblings = parents.flatMap((id) => (index.outgoing.get(id) ?? []).map((edge) => edge.to));
-  const related = new Set([node.id, ...parents, ...siblings]);
+  const related = new Set([node.id, ...parents]);
   const selected = nodeBounds(node);
   const nearby = flowBounds({ ...flow, nodes: flow.nodes.filter((entry) => related.has(entry.id)) }, selected);
   const fits = (box: Box) => (box.x1 - box.x0) * frame.minZoom <= frame.width && (box.y1 - box.y0) * frame.minZoom <= frame.height;

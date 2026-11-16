@@ -15,6 +15,7 @@
     topCenter?: Snippet;
     topEnd?: Snippet;
     slimBar?: boolean;
+    stackBar?: boolean;
     rail?: Snippet;
     leftPanel?: Snippet;
     rightPanel?: Snippet;
@@ -40,6 +41,7 @@
     topCenter,
     topEnd,
     slimBar = false,
+    stackBar = false,
     rail,
     leftPanel,
     rightPanel,
@@ -60,6 +62,7 @@
     [
       'bb-editor-stage',
       slimBar ? 'bb-editor-stage--slim-bar' : null,
+      stackBar ? 'bb-editor-stage--stack-bar' : null,
       rail ? 'bb-editor-stage--has-rail' : null,
       className || null,
     ]

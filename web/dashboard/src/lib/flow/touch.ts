@@ -61,7 +61,7 @@ export function revealBox(view: View, box: Box, frame: Frame, zoom: ZoomRange & 
   const roomH = height - inset.top - inset.bottom;
   const boxW = box.x1 - box.x0;
   const boxH = box.y1 - box.y0;
-  const k = clamp(Math.min(Math.max(view.k, zoom.readable), roomW / boxW, roomH / boxH), zoom.min, zoom.max);
+  const k = clamp(Math.min(view.k, roomW / boxW, roomH / boxH), Math.max(zoom.min, zoom.readable), zoom.max);
   const left = view.x + box.x0 * k;
   const top = view.y + box.y0 * k;
   const inside =

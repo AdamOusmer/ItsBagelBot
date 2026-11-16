@@ -119,13 +119,26 @@ test.each([
   expect(step.repair).toBeUndefined();
 });
 
-test.each<{ op: string; missing: string[] }>([
-  { op: 'eq', missing: [] }, { op: 'gte', missing: [] }, { op: 'lt', missing: [] }, { op: 'contains', missing: ['This value'] }
-])('an empty right operand explains a failed $op check', ({ op, missing }) => {
-  const check = n('c', 'cond.compare', { left: '5', op, right: '' });
+test.each([
+  { op: 'eq', right: '', missing: [], reason: 'does not match' }, { op: 'gte', right: '', missing: [], reason: 'is not at least' },
+  { op: 'lt', right: '', missing: [], reason: 'is not less than' }, { op: 'contains', right: '', missing: ['This value'], reason: 'does not contain' },
+  { op: 'eq', right: '6', missing: [], reason: 'does not match' }, { op: 'gte', right: '10', missing: [], reason: 'is not at least' },
+  { op: 'lt', right: '3', missing: [], reason: 'is not less than' }, { op: 'contains', right: '6', missing: [], reason: 'does not contain' }
+])('a failed $op check explains comparing with "$right"', ({ op, right, missing, reason }) => {
+  const check = n('c', 'cond.compare', { left: '5', op, right });
   const step = run(flowOf([trigger, check], [e('t', 'next', 'c')])).steps.find((entry) => entry.id === 'c');
-  expect([step?.status, step?.missing, step?.note]).toEqual(['no', missing, '5 does not match an empty value.']);
+  expect([step?.status, step?.missing, step?.note]).toEqual(['no', [...missing], `5 ${reason} ${right || 'an empty value'}.`]);
 });
+
+test.each(['twitch.chat.command', 'twitch.chat.word', 'twitch.follow', 'twitch.sub', 'twitch.cheer', 'twitch.raid', 'twitch.reward', 'twitch.stream.online'])(
+  '%s explains when viewer roles are unavailable', (type) => {
+    const check = n('c', 'cond.role', { level: 'mod' });
+    const root = n('t', type, { trigger: '!test', word: 'hello', reward: 'reward' });
+    const step = run(flowOf([root, check], [e('t', 'next', 'c')])).steps.find((entry) => entry.id === 'c');
+    const note = type.startsWith('twitch.chat.') ? undefined : 'Viewer roles are only known for chat triggers. On this trigger everyone counts as a viewer.';
+    expect([step?.status, step?.note, Boolean(step?.repair)]).toEqual(['no', note, type.startsWith('twitch.chat.')]);
+  }
+);
 
 test('draft tolerance leaves the edited flow untouched', () => {
   const flow = flowOf([trigger, n('c', 'cond.user'), n('s', 'reply.chat', { message: '{bits}' }), left], [e('t', 'next', 'c'), e('c', 'no', 's')]);

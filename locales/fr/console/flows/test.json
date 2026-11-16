@@ -1,5 +1,8 @@
 {
-  "emptyCompare": "{left} ne correspond pas à une valeur vide.",
+  "compareNotGte": "{left} n’atteint pas {right}.",
+  "compareNotLt": "{left} n’est pas inférieur à {right}.",
+  "compareNotEq": "{left} ne correspond pas à {right}.",
+  "compareNotContains": "{left} ne contient pas {right}.",
   "emptyValue": "une valeur vide",
   "repairBlocked": "Ce changement ne suffit pas. Essaie une autre valeur.",
   "more": "Plus",

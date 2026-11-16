@@ -1,7 +1,8 @@
 {
   "role": {
     "label": "Nivel de usuario",
-    "summary": "Solo pasan ciertos espectadores",
+    "summary": "Comprobar roles (solo chat)",
+    "warning": "Los roles solo se conocen con activadores de chat. Con este activador todos cuentan como espectadores.",
     "field": {
       "level": {
         "label": "Al menos",

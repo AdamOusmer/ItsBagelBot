@@ -96,15 +96,14 @@
   type PortId = string;
   type NodeType = Flow['nodes'][number]['type'];
   type Link = { from: NodeId; port: PortId };
-  const MIN_ZOOM = 0.4;
+  const MIN_ZOOM = 0.1;
   const MAX_ZOOM = 1.6;
   const TIDY_MS = 320;
   const FIT_INSET = { top: 160, right: 48, bottom: 96, left: 120 };
   const KEY_INSET = { top: 104, right: 24, bottom: 80, left: 112 };
   const DRAG_SLOP = 3;
   const TOUCH_SLOP = 8;
-  const TOUCH_MIN_ZOOM = 0.25;
-  const READABLE_ZOOM = 0.75;
+  const READABLE_ZOOM = 0.7;
   const GLIDE_MS = 240;
   const MENU_TINT: Record<FlowKind, { color: string; rgb: string }> = {
     trigger: { color: 'var(--bb-green-glow)', rgb: 'var(--bb-green-glow-rgb)' },
@@ -179,7 +178,8 @@
   let pinch: Pinch | null = null;
   let tapped: { port?: string; node?: string; edge?: string } = {};
 
-  const minZoom = () => (touch ? TOUCH_MIN_ZOOM : MIN_ZOOM);
+  const minZoom = () => MIN_ZOOM;
+  const viewportInset = $derived(insets?.(room > 0) ?? KEY_INSET);
   const shownK = $derived(pinchK ?? view.k);
 
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -250,14 +250,7 @@
   }
 
   function revealSelected() {
-    const n = selectedId ? nodeById(selectedId) : undefined;
-    const room = insets?.(true);
-    if (!host) return;
-    if (!n || !room) return;
-    const inset = { ...room, bottom: room.bottom + 64 };
-    const box = focusBounds(flow, n, { width: host.clientWidth - inset.left - inset.right, height: host.clientHeight - inset.top - inset.bottom, minZoom: minZoom() });
-    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: view.k });
-    if (target !== view) glideTo(target);
+    if (selectedId) revealNode(selectedId);
   }
 
   export function tidyNow() {
@@ -267,13 +260,25 @@
   export function fitView(reservedRight = 0, initial = false) {
     if (!host) return;
     const bounds = flowBounds(flow, { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H }, initial);
-    const inset = insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight };
+    const inset = cameraInset(insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight });
     cancelAnimationFrame(glide);
     const frame = { width: host.clientWidth, height: host.clientHeight, inset };
     const fitted = fitBox(bounds, frame, { min: minZoom(), max: MAX_ZOOM });
-    const min = initial && fitted.k < 0.6 ? READABLE_ZOOM : minZoom();
-    view = fitBox(bounds, frame, { min, max: MAX_ZOOM });
-    view.x = Math.max(view.x, inset.left - bounds.x0 * view.k);
+    if (initial && fitted.k < 0.6) {
+      openAtTrigger(fitted);
+      return;
+    }
+    view = fitted;
+  }
+
+  function openAtTrigger(fitted: typeof view) {
+    const trigger = flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
+    view = { ...fitted, k: READABLE_ZOOM };
+    if (trigger) revealNode(trigger.id);
+  }
+
+  function cameraInset(inset: Inset): Inset {
+    return { ...inset, bottom: inset.bottom + (inset.left > 16 ? 64 : 0) };
   }
 
   function zoomAt(factor: number, { x: px, y: py }: Pt) {
@@ -736,14 +741,10 @@
   export function revealNode(id: NodeId) {
     const n = nodeById(id);
     if (!n || !host) return;
-    if (insets?.(true)) {
-      revealSelected();
-      return;
-    }
-    const inset = { ...KEY_INSET, right: KEY_INSET.right + room };
-    const box = focusBounds(flow, n, { width: host.clientWidth - inset.left - inset.right, height: host.clientHeight - inset.top - inset.bottom, minZoom: minZoom() });
-    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: view.k });
-    if (target !== view) view = target;
+    const inset = cameraInset(insets?.(true) ?? { ...KEY_INSET, right: KEY_INSET.right + room });
+    const box = focusBounds(flow, n, { width: host.clientWidth - inset.left - inset.right, height: host.clientHeight - inset.top - inset.bottom, minZoom: READABLE_ZOOM });
+    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: READABLE_ZOOM });
+    if (target !== view) glideTo(target);
   }
 
   function selectAndShow(id: NodeId) {
@@ -902,6 +903,7 @@
   ondragover={onDragOver}
   ondrop={onDrop}
 >
+  <div class="viewport" style:clip-path="inset(0 0 0 {viewportInset.left}px)">
   <div class="world" style:transform="translate({view.x}px, {view.y}px) scale({view.k})" style:--inv={touch ? 1 / shownK : undefined}>
     <svg class="wires" width="1" height="1">
       <defs>
@@ -990,6 +992,7 @@
     {/each}
   </div>
 
+  </div>
   {#if menu}
     <span class="menu-anchor" bind:this={menuAnchor} style:left="{menuLeft}px" style:top="{menuTop}px"></span>
     <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label={t('flows.board.addStep')} width={menuWidth} maxHeight={menuHeight} onClose={() => closeMenu(true)}>
@@ -1089,6 +1092,7 @@
   .canvas.dragging {
     cursor: grabbing;
   }
+  .viewport { position: absolute; inset: 0; }
   .world {
     position: absolute;
     left: 0;

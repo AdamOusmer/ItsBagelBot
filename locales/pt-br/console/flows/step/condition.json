@@ -1,7 +1,8 @@
 {
   "role": {
     "label": "Nível de usuário",
-    "summary": "Apenas certos espectadores passam",
+    "summary": "Verificar cargos (só no chat)",
+    "warning": "Os cargos só são conhecidos em gatilhos de chat. Neste gatilho, todos contam como espectadores.",
     "field": {
       "level": {
         "label": "No mínimo",

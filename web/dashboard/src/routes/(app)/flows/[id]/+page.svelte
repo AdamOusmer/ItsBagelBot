@@ -571,13 +571,13 @@
     returnToTestRun = false;
     if (!wideBoard) libMode = null;
     runReturn = active();
-    selectedId = null;
     recipeOpen = false;
     testRunOpen = !testRunOpen;
     await tick();
     syncViewport();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    canvas?.fitView(testRunOpen ? PANEL_ROOM : 0);
+    const runStep = selectedId ?? rehearsal.steps.find((step) => step.id)?.id;
+    if (runStep) canvas?.revealNode(runStep);
   }
 
   async function toggleRecipe() {
@@ -601,7 +601,8 @@
   function closeTestRun(restore = false) {
     returnToTestRun = false;
     testRunOpen = false;
-    canvas?.fitView();
+    const id = selectedId;
+    if (id) void tick().then(() => canvas?.revealNode(id));
     const back = restore ? runReturn : null;
     if (back) void tick().then(() => back.isConnected && back.focus({ preventScroll: true }));
   }
@@ -631,6 +632,9 @@
     <span class="back-text" data-fit><bb-fit>{data.navLabels['nav.flows']}</bb-fit></span>
   </a>
   <span class="flow-name"><Input fill maxlength={64} aria-label={t('flows.nameLabel')} bind:value={flow.name} /></span>
+{/snippet}
+
+{#snippet topEnd()}
   <div class="live-control">
   <Switch
     checked={flow.enabled}
@@ -640,9 +644,6 @@
   />
   <span class="live-hint" class:invisible={Boolean(ref)} aria-hidden={Boolean(ref)}><bb-fit><span data-fit>{t(flow.enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff')}</span></bb-fit></span>
   </div>
-{/snippet}
-
-{#snippet topEnd()}
   <Button class="run-button" variant="ghost" aria-label={t('flows.board.testRun')} onclick={testRun}><Icon name="play" size={14} /> <span class="run-text" data-fit><bb-fit>{t('flows.board.testRun')}</bb-fit></span></Button>
   <Button class="save-button" variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}><bb-fit><span data-fit>{t('flows.page.save')}</span></bb-fit></Button>
 {/snippet}
@@ -725,6 +726,7 @@
 {#if drawable}
 <EditorStage
   class="bb-editor-stage--compact-panels"
+  stackBar
   style="--editor-panel-right: {testRunOpen && inspectorVisible ? 'min(720px, calc(100vw - 112px))' : '360px'}"
   height="100dvh"
   topInset="calc(var(--bb-topbar-height) + var(--flows-top-gap, 6px))"

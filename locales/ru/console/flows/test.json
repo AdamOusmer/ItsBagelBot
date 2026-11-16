@@ -1,5 +1,8 @@
 {
-  "emptyCompare": "{left} не соответствует пустому значению.",
+  "compareNotGte": "{left} не достигает {right}.",
+  "compareNotLt": "{left} не меньше {right}.",
+  "compareNotEq": "{left} не совпадает с {right}.",
+  "compareNotContains": "{left} не содержит {right}.",
   "emptyValue": "пустое значение",
   "repairBlocked": "Эта правка не проходит проверку. Попробуйте другое значение.",
   "more": "Ещё",

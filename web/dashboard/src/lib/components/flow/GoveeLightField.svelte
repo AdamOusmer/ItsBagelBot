@@ -23,7 +23,7 @@
 
   type GoveeLights ={ keyPresent: boolean; devices: GoveeDevice[]; code?: 'key_rejected' | 'unreachable' };
 
-  let { node, id, tag, fieldError }: { node: FlowNode; id: string; tag?: string; fieldError?: string } = $props();
+  let { node, id, tag, fieldError, onConfig }: { node: FlowNode; id: string; tag?: string; fieldError?: string; onConfig: (config: FlowNode['config']) => void } = $props();
 
   const { t } = getI18n();
   const lights = $derived(page.data.govee as Promise<GoveeLights>);
@@ -44,12 +44,11 @@
   function choose(devices: GoveeDevice[], id: string) {
     const light = devices.find((d) => d.device === id);
     if (!light) return;
+    const config = { ...node.config };
     if (node.config.device !== light.device) {
-      for (const key of SCENE_KEYS) delete node.config[key];
+      for (const key of SCENE_KEYS) delete config[key];
     }
-    node.config.device = light.device;
-    node.config.sku = light.sku;
-    node.config.deviceName = light.name || light.sku;
+    onConfig({ ...config, device: light.device, sku: light.sku, deviceName: light.name || light.sku });
   }
 
   const refOf = (d: GoveeDevice) => `${d.device}/${d.sku}`;
@@ -59,8 +58,10 @@
     const next = new Set(extras);
     if (on) next.add(refOf(d));
     else next.delete(refOf(d));
-    if (next.size) node.config.extraLights = [...next].join(',');
-    else delete node.config.extraLights;
+    const config = { ...node.config };
+    if (next.size) config.extraLights = [...next].join(',');
+    else delete config.extraLights;
+    onConfig(config);
   }
 
   async function refresh() {

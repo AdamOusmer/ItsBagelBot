@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Icon from './FlowIcon.svelte';
@@ -20,7 +20,8 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, roleWarning, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
+  import { defaultComparison } from '#lib/flow/comparison';
   import { fieldVisible, NODE_SPECS, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
@@ -85,6 +86,21 @@
   const caret = new Map<string, number>();
   const textOf = (key: FieldKey) => (node ? configText(node, key) : '');
   const awaiting = $derived(node ? awaitingSetup(node) : false);
+  const roleNote = $derived(roleWarning(t, flow, node));
+  const chosenComparisons = new Set(untrack(() => flow.nodes.filter((entry) => entry.type === 'cond.compare' && Boolean(entry.config.left || entry.config.right)).map((entry) => entry.id)));
+
+  function setSelect(key: FieldKey, value: string) {
+    if (!node) return;
+    node.config[key] = value;
+    if (node.type === 'cond.compare') chosenComparisons.add(node.id);
+  }
+
+  function setTemplate(key: FieldKey, value: string) {
+    if (!node) return;
+    node.config[key] = value;
+    if (node.type !== 'cond.compare' || chosenComparisons.has(node.id)) return;
+    node.config.op = defaultComparison(flow, node);
+  }
 
   let heldForSetup: string | null = null;
   $effect(() => {
@@ -170,7 +186,7 @@
 
   function updateTemplate(key: FieldKey, control: TextControl) {
     if (!node) return;
-    node.config[key] = control.value;
+    setTemplate(key, control.value);
     trackCaret(key, control);
     const end = control.selectionStart ?? control.value.length;
     const match = /\{([^{}\s]*)$/.exec(control.value.slice(0, end));
@@ -204,7 +220,7 @@
     const partial = completion?.key === key ? completion : null;
     const at = partial?.start ?? Math.min(caret.get(key) ?? current.length, current.length);
     const end = partial ? partial.end + (/^[^{}\s]*\}/.exec(current.slice(partial.end))?.[0].length ?? 0) : at;
-    node.config[key] = current.slice(0, at) + token + current.slice(end);
+    setTemplate(key, current.slice(0, at) + token + current.slice(end));
     completion = null;
     const next = at + token.length;
     caret.set(key, next);
@@ -265,6 +281,7 @@
       {#if awaiting}
         <p class="note">{t('flows.setup.stepNote')}</p>
       {/if}
+      {#if roleNote}<p class="note role-note" role="status"><bb-fit mode="block"><span data-fit>{roleNote}</span></bb-fit></p>{/if}
       {#if spec.fields.length}
         <div class="fields">
           {#each spec.fields.filter((f) => renderVisible(spec, node, f)) as field (field.key)}
@@ -302,7 +319,7 @@
                   id="{uid}-{field.key}"
                   options={fieldOptions(t, spec, field)}
                   value={String(node.config[field.key] ?? field.options[0] ?? '')}
-                  onchange={(e) => (node.config[field.key] = e.currentTarget.value)}
+                  onchange={(e) => setSelect(field.key, e.currentTarget.value)}
                 />
               </Field>
             {:else if field.type === 'number'}
@@ -389,7 +406,7 @@
             {:else if field.type === 'reward'}
               <RewardField {node} {label} {tag} {error} id="{uid}-{field.key}" />
             {:else if field.type === 'goveeLight'}
-              <GoveeLightField {node} {tag} fieldError={error} id="{uid}-{field.key}" />
+              <GoveeLightField {node} {tag} fieldError={error} id="{uid}-{field.key}" onConfig={(config) => (node.config = config)} />
             {:else if field.type === 'login'}
               {#key node.id}
                 <UserField {node} id="{uid}-{field.key}" {label} {placeholder} {tag} {error} />
@@ -597,6 +614,7 @@
     flex-direction: column;
     gap: 6px;
   }
+  .role-note { flex: none; height: 84px; }
   .note {
     margin: 0;
     font-size: 14px;

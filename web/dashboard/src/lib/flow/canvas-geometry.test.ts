@@ -11,13 +11,26 @@ const chain = (count: number): Flow => ({
   edges: Array.from({ length: count - 1 }, (_, i) => ({ id: String(i), from: String(i), to: String(i + 1), port: 'next' }))
 });
 
-test.each([1440, 1024, 834])('reveals parent and new step within a %i frame without moving a visible recipe', (width) => {
+test.each([
+  { width: 340, left: 736 },
+  { width: 480, left: 736 },
+  { width: 600, left: 368 },
+  { width: 900, left: 0 }
+])('focus includes only steps that fit at readable zoom in $width pixels', ({ width, left }) => {
   const flow = chain(3);
-  const inset = { left: 104, right: width >= 1280 ? 408 : 16, top: 100, bottom: 200 };
-  const size = { width: width - 240, height: 900, inset };
-  const box = focusBounds(flow, flow.nodes[2], { width: size.width - inset.left - inset.right, height: 600, minZoom: 0.4 });
+  flow.nodes.push({ id: 'sibling', type: 'reply.chat', x: 736, y: 2000, config: {} });
+  flow.edges.push({ id: 'sibling', from: '1', to: 'sibling', port: 'next' });
+  const box = focusBounds(flow, flow.nodes[2], { width, height: 600, minZoom: 0.7 });
+  expect([box.x0, box.y1 < 600]).toEqual([left, true]);
+});
+
+test.each([1440, 1024, 834, 390])('reveals readable steps within a %i frame without moving a visible recipe', (width) => {
+  const flow = chain(3);
+  const inset = { left: width < 500 ? 16 : 104, right: width >= 1280 ? 408 : 16, top: 100, bottom: 200 };
+  const size = { width: width < 500 ? width : width - 240, height: 900, inset };
+  const box = focusBounds(flow, flow.nodes[2], { width: size.width - inset.left - inset.right, height: 600, minZoom: 0.7 });
   const view = revealBox({ x: inset.left, y: 200, k: 0.7 }, box, size, { min: 0.4, max: 1.6, readable: 0.7 });
-  expect([view.x + box.x0 * view.k >= inset.left - 0.001, view.x + box.x1 * view.k <= size.width - inset.right + 0.001, view.y]).toEqual([true, true, 200]);
+  expect([view.x + box.x0 * view.k >= inset.left - 0.001, view.x + box.x1 * view.k <= size.width - inset.right + 0.001, view.y, view.k >= 0.7]).toEqual([true, true, 200, true]);
   expect(revealBox(view, box, size, { min: 0.4, max: 1.6, readable: view.k })).toEqual(view);
 });
 

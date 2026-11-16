@@ -1,13 +1,19 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { MAX_WAIT_SECONDS, specFor, type FieldSpec, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
+import { MAX_WAIT_SECONDS, specFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
 import type { FieldIssue } from './issues';
 import { issueMessage, type Translate } from './messages';
 
 export const stepLabel = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.label` as MessageKey);
 
 export const stepSummary = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.summary` as MessageKey);
+
+export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined): string | undefined {
+  if (node?.type !== 'cond.role') return undefined;
+  const trigger = flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger');
+  return trigger?.type.startsWith('twitch.chat.') ? undefined : t('flows.step.condition.role.warning');
+}
 
 export function stepKeywords(t: Translate, spec: NodeSpec): string {
   const key = `flows.step.${spec.kind}.${spec.slug}.keywords` as MessageKey;

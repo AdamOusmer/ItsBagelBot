@@ -1,7 +1,8 @@
 {
   "role": {
     "label": "Niveau utilisateur",
-    "summary": "Seuls certains viewers passent",
+    "summary": "Vérifier les rôles (chat uniquement)",
+    "warning": "Les rôles sont connus seulement avec les déclencheurs du chat. Avec ce déclencheur, tout le monde compte comme viewer.",
     "field": {
       "level": {
         "label": "Au moins",

@@ -79,8 +79,8 @@ describe('revealBox', () => {
     expect(revealBox(current, node, frame, { ...ZOOM, readable: 0.75 })).toBe(current);
   });
 
-  test.each([0.25, 0.4])('clamps even an obstructed frame to minimum zoom %s', (min) => {
+  test.each([0.25, 0.4])('keeps the readable zoom in an obstructed frame with minimum %s', (min) => {
     const view = revealBox({ x: 0, y: 0, k: 1 }, node, { ...frame, inset: { ...inset, right: 800 } }, { ...ZOOM, min, readable: 0.75 });
-    expect([view.k, Number.isFinite(view.x), Number.isFinite(view.y)]).toEqual([min, true, true]);
+    expect([view.k, Number.isFinite(view.x), Number.isFinite(view.y)]).toEqual([0.75, true, true]);
   });
 });

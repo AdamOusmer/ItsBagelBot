@@ -4,7 +4,7 @@ import type { MessageKey, RehearsedLine } from '@bagel/kit';
 import { compactDuration, compileFlow, defaultScenario, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
-import { fieldIssueMessage, fieldLabel, stepLabel, variableLabel } from './copy';
+import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
 import { describe } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { NODE_SPECS, specFor, type Flow, type FlowNode } from './model';
@@ -248,7 +248,7 @@ function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): R
   const node = nodes.get(id ?? '');
   return { ...event, ...stepValues(t, event, node), id, node, chatLines: chatLines(event),
     ...stepDetails(t, node), repair: node ? checkRepair(node, event, context) : undefined,
-    note: stepNote(t, node, { event, scenario }),
+    note: roleWarning(t, context.flow, node) ?? stepNote(t, node, { event, scenario }),
     text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)) };
 }
 
@@ -268,8 +268,11 @@ function stepNote(t: Translate, node: FlowNode | undefined, context: { event: Re
   if (emptyResponse(node, context.event)) return t('flows.test.emptyResponse');
   if (node?.type !== 'cond.compare') return undefined;
   if (context.event.status !== 'no') return undefined;
-  if (String(node.config.right ?? '').trim()) return undefined;
-  return t('flows.test.emptyCompare', { left: displayInput(node.config.left, context.scenario) || t('flows.test.emptyValue') });
+  const keys: Record<Text, MessageKey> = { gte: 'flows.test.compareNotGte', lt: 'flows.test.compareNotLt', eq: 'flows.test.compareNotEq', contains: 'flows.test.compareNotContains' };
+  return t(keys[String(node.config.op ?? 'gte')] ?? 'flows.test.compareNotEq', {
+    left: displayInput(node.config.left, context.scenario) || t('flows.test.emptyValue'),
+    right: displayInput(node.config.right, context.scenario) || t('flows.test.emptyValue')
+  });
 }
 
 function stepValues(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Pick<RehearsalStep, 'missing' | 'sample'> {

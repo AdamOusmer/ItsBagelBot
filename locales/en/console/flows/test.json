@@ -1,5 +1,8 @@
 {
-  "emptyCompare": "{left} does not match an empty value.",
+  "compareNotGte": "{left} is not at least {right}.",
+  "compareNotLt": "{left} is not less than {right}.",
+  "compareNotEq": "{left} does not match {right}.",
+  "compareNotContains": "{left} does not contain {right}.",
   "emptyValue": "an empty value",
   "repairBlocked": "This change cannot pass the check. Try another value.",
   "more": "More",

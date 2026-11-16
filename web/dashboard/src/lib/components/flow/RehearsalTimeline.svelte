@@ -80,6 +80,7 @@
           {@const step = row.step}
           {@const pretend = choices[step.node?.type ?? '']}
           {@const api = step.node?.type.startsWith('reply.http_')}
+          {@const roleNote = step.node?.type === 'cond.role' ? step.note : undefined}
           <article class="row" class:muted={step.status === 'skipped'} style:margin-inline-start="{laneOffset(step)}px">
             {#if step.lane.length}
               <span class="context">{t('flows.test.lane', { lane: step.lane.map((value) => value + 1).join('.') })}</span>
@@ -99,7 +100,8 @@
             {/if}
             {#if step.kind === 'check'}<span class="result">{status(step)}</span>{/if}
             {#if step.sample}<span class="context">{t('flows.test.sample')}</span>{/if}
-            {#if step.note}<span class="missing">{step.note}</span>{/if}
+            {#if roleNote}<span class="missing role-note"><bb-fit mode="block"><span data-fit>{roleNote}</span></bb-fit></span>{/if}
+            {#if step.note && !roleNote}<span class="missing">{step.note}</span>{/if}
             {#each step.missing as field (field)}<span class="missing">{t('flows.issue.requiredField', { field })}</span>{/each}
             {#if pretend && step.id}
               <div class="pretend">
@@ -137,8 +139,8 @@
 </div>
 
 <style>
-  .timeline { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 20px; }
-  .more { min-height: 32px; }
+  .timeline { flex: none; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 20px; }
+  .more { flex: none; min-height: 32px; }
   .group { display: flex; align-items: flex-start; gap: 10px; }
   .time { flex: 0 0 36px; padding-top: 8px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--bb-muted-light); }
   .rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
@@ -155,6 +157,7 @@
   .muted { opacity: 0.6; }
   .bubble { min-width: 0; }
   .missing { color: var(--bb-tan); }
+  .role-note { flex: none; height: 100px; }
   .pretend { display: flex; flex-direction: column; gap: 4px; }
   .repair { min-height: 32px; }
   .invisible { visibility: hidden; opacity: 0; }

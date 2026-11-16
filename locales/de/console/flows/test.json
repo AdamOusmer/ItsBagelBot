@@ -1,5 +1,8 @@
 {
-  "emptyCompare": "{left} passt nicht zu einem leeren Wert.",
+  "compareNotGte": "{left} ist nicht mindestens {right}.",
+  "compareNotLt": "{left} ist nicht kleiner als {right}.",
+  "compareNotEq": "{left} stimmt nicht mit {right} überein.",
+  "compareNotContains": "{left} enthält {right} nicht.",
   "emptyValue": "ein leerer Wert",
   "repairBlocked": "Diese Änderung reicht nicht. Probiere einen anderen Wert.",
   "more": "Mehr",
