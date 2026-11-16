@@ -22,7 +22,25 @@ function firstIssuePath(lowered: ReturnType<typeof lowerSaveRequest>): string | 
   return lowered.reply.reason === 'invalid' ? lowered.reply.issues?.[0]?.path : undefined;
 }
 
+function invalidIssues(result: ReturnType<typeof lowerSaveRequest>) {
+  if (result.ok || result.reply.ok) return [];
+  return result.reply.reason === 'invalid' ? result.reply.issues ?? [] : [];
+}
+
 describe('lowerSaveRequest', () => {
+  test.each([1000, 1001])('uses definition action limits for %i effects', (count) => {
+    const nodes = [node('t', 'twitch.follow'), ...Array.from({ length: count }, (_, index) => node(String(index), 'reply.chat', { message: 'x' }))];
+    const edges = nodes.slice(1).map((entry, index) => ({ id: String(index), from: nodes[index].id, port: 'next', to: entry.id }));
+    const result = lowerSaveRequest(payload(nodes, edges));
+    expect(result.ok).toBe(count === 1000);
+    expect(invalidIssues(result).some((issue) => issue.code === 'too_many')).toBe(count > 1000);
+  });
+
+  test.each(['', '   '])('requires an empty chat command %j', (trigger) => {
+    const result = lowerSaveRequest(payload([node('t', 'twitch.chat.command', { trigger })], []));
+    expect(invalidIssues(result)).toEqual([{ path: 'trigger.params.name', code: 'required' }]);
+  });
+
   test('lowers a drawn flow to a definition with a preview', () => {
     const lowered = lowerSaveRequest(
       payload(

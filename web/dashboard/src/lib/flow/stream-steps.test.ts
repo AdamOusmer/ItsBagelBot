@@ -6,7 +6,7 @@ import { definitionToFlow, flowToDefinition, validateDefinition, type FlowResult
 import { describe } from './describe';
 import { english } from './english.testing';
 import { newFlow, specFor, type FlowNode } from './model';
-import { addNode } from './ops';
+import { addNode } from './ops.testing';
 import { rehearseFlow, type RehearsalStep } from './rehearse';
 import type { RehearsalMode } from '@bagel/kit/engine/rehearsal';
 import { searchSteps } from './search';

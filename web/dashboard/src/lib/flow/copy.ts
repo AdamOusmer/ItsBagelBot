@@ -50,4 +50,4 @@ export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { 
 export const outputLabel = (t: Translate, spec: NodeSpec, id: string): string =>
   spec.outputs ? t(`flows.step.${spec.kind}.${spec.slug}.out.${id}` as MessageKey) : t('flows.step.then');
 
-export const variableLabel = (t: Translate, variable: VariableSpec): string => t(`flows.step.variable.${variable.name}` as MessageKey);
+export const variableLabel = (t: Translate, variable: VariableSpec): string => variable.literalName ? variable.name : t(`flows.step.variable.${variable.name}` as MessageKey);

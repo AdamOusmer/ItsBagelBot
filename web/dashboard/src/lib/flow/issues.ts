@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, type Issue } from '@bagel/kit/automations';
+import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, type Issue } from '@bagel/kit/automations';
 import { specFor, type FlowNode } from './model';
 
 export type FieldIssue = Issue & { nodeId: string; fieldKey?: string };
@@ -27,10 +27,6 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'reply.counter': { name: 'counter' }
 };
 
-const TEXT_ARGS: Record<string, readonly string[]> = {
-  replace: ['find', 'replaceWith'], substring: ['start', 'count'], split_pick: ['separator', 'pick'], contains: ['needle']
-};
-
 function fieldKeyFor(node: FlowNode, path: string): string | undefined {
   const param = path.replace(/^(?:params|config)(?:\.|$)/, '').split(/[.\[]/)[0];
   if (!param && node.type === 'cond.cooldown') return 'seconds';
@@ -40,7 +36,7 @@ function fieldKeyFor(node: FlowNode, path: string): string | undefined {
 }
 
 function parameterField(node: FlowNode, param: string): string | undefined {
-  if (isTextArgument(node, param)) return TEXT_ARGS[String(node.config.op)]?.[Number(param.slice(-1)) - 1];
+  if (isTextArgument(node, param)) return TEXT_ARG_FIELDS.get(String(node.config.op))?.[Number(param.slice(-1)) - 1];
   const override = NODE_FIELDS[node.type]?.[param];
   if (override) return override;
   if (param === 'login' && specFor(node.type)?.fields.some((field) => field.key === 'target')) return 'target';

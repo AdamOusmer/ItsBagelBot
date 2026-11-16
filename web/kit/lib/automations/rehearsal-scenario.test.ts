@@ -56,6 +56,8 @@ test.each<IdentityCase>([
   { trigger: { type: 'timer' }, scenario: { role: 'mod' }, level: 'mod', expected: [] },
   { trigger: { type: 'countdown', params: { name: 'timer' } }, scenario: { role: 'viewer', userId: '7' }, level: 'broadcaster', expected: ['/40000000/timer'] },
   { trigger: { type: 'event', params: { kind: 'channel.cheer' } }, scenario: { anonymous: true }, expected: ['//'] },
+  { trigger: { type: 'event', params: { kind: 'channel.subscription.gift' } }, scenario: { anonymous: true }, expected: ['//'] },
+  { trigger: { type: 'event', params: { kind: 'channel.subscription.gift' } }, scenario: { anonymous: false }, expected: ['PrincessBarney/40000001/'] },
   { trigger: { type: 'event', params: { kind: 'channel.cheer' } }, scenario: { anonymous: false }, expected: ['PrincessBarney/40000001/'] }
 ])('trigger identity $trigger $scenario', ({ trigger, scenario, expected, level = 'everyone' }) => {
   const def: Definition = {

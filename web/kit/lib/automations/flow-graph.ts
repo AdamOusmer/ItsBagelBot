@@ -113,16 +113,14 @@ function thresholdTrigger(kind: string, config: FlowConfig): Trigger {
 function commandTrigger(config: FlowConfig): Trigger {
   const name = str(config.trigger).trim();
   const aliases = str(config.aliases).split(',').filter(Boolean);
-  const params: Params = { name: name.startsWith('!') ? name : `!${name}` };
+  const params: Params = { name: name === '' || name.startsWith('!') ? name : `!${name}` };
   if (aliases.length > 0) params.aliases = aliases;
   return { type: 'command', params };
 }
 
-// RE2's \b is ASCII only, so it would never close after a word ending in é or punctuation.
 const WORD_START = '(?:^|[^\\p{L}\\p{N}_])';
 const WORD_END = '(?:$|[^\\p{L}\\p{N}_])';
 
-// A backslash stays \x5c because the validator reads \1 anywhere in a pattern as a backreference.
 const escapeWord = (word: string) => word.replace(/[\\.*+?^$()[\]{}|]/g, (char) => (char === '\\' ? '\\x5c' : `\\${char}`));
 export const unescapeWord = (body: string) => body.replace(/\\x5c|\\(.)/g, (_, char?: string) => char ?? '\\');
 
@@ -182,7 +180,7 @@ const recipeName = (v: unknown) => str(v).trim().toLowerCase();
 
 const varIdentity = (config: FlowConfig): Params => ({ scope: str(config.scope) || 'channel', name: recipeName(config.name) });
 
-const TEXT_ARG_FIELDS = new Map<string, readonly string[]>([
+export const TEXT_ARG_FIELDS = new Map<string, readonly string[]>([
   ['replace', ['find', 'replaceWith']],
   ['substring', ['start', 'count']],
   ['split_pick', ['separator', 'pick']],
@@ -262,8 +260,6 @@ function lightsAction(config: FlowConfig): Action {
 
 const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
 
-// Carried through as plain strings so a named window round-trips even though the builder has no field for it yet;
-// losing it here would silently turn a named cooldown back into a plain one on the next save.
 const COOLDOWN_PASSTHROUGH_FIELDS = [
   ['name', 'name'],
   ['leftCommand', 'left_command'],
@@ -291,7 +287,6 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
   'cond.cooldown': cooldownConditionAction
 };
 
-// A per-viewer window can never be named: a name that survived a toggle (or a stale fixture) never reaches params.
 function cooldownConditionAction(config: FlowConfig): Condition {
   const perUser = Boolean(config.perUser);
   const params: Params = { [perUser ? 'user_s' : 'global_s']: num(config.seconds), ...timeLeftParams(config) };
@@ -533,7 +528,6 @@ function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
   const bound = extended(stop, joins);
   const paths = entries.map((id) => lowerFrom(ctx, id, bound)).filter((path) => path.length > 0);
   const anchor = joins[0] ?? [...stop][0];
-  // A later step would not wait for a path that paused, so it would run before that path finished.
   if (anchor && forkPauses(paths)) ctx.issues.push({ path: nodePath(anchor), code: FLOW_ISSUE.unstructuredMerge });
   return [...fork(paths), ...lowerRest(ctx, joins, stop)];
 }
@@ -676,7 +670,6 @@ function collectStepRefs(owners: Map<object, string>, list: Action[], place: Ste
   });
 }
 
-// A run record only carries its top-level action index and type, so this is what links one back to a drawn step.
 export function flowStepRefs(flow: Flow): FlowStepRef[] {
   const { result, owners } = lowerFlow(flow);
   if (!result.ok) return [];

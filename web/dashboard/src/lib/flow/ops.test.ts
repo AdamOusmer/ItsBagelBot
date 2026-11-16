@@ -4,7 +4,8 @@ import { describe, expect, spyOn, test } from 'bun:test';
 import { definitionToFlow, flowToDefinition } from '@bagel/kit/automations';
 import { nodeHeight, tidy } from './layout';
 import { specFor, type Flow } from './model';
-import { addNode, duplicateNode } from './ops';
+import { duplicateNode } from './ops';
+import { addNode } from './ops.testing';
 
 const at = { x: 0, y: 0 };
 

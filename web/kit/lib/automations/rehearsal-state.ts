@@ -13,7 +13,7 @@ import type { RehearsalContext, RehearsalScenario, RehearsalState } from './rehe
 
 type Text = string;
 type Context = RehearsalContext;
-export type ActionOutcome = { status: 'ok' | 'failed' | 'skipped'; detail?: Record<string, string> };
+type ActionOutcome = { status: 'ok' | 'failed' | 'skipped'; detail?: Record<string, string> };
 type ActionHandler = (params: Params, context: Context) => ActionOutcome;
 type ConditionHandler = (params: Params, context: Context) => boolean;
 

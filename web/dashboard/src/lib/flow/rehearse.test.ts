@@ -58,9 +58,19 @@ test.each([
 ])('make it pass changes the $name input', ({ config, patch }) => {
   const flow = flowOf([trigger, config, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const before = run(flow);
+  expect([before.starts, before.state, before.stoppedAt]).toEqual([true, 'stopped', 'c']);
   const repair = before.steps.find((step) => step.id === 'c')?.repair;
   const after = run(flow, { scenario: repair });
   expect([repair, before.steps.some((step) => step.id === 's'), after.steps.at(-1)?.id]).toEqual([patch, false, 's']);
+});
+
+test.each<{ type: Kind; config: FlowNode['config']; missing: string[] }>([
+  { type: 'cond.compare', config: { left: '5', op: 'gte', right: '' }, missing: [] },
+  { type: 'reply.announce', config: { text: '' }, missing: ['Message'] },
+  { type: 'reply.reply', config: { text: '' }, missing: ['Message'] }
+])('required fields use the save policy for $type', ({ type, config, missing }) => {
+  const result = run(flowOf([trigger, n('c', type, config)], [e('t', 'next', 'c')]));
+  expect(result.steps.find((step) => step.id === 'c')?.missing).toEqual(missing);
 });
 
 test.each([

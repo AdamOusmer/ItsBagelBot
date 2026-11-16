@@ -8,6 +8,7 @@ import { fieldLabel, stepLabel } from './copy';
 import { describe } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { specFor, type Flow, type FlowNode } from './model';
+import { fieldIssues, fieldRequired } from './issues';
 
 type Text = string;
 type ScenarioPatch = Partial<RehearsalScenario>;
@@ -29,9 +30,11 @@ export type RehearsalView = {
   fields: readonly ScenarioField[];
   summary: Text;
   starts: boolean;
+  state: 'not_started' | 'started' | 'stopped';
+  stoppedAt?: Text;
   blocked?: Text;
   startPatch?: ScenarioPatch;
-  issue?: { text: Text; node: Text | null };
+  issue?: { text: Text; node: Text | null; fieldKey?: Text };
 };
 export type RehearsalOptions = { scenario?: ScenarioPatch; overrides?: RehearsalOverrides };
 
@@ -47,7 +50,7 @@ const FIELD_LABELS: Readonly<Record<Text, MessageKey>> = {
   rewardId: 'flows.test.field.rewardId', reward_id: 'flows.test.field.rewardId', name: 'flows.test.field.name', is_gift: 'flows.test.field.isGift'
 };
 
-export const scenarioFieldLabel = (t: Translate, key: Text): Text => t(FIELD_LABELS[key] ?? 'flows.test.notSet');
+const scenarioFieldLabel = (t: Translate, key: Text): Text => t(FIELD_LABELS[key] ?? 'flows.test.notSet');
 export const scenarioInputLabel = (t: Translate, key: Text): Text => {
   const labels: Readonly<Record<Text, MessageKey>> = { bits: 'flows.test.inputBits', amount: 'flows.test.inputBits', viewers: 'flows.test.inputViewers' };
   return labels[key] ? t(labels[key]) : scenarioFieldLabel(t, key);
@@ -114,7 +117,7 @@ function blockedText(t: Translate, reason: { reason: Text; values: Record<Text, 
   return t(numeric ? 'flows.test.below' : 'flows.test.filterMismatch', { ...reason.values, field: scenarioFieldLabel(t, reason.values.field ?? '') });
 }
 
-export function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind: Text): Text {
+function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind: Text): Text {
   const user = scenario.anonymous ? t('flows.test.anonymousViewer') : scenario.user || t('flows.test.notSet');
   if (kind.startsWith('twitch.chat.')) return t('flows.test.summaryChat', { user, role: scenarioRoleLabel(t, scenario.role ?? 'viewer'), message: scenario.message ?? '' });
   const key = kind.replace('twitch.', '').replaceAll('.', '_');
@@ -215,18 +218,10 @@ type RunContext = {
   repairs: Map<Text, ScenarioPatch | undefined>; formatDuration: (seconds: number) => Text;
 };
 
-const REQUIRED_FIELDS: Readonly<Record<Text, readonly Text[]>> = {
-  'twitch.chat.command': ['trigger'], 'twitch.chat.word': ['word'], 'reply.chat': ['message'],
-  'cond.role': ['level'], 'cond.compare': ['left', 'right'], 'cond.var': ['name'],
-  'reply.http_get': ['url'], 'reply.http_post': ['url'], 'reply.loop': ['times'],
-  'reply.shoutout': ['target'], 'reply.timeout': ['target']
-};
-
 function unsetFields(t: Translate, node: FlowNode | undefined): Text[] {
   const spec = node ? specFor(node.type) : undefined;
   if (!node || !spec) return [];
-  const required = REQUIRED_FIELDS[node.type] ?? [];
-  return spec.fields.filter((field) => required.includes(field.key)).filter((field) => !String(node.config[field.key] ?? '').trim())
+  return spec.fields.filter((field) => fieldRequired(node, field.key)).filter((field) => !String(node.config[field.key] ?? '').trim())
     .map((field) => fieldLabel(t, spec, field));
 }
 
@@ -273,8 +268,8 @@ function durationFormatter(t: Translate): (seconds: number) => Text {
 
 export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalView {
   const compiled = compileDraft(flow);
-  const empty: RehearsalView = { steps: [], fields: [], scenario: { live: true, ...options.scenario }, summary: '', starts: false };
-  if (!compiled.ok) return { ...empty, issue: { text: issueMessage(t, compiled.issues[0]!), node: stepOf(compiled.issues, flow.nodes) } };
+  const empty: RehearsalView = { steps: [], fields: [], scenario: { live: true, ...options.scenario }, summary: '', starts: false, state: 'not_started' };
+  if (!compiled.ok) return { ...empty, issue: { text: issueMessage(t, compiled.issues[0]!), node: stepOf(compiled.issues, flow.nodes), fieldKey: fieldIssues(compiled.issues, flow.nodes)[0]?.fieldKey } };
   const { definition } = compiled.value;
   const kind = scenarioKind(definition);
   const fields = SCENARIO_FIELDS[kind] ?? [];
@@ -283,7 +278,10 @@ export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions
   const formatDuration = durationFormatter(t);
   const result = rehearseDefinition(definition, scenario, overrides, formatDuration);
   const context: RunContext = { compiled: compiled.value, nodes: new Map(flow.nodes.map((node) => [node.id, node])), scenario, overrides, repairs: new Map(), formatDuration };
-  return { scenario, fields, summary: scenarioSummary(t, scenario, kind), starts: result.starts,
+  const stopped = result.reason?.reason === 'condition_failed';
+  return { scenario, fields, summary: scenarioSummary(t, scenario, kind), starts: result.starts || stopped,
+    state: stopped ? 'stopped' : result.starts ? 'started' : 'not_started',
+    stoppedAt: stopped ? compiled.value.nodeByPath.get(result.reason!.values.path!) : undefined,
     steps: [...permissionWarnings(definition), ...result.events].map((event) => mappedStep(t, event, context)),
     blocked: result.reason ? blockedText(t, result.reason) : undefined,
     startPatch: result.reason ? startPatch(result.reason, definition) : undefined };

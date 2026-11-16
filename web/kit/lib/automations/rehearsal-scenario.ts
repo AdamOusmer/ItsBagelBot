@@ -166,6 +166,6 @@ export function scenarioIdentity(definition: Definition, scenario: RehearsalScen
 function hidesViewer(definition: Definition, scenario: RehearsalScenario): boolean {
   const fields = SCENARIO_FIELDS[scenarioKind(definition)];
   const viewer = fields ? fields.some((field) => field.key === 'user') : true;
-  const anonymousCheer = definition.trigger.params?.kind === 'channel.cheer' && scenario.anonymous;
-  return Boolean(anonymousCheer || !viewer);
+  const anonymous = ['channel.cheer', 'channel.subscription.gift'].includes(String(definition.trigger.params?.kind)) && scenario.anonymous;
+  return Boolean(anonymous || !viewer);
 }
