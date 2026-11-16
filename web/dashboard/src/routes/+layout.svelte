@@ -11,15 +11,18 @@
 
   const DEFAULT_TITLE = $derived(translate(data.locale, 'meta.defaultTitle'));
   const DEFAULT_DESC = $derived(translate(data.locale, 'meta.defaultDescription'));
+  const ownHead = $derived(page.route.id?.startsWith('/(public)/') ?? false);
 </script>
 
 <svelte:head>
   <title>{DEFAULT_TITLE}</title>
-  <meta name="description" content={DEFAULT_DESC} />
-  <meta property="og:title" content={DEFAULT_TITLE} />
-  <meta property="og:description" content={DEFAULT_DESC} />
-  <meta name="twitter:title" content={DEFAULT_TITLE} />
-  <meta name="twitter:description" content={DEFAULT_DESC} />
+  {#if !ownHead}
+    <meta name="description" content={DEFAULT_DESC} />
+    <meta property="og:title" content={DEFAULT_TITLE} />
+    <meta property="og:description" content={DEFAULT_DESC} />
+    <meta name="twitter:title" content={DEFAULT_TITLE} />
+    <meta name="twitter:description" content={DEFAULT_DESC} />
+  {/if}
 </svelte:head>
 
 {#key data.locale}
