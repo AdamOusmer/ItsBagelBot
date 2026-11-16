@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/db/transactions/kofi"
 
@@ -27,8 +28,14 @@ func (d *donationLog) RecordDonation(_ context.Context, donation kofi.Donation) 
 	return d.err
 }
 
+const tok = "kofi-webhook-token"
+
 func kofiBody(token, transactionID string) string {
-	data := `{"verification_token":"` + token + `","message_id":"m-1","timestamp":"2026-11-02T13:04:30Z",` +
+	return kofiBodyAt(token, transactionID, time.Now())
+}
+
+func kofiBodyAt(token, transactionID string, at time.Time) string {
+	data := `{"verification_token":"` + token + `","message_id":"m-1","timestamp":"` + at.UTC().Format(time.RFC3339) + `",` +
 		`"type":"Tip","amount":"3.00","currency":"USD","kofi_transaction_id":"` + transactionID + `"}`
 	return url.Values{"data": {data}}.Encode()
 }
@@ -41,20 +48,24 @@ func TestKofiWebhook(t *testing.T) {
 		status int
 		saved  []string
 	}{
-		"records a verified donation": {token: "tok", body: kofiBody("tok", "t-1"), status: http.StatusOK, saved: []string{"t-1"}},
-		"rejects a wrong token":       {token: "tok", body: kofiBody("bad", "t-1"), status: http.StatusUnauthorized},
+		"records a verified donation": {token: tok, body: kofiBody(tok, "t-1"), status: http.StatusOK, saved: []string{"t-1"}},
+		"rejects a wrong token":       {token: tok, body: kofiBody("bad", "t-1"), status: http.StatusUnauthorized},
 		"refuses when unconfigured":   {body: kofiBody("", "t-1"), status: http.StatusServiceUnavailable},
-		"rejects a malformed payload": {token: "tok", body: "data=%7B", status: http.StatusBadRequest},
+		"refuses a short token":       {token: "short", body: kofiBody("short", "t-1"), status: http.StatusServiceUnavailable},
+		"acks a replayed old event": {
+			token: tok, body: kofiBodyAt(tok, "t-1", time.Now().Add(-kofi.MaxEventAge-time.Minute)), status: http.StatusOK,
+		},
+		"rejects a malformed payload": {token: tok, body: "data=%7B", status: http.StatusBadRequest},
 		"rejects an invalid amount": {
-			token: "tok", body: strings.Replace(kofiBody("tok", "t-1"), "3.00", "3.001", 1), status: http.StatusBadRequest,
+			token: tok, body: strings.Replace(kofiBody(tok, "t-1"), "3.00", "3.001", 1), status: http.StatusBadRequest,
 		},
 		"acks an unsupported type": {
-			token: "tok", body: strings.Replace(kofiBody("tok", "t-1"), "Tip", "Refund", 1), status: http.StatusOK,
+			token: tok, body: strings.Replace(kofiBody(tok, "t-1"), "Tip", "Refund", 1), status: http.StatusOK,
 		},
-		"rejects an oversized body": {token: "tok", body: "data=" + strings.Repeat("a", maxBodyBytes), status: http.StatusRequestEntityTooLarge},
-		"acks the settings test":    {token: "tok", body: kofiBody("tok", "00000000-1111-2222-3333-444444444444"), status: http.StatusOK},
+		"rejects an oversized body": {token: tok, body: "data=" + strings.Repeat("a", maxBodyBytes), status: http.StatusRequestEntityTooLarge},
+		"acks the settings test":    {token: tok, body: kofiBody(tok, "00000000-1111-2222-3333-444444444444"), status: http.StatusOK},
 		"asks for a retry on save failure": {
-			token: "tok", body: kofiBody("tok", "t-2"), err: errors.New("db down"), status: http.StatusInternalServerError, saved: []string{"t-2"},
+			token: tok, body: kofiBody(tok, "t-2"), err: errors.New("db down"), status: http.StatusInternalServerError, saved: []string{"t-2"},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

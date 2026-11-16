@@ -137,7 +137,7 @@ func logReady(log *zap.Logger, r readiness) {
 		zap.String("listen_addr", r.listenAddr),
 		zap.Bool("tls_enabled", r.tls),
 		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
-		zap.Bool("kofi_webhook_configured", env.Get("KOFI_VERIFICATION_TOKEN", "") != ""),
+		zap.Bool("kofi_webhook_configured", kofi.Token(env.Get("KOFI_VERIFICATION_TOKEN", "")).Configured()),
 		zap.Bool("tebex_checkout_configured", r.checkout),
 		zap.Bool("tebex_checkout_auth_configured", r.checkoutAuth),
 		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),

@@ -41,6 +41,13 @@ var (
 	ErrMalformed   = errors.New("ko-fi data is not a json object")
 	ErrPayload     = errors.New("ko-fi payload invalid")
 	ErrUnsupported = errors.New("ko-fi payment type unsupported")
+	ErrStale       = errors.New("ko-fi event outside the accepted time window")
+)
+
+const (
+	MaxEventAge    = 7 * 24 * time.Hour
+	maxClockSkew   = 10 * time.Minute
+	minTokenLength = 16
 )
 
 var (
@@ -84,7 +91,7 @@ func (d Donation) Test() bool {
 	return d.TransactionID == testTransactionID
 }
 
-func Parse(data []byte, token Token) (Donation, error) {
+func Parse(data []byte, token Token, now time.Time) (Donation, error) {
 	var raw webhookData
 	if codec.Unmarshal(data, &raw) != nil {
 		return Donation{}, ErrMalformed
@@ -92,11 +99,27 @@ func Parse(data []byte, token Token) (Donation, error) {
 	if !token.matches(raw.VerificationToken) {
 		return Donation{}, ErrToken
 	}
-	return raw.donation()
+	donation, err := raw.donation()
+	if err != nil {
+		return Donation{}, err
+	}
+	if !donation.freshAt(now) {
+		return Donation{}, ErrStale
+	}
+	return donation, nil
+}
+
+func (t Token) Configured() bool {
+	return len(t) >= minTokenLength
 }
 
 func (t Token) matches(provided string) bool {
-	return t != "" && subtle.ConstantTimeCompare([]byte(t), []byte(provided)) == 1
+	return t.Configured() && subtle.ConstantTimeCompare([]byte(t), []byte(provided)) == 1
+}
+
+func (d Donation) freshAt(now time.Time) bool {
+	age := now.Sub(d.OccurredAt)
+	return age >= -maxClockSkew && age <= MaxEventAge
 }
 
 type check struct {

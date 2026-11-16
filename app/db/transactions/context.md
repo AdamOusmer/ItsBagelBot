@@ -71,7 +71,10 @@ and [billing](../../../internal/domain/rpc/billing/). Other Ent files are genera
   Gift notification failures are best-effort after entitlement application.
 - HTTP POST `/kofi` or `/webhooks/kofi` takes Ko-fi's form `data` JSON, checks
   `KOFI_VERIFICATION_TOKEN` and stores one row per `kofi_transaction_id`; redeliveries
-  are no-ops and Ko-fi's settings-page test id is acknowledged without a row. Unknown
+  are no-ops and Ko-fi's settings-page test id is acknowledged without a row. Tokens
+  under 16 characters count as unconfigured. Events older than `kofi.MaxEventAge` or
+  more than 10 minutes in the future are acknowledged and ignored, so a captured payload
+  cannot be replayed into the ledger later. Unknown
   types are acknowledged and logged; an authenticated payload that fails validation
   logs at error level with the failing field, since that payment is not counted.
 - Default checkout prefix `rpc.transactions` exposes `.basket_create`.

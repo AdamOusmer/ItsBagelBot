@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"ItsBagelBot/app/db/transactions/kofi"
 	"ItsBagelBot/pkg/monitor"
@@ -23,7 +24,7 @@ func (s *Server) kofiWebhook(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	log := monitor.TxnLogger(ctx, s.log)
 
-	if s.cfg.KofiToken == "" || s.cfg.Donations == nil {
+	if !s.cfg.KofiToken.Configured() || s.cfg.Donations == nil {
 		log.Warn("ko-fi webhook not configured")
 		sendJSON(w, http.StatusServiceUnavailable, errorBody{Error: "webhook not configured"})
 		return
@@ -32,7 +33,7 @@ func (s *Server) kofiWebhook(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	donation, err := kofi.Parse(data, s.cfg.KofiToken)
+	donation, err := kofi.Parse(data, s.cfg.KofiToken, time.Now())
 	if err != nil {
 		s.kofiRejected(ctx, w, err)
 		return
@@ -58,8 +59,8 @@ func kofiData(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 func (s *Server) kofiRejected(ctx context.Context, w http.ResponseWriter, err error) {
 	log := monitor.TxnLogger(ctx, s.log)
 	switch {
-	case errors.Is(err, kofi.ErrUnsupported):
-		log.Warn("ko-fi webhook type ignored", zap.Error(err))
+	case errors.Is(err, kofi.ErrUnsupported), errors.Is(err, kofi.ErrStale):
+		log.Warn("ko-fi webhook event ignored", zap.Error(err))
 		w.WriteHeader(http.StatusOK)
 	case errors.Is(err, kofi.ErrToken):
 		log.Warn("ko-fi webhook token rejected")
