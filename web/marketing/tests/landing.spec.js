@@ -286,10 +286,14 @@ test('song-requests has eleven FAQ entries and links the roundup', async ({ page
     await expect(page.locator('.flrel a[href="/vs/song-request-bots/"]')).toHaveCount(1);
 });
 
+function triggersReply(command, name) {
+    return command.trigger === `!${name}` || command.trigger.startsWith(`!${name} `);
+}
+
 function catalogEntryCount(id) {
     const def = moduleDef(id);
     const commands = def.commands ?? [];
-    const extra = def.replies.filter((reply) => reply.command && !commands.some((command) => command.trigger === `!${reply.command}` || command.trigger.startsWith(`!${reply.command} `)));
+    const extra = def.replies.filter((reply) => reply.command && !commands.some((command) => triggersReply(command, reply.command)));
     return commands.length + new Set(extra.map((reply) => reply.command)).size;
 }
 
