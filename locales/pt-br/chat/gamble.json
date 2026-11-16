@@ -1,12 +1,14 @@
 {
-  "broke": "@{gamble:user} seu saldo não cobre essa aposta: {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} os dados precisam de um respiro. Tente novamente em {gamble:secs}s.",
-  "err": "@{gamble:user} não deu certo, tente novamente.",
-  "lose": "@{gamble:user} tirou {gamble:roll} (precisava de {gamble:chance} ou menos) e perdeu {gamble:amount} {gamble:points}. Saldo atual: {gamble:balance}.",
-  "range": "@{gamble:user} essa aposta pode ultrapassar o limite de pontos.",
+  "broke": "@{gamble:user} você só tem {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} calma, tenta de novo em {gamble:secs}s.",
+  "err": "@{gamble:user} algo deu errado, tenta de novo.",
+  "lose": "@{gamble:user} apostou {gamble:amount} e perdeu {gamble:amount} {gamble:points}. Sobraram {gamble:balance}. Vou ficar com esses, valeu.",
+  "lose.all": "@{gamble:user} apostou tudo e perdeu tudo. De volta às migalhas.",
+  "range": "@{gamble:user} essa aposta é grande demais.",
   "max": "@{gamble:user} a aposta máxima é {gamble:max} {gamble:points}.",
   "min": "@{gamble:user} a aposta mínima é {gamble:min} {gamble:points}.",
-  "usage": "Uso: !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} ainda não vi você neste canal. Fique por aqui para ganhar {gamble:points} primeiro!",
-  "win": "@{gamble:user} tirou {gamble:roll} (precisava de {gamble:chance} ou menos) e ganhou {gamble:amount} {gamble:points}. Saldo atual: {gamble:balance}!"
+  "usage": "@{gamble:user} tenta !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} ainda não te vi por aqui. Fica um pouco para ganhar {gamble:points}.",
+  "win": "@{gamble:user} apostou {gamble:amount} e ganhou {gamble:amount} {gamble:points}! Agora você tem {gamble:balance}.",
+  "win.all": "@{gamble:user} apostou tudo e ganhou {gamble:amount} {gamble:points}! Agora você tem {gamble:balance}."
 }
