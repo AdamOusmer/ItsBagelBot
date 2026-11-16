@@ -23,6 +23,8 @@ import (
 )
 
 func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views map[string]projection.ModuleView, emit module.Emit) error {
+	before := c.Emitted
+	defer func() { c.CommandAnswered = c.Emitted > before }()
 	name, args, ok := parseCommand(c.Env.Text)
 	if !ok {
 		return nil
@@ -34,9 +36,9 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	c.Command = name
 	c.ModuleLookup = p.moduleLookup(views, c)
 	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
-		engagedBefore := c.Engaged
+		emittedBefore := c.Emitted
 		err := p.runBaked(ctx, c, bc.Cmd, num, args, emit)
-		p.recordBaked(c, bc, newlyEngaged(err, engagedBefore, c.Engaged))
+		p.recordBaked(c, bc, emittedBefore)
 		return err
 	}
 	if c.Env.Origin == "trial" {
@@ -209,12 +211,13 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	)
 
 	run := commandRun{c: c, command: cc.Name, args: args, uses: cc.Uses}
-	emitted, err := p.emitCommand(ctx, run, &module.Output{
+	before := c.Emitted
+	_, err = p.emitCommand(ctx, run, &module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
 		Text:          cc.Response,
 	}, emit)
-	if err != nil || !emitted {
+	if err != nil || c.Emitted == before {
 		return true, err
 	}
 
@@ -425,15 +428,21 @@ type gateRule struct {
 
 func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (bool, error) {
 	if !permits(c, r.allowedUserID, r.perm) {
+		p.recordBlocked(c, "perm", nil)
 		return false, nil
 	}
 	if ok, err := p.liveOK(ctx, c, r.liveOnly); !ok {
+		p.recordBlocked(c, "offline", err)
 		return false, err
 	}
 	if c.Env.Origin == "trial" {
 		return true, nil
 	}
-	return p.cooldownOK(ctx, c, r)
+	ok, err := p.cooldownOK(ctx, c, r)
+	if !ok {
+		p.recordBlocked(c, "cooldown", err)
+	}
+	return ok, err
 }
 
 func permits(c *module.Context, allowedUserID string, perm module.Role) bool {

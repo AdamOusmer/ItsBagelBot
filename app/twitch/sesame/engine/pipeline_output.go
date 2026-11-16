@@ -29,6 +29,7 @@ type emitState struct {
 	env        *lane.Envelope
 	baseDone   bool
 	ordinal    int
+	accepted   int
 	needsFlush bool
 	err        error
 }
@@ -43,9 +44,25 @@ func (s *emitState) replayID() string {
 
 func (s *emitState) countOutput() {
 	s.ordinal++
+}
+
+func (s *emitState) acceptOutput(o *module.Output) {
+	n := outputCount(o)
+	s.accepted += n
 	if s.mctx != nil {
-		s.mctx.Emitted++
+		s.mctx.Emitted += n
 	}
+}
+
+func outputCount(o *module.Output) int {
+	if o.Type != outgress.TypeBatch {
+		return 1
+	}
+	n := 0
+	for i := range o.Items {
+		n += outputCount(&o.Items[i])
+	}
+	return n
 }
 
 func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitState) module.Emit {
@@ -54,31 +71,40 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		if state.err != nil {
 			return
 		}
-		if o == nil {
-			return
-		}
-		if o.Type == "" {
-			return
-		}
-		Translate(o)
-		applyOutputLocale(o, state.outputLocale(ctx))
-		if isEmptyAction(o) {
-			return
-		}
-		capEmitText(o)
-		if p.floorSuppressed(o) {
+		if !p.prepareEmission(ctx, state, o) {
 			return
 		}
 		state.countOutput()
 		replayID := state.replayID()
-		if err := p.publishOutput(ctx, state, replayID, o); err != nil {
+		accepted, err := p.publishOutput(ctx, state, replayID, o)
+		if err != nil {
 			state.err = err
 			return
 		}
+		if !accepted {
+			return
+		}
+		state.acceptOutput(o)
 		if replayID == "" {
 			state.needsFlush = true
 		}
 	}
+}
+
+func (p *Pipeline) prepareEmission(ctx context.Context, state *emitState, o *module.Output) bool {
+	if o == nil {
+		return false
+	}
+	if o.Type == "" {
+		return false
+	}
+	Translate(o)
+	applyOutputLocale(o, state.outputLocale(ctx))
+	if isEmptyAction(o) {
+		return false
+	}
+	capEmitText(o)
+	return !p.floorSuppressed(o)
 }
 
 func applyOutputLocale(o *module.Output, locale string) {
@@ -113,16 +139,17 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 	return hit
 }
 
-func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID string, o *module.Output) error {
+func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID string, o *module.Output) (bool, error) {
 	allowed, err := p.wakeForOutput(ctx, state)
 	if err != nil || !allowed {
-		return err
+		return false, err
 	}
 	body, err := p.encodeOutput(ctx, state, o)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return publishWithin(ctx, p.pub, bus.Publication{Subject: state.subject, ID: replayID, Payload: body})
+	err = publishWithin(ctx, p.pub, bus.Publication{Subject: state.subject, ID: replayID, Payload: body})
+	return err == nil, err
 }
 
 func (p *Pipeline) encodeOutput(ctx context.Context, state *emitState, o *module.Output) ([]byte, error) {

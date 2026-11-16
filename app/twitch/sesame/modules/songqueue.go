@@ -12,6 +12,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -390,15 +391,18 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 		return nil
 	}
 	if key := qc.srRefusal(); key != "" {
+		qc.recordRequest(strings.TrimPrefix(string(key), "songqueue.sr."))
 		qc.reply(emit, "", key)
 		return nil
 	}
 	if !qc.chatLiveOK(ctx) {
+		qc.recordRequest("offline")
 		qc.reply(emit, "", "songqueue.sr.offline")
 		return nil
 	}
 	track, failure := qc.resolveTrack(ctx, query)
 	if failure != "" {
+		qc.recordRequest("not_found")
 		qc.say(emit, failure)
 		return nil
 	}
@@ -408,13 +412,25 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 		return qc.reportAdd(emit, *track, pos, err)
 	}
 	if failure := qc.pushToPlayer(ctx, track.ID); failure != "" {
-		if _, _, rbErr := qc.store.RetractOwn(ctx, qc.c.BroadcasterID, qc.c.Env.ChatterUserID); rbErr != nil {
-			qc.log.Warn("songqueue: rollback after player refusal failed", qc.c.BID(), zap.Error(rbErr))
-		}
+		qc.retractRefused(ctx)
+		qc.recordRequest("player_refused")
 		qc.say(emit, failure)
 		return nil
 	}
+	qc.recordRequest("queued")
 	return qc.reportAdd(emit, *track, pos, nil)
+}
+
+func (qc songQueueCmd) retractRefused(ctx context.Context) {
+	if _, _, err := qc.store.RetractOwn(ctx, qc.c.BroadcasterID, qc.c.Env.ChatterUserID); err != nil {
+		qc.log.Warn("songqueue: rollback after player refusal failed", qc.c.BID(), zap.Error(err))
+	}
+}
+
+func (qc songQueueCmd) recordRequest(outcome string) {
+	if qc.c.Env.Origin != "trial" {
+		qc.deps.Analytics.Count(catalog.SongRequests, outcome)
+	}
 }
 
 func (qc songQueueCmd) srRefusal() replyKey {
@@ -519,8 +535,10 @@ func (qc songQueueCmd) canRequest() bool {
 func (qc songQueueCmd) reportAdd(emit module.Emit, track gossiprpc.SpotifyTrack, pos int, err error) error {
 	switch {
 	case errors.Is(err, engine.ErrSongQuotaReached):
+		qc.recordRequest("queue_full")
 		qc.reply(emit, "", "songqueue.add.quota", "limit", strconv.Itoa(qc.quotaFor()))
 	case errors.Is(err, engine.ErrSongQueueFull):
+		qc.recordRequest("queue_full")
 		qc.reply(emit, "", "songqueue.add.full")
 	case err != nil:
 		qc.log.Warn("songqueue: add failed", qc.c.BID(), zap.Error(err))

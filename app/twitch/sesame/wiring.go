@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/internal/config"
 	"ItsBagelBot/app/twitch/sesame/internal/consumer"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
@@ -55,28 +56,31 @@ func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, b
 }
 
 type engineRuntime struct {
-	proj     *projection.Client
-	live     *engine.ValkeyLiveStore
-	timers   *engine.ValkeyTimerStore
-	guard    *automod.Gate
-	loyalty  engine.LoyaltyStore
-	tick     *engine.ValkeyLoyaltyClock
-	stats    *engine.LoyaltyReporter
-	raffle   *engine.ValkeyRaffleStore
-	duel     *engine.ValkeyDuelStore
-	seq      *engine.Sequencer
-	emotes   *automod.EmoteFetcher
-	chatters *engine.ValkeyChatters
-	runs     *engine.ValkeyRunLog
+	proj      *projection.Client
+	live      *engine.ValkeyLiveStore
+	timers    *engine.ValkeyTimerStore
+	guard     *automod.Gate
+	loyalty   engine.LoyaltyStore
+	tick      *engine.ValkeyLoyaltyClock
+	stats     *engine.LoyaltyReporter
+	raffle    *engine.ValkeyRaffleStore
+	duel      *engine.ValkeyDuelStore
+	seq       *engine.Sequencer
+	emotes    *automod.EmoteFetcher
+	chatters  *engine.ValkeyChatters
+	runs      *engine.ValkeyRunLog
+	analytics *analytics.Recorder
 }
 
 func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	in, cfg, log := w.in, w.cfg, w.log
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
+	gossipRPC.SetAnalytics(rt.analytics)
 	accountsRPC := engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix)
 	recipeState := engine.NewRecipeStateRPC(in.nc, cfg.ModulesRPCPrefix)
 	return engine.Deps{
 		AutomationHook: &engine.AutomationHook{},
+		Analytics:      rt.analytics,
 		Runtime:        newRuntime(w),
 		Automations: engine.AutomationDeps{
 			Source:        rt.proj,

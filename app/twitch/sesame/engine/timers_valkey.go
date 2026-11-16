@@ -675,6 +675,10 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 
 	idStr := strconv.FormatUint(at.ref.broadcasterID, 10)
 	subject, user := s.timerRoute(ctx, at.ref.broadcasterID)
+	createdAt := at.admission.AccountCreatedAt
+	if createdAt == 0 {
+		createdAt = user.AccountCreatedAt
+	}
 
 	text := s.timerText(ctx, at, user)
 	outputs := s.timerOutputs(idStr, text)
@@ -683,10 +687,7 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 		return
 	}
 	for _, out := range outputs {
-		s.publishFired(ctx, at, subject, out)
-	}
-	if s.pipeline != nil {
-		s.pipeline.analytics.Count(catalog.TimerFires)
+		s.recordTimerOutput(at.ref.broadcasterID, createdAt, s.publishFired(ctx, at, subject, out))
 	}
 }
 
@@ -726,23 +727,33 @@ func (s *ValkeyTimerStore) timerOutputs(idStr, text string) []module.Output {
 	return s.pipeline.chatLines(out)
 }
 
-func (s *ValkeyTimerStore) publishFired(ctx context.Context, at armedTimer, subject string, out module.Output) {
+func (s *ValkeyTimerStore) publishFired(ctx context.Context, at armedTimer, subject string, out module.Output) bool {
 	message, err := buildOutgressMessage(&out)
+	if err != nil {
+		return false
+	}
 	if at.admission.Registered {
 		message.AccountCreatedAt = at.admission.AccountCreatedAt
 		message.AdmissionGeneration = at.admission.State.AdmissionGeneration
 	}
-	if err != nil {
-		return
-	}
 	body, err := codec.Marshal(message)
 	if err != nil {
 		s.log.Warn("timers: failed to build outgress message", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
-		return
+		return false
 	}
 	if err := bus.PublishRaw(ctx, s.pub, subject, body); err != nil {
 		s.log.Warn("timers: failed to publish", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
+		return false
 	}
+	return true
+}
+
+func (s *ValkeyTimerStore) recordTimerOutput(broadcasterID uint64, createdAt int64, published bool) {
+	if s.pipeline == nil || !published {
+		return
+	}
+	s.pipeline.analytics.Count(catalog.TimerFires)
+	s.pipeline.recordProcessed(broadcasterID, createdAt, false, 1)
 }
 
 func (s *ValkeyTimerStore) admitted(ctx context.Context, id uint64) bool {

@@ -76,6 +76,13 @@ func WithClock(now func() time.Time) Option { return func(r *Recorder) { r.now =
 // WithoutTicker leaves flushing to explicit Flush calls.
 func WithoutTicker() Option { return func(r *Recorder) { r.done = nil } }
 
+// Register replaces the accepted module and command names; call it before the recorder is shared.
+func (r *Recorder) Register(registered map[catalog.Kind][]string) {
+	if r != nil {
+		r.reg = catalog.NewRegistry(registered)
+	}
+}
+
 func New(client valkey.Client, log *zap.Logger, registered map[catalog.Kind][]string, opts ...Option) *Recorder {
 	r := &Recorder{
 		client:    client,
