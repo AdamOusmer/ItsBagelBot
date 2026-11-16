@@ -68,6 +68,11 @@ func moduleTally(rows []*ent.Modules) analytics.Tally {
 
 func (r *Modules) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
 	tally := analytics.Tally{}
+	for _, name := range catalog.ModuleNames() {
+		if catalog.ModuleEnabledByDefault(name) {
+			tally.Add(catalog.ModulesDefaults, name)
+		}
+	}
 	if err := r.seedModules(ctx, tally); err != nil {
 		return nil, err
 	}

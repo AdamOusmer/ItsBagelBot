@@ -14,7 +14,7 @@
   "sources": "Cuentas de pago según cómo se concedió el plan, en la última instantánea diaria.",
   "billing": "Eventos de facturación sumados en el período.",
   "conversion": "De las últimas 12 semanas de registro: cuentas en la última instantánea diaria y cuántas son de pago.",
-  "modules": "Adopción: activado / todas las cuentas en la última captura. Activación: canales activos de la última semana completa / activado ahora. Salidas y cambios cubren el período.",
+  "modules": "Activado incluye las cuentas con activación predeterminada sin un ajuste guardado. Adopción: activado / todas las cuentas en la última captura. Activación: canales activos de la última semana completa / activado ahora. Salidas y cambios cubren el período.",
   "breadth": "Canales agrupados por cuántos módulos tienen activos, en la última instantánea diaria.",
   "integrations": "Cuentas con cada integración conectada y su proporción del total en la última captura diaria.",
   "pagesHidden": "Cuentas que ocultan cada página pública, en la última instantánea diaria.",

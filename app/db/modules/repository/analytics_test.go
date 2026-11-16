@@ -38,6 +38,7 @@ func TestAnalyticsSeedMatchesWriteTimeFields(t *testing.T) {
 
 	got, err := repo.AnalyticsSeed(ctx)
 	require.NoError(t, err)
+	requireModuleDefaults(t, got)
 	require.Equal(t, analytics.Tally{
 		"modules.rows|quotes|on":         1,
 		"modules.rows|loyalty|on":        1,
@@ -89,6 +90,7 @@ func TestModuleTogglesOnlyCountCommittedEnabledChanges(t *testing.T) {
 	}, capture.Counters())
 	seed, err := repo.AnalyticsSeed(ctx)
 	require.NoError(t, err)
+	requireModuleDefaults(t, seed)
 	require.Equal(t, map[string]int64(seed), capture.Read(catalog.LevelKey))
 }
 
@@ -131,6 +133,7 @@ func TestRecipeSeedPagesAndRejectsUnknownTriggers(t *testing.T) {
 	}
 	seed, err := repo.AnalyticsSeed(t.Context())
 	require.NoError(t, err)
+	requireModuleDefaults(t, seed)
 	require.Equal(t, analytics.Tally{"recipes.total|timer|on": 550, "recipes.total|timer|off": 550}, seed)
 }
 
@@ -146,12 +149,23 @@ func TestAnalyticsSeedPagesPastOneBatch(t *testing.T) {
 
 	got, err := repo.AnalyticsSeed(ctx)
 	require.NoError(t, err)
+	requireModuleDefaults(t, got)
 	require.Equal(t, analytics.Tally{
 		"modules.rows|quotes|on":  users / 2,
 		"modules.rows|quotes|off": users / 2,
 		"modules.breadth|1":       users / 2,
 		"modules.breadth|0":       users / 2,
 	}, got)
+}
+
+func requireModuleDefaults(t *testing.T, tally analytics.Tally) {
+	t.Helper()
+	for _, name := range catalog.ModuleNames() {
+		field := catalog.Field(catalog.ModulesDefaults, name)
+		want := map[bool]int64{true: 1}[catalog.ModuleEnabledByDefault(name)]
+		require.Equal(t, want, tally[field], name)
+		delete(tally, field)
+	}
 }
 
 func TestWritesShiftAnalyticsLevelsByNetDelta(t *testing.T) {

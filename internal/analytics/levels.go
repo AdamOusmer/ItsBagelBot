@@ -41,12 +41,19 @@ func (r *Recorder) Shift(before, after Tally) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	changed := false
 	for field, n := range after {
-		r.levels[field] += n - before[field]
+		delta := n - before[field]
+		r.levels[field] += delta
+		changed = changed || delta != 0
 	}
 	for field, n := range before {
 		if _, seen := after[field]; !seen {
 			r.levels[field] -= n
+			changed = changed || n != 0
 		}
+	}
+	if changed {
+		r.nudge()
 	}
 }

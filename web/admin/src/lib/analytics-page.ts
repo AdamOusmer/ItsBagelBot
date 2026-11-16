@@ -410,15 +410,20 @@ function moduleLine(name: Dim, stats: ModuleStats, accounts: Count): TableRow {
 function moduleTable(c: Ctx): DataTable {
   const switches = level(c, 'modules.rows');
   const toggles = counter(c, 'module.toggles');
+  const accounts = sum(level(c, 'accounts.total'));
+  const on = byDim(withDim(switches, 'on', 1));
+  const off = byDim(withDim(switches, 'off', 1));
+  for (const name of byDim(level(c, 'modules.defaults')).keys()) {
+    on.set(name, Math.max(get(on, name), accounts - get(off, name)));
+  }
   const stats: ModuleStats = {
-    on: byDim(withDim(switches, 'on', 1)),
+    on,
     active: byDim(weekly(c, 'module.active')),
     outputs: byDim(counter(c, 'module.events')),
     up: byDim(withDim(toggles, 'on', 1)),
     down: byDim(withDim(toggles, 'off', 1))
   };
-  const names = new Set([...byDim(switches).keys(), ...stats.active.keys(), ...stats.outputs.keys(), ...byDim(toggles).keys()]);
-  const accounts = sum(level(c, 'accounts.total'));
+  const names = new Set([...byDim(switches).keys(), ...on.keys(), ...stats.active.keys(), ...stats.outputs.keys(), ...byDim(toggles).keys()]);
   const ordered = [...names].sort((a, b) => get(stats.on, b) - get(stats.on, a) || a.localeCompare(b));
   return { columns: MODULE_COLUMNS, rows: ordered.map((name) => moduleLine(name, stats, accounts)) };
 }

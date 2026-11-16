@@ -114,6 +114,9 @@ func (f fixture) seedLegacySketch(t *testing.T, elements int) {
 	for i := range members {
 		members[i] = fmt.Sprint("legacy", i)
 	}
+	exact, err := f.vc.Do(ctx, f.vc.B().Smembers().Key(catalog.DistinctKey(catalog.Day, yesterday, "channels.active")).Build()).AsStrSlice()
+	require.NoError(t, err)
+	members = append(members, exact[:min(2, len(exact))]...)
 	require.NoError(t, f.vc.Do(ctx, f.vc.B().Pfadd().Key(key).Element(members...).Build()).Error())
 	require.NoError(t, f.vc.Do(ctx, f.vc.B().Sadd().Key(catalog.IndexKey(catalog.Day, yesterday)).Member(key).Build()).Error())
 }
@@ -125,8 +128,8 @@ func TestRunFoldsLegacySketchesWithExactSets(t *testing.T) {
 		legacy   int
 		want     int64
 	}{
-		{"legacy larger wins", true, 20, 20},
-		{"set larger wins", true, 3, 15},
+		{"legacy larger union", true, 20, 35},
+		{"set larger union", true, 3, 18},
 		{"legacy only", false, 7, 7},
 	}
 	for _, tc := range cases {

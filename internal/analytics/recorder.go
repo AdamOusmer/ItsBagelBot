@@ -175,7 +175,8 @@ func (r *Recorder) Cohort(channelID uint64, signup time.Time) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.addID(distinctSet{window: catalog.Week, at: catalog.PeriodStart(catalog.Week, at), key: catalog.CohortKey(signup, at)}, channelID)
+	incarnation := channelID ^ (uint64(signup.UnixMicro()) * 0x9E3779B97F4A7C15)
+	r.addID(distinctSet{window: catalog.Week, at: catalog.PeriodStart(catalog.Week, at), key: catalog.CohortKey(signup, at)}, incarnation)
 }
 
 func (r *Recorder) addID(s distinctSet, id uint64) {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/admin/repository"
+	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	pkgvalkey "ItsBagelBot/pkg/valkey"
 
@@ -157,26 +158,8 @@ func (r *Rollup) distincts(ctx context.Context, p period) ([]repository.Analytic
 	if err != nil {
 		return nil, nil, err
 	}
-	counts := make(map[string]int64, len(keys))
-	for _, key := range keys {
-		ref, ok := catalog.ParseDistinctKey(key)
-		if !ok {
-			continue
-		}
-		n, err := r.count(ctx, ref, key)
-		if err != nil {
-			return nil, nil, err
-		}
-		counts[ref.Field] = max(counts[ref.Field], n)
-	}
-	return rowsOf(p, counts), append(keys, index), nil
-}
-
-func (r *Rollup) count(ctx context.Context, ref catalog.DistinctRef, key string) (int64, error) {
-	if ref.Legacy {
-		return pkgvalkey.HyperLogLogCount(ctx, r.vc, key)
-	}
-	return pkgvalkey.SetCard(ctx, r.vc, key)
+	counts, err := analytics.DistinctCounts(ctx, r.vc, keys)
+	return rowsOf(p, counts), append(keys, index), err
 }
 
 func (r *Rollup) hash(ctx context.Context, p period, key string) ([]repository.AnalyticsRow, error) {

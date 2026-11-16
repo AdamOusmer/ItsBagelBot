@@ -97,7 +97,7 @@ func main() {
 	automations.SetAnalytics(recorder)
 	go recorder.ReconcileDaily(core.Ctx, analytics.Owner{
 		Service: serviceName,
-		Owned:   analytics.Owned{"modules.rows", "modules.breadth", "recipes.total", "integrations.connected|spotify", "integrations.connected|govee"},
+		Owned:   analytics.Owned{"modules.rows", "modules.defaults", "modules.breadth", "recipes.total", "integrations.connected|spotify", "integrations.connected|govee"},
 		Seed:    repo.AnalyticsSeed,
 	})
 

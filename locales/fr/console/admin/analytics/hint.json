@@ -14,7 +14,7 @@
   "sources": "Comptes payants selon la façon dont l'offre a été accordée, dans le dernier instantané quotidien.",
   "billing": "Événements de facturation additionnés sur la fenêtre.",
   "conversion": "Pour chacune des 12 dernières semaines d'inscription : comptes dans le dernier instantané quotidien et combien sont payants.",
-  "modules": "Adoption : activé / tous les comptes au dernier relevé. Activation : chaînes actives la dernière semaine complète / actuellement activé. Sorties et changements sur la période.",
+  "modules": "Le total activé inclut les comptes activés par défaut sans réglage enregistré. Adoption : activé / tous les comptes au dernier relevé. Activation : chaînes actives la dernière semaine complète / actuellement activé. Sorties et changements sur la période.",
   "breadth": "Chaînes regroupées par nombre de modules activés, dans le dernier instantané quotidien.",
   "integrations": "Comptes avec chaque intégration connectée et leur part de tous les comptes au dernier relevé quotidien.",
   "pagesHidden": "Comptes qui masquent chaque page publique, dans le dernier instantané quotidien.",

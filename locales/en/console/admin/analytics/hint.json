@@ -14,7 +14,7 @@
   "sources": "Paid accounts by how the plan was granted, in the latest daily snapshot.",
   "billing": "Billing events summed over the window.",
   "conversion": "For each of the last 12 signup weeks, accounts in the latest daily snapshot and how many are paid.",
-  "modules": "Adoption is on / all accounts in the latest snapshot. Activation is active channels last full week / currently on. Outputs and toggles cover the window.",
+  "modules": "On includes default-enabled accounts without a stored setting. Adoption is on / all accounts in the latest snapshot. Activation is active channels last full week / currently on. Outputs and toggles cover the window.",
   "breadth": "Channels grouped by how many modules they have on, in the latest daily snapshot.",
   "integrations": "Accounts with each integration connected and their share of all accounts in the latest daily snapshot.",
   "pagesHidden": "Accounts that hide each public page, in the latest daily snapshot.",

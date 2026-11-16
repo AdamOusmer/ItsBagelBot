@@ -23,7 +23,7 @@ const COUNTERS = [
 const LEVELS = [
   'accounts.total', 'accounts.bot_enabled', 'accounts.onboarded', 'accounts.paid_source',
   'accounts.cancel_pending', 'accounts.payment_failed', 'accounts.locale', 'accounts.pages_hidden',
-  'accounts.by_signup_week', 'accounts.paid_by_signup_week', 'modules.rows', 'modules.breadth',
+  'accounts.by_signup_week', 'accounts.paid_by_signup_week', 'modules.rows', 'modules.defaults', 'modules.breadth',
   'integrations.connected', 'custom.total', 'custom.perm', 'custom.flags', 'custom.channels',
   'recipes.total', 'accounts.delegating'
 ];

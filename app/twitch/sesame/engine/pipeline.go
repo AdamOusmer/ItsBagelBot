@@ -184,7 +184,7 @@ func (p *Pipeline) Close() {
 
 const chatType = "channel.chat.message"
 
-func (p *Pipeline) Process(msg *bus.Message) error {
+func (p *Pipeline) Process(msg *bus.Message) (err error) {
 	ctx, cancel := messageContext(msg)
 	defer cancel()
 
@@ -194,6 +194,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
 	}
+	defer func() { p.recordAcknowledged(env, err) }()
 	broadcasterID, ok := env.BroadcasterID()
 	p.countDecoded(ctx, env, broadcasterID)
 	traceEnvelope(ctx, env)
@@ -215,7 +216,6 @@ func (p *Pipeline) countDecoded(ctx context.Context, env *lane.Envelope, broadca
 		target = 0
 	}
 	p.stats.count(target, decodedDelta(env))
-	p.recordDecoded(env)
 	if env.Origin == "trial" {
 		p.addTrial(ctx, env.BroadcasterUserID, "decoded", env.MessageCount())
 	}

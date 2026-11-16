@@ -128,28 +128,14 @@ func (r *Reader) distinctRows(ctx context.Context, q Query, at time.Time) ([]Row
 	if err != nil {
 		return nil, err
 	}
-	counts := map[string]int64{}
-	for _, key := range keys {
-		ref, ok := catalog.ParseDistinctKey(key)
-		if !ok {
-			continue
-		}
-		metric, dims := catalog.ParseField(ref.Field)
-		if !acceptsField(q, metric, dims, catalog.Distinct) {
-			continue
-		}
-		value, err := r.cardinality(ctx, ref, key)
-		if err != nil {
-			return nil, err
-		}
-		counts[ref.Field] = max(counts[ref.Field], value)
-	}
-	return fields(q, at, catalog.Distinct, counts), nil
+	counts, err := DistinctCounts(ctx, r.client, requestedDistincts(q, keys))
+	return fields(q, at, catalog.Distinct, counts), err
 }
 
-func (r *Reader) cardinality(ctx context.Context, ref catalog.DistinctRef, key string) (int64, error) {
-	if ref.Legacy {
-		return pkgvalkey.HyperLogLogCount(ctx, r.client, key)
-	}
-	return pkgvalkey.SetCard(ctx, r.client, key)
+func requestedDistincts(q Query, keys []string) []string {
+	return slices.DeleteFunc(keys, func(key string) bool {
+		ref, ok := catalog.ParseDistinctKey(key)
+		metric, dims := catalog.ParseField(ref.Field)
+		return !ok || !acceptsField(q, metric, dims, catalog.Distinct)
+	})
 }

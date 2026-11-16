@@ -698,12 +698,19 @@ describe('snapshot and population corrections', () => {
     expect(facts(buildAnalytics(reads({ levels })).growth.churnFacts).netBot).toBe(expected);
   });
 
-  it('uses all accounts for adoption and connections while retaining active / on activation', () => {
+  it.each([
+    ['stored opt-in', [], 0, 80],
+    ['default on', ['alerts'], 5, 95],
+    ['stored on floor', ['alerts'], 30, 80],
+    ['off rows exceed accounts', ['alerts'], 150, 80]
+  ] as [string, string[], number, number][])('uses effective enabled accounts for %s', (_name, defaults, off, on) => {
     const result = buildAnalytics(reads({
       levels: [
         row(END, 'accounts.total', ['free'], 100),
         row(END, 'accounts.bot_enabled', ['free'], 10),
         row(END, 'modules.rows', ['alerts', 'on'], 80),
+        row(END, 'modules.rows', ['alerts', 'off'], off),
+        ...defaults.map((name) => row(END, 'modules.defaults', [name], 1)),
         row(END, 'integrations.connected', ['spotify'], 30)
       ],
       week: [row('2026-11-02', 'module.active', ['alerts'], 8)]
@@ -712,9 +719,17 @@ describe('snapshot and population corrections', () => {
       module: cells(result.features.modules)[0],
       connection: result.features.integrations[0].secondary
     }).toEqual({
-      module: ['alerts', '80', '80%', '8', '10%', '0', '0', '0', '0'],
+      module: ['alerts', String(on), pct(on, 100), '8', pct(8, on), '0', '0', '0', '0'],
       connection: { key: 'admin.analytics.share.ofAccounts', params: { share: '30%' } }
     });
+  });
+
+  it('shows default-on modules without stored rows or usage', () => {
+    const result = buildAnalytics(reads({
+      counters: [], week: [],
+      levels: [row(END, 'accounts.total', ['free'], 100), row(END, 'modules.defaults', ['alerts'], 1)]
+    }));
+    expect(cells(result.features.modules)).toEqual([['alerts', '100', '100%', '0', '0%', '0', '0', '0', '0']]);
   });
 });
 

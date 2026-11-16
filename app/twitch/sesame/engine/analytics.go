@@ -11,8 +11,8 @@ import (
 	"ItsBagelBot/internal/domain/event/lane"
 )
 
-func (p *Pipeline) recordDecoded(env *lane.Envelope) {
-	if userChat(env) {
+func (p *Pipeline) recordAcknowledged(env *lane.Envelope, err error) {
+	if err == nil && userChat(env) {
 		p.analytics.Add(catalog.ChatMessages, int64(env.MessageCount()))
 	}
 }

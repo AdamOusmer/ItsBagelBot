@@ -14,7 +14,7 @@
   "sources": "Contas pagas conforme a forma de concessão do plano, no último instantâneo diário.",
   "billing": "Eventos de cobrança somados no período.",
   "conversion": "Para cada uma das últimas 12 semanas de cadastro: contas no último instantâneo diário e quantas são pagas.",
-  "modules": "Adoção: ativado / todas as contas no último retrato. Ativação: canais ativos na última semana completa / ativado agora. Saídas e alterações cobrem o período.",
+  "modules": "Ativado inclui contas ativadas por padrão sem uma configuração salva. Adoção: ativado / todas as contas no último retrato. Ativação: canais ativos na última semana completa / ativado agora. Saídas e alterações cobrem o período.",
   "breadth": "Canais agrupados pelo número de módulos ativados, no último instantâneo diário.",
   "integrations": "Contas com cada integração conectada e sua proporção do total no último retrato diário.",
   "pagesHidden": "Contas que ocultam cada página pública, no último instantâneo diário.",

@@ -29,7 +29,7 @@ test('reads every extension in its catalog window within the RPC metric limit', 
     ['d', 'recipe.runs'], ['d', 'outgress.dropped'], ['d', 'provider.calls'], ['d', 'songs.requests'],
     ['d', 'command.blocked'], ['d', 'onboarding.steps'], ['d', 'import.runs'], ['d', 'dashboard.views'],
     ['d', 'billing.checkout'], ['d', 'recipes.total'], ['d', 'accounts.onboarded'], ['d', 'accounts.delegating'],
-    ['w', 'recipe.channels'], ['w', 'activation.age']
+    ['w', 'recipe.channels'], ['w', 'activation.age'], ['d', 'modules.defaults']
   ];
   expect({
     degraded: bundle.degraded,

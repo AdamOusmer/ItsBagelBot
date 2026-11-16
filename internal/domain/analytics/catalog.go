@@ -66,6 +66,7 @@ const (
 	PaidBySignupWeek      Metric = "accounts.paid_by_signup_week"
 
 	ModulesRows           Metric = "modules.rows"
+	ModulesDefaults       Metric = "modules.defaults"
 	ModulesBreadth        Metric = "modules.breadth"
 	IntegrationsConnected Metric = "integrations.connected"
 	CustomTotal           Metric = "custom.total"
@@ -158,6 +159,7 @@ var catalog = map[Metric]Spec{
 	PaidBySignupWeek:      {Type: Level, Dims: []Kind{KindWeek}},
 
 	ModulesRows:           {Type: Level, Dims: []Kind{KindModule, KindState}},
+	ModulesDefaults:       {Type: Level, Dims: []Kind{KindModule}},
 	ModulesBreadth:        {Type: Level, Dims: []Kind{KindBreadth}},
 	IntegrationsConnected: {Type: Level, Dims: []Kind{KindLink}},
 	CustomTotal:           {Type: Level, Dims: []Kind{KindActive}},
