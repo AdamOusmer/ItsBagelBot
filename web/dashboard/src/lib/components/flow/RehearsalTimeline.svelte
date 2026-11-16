@@ -90,6 +90,7 @@
             <button class="select" type="button" disabled={!step.id} onclick={() => step.id && onSelect(step.id)}>
               <span class="label"><bb-fit><span data-fit>{step.label}</span></bb-fit></span>
               {#if step.text}<span class="detail"><bb-fit mode="block"><span data-fit>{step.text}</span></bb-fit></span>{/if}
+              {#if step.secondary}<span class="context">{step.secondary}</span>{/if}
             </button>
             {#if step.kind === 'say'}
               <div class="bubble">
@@ -108,8 +109,10 @@
               </div>
             {/if}
             {#if api && step.id}
-              <Field label={t('flows.test.response')} for="{uid}-{step.key}-response">
-                <Input id="{uid}-{step.key}-response" fill placeholder={t('flows.test.notSet')} value={overrides[`${step.id}.response`] ?? ''} oninput={(event) => onOverride(`${step.id}.response`, event.currentTarget.value)} />
+              {@const failed = step.status === 'failed'}
+              {@const key = `${step.id}.${failed ? 'error' : 'response'}`}
+              <Field label={t(failed ? 'flows.test.errorCode' : 'flows.test.response')} for="{uid}-{step.key}-response">
+                <Input id="{uid}-{step.key}-response" fill placeholder={t('flows.test.notSet')} value={overrides[key] ?? (failed ? 'upstream_error' : '')} oninput={(event) => onOverride(key, event.currentTarget.value)} />
               </Field>
             {/if}
             {#if step.node?.type === 'cond.var'}

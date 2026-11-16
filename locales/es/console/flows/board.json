@@ -1,5 +1,6 @@
 {
   "defaultChatMessage": "¡Gracias {user}!",
+  "defaultPlainMessage": "¡Gracias!",
   "boardLabel": "Tablero de flujo",
   "stepTools": "Herramientas de pasos",
   "start": "Inicio",

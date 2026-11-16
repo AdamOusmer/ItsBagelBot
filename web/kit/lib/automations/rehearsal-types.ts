@@ -72,4 +72,5 @@ export type RehearsalContext = {
   locals: Record<string, string>;
   path: string;
   atMs: number;
+  formatDuration?: (seconds: number) => string;
 };

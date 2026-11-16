@@ -94,7 +94,7 @@
     "multipleTriggers": "Ein Rezept kann nur auf eine Art starten. Entferne den zusätzlichen Wenn-Schritt.",
     "cycle": "Dieser Schritt führt auf sich selbst zurück. Entferne eine der Verbindungen.",
     "unconnectedNode": "Dieser Schritt ist nicht mit dem Start verbunden. Verbinde ihn oder entferne ihn.",
-    "unstructuredMerge": "Zwei Pfade laufen hier auf eine Weise zusammen, die nicht gespeichert werden kann. Gib jedem Pfad eigene Schritte.",
+    "unstructuredMerge": "Ein Pfad mit Warten kann nicht in einen anderen Pfad münden. Verschiebe Warten hinter die Verbindung oder gib jedem Pfad eigene Schritte.",
     "unsupportedNode": "Dieser Schritt kann noch nicht gespeichert werden.",
     "unsupportedTrigger": "Dieser Start kann noch nicht gespeichert werden.",
     "unsupportedCondition": "Diese Prüfung kann noch nicht gespeichert werden.",

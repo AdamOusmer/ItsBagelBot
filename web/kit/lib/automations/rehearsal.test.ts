@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import mathCases from './testdata/math_cases.json';
 import textCases from './testdata/text_cases.json';
 import { compileFlow, flowToDefinition, type Flow, type FlowNode } from './flow-graph';
-import { defaultScenario, rehearseDefinition } from './rehearsal';
+import { compactDuration, defaultScenario, rehearseDefinition } from './rehearsal';
 import { MAX_ACTIONS, MAX_LOOP_TIMES } from './limits';
 import type { Action, Condition, Definition, Params } from './types';
 import type { RehearsalOverrides, RehearsalScenario } from './rehearsal-types';
@@ -200,6 +200,9 @@ test.each([
 
 test.each([
   { template: '{local:missing}', lines: [], missing: 'local:missing', code: 'empty' },
+  { template: 'Roll {random:1-10}, {choice:a;b}', lines: ['Roll 1, a'], missing: '', code: undefined },
+  { template: '{choice:first,second}', lines: ['first'], missing: '', code: undefined },
+  { template: '{random:1000-2000:,}', lines: ['1,000'], missing: '', code: undefined },
   { template: 'hello {var:missing}', lines: ['hello '], missing: 'var:missing', code: undefined },
   { template: '1\n\n2\n3\n4\n5\n6', lines: ['1', '2', '3', '4', '5'], missing: '', code: undefined },
   { template: 'one\rtwo', lines: ['one\rtwo'], missing: '', code: undefined }
@@ -207,6 +210,26 @@ test.each([
   const result = execute([chat(template)]);
   const event = result.events.at(-1);
   expect([event?.lines, event?.detail?.missing, event?.detail?.code]).toEqual([lines, missing, code]);
+});
+
+test.each([
+  { current: '9007199254740992', amount: 1, want: '9007199254740993', status: 'ok' },
+  { current: '-9007199254740992', amount: -1, want: '-9007199254740993', status: 'ok' },
+  { current: '9223372036854775807', amount: 1, want: '9223372036854775807', status: 'failed' },
+  { current: '-9223372036854775808', amount: -1, want: '-9223372036854775808', status: 'failed' },
+  { current: '1.25', amount: 2, want: '3.25', status: 'ok' }
+])('variable addition preserves $current plus $amount', ({ current, amount, want, status }) => {
+  const result = execute([action('var_add', { scope: 'channel', name: 'score', amount }), chat('{var:score}')], { scenario: { state: { channelVars: { score: current } } } });
+  expect([result.events[1]?.status, result.events.at(-1)?.lines]).toEqual([status, [want]]);
+});
+
+test.each([
+  { params: { name: 'timer', global_s: 90 }, units: ['d', 'h', 'm', 's'], want: '1m 30s' },
+  { params: { user_s: 30 }, units: ['д', 'ч', 'м', 'с'], want: '30с' }
+])('pretend cooling supplies localized time $want', ({ params, units, want }) => {
+  const def = definition([action('if', { condition: condition('cooldown', params), else: [chat('{cooldown:left}')] })]);
+  const result = rehearseDefinition(def, defaultScenario(def), { 'actions[0]': 'cooling' }, (seconds) => compactDuration(seconds, units));
+  expect([result.events.at(-1)?.lines, result.events.at(-1)?.detail?.missing]).toEqual([[want], '']);
 });
 
 test.each([

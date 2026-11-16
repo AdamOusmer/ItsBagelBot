@@ -49,10 +49,7 @@ describe('fitBox', () => {
     const view = fitBox(box, { width: 375, height: 812, inset: phone }, ZOOM);
     const tl = screenOf(view, { x: box.x0, y: box.y0 });
     const br = screenOf(view, { x: box.x1, y: box.y1 });
-    expect(tl.x).toBeGreaterThanOrEqual(16);
-    expect(br.x).toBeLessThanOrEqual(375 - 16);
-    expect(tl.y).toBeGreaterThanOrEqual(146);
-    expect(br.y).toBeLessThanOrEqual(812 - 170);
+    expect([tl.x >= 16, br.x <= 359, tl.y >= 146, br.y <= 642]).toEqual([true, true, true, true]);
   });
 
   test('never zooms in past 100% for a small flow', () => {
@@ -66,23 +63,24 @@ describe('revealBox', () => {
   const frame = { width: 375, height: 812, inset };
 
   test('brings an off screen step between the toolbar and the sheet', () => {
-    const view = revealBox({ x: 10, y: 300, k: 0.3 }, node, frame, 0.75);
+    const view = revealBox({ x: 10, y: 300, k: 0.3 }, node, frame, { ...ZOOM, readable: 0.75 });
     const tl = screenOf(view, { x: node.x0, y: node.y0 });
     const br = screenOf(view, { x: node.x1, y: node.y1 });
-    expect(tl.x).toBeGreaterThanOrEqual(16);
-    expect(br.x).toBeLessThanOrEqual(359);
-    expect(tl.y).toBeGreaterThanOrEqual(140);
-    expect(br.y).toBeLessThanOrEqual(342);
-    expect(view.k).toBeCloseTo(0.75);
+    expect([tl.x >= 16, br.x <= 359, tl.y >= 140, br.y <= 342, view.k]).toEqual([true, true, true, true, 0.75]);
   });
 
   test('shrinks when the step would not fit at the readable zoom', () => {
-    const view = revealBox({ x: 0, y: 0, k: 1.5 }, node, frame, 0.75);
+    const view = revealBox({ x: 0, y: 0, k: 1.5 }, node, frame, { ...ZOOM, readable: 0.75 });
     expect(view.k).toBeCloseTo(343 / 336);
   });
 
   test('leaves the view alone when the step is already in the room', () => {
     const current = { x: 16 - 744 * 0.9, y: 150 - 96 * 0.9, k: 0.9 };
-    expect(revealBox(current, node, frame, 0.75)).toBe(current);
+    expect(revealBox(current, node, frame, { ...ZOOM, readable: 0.75 })).toBe(current);
+  });
+
+  test.each([0.25, 0.4])('clamps even an obstructed frame to minimum zoom %s', (min) => {
+    const view = revealBox({ x: 0, y: 0, k: 1 }, node, { ...frame, inset: { ...inset, right: 800 } }, { ...ZOOM, min, readable: 0.75 });
+    expect([view.k, Number.isFinite(view.x), Number.isFinite(view.y)]).toEqual([min, true, true]);
   });
 });

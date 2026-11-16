@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { compileFlow, defaultScenario, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind } from '@bagel/kit/automations';
+import { compactDuration, compileFlow, defaultScenario, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldLabel, stepLabel } from './copy';
@@ -19,6 +19,7 @@ export type RehearsalStep = RehearsalEvent & {
   chatLines: RehearsedLine[];
   missing: Text[];
   sample: boolean;
+  secondary?: Text;
   node?: FlowNode;
   repair?: ScenarioPatch;
 };
@@ -47,6 +48,10 @@ const FIELD_LABELS: Readonly<Record<Text, MessageKey>> = {
 };
 
 export const scenarioFieldLabel = (t: Translate, key: Text): Text => t(FIELD_LABELS[key] ?? 'flows.test.notSet');
+export const scenarioInputLabel = (t: Translate, key: Text): Text => {
+  const labels: Readonly<Record<Text, MessageKey>> = { bits: 'flows.test.inputBits', amount: 'flows.test.inputBits', viewers: 'flows.test.inputViewers' };
+  return labels[key] ? t(labels[key]) : scenarioFieldLabel(t, key);
+};
 export const scenarioRoleLabel = (t: Translate, key: Text): Text => t(ROLE_LABELS[key] ?? 'flows.test.role.viewer');
 
 function repairDraft(flow: Flow, issues: Issue[]): Flow {
@@ -172,6 +177,7 @@ function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, li
 
 function effectText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Text {
   if (!node) return t('flows.test.effect');
+  if (node.type === 'reply.math' && event.detail?.value !== undefined) return event.detail.value;
   const config = { ...node.config, target: event.detail?.login ?? node.config.target };
   return describe(t, { ...node, config });
 }
@@ -198,17 +204,22 @@ function reasonText(t: Translate, code: Text): Text {
     no_viewer: t('flows.test.noViewer'), bad_times: t('flows.test.badTimes'), delay_budget: t('flows.issue.delayBudget'),
     max_steps: t('flows.test.limit'), max_actions: t('flows.test.limit'), upstream_error: t('flows.test.apiFailed'),
     not_running: t('flows.test.notRunning'), below_rate: t('flows.test.belowRate'), var_limit: t('flows.test.varLimit'),
-    text_error: t('flows.test.textError'), math_error: t('flows.test.mathError'), bad_def: t('flows.test.badDef')
+    text_error: t('flows.test.textError'), math_error: t('flows.test.mathError'), bad_def: t('flows.test.badDef'),
+    empty_login: t('flows.test.noTarget'), perm_required: t('flows.issue.permRequired')
   };
   return reasons[code] ?? t('flows.test.failed');
 }
 
-type RunContext = { compiled: Compiled; flow: Flow; scenario: RehearsalScenario; overrides: RehearsalOverrides };
+type RunContext = {
+  compiled: Compiled; nodes: Map<Text, FlowNode>; scenario: RehearsalScenario; overrides: RehearsalOverrides;
+  repairs: Map<Text, ScenarioPatch | undefined>; formatDuration: (seconds: number) => Text;
+};
 
 const REQUIRED_FIELDS: Readonly<Record<Text, readonly Text[]>> = {
   'twitch.chat.command': ['trigger'], 'twitch.chat.word': ['word'], 'reply.chat': ['message'],
   'cond.role': ['level'], 'cond.compare': ['left', 'right'], 'cond.var': ['name'],
-  'reply.http_get': ['url'], 'reply.http_post': ['url'], 'reply.loop': ['times']
+  'reply.http_get': ['url'], 'reply.http_post': ['url'], 'reply.loop': ['times'],
+  'reply.shoutout': ['target'], 'reply.timeout': ['target']
 };
 
 function unsetFields(t: Translate, node: FlowNode | undefined): Text[] {
@@ -222,20 +233,42 @@ function unsetFields(t: Translate, node: FlowNode | undefined): Text[] {
 function verifiedRepair(node: FlowNode | undefined, event: RehearsalEvent, context: RunContext): ScenarioPatch | undefined {
   const repair = node ? checkRepair(node, event) : undefined;
   if (!repair) return undefined;
-  const result = rehearseDefinition(context.compiled.definition, { ...context.scenario, ...repair }, context.overrides);
-  return result.events.some((candidate) => candidate.path === event.path && candidate.status === 'yes') ? repair : undefined;
+  const key = `${event.path}:${JSON.stringify(repair)}`;
+  if (context.repairs.has(key)) return context.repairs.get(key);
+  const result = rehearseDefinition(context.compiled.definition, { ...context.scenario, ...repair }, context.overrides, context.formatDuration);
+  const verified = result.events.some((candidate) => candidate.path === event.path && candidate.status === 'yes') ? repair : undefined;
+  context.repairs.set(key, verified);
+  return verified;
 }
 
 function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): RehearsalStep {
-  const { compiled, flow, scenario } = context;
+  const { compiled, nodes, scenario } = context;
   const id = compiled.nodeByPath.get(`${event.path}.params.condition`) ?? compiled.nodeByPath.get(event.path) ?? null;
-  const node = flow.nodes.find((node) => node.id === id);
+  const node = nodes.get(id ?? '');
   const spec = node ? specFor(node.type) : undefined;
-  const tokens = (event.detail?.missing ?? '').split(',').filter(Boolean).map((token) => token.replace(/^unset:/, ''));
-  const missing = [...tokens, ...unsetFields(t, node)];
-  return { ...event, id, node, missing, chatLines: chatLines(event), sample: /\{(?:random|choice)[}:]/.test(String(node?.config.message ?? '')),
+  return { ...event, ...stepValues(t, event, node), id, node, chatLines: chatLines(event),
+    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : undefined,
     label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
     text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)), repair: verifiedRepair(node, event, context) };
+}
+
+function stepValues(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Pick<RehearsalStep, 'missing' | 'sample'> {
+  const tokens = (event.detail?.missing ?? '').split(',').filter(Boolean).map((token) => token.replace(/^unset:/, ''));
+  const missing = [...new Set([...tokens, ...unsetFields(t, node)])];
+  const sample = event.detail?.random === '1' || Object.values(node?.config ?? {}).some((value) => /\{(?:random|choice)[}:]/.test(String(value)));
+  return { missing, sample };
+}
+
+function permissionWarnings(definition: Definition): RehearsalEvent[] {
+  return validateDefinition(definition).filter((issue) => issue.code === 'perm_required').map((issue) => ({
+    key: `warning:${issue.path}`, path: issue.path.replace(/\.type$/, ''), lane: [], iteration: [], atMs: 0,
+    kind: 'effect', status: 'failed', detail: { code: issue.code }
+  }));
+}
+
+function durationFormatter(t: Translate): (seconds: number) => Text {
+  const units = [t('flows.test.duration.day'), t('flows.test.duration.hour'), t('flows.test.duration.minute'), t('flows.test.duration.second')];
+  return (seconds) => compactDuration(seconds, units);
 }
 
 export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalView {
@@ -243,12 +276,15 @@ export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions
   const empty: RehearsalView = { steps: [], fields: [], scenario: { live: true, ...options.scenario }, summary: '', starts: false };
   if (!compiled.ok) return { ...empty, issue: { text: issueMessage(t, compiled.issues[0]!), node: stepOf(compiled.issues, flow.nodes) } };
   const { definition } = compiled.value;
-  const scenario = { ...initialScenario(definition), ...options.scenario };
-  const overrides = executorOverrides(compiled.value, options.overrides ?? {});
-  const result = rehearseDefinition(definition, scenario, overrides);
   const kind = scenarioKind(definition);
-  return { scenario, fields: SCENARIO_FIELDS[kind] ?? [], summary: scenarioSummary(t, scenario, kind), starts: result.starts,
-    steps: result.events.map((event) => mappedStep(t, event, { compiled: compiled.value, flow, scenario, overrides })),
+  const fields = SCENARIO_FIELDS[kind] ?? [];
+  const scenario = { ...initialScenario(definition), ...scenarioPatches(fields, options.scenario ?? {}) };
+  const overrides = executorOverrides(compiled.value, options.overrides ?? {});
+  const formatDuration = durationFormatter(t);
+  const result = rehearseDefinition(definition, scenario, overrides, formatDuration);
+  const context: RunContext = { compiled: compiled.value, nodes: new Map(flow.nodes.map((node) => [node.id, node])), scenario, overrides, repairs: new Map(), formatDuration };
+  return { scenario, fields, summary: scenarioSummary(t, scenario, kind), starts: result.starts,
+    steps: [...permissionWarnings(definition), ...result.events].map((event) => mappedStep(t, event, context)),
     blocked: result.reason ? blockedText(t, result.reason) : undefined,
     startPatch: result.reason ? startPatch(result.reason, definition) : undefined };
 }
@@ -256,5 +292,5 @@ export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions
 export function setStoredValue(scenario: ScenarioPatch, node: FlowNode, value: Text): ScenarioPatch {
   const key = node.config.scope === 'viewer' ? 'viewerVars' : 'channelVars';
   const name = String(node.config.name ?? '').toLowerCase();
-  return { ...scenario, state: { ...scenario.state, [key]: { ...scenario.state?.[key], [name]: value } } };
+  return { state: { ...scenario.state, [key]: { ...scenario.state?.[key], [name]: value } } };
 }

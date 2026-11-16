@@ -30,6 +30,11 @@ export const SCENARIO_FIELDS: Readonly<Record<string, readonly ScenarioField[]>>
   'countdown.finished': [LIVE]
 };
 
+export function scenarioPatches(fields: readonly ScenarioField[], patch: Partial<RehearsalScenario>): Partial<RehearsalScenario> {
+  const keys = new Set<string>([...fields.map((field) => field.key), 'state']);
+  return Object.fromEntries(Object.entries(patch).filter(([key]) => keys.has(key)));
+}
+
 const EVENT_SCENARIOS: Readonly<Record<string, string>> = {
   'channel.follow': 'twitch.follow',
   'channel.subscribe': 'twitch.sub.new',
@@ -154,6 +159,13 @@ function matchIdentity(key: 'name' | 'rewardId', params: Params, scenario: Rehea
 export function scenarioIdentity(definition: Definition, scenario: RehearsalScenario): RehearsalScenario {
   if (definition.trigger.type === 'command') return scenario;
   if (definition.trigger.type === 'countdown') return { ...scenario, role: 'broadcaster', userId: '40000000' };
+  const hidden = hidesViewer(definition, scenario);
+  return { ...scenario, role: 'viewer', user: hidden ? undefined : scenario.user, userId: hidden ? undefined : scenario.userId };
+}
+
+function hidesViewer(definition: Definition, scenario: RehearsalScenario): boolean {
+  const fields = SCENARIO_FIELDS[scenarioKind(definition)];
+  const viewer = fields ? fields.some((field) => field.key === 'user') : true;
   const anonymousCheer = definition.trigger.params?.kind === 'channel.cheer' && scenario.anonymous;
-  return { ...scenario, role: 'viewer', user: anonymousCheer ? undefined : scenario.user, userId: anonymousCheer ? undefined : scenario.userId };
+  return Boolean(anonymousCheer || !viewer);
 }

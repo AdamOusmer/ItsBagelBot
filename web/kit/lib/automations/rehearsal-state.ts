@@ -49,11 +49,16 @@ function timerLeft(until: number | undefined, context: Context): Text | null {
 
 function durationLeft(end: Text | undefined, context: Context): Text | null {
   if (end === undefined) return null;
-  let seconds = Math.max(0, Math.ceil((Number(end) - context.atMs) / 1000));
+  const seconds = Math.max(0, Math.ceil((Number(end) - context.atMs) / 1000));
+  return context.formatDuration?.(seconds) ?? compactDuration(seconds);
+}
+
+export function compactDuration(value: number, units: readonly Text[] = ['d', 'h', 'm', 's']): Text {
+  let seconds = value;
   const parts: Text[] = [];
-  for (const [size, suffix] of [[86400, 'd'], [3600, 'h'], [60, 'm'], [1, 's']] as const) {
+  for (const [index, size] of [86400, 3600, 60, 1].entries()) {
     const count = Math.floor(seconds / size);
-    if (count > 0) parts.push(`${count}${suffix}`);
+    if (count > 0) parts.push(`${count}${units[index]}`);
     seconds %= size;
     if (parts.length === 2) break;
   }
@@ -61,6 +66,8 @@ function durationLeft(end: Text | undefined, context: Context): Text | null {
 }
 
 const TOKEN_READERS: Readonly<Record<string, (token: VarToken, context: Context) => Text | null>> = {
+  random: (token) => randomSample(token),
+  choice: (token) => token.payload?.split(/[;,]/)[0] ?? null,
   local: (token, context) => context.locals[text(token.payload).toLowerCase()] ?? null,
   var: (token, context) => context.state.channelVars[text(token.payload).toLowerCase()] ?? null,
   viewervar: (token, context) => context.state.viewerVars[text(token.payload).toLowerCase()] ?? null,
@@ -69,6 +76,14 @@ const TOKEN_READERS: Readonly<Record<string, (token: VarToken, context: Context)
   cooldown: (token, context) => token.payload === 'left' ? durationLeft(context.locals['cooldown:end'], context) : null,
   countdown: (token, context) => token.payload === 'left' ? durationLeft(context.locals['countdown:end'], context) : null
 };
+
+function randomSample(token: VarToken): Text | null {
+  const bounds = token.payload?.match(/^(\d+)-(\d+)(?::([^]))?$/u);
+  if (!bounds) return null;
+  if (BigInt(bounds[1]!) > BigInt(bounds[2]!)) return null;
+  const value = String(BigInt(bounds[1]!));
+  return bounds[3] === undefined ? value : value.replace(/\B(?=(\d{3})+(?!\d))/g, () => bounds[3]!);
+}
 
 function resolveValue(token: VarToken, context: Context): Text | null {
   const reader = TOKEN_READERS[token.name];
@@ -92,7 +107,7 @@ export function expandTemplate(template: Text, context: Context): { text: Text; 
   const missing: Text[] = [];
   const segments = expandSegments(template, (token) => {
     const value = resolveValue(token, context);
-    if (value === null) missing.push(token.key);
+    if (value === null || value === '') missing.push(token.key);
     return value ?? '';
   });
   return { text: segments.map((segment) => segment.text).join(''), missing: [...new Set(missing)] };
@@ -143,8 +158,13 @@ function cooldownKeys(params: Params, context: Context): Text[] {
 
 function cooldownComparison(params: Params, context: Context): boolean {
   const keys = cooldownKeys(params, context);
+  if (context.overrides[context.path] === 'cooling') {
+    const seconds = Math.max(number(params.global_s), number(params.user_s));
+    context.locals['cooldown:end'] = String(context.atMs + seconds * 1000);
+    return false;
+  }
   const windows = keys.map((key) => cooldownWindow(key, context));
-  if (context.overrides[context.path] === 'cooling' || windows.some((until) => until > context.atMs)) {
+  if (windows.some((until) => until > context.atMs)) {
     noteCooldown(windows, context);
     return false;
   }
@@ -194,11 +214,16 @@ function saveLocal(params: Params, value: Text, context: Context): void {
 
 function addVariable(current: Text, amount: number): Text | null {
   const trimmed = trimSpace(current);
+  if (/^[+-]?\d+$/.test(trimmed) && Number.isInteger(amount)) return addInteger(trimmed, amount);
   const sum = (decimal(trimmed) ?? 0) + amount;
-  const integerOverflow = /^[+-]?\d+$/.test(trimmed) && Math.abs(sum) >= 2 ** 63;
-  if (integerOverflow) return null;
   if (!Number.isFinite(sum)) return null;
   return fixedNumber(sum);
+}
+
+function addInteger(current: Text, amount: number): Text | null {
+  const value = integerValue(current);
+  if (value === null) return null;
+  return integerValue(String(value + BigInt(amount)))?.toString() ?? null;
 }
 
 function integerValue(value: Text): bigint | null {
@@ -389,7 +414,7 @@ function mathStep(params: Params, context: Context): ActionOutcome {
   const invalid = parser.failed || !Number.isFinite(value) || parser.peek() !== '';
   if (invalid) return failed('math_error');
   saveLocal(params, fixedNumber(value), context);
-  return parser.random ? { status: 'ok', detail: { random: '1' } } : ok();
+  return { status: 'ok', detail: { value: fixedNumber(value), ...(parser.random ? { random: '1' } : {}) } };
 }
 
 function httpStep(params: Params, context: Context): ActionOutcome {
@@ -440,8 +465,14 @@ function replyStep(params: Params, context: Context): ActionOutcome {
   return { status: 'ok', detail: { text: prefix + message } };
 }
 
+function targetStep(params: Params, context: Context): ActionOutcome {
+  const login = expand(params.login, context).trim().replace(/^@/, '').trim();
+  return login === '' ? failed('empty_login') : { status: 'ok', detail: { login } };
+}
+
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   reply: replyStep,
+  shoutout: targetStep, timeout: targetStep,
   var_set: (params, context) => writeVariable(params, context, 'set'),
   var_add: (params, context) => writeVariable(params, context, 'add'),
   var_delete: (params, context) => writeVariable(params, context, 'delete'),

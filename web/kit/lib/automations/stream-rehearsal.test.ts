@@ -10,6 +10,19 @@ type Text = string;
 const definition = (actions: Action[]): Definition => ({ version: 1, trigger: { type: 'command', params: { name: '!hello' } }, actions });
 
 test.each([
+  { type: 'shoutout', login: '{user}', user: '', missing: 'user' },
+  { type: 'timeout', login: '{user}', user: '', missing: 'user' },
+  { type: 'timeout', login: '{var:absent}', user: 'Lotti', missing: 'var:absent' },
+  { type: 'shoutout', login: '', user: 'Lotti', missing: '' },
+  { type: 'timeout', login: ' @ ', user: 'Lotti', missing: '' }
+])('$type refuses an empty expanded target $login', ({ type, login, user, missing }) => {
+  const def = definition([{ type, params: { login, seconds: 60 } }]);
+  const result = rehearseDefinition(def, { ...defaultScenario(def), user });
+  const event = result.events.at(-1);
+  expect([event?.status, event?.detail?.code, event?.detail?.missing]).toEqual(['failed', 'empty_login', missing]);
+});
+
+test.each([
   { type: 'shoutout', params: { login: '{user}' }, kind: 'effect', lines: undefined, detail: { type: 'shoutout', login: 'PrincessBarney' } },
   { type: 'announce', params: { text: 'Hi {user}!', color: 'green' }, kind: 'say', lines: ['Hi PrincessBarney!'], detail: { mode: 'announce', color: 'green' } },
   { type: 'reply', params: { text: 'Hi {user}!' }, kind: 'say', lines: ['@PrincessBarney Hi PrincessBarney!'], detail: {} },

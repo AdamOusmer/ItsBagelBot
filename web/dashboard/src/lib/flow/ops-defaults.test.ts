@@ -17,7 +17,7 @@ const at = { x: 0, y: 0 };
 const prefills = {
   'reply.shoutout': { target: '{user}' },
   'reply.announce': { text: 'Thanks {user}!', color: 'primary' },
-  'reply.reply': { text: 'Thanks {user}!' },
+  'reply.reply': { text: 'Thanks!' },
   'reply.timeout': { target: '{user}', seconds: 60 },
   'reply.wait': { seconds: 5 },
   'cond.cooldown': { seconds: 30 },
@@ -82,4 +82,26 @@ test.each(Object.entries({ en, de, es, fr, 'pt-br': pt, ru }))('editor uses the 
   addNode(flow, 'twitch.follow', at);
   const { node } = addStep(flow, { type: 'reply.chat', at, placement: { kind: 'canvas' }, chatMessage: catalog.defaultChatMessage });
   expect(node.config.message).toBe(catalog.defaultChatMessage);
+});
+
+test.each(['twitch.chat.command', 'twitch.chat.word', 'twitch.raid', 'twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'])(
+  'new action defaults follow the %s trigger', (type) => {
+    const flow = newFlow('Targets');
+    addNode(flow, type, at);
+    const viewer = ['twitch.chat.command', 'twitch.chat.word', 'twitch.raid'].includes(type);
+    const target = type === 'twitch.chat.command' ? '{touser}' : viewer ? '{user}' : '';
+    const configs = ['reply.shoutout', 'reply.timeout', 'reply.announce', 'reply.reply'].map((type) => addStep(flow, {
+      type, at, placement: { kind: 'canvas' }, chatMessage: en.defaultChatMessage, plainMessage: en.defaultPlainMessage
+    }).node.config);
+    expect(configs).toEqual([{ target }, { target, seconds: 60 }, { text: viewer ? en.defaultChatMessage : en.defaultPlainMessage, color: 'primary' }, { text: en.defaultPlainMessage }]);
+  }
+);
+
+test.each(Object.entries({ en, de, es, fr, 'pt-br': pt, ru }))('plain action defaults use %s', (_locale, catalog) => {
+  const flow = newFlow('Plain');
+  addNode(flow, 'twitch.stream.offline', at);
+  const messages = ['reply.announce', 'reply.reply'].map((type) => addStep(flow, {
+    type, at, placement: { kind: 'canvas' }, chatMessage: catalog.defaultChatMessage, plainMessage: catalog.defaultPlainMessage
+  }).node.config.text);
+  expect(messages).toEqual([catalog.defaultPlainMessage, catalog.defaultPlainMessage]);
 });

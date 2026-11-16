@@ -63,6 +63,7 @@
 
   const node = $derived(flow.nodes.find((n) => n.id === selectedId));
   const spec = $derived(node ? specFor(node.type) : undefined);
+  const targetMissing = $derived(['reply.shoutout', 'reply.timeout'].includes(node?.type ?? '') && !String(node?.config.target ?? '').trim());
 
   const compareExample = $derived.by(() => {
     if (node?.type !== 'cond.compare') return null;
@@ -272,9 +273,13 @@
                 {/key}
               </Field>
             {:else if field.type === 'template' && field.singleLine}
-              <Field {label} for="{uid}-{field.key}">
+              {@const needsTarget = targetMissing && field.key === 'target'}
+              <Field {label} for="{uid}-{field.key}" error={needsTarget ? t('flows.test.noTarget') : undefined} errorId="{uid}-{field.key}-error">
                 <Input
                   id="{uid}-{field.key}"
+                  required={field.key === 'target'}
+                  aria-invalid={needsTarget || undefined}
+                  aria-describedby={needsTarget ? `${uid}-${field.key}-error` : undefined}
                   {placeholder}
                   value={textOf(field.key)}
                   oninput={(e) => {

@@ -1,5 +1,6 @@
 {
   "defaultChatMessage": "Valeu {user}!",
+  "defaultPlainMessage": "Valeu!",
   "boardLabel": "Quadro do fluxo",
   "stepTools": "Ferramentas de etapas",
   "start": "Início",

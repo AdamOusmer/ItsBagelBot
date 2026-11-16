@@ -35,13 +35,13 @@ export function fitBox(box: Box, frame: Frame, zoom: ZoomRange): View {
   };
 }
 
-export function revealBox(view: View, box: Box, frame: Frame, readableZoom: number): View {
+export function revealBox(view: View, box: Box, frame: Frame, zoom: ZoomRange & { readable: number }): View {
   const { width, height, inset } = frame;
   const roomW = width - inset.left - inset.right;
   const roomH = height - inset.top - inset.bottom;
   const boxW = box.x1 - box.x0;
   const boxH = box.y1 - box.y0;
-  const k = Math.min(Math.max(view.k, readableZoom), roomW / boxW, roomH / boxH);
+  const k = clamp(Math.min(Math.max(view.k, zoom.readable), roomW / boxW, roomH / boxH), zoom.min, zoom.max);
   const left = view.x + box.x0 * k;
   const top = view.y + box.y0 * k;
   const inside =

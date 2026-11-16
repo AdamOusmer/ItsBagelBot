@@ -1,5 +1,6 @@
 {
   "defaultChatMessage": "Спасибо, {user}!",
+  "defaultPlainMessage": "Спасибо!",
   "boardLabel": "Доска потока",
   "stepTools": "Инструменты шага",
   "start": "Старт",

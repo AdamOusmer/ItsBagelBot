@@ -231,7 +231,7 @@
     if (!host) return;
     if (!n || !room) return;
     const box = { x0: n.x, y0: n.y, x1: n.x + NODE_W + ADD_ROOM, y1: n.y + nodeHeight(specFor(n.type)) };
-    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: room }, READABLE_ZOOM);
+    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: room }, { min: minZoom(), max: MAX_ZOOM, readable: READABLE_ZOOM });
     if (target !== view) glideTo(target);
   }
 
@@ -707,7 +707,7 @@
       return;
     }
     const box = { x0: n.x, y0: n.y, x1: n.x + NODE_W + ADD_ROOM, y1: n.y + nodeHeight(specFor(n.type)) };
-    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: { ...KEY_INSET, right: KEY_INSET.right + room } }, view.k);
+    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: { ...KEY_INSET, right: KEY_INSET.right + room } }, { min: minZoom(), max: MAX_ZOOM, readable: view.k });
     if (target !== view) view = target;
   }
 

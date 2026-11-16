@@ -94,7 +94,7 @@
     "multipleTriggers": "A recipe can only start one way. Remove the extra When step.",
     "cycle": "This step loops back on itself. Remove one of the connections.",
     "unconnectedNode": "This step is not connected to the start. Connect it or remove it.",
-    "unstructuredMerge": "Two paths join here in a way that cannot be saved. Give each path its own steps.",
+    "unstructuredMerge": "A path with a Wait cannot join back into another path. Move the Wait after the join or give each path its own steps.",
     "unsupportedNode": "This step cannot be saved yet.",
     "unsupportedTrigger": "This start cannot be saved yet.",
     "unsupportedCondition": "This check cannot be saved yet.",

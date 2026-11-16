@@ -9,15 +9,12 @@ export type Placement =
   | { kind: 'port'; from: string; port: string; mode: 'insert' | 'parallel' }
   | { kind: 'edge'; edgeId: string };
 
-export type InsertRequest = { type: string; at: { x: number; y: number }; placement: Placement; chatMessage?: string };
+export type InsertRequest = { type: string; at: { x: number; y: number }; placement: Placement; chatMessage?: string; plainMessage?: string };
 type NodeType = FlowNode['type'];
 type NodeId = FlowNode['id'];
 
 const NODE_PREFILLS: Record<NodeType, FlowNode['config']> = {
-  'reply.shoutout': { target: '{user}' },
-  'reply.announce': { text: '{user}' },
-  'reply.reply': { text: '{user}' },
-  'reply.timeout': { target: '{user}', seconds: 60 },
+  'reply.timeout': { seconds: 60 },
   'reply.wait': { seconds: 5 },
   'cond.cooldown': { seconds: 30 },
   'cond.chance': { percent: 50 }
@@ -39,23 +36,33 @@ function fieldDefaults(field: FieldSpec): [string, string | boolean][] {
   return [];
 }
 
-function hasViewer(flow: Flow): boolean {
-  const trigger = flow.nodes.find(isTrigger);
-  const spec = trigger && specFor(trigger.type);
+function hasViewer(trigger: NodeType | undefined): boolean {
+  const spec = specFor(trigger ?? '');
   return spec?.provides?.some((variable) => variable.token === '{user}') ?? false;
 }
 
-function defaultConfig(flow: Flow, type: NodeType, chatMessage = ''): FlowNode['config'] {
-  const defaults = specFor(type)?.fields.flatMap(fieldDefaults) ?? [];
-  const config = { ...Object.fromEntries(defaults), ...NODE_PREFILLS[type] };
-  if (type === 'reply.chat') config.message = hasViewer(flow) ? chatMessage : '';
-  if (['reply.announce', 'reply.reply'].includes(type) && chatMessage) config.text = chatMessage;
-  return config;
+function triggerDefaults(trigger: NodeType | undefined, request: Pick<InsertRequest, 'chatMessage' | 'plainMessage'>): Record<NodeType, FlowNode['config']> {
+  const viewer = hasViewer(trigger);
+  const target = trigger === 'twitch.chat.command' ? '{touser}' : viewer ? '{user}' : '';
+  const plain = request.plainMessage ?? 'Thanks!';
+  const message = viewer ? request.chatMessage ?? '{user}' : plain;
+  return {
+    'reply.shoutout': { target }, 'reply.timeout': { target },
+    'reply.announce': { text: message }, 'reply.reply': { text: plain },
+    'reply.chat': { message: viewer ? request.chatMessage ?? '' : '' }
+  };
 }
 
-function createNode(flow: Flow, request: Pick<InsertRequest, 'type' | 'at' | 'chatMessage'>): FlowNode {
-  const { type, at, chatMessage } = request;
-  const node: FlowNode = { id: uniqueId('n', flow.nodes), type, x: at.x, y: at.y, config: defaultConfig(flow, type, chatMessage) };
+function defaultConfig(flow: Flow, request: Pick<InsertRequest, 'type' | 'chatMessage' | 'plainMessage'>): FlowNode['config'] {
+  const { type } = request;
+  const defaults = specFor(type)?.fields.flatMap(fieldDefaults) ?? [];
+  const trigger = flow.nodes.find(isTrigger)?.type;
+  return { ...Object.fromEntries(defaults), ...NODE_PREFILLS[type], ...triggerDefaults(trigger, request)[type] };
+}
+
+function createNode(flow: Flow, request: Pick<InsertRequest, 'type' | 'at' | 'chatMessage' | 'plainMessage'>): FlowNode {
+  const { type, at } = request;
+  const node: FlowNode = { id: uniqueId('n', flow.nodes), type, x: at.x, y: at.y, config: defaultConfig(flow, request) };
   flow.nodes.push(node);
   return node;
 }
@@ -133,7 +140,7 @@ export function replaceTrigger(flow: Flow, type: NodeType): FlowNode {
   const node = flow.nodes.find(isTrigger);
   if (!node) return addNode(flow, type, { x: 0, y: 0 });
   node.type = type;
-  node.config = defaultConfig(flow, type);
+  node.config = defaultConfig(flow, { type });
   return node;
 }
 

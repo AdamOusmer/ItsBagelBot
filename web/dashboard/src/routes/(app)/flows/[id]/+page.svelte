@@ -26,6 +26,7 @@
   import { keyboardSize, panelInsets } from '#lib/flow/editor-viewport';
   import { newFlow, specFor, type Flow } from '#lib/flow/model';
   import { rehearseFlow } from '#lib/flow/rehearse';
+  import { scenarioPatches } from '@bagel/kit/automations';
   import type { RehearsalScenario } from '#lib/flow/rehearse';
   import { flowRouteId, parseFlowRouteId } from '#lib/flow/ref';
   import type { SaveReply, ToggleReply } from '#lib/flow/replies';
@@ -94,6 +95,7 @@
   let leftPanelEl = $state<HTMLDivElement>();
   let rightPanelEl = $state<HTMLDivElement>();
   let sheetMode = $state(false);
+  let wideBoard = $state(false);
   let inspecting = $state(false);
   let inspectFocus = $state(0);
   let libFocus = $state(0);
@@ -106,7 +108,7 @@
   let canRedo = $state(false);
   let deletionToast: { id: number; entry: object | null } | null = null;
   const dirty = $derived(contentOf(flow) !== baseline);
-  const inspectorVisible = $derived(Boolean(selectedId && inspecting && (!testRunOpen || !sheetMode)));
+  const inspectorVisible = $derived(Boolean(selectedId && inspecting && (!testRunOpen || wideBoard)));
   const panelRoom = $derived.by(() => {
     if (testRunOpen && inspectorVisible) return PANEL_ROOM * 2;
     return inspectorVisible || testRunOpen || recipeOpen ? PANEL_ROOM : 0;
@@ -119,8 +121,14 @@
   }
 
   function changeScenario(patch: Partial<RehearsalScenario>) {
-    scenario = { ...rehearsal.scenario, ...patch };
+    scenario = { ...scenario, ...patch };
   }
+
+  $effect(() => {
+    const trigger = flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
+    const kind = `${trigger?.type}:${trigger?.config.variant ?? ''}`;
+    if (kind) untrack(() => { scenario = scenarioPatches(rehearsal.fields, scenario); });
+  });
 
   $effect(() => {
     edits.sync(flow);
@@ -196,6 +204,10 @@
 
   onMount(() => {
     const query = matchMedia(SHEET_QUERY);
+    const wide = matchMedia('(min-width: 1280px)');
+    const onWidth = () => { wideBoard = wide.matches; };
+    onWidth();
+    wide.addEventListener('change', onWidth);
     const onQuery = () => {
       sheetMode = query.matches;
       if (!sheetMode) for (const name of ['--stage-kb', '--stage-vvh', '--stage-sheet-h', '--stage-board-left']) editorEl?.style.removeProperty(name);
@@ -207,6 +219,7 @@
     visualViewport?.addEventListener('resize', syncViewport);
     visualViewport?.addEventListener('scroll', syncViewport);
     return () => {
+      wide.removeEventListener('change', onWidth);
       query.removeEventListener('change', onQuery);
       visualViewport?.removeEventListener('resize', syncViewport);
       visualViewport?.removeEventListener('scroll', syncViewport);
@@ -281,7 +294,7 @@
 
   function dismissPanel(): boolean {
     if (libMode) closeLibrary(true);
-    else if (inspecting && selectedId) closeInspector();
+    else if (inspectorVisible) closeInspector();
     else if (testRunOpen) closeTestRun(true);
     else if (recipeOpen) closeRecipe(true);
     else return false;
@@ -354,7 +367,8 @@
       type,
       at: selectedAddPoint(flow, selectedId),
       placement: selectedPlacement(flow, selectedId),
-      chatMessage: t('flows.board.defaultChatMessage')
+      chatMessage: t('flows.board.defaultChatMessage'),
+      plainMessage: t('flows.board.defaultPlainMessage')
     });
     if (sheetMode || specFor(type)?.kind === 'trigger') libMode = null;
     openSettings(node.id);
@@ -368,7 +382,7 @@
   }
 
   function rightPanelDismiss(): void {
-    if (selectedId && inspecting) selectedId = null;
+    if (inspectorVisible) selectedId = null;
     else if (testRunOpen) closeTestRun();
     else if (recipeOpen) closeRecipe();
   }
@@ -646,7 +660,7 @@
   {topEnd}
   {rail}
   leftPanel={libMode ? leftPanel : undefined}
-  rightPanel={(selectedId && inspecting) || testRunOpen || recipeOpen ? rightPanel : undefined}
+  rightPanel={inspectorVisible || testRunOpen || recipeOpen ? rightPanel : undefined}
   onboardpointerdown={onBoardPointerDown}
   children={boardChildren}
 />

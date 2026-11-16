@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
+import * as automations from '@bagel/kit/automations';
 import { english } from './english.testing';
 import type { Flow, FlowNode } from './model';
 import { rehearseFlow, setStoredValue, type RehearsalOptions } from './rehearse';
@@ -33,7 +34,7 @@ test.each([
 test.each([
   { name: 'missing trigger', flow: flowOf([say], []), text: 'Add a When step', node: null },
   { name: 'cycle', flow: flowOf([trigger, say], [e('t', 'next', 's'), e('s', 'next', 's')]), text: 'loop', node: 's' },
-  { name: 'paused merge', flow: flowOf([trigger, wait, left, right, join], [e('t', 'next', 'w'), e('t', 'next', 'b'), e('w', 'next', 'a'), e('a', 'next', 'j'), e('b', 'next', 'j')]), text: 'Two paths join here', node: 'j' }
+  { name: 'paused merge', flow: flowOf([trigger, wait, left, right, join], [e('t', 'next', 'w'), e('t', 'next', 'b'), e('w', 'next', 'a'), e('a', 'next', 'j'), e('b', 'next', 'j')]), text: 'A path with a Wait', node: 'j' }
 ])('structural error: $name', ({ flow, text, node }) => {
   const result = run(flow);
   expect([result.issue?.text.toLowerCase().includes(text.toLowerCase()), result.issue?.node, result.steps]).toEqual([true, node, []]);
@@ -90,6 +91,7 @@ test('stored input is shared with checks and chat in the executor', () => {
   const flow = flowOf([trigger, node, n('s', 'reply.chat', { message: '{var:score}' })], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const result = run(flow, { scenario: setStoredValue({}, node, '12') });
   expect(result.steps.at(-1)?.lines).toEqual(['12']);
+  expect(setStoredValue({ live: true, user: 'Sample' }, node, '12')).toEqual({ state: { channelVars: { score: '12' } } });
 });
 
 test('loop events have unique keys for repeated canvas nodes', () => {
@@ -116,4 +118,40 @@ test('draft tolerance leaves the edited flow untouched', () => {
 test('a changed event trigger does not reuse the prior chat message', () => {
   const result = run(flowOf([n('t', 'twitch.follow')], []), { scenario: { message: '!old' } });
   expect(result.steps[0]?.text).not.toBe('!old');
+});
+
+test.each([
+  { node: n('s', 'reply.chat', { message: '{random:1-10} {choice:a;b}' }), text: '', lines: ['1 a'], secondary: undefined },
+  { node: n('s', 'reply.math', { expression: 'random(1,9)', saveAs: 'score' }), text: '1', lines: undefined, secondary: 'random(1,9)' }
+])('samples and computed math values for $node.type', ({ node, text, lines, secondary }) => {
+  const step = run(flowOf([trigger, node], [e('t', 'next', 's')])).steps.at(-1);
+  expect<unknown>([step?.sample, step?.text, step?.lines, step?.secondary, step?.missing]).toEqual([true, text, lines, secondary, []]);
+});
+
+test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'])('stale viewer patches cannot affect %s', (type) => {
+  const result = run(flowOf([n('t', type, { name: 'timer' }), n('s', 'reply.points', { amount: 10 })], [e('t', 'next', 's')]), {
+    scenario: { user: 'Old', userId: '42', message: '!old', bits: 50 }
+  });
+  expect([result.scenario.user, result.scenario.message, result.scenario.bits]).toEqual([undefined, undefined, undefined]);
+});
+
+test.each([false, true])('permission warnings match Save with moderator check %s', (checked) => {
+  const check = n('c', 'cond.role', { level: 'mod' });
+  const timeout = n('s', 'reply.timeout', { target: '{touser}', seconds: 60 });
+  const flow = checked ? flowOf([trigger, check, timeout], [e('t', 'next', 'c'), e('c', 'yes', 's')]) : flowOf([trigger, timeout], [e('t', 'next', 's')]);
+  const compiled = automations.compileFlow(flow);
+  if (!compiled.ok) throw new Error(JSON.stringify(compiled.issues));
+  const warnings = run(flow).steps.filter((step) => step.detail?.code === 'perm_required');
+  const issues = automations.validateDefinition(compiled.value.definition).filter((issue) => issue.code === 'perm_required');
+  expect([warnings.length, warnings.map((step) => step.id)]).toEqual([issues.length, checked ? [] : ['s']]);
+});
+
+test('repeated failed checks verify each repair only once per run', () => {
+  const nodes = [trigger, n('outer', 'reply.loop', { times: '100' }), n('inner', 'reply.loop', { times: '100' }), n('c', 'cond.role', { level: 'mod' }), left, right];
+  const edges = [e('t', 'next', 'outer'), e('outer', 'body', 'inner'), e('inner', 'body', 'c'), e('c', 'yes', 'a'), e('c', 'no', 'b')];
+  const executor = spyOn(automations, 'rehearseDefinition');
+  const result = run(flowOf(nodes, edges));
+  const calls = executor.mock.calls.length;
+  executor.mockRestore();
+  expect([calls, result.steps.filter((step) => step.id === 'c').length > 100, result.steps.find((step) => step.id === 'c')?.repair]).toEqual([2, true, { role: 'mod' }]);
 });

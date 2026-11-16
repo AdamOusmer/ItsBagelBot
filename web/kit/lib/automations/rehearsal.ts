@@ -10,7 +10,8 @@ import type { Action, Condition, Definition } from './types';
 import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalResult, RehearsalScenario } from './rehearsal-types';
 
 export type * from './rehearsal-types';
-export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind } from './rehearsal-scenario';
+export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind, scenarioPatches } from './rehearsal-scenario';
+export { compactDuration } from './rehearsal-state';
 
 type Path = string;
 type Frame = { context: RehearsalContext; lane: number[]; iteration: number[]; delayMs: number; stopped: boolean };
@@ -26,7 +27,7 @@ function emit(run: Execution, frame: Frame, body: EventBody): void {
   run.events.push({ ...body, key: `${path}:${lane.join('.')}:${iteration.join('.')}:${run.events.length}`, path, lane, iteration, atMs });
 }
 
-function contextFor(definition: Definition, scenario: RehearsalScenario, overrides: RehearsalOverrides): RehearsalContext {
+function contextFor(definition: Definition, scenario: RehearsalScenario, overrides: RehearsalOverrides, formatDuration: RehearsalContext['formatDuration']): RehearsalContext {
   scenario = scenarioIdentity(definition, scenario);
   const args = scenarioArgs(definition, scenario);
   const kinds: Record<string, string> = { reward: 'channel.channel_points_custom_reward_redemption.add', countdown: 'countdown.finished' };
@@ -38,7 +39,7 @@ function contextFor(definition: Definition, scenario: RehearsalScenario, overrid
     ...scenario.values
   };
   addViewerValues(values, scenario, args);
-  return { scenario: { ...scenario, args, values }, state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0 };
+  return { scenario: { ...scenario, args, values }, state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0, formatDuration };
 }
 
 function addViewerValues(values: Record<string, string>, scenario: RehearsalScenario, args: Path): void {
@@ -165,9 +166,11 @@ function* wait(step: Step, run: Execution, frame: Frame): Generator<number, void
 
 function effect(step: Step, run: Execution, frame: Frame): void {
   const params = step.action.params ?? {};
-  const detail = Object.fromEntries(Object.entries(params).map(([key, value]) => [key, expandTemplate(String(value), frame.context).text]));
+  const expanded = Object.entries(params).map(([key, value]) => [key, expandTemplate(String(value), frame.context)] as const);
+  const detail = Object.fromEntries(expanded.map(([key, value]) => [key, value.text]));
+  const missing = [...new Set(expanded.flatMap(([, value]) => value.missing))].join(',');
   const outcome = applyAction(step.action, frame.context);
-  emit(run, frame, { kind: 'effect', ...outcome, detail: { type: step.action.type, ...detail, ...outcome.detail } });
+  emit(run, frame, { kind: 'effect', ...outcome, detail: { type: step.action.type, ...detail, missing, ...outcome.detail } });
 }
 
 function say(step: Step, run: Execution, frame: Frame): void {
@@ -206,10 +209,10 @@ function gates(definition: Definition, run: Execution, frame: Frame): boolean {
   });
 }
 
-export function rehearseDefinition(definition: Definition, scenario: RehearsalScenario, overrides: RehearsalOverrides = {}): RehearsalResult {
+export function rehearseDefinition(definition: Definition, scenario: RehearsalScenario, overrides: RehearsalOverrides = {}, formatDuration?: RehearsalContext['formatDuration']): RehearsalResult {
   const matched = matchTrigger(definition, scenario);
   if (!matched.starts) return { starts: false, reason: { reason: matched.reason, values: matched.values }, events: [] };
-  const context = contextFor(definition, scenario, overrides);
+  const context = contextFor(definition, scenario, overrides, formatDuration);
   const frame: Frame = { context, lane: [], iteration: [], delayMs: 0, stopped: false };
   const run: Execution = { events: [], pending: [], effects: 0, visits: 0 };
   emit(run, frame, { kind: 'trigger', status: 'ok' });

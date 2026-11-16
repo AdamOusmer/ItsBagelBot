@@ -3,7 +3,7 @@
 
 import { expect, test } from 'bun:test';
 import { compileFlow, type FlowNode } from './flow-graph';
-import { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioKind } from './rehearsal-scenario';
+import { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioKind, scenarioPatches } from './rehearsal-scenario';
 import { rehearseDefinition } from './rehearsal';
 import type { Definition, Trigger } from './types';
 import type { RehearsalScenario } from './rehearsal-types';
@@ -34,11 +34,17 @@ test.each<DefaultCase>([
 ])('default scenario for $type $config', ({ type, config, values }) => {
   const def = lowered(type, config);
   const scenario = defaultScenario(def);
-  expect(scenario).toMatchObject(values);
-  expect(matchTrigger(def, scenario)).toEqual({ starts: true });
+  expect({ scenario, match: matchTrigger(def, scenario) }).toMatchObject({ scenario: values, match: { starts: true } });
   expect(SCENARIO_FIELDS[scenarioKind(def)]).toContainEqual({ key: 'live', kind: 'toggle', default: true, more: true });
   const chat = type === 'twitch.chat.command' || type === 'twitch.chat.word';
   expect(SCENARIO_FIELDS[scenarioKind(def)]?.some((field) => field.key === 'role')).toBe(chat);
+});
+
+test.each(['twitch.stream.offline', 'twitch.stream.online', 'countdown.finished'])('changing trigger removes unavailable patches for %s', (kind) => {
+  const patch = { user: 'Old', userId: '42', role: 'mod' as const, message: '!old', bits: 50, state: { points: 5 } };
+  const next = scenarioPatches(SCENARIO_FIELDS[kind]!, patch);
+  const returned = scenarioPatches(SCENARIO_FIELDS['twitch.chat.command']!, next);
+  expect([next, returned]).toEqual([{ state: { points: 5 } }, { state: { points: 5 } }]);
 });
 
 type IdentityCase = { trigger: Trigger; scenario?: Partial<RehearsalScenario>; expected: string[]; level?: string };

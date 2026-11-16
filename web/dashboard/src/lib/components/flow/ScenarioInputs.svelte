@@ -3,7 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit';
   import type { RehearsalScenario, ScenarioField, ScenarioValue } from '#lib/flow/rehearse';
-  import { scenarioFieldLabel, scenarioRoleLabel } from '#lib/flow/rehearse';
+  import { scenarioInputLabel, scenarioRoleLabel } from '#lib/flow/rehearse';
   import Disclosure from '@bagel/ui/svelte/Disclosure.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
@@ -13,7 +13,7 @@
   let { fields, scenario, onChange }: { fields: readonly ScenarioField[]; scenario: RehearsalScenario; onChange: (patch: Partial<RehearsalScenario>) => void } = $props();
   const { t } = getI18n();
   const uid = $props.id();
-  const label = (key: ScenarioField['key']) => scenarioFieldLabel(t, key);
+  const label = (key: ScenarioField['key']) => scenarioInputLabel(t, key);
   const update = (field: ScenarioField, value: ScenarioValue) => onChange({ [field.key]: value });
   const options = (field: ScenarioField) => (field.options ?? []).map((value) => ({ value, label: field.kind === 'role' ? scenarioRoleLabel(t, value) : value.replace('000', '') }));
 </script>
@@ -40,13 +40,17 @@
 {/snippet}
 
 {@render inputs(fields.filter((field) => !field.more))}
-<Disclosure summary={t('flows.test.more')} size="sm">
-  {@render inputs(fields.filter((field) => field.more))}
-</Disclosure>
+<div class="more" class:invisible={!fields.some((field) => field.more)} inert={!fields.some((field) => field.more)}>
+  <Disclosure summary={t('flows.test.more')} size="sm">
+    {@render inputs(fields.filter((field) => field.more))}
+  </Disclosure>
+</div>
 
 <style>
   .inputs { display: flex; flex-wrap: wrap; gap: 12px; }
   .input { flex: 1 1 120px; min-width: 0; }
   .input.wide { flex-basis: 100%; }
   .toggle { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14px; }
+  .more { min-height: 32px; }
+  .invisible { visibility: hidden; }
 </style>
