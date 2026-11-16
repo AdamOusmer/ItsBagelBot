@@ -32,7 +32,7 @@ const MAX_NODES = 200;
 const MAX_EDGES = 400;
 const MAX_TEXT = 4096;
 
-export type EditorData = { routeId: string; ref: FlowRef | null; revision: string | null; name: string; flow: Flow | null };
+export type EditorData = { routeId: string; ref: FlowRef | null; revision: string | null; name: string; flow: Flow | null; issues?: Issue[] };
 
 export type Lowered = { request: SaveRequest; flow: Flow; definition: Definition; preview: string | undefined };
 
@@ -200,5 +200,5 @@ export async function liveEditor(locals: App.Locals, routeId: string): Promise<E
   if (!ref || !stored) return null;
   const drawn = definitionToFlow(stored.definition, { id: routeId, name: stored.name, enabled: stored.enabled });
   if (drawn.ok) await Promise.all([attachLogins(drawn.value.nodes), attachChoiceNames(effectiveId(locals.session), drawn.value.nodes)]);
-  return { routeId, ref, revision: stored.revision, name: stored.name, flow: drawn.ok ? drawn.value : null };
+  return { routeId, ref, revision: stored.revision, name: stored.name, flow: drawn.ok ? drawn.value : null, issues: drawn.ok ? [] : drawn.issues };
 }

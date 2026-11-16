@@ -1,0 +1,7 @@
+{
+  "title": "Rezeptvorlagen",
+  "open": "Rezept verwenden",
+  "hug": { "title": "Umarmungsbefehl", "body": "Sende mit !hug eine Umarmung.", "message": "{user} umarmt {touser} ganz herzlich." },
+  "follow": { "title": "Follower begrüßen", "body": "Begrüße neue Follower im Chat.", "message": "Willkommen im Stream, {user}!" },
+  "sub": { "title": "Abonnenten danken", "body": "Danke neuen Abonnenten im Chat.", "message": "Danke für dein Abo, {user}!" }
+}

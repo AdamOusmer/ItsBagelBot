@@ -24,8 +24,8 @@ describe('save refusals', () => {
     }
   });
 
-  test('a code the editor does not know still says which one', () => {
-    expect(issueMessage(t, { path: 'actions[0]', code: 'brand_new' })).toBe('flows.issue.generic {"code":"brand_new"}');
+  test.each(['brand_new', 'constructor'])('unknown code %s uses a plain fallback', (code) => {
+    expect(issueMessage(t, { path: 'actions[0]', code })).toBe('flows.issue.generic');
   });
 
   test('a code named like an object member is not looked up as one', () => {

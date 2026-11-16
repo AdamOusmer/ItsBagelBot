@@ -1,0 +1,7 @@
+{
+  "title": "Recetas de inicio",
+  "open": "Usar esta receta",
+  "hug": { "title": "Comando de abrazo", "body": "Envía un abrazo con !hug.", "message": "{user} le da un gran abrazo a {touser}." },
+  "follow": { "title": "Saluda a seguidores", "body": "Saluda a cada nuevo seguidor en el chat.", "message": "¡Te damos la bienvenida al stream, {user}!" },
+  "sub": { "title": "Agradece los subs", "body": "Agradece cada nueva suscripción en el chat.", "message": "¡Gracias por la suscripción, {user}!" }
+}

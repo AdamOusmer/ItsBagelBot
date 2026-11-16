@@ -10,12 +10,12 @@
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import { unavailable, withSaved, type ChoiceList, type ChoiceOption, type ChoiceProblem, type ChoiceSource } from '#lib/flow/choices';
+  import { unavailable, withDraftNames, withSaved, type ChoiceList, type ChoiceOption, type ChoiceProblem, type ChoiceSource } from '#lib/flow/choices';
   import type { FieldSpec, FlowNode } from '#lib/flow/model';
   import { configText } from '#lib/flow/setup';
   import { isSetupValue } from '@bagel/kit/automations';
 
-  let { node, field, id, label }: { node: FlowNode; field: Extract<FieldSpec, { type: 'choice' }>; id: string; label: string } = $props();
+  let { node, field, id, label, tag, error, draft = [] }: { node: FlowNode; field: Extract<FieldSpec, { type: 'choice' }>; id: string; label: string; tag?: string; error?: string; draft?: FlowNode[] } = $props();
 
   const { t } = getI18n();
 
@@ -100,17 +100,18 @@
   }
 </script>
 
-<Field {label} for={id}>
+<Field {label} {tag} {error} errorId="{id}-error" for={id}>
   {#if list === null}
     <Text size="sm" tone="muted">{t('flows.choose.light')}</Text>
     {#if value}<Select {id} options={[{ value, label: savedName || value }]} {value} disabled />{/if}
   {:else}
     {#await list}
       <div class="row"><Spinner /><Text size="sm" tone="muted">{t('flows.choiceLoading')}</Text></div>
-    {:then result}
+    {:then loaded}
+      {@const result = withDraftNames(loaded, field.source, draft)}
       {@const options = withSaved(result, value, savedName)}
       {#if options.length}
-        <Select {id} {options} {value} placeholder={chooseText(field.source)} onchange={(e) => choose(options, e.currentTarget.value)} />
+        <Select {id} {options} {value} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} placeholder={chooseText(field.source)} onchange={(e) => choose(options, e.currentTarget.value)} />
       {/if}
       {#if result.problem}
         <Text size="sm" tone="muted">{problemText(field.source, result.problem)}</Text>
@@ -119,6 +120,7 @@
         {/if}
       {:else if result.options.length === 0}
         <Text size="sm" tone="muted">{emptyText(field.source)}</Text>
+        <Button variant="ghost" busy={refreshing} onclick={retry}>{t('flows.choiceRetry')}</Button>
       {:else if value && !result.options.some((option) => option.value === value)}
         <Text size="sm" tone="muted">{missingText(field.source, savedName || value)}</Text>
       {/if}
