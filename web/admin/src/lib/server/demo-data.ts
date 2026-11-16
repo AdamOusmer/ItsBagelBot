@@ -15,6 +15,7 @@ import type {
 } from './services';
 import type { AdminIdentity } from './access';
 import type { AnalyticsReads } from '#lib/analytics-page';
+import type { DonationsReply } from '#lib/donations-view';
 import { isoWeek, type AnalyticsRow } from '#lib/analytics-view';
 import type { FeedEvent } from './feed';
 import type { LaneView } from './lanes';
@@ -874,5 +875,24 @@ export function demoAnalytics(days = 30): AnalyticsReads {
     month: demoMonthRows(end),
     cohortWeeks: demoCohortRows(cohortDays, end),
     cohortDays
+  };
+}
+
+export function demoDonations(days = 30): DonationsReply {
+  const scale = Math.max(1, Math.round(days / 30));
+  const month = (back: number) => new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - back, 1)).toISOString().slice(0, 7);
+  return {
+    totals: [
+      { currency: 'USD', gross_cents: 18_500 * scale, payments: 31 * scale, recurring_cents: 9_000 * scale, recurring_payments: 18 * scale, first_subscriptions: 4 * scale, previous_gross_cents: 15_200 * scale, previous_payments: 27 * scale },
+      { currency: 'EUR', gross_cents: 2_500 * scale, payments: 4 * scale, recurring_cents: 0, recurring_payments: 0, first_subscriptions: 0, previous_gross_cents: 0, previous_payments: 0 }
+    ],
+    months: Array.from({ length: 12 }, (_, back) => ({ month: month(back), currency: 'USD', gross_cents: 17_000 + back * 350, payments: 28 + back })),
+    kinds: [
+      { kind: 'donation', payments: 15 * scale },
+      { kind: 'subscription', payments: 18 * scale },
+      { kind: 'commission', payments: 0 },
+      { kind: 'shop_order', payments: 2 * scale }
+    ],
+    last_payment_at: new Date(Date.now() - DEMO_DAY_MS).toISOString()
   };
 }

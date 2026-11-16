@@ -48,5 +48,8 @@
   "providers": "Aufrufe im Zeitraum. Der Fehleranteil umfasst alle nicht erfolgreichen Ergebnisse.",
   "songs": "Anfrageergebnisse im Zeitraum. Erfolg bedeutet, dass der Titel eingereiht wurde.",
   "blocked": "Blockierungen als Anteil an Befehlsnutzungen plus Blockierungen im Zeitraum.",
-  "delegating": "Konten mit mindestens einem Beauftragten und ihr Anteil an allen Konten im neuesten Tagesstand."
+  "delegating": "Konten mit mindestens einem Beauftragten und ihr Anteil an allen Konten im neuesten Tagesstand.",
+  "donations": "Ko-fi-Bruttozahlungen im Zeitraum nach Währung, mit wiederkehrendem Anteil und dem vorherigen gleich langen Zeitraum. Beträge vor Gebühren von Ko-fi und Zahlungsanbieter.",
+  "donationMonths": "Ko-fi-Bruttozahlungen pro Kalendermonat in den letzten 12 Monaten, nur abgeschlossene UTC-Tage.",
+  "donationKinds": "Ko-fi-Zahlungen im Zeitraum nach Art."
 }

@@ -48,5 +48,8 @@
   "providers": "Provider calls",
   "songs": "Song request outcomes",
   "blocked": "Blocked commands by reason",
-  "delegating": "Accounts with delegates"
+  "delegating": "Accounts with delegates",
+  "donations": "Ko-fi payments by currency",
+  "donationMonths": "Ko-fi revenue by month",
+  "donationKinds": "Ko-fi payments by type"
 }

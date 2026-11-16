@@ -68,5 +68,14 @@
   "errorShare": "Error share",
   "auth": "Authorization",
   "exhausted": "Retries exhausted",
-  "chat_dropped": "Chat dropped"
+  "chat_dropped": "Chat dropped",
+  "currency": "Currency",
+  "gross": "Gross",
+  "payments": "Payments",
+  "average": "Average",
+  "recurring": "Recurring",
+  "recurringShare": "Recurring share",
+  "previousGross": "Previous window",
+  "grossChange": "Change",
+  "month": "Month"
 }

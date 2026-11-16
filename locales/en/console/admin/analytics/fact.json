@@ -28,5 +28,7 @@
   "recipeChannelsWeek": "Recipe channels, last full week",
   "songSuccess": "Song request success share",
   "delegating": "Accounts with delegates",
-  "delegatingShare": "Share of accounts with delegates"
+  "delegatingShare": "Share of accounts with delegates",
+  "newSubscribers": "New Ko-fi members",
+  "lastDonation": "Latest Ko-fi payment"
 }

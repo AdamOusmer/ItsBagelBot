@@ -28,5 +28,7 @@
   "recipeChannelsWeek": "Каналы с рецептами за последнюю полную неделю",
   "songSuccess": "Доля успешных запросов песен",
   "delegating": "Аккаунты с делегатами",
-  "delegatingShare": "Доля аккаунтов с делегатами"
+  "delegatingShare": "Доля аккаунтов с делегатами",
+  "newSubscribers": "Новые участники Ko-fi",
+  "lastDonation": "Последний платёж Ko-fi"
 }

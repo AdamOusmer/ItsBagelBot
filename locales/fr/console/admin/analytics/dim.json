@@ -1,4 +1,10 @@
 {
+  "donation": {
+    "donation": "Don",
+    "subscription": "Adhésion",
+    "commission": "Commande personnalisée",
+    "shop_order": "Commande boutique"
+  },
   "size": {
     "v0_9": "De 0 à 9 spectateurs",
     "v10_49": "De 10 à 49 spectateurs",

@@ -385,6 +385,32 @@ var (
 			},
 		},
 	}
+	// KofiDonationsColumns holds the columns for the "kofi_donations" table.
+	KofiDonationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 64},
+		{Name: "message_id", Type: field.TypeString, Size: 64},
+		{Name: "kind", Type: field.TypeEnum, Enums: []string{"donation", "subscription", "commission", "shop_order"}},
+		{Name: "amount_cents", Type: field.TypeInt64},
+		{Name: "currency", Type: field.TypeString, Size: 3},
+		{Name: "subscription_payment", Type: field.TypeBool, Default: false},
+		{Name: "first_subscription_payment", Type: field.TypeBool, Default: false},
+		{Name: "tier_name", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "occurred_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime"}},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// KofiDonationsTable holds the schema information for the "kofi_donations" table.
+	KofiDonationsTable = &schema.Table{
+		Name:       "kofi_donations",
+		Columns:    KofiDonationsColumns,
+		PrimaryKey: []*schema.Column{KofiDonationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "kofidonation_occurred_at",
+				Unique:  false,
+				Columns: []*schema.Column{KofiDonationsColumns[8]},
+			},
+		},
+	}
 	// TebexAgreementsColumns holds the columns for the "tebex_agreements" table.
 	TebexAgreementsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -478,6 +504,7 @@ var (
 		GiveawayInclusionsTable,
 		GiveawayOutboxesTable,
 		GiveawayUserLeasesTable,
+		KofiDonationsTable,
 		TebexAgreementsTable,
 		TebexWebhookEventsTable,
 	}

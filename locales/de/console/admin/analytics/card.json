@@ -48,5 +48,8 @@
   "providers": "Anbieteraufrufe",
   "songs": "Ergebnisse der Musikwünsche",
   "blocked": "Blockierte Befehle nach Grund",
-  "delegating": "Konten mit Beauftragten"
+  "delegating": "Konten mit Beauftragten",
+  "donations": "Ko-fi-Zahlungen nach Währung",
+  "donationMonths": "Ko-fi-Umsatz pro Monat",
+  "donationKinds": "Ko-fi-Zahlungen nach Art"
 }

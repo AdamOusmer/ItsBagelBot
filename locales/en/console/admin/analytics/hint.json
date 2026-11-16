@@ -48,5 +48,8 @@
   "providers": "Calls over the window. Error share includes every result other than success.",
   "songs": "Request outcomes over the window. Success means the song was queued.",
   "blocked": "Blocked events as a share of command uses plus blocked events over the window.",
-  "delegating": "Accounts with at least one delegate and their share of all accounts in the latest daily snapshot."
+  "delegating": "Accounts with at least one delegate and their share of all accounts in the latest daily snapshot.",
+  "donations": "Gross Ko-fi payments in the window by currency, with the recurring share and the previous window of equal length. Amounts are before Ko-fi and payment processor fees.",
+  "donationMonths": "Gross Ko-fi payments per calendar month over the last 12 months, closed UTC days only.",
+  "donationKinds": "Ko-fi payments in the window by type."
 }

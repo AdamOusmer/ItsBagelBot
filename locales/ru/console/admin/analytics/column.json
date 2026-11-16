@@ -68,5 +68,14 @@
   "errorShare": "Доля ошибок",
   "auth": "Авторизация",
   "exhausted": "Попытки исчерпаны",
-  "chat_dropped": "Чат отброшен"
+  "chat_dropped": "Чат отброшен",
+  "currency": "Валюта",
+  "gross": "Валовая сумма",
+  "payments": "Платежи",
+  "average": "Среднее",
+  "recurring": "Регулярные",
+  "recurringShare": "Доля регулярных",
+  "previousGross": "Предыдущий период",
+  "grossChange": "Изменение",
+  "month": "Месяц"
 }

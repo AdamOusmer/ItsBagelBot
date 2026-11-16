@@ -48,5 +48,8 @@
   "providers": "Chamadas no período. A taxa de erro inclui todos os resultados sem sucesso.",
   "songs": "Resultados no período. Sucesso significa que a música entrou na fila.",
   "blocked": "Bloqueios como proporção dos usos de comandos mais bloqueios no período.",
-  "delegating": "Contas com ao menos um delegado e sua proporção do total no último retrato diário."
+  "delegating": "Contas com ao menos um delegado e sua proporção do total no último retrato diário.",
+  "donations": "Pagamentos brutos do Ko-fi no período por moeda, com a proporção recorrente e o período anterior de mesma duração. Valores antes das taxas do Ko-fi e do processador de pagamento.",
+  "donationMonths": "Pagamentos brutos do Ko-fi por mês do calendário nos últimos 12 meses, apenas dias UTC fechados.",
+  "donationKinds": "Pagamentos do Ko-fi no período por tipo."
 }

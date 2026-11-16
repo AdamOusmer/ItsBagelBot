@@ -8,6 +8,10 @@ import { allows } from '#lib/server/access';
 import { analyticsSeries, type AnalyticsWindow } from '#lib/server/services';
 import { ANALYTICS_LIVE, ANALYTICS_WINDOWS, DEFAULT_ANALYTICS_WINDOW, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
 import { currentDay, type AnalyticsRow } from '#lib/analytics-view';
+import { buildDonations, type DonationsView } from '#lib/donations-view';
+import { donationsSummary } from '#lib/server/donations';
+
+type AnalyticsBundle = { view: AnalyticsView; donations: DonationsView; degraded: boolean };
 
 const DEMO = dev && process.env.DEMO === '1';
 const COHORT_DAYS = 120;
@@ -72,8 +76,19 @@ export const load: PageServerLoad = async ({ parent, url, depends }) => {
   const reads = DEMO
     ? import('#lib/server/demo-data').then(({ demoAnalytics }) => demoAnalytics(days))
     : read(layout.id, days);
-  const bundle: Promise<{ view: AnalyticsView; degraded: boolean }> = reads
+  const ledger = DEMO
+    ? import('#lib/server/demo-data').then(({ demoDonations }) => demoDonations(days))
+    : donationsSummary(layout.id, days);
+  const analytics = reads
     .then((r) => ({ view: buildAnalytics(r), degraded: false }))
     .catch(() => ({ view: buildAnalytics(emptyReads(days)), degraded: true }));
+  const donations = ledger
+    .then((reply) => ({ view: buildDonations(reply), degraded: false }))
+    .catch(() => ({ view: buildDonations({}), degraded: true }));
+  const bundle: Promise<AnalyticsBundle> = Promise.all([analytics, donations]).then(([a, d]) => ({
+    view: a.view,
+    donations: d.view,
+    degraded: a.degraded || d.degraded
+  }));
   return { days: days as number, defaultDays: DEFAULT_ANALYTICS_WINDOW, windows: [...ANALYTICS_WINDOWS] as number[], bundle };
 };

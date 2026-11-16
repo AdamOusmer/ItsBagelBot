@@ -39,6 +39,9 @@ type GiveawayOutbox func(*sql.Selector)
 // GiveawayUserLease is the predicate function for giveawayuserlease builders.
 type GiveawayUserLease func(*sql.Selector)
 
+// KofiDonation is the predicate function for kofidonation builders.
+type KofiDonation func(*sql.Selector)
+
 // TebexAgreement is the predicate function for tebexagreement builders.
 type TebexAgreement func(*sql.Selector)
 

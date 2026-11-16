@@ -1,4 +1,10 @@
 {
+  "donation": {
+    "donation": "Donation",
+    "subscription": "Membership",
+    "commission": "Commission",
+    "shop_order": "Shop order"
+  },
   "size": {
     "v0_9": "0 to 9 viewers",
     "v10_49": "10 to 49 viewers",

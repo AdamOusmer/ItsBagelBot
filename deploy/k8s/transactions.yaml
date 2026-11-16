@@ -209,7 +209,7 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))
+    - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`) || PathPrefix(`/kofi`) || PathPrefix(`/webhooks/kofi`))
       kind: Rule
       middlewares: [{name: strip-client-ip}]
       services:

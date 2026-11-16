@@ -34,6 +34,8 @@ type Tx struct {
 	GiveawayOutbox *GiveawayOutboxClient
 	// GiveawayUserLease is the client for interacting with the GiveawayUserLease builders.
 	GiveawayUserLease *GiveawayUserLeaseClient
+	// KofiDonation is the client for interacting with the KofiDonation builders.
+	KofiDonation *KofiDonationClient
 	// TebexAgreement is the client for interacting with the TebexAgreement builders.
 	TebexAgreement *TebexAgreementClient
 	// TebexWebhookEvents is the client for interacting with the TebexWebhookEvents builders.
@@ -180,6 +182,7 @@ func (tx *Tx) init() {
 	tx.GiveawayInclusion = NewGiveawayInclusionClient(tx.config)
 	tx.GiveawayOutbox = NewGiveawayOutboxClient(tx.config)
 	tx.GiveawayUserLease = NewGiveawayUserLeaseClient(tx.config)
+	tx.KofiDonation = NewKofiDonationClient(tx.config)
 	tx.TebexAgreement = NewTebexAgreementClient(tx.config)
 	tx.TebexWebhookEvents = NewTebexWebhookEventsClient(tx.config)
 }

@@ -68,5 +68,14 @@
   "errorShare": "Fehleranteil",
   "auth": "Berechtigung",
   "exhausted": "Versuche erschöpft",
-  "chat_dropped": "Chat verworfen"
+  "chat_dropped": "Chat verworfen",
+  "currency": "Währung",
+  "gross": "Brutto",
+  "payments": "Zahlungen",
+  "average": "Durchschnitt",
+  "recurring": "Wiederkehrend",
+  "recurringShare": "Wiederkehrender Anteil",
+  "previousGross": "Vorheriger Zeitraum",
+  "grossChange": "Veränderung",
+  "month": "Monat"
 }

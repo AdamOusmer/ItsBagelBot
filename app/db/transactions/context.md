@@ -7,7 +7,8 @@ and [app map](../../../CONTEXT-MAP.md), especially Premium versus Tebex subscrip
 
 Owns verified Tebex webhook audit records, checkout coordination and the durable
 giveaway workflow in the MySQL schema selected by `DB_SCHEMA`. Tebex is merchant of record; this app
-does not hold the payment ledger. Users owns billing/access application, account
+does not hold the Tebex payment ledger. It does keep a Ko-fi payment ledger (amount, currency,
+type, time; no donor name, email or message) for admin revenue analytics. Users owns billing/access application, account
 eligibility and promotional Premium grants. This service reaches Users through
 RPC and never opens Users' database. Notifications stores in-app notices; Resend
 delivers emails through the app's mail adapter.
@@ -51,6 +52,8 @@ delivers emails through the app's mail adapter.
 | [giveaway/billing.go](giveaway/billing.go), [reconcile.go](giveaway/reconcile.go) | Billing intent and provider reconciliation evidence/alerts. |
 | [giveaway/engine_email.go](giveaway/engine_email.go), [mail/](mail/) | Durable award emails, prepared messages and provider delivery/templates. |
 | [tebex/](tebex/) | Headless basket APIs and separate checkout/recurring provider adapters. |
+| [kofi/](kofi/), [web/kofi.go](web/kofi.go) | Ko-fi webhook parse/token check, ledger window summary and the `/kofi` handler. |
+| [repository/donations.go](repository/donations.go), [rpc/donations.go](rpc/donations.go) | Ko-fi ledger rows and admin-only `rpc.admin.premium.donations` summary. |
 | [giveaways.go](giveaways.go) | Runtime adapters and billing-event-to-award incident alerts. |
 | [ent/schema/](ent/schema/) | Webhook, campaign, candidate, inclusion, draw, award, plan, lease, outbox, email, agreement and alert entities. |
 
@@ -66,6 +69,9 @@ and [billing](../../../internal/domain/rpc/billing/). Other Ent files are genera
 - Accepted billing events synchronously call Users. Application failure makes
   Tebex retry; webhook audit records can update for the same event identity.
   Gift notification failures are best-effort after entitlement application.
+- HTTP POST `/kofi` or `/webhooks/kofi` takes Ko-fi's form `data` JSON, checks
+  `KOFI_VERIFICATION_TOKEN` and stores one row per `kofi_transaction_id`; redeliveries
+  are no-ops and Ko-fi's settings-page test id is acknowledged without a row.
 - Default checkout prefix `rpc.transactions` exposes `.basket_create`.
   Missing webstore token/package ID disables checkout while webhook handling runs.
 - Giveaway preview/freeze obtains the full authoritative Users pool. Draw persists

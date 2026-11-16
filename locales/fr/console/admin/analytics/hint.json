@@ -48,5 +48,8 @@
   "providers": "Appels sur la période. Le taux d’erreur inclut tout résultat autre qu’une réussite.",
   "songs": "Résultats sur la période. Une réussite signifie que le titre a été ajouté à la file.",
   "blocked": "Blocages rapportés aux utilisations de commandes et aux blocages sur la période.",
-  "delegating": "Comptes avec au moins un délégataire et leur part de tous les comptes au dernier relevé quotidien."
+  "delegating": "Comptes avec au moins un délégataire et leur part de tous les comptes au dernier relevé quotidien.",
+  "donations": "Paiements Ko-fi bruts sur la période par devise, avec la part récurrente et la période précédente de même durée. Montants avant les frais de Ko-fi et du prestataire de paiement.",
+  "donationMonths": "Paiements Ko-fi bruts par mois civil sur les 12 derniers mois, jours UTC clos uniquement.",
+  "donationKinds": "Paiements Ko-fi sur la période par type."
 }
