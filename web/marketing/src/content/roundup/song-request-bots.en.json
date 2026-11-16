@@ -1,0 +1,205 @@
+{
+  "meta": {
+    "title": "Twitch Song Request Bots Compared: Spotify vs YouTube",
+    "description": "Which Twitch bots queue Spotify and which take YouTube requests? Eight song request bots compared on music source, playback and price, with sources."
+  },
+  "hero": {
+    "eyebrow": "Song request bots",
+    "title": "Twitch song request bots compared",
+    "lead": "Song request bots on Twitch come in two kinds. Some add tracks to your own Spotify queue. The others take YouTube or SoundCloud requests. This table shows which bot does which, with the vendor pages it is based on."
+  },
+  "reviewed": "2026-11-16",
+  "table": {
+    "eyebrow": "Side by side",
+    "title": "Eight bots, one table",
+    "columns": {
+      "bot": "Bot",
+      "music": "Music source",
+      "plays": "How requests play",
+      "price": "Price for song requests",
+      "source": "Source"
+    },
+    "sourceLink": "Source",
+    "rows": [
+      {
+        "id": "itsbagelbot",
+        "music": "Spotify",
+        "plays": "!sr adds the track to your own Spotify queue. Needs Spotify Premium and your own Spotify developer app.",
+        "price": "Free. The queue holds 100 songs.",
+        "source": "https://itsbagelbot.com/song-requests/"
+      },
+      {
+        "id": "spotchbot",
+        "music": "Spotify",
+        "plays": "!sr searches Spotify and adds the best match to the queue. Needs Spotify Premium and your own Spotify developer app.",
+        "price": "Free plan holds up to 6 queued songs. Pro is listed at $4.99 per month.",
+        "source": "https://spotchbot.com/docs/commands"
+      },
+      {
+        "id": "nightbot",
+        "music": "YouTube, SoundCloud",
+        "plays": "Requests play in Nightbot's media player, with queue limits and a fallback playlist.",
+        "price": "Free, per the developer's support statement.",
+        "source": "https://docs.nightbot.tv/control-panel/song-requests"
+      },
+      {
+        "id": "streamelements",
+        "music": "YouTube",
+        "plays": "Media Request uses its own player, with approval queues, skip voting and backup playlists.",
+        "price": "The chatbot is advertised as free.",
+        "source": "https://docs.streamelements.com/chatbot/modules/songrequest"
+      },
+      {
+        "id": "fossabot",
+        "music": "YouTube, SoundCloud",
+        "plays": "!sr accepts YouTube searches and links or SoundCloud links, with an optional approval queue.",
+        "price": "The official site describes it as free.",
+        "source": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+      },
+      {
+        "id": "moobot",
+        "music": "YouTube",
+        "plays": "Requests play through Moobot's song player, with a secondary playlist when requests run out.",
+        "price": "Core functionality is free; paid plans add slots and perks.",
+        "source": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+      },
+      {
+        "id": "streamlabs-chatbot",
+        "music": "YouTube",
+        "plays": "The manual describes YouTube playlists, viewer requests, currency costs and skip voting.",
+        "price": "The linked official pages do not establish a current price for the desktop app.",
+        "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+      },
+      {
+        "id": "wizebot",
+        "music": "YouTube",
+        "plays": "!sr accepts song names, YouTube URLs or video IDs. Chat commands manage the playlist.",
+        "price": "The official homepage describes a free cloud service.",
+        "source": "https://support.wizebot.tv/docs/commands"
+      }
+    ]
+  },
+  "picks": {
+    "eyebrow": "Choosing",
+    "title": "Pick by what your stream needs",
+    "items": [
+      {
+        "name": "Spotify queue",
+        "desc": "ItsBagelBot and SpotchBot add requests to your own Spotify queue. Both need Spotify Premium."
+      },
+      {
+        "name": "No Premium",
+        "desc": "Nightbot, StreamElements, Fossabot, Moobot and WizeBot take YouTube requests, so Spotify Premium is not involved."
+      },
+      {
+        "name": "Long free queue",
+        "desc": "ItsBagelBot's free plan queues 100 songs. SpotchBot's free plan holds up to 6."
+      },
+      {
+        "name": "One bot for chat",
+        "desc": "ItsBagelBot pairs Spotify requests with custom commands, timers, loyalty points, giveaways and game stats."
+      },
+      {
+        "name": "Web requests",
+        "desc": "SpotchBot gives viewers a web page with live Spotify search, plus an OBS overlay for the queue."
+      },
+      {
+        "name": "Video requests",
+        "desc": "StreamElements and Nightbot play requested YouTube videos in their own media player."
+      }
+    ]
+  },
+  "faqTitle": "Song request questions",
+  "faq": [
+    {
+      "q": "Which Twitch bots support Spotify song requests?",
+      "a": "ItsBagelBot and SpotchBot add viewer requests to the streamer's own Spotify queue. Nightbot, StreamElements, Fossabot, Moobot, Streamlabs Chatbot and WizeBot document YouTube or SoundCloud requests instead."
+    },
+    {
+      "q": "Can Nightbot take Spotify song requests?",
+      "a": "Nightbot's documentation lists YouTube and SoundCloud as its song request sources. To queue Spotify tracks from chat, use a bot built on Spotify's queue. Reference: https://docs.nightbot.tv/control-panel/song-requests."
+    },
+    {
+      "q": "Can StreamElements take Spotify song requests?",
+      "a": "The StreamElements Media Request documentation specifies YouTube. It does not list a Spotify integration. Reference: https://docs.streamelements.com/chatbot/modules/songrequest."
+    },
+    {
+      "q": "Is there a free Spotify song request bot for Twitch?",
+      "a": "ItsBagelBot includes Spotify song requests in its free plan, with a queue of 100 songs. SpotchBot has a free plan that holds up to 6 queued songs. Both need Spotify Premium, which Spotify requires for queue control."
+    },
+    {
+      "q": "Do I need Spotify Premium for song requests?",
+      "a": "For Spotify requests, yes. Spotify only lets apps control the queue on Premium accounts. Bots that take YouTube or SoundCloud requests do not involve Spotify Premium."
+    },
+    {
+      "q": "How do viewers request a song?",
+      "a": "On several bots, viewers type !sr followed by a song name or a link. Some bots also accept Twitch Channel Points rewards. ItsBagelBot accepts a song name, artist and title in either order, or a Spotify link."
+    }
+  ],
+  "sources": [
+    {
+      "label": "ItsBagelBot: Spotify song requests",
+      "url": "https://itsbagelbot.com/song-requests/"
+    },
+    {
+      "label": "SpotchBot: chat commands",
+      "url": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "label": "SpotchBot: Free and Pro feature table and prices",
+      "url": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "label": "SpotchBot: Spotify requirements",
+      "url": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "label": "Nightbot: YouTube and SoundCloud song requests",
+      "url": "https://docs.nightbot.tv/control-panel/song-requests"
+    },
+    {
+      "label": "Nightbot: developer statement on the free service",
+      "url": "https://community.nightdev.com/t/messages-command/1534655926634549409"
+    },
+    {
+      "label": "StreamElements: Media Request module",
+      "url": "https://docs.streamelements.com/chatbot/modules/songrequest"
+    },
+    {
+      "label": "StreamElements: official site",
+      "url": "https://streamelements.com/"
+    },
+    {
+      "label": "Fossabot: requesting songs",
+      "url": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+    },
+    {
+      "label": "Fossabot: official site",
+      "url": "https://fossabot.com/"
+    },
+    {
+      "label": "Moobot: song requests",
+      "url": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+    },
+    {
+      "label": "Moobot: plans",
+      "url": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
+    },
+    {
+      "label": "Streamlabs Chatbot: Twitch documentation",
+      "url": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "label": "Streamlabs: Cloudbot page",
+      "url": "https://streamlabs.com/cloudbot"
+    },
+    {
+      "label": "WizeBot: commands",
+      "url": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "label": "WizeBot: official homepage",
+      "url": "https://wizebot.tv/en/index"
+    }
+  ]
+}

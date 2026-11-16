@@ -5,6 +5,7 @@ import { dashboardHref, localeFlag } from '@bagel/kit/site-links';
 import { flatCatalogs, type FlatTree } from '@bagel/kit/i18n/flat';
 import { guideLocalizedPaths } from '../lib/guides/slugs';
 import { compareLocales, compareLocalizedPaths } from '../lib/compare/slugs';
+import { roundupPath } from '../lib/compare/roundup';
 import { defaultLang, type Lang } from './lang';
 export { defaultLang, type Lang };
 
@@ -43,11 +44,11 @@ export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   ...guideLocalizedPaths, '/guides/variables', '/command-builder', '/changelog', '/song-requests',
   '/valorant-stats', '/fortnite-stats', '/hypixel-bedwars-stats', '/mcsr-ranked-stats', '/clash-royale-stats', '/codm-stats',
   '/giveaways', '/loyalty-points', '/death-counter', '/timers', '/viewer-queue',
-  '/import', '/govee', '/green-hosting', ...changelogLocalizedPaths, ...compareLocalizedPaths,
+  '/import', '/govee', '/green-hosting', ...changelogLocalizedPaths, ...compareLocalizedPaths, roundupPath,
 ]);
 
 const PATH_LOCALES: ReadonlyMap<string, readonly Lang[]> = new Map(
-  compareLocalizedPaths.map((path) => [path, compareLocales]),
+  [...compareLocalizedPaths, roundupPath].map((path) => [path, compareLocales]),
 );
 
 export function langParam(lang: Lang): Lang | undefined {

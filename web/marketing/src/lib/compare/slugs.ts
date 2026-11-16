@@ -3,7 +3,7 @@
 
 import { COMPARE_LOCALES } from '@bagel/kit/site-links';
 
-export const compareSlugs = ['nightbot', 'streamelements', 'fossabot', 'moobot', 'streamlabs-chatbot', 'wizebot'] as const;
+export const compareSlugs = ['nightbot', 'streamelements', 'fossabot', 'moobot', 'streamlabs-chatbot', 'wizebot', 'spotchbot'] as const;
 
 export type CompareSlug = (typeof compareSlugs)[number];
 
@@ -16,6 +16,7 @@ export const competitorNames: Record<CompareSlug, string> = {
   moobot: 'Moobot',
   'streamlabs-chatbot': 'Streamlabs Chatbot',
   wizebot: 'WizeBot',
+  spotchbot: 'SpotchBot',
 };
 
 export const compareLocalizedPaths: string[] = compareSlugs.map((slug) => `/vs/${slug}`);

@@ -38,5 +38,6 @@
   "relMcsr": "Stats de MCSR Ranked",
   "relClashRoyale": "Stats de Clash Royale",
   "relCodm": "Stats de CODM",
-  "relCompare": "Comparativas de bots"
+  "relCompare": "Comparativas de bots",
+  "relSongBots": "Bots de peticiones comparados"
 }

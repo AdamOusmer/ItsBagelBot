@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs SpotchBot | Bots de pedidos do Spotify",
+    "description": "Compare pedidos do Spotify na Twitch: tamanho da fila grátis, busca, pontos do canal e preço. Veja quando o SpotchBot serve e quando o ItsBagelBot serve."
+  },
+  "hero": {
+    "eyebrow": "Comparativo de bots de música",
+    "title": "ItsBagelBot vs SpotchBot",
+    "lead": "Procurando uma alternativa ao SpotchBot? Os dois bots adicionam os pedidos dos espectadores à sua própria fila do Spotify, e os dois exigem Spotify Premium. A diferença está no tamanho da fila grátis, em quem pode entrar e no que mais o bot faz pelo seu chat."
+  },
+  "reviewed": "2026-11-16",
+  "suits": {
+    "us": [
+      "Você quer uma fila de pedidos longa no plano gratuito: a fila comporta 100 músicas.",
+      "Você quer um só bot para pedidos de música, comandos personalizados, timers, pontos de fidelidade, sorteios e estatísticas de jogos.",
+      "Seu canal é novo ou pequeno. Você entra com a Twitch e começa; não há mínimo de seguidores.",
+      "Você quer uma busca cuidadosa: artista e título em qualquer ordem, e uma recusa quando nada bate."
+    ],
+    "them": [
+      "Você quer que os espectadores busquem e peçam músicas em uma página web com resultados ao vivo. Referência: https://spotchbot.com/docs/streamer-page.",
+      "Você quer uma fonte de navegador no OBS que mostre a música atual e a fila. Referência: https://spotchbot.com/docs/overlay.",
+      "Você quer votação para pular ou uma duração máxima de música. Referência: https://spotchbot.com/docs/settings.",
+      "Você quer chaves de Song Battle ou uma playlist da comunidade. Referência: https://spotchbot.com/docs/pro."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Fonte da música",
+      "us": "Spotify. O !sr adiciona a faixa à sua própria fila do Spotify, e ela toca no seu dispositivo ativo.",
+      "them": "Spotify. A reprodução é controlada pelas credenciais do app do Spotify do próprio streamer.",
+      "source": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "feature": "O que você precisa",
+      "us": "Spotify Premium, seu próprio app criado no painel de desenvolvedores do Spotify e o Spotify tocando em um dispositivo.",
+      "them": "Spotify Premium e as credenciais do seu próprio app de desenvolvedor do Spotify (Client ID e Secret).",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Quem pode entrar",
+      "us": "Qualquer canal da Twitch. Entre com a Twitch e ative os Pedidos de música.",
+      "them": "Um beta aberto com vagas limitadas. Novas vagas exigem pelo menos 100 seguidores na Twitch, e a vaga é retomada após 30 dias sem transmitir, a menos que o canal tenha Pro.",
+      "source": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "feature": "Tamanho da fila grátis",
+      "us": "A fila comporta 100 músicas no plano gratuito.",
+      "them": "O plano gratuito comporta até 6 músicas na fila. O Pro é listado como ilimitado.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Limites por espectador",
+      "us": "Limites separados para todos, inscritos, VIPs e moderadores. Um limite em branco significa ilimitado.",
+      "them": "Uma configuração de máximo por usuário e um cooldown, ambos desligados por padrão. DJs designados ficam isentos.",
+      "source": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "feature": "Busca de músicas",
+      "us": "Entende \"song by artist\" e \"artist - song\", confere título e artista no Spotify e recusa quando nada bate.",
+      "them": "O !sr busca no Spotify e adiciona o resultado mais próximo à fila, ou aceita um link de música do Spotify.",
+      "source": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "feature": "Pontos do Canal da Twitch",
+      "us": "Uma recompensa nativa coloca uma música na fila. Um pedido que não pode entrar na fila é reembolsado, e o chat é avisado do motivo.",
+      "them": "As recompensas podem pedir uma música, pular uma música ou votar para pular. Recompensas gerenciadas pelo bot devolvem os pontos quando um pedido falha.",
+      "source": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "feature": "Ferramentas de moderação",
+      "us": "!skip, !clear e !remove com a posição na fila pelo chat, além da fila ao vivo no painel.",
+      "them": "Comandos de chat e um painel web onde moderadores removem, reordenam e pulam músicas.",
+      "source": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "feature": "Página pública da fila",
+      "us": "Uma página ao vivo por canal em queue.itsbagelbot.com/sr/ mostra a faixa atual e os próximos pedidos. Ela serve só para ver.",
+      "them": "Uma página por canal em spotchbot.com/s/ incorpora a transmissão, mostra a fila e aceita pedidos por uma busca ao vivo após login com a Twitch.",
+      "source": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "feature": "Overlay no OBS",
+      "us": "Sem overlay. !current e !srlist respondem no chat, e a página pública da fila mostra a mesma lista.",
+      "them": "Uma fonte de navegador transparente mostra a música atual e os próximos da fila.",
+      "source": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "feature": "Bloqueios e acesso",
+      "us": "Níveis de permissão e cotas decidem quem pode pedir. Não há lista de bloqueio de músicas ou artistas.",
+      "them": "Os pedidos podem ser limitados a grupos como inscritos. Bloquear usuários é grátis; bloquear músicas, álbuns e artistas exige Pro.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Além dos pedidos de música",
+      "us": "Comandos personalizados, timers, pontos de fidelidade, sorteios, fila de espectadores, estatísticas de jogos e importação de seis outros bots.",
+      "them": "Focado em pedidos de música, com chaves de Song Battle, uma playlist da comunidade e análises de pedidos.",
+      "source": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "feature": "Preço",
+      "us": "Todo recurso finalizado é gratuito, incluindo os pedidos de música. O Premium custa $7 CAD mais impostos por mês e adiciona processamento prioritário, suporte e acesso antecipado a módulos beta.",
+      "them": "Um plano gratuito com os limites acima e um teste do Pro de 7 dias. O Pro é listado a $4.99 por mês, $12.99 por três meses ou $39.99 por ano.",
+      "source": "https://spotchbot.com/docs/pro"
+    }
+  ],
+  "migrate": {
+    "title": "Leve seus pedidos de música para o ItsBagelBot",
+    "path": "/guides/spotify-song-requests",
+    "steps": [
+      "Entre no ItsBagelBot com a Twitch e abra Pedidos de música no painel.",
+      "Adicione o Client ID e o secret do seu app do Spotify. O app que você já criou funciona: adicione a URI de redirecionamento que o painel mostra e depois conecte sua conta do Spotify.",
+      "Defina quem pode pedir e os limites por espectador. Ative o !sr, a recompensa de pontos do canal ou os dois.",
+      "Teste o !sr no chat e depois desative os pedidos de música no bot antigo para que o chat receba uma só resposta."
+    ],
+    "cta": "Leia o guia de configuração do Spotify"
+  },
+  "faq": [
+    {
+      "q": "O ItsBagelBot é uma alternativa gratuita ao SpotchBot?",
+      "a": "Os pedidos de música fazem parte do plano gratuito do ItsBagelBot, com uma fila de 100 músicas. O Spotify Premium continua necessário, como em qualquer bot que controla uma fila do Spotify."
+    },
+    {
+      "q": "Os dois bots exigem Spotify Premium?",
+      "a": "Sim. O Spotify só permite que apps controlem a fila em contas Premium. Os dois bots também pedem que você crie seu próprio app no painel de desenvolvedores do Spotify."
+    },
+    {
+      "q": "Quando devo continuar com o SpotchBot?",
+      "a": "Continue se você depende da página web de pedidos, do overlay da fila no OBS, da votação para pular, do Song Battle ou da playlist da comunidade. O ItsBagelBot não oferece esses recursos."
+    },
+    {
+      "q": "Um canal com menos de 100 seguidores pode usar pedidos de música do Spotify?",
+      "a": "O ItsBagelBot não tem mínimo de seguidores: entre com a Twitch e configure. A documentação do SpotchBot diz que novas vagas no beta exigem pelo menos 100 seguidores na Twitch. Referência: https://spotchbot.com/docs/troubleshooting."
+    },
+    {
+      "q": "Quantas músicas cabem na fila grátis?",
+      "a": "O plano gratuito do ItsBagelBot coloca 100 músicas na fila. A tabela de planos do SpotchBot lista até 6 músicas no Free e ilimitado no Pro. Referência: https://spotchbot.com/docs/pro."
+    },
+    {
+      "q": "Posso usar os dois bots ao mesmo tempo?",
+      "a": "Os dois respondem ao !sr por padrão, então um pedido receberia duas respostas e poderia entrar na fila duas vezes. Teste um bot por vez e desative o !sr no outro enquanto isso."
+    }
+  ],
+  "sources": [
+    {
+      "label": "SpotchBot: configuração do app do Spotify",
+      "url": "https://spotchbot.com/docs/spotify-setup"
+    },
+    {
+      "label": "SpotchBot: configurações e limites por usuário",
+      "url": "https://spotchbot.com/docs/settings"
+    },
+    {
+      "label": "SpotchBot: tabela de recursos Free e Pro e preços",
+      "url": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "label": "SpotchBot: comandos de chat",
+      "url": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "label": "SpotchBot: recompensas de Pontos do Canal",
+      "url": "https://spotchbot.com/docs/channel-points"
+    },
+    {
+      "label": "SpotchBot: painel de moderadores",
+      "url": "https://spotchbot.com/docs/moderators"
+    },
+    {
+      "label": "SpotchBot: página do streamer",
+      "url": "https://spotchbot.com/docs/streamer-page"
+    },
+    {
+      "label": "SpotchBot: overlay da fila no OBS",
+      "url": "https://spotchbot.com/docs/overlay"
+    },
+    {
+      "label": "SpotchBot: requisitos, vagas no beta e seguidores",
+      "url": "https://spotchbot.com/docs/troubleshooting"
+    }
+  ]
+}
