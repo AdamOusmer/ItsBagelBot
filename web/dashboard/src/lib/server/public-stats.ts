@@ -17,6 +17,7 @@ const COUNTERS = [COUNTER_MESSAGES, COUNTER_EVENTS] as const;
 const SAMPLE_MS = 1000;
 const PUBLIC_RATE_NOW_SECONDS = 10;
 const RATE_MIN_SPAN_MS = 5000;
+const WARMUP_CAP_MS = 8000;
 
 export interface PublicStats {
   messages_total: string;
@@ -36,6 +37,8 @@ const sampleAverage = exactRateWindow(RATE_AVG_SECONDS * 1000, RATE_MIN_SPAN_MS)
 let latest: PublicStats | null = null;
 let inflight: Promise<void> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
+let startedAt: number | null = null;
+let warmed = DEMO;
 
 function degradedStats(): PublicStats {
   return {
@@ -76,6 +79,7 @@ function sample(): Promise<void> {
   inflight ??= loadStats()
     .then((stats) => {
       latest = stats;
+      if (!stats.degraded && stats.msg_rate_now !== null) warmed = true;
     })
     .catch(() => {
       latest = degradedStats();
@@ -89,9 +93,17 @@ function sample(): Promise<void> {
 export function startPublicStats(): void {
   if (DEMO) return;
   if (timer) return;
+  startedAt = Date.now();
   void sample();
   timer = setInterval(() => void sample(), SAMPLE_MS);
   timer.unref?.();
+}
+
+export function publicStatsWarm(): boolean {
+  if (warmed) return true;
+  if (startedAt === null) return false;
+  warmed = Date.now() - startedAt >= WARMUP_CAP_MS;
+  return warmed;
 }
 
 export async function publicStats(): Promise<PublicStats> {
