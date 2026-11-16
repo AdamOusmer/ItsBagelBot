@@ -97,6 +97,7 @@ func (r *Recorder) Reconcile(ctx context.Context, o Owner) {
 }
 
 func (r *Recorder) reconcile(ctx context.Context, o Owner) error {
+	r.Flush(ctx)
 	totals, err := o.Seed(ctx)
 	if err != nil {
 		return err

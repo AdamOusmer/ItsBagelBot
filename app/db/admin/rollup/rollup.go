@@ -50,6 +50,14 @@ func (r *Rollup) Run(ctx context.Context, now time.Time) (int, error) {
 }
 
 func (r *Rollup) run(ctx context.Context, now time.Time) (int, error) {
+	snapshot := pkgvalkey.KeyCopy{
+		Source:      catalog.LevelKey,
+		Destination: catalog.LevelSnapshotKey(now),
+		ExpireAt:    catalog.DataExpiry(catalog.Day, now),
+	}
+	if err := snapshot.Replace(ctx, r.vc); err != nil {
+		return 0, err
+	}
 	written := 0
 	for _, p := range closedPeriods(now) {
 		n, err := r.fold(ctx, p, now)
@@ -135,13 +143,11 @@ func (r *Rollup) collect(ctx context.Context, p period, now time.Time) ([]reposi
 		return nil, nil, err
 	}
 	rows := append(distinctRows, counters...)
-	if catalog.Period(catalog.Day, p.at) == catalog.Period(catalog.Day, now.AddDate(0, 0, -1)) {
-		levels, err := r.levels(ctx, p)
-		if err != nil {
-			return nil, nil, err
-		}
-		rows = append(rows, levels...)
+	levels, err := r.levels(ctx, p, now)
+	if err != nil {
+		return nil, nil, err
 	}
+	rows = append(rows, levels...)
 	return rows, append(keys, catalog.CounterKey(p.at)), nil
 }
 
@@ -186,8 +192,15 @@ func rowsOf(p period, fields map[string]int64) []repository.AnalyticsRow {
 	return rows
 }
 
-func (r *Rollup) levels(ctx context.Context, p period) ([]repository.AnalyticsRow, error) {
-	rows, err := r.hash(ctx, p, catalog.LevelKey)
+func (r *Rollup) levels(ctx context.Context, p period, now time.Time) ([]repository.AnalyticsRow, error) {
+	fields, err := pkgvalkey.HashAllInts(ctx, r.vc, catalog.LevelSnapshotKey(p.at))
+	if err != nil {
+		return nil, err
+	}
+	if len(fields) == 0 && catalog.Period(catalog.Day, p.at) == catalog.Period(catalog.Day, now.AddDate(0, 0, -1)) {
+		fields, err = pkgvalkey.HashAllInts(ctx, r.vc, catalog.LevelKey)
+	}
+	rows := rowsOf(p, fields)
 	for i := range rows {
 		rows[i].Value = max(rows[i].Value, 0)
 	}

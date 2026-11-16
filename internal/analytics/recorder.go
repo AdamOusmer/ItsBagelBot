@@ -46,6 +46,11 @@ type saltRef struct {
 	period string
 }
 
+type saltResult struct {
+	value []byte
+	err   error
+}
+
 // Recorder buffers aggregate analytics in process and flushes them to Valkey.
 // Channel ids reach Valkey only as salted HMACs inside sets, so counts are exact.
 // A nil Recorder records nothing.
@@ -60,9 +65,6 @@ type Recorder struct {
 	distincts map[distinctSet]map[uint64]struct{}
 	levels    map[string]int64
 	ids       int
-
-	saltMu sync.Mutex
-	salts  map[saltRef][]byte
 
 	done chan struct{}
 	kick chan struct{}
@@ -85,7 +87,6 @@ func New(client valkey.Client, log *zap.Logger, registered map[catalog.Kind][]st
 		counts:    map[slot]int64{},
 		distincts: map[distinctSet]map[uint64]struct{}{},
 		levels:    map[string]int64{},
-		salts:     map[saltRef][]byte{},
 		done:      make(chan struct{}),
 		kick:      make(chan struct{}, 1),
 	}
@@ -248,8 +249,9 @@ func (r *Recorder) counterCmds(counts map[slot]int64) valkey.Commands {
 func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]map[uint64]struct{}) valkey.Commands {
 	cmds := make(valkey.Commands, 0, 2*len(distincts))
 	expiries := map[string]time.Time{}
+	salts := map[saltRef]saltResult{}
 	for s, ids := range distincts {
-		salt, err := r.salt(ctx, s.window, s.at)
+		salt, err := r.flushSalt(ctx, s, salts)
 		if err != nil {
 			r.log.Debug("analytics salt unavailable", zap.Error(err))
 			continue
@@ -288,13 +290,17 @@ func (r *Recorder) expireCmds(expiries map[string]time.Time) valkey.Commands {
 	return cmds
 }
 
-func (r *Recorder) salt(ctx context.Context, w catalog.Window, at time.Time) ([]byte, error) {
-	ref := saltRef{window: w, period: catalog.Period(w, at)}
-	r.saltMu.Lock()
-	defer r.saltMu.Unlock()
-	if salt, ok := r.salts[ref]; ok {
-		return salt, nil
+func (r *Recorder) flushSalt(ctx context.Context, s distinctSet, salts map[saltRef]saltResult) ([]byte, error) {
+	ref := saltRef{window: s.window, period: catalog.Period(s.window, s.at)}
+	result, ok := salts[ref]
+	if !ok {
+		result.value, result.err = r.salt(ctx, s.window, s.at)
+		salts[ref] = result
 	}
+	return result.value, result.err
+}
+
+func (r *Recorder) salt(ctx context.Context, w catalog.Window, at time.Time) ([]byte, error) {
 	fresh := make([]byte, saltBytes)
 	if _, err := rand.Read(fresh); err != nil {
 		return nil, err
@@ -309,12 +315,6 @@ func (r *Recorder) salt(ctx context.Context, w catalog.Window, at time.Time) ([]
 	case err != nil:
 		return nil, err
 	}
-	for stale := range r.salts {
-		if stale.window == w && stale.period != ref.period {
-			delete(r.salts, stale)
-		}
-	}
-	r.salts[ref] = existing
 	return existing, nil
 }
 

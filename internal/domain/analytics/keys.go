@@ -76,6 +76,8 @@ func windowCode(w Window) string {
 
 func CounterKey(day time.Time) string { return keyPrefix + "c:" + Period(Day, day) }
 
+func LevelSnapshotKey(day time.Time) string { return keyPrefix + "lvls:" + Period(Day, day) }
+
 const (
 	setTag = "s"
 	hllTag = "h"
