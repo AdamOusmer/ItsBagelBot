@@ -45,7 +45,14 @@ func TestKofiWebhook(t *testing.T) {
 		"rejects a wrong token":       {token: "tok", body: kofiBody("bad", "t-1"), status: http.StatusUnauthorized},
 		"refuses when unconfigured":   {body: kofiBody("", "t-1"), status: http.StatusServiceUnavailable},
 		"rejects a malformed payload": {token: "tok", body: "data=%7B", status: http.StatusBadRequest},
-		"acks the settings test":      {token: "tok", body: kofiBody("tok", "00000000-1111-2222-3333-444444444444"), status: http.StatusOK},
+		"rejects an invalid amount": {
+			token: "tok", body: strings.Replace(kofiBody("tok", "t-1"), "3.00", "3.001", 1), status: http.StatusBadRequest,
+		},
+		"acks an unsupported type": {
+			token: "tok", body: strings.Replace(kofiBody("tok", "t-1"), "Donation", "Refund", 1), status: http.StatusOK,
+		},
+		"rejects an oversized body": {token: "tok", body: "data=" + strings.Repeat("a", maxBodyBytes), status: http.StatusRequestEntityTooLarge},
+		"acks the settings test":    {token: "tok", body: kofiBody("tok", "00000000-1111-2222-3333-444444444444"), status: http.StatusOK},
 		"asks for a retry on save failure": {
 			token: "tok", body: kofiBody("tok", "t-2"), err: errors.New("db down"), status: http.StatusInternalServerError, saved: []string{"t-2"},
 		},

@@ -11,7 +11,10 @@ import (
 	transactionsrpc "ItsBagelBot/internal/domain/rpc/transactions"
 )
 
-const TrailingMonths = 12
+const (
+	TrailingMonths = 12
+	monthLayout    = "2006-01"
+)
 
 type Window struct {
 	Start         time.Time
@@ -59,6 +62,7 @@ func Summarize(rows []Donation, w Window) transactionsrpc.DonationsReply {
 	for _, row := range rows {
 		s.add(row)
 	}
+	s.fillMonths()
 	return transactionsrpc.DonationsReply{
 		Start: w.Start, End: w.End, Totals: s.sortedTotals(), Months: s.sortedMonths(), Kinds: s.kindList(), LastPaymentAt: s.last,
 	}
@@ -102,23 +106,42 @@ func (s *summary) addCurrent(row Donation) {
 }
 
 func (s *summary) addMonth(row Donation) {
-	key := monthKey{month: row.OccurredAt.Format("2006-01"), currency: row.Currency}
-	month, ok := s.months[key]
-	if !ok {
-		month = &transactionsrpc.DonationMonth{Month: key.month, Currency: key.currency}
-		s.months[key] = month
-	}
+	month := s.month(monthKey{month: row.OccurredAt.Format(monthLayout), currency: row.Currency})
 	month.GrossCents += row.AmountCents
 	month.Payments++
 }
 
-func (s *summary) total(currency string) *transactionsrpc.DonationTotal {
-	total, ok := s.totals[currency]
+func entry[K comparable, V any](entries map[K]*V, key K, fresh V) *V {
+	value, ok := entries[key]
 	if !ok {
-		total = &transactionsrpc.DonationTotal{Currency: currency}
-		s.totals[currency] = total
+		value = &fresh
+		entries[key] = value
 	}
-	return total
+	return value
+}
+
+func (s *summary) month(key monthKey) *transactionsrpc.DonationMonth {
+	return entry(s.months, key, transactionsrpc.DonationMonth{Month: key.month, Currency: key.currency})
+}
+
+func (s *summary) fillMonths() {
+	currencies := map[string]struct{}{}
+	for key := range s.months {
+		currencies[key.currency] = struct{}{}
+	}
+	for currency := range currencies {
+		s.fillCurrency(currency)
+	}
+}
+
+func (s *summary) fillCurrency(currency string) {
+	for at := s.window.MonthsStart; at.Before(s.window.End); at = at.AddDate(0, 1, 0) {
+		s.month(monthKey{month: at.Format(monthLayout), currency: currency})
+	}
+}
+
+func (s *summary) total(currency string) *transactionsrpc.DonationTotal {
+	return entry(s.totals, currency, transactionsrpc.DonationTotal{Currency: currency})
 }
 
 func sortedValues[K comparable, V any](entries map[K]*V, compare func(a, b V) int) []V {

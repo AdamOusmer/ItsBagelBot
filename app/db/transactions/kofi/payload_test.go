@@ -58,29 +58,33 @@ func TestParseRejects(t *testing.T) {
 		overrides map[string]any
 		token     kofi.Token
 		want      error
+		reason    string
 	}{
-		"wrong token":      {overrides: map[string]any{"verification_token": "nope"}, token: token, want: kofi.ErrToken},
-		"unconfigured":     {token: "", want: kofi.ErrToken},
-		"three decimals":   {overrides: map[string]any{"amount": "1.005"}, token: token, want: kofi.ErrPayload},
-		"negative amount":  {overrides: map[string]any{"amount": "-3.00"}, token: token, want: kofi.ErrPayload},
-		"grouped amount":   {overrides: map[string]any{"amount": "1,000.00"}, token: token, want: kofi.ErrPayload},
-		"unknown type":     {overrides: map[string]any{"type": "Refund"}, token: token, want: kofi.ErrPayload},
-		"bad currency":     {overrides: map[string]any{"currency": "US"}, token: token, want: kofi.ErrPayload},
-		"bad timestamp":    {overrides: map[string]any{"timestamp": "yesterday"}, token: token, want: kofi.ErrPayload},
-		"missing txn id":   {overrides: map[string]any{"kofi_transaction_id": ""}, token: token, want: kofi.ErrPayload},
-		"missing message":  {overrides: map[string]any{"message_id": nil}, token: token, want: kofi.ErrPayload},
-		"oversized txn id": {overrides: map[string]any{"kofi_transaction_id": strings.Repeat("a", 65)}, token: token, want: kofi.ErrPayload},
+		"wrong token":       {overrides: map[string]any{"verification_token": "nope"}, token: token, want: kofi.ErrToken},
+		"unconfigured":      {token: "", want: kofi.ErrToken},
+		"unknown type":      {overrides: map[string]any{"type": "Refund"}, token: token, want: kofi.ErrUnsupported},
+		"three decimals":    {overrides: map[string]any{"amount": "1.005"}, token: token, want: kofi.ErrPayload, reason: "amount"},
+		"negative amount":   {overrides: map[string]any{"amount": "-3.00"}, token: token, want: kofi.ErrPayload, reason: "amount"},
+		"grouped amount":    {overrides: map[string]any{"amount": "1,000.00"}, token: token, want: kofi.ErrPayload, reason: "amount"},
+		"numeric amount":    {overrides: map[string]any{"amount": 3}, token: token, want: kofi.ErrMalformed},
+		"bad currency":      {overrides: map[string]any{"currency": "US"}, token: token, want: kofi.ErrPayload, reason: "currency"},
+		"bad timestamp":     {overrides: map[string]any{"timestamp": "yesterday"}, token: token, want: kofi.ErrPayload, reason: "timestamp"},
+		"missing txn id":    {overrides: map[string]any{"kofi_transaction_id": ""}, token: token, want: kofi.ErrPayload, reason: "kofi_transaction_id"},
+		"missing message":   {overrides: map[string]any{"message_id": nil}, token: token, want: kofi.ErrPayload, reason: "message_id"},
+		"oversized txn id":  {overrides: map[string]any{"kofi_transaction_id": strings.Repeat("a", 65)}, token: token, want: kofi.ErrPayload, reason: "kofi_transaction_id"},
+		"txn id with slash": {overrides: map[string]any{"kofi_transaction_id": "a/b"}, token: token, want: kofi.ErrPayload, reason: "kofi_transaction_id"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := kofi.Parse(payload(t, tc.overrides), tc.token)
 			assert.ErrorIs(t, err, tc.want)
+			assert.ErrorContains(t, err, tc.reason)
 		})
 	}
 }
 
 func TestParseRejectsMalformedJSON(t *testing.T) {
 	_, err := kofi.Parse([]byte("{"), token)
-	assert.ErrorIs(t, err, kofi.ErrPayload)
+	assert.ErrorIs(t, err, kofi.ErrMalformed)
 }
 
 func TestParseFlagsSettingsPageTest(t *testing.T) {

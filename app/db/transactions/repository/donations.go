@@ -23,7 +23,7 @@ func NewDonations(client *ent.Client) *Donations {
 
 func (r *Donations) RecordDonation(ctx context.Context, donation kofi.Donation) error {
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.KofiDonation.Create().
+		create := r.client.KofiDonation.Create().
 			SetID(donation.TransactionID).
 			SetMessageID(donation.MessageID).
 			SetKind(kofidonation.Kind(donation.Kind)).
@@ -31,9 +31,11 @@ func (r *Donations) RecordDonation(ctx context.Context, donation kofi.Donation) 
 			SetCurrency(donation.Currency).
 			SetSubscriptionPayment(donation.Subscription).
 			SetFirstSubscriptionPayment(donation.FirstSubscription).
-			SetTierName(donation.TierName).
-			SetOccurredAt(donation.OccurredAt).
-			Exec(ctx)
+			SetOccurredAt(donation.OccurredAt)
+		if donation.TierName != "" {
+			create.SetTierName(donation.TierName)
+		}
+		return create.Exec(ctx)
 	})
 	if ent.IsConstraintError(err) {
 		return nil

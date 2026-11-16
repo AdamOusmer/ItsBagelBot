@@ -71,7 +71,9 @@ and [billing](../../../internal/domain/rpc/billing/). Other Ent files are genera
   Gift notification failures are best-effort after entitlement application.
 - HTTP POST `/kofi` or `/webhooks/kofi` takes Ko-fi's form `data` JSON, checks
   `KOFI_VERIFICATION_TOKEN` and stores one row per `kofi_transaction_id`; redeliveries
-  are no-ops and Ko-fi's settings-page test id is acknowledged without a row.
+  are no-ops and Ko-fi's settings-page test id is acknowledged without a row. Unknown
+  types are acknowledged and logged; an authenticated payload that fails validation
+  logs at error level with the failing field, since that payment is not counted.
 - Default checkout prefix `rpc.transactions` exposes `.basket_create`.
   Missing webstore token/package ID disables checkout while webhook handling runs.
 - Giveaway preview/freeze obtains the full authoritative Users pool. Draw persists

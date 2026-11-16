@@ -6,6 +6,7 @@ package kofi
 import (
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,8 +36,10 @@ var kindByType = map[string]Kind{
 type Token string
 
 var (
-	ErrToken   = errors.New("ko-fi verification token rejected")
-	ErrPayload = errors.New("ko-fi payload invalid")
+	ErrToken       = errors.New("ko-fi verification token rejected")
+	ErrMalformed   = errors.New("ko-fi data is not a json object")
+	ErrPayload     = errors.New("ko-fi payload invalid")
+	ErrUnsupported = errors.New("ko-fi payment type unsupported")
 )
 
 var (
@@ -83,7 +86,7 @@ func (d Donation) Test() bool {
 func Parse(data []byte, token Token) (Donation, error) {
 	var raw webhookData
 	if codec.Unmarshal(data, &raw) != nil {
-		return Donation{}, ErrPayload
+		return Donation{}, ErrMalformed
 	}
 	if !token.matches(raw.VerificationToken) {
 		return Donation{}, ErrToken
@@ -95,19 +98,36 @@ func (t Token) matches(provided string) bool {
 	return t != "" && subtle.ConstantTimeCompare([]byte(t), []byte(provided)) == 1
 }
 
+type check struct {
+	field string
+	ok    bool
+}
+
+func firstInvalid(checks ...check) error {
+	for _, c := range checks {
+		if !c.ok {
+			return fmt.Errorf("%w: %s", ErrPayload, c.field)
+		}
+	}
+	return nil
+}
+
 func (raw webhookData) donation() (Donation, error) {
-	if !raw.identified() {
-		return Donation{}, ErrPayload
+	kind, known := kindByType[raw.Type]
+	if !known {
+		return Donation{}, ErrUnsupported
 	}
-	kind, kindOK := kindByType[raw.Type]
 	cents, amountOK := raw.cents()
-	if !kindOK || !amountOK {
-		return Donation{}, ErrPayload
-	}
-	occurred, err := time.Parse(time.RFC3339, raw.Timestamp)
+	occurred, timeErr := time.Parse(time.RFC3339, raw.Timestamp)
 	currency := strings.ToUpper(strings.TrimSpace(raw.Currency))
-	if err != nil || !currencyPattern.MatchString(currency) {
-		return Donation{}, ErrPayload
+	if err := firstInvalid(
+		check{field: "kofi_transaction_id", ok: identifierPattern.MatchString(raw.TransactionID)},
+		check{field: "message_id", ok: identifierPattern.MatchString(raw.MessageID)},
+		check{field: "amount", ok: amountOK},
+		check{field: "timestamp", ok: timeErr == nil},
+		check{field: "currency", ok: currencyPattern.MatchString(currency)},
+	); err != nil {
+		return Donation{}, err
 	}
 	return Donation{
 		TransactionID:     raw.TransactionID,
@@ -120,10 +140,6 @@ func (raw webhookData) donation() (Donation, error) {
 		TierName:          raw.tier(),
 		OccurredAt:        occurred.UTC(),
 	}, nil
-}
-
-func (raw webhookData) identified() bool {
-	return identifierPattern.MatchString(raw.TransactionID) && identifierPattern.MatchString(raw.MessageID)
 }
 
 func (raw webhookData) cents() (int64, bool) {
