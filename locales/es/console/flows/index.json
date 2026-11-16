@@ -3,7 +3,7 @@
   "introTitle": "Te damos la bienvenida a {name}",
   "introLead": "Elige una receta y hazla tuya. Los pasos están listos para editar.",
   "introCta": "Empezar de cero",
-  "clarity": { "liveNow": "Activa o desactiva la receta guardada al instante", "required": "Obligatorio", "liveOnSave": "Se activa al guardar", "staysOff": "Sigue apagada al guardar", "browse": "Ver mis recetas" },
+  "clarity": {"liveNow":"Cambia al instante","required":"Obligatorio","liveOnSave":"Activa al guardar","staysOff":"Queda apagada","browse":"Ver mis recetas"},
   "introDocs": "Lee la guía",
   "connectExisting": "Conectar a un paso del tablero",
   "connectHint": "Toca un paso para conectar",

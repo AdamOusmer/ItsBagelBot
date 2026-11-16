@@ -3,7 +3,7 @@
   "introTitle": "Welcome to {name}",
   "introLead": "Pick a recipe and make it yours. The steps are ready to edit.",
   "introCta": "Start from scratch",
-  "clarity": { "liveNow": "Turns the saved recipe on or off right away", "required": "Required", "liveOnSave": "Runs live once saved", "staysOff": "Stays off once saved", "browse": "View my recipes" },
+  "clarity": {"liveNow":"Changes live now","required":"Required","liveOnSave":"Live when saved","staysOff":"Off when saved","browse":"View my recipes"},
   "introDocs": "Read the guide",
   "connectExisting": "Connect to a step on the board",
   "connectHint": "Tap a step to connect",

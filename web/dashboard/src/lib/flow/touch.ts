@@ -69,7 +69,7 @@ export function revealBox(view: View, box: Box, frame: Frame, zoom: ZoomRange & 
   if (inside) return view;
   return {
     k,
-    x: inset.left + (roomW - boxW * k) / 2 - box.x0 * k,
-    y: inset.top + (roomH - boxH * k) / 2 - box.y0 * k
+    x: clamp(view.x, inset.left - box.x0 * k, width - inset.right - box.x1 * k),
+    y: clamp(view.y, inset.top - box.y0 * k, height - inset.bottom - box.y1 * k)
   };
 }

@@ -28,9 +28,13 @@ const isTriggerType = (type: string) => specFor(type)?.kind === 'trigger';
 const LOOP_TYPE = 'reply.loop';
 
 const portTargets = (flow: Flow, from: string, port: string) => (graphIndex(flow).ports.get(portKey({ from, port })) ?? []).map((edge) => edge.to);
+const tailsByGraph = new WeakMap<ReturnType<typeof graphIndex>, { loop: string; tail: string }[]>();
 
 export function loopTails(flow: Flow): { loop: string; tail: string }[] {
-  return flow.nodes
+  const index = graphIndex(flow);
+  const cached = tailsByGraph.get(index);
+  if (cached) return cached;
+  const pairs = flow.nodes
     .filter((node) => node.type === LOOP_TYPE)
     .flatMap((node) => {
       const after = descendants(flow, portTargets(flow, node.id, 'done'));
@@ -38,6 +42,8 @@ export function loopTails(flow: Flow): { loop: string; tail: string }[] {
       const ends = body.filter((id) => !after.has(id) && !graphIndex(flow).outgoing.has(id));
       return ends.map((tail) => ({ loop: node.id, tail }));
     });
+  tailsByGraph.set(index, pairs);
+  return pairs;
 }
 
 function relax(flow: Flow, col: Map<string, number>, edge: FlowEdge): boolean {

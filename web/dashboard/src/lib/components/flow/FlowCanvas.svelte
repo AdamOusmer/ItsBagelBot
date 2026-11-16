@@ -5,7 +5,7 @@
 
   export type FlowCanvasApi = {
     tidyNow: () => void;
-    fitView: (reservedRight?: number) => void;
+    fitView: (reservedRight?: number, initial?: boolean) => void;
     announce: (message: string) => void;
     focusNode: (id: string) => void;
     revealNode: (id: string) => void;
@@ -43,12 +43,13 @@
   import { connect, duplicateNode, removeEdge } from '../../flow/ops';
   import { addStep, connectionTarget, parallelPorts, portOccupied, removeStep as deleteStep, selectedPlacement } from '../../flow/editor';
   import { currentPositions, tweenPositions } from '../../flow/canvas-geometry';
-  import { edgePaths, flowBounds, focusBounds, loopPaths, startPaths, wirePreview } from '../../flow/canvas-geometry';
+  import { edgePaths, flowBounds, focusBounds, loopPaths, startPaths, windowNodes, wirePreview } from '../../flow/canvas-geometry';
   import { searchSteps } from '../../flow/search';
   import { neighbor, readingOrder, stepDelta, stepIndex } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
   import { stepLabel, stepSummary } from '../../flow/copy';
   import { nodeHeight, tidy } from '../../flow/layout';
+  import { graphIndex } from '../../flow/graph-index';
   import { beginPinch, fitBox, pinchView, revealBox, type Inset, type Pinch } from '../../flow/touch';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit';
@@ -113,14 +114,18 @@
   };
 
   let host = $state<HTMLDivElement>();
+  let boardSize = $state({ width: 1440, height: 900 });
   let zoomEl = $state<HTMLElement | null>(null);
   let hintEl = $state<HTMLElement | null>(null);
   let edgeToolbarEl = $state<HTMLElement | null>(null);
   let startEl = $state<HTMLElement | null>(null);
-  const nodeEls: Record<string, HTMLElement | null> = {};
-  const cards: Record<string, { portAt: (el: Element | null) => string | undefined; addButton: (port: string) => HTMLButtonElement | null } | null> = {};
-  const edgeEls: Record<string, SVGElement | null> = {};
+  let nodeEls = $state<Record<string, HTMLElement | null>>({});
+  let cards = $state<Record<string, { portAt: (el: Element | null) => string | undefined; addButton: (port: string) => HTMLButtonElement | null } | null>>({});
+  let edgeEls = $state<Record<string, SVGElement | null>>({});
   let view = $state({ x: 0, y: 0, k: 1 });
+  const renderedNodes = $derived(windowNodes(flow, view, boardSize, selectedId));
+  const renderedIds = $derived(new Set(renderedNodes.map((node) => node.id)));
+  const renderedEdgeIds = $derived(new Set(flow.edges.filter((edge) => renderedIds.has(edge.from) || renderedIds.has(edge.to)).map((edge) => edge.id)));
   let disp = $state<Record<string, Pt>>({});
   let dragging = $state(false);
   let wire = $state<{ from: string; port: string; x: number; y: number } | null>(null);
@@ -180,7 +185,7 @@
   const shownK = $derived(pinchK ?? view.k);
 
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const nodeById = (id: NodeId) => flow.nodes.find((n) => n.id === id);
+  const nodeById = (id: NodeId) => graphIndex(flow).nodes.get(id);
   const at = (id: NodeId): Pt => disp[id] ?? nodeById(id) ?? { x: 0, y: 0 };
   const snap = (v: number) => Math.round(v / GRID) * GRID;
 
@@ -200,7 +205,6 @@
   }
 
   function finishTween() {
-    if (!tween) return;
     cancelAnimationFrame(tween);
     clearTimeout(tweenTimer);
     tween = 0;
@@ -252,9 +256,9 @@
     const room = insets?.(true);
     if (!host) return;
     if (!n || !room) return;
-    const box = focusBounds(flow, n, host.clientWidth - room.left - room.right);
     const inset = { ...room, bottom: room.bottom + 64 };
-    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: READABLE_ZOOM });
+    const box = focusBounds(flow, n, { width: host.clientWidth - inset.left - inset.right, height: host.clientHeight - inset.top - inset.bottom, minZoom: minZoom() });
+    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: view.k });
     if (target !== view) glideTo(target);
   }
 
@@ -262,12 +266,15 @@
     runTidy(true);
   }
 
-  export function fitView(reservedRight = 0) {
+  export function fitView(reservedRight = 0, initial = false) {
     if (!host) return;
-    const bounds = flowBounds(flow, { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H });
+    const bounds = flowBounds(flow, { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H }, initial);
     const inset = insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight };
     cancelAnimationFrame(glide);
-    view = fitBox(bounds, { width: host.clientWidth, height: host.clientHeight, inset }, { min: READABLE_ZOOM, max: MAX_ZOOM });
+    const frame = { width: host.clientWidth, height: host.clientHeight, inset };
+    const fitted = fitBox(bounds, frame, { min: minZoom(), max: MAX_ZOOM });
+    const min = initial && fitted.k < 0.6 ? READABLE_ZOOM : minZoom();
+    view = fitBox(bounds, frame, { min, max: MAX_ZOOM });
     view.x = Math.max(view.x, inset.left - bounds.x0 * view.k);
   }
 
@@ -321,11 +328,13 @@
   }
 
   onMount(() => {
-    const observer = new ResizeObserver(scheduleToolbarPosition);
+    const observer = new ResizeObserver(() => {
+      boardSize = { width: host?.clientWidth ?? 1440, height: host?.clientHeight ?? 900 };
+      scheduleToolbarPosition();
+    });
     if (host) observer.observe(host);
     touch = matchMedia('(pointer: coarse)').matches;
-    runTidy(false);
-    fitView();
+    fitView(0, true);
     host?.addEventListener('keydown', onCanvasKey);
     host?.addEventListener('wheel', onWheel, { passive: false });
     host?.addEventListener('gesturestart', stopGesture);
@@ -734,7 +743,7 @@
       return;
     }
     const inset = { ...KEY_INSET, right: KEY_INSET.right + room };
-    const box = focusBounds(flow, n, host.clientWidth - inset.left - inset.right);
+    const box = focusBounds(flow, n, { width: host.clientWidth - inset.left - inset.right, height: host.clientHeight - inset.top - inset.bottom, minZoom: minZoom() });
     const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: view.k });
     if (target !== view) view = target;
   }
@@ -848,7 +857,7 @@
 
   const dotGap = $derived(GRID * view.k * (view.k < 0.6 ? 2 : 1));
 
-  const edges = $derived(edgePaths(flow, disp));
+  const edges = $derived(edgePaths(flow, disp).filter((edge) => renderedEdgeIds.has(edge.id)));
   const returns = $derived(loopPaths(flow, disp));
 
   const stopId = $derived(selectedId && nodeById(selectedId) ? selectedId : (readingOrder(flow)[0]?.id ?? null));
@@ -959,7 +968,7 @@
 
     <FlowStart x={startAt.x} y={startAt.y} empty={triggers.length === 0} {touch} bind:el={startEl} onadd={onstart} />
 
-    {#each flow.nodes as node (node.id)}
+    {#each renderedNodes as node (node.id)}
       <div
         class="slot"
         class:taken={trace?.nodes.has(node.id)}

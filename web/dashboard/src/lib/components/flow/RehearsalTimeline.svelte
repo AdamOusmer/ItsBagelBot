@@ -23,8 +23,25 @@
   } = $props();
   const { t } = getI18n();
   const uid = $props.id();
+  let rejected = $state<string | null>(null);
+  function applyRepair(step: RehearsalStep) {
+    if (!step.repair) return;
+    rejected = null;
+    if (verifyRepair?.(step.repair, step.path)) onScenario(step.repair);
+    else rejected = step.key;
+  }
   const laneOffset = (step: RehearsalStep) => step.lane.reduce((offset, lane) => offset + lane + 1, 0) * 10;
   const groups = $derived(rehearsalTimeline(steps));
+  let shown = $state(40);
+  const totalRows = $derived(groups.reduce((sum, group) => sum + group.rows.length, 0));
+  const visibleGroups = $derived.by(() => {
+    let remaining = shown;
+    return groups.map((group) => {
+      const rows = group.rows.slice(0, Math.max(0, remaining));
+      remaining -= rows.length;
+      return { ...group, rows };
+    }).filter((group) => group.rows.length > 0);
+  });
   const choices = $derived({
     'cond.chance': [{ value: 'yes', label: t('flows.test.yes') }, { value: 'no', label: t('flows.test.no') }],
     'cond.cooldown': [{ value: 'ready', label: t('flows.test.ready') }, { value: 'cooling', label: t('flows.test.cooling') }],
@@ -55,7 +72,7 @@
 </script>
 
 <ol class="timeline" aria-label={t('flows.test.timeline')}>
-  {#each groups as group (group.atMs)}
+  {#each visibleGroups as group (group.atMs)}
     <li class="group">
       <span class="time">{group.atMs === 0 ? '0s' : `+${group.atMs / 1000}s`}</span>
       <div class="rows">
@@ -104,8 +121,9 @@
             {/if}
             {#if step.kind === 'check' && !pretend}
               <div class="repair" class:invisible={!step.repair} inert={!step.repair}>
-                <Button variant="ghost" size="sm" onclick={() => step.repair && verifyRepair?.(step.repair, step.path) && onScenario(step.repair)}><span data-fit>{t('flows.test.makePass')}</span></Button>
+                <Button variant="ghost" size="sm" onclick={() => applyRepair(step)}><span data-fit>{t('flows.test.makePass')}</span></Button>
               </div>
+              <span class="missing" class:invisible={rejected !== step.key} role="status">{rejected === step.key ? t('flows.test.repairBlocked') : ''}</span>
             {/if}
             {#if row.more}<span class="context">{t('flows.test.moreRows', { count: row.more })}</span>{/if}
           </article>
@@ -114,9 +132,13 @@
     </li>
   {/each}
 </ol>
+<div class="more" class:invisible={shown >= totalRows} inert={shown >= totalRows}>
+  <Button variant="ghost" size="sm" onclick={() => shown += 40}><span data-fit>{t('flows.test.moreRows', { count: Math.max(0, totalRows - shown) })}</span></Button>
+</div>
 
 <style>
   .timeline { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 20px; }
+  .more { min-height: 32px; }
   .group { display: flex; align-items: flex-start; gap: 10px; }
   .time { flex: 0 0 36px; padding-top: 8px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--bb-muted-light); }
   .rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }

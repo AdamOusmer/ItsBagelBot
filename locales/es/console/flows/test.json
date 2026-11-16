@@ -1,4 +1,7 @@
 {
+  "emptyCompare": "{left} no coincide con un valor vacío.",
+  "emptyValue": "un valor vacío",
+  "repairBlocked": "Este cambio no supera la condición. Prueba otro valor.",
   "more": "Más",
   "pretend": "No se envía ni se guarda nada. Son resultados de prueba.",
   "notSet": "Sin definir",

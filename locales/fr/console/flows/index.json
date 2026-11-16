@@ -3,7 +3,7 @@
   "introTitle": "Bienvenue sur {name}",
   "introLead": "Choisis une recette et adapte-la. Les étapes sont prêtes à modifier.",
   "introCta": "Partir de zéro",
-  "clarity": { "liveNow": "Active ou désactive tout de suite la recette enregistrée", "required": "Requis", "liveOnSave": "Active après enregistrement", "staysOff": "Reste désactivée après enregistrement", "browse": "Voir mes recettes" },
+  "clarity": {"liveNow":"Change en direct","required":"Requis","liveOnSave":"Active si sauvée","staysOff":"Reste inactive","browse":"Voir mes recettes"},
   "introDocs": "Consulter le guide",
   "connectExisting": "Connecter à une étape du tableau",
   "connectHint": "Appuyez sur une étape pour la connecter",

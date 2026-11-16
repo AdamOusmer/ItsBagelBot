@@ -93,7 +93,7 @@ test.each([
 
 test('missing values stay marked and disconnected previews stay unreachable', () => {
   const result = run(flowOf([trigger, n('s', 'reply.chat', { message: 'Bits: {bits}, value: {var:unset}' }), left], [e('t', 'next', 's')]));
-  expect([result.steps.at(-1)?.missing, result.steps.some((step) => step.id === 'a')]).toEqual([['bits', 'unset'], false]);
+  expect([result.steps.at(-1)?.missing, result.steps.some((step) => step.id === 'a')]).toEqual([['Bits', 'unset'], false]);
 });
 
 test('stored input is shared with checks and chat in the executor', () => {
@@ -116,7 +116,15 @@ test.each([
   const flow = flowOf([trigger, check, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const result = run(flow);
   const step = result.steps.find((step) => step.id === 'c')!;
-  expect(step.repair && result.verifyRepair?.(step.repair, step.path)).toBe(false);
+  expect(step.repair).toBeUndefined();
+});
+
+test.each<{ op: string; missing: string[] }>([
+  { op: 'eq', missing: [] }, { op: 'gte', missing: [] }, { op: 'lt', missing: [] }, { op: 'contains', missing: ['This value'] }
+])('an empty right operand explains a failed $op check', ({ op, missing }) => {
+  const check = n('c', 'cond.compare', { left: '5', op, right: '' });
+  const step = run(flowOf([trigger, check], [e('t', 'next', 'c')])).steps.find((entry) => entry.id === 'c');
+  expect([step?.status, step?.missing, step?.note]).toEqual(['no', missing, '5 does not match an empty value.']);
 });
 
 test('draft tolerance leaves the edited flow untouched', () => {

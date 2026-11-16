@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { compactDuration, compileFlow, defaultScenario, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
+import { compactDuration, compileFlow, defaultScenario, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, stepLabel, variableLabel } from './copy';
 import { describe } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
-import { specFor, variablesFor, type Flow, type FlowNode } from './model';
+import { NODE_SPECS, specFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired } from './issues';
 
 type Text = string;
@@ -140,6 +140,7 @@ function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind: Text):
 }
 
 const INPUT_TOKENS: Readonly<Record<Text, keyof RehearsalScenario>> = { user: 'user', 'user.id': 'userId', userid: 'userId', message: 'message', bits: 'bits', 'event.amount': 'bits', viewers: 'viewers', 'event.viewers': 'viewers', 'event.months': 'months', months: 'months', 'event.input': 'input', input: 'input' };
+const TOKEN_LABELS = new Map(NODE_SPECS.flatMap((spec) => [...(spec.provides ?? []), ...(spec.outputs ?? []).flatMap((port) => port.provides ?? [])]).map((variable) => [variable.token, variable]));
 
 function compareRepair(node: FlowNode): ScenarioPatch | undefined {
   const token = /^\{([^}]+)\}$/.exec(String(node.config.left));
@@ -151,17 +152,26 @@ function compareRepair(node: FlowNode): ScenarioPatch | undefined {
   return { [field]: ['bits', 'viewers', 'months'].includes(field) ? Number(value) : value };
 }
 
-function checkRepair(node: FlowNode, event: RehearsalEvent): ScenarioPatch | undefined {
+function checkRepair(node: FlowNode, event: RehearsalEvent, context: RunContext): ScenarioPatch | undefined {
   if (event.status !== 'no') return undefined;
-  if (node.type === 'cond.role') return { role: node.config.level as RehearsalScenario['role'] };
+  const fields = SCENARIO_FIELDS[scenarioKind(context.compiled.definition)] ?? [];
+  if (node.type === 'cond.role') return fields.some((field) => field.key === 'role') ? { role: node.config.level as RehearsalScenario['role'] } : undefined;
   if (node.type === 'cond.user') return node.config.userId ? { userId: String(node.config.userId), user: String(node.config.login) } : undefined;
-  return node.type === 'cond.compare' ? compareRepair(node) : undefined;
+  const patch = node.type === 'cond.compare' ? compareRepair(node) : undefined;
+  return possiblePatch(context, fields, patch);
+}
+
+function possiblePatch(context: RunContext, fields: readonly ScenarioField[], patch: ScenarioPatch | undefined): ScenarioPatch | undefined {
+  if (!patch) return undefined;
+  if (!Object.keys(patch).every((key) => fields.some((field) => field.key === key))) return undefined;
+  if (!matchTrigger(context.compiled.definition, { ...context.scenario, ...patch }).starts) return undefined;
+  return patch;
 }
 
 function checkText(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
   if (node.type === 'cond.role') return t('flows.test.roleCheck', { actual: scenarioRoleLabel(t, scenario.role ?? 'viewer'), expected: scenarioRoleLabel(t, String(node.config.level ?? 'viewer')) });
   if (node.type === 'cond.user') return t('flows.test.userCheck', { actual: scenario.userId ?? t('flows.test.notSet'), expected: String(node.config.userId || t('flows.test.notSet')) });
-  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, scenario), right: displayInput(node.config.right, scenario) } });
+  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, scenario) || t('flows.test.emptyValue'), right: displayInput(node.config.right, scenario) || t('flows.test.emptyValue') } });
 }
 
 function displayInput(value: FlowNode['config'][Text] | undefined, scenario: RehearsalScenario): Text {
@@ -236,18 +246,17 @@ function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): R
   const { compiled, nodes, scenario } = context;
   const id = compiled.nodeByPath.get(`${event.path}.params.condition`) ?? compiled.nodeByPath.get(event.path) ?? null;
   const node = nodes.get(id ?? '');
-  return { ...event, ...stepValues(t, event, { node, flow: context.flow }), id, node, chatLines: chatLines(event),
-    ...stepDetails(t, node, event),
+  return { ...event, ...stepValues(t, event, node), id, node, chatLines: chatLines(event),
+    ...stepDetails(t, node), repair: node ? checkRepair(node, event, context) : undefined,
+    note: stepNote(t, node, { event, scenario }),
     text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)) };
 }
 
-function stepDetails(t: Translate, node: FlowNode | undefined, event: RehearsalEvent): Pick<RehearsalStep, 'label' | 'note' | 'secondary' | 'repair'> {
+function stepDetails(t: Translate, node: FlowNode | undefined): Pick<RehearsalStep, 'label' | 'secondary'> {
   const spec = node ? specFor(node.type) : undefined;
   return {
     label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
-    note: emptyResponse(node, event) ? t('flows.test.emptyResponse') : undefined,
     secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : undefined,
-    repair: node ? checkRepair(node, event) : undefined
   };
 }
 
@@ -255,16 +264,23 @@ function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boole
   return Boolean(node?.type.startsWith('reply.http_') && event.detail?.response === '');
 }
 
-function stepValues(t: Translate, event: RehearsalEvent, context: { node: FlowNode | undefined; flow: Flow }): Pick<RehearsalStep, 'missing' | 'sample'> {
-  const { node, flow } = context;
+function stepNote(t: Translate, node: FlowNode | undefined, context: { event: RehearsalEvent; scenario: RehearsalScenario }): Text | undefined {
+  if (emptyResponse(node, context.event)) return t('flows.test.emptyResponse');
+  if (node?.type !== 'cond.compare') return undefined;
+  if (context.event.status !== 'no') return undefined;
+  if (String(node.config.right ?? '').trim()) return undefined;
+  return t('flows.test.emptyCompare', { left: displayInput(node.config.left, context.scenario) || t('flows.test.emptyValue') });
+}
+
+function stepValues(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Pick<RehearsalStep, 'missing' | 'sample'> {
   const tokens = (event.detail?.missing ?? '').split(',').filter(Boolean).map((token) => token.replace(/^unset:/, ''));
-  const missing = [...new Set([...tokens.map((token) => missingLabel(t, token, { node, flow })), ...unsetFields(t, node)])];
+  const missing = [...new Set([...tokens.map((token) => missingLabel(t, token)), ...unsetFields(t, node)])];
   const sample = event.detail?.random === '1' || Object.values(node?.config ?? {}).some((value) => /\{(?:random|choice)[}:]/.test(String(value)));
   return { missing, sample };
 }
 
-function missingLabel(t: Translate, token: Text, context: { node: FlowNode | undefined; flow: Flow }): Text {
-  const variable = context.node ? variablesFor(context.flow, context.node.id).find((variable) => variable.token === `{${token}}`) : undefined;
+function missingLabel(t: Translate, token: Text): Text {
+  const variable = TOKEN_LABELS.get(`{${token}}`);
   if (variable) return variableLabel(t, variable);
   const name = token.split(':').at(-1) ?? '';
   return scenarioFieldLabel(t, token) !== t('flows.test.notSet') ? scenarioFieldLabel(t, token) : name;

@@ -19,6 +19,7 @@
   import type { LibraryMode } from '#lib/components/flow/StepLibrary.svelte';
   import { postAction } from '#lib/client-actions.svelte';
   import { FlowHistory } from '#lib/flow/history';
+  import { tidy } from '#lib/flow/layout';
   import { allowed, resolveShortcut, type Scopes, type Shortcut } from '#lib/flow/keyboard';
   import { isStale, issueMessage, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
   import { fieldIssues, type FieldIssue } from '#lib/flow/issues';
@@ -64,7 +65,12 @@
   const { t } = getI18n();
 
   const starter = untrack(() => data.routeId === 'new' ? starterFlow(page.url.searchParams.get('starter'), t) : null);
-  const opened = untrack(() => structuredClone(starter ?? data.flow ?? newFlow('')));
+  const opened = untrack(() => {
+    const draft = structuredClone(starter ?? data.flow ?? newFlow(''));
+    const positions = tidy(draft);
+    for (const node of draft.nodes) Object.assign(node, positions.get(node.id));
+    return draft;
+  });
   let flow = $state<Flow>({ ...opened, name: opened.name || t('flows.page.untitled') });
   const contentOf = (f: Pick<Flow, 'name' | 'queue' | 'edges' | 'nodes'>) =>
     JSON.stringify({ name: f.name, queue: f.queue ?? '', edges: f.edges, nodes: f.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config })) });
@@ -230,7 +236,7 @@
     const observer = new ResizeObserver(measure);
     for (const element of [boardEl, barEl, railEl]) if (element) observer.observe(element);
     measure();
-    canvas?.fitView();
+    canvas?.fitView(0, true);
     return () => observer.disconnect();
   });
 
@@ -249,7 +255,7 @@
       syncViewport();
     };
     onQuery();
-    if (sheetMode) canvas?.fitView();
+    if (sheetMode) canvas?.fitView(0, true);
     query.addEventListener('change', onQuery);
     visualViewport?.addEventListener('resize', syncViewport);
     visualViewport?.addEventListener('scroll', syncViewport);
@@ -569,6 +575,8 @@
     recipeOpen = false;
     testRunOpen = !testRunOpen;
     await tick();
+    syncViewport();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     canvas?.fitView(testRunOpen ? PANEL_ROOM : 0);
   }
 
@@ -618,7 +626,7 @@
 <svelte:window onkeydown={onKeyDown} onbeforeunload={(e) => dirty && !leaving && e.preventDefault()} />
 
 {#snippet topStart()}
-  <a class="back" href="/flows">
+  <a class="back" href="/flows" aria-label={data.navLabels['nav.flows']}>
     <Icon name="arrowLeft" size={16} />
     <span class="back-text" data-fit><bb-fit>{data.navLabels['nav.flows']}</bb-fit></span>
   </a>
@@ -635,7 +643,7 @@
 {/snippet}
 
 {#snippet topEnd()}
-  <Button class="run-button" variant="ghost" onclick={testRun}><Icon name="play" size={14} /> <span class="run-text" data-fit><bb-fit>{t('flows.board.testRun')}</bb-fit></span></Button>
+  <Button class="run-button" variant="ghost" aria-label={t('flows.board.testRun')} onclick={testRun}><Icon name="play" size={14} /> <span class="run-text" data-fit><bb-fit>{t('flows.board.testRun')}</bb-fit></span></Button>
   <Button class="save-button" variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}><bb-fit><span data-fit>{t('flows.page.save')}</span></bb-fit></Button>
 {/snippet}
 
@@ -841,8 +849,8 @@
   }
   .flow-name {
     display: block;
-    min-width: 0;
-    width: clamp(80px, 19vw, 280px);
+    min-width: 152px;
+    width: clamp(152px, 24vw, 280px);
     flex: 1;
   }
   .live-control { position: relative; display: flex; align-items: center; flex: none; }
@@ -892,7 +900,7 @@
     }
   }
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
-    .live-hint { width: 112px; font-size: 10px; }
+    .live-hint { width: 128px; font-size: 11px; }
     :global(.run-button) { width: 44px; }
     :global(.save-button) { width: 72px; }
     .back {
@@ -919,5 +927,10 @@
       min-height: 44px;
       padding: 4px 0;
     }
+  }
+  @media (min-width: 761px) and (max-width: 1000px) {
+    :global(.run-button) { width: 44px; }
+    .run-text, .back-text { display: none; }
+    .back { width: 40px; padding: 0; justify-content: center; }
   }
 </style>

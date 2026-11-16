@@ -3,7 +3,7 @@
   "introTitle": "Willkommen bei {name}",
   "introLead": "Wähle ein Rezept und passe es an. Die Schritte sind bereit zum Bearbeiten.",
   "introCta": "Leer beginnen",
-  "clarity": { "liveNow": "Schaltet das gespeicherte Rezept sofort ein oder aus", "required": "Pflichtfeld", "liveOnSave": "Läuft nach dem Speichern live", "staysOff": "Bleibt nach dem Speichern aus", "browse": "Meine Rezepte ansehen" },
+  "clarity": {"liveNow":"Schaltet sofort","required":"Pflichtfeld","liveOnSave":"Live ab Speichern","staysOff":"Bleibt aus","browse":"Meine Rezepte ansehen"},
   "introDocs": "Anleitung lesen",
   "connectExisting": "Mit einem Schritt auf dem Board verbinden",
   "connectHint": "Tippe auf einen Schritt zum Verbinden",

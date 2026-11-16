@@ -1,4 +1,7 @@
 {
+  "emptyCompare": "{left} passt nicht zu einem leeren Wert.",
+  "emptyValue": "ein leerer Wert",
+  "repairBlocked": "Diese Änderung reicht nicht. Probiere einen anderen Wert.",
   "more": "Mehr",
   "pretend": "Es wird nichts gesendet oder gespeichert. Dies ist ein Test.",
   "notSet": "Nicht festgelegt",

@@ -29,8 +29,8 @@
     onadd?: (port: string, anchor: HTMLElement) => void;
   } = $props();
 
-  const ports: Record<string, HTMLElement | null> = {};
-  const adds: Record<string, HTMLElement | null> = {};
+  let ports = $state<Record<string, HTMLElement | null>>({});
+  let adds = $state<Record<string, HTMLElement | null>>({});
 
   export function portAt(el: Element | null): string | undefined {
     return Object.keys(ports).find((id) => ports[id]?.contains(el));

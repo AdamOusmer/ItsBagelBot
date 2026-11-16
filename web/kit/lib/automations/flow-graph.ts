@@ -5,6 +5,7 @@ import { streamActionReaders, streamActionWriters } from './stream-flow';
 import { COMPARE_OPS } from './compare';
 import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
+import { commonBoundary, joinIndex, type JoinIndex } from './flow-joins';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
 
 export type FlowConfig = Record<string, string | number | boolean>;
@@ -326,6 +327,7 @@ type Lowering = {
   visited: Set<string>;
   issues: Issue[];
   owners: Map<object, string>;
+  joins: JoinIndex;
 };
 
 const nodePath = (id: string) => `nodes.${id}`;
@@ -464,12 +466,18 @@ function earliest(ctx: Lowering, shared: string[]): string[] {
 
 function commonJoins(ctx: Lowering, entries: string[]): string[] {
   if (new Set(entries).size < 2) return [];
+  const boundary = commonBoundary(ctx.joins, entries);
+  if (boundary) return [boundary];
+  if (entries.some((id) => !ctx.joins.get(id)?.merge)) return [];
   const sets = entries.map((id) => reachOf(ctx, id));
   return earliest(ctx, [...sets[0]!].filter((id) => sets.every((s) => s.has(id))));
 }
 
 function armJoins(ctx: Lowering, first: string[], second: string[]): string[] {
   if (first.length === 0 || second.length === 0) return [];
+  const boundary = commonBoundary(ctx.joins, [...first, ...second]);
+  if (boundary) return [boundary];
+  if ([...first, ...second].some((id) => !ctx.joins.get(id)?.merge)) return [];
   const other = new Set(second.flatMap((id) => [...reachOf(ctx, id)]));
   const joins = earliest(ctx, [...new Set(first.flatMap((id) => [...reachOf(ctx, id)]))].filter((id) => other.has(id)));
   const everyPathMeets = [...first, ...second].every((id) => joins.some((join) => reachOf(ctx, id).has(join)));
@@ -540,76 +548,89 @@ function fork(paths: Action[][]): Action[] {
   return [{ type: 'parallel', params: { branches: paths.map((actions) => ({ weight: 1, actions })) } }];
 }
 
-function lowerRest(ctx: Lowering, joins: string[], stop: Stops): Action[] {
-  const open = joins.filter((id) => !stop.has(id));
-  return open.length > 0 ? lowerEntries(ctx, open, stop) : [];
+function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
+  const actions: Action[] = [];
+  let pending = entries.filter((id) => !stop.has(id));
+  while (pending.length > 0) {
+    const lowered = pending.length === 1 ? lowerFrom(ctx, pending[0]!, stop) : lowerFork(ctx, pending, stop);
+    actions.push(...lowered.actions);
+    pending = lowered.next.filter((id) => !stop.has(id));
+  }
+  return actions;
 }
 
-function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
-  if (entries.length === 1) return lowerFrom(ctx, entries[0]!, stop);
+type Continuation = { actions: Action[]; next: string[] };
+
+function lowerFork(ctx: Lowering, entries: string[], stop: Stops): Continuation {
   const joins = commonJoins(ctx, entries);
   const bound = extended(stop, joins);
-  const paths = entries.map((id) => lowerFrom(ctx, id, bound)).filter((path) => path.length > 0);
+  const paths = entries.map((id) => lowerEntries(ctx, [id], bound)).filter((path) => path.length > 0);
   const anchor = joins[0] ?? [...stop][0];
   if (anchor && forkPauses(paths)) ctx.issues.push({ path: nodePath(anchor), code: FLOW_ISSUE.unstructuredMerge });
-  return [...fork(paths), ...lowerRest(ctx, joins, stop)];
+  return { actions: fork(paths), next: joins };
 }
 
-function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
+function lowerFrom(ctx: Lowering, id: string, stop: Stops): Continuation {
   const actions: Action[] = [];
   let entries = [id];
   while (entries.length === 1) {
     const current = entries[0]!;
-    if (stop.has(current) || !visit(ctx, current)) return actions;
+    if (stop.has(current) || !visit(ctx, current)) return { actions, next: [] };
     const node = ctx.byId.get(current)!;
     const control = controlActions(ctx, node, stop);
-    if (control) return actions.concat(control);
+    if (control) {
+      actions.push(...control.actions);
+      return { actions, next: control.next };
+    }
     actions.push(writeAction(ctx, node));
     entries = targets(ctx, current, 'next');
   }
-  return actions.concat(lowerEntries(ctx, entries, stop));
+  return { actions, next: entries };
 }
 
-function controlActions(ctx: Lowering, node: FlowNode, stop: Stops): Action[] | null {
+function controlActions(ctx: Lowering, node: FlowNode, stop: Stops): Continuation | null {
   if (isConditionType(node.type)) return lowerBranch(ctx, node, stop);
   if (node.type === LOOP_TYPE) return lowerLoop(ctx, node, stop);
   return Object.hasOwn(API_WRITERS, node.type) ? lowerApi(ctx, node, stop) : null;
 }
 
-type Arms = { first: Action[]; second: Action[]; rest: Action[] };
+type Arms = { first: Action[]; second: Action[]; next: string[] };
 
 function lowerArms(ctx: Lowering, node: FlowNode, ports: readonly [string, string], stop: Stops): Arms {
   const first = targets(ctx, node.id, ports[0]);
   const second = targets(ctx, node.id, ports[1]);
   const joins = armJoins(ctx, first, second);
   const bound = extended(stop, joins);
-  return { first: lowerEntries(ctx, first, bound), second: lowerEntries(ctx, second, bound), rest: lowerRest(ctx, joins, stop) };
+  return { first: lowerEntries(ctx, first, bound), second: lowerEntries(ctx, second, bound), next: joins };
 }
 
-function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
+function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Continuation {
   const params: Params = { condition: writeCondition(ctx, node) };
-  const { first, second, rest } = lowerArms(ctx, node, ['yes', 'no'], stop);
+  const { first, second, next } = lowerArms(ctx, node, ['yes', 'no'], stop);
   if (first.length > 0) params.then = first;
   if (second.length > 0) params.else = second;
-  return [owned(ctx, node, { type: 'if', params }), ...rest];
+  return { actions: [owned(ctx, node, { type: 'if', params })], next };
 }
 
 const withEnabled = (node: FlowNode, action: Action): Action => (node.config.disabled === true ? { ...action, enabled: false } : action);
 
-function lowerLoop(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
+function lowerLoop(ctx: Lowering, node: FlowNode, stop: Stops): Continuation {
   const times = str(loweredConfig(ctx, node).times);
-  const { first, second, rest } = lowerArms(ctx, node, LOOP_PORTS, stop);
+  const body = targets(ctx, node.id, LOOP_PORTS[0]);
+  const done = targets(ctx, node.id, LOOP_PORTS[1]);
+  const joins = armJoins(ctx, body, done);
+  const first = lowerEntries(ctx, body, extended(stop, joins));
   const params: Params = first.length > 0 ? { times, actions: first } : { times };
-  return [owned(ctx, node, withEnabled(node, { type: 'loop', params })), ...second, ...rest];
+  return { actions: [owned(ctx, node, withEnabled(node, { type: 'loop', params }))], next: done };
 }
 
-function lowerApi(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
+function lowerApi(ctx: Lowering, node: FlowNode, stop: Stops): Continuation {
   const action = API_WRITERS[node.type]!(loweredConfig(ctx, node));
-  const { first, second, rest } = lowerArms(ctx, node, API_PORTS, stop);
+  const { first, second, next } = lowerArms(ctx, node, API_PORTS, stop);
   const params = { ...action.params };
   if (first.length > 0) params.on_ok = first;
   if (second.length > 0) params.on_failure = second;
-  return [owned(ctx, node, withEnabled(node, { ...action, params })), ...rest];
+  return { actions: [owned(ctx, node, withEnabled(node, { ...action, params }))], next };
 }
 
 function leadingGate(ctx: Lowering, entries: string[]): FlowNode | null {
@@ -654,12 +675,14 @@ function lowerFlow(flow: Flow): Lowered {
     counters: new Map(),
     visited: new Set([trigger.id]),
     issues: [],
-    owners
+    owners,
+    joins: new Map()
   };
   const shape = shapeIssues(flow, trigger, ctx);
   if (shape.length > 0) return { result: { ok: false, issues: shape }, owners };
   if (!written) return { result: { ok: false, issues: [{ path: nodePath(trigger.id), code: FLOW_ISSUE.unsupportedNode }] }, owners };
   ctx.counters = priorCounters(ctx);
+  ctx.joins = joinIndex([...ctx.byId.keys()], ctx.outs);
   const { conditions, actions } = lowerRoot(ctx, trigger);
   if (ctx.issues.length > 0) return { result: { ok: false, issues: ctx.issues }, owners };
   return { result: { ok: true, value: assembled(flow, written, conditions, actions) }, owners };

@@ -3,7 +3,7 @@
   "introTitle": "Boas-vindas ao {name}",
   "introLead": "Escolha uma receita e deixe do seu jeito. As etapas estão prontas para editar.",
   "introCta": "Começar do zero",
-  "clarity": { "liveNow": "Liga ou desliga a receita salva na hora", "required": "Obrigatório", "liveOnSave": "Roda ao salvar", "staysOff": "Continua desligada ao salvar", "browse": "Ver minhas receitas" },
+  "clarity": {"liveNow":"Muda na hora","required":"Obrigatório","liveOnSave":"Ativa ao salvar","staysOff":"Fica desligada","browse":"Ver minhas receitas"},
   "introDocs": "Ler o guia",
   "connectExisting": "Conectar a uma etapa no quadro",
   "connectHint": "Toque em uma etapa para conectar",
