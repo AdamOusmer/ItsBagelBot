@@ -1,0 +1,76 @@
+{
+  "tick": {
+    "fired": "Enviado",
+    "gated": "Retenido",
+    "stopped": "Detenido",
+    "floor": "Filtro de contenido",
+    "blank": "Vacío",
+    "refused": "Denegado"
+  },
+  "opt": {
+    "plain": "Simple",
+    "gated": "Umbral de chat",
+    "capped": "Límite de envíos",
+    "ends": "Fecha de fin",
+    "offline": "Permite sin conexión"
+  },
+  "runtime": {
+    "active": "Activo",
+    "dormant": "Inactivo",
+    "blocked": "Bloqueado",
+    "disabled": "Deshabilitado",
+    "recovering": "En recuperación",
+    "degraded": "Degradado"
+  },
+  "game": {
+    "raffle": "Sorteo",
+    "mraffle": "Sorteo múltiple",
+    "duel": "Duelo",
+    "gamble": "Apuesta"
+  },
+  "flow": {
+    "gamble": "Apuesta",
+    "duel_stake": "Apuesta de duelo",
+    "transfer": "Transferencia",
+    "adjust": "Ajuste",
+    "reward_grant": "Crédito de recompensa",
+    "raffle_payout": "Premio del sorteo"
+  },
+  "feature": {
+    "channelpoints": "Puntos del canal",
+    "govee": "Govee"
+  },
+  "login": {
+    "started": "Iniciado",
+    "ok": "Completado",
+    "declined": "Rechazado",
+    "oauth": "Error de OAuth",
+    "state": "Estado no válido",
+    "bot": "Cuenta de bot",
+    "scope": "Permiso ausente",
+    "link": "Enlace no válido",
+    "retry": "Reintento necesario",
+    "banned": "Bloqueado"
+  },
+  "platform": {
+    "macos": "macOS",
+    "windows": "Windows",
+    "linux": "Linux"
+  },
+  "rule": {
+    "ip_logger": "Registrador de IP",
+    "scam": "Estafa",
+    "phish": "Suplantación",
+    "heuristic": "Heurística",
+    "block_term": "Término bloqueado",
+    "lex_hate": "Discurso de odio",
+    "lex_harassment": "Acoso",
+    "lex_sexual": "Contenido sexual",
+    "lex_profanity": "Lenguaje soez",
+    "council_campaign": "Campaña por consenso",
+    "repeat": "Repetición",
+    "campaign": "Campaña",
+    "shield_mode": "Modo escudo",
+    "other": "Otro"
+  }
+}

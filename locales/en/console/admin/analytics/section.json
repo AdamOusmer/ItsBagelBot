@@ -1,4 +1,8 @@
 {
+  "community": {
+    "title": "Community",
+    "question": "How are timers, games, points and rewards used?"
+  },
   "overview": {
     "title": "Overview",
     "question": "How busy is the bot, and is it growing?"
@@ -30,5 +34,13 @@
   "audience": {
     "title": "Audience",
     "question": "Which languages do streamers use?"
+  },
+  "recipes": {
+    "title": "Recipes",
+    "question": "Which recipes run and succeed?"
+  },
+  "reliability": {
+    "title": "Reliability",
+    "question": "Where do requests and sends fail?"
   }
 }

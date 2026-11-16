@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
@@ -97,6 +98,7 @@ func (r goveeRun) apply(ctx context.Context) {
 		return
 	}
 	r.chat(renderGoveeReply(r.locale, r.cfg.ReplyMessage, r.ev, label))
+	r.d.Analytics.Count(catalog.RewardsRedeems, "govee", "ok")
 	emitRedemptionStatus(r.emit, r.ev, defaultFulfillStatus(r.cfg.OnRedeem))
 }
 
@@ -203,8 +205,18 @@ func goveeFailureKey(err error) string {
 }
 
 func (r goveeRun) refund(key string) {
+	result := goveeRedeemResults[key]
+	r.d.Analytics.Count(catalog.RewardsRedeems, "govee", result)
 	r.chat(renderGoveeReply(r.locale, i18n.T(r.locale, key), r.ev, ""))
 	emitRedemptionStatus(r.emit, r.ev, outgress.RedemptionCanceled)
+}
+
+var goveeRedeemResults = map[string]string{
+	"govee.refund.offline":     "offline",
+	"govee.refund.colour":      "bad_input",
+	"govee.refund.setup":       "setup",
+	"govee.refund.busy":        "busy",
+	"govee.refund.unreachable": "unreachable",
 }
 
 func (r goveeRun) chat(text string) {

@@ -303,7 +303,9 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 	if !st.Live {
 		return nil
 	}
-	p.analytics.Count(catalog.LiveStarts)
+	if !fold.WasLive {
+		p.analytics.Count(catalog.LiveStarts)
+	}
 	p.analytics.Distinct(catalog.ChannelsLive, st.BroadcasterID)
 	allowed, err := p.engageStream(msg.Context(), st.BroadcasterID, msg.UUID)
 	if err != nil {

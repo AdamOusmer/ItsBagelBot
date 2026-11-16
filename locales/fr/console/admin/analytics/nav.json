@@ -1,4 +1,5 @@
 {
+  "community": "Communauté",
   "label": "Sections d'analyse",
   "overview": "Aperçu",
   "growth": "Croissance",
@@ -7,5 +8,7 @@
   "revenue": "Revenus",
   "features": "Fonctions",
   "commands": "Commandes",
-  "audience": "Audience"
+  "audience": "Audience",
+  "recipes": "Recettes",
+  "reliability": "Fiabilité"
 }

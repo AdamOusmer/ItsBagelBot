@@ -12,13 +12,17 @@ import (
 
 func (r *Users) commitLifecycle(ctx context.Context, m lifecycleMutation) (bool, error) {
 	row, s := m.row, m.state
-	defer r.trackAccounts(ctx, m.request.UserID)()
+
 	update := r.client.User.Update().Where(user.IDEQ(m.request.UserID), user.CreatedAtEQ(row.CreatedAt), user.StateRevisionEQ(row.StateRevision)).SetLifecycle(&s).SetLifecycleProjectionPending(true).SetLifecycleState(s.RuntimeState).SetIsActive(lifecycleServing(s, row.Banned))
 	setLifecycleMigration(update, m.request.Action)
 	setDormancyDeadline(update, s)
 	setLifecycleDue(update, s)
 	setNoticeDue(update, s)
 	n, err := db.WithQuery(ctx, update.Save)
+	if err != nil || n == 0 {
+		return false, err
+	}
+
 	return n != 0, err
 }
 func lifecycleServing(s lifecycle.State, serviceBanned bool) bool {

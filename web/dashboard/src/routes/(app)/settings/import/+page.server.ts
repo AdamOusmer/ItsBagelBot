@@ -11,6 +11,7 @@ import { IMPORT_STRATEGIES, isImportSource } from '@bagel/kit/importer/strategy'
 import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
 import { actionError } from '#lib/server/action-errors';
 import type { Session } from '#lib/server/session';
+import { count } from '@bagel/kit/server/analytics';
 import {
   IMPORT_SOURCES,
   translate,
@@ -88,12 +89,15 @@ function decodePreManifest(form: FormData):
     return { ok: false, status: 400, error: 'The parsed import is too large to verify.' };
   try {
     const parsed = JSON.parse(rawManifest) as ImportManifest;
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-      throw new Error('not an object');
+    if (!isManifestObject(parsed)) throw new Error('not an object');
     return { ok: true, manifest: parsed };
   } catch {
     return { ok: false, status: 400, error: 'The parsed import could not be decoded. Run the preview again.' };
   }
+}
+
+function isManifestObject(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 async function readUpload(form: FormData): Promise<
@@ -153,15 +157,16 @@ function resolveCredential(source: ImportSource, input: SourceInput, cookies: Co
 
 export const actions: Actions = {
   preview: async ({ request, locals, cookies }) => {
-    const gate = await importGate(locals);
-    if (!gate.ok) return fail(gate.status, { error: gate.error, code: gate.code, step: 'preview' });
-
     const form = await request.formData();
-    const source = usableSource(String(form.get('source') ?? ''), locals.locale);
-    if (typeof source !== 'string') return fail(400, { error: source.error, step: 'preview' });
+    const rawSource = String(form.get('source') ?? '');
+    const gate = await importGate(locals);
+    if (!gate.ok) return importFailure(rawSource, 'preview', gate.status, { error: gate.error, code: gate.code, step: 'preview' });
+
+    const source = usableSource(rawSource, locals.locale);
+    if (typeof source !== 'string') return importFailure(rawSource, 'preview', 400, { error: source.error, step: 'preview' });
 
     const read = await readSourceInput(form, source);
-    if (!read.ok) return fail(read.status, { error: actionError(locals.locale, read.error), step: 'preview' });
+    if (!read.ok) return importFailure(source, 'preview', read.status, { error: actionError(locals.locale, read.error), step: 'preview' });
 
     if (DEMO) {
       const demo = await import('#lib/server/demo-import');
@@ -170,7 +175,7 @@ export const actions: Actions = {
 
     const credential = resolveCredential(source, read.input, cookies);
     if (credential === null)
-      return fail(400, {
+      return importFailure(source, 'preview', 400, {
         error: translate(locals.locale, 'serverErrors.importConnectFirst', { source: IMPORT_STRATEGIES[source].label }),
         step: 'preview'
       });
@@ -184,33 +189,34 @@ export const actions: Actions = {
         manifest: read.input.preManifest
       });
     } catch {
-      return fail(502, { error: actionError(locals.locale, IMPORTER_DOWN), code: 'unavailable', step: 'preview' });
+      return importFailure(source, 'preview', 502, { error: actionError(locals.locale, IMPORTER_DOWN), code: 'unavailable', step: 'preview' });
     }
 
     if (!preview.manifest)
-      return fail(422, {
+      return importFailure(source, 'preview', 422, {
         error: actionError(locals.locale, preview.error || 'Nothing could be imported from that source.'),
         step: 'preview'
       });
 
+    count('import.runs', source, 'preview_ok');
     return { ok: true, step: 'preview', source, preview };
   },
 
   commit: async ({ request, locals, cookies }) => {
-    const gate = await importGate(locals);
-    if (!gate.ok) return fail(gate.status, { error: gate.error, code: gate.code, step: 'commit' });
-
     const form = await request.formData();
     const source = String(form.get('source') ?? '');
+    const gate = await importGate(locals);
+    if (!gate.ok) return importFailure(source, 'commit', gate.status, { error: gate.error, code: gate.code, step: 'commit' });
+
     const overwrite = form.get('overwrite') === 'on';
     const rawManifest = String(form.get('manifest') ?? '');
-    if (!rawManifest) return fail(400, { error: actionError(locals.locale, 'Nothing selected to import.'), step: 'commit' });
+    if (!rawManifest) return importFailure(source, 'commit', 400, { error: actionError(locals.locale, 'Nothing selected to import.'), step: 'commit' });
 
     let manifest: ImportManifest;
     try {
       manifest = JSON.parse(rawManifest) as ImportManifest;
     } catch {
-      return fail(400, { error: actionError(locals.locale, 'The selection could not be decoded. Run the preview again.'), step: 'commit' });
+      return importFailure(source, 'commit', 400, { error: actionError(locals.locale, 'The selection could not be decoded. Run the preview again.'), step: 'commit' });
     }
 
     if (DEMO) {
@@ -226,14 +232,20 @@ export const actions: Actions = {
         overwrite
       });
     } catch {
-      return fail(502, { error: actionError(locals.locale, IMPORTER_DOWN), code: 'unavailable', step: 'commit' });
+      return importFailure(source, 'commit', 502, { error: actionError(locals.locale, IMPORTER_DOWN), code: 'unavailable', step: 'commit' });
     }
 
     if (commit.error)
-      return fail(422, { error: actionError(locals.locale, commit.error), step: 'commit' });
+      return importFailure(source, 'commit', 422, { error: actionError(locals.locale, commit.error), step: 'commit' });
 
     if (isImportSource(source)) SERVER_STRATEGIES[source].afterCommit?.(cookies);
 
+    count('import.runs', source, 'committed');
     return { ok: true, step: 'commit', commit };
   }
 };
+
+function importFailure<T>(source: string, step: 'preview' | 'commit', status: number, data: T) {
+  count('import.runs', source, step === 'preview' ? 'preview_failed' : 'commit_failed');
+  return fail(status, data);
+}

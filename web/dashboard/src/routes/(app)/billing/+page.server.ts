@@ -12,13 +12,17 @@ import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { giveawayPrizes, type PrizeAward } from '#lib/server/giveaways';
 import { actionError } from '#lib/server/action-errors';
+import { count } from '@bagel/kit/server/analytics';
 
 const DEMO = dev && env.DEMO === '1';
+const PACKAGE_TYPES = { monthly: 'subscription', single: 'single' } as const;
+type CheckoutFailure = 'unavailable' | 'rejected' | 'blocked';
+const PREMIUM_HELD_ERRORS = new Set(['that user already has premium', 'that account already has premium coverage']);
 
 function billingActor(s: Session | null | undefined): { id: string; login: string } | null {
   if (!s || s.impersonator_id) return null;
+  if (s.delegate_of && !(s.sections ?? []).includes('billing')) return null;
   if (s.delegate_of) {
-    if (!(s.sections ?? []).includes('billing')) return null;
     return { id: s.delegate_of, login: s.delegate_login ?? s.login };
   }
   return { id: s.user_id, login: s.login };
@@ -61,21 +65,21 @@ function subscribePlan(form: FormData): 'monthly' | 'single' {
 type GiftFormError = { gift: true; error: string; recipient: string; message: string };
 type GiftFailure = { ok: false; status: number; data: GiftFormError };
 
+function giftFailure(gift: { recipient: string; message: string }, status: number, error: string): GiftFailure {
+  return { ok: false, status, data: { gift: true, error, recipient: gift.recipient, message: gift.message } };
+}
+
 function giftValidate(form: FormData, locale: App.Locals['locale']): { ok: true; recipient: string; message: string } | GiftFailure {
   const recipient = String(form.get('recipient') ?? '').trim();
   const message = String(form.get('message') ?? '').trim().slice(0, 280);
   if (!recipient) {
-    return { ok: false, status: 400, data: { gift: true, error: actionError(locale, 'Enter the Twitch username to gift to.'), recipient, message } };
+    return giftFailure({ recipient, message }, 400, actionError(locale, 'Enter the Twitch username to gift to.'));
   }
   if (!/^@?[A-Za-z0-9_]{3,25}$/.test(recipient)) {
-    return { ok: false, status: 400, data: { gift: true, error: actionError(locale, 'That does not look like a Twitch username.'), recipient, message } };
+    return giftFailure({ recipient, message }, 400, actionError(locale, 'That does not look like a Twitch username.'));
   }
   if (message && containsLink(message)) {
-    return {
-      ok: false,
-      status: 400,
-      data: { gift: true, error: actionError(locale, "Gift notes can't contain links or web addresses. Please remove it and try again."), recipient, message }
-    };
+    return giftFailure({ recipient, message }, 400, actionError(locale, "Gift notes can't contain links or web addresses. Please remove it and try again."));
   }
   return { ok: true, recipient, message };
 }
@@ -123,7 +127,7 @@ async function subscribeCheckout(
   actor: { id: string; login: string },
   packageType: 'subscription' | 'single',
   ipAddress: string
-): Promise<string | null> {
+): Promise<{ url: string | null; result: CheckoutFailure }> {
   try {
     const basket = await checkoutBasketCreate({
       userId: actor.id,
@@ -131,20 +135,21 @@ async function subscribeCheckout(
       ipAddress,
       packageType
     });
-    return optionalHttpsURL(basket.checkoutUrl ?? undefined);
+    return { url: optionalHttpsURL(basket.checkoutUrl ?? undefined), result: 'unavailable' };
   } catch (err) {
     logger.error({ err }, '[billing] basket create failed');
-    return null;
+    return { url: null, result: checkoutError(err) };
   }
 }
 
 async function giftCheckout(
   session: { user_id: string; login: string },
-  recipient: string,
-  message: string,
+  gift: { recipient: string; message: string },
   ipAddress: string,
   locale: App.Locals['locale']
-): Promise<{ ok: true; url: string } | GiftFailure> {
+): Promise<{ ok: true; url: string } | (GiftFailure & { result: CheckoutFailure })> {
+  const { recipient, message } = gift;
+  let result: CheckoutFailure = 'unavailable';
   try {
     const basket = await checkoutBasketCreate({
       userId: session.user_id,
@@ -156,22 +161,14 @@ async function giftCheckout(
     const url = optionalHttpsURL(basket.checkoutUrl ?? undefined);
     if (url) return { ok: true, url };
   } catch (err) {
+    result = checkoutError(err);
     if (err instanceof RpcError) {
       logger.warn({ err }, `[billing] gift rejected for ${session.user_id} -> ${recipient}`);
-      return { ok: false, status: 409, data: { gift: true, error: actionError(locale, err.message), recipient, message } };
+      return { ...giftFailure(gift, 409, actionError(locale, err.message)), result };
     }
     logger.error({ err }, '[billing] gift basket create failed');
   }
-  return {
-    ok: false,
-    status: 502,
-    data: {
-      gift: true,
-      error: actionError(locale, 'Gifting is not available right now. Try again in a moment.'),
-      recipient,
-      message
-    }
-  };
+  return { ...giftFailure(gift, 502, actionError(locale, 'Gifting is not available right now. Try again in a moment.')), result };
 }
 
 function settledBilling(result: { status: 'fulfilled'; value: BillingState } | { status: 'rejected' }): BillingState {
@@ -228,25 +225,22 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-  // Always mint a basket: it carries user_id for webhook attribution.
   subscribe: async ({ locals, request, getClientAddress }) => {
+    const plan = subscribePlan(await request.formData());
     if (DEMO) {
-      const plan = subscribePlan(await request.formData());
       throw redirect(303, `/billing/demo-checkout?kind=premium&plan=${plan}`);
     }
 
     const gate = billingGate(locals.session, locals.locale);
-    if (!gate.ok) return fail(gate.status, { error: gate.error });
+    if (!gate.ok) return checkoutFailure(plan, 'rejected', gate.status, { error: gate.error });
     const actor = gate.actor;
 
-    const packageType = subscribePlan(await request.formData()) === 'monthly' ? 'subscription' : 'single';
-
     const blocked = await premiumAlreadyHeld(actor.id, locals.locale);
-    if (blocked) return fail(blocked.status, blocked.data);
+    if (blocked) return checkoutFailure(plan, coverageResult(blocked.status), blocked.status, blocked.data);
 
-    const url = await subscribeCheckout(actor, packageType, getClientAddress());
-    if (!url) return fail(503, { error: actionError(locals.locale, 'Subscriptions are not available right now.') });
-    throw redirect(303, url, { external: true });
+    const checkout = await subscribeCheckout(actor, PACKAGE_TYPES[plan], getClientAddress());
+    if (!checkout.url) return checkoutFailure(plan, checkout.result, 503, { error: actionError(locals.locale, 'Subscriptions are not available right now.') });
+    return checkoutRedirect(plan, checkout.url);
   },
 
   gift: async ({ locals, request, getClientAddress }) => {
@@ -257,15 +251,15 @@ export const actions: Actions = {
     }
 
     const gate = billingGate(locals.session, locals.locale);
-    if (!gate.ok) return fail(gate.status, { gift: true, error: gate.error });
+    if (!gate.ok) return checkoutFailure('gift', 'rejected', gate.status, { gift: true, error: gate.error });
     const s = locals.session!;
 
     const validated = giftValidate(await request.formData(), locals.locale);
-    if (!validated.ok) return fail(validated.status, validated.data);
+    if (!validated.ok) return checkoutFailure('gift', 'rejected', validated.status, validated.data);
 
-    const checkout = await giftCheckout(s, validated.recipient, validated.message, getClientAddress(), locals.locale);
-    if (!checkout.ok) return fail(checkout.status, checkout.data);
-    throw redirect(303, checkout.url, { external: true });
+    const checkout = await giftCheckout(s, validated, getClientAddress(), locals.locale);
+    if (!checkout.ok) return checkoutFailure('gift', checkout.result, checkout.status, checkout.data);
+    return checkoutRedirect('gift', checkout.url);
   },
 
   cancel: async ({ locals }) => {
@@ -288,3 +282,23 @@ export const actions: Actions = {
     throw redirect(303, url, { external: true });
   }
 };
+
+function checkoutFailure<T>(plan: 'monthly' | 'single' | 'gift', result: CheckoutFailure, status: number, data: T) {
+  count('billing.checkout', plan, result);
+  return fail(status, data);
+}
+
+function checkoutError(err: unknown): CheckoutFailure {
+  if (!(err instanceof RpcError)) return 'rejected';
+  if (err.code === 'unavailable') return 'unavailable';
+  return PREMIUM_HELD_ERRORS.has(err.message) ? 'blocked' : 'rejected';
+}
+
+function coverageResult(status: number): CheckoutFailure {
+  return status === 409 ? 'blocked' : 'rejected';
+}
+
+function checkoutRedirect(plan: 'monthly' | 'single' | 'gift', url: string): never {
+  count('billing.checkout', plan, 'redirected');
+  throw redirect(303, url, { external: true });
+}

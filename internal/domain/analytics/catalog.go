@@ -49,6 +49,7 @@ const (
 	CustomCommands   Metric = "custom.commands"
 	LiveStarts       Metric = "live.starts"
 	ChannelsLive     Metric = "channels.live"
+	ChannelsSize     Metric = "channels.size"
 	ChannelsActive   Metric = "channels.active"
 	ModuleActive     Metric = "module.active"
 	CohortActive     Metric = "cohort.active"
@@ -66,12 +67,37 @@ const (
 	PaidBySignupWeek      Metric = "accounts.paid_by_signup_week"
 
 	ModulesRows           Metric = "modules.rows"
+	ModulesDefaults       Metric = "modules.defaults"
 	ModulesBreadth        Metric = "modules.breadth"
 	IntegrationsConnected Metric = "integrations.connected"
 	CustomTotal           Metric = "custom.total"
 	CustomPerm            Metric = "custom.perm"
 	CustomFlags           Metric = "custom.flags"
 	CustomChannels        Metric = "custom.channels"
+
+	RecipeRuns         Metric = "recipe.runs"
+	RecipeChannels     Metric = "recipe.channels"
+	RecipesTotal       Metric = "recipes.total"
+	ActivationAge      Metric = "activation.age"
+	CommandBlocked     Metric = "command.blocked"
+	SongRequests       Metric = "songs.requests"
+	ProviderCalls      Metric = "provider.calls"
+	OutgressDropped    Metric = "outgress.dropped"
+	DashboardViews     Metric = "dashboard.views"
+	BillingCheckout    Metric = "billing.checkout"
+	ImportRuns         Metric = "import.runs"
+	OnboardingSteps    Metric = "onboarding.steps"
+	AccountsDelegating Metric = "accounts.delegating"
+	TimersTicks        Metric = "timers.ticks"
+	TimersTotal        Metric = "timers.total"
+	AutomodFlags       Metric = "automod.flags"
+	AccountsRuntime    Metric = "accounts.runtime"
+	GamesRounds        Metric = "games.rounds"
+	GamesEntrants      Metric = "games.entrants"
+	PointsFlows        Metric = "points.flows"
+	RewardsRedeems     Metric = "rewards.redeems"
+	AuthLogin          Metric = "auth.login"
+	DesktopGrants      Metric = "desktop.grants"
 )
 
 const (
@@ -93,6 +119,36 @@ const (
 	KindActive    Kind = "active"
 	KindPerm      Kind = "perm"
 	KindFlag      Kind = "flag"
+	KindTrigger   Kind = "trigger"
+	KindOutcome   Kind = "outcome"
+	KindAge       Kind = "age"
+	KindBlock     Kind = "block"
+	KindSong      Kind = "song"
+	KindProvider  Kind = "provider"
+	KindFetch     Kind = "fetch"
+	KindSend      Kind = "send"
+	KindDrop      Kind = "drop"
+	KindSection   Kind = "section"
+	KindRole      Kind = "role"
+	KindPlan      Kind = "plan"
+	KindCheckout  Kind = "checkout"
+	KindImport    Kind = "import"
+	KindStep      Kind = "step"
+	KindOnboard   Kind = "onboard"
+	KindTick      Kind = "tick"
+	KindOpt       Kind = "opt"
+	KindRule      Kind = "rule"
+	KindMode      Kind = "mode"
+	KindRuntime   Kind = "runtime"
+	KindGame      Kind = "game"
+	KindEnd       Kind = "end"
+	KindBucket    Kind = "bucket"
+	KindFlow      Kind = "flow"
+	KindFeature   Kind = "feature"
+	KindRedeem    Kind = "redeem"
+	KindLogin     Kind = "login"
+	KindPlatform  Kind = "platform"
+	KindSize      Kind = "size"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -111,6 +167,7 @@ var catalog = map[Metric]Spec{
 	CustomCommands:   {Type: Counter, Dims: []Kind{KindChange}},
 	LiveStarts:       {Type: Counter},
 	ChannelsLive:     {Type: Distinct, Windows: Day | Week | Month},
+	ChannelsSize:     {Type: Distinct, Dims: []Kind{KindSize}, Windows: Week | Month},
 	ChannelsActive:   {Type: Distinct, Windows: Day | Week | Month},
 	ModuleActive:     {Type: Distinct, Dims: []Kind{KindModule}, Windows: Day | Week},
 	CohortActive:     {Type: Distinct, Dims: []Kind{KindWeek}, Windows: Week},
@@ -128,16 +185,41 @@ var catalog = map[Metric]Spec{
 	PaidBySignupWeek:      {Type: Level, Dims: []Kind{KindWeek}},
 
 	ModulesRows:           {Type: Level, Dims: []Kind{KindModule, KindState}},
+	ModulesDefaults:       {Type: Level, Dims: []Kind{KindModule}},
 	ModulesBreadth:        {Type: Level, Dims: []Kind{KindBreadth}},
 	IntegrationsConnected: {Type: Level, Dims: []Kind{KindLink}},
 	CustomTotal:           {Type: Level, Dims: []Kind{KindActive}},
 	CustomPerm:            {Type: Level, Dims: []Kind{KindPerm}},
 	CustomFlags:           {Type: Level, Dims: []Kind{KindFlag}},
 	CustomChannels:        {Type: Level},
+
+	RecipeRuns:         {Type: Counter, Dims: []Kind{KindTrigger, KindOutcome}},
+	RecipeChannels:     {Type: Distinct, Windows: Day | Week | Month},
+	RecipesTotal:       {Type: Level, Dims: []Kind{KindTrigger, KindState}},
+	ActivationAge:      {Type: Distinct, Dims: []Kind{KindAge}, Windows: Day | Week},
+	CommandBlocked:     {Type: Counter, Dims: []Kind{KindBlock}},
+	SongRequests:       {Type: Counter, Dims: []Kind{KindSong}},
+	ProviderCalls:      {Type: Counter, Dims: []Kind{KindProvider, KindFetch}},
+	OutgressDropped:    {Type: Counter, Dims: []Kind{KindSend, KindDrop}},
+	DashboardViews:     {Type: Counter, Dims: []Kind{KindSection, KindRole}},
+	BillingCheckout:    {Type: Counter, Dims: []Kind{KindPlan, KindCheckout}},
+	ImportRuns:         {Type: Counter, Dims: []Kind{KindImport, KindStep}},
+	OnboardingSteps:    {Type: Counter, Dims: []Kind{KindOnboard}},
+	AccountsDelegating: {Type: Level},
+	TimersTicks:        {Type: Counter, Dims: []Kind{KindTick}},
+	TimersTotal:        {Type: Level, Dims: []Kind{KindOpt}},
+	AutomodFlags:       {Type: Counter, Dims: []Kind{KindRule, KindMode}},
+	AccountsRuntime:    {Type: Level, Dims: []Kind{KindRuntime}},
+	GamesRounds:        {Type: Counter, Dims: []Kind{KindGame, KindEnd}},
+	GamesEntrants:      {Type: Counter, Dims: []Kind{KindGame, KindBucket}},
+	PointsFlows:        {Type: Counter, Dims: []Kind{KindFlow}},
+	RewardsRedeems:     {Type: Counter, Dims: []Kind{KindFeature, KindRedeem}},
+	AuthLogin:          {Type: Counter, Dims: []Kind{KindLogin}},
+	DesktopGrants:      {Type: Level, Dims: []Kind{KindPlatform}},
 }
 
 var enums = map[Kind][]string{
-	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted"},
+	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted", "trial_promoted"},
 	KindPreset:    {"start-new", "integrate", "quiet", "import", "songs"},
 	KindToggle:    {"on", "off"},
 	KindChange:    {"created", "deleted"},
@@ -150,14 +232,47 @@ var enums = map[Kind][]string{
 	KindActive:    {"active", "inactive"},
 	KindPerm:      {"everyone", "sub", "vip", "mod", "lead_mod", "broadcaster"},
 	KindFlag:      {"online_only", "aliased", "cooldown", "counter"},
+	KindTrigger:   {"command", "event", "timer", "reward", "manual", "countdown"},
+	KindOutcome:   {"ok", "skipped", "partial", "failed", "limited"},
+	KindAge:       {"d0", "d1", "d2_6", "d7_13", "d14_29", "d30p"},
+	KindBlock:     {"perm", "offline", "cooldown"},
+	KindSong:      {"queued", "off", "perm", "offline", "not_found", "queue_full", "player_refused"},
+	KindFetch:     {"ok", "denied", "limited", "upstream_error", "timeout", "bad_def", "error"},
+	KindSend:      {"chat", "helix"},
+	KindDrop:      {"auth", "rejected", "exhausted", "chat_dropped"},
+	KindSection: {
+		"overview", "commands", "flows", "automations", "modules", "timers", "loyalty", "counters",
+		"quotes", "songqueue", "channelpoints", "govee", "billing", "settings", "access",
+	},
+	KindRole:     {"owner", "delegate"},
+	KindPlan:     {"monthly", "single", "gift"},
+	KindCheckout: {"redirected", "blocked", "unavailable", "rejected"},
+	KindImport:   {"streamelements", "fossabot", "moobot", "nightbot", "streamlabs_desktop", "wizebot"},
+	KindStep:     {"preview_ok", "preview_failed", "committed", "commit_failed"},
+	KindOnboard:  {"viewed", "consent_missing", "save_failed"},
+	KindTick:     {"fired", "gated", "stopped", "floor", "blank", "refused"},
+	KindOpt:      {"plain", "gated", "capped", "ends", "offline"},
+	KindRule:     {"ip_logger", "scam", "phish", "heuristic", "block_term", "lex_hate", "lex_harassment", "lex_sexual", "lex_profanity", "council_campaign", "repeat", "campaign", "shield_mode", "other"},
+	KindMode:     {"shadow", "enforced"},
+	KindRuntime:  {"active", "dormant", "blocked", "disabled", "recovering", "degraded"},
+	KindGame:     {"raffle", "mraffle", "duel", "gamble"},
+	KindEnd:      {"drawn", "empty", "cancelled", "declined", "no_show", "won", "lost"},
+	KindBucket:   {"1", "2_4", "5_19", "20_99", "100p"},
+	KindFlow:     {"gamble", "duel_stake", "transfer", "adjust", "reward_grant", "raffle_payout"},
+	KindFeature:  {"channelpoints", "govee"},
+	KindRedeem:   {"ok", "offline", "bad_input", "setup", "busy", "unreachable"},
+	KindLogin:    {"started", "ok", "declined", "oauth", "state", "bot", "scope", "link", "retry", "banned"},
+	KindPlatform: {"macos", "windows", "linux"},
+	KindSize:     {"v0_9", "v10_49", "v50_199", "v200_999", "v1kp"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{
-	KindModule:  regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
-	KindCommand: regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
-	KindWeek:    regexp.MustCompile(`^[0-9]{4}-W[0-9]{2}$`),
-	KindLocale:  regexp.MustCompile(`^[a-z]{2}(-[A-Za-z]{2,4})?$`),
-	KindBreadth: regexp.MustCompile(`^[0-9]{1,3}$`),
+	KindModule:   regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
+	KindCommand:  regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
+	KindWeek:     regexp.MustCompile(`^[0-9]{4}-W[0-9]{2}$`),
+	KindLocale:   regexp.MustCompile(`^[a-z]{2}(-[A-Za-z]{2,4})?$`),
+	KindBreadth:  regexp.MustCompile(`^[0-9]{1,3}$`),
+	KindProvider: regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
 }
 
 func Lookup(m Metric) (Spec, bool) {

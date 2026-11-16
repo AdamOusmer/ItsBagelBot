@@ -1,4 +1,11 @@
 {
+  "size": {
+    "v0_9": "0 to 9 viewers",
+    "v10_49": "10 to 49 viewers",
+    "v50_199": "50 to 199 viewers",
+    "v200_999": "200 to 999 viewers",
+    "v1kp": "1,000 or more viewers"
+  },
   "lifecycle": {
     "signup": "Signed up",
     "onboarded": "Finished setup",
@@ -57,5 +64,72 @@
     "aliased": "Has aliases",
     "cooldown": "Has a cooldown",
     "counter": "Has a counter"
+  },
+  "trigger": {
+    "command": "Command",
+    "event": "Event",
+    "timer": "Timer",
+    "reward": "Reward",
+    "manual": "Manual",
+    "countdown": "Countdown"
+  },
+  "age": {
+    "d0": "Same day",
+    "d1": "1 day",
+    "d2_6": "2 to 6 days",
+    "d7_13": "7 to 13 days",
+    "d14_29": "14 to 29 days",
+    "d30p": "30 days or more"
+  },
+  "block": {
+    "perm": "Permission",
+    "offline": "Offline",
+    "cooldown": "Cooldown"
+  },
+  "song": {
+    "queued": "Queued",
+    "off": "Disabled",
+    "perm": "Permission denied",
+    "offline": "Offline",
+    "not_found": "Not found",
+    "queue_full": "Queue full",
+    "player_refused": "Player refused"
+  },
+  "send": {
+    "chat": "Chat",
+    "helix": "Helix"
+  },
+  "drop": {
+    "auth": "Authorization",
+    "rejected": "Rejected",
+    "exhausted": "Retries exhausted",
+    "chat_dropped": "Chat dropped"
+  },
+  "plan": {
+    "monthly": "Monthly",
+    "single": "One-time",
+    "gift": "Gift"
+  },
+  "onboard": {
+    "viewed": "Setup viewed",
+    "consent_missing": "Consent missing",
+    "save_failed": "Save failed"
+  },
+  "section": {
+    "overview": "Overview",
+    "commands": "Commands",
+    "flows": "Flows",
+    "automations": "Automations",
+    "modules": "Modules",
+    "timers": "Timers",
+    "loyalty": "Loyalty",
+    "counters": "Counters",
+    "quotes": "Quotes",
+    "songqueue": "Song queue",
+    "channelpoints": "Channel points",
+    "govee": "Govee",
+    "billing": "Billing",
+    "settings": "Settings",
+    "access": "Access"
   }
 }

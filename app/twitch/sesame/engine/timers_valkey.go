@@ -111,6 +111,7 @@ func (s *ValkeyTimerStore) WirePipeline(p *Pipeline) {
 }
 
 type TimersConfig struct {
+	Live                     IsLiveChecker
 	Runtime                  channelruntime.Reader
 	OutgressPremiumSubject   string
 	OutgressStandardSubject  string
@@ -122,7 +123,7 @@ type TimersConfig struct {
 	Log                      *zap.Logger
 }
 
-func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projection.Reader, live IsLiveChecker, cfg TimersConfig) *ValkeyTimerStore {
+func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projection.Reader, cfg TimersConfig) *ValkeyTimerStore {
 	log := cfg.Log
 	if log == nil {
 		log = zap.NewNop()
@@ -132,7 +133,7 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 		client:           client,
 		pub:              pub,
 		proj:             proj,
-		live:             live,
+		live:             cfg.Live,
 		nc:               cfg.NC,
 		rearmSubject:     cfg.ModulesInvalidateSubject,
 		rearmExtra:       cfg.AutomationsInvalidate,
@@ -508,9 +509,11 @@ func runtimeFence(state channelruntime.Snapshot) string {
 
 func (s *ValkeyTimerStore) tick(ctx context.Context, at armedTimer) {
 	if s.hasStopped(ctx, at) {
+		s.recordTick("stopped")
 		return
 	}
 	if !s.gateOpen(ctx, at) {
+		s.recordTick("gated")
 		s.arm(ctx, at)
 		return
 	}
@@ -661,6 +664,7 @@ func findTimer(timers []timerDef, id string) (timerDef, bool) {
 
 func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 	if !s.admitted(ctx, at.ref.broadcasterID) {
+		s.recordTick("refused")
 		return
 	}
 	if strings.HasPrefix(at.ref.id, autoTimerPrefix) {
@@ -668,6 +672,7 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 		return
 	}
 	if term, hit := moderation.CheckFloor(at.def.Message); hit {
+		s.recordTick("floor")
 		s.log.Warn("timers: suppressed message carrying floor content",
 			module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.String("term", term))
 		return
@@ -675,18 +680,20 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 
 	idStr := strconv.FormatUint(at.ref.broadcasterID, 10)
 	subject, user := s.timerRoute(ctx, at.ref.broadcasterID)
+	createdAt := at.admission.AccountCreatedAt
+	if createdAt == 0 {
+		createdAt = user.AccountCreatedAt
+	}
 
 	text := s.timerText(ctx, at, user)
 	outputs := s.timerOutputs(idStr, text)
 	if len(outputs) == 0 {
+		s.recordTick("blank")
 		s.warnBlankFire(at)
 		return
 	}
 	for _, out := range outputs {
-		s.publishFired(ctx, at, subject, out)
-	}
-	if s.pipeline != nil {
-		s.pipeline.analytics.Count(catalog.TimerFires)
+		s.recordTimerOutput(at.ref.broadcasterID, createdAt, s.publishFired(ctx, at, subject, out))
 	}
 }
 
@@ -726,22 +733,39 @@ func (s *ValkeyTimerStore) timerOutputs(idStr, text string) []module.Output {
 	return s.pipeline.chatLines(out)
 }
 
-func (s *ValkeyTimerStore) publishFired(ctx context.Context, at armedTimer, subject string, out module.Output) {
+func (s *ValkeyTimerStore) publishFired(ctx context.Context, at armedTimer, subject string, out module.Output) bool {
 	message, err := buildOutgressMessage(&out)
+	if err != nil {
+		return false
+	}
 	if at.admission.Registered {
 		message.AccountCreatedAt = at.admission.AccountCreatedAt
 		message.AdmissionGeneration = at.admission.State.AdmissionGeneration
 	}
-	if err != nil {
-		return
-	}
 	body, err := codec.Marshal(message)
 	if err != nil {
 		s.log.Warn("timers: failed to build outgress message", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
-		return
+		return false
 	}
 	if err := bus.PublishRaw(ctx, s.pub, subject, body); err != nil {
 		s.log.Warn("timers: failed to publish", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
+		return false
+	}
+	return true
+}
+
+func (s *ValkeyTimerStore) recordTimerOutput(broadcasterID uint64, createdAt int64, published bool) {
+	if s.pipeline == nil || !published {
+		return
+	}
+	s.pipeline.analytics.Count(catalog.TimerFires)
+	s.recordTick("fired")
+	s.pipeline.recordProcessed(broadcasterID, createdAt, false, 1)
+}
+
+func (s *ValkeyTimerStore) recordTick(tick string) {
+	if s.pipeline != nil {
+		s.pipeline.analytics.Count(catalog.TimersTicks, tick)
 	}
 }
 

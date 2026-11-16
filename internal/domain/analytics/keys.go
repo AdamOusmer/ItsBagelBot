@@ -76,6 +76,8 @@ func windowCode(w Window) string {
 
 func CounterKey(day time.Time) string { return keyPrefix + "c:" + Period(Day, day) }
 
+func LevelSnapshotKey(day time.Time) string { return keyPrefix + "lvls:" + Period(Day, day) }
+
 const (
 	setTag = "s"
 	hllTag = "h"
@@ -125,16 +127,6 @@ func RollupClaimKey(w Window, t time.Time) string {
 
 func WindowCode(w Window) string { return windowCode(w) }
 
-// LevelKey holds running totals. Write-time deltas move them between reconciles, and each
-// owning service rewrites its fields from SQL once per UTC day, so drift lasts a day at most.
-const LevelKey = keyPrefix + "lvl"
-
-// ReconcileClaimKey is held by the one pod of a service that reconciles its totals for a day.
-func ReconcileClaimKey(service string, day time.Time) string {
-	return keyPrefix + "rec:" + service + ":" + Period(Day, day)
-}
-
-// Data keys outlive their period so a late rollup still finds them.
 func DataExpiry(w Window, t time.Time) time.Time { return PeriodEnd(w, t).Add(retainAfter) }
 
 // Salts die right after their period; afterwards nobody can test a known id against the sketch.

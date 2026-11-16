@@ -14,6 +14,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
@@ -175,6 +176,8 @@ type pointsGrant struct {
 	run     func() error
 }
 
+type pointsInput struct{ target, amount string }
+
 func (lc loyaltyCmd) pointsRun(ctx context.Context, args string) error {
 	fields := strings.Fields(args)
 	if len(fields) != 3 {
@@ -182,10 +185,11 @@ func (lc loyaltyCmd) pointsRun(ctx context.Context, args string) error {
 	}
 	cfg := lc.cfg
 	verb := strings.ToLower(fields[0])
+	input := pointsInput{target: fields[1], amount: fields[2]}
 	if verb == "give" {
-		return lc.pointsGive(ctx, fields[1], fields[2], cfg.ViewersMayTransfer() || lc.owner())
+		return lc.pointsGive(ctx, input, cfg.ViewersMayTransfer() || lc.owner())
 	}
-	grant, ok := lc.grant(ctx, verb, fields[1], fields[2])
+	grant, ok := lc.grant(ctx, verb, input)
 	if !ok || !lc.c.Chatter().Allows(module.RoleModerator) {
 		return lc.pointsShow(ctx)
 	}
@@ -200,19 +204,19 @@ func (lc loyaltyCmd) setPointsRun(ctx context.Context, args string) error {
 	return lc.pointsRun(ctx, "set "+args)
 }
 
-func (lc loyaltyCmd) grant(ctx context.Context, verb, target, amount string) (pointsGrant, bool) {
+func (lc loyaltyCmd) grant(ctx context.Context, verb string, input pointsInput) (pointsGrant, bool) {
 	switch verb {
 	case "set":
 		return pointsGrant{engine.LoyaltyModuleConfig.ModsMaySetPoints, func() error {
-			return lc.pointsAdjust(ctx, target, amount, true)
+			return lc.pointsAdjust(ctx, input, true)
 		}}, true
 	case "add":
 		return pointsGrant{engine.LoyaltyModuleConfig.ModsMayAdjustPoints, func() error {
-			return lc.pointsAdjust(ctx, target, amount, false)
+			return lc.pointsAdjust(ctx, input, false)
 		}}, true
 	case "remove":
 		return pointsGrant{engine.LoyaltyModuleConfig.ModsMayAdjustPoints, func() error {
-			return lc.pointsRemove(ctx, target, amount)
+			return lc.pointsRemove(ctx, input)
 		}}, true
 	}
 	return pointsGrant{}, false
@@ -241,18 +245,18 @@ func boundedAmount(amount string, positiveOnly bool) (int64, bool) {
 	return v, true
 }
 
-func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, absolute bool) error {
-	value, ok := boundedAmount(amount, false)
+func (lc loyaltyCmd) pointsAdjust(ctx context.Context, input pointsInput, absolute bool) error {
+	value, ok := boundedAmount(input.amount, false)
 	if !ok {
 		lc.reply("loyalty.points.usage")
 		return nil
 	}
-	login := strings.ToLower(strings.TrimPrefix(target, "@"))
+	login := strings.ToLower(strings.TrimPrefix(input.target, "@"))
 	if login == "" {
 		lc.reply("loyalty.points.usage")
 		return nil
 	}
-	viewerID, ok := lc.resolvePointsUser(ctx, login, strings.HasPrefix(target, "@"))
+	viewerID, ok := lc.resolvePointsUser(ctx, login, strings.HasPrefix(input.target, "@"))
 	if !ok {
 		return nil
 	}
@@ -283,6 +287,7 @@ func (lc loyaltyCmd) adjustPoints(ctx context.Context, adjustment engine.Balance
 		"points", strconv.FormatInt(bal.Points, 10),
 		"name", cfg.Name(),
 	)
+	lc.d.Analytics.Count(catalog.PointsFlows, "adjust")
 	return nil
 }
 
@@ -294,13 +299,13 @@ func (lc loyaltyCmd) grantVerb(enabled bool, run func() error) error {
 	return run()
 }
 
-func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enabled bool) error {
+func (lc loyaltyCmd) pointsGive(ctx context.Context, input pointsInput, enabled bool) error {
 	cfg := lc.cfg
 	if !enabled {
 		lc.reply("loyalty.points.disabled", "name", cfg.Name())
 		return nil
 	}
-	req, ok := lc.pointsGiveRequest(target, amount)
+	req, ok := lc.pointsGiveRequest(input)
 	if !ok {
 		lc.reply("loyalty.points.give.usage", "name", cfg.Name())
 		return nil
@@ -353,6 +358,7 @@ func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, 
 		)
 		return nil
 	}
+	lc.d.Analytics.Count(catalog.PointsFlows, "transfer")
 	lc.reply("loyalty.points.gave",
 		"target", req.login,
 		"amount", strconv.FormatInt(req.value, 10),
@@ -362,21 +368,21 @@ func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, 
 	return nil
 }
 
-func (lc loyaltyCmd) pointsGiveRequest(target, amount string) (pointsGiveRequest, bool) {
-	value, ok := boundedAmount(amount, true)
+func (lc loyaltyCmd) pointsGiveRequest(input pointsInput) (pointsGiveRequest, bool) {
+	value, ok := boundedAmount(input.amount, true)
 	if !ok {
 		return pointsGiveRequest{}, false
 	}
-	login := strings.ToLower(strings.TrimPrefix(target, "@"))
+	login := strings.ToLower(strings.TrimPrefix(input.target, "@"))
 	senderID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
 	if login == "" || senderID == 0 {
 		return pointsGiveRequest{}, false
 	}
-	return pointsGiveRequest{login: login, value: value, senderID: senderID, atPrefixed: strings.HasPrefix(target, "@")}, true
+	return pointsGiveRequest{login: login, value: value, senderID: senderID, atPrefixed: strings.HasPrefix(input.target, "@")}, true
 }
 
-func (lc loyaltyCmd) pointsRemove(ctx context.Context, target, amount string) error {
-	value, err := strconv.ParseInt(amount, 10, 64)
+func (lc loyaltyCmd) pointsRemove(ctx context.Context, input pointsInput) error {
+	value, err := strconv.ParseInt(input.amount, 10, 64)
 	if err != nil {
 		lc.reply("loyalty.points.usage")
 		return nil
@@ -384,7 +390,8 @@ func (lc loyaltyCmd) pointsRemove(ctx context.Context, target, amount string) er
 	if value > 0 {
 		value = -value
 	}
-	return lc.pointsAdjust(ctx, target, strconv.FormatInt(value, 10), false)
+	input.amount = strconv.FormatInt(value, 10)
+	return lc.pointsAdjust(ctx, input, false)
 }
 
 func (lc loyaltyCmd) leaderboardShow(ctx context.Context, args string) error {
@@ -431,7 +438,10 @@ func leaderboardLimit(args string) (int, bool) {
 		return defaultLeaderboardLimit, true
 	}
 	n, err := strconv.Atoi(args)
-	if err != nil || n < 1 || n > maxLeaderboardLimit {
+	if err != nil {
+		return 0, false
+	}
+	if n < 1 || n > maxLeaderboardLimit {
 		return 0, false
 	}
 	return n, true

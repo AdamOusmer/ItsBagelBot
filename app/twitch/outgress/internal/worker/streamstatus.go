@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
@@ -57,12 +58,36 @@ func (w *Worker) publishStreamStatus(ctx context.Context, payload *outgress.Mess
 	w.persistStreamInfo(ctx, payload.BroadcasterID, isLive, details)
 
 	if isLive {
+		w.recordAudienceSize(payload.BroadcasterID, details.ViewerCount)
 		w.scheduleModStatus(payload.BroadcasterID, payload.SenderID)
 	}
 
 	w.log.Debug("stream_status resolved",
 		zap.String("broadcaster_id", payload.BroadcasterID), zap.Bool("live", isLive))
 	return nil
+}
+
+func (w *Worker) recordAudienceSize(broadcasterID string, viewers int) {
+	id, err := strconv.ParseUint(broadcasterID, 10, 64)
+	if err != nil {
+		return
+	}
+	w.analytics.Distinct(catalog.ChannelsSize, id, audienceSizeBucket(viewers))
+}
+
+func audienceSizeBucket(viewers int) string {
+	switch {
+	case viewers < 10:
+		return "v0_9"
+	case viewers < 50:
+		return "v10_49"
+	case viewers < 200:
+		return "v50_199"
+	case viewers < 1000:
+		return "v200_999"
+	default:
+		return "v1kp"
+	}
 }
 
 func (w *Worker) persistStreamInfo(ctx context.Context, broadcasterID string, isLive bool, details twitch.StreamDetails) {
@@ -220,8 +245,6 @@ func (w *Worker) sendReauthBeacon(ctx context.Context, broadcasterID string, n n
 	}
 }
 
-// Reports whether the channel is healthy afterward, not whether the retry itself
-// errored: enableEventSubs acks almost every failure, so registry state is the only reliable signal.
 func (w *Worker) recoverFromBan(ctx context.Context, broadcasterID string) bool {
 	e, err := w.currentEnrollment(ctx, broadcasterID)
 	if err != nil {

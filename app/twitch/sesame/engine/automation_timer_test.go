@@ -19,7 +19,8 @@ const timerParams = `{"interval_s":60,"random_jitter_s":10,"min_chat_lines":0,"o
 
 func timerStoreFor(t *testing.T, fx *rpcFixture) *ValkeyTimerStore {
 	t.Helper()
-	store := NewValkeyTimerStore(fx.valk, fx.pub, fx.p.proj, fakeLive{live: true}, TimersConfig{
+	store := NewValkeyTimerStore(fx.valk, fx.pub, fx.p.proj, TimersConfig{
+		Live:                   fakeLive{live: true},
 		OutgressPremiumSubject: premiumSubj, OutgressStandardSubject: standardSubj, Log: zap.NewNop(),
 	})
 	store.WirePipeline(fx.p)

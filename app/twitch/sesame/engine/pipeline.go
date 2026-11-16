@@ -184,7 +184,7 @@ func (p *Pipeline) Close() {
 
 const chatType = "channel.chat.message"
 
-func (p *Pipeline) Process(msg *bus.Message) error {
+func (p *Pipeline) Process(msg *bus.Message) (err error) {
 	ctx, cancel := messageContext(msg)
 	defer cancel()
 
@@ -194,6 +194,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
 	}
+	defer func() { p.recordAcknowledged(env, err) }()
 	broadcasterID, ok := env.BroadcasterID()
 	p.countDecoded(ctx, env, broadcasterID)
 	traceEnvelope(ctx, env)
@@ -215,7 +216,6 @@ func (p *Pipeline) countDecoded(ctx context.Context, env *lane.Envelope, broadca
 		target = 0
 	}
 	p.stats.count(target, decodedDelta(env))
-	p.recordDecoded(env)
 	if env.Origin == "trial" {
 		p.addTrial(ctx, env.BroadcasterUserID, "decoded", env.MessageCount())
 	}
@@ -267,17 +267,17 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	p.flushLegacyOutput(ctx, &emission)
 	p.recordActivity(ctx, mctx, &emission, started)
 
-	if mctx.Command != "" {
+	if mctx.CommandAnswered {
 		p.stats.countAnswered(broadcasterID)
 	}
-	p.recordProcessed(broadcasterID, admission.AccountCreatedAt, mctx.Command != "", emission.ordinal)
+	p.recordProcessed(broadcasterID, admission.AccountCreatedAt, mctx.CommandAnswered, emission.accepted)
 
 	p.notifyObservers(ObservedEvent{
 		BroadcasterID: broadcasterID,
 		Type:          env.Type,
 		At:            started,
 		Locale:        p.observerLocale(ctx, mctx),
-		Handled:       mctx.Command != "",
+		Handled:       mctx.CommandAnswered,
 		Command:       mctx.Command,
 		Actor:         env.ChatterUserName,
 		DurationMS:    int(time.Since(started).Milliseconds()),

@@ -4,6 +4,7 @@
 package rpc_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -12,15 +13,35 @@ import (
 	"ItsBagelBot/app/db/admin/rollup"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/internal/valkeytest"
+	"ItsBagelBot/pkg/bus"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
+func testLevelOwners(t *testing.T) *nats.Conn {
+	t.Helper()
+	nc := testnats.Connect(t)
+	for _, service := range []domainrpc.LevelService{domainrpc.UsersLevels, domainrpc.ModulesLevels, domainrpc.CommandsLevels} {
+		source := analytics.NewLevelSource(analytics.Owner{Service: service, Owned: analytics.Owned{"accounts.total"}, Seed: func(context.Context) (analytics.Tally, error) {
+			if service == domainrpc.UsersLevels {
+				return analytics.Tally{"accounts.total|free": 7}, nil
+			}
+			return analytics.Tally{}, nil
+		}})
+		require.NoError(t, source.Serve(bus.RPCWiring{NC: nc, Log: zap.NewNop()}))
+	}
+	return nc
+}
+
 func TestAnalyticsReadsLiveCellsAlongsideHistory(t *testing.T) {
 	vc := valkeytest.Spawn(t)
-	h := newHarness(t, analytics.NewReader(vc))
+	levels := analytics.RequestLevels(testLevelOwners(t))
+	h := newHarness(t, analytics.NewReader(vc, levels))
 	h.staff(staffFixture{1, adminuser.RoleAdmin, true})
 	now := time.Now().UTC()
 	yesterday := catalog.PeriodStart(catalog.Day, now.AddDate(0, 0, -1))
@@ -36,7 +57,6 @@ func TestAnalyticsReadsLiveCellsAlongsideHistory(t *testing.T) {
 	rec.Close()
 	rec = analytics.New(vc, zap.NewNop(), nil, analytics.WithClock(func() time.Time { return now }), analytics.WithoutTicker())
 	rec.Add(catalog.Lifecycle, 3, "signup")
-	rec.Shift(nil, analytics.Tally{catalog.Field(catalog.AccountsTotal, "free"): 7})
 	for _, id := range []uint64{1, 1, 2} {
 		rec.Distinct(catalog.ChannelsActive, id)
 		rec.Cohort(id, now.AddDate(0, 0, -30))
@@ -76,7 +96,8 @@ func TestAnalyticsReadsLiveCellsAlongsideHistory(t *testing.T) {
 
 func TestAnalyticsRetainsPendingCellsAcrossRollup(t *testing.T) {
 	vc := valkeytest.Spawn(t)
-	h := newHarness(t, analytics.NewReader(vc))
+	levels := analytics.RequestLevels(testLevelOwners(t))
+	h := newHarness(t, analytics.NewReader(vc, levels))
 	h.staff(staffFixture{1, adminuser.RoleAdmin, true})
 	now := time.Now().UTC()
 	rec := analytics.New(vc, zap.NewNop(), nil, analytics.WithClock(func() time.Time { return now.AddDate(0, 0, -1) }), analytics.WithoutTicker())
@@ -87,8 +108,20 @@ func TestAnalyticsRetainsPendingCellsAcrossRollup(t *testing.T) {
 	before := call[usersrpc.AdminReply](t, h, analyticsSubject, request)
 	require.Empty(t, before.Refusal.Code)
 	require.NotEmpty(t, before.Analytics.Rows)
-	_, err := rollup.New(vc, repository.New(h.client)).Run(t.Context(), catalog.PeriodStart(catalog.Day, now).Add(time.Hour))
+	_, err := rollup.New(vc, repository.New(h.client), levels).Run(t.Context(), catalog.PeriodStart(catalog.Day, now).Add(time.Hour))
 	require.NoError(t, err)
 	after := call[usersrpc.AdminReply](t, h, analyticsSubject, request)
 	require.Equal(t, before, after)
+}
+
+func TestAnalyticsFailsWhenLevelOwnerIsUnavailable(t *testing.T) {
+	vc := valkeytest.Spawn(t)
+	reader := analytics.NewReader(vc, analytics.RequestLevels(testnats.Connect(t)))
+	h := newHarness(t, reader)
+	h.staff(staffFixture{1, adminuser.RoleAdmin, true})
+	_, err := repository.New(h.client).UpsertAnalytics(t.Context(), []repository.AnalyticsRow{{Window: catalog.Day, Start: time.Now(), Metric: catalog.AccountsOnboarded, Value: 999}})
+	require.NoError(t, err)
+	reply := call[usersrpc.AdminReply](t, h, analyticsSubject, usersrpc.AdminRequest{ActorID: "1", Window: "d", Metrics: []string{"accounts.onboarded"}})
+	require.NotEmpty(t, reply.Refusal.Error)
+	require.Nil(t, reply.Analytics)
 }

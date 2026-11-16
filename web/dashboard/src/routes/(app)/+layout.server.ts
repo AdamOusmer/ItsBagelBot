@@ -15,6 +15,7 @@ import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags, withBetaLocks } f
 import { broadcasterPremium } from '#lib/server/module-gate';
 import { twitchScopeGap } from '#lib/server/oauth';
 import { isOwnerSession } from '#lib/server/owner';
+import { count } from '@bagel/kit/server/analytics';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -81,9 +82,13 @@ function isPremiumAccount(acc: AccountState | null): boolean {
   return acc?.status === 'vip' || acc?.status === 'paid';
 }
 
-export const load: LayoutServerLoad = async ({ locals, url }) => {
+export const load: LayoutServerLoad = async ({ locals, url, route, request }) => {
   const s = await requireSession(locals, url);
   requireTwitchScopes(s, url);
+  if (request.method === 'GET') {
+    const section = route.id === '/(app)' ? 'overview' : route.id?.split('/(app)/')[1]?.split('/')[0];
+    count('dashboard.views', section ?? '', s.delegate_of ? 'delegate' : 'owner');
+  }
 
   const [acc, authorizedDashboards, flags] = await Promise.all([
     loadAccountState(locals, s),

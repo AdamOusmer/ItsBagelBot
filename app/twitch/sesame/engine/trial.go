@@ -30,7 +30,7 @@ func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadca
 	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
 	p.flushLegacyOutput(ctx, &emission)
-	answered = mctx.Command != ""
+	answered = mctx.CommandAnswered
 	return emission.err
 }
 

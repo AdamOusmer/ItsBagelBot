@@ -9,6 +9,7 @@ import (
 )
 
 func (r *Users) recordLifecycle(m lifecycleMutation) {
+	r.recordDesiredEnabled(m)
 	if m.request.Action != "grant_missing" {
 		return
 	}
@@ -19,4 +20,16 @@ func (r *Users) recordLifecycle(m lifecycleMutation) {
 	if m.state.GrantHealth == lifecycle.GrantMissing {
 		r.analytics.Count(catalog.Lifecycle, "revoked")
 	}
+}
+
+func (r *Users) recordDesiredEnabled(m lifecycleMutation) {
+	before := LegacyLifecycle(m.row, m.now)
+	if before.DesiredEnabled == m.state.DesiredEnabled {
+		return
+	}
+	event := "bot_disabled"
+	if m.state.DesiredEnabled {
+		event = "bot_enabled"
+	}
+	r.analytics.Count(catalog.Lifecycle, event)
 }

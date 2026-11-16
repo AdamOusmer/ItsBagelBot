@@ -27,7 +27,7 @@ func annualFixture(t *testing.T) fixture {
 func TestRunArchivesFinalDayAfterFolding(t *testing.T) {
 	f := annualFixture(t)
 	ctx := context.Background()
-	_, err := rollup.New(f.vc, f.repo).Run(ctx, f.now)
+	_, err := rollup.New(f.vc, f.repo, emptyLevels).Run(ctx, f.now)
 	require.NoError(t, err)
 	snapshot, err := f.repo.AnalyticsSnapshot(ctx, f.now.Year()-1)
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestRunRecoversPendingLegacyClaimBeforeArchiving(t *testing.T) {
 	_, err := pkgvalkey.ClaimOnce(ctx, f.vc, catalog.RollupClaimKey(catalog.Day, yesterday), 24*time.Hour)
 	require.NoError(t, err)
 
-	_, err = rollup.New(f.vc, f.repo).Run(ctx, f.now)
+	_, err = rollup.New(f.vc, f.repo, emptyLevels).Run(ctx, f.now)
 	require.NoError(t, err)
 	snapshot, err := f.repo.AnalyticsSnapshot(ctx, f.now.Year()-1)
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestRunPreservesCompletedLegacyLevels(t *testing.T) {
 	f := annualFixture(t)
 	ctx := context.Background()
 	yesterday := f.now.AddDate(0, 0, -1)
-	_, err := rollup.New(f.vc, f.repo).Run(ctx, f.now)
+	_, err := rollup.New(f.vc, f.repo, emptyLevels).Run(ctx, f.now)
 	require.NoError(t, err)
 
 	kv := pkgvalkey.NewKV(f.vc)
@@ -77,8 +77,7 @@ func TestRunPreservesCompletedLegacyLevels(t *testing.T) {
 	_, err = pkgvalkey.ClaimOnce(ctx, f.vc, catalog.RollupClaimKey(catalog.Day, yesterday), 24*time.Hour)
 	require.NoError(t, err)
 
-	require.NoError(t, f.vc.Do(ctx, f.vc.B().Hset().Key(catalog.LevelKey).FieldValue().FieldValue("accounts.total|free", "999").Build()).Error())
-	_, err = rollup.New(f.vc, f.repo).Run(ctx, f.now)
+	_, err = rollup.New(f.vc, f.repo, emptyLevels).Run(ctx, f.now)
 	require.NoError(t, err)
 	require.Equal(t, map[string]int64{"accounts.total|free": 2, "accounts.total|paid": 1}, f.day(t, catalog.AccountsTotal))
 }
@@ -111,7 +110,7 @@ func TestRunSerializesReplicaBeforeAnnualArchive(t *testing.T) {
 	slow := blockedStore{Store: f.repo, entered: make(chan struct{}, 1), release: make(chan struct{})}
 	finished := make(chan error, 1)
 	go func() {
-		_, err := rollup.New(f.vc, slow).Run(ctx, f.now)
+		_, err := rollup.New(f.vc, slow, emptyLevels).Run(ctx, f.now)
 		finished <- err
 	}()
 	select {
@@ -120,7 +119,7 @@ func TestRunSerializesReplicaBeforeAnnualArchive(t *testing.T) {
 		t.Fatal("first replica did not reach SQL write")
 	}
 
-	written, err := rollup.New(f.vc, f.repo).Run(ctx, f.now)
+	written, err := rollup.New(f.vc, f.repo, emptyLevels).Run(ctx, f.now)
 	require.NoError(t, err)
 	require.Zero(t, written)
 	_, err = f.repo.AnalyticsSnapshot(ctx, f.now.Year()-1)

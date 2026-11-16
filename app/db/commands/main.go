@@ -116,8 +116,7 @@ func main() {
 	}
 
 	fetches := repository.NewFetches(client, repository.NewFetchesFromEnv(log), n.Pub, log)
-	fetches.SetAnalytics(recorder)
-	go recorder.ReconcileDaily(core.Ctx, analytics.Owner{
+	levels := analytics.NewLevelSource(analytics.Owner{
 		Service: serviceName,
 		Owned:   analytics.Owned{"custom.total", "custom.perm", "custom.flags", "custom.channels", "integrations.connected|fetch_key"},
 		Seed:    repository.SeedAll(repo, fetches),
@@ -127,6 +126,8 @@ func main() {
 	if err := registerConsumers(core.Ctx, core.NR, repo, fetches, n.Broadcast, n.Grouped, log); err != nil {
 		log.Fatal("failed to subscribe to events", zap.Error(err))
 	}
+
+	svcboot.FatalIf(log, levels.Serve(bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log}), "failed to subscribe analytics levels rpc")
 
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},

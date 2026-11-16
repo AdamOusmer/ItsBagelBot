@@ -28,6 +28,18 @@ func TestGiveawayGrantCustody(t *testing.T) {
 	}
 }
 
+func TestAnalyticsLevelsOnlyImportedByAdminService(t *testing.T) {
+	for _, service := range []string{"users", "modules", "commands"} {
+		for _, account := range loadRPCCatalog(t).accounts {
+			for _, suffix := range []string{"", ".node.n1"} {
+				subject := "rpc.internal." + service + ".analytics.levels" + suffix
+				_, imported := account.importCovering(subject)
+				assert.Equal(t, account.name == "ADMIN_SERVICE_RPC", imported, "%s: %s", account.name, subject)
+			}
+		}
+	}
+}
+
 func TestDashboardCannotAdministerGiveaways(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	dashboard := catalog.byUser["dashboard_rpc"]

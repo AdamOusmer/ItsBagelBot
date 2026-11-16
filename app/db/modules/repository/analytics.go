@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"ItsBagelBot/app/db/modules/ent"
-	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/internal/analytics"
@@ -20,38 +19,13 @@ import (
 
 func (r *Modules) SetAnalytics(rec *analytics.Recorder) {
 	r.analytics = rec
-	if r.govee != nil {
-		r.govee.analytics = rec
-	}
-	if r.spotify != nil {
-		r.spotify.analytics = rec
-	}
-}
-
-// track reads the channels' stored module rows before a write and returns the step that
-// shifts the running totals once it lands. A default-on module with no row is absent,
-// so its enabled count is accounts minus its "off" rows.
-func (r *Modules) track(ctx context.Context, ids ...uint64) func() {
-	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.moduleState(ctx, ids) })
-}
-
-func (r *Modules) moduleState(ctx context.Context, ids []uint64) (analytics.Tally, error) {
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Modules, error) {
-		return r.client.Modules.Query().
-			Where(modules.UserIDIn(ids...)).
-			Select(modules.FieldUserID, modules.FieldName, modules.FieldIsEnabled).
-			All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return moduleTally(rows), nil
 }
 
 func moduleTally(rows []*ent.Modules) analytics.Tally {
 	tally := analytics.Tally{}
 	enabled := map[uint64]int{}
 	for _, m := range rows {
+		enabled[m.UserID] += 0
 		if !catalog.KnownModule(m.Name) {
 			continue
 		}
@@ -68,10 +42,17 @@ func moduleTally(rows []*ent.Modules) analytics.Tally {
 	return tally
 }
 
-// AnalyticsSeed rebuilds the write-time totals with bounded keyset scans and O(1) memory.
 func (r *Modules) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
 	tally := analytics.Tally{}
+	for _, name := range catalog.ModuleNames() {
+		if catalog.ModuleEnabledByDefault(name) {
+			tally.Add(catalog.ModulesDefaults, name)
+		}
+	}
 	if err := r.seedModules(ctx, tally); err != nil {
+		return nil, err
+	}
+	if err := r.seedRecipes(ctx, tally); err != nil {
 		return nil, err
 	}
 	if err := r.seedSpotify(ctx, tally); err != nil {
@@ -85,9 +66,10 @@ func (r *Modules) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
 
 func (r *Modules) seedModules(ctx context.Context, tally analytics.Tally) error {
 	var user uint64
+	seen := false
 	enabled := 0
 	flush := func() {
-		if enabled > 0 {
+		if seen {
 			tally.Add(catalog.ModulesBreadth, strconv.Itoa(enabled))
 		}
 		enabled = 0
@@ -97,7 +79,7 @@ func (r *Modules) seedModules(ctx context.Context, tally analytics.Tally) error 
 			return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Modules, error) {
 				q := r.client.Modules.Query().
 					Order(modules.ByUserID(), modules.ByName()).
-					Select(modules.FieldUserID, modules.FieldName, modules.FieldIsEnabled).
+					Select(modules.FieldUserID, modules.FieldName, modules.FieldIsEnabled, modules.FieldConfigs).
 					Limit(limit)
 				if after != nil {
 					q = q.Where(modules.Or(
@@ -110,9 +92,10 @@ func (r *Modules) seedModules(ctx context.Context, tally analytics.Tally) error 
 		},
 		func(m *ent.Modules) moduleKey { return moduleKey{userID: m.UserID, name: m.Name} },
 		func(m *ent.Modules) {
-			if m.UserID != user {
+			if !seen || m.UserID != user {
 				flush()
 				user = m.UserID
+				seen = true
 			}
 			if !catalog.KnownModule(m.Name) {
 				return
@@ -123,6 +106,7 @@ func (r *Modules) seedModules(ctx context.Context, tally analytics.Tally) error 
 				enabled++
 			}
 			tally.Add(catalog.ModulesRows, m.Name, state)
+			tallyTimers(tally, m)
 		})
 	flush()
 	return err
@@ -150,7 +134,6 @@ func (r *Modules) seedSpotify(ctx context.Context, tally analytics.Tally) error 
 		})
 }
 
-// One row per channel under a unique user_id index, so a single indexed count is bounded.
 func (r *Modules) seedGovee(ctx context.Context, tally analytics.Tally) error {
 	n, err := db.WithQuery(ctx, r.client.GoveeCredential.Query().Count)
 	tally.AddN(int64(n), catalog.IntegrationsConnected, "govee")
@@ -164,43 +147,4 @@ func changedUsers(items []data.ModuleChangedDTO) []uint64 {
 	}
 	slices.Sort(ids)
 	return slices.Compact(ids)
-}
-
-func (g *GoveeCreds) track(ctx context.Context, userID uint64) func() {
-	return analytics.Track(g.analytics, func() (analytics.Tally, error) {
-		n, err := db.WithQuery(ctx, g.client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(userID)).Count)
-		return linkTally("govee", n > 0), err
-	})
-}
-
-func (s *SpotifyCreds) track(ctx context.Context, userID uint64) func() {
-	return analytics.Track(s.analytics, func() (analytics.Tally, error) {
-		n, err := db.WithQuery(ctx, s.client.SpotifyCredential.Query().
-			Where(spotifycredential.UserIDEQ(userID), spotifycredential.TokenEncNotNil()).Count)
-		return linkTally("spotify", n > 0), err
-	})
-}
-
-// trackAccount covers account deletion, which removes module and credential rows in one transaction.
-func (r *Modules) trackAccount(ctx context.Context, userID uint64) func() {
-	shifts := []func(){r.track(ctx, userID)}
-	if r.govee != nil {
-		shifts = append(shifts, r.govee.track(ctx, userID))
-	}
-	if r.spotify != nil {
-		shifts = append(shifts, r.spotify.track(ctx, userID))
-	}
-	return func() {
-		for _, shift := range shifts {
-			shift()
-		}
-	}
-}
-
-func linkTally(link string, connected bool) analytics.Tally {
-	tally := analytics.Tally{}
-	if connected {
-		tally.Add(catalog.IntegrationsConnected, link)
-	}
-	return tally
 }

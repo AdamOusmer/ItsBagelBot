@@ -1,6 +1,7 @@
 {
+  "trialPromoted": "Trial promotions",
   "netAccounts": "Net accounts (signups minus deletions)",
-  "netBot": "Net bot-enabled accounts",
+  "netBot": "Bot-enabled change between window snapshots",
   "cancelPending": "Cancellations pending",
   "paymentFailed": "Failed payments pending",
   "messages": "Messages read",
@@ -18,5 +19,14 @@
   "customChannels": "Channels with custom commands",
   "customChannelsWeek": "Channels using custom commands, last full week",
   "customActive": "Active commands",
-  "customInactive": "Inactive commands"
+  "customInactive": "Inactive commands",
+  "onboarded": "Onboarded accounts",
+  "onboardedShare": "Share of accounts onboarded",
+  "redirected": "Redirected checkouts",
+  "activated": "Plan activations",
+  "checkoutActivation": "Activations / redirected checkouts",
+  "recipeChannelsWeek": "Recipe channels, last full week",
+  "songSuccess": "Song request success share",
+  "delegating": "Accounts with delegates",
+  "delegatingShare": "Share of accounts with delegates"
 }

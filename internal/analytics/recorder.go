@@ -46,6 +46,11 @@ type saltRef struct {
 	period string
 }
 
+type saltResult struct {
+	value []byte
+	err   error
+}
+
 // Recorder buffers aggregate analytics in process and flushes them to Valkey.
 // Channel ids reach Valkey only as salted HMACs inside sets, so counts are exact.
 // A nil Recorder records nothing.
@@ -58,11 +63,7 @@ type Recorder struct {
 	mu        sync.Mutex
 	counts    map[slot]int64
 	distincts map[distinctSet]map[uint64]struct{}
-	levels    map[string]int64
 	ids       int
-
-	saltMu sync.Mutex
-	salts  map[saltRef][]byte
 
 	done chan struct{}
 	kick chan struct{}
@@ -76,6 +77,13 @@ func WithClock(now func() time.Time) Option { return func(r *Recorder) { r.now =
 // WithoutTicker leaves flushing to explicit Flush calls.
 func WithoutTicker() Option { return func(r *Recorder) { r.done = nil } }
 
+// Register replaces the accepted module and command names; call it before the recorder is shared.
+func (r *Recorder) Register(registered map[catalog.Kind][]string) {
+	if r != nil {
+		r.reg = catalog.NewRegistry(registered)
+	}
+}
+
 func New(client valkey.Client, log *zap.Logger, registered map[catalog.Kind][]string, opts ...Option) *Recorder {
 	r := &Recorder{
 		client:    client,
@@ -84,8 +92,6 @@ func New(client valkey.Client, log *zap.Logger, registered map[catalog.Kind][]st
 		now:       time.Now,
 		counts:    map[slot]int64{},
 		distincts: map[distinctSet]map[uint64]struct{}{},
-		levels:    map[string]int64{},
-		salts:     map[saltRef][]byte{},
 		done:      make(chan struct{}),
 		kick:      make(chan struct{}, 1),
 	}
@@ -167,7 +173,8 @@ func (r *Recorder) Cohort(channelID uint64, signup time.Time) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.addID(distinctSet{window: catalog.Week, at: catalog.PeriodStart(catalog.Week, at), key: catalog.CohortKey(signup, at)}, channelID)
+	incarnation := channelID ^ (uint64(signup.UnixMicro()) * 0x9E3779B97F4A7C15)
+	r.addID(distinctSet{window: catalog.Week, at: catalog.PeriodStart(catalog.Week, at), key: catalog.CohortKey(signup, at)}, incarnation)
 }
 
 func (r *Recorder) addID(s distinctSet, id uint64) {
@@ -201,18 +208,17 @@ func (r *Recorder) nudge() {
 type pending struct {
 	counts    map[slot]int64
 	distincts map[distinctSet]map[uint64]struct{}
-	levels    map[string]int64
 }
 
 func (p pending) empty() bool {
-	return len(p.counts)+len(p.distincts)+len(p.levels) == 0
+	return len(p.counts)+len(p.distincts) == 0
 }
 
 func (r *Recorder) drain() pending {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	p := pending{counts: r.counts, distincts: r.distincts, levels: r.levels}
-	r.counts, r.distincts, r.levels, r.ids = map[slot]int64{}, map[distinctSet]map[uint64]struct{}{}, map[string]int64{}, 0
+	p := pending{counts: r.counts, distincts: r.distincts}
+	r.counts, r.distincts, r.ids = map[slot]int64{}, map[distinctSet]map[uint64]struct{}{}, 0
 	return p
 }
 
@@ -231,7 +237,6 @@ func (r *Recorder) Flush(ctx context.Context) {
 
 	cmds := r.counterCmds(p.counts)
 	cmds = append(cmds, r.distinctCmds(ctx, p.distincts)...)
-	cmds = append(cmds, r.levelCmds(p.levels)...)
 	r.reportErrors(pkg_valkey.ExecMulti(ctx, r.client, cmds...))
 }
 
@@ -248,8 +253,9 @@ func (r *Recorder) counterCmds(counts map[slot]int64) valkey.Commands {
 func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]map[uint64]struct{}) valkey.Commands {
 	cmds := make(valkey.Commands, 0, 2*len(distincts))
 	expiries := map[string]time.Time{}
+	salts := map[saltRef]saltResult{}
 	for s, ids := range distincts {
-		salt, err := r.salt(ctx, s.window, s.at)
+		salt, err := r.flushSalt(ctx, s, salts)
 		if err != nil {
 			r.log.Debug("analytics salt unavailable", zap.Error(err))
 			continue
@@ -270,16 +276,6 @@ func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]m
 	return append(cmds, r.expireCmds(expiries)...)
 }
 
-func (r *Recorder) levelCmds(levels map[string]int64) valkey.Commands {
-	cmds := make(valkey.Commands, 0, len(levels))
-	for field, delta := range levels {
-		if delta != 0 {
-			cmds = append(cmds, pkg_valkey.HIncrByCmd(r.client, catalog.LevelKey, field, delta))
-		}
-	}
-	return cmds
-}
-
 func (r *Recorder) expireCmds(expiries map[string]time.Time) valkey.Commands {
 	cmds := make(valkey.Commands, 0, len(expiries))
 	for key, at := range expiries {
@@ -288,13 +284,17 @@ func (r *Recorder) expireCmds(expiries map[string]time.Time) valkey.Commands {
 	return cmds
 }
 
-func (r *Recorder) salt(ctx context.Context, w catalog.Window, at time.Time) ([]byte, error) {
-	ref := saltRef{window: w, period: catalog.Period(w, at)}
-	r.saltMu.Lock()
-	defer r.saltMu.Unlock()
-	if salt, ok := r.salts[ref]; ok {
-		return salt, nil
+func (r *Recorder) flushSalt(ctx context.Context, s distinctSet, salts map[saltRef]saltResult) ([]byte, error) {
+	ref := saltRef{window: s.window, period: catalog.Period(s.window, s.at)}
+	result, ok := salts[ref]
+	if !ok {
+		result.value, result.err = r.salt(ctx, s.window, s.at)
+		salts[ref] = result
 	}
+	return result.value, result.err
+}
+
+func (r *Recorder) salt(ctx context.Context, w catalog.Window, at time.Time) ([]byte, error) {
 	fresh := make([]byte, saltBytes)
 	if _, err := rand.Read(fresh); err != nil {
 		return nil, err
@@ -309,12 +309,6 @@ func (r *Recorder) salt(ctx context.Context, w catalog.Window, at time.Time) ([]
 	case err != nil:
 		return nil, err
 	}
-	for stale := range r.salts {
-		if stale.window == w && stale.period != ref.period {
-			delete(r.salts, stale)
-		}
-	}
-	r.salts[ref] = existing
 	return existing, nil
 }
 

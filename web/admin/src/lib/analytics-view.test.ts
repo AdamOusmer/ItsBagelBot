@@ -22,6 +22,8 @@ import {
 
 const END = '2026-11-09';
 const THEN = '2026-10-10';
+const catalog = await Bun.file(new URL('../../../../internal/domain/analytics/catalog.go', import.meta.url)).text();
+const importSource = catalog.match(/KindImport:\s*\{"([^"]+)"/)![1];
 
 const row = (start: string, metric: string, dims: string[], value: number): AnalyticsRow => ({
   start,
@@ -64,6 +66,7 @@ const counters: AnalyticsRow[] = [
 const levels: AnalyticsRow[] = [
   ...snap(THEN, 'accounts.total', [['free', 80], ['paid', 15], ['vip', 5]]),
   ...snap(THEN, 'accounts.bot_enabled', [['free', 30], ['paid', 10]]),
+  ...snap('2026-10-11', 'accounts.bot_enabled', [['free', 30], ['paid', 10]]),
   ...snap(END, 'accounts.total', [['free', 90], ['paid', 25], ['vip', 5]]),
   ...snap(END, 'accounts.bot_enabled', [['free', 40], ['paid', 20], ['vip', 5]]),
   ...snap(END, 'accounts.paid_source', [['tebex', 20], ['giveaway', 4], ['mystery', 1]]),
@@ -265,7 +268,7 @@ describe('kpis', () => {
       k.trend
     ]);
     expect(summary).toEqual([
-      ['dau', '120', 'delta.day', '+20%', 'up'],
+      ['dau', '100', 'delta.day', '0%', 'flat'],
       ['wau', '300', 'delta.week', '+20%', 'up'],
       ['mau', '500', 'delta.month', '+25%', 'up'],
       ['stickiness', '20%', 'delta.month', '-5.0 pts', 'down'],
@@ -296,10 +299,22 @@ describe('kpis', () => {
     });
   });
 
-  it('measures stickiness of the open month over its elapsed days', () => {
-    const open = buildAnalytics(reads({ month: [...month, row('2026-11-01', 'channels.active', [], 200)] }));
-    const found = open.kpis.find((k) => k.key === 'stickiness');
-    expect({ value: found?.value, delta: found?.delta.params?.delta }).toEqual({ value: '51%', delta: '+31.1 pts' });
+  it('reads active channel tiles from closed periods only', () => {
+    const open = buildAnalytics(reads({
+      week: [...week, row(END, 'channels.active', [], 5)],
+      month: [...month, row('2026-11-01', 'channels.active', [], 200)]
+    }));
+    expect(open.kpis.slice(0, 4).map((k) => [k.key, k.value, k.delta.params?.delta])).toEqual([
+      ['dau', '100', '0%'],
+      ['wau', '300', '+20%'],
+      ['mau', '500', '+25%'],
+      ['stickiness', '20%', '-5.0 pts']
+    ]);
+  });
+
+  it('averages a series over complete days since tracking began', () => {
+    const wide = buildAnalytics(reads({ days: 90 }));
+    expect([wide.engagement.active.values.length, wide.engagement.active.average]).toEqual([90, '100']);
   });
 
   it('shows no comparison for an empty read', () => {
@@ -337,7 +352,7 @@ describe('growth and engagement', () => {
   });
 
   it('reports net account and bot movement', () => {
-    expect(facts(view.growth.churnFacts)).toEqual({ netAccounts: '+27', netBot: '+5' });
+    expect(facts(view.growth.churnFacts)).toEqual({ netAccounts: '+27', netBot: '+25' });
   });
 
   it('fills the signup series for every day', () => {
@@ -350,9 +365,9 @@ describe('growth and engagement', () => {
   });
 
   it.each([
-    ['active', view.engagement.active, { length: 30, last: 120, ticks: [1, 8, 15, 22, 29], average: '101', peak: '120' }],
+    ['active', view.engagement.active, { length: 30, last: 120, ticks: [1, 8, 15, 22, 29], average: '100', peak: '120' }],
     ['live', view.engagement.live, { length: 0, last: undefined, ticks: [], average: '-', peak: '-' }],
-    ['messages', view.engagement.messages, { length: 30, last: 0, ticks: [1, 8, 15, 22, 29], average: '33', peak: '1,000' }],
+    ['messages', view.engagement.messages, { length: 30, last: 0, ticks: [1, 8, 15, 22, 29], average: '34', peak: '1,000' }],
     ['signups', view.growth.signups, { length: 30, last: 0, ticks: [1, 8, 15, 22, 29], average: '1.0', peak: '20' }]
   ])('%s series', (_name, series, expected) => {
     expect({
@@ -452,7 +467,8 @@ describe('retention', () => {
           cells: [
             { percent: '90%', count: '18', heat: 0.9 },
             { percent: '50%', count: '10', heat: 0.5 },
-            ...Array(6).fill(null)
+            ...Array(2).fill({ percent: '0%', count: '0', heat: 0 }),
+            ...Array(4).fill(null)
           ]
         }
       ]
@@ -515,8 +531,8 @@ describe('revenue', () => {
 describe('features', () => {
   it('builds the module table sorted by enabled channels', () => {
     expect(cells(view.features.modules)).toEqual([
-      ['govee', '50', '77%', '40', '80%', '0', '1', '0', '+1'],
-      ['spotify', '30', '46%', '20', '67%', '1,000', '6', '2', '+4'],
+      ['govee', '50', '42%', '40', '80%', '0', '1', '0', '+1'],
+      ['spotify', '30', '25%', '20', '67%', '1,000', '6', '2', '+4'],
       ['songs', '0', '0%', '0', '-', '0', '3', '0', '+3']
     ]);
   });
@@ -561,7 +577,7 @@ describe('features', () => {
   });
 
   it.each([
-    ['integrations', view.features.integrations, ['spotify:20:31%', 'govee:5:7.7%', 'fetch_key:0:0%']],
+    ['integrations', view.features.integrations, ['spotify:20:17%', 'govee:5:4.2%', 'fetch_key:0:0%']],
     ['pagesHidden', view.features.pagesHidden, ['songqueue:3:2.5%', 'commands:1:0.8%', 'leaderboard:0:0%']]
   ])('%s bars', (_name, bars, expected) => {
     expect(lines(bars)).toEqual(expected);
@@ -602,6 +618,27 @@ describe('commands', () => {
 });
 
 describe('audience', () => {
+  it.each([1, 7, 30, 90, 365])('uses only the last full week for audience sizes with a %s day selection', (days) => {
+    const sizes = buildAnalytics(reads({
+      days,
+      week: [
+        ...snap('2026-11-02', 'channels.size', [['v0_9', 0], ['v10_49', 4], ['v50_199', 5], ['v200_999', 15], ['v1kp', 1]]),
+        row('2026-11-09', 'channels.size', ['v50_199'], 1000),
+        row('2026-10-26', 'channels.size', ['v50_199'], 2000)
+      ],
+      month: [row('2026-10-01', 'channels.size', ['v50_199'], 3000)]
+    })).audience.sizes;
+    expect({ labels: lines(sizes), values: sizes.map((bar) => bar.value) }).toEqual({
+      labels: ['v0_9:<5:-', 'v10_49:<5:-', 'v50_199:5:25%', 'v200_999:15:75%', 'v1kp:<5:-'],
+      values: [0, 0, 5, 15, 0]
+    });
+  });
+
+  it('masks missing and entirely suppressed audience buckets without shares', () => {
+    const sizes = buildAnalytics(reads({ week: [row('2026-11-02', 'channels.size', ['v0_9'], 4)] })).audience.sizes;
+    expect(lines(sizes)).toEqual(['v0_9:<5:-', 'v10_49:<5:-', 'v50_199:<5:-', 'v200_999:<5:-', 'v1kp:<5:-']);
+  });
+
   it('names locales in English and falls back to the code', () => {
     expect(view.audience.locales.map((b) => b.name)).toEqual([
       { text: 'English (en)' },
@@ -612,5 +649,265 @@ describe('audience', () => {
 
   it('shares locales of all accounts', () => {
     expect(lines(view.audience.locales)).toEqual(['en:90:75%', 'fr:20:17%', '!!:2:1.7%']);
+  });
+});
+
+describe('closed calendar periods', () => {
+  it('zero-fills yesterday and the last full week and month instead of reusing older activity', () => {
+    const sparse = buildAnalytics(reads({
+      end: '2026-11-16',
+      counters: [row('2026-09-01', 'chat.messages', [], 1), row('2026-11-14', 'channels.active', [], 10)],
+      week: [row('2026-11-02', 'channels.active', [], 12)],
+      month: [row('2026-09-01', 'channels.active', [], 20)]
+    }));
+    expect(sparse.kpis.slice(0, 4).map((k) => [k.value, k.delta.params?.delta])).toEqual([
+      ['0', '-100%'], ['0', '-100%'], ['0', '-100%'], ['-', undefined]
+    ]);
+  });
+
+  it('computes last full week uses even without a distinct-command row', () => {
+    const sparse = buildAnalytics(reads({
+      end: '2026-11-16',
+      counters: [row('2026-11-10', 'command.uses', ['hello'], 7)],
+      week
+    }));
+    expect({
+      builtIn: cells(sparse.commands.builtIn),
+      live: facts(sparse.engagement.facts).liveWeek,
+      custom: facts(sparse.commands.custom).customChannelsWeek,
+      modules: sparse.features.modules.rows.map((r) => r.cells[2].text)
+    }).toEqual({ builtIn: [['hello', '7', '7', '0', '-']], live: '0', custom: '0', modules: ['0', '0'] });
+  });
+
+  it.each([
+    ['2027-01-01', '2026-12-31', '2026-12-21', '2026-12-01'],
+    ['2027-03-01', '2027-02-28', '2027-02-22', '2027-02-01']
+  ])('uses UTC and ISO boundaries at %s', (end, day, weekStart, monthStart) => {
+    const result = buildAnalytics(reads({
+      end,
+      counters: [row(day, 'channels.active', [], 2)],
+      week: [row(weekStart, 'channels.active', [], 3)],
+      month: [row(monthStart, 'channels.active', [], 4)]
+    }));
+    expect(result.kpis.slice(0, 3).map((k) => k.value)).toEqual(['2', '3', '4']);
+  });
+
+  it.each([
+    ['2026-10-01', '3.2%'],
+    ['2026-10-16', '6.3%']
+  ])('starts stickiness coverage at tracking on %s', (start, expected) => {
+    const sparse = buildAnalytics(reads({
+      counters: [row(start, 'chat.messages', [], 1), row('2026-10-31', 'channels.active', [], 1)],
+      month: [row('2026-10-01', 'channels.active', [], 1)]
+    }));
+    expect(sparse.kpis.find((k) => k.key === 'stickiness')?.value).toBe(expected);
+  });
+});
+
+describe('snapshot and population corrections', () => {
+  it.each([
+    { first: [30, 10, 2], last: [40, 15, 3], expected: '+16' },
+    { first: [30, 10, 2], last: [28, 8, 2], expected: '-4' },
+    { first: [30, 10, 2], last: [30, 10, 2], expected: '0' }
+  ])('uses all tiers at window snapshots: %j', ({ first, last, expected }) => {
+    const levels = [
+      row('2026-10-01', 'accounts.bot_enabled', ['free'], 999),
+      ...snap('2026-10-12', 'accounts.bot_enabled', first.map((n, i) => [['free', 'paid', 'vip'][i], n])),
+      ...snap(END, 'accounts.bot_enabled', last.map((n, i) => [['free', 'paid', 'vip'][i], n])),
+      row('2026-11-10', 'accounts.bot_enabled', ['free'], 999)
+    ];
+    expect(facts(buildAnalytics(reads({ levels })).growth.churnFacts).netBot).toBe(expected);
+  });
+
+  it.each([
+    ['stored opt-in', [], 0, 80],
+    ['default on', ['alerts'], 5, 95],
+    ['stored on floor', ['alerts'], 30, 80],
+    ['off rows exceed accounts', ['alerts'], 150, 80]
+  ] as [string, string[], number, number][])('uses effective enabled accounts for %s', (_name, defaults, off, on) => {
+    const result = buildAnalytics(reads({
+      levels: [
+        row(END, 'accounts.total', ['free'], 100),
+        row(END, 'accounts.bot_enabled', ['free'], 10),
+        row(END, 'modules.rows', ['alerts', 'on'], 80),
+        row(END, 'modules.rows', ['alerts', 'off'], off),
+        ...defaults.map((name) => row(END, 'modules.defaults', [name], 1)),
+        row(END, 'integrations.connected', ['spotify'], 30)
+      ],
+      week: [row('2026-11-02', 'module.active', ['alerts'], 8)]
+    }));
+    expect({
+      module: cells(result.features.modules)[0],
+      connection: result.features.integrations[0].secondary
+    }).toEqual({
+      module: ['alerts', String(on), pct(on, 100), '8', pct(8, on), '0', '0', '0', '0'],
+      connection: { key: 'admin.analytics.share.ofAccounts', params: { share: '30%' } }
+    });
+  });
+
+  it('shows default-on modules without stored rows or usage', () => {
+    const result = buildAnalytics(reads({
+      counters: [], week: [],
+      levels: [row(END, 'accounts.total', ['free'], 100), row(END, 'modules.defaults', ['alerts'], 1)]
+    }));
+    expect(cells(result.features.modules)).toEqual([['alerts', '100', '100%', '0', '0%', '0', '0', '0', '0']]);
+  });
+});
+
+describe('cohort coverage corrections', () => {
+  it('excludes a truncated leading signup week and incomplete current week', () => {
+    const result = buildAnalytics(reads({
+      end: '2026-11-18',
+      cohortDays: [
+        row('2026-10-14', 'lifecycle', ['signup'], 1),
+        row('2026-10-19', 'lifecycle', ['signup'], 10),
+        row('2026-11-17', 'lifecycle', ['signup'], 2)
+      ],
+      cohortWeeks: [
+        row('2026-10-12', 'cohort.active', ['2026-W42'], 7),
+        row('2026-10-19', 'cohort.active', ['2026-W43'], 8),
+        row('2026-11-16', 'cohort.active', ['2026-W43'], 1)
+      ]
+    }));
+    expect(result.retention.rows).toEqual([{
+      week: '2026-W43', size: '10', cells: [
+        { percent: '80%', count: '8', heat: 0.8 },
+        ...Array(3).fill({ percent: '0%', count: '0', heat: 0 }),
+        ...Array(4).fill(null)
+      ]
+    }]);
+  });
+});
+
+describe('extended analytics blocks', () => {
+  const extended = buildAnalytics(reads({
+    counters: [
+      row('2026-10-11', 'chat.messages', [], 1),
+      row('2026-11-03', 'recipe.runs', ['command', 'ok'], 6),
+      row('2026-11-03', 'recipe.runs', ['command', 'failed'], 2),
+      row('2026-11-04', 'recipe.runs', ['command', 'partial'], 2),
+      row('2026-11-04', 'recipe.runs', ['timer', 'skipped'], 3),
+      row('2026-10-01', 'recipe.runs', ['command', 'failed'], 100),
+      row('2026-11-03', 'outgress.dropped', ['chat', 'chat_dropped'], 3),
+      row('2026-11-03', 'outgress.dropped', ['helix', 'auth'], 2),
+      row('2026-11-04', 'outgress.dropped', ['helix', 'exhausted'], 1),
+      row('2026-11-03', 'provider.calls', ['weather', 'ok'], 7),
+      ...['denied', 'limited', 'upstream_error', 'timeout', 'bad_def', 'error'].map((outcome) =>
+        row('2026-11-03', 'provider.calls', ['weather', outcome], 1)),
+      row('2026-11-04', 'provider.calls', ['twitch', 'ok'], 10),
+      ...snap('2026-11-03', 'songs.requests', [['queued', 8], ['not_found', 2]]),
+      ...snap('2026-11-03', 'command.blocked', [['perm', 2], ['offline', 1], ['cooldown', 2]]),
+      row('2026-11-03', 'command.uses', ['custom'], 15),
+      ...snap('2026-11-03', 'onboarding.steps', [['viewed', 20], ['consent_missing', 2], ['save_failed', 1]]),
+      row('2026-11-03', 'import.runs', [importSource, 'preview_ok'], 5),
+      row('2026-11-03', 'import.runs', [importSource, 'preview_failed'], 1),
+      row('2026-11-04', 'import.runs', [importSource, 'committed'], 3),
+      row('2026-11-04', 'import.runs', [importSource, 'commit_failed'], 1),
+      row('2026-11-03', 'dashboard.views', ['commands', 'owner'], 8),
+      row('2026-11-03', 'dashboard.views', ['commands', 'delegate'], 2),
+      row('2026-11-04', 'dashboard.views', ['overview', 'delegate'], 3),
+      row('2026-11-03', 'billing.checkout', ['monthly', 'redirected'], 10),
+      row('2026-11-03', 'billing.checkout', ['monthly', 'blocked'], 2),
+      row('2026-11-04', 'billing.checkout', ['gift', 'unavailable'], 1),
+      row('2026-11-04', 'billing.checkout', ['single', 'rejected'], 3),
+      row('2026-11-04', 'billing.events', ['activate'], 4)
+    ],
+    levels: [
+      row(END, 'accounts.total', ['free'], 100),
+      row('2026-10-12', 'accounts.onboarded', [], 10),
+      row(END, 'accounts.onboarded', [], 80),
+      row(END, 'accounts.delegating', [], 12),
+      row(END, 'recipes.total', ['command', 'on'], 20),
+      row(END, 'recipes.total', ['command', 'off'], 4),
+      row(END, 'recipes.total', ['timer', 'on'], 7)
+    ],
+    week: [
+      row('2026-10-26', 'recipe.channels', [], 100),
+      row('2026-11-02', 'recipe.channels', [], 8),
+      ...snap('2026-11-02', 'activation.age', [['d0', 2], ['d1', 3], ['d2_6', 4], ['d7_13', 5], ['d14_29', 6], ['d30p', 7]]),
+      row(END, 'activation.age', ['d0'], 99)
+    ]
+  }));
+
+  it('groups recipe runs and outcomes by trigger and reads enabled recipe levels', () => {
+    expect({
+      runs: lines(extended.recipes.runs).slice(0, 2),
+      outcomes: cells(extended.recipes.outcomes).slice(0, 1),
+      totals: cells(extended.recipes.totals).filter((r) => ['command', 'timer'].includes(r[0])),
+      channels: [extended.recipes.channels.value, extended.recipes.channels.delta.params?.delta]
+    }).toEqual({
+      runs: ['command:10:-', 'timer:3:-'],
+      outcomes: [['command', '10', '6', '20%']],
+      totals: [['command', '20', '4'], ['timer', '7', '0']],
+      channels: ['8', '-92%']
+    });
+  });
+
+  it('totals dropped sends by kind and reason and by day', () => {
+    const drops = extended.reliability.dailyDrops;
+    expect({ rows: cells(extended.reliability.drops), series: drops.values.slice(23, 26), length: drops.values.length }).toEqual({
+      rows: [['chat', '0', '0', '0', '3'], ['helix', '2', '0', '1', '0']],
+      series: [5, 1, 0], length: 30
+    });
+  });
+
+  it('counts every non-ok provider outcome as an error', () => {
+    expect(cells(extended.reliability.providers)).toEqual([['weather', '13', '46%'], ['twitch', '10', '0%']]);
+  });
+
+  it('shares song outcomes and command blocks against their own populations', () => {
+    expect({
+      songs: lines(extended.reliability.songs).slice(0, 2),
+      success: facts(extended.reliability.songFacts),
+      blocked: lines(extended.reliability.blocked)
+    }).toEqual({
+      songs: ['queued:8:80%', 'not_found:2:20%'],
+      success: { songSuccess: '80%' },
+      blocked: ['cooldown:2:10%', 'perm:2:10%', 'offline:1:5.0%']
+    });
+  });
+
+  it('shows last full week activation ages, setup steps, imports and onboarded account share', () => {
+    expect({
+      age: lines(extended.growth.activationAge),
+      steps: lines(extended.growth.onboarding),
+      imports: cells(extended.growth.imports),
+      onboarded: facts(extended.growth.onboarded)
+    }).toEqual({
+      age: ['d0:2:-', 'd1:3:-', 'd2_6:4:-', 'd7_13:5:-', 'd14_29:6:-', 'd30p:7:-'],
+      steps: ['viewed:20:-', 'consent_missing:2:-', 'save_failed:1:-'],
+      imports: [[importSource, '5', '1', '3', '1']],
+      onboarded: { onboarded: '80', onboardedShare: '80%' }
+    });
+  });
+
+  it('splits dashboard section views by owner and delegate', () => {
+    expect(extended.features.dashboard.slice(0, 2).map((b) => [b.id, b.value, b.secondary?.params])).toEqual([
+      ['commands', 10, { owner: '8', delegate: '2' }], ['overview', 3, { owner: '0', delegate: '3' }]
+    ]);
+  });
+
+  it('lists checkout results by plan and compares redirects with activation events', () => {
+    expect({ rows: cells(extended.revenue.checkout), facts: facts(extended.revenue.checkoutFacts) }).toEqual({
+      rows: [['monthly', '10', '2', '0', '0'], ['single', '0', '0', '0', '3'], ['gift', '0', '0', '1', '0']],
+      facts: { redirected: '10', activated: '4', checkoutActivation: '40%' }
+    });
+  });
+
+  it('shares accounts with delegates against all accounts', () => {
+    expect(facts(extended.audience.delegating)).toEqual({ delegating: '12', delegatingShare: '12%' });
+  });
+
+  it('returns zero for missing covered weekly extensions and no share without a denominator', () => {
+    const missing = buildAnalytics(reads({ counters: [], levels: [], week: [] }));
+    expect({
+      channels: missing.recipes.channels.value, age: lines(missing.growth.activationAge),
+      onboarded: facts(missing.growth.onboarded), delegating: facts(missing.audience.delegating),
+      songs: facts(missing.reliability.songFacts), checkout: facts(missing.revenue.checkoutFacts)
+    }).toEqual({
+      channels: '0', age: ['d0:0:-', 'd1:0:-', 'd2_6:0:-', 'd7_13:0:-', 'd14_29:0:-', 'd30p:0:-'],
+      onboarded: { onboarded: '0', onboardedShare: '-' }, delegating: { delegating: '0', delegatingShare: '-' },
+      songs: { songSuccess: '-' }, checkout: { redirected: '0', activated: '0', checkoutActivation: '-' }
+    });
   });
 });

@@ -106,14 +106,14 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 	if err != nil || !allowed {
 		return err
 	}
-	done := r.trackAccount(ctx, id)
+
 	applied, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
 		return r.deleteAccountSnapshot(ctx, id, epoch, snapshot)
 	})
 	if err != nil {
 		return err
 	}
-	done()
+
 	if !applied {
 		return nil
 	}

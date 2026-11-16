@@ -42,11 +42,12 @@ func (p *Pipeline) runHandler(ctx context.Context, mctx *module.Context, h *boun
 		return
 	}
 	before := mctx.Emitted
-	if err := h.handle(ctx, mctx, emit); err != nil {
+	err := h.handle(ctx, mctx, emit)
+	p.recordHandled(mctx, h.m, before)
+	if err != nil {
 		p.handlerFailed(ctx, mctx, h.m, err)
 		return
 	}
-	p.recordHandled(mctx, h.m, before)
 	if engagedBy(mctx, h.m, before) {
 		mctx.Engaged = true
 	}

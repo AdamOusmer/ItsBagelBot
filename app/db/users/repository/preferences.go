@@ -5,14 +5,10 @@ package repository
 
 import (
 	"context"
-	"maps"
-	"slices"
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
-	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/pkg/batch"
-	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -76,9 +72,6 @@ func (r *Users) SetLocaleNow(ctx context.Context, id uint64, locale string) erro
 
 func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
 	r.queuePref(id, prefOnboarded, prefWrite{flag: onboarded})
-	if onboarded {
-		r.analytics.Count(catalog.Lifecycle, "onboarded")
-	}
 	return nil
 }
 
@@ -139,11 +132,8 @@ func (r *Users) flushPrefs(ctx context.Context, items []prefWrite) error {
 	defer endFlush(txn)
 
 	perUser := groupByUser(items)
-	defer r.trackAccounts(ctx, slices.Collect(maps.Keys(perUser))...)()
 
-	err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-		return writeAllUserPrefs(ctx, tx, perUser)
-	})
+	err := r.persistPrefs(ctx, perUser)
 	if err == nil {
 		r.clearPendingPrefs(items)
 		r.announcePrefs(ctx, log, perUser)
@@ -193,15 +183,6 @@ func groupByUser(items []prefWrite) map[uint64][]prefWrite {
 	return perUser
 }
 
-func writeAllUserPrefs(ctx context.Context, tx *ent.Tx, perUser map[uint64][]prefWrite) error {
-	for id, writes := range perUser {
-		if err := writeUserPrefs(ctx, tx, id, writes); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func writeUserPrefs(ctx context.Context, tx *ent.Tx, id uint64, writes []prefWrite) error {
 	update := tx.User.UpdateOneID(id)
 	for _, w := range writes {
@@ -222,9 +203,7 @@ func requeuePrefWrites(b *batch.Batcher[prefKey, prefWrite], writes []prefWrite)
 
 func (r *Users) applyPrefEach(ctx context.Context, txn *newrelic.Transaction, log *zap.Logger, perUser map[uint64][]prefWrite) {
 	for id, writes := range perUser {
-		err := db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-			return writeUserPrefs(ctx, tx, id, writes)
-		})
+		err := r.persistPrefs(ctx, map[uint64][]prefWrite{id: writes})
 
 		switch {
 		case err == nil:

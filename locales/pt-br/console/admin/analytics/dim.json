@@ -1,4 +1,11 @@
 {
+  "size": {
+    "v0_9": "De 0 a 9 espectadores",
+    "v10_49": "De 10 a 49 espectadores",
+    "v50_199": "De 50 a 199 espectadores",
+    "v200_999": "De 200 a 999 espectadores",
+    "v1kp": "1.000 espectadores ou mais"
+  },
   "lifecycle": {
     "signup": "Cadastrou-se",
     "onboarded": "Concluiu a configuração",
@@ -57,5 +64,72 @@
     "aliased": "Com apelidos",
     "cooldown": "Com tempo de espera",
     "counter": "Com contador"
+  },
+  "trigger": {
+    "command": "Comando",
+    "event": "Evento",
+    "timer": "Temporizador",
+    "reward": "Recompensa",
+    "manual": "Manual",
+    "countdown": "Contagem regressiva"
+  },
+  "age": {
+    "d0": "Mesmo dia",
+    "d1": "1 dia",
+    "d2_6": "De 2 a 6 dias",
+    "d7_13": "De 7 a 13 dias",
+    "d14_29": "De 14 a 29 dias",
+    "d30p": "30 dias ou mais"
+  },
+  "block": {
+    "perm": "Permissão",
+    "offline": "Offline",
+    "cooldown": "Intervalo"
+  },
+  "song": {
+    "queued": "Na fila",
+    "off": "Desativado",
+    "perm": "Permissão negada",
+    "offline": "Offline",
+    "not_found": "Não encontrado",
+    "queue_full": "Fila cheia",
+    "player_refused": "Player recusou"
+  },
+  "send": {
+    "chat": "Chat",
+    "helix": "Helix"
+  },
+  "drop": {
+    "auth": "Autorização",
+    "rejected": "Rejeitado",
+    "exhausted": "Tentativas esgotadas",
+    "chat_dropped": "Chat descartado"
+  },
+  "plan": {
+    "monthly": "Mensal",
+    "single": "Pagamento único",
+    "gift": "Presente"
+  },
+  "onboard": {
+    "viewed": "Configuração visualizada",
+    "consent_missing": "Consentimento ausente",
+    "save_failed": "Falha ao salvar"
+  },
+  "section": {
+    "overview": "Visão geral",
+    "commands": "Comandos",
+    "flows": "Fluxos",
+    "automations": "Automações",
+    "modules": "Módulos",
+    "timers": "Temporizadores",
+    "loyalty": "Fidelidade",
+    "counters": "Contadores",
+    "quotes": "Citações",
+    "songqueue": "Fila de músicas",
+    "channelpoints": "Pontos do canal",
+    "govee": "Govee",
+    "billing": "Cobrança",
+    "settings": "Configurações",
+    "access": "Acesso"
   }
 }

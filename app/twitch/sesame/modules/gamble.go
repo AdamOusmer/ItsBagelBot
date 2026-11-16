@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 
 	"go.uber.org/zap"
 )
@@ -140,6 +141,7 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return nil
 	}
 	wager.balance = out.Balance.Points
+	gc.recordRound(wager)
 	gc.announce(emit, wager)
 	return nil
 }
@@ -241,4 +243,13 @@ func (gc gambleCmd) announce(emit module.Emit, wager wagerOutcome) {
 func (gc gambleCmd) viewerID() uint64 {
 	id, _ := strconv.ParseUint(gc.c.Env.ChatterUserID, 10, 64)
 	return id
+}
+
+func (gc gambleCmd) recordRound(wager wagerOutcome) {
+	end := "lost"
+	if wager.won {
+		end = "won"
+	}
+	gc.d.Analytics.Count(catalog.PointsFlows, "gamble")
+	gc.d.Analytics.Count(catalog.GamesRounds, "gamble", end)
 }

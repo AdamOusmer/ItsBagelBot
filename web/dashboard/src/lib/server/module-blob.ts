@@ -3,7 +3,6 @@
 
 // A module with NO row is disabled: `?? true` would silently turn it on for every broadcaster.
 import { listModules, upsertModule, type ModuleView } from './commands-store';
-import { count } from '@bagel/kit/server/analytics';
 
 export type ModuleBlob<T> = { enabled: boolean; configs: T };
 
@@ -13,10 +12,8 @@ export async function readModuleBlob<T>(userId: string, modId: string): Promise<
   return { enabled: row ? row.is_enabled : false, configs: (row?.configs ?? {}) as T };
 }
 
-/** Raw blob write: the upsert replaces the whole value, and re-parsing drops unmodelled keys. */
 export async function setModuleEnabled(userId: string, modId: string, enabled: boolean): Promise<ModuleView | undefined> {
   const { configs } = await readModuleBlob<Record<string, unknown>>(userId, modId);
   const { modules } = await upsertModule(userId, modId, enabled, configs);
-  count('module.toggles', modId, enabled ? 'on' : 'off');
   return modules.find((row) => row.name === modId);
 }

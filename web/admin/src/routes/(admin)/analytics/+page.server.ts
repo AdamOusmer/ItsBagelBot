@@ -12,21 +12,25 @@ import { currentDay, type AnalyticsRow } from '#lib/analytics-view';
 const DEMO = dev && process.env.DEMO === '1';
 const COHORT_DAYS = 120;
 const MAX_SPAN = 400;
+const TWO_FULL_MONTHS = 93;
 
 const COUNTERS = [
   'channels.active', 'channels.live', 'chat.messages', 'chat.answered', 'live.starts', 'timer.fires',
   'lifecycle', 'billing.events', 'onboarding.preset', 'command.uses', 'module.events', 'module.toggles',
-  'custom.commands'
+  'custom.commands', 'recipe.runs', 'outgress.dropped', 'provider.calls', 'songs.requests',
+  'command.blocked', 'onboarding.steps', 'import.runs', 'dashboard.views', 'billing.checkout',
+  'timers.ticks', 'automod.flags', 'games.rounds', 'games.entrants', 'points.flows', 'rewards.redeems', 'auth.login'
 ];
 const LEVELS = [
   'accounts.total', 'accounts.bot_enabled', 'accounts.onboarded', 'accounts.paid_source',
   'accounts.cancel_pending', 'accounts.payment_failed', 'accounts.locale', 'accounts.pages_hidden',
-  'accounts.by_signup_week', 'accounts.paid_by_signup_week', 'modules.rows', 'modules.breadth',
-  'integrations.connected', 'custom.total', 'custom.perm', 'custom.flags', 'custom.channels'
+  'accounts.by_signup_week', 'accounts.paid_by_signup_week', 'modules.rows', 'modules.defaults', 'modules.breadth',
+  'integrations.connected', 'custom.total', 'custom.perm', 'custom.flags', 'custom.channels',
+  'recipes.total', 'accounts.delegating', 'timers.total', 'accounts.runtime', 'desktop.grants'
 ];
-const WEEKLY = ['channels.active', 'channels.live', 'module.active', 'command.channels'];
+const WEEKLY = ['channels.active', 'channels.live', 'module.active', 'command.channels', 'recipe.channels', 'activation.age', 'channels.size'];
 const WEEK_SPAN = 28;
-const MONTHLY = ['channels.active', 'channels.live'];
+const MONTHLY = ['channels.active', 'channels.live', 'channels.size'];
 const MONTH_SPAN = 70;
 
 function windowDays(raw: string | null): number {
@@ -38,7 +42,7 @@ async function read(actorId: string, days: number): Promise<AnalyticsReads> {
   const series = (w: AnalyticsWindow, metrics: string[], span: number) =>
     analyticsSeries(actorId, w, metrics, span);
   const [counters, levels, week, month, cohortWeeks, cohortDays] = await Promise.all([
-    series('d', COUNTERS, Math.min(2 * days, MAX_SPAN)),
+    series('d', COUNTERS, Math.min(Math.max(2 * days, TWO_FULL_MONTHS), MAX_SPAN)),
     series('d', LEVELS, days),
     series('w', WEEKLY, WEEK_SPAN),
     series('m', MONTHLY, MONTH_SPAN),

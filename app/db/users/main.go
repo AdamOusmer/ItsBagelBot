@@ -43,7 +43,8 @@ func ownedAccountLevels() []string {
 		string(catalog.AccountsTotal), string(catalog.AccountsBotEnabled), string(catalog.AccountsOnboarded),
 		string(catalog.AccountsPaidSource), string(catalog.AccountsCancelPending), string(catalog.AccountsPaymentFailed),
 		string(catalog.AccountsLocale), string(catalog.AccountsPagesHidden), string(catalog.AccountsBySignupWeek),
-		string(catalog.PaidBySignupWeek),
+		string(catalog.PaidBySignupWeek), string(catalog.AccountsDelegating),
+		string(catalog.AccountsRuntime), string(catalog.DesktopGrants),
 	}
 }
 
@@ -68,7 +69,7 @@ func main() {
 	repo.SetAnalytics(recorder)
 	repo.SetAdminAuth(adminauth.New(n.RPC, adminauth.Config{AuthPrefix: env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", adminauth.DefaultAuthPrefix), AuditPrefix: env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", adminauth.DefaultAuditPrefix)}))
 	repo.SetDeviceAuthSigner(loadDeviceAuthSigner(log))
-	go recorder.ReconcileDaily(ctx, analytics.Owner{Service: serviceName, Owned: ownedAccountLevels(), Seed: repo.AnalyticsSeed})
+	levels := analytics.NewLevelSource(analytics.Owner{Service: serviceName, Owned: ownedAccountLevels(), Seed: repo.AnalyticsSeed})
 	repo.SetInvalidationPrefix(conf.CacheInvalidationPrefix.Get())
 	repo.SetInvalidationConn(n.RPC)
 	defer func() {
@@ -86,6 +87,8 @@ func main() {
 	go expirePremiumGrants(ctx, repo, log)
 	go cleanupDeviceAuth(ctx, repo, log)
 	go deliverAdminAudits(ctx, repo, log)
+
+	svcboot.FatalIf(log, levels.Serve(bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log}), "failed to subscribe analytics levels rpc")
 
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},

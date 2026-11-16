@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/internal/config"
 	"ItsBagelBot/app/twitch/sesame/internal/consumer"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
@@ -55,28 +56,31 @@ func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, b
 }
 
 type engineRuntime struct {
-	proj     *projection.Client
-	live     *engine.ValkeyLiveStore
-	timers   *engine.ValkeyTimerStore
-	guard    *automod.Gate
-	loyalty  engine.LoyaltyStore
-	tick     *engine.ValkeyLoyaltyClock
-	stats    *engine.LoyaltyReporter
-	raffle   *engine.ValkeyRaffleStore
-	duel     *engine.ValkeyDuelStore
-	seq      *engine.Sequencer
-	emotes   *automod.EmoteFetcher
-	chatters *engine.ValkeyChatters
-	runs     *engine.ValkeyRunLog
+	proj      *projection.Client
+	live      *engine.ValkeyLiveStore
+	timers    *engine.ValkeyTimerStore
+	guard     *automod.Gate
+	loyalty   engine.LoyaltyStore
+	tick      *engine.ValkeyLoyaltyClock
+	stats     *engine.LoyaltyReporter
+	raffle    *engine.ValkeyRaffleStore
+	duel      *engine.ValkeyDuelStore
+	seq       *engine.Sequencer
+	emotes    *automod.EmoteFetcher
+	chatters  *engine.ValkeyChatters
+	runs      *engine.ValkeyRunLog
+	analytics *analytics.Recorder
 }
 
 func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	in, cfg, log := w.in, w.cfg, w.log
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
+	gossipRPC.SetAnalytics(rt.analytics)
 	accountsRPC := engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix)
 	recipeState := engine.NewRecipeStateRPC(in.nc, cfg.ModulesRPCPrefix)
 	return engine.Deps{
 		AutomationHook: &engine.AutomationHook{},
+		Analytics:      rt.analytics,
 		Runtime:        newRuntime(w),
 		Automations: engine.AutomationDeps{
 			Source:        rt.proj,
@@ -191,7 +195,8 @@ func newRuntime(w wireCtx) *channelruntime.Client {
 }
 
 func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore) *engine.ValkeyTimerStore {
-	return engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, live, engine.TimersConfig{
+	return engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, engine.TimersConfig{
+		Live:                     live,
 		Runtime:                  newRuntime(w),
 		OutgressPremiumSubject:   w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject:  w.cfg.OutgressStandardSubject,
@@ -225,14 +230,26 @@ func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, 
 	return store
 }
 
-func newRaffle(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyRaffleStore {
+func newRaffle(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore, rec *analytics.Recorder) *engine.ValkeyRaffleStore {
 	cfg := engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj), Expiry: w.expiry, Wallet: engine.NewRaffleWallet(loyalty)}
-	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, cfg, w.log))
+	store := engine.NewValkeyRaffleStore(w.in.vc, cfg, w.log)
+	store.SetAnalytics(rec)
+	return watchExpiry(w, store)
 }
 
-func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {
-	cfg := engine.DuelConfig{AnnouncementConfig: announcementConfig(w, proj), Wallet: engine.NewLoyaltyWallet(loyalty), Expiry: w.expiry}
-	return watchExpiry(w, engine.NewValkeyDuelStore(w.in.vc, cfg, w.log))
+func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore, rec *analytics.Recorder) *engine.ValkeyDuelStore {
+	wallet := engine.NewLoyaltyWallet(loyalty)
+	wallet.SetAnalytics(rec)
+	cfg := engine.DuelConfig{AnnouncementConfig: announcementConfig(w, proj), Wallet: wallet, Expiry: w.expiry}
+	store := engine.NewValkeyDuelStore(w.in.vc, cfg, w.log)
+	store.SetAnalytics(rec)
+	return watchExpiry(w, store)
+}
+
+func startTrialPromotion(w wireCtx, rec *analytics.Recorder) {
+	promotion := engine.NewTrialPromotion(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, engine.LoyaltyRPCPrefix(w.cfg.LoyaltyRPCPrefix)), w.log.Named("trial-promotion"))
+	promotion.SetAnalytics(rec)
+	go promotion.Run(w.ctx)
 }
 
 type loyaltyDeps struct {

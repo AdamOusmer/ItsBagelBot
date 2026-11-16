@@ -13,54 +13,12 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// trackAccounts reads the accounts' counted columns before a write and returns the step
-// that shifts the running totals once it lands. A missing row tallies empty, so creates
-// and deletes count as +/-.
-func (r *Users) trackAccounts(ctx context.Context, ids ...uint64) func() {
-	if len(ids) == 0 {
-		return func() {}
-	}
-	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.accountState(ctx, ids) })
-}
-
-// Must run outside db.WithExec: accountState takes its own gate slot.
-func (r *Users) countCreated(ctx context.Context, id uint64) {
-	if r.analytics == nil {
-		return
-	}
-	if after, err := r.accountState(ctx, []uint64{id}); err == nil {
-		r.analytics.Shift(nil, after)
-	}
-}
-
-func (r *Users) accountState(ctx context.Context, ids []uint64) (analytics.Tally, error) {
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
-		return r.client.User.Query().
-			Where(user.IDIn(ids...)).
-			Select(accountColumns...).
-			All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	tally := analytics.Tally{}
-	for _, u := range rows {
-		tallyCounted(tally, u)
-	}
-	return tally, nil
-}
-
-func accountTally(u *ent.User) analytics.Tally {
-	tally := analytics.Tally{}
-	tallyCounted(tally, u)
-	return tally
-}
-
 var accountColumns = []string{
 	user.FieldID, user.FieldStatus, user.FieldIsActive, user.FieldOnboarded, user.FieldSubscriptionSource,
 	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
 	user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldCreatedAt,
 	user.FieldTestAccount, user.FieldBanned,
+	user.FieldLifecycleState,
 }
 
 func tallyCounted(t analytics.Tally, u *ent.User) {
@@ -69,7 +27,6 @@ func tallyCounted(t analytics.Tally, u *ent.User) {
 	}
 }
 
-// AnalyticsSeed scans every account in id order and returns the true running totals.
 func (r *Users) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
 	tally := analytics.Tally{}
 	err := analytics.Pages(ctx,
@@ -85,7 +42,13 @@ func (r *Users) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
 		func(u *ent.User) uint64 { return u.ID },
 		func(u *ent.User) { tallyCounted(tally, u) },
 	)
-	return tally, err
+	if err != nil {
+		return nil, err
+	}
+	if _, err := r.tallyDelegating(ctx, tally, nil); err != nil {
+		return nil, err
+	}
+	return r.tallyDesktopGrants(ctx, tally)
 }
 
 func tallyAccount(t analytics.Tally, u *ent.User) {
@@ -94,6 +57,7 @@ func tallyAccount(t analytics.Tally, u *ent.User) {
 	t.Add(catalog.AccountsTotal, tier)
 	t.Add(catalog.AccountsBySignupWeek, week)
 	t.Add(catalog.AccountsLocale, u.Locale)
+	t.Add(catalog.AccountsRuntime, u.LifecycleState)
 	if u.IsActive {
 		t.Add(catalog.AccountsBotEnabled, tier)
 	}

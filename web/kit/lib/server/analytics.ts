@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Must match internal/domain/analytics: key layout and the values its catalog accepts.
+// Keep catalog validation aligned with Go or identifiers can leak into aggregate storage.
 import { masterClient } from './valkey-master';
 
 type Pipeline = {
@@ -12,7 +12,6 @@ type Pipeline = {
 type Client = { pipeline(): Pipeline };
 
 const FLUSH_MS = 10_000;
-const MAX_SLOTS = 2048;
 const RETAIN_SECONDS = 7 * 24 * 60 * 60;
 
 const NAME = /^[a-z0-9][a-z0-9_.-]{0,63}$/;
@@ -21,13 +20,23 @@ const one = (values: readonly string[]) => (v: string) => values.includes(v);
 const shape = (re: RegExp) => (v: string) => re.test(v);
 
 const CATALOG: Record<string, ((v: string) => boolean)[]> = {
+  'auth.login': [one(['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned'])],
   'onboarding.preset': [one(['start-new', 'integrate', 'quiet', 'import', 'songs'])],
   'module.toggles': [shape(NAME), one(['on', 'off'])],
-  'custom.commands': [one(['created', 'deleted'])]
+  'custom.commands': [one(['created', 'deleted'])],
+  'dashboard.views': [one([
+    'overview', 'commands', 'flows', 'automations', 'modules', 'timers', 'loyalty', 'counters',
+    'quotes', 'songqueue', 'channelpoints', 'govee', 'billing', 'settings', 'access'
+  ]), one(['owner', 'delegate'])],
+  'billing.checkout': [one(['monthly', 'single', 'gift']), one(['redirected', 'blocked', 'unavailable', 'rejected'])],
+  'import.runs': [one(['streamelements', 'fossabot', 'moobot', 'nightbot', 'streamlabs_desktop', 'wizebot']),
+    one(['preview_ok', 'preview_failed', 'committed', 'commit_failed'])],
+  'onboarding.steps': [one(['viewed', 'consent_missing', 'save_failed'])]
 };
 
 let clientOverride: Client | null | undefined;
-let pending = new Map<string, number>();
+type Slot = { key: string; expireAt: number; field: string; n: number };
+let pending = new Map<string, Slot>();
 let timer: ReturnType<typeof setInterval> | null = null;
 
 function valid(metric: string, dims: string[]): boolean {
@@ -38,8 +47,11 @@ function valid(metric: string, dims: string[]): boolean {
 export function count(metric: string, ...dims: string[]): void {
   if (!valid(metric, dims)) return;
   const field = [metric, ...dims].join('|');
-  if (!pending.has(field) && pending.size >= MAX_SLOTS) return;
-  pending.set(field, (pending.get(field) ?? 0) + 1);
+  const day = dayKey(new Date());
+  const ref = `${day.key}|${field}`;
+  const slot = pending.get(ref) ?? { ...day, field, n: 0 };
+  slot.n++;
+  pending.set(ref, slot);
   timer ??= startTimer();
 }
 
@@ -55,17 +67,19 @@ function dayKey(now: Date): { key: string; expireAt: number } {
   return { key: `an:c:${day}`, expireAt: end + RETAIN_SECONDS };
 }
 
-// Loss-tolerant: a failed write drops its counts rather than retrying.
-export async function flushAnalytics(now = new Date()): Promise<void> {
+export async function flushAnalytics(): Promise<void> {
   if (pending.size === 0) return;
   const client = clientOverride === undefined ? (masterClient() as Client | null) : clientOverride;
   const batch = pending;
   pending = new Map();
   if (!client) return;
-  const { key, expireAt } = dayKey(now);
   const pipe = client.pipeline();
-  for (const [field, n] of batch) pipe.hincrby(key, field, n);
-  pipe.expireat(key, expireAt);
+  const expiries = new Map<string, number>();
+  for (const { key, expireAt, field, n } of batch.values()) {
+    pipe.hincrby(key, field, n);
+    expiries.set(key, expireAt);
+  }
+  for (const [key, expireAt] of expiries) pipe.expireat(key, expireAt);
   await pipe.exec().catch(() => undefined);
 }
 
