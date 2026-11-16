@@ -87,34 +87,29 @@ func TestLifecycleLostCASReadsCommittedAccountLevels(t *testing.T) {
 	require.Zero(t, seed["accounts.bot_enabled|free"])
 }
 
-func TestOnboardingCountsAfterCoalescedPreferenceCommit(t *testing.T) {
+func TestOnboardingCommitsBeforeReplyAndCountsTransitions(t *testing.T) {
 	for _, tc := range []struct {
-		name             string
-		initial, missing bool
-		writes           []bool
-		want             int64
+		name    string
+		initial bool
+		writes  []bool
+		want    int64
 	}{
 		{name: "repeated true", writes: []bool{true, true}, want: 1},
-		{name: "coalesced away", writes: []bool{true, false}},
-		{name: "coalesced true", writes: []bool{false, true}, want: 1},
+		{name: "true then false", writes: []bool{true, false}, want: 1},
+		{name: "false then true", writes: []bool{false, true}, want: 1},
 		{name: "already onboarded", initial: true, writes: []bool{true}},
-		{name: "failed row with committed fallback", missing: true, writes: []bool{true}, want: 1},
+		{name: "reset then accepted again", initial: true, writes: []bool{false, true}, want: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newLifecycleAnalyticsHarness(t)
-			h.repo.Close(t.Context())
 			require.NoError(t, h.repo.client.User.UpdateOneID(1001).SetOnboarded(tc.initial).Exec(t.Context()))
 			for _, on := range tc.writes {
 				require.NoError(t, h.repo.SetOnboarded(t.Context(), 1001, on))
+				view, err := h.repo.Get(t.Context(), 1001)
+				require.NoError(t, err)
+				require.Equal(t, on, view.Onboarded, "the reply must follow the commit")
 			}
-			if tc.missing {
-				require.NoError(t, h.repo.SetOnboarded(t.Context(), 9999, true))
-			}
-			require.Zero(t, h.fields(t, catalog.CounterKey(h.now))["lifecycle|onboarded"])
-			h.repo.Close(t.Context())
-			require.Equal(t, tc.want, h.fields(t, catalog.CounterKey(h.now))["lifecycle|onboarded"])
-			require.NoError(t, h.repo.SetOnboarded(t.Context(), 1001, tc.writes[len(tc.writes)-1]))
-			h.repo.Close(t.Context())
+			require.Error(t, h.repo.SetOnboarded(t.Context(), 9999, true))
 			require.Equal(t, tc.want, h.fields(t, catalog.CounterKey(h.now))["lifecycle|onboarded"])
 		})
 	}

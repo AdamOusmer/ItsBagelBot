@@ -140,31 +140,12 @@ function delegateLanding(s: App.Locals['session']): string | null {
   return first ? `/${first}` : '/delegate/exit';
 }
 
-function ownerNotOnboarded(locals: App.Locals): boolean {
-  const s = locals.session;
-  const gate = locals.accountState;
-  if (!s || s.impersonator_id) return false;
-  if (!gate || !('value' in gate)) return false;
-  return !gate.value.onboarded;
-}
-
 function ownerScopeGap(s: App.Locals['session']): boolean {
   return isOwnerSession(s) && twitchScopeGap(s.scopes);
 }
 
-async function needsTour(locals: App.Locals, commands: Promise<CommandDigest>): Promise<boolean> {
-  if (!ownerNotOnboarded(locals)) return false;
-  const cd = await commands;
-  return cd.ok && cd.total === 0;
-}
-
 function boardUid(locals: App.Locals): string | null {
   return locals.session?.user_id ?? (DEMO ? 'demo' : null);
-}
-
-async function tourFor(locals: App.Locals, url: URL, commands: Promise<CommandDigest>): Promise<string | null> {
-  if (url.searchParams.get('welcome') === '1') return '/welcome';
-  return (await needsTour(locals, commands)) ? '/welcome' : null;
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -172,9 +153,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   if (landing) throw redirect(302, landing);
   const uid = boardUid(locals);
   if (!uid) throw redirect(302, '/login');
+  if (url.searchParams.get('welcome') === '1') throw redirect(302, '/welcome');
   const commands = demoOr((m) => m.demoCommandDigest(digest), () => commandDigest(uid));
-  const tour = await tourFor(locals, url, commands);
-  if (tour) throw redirect(302, tour);
   return {
     conn: demoOr<ConnData>((m) => m.demoConn(connectionUiState), () => connState(uid)),
     commands,

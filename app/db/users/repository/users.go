@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
@@ -77,8 +76,6 @@ type Users struct {
 	packer             domaincrypto.Packer
 	pub                bus.Publisher
 	batcher            *batch.Batcher[prefKey, prefWrite]
-	pendingMu          sync.RWMutex
-	pendingPrefs       map[prefKey]prefWrite
 	app                *newrelic.Application
 	log                *zap.Logger
 	invalidationPrefix string
@@ -111,14 +108,13 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 	}
 
 	r := &Users{
-		client:       client,
-		views:        cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
-		stats:        cache.New[UserCounts](userStatsCapacity, userStatsTTL),
-		packer:       packer,
-		pub:          pub,
-		app:          app,
-		log:          log,
-		pendingPrefs: make(map[prefKey]prefWrite),
+		client: client,
+		views:  cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
+		stats:  cache.New[UserCounts](userStatsCapacity, userStatsTTL),
+		packer: packer,
+		pub:    pub,
+		app:    app,
+		log:    log,
 	}
 
 	r.batcher = batch.New[prefKey, prefWrite](prefsFlushInterval, prefsFlushMaxSize, r.flushPrefs, log)

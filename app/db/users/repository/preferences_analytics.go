@@ -9,45 +9,36 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
 )
 
-func (r *Users) persistPrefs(ctx context.Context, perUser map[uint64][]prefWrite) error {
-	onboarded, err := db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (int, error) {
-		return writeAllPrefs(ctx, tx, perUser)
-	})
-	if err != nil {
+// SetOnboarded must write through: the dashboard rereads the account as soon as the reply lands.
+func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
+	if err := validate.UserID(id); err != nil {
 		return err
 	}
-
-	r.analytics.Add(catalog.Lifecycle, int64(onboarded), "onboarded")
-	return nil
+	var changed int
+	if err := db.WithExec(ctx, func(ctx context.Context) error {
+		n, err := r.client.User.Update().Where(user.IDEQ(id), user.Onboarded(!onboarded)).SetOnboarded(onboarded).Save(ctx)
+		changed = n
+		return err
+	}); err != nil {
+		return err
+	}
+	if onboarded {
+		r.analytics.Add(catalog.Lifecycle, int64(changed), "onboarded")
+	}
+	return r.publishChanged(ctx, id)
 }
 
-func writeAllPrefs(ctx context.Context, tx *ent.Tx, perUser map[uint64][]prefWrite) (int, error) {
-	var onboarded int
-	for id, writes := range perUser {
-		n, err := persistOnboarding(ctx, tx, id, writes)
-		if err != nil {
-			return 0, err
+func (r *Users) persistPrefs(ctx context.Context, perUser map[uint64][]prefWrite) error {
+	return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+		for id, writes := range perUser {
+			if err := writeUserPrefs(ctx, tx, id, writes); err != nil {
+				return err
+			}
 		}
-		if err := writeUserPrefs(ctx, tx, id, writes); err != nil {
-			return 0, err
-		}
-		onboarded += n
-	}
-	return onboarded, nil
-}
-
-func persistOnboarding(ctx context.Context, tx *ent.Tx, id uint64, writes []prefWrite) (int, error) {
-	var onboarded bool
-	for _, w := range writes {
-		if w.field == prefOnboarded {
-			onboarded = w.flag
-		}
-	}
-	if !onboarded {
-		return 0, nil
-	}
-	return tx.User.Update().Where(user.IDEQ(id), user.Onboarded(false)).SetOnboarded(true).Save(ctx)
+		return nil
+	})
 }
