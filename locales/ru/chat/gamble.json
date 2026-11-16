@@ -1,12 +1,14 @@
 {
-  "broke": "@{gamble:user} для этой ставки недостаточно баллов. У вас {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} кубикам нужен отдых. Повторите через {gamble:secs} сек.",
-  "err": "@{gamble:user} не получилось, попробуйте снова.",
-  "lose": "@{gamble:user} результат броска: {gamble:roll} (нужно {gamble:chance} или меньше). Проигрыш: {gamble:amount} {gamble:points}. Остаток: {gamble:balance}.",
-  "range": "@{gamble:user} эта ставка может превысить лимит баллов.",
+  "broke": "@{gamble:user} у тебя только {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} не спеши, попробуй через {gamble:secs} сек.",
+  "err": "@{gamble:user} что-то пошло не так, попробуй ещё раз.",
+  "lose": "@{gamble:user} ставка {gamble:amount}, проигрыш {gamble:amount} {gamble:points}. Осталось {gamble:balance}. Я их заберу, спасибо.",
+  "lose.all": "@{gamble:user} ва-банк, и всё мимо. Снова одни крошки.",
+  "range": "@{gamble:user} слишком большая ставка.",
   "max": "@{gamble:user} максимальная ставка: {gamble:max} {gamble:points}.",
   "min": "@{gamble:user} минимальная ставка: {gamble:min} {gamble:points}.",
-  "usage": "Использование: !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} я ещё не видел вас на этом канале. Останьтесь, чтобы сначала заработать {gamble:points}!",
-  "win": "@{gamble:user} результат броска: {gamble:roll} (нужно {gamble:chance} или меньше). Выигрыш: {gamble:amount} {gamble:points}. Остаток: {gamble:balance}!"
+  "usage": "@{gamble:user} попробуй !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} я тебя здесь ещё не видел. Побудь тут, чтобы заработать {gamble:points}.",
+  "win": "@{gamble:user} ставка {gamble:amount}, выигрыш {gamble:amount} {gamble:points}! Теперь у тебя {gamble:balance}.",
+  "win.all": "@{gamble:user} ва-банк! Выигрыш {gamble:amount} {gamble:points}. Теперь у тебя {gamble:balance}."
 }
