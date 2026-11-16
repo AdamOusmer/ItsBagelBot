@@ -54,7 +54,10 @@
 {#snippet outPort(id: string, label: string, y: number, tone: 'yes' | 'no')}
   <span class="out" style:top="{y}px">
     {#if parallel.includes(id)}
-      <span class="parallel"><Icon name="branch" size={12} />{t('flows.board.atSameTime')}</span>
+      <span class="parallel" style:top="{branching ? -5 : -HEADER_H / 2 - 22}px">
+        <Icon name="branch" size={12} />
+        <span class="parallel-text" data-fit><bb-fit>{t('flows.board.atSameTime')}</bb-fit></span>
+      </span>
     {/if}
     <span class="port port--out tone-{tone}" bind:this={ports[id]}></span>
     <span class="add tone-{tone}" bind:this={adds[id]}>
@@ -238,12 +241,13 @@
   }
   .parallel {
     position: absolute;
-    left: 18px;
-    bottom: 16px;
+    right: 26px;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    width: max-content;
+    box-sizing: border-box;
+    width: 166px;
+    height: 22px;
     padding: 3px 7px;
     border-radius: var(--bb-radius-pill);
     background: var(--bb-bg-1);
@@ -251,6 +255,12 @@
     font-size: 12px;
     line-height: 16px;
     pointer-events: none;
+  }
+  .parallel-text {
+    display: block;
+    width: 136px;
+    min-width: 0;
+    white-space: nowrap;
   }
   .out {
     position: absolute;

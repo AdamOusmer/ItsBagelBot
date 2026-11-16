@@ -3,7 +3,14 @@
 import { expect, test } from 'bun:test';
 import { flowToDefinition, locateIssues, validateDefinition } from '@bagel/kit/automations';
 import { NODE_SPECS, newFlow, outputsFor, type FieldSpec, type NodeSpec } from './model';
-import { addNode } from './ops';
+import { addNode, insertNode } from './ops';
+import { addStep } from './editor';
+import en from '../../../../../locales/en/console/flows/board.json';
+import de from '../../../../../locales/de/console/flows/board.json';
+import es from '../../../../../locales/es/console/flows/board.json';
+import fr from '../../../../../locales/fr/console/flows/board.json';
+import pt from '../../../../../locales/pt-br/console/flows/board.json';
+import ru from '../../../../../locales/ru/console/flows/board.json';
 
 const at = { x: 0, y: 0 };
 
@@ -29,7 +36,8 @@ function displayedDefault(field: FieldSpec): [string, string | boolean][] {
 test.each(NODE_SPECS)('$type saves its displayed defaults without edits', (spec) => {
   const flow = newFlow('Defaults');
   const root = spec.kind === 'trigger' ? null : addNode(flow, 'twitch.follow', at);
-  const node = addNode(flow, spec.type, at, root ? { from: root.id, port: 'next' } : undefined);
+  const placement = root ? { kind: 'port' as const, from: root.id, port: 'next', mode: 'insert' as const } : { kind: 'canvas' as const };
+  const { node } = addStep(flow, { type: spec.type, at, placement, chatMessage: en.defaultChatMessage });
   const expected = { ...Object.fromEntries(spec.fields.flatMap(displayedDefault)), ...prefills[spec.type as keyof typeof prefills] };
   expect(node.config).toEqual(expected);
   addNode(flow, 'reply.chat', at, { from: node.id, port: outputsFor(spec)[0].id }).config.message = 'Saved';
@@ -48,7 +56,7 @@ test.each(NODE_SPECS)('$type saves its displayed defaults without edits', (spec)
 test.each(Object.entries(prefills))('%s prefill passes definition validation', (type) => {
   const flow = newFlow('Prefills');
   const root = addNode(flow, 'twitch.follow', at);
-  const node = addNode(flow, type, at, { from: root.id, port: 'next' });
+  const node = insertNode(flow, { type, at, placement: { kind: 'port', from: root.id, port: 'next', mode: 'insert' }, chatMessage: en.defaultChatMessage });
   const result = flowToDefinition(flow);
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
   expect({ config: node.config, issues: validateDefinition(result.value) }).toEqual({ config: prefills[type as keyof typeof prefills], issues: [] });
@@ -59,8 +67,15 @@ test.each(['twitch.follow', 'twitch.sub', 'twitch.reward', 'twitch.stream.online
   (type) => {
     const flow = newFlow('Message');
     if (type) addNode(flow, type, at);
-    const chat = addNode(flow, 'reply.chat', at);
+    const chat = insertNode(flow, { type: 'reply.chat', at, placement: { kind: 'canvas' }, chatMessage: en.defaultChatMessage });
     const viewer = ['twitch.follow', 'twitch.sub', 'twitch.reward'].includes(type ?? '');
     expect(chat.config.message).toBe(viewer ? 'Thanks {user}!' : '');
   }
 );
+
+test.each(Object.entries({ en, de, es, fr, 'pt-br': pt, ru }))('editor uses the %s chat prefill', (_locale, catalog) => {
+  const flow = newFlow('Translated');
+  addNode(flow, 'twitch.follow', at);
+  const { node } = addStep(flow, { type: 'reply.chat', at, placement: { kind: 'canvas' }, chatMessage: catalog.defaultChatMessage });
+  expect(node.config.message).toBe(catalog.defaultChatMessage);
+});

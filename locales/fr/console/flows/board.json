@@ -1,4 +1,5 @@
 {
+  "defaultChatMessage": "Merci {user} !",
   "boardLabel": "Tableau de flux",
   "stepTools": "Outils d’étape",
   "start": "Démarrer",

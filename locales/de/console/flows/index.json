@@ -89,6 +89,7 @@
   "unsupportedBody": "Es verwendet einen Schritt, den der Builder nicht darstellen kann. Es läuft weiter und du kannst es in Automatisierungen bearbeiten.",
   "unsupportedCta": "Automatisierungen öffnen",
   "issue": {
+    "permRequired": "Dieser Befehl braucht für diesen Schritt eine höhere Nutzerstufe. Füge davor eine Prüfung der Nutzerstufe hinzu.",
     "noTrigger": "Füge einen Wenn-Schritt hinzu, um dieses Rezept zu starten.",
     "multipleTriggers": "Ein Rezept kann nur auf eine Art starten. Entferne den zusätzlichen Wenn-Schritt.",
     "cycle": "Dieser Schritt führt auf sich selbst zurück. Entferne eine der Verbindungen.",

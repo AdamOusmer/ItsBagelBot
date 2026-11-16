@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
 import type { Flow } from './model';
-import { allowed, neighbor, neighborAfterRemove, readingOrder, resolveShortcut, stepDelta, stepIndex, type KeyLike, type Scopes, type Target } from './keyboard';
+import { allowed, neighbor, readingOrder, resolveShortcut, stepDelta, stepIndex, type KeyLike, type Scopes, type Target } from './keyboard';
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({ key: k, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods });
 
@@ -140,19 +140,6 @@ describe('neighbor', () => {
   test('unconnected steps fall back to their column', () => {
     expect(neighbor(flow, 'lone', 'down')).toBeNull();
     expect(neighbor(flow, 'ghost', 'right')).toBeNull();
-  });
-});
-
-describe('neighborAfterRemove', () => {
-  const removals: { id: string; next: string | null; graph: Flow }[] = [
-    { id: 'c', next: 't', graph: flow },
-    { id: 'no', next: 'c', graph: flow },
-    { id: 'lone', next: 't', graph: flow },
-    { id: 't', next: 'c', graph: flow },
-    { id: 't', next: null, graph: { ...flow, nodes: [flow.nodes[0]], edges: [] } }
-  ];
-  test.each(removals)('prefers the source when removing $id', ({ id, next, graph }) => {
-    expect(neighborAfterRemove(graph, id)).toBe(next);
   });
 });
 

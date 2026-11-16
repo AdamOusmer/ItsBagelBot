@@ -89,6 +89,7 @@
   "unsupportedBody": "Ela usa uma etapa que o construtor não consegue desenhar. Ela continua em execução e você pode editá-la em Automações.",
   "unsupportedCta": "Abrir Automações",
   "issue": {
+    "permRequired": "Este comando precisa de um nível de usuário maior para este passo. Adicione uma verificação de nível de usuário antes dele.",
     "noTrigger": "Adicione uma etapa Quando para iniciar esta receita.",
     "multipleTriggers": "Uma receita só pode iniciar de uma forma. Remova a etapa Quando extra.",
     "cycle": "Esta etapa retorna para si mesma. Remova uma das conexões.",

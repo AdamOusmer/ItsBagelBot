@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { outputsFor, specFor, type Flow, type FlowNode } from './model';
-import { deleteNode, insertNode, replaceTrigger, type Placement } from './ops';
+import { canConnect, deleteNode, insertNode, replaceTrigger, type InsertRequest, type Placement } from './ops';
+import { readingOrder } from './keyboard';
 
 type NodeId = FlowNode['id'];
 type Port = { from: NodeId; port: string };
-type AddRequest = { type: FlowNode['type']; at: { x: number; y: number }; placement: Placement };
 
 export function selectedAddPoint(flow: Flow, selectedId: NodeId | null): { x: number; y: number } {
   const node = flow.nodes.find((node) => node.id === selectedId);
@@ -13,24 +13,17 @@ export function selectedAddPoint(flow: Flow, selectedId: NodeId | null): { x: nu
 }
 
 export function connectionTarget(flow: Flow, id: NodeId, source: Port | null | undefined): boolean {
-  const node = flow.nodes.find((node) => node.id === id);
-  if (!node || !source) return false;
-  if (id === source.from) return false;
-  if (specFor(node.type)?.kind === 'trigger') return false;
-  const ends = { ...source, to: id };
-  const keys = ['from', 'port', 'to'] as const;
-  return !flow.edges.some((edge) => keys.every((key) => edge[key] === ends[key]));
+  return source ? canConnect(flow, { ...source, to: id }) : false;
 }
 
 export function selectedPlacement(flow: Flow, selectedId: NodeId | null): Placement {
   const node = flow.nodes.find((node) => node.id === selectedId);
   const spec = node && specFor(node.type);
   if (!node || !spec) return { kind: 'canvas' };
-  if (spec.kind === 'trigger') return { kind: 'canvas' };
   return { kind: 'port', from: node.id, port: outputsFor(spec)[0].id, mode: 'insert' };
 }
 
-export function addStep(flow: Flow, request: AddRequest): { node: FlowNode; replaced: boolean } {
+export function addStep(flow: Flow, request: InsertRequest): { node: FlowNode; replaced: boolean } {
   const trigger = specFor(request.type)?.kind === 'trigger';
   const replaced = trigger && flow.nodes.some((node) => specFor(node.type)?.kind === 'trigger');
   const node = trigger ? replaceTrigger(flow, request.type) : insertNode(flow, request);
@@ -40,8 +33,10 @@ export function addStep(flow: Flow, request: AddRequest): { node: FlowNode; repl
 
 export function removeStep(flow: Flow, id: NodeId): { parent: NodeId | null; count: number } {
   const parents = flow.edges.filter((edge) => edge.to === id).map((edge) => edge.from);
+  const children = flow.edges.filter((edge) => edge.from === id).map((edge) => edge.to);
   const { removed } = deleteNode(flow, id);
-  const parent = parents.find((id) => flow.nodes.some((node) => node.id === id)) ?? null;
+  if (!removed.length) return { parent: null, count: 0 };
+  const parent = [...parents, ...children].find((id) => flow.nodes.some((node) => node.id === id)) ?? readingOrder(flow)[0]?.id ?? null;
   return { parent, count: removed.length };
 }
 

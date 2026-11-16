@@ -9,14 +9,13 @@ export type Placement =
   | { kind: 'port'; from: string; port: string; mode: 'insert' | 'parallel' }
   | { kind: 'edge'; edgeId: string };
 
-type InsertRequest = { type: string; at: { x: number; y: number }; placement: Placement };
+export type InsertRequest = { type: string; at: { x: number; y: number }; placement: Placement; chatMessage?: string };
 type NodeType = FlowNode['type'];
 type NodeId = FlowNode['id'];
 
 const NODE_PREFILLS: Record<NodeType, FlowNode['config']> = {
   'reply.wait': { seconds: 5 },
   'cond.cooldown': { seconds: 30 },
-  'reply.chat': { message: 'Thanks {user}!' },
   'cond.chance': { percent: 50 }
 };
 
@@ -42,11 +41,18 @@ function hasViewer(flow: Flow): boolean {
   return spec?.provides?.some((variable) => variable.token === '{user}') ?? false;
 }
 
-function defaultConfig(flow: Flow, type: NodeType): FlowNode['config'] {
+function defaultConfig(flow: Flow, type: NodeType, chatMessage = ''): FlowNode['config'] {
   const defaults = specFor(type)?.fields.flatMap(fieldDefaults) ?? [];
   const config = { ...Object.fromEntries(defaults), ...NODE_PREFILLS[type] };
-  if (type === 'reply.chat' && !hasViewer(flow)) config.message = '';
+  if (type === 'reply.chat') config.message = hasViewer(flow) ? chatMessage : '';
   return config;
+}
+
+function createNode(flow: Flow, request: Pick<InsertRequest, 'type' | 'at' | 'chatMessage'>): FlowNode {
+  const { type, at, chatMessage } = request;
+  const node: FlowNode = { id: uniqueId('n', flow.nodes), type, x: at.x, y: at.y, config: defaultConfig(flow, type, chatMessage) };
+  flow.nodes.push(node);
+  return node;
 }
 
 export function addNode(
@@ -55,8 +61,7 @@ export function addNode(
   at: { x: number; y: number },
   link?: { from: string; port: string }
 ): FlowNode {
-  const node: FlowNode = { id: uniqueId('n', flow.nodes), type, x: at.x, y: at.y, config: defaultConfig(flow, type) };
-  flow.nodes.push(node);
+  const node = createNode(flow, { type, at });
   if (link && specFor(type)?.kind !== 'trigger') connect(flow, { ...link, to: node.id });
   return node;
 }
@@ -76,10 +81,16 @@ function reachable(flow: Flow, roots: NodeId[]): Set<NodeId> {
   return seen;
 }
 
+export function canConnect(flow: Flow, ends: EdgeEnds): boolean {
+  if (!flow.nodes.some((node) => node.id === ends.from)) return false;
+  const target = flow.nodes.find((node) => node.id === ends.to);
+  if (!target || isTrigger(target)) return false;
+  if (reachable(flow, [ends.to]).has(ends.from)) return false;
+  return !flow.edges.some((edge) => EDGE_ENDS.every((end) => edge[end] === ends[end]));
+}
+
 export function connect(flow: Flow, ends: EdgeEnds): FlowEdge | null {
-  if (reachable(flow, [ends.to]).has(ends.from)) return null;
-  if (isTrigger(flow.nodes.find((n) => n.id === ends.to))) return null;
-  if (flow.edges.some((e) => EDGE_ENDS.every((end) => e[end] === ends[end]))) return null;
+  if (!canConnect(flow, ends)) return null;
   const edge: FlowEdge = { id: uniqueId('e', flow.edges), from: ends.from, port: ends.port, to: ends.to };
   flow.edges.push(edge);
   return edge;
@@ -106,7 +117,7 @@ function insertAtEdge(flow: Flow, node: FlowNode, edgeId: FlowEdge['id']): void 
 
 export function insertNode(flow: Flow, request: InsertRequest): FlowNode {
   if (specFor(request.type)?.kind === 'trigger') throw new Error('Use replaceTrigger to add a trigger');
-  const node = addNode(flow, request.type, request.at);
+  const node = createNode(flow, request);
   if (request.placement.kind === 'port') insertAtPort(flow, node, request.placement);
   if (request.placement.kind === 'edge') insertAtEdge(flow, node, request.placement.edgeId);
   return node;
@@ -130,11 +141,16 @@ function healingPort(flow: Flow, node: FlowNode): string | null {
 }
 
 function healNode(flow: Flow, node: FlowNode, port: FlowEdge['port']): void {
-  const parents = flow.edges.filter((edge) => edge.to === node.id);
+  const edges = [...flow.edges];
   const children = flow.edges.filter((edge) => edge.from === node.id && edge.port === port);
   removeNode(flow, node.id);
-  const links = parents.flatMap((parent) => children.map((child) => ({ from: parent.from, port: parent.port, to: child.to })));
-  for (const link of links) connect(flow, link);
+  const replacements = new Map<FlowEdge, FlowEdge[]>();
+  for (const parent of edges.filter((edge) => edge.to === node.id)) {
+    const links = children.map((child) => connect(flow, { from: parent.from, port: parent.port, to: child.to }));
+    replacements.set(parent, links.filter((edge): edge is FlowEdge => edge !== null));
+  }
+  const surviving = new Set(flow.edges);
+  flow.edges = edges.flatMap((edge) => replacements.get(edge) ?? (surviving.has(edge) ? [edge] : []));
 }
 
 function pruneNode(flow: Flow, id: NodeId): NodeId[] {
@@ -156,7 +172,8 @@ export function deleteNode(flow: Flow, id: NodeId): { removed: NodeId[]; healed:
     removeNode(flow, id);
     return { removed: [id], healed: false };
   }
-  const port = healingPort(flow, node);
+  const incoming = flow.edges.filter((edge) => edge.to === id).length;
+  const port = incoming === 1 ? healingPort(flow, node) : null;
   if (port !== null) {
     healNode(flow, node, port);
     return { removed: [id], healed: true };

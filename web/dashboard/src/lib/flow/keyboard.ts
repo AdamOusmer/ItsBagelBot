@@ -159,11 +159,6 @@ export function neighbor(g: Graph, id: string, dir: Dir): string | null {
   return siblingAt(g, node, dir === 'down' ? 1 : -1);
 }
 
-export function neighborAfterRemove(g: Graph, id: string): string | null {
-  const near = neighbor(g, id, 'left') ?? neighbor(g, id, 'right') ?? neighbor(g, id, 'down') ?? neighbor(g, id, 'up');
-  return near ?? readingOrder(g).find((n) => n.id !== id)?.id ?? null;
-}
-
 const FOCUS_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End']);
 const EDGE_KEYS = new Set(['Home', 'End']);
 

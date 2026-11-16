@@ -30,6 +30,7 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     duplicate: t('flows.issue.duplicate'),
     too_many: t('flows.issue.tooMany'),
     required: t('flows.issue.required'),
+    perm_required: t('flows.issue.permRequired'),
     too_long: t('flows.issue.tooLong'),
     too_short: t('flows.issue.tooShort'),
     out_of_range: t('flows.issue.outOfRange'),

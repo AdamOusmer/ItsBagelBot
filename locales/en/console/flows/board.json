@@ -1,4 +1,5 @@
 {
+  "defaultChatMessage": "Thanks {user}!",
   "boardLabel": "Flow board",
   "stepTools": "Step tools",
   "start": "Start",

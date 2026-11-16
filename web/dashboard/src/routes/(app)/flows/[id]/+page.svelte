@@ -13,7 +13,7 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Tooltip from '@bagel/ui/svelte/Tooltip.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
-  import { toast } from '@bagel/ui/svelte/toast';
+  import { dismissToast, toast } from '@bagel/ui/svelte/toast';
   import { getI18n } from '@bagel/kit';
   import FlowCanvas, { type FlowCanvasApi, type FlowTrace } from '#lib/components/flow/FlowCanvas.svelte';
   import type { LibraryMode } from '#lib/components/flow/StepLibrary.svelte';
@@ -95,7 +95,9 @@
   const edits = new FlowHistory(untrack(() => flow));
   let canUndo = $state(false);
   let canRedo = $state(false);
+  let deletionToast: { id: number; entry: object | null } | null = null;
   const dirty = $derived(contentOf(flow) !== baseline);
+  const inspectorVisible = $derived(Boolean(selectedId && inspecting && !testRunOpen));
   const panelRoom = $derived((inspecting && selectedId) || testRunOpen || recipeOpen ? PANEL_ROOM : 0);
 
   $effect(() => {
@@ -106,6 +108,10 @@
   function refreshHistory() {
     canUndo = edits.canUndo;
     canRedo = edits.canRedo;
+    if (deletionToast && deletionToast.entry !== edits.undoEntry) {
+      dismissToast(deletionToast.id);
+      deletionToast = null;
+    }
   }
 
   function history(way: 'undo' | 'redo'): boolean {
@@ -122,10 +128,20 @@
   }
 
   function removed(count: number) {
+    inspecting = false;
     edits.sync(flow);
     refreshHistory();
+    if (deletionToast) dismissToast(deletionToast.id);
+    const entry = edits.undoEntry;
     const message = count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count });
-    toast('success', message, { undoLabel: t('flows.board.undo'), onUndo: () => history('undo') });
+    const id = toast('success', message, { undoLabel: t('flows.board.undo'), onUndo: () => undoRemoval(entry) });
+    deletionToast = { id, entry };
+  }
+
+  function undoRemoval(entry: object | null) {
+    edits.sync(flow);
+    refreshHistory();
+    if (edits.undoEntry === entry) history('undo');
   }
 
   const layoutHeight = () => document.documentElement.clientHeight;
@@ -316,7 +332,8 @@
     const { node, replaced } = insertStep(flow, {
       type,
       at: selectedAddPoint(flow, selectedId),
-      placement: selectedPlacement(flow, selectedId)
+      placement: selectedPlacement(flow, selectedId),
+      chatMessage: t('flows.board.defaultChatMessage')
     });
     if (sheetMode || specFor(type)?.kind === 'trigger') libMode = null;
     openSettings(node.id);
@@ -548,7 +565,7 @@
 {/snippet}
 
 {#snippet rightPanel()}
-  {#if selectedId && inspecting && !testRunOpen}
+  {#if inspectorVisible}
     {#await loadInspector() then { default: NodeInspector }}
       <NodeInspector bind:flow bind:selectedId focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
     {/await}

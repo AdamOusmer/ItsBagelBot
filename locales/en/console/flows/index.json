@@ -89,6 +89,7 @@
   "unsupportedBody": "It uses a step the builder cannot draw. It keeps running, and you can edit it in Automations.",
   "unsupportedCta": "Open Automations",
   "issue": {
+    "permRequired": "This command needs a higher user level for this step. Add a User level check before it.",
     "noTrigger": "Add a When step to start this recipe.",
     "multipleTriggers": "A recipe can only start one way. Remove the extra When step.",
     "cycle": "This step loops back on itself. Remove one of the connections.",

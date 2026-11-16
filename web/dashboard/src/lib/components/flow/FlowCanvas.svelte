@@ -45,8 +45,7 @@
   import { currentPositions, tweenPositions } from '../../flow/canvas-positions';
   import { edgePaths, flowBounds, loopPaths, startPaths, wirePreview } from '../../flow/canvas-geometry';
   import { searchSteps } from '../../flow/search';
-  import { resultIndex } from '../../flow/picker';
-  import { neighbor, readingOrder, stepDelta } from '../../flow/keyboard';
+  import { neighbor, readingOrder, stepDelta, stepIndex } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
   import { stepLabel, stepSummary } from '../../flow/copy';
   import { nodeHeight, tidy } from '../../flow/layout';
@@ -637,7 +636,7 @@
   function pick(type: NodeType) {
     if (!menu) return;
     const placement = menu.link ? { kind: 'port' as const, ...menu.link, mode: insertMode } : { kind: 'canvas' as const };
-    const { node } = addStep(flow, { type, at: menu.at, placement });
+    const { node } = addStep(flow, { type, at: menu.at, placement, chatMessage: t('flows.board.defaultChatMessage') });
     closeMenu();
     showAdded(node);
   }
@@ -655,8 +654,7 @@
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const id = nodeIdAt(e.target);
     if (!id || !targetFor(id)) return;
-    connectTo(id, connecting);
-    connecting = null;
+    if (connectTo(id, connecting)) connecting = null;
     e.preventDefault();
     e.stopPropagation();
   }
@@ -666,7 +664,7 @@
     if (e.key === 'Enter') return pickActive(e);
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     e.preventDefault();
-    activeResult = resultIndex({ key: e.key, index: activeResult, length: results.length });
+    activeResult = stepIndex(activeResult, results.length, e.key);
   }
 
   function pickActive(e: KeyboardEvent) {
@@ -687,7 +685,7 @@
     if (!type || !specFor(type)) return;
     e.preventDefault();
     const p = toWorld(e.clientX, e.clientY);
-    const { node, replaced } = addStep(flow, { type, at: { x: snap(p.x), y: snap(p.y) }, placement: selectedPlacement(flow, selectedId) });
+    const { node, replaced } = addStep(flow, { type, at: { x: snap(p.x), y: snap(p.y) }, placement: selectedPlacement(flow, selectedId), chatMessage: t('flows.board.defaultChatMessage') });
     if (replaced) announce(t('flows.board.triggerReplaced'));
     showAdded(node);
   }
@@ -752,9 +750,10 @@
     selectedEdge = null;
     selectedId = parent;
     if (autoTidy) runTidy(true);
-    if (parent) selectAndShow(parent);
     announce(count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count }));
     onremoved?.(count);
+    if (parent) selectAndShow(parent);
+    else void tick().then(() => startEl?.focus({ preventScroll: true }));
     return true;
   }
 
@@ -1292,6 +1291,9 @@
     min-height: 44px;
   }
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
+    .canvas {
+      --flow-dock-room: var(--stage-bottom-room, 0px);
+    }
     .view-toggle {
       position: absolute;
       right: max(16px, env(safe-area-inset-right, 0px));

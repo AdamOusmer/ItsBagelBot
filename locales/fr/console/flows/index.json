@@ -89,6 +89,7 @@
   "unsupportedBody": "Elle utilise une étape que le créateur ne peut pas afficher. Elle continue de s’exécuter, et vous pouvez la modifier dans Automatisations.",
   "unsupportedCta": "Ouvrir Automatisations",
   "issue": {
+    "permRequired": "Cette commande exige un niveau utilisateur plus élevé pour cette étape. Ajoute une vérification du niveau utilisateur avant elle.",
     "noTrigger": "Ajoutez une étape Quand pour démarrer cette recette.",
     "multipleTriggers": "Une recette ne peut démarrer que d’une seule façon. Supprimez l’étape Quand supplémentaire.",
     "cycle": "Cette étape boucle sur elle-même. Supprimez l’une des connexions.",

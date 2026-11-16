@@ -77,10 +77,10 @@ describe('insertNode', () => {
 const deletions: { name: string; type: string; edges: EdgeRow[]; removed: string[]; healed: boolean; remaining: EdgeRow[] }[] = [
   { name: 'linear middle', type: 'reply.wait', edges: [['t', 'next', 'x'], ['x', 'next', 'a']], removed: ['x'], healed: true, remaining: [['t', 'next', 'a']] },
   {
-    name: 'every parent to every child, deduped', type: 'reply.wait',
+    name: 'shared junction prunes unreachable children', type: 'reply.wait',
     edges: [['t', 'next', 'p'], ['t', 'next', 'x'], ['t', 'other', 'x'], ['p', 'next', 'x'], ['x', 'next', 'a'], ['x', 'next', 'b'], ['t', 'next', 'a']],
-    removed: ['x'], healed: true,
-    remaining: [['t', 'next', 'p'], ['t', 'next', 'a'], ['t', 'next', 'b'], ['t', 'other', 'a'], ['t', 'other', 'b'], ['p', 'next', 'a'], ['p', 'next', 'b']]
+    removed: ['x', 'b'], healed: false,
+    remaining: [['t', 'next', 'p'], ['t', 'next', 'a']]
   },
   { name: 'terminal', type: 'reply.wait', edges: [['t', 'next', 'x']], removed: ['x'], healed: true, remaining: [] },
   { name: 'empty check', type: 'cond.chance', edges: [['t', 'next', 'x']], removed: ['x'], healed: true, remaining: [] },
@@ -105,6 +105,15 @@ const deletions: { name: string; type: string; edges: EdgeRow[]; removed: string
 ];
 
 describe('deleteNode', () => {
+  test.each<{ name: string; edges: EdgeRow[]; expected: string[] }>([
+    { name: 'before sibling', edges: [['t', 'next', 'x'], ['t', 'next', 'p'], ['x', 'next', 'a'], ['x', 'next', 'b']], expected: ['a', 'b', 'p'] },
+    { name: 'after sibling', edges: [['t', 'next', 'p'], ['t', 'next', 'x'], ['x', 'next', 'a'], ['x', 'next', 'b']], expected: ['p', 'a', 'b'] }
+  ])('healed edges preserve parallel order $name', ({ edges, expected }) => {
+    const flow = graph([['t', 'twitch.follow'], ['x', 'reply.wait'], ['p', 'reply.chat'], ['a', 'reply.chat'], ['b', 'reply.chat']], edges);
+    deleteNode(flow, 'x');
+    expect(flow.edges.filter((edge) => edge.from === 't').map((edge) => edge.to)).toEqual(expected);
+  });
+
   test.each(deletions)('$name', ({ type, edges, removed, healed, remaining }) => {
     const flow = graph([['t', 'twitch.follow'], ['x', type], ['p', 'reply.chat'], ['a', 'reply.chat'], ['b', 'reply.chat'], ['c', 'reply.chat'], ['lone', 'reply.chat'], ['orphan', 'reply.chat']], edges);
     const original = flow.nodes.map((node) => node.id);

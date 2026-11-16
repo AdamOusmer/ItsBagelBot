@@ -89,6 +89,7 @@
   "unsupportedBody": "Usa un paso que el creador no puede dibujar. Sigue ejecutándose y puedes editarla en Automatizaciones.",
   "unsupportedCta": "Abrir Automatizaciones",
   "issue": {
+    "permRequired": "Este comando necesita un nivel de usuario más alto para este paso. Añade antes una comprobación de nivel de usuario.",
     "noTrigger": "Añade un paso Cuando para iniciar esta receta.",
     "multipleTriggers": "Una receta solo puede empezar de una forma. Elimina el paso Cuando adicional.",
     "cycle": "Este paso crea un bucle sobre sí mismo. Elimina una de las conexiones.",
