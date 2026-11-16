@@ -53,9 +53,11 @@ test.each(coldCases)('$name', async (row) => {
   expect(reads).toBe(1);
 
   const firstSampleAt = sampledAt + (row.initial === 'healthy' ? 0 : row.prewarm * 1000);
-  sampledAt += row.prewarm * 1000;
-  jest.advanceTimersByTime(row.prewarm * 1000);
-  await settle();
+  for (let tick = 0; tick < row.prewarm; tick++) {
+    sampledAt += 1000;
+    jest.advanceTimersByTime(1000);
+    await settle();
+  }
   availability = 'healthy';
   let resolved = 0;
   const pending = Array.from({ length: 2 }, () => publicStats().then((stats) => {

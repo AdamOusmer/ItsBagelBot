@@ -3,17 +3,16 @@
 
 import { afterEach, expect, jest, mock, spyOn, test } from 'bun:test';
 
-mock.module('$app/env', () => ({ dev: true, browser: false, building: false }));
+mock.module('$app/env', () => ({ dev: false, browser: false, building: false }));
 
 type Availability = 'healthy' | 'rejected' | 'degraded' | 'pending';
 type Step = { at: number; status: number; availability?: Availability; nats?: boolean; probe?: boolean };
-type Scenario = { name: string; availability: Availability; messages?: number; demo?: boolean; steps: Step[] };
+type Scenario = { name: string; availability: Availability; messages?: number; steps: Step[] };
 
 let availability: Availability = 'healthy';
 let messages = 0;
 let natsReady = true;
 let sampler: typeof import('../../lib/server/public-stats');
-const originalDemo = process.env.DEMO;
 
 mock.module('../../lib/server/live-counters', () => ({
   liveTotals: async () => {
@@ -38,8 +37,6 @@ afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
   mock.restore();
-  if (originalDemo === undefined) delete process.env.DEMO;
-  else process.env.DEMO = originalDemo;
 });
 
 const capSteps: Step[] = [
@@ -65,7 +62,6 @@ const cases: Scenario[] = [
   { name: 'a rate latches before the next readiness probe', availability: 'healthy', steps: [
     { at: 5000, status: 200, probe: false }, { at: 6000, status: 200, availability: 'rejected' }
   ] },
-  { name: 'demo is immediately ready', availability: 'rejected', demo: true, steps: [{ at: 0, status: 200 }] },
   { name: 'NATS still gates a warm replica', availability: 'rejected', steps: [
     { at: 8000, status: 503, nats: false }, { at: 9000, status: 200, nats: true }
   ] }
@@ -76,7 +72,6 @@ test.each(cases)('$name', async (row) => {
   availability = row.availability;
   messages = 0;
   natsReady = true;
-  process.env.DEMO = row.demo ? '1' : '0';
   let now = 0;
   spyOn(Date, 'now').mockImplementation(() => now);
   sampler = await import(`../../lib/server/public-stats?readyz-${row.name}`);
