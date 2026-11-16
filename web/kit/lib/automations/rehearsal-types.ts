@@ -27,8 +27,8 @@ export type RehearsalScenario = {
   anonymous?: boolean;
   input?: string;
   requestText?: string;
-  is_gift?: boolean;
-  reward_id?: string;
+  isGift?: boolean;
+  rewardId?: string;
   name?: string;
   values?: Record<string, string>;
   state?: Partial<RehearsalState>;
@@ -70,7 +70,6 @@ export type RehearsalContext = {
   state: RehearsalState;
   overrides: RehearsalOverrides;
   locals: Record<string, string>;
-  cooldownClaims?: Record<string, number>;
   path: string;
   atMs: number;
 };

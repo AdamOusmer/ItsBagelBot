@@ -2,22 +2,23 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { lookupEventKind } from './event-kinds';
+import { unescapeWord } from './flow-graph';
 import type { Definition, Params } from './types';
 import type { RehearsalScenario, ScenarioField, TriggerMatch } from './rehearsal-types';
 
 const VIEWER: readonly ScenarioField[] = [
   { key: 'user', kind: 'text', default: 'PrincessBarney' },
-  { key: 'userId', kind: 'text', default: '40000001', more: true },
-  { key: 'role', kind: 'role', default: 'viewer', options: ['viewer', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'], more: true }
+  { key: 'userId', kind: 'text', default: '40000001', more: true }
 ];
+const ROLE: ScenarioField = { key: 'role', kind: 'role', default: 'viewer', options: ['viewer', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'], more: true };
 const LIVE: ScenarioField = { key: 'live', kind: 'toggle', default: true, more: true };
 const TIER: ScenarioField = { key: 'tier', kind: 'select', default: '1000', options: ['1000', '2000', '3000'] };
 
 export const SCENARIO_FIELDS: Readonly<Record<string, readonly ScenarioField[]>> = {
-  'twitch.chat.command': [...VIEWER, { key: 'message', kind: 'text', default: '' }, LIVE],
-  'twitch.chat.word': [...VIEWER, { key: 'message', kind: 'text', default: '' }, LIVE],
+  'twitch.chat.command': [...VIEWER, ROLE, { key: 'message', kind: 'text', default: '' }, LIVE],
+  'twitch.chat.word': [...VIEWER, ROLE, { key: 'message', kind: 'text', default: '' }, LIVE],
   'twitch.follow': [...VIEWER, LIVE],
-  'twitch.sub.new': [...VIEWER, TIER, { key: 'is_gift', kind: 'toggle', default: false, more: true }, LIVE],
+  'twitch.sub.new': [...VIEWER, TIER, { key: 'isGift', kind: 'toggle', default: false, more: true }, LIVE],
   'twitch.sub.resub': [...VIEWER, TIER, { key: 'months', kind: 'number', default: 14 }, LIVE],
   'twitch.sub.gift': [...VIEWER, TIER, { key: 'giftCount', kind: 'number', default: 5 }, { key: 'anonymous', kind: 'toggle', default: false }, LIVE],
   'twitch.cheer': [...VIEWER, { key: 'bits', kind: 'number', default: 500 }, { key: 'anonymous', kind: 'toggle', default: false, more: true }, LIVE],
@@ -46,9 +47,9 @@ export function scenarioKind(definition: Definition): string {
   return direct[type] ?? EVENT_SCENARIOS[String(params.kind)] ?? '';
 }
 
-function commandWord(params: Params): string {
+function sampleWord(params: Params): string {
   const body = String(params.name ?? '').replace(/^\(\?:\^\|\[\^\\p\{L\}\\p\{N\}_\]\)/, '').replace(/\(\?:\$\|\[\^\\p\{L\}\\p\{N\}_\]\)$/, '');
-  return body.replace(/\\x5c|\\(.)/g, (_, char: string | undefined) => char ?? '\\');
+  return unescapeWord(body);
 }
 
 export function defaultScenario(definition: Definition): RehearsalScenario {
@@ -68,11 +69,11 @@ function thresholdDefault(params: Params, field: string, fallback: number): numb
 
 const DYNAMIC_DEFAULTS: Readonly<Record<string, (params: Params) => Partial<RehearsalScenario>>> = {
   'twitch.chat.command': (params) => ({ message: `${params.name ?? ''} @Lotti good luck` }),
-  'twitch.chat.word': (params) => ({ message: `I love ${commandWord(params)}` }),
+  'twitch.chat.word': (params) => ({ message: `I love ${sampleWord(params)}` }),
   'twitch.cheer': (params) => ({ bits: thresholdDefault(params, 'amount', 500) }),
   'twitch.raid': (params) => ({ viewers: thresholdDefault(params, 'viewers', 42) }),
-  'twitch.reward': (params) => ({ reward_id: String(params.reward_id ?? '') }),
-  'countdown.finished': (params) => ({ name: String(params.name ?? '') })
+  'twitch.reward': (params) => ({ rewardId: String(params.reward_id ?? '') }),
+  'countdown.finished': (params) => ({ name: String(params.name ?? ''), role: 'broadcaster', userId: '40000000' })
 };
 
 function commandMatch(params: Params, message: string): RegExpExecArray | null {
@@ -102,11 +103,12 @@ export function scenarioArgs(definition: Definition, scenario: RehearsalScenario
 }
 
 export function scenarioEvent(scenario: RehearsalScenario, kind: string): Record<string, string> {
+  if (kind === 'countdown.finished') return { name: scenario.name ?? '' };
   const fields: Record<string, string | number | boolean | undefined> = {
     user: scenario.user, login: scenario.user?.toLowerCase(), user_id: scenario.userId,
     tier: scenario.tier, months: scenario.months, viewers: scenario.viewers, input: scenario.input,
-    text: scenario.requestText, anonymous: scenario.anonymous, is_gift: scenario.is_gift,
-    message: scenario.message, reward_id: scenario.reward_id
+    text: scenario.requestText, anonymous: scenario.anonymous, is_gift: scenario.isGift,
+    message: scenario.message, reward_id: scenario.rewardId
   };
   if (kind === 'channel.cheer') fields.amount = scenario.bits;
   if (kind === 'channel.subscription.gift') fields.amount = scenario.giftCount;
@@ -123,7 +125,7 @@ function filterMatch(entry: [string, string], event: Record<string, string>): bo
 
 export function matchTrigger(definition: Definition, scenario: RehearsalScenario): TriggerMatch {
   const { type, params = {} } = definition.trigger;
-  const identityKeys: Record<string, 'name' | 'reward_id'> = { reward: 'reward_id', countdown: 'name' };
+  const identityKeys: Record<string, 'name' | 'rewardId'> = { reward: 'rewardId', countdown: 'name' };
   if (identityKeys[type]) return matchIdentity(identityKeys[type]!, params, scenario);
   return type === 'command' ? matchCommand(params, scenario) : matchEvent(params, scenario);
 }
@@ -141,7 +143,15 @@ function matchCommand(params: Params, scenario: RehearsalScenario): TriggerMatch
   return { starts: false, reason: 'trigger_message', values: { expected: String(params.name), actual: scenario.message ?? '' } };
 }
 
-function matchIdentity(key: 'name' | 'reward_id', params: Params, scenario: RehearsalScenario): TriggerMatch {
-  if (scenario[key] === String(params[key] ?? '')) return { starts: true };
-  return { starts: false, reason: 'trigger_filter', values: { field: key, expected: String(params[key] ?? ''), actual: scenario[key] ?? '' } };
+function matchIdentity(key: 'name' | 'rewardId', params: Params, scenario: RehearsalScenario): TriggerMatch {
+  const field = key === 'rewardId' ? 'reward_id' : key;
+  if (scenario[key] === String(params[field] ?? '')) return { starts: true };
+  return { starts: false, reason: 'trigger_filter', values: { field, expected: String(params[field] ?? ''), actual: scenario[key] ?? '' } };
+}
+
+export function scenarioIdentity(definition: Definition, scenario: RehearsalScenario): RehearsalScenario {
+  if (definition.trigger.type === 'command') return scenario;
+  if (definition.trigger.type === 'countdown') return { ...scenario, role: 'broadcaster', userId: '40000000' };
+  const anonymousCheer = definition.trigger.params?.kind === 'channel.cheer' && scenario.anonymous;
+  return { ...scenario, role: 'viewer', user: anonymousCheer ? undefined : scenario.user, userId: anonymousCheer ? undefined : scenario.userId };
 }

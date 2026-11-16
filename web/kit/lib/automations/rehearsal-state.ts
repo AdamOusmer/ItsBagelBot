@@ -7,6 +7,7 @@ import type { VarToken } from '../engine/tmpl';
 import { comparePasses } from './compare';
 import { MAX_COOLDOWN_SECONDS, MAX_TEMPLATE_LENGTH } from './limits';
 import { compareBytes, trimSpace } from './text';
+import { extractJson } from './rehearsal-json';
 import type { Action, Condition, Params } from './types';
 import type { RehearsalContext, RehearsalScenario, RehearsalState } from './rehearsal-types';
 
@@ -33,7 +34,7 @@ export function createState(scenario: RehearsalScenario): RehearsalState {
   return {
     channelVars: { ...seed?.channelVars }, viewerVars: { ...seed?.viewerVars },
     counters: { ...seed?.counters }, points: seed?.points ?? 0,
-    cooldowns: { ...seed?.cooldowns }, countdowns: { ...seed?.countdowns }
+    cooldowns: {}, countdowns: { ...seed?.countdowns }
   };
 }
 
@@ -92,7 +93,7 @@ export function expandTemplate(template: Text, context: Context): { text: Text; 
   const segments = expandSegments(template, (token) => {
     const value = resolveValue(token, context);
     if (value === null) missing.push(token.key);
-    return value;
+    return value ?? '';
   });
   return { text: segments.map((segment) => segment.text).join(''), missing: [...new Set(missing)] };
 }
@@ -142,8 +143,8 @@ function cooldownKeys(params: Params, context: Context): Text[] {
 
 function cooldownComparison(params: Params, context: Context): boolean {
   const keys = cooldownKeys(params, context);
-  const windows = keys.map((key) => context.state.cooldowns[key] ?? 0);
-  if (cooldownBlocks({ keys, windows }, context)) {
+  const windows = keys.map((key) => cooldownWindow(key, context));
+  if (context.overrides[context.path] === 'cooling' || windows.some((until) => until > context.atMs)) {
     noteCooldown(windows, context);
     return false;
   }
@@ -151,12 +152,9 @@ function cooldownComparison(params: Params, context: Context): boolean {
   return true;
 }
 
-function cooldownBlocks(windows: { keys: Text[]; windows: number[] }, context: Context): boolean {
-  const override = context.overrides[context.path];
-  if (override === 'cooling') return true;
-  const claimed = windows.keys.some((key) => (context.cooldownClaims?.[key] ?? 0) > context.atMs);
-  if (override === 'ready' && !claimed) return false;
-  return windows.windows.some((until) => until > context.atMs);
+function cooldownWindow(key: Text, context: Context): number {
+  const seed = context.overrides[context.path] === 'ready' ? 0 : context.scenario.state?.cooldowns?.[key];
+  return context.state.cooldowns[key] ?? seed ?? 0;
 }
 
 function noteCooldown(windows: number[], context: Context): void {
@@ -167,8 +165,12 @@ function noteCooldown(windows: number[], context: Context): void {
 function armCooldown(key: Text, params: Params, context: Context): void {
   const seconds = key.startsWith('viewer:') ? number(params.user_s) : number(params.global_s);
   context.state.cooldowns[key] = context.atMs + seconds * 1000;
-  context.cooldownClaims ??= {};
-  context.cooldownClaims[key] = context.state.cooldowns[key]!;
+}
+
+function chanceComparison(params: Params, context: Context): boolean {
+  const percent = number(params.percent);
+  if (percent >= 100) return true;
+  return percent > 0 && context.overrides[context.path] !== 'no';
 }
 
 const CONDITIONS: Readonly<Record<string, ConditionHandler>> = {
@@ -176,7 +178,7 @@ const CONDITIONS: Readonly<Record<string, ConditionHandler>> = {
   users: userComparison,
   compare: (params, context) => comparePasses(text(params.op), expand(params.left, context), expand(params.right, context)),
   var: variableComparison,
-  chance: (_, context) => context.overrides[context.path] !== 'no',
+  chance: chanceComparison,
   cooldown: cooldownComparison,
   live: (params, context) => context.scenario.live === (params.state === 'live')
 };
@@ -192,11 +194,11 @@ function saveLocal(params: Params, value: Text, context: Context): void {
 
 function addVariable(current: Text, amount: number): Text | null {
   const trimmed = trimSpace(current);
-  const base = integerValue(trimmed);
-  if (base === null) return fixedNumber((decimal(trimmed) ?? 0) + amount);
-  const sum = base + BigInt(amount);
-  if (sum < -(2n ** 63n) || sum > 2n ** 63n - 1n) return null;
-  return sum.toString();
+  const sum = (decimal(trimmed) ?? 0) + amount;
+  const integerOverflow = /^[+-]?\d+$/.test(trimmed) && Math.abs(sum) >= 2 ** 63;
+  if (integerOverflow) return null;
+  if (!Number.isFinite(sum)) return null;
+  return fixedNumber(sum);
 }
 
 function integerValue(value: Text): bigint | null {
@@ -276,7 +278,8 @@ function textStep(params: Params, context: Context): ActionOutcome {
   const result = handler?.(operands);
   if (result === null || result === undefined) return failed('text_error');
   saveLocal(params, result, context);
-  return ok();
+  return params.op === 'split_pick' && trimSpace(operands.arg2).toLowerCase() === 'random'
+    ? { status: 'ok', detail: { random: '1' } } : ok();
 }
 
 type MathFunction = { min: number; max: number; apply: (values: number[]) => number };
@@ -295,7 +298,15 @@ const PRODUCT: Readonly<Record<string, (left: number, right: number) => number>>
 
 class MathParser {
   position = 0;
+  failed = false;
+  random = false;
   constructor(readonly source: Text) {}
+
+  fail(): number {
+    this.failed = true;
+    this.position = this.source.length;
+    return 0;
+  }
 
   peek(): Text {
     while (/[ \t]/.test(this.source[this.position] ?? '\0')) this.position++;
@@ -311,8 +322,11 @@ class MathParser {
   binary(operators: typeof SUM, operand: () => number): number {
     let left = operand();
     for (let apply = operators[this.peek()]; apply; apply = operators[this.peek()]) {
+      const operator = this.peek();
       this.position++;
-      left = apply(left, operand());
+      const right = operand();
+      const zeroDivision = (operator === '/' || operator === '%') && right === 0;
+      left = zeroDivision ? this.fail() : apply(left, right);
     }
     return left;
   }
@@ -331,25 +345,28 @@ class MathParser {
     const next = this.peek();
     if (/[a-z]/.test(next) && next !== '') return this.call();
     const match = /^[0-9.]+/.exec(this.source.slice(this.position));
-    if (!match) return NaN;
+    if (!match) return this.fail();
     this.position += match[0].length;
-    return /^(?:[0-9]+\.?[0-9]*|\.[0-9]+)$/.test(match[0]) ? Number(match[0]) : NaN;
+    const value = /^(?:[0-9]+\.?[0-9]*|\.[0-9]+)$/.test(match[0]) ? Number(match[0]) : NaN;
+    return Number.isFinite(value) ? value : this.fail();
   }
 
   group(): number {
     const value = this.sum();
-    return this.take(')') ? value : NaN;
+    return this.take(')') ? value : this.fail();
   }
 
   call(): number {
     const name = /^[a-z]+/.exec(this.source.slice(this.position))![0];
     this.position += name.length;
     const fn = MATH_FUNCTIONS[name];
-    if (!fn || !this.take('(')) return NaN;
+    if (!fn || !this.take('(')) return this.fail();
     const args = [this.sum()];
     while (this.take(',')) args.push(this.sum());
     const valid = this.take(')') && args.length >= fn.min && args.length <= fn.max;
-    return valid ? fn.apply(args) : NaN;
+    if (!valid) return this.fail();
+    if (name === 'random') this.random = true;
+    return fn.apply(args);
   }
 }
 
@@ -369,23 +386,10 @@ function mathStep(params: Params, context: Context): ActionOutcome {
   if ([...expression].length > 200) return failed('math_error');
   const parser = new MathParser(expression);
   const value = parser.sum();
-  if (!Number.isFinite(value) || parser.peek() !== '') return failed('math_error');
+  const invalid = parser.failed || !Number.isFinite(value) || parser.peek() !== '';
+  if (invalid) return failed('math_error');
   saveLocal(params, fixedNumber(value), context);
-  return ok();
-}
-
-function jsonValue(response: Text, path: Text[]): Text {
-  if (path.length === 0) return trimSpace(response);
-  let value: unknown = JSON.parse(response);
-  for (const key of path) value = jsonField(value, key);
-  if (!['string', 'number', 'boolean'].includes(typeof value)) throw new Error('bad_def');
-  return String(value);
-}
-
-function jsonField(value: unknown, key: Text): unknown {
-  if (typeof value !== 'object' || value === null) throw new Error('bad_def');
-  if (!Object.hasOwn(value, key)) throw new Error('bad_def');
-  return (value as Record<string, unknown>)[key];
+  return parser.random ? { status: 'ok', detail: { random: '1' } } : ok();
 }
 
 function httpStep(params: Params, context: Context): ActionOutcome {
@@ -397,7 +401,7 @@ function httpStep(params: Params, context: Context): ActionOutcome {
   }
   const response = context.overrides[`${context.path}.response`] ?? '';
   try {
-    const value = jsonValue(response, (params.json_path ?? []) as Text[]);
+    const value = extractJson(response, (params.json_path ?? []) as Text[]);
     delete context.locals.error;
     saveLocal(params, value, context);
     return { status: 'ok', detail: { response: value } };
@@ -417,11 +421,12 @@ function timerAdded(params: Params, context: Context): number {
 function timerStep(params: Params, context: Context, mode: Text): ActionOutcome {
   const store = mode === 'cooldown_add' ? context.state.cooldowns : context.state.countdowns;
   const name = nameOf(params);
-  const running = (store[name] ?? 0) > context.atMs;
+  const until = mode === 'cooldown_add' ? cooldownWindow(name, context) : store[name] ?? 0;
+  const running = until > context.atMs;
   if (mode !== 'countdown_start' && !running) return { status: 'skipped', detail: { code: 'not_running' } };
   const added = timerAdded(params, context);
   if (added <= 0) return { status: 'skipped', detail: { code: 'below_rate' } };
-  const base = mode === 'countdown_start' ? context.atMs : Math.max(context.atMs, store[name] ?? 0);
+  const base = mode === 'countdown_start' ? context.atMs : Math.max(context.atMs, until);
   store[name] = Math.min(context.atMs + MAX_COOLDOWN_SECONDS * 1000, base + added);
   const token = mode === 'cooldown_add' ? 'cooldown:end' : 'countdown:end';
   context.locals[token] = String(store[name]);

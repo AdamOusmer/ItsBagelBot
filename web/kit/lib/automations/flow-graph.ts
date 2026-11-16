@@ -123,7 +123,7 @@ const WORD_END = '(?:$|[^\\p{L}\\p{N}_])';
 
 // A backslash stays \x5c because the validator reads \1 anywhere in a pattern as a backreference.
 const escapeWord = (word: string) => word.replace(/[\\.*+?^$()[\]{}|]/g, (char) => (char === '\\' ? '\\x5c' : `\\${char}`));
-const unescapeWord = (body: string) => body.replace(/\\x5c|\\(.)/g, (_, char?: string) => char ?? '\\');
+export const unescapeWord = (body: string) => body.replace(/\\x5c|\\(.)/g, (_, char?: string) => char ?? '\\');
 
 function wordPattern(word: string): string {
   return word === '' ? '' : `${WORD_START}${escapeWord(word)}${WORD_END}`;

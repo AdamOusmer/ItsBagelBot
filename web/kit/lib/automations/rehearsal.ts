@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { responseLines } from '../engine/commands-validate';
-import { MAX_ACTIONS, MAX_DELAY_MS } from './limits';
+import { MAX_RESPONSE_LINES } from '../importer/validate';
+import { MAX_ACTIONS, MAX_DELAY_MS, MAX_LOOP_TIMES } from './limits';
 import { applyAction, createState, evaluateCondition, expandTemplate } from './rehearsal-state';
-import { matchTrigger, scenarioArgs, scenarioEvent } from './rehearsal-scenario';
+import { matchTrigger, scenarioArgs, scenarioEvent, scenarioIdentity } from './rehearsal-scenario';
+import { trimSpace } from './text';
 import type { Action, Condition, Definition } from './types';
 import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalResult, RehearsalScenario } from './rehearsal-types';
 
@@ -12,7 +13,7 @@ export type * from './rehearsal-types';
 export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioKind } from './rehearsal-scenario';
 
 type Path = string;
-type Frame = { context: RehearsalContext; lane: number[]; iteration: number[]; delayMs: number };
+type Frame = { context: RehearsalContext; lane: number[]; iteration: number[]; delayMs: number; stopped: boolean };
 type EventBody = Omit<RehearsalEvent, 'key' | 'path' | 'atMs' | 'lane' | 'iteration'>;
 type Pending = { frame: Frame; work: Generator<number, void> };
 type Execution = { events: RehearsalEvent[]; pending: Pending[]; effects: number; visits: number };
@@ -26,8 +27,10 @@ function emit(run: Execution, frame: Frame, body: EventBody): void {
 }
 
 function contextFor(definition: Definition, scenario: RehearsalScenario, overrides: RehearsalOverrides): RehearsalContext {
+  scenario = scenarioIdentity(definition, scenario);
   const args = scenarioArgs(definition, scenario);
-  const kind = definition.trigger.type === 'reward' ? 'channel.channel_points_custom_reward_redemption.add' : String(definition.trigger.params?.kind ?? '');
+  const kinds: Record<string, string> = { reward: 'channel.channel_points_custom_reward_redemption.add', countdown: 'countdown.finished' };
+  const kind = kinds[definition.trigger.type] ?? String(definition.trigger.params?.kind ?? '');
   const event = scenarioEvent(scenario, kind);
   const values: Record<string, string> = {
     args, message: scenario.message ?? '', command: String(definition.trigger.params?.name ?? ''),
@@ -35,7 +38,7 @@ function contextFor(definition: Definition, scenario: RehearsalScenario, overrid
     ...scenario.values
   };
   addViewerValues(values, scenario, args);
-  return { scenario: { ...scenario, args, values }, state: createState(scenario), overrides, locals: {}, cooldownClaims: {}, path: 'trigger', atMs: 0 };
+  return { scenario: { ...scenario, args, values }, state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0 };
 }
 
 function addViewerValues(values: Record<string, string>, scenario: RehearsalScenario, args: Path): void {
@@ -68,18 +71,21 @@ function resumeNext(run: Execution): void {
   runUntilPause(run, run.pending.shift()!);
 }
 
-function limited(step: Step, run: Execution, frame: Frame): boolean {
-  frame.context.path = step.path;
-  run.visits++;
-  if (run.visits <= 4 * MAX_ACTIONS) return false;
-  emit(run, frame, { kind: 'skip', status: 'failed', detail: { code: 'max_steps' } });
+function limited(budget: 'visits' | 'effects', run: Execution, frame: Frame): boolean {
+  const maximum = budget === 'visits' ? 4 * MAX_ACTIONS : MAX_ACTIONS;
+  if (++run[budget] <= maximum) return false;
+  const code = budget === 'visits' ? 'max_steps' : 'max_actions';
+  frame.stopped = true;
+  emit(run, frame, { kind: 'skip', status: 'failed', detail: { code } });
   return true;
 }
 
 function* list(actions: Action[], base: Path, run: Execution, frame: Frame): Generator<number, void> {
   for (const [index, action] of actions.entries()) {
     const step = { action, path: `${base}[${index}]` };
-    if (limited(step, run, frame)) return;
+    if (frame.stopped) return;
+    frame.context.path = step.path;
+    if (limited('visits', run, frame)) return;
     yield* execute(step, run, frame);
   }
 }
@@ -104,7 +110,7 @@ function parallel(step: Step, run: Execution, frame: Frame): void {
 function loopTimes(value: Path): number | null {
   const trimmed = value.trim();
   if (!/^[+-]?\d+$/.test(trimmed)) return null;
-  return Math.max(0, Number(trimmed));
+  return Math.min(MAX_LOOP_TIMES, Math.max(0, Number(trimmed)));
 }
 
 function* loop(step: Step, run: Execution, frame: Frame): Generator<number, void> {
@@ -117,21 +123,20 @@ function* loop(step: Step, run: Execution, frame: Frame): Generator<number, void
   emit(run, frame, { kind: 'loop', status: 'ok', port: 'body', detail: { times: String(times) } });
   const prior = frame.context.locals.index;
   const outer = frame.iteration;
-  const limit = yield* iterations({ step, times }, run, frame);
+  yield* iterations({ step, times }, run, frame);
   frame.iteration = outer;
   if (prior === undefined) delete frame.context.locals.index;
   else frame.context.locals.index = prior;
   frame.context.path = step.path;
-  emit(run, frame, { kind: 'loop', status: limit ? 'failed' : 'ok', port: 'done', detail: limit ? { code: limit } : undefined });
+  if (!frame.stopped) emit(run, frame, { kind: 'loop', status: 'ok', port: 'done' });
 }
 
-function* iterations(cursor: { step: Step; times: number }, run: Execution, frame: Frame): Generator<number, Path | undefined> {
+function* iterations(cursor: { step: Step; times: number }, run: Execution, frame: Frame): Generator<number, void> {
   const outer = frame.iteration;
   const body = (cursor.step.action.params?.actions ?? []) as Action[];
   if (body.length === 0) return;
   for (let index = 1; index <= cursor.times; index++) {
-    if (run.effects >= MAX_ACTIONS) return 'max_actions';
-    if (run.visits >= 4 * MAX_ACTIONS) return 'max_steps';
+    if (frame.stopped) return;
     frame.iteration = [...outer, index];
     frame.context.locals.index = String(index);
     yield* list(body, `${cursor.step.path}.params.actions`, run, frame);
@@ -167,8 +172,9 @@ function effect(step: Step, run: Execution, frame: Frame): void {
 
 function say(step: Step, run: Execution, frame: Frame): void {
   const expanded = expandTemplate(String(step.action.params?.text ?? ''), frame.context);
-  const lines = responseLines(expanded.text).filter((line) => line.trim() !== '');
-  emit(run, frame, { kind: 'say', status: lines.length > 0 ? 'ok' : 'skipped', lines, detail: { missing: expanded.missing.join(',') } });
+  const lines = expanded.text.split('\n').filter((line) => trimSpace(line) !== '').slice(0, MAX_RESPONSE_LINES);
+  const detail = { missing: expanded.missing.join(','), ...(lines.length === 0 ? { code: 'empty' } : {}) };
+  emit(run, frame, { kind: 'say', status: lines.length > 0 ? 'ok' : 'skipped', lines, detail });
 }
 
 type Handler = (step: Step, run: Execution, frame: Frame) => Generator<number, void>;
@@ -183,10 +189,7 @@ function* execute(step: Step, run: Execution, frame: Frame): Generator<number, v
   if (step.action.type === 'parallel') return parallel(step, run, frame);
   const control = CONTROL[step.action.type];
   if (control) return yield* control(step, run, frame);
-  if (++run.effects > MAX_ACTIONS) {
-    emit(run, frame, { kind: 'skip', status: 'failed', detail: { code: 'max_actions' } });
-    return;
-  }
+  if (limited('effects', run, frame)) return;
   const handler = EFFECTS[step.action.type];
   if (handler) return yield* handler(step, run, frame);
   if (step.action.type === 'chat') return say(step, run, frame);
@@ -204,7 +207,7 @@ export function rehearseDefinition(definition: Definition, scenario: RehearsalSc
   const matched = matchTrigger(definition, scenario);
   if (!matched.starts) return { starts: false, reason: { reason: matched.reason, values: matched.values }, events: [] };
   const context = contextFor(definition, scenario, overrides);
-  const frame: Frame = { context, lane: [], iteration: [], delayMs: 0 };
+  const frame: Frame = { context, lane: [], iteration: [], delayMs: 0, stopped: false };
   const run: Execution = { events: [], pending: [], effects: 0, visits: 0 };
   emit(run, frame, { kind: 'trigger', status: 'ok' });
   if (!gates(definition, run, frame)) return { starts: false, reason: { reason: 'condition_failed', values: { path: context.path } }, events: run.events };
