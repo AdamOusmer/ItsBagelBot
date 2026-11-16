@@ -56,6 +56,26 @@ describe('dashboard layout scope gate', () => {
 });
 
 test.each([
+  { name: 'unaccepted owner on a feature page', onboarded: false, route: '/(app)/commands', session: {}, landing: '/welcome' },
+  { name: 'unaccepted owner on the overview', onboarded: false, route: '/(app)', session: {}, landing: '/welcome' },
+  { name: 'unaccepted owner in settings', onboarded: false, route: '/(app)/settings', session: {}, landing: null },
+  { name: 'accepted owner', onboarded: true, route: '/(app)/commands', session: {}, landing: null },
+  { name: 'unaccepted delegate', onboarded: false, route: '/(app)/commands', session: { delegate_of: '2002', sections: ['commands'] }, landing: null },
+  { name: 'unaccepted impersonated owner', onboarded: false, route: '/(app)/commands', session: { impersonator_id: '3003' }, landing: null },
+  { name: 'unreadable account state', onboarded: null, route: '/(app)/commands', session: {}, landing: null }
+])('consent gate: $name', async ({ onboarded, route, session, landing }) => {
+  const accountState = onboarded === null ? undefined : { value: { active: true, status: 'free', onboarded } };
+  const event = {
+    locals: { session: { user_id: '1001', scopes: granted(), ...session }, locale: 'en', accountState },
+    url: new URL('https://dashboard.itsbagelbot.com/commands'),
+    route: { id: route },
+    request: new Request('https://dashboard.itsbagelbot.com/commands')
+  };
+  const location = await Promise.resolve(load(event as never)).then(() => null, (e: { location?: string }) => e.location ?? null);
+  expect(location).toBe(landing);
+});
+
+test.each([
   { route: '/(app)', method: 'GET', delegate: false, field: 'dashboard.views|overview|owner' },
   { route: '/(app)/settings/import', method: 'GET', delegate: true, field: 'dashboard.views|settings|delegate' },
   { route: '/(app)/modules/[id]', method: 'GET', delegate: false, field: 'dashboard.views|modules|owner' },

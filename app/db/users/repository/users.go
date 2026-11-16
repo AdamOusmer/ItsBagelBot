@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
@@ -77,8 +76,6 @@ type Users struct {
 	packer             domaincrypto.Packer
 	pub                bus.Publisher
 	batcher            *batch.Batcher[prefKey, prefWrite]
-	pendingMu          sync.RWMutex
-	pendingPrefs       map[prefKey]prefWrite
 	app                *newrelic.Application
 	log                *zap.Logger
 	invalidationPrefix string
@@ -111,14 +108,13 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 	}
 
 	r := &Users{
-		client:       client,
-		views:        cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
-		stats:        cache.New[UserCounts](userStatsCapacity, userStatsTTL),
-		packer:       packer,
-		pub:          pub,
-		app:          app,
-		log:          log,
-		pendingPrefs: make(map[prefKey]prefWrite),
+		client: client,
+		views:  cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
+		stats:  cache.New[UserCounts](userStatsCapacity, userStatsTTL),
+		packer: packer,
+		pub:    pub,
+		app:    app,
+		log:    log,
 	}
 
 	r.batcher = batch.New[prefKey, prefWrite](prefsFlushInterval, prefsFlushMaxSize, r.flushPrefs, log)
@@ -251,6 +247,12 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 			}, nil
 		})
 	})
+}
+
+// GetFresh skips this replica's view cache, which a write on the other replica only clears asynchronously.
+func (r *Users) GetFresh(ctx context.Context, id uint64) (UserView, error) {
+	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
+	return r.Get(ctx, id)
 }
 
 // Must order by updated_at and stay uncached: a renamed login can still sit on our old row.

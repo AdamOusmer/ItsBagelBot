@@ -75,7 +75,6 @@ func TestPreferenceWindowMergesPerUser(t *testing.T) {
 	require.NoError(t, repo.SetCustomCursor(ctx, 1001, false))
 	require.NoError(t, repo.SetLocale(ctx, 1001, "de"))
 	require.NoError(t, repo.SetCustomCursor(ctx, 1001, true))
-	require.NoError(t, repo.SetOnboarded(ctx, 1001, true))
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, " bagel10 "))
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, "bagel20"))
 
@@ -86,7 +85,6 @@ func TestPreferenceWindowMergesPerUser(t *testing.T) {
 	assert.True(t, view.IsActive)
 	assert.Equal(t, "de", view.Locale)
 	assert.True(t, view.CustomCursor)
-	assert.True(t, view.Onboarded)
 	require.NotNil(t, view.CreatorCode)
 	assert.Equal(t, "bagel20", *view.CreatorCode, "the latest queued value must win")
 

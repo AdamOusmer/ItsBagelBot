@@ -34,7 +34,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestGiveawayPoolUsesAuthoritativeRulesAndPendingFlags(t *testing.T) {
+func TestGiveawayPoolUsesAuthoritativeRules(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	for id, name := range map[uint64]string{1: "eligible", 2: "inactive", 3: "staff", 4: "former", 5: "test", 6: "vip", 7: "banned", 8: "onboarding"} {
