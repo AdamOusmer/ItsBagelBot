@@ -30,13 +30,19 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const SECTIONS = ['overview', 'growth', 'engagement', 'retention', 'revenue', 'features', 'commands', 'audience'] as const;
+  const SECTIONS = ['overview', 'growth', 'engagement', 'retention', 'revenue', 'features', 'recipes', 'reliability', 'commands', 'audience'] as const;
   const FIRST_COLUMN: Record<string, string> = {
     plans: 'plan',
     conversion: 'signupWeek',
     modules: 'module',
     builtIn: 'command',
     breadth: 'modulesOn',
+    imports: 'importSource',
+    checkout: 'plan',
+    recipeOutcomes: 'trigger',
+    recipeTotals: 'trigger',
+    drops: 'sendKind',
+    providers: 'provider',
   };
   const DAY_MS = 86_400_000;
   const SKELETON_HEIGHT = { series: '178px', lines: '330px', bars: '220px', table: '240px', facts: '120px', cohort: '320px' } as const;
@@ -349,6 +355,11 @@
       {@render barCard('churn', view?.growth.churn, view?.growth.churnFacts)}
       {@render barCard('presets', view?.growth.presets)}
     </Grid>
+    <Grid cols={2} stackAt="md">
+      {@render barCard('activationAge', view?.growth.activationAge)}
+      {@render barCard('onboarding', view?.growth.onboarding, view?.growth.onboarded)}
+    </Grid>
+    {@render tableCard('imports', view?.growth.imports)}
   </section>
 
   <section id="engagement" class="block">
@@ -375,6 +386,7 @@
       <div class="cell">{@render barCard('billing', view?.revenue.billing)}</div>
       <div class="cell span-2">{@render tableCard('conversion', view?.revenue.conversion)}</div>
     </div>
+    {@render tableCard('checkout', view?.revenue.checkout, undefined, view?.revenue.checkoutFacts)}
   </section>
 
   <section id="features" class="block">
@@ -387,6 +399,39 @@
         {@render barCard('pagesHidden', view?.features.pagesHidden)}
       </div>
     </Grid>
+    {@render barCard('dashboard', view?.features.dashboard)}
+  </section>
+
+  <section id="recipes" class="block">
+    {@render heading('recipes')}
+    <Grid cols={2} stackAt="md">
+      <div class="column">
+        {#if view}
+          <StatTile
+            label={t('admin.analytics.fact.recipeChannelsWeek')}
+            value={view.recipes.channels.value}
+            delta={phrase(view.recipes.channels.delta)}
+            flat={view.recipes.channels.trend !== 'up'}
+          />
+        {:else}
+          <Skeleton variant="block" height="112px" />
+        {/if}
+        {@render barCard('recipeRuns', view?.recipes.runs)}
+      </div>
+      {@render tableCard('recipeOutcomes', view?.recipes.outcomes)}
+    </Grid>
+    {@render tableCard('recipeTotals', view?.recipes.totals)}
+  </section>
+
+  <section id="reliability" class="block">
+    {@render heading('reliability')}
+    <Grid cols={2} stackAt="md">
+      {@render tableCard('drops', view?.reliability.drops)}
+      {@render seriesCard('dailyDrops', view?.reliability.dailyDrops)}
+      {@render barCard('songs', view?.reliability.songs, view?.reliability.songFacts)}
+      {@render barCard('blocked', view?.reliability.blocked)}
+    </Grid>
+    {@render tableCard('providers', view?.reliability.providers)}
   </section>
 
   <section id="commands" class="block">
@@ -402,6 +447,7 @@
   <section id="audience" class="block">
     {@render heading('audience')}
     {@render barCard('locales', view?.audience.locales)}
+    {@render factsCard('delegating', view?.audience.delegating)}
   </section>
 </section>
 

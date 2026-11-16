@@ -57,5 +57,72 @@
     "aliased": "Mit Aliassen",
     "cooldown": "Mit Abklingzeit",
     "counter": "Mit Zähler"
+  },
+  "trigger": {
+    "command": "Befehl",
+    "event": "Ereignis",
+    "timer": "Timer",
+    "reward": "Belohnung",
+    "manual": "Manuell",
+    "countdown": "Countdown"
+  },
+  "age": {
+    "d0": "Am selben Tag",
+    "d1": "1 Tag",
+    "d2_6": "2 bis 6 Tage",
+    "d7_13": "7 bis 13 Tage",
+    "d14_29": "14 bis 29 Tage",
+    "d30p": "Ab 30 Tagen"
+  },
+  "block": {
+    "perm": "Berechtigung",
+    "offline": "Offline",
+    "cooldown": "Abklingzeit"
+  },
+  "song": {
+    "queued": "Eingereiht",
+    "off": "Deaktiviert",
+    "perm": "Keine Berechtigung",
+    "offline": "Offline",
+    "not_found": "Nicht gefunden",
+    "queue_full": "Warteschlange voll",
+    "player_refused": "Player abgelehnt"
+  },
+  "send": {
+    "chat": "Chat",
+    "helix": "Helix"
+  },
+  "drop": {
+    "auth": "Berechtigung",
+    "rejected": "Abgelehnt",
+    "exhausted": "Versuche erschöpft",
+    "chat_dropped": "Chat verworfen"
+  },
+  "plan": {
+    "monthly": "Monatlich",
+    "single": "Einmalig",
+    "gift": "Geschenk"
+  },
+  "onboard": {
+    "viewed": "Einrichtung geöffnet",
+    "consent_missing": "Zustimmung fehlt",
+    "save_failed": "Speichern fehlgeschlagen"
+  },
+  "section": {
+    "overview": "Übersicht",
+    "commands": "Befehle",
+    "flows": "Abläufe",
+    "automations": "Automatisierungen",
+    "modules": "Module",
+    "timers": "Timer",
+    "loyalty": "Treue",
+    "counters": "Zähler",
+    "quotes": "Zitate",
+    "songqueue": "Musikwarteschlange",
+    "channelpoints": "Kanalpunkte",
+    "govee": "Govee",
+    "billing": "Abrechnung",
+    "settings": "Einstellungen",
+    "access": "Zugriff"
   }
 }

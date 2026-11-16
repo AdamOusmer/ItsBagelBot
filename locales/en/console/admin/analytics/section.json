@@ -30,5 +30,13 @@
   "audience": {
     "title": "Audience",
     "question": "Which languages do streamers use?"
+  },
+  "recipes": {
+    "title": "Recipes",
+    "question": "Which recipes run and succeed?"
+  },
+  "reliability": {
+    "title": "Reliability",
+    "question": "Where do requests and sends fail?"
   }
 }

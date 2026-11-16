@@ -30,5 +30,13 @@
   "audience": {
     "title": "Zielgruppe",
     "question": "Welche Sprachen nutzen Streamer?"
+  },
+  "recipes": {
+    "title": "Rezepte",
+    "question": "Welche Rezepte laufen erfolgreich?"
+  },
+  "reliability": {
+    "title": "Zuverlässigkeit",
+    "question": "Wo scheitern Anfragen und Sendungen?"
   }
 }

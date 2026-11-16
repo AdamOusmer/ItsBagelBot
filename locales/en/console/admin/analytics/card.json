@@ -22,5 +22,19 @@
   "custom": "Custom commands",
   "perms": "Custom commands by permission",
   "flags": "Custom command options",
-  "locales": "Accounts by language"
+  "locales": "Accounts by language",
+  "activationAge": "Active channels by account age",
+  "onboarding": "Setup steps",
+  "imports": "Imports by source",
+  "checkout": "Checkout results by plan",
+  "dashboard": "Dashboard views by section",
+  "recipeRuns": "Recipe runs by trigger",
+  "recipeOutcomes": "Recipe run outcomes",
+  "recipeTotals": "Recipes by trigger",
+  "drops": "Dropped sends",
+  "dailyDrops": "Dropped sends per day",
+  "providers": "Provider calls",
+  "songs": "Song request outcomes",
+  "blocked": "Blocked commands by reason",
+  "delegating": "Accounts with delegates"
 }

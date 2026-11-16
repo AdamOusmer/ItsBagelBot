@@ -1,6 +1,6 @@
 {
   "netAccounts": "Contas líquidas (cadastros menos exclusões)",
-  "netBot": "Contas líquidas com o bot ativado",
+  "netBot": "Variação de contas com bot entre retratos do período",
   "cancelPending": "Cancelamentos pendentes",
   "paymentFailed": "Falhas de pagamento pendentes",
   "messages": "Mensagens lidas",
@@ -18,5 +18,14 @@
   "customChannels": "Canais com comandos personalizados",
   "customChannelsWeek": "Canais que usam comandos personalizados, última semana completa",
   "customActive": "Comandos ativos",
-  "customInactive": "Comandos inativos"
+  "customInactive": "Comandos inativos",
+  "onboarded": "Contas configuradas",
+  "onboardedShare": "Proporção de contas configuradas",
+  "redirected": "Checkouts redirecionados",
+  "activated": "Ativações de plano",
+  "checkoutActivation": "Ativações / checkouts redirecionados",
+  "recipeChannelsWeek": "Canais com receitas, última semana completa",
+  "songSuccess": "Taxa de sucesso dos pedidos",
+  "delegating": "Contas com delegados",
+  "delegatingShare": "Proporção de contas com delegados"
 }

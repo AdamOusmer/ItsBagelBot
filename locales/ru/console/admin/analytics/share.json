@@ -3,5 +3,7 @@
   "ofAccounts": "{share} аккаунтов",
   "ofBotEnabled": "{share} аккаунтов с включённым ботом",
   "ofCommands": "{share} пользовательских команд",
-  "ofChannels": "{share} каналов"
+  "ofChannels": "{share} каналов",
+  "ofAttempts": "{share} попыток команд",
+  "roles": "{owner} владелец · {delegate} делегат"
 }

@@ -22,5 +22,19 @@
   "custom": "Comandos personalizados",
   "perms": "Comandos personalizados por permiso",
   "flags": "Opciones de comandos personalizados",
-  "locales": "Cuentas por idioma"
+  "locales": "Cuentas por idioma",
+  "activationAge": "Canales activos por antigüedad",
+  "onboarding": "Pasos de configuración",
+  "imports": "Importaciones por origen",
+  "checkout": "Resultados de pago por plan",
+  "dashboard": "Visitas al panel por sección",
+  "recipeRuns": "Ejecuciones de recetas por activador",
+  "recipeOutcomes": "Resultados de las recetas",
+  "recipeTotals": "Recetas por activador",
+  "drops": "Envíos descartados",
+  "dailyDrops": "Envíos descartados por día",
+  "providers": "Llamadas a proveedores",
+  "songs": "Resultados de solicitudes de canciones",
+  "blocked": "Comandos bloqueados por motivo",
+  "delegating": "Cuentas con delegados"
 }

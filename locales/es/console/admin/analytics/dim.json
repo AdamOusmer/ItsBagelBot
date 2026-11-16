@@ -57,5 +57,72 @@
     "aliased": "Con alias",
     "cooldown": "Con enfriamiento",
     "counter": "Con contador"
+  },
+  "trigger": {
+    "command": "Comando",
+    "event": "Evento",
+    "timer": "Temporizador",
+    "reward": "Recompensa",
+    "manual": "Manual",
+    "countdown": "Cuenta atrás"
+  },
+  "age": {
+    "d0": "Mismo día",
+    "d1": "1 día",
+    "d2_6": "De 2 a 6 días",
+    "d7_13": "De 7 a 13 días",
+    "d14_29": "De 14 a 29 días",
+    "d30p": "30 días o más"
+  },
+  "block": {
+    "perm": "Permiso",
+    "offline": "Sin conexión",
+    "cooldown": "Espera"
+  },
+  "song": {
+    "queued": "En cola",
+    "off": "Desactivado",
+    "perm": "Permiso denegado",
+    "offline": "Sin conexión",
+    "not_found": "No encontrado",
+    "queue_full": "Cola llena",
+    "player_refused": "Reproductor rechazado"
+  },
+  "send": {
+    "chat": "Chat",
+    "helix": "Helix"
+  },
+  "drop": {
+    "auth": "Autorización",
+    "rejected": "Rechazado",
+    "exhausted": "Reintentos agotados",
+    "chat_dropped": "Chat descartado"
+  },
+  "plan": {
+    "monthly": "Mensual",
+    "single": "Pago único",
+    "gift": "Regalo"
+  },
+  "onboard": {
+    "viewed": "Configuración vista",
+    "consent_missing": "Falta consentimiento",
+    "save_failed": "Error al guardar"
+  },
+  "section": {
+    "overview": "Resumen",
+    "commands": "Comandos",
+    "flows": "Flujos",
+    "automations": "Automatizaciones",
+    "modules": "Módulos",
+    "timers": "Temporizadores",
+    "loyalty": "Fidelidad",
+    "counters": "Contadores",
+    "quotes": "Citas",
+    "songqueue": "Cola de canciones",
+    "channelpoints": "Puntos del canal",
+    "govee": "Govee",
+    "billing": "Facturación",
+    "settings": "Ajustes",
+    "access": "Acceso"
   }
 }

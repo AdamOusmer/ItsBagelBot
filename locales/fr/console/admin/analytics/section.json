@@ -30,5 +30,13 @@
   "audience": {
     "title": "Audience",
     "question": "Quelles langues les streamers utilisent-ils ?"
+  },
+  "recipes": {
+    "title": "Recettes",
+    "question": "Quelles recettes s’exécutent et réussissent ?"
+  },
+  "reliability": {
+    "title": "Fiabilité",
+    "question": "Où échouent les demandes et les envois ?"
   }
 }

@@ -57,6 +57,12 @@ export function previousStart(start: Day, unit: Unit): Day {
   return d.toISOString().slice(0, 10);
 }
 
+export function lastClosedStart(end: Day, unit: Unit): Day {
+  if (unit === 'd') return addDays(end, -1);
+  const start = unit === 'w' ? weekStart(isoWeek(end)) : `${end.slice(0, 7)}-01`;
+  return previousStart(start, unit);
+}
+
 export function nextStart(start: Day, unit: Unit): Day {
   return unit === 'm' ? addDays(monthRange(start).to, 1) : addDays(start, UNIT_DAYS[unit]);
 }
@@ -247,24 +253,27 @@ function cohortSizes(dayRows: AnalyticsRow[]): Map<string, number> {
   return sizes;
 }
 
-function cohortCells(weekRows: AnalyticsRow[], horizon: Slot): Map<string, (Count | null)[]> {
-  const cells = new Map<string, (number | null)[]>();
-  for (const row of pick(weekRows, 'cohort.active')) {
-    const signup = row.dims[0];
-    const offset = Math.round((Date.parse(row.start) - Date.parse(weekStart(signup))) / WEEK_MS);
-    if (offset < 0 || offset >= horizon) continue;
-    const line = cells.get(signup) ?? Array<number | null>(horizon).fill(null);
-    line[offset] = row.value;
-    cells.set(signup, line);
-  }
-  return cells;
+function coveredWeek(start: Day, coverage: DateRange): boolean {
+  return start >= coverage.from && addDays(start, 7) <= coverage.to;
 }
 
-export function cohorts(weekRows: AnalyticsRow[], dayRows: AnalyticsRow[], horizon: Slot = 8): CohortRow[] {
+function cohortCells(rows: AnalyticsRow[], start: Day, coverage: DateRange, horizon: Slot): (Count | null)[] {
+  return Array.from({ length: horizon }, (_, offset) => {
+    const day = addDays(start, 7 * offset);
+    return coveredWeek(day, coverage) ? valueAt(rows, day) : null;
+  });
+}
+
+export function cohorts(weekRows: AnalyticsRow[], dayRows: AnalyticsRow[], coverage: DateRange, horizon: Slot = 8): CohortRow[] {
   const sizes = cohortSizes(dayRows);
-  const cells = cohortCells(weekRows, horizon);
+  const active = pick(weekRows, 'cohort.active');
   return [...sizes]
     .filter(([, size]) => size > 0)
+    .filter(([week]) => coveredWeek(weekStart(week), coverage))
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([week, size]) => ({ week, size, cells: cells.get(week) ?? Array<number | null>(horizon).fill(null) }));
+    .map(([week, size]) => ({
+      week,
+      size,
+      cells: cohortCells(withDim(active, week), weekStart(week), coverage, horizon)
+    }));
 }
