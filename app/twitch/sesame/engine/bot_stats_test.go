@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
@@ -174,22 +175,25 @@ func TestProcessCountsReachTheBumper(t *testing.T) {
 	}
 }
 
-func TestProcessStopsTrackingNewChannelsAtTheCap(t *testing.T) {
+func TestProcessTracksEveryChannelBeyondFlushThreshold(t *testing.T) {
 	bumper := &fakeBumper{}
 	p := statsPipeline(bumper, fakeReader{})
-	for id := 1; id <= channelStatsMaxKeys+1; id++ {
+	for id := 1; id <= 2*channelStatsFlushKeys+1; id++ {
 		line := envelopeMsg(t, "uuid-"+strconv.Itoa(id), map[string]any{
 			"broadcaster_user_id": strconv.Itoa(id), "chatter_user_id": "999", "text": "hi",
 		})
 		require.NoError(t, p.Process(line))
 	}
+	require.Eventually(t, func() bool { return len(bumper.channelTotals()) >= channelStatsFlushKeys }, time.Second, time.Millisecond)
 	p.Close()
 
 	channels := bumper.channelTotals()
 
-	assert.Len(t, channels, channelStatsMaxKeys)
-	assert.NotContains(t, channels, uint64(channelStatsMaxKeys+1))
-	assert.Equal(t, processed(channelStatsMaxKeys+1, channelStatsMaxKeys+1), bumper.botTotals(), "the bot totals still count every message")
+	assert.Len(t, channels, 2*channelStatsFlushKeys+1)
+	for id := 1; id <= 2*channelStatsFlushKeys+1; id++ {
+		assert.Equal(t, processed(1, 1), channels[uint64(id)])
+	}
+	assert.Equal(t, processed(2*channelStatsFlushKeys+1, 2*channelStatsFlushKeys+1), bumper.botTotals())
 }
 
 func TestStatsReachTheLoyaltyReporterUnderTheirOwnScopes(t *testing.T) {

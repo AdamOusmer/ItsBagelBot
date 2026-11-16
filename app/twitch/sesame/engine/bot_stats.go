@@ -26,7 +26,7 @@ const (
 
 	channelStatsFlushTicks = 15
 
-	channelStatsMaxKeys = 4096
+	channelStatsFlushKeys = 4096
 
 	flagRuleSlotCap = 24
 )
@@ -158,6 +158,7 @@ type botStats struct {
 	bumper   CounterBumper
 	done     chan struct{}
 	finished chan struct{}
+	wake     chan struct{}
 }
 
 type chanTally struct {
@@ -174,7 +175,7 @@ func newBotStats(bumper CounterBumper, log ...*zap.Logger) *botStats {
 	if len(log) > 0 && log[0] != nil {
 		l = log[0]
 	}
-	s := &botStats{bumper: bumper, done: make(chan struct{}), finished: make(chan struct{}), channels: map[uint64]*chanTally{}, log: l}
+	s := &botStats{bumper: bumper, done: make(chan struct{}), finished: make(chan struct{}), wake: make(chan struct{}, 1), channels: map[uint64]*chanTally{}, log: l}
 	go func() {
 		defer close(s.finished)
 		ticker := time.NewTicker(botStatsFlushInterval)
@@ -188,6 +189,8 @@ func newBotStats(bumper CounterBumper, log ...*zap.Logger) *botStats {
 				if ticks%channelStatsFlushTicks == 0 {
 					s.flushChannels()
 				}
+			case <-s.wake:
+				s.flushChannels()
 			case <-s.done:
 				return
 			}
@@ -233,9 +236,6 @@ func (s *botStats) countChannel(broadcasterID uint64, d delta) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tally := s.channelTallyLocked(broadcasterID)
-	if tally == nil {
-		return
-	}
 	addTally(&tally.events, counterDelta(d.events))
 	addTally(&tally.messages, counterDelta(d.messages))
 }
@@ -247,9 +247,6 @@ func (s *botStats) countAnswered(broadcasterID uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tally := s.channelTallyLocked(broadcasterID)
-	if tally == nil {
-		return
-	}
 	addTally(&tally.answered, 1)
 }
 
@@ -257,9 +254,6 @@ func (s *botStats) flagChannel(broadcasterID uint64, b flagRuleBucket, enforcedD
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tally := s.channelTallyLocked(broadcasterID)
-	if tally == nil {
-		return
-	}
 	addTally(&tally.flags, 1)
 	addTally(&tally.enforced, counterDelta(enforcedDelta))
 	if tally.rules == nil {
@@ -270,15 +264,22 @@ func (s *botStats) flagChannel(broadcasterID uint64, b flagRuleBucket, enforcedD
 
 func (s *botStats) channelTallyLocked(broadcasterID uint64) *chanTally {
 	tally := s.channels[broadcasterID]
-	if tally == nil {
-		if len(s.channels) >= channelStatsMaxKeys {
-			s.log.Error("channel counter window capacity exceeded", zap.Uint64("broadcaster_id", broadcasterID))
-			return nil
-		}
-		tally = &chanTally{}
-		s.channels[broadcasterID] = tally
+	if tally != nil {
+		return tally
+	}
+	tally = &chanTally{}
+	s.channels[broadcasterID] = tally
+	if len(s.channels) >= channelStatsFlushKeys {
+		s.nudge()
 	}
 	return tally
+}
+
+func (s *botStats) nudge() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
 }
 
 func (s *botStats) flush() {

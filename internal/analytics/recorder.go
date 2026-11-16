@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -23,8 +24,9 @@ import (
 const (
 	flushInterval = 10 * time.Second
 	flushTimeout  = 3 * time.Second
-	maxSlots      = 4096
-	maxPendingIDs = 1 << 16
+	flushSlots    = 4096
+	flushIDs      = 1 << 16
+	distinctChunk = 1000
 	saltBytes     = 32
 	elementBytes  = 8
 )
@@ -139,11 +141,10 @@ func (r *Recorder) Add(m catalog.Metric, n int64, dims ...string) {
 	s := slot{day: catalog.PeriodStart(catalog.Day, at), key: catalog.CounterKey(at), field: catalog.Field(m, dims...)}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, tracked := r.counts[s]; !tracked && len(r.counts) >= maxSlots {
-		r.nudge()
-		return
-	}
 	r.counts[s] += n
+	if len(r.counts) >= flushSlots {
+		r.nudge()
+	}
 }
 
 func (r *Recorder) Distinct(m catalog.Metric, channelID uint64, dims ...string) {
@@ -180,22 +181,17 @@ func (r *Recorder) Cohort(channelID uint64, signup time.Time) {
 func (r *Recorder) addID(s distinctSet, id uint64) {
 	set := r.distincts[s]
 	if set == nil {
-		if len(r.distincts) >= maxSlots {
-			r.nudge()
-			return
-		}
 		set = map[uint64]struct{}{}
 		r.distincts[s] = set
 	}
 	if _, seen := set[id]; seen {
 		return
 	}
-	if r.ids >= maxPendingIDs {
-		r.nudge()
-		return
-	}
 	set[id] = struct{}{}
 	r.ids++
+	if r.ids >= flushIDs || len(r.distincts) >= flushSlots {
+		r.nudge()
+	}
 }
 
 func (r *Recorder) nudge() {
@@ -265,10 +261,10 @@ func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]m
 			elements = append(elements, element(salt, id))
 		}
 		index := catalog.IndexKey(s.window, s.at)
-		cmds = append(cmds,
-			pkg_valkey.SaddCmd(r.client, s.key, elements...),
-			pkg_valkey.SaddCmd(r.client, index, s.key),
-		)
+		for chunk := range slices.Chunk(elements, distinctChunk) {
+			cmds = append(cmds, pkg_valkey.SaddCmd(r.client, s.key, chunk...))
+		}
+		cmds = append(cmds, pkg_valkey.SaddCmd(r.client, index, s.key))
 		expiry := catalog.DataExpiry(s.window, s.at)
 		expiries[s.key] = expiry
 		expiries[index] = expiry

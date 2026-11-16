@@ -57,7 +57,7 @@ func legacyReadTable(table *entschema.Table) *entschema.Table {
 	if table.Name != "notification_reads" {
 		return table
 	}
-	clone := *table
+	clone := copyReadSchemaTable(table)
 	clone.Columns = nil
 	for _, column := range table.Columns {
 		if column.Name != "incarnation" {
@@ -66,5 +66,15 @@ func legacyReadTable(table *entschema.Table) *entschema.Table {
 	}
 	clone.Indexes = nil
 	clone.AddIndex("notificationread_user_id_notification_reads", true, []string{"user_id", "notification_reads"})
-	return &clone
+	return clone
+}
+
+func copyReadSchemaTable(table *entschema.Table) *entschema.Table {
+	clone := entschema.NewTable(table.Name).SetSchema(table.Schema).SetAnnotation(table.Annotation).SetComment(table.Comment).SetPos(table.Pos)
+	clone.Indexes, clone.PrimaryKey, clone.ForeignKeys = table.Indexes, table.PrimaryKey, table.ForeignKeys
+	clone.View = table.View
+	for _, column := range table.Columns {
+		clone.AddColumn(column)
+	}
+	return clone
 }

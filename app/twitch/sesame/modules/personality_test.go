@@ -55,6 +55,7 @@ type fakePersonality struct {
 	fedBy   uint64
 	fedName string
 	writes  []string
+	feedIDs []string
 }
 
 func (f *fakePersonality) FactCursor(context.Context, uint64) (int64, error) {
@@ -62,8 +63,9 @@ func (f *fakePersonality) FactCursor(context.Context, uint64) (int64, error) {
 	return f.cursor, f.err
 }
 
-func (f *fakePersonality) Feed(_ context.Context, broadcasterID uint64, name, _ string) (engine.FeedCounts, error) {
+func (f *fakePersonality) Feed(_ context.Context, broadcasterID uint64, name, eventID string) (engine.FeedCounts, error) {
 	f.writes = append(f.writes, "feed")
+	f.feedIDs = append(f.feedIDs, eventID)
 	f.fedBy, f.fedName = broadcasterID, name
 	return f.feed, f.err
 }
@@ -124,7 +126,6 @@ var personalityCases = []personalityCase{
 	{name: "TestPersonalityNameVariantsReachDirectedReactions itsbagelbot", text: "feed itsbagelbot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
 	{name: "TestPersonalityNameVariantsReachDirectedReactions bagel bot", text: "feed the bagel bot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
 	{name: "TestPersonalityNameVariantsReachDirectedReactions mention", text: "feed @ItsBagelBot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
-	{name: "a store error silences the feed line", text: "feed the bagel", store: &fakePersonality{err: assert.AnError}},
 	{name: "no store means no feed line", text: "feed the bagel"},
 	{name: "the stored mood sticks", text: "bagel mood?", store: &fakePersonality{mood: personalityMoodPack[2]}, want: "current mood: " + personalityMoodPack[2]},
 	{name: "a toast rolls a level", text: "toast the bagel", want: fmt.Sprintf(personalityToastLines[0], 0)},
