@@ -14,16 +14,15 @@
   let pressed = false;
 
   function pointerDown(event: PointerEvent & { currentTarget: HTMLButtonElement }) {
-    if (event.pointerType === 'mouse') return;
+    if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
     pressed = true;
     onclick(event);
   }
 
   function click(event: MouseEvent & { currentTarget: HTMLButtonElement }) {
-    if (!pressed) onclick(event);
+    if (!pressed || event.detail === 0) onclick(event);
     pressed = false;
   }
 </script>

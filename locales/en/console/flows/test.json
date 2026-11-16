@@ -22,6 +22,7 @@
   "sample": "Sample",
   "pretendStep": "Pretend for this step",
   "response": "Response text",
+  "emptyResponse": "Pretend response is empty.",
   "errorCode": "Error code",
   "stored": "Stored value: {name}",
   "yes": "Yes",

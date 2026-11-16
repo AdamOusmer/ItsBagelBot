@@ -12,10 +12,11 @@
   import { setStoredValue, type RehearsalStep } from '#lib/flow/rehearse';
   import { rehearsalTimeline } from '#lib/flow/rehearsal-view';
 
-  let { steps, scenario, overrides, onScenario, onOverride, onSelect }: {
+  let { steps, scenario, overrides, verifyRepair, onScenario, onOverride, onSelect }: {
     steps: RehearsalStep[];
     scenario: RehearsalScenario;
     overrides: RehearsalOverrides;
+    verifyRepair?: (patch: Partial<RehearsalScenario>, path?: string) => boolean;
     onScenario: (patch: Partial<RehearsalScenario>) => void;
     onOverride: (key: string, value: string) => void;
     onSelect: (id: string) => void;
@@ -81,6 +82,7 @@
             {/if}
             {#if step.kind === 'check'}<span class="result">{status(step)}</span>{/if}
             {#if step.sample}<span class="context">{t('flows.test.sample')}</span>{/if}
+            {#if step.note}<span class="missing">{step.note}</span>{/if}
             {#each step.missing as field (field)}<span class="missing">{t('flows.issue.requiredField', { field })}</span>{/each}
             {#if pretend && step.id}
               <div class="pretend">
@@ -102,7 +104,7 @@
             {/if}
             {#if step.kind === 'check' && !pretend}
               <div class="repair" class:invisible={!step.repair} inert={!step.repair}>
-                <Button variant="ghost" size="sm" onclick={() => step.repair && onScenario(step.repair)}><span data-fit>{t('flows.test.makePass')}</span></Button>
+                <Button variant="ghost" size="sm" onclick={() => step.repair && verifyRepair?.(step.repair, step.path) && onScenario(step.repair)}><span data-fit>{t('flows.test.makePass')}</span></Button>
               </div>
             {/if}
             {#if row.more}<span class="context">{t('flows.test.moreRows', { count: row.more })}</span>{/if}

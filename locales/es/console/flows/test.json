@@ -22,6 +22,7 @@
   "sample": "Ejemplo",
   "pretendStep": "Simular para este paso",
   "response": "Texto de respuesta",
+  "emptyResponse": "La respuesta de prueba está vacía.",
   "errorCode": "Código de error",
   "stored": "Valor guardado: {name}",
   "yes": "Sí",

@@ -3,6 +3,7 @@
 import { outputsFor, specFor, type Flow, type FlowNode } from './model';
 import { canConnect, deleteNode, insertNode, replaceTrigger, type InsertRequest, type Placement } from './ops';
 import { readingOrder } from './keyboard';
+import { graphIndex } from './graph-index';
 
 type NodeId = FlowNode['id'];
 type Port = { from: NodeId; port: string };
@@ -54,6 +55,6 @@ export function portOccupied(flow: Flow, link: Port | undefined): boolean {
 }
 
 export function parallelPorts(flow: Flow, id: NodeId): string[] {
-  const ports = flow.edges.filter((edge) => edge.from === id).map((edge) => edge.port);
+  const ports = (graphIndex(flow).outgoing.get(id) ?? []).map((edge) => edge.port);
   return [...new Set(ports)].filter((port) => ports.filter((value) => value === port).length > 1);
 }

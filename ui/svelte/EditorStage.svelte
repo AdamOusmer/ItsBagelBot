@@ -18,6 +18,7 @@
     rail?: Snippet;
     leftPanel?: Snippet;
     rightPanel?: Snippet;
+    rightPanelHidden?: boolean;
     children: Snippet;
     onboardpointerdown?: (event: PointerEvent) => void;
     editorEl?: HTMLDivElement;
@@ -42,6 +43,7 @@
     rail,
     leftPanel,
     rightPanel,
+    rightPanelHidden = false,
     children,
     onboardpointerdown,
     editorEl = $bindable<HTMLDivElement | undefined>(undefined),
@@ -106,7 +108,7 @@
       {/if}
 
       {#if rightPanel}
-        <div class="bb-editor-stage__panel bb-editor-stage__panel--right" bind:this={rightPanelEl}>
+        <div class="bb-editor-stage__panel bb-editor-stage__panel--right" class:bb-editor-stage__panel--hidden={rightPanelHidden} inert={rightPanelHidden} bind:this={rightPanelEl}>
           <span class="bb-editor-stage__grip" aria-hidden="true"></span>
           {@render rightPanel()}
         </div>

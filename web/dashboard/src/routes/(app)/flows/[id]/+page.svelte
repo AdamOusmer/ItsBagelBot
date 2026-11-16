@@ -27,7 +27,7 @@
   import { addStep as insertStep, selectedAddPoint, selectedPlacement, selectionAfterHistory } from '#lib/flow/editor';
   import { keyboardSize, panelInsets } from '#lib/flow/touch';
   import { newFlow, specFor, type Flow } from '#lib/flow/model';
-  import { rehearseFlow } from '#lib/flow/rehearse';
+  import { prepareRehearsal, rehearseDraft } from '#lib/flow/rehearse';
   import { rehearsalTrace } from '#lib/flow/rehearsal-view';
   import { scenarioPatches } from '@bagel/kit/automations';
   import type { RehearsalScenario } from '#lib/flow/rehearse';
@@ -66,28 +66,36 @@
   const starter = untrack(() => data.routeId === 'new' ? starterFlow(page.url.searchParams.get('starter'), t) : null);
   const opened = untrack(() => structuredClone(starter ?? data.flow ?? newFlow('')));
   let flow = $state<Flow>({ ...opened, name: opened.name || t('flows.page.untitled') });
-  const contentOf = (f: Flow) =>
+  const contentOf = (f: Pick<Flow, 'name' | 'queue' | 'edges' | 'nodes'>) =>
     JSON.stringify({ name: f.name, queue: f.queue ?? '', edges: f.edges, nodes: f.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config })) });
 
   let baseline = $state(contentOf(untrack(() => starter ? newFlow('') : flow)));
   const drawable = untrack(() => data.flow !== null);
   let ref = $state(untrack(() => data.ref));
   let revision = $state(untrack(() => data.revision));
-  let enabled = $state(untrack(() => flow.enabled));
   let saving = $state(false);
   let staleLatest = $state<string | null>(null);
   let upgrade = $state<UpgradeReport | null>(null);
   let leaving = false;
   let selectedId = $state<string | null>(null);
   let testRunOpen = $state(false);
+  let returnToTestRun = false;
   let recipeOpen = $state(false);
   let scenario = $state<Partial<RehearsalScenario>>({});
   let overrides = $state<Record<string, string>>({});
-  const rehearsal = $derived(rehearseFlow(flow, t, { scenario, overrides }));
-  const trace = $derived<FlowTrace | null>(testRunOpen ? {
-    ...rehearsalTrace(flow, rehearsal.steps),
-    current: selectedId
-  } : null);
+  let graphRevision = $state(0);
+  const draftGraph = $derived.by(() => {
+    void graphRevision;
+    return untrack(() => edits.snapshot);
+  });
+  const rehearsalDraft = $derived.by(() => {
+    const graph = draftGraph;
+    const queue = flow.queue;
+    return untrack(() => prepareRehearsal({ ...flow, ...graph, queue }));
+  });
+  const rehearsal = $derived(rehearseDraft(rehearsalDraft, t, { scenario, overrides }));
+  const runTrace = $derived(rehearsalTrace(rehearsalDraft.flow, rehearsal.steps));
+  const trace = $derived<FlowTrace | null>(testRunOpen ? { ...runTrace, current: selectedId } : null);
   let autoTidy = $state(true);
   let canvas = $state<FlowCanvasApi>();
   let libMode = $state<LibraryMode | null>(untrack(() => (flow.nodes.length === 0 ? 'trigger' : null)));
@@ -97,6 +105,7 @@
   let boardEl = $state<HTMLDivElement>();
   let leftPanelEl = $state<HTMLDivElement>();
   let rightPanelEl = $state<HTMLDivElement>();
+  let boardFrame = $state<{ board: DOMRect; bar: DOMRect; rail: DOMRect }>();
   let sheetMode = $state(false);
   let wideBoard = $state(false);
   let inspecting = $state(false);
@@ -113,9 +122,10 @@
   let canRedo = $state(false);
   let deletionToast: { id: number; entry: object | null } | null = null;
   let saveErrorToast: number | undefined;
-  const switchLabel = $derived(ref ? t('flows.clarity.liveNow') : t(enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff'));
-  const dirty = $derived(contentOf(flow) !== baseline);
+  const switchLabel = $derived(ref ? t('flows.clarity.liveNow') : t(flow.enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff'));
+  const dirty = $derived(contentOf({ ...draftGraph, name: flow.name, queue: flow.queue }) !== baseline);
   const inspectorVisible = $derived(Boolean(selectedId && inspecting && (!testRunOpen || wideBoard)));
+  const initialInspectorId = untrack(() => flow.nodes.find((node) => specFor(node.type)?.fields.some((field) => field.type === 'template'))?.id);
   const panelRoom = $derived.by(() => {
     if (testRunOpen && inspectorVisible) return PANEL_ROOM * 2;
     return inspectorVisible || testRunOpen || recipeOpen ? PANEL_ROOM : 0;
@@ -125,15 +135,21 @@
     scenario = { ...scenario, ...patch };
   }
 
-  $effect(() => {
-    const trigger = flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
-    const kind = `${trigger?.type}:${trigger?.config.variant ?? ''}`;
-    if (kind) untrack(() => { scenario = scenarioPatches(rehearsal.fields, scenario); });
+  const triggerKind = $derived.by(() => {
+    const trigger = rehearsalDraft.flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
+    return `${trigger?.type}:${trigger?.config.variant ?? ''}`;
   });
 
   $effect(() => {
-    edits.sync(flow);
-    refreshHistory();
+    if (triggerKind) untrack(() => { scenario = scenarioPatches(rehearsal.fields, scenario); });
+  });
+
+  $effect(() => {
+    const changed = edits.sync(flow);
+    untrack(() => {
+      if (changed) graphRevision++;
+      refreshHistory();
+    });
   });
 
   function refreshHistory() {
@@ -146,11 +162,12 @@
   }
 
   function history(way: 'undo' | 'redo'): boolean {
-    edits.sync(flow);
+    if (edits.sync(flow)) graphRevision++;
     const before = new Set(flow.nodes.map((node) => node.id));
     const parent = flow.edges.find((edge) => edge.to === selectedId)?.from ?? null;
     const fallback = selectedId;
     const kind = edits[way](flow);
+    if (kind === 'edit') graphRevision++;
     selectedId = selectionAfterHistory(flow, before, fallback) ?? selectionAfterHistory(flow, before, parent);
     refreshHistory();
     const changed = settle(kind, way === 'undo' ? t('flows.noteUndo') : t('flows.noteRedo'));
@@ -160,7 +177,7 @@
 
   function removed(count: number) {
     inspecting = false;
-    edits.sync(flow);
+    if (edits.sync(flow)) graphRevision++;
     refreshHistory();
     if (deletionToast) dismissToast(deletionToast.id);
     const entry = edits.undoEntry;
@@ -170,7 +187,7 @@
   }
 
   function undoRemoval(entry: object | null) {
-    edits.sync(flow);
+    if (edits.sync(flow)) graphRevision++;
     refreshHistory();
     if (edits.undoEntry === entry) history('undo');
   }
@@ -198,15 +215,24 @@
   }
 
   function viewInsets() {
-    if (!boardEl) return null;
-    if (!barEl || !railEl) return null;
-    const board = boardEl.getBoundingClientRect();
-    const bar = barEl.getBoundingClientRect();
-    const rail = railEl.getBoundingClientRect();
+    if (!boardFrame) return null;
+    const { board, bar, rail } = boardFrame;
     const panelShown = panelRoom > 0 || Boolean(libMode);
     if (sheetMode) return panelInsets({ board, bar, rail }, panelShown ? sheetHeight() : 0);
     return { top: bar.bottom - board.top + 16, left: rail.right - board.left + 16, right: panelRoom + 16, bottom: 88 };
   }
+
+  onMount(() => {
+    const measure = () => {
+      if (!boardEl || !barEl || !railEl) return;
+      boardFrame = { board: boardEl.getBoundingClientRect(), bar: barEl.getBoundingClientRect(), rail: railEl.getBoundingClientRect() };
+    };
+    const observer = new ResizeObserver(measure);
+    for (const element of [boardEl, barEl, railEl]) if (element) observer.observe(element);
+    measure();
+    canvas?.fitView();
+    return () => observer.disconnect();
+  });
 
   onMount(() => {
     const query = matchMedia('(max-width: 1279px), (pointer: coarse) and (max-height: 520px)');
@@ -260,6 +286,7 @@
   }
 
   function closeRightPanels() {
+    returnToTestRun = false;
     inspecting = false;
     testRunOpen = false;
     recipeOpen = false;
@@ -274,6 +301,7 @@
 
   function openSettings(id: string) {
     if (!wideBoard) {
+      returnToTestRun = testRunOpen || returnToTestRun;
       testRunOpen = false;
       libMode = null;
     }
@@ -285,6 +313,8 @@
 
   function closeInspector() {
     inspecting = false;
+    testRunOpen = returnToTestRun || testRunOpen;
+    returnToTestRun = false;
     if (selectedId) canvas?.focusNode(selectedId);
   }
 
@@ -402,7 +432,7 @@
   }
 
   function rightPanelDismiss(): void {
-    if (inspectorVisible) selectedId = null;
+    if (inspectorVisible) closeInspector();
     else if (testRunOpen) closeTestRun();
     else if (recipeOpen) closeRecipe();
   }
@@ -453,7 +483,6 @@
     void invalidate('flows:choices');
     ref = parseFlowRouteId(reply.id);
     revision = reply.revision;
-    enabled = reply.enabled;
     flow.name = reply.name;
     flow.enabled = reply.enabled;
     for (const drawn of [flow, sent]) adoptRewardId(drawn, reply.rewardId);
@@ -505,9 +534,9 @@
   }
 
   async function refuseUntilSetUp(step: string) {
-    enabled = true;
+    flow.enabled = true;
     await tick();
-    enabled = false;
+    flow.enabled = false;
     toast('danger', t('flows.setup.refused'), { ttlMs: 9000 });
     focusStep(step);
   }
@@ -515,8 +544,7 @@
   async function setEnabled(next: boolean) {
     const unfinished = next ? flow.nodes.find(awaitingSetup) : undefined;
     if (unfinished) return refuseUntilSetUp(unfinished.id);
-    const before = enabled;
-    enabled = next;
+    const before = flow.enabled;
     flow.enabled = next;
     if (!ref) return;
     const body = new FormData();
@@ -529,12 +557,12 @@
       announceWarnings(reply.warnings);
       return;
     }
-    enabled = before;
     flow.enabled = before;
     toast('danger', reply ? toggleMessage(t, reply) : t('flows.toggleFailed'));
   }
 
   async function testRun() {
+    returnToTestRun = false;
     if (!wideBoard) libMode = null;
     runReturn = active();
     selectedId = null;
@@ -545,6 +573,7 @@
   }
 
   async function toggleRecipe() {
+    returnToTestRun = false;
     if (!wideBoard) libMode = null;
     recipeReturn = active();
     selectedId = null;
@@ -562,6 +591,7 @@
   }
 
   function closeTestRun(restore = false) {
+    returnToTestRun = false;
     testRunOpen = false;
     canvas?.fitView();
     const back = restore ? runReturn : null;
@@ -595,12 +625,12 @@
   <span class="flow-name"><Input fill maxlength={64} aria-label={t('flows.nameLabel')} bind:value={flow.name} /></span>
   <div class="live-control">
   <Switch
-    checked={enabled}
+    checked={flow.enabled}
     label={switchLabel}
     title={switchLabel}
     onCheckedChange={(next) => void setEnabled(next)}
   />
-  <span class="live-hint" class:invisible={Boolean(ref)} aria-hidden={Boolean(ref)}><bb-fit mode="block"><span data-fit>{t(enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff')}</span></bb-fit></span>
+  <span class="live-hint" class:invisible={Boolean(ref)} aria-hidden={Boolean(ref)}><bb-fit><span data-fit>{t(flow.enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff')}</span></bb-fit></span>
   </div>
 {/snippet}
 
@@ -644,13 +674,11 @@
 
 {#snippet rightPanel()}
   <div class="panels">
-  {#if inspectorVisible}
-    <div class="panel-slot">
+    <div class="panel-slot inspector-slot" class:parked={!inspectorVisible} inert={!inspectorVisible}>
     {#await loadInspector() then { default: NodeInspector }}
-      <NodeInspector bind:flow bind:selectedId {rehearsal} {issues} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
+      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id) => canvas?.removeStep(id)} />
     {/await}
     </div>
-  {/if}
   {#if testRunOpen}
     <div class="panel-slot">
     {#await loadTestRun() then { default: TestRunPanel }}
@@ -704,7 +732,8 @@
   {topEnd}
   {rail}
   leftPanel={libMode ? leftPanel : undefined}
-  rightPanel={inspectorVisible || testRunOpen || recipeOpen ? rightPanel : undefined}
+  {rightPanel}
+  rightPanelHidden={!inspectorVisible && !testRunOpen && !recipeOpen}
   onboardpointerdown={onBoardPointerDown}
   children={boardChildren}
 />
@@ -759,8 +788,9 @@
 {/if}
 
 <style>
-  .panels { display: flex; height: 100%; min-height: 0; gap: 12px; }
+  .panels { position: relative; display: flex; height: 100%; min-height: 0; gap: 12px; }
   .panel-slot { flex: 1; min-width: 0; height: 100%; }
+  .inspector-slot.parked { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
   .notes {
     display: flex;
     flex-direction: column;
@@ -816,7 +846,7 @@
     flex: 1;
   }
   .live-control { position: relative; display: flex; align-items: center; flex: none; }
-  .live-hint { position: absolute; top: calc(100% + 8px); right: -8px; box-sizing: border-box; width: 144px; height: 36px; padding: 4px 8px; border-radius: var(--bb-radius-xs); background: var(--bb-bg-1); font-size: 11px; line-height: 14px; color: var(--bb-muted-light); pointer-events: none; transition: opacity var(--bb-dur-fast); }
+  .live-hint { position: absolute; top: calc(100% + 8px); right: -8px; box-sizing: border-box; width: 144px; height: 22px; padding: 4px 8px; border-radius: var(--bb-radius-xs); background: var(--bb-bg-1); font-size: 11px; line-height: 14px; white-space: nowrap; color: var(--bb-muted-light); pointer-events: none; transition: opacity var(--bb-dur-fast); }
   .invisible { visibility: hidden; opacity: 0; }
   .run-text { display: block; width: 72px; white-space: nowrap; }
   :global(.run-button) { width: 124px; --btn-pad: 0 10px; }

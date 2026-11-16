@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { COLUMN_GAP, GRID, NODE_W, ROW_GAP, outputsFor, specFor, type Flow, type FlowEdge, type FlowNode, type NodeSpec } from './model';
+import { descendants, graphIndex, portKey } from './graph-index';
 
 export const HEADER_H = 84;
 export const ROW_H = 32;
@@ -26,28 +27,15 @@ const isTriggerType = (type: string) => specFor(type)?.kind === 'trigger';
 
 const LOOP_TYPE = 'reply.loop';
 
-function reachFrom(flow: Flow, starts: string[]): Set<string> {
-  const seen = new Set<string>();
-  const walk = (ids: string[]) => {
-    for (const id of ids) {
-      if (seen.has(id)) continue;
-      seen.add(id);
-      walk(flow.edges.filter((e) => e.from === id).map((e) => e.to));
-    }
-  };
-  walk(starts);
-  return seen;
-}
-
-const portTargets = (flow: Flow, from: string, port: string) => flow.edges.filter((e) => e.from === from && e.port === port).map((e) => e.to);
+const portTargets = (flow: Flow, from: string, port: string) => (graphIndex(flow).ports.get(portKey({ from, port })) ?? []).map((edge) => edge.to);
 
 export function loopTails(flow: Flow): { loop: string; tail: string }[] {
   return flow.nodes
     .filter((node) => node.type === LOOP_TYPE)
     .flatMap((node) => {
-      const after = reachFrom(flow, portTargets(flow, node.id, 'done'));
-      const body = [...reachFrom(flow, portTargets(flow, node.id, 'body'))];
-      const ends = body.filter((id) => !after.has(id) && !flow.edges.some((e) => e.from === id));
+      const after = descendants(flow, portTargets(flow, node.id, 'done'));
+      const body = [...descendants(flow, portTargets(flow, node.id, 'body'))];
+      const ends = body.filter((id) => !after.has(id) && !graphIndex(flow).outgoing.has(id));
       return ends.map((tail) => ({ loop: node.id, tail }));
     });
 }
@@ -55,7 +43,7 @@ export function loopTails(flow: Flow): { loop: string; tail: string }[] {
 function relax(flow: Flow, col: Map<string, number>, edge: FlowEdge): boolean {
   const from = col.get(edge.from);
   if (from === undefined) return false;
-  const target = flow.nodes.find((n) => n.id === edge.to);
+  const target = graphIndex(flow).nodes.get(edge.to);
   if (!target || isTriggerType(target.type)) return false;
   if ((col.get(edge.to) ?? -1) >= from + 1) return false;
   col.set(edge.to, from + 1);
@@ -70,13 +58,22 @@ function settleColumns(flow: Flow, col: Map<string, number>): Map<string, number
 }
 
 function columns(flow: Flow): Map<string, number> {
+  const index = graphIndex(flow);
   const col = new Map<string, number>();
   for (const n of flow.nodes) if (isTriggerType(n.type)) col.set(n.id, 0);
-  for (let pass = 0; pass < flow.nodes.length; pass++) {
-    const changed = flow.edges.map((e) => relax(flow, col, e)).some(Boolean);
-    if (!changed) break;
+  const remaining = new Map(flow.nodes.map((node) => [node.id, index.incoming.get(node.id)?.length ?? 0]));
+  const pending = flow.nodes.filter((node) => remaining.get(node.id) === 0).map((node) => node.id);
+  for (const id of pending) {
+    for (const edge of index.outgoing.get(id) ?? []) advanceColumn({ flow, col, remaining, pending }, edge);
   }
   return settleColumns(flow, col);
+}
+
+function advanceColumn(state: { flow: Flow; col: Map<string, number>; remaining: Map<string, number>; pending: string[] }, edge: FlowEdge): void {
+  relax(state.flow, state.col, edge);
+  const count = state.remaining.get(edge.to)! - 1;
+  state.remaining.set(edge.to, count);
+  if (count === 0) state.pending.push(edge.to);
 }
 
 type Pos = { x: number; y: number };
@@ -102,7 +99,7 @@ function layersOf(flow: Flow, col: Map<string, number>): Layer[] {
 
 function orderKey(board: Board, layer: Layer, index: number): number {
   const id = layer.ids[index];
-  const incoming = board.flow.edges.filter((e) => e.to === id && board.centerY.has(e.from));
+  const incoming = (graphIndex(board.flow).incoming.get(id) ?? []).filter((edge) => board.centerY.has(edge.from));
   if (layer.column === 0 || incoming.length === 0) return index;
   const total = incoming.reduce((sum, e) => sum + (board.centerY.get(e.from) as number) + portIndex(board, e) * 0.001, 0);
   return total / incoming.length;
@@ -114,9 +111,10 @@ function sortLayer(board: Board, layer: Layer): void {
 }
 
 function feedsInto(board: Board, layer: Layer): number[] {
-  return board.flow.edges.flatMap((e) => {
+  const incoming = graphIndex(board.flow).incoming;
+  return layer.ids.flatMap((id) => incoming.get(id) ?? []).flatMap((e) => {
     const from = board.result.get(e.from);
-    return from && layer.ids.includes(e.to) ? [from.y + portY(specOf(board.byId.get(e.from)), e.port)] : [];
+    return from ? [from.y + portY(specOf(board.byId.get(e.from)), e.port)] : [];
   });
 }
 

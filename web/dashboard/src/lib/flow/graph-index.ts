@@ -51,3 +51,15 @@ export function cycleExclusions(flow: Flow, source: string): Set<string> {
   index.exclusions.set(source, seen);
   return seen;
 }
+
+export function descendants(flow: Flow, starts: string[]): Set<string> {
+  const index = graphIndex(flow);
+  const seen = new Set(starts);
+  const pending = [...seen];
+  for (const id of pending) {
+    const next = (index.outgoing.get(id) ?? []).map((edge) => edge.to).filter((target) => !seen.has(target));
+    next.forEach((target) => seen.add(target));
+    pending.push(...next);
+  }
+  return seen;
+}

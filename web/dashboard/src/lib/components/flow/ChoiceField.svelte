@@ -99,6 +99,7 @@
   }
 </script>
 
+<div class="choice-field">
 <Field {label} {tag} {error} errorId="{id}-error" for={id}>
   <div class="choice-content">
   {#if list === null}
@@ -111,7 +112,14 @@
       {@const result = withDraftNames(loaded, field.source, draft)}
       {@const options = withSaved(result, value, savedName)}
       <Select {id} {options} {value} disabled={!options.length} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} placeholder={chooseText(field.source)} onchange={(e) => choose(options, e.currentTarget.value)} />
-        <div class="row">
+    {/await}
+  {/if}
+  </div>
+</Field>
+{#if list !== null}
+  {#await list then loaded}
+    {@const result = withDraftNames(loaded, field.source, draft)}
+    <div class="row">
       {#if result.problem}
         <Text size="sm" tone="muted">{problemText(field.source, result.problem)}</Text>
         {#if result.problem !== 'keyRejected'}
@@ -124,13 +132,13 @@
         <Text size="sm" tone="muted">{missingText(field.source, savedName || value)}</Text>
       {/if}
         </div>
-    {/await}
-  {/if}
-  </div>
-</Field>
+  {/await}
+{/if}
+</div>
 
 <style>
-  .choice-content { display: flex; flex-direction: column; gap: 8px; min-height: 88px; }
+  .choice-field { min-height: 114px; }
+  .choice-content { display: flex; flex-direction: column; gap: 8px; }
   .row, .loading {
     display: flex;
     align-items: center;

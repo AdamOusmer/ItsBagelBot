@@ -63,7 +63,6 @@
     "loopIndex": "Qual repetição é esta",
     "apiError": "Por que falhou",
     "cooldownLeft": "Intervalo restante",
-    "countdownLeft": "Tempo restante da contagem regressiva",
-    "saved": "Salva por uma etapa anterior"
+    "countdownLeft": "Tempo restante da contagem regressiva"
   }
 }

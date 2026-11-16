@@ -22,6 +22,7 @@
   "sample": "Beispiel",
   "pretendStep": "Für diesen Schritt annehmen",
   "response": "Antworttext",
+  "emptyResponse": "Die Testantwort ist leer.",
   "errorCode": "Fehlercode",
   "stored": "Gespeicherter Wert: {name}",
   "yes": "Ja",

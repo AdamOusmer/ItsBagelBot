@@ -43,7 +43,7 @@
   import { connect, duplicateNode, removeEdge } from '../../flow/ops';
   import { addStep, connectionTarget, parallelPorts, portOccupied, removeStep as deleteStep, selectedPlacement } from '../../flow/editor';
   import { currentPositions, tweenPositions } from '../../flow/canvas-geometry';
-  import { edgePaths, flowBounds, loopPaths, startPaths, wirePreview } from '../../flow/canvas-geometry';
+  import { edgePaths, flowBounds, focusBounds, loopPaths, startPaths, wirePreview } from '../../flow/canvas-geometry';
   import { searchSteps } from '../../flow/search';
   import { neighbor, readingOrder, stepDelta, stepIndex } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
@@ -105,7 +105,6 @@
   const TOUCH_SLOP = 8;
   const TOUCH_MIN_ZOOM = 0.25;
   const READABLE_ZOOM = 0.75;
-  const ADD_ROOM = 48;
   const GLIDE_MS = 240;
   const MENU_TINT: Record<FlowKind, { color: string; rgb: string }> = {
     trigger: { color: 'var(--bb-green-glow)', rgb: 'var(--bb-green-glow-rgb)' },
@@ -201,8 +200,10 @@
   }
 
   function finishTween() {
+    if (!tween) return;
     cancelAnimationFrame(tween);
     clearTimeout(tweenTimer);
+    tween = 0;
     disp = currentPositions(flow.nodes);
   }
 
@@ -251,8 +252,9 @@
     const room = insets?.(true);
     if (!host) return;
     if (!n || !room) return;
-    const box = { x0: n.x, y0: n.y, x1: n.x + NODE_W + ADD_ROOM, y1: n.y + nodeHeight(specFor(n.type)) };
-    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: room }, { min: minZoom(), max: MAX_ZOOM, readable: READABLE_ZOOM });
+    const box = focusBounds(flow, n, host.clientWidth - room.left - room.right);
+    const inset = { ...room, bottom: room.bottom + 64 };
+    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: READABLE_ZOOM });
     if (target !== view) glideTo(target);
   }
 
@@ -265,7 +267,7 @@
     const bounds = flowBounds(flow, { x0: startAt.x, y0: startAt.y, x1: startAt.x + START_W, y1: startAt.y + START_H });
     const inset = insets?.(reservedRight > 0) ?? { ...FIT_INSET, right: FIT_INSET.right + reservedRight };
     cancelAnimationFrame(glide);
-    view = fitBox(bounds, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM });
+    view = fitBox(bounds, { width: host.clientWidth, height: host.clientHeight, inset }, { min: READABLE_ZOOM, max: MAX_ZOOM });
     view.x = Math.max(view.x, inset.left - bounds.x0 * view.k);
   }
 
@@ -720,6 +722,7 @@
   }
 
   export function focusNode(id: NodeId) {
+    revealNode(id);
     void tick().then(() => nodeEls[id]?.querySelector<HTMLElement>('[role="button"]')?.focus({ preventScroll: true }));
   }
 
@@ -730,8 +733,9 @@
       revealSelected();
       return;
     }
-    const box = { x0: n.x, y0: n.y, x1: n.x + NODE_W + ADD_ROOM, y1: n.y + nodeHeight(specFor(n.type)) };
-    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset: { ...KEY_INSET, right: KEY_INSET.right + room } }, { min: minZoom(), max: MAX_ZOOM, readable: view.k });
+    const inset = { ...KEY_INSET, right: KEY_INSET.right + room };
+    const box = focusBounds(flow, n, host.clientWidth - inset.left - inset.right);
+    const target = revealBox(view, box, { width: host.clientWidth, height: host.clientHeight, inset }, { min: minZoom(), max: MAX_ZOOM, readable: view.k });
     if (target !== view) view = target;
   }
 

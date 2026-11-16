@@ -23,6 +23,7 @@
   import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
   import { fieldVisible, NODE_SPECS, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode } from '#lib/flow/ops';
+  import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
   import { SETUP_URL } from '@bagel/kit/automations';
   import ChoiceField from './ChoiceField.svelte';
@@ -35,13 +36,15 @@
   let {
     flow = $bindable(),
     selectedId = $bindable(null),
+    fallbackId,
+    active = true,
     rehearsal,
     focusToken = 0,
     focusField,
     issues = [],
     onclose,
     onremove
-  }: { flow: Flow; selectedId?: string | null; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; onclose?: () => void; onremove: (id: string) => void } = $props();
+  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; onclose?: () => void; onremove: (id: string) => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -50,7 +53,7 @@
   let panel = $state<HTMLElement>();
 
   $effect(() => {
-    if (focusToken > 0 && panel) {
+    if (active && focusToken > 0 && panel) {
       const root = panel;
       const key = focusField;
       void tick().then(() => {
@@ -68,7 +71,7 @@
     reply: 'var(--bb-muted-light)'
   };
 
-  const node = $derived(flow.nodes.find((n) => n.id === selectedId));
+  const node = $derived(flow.nodes.find((n) => n.id === (selectedId ?? fallbackId)));
   const spec = $derived(node ? specFor(node.type) : undefined);
   const targetMissing = $derived(['reply.shoutout', 'reply.timeout'].includes(node?.type ?? '') && !String(node?.config.target ?? '').trim());
 
@@ -200,7 +203,8 @@
     const current = textOf(key);
     const partial = completion?.key === key ? completion : null;
     const at = partial?.start ?? Math.min(caret.get(key) ?? current.length, current.length);
-    node.config[key] = current.slice(0, at) + token + current.slice(partial?.end ?? at);
+    const end = partial ? partial.end + (/^[^{}\s]*\}/.exec(current.slice(partial.end))?.[0].length ?? 0) : at;
+    node.config[key] = current.slice(0, at) + token + current.slice(end);
     completion = null;
     const next = at + token.length;
     caret.set(key, next);
@@ -211,16 +215,8 @@
   }
 
   function reach(from: FlowNode['id'], port: NonNullable<NodeSpec['outputs']>[number]['id']): number {
-    const seen = new Set<string>();
-    const walk = (ids: string[]) => {
-      for (const id of ids) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        walk(flow.edges.filter((e) => e.from === id).map((e) => e.to));
-      }
-    };
-    walk(flow.edges.filter((e) => e.from === from && e.port === port).map((e) => e.to));
-    return seen.size;
+    const starts = (graphIndex(flow).ports.get(portKey({ from, port })) ?? []).map((edge) => edge.to);
+    return descendants(flow, starts).size;
   }
 
   const branches = $derived(
@@ -255,7 +251,7 @@
 {/if}
 
 {#if node && spec}
-  <aside class="panel" aria-label={t('flows.board.settings', { label: stepLabel(t, spec) })} tabindex="-1" bind:this={panel}>
+  <aside class="panel" aria-label={active ? t('flows.board.settings', { label: stepLabel(t, spec) }) : undefined} tabindex="-1" bind:this={panel}>
     <header class="head">
       <IconTile style="--tile: 40px; color: {KIND_TINT[spec.kind]}"><Icon name={spec.icon} size={20} /></IconTile>
       <div class="titles">
@@ -472,6 +468,7 @@
 
 <style>
   .panel {
+    contain: layout style;
     display: flex;
     flex-direction: column;
     height: 100%;

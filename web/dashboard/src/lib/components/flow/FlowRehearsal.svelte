@@ -19,6 +19,9 @@
   {#each visible.filter((step) => step.missing.length) as step (step.key)}
     <p class="missing">{t('flows.test.missing', { names: step.missing.join(', ') })}</p>
   {/each}
+  {#each visible.filter((step) => step.note) as step (step.key)}
+    <p class="note">{step.note}</p>
+  {/each}
   {#if !visible.length}
     <p class="note">{t('flows.test.notReached')}</p>
   {:else if !lines.length}

@@ -131,6 +131,11 @@
     width: var(--editor-panel-right, 360px);
   }
 
+  .bb-editor-stage__panel--hidden {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .bb-editor-stage__grip {
     display: none;
   }

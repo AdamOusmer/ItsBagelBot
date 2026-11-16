@@ -319,11 +319,10 @@ function cooldownAddAction(config: FlowConfig): Action {
 }
 
 type Lowering = {
-  nodes: FlowNode[];
   trigger: Trigger;
   byId: Map<string, FlowNode>;
   outs: Map<string, FlowEdge[]>;
-  reach: Map<string, Set<string>>;
+  counters: Map<string, string[]>;
   visited: Set<string>;
   issues: Issue[];
   owners: Map<object, string>;
@@ -333,7 +332,11 @@ const nodePath = (id: string) => `nodes.${id}`;
 
 function outgoing(flow: Flow): Map<string, FlowEdge[]> {
   const outs = new Map<string, FlowEdge[]>();
-  for (const edge of flow.edges) outs.set(edge.from, [...(outs.get(edge.from) ?? []), edge]);
+  for (const edge of flow.edges) {
+    const list = outs.get(edge.from) ?? [];
+    list.push(edge);
+    outs.set(edge.from, list);
+  }
   return outs;
 }
 
@@ -359,20 +362,36 @@ function findCycleNode(outs: Map<string, FlowEdge[]>, start: string): string | n
   return walk(start);
 }
 
-function reachable(outs: Map<string, FlowEdge[]>, id: string, memo: Map<string, Set<string>>): Set<string> {
-  const known = memo.get(id);
-  if (known) return known;
-  const set = new Set<string>([id]);
-  memo.set(id, set);
-  for (const edge of outs.get(id) ?? []) {
-    for (const seen of reachable(outs, edge.to, memo)) set.add(seen);
+function reachable(outs: Map<string, FlowEdge[]>, id: string): Set<string> {
+  const seen = new Set<string>([id]);
+  const pending = [id];
+  for (const current of pending) {
+    const next = (outs.get(current) ?? []).map((edge) => edge.to).filter((target) => !seen.has(target));
+    next.forEach((target) => seen.add(target));
+    pending.push(...next);
   }
-  return set;
+  return seen;
 }
 
-function priorCounters(nodes: FlowNode[], outs: Map<string, FlowEdge[]>, memo: Map<string, Set<string>>, id: string): string[] {
-  const prior = nodes.filter((n) => n.type === 'reply.counter' && n.id !== id && reachable(outs, n.id, memo).has(id));
-  return [...new Set(prior.map((n) => str(n.config.counter)))];
+function priorCounters(ctx: Pick<Lowering, 'outs' | 'byId'>): Map<string, string[]> {
+  const counts = new Map<string, number>();
+  for (const edges of ctx.outs.values()) for (const edge of edges) counts.set(edge.to, (counts.get(edge.to) ?? 0) + 1);
+  const pending = [...ctx.byId.keys()].filter((id) => !counts.has(id));
+  const prior = new Map<string, string[]>();
+  for (const id of pending) {
+    const node = ctx.byId.get(id)!;
+    const names = prior.get(id) ?? [];
+    const after = node.type === 'reply.counter' ? [...new Set([...names, str(node.config.counter)])].slice(0, 2) : names;
+    for (const edge of ctx.outs.get(id) ?? []) propagateCounters({ prior, counts, pending }, edge.to, after);
+  }
+  return prior;
+}
+
+function propagateCounters(state: { prior: Map<string, string[]>; counts: Map<string, number>; pending: string[] }, id: string, names: string[]): void {
+  state.prior.set(id, [...new Set([...(state.prior.get(id) ?? []), ...names])].slice(0, 2));
+  const remaining = state.counts.get(id)! - 1;
+  state.counts.set(id, remaining);
+  if (remaining === 0) state.pending.push(id);
 }
 
 function triggerKind(trigger: Trigger): string {
@@ -396,7 +415,7 @@ function lowerToken(ctx: Lowering, name: string, counters: string[]): string | n
 }
 
 function lowerTemplate(ctx: Lowering, node: FlowNode, field: string): string {
-  const counters = priorCounters(ctx.nodes, ctx.outs, ctx.reach, node.id);
+  const counters = ctx.counters.get(node.id) ?? [];
   return str(node.config[field]).replace(BARE_TOKEN, (token, name: string) => {
     const lowered = lowerToken(ctx, name, counters);
     if (lowered !== null) return lowered;
@@ -423,7 +442,7 @@ function triggerNode(flow: Flow): FlowResult<FlowNode> {
 function shapeIssues(flow: Flow, trigger: FlowNode, ctx: Lowering): Issue[] {
   const cycle = findCycleNode(ctx.outs, trigger.id);
   if (cycle) return [{ path: nodePath(cycle), code: FLOW_ISSUE.cycle }];
-  const attached = reachable(ctx.outs, trigger.id, ctx.reach);
+  const attached = reachable(ctx.outs, trigger.id);
   const known = new Set(flow.nodes.map((n) => n.id));
   const dangling = flow.edges.filter((e) => !known.has(e.from) || !known.has(e.to));
   return [
@@ -436,9 +455,12 @@ type Stops = ReadonlySet<string>;
 
 const NO_STOPS: Stops = new Set<string>();
 
-const reachOf = (ctx: Lowering, id: string) => ctx.reach.get(id) ?? reachable(ctx.outs, id, ctx.reach);
+const reachOf = (ctx: Lowering, id: string) => reachable(ctx.outs, id);
 
-const earliest = (ctx: Lowering, shared: string[]) => shared.filter((id) => !shared.some((other) => other !== id && reachOf(ctx, other).has(id)));
+function earliest(ctx: Lowering, shared: string[]): string[] {
+  const later = new Set(shared.flatMap((id) => (ctx.outs.get(id) ?? []).map((edge) => edge.to)));
+  return shared.filter((id) => !later.has(id));
+}
 
 function commonJoins(ctx: Lowering, entries: string[]): string[] {
   if (new Set(entries).size < 2) return [];
@@ -524,6 +546,7 @@ function lowerRest(ctx: Lowering, joins: string[], stop: Stops): Action[] {
 }
 
 function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
+  if (entries.length === 1) return lowerFrom(ctx, entries[0]!, stop);
   const joins = commonJoins(ctx, entries);
   const bound = extended(stop, joins);
   const paths = entries.map((id) => lowerFrom(ctx, id, bound)).filter((path) => path.length > 0);
@@ -533,12 +556,24 @@ function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
 }
 
 function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
-  if (stop.has(id) || !visit(ctx, id)) return [];
-  const node = ctx.byId.get(id)!;
+  const actions: Action[] = [];
+  let entries = [id];
+  while (entries.length === 1) {
+    const current = entries[0]!;
+    if (stop.has(current) || !visit(ctx, current)) return actions;
+    const node = ctx.byId.get(current)!;
+    const control = controlActions(ctx, node, stop);
+    if (control) return actions.concat(control);
+    actions.push(writeAction(ctx, node));
+    entries = targets(ctx, current, 'next');
+  }
+  return actions.concat(lowerEntries(ctx, entries, stop));
+}
+
+function controlActions(ctx: Lowering, node: FlowNode, stop: Stops): Action[] | null {
   if (isConditionType(node.type)) return lowerBranch(ctx, node, stop);
   if (node.type === LOOP_TYPE) return lowerLoop(ctx, node, stop);
-  if (Object.hasOwn(API_WRITERS, node.type)) return lowerApi(ctx, node, stop);
-  return [writeAction(ctx, node), ...lowerEntries(ctx, targets(ctx, id, 'next'), stop)];
+  return Object.hasOwn(API_WRITERS, node.type) ? lowerApi(ctx, node, stop) : null;
 }
 
 type Arms = { first: Action[]; second: Action[]; rest: Action[] };
@@ -613,11 +648,10 @@ function lowerFlow(flow: Flow): Lowered {
   const trigger = found.value;
   const written = TRIGGER_WRITERS[trigger.type]?.(trigger.config);
   const ctx: Lowering = {
-    nodes: flow.nodes,
     trigger: written ?? { type: '' },
     byId: new Map(flow.nodes.map((n) => [n.id, n])),
     outs: outgoing(flow),
-    reach: new Map(),
+    counters: new Map(),
     visited: new Set([trigger.id]),
     issues: [],
     owners
@@ -625,6 +659,7 @@ function lowerFlow(flow: Flow): Lowered {
   const shape = shapeIssues(flow, trigger, ctx);
   if (shape.length > 0) return { result: { ok: false, issues: shape }, owners };
   if (!written) return { result: { ok: false, issues: [{ path: nodePath(trigger.id), code: FLOW_ISSUE.unsupportedNode }] }, owners };
+  ctx.counters = priorCounters(ctx);
   const { conditions, actions } = lowerRoot(ctx, trigger);
   if (ctx.issues.length > 0) return { result: { ok: false, issues: ctx.issues }, owners };
   return { result: { ok: true, value: assembled(flow, written, conditions, actions) }, owners };
@@ -983,10 +1018,10 @@ function placeConditions(b: Building, conditions: Condition[], tails: Tail[]): T
   }, tails);
 }
 
-type CounterScan = { nodes: FlowNode[]; kind: string; outs: Map<string, FlowEdge[]>; memo: Map<string, Set<string>> };
+type CounterScan = { kind: string; counters: Map<string, string[]> };
 
 function raiseTemplate(scan: CounterScan, node: FlowNode, field: string): string {
-  const counters = priorCounters(scan.nodes, scan.outs, scan.memo, node.id);
+  const counters = scan.counters.get(node.id) ?? [];
   const text = eventTokensToBuilder(scan.kind, str(node.config[field]), counters.length > 0);
   if (counters.length === 1 && !EVENT_TOKENS[scan.kind]?.count) return text.replaceAll(`{counter:${counters[0]}}`, '{count}');
   return text;
@@ -994,7 +1029,7 @@ function raiseTemplate(scan: CounterScan, node: FlowNode, field: string): string
 
 function raiseMessages(b: Building, kind: string): void {
   const flow = { nodes: b.nodes, edges: b.edges } as Flow;
-  const scan: CounterScan = { nodes: b.nodes, kind, outs: outgoing(flow), memo: new Map() };
+  const scan: CounterScan = { kind, counters: priorCounters({ byId: new Map(b.nodes.map((node) => [node.id, node])), outs: outgoing(flow) }) };
   for (const node of b.nodes) {
     for (const field of TEMPLATE_FIELDS[node.type] ?? []) {
       node.config = { ...node.config, [field]: raiseTemplate(scan, node, field) };

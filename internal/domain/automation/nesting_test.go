@@ -27,7 +27,7 @@ func deepRecipe(levels int) string {
 func TestDeepNestingIsValidUpToTheSizeLimit(t *testing.T) {
 	_, issues := Parse([]byte(deepRecipe(200)))
 	assert.Empty(t, issues)
-	_, issues = Parse([]byte(deepRecipe(5000)))
+	_, issues = Parse([]byte(deepRecipe(200) + strings.Repeat(" ", MaxDefinitionBytes)))
 	assert.Equal(t, []Issue{{Code: CodeTooLong}}, issues)
 }
 
@@ -59,7 +59,12 @@ func TestEffectStepsOverTheLimitAreRefused(t *testing.T) {
 }
 
 func TestFetchNodesCountAsEffectsAndLoopsDoNot(t *testing.T) {
-	assert.False(t, IsBranching("http_get"))
-	assert.False(t, IsBranching("http_post"))
-	assert.True(t, IsBranching("loop"))
+	for _, entry := range []struct {
+		kind   string
+		branch bool
+	}{{"http_get", false}, {"http_post", false}, {"loop", true}} {
+		t.Run(entry.kind, func(t *testing.T) {
+			assert.Equal(t, entry.branch, IsBranching(entry.kind))
+		})
+	}
 }

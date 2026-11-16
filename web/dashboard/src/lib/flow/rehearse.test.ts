@@ -4,7 +4,7 @@ import { expect, spyOn, test } from 'bun:test';
 import * as automations from '@bagel/kit/automations';
 import { english } from './english.testing';
 import type { Flow, FlowNode } from './model';
-import { rehearseFlow, setStoredValue, type RehearsalOptions } from './rehearse';
+import { prepareRehearsal, rehearseDraft, rehearseFlow, setStoredValue, type RehearsalOptions } from './rehearse';
 
 type Id = FlowNode['id'];
 type Kind = FlowNode['type'];
@@ -93,7 +93,7 @@ test.each([
 
 test('missing values stay marked and disconnected previews stay unreachable', () => {
   const result = run(flowOf([trigger, n('s', 'reply.chat', { message: 'Bits: {bits}, value: {var:unset}' }), left], [e('t', 'next', 's')]));
-  expect([result.steps.at(-1)?.missing, result.steps.some((step) => step.id === 'a')]).toEqual([['bits', 'var:unset'], false]);
+  expect([result.steps.at(-1)?.missing, result.steps.some((step) => step.id === 'a')]).toEqual([['bits', 'unset'], false]);
 });
 
 test('stored input is shared with checks and chat in the executor', () => {
@@ -115,7 +115,8 @@ test.each([
 ])('repairs remain truthful: $name', ({ trigger, check }) => {
   const flow = flowOf([trigger, check, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const result = run(flow);
-  expect(result.steps.find((step) => step.id === 'c')?.repair).toBeUndefined();
+  const step = result.steps.find((step) => step.id === 'c')!;
+  expect(step.repair && result.verifyRepair?.(step.repair, step.path)).toBe(false);
 });
 
 test('draft tolerance leaves the edited flow untouched', () => {
@@ -156,12 +157,36 @@ test.each([false, true])('permission warnings match Save with moderator check %s
   expect([warnings.length, warnings.map((step) => step.id)]).toEqual([issues.length, checked ? [] : ['s']]);
 });
 
-test('repeated failed checks verify each repair only once per run', () => {
+test('repeated failed checks verify a repair only on request', () => {
   const nodes = [trigger, n('outer', 'reply.loop', { times: '100' }), n('inner', 'reply.loop', { times: '100' }), n('c', 'cond.role', { level: 'mod' }), left, right];
   const edges = [e('t', 'next', 'outer'), e('outer', 'body', 'inner'), e('inner', 'body', 'c'), e('c', 'yes', 'a'), e('c', 'no', 'b')];
   const executor = spyOn(automations, 'rehearseDefinition');
   const result = run(flowOf(nodes, edges));
   const calls = executor.mock.calls.length;
+  const step = result.steps.find((step) => step.id === 'c')!;
+  const verified = result.verifyRepair?.(step.repair!, step.path);
+  const requested = executor.mock.calls.length;
   executor.mockRestore();
-  expect([calls, result.steps.filter((step) => step.id === 'c').length > 100, result.steps.find((step) => step.id === 'c')?.repair]).toEqual([2, true, { role: 'mod' }]);
+  expect([calls, requested, verified, result.steps.filter((step) => step.id === 'c').length > 100, step.repair]).toEqual([1, 2, true, true, { role: 'mod' }]);
+});
+
+test('scenario edits reuse the compiled draft', () => {
+  const compiler = spyOn(automations, 'compileFlow');
+  const draft = prepareRehearsal(flowOf([trigger, say], [e('t', 'next', 's')]));
+  const lines = ['First', 'Second'].map((user) => rehearseDraft(draft, english, { scenario: { user } }).steps.at(-1)?.lines);
+  const calls = compiler.mock.calls.length;
+  compiler.mockRestore();
+  expect([calls, lines]).toEqual([1, [['hello First'], ['hello Second']]]);
+});
+
+test('make it start verifies the trigger even when a later check stops the run', () => {
+  const flow = flowOf([n('t', 'twitch.cheer', { minBits: 1000 }), n('c', 'cond.compare', { left: '1', op: 'eq', right: '2' }), say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
+  const view = run(flow, { scenario: { bits: 1 } });
+  expect(view.startPatch && view.verifyRepair?.(view.startPatch)).toBe(true);
+});
+
+test.each(['', 'Hello'])('HTTP response %j uses plain labels for missing values', (response) => {
+  const flow = flowOf([trigger, n('api', 'reply.http_get', { url: 'https://example.com', saveAs: 'joke' }), n('s', 'reply.chat', { message: 'Joke: {local:joke}' })], [e('t', 'next', 'api'), e('api', 'ok', 's')]);
+  const result = run(flow, { overrides: { 'api.response': response } });
+  expect([result.steps.find((step) => step.id === 'api')?.note, result.steps.at(-1)?.missing]).toEqual(response ? [undefined, []] : ['Pretend response is empty.', ['joke']]);
 });

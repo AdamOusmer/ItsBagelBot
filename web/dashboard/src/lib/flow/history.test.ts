@@ -17,6 +17,17 @@ const fresh = (): Flow => ({
 const ids = (f: Flow) => f.nodes.map((n) => n.id);
 
 describe('FlowHistory', () => {
+  test.each(['undo', 'redo'] as const)('publishes a detached draft snapshot after %s', (way) => {
+    const flow = fresh();
+    const history = new FlowHistory(flow);
+    const before = history.snapshot;
+    flow.nodes[0].config.trigger = '!new';
+    history.sync(flow);
+    history.undo(flow);
+    if (way === 'redo') history.redo(flow);
+    expect([before.nodes[0].config.trigger, history.snapshot.nodes[0].config.trigger, history.snapshot.nodes === flow.nodes]).toEqual(['!hug', way === 'redo' ? '!new' : '!hug', false]);
+  });
+
   test('undo and redo walk back through add, connect, disconnect, duplicate and remove', () => {
     const flow = fresh();
     const h = new FlowHistory(flow);

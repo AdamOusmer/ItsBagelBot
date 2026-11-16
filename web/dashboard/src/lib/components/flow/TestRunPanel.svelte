@@ -46,14 +46,14 @@
       <p class="sentence" role="status"><bb-fit mode="block"><span data-fit>{headline}</span></bb-fit></p>
       <div class="actions">
         <div class="repair" class:invisible={view.state !== 'not_started' || !view.startPatch} inert={view.state !== 'not_started' || !view.startPatch}>
-          <Button variant="ghost" size="sm" onclick={() => view.startPatch && onScenario(view.startPatch)}><span data-fit>{t('flows.test.makeStart')}</span></Button>
+          <Button variant="ghost" size="sm" onclick={() => view.startPatch && view.verifyRepair?.(view.startPatch) && onScenario(view.startPatch)}><span data-fit>{t('flows.test.makeStart')}</span></Button>
         </div>
         <div class="repair" class:invisible={view.state !== 'stopped'} inert={view.state !== 'stopped'}>
           <Button variant="ghost" size="sm" onclick={() => view.stoppedAt && onSelect(view.stoppedAt)}><span data-fit>{t('flows.test.showStep')}</span></Button>
         </div>
       </div>
     </div>
-    <RehearsalTimeline steps={view.steps} scenario={view.scenario} {overrides} {onScenario} {onOverride} {onSelect} />
+    <RehearsalTimeline steps={view.steps} scenario={view.scenario} verifyRepair={view.verifyRepair} {overrides} {onScenario} {onOverride} {onSelect} />
   </div>
 </aside>
 

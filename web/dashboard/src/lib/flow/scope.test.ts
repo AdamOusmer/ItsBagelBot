@@ -33,6 +33,18 @@ const cases: ScopeCase[] = [
   { name: 'trigger itself', steps: [base], links: [], target: 'root', tokens: [] }
 ];
 
+const mixedSteps: Step[] = [base, ['chance', 'cond.chance'], ['math', 'reply.math', { saveAs: 'points' }], ['a', 'reply.chat'], ['b', 'reply.chat'], ['join', 'reply.chat']];
+const mixedLinks: Link[] = [['root', 'next', 'chance'], ['chance', 'yes', 'math'], ['math', 'next', 'a'], ['math', 'next', 'b'], ['a', 'next', 'join'], ['b', 'next', 'join'], ['chance', 'no', 'join']];
+for (const reversed of [false, true]) cases.push({ name: `conditional bypass of parallel fork, reversed ${reversed}`, steps: mixedSteps, links: reversed ? mixedLinks.toReversed() : mixedLinks, target: 'join', tokens: viewer });
+const forkedBypass: Link[] = [...mixedLinks.filter(([from, port]) => from !== 'chance' || port !== 'no'), ['chance', 'no', 'c'], ['chance', 'no', 'd'], ['c', 'next', 'join'], ['d', 'next', 'join']];
+for (const reversed of [false, true]) cases.push({ name: `conditional bypass has its own fork, reversed ${reversed}`, steps: [...mixedSteps, ['c', 'reply.chat'], ['d', 'reply.chat']], links: reversed ? forkedBypass.toReversed() : forkedBypass, target: 'join', tokens: viewer });
+for (const target of ['root', 'loop', 'join', 'outside']) cases.push({
+  name: `persistent variables are offered at ${target}`,
+  steps: [base, ['loop', 'reply.loop'], ['add', 'reply.var_add', { name: 'hype', amount: 3 }], ['join', 'reply.chat'], ['outside', 'reply.chat']],
+  links: [['root', 'next', 'loop'], ['loop', 'body', 'add'], ['loop', 'done', 'join']], target,
+  tokens: [...(target === 'loop' || target === 'join' ? viewer : []), '{var:hype}']
+});
+
 test.each(cases)('scope: $name', ({ steps, links, target, tokens }) => {
   const flow: Flow = {
     ...newFlow('Scope'),

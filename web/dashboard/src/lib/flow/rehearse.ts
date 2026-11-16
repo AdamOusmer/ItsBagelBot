@@ -4,10 +4,10 @@ import type { MessageKey, RehearsedLine } from '@bagel/kit';
 import { compactDuration, compileFlow, defaultScenario, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
-import { fieldIssueMessage, fieldLabel, stepLabel } from './copy';
+import { fieldIssueMessage, fieldLabel, stepLabel, variableLabel } from './copy';
 import { describe } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
-import { specFor, type Flow, type FlowNode } from './model';
+import { specFor, variablesFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired } from './issues';
 
 type Text = string;
@@ -20,6 +20,7 @@ export type RehearsalStep = RehearsalEvent & {
   chatLines: RehearsedLine[];
   missing: Text[];
   sample: boolean;
+  note?: Text;
   secondary?: Text;
   node?: FlowNode;
   repair?: ScenarioPatch;
@@ -34,6 +35,7 @@ export type RehearsalView = {
   stoppedAt?: Text;
   blocked?: Text;
   startPatch?: ScenarioPatch;
+  verifyRepair?: (patch: ScenarioPatch, path?: Text) => boolean;
   issue?: { text: Text; node: Text | null; fieldKey?: Text };
 };
 export type RehearsalOptions = { scenario?: ScenarioPatch; overrides?: RehearsalOverrides };
@@ -215,7 +217,7 @@ function reasonText(t: Translate, code: Text): Text {
 
 type RunContext = {
   compiled: Compiled; nodes: Map<Text, FlowNode>; scenario: RehearsalScenario; overrides: RehearsalOverrides;
-  repairs: Map<Text, ScenarioPatch | undefined>; formatDuration: (seconds: number) => Text;
+  flow: Flow; formatDuration: (seconds: number) => Text;
 };
 
 function unsetFields(t: Translate, node: FlowNode | undefined): Text[] {
@@ -225,33 +227,47 @@ function unsetFields(t: Translate, node: FlowNode | undefined): Text[] {
     .map((field) => fieldLabel(t, spec, field));
 }
 
-function verifiedRepair(node: FlowNode | undefined, event: RehearsalEvent, context: RunContext): ScenarioPatch | undefined {
-  const repair = node ? checkRepair(node, event) : undefined;
-  if (!repair) return undefined;
-  const key = `${event.path}:${JSON.stringify(repair)}`;
-  if (context.repairs.has(key)) return context.repairs.get(key);
+function verifyRepair(context: RunContext, repair: ScenarioPatch, path?: Text): boolean {
   const result = rehearseDefinition(context.compiled.definition, { ...context.scenario, ...repair }, context.overrides, context.formatDuration);
-  const verified = result.events.some((candidate) => candidate.path === event.path && candidate.status === 'yes') ? repair : undefined;
-  context.repairs.set(key, verified);
-  return verified;
+  return path ? result.events.some((candidate) => candidate.path === path && candidate.status === 'yes') : result.starts || result.reason?.reason === 'condition_failed';
 }
 
 function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): RehearsalStep {
   const { compiled, nodes, scenario } = context;
   const id = compiled.nodeByPath.get(`${event.path}.params.condition`) ?? compiled.nodeByPath.get(event.path) ?? null;
   const node = nodes.get(id ?? '');
-  const spec = node ? specFor(node.type) : undefined;
-  return { ...event, ...stepValues(t, event, node), id, node, chatLines: chatLines(event),
-    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : undefined,
-    label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
-    text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)), repair: verifiedRepair(node, event, context) };
+  return { ...event, ...stepValues(t, event, { node, flow: context.flow }), id, node, chatLines: chatLines(event),
+    ...stepDetails(t, node, event),
+    text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)) };
 }
 
-function stepValues(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Pick<RehearsalStep, 'missing' | 'sample'> {
+function stepDetails(t: Translate, node: FlowNode | undefined, event: RehearsalEvent): Pick<RehearsalStep, 'label' | 'note' | 'secondary' | 'repair'> {
+  const spec = node ? specFor(node.type) : undefined;
+  return {
+    label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
+    note: emptyResponse(node, event) ? t('flows.test.emptyResponse') : undefined,
+    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : undefined,
+    repair: node ? checkRepair(node, event) : undefined
+  };
+}
+
+function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boolean {
+  return Boolean(node?.type.startsWith('reply.http_') && event.detail?.response === '');
+}
+
+function stepValues(t: Translate, event: RehearsalEvent, context: { node: FlowNode | undefined; flow: Flow }): Pick<RehearsalStep, 'missing' | 'sample'> {
+  const { node, flow } = context;
   const tokens = (event.detail?.missing ?? '').split(',').filter(Boolean).map((token) => token.replace(/^unset:/, ''));
-  const missing = [...new Set([...tokens, ...unsetFields(t, node)])];
+  const missing = [...new Set([...tokens.map((token) => missingLabel(t, token, { node, flow })), ...unsetFields(t, node)])];
   const sample = event.detail?.random === '1' || Object.values(node?.config ?? {}).some((value) => /\{(?:random|choice)[}:]/.test(String(value)));
   return { missing, sample };
+}
+
+function missingLabel(t: Translate, token: Text, context: { node: FlowNode | undefined; flow: Flow }): Text {
+  const variable = context.node ? variablesFor(context.flow, context.node.id).find((variable) => variable.token === `{${token}}`) : undefined;
+  if (variable) return variableLabel(t, variable);
+  const name = token.split(':').at(-1) ?? '';
+  return scenarioFieldLabel(t, token) !== t('flows.test.notSet') ? scenarioFieldLabel(t, token) : name;
 }
 
 function permissionWarnings(definition: Definition): RehearsalEvent[] {
@@ -267,7 +283,15 @@ function durationFormatter(t: Translate): (seconds: number) => Text {
 }
 
 export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalView {
-  const compiled = compileDraft(flow);
+  return rehearseDraft(prepareRehearsal(flow), t, options);
+}
+
+export function prepareRehearsal(flow: Flow): { flow: Flow; compiled: ReturnType<typeof compileFlow> } {
+  return { flow, compiled: compileDraft(flow) };
+}
+
+export function rehearseDraft(draft: ReturnType<typeof prepareRehearsal>, t: Translate, options: RehearsalOptions = {}): RehearsalView {
+  const { flow, compiled } = draft;
   const empty: RehearsalView = { steps: [], fields: [], scenario: { live: true, ...options.scenario }, summary: '', starts: false, state: 'not_started' };
   if (!compiled.ok) return { ...empty, issue: rehearsalIssue(t, compiled.issues, flow) };
   const { definition } = compiled.value;
@@ -277,14 +301,19 @@ export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions
   const overrides = executorOverrides(compiled.value, options.overrides ?? {});
   const formatDuration = durationFormatter(t);
   const result = rehearseDefinition(definition, scenario, overrides, formatDuration);
-  const context: RunContext = { compiled: compiled.value, nodes: new Map(flow.nodes.map((node) => [node.id, node])), scenario, overrides, repairs: new Map(), formatDuration };
-  const stopped = result.reason?.reason === 'condition_failed';
-  return { scenario, fields, summary: scenarioSummary(t, scenario, kind), starts: result.starts || stopped,
-    state: stopped ? 'stopped' : result.starts ? 'started' : 'not_started',
-    stoppedAt: stopped ? compiled.value.nodeByPath.get(result.reason!.values.path!) : undefined,
+  const context: RunContext = { flow, compiled: compiled.value, nodes: new Map(flow.nodes.map((node) => [node.id, node])), scenario, overrides, formatDuration };
+  return { scenario, fields, summary: scenarioSummary(t, scenario, kind), ...runOutcome(result, context, t),
     steps: [...permissionWarnings(definition), ...result.events].map((event) => mappedStep(t, event, context)),
+    verifyRepair: (patch, path) => verifyRepair(context, patch, path) };
+}
+
+function runOutcome(result: ReturnType<typeof rehearseDefinition>, context: RunContext, t: Translate): Pick<RehearsalView, 'starts' | 'state' | 'stoppedAt' | 'blocked' | 'startPatch'> {
+  const stopped = result.reason?.reason === 'condition_failed';
+  return { starts: result.starts || stopped,
+    state: stopped ? 'stopped' : result.starts ? 'started' : 'not_started',
+    stoppedAt: stopped ? context.compiled.nodeByPath.get(result.reason!.values.path!) : undefined,
     blocked: result.reason ? blockedText(t, result.reason) : undefined,
-    startPatch: result.reason ? startPatch(result.reason, definition) : undefined };
+    startPatch: result.reason ? startPatch(result.reason, context.compiled.definition) : undefined };
 }
 
 function rehearsalIssue(t: Translate, issues: Issue[], flow: Flow): RehearsalView['issue'] {

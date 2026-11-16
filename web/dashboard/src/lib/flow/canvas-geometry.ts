@@ -4,10 +4,20 @@ import { NODE_W, isSecondPort, specFor, type Flow, type FlowNode } from './model
 import { inputY, loopTails, nodeHeight, portY } from './layout';
 import { previewPath, returnPath, wirePath } from './wire';
 import { graphIndex } from './graph-index';
+import type { Box } from './touch';
 
 type Positions = Record<FlowNode['id'], { x: number; y: number }>;
 const ARROW_GAP = 8;
 const RETURN_DROP = 20;
+const ADD_ROOM = 48;
+
+export function focusBounds(flow: Flow, node: FlowNode, availableWidth: number): Box {
+  const box = { x0: node.x, y0: node.y, x1: node.x + NODE_W + ADD_ROOM, y1: node.y + nodeHeight(specFor(node.type)) };
+  const trigger = flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger');
+  if (!trigger) return box;
+  const anchored = { ...box, x0: Math.min(trigger.x, box.x0), x1: Math.max(trigger.x + NODE_W, node.x + NODE_W) };
+  return (anchored.x1 - anchored.x0) * 0.7 <= availableWidth ? anchored : box;
+}
 
 export function wirePreview(flow: Flow, displayed: Positions, wire: { from: FlowNode['id']; port: string; x: number; y: number } | null, targetId: FlowNode['id'] | null): string {
   if (!wire) return '';

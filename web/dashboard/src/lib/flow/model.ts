@@ -481,7 +481,13 @@ export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
     return result;
   };
   const scope = visit(nodeId);
-  return scope ? [...scopeTokens(scope).values()] : [];
+  const tokens = scope ? scopeTokens(scope) : new Map<string, VariableSpec>();
+  for (const variable of persistentVariables(flow)) tokens.set(variable.token, variable);
+  return [...tokens.values()];
+}
+
+function persistentVariables(flow: Flow): VariableSpec[] {
+  return flow.nodes.filter((node) => ['reply.var_set', 'reply.var_add'].includes(node.type)).flatMap((node) => storedVariable(node.config));
 }
 
 type ForkScope = { branch: string; outer: Scope };
@@ -523,10 +529,19 @@ function mergeScopes(paths: Scope[]): Scope | null {
   if (paths.length < 2) return paths[0] ?? null;
   const tokens = paths.map(scopeTokens);
   const common = [...tokens[0].values()].filter((variable) => tokens.every((path) => path.has(variable.token)));
-  const forks = new Map(paths[0].forks);
-  const joined = [...forks].filter(([key, fork]) => paths.some((path) => path.forks.get(key)?.branch !== fork.branch));
-  for (const [key] of joined) forks.delete(key);
-  const outer = joined.sort((a, b) => a[1].outer.forks.size - b[1].outer.forks.size)[0]?.[1].outer;
-  const provided = outer ? [...common.filter((variable) => !variable.token.startsWith('{local:')), ...[...scopeTokens(outer).values()].filter((variable) => variable.token.startsWith('{local:'))] : common;
+  const allForks = new Map(paths.flatMap((path) => [...path.forks]));
+  const joined = [...allForks].filter(([key, fork]) => paths.some((path) => path.forks.has(key) && path.forks.get(key)?.branch !== fork.branch));
+  const forks = new Map([...allForks].filter(([key, fork]) => paths.every((path) => path.forks.get(key)?.branch === fork.branch)));
+  const join = joined.sort((a, b) => a[1].outer.forks.size - b[1].outer.forks.size)[0];
+  const restored = restoredLocals({ join, paths });
+  const provided = join ? [...common.filter((variable) => !variable.token.startsWith('{local:')), ...restored] : common;
   return { parent: null, provided, clearError: false, forks };
+}
+
+function restoredLocals({ join, paths }: { join?: [string, ForkScope]; paths: Scope[] }): VariableSpec[] {
+  if (!join) return [];
+  const [key, { outer }] = join;
+  const locals = [...scopeTokens(outer).values()].filter((variable) => variable.token.startsWith('{local:'));
+  const bypass = paths.filter((path) => !path.forks.has(key)).map(scopeTokens);
+  return locals.filter((variable) => bypass.every((path) => path.has(variable.token)));
 }
