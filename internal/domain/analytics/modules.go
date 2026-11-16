@@ -6,7 +6,7 @@ package analytics
 // Stored module row names are client-supplied; only these reach the aggregate store.
 // Mirrors web/kit/lib/catalog ids; a new module is uncounted until listed here.
 var storedModules = map[string]struct{}{
-	"accountage": {}, "alerts": {}, "automod": {}, "channelpoints": {}, "clashroyale": {}, "clip": {},
+	"accountage": {}, "alerts": {}, "automations": {}, "cmd": {}, "automod": {}, "channelpoints": {}, "clashroyale": {}, "clip": {},
 	"codm": {}, "commercial": {}, "counters": {}, "duel": {}, "emoteplay": {},
 	"followage": {}, "fortnite": {}, "gamble": {}, "game": {}, "govee": {}, "loyalty": {},
 	"marker": {}, "mcsr": {}, "moderation": {}, "personality": {}, "queue": {}, "quotes": {},

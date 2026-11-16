@@ -72,6 +72,20 @@ const (
 	CustomPerm            Metric = "custom.perm"
 	CustomFlags           Metric = "custom.flags"
 	CustomChannels        Metric = "custom.channels"
+
+	RecipeRuns         Metric = "recipe.runs"
+	RecipeChannels     Metric = "recipe.channels"
+	RecipesTotal       Metric = "recipes.total"
+	ActivationAge      Metric = "activation.age"
+	CommandBlocked     Metric = "command.blocked"
+	SongRequests       Metric = "songs.requests"
+	ProviderCalls      Metric = "provider.calls"
+	OutgressDropped    Metric = "outgress.dropped"
+	DashboardViews     Metric = "dashboard.views"
+	BillingCheckout    Metric = "billing.checkout"
+	ImportRuns         Metric = "import.runs"
+	OnboardingSteps    Metric = "onboarding.steps"
+	AccountsDelegating Metric = "accounts.delegating"
 )
 
 const (
@@ -93,6 +107,22 @@ const (
 	KindActive    Kind = "active"
 	KindPerm      Kind = "perm"
 	KindFlag      Kind = "flag"
+	KindTrigger   Kind = "trigger"
+	KindOutcome   Kind = "outcome"
+	KindAge       Kind = "age"
+	KindBlock     Kind = "block"
+	KindSong      Kind = "song"
+	KindProvider  Kind = "provider"
+	KindFetch     Kind = "fetch"
+	KindSend      Kind = "send"
+	KindDrop      Kind = "drop"
+	KindSection   Kind = "section"
+	KindRole      Kind = "role"
+	KindPlan      Kind = "plan"
+	KindCheckout  Kind = "checkout"
+	KindImport    Kind = "import"
+	KindStep      Kind = "step"
+	KindOnboard   Kind = "onboard"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -134,6 +164,20 @@ var catalog = map[Metric]Spec{
 	CustomPerm:            {Type: Level, Dims: []Kind{KindPerm}},
 	CustomFlags:           {Type: Level, Dims: []Kind{KindFlag}},
 	CustomChannels:        {Type: Level},
+
+	RecipeRuns:         {Type: Counter, Dims: []Kind{KindTrigger, KindOutcome}},
+	RecipeChannels:     {Type: Distinct, Windows: Day | Week | Month},
+	RecipesTotal:       {Type: Level, Dims: []Kind{KindTrigger, KindState}},
+	ActivationAge:      {Type: Distinct, Dims: []Kind{KindAge}, Windows: Day | Week},
+	CommandBlocked:     {Type: Counter, Dims: []Kind{KindBlock}},
+	SongRequests:       {Type: Counter, Dims: []Kind{KindSong}},
+	ProviderCalls:      {Type: Counter, Dims: []Kind{KindProvider, KindFetch}},
+	OutgressDropped:    {Type: Counter, Dims: []Kind{KindSend, KindDrop}},
+	DashboardViews:     {Type: Counter, Dims: []Kind{KindSection, KindRole}},
+	BillingCheckout:    {Type: Counter, Dims: []Kind{KindPlan, KindCheckout}},
+	ImportRuns:         {Type: Counter, Dims: []Kind{KindImport, KindStep}},
+	OnboardingSteps:    {Type: Counter, Dims: []Kind{KindOnboard}},
+	AccountsDelegating: {Type: Level},
 }
 
 var enums = map[Kind][]string{
@@ -150,14 +194,33 @@ var enums = map[Kind][]string{
 	KindActive:    {"active", "inactive"},
 	KindPerm:      {"everyone", "sub", "vip", "mod", "lead_mod", "broadcaster"},
 	KindFlag:      {"online_only", "aliased", "cooldown", "counter"},
+	KindTrigger:   {"command", "event", "timer", "reward", "manual", "countdown"},
+	KindOutcome:   {"ok", "skipped", "partial", "failed", "limited"},
+	KindAge:       {"d0", "d1", "d2_6", "d7_13", "d14_29", "d30p"},
+	KindBlock:     {"perm", "offline", "cooldown"},
+	KindSong:      {"queued", "off", "perm", "offline", "not_found", "queue_full", "player_refused"},
+	KindFetch:     {"ok", "denied", "limited", "upstream_error", "timeout", "bad_def", "error"},
+	KindSend:      {"chat", "helix"},
+	KindDrop:      {"auth", "rejected", "exhausted", "chat_dropped"},
+	KindSection: {
+		"overview", "commands", "flows", "automations", "modules", "timers", "loyalty", "counters",
+		"quotes", "songqueue", "channelpoints", "govee", "billing", "settings", "access",
+	},
+	KindRole:     {"owner", "delegate"},
+	KindPlan:     {"monthly", "single", "gift"},
+	KindCheckout: {"redirected", "blocked", "unavailable", "rejected"},
+	KindImport:   {"streamelements", "fossabot", "moobot", "nightbot", "streamlabs_desktop", "wizebot"},
+	KindStep:     {"preview_ok", "preview_failed", "committed", "commit_failed"},
+	KindOnboard:  {"viewed", "consent_missing", "save_failed"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{
-	KindModule:  regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
-	KindCommand: regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
-	KindWeek:    regexp.MustCompile(`^[0-9]{4}-W[0-9]{2}$`),
-	KindLocale:  regexp.MustCompile(`^[a-z]{2}(-[A-Za-z]{2,4})?$`),
-	KindBreadth: regexp.MustCompile(`^[0-9]{1,3}$`),
+	KindModule:   regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
+	KindCommand:  regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
+	KindWeek:     regexp.MustCompile(`^[0-9]{4}-W[0-9]{2}$`),
+	KindLocale:   regexp.MustCompile(`^[a-z]{2}(-[A-Za-z]{2,4})?$`),
+	KindBreadth:  regexp.MustCompile(`^[0-9]{1,3}$`),
+	KindProvider: regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
 }
 
 func Lookup(m Metric) (Spec, bool) {
