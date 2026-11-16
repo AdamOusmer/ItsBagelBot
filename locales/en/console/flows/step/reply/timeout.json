@@ -1,0 +1,10 @@
+{
+  "label": "Timeout",
+  "summary": "Mute a viewer; chat triggers need a leading Moderator check",
+  "keywords": "timeout mute moderation mod duration reason",
+  "field": {
+    "target": { "label": "Viewer login" },
+    "seconds": { "label": "Duration", "range": "Use 1 second to {days} days." },
+    "reason": { "label": "Reason (optional)" }
+  }
+}

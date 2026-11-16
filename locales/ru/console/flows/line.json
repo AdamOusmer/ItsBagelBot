@@ -1,4 +1,9 @@
 {
+  "shoutout": "Shoutout для {target}",
+  "announce": "Объявление: {message}",
+  "reply": "Ответ зрителю: {message}",
+  "timeout": "Тайм-аут для {target} на {amount}",
+  "eventOffline": "Ваш стрим завершается",
   "command": "Кто-то пишет {trigger} в чате",
   "word": "Кто-то говорит {word} в чате",
   "subAny": "Кто-то получает новую или подаренную подписку",

@@ -433,7 +433,15 @@ function timerStep(params: Params, context: Context, mode: Text): ActionOutcome 
   return { status: 'ok', detail: { name, left: timerLeft(store[name], context)! } };
 }
 
+function replyStep(params: Params, context: Context): ActionOutcome {
+  const message = expand(params.text, context);
+  const viewer = context.scenario.user?.replace(/^@/, '') ?? '';
+  const prefix = viewer && trimSpace(message) !== '' ? `@${viewer} ` : '';
+  return { status: 'ok', detail: { text: prefix + message } };
+}
+
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
+  reply: replyStep,
   var_set: (params, context) => writeVariable(params, context, 'set'),
   var_add: (params, context) => writeVariable(params, context, 'add'),
   var_delete: (params, context) => writeVariable(params, context, 'delete'),

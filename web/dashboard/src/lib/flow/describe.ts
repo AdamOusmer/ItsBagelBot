@@ -201,6 +201,13 @@ function moduleLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   return n.type === 'reply.reward_update' ? rewardUpdateLine(t, n, spec) : dataLine(t, n, spec);
 }
 
+const STREAM_LINES: Readonly<Record<string, (t: Translate, n: FlowNode) => string>> = {
+  'reply.shoutout': (t, n) => given(text(n, 'target'), (target) => t('flows.line.shoutout', { target })),
+  'reply.announce': (t, n) => given(text(n, 'text'), (message) => t('flows.line.announce', { message })),
+  'reply.reply': (t, n) => given(text(n, 'text'), (message) => t('flows.line.reply', { message })),
+  'reply.timeout': (t, n) => given(text(n, 'target'), (target) => t('flows.line.timeout', { target, amount: cooldownAmount(t, num(n, 'seconds')) }))
+};
+
 function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.chat':
@@ -214,7 +221,7 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
     case 'reply.wait':
       return given(num(n, 'seconds'), (count) => t('flows.line.pause', { amount: seconds(t, count) }));
     default:
-      return moduleLine(t, n, spec);
+      return STREAM_LINES[n.type]?.(t, n) ?? moduleLine(t, n, spec);
   }
 }
 

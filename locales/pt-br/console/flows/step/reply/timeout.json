@@ -1,0 +1,10 @@
+{
+  "label": "Timeout",
+  "summary": "Silencie; gatilhos de chat precisam primeiro de um filtro Moderador",
+  "keywords": "timeout silenciar moderação mod duração motivo",
+  "field": {
+    "target": { "label": "Login do espectador" },
+    "seconds": { "label": "Duração", "range": "De 1 segundo a {days} dias." },
+    "reason": { "label": "Motivo (opcional)" }
+  }
+}

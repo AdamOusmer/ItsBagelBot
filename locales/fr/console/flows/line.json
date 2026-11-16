@@ -1,4 +1,9 @@
 {
+  "shoutout": "Shoutout à {target}",
+  "announce": "Annonce : {message}",
+  "reply": "Réponse au viewer : {message}",
+  "timeout": "Exclure {target} pendant {amount}",
+  "eventOffline": "Votre stream se termine",
   "command": "Quelqu’un écrit {trigger} dans le chat",
   "word": "Quelqu’un dit {word} dans le chat",
   "subAny": "Quelqu’un reçoit un sub nouveau ou offert",

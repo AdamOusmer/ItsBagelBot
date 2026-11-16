@@ -9,6 +9,24 @@ const toggle: FieldSpec = { key: 'on', type: 'toggle' };
 
 export const STREAM_STEPS: readonly NodeSpec[] = [
   {
+    type: 'twitch.stream.offline', slug: 'streamOffline', kind: 'trigger', group: 'twitch', icon: 'radio', fields: []
+  },
+  {
+    type: 'reply.shoutout', slug: 'shoutout', kind: 'reply', group: 'twitch', icon: 'send', fields: [target]
+  },
+  {
+    type: 'reply.announce', slug: 'announce', kind: 'reply', group: 'twitch', icon: 'messageSquare',
+    fields: [{ key: 'text', type: 'template' }, { key: 'color', type: 'select', options: ['primary', 'blue', 'green', 'orange', 'purple', ''] }]
+  },
+  {
+    type: 'reply.reply', slug: 'reply', kind: 'reply', group: 'twitch', icon: 'messageSquare',
+    fields: [{ key: 'text', type: 'template' }]
+  },
+  {
+    type: 'reply.timeout', slug: 'timeout', kind: 'reply', group: 'twitch', icon: 'moderation',
+    fields: [target, { key: 'seconds', type: 'duration', min: 1, max: 1209600 }, { key: 'reason', type: 'template' }]
+  },
+  {
     type: 'twitch.unban_request', slug: 'unbanRequest', kind: 'trigger', group: 'twitch', icon: 'moderation', fields: []
   },
   {

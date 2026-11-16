@@ -1,0 +1,6 @@
+{
+  "label": "Zuschauer antworten",
+  "summary": "Den Zuschauer in einer Chatantwort erwähnen",
+  "keywords": "antwort antworten reply thread erwähnen nachricht",
+  "field": { "text": { "label": "Nachricht" } }
+}

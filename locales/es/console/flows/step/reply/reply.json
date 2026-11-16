@@ -1,0 +1,6 @@
+{
+  "label": "Responder al espectador",
+  "summary": "Menciona al espectador en una respuesta del chat",
+  "keywords": "respuesta responder reply thread mencionar mensaje",
+  "field": { "text": { "label": "Mensaje" } }
+}
