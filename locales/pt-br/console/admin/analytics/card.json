@@ -48,5 +48,8 @@
   "providers": "Chamadas a provedores",
   "songs": "Resultados dos pedidos de músicas",
   "blocked": "Comandos bloqueados por motivo",
-  "delegating": "Contas com delegados"
+  "delegating": "Contas com delegados",
+  "donations": "Pagamentos do Ko-fi por moeda",
+  "donationMonths": "Receita do Ko-fi por mês",
+  "donationKinds": "Pagamentos do Ko-fi por tipo"
 }

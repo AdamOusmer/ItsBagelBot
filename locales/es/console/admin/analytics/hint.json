@@ -48,5 +48,8 @@
   "providers": "Llamadas del período. La proporción de errores incluye todo resultado no satisfactorio.",
   "songs": "Resultados del período. Una solicitud tiene éxito al añadir la canción a la cola.",
   "blocked": "Bloqueos como proporción de usos de comandos más bloqueos del período.",
-  "delegating": "Cuentas con al menos un delegado y su proporción del total en la última captura diaria."
+  "delegating": "Cuentas con al menos un delegado y su proporción del total en la última captura diaria.",
+  "donations": "Pagos brutos de Ko-fi en el periodo por moneda, con la proporción recurrente y el periodo anterior de igual duración. Importes antes de las comisiones de Ko-fi y del procesador de pagos.",
+  "donationMonths": "Pagos brutos de Ko-fi por mes natural en los últimos 12 meses, solo días UTC cerrados.",
+  "donationKinds": "Pagos de Ko-fi en el periodo por tipo."
 }

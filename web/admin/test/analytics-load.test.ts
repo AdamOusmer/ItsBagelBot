@@ -16,6 +16,7 @@ mock.module('#lib/server/services', () => ({
     return [];
   }
 }));
+mock.module('#lib/server/donations', () => ({ donationsSummary: async () => ({}) }));
 const { load } = await import('../src/routes/(admin)/analytics/+page.server');
 
 test('reads every extension in its catalog window within the RPC metric limit', async () => {

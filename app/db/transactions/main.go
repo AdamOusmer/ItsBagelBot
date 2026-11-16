@@ -13,6 +13,7 @@ import (
 	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/transactions/ent/runtime"
 	giveawayengine "ItsBagelBot/app/db/transactions/giveaway"
+	"ItsBagelBot/app/db/transactions/kofi"
 	"ItsBagelBot/app/db/transactions/mail"
 	"ItsBagelBot/app/db/transactions/repository"
 	"ItsBagelBot/app/db/transactions/rpc"
@@ -76,9 +77,8 @@ func main() {
 	if err := rpc.SubscribeGiveaways(bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log.Named("giveaways")}, giveawayRPC); err != nil {
 		log.Fatal("failed to subscribe giveaways rpc", zap.Error(err))
 	}
-	if err := rpc.SubscribeGrantEmail(bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log.Named("grant-email")}, rpc.GrantEmailConfig{Users: usersGiveaways, Mailer: mailer}); err != nil {
-		log.Fatal("failed to subscribe premium grant email rpc", zap.Error(err))
-	}
+	donations := repository.NewDonations(client)
+	subscribeAdminRPCs(adminRPCs{nc: nc, nrApp: core.NR, log: log, users: usersGiveaways, mailer: mailer, ledger: donations})
 	go func() {
 		if err := giveawayEngine.Run(core.Ctx); err != nil && core.Ctx.Err() == nil {
 			log.Warn("giveaway engine stopped", zap.Error(err))
@@ -97,7 +97,9 @@ func main() {
 		RecordBillingIncident: func(ctx context.Context, incident web.BillingIncident) error {
 			return recordGiveawayBillingIncident(ctx, client, incident)
 		},
-		App: core.NR,
+		KofiToken: kofi.Token(env.Get("KOFI_VERIFICATION_TOKEN", "")),
+		Donations: donations,
+		App:       core.NR,
 	}, log.Named("http"))
 
 	httpServer := &http.Server{
@@ -117,19 +119,53 @@ func main() {
 		log.Fatal("transactions tls cert unusable", zap.Error(err))
 	}
 
-	log.Info("transactions service ready",
-		zap.String("listen_addr", core.ListenAddr),
-		zap.Bool("tls_enabled", tlsPair.Configured()),
-		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
-		zap.Bool("tebex_checkout_configured", checkoutConfigured),
-		zap.Bool("tebex_checkout_auth_configured", checkoutAuth),
-		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
-		zap.Bool("giveaways_new_awards_enabled", giveawayConfig.NewAwardsEnabled),
-		zap.Bool("giveaways_interval_rule_verified", giveawayConfig.IntervalRuleVerified),
-		zap.Bool("giveaways_provider_mutations_enabled", giveawayConfig.CanMutateProvider()),
-	)
+	logReady(log, readiness{listenAddr: core.ListenAddr, tls: tlsPair.Configured(), checkout: checkoutConfigured, checkoutAuth: checkoutAuth, giveaways: giveawayConfig})
 
 	serveHTTP(core.Ctx, listener{srv: httpServer}, log)
+}
+
+type readiness struct {
+	listenAddr   string
+	tls          bool
+	checkout     bool
+	checkoutAuth bool
+	giveaways    giveawayengine.Config
+}
+
+func logReady(log *zap.Logger, r readiness) {
+	log.Info("transactions service ready",
+		zap.String("listen_addr", r.listenAddr),
+		zap.Bool("tls_enabled", r.tls),
+		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
+		zap.Bool("kofi_webhook_configured", env.Get("KOFI_VERIFICATION_TOKEN", "") != ""),
+		zap.Bool("tebex_checkout_configured", r.checkout),
+		zap.Bool("tebex_checkout_auth_configured", r.checkoutAuth),
+		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
+		zap.Bool("giveaways_new_awards_enabled", r.giveaways.NewAwardsEnabled),
+		zap.Bool("giveaways_interval_rule_verified", r.giveaways.IntervalRuleVerified),
+		zap.Bool("giveaways_provider_mutations_enabled", r.giveaways.CanMutateProvider()),
+	)
+}
+
+type adminRPCs struct {
+	nc     *nats.Conn
+	nrApp  *newrelic.Application
+	log    *zap.Logger
+	users  *rpc.UsersGiveawayClient
+	mailer *mail.Mailer
+	ledger *repository.Donations
+}
+
+func subscribeAdminRPCs(a adminRPCs) {
+	wiring := func(name string) bus.RPCWiring {
+		return bus.RPCWiring{NC: a.nc, App: a.nrApp, Queue: queueGroup, Log: a.log.Named(name)}
+	}
+	if err := rpc.SubscribeGrantEmail(wiring("grant-email"), rpc.GrantEmailConfig{Users: a.users, Mailer: a.mailer}); err != nil {
+		a.log.Fatal("failed to subscribe premium grant email rpc", zap.Error(err))
+	}
+	if err := rpc.SubscribeDonations(wiring("donations"), rpc.DonationsConfig{Users: a.users, Ledger: a.ledger}); err != nil {
+		a.log.Fatal("failed to subscribe donations rpc", zap.Error(err))
+	}
 }
 
 type checkoutRuntime struct {

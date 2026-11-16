@@ -26,6 +26,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { ANALYTICS_LIVE, ANALYTICS_REFRESH_MS, type AnalyticsView, type Bar, type DataTable, type Fact as ViewFact, type GainLoss, type Name, type Phrase, type Series } from '#lib/analytics-page';
   import { dateLabel, signed } from '#lib/analytics-view';
+  import type { DonationsView } from '#lib/donations-view';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -39,6 +40,8 @@
     breadth: 'modulesOn',
     imports: 'importSource',
     checkout: 'plan',
+    donations: 'currency',
+    donationMonths: 'month',
     recipeOutcomes: 'trigger',
     recipeTotals: 'trigger',
     drops: 'sendKind',
@@ -56,12 +59,14 @@
   const formatDay = (at: number) => dateLabel(new Date(at).toISOString().slice(0, 10));
 
   let view = $state<AnalyticsView | null>(null);
+  let donations = $state<DonationsView | null>(null);
   let degraded = $state(false);
   $effect(() => {
     let alive = true;
-    data.bundle.then((bundle: { view: AnalyticsView; degraded: boolean }) => {
+    data.bundle.then((bundle: { view: AnalyticsView; donations: DonationsView; degraded: boolean }) => {
       if (!alive) return;
       view = bundle.view;
+      donations = bundle.donations;
       degraded = bundle.degraded;
     });
     return () => {
@@ -395,6 +400,11 @@
       <div class="cell span-2">{@render tableCard('conversion', view?.revenue.conversion)}</div>
     </div>
     {@render tableCard('checkout', view?.revenue.checkout, undefined, view?.revenue.checkoutFacts)}
+    {@render tableCard('donations', donations?.totals, '760px', donations?.totalFacts)}
+    <div class="thirds">
+      <div class="cell span-2">{@render tableCard('donationMonths', donations?.months)}</div>
+      <div class="cell">{@render barCard('donationKinds', donations?.kinds)}</div>
+    </div>
   </section>
 
   <section id="features" class="block">

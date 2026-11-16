@@ -68,5 +68,14 @@
   "errorShare": "Taux d’erreur",
   "auth": "Autorisation",
   "exhausted": "Tentatives épuisées",
-  "chat_dropped": "Chat abandonné"
+  "chat_dropped": "Chat abandonné",
+  "currency": "Devise",
+  "gross": "Brut",
+  "payments": "Paiements",
+  "average": "Moyenne",
+  "recurring": "Récurrent",
+  "recurringShare": "Part récurrente",
+  "previousGross": "Période précédente",
+  "grossChange": "Variation",
+  "month": "Mois"
 }

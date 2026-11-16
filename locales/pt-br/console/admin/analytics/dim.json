@@ -1,4 +1,10 @@
 {
+  "donation": {
+    "donation": "Doação",
+    "subscription": "Assinatura",
+    "commission": "Encomenda",
+    "shop_order": "Pedido da loja"
+  },
   "size": {
     "v0_9": "De 0 a 9 espectadores",
     "v10_49": "De 10 a 49 espectadores",

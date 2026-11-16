@@ -28,5 +28,7 @@
   "recipeChannelsWeek": "Canales con recetas, última semana completa",
   "songSuccess": "Proporción de solicitudes correctas",
   "delegating": "Cuentas con delegados",
-  "delegatingShare": "Proporción de cuentas con delegados"
+  "delegatingShare": "Proporción de cuentas con delegados",
+  "newSubscribers": "Nuevos miembros de Ko-fi",
+  "lastDonation": "Último pago de Ko-fi"
 }

@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayinclusion"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
+	"ItsBagelBot/app/db/transactions/ent/kofidonation"
 	"ItsBagelBot/app/db/transactions/ent/predicate"
 	"ItsBagelBot/app/db/transactions/ent/tebexagreement"
 	"ItsBagelBot/app/db/transactions/ent/tebexwebhookevents"
@@ -47,6 +48,7 @@ const (
 	TypeGiveawayInclusion       = "GiveawayInclusion"
 	TypeGiveawayOutbox          = "GiveawayOutbox"
 	TypeGiveawayUserLease       = "GiveawayUserLease"
+	TypeKofiDonation            = "KofiDonation"
 	TypeTebexAgreement          = "TebexAgreement"
 	TypeTebexWebhookEvents      = "TebexWebhookEvents"
 )
@@ -11347,6 +11349,828 @@ func (m *GiveawayUserLeaseMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *GiveawayUserLeaseMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown GiveawayUserLease edge %s", name)
+}
+
+// KofiDonationMutation represents an operation that mutates the KofiDonation nodes in the graph.
+type KofiDonationMutation struct {
+	config
+	op                         Op
+	typ                        string
+	id                         *string
+	message_id                 *string
+	kind                       *kofidonation.Kind
+	amount_cents               *int64
+	addamount_cents            *int64
+	currency                   *string
+	subscription_payment       *bool
+	first_subscription_payment *bool
+	tier_name                  *string
+	occurred_at                *time.Time
+	created_at                 *time.Time
+	clearedFields              map[string]struct{}
+	done                       bool
+	oldValue                   func(context.Context) (*KofiDonation, error)
+	predicates                 []predicate.KofiDonation
+}
+
+var _ ent.Mutation = (*KofiDonationMutation)(nil)
+
+// kofidonationOption allows management of the mutation configuration using functional options.
+type kofidonationOption func(*KofiDonationMutation)
+
+// newKofiDonationMutation creates new mutation for the KofiDonation entity.
+func newKofiDonationMutation(c config, op Op, opts ...kofidonationOption) *KofiDonationMutation {
+	m := &KofiDonationMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeKofiDonation,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withKofiDonationID sets the ID field of the mutation.
+func withKofiDonationID(id string) kofidonationOption {
+	return func(m *KofiDonationMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *KofiDonation
+		)
+		m.oldValue = func(ctx context.Context) (*KofiDonation, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().KofiDonation.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withKofiDonation sets the old KofiDonation of the mutation.
+func withKofiDonation(node *KofiDonation) kofidonationOption {
+	return func(m *KofiDonationMutation) {
+		m.oldValue = func(context.Context) (*KofiDonation, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m KofiDonationMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m KofiDonationMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of KofiDonation entities.
+func (m *KofiDonationMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *KofiDonationMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *KofiDonationMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().KofiDonation.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetMessageID sets the "message_id" field.
+func (m *KofiDonationMutation) SetMessageID(s string) {
+	m.message_id = &s
+}
+
+// MessageID returns the value of the "message_id" field in the mutation.
+func (m *KofiDonationMutation) MessageID() (r string, exists bool) {
+	v := m.message_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMessageID returns the old "message_id" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldMessageID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMessageID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMessageID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMessageID: %w", err)
+	}
+	return oldValue.MessageID, nil
+}
+
+// ResetMessageID resets all changes to the "message_id" field.
+func (m *KofiDonationMutation) ResetMessageID() {
+	m.message_id = nil
+}
+
+// SetKind sets the "kind" field.
+func (m *KofiDonationMutation) SetKind(k kofidonation.Kind) {
+	m.kind = &k
+}
+
+// Kind returns the value of the "kind" field in the mutation.
+func (m *KofiDonationMutation) Kind() (r kofidonation.Kind, exists bool) {
+	v := m.kind
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKind returns the old "kind" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldKind(ctx context.Context) (v kofidonation.Kind, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKind is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKind requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKind: %w", err)
+	}
+	return oldValue.Kind, nil
+}
+
+// ResetKind resets all changes to the "kind" field.
+func (m *KofiDonationMutation) ResetKind() {
+	m.kind = nil
+}
+
+// SetAmountCents sets the "amount_cents" field.
+func (m *KofiDonationMutation) SetAmountCents(i int64) {
+	m.amount_cents = &i
+	m.addamount_cents = nil
+}
+
+// AmountCents returns the value of the "amount_cents" field in the mutation.
+func (m *KofiDonationMutation) AmountCents() (r int64, exists bool) {
+	v := m.amount_cents
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAmountCents returns the old "amount_cents" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldAmountCents(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAmountCents is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAmountCents requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAmountCents: %w", err)
+	}
+	return oldValue.AmountCents, nil
+}
+
+// AddAmountCents adds i to the "amount_cents" field.
+func (m *KofiDonationMutation) AddAmountCents(i int64) {
+	if m.addamount_cents != nil {
+		*m.addamount_cents += i
+	} else {
+		m.addamount_cents = &i
+	}
+}
+
+// AddedAmountCents returns the value that was added to the "amount_cents" field in this mutation.
+func (m *KofiDonationMutation) AddedAmountCents() (r int64, exists bool) {
+	v := m.addamount_cents
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAmountCents resets all changes to the "amount_cents" field.
+func (m *KofiDonationMutation) ResetAmountCents() {
+	m.amount_cents = nil
+	m.addamount_cents = nil
+}
+
+// SetCurrency sets the "currency" field.
+func (m *KofiDonationMutation) SetCurrency(s string) {
+	m.currency = &s
+}
+
+// Currency returns the value of the "currency" field in the mutation.
+func (m *KofiDonationMutation) Currency() (r string, exists bool) {
+	v := m.currency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCurrency returns the old "currency" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldCurrency(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCurrency is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCurrency requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCurrency: %w", err)
+	}
+	return oldValue.Currency, nil
+}
+
+// ResetCurrency resets all changes to the "currency" field.
+func (m *KofiDonationMutation) ResetCurrency() {
+	m.currency = nil
+}
+
+// SetSubscriptionPayment sets the "subscription_payment" field.
+func (m *KofiDonationMutation) SetSubscriptionPayment(b bool) {
+	m.subscription_payment = &b
+}
+
+// SubscriptionPayment returns the value of the "subscription_payment" field in the mutation.
+func (m *KofiDonationMutation) SubscriptionPayment() (r bool, exists bool) {
+	v := m.subscription_payment
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionPayment returns the old "subscription_payment" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldSubscriptionPayment(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionPayment is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionPayment requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionPayment: %w", err)
+	}
+	return oldValue.SubscriptionPayment, nil
+}
+
+// ResetSubscriptionPayment resets all changes to the "subscription_payment" field.
+func (m *KofiDonationMutation) ResetSubscriptionPayment() {
+	m.subscription_payment = nil
+}
+
+// SetFirstSubscriptionPayment sets the "first_subscription_payment" field.
+func (m *KofiDonationMutation) SetFirstSubscriptionPayment(b bool) {
+	m.first_subscription_payment = &b
+}
+
+// FirstSubscriptionPayment returns the value of the "first_subscription_payment" field in the mutation.
+func (m *KofiDonationMutation) FirstSubscriptionPayment() (r bool, exists bool) {
+	v := m.first_subscription_payment
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFirstSubscriptionPayment returns the old "first_subscription_payment" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldFirstSubscriptionPayment(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFirstSubscriptionPayment is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFirstSubscriptionPayment requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFirstSubscriptionPayment: %w", err)
+	}
+	return oldValue.FirstSubscriptionPayment, nil
+}
+
+// ResetFirstSubscriptionPayment resets all changes to the "first_subscription_payment" field.
+func (m *KofiDonationMutation) ResetFirstSubscriptionPayment() {
+	m.first_subscription_payment = nil
+}
+
+// SetTierName sets the "tier_name" field.
+func (m *KofiDonationMutation) SetTierName(s string) {
+	m.tier_name = &s
+}
+
+// TierName returns the value of the "tier_name" field in the mutation.
+func (m *KofiDonationMutation) TierName() (r string, exists bool) {
+	v := m.tier_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTierName returns the old "tier_name" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldTierName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTierName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTierName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTierName: %w", err)
+	}
+	return oldValue.TierName, nil
+}
+
+// ClearTierName clears the value of the "tier_name" field.
+func (m *KofiDonationMutation) ClearTierName() {
+	m.tier_name = nil
+	m.clearedFields[kofidonation.FieldTierName] = struct{}{}
+}
+
+// TierNameCleared returns if the "tier_name" field was cleared in this mutation.
+func (m *KofiDonationMutation) TierNameCleared() bool {
+	_, ok := m.clearedFields[kofidonation.FieldTierName]
+	return ok
+}
+
+// ResetTierName resets all changes to the "tier_name" field.
+func (m *KofiDonationMutation) ResetTierName() {
+	m.tier_name = nil
+	delete(m.clearedFields, kofidonation.FieldTierName)
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (m *KofiDonationMutation) SetOccurredAt(t time.Time) {
+	m.occurred_at = &t
+}
+
+// OccurredAt returns the value of the "occurred_at" field in the mutation.
+func (m *KofiDonationMutation) OccurredAt() (r time.Time, exists bool) {
+	v := m.occurred_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOccurredAt returns the old "occurred_at" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldOccurredAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOccurredAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOccurredAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOccurredAt: %w", err)
+	}
+	return oldValue.OccurredAt, nil
+}
+
+// ResetOccurredAt resets all changes to the "occurred_at" field.
+func (m *KofiDonationMutation) ResetOccurredAt() {
+	m.occurred_at = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *KofiDonationMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *KofiDonationMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the KofiDonation entity.
+// If the KofiDonation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *KofiDonationMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *KofiDonationMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the KofiDonationMutation builder.
+func (m *KofiDonationMutation) Where(ps ...predicate.KofiDonation) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the KofiDonationMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *KofiDonationMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.KofiDonation, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *KofiDonationMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *KofiDonationMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (KofiDonation).
+func (m *KofiDonationMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *KofiDonationMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.message_id != nil {
+		fields = append(fields, kofidonation.FieldMessageID)
+	}
+	if m.kind != nil {
+		fields = append(fields, kofidonation.FieldKind)
+	}
+	if m.amount_cents != nil {
+		fields = append(fields, kofidonation.FieldAmountCents)
+	}
+	if m.currency != nil {
+		fields = append(fields, kofidonation.FieldCurrency)
+	}
+	if m.subscription_payment != nil {
+		fields = append(fields, kofidonation.FieldSubscriptionPayment)
+	}
+	if m.first_subscription_payment != nil {
+		fields = append(fields, kofidonation.FieldFirstSubscriptionPayment)
+	}
+	if m.tier_name != nil {
+		fields = append(fields, kofidonation.FieldTierName)
+	}
+	if m.occurred_at != nil {
+		fields = append(fields, kofidonation.FieldOccurredAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, kofidonation.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *KofiDonationMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case kofidonation.FieldMessageID:
+		return m.MessageID()
+	case kofidonation.FieldKind:
+		return m.Kind()
+	case kofidonation.FieldAmountCents:
+		return m.AmountCents()
+	case kofidonation.FieldCurrency:
+		return m.Currency()
+	case kofidonation.FieldSubscriptionPayment:
+		return m.SubscriptionPayment()
+	case kofidonation.FieldFirstSubscriptionPayment:
+		return m.FirstSubscriptionPayment()
+	case kofidonation.FieldTierName:
+		return m.TierName()
+	case kofidonation.FieldOccurredAt:
+		return m.OccurredAt()
+	case kofidonation.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *KofiDonationMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case kofidonation.FieldMessageID:
+		return m.OldMessageID(ctx)
+	case kofidonation.FieldKind:
+		return m.OldKind(ctx)
+	case kofidonation.FieldAmountCents:
+		return m.OldAmountCents(ctx)
+	case kofidonation.FieldCurrency:
+		return m.OldCurrency(ctx)
+	case kofidonation.FieldSubscriptionPayment:
+		return m.OldSubscriptionPayment(ctx)
+	case kofidonation.FieldFirstSubscriptionPayment:
+		return m.OldFirstSubscriptionPayment(ctx)
+	case kofidonation.FieldTierName:
+		return m.OldTierName(ctx)
+	case kofidonation.FieldOccurredAt:
+		return m.OldOccurredAt(ctx)
+	case kofidonation.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown KofiDonation field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *KofiDonationMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case kofidonation.FieldMessageID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMessageID(v)
+		return nil
+	case kofidonation.FieldKind:
+		v, ok := value.(kofidonation.Kind)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKind(v)
+		return nil
+	case kofidonation.FieldAmountCents:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAmountCents(v)
+		return nil
+	case kofidonation.FieldCurrency:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCurrency(v)
+		return nil
+	case kofidonation.FieldSubscriptionPayment:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionPayment(v)
+		return nil
+	case kofidonation.FieldFirstSubscriptionPayment:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFirstSubscriptionPayment(v)
+		return nil
+	case kofidonation.FieldTierName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTierName(v)
+		return nil
+	case kofidonation.FieldOccurredAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOccurredAt(v)
+		return nil
+	case kofidonation.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown KofiDonation field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *KofiDonationMutation) AddedFields() []string {
+	var fields []string
+	if m.addamount_cents != nil {
+		fields = append(fields, kofidonation.FieldAmountCents)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *KofiDonationMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case kofidonation.FieldAmountCents:
+		return m.AddedAmountCents()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *KofiDonationMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case kofidonation.FieldAmountCents:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAmountCents(v)
+		return nil
+	}
+	return fmt.Errorf("unknown KofiDonation numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *KofiDonationMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(kofidonation.FieldTierName) {
+		fields = append(fields, kofidonation.FieldTierName)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *KofiDonationMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *KofiDonationMutation) ClearField(name string) error {
+	switch name {
+	case kofidonation.FieldTierName:
+		m.ClearTierName()
+		return nil
+	}
+	return fmt.Errorf("unknown KofiDonation nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *KofiDonationMutation) ResetField(name string) error {
+	switch name {
+	case kofidonation.FieldMessageID:
+		m.ResetMessageID()
+		return nil
+	case kofidonation.FieldKind:
+		m.ResetKind()
+		return nil
+	case kofidonation.FieldAmountCents:
+		m.ResetAmountCents()
+		return nil
+	case kofidonation.FieldCurrency:
+		m.ResetCurrency()
+		return nil
+	case kofidonation.FieldSubscriptionPayment:
+		m.ResetSubscriptionPayment()
+		return nil
+	case kofidonation.FieldFirstSubscriptionPayment:
+		m.ResetFirstSubscriptionPayment()
+		return nil
+	case kofidonation.FieldTierName:
+		m.ResetTierName()
+		return nil
+	case kofidonation.FieldOccurredAt:
+		m.ResetOccurredAt()
+		return nil
+	case kofidonation.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown KofiDonation field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *KofiDonationMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *KofiDonationMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *KofiDonationMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *KofiDonationMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *KofiDonationMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *KofiDonationMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *KofiDonationMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown KofiDonation unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *KofiDonationMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown KofiDonation edge %s", name)
 }
 
 // TebexAgreementMutation represents an operation that mutates the TebexAgreement nodes in the graph.
