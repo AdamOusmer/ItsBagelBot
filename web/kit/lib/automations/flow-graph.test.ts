@@ -992,3 +992,26 @@ describe('reward trigger', () => {
     expect(issues.map((issue) => issue.path)).toEqual([path]);
   });
 });
+
+describe('shared joins', () => {
+  const trigger = node('t', 'twitch.follow');
+  const chance = (id: string) => node(id, 'cond.chance', { percent: 50 });
+  const say = (id: string, message = 'x') => node(id, 'reply.chat', { message });
+
+  test.each([
+    {
+      name: 'a check whose two outcomes start the same parallel paths',
+      nodes: [trigger, chance('o'), chance('c'), say('a'), say('b'), say('j')],
+      edges: [edge('t', 'next', 'o'), edge('o', 'yes', 'c'), edge('o', 'no', 'j'), edge('c', 'yes', 'a'), edge('c', 'yes', 'b'), edge('c', 'no', 'a'), edge('c', 'no', 'b'), edge('a', 'next', 'j'), edge('b', 'next', 'j')],
+      last: chat('x')
+    },
+    {
+      name: 'a loop body and a check after it that meet at one step',
+      nodes: [trigger, node('l', 'reply.loop', { times: '2' }), chance('c'), say('j', 'JOIN')],
+      edges: [edge('t', 'next', 'l'), edge('l', 'body', 'j'), edge('l', 'done', 'c'), edge('c', 'yes', 'j')],
+      last: chat('JOIN')
+    }
+  ])('$name keeps the join unconditional', ({ nodes, edges, last }) => {
+    expect(lowered(flow(nodes, edges)).actions.at(-1)).toEqual(last);
+  });
+});

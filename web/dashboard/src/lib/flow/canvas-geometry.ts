@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { NODE_W, isSecondPort, specFor, type Flow, type FlowNode } from './model';
+import { NODE_W, isSecondPort, specFor, type Flow, type FlowEdge, type FlowNode } from './model';
 import { inputY, loopTails, nodeHeight, portY } from './layout';
 import { previewPath, returnPath, wirePath } from './wire';
 import { graphIndex } from './graph-index';
@@ -11,10 +11,44 @@ const ARROW_GAP = 8;
 const RETURN_DROP = 20;
 const ADD_ROOM = 48;
 
-export function windowNodes(flow: Flow, view: View, size: { width: number; height: number }, selected: FlowNode['id'] | null): FlowNode[] {
-  if (flow.nodes.length <= 100) return flow.nodes;
-  const box = { x0: (-view.x - 400) / view.k, x1: (size.width - view.x + 400) / view.k, y0: (-view.y - 400) / view.k, y1: (size.height - view.y + 400) / view.k };
+type Size = { width: number; height: number };
+
+const WINDOW_LIMIT = 100;
+
+const viewBox = (view: View, size: Size): Box => ({
+  x0: (-view.x - 400) / view.k,
+  x1: (size.width - view.x + 400) / view.k,
+  y0: (-view.y - 400) / view.k,
+  y1: (size.height - view.y + 400) / view.k
+});
+
+export function windowNodes(flow: Flow, view: View, size: Size, selected: FlowNode['id'] | null): FlowNode[] {
+  if (flow.nodes.length <= WINDOW_LIMIT) return flow.nodes;
+  const box = viewBox(view, size);
   return flow.nodes.filter((node) => node.id === selected || overlaps(node, box));
+}
+
+function spanBox(a: FlowNode, b: FlowNode): Box {
+  return {
+    x0: Math.min(a.x, b.x),
+    x1: Math.max(a.x, b.x) + NODE_W,
+    y0: Math.min(a.y, b.y),
+    y1: Math.max(a.y + nodeHeight(specFor(a.type)), b.y + nodeHeight(specFor(b.type)))
+  };
+}
+
+const boxesMeet = (a: Box, b: Box) => a.x0 <= b.x1 && a.x1 >= b.x0 && a.y0 <= b.y1 && a.y1 >= b.y0;
+
+export function windowEdges(flow: Flow, view: View, size: Size): Set<FlowEdge['id']> {
+  if (flow.nodes.length <= WINDOW_LIMIT) return new Set(flow.edges.map((edge) => edge.id));
+  const box = viewBox(view, size);
+  const byId = new Map(flow.nodes.map((node) => [node.id, node]));
+  const seen = flow.edges.filter((edge) => {
+    const from = byId.get(edge.from);
+    const to = byId.get(edge.to);
+    return Boolean(from && to && boxesMeet(spanBox(from, to), box));
+  });
+  return new Set(seen.map((edge) => edge.id));
 }
 
 function overlaps(node: FlowNode, box: Box): boolean {

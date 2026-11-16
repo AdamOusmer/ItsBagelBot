@@ -42,8 +42,7 @@
   import { GRID, NODE_W, outputsFor, specFor, type Flow, type FlowKind } from '../../flow/model';
   import { connect, duplicateNode, removeEdge } from '../../flow/ops';
   import { addStep, connectionTarget, parallelPorts, portOccupied, removeStep as deleteStep, selectedPlacement } from '../../flow/editor';
-  import { currentPositions, tweenPositions } from '../../flow/canvas-geometry';
-  import { edgePaths, flowBounds, focusBounds, loopPaths, startPaths, windowNodes, wirePreview } from '../../flow/canvas-geometry';
+  import { currentPositions, edgePaths, flowBounds, focusBounds, loopPaths, startPaths, tweenPositions, windowEdges, windowNodes, wirePreview } from '../../flow/canvas-geometry';
   import { searchSteps } from '../../flow/search';
   import { neighbor, readingOrder, stepDelta, stepIndex } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
@@ -124,8 +123,7 @@
   let edgeEls = $state<Record<string, SVGElement | null>>({});
   let view = $state({ x: 0, y: 0, k: 1 });
   const renderedNodes = $derived(windowNodes(flow, view, boardSize, selectedId));
-  const renderedIds = $derived(new Set(renderedNodes.map((node) => node.id)));
-  const renderedEdgeIds = $derived(new Set(flow.edges.filter((edge) => renderedIds.has(edge.from) || renderedIds.has(edge.to)).map((edge) => edge.id)));
+  const renderedEdgeIds = $derived(windowEdges(flow, view, boardSize));
   let disp = $state<Record<string, Pt>>({});
   let dragging = $state(false);
   let wire = $state<{ from: string; port: string; x: number; y: number } | null>(null);

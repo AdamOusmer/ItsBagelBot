@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
-import { focusBounds, windowNodes } from './canvas-geometry';
+import { focusBounds, windowEdges, windowNodes } from './canvas-geometry';
 import { newFlow, type Flow } from './model';
 import { revealBox } from './touch';
 
@@ -27,4 +27,11 @@ test.each([0, 180000, 360000])('large boards render the viewport at %i and retai
   const expected = flow.nodes.filter((node) => node.id === '1000' || (node.x <= pan + 1400 && node.x + 288 >= pan - 400));
   expect(visible.map((node) => node.id)).toEqual(expected.map((node) => node.id));
   expect(flow.nodes).toHaveLength(1001);
+});
+
+test('large boards keep a wire that crosses the viewport between two far steps', () => {
+  const flow = chain(101);
+  flow.nodes[1] = { ...flow.nodes[1], x: 4000 };
+  const edges = windowEdges(flow, { x: -2000, y: 0, k: 1 }, { width: 1000, height: 900 });
+  expect(edges.has('0')).toBe(true);
 });
