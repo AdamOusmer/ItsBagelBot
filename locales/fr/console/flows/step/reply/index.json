@@ -185,7 +185,7 @@
   },
   "poll": {
     "label": "Lancer un sondage",
-    "summary": "Lancer un sondage",
+    "summary": "Laisser les spectateurs voter sur une question",
     "field": {
       "title": {
         "label": "Titre"
@@ -200,7 +200,7 @@
   },
   "pollEnd": {
     "label": "Terminer un sondage",
-    "summary": "Terminer un sondage",
+    "summary": "Arrêter le vote ou archiver les résultats",
     "field": {
       "status": {
         "label": "Action",
@@ -213,7 +213,7 @@
   },
   "prediction": {
     "label": "Lancer une prédiction",
-    "summary": "Lancer une prédiction",
+    "summary": "Laisser les spectateurs miser des points sur un résultat",
     "field": {
       "title": {
         "label": "Titre"
@@ -228,7 +228,7 @@
   },
   "predictionEnd": {
     "label": "Terminer une prédiction",
-    "summary": "Terminer une prédiction",
+    "summary": "Fermer les paris, rembourser ou choisir un gagnant",
     "field": {
       "status": {
         "label": "Action",
@@ -245,7 +245,7 @@
   },
   "raidStart": {
     "label": "Lancer un raid",
-    "summary": "Lancer un raid",
+    "summary": "Envoyer tes spectateurs sur une autre chaîne",
     "field": {
       "target": {
         "label": "Identifiant de chaîne ou de spectateur"
@@ -254,11 +254,11 @@
   },
   "raidCancel": {
     "label": "Annuler un raid",
-    "summary": "Annuler un raid"
+    "summary": "Arrêter le raid avant le départ des spectateurs"
   },
   "mod": {
     "label": "Modifier le rôle de modérateur",
-    "summary": "Modifier le rôle de modérateur",
+    "summary": "Donner ou retirer les droits de modération",
     "field": {
       "target": {
         "label": "Identifiant de chaîne ou de spectateur"
@@ -270,7 +270,7 @@
   },
   "vip": {
     "label": "Modifier le rôle VIP",
-    "summary": "Modifier le rôle VIP",
+    "summary": "Donner ou retirer le badge VIP d'un spectateur",
     "field": {
       "target": {
         "label": "Identifiant de chaîne ou de spectateur"
@@ -282,15 +282,15 @@
   },
   "clearChat": {
     "label": "Effacer le chat",
-    "summary": "Effacer le chat"
+    "summary": "Supprimer tous les messages du chat"
   },
   "adSnooze": {
     "label": "Reporter la prochaine publicité",
-    "summary": "Reporter la prochaine publicité"
+    "summary": "Décaler la prochaine pause publicitaire"
   },
   "whisper": {
     "label": "Envoyer un message privé",
-    "summary": "Envoyer un message privé",
+    "summary": "Écrire en privé à un seul spectateur",
     "field": {
       "target": {
         "label": "Identifiant de chaîne ou de spectateur"
@@ -302,7 +302,7 @@
   },
   "unbanResolve": {
     "label": "Traiter la demande de déban",
-    "summary": "Traiter la demande de déban",
+    "summary": "Accepter ou refuser l'appel d'un spectateur",
     "field": {
       "status": {
         "label": "Action",
@@ -318,7 +318,7 @@
   },
   "brandedContent": {
     "label": "Définir le contenu sponsorisé",
-    "summary": "Définir le contenu sponsorisé",
+    "summary": "Afficher ou masquer la mention de promotion payée",
     "field": {
       "on": {
         "label": "Activé"

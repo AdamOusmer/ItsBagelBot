@@ -9,10 +9,12 @@
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import { getI18n } from '@bagel/kit';
   import { groupLabel, stepLabel, stepSummary } from '#lib/flow/copy';
-  import { NODE_SPECS, type FlowKind, type NodeSpec, type StepGroup } from '#lib/flow/model';
+  import type { FlowKind, NodeSpec } from '#lib/flow/model';
+  import { searchSteps } from '#lib/flow/search';
   import { stepFocus } from '#lib/flow/keyboard';
 
   export type LibraryMode = FlowKind | 'search';
+  type LibrarySection = { key: string; title: string; specs: NodeSpec[] };
 
   let {
     mode,
@@ -33,7 +35,6 @@
     condition: 'var(--bb-tan)',
     reply: 'var(--bb-muted-light)'
   };
-  const GROUP_ORDER: readonly StepGroup[] = ['twitch', 'modules', 'basics'];
 
   let query = $state('');
   let searchEl = $state<HTMLInputElement>();
@@ -49,17 +50,23 @@
 
   const onKeyDown = (e: KeyboardEvent) => stepFocus(e, Array.from(root?.querySelectorAll<HTMLElement>('input, .row') ?? []));
 
-  const sections = $derived.by(() => {
-    const q = query.trim().toLowerCase();
-    const pool = NODE_SPECS.filter(
-      (s) =>
-        (mode === 'search' || s.kind === mode) &&
-        (!q || `${stepLabel(t, s)} ${stepSummary(t, s)} ${groupLabel(t, s.group)}`.toLowerCase().includes(q))
-    );
-    return GROUP_ORDER.map((group) => ({ group, title: groupLabel(t, group), specs: pool.filter((s) => s.group === group) })).filter(
-      (g) => g.specs.length > 0
-    );
-  });
+  const results = $derived(searchSteps(t, query, mode === 'search' ? undefined : [mode]));
+  const sections = $derived(results.reduce<LibrarySection[]>((groups, spec) => {
+    const key = `${spec.kind}.${spec.group}`;
+    const previous = groups.at(-1);
+    if (previous?.key === key) previous.specs.push(spec);
+    else groups.push({ key, title: groupLabel(t, spec.group), specs: [spec] });
+    return groups;
+  }, []));
+
+  function onSearchKeyDown(event: KeyboardEvent) {
+    if (event.key !== 'Enter' || event.isComposing) return;
+    const first = results[0];
+    if (!first) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onAdd(first.type);
+  }
 
   function onDragStart(e: DragEvent, spec: NodeSpec) {
     if (!e.dataTransfer) return;
@@ -71,21 +78,20 @@
 
 <div class="library" role="presentation" bind:this={root} onkeydown={onKeyDown}>
   <header class="head">
-    {#if mode === 'search'}
-      <div class="search">
-        <SearchInput bind:value={query} bind:element={searchEl} placeholder={t('flows.board.searchAll')} fill />
-      </div>
-    {:else}
-      <div class="titles">
-        <span class="title">{headings(mode).title}</span>
-        <span class="hint">{headings(mode).hint}</span>
-      </div>
-    {/if}
+    <div class="search">
+      {#if mode !== 'search'}
+        <div class="titles">
+          <span class="title">{headings(mode).title}</span>
+          <span class="hint">{headings(mode).hint}</span>
+        </div>
+      {/if}
+      <SearchInput bind:value={query} bind:element={searchEl} placeholder={t('flows.board.searchAll')} onkeydown={onSearchKeyDown} fill />
+    </div>
     <IconButton label={t('flows.board.closeLibrary')} size="sm" onclick={onClose}><Icon name="x" size={14} /></IconButton>
   </header>
 
   <Scroller fill padding="0 8px 16px" smooth>
-    {#each sections as group (group.group)}
+    {#each sections as group, index (`${index}.${group.key}`)}
       <section class="group">
         <h3 class="group-title">{group.title}</h3>
         {#each group.specs as spec (spec.type)}
@@ -126,6 +132,9 @@
     padding: 16px 12px 12px 16px;
   }
   .search {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     flex: 1;
     min-width: 0;
   }

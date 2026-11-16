@@ -185,7 +185,7 @@
   },
   "poll": {
     "label": "Start a poll",
-    "summary": "Start a poll",
+    "summary": "Let viewers vote on a question",
     "field": {
       "title": {
         "label": "Title"
@@ -200,7 +200,7 @@
   },
   "pollEnd": {
     "label": "End a poll",
-    "summary": "End a poll",
+    "summary": "Stop voting or archive the results",
     "field": {
       "status": {
         "label": "Action",
@@ -213,7 +213,7 @@
   },
   "prediction": {
     "label": "Start a prediction",
-    "summary": "Start a prediction",
+    "summary": "Let viewers bet points on an outcome",
     "field": {
       "title": {
         "label": "Title"
@@ -228,7 +228,7 @@
   },
   "predictionEnd": {
     "label": "End a prediction",
-    "summary": "End a prediction",
+    "summary": "Lock bets, refund points or pick a winner",
     "field": {
       "status": {
         "label": "Action",
@@ -245,7 +245,7 @@
   },
   "raidStart": {
     "label": "Start a raid",
-    "summary": "Start a raid",
+    "summary": "Send your viewers to another channel",
     "field": {
       "target": {
         "label": "Channel or viewer login"
@@ -254,11 +254,11 @@
   },
   "raidCancel": {
     "label": "Cancel a raid",
-    "summary": "Cancel a raid"
+    "summary": "Stop the raid before viewers leave"
   },
   "mod": {
     "label": "Set moderator role",
-    "summary": "Set moderator role",
+    "summary": "Give or remove moderator access",
     "field": {
       "target": {
         "label": "Channel or viewer login"
@@ -270,7 +270,7 @@
   },
   "vip": {
     "label": "Set VIP role",
-    "summary": "Set VIP role",
+    "summary": "Give or remove a viewer's VIP badge",
     "field": {
       "target": {
         "label": "Channel or viewer login"
@@ -282,15 +282,15 @@
   },
   "clearChat": {
     "label": "Clear chat",
-    "summary": "Clear chat"
+    "summary": "Remove all messages from chat"
   },
   "adSnooze": {
     "label": "Snooze the next ad",
-    "summary": "Snooze the next ad"
+    "summary": "Push back the next ad break"
   },
   "whisper": {
     "label": "Send a whisper",
-    "summary": "Send a whisper",
+    "summary": "Send a private message to one viewer",
     "field": {
       "target": {
         "label": "Channel or viewer login"
@@ -302,7 +302,7 @@
   },
   "unbanResolve": {
     "label": "Resolve the unban request",
-    "summary": "Resolve the unban request",
+    "summary": "Approve or deny a viewer's appeal",
     "field": {
       "status": {
         "label": "Action",
@@ -318,7 +318,7 @@
   },
   "brandedContent": {
     "label": "Set branded content",
-    "summary": "Set branded content",
+    "summary": "Show or hide the paid promotion notice",
     "field": {
       "on": {
         "label": "Enabled"

@@ -36,7 +36,7 @@
   },
   "cooldown": {
     "label": "Tiempo de espera",
-    "summary": "Espera entre ejecuciones",
+    "summary": "Permite una ejecución cada pocos segundos",
     "field": {
       "seconds": {
         "label": "Tiempo de espera",
@@ -70,7 +70,7 @@
   },
   "compare": {
     "label": "Comparar valor",
-    "summary": "Comprueba una variable",
+    "summary": "Compara dos números o textos",
     "field": {
       "left": {
         "label": "Valor",

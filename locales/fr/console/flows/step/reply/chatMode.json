@@ -1,6 +1,6 @@
 {
   "label": "Modifier le mode du chat",
-  "summary": "Modifier le mode du chat",
+  "summary": "Choisir qui peut parler et à quelle fréquence",
   "field": {
     "mode": {
       "label": "Mode du chat",

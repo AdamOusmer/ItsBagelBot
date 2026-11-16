@@ -1,6 +1,6 @@
 {
   "label": "Chatmodus ändern",
-  "summary": "Chatmodus ändern",
+  "summary": "Festlegen, wer wie oft chatten darf",
   "field": {
     "mode": {
       "label": "Chatmodus",

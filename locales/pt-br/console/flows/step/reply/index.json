@@ -185,7 +185,7 @@
   },
   "poll": {
     "label": "Iniciar uma enquete",
-    "summary": "Iniciar uma enquete",
+    "summary": "Deixe os espectadores votarem em uma pergunta",
     "field": {
       "title": {
         "label": "Título"
@@ -200,7 +200,7 @@
   },
   "pollEnd": {
     "label": "Encerrar uma enquete",
-    "summary": "Encerrar uma enquete",
+    "summary": "Pare a votação ou arquive os resultados",
     "field": {
       "status": {
         "label": "Ação",
@@ -213,7 +213,7 @@
   },
   "prediction": {
     "label": "Iniciar uma previsão",
-    "summary": "Iniciar uma previsão",
+    "summary": "Deixe os espectadores apostarem pontos em um resultado",
     "field": {
       "title": {
         "label": "Título"
@@ -228,7 +228,7 @@
   },
   "predictionEnd": {
     "label": "Encerrar uma previsão",
-    "summary": "Encerrar uma previsão",
+    "summary": "Feche apostas, devolva pontos ou escolha um vencedor",
     "field": {
       "status": {
         "label": "Ação",
@@ -245,7 +245,7 @@
   },
   "raidStart": {
     "label": "Iniciar uma raid",
-    "summary": "Iniciar uma raid",
+    "summary": "Envie seus espectadores para outro canal",
     "field": {
       "target": {
         "label": "Nome do canal ou espectador"
@@ -254,11 +254,11 @@
   },
   "raidCancel": {
     "label": "Cancelar uma raid",
-    "summary": "Cancelar uma raid"
+    "summary": "Pare a raid antes que os espectadores saiam"
   },
   "mod": {
     "label": "Alterar cargo de moderador",
-    "summary": "Alterar cargo de moderador",
+    "summary": "Dê ou remova permissões de moderador",
     "field": {
       "target": {
         "label": "Nome do canal ou espectador"
@@ -270,7 +270,7 @@
   },
   "vip": {
     "label": "Alterar cargo VIP",
-    "summary": "Alterar cargo VIP",
+    "summary": "Dê ou remova o distintivo VIP de um espectador",
     "field": {
       "target": {
         "label": "Nome do canal ou espectador"
@@ -282,15 +282,15 @@
   },
   "clearChat": {
     "label": "Limpar o chat",
-    "summary": "Limpar o chat"
+    "summary": "Remova todas as mensagens do chat"
   },
   "adSnooze": {
     "label": "Adiar o próximo anúncio",
-    "summary": "Adiar o próximo anúncio"
+    "summary": "Atrase a próxima pausa para anúncios"
   },
   "whisper": {
     "label": "Enviar um sussurro",
-    "summary": "Enviar um sussurro",
+    "summary": "Envie uma mensagem privada para um espectador",
     "field": {
       "target": {
         "label": "Nome do canal ou espectador"
@@ -302,7 +302,7 @@
   },
   "unbanResolve": {
     "label": "Resolver pedido de desbanimento",
-    "summary": "Resolver pedido de desbanimento",
+    "summary": "Aprove ou negue o recurso de um espectador",
     "field": {
       "status": {
         "label": "Ação",
@@ -318,7 +318,7 @@
   },
   "brandedContent": {
     "label": "Definir conteúdo de marca",
-    "summary": "Definir conteúdo de marca",
+    "summary": "Mostre ou oculte o aviso de promoção paga",
     "field": {
       "on": {
         "label": "Ativado"
