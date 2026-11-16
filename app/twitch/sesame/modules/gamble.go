@@ -107,11 +107,20 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 		return err
 	}
 	if !allowed {
-		gc.reply(emit, "", "gamble.cool", "secs", strconv.FormatInt(gc.cfg.CooldownSeconds, 10))
-		return nil
+		return gc.replyCooling(ctx, login, emit)
 	}
 
 	return gc.settle(ctx, login, wagerOutcome{bet: bet}, emit)
+}
+
+func (gc gambleCmd) replyCooling(ctx context.Context, login string, emit module.Emit) error {
+	left, err := gc.d.Cooldown.TimeLeft(ctx, gambleCooldownKey(gc.c.BroadcasterID, login))
+	if err != nil {
+		return err
+	}
+	secs := max(int64(math.Ceil(left.Seconds())), 1)
+	gc.reply(emit, "", "gamble.cool", "secs", strconv.FormatInt(secs, 10))
+	return nil
 }
 
 func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
@@ -175,12 +184,23 @@ func (gc gambleCmd) refuse(arg string) (int64, refusal) {
 	case engine.BetEmpty, engine.BetInvalid:
 		return 0, refusal{key: "gamble.usage"}
 	case engine.BetBelowMin:
-		return 0, refusal{key: "gamble.min", tokens: boundKV("min", gc.cfg.MinBet)}
+		return 0, gc.belowMin()
 	case engine.BetAboveMax:
 		return 0, refusal{key: "gamble.max", tokens: boundKV("max", gc.cfg.MaxBet)}
 	default:
-		return 0, refusal{key: "gamble.broke", tokens: []string{"balance", strconv.FormatInt(gc.balance, 10)}}
+		return 0, gc.broke()
 	}
+}
+
+func (gc gambleCmd) belowMin() refusal {
+	if gc.balance < gc.cfg.MinBet {
+		return gc.broke()
+	}
+	return refusal{key: "gamble.min", tokens: boundKV("min", gc.cfg.MinBet)}
+}
+
+func (gc gambleCmd) broke() refusal {
+	return refusal{key: "gamble.broke", tokens: boundKV("balance", gc.balance)}
 }
 
 // Refuse a wager whose possible net win exceeds the cached balance capacity.

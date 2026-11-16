@@ -27,13 +27,13 @@
       "label": "Gewinnnachricht",
       "tagline": "Wenn der Wurf innerhalb der Gewinnchance liegt.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} hat {roll} gewürfelt (nötig: höchstens {chance}) und {amount} {points} gewonnen. Neuer Stand: {balance}!"
+      "defaultMessage": "@{user} du hast {roll} gewürfelt und {amount} {points} gewonnen! {balance} im Sack. frisch aus dem Ofen, genau wie ich."
     },
     "lost": {
       "label": "Verlustnachricht",
       "tagline": "Wenn der Wurf außerhalb der Gewinnchance liegt.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} hat {roll} gewürfelt (nötig: höchstens {chance}) und {amount} {points} verloren. Neuer Stand: {balance}."
+      "defaultMessage": "@{user} du hast {roll} gewürfelt und {amount} {points} verloren. noch {balance} übrig. das Haus dankt für deine Spende."
     }
   },
   "commands": {

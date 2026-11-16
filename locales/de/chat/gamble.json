@@ -1,12 +1,12 @@
 {
-  "broke": "@{gamble:user} dein Guthaben reicht nicht für diese Wette. Du hast {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} die Würfel brauchen eine Pause. Versuch es in {gamble:secs}s noch mal.",
-  "err": "@{gamble:user} das hat nicht geklappt, versuch es bitte noch mal.",
-  "lose": "@{gamble:user} hat {gamble:roll} gewürfelt (nötig: höchstens {gamble:chance}) und {gamble:amount} {gamble:points} verloren. Neuer Stand: {gamble:balance}.",
-  "range": "@{gamble:user} diese Wette könnte das Punktelimit überschreiten.",
-  "max": "@{gamble:user} die Höchstwette beträgt {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} die Mindestwette beträgt {gamble:min} {gamble:points}.",
-  "usage": "Verwendung: !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} ich habe dich in diesem Kanal noch nicht gesehen. Bleib erst mal hier und verdiene etwas {gamble:points}!",
-  "win": "@{gamble:user} hat {gamble:roll} gewürfelt (nötig: höchstens {gamble:chance}) und {gamble:amount} {gamble:points} gewonnen. Neuer Stand: {gamble:balance}!"
+  "broke": "@{gamble:user} du setzt Teig, den du nicht hast. du hast {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} langsam, Zocker. die Würfel kühlen noch ab, versuch's in {gamble:secs}s nochmal.",
+  "err": "@{gamble:user} die Würfel sind unter den Toaster gerollt. versuch's nochmal.",
+  "lose": "@{gamble:user} du hast {gamble:roll} gewürfelt und {gamble:amount} {gamble:points} verloren. noch {gamble:balance} übrig. das Haus dankt für deine Spende.",
+  "range": "@{gamble:user} dieser Gewinn passt nicht mal in meinen Tresor. setz etwas weniger.",
+  "max": "@{gamble:user} hoppla, Highroller. der Höchsteinsatz liegt bei {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} das sind Krümel. der Mindesteinsatz liegt bei {gamble:min} {gamble:points}.",
+  "usage": "@{gamble:user} wie viel riskieren wir? !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} wer bist du denn? dich hab ich hier noch nie gesehen. bleib ein bisschen und verdien dir erst mal {gamble:points}.",
+  "win": "@{gamble:user} du hast {gamble:roll} gewürfelt und {gamble:amount} {gamble:points} gewonnen! {gamble:balance} im Sack. frisch aus dem Ofen, genau wie ich."
 }

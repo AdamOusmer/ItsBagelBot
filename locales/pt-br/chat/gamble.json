@@ -1,12 +1,12 @@
 {
-  "broke": "@{gamble:user} seu saldo não cobre essa aposta: {gamble:balance} {gamble:points}.",
-  "cool": "@{gamble:user} os dados precisam de um respiro. Tente novamente em {gamble:secs}s.",
-  "err": "@{gamble:user} não deu certo, tente novamente.",
-  "lose": "@{gamble:user} tirou {gamble:roll} (precisava de {gamble:chance} ou menos) e perdeu {gamble:amount} {gamble:points}. Saldo atual: {gamble:balance}.",
-  "range": "@{gamble:user} essa aposta pode ultrapassar o limite de pontos.",
-  "max": "@{gamble:user} a aposta máxima é {gamble:max} {gamble:points}.",
-  "min": "@{gamble:user} a aposta mínima é {gamble:min} {gamble:points}.",
-  "usage": "Uso: !gamble <amount|half|all>",
-  "unknown": "@{gamble:user} ainda não vi você neste canal. Fique por aqui para ganhar {gamble:points} primeiro!",
-  "win": "@{gamble:user} tirou {gamble:roll} (precisava de {gamble:chance} ou menos) e ganhou {gamble:amount} {gamble:points}. Saldo atual: {gamble:balance}!"
+  "broke": "@{gamble:user} você tá apostando massa que não tem. seu saldo é {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} calma, apostador. os dados ainda estão esfriando, tenta de novo em {gamble:secs}s.",
+  "err": "@{gamble:user} os dados rolaram pra baixo da torradeira. tenta de novo.",
+  "lose": "@{gamble:user} tirou {gamble:roll} e perdeu {gamble:amount} {gamble:points}. sobraram {gamble:balance}. a casa agradece a doação.",
+  "range": "@{gamble:user} esse prêmio não caberia nem no meu cofre. aposta um pouco menos.",
+  "max": "@{gamble:user} opa, gastador. o máximo da mesa é {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} isso é migalha. a aposta mínima é {gamble:min} {gamble:points}.",
+  "usage": "@{gamble:user} quanto vamos arriscar? !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} quem é você? ainda não te vi por aqui. fica um pouco e ganha uns {gamble:points} primeiro.",
+  "win": "@{gamble:user} tirou {gamble:roll} e ganhou {gamble:amount} {gamble:points}! {gamble:balance} no bolso. saindo do forno, igualzinho a mim."
 }

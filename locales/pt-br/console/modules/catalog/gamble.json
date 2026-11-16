@@ -27,13 +27,13 @@
       "label": "Mensagem de vitória",
       "tagline": "Quando o resultado fica dentro da chance de vitória.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} tirou {roll} (precisava de {chance} ou menos) e ganhou {amount} {points}. Saldo atual: {balance}!"
+      "defaultMessage": "@{user} tirou {roll} e ganhou {amount} {points}! {balance} no bolso. saindo do forno, igualzinho a mim."
     },
     "lost": {
       "label": "Mensagem de derrota",
       "tagline": "Quando o resultado fica fora da chance de vitória.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} tirou {roll} (precisava de {chance} ou menos) e perdeu {amount} {points}. Saldo atual: {balance}."
+      "defaultMessage": "@{user} tirou {roll} e perdeu {amount} {points}. sobraram {balance}. a casa agradece a doação."
     }
   },
   "commands": {

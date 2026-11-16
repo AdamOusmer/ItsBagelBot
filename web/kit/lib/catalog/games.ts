@@ -28,7 +28,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         command: 'gamble',
         previewArgs: '100',
         messageKey: 'winMessage',
-        defaultMessage: '@{user} rolled {roll} (needed {chance} or less) and won {amount} {points}, now at {balance}!',
+        defaultMessage: '@{user} rolled {roll} and won {amount} {points}! {balance} in the bag. fresh out the oven, just like me.',
         tokens: replyTokens(['user', 'roll', 'chance', 'amount', 'balance', 'points'], { user: 'PrincessBarney', roll: '23', chance: '50', amount: '100', balance: '1340', points: 'points' })
       },
       {
@@ -39,7 +39,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         command: 'gamble',
         previewArgs: '100',
         messageKey: 'loseMessage',
-        defaultMessage: '@{user} rolled {roll} (needed {chance} or less) and lost {amount} {points}. Now at {balance}.',
+        defaultMessage: '@{user} rolled {roll} and lost {amount} {points}. {balance} left. the house thanks you for your donation.',
         tokens: replyTokens(['user', 'roll', 'chance', 'amount', 'balance', 'points'], { user: 'PrincessBarney', roll: '87', chance: '50', amount: '100', balance: '1140', points: 'points' })
       }
     ],

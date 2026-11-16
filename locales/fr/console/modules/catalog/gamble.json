@@ -27,13 +27,13 @@
       "label": "Ligne de gain",
       "tagline": "Quand le lancer tombe dans la chance de gain.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} a tiré {roll} (il fallait {chance} ou moins) et gagne {amount} {points} ; il lui reste {balance} !"
+      "defaultMessage": "@{user} tu as fait {roll} et gagné {amount} {points} ! {balance} dans la poche. tout chaud sorti du four, comme moi."
     },
     "lost": {
       "label": "Ligne de perte",
       "tagline": "Quand le lancer rate la chance de gain.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} a tiré {roll} (il fallait {chance} ou moins) et perd {amount} {points}. Il lui reste {balance}."
+      "defaultMessage": "@{user} tu as fait {roll} et perdu {amount} {points}. il te reste {balance}. la maison te remercie pour ton don."
     }
   },
   "commands": {

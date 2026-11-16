@@ -27,13 +27,13 @@
       "label": "Win line",
       "tagline": "When a roll lands inside the win chance.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} rolled {roll} (needed {chance} or less) and won {amount} {points}, now at {balance}!"
+      "defaultMessage": "@{user} rolled {roll} and won {amount} {points}! {balance} in the bag. fresh out the oven, just like me."
     },
     "lost": {
       "label": "Loss line",
       "tagline": "When a roll misses the win chance.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} rolled {roll} (needed {chance} or less) and lost {amount} {points}. Now at {balance}."
+      "defaultMessage": "@{user} rolled {roll} and lost {amount} {points}. {balance} left. the house thanks you for your donation."
     }
   },
   "commands": {
