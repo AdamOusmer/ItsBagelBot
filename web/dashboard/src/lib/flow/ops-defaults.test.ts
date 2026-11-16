@@ -3,7 +3,8 @@
 import { expect, test } from 'bun:test';
 import { flowToDefinition, locateIssues, validateDefinition } from '@bagel/kit/automations';
 import { NODE_SPECS, newFlow, outputsFor, type FieldSpec, type NodeSpec } from './model';
-import { addNode, insertNode } from './ops';
+import { insertNode } from './ops';
+import { addNode } from './ops.testing';
 import { addStep } from './editor';
 import en from '../../../../../locales/en/console/flows/board.json';
 import de from '../../../../../locales/de/console/flows/board.json';

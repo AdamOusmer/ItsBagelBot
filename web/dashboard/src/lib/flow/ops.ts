@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { specFor, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
+import { cycleExclusions, graphIndex, linkKey } from './graph-index';
 
 export type EdgeEnds = Pick<FlowEdge, 'from' | 'port' | 'to'>;
 
@@ -67,26 +68,14 @@ function createNode(flow: Flow, request: Pick<InsertRequest, 'type' | 'at' | 'ch
   return node;
 }
 
-export function addNode(
-  flow: Flow,
-  type: NodeType,
-  at: { x: number; y: number },
-  link?: { from: string; port: string }
-): FlowNode {
-  const node = createNode(flow, { type, at });
-  if (link && specFor(type)?.kind !== 'trigger') connect(flow, { ...link, to: node.id });
-  return node;
-}
-
-const EDGE_ENDS = ['from', 'port', 'to'] as const;
-
 const isTrigger = (node: FlowNode | undefined) => specFor(node?.type ?? '')?.kind === 'trigger';
 
 function reachable(flow: Flow, roots: NodeId[]): Set<NodeId> {
+  const { outgoing } = graphIndex(flow);
   const seen = new Set(roots);
   const pending = [...roots];
   for (const id of pending) {
-    const next = flow.edges.filter((edge) => edge.from === id && !seen.has(edge.to)).map((edge) => edge.to);
+    const next = (outgoing.get(id) ?? []).filter((edge) => !seen.has(edge.to)).map((edge) => edge.to);
     next.forEach((child) => seen.add(child));
     pending.push(...next);
   }
@@ -94,11 +83,12 @@ function reachable(flow: Flow, roots: NodeId[]): Set<NodeId> {
 }
 
 export function canConnect(flow: Flow, ends: EdgeEnds): boolean {
-  if (!flow.nodes.some((node) => node.id === ends.from)) return false;
-  const target = flow.nodes.find((node) => node.id === ends.to);
+  const index = graphIndex(flow);
+  if (!index.nodes.has(ends.from)) return false;
+  const target = index.nodes.get(ends.to);
   if (!target || isTrigger(target)) return false;
-  if (reachable(flow, [ends.to]).has(ends.from)) return false;
-  return !flow.edges.some((edge) => EDGE_ENDS.every((end) => edge[end] === ends[end]));
+  if (cycleExclusions(flow, ends.from).has(ends.to)) return false;
+  return !index.links.has(linkKey(ends));
 }
 
 export function connect(flow: Flow, ends: EdgeEnds): FlowEdge | null {
@@ -123,7 +113,7 @@ function insertAtEdge(flow: Flow, node: FlowNode, edgeId: FlowEdge['id']): void 
   const edge = flow.edges.find((edge) => edge.id === edgeId);
   if (!edge) return;
   const to = edge.to;
-  edge.to = node.id;
+  flow.edges = flow.edges.map((candidate) => candidate === edge ? { ...edge, to: node.id } : candidate);
   connect(flow, { from: node.id, port: continuationPort(node), to });
 }
 
@@ -138,7 +128,7 @@ export function insertNode(flow: Flow, request: InsertRequest): FlowNode {
 export function replaceTrigger(flow: Flow, type: NodeType): FlowNode {
   if (specFor(type)?.kind !== 'trigger') throw new Error('Choose a trigger type');
   const node = flow.nodes.find(isTrigger);
-  if (!node) return addNode(flow, type, { x: 0, y: 0 });
+  if (!node) return createNode(flow, { type, at: { x: 0, y: 0 } });
   node.type = type;
   node.config = defaultConfig(flow, { type });
   return node;
@@ -193,7 +183,7 @@ export function deleteNode(flow: Flow, id: NodeId): { removed: NodeId[]; healed:
   return { removed: pruneNode(flow, id), healed: false };
 }
 
-export function removeNode(flow: Flow, id: NodeId): void {
+function removeNode(flow: Flow, id: NodeId): void {
   flow.nodes = flow.nodes.filter((n) => n.id !== id);
   flow.edges = flow.edges.filter((e) => e.from !== id && e.to !== id);
 }

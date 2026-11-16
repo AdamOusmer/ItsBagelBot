@@ -28,8 +28,6 @@ import { moduleWriteDenial } from './module-gate';
 import { attachLogins } from './user-login';
 
 const MAX_PAYLOAD_BYTES = 256 * 1024;
-const MAX_NODES = 200;
-const MAX_EDGES = 400;
 const MAX_TEXT = 4096;
 
 export type EditorData = { routeId: string; ref: FlowRef | null; revision: string | null; name: string; flow: Flow | null; issues?: Issue[] };
@@ -67,8 +65,8 @@ function edgeOf(value: unknown): Flow['edges'][number] | null {
   return isText(id, 64) && isText(from, 64) && isText(port, 64) && isText(to, 64) ? { id, from, port, to } : null;
 }
 
-function listOf<T>(value: unknown, max: number, read: (item: unknown) => T | null): T[] | null {
-  if (!Array.isArray(value) || value.length > max) return null;
+function listOf<T>(value: unknown, read: (item: unknown) => T | null): T[] | null {
+  if (!Array.isArray(value)) return null;
   const items = value.map(read);
   return items.every((item) => item !== null) ? (items as T[]) : null;
 }
@@ -97,8 +95,8 @@ function parseJson(text: string): unknown {
 
 function flowOf(value: unknown): Flow | null {
   if (!isRecord(value) || !isText(value.name, 200)) return null;
-  const nodes = listOf(value.nodes, MAX_NODES, nodeOf);
-  const edges = listOf(value.edges, MAX_EDGES, edgeOf);
+  const nodes = listOf(value.nodes, nodeOf);
+  const edges = listOf(value.edges, edgeOf);
   if (!nodes || !edges) return null;
   const flow: Flow = { id: NEW_FLOW_ID, name: value.name.trim(), enabled: value.enabled === true, nodes, edges };
   return isText(value.queue, 64) ? { ...flow, queue: value.queue } : flow;

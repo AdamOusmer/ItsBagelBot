@@ -3,7 +3,8 @@
 import { describe, expect, test } from 'bun:test';
 import { COALESCE_MS, FlowHistory } from './history';
 import type { Flow } from './model';
-import { addNode, connect, duplicateNode, removeEdge, removeNode } from './ops';
+import { connect, deleteNode, duplicateNode, removeEdge } from './ops';
+import { addNode } from './ops.testing';
 
 const fresh = (): Flow => ({
   id: 'f',
@@ -30,7 +31,7 @@ describe('FlowHistory', () => {
     step(() => void connect(flow, { from: 't', port: 'next', to: reply.id }));
     step(() => removeEdge(flow, flow.edges[0].id));
     step(() => void duplicateNode(flow, reply.id));
-    step(() => removeNode(flow, reply.id));
+    step(() => void deleteNode(flow, reply.id));
 
     expect(ids(flow)).toHaveLength(2);
     h.undo(flow);
@@ -149,7 +150,7 @@ describe('FlowHistory', () => {
 
     const reply = addNode(flow, 'reply.chat', { x: 368, y: 24 });
     h.sync(flow, 5000);
-    removeNode(flow, reply.id);
+    deleteNode(flow, reply.id);
     h.sync(flow, 9000);
     h.undo(flow);
     expect(flow.nodes.find((n) => n.id === reply.id)).toMatchObject({ x: 368, y: 24 });

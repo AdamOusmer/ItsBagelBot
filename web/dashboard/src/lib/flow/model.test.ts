@@ -3,7 +3,7 @@
 import { expect, test } from 'bun:test';
 import { flowToDefinition, validateDefinition } from '@bagel/kit/automations';
 import { newFlow, variablesFor } from './model';
-import { addNode } from './ops';
+import { addNode } from './ops.testing';
 
 const subscriptions = [
   { variant: undefined, tokens: ['{user}', '{user.id}', '{tier}'], event: 'channel.subscribe', text: '{user} {user.id} {event.tier}' },

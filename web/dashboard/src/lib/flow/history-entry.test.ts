@@ -3,7 +3,8 @@
 import { expect, test } from 'bun:test';
 import { FlowHistory } from './history';
 import { newFlow, type Flow } from './model';
-import { addNode, deleteNode } from './ops';
+import { deleteNode } from './ops';
+import { addNode } from './ops.testing';
 
 type Change = (flow: Flow, history: FlowHistory) => void;
 const changes: { name: string; change: Change; current: boolean }[] = [

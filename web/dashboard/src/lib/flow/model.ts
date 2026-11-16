@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { STREAM_STEPS } from './stream-steps';
+import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
 import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
@@ -30,7 +31,7 @@ export type FieldSpec = { when?: { key: string; value: string | readonly string[
 
 export const LINKED_REWARD_CHOICE = { key: 'reward', type: 'choice', source: 'rewards', nameKey: 'rewardTitle' } as const;
 
-export type VariableSpec = { token: string; name: string; sample: string };
+export type VariableSpec = { token: string; name: string; sample: string; literalName?: boolean };
 
 export type OutputSpec = { id: string; provides?: readonly VariableSpec[] };
 
@@ -324,7 +325,8 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     kind: 'reply',
     group: 'basics',
     icon: 'braces',
-    fields: [varScope, varName, { key: 'value', type: 'template', placeholder: true, singleLine: true }]
+    fields: [varScope, varName, { key: 'value', type: 'template', placeholder: true, singleLine: true }],
+    providesFor: storedVariable
   },
   {
     type: 'reply.var_add',
@@ -332,7 +334,8 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     kind: 'reply',
     group: 'basics',
     icon: 'braces',
-    fields: [varScope, varName, { key: 'amount', type: 'number' }]
+    fields: [varScope, varName, { key: 'amount', type: 'number' }],
+    providesFor: storedVariable
   },
   {
     type: 'reply.var_delete',
@@ -437,12 +440,18 @@ export const outputsFor = (spec: NodeSpec): readonly OutputSpec[] => spec.output
 
 export const isSecondPort = (spec: NodeSpec | undefined, port: string): boolean => spec?.outputs?.[1]?.id === port;
 
-const SAVED_SAMPLE = 'saved value';
+function storedVariable(config: FlowNode['config']): VariableSpec[] {
+  const name = String(config.name ?? '').trim().toLowerCase();
+  if (!/^[a-z]+$/.test(name)) return [];
+  const scope = config.scope === 'viewer' ? 'viewervar' : 'var';
+  return [{ token: `{${scope}:${name}}`, name, literalName: true, sample: String(config.value ?? config.amount ?? '0') }];
+}
 
 function savedLocal(parent: FlowNode, spec: NodeSpec): VariableSpec[] {
   const name = String(parent.config.saveAs ?? '').trim().toLowerCase();
   const saves = spec.fields.some((field) => field.key === 'saveAs');
-  return name && saves ? [{ token: `{local:${name}}`, name: 'saved', sample: SAVED_SAMPLE }] : [];
+  const sample = parent.type === 'reply.math' ? '42' : name;
+  return name && saves ? [{ token: `{local:${name}}`, name, literalName: true, sample }] : [];
 }
 
 function providedBy(parent: FlowNode, spec: NodeSpec, port: string): readonly VariableSpec[] {
@@ -454,34 +463,70 @@ function providedBy(parent: FlowNode, spec: NodeSpec, port: string): readonly Va
 }
 
 export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
-  const memo = new Map<string, VariableSpec[] | null>();
-  const visit = (id: string): VariableSpec[] | null => {
+  const index = graphIndex(flow);
+  const memo = new Map<string, Scope | null>();
+  const visit = (id: string): Scope | null => {
     if (memo.has(id)) return memo.get(id)!;
     memo.set(id, null);
-    const node = flow.nodes.find((node) => node.id === id);
+    const node = index.nodes.get(id);
     if (node && specFor(node.type)?.kind === 'trigger') {
-      memo.set(id, []);
-      return [];
+      const root: Scope = { parent: null, provided: [], clearError: false, forks: new Map() };
+      memo.set(id, root);
+      return root;
     }
-    const paths = flow.edges.filter((edge) => edge.to === id).map((edge) => pathVariables(flow, edge, visit));
-    const connected = paths.filter((path) => path !== null);
-    const common = intersectVariables(connected);
-    const result = connected.length ? common : null;
+    const paths = (index.incoming.get(id) ?? []).map((edge) => pathVariables(flow, edge, visit));
+    const connected = paths.filter((path): path is Scope => path !== null);
+    const result = mergeScopes(connected);
     memo.set(id, result);
     return result;
   };
-  return visit(nodeId) ?? [];
+  const scope = visit(nodeId);
+  return scope ? [...scopeTokens(scope).values()] : [];
 }
 
-function pathVariables(flow: Flow, edge: FlowEdge, visit: (id: string) => VariableSpec[] | null): VariableSpec[] | null {
+type ForkScope = { branch: string; outer: Scope };
+type Scope = { parent: Scope | null; provided: readonly VariableSpec[]; clearError: boolean; forks: Map<string, ForkScope> };
+
+function pathVariables(flow: Flow, edge: FlowEdge, visit: (id: string) => Scope | null): Scope | null {
   const prior = visit(edge.from);
-  const parent = flow.nodes.find((node) => node.id === edge.from);
+  const index = graphIndex(flow);
+  const parent = index.nodes.get(edge.from);
   if (!parent || !prior) return null;
   const spec = specFor(parent.type);
-  return spec ? [...prior, ...providedBy(parent, spec, edge.port)] : null;
+  if (!spec) return null;
+  const clearError = spec.outputs === apiPorts && edge.port === 'ok' && !parent.config.disabled;
+  const scope: Scope = { parent: prior, provided: providedBy(parent, spec, edge.port), clearError, forks: prior.forks };
+  return forkScope(flow, edge, scope);
 }
 
-function intersectVariables(paths: VariableSpec[][]): VariableSpec[] {
-  const first = new Map(paths[0]?.map((variable) => [variable.token, variable]));
-  return [...first.values()].filter((variable) => paths.every((path) => path.some((other) => other.token === variable.token)));
+function forkScope(flow: Flow, edge: FlowEdge, scope: Scope): Scope {
+  const key = portKey(edge);
+  const siblings = graphIndex(flow).ports.get(key) ?? [];
+  if (siblings.length < 2) return scope;
+  const forks = new Map(scope.forks);
+  forks.set(key, { branch: edge.to, outer: scope });
+  return { ...scope, forks };
+}
+
+function scopeTokens(scope: Scope): Map<string, VariableSpec> {
+  const chain: Scope[] = [];
+  for (let cursor: Scope | null = scope; cursor; cursor = cursor.parent) chain.push(cursor);
+  const tokens = new Map<string, VariableSpec>();
+  for (const entry of chain.reverse()) {
+    if (entry.clearError) tokens.delete('{local:error}');
+    for (const variable of entry.provided) tokens.set(variable.token, variable);
+  }
+  return tokens;
+}
+
+function mergeScopes(paths: Scope[]): Scope | null {
+  if (paths.length < 2) return paths[0] ?? null;
+  const tokens = paths.map(scopeTokens);
+  const common = [...tokens[0].values()].filter((variable) => tokens.every((path) => path.has(variable.token)));
+  const forks = new Map(paths[0].forks);
+  const joined = [...forks].filter(([key, fork]) => paths.some((path) => path.forks.get(key)?.branch !== fork.branch));
+  for (const [key] of joined) forks.delete(key);
+  const outer = joined.sort((a, b) => a[1].outer.forks.size - b[1].outer.forks.size)[0]?.[1].outer;
+  const provided = outer ? [...common.filter((variable) => !variable.token.startsWith('{local:')), ...[...scopeTokens(outer).values()].filter((variable) => variable.token.startsWith('{local:'))] : common;
+  return { parent: null, provided, clearError: false, forks };
 }

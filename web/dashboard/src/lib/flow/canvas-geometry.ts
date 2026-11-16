@@ -3,6 +3,7 @@
 import { NODE_W, isSecondPort, specFor, type Flow, type FlowNode } from './model';
 import { inputY, loopTails, nodeHeight, portY } from './layout';
 import { previewPath, returnPath, wirePath } from './wire';
+import { graphIndex } from './graph-index';
 
 type Positions = Record<FlowNode['id'], { x: number; y: number }>;
 const ARROW_GAP = 8;
@@ -36,9 +37,10 @@ export function startPaths(flow: Flow, displayed: Positions, start: { x: number;
 }
 
 export function edgePaths(flow: Flow, displayed: Positions) {
+  const { nodes } = graphIndex(flow);
   return flow.edges.flatMap((edge) => {
-    const from = flow.nodes.find((node) => node.id === edge.from);
-    const to = flow.nodes.find((node) => node.id === edge.to);
+    const from = nodes.get(edge.from);
+    const to = nodes.get(edge.to);
     if (!from || !to) return [];
     const spec = specFor(from.type);
     const a = displayed[from.id] ?? from;
@@ -50,9 +52,10 @@ export function edgePaths(flow: Flow, displayed: Positions) {
 }
 
 export function loopPaths(flow: Flow, displayed: Positions) {
+  const { nodes } = graphIndex(flow);
   return loopTails(flow).flatMap(({ loop, tail }) => {
-    const loopNode = flow.nodes.find((node) => node.id === loop);
-    const tailNode = flow.nodes.find((node) => node.id === tail);
+    const loopNode = nodes.get(loop);
+    const tailNode = nodes.get(tail);
     if (!loopNode || !tailNode) return [];
     const l = displayed[loop] ?? loopNode;
     const a = displayed[tail] ?? tailNode;
@@ -60,4 +63,16 @@ export function loopPaths(flow: Flow, displayed: Positions) {
     const bottomY = Math.max(loopBottom, a.y + nodeHeight(specFor(tailNode.type))) + RETURN_DROP;
     return [{ id: `${loop}:${tail}`, d: returnPath({ x: a.x + NODE_W, y: a.y + inputY }, { x: l.x + NODE_W / 2, y: loopBottom }, bottomY) }];
   });
+}
+
+export function currentPositions(nodes: readonly FlowNode[], displayed: Positions = {}): Positions {
+  return Object.fromEntries(nodes.map((node) => [node.id, displayed[node.id] ?? { x: node.x, y: node.y }]));
+}
+
+export function tweenPositions(nodes: readonly FlowNode[], from: Positions, progress: number): Positions {
+  const eased = progress === 1 ? 1 : 1 - 2 ** (-10 * progress);
+  return Object.fromEntries(nodes.map((node) => {
+    const start = from[node.id];
+    return [node.id, { x: start.x + (node.x - start.x) * eased, y: start.y + (node.y - start.y) * eased }];
+  }));
 }

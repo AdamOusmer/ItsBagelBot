@@ -4,7 +4,7 @@ import { newFlow, type Flow } from './model';
 import type { Translate } from './messages';
 
 export const STARTERS = ['hug', 'follow', 'sub'] as const;
-export type StarterId = typeof STARTERS[number];
+type StarterId = typeof STARTERS[number];
 
 export function starterFlow(id: string | null, t: Translate): Flow | null {
   const starter = STARTERS.find((starter) => starter === id);

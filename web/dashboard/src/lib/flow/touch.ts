@@ -7,6 +7,26 @@ export type Inset = { top: number; right: number; bottom: number; left: number }
 export type Frame = { width: number; height: number; inset: Inset };
 export type ZoomRange = { min: number; max: number };
 
+type Rect = Pick<DOMRect, 'top' | 'right' | 'bottom' | 'left' | 'width' | 'height'>;
+type Panels = { board: Rect; bar: Rect; rail: Rect };
+const PANEL_GAP = 12;
+
+export function panelInsets({ board, bar, rail }: Panels, panelHeight: number): Inset {
+  const railIsRow = rail.width > rail.height;
+  const toolbars = railIsRow ? board.bottom - rail.top : 72;
+  return {
+    top: bar.bottom - board.top + PANEL_GAP,
+    right: 16,
+    bottom: (panelHeight || toolbars) + PANEL_GAP,
+    left: railIsRow ? 16 : rail.right - board.left + PANEL_GAP
+  };
+}
+
+export function keyboardSize(layoutHeight: number, viewport: Pick<VisualViewport, 'height' | 'offsetTop'> | null): { height: number; keyboard: number } {
+  const height = viewport?.height ?? layoutHeight;
+  return { height, keyboard: Math.max(0, layoutHeight - height - (viewport?.offsetTop ?? 0)) };
+}
+
 const clamp =(v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const middle = (a: Pt, b: Pt): Pt => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 
