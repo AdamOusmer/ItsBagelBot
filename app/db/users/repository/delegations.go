@@ -50,8 +50,7 @@ func toDelegationView(d *ent.Delegation) DelegationView {
 }
 
 func (r *Users) CreateDelegation(ctx context.Context, link DelegationLink) error {
-	counted := r.trackAccounts(ctx, link.OwnerID)
-	err := db.WithExec(ctx, func(ctx context.Context) error {
+	return db.WithExec(ctx, func(ctx context.Context) error {
 		c := r.client.Delegation.Create().
 			SetToken(link.Token).
 			SetOwnerID(link.OwnerID).
@@ -61,10 +60,6 @@ func (r *Users) CreateDelegation(ctx context.Context, link DelegationLink) error
 		_, err := c.Save(ctx)
 		return err
 	})
-	if err == nil {
-		counted()
-	}
-	return err
 }
 
 func (r *Users) GetDelegation(ctx context.Context, token string) (DelegationView, error) {
@@ -120,17 +115,13 @@ func (r *Users) reclaimExisting(ctx context.Context, link *ent.Delegation, deleg
 	if err != nil || grant == nil {
 		return nil
 	}
-	counted := r.trackAccounts(ctx, link.OwnerID)
-	n, err := db.WithQuery(ctx, r.client.Delegation.Delete().Where(delegation.TokenEQ(link.Token)).Exec)
-	if err == nil && n != 0 {
-		counted()
-	}
+
+	_, _ = db.WithQuery(ctx, r.client.Delegation.Delete().Where(delegation.TokenEQ(link.Token)).Exec)
 	return grant
 }
 
 // Must stay gated on consumed_at IS NULL so concurrent racers cannot both win.
 func (r *Users) bindDelegation(ctx context.Context, d *ent.Delegation, delegate delegationIdentity, now time.Time) (DelegationView, error) {
-	counted := r.trackAccounts(ctx, d.OwnerID)
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Delegation.Update().
 			Where(
@@ -148,7 +139,6 @@ func (r *Users) bindDelegation(ctx context.Context, d *ent.Delegation, delegate 
 	if n == 0 {
 		return DelegationView{}, errors.New("link already used")
 	}
-	counted()
 
 	d.DelegateID = delegate.id
 	d.DelegateLogin = delegate.login
@@ -182,7 +172,6 @@ func (r *Users) listDelegations(ctx context.Context, filter predicate.Delegation
 }
 
 func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) ([]uint64, error) {
-	counted := r.trackAccounts(ctx, ownerID)
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
 		return r.client.Delegation.Query().
 			Where(
@@ -200,16 +189,13 @@ func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) ([
 			delegateIDs = append(delegateIDs, row.DelegateID)
 		}
 	}
-	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+	_, err = db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Delegation.Delete().
 			Where(delegation.OwnerIDEQ(ownerID)).
 			Exec(ctx)
 	})
 	if err != nil {
 		return nil, err
-	}
-	if n != 0 {
-		counted()
 	}
 	return delegateIDs, nil
 }
@@ -230,7 +216,6 @@ type delegationChange struct {
 }
 
 func (r *Users) changeDelegation(ctx context.Context, change delegationChange) (uint64, error) {
-	counted := r.trackAccounts(ctx, change.ownerID)
 	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
 		return r.client.Delegation.Query().
 			Where(
@@ -258,12 +243,11 @@ func (r *Users) changeDelegation(ctx context.Context, change delegationChange) (
 	if err != nil {
 		return 0, err
 	}
-	counted()
+
 	return delegateID, nil
 }
 
 func (r *Users) OptOutDelegation(ctx context.Context, ownerID uint64, delegateID uint64) error {
-	counted := r.trackAccounts(ctx, ownerID)
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Delegation.Delete().
 			Where(
@@ -279,6 +263,6 @@ func (r *Users) OptOutDelegation(ctx context.Context, ownerID uint64, delegateID
 	if n == 0 {
 		return errors.New("not found")
 	}
-	counted()
+
 	return nil
 }

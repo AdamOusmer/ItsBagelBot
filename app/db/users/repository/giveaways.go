@@ -191,7 +191,7 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 	if err != nil {
 		return err
 	}
-	counted := r.trackAccounts(ctx, targetID)
+
 	delivery, err := db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.AdminAuditDelivery, error) {
 		if _, err := tx.User.UpdateOneID(targetID).SetTestAccount(enabled).Save(ctx); err != nil {
 			return nil, err
@@ -201,7 +201,7 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 	if err != nil {
 		return err
 	}
-	counted()
+
 	if err := r.deliverAdminAudit(ctx, delivery); err != nil {
 		r.log.Warn("admin audit delivery pending", zap.String("operation_id", delivery.ID.String()), zap.Error(err))
 	}

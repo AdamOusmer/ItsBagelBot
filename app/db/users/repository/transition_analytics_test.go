@@ -62,7 +62,7 @@ func TestEnabledLifecycleDoesNotCountRecoveryAsOwnerEnable(t *testing.T) {
 	require.Zero(t, h.fields(t, catalog.CounterKey(h.now))["lifecycle|bot_enabled"])
 }
 
-func TestLifecycleLostCASDoesNotShiftAccountLevels(t *testing.T) {
+func TestLifecycleLostCASReadsCommittedAccountLevels(t *testing.T) {
 	h := newLifecycleAnalyticsHarness(t)
 	var intercepted atomic.Bool
 	h.repo.client.User.Use(func(next entcore.Mutator) entcore.Mutator {
@@ -82,7 +82,9 @@ func TestLifecycleLostCASDoesNotShiftAccountLevels(t *testing.T) {
 	reply, err := h.repo.Lifecycle(t.Context(), usersrpc.LifecycleRequest{UserID: 1001, Action: "disable"})
 	require.NoError(t, err)
 	require.True(t, reply.Applied)
-	require.Zero(t, h.fields(t, catalog.LevelKey)["accounts.bot_enabled|free"])
+	seed, err := h.repo.AnalyticsSeed(t.Context())
+	require.NoError(t, err)
+	require.Zero(t, seed["accounts.bot_enabled|free"])
 }
 
 func TestOnboardingCountsAfterCoalescedPreferenceCommit(t *testing.T) {

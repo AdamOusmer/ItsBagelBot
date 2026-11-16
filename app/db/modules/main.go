@@ -95,11 +95,13 @@ func main() {
 	go repository.NewCooldownMover(recipeState, valkeyClient, rand.Text(), log).Run(core.Ctx)
 	repo.SetAnalytics(recorder)
 	automations.SetAnalytics(recorder)
-	go recorder.ReconcileDaily(core.Ctx, analytics.Owner{
+	levels := analytics.NewLevelSource(analytics.Owner{
 		Service: serviceName,
 		Owned:   analytics.Owned{"modules.rows", "modules.defaults", "modules.breadth", "recipes.total", "integrations.connected|spotify", "integrations.connected|govee"},
 		Seed:    repo.AnalyticsSeed,
 	})
+
+	svcboot.FatalIf(log, levels.Serve(bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log}), "failed to subscribe analytics levels rpc")
 
 	consumeEvents(core.Ctx, eventsWiring{
 		app: core.NR, broadcast: n.Broadcast, grouped: n.Grouped,

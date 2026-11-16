@@ -169,8 +169,6 @@ func (r *Modules) Reproject(ctx context.Context) error {
 }
 
 func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
-
-	done := r.track(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := r.client.Modules.Delete().
 			Where(modules.UserIDEQ(userID)).
@@ -179,7 +177,6 @@ func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	}); err != nil {
 		return err
 	}
-	done()
 
 	r.sweepGovee(ctx, userID)
 	r.sweepSpotify(ctx, userID)

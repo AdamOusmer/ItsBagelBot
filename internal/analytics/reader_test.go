@@ -26,7 +26,7 @@ func TestReaderUnionsMixedDistinctFormatsInEachWindow(t *testing.T) {
 			require.NoError(t, client.Do(ctx, client.B().Sadd().Key(set).Member("b", "c").Build()).Error())
 			require.NoError(t, client.Do(ctx, client.B().Sadd().Key(catalog.IndexKey(window, at)).Member(set, sketch).Build()).Error())
 
-			rows, err := analytics.NewReader(client).Read(ctx, analytics.Query{Metrics: []catalog.Metric{catalog.ChannelsActive}, Window: window, From: at, Now: at})
+			rows, err := analytics.NewReader(client, nil).Read(ctx, analytics.Query{Metrics: []catalog.Metric{catalog.ChannelsActive}, Window: window, From: at, Now: at})
 			require.NoError(t, err)
 			require.Equal(t, []analytics.Row{{Window: window, Start: at, Metric: catalog.ChannelsActive, Dims: []string{}, Value: 3}}, rows)
 		})

@@ -228,7 +228,6 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 		return false, err
 	}
 
-	track := r.track(ctx, userID)
 	restored, err := r.createIfAbsent(ctx, userID, spec, uses)
 	if err != nil {
 		return false, err
@@ -236,7 +235,7 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 	if !restored {
 		return false, nil
 	}
-	track()
+
 	r.analytics.Count(catalog.CustomCommands, "created")
 
 	r.Invalidate(userID)
@@ -292,7 +291,6 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 		return err
 	}
 
-	track := r.track(ctx, userID)
 	updated, err := r.renameRow(ctx, userID, oldName, spec)
 	if err != nil {
 		return err
@@ -301,7 +299,6 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 	if updated == 0 {
 		return r.Upsert(userID, spec)
 	}
-	track()
 
 	r.Invalidate(userID)
 
@@ -363,7 +360,6 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 		return err
 	}
 
-	track := r.track(ctx, userID)
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Commands.Delete().
 			Where(
@@ -375,7 +371,7 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 	if err != nil {
 		return err
 	}
-	track()
+
 	r.analytics.Add(catalog.CustomCommands, int64(n), "deleted")
 
 	r.Invalidate(userID)
@@ -388,8 +384,6 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 }
 
 func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
-
-	track := r.track(ctx, userID)
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Commands.Delete().
 			Where(commands.UserIDEQ(userID), commands.CreatedAtLTE(cutoff)).
@@ -398,7 +392,7 @@ func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff t
 	if err != nil {
 		return err
 	}
-	track()
+
 	r.analytics.Add(catalog.CustomCommands, int64(n), "deleted")
 
 	r.Invalidate(userID)
@@ -488,8 +482,6 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	ctx = newrelic.NewContext(ctx, txn)
 	log := monitor.TxnLogger(ctx, r.log)
 
-	track := r.track(ctx, distinctUsers(commandKeys(items))...)
-
 	landed := items
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return r.commitCommandBatch(ctx, items)
@@ -501,7 +493,6 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	if len(landed) == 0 {
 		return nil
 	}
-	track()
 
 	states, serr := r.rowStates(ctx, commandKeys(landed))
 	if serr != nil {

@@ -27,11 +27,14 @@ type Store interface {
 }
 
 type Rollup struct {
-	vc    valkey.Client
-	store Store
+	vc     valkey.Client
+	store  Store
+	levels analytics.Seed
 }
 
-func New(vc valkey.Client, store Store) *Rollup { return &Rollup{vc: vc, store: store} }
+func New(vc valkey.Client, store Store, levels analytics.Seed) *Rollup {
+	return &Rollup{vc: vc, store: store, levels: levels}
+}
 
 type period struct {
 	window catalog.Window
@@ -51,11 +54,11 @@ func (r *Rollup) Run(ctx context.Context, now time.Time) (int, error) {
 }
 
 func (r *Rollup) run(ctx context.Context, now time.Time) (int, error) {
-	snapshot := pkgvalkey.KeyCopy{
-		Source:      catalog.LevelKey,
-		Destination: catalog.LevelSnapshotKey(now),
-		ExpireAt:    catalog.DataExpiry(catalog.Day, now),
+	totals, err := r.levels(ctx)
+	if err != nil {
+		return 0, err
 	}
+	snapshot := pkgvalkey.IntHashSnapshot{Key: catalog.LevelSnapshotKey(now), Values: totals, ExpireAt: catalog.DataExpiry(catalog.Day, now)}
 	if err := snapshot.Replace(ctx, r.vc); err != nil {
 		return 0, err
 	}
@@ -144,7 +147,7 @@ func (r *Rollup) collect(ctx context.Context, p period, now time.Time) ([]reposi
 		return nil, nil, err
 	}
 	rows := append(distinctRows, counters...)
-	levels, err := r.levels(ctx, p, now)
+	levels, err := r.levelRows(ctx, p)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -175,13 +178,10 @@ func rowsOf(p period, fields map[string]int64) []repository.AnalyticsRow {
 	return rows
 }
 
-func (r *Rollup) levels(ctx context.Context, p period, now time.Time) ([]repository.AnalyticsRow, error) {
+func (r *Rollup) levelRows(ctx context.Context, p period) ([]repository.AnalyticsRow, error) {
 	fields, err := pkgvalkey.HashAllInts(ctx, r.vc, catalog.LevelSnapshotKey(p.at))
 	if err != nil {
 		return nil, err
-	}
-	if len(fields) == 0 && catalog.Period(catalog.Day, p.at) == catalog.Period(catalog.Day, now.AddDate(0, 0, -1)) {
-		fields, err = pkgvalkey.HashAllInts(ctx, r.vc, catalog.LevelKey)
 	}
 	rows := rowsOf(p, fields)
 	for i := range rows {

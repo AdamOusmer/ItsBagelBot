@@ -10,7 +10,6 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
-	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/internal/domain/validate"
@@ -38,7 +37,6 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 	case billingReplay:
 		return true, r.publishChanged(ctx, req.UserID)
 	case billingApplied:
-		r.analytics.Shift(write.before, write.after)
 		r.analytics.Count(catalog.BillingEvents, string(req.Action))
 		return true, r.finishBilling(ctx, req)
 	}
@@ -46,8 +44,7 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 }
 
 type billingWrite struct {
-	outcome       billingOutcome
-	before, after analytics.Tally
+	outcome billingOutcome
 }
 
 func (r *Users) applyBillingTx(ctx context.Context, req billingrpc.ApplyRequest) (billingWrite, error) {
@@ -65,11 +62,7 @@ func (r *Users) applyBillingTx(ctx context.Context, req billingrpc.ApplyRequest)
 			if err != nil || updated == 0 {
 				return skip, err
 			}
-			saved, err := tx.User.Get(ctx, req.UserID)
-			if err != nil {
-				return skip, err
-			}
-			return billingWrite{outcome: billingApplied, before: accountTally(u), after: accountTally(saved)}, nil
+			return billingWrite{outcome: billingApplied}, nil
 		})
 	})
 }
@@ -246,7 +239,7 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 	if err := validateAdminStatus(status, expiresAt); err != nil {
 		return err
 	}
-	counted := r.trackAccounts(ctx, id)
+
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		q := r.client.User.UpdateOneID(id).
 			SetStatus(status).
@@ -261,7 +254,7 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 	if err != nil {
 		return err
 	}
-	counted()
+
 	if err := r.projectAccess(ctx, id, time.Now().UTC()); err != nil {
 		return err
 	}
@@ -300,7 +293,7 @@ func (r *Users) expireOne(ctx context.Context, candidate *ent.User, now time.Tim
 	if candidate.SubscriptionSource == "tebex" {
 		cutoff = now.Add(-tebexGrace)
 	}
-	counted := r.trackAccounts(ctx, candidate.ID)
+
 	updated, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		q := r.client.User.Update().Where(
 			user.IDEQ(candidate.ID),
@@ -314,7 +307,7 @@ func (r *Users) expireOne(ctx context.Context, candidate *ent.User, now time.Tim
 	if err != nil || updated == 0 {
 		return false, err
 	}
-	counted()
+
 	r.analytics.Count(catalog.BillingEvents, "expired")
 	if err := r.projectAccess(ctx, candidate.ID, now); err != nil {
 		return true, err

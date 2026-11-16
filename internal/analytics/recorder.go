@@ -63,7 +63,6 @@ type Recorder struct {
 	mu        sync.Mutex
 	counts    map[slot]int64
 	distincts map[distinctSet]map[uint64]struct{}
-	levels    map[string]int64
 	ids       int
 
 	done chan struct{}
@@ -93,7 +92,6 @@ func New(client valkey.Client, log *zap.Logger, registered map[catalog.Kind][]st
 		now:       time.Now,
 		counts:    map[slot]int64{},
 		distincts: map[distinctSet]map[uint64]struct{}{},
-		levels:    map[string]int64{},
 		done:      make(chan struct{}),
 		kick:      make(chan struct{}, 1),
 	}
@@ -210,18 +208,17 @@ func (r *Recorder) nudge() {
 type pending struct {
 	counts    map[slot]int64
 	distincts map[distinctSet]map[uint64]struct{}
-	levels    map[string]int64
 }
 
 func (p pending) empty() bool {
-	return len(p.counts)+len(p.distincts)+len(p.levels) == 0
+	return len(p.counts)+len(p.distincts) == 0
 }
 
 func (r *Recorder) drain() pending {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	p := pending{counts: r.counts, distincts: r.distincts, levels: r.levels}
-	r.counts, r.distincts, r.levels, r.ids = map[slot]int64{}, map[distinctSet]map[uint64]struct{}{}, map[string]int64{}, 0
+	p := pending{counts: r.counts, distincts: r.distincts}
+	r.counts, r.distincts, r.ids = map[slot]int64{}, map[distinctSet]map[uint64]struct{}{}, 0
 	return p
 }
 
@@ -240,7 +237,6 @@ func (r *Recorder) Flush(ctx context.Context) {
 
 	cmds := r.counterCmds(p.counts)
 	cmds = append(cmds, r.distinctCmds(ctx, p.distincts)...)
-	cmds = append(cmds, r.levelCmds(p.levels)...)
 	r.reportErrors(pkg_valkey.ExecMulti(ctx, r.client, cmds...))
 }
 
@@ -278,16 +274,6 @@ func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]m
 		expiries[index] = expiry
 	}
 	return append(cmds, r.expireCmds(expiries)...)
-}
-
-func (r *Recorder) levelCmds(levels map[string]int64) valkey.Commands {
-	cmds := make(valkey.Commands, 0, len(levels))
-	for field, delta := range levels {
-		if delta != 0 {
-			cmds = append(cmds, pkg_valkey.HIncrByCmd(r.client, catalog.LevelKey, field, delta))
-		}
-	}
-	return cmds
 }
 
 func (r *Recorder) expireCmds(expiries map[string]time.Time) valkey.Commands {

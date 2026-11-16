@@ -5,8 +5,6 @@ package repository
 
 import (
 	"context"
-	"maps"
-	"slices"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
@@ -15,14 +13,13 @@ import (
 )
 
 func (r *Users) persistPrefs(ctx context.Context, perUser map[uint64][]prefWrite) error {
-	counted := r.trackAccounts(ctx, slices.Collect(maps.Keys(perUser))...)
 	onboarded, err := db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (int, error) {
 		return writeAllPrefs(ctx, tx, perUser)
 	})
 	if err != nil {
 		return err
 	}
-	counted()
+
 	r.analytics.Add(catalog.Lifecycle, int64(onboarded), "onboarded")
 	return nil
 }

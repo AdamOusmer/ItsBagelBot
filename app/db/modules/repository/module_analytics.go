@@ -31,7 +31,6 @@ func (r *Modules) commitModules(ctx context.Context, ids []uint64, write func(*M
 	if err != nil {
 		return err
 	}
-	r.analytics.Shift(moduleTally(delta.before), moduleTally(delta.after))
 	r.recordToggles(delta)
 	return nil
 }

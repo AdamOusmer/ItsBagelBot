@@ -15,46 +15,27 @@ import (
 
 func (a *Automations) SetAnalytics(rec *analytics.Recorder) { a.analytics = rec }
 
-type recipeDelta struct {
-	before, after analytics.Tally
-	modules       moduleDelta
-}
-
 func (a *Automations) commitRecipes(ctx context.Context, userID uint64, write func(*ent.Tx) error) error {
-	delta, err := db.WithTxResult(ctx, a.client, func(tx *ent.Tx) (recipeDelta, error) {
+	delta, err := db.WithTxResult(ctx, a.client, func(tx *ent.Tx) (moduleDelta, error) {
 		repo := &Modules{client: tx.Client()}
 		before, err := repo.moduleSnapshot(ctx, []uint64{userID})
 		if err != nil {
-			return recipeDelta{}, err
-		}
-		rows, err := tx.Automation.Query().Where(automation.UserID(userID)).
-			Select(automation.FieldTriggerType, automation.FieldEnabled).All(ctx)
-		if err != nil {
-			return recipeDelta{}, err
+			return moduleDelta{}, err
 		}
 		if err := write(tx); err != nil {
-			return recipeDelta{}, err
+			return moduleDelta{}, err
 		}
 		modulesAfter, err := repo.moduleSnapshot(ctx, []uint64{userID})
 		if err != nil {
-			return recipeDelta{}, err
+			return moduleDelta{}, err
 		}
-		after, err := recipeState(ctx, tx.Client(), userID)
-		return recipeDelta{before: recipeTally(rows), after: after, modules: moduleDelta{before, modulesAfter}}, err
+		return moduleDelta{before, modulesAfter}, nil
 	})
 	if err != nil {
 		return err
 	}
-	a.analytics.Shift(delta.before, delta.after)
-	a.analytics.Shift(moduleTally(delta.modules.before), moduleTally(delta.modules.after))
-	(&Modules{analytics: a.analytics}).recordToggles(delta.modules)
+	(&Modules{analytics: a.analytics}).recordToggles(delta)
 	return nil
-}
-
-func recipeState(ctx context.Context, client *ent.Client, userID uint64) (analytics.Tally, error) {
-	rows, err := client.Automation.Query().Where(automation.UserID(userID)).
-		Select(automation.FieldTriggerType, automation.FieldEnabled).All(ctx)
-	return recipeTally(rows), err
 }
 
 func recipeTally(rows []*ent.Automation) analytics.Tally {

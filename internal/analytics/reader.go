@@ -28,9 +28,14 @@ type Query struct {
 	Now     time.Time
 }
 
-type Reader struct{ client valkey.Client }
+type Reader struct {
+	client valkey.Client
+	levels Seed
+}
 
-func NewReader(client valkey.Client) *Reader { return &Reader{client: client} }
+func NewReader(client valkey.Client, levels Seed) *Reader {
+	return &Reader{client: client, levels: levels}
+}
 
 func (r *Reader) Read(ctx context.Context, q Query) ([]Row, error) {
 	if r == nil {
@@ -82,11 +87,11 @@ func (r *Reader) hashRows(ctx context.Context, q Query, row Row, kind catalog.Ty
 	if !q.requests(kind) {
 		return nil, nil
 	}
-	key := catalog.CounterKey(row.Start)
 	if kind == catalog.Level {
-		key = catalog.LevelKey
+		values, err := r.levels(ctx)
+		return fields(q, row.Start, kind, values), err
 	}
-	values, err := pkgvalkey.HashAllInts(ctx, r.client, key)
+	values, err := pkgvalkey.HashAllInts(ctx, r.client, catalog.CounterKey(row.Start))
 	return fields(q, row.Start, kind, values), err
 }
 

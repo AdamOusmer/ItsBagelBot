@@ -5,6 +5,7 @@ package rollup_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,11 +13,47 @@ import (
 	"ItsBagelBot/app/db/admin/rollup"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/pkg/bus"
 	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+func TestRunSnapshotsOwnerRPCReplies(t *testing.T) {
+	f := setup(t)
+	nc := testnats.Connect(t)
+	for _, owner := range []struct {
+		service rpc.LevelService
+		field   string
+	}{
+		{rpc.UsersLevels, "accounts.onboarded"}, {rpc.ModulesLevels, "recipes.total|event|on"}, {rpc.CommandsLevels, "custom.channels"},
+	} {
+		source := analytics.NewLevelSource(analytics.Owner{Service: owner.service, Owned: analytics.Owned{owner.field}, Seed: func(context.Context) (analytics.Tally, error) { return analytics.Tally{owner.field: 12}, nil }})
+		require.NoError(t, source.Serve(bus.RPCWiring{NC: nc, Log: zap.NewNop()}))
+	}
+	snapshot := pkgvalkey.IntHashSnapshot{Key: catalog.LevelSnapshotKey(f.now), Values: map[string]int64{"stale": 99}, ExpireAt: catalog.DataExpiry(catalog.Day, f.now)}
+	require.NoError(t, snapshot.Replace(t.Context(), f.vc))
+	_, err := rollup.New(f.vc, f.repo, analytics.RequestLevels(nc)).Run(t.Context(), f.now)
+	require.NoError(t, err)
+	got, err := pkgvalkey.HashAllInts(t.Context(), f.vc, snapshot.Key)
+	require.NoError(t, err)
+	require.Equal(t, map[string]int64{"accounts.onboarded": 12, "recipes.total|event|on": 12, "custom.channels": 12}, got)
+}
+
+func TestRunStopsBeforeSnapshotAndFoldOnOwnerFailure(t *testing.T) {
+	f := setup(t)
+	f.recordYesterday(t)
+	want := errors.New("owner SQL unavailable")
+	_, err := rollup.New(f.vc, f.repo, func(context.Context) (analytics.Tally, error) { return nil, want }).Run(t.Context(), f.now)
+	require.ErrorIs(t, err, want)
+	require.Empty(t, f.day(t, catalog.Lifecycle))
+	got, err := pkgvalkey.HashAllInts(t.Context(), f.vc, catalog.LevelSnapshotKey(f.now))
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
 
 func TestRunUsesLastSnapshotFromEachClosedDay(t *testing.T) {
 	for _, delay := range []int{1, 2} {
@@ -25,23 +62,19 @@ func TestRunUsesLastSnapshotFromEachClosedDay(t *testing.T) {
 			ctx := context.Background()
 			snapshotDay := f.now.AddDate(0, 0, -delay)
 			snapshotAt := catalog.PeriodEnd(catalog.Day, snapshotDay).Add(-15 * time.Minute)
-			rec := analytics.New(f.vc, zap.NewNop(), nil, analytics.WithoutTicker())
-			t.Cleanup(rec.Close)
-			r := rollup.New(f.vc, f.repo)
-			field := catalog.Field(catalog.AccountsTotal, "free")
-			rec.Shift(nil, analytics.Tally{field: 100})
-			rec.Flush(ctx)
+			total := int64(100)
+			r := rollup.New(f.vc, f.repo, func(context.Context) (analytics.Tally, error) {
+				return analytics.Tally{"accounts.total|free": total}, nil
+			})
 			_, err := r.Run(ctx, snapshotAt.Add(-15*time.Minute))
 			require.NoError(t, err)
 
-			rec.Shift(analytics.Tally{field: 100}, analytics.Tally{field: 101})
-			rec.Flush(ctx)
+			total = 101
 			_, err = r.Run(ctx, snapshotAt)
 			require.NoError(t, err)
 			assertSnapshot(t, f, snapshotDay, 101)
 
-			rec.Shift(analytics.Tally{field: 101}, analytics.Tally{field: 111})
-			rec.Flush(ctx)
+			total = 111
 			_, err = r.Run(ctx, f.now)
 			require.NoError(t, err)
 			assertSnapshot(t, f, f.now, 111)

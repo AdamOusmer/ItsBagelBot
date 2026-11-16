@@ -11,25 +11,12 @@ import (
 	"ItsBagelBot/app/db/commands/ent"
 	"ItsBagelBot/app/db/commands/repository"
 	"ItsBagelBot/internal/analytics"
-	"ItsBagelBot/internal/analytics/analyticstest"
-	catalog "ItsBagelBot/internal/domain/analytics"
 
 	"github.com/stretchr/testify/require"
 )
 
-func newRecorder(t *testing.T) (*analytics.Recorder, func(context.Context) map[string]int64) {
-	t.Helper()
-	capture := analyticstest.New(t)
-	read := func(ctx context.Context) map[string]int64 {
-		return capture.Read(catalog.LevelKey)
-	}
-	return capture.Recorder, read
-}
-
-func TestCommandWritesShiftLevelsWithoutContent(t *testing.T) {
+func TestCommandSQLLevelsExcludeContent(t *testing.T) {
 	_, _, repo := setup(t)
-	rec, read := newRecorder(t)
-	repo.SetAnalytics(rec)
 	ctx := context.Background()
 
 	hug := spec("!hug", "hugs", false, 0)
@@ -46,8 +33,9 @@ func TestCommandWritesShiftLevelsWithoutContent(t *testing.T) {
 	repo.Close(ctx)
 	require.NoError(t, repo.Delete(ctx, 1, "!so"))
 
-	got := read(ctx)
-	require.Equal(t, map[string]int64{
+	got, err := repo.AnalyticsSeed(ctx)
+	require.NoError(t, err)
+	require.Equal(t, analytics.Tally{
 		"custom.total|active":   1,
 		"custom.total|inactive": 1,
 		"custom.perm|everyone":  2,
@@ -61,10 +49,8 @@ func TestCommandWritesShiftLevelsWithoutContent(t *testing.T) {
 	}
 }
 
-func TestFetchKeyWritesShiftConnectedChannels(t *testing.T) {
+func TestFetchKeySQLLevelsCountConnectedChannels(t *testing.T) {
 	_, _, repo := fetchSetup(t)
-	rec, read := newRecorder(t)
-	repo.SetAnalytics(rec)
 	ctx := context.Background()
 
 	for _, key := range []repository.KeyEntry{{Label: "a", Value: "secret-1111"}, {Label: "b", Value: "secret-2222"}} {
@@ -75,7 +61,7 @@ func TestFetchKeyWritesShiftConnectedChannels(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, repo.DeleteKey(ctx, 2, "a"))
 
-	require.Equal(t, map[string]int64{"integrations.connected|fetch_key": 1}, read(ctx))
+	require.Equal(t, analytics.Tally{"integrations.connected|fetch_key": 1}, readSeed(t, repo.AnalyticsSeed))
 }
 
 func TestAnalyticsSeedTalliesMixedRows(t *testing.T) {
@@ -152,4 +138,11 @@ func TestAnalyticsSeedPagesPastOneThousandRows(t *testing.T) {
 		"custom.perm|everyone":  users * perUser,
 		"custom.channels":       users,
 	}, got)
+}
+
+func readSeed(t *testing.T, seed analytics.Seed) analytics.Tally {
+	t.Helper()
+	values, err := seed(t.Context())
+	require.NoError(t, err)
+	return values
 }

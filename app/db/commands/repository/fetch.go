@@ -13,7 +13,6 @@ import (
 	"ItsBagelBot/app/db/commands/ent/commands"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
-	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/domain/event/data"
 	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
 	"ItsBagelBot/internal/domain/validate"
@@ -58,8 +57,6 @@ type Fetches struct {
 	views  *cache.Cache[[]FetchView]
 	pub    bus.Publisher
 	log    *zap.Logger
-
-	analytics *analytics.Recorder
 }
 
 func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher, log *zap.Logger) *Fetches {
@@ -327,7 +324,6 @@ func fetchDefName(tok tmpl.Token) string {
 }
 
 func (r *Fetches) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
-	track := r.trackKeys(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		if _, err := r.client.FetchDefinition.Delete().
 			Where(fetchdefinition.UserIDEQ(userID), fetchdefinition.CreatedAtLTE(cutoff)).
@@ -341,7 +337,6 @@ func (r *Fetches) DeleteAllForUser(ctx context.Context, userID uint64, cutoff ti
 	}); err != nil {
 		return err
 	}
-	track()
 
 	r.Invalidate(userID)
 	return nil

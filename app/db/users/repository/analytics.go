@@ -13,45 +13,6 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-func (r *Users) trackAccounts(ctx context.Context, ids ...uint64) func() {
-	if len(ids) == 0 {
-		return func() {}
-	}
-	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.accountState(ctx, ids) })
-}
-
-func (r *Users) countCreated(ctx context.Context, id uint64) {
-	if r.analytics == nil {
-		return
-	}
-	if after, err := r.accountState(ctx, []uint64{id}); err == nil {
-		r.analytics.Shift(nil, after)
-	}
-}
-
-func (r *Users) accountState(ctx context.Context, ids []uint64) (analytics.Tally, error) {
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
-		return r.client.User.Query().
-			Where(user.IDIn(ids...)).
-			Select(accountColumns...).
-			All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	tally := analytics.Tally{}
-	for _, u := range rows {
-		tallyCounted(tally, u)
-	}
-	return r.tallyDelegating(ctx, tally, ids)
-}
-
-func accountTally(u *ent.User) analytics.Tally {
-	tally := analytics.Tally{}
-	tallyCounted(tally, u)
-	return tally
-}
-
 var accountColumns = []string{
 	user.FieldID, user.FieldStatus, user.FieldIsActive, user.FieldOnboarded, user.FieldSubscriptionSource,
 	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,

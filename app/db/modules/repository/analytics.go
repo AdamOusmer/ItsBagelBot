@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"ItsBagelBot/app/db/modules/ent"
-	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/internal/analytics"
@@ -20,29 +19,6 @@ import (
 
 func (r *Modules) SetAnalytics(rec *analytics.Recorder) {
 	r.analytics = rec
-	if r.govee != nil {
-		r.govee.analytics = rec
-	}
-	if r.spotify != nil {
-		r.spotify.analytics = rec
-	}
-}
-
-func (r *Modules) track(ctx context.Context, ids ...uint64) func() {
-	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.moduleState(ctx, ids) })
-}
-
-func (r *Modules) moduleState(ctx context.Context, ids []uint64) (analytics.Tally, error) {
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Modules, error) {
-		return r.client.Modules.Query().
-			Where(modules.UserIDIn(ids...)).
-			Select(modules.FieldUserID, modules.FieldName, modules.FieldIsEnabled).
-			All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return moduleTally(rows), nil
 }
 
 func moduleTally(rows []*ent.Modules) analytics.Tally {
@@ -170,42 +146,4 @@ func changedUsers(items []data.ModuleChangedDTO) []uint64 {
 	}
 	slices.Sort(ids)
 	return slices.Compact(ids)
-}
-
-func (g *GoveeCreds) track(ctx context.Context, userID uint64) func() {
-	return analytics.Track(g.analytics, func() (analytics.Tally, error) {
-		n, err := db.WithQuery(ctx, g.client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(userID)).Count)
-		return linkTally("govee", n > 0), err
-	})
-}
-
-func (s *SpotifyCreds) track(ctx context.Context, userID uint64) func() {
-	return analytics.Track(s.analytics, func() (analytics.Tally, error) {
-		n, err := db.WithQuery(ctx, s.client.SpotifyCredential.Query().
-			Where(spotifycredential.UserIDEQ(userID), spotifycredential.TokenEncNotNil()).Count)
-		return linkTally("spotify", n > 0), err
-	})
-}
-
-func (r *Modules) trackAccount(ctx context.Context, userID uint64) func() {
-	shifts := []func(){r.track(ctx, userID)}
-	if r.govee != nil {
-		shifts = append(shifts, r.govee.track(ctx, userID))
-	}
-	if r.spotify != nil {
-		shifts = append(shifts, r.spotify.track(ctx, userID))
-	}
-	return func() {
-		for _, shift := range shifts {
-			shift()
-		}
-	}
-}
-
-func linkTally(link string, connected bool) analytics.Tally {
-	tally := analytics.Tally{}
-	if connected {
-		tally.Add(catalog.IntegrationsConnected, link)
-	}
-	return tally
 }

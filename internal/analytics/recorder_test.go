@@ -190,26 +190,3 @@ func TestDistinctDedupesWithinAPeriodWhileTheClockMoves(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "set", kind)
 }
-
-func TestShiftMovesRunningTotalsByTheWriteDifference(t *testing.T) {
-	ctx := context.Background()
-	client := valkeytest.Spawn(t)
-	at := day
-	r := newRecorder(t, client, &at)
-
-	before := analytics.Tally{}
-	before.Add(catalog.ModulesRows, "quotes", "off")
-	after := analytics.Tally{}
-	after.Add(catalog.ModulesRows, "quotes", "on")
-	after.Add(catalog.ModulesRows, "Streamer's Module", "on")
-	r.Shift(analytics.Tally{}, before)
-	r.Shift(before, after)
-	r.Flush(ctx)
-
-	levels, err := client.Do(ctx, client.B().Hgetall().Key(catalog.LevelKey).Build()).AsIntMap()
-	require.NoError(t, err)
-	require.Equal(t, map[string]int64{"modules.rows|quotes|on": 1}, levels)
-	ttl, err := client.Do(ctx, client.B().Ttl().Key(catalog.LevelKey).Build()).AsInt64()
-	require.NoError(t, err)
-	require.Equal(t, int64(-1), ttl)
-}

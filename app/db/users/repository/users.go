@@ -180,7 +180,6 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 	}
 	if created {
 		r.analytics.Count(catalog.Lifecycle, "signup")
-		r.countCreated(ctx, id)
 	}
 
 	return r.publishChanged(ctx, id)
@@ -278,7 +277,7 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 	if err := validate.UserID(id); err != nil {
 		return err
 	}
-	counted := r.trackAccounts(ctx, id)
+
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		update := r.client.User.UpdateOneID(id)
 		apply(update)
@@ -286,7 +285,7 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 	}); err != nil {
 		return err
 	}
-	counted()
+
 	return r.publishChanged(ctx, id)
 }
 
@@ -362,7 +361,6 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 		r.log.Warn("device grant revoke on erasure failed", zap.Uint64("user_id", id), zap.Error(err))
 	}
 	deleted := data.UserDeletedDTO{UserID: id, AccountCreatedAt: createdAt.UnixMicro()}
-	counted := r.trackAccounts(ctx, id)
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
@@ -388,7 +386,6 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 		return err
 	}
 
-	counted()
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 	r.analytics.Count(catalog.Lifecycle, "account_deleted")
 

@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"slices"
 
 	"ItsBagelBot/app/db/commands/ent"
 	"ItsBagelBot/app/db/commands/ent/commands"
@@ -17,35 +16,6 @@ import (
 )
 
 func (r *Commands) SetAnalytics(rec *analytics.Recorder) { r.analytics = rec }
-
-func (r *Fetches) SetAnalytics(rec *analytics.Recorder) { r.analytics = rec }
-
-// track reads the channels' command shapes before a write and returns the step that
-// shifts the running totals once it lands. Only shape columns are read, never name or response.
-func (r *Commands) track(ctx context.Context, ids ...uint64) func() {
-	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.commandState(ctx, ids) })
-}
-
-func (r *Fetches) trackKeys(ctx context.Context, ids ...uint64) func() {
-	return analytics.Track(r.analytics, func() (analytics.Tally, error) { return r.keyState(ctx, ids) })
-}
-
-func (r *Commands) commandState(ctx context.Context, ids []uint64) (analytics.Tally, error) {
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Commands, error) {
-		return r.client.Commands.Query().
-			Where(commands.UserIDIn(ids...)).
-			Select(
-				commands.FieldUserID, commands.FieldIsActive, commands.FieldPerm,
-				commands.FieldStreamOnlineOnly, commands.FieldCooldown, commands.FieldUserCooldown,
-				commands.FieldBumpCounter, commands.FieldAliases,
-			).
-			All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return commandTally(rows), nil
-}
 
 func commandTally(rows []*ent.Commands) analytics.Tally {
 	tally := analytics.Tally{}
@@ -188,40 +158,10 @@ func addFlags(tally analytics.Tally, c *ent.Commands) {
 	}
 }
 
-func (r *Fetches) keyState(ctx context.Context, ids []uint64) (analytics.Tally, error) {
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.FetchKey, error) {
-		return r.client.FetchKey.Query().
-			Where(fetchkey.UserIDIn(ids...)).
-			Select(fetchkey.FieldUserID).
-			All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	channels := map[uint64]struct{}{}
-	for _, k := range rows {
-		channels[k.UserID] = struct{}{}
-	}
-	tally := analytics.Tally{}
-	for range channels {
-		tally.Add(catalog.IntegrationsConnected, "fetch_key")
-	}
-	return tally, nil
-}
-
 func commandKeys(items []data.CommandChangedDTO) []commandKey {
 	keys := make([]commandKey, 0, len(items))
 	for _, item := range items {
 		keys = append(keys, commandKey{userID: item.UserID, name: item.Name})
 	}
 	return keys
-}
-
-func distinctUsers(items []commandKey) []uint64 {
-	ids := make([]uint64, 0, len(items))
-	for _, item := range items {
-		ids = append(ids, item.userID)
-	}
-	slices.Sort(ids)
-	return slices.Compact(ids)
 }

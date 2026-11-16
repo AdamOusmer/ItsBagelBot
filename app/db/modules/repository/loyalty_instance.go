@@ -16,8 +16,6 @@ import (
 	"ItsBagelBot/app/db/modules/ent/predicate"
 	"ItsBagelBot/app/db/modules/ent/quote"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
-	"ItsBagelBot/internal/analytics"
-	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
@@ -108,14 +106,14 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 	if err != nil || !allowed {
 		return err
 	}
-	done := r.trackAccount(ctx, id)
+
 	applied, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
 		return r.deleteAccountSnapshot(ctx, id, epoch, snapshot)
 	})
 	if err != nil {
 		return err
 	}
-	done()
+
 	if !applied {
 		return nil
 	}
@@ -232,8 +230,7 @@ func (r *Modules) deleteAccountSnapshot(ctx context.Context, id uint64, epoch in
 	if err != nil || newer {
 		return false, err
 	}
-	recipes, err := snapshot.deleteCapturedRows(ctx, tx)
-	if err != nil {
+	if err := snapshot.deleteCapturedRows(ctx, tx); err != nil {
 		return false, err
 	}
 	if err := r.recipeState.deleteChannelRows(ctx, tx, id); err != nil {
@@ -242,7 +239,6 @@ func (r *Modules) deleteAccountSnapshot(ctx context.Context, id uint64, epoch in
 	if err := tx.Commit(); err != nil {
 		return false, err
 	}
-	r.analytics.Shift(recipes, nil)
 	return true, nil
 }
 
@@ -257,32 +253,29 @@ func newerPersistedLoyalty(ctx context.Context, tx *ent.Tx, id uint64, epoch int
 	return accountInstance(row.Configs) > epoch, nil
 }
 
-func (s accountCleanupSnapshot) deleteCapturedRows(ctx context.Context, tx *ent.Tx) (analytics.Tally, error) {
+func (s accountCleanupSnapshot) deleteCapturedRows(ctx context.Context, tx *ent.Tx) error {
 	if err := s.deleteModules(ctx, tx); err != nil {
-		return nil, err
+		return err
 	}
 	if err := s.deleteGovee(ctx, tx); err != nil {
-		return nil, err
+		return err
 	}
 	if err := s.deleteSpotify(ctx, tx); err != nil {
-		return nil, err
+		return err
 	}
 	if err := s.deleteQuotes(ctx, tx); err != nil {
-		return nil, err
+		return err
 	}
 	return s.deleteAutomations(ctx, tx)
 }
 
-func (s accountCleanupSnapshot) deleteAutomations(ctx context.Context, tx *ent.Tx) (analytics.Tally, error) {
-	tally := analytics.Tally{}
+func (s accountCleanupSnapshot) deleteAutomations(ctx context.Context, tx *ent.Tx) error {
 	for _, row := range s.automations {
-		n, err := tx.Automation.Delete().Where(entautomation.ID(row.ID), entautomation.Revision(row.Revision)).Exec(ctx)
-		if err != nil {
-			return nil, err
+		if _, err := tx.Automation.Delete().Where(entautomation.ID(row.ID), entautomation.Revision(row.Revision)).Exec(ctx); err != nil {
+			return err
 		}
-		tally.AddN(int64(n), catalog.RecipesTotal, row.TriggerType, enabledState(row.Enabled))
 	}
-	return tally, nil
+	return nil
 }
 
 func (s accountCleanupSnapshot) deleteModules(ctx context.Context, tx *ent.Tx) error {

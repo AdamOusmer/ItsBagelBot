@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAnalyticsSeedMatchesWriteTimeFields(t *testing.T) {
+func TestAnalyticsSeedTalliesStoredRows(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	row := func(user uint64, name string, enabled bool) *ent.ModulesCreate {
@@ -91,7 +91,7 @@ func TestModuleTogglesOnlyCountCommittedEnabledChanges(t *testing.T) {
 	seed, err := repo.AnalyticsSeed(ctx)
 	require.NoError(t, err)
 	requireModuleDefaults(t, seed)
-	require.Equal(t, map[string]int64(seed), capture.Read(catalog.LevelKey))
+	require.Equal(t, seed, analytics.Tally(readModuleSeed(t, repo)))
 }
 
 func TestModuleBatchAnalyticsUsesCoalescedWrites(t *testing.T) {
@@ -106,7 +106,7 @@ func TestModuleBatchAnalyticsUsesCoalescedWrites(t *testing.T) {
 	require.Equal(t, map[string]int64{"module.toggles|alerts|off": 1}, capture.Counters())
 	require.Equal(t, map[string]int64{
 		"modules.rows|quotes|off": 1, "modules.rows|alerts|off": 1, "modules.breadth|0": 2,
-	}, capture.Read(catalog.LevelKey))
+	}, readModuleSeed(t, repo))
 }
 
 func TestModuleRolledBackCommitDoesNotRecordAnalytics(t *testing.T) {
@@ -117,7 +117,7 @@ func TestModuleRolledBackCommitDoesNotRecordAnalytics(t *testing.T) {
 	_, err := repo.SetNow(t.Context(), 1, "quotes", true, nil)
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 	require.Empty(t, capture.Counters())
-	require.Empty(t, capture.Read(catalog.LevelKey))
+	require.Empty(t, readModuleSeed(t, repo))
 }
 
 func TestRecipeSeedPagesAndRejectsUnknownTriggers(t *testing.T) {
@@ -168,14 +168,13 @@ func requireModuleDefaults(t *testing.T, tally analytics.Tally) {
 	}
 }
 
-func TestWritesShiftAnalyticsLevelsByNetDelta(t *testing.T) {
+func TestSQLLevelsFollowCommittedWrites(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	capture := analyticstest.New(t)
 	rec := capture.Recorder
 	govee := repository.NewGoveeCreds(client, dbtest.NewPacker(t))
 	repo.SetAnalytics(rec)
-	govee.SetAnalytics(rec)
 
 	_, err := repo.SetNow(ctx, 1, "quotes", true, nil)
 	require.NoError(t, err)
@@ -195,5 +194,13 @@ func TestWritesShiftAnalyticsLevelsByNetDelta(t *testing.T) {
 		"modules.rows|loyalty|on":      1,
 		"modules.breadth|1":            1,
 		"integrations.connected|govee": 1,
-	}, capture.Read(catalog.LevelKey))
+	}, readModuleSeed(t, repo))
+}
+
+func readModuleSeed(t *testing.T, repo *repository.Modules) map[string]int64 {
+	t.Helper()
+	seed, err := repo.AnalyticsSeed(t.Context())
+	require.NoError(t, err)
+	requireModuleDefaults(t, seed)
+	return map[string]int64(seed)
 }

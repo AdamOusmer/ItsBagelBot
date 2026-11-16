@@ -8,13 +8,8 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/repository"
-	"ItsBagelBot/internal/analytics"
-	catalog "ItsBagelBot/internal/domain/analytics"
-	"ItsBagelBot/internal/valkeytest"
-	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type delegationStep struct {
@@ -52,10 +47,6 @@ func TestDelegatingLevelsFollowLiveGrants(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := t.Context()
 	require.NoError(t, repo.Register(ctx, 1001, "owner", "Owner", "owner@example.test"))
-	vc := valkeytest.Spawn(t)
-	rec := analytics.New(vc, zap.NewNop(), nil, analytics.WithoutTicker())
-	t.Cleanup(rec.Close)
-	repo.SetAnalytics(rec)
 	for _, s := range []delegationStep{
 		{action: "create", token: "first"},
 		{action: "create", token: "first", wantErr: true},
@@ -75,12 +66,9 @@ func TestDelegatingLevelsFollowLiveGrants(t *testing.T) {
 		{action: "delete"},
 	} {
 		require.Equal(t, s.wantErr, s.apply(t, repo) != nil, "%+v", s)
-		rec.Flush(ctx)
-		fields, err := pkgvalkey.HashAllInts(ctx, vc, catalog.LevelKey)
-		require.NoError(t, err)
 		seed, err := repo.AnalyticsSeed(ctx)
 		require.NoError(t, err)
-		require.Equal(t, []int64{s.want, s.want}, []int64{fields["accounts.delegating"], seed["accounts.delegating"]}, "%+v", s)
+		require.Equal(t, s.want, seed["accounts.delegating"], "%+v", s)
 	}
 }
 

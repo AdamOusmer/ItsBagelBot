@@ -11,26 +11,33 @@ import (
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/repository"
 	"ItsBagelBot/internal/analytics/analyticstest"
-	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/testdb"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
+func readAutomationSeed(t *testing.T, client *ent.Client) map[string]int64 {
+	t.Helper()
+	repo := repository.NewModules(client, nil, nil, zap.NewNop())
+	defer repo.Close(t.Context())
+	return readModuleSeed(t, repo)
+}
+
 func TestRecipeAnalyticsTracksCommittedTriggerAndState(t *testing.T) {
-	_, _, repo := setupAutomations(t, "recipeanalytics")
+	client, _, repo := setupAutomations(t, "recipeanalytics")
 	capture := analyticstest.New(t)
 	repo.SetAnalytics(capture.Recorder)
 	ctx := t.Context()
 	created, err := repo.Upsert(ctx, 1, repository.AutomationInput{Name: "one", Enabled: true, Definition: commandDef("!one")})
 	require.NoError(t, err)
-	require.Equal(t, map[string]int64{"recipes.total|command|on": 1}, capture.Read(catalog.LevelKey))
+	require.Equal(t, map[string]int64{"recipes.total|command|on": 1}, readAutomationSeed(t, client))
 	in := repository.AutomationInput{ID: created.ID, Name: "one", Definition: []byte(`{"version":1,"trigger":{"type":"manual","params":{}},"actions":[{"type":"chat","params":{"text":"hi"}}]}`)}
 	for range 2 {
 		_, err = repo.Upsert(ctx, 1, in)
 		require.NoError(t, err)
 	}
-	require.Equal(t, map[string]int64{"recipes.total|manual|off": 1}, capture.Read(catalog.LevelKey))
+	require.Equal(t, map[string]int64{"recipes.total|manual|off": 1}, readAutomationSeed(t, client))
 	stale := int64(1)
 	in.ExpectedRevision, in.Enabled = &stale, true
 	_, err = repo.Upsert(ctx, 1, in)
@@ -39,12 +46,12 @@ func TestRecipeAnalyticsTracksCommittedTriggerAndState(t *testing.T) {
 	in.Definition = []byte(`{}`)
 	_, err = repo.Upsert(ctx, 1, in)
 	require.Error(t, err)
-	require.Equal(t, map[string]int64{"recipes.total|manual|off": 1}, capture.Read(catalog.LevelKey))
+	require.Equal(t, map[string]int64{"recipes.total|manual|off": 1}, readAutomationSeed(t, client))
 	for _, user := range []uint64{2, 1, 1} {
 		_, err := repo.Delete(ctx, user, created.ID)
 		require.NoError(t, err)
 	}
-	require.Empty(t, capture.Read(catalog.LevelKey))
+	require.Empty(t, readAutomationSeed(t, client))
 }
 
 func TestRecipeAnalyticsIgnoresRolledBackCommit(t *testing.T) {
@@ -54,12 +61,12 @@ func TestRecipeAnalyticsIgnoresRolledBackCommit(t *testing.T) {
 	rejectTransactionCommit(t, client)
 	_, err := repo.Upsert(t.Context(), 1, repository.AutomationInput{Name: "one", Enabled: true, Definition: commandDef("!one")})
 	require.ErrorIs(t, err, errors.ErrUnsupported)
-	require.Empty(t, capture.Read(catalog.LevelKey))
+	require.Empty(t, readAutomationSeed(t, client))
 	require.Zero(t, client.Automation.Query().CountX(t.Context()))
 }
 
 func TestRecipeToggleAnalyticsTracksOnlyCommittedChanges(t *testing.T) {
-	_, _, repo := setupAutomations(t, "recipetoggleanalytics")
+	client, _, repo := setupAutomations(t, "recipetoggleanalytics")
 	capture := analyticstest.New(t)
 	repo.SetAnalytics(capture.Recorder)
 	ctx := t.Context()
@@ -85,7 +92,7 @@ func TestRecipeToggleAnalyticsTracksOnlyCommittedChanges(t *testing.T) {
 		t.Run(step.name, func(t *testing.T) {
 			_, err := repo.SetEnabled(ctx, step.userID, step.change)
 			require.ErrorIs(t, err, step.wantErr)
-			require.Equal(t, map[string]int64{"recipes.total|command|" + step.state: 1}, capture.Read(catalog.LevelKey))
+			require.Equal(t, map[string]int64{"recipes.total|command|" + step.state: 1}, readAutomationSeed(t, client))
 		})
 	}
 }
@@ -111,7 +118,7 @@ func TestRecipeToggleAnalyticsIgnoresFailedWrites(t *testing.T) {
 			})
 			_, err = repo.SetEnabled(t.Context(), 1, repository.EnabledChange{ID: created.ID})
 			require.ErrorIs(t, err, tt.wantErr)
-			require.Equal(t, map[string]int64{"recipes.total|command|on": 1}, capture.Read(catalog.LevelKey))
+			require.Equal(t, map[string]int64{"recipes.total|command|on": 1}, readAutomationSeed(t, client))
 		})
 	}
 }
@@ -142,22 +149,22 @@ func TestRecipeAnalyticsCoversConversionAndAccountCleanup(t *testing.T) {
 	in := repository.AutomationInput{Name: "Flow", Definition: []byte(followFlow)}
 	row, err := rig.repo.UpgradeAlert(ctx, 1001, in, repository.AlertUpgrade{EnableKey: "followEnabled"})
 	require.NoError(t, err)
-	require.Equal(t, map[string]int64{"recipes.total|event|off": 1}, capture.Read(catalog.LevelKey))
+	require.Equal(t, map[string]int64{"recipes.total|event|off": 1}, readModuleSeed(t, rig.modules))
 	stale := int64(99)
 	err = rig.repo.DowngradeToAlert(ctx, 1001, row.ID, repository.AlertDowngrade{EnableKey: "followEnabled", ExpectedRevision: &stale})
 	require.ErrorIs(t, err, repository.ErrRevisionConflict)
-	require.Equal(t, map[string]int64{"recipes.total|event|off": 1}, capture.Read(catalog.LevelKey))
+	require.Equal(t, map[string]int64{"recipes.total|event|off": 1}, readModuleSeed(t, rig.modules))
 	err = rig.repo.DowngradeToAlert(ctx, 1001, row.ID, repository.AlertDowngrade{EnableKey: "followEnabled"})
 	require.NoError(t, err)
-	require.Equal(t, map[string]int64{"modules.rows|alerts|off": 1, "modules.breadth|0": 1}, capture.Read(catalog.LevelKey))
+	require.Equal(t, map[string]int64{"modules.rows|alerts|off": 1, "modules.breadth|0": 1}, readModuleSeed(t, rig.modules))
 	in.Enabled = true
 	_, err = rig.repo.UpgradeAlert(ctx, 1001, in, repository.AlertUpgrade{EnableKey: "followEnabled"})
 	require.NoError(t, err)
 	require.Equal(t, map[string]int64{
 		"modules.rows|alerts|off": 1, "modules.breadth|0": 1, "recipes.total|event|on": 1,
-	}, capture.Read(catalog.LevelKey))
+	}, readModuleSeed(t, rig.modules))
 	rig.modules.SetAccountInstanceResolver(func(context.Context, uint64) (int64, error) { return 100, nil })
 	require.NoError(t, rig.modules.DeleteAccount(ctx, 1001, 100))
-	require.Empty(t, capture.Read(catalog.LevelKey))
+	require.Empty(t, readModuleSeed(t, rig.modules))
 	require.Equal(t, map[string]int64{"module.toggles|alerts|off": 1}, capture.Counters())
 }

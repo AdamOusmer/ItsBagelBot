@@ -88,9 +88,7 @@ func (a *Automations) writeEnabled(ctx context.Context, userID uint64, row *ent.
 	if affected == 0 {
 		return automation.Automation{}, ErrRevisionConflict
 	}
-	before := recipeTally([]*ent.Automation{row})
 	row.Enabled, row.Revision = enabled, row.Revision+1
-	a.analytics.Shift(before, recipeTally([]*ent.Automation{row}))
 	view, err := automationView(row)
 	if err != nil {
 		return automation.Automation{}, err
