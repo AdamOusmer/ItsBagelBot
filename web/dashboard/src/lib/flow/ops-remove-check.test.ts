@@ -12,7 +12,8 @@ const cases: { name: string; edges: EdgeRow[]; remaining: EdgeRow[]; lost: strin
   { name: 'shared No descendant stays', edges: [['reward', 'next', 'role'], ['role', 'yes', 'YES'], ['role', 'no', 'NO'], ['NO', 'next', 'shared'], ['YES', 'next', 'shared']], remaining: [['reward', 'next', 'YES'], ['YES', 'next', 'shared']], lost: ['NO'] },
   { name: 'No path reached elsewhere stays', edges: [['reward', 'next', 'role'], ['role', 'yes', 'YES'], ['role', 'no', 'NO'], ['reward', 'next', 'NO']], remaining: [['reward', 'next', 'YES'], ['reward', 'next', 'NO']], lost: [] },
   { name: 'empty Yes path', edges: [['reward', 'next', 'role'], ['role', 'no', 'NO'], ['NO', 'next', 'tail']], remaining: [], lost: ['NO', 'tail'] },
-  { name: 'both branches join', edges: [['reward', 'next', 'role'], ['role', 'yes', 'shared'], ['role', 'no', 'shared']], remaining: [['reward', 'next', 'shared']], lost: [] }
+  { name: 'a Yes child already linked from the parent keeps the Yes order', edges: [['reward', 'next', 'role'], ['reward', 'next', 'Y'], ['role', 'yes', 'Y'], ['role', 'yes', 'Z'], ['role', 'no', 'NO']], remaining: [['reward', 'next', 'Y'], ['reward', 'next', 'Z']], lost: ['NO'] },
+  { name: 'both branches join',edges: [['reward', 'next', 'role'], ['role', 'yes', 'shared'], ['role', 'no', 'shared']], remaining: [['reward', 'next', 'shared']], lost: [] }
 ];
 
 test.each(cases)('removeCheckKeepYes: $name', ({ edges, remaining, lost }) => {

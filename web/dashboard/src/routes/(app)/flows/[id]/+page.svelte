@@ -205,7 +205,16 @@
     return Math.max(280, layoutHeight() - headerBottom - 52);
   }
 
-  const sheetHeight = () => Math.min(sheetLimit(), Math.max(280, Math.round(layoutHeight() * (layoutHeight() >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE))));
+  let draggedSheet: number | null = null;
+
+  const defaultSheet = () => Math.max(280, Math.round(layoutHeight() * (layoutHeight() >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE)));
+
+  const sheetHeight = () => Math.min(sheetLimit(), draggedSheet ?? defaultSheet());
+
+  function clearSheetSizing() {
+    draggedSheet = null;
+    for (const name of ['--stage-kb', '--stage-vvh', '--stage-sheet-h', '--stage-sheet-limit', '--stage-board-left']) editorEl?.style.removeProperty(name);
+  }
 
   function syncViewport() {
     const style = editorEl?.style;
@@ -263,7 +272,7 @@
     wide.addEventListener('change', onWidth);
     const onQuery = () => {
       sheetMode = query.matches;
-      if (!sheetMode) for (const name of ['--stage-kb', '--stage-vvh', '--stage-sheet-h', '--stage-sheet-limit', '--stage-board-left']) editorEl?.style.removeProperty(name);
+      if (!sheetMode) clearSheetSizing();
       syncViewport();
     };
     onQuery();
@@ -455,7 +464,9 @@
     else if (recipeOpen) closeRecipe();
   }
 
-  function resizeSheet() {
+  function resizeSheet(height: number) {
+    draggedSheet = height;
+    syncViewport();
     sheetRevision++;
     if (selectedId) canvas?.revealNode(selectedId);
   }

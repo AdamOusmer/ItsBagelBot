@@ -44,9 +44,7 @@ export function sheetDrag(el: HTMLElement, initial: () => void, onResize: (heigh
   const move = (e: PointerEvent) => {
     if (e.pointerId !== drag?.id) return;
     drag.dy = e.clientY - drag.y;
-    const height = Math.min(drag.limit, Math.max(160, drag.height - drag.dy));
-    el.style.height = `${height}px`;
-    onResize(height);
+    onResize(Math.min(drag.limit, Math.max(160, drag.height - drag.dy)));
   };
 
   const end = (e: PointerEvent) => {

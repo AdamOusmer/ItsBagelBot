@@ -148,11 +148,17 @@ function healNode(flow: Flow, node: FlowNode, port: FlowEdge['port']): void {
   removeNode(flow, node.id);
   const replacements = new Map<FlowEdge, FlowEdge[]>();
   for (const parent of edges.filter((edge) => edge.to === node.id)) {
-    const links = children.map((child) => connect(flow, { from: parent.from, port: parent.port, to: child.to }));
+    const links = children.map((child) => linkOf(flow, { from: parent.from, port: parent.port, to: child.to }));
     replacements.set(parent, links.filter((edge): edge is FlowEdge => edge !== null));
   }
   const surviving = new Set(flow.edges);
-  flow.edges = edges.flatMap((edge) => replacements.get(edge) ?? (surviving.has(edge) ? [edge] : []));
+  flow.edges = [...new Set(edges.flatMap((edge) => replacements.get(edge) ?? (surviving.has(edge) ? [edge] : [])))];
+}
+
+const sameEnds = (edge: FlowEdge, ends: EdgeEnds) => edge.from === ends.from && edge.port === ends.port && edge.to === ends.to;
+
+function linkOf(flow: Flow, ends: EdgeEnds): FlowEdge | null {
+  return flow.edges.find((edge) => sameEnds(edge, ends)) ?? connect(flow, ends);
 }
 
 function pruneNode(flow: Flow, id: NodeId): NodeId[] {
