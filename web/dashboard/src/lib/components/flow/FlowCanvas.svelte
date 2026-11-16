@@ -1321,7 +1321,7 @@
     height: max(100%, 44px * var(--inv, 1));
     translate: 0 -50%;
   }
-  .canvas.touch .zoom { --btn-icon-size: 44px; --btn-icon-min-size: 44px; }
+  .canvas.touch .zoom { --btn-icon-min-size: 44px; }
   .canvas.touch .connect-hint { --btn-min-h: 44px; }
   .canvas.touch .auto {
     min-height: 44px;

@@ -201,12 +201,20 @@ function moduleLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   return n.type === 'reply.reward_update' ? rewardUpdateLine(t, n, spec) : dataLine(t, n, spec);
 }
 
-const STREAM_LINES: Readonly<Record<string, (t: Translate, n: FlowNode) => string>> = {
-  'reply.shoutout': (t, n) => given(text(n, 'target'), (target) => t('flows.line.shoutout', { target })),
-  'reply.announce': (t, n) => given(text(n, 'text'), (message) => t('flows.line.announce', { message })),
-  'reply.reply': (t, n) => given(text(n, 'text'), (message) => t('flows.line.reply', { message })),
-  'reply.timeout': (t, n) => given(text(n, 'target'), (target) => t('flows.line.timeout', { target, amount: cooldownAmount(t, num(n, 'seconds')) }))
-};
+function streamLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
+  switch (n.type) {
+    case 'reply.shoutout':
+      return given(text(n, 'target'), (target) => t('flows.line.shoutout', { target }));
+    case 'reply.announce':
+      return given(text(n, 'text'), (message) => t('flows.line.announce', { message }));
+    case 'reply.reply':
+      return given(text(n, 'text'), (message) => t('flows.line.reply', { message }));
+    case 'reply.timeout':
+      return given(text(n, 'target'), (target) => t('flows.line.timeout', { target, amount: cooldownAmount(t, num(n, 'seconds')) }));
+    default:
+      return moduleLine(t, n, spec);
+  }
+}
 
 function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
@@ -221,7 +229,7 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
     case 'reply.wait':
       return given(num(n, 'seconds'), (count) => t('flows.line.pause', { amount: seconds(t, count) }));
     default:
-      return STREAM_LINES[n.type]?.(t, n) ?? moduleLine(t, n, spec);
+      return streamLine(t, n, spec);
   }
 }
 

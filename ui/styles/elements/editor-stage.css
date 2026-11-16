@@ -155,6 +155,7 @@
     }
   }
 
+  /* Must stay the exact complement of the bottom-sheet media query below, or both match at once and fight over top. */
   @media (min-width: 761px) and (pointer: fine), (min-width: 1024px) {
     .bb-editor-stage--slim-bar .bb-editor-stage__panel {
       top: calc(var(--stage-top, 0px) + 56px);
@@ -315,6 +316,13 @@
   @media (prefers-reduced-motion: reduce) {
     .bb-editor-stage__panel {
       animation: none;
+    }
+  }
+
+  @media (max-width: 760px), (pointer: coarse) and (max-width: 1023px) {
+    body:has(.bb-editor-stage__panel) .bb-toast-stack {
+      top: calc(var(--bb-topbar-height) + 80px);
+      bottom: auto;
     }
   }
 }

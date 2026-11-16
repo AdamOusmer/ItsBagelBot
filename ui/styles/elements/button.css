@@ -189,6 +189,7 @@
     color: var(--bb-twitch);
   }
 
+  /* Label fills the rest so the glyph holds its spot in every locale. */
   .bb-btn--twitch .bb-btn__content > bb-fit,
   .bb-btn--twitch > .bb-nav-link__label:is(bb-fit) {
     flex: 1 1 0;
@@ -222,16 +223,16 @@
   .bb-btn--icon {
     min-width: var(--btn-icon-min-size, 0);
     min-height: var(--btn-icon-min-size, var(--btn-min-h, 40px));
-    width: var(--btn-icon-size, 40px);
-    height: var(--btn-icon-size, 40px);
+    width: 40px;
+    height: 40px;
     padding: 0;
     justify-content: center;
   }
 
   .bb-btn--icon.bb-btn--sm {
     --btn-min-h: 28px;
-    width: var(--btn-icon-size, 28px);
-    height: var(--btn-icon-size, 28px);
+    width: 28px;
+    height: 28px;
     border-color: transparent;
     background: transparent;
     color: var(--bb-muted-light);
