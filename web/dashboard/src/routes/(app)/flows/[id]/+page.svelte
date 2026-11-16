@@ -25,9 +25,10 @@
   import { starterFlow } from '#lib/flow/starters';
   import { awaitingSetup } from '#lib/flow/setup';
   import { addStep as insertStep, selectedAddPoint, selectedPlacement, selectionAfterHistory } from '#lib/flow/editor';
-  import { keyboardSize, panelInsets } from '#lib/flow/editor-viewport';
+  import { keyboardSize, panelInsets } from '#lib/flow/touch';
   import { newFlow, specFor, type Flow } from '#lib/flow/model';
   import { rehearseFlow } from '#lib/flow/rehearse';
+  import { rehearsalTrace } from '#lib/flow/rehearsal-view';
   import { scenarioPatches } from '@bagel/kit/automations';
   import type { RehearsalScenario } from '#lib/flow/rehearse';
   import { flowRouteId, legacyEditorHref, parseFlowRouteId } from '#lib/flow/ref';
@@ -84,8 +85,7 @@
   let overrides = $state<Record<string, string>>({});
   const rehearsal = $derived(rehearseFlow(flow, t, { scenario, overrides }));
   const trace = $derived<FlowTrace | null>(testRunOpen ? {
-    nodes: new Set(rehearsal.steps.filter((step) => step.kind !== 'skip' && step.status !== 'skipped').flatMap((step) => step.id ? [step.id] : [])),
-    edges: new Set(flow.edges.filter((edge) => tracedEdge(edge)).map((edge) => edge.id)),
+    ...rehearsalTrace(flow, rehearsal.steps),
     current: selectedId
   } : null);
   let autoTidy = $state(true);
@@ -120,12 +120,6 @@
     if (testRunOpen && inspectorVisible) return PANEL_ROOM * 2;
     return inspectorVisible || testRunOpen || recipeOpen ? PANEL_ROOM : 0;
   });
-
-  function tracedEdge(edge: Flow['edges'][number]): boolean {
-    const source = rehearsal.steps.filter((step) => step.id === edge.from);
-    const reached = rehearsal.steps.some((step) => step.id === edge.to);
-    return reached && source.some((step) => !step.port || step.port === edge.port);
-  }
 
   function changeScenario(patch: Partial<RehearsalScenario>) {
     scenario = { ...scenario, ...patch };
@@ -660,7 +654,7 @@
   {#if testRunOpen}
     <div class="panel-slot">
     {#await loadTestRun() then { default: TestRunPanel }}
-      <TestRunPanel view={rehearsal} {overrides} onScenario={changeScenario} onOverride={(key, value) => (overrides = { ...overrides, [key]: value })} onSelect={openSettings} onClose={closeTestRun} />
+      <TestRunPanel view={rehearsal} {overrides} onScenario={changeScenario} onOverride={(key, value) => (overrides = { ...overrides, [key]: value })} onSelect={(id, fieldKey) => { inspectField = fieldKey; openSettings(id); }} onClose={closeTestRun} />
     {/await}
     </div>
   {:else if recipeOpen}

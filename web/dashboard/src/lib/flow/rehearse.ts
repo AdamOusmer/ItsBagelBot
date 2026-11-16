@@ -4,7 +4,7 @@ import type { MessageKey, RehearsedLine } from '@bagel/kit';
 import { compactDuration, compileFlow, defaultScenario, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
-import { fieldLabel, stepLabel } from './copy';
+import { fieldIssueMessage, fieldLabel, stepLabel } from './copy';
 import { describe } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { specFor, type Flow, type FlowNode } from './model';
@@ -269,7 +269,7 @@ function durationFormatter(t: Translate): (seconds: number) => Text {
 export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalView {
   const compiled = compileDraft(flow);
   const empty: RehearsalView = { steps: [], fields: [], scenario: { live: true, ...options.scenario }, summary: '', starts: false, state: 'not_started' };
-  if (!compiled.ok) return { ...empty, issue: { text: issueMessage(t, compiled.issues[0]!), node: stepOf(compiled.issues, flow.nodes), fieldKey: fieldIssues(compiled.issues, flow.nodes)[0]?.fieldKey } };
+  if (!compiled.ok) return { ...empty, issue: rehearsalIssue(t, compiled.issues, flow) };
   const { definition } = compiled.value;
   const kind = scenarioKind(definition);
   const fields = SCENARIO_FIELDS[kind] ?? [];
@@ -285,6 +285,14 @@ export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions
     steps: [...permissionWarnings(definition), ...result.events].map((event) => mappedStep(t, event, context)),
     blocked: result.reason ? blockedText(t, result.reason) : undefined,
     startPatch: result.reason ? startPatch(result.reason, definition) : undefined };
+}
+
+function rehearsalIssue(t: Translate, issues: Issue[], flow: Flow): RehearsalView['issue'] {
+  const first = issues[0]!;
+  const mapped = fieldIssues([first], flow.nodes)[0];
+  const node = flow.nodes.find((node) => node.id === mapped?.nodeId);
+  const text = mapped ? fieldIssueMessage(t, mapped, node) : issueMessage(t, first);
+  return { text, node: stepOf([first], flow.nodes), fieldKey: mapped?.fieldKey };
 }
 
 export function setStoredValue(scenario: ScenarioPatch, node: FlowNode, value: Text): ScenarioPatch {

@@ -6,6 +6,8 @@
   "missing": "Nicht festgelegt: {names}",
   "wouldNotStart": "Würde nicht starten: {reason}",
   "started": "Würde starten",
+  "stoppedAt": "Gestartet, dann bei {step} gestoppt.",
+  "showStep": "Schritt zeigen",
   "makeStart": "Start ermöglichen",
   "makePass": "Prüfung bestehen",
   "fixStep": "Schritt zum Beheben zeigen",

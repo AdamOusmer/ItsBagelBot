@@ -95,6 +95,7 @@
     "duplicate": "Ein solches Rezept existiert bereits.",
     "tooMany": "Du hast das Rezept-Limit erreicht.",
     "required": "Ein Wert fehlt.",
+    "requiredField": "{field} fehlt.",
     "tooLong": "Ein Wert ist zu lang.",
     "tooShort": "Ein Wert ist zu kurz.",
     "outOfRange": "Eine Zahl liegt außerhalb des zulässigen Bereichs.",

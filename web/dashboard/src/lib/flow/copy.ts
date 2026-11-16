@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { MAX_WAIT_SECONDS, type FieldSpec, type NodeSpec, type StepGroup, type VariableSpec } from './model';
-import type { Translate } from './messages';
+import { MAX_WAIT_SECONDS, specFor, type FieldSpec, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
+import type { FieldIssue } from './issues';
+import { issueMessage, type Translate } from './messages';
 
 export const stepLabel = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.label` as MessageKey);
 
@@ -18,6 +19,14 @@ export const groupLabel = (t: Translate, group: StepGroup): string => t(`flows.b
 
 export const fieldLabel = (t: Translate, spec: NodeSpec, field: FieldSpec): string =>
   t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.label` as MessageKey);
+
+export function fieldIssueMessage(t: Translate, issue: FieldIssue, node: FlowNode | undefined): string {
+  if (issue.code !== 'required') return issueMessage(t, issue);
+  const spec = node ? specFor(node.type) : undefined;
+  const field = spec?.fields.find((field) => field.key === issue.fieldKey);
+  if (!spec || !field) return issueMessage(t, issue);
+  return t('flows.issue.requiredField', { field: fieldLabel(t, spec, field) });
+}
 
 export function fieldPlaceholder(t: Translate, spec: NodeSpec, field: FieldSpec): string | undefined {
   if (!('placeholder' in field) || !field.placeholder) return undefined;

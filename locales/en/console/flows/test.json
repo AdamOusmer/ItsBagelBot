@@ -6,6 +6,8 @@
   "missing": "Not set: {names}",
   "wouldNotStart": "Would not start: {reason}",
   "started": "Would start",
+  "stoppedAt": "Started, then stopped at {step}.",
+  "showStep": "Show step",
   "makeStart": "Make it start",
   "makePass": "Make it pass",
   "fixStep": "Show step to fix",

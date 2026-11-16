@@ -42,7 +42,7 @@
   import { GRID, NODE_W, outputsFor, specFor, type Flow, type FlowKind } from '../../flow/model';
   import { connect, duplicateNode, removeEdge } from '../../flow/ops';
   import { addStep, connectionTarget, parallelPorts, portOccupied, removeStep as deleteStep, selectedPlacement } from '../../flow/editor';
-  import { currentPositions, tweenPositions } from '../../flow/canvas-positions';
+  import { currentPositions, tweenPositions } from '../../flow/canvas-geometry';
   import { edgePaths, flowBounds, loopPaths, startPaths, wirePreview } from '../../flow/canvas-geometry';
   import { searchSteps } from '../../flow/search';
   import { neighbor, readingOrder, stepDelta, stepIndex } from '../../flow/keyboard';

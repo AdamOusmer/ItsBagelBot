@@ -95,6 +95,7 @@
     "duplicate": "Ya existe una receta como esta.",
     "tooMany": "Has alcanzado el límite de recetas.",
     "required": "Falta un valor.",
+    "requiredField": "Falta {field}.",
     "tooLong": "Un valor es demasiado largo.",
     "tooShort": "Un valor es demasiado corto.",
     "outOfRange": "Un número está fuera del rango permitido.",

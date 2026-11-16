@@ -10,6 +10,7 @@
   import RehearsedLineRow from '#lib/components/commands/RehearsedLineRow.svelte';
   import '@bagel/ui/styles/elements/chat-preview.css';
   import { setStoredValue, type RehearsalStep } from '#lib/flow/rehearse';
+  import { rehearsalTimeline } from '#lib/flow/rehearsal-view';
 
   let { steps, scenario, overrides, onScenario, onOverride, onSelect }: {
     steps: RehearsalStep[];
@@ -21,29 +22,8 @@
   } = $props();
   const { t } = getI18n();
   const uid = $props.id();
-  type Row = { step: RehearsalStep; more: number; pass: number; total: number };
-  const loopPath = (step: RehearsalStep) => step.iteration.length ? step.path.slice(0, step.path.lastIndexOf('.params.actions')) : '';
   const laneOffset = (step: RehearsalStep) => step.lane.reduce((offset, lane) => offset + lane + 1, 0) * 10;
-
-  function timeline(events: RehearsalStep[]) {
-    const loops = new Map(events.filter((step) => step.detail?.times).map((step) => [step.path, Number(step.detail?.times)]));
-    const counts = new Map<string, Row[]>();
-    const rows = events.map((step): Row => ({ step, more: 0, pass: step.iteration.at(-1) ?? 0, total: loops.get(loopPath(step)) ?? 0 }));
-    for (const row of rows.filter((row) => row.pass)) {
-      const key = loopPath(row.step);
-      counts.set(key, [...(counts.get(key) ?? []), row]);
-    }
-    const hidden = new Set<Row>();
-    for (const entries of counts.values()) {
-      entries.slice(20).forEach((row) => hidden.add(row));
-      if (entries.length > 20) entries[19]!.more = entries.length - 20;
-    }
-    const groups = new Map<number, Row[]>();
-    for (const row of rows.filter((row) => !hidden.has(row))) groups.set(row.step.atMs, [...(groups.get(row.step.atMs) ?? []), row]);
-    return [...groups].map(([atMs, rows]) => ({ atMs, rows }));
-  }
-
-  const groups = $derived(timeline(steps));
+  const groups = $derived(rehearsalTimeline(steps));
   const choices = $derived({
     'cond.chance': [{ value: 'yes', label: t('flows.test.yes') }, { value: 'no', label: t('flows.test.no') }],
     'cond.cooldown': [{ value: 'ready', label: t('flows.test.ready') }, { value: 'cooling', label: t('flows.test.cooling') }],
@@ -101,7 +81,7 @@
             {/if}
             {#if step.kind === 'check'}<span class="result">{status(step)}</span>{/if}
             {#if step.sample}<span class="context">{t('flows.test.sample')}</span>{/if}
-            {#if step.missing.length}<span class="missing">{t('flows.test.missing', { names: step.missing.join(', ') })}</span>{/if}
+            {#each step.missing as field (field)}<span class="missing">{t('flows.issue.requiredField', { field })}</span>{/each}
             {#if pretend && step.id}
               <div class="pretend">
                 <span class="context">{t('flows.test.pretendStep')}</span>

@@ -17,11 +17,10 @@
   import { chipHint, pinnedFor, sheetFor, variableById, type VariableChip } from '@bagel/kit/variables';
   import { portLabel } from '#lib/flow/describe';
   import { fieldRequired, type FieldIssue } from '#lib/flow/issues';
-  import { issueMessage } from '#lib/flow/messages';
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
   import { fieldVisible, NODE_SPECS, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode } from '#lib/flow/ops';
   import { awaitingSetup, configText } from '#lib/flow/setup';
@@ -275,7 +274,7 @@
           {#each spec.fields.filter((f) => renderVisible(spec, node, f)) as field (field.key)}
             {@const label = fieldLabel(t, spec, field)}
             {@const issue = issues.find((issue) => issue.nodeId === node.id && issue.fieldKey === field.key)}
-            {@const error = issue ? issueMessage(t, issue) : undefined}
+            {@const error = issue ? fieldIssueMessage(t, issue, node) : undefined}
             {@const tag = fieldRequired(node, field.key) ? t('flows.clarity.required') : undefined}
             {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field)}
             <div class="field" data-field={field.key} role="group" aria-label={label} tabindex="-1">

@@ -6,6 +6,8 @@
   "missing": "Sin definir: {names}",
   "wouldNotStart": "No empezaría: {reason}",
   "started": "Empezaría",
+  "stoppedAt": "Empezó y se detuvo en {step}.",
+  "showStep": "Ver paso",
   "makeStart": "Hacer que empiece",
   "makePass": "Hacer que pase",
   "fixStep": "Ver paso a corregir",

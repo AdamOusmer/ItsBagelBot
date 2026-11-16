@@ -15,10 +15,16 @@
     overrides: RehearsalOverrides;
     onScenario: (patch: Partial<RehearsalScenario>) => void;
     onOverride: (key: string, value: string) => void;
-    onSelect: (id: string) => void;
+    onSelect: (id: string, fieldKey?: string) => void;
     onClose: () => void;
   } = $props();
   const { t } = getI18n();
+  const stoppedStep = $derived(view.steps.find((step) => step.id === view.stoppedAt)?.label ?? '');
+  const headline = $derived({
+    not_started: t('flows.test.wouldNotStart', { reason: view.blocked ?? '' }),
+    started: t('flows.test.started'),
+    stopped: t('flows.test.stoppedAt', { step: stoppedStep })
+  }[view.state]);
 </script>
 
 <aside class="panel" aria-label={t('flows.board.testRun')}>
@@ -33,13 +39,18 @@
     {#if view.issue}
       <div class="notice" role="status">
         <p class="sentence"><bb-fit mode="block"><span data-fit>{view.issue.text}</span></bb-fit></p>
-        {#if view.issue.node}<Button variant="ghost" size="sm" onclick={() => view.issue?.node && onSelect(view.issue.node)}><span data-fit>{t('flows.test.fixStep')}</span></Button>{/if}
+        {#if view.issue.node}<Button variant="ghost" size="sm" onclick={() => view.issue?.node && onSelect(view.issue.node, view.issue.fieldKey)}><span data-fit>{t('flows.test.fixStep')}</span></Button>{/if}
       </div>
     {/if}
     <div class="notice start" class:invisible={Boolean(view.issue)} inert={Boolean(view.issue)}>
-      <p class="sentence" role="status"><bb-fit mode="block"><span data-fit>{view.starts ? t('flows.test.started') : t('flows.test.wouldNotStart', { reason: view.blocked ?? '' })}</span></bb-fit></p>
-      <div class="repair" class:invisible={!view.startPatch} inert={!view.startPatch}>
-        <Button variant="ghost" size="sm" onclick={() => view.startPatch && onScenario(view.startPatch)}><span data-fit>{t('flows.test.makeStart')}</span></Button>
+      <p class="sentence" role="status"><bb-fit mode="block"><span data-fit>{headline}</span></bb-fit></p>
+      <div class="actions">
+        <div class="repair" class:invisible={view.state !== 'not_started' || !view.startPatch} inert={view.state !== 'not_started' || !view.startPatch}>
+          <Button variant="ghost" size="sm" onclick={() => view.startPatch && onScenario(view.startPatch)}><span data-fit>{t('flows.test.makeStart')}</span></Button>
+        </div>
+        <div class="repair" class:invisible={view.state !== 'stopped'} inert={view.state !== 'stopped'}>
+          <Button variant="ghost" size="sm" onclick={() => view.stoppedAt && onSelect(view.stoppedAt)}><span data-fit>{t('flows.test.showStep')}</span></Button>
+        </div>
       </div>
     </div>
     <RehearsalTimeline steps={view.steps} scenario={view.scenario} {overrides} {onScenario} {onOverride} {onSelect} />
@@ -55,7 +66,7 @@
   .note { flex: none; height: 40px; margin: 0; font-size: 13px; line-height: 20px; color: var(--bb-muted-light); }
   .notice { flex: none; min-height: 64px; font-size: 14px; line-height: 1.4; }
   .sentence { height: 42px; margin: 0 0 6px; }
-  .start .sentence { height: 22px; }
-  .repair { min-height: 32px; }
+  .actions { display: grid; }
+  .repair { min-height: 32px; grid-area: 1 / 1; }
   .invisible { visibility: hidden; opacity: 0; }
 </style>

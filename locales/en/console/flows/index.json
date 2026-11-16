@@ -95,6 +95,7 @@
     "duplicate": "A recipe like this already exists.",
     "tooMany": "You have reached the recipe limit.",
     "required": "A value is missing.",
+    "requiredField": "{field} is missing.",
     "tooLong": "A value is too long.",
     "tooShort": "A value is too short.",
     "outOfRange": "A number is outside the allowed range.",

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { durationOutside, durationRange, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, stepLabel, stepSummary, variableLabel } from './copy';
+import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, stepLabel, stepSummary, variableLabel } from './copy';
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
 import { NODE_SPECS, type FlowNode } from './model';
@@ -9,6 +9,16 @@ import { NODE_SPECS, type FlowNode } from './model';
 const missing = (text: string | undefined) => text === undefined || text.startsWith('flows.');
 
 describe('step copy', () => {
+  test.each([
+    { type: 'reply.chat', fieldKey: 'message', code: 'required', expected: 'Message is missing.' },
+    { type: 'twitch.chat.command', fieldKey: 'trigger', code: 'required', expected: 'Command is missing.' },
+    { type: 'reply.chat', fieldKey: 'unknown', code: 'required', expected: 'A value is missing.' },
+    { type: 'reply.chat', fieldKey: 'message', code: 'too_long', expected: 'A value is too long.' }
+  ])('$type $fieldKey $code names the missing field when mapped', ({ type, fieldKey, code, expected }) => {
+    const node: FlowNode = { id: 'n', type, x: 0, y: 0, config: {} };
+    expect(fieldIssueMessage(english, { nodeId: node.id, fieldKey, code, path: 'nodes.n.config' }, node)).toBe(expected);
+  });
+
   test.each(NODE_SPECS.map((spec) => [spec.type, spec] as const))('%s has English for everything it shows', (_type, spec) => {
     const shown = [
       stepLabel(english, spec),

@@ -6,6 +6,8 @@
   "missing": "Non défini : {names}",
   "wouldNotStart": "Ne démarrerait pas : {reason}",
   "started": "Démarrerait",
+  "stoppedAt": "Démarré, puis arrêté à {step}.",
+  "showStep": "Voir l'étape",
   "makeStart": "Permettre le départ",
   "makePass": "Faire réussir",
   "fixStep": "Voir l'étape à corriger",
