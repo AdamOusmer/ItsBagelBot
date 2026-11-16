@@ -130,7 +130,8 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return err
 	}
 	wager.roll = roll
-	out, err := gc.d.Loyalty.BalanceWager(ctx, engine.PointWager{BroadcasterID: gc.c.BroadcasterID, ViewerID: gc.viewerID(), Login: login, Amount: wager.bet, Won: engine.GambleWins(roll, gc.cfg.WinPercent)})
+	wager.won = engine.GambleWins(roll, gc.cfg.WinPercent)
+	out, err := gc.d.Loyalty.BalanceWager(ctx, engine.PointWager{BroadcasterID: gc.c.BroadcasterID, ViewerID: gc.viewerID(), Login: login, Amount: wager.bet, Won: wager.won})
 	if err != nil {
 		gc.log.Warn("gamble: settlement failed", gc.c.BID(), zap.Error(err))
 		return err
@@ -139,15 +140,7 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return nil
 	}
 	wager.balance = out.Balance.Points
-	if engine.GambleWins(roll, gc.cfg.WinPercent) {
-		gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", wager)
-		return nil
-	}
-	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
-		"roll", strconv.FormatInt(roll, 10),
-		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
-		"amount", strconv.FormatInt(wager.bet, 10),
-		"balance", strconv.FormatInt(wager.balance, 10))
+	gc.announce(emit, wager)
 	return nil
 }
 
@@ -169,6 +162,7 @@ type wagerOutcome struct {
 	roll    int64
 	bet     int64
 	balance int64
+	won     bool
 }
 
 type refusal struct {
@@ -229,8 +223,15 @@ func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, erro
 	return allowed, nil
 }
 
-func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, wager wagerOutcome) {
-	gc.reply(emit, override, key,
+func (gc gambleCmd) announce(emit module.Emit, wager wagerOutcome) {
+	override, key := gc.tmpl.LoseMessage, "gamble.lose"
+	if wager.won {
+		override, key = gc.tmpl.WinMessage, "gamble.win"
+	}
+	if wager.bet == gc.balance {
+		key += ".all"
+	}
+	gc.reply(emit, override, replyKey(key),
 		"roll", strconv.FormatInt(wager.roll, 10),
 		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
 		"amount", strconv.FormatInt(wager.bet, 10),

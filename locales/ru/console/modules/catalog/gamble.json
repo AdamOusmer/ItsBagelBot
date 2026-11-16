@@ -27,13 +27,13 @@
       "label": "Сообщение о выигрыше",
       "tagline": "Когда бросок попадает в шанс выигрыша.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} выпало {roll}, плюс {amount} {points}! Теперь у тебя {balance}."
+      "defaultMessage": "@{user} ставка {amount}, выигрыш {amount} {points}! Теперь у тебя {balance}."
     },
     "lost": {
       "label": "Сообщение о проигрыше",
       "tagline": "Когда бросок не попадает в шанс выигрыша.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} выпало {roll}, минус {amount} {points}. Осталось {balance}."
+      "defaultMessage": "@{user} ставка {amount}, проигрыш {amount} {points}. Осталось {balance}. Я их заберу, спасибо."
     }
   },
   "commands": {

@@ -2,11 +2,13 @@
   "broke": "@{gamble:user} у тебя только {gamble:balance} {gamble:points}.",
   "cool": "@{gamble:user} не спеши, попробуй через {gamble:secs} сек.",
   "err": "@{gamble:user} что-то пошло не так, попробуй ещё раз.",
-  "lose": "@{gamble:user} выпало {gamble:roll}, минус {gamble:amount} {gamble:points}. Осталось {gamble:balance}.",
+  "lose": "@{gamble:user} ставка {gamble:amount}, проигрыш {gamble:amount} {gamble:points}. Осталось {gamble:balance}. Я их заберу, спасибо.",
+  "lose.all": "@{gamble:user} ва-банк, и всё мимо. Снова одни крошки.",
   "range": "@{gamble:user} слишком большая ставка.",
   "max": "@{gamble:user} максимальная ставка: {gamble:max} {gamble:points}.",
   "min": "@{gamble:user} минимальная ставка: {gamble:min} {gamble:points}.",
   "usage": "@{gamble:user} попробуй !gamble <amount|half|all>",
   "unknown": "@{gamble:user} я тебя здесь ещё не видел. Побудь тут, чтобы заработать {gamble:points}.",
-  "win": "@{gamble:user} выпало {gamble:roll}, плюс {gamble:amount} {gamble:points}! Теперь у тебя {gamble:balance}."
+  "win": "@{gamble:user} ставка {gamble:amount}, выигрыш {gamble:amount} {gamble:points}! Теперь у тебя {gamble:balance}.",
+  "win.all": "@{gamble:user} ва-банк! Выигрыш {gamble:amount} {gamble:points}. Теперь у тебя {gamble:balance}."
 }

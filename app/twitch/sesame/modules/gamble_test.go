@@ -63,7 +63,11 @@ func TestGamble(t *testing.T) {
 		wagers   []engine.PointWager
 	}{
 		{name: "a win credits the stake", roll: 23, who: "alice", text: "!gamble 300",
-			contains: []string{"@alice", "rolled 23", "won 300", "1534"}, wagers: []engine.PointWager{wagerOf("alice", 300, true)}},
+			contains: []string{"@alice gambled 300 and won 300", "1534"}, excludes: []string{"23"}, wagers: []engine.PointWager{wagerOf("alice", 300, true)}},
+		{name: "staking the whole balance and winning reads as all in", roll: 50, who: "bob", text: "!gamble all",
+			fake: fakeLoyalty{getPoints: 500}, contains: []string{"@bob went all in and won 500"}, wagers: []engine.PointWager{wagerOf("bob", 500, true)}},
+		{name: "staking the whole balance and losing loses everything", roll: 87, who: "bob", text: "!gamble 500",
+			fake: fakeLoyalty{getPoints: 500}, contains: []string{"@bob went all in and lost everything"}, wagers: []engine.PointWager{wagerOf("bob", 500, false)}},
 		{name: "TestGambleLossAppliesAtomicWager", roll: 87, who: "alice", text: "!gamble 300",
 			contains: []string{"lost 300", "934"}, wagers: []engine.PointWager{wagerOf("alice", 300, false)}},
 		{name: "all stakes the whole balance up to the cap", roll: 50, who: "bob", text: "!gamble all",

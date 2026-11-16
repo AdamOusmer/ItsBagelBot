@@ -2,11 +2,13 @@
   "broke": "@{gamble:user} you only have {gamble:balance} {gamble:points}.",
   "cool": "@{gamble:user} slow down, try again in {gamble:secs}s.",
   "err": "@{gamble:user} something went wrong, try again.",
-  "lose": "@{gamble:user} rolled {gamble:roll} and lost {gamble:amount} {gamble:points}. {gamble:balance} left.",
+  "lose": "@{gamble:user} gambled {gamble:amount} and lost {gamble:amount} {gamble:points}. {gamble:balance} left. I'll take those, thanks.",
+  "lose.all": "@{gamble:user} went all in and lost everything. Back to crumbs.",
   "range": "@{gamble:user} that bet is too big.",
   "max": "@{gamble:user} max bet is {gamble:max} {gamble:points}.",
   "min": "@{gamble:user} min bet is {gamble:min} {gamble:points}.",
   "usage": "@{gamble:user} try !gamble <amount|half|all>",
   "unknown": "@{gamble:user} I haven't seen you here yet. Hang out a bit to earn some {gamble:points}.",
-  "win": "@{gamble:user} rolled {gamble:roll} and won {gamble:amount} {gamble:points}! You now have {gamble:balance}."
+  "win": "@{gamble:user} gambled {gamble:amount} and won {gamble:amount} {gamble:points}! You now have {gamble:balance}.",
+  "win.all": "@{gamble:user} went all in and won {gamble:amount} {gamble:points}! You now have {gamble:balance}."
 }

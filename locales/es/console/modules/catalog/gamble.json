@@ -27,13 +27,13 @@
       "label": "Mensaje de victoria",
       "tagline": "Cuando una tirada entra en la probabilidad de ganar.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} sacaste {roll} y ganaste {amount} {points}. ¡Ahora tienes {balance}!"
+      "defaultMessage": "@{user} apostaste {amount} y ganaste {amount} {points}. ¡Ahora tienes {balance}!"
     },
     "lost": {
       "label": "Mensaje de derrota",
       "tagline": "Cuando una tirada no entra en la probabilidad de ganar.",
       "event": "!gamble 100",
-      "defaultMessage": "@{user} sacaste {roll} y perdiste {amount} {points}. Te quedan {balance}."
+      "defaultMessage": "@{user} apostaste {amount} y perdiste {amount} {points}. Te quedan {balance}. Me los quedo, gracias."
     }
   },
   "commands": {
