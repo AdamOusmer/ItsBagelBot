@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { RpcError } from '@bagel/kit/server/nats';
-import { setCounter, getCounter, deleteCounterEntry } from './loyalty-store';
+import { setCounter, getCounter, deleteCounterEntry, renameCounter } from './loyalty-store';
 import { namedValue, bucketTarget, bucketLabel, resolveAddTarget, normalizeCounterName } from './counter-form';
 
 function requireFound(found: boolean): void {
@@ -36,4 +36,13 @@ export async function runDeleteEntry(uid: string, f: FormData): Promise<string |
   if (!target.viewerId && !target.command) return null;
   requireFound(await deleteCounterEntry(uid, name, target));
   return `${name}${bucketLabel(target)} removed`;
+}
+
+export async function runRename(uid: string, f: FormData): Promise<string | null> {
+  const name = normalizeCounterName(f.get('name'));
+  const newName = normalizeCounterName(f.get('new_name'));
+  if (!name || !newName) return null;
+  if (newName === name) return null;
+  requireFound(await renameCounter(uid, name, newName));
+  return `${name}>${newName}`;
 }
