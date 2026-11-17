@@ -7,19 +7,23 @@
 
   let { id, anchor, items, active, label, onselect }: {
     id: string;
-    anchor: HTMLElement;
+    anchor: HTMLElement | undefined;
     items: { token: string; label: string }[];
     active: number;
     label: string;
     onselect: (token: string) => void;
   } = $props();
+  const LIST_ROOM = 200;
   let list = $state<HTMLElement>();
   let position = $state({ left: 0, top: 0, width: 0 });
 
   function place() {
-    const bounds = anchor.getBoundingClientRect();
-    const bottom = visualViewport?.height ?? innerHeight;
-    const top = bounds.bottom + 200 < bottom ? bounds.bottom + 4 : Math.max(8, bounds.top - 200);
+    const target = anchor;
+    if (!target) return;
+    const bounds = target.getBoundingClientRect();
+    const visibleTop = visualViewport?.offsetTop ?? 0;
+    const visibleBottom = visibleTop + (visualViewport?.height ?? innerHeight);
+    const top = bounds.bottom + LIST_ROOM < visibleBottom ? bounds.bottom + 4 : Math.max(visibleTop + 8, bounds.top - LIST_ROOM);
     position = { left: bounds.left, top, width: bounds.width };
   }
   $effect(() => {
@@ -27,9 +31,11 @@
     place();
     window.addEventListener('scroll', place, true);
     visualViewport?.addEventListener('resize', place);
+    visualViewport?.addEventListener('scroll', place);
     return () => {
       window.removeEventListener('scroll', place, true);
       visualViewport?.removeEventListener('resize', place);
+      visualViewport?.removeEventListener('scroll', place);
     };
   });
   $effect(() => {

@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, type Issue } from '@bagel/kit/automations';
 import { specFor, type FlowNode } from './model';
+import { configText } from './setup';
 
 export type FieldIssue = Issue & { nodeId: string; fieldKey?: string };
 
@@ -80,4 +81,8 @@ export function fieldRequired(node: FlowNode, key: string): boolean {
   const type = TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
   const catalog = [...TRIGGER_TYPES, ...CONDITION_TYPES, ...ACTION_TYPES].find((item) => item.type === type);
   return catalog?.fields.some((field) => field.required && fieldKeyFor(node, field.name) === key) ?? false;
+}
+
+export function missingField(node: FlowNode): string | undefined {
+  return specFor(node.type)?.fields.find((field) => fieldRequired(node, field.key) && !configText(node, field.key).trim())?.key;
 }

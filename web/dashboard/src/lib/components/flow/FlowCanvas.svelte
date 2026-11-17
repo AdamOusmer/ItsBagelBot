@@ -106,6 +106,7 @@
   const TOUCH_SLOP = 8;
   const READABLE_ZOOM = 0.7;
   const GLIDE_MS = 240;
+  const TOOLBAR_MIN_WIDTH = 200;
   const MENU_TINT: Record<FlowKind, { color: string; rgb: string }> = {
     trigger: { color: 'var(--bb-green-glow)', rgb: 'var(--bb-green-glow-rgb)' },
     condition: { color: 'var(--bb-tan)', rgb: 'var(--bb-tan-rgb)' },
@@ -132,6 +133,8 @@
   let wireTarget = $state<string | null>(null);
   let toolbarBottom = $state(20);
   let toolbarLeft = $state(16);
+  let toolbarRight = $state(16);
+  const toolbarCramped = $derived(boardSize.width - toolbarLeft - toolbarRight < TOOLBAR_MIN_WIDTH);
   let menu = $state<{ link?: { from: string; port: string }; at: Pt; sx: number; sy: number } | null>(null);
   let menuAnchor = $state<HTMLElement>();
   let menuOpen = $state(false);
@@ -325,6 +328,7 @@
       const inset = insets?.(room > 0);
       toolbarBottom = Math.max(20, (inset?.bottom ?? 64) - 56);
       toolbarLeft = inset?.left ?? 16;
+      toolbarRight = inset?.right ?? 16;
     });
   }
 
@@ -355,7 +359,7 @@
 
   $effect(() => {
     void selectedEdge;
-    void room;
+    void insets?.(room > 0);
     scheduleToolbarPosition();
   });
 
@@ -893,6 +897,7 @@
   role="application"
   style:--board-controls-bottom="{toolbarBottom}px"
   style:--board-controls-left="{toolbarLeft}px"
+  style:--board-controls-right="{toolbarRight}px"
   aria-label={t('flows.board.boardLabel')}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
@@ -1055,7 +1060,7 @@
     <span>{t('flows.viewTools')}</span>
   </button>
 
-  <div class="zoom" bind:this={zoomEl}>
+  <div class="zoom" class:cramped={toolbarCramped} inert={toolbarCramped} bind:this={zoomEl}>
     <IconButton label={t('flows.board.undo')} size="sm" tooltip disabled={!canUndo} onclick={onundo}><Icon name="rotateCcw" size={14} /></IconButton>
     <IconButton label={t('flows.board.redo')} size="sm" tooltip disabled={!canRedo} onclick={onredo}><Icon name="rotateCw" size={14} /></IconButton>
     <Cluster gap={2} align="stretch" nowrap>
@@ -1250,16 +1255,23 @@
   }
   .zoom {
     position: absolute;
-    left: var(--bb-space-4);
+    left: var(--board-controls-left, var(--bb-space-4));
     bottom: var(--bb-space-4);
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    max-width: calc(100% - var(--board-controls-left, 16px) - var(--board-controls-right, 16px));
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
     gap: 4px;
     padding: 6px 12px 6px 6px;
     border-radius: var(--bb-radius-md);
     background: var(--bb-bg-1);
     box-shadow: 0 8px 24px rgba(var(--bb-shadow-rgb), 0.5);
     z-index: 5;
+  }
+  .zoom.cramped {
+    opacity: 0;
+    pointer-events: none;
   }
   .zoom-gap {
     width: 12px;

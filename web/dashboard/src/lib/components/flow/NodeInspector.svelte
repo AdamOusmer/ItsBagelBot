@@ -264,7 +264,7 @@
 </script>
 
 {#if completion && suggestions.length}
-  <TokenSuggestions id={uid} anchor={completion.anchor} items={suggestions} active={activeSuggestion} label={t('flows.board.variables')} onselect={(token) => completion && insertToken(completion.key, token)} />
+  <TokenSuggestions id={uid} anchor={completion?.anchor} items={suggestions} active={activeSuggestion} label={t('flows.board.variables')} onselect={(token) => completion && insertToken(completion.key, token)} />
 {/if}
 
 {#if node && spec}

@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { flowToDefinition, locateIssues, validateDefinition } from '@bagel/kit/automations';
-import { fieldIssues, fieldRequired } from './issues';
+import { fieldIssues, fieldRequired, missingField } from './issues';
 import { newFlow, type FlowNode } from './model';
 
 const nodeOf = (type: FlowNode['type'], config: FlowNode['config'] = {}): FlowNode => ({ id: 'step', type, config, x: 0, y: 0 });
@@ -99,4 +99,19 @@ test.each([
   { code: 'new_code', type: 'reply.wait', key: undefined }
 ])('maps node issue $code to $key', ({ code, type, key }) => {
   expect(fieldIssues([{ path: 'nodes.step', code }], [nodeOf(type)])[0].fieldKey).toBe(key);
+});
+
+test.each<{ type: FlowNode['type']; config: FlowNode['config']; missing: string | undefined }>([
+  { type: 'twitch.follow', config: {}, missing: undefined },
+  { type: 'twitch.chat.command', config: {}, missing: 'trigger' },
+  { type: 'twitch.reward', config: { reward: 'setup-required' }, missing: 'reward' },
+  { type: 'cond.cooldown', config: { seconds: 30 }, missing: undefined },
+  { type: 'cond.compare', config: { op: 'gte' }, missing: 'left' },
+  { type: 'reply.chat', config: { message: ' ' }, missing: 'message' },
+  { type: 'reply.chat', config: { message: 'Thanks {user}!' }, missing: undefined },
+  { type: 'reply.shoutout', config: { target: '{user}' }, missing: undefined },
+  { type: 'reply.lights', config: { mode: 'color' }, missing: 'device' },
+  { type: 'reply.lights', config: { device: 'desk', mode: 'scene' }, missing: 'scene' }
+])('$type with $config is missing $missing', ({ type, config, missing }) => {
+  expect(missingField(nodeOf(type, config))).toBe(missing);
 });

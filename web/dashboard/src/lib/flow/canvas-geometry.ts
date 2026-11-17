@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { NODE_W, isSecondPort, specFor, type Flow, type FlowEdge, type FlowNode } from './model';
-import { inputY, loopTails, nodeHeight, portY } from './layout';
+import { HEADER_H, inputY, loopTails, nodeHeight, portY } from './layout';
 import { previewPath, returnPath, wirePath } from './wire';
 import { graphIndex } from './graph-index';
 import type { Box, View } from './touch';
@@ -10,6 +10,9 @@ type Positions = Record<FlowNode['id'], { x: number; y: number }>;
 const ARROW_GAP = 8;
 const RETURN_DROP = 20;
 const ADD_ROOM = 8;
+const UPPER_ADD_ROOM = 40;
+const LOWER_ADD_ROOM = 60;
+const TITLE_ROOM = 44;
 
 type Size = { width: number; height: number };
 
@@ -82,16 +85,19 @@ function withParentEdge(box: Box, nearby: Box, frame: FocusFrame): Box {
 }
 
 function compactFocus(node: FlowNode, selected: Box, nearby: Box, frame: FocusFrame): Box {
-  const compact = { ...selected, y0: node.y };
-  const box = (compact.y1 - compact.y0) * frame.minZoom <= frame.height ? compact : { ...nodeBounds(node), y1: node.y + 60 };
+  const fits = (box: Box) => (box.y1 - box.y0) * frame.minZoom <= frame.height;
+  const heads = [node.y + HEADER_H, node.y + TITLE_ROOM].map((y1) => ({ ...selected, y1 }));
+  const box = heads.find(fits) ?? { ...selected, y0: node.y, y1: node.y + 60 };
   return withParentEdge(box, nearby, frame);
 }
 
 export function focusFootprint(node: FlowNode, frame: { minZoom: number; touch?: boolean }): Box {
   const box = nodeBounds(node);
   if (!frame.touch) return box;
-  const lowerAdd = (specFor(node.type)?.outputs?.length ?? 0) > 1 ? 60 / frame.minZoom : 0;
-  return { ...box, x1: box.x1 + 48 / frame.minZoom, y0: box.y0 - 48 / frame.minZoom, y1: box.y1 + lowerAdd };
+  const branching = (specFor(node.type)?.outputs?.length ?? 0) > 1;
+  const above = branching ? 0 : UPPER_ADD_ROOM / frame.minZoom;
+  const below = branching ? LOWER_ADD_ROOM / frame.minZoom : 0;
+  return { ...box, x1: box.x1 + 48 / frame.minZoom, y0: box.y0 - above, y1: box.y1 + below };
 }
 
 export function nodeBounds(node: FlowNode): Box {

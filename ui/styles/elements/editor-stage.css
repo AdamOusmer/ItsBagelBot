@@ -337,6 +337,16 @@
     }
   }
 
+  @media (min-width: 1280px) {
+    body:has(.bb-editor-stage__panel) .bb-toast-stack {
+      top: calc((var(--bb-topbar-height) - 48px) / 2 + 8px);
+      right: auto;
+      bottom: auto;
+      left: 50%;
+      translate: -50% 0;
+    }
+  }
+
   @media (min-width: 761px) and (max-width: 1279px) {
     body:has(.bb-editor-stage__panel) .bb-toast-stack {
       top: calc(var(--bb-topbar-height) + 84px);

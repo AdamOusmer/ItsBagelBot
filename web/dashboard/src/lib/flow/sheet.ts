@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 export const SHEET_QUERY = '(max-width: 760px), (pointer: coarse) and (max-width: 1023px)';
 
+export const SHEET_MIN = 280;
 const SETTLE_MS = 180;
 const FLICK_PX_PER_MS = 0.5;
 const FLICK_MIN_PX = 24;
@@ -38,7 +39,7 @@ export function revealFocusedField(viewport: Pick<VisualViewport, 'height' | 'of
 
 export function sheetDrag(el: HTMLElement, initial: () => void, onResize: (height: number) => void = () => {}) {
   let onDismiss = initial;
-  let drag: { id: number; y: number; t: number; dy: number; height: number; limit: number } | null = null;
+  let drag: { id: number; y: number; t: number; dy: number; height: number; limit: number; size: number } | null = null;
 
   const settle = (to: string, then?: () => void) => {
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -60,7 +61,7 @@ export function sheetDrag(el: HTMLElement, initial: () => void, onResize: (heigh
     if (!target.closest('header, .bb-editor-stage__grip') || target.closest('button, a, input, textarea, select')) return;
     const stage = el.closest('.bb-editor-stage');
     const limit = parseFloat(stage ? getComputedStyle(stage).getPropertyValue('--stage-sheet-limit') : '') || innerHeight - 64;
-    drag = { id: e.pointerId, y: e.clientY, t: e.timeStamp, dy: 0, height: el.offsetHeight, limit };
+    drag = { id: e.pointerId, y: e.clientY, t: e.timeStamp, dy: 0, height: el.offsetHeight, limit, size: el.offsetHeight };
     el.setPointerCapture(e.pointerId);
     el.style.transition = '';
   };
@@ -68,15 +69,17 @@ export function sheetDrag(el: HTMLElement, initial: () => void, onResize: (heigh
   const move = (e: PointerEvent) => {
     if (e.pointerId !== drag?.id) return;
     drag.dy = e.clientY - drag.y;
-    onResize(Math.min(drag.limit, Math.max(160, drag.height - drag.dy)));
+    drag.size = Math.min(drag.limit, Math.max(160, drag.height - drag.dy));
+    onResize(drag.size);
   };
 
   const end = (e: PointerEvent) => {
     if (e.pointerId !== drag?.id) return;
-    const { dy, t, height } = drag;
+    const { dy, t, height, size } = drag;
     drag = null;
-    if (e.type === 'pointerup' && swipeDismisses(dy, e.timeStamp - t, height)) settle('translateY(100%)', () => onDismiss());
-    else settle('translateY(0)');
+    if (e.type === 'pointerup' && swipeDismisses(dy, e.timeStamp - t, height)) return settle('translateY(100%)', () => onDismiss());
+    if (size < SHEET_MIN) onResize(SHEET_MIN);
+    settle('translateY(0)');
   };
 
   el.addEventListener('pointerdown', down);

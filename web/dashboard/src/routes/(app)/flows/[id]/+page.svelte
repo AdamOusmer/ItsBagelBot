@@ -22,7 +22,7 @@
   import { tidy } from '#lib/flow/layout';
   import { allowed, resolveShortcut, type Scopes, type Shortcut } from '#lib/flow/keyboard';
   import { isStale, issueMessage, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
-  import { fieldIssues, type FieldIssue } from '#lib/flow/issues';
+  import { fieldIssues, missingField, type FieldIssue } from '#lib/flow/issues';
   import { starterFlow } from '#lib/flow/starters';
   import { awaitingSetup } from '#lib/flow/setup';
   import { addStep as insertStep, selectedAddPoint, selectedPlacement, selectionAfterHistory } from '#lib/flow/editor';
@@ -35,7 +35,7 @@
   import { flowRouteId, legacyEditorHref, parseFlowRouteId } from '#lib/flow/ref';
   import type { SaveReply, ToggleReply } from '#lib/flow/replies';
   import type { UpgradeReport } from '#lib/server/flow-store';
-  import { editingInSheet, revealFocusedField, sheetDrag } from '#lib/flow/sheet';
+  import { editingInSheet, revealFocusedField, SHEET_MIN, sheetDrag } from '#lib/flow/sheet';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import type { PageData } from './$types';
 
@@ -56,7 +56,6 @@
   const SHEET_SHARE = 0.56;
   const TALL_SHEET_SHARE = 0.44;
   const TALL_VIEWPORT = 900;
-  const SHEET_MIN = 280;
   const TABLET_BOARD_ROOM = 320;
   const PHONE_QUERY = '(max-width: 760px)';
 
@@ -475,9 +474,18 @@
       plainMessage: t('flows.board.defaultPlainMessage')
     });
     if (sheetMode || specFor(type)?.kind === 'trigger') libMode = null;
-    openSettings(node.id);
+    stepAdded(node.id);
     if (replaced) canvas?.announce(t('flows.board.triggerReplaced'));
     if (autoTidy) queueMicrotask(() => canvas?.tidyNow());
+  }
+
+  function stepAdded(id: string) {
+    if (!matchMedia(PHONE_QUERY).matches) return openSettings(id);
+    const node = flow.nodes.find((entry) => entry.id === id);
+    inspectField = node && missingField(node);
+    if (inspectField) return openSettings(id);
+    selectedId = id;
+    void tick().then(() => canvas?.focusNode(id));
   }
 
   function onBoardPointerDown(e: PointerEvent) {
@@ -767,7 +775,7 @@
     room={panelRoom}
     onmoved={(moves) => { edits.moved(moves); refreshHistory(); }}
     oninspect={() => { if (selectedId) openSettings(selectedId); }}
-    onadded={openSettings}
+    onadded={stepAdded}
     onremoved={removed}
     onundo={() => history('undo')}
     onredo={() => history('redo')}

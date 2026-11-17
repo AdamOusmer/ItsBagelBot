@@ -2,7 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { focusBounds, windowEdges, windowNodes } from './canvas-geometry';
-import { newFlow, type Flow } from './model';
+import { newFlow, specFor, type Flow } from './model';
+import { nodeHeight } from './layout';
 import { revealBox } from './touch';
 
 const chain = (count: number): Flow => ({
@@ -34,18 +35,25 @@ test.each([1440, 1024, 834, 390])('reveals readable steps within a %i frame with
   expect(revealBox(view, box, size, { min: 0.4, max: 1.6, readable: view.k })).toEqual(view);
 });
 
+const firstAddSpan: Record<string, [number, number]> = { 'reply.chat': [-35, -1], 'cond.compare': [5, 38] };
+
 test.each([
-  { height: 35, whole: false },
-  { height: 78, whole: false },
-  { height: 188, whole: true },
-  { height: 213, whole: true }
-])('short touch frames prioritize the title, then the card and ports in $height pixels', ({ height, whole }) => {
+  { type: 'cond.compare', height: 35, add: false, whole: false },
+  { type: 'cond.compare', height: 78, add: true, whole: false },
+  { type: 'reply.chat', height: 78, add: true, whole: false },
+  { type: 'cond.compare', height: 188, add: true, whole: true },
+  { type: 'cond.compare', height: 213, add: true, whole: true }
+])('short touch frames show the title, then the first add button, then the whole $type card in $height pixels', ({ type, height, add, whole }) => {
   const flow = chain(2);
-  const node = { ...flow.nodes[1], type: 'cond.compare' };
+  const node = { ...flow.nodes[1], type };
   const box = focusBounds(flow, node, { width: 288, height, minZoom: 0.7, touch: true });
   const frame = { width: 320, height: height + 203, inset: { left: 16, right: 16, top: 203, bottom: 0 } };
   const view = revealBox({ x: 0, y: 0, k: 0.7 }, box, frame, { min: 0.1, max: 1.6, readable: 0.7 });
-  expect({ whole: box.y1 > node.y + 60, title: view.y + (node.y + 36) * view.k <= frame.height, left: view.x + box.x0 * view.k >= 16 }).toEqual({ whole, title: true, left: true });
+  const top = view.y + node.y * view.k;
+  const shown = (offset: number) => top + offset >= 203 - 0.5 && top + offset <= frame.height + 0.5;
+  const [addTop, addBottom] = firstAddSpan[type];
+  const seen = { title: shown(25), add: shown(addTop) && shown(addBottom), whole: shown(nodeHeight(specFor(type)) * view.k), left: view.x + box.x0 * view.k >= 16 };
+  expect(seen).toEqual({ title: true, add, whole, left: true });
 });
 
 test.each([188, 287])('a parallel step on a %i pixel phone strip keeps its sibling in focus', (height) => {
