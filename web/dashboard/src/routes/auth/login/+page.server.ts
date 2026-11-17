@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { cookieOptions, STATE_TTL_SECONDS } from '#lib/server/cookies';
 import { twitch, scopes, safeNextPath } from '#lib/server/oauth';
 import { skipAuthorizeIfSignedIn } from '#lib/server/oauth-start';
+import { count } from '@bagel/kit/server/analytics';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -42,5 +43,6 @@ export const load: PageServerLoad = ({ cookies, url, locals }) => {
   if (next) cookies.set('login_next', next, cookieOpts);
   else cookies.delete('login_next', { path: '/' });
 
+  count('auth.login', 'started');
   throw redirect(302, authUrl.toString(), { external: true });
 };

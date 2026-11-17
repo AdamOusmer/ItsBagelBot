@@ -41,30 +41,6 @@ type GiveawayPool struct {
 	Counts      GiveawayPoolCounts           `json:"counts"`
 }
 
-type pendingGiveawayPrefs struct {
-	active    *bool
-	onboarded *bool
-}
-
-func (r *Users) preferenceSnapshot() map[uint64]pendingGiveawayPrefs {
-	r.pendingMu.RLock()
-	defer r.pendingMu.RUnlock()
-	result := make(map[uint64]pendingGiveawayPrefs)
-	for key, value := range r.pendingPrefs {
-		pending := result[key.userID]
-		switch key.field {
-		case prefActive:
-			v := value.flag
-			pending.active = &v
-		case prefOnboarded:
-			v := value.flag
-			pending.onboarded = &v
-		}
-		result[key.userID] = pending
-	}
-	return result
-}
-
 func (r *Users) EligibleGiveawayPool(ctx context.Context, createdBefore *time.Time) ([]usersrpc.GiveawayCandidate, error) {
 	p, err := r.GiveawayPoolSnapshot(ctx, createdBefore)
 	if err != nil {
@@ -83,14 +59,9 @@ func (r *Users) GiveawayPoolSnapshot(ctx context.Context, createdBefore *time.Ti
 		return GiveawayPool{}, err
 	}
 	pool := GiveawayPool{SnapshotAt: time.Now().UTC(), RuleVersion: giveawayRuleVersion}
-	pref := r.preferenceSnapshot()
 	for _, row := range rows {
-		active, onboarded := row.IsActive, row.Onboarded
-		if p, ok := pref[row.ID]; ok {
-			active, onboarded = pendingEligibility(p, active, onboarded)
-		}
 		pool.Counts.Total++
-		pool.add(row, active, onboarded, hasActiveStaff(staffIDs, row.ID))
+		pool.add(row, row.IsActive, row.Onboarded, hasActiveStaff(staffIDs, row.ID))
 	}
 	return pool, nil
 }
@@ -107,16 +78,6 @@ func (r *Users) giveawayUsers(ctx context.Context, createdBefore *time.Time) ([]
 
 func (r *Users) activeStaffIDs(ctx context.Context) (map[uint64]struct{}, error) {
 	return r.adminAuth.ActiveIDs(ctx)
-}
-
-func pendingEligibility(p pendingGiveawayPrefs, active, onboarded bool) (bool, bool) {
-	if p.active != nil {
-		active = *p.active
-	}
-	if p.onboarded != nil {
-		onboarded = *p.onboarded
-	}
-	return active, onboarded
 }
 
 func (p *GiveawayPool) add(row *ent.User, active, onboarded, staff bool) {
@@ -191,8 +152,8 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 	if err != nil {
 		return err
 	}
-	counted := r.trackAccounts(ctx, targetID)
-	delivery, err := db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.AdminAuditDelivery, error) {
+
+	delivery, err := db.RetryWithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.AdminAuditDelivery, error) {
 		if _, err := tx.User.UpdateOneID(targetID).SetTestAccount(enabled).Save(ctx); err != nil {
 			return nil, err
 		}
@@ -201,7 +162,7 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 	if err != nil {
 		return err
 	}
-	counted()
+
 	if err := r.deliverAdminAudit(ctx, delivery); err != nil {
 		r.log.Warn("admin audit delivery pending", zap.String("operation_id", delivery.ID.String()), zap.Error(err))
 	}
@@ -288,7 +249,7 @@ func (r *Users) PreparePremiumGrant(ctx context.Context, req usersrpc.PreparePre
 }
 
 func (r *Users) prepareGrantTx(ctx context.Context, req usersrpc.PreparePremiumGrantRequest) (*ent.PremiumGrant, error) {
-	return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.PremiumGrant, error) {
+	return db.RetryWithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.PremiumGrant, error) {
 		if lockErr := lockGrantUser(ctx, tx, req.UserID); lockErr != nil {
 			return nil, lockErr
 		}

@@ -89,7 +89,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: transactions
-          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1794696590-bd0220cf1146@sha256:38895f5e2ac39fe5869e830fb27ad5c430d16eef22cfb26e1bd851f34702199a
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1794874465-1c3f43ce7dfb@sha256:199dba1c3eb319d30fad1c48c1b0e0036b22c27ec9f18e6ce7f0ccf8f3fe3f14
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -209,7 +209,7 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))
+    - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`) || PathPrefix(`/kofi`) || PathPrefix(`/webhooks/kofi`))
       kind: Rule
       middlewares: [{name: strip-client-ip}]
       services:

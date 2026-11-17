@@ -25,7 +25,7 @@ type UserLease struct {
 
 func (l UserLease) Acquire(ctx context.Context, client *ent.Client, userID uint64) (func(), error) {
 	owner := uuid.NewString()
-	err := db.WithTx(ctx, client, func(tx *ent.Tx) error {
+	err := db.RetryWithTx(ctx, client, func(tx *ent.Tx) error {
 		return l.claim(ctx, tx, userID, owner)
 	})
 	if err != nil {

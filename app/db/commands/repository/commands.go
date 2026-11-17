@@ -5,14 +5,15 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/db/commands/ent"
 	"ItsBagelBot/app/db/commands/ent/commands"
-	"ItsBagelBot/app/db/commands/ent/predicate"
 	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
@@ -72,7 +73,7 @@ const (
 
 	commandsCacheCapacity int64 = 4096
 
-	flushInterval = 2 * time.Second
+	flushInterval = 3 * time.Millisecond
 	flushMaxSize  = 256
 )
 
@@ -84,12 +85,15 @@ type commandKey struct {
 }
 
 type Commands struct {
-	client  *ent.Client
-	views   *cache.Cache[[]CommandView]
-	pub     bus.Publisher
-	batcher *batch.Batcher[commandKey, data.CommandChangedDTO]
-	app     *newrelic.Application
-	log     *zap.Logger
+	client       *ent.Client
+	views        *cache.Cache[[]CommandView]
+	pub          bus.Publisher
+	edits        *batch.Group[data.CommandChangedDTO]
+	editOrder    editOrders
+	uses         *batch.Group[commandUseBatch]
+	publications *batch.Dirty[commandKey]
+	app          *newrelic.Application
+	log          *zap.Logger
 
 	analytics *analytics.Recorder
 }
@@ -104,7 +108,14 @@ func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Applicatio
 		log:    log,
 	}
 
-	r.batcher = batch.New[commandKey, data.CommandChangedDTO](flushInterval, flushMaxSize, r.flush, log)
+	r.edits = batch.NewGroup(batch.GroupConfig[data.CommandChangedDTO]{
+		Window: flushInterval, MaxRows: flushMaxSize, MaxBytes: 256 * 1024,
+		Size: commandEditBytes, Key: commandEditKey, Attributable: commandEditError,
+		AfterCommit: r.afterEdits, Timeout: time.Second, QueueTimeout: 250 * time.Millisecond,
+		AfterCommitTimeout: 250 * time.Millisecond, Log: log,
+	}, r.flush)
+	r.publications = batch.NewDirty(r.publishDirtyUses, log)
+	r.uses = r.newUseGroup()
 
 	return r
 }
@@ -203,6 +214,10 @@ func (s *CommandSpec) dto(userID uint64) data.CommandChangedDTO {
 }
 
 func (r *Commands) Upsert(userID uint64, spec CommandSpec) error {
+	return r.UpsertContext(context.Background(), userID, spec)
+}
+
+func (r *Commands) UpsertContext(ctx context.Context, userID uint64, spec CommandSpec) error {
 
 	spec.normalize()
 
@@ -213,9 +228,14 @@ func (r *Commands) Upsert(userID uint64, spec CommandSpec) error {
 		return err
 	}
 
-	r.batcher.Add(commandKey{userID: userID, name: spec.Name}, spec.dto(userID))
-
-	return nil
+	waitCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+	unlock, err := r.editOrder.acquire(waitCtx, userID, false)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return r.edits.Submit(context.WithoutCancel(ctx), spec.dto(userID))
 }
 
 func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec, uses int64) (bool, error) {
@@ -229,7 +249,6 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 		return false, err
 	}
 
-	track := r.track(ctx, userID)
 	restored, err := r.createIfAbsent(ctx, userID, spec, uses)
 	if err != nil {
 		return false, err
@@ -237,7 +256,8 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 	if !restored {
 		return false, nil
 	}
-	track()
+
+	r.analytics.Count(catalog.CustomCommands, "created")
 
 	r.Invalidate(userID)
 
@@ -292,32 +312,38 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 		return err
 	}
 
-	track := r.track(ctx, userID)
-	updated, err := r.renameRow(ctx, userID, oldName, spec)
+	unlock, err := r.editOrder.acquire(ctx, userID, true)
+	if err != nil {
+		return err
+	}
+	updated, err := func() (int, error) {
+		defer unlock()
+		return r.renameAndPublish(ctx, userID, oldName, spec)
+	}()
 	if err != nil {
 		return err
 	}
 
 	if updated == 0 {
-		return r.Upsert(userID, spec)
+		return r.UpsertContext(ctx, userID, spec)
 	}
-	track()
-
-	r.Invalidate(userID)
-
-	if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
-		UserID:  userID,
-		Name:    oldName,
-		Deleted: true,
-	}); err != nil {
-		return err
-	}
-
-	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, r.renamedState(ctx, userID, spec))
+	return nil
 }
 
-// renamedState reloads the renamed row so the event keeps its uses and
-// created_at; the dashboard sorts on both.
+func (r *Commands) renameAndPublish(ctx context.Context, userID uint64, oldName string, spec CommandSpec) (int, error) {
+	updated, err := r.renameRow(ctx, userID, oldName, spec)
+	if err != nil || updated == 0 {
+		return updated, err
+	}
+	r.Invalidate(userID)
+	if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
+		UserID: userID, Name: oldName, Deleted: true,
+	}); err != nil {
+		return updated, err
+	}
+	return updated, bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, r.renamedState(ctx, userID, spec))
+}
+
 func (r *Commands) renamedState(ctx context.Context, userID uint64, spec CommandSpec) data.CommandChangedDTO {
 	key := commandKey{userID: userID, name: spec.Name}
 	states, err := r.rowStates(ctx, []commandKey{key})
@@ -363,19 +389,24 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 		return err
 	}
 
-	track := r.track(ctx, userID)
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := r.client.Commands.Delete().
+	unlock, err := r.editOrder.acquire(ctx, userID, true)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Commands.Delete().
 			Where(
 				commands.UserIDEQ(userID),
 				commands.NameEQ(name),
 			).
 			Exec(ctx)
-		return err
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	track()
+
+	r.analytics.Add(catalog.CustomCommands, int64(n), "deleted")
 
 	r.Invalidate(userID)
 
@@ -387,17 +418,22 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 }
 
 func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
-
-	track := r.track(ctx, userID)
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := r.client.Commands.Delete().
-			Where(commands.UserIDEQ(userID), commands.CreatedAtLTE(cutoff)).
-			Exec(ctx)
-		return err
-	}); err != nil {
+	unlock, err := r.editOrder.acquire(ctx, userID, true)
+	if err != nil {
 		return err
 	}
-	track()
+	defer unlock()
+
+	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Commands.Delete().
+			Where(commands.UserIDEQ(userID), commands.CreatedAtLTE(cutoff)).
+			Exec(ctx)
+	})
+	if err != nil {
+		return err
+	}
+
+	r.analytics.Add(catalog.CustomCommands, int64(n), "deleted")
 
 	r.Invalidate(userID)
 	return nil
@@ -407,46 +443,20 @@ func (r *Commands) Invalidate(userID uint64) {
 	r.views.Invalidate(cache.UserKey(commandsKeyPrefix, userID))
 }
 
-func (r *Commands) publishUseEvents(ctx context.Context, txn *newrelic.Transaction, keys []commandKey) {
-	states, err := r.rowStates(ctx, keys)
-	if err != nil {
-		txn.NoticeError(err)
-		r.log.Warn("failed to load rows after uses flush", zap.Error(err))
-		return
-	}
-
-	seenUsers := map[uint64]struct{}{}
-	for _, key := range keys {
-		if _, ok := seenUsers[key.userID]; !ok {
-			seenUsers[key.userID] = struct{}{}
-			r.Invalidate(key.userID)
-		}
-		dto, ok := states[key]
-		if !ok {
-			continue
-		}
-		if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, dto); err != nil {
-			r.log.Error("failed to publish command uses change",
-				zap.Uint64("user_id", key.userID),
-				zap.String("command", key.name),
-				zap.Error(err),
-			)
-		}
-	}
-}
-
 func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[commandKey]data.CommandChangedDTO, error) {
 	if len(keys) == 0 {
 		return map[commandKey]data.CommandChangedDTO{}, nil
 	}
 
-	preds := make([]predicate.Commands, 0, len(keys))
-	for _, key := range keys {
-		preds = append(preds, commands.And(commands.UserIDEQ(key.userID), commands.NameEQ(key.name)))
+	pairs := make([]db.CounterKey, len(keys))
+	for i, key := range keys {
+		pairs[i] = db.CounterKey{Owner: key.userID, Name: key.name}
 	}
 
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Commands, error) {
-		return r.client.Commands.Query().Where(commands.Or(preds...)).All(ctx)
+		return r.client.Commands.Query().Where(func(s *entsql.Selector) {
+			s.Where(db.CounterKeysPredicate([]string{s.C(commands.FieldUserID), s.C(commands.FieldName)}, pairs))
+		}).All(ctx)
 	})
 	if err != nil {
 		return nil, err
@@ -473,9 +483,34 @@ func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[comman
 	return out, nil
 }
 
-func (r *Commands) Close(ctx context.Context) {
-	r.batcher.Close(ctx)
+func (r *Commands) Close(ctx context.Context) error {
+	deadline := time.Now().Add(30 * time.Second)
+	if callerDeadline, ok := ctx.Deadline(); ok {
+		deadline = minTime(deadline, callerDeadline)
+	}
+	drainCtx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	editErr := r.edits.Close(drainCtx)
+	if err := r.uses.Close(drainCtx); err != nil {
+		r.log.Error("command use drain failed", zap.Error(err))
+		return errors.Join(editErr, err)
+	}
+	if editErr != nil {
+		return editErr
+	}
+	if err := r.publications.Close(drainCtx); err != nil {
+		r.log.Error("command publication drain failed", zap.Error(err))
+		return err
+	}
 	r.views.Close()
+	return nil
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
 }
 
 func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) error {
@@ -484,22 +519,17 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	defer txn.End()
 
 	ctx = newrelic.NewContext(ctx, txn)
+	err := db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return r.commitCommandBatch(ctx, items)
+		})
+	})
+	monitor.NoticeError(txn, err)
+	return err
+}
+
+func (r *Commands) afterEdits(ctx context.Context, landed []data.CommandChangedDTO) {
 	log := monitor.TxnLogger(ctx, r.log)
-
-	track := r.track(ctx, distinctUsers(commandKeys(items))...)
-
-	landed := items
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return bulkUpsertCommands(ctx, r.client, items)
-	}); err != nil {
-		txn.NoticeError(err)
-		landed = r.upsertEach(ctx, txn, items)
-	}
-
-	if len(landed) == 0 {
-		return nil
-	}
-	track()
 
 	states, serr := r.rowStates(ctx, commandKeys(landed))
 	if serr != nil {
@@ -507,9 +537,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	}
 
 	for _, item := range landed {
-
 		r.Invalidate(item.UserID)
-
 		dto := item
 		if s, ok := states[commandKey{userID: item.UserID, name: item.Name}]; ok {
 			dto = s
@@ -523,90 +551,29 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 		}
 	}
 
-	return nil
 }
 
-func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.CommandChangedDTO) error {
-
-	builders := make([]*ent.CommandsCreate, 0, len(items))
-	for _, item := range items {
-		b := client.Commands.Create().
-			SetUserID(item.UserID).
-			SetName(item.Name)
-		applyEdit(b.Mutation(), item)
-		builders = append(builders, b)
-	}
-
-	// On conflict, update only edit-owned columns: uses and created_at must not regress.
-	return client.Commands.CreateBulk(builders...).
-		OnConflict(entsql.ConflictColumns(commands.FieldUserID, commands.FieldName)).
-		Update(func(u *ent.CommandsUpsert) {
-			u.UpdateAliases()
-			u.UpdateResponse()
-			u.UpdateIsActive()
-			u.UpdateStreamOnlineOnly()
-			u.UpdatePerm()
-			u.UpdateCooldown()
-			u.UpdateUserCooldown()
-			u.UpdateAllowedUserID()
-			u.UpdateBumpCounter()
-			u.UpdateUpdatedAt()
-		}).
-		Exec(ctx)
-}
-
-func (r *Commands) upsertEach(ctx context.Context, txn *newrelic.Transaction, items []data.CommandChangedDTO) []data.CommandChangedDTO {
-
-	landed := make([]data.CommandChangedDTO, 0, len(items))
-	for _, item := range items {
-		err := db.WithExec(ctx, func(ctx context.Context) error {
-			return upsertCommand(ctx, r.client.Commands, item)
-		})
-		if err == nil {
-			landed = append(landed, item)
-			continue
-		}
-		txn.NoticeError(err)
-		if ent.IsValidationError(err) || ent.IsConstraintError(err) {
-			r.log.Error("dropping unpersistable command edit",
-				zap.Uint64("user_id", item.UserID),
-				zap.String("command", item.Name),
-				zap.Error(err),
-			)
-			continue
-		}
-		r.log.Warn("requeueing command edit after transient flush failure",
-			zap.Uint64("user_id", item.UserID),
-			zap.String("command", item.Name),
-			zap.Error(err),
-		)
-		r.batcher.Requeue(commandKey{userID: item.UserID, name: item.Name}, item)
-	}
-	return landed
-}
-
-func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) error {
+func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) (bool, error) {
 
 	updated, err := updateCommand(ctx, c, item)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if updated > 0 {
-		return nil
+		return false, nil
 	}
 
 	b := c.Create().
 		SetUserID(item.UserID).
 		SetName(item.Name)
 	applyEdit(b.Mutation(), item)
-	if err := b.Exec(ctx); err != nil {
-		if ent.IsConstraintError(err) {
-			_, err = updateCommand(ctx, c, item)
-		}
-		return err
+	err = b.Exec(ctx)
+	if ent.IsConstraintError(err) {
+		_, err = updateCommand(ctx, c, item)
+		return false, err
 	}
-	return nil
+	return err == nil, err
 }
 
 func updateCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) (int, error) {
@@ -617,6 +584,22 @@ func updateCommand(ctx context.Context, c *ent.CommandsClient, item data.Command
 		)
 	applyEdit(u.Mutation(), item)
 	return u.Save(ctx)
+}
+
+func commandEditKey(item data.CommandChangedDTO) any {
+	return commandKey{userID: item.UserID, name: item.Name}
+}
+
+func commandEditBytes(item data.CommandChangedDTO) int {
+	size := len(item.Name) + len(item.Response) + len(item.Perm) + len(item.BumpCounter)
+	for _, alias := range item.Aliases {
+		size += len(alias) + 8
+	}
+	return 512 + 6*size
+}
+
+func commandEditError(err error) bool {
+	return ent.IsValidationError(err) || ent.IsConstraintError(err)
 }
 
 func formatAllowed(id uint64) string {

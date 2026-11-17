@@ -15,6 +15,7 @@ import type {
 } from './services';
 import type { AdminIdentity } from './access';
 import type { AnalyticsReads } from '#lib/analytics-page';
+import type { DonationsReply } from '#lib/donations-view';
 import { isoWeek, type AnalyticsRow } from '#lib/analytics-view';
 import type { FeedEvent } from './feed';
 import type { LaneView } from './lanes';
@@ -610,15 +611,39 @@ const DEMO_SERIES: DemoSeries[] = [
       ])
     )
   ),
-  ...demoRatios('custom.commands', { created: 0.2, deleted: 0.05 })
+  ...demoRatios('custom.commands', { created: 0.2, deleted: 0.05 }),
+  ...demoRatios('timers.ticks', { fired: 15, gated: 2, stopped: 0.3, floor: 0.01, blank: 0.1, refused: 0.2 }),
+  ...demoRatios('automod.flags', { 'scam|shadow': 0.2, 'phish|enforced': 0.4, 'lex_hate|enforced': 0.1 }),
+  ...demoRatios('games.rounds', { 'raffle|drawn': 0.3, 'mraffle|empty': 0.02, 'duel|won': 0.5, 'gamble|lost': 2, 'gamble|won': 1.8 }),
+  ...demoRatios('games.entrants', { 'raffle|20_99': 0.3, 'mraffle|100p': 0.1, 'duel|2_4': 0.5 }),
+  ...demoRatios('points.flows', { gamble: 3.8, duel_stake: 1, transfer: 0.5, adjust: 0.1, reward_grant: 2, raffle_payout: 0.3 }),
+  ...demoRatios('rewards.redeems', { 'channelpoints|ok': 2, 'channelpoints|offline': 0.1, 'govee|ok': 0.5, 'govee|busy': 0.1 }),
+  ...demoRatios('auth.login', { started: 2, ok: 1.8, declined: 0.1, state: 0.02, banned: 0.01 }),
+  ...demoRatios('lifecycle', { trial_promoted: 0.08 }),
+  ...demoRatios('recipe.runs', { 'command|ok': 12, 'event|ok': 8, 'timer|ok': 6, 'reward|failed': 0.1, 'manual|partial': 0.2, 'countdown|ok': 1 }),
+  ...demoRatios('outgress.dropped', { 'chat|chat_dropped': 0.12, 'helix|exhausted': 0.04, 'helix|auth': 0.02 }),
+  ...demoRatios('provider.calls', { 'weather|ok': 2, 'weather|timeout': 0.03, 'twitch|ok': 5, 'twitch|denied': 0.05 }),
+  ...demoRatios('songs.requests', { queued: 3, not_found: 0.1, queue_full: 0.05 }),
+  ...demoRatios('command.blocked', { perm: 0.5, offline: 0.2, cooldown: 1 }),
+  ...demoRatios('dashboard.views', { 'overview|owner': 0.5, 'commands|owner': 0.8, 'commands|delegate': 0.2, 'flows|owner': 0.4 }),
+  ...demoRatios('billing.checkout', { 'monthly|redirected': 0.03, 'single|redirected': 0.01, 'gift|blocked': 0.005 }),
+  ...demoRatios('onboarding.steps', { viewed: 0.1, consent_missing: 0.01, save_failed: 0.005 })
 ];
 
-const DEMO_TOTALS: DemoLevels = { 'accounts.total': { free: 2100, paid: 180, vip: 4 } };
+const DEMO_TOTALS: DemoLevels = {
+  'accounts.total': { free: 2100, paid: 180, vip: 4 },
+  'accounts.bot_enabled': { free: 1300, paid: 165, vip: 3 }
+};
 
 const DEMO_LEVELS: DemoLevels = {
   ...DEMO_TOTALS,
   'accounts.bot_enabled': { free: 1300, paid: 165, vip: 3 },
   'accounts.onboarded': { '': 1900 },
+  'accounts.delegating': { '': 120 },
+  'accounts.runtime': { active: 1468, dormant: 420, blocked: 16, disabled: 350, recovering: 12, degraded: 18 },
+  'desktop.grants': { macos: 150, windows: 220, linux: 40 },
+  'timers.total': { plain: 900, gated: 320, capped: 140, ends: 80, offline: 60 },
+  'recipes.total': { 'command|on': 1200, 'command|off': 90, 'timer|on': 800, 'timer|off': 40, 'event|on': 600 },
   'accounts.paid_source': { tebex: 150, admin: 22, giveaway: 8, vip: 4 },
   'accounts.cancel_pending': { '': 6 },
   'accounts.payment_failed': { '': 4 },
@@ -751,7 +776,8 @@ function demoPeriodRows(span: DemoSpan, end: DemoDay, factor: DemoFactor): Analy
   const start = demoDate(span.start);
   return [
     { start, metric: 'channels.active', dims: [], value: Math.round(mean * factor) },
-    { start, metric: 'channels.live', dims: [], value: Math.round(mean * 0.55 * factor) }
+    { start, metric: 'channels.live', dims: [], value: Math.round(mean * 0.55 * factor) },
+    ...demoWeekSeries(span.start, mean * factor, demoRatios('channels.size', { v0_9: 0.4, v10_49: 0.25, v50_199: 0.12, v200_999: 0.05, v1kp: 0.001 }))
   ];
 }
 
@@ -768,7 +794,9 @@ function demoWeekRows(end: DemoDay): AnalyticsRow[] {
   const lastMonday = demoLastClosedMonday(end);
   const shares = [
     ...demoRatios('module.active', DEMO_MODULE_SHARES),
-    ...demoRatios('command.channels', DEMO_COMMAND_SHARES)
+    ...demoRatios('command.channels', DEMO_COMMAND_SHARES),
+    ...demoRatios('recipe.channels', { '': 0.7 }),
+    ...demoRatios('activation.age', { d0: 0.05, d1: 0.04, d2_6: 0.12, d7_13: 0.1, d14_29: 0.19, d30p: 0.5 })
   ];
   const rows: AnalyticsRow[] = [];
   for (let k = 0; k < 4; k++) {
@@ -836,7 +864,7 @@ function demoLifecycleRows(span: DemoSpan, end: DemoDay): AnalyticsRow[] {
 
 export function demoAnalytics(days = 30): AnalyticsReads {
   const end = Math.floor(Date.now() / DEMO_DAY_MS);
-  const counterSpan = Math.min(2 * days, 400);
+  const counterSpan = Math.min(Math.max(2 * days, 93), 400);
   const cohortDays = demoLifecycleRows({ start: end - 119, length: 120 }, end);
   return {
     end: demoDate(end),
@@ -847,5 +875,24 @@ export function demoAnalytics(days = 30): AnalyticsReads {
     month: demoMonthRows(end),
     cohortWeeks: demoCohortRows(cohortDays, end),
     cohortDays
+  };
+}
+
+export function demoDonations(days = 30): DonationsReply {
+  const scale = Math.max(1, Math.round(days / 30));
+  const month = (back: number) => new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - back, 1)).toISOString().slice(0, 7);
+  return {
+    totals: [
+      { currency: 'USD', gross_cents: 18_500 * scale, payments: 31 * scale, recurring_cents: 9_000 * scale, recurring_payments: 18 * scale, first_subscriptions: 4 * scale, previous_gross_cents: 15_200 * scale, previous_payments: 27 * scale },
+      { currency: 'EUR', gross_cents: 2_500 * scale, payments: 4 * scale, recurring_cents: 0, recurring_payments: 0, first_subscriptions: 0, previous_gross_cents: 0, previous_payments: 0 }
+    ],
+    months: Array.from({ length: 12 }, (_, back) => ({ month: month(back), currency: 'USD', gross_cents: 17_000 + back * 350, payments: 28 + back })),
+    kinds: [
+      { kind: 'donation', payments: 15 * scale },
+      { kind: 'subscription', payments: 18 * scale },
+      { kind: 'commission', payments: 0 },
+      { kind: 'shop_order', payments: 2 * scale }
+    ],
+    last_payment_at: new Date(Date.now() - DEMO_DAY_MS).toISOString()
   };
 }

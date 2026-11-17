@@ -58,11 +58,18 @@ func (r *Notifications) connectionTx(ctx context.Context, change connectionChang
 	if err := change.Params.validate(); err != nil {
 		return ConnectionResult{}, err
 	}
-	return db.WithQuery(ctx, func(ctx context.Context) (ConnectionResult, error) {
-		return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (ConnectionResult, error) {
-			return change.apply(ctx, tx)
+	var result ConnectionResult
+	err := db.RetryTx(ctx, func(ctx context.Context) error {
+		var err error
+		result, err = db.WithQuery(ctx, func(ctx context.Context) (ConnectionResult, error) {
+			return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (ConnectionResult, error) { return change.apply(ctx, tx) })
 		})
+		return err
 	})
+	if err != nil {
+		return ConnectionResult{}, err
+	}
+	return result, nil
 }
 func (change connectionChange) apply(ctx context.Context, tx *ent.Tx) (ConnectionResult, error) {
 	guard, err := lockConnectionGuard(ctx, tx, change.Params)
@@ -112,7 +119,7 @@ func (change connectionChange) reuseReceipt(ctx context.Context, tx *ent.Tx, rec
 		return resultOfReceipt(receipt), nil
 	}
 	p := change.Params
-	if _, err := tx.Notification.Delete().Where(notification.TargetUserIDEQ(p.AccountID), notification.IncarnationEQ(p.Incarnation), notification.IncidentIDEQ(p.IncidentID)).Exec(ctx); err != nil {
+	if err := drainNotifications(ctx, tx.Client(), notification.And(notification.TargetUserIDEQ(p.AccountID), notification.IncarnationEQ(p.Incarnation), notification.IncidentIDEQ(p.IncidentID))); err != nil {
 		return ConnectionResult{}, err
 	}
 	err := tx.ConnectionReceipt.UpdateOne(receipt).SetOutcome("retracted").ClearNotificationID().Exec(ctx)
@@ -211,12 +218,14 @@ func (r *Notifications) EraseConnection(ctx context.Context, accountID uint64, i
 	if err != nil {
 		return err
 	}
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-			if err := erasure.lockGuard(ctx, tx); err != nil {
-				return err
-			}
-			return erasure.deleteHistory(ctx, tx)
+	return db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				if err := erasure.lockGuard(ctx, tx); err != nil {
+					return err
+				}
+				return erasure.deleteHistory(ctx, tx)
+			})
 		})
 	})
 }
@@ -239,16 +248,42 @@ func (erasure *notificationErasure) lockGuard(ctx context.Context, tx *ent.Tx) e
 }
 func (erasure notificationErasure) deleteHistory(ctx context.Context, tx *ent.Tx) error {
 	p := erasure.Recipient
-	if _, err := tx.Notification.Delete().Where(notification.TargetUserIDEQ(p.UserID), notification.Or(notification.IncarnationEQ(p.Incarnation), notification.And(notification.Or(notification.IncarnationEQ(""), notification.IncarnationIsNil()), notification.CreatedAtGTE(p.CreatedAt), notification.CreatedAtLTE(erasure.DeletedAt)))).Exec(ctx); err != nil {
+	if err := drainNotifications(ctx, tx.Client(), notification.And(notification.TargetUserIDEQ(p.UserID), notification.Or(notification.IncarnationEQ(p.Incarnation), notification.And(notification.Or(notification.IncarnationEQ(""), notification.IncarnationIsNil()), notification.CreatedAtGTE(p.CreatedAt), notification.CreatedAtLTE(erasure.DeletedAt))))); err != nil {
 		return err
 	}
-	if _, err := tx.NotificationRead.Delete().Where(notificationread.UserIDEQ(p.UserID), notificationread.Or(notificationread.IncarnationEQ(p.Incarnation), notificationread.And(notificationread.Or(notificationread.IncarnationEQ(""), notificationread.IncarnationIsNil()), notificationread.ReadAtGTE(p.CreatedAt), notificationread.ReadAtLTE(erasure.DeletedAt)))).Exec(ctx); err != nil {
+	if err := drainNotificationReads(ctx, tx.Client(), notificationread.And(notificationread.UserIDEQ(p.UserID), notificationread.Or(notificationread.IncarnationEQ(p.Incarnation), notificationread.And(notificationread.Or(notificationread.IncarnationEQ(""), notificationread.IncarnationIsNil()), notificationread.ReadAtGTE(p.CreatedAt), notificationread.ReadAtLTE(erasure.DeletedAt))))); err != nil {
 		return err
 	}
-	_, err := tx.ConnectionReceipt.Update().Where(connectionreceipt.AccountIDEQ(p.UserID), connectionreceipt.IncarnationEQ(p.Incarnation)).SetOutcome("retracted").ClearNotificationID().Save(ctx)
-	return err
+	return erasure.retractReceipts(ctx, tx)
 }
+
+func (erasure notificationErasure) retractReceipts(ctx context.Context, tx *ent.Tx) error {
+	p := erasure.Recipient
+	eligible := connectionreceipt.And(connectionreceipt.AccountIDEQ(p.UserID), connectionreceipt.IncarnationEQ(p.Incarnation), connectionreceipt.Or(connectionreceipt.OutcomeNEQ("retracted"), connectionreceipt.NotificationIDNotNil()))
+	for {
+		ids, err := tx.ConnectionReceipt.Query().Where(eligible).Limit(CleanupBatchSize).IDs(ctx)
+		if err != nil || len(ids) == 0 {
+			return err
+		}
+		_, err = tx.ConnectionReceipt.Update().Where(connectionreceipt.IDIn(ids...), eligible).SetOutcome("retracted").ClearNotificationID().Save(ctx)
+		if err != nil {
+			return err
+		}
+	}
+}
+
 func (r *Notifications) CleanupDelivery(ctx context.Context, now time.Time) (int, bool, error) {
+	var deleted int
+	var more bool
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		var err error
+		deleted, more, err = r.cleanupDelivery(ctx, now)
+		return err
+	})
+	return deleted, more, err
+}
+
+func (r *Notifications) cleanupDelivery(ctx context.Context, now time.Time) (int, bool, error) {
 	deleted, more, err := r.cleanupConnectionReceipts(ctx, now)
 	if err != nil {
 		return deleted, false, err

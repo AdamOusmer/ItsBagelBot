@@ -28,9 +28,14 @@ type Query struct {
 	Now     time.Time
 }
 
-type Reader struct{ client valkey.Client }
+type Reader struct {
+	client valkey.Client
+	levels Seed
+}
 
-func NewReader(client valkey.Client) *Reader { return &Reader{client: client} }
+func NewReader(client valkey.Client, levels Seed) *Reader {
+	return &Reader{client: client, levels: levels}
+}
 
 func (r *Reader) Read(ctx context.Context, q Query) ([]Row, error) {
 	if r == nil {
@@ -82,11 +87,11 @@ func (r *Reader) hashRows(ctx context.Context, q Query, row Row, kind catalog.Ty
 	if !q.requests(kind) {
 		return nil, nil
 	}
-	key := catalog.CounterKey(row.Start)
 	if kind == catalog.Level {
-		key = catalog.LevelKey
+		values, err := r.levels(ctx)
+		return fields(q, row.Start, kind, values), err
 	}
-	values, err := pkgvalkey.HashAllInts(ctx, r.client, key)
+	values, err := pkgvalkey.HashAllInts(ctx, r.client, catalog.CounterKey(row.Start))
 	return fields(q, row.Start, kind, values), err
 }
 
@@ -128,28 +133,14 @@ func (r *Reader) distinctRows(ctx context.Context, q Query, at time.Time) ([]Row
 	if err != nil {
 		return nil, err
 	}
-	counts := map[string]int64{}
-	for _, key := range keys {
-		ref, ok := catalog.ParseDistinctKey(key)
-		if !ok {
-			continue
-		}
-		metric, dims := catalog.ParseField(ref.Field)
-		if !acceptsField(q, metric, dims, catalog.Distinct) {
-			continue
-		}
-		value, err := r.cardinality(ctx, ref, key)
-		if err != nil {
-			return nil, err
-		}
-		counts[ref.Field] = max(counts[ref.Field], value)
-	}
-	return fields(q, at, catalog.Distinct, counts), nil
+	counts, err := DistinctCounts(ctx, r.client, requestedDistincts(q, keys))
+	return fields(q, at, catalog.Distinct, counts), err
 }
 
-func (r *Reader) cardinality(ctx context.Context, ref catalog.DistinctRef, key string) (int64, error) {
-	if ref.Legacy {
-		return pkgvalkey.HyperLogLogCount(ctx, r.client, key)
-	}
-	return pkgvalkey.SetCard(ctx, r.client, key)
+func requestedDistincts(q Query, keys []string) []string {
+	return slices.DeleteFunc(keys, func(key string) bool {
+		ref, ok := catalog.ParseDistinctKey(key)
+		metric, dims := catalog.ParseField(ref.Field)
+		return !ok || !acceptsField(q, metric, dims, catalog.Distinct)
+	})
 }

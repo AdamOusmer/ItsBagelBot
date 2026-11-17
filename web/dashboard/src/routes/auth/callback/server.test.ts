@@ -6,7 +6,7 @@ import { privateEnv, stubSvelteKit } from '../../../../test/sveltekit';
 
 process.env.SESSION_KEY = Buffer.alloc(32, 7).toString('base64');
 stubSvelteKit();
-Object.assign(privateEnv, { TWITCH_CLIENT_ID: 'client' });
+Object.assign(privateEnv, { TWITCH_CLIENT_ID: 'client', TWITCH_BOT_USER_ID: '999' });
 
 const { RpcError } = await import('@bagel/kit/server/nats');
 
@@ -14,6 +14,11 @@ let existing: () => Promise<{ username: string }> = async () => ({ username: 'st
 const purged: { kind: 'pages' | 'board'; userId: string; logins: readonly string[] }[] = [];
 
 let banned = false;
+let rejectedLink = false;
+let registerFailed = false;
+let claims: Record<string, unknown> = {};
+const analytics: string[][] = [];
+mock.module('@bagel/kit/server/analytics', () => ({ count: (...args: string[]) => analytics.push(args) }));
 const events: string[] = [];
 
 async function step<T>(name: string, value: T): Promise<T> {
@@ -36,13 +41,14 @@ mock.module('#lib/server/services', () => ({
   userLocale: () => step('locale', 'fr'),
   userCursor: () => step('cursor', true),
   saveGrant: () => step('grant', undefined),
-  delegationConsume: () => step('delegation', { ok: true, owner_user_id: '7', owner_login: 'owner', sections: [] })
+  delegationConsume: () => step('delegation', { ok: !rejectedLink, owner_user_id: '7', owner_login: 'owner', sections: [] })
 }));
 const nats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
   ...nats,
   rpc: async () => {
     events.push('register');
+    if (registerFailed) throw new Error('unavailable');
     return { ok: true };
   }
 }));
@@ -58,7 +64,7 @@ mock.module('#lib/server/oauth', () => ({
   fetchAccountEmail: () => step('email', null),
   twitch: () => ({
     validateAuthorizationCode: async () => ({
-      claims: () => ({ sub: '42', preferred_username: 'Streamer', aud: 'client', iss: 'https://id.twitch.tv/oauth2', nonce: 'n' }),
+      claims: () => ({ sub: '42', preferred_username: 'Streamer', aud: 'client', iss: 'https://id.twitch.tv/oauth2', nonce: 'n', ...claims }),
       scopes: () => [],
       accessToken: () => 'a',
       refreshToken: () => 'r'
@@ -70,7 +76,7 @@ const { GET } = await import('./+server');
 
 let written = new Map<string, string>();
 
-async function signInTo(extra: [string, string][] = []): Promise<{ status: number; location: string | null }> {
+async function signInTo(extra: [string, string][] = [], query = '?code=c&state=s'): Promise<{ status: number; location: string | null }> {
   const jar = new Map([['oauth_state', 's'], ['oauth_nonce', 'n'], ...extra]);
   written = new Map();
   const cookies = {
@@ -79,7 +85,7 @@ async function signInTo(extra: [string, string][] = []): Promise<{ status: numbe
     delete: (n: string) => void jar.delete(n)
   };
   try {
-    await GET({ url: new URL('https://dashboard.itsbagelbot.com/auth/callback?code=c&state=s'), cookies } as never);
+    await GET({ url: new URL(`https://dashboard.itsbagelbot.com/auth/callback${query}`), cookies } as never);
     return { status: 200, location: null };
   } catch (e) {
     const { status, location } = e as { status: number; location: string };
@@ -95,7 +101,39 @@ beforeEach(() => {
   purged.length = 0;
   events.length = 0;
   banned = false;
+  rejectedLink = false;
+  registerFailed = false;
+  claims = {};
+  analytics.length = 0;
   existing = async () => ({ username: 'streamer' });
+});
+
+describe('login analytics', () => {
+  test.each([
+    ['?error=access_denied', 'declined'], ['?error=private-upstream-value', 'oauth'],
+    ['?code=c&state=wrong', 'state'], ['?e=banned', 'state'],
+    ['?code=c&state=s&e=banned', 'ok']
+  ])('counts verified callback outcome for %s', async (query, outcome) => {
+    await signInTo([], query);
+    expect(analytics).toEqual([['auth.login', outcome]]);
+  });
+
+  test.each([
+    [{ aud: 'wrong' }, 'state'], [{ nonce: 'wrong' }, 'state'], [{ scope: 'email' }, 'scope'], [{ sub: '999' }, 'bot']
+  ] as const)('counts rejected claims %j once', async (overrides, outcome) => {
+    claims = { ...overrides };
+    await signInTo();
+    expect(analytics).toEqual([['auth.login', outcome]]);
+  });
+
+  test.each(['banned', 'retry', 'link', 'delegate'])('counts the final %s branch once', async (branch) => {
+    banned = branch === 'banned';
+    registerFailed = branch === 'retry';
+    rejectedLink = branch === 'link';
+    const extra: [string, string][] = ['link', 'delegate'].includes(branch) ? [['pending_delegation', 'invite']] : [];
+    await signInTo(extra);
+    expect(analytics).toEqual([['auth.login', branch === 'delegate' ? 'ok' : branch]]);
+  });
 });
 
 describe('auth callback ordering', () => {

@@ -177,7 +177,7 @@ func TestDeleteExpiredSweepsGloballyExpired(t *testing.T) {
 	f.send(t, func(p *repository.CreateParams) { p.ExpiresAt = &future })
 	f.send(t, nil)
 
-	removed, err := f.repo.DeleteExpired(f.ctx, time.Now())
+	removed, _, err := f.repo.DeleteExpired(f.ctx, time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, removed, "only the globally-expired notification is swept")
 	assert.Equal(t, 2, f.client.Notification.Query().CountX(f.ctx))

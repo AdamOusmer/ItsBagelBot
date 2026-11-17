@@ -80,6 +80,7 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 		actioned = p.emitAutomod(v, env, emit)
 	}
 	p.stats.flag(mctx.BroadcasterID, flagRule(v.Rule), actioned)
+	p.recordFlag(flagRule(v.Rule), actioned)
 	p.log.Info("automod verdict",
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
@@ -163,6 +164,7 @@ func (p *Pipeline) gateCohort(ctx context.Context, mctx *module.Context, amCfg *
 		actioned = p.emitCohort(v, broadcasterID, env, emit)
 	}
 	p.stats.flag(broadcasterID, flagRule(v.Rule), actioned)
+	p.recordFlag(flagRule(v.Rule), actioned)
 	p.log.Info("automod cohort verdict",
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
@@ -251,6 +253,7 @@ func (p *Pipeline) emitCohort(v automod.Verdict, broadcasterID uint64, env *lane
 	if p.shieldEscalates(v, broadcasterID, env) {
 		p.emitShield(env.BroadcasterUserID, emit)
 		p.stats.flag(broadcasterID, ruleShieldMode, true)
+		p.recordFlag(ruleShieldMode, true)
 		p.log.Warn("automod shield mode",
 			module.BIDField(broadcasterID),
 			zap.Int("cohort", len(env.Senders)),

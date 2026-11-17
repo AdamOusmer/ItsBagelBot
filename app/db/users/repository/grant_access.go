@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
+
+	"go.uber.org/zap"
 )
 
 // Must never touch VIP or billing-sourced paid rows.
@@ -70,21 +72,27 @@ func (r *Users) hasCoveringGrant(ctx context.Context, userID uint64, now time.Ti
 }
 
 func (r *Users) writeAccessStatus(ctx context.Context, u *ent.User, status user.Status) error {
-	counted := r.trackAccounts(ctx, u.ID)
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.accessStatusUpdate(u, status).Exec(ctx)
+	updated, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.accessStatusUpdate(u, status).Save(ctx)
 	})
 	if err != nil {
 		return err
 	}
-	counted()
+	if updated == 0 {
+		r.log.Debug("grant access projection lost concurrent ownership race", zap.Uint64("user_id", u.ID), zap.String("status", string(status)))
+		return nil
+	}
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, u.ID))
 	r.stats.Invalidate(userStatsKey)
 	return nil
 }
 
-func (r *Users) accessStatusUpdate(u *ent.User, status user.Status) *ent.UserUpdateOne {
-	q := r.client.User.UpdateOneID(u.ID).Where(user.StatusNEQ(user.StatusVip)).SetStatus(status)
+func (r *Users) accessStatusUpdate(u *ent.User, status user.Status) *ent.UserUpdate {
+	q := r.client.User.Update().Where(
+		user.IDEQ(u.ID), user.StatusEQ(u.Status), user.StatusNEQ(user.StatusVip),
+		user.SubscriptionSourceEQ(u.SubscriptionSource), user.SubscriptionSourceNotIn("tebex", "admin"),
+		user.CreatedAtEQ(u.CreatedAt),
+	).SetStatus(status)
 	if status == user.StatusPaid && u.SubscriptionSource == "" {
 		q.SetSubscriptionSource("giveaway")
 	}
@@ -111,6 +119,7 @@ func (r *Users) freeUsersWithCoveringGrant(ctx context.Context, now time.Time) (
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return r.client.User.Query().Where(
 			user.StatusEQ(user.StatusFree),
+			user.SubscriptionSourceNotIn("tebex", "admin"),
 			user.HasPremiumGrantsWith(
 				premiumgrant.StateEQ(premiumgrant.StateCommitted),
 				premiumgrant.StartAtLTE(now),

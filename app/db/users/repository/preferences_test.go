@@ -29,7 +29,7 @@ func decodeChanged(t *testing.T, pub *bustest.Publisher) []data.UserChangedDTO {
 	return out
 }
 
-func TestPreferenceWritesAreWriteBehind(t *testing.T) {
+func TestPreferenceSuccessMeansCommitted(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
@@ -39,11 +39,11 @@ func TestPreferenceWritesAreWriteBehind(t *testing.T) {
 	require.NoError(t, repo.SetCustomCursor(ctx, 1001, false))
 	require.NoError(t, repo.SetLocale(ctx, 1001, "fr"))
 
-	assert.Len(t, decodeChanged(t, pub), baseline, "no event may precede the flush commit")
+	assert.Len(t, decodeChanged(t, pub), baseline+2)
 
 	row := client.User.Query().OnlyX(ctx)
-	assert.True(t, row.CustomCursor, "no preference write may precede the flush commit")
-	assert.Equal(t, "en", row.Locale)
+	assert.False(t, row.CustomCursor)
+	assert.Equal(t, "fr", row.Locale)
 
 	repo.Close(context.Background())
 
@@ -52,7 +52,7 @@ func TestPreferenceWritesAreWriteBehind(t *testing.T) {
 	assert.Equal(t, "fr", row.Locale)
 
 	events := decodeChanged(t, pub)
-	require.Len(t, events, baseline+1, "the window announces exactly once")
+	require.Len(t, events, baseline+2)
 	last := events[len(events)-1]
 	assert.Equal(t, uint64(1001), last.UserID)
 	assert.True(t, last.IsActive)
@@ -69,13 +69,11 @@ func TestPreferenceWindowMergesPerUser(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
-	repo.Close(context.Background())
 	baseline := len(decodeChanged(t, pub))
 
 	require.NoError(t, repo.SetCustomCursor(ctx, 1001, false))
 	require.NoError(t, repo.SetLocale(ctx, 1001, "de"))
 	require.NoError(t, repo.SetCustomCursor(ctx, 1001, true))
-	require.NoError(t, repo.SetOnboarded(ctx, 1001, true))
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, " bagel10 "))
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, "bagel20"))
 
@@ -86,12 +84,11 @@ func TestPreferenceWindowMergesPerUser(t *testing.T) {
 	assert.True(t, view.IsActive)
 	assert.Equal(t, "de", view.Locale)
 	assert.True(t, view.CustomCursor)
-	assert.True(t, view.Onboarded)
 	require.NotNil(t, view.CreatorCode)
 	assert.Equal(t, "bagel20", *view.CreatorCode, "the latest queued value must win")
 
 	events := decodeChanged(t, pub)
-	require.Len(t, events, baseline+1, "one user in one window is announced once")
+	require.Len(t, events, baseline+5)
 	assert.Equal(t, uint64(1001), events[len(events)-1].UserID)
 }
 
@@ -167,7 +164,7 @@ func TestInteractiveLanguageSaveCommitsBeforeRead(t *testing.T) {
 			_, err := repo.Get(ctx, 1001) // Prime the cached account view.
 			require.NoError(t, err)
 			baseline := len(decodeChanged(t, pub))
-			require.NoError(t, repo.SetLocaleNow(ctx, 1001, locale))
+			require.NoError(t, repo.SetLocale(ctx, 1001, locale))
 			require.Equal(t, locale, client.User.GetX(ctx, 1001).Locale)
 			view, err := repo.Get(ctx, 1001)
 			require.NoError(t, err)
@@ -175,7 +172,7 @@ func TestInteractiveLanguageSaveCommitsBeforeRead(t *testing.T) {
 			events := decodeChanged(t, pub)
 			require.Len(t, events, baseline+1)
 			require.Equal(t, locale, events[len(events)-1].Locale)
-			require.Error(t, repo.SetLocaleNow(ctx, 9999, locale))
+			require.Error(t, repo.SetLocale(ctx, 9999, locale))
 			require.Len(t, decodeChanged(t, pub), baseline+1, "failed saves must not announce a change")
 		})
 	}

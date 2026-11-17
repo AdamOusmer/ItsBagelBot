@@ -1,6 +1,10 @@
 {
-  "title": "Cola de canciones de {channel}",
-  "metaDescription": "Mira qué suena y qué viene después en el canal de {channel}, actualizado en vivo.",
+  "title": "{channel}: peticiones y cola de Spotify | ItsBagelBot",
+  "metaDescription": "Mira qué suena en el stream de Twitch de {channel} y qué sigue. Pide una canción de Spotify en el chat con !sr. Actualizado en vivo.",
+  "aboutTitle": "Pide una canción en el stream de {channel}",
+  "aboutBody": "{channel} acepta peticiones de Spotify con ItsBagelBot, un bot de chat gratis para Twitch. Escribe !sr con el nombre de la canción, \"artista - canción\" o un enlace de Spotify en el chat de Twitch. Suenan en orden en el Spotify del streamer.",
+  "aboutTwitch": "Mira a {channel} en Twitch",
+  "aboutLink": "Agrega peticiones de canciones a tu canal",
   "eyebrow": "Cola de canciones",
   "tagline": "Qué suena y qué sigue, actualizado en vivo.",
   "requestHint": "Pide una canción desde el chat con !sr <canción>.",

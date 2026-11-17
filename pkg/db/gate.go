@@ -33,6 +33,8 @@ func gate() chan struct{} {
 	return queryGate
 }
 
+func QueryConcurrency() int { return cap(gate()) }
+
 func WithQuery[T any](ctx context.Context, fn func(context.Context) (T, error)) (T, error) {
 	var zero T
 	release, err := acquire(ctx)

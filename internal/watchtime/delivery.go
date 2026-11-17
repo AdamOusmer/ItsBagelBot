@@ -12,20 +12,50 @@ import (
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
-func (c *Consumer) process(parent context.Context, entry valkey.XRangeEntry) {
+type watchDelivery struct {
+	entry valkey.XRangeEntry
+	award data.WatchAwardDTO
+	err   error
+}
+
+func watchDeliveryGroups(entries []valkey.XRangeEntry) map[uint64][]watchDelivery {
+	groups := make(map[uint64][]watchDelivery)
+	for _, entry := range entries {
+		award, err := decodeWatchDelivery(entry)
+		groups[award.UserID] = append(groups[award.UserID], watchDelivery{entry: entry, award: award, err: err})
+	}
+	return groups
+}
+
+func (c *Consumer) processGroup(ctx context.Context, deliveries []watchDelivery) {
+	for _, delivery := range deliveries {
+		c.process(ctx, delivery)
+	}
+}
+
+func (c *Consumer) process(parent context.Context, delivery watchDelivery) {
 	ctx, cancel := context.WithTimeout(parent, awardTimeout)
 	defer cancel()
-	award, err := decodeWatchDelivery(entry)
+	deliveryOwner := pkgvalkey.StreamDelivery{Stream: Stream, Group: ConsumerGroup, Consumer: c.name, ID: delivery.entry.ID}
+	owned, err := deliveryOwner.Refresh(ctx, c.client)
 	if err != nil {
-		c.quarantineInvalid(ctx, entry, err)
+		c.log.Warn("watchtime: ownership refresh failed; delivery retained", zap.String("stream_id", delivery.entry.ID), zap.Error(err))
 		return
 	}
-	c.commitDelivery(ctx, entry, award)
+	if !owned {
+		return
+	}
+	if delivery.err != nil {
+		c.quarantineInvalid(ctx, delivery.entry, delivery.err)
+		return
+	}
+	c.commitDelivery(ctx, delivery.entry, delivery.award)
 }
 
 func decodeWatchDelivery(entry valkey.XRangeEntry) (data.WatchAwardDTO, error) {

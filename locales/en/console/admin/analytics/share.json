@@ -3,5 +3,7 @@
   "ofAccounts": "{share} of accounts",
   "ofBotEnabled": "{share} of accounts with the bot enabled",
   "ofCommands": "{share} of custom commands",
-  "ofChannels": "{share} of channels"
+  "ofChannels": "{share} of channels",
+  "ofAttempts": "{share} of command attempts",
+  "roles": "{owner} owner · {delegate} delegate"
 }

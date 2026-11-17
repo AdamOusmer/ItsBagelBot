@@ -82,13 +82,14 @@ type bumpSum struct {
 }
 
 type Loyalty struct {
-	dialect    string
-	persistMu  sync.Mutex
-	watchReady atomic.Bool
-	client     *ent.Client
-	sqldb      *sql.DB
-	app        *newrelic.Application
-	log        *zap.Logger
+	dialect      string
+	persistMu    sync.Mutex
+	watchReady   atomic.Bool
+	counterReady atomic.Bool
+	client       *ent.Client
+	sqldb        *sql.DB
+	app          *newrelic.Application
+	log          *zap.Logger
 
 	nc                 *nats.Conn
 	invalidationPrefix string
@@ -266,6 +267,7 @@ func (r *Loyalty) tryFlush() {
 		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 		defer cancel()
 		r.Flush(ctx)
+		r.maintainCounterReceipts(ctx)
 	}()
 }
 

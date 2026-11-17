@@ -3,7 +3,7 @@
 
 import { dev } from '$app/env';
 import { liveTotals } from './live-counters';
-import { exactRateWindow, RATE_AVG_SECONDS } from '@bagel/kit/rates';
+import { exactRateWindows } from '@bagel/kit/rates';
 
 // process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
@@ -15,9 +15,6 @@ const COUNTERS = [COUNTER_MESSAGES, COUNTER_EVENTS] as const;
 
 // Viewer-driven sampling left each pod's windows holding one stale sample after idle; the timer keeps them full.
 const SAMPLE_MS = 1000;
-const PUBLIC_RATE_NOW_SECONDS = 10;
-const RATE_MIN_SPAN_MS = 5000;
-const WARMUP_CAP_MS = 8000;
 
 export interface PublicStats {
   messages_total: string;
@@ -31,14 +28,11 @@ export interface PublicStats {
   degraded: boolean;
 }
 
-const sampleNow = exactRateWindow(PUBLIC_RATE_NOW_SECONDS * 1000, RATE_MIN_SPAN_MS);
-const sampleAverage = exactRateWindow(RATE_AVG_SECONDS * 1000, RATE_MIN_SPAN_MS);
+const sampleRates = exactRateWindows();
 
 let latest: PublicStats | null = null;
 let inflight: Promise<void> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
-let startedAt: number | null = null;
-let warmed = DEMO;
 
 function degradedStats(): PublicStats {
   return {
@@ -60,17 +54,15 @@ async function loadStats(): Promise<PublicStats> {
   const messages = totals[COUNTER_MESSAGES];
   const events = totals[COUNTER_EVENTS];
   const sampledAt = Date.now();
-  const snapshot = { messages: BigInt(messages), events: BigInt(events), at: sampledAt };
-  const now = sampleNow(snapshot);
-  const average = sampleAverage(snapshot);
+  const rates = sampleRates({ messages: BigInt(messages), events: BigInt(events), at: sampledAt });
   return {
     messages_total: messages,
     events_total: events,
     sampled_at: sampledAt,
-    msg_rate: average.msg,
-    event_rate: average.event,
-    msg_rate_now: now.msg ?? average.msg,
-    event_rate_now: now.event ?? average.event,
+    msg_rate: rates.avg.msg,
+    event_rate: rates.avg.event,
+    msg_rate_now: rates.now.msg,
+    event_rate_now: rates.now.event,
     degraded: false
   };
 }
@@ -79,7 +71,6 @@ function sample(): Promise<void> {
   inflight ??= loadStats()
     .then((stats) => {
       latest = stats;
-      if (!stats.degraded && stats.msg_rate_now !== null) warmed = true;
     })
     .catch(() => {
       latest = degradedStats();
@@ -90,25 +81,15 @@ function sample(): Promise<void> {
   return inflight;
 }
 
-export function startPublicStats(): void {
-  if (DEMO) return;
+function startSampler(): void {
   if (timer) return;
-  startedAt = Date.now();
-  void sample();
   timer = setInterval(() => void sample(), SAMPLE_MS);
   timer.unref?.();
 }
 
-export function publicStatsWarm(): boolean {
-  if (warmed) return true;
-  if (startedAt === null) return false;
-  warmed = Date.now() - startedAt >= WARMUP_CAP_MS;
-  return warmed;
-}
-
 export async function publicStats(): Promise<PublicStats> {
   if (DEMO) return (await import('./demo-data')).demoStats(Date.now());
-  startPublicStats();
-  if (!latest || latest.degraded) await sample();
+  startSampler();
+  if (!latest) await sample();
   return latest ?? degradedStats();
 }

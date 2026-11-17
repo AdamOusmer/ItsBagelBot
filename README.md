@@ -2,6 +2,8 @@
      Proprietary. No license granted. See LICENSE.md. -->
 # ItsBagelBot
 
+ItsBagelBot is a free hosted Twitch chat bot: Spotify song requests, custom commands, timers, loyalty points, giveaways and game stats, set up in the browser at [itsbagelbot.com](https://itsbagelbot.com).
+
 Zero downtime, infinite bagels. Because a monolith wasn't complicated enough.
 
 I built ItsBagelBot because I was running too many bots to get the features I wanted. It handles Twitch commands, modules, timers, moderation, song requests and loyalty, with a web console to configure it.

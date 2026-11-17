@@ -5,6 +5,7 @@ package valkey
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	valkey_go "github.com/valkey-io/valkey-go"
@@ -30,11 +31,15 @@ type DueMember struct {
 
 func runTolerant(ctx context.Context, client valkey_go.Client, cmds []valkey_go.Completed) error {
 	for _, r := range client.DoMulti(ctx, cmds...) {
-		if err := r.Error(); err != nil && !valkey_go.IsValkeyNil(err) {
+		if err := r.Error(); err != nil && !absent(err) {
 			return err
 		}
 	}
 	return nil
+}
+
+func absent(err error) bool {
+	return valkey_go.IsValkeyNil(err) || strings.HasSuffix(err.Error(), "no such key")
 }
 
 // InstallSpec is what InstallWithEscrowField writes.

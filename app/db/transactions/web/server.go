@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/db/transactions/kofi"
 	"ItsBagelBot/app/db/transactions/repository"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/pkg/codec"
@@ -84,6 +85,8 @@ type Config struct {
 	NotifyGift            func(ctx context.Context, notice GiftNotice) error
 	ApplyBilling          func(ctx context.Context, req billingrpc.ApplyRequest) error
 	RecordBillingIncident func(ctx context.Context, incident BillingIncident) error
+	KofiToken             kofi.Token
+	Donations             DonationRecorder
 	App                   *newrelic.Application
 }
 
@@ -126,6 +129,10 @@ func New(store Store, cfg Config, log *zap.Logger) http.Handler {
 		r.Post("/tebex/", s.tebexWebhook)
 		r.Post("/webhooks/tebex", s.tebexWebhook)
 		r.Post("/webhooks/tebex/", s.tebexWebhook)
+		r.Post("/kofi", s.kofiWebhook)
+		r.Post("/kofi/", s.kofiWebhook)
+		r.Post("/webhooks/kofi", s.kofiWebhook)
+		r.Post("/webhooks/kofi/", s.kofiWebhook)
 	})
 
 	return r

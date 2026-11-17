@@ -53,23 +53,34 @@ var OutgressSystemStream = StreamSpec{
 	Replicas:     3,
 }
 
+const dataMaxAge = 5 * time.Minute
+
 var DataStream = StreamSpec{
 	Name:         "DATA",
 	Subjects:     []string{"data.>"},
-	MaxAge:       5 * time.Minute,
+	MaxAge:       dataMaxAge,
 	MaxBytes:     512 << 20,
 	Storage:      nats.FileStorage,
 	BatchPublish: true,
 	Replicas:     3,
 }
 
-// Loyalty's counter batch receipts must outlive MaxAge, or a replayed letter double counts.
+// Counter batches republished or replayed from DLQ after the 24-hour SQL receipt horizon are not deduplicated.
 var DataDeadLetterStream = StreamSpec{
 	Name:       "DATA_DLQ",
 	Subjects:   []string{DeadLetterPrefix + ">"},
 	MaxAge:     7 * 24 * time.Hour,
 	MaxBytes:   256 << 20,
-	Duplicates: 2 * time.Minute,
+	Duplicates: dataMaxAge,
+	Storage:    nats.FileStorage,
+	Replicas:   3,
+}
+
+var dataDeferralStream = StreamSpec{
+	Name:       "DATA_DEFERRALS",
+	Subjects:   []string{"bus.data.deferral.>"},
+	MaxAge:     dataMaxAge,
+	Duplicates: dataMaxAge,
 	Storage:    nats.FileStorage,
 	Replicas:   3,
 }
@@ -149,6 +160,7 @@ var YouTubeIngressStream = StreamSpec{
 // TwitchIngressStream must precede TwitchIngressStandardStream, or the create is refused.
 var DataStreams = []StreamSpec{
 	DataStream,
+	dataDeferralStream,
 	TwitchIngressStream,
 	TwitchIngressStandardStream,
 	TwitchIngressRetryStream,

@@ -5,6 +5,7 @@ package runtime
 import (
 	"ItsBagelBot/app/db/users/ent/adminauditdelivery"
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
+	"ItsBagelBot/app/db/users/ent/billingreceipt"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
@@ -82,6 +83,16 @@ func init() {
 	authorizationcodeDescProducedGrantID := authorizationcodeFields[9].Descriptor()
 	// authorizationcode.ProducedGrantIDValidator is a validator for the "produced_grant_id" field. It is called by the builders before save.
 	authorizationcode.ProducedGrantIDValidator = authorizationcodeDescProducedGrantID.Validators[0].(func(string) error)
+	billingreceiptFields := schema.BillingReceipt{}.Fields()
+	_ = billingreceiptFields
+	// billingreceiptDescCreatedAt is the schema descriptor for created_at field.
+	billingreceiptDescCreatedAt := billingreceiptFields[1].Descriptor()
+	// billingreceipt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	billingreceipt.DefaultCreatedAt = billingreceiptDescCreatedAt.Default.(func() time.Time)
+	// billingreceiptDescID is the schema descriptor for id field.
+	billingreceiptDescID := billingreceiptFields[0].Descriptor()
+	// billingreceipt.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	billingreceipt.IDValidator = billingreceiptDescID.Validators[0].(func(string) error)
 	delegationFields := schema.Delegation{}.Fields()
 	_ = delegationFields
 	// delegationDescToken is the schema descriptor for token field.
@@ -155,15 +166,15 @@ func init() {
 	// lifecycleerasure.DefaultDeletedAt holds the default value on creation for the deleted_at field.
 	lifecycleerasure.DefaultDeletedAt = lifecycleerasureDescDeletedAt.Default.(func() time.Time)
 	// lifecycleerasureDescNotificationsDone is the schema descriptor for notifications_done field.
-	lifecycleerasureDescNotificationsDone := lifecycleerasureFields[4].Descriptor()
+	lifecycleerasureDescNotificationsDone := lifecycleerasureFields[5].Descriptor()
 	// lifecycleerasure.DefaultNotificationsDone holds the default value on creation for the notifications_done field.
 	lifecycleerasure.DefaultNotificationsDone = lifecycleerasureDescNotificationsDone.Default.(bool)
 	// lifecycleerasureDescOutgressDone is the schema descriptor for outgress_done field.
-	lifecycleerasureDescOutgressDone := lifecycleerasureFields[5].Descriptor()
+	lifecycleerasureDescOutgressDone := lifecycleerasureFields[6].Descriptor()
 	// lifecycleerasure.DefaultOutgressDone holds the default value on creation for the outgress_done field.
 	lifecycleerasure.DefaultOutgressDone = lifecycleerasureDescOutgressDone.Default.(bool)
 	// lifecycleerasureDescNextAttemptAt is the schema descriptor for next_attempt_at field.
-	lifecycleerasureDescNextAttemptAt := lifecycleerasureFields[6].Descriptor()
+	lifecycleerasureDescNextAttemptAt := lifecycleerasureFields[7].Descriptor()
 	// lifecycleerasure.DefaultNextAttemptAt holds the default value on creation for the next_attempt_at field.
 	lifecycleerasure.DefaultNextAttemptAt = lifecycleerasureDescNextAttemptAt.Default.(func() time.Time)
 	premiumgrantFields := schema.PremiumGrant{}.Fields()

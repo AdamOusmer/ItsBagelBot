@@ -29,7 +29,7 @@ func deadLetterJetStream(t *testing.T) nats.JetStreamContext {
 	t.Cleanup(nc.Close)
 	js, err := nc.JetStream()
 	require.NoError(t, err)
-	for _, spec := range []StreamSpec{DataStream, DataDeadLetterStream, {Name: "OTHER", Subjects: []string{"other.>"}}} {
+	for _, spec := range []StreamSpec{DataStream, DataDeadLetterStream, dataDeferralStream, {Name: "OTHER", Subjects: []string{"other.>"}}} {
 		_, err := js.AddStream(&nats.StreamConfig{Name: spec.Name, Subjects: spec.Subjects, Duplicates: spec.Duplicates})
 		require.NoError(t, err)
 	}
@@ -73,7 +73,7 @@ func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
 	s := &concurrentDurableSubscriber{js: js, stream: DataStream.Name, consumer: "loyalty", delay: delay, log: zap.New(core)}
 	_, err := js.Publish("data.loyalty.counters", []byte(`{"batch_id":"b1"}`))
 	require.NoError(t, err)
-	sub, err := js.PullSubscribe("data.loyalty.counters", "loyalty", nats.MaxDeliver(int(delay.deliveries())), nats.AckWait(time.Minute))
+	sub, err := js.PullSubscribe("data.loyalty.counters", "loyalty", nats.MaxDeliver(-1), nats.AckWait(time.Minute))
 	require.NoError(t, err)
 
 	for delivered := uint64(1); delivered <= delay.deliveries(); delivered++ {

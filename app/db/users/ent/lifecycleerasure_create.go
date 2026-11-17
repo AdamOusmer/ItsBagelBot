@@ -49,6 +49,20 @@ func (_c *LifecycleErasureCreate) SetNillableDeletedAt(v *time.Time) *LifecycleE
 	return _c
 }
 
+// SetDeletedPublishedAt sets the "deleted_published_at" field.
+func (_c *LifecycleErasureCreate) SetDeletedPublishedAt(v time.Time) *LifecycleErasureCreate {
+	_c.mutation.SetDeletedPublishedAt(v)
+	return _c
+}
+
+// SetNillableDeletedPublishedAt sets the "deleted_published_at" field if the given value is not nil.
+func (_c *LifecycleErasureCreate) SetNillableDeletedPublishedAt(v *time.Time) *LifecycleErasureCreate {
+	if v != nil {
+		_c.SetDeletedPublishedAt(*v)
+	}
+	return _c
+}
+
 // SetLifecycle sets the "lifecycle" field.
 func (_c *LifecycleErasureCreate) SetLifecycle(v *lifecycle.State) *LifecycleErasureCreate {
 	_c.mutation.SetLifecycle(v)
@@ -223,6 +237,10 @@ func (_c *LifecycleErasureCreate) createSpec() (*LifecycleErasure, *sqlgraph.Cre
 		_spec.SetField(lifecycleerasure.FieldDeletedAt, field.TypeTime, value)
 		_node.DeletedAt = value
 	}
+	if value, ok := _c.mutation.DeletedPublishedAt(); ok {
+		_spec.SetField(lifecycleerasure.FieldDeletedPublishedAt, field.TypeTime, value)
+		_node.DeletedPublishedAt = &value
+	}
 	if value, ok := _c.mutation.Lifecycle(); ok {
 		_spec.SetField(lifecycleerasure.FieldLifecycle, field.TypeJSON, value)
 		_node.Lifecycle = value
@@ -340,6 +358,24 @@ func (u *LifecycleErasureUpsert) SetDeletedAt(v time.Time) *LifecycleErasureUpse
 // UpdateDeletedAt sets the "deleted_at" field to the value that was provided on create.
 func (u *LifecycleErasureUpsert) UpdateDeletedAt() *LifecycleErasureUpsert {
 	u.SetExcluded(lifecycleerasure.FieldDeletedAt)
+	return u
+}
+
+// SetDeletedPublishedAt sets the "deleted_published_at" field.
+func (u *LifecycleErasureUpsert) SetDeletedPublishedAt(v time.Time) *LifecycleErasureUpsert {
+	u.Set(lifecycleerasure.FieldDeletedPublishedAt, v)
+	return u
+}
+
+// UpdateDeletedPublishedAt sets the "deleted_published_at" field to the value that was provided on create.
+func (u *LifecycleErasureUpsert) UpdateDeletedPublishedAt() *LifecycleErasureUpsert {
+	u.SetExcluded(lifecycleerasure.FieldDeletedPublishedAt)
+	return u
+}
+
+// ClearDeletedPublishedAt clears the value of the "deleted_published_at" field.
+func (u *LifecycleErasureUpsert) ClearDeletedPublishedAt() *LifecycleErasureUpsert {
+	u.SetNull(lifecycleerasure.FieldDeletedPublishedAt)
 	return u
 }
 
@@ -508,6 +544,27 @@ func (u *LifecycleErasureUpsertOne) SetDeletedAt(v time.Time) *LifecycleErasureU
 func (u *LifecycleErasureUpsertOne) UpdateDeletedAt() *LifecycleErasureUpsertOne {
 	return u.Update(func(s *LifecycleErasureUpsert) {
 		s.UpdateDeletedAt()
+	})
+}
+
+// SetDeletedPublishedAt sets the "deleted_published_at" field.
+func (u *LifecycleErasureUpsertOne) SetDeletedPublishedAt(v time.Time) *LifecycleErasureUpsertOne {
+	return u.Update(func(s *LifecycleErasureUpsert) {
+		s.SetDeletedPublishedAt(v)
+	})
+}
+
+// UpdateDeletedPublishedAt sets the "deleted_published_at" field to the value that was provided on create.
+func (u *LifecycleErasureUpsertOne) UpdateDeletedPublishedAt() *LifecycleErasureUpsertOne {
+	return u.Update(func(s *LifecycleErasureUpsert) {
+		s.UpdateDeletedPublishedAt()
+	})
+}
+
+// ClearDeletedPublishedAt clears the value of the "deleted_published_at" field.
+func (u *LifecycleErasureUpsertOne) ClearDeletedPublishedAt() *LifecycleErasureUpsertOne {
+	return u.Update(func(s *LifecycleErasureUpsert) {
+		s.ClearDeletedPublishedAt()
 	})
 }
 
@@ -852,6 +909,27 @@ func (u *LifecycleErasureUpsertBulk) SetDeletedAt(v time.Time) *LifecycleErasure
 func (u *LifecycleErasureUpsertBulk) UpdateDeletedAt() *LifecycleErasureUpsertBulk {
 	return u.Update(func(s *LifecycleErasureUpsert) {
 		s.UpdateDeletedAt()
+	})
+}
+
+// SetDeletedPublishedAt sets the "deleted_published_at" field.
+func (u *LifecycleErasureUpsertBulk) SetDeletedPublishedAt(v time.Time) *LifecycleErasureUpsertBulk {
+	return u.Update(func(s *LifecycleErasureUpsert) {
+		s.SetDeletedPublishedAt(v)
+	})
+}
+
+// UpdateDeletedPublishedAt sets the "deleted_published_at" field to the value that was provided on create.
+func (u *LifecycleErasureUpsertBulk) UpdateDeletedPublishedAt() *LifecycleErasureUpsertBulk {
+	return u.Update(func(s *LifecycleErasureUpsert) {
+		s.UpdateDeletedPublishedAt()
+	})
+}
+
+// ClearDeletedPublishedAt clears the value of the "deleted_published_at" field.
+func (u *LifecycleErasureUpsertBulk) ClearDeletedPublishedAt() *LifecycleErasureUpsertBulk {
+	return u.Update(func(s *LifecycleErasureUpsert) {
+		s.ClearDeletedPublishedAt()
 	})
 }
 

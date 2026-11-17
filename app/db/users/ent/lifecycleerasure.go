@@ -25,6 +25,8 @@ type LifecycleErasure struct {
 	AccountCreatedAt int64 `json:"account_created_at,omitempty"`
 	// DeletedAt holds the value of the "deleted_at" field.
 	DeletedAt time.Time `json:"deleted_at,omitempty"`
+	// DeletedPublishedAt holds the value of the "deleted_published_at" field.
+	DeletedPublishedAt *time.Time `json:"deleted_published_at,omitempty"`
 	// Lifecycle holds the value of the "lifecycle" field.
 	Lifecycle *lifecycle.State `json:"lifecycle,omitempty"`
 	// NotificationsDone holds the value of the "notifications_done" field.
@@ -49,7 +51,7 @@ func (*LifecycleErasure) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case lifecycleerasure.FieldID, lifecycleerasure.FieldUserID, lifecycleerasure.FieldAccountCreatedAt:
 			values[i] = new(sql.NullInt64)
-		case lifecycleerasure.FieldDeletedAt, lifecycleerasure.FieldNextAttemptAt, lifecycleerasure.FieldCompletedAt:
+		case lifecycleerasure.FieldDeletedAt, lifecycleerasure.FieldDeletedPublishedAt, lifecycleerasure.FieldNextAttemptAt, lifecycleerasure.FieldCompletedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -89,6 +91,13 @@ func (_m *LifecycleErasure) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field deleted_at", values[i])
 			} else if value.Valid {
 				_m.DeletedAt = value.Time
+			}
+		case lifecycleerasure.FieldDeletedPublishedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field deleted_published_at", values[i])
+			} else if value.Valid {
+				_m.DeletedPublishedAt = new(time.Time)
+				*_m.DeletedPublishedAt = value.Time
 			}
 		case lifecycleerasure.FieldLifecycle:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -167,6 +176,11 @@ func (_m *LifecycleErasure) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("deleted_at=")
 	builder.WriteString(_m.DeletedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	if v := _m.DeletedPublishedAt; v != nil {
+		builder.WriteString("deleted_published_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("lifecycle=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Lifecycle))

@@ -14,6 +14,7 @@ func (LifecycleErasure) Fields() []ent.Field {
 	return []ent.Field{
 		field.Uint64("user_id"), field.Int64("account_created_at"),
 		field.Time("deleted_at").Default(time.Now),
+		field.Time("deleted_published_at").Optional().Nillable(),
 		field.JSON("lifecycle", &lifecycle.State{}).Optional(),
 		field.Bool("notifications_done").Default(false), field.Bool("outgress_done").Default(false),
 		field.Time("next_attempt_at").Default(time.Now), field.Time("completed_at").Optional().Nillable(),

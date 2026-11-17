@@ -14,12 +14,6 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
-// persistCounterBatch is fenced against retirement and restore by the fence
-// row locks in lockCounterUsers, not persistMu. Every SQL error rolls back
-// the complete coalesced transaction. Like the durable legacy writer, a trial
-// promotion detected after writes restarts the rolled-back transaction with
-// redirected totals. Only deadlocks and proven rolled-back promotion races
-// are retried here; uncertain commit outcomes return to the handler.
 func (r *Loyalty) persistCounterBatch(ctx context.Context, events []data.CounterBumpedDTO) error {
 	txn := r.app.StartTransaction("persist counter batch")
 	defer txn.End()
@@ -44,6 +38,15 @@ func (r *Loyalty) commitCounterEvents(ctx context.Context, events []data.Counter
 	if err != nil {
 		return err
 	}
+	events, err = r.admitCounterEvents(ctx, tx, events)
+	if err != nil {
+		return err
+	}
+	return r.commitAdmittedCounters(ctx, tx, events, retired)
+}
+
+func (r *Loyalty) commitAdmittedCounters(ctx context.Context, tx *sql.Tx, events []data.CounterBumpedDTO, retired map[uint64]bool) error {
+	ids := counterEventUserIDs(events)
 	windows, err := collectCounterWindows(events, retired)
 	if err != nil {
 		return err
@@ -72,18 +75,6 @@ func counterEventUserIDs(events []data.CounterBumpedDTO) []uint64 {
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	return ids
-}
-
-func (r *Loyalty) lockCounterUsers(ctx context.Context, tx *sql.Tx, ids []uint64) (map[uint64]bool, error) {
-	retired := make(map[uint64]bool, len(ids))
-	for _, id := range ids {
-		deleted, err := r.counterBatchRetired(ctx, tx, id)
-		if err != nil {
-			return nil, err
-		}
-		retired[id] = deleted
-	}
-	return retired, nil
 }
 
 func collectCounterWindows(events []data.CounterBumpedDTO, retired map[uint64]bool) (map[uint64]*Loyalty, error) {
@@ -153,8 +144,6 @@ func redirectCounterTrial(ctx context.Context, tx *sql.Tx, id uint64, window *Lo
 }
 
 func collectTrialCarry(window *Loyalty, id uint64, trial trialTotals) error {
-	// Keep trial statistics and carry their deltas to the channel counters.
-	// The existing collector owns overflow and Unicode/display semantics.
 	for _, carry := range trial.carried() {
 		bump := data.CounterBumpEntry{Name: carry.name, Scope: data.CounterScopeChannel, Delta: carry.delta}
 		if err := window.collectBatchBump(id, bump); err != nil {
@@ -178,7 +167,6 @@ func (r *Loyalty) writeCounterTransaction(ctx context.Context, tx *sql.Tx, bumps
 }
 
 func (r *Loyalty) verifyTrialPromotions(ctx context.Context, tx *sql.Tx, ids []uint64) error {
-	// A promotion can commit after our snapshot read while we wait on its locks.
 	query := lockTrialPromotion
 	if r.dialect == "sqlite3" {
 		query = readTrialPromotion

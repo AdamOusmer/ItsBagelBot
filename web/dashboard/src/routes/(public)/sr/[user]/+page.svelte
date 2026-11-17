@@ -10,6 +10,8 @@
   import { waitedSeconds } from '#lib/queue-snapshot';
   import { MAX_SONG_ROWS, parseSongSnapshot, type SongRow } from '#lib/songqueue-snapshot';
   import { waitLabeler } from '#lib/wait-label';
+  import { channelAbout, channelPageSchema } from '#lib/public-channel-page';
+  import { songqueueHref } from '@bagel/kit/site-links';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -62,12 +64,21 @@
     t(snapshot.degraded ? 'songPage.statusUnknown' : snapshot.open ? 'songPage.statusOpen' : 'songPage.statusClosed')
   );
   const current = $derived(snapshot.current);
+
+  const channelPage = $derived({
+    ns: 'songPage' as const,
+    featurePath: '/song-requests/',
+    url: songqueueHref(data.login),
+    login: data.login,
+    channelName: data.channelName
+  });
 </script>
 
 <PublicHead
   title={t('songPage.title', { channel: data.channelName })}
   description={t('songPage.metaDescription', { channel: data.channelName })}
-  url="https://queue.itsbagelbot.com/sr/{data.login}"
+  url={channelPage.url}
+  schema={channelPageSchema(channelPage, t, locale)}
 />
 
 <QueueBoardPage
@@ -95,4 +106,5 @@
   {statusLine}
   {empty}
   noMatch={{ title: t('songPage.noMatchTitle'), body: t('songPage.noMatchBody') }}
+  about={channelAbout(channelPage, t, locale)}
 />

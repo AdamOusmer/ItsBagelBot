@@ -1,6 +1,7 @@
 {
+  "trialPromoted": "Testkonto-Übernahmen",
   "netAccounts": "Netto-Konten (Registrierungen minus Löschungen)",
-  "netBot": "Netto-Konten mit aktiviertem Bot",
+  "netBot": "Änderung aktivierter Bots zwischen Zeitraumsständen",
   "cancelPending": "Ausstehende Kündigungen",
   "paymentFailed": "Ausstehende Zahlungsfehler",
   "messages": "Gelesene Nachrichten",
@@ -18,5 +19,16 @@
   "customChannels": "Kanäle mit eigenen Befehlen",
   "customChannelsWeek": "Kanäle mit Nutzung eigener Befehle, letzte volle Woche",
   "customActive": "Aktive Befehle",
-  "customInactive": "Inaktive Befehle"
+  "customInactive": "Inaktive Befehle",
+  "onboarded": "Eingerichtete Konten",
+  "onboardedShare": "Anteil eingerichteter Konten",
+  "redirected": "Weitergeleitete Käufe",
+  "activated": "Tarifaktivierungen",
+  "checkoutActivation": "Aktivierungen / Weiterleitungen",
+  "recipeChannelsWeek": "Rezeptkanäle, letzte volle Woche",
+  "songSuccess": "Erfolgsquote der Musikwünsche",
+  "delegating": "Konten mit Beauftragten",
+  "delegatingShare": "Anteil der Konten mit Beauftragten",
+  "newSubscribers": "Neue Ko-fi-Mitglieder",
+  "lastDonation": "Letzte Ko-fi-Zahlung"
 }

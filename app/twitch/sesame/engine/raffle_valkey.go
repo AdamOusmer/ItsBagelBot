@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/analytics"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"ItsBagelBot/pkg/codec"
@@ -105,9 +106,10 @@ type RaffleConfig struct {
 }
 
 type ValkeyRaffleStore struct {
-	client valkey.Client
-	cfg    RaffleConfig
-	log    *zap.Logger
+	analytics *analytics.Recorder
+	client    valkey.Client
+	cfg       RaffleConfig
+	log       *zap.Logger
 }
 
 func NewValkeyRaffleStore(client valkey.Client, cfg RaffleConfig, log *zap.Logger) *ValkeyRaffleStore {
@@ -326,6 +328,7 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 	s.writeDrawPhase(ctx, broadcasterID, res)
 	s.payWinners(ctx, broadcasterID, res)
 	s.recordPayout(ctx, broadcasterID, res)
+	s.recordRound(read, res)
 	return res, nil
 }
 

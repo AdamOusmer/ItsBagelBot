@@ -32,4 +32,4 @@ flowchart LR
 | `app/db/transactions` | Billing, giveaways and awards |
 | `app/db/notifications` | Notifications |
 
-See [database](/data-and-state/database/), [caching and write-behind](/data-and-state/caching/), [code design](/data-and-state/design/) and [projection](/data-and-state/projection/). Event definitions are in `internal/domain/event/data`; stream configuration is in `pkg/bus/streams.go`. A durable consumer can resume only while its messages remain retained; the stream is not an indefinite event log.
+See [database](/data-and-state/database/), [caching and committed writes](/data-and-state/caching/), [code design](/data-and-state/design/) and [projection](/data-and-state/projection/). Event definitions are in `internal/domain/event/data`; stream configuration is in `pkg/bus/streams.go`. A durable consumer can resume only while its messages remain retained; the stream is not an indefinite event log.

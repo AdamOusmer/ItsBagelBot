@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
@@ -177,4 +178,14 @@ func (p *Pipeline) finishRun(ctx context.Context, run *AutomationRun) {
 	}
 	run.Record.Actions = trimmedRecords(run.Record.Actions)
 	p.automations.Runs.Record(ctx, run.BroadcasterID, run.Record)
+	p.recordRecipe(run)
+}
+
+func (p *Pipeline) recordRecipe(run *AutomationRun) {
+	if run.Env != nil && run.Env.Origin == "trial" {
+		return
+	}
+	dims := []string{run.Record.Trigger, string(run.Record.Outcome)}
+	p.analytics.Count(catalog.RecipeRuns, dims...)
+	p.analytics.Distinct(catalog.RecipeChannels, run.BroadcasterID)
 }

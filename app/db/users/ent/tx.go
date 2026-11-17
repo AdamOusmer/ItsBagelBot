@@ -16,6 +16,8 @@ type Tx struct {
 	AdminAuditDelivery *AdminAuditDeliveryClient
 	// AuthorizationCode is the client for interacting with the AuthorizationCode builders.
 	AuthorizationCode *AuthorizationCodeClient
+	// BillingReceipt is the client for interacting with the BillingReceipt builders.
+	BillingReceipt *BillingReceiptClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
 	// DeviceGrant is the client for interacting with the DeviceGrant builders.
@@ -161,6 +163,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.AdminAuditDelivery = NewAdminAuditDeliveryClient(tx.config)
 	tx.AuthorizationCode = NewAuthorizationCodeClient(tx.config)
+	tx.BillingReceipt = NewBillingReceiptClient(tx.config)
 	tx.Delegation = NewDelegationClient(tx.config)
 	tx.DeviceGrant = NewDeviceGrantClient(tx.config)
 	tx.LifecycleErasure = NewLifecycleErasureClient(tx.config)

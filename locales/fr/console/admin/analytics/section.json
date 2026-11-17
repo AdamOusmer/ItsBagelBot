@@ -1,4 +1,8 @@
 {
+  "community": {
+    "title": "Communauté",
+    "question": "Comment les minuteurs, jeux, points et récompenses sont-ils utilisés ?"
+  },
   "overview": {
     "title": "Aperçu",
     "question": "Le bot est-il très sollicité, et grandit-il ?"
@@ -30,5 +34,13 @@
   "audience": {
     "title": "Audience",
     "question": "Quelles langues les streamers utilisent-ils ?"
+  },
+  "recipes": {
+    "title": "Recettes",
+    "question": "Quelles recettes s’exécutent et réussissent ?"
+  },
+  "reliability": {
+    "title": "Fiabilité",
+    "question": "Où échouent les demandes et les envois ?"
   }
 }

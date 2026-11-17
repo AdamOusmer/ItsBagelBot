@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
@@ -31,7 +32,11 @@ func (w *Worker) execute(ctx context.Context, payload *outgress.Message) error {
 	}
 	defer drainResponse(res)
 
-	return w.helixResult(ctx, payload, res)
+	if err := w.helixResult(ctx, payload, res); err != nil {
+		return err
+	}
+	w.recordChatResult(payload, res)
+	return nil
 }
 
 func (w *Worker) executeRequest(ctx context.Context, payload *outgress.Message) (*http.Response, error) {
@@ -71,6 +76,7 @@ func (w *Worker) helixResult(ctx context.Context, payload *outgress.Message, res
 }
 
 func (w *Worker) dropAuthFailure(ctx context.Context, payload *outgress.Message, res *http.Response) {
+	w.analytics.Count(catalog.OutgressDropped, "helix", "auth")
 	body := readErrorBody(res)
 	w.log.Error("dropping request: twitch rejected our credentials (permanent authz problem, not retryable)",
 		zap.Int("status", res.StatusCode),
@@ -82,6 +88,7 @@ func (w *Worker) dropAuthFailure(ctx context.Context, payload *outgress.Message,
 }
 
 func (w *Worker) dropRejected(ctx context.Context, payload *outgress.Message, res *http.Response) {
+	w.analytics.Count(catalog.OutgressDropped, "helix", "rejected")
 	body := readErrorBody(res)
 	w.log.Error("dropping request twitch rejected",
 		zap.Int("status", res.StatusCode),

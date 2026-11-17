@@ -42,13 +42,6 @@ type concurrentDurableSubscriber struct {
 	acks          sync.WaitGroup
 }
 
-type callbackGate struct {
-	mu       sync.Mutex
-	stopping bool
-	stopCh   chan struct{}
-	active   sync.WaitGroup
-}
-
 type concurrentSubscriberConfig struct {
 	nc       *nats.Conn
 	js       nats.JetStreamContext
@@ -239,27 +232,6 @@ func (s *concurrentDurableSubscriber) subscribe(subject string, callback nats.Ms
 		nats.BindStream(s.stream), nats.DeliverNew(), nats.AckExplicit(), nats.ManualAck())
 }
 
-type pendingDelivery struct {
-	msg   *Message
-	watch *resultWatch
-}
-
-type subscriptionPump struct {
-	queue chan pendingDelivery
-	stop  chan struct{}
-	once  sync.Once
-}
-
-func newSubscriptionPump() *subscriptionPump {
-	return &subscriptionPump{
-		queue: make(chan pendingDelivery, durableQueueDepth),
-		stop:  make(chan struct{}),
-	}
-}
-
-// halt must run only after callbacks.stopAndWait, or the pump's final drain races an enqueuer.
-func (p *subscriptionPump) halt() { p.once.Do(func() { close(p.stop) }) }
-
 func (s *concurrentDurableSubscriber) deliveryCallback(
 	ctx context.Context,
 	subject string,
@@ -274,7 +246,11 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 
 		msg, err := messageFromNATS(natsMsg)
 		if err != nil {
-			s.terminateMalformed(natsMsg, subject, err)
+			s.log.Warn("terminating malformed NATS delivery", zap.String("subject", subject), zap.Error(err))
+			s.transferDeadLetter(natsMsg, deadLetterMalformed)
+			return
+		}
+		if s.retryTerminalTransfer(natsMsg) {
 			return
 		}
 		deliveryCtx, cancel := context.WithTimeout(ctx, s.handlerWindow())
@@ -353,45 +329,6 @@ func (s *concurrentDurableSubscriber) abandon(queue <-chan pendingDelivery) {
 			return
 		}
 	}
-}
-
-func newCallbackGate() *callbackGate {
-	return &callbackGate{stopCh: make(chan struct{})}
-}
-
-func (g *callbackGate) enter() bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.stopping {
-		return false
-	}
-	g.active.Add(1)
-	return true
-}
-
-func (g *callbackGate) leave() { g.active.Done() }
-
-func (g *callbackGate) stopped() <-chan struct{} { return g.stopCh }
-
-func (g *callbackGate) stopAndWait() {
-	g.mu.Lock()
-	if !g.stopping {
-		g.stopping = true
-		close(g.stopCh)
-	}
-	g.mu.Unlock()
-	g.active.Wait()
-}
-
-func stopSubscription(sub *nats.Subscription, callbacks *callbackGate, pump *subscriptionPump) {
-	_ = sub.Unsubscribe()
-	callbacks.stopAndWait()
-	pump.halt()
-}
-
-func (s *concurrentDurableSubscriber) terminateMalformed(msg *nats.Msg, subject string, decodeErr error) {
-	s.log.Warn("terminating malformed NATS delivery", zap.String("subject", subject), zap.Error(decodeErr))
-	s.terminate(msg, deadLetterMalformed)
 }
 
 func messageFromNATS(wire *nats.Msg) (*Message, error) {
@@ -618,6 +555,10 @@ func (s *concurrentDurableSubscriber) nack(msg *nats.Msg, retryAfter time.Durati
 	}
 	if delay == terminateDelivery {
 		s.terminate(msg, deadLetterMaxDeliveries)
+		return
+	}
+	if err := s.recordDeferral(msg, delay); err != nil {
+		s.retryDeadLetter(msg, err)
 		return
 	}
 	var err error

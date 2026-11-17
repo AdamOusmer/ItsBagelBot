@@ -6,6 +6,7 @@ package bus
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -36,7 +37,12 @@ type concurrentTestHarness struct {
 	stop       sync.Once
 }
 
-func newConcurrentTestHarness(t *testing.T) *concurrentTestHarness {
+type consumerTestMode struct {
+	workers int
+	demand  bool
+}
+
+func newConcurrentTestHarness(t *testing.T, mode consumerTestMode) *concurrentTestHarness {
 	t.Helper()
 	h := &concurrentTestHarness{
 		subscriber: &concurrentTestSubscriber{messages: make(chan *Message, 5)},
@@ -44,7 +50,7 @@ func newConcurrentTestHarness(t *testing.T) *concurrentTestHarness {
 		release:    make(chan struct{}),
 		messages:   []*Message{NewMessage("one", nil), NewMessage("failed", nil), NewMessage("three", nil), NewMessage("four", nil), NewMessage("five", nil)},
 	}
-	consumer, err := ConsumeConcurrent(t.Context(), nil, h.subscriber, "test.concurrent.counter", 3, h.handle, zap.NewNop())
+	consumer, err := h.start(t.Context(), mode)
 	require.NoError(t, err)
 	h.consumer = consumer
 	t.Cleanup(h.unblockAndClose)
@@ -52,6 +58,13 @@ func newConcurrentTestHarness(t *testing.T) *concurrentTestHarness {
 		h.subscriber.messages <- msg
 	}
 	return h
+}
+
+func (h *concurrentTestHarness) start(ctx context.Context, mode consumerTestMode) (*ConcurrentConsumer, error) {
+	if mode.demand {
+		return ConsumeDemand(ctx, DemandConsumerConfig{Subscriber: h.subscriber, Subject: "test.concurrent.counter", Handle: h.handle, Log: zap.NewNop()})
+	}
+	return ConsumeConcurrent(ctx, nil, h.subscriber, "test.concurrent.counter", mode.workers, h.handle, zap.NewNop())
 }
 
 func (h *concurrentTestHarness) handle(msg *Message) error {
@@ -94,8 +107,25 @@ func (h *concurrentTestHarness) assertResults(t *testing.T) {
 }
 
 func TestConsumeConcurrentBoundsHandlersAndAcknowledgesAfterResult(t *testing.T) {
-	h := newConcurrentTestHarness(t)
-	h.assertBoundedHandlers(t)
+	for _, mode := range []consumerTestMode{{workers: 3}, {demand: true}} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) { testConcurrentConsumer(t, mode) })
+	}
+}
+
+func testConcurrentConsumer(t *testing.T, mode consumerTestMode) {
+	h := newConcurrentTestHarness(t, mode)
+	if mode.demand {
+		for range h.messages {
+			select {
+			case msg := <-h.started:
+				assert.False(t, signalClosed(msg.Acked()))
+			case <-time.After(time.Second):
+				t.Fatal("demand consumer did not admit every delivery")
+			}
+		}
+	} else {
+		h.assertBoundedHandlers(t)
+	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, h.consumer.Drain(ctx), context.Canceled)
@@ -111,11 +141,13 @@ func TestConsumeConcurrentBoundsHandlersAndAcknowledgesAfterResult(t *testing.T)
 func TestConsumeConcurrentRejectsInvalidWorkersAndSubscriptionErrors(t *testing.T) {
 	s := &concurrentTestSubscriber{err: errors.New("subscribe failed")}
 
-	_, invalidWorkers := ConsumeConcurrent(t.Context(), nil, s, "test", 0, nil, zap.NewNop())
-	subscribedAfterInvalid := s.subscribed
+	for _, workers := range []int{-1, 0} {
+		_, err := ConsumeConcurrent(t.Context(), nil, s, "test", workers, nil, zap.NewNop())
+		assert.Error(t, err)
+		assert.False(t, s.subscribed, "an invalid worker count must be rejected before subscribing")
+	}
 	_, subscriptionErr := ConsumeConcurrent(t.Context(), nil, s, "test", 1, nil, zap.NewNop())
-
-	require.Error(t, invalidWorkers)
-	assert.False(t, subscribedAfterInvalid, "an invalid worker count must be rejected before subscribing")
 	assert.ErrorIs(t, subscriptionErr, s.err)
+	_, demandErr := ConsumeDemand(t.Context(), DemandConsumerConfig{Subscriber: s, Subject: "test", Log: zap.NewNop()})
+	assert.ErrorIs(t, demandErr, s.err)
 }

@@ -15,6 +15,7 @@ import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags, withBetaLocks } f
 import { broadcasterPremium } from '#lib/server/module-gate';
 import { twitchScopeGap } from '#lib/server/oauth';
 import { isOwnerSession } from '#lib/server/owner';
+import { count } from '@bagel/kit/server/analytics';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -72,6 +73,17 @@ function requireTwitchScopes(s: Session, url: URL): void {
   throw redirect(302, `/auth/login?reauth=1&next=${encodeURIComponent(url.pathname + url.search)}`);
 }
 
+const CONSENT_FREE_SECTIONS = new Set(['settings']);
+
+function consentPending(gate: App.Locals['accountState'], s: Session): boolean {
+  if (!isOwnerSession(s) || !gate) return false;
+  return 'value' in gate && !gate.value.onboarded;
+}
+
+function requireConsent(locals: App.Locals, s: Session, section: string): void {
+  if (consentPending(locals.accountState, s) && !CONSENT_FREE_SECTIONS.has(section)) throw redirect(302, '/welcome');
+}
+
 function delegateView(s: Session) {
   if (!s.delegate_of) return { delegateOf: s.delegate_of, delegateLogin: undefined, sections: undefined };
   return { delegateOf: s.delegate_of, delegateLogin: s.delegate_login, sections: s.sections ?? [] };
@@ -81,9 +93,12 @@ function isPremiumAccount(acc: AccountState | null): boolean {
   return acc?.status === 'vip' || acc?.status === 'paid';
 }
 
-export const load: LayoutServerLoad = async ({ locals, url }) => {
+export const load: LayoutServerLoad = async ({ locals, url, route, request }) => {
   const s = await requireSession(locals, url);
   requireTwitchScopes(s, url);
+  const section = (route.id === '/(app)' ? 'overview' : route.id?.split('/(app)/')[1]?.split('/')[0]) ?? '';
+  requireConsent(locals, s, section);
+  if (request.method === 'GET') count('dashboard.views', section, s.delegate_of ? 'delegate' : 'owner');
 
   const [acc, authorizedDashboards, flags] = await Promise.all([
     loadAccountState(locals, s),

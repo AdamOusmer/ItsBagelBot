@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayinclusion"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
+	"ItsBagelBot/app/db/transactions/ent/kofidonation"
 	"ItsBagelBot/app/db/transactions/ent/tebexagreement"
 	"ItsBagelBot/app/db/transactions/ent/tebexwebhookevents"
 
@@ -57,6 +58,8 @@ type Client struct {
 	GiveawayOutbox *GiveawayOutboxClient
 	// GiveawayUserLease is the client for interacting with the GiveawayUserLease builders.
 	GiveawayUserLease *GiveawayUserLeaseClient
+	// KofiDonation is the client for interacting with the KofiDonation builders.
+	KofiDonation *KofiDonationClient
 	// TebexAgreement is the client for interacting with the TebexAgreement builders.
 	TebexAgreement *TebexAgreementClient
 	// TebexWebhookEvents is the client for interacting with the TebexWebhookEvents builders.
@@ -83,6 +86,7 @@ func (c *Client) init() {
 	c.GiveawayInclusion = NewGiveawayInclusionClient(c.config)
 	c.GiveawayOutbox = NewGiveawayOutboxClient(c.config)
 	c.GiveawayUserLease = NewGiveawayUserLeaseClient(c.config)
+	c.KofiDonation = NewKofiDonationClient(c.config)
 	c.TebexAgreement = NewTebexAgreementClient(c.config)
 	c.TebexWebhookEvents = NewTebexWebhookEventsClient(c.config)
 }
@@ -188,6 +192,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		GiveawayInclusion:       NewGiveawayInclusionClient(cfg),
 		GiveawayOutbox:          NewGiveawayOutboxClient(cfg),
 		GiveawayUserLease:       NewGiveawayUserLeaseClient(cfg),
+		KofiDonation:            NewKofiDonationClient(cfg),
 		TebexAgreement:          NewTebexAgreementClient(cfg),
 		TebexWebhookEvents:      NewTebexWebhookEventsClient(cfg),
 	}, nil
@@ -220,6 +225,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		GiveawayInclusion:       NewGiveawayInclusionClient(cfg),
 		GiveawayOutbox:          NewGiveawayOutboxClient(cfg),
 		GiveawayUserLease:       NewGiveawayUserLeaseClient(cfg),
+		KofiDonation:            NewKofiDonationClient(cfg),
 		TebexAgreement:          NewTebexAgreementClient(cfg),
 		TebexWebhookEvents:      NewTebexWebhookEventsClient(cfg),
 	}, nil
@@ -253,8 +259,8 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AwardEmail, c.BillingOperation, c.Giveaway, c.GiveawayAlert, c.GiveawayAward,
 		c.GiveawayCandidate, c.GiveawayDraw, c.GiveawayFulfillmentPlan,
-		c.GiveawayInclusion, c.GiveawayOutbox, c.GiveawayUserLease, c.TebexAgreement,
-		c.TebexWebhookEvents,
+		c.GiveawayInclusion, c.GiveawayOutbox, c.GiveawayUserLease, c.KofiDonation,
+		c.TebexAgreement, c.TebexWebhookEvents,
 	} {
 		n.Use(hooks...)
 	}
@@ -266,8 +272,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AwardEmail, c.BillingOperation, c.Giveaway, c.GiveawayAlert, c.GiveawayAward,
 		c.GiveawayCandidate, c.GiveawayDraw, c.GiveawayFulfillmentPlan,
-		c.GiveawayInclusion, c.GiveawayOutbox, c.GiveawayUserLease, c.TebexAgreement,
-		c.TebexWebhookEvents,
+		c.GiveawayInclusion, c.GiveawayOutbox, c.GiveawayUserLease, c.KofiDonation,
+		c.TebexAgreement, c.TebexWebhookEvents,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -298,6 +304,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.GiveawayOutbox.mutate(ctx, m)
 	case *GiveawayUserLeaseMutation:
 		return c.GiveawayUserLease.mutate(ctx, m)
+	case *KofiDonationMutation:
+		return c.KofiDonation.mutate(ctx, m)
 	case *TebexAgreementMutation:
 		return c.TebexAgreement.mutate(ctx, m)
 	case *TebexWebhookEventsMutation:
@@ -1770,6 +1778,139 @@ func (c *GiveawayUserLeaseClient) mutate(ctx context.Context, m *GiveawayUserLea
 	}
 }
 
+// KofiDonationClient is a client for the KofiDonation schema.
+type KofiDonationClient struct {
+	config
+}
+
+// NewKofiDonationClient returns a client for the KofiDonation from the given config.
+func NewKofiDonationClient(c config) *KofiDonationClient {
+	return &KofiDonationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `kofidonation.Hooks(f(g(h())))`.
+func (c *KofiDonationClient) Use(hooks ...Hook) {
+	c.hooks.KofiDonation = append(c.hooks.KofiDonation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `kofidonation.Intercept(f(g(h())))`.
+func (c *KofiDonationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.KofiDonation = append(c.inters.KofiDonation, interceptors...)
+}
+
+// Create returns a builder for creating a KofiDonation entity.
+func (c *KofiDonationClient) Create() *KofiDonationCreate {
+	mutation := newKofiDonationMutation(c.config, OpCreate)
+	return &KofiDonationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of KofiDonation entities.
+func (c *KofiDonationClient) CreateBulk(builders ...*KofiDonationCreate) *KofiDonationCreateBulk {
+	return &KofiDonationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *KofiDonationClient) MapCreateBulk(slice any, setFunc func(*KofiDonationCreate, int)) *KofiDonationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &KofiDonationCreateBulk{err: fmt.Errorf("calling to KofiDonationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*KofiDonationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &KofiDonationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for KofiDonation.
+func (c *KofiDonationClient) Update() *KofiDonationUpdate {
+	mutation := newKofiDonationMutation(c.config, OpUpdate)
+	return &KofiDonationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *KofiDonationClient) UpdateOne(_m *KofiDonation) *KofiDonationUpdateOne {
+	mutation := newKofiDonationMutation(c.config, OpUpdateOne, withKofiDonation(_m))
+	return &KofiDonationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *KofiDonationClient) UpdateOneID(id string) *KofiDonationUpdateOne {
+	mutation := newKofiDonationMutation(c.config, OpUpdateOne, withKofiDonationID(id))
+	return &KofiDonationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for KofiDonation.
+func (c *KofiDonationClient) Delete() *KofiDonationDelete {
+	mutation := newKofiDonationMutation(c.config, OpDelete)
+	return &KofiDonationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *KofiDonationClient) DeleteOne(_m *KofiDonation) *KofiDonationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *KofiDonationClient) DeleteOneID(id string) *KofiDonationDeleteOne {
+	builder := c.Delete().Where(kofidonation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &KofiDonationDeleteOne{builder}
+}
+
+// Query returns a query builder for KofiDonation.
+func (c *KofiDonationClient) Query() *KofiDonationQuery {
+	return &KofiDonationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeKofiDonation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a KofiDonation entity by its id.
+func (c *KofiDonationClient) Get(ctx context.Context, id string) (*KofiDonation, error) {
+	return c.Query().Where(kofidonation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *KofiDonationClient) GetX(ctx context.Context, id string) *KofiDonation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *KofiDonationClient) Hooks() []Hook {
+	return c.hooks.KofiDonation
+}
+
+// Interceptors returns the client interceptors.
+func (c *KofiDonationClient) Interceptors() []Interceptor {
+	return c.inters.KofiDonation
+}
+
+func (c *KofiDonationClient) mutate(ctx context.Context, m *KofiDonationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&KofiDonationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&KofiDonationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&KofiDonationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&KofiDonationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown KofiDonation mutation op: %q", m.Op())
+	}
+}
+
 // TebexAgreementClient is a client for the TebexAgreement schema.
 type TebexAgreementClient struct {
 	config
@@ -2041,13 +2182,13 @@ type (
 	hooks struct {
 		AwardEmail, BillingOperation, Giveaway, GiveawayAlert, GiveawayAward,
 		GiveawayCandidate, GiveawayDraw, GiveawayFulfillmentPlan, GiveawayInclusion,
-		GiveawayOutbox, GiveawayUserLease, TebexAgreement,
+		GiveawayOutbox, GiveawayUserLease, KofiDonation, TebexAgreement,
 		TebexWebhookEvents []ent.Hook
 	}
 	inters struct {
 		AwardEmail, BillingOperation, Giveaway, GiveawayAlert, GiveawayAward,
 		GiveawayCandidate, GiveawayDraw, GiveawayFulfillmentPlan, GiveawayInclusion,
-		GiveawayOutbox, GiveawayUserLease, TebexAgreement,
+		GiveawayOutbox, GiveawayUserLease, KofiDonation, TebexAgreement,
 		TebexWebhookEvents []ent.Interceptor
 	}
 )

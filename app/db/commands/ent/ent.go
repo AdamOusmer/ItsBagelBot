@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/commandusebatch"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
+	"ItsBagelBot/app/db/commands/ent/fetchquota"
 	"ItsBagelBot/app/db/commands/ent/migrations"
 	"context"
 	"errors"
@@ -81,6 +82,7 @@ func checkColumn(t, c string) error {
 			commands.Table:        commands.ValidColumn,
 			fetchdefinition.Table: fetchdefinition.ValidColumn,
 			fetchkey.Table:        fetchkey.ValidColumn,
+			fetchquota.Table:      fetchquota.ValidColumn,
 			migrations.Table:      migrations.ValidColumn,
 		})
 	})

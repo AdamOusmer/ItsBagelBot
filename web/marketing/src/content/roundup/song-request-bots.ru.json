@@ -1,0 +1,205 @@
+{
+  "meta": {
+    "title": "Боты для запросов песен на Twitch: Spotify или YouTube",
+    "description": "Какие боты Twitch ставят треки в Spotify, а какие принимают запросы YouTube? Восемь ботов для запросов песен: источник музыки, плеер и цена, с источниками."
+  },
+  "hero": {
+    "eyebrow": "Боты для запросов песен",
+    "title": "Сравнение ботов для запросов песен на Twitch",
+    "lead": "Боты для запросов песен на Twitch бывают двух видов. Одни добавляют треки в вашу собственную очередь Spotify. Другие принимают запросы YouTube или SoundCloud. Таблица показывает, какой бот что делает, по страницам разработчиков, на которых она основана."
+  },
+  "reviewed": "2026-11-16",
+  "table": {
+    "eyebrow": "Рядом",
+    "title": "Восемь ботов, одна таблица",
+    "columns": {
+      "bot": "Бот",
+      "music": "Источник музыки",
+      "plays": "Как играют запросы",
+      "price": "Цена запросов песен",
+      "source": "Источник"
+    },
+    "sourceLink": "Источник",
+    "rows": [
+      {
+        "id": "itsbagelbot",
+        "music": "Spotify",
+        "plays": "!sr добавляет трек в вашу собственную очередь Spotify. Нужны Spotify Premium и собственное приложение разработчика Spotify.",
+        "price": "Бесплатно. Очередь вмещает 100 песен.",
+        "source": "https://itsbagelbot.com/song-requests/"
+      },
+      {
+        "id": "spotchbot",
+        "music": "Spotify",
+        "plays": "!sr ищет в Spotify и добавляет лучшее совпадение в очередь. Нужны Spotify Premium и собственное приложение разработчика Spotify.",
+        "price": "Бесплатный план вмещает до 6 песен в очереди. Pro указан по цене $4.99 в месяц.",
+        "source": "https://spotchbot.com/docs/commands"
+      },
+      {
+        "id": "nightbot",
+        "music": "YouTube, SoundCloud",
+        "plays": "Запросы играют в медиаплеере Nightbot, с ограничениями очереди и резервным плейлистом.",
+        "price": "Бесплатно, по заявлению разработчика в поддержке.",
+        "source": "https://docs.nightbot.tv/control-panel/song-requests"
+      },
+      {
+        "id": "streamelements",
+        "music": "YouTube",
+        "plays": "Media Request использует собственный плеер с очередями одобрения, голосованием за пропуск и резервными плейлистами.",
+        "price": "Чат-бот рекламируется как бесплатный.",
+        "source": "https://docs.streamelements.com/chatbot/modules/songrequest"
+      },
+      {
+        "id": "fossabot",
+        "music": "YouTube, SoundCloud",
+        "plays": "!sr принимает поисковые запросы и ссылки YouTube или ссылки SoundCloud, с необязательной очередью одобрения.",
+        "price": "Официальный сайт описывает его как бесплатный.",
+        "source": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+      },
+      {
+        "id": "moobot",
+        "music": "YouTube",
+        "plays": "Запросы воспроизводятся в плеере песен Moobot, а при исчерпании запросов включается дополнительный плейлист.",
+        "price": "Базовая функциональность бесплатна. Платные тарифы добавляют слоты и возможности.",
+        "source": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+      },
+      {
+        "id": "streamlabs-chatbot",
+        "music": "YouTube",
+        "plays": "Руководство описывает плейлисты YouTube, запросы зрителей, стоимость в валюте и голосование за пропуск.",
+        "price": "Указанные официальные страницы не подтверждают актуальную цену десктопного приложения.",
+        "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+      },
+      {
+        "id": "wizebot",
+        "music": "YouTube",
+        "plays": "!sr принимает названия песен, ссылки YouTube или ID видео. Команды чата управляют плейлистом.",
+        "price": "На официальной главной странице описан бесплатный облачный сервис.",
+        "source": "https://support.wizebot.tv/docs/commands"
+      }
+    ]
+  },
+  "picks": {
+    "eyebrow": "Выбор",
+    "title": "Выбирайте по нуждам стрима",
+    "items": [
+      {
+        "name": "Очередь Spotify",
+        "desc": "ItsBagelBot и SpotchBot добавляют запросы в вашу собственную очередь Spotify. Обоим нужен Spotify Premium."
+      },
+      {
+        "name": "Без Premium",
+        "desc": "Nightbot, StreamElements, Fossabot, Moobot и WizeBot принимают запросы YouTube, поэтому Spotify Premium не задействован."
+      },
+      {
+        "name": "Длинная бесплатная очередь",
+        "desc": "Бесплатный план ItsBagelBot ставит в очередь 100 песен. Бесплатный план SpotchBot вмещает до 6."
+      },
+      {
+        "name": "Один бот для чата",
+        "desc": "ItsBagelBot сочетает запросы Spotify с пользовательскими командами, таймерами, баллами лояльности, розыгрышами и игровой статистикой."
+      },
+      {
+        "name": "Запросы через сайт",
+        "desc": "SpotchBot даёт зрителям веб-страницу с живым поиском по Spotify, а также оверлей OBS для очереди."
+      },
+      {
+        "name": "Запросы видео",
+        "desc": "StreamElements и Nightbot воспроизводят заказанные видео YouTube в своём медиаплеере."
+      }
+    ]
+  },
+  "faqTitle": "Вопросы о запросах песен",
+  "faq": [
+    {
+      "q": "Какие боты Twitch поддерживают запросы песен Spotify?",
+      "a": "ItsBagelBot и SpotchBot добавляют запросы зрителей в собственную очередь Spotify стримера. Nightbot, StreamElements, Fossabot, Moobot, Streamlabs Chatbot и WizeBot вместо этого документируют запросы YouTube или SoundCloud."
+    },
+    {
+      "q": "Принимает ли Nightbot запросы песен Spotify?",
+      "a": "В документации Nightbot источниками запросов песен указаны YouTube и SoundCloud. Чтобы ставить треки Spotify в очередь из чата, используйте бота, работающего с очередью Spotify. Справка: https://docs.nightbot.tv/control-panel/song-requests."
+    },
+    {
+      "q": "Принимает ли StreamElements запросы песен Spotify?",
+      "a": "В документации StreamElements Media Request указан YouTube. Интеграция со Spotify там не упоминается. Справка: https://docs.streamelements.com/chatbot/modules/songrequest."
+    },
+    {
+      "q": "Есть ли бесплатный бот для запросов песен Spotify на Twitch?",
+      "a": "ItsBagelBot включает запросы песен Spotify в бесплатный план, с очередью на 100 песен. У SpotchBot есть бесплатный план, который вмещает до 6 песен в очереди. Обоим нужен Spotify Premium, которого Spotify требует для управления очередью."
+    },
+    {
+      "q": "Нужен ли Spotify Premium для запросов песен?",
+      "a": "Для запросов Spotify да. Spotify разрешает приложениям управлять очередью только в аккаунтах Premium. Боты, которые принимают запросы YouTube или SoundCloud, не задействуют Spotify Premium."
+    },
+    {
+      "q": "Как зрители заказывают песню?",
+      "a": "В нескольких ботах зрители пишут !sr с названием песни или ссылкой. Некоторые боты также принимают награды за баллы канала Twitch. ItsBagelBot принимает название песни, исполнителя и название в любом порядке или ссылку Spotify."
+    }
+  ],
+  "sources": [
+    {
+      "label": "ItsBagelBot: запросы песен Spotify",
+      "url": "https://itsbagelbot.com/song-requests/"
+    },
+    {
+      "label": "SpotchBot: команды чата",
+      "url": "https://spotchbot.com/docs/commands"
+    },
+    {
+      "label": "SpotchBot: таблица функций Free и Pro и цены",
+      "url": "https://spotchbot.com/docs/pro"
+    },
+    {
+      "label": "SpotchBot: требования к Spotify",
+      "url": "https://spotchbot.com/docs/troubleshooting"
+    },
+    {
+      "label": "Nightbot: запросы песен YouTube и SoundCloud",
+      "url": "https://docs.nightbot.tv/control-panel/song-requests"
+    },
+    {
+      "label": "Nightbot: заявление разработчика о бесплатном сервисе",
+      "url": "https://community.nightdev.com/t/messages-command/1534655926634549409"
+    },
+    {
+      "label": "StreamElements: модуль Media Request",
+      "url": "https://docs.streamelements.com/chatbot/modules/songrequest"
+    },
+    {
+      "label": "StreamElements: официальный сайт",
+      "url": "https://streamelements.com/"
+    },
+    {
+      "label": "Fossabot: запросы песен",
+      "url": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+    },
+    {
+      "label": "Fossabot: официальный сайт",
+      "url": "https://fossabot.com/"
+    },
+    {
+      "label": "Moobot: запросы песен",
+      "url": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+    },
+    {
+      "label": "Moobot: тарифы",
+      "url": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
+    },
+    {
+      "label": "Streamlabs Chatbot: документация для Twitch",
+      "url": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "label": "Streamlabs: страница Cloudbot",
+      "url": "https://streamlabs.com/cloudbot"
+    },
+    {
+      "label": "WizeBot: команды",
+      "url": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "label": "WizeBot: официальная главная страница",
+      "url": "https://wizebot.tv/en/index"
+    }
+  ]
+}

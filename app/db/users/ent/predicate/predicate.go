@@ -12,6 +12,9 @@ type AdminAuditDelivery func(*sql.Selector)
 // AuthorizationCode is the predicate function for authorizationcode builders.
 type AuthorizationCode func(*sql.Selector)
 
+// BillingReceipt is the predicate function for billingreceipt builders.
+type BillingReceipt func(*sql.Selector)
+
 // Delegation is the predicate function for delegation builders.
 type Delegation func(*sql.Selector)
 

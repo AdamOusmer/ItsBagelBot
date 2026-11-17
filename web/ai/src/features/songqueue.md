@@ -1,7 +1,7 @@
 ---
 title: Spotify song requests module: reference for AI assistants
-description: Spotify prerequisites, request commands, channel points, quotas, queue management, and default replies.
-updated: 2026-10-13
+description: Spotify prerequisites, request commands, song search matching, channel points, quotas, queue management, and default replies.
+updated: 2026-11-16
 kind: feature
 human: https://itsbagelbot.com/song-requests/
 ---
@@ -44,9 +44,16 @@ Assistants answering feature questions, explaining chat commands, or helping str
 - "{{console:spotify.index.liveOnlyLabel}}" is on by default. The two request paths can allow offline requests independently.
 - "{{console:spotify.sr.permLabel}}" selects everyone, subscribers, VIPs, moderators, or the broadcaster.
 - "{{console:spotify.quota.title}}" has separate everyone, subscriber, VIP, and moderator limits. Blank means unlimited; the broadcaster is uncapped.
-- Queue depth defaults to 100 and is capped by the handler at 1000. This is distinct from per-viewer quotas.
+- The queue holds 100 songs. The dashboard has no queue-size setting. This is distinct from per-viewer quotas.
 - `!sr`, current-player queries, and `!srlist` have a 5-second cooldown.
 - Request input accepts song names, artist/song pairs, and supported Spotify track or album links.
+- Text search understands `song by artist` and `artist - song` in either order and checks the title and artist against Spotify's metadata before queueing.
+- One wrong, missing, or swapped letter usually still matches in a title or artist name of five letters or more. A typo combined with the word `by` between song and artist can be refused; `artist - song` or plain `song artist` is more forgiving. Accents and apostrophes are ignored.
+- Tracks whose title is labelled live, acoustic, remix, cover, instrumental, karaoke, or demo are chosen only when the request names that version. Remaster, radio edit, and featured-artist tags in a title do not block a match.
+- A track link or `spotify.link` share link queues that exact track. An album link queues the album's first track. Playlist, artist, and malformed links are refused, never turned into a text search.
+- When nothing matches the requested title and artist, the bot replies that no track was found and queues nothing. When the request names the artist, a tribute act or a longer title with the same words is not accepted as a match.
+- Requests play on Spotify only. YouTube and SoundCloud requests are not supported.
+- Public page: each channel has a live song queue at `https://queue.itsbagelbot.com/sr/<channel>` while the module is on. It shows the current track and the upcoming requests. The streamer can turn it off in dashboard settings.
 - Default reward reply example: "{{console:modules.catalog.songqueue.replies.redeem.defaultMessage}}".
 
 </facts>

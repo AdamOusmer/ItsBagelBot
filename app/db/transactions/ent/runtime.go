@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayinclusion"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
+	"ItsBagelBot/app/db/transactions/ent/kofidonation"
 	"ItsBagelBot/app/db/transactions/ent/schema"
 	"ItsBagelBot/app/db/transactions/ent/tebexagreement"
 	"ItsBagelBot/app/db/transactions/ent/tebexwebhookevents"
@@ -502,6 +503,82 @@ func init() {
 	giveawayuserleaseDescID := giveawayuserleaseFields[0].Descriptor()
 	// giveawayuserlease.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	giveawayuserlease.IDValidator = giveawayuserleaseDescID.Validators[0].(func(string) error)
+	kofidonationFields := schema.KofiDonation{}.Fields()
+	_ = kofidonationFields
+	// kofidonationDescMessageID is the schema descriptor for message_id field.
+	kofidonationDescMessageID := kofidonationFields[1].Descriptor()
+	// kofidonation.MessageIDValidator is a validator for the "message_id" field. It is called by the builders before save.
+	kofidonation.MessageIDValidator = func() func(string) error {
+		validators := kofidonationDescMessageID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(message_id string) error {
+			for _, fn := range fns {
+				if err := fn(message_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// kofidonationDescAmountCents is the schema descriptor for amount_cents field.
+	kofidonationDescAmountCents := kofidonationFields[3].Descriptor()
+	// kofidonation.AmountCentsValidator is a validator for the "amount_cents" field. It is called by the builders before save.
+	kofidonation.AmountCentsValidator = kofidonationDescAmountCents.Validators[0].(func(int64) error)
+	// kofidonationDescCurrency is the schema descriptor for currency field.
+	kofidonationDescCurrency := kofidonationFields[4].Descriptor()
+	// kofidonation.CurrencyValidator is a validator for the "currency" field. It is called by the builders before save.
+	kofidonation.CurrencyValidator = func() func(string) error {
+		validators := kofidonationDescCurrency.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(currency string) error {
+			for _, fn := range fns {
+				if err := fn(currency); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// kofidonationDescSubscriptionPayment is the schema descriptor for subscription_payment field.
+	kofidonationDescSubscriptionPayment := kofidonationFields[5].Descriptor()
+	// kofidonation.DefaultSubscriptionPayment holds the default value on creation for the subscription_payment field.
+	kofidonation.DefaultSubscriptionPayment = kofidonationDescSubscriptionPayment.Default.(bool)
+	// kofidonationDescFirstSubscriptionPayment is the schema descriptor for first_subscription_payment field.
+	kofidonationDescFirstSubscriptionPayment := kofidonationFields[6].Descriptor()
+	// kofidonation.DefaultFirstSubscriptionPayment holds the default value on creation for the first_subscription_payment field.
+	kofidonation.DefaultFirstSubscriptionPayment = kofidonationDescFirstSubscriptionPayment.Default.(bool)
+	// kofidonationDescTierName is the schema descriptor for tier_name field.
+	kofidonationDescTierName := kofidonationFields[7].Descriptor()
+	// kofidonation.TierNameValidator is a validator for the "tier_name" field. It is called by the builders before save.
+	kofidonation.TierNameValidator = kofidonationDescTierName.Validators[0].(func(string) error)
+	// kofidonationDescCreatedAt is the schema descriptor for created_at field.
+	kofidonationDescCreatedAt := kofidonationFields[9].Descriptor()
+	// kofidonation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	kofidonation.DefaultCreatedAt = kofidonationDescCreatedAt.Default.(func() time.Time)
+	// kofidonationDescID is the schema descriptor for id field.
+	kofidonationDescID := kofidonationFields[0].Descriptor()
+	// kofidonation.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	kofidonation.IDValidator = func() func(string) error {
+		validators := kofidonationDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	tebexagreementFields := schema.TebexAgreement{}.Fields()
 	_ = tebexagreementFields
 	// tebexagreementDescUserID is the schema descriptor for user_id field.

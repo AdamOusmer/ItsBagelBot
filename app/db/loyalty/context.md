@@ -27,7 +27,7 @@ RPC reads and synchronous balance/counter management.
 | Counter entry | Bucket value addressed by owner/name/command/viewer. |
 | Scope | `bot`, `channel`, `viewer`, `command`, or `viewer_command`; shared constants are authoritative. |
 | `BatchID` | Stable counter-delivery identity, reused on retry. |
-| Receipt | Valkey completion cache for the active processor. |
+| Receipt | SQL record of an admitted counter batch and its payload digest, committed with its effect; Valkey caches completion. |
 | Trial promotion | One-time carry of observed decoded/answered totals into registered channel counters. |
 | Wager | Atomic settlement adding/removing a stake according to a caller-supplied outcome. |
 
@@ -45,7 +45,11 @@ RPC reads and synchronous balance/counter management.
 | [repository/counter_processor.go](repository/counter_processor.go), [counter_receipts.go](repository/counter_receipts.go) | Bounded active batching, Valkey claims/receipts and retry classification. |
 | [repository/batches.go](repository/batches.go) | Trial-promotion and bump validation helpers shared by the counter persist path. |
 | [repository/counter_persist.go](repository/counter_persist.go) | SQL transaction, deterministic lock order, bounded writes and row-range isolation. |
-| [repository/watchtime.go](repository/watchtime.go) | Raw SQL inbox/dedup/fence schemas, atomic awards and account deletion/recreation. |
+| [repository/counter_inbox.go](repository/counter_inbox.go) | Atomic SQL receipt admission, binary identities and payload mismatch rejection. |
+| [repository/counter_cached.go](repository/counter_cached.go) | Batched SQL digest checks for completed Valkey receipts, including legacy markers. |
+| [repository/counter_retention.go](repository/counter_retention.go) | Bounded receipt pruning on the repository's periodic flush loop. |
+| [repository/counter_fences.go](repository/counter_fences.go), [counter_rows.go](repository/counter_rows.go) | Bulk owner fences and counter statements bounded by rows, bytes and placeholders. |
+| [repository/watchtime.go](repository/watchtime.go), [watchtime_commit.go](repository/watchtime_commit.go) | Raw SQL inbox/dedup/fence schemas, per-chunk award commits and account deletion/recreation. |
 | [repository/watchtime_retention.go](repository/watchtime_retention.go) | Monotonic retirement barrier and bounded replay-history pruning. |
 | [rpc/rpc.go](rpc/rpc.go) | All `balance.*`, `top.get`, `counter.*` handlers and wire views. |
 | [ent/schema/](ent/schema/) | Balance, Counter and CounterEntry schemas; watchtime auxiliary tables use raw SQL. |
@@ -64,18 +68,63 @@ Generated Ent code is not the schema source.
   Ent directly; a just-accepted legacy delta may not yet appear in an RPC read.
 - Grouped counter events wait for `CounterProcessor.Process` before acknowledgment.
   Missing DTO BatchID falls back to transport UUID during rolling upgrades.
-- Active counter writes commit in SQL, then complete a 70-minute Valkey receipt
-  (`CounterRepublishWindow + 10 minutes` in shared events).
-  SQL→Valkey crash gaps or later replays can count again; do not call this exactly once.
-- Watch awards use a separate Valkey outbox consumer. Inbox, window/viewer dedup
-  and balance credit commit together; errors leave delivery pending.
+- Counter receipts and their counter effects commit in one SQL transaction, then
+  complete a 70-minute Valkey receipt (`CounterReceiptTTL` in shared events).
+  SQL→Valkey crash gaps and cache outages cannot recount a retained SQL receipt.
+  The SQL batch identity is the SHA-256 hex digest of the original BatchID, so
+  accepted IDs up to 256 bytes fit `VARBINARY(64)` without truncation. Payload
+  hashes use `BINARY(32)`, admission owners `BINARY(16)`, and `created_at` indexed
+  Unix seconds. SQLite uses BLOB columns and binary bindings.
+- Sesame retries unconfirmed counter batches indefinitely with the same BatchID
+  and immutable payload. Pending batches ignore early flush nudges and retry on
+  the five-second ticker with exponential backoff capped at 30 seconds.
+  Each queue suppresses only its own early flush nudges. Shutdown attempts all
+  pending and newly aggregated batches regardless of backoff within five seconds.
+  Pending batches stay in memory and new increments aggregate behind them;
+  process termination can still lose work unconfirmed after the final flush.
+- SQL receipts live for 24 hours (`CounterReceiptRetention` in shared events),
+  measured from the original SQL admission. The 15-second repository loop
+  deletes expired rows in ordered chunks of 1,000, at most 64 chunks or two
+  seconds per pass. At 200 unique deliveries/s this retains 17,280,000 rows/day
+  at roughly 200-250 bytes/row including indexes, about 3.5-4.3 GB for 24 hours,
+  and adds 3,000 rows per loop; the row limit permits pruning 64,000 rows per
+  loop (about 4,267 rows/s), subject to the time budget and database throughput.
+  Later passes drain any backlog. A batch republished or replayed from DLQ after
+  24 hours is not deduplicated once its SQL receipt has been pruned; indefinite
+  producer retries do not extend this deduplication horizon. No DLQ replay tool
+  exists in the tree.
+- Valkey retains the original receipt key and `done` marker during rolling
+  upgrades. Completed markers with a SQL receipt get a batched digest check;
+  legacy markers without a SQL receipt remain authoritative until they expire.
+  SQL detects payload mismatches as `ErrCounterReceiptMismatch`, which wraps
+  `ErrInvalidInput`; the processor logs `user_id` and the original `batch_id`.
+- Invalid-input failures split merged transactions to isolate poison deliveries.
+  Transient errors return to every delivery without splitting. MySQL 1213/1205
+  retries restart the whole transaction through `pkg/db.RetryTx`.
+- Watch awards use a separate Valkey outbox consumer. Each viewer chunk commits
+  its receipts and balance credits together. The first chunk creates an incomplete
+  operation row with the payload hash; every chunk checks it under the account
+  fence, and the last chunk marks it complete. Viewer receipts make retries of
+  partially committed awards idempotent; errors leave delivery pending.
+- Loyalty watch-award consumers and watch-history pruning must not overlap
+  versions that write incomplete operations with older versions that treat every
+  operation row as complete. Stop and drain every old loyalty replica, including
+  in-flight watch-award handlers and pruning, before starting any new replica;
+  keep unpaid outbox deliveries pending for the new consumers. A rolling update
+  with old and new loyalty replicas active together is unsafe. The older code
+  can acknowledge a matching incomplete operation without paying its remaining
+  viewers and can prune its operation and viewer receipts. Hiding progress in a
+  separate table cannot fix the older closed-window path, which acknowledges
+  without checking for unpaid chunks. Before rollback, finish every incomplete
+  operation with the new version, then stop and drain every new replica before
+  starting any old replica.
 - User change/delete events restore or retire account instances using source
   timestamps. Watchtime health and the grouped event lane are readiness checks.
 
 ## Invariants and pitfalls
 
 - Keep the three durability paths distinct: legacy earned accumulation is
-  loss-tolerant, counters acknowledge committed SQL with best-effort short dedup,
+  loss-tolerant, counters acknowledge committed SQL with durable bounded dedup,
   watch awards use durable SQL posting and lifecycle fences.
 - Spend/transfer guards require `points >= amount` in the actual debit statement.
   Transfer credits only in the same transaction. A resolved TargetViewerID allows
@@ -93,10 +142,16 @@ Generated Ent code is not the schema source.
   a unique auto-increment column. An auto-increment primary key, or a locking read
   of an absent balance, counter or fence row, makes replicas writing different
   channels deadlock or wait: create the row, then lock it.
-- Lock retention barrier before account fences, then other posting rows. Counter
-  persistence locks owner fences in ascending order; preserve shared lock order.
-- Prune replay markers only after the same source-window barrier rejects replay
-  and is capped below retained unpaid outbox work. Plain age-based deletion is unsafe.
+- Watch awards lock the retention barrier before account fences, then other
+  posting rows. Counter persistence locks fences, receipts, then counters, with
+  owners and receipt identities in ascending order; preserve shared lock order.
+- Prune watch replay markers only after the same source-window barrier rejects
+  replay and is capped below retained unpaid outbox work. Counter receipts use
+  the separate bounded delivery horizon above. Plain age-based deletion of watch
+  markers is unsafe. Incomplete operation rows survive pruning; a finalized partial
+  award returns an error on redelivery rather than acknowledging unpaid viewers.
+  Account admission refusing a retired or replaced instance completes an existing
+  operation in a committed transaction so normal retention can prune its history.
 - Retired-instance events are consumed without resurrecting state; source account
   creation time, not arrival time, determines whether recreation is newer.
 - Counter trial promotion is once-only; writes racing promotion recheck and retry

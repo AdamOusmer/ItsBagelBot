@@ -104,7 +104,7 @@ data:
       - hostname: health.itsbagelbot.com
         service: https://traefik.networking.svc.cluster.local:443
 
-      # Tebex webhooks -> transactions.
+      # Tebex and Ko-fi webhooks -> transactions.
       - hostname: webhooks.itsbagelbot.com
         service: https://traefik.networking.svc.cluster.local:443
 

@@ -10,7 +10,6 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
-	"ItsBagelBot/internal/analytics"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/crypto"
@@ -24,11 +23,7 @@ var ErrNoGoveeKey = errors.New("no govee key on record")
 type GoveeCreds struct {
 	client *ent.Client
 	packer domaincrypto.Packer
-
-	analytics *analytics.Recorder
 }
-
-func (g *GoveeCreds) SetAnalytics(rec *analytics.Recorder) { g.analytics = rec }
 
 func NewGoveeCreds(client *ent.Client, packer domaincrypto.Packer) *GoveeCreds {
 	return &GoveeCreds{client: client, packer: packer}
@@ -55,7 +50,6 @@ func (g *GoveeCreds) SetKey(ctx context.Context, userID uint64, key string) erro
 		return err
 	}
 
-	done := g.track(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return g.client.GoveeCredential.Create().
 			SetUserID(userID).
@@ -66,7 +60,7 @@ func (g *GoveeCreds) SetKey(ctx context.Context, userID uint64, key string) erro
 	}); err != nil {
 		return err
 	}
-	done()
+
 	return nil
 }
 
@@ -74,7 +68,7 @@ func (g *GoveeCreds) ClearKey(ctx context.Context, userID uint64) error {
 	if err := validate.UserID(userID); err != nil {
 		return err
 	}
-	done := g.track(ctx, userID)
+
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := g.client.GoveeCredential.Delete().
 			Where(goveecredential.UserIDEQ(userID)).
@@ -83,7 +77,7 @@ func (g *GoveeCreds) ClearKey(ctx context.Context, userID uint64) error {
 	}); err != nil {
 		return err
 	}
-	done()
+
 	return nil
 }
 

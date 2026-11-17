@@ -1,0 +1,76 @@
+{
+  "tick": {
+    "fired": "Sent",
+    "gated": "Gated",
+    "stopped": "Stopped",
+    "floor": "Content floor",
+    "blank": "Blank",
+    "refused": "Refused"
+  },
+  "opt": {
+    "plain": "Plain",
+    "gated": "Chat gated",
+    "capped": "Fire capped",
+    "ends": "End date",
+    "offline": "Offline allowed"
+  },
+  "runtime": {
+    "active": "Active",
+    "dormant": "Dormant",
+    "blocked": "Blocked",
+    "disabled": "Disabled",
+    "recovering": "Recovering",
+    "degraded": "Degraded"
+  },
+  "game": {
+    "raffle": "Raffle",
+    "mraffle": "Multi-raffle",
+    "duel": "Duel",
+    "gamble": "Gamble"
+  },
+  "flow": {
+    "gamble": "Gamble",
+    "duel_stake": "Duel stake",
+    "transfer": "Transfer",
+    "adjust": "Adjustment",
+    "reward_grant": "Reward grant",
+    "raffle_payout": "Raffle payout"
+  },
+  "feature": {
+    "channelpoints": "Channel points",
+    "govee": "Govee"
+  },
+  "login": {
+    "started": "Started",
+    "ok": "Succeeded",
+    "declined": "Declined",
+    "oauth": "OAuth error",
+    "state": "Invalid state",
+    "bot": "Bot account",
+    "scope": "Missing scope",
+    "link": "Invalid link",
+    "retry": "Retry needed",
+    "banned": "Banned"
+  },
+  "platform": {
+    "macos": "macOS",
+    "windows": "Windows",
+    "linux": "Linux"
+  },
+  "rule": {
+    "ip_logger": "IP logger",
+    "scam": "Scam",
+    "phish": "Phishing",
+    "heuristic": "Heuristic",
+    "block_term": "Blocked term",
+    "lex_hate": "Hate speech",
+    "lex_harassment": "Harassment",
+    "lex_sexual": "Sexual content",
+    "lex_profanity": "Profanity",
+    "council_campaign": "Council campaign",
+    "repeat": "Repeat",
+    "campaign": "Campaign",
+    "shield_mode": "Shield mode",
+    "other": "Other"
+  }
+}

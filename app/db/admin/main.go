@@ -40,10 +40,10 @@ func main() {
 	defer nc.Close()
 	vc := svcboot.MustValkey(core)
 	repo := repository.New(client)
-	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: core.Log}, Repo: repo, Analytics: analytics.NewReader(vc)}
+	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: core.Log}, Repo: repo, Analytics: analytics.NewReader(vc, analytics.RequestLevels(nc))}
 	subscribe(w, client)
 	seedStaff(core, client)
-	go rollupAnalytics(core.Ctx, rollup.New(vc, repo), core.Log)
+	go rollupAnalytics(core.Ctx, rollup.New(vc, repo, analytics.RequestLevels(nc)), core.Log)
 
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{Log: core.Log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr},

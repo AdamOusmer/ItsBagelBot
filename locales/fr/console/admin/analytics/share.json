@@ -3,5 +3,7 @@
   "ofAccounts": "{share} des comptes",
   "ofBotEnabled": "{share} des comptes avec le bot activé",
   "ofCommands": "{share} des commandes personnalisées",
-  "ofChannels": "{share} des chaînes"
+  "ofChannels": "{share} des chaînes",
+  "ofAttempts": "{share} des tentatives de commandes",
+  "roles": "{owner} titulaire · {delegate} délégataire"
 }

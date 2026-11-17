@@ -56,14 +56,16 @@ func (r *Notifications) Create(ctx context.Context, p CreateParams) (*ent.Notifi
 	}
 	var row *ent.Notification
 	var created bool
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-			if err := lockNotificationIncarnation(ctx, tx, Recipient{UserID: *p.TargetUserID, Incarnation: p.Incarnation}); err != nil {
+	err := db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				if err := lockNotificationIncarnation(ctx, tx, Recipient{UserID: *p.TargetUserID, Incarnation: p.Incarnation}); err != nil {
+					return err
+				}
+				var err error
+				row, created, err = createNotification(ctx, tx.Client(), p)
 				return err
-			}
-			var err error
-			row, created, err = createNotification(ctx, tx.Client(), p)
-			return err
+			})
 		})
 	})
 	if err != nil {
@@ -208,9 +210,9 @@ func (r *Notifications) MarkReadForIncarnation(ctx context.Context, notification
 	return r.acknowledgeIncarnation(ctx, readAcknowledgment{NotificationID: notificationID, Recipient: recipient, ExpiresAt: expiresAt})
 }
 func (r *Notifications) acknowledgeIncarnation(ctx context.Context, ack readAcknowledgment) error {
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-			return ack.apply(ctx, tx)
+	return db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error { return ack.apply(ctx, tx) })
 		})
 	})
 }
@@ -328,16 +330,24 @@ func (r *Notifications) insertLegacyPeeksIndividually(ctx context.Context, recip
 
 const CleanupBatchSize = 500
 
-func (r *Notifications) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	ids, err := r.client.Notification.Query().Where(notification.ExpiresAtLTE(now)).Order(ent.Asc(notification.FieldExpiresAt), ent.Asc(notification.FieldID)).Limit(CleanupBatchSize).IDs(ctx)
-	if err != nil || len(ids) == 0 {
-		return 0, err
-	}
-	return r.client.Notification.Delete().Where(notification.IDIn(ids...), notification.ExpiresAtLTE(now)).Exec(ctx)
+func (r *Notifications) DeleteExpired(ctx context.Context, now time.Time) (int, bool, error) {
+	var deleted int
+	var more bool
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		var err error
+		deleted, more, err = deleteNotificationBatch(ctx, r.client, notification.ExpiresAtLTE(now))
+		return err
+	})
+	return deleted, more, err
 }
 
 func (r *Notifications) Delete(ctx context.Context, id int) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.Notification.DeleteOneID(id).Exec(ctx)
+		deletion := notificationDeletion{id: id}
+		return db.RetryTx(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				return deletion.apply(ctx, tx.Client())
+			})
+		})
 	})
 }

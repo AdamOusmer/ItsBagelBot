@@ -1,6 +1,7 @@
 {
+  "trialPromoted": "Conversions des essais",
   "netAccounts": "Comptes nets (inscriptions moins suppressions)",
-  "netBot": "Comptes nets avec le bot activé",
+  "netBot": "Variation des comptes avec bot entre relevés de la période",
   "cancelPending": "Résiliations en attente",
   "paymentFailed": "Paiements échoués en attente",
   "messages": "Messages lus",
@@ -18,5 +19,16 @@
   "customChannels": "Chaînes avec commandes personnalisées",
   "customChannelsWeek": "Chaînes utilisant des commandes personnalisées, dernière semaine complète",
   "customActive": "Commandes actives",
-  "customInactive": "Commandes inactives"
+  "customInactive": "Commandes inactives",
+  "onboarded": "Comptes configurés",
+  "onboardedShare": "Part des comptes configurés",
+  "redirected": "Paiements redirigés",
+  "activated": "Activations d’offre",
+  "checkoutActivation": "Activations / paiements redirigés",
+  "recipeChannelsWeek": "Chaînes avec recettes, dernière semaine complète",
+  "songSuccess": "Taux de réussite des demandes musicales",
+  "delegating": "Comptes avec délégataires",
+  "delegatingShare": "Part des comptes avec délégataires",
+  "newSubscribers": "Nouveaux membres Ko-fi",
+  "lastDonation": "Dernier paiement Ko-fi"
 }

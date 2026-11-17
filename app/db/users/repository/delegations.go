@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -21,6 +22,19 @@ type DelegationView struct {
 	DelegateID    uint64   `json:"delegate_id"`
 	DelegateLogin string   `json:"delegate_login"`
 	Consumed      bool     `json:"consumed"`
+}
+
+type DelegationLink struct {
+	Token      string
+	OwnerID    uint64
+	OwnerLogin string
+	Sections   []string
+	ExpiresAt  *time.Time
+}
+
+type delegationIdentity struct {
+	id    uint64
+	login string
 }
 
 func toDelegationView(d *ent.Delegation) DelegationView {
@@ -35,16 +49,14 @@ func toDelegationView(d *ent.Delegation) DelegationView {
 	}
 }
 
-func (r *Users) CreateDelegation(ctx context.Context, token string, ownerID uint64, ownerLogin string, sections []string, expires *time.Time) error {
+func (r *Users) CreateDelegation(ctx context.Context, link DelegationLink) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		c := r.client.Delegation.Create().
-			SetToken(token).
-			SetOwnerID(ownerID).
-			SetOwnerLogin(ownerLogin).
-			SetSections(sections)
-		if expires != nil {
-			c = c.SetExpiresAt(*expires)
-		}
+			SetToken(link.Token).
+			SetOwnerID(link.OwnerID).
+			SetOwnerLogin(link.OwnerLogin).
+			SetSections(link.Sections).
+			SetNillableExpiresAt(link.ExpiresAt)
 		_, err := c.Save(ctx)
 		return err
 	})
@@ -83,18 +95,18 @@ func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID 
 		return DelegationView{}, errors.New("link already used")
 	}
 
-	if grant := r.reclaimExisting(ctx, d.OwnerID, delegateID, token); grant != nil {
+	if grant := r.reclaimExisting(ctx, d, delegateID); grant != nil {
 		return toDelegationView(grant), nil
 	}
 
-	return r.bindDelegation(ctx, d, delegateID, delegateLogin, now)
+	return r.bindDelegation(ctx, d, delegationIdentity{delegateID, delegateLogin}, now)
 }
 
-func (r *Users) reclaimExisting(ctx context.Context, ownerID, delegateID uint64, token string) *ent.Delegation {
+func (r *Users) reclaimExisting(ctx context.Context, link *ent.Delegation, delegateID uint64) *ent.Delegation {
 	grant, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
 		return r.client.Delegation.Query().
 			Where(
-				delegation.OwnerIDEQ(ownerID),
+				delegation.OwnerIDEQ(link.OwnerID),
 				delegation.DelegateIDEQ(delegateID),
 				delegation.ConsumedAtNotNil(),
 			).
@@ -103,23 +115,21 @@ func (r *Users) reclaimExisting(ctx context.Context, ownerID, delegateID uint64,
 	if err != nil || grant == nil {
 		return nil
 	}
-	_ = db.WithExec(ctx, func(ctx context.Context) error {
-		_, derr := r.client.Delegation.Delete().Where(delegation.TokenEQ(token)).Exec(ctx)
-		return derr
-	})
+
+	_, _ = db.WithQuery(ctx, r.client.Delegation.Delete().Where(delegation.TokenEQ(link.Token)).Exec)
 	return grant
 }
 
 // Must stay gated on consumed_at IS NULL so concurrent racers cannot both win.
-func (r *Users) bindDelegation(ctx context.Context, d *ent.Delegation, delegateID uint64, delegateLogin string, now time.Time) (DelegationView, error) {
+func (r *Users) bindDelegation(ctx context.Context, d *ent.Delegation, delegate delegationIdentity, now time.Time) (DelegationView, error) {
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Delegation.Update().
 			Where(
 				delegation.TokenEQ(d.Token),
 				delegation.ConsumedAtIsNil(),
 			).
-			SetDelegateID(delegateID).
-			SetDelegateLogin(delegateLogin).
+			SetDelegateID(delegate.id).
+			SetDelegateLogin(delegate.login).
 			SetConsumedAt(now).
 			Save(ctx)
 	})
@@ -130,36 +140,24 @@ func (r *Users) bindDelegation(ctx context.Context, d *ent.Delegation, delegateI
 		return DelegationView{}, errors.New("link already used")
 	}
 
-	d.DelegateID = delegateID
-	d.DelegateLogin = delegateLogin
+	d.DelegateID = delegate.id
+	d.DelegateLogin = delegate.login
 	d.ConsumedAt = &now
 	return toDelegationView(d), nil
 }
 
 func (r *Users) ListDelegationsByOwner(ctx context.Context, ownerID uint64) ([]DelegationView, error) {
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
-		return r.client.Delegation.Query().
-			Where(delegation.OwnerIDEQ(ownerID)).
-			Order(ent.Desc(delegation.FieldCreatedAt)).
-			All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]DelegationView, 0, len(rows))
-	for _, d := range rows {
-		out = append(out, toDelegationView(d))
-	}
-	return out, nil
+	return r.listDelegations(ctx, delegation.OwnerIDEQ(ownerID))
 }
 
 func (r *Users) ListAccessByDelegate(ctx context.Context, delegateID uint64) ([]DelegationView, error) {
+	return r.listDelegations(ctx, delegation.And(delegation.DelegateIDEQ(delegateID), delegation.ConsumedAtNotNil()))
+}
+
+func (r *Users) listDelegations(ctx context.Context, filter predicate.Delegation) ([]DelegationView, error) {
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
 		return r.client.Delegation.Query().
-			Where(
-				delegation.DelegateIDEQ(delegateID),
-				delegation.ConsumedAtNotNil(),
-			).
+			Where(filter).
 			Order(ent.Desc(delegation.FieldCreatedAt)).
 			All(ctx)
 	})
@@ -191,11 +189,10 @@ func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) ([
 			delegateIDs = append(delegateIDs, row.DelegateID)
 		}
 	}
-	err = db.WithExec(ctx, func(ctx context.Context) error {
-		_, derr := r.client.Delegation.Delete().
+	_, err = db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return r.client.Delegation.Delete().
 			Where(delegation.OwnerIDEQ(ownerID)).
 			Exec(ctx)
-		return derr
 	})
 	if err != nil {
 		return nil, err
@@ -204,46 +201,33 @@ func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) ([
 }
 
 func (r *Users) UpdateDelegationSections(ctx context.Context, token string, ownerID uint64, sections []string) (uint64, error) {
-	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
-		return r.client.Delegation.Query().
-			Where(
-				delegation.TokenEQ(token),
-				delegation.OwnerIDEQ(ownerID),
-			).
-			Only(ctx)
-	})
-	if err != nil {
-		if ent.IsNotFound(err) {
-			return 0, errors.New("not found")
-		}
-		return 0, err
-	}
-	var delegateID uint64
-	if d.ConsumedAt != nil {
-		delegateID = d.DelegateID
-	}
-	err = db.WithExec(ctx, func(ctx context.Context) error {
-		return d.Update().SetSections(sections).Exec(ctx)
-	})
-	if err != nil {
-		return 0, err
-	}
-	return delegateID, nil
+	return r.changeDelegation(ctx, delegationChange{token: token, ownerID: ownerID, sections: sections})
 }
 
 func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint64) (uint64, error) {
+	return r.changeDelegation(ctx, delegationChange{token: token, ownerID: ownerID, revoke: true})
+}
+
+type delegationChange struct {
+	token    string
+	ownerID  uint64
+	sections []string
+	revoke   bool
+}
+
+func (r *Users) changeDelegation(ctx context.Context, change delegationChange) (uint64, error) {
 	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
 		return r.client.Delegation.Query().
 			Where(
-				delegation.TokenEQ(token),
-				delegation.OwnerIDEQ(ownerID),
+				delegation.TokenEQ(change.token),
+				delegation.OwnerIDEQ(change.ownerID),
 			).
 			Only(ctx)
 	})
+	if ent.IsNotFound(err) {
+		return 0, errors.New("not found")
+	}
 	if err != nil {
-		if ent.IsNotFound(err) {
-			return 0, errors.New("not found")
-		}
 		return 0, err
 	}
 	var delegateID uint64
@@ -251,11 +235,15 @@ func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint
 		delegateID = d.DelegateID
 	}
 	err = db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.Delegation.DeleteOne(d).Exec(ctx)
+		if change.revoke {
+			return r.client.Delegation.DeleteOne(d).Exec(ctx)
+		}
+		return d.Update().SetSections(change.sections).Exec(ctx)
 	})
 	if err != nil {
 		return 0, err
 	}
+
 	return delegateID, nil
 }
 
@@ -275,5 +263,6 @@ func (r *Users) OptOutDelegation(ctx context.Context, ownerID uint64, delegateID
 	if n == 0 {
 		return errors.New("not found")
 	}
+
 	return nil
 }

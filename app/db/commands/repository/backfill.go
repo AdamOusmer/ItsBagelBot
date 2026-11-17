@@ -20,7 +20,7 @@ import (
 
 const bumpCounterBackfillName = "bump_counter_from_counter_token"
 
-// Writes must land directly, not through the batcher, before the marker row is recorded.
+// Writes must commit before the migration marker is recorded.
 func (r *Commands) BackfillBumpCounterFromTokens(ctx context.Context) error {
 	applied, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
 		return r.client.Migrations.Query().Where(migrations.NameEQ(bumpCounterBackfillName)).Exist(ctx)

@@ -26,17 +26,30 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { ANALYTICS_LIVE, ANALYTICS_REFRESH_MS, type AnalyticsView, type Bar, type DataTable, type Fact as ViewFact, type GainLoss, type Name, type Phrase, type Series } from '#lib/analytics-page';
   import { dateLabel, signed } from '#lib/analytics-view';
+  import type { DonationsView } from '#lib/donations-view';
 
   let { data } = $props();
   const { t } = getI18n();
 
-  const SECTIONS = ['overview', 'growth', 'engagement', 'retention', 'revenue', 'features', 'commands', 'audience'] as const;
+  const SECTIONS = ['overview', 'growth', 'engagement', 'retention', 'revenue', 'features', 'community', 'recipes', 'reliability', 'commands', 'audience'] as const;
   const FIRST_COLUMN: Record<string, string> = {
     plans: 'plan',
     conversion: 'signupWeek',
     modules: 'module',
     builtIn: 'command',
     breadth: 'modulesOn',
+    imports: 'importSource',
+    checkout: 'plan',
+    donations: 'currency',
+    donationMonths: 'month',
+    recipeOutcomes: 'trigger',
+    recipeTotals: 'trigger',
+    drops: 'sendKind',
+    providers: 'provider',
+    rounds: 'game',
+    entrants: 'game',
+    rewards: 'feature',
+    moderation: 'rule',
   };
   const DAY_MS = 86_400_000;
   const SKELETON_HEIGHT = { series: '178px', lines: '330px', bars: '220px', table: '240px', facts: '120px', cohort: '320px' } as const;
@@ -46,12 +59,14 @@
   const formatDay = (at: number) => dateLabel(new Date(at).toISOString().slice(0, 10));
 
   let view = $state<AnalyticsView | null>(null);
+  let donations = $state<DonationsView | null>(null);
   let degraded = $state(false);
   $effect(() => {
     let alive = true;
-    data.bundle.then((bundle: { view: AnalyticsView; degraded: boolean }) => {
+    data.bundle.then((bundle: { view: AnalyticsView; donations: DonationsView; degraded: boolean }) => {
       if (!alive) return;
       view = bundle.view;
+      donations = bundle.donations;
       degraded = bundle.degraded;
     });
     return () => {
@@ -349,6 +364,15 @@
       {@render barCard('churn', view?.growth.churn, view?.growth.churnFacts)}
       {@render barCard('presets', view?.growth.presets)}
     </Grid>
+    <Grid cols={2} stackAt="md">
+      {@render barCard('activationAge', view?.growth.activationAge)}
+      {@render barCard('onboarding', view?.growth.onboarding, view?.growth.onboarded)}
+    </Grid>
+    {@render tableCard('imports', view?.growth.imports)}
+    <Grid cols={2} stackAt="md">
+      {@render barCard('login', view?.growth.login)}
+      {@render factsCard('trials', view?.growth.trials)}
+    </Grid>
   </section>
 
   <section id="engagement" class="block">
@@ -375,6 +399,12 @@
       <div class="cell">{@render barCard('billing', view?.revenue.billing)}</div>
       <div class="cell span-2">{@render tableCard('conversion', view?.revenue.conversion)}</div>
     </div>
+    {@render tableCard('checkout', view?.revenue.checkout, undefined, view?.revenue.checkoutFacts)}
+    {@render tableCard('donations', donations?.totals, '760px', donations?.totalFacts)}
+    <div class="thirds">
+      <div class="cell span-2">{@render tableCard('donationMonths', donations?.months)}</div>
+      <div class="cell">{@render barCard('donationKinds', donations?.kinds)}</div>
+    </div>
   </section>
 
   <section id="features" class="block">
@@ -387,6 +417,54 @@
         {@render barCard('pagesHidden', view?.features.pagesHidden)}
       </div>
     </Grid>
+    {@render barCard('dashboard', view?.features.dashboard)}
+  </section>
+
+  <section id="community" class="block">
+    {@render heading('community')}
+    <Grid cols={2} stackAt="md">
+      {@render barCard('ticks', view?.community.ticks)}
+      {@render barCard('timers', view?.community.timers)}
+    </Grid>
+    {@render tableCard('rounds', view?.community.rounds, '760px')}
+    {@render tableCard('entrants', view?.community.entrants, '620px')}
+    <Grid cols={2} stackAt="md">
+      {@render barCard('points', view?.community.points)}
+      {@render tableCard('rewards', view?.community.rewards, '640px')}
+    </Grid>
+  </section>
+
+  <section id="recipes" class="block">
+    {@render heading('recipes')}
+    <Grid cols={2} stackAt="md">
+      <div class="column">
+        {#if view}
+          <StatTile
+            label={t('admin.analytics.fact.recipeChannelsWeek')}
+            value={view.recipes.channels.value}
+            delta={phrase(view.recipes.channels.delta)}
+            flat={view.recipes.channels.trend !== 'up'}
+          />
+        {:else}
+          <Skeleton variant="block" height="112px" />
+        {/if}
+        {@render barCard('recipeRuns', view?.recipes.runs)}
+      </div>
+      {@render tableCard('recipeOutcomes', view?.recipes.outcomes)}
+    </Grid>
+    {@render tableCard('recipeTotals', view?.recipes.totals)}
+  </section>
+
+  <section id="reliability" class="block">
+    {@render heading('reliability')}
+    <Grid cols={2} stackAt="md">
+      {@render tableCard('drops', view?.reliability.drops)}
+      {@render seriesCard('dailyDrops', view?.reliability.dailyDrops)}
+      {@render barCard('songs', view?.reliability.songs, view?.reliability.songFacts)}
+      {@render barCard('blocked', view?.reliability.blocked)}
+    </Grid>
+    {@render tableCard('providers', view?.reliability.providers)}
+    {@render tableCard('moderation', view?.reliability.flags)}
   </section>
 
   <section id="commands" class="block">
@@ -401,7 +479,13 @@
 
   <section id="audience" class="block">
     {@render heading('audience')}
+    {@render barCard('sizes', view?.audience.sizes)}
     {@render barCard('locales', view?.audience.locales)}
+    {@render factsCard('delegating', view?.audience.delegating)}
+    <Grid cols={2} stackAt="md">
+      {@render barCard('runtime', view?.audience.runtime)}
+      {@render barCard('desktop', view?.audience.desktop)}
+    </Grid>
   </section>
 </section>
 

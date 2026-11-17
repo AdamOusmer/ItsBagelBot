@@ -30,7 +30,6 @@ import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '#lib/server/fetc
 import { auditDashboardImpersonation, userCommandsPage } from '#lib/server/services';
 import { commandsHref } from '@bagel/kit/site-links';
 import { logger } from '@bagel/kit/server/logger';
-import { count } from '@bagel/kit/server/analytics';
 import { actionError, actionErrorBody } from '#lib/server/action-errors';
 import { effectiveId } from '#lib/server/board';
 import { parsePerm, signedInAction } from '#lib/server/action-context';
@@ -55,8 +54,6 @@ function builtinView(def: (typeof BUILTIN_COMMANDS)[number], row?: ModuleView): 
   return {
     name: def.id,
     aliases: def.aliases,
-    // Editable built-ins carry the saved template (or the default) so the
-    // inspector's editor and rehearsal start from the real value.
     response: def.editable ? savedReply || def.preview : def.summary,
     is_active: row ? row.is_enabled : def.defaultActive,
     perm: parseKitPerm(savedPerm, def.defaultPerm),
@@ -77,8 +74,6 @@ function builtinViews(modules: ModuleView[]): CommandView[] {
   return BUILTIN_COMMANDS.map((def) => builtinView(def, byName.get(def.id)));
 }
 
-// mergeCommands lists built-ins first, then the user's custom commands with any
-// name colliding with a built-in dropped (built-ins reserve their trigger).
 function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandView[] {
   const builtins = builtinViews(modules);
   const customs = custom.filter((c) => !BUILTIN_NAMES.has(c.name));
@@ -178,9 +173,6 @@ function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: s
   return { ...builtinView(def), response, is_active: isActive, perm };
 }
 
-// Patch only the requested setting against the owning service's latest
-// revision. Toggle, reply and access edits can then coexist without replacing
-// each other's config, including when two dashboard tabs save at once.
 async function patchBuiltin(
   uid: string,
   def: NonNullable<ReturnType<typeof builtinDef>>,
@@ -203,10 +195,6 @@ function parseRestoreUses(raw: FormDataEntryValue | null): number {
   return Number.isSafeInteger(n) && n > 0 ? n : 0;
 }
 
-// parseSaveForm reads the editor's submission: the shared command fields plus
-// the edit/rename bookkeeping. A rename passes original_name so the commands
-// service updates the row's name field in place (single write) instead of
-// delete-old + create-new.
 function parseSaveForm(f: FormData) {
   const cmd = parseCommand(f);
   const isEdit = f.get('edit') === '1';
@@ -246,10 +234,6 @@ async function guardSave(uid: string, s: ReturnType<typeof parseSaveForm>) {
 
 function bulkNames(form: FormData): string[] {
   return [...new Set(form.getAll('name').map((n) => normName(String(n))).filter(Boolean))];
-}
-
-function countCreated(isEdit: boolean): void {
-  if (!isEdit) count('custom.commands', 'created');
 }
 
 export const actions: Actions = {
@@ -301,7 +285,6 @@ export const actions: Actions = {
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, s.isEdit ? 'command:update' : 'command:create', s.cmd.name);
-    countCreated(s.isEdit);
     return saveResult(s, res.value.commands, res.value.restored);
   }),
 
@@ -334,7 +317,6 @@ export const actions: Actions = {
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, 'command:delete', name);
-    count('custom.commands', 'deleted');
 
     return { ok: true, action: 'deleted', name, commands: res.value.commands };
   }),
@@ -376,10 +358,6 @@ export const actions: Actions = {
     return { ok: true, action: 'updated', name, commands: [res.value], silent: true };
   }),
 
-  // Save an editable built-in's custom reply template. Like the toggle, the
-  // value lives in the modules service (under the built-in id, config key
-  // def.replyKey), so this writes there, not the commands service. An empty
-  // reply clears the override, so the bot falls back to the default template.
   saveBuiltinReply: commandsAction(async (ctx) => {
     const parsed = parseBuiltinReply(ctx.form, ctx.locale);
     if ('refusal' in parsed) return parsed.refusal;

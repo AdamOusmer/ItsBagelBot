@@ -47,6 +47,11 @@ type rpcRequest struct {
 }
 
 var rpcRequests = map[string][]rpcRequest{
+	"admin_service_rpc": {
+		{"rpc.internal.users.analytics.levels", "internal/analytics level source"},
+		{"rpc.internal.modules.analytics.levels", "internal/analytics level source"},
+		{"rpc.internal.commands.analytics.levels", "internal/analytics level source"},
+	},
 	"users_rpc": {
 		{"rpc.internal.admin.audit.append", "internal/adminauth durable audit delivery"},
 		{"rpc.admin.user.auth.check", "internal/adminauth"},

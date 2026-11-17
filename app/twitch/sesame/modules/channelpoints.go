@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
 
@@ -69,10 +70,14 @@ func ChannelPoints(d engine.Deps) module.Module {
 		}
 
 		var counterValue string
+		result := "offline"
 		if loyaltyLive(ctx, d, c.BroadcasterID, binding.LiveOnly) {
-			rewardAward{d: d, c: c, binding: binding, ev: ev}.grant(ctx)
-			counterValue = bumpRewardCounter(ctx, d, c, binding, ev)
+			result = "ok"
+			award := rewardAward{d: d, c: c, binding: binding, ev: ev}
+			award.grant(ctx)
+			counterValue = award.counter(ctx)
 		}
+		d.Analytics.Count(catalog.RewardsRedeems, "channelpoints", result)
 		emitRewardAction(rewardChatParams{
 			locale:       c.Locale,
 			binding:      binding,
@@ -114,6 +119,7 @@ func (a rewardAward) grant(ctx context.Context) {
 		return
 	}
 	a.d.Loyalty.Earn(engine.PointEarning{BroadcasterID: a.c.BroadcasterID, ViewerID: viewerID, Login: a.ev.UserLogin, Name: a.ev.UserName, Points: points})
+	a.d.Analytics.Count(catalog.PointsFlows, "reward_grant")
 }
 
 func (a rewardAward) points(ctx context.Context, viewerID uint64) int64 {
@@ -124,7 +130,8 @@ func (a rewardAward) points(ctx context.Context, viewerID uint64) int64 {
 	return cfg.AutomaticPoints(a.c.BroadcasterID, viewerID, a.binding.Points)
 }
 
-func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b rewardBinding, ev engine.RedemptionEvent) string {
+func (a rewardAward) counter(ctx context.Context) string {
+	d, c, b, ev := a.d, a.c, a.binding, a.ev
 	if b.Counter == "" || d.Loyalty == nil {
 		return ""
 	}

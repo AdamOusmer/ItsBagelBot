@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/pkg/db"
 
 	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql/schema"
 )
 
 var naturalKeys = map[string]string{
@@ -17,8 +18,12 @@ var naturalKeys = map[string]string{
 }
 
 func MigrateSchema(ctx context.Context, client *ent.Client, dialectName string) error {
-	if dialectName != dialect.MySQL {
-		return client.Schema.Create(ctx)
+	var options []schema.MigrateOption
+	if dialectName == dialect.MySQL {
+		options = db.NaturalKeyMigration(naturalKeys)
 	}
-	return client.Schema.Create(ctx, db.NaturalKeyMigration(naturalKeys)...)
+	if err := client.Schema.Create(ctx, options...); err != nil {
+		return err
+	}
+	return migrateFeedSlots(ctx, client)
 }

@@ -1,4 +1,8 @@
 {
+  "community": {
+    "title": "Comunidad",
+    "question": "¿Cómo se usan los temporizadores, juegos, puntos y recompensas?"
+  },
   "overview": {
     "title": "Resumen",
     "question": "¿Cuánto trabaja el bot y está creciendo?"
@@ -30,5 +34,13 @@
   "audience": {
     "title": "Audiencia",
     "question": "¿Qué idiomas usan los streamers?"
+  },
+  "recipes": {
+    "title": "Recetas",
+    "question": "¿Qué recetas se ejecutan con éxito?"
+  },
+  "reliability": {
+    "title": "Fiabilidad",
+    "question": "¿Dónde fallan las solicitudes y los envíos?"
   }
 }

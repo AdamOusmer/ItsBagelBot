@@ -13,7 +13,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/commands"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
-	"ItsBagelBot/internal/analytics"
+	"ItsBagelBot/app/db/commands/ent/fetchquota"
 	"ItsBagelBot/internal/domain/event/data"
 	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
 	"ItsBagelBot/internal/domain/validate"
@@ -58,8 +58,6 @@ type Fetches struct {
 	views  *cache.Cache[[]FetchView]
 	pub    bus.Publisher
 	log    *zap.Logger
-
-	analytics *analytics.Recorder
 }
 
 func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher, log *zap.Logger) *Fetches {
@@ -155,8 +153,10 @@ func (r *Fetches) UpsertDef(ctx context.Context, userID uint64, spec FetchSpec) 
 		return err
 	}
 
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.upsertDefWithinQuota(ctx, userID, spec)
+	if err := db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return r.upsertDefWithinQuota(ctx, userID, spec)
+		})
 	}); err != nil {
 		return err
 	}
@@ -327,24 +327,37 @@ func fetchDefName(tok tmpl.Token) string {
 }
 
 func (r *Fetches) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
-	track := r.trackKeys(ctx, userID)
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		if _, err := r.client.FetchDefinition.Delete().
-			Where(fetchdefinition.UserIDEQ(userID), fetchdefinition.CreatedAtLTE(cutoff)).
-			Exec(ctx); err != nil {
-			return err
-		}
-		_, err := r.client.FetchKey.Delete().
-			Where(fetchkey.UserIDEQ(userID), fetchkey.CreatedAtLTE(cutoff)).
-			Exec(ctx)
-		return err
+	if err := db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				return eraseFetches(ctx, tx, userID, cutoff)
+			})
+		})
 	}); err != nil {
 		return err
 	}
-	track()
 
 	r.Invalidate(userID)
 	return nil
+}
+
+func eraseFetches(ctx context.Context, tx *ent.Tx, userID uint64, cutoff time.Time) error {
+	if err := lockBroadcasterDefs(ctx, tx, userID); err != nil {
+		return err
+	}
+	if _, err := tx.FetchDefinition.Delete().
+		Where(fetchdefinition.UserIDEQ(userID), fetchdefinition.CreatedAtLTE(cutoff)).Exec(ctx); err != nil {
+		return err
+	}
+	if _, err := tx.FetchKey.Delete().Where(fetchkey.UserIDEQ(userID), fetchkey.CreatedAtLTE(cutoff)).Exec(ctx); err != nil {
+		return err
+	}
+	exists, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(userID)).Exist(ctx)
+	if err != nil || exists {
+		return err
+	}
+	_, err = tx.FetchQuota.Delete().Where(fetchquota.IDEQ(userID)).Exec(ctx)
+	return err
 }
 
 func (r *Fetches) CustodyEnabled() bool {
@@ -370,14 +383,8 @@ func (r *Fetches) upsertDefWithinQuota(ctx context.Context, userID uint64, spec 
 		if err != nil {
 			return err
 		}
-		if !exists {
-			count, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(userID)).Count(ctx)
-			if err != nil {
-				return err
-			}
-			if count >= validate.MaxFetchDefsPerBroadcaster {
-				return validate.FetchDefQuotaError()
-			}
+		if err := (fetchQuotaCheck{userID: userID, exists: exists}).check(ctx, tx); err != nil {
+			return err
 		}
 
 		return tx.FetchDefinition.Create().
@@ -401,11 +408,25 @@ func (r *Fetches) upsertDefWithinQuota(ctx context.Context, userID uint64, spec 
 	})
 }
 
-// Row locks make concurrent creates queue (RC has no gap locks); the caller's fresh count then sees the winner's commit.
 func lockBroadcasterDefs(ctx context.Context, tx *ent.Tx, userID uint64) error {
-	_, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(userID)).ForUpdate().IDs(ctx)
-	if db.RowLocksUnsupported(err) {
+	return tx.FetchQuota.Create().SetID(userID).OnConflict().UpdateNewValues().Exec(ctx)
+}
+
+type fetchQuotaCheck struct {
+	userID uint64
+	exists bool
+}
+
+func (q fetchQuotaCheck) check(ctx context.Context, tx *ent.Tx) error {
+	if q.exists {
 		return nil
 	}
-	return err
+	count, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(q.userID)).Count(ctx)
+	if err != nil {
+		return err
+	}
+	if count >= validate.MaxFetchDefsPerBroadcaster {
+		return validate.FetchDefQuotaError()
+	}
+	return nil
 }

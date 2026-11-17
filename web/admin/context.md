@@ -63,7 +63,8 @@ Twitch moderation privileges and ItsBagelBot staff roles are separate concepts.
   latest daily snapshot, and the open day is never shown. Daily and seven-day
   windows supplement the 30-day default, 90-day and 365-day windows. Analytics, staff
   authorization and audit records come from the Admin data service; customer account
-  reads and mutations remain with Users.
+  reads and mutations remain with Users. Revenue also shows Ko-fi money per currency from the
+  Transactions ledger ([donations-view.ts](src/lib/donations-view.ts)); amounts are gross, never converted.
 - `users/` inspects accounts, bans, grants, test flags, restarts and view-as links.
 - `giveaways/` and `giveaways/[id]/` manage promotion creation, freeze, draw and retries.
 - `events/` renders a live event feed backed by the `events/stream` SSE endpoint.

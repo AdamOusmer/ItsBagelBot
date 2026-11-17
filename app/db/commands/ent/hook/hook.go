@@ -56,6 +56,18 @@ func (f FetchKeyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FetchKeyMutation", m)
 }
 
+// The FetchQuotaFunc type is an adapter to allow the use of ordinary
+// function as FetchQuota mutator.
+type FetchQuotaFunc func(context.Context, *ent.FetchQuotaMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FetchQuotaFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FetchQuotaMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FetchQuotaMutation", m)
+}
+
 // The MigrationsFunc type is an adapter to allow the use of ordinary
 // function as Migrations mutator.
 type MigrationsFunc func(context.Context, *ent.MigrationsMutation) (ent.Value, error)

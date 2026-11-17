@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
@@ -76,9 +75,7 @@ type Users struct {
 	stats              *cache.Cache[UserCounts]
 	packer             domaincrypto.Packer
 	pub                bus.Publisher
-	batcher            *batch.Batcher[prefKey, prefWrite]
-	pendingMu          sync.RWMutex
-	pendingPrefs       map[prefKey]prefWrite
+	preferences        *batch.Group[prefWrite]
 	app                *newrelic.Application
 	log                *zap.Logger
 	invalidationPrefix string
@@ -111,17 +108,16 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 	}
 
 	r := &Users{
-		client:       client,
-		views:        cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
-		stats:        cache.New[UserCounts](userStatsCapacity, userStatsTTL),
-		packer:       packer,
-		pub:          pub,
-		app:          app,
-		log:          log,
-		pendingPrefs: make(map[prefKey]prefWrite),
+		client: client,
+		views:  cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
+		stats:  cache.New[UserCounts](userStatsCapacity, userStatsTTL),
+		packer: packer,
+		pub:    pub,
+		app:    app,
+		log:    log,
 	}
 
-	r.batcher = batch.New[prefKey, prefWrite](prefsFlushInterval, prefsFlushMaxSize, r.flushPrefs, log)
+	r.preferences = r.newPreferenceGroup()
 
 	return r
 }
@@ -180,7 +176,6 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 	}
 	if created {
 		r.analytics.Count(catalog.Lifecycle, "signup")
-		r.countCreated(ctx, id)
 	}
 
 	return r.publishChanged(ctx, id)
@@ -278,7 +273,7 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 	if err := validate.UserID(id); err != nil {
 		return err
 	}
-	counted := r.trackAccounts(ctx, id)
+
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		update := r.client.User.UpdateOneID(id)
 		apply(update)
@@ -286,11 +281,11 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 	}); err != nil {
 		return err
 	}
-	counted()
+
 	return r.publishChanged(ctx, id)
 }
 
-// SetStatus is on the money path, so it must write through, never via the batcher.
+// SetStatus is on the money path and must persist synchronously.
 func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) error {
 	if err := validate.Status(string(status)); err != nil {
 		return err
@@ -304,15 +299,7 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 
 // SetActiveNow commits interactive toggles before an RPC read or invalidation.
 func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error {
-	if err := r.setDesiredEnabled(ctx, id, active); err != nil {
-		return err
-	}
-	event := "bot_disabled"
-	if active {
-		event = "bot_enabled"
-	}
-	r.analytics.Count(catalog.Lifecycle, event)
-	return nil
+	return r.SetActive(ctx, id, active)
 }
 
 // SetBanned is moderation enforcement, so it writes through. Banning also
@@ -370,7 +357,6 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 		r.log.Warn("device grant revoke on erasure failed", zap.Uint64("user_id", id), zap.Error(err))
 	}
 	deleted := data.UserDeletedDTO{UserID: id, AccountCreatedAt: createdAt.UnixMicro()}
-	counted := r.trackAccounts(ctx, id)
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
@@ -396,11 +382,10 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 		return err
 	}
 
-	counted()
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 	r.analytics.Count(catalog.Lifecycle, "account_deleted")
 
-	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, deleted)
+	return r.publishDeletions(ctx, []data.UserDeletedDTO{deleted})
 }
 
 func (r *Users) Invalidate(id uint64) {
@@ -408,7 +393,9 @@ func (r *Users) Invalidate(id uint64) {
 }
 
 func (r *Users) Close(ctx context.Context) {
-	r.batcher.Close(ctx)
+	if err := r.preferences.Close(ctx); err != nil {
+		r.log.Error("preference drain failed", zap.Error(err))
+	}
 	r.views.Close()
 	r.stats.Close()
 }

@@ -4,15 +4,18 @@
 package repository
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
+	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/domain/event/data"
@@ -26,9 +29,8 @@ import (
 const (
 	erasurePrefix = "erasures/"
 	// A record younger than this may belong to a Delete still committing.
-	erasureSettle = time.Minute
-	// Covers a deletion event lost after the database commit.
-	erasureRepublishWindow = time.Hour
+	erasureSettle     = time.Minute
+	erasureQueryChunk = 256
 )
 
 // Must stay outside the database: the ledger has to survive losing it.
@@ -83,64 +85,148 @@ func (r *Users) ReplayErasures(ctx context.Context, now time.Time) (int, error) 
 	if err != nil || len(pending) == 0 {
 		return 0, err
 	}
-	ids := make([]uint64, 0, len(pending))
+	refs := make([]erasureRef, 0, len(pending))
 	for ref := range pending {
+		refs = append(refs, ref)
+	}
+	slices.SortFunc(refs, compareErasureRefs)
+	return r.replayErasureChunks(ctx, refs, pending)
+}
+
+func compareErasureRefs(a, b erasureRef) int {
+	if order := cmp.Compare(a.userID, b.userID); order != 0 {
+		return order
+	}
+	return cmp.Compare(a.accountCreatedAt, b.accountCreatedAt)
+}
+
+type erasureChunk struct {
+	rows    []*ent.User
+	pending map[erasureRef]time.Time
+}
+
+func (r *Users) replayErasureChunks(ctx context.Context, refs []erasureRef, pending map[erasureRef]time.Time) (int, error) {
+	erased := 0
+	var errs []error
+	var chunks []erasureChunk
+	for chunk := range slices.Chunk(refs, erasureQueryChunk) {
+		records := make(map[erasureRef]time.Time, len(chunk))
+		for _, ref := range chunk {
+			records[ref] = pending[ref]
+		}
+		rows, err := r.erasureUsers(ctx, chunk)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		count, err := r.eraseRestored(ctx, rows, records)
+		erased += count
+		errs = append(errs, err)
+		chunks = append(chunks, erasureChunk{rows: rows, pending: records})
+	}
+	for _, chunk := range chunks {
+		errs = append(errs, r.republishAbsent(ctx, chunk.rows, chunk.pending))
+	}
+	return erased, errors.Join(errs...)
+}
+
+func (r *Users) erasureUsers(ctx context.Context, refs []erasureRef) ([]*ent.User, error) {
+	ids := make([]uint64, 0, len(refs))
+	for _, ref := range refs {
 		ids = append(ids, ref.userID)
 	}
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
-		return r.client.User.Query().Where(user.IDIn(ids...)).Select(user.FieldID, user.FieldCreatedAt).All(ctx)
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+		return r.client.User.Query().Where(user.IDIn(ids...)).Order(ent.Asc(user.FieldID)).Select(user.FieldID, user.FieldCreatedAt).All(ctx)
 	})
-	if err != nil {
-		return 0, err
-	}
-	erased, err := r.eraseRestored(ctx, rows, pending)
-	if err != nil {
-		return erased, err
-	}
-	return erased, r.republishRecent(ctx, rows, pending, now)
 }
 
 func (r *Users) eraseRestored(ctx context.Context, rows []*ent.User, pending map[erasureRef]time.Time) (int, error) {
 	erased := 0
+	var errs []error
 	for _, row := range rows {
 		if _, ok := pending[erasureRef{userID: row.ID, accountCreatedAt: row.CreatedAt.UnixMicro()}]; !ok {
 			continue
 		}
 		if err := r.erase(ctx, row.ID, row.CreatedAt); err != nil {
-			return erased, err
+			errs = append(errs, err)
+			continue
 		}
 		erased++
 	}
-	return erased, nil
+	return erased, errors.Join(errs...)
 }
 
-// Only when no account holds the id: a newer incarnation must never receive
-// an old one's deletion event.
-func (r *Users) republishRecent(ctx context.Context, rows []*ent.User, pending map[erasureRef]time.Time, now time.Time) error {
+// A newer incarnation must never receive an old account's deletion event.
+func (r *Users) republishAbsent(ctx context.Context, rows []*ent.User, pending map[erasureRef]time.Time) error {
+	absent := absentErasures(rows, pending)
+	replay, err := r.pendingDeletionTimes(ctx, absent)
+	if err != nil {
+		return err
+	}
+	deletions := make([]data.UserDeletedDTO, 0, len(replay))
+	for _, row := range replay {
+		deletions = append(deletions, data.UserDeletedDTO{UserID: row.UserID, AccountCreatedAt: row.AccountCreatedAt, DeletedAt: row.DeletedAt})
+	}
+	return r.publishDeletions(ctx, deletions)
+}
+
+func (r *Users) publishDeletions(ctx context.Context, deletions []data.UserDeletedDTO) error {
+	var errs []error
+	filters := make([]predicate.LifecycleErasure, 0, len(deletions))
+	for _, dto := range deletions {
+		if err := bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, dto); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		filters = append(filters, lifecycleerasure.And(lifecycleerasure.UserIDEQ(dto.UserID), lifecycleerasure.AccountCreatedAtEQ(dto.AccountCreatedAt)))
+	}
+	errs = append(errs, r.markDeletionsPublished(ctx, filters))
+	return errors.Join(errs...)
+}
+
+func (r *Users) markDeletionsPublished(ctx context.Context, filters []predicate.LifecycleErasure) error {
+	if len(filters) == 0 {
+		return nil
+	}
+	err := db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return r.client.LifecycleErasure.Update().Where(lifecycleerasure.Or(filters...), lifecycleerasure.DeletedPublishedAtIsNil()).SetDeletedPublishedAt(time.Now().UTC()).Exec(ctx)
+		})
+	})
+	if err == nil || len(filters) == 1 {
+		return err
+	}
+	mid := len(filters) / 2
+	return errors.Join(r.markDeletionsPublished(ctx, filters[:mid]), r.markDeletionsPublished(ctx, filters[mid:]))
+}
+
+func absentErasures(rows []*ent.User, pending map[erasureRef]time.Time) map[erasureRef]time.Time {
 	present := make(map[uint64]bool, len(rows))
 	for _, row := range rows {
 		present[row.ID] = true
 	}
+	absent := make(map[erasureRef]time.Time)
 	for ref, recordedAt := range pending {
-		if present[ref.userID] || now.Sub(recordedAt) > erasureRepublishWindow {
+		if present[ref.userID] {
 			continue
 		}
-		dto := data.UserDeletedDTO{UserID: ref.userID, AccountCreatedAt: ref.accountCreatedAt, DeletedAt: r.deletedAt(ctx, ref, recordedAt)}
-		if err := bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, dto); err != nil {
-			return err
-		}
+		absent[ref] = recordedAt
 	}
-	return nil
+	return absent
 }
 
-// The ledger record precedes the commit by the token revokes; consumers fence
-// on the deletion time, so prefer the committed one.
-func (r *Users) deletedAt(ctx context.Context, ref erasureRef, recordedAt time.Time) time.Time {
-	row, err := db.WithRead(ctx, r.client.LifecycleErasure.Query().Where(lifecycleerasure.UserIDEQ(ref.userID), lifecycleerasure.AccountCreatedAtEQ(ref.accountCreatedAt)).Only)
-	if err != nil {
-		return recordedAt
+// Consumers fence on deletion time, so prefer the committed time over the earlier ledger record.
+func (r *Users) pendingDeletionTimes(ctx context.Context, pending map[erasureRef]time.Time) ([]*ent.LifecycleErasure, error) {
+	if len(pending) == 0 {
+		return nil, nil
 	}
-	return row.DeletedAt
+	filters := make([]predicate.LifecycleErasure, 0, len(pending))
+	for ref := range pending {
+		filters = append(filters, lifecycleerasure.And(lifecycleerasure.UserIDEQ(ref.userID), lifecycleerasure.AccountCreatedAtEQ(ref.accountCreatedAt)))
+	}
+	return db.WithRead(ctx, r.client.LifecycleErasure.Query().Where(
+		lifecycleerasure.Or(filters...), lifecycleerasure.DeletedPublishedAtIsNil(),
+	).Order(ent.Asc(lifecycleerasure.FieldUserID), ent.Asc(lifecycleerasure.FieldAccountCreatedAt)).All)
 }
 
 func (r *Users) settledErasures(ctx context.Context, now time.Time) (map[erasureRef]time.Time, error) {

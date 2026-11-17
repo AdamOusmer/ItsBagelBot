@@ -120,7 +120,6 @@ func (r *Users) revokeProducedGrant(ctx context.Context, grantID *string) {
 // redeemCode performs the atomic create-grant-then-consume-code step. A lost
 // race rolls the candidate grant back and is reported as the same replay.
 func (r *Users) redeemCode(ctx context.Context, row *ent.AuthorizationCode) (DeviceTokens, error) {
-	now := time.Now().UTC()
 	refreshRaw, refreshHash, err := randomDeviceSecret()
 	if err != nil {
 		return DeviceTokens{}, err
@@ -129,15 +128,14 @@ func (r *Users) redeemCode(ctx context.Context, row *ent.AuthorizationCode) (Dev
 	grant := &ent.DeviceGrant{
 		GrantID: newDeviceUUID(), DeviceID: newDeviceUUID(), UserID: row.UserID,
 		DeviceName: row.DeviceName, Platform: devicegrant.Platform(row.Platform), RefreshHash: refreshHash,
-		CreatedAt: now,
 	}
 	var tokens DeviceTokens
-	err = db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+	err = db.RetryWithTx(ctx, r.client, func(tx *ent.Tx) error {
 		if err := mintGrantInTx(ctx, tx, row.ID, grant); err != nil {
 			return err
 		}
 		var err error
-		tokens, err = r.deviceTokensFor(grant, refreshRaw, now)
+		tokens, err = r.deviceTokensFor(grant, refreshRaw, grant.CreatedAt)
 		return err
 	})
 
@@ -155,7 +153,8 @@ func mintGrantInTx(ctx context.Context, tx *ent.Tx, codeRowID int, grant *ent.De
 	if err := requireDeviceOwnerInTx(ctx, tx, grant.UserID); err != nil {
 		return err
 	}
-	now := grant.CreatedAt
+	now := time.Now().UTC()
+	grant.CreatedAt = now
 	_, err := tx.DeviceGrant.Create().
 		SetGrantID(grant.GrantID).
 		SetDeviceID(grant.DeviceID).

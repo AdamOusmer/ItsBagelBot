@@ -1,4 +1,17 @@
 {
+  "donation": {
+    "donation": "Don",
+    "subscription": "Adhésion",
+    "commission": "Commande personnalisée",
+    "shop_order": "Commande boutique"
+  },
+  "size": {
+    "v0_9": "De 0 à 9 spectateurs",
+    "v10_49": "De 10 à 49 spectateurs",
+    "v50_199": "De 50 à 199 spectateurs",
+    "v200_999": "De 200 à 999 spectateurs",
+    "v1kp": "1 000 spectateurs ou plus"
+  },
   "lifecycle": {
     "signup": "Inscrit",
     "onboarded": "Configuration terminée",
@@ -57,5 +70,72 @@
     "aliased": "Avec alias",
     "cooldown": "Avec délai de recharge",
     "counter": "Avec compteur"
+  },
+  "trigger": {
+    "command": "Commande",
+    "event": "Événement",
+    "timer": "Minuteur",
+    "reward": "Récompense",
+    "manual": "Manuel",
+    "countdown": "Compte à rebours"
+  },
+  "age": {
+    "d0": "Même jour",
+    "d1": "1 jour",
+    "d2_6": "2 à 6 jours",
+    "d7_13": "7 à 13 jours",
+    "d14_29": "14 à 29 jours",
+    "d30p": "30 jours ou plus"
+  },
+  "block": {
+    "perm": "Permission",
+    "offline": "Hors ligne",
+    "cooldown": "Délai"
+  },
+  "song": {
+    "queued": "En file",
+    "off": "Désactivé",
+    "perm": "Permission refusée",
+    "offline": "Hors ligne",
+    "not_found": "Introuvable",
+    "queue_full": "File pleine",
+    "player_refused": "Lecteur refusé"
+  },
+  "send": {
+    "chat": "Chat",
+    "helix": "Helix"
+  },
+  "drop": {
+    "auth": "Autorisation",
+    "rejected": "Rejeté",
+    "exhausted": "Tentatives épuisées",
+    "chat_dropped": "Chat abandonné"
+  },
+  "plan": {
+    "monthly": "Mensuel",
+    "single": "Paiement unique",
+    "gift": "Cadeau"
+  },
+  "onboard": {
+    "viewed": "Configuration consultée",
+    "consent_missing": "Consentement manquant",
+    "save_failed": "Échec de l’enregistrement"
+  },
+  "section": {
+    "overview": "Vue d’ensemble",
+    "commands": "Commandes",
+    "flows": "Flux",
+    "automations": "Automatisations",
+    "modules": "Modules",
+    "timers": "Minuteurs",
+    "loyalty": "Fidélité",
+    "counters": "Compteurs",
+    "quotes": "Citations",
+    "songqueue": "File musicale",
+    "channelpoints": "Points de chaîne",
+    "govee": "Govee",
+    "billing": "Facturation",
+    "settings": "Paramètres",
+    "access": "Accès"
   }
 }

@@ -3,6 +3,7 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
 	"entgo.io/ent/schema/field"
 )
@@ -52,6 +53,24 @@ var (
 				Name:    "authorizationcode_expires_at_id",
 				Unique:  false,
 				Columns: []*schema.Column{AuthorizationCodesColumns[7], AuthorizationCodesColumns[0]},
+			},
+		},
+	}
+	// BillingReceiptsColumns holds the columns for the "billing_receipts" table.
+	BillingReceiptsColumns = []*schema.Column{
+		{Name: "event_id", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// BillingReceiptsTable holds the schema information for the "billing_receipts" table.
+	BillingReceiptsTable = &schema.Table{
+		Name:       "billing_receipts",
+		Columns:    BillingReceiptsColumns,
+		PrimaryKey: []*schema.Column{BillingReceiptsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "billingreceipt_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{BillingReceiptsColumns[1]},
 			},
 		},
 	}
@@ -141,6 +160,7 @@ var (
 		{Name: "user_id", Type: field.TypeUint64},
 		{Name: "account_created_at", Type: field.TypeInt64},
 		{Name: "deleted_at", Type: field.TypeTime},
+		{Name: "deleted_published_at", Type: field.TypeTime, Nullable: true},
 		{Name: "lifecycle", Type: field.TypeJSON, Nullable: true},
 		{Name: "notifications_done", Type: field.TypeBool, Default: false},
 		{Name: "outgress_done", Type: field.TypeBool, Default: false},
@@ -161,7 +181,7 @@ var (
 			{
 				Name:    "lifecycleerasure_completed_at_next_attempt_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{LifecycleErasuresColumns[8], LifecycleErasuresColumns[7], LifecycleErasuresColumns[0]},
+				Columns: []*schema.Column{LifecycleErasuresColumns[9], LifecycleErasuresColumns[8], LifecycleErasuresColumns[0]},
 			},
 		},
 	}
@@ -320,6 +340,7 @@ var (
 	Tables = []*schema.Table{
 		AdminAuditDeliveriesTable,
 		AuthorizationCodesTable,
+		BillingReceiptsTable,
 		DelegationsTable,
 		DeviceGrantsTable,
 		LifecycleErasuresTable,
@@ -331,6 +352,9 @@ var (
 
 func init() {
 	AuthorizationCodesTable.ForeignKeys[0].RefTable = UsersTable
+	BillingReceiptsTable.Annotation = &entsql.Annotation{
+		Collation: "utf8mb4_bin",
+	}
 	DeviceGrantsTable.ForeignKeys[0].RefTable = UsersTable
 	PremiumGrantsTable.ForeignKeys[0].RefTable = UsersTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable

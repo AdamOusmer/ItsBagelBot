@@ -78,8 +78,10 @@ func main() {
 	loyalty, loyaltyTick := newLoyalty(w, loyaltyDeps{proj: proj, live: live, reporter: loyaltyReporter, chatters: chatters})
 	defer loyalty.Close()
 
-	raffle := newRaffle(w, proj, loyalty)
-	duel := newDuel(w, proj, loyalty)
+	recorder := analytics.New(valkeyClient, log, nil)
+	defer recorder.Close()
+	raffle := newRaffle(w, proj, loyalty, recorder)
+	duel := newDuel(w, proj, loyalty, recorder)
 
 	guard := automod.New()
 	if cfg.AdaptiveEnabled {
@@ -91,15 +93,15 @@ func main() {
 		emotes = automod.NewEmoteFetcher(nil, automod.DefaultEmoteEndpoints)
 	}
 	deps := buildDeps(w, engineRuntime{
-		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
+		analytics: recorder,
+		proj:      proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
 		stats: loyaltyReporter, raffle: raffle, duel: duel, emotes: emotes,
 		seq: engine.NewSequencer(), chatters: chatters, runs: runs,
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(w, guard, emotes)
 
-	deps.Analytics = analytics.New(valkeyClient, log, registry.AnalyticsNames())
-	defer deps.Analytics.Close()
+	deps.Analytics.Register(registry.AnalyticsNames())
 	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close()
 
@@ -114,7 +116,7 @@ func main() {
 	prepareHotPath(w)
 	svcboot.FatalIf(log, registerAutomationRPC(w, pipe, core.NR), "failed to subscribe automation rpc")
 
-	go engine.NewTrialPromotion(valkeyClient, engine.NewLoyaltyRPC(nc, engine.LoyaltyRPCPrefix(cfg.LoyaltyRPCPrefix)), log.Named("trial-promotion")).Run(ctx)
+	startTrialPromotion(w, recorder)
 
 	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)
 	svcboot.FatalIf(log, err, "failed to start consumer")

@@ -109,7 +109,7 @@ func TestRecipesDownstreamOwnsTheBuckets(t *testing.T) {
 	})
 
 	t.Run("gossip refuses lights past its bucket and the step says so", func(t *testing.T) {
-		light := step{"type": "lights", "params": step{"device": "AA:BB", "sku": "H6008", "color": "#f5a524"}}
+		light := step{"type": "lights", "params": step{"device": "AA:BB", "sku": "H6008", "color": "#f5a524", "any_time": true}}
 		s.source.set(lights, recipeWith(t, lights, "!lights", loopStep(lightsLoopTimes, light)))
 		s.command(t, chatCommand{Broadcaster: lights, Viewer: "alice", Text: "!lights"})
 		rec := s.awaitRun(t, lights, "", func(runs []automationrpc.RunRecord) bool { return len(runs) > 0 })

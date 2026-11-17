@@ -1,6 +1,7 @@
 {
+  "trialPromoted": "Conversiones de prueba",
   "netAccounts": "Cuentas netas (registros menos eliminaciones)",
-  "netBot": "Cuentas netas con el bot habilitado",
+  "netBot": "Cambio de cuentas con bot entre capturas del período",
   "cancelPending": "Cancelaciones pendientes",
   "paymentFailed": "Pagos fallidos pendientes",
   "messages": "Mensajes leídos",
@@ -18,5 +19,16 @@
   "customChannels": "Canales con comandos personalizados",
   "customChannelsWeek": "Canales que usan comandos personalizados, última semana completa",
   "customActive": "Comandos activos",
-  "customInactive": "Comandos inactivos"
+  "customInactive": "Comandos inactivos",
+  "onboarded": "Cuentas configuradas",
+  "onboardedShare": "Proporción de cuentas configuradas",
+  "redirected": "Pagos redirigidos",
+  "activated": "Activaciones de plan",
+  "checkoutActivation": "Activaciones / pagos redirigidos",
+  "recipeChannelsWeek": "Canales con recetas, última semana completa",
+  "songSuccess": "Proporción de solicitudes correctas",
+  "delegating": "Cuentas con delegados",
+  "delegatingShare": "Proporción de cuentas con delegados",
+  "newSubscribers": "Nuevos miembros de Ko-fi",
+  "lastDonation": "Último pago de Ko-fi"
 }

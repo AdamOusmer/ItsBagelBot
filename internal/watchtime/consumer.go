@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
@@ -24,11 +25,10 @@ const (
 	QuarantineStream = "watchtime:quarantine"
 	awardTimeout     = 10 * time.Second
 	claimIdle        = 30 * time.Second
+	deliveryBatch    = 16
+	channelWorkers   = 4
 )
 
-// Consumer projects accepted awards to the durable repository. Each replica
-// handles one delivery at a time; the repository supplies transactional replay
-// protection. A failed commit leaves the delivery pending for later reclamation.
 type Consumer struct {
 	client      valkey.Client
 	handle      func(context.Context, data.WatchAwardDTO) error
@@ -40,8 +40,6 @@ type Consumer struct {
 
 type ConsumerOption func(*Consumer)
 
-// WithHistoryMaintenance keeps SQL ownership with the injected repository;
-// the consumer supplies the safe source cutoff using its existing client.
 func WithHistoryMaintenance(maintain func(context.Context, int64) error) ConsumerOption {
 	return func(c *Consumer) { c.maintain = maintain }
 }
@@ -57,8 +55,6 @@ func NewConsumer(client valkey.Client, handle func(context.Context, data.WatchAw
 	return c
 }
 
-// Ensure starts at the oldest retained award, including records accepted before
-// the first loyalty consumer came online. BUSYGROUP means another replica won.
 func (c *Consumer) Ensure(ctx context.Context) error {
 	err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XGroupCreateCmd(c.client, Stream, ConsumerGroup)).Error()
 	if err != nil && strings.HasPrefix(err.Error(), "BUSYGROUP") {
@@ -67,8 +63,6 @@ func (c *Consumer) Ensure(ctx context.Context) error {
 	return err
 }
 
-// Run stops on cancellation and retries transient read/commit failures. Blocking
-// reads are bounded so shutdown never waits on an indefinite Stream read.
 func (c *Consumer) Run(ctx context.Context) {
 	if c.handle == nil {
 		c.log.Error("watchtime: no award repository configured")
@@ -124,7 +118,7 @@ func (c *Consumer) maintainDue(ctx context.Context, state *consumerSchedule) {
 		return
 	}
 	state.nextMaintenance = time.Now().Add(10 * time.Second)
-	_ = c.pruneHistory(ctx) // Logs the result with cutoff/stage context.
+	_ = c.pruneHistory(ctx)
 }
 
 func (c *Consumer) readFresh(ctx context.Context, state *consumerSchedule) bool {
@@ -183,8 +177,6 @@ func (c *Consumer) pruneHistory(parent context.Context) (err error) {
 	return err
 }
 
-// Check exposes a stalled outbox independently of the NATS/SQL health checks.
-// An accepted award waiting longer than a complete watch interval needs attention.
 func (c *Consumer) Check(ctx context.Context) error {
 	entries, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XRangeCmd(c.client, Stream, 1)).AsXRange()
 	if err != nil {
@@ -216,7 +208,7 @@ func consumerPause(ctx context.Context, delay time.Duration) bool {
 
 func (c *Consumer) read(ctx context.Context) error {
 	streams, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XReadGroupCmd(c.client, pkgvalkey.GroupRead{
-		Stream: Stream, Group: ConsumerGroup, Consumer: c.name, Count: 1, BlockMS: 1000,
+		Stream: Stream, Group: ConsumerGroup, Consumer: c.name, Count: deliveryBatch, BlockMS: 1000,
 	})).AsXRead()
 	if valkey.IsValkeyNil(err) {
 		return nil
@@ -224,10 +216,21 @@ func (c *Consumer) read(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, entry := range streams[Stream] {
-		c.process(ctx, entry)
-	}
+	c.processBatch(ctx, streams[Stream])
 	return nil
+}
+
+func (c *Consumer) processBatch(ctx context.Context, entries []valkey.XRangeEntry) {
+	var workers sync.WaitGroup
+	active := make(chan struct{}, channelWorkers)
+	for _, group := range watchDeliveryGroups(entries) {
+		active <- struct{}{}
+		workers.Go(func() {
+			c.processGroup(ctx, group)
+			<-active
+		})
+	}
+	workers.Wait()
 }
 
 func (c *Consumer) reclaim(ctx context.Context, idle time.Duration) error {
@@ -235,11 +238,9 @@ func (c *Consumer) reclaim(ctx context.Context, idle time.Duration) error {
 	return err
 }
 
-// Recovery gets a bounded share alongside fresh work. Claim one at a time so
-// no long local buffer sits idle long enough to be reclaimed by another replica.
 func (c *Consumer) recoverBatch(ctx context.Context, idle time.Duration) error {
 	deadline := time.Now().Add(2 * time.Second)
-	for i := 0; i < 16 && time.Now().Before(deadline) && ctx.Err() == nil; i++ {
+	for recovered := 0; c.recoveryOpen(ctx, recovered, deadline); {
 		n, err := c.reclaimOne(ctx, idle)
 		if err != nil {
 			return err
@@ -247,13 +248,18 @@ func (c *Consumer) recoverBatch(ctx context.Context, idle time.Duration) error {
 		if n == 0 && c.claimCursor == "0-0" {
 			return nil
 		}
+		recovered += max(1, n)
 	}
 	return ctx.Err()
 }
 
+func (c *Consumer) recoveryOpen(ctx context.Context, recovered int, deadline time.Time) bool {
+	return recovered < deliveryBatch && time.Now().Before(deadline) && ctx.Err() == nil
+}
+
 func (c *Consumer) reclaimOne(ctx context.Context, idle time.Duration) (int, error) {
 	parts, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XAutoClaimCmd(c.client, pkgvalkey.GroupReclaim{
-		Stream: Stream, Group: ConsumerGroup, Consumer: c.name, MinIdleMS: strconv.FormatInt(idle.Milliseconds(), 10), Cursor: c.claimCursor, Count: 1,
+		Stream: Stream, Group: ConsumerGroup, Consumer: c.name, MinIdleMS: strconv.FormatInt(idle.Milliseconds(), 10), Cursor: c.claimCursor, Count: deliveryBatch,
 	})).ToArray()
 	if err != nil {
 		return 0, err
@@ -269,23 +275,16 @@ func (c *Consumer) reclaimOne(ctx context.Context, idle time.Duration) (int, err
 	if err != nil {
 		return 0, err
 	}
-	for _, entry := range entries {
-		c.process(ctx, entry)
-	}
+	c.processBatch(ctx, entries)
 	return len(entries), nil
 }
 
 func (c *Consumer) ack(ctx context.Context, id string, award data.WatchAwardDTO) error {
-	// SQL already remembers this operation. Clear the short-lived acceptance
-	// digest with the delivery so Valkey memory grows with unpaid work, while
-	// an uncertain acknowledgement can safely retry the SQL operation.
 	keys := []string{Stream, "watchtime:operations:" + strconv.FormatUint(award.UserID, 10), OutboxWindowIndex}
 	return pkgvalkey.RunOutboxDeliveryAck(ctx, c.client, keys, []string{ConsumerGroup, id, OperationID(award)}).Error()
 }
 
 func (c *Consumer) quarantine(ctx context.Context, entry valkey.XRangeEntry, cause error) error {
-	// Quarantine and ACK are one primary operation; a malformed item cannot
-	// monopolize the recovery queue or disappear without an inspectable record.
 	args := []string{ConsumerGroup, entry.ID, fmt.Sprint(cause), entry.FieldValues["payload"], strconv.FormatInt(HistoryRetention.Milliseconds(), 10)}
 	return pkgvalkey.RunOutboxDeliveryQuarantine(ctx, c.client, []string{Stream, QuarantineStream, OutboxWindowIndex}, args).Error()
 }

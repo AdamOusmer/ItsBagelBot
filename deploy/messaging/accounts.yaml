@@ -102,6 +102,19 @@ accounts:
         roles:
             admin_rpc: {}
     ADMIN_SERVICE_RPC:
+        imports:
+            - service: rpc.internal.users.analytics.levels
+              from: USERS_RPC
+            - service: rpc.internal.users.analytics.levels.node.*
+              from: USERS_RPC
+            - service: rpc.internal.modules.analytics.levels
+              from: MODULES_RPC
+            - service: rpc.internal.modules.analytics.levels.node.*
+              from: MODULES_RPC
+            - service: rpc.internal.commands.analytics.levels
+              from: COMMANDS_RPC
+            - service: rpc.internal.commands.analytics.levels.node.*
+              from: COMMANDS_RPC
         exports:
             - service: rpc.health.admin
             - service: rpc.health.admin.node.*
@@ -413,6 +426,8 @@ accounts:
                         - _INBOX.>
     COMMANDS_RPC:
         exports:
+            - service: rpc.internal.commands.analytics.levels
+            - service: rpc.internal.commands.analytics.levels.node.*
             - service: rpc.health.commands
             - service: rpc.health.commands.node.*
             - service: rpc.commands.>
@@ -546,6 +561,8 @@ accounts:
             loyalty_rpc: {}
     MODULES_RPC:
         exports:
+            - service: rpc.internal.modules.analytics.levels
+            - service: rpc.internal.modules.analytics.levels.node.*
             - service: rpc.health.modules
             - service: rpc.health.modules.node.*
             - service: rpc.modules.>
@@ -753,6 +770,8 @@ accounts:
             twitch_ingress_rpc: {}
     USERS_RPC:
         exports:
+            - service: rpc.internal.users.analytics.levels
+            - service: rpc.internal.users.analytics.levels.node.*
             - service: rpc.internal.users.lifecycle
             - service: rpc.internal.users.lifecycle.node.*
             - service: rpc.health.users

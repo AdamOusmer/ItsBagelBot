@@ -134,6 +134,7 @@ func (r *Registry) AnalyticsNames() map[catalog.Kind][]string {
 	for _, owners := range r.commands {
 		for _, bc := range owners {
 			commands = append(commands, bc.Cmd.Name)
+			modules = append(modules, bc.analyticsModule())
 		}
 	}
 	return map[catalog.Kind][]string{catalog.KindModule: modules, catalog.KindCommand: commands}

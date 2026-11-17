@@ -1,6 +1,10 @@
 {
-  "title": "File de chansons de {channel}",
-  "metaDescription": "Découvrez ce qui joue et ce qui suit sur la chaîne de {channel}, mis à jour en direct.",
+  "title": "Demandes de musique Spotify de {channel} | ItsBagelBot",
+  "metaDescription": "Découvrez ce qui joue sur le stream Twitch de {channel} et ce qui suit. Demandez une chanson Spotify dans le chat avec !sr. Mis à jour en direct.",
+  "aboutTitle": "Demandez une chanson sur le stream de {channel}",
+  "aboutBody": "{channel} accepte les demandes Spotify via ItsBagelBot, un bot de chat Twitch gratuit. Tapez !sr avec le nom du morceau, « artiste - titre » ou un lien Spotify dans le chat Twitch. Les demandes passent dans l'ordre sur le Spotify du streamer.",
+  "aboutTwitch": "Regarder {channel} sur Twitch",
+  "aboutLink": "Ajoutez les demandes de musique à votre chaîne",
   "eyebrow": "File de chansons",
   "tagline": "Ce qui joue et ce qui suit, mis à jour en direct.",
   "requestHint": "Demandez une chanson depuis le chat avec !sr <chanson>.",
