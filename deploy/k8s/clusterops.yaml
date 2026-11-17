@@ -171,6 +171,9 @@ spec:
             - name: NATS_SYS_NKEY_SEED
               valueFrom:
                 secretKeyRef: {name: clusterops-env, key: DEPLOY_NATS_SYS_NKEY_SEED}
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef: {name: clusterops-env, key: NEW_RELIC_LICENSE_KEY}
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: nats-accounts, mountPath: /etc/nats-accounts, readOnly: true}
@@ -232,6 +235,36 @@ spec:
         - port: 4222
           protocol: TCP
         - port: 4223
+          protocol: TCP
+---
+# New Relic's published ingest blocks; clusterops telemetry stops if one is missing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-newrelic
+  namespace: ops
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [clusterops]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 162.247.240.0/22
+        - ipBlock:
+            cidr: 152.38.128.0/19
+        - ipBlock:
+            cidr: 185.221.84.0/22
+        - ipBlock:
+            cidr: 212.32.0.0/20
+        - ipBlock:
+            cidr: 64.251.192.0/20
+      ports:
+        - port: 443
           protocol: TCP
 ---
 # No toFQDNs or dns rules: Cilium's DNS proxy never answers on these nodes, so the pod would resolve nothing.

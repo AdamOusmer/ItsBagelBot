@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 	"k8s.io/client-go/rest"
 
@@ -15,6 +16,7 @@ import (
 	"ItsBagelBot/app/clusterops/internal/natsclaims"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 )
 
@@ -78,16 +80,21 @@ func (s claimsSync) run(ctx context.Context, every time.Duration) {
 func (s claimsSync) once(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, syncTimeout)
 	defer cancel()
+	txn := monitor.Resolve(nil).StartTransaction("claims sync")
+	defer txn.End()
 	compiled, err := aclpush.Load(s.accountsFile, s.keysFile)
 	if err != nil {
+		txn.NoticeError(err)
 		s.log.Error("claims sync: load accounts", zap.Error(err))
 		return
 	}
-	pushed, err := s.syncer.Sync(ctx, compiled)
+	pushed, err := s.syncer.Sync(newrelic.NewContext(ctx, txn), compiled)
+	txn.AddAttribute("claims.pushed", len(pushed))
 	for _, r := range pushed {
 		s.log.Info("claims sync: pushed", zap.String("account", r.Account), zap.String("cluster", string(r.Cluster)))
 	}
 	if err != nil {
+		txn.NoticeError(err)
 		s.log.Error("claims sync failed", zap.Error(err))
 	}
 }
