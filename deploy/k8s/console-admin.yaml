@@ -198,6 +198,8 @@ spec:
               value: "true"
             - name: NEW_RELIC_ALLOW_ALL_HEADERS
               value: "false"
+            - name: NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERROR_CODES
+              value: "400-499"
             - name: NEW_RELIC_LABELS
               value: "service:console-admin;tier:web;component:ssr"
             - name: NEW_RELIC_PROCESS_HOST_DISPLAY_NAME
