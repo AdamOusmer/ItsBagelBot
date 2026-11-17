@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// BanStatus is the bot's entry on a channel's ban list; a timeout carries ExpiresAt, a permanent ban does not.
 type BanStatus struct {
 	Banned    bool
 	ExpiresAt time.Time
