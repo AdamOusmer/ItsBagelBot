@@ -20,11 +20,11 @@ type Options struct {
 	MultiStatements bool
 }
 
-func MustEntDriver(core svcboot.Core, options ...Options) *entsql.Driver {
-	var opts Options
-	if len(options) > 0 {
-		opts = options[0]
-	}
+func MustEntDriver(core svcboot.Core) *entsql.Driver {
+	return MustEntDriverWith(core, Options{})
+}
+
+func MustEntDriverWith(core svcboot.Core, opts Options) *entsql.Driver {
 	driver, err := db.NewDriver(db.Config{
 		Address:         env.Get("DB_ADDR", "127.0.0.1:3306"),
 		Username:        env.MustGet("DB_USER"),

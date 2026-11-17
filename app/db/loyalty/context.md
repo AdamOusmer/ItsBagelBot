@@ -84,7 +84,9 @@ Generated Ent code is not the schema source.
   batch sends BEGIN, the fence read (for channels), and receipt admission in
   one round trip, then writes counter effects and commits in a second. SQLite
   runs the same statements sequentially. Missing fences restart admission in
-  fence-before-receipt order.
+  fence-before-receipt order. The server runs the rest of a sent packet even
+  after the client times out, so a batch reported as failed may still have
+  committed; its receipt makes the retry a no-op.
 - Sesame retries unconfirmed counter batches indefinitely with the same BatchID
   and immutable payload. Pending batches ignore early flush nudges and retry on
   the five-second ticker with exponential backoff capped at 30 seconds.
