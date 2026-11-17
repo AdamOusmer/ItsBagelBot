@@ -26,6 +26,10 @@ func MySQL(t *testing.T, prefix string) *sql.DB {
 	require.NoError(t, err)
 	cfg.DBName = ""
 	cfg.ParseTime = true
+	if cfg.Params == nil {
+		cfg.Params = make(map[string]string)
+	}
+	cfg.Params["transaction_isolation"] = "'READ-COMMITTED'"
 	cfg.Timeout = 5 * time.Second
 	cfg.ReadTimeout = 20 * time.Second
 	cfg.WriteTimeout = 20 * time.Second

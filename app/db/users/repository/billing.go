@@ -49,22 +49,31 @@ type billingWrite struct {
 
 func (r *Users) applyBillingTx(ctx context.Context, req billingrpc.ApplyRequest) (billingWrite, error) {
 	skip := billingWrite{outcome: billingSkip}
-	return db.WithQuery(ctx, func(ctx context.Context) (billingWrite, error) {
-		return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (billingWrite, error) {
-			u, err := loadBillingUser(ctx, tx, req.UserID)
-			if err != nil {
-				return skip, err
-			}
-			if outcome := billingOutcomeFor(u, req); outcome != billingProceed {
-				return billingWrite{outcome: outcome}, nil
-			}
-			updated, err := saveBilling(ctx, tx, u, req)
-			if err != nil || updated == 0 {
-				return skip, err
-			}
-			return billingWrite{outcome: billingApplied}, nil
+	var result billingWrite
+	err := db.RetryTx(ctx, func(ctx context.Context) error {
+		var err error
+		result, err = db.WithQuery(ctx, func(ctx context.Context) (billingWrite, error) {
+			return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (billingWrite, error) {
+				u, err := loadBillingUser(ctx, tx, req.UserID)
+				if err != nil {
+					return skip, err
+				}
+				if outcome := billingOutcomeFor(u, req); outcome != billingProceed {
+					return billingWrite{outcome: outcome}, nil
+				}
+				updated, err := saveBilling(ctx, tx, u, req)
+				if err != nil || updated == 0 {
+					return skip, err
+				}
+				return billingWrite{outcome: billingApplied}, nil
+			})
 		})
+		return err
 	})
+	if err != nil {
+		return billingWrite{}, err
+	}
+	return result, nil
 }
 
 func validateApply(req billingrpc.ApplyRequest) error {

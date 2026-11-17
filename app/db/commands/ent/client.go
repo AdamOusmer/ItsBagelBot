@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/commandusebatch"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
+	"ItsBagelBot/app/db/commands/ent/fetchquota"
 	"ItsBagelBot/app/db/commands/ent/migrations"
 
 	"entgo.io/ent"
@@ -35,6 +36,8 @@ type Client struct {
 	FetchDefinition *FetchDefinitionClient
 	// FetchKey is the client for interacting with the FetchKey builders.
 	FetchKey *FetchKeyClient
+	// FetchQuota is the client for interacting with the FetchQuota builders.
+	FetchQuota *FetchQuotaClient
 	// Migrations is the client for interacting with the Migrations builders.
 	Migrations *MigrationsClient
 }
@@ -52,6 +55,7 @@ func (c *Client) init() {
 	c.Commands = NewCommandsClient(c.config)
 	c.FetchDefinition = NewFetchDefinitionClient(c.config)
 	c.FetchKey = NewFetchKeyClient(c.config)
+	c.FetchQuota = NewFetchQuotaClient(c.config)
 	c.Migrations = NewMigrationsClient(c.config)
 }
 
@@ -149,6 +153,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Commands:        NewCommandsClient(cfg),
 		FetchDefinition: NewFetchDefinitionClient(cfg),
 		FetchKey:        NewFetchKeyClient(cfg),
+		FetchQuota:      NewFetchQuotaClient(cfg),
 		Migrations:      NewMigrationsClient(cfg),
 	}, nil
 }
@@ -173,6 +178,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Commands:        NewCommandsClient(cfg),
 		FetchDefinition: NewFetchDefinitionClient(cfg),
 		FetchKey:        NewFetchKeyClient(cfg),
+		FetchQuota:      NewFetchQuotaClient(cfg),
 		Migrations:      NewMigrationsClient(cfg),
 	}, nil
 }
@@ -202,21 +208,23 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.CommandUseBatch.Use(hooks...)
-	c.Commands.Use(hooks...)
-	c.FetchDefinition.Use(hooks...)
-	c.FetchKey.Use(hooks...)
-	c.Migrations.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.CommandUseBatch, c.Commands, c.FetchDefinition, c.FetchKey, c.FetchQuota,
+		c.Migrations,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.CommandUseBatch.Intercept(interceptors...)
-	c.Commands.Intercept(interceptors...)
-	c.FetchDefinition.Intercept(interceptors...)
-	c.FetchKey.Intercept(interceptors...)
-	c.Migrations.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.CommandUseBatch, c.Commands, c.FetchDefinition, c.FetchKey, c.FetchQuota,
+		c.Migrations,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -230,6 +238,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.FetchDefinition.mutate(ctx, m)
 	case *FetchKeyMutation:
 		return c.FetchKey.mutate(ctx, m)
+	case *FetchQuotaMutation:
+		return c.FetchQuota.mutate(ctx, m)
 	case *MigrationsMutation:
 		return c.Migrations.mutate(ctx, m)
 	default:
@@ -771,6 +781,139 @@ func (c *FetchKeyClient) mutate(ctx context.Context, m *FetchKeyMutation) (Value
 	}
 }
 
+// FetchQuotaClient is a client for the FetchQuota schema.
+type FetchQuotaClient struct {
+	config
+}
+
+// NewFetchQuotaClient returns a client for the FetchQuota from the given config.
+func NewFetchQuotaClient(c config) *FetchQuotaClient {
+	return &FetchQuotaClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `fetchquota.Hooks(f(g(h())))`.
+func (c *FetchQuotaClient) Use(hooks ...Hook) {
+	c.hooks.FetchQuota = append(c.hooks.FetchQuota, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `fetchquota.Intercept(f(g(h())))`.
+func (c *FetchQuotaClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FetchQuota = append(c.inters.FetchQuota, interceptors...)
+}
+
+// Create returns a builder for creating a FetchQuota entity.
+func (c *FetchQuotaClient) Create() *FetchQuotaCreate {
+	mutation := newFetchQuotaMutation(c.config, OpCreate)
+	return &FetchQuotaCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FetchQuota entities.
+func (c *FetchQuotaClient) CreateBulk(builders ...*FetchQuotaCreate) *FetchQuotaCreateBulk {
+	return &FetchQuotaCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FetchQuotaClient) MapCreateBulk(slice any, setFunc func(*FetchQuotaCreate, int)) *FetchQuotaCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FetchQuotaCreateBulk{err: fmt.Errorf("calling to FetchQuotaClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FetchQuotaCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FetchQuotaCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FetchQuota.
+func (c *FetchQuotaClient) Update() *FetchQuotaUpdate {
+	mutation := newFetchQuotaMutation(c.config, OpUpdate)
+	return &FetchQuotaUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FetchQuotaClient) UpdateOne(_m *FetchQuota) *FetchQuotaUpdateOne {
+	mutation := newFetchQuotaMutation(c.config, OpUpdateOne, withFetchQuota(_m))
+	return &FetchQuotaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FetchQuotaClient) UpdateOneID(id uint64) *FetchQuotaUpdateOne {
+	mutation := newFetchQuotaMutation(c.config, OpUpdateOne, withFetchQuotaID(id))
+	return &FetchQuotaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FetchQuota.
+func (c *FetchQuotaClient) Delete() *FetchQuotaDelete {
+	mutation := newFetchQuotaMutation(c.config, OpDelete)
+	return &FetchQuotaDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FetchQuotaClient) DeleteOne(_m *FetchQuota) *FetchQuotaDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FetchQuotaClient) DeleteOneID(id uint64) *FetchQuotaDeleteOne {
+	builder := c.Delete().Where(fetchquota.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FetchQuotaDeleteOne{builder}
+}
+
+// Query returns a query builder for FetchQuota.
+func (c *FetchQuotaClient) Query() *FetchQuotaQuery {
+	return &FetchQuotaQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFetchQuota},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FetchQuota entity by its id.
+func (c *FetchQuotaClient) Get(ctx context.Context, id uint64) (*FetchQuota, error) {
+	return c.Query().Where(fetchquota.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FetchQuotaClient) GetX(ctx context.Context, id uint64) *FetchQuota {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *FetchQuotaClient) Hooks() []Hook {
+	return c.hooks.FetchQuota
+}
+
+// Interceptors returns the client interceptors.
+func (c *FetchQuotaClient) Interceptors() []Interceptor {
+	return c.inters.FetchQuota
+}
+
+func (c *FetchQuotaClient) mutate(ctx context.Context, m *FetchQuotaMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FetchQuotaCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FetchQuotaUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FetchQuotaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FetchQuotaDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FetchQuota mutation op: %q", m.Op())
+	}
+}
+
 // MigrationsClient is a client for the Migrations schema.
 type MigrationsClient struct {
 	config
@@ -907,10 +1050,11 @@ func (c *MigrationsClient) mutate(ctx context.Context, m *MigrationsMutation) (V
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		CommandUseBatch, Commands, FetchDefinition, FetchKey, Migrations []ent.Hook
+		CommandUseBatch, Commands, FetchDefinition, FetchKey, FetchQuota,
+		Migrations []ent.Hook
 	}
 	inters struct {
-		CommandUseBatch, Commands, FetchDefinition, FetchKey,
+		CommandUseBatch, Commands, FetchDefinition, FetchKey, FetchQuota,
 		Migrations []ent.Interceptor
 	}
 )

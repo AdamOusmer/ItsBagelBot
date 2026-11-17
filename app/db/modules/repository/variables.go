@@ -32,6 +32,12 @@ type VariableOwner struct {
 	Scope    string
 }
 
+type variableWrite struct {
+	owner VariableOwner
+	name  string
+	next  func(string) (string, error)
+}
+
 func (o VariableOwner) valid() error {
 	if o.UserID == 0 {
 		return fmt.Errorf("%w: user_id", ErrInvalidInput)
@@ -71,7 +77,6 @@ func ownerPredicates(o VariableOwner) []predicate.Variable {
 	return []predicate.Variable{variable.UserID(o.UserID), variable.Scope(o.Scope), variable.ViewerID(o.ViewerID)}
 }
 
-// VariablesGet returns only the names that exist, keyed by lowercase name.
 func (r *RecipeState) VariablesGet(ctx context.Context, o VariableOwner, names []string) (map[string]string, error) {
 	if err := o.valid(); err != nil {
 		return nil, err
@@ -147,9 +152,10 @@ func (r *RecipeState) mutateVariable(ctx context.Context, o VariableOwner, rawNa
 	if err != nil {
 		return err
 	}
+	write := variableWrite{owner: o, name: name, next: next}
 	return db.RetryTx(ctx, func(ctx context.Context) error {
 		err := db.WithExec(ctx, func(ctx context.Context) error {
-			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error { return r.writeVariable(ctx, tx, o, name, next) })
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error { return r.writeVariable(ctx, tx, write) })
 		})
 		if ent.IsConstraintError(err) {
 			return fmt.Errorf("%w: %w", errVariableWriteRaced, err)
@@ -158,42 +164,65 @@ func (r *RecipeState) mutateVariable(ctx context.Context, o VariableOwner, rawNa
 	}, errVariableWriteRaced)
 }
 
-func (r *RecipeState) writeVariable(ctx context.Context, tx *ent.Tx, o VariableOwner, name string, next func(string) (string, error)) error {
-	query := tx.Variable.Query().Where(ownerPredicates(o)...).Where(variable.Name(name))
-	if r.dialect != "sqlite3" {
-		query.ForUpdate()
-	}
-	row, err := query.Only(ctx)
+func (r *RecipeState) writeVariable(ctx context.Context, tx *ent.Tx, write variableWrite) error {
+	row, err := r.variableForWrite(ctx, tx, write)
 	if ent.IsNotFound(err) {
-		return createVariable(ctx, tx, o, name, next)
+		return r.createVariable(ctx, tx, write)
 	}
 	if err != nil {
 		return err
 	}
-	value, err := next(row.Value)
+	value, err := write.next(row.Value)
 	if err != nil {
 		return err
 	}
 	return tx.Variable.UpdateOneID(row.ID).SetValue(value).AddRevision(1).Exec(ctx)
 }
 
-func createVariable(ctx context.Context, tx *ent.Tx, o VariableOwner, name string, next func(string) (string, error)) error {
-	value, err := next("")
+func (r *RecipeState) variableForWrite(ctx context.Context, tx *ent.Tx, write variableWrite) (*ent.Variable, error) {
+	query := tx.Variable.Query().Where(ownerPredicates(write.owner)...).Where(variable.Name(write.name))
+	row, err := query.Clone().Only(ctx)
+	if ent.IsNotFound(err) {
+		return r.variableAfterGuard(ctx, tx, write)
+	}
+	if err != nil || r.dialect == "sqlite3" {
+		return row, err
+	}
+	row, err = r.lockedVariable(ctx, tx.Variable.Query().Where(variable.IDEQ(row.ID)))
+	if ent.IsNotFound(err) {
+		return nil, errVariableWriteRaced
+	}
+	return row, err
+}
+
+func (r *RecipeState) variableAfterGuard(ctx context.Context, tx *ent.Tx, write variableWrite) (*ent.Variable, error) {
+	if err := lockVariableNames(ctx, tx, write.owner); err != nil {
+		return nil, err
+	}
+	return r.lockedVariable(ctx, tx.Variable.Query().Where(ownerPredicates(write.owner)...).Where(variable.Name(write.name)))
+}
+
+func (r *RecipeState) lockedVariable(ctx context.Context, query *ent.VariableQuery) (*ent.Variable, error) {
+	if r.dialect != "sqlite3" {
+		query.ForUpdate()
+	}
+	return query.Only(ctx)
+}
+
+func (r *RecipeState) createVariable(ctx context.Context, tx *ent.Tx, write variableWrite) error {
+	value, err := write.next("")
 	if err != nil {
 		return err
 	}
-	if err := lockVariableNames(ctx, tx, o); err != nil {
-		return err
-	}
-	if err := checkVariableRoom(ctx, tx, o, name); err != nil {
+	if err := r.checkVariableRoom(ctx, tx, write.owner, write.name); err != nil {
 		return err
 	}
 	return tx.Variable.Create().
-		SetUserID(o.UserID).SetScope(o.Scope).SetViewerID(o.ViewerID).SetName(name).SetValue(value).
+		SetUserID(write.owner.UserID).SetScope(write.owner.Scope).SetViewerID(write.owner.ViewerID).SetName(write.name).SetValue(value).
 		Exec(ctx)
 }
 
-// READ-COMMITTED takes no gap locks, so an upsert on this row is what makes the room check and the insert one step per channel and scope.
+// Lock the shared budget before any variable row or concurrent inserts can deadlock on gaps.
 func lockVariableNames(ctx context.Context, tx *ent.Tx, o VariableOwner) error {
 	return tx.Variable.Create().
 		SetUserID(o.UserID).SetScope(o.Scope).SetViewerID(0).SetName(variableNamesGuard).
@@ -202,18 +231,16 @@ func lockVariableNames(ctx context.Context, tx *ent.Tx, o VariableOwner) error {
 		Exec(ctx)
 }
 
-// Names in use count once per channel and scope; every viewer shares the one viewer-scope name budget.
-func checkVariableRoom(ctx context.Context, tx *ent.Tx, o VariableOwner, name string) error {
+func (r *RecipeState) checkVariableRoom(ctx context.Context, tx *ent.Tx, o VariableOwner, name string) error {
 	limit := automation.MaxChannelVariables
 	if o.Scope == automation.VariableScopeViewer {
 		limit = automation.MaxViewerVariableNames
 	}
-	others, err := tx.Variable.Query().
+	query := tx.Variable.Query().
 		Where(variable.UserID(o.UserID), variable.Scope(o.Scope), variable.NameNotIn(name, variableNamesGuard)).
 		Unique(true).
-		Limit(limit).
-		Select(variable.FieldName).
-		Strings(ctx)
+		Limit(limit)
+	others, err := query.Select(variable.FieldName).Strings(ctx)
 	if err != nil {
 		return err
 	}

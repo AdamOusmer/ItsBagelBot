@@ -60,7 +60,6 @@ func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
 	return nil
 }
 
-// SetLocaleNow commits interactive language changes before reads and invalidation.
 func (r *Users) SetLocaleNow(ctx context.Context, id uint64, locale string) error {
 	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLocale(locale) })
 }

@@ -53,10 +53,12 @@ var OutgressSystemStream = StreamSpec{
 	Replicas:     3,
 }
 
+const dataMaxAge = 5 * time.Minute
+
 var DataStream = StreamSpec{
 	Name:         "DATA",
 	Subjects:     []string{"data.>"},
-	MaxAge:       5 * time.Minute,
+	MaxAge:       dataMaxAge,
 	MaxBytes:     512 << 20,
 	Storage:      nats.FileStorage,
 	BatchPublish: true,
@@ -69,7 +71,16 @@ var DataDeadLetterStream = StreamSpec{
 	Subjects:   []string{DeadLetterPrefix + ">"},
 	MaxAge:     7 * 24 * time.Hour,
 	MaxBytes:   256 << 20,
-	Duplicates: 2 * time.Minute,
+	Duplicates: dataMaxAge,
+	Storage:    nats.FileStorage,
+	Replicas:   3,
+}
+
+var dataDeferralStream = StreamSpec{
+	Name:       "DATA_DEFERRALS",
+	Subjects:   []string{"bus.data.deferral.>"},
+	MaxAge:     dataMaxAge,
+	Duplicates: dataMaxAge,
 	Storage:    nats.FileStorage,
 	Replicas:   3,
 }
@@ -149,6 +160,7 @@ var YouTubeIngressStream = StreamSpec{
 // TwitchIngressStream must precede TwitchIngressStandardStream, or the create is refused.
 var DataStreams = []StreamSpec{
 	DataStream,
+	dataDeferralStream,
 	TwitchIngressStream,
 	TwitchIngressStandardStream,
 	TwitchIngressRetryStream,

@@ -153,7 +153,7 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 		return err
 	}
 
-	delivery, err := db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.AdminAuditDelivery, error) {
+	delivery, err := db.RetryWithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.AdminAuditDelivery, error) {
 		if _, err := tx.User.UpdateOneID(targetID).SetTestAccount(enabled).Save(ctx); err != nil {
 			return nil, err
 		}
@@ -249,7 +249,7 @@ func (r *Users) PreparePremiumGrant(ctx context.Context, req usersrpc.PreparePre
 }
 
 func (r *Users) prepareGrantTx(ctx context.Context, req usersrpc.PreparePremiumGrantRequest) (*ent.PremiumGrant, error) {
-	return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.PremiumGrant, error) {
+	return db.RetryWithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.PremiumGrant, error) {
 		if lockErr := lockGrantUser(ctx, tx, req.UserID); lockErr != nil {
 			return nil, lockErr
 		}

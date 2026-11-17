@@ -18,5 +18,8 @@ type FetchDefinition func(*sql.Selector)
 // FetchKey is the predicate function for fetchkey builders.
 type FetchKey func(*sql.Selector)
 
+// FetchQuota is the predicate function for fetchquota builders.
+type FetchQuota func(*sql.Selector)
+
 // Migrations is the predicate function for migrations builders.
 type Migrations func(*sql.Selector)
