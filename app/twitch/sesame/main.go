@@ -235,14 +235,15 @@ func refreshEmotes(ctx context.Context, fetcher *automod.EmoteFetcher, guard *au
 }
 
 func loadEmotes(ctx context.Context, fetcher *automod.EmoteFetcher, guard *automod.Gate, log *zap.Logger) bool {
-	n, err := fetcher.Refresh(ctx, guard)
+	res, err := fetcher.Refresh(ctx, guard)
+	fields := []zap.Field{zap.Int("codes", res.Codes), zap.Int("failed_providers", res.Failed), zap.Error(err)}
 	switch {
 	case err == nil:
-		log.Info("emote set refreshed", zap.Int("codes", n))
-	case n > 0:
-		log.Info("emote set refresh partial; previous codes kept", zap.Int("codes", n), zap.Error(err))
+		log.Info("emote set refreshed", zap.Int("codes", res.Codes))
+	case res.AllFailed() || res.Codes == 0:
+		log.Warn("emote set refresh partial or failed", fields...)
 	default:
-		log.Warn("emote set refresh partial or failed", zap.Int("codes", n), zap.Error(err))
+		log.Info("emote set refresh partial; previous codes kept", fields...)
 	}
 	return err == nil
 }

@@ -90,18 +90,24 @@ func TestFetchCatalogKeepsTheCodesOfWorkingProviders(t *testing.T) {
 }
 
 type refreshOutcome struct {
-	failed  bool
-	codes   int
-	catalog EmoteCatalog
-	verdict [2]Verdict
+	failed    bool
+	allFailed bool
+	result    RefreshResult
+	catalog   EmoteCatalog
+	verdict   [2]Verdict
+}
+
+func refreshed(codes, failed int) RefreshResult {
+	return RefreshResult{Codes: codes, Failed: failed, Providers: 3}
 }
 
 func observeRefresh(g *Gate, f *EmoteFetcher) refreshOutcome {
-	n, err := f.Refresh(context.Background(), g)
+	res, err := f.Refresh(context.Background(), g)
 	return refreshOutcome{
-		failed:  err != nil,
-		codes:   n,
-		catalog: f.Catalog(),
+		failed:    err != nil,
+		allFailed: res.AllFailed(),
+		result:    res,
+		catalog:   f.Catalog(),
 		verdict: [2]Verdict{
 			g.Inspect(module.RoleEveryone, ffzOnlyCapsLine),
 			g.Inspect(module.RoleEveryone, newBTTVCapsLine),
@@ -121,7 +127,7 @@ func TestRefreshInstallsTheSetAndPublishesTheCatalog(t *testing.T) {
 	got := observeRefresh(g, f)
 
 	assert.Equal(t, refreshOutcome{
-		codes: 5, catalog: healthyCatalog, verdict: [2]Verdict{{}, verdictHeuristic},
+		result: refreshed(5, 0), catalog: healthyCatalog, verdict: [2]Verdict{{}, verdictHeuristic},
 	}, got)
 	assert.Equal(t, verdictHeuristic, g.Inspect(module.RoleEveryone, unmatchedCapsLine), "the installed set no longer rescues everything")
 }
@@ -136,19 +142,21 @@ func TestRefreshReplacesOnlyTheProvidersThatAnswered(t *testing.T) {
 		{
 			name:   "a failed provider keeps its codes while a healthy one updates",
 			second: map[string]string{"/bttv": updatedBTTV, "/ffz": ""},
-			want: refreshOutcome{failed: true, codes: 5, verdict: [2]Verdict{{}, {}}, catalog: EmoteCatalog{
+			want: refreshOutcome{failed: true, result: refreshed(5, 1), verdict: [2]Verdict{{}, {}}, catalog: EmoteCatalog{
 				SevenTV: healthyCatalog.SevenTV, BTTV: []string{"KEKW", "POGGERS"}, FFZ: healthyCatalog.FFZ,
 			}},
 		},
 		{
 			name:   "every provider failing keeps the whole set",
 			second: map[string]string{"/bttv": "", "/ffz": "", "/7tv": ""},
-			want:   refreshOutcome{failed: true, codes: 5, catalog: healthyCatalog, verdict: [2]Verdict{{}, verdictHeuristic}},
+			want: refreshOutcome{
+				failed: true, allFailed: true, result: refreshed(5, 3), catalog: healthyCatalog, verdict: [2]Verdict{{}, verdictHeuristic},
+			},
 		},
 		{
 			name:   "a successful empty response clears that provider",
 			second: map[string]string{"/ffz": `{"sets":{}}`},
-			want: refreshOutcome{codes: 4, verdict: [2]Verdict{verdictHeuristic, verdictHeuristic}, catalog: EmoteCatalog{
+			want: refreshOutcome{result: refreshed(4, 0), verdict: [2]Verdict{verdictHeuristic, verdictHeuristic}, catalog: EmoteCatalog{
 				SevenTV: healthyCatalog.SevenTV, BTTV: healthyCatalog.BTTV, FFZ: []string{},
 			}},
 		},

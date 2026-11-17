@@ -58,8 +58,17 @@ func (c EmoteCatalog) Codes() []string {
 }
 
 func (f *EmoteFetcher) FetchCatalog(ctx context.Context) (EmoteCatalog, error) {
-	return f.fetchOver(ctx, EmoteCatalog{})
+	cat, _, err := f.fetchOver(ctx, EmoteCatalog{})
+	return cat, err
 }
+
+type RefreshResult struct {
+	Codes     int
+	Failed    int
+	Providers int
+}
+
+func (r RefreshResult) AllFailed() bool { return r.Failed == r.Providers }
 
 type emoteSource struct {
 	fetch func(context.Context) ([]string, error)
@@ -74,18 +83,20 @@ func (f *EmoteFetcher) sources() []emoteSource {
 	}
 }
 
-func (f *EmoteFetcher) fetchOver(ctx context.Context, previous EmoteCatalog) (EmoteCatalog, error) {
+func (f *EmoteFetcher) fetchOver(ctx context.Context, previous EmoteCatalog) (EmoteCatalog, int, error) {
 	next := previous
+	failed := 0
 	var firstErr error
 	for _, src := range f.sources() {
 		codes, err := src.fetch(ctx)
 		if err != nil {
+			failed++
 			firstErr = cmp.Or(firstErr, err)
 			continue
 		}
 		*src.slot(&next) = sortedCodes(codes)
 	}
-	return next, firstErr
+	return next, failed, firstErr
 }
 
 func sortedCodes(codes []string) []string {
@@ -114,14 +125,14 @@ func (f *EmoteFetcher) Catalog() EmoteCatalog {
 	return EmoteCatalog{}
 }
 
-func (f *EmoteFetcher) Refresh(ctx context.Context, gate *Gate) (int, error) {
-	cat, err := f.fetchOver(ctx, f.Catalog())
+func (f *EmoteFetcher) Refresh(ctx context.Context, gate *Gate) (RefreshResult, error) {
+	cat, failed, err := f.fetchOver(ctx, f.Catalog())
 	codes := cat.Codes()
 	if err == nil || len(codes) > 0 {
 		gate.SetEmotes(NewEmoteSet(codes))
 		f.catalog.Store(&cat)
 	}
-	return len(codes), err
+	return RefreshResult{Codes: len(codes), Failed: failed, Providers: len(f.sources())}, err
 }
 
 func (f *EmoteFetcher) fetchBTTV(ctx context.Context) ([]string, error) {
