@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
@@ -110,14 +112,23 @@ type lookupTarget struct {
 }
 
 func parseLookupTarget(args string, c *module.Context) lookupTarget {
-	fields := strings.Fields(args)
-	if len(fields) > 0 {
-		login := strings.TrimPrefix(fields[0], "@")
-		if login != "" {
-			return lookupTarget{login: login, name: tmpl.ValueEscaper.Replace(login)}
-		}
+	login := firstArgLogin(args)
+	if validate.Username(login) != nil {
+		return lookupTarget{login: c.Env.ChatterUserLogin, name: c.Env.ChatterName(), id: c.Env.ChatterUserID}
 	}
-	return lookupTarget{login: c.Env.ChatterUserLogin, name: c.Env.ChatterName(), id: c.Env.ChatterUserID}
+	target := lookupTarget{login: login, name: tmpl.ValueEscaper.Replace(login)}
+	if id := mentionedViewerID(c.Env.Mentions, login); id != 0 {
+		target.id = strconv.FormatUint(id, 10)
+	}
+	return target
+}
+
+func firstArgLogin(args string) string {
+	fields := strings.Fields(args)
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.TrimPrefix(fields[0], "@")
 }
 
 func emitLookup(c *module.Context, text string, emit module.Emit) {

@@ -84,3 +84,27 @@ func TestFollowageAndAccountAgeReplies(t *testing.T) {
 		})
 	}
 }
+
+func TestAccountAgeTargetsComeFromEventData(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want struct{ targetID, targetLogin string }
+	}{
+		{name: "no argument targets the chatter", text: "!accountage",
+			want: struct{ targetID, targetLogin string }{"9", "viewer"}},
+		{name: "a mention uses the mentioned id", text: "!accountage @Other",
+			want: struct{ targetID, targetLogin string }{"8", "Other"}},
+		{name: "an invisible joiner targets the chatter", text: "!accountage ͏",
+			want: struct{ targetID, targetLogin string }{"9", "viewer"}},
+		{name: "a non-login argument targets the chatter", text: "!accountage <3",
+			want: struct{ targetID, targetLogin string }{"9", "viewer"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			age := &fakeAccountAge{}
+			runChat(t, Followage(engine.Deps{AccountAge: age, Proj: &fakeProj{}}), lookupContext(), tc.text)
+			assert.Equal(t, tc.want, age.got)
+		})
+	}
+}
