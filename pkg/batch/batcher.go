@@ -99,25 +99,42 @@ func (b *Batcher[K, V]) Requeue(key K, value V) {
 
 const closeRetryBackoff = 100 * time.Millisecond
 
-func (b *Batcher[K, V]) Close(ctx context.Context) {
+func (b *Batcher[K, V]) Close(ctx context.Context) error {
 
 	b.closeOnce.Do(func() { close(b.stop) })
-	<-b.done
+	if err := b.awaitStopped(ctx); err != nil {
+		return err
+	}
 
 	for b.pendingCount() > 0 {
 		b.flushPending(ctx)
 
 		if b.pendingCount() == 0 {
-			return
+			return nil
 		}
 
 		select {
 		case <-ctx.Done():
 			b.log.Error("batcher closed before pending writes landed; writes lost",
 				zap.Int("items", b.pendingCount()))
-			return
+			return ctx.Err()
 		case <-time.After(closeRetryBackoff):
 		}
+	}
+	return nil
+}
+
+func (b *Batcher[K, V]) awaitStopped(ctx context.Context) error {
+	select {
+	case <-b.done:
+		return nil
+	default:
+	}
+	select {
+	case <-b.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

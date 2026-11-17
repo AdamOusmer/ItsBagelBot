@@ -5,13 +5,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/db/commands/ent"
 	"ItsBagelBot/app/db/commands/ent/commands"
-	"ItsBagelBot/app/db/commands/ent/predicate"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
@@ -23,6 +23,8 @@ import (
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/tmpl"
+
+	entsql "entgo.io/ent/dialect/sql"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -83,12 +85,14 @@ type commandKey struct {
 }
 
 type Commands struct {
-	client  *ent.Client
-	views   *cache.Cache[[]CommandView]
-	pub     bus.Publisher
-	batcher *batch.Batcher[commandKey, data.CommandChangedDTO]
-	app     *newrelic.Application
-	log     *zap.Logger
+	client       *ent.Client
+	views        *cache.Cache[[]CommandView]
+	pub          bus.Publisher
+	batcher      *batch.Batcher[commandKey, data.CommandChangedDTO]
+	uses         *batch.Group[commandUseBatch]
+	publications *batch.Dirty[commandKey]
+	app          *newrelic.Application
+	log          *zap.Logger
 
 	analytics *analytics.Recorder
 }
@@ -104,6 +108,8 @@ func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Applicatio
 	}
 
 	r.batcher = batch.New[commandKey, data.CommandChangedDTO](flushInterval, flushMaxSize, r.flush, log)
+	r.publications = batch.NewDirty(r.publishDirtyUses, log)
+	r.uses = r.newUseGroup()
 
 	return r
 }
@@ -313,8 +319,6 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, r.renamedState(ctx, userID, spec))
 }
 
-// renamedState reloads the renamed row so the event keeps its uses and
-// created_at; the dashboard sorts on both.
 func (r *Commands) renamedState(ctx context.Context, userID uint64, spec CommandSpec) data.CommandChangedDTO {
 	key := commandKey{userID: userID, name: spec.Name}
 	states, err := r.rowStates(ctx, []commandKey{key})
@@ -403,46 +407,20 @@ func (r *Commands) Invalidate(userID uint64) {
 	r.views.Invalidate(cache.UserKey(commandsKeyPrefix, userID))
 }
 
-func (r *Commands) publishUseEvents(ctx context.Context, txn *newrelic.Transaction, keys []commandKey) {
-	states, err := r.rowStates(ctx, keys)
-	if err != nil {
-		txn.NoticeError(err)
-		r.log.Warn("failed to load rows after uses flush", zap.Error(err))
-		return
-	}
-
-	seenUsers := map[uint64]struct{}{}
-	for _, key := range keys {
-		if _, ok := seenUsers[key.userID]; !ok {
-			seenUsers[key.userID] = struct{}{}
-			r.Invalidate(key.userID)
-		}
-		dto, ok := states[key]
-		if !ok {
-			continue
-		}
-		if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, dto); err != nil {
-			r.log.Error("failed to publish command uses change",
-				zap.Uint64("user_id", key.userID),
-				zap.String("command", key.name),
-				zap.Error(err),
-			)
-		}
-	}
-}
-
 func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[commandKey]data.CommandChangedDTO, error) {
 	if len(keys) == 0 {
 		return map[commandKey]data.CommandChangedDTO{}, nil
 	}
 
-	preds := make([]predicate.Commands, 0, len(keys))
-	for _, key := range keys {
-		preds = append(preds, commands.And(commands.UserIDEQ(key.userID), commands.NameEQ(key.name)))
+	pairs := make([]db.CounterKey, len(keys))
+	for i, key := range keys {
+		pairs[i] = db.CounterKey{Owner: key.userID, Name: key.name}
 	}
 
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Commands, error) {
-		return r.client.Commands.Query().Where(commands.Or(preds...)).All(ctx)
+		return r.client.Commands.Query().Where(func(s *entsql.Selector) {
+			s.Where(db.CounterKeysPredicate([]string{s.C(commands.FieldUserID), s.C(commands.FieldName)}, pairs))
+		}).All(ctx)
 	})
 	if err != nil {
 		return nil, err
@@ -469,9 +447,34 @@ func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[comman
 	return out, nil
 }
 
-func (r *Commands) Close(ctx context.Context) {
-	r.batcher.Close(ctx)
+func (r *Commands) Close(ctx context.Context) error {
+	deadline := time.Now().Add(30 * time.Second)
+	if callerDeadline, ok := ctx.Deadline(); ok {
+		deadline = minTime(deadline, callerDeadline)
+	}
+	drainCtx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	editErr := r.batcher.Close(drainCtx)
+	if err := r.uses.Close(drainCtx); err != nil {
+		r.log.Error("command use drain failed", zap.Error(err))
+		return errors.Join(editErr, err)
+	}
+	if editErr != nil {
+		return editErr
+	}
+	if err := r.publications.Close(drainCtx); err != nil {
+		r.log.Error("command publication drain failed", zap.Error(err))
+		return err
+	}
 	r.views.Close()
+	return nil
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
 }
 
 func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) error {
@@ -500,9 +503,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	}
 
 	for _, item := range landed {
-
 		r.Invalidate(item.UserID)
-
 		dto := item
 		if s, ok := states[commandKey{userID: item.UserID, name: item.Name}]; ok {
 			dto = s

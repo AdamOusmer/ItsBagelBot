@@ -18,7 +18,7 @@ import (
 
 const (
 	checkTimeout = 5 * time.Second
-	drainDelay   = 10 * time.Second
+	DrainDelay   = 10 * time.Second
 )
 
 const (
@@ -216,7 +216,7 @@ func (s *Set) Status() http.HandlerFunc {
 
 func Drain() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(drainDelay)
+		time.Sleep(DrainDelay)
 		fmt.Fprintln(w, "ok")
 	}
 }

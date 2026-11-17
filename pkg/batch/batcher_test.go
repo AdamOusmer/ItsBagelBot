@@ -260,3 +260,14 @@ func TestCloseExpiryGivesUpAfterRetries(t *testing.T) {
 	assert.Less(t, time.Since(started), 5*time.Second, "an expired budget must end the drain promptly")
 	assert.Equal(t, 1, b.pendingCount(), "undrained writes stay visible for the loss log")
 }
+
+func TestClosePrefersStoppedWorkerToCanceledContext(t *testing.T) {
+	rec := &recorder{}
+	b := New[int, int](time.Hour, 100, rec.flush, zap.NewNop())
+	require.NoError(t, b.Close(t.Context()))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for range 64 {
+		require.NoError(t, b.Close(ctx))
+	}
+}
