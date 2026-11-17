@@ -20,6 +20,7 @@ spec:
   template:
     metadata:
       annotations:
+        itsbagelbot.dev/config-revision: "memory-resolver-v1"
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"

@@ -137,17 +137,6 @@
       "allowedVersions": "<3"
     },
     {
-      "description": "Let k8s.io/kube-openapi and the kustomize modules follow k8s.io/apimachinery. Newer kube-openapi pseudo-versions (and kustomize 0.21.3, which requires one) build on structured-merge-diff/v7 while apimachinery v0.37 still uses v6, which breaks the clusterops build. Lift this when apimachinery moves to structured-merge-diff/v7.",
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchPackageNames": [
-        "k8s.io/kube-openapi",
-        "sigs.k8s.io/kustomize/**"
-      ],
-      "enabled": false
-    },
-    {
       "description": "Hold the console and the ui library on TypeScript 6. svelte-check refuses to run against TypeScript 7 unless both 6 and 7 are installed and --tsgo is passed, and that mode resolves .svelte imports to the ambient module declaration -- component props degrade to any and a string passed to a boolean prop goes unreported. Lift this when svelte-check supports 7 outside its experimental path.",
       "matchManagers": [
         "bun"

@@ -40,7 +40,7 @@ type rbacSubject struct {
 func rbacKinds(t *testing.T) map[string][]rbacManifest {
 	t.Helper()
 	out := map[string][]rbacManifest{}
-	for _, manifest := range decodeFile[rbacManifest](t, clusterOpsManifest) {
+	for _, manifest := range decodeFile[rbacManifest](t, reloaderManifest) {
 		out[manifest.Kind] = append(out[manifest.Kind], manifest)
 	}
 	return out
@@ -54,7 +54,7 @@ var deniedGrants = []struct {
 	{"verb", func(r rbacRule) []string { return r.Verbs },
 		[]string{"create", "delete", "deletecollection", "escalate", "bind", "impersonate", "*"}},
 	{"resource", func(r rbacRule) []string { return r.Resources },
-		[]string{"secrets", "roles", "rolebindings", "clusterroles", "clusterrolebindings", "serviceaccounts/token", "*"}},
+		[]string{"roles", "rolebindings", "clusterroles", "clusterrolebindings", "serviceaccounts/token", "*"}},
 	{"apiGroup", func(r rbacRule) []string { return r.APIGroups },
 		[]string{"rbac.authorization.k8s.io", "*"}},
 }
@@ -71,10 +71,10 @@ func (r rbacRule) deniedGrants() []string {
 	return out
 }
 
-func TestClusterOpsRBACNeverGrantsCreateDeleteSecretsOrRBAC(t *testing.T) {
+func TestReloaderRBACNeverGrantsCreateDeleteOrRBAC(t *testing.T) {
 	kinds := rbacKinds(t)
 	roles := slices.Concat(kinds["Role"], kinds["ClusterRole"])
-	require.NotEmpty(t, roles, "clusterops.yaml declares no roles; the decode or the kinds are wrong")
+	require.NotEmpty(t, roles, "reloader.yaml declares no roles; the decode or the kinds are wrong")
 
 	var granted []string
 	for _, role := range roles {
@@ -85,23 +85,24 @@ func TestClusterOpsRBACNeverGrantsCreateDeleteSecretsOrRBAC(t *testing.T) {
 		}
 	}
 
-	assert.Empty(t, granted, "clusterops RBAC grants what it must never hold")
+	assert.Empty(t, granted, "reloader RBAC grants what it must never hold")
 }
 
-func TestClusterOpsOnlyRollsAppDeployments(t *testing.T) {
+func TestReloaderOnlyReadsAppSecretsAndRollsAppDeployments(t *testing.T) {
 	kinds := rbacKinds(t)
 	require.Len(t, kinds["Role"], 1)
 	role := kinds["Role"][0]
 
-	assert.Empty(t, kinds["ClusterRole"], "the cert roller and claims sync need no cluster-wide grant")
-	assert.Equal(t, "app/clusterops", role.Metadata.Namespace+"/"+role.Metadata.Name)
+	assert.Empty(t, kinds["ClusterRole"], "rolling the consoles needs no cluster-wide grant")
+	assert.Equal(t, "app/reloader", role.Metadata.Namespace+"/"+role.Metadata.Name)
 	assert.Equal(t, []rbacRule{
-		{APIGroups: []string{"apps"}, Resources: []string{"deployments"}, Verbs: []string{"get", "list", "watch", "patch"}},
-		{APIGroups: []string{"cert-manager.io"}, Resources: []string{"certificates"}, Verbs: []string{"get", "list", "watch"}},
+		{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get", "list", "watch"}},
+		{APIGroups: []string{"apps"}, Resources: []string{"deployments"}, Verbs: []string{"get", "list", "update", "patch"}},
+		{APIGroups: []string{"apps"}, Resources: []string{"daemonsets", "statefulsets"}, Verbs: []string{"get", "list"}},
 	}, role.Rules)
 }
 
-func TestClusterOpsBindingsNameOnlyItsServiceAccount(t *testing.T) {
+func TestReloaderBindingsNameOnlyItsServiceAccount(t *testing.T) {
 	type binding struct {
 		RoleRef  rbacRoleRef
 		Subjects []rbacSubject
@@ -113,9 +114,9 @@ func TestClusterOpsBindingsNameOnlyItsServiceAccount(t *testing.T) {
 	}
 
 	assert.Equal(t, map[string]binding{
-		"RoleBinding app/clusterops": {
-			RoleRef:  rbacRoleRef{Kind: "Role", Name: "clusterops"},
-			Subjects: []rbacSubject{{Kind: "ServiceAccount", Name: "clusterops", Namespace: "ops"}},
+		"RoleBinding app/reloader": {
+			RoleRef:  rbacRoleRef{Kind: "Role", Name: "reloader"},
+			Subjects: []rbacSubject{{Kind: "ServiceAccount", Name: "reloader", Namespace: "ops"}},
 		},
 	}, got)
 }
