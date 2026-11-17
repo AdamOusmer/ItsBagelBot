@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/pkg/monitor"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -109,7 +111,7 @@ func TestChannelBotDenialKeepsAppToken(t *testing.T) {
 
 func TestHTTPClientPoolMatchesWorkerConcurrency(t *testing.T) {
 	client := newHTTPClient()
-	transport, ok := client.Transport.(*http.Transport)
+	transport, ok := monitor.BaseTransport(client.Transport).(*http.Transport)
 	if !ok {
 		t.Fatalf("transport type = %T", client.Transport)
 	}

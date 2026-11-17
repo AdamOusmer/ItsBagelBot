@@ -45,6 +45,7 @@ type consumeLane struct {
 }
 
 func newConsumeLane(app *newrelic.Application, subject string, handle func(*Message) error, log *zap.Logger) consumeLane {
+	app = monitor.Resolve(app)
 	if handle != nil && log != nil {
 		base := handle
 		lg := log

@@ -36,7 +36,7 @@ defmodule Platform.Nats do
   end
 
   def publish(connection, subject, body, opts \\ []) do
-    Gnat.pub(connection, subject, body, opts)
+    Gnat.pub(connection, subject, body, traced(opts))
   catch
     :exit, _ -> {:error, :not_connected}
   end
@@ -49,7 +49,7 @@ defmodule Platform.Nats do
         connection,
         subject,
         body,
-        Keyword.put_new(opts, :receive_timeout, @default_timeout)
+        opts |> Keyword.put_new(:receive_timeout, @default_timeout) |> traced()
       )
     else
       {:error, :invalid_timeout}
@@ -105,6 +105,15 @@ defmodule Platform.Nats do
   catch
     :exit, _ -> nil
   end
+
+  defp traced(opts) do
+    if Keyword.has_key?(opts, :headers),
+      do: opts,
+      else: put_trace(opts, Platform.NewRelic.trace_headers())
+  end
+
+  defp put_trace(opts, []), do: opts
+  defp put_trace(opts, headers), do: Keyword.put(opts, :headers, headers)
 
   defp maps?([_ | _] = values), do: Enum.all?(values, &is_map/1)
   defp maps?(_values), do: false

@@ -79,7 +79,7 @@ func main() {
 
 	defer closeIntake() // stops intake before the repo flush above
 
-	svcboot.FatalIf(log, h.Changes(ctx, core.NR, n.Broadcast, data.SubjectUserChanged, data.SubjectUserDeleted), "failed to subscribe user changes")
+	svcboot.FatalIf(log, h.Changes(ctx, n.Broadcast, data.SubjectUserChanged, data.SubjectUserDeleted), "failed to subscribe user changes")
 	startConsumers(core, n, repo)
 	wireErasure(ctx, repo, log)
 

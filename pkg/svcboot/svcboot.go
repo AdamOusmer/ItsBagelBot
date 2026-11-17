@@ -65,6 +65,7 @@ func NewCore(serviceName string) (Core, func()) {
 
 	nrApp, err := monitor.New(serviceName, log)
 	FatalIf(log, err, "failed to start new relic")
+	monitor.Install(nrApp)
 	log = monitor.WrapLogger(log, nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

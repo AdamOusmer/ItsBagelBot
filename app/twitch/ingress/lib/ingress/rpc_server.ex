@@ -10,26 +10,11 @@ defmodule Ingress.RpcServer do
     quote do
       use Platform.Nats.Server
       require Logger
-      @before_compile Ingress.RpcServer
 
       @impl true
       def error(_message, error) do
         Logger.error("#{unquote(label)} error: #{inspect(error)}")
         :ok
-      end
-    end
-  end
-
-  defmacro __before_compile__(env) do
-    name = inspect(env.module)
-
-    quote do
-      defoverridable request: 1
-
-      def request(message) do
-        Platform.NewRelic.continue("Rpc", unquote(name), Map.get(message, :headers), fn ->
-          super(message)
-        end)
       end
     end
   end

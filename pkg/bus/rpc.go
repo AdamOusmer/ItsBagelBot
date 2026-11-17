@@ -149,6 +149,7 @@ func jsonRPCHandler[Req any, Resp any](
 	if timeout <= 0 {
 		timeout = defaultRPCTimeout
 	}
+	app = monitor.Resolve(app)
 
 	return func(msg *nats.Msg) {
 		start := time.Now()
@@ -194,6 +195,7 @@ func msgRPCHandler(subject string, timeout time.Duration, app *newrelic.Applicat
 	if timeout <= 0 {
 		timeout = defaultRPCTimeout
 	}
+	app = monitor.Resolve(app)
 	return func(msg *nats.Msg) {
 		txn := startRPCTransaction(app, subject, msg)
 		defer txn.End()

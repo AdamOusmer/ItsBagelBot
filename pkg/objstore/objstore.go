@@ -18,6 +18,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"ItsBagelBot/pkg/monitor"
 )
 
 var ErrExists = errors.New("objstore: object already exists")
@@ -54,7 +56,7 @@ func New(cfg Config) (*Store, error) {
 		cfg.Region = "auto"
 	}
 	if cfg.HTTP == nil {
-		cfg.HTTP = &http.Client{Timeout: 15 * time.Second}
+		cfg.HTTP = &http.Client{Timeout: 15 * time.Second, Transport: monitor.ExternalTransport(nil)}
 	}
 	return &Store{cfg: cfg, base: base, now: time.Now}, nil
 }

@@ -26,6 +26,13 @@ func ExternalTransport(base http.RoundTripper) http.RoundTripper {
 	return externalTransport{base: base}
 }
 
+func BaseTransport(rt http.RoundTripper) http.RoundTripper {
+	if t, ok := rt.(externalTransport); ok {
+		return t.base
+	}
+	return rt
+}
+
 func (t externalTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	txn := newrelic.FromContext(req.Context())
 	if txn == nil {

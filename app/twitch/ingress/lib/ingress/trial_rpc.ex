@@ -99,11 +99,7 @@ defmodule Ingress.TrialRpc do
   def registered?(id) do
     request = Sift.encode_to_iodata!(%{user_id: id})
 
-    result =
-      Rpc.request(:gnat, "rpc.internal.users.get", request,
-        receive_timeout: 2_000,
-        headers: Platform.NewRelic.trace_headers()
-      )
+    result = Rpc.request(:gnat, "rpc.internal.users.get", request, receive_timeout: 2_000)
 
     with {:ok, %{body: body}} <- result,
          {:ok, response} <- Sift.decode(body) do

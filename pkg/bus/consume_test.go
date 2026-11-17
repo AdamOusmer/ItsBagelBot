@@ -137,6 +137,30 @@ func TestDetachedFollowUpContinuesTheConsumedTrace(t *testing.T) {
 	assert.Nil(t, orphan, "a delivery without a transaction starts no follow-up transaction")
 }
 
+func TestLanesWiredWithoutAnAppUseTheBootApp(t *testing.T) {
+	app := newLocalApplication(t)
+	monitor.Install(app)
+	t.Cleanup(func() { monitor.Install(nil) })
+	upstream := app.StartTransaction("ingress")
+	defer upstream.End()
+	headers := http.Header{}
+	upstream.InsertDistributedTraceHeaders(headers)
+	traces := make(chan string, 1)
+	feed := &feedSubscriber{messages: make(chan *Message, 1)}
+	require.NoError(t, Consume(t.Context(), nil, feed, "data.users.changed", func(msg *Message) error {
+		traces <- newrelic.FromContext(msg.Context()).GetTraceMetadata().TraceID
+		return nil
+	}, zap.NewNop()))
+	msg := NewMessage("traced", nil)
+	for key := range headers {
+		msg.Metadata.Set(key, headers.Get(key))
+	}
+
+	feed.messages <- msg
+
+	assert.Equal(t, upstream.GetTraceMetadata().TraceID, <-traces, "a lane built without an app still continues the trace through the app installed at boot")
+}
+
 type outcomeCase struct {
 	name          string
 	handler       func(*Message) error

@@ -33,8 +33,7 @@ defmodule Ingress.BroadcasterStatus do
 
   defp request_status(request) do
     Ingress.Rpc.request(@connection, Ingress.Config.broadcaster_status_subject(), request,
-      receive_timeout: Ingress.Config.broadcaster_status_timeout_ms(),
-      headers: Trace.trace_headers()
+      receive_timeout: Ingress.Config.broadcaster_status_timeout_ms()
     )
   catch
     :exit, reason -> {:error, {:nats_down, reason}}

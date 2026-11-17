@@ -5,6 +5,7 @@ package monitor
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/pkg/env"
@@ -16,6 +17,19 @@ import (
 )
 
 const shutdownTimeout = 10 * time.Second
+
+var processApp atomic.Pointer[newrelic.Application]
+
+func Install(app *newrelic.Application) {
+	processApp.Store(app)
+}
+
+func Resolve(app *newrelic.Application) *newrelic.Application {
+	if app != nil {
+		return app
+	}
+	return processApp.Load()
+}
 
 func New(service string, log *zap.Logger) (*newrelic.Application, error) {
 

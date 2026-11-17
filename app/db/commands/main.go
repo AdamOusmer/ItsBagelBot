@@ -165,7 +165,7 @@ func main() {
 	})
 	defer fetches.Close()
 
-	svcboot.FatalIf(log, h.Changes(core.Ctx, core.NR, n.Broadcast, data.SubjectCommandChanged, data.SubjectFetchChanged), "failed to subscribe changes")
+	svcboot.FatalIf(log, h.Changes(core.Ctx, n.Broadcast, data.SubjectCommandChanged, data.SubjectFetchChanged), "failed to subscribe changes")
 	consumer, err := registerConsumers(core.Ctx, consumerWiring{core.NR, repo, fetches, n.Grouped, log})
 	if err != nil {
 		log.Fatal("failed to subscribe to events", zap.Error(err))
