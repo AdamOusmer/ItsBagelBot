@@ -327,7 +327,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/profile-menu", budget: 2300 }, // 2010 -> 2300: rail footer folds with a collapsible rail (2026-11-07)
   { name: "elements/nav-progress", budget: 510 }, // 310 B: nav progress bar (2026-09-29)
   { name: "elements/dot-canvas", budget: 230 }, // 176 B: shared pannable/static dot backdrop (2026-11-06)
-  { name: "elements/editor-stage", budget: 1450 }, // 1422 B: +slimBar opt-in (one attached top bar instead of three floating pills), still under budget (2026-11-06)
+  { name: "elements/editor-stage", budget: 1800 }, // 1621 B: +tablet compact panels, toast placement beside open panels, grip-resized sheet height (2026-11-17)
 ];
 
 let failed = false;

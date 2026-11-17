@@ -4,7 +4,10 @@ import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, type Iss
 import { specFor, type FlowNode } from './model';
 import { configText } from './setup';
 
-export type FieldIssue = Issue & { nodeId: string; fieldKey?: string };
+type FieldKey = string;
+type IssuePath = string;
+
+export type FieldIssue = Issue & { nodeId: string; fieldKey?: FieldKey };
 
 const CODE_FIELDS = new Map([['user_not_resolved', 'login'], ['wait_too_long', 'seconds'], ['delay_budget', 'seconds']]);
 
@@ -28,15 +31,15 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'reply.counter': { name: 'counter' }
 };
 
-function fieldKeyFor(node: FlowNode, path: string): string | undefined {
+const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'seconds', 'cond.user': 'login' };
+
+function fieldKeyFor(node: FlowNode, path: IssuePath): FieldKey | undefined {
   const param = path.replace(/^(?:params|config)(?:\.|$)/, '').split(/[.\[]/)[0];
-  if (!param && node.type === 'cond.cooldown') return 'seconds';
-  if (!param && node.type === 'cond.user') return 'login';
-  const key = parameterField(node, param);
+  const key = param ? parameterField(node, param) : WHOLE_NODE_FIELDS[node.type];
   return specFor(node.type)?.fields.some((field) => field.key === key) ? key : undefined;
 }
 
-function parameterField(node: FlowNode, param: string): string | undefined {
+function parameterField(node: FlowNode, param: FieldKey): FieldKey | undefined {
   if (isTextArgument(node, param)) return TEXT_ARG_FIELDS.get(String(node.config.op))?.[Number(param.slice(-1)) - 1];
   const override = NODE_FIELDS[node.type]?.[param];
   if (override) return override;
@@ -44,7 +47,7 @@ function parameterField(node: FlowNode, param: string): string | undefined {
   return PARAM_FIELDS[param] ?? param;
 }
 
-function isTextArgument(node: FlowNode, param: string): boolean {
+function isTextArgument(node: FlowNode, param: FieldKey): boolean {
   return node.type === 'reply.text' && /^arg[12]$/.test(param);
 }
 
@@ -53,13 +56,23 @@ export function fieldIssues(issues: readonly Issue[], nodes: readonly FlowNode[]
   return issues.flatMap((issue) => locateFieldIssue(issue, nodes, trigger));
 }
 
-function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: FlowNode | undefined): FieldIssue[] {
+type IssueTarget = { node: FlowNode; path: IssuePath };
+
+function issueTarget(issue: Issue, nodes: readonly FlowNode[], trigger: FlowNode | undefined): IssueTarget | undefined {
   const match = /^nodes\.([^.]+)(?:\.(.*))?$/.exec(issue.path);
-  if (!match && !issue.path.startsWith('trigger')) return [];
-  const node = match ? nodes.find((node) => node.id === match[1]) : trigger;
-  if (!node) return [];
-  const path = match ? match[2] : issue.path.replace(/^trigger\.?/, '');
-  return [{ ...issue, nodeId: node.id, fieldKey: fieldKeyFor(node, path || CODE_FIELDS.get(issue.code) || '') }];
+  if (match) {
+    const node = nodes.find((entry) => entry.id === match[1]);
+    return node && { node, path: match[2] ?? '' };
+  }
+  const onTrigger = issue.path.startsWith('trigger') ? trigger : undefined;
+  return onTrigger && { node: onTrigger, path: issue.path.replace(/^trigger\.?/, '') };
+}
+
+function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: FlowNode | undefined): FieldIssue[] {
+  const target = issueTarget(issue, nodes, trigger);
+  if (!target) return [];
+  const path = target.path || (CODE_FIELDS.get(issue.code) ?? '');
+  return [{ ...issue, nodeId: target.node.id, fieldKey: fieldKeyFor(target.node, path) }];
 }
 
 const TYPES: Record<string, string> = {
@@ -74,14 +87,19 @@ const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
   'reply.lights:scene': (config) => config.mode === 'scene'
 };
 
-export function fieldRequired(node: FlowNode, key: string): boolean {
+function builderRule(node: FlowNode, key: FieldKey): boolean | undefined {
   const required = REQUIRED[node.type];
-  if (required) return required.includes(key);
-  const requiredIf = REQUIRED_IF[`${node.type}:${key}`];
-  if (requiredIf) return requiredIf(node.config);
+  return required ? required.includes(key) : REQUIRED_IF[`${node.type}:${key}`]?.(node.config);
+}
+
+function catalogRequires(node: FlowNode, key: FieldKey): boolean {
   const type = TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
   const catalog = [...TRIGGER_TYPES, ...CONDITION_TYPES, ...ACTION_TYPES].find((item) => item.type === type);
   return catalog?.fields.some((field) => field.required && fieldKeyFor(node, field.name) === key) ?? false;
+}
+
+export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
+  return builderRule(node, key) ?? catalogRequires(node, key);
 }
 
 export function missingField(node: FlowNode): string | undefined {
