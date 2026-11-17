@@ -36,8 +36,7 @@ func (r *Loyalty) ensureWatchRetentionSchema(ctx context.Context) error {
 	return err
 }
 
-// The retirement barrier is locked before any account fence or replay marker.
-// A late replay cannot slip between advancing the barrier and pruning dedup.
+// Lock retention before account fences or pruning can erase live receipts.
 func (r *Loyalty) lockWatchRetention(ctx context.Context, tx *sql.Tx) (int64, error) {
 	if _, err := tx.ExecContext(ctx, `UPDATE loyalty_watch_retention SET finalized_window_ms=finalized_window_ms WHERE id=1`); err != nil {
 		return 0, err
@@ -51,19 +50,13 @@ func (r *Loyalty) readWatchRetention(ctx context.Context, tx *sql.Tx) (int64, er
 	if r.dialect == "sqlite3" {
 		return r.lockWatchRetention(ctx, tx)
 	}
-	// A shared locking read admits unrelated tenants concurrently while an
-	// advancing retirement barrier waits for all in-flight awards to finish.
+	// Do not treat this chunk lock as whole-award protection or finalization can strand unpaid viewers.
 	var finalized int64
 	err := tx.QueryRowContext(ctx, `SELECT finalized_window_ms FROM loyalty_watch_retention WHERE id=1 LOCK IN SHARE MODE`).Scan(&finalized)
 	return finalized, err
 }
 
-// PruneWatchHistory retires replay protection only after its source windows are
-// permanently refused. The caller must first publish the same monotonic barrier
-// at outbox admission and cap it below every retained, unpaid outbox window.
-// Thus the seven-day policy bounds replay history without discarding accepted
-// work while SQL is unavailable. Each invocation prunes bounded batches; a
-// backlog is drained by subsequent maintenance passes.
+// Cap the barrier below every retained unpaid outbox window or partial awards cannot finish.
 func (r *Loyalty) PruneWatchHistory(ctx context.Context, safeCutoffUnixMilli int64) error {
 	if safeCutoffUnixMilli <= 0 {
 		return nil
@@ -75,38 +68,47 @@ func (r *Loyalty) PruneWatchHistory(ctx context.Context, safeCutoffUnixMilli int
 	if err != nil {
 		return err
 	}
-	// Cleanup runs after the barrier transaction releases its lock. Retired
-	// source windows can no longer write markers, so batches commit separately.
 	return r.pruneRetiredWatchHistory(ctx, finalized)
 }
 
-func (r *Loyalty) ensureWatchWindowStartColumn(ctx context.Context, table watchHistoryTable) error {
-	present, err := r.watchWindowStartColumnPresent(ctx, table)
+type watchSchemaColumn struct {
+	table      watchHistoryTable
+	name       string
+	definition string
+}
+
+func (r *Loyalty) ensureWatchOperationState(ctx context.Context) error {
+	column := watchSchemaColumn{table: watchHistoryTables[0], name: "completed", definition: "INTEGER NOT NULL DEFAULT 1"}
+	return r.ensureWatchColumn(ctx, column)
+}
+
+func (r *Loyalty) ensureWatchColumn(ctx context.Context, column watchSchemaColumn) error {
+	present, err := r.watchColumnPresent(ctx, column)
 	if err != nil || present {
 		return err
 	}
-	_, err = r.sqldb.ExecContext(ctx, "ALTER TABLE "+table.name+" ADD COLUMN window_started_at_ms BIGINT NOT NULL DEFAULT 0")
+	_, err = r.sqldb.ExecContext(ctx, "ALTER TABLE "+column.table.name+" ADD COLUMN "+column.name+" "+column.definition)
 	return ignoreMySQLSchemaRace(err, 1060)
 }
 
-func (r *Loyalty) watchWindowStartColumnPresent(ctx context.Context, table watchHistoryTable) (bool, error) {
+func (r *Loyalty) watchColumnPresent(ctx context.Context, column watchSchemaColumn) (bool, error) {
 	if r.dialect == "sqlite3" {
-		return r.sqliteWatchColumnPresent(ctx, table)
+		return r.sqliteWatchColumnPresent(ctx, column)
 	}
 	var count int
-	err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='window_started_at_ms'`, table.name).Scan(&count)
+	err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?`, column.table.name, column.name).Scan(&count)
 	return count != 0, err
 }
 
-func (r *Loyalty) sqliteWatchColumnPresent(ctx context.Context, table watchHistoryTable) (bool, error) {
-	rows, err := r.sqldb.QueryContext(ctx, "PRAGMA table_info("+table.name+")")
+func (r *Loyalty) sqliteWatchColumnPresent(ctx context.Context, column watchSchemaColumn) (bool, error) {
+	rows, err := r.sqldb.QueryContext(ctx, "PRAGMA table_info("+column.table.name+")")
 	if err != nil {
 		return false, err
 	}
 	defer rows.Close()
 	present := false
 	for rows.Next() {
-		matches, err := scanWatchWindowColumn(rows)
+		matches, err := scanWatchColumn(rows, column)
 		if err != nil {
 			return false, err
 		}
@@ -115,7 +117,6 @@ func (r *Loyalty) sqliteWatchColumnPresent(ctx context.Context, table watchHisto
 	return present, rows.Err()
 }
 
-// watchHistoryIndex describes a ledger access path used by migrations and pruning.
 type watchHistoryIndex struct {
 	suffix  string
 	columns string
@@ -194,6 +195,9 @@ func (r *Loyalty) pruneWatchHistoryPass(ctx context.Context, finalized int64) (b
 
 func (r *Loyalty) watchHistoryDeleteQuery(table watchHistoryTable) string {
 	condition := " WHERE created_at<=? AND window_started_at_ms<=? ORDER BY window_started_at_ms,created_at LIMIT ?"
+	if table.name == "loyalty_watch_operations" {
+		condition = " WHERE completed=1 AND created_at<=? AND window_started_at_ms<=? ORDER BY window_started_at_ms,created_at LIMIT ?"
+	}
 	if r.dialect == "sqlite3" {
 		return "DELETE FROM " + table.name + " WHERE " + table.identity + " IN (SELECT " + table.identity + " FROM " + table.name + condition + ")"
 	}
@@ -201,18 +205,19 @@ func (r *Loyalty) watchHistoryDeleteQuery(table watchHistoryTable) string {
 }
 
 func (r *Loyalty) ensureWatchHistoryAgeSchema(ctx context.Context, table watchHistoryTable) error {
-	if err := r.ensureWatchWindowStartColumn(ctx, table); err != nil {
+	column := watchSchemaColumn{table: table, name: "window_started_at_ms", definition: "BIGINT NOT NULL DEFAULT 0"}
+	if err := r.ensureWatchColumn(ctx, column); err != nil {
 		return err
 	}
 	return r.ensureWatchIndex(ctx, table, watchHistoryIndex{suffix: "window", columns: "window_started_at_ms,created_at"})
 }
 
-func scanWatchWindowColumn(rows *sql.Rows) (bool, error) {
+func scanWatchColumn(rows *sql.Rows, column watchSchemaColumn) (bool, error) {
 	var position, nonnull, primary int
 	var name, kind string
 	var defaultValue sql.NullString
 	err := rows.Scan(&position, &name, &kind, &nonnull, &defaultValue, &primary)
-	return name == "window_started_at_ms", err
+	return name == column.name, err
 }
 
 func (r *Loyalty) pruneWatchTable(ctx context.Context, finalized int64, table watchHistoryTable) (bool, error) {

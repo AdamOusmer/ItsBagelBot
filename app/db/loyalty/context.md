@@ -49,7 +49,7 @@ RPC reads and synchronous balance/counter management.
 | [repository/counter_cached.go](repository/counter_cached.go) | Batched SQL digest checks for completed Valkey receipts, including legacy markers. |
 | [repository/counter_retention.go](repository/counter_retention.go) | Bounded receipt pruning on the repository's periodic flush loop. |
 | [repository/counter_fences.go](repository/counter_fences.go), [counter_rows.go](repository/counter_rows.go) | Bulk owner fences and counter statements bounded by rows, bytes and placeholders. |
-| [repository/watchtime.go](repository/watchtime.go) | Raw SQL inbox/dedup/fence schemas, atomic awards and account deletion/recreation. |
+| [repository/watchtime.go](repository/watchtime.go), [watchtime_commit.go](repository/watchtime_commit.go) | Raw SQL inbox/dedup/fence schemas, per-chunk award commits and account deletion/recreation. |
 | [repository/watchtime_retention.go](repository/watchtime_retention.go) | Monotonic retirement barrier and bounded replay-history pruning. |
 | [rpc/rpc.go](rpc/rpc.go) | All `balance.*`, `top.get`, `counter.*` handlers and wire views. |
 | [ent/schema/](ent/schema/) | Balance, Counter and CounterEntry schemas; watchtime auxiliary tables use raw SQL. |
@@ -101,8 +101,23 @@ Generated Ent code is not the schema source.
 - Invalid-input failures split merged transactions to isolate poison deliveries.
   Transient errors return to every delivery without splitting. MySQL 1213/1205
   retries restart the whole transaction through `pkg/db.RetryTx`.
-- Watch awards use a separate Valkey outbox consumer. Inbox, window/viewer dedup
-  and balance credit commit together; errors leave delivery pending.
+- Watch awards use a separate Valkey outbox consumer. Each viewer chunk commits
+  its receipts and balance credits together. The first chunk creates an incomplete
+  operation row with the payload hash; every chunk checks it under the account
+  fence, and the last chunk marks it complete. Viewer receipts make retries of
+  partially committed awards idempotent; errors leave delivery pending.
+- Loyalty watch-award consumers and watch-history pruning must not overlap
+  versions that write incomplete operations with older versions that treat every
+  operation row as complete. Stop and drain every old loyalty replica, including
+  in-flight watch-award handlers and pruning, before starting any new replica;
+  keep unpaid outbox deliveries pending for the new consumers. A rolling update
+  with old and new loyalty replicas active together is unsafe. The older code
+  can acknowledge a matching incomplete operation without paying its remaining
+  viewers and can prune its operation and viewer receipts. Hiding progress in a
+  separate table cannot fix the older closed-window path, which acknowledges
+  without checking for unpaid chunks. Before rollback, finish every incomplete
+  operation with the new version, then stop and drain every new replica before
+  starting any old replica.
 - User change/delete events restore or retire account instances using source
   timestamps. Watchtime health and the grouped event lane are readiness checks.
 
@@ -132,7 +147,11 @@ Generated Ent code is not the schema source.
   owners and receipt identities in ascending order; preserve shared lock order.
 - Prune watch replay markers only after the same source-window barrier rejects
   replay and is capped below retained unpaid outbox work. Counter receipts use
-  the separate bounded delivery horizon above.
+  the separate bounded delivery horizon above. Plain age-based deletion of watch
+  markers is unsafe. Incomplete operation rows survive pruning; a finalized partial
+  award returns an error on redelivery rather than acknowledging unpaid viewers.
+  Account admission refusing a retired or replaced instance completes an existing
+  operation in a committed transaction so normal retention can prune its history.
 - Retired-instance events are consumed without resurrecting state; source account
   creation time, not arrival time, determines whether recreation is newer.
 - Counter trial promotion is once-only; writes racing promotion recheck and retry
