@@ -93,14 +93,6 @@ async function writeRewards(userId: UserId, enabled: boolean, rewards: ChannelPo
   await upsertModule(userId, CP_MODULE, enabled, rewards.length ? { rewards } : {});
 }
 
-async function rollbackCreatedReward(userId: UserId, rewardId: RewardId): Promise<void> {
-  try {
-    await callReward('delete', { broadcaster_id: userId, reward_id: rewardId });
-  } catch (e) {
-    logger.error({ err: e, rewardId }, '[channelpoints] rollback of created reward failed');
-  }
-}
-
 export async function createReward(userId: UserId, draft: ChannelPointReward): Promise<RewardResult> {
   const reply = await callReward('create', { broadcaster_id: userId, reward: toWire(draft) });
   const refused = refusal(reply);
@@ -108,14 +100,9 @@ export async function createReward(userId: UserId, draft: ChannelPointReward): P
   if (!reply.reward) return { ok: false, error: 'create failed' };
 
   const created = mergeTwitch(reply.reward, draft);
-  try {
-    const cur = await readRewards(userId);
-    const enabled = cur.rewards.length === 0 ? true : cur.enabled;
-    await writeRewards(userId, enabled, [...cur.rewards, created]);
-  } catch (e) {
-    await rollbackCreatedReward(userId, created.id);
-    throw e;
-  }
+  const cur = await readRewards(userId);
+  const enabled = cur.rewards.length === 0 ? true : cur.enabled;
+  await writeRewards(userId, enabled, [...cur.rewards, created]);
   await ensureRewardCounter(userId, created);
   await publishEventSubEnsureOptional(userId);
   return { ok: true, reward: created };

@@ -67,13 +67,12 @@ describe('createReward blob write failure', () => {
     rpcCalls.length = 0;
   });
 
-  test('deletes the created Twitch reward and rethrows the original error', async () => {
+  test('reaches the failure path untouched and never deletes the Twitch reward', async () => {
     reply = { reward: { id: 'r9', title: 'Hydrate', cost: 100 } };
     const failure = new Error('blob write failed');
     upsertModule.mockRejectedValueOnce(failure);
     await expect(createReward('1', draft)).rejects.toBe(failure);
-    const del = rpcCalls.find((c) => c.subject.endsWith('.channelpoints.delete'));
-    expect(del?.req).toEqual({ broadcaster_id: '1', reward_id: 'r9' });
+    expect(rpcCalls.map((c) => c.subject.split('.').pop())).toEqual(['create']);
   });
 });
 
