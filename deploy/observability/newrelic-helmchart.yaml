@@ -164,6 +164,11 @@ spec:
                 Add          logtype kube-audit
             [FILTER]
                 Name         grep
+                Alias        cilium-info-filter
+                Match        kube.*_kube-system_cilium-*
+                Exclude      log ^time=\S+ level=(debug|info)\s
+            [FILTER]
+                Name         grep
                 Alias        warp-level-filter
                 Match        kube.*_app_warp-*
                 Regex        log (WARN|ERROR)\x1b
