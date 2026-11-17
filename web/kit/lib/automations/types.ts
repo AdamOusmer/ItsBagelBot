@@ -386,10 +386,12 @@ export interface RunRecord {
 
 export interface ListRequest {
   user_id: string;
+  page?: number;
 }
 
 export interface ListReply extends Refusal {
   automations: Automation[];
+  next_page?: number;
 }
 
 export interface GetRequest {

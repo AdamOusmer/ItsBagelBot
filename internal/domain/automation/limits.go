@@ -9,7 +9,7 @@ const (
 	MaxRecursionDepth        = 2
 	MaxNameLength            = 64
 	MaxAutomationsPerChannel = 100
-	MaxDefinitionBytes       = 32768
+	MaxDefinitionBytes       = 262144
 	MaxPreviewBytes          = 4096
 	RunsKept                 = 50
 )

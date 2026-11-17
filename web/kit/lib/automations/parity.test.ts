@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { comparePasses } from './compare';
 import { eventKinds } from './event-kinds';
 import { compilesAsRe2 } from './regex';
+import { MAX_DEFINITION_BYTES } from './limits';
 import { parseDefinition, validateName } from './validate';
 
 const TESTDATA = join(import.meta.dir, '../../../../internal/domain/automation/testdata');
@@ -67,7 +68,7 @@ describe('parseDefinition', () => {
   });
 
   test('rejects oversized input', () => {
-    expect(parseDefinition(' '.repeat(32769)).issues).toEqual([{ path: '', code: 'too_long' }]);
+    expect(parseDefinition(' '.repeat(MAX_DEFINITION_BYTES + 1)).issues).toEqual([{ path: '', code: 'too_long' }]);
   });
 
   test('rejects regexes RE2 cannot compile', () => {

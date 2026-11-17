@@ -7,7 +7,7 @@ import mathCases from './testdata/math_cases.json';
 import textCases from './testdata/text_cases.json';
 import { compileFlow, flowToDefinition, type Flow, type FlowNode } from './flow-graph';
 import { compactDuration, defaultScenario, rehearseDefinition } from './rehearsal';
-import { MAX_ACTIONS, MAX_LOOP_TIMES } from './limits';
+import { MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_LOOP_TIMES } from './limits';
 import type { Action, Condition, Definition, Params } from './types';
 import type { RehearsalOverrides, RehearsalScenario } from './rehearsal-types';
 
@@ -243,7 +243,11 @@ test.each([
   expect([result.events.at(-1)?.status, result.events.at(-1)?.detail?.random]).toEqual(['ok', random]);
 });
 
-test.each([{ name: 'MaxLoopTimes', value: MAX_LOOP_TIMES, want: 100 }])('mirrored Go limit $name', ({ name, value, want }) => {
+test.each([
+  { name: 'MaxLoopTimes', value: MAX_LOOP_TIMES, want: 100 },
+  { name: 'MaxActions', value: MAX_ACTIONS, want: 1000 },
+  { name: 'MaxDefinitionBytes', value: MAX_DEFINITION_BYTES, want: 262144 }
+])('mirrored Go limit $name', ({ name, value, want }) => {
   const source = readFileSync(new URL('../../../../internal/domain/automation/limits.go', import.meta.url), 'utf8');
   const declared = Number(new RegExp(`${name}\\s*=\\s*(\\d+)`).exec(source)?.[1]);
   expect([value, declared]).toEqual([want, want]);

@@ -47,10 +47,12 @@ const (
 
 type ListRequest struct {
 	UserID string `json:"user_id"`
+	Page   int    `json:"page,omitempty"`
 }
 
 type ListReply struct {
 	Automations []automation.Automation `json:"automations"`
+	NextPage    int                     `json:"next_page,omitempty"`
 	rpc.Refusal
 }
 
@@ -141,10 +143,12 @@ type ValidateReply struct {
 
 type ProjectionRequest struct {
 	UserID string `json:"user_id"`
+	Page   int    `json:"page,omitempty"`
 }
 
 type AutomationsProjectionReply struct {
 	Automations []automation.Automation `json:"automations"`
+	NextPage    int                     `json:"next_page,omitempty"`
 	rpc.Refusal
 }
 

@@ -51,12 +51,23 @@ function requireOk<T extends Refusal>(r: T): T {
   return r;
 }
 
-export const listAutomations = defineRead({
+const automationPage = defineRead({
   subject: subject('list'),
-  request: (userId: string) => ({ user_id: userId }),
-  map: (r: ListReply): Automation[] => requireOk(r).automations ?? [],
-  cache: { fabric, key: listKey, policy: POLICY.entity }
+  request: (userId: string, page: number) => ({ user_id: userId, page }),
+  map: (r: ListReply): ListReply => requireOk(r)
 });
+
+export async function listAutomations(userId: string): Promise<Automation[]> {
+  return fabric.readKey(listKey(userId), POLICY.entity, async () => {
+    const items: Automation[] = [];
+    for (let page = 1; page > 0;) {
+      const reply = await automationPage(userId, page);
+      items.push(...(reply.automations ?? []));
+      page = reply.next_page ?? 0;
+    }
+    return items;
+  });
+}
 
 export const listAutomationSummaries = defineRead({
   subject: subject('summaries'),

@@ -7,10 +7,11 @@ export const MAX_DELAY_MS = 60000;
 export const MAX_RECURSION_DEPTH = 2;
 export const MAX_NAME_LENGTH = 64;
 export const MAX_AUTOMATIONS_PER_CHANNEL = 100;
-export const MAX_DEFINITION_BYTES = 32768;
+export const MAX_DEFINITION_BYTES = 262144;
+export const MAX_EDITOR_PAYLOAD_BYTES = 4 * MAX_DEFINITION_BYTES;
 export const MAX_PREVIEW_BYTES = 4096;
 export const MAX_FLOWS_PER_FILE = MAX_AUTOMATIONS_PER_CHANNEL;
-export const MAX_FLOW_FILE_BYTES = 4 * 1024 * 1024;
+export const MAX_FLOW_FILE_BYTES = 32 * 1024 * 1024;
 export const RUNS_KEPT = 50;
 
 export const MAX_COOLDOWN_SECONDS = 2_592_000;

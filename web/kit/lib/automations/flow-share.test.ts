@@ -21,7 +21,8 @@ import {
   type FlowWrite
 } from './flow-share';
 import { classifyFlow } from './flow-layer';
-import { MAX_AUTOMATIONS_PER_CHANNEL, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
+import { MAX_AUTOMATIONS_PER_CHANNEL, MAX_DEFINITION_BYTES, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
+import { sizedRecipe } from './testdata/large-recipe';
 import type { Definition } from './types';
 
 const GOLDENS = join(import.meta.dir, 'testdata/flow-share');
@@ -325,8 +326,8 @@ describe('per-recipe refusals', () => {
   });
 
   test('nesting past the size limit is refused by size', () => {
-    let deep: unknown = chat('x');
-    for (let i = 0; i < 5000; i++) deep = { type: 'if', params: { then: [deep] } };
+    let deep: unknown = chat('x'.repeat(MAX_DEFINITION_BYTES));
+    for (let i = 0; i < 200; i++) deep = { type: 'if', params: { then: [deep] } };
     expect(issueCodes(onlyEntry({ version: 1, trigger: { type: 'manual' }, actions: [deep] }))).toEqual(['too_long']);
   });
 
@@ -347,7 +348,7 @@ describe('per-recipe refusals', () => {
   });
 
   test('oversized definitions and bad names', () => {
-    const long = manual(Array.from({ length: 20 }, () => chat('x'.repeat(2000))));
+    const long = sizedRecipe(MAX_DEFINITION_BYTES + 1);
     expect(issueCodes(onlyEntry(long))).toEqual(['too_long']);
     expect(issueCodes(planned(asFile([entry('f1', 'x'.repeat(MAX_NAME_LENGTH + 1))]))[0]!)).toEqual(['too_long']);
   });

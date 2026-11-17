@@ -3,6 +3,8 @@
 
 import {
   ALERT_KEYS,
+  MAX_DEFINITION_BYTES,
+  MAX_EDITOR_PAYLOAD_BYTES,
   MAX_PREVIEW_BYTES,
   definitionToFlow,
   flowToDefinition,
@@ -27,8 +29,8 @@ import { deleteFlow, listFlowSummaries, loadFlow, saveFlow, setFlowEnabled, type
 import { moduleWriteDenial } from './module-gate';
 import { attachLogins } from './user-login';
 
-const MAX_PAYLOAD_BYTES = 256 * 1024;
 const MAX_TEXT = 4096;
+const byteLength = (text: string): number => new TextEncoder().encode(text).length;
 
 export type EditorData = { routeId: string; ref: FlowRef | null; revision: string | null; name: string; flow: Flow | null; issues?: Issue[] };
 
@@ -103,7 +105,7 @@ function flowOf(value: unknown): Flow | null {
 }
 
 export function parseSaveRequest(text: string): { request: SaveRequest; flow: Flow } | null {
-  const body = text.length > MAX_PAYLOAD_BYTES ? undefined : parseJson(text);
+  const body = byteLength(text) > MAX_EDITOR_PAYLOAD_BYTES ? undefined : parseJson(text);
   if (!isRecord(body)) return null;
   const flow = flowOf(body.flow);
   const ref = refOf(body.ref);
@@ -120,10 +122,12 @@ function previewOf(flow: Flow): string | undefined {
 const invalid = (issues: Issue[]): { ok: false; reply: SaveReply } => ({ ok: false, reply: { ok: false, reason: 'invalid', issues } });
 
 export function lowerSaveRequest(text: string): { ok: true; lowered: Lowered } | { ok: false; reply: SaveReply } {
+  if (byteLength(text) > MAX_EDITOR_PAYLOAD_BYTES) return invalid([{ path: '', code: 'too_long' }]);
   const parsed = parseSaveRequest(text);
   if (!parsed) return invalid([{ path: '', code: 'invalid_format' }]);
   const lowered = flowToDefinition(parsed.flow);
   if (!lowered.ok) return invalid(lowered.issues);
+  if (byteLength(JSON.stringify(lowered.value)) > MAX_DEFINITION_BYTES) return invalid([{ path: '', code: 'too_long' }]);
   const issues = validateDefinition(lowered.value);
   if (issues.length > 0) return invalid(locateIssues(parsed.flow, issues));
   return { ok: true, lowered: { ...parsed, definition: lowered.value, preview: previewOf(parsed.flow) } };
