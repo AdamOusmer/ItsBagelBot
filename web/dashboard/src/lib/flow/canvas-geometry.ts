@@ -62,10 +62,10 @@ export function focusBounds(flow: Flow, node: FlowNode, frame: { width: number; 
   const parents = (index.incoming.get(node.id) ?? []).map((edge) => edge.from);
   const related = new Set([node.id, ...parents]);
   const selected = focusFootprint(node, frame);
-  if ((selected.y1 - selected.y0) * frame.minZoom > frame.height) return compactFocus(node, selected, frame);
   const nearby = flowBounds({ ...flow, nodes: flow.nodes.filter((entry) => related.has(entry.id)) }, selected);
+  if ((selected.y1 - selected.y0) * frame.minZoom > frame.height) return compactFocus(node, selected, nearby, frame);
   const fits = (box: Box) => (box.x1 - box.x0) * frame.minZoom <= frame.width && (box.y1 - box.y0) * frame.minZoom <= frame.height;
-  let box = fits(nearby) ? nearby : { ...selected, x0: Math.max(nearby.x0, selected.x1 - frame.width / frame.minZoom) };
+  let box = fits(nearby) ? nearby : withParentEdge(selected, nearby, frame);
   const siblings = new Set(parents.flatMap((id) => (index.outgoing.get(id) ?? []).map((edge) => edge.to)));
   const parallel = flowBounds({ ...flow, nodes: flow.nodes.filter((entry) => siblings.has(entry.id)) }, box);
   if (fits(parallel)) box = parallel;
@@ -75,15 +75,23 @@ export function focusBounds(flow: Flow, node: FlowNode, frame: { width: number; 
   return fits(anchored) ? anchored : box;
 }
 
-function compactFocus(node: FlowNode, selected: Box, frame: { minZoom: number; height: number }): Box {
+type FocusFrame = { width: number; height: number; minZoom: number };
+
+function withParentEdge(box: Box, nearby: Box, frame: FocusFrame): Box {
+  return { ...box, x0: Math.max(nearby.x0, box.x1 - frame.width / frame.minZoom) };
+}
+
+function compactFocus(node: FlowNode, selected: Box, nearby: Box, frame: FocusFrame): Box {
   const compact = { ...selected, y0: node.y };
-  return (compact.y1 - compact.y0) * frame.minZoom <= frame.height ? compact : { ...nodeBounds(node), y1: node.y + 60 };
+  const box = (compact.y1 - compact.y0) * frame.minZoom <= frame.height ? compact : { ...nodeBounds(node), y1: node.y + 60 };
+  return withParentEdge(box, nearby, frame);
 }
 
 export function focusFootprint(node: FlowNode, frame: { minZoom: number; touch?: boolean }): Box {
   const box = nodeBounds(node);
   if (!frame.touch) return box;
-  return { ...box, x1: box.x1 + 64 / frame.minZoom, y0: box.y0 - 48 / frame.minZoom, y1: box.y1 + 60 / frame.minZoom };
+  const lowerAdd = (specFor(node.type)?.outputs?.length ?? 0) > 1 ? 60 / frame.minZoom : 0;
+  return { ...box, x1: box.x1 + 48 / frame.minZoom, y0: box.y0 - 48 / frame.minZoom, y1: box.y1 + lowerAdd };
 }
 
 export function nodeBounds(node: FlowNode): Box {

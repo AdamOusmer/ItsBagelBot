@@ -30,14 +30,18 @@ test('insets reserve both side panels and the toolbar', () => {
   expect(panelInsets({ board, bar, rail, panels })).toEqual({ top: 172, left: 432, right: 388, bottom: 76 });
 });
 
+const phoneBoard = { top: 0, left: 0, right: 320, bottom: 568, width: 320, height: 568 };
+const phone = { board: phoneBoard, bar: { ...phoneBoard, bottom: 191, height: 191 }, rail: { ...phoneBoard, top: 403, bottom: 471, right: 232, width: 216, height: 68 } };
+const tabletBoard = { top: 0, left: 0, right: 1024, bottom: 768, width: 1024, height: 768 };
+const tablet = { board: tabletBoard, bar: { ...tabletBoard, bottom: 80, height: 80 }, rail: { ...tabletBoard, top: 96, bottom: 336, left: 16, right: 88, width: 72, height: 240 } };
+
 test.each([
-  { sheet: 0, bottom: 177 },
-  { sheet: 318, bottom: 330 }
-])('phone insets reserve the rail or the $sheet pixel sheet', ({ sheet, bottom }) => {
-  const board = { top: 0, left: 0, right: 320, bottom: 568, width: 320, height: 568 };
-  const bar = { ...board, bottom: 191, height: 191 };
-  const rail = { ...board, top: 403, bottom: 471, right: 232, width: 216, height: 68 };
-  expect(panelInsets({ board, bar, rail }, sheet)).toEqual({ top: 203, left: 16, right: 16, bottom });
+  { name: 'phone rail', frame: phone, sheet: 0, inset: { top: 203, left: 16, right: 16, bottom: 177 } },
+  { name: 'phone sheet', frame: phone, sheet: 318, inset: { top: 203, left: 16, right: 16, bottom: 330 } },
+  { name: 'tablet board', frame: tablet, sheet: 0, inset: { top: 92, left: 100, right: 16, bottom: 76 } },
+  { name: 'tablet bottom panel keeps the zoom row above it', frame: tablet, sheet: 315, inset: { top: 92, left: 100, right: 16, bottom: 391 } }
+])('sheet insets: $name', ({ frame, sheet, inset }) => {
+  expect(panelInsets(frame, sheet)).toEqual(inset);
 });
 
 describe('pinchView', () => {

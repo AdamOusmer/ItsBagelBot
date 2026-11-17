@@ -119,17 +119,21 @@ function blockedText(t: Translate, reason: { reason: Text; values: Record<Text, 
   return t(numeric ? 'flows.test.below' : 'flows.test.filterMismatch', { ...reason.values, field: scenarioFieldLabel(t, reason.values.field ?? '') });
 }
 
+function counted(t: Translate, one: MessageKey, many: MessageKey, params: Record<Text, Text | number> & { count: Text | number }): Text {
+  return t(Number(params.count) === 1 ? one : many, params);
+}
+
 function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind: Text): Text {
   const user = scenario.anonymous ? t('flows.test.anonymousViewer') : scenario.user || t('flows.test.notSet');
   if (kind.startsWith('twitch.chat.')) return t('flows.test.summaryChat', { user, role: scenarioRoleLabel(t, scenario.role ?? 'viewer'), message: scenario.message ?? '' });
   const key = kind.replace('twitch.', '').replaceAll('.', '_');
   const summaries: Record<Text, Text> = {
     follow: t('flows.test.summaryFollow', { user }),
-    cheer: t('flows.test.summaryCheer', { user, count: scenario.bits ?? 0 }),
-    raid: t('flows.test.summaryRaid', { user, count: scenario.viewers ?? 0 }),
+    cheer: counted(t, 'flows.test.summaryCheerOne', 'flows.test.summaryCheerMany', { user, count: scenario.bits ?? 0 }),
+    raid: counted(t, 'flows.test.summaryRaidOne', 'flows.test.summaryRaidMany', { user, count: scenario.viewers ?? 0 }),
     sub_new: t('flows.test.summarySub', { user, tier: Number(scenario.tier ?? 1000) / 1000 }),
-    sub_resub: t('flows.test.summaryResub', { user, months: scenario.months ?? 0 }),
-    sub_gift: t('flows.test.summaryGift', { user, count: scenario.giftCount ?? 0 }),
+    sub_resub: counted(t, 'flows.test.summaryResubOne', 'flows.test.summaryResubMany', { user, count: scenario.months ?? 0 }),
+    sub_gift: counted(t, 'flows.test.summaryGiftOne', 'flows.test.summaryGiftMany', { user, count: scenario.giftCount ?? 0 }),
     reward: t('flows.test.summaryReward', { user, input: scenario.input ?? '' }),
     unban_request: t('flows.test.summaryUnban', { user, text: scenario.requestText ?? '' }),
     stream_online: t('flows.test.summaryLive'),
@@ -182,7 +186,7 @@ function displayInput(value: FlowNode['config'][Text] | undefined, scenario: Reh
 }
 
 function loopText(t: Translate, event: RehearsalEvent): Text {
-  return event.port === 'done' ? t('flows.test.loopDone') : t('flows.test.loop', { count: event.detail?.times ?? '' });
+  return event.port === 'done' ? t('flows.test.loopDone') : counted(t, 'flows.test.loopOne', 'flows.test.loopMany', { count: event.detail?.times ?? '' });
 }
 
 function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, line: Text, t: Translate): Text {

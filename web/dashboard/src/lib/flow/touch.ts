@@ -20,7 +20,7 @@ export function panelInsets({ board, bar, rail, panels = [] }: Panels, panelHeig
     left: railIsRow ? 16 : rail.right - board.left + PANEL_GAP
   };
   for (const panel of panels) reservePanel(inset, board, panel);
-  return { ...inset, bottom: inset.bottom + (panelHeight > 0 || railIsRow ? 0 : 64) };
+  return { ...inset, bottom: inset.bottom + (railIsRow ? 0 : 64) };
 }
 
 function reservePanel(inset: Inset, board: Rect, panel: Rect) {

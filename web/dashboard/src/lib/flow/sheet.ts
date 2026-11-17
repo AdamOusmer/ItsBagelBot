@@ -12,6 +12,30 @@ export function swipeDismisses(dy: number, ms: number, sheetHeight: number): boo
   return dy >= FLICK_MIN_PX && dy / Math.max(1, ms) >= FLICK_PX_PER_MS;
 }
 
+export type Span = { top: number; bottom: number };
+
+const TEXT_FIELD = 'input, textarea, select, [contenteditable=true]';
+
+export function fieldScrollDelta(field: Span, view: Span): number {
+  if (field.top >= view.top && field.bottom <= view.bottom) return 0;
+  return (field.top + field.bottom) / 2 - (view.top + view.bottom) / 2;
+}
+
+export function editingInSheet(): boolean {
+  const field = document.activeElement;
+  return Boolean(field?.matches(TEXT_FIELD) && field.closest('.bb-editor-stage__panel'));
+}
+
+export function revealFocusedField(viewport: Pick<VisualViewport, 'height' | 'offsetTop'> | null) {
+  const field = document.activeElement;
+  const scroller = editingInSheet() ? field?.closest<HTMLElement>('.scroll, .bb-scroller') : null;
+  if (!field || !scroller) return;
+  const box = scroller.getBoundingClientRect();
+  const top = viewport?.offsetTop ?? 0;
+  const view = { top: Math.max(box.top, top), bottom: Math.min(box.bottom, top + (viewport?.height ?? innerHeight)) };
+  scroller.scrollTop += fieldScrollDelta(field.getBoundingClientRect(), view);
+}
+
 export function sheetDrag(el: HTMLElement, initial: () => void, onResize: (height: number) => void = () => {}) {
   let onDismiss = initial;
   let drag: { id: number; y: number; t: number; dy: number; height: number; limit: number } | null = null;

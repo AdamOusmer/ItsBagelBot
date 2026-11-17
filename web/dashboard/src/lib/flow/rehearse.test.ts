@@ -104,6 +104,23 @@ test('stored input is shared with checks and chat in the executor', () => {
   expect(setStoredValue({ live: true, user: 'Sample' }, node, '12')).toEqual({ state: { channelVars: { score: '12' } } });
 });
 
+test.each([
+  { type: 'twitch.raid', scenario: { user: 'Ana', viewers: 1 }, summary: 'Ana raids with 1 viewer' },
+  { type: 'twitch.raid', scenario: { user: 'Ana', viewers: 42 }, summary: 'Ana raids with 42 viewers' },
+  { type: 'twitch.cheer', scenario: { user: 'Ana', bits: 1 }, summary: 'Ana cheers 1 bit' },
+  { type: 'twitch.cheer', scenario: { user: 'Ana', bits: 0 }, summary: 'Ana cheers 0 bits' }
+])('scenario summary counts in words: $summary', ({ type, scenario, summary }) => {
+  expect(run(flowOf([n('t', type)], []), { scenario }).summary).toBe(summary);
+});
+
+test.each([
+  { times: '1', text: 'Repeat 1 time' },
+  { times: '3', text: 'Repeat 3 times' }
+])('loop step reads "$text"', ({ times, text }) => {
+  const flow = flowOf([trigger, n('l', 'reply.loop', { times })], [e('t', 'next', 'l')]);
+  expect(run(flow).steps.find((step) => step.id === 'l')?.text).toBe(text);
+});
+
 test('loop events have unique keys for repeated canvas nodes', () => {
   const keys = run(loop).steps.map((step) => step.key);
   expect(new Set(keys).size).toBe(keys.length);

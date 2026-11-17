@@ -35,7 +35,7 @@
   import { flowRouteId, legacyEditorHref, parseFlowRouteId } from '#lib/flow/ref';
   import type { SaveReply, ToggleReply } from '#lib/flow/replies';
   import type { UpgradeReport } from '#lib/server/flow-store';
-  import { sheetDrag } from '#lib/flow/sheet';
+  import { editingInSheet, revealFocusedField, sheetDrag } from '#lib/flow/sheet';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import type { PageData } from './$types';
 
@@ -56,6 +56,9 @@
   const SHEET_SHARE = 0.56;
   const TALL_SHEET_SHARE = 0.44;
   const TALL_VIEWPORT = 900;
+  const SHEET_MIN = 280;
+  const TABLET_BOARD_ROOM = 320;
+  const PHONE_QUERY = '(max-width: 760px)';
 
   const loadInspector = () => import('#lib/components/flow/NodeInspector.svelte');
   const loadLibrary = () => import('#lib/components/flow/StepLibrary.svelte');
@@ -188,9 +191,14 @@
     refreshHistory();
     if (deletionToast) dismissToast(deletionToast.id);
     const entry = edits.undoEntry;
-    const message = keepYes ? t('flows.board.checkRemovedKeepYes', { n: count - 1 }) : count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count });
+    const message = keepYes ? checkRemovedText(count - 1) : count === 1 ? t('flows.board.stepRemoved') : t('flows.board.stepsRemoved', { n: count });
     const id = toast('success', message, { undoLabel: t('flows.board.undo'), onUndo: () => undoRemoval(entry) });
     deletionToast = { id, entry };
+  }
+
+  function checkRemovedText(noPathSteps: number) {
+    if (noPathSteps === 0) return t('flows.board.checkRemoved');
+    return noPathSteps === 1 ? t('flows.board.checkRemovedOne') : t('flows.board.checkRemovedMany', { n: noPathSteps });
   }
 
   function undoRemoval(entry: object | null) {
@@ -200,16 +208,34 @@
   }
 
   const layoutHeight = () => document.documentElement.clientHeight;
-  function sheetLimit() {
-    const headerBottom = barEl?.getBoundingClientRect().bottom ?? 190;
-    return Math.max(280, layoutHeight() - headerBottom - 52);
-  }
+  let restingLayout = 0;
+  const restingHeight = () => restingLayout || layoutHeight();
+  const headerBottom = () => barEl?.getBoundingClientRect().bottom ?? 190;
+  const sheetLimit = () => Math.max(SHEET_MIN, restingHeight() - headerBottom() - 52);
 
   let draggedSheet: number | null = null;
 
-  const defaultSheet = () => Math.max(280, Math.round(layoutHeight() * (layoutHeight() >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE)));
+  function defaultSheet() {
+    const height = restingHeight();
+    const share = Math.max(SHEET_MIN, Math.round(height * (height >= TALL_VIEWPORT ? TALL_SHEET_SHARE : SHEET_SHARE)));
+    if (matchMedia(PHONE_QUERY).matches) return share;
+    return Math.min(share, Math.max(SHEET_MIN, height - headerBottom() - TABLET_BOARD_ROOM));
+  }
 
   const sheetHeight = () => Math.min(sheetLimit(), draggedSheet ?? defaultSheet());
+
+  const sheetShown = $derived(panelRoom > 0 || Boolean(libMode));
+
+  $effect(() => {
+    if (!sheetShown) untrack(forgetDraggedSheet);
+  });
+
+  function forgetDraggedSheet() {
+    if (draggedSheet === null) return;
+    draggedSheet = null;
+    syncViewport();
+    sheetRevision++;
+  }
 
   function clearSheetSizing() {
     draggedSheet = null;
@@ -219,6 +245,7 @@
   function syncViewport() {
     const style = editorEl?.style;
     if (!style || !sheetMode) return;
+    if (!editingInSheet()) restingLayout = layoutHeight();
     const { height, keyboard } = keyboardSize(layoutHeight(), visualViewport);
     style.setProperty('--stage-kb', `${keyboard}px`);
     style.setProperty('--stage-vvh', `${height}px`);
@@ -228,24 +255,20 @@
     style.setProperty('--stage-sheet-limit', `${sheetLimit()}px`);
     style.setProperty('--stage-board-left', `${boardEl?.getBoundingClientRect().left ?? 0}px`);
     if (keyboard === 0 && scrollY !== 0) scrollTo(0, 0);
-    revealKeyboardField(keyboard);
+    revealFocusedField(visualViewport);
   }
 
-  function revealKeyboardField(keyboard: number) {
-    if (keyboard <= 0) return;
-    const field = document.activeElement;
-    if (!field?.matches('input, textarea, select')) return;
-    if (field.closest('.bb-editor-stage__panel')) field.scrollIntoView({ block: 'center' });
+  function revealFieldOnFocus() {
+    if (sheetMode) requestAnimationFrame(() => revealFocusedField(visualViewport));
   }
 
   function viewInsets() {
     if (!boardFrame) return null;
     const { board, bar, rail } = boardFrame;
-    const panelShown = panelRoom > 0 || Boolean(libMode);
     if (sheetMode) {
       void sheetRevision;
       const height = (libMode ? leftPanelEl : rightPanelEl)?.offsetHeight || sheetHeight();
-      return panelInsets({ board, bar, rail }, panelShown ? height : 0);
+      return panelInsets({ board, bar, rail }, sheetShown ? height : 0);
     }
     const panels = [libMode ? leftPanelEl : null, panelRoom > 0 ? rightPanelEl : null].filter((panel): panel is HTMLDivElement => Boolean(panel));
     return panelInsets({ board, bar, rail, panels: panels.map((panel) => panel.getBoundingClientRect()) });
@@ -282,11 +305,13 @@
     query.addEventListener('change', onQuery);
     visualViewport?.addEventListener('resize', syncViewport);
     visualViewport?.addEventListener('scroll', syncViewport);
+    document.addEventListener('focusin', revealFieldOnFocus);
     return () => {
       wide.removeEventListener('change', onWidth);
       query.removeEventListener('change', onQuery);
       visualViewport?.removeEventListener('resize', syncViewport);
       visualViewport?.removeEventListener('scroll', syncViewport);
+      document.removeEventListener('focusin', revealFieldOnFocus);
     };
   });
 

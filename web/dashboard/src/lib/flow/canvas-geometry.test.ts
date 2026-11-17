@@ -48,6 +48,14 @@ test.each([
   expect({ whole: box.y1 > node.y + 60, title: view.y + (node.y + 36) * view.k <= frame.height, left: view.x + box.x0 * view.k >= 16 }).toEqual({ whole, title: true, left: true });
 });
 
+test.each([188, 287])('a parallel step on a %i pixel phone strip keeps its sibling in focus', (height) => {
+  const flow = chain(3);
+  flow.nodes.push({ id: 'parallel', type: 'reply.chat', x: 736, y: 120, config: {} });
+  flow.edges.push({ id: 'parallel', from: '1', to: 'parallel', port: 'next' });
+  const box = focusBounds(flow, flow.nodes[3], { width: 288, height, minZoom: 0.7, touch: true });
+  expect({ sibling: box.y0 <= flow.nodes[2].y, fits: (box.y1 - box.y0) * 0.7 <= height }).toEqual({ sibling: true, fits: true });
+});
+
 test.each([0, 180000, 360000])('large boards render the viewport at %i and retain selected steps', (pan) => {
   const flow = chain(1001);
   const visible = windowNodes(flow, { x: -pan, y: 0, k: 1 }, { width: 1000, height: 900 }, '1000');
