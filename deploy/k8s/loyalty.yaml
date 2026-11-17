@@ -74,6 +74,8 @@ spec:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
+          - name: net.ipv4.tcp_rto_min_us
+            value: "10000"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
