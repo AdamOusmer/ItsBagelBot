@@ -24,6 +24,6 @@ flowchart LR
 
 ## Durabilité et échecs
 
-Toutes les écritures n'ont pas la même garantie de persistance. Certains paramètres passent par un lot en mémoire avant le commit; les opérations financières et les identifiants ont leurs propres chemins directs. Consultez le dépôt concerné avant de supposer qu'une réponse positive signifie que le commit est terminé. Voir [Cache et écritures différées](/fr/data-and-state/caching/).
+Les modifications de commandes et les préférences attendent le commit de leur transaction MySQL groupée avant de répondre positivement. Les paramètres de modules, opérations financières et identifiants utilisent des chemins synchrones. Un arrêt avant le commit impose une nouvelle tentative; les reçus de compteurs rendent les événements idempotents. Consultez le dépôt concerné pour les limites de transaction et de publication. Voir [Cache et écritures validées](/fr/data-and-state/caching/).
 
 Le démarrage configure les migrations et les identifiants; consultez `pkg/db/provider.go` et la configuration du service avant d'utiliser une base existante. Le code généré n'est pas la définition source du schéma.

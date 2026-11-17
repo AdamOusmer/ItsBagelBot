@@ -58,8 +58,16 @@ The rest of `ent/` is generated; edit schema sources and regenerate.
 
 - Dashboard requests default to `rpc.commands.*`; user guards parse the
   owner ID before repository work.
-- Ordinary command upserts validate and coalesce in a 2-second / 256-item
-  write-behind window. Success means accepted; events describe committed state.
+- Ordinary command upserts validate and coalesce in a
+  commit group with a 3 ms window, bounded by 256 rows and 256 KiB of estimated
+  statement bytes. Success means committed. Same-key edits keep the last value
+  and share its committed outcome. An attributable winning-item failure falls
+  back to the previous same-key edit; failed groups isolate invalid items.
+  Queue wait is bounded by 250 ms, transaction work by one second and publication
+  by a separate 250 ms context. Broadcaster lock admission allows 250 ms, so
+  the combined budget is 1.75 seconds, below the two-second RPC deadline.
+  Rename and delete wait for that broadcaster's admitted edits, honor cancellation
+  while waiting, and release the lock before publishing.
 - Rename and delete are immediate. Rename keeps the existing row and its use
   count; inspect its pending-write handling before changing this behavior.
 - `data.commands.used` is consumed by a durable group. `RecordUse` commits the

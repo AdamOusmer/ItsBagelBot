@@ -14,7 +14,7 @@ Other services use its RPCs instead of reading its schema. It emits user change 
 
 Dashboard RPCs default to `rpc.dashboard.*`; device authorization uses `rpc.dashboard.device.*`. User changes and deletions publish `data.users.changed` and `data.users.deleted`.
 
-Registration and access changes persist immediately. Some preferences coalesce in a write-behind window; accepted and committed are therefore different states. Committed mutations publish `data.users.changed`. Deletion writes an erasure ledger first, revokes tokens and emits `data.users.deleted`; a ledger failure prevents deletion. Sensitive token and email reads use internal RPCs, not projections. Dashboard and device operations default to `rpc.dashboard.*`.
+Registration and access changes persist immediately. Preferences coalesce in a commit group and return success after MySQL commits. Committed mutations publish `data.users.changed`. Deletion writes an erasure ledger first, revokes tokens and emits `data.users.deleted`; a ledger failure prevents deletion. Sensitive token and email reads use internal RPCs, not projections. Dashboard and device operations default to `rpc.dashboard.*`.
 
 ## State and dependencies
 
@@ -22,7 +22,7 @@ Users owns the account and credential schema; consumers use RPC or derived proje
 
 ## Failure behavior
 
-Write-behind preferences are not committed when accepted. Deletion stops if the erasure ledger write fails.
+Preference failures are isolated so healthy writes can commit; transient lock failures retry the whole transaction. Deletion stops if the erasure ledger write fails.
 
 ## Code map
 

@@ -173,7 +173,7 @@ func TestSetPageHiddenWritesThroughAndPublishes(t *testing.T) {
 
 			view, err = repo.Get(ctx, 1001)
 			require.NoError(t, err)
-			assert.True(t, tc.get(view), "write-through: no batcher window to wait out")
+			assert.True(t, tc.get(view), "the committed value must be visible immediately")
 
 			msgs := pub.On(data.SubjectUserChanged)
 			require.Len(t, msgs, 2, "register and the flag change must both announce state")
@@ -201,7 +201,6 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, "  MAVEY10  "))
-	repo.Close(context.Background())
 
 	view, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
@@ -213,7 +212,6 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 	assert.Equal(t, "MAVEY10", changed[len(changed)-1].CreatorCode, "the code must ride the user projection")
 
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, ""))
-	repo.Close(context.Background())
 
 	view, err = repo.Get(ctx, 1001)
 	require.NoError(t, err)

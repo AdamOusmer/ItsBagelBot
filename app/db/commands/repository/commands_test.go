@@ -45,7 +45,7 @@ func spec(name, response string, streamOnlineOnly bool, cooldown uint) repositor
 	}
 }
 
-func TestUpsertCoalescesEdits(t *testing.T) {
+func TestUpsertCommitsEachSequentialEdit(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
@@ -60,7 +60,7 @@ func TestUpsertCoalescesEdits(t *testing.T) {
 	assert.Equal(t, "final wording", rows[0].Response)
 	assert.True(t, rows[0].StreamOnlineOnly)
 
-	require.Len(t, pub.On(data.SubjectCommandChanged), 1)
+	require.Len(t, pub.On(data.SubjectCommandChanged), 3)
 }
 
 func TestClosePersistsAcknowledgedEditsWithCanceledUseDrain(t *testing.T) {
@@ -211,7 +211,7 @@ func TestUpsertEachIsolatesPoisonItem(t *testing.T) {
 	})
 
 	require.NoError(t, repo.Upsert(1001, spec("!ok", "fine", false, 0)))
-	require.NoError(t, repo.Upsert(1001, spec("!bad", "fine", false, 0)))
+	require.Error(t, repo.Upsert(1001, spec("!bad", "fine", false, 0)))
 	repo.Close(ctx)
 
 	rows := client.Commands.Query().AllX(ctx)

@@ -36,7 +36,7 @@ gateway only verifies access tokens and listens for revocation.
 | Premium grant | Users-owned promotional interval identified by giveaway+award. |
 | Staff | Admin-owned active role membership: moderator, admin or owner; distinct from Premium/VIP. |
 | Delegation | Single-use invitation leading to scoped access to an owner's dashboard. |
-| Preference write | Locale/cursor/onboarding/creator-code batching; active intent changes persist immediately through lifecycle CAS. |
+| Preference write | Commit-waiting locale/cursor/onboarding/creator-code batching; active intent changes persist immediately through lifecycle CAS. |
 | Payment failed | Separate billing condition; does not itself mean access has expired. |
 | Device grant | One desktop app authorization: `device_id` (stable across refresh) and `grant_id` identify it; owns the current refresh-token family. |
 | Authorization code | Single-use, 60s-lived PKCE code; stored only as a SHA-256 hash. Reuse revokes whatever grant it produced. |
@@ -48,7 +48,7 @@ gateway only verifies access tokens and listens for revocation.
 | --- | --- |
 | [main.go](main.go) | Mandatory keyset, schema/stream boot, consumers, RPC registration, account analytics reconciliation and expiry sweeps. |
 | [repository/users.go](repository/users.go) | Registration, cached safe views, lookup, token custody, account deletion and change/reprojection events. |
-| [repository/preferences.go](repository/preferences.go) | Per-user/field coalescing, transactional flush, failure isolation and pending preference overlay state. |
+| [repository/preferences.go](repository/preferences.go) | Commit-waiting per-user/field coalescing, transactional writes and failure isolation. |
 | [repository/contact_email.go](repository/contact_email.go) | Sealed contact-email writes and internal read. |
 | [repository/billing.go](repository/billing.go) | Verified billing event ordering/ownership and paid-access expiry. |
 | [repository/giveaways.go](repository/giveaways.go) | Full eligible pool, exclusion counts, test-account control, prepare/commit/cancel/expire grants and coverage. |
@@ -84,8 +84,13 @@ Edit schemas rather than generated Ent code.
 - Registration persists identity immediately; contact-email capture is a separate
   best-effort step. Sensitive token/email reads use internal RPCs, not projections.
 - Locale/cursor/onboarded/creator-code preferences coalesce
-  per user/field over 2 seconds / 256 items. Each user gets one merged UPDATE per
-  flush window. Dashboard/admin active changes use SetActiveNow and persist
+  per user/field over 3 ms, bounded by 256 rows and 256 KiB of estimated statement
+  bytes. Each user gets one merged UPDATE per group. Success means committed;
+  superseded callers share its committed outcome, with fallback to the previous
+  same-key write when the winner fails with an attributable error. Queue wait,
+  transaction and independent publication budgets are 250 ms, one second and
+  250 ms, totaling 1.5 seconds below the three-second dashboard deadline.
+  Failed groups isolate invalid writes. Dashboard/admin active changes use SetActiveNow and persist
   immediately, as do status, banned state, tokens and commands-page visibility.
 - Committed mutations publish full `data.users.changed`; broadcasts invalidate
   each instance's local safe-view cache. Grouped reprojection requests replay

@@ -94,21 +94,6 @@ func TestModuleTogglesOnlyCountCommittedEnabledChanges(t *testing.T) {
 	require.Equal(t, seed, analytics.Tally(readModuleSeed(t, repo)))
 }
 
-func TestModuleBatchAnalyticsUsesCoalescedWrites(t *testing.T) {
-	_, _, repo := setup(t)
-	capture := analyticstest.New(t)
-	repo.SetAnalytics(capture.Recorder)
-	for _, enabled := range []bool{true, false} {
-		require.NoError(t, repo.Set(1, "quotes", enabled, nil))
-	}
-	require.NoError(t, repo.Set(2, "alerts", false, nil))
-	repo.Close(t.Context())
-	require.Equal(t, map[string]int64{"module.toggles|alerts|off": 1}, capture.Counters())
-	require.Equal(t, map[string]int64{
-		"modules.rows|quotes|off": 1, "modules.rows|alerts|off": 1, "modules.breadth|0": 2,
-	}, readModuleSeed(t, repo))
-}
-
 func TestModuleRolledBackCommitDoesNotRecordAnalytics(t *testing.T) {
 	client, _, repo := setup(t)
 	capture := analyticstest.New(t)

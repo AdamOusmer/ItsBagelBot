@@ -32,4 +32,4 @@ flowchart LR
 | `app/db/transactions` | Facturation, concours et récompenses |
 | `app/db/notifications` | Notifications |
 
-Voir [Base de données](/fr/data-and-state/database/), [Cache et écritures différées](/fr/data-and-state/caching/), [Conception](/fr/data-and-state/design/) et [Projection](/fr/data-and-state/projection/). Les événements sont définis dans `internal/domain/event/data` et les flux dans `pkg/bus/streams.go`. Un consommateur durable ne reprend que les messages encore conservés; le flux n'est pas un journal permanent.
+Voir [Base de données](/fr/data-and-state/database/), [Cache et écritures validées](/fr/data-and-state/caching/), [Conception](/fr/data-and-state/design/) et [Projection](/fr/data-and-state/projection/). Les événements sont définis dans `internal/domain/event/data` et les flux dans `pkg/bus/streams.go`. Un consommateur durable ne reprend que les messages encore conservés; le flux n'est pas un journal permanent.

@@ -40,6 +40,5 @@ func (r *Users) SetCreatorCode(ctx context.Context, id uint64, raw string) error
 	if err != nil {
 		return err
 	}
-	r.queuePref(id, prefCreatorCode, prefWrite{code: code})
-	return nil
+	return r.queuePref(ctx, id, prefCreatorCode, prefWrite{code: code})
 }

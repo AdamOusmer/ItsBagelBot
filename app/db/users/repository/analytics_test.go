@@ -32,7 +32,7 @@ func TestAccountLevelsFollowWrites(t *testing.T) {
 	require.NoError(t, err)
 	expires := now.Add(time.Hour)
 	require.NoError(t, repo.SetAdminStatus(ctx, 2, user.StatusPaid, &expires))
-	require.NoError(t, repo.SetLocaleNow(ctx, 3, "fr"))
+	require.NoError(t, repo.SetLocale(ctx, 3, "fr"))
 	require.NoError(t, repo.SetPageHidden(ctx, 3, repository.PageCommands, true))
 	require.NoError(t, repo.SetOnboarded(ctx, 1, true))
 	require.NoError(t, repo.Delete(ctx, 4))

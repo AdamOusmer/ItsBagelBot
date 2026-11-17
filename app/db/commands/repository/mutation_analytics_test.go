@@ -44,13 +44,13 @@ func TestCustomCommandCountersFollowCreatesAndRowsDeleted(t *testing.T) {
 	require.Equal(t, map[string]int64{"custom.commands|created": 4, "custom.commands|deleted": 3}, capture.Counters())
 }
 
-func TestCustomCommandBatchCountsOnlyNewRowsAndSuccessfulFallbacks(t *testing.T) {
+func TestCustomCommandBatchCountsOnlyNewCommittedRows(t *testing.T) {
 	cases := []struct {
 		name  string
 		items []string
 	}{
 		{"committed batch", []string{"!existing", "!new"}},
-		{"partial fallback", []string{"!existing", "!new", "!reject"}},
+		{"rejected edit", []string{"!existing", "!new", "!reject"}},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -68,7 +68,8 @@ func TestCustomCommandBatchCountsOnlyNewRowsAndSuccessfulFallbacks(t *testing.T)
 				})
 			})
 			for _, name := range tt.items {
-				require.NoError(t, repo.Upsert(1, spec(name, "new", false, 0)))
+				err := repo.Upsert(1, spec(name, "new", false, 0))
+				require.Equal(t, name == "!reject", err != nil, name)
 			}
 			repo.Close(t.Context())
 			require.Equal(t, map[string]int64{"custom.commands|created": 1}, capture.Counters())

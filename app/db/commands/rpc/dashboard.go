@@ -49,7 +49,7 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.Dashboa
 	if reply, done, err := d.tryRestore(ctx, req, id, spec); done {
 		return reply, err
 	}
-	return commandsrpc.DashboardReply{}, d.repo.Upsert(id, spec)
+	return commandsrpc.DashboardReply{}, d.repo.UpsertContext(ctx, id, spec)
 }
 
 func isRename(req commandsrpc.DashboardRequest) bool {

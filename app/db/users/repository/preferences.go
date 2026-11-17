@@ -12,13 +12,7 @@ import (
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-
 	"go.uber.org/zap"
-)
-
-const (
-	prefsFlushInterval = 2 * time.Second
-	prefsFlushMaxSize  = 256
 )
 
 // prefField must never include status (money) or banned (moderation).
@@ -38,30 +32,42 @@ type prefKey struct {
 type prefWrite struct {
 	userID uint64
 	field  prefField
-
-	flag bool
-	str  string
-	code *string
+	flag   bool
+	str    string
+	code   *string
 }
 
-func (r *Users) queuePref(id uint64, field prefField, w prefWrite) {
+func (r *Users) newPreferenceGroup() *batch.Group[prefWrite] {
+	return batch.NewGroup(batch.GroupConfig[prefWrite]{
+		Window: 3 * time.Millisecond, MaxRows: 256, MaxBytes: 256 * 1024,
+		Size: preferenceBytes, Key: preferenceKey, Attributable: unpersistablePrefErr,
+		AfterCommit: r.afterPreferences, Timeout: time.Second, QueueTimeout: 250 * time.Millisecond,
+		AfterCommitTimeout: 250 * time.Millisecond, Log: r.log,
+	}, r.flushPrefs)
+}
+
+func preferenceKey(w prefWrite) any { return prefKey{userID: w.userID, field: w.field} }
+
+func preferenceBytes(w prefWrite) int {
+	size := 128 + 6*len(w.str)
+	if w.code != nil {
+		size += 6 * len(*w.code)
+	}
+	return size
+}
+
+func (r *Users) queuePref(ctx context.Context, id uint64, field prefField, w prefWrite) error {
 	w.userID = id
 	w.field = field
-	r.batcher.Add(prefKey{userID: id, field: field}, w)
+	return r.preferences.Submit(context.WithoutCancel(ctx), w)
 }
 
 func (r *Users) SetCustomCursor(ctx context.Context, id uint64, on bool) error {
-	r.queuePref(id, prefCursor, prefWrite{flag: on})
-	return nil
+	return r.queuePref(ctx, id, prefCursor, prefWrite{flag: on})
 }
 
 func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
-	r.queuePref(id, prefLocale, prefWrite{str: locale})
-	return nil
-}
-
-func (r *Users) SetLocaleNow(ctx context.Context, id uint64, locale string) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLocale(locale) })
+	return r.queuePref(ctx, id, prefLocale, prefWrite{str: locale})
 }
 
 func applyPref(u *ent.UserUpdateOne, w prefWrite) {
@@ -71,44 +77,29 @@ func applyPref(u *ent.UserUpdateOne, w prefWrite) {
 	case prefCursor:
 		u.SetCustomCursor(w.flag)
 	case prefCreatorCode:
-		if w.code == nil {
-			u.ClearCreatorCode()
-		} else {
-			u.SetCreatorCode(*w.code)
-		}
+		applyCreatorCode(u, w.code)
 	}
 }
 
-// Must return nil: returning errors makes the batcher retry rows already dropped.
+func applyCreatorCode(u *ent.UserUpdateOne, code *string) {
+	if code == nil {
+		u.ClearCreatorCode()
+		return
+	}
+	u.SetCreatorCode(*code)
+}
+
 func (r *Users) flushPrefs(ctx context.Context, items []prefWrite) error {
-	ctx, txn, log := r.beginFlush(ctx, "flush user preferences")
+	ctx, txn, _ := r.beginFlush(ctx, "flush user preferences")
 	defer endFlush(txn)
-
-	perUser := groupByUser(items)
-
-	err := r.persistPrefs(ctx, perUser)
-	if err == nil {
-		r.announcePrefs(ctx, log, perUser)
-		return nil
-	}
-
+	err := r.persistPrefs(ctx, groupByUser(items))
 	txnNotice(txn, err)
-	log.Warn("preference window failed as one transaction, falling back per user",
-		zap.Int("users", len(perUser)),
-		zap.Error(err),
-	)
-	r.applyPrefEach(ctx, txn, log, perUser)
-	return nil
+	return err
 }
 
-const prefAnnounceTimeout = 5 * time.Second
-
-func (r *Users) announcePrefs(ctx context.Context, log *zap.Logger, perUser map[uint64][]prefWrite) {
-	actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), prefAnnounceTimeout)
-	defer cancel()
-
-	for id := range perUser {
-		r.announcePref(actx, log, id)
+func (r *Users) afterPreferences(ctx context.Context, items []prefWrite) {
+	for id := range groupByUser(items) {
+		r.announcePref(ctx, r.log, id)
 	}
 }
 
@@ -147,38 +138,6 @@ func unpersistablePrefErr(err error) bool {
 	return ent.IsValidationError(err) || ent.IsConstraintError(err) || ent.IsNotFound(err)
 }
 
-func requeuePrefWrites(b *batch.Batcher[prefKey, prefWrite], writes []prefWrite) {
-	for _, w := range writes {
-		b.Requeue(prefKey{userID: w.userID, field: w.field}, w)
-	}
-}
-
-func (r *Users) applyPrefEach(ctx context.Context, txn *newrelic.Transaction, log *zap.Logger, perUser map[uint64][]prefWrite) {
-	for id, writes := range perUser {
-		err := r.persistPrefs(ctx, map[uint64][]prefWrite{id: writes})
-
-		switch {
-		case err == nil:
-			r.announcePrefs(ctx, log, map[uint64][]prefWrite{id: writes})
-		case unpersistablePrefErr(err):
-			txnNotice(txn, err)
-			log.Error("dropping unpersistable preference change",
-				zap.Uint64("user_id", id),
-				zap.Int("writes", len(writes)),
-				zap.Error(err),
-			)
-		default:
-			txnNotice(txn, err)
-			log.Warn("requeueing preference changes after transient flush failure",
-				zap.Uint64("user_id", id),
-				zap.Int("writes", len(writes)),
-				zap.Error(err),
-			)
-			requeuePrefWrites(r.batcher, writes)
-		}
-	}
-}
-
 func txnNotice(txn *newrelic.Transaction, err error) {
 	if txn != nil {
 		txn.NoticeError(err)
@@ -187,9 +146,6 @@ func txnNotice(txn *newrelic.Transaction, err error) {
 
 func (r *Users) announcePref(ctx context.Context, log *zap.Logger, id uint64) {
 	if err := r.publishChanged(ctx, id); err != nil {
-		log.Error("failed to announce preference change",
-			zap.Uint64("user_id", id),
-			zap.Error(err),
-		)
+		log.Error("failed to announce preference change", zap.Uint64("user_id", id), zap.Error(err))
 	}
 }

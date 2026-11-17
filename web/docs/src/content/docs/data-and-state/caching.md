@@ -1,7 +1,7 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Caching and write-behind
+title: Caching and committed writes
 description: "Read caches, batching and durability boundaries."
 docType: explanation
 ---
@@ -12,7 +12,7 @@ docType: explanation
 
 ## Write path and durability
 
-`pkg/batch` coalesces pending writes by key and calls a service-provided flush function. Commands, modules and some user preferences use write-behind. The pending values live in process memory: an accepted update can be lost if the process stops before a successful flush. A failed flush is retried; it does not turn the earlier response into a durable commit. Do not use this mechanism for money or tokens.
+`pkg/batch/group.go` groups command edits and user preferences before calling a service-provided transaction. Callers wait for the MySQL commit before receiving success. Modules use synchronous `SetNow` and patch operations. Pending work lives in memory, so a crash before commit requires the caller to retry. Counter events retain stable receipt identities to make retries idempotent. Financial and credential writes keep their dedicated synchronous paths.
 
 ```mermaid
 sequenceDiagram
@@ -23,22 +23,27 @@ sequenceDiagram
     participant N as NATS
     C->>R: Update setting
     R->>B: Queue latest value by key
-    R-->>C: Accepted
-    B->>D: Flush
+    B->>D: Transaction
     alt Commit succeeds
         D-->>B: Committed
         B->>N: Publish change
+        B-->>R: Success
+        R-->>C: Committed
     else Flush fails
         D-->>B: Error
-        Note over B: Retry pending work
+        Note over B: Retry whole transaction for transient locks
+        B-->>R: Item error after isolation
+        R-->>C: Error
     end
 ```
 
-For implementation and failure details, start with `pkg/batch/batcher.go`, `pkg/cache`, and the relevant `app/db/<service>/repository/`. The projection is another derived read model, described [separately](/data-and-state/projection/).
+For implementation and failure details, start with `pkg/batch/group.go`, `pkg/cache`, and the relevant `app/db/<service>/repository/`. The projection is another derived read model, described [separately](/data-and-state/projection/).
 
 ## What happens when writes overlap
 
-Suppose updates A and B use the same batch key. `Add` replaces the pending value, so a flush that has not yet taken the map sees B. If A is already being flushed when B arrives, B enters the new pending map. If A fails, the batcher restores A only if no newer value for that key is pending; B is not overwritten. See [`Add` and `flushPending`](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/batch/batcher.go) and their tests.
+Suppose updates A and B use the same group key. Within one batch, the last admitted value wins and earlier callers share its committed outcome. If B fails with an attributable item error, isolation returns B's error to its caller and attempts A instead. Healthy items can still commit. Row and estimated byte budgets bound each statement; oversized items are rejected before admission. See [`Group`](https://github.com/AdamOusmer/ItsBagelBot/blob/main/pkg/batch/group.go) and its tests.
+
+Grouped command upserts and preferences allow at most 250 ms of queue wait, then a one-second transaction budget, then a separate 250 ms publication budget. These total 1.5 seconds. A plain command upsert also allows 250 ms to acquire the broadcaster lock before admission, for 1.75 seconds overall. These bounds stay below the two-second command and three-second user RPC deadlines. Rename and delete use the caller context for their exclusive lock, SQL and publication; a rename of a missing row then takes the grouped upsert path, so the plain-upsert bound does not apply to the whole rename. Caller cancellation after admission does not detach the reply from the commit result. Grouped post-commit publication gets a fresh context; its failure does not undo committed data.
 
 A normal close attempts to drain pending work within the supplied context. A crash cannot run that drain. The flush callback decides its own database transaction and event publication, so check the particular repository rather than assuming every batch has identical effects.
 
@@ -46,4 +51,4 @@ A normal close attempts to drain pending work within the supplied context. A cra
 
 The [projection client](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/projection/client.go) configures local caches with stale-on-error and listens for invalidations. Its users, modules and commands have separate caches. On a cold read it can request an owner snapshot; the modules path also uses a short outage backoff. The [RPC tests](https://github.com/AdamOusmer/ItsBagelBot/blob/main/internal/projection/client_rpc_test.go) cover retry after errors and clearing that backoff on invalidation. These are client-specific policies, not guarantees of every `pkg/cache` user.
 
-When modifying a cached write, test the local value, invalidation on another instance, a failed reload, and a newer write arriving during a failed flush. For durable state, choose a direct path and test what happens when the caller retries after an ambiguous timeout.
+When modifying a cached write, test the committed local value, invalidation on another instance, a failed reload, poison-item isolation and overlapping edits. Test retries after an ambiguous transport timeout using the operation's idempotency contract.

@@ -35,12 +35,16 @@ func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) err
 }
 
 func (r *Users) persistPrefs(ctx context.Context, perUser map[uint64][]prefWrite) error {
-	return db.RetryWithTx(ctx, r.client, func(tx *ent.Tx) error {
-		for _, id := range slices.Sorted(maps.Keys(perUser)) {
-			if err := writeUserPrefs(ctx, tx, id, perUser[id]); err != nil {
-				return err
-			}
-		}
-		return nil
+	return db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				for _, id := range slices.Sorted(maps.Keys(perUser)) {
+					if err := writeUserPrefs(ctx, tx, id, perUser[id]); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		})
 	})
 }
