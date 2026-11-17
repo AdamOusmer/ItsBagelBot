@@ -15,7 +15,6 @@ import (
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/testdb"
-	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/valkey"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -119,7 +118,7 @@ func TestCounterProcessorReloadsScriptsAfterNoScript(t *testing.T) {
 	assert.Equal(t, [][]string{{counterClaimScript}, {counterClaimScript}, {counterCompleteScript}, {counterCompleteScript}, {counterClaimScript}, {counterCompleteScript}}, cache.batches)
 }
 
-func TestCounterReceiptOutlivesTheLastRepublishedCopy(t *testing.T) {
+func TestCounterReceiptSurvivesCacheExpiry(t *testing.T) {
 	repo, raw := counterTestRepo(t)
 	cache := newCounterFakeValkey(t)
 	p := counterTestProcessor(t, repo, cache)
@@ -133,12 +132,12 @@ func TestCounterReceiptOutlivesTheLastRepublishedCopy(t *testing.T) {
 	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "an immediate duplicate is absorbed")
 	assert.Equal(t, counterCompletedTTL, cache.ttl(event))
 
-	lastCopy := data.CounterRepublishWindow + 2*counterCacheTimeout + bus.DataStream.MaxAge + counterSQLTimeout
-	cache.advance(lastCopy)
+	cachedReplayAt := counterCompletedTTL - time.Second
+	cache.advance(cachedReplayAt)
 	require.NoError(t, p.Process(ctx, event))
-	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "the receipt must still absorb the last republished copy")
+	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "the cache still absorbs a replay before expiry")
 
-	cache.advance(counterCompletedTTL + time.Millisecond - lastCopy)
+	cache.advance(counterCompletedTTL + time.Millisecond - cachedReplayAt)
 	require.NoError(t, p.Process(ctx, event))
 	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "SQL absorbs replays after cache expiry")
 }

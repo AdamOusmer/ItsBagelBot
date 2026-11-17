@@ -75,11 +75,24 @@ Generated Ent code is not the schema source.
   accepted IDs up to 256 bytes fit `VARBINARY(64)` without truncation. Payload
   hashes use `BINARY(32)`, admission owners `BINARY(16)`, and `created_at` indexed
   Unix seconds. SQLite uses BLOB columns and binary bindings.
-- SQL receipts live for `CounterReceiptTTL + DataStream.MaxAge`, rounded up to
-  whole hours for margin: currently two hours. The 15-second repository loop
+- Sesame retries unconfirmed counter batches indefinitely with the same BatchID
+  and immutable payload. Pending batches ignore early flush nudges and retry on
+  the five-second ticker with exponential backoff capped at 30 seconds.
+  Each queue suppresses only its own early flush nudges. Shutdown attempts all
+  pending and newly aggregated batches regardless of backoff within five seconds.
+  Pending batches stay in memory and new increments aggregate behind them;
+  process termination can still lose work unconfirmed after the final flush.
+- SQL receipts live for 24 hours (`CounterReceiptRetention` in shared events),
+  measured from the original SQL admission. The 15-second repository loop
   deletes expired rows in ordered chunks of 1,000, at most 64 chunks or two
-  seconds per pass. Later passes drain any backlog. DLQ letters replayed after
-  this horizon are not deduplicated; no DLQ replay tool exists in the tree.
+  seconds per pass. At 200 unique deliveries/s this retains 17,280,000 rows/day
+  at roughly 200-250 bytes/row including indexes, about 3.5-4.3 GB for 24 hours,
+  and adds 3,000 rows per loop; the row limit permits pruning 64,000 rows per
+  loop (about 4,267 rows/s), subject to the time budget and database throughput.
+  Later passes drain any backlog. A batch republished or replayed from DLQ after
+  24 hours is not deduplicated once its SQL receipt has been pruned; indefinite
+  producer retries do not extend this deduplication horizon. No DLQ replay tool
+  exists in the tree.
 - Valkey retains the original receipt key and `done` marker during rolling
   upgrades. Completed markers with a SQL receipt get a batched digest check;
   legacy markers without a SQL receipt remain authoritative until they expire.

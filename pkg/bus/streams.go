@@ -65,7 +65,7 @@ var DataStream = StreamSpec{
 	Replicas:     3,
 }
 
-// DLQ counter replays older than the two-hour SQL receipt horizon are not deduplicated.
+// Counter batches republished or replayed from DLQ after the 24-hour SQL receipt horizon are not deduplicated.
 var DataDeadLetterStream = StreamSpec{
 	Name:       "DATA_DLQ",
 	Subjects:   []string{DeadLetterPrefix + ">"},

@@ -24,10 +24,10 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
 
-	r.Earn(1, 7, "viewer7", "", 100, 300)
-	r.Earn(1, 7, "", "Viewer7", 50, 0)
+	r.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7, Login: "viewer7", Points: 100, WatchSeconds: 300})
+	r.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7, Name: "Viewer7", Points: 50})
 	for i := uint64(100); i < 100+1200; i++ {
-		r.Earn(1, i, "", "", 10, 300)
+		r.Earn(PointEarning{BroadcasterID: 1, ViewerID: i, Points: 10, WatchSeconds: 300})
 	}
 	r.Bump(ChannelBump(1, "deaths"), 1)
 	r.Bump(ChannelBump(1, "deaths"), 2)
@@ -79,9 +79,9 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 func TestLoyaltyReporterSkipsEmpty(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
-	r.Earn(0, 7, "", "", 10, 0)
-	r.Earn(1, 0, "", "", 10, 0)
-	r.Earn(1, 7, "", "", 0, 0)
+	r.Earn(PointEarning{ViewerID: 7, Points: 10})
+	r.Earn(PointEarning{BroadcasterID: 1, Points: 10})
+	r.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7})
 	r.Bump(ChannelBump(1, ""), 1)
 	r.Bump(ChannelBump(1, "deaths"), 0)
 	r.Bump(ChannelBump(0, "deaths"), 1)
@@ -109,10 +109,10 @@ func TestLoyaltyReporterBotNamespace(t *testing.T) {
 func TestLoyaltyReporterCapsEarnedPointsBeforePublish(t *testing.T) {
 	pub := &rawPublisher{}
 	reporter := NewLoyaltyReporter(pub, zap.NewNop())
-	reporter.Earn(1, 7, "viewer", "Viewer", math.MaxInt64-1, 300)
-	reporter.Earn(1, 7, "", "", 10, 300)
-	reporter.Earn(1, 7, "", "", 1, 0)
-	reporter.Earn(1, 8, "other", "Other", 20, 300)
+	reporter.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7, Login: "viewer", Name: "Viewer", Points: math.MaxInt64 - 1, WatchSeconds: 300})
+	reporter.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7, Points: 10, WatchSeconds: 300})
+	reporter.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7, Points: 1})
+	reporter.Earn(PointEarning{BroadcasterID: 1, ViewerID: 8, Login: "other", Name: "Other", Points: 20, WatchSeconds: 300})
 	reporter.Close()
 
 	payloads := pub.payloads[data.SubjectLoyaltyEarned]
@@ -154,7 +154,7 @@ func (p *blockedLoyaltyPublisher) PublishOwnedWithID(ctx context.Context, subjec
 func TestLoyaltyReporterCloseWaitsForPublish(t *testing.T) {
 	pub := &blockedLoyaltyPublisher{started: make(chan struct{}), release: make(chan struct{})}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
-	r.Earn(1, 7, "viewer", "", 10, 300)
+	r.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7, Login: "viewer", Points: 10, WatchSeconds: 300})
 	r.nudge()
 	<-pub.started
 	closed := make(chan struct{})
@@ -202,6 +202,8 @@ func TestCounterPublicationRetryPreservesBatch(t *testing.T) {
 	require.Len(t, r.pending, 1)
 	r.BumpBot(data.CounterMessagesProcessed, 2)
 	pub.fail = false
+	retryAt := r.pending[0].nextAttempt
+	r.now = func() time.Time { return retryAt }
 	r.flush(context.Background())
 	bodies := pub.payloads[data.SubjectLoyaltyCounters]
 	require.Len(t, bodies, 3)
@@ -216,7 +218,7 @@ func TestCounterPublicationRetryPreservesBatch(t *testing.T) {
 	require.Empty(t, r.pending)
 }
 
-func TestCounterPublicationAbandonedAfterGiveUp(t *testing.T) {
+func TestCounterPublicationRetriesWithoutHorizon(t *testing.T) {
 	pub := &uncertainCounterPublisher{fail: true}
 	core, logs := observer.New(zap.ErrorLevel)
 	now := time.Unix(1_700_000_000, 0)
@@ -225,50 +227,30 @@ func TestCounterPublicationAbandonedAfterGiveUp(t *testing.T) {
 	r.flush(context.Background())
 	require.Len(t, r.pending, 1)
 	batchID := r.pending[0].id
-
-	now = now.Add(counterPublicationGiveUp - time.Second)
-	r.flush(context.Background())
-	require.Len(t, r.pending, 1)
-	require.Equal(t, batchID, r.pending[0].id)
-	bodies := pub.payloads[data.SubjectLoyaltyCounters]
-	for _, body := range bodies[1:] {
-		require.JSONEq(t, string(bodies[0]), string(body))
+	original := pub.payloads[data.SubjectLoyaltyCounters][0]
+	r.BumpBot(data.CounterMessagesProcessed, 2)
+	for _, elapsed := range []time.Duration{0, time.Second, time.Hour, 24 * time.Hour, 72 * time.Hour} {
+		now = now.Add(elapsed)
+		r.flush(t.Context())
+		require.Len(t, r.pending, 1)
+		require.Equal(t, batchID, r.pending[0].id)
+		require.EqualValues(t, 2, r.bumps[counterAgg{name: data.CounterMessagesProcessed, scope: data.CounterScopeBot}].delta)
 	}
-
-	now = now.Add(time.Second)
-	pub.fail = false
-	r.flush(context.Background())
-	require.Empty(t, r.pending)
-	require.Len(t, pub.payloads[data.SubjectLoyaltyCounters], len(bodies))
-	abandoned := logs.FilterMessage("counter batch abandoned after retry horizon").All()
-	require.Len(t, abandoned, 1)
-	fields := abandoned[0].ContextMap()
-	require.Equal(t, batchID, fields["batch_id"])
-	require.Equal(t, data.SubjectLoyaltyCounters, fields["subject"])
-	require.Equal(t, counterPublicationGiveUp, fields["age"])
-	require.Equal(t, int64(1), fields["entries"])
-}
-
-func TestCounterPublicationSurvivesBrokerOutage(t *testing.T) {
-	pub := &uncertainCounterPublisher{fail: true}
-	now := time.Unix(1_700_000_000, 0)
-	r := retryReporter(pub, zap.NewNop(), func() time.Time { return now })
-	r.BumpBot(data.CounterMessagesProcessed, 3)
-	r.flush(context.Background())
-	batchID := r.pending[0].id
-	for range 30 {
-		now = now.Add(time.Minute)
-		r.flush(context.Background())
-	}
-	require.Len(t, r.pending, 1)
-	require.Equal(t, batchID, r.pending[0].id)
-	pub.fail = false
-	r.flush(context.Background())
-	require.Empty(t, r.pending)
 	bodies := pub.payloads[data.SubjectLoyaltyCounters]
-	var last data.CounterBumpedDTO
-	require.NoError(t, codec.Unmarshal(bodies[len(bodies)-1], &last))
-	require.Equal(t, batchID, last.BatchID)
+	for _, body := range bodies {
+		require.Equal(t, original, body)
+	}
+	require.Len(t, logs.FilterMessage("loyalty batch retained for retry").All(), 4)
+	pub.fail = false
+	now = now.Add(30 * time.Second)
+	r.flush(t.Context())
+	require.Empty(t, r.pending)
+	recovered := pub.payloads[data.SubjectLoyaltyCounters]
+	require.Equal(t, original, recovered[len(bodies)])
+	var next data.CounterBumpedDTO
+	require.NoError(t, codec.Unmarshal(recovered[len(bodies)+1], &next))
+	require.NotEqual(t, batchID, next.BatchID)
+	require.EqualValues(t, 2, next.Bumps[0].Delta)
 }
 
 func TestCommandPublicationRetainsOverflowKeyAndRetry(t *testing.T) {
@@ -282,6 +264,8 @@ func TestCommandPublicationRetainsOverflowKeyAndRetry(t *testing.T) {
 	r.flush(context.Background())
 	require.Len(t, r.pending, useMaxKeys+1)
 	pub.fail = false
+	retryAt := r.pending[0].nextAttempt
+	r.now = func() time.Time { return retryAt }
 	r.flush(context.Background())
 	require.Empty(t, r.pending)
 	bodies := pub.payloads[data.SubjectCommandUsed]
@@ -323,12 +307,14 @@ func (p *rawPublisher) Close() error { return nil }
 func TestEarnedPublicationRetriesImmutableIdentity(t *testing.T) {
 	pub := &uncertainCounterPublisher{fail: true}
 	r := retryReporter(pub, zap.NewNop(), nil)
-	r.Earn(1, 7, "viewer", "", 10, 0)
+	r.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7, Login: "viewer", Points: 10})
 	r.flush(t.Context())
 	require.Len(t, r.earnPending, 1)
 	original := pub.payloads[data.SubjectLoyaltyEarned][0]
-	r.Earn(1, 7, "viewer", "", 20, 0)
+	r.Earn(PointEarning{BroadcasterID: 1, ViewerID: 7, Login: "viewer", Points: 20})
 	pub.fail = false
+	retryAt := r.earnPending[0].nextAttempt
+	r.now = func() time.Time { return retryAt }
 	r.flush(t.Context())
 	require.Empty(t, r.earnPending)
 	bodies := pub.payloads[data.SubjectLoyaltyEarned]

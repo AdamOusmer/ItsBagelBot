@@ -92,7 +92,7 @@ func balanceKey(broadcasterID, viewerID uint64) string {
 }
 
 func (s *ValkeyLoyaltyStore) Earn(e PointEarning) {
-	s.reporter.Earn(e.BroadcasterID, e.ViewerID, e.Login, e.Name, e.Points, e.WatchSeconds)
+	s.reporter.Earn(e)
 }
 
 func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, name string) (string, error) {
