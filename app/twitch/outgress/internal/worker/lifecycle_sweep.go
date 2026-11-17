@@ -35,6 +35,9 @@ func (w *Worker) sweepUnhealthy(ctx context.Context) {
 }
 
 func (w *Worker) verifyUnhealthy(ctx context.Context, id string) {
+	if !w.backgroundAllowed(ctx, id) {
+		return
+	}
 	callCtx, cancel := context.WithTimeout(ctx, unhealthyVerifyTimeout)
 	defer cancel()
 	if _, err := w.VerifyChannel(callCtx, id, true); err != nil {

@@ -211,22 +211,26 @@ func TestUnhealthySweepHealsServedChannelThenIsLocked(t *testing.T) {
 	assert.Equal(t, subStateFailing, state)
 }
 
-func TestUnhealthySweepLeavesDormantChannelInSet(t *testing.T) {
-	transport := &verifyTransport{}
-	w := verifyWorker(t, transport, valkeytest.Spawn(t))
-	runtime := &fakeRuntime{servingSnapshot()}
-	runtime.snap.State.RuntimeState = lifecycle.Dormant
-	w.runtime = runtime
-	ctx := t.Context()
-	require.NoError(t, w.registry.SetSubState(ctx, testBroadcaster, subStateFailing, "stale"))
+func TestUnhealthySweepLeavesPausedChannelInSetWithoutCallingTwitch(t *testing.T) {
+	for _, runtimeState := range []string{lifecycle.Dormant, lifecycle.Recovering, lifecycle.Degraded} {
+		t.Run(runtimeState, func(t *testing.T) {
+			transport := &verifyTransport{}
+			w := verifyWorker(t, transport, valkeytest.Spawn(t))
+			runtime := &fakeRuntime{servingSnapshot()}
+			runtime.snap.State.RuntimeState = runtimeState
+			w.runtime = runtime
+			ctx := t.Context()
+			require.NoError(t, w.registry.SetSubState(ctx, testBroadcaster, subStateFailing, "stale"))
 
-	w.sweepUnhealthy(ctx)
+			w.sweepUnhealthy(ctx)
 
-	state, subErr := storedSubState(t, w)
-	assert.Equal(t, subStateFailing, state)
-	assert.Equal(t, "stale", subErr)
-	ids, err := w.registry.UnhealthyBatch(ctx, 10)
-	require.NoError(t, err)
-	assert.Equal(t, []string{testBroadcaster}, ids)
-	assert.Zero(t, transport.posts.Load())
+			state, subErr := storedSubState(t, w)
+			assert.Equal(t, subStateFailing, state)
+			assert.Equal(t, "stale", subErr)
+			ids, err := w.registry.UnhealthyBatch(ctx, 10)
+			require.NoError(t, err)
+			assert.Equal(t, []string{testBroadcaster}, ids)
+			assert.Zero(t, transport.posts.Load()+transport.gets.Load())
+		})
+	}
 }

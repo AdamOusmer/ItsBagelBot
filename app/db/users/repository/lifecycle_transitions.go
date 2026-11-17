@@ -35,6 +35,7 @@ var lifecycleActions = map[string]func(*lifecycleTransition) (bool, error){
 	"dormancy_defer":     (*lifecycleTransition).deferDormancy,
 	"dormancy":           (*lifecycleTransition).enterDormancy,
 	"retry":              (*lifecycleTransition).retryRecovery,
+	"enroll_retry":       (*lifecycleTransition).retryEnrollment,
 	"degraded_retry":     (*lifecycleTransition).retryDegraded,
 	"claim":              (*lifecycleTransition).claimRecovery,
 	"recovery_success":   (*lifecycleTransition).completeRecovery,
