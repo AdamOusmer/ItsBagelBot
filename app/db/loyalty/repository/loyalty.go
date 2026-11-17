@@ -7,8 +7,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"maps"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -237,43 +235,4 @@ func compareBumpKeys(a, b bumpKey) int {
 		strings.Compare(a.command, b.command),
 		cmp.Compare(a.viewerID, b.viewerID),
 	)
-}
-
-func splitBumps(bumps map[bumpKey]*bumpSum) (channel, entries []bumpKey) {
-	for _, k := range slices.SortedFunc(maps.Keys(bumps), compareBumpKeys) {
-		if entryScoped(bumps[k].scope) {
-			entries = append(entries, k)
-		} else {
-			channel = append(channel, k)
-		}
-	}
-	return channel, entries
-}
-
-type counterRow struct {
-	userID uint64
-	name   string
-	def    bool
-	args   []any
-}
-
-func compareCounterRows(a, b counterRow) int {
-	return cmp.Or(cmp.Compare(a.userID, b.userID), strings.Compare(a.name, b.name))
-}
-
-func sameCounter(a, b counterRow) bool {
-	return compareCounterRows(a, b) == 0
-}
-
-// Channel upserts and entry defs must share one ascending pass or two transactions can lock counters rows in opposite order.
-func orderedCounterRows(channel, entries []bumpKey, bumps map[bumpKey]*bumpSum, now time.Time) []counterRow {
-	rows := make([]counterRow, 0, len(channel)+len(entries))
-	for _, k := range channel {
-		rows = append(rows, counterRow{userID: k.userID, name: k.name, args: []any{k.userID, k.name, bumps[k].scope, bumps[k].delta, now, now}})
-	}
-	for _, k := range entries {
-		rows = append(rows, counterRow{userID: k.userID, name: k.name, def: true, args: []any{k.userID, k.name, bumps[k].scope, now, now}})
-	}
-	slices.SortStableFunc(rows, compareCounterRows)
-	return slices.CompactFunc(rows, sameCounter)
 }

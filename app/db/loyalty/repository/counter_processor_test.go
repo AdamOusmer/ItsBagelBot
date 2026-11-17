@@ -217,13 +217,62 @@ func TestCounterProcessorRejectsMalformedAndKeepsHealthyRows(t *testing.T) {
 	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
 	event := counterTestEvent("invalid", -data.MaxCounter-1)
 	require.ErrorIs(t, p.Process(context.Background(), event), ErrInvalidInput)
-	event = counterTestEvent("seed", data.MaxCounter)
+	event = counterTestEvent("seed", data.MaxCounter-1)
+	event.Bumps = append(event.Bumps, data.CounterBumpEntry{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "viewer", ViewerName: "Viewer", Delta: data.MaxCounter - 1})
 	require.NoError(t, p.Process(context.Background(), event))
-	event = counterTestEvent("saturated", 1)
-	event.Bumps = append(event.Bumps, data.CounterBumpEntry{Name: "hugs", Delta: 5})
+	event = counterTestEvent("boundary", 1)
+	event.Bumps = append(event.Bumps, data.CounterBumpEntry{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, Delta: 1})
 	require.NoError(t, p.Process(context.Background(), event))
-	assert.EqualValues(t, data.MaxCounter, counterTestValue(t, raw, "deaths"))
-	assert.EqualValues(t, 5, counterTestValue(t, raw, "hugs"))
+	entry := counterTestSaturatedEntry(t, raw)
+	event.BatchID = "saturated"
+	event.Bumps[1].ViewerLogin, event.Bumps[1].ViewerName = "changed", "Changed"
+	event.Bumps = append(event.Bumps, data.CounterBumpEntry{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 8, Delta: 5})
+	require.NoError(t, p.Process(t.Context(), event))
+	assert.Equal(t, saturatedCounterEntry{data.MaxCounter, "viewer", "Viewer", entry.updatedAt}, entry)
+	assert.Equal(t, entry, counterTestSaturatedEntry(t, raw))
+	var healthy int64
+	require.NoError(t, raw.QueryRow("SELECT value FROM counter_entries WHERE name='hugs' AND viewer_id=8").Scan(&healthy))
+	assert.Equal(t, [2]int64{data.MaxCounter, 5}, [2]int64{counterTestValue(t, raw, "deaths"), healthy})
+}
+
+type saturatedCounterEntry struct {
+	value       int64
+	login, name string
+	updatedAt   time.Time
+}
+
+func counterTestSaturatedEntry(t *testing.T, raw *sql.DB) saturatedCounterEntry {
+	t.Helper()
+	var entry saturatedCounterEntry
+	err := raw.QueryRow("SELECT value,viewer_login,viewer_name,updated_at FROM counter_entries WHERE name='hugs' AND viewer_id=7").
+		Scan(&entry.value, &entry.login, &entry.name, &entry.updatedAt)
+	require.NoError(t, err)
+	return entry
+}
+
+func TestCounterProcessorPreservesExistingScopeAndSkipsMissingNegativeEntry(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
+	ref := CounterRef{UserID: 1, Name: "hugs"}
+	_, err := repo.CounterCreate(t.Context(), ref, data.CounterScopeViewer)
+	require.NoError(t, err)
+	event := data.CounterBumpedDTO{BatchID: "existing-scope", UserID: ref.UserID, Bumps: []data.CounterBumpEntry{
+		{Name: ref.Name, Delta: 3},
+		{Name: ref.Name, Scope: data.CounterScopeViewer, ViewerID: 7, Command: "!Hello", Delta: 4},
+		{Name: ref.Name, Scope: data.CounterScopeViewer, ViewerID: 8, Delta: -5},
+	}}
+	require.NoError(t, p.Process(t.Context(), event))
+	def, value, found, err := repo.CounterGet(t.Context(), ref, SetTarget{ViewerID: 7, Command: "!Hello"})
+	require.NoError(t, err)
+	require.True(t, found)
+	var entries int
+	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM counter_entries WHERE user_id=1 AND name='hugs'").Scan(&entries))
+	type snapshot struct {
+		scope         string
+		pooled, entry int64
+		buckets       int
+	}
+	assert.Equal(t, snapshot{data.CounterScopeViewer, 3, 4, 1}, snapshot{def.Scope, def.Value, value, entries})
 }
 
 func TestCounterProcessorRejectsNegativeSystemAndTrialCounters(t *testing.T) {

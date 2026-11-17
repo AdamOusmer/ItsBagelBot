@@ -58,7 +58,7 @@ func (r *Loyalty) lockCounterUserChunk(ctx context.Context, tx *sql.Tx, chunk []
 		insert:      r.insertIgnore() + " INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES ",
 		placeholder: "(?, 0, 0)",
 	}
-	if err := writeCounterRows(ctx, tx, spec, missing); err != nil {
+	if _, err := writeCounterRows(ctx, tx, spec, missing); err != nil {
 		return err
 	}
 	return r.readCounterUsers(ctx, tx, missing, fences)

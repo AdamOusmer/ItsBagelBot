@@ -26,6 +26,7 @@ func MySQL(t *testing.T, prefix string) *sql.DB {
 	require.NoError(t, err)
 	cfg.DBName = ""
 	cfg.ParseTime = true
+	cfg.ClientFoundRows = false
 	if cfg.Params == nil {
 		cfg.Params = make(map[string]string)
 	}

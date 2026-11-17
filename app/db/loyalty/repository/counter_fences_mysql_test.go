@@ -44,7 +44,9 @@ func TestCounterMySQLBulkFenceStatementCount(t *testing.T) {
 	require.NoError(t, repo.RestoreUser(t.Context(), 1, 1))
 	held := holdCounterSQL(t, raw)
 	first := make(chan error, 1)
-	go func() { first <- p.Process(t.Context(), counterTestEvent("barrier", 1)) }()
+	barrier := counterTestEvent("barrier", 1)
+	barrier.Bumps = append(barrier.Bumps, replicaEntryBump(7, 1))
+	go func() { first <- p.Process(t.Context(), barrier) }()
 	require.Eventually(t, func() bool { return len(p.slots) > 0 }, time.Second, time.Millisecond)
 	time.Sleep(2 * counterBatchWindow)
 	errs := make(chan error, counterBatchMessages)
@@ -64,7 +66,7 @@ func TestCounterMySQLBulkFenceStatementCount(t *testing.T) {
 		require.NoError(t, <-errs)
 	}
 	after := counterSessionStatements(t, raw)
-	for name, expected := range map[string]int{"Com_insert": 7, "Com_select": 8} {
+	for name, expected := range map[string]int{"Com_insert": 6, "Com_select": 4} {
 		require.Equal(t, expected, after[name]-before[name], name)
 	}
 	assertCounterReceipts(t, raw, counterBatchMessages+1)

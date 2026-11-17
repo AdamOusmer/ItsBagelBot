@@ -71,6 +71,31 @@ func counterCrashGap(t *testing.T, repo *Loyalty, raw *sql.DB) {
 	assertCounterReceipts(t, raw, 1)
 }
 
+func TestCounterProcessorAdmitsFreshAndMixedReceiptBatches(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	cache := newCounterFakeValkey(t)
+	cache.outage(true, true)
+	p := counterTestProcessor(t, repo, cache)
+	first := counterTestEvent("first", 2)
+	second := counterTestEvent("second", 3)
+	third := counterTestEvent("third", 5)
+	for _, events := range [][]data.CounterBumpedDTO{{first, second}, {first, third}} {
+		errs := runCounterCopies(t.Context(), []*CounterProcessor{p}, events)
+		require.Equal(t, []error{nil, nil}, errs)
+	}
+	require.EqualValues(t, 10, counterTestValue(t, raw, "deaths"))
+	assertCounterReceipts(t, raw, 3)
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	var claimSizes []int
+	for _, batch := range cache.batches {
+		if batch[0] == counterClaimScript {
+			claimSizes = append(claimSizes, len(batch))
+		}
+	}
+	require.Equal(t, []int{2, 2}, claimSizes)
+}
+
 func counterConcurrentReplay(t *testing.T, repo *Loyalty, raw *sql.DB) {
 	other := repo
 	if repo.dialect == "mysql" {

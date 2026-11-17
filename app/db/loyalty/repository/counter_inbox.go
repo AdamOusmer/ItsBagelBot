@@ -125,19 +125,30 @@ func (r *Loyalty) admitCounterEvents(ctx context.Context, tx *sql.Tx, events []d
 	}
 	spec := upsertSpec{insert: "INSERT INTO loyalty_counter_receipts (user_id,batch_id,payload_hash,admission_id,created_at) VALUES ", placeholder: "(?, ?, ?, ?, ?)", suffix: suffix}
 	rows := inbox.orderedRows()
-	if err := writeCounterRows(ctx, tx, spec, rows); err != nil {
-		return nil, err
-	}
-	chunks, err := db.StatementRowChunks(rows, 256)
+	inserted, err := writeCounterRows(ctx, tx, spec, rows)
 	if err != nil {
 		return nil, err
 	}
-	for _, chunk := range chunks {
-		if err := inbox.read(ctx, tx, counterReceiptRead(chunk, r.dialect != "sqlite3")); err != nil {
-			return nil, err
-		}
+	if inserted == int64(len(rows)) {
+		return inbox.admitted(events), nil
+	}
+	if err := r.classifyCounterReceipts(ctx, tx, inbox, rows); err != nil {
+		return nil, err
 	}
 	return inbox.admitted(events), nil
+}
+
+func (r *Loyalty) classifyCounterReceipts(ctx context.Context, tx *sql.Tx, inbox counterInbox, rows [][]any) error {
+	chunks, err := db.StatementRowChunks(rows, 256)
+	if err != nil {
+		return err
+	}
+	for _, chunk := range chunks {
+		if err := inbox.read(ctx, tx, counterReceiptRead(chunk, r.dialect != "sqlite3")); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func counterReceiptRead(chunk [][]any, lock bool) chunkStmt {

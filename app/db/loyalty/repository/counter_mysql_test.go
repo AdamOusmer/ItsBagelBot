@@ -103,3 +103,42 @@ func TestCounterMySQLReplicasFlushOtherChannelsWithoutLockConflicts(t *testing.T
 	assert.EqualValues(t, len(replicas)*replicaWriters*writerBatches, total)
 	assert.EqualValues(t, len(replicas)*replicaWriters*writerBatches, entries)
 }
+
+func TestCounterMySQLReplicasApplyOppositeEntryDeltasWithoutDeadlocks(t *testing.T) {
+	raw := testdb.MySQL(t, "loyalty_counter_signs_")
+	replicas := []*CounterProcessor{counterMySQLReplica(t, raw), counterMySQLReplica(t, raw)}
+	seed := data.CounterBumpedDTO{BatchID: "seed", UserID: 7, Bumps: []data.CounterBumpEntry{
+		replicaEntryBump(1, 3), replicaEntryBump(2, 3), replicaEntryBump(3, 3),
+	}}
+	require.NoError(t, replicas[0].Process(t.Context(), seed))
+	before := readInnodbLocks(t, raw)
+	const rounds = 16
+	for round := range rounds {
+		batches := []data.CounterBumpedDTO{
+			{BatchID: fmt.Sprintf("left-%d", round), UserID: seed.UserID, Bumps: []data.CounterBumpEntry{
+				replicaEntryBump(2, -1), replicaEntryBump(1, 2), replicaEntryBump(3, -5),
+			}},
+			{BatchID: fmt.Sprintf("right-%d", round), UserID: seed.UserID, Bumps: []data.CounterBumpEntry{
+				replicaEntryBump(1, -1), replicaEntryBump(2, 2), replicaEntryBump(4, -5),
+			}},
+		}
+		require.Equal(t, []error{nil, nil}, runCounterCopies(t.Context(), replicas, batches))
+	}
+	after := readInnodbLocks(t, raw)
+	assert.Zero(t, after.deadlocks-before.deadlocks)
+	assertMySQLReplicaEntryTotals(t, raw, [4]int64{3 + rounds, 3 + rounds, 0, 3})
+}
+
+func replicaEntryBump(viewerID uint64, delta int64) data.CounterBumpEntry {
+	return data.CounterBumpEntry{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: viewerID, Delta: delta}
+}
+
+func assertMySQLReplicaEntryTotals(t *testing.T, raw *sql.DB, expected [4]int64) {
+	t.Helper()
+	var actual [4]int64
+	err := raw.QueryRowContext(t.Context(), `SELECT MAX(CASE WHEN viewer_id=1 THEN value END),
+		MAX(CASE WHEN viewer_id=2 THEN value END), MAX(CASE WHEN viewer_id=3 THEN value END), COUNT(*)
+		FROM counter_entries WHERE user_id=7 AND name='hugs'`).Scan(&actual[0], &actual[1], &actual[2], &actual[3])
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual)
+}

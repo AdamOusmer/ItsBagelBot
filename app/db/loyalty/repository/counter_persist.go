@@ -54,7 +54,7 @@ func (r *Loyalty) commitAdmittedCounters(ctx context.Context, tx *sql.Tx, events
 	if err != nil {
 		return err
 	}
-	if err := r.writeCounterTransaction(ctx, tx, bumps); err != nil {
+	if err := r.writeCounterSums(ctx, tx, bumps); err != nil {
 		return err
 	}
 	if err := verifyTrialPromotions(ctx, tx, unpromoted); err != nil {
@@ -138,19 +138,6 @@ func collectTrialCarry(window *Loyalty, id uint64, trial trialTotals) error {
 		}
 	}
 	return nil
-}
-
-func (r *Loyalty) writeCounterTransaction(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
-	if err := r.ensureCounterBatchDefinitions(ctx, tx, bumps); err != nil {
-		return err
-	}
-	if err := r.ensureCounterEntryRows(ctx, tx, bumps); err != nil {
-		return err
-	}
-	if err := r.excludeSaturatedCounterRows(ctx, tx, bumps); err != nil {
-		return err
-	}
-	return r.writeCounterSums(ctx, tx, bumps)
 }
 
 func verifyTrialPromotions(ctx context.Context, tx *sql.Tx, ids []uint64) error {
