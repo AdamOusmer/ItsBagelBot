@@ -501,3 +501,27 @@ func TestBannedGrantControlRepairRetriesBoundedly(t *testing.T) {
 	require.Equal(t, 3, s.ControlRepairAttempts)
 	require.False(t, s.AllowsRuntime())
 }
+
+func TestLifecycleEnrollRetryBacksOffOnlyTheActiveGeneration(t *testing.T) {
+	now := time.Now().UTC()
+	active := lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, AdmissionGeneration: 4, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy}
+	cases := []struct {
+		name       string
+		state      lifecycle.State
+		generation int64
+		wantState  string
+	}{
+		{name: "active generation enters bounded recovery", state: active, generation: 4, wantState: lifecycle.Recovering},
+		{name: "stale generation is ignored", state: active, generation: 3, wantState: lifecycle.Active},
+		{name: "degraded channel keeps its retry delay", state: lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Degraded, AdmissionGeneration: 4, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy}, generation: 4, wantState: lifecycle.Degraded},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := tc.state
+			changed, err := transitionLifecycle(&s, usersrpc.LifecycleRequest{Action: "enroll_retry", AdmissionGeneration: tc.generation}, now, false)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantState != tc.state.RuntimeState, changed)
+			require.Equal(t, tc.wantState, s.RuntimeState)
+		})
+	}
+}
