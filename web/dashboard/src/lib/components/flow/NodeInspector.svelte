@@ -52,18 +52,20 @@
   type Token = VariableChip['token'];
   type Hint = string | undefined;
   let panel = $state<HTMLElement>();
+  const fieldElements: Record<FieldKey, HTMLElement | undefined> = {};
 
   $effect(() => {
-    if (active && focusToken > 0 && panel) {
-      const root = panel;
-      const key = focusField;
-      void tick().then(() => {
-        const field = Array.from(root.querySelectorAll<HTMLElement>('[data-field]')).find((el) => el.dataset.field === key);
-        const control = field?.querySelector<HTMLElement>('input, textarea, select, button');
-        const fields = Array.from(root.querySelectorAll<HTMLElement>('.scroll :is(input, textarea, select, button):not([disabled], [tabindex="-1"])'));
-        (control ?? field ?? fields.find((el) => el.getClientRects().length > 0) ?? root).focus();
-      });
-    }
+    if (!active) return;
+    if (focusToken <= 0) return;
+    const root = panel;
+    if (!root) return;
+    const key = focusField;
+    void tick().then(() => {
+      const field = key ? fieldElements[key] : undefined;
+      const control = field?.querySelector<HTMLElement>('input, textarea, select, button');
+      const fields = Array.from(root.querySelectorAll<HTMLElement>('.scroll :is(input, textarea, select, button):not([disabled], [tabindex="-1"])'));
+      (control ?? field ?? fields.find((el) => el.getClientRects().length > 0) ?? root).focus();
+    });
   });
   const uid = $props.id();
   const KIND_TINT: Record<FlowKind, string> = {
@@ -164,6 +166,7 @@
       .map((c) => ({ token: c.token, label: catalogLabel(c), hint: catalogSample(c) }))
       .filter((v) => matches(v.token, `${v.label} ${v.hint}`));
   });
+  const noVariableMatches = $derived(Boolean(needle) && flowVars.length + channelVars.length === 0);
 
   function catalogLabel(chip: VariableChip): string {
     return chip.id ? t(`vars.${chip.id}.name` as MessageKey) : chipHint(t, chip) ?? '';
@@ -272,8 +275,8 @@
     <header class="head">
       <IconTile style="--tile: 40px; color: {KIND_TINT[spec.kind]}"><Icon name={spec.icon} size={20} /></IconTile>
       <div class="titles">
-        <h2 class="name"><bb-fit><span data-fit>{stepLabel(t, spec)}</span></bb-fit></h2>
-        <p class="sentence"><bb-fit><span data-fit>{t('flows.board.settingsSentence', { summary: stepSummary(t, spec) })}</span></bb-fit></p>
+        <h2 class="name bb-fit-box"><bb-fit>{stepLabel(t, spec)}</bb-fit></h2>
+        <p class="sentence bb-fit-box"><bb-fit>{t('flows.board.settingsSentence', { summary: stepSummary(t, spec) })}</bb-fit></p>
       </div>
       <IconButton label={t('flows.board.closeSettings')} size="sm" onclick={() => (onclose ? onclose() : (selectedId = null))}><Icon name="x" size={14} /></IconButton>
     </header>
@@ -284,7 +287,7 @@
       {/if}
       {#if roleNote}
         <div class="role-note">
-          <p class="note role-warning" role="status"><bb-fit mode="block"><span data-fit>{roleNote}</span></bb-fit></p>
+          <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote}</bb-fit></p>
           <Button variant="ghost" onclick={() => onremove(node.id, true)}>{t('flows.step.condition.role.remove')}</Button>
         </div>
       {/if}
@@ -296,7 +299,7 @@
             {@const error = issue ? fieldIssueMessage(t, issue, node) : undefined}
             {@const tag = fieldRequired(node, field.key) ? t('flows.clarity.required') : undefined}
             {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field)}
-            <div class="field" data-field={field.key} role="group" aria-label={label} tabindex="-1">
+            <div class="field" bind:this={fieldElements[field.key]} role="group" aria-label={label} tabindex="-1">
             {#if spec.type === 'cond.cooldown' && field.key === 'name'}
               {@const perViewer = Boolean(node.config.perUser)}
               <Field {label} {tag} {error} for="{uid}-{field.key}" hint={t('flows.step.condition.cooldown.field.name.hint')}>
@@ -475,7 +478,7 @@
               {/each}
             </ul>
           {/if}
-          {#if needle && !flowVars.length && !channelVars.length}
+          {#if noVariableMatches}
             <p class="note">{t('flows.board.variablesNone', { query: query.trim() })}</p>
           {/if}
         </section>

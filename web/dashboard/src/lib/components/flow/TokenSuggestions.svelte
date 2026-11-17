@@ -46,7 +46,7 @@
 <div class="bb-picker-panel bb-picker-panel--dropdown suggestions" id="{id}-suggestions" role="listbox" tabindex="-1" aria-label={label} bind:this={list} style:left="{position.left}px" style:top="{position.top}px" style:width="{position.width}px" use:portal onpointerdown={(event) => event.preventDefault()}>
   {#each items as item, index (item.token)}
     <PickerOption id="{id}-suggestion-{index}" role="option" aria-selected={index === active} aria-current={index === active} tabindex={-1} onclick={() => onselect(item.token)}>
-      <span class="suggestion-label" data-fit><bb-fit>{item.label}</bb-fit></span>
+      <span class="suggestion-label bb-fit-box"><bb-fit>{item.label}</bb-fit></span>
       <span class="suggestion-token">{item.token}</span>
     </PickerOption>
   {/each}

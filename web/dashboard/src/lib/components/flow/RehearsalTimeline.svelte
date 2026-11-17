@@ -87,8 +87,8 @@
             {/if}
             {#if row.pass}<span class="context">{t('flows.test.pass', { pass: row.pass, total: row.total })}</span>{/if}
             <button class="select" type="button" disabled={!step.id} onclick={() => step.id && onSelect(step.id)}>
-              <span class="label"><bb-fit><span data-fit>{step.label}</span></bb-fit></span>
-              {#if step.text}<span class="detail"><bb-fit mode="block"><span data-fit>{step.text}</span></bb-fit></span>{/if}
+              <span class="label bb-fit-box"><bb-fit>{step.label}</bb-fit></span>
+              {#if step.text}<span class="detail bb-fit-box"><bb-fit mode="block">{step.text}</bb-fit></span>{/if}
               {#if step.secondary}<span class="context">{step.secondary}</span>{/if}
             </button>
             {#if step.kind === 'say'}
@@ -100,7 +100,7 @@
             {/if}
             {#if step.kind === 'check'}<span class="result">{status(step)}</span>{/if}
             {#if step.sample}<span class="context">{t('flows.test.sample')}</span>{/if}
-            {#if roleNote}<span class="missing role-note"><bb-fit mode="block"><span data-fit>{roleNote}</span></bb-fit></span>{/if}
+            {#if roleNote}<span class="missing role-note bb-fit-box"><bb-fit mode="block">{roleNote}</bb-fit></span>{/if}
             {#if step.note && !roleNote}<span class="missing">{step.note}</span>{/if}
             {#each step.missing as field (field)}<span class="missing">{t('flows.issue.requiredField', { field })}</span>{/each}
             {#if pretend && step.id}
@@ -123,7 +123,7 @@
             {/if}
             {#if step.kind === 'check' && !pretend}
               <div class="repair" class:invisible={!step.repair} inert={!step.repair}>
-                <Button variant="ghost" size="sm" onclick={() => applyRepair(step)}><span data-fit>{t('flows.test.makePass')}</span></Button>
+                <Button variant="ghost" size="sm" onclick={() => applyRepair(step)}><bb-fit>{t('flows.test.makePass')}</bb-fit></Button>
               </div>
               <span class="missing" class:invisible={rejected !== step.key} role="status">{rejected === step.key ? t('flows.test.repairBlocked') : ''}</span>
             {/if}
@@ -135,7 +135,7 @@
   {/each}
 </ol>
 <div class="more" class:invisible={shown >= totalRows} inert={shown >= totalRows}>
-  <Button variant="ghost" size="sm" onclick={() => shown += 40}><span data-fit>{t('flows.test.moreRows', { count: Math.max(0, totalRows - shown) })}</span></Button>
+  <Button variant="ghost" size="sm" onclick={() => shown += 40}><bb-fit>{t('flows.test.moreRows', { count: Math.max(0, totalRows - shown) })}</bb-fit></Button>
 </div>
 
 <style>

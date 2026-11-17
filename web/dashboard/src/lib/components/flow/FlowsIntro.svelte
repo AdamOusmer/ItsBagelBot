@@ -19,16 +19,16 @@
 <section class="intro bb-canvas-fill" aria-labelledby="flows-intro-title">
   <div class="inner">
     <header class="head">
-      <h1 id="flows-intro-title" class="title"><bb-fit><span data-fit>{t('flows.introTitle', { name })}</span></bb-fit></h1>
-      <p class="lead"><bb-fit mode="block"><span data-fit>{t('flows.introLead')}</span></bb-fit></p>
+      <h1 id="flows-intro-title" class="title bb-fit-box"><bb-fit>{t('flows.introTitle', { name })}</bb-fit></h1>
+      <p class="lead bb-fit-box"><bb-fit mode="block">{t('flows.introLead')}</bb-fit></p>
     </header>
     <nav class="cards" aria-label={t('flows.starters.title')}>
       {#each STARTERS as starter (starter)}
         <HaloPanel href="/flows/new?starter={starter}" class="starter">
           <span class="card-inner">
-            <b class="card-name"><bb-fit><span data-fit>{t(`flows.starters.${starter}.title`)}</span></bb-fit></b>
-            <span class="card-body"><bb-fit mode="block"><span data-fit>{t(`flows.starters.${starter}.body`)}</span></bb-fit></span>
-            <span class="card-action"><bb-fit><span data-fit>{t('flows.starters.open')}</span></bb-fit><Icon name="arrowUpRight" size={16} /></span>
+            <b class="card-name bb-fit-box"><bb-fit>{t(`flows.starters.${starter}.title`)}</bb-fit></b>
+            <span class="card-body bb-fit-box"><bb-fit mode="block">{t(`flows.starters.${starter}.body`)}</bb-fit></span>
+            <span class="card-action"><span class="card-action-text bb-fit-box"><bb-fit>{t('flows.starters.open')}</bb-fit></span><Icon name="arrowUpRight" size={16} /></span>
           </span>
         </HaloPanel>
       {/each}
@@ -62,6 +62,7 @@
   .card-name { display: block; height: 28px; font-size: 22px; line-height: 1.2; }
   .card-body { display: block; height: 48px; font-size: 15px; line-height: 1.5; }
   .card-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; height: 24px; font-size: 14px; }
+  .card-action-text { flex: 1; min-width: 0; }
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
   @media (max-width: 760px) {
     .intro { padding: 12px 16px calc(var(--bb-dock-clearance) + 12px); min-height: 0; }

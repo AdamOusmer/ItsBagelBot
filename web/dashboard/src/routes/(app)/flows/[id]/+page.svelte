@@ -275,7 +275,9 @@
 
   onMount(() => {
     const measure = () => {
-      if (!boardEl || !barEl || !railEl) return;
+      if (!boardEl) return;
+      if (!barEl) return;
+      if (!railEl) return;
       boardFrame = { board: boardEl.getBoundingClientRect(), bar: barEl.getBoundingClientRect(), rail: railEl.getBoundingClientRect() };
     };
     const observer = new ResizeObserver(measure);
@@ -691,7 +693,7 @@
 {#snippet topStart()}
   <a class="back" href="/flows" aria-label={data.navLabels['nav.flows']}>
     <Icon name="arrowLeft" size={16} />
-    <span class="back-text" data-fit><bb-fit>{data.navLabels['nav.flows']}</bb-fit></span>
+    <span class="back-text bb-fit-box"><bb-fit>{data.navLabels['nav.flows']}</bb-fit></span>
   </a>
   <span class="flow-name"><Input fill maxlength={64} aria-label={t('flows.nameLabel')} bind:value={flow.name} /></span>
 {/snippet}
@@ -704,10 +706,10 @@
     title={switchLabel}
     onCheckedChange={(next) => void setEnabled(next)}
   />
-  <span class="live-hint" class:invisible={Boolean(ref)} aria-hidden={Boolean(ref)}><bb-fit><span data-fit>{t(flow.enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff')}</span></bb-fit></span>
+  <span class="live-hint bb-fit-box" class:invisible={Boolean(ref)} aria-hidden={Boolean(ref)}><bb-fit>{t(flow.enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff')}</bb-fit></span>
   </div>
-  <Button class="run-button" variant="ghost" aria-label={t('flows.board.testRun')} onclick={testRun}><Icon name="play" size={14} /> <span class="run-text" data-fit><bb-fit>{t('flows.board.testRun')}</bb-fit></span></Button>
-  <Button class="save-button" variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}><bb-fit><span data-fit>{t('flows.page.save')}</span></bb-fit></Button>
+  <Button class="run-button" variant="ghost" aria-label={t('flows.board.testRun')} onclick={testRun}><Icon name="play" size={14} /> <span class="run-text bb-fit-box"><bb-fit>{t('flows.board.testRun')}</bb-fit></span></Button>
+  <Button class="save-button" variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}><bb-fit>{t('flows.page.save')}</bb-fit></Button>
 {/snippet}
 
 {#snippet rail()}
@@ -720,7 +722,7 @@
       onclick={(e) => toggleLibrary(tool.mode, e.detail === 0)}
     >
       <Icon name={tool.icon} size={22} />
-      <span class="tool-label" data-fit><bb-fit>{toolLabel(tool.mode)}</bb-fit></span>
+      <span class="tool-label bb-fit-box"><bb-fit>{toolLabel(tool.mode)}</bb-fit></span>
     </button>
   {/each}
   <Tooltip text={t('flows.board.searchAll')} placement="bottom">

@@ -1011,7 +1011,7 @@
           <PickerOption onclick={connectFromMenu}>
             <span class="menu-row">
               <IconTile class="menu-tile"><Icon name="branch" size={16} /></IconTile>
-              <span class="menu-name" data-fit><bb-fit>{t('flows.connectExisting')}</bb-fit></span>
+              <span class="menu-name bb-fit-box"><bb-fit>{t('flows.connectExisting')}</bb-fit></span>
             </span>
           </PickerOption>
         {/if}
@@ -1024,8 +1024,8 @@
               <span class="menu-row" style:--tint={MENU_TINT[s.kind].color} style:--tint-rgb={MENU_TINT[s.kind].rgb}>
                 <IconTile class="menu-tile"><Icon name={s.icon} size={16} /></IconTile>
                 <span class="menu-text">
-                  <span class="menu-name" data-fit><bb-fit>{stepLabel(t, s)}</bb-fit></span>
-                  <span class="menu-sum" data-fit><bb-fit>{stepSummary(t, s)}</bb-fit></span>
+                  <span class="menu-name bb-fit-box"><bb-fit>{stepLabel(t, s)}</bb-fit></span>
+                  <span class="menu-sum bb-fit-box"><bb-fit>{stepSummary(t, s)}</bb-fit></span>
                 </span>
               </span>
             </PickerOption>

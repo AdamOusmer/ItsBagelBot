@@ -50,15 +50,16 @@ function isTextArgument(node: FlowNode, param: string): boolean {
 
 export function fieldIssues(issues: readonly Issue[], nodes: readonly FlowNode[]): FieldIssue[] {
   const trigger = nodes.find((node) => specFor(node.type)?.kind === 'trigger');
-  return issues.flatMap((issue) => {
-    const match = /^nodes\.([^.]+)(?:\.(.*))?$/.exec(issue.path);
-    const node = match ? nodes.find((node) => node.id === match[1]) : trigger;
-    if (!match && !issue.path.startsWith('trigger')) return [];
-    if (!node) return [];
-    const path = match ? match[2] ?? '' : issue.path.replace(/^trigger\.?/, '');
-    const fallback = CODE_FIELDS.get(issue.code);
-    return [{ ...issue, nodeId: node.id, fieldKey: fieldKeyFor(node, path || fallback || '') }];
-  });
+  return issues.flatMap((issue) => locateFieldIssue(issue, nodes, trigger));
+}
+
+function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: FlowNode | undefined): FieldIssue[] {
+  const match = /^nodes\.([^.]+)(?:\.(.*))?$/.exec(issue.path);
+  if (!match && !issue.path.startsWith('trigger')) return [];
+  const node = match ? nodes.find((node) => node.id === match[1]) : trigger;
+  if (!node) return [];
+  const path = match ? match[2] : issue.path.replace(/^trigger\.?/, '');
+  return [{ ...issue, nodeId: node.id, fieldKey: fieldKeyFor(node, path || CODE_FIELDS.get(issue.code) || '') }];
 }
 
 const TYPES: Record<string, string> = {

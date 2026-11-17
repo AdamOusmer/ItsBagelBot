@@ -35,27 +35,27 @@
 
 <aside class="panel" aria-label={t('flows.board.testRun')}>
   <header class="head">
-    <h2 class="name"><bb-fit><span data-fit>{t('flows.board.testRun')}</span></bb-fit></h2>
+    <h2 class="name bb-fit-box"><bb-fit>{t('flows.board.testRun')}</bb-fit></h2>
     <IconButton label={t('flows.board.closeTestRun')} size="sm" onclick={onClose}><Icon name="x" size={14} /></IconButton>
   </header>
   <div class="scroll">
-    <p class="summary" class:invisible={Boolean(view.issue)} aria-live="polite"><bb-fit mode="block"><span data-fit>{view.summary}</span></bb-fit></p>
-    <p class="note"><bb-fit mode="block"><span data-fit>{t('flows.test.pretend')}</span></bb-fit></p>
+    <p class="summary bb-fit-box" class:invisible={Boolean(view.issue)} aria-live="polite"><bb-fit mode="block">{view.summary}</bb-fit></p>
+    <p class="note bb-fit-box"><bb-fit mode="block">{t('flows.test.pretend')}</bb-fit></p>
     <ScenarioInputs fields={view.fields} scenario={view.scenario} onChange={onScenario} />
     {#if view.issue}
       <div class="notice" role="status">
-        <p class="sentence"><bb-fit mode="block"><span data-fit>{view.issue.text}</span></bb-fit></p>
-        {#if view.issue.node}<Button variant="ghost" size="sm" onclick={() => view.issue?.node && onSelect(view.issue.node, view.issue.fieldKey)}><span data-fit>{t('flows.test.fixStep')}</span></Button>{/if}
+        <p class="sentence bb-fit-box"><bb-fit mode="block">{view.issue.text}</bb-fit></p>
+        {#if view.issue.node}<Button variant="ghost" size="sm" onclick={() => view.issue?.node && onSelect(view.issue.node, view.issue.fieldKey)}><bb-fit>{t('flows.test.fixStep')}</bb-fit></Button>{/if}
       </div>
     {/if}
     <div class="notice start" class:invisible={Boolean(view.issue)} inert={Boolean(view.issue)}>
-      <p class="sentence" role="status"><bb-fit mode="block"><span data-fit>{headline}</span></bb-fit></p>
+      <p class="sentence bb-fit-box" role="status"><bb-fit mode="block">{headline}</bb-fit></p>
       <div class="actions">
         <div class="repair" class:invisible={view.state !== 'not_started' || !view.startPatch} inert={view.state !== 'not_started' || !view.startPatch}>
-          <Button variant="ghost" size="sm" onclick={makeStart}><span data-fit>{t('flows.test.makeStart')}</span></Button>
+          <Button variant="ghost" size="sm" onclick={makeStart}><bb-fit>{t('flows.test.makeStart')}</bb-fit></Button>
         </div>
         <div class="repair" class:invisible={view.state !== 'stopped'} inert={view.state !== 'stopped'}>
-          <Button variant="ghost" size="sm" onclick={() => view.stoppedAt && onSelect(view.stoppedAt)}><span data-fit>{t('flows.test.showStep')}</span></Button>
+          <Button variant="ghost" size="sm" onclick={() => view.stoppedAt && onSelect(view.stoppedAt)}><bb-fit>{t('flows.test.showStep')}</bb-fit></Button>
         </div>
       </div>
       <span class="sentence" class:invisible={!rejectedStart} role="status">{rejectedStart ? t('flows.test.repairBlocked') : ''}</span>

@@ -56,7 +56,7 @@
     {#if parallel.includes(id)}
       <span class="parallel" style:top="{branching ? -5 : -HEADER_H / 2 - 22}px">
         <Icon name="branch" size={12} />
-        <span class="parallel-text" data-fit><bb-fit>{t('flows.board.atSameTime')}</bb-fit></span>
+        <span class="parallel-text bb-fit-box"><bb-fit>{t('flows.board.atSameTime')}</bb-fit></span>
       </span>
     {/if}
     <span class="port port--out tone-{tone}" bind:this={ports[id]}></span>

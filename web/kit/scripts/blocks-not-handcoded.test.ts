@@ -54,12 +54,7 @@ const ALLOWLIST = new Map([
   ],
 ]);
 
-const PENDING = new Map<string, number>([
-  ['dashboard/src/lib/components/flow/FlowCanvas.svelte', 1],
-  ['dashboard/src/lib/components/flow/FlowsIntro.svelte', 1],
-  ['dashboard/src/lib/components/flow/NodeInspector.svelte', 3],
-  ['dashboard/src/lib/components/flow/TestRunPanel.svelte', 1],
-]);
+const PENDING = new Map<string, number>();
 
 const HANDCODED =
   'Hand-coded presentation found. A rule that targets a bare element is a second answer to ' +

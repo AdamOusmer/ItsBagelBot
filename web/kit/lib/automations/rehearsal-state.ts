@@ -119,10 +119,18 @@ const ORDER: Readonly<Record<string, (order: number) => boolean>> = {
   eq: (order) => order === 0, ne: (order) => order !== 0, gt: (order) => order > 0,
   gte: (order) => order >= 0, lt: (order) => order < 0, lte: (order) => order <= 0
 };
-const DECIMAL = /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
+const DECIMAL = /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
+
+function trimDecimal(value: Text): Text {
+  let start = 0;
+  let end = value.length;
+  while (start < end && ' \t\r\n'.includes(value[start]!)) start++;
+  while (end > start && ' \t\r\n'.includes(value[end - 1]!)) end--;
+  return value.slice(start, end);
+}
 
 function decimal(value: Text): number | null {
-  const trimmed = value.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+  const trimmed = trimDecimal(value);
   const parsed = DECIMAL.test(trimmed) ? Number(trimmed) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
 }
