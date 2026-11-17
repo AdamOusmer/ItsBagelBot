@@ -38,6 +38,7 @@
   "activationAge": "Aktive Kanäle nach Kontoalter",
   "onboarding": "Einrichtungsschritte",
   "imports": "Importe nach Quelle",
+  "signupSources": "Anmeldungen nach Quelle",
   "checkout": "Kassenergebnisse nach Tarif",
   "dashboard": "Dashboard-Aufrufe nach Bereich",
   "recipeRuns": "Rezeptausführungen nach Auslöser",

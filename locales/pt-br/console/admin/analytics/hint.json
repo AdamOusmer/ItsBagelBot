@@ -38,6 +38,7 @@
   "activationAge": "Canais distintos atendidos na última semana completa, por idade da conta no uso.",
   "onboarding": "Eventos de configuração no período, com contas configuradas e sua proporção do total no último retrato.",
   "imports": "Resultados de prévia e confirmação no período, por origem.",
+  "signupSources": "Logins iniciados e novas contas no período, pelo site de origem.",
   "checkout": "Resultados do checkout por plano. A taxa compara ativações com redirecionamentos no período, incluindo checkouts anteriores.",
   "dashboard": "Visualizações no período, divididas entre titulares e delegados.",
   "recipeRuns": "Execuções no período por gatilho e canais distintos com receitas na última semana completa.",

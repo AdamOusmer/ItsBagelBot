@@ -38,6 +38,7 @@
   "activationAge": "Distinct channels served in the last full week, grouped by account age when served.",
   "onboarding": "Setup events over the window, plus onboarded accounts and their share of all accounts in the latest snapshot.",
   "imports": "Preview and commit results over the window, grouped by import source.",
+  "signupSources": "Logins started and new accounts over the window, by the site that sent the visitor.",
   "checkout": "Checkout results by plan. Activation share compares activation events with redirected checkouts in the window, including earlier checkouts.",
   "dashboard": "Views over the window, with counts split between account owners and delegates.",
   "recipeRuns": "Runs over the window by trigger, plus distinct channels using recipes in the last full week.",

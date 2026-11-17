@@ -38,6 +38,7 @@
   "activationAge": "Chaînes actives par âge du compte",
   "onboarding": "Étapes de configuration",
   "imports": "Imports par source",
+  "signupSources": "Inscriptions par source",
   "checkout": "Résultats du paiement par offre",
   "dashboard": "Vues du tableau de bord par section",
   "recipeRuns": "Exécutions de recettes par déclencheur",

@@ -38,6 +38,7 @@
   "activationAge": "Active channels by account age",
   "onboarding": "Setup steps",
   "imports": "Imports by source",
+  "signupSources": "Signups by source",
   "checkout": "Checkout results by plan",
   "dashboard": "Dashboard views by section",
   "recipeRuns": "Recipe runs by trigger",

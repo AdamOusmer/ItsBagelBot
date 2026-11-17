@@ -98,6 +98,7 @@ const (
 	RewardsRedeems     Metric = "rewards.redeems"
 	AuthLogin          Metric = "auth.login"
 	DesktopGrants      Metric = "desktop.grants"
+	SignupVia          Metric = "signup.via"
 )
 
 const (
@@ -149,6 +150,8 @@ const (
 	KindLogin     Kind = "login"
 	KindPlatform  Kind = "platform"
 	KindSize      Kind = "size"
+	KindVia       Kind = "via"
+	KindStage     Kind = "stage"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -216,6 +219,7 @@ var catalog = map[Metric]Spec{
 	RewardsRedeems:     {Type: Counter, Dims: []Kind{KindFeature, KindRedeem}},
 	AuthLogin:          {Type: Counter, Dims: []Kind{KindLogin}},
 	DesktopGrants:      {Type: Level, Dims: []Kind{KindPlatform}},
+	SignupVia:          {Type: Counter, Dims: []Kind{KindVia, KindStage}},
 }
 
 var enums = map[Kind][]string{
@@ -264,6 +268,11 @@ var enums = map[Kind][]string{
 	KindLogin:    {"started", "ok", "declined", "oauth", "state", "bot", "scope", "link", "retry", "banned"},
 	KindPlatform: {"macos", "windows", "linux"},
 	KindSize:     {"v0_9", "v10_49", "v50_199", "v200_999", "v1kp"},
+	KindVia: {
+		"chatgpt", "gemini", "claude", "perplexity", "copilot", "google", "bing", "duckduckgo", "yahoo",
+		"twitch", "youtube", "reddit", "x", "discord", "github", "docs", "other", "direct", "none",
+	},
+	KindStage: {"started", "signup"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{

@@ -17,6 +17,7 @@ import { cookieOptions, YEAR_SECONDS } from '#lib/server/cookies';
 import { isBotAccount } from '#lib/server/bot-account';
 import { purgeRenamedChannel, schedulePurgeChannel } from '#lib/server/edge-purge';
 import { count } from '@bagel/kit/server/analytics';
+import { splitState } from '#lib/server/login-via';
 
 const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'rpc.dashboard';
 
@@ -151,7 +152,7 @@ function purgeNewChannelPages(id: Identity, prior: string | null | undefined): v
 
 function validOAuthState(code: string | null, state: string | null, stored: string | undefined): code is string {
   if (!code || !state) return false;
-  return !!stored && state === stored;
+  return !!stored && splitState(state).state === stored;
 }
 
 async function syncDeviceLocale(userId: string, deviceLocale: string): Promise<void> {
@@ -253,6 +254,7 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
 
   // Register before the delegation accept, or the ghost-session gate bounces a first-time invitee.
   await registerUser(identity, email);
+  if (prior === null) count('signup.via', splitState(url.searchParams.get('state') ?? '').via, 'signup');
   purgeNewChannelPages(identity, prior);
   await Promise.all([
     seedLocaleCookie(cookies, url, identity.userId),

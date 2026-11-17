@@ -38,6 +38,7 @@
   "activationAge": "In der letzten vollen Woche bediente Kanäle, nach Kontoalter bei der Nutzung.",
   "onboarding": "Einrichtungsereignisse im Zeitraum sowie fertig eingerichtete Konten und ihr Anteil an allen Konten im neuesten Stand.",
   "imports": "Vorschau- und Übernahmeergebnisse im Zeitraum, nach Importquelle.",
+  "signupSources": "Gestartete Logins und neue Konten im Zeitraum, nach verweisender Website.",
   "checkout": "Kassenergebnisse nach Tarif. Die Aktivierungsquote vergleicht Aktivierungen mit Weiterleitungen im Zeitraum, auch aus früheren Käufen.",
   "dashboard": "Aufrufe im Zeitraum, getrennt nach Kontoinhabern und Beauftragten.",
   "recipeRuns": "Ausführungen im Zeitraum nach Auslöser sowie Kanäle mit Rezeptnutzung in der letzten vollen Woche.",

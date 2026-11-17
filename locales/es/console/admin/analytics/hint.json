@@ -38,6 +38,7 @@
   "activationAge": "Canales únicos atendidos en la última semana completa, por antigüedad al usarlos.",
   "onboarding": "Eventos de configuración del período y cuentas configuradas con su proporción del total en la última captura.",
   "imports": "Resultados de vista previa y confirmación del período, por origen.",
+  "signupSources": "Inicios de sesión y cuentas nuevas del período, según el sitio de origen.",
   "checkout": "Resultados de pago por plan. La proporción compara activaciones con redirecciones del período e incluye pagos anteriores.",
   "dashboard": "Visitas del período, separadas entre titulares y delegados.",
   "recipeRuns": "Ejecuciones del período por activador y canales únicos con recetas en la última semana completa.",

@@ -38,6 +38,7 @@
   "activationAge": "Canales activos por antigüedad",
   "onboarding": "Pasos de configuración",
   "imports": "Importaciones por origen",
+  "signupSources": "Registros por origen",
   "checkout": "Resultados de pago por plan",
   "dashboard": "Visitas al panel por sección",
   "recipeRuns": "Ejecuciones de recetas por activador",
