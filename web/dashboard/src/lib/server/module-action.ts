@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fail } from '@sveltejs/kit';
-import { mutateAction, type MutationRefusal } from '@bagel/kit/server/form-action';
+import { mutateAction, thrownStatus, type MutationRefusal } from '@bagel/kit/server/form-action';
 import { logger } from '@bagel/kit/server/logger';
 import { auditDashboardImpersonation } from './services';
 import { gateModulePage } from './module-gate';
@@ -44,7 +44,7 @@ export function moduleAction(
       run: (actor, form) => run(actor.uid, form, event.locals),
       failed: (err) => {
         logger.error({ err }, `[${modId}] ${op} failed`);
-        return fail(400, { ok: false, error: 'Could not update. Try again in a moment.' });
+        return fail(thrownStatus(err), { ok: false, error: 'Could not update. Try again in a moment.' });
       },
       audited: (actor, detail) =>
         auditDashboardImpersonation(actor.session, `${opts.auditAs ?? modId}:${op}`, detail),

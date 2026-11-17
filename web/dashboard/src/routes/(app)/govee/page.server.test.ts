@@ -9,12 +9,15 @@ import { stubSvelteKit } from '../../../../test/sveltekit';
 stubSvelteKit();
 registerServerConfig({ cacheInvalidationPrefix: 'inv' });
 
-let rewardReply: Record<string, unknown> = {};
+let rewardReply: Record<string, unknown> | Error = {};
 const realNats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
   ...realNats,
   publish: async () => {},
-  rpcReply: async () => rewardReply,
+  rpcReply: async () => {
+    if (rewardReply instanceof Error) throw rewardReply;
+    return rewardReply;
+  },
   rpc: async () => ({ present: true })
 }));
 mock.module('#lib/server/commands-store', () => ({
@@ -32,17 +35,26 @@ function rewardForm(): FormData {
   return f;
 }
 
+function saveReward(): Promise<unknown> {
+  const event = {
+    request: new Request('https://dashboard.test/govee?/saveReward', { method: 'POST', body: rewardForm() }),
+    locals: { session: { user_id: '7' }, locale: 'en' } as unknown as App.Locals
+  };
+  return (actions.saveReward as (e: typeof event) => Promise<unknown>)(event);
+}
+
 test.each([
   { name: 'a taken title', wire: { error: 'duplicate reward title', code: 'conflict' }, status: 409, flag: 'duplicateTitle', key: 'channelpoints.toastDuplicateTitle' },
   { name: 'a channel without affiliate', wire: { error: 'broadcaster not affiliate', code: 'forbidden', not_affiliate: true }, status: 403, flag: 'notAffiliate', key: 'channelpoints.toastNotAffiliate' }
 ])('saving a light reward over $name tells the streamer why', async ({ wire, status, flag, key }) => {
   rewardReply = wire;
-  const event = {
-    request: new Request('https://dashboard.test/govee?/saveReward', { method: 'POST', body: rewardForm() }),
-    locals: { session: { user_id: '7' }, locale: 'en' } as unknown as App.Locals
-  };
+  expect(await saveReward()).toMatchObject({ status, data: { ok: false, [flag]: true, error: staticText('en', key) } });
+});
 
-  const result = await (actions.saveReward as (e: typeof event) => Promise<unknown>)(event);
-
-  expect(result).toMatchObject({ status, data: { ok: false, [flag]: true, error: staticText('en', key) } });
+test.each([
+  { name: 'an RPC timeout', wire: new Error('TIMEOUT') as Error | Record<string, unknown> },
+  { name: 'an internal outgress refusal', wire: { error: 'twitch request failed', code: 'internal' } }
+])('$name answers 502, not a client error', async ({ wire }) => {
+  rewardReply = wire;
+  expect(await saveReward()).toMatchObject({ status: 502, data: { ok: false, error: staticText('en', 'serverErrors.updateRetry') } });
 });
