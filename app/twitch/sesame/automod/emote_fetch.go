@@ -58,14 +58,34 @@ func (c EmoteCatalog) Codes() []string {
 }
 
 func (f *EmoteFetcher) FetchCatalog(ctx context.Context) (EmoteCatalog, error) {
-	bttv, bttvErr := f.fetchBTTV(ctx)
-	ffz, ffzErr := f.fetchFFZ(ctx)
-	seven, sevenErr := f.fetch7TV(ctx)
-	return EmoteCatalog{
-		SevenTV: sortedCodes(seven),
-		BTTV:    sortedCodes(bttv),
-		FFZ:     sortedCodes(ffz),
-	}, cmp.Or(bttvErr, ffzErr, sevenErr)
+	return f.fetchOver(ctx, EmoteCatalog{})
+}
+
+type emoteSource struct {
+	fetch func(context.Context) ([]string, error)
+	slot  func(*EmoteCatalog) *[]string
+}
+
+func (f *EmoteFetcher) sources() []emoteSource {
+	return []emoteSource{
+		{f.fetchBTTV, func(c *EmoteCatalog) *[]string { return &c.BTTV }},
+		{f.fetchFFZ, func(c *EmoteCatalog) *[]string { return &c.FFZ }},
+		{f.fetch7TV, func(c *EmoteCatalog) *[]string { return &c.SevenTV }},
+	}
+}
+
+func (f *EmoteFetcher) fetchOver(ctx context.Context, previous EmoteCatalog) (EmoteCatalog, error) {
+	next := previous
+	var firstErr error
+	for _, src := range f.sources() {
+		codes, err := src.fetch(ctx)
+		if err != nil {
+			firstErr = cmp.Or(firstErr, err)
+			continue
+		}
+		*src.slot(&next) = sortedCodes(codes)
+	}
+	return next, firstErr
 }
 
 func sortedCodes(codes []string) []string {
@@ -95,29 +115,13 @@ func (f *EmoteFetcher) Catalog() EmoteCatalog {
 }
 
 func (f *EmoteFetcher) Refresh(ctx context.Context, gate *Gate) (int, error) {
-	cat, err := f.FetchCatalog(ctx)
-	cat = cat.orPrevious(f.Catalog())
+	cat, err := f.fetchOver(ctx, f.Catalog())
 	codes := cat.Codes()
-	if len(codes) > 0 {
+	if err == nil || len(codes) > 0 {
 		gate.SetEmotes(NewEmoteSet(codes))
 		f.catalog.Store(&cat)
 	}
 	return len(codes), err
-}
-
-func (c EmoteCatalog) orPrevious(prev EmoteCatalog) EmoteCatalog {
-	return EmoteCatalog{
-		SevenTV: codesOr(c.SevenTV, prev.SevenTV),
-		BTTV:    codesOr(c.BTTV, prev.BTTV),
-		FFZ:     codesOr(c.FFZ, prev.FFZ),
-	}
-}
-
-func codesOr(fresh, previous []string) []string {
-	if len(fresh) > 0 {
-		return fresh
-	}
-	return previous
 }
 
 func (f *EmoteFetcher) fetchBTTV(ctx context.Context) ([]string, error) {
