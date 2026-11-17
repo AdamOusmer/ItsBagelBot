@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/idempotency"
 
 	"go.uber.org/zap"
 )
@@ -31,25 +32,28 @@ func Live(d engine.Deps) module.Module {
 }
 
 func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
-	return func(_ context.Context, c *module.Context, emit module.Emit) error {
+	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		id := c.BroadcasterID
 		version := c.EventVersion()
-		seqOrGo(d.Seq, id, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), liveWriteTimeout)
+		seqOrGo(ctx, d.Seq, id, func(ctx context.Context) error {
+			wctx, cancel := context.WithTimeout(ctx, liveWriteTimeout)
 			defer cancel()
 			applied, err := d.Live.SetLive(wctx, id, version)
 			if err != nil {
 				log.Warn("live: failed to set live", module.BIDField(id), zap.Error(err))
+				return err
 			}
 			if !applied {
-				return
+				return nil
 			}
 			if err := d.Greet.ResetGreets(wctx, id); err != nil {
 				log.Warn("live: failed to reset greets", module.BIDField(id), zap.Error(err))
+				return err
 			}
 			if d.Timers != nil {
 				d.Timers.ArmOnline(wctx, id)
 			}
+			return nil
 		})
 
 		emit(&module.Output{
@@ -70,19 +74,21 @@ func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 		if restore := rewardRestore(ctx, d, c, log); restore != nil {
 			emit(restore)
 		}
-		seqOrGo(d.Seq, id, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), liveWriteTimeout)
+		seqOrGo(ctx, d.Seq, id, func(ctx context.Context) error {
+			wctx, cancel := context.WithTimeout(ctx, liveWriteTimeout)
 			defer cancel()
 			applied, err := d.Live.ClearLive(wctx, id, version)
 			if err != nil {
 				log.Warn("live: failed to clear live", module.BIDField(id), zap.Error(err))
+				return err
 			}
 			if !applied {
-				return
+				return nil
 			}
 			if d.Timers != nil {
 				d.Timers.DisarmAll(wctx, id)
 			}
+			return nil
 		})
 		log.Debug("stream offline", module.BIDField(id))
 		return nil
@@ -104,20 +110,11 @@ func rewardRestore(ctx context.Context, d engine.Deps, c *module.Context, log *z
 	return &module.Output{Type: outgress.TypeRewardRestore, BroadcasterID: strconv.FormatUint(c.BroadcasterID, 10)}
 }
 
-func seqOrGo(seq *engine.Sequencer, broadcasterID uint64, log *zap.Logger, task func()) {
-	if log == nil {
-		log = zap.NewNop()
-	}
+func seqOrGo(ctx context.Context, seq *engine.Sequencer, broadcasterID uint64, task func(context.Context) error) {
+	run := idempotency.Async(ctx, task)
 	if seq == nil {
-		go task()
+		go run()
 		return
 	}
-	seq.Do(broadcasterID, func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Error("live: lifecycle task panicked", module.BIDField(broadcasterID), zap.Any("panic", r))
-			}
-		}()
-		task()
-	})
+	seq.Do(broadcasterID, run)
 }

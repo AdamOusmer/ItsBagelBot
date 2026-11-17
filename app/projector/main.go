@@ -157,13 +157,14 @@ func dataTierCheck(nc *nats.Conn, service string) health.Check {
 
 func connectBus(core svcboot.Core) (*nats.Conn, bus.Publisher, bus.Subscriber) {
 	log := core.Log
-	specs := append([]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}, bus.IngressLaneSpecs()...)
+	specs := []bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}
 	svcboot.FatalIf(log, bus.EnsureStreams(core.Ctx, core.NATSURL, specs, log), "failed to provision projector streams")
 
 	sub, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
 	svcboot.FatalIf(log, err, "failed to connect subscriber")
 
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
+	svcboot.FatalIf(log, bus.WaitForStream(core.Ctx, core.NATSURL, bus.TwitchIngressStream), "stopped waiting for ingress stream")
 
 	pub, err := bus.NewPublisher(core.NATSURL, log)
 	svcboot.FatalIf(log, err, "failed to connect publisher")

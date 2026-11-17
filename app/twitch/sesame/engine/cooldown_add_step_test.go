@@ -139,42 +139,27 @@ func TestCooldownAddCappedReportsCappedInsteadOfTheDuration(t *testing.T) {
 	assert.Equal(t, "capped", rec.Actions[0].Detail)
 }
 
-func TestCooldownAddStoreErrorKeepsTheClaimSoARedeliveryNeverDoublesIt(t *testing.T) {
-	fx := newAutoFixture()
-	store := &scriptedExtend{err: assert.AnError}
-	fx.p.automations.LongCooldowns = store
-	auto := cooldownAddAuto("se", obj{"name": "subathon", "seconds": 30})
-
-	first := fx.runWithEvent(t, eventRun{runID: "dup-run-1", identity: "dup-1", auto: auto})
-	require.Len(t, first.Actions, 1)
-	assert.Equal(t, automationrpc.StatusFailed, first.Actions[0].Status)
-	assert.Equal(t, "store_error", first.Actions[0].Detail)
-	assert.Equal(t, 1, store.callCount())
-
-	store.err = nil
-	store.found = true
-	store.expiry = 5_000
-	second := fx.runWithEvent(t, eventRun{runID: "dup-run-2", identity: "dup-1", auto: auto})
-	require.Len(t, second.Actions, 1)
-	assert.Equal(t, automationrpc.StatusSkipped, second.Actions[0].Status)
-	assert.Equal(t, "duplicate", second.Actions[0].Detail, "the ambiguous failure kept the claim, so a retry never reaches the store again")
-	assert.Equal(t, 1, store.callCount(), "the store was never called a second time")
-}
-
-func TestCooldownAddRefusalReleasesTheClaimSoARetryCanWin(t *testing.T) {
-	fx := newAutoFixture()
-	store := &scriptedExtend{found: false}
-	fx.p.automations.LongCooldowns = store
-	auto := cooldownAddAuto("rel", obj{"name": "subathon", "seconds": 30})
-
-	first := fx.runWithEvent(t, eventRun{runID: "same-run-1", identity: "same-1", auto: auto})
-	assert.Equal(t, "not_running", first.Actions[0].Detail)
-	assert.Equal(t, 1, store.callCount())
-
-	store.found = true
-	store.expiry = 1_000
-	second := fx.runWithEvent(t, eventRun{runID: "same-run-2", identity: "same-1", auto: auto})
-	require.Len(t, second.Actions, 1)
-	assert.NotEqual(t, "duplicate", second.Actions[0].Detail, "a clean refusal released the claim")
-	assert.Equal(t, 2, store.callCount())
+func TestCooldownAddRetainsTerminalAndAmbiguousDecisions(t *testing.T) {
+	for _, tc := range []struct {
+		name, status, detail string
+		err                  error
+	}{
+		{"store error", automationrpc.StatusFailed, "store_error", assert.AnError},
+		{"not running", automationrpc.StatusSkipped, "not_running", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fx := newAutoFixture()
+			store := &scriptedExtend{err: tc.err}
+			fx.p.automations.LongCooldowns = store
+			auto := cooldownAddAuto("decision", obj{"name": "subathon", "seconds": 30})
+			first := fx.runWithEvent(t, eventRun{runID: "run-1", identity: "same", auto: auto})
+			require.Len(t, first.Actions, 1)
+			assert.Equal(t, []string{tc.status, tc.detail}, []string{first.Actions[0].Status, first.Actions[0].Detail})
+			store.err, store.found, store.expiry = nil, true, 5_000
+			second := fx.runWithEvent(t, eventRun{runID: "run-2", identity: "same", auto: auto})
+			require.Len(t, second.Actions, 1)
+			assert.Equal(t, "duplicate", second.Actions[0].Detail)
+			assert.Equal(t, 1, store.callCount())
+		})
+	}
 }

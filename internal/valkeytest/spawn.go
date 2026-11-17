@@ -28,7 +28,7 @@ func Spawn(t testing.TB) valkey.Client {
 	port := listener.Addr().(*net.TCPAddr).Port
 	require.NoError(t, listener.Close())
 	dir := t.TempDir()
-	server := exec.Command(binary, "--bind", "127.0.0.1", "--port", strconv.Itoa(port), "--save", "", "--appendonly", "no", "--dir", dir, "--logfile", filepath.Join(dir, "valkey.log"))
+	server := exec.Command(binary, "--bind", "127.0.0.1", "--port", strconv.Itoa(port), "--save", "", "--appendonly", "no", "--notify-keyspace-events", "Ex", "--dir", dir, "--logfile", filepath.Join(dir, "valkey.log"))
 	require.NoError(t, server.Start())
 	t.Cleanup(func() { _ = server.Process.Kill(); _ = server.Wait() })
 	address := fmt.Sprintf("127.0.0.1:%d", port)

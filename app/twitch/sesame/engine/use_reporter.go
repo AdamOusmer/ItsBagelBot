@@ -5,18 +5,21 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"sync"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/idempotency"
 	"github.com/google/uuid"
 
 	"go.uber.org/zap"
 )
 
 const (
-	useFlushInterval = 5 * time.Second
+	useFlushInterval = 500 * time.Millisecond
 
 	useMaxKeys = 1024
 )
@@ -38,8 +41,10 @@ type useReporter struct {
 	now      func() time.Time
 	nextLog  time.Time
 
-	mu   sync.Mutex
-	pend map[useKey]int64
+	mu     sync.Mutex
+	pend   map[useKey]int64
+	next   *idempotency.Handoff
+	flight []*idempotency.Handoff
 }
 
 func newUseReporter(pub bus.Publisher, log *zap.Logger) *useReporter {
@@ -71,18 +76,25 @@ func newUseReporter(pub bus.Publisher, log *zap.Logger) *useReporter {
 }
 
 func (r *useReporter) Record(userID uint64, name string) {
+	r.RecordContext(context.Background(), useKey{userID: userID, name: name})
+}
+
+func (r *useReporter) RecordContext(ctx context.Context, key useKey) {
+	key.name = strings.Clone(key.name)
+	userID, name := key.userID, key.name
 	if userID == 0 || name == "" {
 		return
 	}
-	key := useKey{userID: userID, name: name}
 
 	r.mu.Lock()
 	if r.pend[key] >= data.MaxCounter {
 		r.mu.Unlock()
+		idempotency.Fail(ctx, errors.New("command use window exceeds exact integer range"))
 		r.log.Error("command use window exceeds exact integer range")
 		return
 	}
 	r.pend[key]++
+	joinGeneration(ctx, &r.next)
 	full := len(r.pend) >= useMaxKeys
 	r.mu.Unlock()
 	if full {
@@ -98,8 +110,10 @@ func (r *useReporter) flushWith(ctx context.Context, attempt counterPublicationA
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
 	defer r.reportBacklog()
+	defer func() { settleGeneration(&r.flight, r.pending, attempt) }()
 	if !attempt.final {
 		r.pending = r.pending.retry(ctx, r.pub, r.log, attempt)
+		settleGeneration(&r.flight, r.pending, attempt)
 	}
 	if !attempt.drains(r.pending) {
 		return
@@ -107,6 +121,7 @@ func (r *useReporter) flushWith(ctx context.Context, attempt counterPublicationA
 	r.mu.Lock()
 	pend := r.pend
 	r.pend = map[useKey]int64{}
+	transferGeneration(&r.flight, &r.next)
 	r.mu.Unlock()
 	for key, n := range pend {
 		batchID := uuid.NewString()

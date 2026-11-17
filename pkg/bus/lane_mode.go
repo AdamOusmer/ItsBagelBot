@@ -10,10 +10,12 @@ import (
 )
 
 func isHotIngressLane(stream, subject string) bool {
-	if stream != TwitchIngressStream.Name && stream != TwitchIngressStandardStream.Name {
+	switch stream {
+	case TwitchIngressStream.Name, TwitchIngressPremiumStream.Name, TwitchIngressStandardStream.Name:
+		return subject == "twitch.ingress.event.premium" || subject == "twitch.ingress.event.standard"
+	default:
 		return false
 	}
-	return strings.HasSuffix(subject, ".premium") || strings.HasSuffix(subject, ".standard")
 }
 
 func IsCanaryLane(stream, subject string) bool {

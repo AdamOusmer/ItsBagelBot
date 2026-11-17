@@ -5,6 +5,7 @@ package bus
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -12,7 +13,8 @@ import (
 )
 
 const (
-	DeadLetterPrefix = "dlq."
+	DeadLetterPrefix        = "dlq."
+	IngressDeadLetterPrefix = "ingress.dlq."
 
 	DeadLetterSubjectHeader    = "Dlq-Subject"
 	DeadLetterMsgIDHeader      = "Dlq-Msg-Id"
@@ -31,11 +33,19 @@ const (
 type deadLetterReason string
 
 func deadLetterSubject(subject string) string {
+	if strings.HasPrefix(subject, "twitch.ingress.") {
+		return IngressDeadLetterPrefix + subject
+	}
 	return DeadLetterPrefix + subject
 }
 
 func deadLettersStream(stream string) bool {
-	return stream == DataStream.Name
+	switch stream {
+	case DataStream.Name, TwitchIngressPremiumStream.Name, TwitchIngressStandardStream.Name, TwitchIngressStream.Name:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *concurrentDurableSubscriber) terminate(msg *nats.Msg, reason deadLetterReason) {
@@ -86,11 +96,20 @@ func (s *concurrentDurableSubscriber) retryDeadLetter(msg *nats.Msg, publishErr 
 
 func (s *concurrentDurableSubscriber) logDeadLetterExpiry(msg *nats.Msg) {
 	storedAt := jetStreamStoredAt(msg.Reply)
-	if storedAt.IsZero() || time.Since(storedAt)+deadLetterRetryDelay+deadLetterPublishTimeout < DataStream.MaxAge {
+	if storedAt.IsZero() || time.Since(storedAt)+deadLetterRetryDelay+deadLetterPublishTimeout < sourceMaxAge(s.stream) {
 		return
 	}
-	s.log.Error("source message approaching DATA MaxAge without a dead letter",
+	s.log.Error("source message approaching MaxAge without a dead letter",
 		zap.String("subject", msg.Subject), zap.String("consumer", s.consumer), zap.Time("stored_at", storedAt))
+}
+
+func sourceMaxAge(stream string) time.Duration {
+	for _, spec := range DataStreams {
+		if spec.Name == stream {
+			return spec.MaxAge
+		}
+	}
+	return 0
 }
 
 func (s *concurrentDurableSubscriber) deadLetter(msg *nats.Msg, reason deadLetterReason) error {
@@ -98,6 +117,10 @@ func (s *concurrentDurableSubscriber) deadLetter(msg *nats.Msg, reason deadLette
 	if err != nil {
 		return err
 	}
+	return s.publishDeadLetter(msg, meta, reason)
+}
+
+func (s *concurrentDurableSubscriber) publishDeadLetter(msg *nats.Msg, meta *nats.MsgMetadata, reason deadLetterReason) error {
 	letter, id := s.deadLetterMsg(msg, meta, reason)
 	if s.js == nil {
 		return nats.ErrNoResponders

@@ -13,6 +13,7 @@ import (
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 
 	"go.uber.org/zap"
 )
@@ -47,7 +48,7 @@ type rewardBinding struct {
 }
 
 func ChannelPoints(d engine.Deps) module.Module {
-	m := module.NewModule(channelPointsModuleName, module.KindOptIn)
+	m := module.NewModule(channelPointsModuleName, module.KindOptIn).ProtectReplay()
 
 	m.On(engine.RedemptionAddType, func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		var cfg channelPointsConfig
@@ -75,9 +76,9 @@ func ChannelPoints(d engine.Deps) module.Module {
 			result = "ok"
 			award := rewardAward{d: d, c: c, binding: binding, ev: ev}
 			award.grant(ctx)
-			counterValue = award.counter(ctx)
+			counterValue = award.bumpCounter(ctx)
 		}
-		d.Analytics.Count(catalog.RewardsRedeems, "channelpoints", result)
+		d.Analytics.AddContext(ctx, catalog.RewardsRedeems, 1, "channelpoints", result)
 		emitRewardAction(rewardChatParams{
 			locale:       c.Locale,
 			binding:      binding,
@@ -118,8 +119,12 @@ func (a rewardAward) grant(ctx context.Context) {
 	if points <= 0 {
 		return
 	}
-	a.d.Loyalty.Earn(engine.PointEarning{BroadcasterID: a.c.BroadcasterID, ViewerID: viewerID, Login: a.ev.UserLogin, Name: a.ev.UserName, Points: points})
-	a.d.Analytics.Count(catalog.PointsFlows, "reward_grant")
+	err = a.d.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&a.c.Env), Effect: engine.EffectEarn}, func(ctx context.Context) error {
+		a.d.Loyalty.Earn(engine.PointEarning{Context: ctx, BroadcasterID: a.c.BroadcasterID, ViewerID: viewerID, Login: a.ev.UserLogin, Name: a.ev.UserName, Points: points})
+		a.d.Analytics.AddContext(ctx, catalog.PointsFlows, 1, "reward_grant")
+		return nil
+	})
+	idempotency.Fail(ctx, err)
 }
 
 func (a rewardAward) points(ctx context.Context, viewerID uint64) int64 {
@@ -130,21 +135,28 @@ func (a rewardAward) points(ctx context.Context, viewerID uint64) int64 {
 	return cfg.AutomaticPoints(a.c.BroadcasterID, viewerID, a.binding.Points)
 }
 
-func (a rewardAward) counter(ctx context.Context) string {
+func (a rewardAward) bumpCounter(ctx context.Context) string {
 	d, c, b, ev := a.d, a.c, a.binding, a.ev
 	if b.Counter == "" || d.Loyalty == nil {
 		return ""
 	}
 	viewerID, _ := strconv.ParseUint(ev.UserID, 10, 64)
 	viewer := engine.Viewer{ID: viewerID, Login: ev.UserLogin, Name: ev.UserName}
-	value, err := d.Loyalty.CounterBump(ctx, engine.CounterBump{
+	bump := engine.CounterBump{
 		BroadcasterID: c.BroadcasterID,
 		Name:          b.Counter,
 		Viewer:        viewer,
 		Command:       ev.Reward.Title,
 		Delta:         1,
+	}
+	var value int64
+	err := d.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.CounterEffect(b.Counter)}, func(ctx context.Context) error {
+		var err error
+		value, err = d.Loyalty.CounterBump(ctx, bump)
+		return err
 	})
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		if d.Log != nil {
 			d.Log.Warn("channelpoints: counter bump failed",
 				c.BID(),

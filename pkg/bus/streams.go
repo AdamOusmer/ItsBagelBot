@@ -19,6 +19,7 @@ type StreamSpec struct {
 	Name         string
 	Subjects     []string
 	Retention    nats.RetentionPolicy
+	Discard      nats.DiscardPolicy
 	MaxAge       time.Duration
 	MaxBytes     int64
 	MaxMsgsPer   int64
@@ -35,7 +36,8 @@ var OutgressStream = StreamSpec{
 	Name:         "TWITCH_OUTGRESS",
 	Subjects:     []string{"twitch.outgress.premium", "twitch.outgress.standard"},
 	Retention:    nats.WorkQueuePolicy,
-	MaxAge:       5 * time.Second,
+	MaxAge:       60 * time.Second,
+	Duplicates:   60 * time.Second,
 	MaxBytes:     256 << 20,
 	Storage:      nats.MemoryStorage,
 	BatchPublish: true,
@@ -68,10 +70,21 @@ var DataStream = StreamSpec{
 // Counter batches republished or replayed from DLQ after the 24-hour SQL receipt horizon are not deduplicated.
 var DataDeadLetterStream = StreamSpec{
 	Name:       "DATA_DLQ",
-	Subjects:   []string{DeadLetterPrefix + ">"},
+	Subjects:   []string{DeadLetterPrefix + "data.>"},
 	MaxAge:     7 * 24 * time.Hour,
 	MaxBytes:   256 << 20,
 	Duplicates: dataMaxAge,
+	Storage:    nats.FileStorage,
+	Replicas:   3,
+}
+
+var IngressDeadLetterStream = StreamSpec{
+	Name:       "INGRESS_DLQ",
+	Subjects:   []string{IngressDeadLetterPrefix + ">"},
+	Discard:    nats.DiscardOld,
+	MaxAge:     24 * time.Hour,
+	MaxBytes:   32 << 20,
+	Duplicates: 5 * time.Minute,
 	Storage:    nats.FileStorage,
 	Replicas:   3,
 }
@@ -88,31 +101,40 @@ var dataDeferralStream = StreamSpec{
 var TwitchIngressStream = StreamSpec{
 	Name: "TWITCH_INGRESS",
 	Subjects: []string{
-		// Enumerated, not twitch.ingress.event.>: two streams may not claim one subject.
-		"twitch.ingress.event.premium",
 		"twitch.ingress.event.stream",
 		"twitch.ingress.status.>",
 	},
-	// Age must bind first: MaxMsgsPer/MaxBytes evict inside stream apply, 40k msg/s vs 59-67k with age binding (2026-10-11); 400k/subject binds at 66k/s.
-	MaxAge:       6 * time.Second,
+	MaxAge:       5 * time.Minute,
 	Storage:      nats.MemoryStorage,
 	Replicas:     3,
-	MaxBytes:     384 << 20,
-	MaxMsgsPer:   400_000,
-	Duplicates:   6 * time.Second,
+	MaxBytes:     64 << 20,
+	Duplicates:   60 * time.Second,
 	BatchPublish: true,
 }
 
-// Reconcile after TwitchIngressStream wherever both are listed; the reverse order fails boot.
-var TwitchIngressStandardStream = StreamSpec{
-	Name: "TWITCH_INGRESS_STANDARD",
-	// Exactly the subject TwitchIngressStream no longer enumerates.
-	Subjects:     []string{"twitch.ingress.event.standard"},
-	MaxAge:       10 * time.Second,
+var TwitchIngressPremiumStream = StreamSpec{
+	Name:         "TWITCH_INGRESS_PREMIUM",
+	Subjects:     []string{"twitch.ingress.event.premium"},
+	Retention:    nats.InterestPolicy,
+	Discard:      nats.DiscardOld,
+	MaxAge:       60 * time.Second,
 	Storage:      nats.MemoryStorage,
 	Replicas:     3,
-	MaxBytes:     640 << 20,
-	Duplicates:   10 * time.Second,
+	MaxBytes:     768 << 20,
+	Duplicates:   60 * time.Second,
+	BatchPublish: true,
+}
+
+var TwitchIngressStandardStream = StreamSpec{
+	Name:         "TWITCH_INGRESS_STANDARD",
+	Subjects:     []string{"twitch.ingress.event.standard"},
+	Retention:    nats.InterestPolicy,
+	Discard:      nats.DiscardOld,
+	MaxAge:       60 * time.Second,
+	Storage:      nats.MemoryStorage,
+	Replicas:     3,
+	MaxBytes:     1152 << 20,
+	Duplicates:   60 * time.Second,
 	BatchPublish: true,
 }
 
@@ -157,11 +179,11 @@ var YouTubeIngressStream = StreamSpec{
 	BatchPublish: true,
 }
 
-// TwitchIngressStream must precede TwitchIngressStandardStream, or the create is refused.
 var DataStreams = []StreamSpec{
 	DataStream,
 	dataDeferralStream,
 	TwitchIngressStream,
+	TwitchIngressPremiumStream,
 	TwitchIngressStandardStream,
 	TwitchIngressRetryStream,
 }
@@ -173,7 +195,7 @@ func IngressPartitionEnabled() bool {
 
 func IngressLaneSpecs() []StreamSpec {
 	if IngressPartitionEnabled() {
-		return []StreamSpec{TwitchIngressStream, TwitchIngressStandardStream}
+		return []StreamSpec{TwitchIngressStream, TwitchIngressPremiumStream, TwitchIngressStandardStream}
 	}
 	return []StreamSpec{legacyTwitchIngressStream()}
 }

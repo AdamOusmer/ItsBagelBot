@@ -12,6 +12,7 @@ import (
 )
 
 type wireMessage struct {
+	EventAt             int64                  `json:"event_at,omitempty"`
 	AccountCreatedAt    int64                  `json:"account_created_at,omitempty"`
 	AdmissionGeneration int64                  `json:"admission_generation,omitempty"`
 	Type                string                 `json:"type"`
@@ -49,6 +50,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 		return err
 	}
 	*destination = outgress.Message{
+		EventAt:          wire.EventAt,
 		AccountCreatedAt: wire.AccountCreatedAt, AdmissionGeneration: wire.AdmissionGeneration,
 		Type: wire.Type, BroadcasterID: wire.BroadcasterID, Locale: wire.Locale, SenderID: wire.SenderID,
 		Endpoint: wire.Endpoint, Method: wire.Method, Payload: codec.RawMessage(wire.Payload),

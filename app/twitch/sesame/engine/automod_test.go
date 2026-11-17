@@ -72,6 +72,12 @@ func (r *fakeRep) Score(_ context.Context, id string) int {
 	return r.scores[id]
 }
 
+func (r *fakeRep) Observe(ctx context.Context, event ReputationEvent) (int, error) {
+	score := r.Score(ctx, event.Viewer)
+	r.Bump(ctx, event.Viewer)
+	return score, nil
+}
+
 type automodRig struct {
 	reader   fakeReader
 	module   *module.Module

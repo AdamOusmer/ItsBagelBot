@@ -112,7 +112,7 @@ func (s *ValkeyRaffleStore) credit(ctx context.Context, broadcasterID uint64, w 
 		err = s.cfg.Wallet.Credit(ctx, broadcasterID, w)
 	}
 	if err == nil {
-		s.analytics.Count(catalog.PointsFlows, "raffle_payout")
+		s.analytics.AddContext(ctx, catalog.PointsFlows, 1, "raffle_payout")
 	}
 	return err
 }

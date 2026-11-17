@@ -30,8 +30,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: 100%
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: sesame
@@ -142,13 +142,15 @@ spec:
             - name: NATS_PULL_FETCH_LOOPS
               value: "8"
             - name: NATS_PULL_MAX_ACK_PENDING
-              value: "200000"
+              value: "-1"
+            - name: NATS_PULL_ACK_WAIT
+              value: 20s
+            - name: NATS_PULL_NAK_DELAY
+              value: 1s
             - name: NATS_PULL_FETCH_BATCH
               value: "250"
             - name: NATS_PULL_CONNECTIONS
               value: "1"
-            - name: NATS_PULL_EXPIRY
-              value: 5s
             # Every twitch-ingress pod must stage per-subject cohorts first, or mixed batches are silently rejected.
             - name: NATS_INGRESS_PARTITION
               value: "on"
@@ -184,6 +186,8 @@ spec:
               value: "25"
             - name: SESAME_LIVE_TTL
               value: 12h
+            - name: SESAME_DRAIN_TIMEOUT
+              value: 25s
             - name: NATS_OUTGRESS_SYSTEM_SUBJECT
               value: twitch.outgress.system
             - name: NATS_BROADCASTER_LIVE_SUBJECT
@@ -250,7 +254,7 @@ spec:
         - name: valkey-client-tls
           secret:
             secretName: valkey-client-tls
-      terminationGracePeriodSeconds: 45
+      terminationGracePeriodSeconds: 75
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -289,7 +293,7 @@ spec:
           stabilizationWindowSeconds: 300
           policies:
             - {type: Pods, value: 1, periodSeconds: 120}
-  # Lag is num_pending+num_ack_pending: premium leaves 3 pods past 4500 (113ms at 40k/s), but AckNone pull lanes held both near 0 while e2e p50 hit 0.3-5.5s (2026-10-11 bench), so cpu is the trigger that fires.
+  # Keep lag targets above normal explicit-ack in-flight work, or healthy completion traffic scales the fleet.
   triggers:
     - type: cpu
       metricType: AverageValue
@@ -302,10 +306,10 @@ spec:
         useHttps: "true"
         account: BUS
         accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
-        stream: TWITCH_INGRESS
-        consumer: worker_twitch_ingress_event_premium
-        lagThreshold: "1500"
-        activationLagThreshold: "500"
+        stream: TWITCH_INGRESS_PREMIUM
+        consumer: worker_twitch_ingress_event_premium_v2
+        lagThreshold: "5000"
+        activationLagThreshold: "10000"
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
@@ -313,6 +317,6 @@ spec:
         account: BUS
         accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS_STANDARD
-        consumer: worker_twitch_ingress_event_standard
-        lagThreshold: "6000"
-        activationLagThreshold: "2000"
+        consumer: worker_twitch_ingress_event_standard_v2
+        lagThreshold: "5000"
+        activationLagThreshold: "10000"

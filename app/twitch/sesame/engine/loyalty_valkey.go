@@ -177,7 +177,7 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (in
 		return 0, err
 	}
 
-	s.reporter.Bump(CounterBumpTarget{
+	s.reporter.BumpContext(ctx, CounterBumpTarget{
 		BroadcasterID: b.BroadcasterID,
 		Name:          name,
 		Scope:         scope,

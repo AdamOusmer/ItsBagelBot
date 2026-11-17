@@ -234,6 +234,7 @@ const (
 )
 
 type laneStats struct {
+	expired     atomic.Uint64
 	destination string
 
 	sampleRate   uint64
@@ -289,7 +290,8 @@ func (s *laneStats) drain() (map[string]any, bool) {
 	failed := s.failed.Swap(0)
 
 	processed := ok + deferred + failed
-	if processed == 0 {
+	expired := s.expired.Swap(0)
+	if processed+expired == 0 {
 		return nil, false
 	}
 
@@ -302,10 +304,11 @@ func (s *laneStats) drain() (map[string]any, bool) {
 		messagingDestinationAttribute: s.destination,
 		"sample_rate":                 float64(s.sampleRate),
 		"processed":                   float64(processed),
+		"deliveries_expired":          float64(expired),
 		resultOK:                      float64(ok),
 		resultDeferred:                float64(deferred),
 		"failed":                      float64(failed),
-		"queue_ms.avg":                float64(micros) / float64(processed) / 1000,
+		"queue_ms.avg":                float64(micros) / float64(max(processed, 1)) / 1000,
 		"queue_ms.max":                float64(peak) / 1000,
 	}, true
 }

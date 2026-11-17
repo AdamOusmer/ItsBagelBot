@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/pkg/idempotency"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,12 +142,32 @@ func TestLoyaltyRejectsMalformedConfig(t *testing.T) {
 	assert.Empty(t, fake.transfers)
 }
 
-type loyaltyClaims map[string]bool
+type loyaltyClaims map[string]string
+
+func (s loyaltyClaims) Contains(_ context.Context, key string) (bool, error) {
+	return s[key] == "1", nil
+}
 
 func (s loyaltyClaims) Seen(_ context.Context, key string, _ time.Duration) (bool, error) {
-	seen := s[key]
-	s[key] = true
+	seen := s[key] == "1"
+	s[key] = "1"
 	return seen, nil
+}
+
+func (s loyaltyClaims) UpdateLeases(_ context.Context, batch idempotency.LeaseBatch) ([]int64, error) {
+	states := make([]int64, len(batch.Keys))
+	for i, effect := range batch.Keys {
+		key := string(effect)
+		if s[key] == "1" {
+			states[i] = 1
+			continue
+		}
+		if batch.Mode == "complete" {
+			s[key] = "1"
+			states[i] = 1
+		}
+	}
+	return states, nil
 }
 
 func (s loyaltyClaims) Release(_ context.Context, key string) error {

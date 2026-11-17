@@ -13,6 +13,8 @@ import (
 
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -219,17 +221,21 @@ func TestUrlFetchFailedFetchReleasesClaimForRedelivery(t *testing.T) {
 	env := chatEnv("!so", "")
 	env.MsgID = "evt-1"
 
-	got, err := runChat(t, p, env)
+	body, err := codec.Marshal(env)
 	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, "got ", got[0].Text)
+	msg := bus.NewMessage("uuid-chat", body)
+	require.NoError(t, p.Process(msg))
+	awaitCompletion(t, msg, false)
+	published := p.pub.(*fakePublisher).snapshot()
+	require.Len(t, published, 1)
+	assert.Equal(t, "got ", outputOf(published[0].msg).Text)
 
 	ff.mu.Lock()
 	ff.errs = nil
 	ff.replies = map[string]gossiprpc.CustomFetchReply{"w": fetchOK("fresh")}
 	ff.mu.Unlock()
 
-	got, err = runChat(t, p, env)
+	got, err := runChat(t, p, env)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "got fresh", got[0].Text, "released claim lets the retry fetch")

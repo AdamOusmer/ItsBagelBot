@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,9 +78,44 @@ type recordingStore struct {
 	mu     sync.Mutex
 	claims map[string]bool
 	seen   []string
+	owners map[string]string
 }
 
-func newRecordingStore() *recordingStore { return &recordingStore{claims: map[string]bool{}} }
+func newRecordingStore() *recordingStore {
+	return &recordingStore{claims: map[string]bool{}, owners: map[string]string{}}
+}
+
+func (r *recordingStore) UpdateLeases(_ context.Context, batch idempotency.LeaseBatch) ([]int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	states := make([]int64, len(batch.Keys))
+	for i, key := range batch.Keys {
+		states[i] = r.updateLease(string(key), batch)
+	}
+	return states, nil
+}
+
+func (r *recordingStore) updateLease(key string, batch idempotency.LeaseBatch) int64 {
+	if r.claims[key] {
+		return 1
+	}
+	owner := r.owners[key]
+	if owner != "" && owner != batch.Owner {
+		return 2
+	}
+	switch batch.Mode {
+	case "acquire":
+		r.owners[key] = batch.Owner
+	case "complete":
+		r.claims[key] = true
+		r.seen = append(r.seen, key)
+		delete(r.owners, key)
+		return 1
+	case "release":
+		delete(r.owners, key)
+	}
+	return 0
+}
 
 func (r *recordingStore) Seen(_ context.Context, key string, _ time.Duration) (bool, error) {
 	r.mu.Lock()
@@ -90,6 +126,12 @@ func (r *recordingStore) Seen(_ context.Context, key string, _ time.Duration) (b
 	}
 	r.claims[key] = true
 	return false, nil
+}
+
+func (r *recordingStore) Contains(_ context.Context, key string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.claims[key], nil
 }
 
 func (r *recordingStore) Release(_ context.Context, key string) error {

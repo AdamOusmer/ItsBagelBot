@@ -104,7 +104,12 @@ func duelRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 		if !ok {
 			return nil
 		}
-		return dc.route(ctx, args, emit)
+		if strings.TrimSpace(args) == "" {
+			return dc.status(ctx, emit)
+		}
+		return d.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: "duel:mutation"}, func(ctx context.Context) error {
+			return dc.route(ctx, args, emit)
+		})
 	}
 }
 

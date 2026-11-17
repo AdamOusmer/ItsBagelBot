@@ -5,6 +5,7 @@ package bus
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
@@ -24,19 +25,33 @@ type Message struct {
 	Metadata Metadata
 	Payload  []byte
 
+	mu             sync.Mutex
+	completion     *Completion
+	reject         func(*Message) error
+	ctx            context.Context
+	receivedAt     time.Time
+	storedAt       time.Time
+	final          bool
+	quarantineOnce sync.Once
+}
+
+type Completion struct {
+	reject     func(error) bool
 	ack        chan struct{}
 	nack       chan struct{}
 	onResolve  func(acked bool)
 	mu         sync.Mutex
 	state      messageState
-	ctx        context.Context
-	receivedAt time.Time
-	storedAt   time.Time
 	retryAfter time.Duration
-	final      bool
+	deferred   bool
+	ticket     *DeliveryTicket
+	subscriber *pullSubscriber
+	batch      *CompletionBatch
 }
 
 func (m *Message) StoredAt() time.Time { return m.storedAt }
+
+func (m *Message) DeliveredAt() time.Time { return m.receivedAt }
 
 // True when a failure here ends the message: the subscriber terminates it rather than redelivering.
 func (m *Message) FinalDelivery() bool { return m.final }
@@ -56,6 +71,7 @@ const (
 	messagePending messageState = iota
 	messageAcked
 	messageNacked
+	messageExpired
 )
 
 func NewMessage(id string, payload []byte) *Message {
@@ -72,30 +88,121 @@ func newMessage(data messageData) *Message {
 
 // Must run before the message reaches handlers; one installed after the winning Ack/Nack never runs.
 func (m *Message) setResolveHandler(onResolve func(acked bool)) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.onResolve = onResolve
+	c := m.completionState()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onResolve = onResolve
 }
 
 func (m *Message) Ack() bool {
-	return m.resolve(messageAcked, 0)
+	return m.completionState().resolve(messageAcked, 0)
 }
 
 func (m *Message) Nack() bool {
-	return m.resolve(messageNacked, 0)
+	return m.completionState().resolve(messageNacked, 0)
 }
 
 func (m *Message) nackAfter(delay time.Duration) bool {
-	return m.resolve(messageNacked, delay)
+	return m.completionState().resolve(messageNacked, delay)
 }
 
 func (m *Message) requestedRetryDelay() time.Duration {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.retryAfter
+	c := m.completionState()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.retryAfter
 }
 
-func (m *Message) resolve(target messageState, retryAfter time.Duration) bool {
+func (m *Message) completionState() *Completion {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.completion == nil {
+		m.completion = &Completion{reject: m.quarantine}
+	}
+	return m.completion
+}
+
+func (m *Message) DeferCompletion() *Completion {
+	c := m.completionState()
+	c.mu.Lock()
+	c.deferred = true
+	c.mu.Unlock()
+	return c
+}
+
+func (c *Completion) Complete(err error) bool {
+	if err != nil {
+		return c.fail(err)
+	}
+	return c.resolve(messageAcked, 0)
+}
+
+func (c *Completion) fail(err error) bool {
+	c.mu.Lock()
+	reject := c.reject
+	c.mu.Unlock()
+	if reject != nil && reject(err) {
+		return true
+	}
+	return c.resolve(messageNacked, requestedRetryDelay(err))
+}
+
+func (c *Completion) detach() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.reject = nil
+	c.mu.Unlock()
+}
+
+func (c *Completion) EndExecution(err error) bool {
+	c.mu.Lock()
+	reject := c.reject
+	c.mu.Unlock()
+	quarantined := err != nil && reject != nil && reject(err)
+	if !quarantined {
+		c.detach()
+	}
+	return quarantined
+}
+
+func (m *Message) finishSuccess() {
+	if !m.completionDeferred() {
+		m.completionState().Complete(nil)
+	}
+}
+
+func (m *Message) completionDeferred() bool {
+	c := m.completionState()
+	c.mu.Lock()
+	deferred := c.deferred
+	c.mu.Unlock()
+	return deferred
+}
+
+type poisonError struct{ error }
+
+func Poison(err error) error { return poisonError{err} }
+
+func (m *Message) quarantine(err error) bool {
+	var poison poisonError
+	if !errors.As(err, &poison) || m.reject == nil {
+		return false
+	}
+	m.quarantineOnce.Do(func() { go m.transferPoison() })
+	return true
+}
+
+func (m *Message) transferPoison() {
+	if transferErr := m.reject(m); transferErr != nil {
+		m.nackAfter(deadLetterRetryDelay)
+		return
+	}
+	m.Ack()
+}
+
+func (m *Completion) resolve(target messageState, retryAfter time.Duration) bool {
 	won, onResolve := m.transition(target, retryAfter)
 	if onResolve != nil {
 		onResolve(target == messageAcked)
@@ -103,7 +210,7 @@ func (m *Message) resolve(target messageState, retryAfter time.Duration) bool {
 	return won
 }
 
-func (m *Message) transition(target messageState, retryAfter time.Duration) (bool, func(bool)) {
+func (m *Completion) transition(target messageState, retryAfter time.Duration) (bool, func(bool)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.state != messagePending {
@@ -112,10 +219,22 @@ func (m *Message) transition(target messageState, retryAfter time.Duration) (boo
 	m.state = target
 	m.retryAfter = retryAfter
 	m.closeSignalLocked(target)
-	return true, m.onResolve
+	onResolve := m.onResolve
+	m.onResolve = nil
+	if m.batch != nil {
+		onResolve = m.resolveBatch
+	}
+	return true, onResolve
 }
 
-func (m *Message) closeSignalLocked(target messageState) {
+func (c *Completion) resolveBatch(acked bool) {
+	c.mu.Lock()
+	delay := c.retryAfter
+	c.mu.Unlock()
+	c.batch.resolveTicket(c.ticket, acked, delay)
+}
+
+func (m *Completion) closeSignalLocked(target messageState) {
 	signal := m.ack
 	if target == messageNacked {
 		signal = m.nack
@@ -126,24 +245,29 @@ func (m *Message) closeSignalLocked(target messageState) {
 }
 
 func (m *Message) Acked() <-chan struct{} {
-	return m.signal(messageAcked)
+	return m.completionState().signal(messageAcked)
 }
 
 func (m *Message) Nacked() <-chan struct{} {
-	return m.signal(messageNacked)
+	return m.completionState().signal(messageNacked)
 }
 
-func (m *Message) signal(target messageState) <-chan struct{} {
+func (m *Completion) signal(target messageState) <-chan struct{} {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.ensureChannelsLocked()
+	signal := m.nack
 	if target == messageAcked {
-		return m.ack
+		signal = m.ack
 	}
-	return m.nack
+	batch := m.batch
+	m.mu.Unlock()
+	if batch != nil {
+		batch.observe(m)
+	}
+	return signal
 }
 
-func (m *Message) ensureChannelsLocked() {
+func (m *Completion) ensureChannelsLocked() {
 	m.ack = messageSignal(m.ack, m.state == messageAcked)
 	m.nack = messageSignal(m.nack, m.state == messageNacked)
 }

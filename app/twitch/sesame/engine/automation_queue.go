@@ -11,6 +11,7 @@ import (
 	"time"
 
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
+	"ItsBagelBot/pkg/idempotency"
 
 	"go.uber.org/zap"
 )
@@ -185,7 +186,10 @@ func (p *Pipeline) startQueueWait(ctx context.Context, run *AutomationRun, turn 
 		p.queueWaiters.done()
 		return
 	}
-	go p.awaitQueueTurn(context.WithoutCancel(ctx), waiting, turn)
+	go idempotency.Async(ctx, func(ctx context.Context) error {
+		p.awaitQueueTurn(ctx, waiting, turn)
+		return nil
+	})()
 }
 
 func (p *Pipeline) awaitQueueTurn(ctx context.Context, run *AutomationRun, turn queueTurn) {
@@ -280,6 +284,8 @@ func (p *Pipeline) queueStanding(ctx context.Context, seat RunQueueSeat) (int64,
 
 func (p *Pipeline) runQueuedTurn(parent context.Context, run *AutomationRun) {
 	defer run.Slot.drop()
+	run.Started = time.Now()
+	run.Record.At = run.Started
 	ctx, cancel := context.WithTimeout(parent, continuationTimeout)
 	defer cancel()
 	if !p.durable.stillOurs(ctx, run) {

@@ -178,14 +178,14 @@ func (p *Pipeline) finishRun(ctx context.Context, run *AutomationRun) {
 	}
 	run.Record.Actions = trimmedRecords(run.Record.Actions)
 	p.automations.Runs.Record(ctx, run.BroadcasterID, run.Record)
-	p.recordRecipe(run)
+	p.recordRecipe(ctx, run)
 }
 
-func (p *Pipeline) recordRecipe(run *AutomationRun) {
+func (p *Pipeline) recordRecipe(ctx context.Context, run *AutomationRun) {
 	if run.Env != nil && run.Env.Origin == "trial" {
 		return
 	}
 	dims := []string{run.Record.Trigger, string(run.Record.Outcome)}
-	p.analytics.Count(catalog.RecipeRuns, dims...)
-	p.analytics.Distinct(catalog.RecipeChannels, run.BroadcasterID)
+	p.analytics.AddContext(ctx, catalog.RecipeRuns, 1, dims...)
+	p.analytics.DistinctContext(ctx, catalog.RecipeChannels, run.BroadcasterID)
 }

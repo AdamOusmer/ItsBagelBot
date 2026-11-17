@@ -79,7 +79,6 @@ func requireSilence(t *testing.T, messages <-chan *Message, wait time.Duration) 
 func uniqueGroup(prefix string) string { return prefix + "-" + nuid.Next() }
 
 func TestSubscriberDeliversStoredMessagesInEveryLaneMode(t *testing.T) {
-	f := newBusFixture(t)
 
 	for _, tc := range []struct {
 		name string
@@ -90,6 +89,7 @@ func TestSubscriberDeliversStoredMessagesInEveryLaneMode(t *testing.T) {
 		{"flow-control lane", flowLanes},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			f := newBusFixture(t)
 			tc.mode.apply(t)
 			messages := subscribe(t, openSubscriber(t, f, uniqueGroup("deliver")), hotLane)
 			f.appendMessage(t, hotLane, `{"text":"hello"}`, MessageIDHeader, "fleet-id", "Traceparent", "00-trace-span-01")
@@ -106,8 +106,7 @@ func TestSubscriberDeliversStoredMessagesInEveryLaneMode(t *testing.T) {
 	}
 }
 
-func TestNackedHotLaneMessageIsScheduledForExactlyOneRetryHop(t *testing.T) {
-	f := newBusFixture(t)
+func TestHotLaneFailureRetriesOnTheSameDurable(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
@@ -117,22 +116,22 @@ func TestNackedHotLaneMessageIsScheduledForExactlyOneRetryHop(t *testing.T) {
 		{"flow-control lane", flowLanes},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			f := newBusFixture(t)
 			tc.mode.apply(t)
 			messages := subscribe(t, openSubscriber(t, f, uniqueGroup("retry")), hotLane)
-			retries := subscribe(t, openSubscriber(t, f, uniqueGroup("retry-lane")), retryLane)
+			t.Setenv("NATS_PULL_NAK_DELAY", "200ms")
 			f.appendMessage(t, hotLane, `{}`, MessageIDHeader, "first-hop")
 			require.True(t, receive(t, messages).Nack(), "the first Nack must win")
 
-			retried := receive(t, retries)
+			retried := receive(t, messages)
 			require.True(t, retried.Ack())
-			require.NoError(t, f.js.PurgeStream(TwitchIngressRetryStream.Name))
 			f.appendMessage(t, hotLane, `{}`, MessageIDHeader, "second-hop", RetryCountHeader, "1")
 			require.True(t, receive(t, messages).Nack())
 
 			assert.Equal(t, "first-hop", retried.UUID)
-			assert.Equal(t, "1", retried.Metadata.Get(RetryCountHeader), "the retry carries its hop count")
+			require.True(t, receive(t, messages).Ack())
 			require.Never(t, func() bool { return f.messageCount(TwitchIngressRetryStream) > 0 },
-				time.Second, 50*time.Millisecond, "a message that already used its retry hop must be dropped, not rescheduled")
+				time.Second, 50*time.Millisecond, "hot retries stay on their source durable")
 		})
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 func TestDecodeMessageKeepsEveryMessageField(t *testing.T) {
 	want := outgress.Message{
+		EventAt:          1794847500000,
 		AccountCreatedAt: 42, AdmissionGeneration: 9, Origin: "trial", TrialGeneration: 7, Type: outgress.TypeChat, BroadcasterID: "42", Locale: "fr",
 		SenderID: "9", Endpoint: "/helix/x", Method: "POST", Payload: codec.RawMessage(`{"a":1}`),
 		As: "app", Color: "blue", To: "7", MsgID: "m", RewardID: "r", RedemptionID: "d", Status: "FULFILLED",
@@ -29,7 +30,7 @@ func TestDecodeMessageKeepsEveryMessageField(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("decode lost fields:\nwant %+v\ngot  %+v", want, got)
 	}
-	if n := reflect.TypeOf(want).NumField(); n != 20 {
+	if n := reflect.TypeOf(want).NumField(); n != 21 {
 		t.Fatalf("outgress.Message has %d fields; set every field in this test", n)
 	}
 }

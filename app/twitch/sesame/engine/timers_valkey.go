@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
@@ -243,6 +244,7 @@ func (s *ValkeyTimerStore) Rearm(ctx context.Context, broadcasterID uint64) {
 	live, err := s.live.IsLive(ctx, broadcasterID)
 	switch {
 	case err != nil:
+		idempotency.Fail(ctx, err)
 	case live:
 		s.ArmAll(ctx, broadcasterID)
 	default:
@@ -311,6 +313,7 @@ func (s *ValkeyTimerStore) armAfter(ctx context.Context, at armedTimer, ex time.
 	ex += armJitter(at.def)
 	err := s.armSchedule(ctx, at.ref, ex)
 	if err != nil && !valkey.IsValkeyNil(err) {
+		idempotency.Fail(ctx, err)
 		s.log.Warn("timers: failed to arm", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
 	}
 }
@@ -321,6 +324,7 @@ func (s *ValkeyTimerStore) armSchedule(ctx context.Context, ref timerRef, ex tim
 		return err
 	}
 	state, err := s.runtime.Get(ctx, ref.broadcasterID)
+	idempotency.Fail(ctx, err)
 	if err != nil || !state.AllowsBackground() {
 		return nil
 	}
@@ -357,12 +361,14 @@ func (s *ValkeyTimerStore) delKeys(ctx context.Context, broadcasterID uint64, ke
 		return
 	}
 	if err := pkg_valkey.DelKeys(ctx, s.client, keys...); err != nil {
+		idempotency.Fail(ctx, err)
 		s.log.Warn("timers: failed to disarm", module.BIDField(broadcasterID), zap.Int("keys", len(keys)), zap.Error(err))
 	}
 }
 
 func (s *ValkeyTimerStore) delAuxKey(ctx context.Context, ref timerRef, key string) {
 	if err := pkg_valkey.DelKeys(ctx, s.client, key); err != nil {
+		idempotency.Fail(ctx, err)
 		s.log.Warn("timers: failed to disarm", module.BIDField(ref.broadcasterID), zap.String("timer_id", ref.id), zap.String("key", key), zap.Error(err))
 	}
 }
@@ -377,6 +383,7 @@ func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (ti
 func (s *ValkeyTimerStore) moduleTimers(ctx context.Context, broadcasterID uint64) (timersConfig, bool) {
 	view, state, err := ModuleLookup{Proj: s.proj, BroadcasterID: broadcasterID, Name: timersModuleName, Absent: ModuleOff}.Resolve(ctx)
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		s.log.Warn("timers: failed to read module views", module.BIDField(broadcasterID), zap.Error(err))
 	}
 	if state != ModuleOn {
@@ -387,6 +394,7 @@ func (s *ValkeyTimerStore) moduleTimers(ctx context.Context, broadcasterID uint6
 	}
 	var cfg timersConfig
 	if err := codec.Unmarshal(view.Configs, &cfg); err != nil {
+		idempotency.Fail(ctx, err)
 		s.log.Warn("timers: bad config", module.BIDField(broadcasterID), zap.Error(err))
 		return timersConfig{}, false
 	}
@@ -592,48 +600,53 @@ func (s *ValkeyTimerStore) CountChatLine(ctx context.Context, broadcasterID uint
 	if broadcasterID == 0 {
 		return
 	}
+	timeout := countChatLineTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = min(timeout, time.Until(deadline))
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	flags := s.chatFlags(ctx, broadcasterID)
 	if !flags.gated && !flags.offline {
+		cancel()
 		return
 	}
 	go func() {
-		actx, cancel := context.WithTimeout(context.Background(), countChatLineTimeout)
 		defer cancel()
 		if flags.gated {
-			s.recordChatLine(actx, broadcasterID)
+			s.recordChatLine(ctx, broadcasterID)
 		}
 		if flags.offline {
-			s.throttledRearm(actx, broadcasterID)
+			s.throttledRearm(ctx, broadcasterID)
 		}
 	}()
 }
 
 func (s *ValkeyTimerStore) recordChatLine(ctx context.Context, broadcasterID uint64) {
 	if err := pkg_valkey.RecordRecent(ctx, s.client, chatLog(broadcasterID), s.now()); err != nil {
+		idempotency.Fail(ctx, err)
 		s.log.Debug("timers: chat line count failed", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
 
 func (s *ValkeyTimerStore) throttledRearm(ctx context.Context, broadcasterID uint64) {
-	first := false
-	_, _ = s.rearmThrottle.GetOrLoad(ctx, broadcasterID, func(context.Context) (bool, error) {
-		first = true
-		return true, nil
-	})
-	if first {
+	_, err := s.rearmThrottle.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (bool, error) {
+		ctx, work := idempotency.NewWork(ctx)
 		s.Rearm(ctx, broadcasterID)
-	}
+		work.Seal(nil)
+		return true, idempotency.Failure(ctx)
+	})
+	idempotency.Fail(ctx, err)
 }
 
 func (s *ValkeyTimerStore) chatFlags(ctx context.Context, broadcasterID uint64) chatFlags {
 	flags, err := s.flagsCache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (chatFlags, error) {
-		cfg, ok := s.config(ctx, broadcasterID)
-		if !ok {
-			return chatFlags{}, nil
-		}
-		return flagsOf(cfg.Timers), nil
+		ctx, work := idempotency.NewWork(ctx)
+		cfg, _ := s.config(ctx, broadcasterID)
+		work.Seal(nil)
+		return flagsOf(cfg.Timers), idempotency.Failure(ctx)
 	})
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		return chatFlags{}
 	}
 	return flags
@@ -760,7 +773,7 @@ func (s *ValkeyTimerStore) recordTimerOutput(broadcasterID uint64, createdAt int
 	}
 	s.pipeline.analytics.Count(catalog.TimerFires)
 	s.recordTick("fired")
-	s.pipeline.recordProcessed(broadcasterID, createdAt, false, 1)
+	s.pipeline.recordProcessed(context.Background(), processedMetrics{channel: broadcasterID, created: createdAt, outputs: 1})
 }
 
 func (s *ValkeyTimerStore) recordTick(tick string) {
@@ -774,6 +787,7 @@ func (s *ValkeyTimerStore) admitted(ctx context.Context, id uint64) bool {
 		return true
 	}
 	state, err := s.runtime.Get(ctx, id)
+	idempotency.Fail(ctx, err)
 	return err == nil && state.AllowsBackground()
 }
 

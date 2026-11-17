@@ -55,7 +55,7 @@ func bindingsOf(c *module.Context) []goveeConfig {
 }
 
 func Govee(d engine.Deps) module.Module {
-	m := module.NewModule(goveeModuleName, module.KindOptIn)
+	m := module.NewModule(goveeModuleName, module.KindOptIn).ProtectReplay()
 	m.On(engine.RedemptionAddType, goveeRedemption(d))
 	return m.Build()
 }
@@ -69,7 +69,7 @@ func goveeRedemption(d engine.Deps) module.EventHandler {
 		if !ok {
 			return nil
 		}
-		r := goveeRun{d: d, emit: emit, ev: ev, cfg: cfg, locale: c.Locale}
+		r := goveeRun{d: d, emit: emit, ev: ev, cfg: cfg, locale: c.Locale, identity: engine.EventIdentity(&c.Env)}
 		if !goveeLivePermits(ctx, d, cfg, c.BroadcasterID) {
 			r.refund("govee.refund.offline")
 			return nil
@@ -80,11 +80,12 @@ func goveeRedemption(d engine.Deps) module.EventHandler {
 }
 
 type goveeRun struct {
-	d      engine.Deps
-	emit   module.Emit
-	ev     engine.RedemptionEvent
-	cfg    goveeConfig
-	locale string
+	d        engine.Deps
+	emit     module.Emit
+	ev       engine.RedemptionEvent
+	cfg      goveeConfig
+	locale   string
+	identity string
 }
 
 func (r goveeRun) apply(ctx context.Context) {
@@ -98,7 +99,7 @@ func (r goveeRun) apply(ctx context.Context) {
 		return
 	}
 	r.chat(renderGoveeReply(r.locale, r.cfg.ReplyMessage, r.ev, label))
-	r.d.Analytics.Count(catalog.RewardsRedeems, "govee", "ok")
+	r.d.Analytics.AddContext(ctx, catalog.RewardsRedeems, 1, "govee", "ok")
 	emitRedemptionStatus(r.emit, r.ev, defaultFulfillStatus(r.cfg.OnRedeem))
 }
 
@@ -108,7 +109,9 @@ func (r goveeRun) control(ctx context.Context, req gossiprpc.Request) error {
 	req.SKU = r.cfg.SKU
 	req.Lights = r.cfg.Lights
 	var reply gossiprpc.GoveeControlReply
-	return r.d.Gossip.Call(ctx, engine.GossipRoute{Provider: "govee", Endpoint: "control"}, req, &reply)
+	return r.d.Dedup.Effect(ctx, engine.EffectRef{Identity: r.identity, Effect: "govee:control"}, func(ctx context.Context) error {
+		return r.d.Gossip.Call(ctx, engine.GossipRoute{Provider: "govee", Endpoint: "control"}, req, &reply)
+	})
 }
 
 func goveeIntent(cfg goveeConfig, input string) (gossiprpc.Request, string, bool) {

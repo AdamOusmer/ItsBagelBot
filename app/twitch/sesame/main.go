@@ -43,10 +43,11 @@ func main() {
 
 	// internal/consumer subscribes TWITCH_INGRESS_RETRY under the same flag; change both together.
 	owned := bus.IngressLaneSpecs()
+	owned = append(owned, bus.IngressDeadLetterStream)
 	if bus.FlowConsumeEnabled() {
 		owned = append(owned, bus.TwitchIngressRetryStream)
 	}
-	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, owned, log),
+	svcboot.FatalIf(log, bus.EnsureConsumerStreams(ctx, bus.StreamSetup{URL: cfg.NATSURL, Group: cfg.ConsumerName, Specs: owned, Log: log}),
 		"failed to provision the TWITCH_INGRESS streams")
 
 	nc, pub, sub := dialNATS(cfg, log)
@@ -124,7 +125,7 @@ func main() {
 	logReady(cfg, deps.Special.Len(), log)
 
 	<-ctx.Done()
-	drainInflight(weighted, cfg.DrainTimeout, log)
+	drainInflight(weighted, pipe, cfg.DrainTimeout, log)
 }
 
 // prepareHotPath moves codec compilation and lazy read dials ahead of consumption.
@@ -177,10 +178,11 @@ func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 	)
 }
 
-func drainInflight(weighted *bus.Weighted, timeout time.Duration, log *zap.Logger) {
+func drainInflight(weighted *bus.Weighted, pipe *engine.Pipeline, timeout time.Duration, log *zap.Logger) {
 	log.Info("sesame shutting down, draining in-flight events", zap.Duration("timeout", timeout))
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	defer pipe.Finish(ctx)
 	if err := weighted.Drain(ctx); err != nil {
 		log.Warn("drain deadline exceeded; in-flight events left for redelivery", zap.Error(err))
 		return

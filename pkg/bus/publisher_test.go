@@ -102,13 +102,17 @@ func TestConfirmedPublishesKeepTheirIdentityWithoutBrokerDeduplication(t *testin
 func TestPublishRoutesEverySubjectToItsCatalogStream(t *testing.T) {
 	f := newBusFixture(t)
 	pub := openPublisher(t, f.url)
+	for _, spec := range []StreamSpec{TwitchIngressPremiumStream, TwitchIngressStandardStream} {
+		_, err := f.js.AddConsumer(spec.Name, &nats.ConsumerConfig{Durable: "route", AckPolicy: nats.AckExplicitPolicy, FilterSubject: spec.Subjects[0]})
+		require.NoError(t, err)
+	}
 
 	for _, tc := range []struct {
 		subject string
 		stream  string
 	}{
 		{"data.users.updated", "DATA"},
-		{"twitch.ingress.event.premium", "TWITCH_INGRESS"},
+		{"twitch.ingress.event.premium", "TWITCH_INGRESS_PREMIUM"},
 		{"twitch.ingress.event.stream", "TWITCH_INGRESS"},
 		{"twitch.ingress.status.authz.revoked", "TWITCH_INGRESS"},
 		{"twitch.ingress.event.standard", "TWITCH_INGRESS_STANDARD"},

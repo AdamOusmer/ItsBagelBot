@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
@@ -38,8 +39,7 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
 		emittedBefore := c.Emitted
 		err := p.runBaked(ctx, c, bc.Cmd, num, args, emit)
-		p.recordBaked(c, bc, emittedBefore)
-		return err
+		return p.finishBaked(ctx, c, bakedRun{bc: bc, emittedBefore: emittedBefore, err: err})
 	}
 	if c.Env.Origin == "trial" {
 		return nil
@@ -50,6 +50,19 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	}
 	p.runAutomationCommand(ctx, c, views, name, args, emit)
 	return nil
+}
+
+type bakedRun struct {
+	bc            BoundCommand
+	emittedBefore int
+	err           error
+}
+
+func (p *Pipeline) finishBaked(ctx context.Context, c *module.Context, r bakedRun) error {
+	if r.err == nil {
+		p.recordBaked(ctx, c, r.bc, r.emittedBefore)
+	}
+	return r.err
 }
 
 func trialCommand(owners []BoundCommand, name string) bool {
@@ -222,8 +235,11 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	}
 
 	p.recordUse(ctx, c, cc.Name)
-	p.analytics.Count(catalog.CommandUses, catalog.CustomCommand)
-	p.analytics.Distinct(catalog.CommandChannels, c.BroadcasterID, catalog.CustomCommand)
+	id := c.BroadcasterID
+	p.recordCommandAnalytics(ctx, c, func(ctx context.Context) {
+		p.analytics.AddContext(ctx, catalog.CommandUses, 1, catalog.CustomCommand)
+		p.analytics.DistinctContext(ctx, catalog.CommandChannels, id, catalog.CustomCommand)
+	})
 	p.bumpCommandCounter(ctx, c, cc, args)
 	c.Engaged = true
 	return true, nil
@@ -262,10 +278,14 @@ func validCounterStep(n int64) bool {
 }
 
 func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string) {
-	if p.uses == nil || p.dedup.Duplicate(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: effectUse}) {
+	if p.uses == nil {
 		return
 	}
-	p.uses.Record(c.BroadcasterID, name)
+	err := p.dedup.Effect(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: effectUse}, func(ctx context.Context) error {
+		p.uses.RecordContext(ctx, useKey{userID: c.BroadcasterID, name: name})
+		return nil
+	})
+	idempotency.Fail(ctx, err)
 }
 
 func blankLine(line string) bool {
@@ -378,6 +398,7 @@ func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, b
 		return p.loyalty.CounterBump(ctx, b)
 	}
 	fail := func(err error) string {
+		idempotency.Fail(ctx, err)
 		p.log.Warn("counter token bump failed",
 			module.BIDField(c.BroadcasterID),
 			zap.String("counter", b.Name),
@@ -392,19 +413,25 @@ func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, b
 		}
 		return strconv.FormatInt(value, 10)
 	}
-	dup, release := p.dedup.Claim(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: CounterEffect(b.Name)})
-	if dup {
+	var value int64
+	applied := false
+	err := p.dedup.Effect(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: CounterEffect(b.Name)}, func(effectCtx context.Context) error {
+		var err error
+		value, err = p.loyalty.CounterBump(effectCtx, b)
+		applied = err == nil
+		return err
+	})
+	if err != nil {
+		idempotency.Fail(ctx, err)
+		return fail(err)
+	}
+	if !applied {
 		return CounterPeekValue(ctx, p.loyalty, CounterTarget{
 			BroadcasterID: b.BroadcasterID,
 			Name:          b.Name,
 			ViewerID:      b.Viewer.ID,
 			Command:       b.Command,
 		})
-	}
-	value, err := bump()
-	if err != nil {
-		release()
-		return fail(err)
 	}
 	return strconv.FormatInt(value, 10)
 }
@@ -428,11 +455,11 @@ type gateRule struct {
 
 func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (bool, error) {
 	if !permits(c, r.allowedUserID, r.perm) {
-		p.recordBlocked(c, "perm", nil)
+		p.recordBlocked(ctx, c, "perm", nil)
 		return false, nil
 	}
 	if ok, err := p.liveOK(ctx, c, r.liveOnly); !ok {
-		p.recordBlocked(c, "offline", err)
+		p.recordBlocked(ctx, c, "offline", err)
 		return false, err
 	}
 	if c.Env.Origin == "trial" {
@@ -440,7 +467,7 @@ func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (boo
 	}
 	ok, err := p.cooldownOK(ctx, c, r)
 	if !ok {
-		p.recordBlocked(c, "cooldown", err)
+		p.recordBlocked(ctx, c, "cooldown", err)
 	}
 	return ok, err
 }
