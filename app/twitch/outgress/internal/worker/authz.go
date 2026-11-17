@@ -367,7 +367,7 @@ func (w *Worker) admitSubscriptionRevocation(ctx context.Context, ev authzSubRev
 	if err != nil {
 		return false, err
 	}
-	if !moderationMatchesIncarnation(botModeration{SubscriptionID: ev.SubscriptionID, ObservedAt: ev.ObservedAt}, current) {
+	if !revocationMatchesAccount(ev, current, w.botID) {
 		return false, nil
 	}
 	if controlSubscription(ev.Type) {
@@ -375,6 +375,24 @@ func (w *Worker) admitSubscriptionRevocation(ctx context.Context, ev authzSubRev
 	}
 	return true, nil
 }
+
+func revocationMatchesAccount(ev authzSubRevoked, current usersrpc.LifecycleReply, botID string) bool {
+	if moderationMatchesIncarnation(botModeration{SubscriptionID: ev.SubscriptionID, ObservedAt: ev.ObservedAt}, current) {
+		return true
+	}
+	return unrecordedChatBan(ev, current, botID)
+}
+
+func unrecordedChatBan(ev authzSubRevoked, current usersrpc.LifecycleReply, botID string) bool {
+	if ev.Status != statusChatUserBanned || !ev.chatBanObservation(botID) {
+		return false
+	}
+	if current.State.ChatSubscriptionID != "" || current.AccountCreatedAt == 0 {
+		return false
+	}
+	return ev.ObservedAt.UnixMicro() >= current.AccountCreatedAt
+}
+
 func (ev authzSubRevoked) chatBanObservation(botID string) bool {
 	if ev.Type != twitch.ChatMessageType {
 		return false
@@ -401,6 +419,10 @@ func (w *Worker) observeChatRevocation(ctx context.Context, ev authzSubRevoked) 
 	current, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, Action: "get"})
 	if err != nil {
 		return err
+	}
+	if current.State.ChatSubscriptionID == "" {
+		w.observeUnrecordedChatBan(ctx, enrollment{broadcasterID: ev.BroadcasterID, incarnation: current.AccountCreatedAt, generation: current.State.AdmissionGeneration})
+		return nil
 	}
 	if current.State.ChatSubscriptionID != ev.SubscriptionID {
 		return nil
