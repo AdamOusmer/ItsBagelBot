@@ -95,6 +95,13 @@ func TestConsoleAdminExplicitlyExcludesWorkerPool(t *testing.T) {
 	assert.True(t, excludes, "console-admin must explicitly exclude the worker pool")
 }
 
+func TestConsolesServeThroughOnePodRestart(t *testing.T) {
+	for _, name := range []string{"console-admin", "console-dashboard"} {
+		replicas := findDeployment(t, name+".yaml", name).Spec.Replicas
+		assert.GreaterOrEqual(t, replicas, 2, "%s on one replica answered 502 when its pod was OOMKilled on 2026-11-17", name)
+	}
+}
+
 func TestNoWorkloadSelectsNodesByHostname(t *testing.T) {
 	for filename, workloads := range allWorkloads(t) {
 		for _, w := range workloads {

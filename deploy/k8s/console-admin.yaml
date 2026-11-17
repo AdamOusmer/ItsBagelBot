@@ -25,7 +25,7 @@ metadata:
     secrets.doppler.com/reload: "true"
     itsbagelbot.com/restart-on-tls-secret: "console-admin-tls,nats-client-tls,valkey-client-tls"
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -228,10 +228,10 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 128Mi
+              memory: 192Mi
             limits:
               cpu: 1000m
-              memory: 256Mi
+              memory: 384Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
