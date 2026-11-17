@@ -257,33 +257,117 @@ func TestSearchPlainTextStaysSingleShot(t *testing.T) {
 	require.Len(t, reply.Tracks, 1)
 }
 
+var rejectedMetadataCases = []struct {
+	name, query string
+	tracks      []gossiprpc.SpotifyTrack
+}{
+	{"unrelated first result", "a nonexistent purple spaceship song", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Flowers", "Miley Cyrus")}},
+	{"tribute artist", "all i wanted by paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore Tribute")}},
+	{"longer unrelated title", "all i wanted by paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted Was You", "Paramore")}},
+	{"unsolicited live", "all i wanted paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted - Live", "Paramore")}},
+	{"missing requested acoustic", "all i wanted acoustic paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore")}},
+	{"operator artist constraint", "track:\"all i wanted\" artist:\"paramore\"", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore Tribute")}},
+	{"operator title constraint", "track:\"all i wanted\" artist:\"paramore\"", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted Was You", "Paramore")}},
+	{"meaningful clean title words", "i want your clean hands by artist", []gossiprpc.SpotifyTrack{searchTrack("wrong", "I Want Your", "Artist")}},
+	{"meaningful stereo title words", "all i wanted stereo nonsense", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore")}},
+	{"meaningful word ending", "all i want paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore")}},
+	{"explicit live conflict", "all i wanted by paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted (Live)", "Paramore")}},
+	{"sped up conflict", "love story by taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story - Sped Up", "Taylor Swift")}},
+	{"part conflict", "love story by taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story - Part II", "Taylor Swift")}},
+	{"unverified base title", "hello", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Clean Nonsense", "Other")}},
+	{"partial tribute credit", "paramore all i wanted", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore Tribute Band")}},
+	{"partial karaoke credit", "espresso sabrina", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Espresso", "Sabrina Carpenter Karaoke")}},
+	{"short word transposition", "god is a woman", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Dog Is a Woman", "Other")}},
+	{"different two-digit title", "22 taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "23", "Taylor Swift")}},
+	{"different year", "1999 prince", []gossiprpc.SpotifyTrack{searchTrack("wrong", "1998", "Prince")}},
+	{"extra title word", "hold on", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hold On Tight", "Other")}},
+	{"marker is not a typo", "all i wanted life paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted - Live", "Paramore")}},
+	{"fuzzy title alone", "angels", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Angel", "Sarah McLachlan")}},
+	{"two missing letters exceed one edit", "mr brightside the kllrs", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Mr. Brightside", "The Killers")}},
+	{"ambiguous fuzzy titles alone", "lovers", []gossiprpc.SpotifyTrack{searchTrack("one", "Lover", "Taylor Swift"), searchTrack("two", "Loners", "Other")}},
+	{"repeated leading title word", "please please me", []gossiprpc.SpotifyTrack{searchTrack("wrong", "ME!", "Taylor Swift")}},
+	{"meaningful next", "thank u next", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Thank You", "Dido")}},
+	{"meaningful song", "love song", []gossiprpc.SpotifyTrack{searchTrack("wrong", "LOVE.", "Kendrick Lamar")}},
+	{"meaningful play and song", "play that song", []gossiprpc.SpotifyTrack{searchTrack("wrong", "That", "Other")}},
+	{"meaningful play alone", "play that", []gossiprpc.SpotifyTrack{searchTrack("wrong", "That", "Other")}},
+	{"meaningful add", "add it up", []gossiprpc.SpotifyTrack{searchTrack("wrong", "It Up", "Other")}},
+	{"trailing song without artist", "mr brightside song", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Mr. Brightside", "The Killers")}},
+	{"a cappella", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (A Cappella)", "Adele")}},
+	{"stripped", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (Stripped)", "Adele")}},
+	{"remixed", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (Remixed)", "Adele")}},
+	{"spanish version", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (Spanish Version)", "Adele")}},
+	{"8d audio", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (8D Audio)", "Adele")}},
+	{"re-recorded", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Re-Recorded", "Adele")}},
+	{"tiktok version", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (TikTok Version)", "Adele")}},
+	{"slowed down", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Slowed Down", "Adele")}},
+	{"live at the bbc", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Live at the BBC", "Adele")}},
+	{"unspecified live recording", "hello live adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (Live at the BBC)", "Adele")}},
+	{"sped up parentheses", "love story", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story (Sped Up)", "Taylor Swift")}},
+	{"extended mix", "levels avicii", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Levels - Extended Mix", "Avicii")}},
+	{"radio mix", "levels avicii", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Levels - Radio Mix", "Avicii")}},
+	{"implicit remix", "despacito justin bieber", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Despacito - Remix", "Luis Fonsi", "Daddy Yankee", "Justin Bieber")}},
+	{"different duration version", "all too well taylor swfit", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All Too Well (10 Minute Version) (Taylor's Version) (From The Vault)", "Taylor Swift")}},
+	{"from a tribute album", "hello", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (From The Tribute Album)", "Tribute Kings")}},
+	{"nightcore title", "love story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story - Nightcore", "Taylor Swift")}},
+	{"nightcore credit", "love story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story", "Taylor Swift", "Nightcore")}},
+	{"partial queen suffix", "bohemian rhapsody queen", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Bohemian Rhapsody", "Killer Queen")}},
+	{"partial queen prefix", "under pressure queen", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Under Pressure", "Queen Extravaganza")}},
+	{"partial adele credit", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello", "Adele Hits Band")}},
+	{"partial taylor swift credit", "love story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story", "The Taylor Swift Experience")}},
+	{"partial sabrina credit", "espresso sabrina", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Espresso", "Sabrina Carpenter")}},
+	{"partial kendrick credit", "humble kendrick", []gossiprpc.SpotifyTrack{searchTrack("wrong", "HUMBLE.", "Kendrick Lamar")}},
+	{"partial ariana credit", "7 rings ariana", []gossiprpc.SpotifyTrack{searchTrack("wrong", "7 rings", "Ariana Grande")}},
+	{"short metadata artist typo", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello", "Adel")}},
+	{"eight versus eighty", "8 billie eilish", []gossiprpc.SpotifyTrack{searchTrack("wrong", "80", "Billie Eilish")}},
+	{"for versus four", "for taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Four", "Taylor Swift")}},
+	{"twenty one versus twenty two", "21 adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "22", "Adele")}},
+	{"twenty two versus twenty one", "22 adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "21", "Adele")}},
+	{"meaningful extra title word", "hold on adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hold", "Adele")}},
+	{"kana voicing", "ガラス", []gossiprpc.SpotifyTrack{searchTrack("wrong", "カラス", "Other")}},
+	{"shorter CJK title", "紅蓮華", []gossiprpc.SpotifyTrack{searchTrack("wrong", "紅蓮", "LiSA")}},
+	{"longer CJK title", "紅蓮", []gossiprpc.SpotifyTrack{searchTrack("wrong", "紅蓮華", "LiSA")}},
+	{"short fuzzy title with exact artist", "angel the weeknd", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Angels", "The Weeknd")}},
+	{"ambiguous fuzzy titles with same artist", "superstiton stevie wonder", []gossiprpc.SpotifyTrack{
+		searchTrack("one", "Superstition", "Stevie Wonder"), searchTrack("two", "Superstitions", "Stevie Wonder"),
+	}},
+	{"ambiguous short titles with different credits", "shiner andrew", []gossiprpc.SpotifyTrack{
+		searchTrack("one", "Shined", "Andrews"), searchTrack("two", "Shines", "Andrew"),
+	}},
+	{"remaster label before live marker", "hello", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Remastered 2015 - Live", "Adele")}},
+	{"meaningful stereo text", "hello", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello Stereo Nonsense", "Adele")}},
+	{"meaningful clean text without artist", "i want your clean hands", []gossiprpc.SpotifyTrack{searchTrack("wrong", "I Want Your", "Artist")}},
+	{"emoji only", "🎶🎶", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello", "Adele")}},
+	{"keycap only", "2️⃣", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Two", "Adele")}},
+	{"punctuation only", "!!! $$ @", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello", "Adele")}},
+	{"ampersand only", "&", []gossiprpc.SpotifyTrack{searchTrack("wrong", "And", "Adele")}},
+	{"unrelated plain window", "one two three four five six seven", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Unrelated", "Nobody")}},
+	{"empty dash windows", "a - b - c", nil},
+	{"recovery budget without a verified track", "bohemian rapsody by quen", []gossiprpc.SpotifyTrack{
+		searchTrack("wrong-title-credit", "Bohemian Rhapsody", "Cover Band"), searchTrack("wrong-title", "Killer Queen", "Queen"),
+	}},
+	{"long unrelated query", strings.Repeat("love and hate x war with peace ", 40), []gossiprpc.SpotifyTrack{
+		searchTrack("wrong", "Love", "War", "Peace", "Hate", "And", "X", "With", "Love and Hate"),
+	}},
+}
+
 func TestSearchRejectsWeakAndConflictingMetadata(t *testing.T) {
-	tests := []struct {
-		name, query string
-		track       gossiprpc.SpotifyTrack
-	}{
-		{"unrelated first result", "a nonexistent purple spaceship song", searchTrack("wrong", "Flowers", "Miley Cyrus")},
-		{"tribute artist", "all i wanted by paramore", searchTrack("wrong", "All I Wanted", "Paramore Tribute")},
-		{"longer unrelated title", "all i wanted by paramore", searchTrack("wrong", "All I Wanted Was You", "Paramore")},
-		{"unsolicited live", "all i wanted paramore", searchTrack("wrong", "All I Wanted - Live", "Paramore")},
-		{"missing requested acoustic", "all i wanted acoustic paramore", searchTrack("wrong", "All I Wanted", "Paramore")},
-		{"operator artist constraint", "track:\"all i wanted\" artist:\"paramore\"", searchTrack("wrong", "All I Wanted", "Paramore Tribute")},
-		{"operator title constraint", "track:\"all i wanted\" artist:\"paramore\"", searchTrack("wrong", "All I Wanted Was You", "Paramore")},
-		{"meaningful clean title words", "i want your clean hands by artist", searchTrack("wrong", "I Want Your", "Artist")},
-		{"meaningful stereo title words", "all i wanted stereo nonsense", searchTrack("wrong", "All I Wanted", "Paramore")},
+	type outcome struct {
+		err        string
+		trackCount int
+		overBudget bool
 	}
-	for _, tt := range tests {
+	for _, tt := range rejectedMetadataCases {
 		t.Run(tt.name, func(t *testing.T) {
 			mint, _ := newMintServer(t, "tok-1")
 			calls := 0
 			p := newTestProvider(t, fakeKeys{key: "rt-1"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls++
-				writeSearchTracks(t, w, tt.track)
+				writeSearchTracks(t, w, tt.tracks...)
 			}), mint)
 			reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{ChannelID: "2", Query: tt.query, Limit: 1})
-			assert.Empty(t, reply.Error)
-			assert.Empty(t, reply.Tracks)
-			assert.LessOrEqual(t, calls, maxTextSearchRequests)
+			assert.Equal(t, outcome{}, outcome{
+				err: reply.Error, trackCount: len(reply.Tracks), overBudget: calls > maxTextSearchRequests,
+			})
 		})
 	}
 }
@@ -341,24 +425,6 @@ func TestSearchLiteralTitleAndTypoRanking(t *testing.T) {
 			require.Len(t, reply.Tracks, 1)
 			assert.Equal(t, tt.want, reply.Tracks[0].ID)
 		})
-	}
-}
-
-func TestMetadataAnnotationsPreserveMeaningfulWords(t *testing.T) {
-	for _, tt := range []struct {
-		query, name string
-		want        bool
-	}{
-		{"hello", "Hello - 2015 Remaster", true},
-		{"hello", "Hello (Remastered 2015)", true},
-		{"hello", "Hello - Remastered 2015 - Live", false},
-		{"hello", "Hello Stereo Nonsense", false},
-		{"hello", "Hello - Clean Nonsense", false},
-		{"i want your clean hands", "I Want Your", false},
-		{"hello", "Hello (feat. Artist)", true},
-		{"hello live", "Hello - Live", true},
-	} {
-		t.Run(tt.query+"/"+tt.name, func(t *testing.T) { assert.Equal(t, tt.want, titleMatch(matchWords(tt.query), tt.name)) })
 	}
 }
 
