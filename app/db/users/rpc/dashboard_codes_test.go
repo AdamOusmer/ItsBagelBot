@@ -34,11 +34,10 @@ func TestStateGetReplyCodes(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(nc.Close)
 	client := testdb.Open(t, "dashboard-state-codes", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
-	require.NoError(t, repo.Register(t.Context(), 1001, "mavey", "Mavey", "mavey@example.com"))
-	require.NoError(t, SubscribeDashboard(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Queue: "dashboard-codes-test", Log: zap.NewNop()}, Repo: repo},
-		"dashboard.codes", "invalidate.codes"))
+	require.NoError(t, repo.Register(t.Context(), repository.Registration{ID: 1001, Username: "mavey", DisplayName: "Mavey", Email: "mavey@example.com"}))
+	require.NoError(t, SubscribeDashboard(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Queue: "dashboard-codes-test", Log: zap.NewNop()}, Repo: repo}, "dashboard.codes"))
 	require.NoError(t, nc.Flush())
 
 	call := func(verb string, req any) domainrpc.Refusal {

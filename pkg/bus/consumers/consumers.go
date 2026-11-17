@@ -18,7 +18,6 @@ import (
 
 type Service string
 
-// MySQL timestamps round to whole seconds and pod clocks differ.
 const erasureClockSlack = 5 * time.Second
 
 // Rows written after cutoff belong to a re-registered account and must survive.
@@ -54,15 +53,4 @@ func deletionTime(dto data.UserDeletedDTO, msg *bus.Message) time.Time {
 		return msg.StoredAt()
 	}
 	return dto.DeletedAt
-}
-
-func OnChangeInvalidate[DTO any](userID func(DTO) uint64, invalidate func(uint64)) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		var dto DTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			return err
-		}
-		invalidate(userID(dto))
-		return nil
-	}
 }

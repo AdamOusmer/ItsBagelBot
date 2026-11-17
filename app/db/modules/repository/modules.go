@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
@@ -48,6 +49,7 @@ type Modules struct {
 	client           *ent.Client
 	views            *cache.Cache[[]ModuleView]
 	pub              bus.Publisher
+	invalidations    *bus.Invalidations
 	app              *newrelic.Application
 	log              *zap.Logger
 	govee            *GoveeCreds
@@ -56,15 +58,17 @@ type Modules struct {
 }
 
 func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Modules {
+	pub, h := bus.WithInvalidations(pub)
 
 	r := &Modules{
-		client:  client,
-		views:   cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL, cache.StaleOnError(modulesCacheTTL)),
-		pub:     pub,
-		app:     app,
-		log:     log,
-		govee:   NewGoveeCredsFromEnv(client, log),
-		spotify: NewSpotifyCredsFromEnv(client, log),
+		client:        client,
+		views:         cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL, cache.StaleOnError(modulesCacheTTL)).InvalidateOn(h, cache.UserKeys(modulesKeyPrefix), data.SubjectModuleChanged, invalidate.ScopeModules),
+		invalidations: h,
+		pub:           pub,
+		app:           app,
+		log:           log,
+		govee:         NewGoveeCredsFromEnv(client, log),
+		spotify:       NewSpotifyCredsFromEnv(client, log, h),
 
 		recipeState: &RecipeState{client: client},
 	}
@@ -72,38 +76,46 @@ func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application
 	return r
 }
 
-func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error) {
-	return r.views.GetOrLoad(ctx, cache.UserKey(modulesKeyPrefix, userID), func(ctx context.Context) ([]ModuleView, error) {
-		return r.loadModuleViews(ctx, userID)
-	})
+type ModuleWrite struct {
+	UserID  uint64
+	Name    string
+	Enabled bool
+	Configs codec.RawMessage
 }
 
-func (r *Modules) SetNow(ctx context.Context, userID uint64, name string, enabled bool, configs codec.RawMessage) ([]ModuleView, error) {
-	item, err := r.moduleChange(ctx, userID, name, enabled, configs)
+func (r *Modules) SetNow(ctx context.Context, write ModuleWrite) ([]ModuleView, error) {
+	userID, name := write.UserID, write.Name
+	item, err := r.moduleChange(ctx, write)
 	if err != nil {
 		return nil, err
 	}
 	if err := db.WithExec(ctx, func(ctx context.Context) error { return r.persistModuleChange(ctx, item) }); err != nil {
 		return nil, err
 	}
-	r.Invalidate(userID)
-	views, err := r.List(ctx, userID)
-	if err != nil {
-		return nil, err
+	views, err := r.loadModuleViews(ctx, userID)
+	view, found := moduleNamed(views, name)
+	if !found {
+		r.evict(userID)
+		return views, err
 	}
-	for _, view := range views {
-		if view.Name == name {
-			r.publishCommittedModule(ctx, data.ModuleChangedDTO{
-				UserID: userID, Name: view.Name, IsEnabled: view.IsEnabled,
-				Configs: view.Configs, Revision: view.Revision, AccountCreatedAt: view.AccountCreatedAt,
-			}, monitor.TxnLogger(ctx, r.log))
-			break
-		}
-	}
+	r.publishCommittedModule(ctx, data.ModuleChangedDTO{
+		UserID: userID, Name: view.Name, IsEnabled: view.IsEnabled,
+		Configs: view.Configs, Revision: view.Revision, AccountCreatedAt: view.AccountCreatedAt,
+	}, monitor.TxnLogger(ctx, r.log))
 	return views, nil
 }
 
-func (r *Modules) moduleChange(ctx context.Context, userID uint64, name string, enabled bool, configs codec.RawMessage) (data.ModuleChangedDTO, error) {
+func moduleNamed(views []ModuleView, name string) (ModuleView, bool) {
+	for _, view := range views {
+		if view.Name == name {
+			return view, true
+		}
+	}
+	return ModuleView{}, false
+}
+
+func (r *Modules) moduleChange(ctx context.Context, write ModuleWrite) (data.ModuleChangedDTO, error) {
+	userID, name, enabled, configs := write.UserID, write.Name, write.Enabled, write.Configs
 	if err := validate.UserID(userID); err != nil {
 		return data.ModuleChangedDTO{}, err
 	}
@@ -157,8 +169,13 @@ func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	r.sweepGovee(ctx, userID)
 	r.sweepSpotify(ctx, userID)
 
-	r.Invalidate(userID)
-	return nil
+	return r.invalidations.Publish(invalidate.ScopeModules, userID)
+}
+
+func (r *Modules) evict(userIDs ...uint64) {
+	for _, id := range userIDs {
+		r.views.Invalidate(cache.UserKey(modulesKeyPrefix, id))
+	}
 }
 
 func (r *Modules) Govee() *GoveeCreds { return r.govee }
@@ -192,8 +209,7 @@ func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled
 	return r.patch(ctx, userID, name, enabled, partial, expectedRev, nil)
 }
 
-// PatchExisting only updates the row identified by both its ID and revision.
-// Missing or replaced rows conflict; this path never creates a module.
+// Guard patch updates by row ID and revision so replaced rows conflict.
 func (r *Modules) PatchExisting(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev, expectedID int) (PatchResult, error) {
 	return r.patch(ctx, userID, name, enabled, partial, &expectedRev, &expectedID)
 }
@@ -222,7 +238,7 @@ func (r *Modules) patch(ctx context.Context, userID uint64, name string, enabled
 		return PatchResult{}, err
 	}
 	if !res.Conflict {
-		r.announcePatch(ctx, userID, name, enabled, blob)
+		r.announcePatch(ctx, ModuleWrite{UserID: userID, Name: name, Enabled: enabled, Configs: blob})
 	}
 	return res, nil
 }
@@ -283,8 +299,8 @@ func mergedBlob(cur, partial map[string]codec.RawMessage, rev int) ([]byte, erro
 	return blob, nil
 }
 
-func (r *Modules) announcePatch(ctx context.Context, userID uint64, name string, enabled bool, blob []byte) {
-	r.Invalidate(userID)
+func (r *Modules) announcePatch(ctx context.Context, write ModuleWrite) {
+	userID, name, enabled, blob := write.UserID, write.Name, write.Enabled, write.Configs
 	if pubErr := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, data.ModuleChangedDTO{
 		AccountCreatedAt: accountInstance(blob), UserID: userID, Name: name, IsEnabled: enabled, Configs: blob, Revision: configRevision(blob),
 	}); pubErr != nil {
@@ -316,56 +332,6 @@ func mergeConfig(cfg, partial map[string]codec.RawMessage) {
 func setRev(cfg map[string]codec.RawMessage, rev int) {
 	b, _ := codec.Marshal(rev)
 	cfg[revKey] = b
-}
-
-func (r *Modules) Invalidate(userID uint64) {
-	r.views.Invalidate(cache.UserKey(modulesKeyPrefix, userID))
-}
-
-func (r *Modules) Close(ctx context.Context) {
-	r.views.Close()
-}
-
-func upsertModule(ctx context.Context, c *ent.ModulesClient, item data.ModuleChangedDTO) error {
-
-	updated, err := c.Update().
-		Where(
-			modules.UserIDEQ(item.UserID),
-			modules.NameEQ(item.Name),
-		).
-		SetIsEnabled(item.IsEnabled).
-		SetConfigs(item.Configs).
-		AddRevision(1).
-		Save(ctx)
-	if err != nil {
-		return err
-	}
-
-	if updated > 0 {
-		return nil
-	}
-
-	if err := c.Create().
-		SetUserID(item.UserID).
-		SetName(item.Name).
-		SetIsEnabled(item.IsEnabled).
-		SetConfigs(item.Configs).
-		SetRevision(1).
-		Exec(ctx); err != nil {
-		if ent.IsConstraintError(err) {
-			_, err = c.Update().
-				Where(
-					modules.UserIDEQ(item.UserID),
-					modules.NameEQ(item.Name),
-				).
-				SetIsEnabled(item.IsEnabled).
-				SetConfigs(item.Configs).
-				AddRevision(1).
-				Save(ctx)
-		}
-		return err
-	}
-	return nil
 }
 
 func (r *Modules) loadModuleViews(ctx context.Context, userID uint64) ([]ModuleView, error) {
@@ -445,8 +411,7 @@ func (r *Modules) persistPatch(ctx context.Context, id uint64, name string, enab
 		return PatchResult{}, nil, err
 	default:
 		if !patchIdentityMatches(row, partial, expectedID) {
-			// Guarded maintenance must not reset settings when account ownership
-			// differs. The normal dashboard Patch path retains that behavior.
+			// Guarded maintenance must not reset settings owned by a different account incarnation.
 			return PatchResult{Conflict: true, Rev: row.Revision}, nil, nil
 		}
 		return r.patchUpdate(ctx, row, enabled, partial, expectedRev)
@@ -482,8 +447,66 @@ func patchBaseConfig(row *ent.Modules, partial map[string]codec.RawMessage) (map
 	return cur, nil
 }
 
+func (r *Modules) publishProjectableModule(ctx context.Context, row *ent.Modules) error {
+	if !r.mayProjectModule(row) {
+		return nil
+	}
+	return bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, persistedModuleEvent(row))
+}
+
+func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error) {
+	return r.views.GetOrLoad(ctx, cache.UserKey(modulesKeyPrefix, userID), func(ctx context.Context) ([]ModuleView, error) {
+		return r.loadModuleViews(ctx, userID)
+	})
+}
+
+func (r *Modules) Close(ctx context.Context) {
+	r.views.Close()
+}
+
+func upsertModule(ctx context.Context, c *ent.ModulesClient, item data.ModuleChangedDTO) error {
+
+	updated, err := c.Update().
+		Where(
+			modules.UserIDEQ(item.UserID),
+			modules.NameEQ(item.Name),
+		).
+		SetIsEnabled(item.IsEnabled).
+		SetConfigs(item.Configs).
+		AddRevision(1).
+		Save(ctx)
+	if err != nil {
+		return err
+	}
+
+	if updated > 0 {
+		return nil
+	}
+
+	if err := c.Create().
+		SetUserID(item.UserID).
+		SetName(item.Name).
+		SetIsEnabled(item.IsEnabled).
+		SetConfigs(item.Configs).
+		SetRevision(1).
+		Exec(ctx); err != nil {
+		if ent.IsConstraintError(err) {
+			_, err = c.Update().
+				Where(
+					modules.UserIDEQ(item.UserID),
+					modules.NameEQ(item.Name),
+				).
+				SetIsEnabled(item.IsEnabled).
+				SetConfigs(item.Configs).
+				AddRevision(1).
+				Save(ctx)
+		}
+		return err
+	}
+	return nil
+}
+
 func (r *Modules) publishCommittedModule(ctx context.Context, item data.ModuleChangedDTO, log *zap.Logger) {
-	r.Invalidate(item.UserID)
 	if err := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, item); err != nil {
 		// SQL is committed; a lost notification delays convergence until hydration.
 		log.Error("failed to publish module change", zap.Uint64("user_id", item.UserID), zap.String("module", item.Name), zap.Error(err))
@@ -501,11 +524,4 @@ func (r *Modules) writeModuleChange(ctx context.Context, item data.ModuleChanged
 		return r.upsertLoyalty(ctx, item)
 	}
 	return upsertModule(ctx, r.client.Modules, item)
-}
-
-func (r *Modules) publishProjectableModule(ctx context.Context, row *ent.Modules) error {
-	if !r.mayProjectModule(row) {
-		return nil
-	}
-	return bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, persistedModuleEvent(row))
 }

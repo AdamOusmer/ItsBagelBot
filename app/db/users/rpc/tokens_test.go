@@ -20,7 +20,7 @@ import (
 
 func TestHandleGetReplyCodes(t *testing.T) {
 	client := testdb.Open(t, "tokens-get-codes", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, nil, nil, nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	tr := &tokensRPC{repo: repo, log: zap.NewNop()}
 

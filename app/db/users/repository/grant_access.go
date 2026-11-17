@@ -133,8 +133,5 @@ func (r *Users) announceGrantAccess(ctx context.Context, userID uint64, now time
 	if err := r.projectAccess(ctx, userID, now); err != nil {
 		return err
 	}
-	if err := r.publishChanged(ctx, userID); err != nil {
-		return err
-	}
-	return r.publishStatusInvalidation(ctx, userID)
+	return r.publishChanged(ctx, userID)
 }

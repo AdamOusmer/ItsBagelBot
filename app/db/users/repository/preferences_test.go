@@ -4,12 +4,15 @@
 package repository_test
 
 import (
+	"ItsBagelBot/app/db/users/repository"
 	"context"
 	"testing"
 
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/pkg/bus/bustest"
+	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
@@ -29,11 +32,25 @@ func decodeChanged(t *testing.T, pub *bustest.Publisher) []data.UserChangedDTO {
 	return out
 }
 
+func TestPreferenceInvalidationObservesCommittedValue(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := t.Context()
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "viewer", Email: "viewer@example.com"}))
+	var locales []string
+	repo.Invalidations().Watch(invalidate.ScopeLocale, func(e cache.Event) {
+		locales = append(locales, client.User.GetX(ctx, e.ID).Locale)
+	})
+	require.NoError(t, repo.SetLocale(ctx, 1001, "fr"))
+	require.Equal(t, []string{"fr"}, locales)
+	require.Error(t, repo.SetLocale(ctx, 9999, "de"))
+	require.Equal(t, []string{"fr"}, locales)
+}
+
 func TestPreferenceSuccessMeansCommitted(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 	baseline := len(decodeChanged(t, pub))
 
 	require.NoError(t, repo.SetCustomCursor(ctx, 1001, false))
@@ -68,7 +85,7 @@ func TestPreferenceWindowMergesPerUser(t *testing.T) {
 	_, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 	baseline := len(decodeChanged(t, pub))
 
 	require.NoError(t, repo.SetCustomCursor(ctx, 1001, false))
@@ -96,7 +113,7 @@ func TestMoneyAndModerationWritesStayImmediate(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 
 	require.NoError(t, repo.SetStatus(ctx, 1001, user.StatusPaid))
 	require.NoError(t, repo.SetBanned(ctx, 1001, true))
@@ -114,13 +131,12 @@ func TestMoneyAndModerationWritesStayImmediate(t *testing.T) {
 func TestAccountStateRevisionOwnedByEveryEntMutation(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := t.Context()
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 	row := client.User.GetX(ctx, 1001)
 	require.EqualValues(t, 1, row.StateRevision)
 	require.NoError(t, repo.SetBanned(ctx, 1001, true))
 	row = client.User.GetX(ctx, 1001)
 	require.EqualValues(t, 2, row.StateRevision)
-	// Builder callers cannot overwrite the source-owned revision.
 	require.NoError(t, client.User.UpdateOneID(1001).SetStateRevision(999).SetIsActive(false).Exec(ctx))
 	row = client.User.GetX(ctx, 1001)
 	require.EqualValues(t, 3, row.StateRevision)
@@ -143,7 +159,7 @@ func TestInteractiveActiveToggleIsCommittedBeforeReadback(t *testing.T) {
 	client, pub, repo := setup(t)
 	defer repo.Close(t.Context())
 	ctx := t.Context()
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 	_, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
 	require.NoError(t, repo.SetActiveNow(ctx, 1001, false))
@@ -160,7 +176,7 @@ func TestInteractiveLanguageSaveCommitsBeforeRead(t *testing.T) {
 		t.Run(locale, func(t *testing.T) {
 			client, pub, repo := setup(t)
 			ctx := context.Background()
-			require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+			require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 			_, err := repo.Get(ctx, 1001) // Prime the cached account view.
 			require.NoError(t, err)
 			baseline := len(decodeChanged(t, pub))

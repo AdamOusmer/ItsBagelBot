@@ -17,6 +17,10 @@ func UserKey(prefix string, userID uint64) string {
 	return string(buf)
 }
 
+func UserKeys(prefix string) func(Event) []string {
+	return func(e Event) []string { return []string{UserKey(prefix, e.ID)} }
+}
+
 func PairKey(prefix string, id uint64, name string) string {
 	buf := make([]byte, 0, len(prefix)+maxUint64Digits+separatorColonLen+len(name))
 	buf = append(buf, prefix...)

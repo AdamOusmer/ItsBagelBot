@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"maps"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
@@ -44,7 +43,6 @@ func (r *Loyalty) insertIgnore() string {
 func (r *Loyalty) fence(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (int64, bool, error) {
 	stmt := r.insertIgnore() + " INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0)"
 	if r.dialect != "sqlite3" {
-		// The duplicate-key UPDATE is the exclusive fence lock that serializes retirement, recreation and posting.
 		stmt = "INSERT INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE user_id=user_id"
 	}
 	if _, err := tx.ExecContext(ctx, stmt, id, instance); err != nil {
@@ -73,47 +71,57 @@ func (r *Loyalty) RestoreUser(ctx context.Context, id uint64, instance int64) er
 	if id == 0 || instance <= 0 {
 		return nil
 	}
+	changed, err := r.restoreUser(ctx, id, instance)
+	if err == nil && changed {
+		r.publishAccountChange(id)
+	}
+	return err
+}
+
+func (r *Loyalty) restoreUser(ctx context.Context, id uint64, instance int64) (bool, error) {
 	r.persistMu.Lock()
 	defer r.persistMu.Unlock()
 	tx, err := r.sqldb.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback()
 	current, _, err := r.fence(ctx, tx, id, instance)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if instance > current {
 		if err := replaceLoyaltyAccount(ctx, tx, loyaltyAccountReplacement{userID: id, prior: current, next: instance}); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return tx.Commit()
+	return instance > current, tx.Commit()
 }
 
 func (r *Loyalty) DeleteAccount(ctx context.Context, id uint64, instance int64) error {
 	if id == 0 {
 		return fmt.Errorf("%w: user_id", ErrInvalidInput)
 	}
+	retired, err := r.deleteAccount(ctx, id, instance)
+	if err == nil && retired {
+		r.publishAccountChange(id)
+	}
+	return err
+}
+
+func (r *Loyalty) deleteAccount(ctx context.Context, id uint64, instance int64) (bool, error) {
 	r.persistMu.Lock()
 	defer r.persistMu.Unlock()
 	tx, err := r.sqldb.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback()
 	retired, err := r.retireLoyaltyAccount(ctx, tx, id, instance)
 	if err != nil {
-		return err
+		return false, err
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if retired {
-		r.discardPendingAccount(id)
-	}
-	return nil
+	return retired, tx.Commit()
 }
 
 type watchHistoryTable struct {
@@ -149,12 +157,18 @@ func (r *Loyalty) ensureWatchCreatedIndexes(ctx context.Context) error {
 	return nil
 }
 
-func (r *Loyalty) admitWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) (bool, error) {
+type watchAdmission struct {
+	allowed  bool
+	replaced bool
+}
+
+func (r *Loyalty) admitWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) (watchAdmission, error) {
 	current, deleted, err := r.fence(ctx, tx, a.UserID, a.AccountCreatedAt)
 	if err != nil {
-		return false, err
+		return watchAdmission{}, err
 	}
-	return admitWatchAccount(ctx, tx, a, loyaltyAccountState{instance: current, deleted: deleted})
+	allowed, err := admitWatchAccount(ctx, tx, a, loyaltyAccountState{instance: current, deleted: deleted})
+	return watchAdmission{allowed: allowed, replaced: a.AccountCreatedAt > current}, err
 }
 
 func (r *Loyalty) watchWindowOpen(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) (bool, error) {
@@ -223,13 +237,6 @@ func (r *Loyalty) retireLoyaltyAccount(ctx context.Context, tx *sql.Tx, id uint6
 	}
 	err = deleteLoyaltyRows(ctx, tx, id)
 	return err == nil, err
-}
-
-func (r *Loyalty) discardPendingAccount(id uint64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	maps.DeleteFunc(r.earnPend, func(key balKey, _ *earnSum) bool { return key.userID == id })
-	maps.DeleteFunc(r.bumpPend, func(key bumpKey, _ *bumpSum) bool { return key.userID == id })
 }
 
 func retirementInstance(instance, current int64) (int64, bool) {

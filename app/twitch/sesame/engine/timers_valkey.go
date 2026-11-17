@@ -25,7 +25,6 @@ import (
 	"ItsBagelBot/pkg/idempotency"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -82,9 +81,7 @@ type ValkeyTimerStore struct {
 	proj    projection.Reader
 	live    IsLiveChecker
 
-	nc           *nats.Conn
-	rearmSubject string
-	rearmExtra   string
+	invalidations cache.Feed
 
 	outgressPremium  string
 	outgressStandard string
@@ -112,16 +109,14 @@ func (s *ValkeyTimerStore) WirePipeline(p *Pipeline) {
 }
 
 type TimersConfig struct {
-	Live                     IsLiveChecker
-	Runtime                  channelruntime.Reader
-	OutgressPremiumSubject   string
-	OutgressStandardSubject  string
-	KeyspaceDB               int
-	Expiry                   *pkg_valkey.ExpiryHub
-	NC                       *nats.Conn
-	ModulesInvalidateSubject string
-	AutomationsInvalidate    string
-	Log                      *zap.Logger
+	Live                    IsLiveChecker
+	Runtime                 channelruntime.Reader
+	OutgressPremiumSubject  string
+	OutgressStandardSubject string
+	KeyspaceDB              int
+	Expiry                  *pkg_valkey.ExpiryHub
+	Invalidations           cache.Feed
+	Log                     *zap.Logger
 }
 
 func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projection.Reader, cfg TimersConfig) *ValkeyTimerStore {
@@ -135,9 +130,7 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 		pub:              pub,
 		proj:             proj,
 		live:             cfg.Live,
-		nc:               cfg.NC,
-		rearmSubject:     cfg.ModulesInvalidateSubject,
-		rearmExtra:       cfg.AutomationsInvalidate,
+		invalidations:    cfg.Invalidations,
 		outgressPremium:  cfg.OutgressPremiumSubject,
 		outgressStandard: cfg.OutgressStandardSubject,
 		keyspaceDB:       cfg.KeyspaceDB,
@@ -402,38 +395,20 @@ func (s *ValkeyTimerStore) moduleTimers(ctx context.Context, broadcasterID uint6
 }
 
 func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
-	s.watchRearm(ctx, s.rearmSubject)
-	s.watchRearm(ctx, s.rearmExtra)
+	if s.invalidations == nil {
+		return
+	}
+	s.invalidations.Watch(invalidate.ScopeModules, s.onRearm)
+	s.invalidations.Watch(invalidate.ScopeAutomations, s.onRearm)
+	s.invalidations.WatchGap(s.flagsCache.Clear)
 }
 
-func (s *ValkeyTimerStore) watchRearm(ctx context.Context, subject string) {
-	if s.nc == nil || subject == "" {
-		return
-	}
-	sub, err := s.nc.Subscribe(subject, func(msg *nats.Msg) {
-		var dto invalidate.DTO
-		if err := codec.Unmarshal(msg.Data, &dto); err != nil {
-			return
-		}
-		id, err := strconv.ParseUint(dto.BroadcasterID, 10, 64)
-		if err != nil || id == 0 {
-			return
-		}
-		s.flagsCache.Invalidate(id)
-		go func() {
-			rctx, cancel := context.WithTimeout(context.Background(), rearmTimeout)
-			defer cancel()
-			s.Rearm(rctx, id)
-		}()
-	})
-	if err != nil {
-		s.log.Error("timers: failed to start rearm watcher", zap.String("subject", subject), zap.Error(err))
-		return
-	}
-	s.log.Info("timers: rearm watcher starting", zap.String("subject", subject))
+func (s *ValkeyTimerStore) onRearm(e cache.Event) {
+	s.flagsCache.Invalidate(e.ID)
 	go func() {
-		<-ctx.Done()
-		_ = sub.Unsubscribe()
+		ctx, cancel := context.WithTimeout(context.Background(), rearmTimeout)
+		defer cancel()
+		s.Rearm(ctx, e.ID)
 	}()
 }
 

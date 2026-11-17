@@ -9,35 +9,35 @@ import (
 
 	"go.uber.org/zap"
 
-	"ItsBagelBot/app/db/notifications/repository"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/monitor"
 )
 
 type maintenanceRPC struct {
-	repo *repository.Notifications
-	log  *zap.Logger
+	Wiring
 }
 
 func SubscribeMaintenance(w Wiring, subject string) error {
-	m := &maintenanceRPC{repo: w.Repo, log: w.Log}
+	m := &maintenanceRPC{Wiring: w}
 	return bus.Serve(w.Within(cleanupBudget), subject, m.cleanup)
 }
 
 func (m *maintenanceRPC) cleanup(ctx context.Context, _ notificationsrpc.CleanupRequest) notificationsrpc.CleanupReply {
-	log := monitor.TxnLogger(ctx, m.log)
-	deleted, expiredMore, err := m.repo.DeleteExpired(ctx, time.Now())
+	log := monitor.TxnLogger(ctx, m.Log)
+	batch, err := m.Repo.DeleteExpiredWithAudience(ctx, time.Now())
 	if err != nil {
 		log.Warn("notification cleanup failed", zap.Error(err))
 		return notificationsrpc.CleanupReply{Refusal: bus.Classify(err)}
 	}
+	deleted := batch.Count
 	if deleted > 0 {
+		m.invalidateDeleted(batch)
 		log.Info("notification cleanup swept expired rows", zap.Int("deleted", deleted))
 	}
-	receipts, more, err := m.repo.CleanupDelivery(ctx, time.Now())
+	receipts, more, err := m.Repo.CleanupDelivery(ctx, time.Now())
 	if err != nil {
 		return notificationsrpc.CleanupReply{Deleted: deleted, Refusal: bus.Classify(err)}
 	}
-	return notificationsrpc.CleanupReply{Deleted: deleted, ReceiptsDeleted: receipts, HasMore: more || expiredMore}
+	return notificationsrpc.CleanupReply{Deleted: deleted, ReceiptsDeleted: receipts, HasMore: more || batch.HasMore}
 }

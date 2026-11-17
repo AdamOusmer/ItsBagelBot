@@ -122,11 +122,11 @@ func TestLoadChannelInvalidatesUserAndModulesIndependently(t *testing.T) {
 	require.EqualValues(t, 2, reads.reads.Load())
 
 	f.seed("settings:81", fakeField{"locale", "en"})
-	evict("locale", 81)
+	evict("user-projection", 81)
 	require.Eventually(t, func() bool { _, u := load(); return u.Locale == "en" }, 2*time.Second, 5*time.Millisecond)
 	mods, _ = load()
 	assert.True(t, mods["automod"].IsEnabled)
-	assert.EqualValues(t, 3, reads.reads.Load(), "locale invalidation reloads only User")
+	assert.EqualValues(t, 3, reads.reads.Load(), "user projection invalidation reloads only User")
 
 	f.seed("settings:81", fakeField{"module:automod:enabled", "0"})
 	evict("modules", 81)

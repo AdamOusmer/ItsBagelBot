@@ -188,11 +188,14 @@ func main() {
 	})
 
 	repo := repository.NewLoyalty(client, driver, core.NR, log)
-	defer repo.Close(context.Background())
 	svcboot.FatalIf(log, repo.EnsureWatchSchema(core.Ctx), "failed to initialize watch inbox")
 	svcboot.FatalIf(log, repo.EnsureCounterSchema(core.Ctx), "failed to initialize counter inbox")
+	maintenanceDone := make(chan struct{})
+	go func() { defer close(maintenanceDone); repo.MaintainCounterReceipts(core.Ctx) }()
+	defer func() { <-maintenanceDone }()
 	vc := svcboot.MustValkey(core)
 	defer vc.Close()
+	repo.SetBalanceCache(vc)
 	counters := repository.NewCounterProcessor(repo, vc)
 	watchCtx, stopWatch := context.WithCancel(core.Ctx)
 	watchDone := make(chan struct{})
@@ -203,8 +206,8 @@ func main() {
 
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
-	invalidationPrefix := conf.CacheInvalidationPrefix.Get()
-	repo.SetInvalidation(nc, invalidationPrefix)
+	h := bus.NewInvalidations(nc, conf.CacheInvalidationPrefix.Get(), log)
+	repo.SetInvalidations(h)
 
 	grouped, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
 	svcboot.FatalIf(log, err, "failed to connect group subscriber")
@@ -216,9 +219,9 @@ func main() {
 
 	loyaltyPrefix := conf.LoyaltyPrefix.Get()
 	svcboot.FatalIf(log, rpc.Subscribe(rpc.Wiring{
-		RPCWiring:          bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
-		Repo:               repo,
-		InvalidationPrefix: invalidationPrefix,
+		RPCWiring:     bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
+		Repo:          repo,
+		Invalidations: h,
 	}, loyaltyPrefix),
 		"failed to subscribe loyalty rpc")
 	// The lane check must stay hard: a wedged consumer stops points accruing while health reads green.

@@ -27,9 +27,6 @@ type WagerOutcome struct {
 	LimitExceeded bool
 }
 
-// BalanceWager settles the net result in one guarded UPDATE. A win adds the
-// stake; a loss subtracts it. Neither insufficient funds nor a winning result
-// outside signed BIGINT can debit the wager before refusing its payout.
 func (r *Loyalty) BalanceWager(ctx context.Context, wager Wager) (WagerOutcome, error) {
 	if wager.UserID == 0 || wager.ViewerID == 0 {
 		return WagerOutcome{}, fmt.Errorf("%w: user_id/viewer_id", ErrInvalidInput)
@@ -68,6 +65,9 @@ func (r *Loyalty) applyWager(ctx context.Context, wager Wager) (bool, error) {
 		updated, err = update.AddPoints(delta).Save(ctx)
 		return err
 	})
+	if err == nil && updated != 0 {
+		r.publishBalanceChange(wager.UserID, wager.ViewerID)
+	}
 	return updated != 0, err
 }
 

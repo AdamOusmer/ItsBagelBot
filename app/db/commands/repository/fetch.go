@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
 	"ItsBagelBot/app/db/commands/ent/fetchquota"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
@@ -53,20 +54,23 @@ type FetchView = fetchkeyrpc.FetchView
 type KeyView = fetchkeyrpc.KeyView
 
 type Fetches struct {
-	client *ent.Client
-	packer domaincrypto.Packer
-	views  *cache.Cache[[]FetchView]
-	pub    bus.Publisher
-	log    *zap.Logger
+	client        *ent.Client
+	packer        domaincrypto.Packer
+	views         *cache.Cache[[]FetchView]
+	pub           bus.Publisher
+	invalidations *bus.Invalidations
+	log           *zap.Logger
 }
 
 func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher, log *zap.Logger) *Fetches {
+	pub, h := bus.WithInvalidations(pub)
 	return &Fetches{
-		client: client,
-		packer: packer,
-		views:  cache.New[[]FetchView](fetchesCacheCapacity, fetchesCacheTTL, cache.StaleOnError(fetchesCacheTTL)),
-		pub:    pub,
-		log:    log,
+		client:        client,
+		packer:        packer,
+		views:         cache.New[[]FetchView](fetchesCacheCapacity, fetchesCacheTTL, cache.StaleOnError(fetchesCacheTTL)).InvalidateOn(h, cache.UserKeys(fetchesKeyPrefix), data.SubjectFetchChanged, invalidate.ScopeFetches),
+		invalidations: h,
+		pub:           pub,
+		log:           log,
 	}
 }
 
@@ -161,8 +165,6 @@ func (r *Fetches) UpsertDef(ctx context.Context, userID uint64, spec FetchSpec) 
 		return err
 	}
 
-	r.Invalidate(userID)
-
 	// Never log the URL query or any key material.
 	r.log.Info("fetch definition saved",
 		zap.Uint64("user_id", userID),
@@ -207,8 +209,6 @@ func (r *Fetches) RenameDef(ctx context.Context, userID uint64, originalName str
 	if updated == 0 {
 		return r.UpsertDef(ctx, userID, spec)
 	}
-
-	r.Invalidate(userID)
 
 	r.log.Info("fetch definition renamed",
 		zap.Uint64("user_id", userID),
@@ -264,8 +264,6 @@ func (r *Fetches) DeleteDef(ctx context.Context, userID uint64, del DefDelete) e
 	}); err != nil {
 		return err
 	}
-
-	r.Invalidate(userID)
 
 	r.log.Info("fetch definition deleted",
 		zap.Uint64("user_id", userID),
@@ -337,8 +335,7 @@ func (r *Fetches) DeleteAllForUser(ctx context.Context, userID uint64, cutoff ti
 		return err
 	}
 
-	r.Invalidate(userID)
-	return nil
+	return r.invalidations.Publish(invalidate.ScopeFetches, userID)
 }
 
 func eraseFetches(ctx context.Context, tx *ent.Tx, userID uint64, cutoff time.Time) error {

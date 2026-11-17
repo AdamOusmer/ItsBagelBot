@@ -46,7 +46,7 @@ func (s delegationStep) apply(t *testing.T, repo *repository.Users) error {
 func TestDelegatingLevelsFollowLiveGrants(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := t.Context()
-	require.NoError(t, repo.Register(ctx, 1001, "owner", "Owner", "owner@example.test"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "owner", DisplayName: "Owner", Email: "owner@example.test"}))
 	for _, s := range []delegationStep{
 		{action: "create", token: "first"},
 		{action: "create", token: "first", wantErr: true},
@@ -76,7 +76,7 @@ func TestDelegatingSeedCountsEligibleOwnersOnce(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := t.Context()
 	for id, name := range []string{"owner", "test", "banned", "unused"} {
-		require.NoError(t, repo.Register(ctx, uint64(id+1), name, name, name+"@example.test"))
+		require.NoError(t, repo.Register(ctx, repository.Registration{ID: uint64(id + 1), Username: name, DisplayName: name, Email: name + "@example.test"}))
 	}
 	require.NoError(t, client.User.UpdateOneID(2).SetTestAccount(true).Exec(ctx))
 	require.NoError(t, client.User.UpdateOneID(3).SetBanned(true).Exec(ctx))

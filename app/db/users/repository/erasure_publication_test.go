@@ -32,11 +32,11 @@ func TestErasurePublicationSurvivesLifecycleCompletionAndPruning(t *testing.T) {
 		ctx := t.Context()
 		failure := errors.New("deletion publication lost")
 		pub := &erasureFailurePublisher{Publisher: h.pub, client: h.client, failures: map[uint64]error{1001: failure}}
-		repo := repository.NewUsers(h.client, dbtest.NewPacker(t), pub, nil, zap.NewNop())
+		repo := repository.NewUsers(repository.UsersConfig{Client: h.client, Packer: dbtest.NewPacker(t), Pub: pub, Log: zap.NewNop()})
 		t.Cleanup(func() { repo.Close(context.Background()) })
 		store := newFakeErasureStore()
 		repo.SetErasureStore(store)
-		require.NoError(t, repo.Register(ctx, 1001, "mavey", "Mavey", "mavey@example.invalid"))
+		require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "mavey", DisplayName: "Mavey", Email: "mavey@example.invalid"}))
 		require.ErrorIs(t, repo.Delete(ctx, 1001), failure)
 		marker := h.client.LifecycleErasure.Query().OnlyX(ctx)
 		assert.Equal(t, []any{0, 0, true}, []any{h.client.User.Query().CountX(ctx), len(pub.On(data.SubjectUserDeleted)), marker.DeletedPublishedAt == nil})

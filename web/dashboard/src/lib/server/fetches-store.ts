@@ -42,11 +42,9 @@ export function listFetches(userId: string, opts: { fresh?: boolean } = {}): Pro
 }
 
 async function writeFetches<T>(userId: string, write: () => Promise<T>): Promise<T> {
-  try {
-    return await write();
-  } finally {
-    await broadcastInvalidation({ scope: 'fetches', id: userId });
-  }
+  const result = await write();
+  await broadcastInvalidation({ scope: 'fetches', id: userId });
+  return result;
 }
 
 export interface FetchDefInput {
@@ -138,7 +136,6 @@ export interface FetchTestReply {
   sample: string;
 }
 
-// Just over gossip's custom.fetch budget, so this never abandons a fetch still completing.
 const FETCH_TEST_TIMEOUT_MS = 8000;
 
 export type FetchDraft = Omit<FetchDefInput, 'isActive'>;

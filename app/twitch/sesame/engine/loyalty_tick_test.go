@@ -68,7 +68,7 @@ func watchFixture(t *testing.T, id uint64) *loyaltyClockFixture {
 	require.NoError(t, client.Do(ctx, client.B().Hset().Key(watchtime.AdmissionKey(id)).FieldValue().FieldValue("epoch", "1").FieldValue("instance", "10000").Build()).Error())
 	require.NoError(t, client.Do(ctx, client.B().Set().Key("live:"+sid).Value("2000").Build()).Error())
 	f := &loyaltyClockFixture{client: client, id: id, now: time.Now()}
-	f.clock = NewValkeyLoyaltyClock(client, nil, nil, nil, nil, LoyaltyClockConfig{BotUserID: "99", Log: zap.NewNop()})
+	f.clock = NewValkeyLoyaltyClock(client, nil, LoyaltyClockConfig{BotUserID: "99", Log: zap.NewNop()})
 	f.clock.now = func() time.Time { return f.now }
 	f.clock.ArmVersioned(ctx, id, 2000)
 	f.due(t)
@@ -128,7 +128,7 @@ func TestWatchTickRetryStateSharedAndTypedDelay(t *testing.T) {
 	ctx := context.Background()
 	retryAt := f.now.Add(10 * time.Minute).UnixMilli()
 	for i := 1; i <= 3; i++ {
-		c := NewValkeyLoyaltyClock(f.client, nil, nil, nil, nil, LoyaltyClockConfig{})
+		c := NewValkeyLoyaltyClock(f.client, nil, LoyaltyClockConfig{})
 		c.now = func() time.Time { return f.now }
 		require.NoError(t, f.client.Do(ctx, f.client.B().Zadd().Key(loyaltyDueKey).ScoreMember().ScoreMember(float64(f.now.UnixMilli()-1), strconv.FormatUint(f.id, 10)).Build()).Error())
 		c.request = func(_ context.Context, _ string, body []byte) (*nats.Msg, error) {
@@ -314,8 +314,6 @@ func TestWatchBoundedQueueYieldsLargeTenantAfterOnePage(t *testing.T) {
 	require.EqualValues(t, 1, small.operations(t))
 }
 
-// interceptLoyaltyArm applies an authoritative live transition exactly after
-// Capture (and the recovery GET) but before the real arm Lua executes.
 type interceptLoyaltyArm struct {
 	valkey.Client
 	before func()
@@ -365,16 +363,12 @@ func TestWatchTickHydratedOfflineAccountCannotArm(t *testing.T) {
 	applied, err := clearLiveKey(ctx, f.client, f.id, 3000)
 	require.NoError(t, err)
 	require.True(t, applied)
-	// Settings remain completely hydrated and loyalty-enabled; neither recovery
-	// nor a late online arm can substitute settings for an authoritative live key.
 	f.clock.Arm(ctx, f.id)
 	f.clock.ArmVersioned(ctx, f.id, 2000)
 	f.requireUnscheduled(t)
-	// A later hydration refresh can update settings while offline as well.
 	require.NoError(t, f.client.Do(ctx, f.client.B().Hset().Key("settings:"+strconv.FormatUint(f.id, 10)).FieldValue().FieldValue("active", "1").FieldValue("module:loyalty:enabled", "1").FieldValue("module:loyalty:config", `{"watchPointsPerTick":11}`).Build()).Error())
 	f.clock.Arm(ctx, f.id)
 	f.requireUnscheduled(t)
-	// A real newer online event still admits the hydrated account.
 	n, err := setLiveScript.Exec(ctx, f.client, []string{livekey.Key(f.id), livekey.VerKey(f.id)}, []string{"4000", "3600", "172800"}).AsInt64()
 	require.NoError(t, err)
 	require.EqualValues(t, 1, n)
@@ -447,7 +441,6 @@ func TestWatchTickLiveRecheckPreservesActiveWindow(t *testing.T) {
 	require.EqualValues(t, 1, n)
 	f.clock.Arm(ctx, f.id)
 	require.Equal(t, before, f.fields(t), "live rechecks must preserve the stable active schedule session and due time")
-	// An older online event cannot replace that schedule even while live.
 	f.clock.ArmVersioned(ctx, f.id, 3000)
 	require.Equal(t, before, f.fields(t))
 }
@@ -469,13 +462,10 @@ func TestWatchTickNewerLiveBetweenAdmissionAndArmIsFenced(t *testing.T) {
 			} else {
 				f.clock.Arm(ctx, f.id)
 			}
-			// An admission captured against 2000 cannot create a stale schedule after
-			// authoritative live state moves to 5000, or delete existing worker claims.
 			f.requireUnscheduled(t)
 			claim, err := f.client.Do(ctx, f.client.B().Get().Key(loyaltyClaimKey(f.id)).Build()).ToString()
 			require.NoError(t, err)
 			require.Equal(t, "existing-claim", claim)
-			// Recovery rereads current live state and can admit the legitimate session.
 			f.clock.Arm(ctx, f.id)
 			fields := f.fields(t)
 			require.Equal(t, "1", fields["active"])

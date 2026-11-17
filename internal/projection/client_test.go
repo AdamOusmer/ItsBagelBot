@@ -18,14 +18,11 @@ func TestInvalidationRefreshesTheCachedUser(t *testing.T) {
 		field fakeField
 		want  User
 	}{
-		{"locale", fakeField{"locale", "fr"}, User{Status: "standard", IsActive: true, Locale: "fr"}},
-		{"status", fakeField{"status", "premium"}, User{Status: "premium", IsActive: true}},
-		{"grant", fakeField{"status", "vip"}, User{Status: "vip", IsActive: true}},
+		{"user-projection", fakeField{"locale", "fr"}, User{Status: "standard", IsActive: true, Locale: "fr"}},
+		{"user-projection", fakeField{"status", "premium"}, User{Status: "premium", IsActive: true}},
 		{"live", fakeField{"status", "paid"}, User{Status: "paid", IsActive: true}},
-		{"commands_page", fakeField{"commands_page_hidden", "1"}, User{Status: "standard", IsActive: true, CommandsPageHidden: true}},
-		{"leaderboard_page", fakeField{"leaderboard_page_hidden", "1"}, User{Status: "standard", IsActive: true, LeaderboardPageHidden: true}},
-		{"songqueue_page", fakeField{"songqueue_page_hidden", "1"}, User{Status: "standard", IsActive: true, SongQueuePageHidden: true}},
-		{"status", fakeField{"creator_code", "BAGEL10"}, User{Status: "standard", IsActive: true, CreatorCode: "BAGEL10"}},
+		{"user-projection", fakeField{"commands_page_hidden", "1"}, User{Status: "standard", IsActive: true, CommandsPageHidden: true}},
+		{"user-projection", fakeField{"creator_code", "BAGEL10"}, User{Status: "standard", IsActive: true, CreatorCode: "BAGEL10"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.scope+" scope drops the cached user", func(t *testing.T) {

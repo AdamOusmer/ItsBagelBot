@@ -123,6 +123,10 @@ func newLocalApplication(t *testing.T) *newrelic.Application {
 		cfg.Enabled = true
 		cfg.DistributedTracer.Enabled = true
 		cfg.Transport = roundTripFunc(localCollectorResponse)
+		cfg.Utilization.DetectAWS = false
+		cfg.Utilization.DetectAzure = false
+		cfg.Utilization.DetectGCP = false
+		cfg.Utilization.DetectPCF = false
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -26,9 +26,6 @@ type earnedOperation struct {
 	digest   string
 }
 
-// ApplyEarned commits the receipt and credits atomically. Receipts deliberately
-// have no expiry: an uncertain commit or a delayed broker replay must never
-// award a balance twice. Legacy messages use their stable broker UUID.
 func (r *Loyalty) ApplyEarned(ctx context.Context, dto data.LoyaltyEarnedDTO) error {
 	if dto.BatchID == "" || dto.UserID == 0 {
 		return fmt.Errorf("%w: earned identity", ErrInvalidInput)
@@ -42,21 +39,19 @@ func (r *Loyalty) ApplyEarned(ctx context.Context, dto data.LoyaltyEarnedDTO) er
 	identity := sha256.Sum256([]byte(dto.BatchID))
 	digest := sha256.Sum256(body)
 	operation := earnedOperation{event: dto, identity: hex.EncodeToString(identity[:]), digest: hex.EncodeToString(digest[:])}
-	r.persistMu.Lock()
-	defer r.persistMu.Unlock()
-	err = db.WithExec(ctx, func(ctx context.Context) error {
-		return retryTx(ctx, func(ctx context.Context) error {
-			return r.commitEarned(ctx, operation)
-		})
-	})
+	err = r.persistEarned(ctx, operation)
 	if err == nil {
-		window := &Loyalty{earnPend: map[balKey]*earnSum{}}
-		for _, e := range dto.Entries {
-			window.foldEarn(balKey{dto.UserID, e.ViewerID}, e)
-		}
-		r.publishEarned(window.earnPend)
+		r.publishEarned(dto.UserID, dto.Entries)
 	}
 	return err
+}
+
+func (r *Loyalty) persistEarned(ctx context.Context, operation earnedOperation) error {
+	r.persistMu.Lock()
+	defer r.persistMu.Unlock()
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		return retryTx(ctx, func(ctx context.Context) error { return r.commitEarned(ctx, operation) })
+	})
 }
 
 func (r *Loyalty) commitEarned(ctx context.Context, operation earnedOperation) error {
@@ -71,7 +66,6 @@ func (r *Loyalty) commitEarned(ctx context.Context, operation earnedOperation) e
 	return tx.Commit()
 }
 
-// The account lock serializes receipt admission with retirement and restore.
 func (r *Loyalty) applyEarnedDelivery(ctx context.Context, tx *sql.Tx, operation earnedOperation) error {
 	_, deleted, err := r.fence(ctx, tx, operation.event.UserID, 0)
 	if err != nil {
@@ -112,7 +106,6 @@ type earnedWindow struct {
 	sums map[balKey]*earnSum
 }
 
-// Bound SQL work by chunks rather than issuing two statements per viewer.
 func (r *Loyalty) writeEarnedTransaction(ctx context.Context, tx *sql.Tx, dto data.LoyaltyEarnedDTO) error {
 	sums, err := collectEarned(dto)
 	if err != nil {
@@ -140,10 +133,7 @@ func (r *Loyalty) writeEarnedTransaction(ctx context.Context, tx *sql.Tx, dto da
 func collectEarned(dto data.LoyaltyEarnedDTO) (map[balKey]*earnSum, error) {
 	window := &Loyalty{earnPend: map[balKey]*earnSum{}}
 	for _, e := range dto.Entries {
-		if e.ViewerID == 0 {
-			continue
-		}
-		if e.Points == 0 && e.WatchSeconds == 0 {
+		if !earnsAnything(e) {
 			continue
 		}
 		key := balKey{dto.UserID, e.ViewerID}

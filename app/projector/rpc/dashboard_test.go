@@ -42,7 +42,7 @@ func TestCommandKeysEmpty(t *testing.T) {
 
 func TestDashboardRefusesMalformedUserIDAsInvalid(t *testing.T) {
 	nc := bustest.NATS(t)
-	require.NoError(t, SubscribeDashboard(nc, nil, "test.dashboard", "test.commands", "test.modules", "", nil, "dashboard-invalid-id", nil, zap.NewNop()))
+	require.NoError(t, SubscribeDashboard(bus.RPCWiring{NC: nc, Queue: "dashboard-invalid-id", Log: zap.NewNop()}, DashboardConfig{Prefix: "test.dashboard", CommandsTopic: "test.commands", ModulesTopic: "test.modules", Invalidations: bus.NewInvalidations(nil, "", nil)}))
 
 	for _, verb := range []string{"commands.get", "commands.replace", "modules.get", "modules.replace"} {
 		for _, userID := range []string{"", "abc", "0"} {

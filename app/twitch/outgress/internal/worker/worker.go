@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/outgress/internal/conduit"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/channelruntime"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -165,8 +166,12 @@ const (
 	UserIDCacheTTL      = 10 * time.Minute
 )
 
-func NewUserIDCache() *cache.Cache[string] {
-	return cache.New[string](UserIDCacheCapacity, UserIDCacheTTL)
+func NewUserIDCache(feeds ...cache.Feed) *cache.Cache[string] {
+	c := cache.New[string](UserIDCacheCapacity, UserIDCacheTTL)
+	for _, feed := range feeds {
+		c.InvalidateOn(feed, loginKeys, invalidate.ScopeRename)
+	}
+	return c
 }
 
 func recordStageDuration(ctx context.Context, attribute string, started time.Time) {

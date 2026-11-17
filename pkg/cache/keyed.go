@@ -5,7 +5,11 @@ package cache
 
 import (
 	"context"
+	"hash/maphash"
 	"math/rand/v2"
+	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Yiling-J/theine-go"
@@ -31,10 +35,17 @@ func (e *entry[V]) fresh() bool {
 	return e.freshUntil.IsZero() || time.Now().Before(e.freshUntil)
 }
 
+const generationStripes = 256
+
 type Keyed[K comparable, V any] struct {
-	client *theine.Cache[K, entry[V]]
-	group  singleflight.Group
-	keyFn  func(K) string
+	client  *theine.Cache[K, entry[V]]
+	group   singleflight.Group
+	keyFn   func(K) string
+	mu      sync.Mutex
+	seed    maphash.Seed
+	epoch   atomic.Uint64
+	stripes [generationStripes]atomic.Uint64
+	loading map[K]int
 
 	capacity    int64
 	ttl         time.Duration
@@ -53,6 +64,8 @@ func NewKeyed[K comparable, V any](capacity int64, ttl time.Duration, keyFn func
 	return &Keyed[K, V]{
 		client:      client,
 		keyFn:       keyFn,
+		seed:        maphash.MakeSeed(),
+		loading:     make(map[K]int),
 		capacity:    capacity,
 		ttl:         ttl,
 		staleWindow: o.staleWindow,
@@ -63,8 +76,6 @@ func (c *Keyed[K, V]) Len() int { return c.client.Len() }
 
 func (c *Keyed[K, V]) Capacity() int64 { return c.capacity }
 
-// Get returns a live cached entry without loading a miss. Fill misses with
-// GetOrLoad so concurrent readers retain singleflight protection.
 func (c *Keyed[K, V]) Get(key K) (V, bool) {
 	if e, ok := c.client.Get(key); ok && e.fresh() {
 		return e.value, true
@@ -85,7 +96,9 @@ func (c *Keyed[K, V]) GetOrLoadTTL(ctx context.Context, key K, loader func(conte
 		return value, nil
 	}
 
-	result, err, _ := c.group.Do(c.keyFn(key), func() (any, error) {
+	name := c.keyFn(key)
+	flight := strconv.FormatUint(c.generation(name), 10) + ":" + name
+	result, err, _ := c.group.Do(flight, func() (any, error) {
 		return c.load(ctx, key, loader)
 	})
 
@@ -102,13 +115,40 @@ func (c *Keyed[K, V]) load(ctx context.Context, key K, loader func(context.Conte
 		return value, nil
 	}
 
+	name := c.keyFn(key)
+	c.mu.Lock()
+	c.loading[key]++
+	generation := c.generation(name)
+	c.mu.Unlock()
+	defer c.finishedLoad(key)
 	value, ttl, err := loader(ctx)
 	if err != nil {
 		return c.staleOr(key, value, err)
 	}
 
-	c.SetFor(key, value, ttl)
+	c.mu.Lock()
+	if generation == c.generation(name) {
+		c.SetFor(key, value, ttl)
+	}
+	c.mu.Unlock()
 	return value, nil
+}
+
+func (c *Keyed[K, V]) finishedLoad(key K) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.loading[key]--
+	if c.loading[key] == 0 {
+		delete(c.loading, key)
+	}
+}
+
+func (c *Keyed[K, V]) stripe(name string) *atomic.Uint64 {
+	return &c.stripes[maphash.String(c.seed, name)%generationStripes]
+}
+
+func (c *Keyed[K, V]) generation(name string) uint64 {
+	return c.epoch.Load() + c.stripe(name).Load()
 }
 
 func (c *Keyed[K, V]) staleOr(key K, value V, err error) (V, error) {
@@ -135,21 +175,62 @@ func (c *Keyed[K, V]) SetFor(key K, value V, ttl time.Duration) {
 }
 
 func (c *Keyed[K, V]) Invalidate(key K) {
-	c.group.Forget(c.keyFn(key))
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stripe(c.keyFn(key)).Add(1)
 	c.client.Delete(key)
 }
 
 func (c *Keyed[K, V]) InvalidateWhere(match func(K) bool) {
-	var stale []K
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	stale := make(map[K]struct{})
 	c.client.Range(func(key K, _ entry[V]) bool {
 		if match(key) {
-			stale = append(stale, key)
+			stale[key] = struct{}{}
 		}
 		return true
 	})
-	for _, key := range stale {
-		c.Invalidate(key)
+	for key := range c.loading {
+		if match(key) {
+			stale[key] = struct{}{}
+		}
 	}
+	for key := range stale {
+		c.stripe(c.keyFn(key)).Add(1)
+		c.client.Delete(key)
+	}
+}
+
+func (c *Keyed[K, V]) Clear() {
+	c.epoch.Add(1)
+	c.InvalidateWhere(func(K) bool { return true })
+}
+
+type Event struct {
+	Scope string
+	ID    uint64
+	Keys  []string
+}
+
+type Feed interface {
+	Watch(scope string, fn func(Event))
+	WatchGap(fn func())
+}
+
+func (c *Keyed[K, V]) InvalidateOn(f Feed, keys func(Event) []K, scopes ...string) *Keyed[K, V] {
+	if f == nil {
+		return c
+	}
+	for _, scope := range scopes {
+		f.Watch(scope, func(e Event) {
+			for _, key := range keys(e) {
+				c.Invalidate(key)
+			}
+		})
+	}
+	f.WatchGap(c.Clear)
+	return c
 }
 
 func (c *Keyed[K, V]) Close() {

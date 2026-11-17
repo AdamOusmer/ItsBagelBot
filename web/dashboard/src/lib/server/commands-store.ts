@@ -15,15 +15,16 @@ const READ_TIMEOUT_MS = 2000;
 const UNSYNCED_TTL_MS = 5_000;
 
 type section = 'commands' | 'modules';
+type UserId = string;
 
-function cacheKey(kind: section, userId: string): string {
+function cacheKey(kind: section, userId: UserId): string {
   return `${kind}:${userId}`;
 }
 
 async function readProjected<T>(
   kind: section,
-  userId: string,
-  valkeyRead: (userId: string) => Promise<{ projected: boolean; rows: T[] }>
+  userId: UserId,
+  valkeyRead: (userId: UserId) => Promise<{ projected: boolean; rows: T[] }>
 ): Promise<T[]> {
   return fabric.readKey(cacheKey(kind, userId), POLICY.projected, async () => {
     const v = await valkeyRead(userId);
@@ -33,7 +34,7 @@ async function readProjected<T>(
   });
 }
 
-export async function listCommands(userId: string): Promise<CommandView[]> {
+export async function listCommands(userId: UserId): Promise<CommandView[]> {
   return readProjected<CommandView>('commands', userId, async (id) => {
     const v = await valkey.getCommands(id);
     return { projected: v.projected, rows: v.commands };
@@ -48,20 +49,19 @@ export interface ModuleView {
   account_created_at?: number;
 }
 
-export async function listModules(userId: string): Promise<ModuleView[]> {
+export async function listModules(userId: UserId): Promise<ModuleView[]> {
   return readProjected<ModuleView>('modules', userId, async (id) => {
     const v = await valkey.getModules(id);
     return { projected: v.projected, rows: v.modules };
   });
 }
 
-// Editors read the owning service so a conflict reload cannot reuse a stale projection.
-export async function listModulesForEditing(userId: string): Promise<ModuleView[]> {
+export async function listModulesForEditing(userId: UserId): Promise<ModuleView[]> {
   const reply = await rpc<{ modules?: ModuleView[] }>(`${SUB.modules}.list`, { user_id: userId }, READ_TIMEOUT_MS);
   return reply.modules ?? [];
 }
 
-async function replaceProjected<R>(kind: section, userId: string, rows: unknown[]): Promise<{ reply: R } | null> {
+async function replaceProjected<R>(kind: section, userId: UserId, rows: unknown[]): Promise<{ reply: R } | null> {
   try {
     return { reply: await rpc<R>(`${SUB.projector}.${kind}.replace`, { user_id: userId, [kind]: rows }, 2000) };
   } catch (err) {
@@ -73,10 +73,9 @@ async function replaceProjected<R>(kind: section, userId: string, rows: unknown[
   }
 }
 
-export async function replaceProjectedModules(userId: string, modules: ModuleView[]): Promise<boolean> {
+export async function replaceProjectedModules(userId: UserId, modules: ModuleView[]): Promise<boolean> {
   const projected = await replaceProjected<{ modules: ModuleView[] }>('modules', userId, modules);
   schedulePurgeChannel(userId);
-  // These are committed SQL rows; keep them briefly if projection is unavailable.
   commitOptimistic(cacheKey('modules', userId), projected ? projected.reply.modules : modules, projected !== null);
   return projected !== null;
 }
@@ -87,7 +86,6 @@ function commitOptimistic<T>(key: string, value: T, synced: boolean): void {
 
 type ModuleWrite = { userId: string; name: string; isEnabled: boolean };
 
-// Loyalty on/off is the only module write that may tag-purge (Cloudflare Free: 5 tag purges per minute).
 async function watchLoyaltyToggle(write: ModuleWrite): Promise<() => void> {
   if (write.name !== MOD.loyalty) return () => {};
   const before = await listModules(write.userId).then(
@@ -100,7 +98,7 @@ async function watchLoyaltyToggle(write: ModuleWrite): Promise<() => void> {
 }
 
 export async function upsertModule(
-  userId: string,
+  userId: UserId,
   name: string,
   isEnabled: boolean,
   configs?: unknown
@@ -172,7 +170,7 @@ function commandFields(cmd: CommandInput) {
   } satisfies CommandView;
 }
 
-function upsertRequest(userId: string, cmd: CommandInput, originalName: string | undefined, canRestore: boolean) {
+function upsertRequest(userId: UserId, cmd: CommandInput, originalName: string | undefined, canRestore: boolean) {
   return {
     user_id: userId,
     ...commandFields(cmd),
@@ -197,7 +195,7 @@ function mergeUpserted(current: CommandView[], upserted: CommandView, originalNa
 }
 
 export async function upsertCommand(
-  userId: string,
+  userId: UserId,
   cmd: CommandInput,
   originalName?: string
 ): Promise<{ commands: CommandView[]; restored: boolean }> {
@@ -207,34 +205,30 @@ export async function upsertCommand(
     upsertRequest(userId, cmd, originalName, canRestore)
   );
   const restored = canRestore && reply?.restored === true;
-  schedulePurgeChannel(userId);
-  try {
-    const current = await listCommands(userId);
+  const commands = await editProjectedCommands(userId, (current) => {
     const previous = current.find((c) => c.name === (originalName ?? cmd.name));
-    const commands = mergeUpserted(current, upsertedView(cmd, previous, restored), originalName);
-    const synced = (await replaceProjected('commands', userId, commands)) !== null;
-    commitOptimistic(cacheKey('commands', userId), commands, synced);
-    return { commands, restored };
-  } catch {
-    invalidate(cacheKey('commands', userId));
-    return { commands: [], restored };
-  }
+    return mergeUpserted(current, upsertedView(cmd, previous, restored), originalName);
+  });
+  return { commands, restored };
+}
+
+async function editProjectedCommands(userId: UserId, edit: (current: CommandView[]) => CommandView[]): Promise<CommandView[]> {
+  schedulePurgeChannel(userId);
+  const pending = listCommands(userId);
+  invalidate(cacheKey('commands', userId));
+  const current = await pending.catch(() => null);
+  if (!current) return [];
+  const commands = edit(current);
+  const synced = (await replaceProjected('commands', userId, commands)) !== null;
+  commitOptimistic(cacheKey('commands', userId), commands, synced);
+  return commands;
 }
 
 export async function deleteCommand(
-  userId: string,
+  userId: UserId,
   name: string
 ): Promise<{ commands: CommandView[] }> {
   await rpc(`${SUB.commands}.delete`, { user_id: userId, name });
-  schedulePurgeChannel(userId);
-  try {
-    const current = await listCommands(userId);
-    const commands = current.filter((c) => c.name !== name);
-    const synced = (await replaceProjected('commands', userId, commands)) !== null;
-    commitOptimistic(cacheKey('commands', userId), commands, synced);
-    return { commands };
-  } catch {
-    invalidate(cacheKey('commands', userId));
-    return { commands: [] };
-  }
+  const commands = await editProjectedCommands(userId, (current) => current.filter((c) => c.name !== name));
+  return { commands };
 }

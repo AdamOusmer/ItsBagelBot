@@ -5,17 +5,15 @@ package rpc
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"ItsBagelBot/app/db/users/repository"
-	"ItsBagelBot/internal/domain/invalidate"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 )
 
-func SubscribeGiveaways(w Wiring, prefix string, invalidationPrefixes ...string) error {
-	rpc := giveawayRPC{w: w, invalidationPrefix: firstPrefix(invalidationPrefixes)}
+func SubscribeGiveaways(w Wiring, prefix string) error {
+	rpc := giveawayRPC{w: w}
 	budgeted := w.Within(giveawayBudget)
 	if err := bus.Serve(budgeted, prefix+".pool", rpc.pool); err != nil {
 		return err
@@ -33,15 +31,7 @@ func SubscribeGiveaways(w Wiring, prefix string, invalidationPrefixes ...string)
 }
 
 type giveawayRPC struct {
-	w                  Wiring
-	invalidationPrefix string
-}
-
-func firstPrefix(prefixes []string) string {
-	if len(prefixes) == 0 {
-		return ""
-	}
-	return prefixes[0]
+	w Wiring
 }
 
 func (g giveawayRPC) pool(ctx context.Context, req usersrpc.GiveawayPoolRequest) usersrpc.GiveawayPoolReply {
@@ -87,11 +77,6 @@ func (g giveawayRPC) commit(ctx context.Context, req usersrpc.CommitPremiumGrant
 	grant, err := g.w.Repo.CommitPremiumGrant(ctx, req)
 	if err != nil {
 		return usersrpc.CommitPremiumGrantReply{Error: err.Error()}
-	}
-	if g.invalidationPrefix != "" {
-		if err := invalidate.Publish(g.w.NC, g.invalidationPrefix, "status", fmt.Sprint(req.UserID)); err != nil {
-			return usersrpc.CommitPremiumGrantReply{Error: err.Error()}
-		}
 	}
 	return usersrpc.CommitPremiumGrantReply{Grant: &grant}
 }

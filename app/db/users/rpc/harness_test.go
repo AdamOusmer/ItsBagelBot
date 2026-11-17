@@ -42,13 +42,14 @@ const (
 type harness struct {
 	nc        *nats.Conn
 	client    *ent.Client
+	repo      *repository.Users
 	staffRows *sync.Map
 }
 
 func newHarness(t *testing.T) harness {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	nc := testnats.Connect(t)
 	wiring := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo}
@@ -56,7 +57,7 @@ func newHarness(t *testing.T) harness {
 	repo.SetAdminAuth(adminauth.New(nc, adminauth.Config{AuthPrefix: authPrefix, AuditPrefix: auditPrefix}))
 	require.NoError(t, rpc.SubscribeAdmin(wiring, rpc.AdminConfig{
 		AuthPrefix: authPrefix,
-		Prefix:     adminPrefix, InternalGetSubject: internalGet, InvalidationPrefix: "admin.invalidate",
+		Prefix:     adminPrefix, InternalGetSubject: internalGet,
 	}))
 	require.NoError(t, bus.Serve(wiring.RPCWiring, authPrefix+".check", func(_ context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 		id, _ := strconv.ParseUint(req.UserID, 10, 64)
@@ -67,7 +68,7 @@ func newHarness(t *testing.T) harness {
 		actor := value.(staffFixture)
 		return usersrpc.AuthReply{Admin: actor.active, Role: string(actor.role), Login: fmt.Sprintf("staff-%d", actor.id)}
 	}))
-	return harness{nc: nc, client: client, staffRows: rows}
+	return harness{nc: nc, client: client, repo: repo, staffRows: rows}
 }
 
 func call[Reply any](t *testing.T, h harness, subject string, req any) Reply {

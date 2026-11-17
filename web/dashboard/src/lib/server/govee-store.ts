@@ -16,7 +16,7 @@ import {
   type GoveeRewardBinding,
   type GoveeScene
 } from '@bagel/kit';
-import { SUB, fabric, invalidate } from './services';
+import { SUB, broadcastInvalidation, fabric } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
 import { deleteRemoteReward, saveRewardFlow, type MirroredReward } from './reward-wire';
@@ -178,7 +178,6 @@ function deviceLookupFailure(e: unknown): { devices: GoveeDevice[]; error: strin
 
 type GoveeListReply = { key_rejected?: boolean; error?: string } & Record<string, unknown>;
 
-// Just over gossip's 8 s handler budget.
 const GOVEE_LIST_TIMEOUT_MS = 9000;
 
 interface GoveeListCall {
@@ -222,10 +221,10 @@ export function goveeStore(userId: string): GoveeStore {
   async function setKey(key: string): Promise<GoveeResult> {
     const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
     if (r.error) return { ok: false, error: r.error };
-    invalidate(devicesCacheKey(userId), scenesCachePrefix(userId));
+    await broadcastInvalidation({ scope: 'modules', id: userId });
     const status = await keyWorks();
     if (status === 'rejected') {
-      await rpcReply(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000).catch(() => undefined);
+      await clearKey();
       return { ok: false, code: 'key_invalid' };
     }
     if (status === 'unreachable') return { ok: false, code: 'key_unchecked' };
@@ -249,7 +248,7 @@ export function goveeStore(userId: string): GoveeStore {
   async function clearKey(): Promise<GoveeResult> {
     const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000);
     if (r.error) return { ok: false, error: r.error };
-    invalidate(devicesCacheKey(userId), scenesCachePrefix(userId));
+    await broadcastInvalidation({ scope: 'modules', id: userId });
     return { ok: true };
   }
 

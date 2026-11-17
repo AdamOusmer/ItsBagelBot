@@ -3,24 +3,27 @@
 
 import { beforeEach, expect, mock, setSystemTime, test } from 'bun:test';
 import { registerServerConfig } from '@bagel/kit/server/config';
+import { stubSvelteKit } from '../../../test/sveltekit';
 
-process.env.NEW_RELIC_ENABLED = 'false';
-mock.module('$app/env', () => ({ dev: false }));
+stubSvelteKit();
 registerServerConfig({ cacheInvalidationPrefix: 'inv' });
 
 let deliver: (subject: string, data: Uint8Array) => void = () => {};
 const rpcCalls: string[] = [];
 const published: { subject: string; payload: unknown }[] = [];
+let failedSubject = '';
 const NOW = Date.UTC(2026, 9, 18, 12, 0, 0);
 const nats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
   ...nats,
   rpc: async (subject: string) => {
     rpcCalls.push(subject);
+    if (subject === failedSubject) throw new Error('write failed');
     if (subject.endsWith('.notifications.list')) {
       return { notifications: [{ id: 1, expires_at: new Date(NOW + 30_000).toISOString() }], unread_count: 1 };
     }
     if (subject.endsWith('.identity_sync')) return { renamed: true, prior_username: 'OldName' };
+    if (subject.endsWith('.accountage.get')) return { user_found: true, target_id: '42' };
     return { active: true, status: 'paid', locale: 'fr', commands_page_hidden: true, expires_at: '2026-12-01' };
   },
   publish: async (subject: string, payload: unknown) => {
@@ -48,6 +51,8 @@ const KEYS = ['state:42', 'stream-meta:42', 'commands:42', 'notifications:42', '
 beforeEach(() => {
   fabric.cache.clear();
   rpcCalls.length = 0;
+  published.length = 0;
+  failedSubject = '';
   for (const key of KEYS) fabric.cache.set(key, 'cached', 60_000);
 });
 
@@ -170,10 +175,64 @@ test('a rename event hands the validated logins to the boot-registered handler',
   expect(calls).toEqual([['42', ['newname', 'oldname']]]);
 });
 
+test('rename events and local identity sync evict the current viewer resolver', async () => {
+  const { resolveCurrentViewer } = await import('./viewer-lookup');
+  await resolveCurrentViewer('newname');
+  await resolveCurrentViewer('oldname');
+  invalidation('rename', '42', ['newname', 'oldname']);
+  rpcCalls.length = 0;
+  await resolveCurrentViewer('newname');
+  await resolveCurrentViewer('oldname');
+  expect(rpcCalls).toEqual(['rpc.outgress.accountage.get', 'rpc.outgress.accountage.get']);
+  await services.syncIdentity('42', 'newname', 'NewName');
+  rpcCalls.length = 0;
+  await resolveCurrentViewer('newname');
+  await resolveCurrentViewer('oldname');
+  expect(rpcCalls).toEqual(['rpc.outgress.accountage.get', 'rpc.outgress.accountage.get']);
+});
+
 test('syncIdentity evicts the renamed logins locally and reports the prior one', async () => {
   fabric.cache.set('login:newname', 'cached', 60_000);
   fabric.cache.set('login:oldname', 'cached', 60_000);
   const sync = await services.syncIdentity('42', 'newname', 'NewName');
   expect(sync).toEqual({ renamed: true, priorUsername: 'oldname' });
   expect([await cached('login:newname'), await cached('login:oldname')]).toEqual(['reloaded', 'reloaded']);
+});
+
+test('delegation events drop token lookups when the publisher only knows the owner', async () => {
+  const keys = ['delegation-token:one', 'delegation-token:two', 'delegations:42:given', 'delegations:7:access'];
+  for (const key of keys) fabric.cache.set(key, 'cached', 60_000);
+  invalidation('delegation', '42');
+  expect(await Promise.all(keys.map(cached))).toEqual(['reloaded', 'reloaded', 'reloaded', 'cached']);
+});
+
+test('module events drop devices and every scene for that board', async () => {
+  const keys = ['govee-devices:42', 'govee-scenes:42:H1|AA', 'govee-scenes:42:H2|BB', 'govee-devices:7'];
+  for (const key of keys) fabric.cache.set(key, 'cached', 60_000);
+  invalidation('modules', '42');
+  expect(await Promise.all(keys.map(cached))).toEqual(['reloaded', 'reloaded', 'reloaded', 'cached']);
+});
+
+
+test('lifecycle retries announce a status invalidation after the durable RPC', async () => {
+  await services.retryLifecycle({ broadcaster_user_id: '42' });
+  expect([await cached('state:42'), published]).toEqual([
+    'reloaded', [{ subject: 'inv.status', payload: { broadcaster_id: '42' } }]
+  ]);
+});
+
+test('failed lifecycle writes leave the cached state and other pods alone', async () => {
+  failedSubject = 'rpc.dashboard.lifecycle_retry';
+  await expect(services.retryLifecycle({ broadcaster_user_id: '42' })).rejects.toThrow('write failed');
+  expect([await cached('state:42'), published]).toEqual(['cached', []]);
+});
+
+test.each([false, true])('fetch keys broadcast only after a successful write, failure=%s', async (failed) => {
+  const { setFetchKey } = await import('./fetches-store');
+  fabric.cache.set('fetches:42', 'cached', 60_000);
+  if (failed) failedSubject = 'rpc.commands.fetch_set_key';
+  await setFetchKey({ userId: '42', label: 'key', value: 'secret' }).catch(() => undefined);
+  expect([await cached('fetches:42'), published]).toEqual(failed ? ['cached', []] : [
+    'reloaded', [{ subject: 'inv.fetches', payload: { broadcaster_id: '42' } }]
+  ]);
 });

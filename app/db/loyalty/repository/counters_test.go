@@ -75,7 +75,7 @@ func TestCounterCreateScopesAndReservedNames(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo, _ := newLoyaltyRepo(t)
-			row, err := repo.CounterCreate(t.Context(), tc.userID, tc.counter, tc.scope)
+			row, err := repo.CounterCreate(t.Context(), loyaltyrepo.CounterRef{UserID: tc.userID, Name: tc.counter}, tc.scope)
 			if tc.wantName == "" {
 				require.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
 				return
@@ -91,7 +91,7 @@ func TestTrialCountersAreReservedSystemCounters(t *testing.T) {
 	require.True(t, data.SystemCounter("trial_blocked"))
 	require.False(t, data.SystemCounter("trials"))
 	repo, _ := newLoyaltyRepo(t)
-	_, err := repo.CounterCreate(t.Context(), 42, "trial_blocked", "")
+	_, err := repo.CounterCreate(t.Context(), loyaltyrepo.CounterRef{UserID: 42, Name: "trial_blocked"}, "")
 	require.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput, "a streamer must not create or set a trial counter")
 }
 
@@ -137,17 +137,21 @@ func TestCounterSetTargetsOneEntryPerScope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo, _ := newLoyaltyRepo(t)
 			ctx := t.Context()
-			_, err := repo.CounterCreate(ctx, 1, "tally", tc.scope)
+			ref := loyaltyrepo.CounterRef{UserID: 1, Name: "tally"}
+			_, err := repo.CounterCreate(ctx, ref, tc.scope)
 			require.NoError(t, err)
 			if tc.seed != nil {
-				_, err = repo.CounterSet(ctx, 1, "tally", *tc.seed, 3)
+				target := *tc.seed
+				target.Value = 3
+				_, err = repo.CounterSet(ctx, ref, target)
 				require.NoError(t, err)
 			}
-			found, err := repo.CounterSet(ctx, 1, "tally", tc.target, 5)
+			tc.target.Value = 5
+			found, err := repo.CounterSet(ctx, ref, tc.target)
 			require.NoError(t, err)
 			require.True(t, found)
 			for _, probe := range tc.probes {
-				_, got, found, err := repo.CounterGet(ctx, 1, "tally", probe.viewerID, probe.command)
+				_, got, found, err := repo.CounterGet(ctx, ref, loyaltyrepo.SetTarget{ViewerID: probe.viewerID, Command: probe.command})
 				require.NoError(t, err)
 				require.True(t, found)
 				assert.Equal(t, probe.want, got, "viewer=%d command=%q", probe.viewerID, probe.command)
@@ -159,22 +163,23 @@ func TestCounterSetTargetsOneEntryPerScope(t *testing.T) {
 func TestCounterEntryDeleteRefusesUntargetedCall(t *testing.T) {
 	repo, _ := newLoyaltyRepo(t)
 	ctx := t.Context()
-	_, err := repo.CounterCreate(ctx, 1, "tally", data.CounterScopeViewer)
+	ref := loyaltyrepo.CounterRef{UserID: 1, Name: "tally"}
+	_, err := repo.CounterCreate(ctx, ref, data.CounterScopeViewer)
 	require.NoError(t, err)
-	_, err = repo.CounterSet(ctx, 1, "tally", loyaltyrepo.SetTarget{ViewerID: 7}, 5)
+	_, err = repo.CounterSet(ctx, ref, loyaltyrepo.SetTarget{ViewerID: 7, Value: 5})
 	require.NoError(t, err)
 
-	deleted, err := repo.CounterEntryDelete(ctx, 1, "tally", loyaltyrepo.SetTarget{})
+	deleted, err := repo.CounterEntryDelete(ctx, ref, loyaltyrepo.SetTarget{})
 	require.NoError(t, err)
 	assert.False(t, deleted)
-	_, got, _, err := repo.CounterGet(ctx, 1, "tally", 7, "")
+	_, got, _, err := repo.CounterGet(ctx, ref, loyaltyrepo.SetTarget{ViewerID: 7})
 	require.NoError(t, err)
 	assert.EqualValues(t, 5, got, "an untargeted delete must keep every entry")
 
-	deleted, err = repo.CounterEntryDelete(ctx, 1, "tally", loyaltyrepo.SetTarget{ViewerID: 7})
+	deleted, err = repo.CounterEntryDelete(ctx, ref, loyaltyrepo.SetTarget{ViewerID: 7})
 	require.NoError(t, err)
 	assert.True(t, deleted)
-	_, got, _, err = repo.CounterGet(ctx, 1, "tally", 7, "")
+	_, got, _, err = repo.CounterGet(ctx, ref, loyaltyrepo.SetTarget{ViewerID: 7})
 	require.NoError(t, err)
 	assert.Zero(t, got)
 }

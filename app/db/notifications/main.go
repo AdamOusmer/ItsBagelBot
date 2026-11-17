@@ -48,6 +48,7 @@ func main() {
 
 	repo := repository.New(client)
 	invalidationPrefix := conf.CacheInvalidationPrefix.Get()
+	h := bus.NewInvalidations(nc, invalidationPrefix, log)
 
 	defaultTTL := env.GetDuration("NOTIF_DEFAULT_TTL", 90*24*time.Hour)
 	fullReadTTL := env.GetDuration("NOTIF_FULL_READ_TTL", 24*time.Hour)
@@ -57,25 +58,24 @@ func main() {
 
 	adminPrefix := conf.AdminNotifications.Get()
 	wiring := rpc.Wiring{
-		RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
-		Repo:      repo,
+		RPCWiring:     bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
+		Repo:          repo,
+		Invalidations: h,
 	}
 	adminCfg := rpc.AdminConfig{
-		Prefix:             adminPrefix,
-		InvalidationPrefix: invalidationPrefix,
-		UserGetSubject:     userGetSubject,
-		DefaultTTL:         defaultTTL,
+		Prefix:         adminPrefix,
+		UserGetSubject: userGetSubject,
+		DefaultTTL:     defaultTTL,
 	}
-	svcboot.FatalIf(log, rpc.SubscribeConnection(wiring, invalidationPrefix), "failed to subscribe connection rpc")
+	svcboot.FatalIf(log, rpc.SubscribeConnection(wiring), "failed to subscribe connection rpc")
 	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, adminCfg), "failed to subscribe admin rpc")
 
 	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "rpc.notifications")
 	userCfg := rpc.UserConfig{
-		UserGetSubject:     userGetSubject,
-		Prefix:             userPrefix,
-		InvalidationPrefix: invalidationPrefix,
-		FullReadTTL:        fullReadTTL,
-		PeekTTL:            peekTTL,
+		UserGetSubject: userGetSubject,
+		Prefix:         userPrefix,
+		FullReadTTL:    fullReadTTL,
+		PeekTTL:        peekTTL,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeUser(wiring, userCfg), "failed to subscribe user rpc")
 

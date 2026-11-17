@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/monitor"
 
@@ -98,8 +99,20 @@ func (r *Users) flushPrefs(ctx context.Context, items []prefWrite) error {
 }
 
 func (r *Users) afterPreferences(ctx context.Context, items []prefWrite) {
-	for id := range groupByUser(items) {
+	for id, writes := range groupByUser(items) {
 		r.announcePref(ctx, r.log, id)
+		r.invalidatePrefs(id, writes)
+	}
+}
+
+func (r *Users) invalidatePrefs(id uint64, writes []prefWrite) {
+	for _, w := range writes {
+		switch w.field {
+		case prefCursor:
+			r.invalidations.Publish(invalidate.ScopeCursor, id)
+		case prefLocale:
+			r.invalidations.Publish(invalidate.ScopeLocale, id)
+		}
 	}
 }
 

@@ -4,6 +4,7 @@
 package live
 
 import (
+	"ItsBagelBot/internal/domain/invalidate"
 	"strconv"
 	"time"
 )
@@ -11,7 +12,7 @@ import (
 // Write only via pkg/valkey VersionedSlot; a plain SET or DEL breaks version ordering.
 const KeyPrefix = "live:"
 
-const InvalidateScope = "live"
+const InvalidateScope = invalidate.ScopeLive
 
 func Key(id uint64) string { return KeyPrefix + strconv.FormatUint(id, 10) }
 

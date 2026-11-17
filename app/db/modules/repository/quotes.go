@@ -15,9 +15,9 @@ import (
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/quote"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
 
@@ -48,25 +48,17 @@ type Quotes struct {
 }
 
 func NewQuotes(client *ent.Client, pub bus.Publisher, log *zap.Logger) *Quotes {
+	pub, h := bus.WithInvalidations(pub)
 	return &Quotes{
 		client: client,
-		views:  cache.New[[]modulesrpc.Quote](quotesCacheCapacity, quotesCacheTTL, cache.StaleOnError(quotesCacheTTL)),
+		views:  cache.New[[]modulesrpc.Quote](quotesCacheCapacity, quotesCacheTTL, cache.StaleOnError(quotesCacheTTL)).InvalidateOn(h, cache.UserKeys(quotesKeyPrefix), data.SubjectQuoteChanged, invalidate.ScopeModules),
 		pub:    pub,
 		log:    log.Named("quotes"),
 	}
 }
 
-func (q *Quotes) OnChanged() func(*bus.Message) error {
-	return consumers.OnChangeInvalidate(quoteChangedUserID, func(userID uint64) {
-		q.views.Invalidate(cache.UserKey(quotesKeyPrefix, userID))
-	})
-}
-
-func quoteChangedUserID(dto data.QuoteChangedDTO) uint64 { return dto.UserID }
-
 // Announce must follow every quote write: the other replicas only drop their cached list on this event.
 func (q *Quotes) Announce(ctx context.Context, userID uint64) {
-	q.views.Invalidate(cache.UserKey(quotesKeyPrefix, userID))
 	if err := bus.PublishJSON(ctx, q.pub, data.SubjectQuoteChanged, data.QuoteChangedDTO{UserID: userID}); err != nil {
 		q.log.Error("failed to publish quote change", zap.Uint64("user_id", userID), zap.Error(err))
 	}

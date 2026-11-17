@@ -21,9 +21,6 @@ type BalanceAdjustment struct {
 	Absolute         bool
 }
 
-// BalanceAdjustViewer uses a resolved Twitch identity and can create a first
-// balance. Creating or locking the row and adjusting it share a transaction:
-// simultaneous earnings cannot be overwritten by an earlier balance snapshot.
 func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustment) (*ent.Balance, bool, error) {
 	target.ViewerLogin = validate.NormalizeLogin(target.ViewerLogin)
 	if target.UserID == 0 || target.ViewerID == 0 {
@@ -43,6 +40,7 @@ func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustm
 	if err != nil {
 		return nil, false, err
 	}
+	r.publishBalanceChange(target.UserID, target.ViewerID)
 	return row.Unwrap(), true, nil
 }
 
@@ -65,8 +63,6 @@ func (r *Loyalty) applyBalanceAdjustment(ctx context.Context, tx *ent.Tx, target
 
 func (r *Loyalty) lockedAdjustmentBalance(ctx context.Context, tx *ent.Tx, target BalanceAdjustment) (*ent.Balance, error) {
 	query := tx.Balance.Query().Where(balance.UserIDEQ(target.UserID), balance.ViewerIDEQ(target.ViewerID))
-	// SQLite's preceding INSERT reserves the writer lock. MySQL also locks the
-	// conflicted row; FOR UPDATE makes the authoritative read explicit.
 	if r.dialect != "sqlite3" {
 		query.ForUpdate()
 	}

@@ -19,7 +19,6 @@ import (
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/objstore"
 
@@ -174,7 +173,7 @@ func (r *Users) publishDeletions(ctx context.Context, deletions []data.UserDelet
 	var errs []error
 	filters := make([]predicate.LifecycleErasure, 0, len(deletions))
 	for _, dto := range deletions {
-		if err := bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, dto); err != nil {
+		if err := r.publishDeleted(ctx, dto); err != nil {
 			errs = append(errs, err)
 			continue
 		}

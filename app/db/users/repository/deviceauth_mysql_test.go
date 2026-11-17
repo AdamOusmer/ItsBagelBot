@@ -32,7 +32,7 @@ func newMySQLDeviceHarness(t *testing.T, prefix string) (*ent.Client, *repositor
 	raw := testdb.MySQL(t, prefix)
 	client := ent.NewClient(ent.Driver(entsql.OpenDB("mysql", raw)))
 	require.NoError(t, client.Schema.Create(t.Context()))
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -43,13 +43,10 @@ func newMySQLDeviceHarness(t *testing.T, prefix string) (*ent.Client, *repositor
 	return client, repo
 }
 
-// TestDeviceAuthMySQLConcurrentCodeExchangeNoDoubleSpend proves a single
-// authorization code mints exactly one grant under real concurrent exchange,
-// with every other racer reported as a replay.
 func TestDeviceAuthMySQLConcurrentCodeExchangeNoDoubleSpend(t *testing.T) {
 	client, repo := newMySQLDeviceHarness(t, "users_device_exchange_")
 	ctx := t.Context()
-	require.NoError(t, repo.Register(ctx, 6001, "racer", "Racer", "racer@example.invalid"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 6001, Username: "racer", DisplayName: "Racer", Email: "racer@example.invalid"}))
 
 	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6001, codeRequest(testVerifier))
 	require.NoError(t, err)
@@ -87,13 +84,10 @@ func TestDeviceAuthMySQLConcurrentCodeExchangeNoDoubleSpend(t *testing.T) {
 	assert.NotNil(t, grant.RevokedAt, "the replay must be detected and the produced grant revoked")
 }
 
-// TestDeviceAuthMySQLConcurrentRefreshNoDoubleSpend proves presenting the
-// same still-current refresh token concurrently rotates exactly once; every
-// other racer lands in the grace window and the grant stays usable.
 func TestDeviceAuthMySQLConcurrentRefreshNoDoubleSpend(t *testing.T) {
 	client, repo := newMySQLDeviceHarness(t, "users_device_refresh_")
 	ctx := t.Context()
-	require.NoError(t, repo.Register(ctx, 6002, "racer2", "Racer2", "racer2@example.invalid"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 6002, Username: "racer2", DisplayName: "Racer2", Email: "racer2@example.invalid"}))
 
 	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6002, codeRequest(testVerifier))
 	require.NoError(t, err)

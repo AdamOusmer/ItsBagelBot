@@ -37,7 +37,7 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Users) {
 
 	pub := bustest.NewPublisher()
 
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), pub, nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: pub, Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
 	return client, pub, repo
@@ -47,12 +47,12 @@ func TestTokenRoundTrip(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 
 	plaintext := []byte("oauth-token-super-secret")
 	refresh := []byte("refresh-token-super-secret")
 
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, plaintext, refresh, nil))
+	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: plaintext, RefreshToken: refresh}))
 
 	row := client.Tokens.Query().OnlyX(ctx)
 	assert.NotEqual(t, plaintext, row.Token)
@@ -63,7 +63,7 @@ func TestTokenRoundTrip(t *testing.T) {
 	assert.Equal(t, plaintext, access)
 	assert.Equal(t, refresh, gotRefresh)
 
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("new"), nil, nil))
+	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("new")}))
 
 	access, _, _, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
@@ -74,17 +74,17 @@ func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 
 	expiresAt := ptrTime(time.Now().Add(4 * time.Hour).Truncate(time.Second))
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("first"), nil, expiresAt))
+	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("first"), ExpiresAt: expiresAt}))
 
 	_, _, gotExpiry, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
 	require.NotNil(t, gotExpiry)
 	assert.True(t, expiresAt.Equal(*gotExpiry))
 
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("second"), nil, nil))
+	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("second")}))
 
 	_, _, gotExpiry, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
@@ -95,10 +95,10 @@ func TestTokenCiphertextBoundToOwner(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1, "Alice", "Alice", "alice@test.com"))
-	require.NoError(t, repo.Register(ctx, 2, "Bob", "Bob", "bob@test.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1, Username: "Alice", DisplayName: "Alice", Email: "alice@test.com"}))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 2, Username: "Bob", DisplayName: "Bob", Email: "bob@test.com"}))
 
-	require.NoError(t, repo.UpsertToken(ctx, 1, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("alice-token"), nil, nil))
+	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("alice-token")}))
 
 	stolen := client.Tokens.Query().OnlyX(ctx).Token
 
@@ -117,7 +117,7 @@ func TestSetStatusRefreshesViewAndPublishes(t *testing.T) {
 	_, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 
 	view, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestSetPageHiddenWritesThroughAndPublishes(t *testing.T) {
 			_, pub, repo := setup(t)
 			ctx := context.Background()
 
-			require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+			require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 
 			view, err := repo.Get(ctx, 1001)
 			require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestSetPageHiddenRejectsAnUnknownPage(t *testing.T) {
 	_, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 	require.Error(t, repo.SetPageHidden(ctx, 1001, repository.PublicPage("unknown"), true))
 	assert.Len(t, pub.On(data.SubjectUserChanged), 1, "a refused page must not announce a change")
 }
@@ -198,7 +198,7 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, "  MAVEY10  "))
 
@@ -226,7 +226,7 @@ func TestSetCreatorCodeRejectsTooLongValue(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 
 	err := repo.SetCreatorCode(ctx, 1001, strings.Repeat("A", repository.CreatorCodeMaxLen+1))
 	require.Error(t, err)
@@ -239,7 +239,7 @@ func TestSetCreatorCodeRejectsTooLongValue(t *testing.T) {
 func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@example.com"}))
 
 	started := time.Now().UTC().Truncate(time.Second)
 	expires := started.AddDate(0, 1, 0)
@@ -284,8 +284,8 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 func TestApplyBillingCountsGiftForGifterIdempotently(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 4001, "Gifter", "Gifter", "gifter@example.com"))
-	require.NoError(t, repo.Register(ctx, 4002, "Recipient", "Recipient", "recipient@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 4001, Username: "Gifter", DisplayName: "Gifter", Email: "gifter@example.com"}))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 4002, Username: "Recipient", DisplayName: "Recipient", Email: "recipient@example.com"}))
 
 	when := time.Now().UTC().Truncate(time.Second)
 	expires := when.AddDate(0, 1, 0)
@@ -322,7 +322,7 @@ func TestApplyBillingCountsGiftForGifterIdempotently(t *testing.T) {
 func TestApplyBillingCancellationAndEnd(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 2002, "Bagel", "Bagel", "bagel@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 2002, Username: "Bagel", DisplayName: "Bagel", Email: "bagel@example.com"}))
 
 	started := time.Now().Add(-time.Hour)
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
@@ -353,7 +353,7 @@ func TestApplyBillingCancellationAndEnd(t *testing.T) {
 func TestApplyBillingBackstopClampsUnboundedPaidGrant(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 5005, "Chargeback", "Chargeback", "chargeback@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 5005, Username: "Chargeback", DisplayName: "Chargeback", Email: "chargeback@example.com"}))
 
 	started := time.Now().UTC().Truncate(time.Second)
 	expires := started.AddDate(0, 1, 0)
@@ -394,12 +394,12 @@ func TestExpireSubscriptionsHonorsTebexGrace(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
 
-	require.NoError(t, repo.Register(ctx, 3003, "AdminGrant", "AdminGrant", "admin@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 3003, Username: "AdminGrant", DisplayName: "AdminGrant", Email: "admin@example.com"}))
 	adminExpiry := now.Add(-time.Minute)
 	require.NoError(t, repo.SetAdminStatus(ctx, 3003, user.StatusPaid, ptrTime(time.Now().Add(time.Hour))))
 	require.NoError(t, client.User.UpdateOneID(3003).SetSubscriptionExpiresAt(adminExpiry).Exec(ctx))
 
-	require.NoError(t, repo.Register(ctx, 4004, "TebexGrace", "TebexGrace", "tebex@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 4004, Username: "TebexGrace", DisplayName: "TebexGrace", Email: "tebex@example.com"}))
 	tebexExpiry := now.Add(-time.Hour)
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 4004, EventID: "evt-tebex", Action: billingrpc.ActionActivate,
@@ -429,8 +429,8 @@ func TestDeleteCascadesAndPublishes(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("tok"), nil, nil))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
+	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("tok")}))
 
 	require.NoError(t, repo.Delete(ctx, 1001))
 
@@ -569,7 +569,7 @@ func TestDeleteDelegationsByOwnerReturnsAllConsumedDelegateIDs(t *testing.T) {
 func TestIDByUsernameResolvesLogins(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 4001, "streamer", "streamer", "streamer@test.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 4001, Username: "streamer", DisplayName: "streamer", Email: "streamer@test.com"}))
 
 	for _, tc := range []struct {
 		name  string
@@ -600,8 +600,8 @@ func TestIDByUsernameTakesFreshestRowOnCollision(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 4003, "shared", "shared", "stale@test.com"))
-	require.NoError(t, repo.Register(ctx, 4004, "shared", "shared", "fresh@test.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 4003, Username: "shared", DisplayName: "shared", Email: "stale@test.com"}))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 4004, Username: "shared", DisplayName: "shared", Email: "fresh@test.com"}))
 
 	now := time.Now()
 	require.NoError(t, client.User.UpdateOneID(4003).SetUpdatedAt(now.Add(-48*time.Hour)).Exec(ctx))
@@ -630,7 +630,7 @@ func TestApplyBillingPaymentFailedLifecycle(t *testing.T) {
 	}
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 7007, "Bagel", "Bagel", "bagel@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 7007, Username: "Bagel", DisplayName: "Bagel", Email: "bagel@example.com"}))
 
 	at := time.Now().Add(-time.Hour)
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
@@ -654,14 +654,13 @@ func TestApplyBillingPaymentFailedLifecycle(t *testing.T) {
 func TestUserEventsIdentifyAccountIncarnation(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 1001, "viewer", "Viewer", "viewer@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "viewer", DisplayName: "Viewer", Email: "viewer@example.com"}))
 	first := client.User.Query().Where(user.IDEQ(1001)).OnlyX(ctx)
 	var changed data.UserChangedDTO
 	require.NoError(t, codec.Unmarshal(pub.On(data.SubjectUserChanged)[0].Payload, &changed))
 	require.Equal(t, first.CreatedAt.UnixMicro(), changed.AccountCreatedAt)
 	require.Positive(t, changed.AccountCreatedAt)
 
-	// Reprojection and ordinary preferences keep the same incarnation.
 	require.NoError(t, repo.SetPageHidden(ctx, 1001, repository.PageCommands, true))
 	require.NoError(t, repo.Reproject(ctx))
 	for _, msg := range pub.On(data.SubjectUserChanged) {
@@ -677,11 +676,9 @@ func TestUserEventsIdentifyAccountIncarnation(t *testing.T) {
 	erasure := client.LifecycleErasure.Query().OnlyX(ctx)
 	require.True(t, erasure.DeletedAt.Equal(deleted.DeletedAt), "the event carries the erasure row's deletion time")
 
-	// Use an explicit later timestamp rather than depending on clock speed
-	// or the database's timestamp precision during recreation.
 	client.User.Create().SetID(1001).SetUsername("viewer").SetEmail("viewer@example.com").
 		SetCreatedAt(first.CreatedAt.Add(time.Second)).SaveX(ctx)
-	require.NoError(t, repo.Register(ctx, 1001, "viewer", "Viewer", "viewer@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "viewer", DisplayName: "Viewer", Email: "viewer@example.com"}))
 	msgs := pub.On(data.SubjectUserChanged)
 	var recreated data.UserChangedDTO
 	require.NoError(t, codec.Unmarshal(msgs[len(msgs)-1].Payload, &recreated))

@@ -20,10 +20,21 @@ const { startInvalidationBus } = await import('./invalidation');
 const { SwrCache } = await import('./cache');
 
 const applied: unknown[] = [];
+const cache = new SwrCache();
 startInvalidationBus({
-  cache: new SwrCache(),
-  scopes: { '*': () => [], rename: (id, keys) => [`state:${id}`, ...keys] },
+  cache,
+  scopes: { '*': () => [], rename: (id, keys) => [`state:${id}`, ...keys], modules: (id) => [`modules:${id}`] },
   onApplied: (scope, id, prefixes, keys) => applied.push({ scope, id, prefixes, keys })
+});
+
+test.each([
+  { id: '42', expected: ['reloaded', 'cached', 'cached'] },
+  { id: '*', expected: ['reloaded', 'reloaded', 'cached'] }
+])('a modules invalidation for $id respects wildcard family boundaries', async ({ id, expected }) => {
+  const keys = ['modules:42', 'modules:7', 'commands:42'];
+  for (const key of keys) cache.set(key, 'cached', 60_000);
+  send('inv.modules', { broadcaster_id: id });
+  expect(await Promise.all(keys.map((key) => cache.getOrLoad(key, 60_000, async () => 'reloaded')))).toEqual(expected);
 });
 
 const send = (subject: string, body: unknown) => deliver(subject, new TextEncoder().encode(JSON.stringify(body)));

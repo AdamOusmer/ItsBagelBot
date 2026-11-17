@@ -29,7 +29,7 @@ func TestModuleSaveMySQL(t *testing.T) {
 	_, err := repo.List(t.Context(), 1001)
 	require.NoError(t, err)
 	for i, enabled := range []bool{false, true} {
-		views, err := repo.SetNow(t.Context(), 1001, "welcome", enabled, codec.RawMessage(`{"message":"saved"}`))
+		views, err := repo.SetNow(t.Context(), repository.ModuleWrite{UserID: 1001, Name: "welcome", Enabled: enabled, Configs: codec.RawMessage(`{"message":"saved"}`)})
 		require.NoError(t, err)
 		require.Len(t, views, 1)
 		row := client.Modules.Query().OnlyX(t.Context())

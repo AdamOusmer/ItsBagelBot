@@ -57,7 +57,7 @@ func newCorrectnessHarness(t *testing.T, backend string) correctnessHarness {
 	client := ent.NewClient(ent.Driver(entsql.OpenDB("mysql", raw)))
 	require.NoError(t, client.Schema.Create(t.Context()))
 	pub := bustest.NewPublisher()
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), pub, nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: pub, Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	return correctnessHarness{client, pub, repo}
 }
@@ -65,8 +65,8 @@ func newCorrectnessHarness(t *testing.T, backend string) correctnessHarness {
 func (h correctnessHarness) registerGiftPair(t *testing.T) billingrpc.ApplyRequest {
 	t.Helper()
 	ctx := t.Context()
-	require.NoError(t, h.repo.Register(ctx, 7101, "gifter", "Gifter", "gifter@example.invalid"))
-	require.NoError(t, h.repo.Register(ctx, 7102, "recipient", "Recipient", "recipient@example.invalid"))
+	require.NoError(t, h.repo.Register(ctx, repository.Registration{ID: 7101, Username: "gifter", DisplayName: "Gifter", Email: "gifter@example.invalid"}))
+	require.NoError(t, h.repo.Register(ctx, repository.Registration{ID: 7102, Username: "recipient", DisplayName: "Recipient", Email: "recipient@example.invalid"}))
 	when := time.Now().UTC().Truncate(time.Second)
 	expires := when.AddDate(0, 1, 0)
 	return billingrpc.ApplyRequest{UserID: 7102, GifterID: 7101, EventID: "a-activate", Action: billingrpc.ActionActivate, OccurredAt: when, ExpiresAt: &expires}
@@ -351,7 +351,7 @@ func TestErasureRecoveryRestoresAllChunksBeforeRepublishAndJoinsFailures(t *test
 		ctx := t.Context()
 		first, second := errors.New("first publish failed"), errors.New("second publish failed")
 		pub := &erasureFailurePublisher{Publisher: h.pub, client: h.client, failures: map[uint64]error{8001: first, 8257: second}}
-		repo := repository.NewUsers(h.client, dbtest.NewPacker(t), pub, nil, zap.NewNop())
+		repo := repository.NewUsers(repository.UsersConfig{Client: h.client, Packer: dbtest.NewPacker(t), Pub: pub, Log: zap.NewNop()})
 		t.Cleanup(func() { repo.Close(context.Background()) })
 		store := seedErasureRecovery(t, h)
 		repo.SetErasureStore(store)

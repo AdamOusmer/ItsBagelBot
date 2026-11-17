@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/users/ent"
@@ -26,13 +25,12 @@ import (
 )
 
 type adminRPC struct {
-	botUserID          string
-	validateBotGrant   grantValidator
-	repo               *repository.Users
-	gate               *adminauth.Client
-	nc                 *nats.Conn
-	invalidationPrefix string
-	log                *zap.Logger
+	botUserID        string
+	validateBotGrant grantValidator
+	repo             *repository.Users
+	gate             *adminauth.Client
+	invalidations    *bus.Invalidations
+	log              *zap.Logger
 }
 
 type adminVerb struct {
@@ -93,19 +91,17 @@ type AdminConfig struct {
 	BotUserID          string
 	Prefix             string
 	InternalGetSubject string
-	InvalidationPrefix string
 }
 
 func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 	logBotIdentity(w.Log, cfg.BotUserID)
 	a := &adminRPC{
-		botUserID:          cfg.BotUserID,
-		validateBotGrant:   twitchGrantValidator(&http.Client{Timeout: twitchValidateTimeout}, twitchValidateURL),
-		repo:               w.Repo,
-		gate:               adminauth.New(w.NC, adminauth.Config{AuthPrefix: cfg.AuthPrefix}),
-		nc:                 w.NC,
-		invalidationPrefix: cfg.InvalidationPrefix,
-		log:                w.Log,
+		botUserID:        cfg.BotUserID,
+		validateBotGrant: twitchGrantValidator(&http.Client{Timeout: twitchValidateTimeout}, twitchValidateURL),
+		repo:             w.Repo,
+		gate:             adminauth.New(w.NC, adminauth.Config{AuthPrefix: cfg.AuthPrefix}),
+		invalidations:    w.Repo.Invalidations(),
+		log:              w.Log,
 	}
 
 	table := a.verbs()
@@ -133,6 +129,7 @@ func adminError(r domainrpc.Refusal) usersrpc.AdminReply { return usersrpc.Admin
 
 type mutation struct {
 	logMsg string
+	scope  invalidate.Scope
 	write  func(context.Context, uint64) error
 	reply  func(context.Context, uint64) usersrpc.AdminReply
 	fields []zap.Field
@@ -146,7 +143,9 @@ func (a *adminRPC) mutate(ctx context.Context, req usersrpc.AdminRequest, m muta
 	if err := m.write(ctx, u.ID); err != nil {
 		return adminError(refusal(err))
 	}
-	a.invalidate(u.ID)
+	if m.scope != "" {
+		a.invalidations.Publish(m.scope, u.ID)
+	}
 	a.log.Info(m.logMsg, append([]zap.Field{zap.Uint64("user", u.ID)}, m.fields...)...)
 	return m.reply(ctx, u.ID)
 }
@@ -296,7 +295,6 @@ func (a *adminRPC) setStatus(ctx context.Context, req usersrpc.AdminRequest) use
 		return adminError(refusal(err))
 	}
 
-	a.invalidate(u.ID)
 	log.Info("admin status change",
 		zap.Uint64("user", u.ID), zap.String("status", req.Status))
 	return a.get(ctx, idRequest(u.ID))
@@ -341,7 +339,6 @@ func (a *adminRPC) setCreatorCode(ctx context.Context, req usersrpc.AdminRequest
 		return adminError(refusal(err))
 	}
 
-	a.invalidate(u.ID)
 	log.Info("admin set creator code", zap.Uint64("user", u.ID), zap.Bool("cleared", req.CreatorCode == ""))
 	return a.get(ctx, usersrpc.AdminRequest{UserID: fmt.Sprint(u.ID)})
 }
@@ -358,7 +355,7 @@ func (a *adminRPC) setTestAccount(ctx context.Context, req usersrpc.AdminRequest
 	if err := a.repo.SetTestAccount(ctx, u.ID, req.TestAccount, actorID); err != nil {
 		return adminError(refusal(err))
 	}
-	a.invalidate(u.ID)
+	a.invalidations.Publish(invalidate.ScopeStatus, u.ID)
 	monitor.TxnLogger(ctx, a.log).Info("admin test-account marker change",
 		zap.Uint64("user", u.ID), zap.Bool("enabled", req.TestAccount))
 	return a.get(ctx, idRequest(u.ID))
@@ -383,6 +380,7 @@ func (a *adminRPC) unban(ctx context.Context, req usersrpc.AdminRequest) usersrp
 func (a *adminRPC) reset(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	return a.mutate(ctx, req, mutation{
 		logMsg: "admin state reset",
+		scope:  invalidate.ScopeStatus,
 		write:  func(ctx context.Context, id uint64) error { return a.repo.ResetTokens(ctx, id) },
 		reply:  a.getByID,
 	})
@@ -394,13 +392,12 @@ func (a *adminRPC) tokenSet(ctx context.Context, req usersrpc.AdminRequest) user
 		return adminError(refusal(err))
 	}
 
-	if err := a.repo.UpsertToken(ctx, u.ID, tokens.TypeUserToken, tokens.PlatformTwitch,
-		[]byte(req.AccessToken), []byte(req.RefreshToken), nil); err != nil {
+	if err := a.repo.UpsertToken(ctx, repository.TokenWrite{UserID: u.ID, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch, AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken)}); err != nil {
 		return adminError(refusal(err))
 	}
 
 	log := monitor.TxnLogger(ctx, a.log)
-	a.invalidate(u.ID)
+	a.invalidations.Publish(invalidate.ScopeStatus, u.ID)
 	log.Info("admin token set", zap.Uint64("user", u.ID))
 	return a.tokenStatus(ctx, idRequest(u.ID))
 }
@@ -422,6 +419,7 @@ func (a *adminRPC) tokenStatus(ctx context.Context, req usersrpc.AdminRequest) u
 func (a *adminRPC) tokenClear(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	return a.mutate(ctx, req, mutation{
 		logMsg: "admin token cleared",
+		scope:  invalidate.ScopeStatus,
 		write: func(ctx context.Context, id uint64) error {
 			return a.repo.ClearToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 		},
@@ -450,7 +448,7 @@ func (a *adminRPC) provision(ctx context.Context, userID string) (*ent.User, err
 	}
 
 	email := fmt.Sprintf("%d@unknown.invalid", id)
-	if err := a.repo.Register(ctx, id, fmt.Sprintf("unknown-%d", id), "", email); err != nil {
+	if err := a.repo.Register(ctx, repository.Registration{ID: id, Username: fmt.Sprintf("unknown-%d", id), DisplayName: "", Email: email}); err != nil {
 		return nil, err
 	}
 
@@ -470,12 +468,6 @@ func (a *adminRPC) findUser(ctx context.Context, req usersrpc.AdminRequest) (*en
 		return a.repo.FindUserByUsername(ctx, req.Username)
 	default:
 		return nil, fmt.Errorf("user_id or username required")
-	}
-}
-
-func (a *adminRPC) invalidate(id uint64) {
-	if err := invalidate.Publish(a.nc, a.invalidationPrefix, "status", fmt.Sprint(id)); err != nil {
-		a.log.Warn("cache invalidation publish failed", zap.Error(err))
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"strconv"
 
 	"github.com/nats-io/nats.go"
@@ -21,14 +20,13 @@ import (
 )
 
 type delegationRPC struct {
-	repo               *repository.Users
-	nc                 *nats.Conn
-	invalidationPrefix string
-	log                *zap.Logger
+	repo          *repository.Users
+	invalidations *bus.Invalidations
+	log           *zap.Logger
 }
 
-func SubscribeDelegation(w Wiring, prefix, invalidationPrefix string) error {
-	d := &delegationRPC{repo: w.Repo, nc: w.NC, invalidationPrefix: invalidationPrefix, log: w.Log}
+func SubscribeDelegation(w Wiring, prefix string) error {
+	d := &delegationRPC{repo: w.Repo, invalidations: w.Repo.Invalidations(), log: w.Log}
 
 	verbs := map[string]func(context.Context, *nats.Msg){
 		"create":  d.handleCreate,
@@ -76,7 +74,7 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	d.publishInvalidation(ownerID)
+	d.invalidations.Publish(invalidate.ScopeDelegation, ownerID)
 	bus.Respond(msg, map[string]any{"token": token})
 }
 
@@ -116,8 +114,8 @@ func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	d.publishInvalidation(view.OwnerID)
-	d.publishInvalidation(delegateID)
+	d.invalidations.Publish(invalidate.ScopeDelegation, view.OwnerID)
+	d.invalidations.Publish(invalidate.ScopeDelegation, delegateID)
 	bus.Respond(msg, map[string]any{
 		"ok":            true,
 		"owner_user_id": strconv.FormatUint(view.OwnerID, 10),
@@ -140,7 +138,7 @@ func (d *delegationRPC) writeThenOK(msg *nats.Msg, write func() error, invalidat
 		return
 	}
 	for _, id := range invalidateIDs {
-		d.publishInvalidation(id)
+		d.invalidations.Publish(invalidate.ScopeDelegation, id)
 	}
 	bus.Respond(msg, map[string]any{"ok": true})
 }
@@ -184,10 +182,10 @@ func (d *delegationRPC) respondGrantChange(msg *nats.Msg, result grantChangeResu
 		return
 	}
 
-	d.publishInvalidation(result.ownerID)
+	d.invalidations.Publish(invalidate.ScopeDelegation, result.ownerID)
 	res := map[string]any{"ok": true}
 	if delegateID != 0 {
-		d.publishInvalidation(delegateID)
+		d.invalidations.Publish(invalidate.ScopeDelegation, delegateID)
 		res["delegate_user_id"] = strconv.FormatUint(delegateID, 10)
 	}
 	bus.Respond(msg, res)
@@ -249,10 +247,4 @@ func (d *delegationRPC) handleOptOut(ctx context.Context, msg *nats.Msg) {
 	}
 
 	d.writeThenOK(msg, func() error { return d.repo.OptOutDelegation(ctx, ownerID, delegateID) }, ownerID, delegateID)
-}
-
-func (d *delegationRPC) publishInvalidation(id uint64) {
-	if err := invalidate.Publish(d.nc, d.invalidationPrefix, "delegation", fmt.Sprint(id)); err != nil {
-		d.log.Warn("delegation cache invalidation publish failed", zap.Uint64("broadcaster_id", id), zap.Error(err))
-	}
 }

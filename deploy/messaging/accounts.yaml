@@ -99,6 +99,10 @@ accounts:
               from: USERS_RPC
             - stream: cache.invalidate.notifications
               from: NOTIFICATIONS_RPC
+            - stream: cache.invalidate.user
+              from: USERS_RPC
+            - stream: cache.invalidate.rename
+              from: USERS_RPC
         roles:
             admin_rpc: {}
     ADMIN_SERVICE_RPC:
@@ -523,6 +527,18 @@ accounts:
               from: PROJECTOR_RPC
             - stream: cache.invalidate.notifications
               from: NOTIFICATIONS_RPC
+            - stream: cache.invalidate.cursor
+              from: USERS_RPC
+            - stream: cache.invalidate.user
+              from: USERS_RPC
+            - stream: cache.invalidate.commands_page
+              from: USERS_RPC
+            - stream: cache.invalidate.leaderboard_page
+              from: USERS_RPC
+            - stream: cache.invalidate.songqueue_page
+              from: USERS_RPC
+            - stream: cache.invalidate.fetches
+              from: PROJECTOR_RPC
             - service: rpc.automations.run
               from: WORKER_RPC
             - service: rpc.automations.run.node.*
@@ -553,6 +569,20 @@ accounts:
               from: COMMANDS_RPC
             - service: rpc.internal.commands.fetchkey.get.node.*
               from: COMMANDS_RPC
+            - stream: cache.invalidate.spotify
+              from: MODULES_RPC
+            - stream: cache.invalidate.fetches
+              from: PROJECTOR_RPC
+            - stream: cache.invalidate.commands
+              from: PROJECTOR_RPC
+            - stream: cache.invalidate.modules
+              from: PROJECTOR_RPC
+            - stream: cache.invalidate.automations
+              from: PROJECTOR_RPC
+            - stream: cache.invalidate.live
+              from: PROJECTOR_RPC
+            - stream: cache.invalidate.user-projection
+              from: PROJECTOR_RPC
         roles:
             gossip_rpc: {}
     LOYALTY_RPC:
@@ -561,6 +591,7 @@ accounts:
             - service: rpc.health.loyalty.node.*
             - service: rpc.loyalty.>
             - stream: cache.invalidate.loyalty
+            - stream: cache.invalidate.loyalty-counters
         roles:
             loyalty_rpc: {}
     MODULES_RPC:
@@ -576,6 +607,7 @@ accounts:
             - service: rpc.internal.projection.modules.automations.get.node.*
             - service: rpc.internal.govee.key.>
             - service: rpc.internal.spotify.key.>
+            - stream: cache.invalidate.spotify
         imports:
             - service: rpc.internal.projection.users.get
               from: USERS_RPC
@@ -640,6 +672,10 @@ accounts:
               from: NOTIFICATIONS_RPC
             - service: rpc.admin.notifications.send.node.*
               from: NOTIFICATIONS_RPC
+            - stream: cache.invalidate.rename
+              from: USERS_RPC
+            - stream: cache.invalidate.token-warm
+              from: PROJECTOR_RPC
         roles:
             outgress_rpc: {}
     PROJECTOR_RPC:
@@ -659,6 +695,9 @@ accounts:
             - stream: cache.invalidate.modules
             - stream: cache.invalidate.automations
             - stream: cache.invalidate.live
+            - stream: cache.invalidate.fetches
+            - stream: cache.invalidate.token-warm
+            - stream: cache.invalidate.user-projection
         imports:
             - service: rpc.health.admin
               from: ADMIN_SERVICE_RPC
@@ -803,6 +842,11 @@ accounts:
             - stream: cache.invalidate.rename
             - stream: cache.invalidate.delegation
             - stream: cache.invalidate.locale
+            - stream: cache.invalidate.cursor
+            - stream: cache.invalidate.user
+            - stream: cache.invalidate.commands_page
+            - stream: cache.invalidate.leaderboard_page
+            - stream: cache.invalidate.songqueue_page
         imports:
             - service: rpc.internal.admin.audit.append
               from: ADMIN_SERVICE_RPC
@@ -901,12 +945,6 @@ accounts:
               from: OUTGRESS_RPC
             - service: rpc.outgress.uptime.get.node.*
               from: OUTGRESS_RPC
-            - stream: cache.invalidate.status
-              from: USERS_RPC
-            - stream: cache.invalidate.grant
-              from: USERS_RPC
-            - stream: cache.invalidate.locale
-              from: USERS_RPC
             - stream: cache.invalidate.commands
               from: PROJECTOR_RPC
             - stream: cache.invalidate.modules
@@ -917,5 +955,11 @@ accounts:
               from: PROJECTOR_RPC
             - stream: cache.invalidate.loyalty
               from: LOYALTY_RPC
+            - stream: cache.invalidate.loyalty-counters
+              from: LOYALTY_RPC
+            - stream: cache.invalidate.fetches
+              from: PROJECTOR_RPC
+            - stream: cache.invalidate.user-projection
+              from: PROJECTOR_RPC
         roles:
             worker_rpc: {}

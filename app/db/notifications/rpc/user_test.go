@@ -46,8 +46,8 @@ func TestMarkReadPublishesNotificationsInvalidation(t *testing.T) {
 	invalidations, err := nc.SubscribeSync("test.invalidate.notifications")
 	require.NoError(t, err)
 
-	wiring := Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"}, Repo: repository.New(client)}
-	require.NoError(t, SubscribeUser(wiring, UserConfig{UserGetSubject: "test.users.get", Prefix: "test.notifications", InvalidationPrefix: "test.invalidate", FullReadTTL: time.Hour, PeekTTL: time.Hour}))
+	wiring := Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"}, Repo: repository.New(client), Invalidations: bus.NewInvalidations(nc, "test.invalidate", nil)}
+	require.NoError(t, SubscribeUser(wiring, UserConfig{UserGetSubject: "test.users.get", Prefix: "test.notifications", FullReadTTL: time.Hour, PeekTTL: time.Hour}))
 	require.NoError(t, nc.Flush())
 
 	_, err = bus.RequestJSONTimeout[notificationsrpc.MarkReadReply](t.Context(), nc, "test.notifications.mark_read", notificationsrpc.MarkReadRequest{UserID: "42", NotificationID: strconv.Itoa(broadcast.ID)}, time.Second)

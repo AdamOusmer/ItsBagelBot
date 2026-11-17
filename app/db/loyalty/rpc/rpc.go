@@ -8,7 +8,6 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/loyalty/ent"
@@ -20,14 +19,13 @@ import (
 )
 
 type loyaltyRPC struct {
-	repo               *repository.Loyalty
-	log                *zap.Logger
-	nc                 *nats.Conn
-	invalidationPrefix string
+	repo          *repository.Loyalty
+	log           *zap.Logger
+	invalidations *bus.Invalidations
 }
 
 func Subscribe(w Wiring, prefix string) error {
-	l := &loyaltyRPC{repo: w.Repo, log: w.Log, nc: w.NC, invalidationPrefix: w.InvalidationPrefix}
+	l := &loyaltyRPC{repo: w.Repo, log: w.Log, invalidations: w.Invalidations}
 
 	return bus.ServeVerbs(w.RPCWiring, prefix,
 		bus.At("balance.get", l.handleBalanceGet),
@@ -54,8 +52,8 @@ func Subscribe(w Wiring, prefix string) error {
 
 type Wiring struct {
 	bus.RPCWiring
-	Repo               *repository.Loyalty
-	InvalidationPrefix string
+	Repo          *repository.Loyalty
+	Invalidations *bus.Invalidations
 }
 
 func refuse(code domainrpc.Code, message string) loyaltyrpc.Reply {
@@ -143,17 +141,8 @@ func (l *loyaltyRPC) resetBalances(ctx context.Context, userID uint64) loyaltyrp
 	if err != nil {
 		return l.fail("loyalty balance.reset", err)
 	}
-	l.broadcastInvalidation(userID)
+	l.invalidations.Publish(invalidate.ScopeLoyalty, userID)
 	return loyaltyrpc.Reply{Total: reset}
-}
-
-func (l *loyaltyRPC) broadcastInvalidation(userID uint64) {
-	if l.nc == nil || l.invalidationPrefix == "" {
-		return
-	}
-	if err := invalidate.Publish(l.nc, l.invalidationPrefix, loyaltyrpc.InvalidateScope, strconv.FormatUint(userID, 10)); err != nil {
-		l.log.Warn("loyalty: failed to broadcast invalidation", zap.Uint64("user_id", userID), zap.Error(err))
-	}
 }
 
 func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, absolute bool) loyaltyrpc.Reply {
@@ -179,7 +168,7 @@ func (l *loyaltyRPC) adjustViewerBalance(ctx context.Context, target repository.
 	if target.ViewerID != 0 {
 		return l.repo.BalanceAdjustViewer(ctx, target)
 	}
-	return l.repo.BalanceAdjust(ctx, target.UserID, target.ViewerLogin, target.Value, target.Absolute)
+	return l.repo.BalanceAdjust(ctx, target)
 }
 
 func adjustTargetID(id string) (uint64, error) {
@@ -227,7 +216,7 @@ func (l *loyaltyRPC) handleCounterEntries(ctx context.Context, req loyaltyrpc.Re
 	if !ok {
 		return reply
 	}
-	rows, logins, err := l.repo.CounterEntries(ctx, userID, req.Name, req.Limit)
+	rows, logins, err := l.repo.CounterEntries(ctx, repository.CounterRef{UserID: userID, Name: req.Name}, req.Limit)
 	if err != nil {
 		return l.fail("loyalty counter.entries", err)
 	}
@@ -249,11 +238,18 @@ func (l *loyaltyRPC) handleCounterEntries(ctx context.Context, req loyaltyrpc.Re
 }
 
 func (l *loyaltyRPC) handleCounterGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	return l.queryCounter(ctx, req, false)
+}
+
+func (l *loyaltyRPC) queryCounter(ctx context.Context, req loyaltyrpc.Request, create bool) loyaltyrpc.Reply {
 	userID, viewerID, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
 	}
-	row, value, found, err := l.repo.CounterGet(ctx, userID, req.Name, viewerID, req.Command)
+	if create {
+		return l.createCounter(ctx, userID, req)
+	}
+	row, value, found, err := l.repo.CounterGet(ctx, repository.CounterRef{UserID: userID, Name: req.Name}, repository.SetTarget{ViewerID: viewerID, Command: req.Command})
 	if err != nil {
 		return l.fail("loyalty counter.get", err)
 	}
@@ -283,14 +279,15 @@ func (l *loyaltyRPC) handlePromoteTrial(ctx context.Context, req loyaltyrpc.Requ
 }
 
 func (l *loyaltyRPC) handleCounterCreate(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req, true)
-	if !ok {
-		return reply
-	}
-	row, err := l.repo.CounterCreate(ctx, userID, req.Name, req.Scope)
+	return l.queryCounter(ctx, req, true)
+}
+
+func (l *loyaltyRPC) createCounter(ctx context.Context, userID uint64, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	row, err := l.repo.CounterCreate(ctx, repository.CounterRef{UserID: userID, Name: req.Name}, req.Scope)
 	if err != nil {
 		return l.fail("loyalty counter.create", err)
 	}
+	l.counterChanged(userID, req.Name)
 	return loyaltyrpc.Reply{
 		Counter: &loyaltyrpc.Counter{Name: row.Name, Scope: row.Scope, Value: row.Value},
 		Found:   true,
@@ -316,27 +313,42 @@ func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Reques
 	if err != nil {
 		return l.fail("loyalty counter.set", err)
 	}
-	target := repository.SetTarget{ViewerID: viewerID, Command: req.Command, ViewerLogin: req.ViewerLogin}
-	found, err := l.repo.CounterSet(ctx, userID, req.Name, target, value)
+	target := repository.SetTarget{ViewerID: viewerID, Command: req.Command, ViewerLogin: req.ViewerLogin, Value: value}
+	found, err := l.repo.CounterSet(ctx, repository.CounterRef{UserID: userID, Name: req.Name}, target)
+	if err == nil && found {
+		l.counterChanged(userID, req.Name)
+	}
 	return l.foundReply("loyalty counter.set", found, err)
 }
 
 func (l *loyaltyRPC) handleCounterRename(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req, true)
-	if !ok {
-		return reply
-	}
-	found, err := l.repo.CounterRename(ctx, userID, req.Name, req.NewName)
-	return l.foundReply("loyalty counter.rename", found, err)
+	return l.changeCounter(ctx, req, true)
 }
 
 func (l *loyaltyRPC) handleCounterDelete(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	return l.changeCounter(ctx, req, false)
+}
+
+func (l *loyaltyRPC) changeCounter(ctx context.Context, req loyaltyrpc.Request, rename bool) loyaltyrpc.Reply {
 	userID, _, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
 	}
-	err := l.repo.CounterDelete(ctx, userID, req.Name)
-	return l.foundReply("loyalty counter.delete", true, err)
+	verb, keys := "delete", []string{req.Name}
+	found, err := true, error(nil)
+	if rename {
+		verb, keys = "rename", append(keys, req.NewName)
+		found, err = l.repo.CounterRename(ctx, repository.CounterRef{UserID: userID, Name: req.Name}, req.NewName)
+	} else {
+		err = l.repo.CounterDelete(ctx, repository.CounterRef{UserID: userID, Name: req.Name})
+	}
+	if err != nil {
+		return l.fail("loyalty counter."+verb, err)
+	}
+	if found {
+		l.counterChanged(userID, keys...)
+	}
+	return loyaltyrpc.Reply{Found: found}
 }
 
 func (l *loyaltyRPC) handleCounterEntryDelete(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
@@ -345,7 +357,10 @@ func (l *loyaltyRPC) handleCounterEntryDelete(ctx context.Context, req loyaltyrp
 		return reply
 	}
 	target := repository.SetTarget{ViewerID: viewerID, Command: req.Command}
-	found, err := l.repo.CounterEntryDelete(ctx, userID, req.Name, target)
+	found, err := l.repo.CounterEntryDelete(ctx, repository.CounterRef{UserID: userID, Name: req.Name}, target)
+	if err == nil && found {
+		l.counterChanged(userID, req.Name)
+	}
 	return l.foundReply("loyalty counter.entry.delete", found, err)
 }
 
@@ -384,8 +399,6 @@ func (l *loyaltyRPC) counterRows(ctx context.Context, req loyaltyrpc.Request, al
 	return loyaltyrpc.Reply{Counters: counters, Found: true}
 }
 
-// CounterValue preserves a dashboard decimal beyond JavaScript's numeric range.
-// Value remains available for existing Go callers.
 func counterSetValue(req loyaltyrpc.Request) (int64, error) {
 	value := req.Value
 	if req.CounterValue != "" {

@@ -12,6 +12,7 @@ import (
 const swrRefreshTimeout = 15 * time.Second
 
 func CachedBytes(ctx context.Context, c *Cache, key string, admit func(context.Context) error, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
+	ctx = c.guardFill(ctx, key)
 	if payload, stale, ok := c.readBytes(ctx, key); ok {
 		outcome := "hit"
 		if stale {
@@ -49,6 +50,7 @@ func CachedBytes(ctx context.Context, c *Cache, key string, admit func(context.C
 }
 
 func CachedBytesFresh(ctx context.Context, c *Cache, key string, admit func(context.Context) error, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
+	ctx = c.guardFill(ctx, key)
 	RecordCacheOutcome(ctx, "miss")
 	if err := spend(ctx, admit); err != nil {
 		RecordFetchError(ctx, err)
@@ -90,7 +92,7 @@ func (c *Cache) refreshBytes(parent context.Context, key string, admit func(cont
 	}
 	go func() {
 		defer c.refreshing.Delete(key)
-		ctx, cancel := WithFetchTimeout(DetachedRequestTelemetry(parent), swrRefreshTimeout)
+		ctx, cancel := WithFetchTimeout(detachedFill(parent), swrRefreshTimeout)
 		defer cancel()
 		won, err := c.store.SetNX(ctx, key+":swr", swrRefreshTimeout)
 		RecordCacheError(ctx, "claim", err)
@@ -116,8 +118,6 @@ func (c *Cache) refreshBytes(parent context.Context, key string, admit func(cont
 
 func MarshalReply(v any) ([]byte, error) { return codec.Marshal(v) }
 
-// StoreCachedBytes seeds an ordinary byte-cache entry from an already fresh
-// result. Callers must use the same payload shape and key as CachedBytes.
 func StoreCachedBytes(ctx context.Context, c *Cache, entry BytesEntry) {
 	c.storeEntry(ctx, entry.Key, entry.Value, entry.TTL)
 }

@@ -68,24 +68,3 @@ func TestOnUserDeletedCutoffCoversTheDeletionWithClockSlack(t *testing.T) {
 	assert.True(t, cutoff.After(deletedAt), "a row stamped in the deletion's rounded second must still be swept")
 	assert.Less(t, cutoff.Sub(deletedAt), time.Minute, "a re-registered account's rows must stay outside the cutoff")
 }
-
-func TestOnChangeInvalidateDropsTheNamedUser(t *testing.T) {
-	var dropped []uint64
-	handle := consumers.OnChangeInvalidate(
-		func(dto data.ModuleChangedDTO) uint64 { return dto.UserID },
-		func(id uint64) { dropped = append(dropped, id) },
-	)
-
-	require.NoError(t, handle(&bus.Message{Payload: []byte(`{"user_id":1001,"name":"welcome"}`)}))
-
-	assert.Equal(t, []uint64{1001}, dropped)
-}
-
-func TestOnChangeInvalidateReturnsMalformedPayloads(t *testing.T) {
-	handle := consumers.OnChangeInvalidate(
-		func(dto data.ModuleChangedDTO) uint64 { return dto.UserID },
-		func(uint64) { t.Fatal("invalidated on a payload that never decoded") },
-	)
-
-	assert.Error(t, handle(&bus.Message{Payload: []byte(`{`)}))
-}

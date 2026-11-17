@@ -224,7 +224,6 @@ type LoyaltyStore interface {
 	CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error)
 	BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error)
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
-	BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
 	BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
@@ -245,8 +244,6 @@ type LoyaltyTicker interface {
 	Disarm(ctx context.Context, broadcasterID uint64)
 }
 
-// VersionedLoyaltyTicker fences lifecycle effects against delayed events.
-// Legacy implementations retain the two-method LoyaltyTicker surface.
 type VersionedLoyaltyTicker interface {
 	LoyaltyTicker
 	ArmVersioned(ctx context.Context, broadcasterID uint64, version int64)

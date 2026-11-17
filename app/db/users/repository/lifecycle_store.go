@@ -99,9 +99,6 @@ func (r *Users) publishLifecycleProjection(ctx context.Context, row *ent.User, r
 	if err := r.publishChanged(ctx, row.ID); err != nil {
 		return err
 	}
-	if err := r.publishStatusInvalidation(ctx, row.ID); err != nil {
-		return err
-	}
 	_, err := db.WithQuery(ctx, r.client.User.Update().Where(user.IDEQ(row.ID), user.CreatedAtEQ(row.CreatedAt), user.StateRevisionEQ(revision)).SetLifecycleProjectionPending(false).Save)
 	return err
 }

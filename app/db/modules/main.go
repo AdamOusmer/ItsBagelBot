@@ -27,7 +27,6 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
@@ -61,7 +60,9 @@ func main() {
 	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 
-	repo := repository.NewModules(client, n.Pub, core.NR, log)
+	h := bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)
+	pub := h.Publisher(n.Pub)
+	repo := repository.NewModules(client, pub, core.NR, log)
 	repo.SetAccountInstanceResolver(func(ctx context.Context, id uint64) (int64, error) {
 		requested := strconv.FormatUint(id, 10)
 		body, err := codec.Marshal(projection.Request{UserID: requested})
@@ -81,9 +82,9 @@ func main() {
 	defer repo.Close(context.Background())
 	defer closeIntake() // stops intake before the repo flush above
 
-	quotes := repository.NewQuotes(client, n.Pub, log)
+	quotes := repository.NewQuotes(client, pub, log)
 	defer quotes.Close()
-	automations := repository.NewAutomations(client, n.Pub, log)
+	automations := repository.NewAutomations(client, pub, log)
 	automations.SetDialect(driver.Dialect())
 	automations.BindModules(repo)
 
@@ -103,13 +104,14 @@ func main() {
 
 	svcboot.FatalIf(log, levels.Serve(bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log}), "failed to subscribe analytics levels rpc")
 
+	svcboot.FatalIf(log, h.Changes(core.Ctx, n.Broadcast, data.SubjectModuleChanged, data.SubjectQuoteChanged), "failed to subscribe changes")
 	consumeEvents(core.Ctx, eventsWiring{
 		app: core.NR, broadcast: n.Broadcast, grouped: n.Grouped,
 		repo: repo, quotes: quotes, log: log,
 	})
 
 	projectionSubject := subscribeRPCs(rpcWiring{
-		nc: n.RPC, client: client, repo: repo, quotes: quotes, automations: automations, recipeState: recipeState, app: core.NR, log: log,
+		nc: n.RPC, client: client, repo: repo, quotes: quotes, automations: automations, recipeState: recipeState, app: core.NR, log: log, invalidations: h,
 	})
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{
@@ -133,15 +135,6 @@ type eventsWiring struct {
 }
 
 func consumeEvents(ctx context.Context, w eventsWiring) {
-	invalidate := consumers.OnChangeInvalidate(changedUserID, w.repo.Invalidate)
-	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectModuleChanged, invalidate, w.log); err != nil {
-		w.log.Fatal("failed to subscribe to module changes", zap.Error(err))
-	}
-
-	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectQuoteChanged, w.quotes.OnChanged(), w.log); err != nil {
-		w.log.Fatal("failed to subscribe to quote changes", zap.Error(err))
-	}
-
 	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
 		return w.repo.Reproject(ctx)
 	}, w.log); err != nil {
@@ -152,8 +145,6 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 		w.log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
 	}
 }
-
-func changedUserID(dto data.ModuleChangedDTO) uint64 { return dto.UserID }
 
 func deleteUser(w eventsWiring) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
@@ -175,14 +166,15 @@ func deleteUser(w eventsWiring) func(*bus.Message) error {
 }
 
 type rpcWiring struct {
-	nc          *nats.Conn
-	client      *ent.Client
-	repo        *repository.Modules
-	quotes      *repository.Quotes
-	automations *repository.Automations
-	recipeState *repository.RecipeState
-	app         *newrelic.Application
-	log         *zap.Logger
+	invalidations *bus.Invalidations
+	nc            *nats.Conn
+	client        *ent.Client
+	repo          *repository.Modules
+	quotes        *repository.Quotes
+	automations   *repository.Automations
+	recipeState   *repository.RecipeState
+	app           *newrelic.Application
+	log           *zap.Logger
 }
 
 func subscribeRPCs(w rpcWiring) string {
@@ -224,8 +216,7 @@ func subscribeRPCs(w rpcWiring) string {
 	return projectionSubject
 }
 
-// Only the canonical service's explicit not-found reply proves absence. Other
-// refusals or unstamped successes cannot authorize destructive account cleanup.
+// Only canonical not-found proves absence; other refusals must not authorize account cleanup.
 func canonicalAccountInstance(reply projection.UserReply, requested string) (int64, error) {
 	if reply.Code == domainrpc.CodeNotFound {
 		if reply.UserID != requested || reply.AccountCreatedAt != 0 {

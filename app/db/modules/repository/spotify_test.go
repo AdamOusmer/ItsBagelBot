@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/enttest"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/app/db/modules/repository"
+	"ItsBagelBot/pkg/bus"
 
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/testdb"
@@ -25,7 +26,7 @@ import (
 func spotifySetup(t *testing.T) (*ent.Client, *repository.SpotifyCreds) {
 	t.Helper()
 	client := testdb.Open(t, "spotifycreds", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	return client, repository.NewSpotifyCreds(client, dbtest.NewPacker(t))
+	return client, repository.NewSpotifyCreds(client, dbtest.NewPacker(t), bus.NewInvalidations(nil, "", nil))
 }
 
 func TestSpotifyTokenRoundTripSealsAndReplaces(t *testing.T) {
@@ -376,10 +377,10 @@ func spotifyRace(t *testing.T, parties int, run ...func(*repository.SpotifyCreds
 	t.Helper()
 	client := testdb.Open(t, "spotifyrace", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	packer := dbtest.NewPacker(t)
-	plain := repository.NewSpotifyCreds(client, packer)
+	plain := repository.NewSpotifyCreds(client, packer, bus.NewInvalidations(nil, "", nil))
 	require.NoError(t, plain.SetToken(context.Background(), 1001, repository.SpotifyGrant{RefreshToken: "first"}))
 
-	racing := repository.NewSpotifyCreds(client, newUnpackBarrier(packer, parties))
+	racing := repository.NewSpotifyCreds(client, newUnpackBarrier(packer, parties), bus.NewInvalidations(nil, "", nil))
 	errs := make([]error, len(run))
 	var wg sync.WaitGroup
 	for i, fn := range run {
