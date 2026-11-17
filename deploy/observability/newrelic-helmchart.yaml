@@ -143,6 +143,8 @@ spec:
       enabled: true
       fluentBit:
         logLevel: warn
+        k8sBufferSize: "256k"
+        fluentBitMetrics: none
         config:
           extraInputs: |
             [INPUT]
@@ -162,11 +164,14 @@ spec:
                 Add          logtype kube-audit
             [FILTER]
                 Name         grep
+                Alias        warp-level-filter
+                Match        kube.*_app_warp-*
+                Regex        log (WARN|ERROR)\x1b
+            [FILTER]
+                Name         grep
                 Alias        warp-noise-filter
                 Match        kube.*_app_warp-*
-                Logical_Op   or
-                Exclude      log ^\S+\s+\S*\s*(DEBUG|INFO)\x1b
-                Exclude      log WARN.*(dbus connection failed|Socks greeting failed|Failed to synchronize time with NTP server)
+                Exclude      log WARN.*(dbus connection failed|Socks greeting failed|Failed to synchronize time with NTP server|upload_stats|Failed to send a shutdown command|quiche.*idle)
       lowDataMode: true
       resources:
         limits:
