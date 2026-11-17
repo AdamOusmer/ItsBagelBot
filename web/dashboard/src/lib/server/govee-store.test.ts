@@ -152,13 +152,16 @@ describe('light groups', () => {
     expect(written.groups.map((g) => g.name)).toEqual(['Room', 'Other']);
   });
 
-  test('a dead Twitch grant asks for a reconnect and writes nothing', async () => {
+  test.each([
+    { name: 'a dead Twitch grant asks for a reconnect', wire: { error: 'reconnect required', code: 'forbidden', missing_scope: true }, refused: { missingScope: true } },
+    { name: 'a taken reward title is named', wire: { error: 'duplicate reward title', code: 'conflict' }, refused: { duplicateTitle: true } },
+    { name: 'a channel without affiliate is named', wire: { error: 'broadcaster not affiliate', code: 'forbidden', not_affiliate: true }, refused: { notAffiliate: true } }
+  ])('$name and writes nothing', async ({ wire, refused }) => {
     moduleRows = [{ name: 'govee', is_enabled: true, configs: { groups: [] } }];
     moduleWrites.length = 0;
-    rewardReply = { error: 'reconnect required', code: 'forbidden', missing_scope: true };
+    rewardReply = wire;
 
-    expect(await goveeStore('1').saveGroup({ rewardId: '', name: 'Room', lights }, draft)).toEqual({ ok: false, missingScope: true });
-    expect(moduleWrites).toHaveLength(0);
+    expect([await goveeStore('1').saveGroup({ rewardId: '', name: 'Room', lights }, draft), moduleWrites]).toEqual([{ ok: false, ...refused }, []]);
   });
 
   test('deleting a group leaves the other groups', async () => {

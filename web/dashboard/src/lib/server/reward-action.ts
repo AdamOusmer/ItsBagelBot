@@ -17,15 +17,15 @@ export interface RewardFailure {
 export type RewardOutcome = { ok: true } | ({ ok: false } & RewardFailure);
 
 const FLAG_REFUSALS = [
-  ['missingScope', 403],
-  ['missingSpotifyScope', 403],
-  ['duplicateTitle', 409],
-  ['notAffiliate', 403]
+  ['missingScope', 403, undefined],
+  ['missingSpotifyScope', 403, undefined],
+  ['duplicateTitle', 409, 'duplicate_title'],
+  ['notAffiliate', 403, 'not_affiliate']
 ] as const;
 
 export function resultFail(r: RewardFailure): MutationRefusal {
-  for (const [key, status] of FLAG_REFUSALS) {
-    if (r[key]) return fail(status, { ok: false, [key]: true });
+  for (const [key, status, error] of FLAG_REFUSALS) {
+    if (r[key]) return fail(status, { ok: false, [key]: true, error });
   }
   if (r.code) return fail(400, { ok: false, code: r.code });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
