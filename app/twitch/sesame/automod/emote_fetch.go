@@ -128,11 +128,12 @@ func (f *EmoteFetcher) Catalog() EmoteCatalog {
 func (f *EmoteFetcher) Refresh(ctx context.Context, gate *Gate) (RefreshResult, error) {
 	cat, failed, err := f.fetchOver(ctx, f.Catalog())
 	codes := cat.Codes()
-	if err == nil || len(codes) > 0 {
+	res := RefreshResult{Codes: len(codes), Failed: failed, Providers: len(f.sources())}
+	if !res.AllFailed() {
 		gate.SetEmotes(NewEmoteSet(codes))
 		f.catalog.Store(&cat)
 	}
-	return RefreshResult{Codes: len(codes), Failed: failed, Providers: len(f.sources())}, err
+	return res, err
 }
 
 func (f *EmoteFetcher) fetchBTTV(ctx context.Context) ([]string, error) {

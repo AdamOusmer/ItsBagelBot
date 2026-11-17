@@ -136,6 +136,7 @@ func TestRefreshReplacesOnlyTheProvidersThatAnswered(t *testing.T) {
 	updatedBTTV := `[{"id":"1","code":"KEKW"},{"id":"9","code":"POGGERS"}]`
 	tests := []struct {
 		name   string
+		first  map[string]string
 		second map[string]string
 		want   refreshOutcome
 	}{
@@ -160,14 +161,24 @@ func TestRefreshReplacesOnlyTheProvidersThatAnswered(t *testing.T) {
 				SevenTV: healthyCatalog.SevenTV, BTTV: healthyCatalog.BTTV, FFZ: []string{},
 			}},
 		},
+		{
+			name:   "an empty success beside failures publishes the emptied set",
+			first:  map[string]string{"/bttv": "", "/7tv": ""},
+			second: map[string]string{"/ffz": `{"sets":{}}`},
+			want: refreshOutcome{
+				failed: true, result: refreshed(0, 2), verdict: [2]Verdict{verdictHeuristic, verdictHeuristic},
+				catalog: EmoteCatalog{FFZ: []string{}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv, providers := emoteServer(t)
 			g := New()
 			f := NewEmoteFetcher(srv.Client(), endpointsFor(srv.URL))
+			providers.set(tt.first)
 			_, err := f.Refresh(context.Background(), g)
-			require.NoError(t, err)
+			require.Equal(t, tt.first != nil, err != nil, "first refresh error")
 			providers.set(tt.second)
 
 			assert.Equal(t, tt.want, observeRefresh(g, f))
