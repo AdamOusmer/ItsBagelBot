@@ -192,6 +192,7 @@ spec:
               command: ["/bin/sh", "/scripts/upload.sh"]
               env:
                 - {name: HOME, value: /work}
+                - {name: RCLONE_CONFIG, value: ""}
               envFrom:
                 - secretRef: {name: backup-env}
               volumeMounts:

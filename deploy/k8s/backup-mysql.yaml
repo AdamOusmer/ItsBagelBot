@@ -166,8 +166,11 @@ data:
     else
       FROM="--startFrom=$(MYSQL_PWD="$BINLOG_DB_PASS" mysql $CONN -N -B -e 'SHOW BINARY LOG STATUS' | awk '{print $1 ":" $2}')"
     fi
-    printf '%s\n' "$BINLOG_DB_PASS" | mysqlsh --no-defaults --passwords-from-stdin $CONN \
-      -- util dump-binlogs "/work/binlog/$(date -u +%Y%m%dT%H%M%SZ)" "$FROM"
+    if ! out=$(printf '%s\n' "$BINLOG_DB_PASS" | mysqlsh --no-defaults --passwords-from-stdin $CONN \
+      -- util dump-binlogs "/work/binlog/$(date -u +%Y%m%dT%H%M%SZ)" "$FROM" 2>&1); then
+      printf '%s\n' "$out" >&2
+      exit 1
+    fi
 
     find binlog -name '*.zst' | while read -r f; do
       openssl smime -encrypt -binary -aes-256-cbc -outform DER -in "$f" -out "$f.enc" pub.pem
@@ -248,6 +251,7 @@ spec:
               command: ["/bin/sh", "/scripts/upload.sh"]
               env:
                 - {name: HOME, value: /work}
+                - {name: RCLONE_CONFIG, value: ""}
               envFrom:
                 - secretRef: {name: backup-env}
               volumeMounts:
@@ -307,6 +311,7 @@ spec:
               command: ["/bin/sh", "/scripts/binlog-fetch.sh"]
               env:
                 - {name: HOME, value: /work}
+                - {name: RCLONE_CONFIG, value: ""}
               envFrom:
                 - secretRef: {name: backup-env}
               volumeMounts:
@@ -345,6 +350,7 @@ spec:
               command: ["/bin/sh", "/scripts/binlog-upload.sh"]
               env:
                 - {name: HOME, value: /work}
+                - {name: RCLONE_CONFIG, value: ""}
               envFrom:
                 - secretRef: {name: backup-env}
               volumeMounts:
