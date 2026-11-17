@@ -90,7 +90,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: projector
-          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1794846801-6fb0a727e5b5@sha256:d2b8e08197237583c139310155e0bf9537625fe9da863d41c664de3ae602b869
+          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1794926156-7c8618c82820@sha256:7f7aa35f3cadf71c3c4622b666b5a24c3328984251ce60180011ba5a92ace3f1
           imagePullPolicy: IfNotPresent
           env:
             # Must match sesame's partition flag, or the projector reconciles the legacy stream and is refused.
