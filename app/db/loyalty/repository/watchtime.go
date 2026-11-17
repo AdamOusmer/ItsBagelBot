@@ -28,11 +28,7 @@ func (r *Loyalty) EnsureWatchSchema(ctx context.Context) error {
 	if err := r.ensureWatchWindowStartColumns(ctx); err != nil {
 		return err
 	}
-	if err := r.ensureWatchRetentionSchema(ctx); err != nil {
-		return err
-	}
-	r.watchReady.Store(true)
-	return nil
+	return r.ensureWatchRetentionSchema(ctx)
 }
 func (r *Loyalty) insertIgnore() string {
 	if r.dialect == "sqlite3" {

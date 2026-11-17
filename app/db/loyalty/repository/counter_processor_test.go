@@ -348,7 +348,7 @@ func TestCounterProcessorCoalescesPromotedAndUnpromotedTrials(t *testing.T) {
 
 func TestCounterProcessorRerunsCoalescedTransactionAfterPromotionRace(t *testing.T) {
 	store := newBatchStore(map[string]int64{data.CounterTrialDecoded: 100})
-	store.onShareLock = promoteWhileLocking
+	store.onTrialVerify = promoteBeforeTrialVerify
 	p := counterTestProcessor(t, coalescingRepo(t, store), newCounterFakeValkey(t))
 	events := []data.CounterBumpedDTO{
 		trialBatch("race-one", data.CounterBumpEntry{Name: data.CounterTrialDecoded, Delta: 3}),

@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -16,8 +17,7 @@ type batchStore struct {
 	values        map[string]int64
 	pendingValues map[string]int64
 	receipts      [][]driver.Value
-	queries       []string
-	onShareLock   func(*batchStore)
+	onTrialVerify func(*batchStore)
 }
 
 type batchConn struct {
@@ -46,17 +46,36 @@ func (s *batchStore) stageCounterRows(args []driver.NamedValue) {
 	}
 }
 
-func (c *batchConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
-	c.store.queries = append(c.store.queries, query)
-	if query == lockTrialPromotion && c.store.onShareLock != nil {
-		c.store.onShareLock(c.store)
-		c.store.onShareLock = nil
+func (c *batchConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	switch {
+	case strings.HasPrefix(query, "SELECT f.user_id,f.deleted,"):
+		return c.store.fenceRows(args), nil
+	case strings.HasPrefix(query, "SELECT user_id FROM counters WHERE name='trial_promoted'"):
+		return c.store.verifyTrial(args[0].Value), nil
+	default:
+		return nil, fmt.Errorf("unexpected counter query %q", query)
 	}
-	rows := &counterRows{cols: []string{"1"}}
-	if _, ok := c.store.values[data.CounterTrialPromoted]; ok {
-		rows.rows = [][]driver.Value{{int64(1)}}
+}
+
+func (s *batchStore) fenceRows(args []driver.NamedValue) *counterRows {
+	rows := &counterRows{cols: []string{"user_id", "deleted", "promoted"}}
+	_, promoted := s.values[data.CounterTrialPromoted]
+	for _, arg := range args {
+		rows.rows = append(rows.rows, []driver.Value{arg.Value, false, promoted})
 	}
-	return rows, nil
+	return rows
+}
+
+func (s *batchStore) verifyTrial(id driver.Value) *counterRows {
+	if s.onTrialVerify != nil {
+		s.onTrialVerify(s)
+		s.onTrialVerify = nil
+	}
+	rows := &counterRows{cols: []string{"user_id"}}
+	if _, ok := s.values[data.CounterTrialPromoted]; ok {
+		rows.rows = [][]driver.Value{{id}}
+	}
+	return rows
 }
 
 func (tx *batchTx) Commit() error {
@@ -119,7 +138,7 @@ func coalescingRepo(t *testing.T, store *batchStore) *Loyalty {
 	return fakeLoyalty(t, func() driver.Conn { return &coalescingConn{&batchConn{store: store}} })
 }
 
-func promoteWhileLocking(s *batchStore) {
+func promoteBeforeTrialVerify(s *batchStore) {
 	s.values[data.CounterTrialPromoted] = 1
 	s.values[data.CounterMessagesProcessed] += 100
 	s.values[data.CounterEventsProcessed] += 100

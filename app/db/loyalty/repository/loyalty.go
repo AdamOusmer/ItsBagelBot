@@ -82,7 +82,6 @@ type bumpSum struct {
 type Loyalty struct {
 	dialect      string
 	persistMu    sync.Mutex
-	watchReady   atomic.Bool
 	counterReady atomic.Bool
 	client       *ent.Client
 	sqldb        *sql.DB
