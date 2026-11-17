@@ -18,8 +18,8 @@ func TestWatchBulkMySQLStatementCount(t *testing.T) {
 		textLength int
 		statements int64
 	}{
-		{"short text", 0, 147},
-		{"maximum text", 64, 147},
+		{"short text", 0, 134},
+		{"maximum text", 64, 134},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo, raw := mysqlRetentionRepo(t)

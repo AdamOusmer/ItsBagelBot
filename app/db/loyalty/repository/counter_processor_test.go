@@ -415,19 +415,6 @@ func TestCounterProcessorRerunsCoalescedTransactionAfterPromotionRace(t *testing
 	assert.EqualValues(t, 105, store.values[data.CounterEventsProcessed])
 }
 
-func TestCounterProcessorCommitsWhileEarnedPersistenceIsLocked(t *testing.T) {
-	store := newBatchStore(nil)
-	repo := coalescingRepo(t, store)
-	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
-	repo.persistMu.Lock()
-	defer repo.persistMu.Unlock()
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	err := p.Process(ctx, trialBatch("during-flush", data.CounterBumpEntry{Name: "deaths", Delta: 3}))
-	require.NoError(t, err)
-	assert.EqualValues(t, 3, store.values["deaths"])
-}
-
 func TestCounterProcessorCloseDrainsAndIsIdempotent(t *testing.T) {
 	repo, raw := counterTestRepo(t)
 	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))

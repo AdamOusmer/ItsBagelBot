@@ -8,7 +8,6 @@ import (
 	"context"
 	"database/sql"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -79,7 +78,6 @@ type bumpSum struct {
 
 type Loyalty struct {
 	dialect      string
-	persistMu    sync.Mutex
 	counterReady atomic.Bool
 	client       *ent.Client
 	sqldb        *sql.DB
