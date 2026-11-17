@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Twitch first, then the binding blob, so the two never diverge on a failed call.
 import { logger } from '@bagel/kit/server/logger';
 import { blankReward, type ChannelPointReward, MOD } from '@bagel/kit';
 import { publishEventSubEnsureOptional } from './services';
