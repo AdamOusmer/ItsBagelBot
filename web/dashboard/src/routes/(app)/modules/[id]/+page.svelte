@@ -451,9 +451,9 @@
       {#if !enabled}
         <Divider flush />
         <div class="disabled-note">
-          <AlertBanner tone="warning" role="status" flush>
+          <AlertBanner tone="warning" role="status" flush strong>
             {t('modules.offBanner')}
-            {#snippet actions()}{#if !data.locked}<Button size="sm" onclick={toggleModule}>{t('modules.turnOn')}</Button>{/if}{/snippet}
+            {#snippet actions()}{#if !data.locked}<Button onclick={toggleModule}>{t('modules.turnOn')}</Button>{/if}{/snippet}
           </AlertBanner>
         </div>
       {/if}

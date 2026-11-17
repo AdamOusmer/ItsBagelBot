@@ -46,9 +46,9 @@
 <form method="POST" {action} use:enhance={submit} class="master">
   <input type="hidden" {name} value={enabled ? '' : 'on'} />
   <div class="layer" class:shown={!enabled} inert={enabled}>
-    <AlertBanner tone="warning" role="status" flush>
+    <AlertBanner tone="warning" role="status" flush strong>
       {t('modules.offBanner')}
-      {#snippet actions()}<Button type="submit" size="sm">{t('modules.turnOn')}</Button>{/snippet}
+      {#snippet actions()}<Button type="submit">{t('modules.turnOn')}</Button>{/snippet}
     </AlertBanner>
   </div>
   <div class="layer" class:shown={enabled} inert={!enabled}>
