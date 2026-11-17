@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"ItsBagelBot/pkg/monitor"
 )
 
 var DefaultShorteners = []string{
@@ -50,7 +52,7 @@ func newExpanderScheme(client *http.Client, shorteners []string, scheme string) 
 	}
 	if client == nil {
 		client = &http.Client{
-			Transport: &http.Transport{
+			Transport: monitor.ExternalTransport(&http.Transport{
 				DialContext: (&net.Dialer{
 					Timeout:   hopTimeout,
 					KeepAlive: hopTimeout,
@@ -58,7 +60,7 @@ func newExpanderScheme(client *http.Client, shorteners []string, scheme string) 
 				}).DialContext,
 				TLSHandshakeTimeout: hopTimeout,
 				MaxIdleConns:        4,
-			},
+			}),
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse
 			},

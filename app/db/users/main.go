@@ -79,8 +79,8 @@ func main() {
 
 	defer closeIntake() // stops intake before the repo flush above
 
-	svcboot.FatalIf(log, h.Changes(ctx, n.Broadcast, data.SubjectUserChanged, data.SubjectUserDeleted), "failed to subscribe user changes")
-	startConsumers(ctx, n, repo, log)
+	svcboot.FatalIf(log, h.Changes(ctx, core.NR, n.Broadcast, data.SubjectUserChanged, data.SubjectUserDeleted), "failed to subscribe user changes")
+	startConsumers(core, n, repo)
 	wireErasure(ctx, repo, log)
 
 	go expireSubscriptions(ctx, repo, log)
@@ -137,10 +137,10 @@ func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *c
 	return client, driver.DB(), packer
 }
 
-func startConsumers(ctx context.Context, n svcboot.NATS, repo *repository.Users, log *zap.Logger) {
-	svcboot.FatalIf(log, bus.Consume(ctx, nil, n.Grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
-		return repo.Reproject(ctx)
-	}, log), "failed to subscribe to reproject requests")
+func startConsumers(core svcboot.Core, n svcboot.NATS, repo *repository.Users) {
+	svcboot.FatalIf(core.Log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
+		return repo.Reproject(core.Ctx)
+	}, core.Log), "failed to subscribe to reproject requests")
 }
 
 type rpcSubjects struct {

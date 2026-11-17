@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"go.uber.org/zap"
@@ -97,7 +96,7 @@ func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 	logBotIdentity(w.Log, cfg.BotUserID)
 	a := &adminRPC{
 		botUserID:        cfg.BotUserID,
-		validateBotGrant: twitchGrantValidator(&http.Client{Timeout: twitchValidateTimeout}, twitchValidateURL),
+		validateBotGrant: twitchGrantValidator(monitor.HTTPClient(twitchValidateTimeout), twitchValidateURL),
 		repo:             w.Repo,
 		gate:             adminauth.New(w.NC, adminauth.Config{AuthPrefix: cfg.AuthPrefix}),
 		invalidations:    w.Repo.Invalidations(),

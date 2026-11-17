@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -25,11 +26,16 @@ const (
 	clipVerifySlots   = 16
 )
 
-func (w *Worker) scheduleClipVerify(broadcasterID, clipper, clipID string) {
-	probe := clipProbe{broadcasterID: broadcasterID, clipper: clipper, clipID: clipID}
-	if !runBounded(w.clipVerify, clipVerifyTimeout, func(ctx context.Context) { w.verifyClipPublished(ctx, probe) }) {
+func (w *Worker) scheduleClipVerify(ctx context.Context, probe clipProbe) {
+	link := monitor.LinkFrom(ctx)
+	verify := func(ctx context.Context) {
+		ctx, txn := link.Start(ctx, "clip verify")
+		defer txn.End()
+		w.verifyClipPublished(ctx, probe)
+	}
+	if !runBounded(w.clipVerify, clipVerifyTimeout, verify) {
 		w.log.Warn("clip verify skipped: checks saturated",
-			zap.String("broadcaster_id", broadcasterID), zap.String("clip_id", clipID))
+			zap.String("broadcaster_id", probe.broadcasterID), zap.String("clip_id", probe.clipID))
 	}
 }
 

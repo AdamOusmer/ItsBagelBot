@@ -59,7 +59,7 @@ func (w *Worker) publishStreamStatus(ctx context.Context, payload *outgress.Mess
 
 	if isLive {
 		w.recordAudienceSize(payload.BroadcasterID, details.ViewerCount)
-		w.scheduleModStatus(payload.BroadcasterID, payload.SenderID)
+		w.scheduleModStatus(ctx, payload.BroadcasterID, payload.SenderID)
 	}
 
 	w.log.Debug("stream_status resolved",
@@ -190,7 +190,7 @@ func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 	if !w.backgroundAllowed(msg.Context(), broadcasterID) {
 		return nil
 	}
-	w.scheduleModStatus(broadcasterID, "")
+	w.scheduleModStatus(msg.Context(), broadcasterID, "")
 
 	log.Debug("mod status refresh scheduled on go-live",
 		zap.String("broadcaster_id", broadcasterID))
@@ -299,7 +299,7 @@ func (w *Worker) publishLiveSeed(ctx context.Context, seed *outgress.Message, is
 		return
 	}
 	if isLive {
-		w.scheduleModStatus(seed.BroadcasterID, "")
+		w.scheduleModStatus(ctx, seed.BroadcasterID, "")
 	}
 	w.log.Info("live state seeded after enroll", zap.String("broadcaster_id", seed.BroadcasterID), zap.Bool("live", isLive))
 }

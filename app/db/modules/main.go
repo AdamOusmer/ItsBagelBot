@@ -104,7 +104,7 @@ func main() {
 
 	svcboot.FatalIf(log, levels.Serve(bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log}), "failed to subscribe analytics levels rpc")
 
-	svcboot.FatalIf(log, h.Changes(core.Ctx, n.Broadcast, data.SubjectModuleChanged, data.SubjectQuoteChanged), "failed to subscribe changes")
+	svcboot.FatalIf(log, h.Changes(core.Ctx, core.NR, n.Broadcast, data.SubjectModuleChanged, data.SubjectQuoteChanged), "failed to subscribe changes")
 	consumeEvents(core.Ctx, eventsWiring{
 		app: core.NR, broadcast: n.Broadcast, grouped: n.Grouped,
 		repo: repo, quotes: quotes, log: log,

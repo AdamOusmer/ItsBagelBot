@@ -464,7 +464,12 @@ defmodule Ingress.SquashTest do
 
   defp start_squash(opts) do
     test = self()
-    publish = fn subject, msg -> send(test, {:published, subject, msg}) end
+
+    publish = fn subject, msg, headers ->
+      send(test, {:published, subject, msg})
+      send(test, {:published_headers, headers})
+    end
+
     start_supervised!({Squash, [publish: publish] ++ opts})
     :ok
   end
@@ -567,6 +572,13 @@ defmodule Ingress.SquashTest do
     assert cohort.distinct_users == 2
     assert Enum.map(cohort.senders, & &1.chatter_user_id) == ["2", "3"]
     assert cohort.msg_id == "m2"
+  end
+
+  test "a cohort folded outside any trace publishes without trace headers" do
+    start_squash(window_ms: 20, sweep_ms: 10)
+    Squash.observe(base("plain"), sender("1"))
+    assert Squash.observe(base("plain"), sender("2")) == :buffered
+    assert_receive {:published_headers, []}, 500
   end
 
   test "a cohort at the size cap flushes early without waiting for the window" do

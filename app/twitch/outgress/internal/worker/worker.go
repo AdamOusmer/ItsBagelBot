@@ -199,18 +199,18 @@ func (w *Worker) botIdentity(action string, payload *outgress.Message) (string, 
 	return id, true
 }
 
-func (w *Worker) modStatus(_ context.Context, payload *outgress.Message, ch manage.Channel, found bool) bool {
+func (w *Worker) modStatus(ctx context.Context, payload *outgress.Message, ch manage.Channel, found bool) bool {
 	if w.modVerifier == nil {
 		return found && ch.IsMod
 	}
-	return w.modVerifier.Status(ch, found, payload.BroadcasterID, payload.SenderID)
+	return w.modVerifier.Status(ctx, ch, found, payload)
 }
 
-func (w *Worker) scheduleModStatus(broadcasterID, senderID string) {
+func (w *Worker) scheduleModStatus(ctx context.Context, broadcasterID, senderID string) {
 	if !w.backgroundAllowed(context.Background(), broadcasterID) {
 		return
 	}
 	if w.modVerifier != nil {
-		w.modVerifier.Schedule(broadcasterID, senderID)
+		w.modVerifier.Schedule(ctx, broadcasterID, senderID)
 	}
 }

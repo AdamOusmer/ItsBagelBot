@@ -21,6 +21,7 @@ import (
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/idempotency"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -243,7 +244,10 @@ func (x *actionExec) startContinuation(cont *AutomationRun) {
 	cont.Slot.retain()
 	x.p.autoExec.running.Add(1)
 	p := x.p
+	link := monitor.LinkFrom(x.ctx)
 	go idempotency.Async(x.ctx, func(ctx context.Context) error {
+		ctx, txn := continueTrace(ctx, link, "automation continue")
+		defer txn.End()
 		p.continueRun(ctx, c)
 		return nil
 	})()

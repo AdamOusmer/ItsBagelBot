@@ -143,7 +143,7 @@ func TestInvalidationsChanges(t *testing.T) {
 		events := make(chan cache.Event, 1)
 		h.Watch(subject, func(e cache.Event) { events <- e })
 		sub := &feedSubscriber{messages: make(chan *Message, 1)}
-		require.NoError(t, h.Changes(t.Context(), sub, subject))
+		require.NoError(t, h.Changes(t.Context(), nil, sub, subject))
 		msg := NewMessage("id", []byte(`{"user_id":7,"name":"ignored"}`))
 		sub.messages <- msg
 		close(sub.messages)
@@ -166,7 +166,7 @@ func TestInvalidationsChangesBroadcast(t *testing.T) {
 		for _, subject := range subjects {
 			h.Watch(subject, func(e cache.Event) { events <- e })
 		}
-		require.NoError(t, h.Changes(SkipInvalidation(t.Context()), openSubscriber(t, f, ""), subjects...))
+		require.NoError(t, h.Changes(SkipInvalidation(t.Context()), nil, openSubscriber(t, f, ""), subjects...))
 	}
 	for _, subject := range subjects {
 		f.appendMessage(t, subject, `{"user_id":7}`)

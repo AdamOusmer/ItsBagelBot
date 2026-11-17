@@ -76,7 +76,7 @@ func TestEnsureAsyncRetriesTransientFetchFailureThenSucceeds(t *testing.T) {
 	}
 
 	h := newHydrator(store, fetch, 2*time.Hour, 24*time.Hour, 1, zap.NewNop())
-	h.EnsureAsync(42, Seed{})
+	h.EnsureAsync(context.Background(), 42, Seed{})
 
 	got := collectWrites(t, writes, 3)
 	var modulesWrite write

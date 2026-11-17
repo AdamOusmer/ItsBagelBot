@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -33,13 +34,14 @@ func readChannelCounts(ctx context.Context, r channelCountsReader, log *zap.Logg
 func readCountsConcurrently(ctx context.Context, r channelCountsReader, log *zap.Logger, broadcasterID string) (followers int, followersOK bool, subs int, subsOK bool) {
 	var wg sync.WaitGroup
 	wg.Add(2)
+	followersCtx, subsCtx := monitor.Concurrent(ctx), monitor.Concurrent(ctx)
 	go func() {
 		defer wg.Done()
-		followers, followersOK = readFollowers(ctx, r, log, broadcasterID)
+		followers, followersOK = readFollowers(followersCtx, r, log, broadcasterID)
 	}()
 	go func() {
 		defer wg.Done()
-		subs, subsOK = readSubs(ctx, r, log, broadcasterID)
+		subs, subsOK = readSubs(subsCtx, r, log, broadcasterID)
 	}()
 	wg.Wait()
 	return followers, followersOK, subs, subsOK

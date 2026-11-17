@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -135,9 +136,9 @@ func (h *Invalidations) publish(scope wireScope, dto invalidate.DTO) error {
 	return err
 }
 
-func (h *Invalidations) Changes(ctx context.Context, sub Subscriber, subjects ...string) error {
+func (h *Invalidations) Changes(ctx context.Context, app *newrelic.Application, sub Subscriber, subjects ...string) error {
 	for _, subject := range subjects {
-		err := Consume(ctx, nil, sub, subject, func(msg *Message) error {
+		err := Consume(ctx, app, sub, subject, func(msg *Message) error {
 			return h.change(Publication{Subject: subject, Payload: msg.Payload})
 		}, h.log)
 		if err != nil {

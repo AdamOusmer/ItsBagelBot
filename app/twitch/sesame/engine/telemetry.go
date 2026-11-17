@@ -6,6 +6,8 @@ package engine
 import (
 	"context"
 
+	"ItsBagelBot/pkg/monitor"
+
 	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
@@ -22,6 +24,18 @@ func traceFrom(ctx context.Context) *newrelic.Transaction {
 		return txn
 	}
 	return newrelic.FromContext(ctx)
+}
+
+func continueTrace(ctx context.Context, link monitor.Link, name string) (context.Context, *newrelic.Transaction) {
+	ctx, txn := link.Start(ctx, name)
+	return withTrace(ctx), txn
+}
+
+func concurrentTrace(ctx context.Context) context.Context {
+	if traceFrom(ctx) == nil {
+		return ctx
+	}
+	return withTrace(monitor.Concurrent(ctx))
 }
 
 func startStage(ctx context.Context, name string) *newrelic.Segment {

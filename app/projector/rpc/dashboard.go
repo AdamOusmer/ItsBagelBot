@@ -158,7 +158,7 @@ func readSection[T any](ctx context.Context, d *Dashboard, req projectorrpc.Dash
 
 	items, projected, err := s.cached(ctx, userID)
 	if err == nil && projected {
-		d.hydrator.EnsureAsync(userID, hydration.Seed{})
+		d.hydrator.EnsureAsync(ctx, userID, hydration.Seed{})
 		return sectionResult[T]{userID: req.UserID, items: items}
 	}
 	if err != nil && log != nil {
@@ -167,10 +167,10 @@ func readSection[T any](ctx context.Context, d *Dashboard, req projectorrpc.Dash
 
 	filled, fillErr := s.fill(ctx, userID, req)
 	if fillErr != "" {
-		d.hydrator.EnsureAsync(userID, hydration.Seed{})
+		d.hydrator.EnsureAsync(ctx, userID, hydration.Seed{})
 		return sectionResult[T]{userID: req.UserID, refusal: unreachable(fillErr)}
 	}
-	d.hydrator.EnsureAsync(userID, s.seed(filled))
+	d.hydrator.EnsureAsync(ctx, userID, s.seed(filled))
 	return sectionResult[T]{userID: req.UserID, items: filled}
 }
 

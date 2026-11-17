@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 )
 
 const CheckoutBaseURL = "https://checkout.tebex.io"
@@ -67,7 +68,7 @@ func NewCheckoutClient(cfg CheckoutConfig) (*CheckoutClient, error) {
 }
 
 func checkoutHTTPClient(source *http.Client) *http.Client {
-	client := http.Client{Timeout: 10 * time.Second}
+	client := *monitor.HTTPClient(10 * time.Second)
 	if source != nil {
 		client = *source
 	}

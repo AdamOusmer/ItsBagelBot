@@ -61,16 +61,46 @@ defmodule Platform.NewRelic do
     if enabled?() do
       safe(fn -> NewRelic.start_transaction(category, name) end)
       safe(fn -> NewRelic.add_attributes(safe_attributes(attrs, policy)) end)
-
-      try do
-        fun.()
-      after
-        safe(fn -> NewRelic.stop_transaction() end)
-      end
+      traced(fun)
     else
       fun.()
     end
   end
+
+  def continue(category, name, headers, fun) when is_function(fun, 0) do
+    case enabled?() && sampled_headers(headers) do
+      %{} = inbound ->
+        safe(fn -> NewRelic.start_transaction(category, name, inbound) end)
+        traced(fun)
+
+      _unsampled ->
+        fun.()
+    end
+  end
+
+  defp traced(fun) do
+    try do
+      fun.()
+    after
+      safe(fn -> NewRelic.stop_transaction() end)
+    end
+  end
+
+  defp sampled_headers(headers) when is_list(headers) do
+    inbound =
+      headers
+      |> Map.new(fn {key, value} -> {String.downcase(to_string(key)), value} end)
+      |> Map.take(@trace_headers)
+
+    if sampled_parent?(inbound["traceparent"]), do: inbound
+  end
+
+  defp sampled_headers(_headers), do: nil
+
+  defp sampled_parent?(traceparent) when is_binary(traceparent),
+    do: String.ends_with?(traceparent, "-01")
+
+  defp sampled_parent?(_traceparent), do: false
 
   def span(name, attrs, fun, policy \\ %{}) when is_function(fun, 0) do
     if enabled?() do

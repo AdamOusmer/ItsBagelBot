@@ -17,6 +17,19 @@ defmodule Platform.NewRelicTest do
     end
   end
 
+  test "continue runs the callback whatever the inbound trace headers carry" do
+    sampled = [{"Traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"}]
+    unsampled = [{"traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00"}]
+
+    for headers <- [sampled, unsampled, [], nil] do
+      assert :result = Platform.NewRelic.continue("Test", "Test", headers, fn -> :result end)
+    end
+
+    assert_raise RuntimeError, fn ->
+      Platform.NewRelic.continue("Test", "Test", sampled, fn -> raise "callback" end)
+    end
+  end
+
   test "runtime policy rejects SDK overrides that enable automatic capture" do
     previous = System.get_env("NEW_RELIC_LOGS_IN_CONTEXT")
 

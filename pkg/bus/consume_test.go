@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/pkg/monitor"
+
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,6 +102,39 @@ func TestConsumeLaneContinuesEveryUpstreamTrace(t *testing.T) {
 
 	want := upstream.GetTraceMetadata().TraceID
 	assert.Equal(t, []string{want, want, want, ""}, traces, "a sampled upstream trace is continued at every hop whatever the local rate; an unsampled one is not")
+}
+
+func TestDetachedFollowUpContinuesTheConsumedTrace(t *testing.T) {
+	app := newLocalApplication(t)
+	upstream := app.StartTransaction("ingress")
+	defer upstream.End()
+	headers := http.Header{}
+	upstream.InsertDistributedTraceHeaders(headers)
+	links := make(chan monitor.Link, 2)
+	handle := func(msg *Message) error {
+		links <- monitor.LinkFrom(msg.Context())
+		return nil
+	}
+	traced := &feedSubscriber{messages: make(chan *Message, 1)}
+	untraced := &feedSubscriber{messages: make(chan *Message, 1)}
+	require.NoError(t, Consume(t.Context(), app, traced, "data.users.changed", handle, zap.NewNop()))
+	require.NoError(t, Consume(t.Context(), nil, untraced, "data.users.changed", handle, zap.NewNop()))
+	msg := NewMessage("traced", nil)
+	for key := range headers {
+		msg.Metadata.Set(key, headers.Get(key))
+	}
+	traced.messages <- msg
+	awaitSignal(t, msg.Acked(), "traced message was not acknowledged")
+	plain := NewMessage("untraced", nil)
+	untraced.messages <- plain
+	awaitSignal(t, plain.Acked(), "untraced message was not acknowledged")
+
+	_, followUp := (<-links).Start(context.Background(), "follow up")
+	defer followUp.End()
+	_, orphan := (<-links).Start(context.Background(), "follow up")
+
+	assert.Equal(t, upstream.GetTraceMetadata().TraceID, followUp.GetTraceMetadata().TraceID, "work after the handler returns joins the consumed trace")
+	assert.Nil(t, orphan, "a delivery without a transaction starts no follow-up transaction")
 }
 
 type outcomeCase struct {

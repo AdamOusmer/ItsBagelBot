@@ -12,6 +12,7 @@ import (
 
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/pkg/idempotency"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -186,7 +187,10 @@ func (p *Pipeline) startQueueWait(ctx context.Context, run *AutomationRun, turn 
 		p.queueWaiters.done()
 		return
 	}
+	link := monitor.LinkFrom(ctx)
 	go idempotency.Async(ctx, func(ctx context.Context) error {
+		ctx, txn := continueTrace(ctx, link, "automation queue")
+		defer txn.End()
 		p.awaitQueueTurn(ctx, waiting, turn)
 		return nil
 	})()

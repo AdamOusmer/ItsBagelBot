@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 )
 
 const DefaultDoHEndpoint = "https://security.cloudflare-dns.com/dns-query"
@@ -36,7 +37,7 @@ func NewDoH(endpoint string, client *http.Client) *DoH {
 		endpoint = DefaultDoHEndpoint
 	}
 	if client == nil {
-		client = &http.Client{Timeout: dohTimeout}
+		client = &http.Client{Timeout: dohTimeout, Transport: monitor.ExternalTransport(nil)}
 	}
 	return &DoH{endpoint: endpoint, client: client}
 }
