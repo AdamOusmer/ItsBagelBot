@@ -172,6 +172,7 @@ type pullSubscriber struct {
 	workers  sync.WaitGroup
 	inflight sync.WaitGroup
 	once     sync.Once
+	closeErr error
 }
 
 func newPullLaneSubscriber(cfg flowLaneConfig) (*pullSubscriber, error) {
@@ -479,9 +480,8 @@ func (s *pullSubscriber) pause(wait time.Duration) bool {
 }
 
 func (s *pullSubscriber) Close() error {
-	var err error
-	s.once.Do(func() { err = s.shutdown() })
-	return err
+	s.once.Do(func() { s.closeErr = s.shutdown() })
+	return s.closeErr
 }
 
 func (s *pullSubscriber) shutdown() error {

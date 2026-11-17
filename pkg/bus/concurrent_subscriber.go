@@ -38,6 +38,7 @@ type concurrentDurableSubscriber struct {
 	subs      map[*nats.Subscription]ownedSubscription
 	closeCh   chan struct{}
 	closeOnce sync.Once
+	closeErr  error
 
 	registrations sync.WaitGroup
 	acks          sync.WaitGroup
@@ -575,9 +576,8 @@ func (s *concurrentDurableSubscriber) nack(msg *nats.Msg, retryAfter time.Durati
 }
 
 func (s *concurrentDurableSubscriber) Close() error {
-	var err error
-	s.closeOnce.Do(func() { err = s.shutdown() })
-	return err
+	s.closeOnce.Do(func() { s.closeErr = s.shutdown() })
+	return s.closeErr
 }
 
 func (s *concurrentDurableSubscriber) shutdown() error {
