@@ -7,9 +7,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
+
+	"ItsBagelBot/pkg/monitor"
 )
 
 const (
@@ -56,7 +59,11 @@ func (r *Roller) loop(ctx context.Context, namespaces []string, wake <-chan stru
 }
 
 func (r *Roller) reconcileLogged(ctx context.Context, namespace string) {
-	if err := r.Reconcile(ctx, namespace); err != nil {
+	txn := monitor.Resolve(nil).StartTransaction("certroll reconcile")
+	defer txn.End()
+	txn.AddAttribute("namespace", namespace)
+	if err := r.Reconcile(newrelic.NewContext(ctx, txn), namespace); err != nil {
+		txn.NoticeError(err)
 		r.log.Error("certroll: reconcile failed", zap.String("namespace", namespace), zap.Error(err))
 	}
 }

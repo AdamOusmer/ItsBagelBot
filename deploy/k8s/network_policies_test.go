@@ -203,6 +203,10 @@ func TestAppEgressAllowlists(t *testing.T) {
 			wantCIDRs: newRelicIngestCIDRs,
 		},
 		{
+			name: "TestClusterOpsNewRelicEgressAllowlist", path: clusterOpsManifest, policy: "allow-newrelic",
+			wantApps: []string{"clusterops"}, wantCIDRs: newRelicIngestCIDRs,
+		},
+		{
 			name: "TestDBPublicHTTPSEgressAllowlist", path: dbPolicies, policy: "allow-public-https",
 			wantApps: sorted("transactions", "users"),
 		},

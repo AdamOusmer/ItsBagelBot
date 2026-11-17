@@ -42,10 +42,11 @@ func TestBotIdentityComesFromTheRightSecret(t *testing.T) {
 
 func TestClusterOpsSecretsAreWiredOneByOne(t *testing.T) {
 	want := secretEnv{Refs: map[string]string{
-		"APP_ENV":            "clusterops-env/APP_ENV",
-		"NATS_SIGNING_SEED":  "clusterops-env/DEPLOY_NATS_SIGNING_SEED",
-		"NATS_SYS_JWT":       "clusterops-env/DEPLOY_NATS_SYS_JWT",
-		"NATS_SYS_NKEY_SEED": "clusterops-env/DEPLOY_NATS_SYS_NKEY_SEED",
+		"APP_ENV":               "clusterops-env/APP_ENV",
+		"NATS_SIGNING_SEED":     "clusterops-env/DEPLOY_NATS_SIGNING_SEED",
+		"NATS_SYS_JWT":          "clusterops-env/DEPLOY_NATS_SYS_JWT",
+		"NATS_SYS_NKEY_SEED":    "clusterops-env/DEPLOY_NATS_SYS_NKEY_SEED",
+		"NEW_RELIC_LICENSE_KEY": "clusterops-env/NEW_RELIC_LICENSE_KEY",
 	}}
 
 	assert.Equal(t, want, findDeployment(t, clusterOpsManifest, "clusterops").secretEnv())
