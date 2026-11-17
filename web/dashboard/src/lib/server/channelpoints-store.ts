@@ -1,16 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Twitch first, then the binding blob, so the two never diverge on a failed call.
-import { rpcRefusal } from '@bagel/kit/server/nats';
-import { codeReader } from '@bagel/kit/server/rpc-code';
 import { logger } from '@bagel/kit/server/logger';
 import { blankReward, type ChannelPointReward, MOD } from '@bagel/kit';
 import { publishEventSubEnsureOptional } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
 import { createCounter } from './loyalty-store';
-import { callReward, type RewardReplyWire, type RewardWire } from './reward-wire';
+import { callReward, rewardRefusal as refusal, type RewardWire } from './reward-wire';
 
 type UserId = string;
 type RewardId = string;
@@ -20,10 +17,6 @@ const CP_MODULE = MOD.channelpoints;
 export type RewardResult =
   | { ok: true; reward?: ChannelPointReward }
   | { ok: false; missingScope?: boolean; duplicateTitle?: boolean; notAffiliate?: boolean; error?: string };
-
-type RewardFailure = Extract<RewardResult, { ok: false }>;
-
-const replyCode = codeReader(['conflict'] as const);
 
 export interface RewardsView {
   enabled: boolean;
@@ -99,23 +92,6 @@ async function writeRewards(userId: UserId, enabled: boolean, rewards: ChannelPo
   await upsertModule(userId, CP_MODULE, enabled, rewards.length ? { rewards } : {});
 }
 
-function refusal(reply: RewardReplyWire): RewardFailure | null {
-  if (reply.missing_scope) return { ok: false, missingScope: true };
-  if (reply.not_affiliate) return { ok: false, notAffiliate: true };
-  if (replyCode(reply) === 'conflict') return { ok: false, duplicateTitle: true };
-  const err = rpcRefusal(reply);
-  if (err) throw err;
-  return null;
-}
-
-async function rollbackCreatedReward(userId: UserId, rewardId: RewardId): Promise<void> {
-  try {
-    await callReward('delete', { broadcaster_id: userId, reward_id: rewardId });
-  } catch (e) {
-    logger.error({ err: e, rewardId }, '[channelpoints] rollback of created reward failed');
-  }
-}
-
 export async function createReward(userId: UserId, draft: ChannelPointReward): Promise<RewardResult> {
   const reply = await callReward('create', { broadcaster_id: userId, reward: toWire(draft) });
   const refused = refusal(reply);
@@ -123,14 +99,9 @@ export async function createReward(userId: UserId, draft: ChannelPointReward): P
   if (!reply.reward) return { ok: false, error: 'create failed' };
 
   const created = mergeTwitch(reply.reward, draft);
-  try {
-    const cur = await readRewards(userId);
-    const enabled = cur.rewards.length === 0 ? true : cur.enabled;
-    await writeRewards(userId, enabled, [...cur.rewards, created]);
-  } catch (e) {
-    await rollbackCreatedReward(userId, created.id);
-    throw e;
-  }
+  const cur = await readRewards(userId);
+  const enabled = cur.rewards.length === 0 ? true : cur.enabled;
+  await writeRewards(userId, enabled, [...cur.rewards, created]);
   await ensureRewardCounter(userId, created);
   await publishEventSubEnsureOptional(userId);
   return { ok: true, reward: created };

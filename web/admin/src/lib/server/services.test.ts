@@ -96,3 +96,11 @@ test.each(['audit', 'staff'])('%s self-broadcast evicts another pod cache', asyn
   await read();
   expect(calls.sort()).toEqual(scope === 'audit' ? ['rpc.admin.user.audit.list'] : ['rpc.admin.user.auth.check', 'rpc.admin.user.auth.list']);
 });
+
+test.each(['*', '42'])('a notifications broadcast for %s evicts the notification list on every pod', async (id) => {
+  await services.notificationsList(1);
+  calls.length = 0;
+  invalidation('notifications', id);
+  await services.notificationsList(1);
+  expect(calls).toEqual(['rpc.admin.notifications.list']);
+});

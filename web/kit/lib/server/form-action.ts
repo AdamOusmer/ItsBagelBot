@@ -3,8 +3,22 @@
 
 import { fail, type ActionFailure } from '@sveltejs/kit';
 import type { ActionOk } from '../action-result';
+import { RpcError } from './nats';
+import type { RpcCode } from './rpc-code';
 
 export type MutationRefusal = ActionFailure<ActionOk>;
+
+const CLIENT_REFUSAL_STATUS: Partial<Record<RpcCode | '', number>> = {
+  invalid: 400,
+  forbidden: 403,
+  not_found: 404,
+  conflict: 409
+};
+
+export function thrownStatus(err: unknown): number {
+  const code = err instanceof RpcError ? err.code : '';
+  return CLIENT_REFUSAL_STATUS[code] ?? 502;
+}
 
 export type MutationSpec<Ctx> = {
   gate: () => Ctx | null | Promise<Ctx | null>;

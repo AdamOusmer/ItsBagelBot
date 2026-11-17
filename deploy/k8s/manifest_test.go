@@ -75,6 +75,7 @@ func (w workload) probeCommands() [][]string {
 
 type envVar struct {
 	Name      string `yaml:"name"`
+	Value     string `yaml:"value"`
 	ValueFrom struct {
 		SecretKeyRef struct {
 			Name string `yaml:"name"`

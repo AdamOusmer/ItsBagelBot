@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { afterEach, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, jest, mock, spyOn, test } from 'bun:test';
+import { logger } from '@bagel/kit/server/logger';
 import { STATIC_LOCALES, staticText } from '../../../../../kit/lib/i18n/static';
 import { privateEnv, stubSvelteKit } from '../../../../test/sveltekit';
 import { PAGE_ACTION, PUBLIC_PAGES, pageScope, type PublicPage } from '../../../lib/public-pages';
@@ -161,6 +162,17 @@ describe.each(toggles)('$action action', (toggle) => {
     };
     expect({ result, writes: hiddenWrites, purges: purgeBodies } as unknown).toEqual(expected);
   });
+});
+
+test('a failed page toggle logs the upstream error behind its 502', async () => {
+  writeFails = true;
+  const logged = spyOn(logger, 'error').mockImplementation(() => {});
+  const toggle = toggles[0]!;
+
+  await submitToggle(toggle, { user_id: '7' }, { enabled: 'on' });
+
+  expect(logged.mock.calls).toEqual([[{ err: new Error('rpc down') }, `[settings] ${toggle.page}:set failed`]]);
+  logged.mockRestore();
 });
 
 test.each(toggles)('$action lets an admin view-as session flip the channel page and audits it', async (toggle) => {

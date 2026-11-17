@@ -40,7 +40,9 @@ export interface MirroredReward {
   cooldown: number;
 }
 
-export type RewardRemoteResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string };
+export type RewardRefused = { ok: false; missingScope?: boolean; duplicateTitle?: boolean; notAffiliate?: boolean };
+
+export type RewardRemoteResult = { ok: true } | (RewardRefused & { error?: string });
 
 const rewardSubject = (verb: string) => `${SUB.outgressRpc}.channelpoints.${verb}`;
 
@@ -48,12 +50,13 @@ export function callReward(verb: string, req: Record<string, unknown>): Promise<
   return rpcReply<RewardReplyWire>(rewardSubject(verb), req, 8000);
 }
 
-async function callRewardOrThrow(userId: string, verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
-  const reply = await callReward(verb, { broadcaster_id: userId, ...req });
-  if (reply.missing_scope) return reply;
-  const refusal = rpcRefusal(reply);
-  if (refusal) throw refusal;
-  return reply;
+export function rewardRefusal(reply: RewardReplyWire): RewardRefused | null {
+  if (reply.missing_scope) return { ok: false, missingScope: true };
+  if (reply.not_affiliate) return { ok: false, notAffiliate: true };
+  if (rpcCode(reply) === 'conflict') return { ok: false, duplicateTitle: true };
+  const err = rpcRefusal(reply);
+  if (err) throw err;
+  return null;
 }
 
 export interface RewardFlags {
@@ -113,8 +116,9 @@ export async function saveRewardFlow(
   const req: Record<string, unknown> = { reward: rewardWire(draft, existingId, prompt, flags) };
   if (existingId) req.reward_id = existingId;
 
-  const reply = await callRewardOrThrow(userId, verb, req);
-  if (reply.missing_scope) return { ok: false, missingScope: true };
+  const reply = await callReward(verb, { broadcaster_id: userId, ...req });
+  const refused = rewardRefusal(reply);
+  if (refused) return refused;
   if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
 
   await persist(mirrorReward(reply.reward, draft.color, existingId));

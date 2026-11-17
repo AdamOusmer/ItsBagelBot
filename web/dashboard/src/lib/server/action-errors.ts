@@ -99,7 +99,9 @@ const KEYS: Record<string, MessageKey> = {
   'Enter a valid point cost.': 'serverErrors.pointCost',
   'Pick a valid colour.': 'serverErrors.colour',
   'missing_scope': 'serverErrors.rewardScope',
-  'reward_failed': 'serverErrors.rewardFailed'
+  'reward_failed': 'serverErrors.rewardFailed',
+  'duplicate_title': 'channelpoints.toastDuplicateTitle',
+  'not_affiliate': 'channelpoints.toastNotAffiliate'
 };
 
 export function actionError(locale: Locale, fallback: string): string {

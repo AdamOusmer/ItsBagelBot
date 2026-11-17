@@ -17,7 +17,7 @@ export type SaveReply =
 
 export type RewardReply =
   | { ok: true; rewardId: string; title: string; cost: number; color: string; cooldown: number }
-  | { ok: false; error: string; missingScope?: boolean };
+  | { ok: false; error: string; status: number; missingScope?: boolean };
 
 export type ToggleReply =
   | { ok: true; enabled: boolean; revision: string; warnings: FlowWarning[] }

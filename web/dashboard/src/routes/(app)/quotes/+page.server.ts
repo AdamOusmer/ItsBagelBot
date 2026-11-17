@@ -14,6 +14,7 @@ import {
 } from '#lib/server/quotes-store';
 import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
+import { thrownStatus } from '@bagel/kit/server/form-action';
 import { gateModulePage } from '#lib/server/module-gate';
 import { moduleLoad } from '#lib/server/module-page';
 import type { Session } from '#lib/server/session';
@@ -82,7 +83,7 @@ async function runQuote<T extends object>(
     return { ok: true, ...payload };
   } catch (e) {
     logger.error({ err: e }, `[quotes] ${op.verb} failed`);
-    return fail(400, op.error ? { ok: false, error: op.error } : { ok: false });
+    return fail(thrownStatus(e), op.error ? { ok: false, error: op.error } : { ok: false });
   }
 }
 
