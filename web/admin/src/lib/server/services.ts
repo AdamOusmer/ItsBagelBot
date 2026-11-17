@@ -886,7 +886,7 @@ export async function botCounterCreate(name: string): Promise<BotCounter> {
 export async function botCounterSet(name: string, value: string): Promise<void> {
   const r = await loyaltyCall('set', { name, counter_value: value });
   if (r.error) throw new Error(r.error);
-  if (!r.found) throw new Error('unknown counter');
+  if (!r.found) throw new RpcError('unknown counter', 'not_found');
 }
 
 export async function botCounterDelete(name: string): Promise<void> {
