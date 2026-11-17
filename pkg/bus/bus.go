@@ -298,7 +298,7 @@ func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode
 	if !declined {
 		return mode
 	}
-	s.logger().Info("receipt-level consumption declined outside the hot ingress lanes",
+	s.logger().Debug("receipt-level consumption declined outside the hot ingress lanes",
 		zap.String("stream", target.stream),
 		zap.String("subject", target.topic),
 		zap.String("mode", string(mode)))
