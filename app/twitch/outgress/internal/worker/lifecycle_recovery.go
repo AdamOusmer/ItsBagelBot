@@ -24,6 +24,7 @@ func (w *Worker) recoverLifecycle(ctx context.Context, uid uint64, current users
 	if recoveryErr != nil {
 		req.Action = "recovery_failed"
 		req.Reason = recoveryErr.Error()
+		w.upgradeRecoveryToBan(ctx, e, recoveryErr)
 	}
 	done, err := w.mutateLifecycle(ctx, req)
 	if err != nil {
