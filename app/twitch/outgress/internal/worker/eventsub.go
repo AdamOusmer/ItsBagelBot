@@ -281,6 +281,7 @@ func (w *Worker) recordEnrollFailure(ctx context.Context, e enrollment, op strin
 	switch {
 	case w.lifecycleNC == nil && isAuthRevoked(err):
 		_ = w.blockChannelFrom(ctx, e.broadcasterID, blockRevoked.because(op+": "+err.Error()), e.priorState)
+	case w.recordConfirmedChatBan(ctx, e, err):
 	default:
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
 		w.log.Error(op+": eventsubs not fully accepted, marked failing",
