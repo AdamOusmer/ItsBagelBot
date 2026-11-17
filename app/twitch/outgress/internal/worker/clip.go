@@ -127,7 +127,7 @@ func (w *Worker) replyWithClip(ctx context.Context, meta clipMeta, res *http.Res
 		Title:         strings.TrimSpace(meta.Title),
 	}
 	w.publishClipCreated(ctx, evt)
-	w.scheduleClipVerify(evt.BroadcasterID, evt.Clipper, evt.ClipID)
+	w.scheduleClipVerify(ctx, clipProbe{broadcasterID: evt.BroadcasterID, clipper: evt.Clipper, clipID: evt.ClipID})
 }
 
 func (w *Worker) publishClipCreated(ctx context.Context, evt data.ClipCreated) {

@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -92,7 +93,7 @@ func (p *Pipeline) applyChatVerdict(ctx context.Context, mctx *module.Context, d
 	id := mctx.BroadcasterID
 	p.stats.record(ctx, func() { p.stats.flag(id, flagRule(v.Rule), actioned) })
 	p.recordFlag(ctx, flagRule(v.Rule), actioned)
-	p.log.Info("automod verdict",
+	monitor.TxnLogger(ctx, p.log).Info("automod verdict",
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
 		zap.Bool("enforced", actioned),
@@ -191,7 +192,7 @@ func (p *Pipeline) applyCohortVerdict(ctx context.Context, action cohortAction, 
 	}
 	p.stats.record(ctx, func() { p.stats.flag(broadcasterID, flagRule(v.Rule), actioned) })
 	p.recordFlag(ctx, flagRule(v.Rule), actioned)
-	p.log.Info("automod cohort verdict",
+	monitor.TxnLogger(ctx, p.log).Info("automod cohort verdict",
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
 		zap.Int("cohort", len(env.Senders)),

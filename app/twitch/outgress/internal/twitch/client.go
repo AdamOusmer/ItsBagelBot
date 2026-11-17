@@ -16,8 +16,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/codec"
-
-	"github.com/newrelic/go-agent/v3/newrelic"
+	"ItsBagelBot/pkg/monitor"
 )
 
 const apiBase = "https://api.twitch.tv"
@@ -101,13 +100,13 @@ func newHTTPClient() *http.Client {
 		SendPingTimeout: helixH2ReadIdleTimeout,
 		PingTimeout:     helixH2PingTimeout,
 	}
-	return &http.Client{Transport: transport, Timeout: clientTimeout}
+	return &http.Client{Transport: monitor.ExternalTransport(transport), Timeout: clientTimeout}
 }
 
 func (c *Client) CloseIdleConnections() { c.http.CloseIdleConnections() }
 
 func (c *Client) SetTransport(rt http.RoundTripper) {
-	c.http = &http.Client{Transport: rt, Timeout: clientTimeout}
+	c.http = &http.Client{Transport: monitor.ExternalTransport(rt), Timeout: clientTimeout}
 }
 
 type Identity int
@@ -458,10 +457,7 @@ func (c *Client) do(ctx context.Context, src *Source, call HelixCall) (*http.Res
 	return c.performAttempt(ctx, req, call.Endpoint)
 }
 func (c *Client) performAttempt(ctx context.Context, req *http.Request, endpoint string) (*http.Response, error) {
-	seg := newrelic.StartExternalSegment(newrelic.FromContext(ctx), req)
 	res, err := c.http.Do(req)
-	seg.Response = res
-	seg.End()
 	if c.observe != nil {
 		c.observe(statusOf(res), err)
 	}

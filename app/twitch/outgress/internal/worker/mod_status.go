@@ -10,7 +10,9 @@ import (
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -67,17 +69,24 @@ func newModVerifier(registry modRegistry, tw moderatorClient, botID, owner strin
 	}
 }
 
-func (v *ModVerifier) Status(ch manage.Channel, found bool, broadcasterID, senderID string) bool {
-	if found && !ch.ModCheckedAt.IsZero() && time.Since(ch.ModCheckedAt) < modStatusTTL {
+func (v *ModVerifier) Status(ctx context.Context, ch manage.Channel, found bool, payload *outgress.Message) bool {
+	if found && modCheckFresh(ch) {
 		return ch.IsMod
 	}
-	v.Schedule(broadcasterID, senderID)
+	v.Schedule(ctx, payload.BroadcasterID, payload.SenderID)
 	return found && ch.IsMod
 }
 
-type moderatorCheck struct{ broadcasterID, botID string }
+func modCheckFresh(ch manage.Channel) bool {
+	return !ch.ModCheckedAt.IsZero() && time.Since(ch.ModCheckedAt) < modStatusTTL
+}
 
-func (v *ModVerifier) Schedule(broadcasterID, senderID string) {
+type moderatorCheck struct {
+	broadcasterID, botID string
+	link                 monitor.Link
+}
+
+func (v *ModVerifier) Schedule(ctx context.Context, broadcasterID, senderID string) {
 	check := moderatorCheck{broadcasterID: broadcasterID}
 	if !v.canSchedule(check) {
 		return
@@ -95,6 +104,7 @@ func (v *ModVerifier) Schedule(broadcasterID, senderID string) {
 	}
 
 	check.botID = botID
+	check.link = monitor.LinkFrom(ctx)
 	go v.verify(check)
 }
 
@@ -109,7 +119,9 @@ func (v *ModVerifier) verify(check moderatorCheck) {
 	failed := false
 	defer func() { v.finishCheck(check, failed) }()
 
-	ctx, cancel := context.WithTimeout(context.Background(), modCheckTimeout)
+	ctx, txn := check.link.Start(context.Background(), "mod status verify")
+	defer txn.End()
+	ctx, cancel := context.WithTimeout(ctx, modCheckTimeout)
 	defer cancel()
 
 	if !v.admitted(ctx, check) {
@@ -142,7 +154,7 @@ func (v *ModVerifier) verify(check moderatorCheck) {
 		return
 	}
 
-	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	releaseCtx, releaseCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer releaseCancel()
 	if err := v.registry.ReleaseModCheckLock(releaseCtx, check.broadcasterID, v.owner); err != nil {
 		v.log.Warn("failed to release mod status lock", zap.String("broadcaster_id", check.broadcasterID), zap.Error(err))

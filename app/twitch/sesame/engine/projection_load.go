@@ -7,14 +7,15 @@ import (
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/projection"
 	"context"
-	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
 func traceEnvelope(ctx context.Context, env *lane.Envelope) {
-	if txn := newrelic.FromContext(ctx); txn != nil {
+	if txn := traceFrom(ctx); txn != nil {
 		txn.AddAttribute("event.type", env.Type)
 		txn.AddAttribute("event.lane", env.Lane)
 		txn.AddAttribute("event.origin", env.Origin)
+		txn.AddAttribute("event.message_id", env.MsgID)
+		txn.AddAttribute("event.chat_message_id", env.ChatMessageID)
 		if env.Origin == "trial" {
 			txn.AddAttribute("event.trial_generation", env.TrialGeneration)
 		}

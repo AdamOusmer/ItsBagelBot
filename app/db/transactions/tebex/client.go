@@ -5,6 +5,7 @@ package tebex
 
 import (
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 	"bytes"
 	"context"
 	"errors"
@@ -122,7 +123,7 @@ func New(cfg Config) (*Client, error) {
 		cfg.BaseURL = DefaultBaseURL
 	}
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{Timeout: 10 * time.Second}
+		cfg.HTTPClient = monitor.HTTPClient(10 * time.Second)
 	}
 	return &Client{cfg: cfg}, nil
 }

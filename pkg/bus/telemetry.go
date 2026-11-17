@@ -21,6 +21,8 @@ const (
 	messagingOperationAttribute   = "messaging.operation"
 	messagingDestinationAttribute = "messaging.destination"
 	queueMillisAttribute          = "messaging.queue_ms"
+	messageIDAttribute            = "messaging.message.id"
+	sampledTraceFlags             = "-01"
 	sampledAttribute              = "sampled"
 	resultAttribute               = "result"
 	rpcDestinationPrefix          = "rpc."
@@ -174,6 +176,14 @@ func acceptTraceHeaders(txn *newrelic.Transaction, headers nats.Header) {
 		}
 	}
 	acceptQueueTrace(txn, httpHeaders)
+}
+
+func continuesTrace(metadata Metadata) bool {
+	parent, ok := metadata["traceparent"]
+	if !ok {
+		parent = metadata["Traceparent"]
+	}
+	return strings.HasSuffix(parent, sampledTraceFlags)
 }
 
 func acceptMetadataTraceHeaders(txn *newrelic.Transaction, metadata Metadata) {

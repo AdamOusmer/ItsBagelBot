@@ -5,6 +5,7 @@ package automod
 
 import (
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 	"cmp"
 	"context"
 	"fmt"
@@ -36,7 +37,7 @@ type EmoteFetcher struct {
 
 func NewEmoteFetcher(client *http.Client, endpoints EmoteEndpoints) *EmoteFetcher {
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = &http.Client{Timeout: 10 * time.Second, Transport: monitor.ExternalTransport(nil)}
 	}
 	return &EmoteFetcher{client: client, endpoints: endpoints}
 }

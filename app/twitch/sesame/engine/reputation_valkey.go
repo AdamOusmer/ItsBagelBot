@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
+	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
@@ -53,7 +54,10 @@ func (r *ValkeyReputation) Bump(ctx context.Context, chatterID string) {
 		return
 	}
 	chatterID = strings.Clone(chatterID)
+	link := monitor.LinkFrom(ctx)
 	go idempotency.Async(ctx, func(ctx context.Context) error {
+		ctx, txn := link.Start(ctx, "reputation bump")
+		defer txn.End()
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		_, err := pkg_valkey.Incr(ctx, r.client, repKey(chatterID), r.ttl)

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 
 	"go.uber.org/zap"
@@ -47,7 +48,7 @@ func TestStaleModStatusReturnsWithoutWaitingForTwitch(t *testing.T) {
 	t.Cleanup(verifier.Close)
 
 	start := time.Now()
-	got := verifier.Status(manage.Channel{IsMod: true}, true, "broadcaster", "")
+	got := verifier.Status(context.Background(), manage.Channel{IsMod: true}, true, &outgress.Message{BroadcasterID: "broadcaster"})
 	if !got {
 		t.Fatal("last known moderator state was not preserved")
 	}
@@ -79,7 +80,7 @@ func TestModVerificationFailurePreservesStoredState(t *testing.T) {
 	verifier := newModVerifier(registry, client, "bot", "pod", zap.NewNop())
 	t.Cleanup(verifier.Close)
 
-	if got := verifier.Status(manage.Channel{IsMod: true}, true, "broadcaster", ""); !got {
+	if got := verifier.Status(context.Background(), manage.Channel{IsMod: true}, true, &outgress.Message{BroadcasterID: "broadcaster"}); !got {
 		t.Fatal("last known moderator state was not returned")
 	}
 	<-client.started

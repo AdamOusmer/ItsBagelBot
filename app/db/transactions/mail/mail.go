@@ -8,12 +8,12 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/resend/resend-go/v4"
 )
@@ -55,7 +55,7 @@ type renderedMessage struct {
 var logoPNG []byte
 
 func New(apiKey, from, dashboardURL string) *Mailer {
-	client := resend.NewCustomClient(&http.Client{Timeout: sendTimeout}, apiKey)
+	client := resend.NewCustomClient(monitor.HTTPClient(sendTimeout), apiKey)
 	return &Mailer{sender: client.Emails, from: from, dashboardURL: dashboardURL}
 }
 

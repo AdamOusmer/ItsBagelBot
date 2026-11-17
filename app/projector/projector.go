@@ -315,7 +315,7 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 func (p *Projector) refreshStream(ctx context.Context, id uint64, streamVersion int64) error {
 	log := monitor.TxnLogger(ctx, p.log)
 	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", id))
-	p.hydrator.RefreshAsync(id)
+	p.hydrator.RefreshAsync(ctx, id)
 
 	pending, err := p.store.StreamBaselinePending(ctx, id, streamVersion)
 	if err != nil {

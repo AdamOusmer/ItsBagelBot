@@ -26,8 +26,8 @@ defmodule Ingress.Nats do
     end
   end
 
-  @spec publish_acked(String.t(), map()) :: :ok | {:error, term()}
-  def publish_acked(subject, payload) do
+  @spec publish_acked(String.t(), map(), [{String.t(), String.t()}]) :: :ok | {:error, term()}
+  def publish_acked(subject, payload, headers \\ Trace.trace_headers()) do
     json =
       Trace.span("encode", fn ->
         Sift.encode!(payload)
@@ -38,7 +38,7 @@ defmodule Ingress.Nats do
         "nats.publish.admit",
         ["messaging.destination": Trace.destination(subject)],
         fn ->
-          result = Publisher.enqueue(subject, json, Trace.trace_headers())
+          result = Publisher.enqueue(subject, json, headers)
           Trace.add_span_attributes(result: Trace.result(result))
           result
         end

@@ -73,6 +73,7 @@ func (s *urlTokenSink) verdict() string {
 
 func (p *Pipeline) launchTokenFetch(ctx context.Context, c *module.Context, name string, sink *urlTokenSink) {
 	sink.wg.Add(1)
+	ctx = concurrentTrace(ctx)
 	go func() {
 		defer sink.wg.Done()
 		out := tokenOutcome{name: name, visible: true}

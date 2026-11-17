@@ -164,7 +164,7 @@ func TestEnsureAsyncReturnsBeforeHydrationCheckCompletes(t *testing.T) {
 
 	returned := make(chan struct{})
 	go func() {
-		h.EnsureAsync(42, hydration.Seed{})
+		h.EnsureAsync(context.Background(), 42, hydration.Seed{})
 		close(returned)
 	}()
 
@@ -209,7 +209,7 @@ func TestEnsureAsyncHydratesMissingSectionsWithQueryTTLAndReusesSeed(t *testing.
 			nc, up := newUpstream(t, nil)
 			store := newMemStore(projection.HydrationState{})
 
-			newHydrator(nc, up, store, 2).EnsureAsync(42, tc.seed)
+			newHydrator(nc, up, store, 2).EnsureAsync(context.Background(), 42, tc.seed)
 
 			assert.Equal(t, tc.wantWrites, store.collect(t, 3))
 			assert.Equal(t, tc.wantFetched, up.fetched())
@@ -221,7 +221,7 @@ func TestEnsureAsyncSkipsFullyHydratedCache(t *testing.T) {
 	nc, up := newUpstream(t, nil)
 	store := newMemStore(complete)
 
-	newHydrator(nc, up, store, 1).EnsureAsync(42, hydration.Seed{})
+	newHydrator(nc, up, store, 1).EnsureAsync(context.Background(), 42, hydration.Seed{})
 
 	require.Eventually(t, func() bool { return store.scans.Load() == 1 }, time.Second, 5*time.Millisecond)
 	store.neverWrites(t, 100*time.Millisecond)
@@ -236,10 +236,10 @@ func TestEnsureAsyncCollapsesConcurrentQueriesPerUser(t *testing.T) {
 	store.onScan = func(uint64) { started(); <-release }
 	h := newHydrator(nc, up, store, 2)
 
-	h.EnsureAsync(42, hydration.Seed{})
+	h.EnsureAsync(context.Background(), 42, hydration.Seed{})
 	waitFor(t, startedCh, "first scan")
 	for range 20 {
-		h.EnsureAsync(42, hydration.Seed{})
+		h.EnsureAsync(context.Background(), 42, hydration.Seed{})
 	}
 	close(release)
 
@@ -254,8 +254,8 @@ func TestHydrationConcurrencyIsBounded(t *testing.T) {
 	store.onScan = func(userID uint64) { entered <- userID; <-release }
 	h := newHydrator(nc, up, store, 1)
 
-	h.EnsureAsync(41, hydration.Seed{})
-	h.EnsureAsync(42, hydration.Seed{})
+	h.EnsureAsync(context.Background(), 41, hydration.Seed{})
+	h.EnsureAsync(context.Background(), 42, hydration.Seed{})
 	select {
 	case <-entered:
 	case <-time.After(time.Second):
@@ -278,7 +278,7 @@ func TestRefreshAsyncForcesFullHydrationWithLiveTTL(t *testing.T) {
 	nc, up := newUpstream(t, nil)
 	store := newMemStore(complete)
 
-	newHydrator(nc, up, store, 1).RefreshAsync(42)
+	newHydrator(nc, up, store, 1).RefreshAsync(context.Background(), 42)
 
 	assert.Equal(t, map[string]write{
 		"user":     {section: "user", ttl: liveTTL},
@@ -295,7 +295,7 @@ func TestEnsureAsyncLeavesFailedSectionUnprojectedForRetry(t *testing.T) {
 	})
 	store := newMemStore(projection.HydrationState{})
 
-	newHydrator(nc, up, store, 1).EnsureAsync(42, hydration.Seed{})
+	newHydrator(nc, up, store, 1).EnsureAsync(context.Background(), 42, hydration.Seed{})
 
 	assert.Contains(t, store.collect(t, 2), "user")
 	require.Eventually(t, func() bool { return up.hits["commands"].Load() == attempts }, 3*time.Second, 10*time.Millisecond)
@@ -323,7 +323,7 @@ func TestMissingAccountIsFinalAndQuiet(t *testing.T) {
 			core, logs := observer.New(zapcore.InfoLevel)
 			h := hydration.New(store, nc, up.subjects, queryTTL, liveTTL, 1, zap.New(core))
 
-			h.EnsureAsync(42, hydration.Seed{})
+			h.EnsureAsync(context.Background(), 42, hydration.Seed{})
 
 			assert.NotContains(t, store.collect(t, 2), "user")
 			require.Eventually(t, func() bool { return up.hits["users"].Load() == tc.wantFetches }, 3*time.Second, 10*time.Millisecond)
