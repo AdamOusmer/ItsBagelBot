@@ -43,7 +43,7 @@ func accountRoles(account string, roles ...string) string {
 func serviceCredentialSecrets(h *harness) []string {
 	var names []string
 	for name := range snapshotSecrets(h.store) {
-		if project, _, _ := strings.Cut(name, "/"); project != operatorProject && project != deployerProject {
+		if project, _, _ := strings.Cut(name, "/"); project != operatorProject {
 			names = append(names, name)
 		}
 	}
@@ -103,17 +103,4 @@ func TestMintedUserCredentialIsIssuedByTheRoleKeyWithNoPermissionLimits(t *testi
 	signature, err := seed.Sign(nonce)
 	require.NoError(t, err)
 	assert.NoError(t, subject.Verify(nonce, signature), "seed must be the private half of the JWT subject")
-}
-
-func TestDeployIdentityCanOnlyManageClaimsAndItsSigningSeedIsTheOperators(t *testing.T) {
-	h := newHarness(t, roleACL)
-	h.apply(t)
-
-	claims, err := jwt.DecodeUserClaims(h.secret(deployerProject, deploySysJWTKey))
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"$SYS.REQ.CLAIMS.UPDATE", "$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP", "$SYS.REQ.SERVER.PING"}, []string(claims.Pub.Allow))
-	assert.Equal(t, []string{"_INBOX.>"}, []string(claims.Sub.Allow))
-	assert.Equal(t, h.keys(t).Accounts["SYS"], claims.Issuer)
-	assert.Equal(t, h.secret(operatorProject, "NATS_OPERATOR_SIGNING_SEED"), h.secret(deployerProject, deploySigningSeedKey))
 }

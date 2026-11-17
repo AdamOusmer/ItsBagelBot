@@ -24,7 +24,6 @@ var rawNATSMethods = map[string]bool{
 }
 
 var rawNATSAllowed = map[string]string{
-	"ItsBagelBot/app/clusterops/internal/natsclaims":    "system-account claim updates carry no message",
 	"ItsBagelBot/internal/natsmigrate":                  "operator stream migration tool",
 	"ItsBagelBot/internal/domain/invalidate":            "cache invalidation fan-out",
 	"ItsBagelBot/app/projector":                         "cache invalidation fan-out",
