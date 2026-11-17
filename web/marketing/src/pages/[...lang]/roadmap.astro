@@ -1,0 +1,30 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '@bagel/ui/astro/PageHero.astro';
+import RoadmapBoard from '../../components/roadmap/RoadmapBoard.astro';
+import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
+import { itemCatalogs } from '../../lib/roadmap/items';
+import { loadRoadmap } from '../../lib/roadmap/linear';
+import { localizeRoadmap, staleItems } from '../../lib/roadmap/localize';
+
+export const getStaticPaths = localeStaticPaths;
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+const roadmap = await loadRoadmap();
+const stale = lang === 'en' ? staleItems(roadmap, itemCatalogs) : [];
+if (stale.length) console.warn(`[roadmap] Linear copy differs from locales/en/roadmap/items.json for: ${stale.join(', ')}`);
+---
+
+<Layout title={t('roadmap.metaTitle')} description={t('roadmap.metaDesc')}>
+    <PageHero
+        eyebrow={t('roadmap.eyebrow')}
+        title={t('roadmap.title')}
+        description={t('roadmap.desc')}
+    />
+    <RoadmapBoard roadmap={localizeRoadmap(roadmap, lang, itemCatalogs)} />
+</Layout>

@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Roadmap",
+  "title": "Was im Ofen backt.",
+  "desc": "Woran wir gerade bauen, was als Nächstes kommt und was gerade fertig wurde. Pläne ändern sich mit neuen Erkenntnissen, daher hat hier nichts ein festes Datum.",
+  "metaTitle": "ItsBagelBot Roadmap | Kommende Twitch-Bot-Features",
+  "metaDesc": "Sieh dir an, woran ItsBagelBot gerade arbeitet, was als Nächstes ansteht und was kürzlich erschienen ist: von Bot-Statuschecks bis zu OBS-Alerts und YouTube-Support.",
+  "now": "Jetzt",
+  "nowHint": "Wird gerade gebaut",
+  "next": "Als Nächstes",
+  "nextHint": "Danach an der Reihe",
+  "later": "Später",
+  "laterHint": "Auf der Liste",
+  "shipped": "Erschienen",
+  "shippedHint": "Fertig in den letzten 90 Tagen",
+  "emptyColumn": "Hier ist gerade nichts.",
+  "requestTitle": "Fehlt dir etwas?",
+  "requestDesc": "Sag uns, was dein Stream braucht. Wünsche bestimmen, was nach oben wandert.",
+  "requestCta": "Vorschlag senden"
+}

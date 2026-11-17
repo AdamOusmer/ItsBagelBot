@@ -1,0 +1,124 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Badge from '@bagel/ui/astro/Badge.astro';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import { COLUMNS, type Column, type Roadmap } from '../../lib/roadmap/linear';
+import { getLangFromUrl, localizePath, useTranslations } from '../../i18n/ui';
+
+interface Props {
+    roadmap: Roadmap;
+}
+
+const { roadmap } = Astro.props;
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+const TONES: Record<Column, string> = { now: 'live', next: 'info', later: 'neutral', shipped: 'success' };
+const columns = COLUMNS.map((key) => ({ key, tone: TONES[key] }));
+---
+
+<section class="rmap" aria-label={t('roadmap.eyebrow')}>
+    <div class="rmap__board">
+        {columns.map(({ key, tone }) => (
+            <section class="rmap__col" aria-labelledby={`rmap-${key}`}>
+                <header class="rmap__head">
+                    <Badge shape="pill" tone={tone} id={`rmap-${key}`}>{t(`roadmap.${key}`)}</Badge>
+                    <Text as="span" size="xs" tone="muted">{t(`roadmap.${key}Hint`)}</Text>
+                </header>
+                {roadmap[key].length === 0 ? (
+                    <Text size="sm" tone="muted" class="rmap__empty">{t('roadmap.emptyColumn')}</Text>
+                ) : (
+                    <ul class="rmap__list">
+                        {roadmap[key].map((item) => (
+                            <Card as="li" class="rmap__item" id={item.id}>
+                                <Heading level={3} variant="card">{item.title}</Heading>
+                                <Text size="sm" tone="muted-light">{item.summary}</Text>
+                            </Card>
+                        ))}
+                    </ul>
+                )}
+            </section>
+        ))}
+    </div>
+
+    <Card class="rmap__request">
+        <div>
+            <Heading level={2} variant="card">{t('roadmap.requestTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('roadmap.requestDesc')}</Text>
+        </div>
+        <ButtonLink href={localizePath('/contact', lang)} variant="secondary">{t('roadmap.requestCta')}</ButtonLink>
+    </Card>
+</section>
+
+<style>
+    .rmap {
+        width: min(100% - 32px, 1200px);
+        margin-inline: auto;
+        padding-bottom: 96px;
+        display: grid;
+        gap: 32px;
+    }
+
+    .rmap__board {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        align-items: start;
+    }
+
+    .rmap__col {
+        display: grid;
+        gap: 14px;
+        min-width: 0;
+    }
+
+    .rmap__head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 10px;
+        min-height: 32px;
+    }
+
+    .rmap__list {
+        display: grid;
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .rmap__item {
+        display: grid;
+        gap: 8px;
+    }
+
+    .rmap__empty {
+        padding: 16px 0;
+    }
+
+    .rmap__request {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px 24px;
+    }
+
+    @media (max-width: 1024px) {
+        .rmap__board {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .rmap__board {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+</style>
