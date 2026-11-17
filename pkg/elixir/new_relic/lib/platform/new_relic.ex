@@ -160,7 +160,7 @@ defmodule Platform.NewRelic do
     Enum.filter(attrs, fn {key, value} ->
       case Map.get(policy, key) do
         :number -> is_number(value)
-        :id -> is_binary(value) and Regex.match?(~r/\A[0-9A-Za-z_.:-]{1,64}\z/, value)
+        :id -> is_binary(value) and Regex.match?(~r/\A[0-9A-Za-z_.:+\/=-]{1,96}\z/, value)
         {:enum, values} when is_list(values) -> value in values
         _ -> false
       end
