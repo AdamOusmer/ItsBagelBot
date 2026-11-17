@@ -75,7 +75,7 @@ type Users struct {
 	stats              *cache.Cache[UserCounts]
 	packer             domaincrypto.Packer
 	pub                bus.Publisher
-	batcher            *batch.Batcher[prefKey, prefWrite]
+	preferences        *batch.Group[prefWrite]
 	app                *newrelic.Application
 	log                *zap.Logger
 	invalidationPrefix string
@@ -117,7 +117,7 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 		log:    log,
 	}
 
-	r.batcher = batch.New[prefKey, prefWrite](prefsFlushInterval, prefsFlushMaxSize, r.flushPrefs, log)
+	r.preferences = r.newPreferenceGroup()
 
 	return r
 }
@@ -285,7 +285,7 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 	return r.publishChanged(ctx, id)
 }
 
-// SetStatus is on the money path, so it must write through, never via the batcher.
+// SetStatus is on the money path and must persist synchronously.
 func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) error {
 	if err := validate.Status(string(status)); err != nil {
 		return err
@@ -393,7 +393,9 @@ func (r *Users) Invalidate(id uint64) {
 }
 
 func (r *Users) Close(ctx context.Context) {
-	r.batcher.Close(ctx)
+	if err := r.preferences.Close(ctx); err != nil {
+		r.log.Error("preference drain failed", zap.Error(err))
+	}
 	r.views.Close()
 	r.stats.Close()
 }

@@ -60,7 +60,7 @@ func TestCommandCloseBudgetsEditsAndPublicationDrain(t *testing.T) {
 			if step == "edits" {
 				unavailable.Store(true)
 				client.Commands.Use(unavailableCommandEdits(&unavailable))
-				require.NoError(t, r.Upsert(1001, spec("hello", "saved", false, 0)))
+				require.ErrorContains(t, r.Upsert(1001, spec("hello", "saved", false, 0)), "database unavailable")
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 			defer cancel()

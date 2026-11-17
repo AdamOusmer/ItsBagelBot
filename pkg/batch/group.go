@@ -16,26 +16,33 @@ import (
 var ErrClosed = errors.New("commit group closed")
 var ErrItemTooLarge = errors.New("item exceeds commit group byte budget")
 
+const defaultFlushTimeout = 5 * time.Second
+const closeRetryBackoff = 100 * time.Millisecond
+
 type GroupConfig[T any] struct {
-	Window       time.Duration
-	MaxRows      int
-	MaxBytes     int
-	Size         func(T) int
-	Timeout      time.Duration
-	Attributable func(error) bool
-	AfterCommit  func(context.Context, []T)
-	Concurrency  int
-	Log          *zap.Logger
+	Window             time.Duration
+	MaxRows            int
+	MaxBytes           int
+	Size               func(T) int
+	Key                func(T) any
+	Timeout            time.Duration
+	QueueTimeout       time.Duration
+	AfterCommitTimeout time.Duration
+	Attributable       func(error) bool
+	AfterCommit        func(context.Context, []T)
+	Concurrency        int
+	Log                *zap.Logger
 }
 
 // A failed flush is replayed during isolation; commit every item atomically and retain stable identities.
 type GroupFlush[T any] func(context.Context, []T) error
 
 type submission[T any] struct {
-	item    T
-	bytes   int
-	arrived time.Time
-	result  chan error
+	item     T
+	bytes    int
+	arrived  time.Time
+	result   chan error
+	previous *submission[T]
 }
 
 type Group[T any] struct {
@@ -57,6 +64,9 @@ func NewGroup[T any](config GroupConfig[T], flush GroupFlush[T]) *Group[T] {
 	}
 	if config.Timeout <= 0 {
 		config.Timeout = defaultFlushTimeout
+	}
+	if config.AfterCommitTimeout <= 0 {
+		config.AfterCommitTimeout = defaultFlushTimeout
 	}
 	if config.Log == nil {
 		config.Log = zap.NewNop()
@@ -129,7 +139,11 @@ func (g *Group[T]) ready() (time.Duration, bool) {
 	if g.full() {
 		return 0, false
 	}
-	return max(0, time.Until(g.pending[0].arrived.Add(g.config.Window))), false
+	window := g.config.Window
+	if g.config.QueueTimeout > 0 {
+		window = min(window, g.config.QueueTimeout)
+	}
+	return max(0, time.Until(g.pending[0].arrived.Add(window))), false
 }
 
 func (g *Group[T]) full() bool {
@@ -151,12 +165,35 @@ func (g *Group[T]) run() {
 			return
 		}
 		if delay == 0 {
-			g.slots <- struct{}{}
-			g.dispatch(g.take())
+			g.start(g.take())
 			continue
 		}
 		g.wait(delay)
 	}
+}
+
+func (g *Group[T]) start(items []*submission[T]) {
+	ctx := context.Background()
+	if g.config.QueueTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, items[0].arrived.Add(g.config.QueueTimeout))
+		defer cancel()
+	}
+	select {
+	case g.slots <- struct{}{}:
+		g.startAdmitted(ctx, items)
+	case <-ctx.Done():
+		completeGroup(items, ctx.Err())
+	}
+}
+
+func (g *Group[T]) startAdmitted(ctx context.Context, items []*submission[T]) {
+	if err := ctx.Err(); err != nil {
+		<-g.slots
+		completeGroup(items, err)
+		return
+	}
+	g.dispatch(items)
 }
 
 func (g *Group[T]) dispatch(items []*submission[T]) {
@@ -199,7 +236,31 @@ func (g *Group[T]) commit(items []*submission[T]) {
 	defer func() { <-g.slots }()
 	ctx, cancel := context.WithTimeout(context.Background(), g.config.Timeout)
 	defer cancel()
-	g.isolate(ctx, items)
+	var landed []*submission[T]
+	g.isolate(ctx, g.coalesce(items), &landed)
+	if len(landed) > 0 && g.config.AfterCommit != nil {
+		g.afterCommit(ctx, submissionValues(landed))
+	}
+	completeGroup(landed, nil)
+}
+
+func (g *Group[T]) coalesce(items []*submission[T]) []*submission[T] {
+	if g.config.Key == nil {
+		return items
+	}
+	positions := make(map[any]int, len(items))
+	merged := make([]*submission[T], 0, len(items))
+	for _, s := range items {
+		key := g.config.Key(s.item)
+		if i, ok := positions[key]; ok {
+			s.previous = merged[i]
+			merged[i] = s
+			continue
+		}
+		positions[key] = len(merged)
+		merged = append(merged, s)
+	}
+	return merged
 }
 
 type flushPanic struct{ value any }
@@ -220,26 +281,47 @@ func (g *Group[T]) attempt(ctx context.Context, values []T) (err error) {
 	return g.flush(ctx, values)
 }
 
-func (g *Group[T]) isolate(ctx context.Context, items []*submission[T]) {
-	if err := ctx.Err(); err != nil {
-		completeGroup(items, err)
-		return
-	}
+func submissionValues[T any](items []*submission[T]) []T {
 	values := make([]T, len(items))
 	for i, s := range items {
 		values[i] = s.item
 	}
-	err := g.attempt(ctx, values)
-	if g.shouldSplit(err, len(items)) {
-		mid := len(items) / 2
-		g.isolate(ctx, items[:mid])
-		g.isolate(ctx, items[mid:])
+	return values
+}
+
+func (g *Group[T]) isolate(ctx context.Context, items []*submission[T], landed *[]*submission[T]) {
+	if err := ctx.Err(); err != nil {
+		completeGroup(items, err)
 		return
 	}
-	if err == nil && g.config.AfterCommit != nil {
-		g.afterCommit(ctx, values)
+	err := g.attempt(ctx, submissionValues(items))
+	if g.shouldSplit(err, len(items)) {
+		mid := len(items) / 2
+		g.isolate(ctx, items[:mid], landed)
+		g.isolate(ctx, items[mid:], landed)
+		return
+	}
+	if g.fallback(ctx, items, err, landed) {
+		return
+	}
+	if err == nil {
+		*landed = append(*landed, items...)
+		return
 	}
 	completeGroup(items, err)
+}
+
+func (g *Group[T]) fallback(ctx context.Context, items []*submission[T], err error, landed *[]*submission[T]) bool {
+	if !g.shouldSplit(err, 2) || len(items) != 1 {
+		return false
+	}
+	winner := items[0]
+	if winner.previous == nil {
+		return false
+	}
+	winner.result <- err
+	g.isolate(ctx, []*submission[T]{winner.previous}, landed)
+	return true
 }
 
 func completeGroup[T any](items []*submission[T], err error) {
@@ -247,12 +329,16 @@ func completeGroup[T any](items []*submission[T], err error) {
 		if s == nil {
 			continue
 		}
-		s.result <- err
+		for current := s; current != nil; current = current.previous {
+			current.result <- err
+		}
 		items[i] = nil
 	}
 }
 
 func (g *Group[T]) afterCommit(ctx context.Context, values []T) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), g.config.AfterCommitTimeout)
+	defer cancel()
 	defer func() {
 		if p := recover(); p != nil {
 			g.config.Log.Error("commit group publication panic", zap.Any("panic", p))

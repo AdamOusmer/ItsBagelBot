@@ -24,6 +24,6 @@ flowchart LR
 
 ## Durability and failure modes
 
-Not every write has the same durability contract. Some settings use an in-memory batch before the database commit; financial and credential operations need their own direct paths. Read the relevant repository before assuming that a successful response means a commit has completed. See [caching and write-behind](/data-and-state/caching/).
+Command edits and user preferences wait for their grouped MySQL transaction to commit before returning success. Module settings, financial operations and credential writes use synchronous paths. A crash before commit requires a retry; counter receipts make event retries idempotent. Read the relevant repository for transaction and publication boundaries. See [caching and committed writes](/data-and-state/caching/).
 
 Migration behaviour and credentials are configured at startup; inspect `pkg/db/provider.go` and the service's configuration before running against an existing database. Generated code is not the source of the schema definition.

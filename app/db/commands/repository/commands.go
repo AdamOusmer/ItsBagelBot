@@ -73,7 +73,7 @@ const (
 
 	commandsCacheCapacity int64 = 4096
 
-	flushInterval = 2 * time.Second
+	flushInterval = 3 * time.Millisecond
 	flushMaxSize  = 256
 )
 
@@ -88,7 +88,8 @@ type Commands struct {
 	client       *ent.Client
 	views        *cache.Cache[[]CommandView]
 	pub          bus.Publisher
-	batcher      *batch.Batcher[commandKey, data.CommandChangedDTO]
+	edits        *batch.Group[data.CommandChangedDTO]
+	editOrder    editOrders
 	uses         *batch.Group[commandUseBatch]
 	publications *batch.Dirty[commandKey]
 	app          *newrelic.Application
@@ -107,7 +108,12 @@ func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Applicatio
 		log:    log,
 	}
 
-	r.batcher = batch.New[commandKey, data.CommandChangedDTO](flushInterval, flushMaxSize, r.flush, log)
+	r.edits = batch.NewGroup(batch.GroupConfig[data.CommandChangedDTO]{
+		Window: flushInterval, MaxRows: flushMaxSize, MaxBytes: 256 * 1024,
+		Size: commandEditBytes, Key: commandEditKey, Attributable: commandEditError,
+		AfterCommit: r.afterEdits, Timeout: time.Second, QueueTimeout: 250 * time.Millisecond,
+		AfterCommitTimeout: 250 * time.Millisecond, Log: log,
+	}, r.flush)
 	r.publications = batch.NewDirty(r.publishDirtyUses, log)
 	r.uses = r.newUseGroup()
 
@@ -208,6 +214,10 @@ func (s *CommandSpec) dto(userID uint64) data.CommandChangedDTO {
 }
 
 func (r *Commands) Upsert(userID uint64, spec CommandSpec) error {
+	return r.UpsertContext(context.Background(), userID, spec)
+}
+
+func (r *Commands) UpsertContext(ctx context.Context, userID uint64, spec CommandSpec) error {
 
 	spec.normalize()
 
@@ -218,9 +228,14 @@ func (r *Commands) Upsert(userID uint64, spec CommandSpec) error {
 		return err
 	}
 
-	r.batcher.Add(commandKey{userID: userID, name: spec.Name}, spec.dto(userID))
-
-	return nil
+	waitCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+	unlock, err := r.editOrder.acquire(waitCtx, userID, false)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return r.edits.Submit(context.WithoutCancel(ctx), spec.dto(userID))
 }
 
 func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec, uses int64) (bool, error) {
@@ -297,26 +312,36 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 		return err
 	}
 
-	updated, err := r.renameRow(ctx, userID, oldName, spec)
+	unlock, err := r.editOrder.acquire(ctx, userID, true)
+	if err != nil {
+		return err
+	}
+	updated, err := func() (int, error) {
+		defer unlock()
+		return r.renameAndPublish(ctx, userID, oldName, spec)
+	}()
 	if err != nil {
 		return err
 	}
 
 	if updated == 0 {
-		return r.Upsert(userID, spec)
+		return r.UpsertContext(ctx, userID, spec)
 	}
+	return nil
+}
 
+func (r *Commands) renameAndPublish(ctx context.Context, userID uint64, oldName string, spec CommandSpec) (int, error) {
+	updated, err := r.renameRow(ctx, userID, oldName, spec)
+	if err != nil || updated == 0 {
+		return updated, err
+	}
 	r.Invalidate(userID)
-
 	if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
-		UserID:  userID,
-		Name:    oldName,
-		Deleted: true,
+		UserID: userID, Name: oldName, Deleted: true,
 	}); err != nil {
-		return err
+		return updated, err
 	}
-
-	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, r.renamedState(ctx, userID, spec))
+	return updated, bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, r.renamedState(ctx, userID, spec))
 }
 
 func (r *Commands) renamedState(ctx context.Context, userID uint64, spec CommandSpec) data.CommandChangedDTO {
@@ -364,6 +389,11 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 		return err
 	}
 
+	unlock, err := r.editOrder.acquire(ctx, userID, true)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Commands.Delete().
 			Where(
@@ -388,6 +418,12 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 }
 
 func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
+	unlock, err := r.editOrder.acquire(ctx, userID, true)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Commands.Delete().
 			Where(commands.UserIDEQ(userID), commands.CreatedAtLTE(cutoff)).
@@ -454,7 +490,7 @@ func (r *Commands) Close(ctx context.Context) error {
 	}
 	drainCtx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
-	editErr := r.batcher.Close(drainCtx)
+	editErr := r.edits.Close(drainCtx)
 	if err := r.uses.Close(drainCtx); err != nil {
 		r.log.Error("command use drain failed", zap.Error(err))
 		return errors.Join(editErr, err)
@@ -483,19 +519,17 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	defer txn.End()
 
 	ctx = newrelic.NewContext(ctx, txn)
+	err := db.RetryTx(ctx, func(ctx context.Context) error {
+		return db.WithExec(ctx, func(ctx context.Context) error {
+			return r.commitCommandBatch(ctx, items)
+		})
+	})
+	monitor.NoticeError(txn, err)
+	return err
+}
+
+func (r *Commands) afterEdits(ctx context.Context, landed []data.CommandChangedDTO) {
 	log := monitor.TxnLogger(ctx, r.log)
-
-	landed := items
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.commitCommandBatch(ctx, items)
-	}); err != nil {
-		txn.NoticeError(err)
-		landed = r.upsertEach(ctx, txn, items)
-	}
-
-	if len(landed) == 0 {
-		return nil
-	}
 
 	states, serr := r.rowStates(ctx, commandKeys(landed))
 	if serr != nil {
@@ -517,44 +551,6 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 		}
 	}
 
-	return nil
-}
-
-func (r *Commands) upsertEach(ctx context.Context, txn *newrelic.Transaction, items []data.CommandChangedDTO) []data.CommandChangedDTO {
-
-	landed := make([]data.CommandChangedDTO, 0, len(items))
-	for _, item := range items {
-		created, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
-			return upsertCommand(ctx, r.client.Commands, item)
-		})
-		if err == nil {
-			r.recordCommandCreation(created)
-			landed = append(landed, item)
-			continue
-		}
-		txn.NoticeError(err)
-		if ent.IsValidationError(err) || ent.IsConstraintError(err) {
-			r.log.Error("dropping unpersistable command edit",
-				zap.Uint64("user_id", item.UserID),
-				zap.String("command", item.Name),
-				zap.Error(err),
-			)
-			continue
-		}
-		r.log.Warn("requeueing command edit after transient flush failure",
-			zap.Uint64("user_id", item.UserID),
-			zap.String("command", item.Name),
-			zap.Error(err),
-		)
-		r.batcher.Requeue(commandKey{userID: item.UserID, name: item.Name}, item)
-	}
-	return landed
-}
-
-func (r *Commands) recordCommandCreation(created bool) {
-	if created {
-		r.analytics.Count(catalog.CustomCommands, "created")
-	}
 }
 
 func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) (bool, error) {
@@ -588,6 +584,22 @@ func updateCommand(ctx context.Context, c *ent.CommandsClient, item data.Command
 		)
 	applyEdit(u.Mutation(), item)
 	return u.Save(ctx)
+}
+
+func commandEditKey(item data.CommandChangedDTO) any {
+	return commandKey{userID: item.UserID, name: item.Name}
+}
+
+func commandEditBytes(item data.CommandChangedDTO) int {
+	size := len(item.Name) + len(item.Response) + len(item.Perm) + len(item.BumpCounter)
+	for _, alias := range item.Aliases {
+		size += len(alias) + 8
+	}
+	return 512 + 6*size
+}
+
+func commandEditError(err error) bool {
+	return ent.IsValidationError(err) || ent.IsConstraintError(err)
 }
 
 func formatAllowed(id uint64) string {

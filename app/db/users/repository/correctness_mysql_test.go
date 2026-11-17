@@ -379,23 +379,3 @@ func seedErasureRecovery(t *testing.T, h correctnessHarness) *fakeErasureStore {
 	}
 	return store
 }
-
-func TestPreferenceFlushLocksUsersInAscendingOrder(t *testing.T) {
-	forUsersStorage(t, func(t *testing.T, h correctnessHarness) {
-		gift := h.registerGiftPair(t)
-		var order []uint64
-		h.client.User.Use(func(next ent.Mutator) ent.Mutator {
-			return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-				if _, ok := m.Field(user.FieldLocale); ok {
-					id, _ := m.(*ent.UserMutation).ID()
-					order = append(order, id)
-				}
-				return next.Mutate(ctx, m)
-			})
-		})
-		require.NoError(t, h.repo.SetLocale(t.Context(), gift.UserID, "fr"))
-		require.NoError(t, h.repo.SetLocale(t.Context(), gift.GifterID, "fr"))
-		h.repo.Close(t.Context())
-		assert.Equal(t, []uint64{gift.GifterID, gift.UserID}, order)
-	})
-}

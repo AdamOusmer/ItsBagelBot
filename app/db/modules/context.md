@@ -19,7 +19,7 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | `user_id` | Owning broadcaster's numeric Twitch ID. |
 | Module / `ModuleView` | Named feature's enabled flag, configuration blob and revision. |
 | `configs` | Module-specific JSON; shared validators and runtime module define its shape. |
-| `Set` / `SetNow` | Batched background replacement / synchronous interactive save returning committed views. |
+| `SetNow` | Synchronous replacement returning committed views. |
 | `Patch` / `PatchExisting` | Partial-key merge / update guarded by both existing row ID and revision. |
 | Revision / `__rev` | Concurrency version represented in durable row/config handling. |
 | `__account_created_at` | Internal loyalty-config stamp for the Users account incarnation. |
@@ -35,7 +35,7 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | File | Role |
 | --- | --- |
 | [main.go](main.go) | Boot, event consumers, Users account-instance resolver and RPC registration. |
-| [repository/modules.go](repository/modules.go) | Cached lists, batched Set, immediate SetNow/Patch/PatchExisting, publication and reprojection. |
+| [repository/modules.go](repository/modules.go) | Cached lists, synchronous SetNow/Patch/PatchExisting, publication and reprojection. |
 | [repository/loyalty_instance.go](repository/loyalty_instance.go) | Loyalty instance stamps and canonical-account-guarded snapshot cleanup. |
 | [repository/quotes.go](repository/quotes.go) | Quote numbering, CRUD, random reads, date correction and race retries. |
 | [repository/personality.go](repository/personality.go) | Atomic feed increments, receipts and leaderboard reads. |
@@ -67,7 +67,6 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
 - A long cooldown is refused from a Valkey marker first (key and TTL rules in
   `internal/domain/automation/cooldown_marker.go`); a moved window exists only as its marker.
 - Dashboard upsert uses `SetNow`, persists immediately and returns committed views.
-  Background `Set` still coalesces by `(user_id, name)` for 2 seconds / 256 items.
   Events publish persisted revisions; lists have a local five-minute cache.
 - Patch reads current state, merges supplied keys and advances revision. Stale
   `ExpectedRev` produces `Conflict`; absent expected revision allows last-write-wins.

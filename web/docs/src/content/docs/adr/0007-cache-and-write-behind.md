@@ -16,11 +16,11 @@ Repeated settings reads and writes can put unnecessary load on the database.
 
 ## Decision
 
-We use local caches and coalesced writes for selected settings that users can resubmit. Critical state takes immediate persistence paths.
+We use local caches and coalesced writes for selected settings. Command edits and user preferences now wait for their grouped MySQL transaction to commit before returning success. Modules and critical state take synchronous persistence paths. See the current [durability contract](/data-and-state/caching/).
 
 ## Consequences
 
-A process failure before a flush can lose deferred writes, and cached reads can be stale. Callers must select a path appropriate to the data’s durability and consistency needs.
+A process failure before commit requires a retry; a successful response confirms committed data. Cached reads can be stale. Counter events use a 70-minute Valkey receipt fast path plus durable SQL receipts to make retries idempotent within the SQL receipt retention window. Attributable item failures are isolated from healthy writes.
 
 ## References
 

@@ -33,47 +33,6 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Modules) 
 	return client, pub, repository.NewModules(client, pub, nil, zap.NewNop())
 }
 
-func TestSetCoalescesIntoOneWrite(t *testing.T) {
-	client, pub, repo := setup(t)
-	ctx := context.Background()
-
-	repo.Set(1001, "welcome", true, codec.RawMessage(`{"message":"hi"}`))
-	repo.Set(1001, "welcome", false, codec.RawMessage(`{"message":"hey"}`))
-	repo.Set(1001, "welcome", true, codec.RawMessage(`{"message":"final"}`))
-
-	repo.Close(ctx)
-
-	rows := client.Modules.Query().AllX(ctx)
-	require.Len(t, rows, 1, "coalesced writes must produce a single row")
-
-	assert.True(t, rows[0].IsEnabled)
-	assert.JSONEq(t, `{"message":"final"}`, string(rows[0].Configs))
-
-	events := pub.On(data.SubjectModuleChanged)
-	require.Len(t, events, 1, "only the final state may be announced")
-
-	var dto data.ModuleChangedDTO
-	require.NoError(t, codec.Unmarshal(events[0].Payload, &dto))
-	assert.Equal(t, uint64(1001), dto.UserID)
-	assert.True(t, dto.IsEnabled)
-}
-
-func TestFlushUpdatesExistingRow(t *testing.T) {
-	client, _, repo := setup(t)
-	ctx := context.Background()
-
-	repo.Set(1001, "welcome", true, codec.RawMessage(`{}`))
-	repo.Close(ctx)
-
-	repo2 := repository.NewModules(client, bustest.NewPublisher(), nil, zap.NewNop())
-	repo2.Set(1001, "welcome", false, codec.RawMessage(`{"changed":true}`))
-	repo2.Close(ctx)
-
-	rows := client.Modules.Query().AllX(ctx)
-	require.Len(t, rows, 1, "an update must not create a second row")
-	assert.False(t, rows[0].IsEnabled)
-}
-
 func TestListServedFromCacheUntilInvalidated(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
@@ -158,27 +117,6 @@ func TestPatchMissingRowNonZeroExpectedConflicts(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, res.Conflict)
 	assert.Empty(t, client.Modules.Query().AllX(ctx))
-}
-
-func TestSetFlushIncrementsRevisionAndPublishesPersistedSnapshot(t *testing.T) {
-	client, pub, repo := setup(t)
-	ctx := context.Background()
-	repo.Set(1001, "welcome", true, codec.RawMessage(`{"message":"one"}`))
-	repo.Close(ctx)
-
-	repo = repository.NewModules(client, pub, nil, zap.NewNop())
-	repo.Set(1001, "welcome", false, codec.RawMessage(`{"message":"two"}`))
-	repo.Close(ctx)
-
-	row := client.Modules.Query().OnlyX(ctx)
-	assert.Equal(t, 2, row.Revision)
-	events := pub.On(data.SubjectModuleChanged)
-	require.Len(t, events, 2)
-	var dto data.ModuleChangedDTO
-	require.NoError(t, codec.Unmarshal(events[1].Payload, &dto))
-	assert.Equal(t, row.Revision, dto.Revision)
-	assert.Equal(t, row.IsEnabled, dto.IsEnabled)
-	assert.JSONEq(t, string(row.Configs), string(dto.Configs))
 }
 
 func TestSetNowReturnsCommittedRevisionAndRefreshesCachedList(t *testing.T) {

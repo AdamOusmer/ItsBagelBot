@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"slices"
 	"strconv"
 
 	"ItsBagelBot/app/db/modules/ent"
@@ -13,7 +12,6 @@ import (
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
-	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -138,13 +136,4 @@ func (r *Modules) seedGovee(ctx context.Context, tally analytics.Tally) error {
 	n, err := db.WithQuery(ctx, r.client.GoveeCredential.Query().Count)
 	tally.AddN(int64(n), catalog.IntegrationsConnected, "govee")
 	return err
-}
-
-func changedUsers(items []data.ModuleChangedDTO) []uint64 {
-	ids := make([]uint64, 0, len(items))
-	for _, item := range items {
-		ids = append(ids, item.UserID)
-	}
-	slices.Sort(ids)
-	return slices.Compact(ids)
 }

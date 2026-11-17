@@ -14,7 +14,7 @@ Les autres services utilisent ses RPC plutôt que son schéma. Il émet des év�
 
 Les RPC du tableau de bord utilisent par défaut `rpc.dashboard.*` ; l’autorisation des appareils utilise `rpc.dashboard.device.*`. Les changements et suppressions publient `data.users.changed` et `data.users.deleted`.
 
-L’inscription et les changements de droits sont persistés immédiatement. Certaines préférences sont regroupées avant écriture : acceptation et persistance sont donc distinctes. Une modification persistée publie `data.users.changed`. La suppression écrit d’abord dans un registre d’effacement, révoque les jetons et émet `data.users.deleted` ; un échec du registre empêche la suppression. Les lectures sensibles utilisent des RPC internes, pas les projections. Les opérations du tableau de bord et des appareils utilisent par défaut `rpc.dashboard.*`.
+L’inscription et les changements de droits sont persistés immédiatement. Les préférences sont regroupées et répondent positivement après le commit MySQL. Une modification persistée publie `data.users.changed`. La suppression écrit d’abord dans un registre d’effacement, révoque les jetons et émet `data.users.deleted` ; un échec du registre empêche la suppression. Les lectures sensibles utilisent des RPC internes, pas les projections. Les opérations du tableau de bord et des appareils utilisent par défaut `rpc.dashboard.*`.
 
 ## État et dépendances
 
@@ -22,7 +22,7 @@ Users possède le schéma des comptes et des identifiants ; les consommateurs ut
 
 ## Comportement en cas d’échec
 
-Les préférences acceptées en écriture différée ne sont pas encore persistées. La suppression s’arrête si l’écriture du registre d’effacement échoue.
+Les erreurs de préférences sont isolées pour permettre aux écritures saines d'être validées; les erreurs de verrou transitoires rejouent toute la transaction. La suppression s’arrête si l’écriture du registre d’effacement échoue.
 
 ## Code
 

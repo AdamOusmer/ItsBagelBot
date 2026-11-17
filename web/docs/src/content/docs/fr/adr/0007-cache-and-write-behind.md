@@ -16,11 +16,11 @@ Les lectures et écritures répétées de réglages peuvent surcharger inutileme
 
 ## Décision
 
-Nous utilisons des caches locaux et des écritures regroupées pour certains réglages que l’utilisateur peut soumettre de nouveau. Les données critiques empruntent des chemins de persistance immédiate.
+Nous utilisons des caches locaux et des écritures regroupées pour certains réglages. Les commandes et préférences attendent désormais le commit de leur transaction MySQL groupée avant de répondre positivement. Les modules et données critiques empruntent des chemins synchrones. Voir le [contrat de durabilité actuel](/fr/data-and-state/caching/).
 
 ## Conséquences
 
-Une panne avant la vidange peut perdre des écritures différées et une lecture en cache peut être périmée. Chaque appelant doit choisir selon les besoins de durabilité et de cohérence.
+Une panne avant le commit impose une nouvelle tentative; une réponse positive confirme la persistance. Une lecture en cache peut être périmée. Les compteurs utilisent des reçus Valkey pendant 70 minutes comme chemin rapide, ainsi que des reçus SQL durables, pour rendre les tentatives idempotentes pendant la durée de rétention des reçus SQL. Les erreurs attribuables à un élément sont isolées des écritures saines.
 
 ## Références
 
