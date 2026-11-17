@@ -22,6 +22,7 @@ type counterPublication struct {
 	payload      any
 	entries      int
 	firstAttempt time.Time
+	lastAttempt  time.Time
 	nextAttempt  time.Time
 	retryDelay   time.Duration
 	nextLog      time.Time
@@ -41,18 +42,18 @@ func (a counterPublicationAttempt) drains(pending counterPublications) bool {
 }
 
 func (pending counterPublications) retry(ctx context.Context, pub bus.Publisher, log *zap.Logger, attempt counterPublicationAttempt) counterPublications {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	started := pending.begin(ctx, pub, attempt)
 	remaining := pending[:0]
 	for i, publication := range pending {
-		if !attempt.final && attempt.now.Before(publication.nextAttempt) {
+		if i >= len(started) {
 			return append(remaining, pending[i:]...)
 		}
-		if publication.publish(ctx, pub, log, attempt.now) {
+		if publication.finish(ctx, started[i], log, attempt.now) {
 			continue
 		}
 		remaining = append(remaining, publication)
-		if !attempt.final {
-			return append(remaining, pending[i+1:]...)
-		}
 	}
 	clear(pending[len(remaining):])
 	if len(remaining) == 0 {
@@ -61,16 +62,41 @@ func (pending counterPublications) retry(ctx context.Context, pub bus.Publisher,
 	return remaining
 }
 
-func (p *counterPublication) publish(ctx context.Context, pub bus.Publisher, log *zap.Logger, now time.Time) bool {
-	if p.firstAttempt.IsZero() {
-		p.firstAttempt = now
+type counterFuture struct {
+	future bus.PublishFuture
+	err    error
+}
+
+func (pending counterPublications) begin(ctx context.Context, pub bus.Publisher, attempt counterPublicationAttempt) []counterFuture {
+	started := make([]counterFuture, 0, len(pending))
+	for i := range pending {
+		p := &pending[i]
+		if !attempt.final && attempt.now.Before(p.nextAttempt) {
+			break
+		}
+		p.lastAttempt = attempt.now
+		if p.firstAttempt.IsZero() {
+			p.firstAttempt = attempt.now
+		}
+		started = append(started, p.begin(ctx, pub))
 	}
-	attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
+	return started
+}
+
+func (p *counterPublication) begin(ctx context.Context, pub bus.Publisher) counterFuture {
 	body, err := codec.FastMarshal(p.payload)
-	if err == nil {
-		err = bus.PublishConfirmed(attempt, pub, bus.Publication{Subject: p.subject, ID: p.id, Payload: body})
+	if err != nil {
+		return counterFuture{err: err}
 	}
-	cancel()
+	future, err := bus.BeginConfirmed(ctx, pub, bus.Publication{Subject: p.subject, ID: p.id, Payload: body})
+	return counterFuture{future: future, err: err}
+}
+
+func (p *counterPublication) finish(ctx context.Context, started counterFuture, log *zap.Logger, now time.Time) bool {
+	err := started.err
+	if err == nil {
+		err = started.future.Await(ctx)
+	}
 	if err == nil {
 		return true
 	}

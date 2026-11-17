@@ -14,13 +14,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestPullAckNoneRecordsNoReceipt(t *testing.T) {
-	t.Setenv("NATS_PULL_ACK_POLICY", "none")
-	s := &pullSubscriber{desired: pullConsumerConfig(hotLane, "x")}
-
-	s.noteReceipt(&fakePullMsg{})
-
-	assert.Nil(t, s.takePending(), "AckNone must not record a receipt for the floor ack")
+func TestPullCompletionPolicy(t *testing.T) {
+	for _, policy := range []string{"none", "all", "explicit"} {
+		t.Run(policy, func(t *testing.T) {
+			t.Setenv("NATS_PULL_ACK_POLICY", policy)
+			t.Setenv("NATS_PULL_MAX_ACK_PENDING", "-1")
+			cfg := PullLaneConsumerConfig("worker", hotLane)
+			assert.Equal(t, [5]any{jsapi.AckExplicitPolicy, 20 * time.Second, -1, -1, time.Hour},
+				[5]any{cfg.AckPolicy, cfg.AckWait, cfg.MaxDeliver, cfg.MaxAckPending, cfg.InactiveThreshold})
+		})
+	}
 }
 
 func subscriberWithRebind(replacement jsapi.Consumer, failure error) (*pullSubscriber, *int) {

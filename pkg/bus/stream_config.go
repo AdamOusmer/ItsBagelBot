@@ -27,7 +27,7 @@ func streamConfig(spec StreamSpec) jsapi.StreamConfig {
 		Subjects:          spec.Subjects,
 		Storage:           storage,
 		Retention:         jsapi.RetentionPolicy(spec.Retention),
-		Discard:           jsapi.DiscardOld,
+		Discard:           jsapi.DiscardPolicy(spec.Discard),
 		MaxAge:            spec.MaxAge,
 		MaxBytes:          spec.MaxBytes,
 		MaxMsgsPerSubject: spec.MaxMsgsPer,
@@ -105,19 +105,22 @@ func streamMatches(got, want jsapi.StreamConfig) bool {
 }
 
 func sameStreamLimits(got, want jsapi.StreamConfig) bool {
-	return got.Retention == want.Retention &&
-		got.MaxAge == want.MaxAge &&
-		got.MaxBytes == want.MaxBytes &&
-		got.MaxMsgsPerSubject == want.MaxMsgsPerSubject &&
-		got.Replicas == want.Replicas &&
-		got.Duplicates == want.Duplicates
+	type limits struct {
+		retention         jsapi.RetentionPolicy
+		discard           jsapi.DiscardPolicy
+		age, duplicates   time.Duration
+		bytes, perSubject int64
+		replicas          int
+	}
+	shape := func(cfg jsapi.StreamConfig) limits {
+		return limits{cfg.Retention, cfg.Discard, cfg.MaxAge, cfg.Duplicates, cfg.MaxBytes, cfg.MaxMsgsPerSubject, cfg.Replicas}
+	}
+	return shape(got) == shape(want)
 }
 
 func sameStreamFeatures(got, want jsapi.StreamConfig) bool {
-	return got.AllowAtomicPublish == want.AllowAtomicPublish &&
-		got.AllowBatchPublish == want.AllowBatchPublish &&
-		got.AllowMsgSchedules == want.AllowMsgSchedules &&
-		got.AllowMsgTTL == want.AllowMsgTTL
+	return [4]bool{got.AllowAtomicPublish, got.AllowBatchPublish, got.AllowMsgSchedules, got.AllowMsgTTL} ==
+		[4]bool{want.AllowAtomicPublish, want.AllowBatchPublish, want.AllowMsgSchedules, want.AllowMsgTTL}
 }
 
 func samePlacement(a, b *jsapi.Placement) bool {

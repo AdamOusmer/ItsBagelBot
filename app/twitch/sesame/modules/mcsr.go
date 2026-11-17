@@ -64,7 +64,7 @@ type mcsrConfig struct {
 }
 
 func Mcsr(d engine.Deps) module.Module {
-	m := module.NewModule(mcsrModuleName, module.KindOptIn)
+	m := module.NewModule(mcsrModuleName, module.KindOptIn).ProtectReplay()
 
 	m.Command("elo").Everyone().Cooldown(mcsrCooldown).Aliases("mcsr", "ranked").
 		Run(mcsrEloRun(d))

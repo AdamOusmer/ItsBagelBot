@@ -7,18 +7,13 @@ import (
 	"sync"
 )
 
-const (
-	seqQueueDepth = 64
-)
-
 type Sequencer struct {
 	mu   sync.Mutex
 	seqs map[uint64]*seqQueue
 }
 
 type seqQueue struct {
-	ch   chan func()
-	busy bool
+	tasks []func()
 }
 
 func NewSequencer() *Sequencer {
@@ -32,37 +27,28 @@ func (s *Sequencer) Do(broadcasterID uint64, task func()) {
 	s.mu.Lock()
 	q, ok := s.seqs[broadcasterID]
 	if !ok {
-		q = &seqQueue{ch: make(chan func(), seqQueueDepth)}
+		q = &seqQueue{}
 		s.seqs[broadcasterID] = q
 	}
-	select {
-	case q.ch <- task:
-		if !q.busy {
-			q.busy = true
-			s.mu.Unlock()
-			go s.pump(broadcasterID, q)
-			return
-		}
-		s.mu.Unlock()
-	default:
-		s.mu.Unlock()
-		task()
+	q.tasks = append(q.tasks, task)
+	s.mu.Unlock()
+	if !ok {
+		go s.pump(broadcasterID, q)
 	}
 }
 
 func (s *Sequencer) pump(broadcasterID uint64, q *seqQueue) {
 	for {
-		var task func()
 		s.mu.Lock()
-		select {
-		case task = <-q.ch:
-			s.mu.Unlock()
-		default:
+		if len(q.tasks) == 0 {
 			delete(s.seqs, broadcasterID)
-			q.busy = false
 			s.mu.Unlock()
 			return
 		}
+		task := q.tasks[0]
+		q.tasks[0] = nil
+		q.tasks = q.tasks[1:]
+		s.mu.Unlock()
 		task()
 	}
 }

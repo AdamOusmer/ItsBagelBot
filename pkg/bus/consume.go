@@ -136,11 +136,13 @@ func (lane consumeLane) startTransaction(msg *Message, wait time.Duration) *newr
 }
 
 func (lane consumeLane) finish(msg *Message, out outcome, log *zap.Logger) {
+	defer msg.completionState().detach()
+	defer EndDeliveryExecution(msg.Context())
 	lane.stats.record(out.result, out.wait)
 
 	switch {
 	case out.err == nil:
-		msg.Ack()
+		msg.finishSuccess()
 		return
 	case out.result == resultDeferred:
 		log.Debug("event deferred by expected backpressure",
@@ -152,6 +154,12 @@ func (lane consumeLane) finish(msg *Message, out outcome, log *zap.Logger) {
 			zap.String("subject", lane.subject),
 			zap.String("message_id", msg.UUID),
 			zap.Error(out.err))
+	}
+	if msg.quarantine(out.err) {
+		return
+	}
+	if msg.completionDeferred() {
+		return
 	}
 	msg.nackAfter(requestedRetryDelay(out.err))
 }

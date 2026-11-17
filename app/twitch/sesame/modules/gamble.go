@@ -80,7 +80,9 @@ func gambleRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 		if !ok {
 			return nil
 		}
-		return gc.run(ctx, args, emit)
+		return d.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: "gamble:wager"}, func(ctx context.Context) error {
+			return gc.run(ctx, args, emit)
+		})
 	}
 }
 
@@ -141,7 +143,7 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return nil
 	}
 	wager.balance = out.Balance.Points
-	gc.recordRound(wager)
+	gc.recordRound(ctx, wager)
 	gc.announce(emit, wager)
 	return nil
 }
@@ -245,11 +247,11 @@ func (gc gambleCmd) viewerID() uint64 {
 	return id
 }
 
-func (gc gambleCmd) recordRound(wager wagerOutcome) {
+func (gc gambleCmd) recordRound(ctx context.Context, wager wagerOutcome) {
 	end := "lost"
 	if wager.won {
 		end = "won"
 	}
-	gc.d.Analytics.Count(catalog.PointsFlows, "gamble")
-	gc.d.Analytics.Count(catalog.GamesRounds, "gamble", end)
+	gc.d.Analytics.AddContext(ctx, catalog.PointsFlows, 1, "gamble")
+	gc.d.Analytics.AddContext(ctx, catalog.GamesRounds, 1, "gamble", end)
 }

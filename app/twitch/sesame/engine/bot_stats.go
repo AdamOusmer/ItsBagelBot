@@ -4,19 +4,21 @@
 package engine
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/idempotency"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 const (
-	botStatsFlushInterval = 2 * time.Second
+	botStatsFlushInterval = time.Second
 
 	counterMessagesProcessed = data.CounterMessagesProcessed
 	counterEventsProcessed   = data.CounterEventsProcessed
@@ -24,7 +26,7 @@ const (
 	counterCommandsAnswered = data.CounterCommandsAnswered
 	counterModActions       = data.CounterModActionsTaken
 
-	channelStatsFlushTicks = 15
+	channelStatsFlushTicks = 1
 
 	channelStatsFlushKeys = 4096
 
@@ -144,8 +146,12 @@ const (
 )
 
 type botStats struct {
-	events   atomic.Int64
-	messages atomic.Int64
+	flushMu      sync.Mutex
+	completionMu sync.Mutex
+	next         *idempotency.Handoff
+	flushCtx     context.Context
+	events       atomic.Int64
+	messages     atomic.Int64
 
 	flagsTotal    atomic.Int64
 	flagsEnforced atomic.Int64
@@ -185,12 +191,11 @@ func newBotStats(bumper CounterBumper, log ...*zap.Logger) *botStats {
 			select {
 			case <-ticker.C:
 				ticks++
-				s.flushTotals()
 				if ticks%channelStatsFlushTicks == 0 {
-					s.flushChannels()
+					s.flush()
 				}
 			case <-s.wake:
-				s.flushChannels()
+				s.flush()
 			case <-s.done:
 				return
 			}
@@ -283,8 +288,51 @@ func (s *botStats) nudge() {
 }
 
 func (s *botStats) flush() {
-	s.flushTotals()
-	s.flushChannels()
+	s.flushMu.Lock()
+	defer s.flushMu.Unlock()
+	s.completionMu.Lock()
+	ctx, work := idempotency.NewWork(context.Background())
+	generation := s.next
+	s.next = nil
+	batch := s.drainStats(ctx)
+	s.completionMu.Unlock()
+	batch.flushTotals()
+	batch.flushChannels()
+	if generation != nil {
+		work.Watch(func(r idempotency.Result) {
+			if r.Final {
+				generation.Resolve(r.Err)
+			} else {
+				generation.Notify(r.Err)
+			}
+		})
+	}
+	work.Seal(nil)
+}
+
+func (s *botStats) drainStats(ctx context.Context) *botStats {
+	batch := &botStats{bumper: s.bumper, log: s.log, flushCtx: ctx}
+	batch.events.Store(s.events.Swap(0))
+	batch.messages.Store(s.messages.Swap(0))
+	batch.flagsTotal.Store(s.flagsTotal.Swap(0))
+	batch.flagsEnforced.Store(s.flagsEnforced.Swap(0))
+	for i := range s.flagsByRule {
+		batch.flagsByRule[i].Store(s.flagsByRule[i].Swap(0))
+	}
+	s.mu.Lock()
+	batch.channels, s.channels = s.channels, map[uint64]*chanTally{}
+	s.mu.Unlock()
+	return batch
+}
+
+func (s *botStats) record(ctx context.Context, update func()) {
+	if s == nil {
+		return
+	}
+	s.completionMu.Lock()
+	update()
+	joinGeneration(ctx, &s.next)
+	s.completionMu.Unlock()
 }
 
 func (s *botStats) flushTotals() {
@@ -313,9 +361,11 @@ func (s *botStats) flushFlags() {
 func (s *botStats) flushChannels() {
 	s.mu.Lock()
 	channels := s.channels
-	if len(channels) > 0 {
-		s.channels = map[uint64]*chanTally{}
+	if len(channels) == 0 {
+		s.mu.Unlock()
+		return
 	}
+	s.channels = map[uint64]*chanTally{}
 	s.mu.Unlock()
 
 	var flagged []flagChannelEntry
@@ -362,6 +412,14 @@ func (s *botStats) bump(target CounterBumpTarget, change counterDelta) {
 	if change == 0 {
 		return
 	}
+	if reporter, ok := s.bumper.(*LoyaltyReporter); ok {
+		ctx := s.flushCtx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		reporter.BumpContext(ctx, target, int64(change))
+		return
+	}
 	if target.Scope == data.CounterScopeBot {
 		s.bumper.BumpBot(target.Name, int64(change))
 		return
@@ -391,7 +449,6 @@ func addStat(counter *atomic.Int64, delta int64) {
 	}
 }
 
-// Callers hold botStats.mu.
 func addTally(value *int64, change counterDelta) {
 	delta := int64(change)
 	if delta <= 0 {

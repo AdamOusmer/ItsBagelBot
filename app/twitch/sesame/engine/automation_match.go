@@ -168,6 +168,7 @@ func fillTriggeredRun(run *AutomationRun, mctx *module.Context, m triggerMatch) 
 		Locale:        mctx.Locale,
 		Env:           &mctx.Env,
 		Ctx:           mctx,
+		Identity:      EventIdentity(&mctx.Env),
 		Viewer:        triggerViewer(&mctx.Env, m.event),
 		Args:          m.args,
 		Event:         m.event,

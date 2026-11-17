@@ -4,6 +4,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -66,35 +67,36 @@ func (x *actionExec) lookupLogin(login string) (actionTarget, error) {
 }
 
 func (x *actionExec) once(s step, do func() error) error {
-	dup, release := x.p.dedup.Claim(x.ctx, EffectRef{
+	ran := false
+	var detail error
+	err := x.p.dedup.Effect(x.ctx, EffectRef{
 		Identity: x.identity(),
 		Effect:   s.EffectKey + x.iter,
+	}, func(ctx context.Context) error {
+		ran = true
+		previous := x.ctx
+		x.ctx = ctx
+		defer func() { x.ctx = previous }()
+		detail = do()
+		return effectOutcome(detail)
 	})
-	if dup {
-		return skipped("duplicate")
-	}
-	if err := do(); err != nil {
-		release()
+	if err != nil {
 		return err
 	}
-	return nil
-}
-
-// onceRefusable claims the effect once, like once, but releases the claim only on a clean refusal. A store failure is
-// ambiguous about whether it already happened, so it keeps the claim and a redelivery cannot double the effect.
-func (x *actionExec) onceRefusable(s step, do func() error) error {
-	dup, release := x.p.dedup.Claim(x.ctx, EffectRef{
-		Identity: x.identity(),
-		Effect:   s.EffectKey + x.iter,
-	})
-	if dup {
+	if !ran {
 		return skipped("duplicate")
 	}
-	err := do()
-	if status, _ := classify(err); status == automationrpc.StatusSkipped {
-		release()
+	return detail
+}
+
+func effectOutcome(err error) error {
+	status, detail := classify(err)
+	switch {
+	case status == automationrpc.StatusOK, status == automationrpc.StatusSkipped, detail == "store_error":
+		return nil
+	default:
+		return err
 	}
-	return err
 }
 
 func storeResult(err error, found bool) error {

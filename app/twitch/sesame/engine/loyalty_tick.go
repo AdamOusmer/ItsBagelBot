@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/idempotency"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
@@ -134,6 +135,7 @@ func (s *ValkeyLoyaltyClock) arm(ctx context.Context, request loyaltyArmRequest)
 	}
 	liveSession, known, err := s.liveSession(ctx, request)
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		return false
 	}
 	if !known {
@@ -141,6 +143,7 @@ func (s *ValkeyLoyaltyClock) arm(ctx context.Context, request loyaltyArmRequest)
 	}
 	snap, allowed, err := s.awards.Capture(ctx, request.broadcaster)
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		s.log.Warn("loyalty: admission unavailable while arming", module.BIDField(request.broadcaster), zap.Error(err))
 		return false
 	}
@@ -164,6 +167,7 @@ func (s *ValkeyLoyaltyClock) persistArm(ctx context.Context, request loyaltyArmR
 	}
 	armed, err := result.AsInt64()
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		return false
 	}
 	if armed == 1 {
@@ -209,6 +213,7 @@ func (s *ValkeyLoyaltyClock) DisarmVersioned(ctx context.Context, id uint64, ver
 
 func (s *ValkeyLoyaltyClock) eval(ctx context.Context, script pkg_valkey.Script, keys []string, args ...string) (valkey.ValkeyResult, error) {
 	result := script.Exec(ctx, s.client, keys, args)
+	idempotency.Fail(ctx, result.Error())
 	return result, result.Error()
 }
 

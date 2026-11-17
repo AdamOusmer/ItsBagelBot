@@ -23,9 +23,11 @@ type ValkeyStore struct {
 
 type storedKey string
 
+type EffectKey string
+
 // Callers claiming inside their own script must write exactly this key.
-func Key(prefix, key string) string {
-	return prefix + key
+func Key(prefix string, key EffectKey) string {
+	return prefix + string(key)
 }
 
 func NewValkeyStore(client valkey_go.Client, prefix string, log *zap.Logger) *ValkeyStore {
@@ -40,7 +42,7 @@ func NewValkeyStore(client valkey_go.Client, prefix string, log *zap.Logger) *Va
 }
 
 func (s *ValkeyStore) Seen(ctx context.Context, key string, ttl time.Duration) (bool, error) {
-	full := storedKey(Key(s.prefix, key))
+	full := storedKey(Key(s.prefix, EffectKey(key)))
 	won, err := pkg_valkey.ClaimOnce(ctx, s.client, string(full), time.Duration(millis(ttl))*time.Millisecond)
 	if err != nil {
 		s.noteFailOpen(full, err)
@@ -49,8 +51,13 @@ func (s *ValkeyStore) Seen(ctx context.Context, key string, ttl time.Duration) (
 	return !won, nil
 }
 
+func (s *ValkeyStore) Contains(ctx context.Context, key string) (bool, error) {
+	n, err := pkg_valkey.Exec1(ctx, s.client, pkg_valkey.ExistsCmd(s.client, Key(s.prefix, EffectKey(key)))).AsInt64()
+	return n != 0, err
+}
+
 func (s *ValkeyStore) Release(ctx context.Context, key string) error {
-	full := Key(s.prefix, key)
+	full := Key(s.prefix, EffectKey(key))
 	err := s.client.Do(ctx, s.client.B().Del().Key(full).Build()).Error()
 	if err != nil && !valkey_go.IsValkeyNil(err) {
 		s.log.Debug("idempotency: claim release failed", zap.String("key", full), zap.Error(err))

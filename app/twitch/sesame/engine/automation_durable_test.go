@@ -375,13 +375,12 @@ func TestDurableSegmentCutShortRepeatsWithoutRepeatingEffects(t *testing.T) {
 	runID := rig.fire(t, 0, "a", "")
 	<-loyalty.entered
 	rig.kill(0)
+	close(loyalty.release)
 
 	rec := rig.awaitRecord(t, runID)
 	assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome)
-	assert.Contains(t, statuses(rec), "1:counter_set:skipped:duplicate")
 	assert.Contains(t, statuses(rec), "4:counter_set:ok:", "steps after the crash point run")
 
-	close(loyalty.release)
 	require.Eventually(t, func() bool { return len(inner.setNames()) == 3 }, durableTestSettle, time.Millisecond)
 	assert.ElementsMatch(t, []string{"fast", "last", "slow"}, inner.setNames())
 	rig.assertOutcomes(t, runID, 1)

@@ -45,7 +45,7 @@ func detachedReplayBase(broadcasterID uint64, key string) string {
 
 func (p *Pipeline) flushDetached(ctx context.Context, d detachedEmission) error {
 	p.flushLegacyOutput(ctx, d.state)
-	p.recordProcessed(d.broadcasterID, d.accountCreatedAt, false, d.state.accepted)
+	p.recordProcessed(ctx, processedMetrics{channel: d.broadcasterID, created: d.accountCreatedAt, outputs: d.state.accepted})
 	return d.state.err
 }
 

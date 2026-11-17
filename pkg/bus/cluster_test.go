@@ -113,7 +113,7 @@ func startClusterNode(clusterPort int, routes []*url.URL) (*server.Server, error
 	node, err := server.NewServer(&server.Options{
 		ServerName: fmt.Sprintf("n%d", clusterPort), Host: "127.0.0.1", Port: -1, NoLog: true, NoSigs: true,
 		JetStream: true, JetStreamDomain: "hub", StoreDir: filepath.Join(embedded.dir, fmt.Sprint(clusterPort)),
-		JetStreamMaxMemory: 2 << 30, JetStreamMaxStore: 1 << 30,
+		JetStreamMaxMemory: 3_000_000_000, JetStreamMaxStore: 1 << 30,
 		Cluster: server.ClusterOpts{Name: "test-cluster", Host: "127.0.0.1", Port: clusterPort},
 		Routes:  routes,
 	})
@@ -160,7 +160,7 @@ var catalog struct {
 }
 
 func catalogSpecs() []StreamSpec {
-	return append(fleetStreamSpecs(), DataDeadLetterStream)
+	return append(fleetStreamSpecs(), DataDeadLetterStream, IngressDeadLetterStream)
 }
 
 type busFixture struct {

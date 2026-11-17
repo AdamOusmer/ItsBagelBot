@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
@@ -49,7 +50,7 @@ type Config struct {
 	LiveTTL time.Duration
 
 	IdempotencyEnabled bool
-	// Must exceed stream MaxAge plus the retry hop, or late redeliveries run effects twice.
+	// Must cover the feeding streams and AckWait or late redeliveries run effects twice.
 	IdempotencyTTL time.Duration
 
 	conf.Projection
@@ -107,7 +108,7 @@ func Load() *Config {
 		LiveTTL: env.GetDuration("SESAME_LIVE_TTL", 12*time.Hour),
 
 		IdempotencyEnabled: env.Get("SESAME_IDEMPOTENCY", "on") != "off",
-		IdempotencyTTL:     env.GetDuration("SESAME_IDEMPOTENCY_TTL", 15*time.Minute),
+		IdempotencyTTL:     max(env.GetDuration("SESAME_IDEMPOTENCY_TTL", bus.TwitchEffectRetention()), bus.TwitchEffectRetention()),
 
 		CommandsDashboardPrefix: conf.CommandsPrefix.Get(),
 

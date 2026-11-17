@@ -23,8 +23,6 @@ func (x *actionExec) eventAmount() int64 {
 	return n
 }
 
-// cooldownAdd extends a named cooldown's window while it runs. A refusal (the window is not running, or the event
-// fell below the rate) costs nothing and never blocks a retry; a store failure is kept at most once instead.
 func (x *actionExec) cooldownAdd(s step, p automation.CooldownAddAction) error {
 	name, ok := automation.VariableName(p.Name)
 	if !ok {
@@ -38,7 +36,7 @@ func (x *actionExec) cooldownAdd(s step, p automation.CooldownAddAction) error {
 		return failure("no_long_cooldowns")
 	}
 	key := automation.LongCooldownNamedKey(x.run.BroadcasterID, name)
-	return x.onceRefusable(s, func() error { return x.extendNamedCooldown(key, seconds) })
+	return x.once(s, func() error { return x.extendNamedCooldown(key, seconds) })
 }
 
 func (x *actionExec) extendNamedCooldown(key string, seconds int64) error {

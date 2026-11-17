@@ -23,7 +23,6 @@ const (
 	flowMaxAckPending    = 20_000
 
 	flowProvisionTimeout = 5 * time.Second
-	laneReplaceTimeout   = 20 * time.Second
 
 	// Must stay far longer than a reconnect, or a returning pod loses its ack floor.
 	flowInactiveThreshold = 5 * time.Minute
@@ -53,7 +52,7 @@ func flowConsumerConfig(lane laneBinding) jsapi.ConsumerConfig {
 		InactiveThreshold: flowInactiveThreshold,
 		Replicas:          1,
 		MemoryStorage:     true,
-		Metadata:          map[string]string{managedConsumerMetadata: "true"},
+		Metadata:          map[string]string{managedConsumerMetadata: "true", consumerContractMetadata: "1"},
 	}
 }
 
@@ -99,7 +98,6 @@ func recoveryFlowConsumerConfig(lane laneBinding, position flowPosition) jsapi.C
 	return desired
 }
 
-// Only these rejections may delete a live consumer; deleting on any other resets every pod.
 var immutableConsumerFieldErrors = []string{
 	"ack policy can not be updated",
 	"storage type can not be updated",
@@ -139,6 +137,9 @@ func ensureFlowConsumer(nc *nats.Conn, lane laneBinding, desired jsapi.ConsumerC
 		return desired.DeliverSubject, err
 	}
 
+	if newerConsumerContract(info.Config.Metadata, desired.Metadata) {
+		return "", fmt.Errorf("bus: consumer %q requires a newer contract", desired.Name)
+	}
 	// Immutable: echo the server's values or every boot is rejected.
 	desired.DeliverSubject = info.Config.DeliverSubject
 	desired.DeliverPolicy = info.Config.DeliverPolicy
@@ -150,8 +151,7 @@ func ensureFlowConsumer(nc *nats.Conn, lane laneBinding, desired jsapi.ConsumerC
 		return "", fmt.Errorf("bus: update flow consumer %q: %w", desired.Name, err)
 	}
 
-	carryLaneAckFloor(&desired, info)
-	return desired.DeliverSubject, replaceFlowConsumer(js, lane, desired, err)
+	return "", fmt.Errorf("bus: consumer %q requires a new versioned durable: %w", desired.Name, err)
 }
 
 func flowConsumerInfo(ctx context.Context, js jsapi.JetStream, lane laneBinding) (*jsapi.ConsumerInfo, error) {
@@ -167,34 +167,4 @@ func flowConsumerInfo(ctx context.Context, js jsapi.JetStream, lane laneBinding)
 		return nil, nil
 	}
 	return info, err
-}
-
-func replaceFlowConsumer(
-	js jsapi.JetStream,
-	lane laneBinding,
-	desired jsapi.ConsumerConfig,
-	cause error,
-) error {
-	ctx, cancel := context.WithTimeout(context.Background(), laneReplaceTimeout)
-	defer cancel()
-
-	if err := js.DeleteConsumer(ctx, lane.stream, desired.Name); err != nil &&
-		!errors.Is(err, jsapi.ErrConsumerNotFound) {
-		return fmt.Errorf("bus: update flow consumer %q: %w (replace failed: %v)", desired.Name, cause, err)
-	}
-	if _, err := js.CreateOrUpdatePushConsumer(ctx, lane.stream, desired); err != nil {
-		return fmt.Errorf("bus: recreate flow consumer %q: %w", desired.Name, err)
-	}
-	return nil
-}
-
-// Never fall back to DeliverAll: it re-executes every retained chat command.
-func carryLaneAckFloor(desired *jsapi.ConsumerConfig, info *jsapi.ConsumerInfo) {
-	if info == nil || info.AckFloor.Stream == 0 {
-		desired.DeliverPolicy = jsapi.DeliverNewPolicy
-		desired.OptStartSeq = 0
-		return
-	}
-	desired.DeliverPolicy = jsapi.DeliverByStartSequencePolicy
-	desired.OptStartSeq = info.AckFloor.Stream + 1
 }

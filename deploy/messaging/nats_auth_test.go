@@ -24,7 +24,11 @@ var flowControlStreams = map[string][]string{
 
 var pullFetchStreams = map[string][]string{
 	"automod_bus": {"TWITCH_AUTOMOD_TRIAL"},
-	"worker_bus":  {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+	"worker_bus":  {"TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+}
+
+var pausedConsumerStreams = map[string][]string{
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_STANDARD"},
 }
 
 var coordinationBuckets = map[string][]string{
@@ -36,6 +40,7 @@ type streamGrants struct {
 	ownedStreams    []string
 	flowControl     []string
 	pullFetch       []string
+	paused          []string
 }
 
 func expectedJetStreamSubjects(grants streamGrants) []string {
@@ -45,6 +50,9 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 	}
 	for _, stream := range grants.pullFetch {
 		set[jetStreamAPI+"CONSUMER.MSG.NEXT."+stream+".>"] = struct{}{}
+	}
+	for _, stream := range grants.paused {
+		set[jetStreamAPI+"CONSUMER.PAUSE."+stream+".>"] = struct{}{}
 	}
 	for _, stream := range grants.consumerStreams {
 		for _, subject := range []string{
@@ -100,15 +108,15 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"modules_bus":   {"DATA"},
 		"loyalty_bus":   {"DATA"},
 		"projector_bus": {"DATA", "TWITCH_INGRESS"},
-		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
 		"automod_bus":   {"TWITCH_AUTOMOD_TRIAL"},
 	}
 	owners := map[string][]string{
 		"automod_bus":   {"TWITCH_AUTOMOD_TRIAL"},
 		"users_bus":     {"DATA", "DATA_DLQ"},
-		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"projector_bus": {"DATA", "DATA_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+		"worker_bus":    {"INGRESS_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+		"projector_bus": {"DATA", "DATA_DLQ"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
@@ -126,6 +134,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				ownedStreams:    owners[user],
 				flowControl:     flowControlStreams[user],
 				pullFetch:       pullFetchStreams[user],
+				paused:          pausedConsumerStreams[user],
 			}), coordinationSubjects(user)...)
 			slices.Sort(want)
 
@@ -170,7 +179,7 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	want := map[string][]string{
 		"users":     {"[]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}"},
 		"sesame":    {"bus.IngressLaneSpecs()"},
-		"projector": {"append([]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}, bus.IngressLaneSpecs()...)"},
+		"projector": {"[]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}"},
 		"outgress": {
 			"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},
@@ -183,7 +192,7 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	seen := map[string]bool{}
 	for _, name := range slices.Concat(mainFiles, groupedMainFiles) {
 		body := readText(t, name)
-		if !strings.Contains(body, "bus.EnsureStreams(") {
+		if !provisionsStreams(body) {
 			continue
 		}
 		dir := filepath.Dir(name)
@@ -199,6 +208,10 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	}
 
 	for service := range want {
-		assert.True(t, seen[service], "stream owner %s does not call EnsureStreams", service)
+		assert.True(t, seen[service], "stream owner %s does not provision streams", service)
 	}
+}
+
+func provisionsStreams(body string) bool {
+	return strings.Contains(body, "bus.EnsureStreams(") || strings.Contains(body, "bus.EnsureConsumerStreams(")
 }

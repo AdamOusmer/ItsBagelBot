@@ -225,6 +225,7 @@ accounts:
             outgress_bus:
                 publish:
                     allow:
+                        - ingress.dlq.>
                         - $JS.API.INFO
                         - $JS.API.STREAM.INFO.KV_outgress_rate
                         - $JS.API.STREAM.CREATE.KV_outgress_rate
@@ -282,6 +283,7 @@ accounts:
             projector_bus:
                 publish:
                     allow:
+                        - ingress.dlq.>
                         - data.reproject.request
                         - twitch.outgress.system
                         - $JS.API.STREAM.INFO.DATA
@@ -290,11 +292,6 @@ accounts:
                         - $JS.API.STREAM.INFO.DATA_DLQ
                         - $JS.API.STREAM.CREATE.DATA_DLQ
                         - $JS.API.STREAM.UPDATE.DATA_DLQ
-                        - $JS.API.STREAM.CREATE.TWITCH_INGRESS
-                        - $JS.API.STREAM.UPDATE.TWITCH_INGRESS
-                        - $JS.API.STREAM.INFO.TWITCH_INGRESS_STANDARD
-                        - $JS.API.STREAM.CREATE.TWITCH_INGRESS_STANDARD
-                        - $JS.API.STREAM.UPDATE.TWITCH_INGRESS_STANDARD
                         - $JS.API.CONSUMER.INFO.DATA.>
                         - $JS.API.CONSUMER.CREATE.DATA.>
                         - $JS.API.CONSUMER.DURABLE.CREATE.DATA.>
@@ -376,6 +373,21 @@ accounts:
                         - twitch.ingress.retry.>
                         - data.commands.used
                         - data.loyalty.>
+                        - ingress.dlq.>
+                        - $JS.API.STREAM.INFO.INGRESS_DLQ
+                        - $JS.API.STREAM.CREATE.INGRESS_DLQ
+                        - $JS.API.STREAM.UPDATE.INGRESS_DLQ
+                        - $JS.API.STREAM.INFO.TWITCH_INGRESS_PREMIUM
+                        - $JS.API.STREAM.CREATE.TWITCH_INGRESS_PREMIUM
+                        - $JS.API.STREAM.UPDATE.TWITCH_INGRESS_PREMIUM
+                        - $JS.API.CONSUMER.INFO.TWITCH_INGRESS_PREMIUM.>
+                        - $JS.API.CONSUMER.CREATE.TWITCH_INGRESS_PREMIUM.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.TWITCH_INGRESS_PREMIUM.>
+                        - $JS.API.CONSUMER.DELETE.TWITCH_INGRESS_PREMIUM.>
+                        - $JS.API.CONSUMER.PAUSE.TWITCH_INGRESS_PREMIUM.>
+                        - $JS.API.CONSUMER.MSG.NEXT.TWITCH_INGRESS_PREMIUM.>
+                        - $JS.ACK.TWITCH_INGRESS_PREMIUM.>
+                        - $JS.ACK.*.*.TWITCH_INGRESS_PREMIUM.>
                         - $JS.API.STREAM.INFO.TWITCH_INGRESS
                         - $JS.API.STREAM.CREATE.TWITCH_INGRESS
                         - $JS.API.STREAM.UPDATE.TWITCH_INGRESS
@@ -384,6 +396,7 @@ accounts:
                         - $JS.API.CONSUMER.DURABLE.CREATE.TWITCH_INGRESS.>
                         - $JS.API.CONSUMER.DELETE.TWITCH_INGRESS.>
                         - $JS.API.CONSUMER.MSG.NEXT.TWITCH_INGRESS.>
+                        - $JS.API.CONSUMER.PAUSE.TWITCH_INGRESS.>
                         - $JS.ACK.TWITCH_INGRESS.>
                         - $JS.ACK.*.*.TWITCH_INGRESS.>
                         - $JS.API.STREAM.INFO.TWITCH_INGRESS_STANDARD
@@ -393,6 +406,7 @@ accounts:
                         - $JS.API.CONSUMER.CREATE.TWITCH_INGRESS_STANDARD.>
                         - $JS.API.CONSUMER.DURABLE.CREATE.TWITCH_INGRESS_STANDARD.>
                         - $JS.API.CONSUMER.DELETE.TWITCH_INGRESS_STANDARD.>
+                        - $JS.API.CONSUMER.PAUSE.TWITCH_INGRESS_STANDARD.>
                         - $JS.API.CONSUMER.MSG.NEXT.TWITCH_INGRESS_STANDARD.>
                         - $JS.ACK.TWITCH_INGRESS_STANDARD.>
                         - $JS.ACK.*.*.TWITCH_INGRESS_STANDARD.>
@@ -406,16 +420,6 @@ accounts:
                         - $JS.ACK.TWITCH_INGRESS_RETRY.>
                         - $JS.ACK.*.*.TWITCH_INGRESS_RETRY.>
                         - $JS.API.CONSUMER.MSG.NEXT.TWITCH_INGRESS_RETRY.>
-                        - $JS.API.STREAM.INFO.TWITCH_INGRESS_STANDARD
-                        - $JS.API.STREAM.CREATE.TWITCH_INGRESS_STANDARD
-                        - $JS.API.STREAM.UPDATE.TWITCH_INGRESS_STANDARD
-                        - $JS.API.CONSUMER.INFO.TWITCH_INGRESS_STANDARD.>
-                        - $JS.API.CONSUMER.CREATE.TWITCH_INGRESS_STANDARD.>
-                        - $JS.API.CONSUMER.DURABLE.CREATE.TWITCH_INGRESS_STANDARD.>
-                        - $JS.API.CONSUMER.DELETE.TWITCH_INGRESS_STANDARD.>
-                        - $JS.API.CONSUMER.MSG.NEXT.TWITCH_INGRESS_STANDARD.>
-                        - $JS.ACK.TWITCH_INGRESS_STANDARD.>
-                        - $JS.ACK.*.*.TWITCH_INGRESS_STANDARD.>
                         - $JS.FC.TWITCH_INGRESS.>
                         - $JS.FC.TWITCH_INGRESS_STANDARD.>
                 subscribe:

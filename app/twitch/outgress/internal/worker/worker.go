@@ -6,6 +6,7 @@ package worker
 import (
 	"ItsBagelBot/internal/analytics"
 	"context"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/action"
@@ -79,6 +80,7 @@ type Worker struct {
 	batch       BatchStore
 	actions     action.Registry
 	userIDs     *cache.Cache[string]
+	staleDrops  atomic.Uint64
 
 	modVerifier *ModVerifier
 	reauth      *ReauthNotifier

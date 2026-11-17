@@ -70,17 +70,28 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 	if v.Action == automod.ActionNone {
 		return false
 	}
+	return p.applyChatVerdict(ctx, mctx, chatVerdict{v, councilMint}, emit)
+}
 
+type chatVerdict struct {
+	verdict     automod.Verdict
+	councilMint bool
+}
+
+func (p *Pipeline) applyChatVerdict(ctx context.Context, mctx *module.Context, decision chatVerdict, emit module.Emit) bool {
+	env := &mctx.Env
+	v, err := p.chatReputation(ctx, decision, ReputationEvent{Identity: EventIdentity(env), Viewer: env.ChatterUserID})
+	if err != nil {
+		p.log.Warn("reputation unavailable; enforcing base verdict", zap.Error(err))
+		v = decision.verdict
+	}
 	actioned := false
 	if p.automodEnforce {
-		if p.reputation != nil && !councilMint {
-			v = escalateByReputation(v, p.reputation.Score(ctx, env.ChatterUserID))
-			p.reputation.Bump(ctx, env.ChatterUserID)
-		}
 		actioned = p.emitAutomod(v, env, emit)
 	}
-	p.stats.flag(mctx.BroadcasterID, flagRule(v.Rule), actioned)
-	p.recordFlag(flagRule(v.Rule), actioned)
+	id := mctx.BroadcasterID
+	p.stats.record(ctx, func() { p.stats.flag(id, flagRule(v.Rule), actioned) })
+	p.recordFlag(ctx, flagRule(v.Rule), actioned)
 	p.log.Info("automod verdict",
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
@@ -89,6 +100,21 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 		zap.String("chatter_id", env.ChatterUserID),
 		shadowText(actioned, env.Text))
 	return actioned
+}
+
+func (p *Pipeline) chatReputation(ctx context.Context, decision chatVerdict, event ReputationEvent) (automod.Verdict, error) {
+	if !p.automodEnforce {
+		return decision.verdict, nil
+	}
+	return p.reputationVerdict(ctx, decision, event)
+}
+
+func (p *Pipeline) reputationVerdict(ctx context.Context, decision chatVerdict, event ReputationEvent) (automod.Verdict, error) {
+	if p.reputation == nil || decision.councilMint {
+		return decision.verdict, nil
+	}
+	score, err := p.reputation.Observe(ctx, event)
+	return escalateByReputation(decision.verdict, score), err
 }
 
 func shadowText(actioned bool, text string) zap.Field {
@@ -153,18 +179,18 @@ func (p *Pipeline) gateCohort(ctx context.Context, mctx *module.Context, amCfg *
 	if v.Action == automod.ActionNone {
 		return false
 	}
+	return p.applyCohortVerdict(ctx, cohortAction{v, broadcasterID, env}, emit)
+}
 
+func (p *Pipeline) applyCohortVerdict(ctx context.Context, action cohortAction, emit module.Emit) bool {
+	v, broadcasterID, env := action.verdict, action.broadcasterID, action.env
 	actioned := false
 	if p.automodEnforce {
-		if p.reputation != nil {
-			for i := range env.Senders {
-				p.reputation.Bump(ctx, env.Senders[i].ChatterUserID)
-			}
-		}
-		actioned = p.emitCohort(v, broadcasterID, env, emit)
+		p.bumpCohortReputation(ctx, env)
+		actioned = p.emitCohort(ctx, cohortAction{v, broadcasterID, env}, emit)
 	}
-	p.stats.flag(broadcasterID, flagRule(v.Rule), actioned)
-	p.recordFlag(flagRule(v.Rule), actioned)
+	p.stats.record(ctx, func() { p.stats.flag(broadcasterID, flagRule(v.Rule), actioned) })
+	p.recordFlag(ctx, flagRule(v.Rule), actioned)
 	p.log.Info("automod cohort verdict",
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
@@ -173,6 +199,22 @@ func (p *Pipeline) gateCohort(ctx context.Context, mctx *module.Context, amCfg *
 		module.BIDField(broadcasterID),
 		shadowText(actioned, env.Text))
 	return actioned
+}
+
+func (p *Pipeline) bumpCohortReputation(ctx context.Context, env *lane.Envelope) {
+	if p.reputation == nil {
+		return
+	}
+	for _, sender := range env.Senders {
+		identity := sender.MsgID
+		if identity == "" {
+			identity = EventIdentity(env)
+		}
+		_, err := p.reputation.Observe(ctx, ReputationEvent{Identity: identity, Viewer: sender.ChatterUserID})
+		if err != nil {
+			p.log.Warn("cohort reputation unavailable; enforcing base verdict", zap.Error(err))
+		}
+	}
 }
 
 func escalateByReputation(v automod.Verdict, score int) automod.Verdict {
@@ -248,12 +290,19 @@ func (p *Pipeline) shieldEscalates(v automod.Verdict, broadcasterID uint64, env 
 	return p.raidGate.trip(broadcasterID, time.Now())
 }
 
-func (p *Pipeline) emitCohort(v automod.Verdict, broadcasterID uint64, env *lane.Envelope, emit module.Emit) bool {
+type cohortAction struct {
+	verdict       automod.Verdict
+	broadcasterID uint64
+	env           *lane.Envelope
+}
+
+func (p *Pipeline) emitCohort(ctx context.Context, action cohortAction, emit module.Emit) bool {
+	v, broadcasterID, env := action.verdict, action.broadcasterID, action.env
 	acted := false
 	if p.shieldEscalates(v, broadcasterID, env) {
 		p.emitShield(env.BroadcasterUserID, emit)
-		p.stats.flag(broadcasterID, ruleShieldMode, true)
-		p.recordFlag(ruleShieldMode, true)
+		p.stats.record(ctx, func() { p.stats.flag(broadcasterID, ruleShieldMode, true) })
+		p.recordFlag(ctx, ruleShieldMode, true)
 		p.log.Warn("automod shield mode",
 			module.BIDField(broadcasterID),
 			zap.Int("cohort", len(env.Senders)),

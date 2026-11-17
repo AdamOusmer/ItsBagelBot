@@ -179,6 +179,7 @@ type BalanceAdjustment struct {
 }
 
 type PointEarning struct {
+	Context       context.Context
 	BroadcasterID uint64
 	ViewerID      uint64
 	Login         string

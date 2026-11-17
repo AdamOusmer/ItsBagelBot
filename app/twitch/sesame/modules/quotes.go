@@ -72,6 +72,7 @@ func newQuotesCmd(d engine.Deps, c *module.Context, log *zap.Logger) quotesCmd {
 		addRole:     quotePermRole(cfg.AddPerm),
 		editRole:    quotePermRole(cfg.EditPerm),
 		log:         log,
+		dedup:       d.Dedup,
 	}
 }
 
@@ -132,6 +133,7 @@ type quotesCmd struct {
 	addRole  module.Role
 	editRole module.Role
 	log      *zap.Logger
+	dedup    *engine.EventDedup
 }
 
 func (qc quotesCmd) add(ctx context.Context, body string, emit module.Emit) error {
@@ -139,6 +141,12 @@ func (qc quotesCmd) add(ctx context.Context, body string, emit module.Emit) erro
 		qc.reply(emit, "", "quote.err.usage")
 		return nil
 	}
+	return qc.dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&qc.c.Env), Effect: engine.EffectQuoteAdd}, func(ctx context.Context) error {
+		return qc.addOnce(ctx, body, emit)
+	})
+}
+
+func (qc quotesCmd) addOnce(ctx context.Context, body string, emit module.Emit) error {
 	saved, err := qc.q.QuoteAdd(ctx, qc.c.BroadcasterID, body, strings.ToLower(qc.c.Env.ChatterUserLogin))
 	if err != nil {
 		qc.log.Warn("quotes: add failed", qc.c.BID(), zap.Error(err))

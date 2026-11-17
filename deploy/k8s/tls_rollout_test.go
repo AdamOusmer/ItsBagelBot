@@ -28,7 +28,7 @@ type rolloutDeployment struct {
 		Strategy struct {
 			Type          string `yaml:"type"`
 			RollingUpdate struct {
-				MaxSurge       int `yaml:"maxSurge"`
+				MaxSurge       any `yaml:"maxSurge"`
 				MaxUnavailable int `yaml:"maxUnavailable"`
 			} `yaml:"rollingUpdate"`
 		} `yaml:"strategy"`

@@ -6,11 +6,14 @@ package engine
 import (
 	"context"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/idempotency"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -18,7 +21,7 @@ import (
 )
 
 const (
-	loyaltyFlushInterval = 5 * time.Second
+	loyaltyFlushInterval = 500 * time.Millisecond
 
 	loyaltyMaxKeys = 8192
 
@@ -61,14 +64,16 @@ type LoyaltyReporter struct {
 	earnWake   chan struct{}
 	earnWakeup counterReporterWake
 
-	now         func() time.Time
-	flushMu     sync.Mutex
-	pending     counterPublications
-	earnPending counterPublications
-	nextLog     time.Time
-	mu          sync.Mutex
-	earn        map[earnKey]*earnAgg
-	bumps       map[counterAgg]*bumpAgg
+	now                    func() time.Time
+	flushMu                sync.Mutex
+	pending                counterPublications
+	earnPending            counterPublications
+	nextLog                time.Time
+	mu                     sync.Mutex
+	earn                   map[earnKey]*earnAgg
+	bumps                  map[counterAgg]*bumpAgg
+	earnNext, bumpNext     *idempotency.Handoff
+	earnFlight, bumpFlight []*idempotency.Handoff
 }
 
 func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
@@ -104,6 +109,14 @@ func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
 }
 
 func (r *LoyaltyReporter) Earn(e PointEarning) {
+	ctx := e.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	r.EarnContext(ctx, e)
+}
+
+func (r *LoyaltyReporter) EarnContext(ctx context.Context, e PointEarning) {
 	if e.BroadcasterID == 0 || e.ViewerID == 0 {
 		return
 	}
@@ -113,6 +126,7 @@ func (r *LoyaltyReporter) Earn(e PointEarning) {
 	key := earnKey{broadcasterID: e.BroadcasterID, viewerID: e.ViewerID}
 
 	r.mu.Lock()
+	joinGeneration(ctx, &r.earnNext)
 	agg := r.earn[key]
 	if agg == nil {
 		agg = &earnAgg{}
@@ -137,10 +151,10 @@ func (agg *earnAgg) add(entry data.LoyaltyEarnEntry) {
 	}
 	agg.watchSeconds += entry.WatchSeconds
 	if entry.ViewerLogin != "" {
-		agg.login = entry.ViewerLogin
+		agg.login = strings.Clone(entry.ViewerLogin)
 	}
 	if entry.ViewerName != "" {
-		agg.name = entry.ViewerName
+		agg.name = strings.Clone(entry.ViewerName)
 	}
 }
 
@@ -169,16 +183,20 @@ func (r *LoyaltyReporter) BumpChannel(broadcasterID uint64, name string, delta i
 }
 
 func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
+	r.BumpContext(context.Background(), target, delta)
+}
+
+func (r *LoyaltyReporter) BumpContext(ctx context.Context, target CounterBumpTarget, delta int64) {
 	name, viewer := target.Name, target.Viewer
 	if !target.acceptsDelta(counterDelta(delta)) {
 		return
 	}
 	key := counterAgg{
 		broadcasterID: target.BroadcasterID,
-		name:          name,
-		scope:         target.Scope,
+		name:          strings.Clone(name),
+		scope:         strings.Clone(target.Scope),
 		viewerID:      viewer.ID,
-		command:       target.Command,
+		command:       strings.Clone(target.Command),
 	}
 
 	r.mu.Lock()
@@ -189,15 +207,17 @@ func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
 	}
 	if !agg.acceptsDelta(counterDelta(delta)) {
 		r.mu.Unlock()
+		idempotency.Fail(ctx, errors.New("counter window exceeds signed integer range"))
 		r.log.Error("counter window exceeds signed integer range")
 		return
 	}
 	agg.delta += delta
+	joinGeneration(ctx, &r.bumpNext)
 	if viewer.Login != "" {
-		agg.login = viewer.Login
+		agg.login = strings.Clone(viewer.Login)
 	}
 	if viewer.Name != "" {
-		agg.name = viewer.Name
+		agg.name = strings.Clone(viewer.Name)
 	}
 	overflow := len(r.bumps) >= loyaltyMaxKeys
 	r.mu.Unlock()
@@ -241,9 +261,11 @@ func (r *LoyaltyReporter) flushWith(ctx context.Context, attempt counterPublicat
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
 	defer r.reportBacklog()
+	defer r.resolveGenerations(attempt)
 	if !attempt.final {
 		r.earnPending = r.earnPending.retry(ctx, r.pub, r.log, attempt)
 		r.pending = r.pending.retry(ctx, r.pub, r.log, attempt)
+		r.resolveGenerations(attempt)
 	}
 	earn, bumps := r.drain(attempt)
 	r.publishEarned(earn)
@@ -269,11 +291,66 @@ func (r *LoyaltyReporter) drain(attempt counterPublicationAttempt) (map[earnKey]
 	}
 	if len(earn) > 0 {
 		r.earn = map[earnKey]*earnAgg{}
+		transferGeneration(&r.earnFlight, &r.earnNext)
+	} else {
+		earn = nil
 	}
 	if len(bumps) > 0 {
 		r.bumps = map[counterAgg]*bumpAgg{}
+		transferGeneration(&r.bumpFlight, &r.bumpNext)
+	} else {
+		bumps = nil
 	}
 	return earn, bumps
+}
+
+func joinGeneration(ctx context.Context, generation **idempotency.Handoff) {
+	if *generation == nil {
+		*generation = &idempotency.Handoff{}
+	}
+	idempotency.Join(ctx, *generation)
+	bus.HoldDelivery(ctx)
+}
+
+func transferGeneration(flights *[]*idempotency.Handoff, next **idempotency.Handoff) {
+	if *next != nil {
+		*flights = append(*flights, *next)
+	}
+	*next = nil
+}
+
+func settleGeneration(generations *[]*idempotency.Handoff, pending counterPublications, attempt counterPublicationAttempt) {
+	if len(pending) > 0 && !failedAttempt(pending, attempt.now) {
+		return
+	}
+	for _, generation := range *generations {
+		reportGeneration(generation, len(pending))
+	}
+	if len(pending) == 0 {
+		*generations = nil
+	}
+}
+
+func failedAttempt(pending counterPublications, now time.Time) bool {
+	for _, publication := range pending {
+		if publication.lastAttempt.Equal(now) {
+			return true
+		}
+	}
+	return false
+}
+
+func reportGeneration(generation *idempotency.Handoff, pending int) {
+	if pending > 0 {
+		generation.Notify(errors.New("DATA handoff unconfirmed"))
+		return
+	}
+	generation.Resolve(nil)
+}
+
+func (r *LoyaltyReporter) resolveGenerations(attempt counterPublicationAttempt) {
+	settleGeneration(&r.earnFlight, r.earnPending, attempt)
+	settleGeneration(&r.bumpFlight, r.pending, attempt)
 }
 
 func (r *LoyaltyReporter) backlog() counterReporterBacklog {

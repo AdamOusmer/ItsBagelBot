@@ -15,7 +15,7 @@ func LaneCheck(name string, sub Subscriber) health.Check {
 		Name: "lane_" + name,
 		Probe: func(context.Context) error {
 			if !SubscriberHealthy(sub) {
-				return errors.New("consumer has been failing to fetch")
+				return errors.New("consumer fetch failure or pending delivery age exceeds readiness threshold")
 			}
 			return nil
 		},

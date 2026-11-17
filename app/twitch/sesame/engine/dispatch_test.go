@@ -575,9 +575,12 @@ func TestCommandBumpCounterOptionRedeliveryDoesNotDoubleCount(t *testing.T) {
 		Dedup:   NewEventDedup(store, "sesame:seen:", time.Minute, zap.NewNop()),
 	}
 	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
-
-	require.NoError(t, p.Process(commandMsg(t, "m1", "!so")))
-	require.NoError(t, p.Process(commandMsg(t, "m1", "!so")))
+	t.Cleanup(p.Close)
+	for range 2 {
+		msg := commandMsg(t, "m1", "!so")
+		require.NoError(t, p.Process(msg))
+		awaitCompletion(t, msg, true)
+	}
 
 	require.Len(t, loyalty.bumps, 1, "a replayed command must bump once, not twice")
 	assert.Contains(t, store.keys(), "m1:"+CounterEffect("deaths"))

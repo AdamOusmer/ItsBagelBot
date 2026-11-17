@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/internal/domain/event/lane"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/internal/utils"
+	"ItsBagelBot/pkg/idempotency"
 
 	"go.uber.org/zap"
 )
@@ -241,7 +242,11 @@ func (x *actionExec) startContinuation(cont *AutomationRun) {
 	}
 	cont.Slot.retain()
 	x.p.autoExec.running.Add(1)
-	go x.p.continueRun(context.WithoutCancel(x.ctx), c)
+	p := x.p
+	go idempotency.Async(x.ctx, func(ctx context.Context) error {
+		p.continueRun(ctx, c)
+		return nil
+	})()
 }
 
 type continuation struct {
@@ -324,7 +329,7 @@ func detachRun(run *AutomationRun) *AutomationRun {
 	}
 	d.Env = detachEnvelope(run.Env)
 	d.Channel, d.Locale, d.Args = strings.Clone(run.Channel), strings.Clone(run.Locale), strings.Clone(run.Args)
-	d.ID, d.Identity, d.Replay = strings.Clone(run.ID), strings.Clone(run.Identity), strings.Clone(run.Replay)
+	d.ID, d.Identity, d.Replay = strings.Clone(run.ID), strings.Clone(run.identity()), strings.Clone(run.Replay)
 	d.Viewer = Viewer{ID: run.Viewer.ID, Login: strings.Clone(run.Viewer.Login), Name: strings.Clone(run.Viewer.Name)}
 	d.Iter = strings.Clone(run.Iter)
 	d.ArgMap, d.Event, d.Locals = cloneStrings(run.ArgMap), cloneStrings(run.Event), cloneStrings(run.Locals)
@@ -333,6 +338,9 @@ func detachRun(run *AutomationRun) *AutomationRun {
 }
 
 func (run *AutomationRun) identity() string {
+	if run.Identity != "" {
+		return run.Identity
+	}
 	if run.Env != nil {
 		if id := EventIdentity(run.Env); id != "" {
 			return id

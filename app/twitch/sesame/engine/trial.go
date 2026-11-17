@@ -27,16 +27,12 @@ func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadca
 	mctx := p.leaseContext(env, broadcasterID)
 	defer PutContext(mctx)
 	emission := emitState{subject: p.laneSubject(mctx.Regress), env: env, mctx: mctx}
-	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
-	p.runTracedStages(ctx, mctx, views, emit, &emission)
+	p.runTracedStages(ctx, mctx, views, &emission)
 	p.flushLegacyOutput(ctx, &emission)
 	answered = mctx.CommandAnswered
 	return emission.err
 }
 
-// Trial counts already use the bounded aggregate reporter. Keep its weighted
-// message totals and one latency sample per envelope; capture processing time
-// before reporting final outcome counters.
 type trialOutcome struct {
 	err      error
 	answered bool
@@ -65,12 +61,16 @@ func (p *Pipeline) countTrialFailure(ctx context.Context, id string, messages in
 
 func (p *Pipeline) countTrial(ctx context.Context, id, field string) { p.addTrial(ctx, id, field, 1) }
 
-func (p *Pipeline) addTrial(_ context.Context, id, field string, amount int64) {
+func (p *Pipeline) addTrial(ctx context.Context, id, field string, amount int64) {
 	if p.trialCounts == nil || amount == 0 {
 		return
 	}
 	broadcasterID, err := strconv.ParseUint(id, 10, 64)
 	if err != nil || broadcasterID == 0 {
+		return
+	}
+	if reporter, ok := p.trialCounts.(*LoyaltyReporter); ok {
+		reporter.BumpContext(ctx, ChannelBump(broadcasterID, data.TrialCounterPrefix+field), amount)
 		return
 	}
 	p.trialCounts.BumpChannel(broadcasterID, data.TrialCounterPrefix+field, amount)

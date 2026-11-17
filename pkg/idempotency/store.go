@@ -14,3 +14,7 @@ type Store interface {
 
 	Release(ctx context.Context, key string) error
 }
+
+type Reader interface {
+	Contains(context.Context, string) (bool, error)
+}

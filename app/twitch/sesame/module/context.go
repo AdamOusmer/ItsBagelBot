@@ -15,6 +15,10 @@ import (
 
 // Pooled by the engine: modules must not retain it past the call.
 type Context struct {
+	EffectScope   string
+	EffectOrdinal int
+	EffectContext context.Context
+	Failure       error
 	Env           lane.Envelope
 	Regress       Regress
 	BroadcasterID uint64
@@ -122,6 +126,7 @@ func (c *Context) EmoteCodes() map[string]struct{} {
 }
 
 func (c *Context) Reset() {
+	c.EffectScope, c.EffectOrdinal, c.EffectContext, c.Failure = "", 0, nil, nil
 	c.Env = lane.Envelope{}
 	c.Regress = RegressStandard
 	c.BroadcasterID = 0
