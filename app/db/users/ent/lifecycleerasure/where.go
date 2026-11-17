@@ -69,6 +69,11 @@ func DeletedAt(v time.Time) predicate.LifecycleErasure {
 	return predicate.LifecycleErasure(sql.FieldEQ(FieldDeletedAt, v))
 }
 
+// DeletedPublishedAt applies equality check predicate on the "deleted_published_at" field. It's identical to DeletedPublishedAtEQ.
+func DeletedPublishedAt(v time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldEQ(FieldDeletedPublishedAt, v))
+}
+
 // NotificationsDone applies equality check predicate on the "notifications_done" field. It's identical to NotificationsDoneEQ.
 func NotificationsDone(v bool) predicate.LifecycleErasure {
 	return predicate.LifecycleErasure(sql.FieldEQ(FieldNotificationsDone, v))
@@ -207,6 +212,56 @@ func DeletedAtLT(v time.Time) predicate.LifecycleErasure {
 // DeletedAtLTE applies the LTE predicate on the "deleted_at" field.
 func DeletedAtLTE(v time.Time) predicate.LifecycleErasure {
 	return predicate.LifecycleErasure(sql.FieldLTE(FieldDeletedAt, v))
+}
+
+// DeletedPublishedAtEQ applies the EQ predicate on the "deleted_published_at" field.
+func DeletedPublishedAtEQ(v time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldEQ(FieldDeletedPublishedAt, v))
+}
+
+// DeletedPublishedAtNEQ applies the NEQ predicate on the "deleted_published_at" field.
+func DeletedPublishedAtNEQ(v time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldNEQ(FieldDeletedPublishedAt, v))
+}
+
+// DeletedPublishedAtIn applies the In predicate on the "deleted_published_at" field.
+func DeletedPublishedAtIn(vs ...time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldIn(FieldDeletedPublishedAt, vs...))
+}
+
+// DeletedPublishedAtNotIn applies the NotIn predicate on the "deleted_published_at" field.
+func DeletedPublishedAtNotIn(vs ...time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldNotIn(FieldDeletedPublishedAt, vs...))
+}
+
+// DeletedPublishedAtGT applies the GT predicate on the "deleted_published_at" field.
+func DeletedPublishedAtGT(v time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldGT(FieldDeletedPublishedAt, v))
+}
+
+// DeletedPublishedAtGTE applies the GTE predicate on the "deleted_published_at" field.
+func DeletedPublishedAtGTE(v time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldGTE(FieldDeletedPublishedAt, v))
+}
+
+// DeletedPublishedAtLT applies the LT predicate on the "deleted_published_at" field.
+func DeletedPublishedAtLT(v time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldLT(FieldDeletedPublishedAt, v))
+}
+
+// DeletedPublishedAtLTE applies the LTE predicate on the "deleted_published_at" field.
+func DeletedPublishedAtLTE(v time.Time) predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldLTE(FieldDeletedPublishedAt, v))
+}
+
+// DeletedPublishedAtIsNil applies the IsNil predicate on the "deleted_published_at" field.
+func DeletedPublishedAtIsNil() predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldIsNull(FieldDeletedPublishedAt))
+}
+
+// DeletedPublishedAtNotNil applies the NotNil predicate on the "deleted_published_at" field.
+func DeletedPublishedAtNotNil() predicate.LifecycleErasure {
+	return predicate.LifecycleErasure(sql.FieldNotNull(FieldDeletedPublishedAt))
 }
 
 // LifecycleIsNil applies the IsNil predicate on the "lifecycle" field.

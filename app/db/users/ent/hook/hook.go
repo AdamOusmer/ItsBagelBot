@@ -32,6 +32,18 @@ func (f AuthorizationCodeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthorizationCodeMutation", m)
 }
 
+// The BillingReceiptFunc type is an adapter to allow the use of ordinary
+// function as BillingReceipt mutator.
+type BillingReceiptFunc func(context.Context, *ent.BillingReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f BillingReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.BillingReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BillingReceiptMutation", m)
+}
+
 // The DelegationFunc type is an adapter to allow the use of ordinary
 // function as Delegation mutator.
 type DelegationFunc func(context.Context, *ent.DelegationMutation) (ent.Value, error)

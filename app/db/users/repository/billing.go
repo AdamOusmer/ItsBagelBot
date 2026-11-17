@@ -48,32 +48,63 @@ type billingWrite struct {
 }
 
 func (r *Users) applyBillingTx(ctx context.Context, req billingrpc.ApplyRequest) (billingWrite, error) {
-	skip := billingWrite{outcome: billingSkip}
-	var result billingWrite
+	var write billingWrite
 	err := db.RetryTx(ctx, func(ctx context.Context) error {
 		var err error
-		result, err = db.WithQuery(ctx, func(ctx context.Context) (billingWrite, error) {
+		write, err = db.WithQuery(ctx, func(ctx context.Context) (billingWrite, error) {
 			return db.WithTxResult(ctx, r.client, func(tx *ent.Tx) (billingWrite, error) {
-				u, err := loadBillingUser(ctx, tx, req.UserID)
-				if err != nil {
-					return skip, err
-				}
-				if outcome := billingOutcomeFor(u, req); outcome != billingProceed {
-					return billingWrite{outcome: outcome}, nil
-				}
-				updated, err := saveBilling(ctx, tx, u, req)
-				if err != nil || updated == 0 {
-					return skip, err
-				}
-				return billingWrite{outcome: billingApplied}, nil
+				return applyBillingReceipt(ctx, tx, req)
 			})
 		})
 		return err
 	})
-	if err != nil {
-		return billingWrite{}, err
+	if errors.Is(err, errBillingReplay) {
+		return billingWrite{outcome: billingReplay}, nil
 	}
-	return result, nil
+	if errors.Is(err, errBillingSkip) {
+		return billingWrite{outcome: billingSkip}, nil
+	}
+	return write, err
+}
+
+var errBillingReplay = errors.New("billing receipt already recorded")
+var errBillingSkip = errors.New("billing event skipped")
+
+func applyBillingReceipt(ctx context.Context, tx *ent.Tx, req billingrpc.ApplyRequest) (billingWrite, error) {
+	skip := billingWrite{outcome: billingSkip}
+	err := tx.BillingReceipt.Create().SetID(req.EventID).Exec(ctx)
+	if ent.IsConstraintError(err) {
+		return skip, errBillingReplay
+	}
+	if err != nil {
+		return skip, err
+	}
+	users, err := loadBillingUsers(ctx, tx, req)
+	if err != nil {
+		return skip, err
+	}
+	switch billingOutcomeFor(users.recipient, req) {
+	case billingSkip:
+		return skip, errBillingSkip
+	case billingReplay:
+		return skip, errBillingReplay
+	}
+	return commitBillingEffect(ctx, tx, users, req)
+}
+
+func commitBillingEffect(ctx context.Context, tx *ent.Tx, users billingUsers, req billingrpc.ApplyRequest) (billingWrite, error) {
+	skip := billingWrite{outcome: billingSkip}
+	updated, err := saveBilling(ctx, tx, users.recipient, req)
+	if err != nil {
+		return skip, err
+	}
+	if updated == 0 {
+		return skip, errBillingSkip
+	}
+	if err := countGiftForGifter(ctx, tx, users.gifter); err != nil {
+		return skip, err
+	}
+	return billingWrite{outcome: billingApplied}, nil
 }
 
 func validateApply(req billingrpc.ApplyRequest) error {
@@ -86,11 +117,36 @@ func validateApply(req billingrpc.ApplyRequest) error {
 	return nil
 }
 
-func loadBillingUser(ctx context.Context, tx *ent.Tx, id uint64) (*ent.User, error) {
-	if err := lockGrantUser(ctx, tx, id); err != nil {
-		return nil, err
+type billingUsers struct {
+	recipient *ent.User
+	gifter    *ent.User
+}
+
+func loadBillingUsers(ctx context.Context, tx *ent.Tx, req billingrpc.ApplyRequest) (billingUsers, error) {
+	var users billingUsers
+	ids := []uint64{req.UserID}
+	if giftedByAnother(req) {
+		ids = append(ids, req.GifterID)
 	}
-	return tx.User.Query().Where(user.IDEQ(id)).Only(ctx)
+	q := tx.User.Query().Where(user.IDIn(ids...)).Order(ent.Asc(user.FieldID))
+	rows, err := q.Clone().ForUpdate().All(ctx)
+	if db.RowLocksUnsupported(err) {
+		rows, err = q.All(ctx)
+	}
+	if err != nil {
+		return users, err
+	}
+	for _, row := range rows {
+		if row.ID == req.UserID {
+			users.recipient = row
+		} else {
+			users.gifter = row
+		}
+	}
+	if users.recipient == nil {
+		return users, &ent.NotFoundError{}
+	}
+	return users, nil
 }
 
 func billingOutcomeFor(u *ent.User, req billingrpc.ApplyRequest) billingOutcome {
@@ -128,7 +184,6 @@ func saveBilling(ctx context.Context, tx *ent.Tx, u *ent.User, req billingrpc.Ap
 }
 
 func (r *Users) finishBilling(ctx context.Context, req billingrpc.ApplyRequest) error {
-	r.countGiftForGifter(ctx, req)
 	if err := r.projectAccess(ctx, req.UserID, time.Now().UTC()); err != nil {
 		return err
 	}
@@ -195,21 +250,18 @@ func refMismatch(u *ent.User, req billingrpc.ApplyRequest) bool {
 	return *u.SubscriptionRef != req.RecurringReference
 }
 
-// Best effort: failing here makes Tebex retry and re-apply the entitlement.
-func (r *Users) countGiftForGifter(ctx context.Context, req billingrpc.ApplyRequest) {
-	if !giftedByAnother(req) {
-		return
+func countGiftForGifter(ctx context.Context, tx *ent.Tx, gifter *ent.User) error {
+	if gifter == nil {
+		return nil
 	}
-	_ = db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.User.Update().Where(user.IDEQ(req.GifterID)).AddGiftsSent(1).Exec(ctx)
-	})
+	_, err := tx.User.Update().Where(user.IDEQ(gifter.ID)).AddGiftsSent(1).Save(ctx)
+	return err
 }
 
 func giftedByAnother(req billingrpc.ApplyRequest) bool {
 	return req.Action == billingrpc.ActionActivate && req.GifterID != 0 && req.GifterID != req.UserID
 }
 
-// An open expiry grants permanent premium; rejecting would loop Tebex retries forever.
 func applyPaidUpdate(q *ent.UserUpdate, req billingrpc.ApplyRequest, cancelPending bool, storedExpiresAt *time.Time) {
 	q.SetStatus(user.StatusPaid).
 		SetSubscriptionSource("tebex").

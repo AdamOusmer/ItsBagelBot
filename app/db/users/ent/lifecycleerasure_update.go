@@ -85,6 +85,26 @@ func (_u *LifecycleErasureUpdate) SetNillableDeletedAt(v *time.Time) *LifecycleE
 	return _u
 }
 
+// SetDeletedPublishedAt sets the "deleted_published_at" field.
+func (_u *LifecycleErasureUpdate) SetDeletedPublishedAt(v time.Time) *LifecycleErasureUpdate {
+	_u.mutation.SetDeletedPublishedAt(v)
+	return _u
+}
+
+// SetNillableDeletedPublishedAt sets the "deleted_published_at" field if the given value is not nil.
+func (_u *LifecycleErasureUpdate) SetNillableDeletedPublishedAt(v *time.Time) *LifecycleErasureUpdate {
+	if v != nil {
+		_u.SetDeletedPublishedAt(*v)
+	}
+	return _u
+}
+
+// ClearDeletedPublishedAt clears the value of the "deleted_published_at" field.
+func (_u *LifecycleErasureUpdate) ClearDeletedPublishedAt() *LifecycleErasureUpdate {
+	_u.mutation.ClearDeletedPublishedAt()
+	return _u
+}
+
 // SetLifecycle sets the "lifecycle" field.
 func (_u *LifecycleErasureUpdate) SetLifecycle(v *lifecycle.State) *LifecycleErasureUpdate {
 	_u.mutation.SetLifecycle(v)
@@ -215,6 +235,12 @@ func (_u *LifecycleErasureUpdate) sqlSave(ctx context.Context) (_node int, err e
 	if value, ok := _u.mutation.DeletedAt(); ok {
 		_spec.SetField(lifecycleerasure.FieldDeletedAt, field.TypeTime, value)
 	}
+	if value, ok := _u.mutation.DeletedPublishedAt(); ok {
+		_spec.SetField(lifecycleerasure.FieldDeletedPublishedAt, field.TypeTime, value)
+	}
+	if _u.mutation.DeletedPublishedAtCleared() {
+		_spec.ClearField(lifecycleerasure.FieldDeletedPublishedAt, field.TypeTime)
+	}
 	if value, ok := _u.mutation.Lifecycle(); ok {
 		_spec.SetField(lifecycleerasure.FieldLifecycle, field.TypeJSON, value)
 	}
@@ -309,6 +335,26 @@ func (_u *LifecycleErasureUpdateOne) SetNillableDeletedAt(v *time.Time) *Lifecyc
 	if v != nil {
 		_u.SetDeletedAt(*v)
 	}
+	return _u
+}
+
+// SetDeletedPublishedAt sets the "deleted_published_at" field.
+func (_u *LifecycleErasureUpdateOne) SetDeletedPublishedAt(v time.Time) *LifecycleErasureUpdateOne {
+	_u.mutation.SetDeletedPublishedAt(v)
+	return _u
+}
+
+// SetNillableDeletedPublishedAt sets the "deleted_published_at" field if the given value is not nil.
+func (_u *LifecycleErasureUpdateOne) SetNillableDeletedPublishedAt(v *time.Time) *LifecycleErasureUpdateOne {
+	if v != nil {
+		_u.SetDeletedPublishedAt(*v)
+	}
+	return _u
+}
+
+// ClearDeletedPublishedAt clears the value of the "deleted_published_at" field.
+func (_u *LifecycleErasureUpdateOne) ClearDeletedPublishedAt() *LifecycleErasureUpdateOne {
+	_u.mutation.ClearDeletedPublishedAt()
 	return _u
 }
 
@@ -471,6 +517,12 @@ func (_u *LifecycleErasureUpdateOne) sqlSave(ctx context.Context) (_node *Lifecy
 	}
 	if value, ok := _u.mutation.DeletedAt(); ok {
 		_spec.SetField(lifecycleerasure.FieldDeletedAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.DeletedPublishedAt(); ok {
+		_spec.SetField(lifecycleerasure.FieldDeletedPublishedAt, field.TypeTime, value)
+	}
+	if _u.mutation.DeletedPublishedAtCleared() {
+		_spec.ClearField(lifecycleerasure.FieldDeletedPublishedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.Lifecycle(); ok {
 		_spec.SetField(lifecycleerasure.FieldLifecycle, field.TypeJSON, value)

@@ -385,7 +385,7 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 	r.analytics.Count(catalog.Lifecycle, "account_deleted")
 
-	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, deleted)
+	return r.publishDeletions(ctx, []data.UserDeletedDTO{deleted})
 }
 
 func (r *Users) Invalidate(id uint64) {

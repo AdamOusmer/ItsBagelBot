@@ -47,7 +47,7 @@ func (r *Users) lifecycleErase(ctx context.Context, req usersrpc.LifecycleReques
 }
 
 func (r *Users) pruneLifecycleErasures(ctx context.Context, now time.Time) error {
-	expired, err := r.client.LifecycleErasure.Query().Where(lifecycleerasure.CompletedAtLT(now.Add(-7 * 24 * time.Hour))).Order(ent.Asc(lifecycleerasure.FieldID)).Limit(100).All(ctx)
+	expired, err := r.client.LifecycleErasure.Query().Where(lifecycleerasure.CompletedAtLT(now.Add(-7*24*time.Hour)), lifecycleerasure.DeletedPublishedAtNotNil()).Order(ent.Asc(lifecycleerasure.FieldID)).Limit(100).All(ctx)
 	if err != nil {
 		return err
 	}

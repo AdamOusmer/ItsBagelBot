@@ -95,13 +95,20 @@ Edit schemas rather than generated Ent code.
 - Deletion first writes `erasures/<id>-<accountCreatedAt>` to the R2 erasure
   ledger (`ERASURE_R2_*`) and fails if that write fails, then revokes Twitch
   tokens. `ReplayErasures` (boot + every 15m) re-deletes any account a database
-  restore brought back and resends `data.users.deleted` for records under 1h
-  whose account is gone; the ledger lives outside MySQL so it survives losing it.
+  restore brought back across all chunks before resending `data.users.deleted`
+  for absent accounts whose `LifecycleErasure.deleted_published_at` is unset,
+  even after lifecycle acknowledgments complete. Successful publication sets
+  that timestamp; unpublished markers cannot be pruned. Restore recovery has no age limit. The ledger
+  lives outside MySQL so it survives losing it.
 - Transactions calls `rpc.internal.billing.apply` and Users' internal
   giveaway prefix for eligibility, coverage and grant lifecycle. `main.go` holds
   subject overrides, token/email/count reads and the projection subject.
+- Billing receipts are retained for the account's lifetime, with no scheduled
+  expiry. They contain only the provider event ID and creation time, with no user
+  ID or account association, so account erasure retains these event-only replay
+  receipts indefinitely.
 
-Lifecycle authority: `repository/lifecycle.go` owns immediate intent, independent bot moderation/grant facts, admission generations, incident suppression, bounded recovery and indexed due replay. `lifecycle_projection_pending` persists publication failures without changing read revision on acknowledgment. Legacy seeds run 200 per due pass and unknown access stays degraded. `LifecycleErasure` retains incarnation-fenced cleanup after deletion; completed markers expire after seven days.
+Lifecycle authority: `repository/lifecycle.go` owns immediate intent, independent bot moderation/grant facts, admission generations, incident suppression, bounded recovery and indexed due replay. `lifecycle_projection_pending` persists publication failures without changing read revision on acknowledgment. Legacy seeds run 200 per due pass and unknown access stays degraded. `LifecycleErasure` retains incarnation-fenced cleanup after deletion; completed markers expire after seven days only once the deletion event has been published.
 
 Device authorization: `CreateDeviceAuthorizationCode`/`ExchangeDeviceCode` redeem a
 single-use code atomically (conditional `UPDATE ... WHERE consumed_at IS NULL`,

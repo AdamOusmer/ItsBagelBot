@@ -19,6 +19,8 @@ const (
 	FieldAccountCreatedAt = "account_created_at"
 	// FieldDeletedAt holds the string denoting the deleted_at field in the database.
 	FieldDeletedAt = "deleted_at"
+	// FieldDeletedPublishedAt holds the string denoting the deleted_published_at field in the database.
+	FieldDeletedPublishedAt = "deleted_published_at"
 	// FieldLifecycle holds the string denoting the lifecycle field in the database.
 	FieldLifecycle = "lifecycle"
 	// FieldNotificationsDone holds the string denoting the notifications_done field in the database.
@@ -39,6 +41,7 @@ var Columns = []string{
 	FieldUserID,
 	FieldAccountCreatedAt,
 	FieldDeletedAt,
+	FieldDeletedPublishedAt,
 	FieldLifecycle,
 	FieldNotificationsDone,
 	FieldOutgressDone,
@@ -88,6 +91,11 @@ func ByAccountCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByDeletedAt orders the results by the deleted_at field.
 func ByDeletedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDeletedAt, opts...).ToFunc()
+}
+
+// ByDeletedPublishedAt orders the results by the deleted_published_at field.
+func ByDeletedPublishedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeletedPublishedAt, opts...).ToFunc()
 }
 
 // ByNotificationsDone orders the results by the notifications_done field.
