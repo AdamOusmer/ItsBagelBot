@@ -41,11 +41,14 @@ func personalityAllowed(ctx context.Context, d engine.Deps, c *module.Context, r
 
 // personalityLine renders the reaction's reply, letting the rare golden-bagel
 // roll override any reaction with its own line.
-func personalityLine(ctx context.Context, d engine.Deps, c *module.Context, r reaction) string {
+func personalityLine(ctx context.Context, d engine.Deps, c *module.Context, r reaction) (string, error) {
 	if goldenRoll() {
-		return expandUser(i18n.T(c.Locale, "personality.golden"), c)
+		return expandUser(i18n.T(c.Locale, "personality.golden"), c), nil
 	}
-	return r.reply(ctx, d, c)
+	if r.name == "feed" {
+		return feedReply(ctx, d, c)
+	}
+	return r.reply(ctx, d, c), nil
 }
 
 // packReply draws the same index in every locale and expands its tokens. The
@@ -72,34 +75,28 @@ func factReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	return personalityPackLine(c.Locale, "fact", idx)
 }
 
-// feedReply records one feeding (the fleet-wide counters plus this channel's
-// own row) and reports the fleet-wide numbers. The per-channel standing the
-// same write produces is not printed here: !bagels and !bagelboard are the
-// surfaces for it, and the reaction stays a one-line joke. No counts, no line:
-// when the store is nil or erroring the reaction stays silent rather than
-// answering without its numbers.
-func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
-	// Feed is a write to fleet and channel counters. There is no read-only
-	// equivalent of its post-increment totals, so a trial records the matched
-	// reaction without inventing a count or touching the store.
+func feedReply(ctx context.Context, d engine.Deps, c *module.Context) (string, error) {
 	if c.Env.Origin == "trial" {
-		return ""
+		return "", nil
 	}
 	if d.Personality == nil {
-		return ""
+		return "", nil
 	}
-	eventID := c.Env.MsgID
-	if eventID == "" {
-		eventID = c.Env.ChatMessageID
-	}
-	if eventID == "" {
-		eventID = c.Env.EventID
-	}
-	counts, err := d.Personality.Feed(ctx, c.BroadcasterID, c.Env.BroadcasterName(), eventID)
+	counts, err := retryPersonalityFeed(ctx, d.Personality, c)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return fmt.Sprintf(personalityPackLine(c.Locale, "feed", pickIndex(len(personalityFeedCountPack))), counts.Today, counts.Total)
+	return fmt.Sprintf(personalityPackLine(c.Locale, "feed", pickIndex(len(personalityFeedCountPack))), counts.Today, counts.Total), nil
+}
+
+func feedEventID(c *module.Context) string {
+	if c.Env.MsgID != "" {
+		return c.Env.MsgID
+	}
+	if c.Env.ChatMessageID != "" {
+		return c.Env.ChatMessageID
+	}
+	return c.Env.EventID
 }
 
 // moodReply reports the stream's mood, rolling a candidate that only sticks if

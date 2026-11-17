@@ -330,16 +330,24 @@ func (r *Notifications) insertLegacyPeeksIndividually(ctx context.Context, recip
 
 const CleanupBatchSize = 500
 
-func (r *Notifications) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	ids, err := r.client.Notification.Query().Where(notification.ExpiresAtLTE(now)).Order(ent.Asc(notification.FieldExpiresAt), ent.Asc(notification.FieldID)).Limit(CleanupBatchSize).IDs(ctx)
-	if err != nil || len(ids) == 0 {
-		return 0, err
-	}
-	return r.client.Notification.Delete().Where(notification.IDIn(ids...), notification.ExpiresAtLTE(now)).Exec(ctx)
+func (r *Notifications) DeleteExpired(ctx context.Context, now time.Time) (int, bool, error) {
+	var deleted int
+	var more bool
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		var err error
+		deleted, more, err = deleteNotificationBatch(ctx, r.client, notification.ExpiresAtLTE(now))
+		return err
+	})
+	return deleted, more, err
 }
 
 func (r *Notifications) Delete(ctx context.Context, id int) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.Notification.DeleteOneID(id).Exec(ctx)
+		deletion := notificationDeletion{id: id}
+		return db.RetryTx(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				return deletion.apply(ctx, tx.Client())
+			})
+		})
 	})
 }

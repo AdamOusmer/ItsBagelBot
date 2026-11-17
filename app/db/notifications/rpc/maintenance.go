@@ -27,7 +27,7 @@ func SubscribeMaintenance(w Wiring, subject string) error {
 
 func (m *maintenanceRPC) cleanup(ctx context.Context, _ notificationsrpc.CleanupRequest) notificationsrpc.CleanupReply {
 	log := monitor.TxnLogger(ctx, m.log)
-	deleted, err := m.repo.DeleteExpired(ctx, time.Now())
+	deleted, expiredMore, err := m.repo.DeleteExpired(ctx, time.Now())
 	if err != nil {
 		log.Warn("notification cleanup failed", zap.Error(err))
 		return notificationsrpc.CleanupReply{Refusal: bus.Classify(err)}
@@ -39,5 +39,5 @@ func (m *maintenanceRPC) cleanup(ctx context.Context, _ notificationsrpc.Cleanup
 	if err != nil {
 		return notificationsrpc.CleanupReply{Deleted: deleted, Refusal: bus.Classify(err)}
 	}
-	return notificationsrpc.CleanupReply{Deleted: deleted, ReceiptsDeleted: receipts, HasMore: more || deleted == repository.CleanupBatchSize}
+	return notificationsrpc.CleanupReply{Deleted: deleted, ReceiptsDeleted: receipts, HasMore: more || expiredMore}
 }

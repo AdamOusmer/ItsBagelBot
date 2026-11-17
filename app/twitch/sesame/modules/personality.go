@@ -105,7 +105,7 @@ var personalityReactions = []reaction{
 	{name: "thanks", phrases: withNames(botNames, "thank you {name}", "thanks {name}", "ty {name}", "merci {name}"), cooldown: 15 * time.Second, reply: packReply("thanks", personalityThanksPack)},
 	{name: "toast", phrases: withNames(botNames, "toast the {name}", "toast {name}", "grille le {name}", "grille {name}"), cooldown: 30 * time.Second, reply: toastReply},
 	{name: "pet", phrases: withNames(botNames, "pet the {name}", "pet {name}", "pets the {name}", "hug the {name}", "hug {name}", "hugs the {name}", "{name} hug", "caresse le {name}", "câlin {name}"), cooldown: 30 * time.Second, reply: packReply("affection", personalityAffectionPack)},
-	{name: "feed", phrases: withNames(botNames, "feed the {name}", "feed {name}", "feeds the {name}", "nourris le {name}", "nourris {name}"), cooldown: 30 * time.Second, reply: feedReply},
+	{name: "feed", phrases: withNames(botNames, "feed the {name}", "feed {name}", "feeds the {name}", "nourris le {name}", "nourris {name}"), cooldown: 30 * time.Second},
 	{name: "boop", phrases: withNames(botNames, "boop the {name}", "boop {name}", "boops the {name}"), cooldown: 30 * time.Second, reply: packReply("boop", personalityBoopPack)},
 	{name: "mood", phrases: withNames(botNames, "{name} mood", "mood of the {name}", "humeur du {name}", "humeur {name}"), cooldown: 60 * time.Second, reply: moodReply},
 	{name: "give", phrases: []string{"give me a bagel", "i want a bagel", "gimme bagel", "gimme a bagel", "donne moi un bagel", "je veux un bagel"}, cooldown: 30 * time.Second, reply: packReply("give", personalityGiveBagel)},
@@ -122,13 +122,12 @@ func personalityOnChat(d engine.Deps) module.EventHandler {
 			return nil
 		}
 		r, ok := matchReaction(strings.ToLower(text))
-		if !ok || !personalityAllowed(ctx, d, c, r) {
+		if !ok {
 			return nil
 		}
-		c.EnsureLocale(ctx)
-		msg := personalityLine(ctx, d, c, r)
-		if msg == "" {
-			return nil
+		msg, err := admittedPersonalityLine(ctx, d, c, r)
+		if err != nil || msg == "" {
+			return err
 		}
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
@@ -137,4 +136,12 @@ func personalityOnChat(d engine.Deps) module.EventHandler {
 		})
 		return nil
 	}
+}
+
+func admittedPersonalityLine(ctx context.Context, d engine.Deps, c *module.Context, r reaction) (string, error) {
+	if !personalityAllowed(ctx, d, c, r) {
+		return "", nil
+	}
+	c.EnsureLocale(ctx)
+	return personalityLine(ctx, d, c, r)
 }
