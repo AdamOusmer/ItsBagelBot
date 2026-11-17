@@ -122,7 +122,7 @@ export const actions: Actions = {
     const draft = parseRewardDraft(String((await request.formData()).get('payload') ?? ''));
     if (!draft) return fail(400, { ok: false, error: actionError(locals.locale, 'Invalid reward.') });
     const reply = DEMO ? (await import('#lib/flow/demo')).demoRewardSave(locals.locale, draft) : await liveRewardSave(locals, draft);
-    return reply.ok ? reply : fail(reply.missingScope ? 403 : 502, reply);
+    return reply.ok ? reply : fail(reply.status, reply);
   },
   scenes: async ({ request, locals }) => {
     if (!(await broadcasterPremium(locals))) return fail(403, { ok: false });

@@ -3,6 +3,7 @@
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { RewardReply } from '../flow/replies';
+import { staticText } from '../../../../kit/lib/i18n/static';
 import { stubSvelteKit } from '../../../test/sveltekit';
 
 stubSvelteKit();
@@ -48,8 +49,10 @@ describe('creating a recipe reward without saving the recipe', () => {
   });
 
   test.each([
-    ['a missing Twitch permission is flagged and localized', { list: { rewards: [] }, create: { missing_scope: true } }, { missingScope: true, error: 'Reconnect your Twitch account to manage channel points. One extra permission is needed.' }],
-    ['a refusal from Twitch is reported as a readable failure', { list: { rewards: [] }, create: { error: 'title taken' } }, { missingScope: false, error: 'Twitch did not accept the reward. Check the title and cost, then try again.' }]
+    ['a missing Twitch permission is flagged and localized', { list: { rewards: [] }, create: { missing_scope: true } }, { status: 403, missingScope: true, error: 'Reconnect your Twitch account to manage channel points. One extra permission is needed.' }],
+    ['a taken title is named', { list: { rewards: [] }, create: { error: 'duplicate reward title', code: 'conflict' } }, { status: 409, missingScope: false, error: staticText('en', 'channelpoints.toastDuplicateTitle') }],
+    ['a channel without affiliate is named', { list: { rewards: [] }, create: { error: 'broadcaster not affiliate', code: 'forbidden', not_affiliate: true } }, { status: 403, missingScope: false, error: staticText('en', 'channelpoints.toastNotAffiliate') }],
+    ['a refusal from Twitch is reported as a readable failure', { list: { rewards: [] }, create: { error: 'title taken' } }, { status: 502, missingScope: false, error: 'Twitch did not accept the reward. Check the title and cost, then try again.' }]
   ] as [string, Record<string, unknown>, Record<string, unknown>][])('%s', async (_name, wire, expected) => {
     for (const [verb, reply] of Object.entries(wire)) replies[`${REWARD}.${verb}`] = reply;
     expect(await liveRewardSave(locals, draft)).toEqual({ ok: false, ...expected } as RewardReply);

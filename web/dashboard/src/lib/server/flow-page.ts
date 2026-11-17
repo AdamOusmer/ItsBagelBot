@@ -173,9 +173,14 @@ export async function liveSave(locals: App.Locals, { request, flow, definition, 
   return withLatestRevision(locals, request.ref, saveReply(result));
 }
 
+const REWARD_REFUSAL_STATUS: Record<string, number> = { missing_scope: 403, duplicate_title: 409, not_affiliate: 403 };
+
 export async function liveRewardSave(locals: App.Locals, draft: ManagedReward): Promise<RewardReply> {
   const saved = await saveManagedReward(effectiveId(locals.session), draft).catch((): RewardSaved => ({ ok: false, error: 'reward_failed' }));
-  if (!saved.ok) return { ok: false, error: actionError(locals.locale, saved.error), missingScope: saved.error === 'missing_scope' };
+  if (!saved.ok) {
+    const status = REWARD_REFUSAL_STATUS[saved.error] ?? 502;
+    return { ok: false, error: actionError(locals.locale, saved.error), status, missingScope: saved.error === 'missing_scope' };
+  }
   return { ok: true, ...saved.reward };
 }
 
