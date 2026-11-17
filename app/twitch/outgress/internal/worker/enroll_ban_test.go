@@ -4,15 +4,17 @@
 package worker
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/testnats"
@@ -28,10 +30,19 @@ import (
 
 const missingAuthorizationBody = `{"error":"Forbidden","status":403,"message":"subscription missing proper authorization"}`
 
-func chatForbiddenTransport(t *testing.T, banList string) subscriptionTransport {
+type forbiddenEnroll struct {
+	forbidType string
+	body       string
+	banStatus  int
+	banList    string
+	onBanCheck func()
+}
+
+func (f forbiddenEnroll) transport(t *testing.T) subscriptionTransport {
 	return func(r *http.Request) (*http.Response, error) {
 		if strings.HasPrefix(r.URL.Path, "/helix/moderation/banned") {
-			return subscriptionResponse(http.StatusOK, banList), nil
+			f.onBanCheck()
+			return subscriptionResponse(f.banStatus, f.banList), nil
 		}
 		if r.Method == http.MethodGet {
 			return subscriptionResponse(http.StatusOK, `{"data":[]}`), nil
@@ -39,63 +50,141 @@ func chatForbiddenTransport(t *testing.T, banList string) subscriptionTransport 
 		body, _ := io.ReadAll(r.Body)
 		var spec twitch.SubSpec
 		require.NoError(t, codec.Unmarshal(body, &spec))
-		if spec.BotChat() {
-			return subscriptionResponse(http.StatusForbidden, missingAuthorizationBody), nil
+		if f.forbids(spec) {
+			return subscriptionResponse(http.StatusForbidden, f.body), nil
 		}
 		return subscriptionResponse(http.StatusAccepted, `{}`), nil
 	}
 }
 
-type recordingAuthority struct {
-	mu      sync.Mutex
-	actions []string
+func (f forbiddenEnroll) forbids(spec twitch.SubSpec) bool {
+	if f.forbidType == "" {
+		return spec.BotChat()
+	}
+	return spec.Type == f.forbidType
 }
 
-func (a *recordingAuthority) serve(t *testing.T) *nats.Conn {
+type statefulRuntime struct {
+	mu   sync.Mutex
+	snap channelruntime.Snapshot
+}
+
+func (r *statefulRuntime) Get(context.Context, uint64) (channelruntime.Snapshot, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.snap, nil
+}
+
+func (r *statefulRuntime) Apply(_ context.Context, _ uint64, reply usersrpc.LifecycleReply) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.snap.State = reply.State
+	return nil
+}
+
+type statefulAuthority struct {
+	mu          sync.Mutex
+	incarnation int64
+	state       lifecycle.State
+	refuseBan   bool
+	moderation  string
+}
+
+func (a *statefulAuthority) recreate() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.incarnation++
+}
+
+func (a *statefulAuthority) handle(_ context.Context, r usersrpc.LifecycleRequest) usersrpc.LifecycleReply {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	reply := usersrpc.LifecycleReply{AccountCreatedAt: a.incarnation, State: a.state}
+	if r.AccountCreatedAt != 0 && r.AccountCreatedAt != a.incarnation {
+		return reply
+	}
+	reply.Applied = a.apply(r)
+	reply.State = a.state
+	return reply
+}
+
+func (a *statefulAuthority) apply(r usersrpc.LifecycleRequest) bool {
+	restriction, moderation := map[string]string{"ban": lifecycle.RestrictionBanned, "timeout": lifecycle.RestrictionTimeout}[r.Action]
+	if !moderation {
+		return r.Action == "grant_restored"
+	}
+	if a.refuseBan {
+		return false
+	}
+	a.state.ChatRestriction = restriction
+	a.state.AdmissionGeneration++
+	a.moderation = r.Action
+	return true
+}
+
+func (a *statefulAuthority) serve(t *testing.T) *nats.Conn {
 	t.Helper()
-	serving := servingSnapshot()
 	nc := testnats.Connect(t)
-	require.NoError(t, bus.Serve(bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "users"}, usersrpc.LifecycleSubject, func(_ context.Context, r usersrpc.LifecycleRequest) usersrpc.LifecycleReply {
-		a.mu.Lock()
-		a.actions = append(a.actions, r.Action)
-		a.mu.Unlock()
-		state := serving.State
-		if r.Action == "ban" {
-			state.ChatRestriction = lifecycle.RestrictionBanned
-		}
-		return usersrpc.LifecycleReply{AccountCreatedAt: serving.AccountCreatedAt, State: state, Applied: r.Action != "get"}
-	}))
+	require.NoError(t, bus.Serve(bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "users"}, usersrpc.LifecycleSubject, a.handle))
 	require.NoError(t, nc.Flush())
 	return nc
 }
 
-func (a *recordingAuthority) recorded(action string) bool {
+func (a *statefulAuthority) applied() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return slices.Contains(a.actions, action)
+	return a.moderation
 }
 
-func TestChatEnrollForbiddenRecordsOnlyAConfirmedBan(t *testing.T) {
+type enrollBanOutcome struct {
+	state      string
+	moderation string
+	admitted   bool
+}
+
+func TestChatEnrollForbiddenRecordsOnlyAConfirmedRestriction(t *testing.T) {
+	permanent := `{"data":[{"user_id":"` + testBot + `","expires_at":""}]}`
+	timedOut := `{"data":[{"user_id":"` + testBot + `","expires_at":"` + time.Now().Add(time.Hour).UTC().Format(time.RFC3339) + `"}]}`
+	stillFailing := enrollBanOutcome{state: subStateFailing, admitted: true}
 	cases := []struct {
 		name      string
-		banList   string
-		wantState string
-		wantBan   bool
+		enroll    forbiddenEnroll
+		refuseBan bool
+		recreate  bool
+		want      enrollBanOutcome
 	}{
-		{name: "bot on the ban list stops enrollment as banned", banList: `{"data":[{"user_id":"` + testBot + `"}]}`, wantState: subStateBanned, wantBan: true},
-		{name: "bot absent from the ban list stays failing", banList: `{"data":[]}`, wantState: subStateFailing},
+		{name: "permanent ban stops admission", enroll: forbiddenEnroll{banList: permanent},
+			want: enrollBanOutcome{state: subStateBanned, moderation: "ban"}},
+		{name: "timeout takes the expiring timeout path", enroll: forbiddenEnroll{banList: timedOut},
+			want: enrollBanOutcome{state: subStateBanned, moderation: "timeout"}},
+		{name: "bot absent from the ban list stays failing", enroll: forbiddenEnroll{banList: `{"data":[]}`}, want: stillFailing},
+		{name: "authorization 403 on a non-chat type stays failing", enroll: forbiddenEnroll{forbidType: "channel.follow", banList: permanent}, want: stillFailing},
+		{name: "generic 403 on chat stays failing", enroll: forbiddenEnroll{body: `{"error":"Forbidden","status":403,"message":"Forbidden"}`, banList: permanent}, want: stillFailing},
+		{name: "ban list outage stays failing", enroll: forbiddenEnroll{banStatus: http.StatusServiceUnavailable, banList: `{"message":"outage"}`}, want: stillFailing},
+		{name: "authority refusing the ban stays failing", enroll: forbiddenEnroll{banList: permanent}, refuseBan: true, want: stillFailing},
+		{name: "account recreated during the ban check is not restricted", enroll: forbiddenEnroll{banList: permanent}, recreate: true, want: stillFailing},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			w := verifyWorker(t, chatForbiddenTransport(t, tc.banList), valkeytest.Spawn(t))
-			authority := &recordingAuthority{}
+			serving := servingSnapshot()
+			authority := &statefulAuthority{incarnation: serving.AccountCreatedAt, state: serving.State, refuseBan: tc.refuseBan}
+			enroll := tc.enroll
+			enroll.body = cmp.Or(enroll.body, missingAuthorizationBody)
+			enroll.banStatus = cmp.Or(enroll.banStatus, http.StatusOK)
+			enroll.onBanCheck = func() {
+				if tc.recreate {
+					authority.recreate()
+				}
+			}
+			w := verifyWorker(t, enroll.transport(t), valkeytest.Spawn(t))
+			w.runtime = &statefulRuntime{snap: serving}
 			w.lifecycleNC = authority.serve(t)
 
 			require.NoError(t, w.HandleAuthzGranted(grantEvent(t)))
 
 			state, _ := storedSubState(t, w)
-			assert.Equal(t, tc.wantState, state)
-			assert.Equal(t, tc.wantBan, authority.recorded("ban"))
+			got := enrollBanOutcome{state: state, moderation: authority.applied(), admitted: w.BackgroundAllowed(t.Context(), testBroadcaster)}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
