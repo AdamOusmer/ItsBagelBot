@@ -41,7 +41,7 @@ func (c timedConnector) logConnect(elapsed time.Duration, budget zap.Field, err 
 			zap.String("addr", c.addr), zap.Duration("elapsed", elapsed), budget, zap.Error(err))
 		return
 	}
-	zap.L().Info("db: opened connection",
+	zap.L().Debug("db: opened connection",
 		zap.String("addr", c.addr), zap.Duration("elapsed", elapsed), budget)
 }
 

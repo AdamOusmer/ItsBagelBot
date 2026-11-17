@@ -44,7 +44,7 @@ func TestTimedConnectorLogsEveryConnectAttempt(t *testing.T) {
 		err       error
 		wantLevel zapcore.Level
 	}{
-		{name: "logs a successful connect at info", wantLevel: zapcore.InfoLevel},
+		{name: "logs a successful connect at debug", wantLevel: zapcore.DebugLevel},
 		{name: "logs a failed connect at warn and returns the error", err: failure, wantLevel: zapcore.WarnLevel},
 	}
 	for _, tc := range tests {

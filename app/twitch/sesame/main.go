@@ -30,7 +30,7 @@ const (
 
 const projectionCacheTTL = 30 * time.Second
 
-const cacheOccupancyInterval = 5 * time.Minute
+const cacheOccupancyInterval = time.Hour
 
 func main() {
 	core, done := svcboot.NewCore(serviceName)
