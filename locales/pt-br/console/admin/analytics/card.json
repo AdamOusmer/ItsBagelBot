@@ -38,6 +38,7 @@
   "activationAge": "Canais ativos por idade da conta",
   "onboarding": "Etapas de configuração",
   "imports": "Importações por origem",
+  "signupSources": "Cadastros por origem",
   "checkout": "Resultados do checkout por plano",
   "dashboard": "Visualizações do painel por seção",
   "recipeRuns": "Execuções de receitas por gatilho",

@@ -38,6 +38,7 @@
   "activationAge": "Chaînes distinctes servies la dernière semaine complète, par âge du compte lors de son utilisation.",
   "onboarding": "Événements de configuration sur la période, puis comptes configurés et part de tous les comptes au dernier relevé.",
   "imports": "Résultats des aperçus et validations sur la période, par source.",
+  "signupSources": "Connexions lancées et nouveaux comptes sur la période, selon le site d'origine.",
   "checkout": "Résultats du paiement par offre. Le taux compare les activations aux redirections sur la période, avec des paiements antérieurs possibles.",
   "dashboard": "Vues sur la période, réparties entre titulaires et délégataires.",
   "recipeRuns": "Exécutions sur la période par déclencheur et chaînes distinctes utilisant les recettes la dernière semaine complète.",

@@ -39,6 +39,7 @@
     builtIn: 'command',
     breadth: 'modulesOn',
     imports: 'importSource',
+    signupSources: 'via',
     checkout: 'plan',
     donations: 'currency',
     donationMonths: 'month',
@@ -369,6 +370,7 @@
       {@render barCard('onboarding', view?.growth.onboarding, view?.growth.onboarded)}
     </Grid>
     {@render tableCard('imports', view?.growth.imports)}
+    {@render tableCard('signupSources', view?.growth.signupSources)}
     <Grid cols={2} stackAt="md">
       {@render barCard('login', view?.growth.login)}
       {@render factsCard('trials', view?.growth.trials)}

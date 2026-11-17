@@ -134,6 +134,17 @@ describe('login analytics', () => {
     await signInTo(extra);
     expect(analytics).toEqual([['auth.login', branch === 'delegate' ? 'ok' : branch]]);
   });
+
+  test.each([
+    ['new account', '?code=c&state=s.chatgpt', true, [['signup.via', 'chatgpt', 'signup'], ['auth.login', 'ok']]],
+    ['new account without a source', '?code=c&state=s', true, [['signup.via', 'none', 'signup'], ['auth.login', 'ok']]],
+    ['returning account', '?code=c&state=s.chatgpt', false, [['auth.login', 'ok']]],
+    ['unlisted source', '?code=c&state=s.private', true, [['auth.login', 'state']]]
+  ] as const)('counts the signup source for a %s', async (_name, query, isNew, want) => {
+    if (isNew) existing = async () => { throw new RpcError('ent: user not found', 'not_found'); };
+    await signInTo([], query);
+    expect(analytics).toEqual(want.map((row) => [...row]));
+  });
 });
 
 describe('auth callback ordering', () => {

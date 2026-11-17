@@ -14,7 +14,7 @@ func TestRoadmapCatalogRejectsPrivateDimensions(t *testing.T) {
 	for _, metric := range []catalog.Metric{
 		catalog.TimersTicks, catalog.TimersTotal, catalog.AutomodFlags, catalog.AccountsRuntime,
 		catalog.GamesRounds, catalog.GamesEntrants, catalog.PointsFlows, catalog.RewardsRedeems,
-		catalog.AuthLogin, catalog.DesktopGrants, catalog.Lifecycle,
+		catalog.AuthLogin, catalog.DesktopGrants, catalog.Lifecycle, catalog.SignupVia,
 	} {
 		t.Run(string(metric), func(t *testing.T) {
 			spec, ok := catalog.Lookup(metric)

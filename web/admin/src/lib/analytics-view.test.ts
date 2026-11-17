@@ -803,6 +803,9 @@ describe('extended analytics blocks', () => {
       row('2026-11-03', 'import.runs', [importSource, 'preview_failed'], 1),
       row('2026-11-04', 'import.runs', [importSource, 'committed'], 3),
       row('2026-11-04', 'import.runs', [importSource, 'commit_failed'], 1),
+      row('2026-11-03', 'signup.via', ['chatgpt', 'started'], 6),
+      row('2026-11-04', 'signup.via', ['chatgpt', 'signup'], 2),
+      row('2026-11-04', 'signup.via', ['google', 'started'], 3),
       row('2026-11-03', 'dashboard.views', ['commands', 'owner'], 8),
       row('2026-11-03', 'dashboard.views', ['commands', 'delegate'], 2),
       row('2026-11-04', 'dashboard.views', ['overview', 'delegate'], 3),
@@ -867,13 +870,15 @@ describe('extended analytics blocks', () => {
     });
   });
 
-  it('shows last full week activation ages, setup steps, imports and onboarded account share', () => {
+  it('shows last full week activation ages, setup steps, imports, signup sources and onboarded account share', () => {
     expect({
       age: lines(extended.growth.activationAge),
       steps: lines(extended.growth.onboarding),
       imports: cells(extended.growth.imports),
+      sources: cells(extended.growth.signupSources),
       onboarded: facts(extended.growth.onboarded)
     }).toEqual({
+      sources: [['chatgpt', '6', '2'], ['google', '3', '0']],
       age: ['d0:2:-', 'd1:3:-', 'd2_6:4:-', 'd7_13:5:-', 'd14_29:6:-', 'd30p:7:-'],
       steps: ['viewed:20:-', 'consent_missing:2:-', 'save_failed:1:-'],
       imports: [[importSource, '5', '1', '3', '1']],

@@ -79,7 +79,7 @@ export type AnalyticsView = {
   empty: boolean;
   period: { start: string; end: string };
   kpis: Kpi[];
-  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[] };
+  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; signupSources: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[] };
   engagement: { active: Series; live: Series; messages: Series; answered: Series; facts: Fact[] };
   retention: { horizon: number; rows: CohortLine[] };
   revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable; checkout: DataTable; checkoutFacts: Fact[] };
@@ -350,6 +350,7 @@ function growth(c: Ctx): AnalyticsView['growth'] {
     activationAge: bars(byDim(weekly(c, 'activation.age')), { ids: ENUMS.age, enum: 'age', order: 'keep' }),
     onboarding: bars(byDim(counter(c, 'onboarding.steps')), { ids: ENUMS.onboard, enum: 'onboard', order: 'keep' }),
     imports: dimensionTable(counter(c, 'import.runs'), ['preview_ok', 'preview_failed', 'committed', 'commit_failed']),
+    signupSources: dimensionTable(counter(c, 'signup.via'), ['started', 'signup']),
     onboarded: accountFacts(c, 'accounts.onboarded', 'onboarded'),
     login: bars(byDim(counter(c, 'auth.login')), { ids: ENUMS.login, enum: 'login', order: 'keep' }),
     trials: facts({ trialPromoted: fmt(n('trial_promoted')) })

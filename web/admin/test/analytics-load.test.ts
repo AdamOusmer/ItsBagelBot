@@ -32,7 +32,7 @@ test('reads every extension in its catalog window within the RPC metric limit', 
     ['d', 'billing.checkout'], ['d', 'recipes.total'], ['d', 'accounts.onboarded'], ['d', 'accounts.delegating'],
     ['w', 'recipe.channels'], ['w', 'activation.age'], ['d', 'modules.defaults'], ['w', 'channels.size'], ['m', 'channels.size'],
     ...['timers.ticks', 'timers.total', 'automod.flags', 'accounts.runtime', 'games.rounds',
-      'games.entrants', 'points.flows', 'rewards.redeems', 'auth.login', 'desktop.grants'].map((metric) => ['d', metric])
+      'games.entrants', 'points.flows', 'rewards.redeems', 'auth.login', 'signup.via', 'desktop.grants'].map((metric) => ['d', metric])
   ];
   expect({
     degraded: bundle.degraded,

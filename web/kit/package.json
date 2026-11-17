@@ -106,6 +106,7 @@
     "./social": "./lib/social.ts",
     "./site-links": "./lib/site-links.ts",
     "./site-footer": "./lib/site-footer.ts",
+    "./via": "./lib/via.ts",
     "./client-props": "./lib/client-props.ts"
   },
   "dependencies": {

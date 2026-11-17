@@ -3,6 +3,7 @@
 
 // Keep catalog validation aligned with Go or identifiers can leak into aggregate storage.
 import { masterClient } from './valkey-master';
+import { VIA } from '../via';
 
 type Pipeline = {
   hincrby(key: string, field: string, n: number): Pipeline;
@@ -31,7 +32,8 @@ const CATALOG: Record<string, ((v: string) => boolean)[]> = {
   'billing.checkout': [one(['monthly', 'single', 'gift']), one(['redirected', 'blocked', 'unavailable', 'rejected'])],
   'import.runs': [one(['streamelements', 'fossabot', 'moobot', 'nightbot', 'streamlabs_desktop', 'wizebot']),
     one(['preview_ok', 'preview_failed', 'committed', 'commit_failed'])],
-  'onboarding.steps': [one(['viewed', 'consent_missing', 'save_failed'])]
+  'onboarding.steps': [one(['viewed', 'consent_missing', 'save_failed'])],
+  'signup.via': [one(VIA), one(['started', 'signup'])]
 };
 
 let clientOverride: Client | null | undefined;
