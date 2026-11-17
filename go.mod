@@ -1,6 +1,6 @@
 module ItsBagelBot
 
-go 1.27.0
+go 1.27.4
 
 require (
 	ariga.io/atlas v1.3.0
