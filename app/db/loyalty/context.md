@@ -155,7 +155,10 @@ Generated Ent code is not the schema source.
   fence across its deletes.
 - Watch chunks take a shared retention barrier lock. Pruning advances the barrier
   with one guarded autocommit update. Counter and earned transactions take shared
-  account fences. Watch and lifecycle transactions take exclusive account fences.
+  account fences. Watch, lifecycle and trial promotion transactions take exclusive
+  account fences; promotion skips a retired account. A batch's negative entry
+  bumps apply only to buckets its ascending lock read found, so a bucket created
+  after that read is never updated out of lock order.
 - Prune watch replay markers only after the same source-window barrier rejects
   replay and is capped below retained unpaid outbox work. Counter receipts use
   the separate bounded delivery horizon above. Plain age-based deletion of watch

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/internal/domain/event/data"
@@ -127,6 +128,38 @@ func TestCounterMySQLReplicasApplyOppositeEntryDeltasWithoutDeadlocks(t *testing
 	after := readInnodbLocks(t, raw)
 	assert.Zero(t, after.deadlocks-before.deadlocks)
 	assertMySQLReplicaEntryTotals(t, raw, [4]int64{3 + rounds, 3 + rounds, 0, 3})
+}
+
+func TestCounterMySQLNegativeBumpOnBucketAnotherReplicaCreatesDoesNotDeadlock(t *testing.T) {
+	raw := testdb.MySQL(t, "loyalty_counter_absent_")
+	p := counterMySQLReplica(t, raw)
+	seed := data.CounterBumpedDTO{BatchID: "seed", UserID: 7, Bumps: []data.CounterBumpEntry{replicaEntryBump(500, 1), replicaEntryBump(1000, 1)}}
+	require.NoError(t, p.Process(t.Context(), seed))
+	gate, err := raw.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	_, err = gate.Exec("SELECT value FROM counter_entries WHERE user_id=7 AND name='hugs' AND command='' AND viewer_id=500 FOR UPDATE")
+	require.NoError(t, err)
+	before := readInnodbLocks(t, raw)
+	batch := data.CounterBumpedDTO{BatchID: "negative", UserID: 7, Bumps: []data.CounterBumpEntry{replicaEntryBump(1, -1), replicaEntryBump(500, 1), replicaEntryBump(1000, 1)}}
+	done := make(chan error, 1)
+	go func() { done <- p.Process(t.Context(), batch) }()
+	require.Eventually(t, func() bool { return readInnodbLocks(t, raw).waits > before.waits }, 5*time.Second, 5*time.Millisecond)
+	creator, err := raw.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer creator.Rollback()
+	_, err = creator.Exec("INSERT INTO counter_entries (user_id,name,command,viewer_id,viewer_login,viewer_name,value,updated_at) VALUES (7,'hugs','',1,'','',1,NOW())")
+	require.NoError(t, err)
+	require.NoError(t, gate.Commit())
+	require.Eventually(t, func() bool {
+		var held int
+		require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM performance_schema.data_locks WHERE OBJECT_NAME='counter_entries' AND LOCK_TYPE='RECORD' AND LOCK_DATA LIKE '%, 1000'").Scan(&held))
+		return held > 0
+	}, 5*time.Second, 5*time.Millisecond)
+	_, creatorErr := creator.Exec("SELECT value FROM counter_entries WHERE user_id=7 AND name='hugs' AND command='' AND viewer_id=1000 FOR UPDATE")
+	require.NoError(t, <-done)
+	require.NoError(t, creator.Commit())
+	after := readInnodbLocks(t, raw)
+	assert.Equal(t, [2]any{nil, int64(0)}, [2]any{creatorErr, after.deadlocks - before.deadlocks})
 }
 
 func replicaEntryBump(viewerID uint64, delta int64) data.CounterBumpEntry {

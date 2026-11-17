@@ -52,11 +52,10 @@ func (r *Loyalty) fence(ctx context.Context, tx *sql.Tx, id uint64, instance int
 }
 
 func (r *Loyalty) createAccountFence(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (loyaltyAccountState, error) {
-	suffix := " FOR UPDATE"
+	stmt, lock := "INSERT INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE user_id=user_id", " FOR UPDATE"
 	if r.dialect == "sqlite3" {
-		suffix = ""
+		stmt, lock = "INSERT OR IGNORE INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0)", ""
 	}
-	stmt := r.insertIgnore() + " INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0)"
 	result, err := tx.ExecContext(ctx, stmt, id, instance)
 	if err != nil {
 		return loyaltyAccountState{}, err
@@ -65,7 +64,7 @@ func (r *Loyalty) createAccountFence(ctx context.Context, tx *sql.Tx, id uint64,
 	if err != nil {
 		return loyaltyAccountState{}, err
 	}
-	account, err := readAccountFence(tx.QueryRowContext(ctx, accountFenceQuery+suffix, id))
+	account, err := readAccountFence(tx.QueryRowContext(ctx, accountFenceQuery+lock, id))
 	account.created = inserted != 0
 	return account, err
 }

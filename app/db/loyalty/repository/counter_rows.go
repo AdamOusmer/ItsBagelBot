@@ -51,13 +51,14 @@ func (r *Loyalty) writeCounterSums(ctx context.Context, tx *sql.Tx, bumps map[bu
 	if _, err := writeCounterRows(ctx, tx, counterChannelWriteSpec(r.dialect), rows.counters); err != nil {
 		return err
 	}
-	if err := r.lockNegativeBatchEntries(ctx, tx, rows); err != nil {
+	negatives, err := r.lockNegativeBatchEntries(ctx, tx, rows)
+	if err != nil {
 		return err
 	}
 	if _, err := writeCounterRows(ctx, tx, counterEntryWriteSpec(r.dialect), rows.entries); err != nil {
 		return err
 	}
-	return r.writeNegativeCounterRows(ctx, tx, rows.negatives, bumps)
+	return r.writeNegativeCounterRows(ctx, tx, negatives, bumps)
 }
 
 func counterRowsForMutation(bumps map[bumpKey]*bumpSum, now time.Time) counterMutationRows {
@@ -129,9 +130,9 @@ func counterEntryWriteSpec(dialect string) upsertSpec {
 
 const counterEntryLockPredicate = "(user_id=? AND name=? AND command=? AND viewer_id=?) OR "
 
-func (r *Loyalty) lockNegativeBatchEntries(ctx context.Context, tx *sql.Tx, rows counterMutationRows) error {
+func (r *Loyalty) lockNegativeBatchEntries(ctx context.Context, tx *sql.Tx, rows counterMutationRows) ([]bumpKey, error) {
 	if !rows.negativeEntries || r.dialect == "sqlite3" {
-		return nil
+		return rows.negatives, nil
 	}
 	keys := make([][]any, 0, len(rows.entryKeys))
 	for _, key := range rows.entryKeys {
@@ -139,15 +140,31 @@ func (r *Loyalty) lockNegativeBatchEntries(ctx context.Context, tx *sql.Tx, rows
 	}
 	chunks, err := db.StatementRowChunks(keys, len(counterEntryLockPredicate)*db.StatementRows+256)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	present := make(map[bumpKey]bool, len(keys))
 	for _, chunk := range chunks {
 		stmt := counterEntryLockStatement(chunk)
-		if err := lockCounterEntryChunk(ctx, tx, stmt); err != nil {
-			return err
+		if err := lockCounterEntryChunk(ctx, tx, stmt, present); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	return rows.lockedNegatives(present), nil
+}
+
+// An absent negative bucket takes no lock, so updating it after the positive upserts would break ascending lock order.
+func (r counterMutationRows) lockedNegatives(present map[bumpKey]bool) []bumpKey {
+	entries := make(map[bumpKey]bool, len(r.entryKeys))
+	for _, key := range r.entryKeys {
+		entries[key] = true
+	}
+	kept := make([]bumpKey, 0, len(r.negatives))
+	for _, key := range r.negatives {
+		if present[key] || !entries[key] {
+			kept = append(kept, key)
+		}
+	}
+	return kept
 }
 
 func counterEntryLockStatement(keys [][]any) chunkStmt {
@@ -156,18 +173,23 @@ func counterEntryLockStatement(keys [][]any) chunkStmt {
 		args = append(args, key...)
 	}
 	where := strings.TrimSuffix(strings.Repeat(counterEntryLockPredicate, len(keys)), " OR ")
-	query := "SELECT user_id FROM counter_entries FORCE INDEX (PRIMARY) WHERE " + where +
+	query := "SELECT user_id,name,command,viewer_id FROM counter_entries FORCE INDEX (PRIMARY) WHERE " + where +
 		" ORDER BY user_id,name,command,viewer_id FOR UPDATE"
 	return chunkStmt{sql: query, args: args}
 }
 
-func lockCounterEntryChunk(ctx context.Context, tx *sql.Tx, stmt chunkStmt) error {
+func lockCounterEntryChunk(ctx context.Context, tx *sql.Tx, stmt chunkStmt, present map[bumpKey]bool) error {
 	rows, err := tx.QueryContext(ctx, stmt.sql, stmt.args...)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
+		var key bumpKey
+		if err := rows.Scan(&key.userID, &key.name, &key.command, &key.viewerID); err != nil {
+			return err
+		}
+		present[key] = true
 	}
 	return rows.Err()
 }
