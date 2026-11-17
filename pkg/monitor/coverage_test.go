@@ -70,7 +70,7 @@ func TestEveryServiceCallIsTraced(t *testing.T) {
 }
 
 func scanPackage(pkg *packages.Package) []finding {
-	if !strings.HasPrefix(pkg.PkgPath, module) || ownsTelemetry(pkg.PkgPath) || pkg.TypesInfo == nil {
+	if !scanned(pkg) {
 		return nil
 	}
 	var found []finding
@@ -85,8 +85,15 @@ func scanPackage(pkg *packages.Package) []finding {
 	return found
 }
 
+func scanned(pkg *packages.Package) bool {
+	if pkg.TypesInfo == nil {
+		return false
+	}
+	return strings.HasPrefix(pkg.PkgPath, module) && !ownsTelemetry(pkg.PkgPath)
+}
+
 func ownsTelemetry(path string) bool {
-	return path == module+"pkg/monitor" || path == module+"pkg/bus" || strings.HasPrefix(path, module+"pkg/bus/")
+	return path == module+"pkg/monitor" || strings.HasPrefix(path+"/", module+"pkg/bus/")
 }
 
 func violation(pkg *packages.Package, node ast.Node) string {
