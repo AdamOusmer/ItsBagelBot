@@ -43,6 +43,7 @@ func mysqlReplica(t *testing.T, raw *sql.DB) *Loyalty {
 	require.NoError(t, MigrateSchema(t.Context(), client, drv.Dialect()))
 	repo := NewLoyalty(client, drv, nil, zap.NewNop())
 	require.NoError(t, repo.EnsureWatchSchema(t.Context()))
+	require.NoError(t, repo.EnsureCounterSchema(t.Context()))
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	return repo
 }

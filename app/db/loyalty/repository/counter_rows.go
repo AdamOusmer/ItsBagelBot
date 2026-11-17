@@ -5,6 +5,7 @@ package repository
 
 import (
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/db"
 	"context"
 	"database/sql"
 	"errors"
@@ -18,9 +19,6 @@ import (
 
 func bumpKeyLess(a, b bumpKey) bool { return compareBumpKeys(a, b) < 0 }
 
-// Create/lock every definition in the upstream combined natural-key order.
-// Separating entry definitions from channel rows would take the same table's
-// locks in opposite orders during promotion or another service instance.
 func (r *Loyalty) ensureCounterBatchDefinitions(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
 	channel, entries := splitBumps(bumps)
 	now := time.Now()
@@ -53,8 +51,12 @@ func (r *Loyalty) ensureCounterEntryRows(ctx context.Context, tx *sql.Tx, bumps 
 }
 
 func writeCounterRows(ctx context.Context, tx *sql.Tx, spec upsertSpec, rows [][]any) error {
-	for start := 0; start < len(rows); start += upsertChunk {
-		stmt := spec.render(rows[start:min(start+upsertChunk, len(rows))])
+	chunks, err := db.StatementRowChunks(rows, len(spec.insert)+len(spec.suffix)+len(spec.placeholder)*db.StatementRows)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+	for _, chunk := range chunks {
+		stmt := spec.render(chunk)
 		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
 			return counterWriteError(err)
 		}
@@ -77,7 +79,7 @@ func (r *Loyalty) writeCounterSums(ctx context.Context, tx *sql.Tx, bumps map[bu
 	if err := writeCounterRows(ctx, tx, counterEntryWriteSpec(r.dialect), rows.entries); err != nil {
 		return err
 	}
-	return r.writeNegativeCounterRows(ctx, tx, rows.negatives, bumps, now)
+	return r.writeNegativeCounterRows(ctx, tx, rows.negatives, bumps)
 }
 
 func counterRowsForMutation(bumps map[bumpKey]*bumpSum, now time.Time) counterMutationRows {
@@ -125,7 +127,8 @@ func counterEntryWriteSpec(dialect string) upsertSpec {
 	return upsertSpec{label: "counter entries", insert: "INSERT INTO counter_entries (user_id,name,command,viewer_id,viewer_login,viewer_name,value,updated_at) VALUES ", placeholder: "(?, ?, ?, ?, ?, ?, ?, ?)", suffix: suffix}
 }
 
-func (r *Loyalty) writeNegativeCounterRows(ctx context.Context, tx *sql.Tx, keys []bumpKey, bumps map[bumpKey]*bumpSum, now time.Time) error {
+func (r *Loyalty) writeNegativeCounterRows(ctx context.Context, tx *sql.Tx, keys []bumpKey, bumps map[bumpKey]*bumpSum) error {
+	now := time.Now()
 	for _, key := range keys {
 		stmt := counterNegativeStatement(r.dialect, key, bumps[key], now)
 		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
@@ -176,26 +179,35 @@ func mysqlCounterRangeError(err error) bool {
 	}
 }
 
-// Saturation is a row-local permanent rejection. Read existing values in
-// bounded queries under locks so healthy siblings from the same event commit.
-// Definitions are already locked in the combined ascending table order.
 func (r *Loyalty) excludeSaturatedCounterRows(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
 	channel, entries := splitBumps(bumps)
-	if err := r.inspectCounterChunks(ctx, tx, channel, bumps, false); err != nil {
+	shape := counterInspectionShape(false)
+	shape.bumps = bumps
+	if err := r.inspectCounterChunks(ctx, tx, channel, shape); err != nil {
 		return err
 	}
-	return r.inspectCounterChunks(ctx, tx, entries, bumps, true)
+	shape = counterInspectionShape(true)
+	shape.bumps = bumps
+	return r.inspectCounterChunks(ctx, tx, entries, shape)
 }
 
-func (r *Loyalty) inspectCounterChunks(ctx context.Context, tx *sql.Tx, keys []bumpKey, bumps map[bumpKey]*bumpSum, entry bool) error {
-	shape := counterInspectionShape(entry)
-	for start := 0; start < len(keys); start += upsertChunk {
-		chunk := keys[start:min(start+upsertChunk, len(keys))]
-		rejected, err := r.inspectCounterChunk(ctx, tx, shape, chunk, bumps)
+func (r *Loyalty) inspectCounterChunks(ctx context.Context, tx *sql.Tx, keys []bumpKey, shape counterInspection) error {
+	rows := make([][]any, 0, len(keys))
+	for _, key := range keys {
+		rows = append(rows, []any{key.userID, key.name, key.command, key.viewerID})
+	}
+	chunks, err := db.StatementRowChunks(rows, 32*db.StatementRows+256)
+	if err != nil {
+		return err
+	}
+	start := 0
+	for _, chunk := range chunks {
+		rejected, err := r.inspectCounterChunk(ctx, tx, shape, keys[start:start+len(chunk)])
 		if err != nil {
 			return err
 		}
 		r.noticeSaturatedCounters(shape.table, rejected)
+		start += len(chunk)
 	}
 	return nil
 }
@@ -206,6 +218,7 @@ type counterInspection struct {
 	predicate string
 	ordering  string
 	entry     bool
+	bumps     map[bumpKey]*bumpSum
 }
 
 func counterInspectionShape(entry bool) counterInspection {
@@ -234,14 +247,14 @@ func (s counterInspection) statement(dialect string, keys []bumpKey) chunkStmt {
 	return chunkStmt{sql: query, args: args}
 }
 
-func (r *Loyalty) inspectCounterChunk(ctx context.Context, tx *sql.Tx, shape counterInspection, keys []bumpKey, bumps map[bumpKey]*bumpSum) (int, error) {
+func (r *Loyalty) inspectCounterChunk(ctx context.Context, tx *sql.Tx, shape counterInspection, keys []bumpKey) (int, error) {
 	stmt := shape.statement(r.dialect, keys)
 	rows, err := tx.QueryContext(ctx, stmt.sql, stmt.args...)
 	if err != nil {
 		return 0, err
 	}
 	defer rows.Close()
-	rejected, err := shape.excludeSaturated(rows, bumps)
+	rejected, err := shape.excludeSaturated(rows, shape.bumps)
 	if err != nil {
 		return 0, err
 	}

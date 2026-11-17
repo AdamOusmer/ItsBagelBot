@@ -84,24 +84,28 @@ func closeWithin(ctx context.Context, closeFn func() error) error {
 	}
 }
 
-// Grouped subscriber keeps account cleanup and delta folding on one durable lane.
-// Counter handlers share bounded batches and wait for persistence before ACK.
-func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, counters counterProcessor, grouped bus.Subscriber, log *zap.Logger) (*bus.ConcurrentConsumer, error) {
+type consumerWiring struct {
+	repo     *repository.Loyalty
+	counters counterProcessor
+	log      *zap.Logger
+}
+
+func (w consumerWiring) register(ctx context.Context, nrApp *newrelic.Application, grouped bus.Subscriber) (*bus.ConcurrentConsumer, error) {
 	subs := []struct {
 		name    string
 		subject string
 		handle  func(*bus.Message) error
 	}{
-		{"loyalty earned events", data.SubjectLoyaltyEarned, recordEarned(repo, log)},
-		{"user deleted events", data.SubjectUserDeleted, accountEvents(accountChange{"deletion", repo.DeleteAccount}, log)},
-		{"user lifecycle events", data.SubjectUserChanged, accountEvents(accountChange{"lifecycle", repo.RestoreUser}, log)},
+		{"loyalty earned events", data.SubjectLoyaltyEarned, recordEarned(w.repo, w.log)},
+		{"user deleted events", data.SubjectUserDeleted, accountEvents(accountChange{"deletion", w.repo.DeleteAccount}, w.log)},
+		{"user lifecycle events", data.SubjectUserChanged, accountEvents(accountChange{"lifecycle", w.repo.RestoreUser}, w.log)},
 	}
 	for _, s := range subs {
-		if err := bus.Consume(ctx, nrApp, grouped, s.subject, s.handle, log); err != nil {
+		if err := bus.Consume(ctx, nrApp, grouped, s.subject, s.handle, w.log); err != nil {
 			return nil, fmt.Errorf("subscribe to %s: %w", s.name, err)
 		}
 	}
-	return bus.ConsumeConcurrent(ctx, nrApp, grouped, data.SubjectLoyaltyCounters, counterWorkers, recordBumps(counters, log), log)
+	return bus.ConsumeConcurrent(ctx, nrApp, grouped, data.SubjectLoyaltyCounters, counterWorkers, recordBumps(w.counters, w.log), w.log)
 }
 
 type earnedProcessor interface {
@@ -136,8 +140,6 @@ func batchIdentity(batchID, messageID string) string {
 	return messageID
 }
 
-// All additive batches share decode and invalid-input policy. The callback
-// supplies domain validation and persistence; transient failures reach the bus.
 func loyaltyBatchHandler[T any](kind string, log *zap.Logger, apply func(context.Context, T, string) error) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
@@ -160,7 +162,6 @@ type accountChange struct {
 	apply   func(ctx context.Context, userID uint64, accountCreatedAt int64) error
 }
 
-// UserChangedDTO carries UserDeletedDTO's identity fields under the same JSON names.
 func accountEvents(change accountChange, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		var dto data.UserChangedDTO
@@ -189,6 +190,7 @@ func main() {
 	repo := repository.NewLoyalty(client, driver, core.NR, log)
 	defer repo.Close(context.Background())
 	svcboot.FatalIf(log, repo.EnsureWatchSchema(core.Ctx), "failed to initialize watch inbox")
+	svcboot.FatalIf(log, repo.EnsureCounterSchema(core.Ctx), "failed to initialize counter inbox")
 	vc := svcboot.MustValkey(core)
 	defer vc.Close()
 	counters := repository.NewCounterProcessor(repo, vc)
@@ -209,7 +211,7 @@ func main() {
 	var counterConsumer *bus.ConcurrentConsumer
 	defer func() { counterIntake{grouped, counterConsumer, counters}.stop(shutdown, log) }()
 
-	counterConsumer, err = registerConsumers(core.Ctx, core.NR, repo, counters, grouped, log)
+	counterConsumer, err = (consumerWiring{repo: repo, counters: counters, log: log}).register(core.Ctx, core.NR, grouped)
 	svcboot.FatalIf(log, err, "failed to subscribe to events")
 
 	loyaltyPrefix := conf.LoyaltyPrefix.Get()

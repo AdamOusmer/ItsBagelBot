@@ -35,6 +35,7 @@ func counterTestRepo(t *testing.T) (*Loyalty, *sql.DB) {
 	require.NoError(t, client.Schema.Create(context.Background()))
 	repo := NewLoyalty(client, drv, nil, zap.NewNop())
 	require.NoError(t, repo.EnsureWatchSchema(context.Background()))
+	require.NoError(t, repo.EnsureCounterSchema(context.Background()))
 	t.Cleanup(func() { repo.Close(context.Background()); _ = raw.Close() })
 	return repo, raw
 }
@@ -139,7 +140,7 @@ func TestCounterReceiptOutlivesTheLastRepublishedCopy(t *testing.T) {
 
 	cache.advance(counterCompletedTTL + time.Millisecond - lastCopy)
 	require.NoError(t, p.Process(ctx, event))
-	assert.EqualValues(t, 4, counterTestValue(t, raw, "deaths"), "an expired receipt lets the event count again")
+	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "SQL absorbs replays after cache expiry")
 }
 
 func TestCounterProcessorOrphanedLeaseAsksForRedeliveryAfterItExpires(t *testing.T) {

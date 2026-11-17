@@ -97,7 +97,7 @@ func TestCounterProcessorRealValkeyCompletionExpiryAndRollback(t *testing.T) {
 	}
 	require.NoError(t, processor.Process(t.Context(), event))
 	require.NoError(t, raw.QueryRow("SELECT value FROM counters WHERE user_id=1 AND name='deaths'").Scan(&total))
-	require.EqualValues(t, deliveries+1, total)
+	require.EqualValues(t, deliveries, total)
 
 	_, err := raw.Exec("CREATE TRIGGER counter_fail BEFORE INSERT ON counters BEGIN SELECT RAISE(ABORT,'temporary SQL unavailable'); END")
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestCounterProcessorRealValkeyCompletionExpiryAndRollback(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, processor.Process(t.Context(), failed))
 	require.NoError(t, raw.QueryRow("SELECT value FROM counters WHERE user_id=1 AND name='deaths'").Scan(&total))
-	require.EqualValues(t, deliveries+2, total)
+	require.EqualValues(t, deliveries+1, total)
 	require.Len(t, receiptKeys(t, client), 2)
 }
 

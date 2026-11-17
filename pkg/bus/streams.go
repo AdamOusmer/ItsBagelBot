@@ -65,7 +65,7 @@ var DataStream = StreamSpec{
 	Replicas:     3,
 }
 
-// Loyalty's counter batch receipts must outlive MaxAge, or a replayed letter double counts.
+// DLQ counter replays older than the two-hour SQL receipt horizon are not deduplicated.
 var DataDeadLetterStream = StreamSpec{
 	Name:       "DATA_DLQ",
 	Subjects:   []string{DeadLetterPrefix + ">"},

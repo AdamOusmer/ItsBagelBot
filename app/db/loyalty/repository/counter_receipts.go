@@ -26,6 +26,7 @@ type counterDelivery struct {
 	err         error
 	claimed     bool
 	cacheFailed bool
+	completed   bool
 }
 
 func counterReceiptKey(dto data.CounterBumpedDTO) string {
@@ -37,30 +38,41 @@ func counterReceiptKey(dto data.CounterBumpedDTO) string {
 }
 
 func (p *CounterProcessor) claimCounterDeliveries(ctx context.Context, deliveries []*counterDelivery, owner string) []*counterDelivery {
-	claims, tracked := p.counterClaimCommands(deliveries, owner)
+	claims, groups := p.counterClaimCommands(deliveries, owner)
 	if len(claims) == 0 {
-		return tracked
+		return nil
 	}
 	claimCtx, cancel := context.WithTimeout(ctx, counterCacheTimeout)
 	defer cancel()
 	results := pkg_valkey.RunScripts(claimCtx, p.client, claims)
-	for i, delivery := range tracked {
-		p.classifyCounterClaim(delivery, results, i)
+	var tracked []*counterDelivery
+	for i, group := range groups {
+		for _, delivery := range group {
+			p.classifyCounterClaim(delivery, results, i)
+		}
+		tracked = append(tracked, group...)
 	}
+	p.checkCompletedCounterReceipts(ctx, tracked)
 	return tracked
 }
 
-func (p *CounterProcessor) counterClaimCommands(deliveries []*counterDelivery, owner string) ([]pkg_valkey.ScriptCall, []*counterDelivery) {
+func (p *CounterProcessor) counterClaimCommands(deliveries []*counterDelivery, owner string) ([]pkg_valkey.ScriptCall, [][]*counterDelivery) {
 	commands := make([]pkg_valkey.ScriptCall, 0, len(deliveries))
-	tracked := make([]*counterDelivery, 0, len(deliveries))
+	groups := make([][]*counterDelivery, 0, len(deliveries))
+	indices := make(map[string]int)
 	for _, delivery := range deliveries {
 		if delivery.key == "" {
 			continue
 		}
+		if index, ok := indices[delivery.key]; ok {
+			groups[index] = append(groups[index], delivery)
+			continue
+		}
+		indices[delivery.key] = len(commands)
 		commands = append(commands, counterLease(delivery).ClaimCall(owner, counterPendingTTL))
-		tracked = append(tracked, delivery)
+		groups = append(groups, []*counterDelivery{delivery})
 	}
-	return commands, tracked
+	return commands, groups
 }
 
 func counterLease(delivery *counterDelivery) pkg_valkey.MarkedLease {
@@ -88,7 +100,8 @@ func (p *CounterProcessor) classifyCounterClaim(delivery *counterDelivery, resul
 	switch status {
 	case 1:
 		delivery.claimed = true
-	case 2: // Completed receipts exclude a delivery from SQL.
+	case 2:
+		delivery.completed = true
 	case 0:
 		delivery.err = ErrCounterPending
 	default:
@@ -123,15 +136,13 @@ func (p *CounterProcessor) finalizeCounterClaims(tracked []*counterDelivery, own
 	if len(commands) == 0 {
 		return
 	}
-	// Cleanup retains its short bound when SQL exhausted its deadline. Owner
-	// checks prevent deleting a replacement claim after a lease expires.
 	ctx, cancel := context.WithTimeout(context.Background(), counterCacheTimeout)
 	defer cancel()
 	results := pkg_valkey.RunScripts(ctx, p.client, commands)
 	for i, delivery := range finalized {
 		if delivery.err != nil {
 			continue
-		} // Preserve genuine SQL/claim failures.
+		}
 		if err := counterCompletionError(results, i); err != nil {
 			p.warnCounterCache(err)
 		}
@@ -157,7 +168,6 @@ func (p *CounterProcessor) counterFinalizationCommand(delivery *counterDelivery,
 		return counterLease(delivery).FinishCall(owner, counterCompletedTTL), true
 	}
 	if delivery.shouldRelease() {
-		// Also release unknown claims: a failed response may follow a valid SET.
 		return pkg_valkey.NewOwnerLock(p.client, delivery.key, owner).ReleaseCall(), true
 	}
 	return pkg_valkey.ScriptCall{}, false
@@ -191,10 +201,6 @@ func counterCompletionError(results []valkey_go.ValkeyResult, index int) error {
 	return nil
 }
 
-// Dedup is best effort for these loss-tolerant counters. A Valkey outage must
-// not discard a counter window whose SQL write can succeed; warnings are
-// throttled so an outage cannot flood logs. Explicit live-owner collisions
-// remain retryable because another delivery has not yet proved persistence.
 func (p *CounterProcessor) warnCounterCache(err error) {
 	now := time.Now().Unix()
 	previous := p.cacheWarning.Load()
@@ -202,6 +208,6 @@ func (p *CounterProcessor) warnCounterCache(err error) {
 		return
 	}
 	if p.repo.log != nil {
-		p.repo.log.Warn("loyalty: counter dedup unavailable; recount is possible", zap.Error(err))
+		p.repo.log.Warn("loyalty: counter receipt cache unavailable", zap.Error(err))
 	}
 }
