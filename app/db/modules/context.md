@@ -24,8 +24,8 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | Revision / `__rev` | Concurrency version represented in durable row/config handling. |
 | `__account_created_at` | Internal loyalty-config stamp for the Users account incarnation. |
 | Quote number | Channel-local public quote identifier, distinct from Ent row ID. |
-| Feed counter | Fixed global row 1 for lifetime bagel feed total. |
-| Feed receipt | Permanent event identity and committed totals for retry-safe feeding. |
+| Feed counter | Lifetime bagel feed total summed across a legacy base and feed slots. |
+| Feed receipt | Required permanent event identity, channel tally and stored committed total readout for retry-safe feeding. |
 | Channel feed counter | Broadcaster-local lifetime feed total used for ranking. |
 | Credential custody | Separate sealed storage; secrets never enter projected config blobs. |
 | Spotify app / grant | Broadcaster-owned client credentials / granted refresh token and scopes. |
@@ -38,7 +38,8 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | [repository/modules.go](repository/modules.go) | Cached lists, batched Set, immediate SetNow/Patch/PatchExisting, publication and reprojection. |
 | [repository/loyalty_instance.go](repository/loyalty_instance.go) | Loyalty instance stamps and canonical-account-guarded snapshot cleanup. |
 | [repository/quotes.go](repository/quotes.go) | Quote numbering, CRUD, random reads, date correction and race retries. |
-| [repository/personality.go](repository/personality.go) | Atomic global/channel feed totals and leaderboard reads. |
+| [repository/personality.go](repository/personality.go) | Atomic feed increments, receipts and leaderboard reads. |
+| [repository/personality_slots.go](repository/personality_slots.go) | Global feed slots, total reads and additive slot initialization. |
 | [repository/govee.go](repository/govee.go), [spotify.go](repository/spotify.go) | AEAD key/token/app custody and safe status metadata. |
 | [repository/variables.go](repository/variables.go) | Recipe variables with the per-channel name budget. |
 | [repository/cooldowns.go](repository/cooldowns.go) | Atomic all-or-nothing claim, release and expiry cleanup for long windows. |
@@ -99,8 +100,18 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
 - Quote numbers use max+1 and retain holes after deletion; do not renumber an
   existing quote book. Maximum text length is 450; conflicting adds retry boundedly.
 - Global feed total and channel tallies are distinct durable values. The daily
-  total and hot sorted-set view live in Sesame's Valkey, not these tables. Feed
-  event receipts commit with global/channel increments and return stored totals on replay.
+  total and hot sorted-set view live in Sesame's Valkey, not these tables.
+  Row 1 remains the legacy base, including increments from older pods. Slot
+  initialization inserts missing rows 2 through 257 at zero without rewriting
+  existing data or locking existing rows for update. New feeds hash their event
+  identity to a slot; total reads sum the base and all slots. Redistribution at
+  the integer limit changes only slots and preserves the legacy base.
+- A nonempty feed event identity is required. Its receipt and global/channel
+  increments commit together. The reply total is a committed lower bound read
+  after commit, not the feeding's ordinal; concurrent feeds can return the same
+  total. That readout is stored in the receipt and replay returns the stored
+  value. A failed post-commit read or receipt update returns an error; retrying
+  the same identity finishes the readout without incrementing again.
 - Keep `ent/runtime` imported. `DeleteAccount` uses guarded snapshot cleanup; the
   older `DeleteAllForUser` helper has different best-effort custody semantics.
 
