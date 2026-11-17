@@ -8,7 +8,7 @@ human: https://itsbagelbot.com/valorant-stats/
 
 [Human guide](https://itsbagelbot.com/valorant-stats/).
 
-ItsBagelBot returns Valorant competitive rank, recent ranked matches, account details, regional leaderboards, and skin rotation in Twitch chat.
+ItsBagelBot returns Valorant competitive rank, ranked game totals, recent ranked matches, account details, regional leaderboards, and skin rotation in Twitch chat.
 
 <page type="feature">
 
@@ -59,6 +59,18 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 - Who can run it: Everyone, while the module and the relevant reply are enabled.
 - Behaviour: Competitive tier, RR, latest RR change, and peak tier.
 - Example reply template: "{{console:modules.catalog.valorant.replies.rank.defaultMessage}}". Runtime values replace the braces.
+
+</command>
+
+<command name="!val record">
+
+### `!val record`
+
+- Syntax: `!val record [Name#Tag] [region] [pc|console]`
+- Aliases: `!valrecord`
+- Who can run it: Everyone, while the module and the relevant reply are enabled.
+- Behaviour: Ranked games played on the account, wins, and win rate.
+- Example reply template: "{{console:modules.catalog.valorant.replies.record.defaultMessage}}". Runtime values replace the braces.
 
 </command>
 

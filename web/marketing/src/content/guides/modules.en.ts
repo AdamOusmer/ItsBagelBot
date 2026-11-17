@@ -173,7 +173,7 @@ const modules = [
     cat: 'Stats',
     start: 'Off by default',
     needs: 'Your Riot ID, like Frosty#EUW1, and your region.',
-    commands: '!val [RiotID], !valrank, !valmatches, !valhistory, !valaccount, !valwho, !vallb, !valleaderboard, !valshop, !valrotation',
+    commands: '!val [RiotID], !valrank, !valrecord, !valmatches, !valhistory, !valaccount, !valwho, !vallb, !valleaderboard, !valshop, !valrotation',
   },
 ];
 

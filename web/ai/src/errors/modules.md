@@ -333,7 +333,7 @@ Next action: Wait before retrying; follow any interval indicated in the actual r
 <a id="provider-lookup-failed"></a>
 ## Provider lookup failed
 
-Meaning: The provider returned a generic failed-lookup result. MCSR Ranked and PaceMan use a statistics-failure result; Urchin distinguishes statistics, score, and tag lookup failures; Fortnite distinguishes statistics and item-shop failures. Valorant distinguishes rank, match history, account, leaderboard, and shop lookups; Clash Royale distinguishes stats, decks, ranked, and trophy-road lookups; CODM reports profile lookup failure.
+Meaning: The provider returned a generic failed-lookup result. MCSR Ranked and PaceMan use a statistics-failure result; Urchin distinguishes statistics, score, and tag lookup failures; Fortnite distinguishes statistics and item-shop failures. Valorant distinguishes rank, record, match history, account, leaderboard, and shop lookups; Clash Royale distinguishes stats, decks, ranked, and trophy-road lookups; CODM reports profile lookup failure.
 
 Checks: Check account validity and whether failures affect multiple players.
 
@@ -392,6 +392,15 @@ Meaning: The current act has no competitive record for the returned player.
 Checks: Check Riot ID, platform, and act context.
 
 Next action: Explain the missing record or retry after competitive data exists.
+
+<a id="valorant-no-record"></a>
+## Valorant has no ranked games on record
+
+Meaning: The provider returned no ranked games for the returned player.
+
+Checks: Check Riot ID and platform.
+
+Next action: Retry after ranked games are recorded.
 
 <a id="valorant-no-matches"></a>
 ## Valorant recent matches absent
