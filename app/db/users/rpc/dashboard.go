@@ -29,18 +29,16 @@ import (
 const dashboardTimeout = 3 * time.Second
 
 type dashboardRPC struct {
-	repo               *repository.Users
-	nc                 *nats.Conn
-	invalidationPrefix string
-	log                *zap.Logger
+	repo          *repository.Users
+	invalidations *bus.Invalidations
+	log           *zap.Logger
 }
 
-func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
+func SubscribeDashboard(w Wiring, prefix string) error {
 	d := &dashboardRPC{
-		repo:               w.Repo,
-		nc:                 w.NC,
-		invalidationPrefix: invalidationPrefix,
-		log:                w.Log,
+		repo:          w.Repo,
+		invalidations: w.Repo.Invalidations(),
+		log:           w.Log,
 	}
 
 	verbs := map[string]func(context.Context, *nats.Msg){
@@ -104,40 +102,43 @@ func parseWireID(msg *nats.Msg, raw, field string) (uint64, bool) {
 	return id, true
 }
 
-func (d *dashboardRPC) publishInvalidate(scope, id, op string) {
-	if err := invalidate.Publish(d.nc, d.invalidationPrefix, scope, id); err != nil {
-		d.log.Warn(op+" invalidation publish failed", zap.Error(err))
-	}
+type dashboardWrite struct {
+	scope invalidate.Scope
+	id    uint64
+	op    string
+	write func(context.Context) error
 }
 
-func (d *dashboardRPC) publishRename(id, login, prior string) {
-	if err := invalidate.PublishKeys(d.nc, d.invalidationPrefix, "rename", id, login, prior); err != nil {
-		d.log.Warn("rename invalidation publish failed", zap.Error(err))
-	}
-}
-
-func (d *dashboardRPC) writeThenInvalidate(ctx context.Context, msg *nats.Msg, scope, broadcasterID, op string, write func(context.Context) error) {
-	if err := write(ctx); err != nil {
-		d.log.Error(op, zap.Error(err))
+func (d *dashboardRPC) writeThenInvalidate(ctx context.Context, msg *nats.Msg, w dashboardWrite) {
+	if err := w.write(ctx); err != nil {
+		d.log.Error(w.op, zap.Error(err))
 		respondFail(msg, err)
 		return
 	}
-	d.publishInvalidate(scope, broadcasterID, op)
+	if w.scope != "" {
+		d.invalidations.Publish(w.scope, w.id)
+	}
 	respondOK(msg)
 }
 
-func setBoolPref[T any](d *dashboardRPC, ctx context.Context, msg *nats.Msg, scope, op string,
-	broadcaster func(T) string, write func(context.Context, uint64, T) error) {
+type boolPref[T any] struct {
+	scope       invalidate.Scope
+	op          string
+	broadcaster func(T) string
+	write       func(context.Context, uint64, T) error
+}
+
+func setBoolPref[T any](d *dashboardRPC, ctx context.Context, msg *nats.Msg, p boolPref[T]) {
 	req, ok := decodeRequest[T](msg)
 	if !ok {
 		return
 	}
-	id, ok := parseWireID(msg, broadcaster(req), "broadcaster_user_id")
+	id, ok := parseWireID(msg, p.broadcaster(req), "broadcaster_user_id")
 	if !ok {
 		return
 	}
-	d.writeThenInvalidate(ctx, msg, scope, broadcaster(req), op,
-		func(ctx context.Context) error { return write(ctx, id, req) })
+	d.writeThenInvalidate(ctx, msg, dashboardWrite{scope: p.scope, id: id, op: p.op,
+		write: func(ctx context.Context) error { return p.write(ctx, id, req) }})
 }
 
 func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
@@ -153,7 +154,7 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 
 	email := fmt.Sprintf("%d@twitch.tv", id)
 
-	if err := d.repo.Register(ctx, id, req.Username, req.DisplayName, email); err != nil {
+	if err := d.repo.Register(ctx, repository.Registration{ID: id, Username: req.Username, DisplayName: req.DisplayName, Email: email}); err != nil {
 		log.Error("upsert_user register", zap.Error(err))
 		respondFail(msg, err)
 		return
@@ -167,7 +168,6 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 		}
 	}
 
-	d.publishInvalidate("status", req.UserID, "upsert_user")
 	respondOK(msg)
 }
 
@@ -181,10 +181,10 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	d.writeThenInvalidate(ctx, msg, "grant", req.BroadcasterUserID, "grant_save",
-		func(ctx context.Context) error {
-			return d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken), nil)
-		})
+	d.writeThenInvalidate(ctx, msg, dashboardWrite{scope: invalidate.ScopeGrant, id: id, op: "grant_save",
+		write: func(ctx context.Context) error {
+			return d.repo.UpsertToken(ctx, repository.TokenWrite{UserID: id, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch, AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken)})
+		}})
 }
 
 func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
@@ -203,11 +203,11 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
-	setBoolPref(d, ctx, msg, "status", "active_set",
-		func(r usersrpc.ActiveSetRequest) string { return r.BroadcasterUserID },
-		func(ctx context.Context, id uint64, r usersrpc.ActiveSetRequest) error {
+	setBoolPref(d, ctx, msg, boolPref[usersrpc.ActiveSetRequest]{op: "active_set",
+		broadcaster: func(r usersrpc.ActiveSetRequest) string { return r.BroadcasterUserID },
+		write: func(ctx context.Context, id uint64, r usersrpc.ActiveSetRequest) error {
 			return d.repo.SetActiveNow(ctx, id, r.Active)
-		})
+		}})
 }
 
 func (d *dashboardRPC) handleActiveGet(ctx context.Context, msg *nats.Msg) {
@@ -286,9 +286,8 @@ func (d *dashboardRPC) handleIdentitySync(ctx context.Context, msg *nats.Msg) {
 		respondFail(msg, err, domainrpc.Is(validate.ErrUsernameInvalid, domainrpc.CodeInvalid))
 		return
 	}
-	d.publishInvalidate("status", req.UserID, "identity_sync")
 	if prior != "" {
-		d.publishRename(req.UserID, strings.ToLower(strings.TrimSpace(req.Username)), prior)
+		d.invalidations.Publish(invalidate.ScopeRename, id, strings.ToLower(strings.TrimSpace(req.Username)), prior)
 	}
 	bus.Respond(msg, usersrpc.IdentitySyncReply{Renamed: prior != "", PriorUsername: prior})
 }
@@ -312,11 +311,11 @@ func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(
 }
 
 func (d *dashboardRPC) handleOnboardedSet(ctx context.Context, msg *nats.Msg) {
-	setBoolPref(d, ctx, msg, "status", "onboarded_set",
-		func(r usersrpc.OnboardedSetRequest) string { return r.BroadcasterUserID },
-		func(ctx context.Context, id uint64, r usersrpc.OnboardedSetRequest) error {
+	setBoolPref(d, ctx, msg, boolPref[usersrpc.OnboardedSetRequest]{op: "onboarded_set",
+		broadcaster: func(r usersrpc.OnboardedSetRequest) string { return r.BroadcasterUserID },
+		write: func(ctx context.Context, id uint64, r usersrpc.OnboardedSetRequest) error {
 			return d.repo.SetOnboarded(ctx, id, r.Onboarded)
-		})
+		}})
 }
 
 func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
@@ -333,43 +332,48 @@ func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	d.writeThenInvalidate(ctx, msg, "locale", req.BroadcasterUserID, "locale_set",
-		func(ctx context.Context) error { return d.repo.SetLocale(ctx, id, req.Locale) })
+	d.writeThenInvalidate(ctx, msg, dashboardWrite{scope: invalidate.ScopeLocale, id: id, op: "locale_set",
+		write: func(ctx context.Context) error { return d.repo.SetLocale(ctx, id, req.Locale) }})
 }
 
 func (d *dashboardRPC) handleCursorSet(ctx context.Context, msg *nats.Msg) {
-	setBoolPref(d, ctx, msg, "cursor", "cursor_set",
-		func(r usersrpc.CursorSetRequest) string { return r.BroadcasterUserID },
-		func(ctx context.Context, id uint64, r usersrpc.CursorSetRequest) error {
+	setBoolPref(d, ctx, msg, boolPref[usersrpc.CursorSetRequest]{op: "cursor_set",
+		broadcaster: func(r usersrpc.CursorSetRequest) string { return r.BroadcasterUserID },
+		write: func(ctx context.Context, id uint64, r usersrpc.CursorSetRequest) error {
 			return d.repo.SetCustomCursor(ctx, id, r.CustomCursor)
-		})
+		}})
 }
 
-func setPageHidden[T any](d *dashboardRPC, ctx context.Context, msg *nats.Msg, page repository.PublicPage, target func(T) (id string, hidden bool)) {
-	setBoolPref(d, ctx, msg, string(page)+"_page", string(page)+"_page_set",
-		func(r T) string { id, _ := target(r); return id },
-		func(ctx context.Context, id uint64, r T) error {
-			_, hidden := target(r)
-			return d.repo.SetPageHidden(ctx, id, page, hidden)
-		})
+type pagePref[T any] struct {
+	page   repository.PublicPage
+	target func(T) (id string, hidden bool)
+}
+
+func setPageHidden[T any](d *dashboardRPC, ctx context.Context, msg *nats.Msg, p pagePref[T]) {
+	setBoolPref(d, ctx, msg, boolPref[T]{scope: string(p.page) + "_page", op: string(p.page) + "_page_set",
+		broadcaster: func(r T) string { id, _ := p.target(r); return id },
+		write: func(ctx context.Context, id uint64, r T) error {
+			_, hidden := p.target(r)
+			return d.repo.SetPageHidden(ctx, id, p.page, hidden)
+		}})
 }
 
 func (d *dashboardRPC) handleCommandsPageSet(ctx context.Context, msg *nats.Msg) {
-	setPageHidden(d, ctx, msg, repository.PageCommands, func(r usersrpc.CommandsPageSetRequest) (string, bool) {
+	setPageHidden(d, ctx, msg, pagePref[usersrpc.CommandsPageSetRequest]{repository.PageCommands, func(r usersrpc.CommandsPageSetRequest) (string, bool) {
 		return r.BroadcasterUserID, r.Hidden
-	})
+	}})
 }
 
 func (d *dashboardRPC) handleLeaderboardPageSet(ctx context.Context, msg *nats.Msg) {
-	setPageHidden(d, ctx, msg, repository.PageLeaderboard, func(r usersrpc.LeaderboardPageSetRequest) (string, bool) {
+	setPageHidden(d, ctx, msg, pagePref[usersrpc.LeaderboardPageSetRequest]{repository.PageLeaderboard, func(r usersrpc.LeaderboardPageSetRequest) (string, bool) {
 		return r.BroadcasterUserID, r.Hidden
-	})
+	}})
 }
 
 func (d *dashboardRPC) handleSongQueuePageSet(ctx context.Context, msg *nats.Msg) {
-	setPageHidden(d, ctx, msg, repository.PageSongQueue, func(r usersrpc.SongQueuePageSetRequest) (string, bool) {
+	setPageHidden(d, ctx, msg, pagePref[usersrpc.SongQueuePageSetRequest]{repository.PageSongQueue, func(r usersrpc.SongQueuePageSetRequest) (string, bool) {
 		return r.BroadcasterUserID, r.Hidden
-	})
+	}})
 }
 
 func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
@@ -390,7 +394,7 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 	for _, delID := range delegateIDs {
-		d.publishInvalidate("delegation", fmt.Sprint(delID), "delete_self")
+		d.invalidations.Publish(invalidate.ScopeDelegation, delID)
 	}
 	if err := d.repo.Delete(ctx, id); err != nil {
 		log.Error("delete_self user", zap.Error(err))
@@ -398,7 +402,6 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	d.publishInvalidate("user", req.UserID, "delete_self")
 	respondOK(msg)
 }
 

@@ -22,10 +22,10 @@ import (
 
 func TestDelegationRPCPreservesGrantReplies(t *testing.T) {
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(t.Context()) })
 	nc := testnats.Connect(t)
-	require.NoError(t, rpc.SubscribeDelegation(rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo}, "delegation.test", "invalidate.test"))
+	require.NoError(t, rpc.SubscribeDelegation(rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo}, "delegation.test"))
 	require.NoError(t, nc.Flush())
 	h := harness{nc: nc}
 	created := call[struct{ Token string }](t, h, "delegation.test.create", usersrpc.CreateDelegationRequest{OwnerUserID: "1001", OwnerLogin: "owner", Sections: []string{"commands"}})

@@ -22,15 +22,15 @@ function renamedLogins(keys: readonly string[]): string[] {
 }
 
 const renamedKeys = (id: string, logins: readonly string[]) => [...stateKeys(id), ...renamedLogins(logins).map((l) => `login:${l}`)];
+const accountKeys = (id: string) => [...userPrefixes(id), `ban:${id}`];
 
-// Scope names must match the Go publishers (internal/domain/invalidate callers); an unlisted scope wipes the whole board.
 export const SCOPES: ScopeMap = {
   grant: (id) => [`grant:${id}`, `state:${id}`],
   status: (id) => [`state:${id}`, `tier:${id}`, `ban:${id}`],
   commands: (id) => [`commands:${id}`],
-  modules: (id) => [`modules:${id}`],
+  modules: (id) => [`modules:${id}`, `govee-devices:${id}`, `govee-scenes:${id}`],
   automations: (id) => [`automations:${id}`],
-  delegation: (id) => [`delegations:${id}`],
+  delegation: (id) => [`delegations:${id}`, 'delegation-token:'],
   notifications: (id) => [id === '*' ? 'notifications:' : `notifications:${id}`],
   locale: stateKeys,
   cursor: stateKeys,
@@ -39,9 +39,14 @@ export const SCOPES: ScopeMap = {
   fetches: (id) => [`fetches:${id}`],
   rename: renamedKeys,
   'token-warm': () => [],
+  spotify: () => [],
   outgress: () => [],
+  'outgress-pause': () => [],
   loyalty: () => [],
-  '*': (id) => [...userPrefixes(id), `ban:${id}`]
+  'loyalty-counters': () => [],
+  'user-projection': () => [],
+  user: accountKeys,
+  '*': accountKeys
 };
 
 const SILENT_SCOPES: ReadonlySet<string> = new Set(['live', 'fetches']);
@@ -50,7 +55,6 @@ type RenameHandler = (userId: string, logins: string[]) => void;
 
 const renameHandlers: RenameHandler[] = [];
 
-// Registered at boot (not imported here) so edge purging, which reads services, stays out of the fabric's import cycle.
 export function onRename(handler: RenameHandler): void {
   renameHandlers.push(handler);
 }
@@ -76,7 +80,6 @@ export function invalidate(...prefixes: string[]) {
 
 export type BoardChange = { scope: string; id: string };
 
-// For writes no backend service announces: evicts here, then tells the other dashboard pods.
 export async function broadcastInvalidation(change: BoardChange): Promise<void> {
   invalidate(...(SCOPES[change.scope] ?? SCOPES['*']!)(change.id, []));
   try {
@@ -86,9 +89,9 @@ export async function broadcastInvalidation(change: BoardChange): Promise<void> 
   }
 }
 
-// A rename leaves the old login's lookup and the account snapshot stale; drops both on this pod.
 export function evictRenamed(userId: string, logins: readonly string[]): void {
   invalidate(...renamedKeys(userId, logins));
+  announceRename({ id: userId, keys: logins });
 }
 
 export function invalidateUser(userId: string) {

@@ -3,5 +3,8 @@
 
 import { resolveViewerId } from './loyalty-store';
 import { createViewerResolver } from './viewer-resolver';
+import { onRename } from './services/fabric';
 
 export const resolveCurrentViewer = createViewerResolver({ lookup: resolveViewerId });
+
+onRename((_id, logins) => resolveCurrentViewer.invalidate(logins));

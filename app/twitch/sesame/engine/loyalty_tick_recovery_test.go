@@ -39,7 +39,6 @@ func TestWatchTickCrashAfterOutboxReplaysSavedPage(t *testing.T) {
 	accepted, err := f.clock.awards.EnqueueOwned(ctx, dto, owner)
 	require.NoError(t, err)
 	require.True(t, accepted)
-	// Simulate process death after durable enqueue but before cursor commit.
 	require.NoError(t, f.client.Do(ctx, f.client.B().Del().Key(loyaltyClaimKey(f.id)).Build()).Error())
 	f.due(t)
 	f.clock.request = func(context.Context, string, []byte) (*nats.Msg, error) {
@@ -89,7 +88,6 @@ func TestWatchTickStaleSavedPageReconfirmsBeforeAcceptance(t *testing.T) {
 			if live {
 				require.EqualValues(t, 1, f.operations(t))
 				require.Empty(t, f.fields(t)["pending"])
-				// The operation digest must represent the original saved viewers.
 				accepted, err := f.clock.awards.Enqueue(ctx, dto)
 				require.NoError(t, err)
 				require.True(t, accepted)
@@ -104,8 +102,6 @@ func TestWatchTickStaleSavedPageReconfirmsBeforeAcceptance(t *testing.T) {
 func TestWatchWindowCollectionAgeBeginsAtFirstClaim(t *testing.T) {
 	f := watchFixture(t, 77201)
 	ctx := t.Context()
-	// Due time can be ancient after worker downtime; a fresh collection begins
-	// when first sampled, rather than pretending the old due time was sampled.
 	ancient := f.now.Add(-24 * time.Hour).UnixMilli()
 	require.NoError(t, f.client.Do(ctx, f.client.B().Hset().Key(loyaltyScheduleKey(f.id)).FieldValue().FieldValue("due", strconv.FormatInt(ancient, 10)).Build()).Error())
 	_, err := f.clock.eval(ctx, loyaltyClaimScript, []string{loyaltyScheduleKey(f.id), loyaltyDueKey, loyaltyClaimKey(f.id)}, strconv.FormatUint(f.id, 10), "first-claim", strconv.FormatInt(f.now.UnixMilli(), 10), "30000")
@@ -207,8 +203,7 @@ func TestWatchTickDiscoveryResumesPersistedPendingPage(t *testing.T) {
 	require.NoError(t, f.client.Do(ctx, f.client.B().Zrem().Key(loyaltyDueKey).Member(strconv.FormatUint(f.id, 10)).Build()).Error())
 	_, err := f.clock.eval(ctx, loyaltyDiscoverySaveScript, []string{loyaltyDiscoveryCursorKey, loyaltyDiscoveryQueueKey}, "0", strconv.FormatUint(f.id, 10))
 	require.NoError(t, err)
-	// A replica resumes the saved page before starting another keyspace scan.
-	replica := NewValkeyLoyaltyClock(f.client, nil, nil, nil, nil, LoyaltyClockConfig{Log: zap.NewNop()})
+	replica := NewValkeyLoyaltyClock(f.client, nil, LoyaltyClockConfig{Log: zap.NewNop()})
 	replica.reconcile(ctx)
 	require.Equal(t, "1", f.fields(t)["active"])
 	remaining, err := f.client.Do(ctx, f.client.B().Llen().Key(loyaltyDiscoveryQueueKey).Build()).AsInt64()

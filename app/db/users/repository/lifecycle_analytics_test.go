@@ -31,7 +31,7 @@ func newLifecycleAnalyticsHarness(t *testing.T) lifecycleAnalyticsHarness {
 	t.Helper()
 	client, repo := lifecycleSetup(t)
 	t.Cleanup(func() { repo.Close(t.Context()) })
-	require.NoError(t, repo.Register(t.Context(), 1001, "account", "Account", "account@example.test"))
+	require.NoError(t, repo.Register(t.Context(), Registration{ID: 1001, Username: "account", DisplayName: "Account", Email: "account@example.test"}))
 	now := time.Now().UTC()
 	vc := valkeytest.Spawn(t)
 	rec := analytics.New(vc, zap.NewNop(), nil, analytics.WithoutTicker(), analytics.WithClock(func() time.Time { return now }))

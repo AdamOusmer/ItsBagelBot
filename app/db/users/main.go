@@ -21,7 +21,6 @@ import (
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/env/conf"
@@ -65,12 +64,12 @@ func main() {
 	recorder := analytics.New(vc, log, nil)
 	defer recorder.Close()
 
-	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
+	h := bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: packer, Pub: h.Publisher(n.Pub), App: core.NR, Log: log})
 	repo.SetAnalytics(recorder)
 	repo.SetAdminAuth(adminauth.New(n.RPC, adminauth.Config{AuthPrefix: env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", adminauth.DefaultAuthPrefix), AuditPrefix: env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", adminauth.DefaultAuditPrefix)}))
 	repo.SetDeviceAuthSigner(loadDeviceAuthSigner(log))
 	levels := analytics.NewLevelSource(analytics.Owner{Service: serviceName, Owned: ownedAccountLevels(), Seed: repo.AnalyticsSeed})
-	repo.SetInvalidationPrefix(conf.CacheInvalidationPrefix.Get())
 	repo.SetInvalidationConn(n.RPC)
 	defer func() {
 		flushCtx, cancel := context.WithTimeout(context.Background(), shutdownFlushBudget)
@@ -80,6 +79,7 @@ func main() {
 
 	defer closeIntake() // stops intake before the repo flush above
 
+	svcboot.FatalIf(log, h.Changes(ctx, n.Broadcast, data.SubjectUserChanged, data.SubjectUserDeleted), "failed to subscribe user changes")
 	startConsumers(ctx, n, repo, log)
 	wireErasure(ctx, repo, log)
 
@@ -106,9 +106,6 @@ func main() {
 	core.Await()
 }
 
-// loadDeviceAuthSigner reads the Ed25519 seed from env/Doppler. A missing or
-// malformed key fails closed: device authorization refuses exchange/refresh,
-// but every other Users RPC keeps running.
 func loadDeviceAuthSigner(log *zap.Logger) *tokensign.Signer {
 	seedB64 := strings.TrimSpace(env.Get("DEVICE_AUTH_SIGNING_KEY", ""))
 	kid := strings.TrimSpace(env.Get("DEVICE_AUTH_SIGNING_KID", ""))
@@ -141,15 +138,10 @@ func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *c
 }
 
 func startConsumers(ctx context.Context, n svcboot.NATS, repo *repository.Users, log *zap.Logger) {
-	svcboot.FatalIf(log, bus.Consume(ctx, nil, n.Broadcast, data.SubjectUserChanged, consumers.OnChangeInvalidate(changedUserID, repo.Invalidate), log),
-		"failed to subscribe to user changes")
-
 	svcboot.FatalIf(log, bus.Consume(ctx, nil, n.Grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
 		return repo.Reproject(ctx)
 	}, log), "failed to subscribe to reproject requests")
 }
-
-func changedUserID(dto data.UserChangedDTO) uint64 { return dto.UserID }
 
 type rpcSubjects struct {
 	dashboard  string
@@ -171,7 +163,6 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 }
 
 func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
-	invalidationPrefix := conf.CacheInvalidationPrefix.Get()
 
 	s := rpcSubjects{
 		dashboard:  env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "rpc.dashboard"),
@@ -182,17 +173,16 @@ func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 		device:     env.Get("NATS_DASHBOARD_DEVICE_SUBJECT_PREFIX", "rpc.dashboard.device"),
 	}
 
-	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
+	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard), "failed to subscribe dashboard rpc")
 	adminCfg := rpc.AdminConfig{
 		AuthPrefix:         env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", adminauth.DefaultAuthPrefix),
 		BotUserID:          strings.TrimSpace(env.Get("TWITCH_BOT_USER_ID", "")),
 		Prefix:             s.admin,
 		InternalGetSubject: conf.UsersGetSubject.Get(),
-		InvalidationPrefix: invalidationPrefix,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, adminCfg), "failed to subscribe admin rpc")
-	svcboot.FatalIf(log, rpc.SubscribeBilling(wiring, s.billing, invalidationPrefix), "failed to subscribe billing rpc")
-	svcboot.FatalIf(log, rpc.SubscribeGiveaways(wiring, s.giveaway, invalidationPrefix), "failed to subscribe giveaway rpc")
+	svcboot.FatalIf(log, rpc.SubscribeBilling(wiring, s.billing), "failed to subscribe billing rpc")
+	svcboot.FatalIf(log, rpc.SubscribeGiveaways(wiring, s.giveaway), "failed to subscribe giveaway rpc")
 
 	svcboot.FatalIf(log, rpc.SubscribeLifecycle(wiring), "failed to subscribe lifecycle rpc")
 	svcboot.FatalIf(log, rpc.SubscribeProjection(wiring, s.projection), "failed to subscribe projection rpc")
@@ -202,7 +192,7 @@ func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 		"failed to subscribe tokens rpc")
 	svcboot.FatalIf(log, rpc.SubscribeCounts(wiring, env.Get("NATS_INTERNAL_USERS_COUNTS_SUBJECT", "rpc.internal.users.counts.get")),
 		"failed to subscribe counts rpc")
-	svcboot.FatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "rpc.delegation"), invalidationPrefix),
+	svcboot.FatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "rpc.delegation")),
 		"failed to subscribe delegation rpc")
 	svcboot.FatalIf(log, rpc.SubscribeDeviceAuth(wiring, s.device), "failed to subscribe device authorization rpc")
 

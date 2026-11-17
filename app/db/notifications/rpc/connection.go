@@ -1,6 +1,10 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 package rpc
 
 import (
+	"ItsBagelBot/internal/domain/invalidate"
 	"context"
 	"fmt"
 	"strconv"
@@ -15,11 +19,10 @@ import (
 
 type connectionRPC struct {
 	Wiring
-	invalidationPrefix string
 }
 
-func SubscribeConnection(w Wiring, invalidationPrefix string) error {
-	handler := &connectionRPC{Wiring: w, invalidationPrefix: invalidationPrefix}
+func SubscribeConnection(w Wiring) error {
+	handler := &connectionRPC{Wiring: w}
 	return bus.ServeVerbs(w.Within(sendBudget), notificationsrpc.ConnectionSubject,
 		bus.At("send", handler.send), bus.At("retract", handler.retract), bus.At("erase", handler.erase))
 }
@@ -80,7 +83,7 @@ func (c *connectionRPC) send(ctx context.Context, req notificationsrpc.Connectio
 		return notificationsrpc.ConnectionReply{Refusal: bus.Classify(err)}
 	}
 	if result.Created {
-		c.invalidate(req.AccountID)
+		c.Invalidations.Publish(invalidate.ScopeNotifications, req.AccountID)
 	}
 	return notificationsrpc.ConnectionReply{Outcome: result.Outcome, NotificationID: result.NotificationID}
 }
@@ -93,7 +96,7 @@ func (c *connectionRPC) retract(ctx context.Context, req notificationsrpc.Connec
 	if err != nil {
 		return notificationsrpc.ConnectionReply{Refusal: bus.Classify(err)}
 	}
-	c.invalidate(req.AccountID)
+	c.Invalidations.Publish(invalidate.ScopeNotifications, req.AccountID)
 	return notificationsrpc.ConnectionReply{Outcome: result.Outcome, NotificationID: result.NotificationID}
 }
 func (c *connectionRPC) erase(ctx context.Context, req notificationsrpc.ConnectionRequest) notificationsrpc.ConnectionReply {
@@ -101,9 +104,6 @@ func (c *connectionRPC) erase(ctx context.Context, req notificationsrpc.Connecti
 	if err != nil {
 		return notificationsrpc.ConnectionReply{Refusal: bus.Classify(err)}
 	}
-	c.invalidate(req.AccountID)
+	c.Invalidations.Publish(invalidate.ScopeNotifications, req.AccountID)
 	return notificationsrpc.ConnectionReply{Outcome: notificationsrpc.OutcomeErased}
-}
-func (c *connectionRPC) invalidate(accountID uint64) {
-	c.invalidateNotifications(c.invalidationPrefix, accountKey(accountID))
 }

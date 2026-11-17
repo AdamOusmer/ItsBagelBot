@@ -29,18 +29,17 @@ func TestPageSetRoundTripIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	client := testdb.Open(t, "dashboardrpc-commandspage", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 
 	prefix := "rpc.users.dashboard." + nuid.Next()
-	invalidationPrefix := "cache.invalidate." + nuid.Next()
 
 	require.NoError(t, SubscribeDashboard(Wiring{
 		RPCWiring: bus.RPCWiring{NC: nc, Queue: "dashboardrpc-test-" + nuid.Next(), Log: zap.NewNop()},
 		Repo:      repo,
-	}, prefix, invalidationPrefix))
+	}, prefix))
 	require.NoError(t, nc.Flush())
 
 	tests := []struct {

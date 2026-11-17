@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 package channels
 
 import (
@@ -84,10 +87,15 @@ func (r *Registry) EraseIncarnation(ctx context.Context, id string, incarnation 
 		Key: keyPrefix + id, SortedIdx: hotIndexKey, SetIdx: []string{indexKey, unhealthyKey},
 		GuardField: "account_created_at", Expect: strconv.FormatInt(incarnation, 10), Member: id,
 	}
-	if _, err := erase.Run(ctx, r.client); err != nil {
+	erased, err := erase.Run(ctx, r.client)
+	if err != nil {
 		return err
 	}
-	r.cache.Invalidate(id)
+	if !erased {
+		r.cache.Invalidate(id)
+		return nil
+	}
+	r.invalidateChannel(channelID(id))
 	return nil
 }
 func (r *Registry) SetIncarnation(ctx context.Context, id string, incarnation int64) error {

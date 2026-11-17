@@ -109,13 +109,13 @@ func TestWatchMySQLPostingSerializesWithRetentionAndDeletion(t *testing.T) {
 	require.Greater(t, retired, a.WindowStartedAtUnixMilli)
 }
 
-func TestWatchMySQLRecreationAndLegacyFlushRace(t *testing.T) {
+func TestWatchMySQLRecreationAndEarnedRace(t *testing.T) {
 	r, _ := mysqlRetentionRepo(t)
 	ctx := t.Context()
 	old := watchAward(77, 87, 100)
 	old.WindowStartedAtUnixMilli = time.Now().UnixMilli()
 	require.NoError(t, r.RestoreUser(ctx, old.UserID, old.AccountCreatedAt))
-	r.RecordEarned(data.LoyaltyEarnedDTO{UserID: old.UserID, Entries: old.Entries})
+	require.NoError(t, r.ApplyEarned(ctx, data.LoyaltyEarnedDTO{BatchID: "before", UserID: old.UserID, Entries: old.Entries}))
 	concurrent := func(actions ...func() error) {
 		t.Helper()
 		start := make(chan struct{})
@@ -142,15 +142,15 @@ func TestWatchMySQLRecreationAndLegacyFlushRace(t *testing.T) {
 		return r.ApplyWatchAward(posting, a)
 	}
 	concurrent(
-		func() error { r.Flush(ctx); return nil },
+		func() error {
+			return r.ApplyEarned(ctx, data.LoyaltyEarnedDTO{BatchID: "during-one", UserID: old.UserID, Entries: old.Entries})
+		},
 		func() error { return r.DeleteAccount(ctx, old.UserID, old.AccountCreatedAt) },
 		func() error { return post(old) },
 		func() error {
-			r.RecordEarned(data.LoyaltyEarnedDTO{UserID: old.UserID, Entries: old.Entries})
-			return nil
+			return r.ApplyEarned(ctx, data.LoyaltyEarnedDTO{BatchID: "during-two", UserID: old.UserID, Entries: old.Entries})
 		},
 	)
-	r.Flush(ctx)
 	_, found, err := r.BalanceGet(ctx, old.UserID, 87)
 	require.NoError(t, err)
 	require.False(t, found, "retirement removes committed and buffered old-account credits")
@@ -163,12 +163,9 @@ func TestWatchMySQLRecreationAndLegacyFlushRace(t *testing.T) {
 		func() error { return post(old) },
 		func() error { return post(fresh) },
 		func() error {
-			r.RecordEarned(data.LoyaltyEarnedDTO{UserID: fresh.UserID, Entries: []data.LoyaltyEarnEntry{{ViewerID: 87, ViewerLogin: "viewer", Points: 5}}})
-			r.Flush(ctx)
-			return nil
+			return r.ApplyEarned(ctx, data.LoyaltyEarnedDTO{BatchID: "fresh", UserID: fresh.UserID, Entries: []data.LoyaltyEarnEntry{{ViewerID: 87, ViewerLogin: "viewer", Points: 5}}})
 		},
 	)
-	r.Flush(ctx)
 	require.NoError(t, post(fresh), "duplicate fresh award is idempotent")
 	row, found, err := r.BalanceGet(ctx, fresh.UserID, 87)
 	require.NoError(t, err)

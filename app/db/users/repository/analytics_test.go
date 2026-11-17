@@ -26,7 +26,7 @@ func TestAccountLevelsFollowWrites(t *testing.T) {
 
 	for id := uint64(1); id <= 4; id++ {
 		name := fmt.Sprint("user", id)
-		require.NoError(t, repo.Register(ctx, id, name, name, name+"@example.test"))
+		require.NoError(t, repo.Register(ctx, repository.Registration{ID: id, Username: name, DisplayName: name, Email: name + "@example.test"}))
 	}
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{UserID: 1, EventID: "e1", Action: billingrpc.ActionActivate, OccurredAt: now, ExpiresAt: ptr(now.Add(time.Hour))})
 	require.NoError(t, err)

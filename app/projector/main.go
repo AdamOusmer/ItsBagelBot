@@ -96,29 +96,30 @@ func main() {
 	defer func() { _ = sub.Close() }()
 
 	topics := loadTopics()
+	h := bus.NewInvalidations(nc, topics.cacheInvalidate, log)
 	hydrator := hydration.New(valkeyStore, nc, projection.Subjects{
 		Users:    topics.users,
 		Modules:  topics.modules,
 		Commands: topics.commands,
 	}, topics.queryHydrationTTL, topics.liveHydrationTTL, topics.hydrationConcurr, log)
 	projector := NewProjector(Deps{
-		Runtime:               channelruntime.NewClient(valkeyStore, nc, topics.users),
-		Store:                 valkeyStore,
-		NC:                    nc,
-		InvalidateSubject:     topics.invalidate,
-		CacheInvalidatePrefix: topics.cacheInvalidate,
-		Hydrator:              hydrator,
-		Loyalty:               newLoyaltyCounters(nc, topics.loyalty),
-		Live:                  valkeyStore,
-		Owner:                 newAutomationOwner(nc),
-		Log:                   log,
-		Analytics:             recorder,
+		Runtime:           channelruntime.NewClient(valkeyStore, nc, topics.users),
+		Store:             valkeyStore,
+		NC:                nc,
+		InvalidateSubject: topics.invalidate,
+		Invalidations:     h,
+		Hydrator:          hydrator,
+		Loyalty:           newLoyaltyCounters(nc, topics.loyalty),
+		Live:              valkeyStore,
+		Owner:             newAutomationOwner(nc),
+		Log:               log,
+		Analytics:         recorder,
 	})
 
 	registerConsumers(ctx, consumerRuntime{nrApp: nrApp, sub: sub, log: log}, projector, topics.stream)
 	go projector.SeedBoards(ctx)
 	subscribeRPCs(rpcRuntime{
-		nc: nc, store: valkeyStore, pub: pub, hydrator: hydrator, nrApp: nrApp, log: log,
+		nc: nc, store: valkeyStore, pub: pub, invalidations: h, hydrator: hydrator, nrApp: nrApp, log: log,
 	}, topics)
 	svcboot.ServeHealth(svcboot.Health{
 		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
@@ -150,8 +151,7 @@ func dataTierCheck(nc *nats.Conn, service string) health.Check {
 		defer cancel()
 		return probe(ctx)
 	}
-	// Owners repair cold/stale sections independently; their outage must not remove
-	// the healthy projection paths from service. Keep their failures in diagnostics.
+	// Keep owner failures diagnostic so healthy projection paths stay available.
 	return health.Degrades(check)
 }
 
@@ -187,6 +187,7 @@ func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Proje
 		{data.SubjectUserDeleted, projector.HandleUserDeleted},
 		{data.SubjectModuleChanged, projector.HandleModuleChanged},
 		{data.SubjectCommandChanged, projector.HandleCommandChanged},
+		{data.SubjectFetchChanged, projector.HandleFetchChanged},
 		{data.SubjectAutomationChanged, projector.HandleAutomationChanged},
 		{data.SubjectLoyaltyCounters, projector.HandleCounterBumps},
 		{streamTopic, projector.HandleStreamEvent},
@@ -198,19 +199,19 @@ func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Proje
 }
 
 type rpcRuntime struct {
-	nc       *nats.Conn
-	store    *projection.Store
-	pub      bus.Publisher
-	hydrator *hydration.Hydrator
-	nrApp    *newrelic.Application
-	log      *zap.Logger
+	invalidations *bus.Invalidations
+	nc            *nats.Conn
+	store         *projection.Store
+	pub           bus.Publisher
+	hydrator      *hydration.Hydrator
+	nrApp         *newrelic.Application
+	log           *zap.Logger
 }
 
 func subscribeRPCs(rt rpcRuntime, topics projectorTopics) {
-	svcboot.FatalIf(rt.log, rpc.SubscribeStatus(rt.nc, rt.store, topics.status, topics.users, topics.invalidate, queueGroup, rt.nrApp, rt.log),
+	svcboot.FatalIf(rt.log, rpc.SubscribeStatus(bus.RPCWiring{NC: rt.nc, Queue: queueGroup, App: rt.nrApp, Log: rt.log}, rpc.StatusConfig{Store: rt.store, Subject: topics.status, UsersTopic: topics.users, InvalidateSubject: topics.invalidate, Invalidations: rt.invalidations}),
 		"failed to subscribe status rpc")
-	svcboot.FatalIf(rt.log, rpc.SubscribeDashboard(rt.nc, rt.store, topics.dashboard,
-		topics.commands, topics.modules, topics.cacheInvalidate, rt.hydrator, queueGroup, rt.nrApp, rt.log),
+	svcboot.FatalIf(rt.log, rpc.SubscribeDashboard(bus.RPCWiring{NC: rt.nc, Queue: queueGroup, App: rt.nrApp, Log: rt.log}, rpc.DashboardConfig{Store: rt.store, Prefix: topics.dashboard, CommandsTopic: topics.commands, ModulesTopic: topics.modules, Invalidations: rt.invalidations, Hydrator: rt.hydrator}),
 		"failed to subscribe dashboard projector rpc")
 	svcboot.FatalIf(rt.log, rpc.SubscribeLive(bus.RPCWiring{NC: rt.nc, App: rt.nrApp, Queue: queueGroup, Log: rt.log}, rpc.LiveDependencies{
 		Store: rt.store, Pub: rt.pub, Runtime: channelruntime.NewClient(rt.store, rt.nc, topics.users),

@@ -63,7 +63,8 @@ func main() {
 
 	activity.SetSink(activity.NewStore(valkeyClient))
 
-	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log, expiry: pkgvalkey.NewExpiryHub(valkeyClient, 0, log)}
+	h := bus.NewInvalidations(nc, cfg.CacheInvalidationPrefix, log)
+	w := wireCtx{invalidations: h, ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log, expiry: pkgvalkey.NewExpiryHub(valkeyClient, 0, log)}
 
 	proj := newProjection(w)
 	defer proj.Close()
@@ -128,8 +129,6 @@ func main() {
 	drainInflight(weighted, pipe, cfg.DrainTimeout, log)
 }
 
-// prepareHotPath moves codec compilation and lazy read dials ahead of consumption.
-// Both are latency optimizations; a failure leaves normal lazy initialization available.
 func prepareHotPath(w wireCtx) {
 	if err := engine.PrepareJSON(); err != nil {
 		w.log.Warn("failed to precompile sesame JSON codecs", zap.Error(err))

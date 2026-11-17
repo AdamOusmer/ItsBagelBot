@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/domain/invalidate"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 
 	"github.com/nats-io/nats.go"
@@ -128,10 +130,11 @@ func TestLoadChannelServesStandardUserWithoutCachingRPCError(t *testing.T) {
 }
 
 func TestClientModulesBacksOffAfterRPCError(t *testing.T) {
+	h := bus.NewInvalidations(nil, "", nil)
 	nc := bustest.NATS(t)
 	store, _ := newTestStore(t)
 	subjects := Subjects{Modules: "test.modules"}
-	c := NewClient(Config{Store: store, NC: nc, Subjects: subjects, TTL: time.Minute, Log: zap.NewNop()})
+	c := NewClient(Config{Invalidations: h, Store: store, NC: nc, Subjects: subjects, TTL: time.Minute, Log: zap.NewNop()})
 	t.Cleanup(c.Close)
 	served := bustest.Respond(t, nc, subjects.Modules, failedReply, `{"modules":[{"name":"automod","is_enabled":true}]}`)
 	ctx := context.Background()
@@ -142,7 +145,7 @@ func TestClientModulesBacksOffAfterRPCError(t *testing.T) {
 	require.Error(t, err, "the outage error is replayed without another RPC")
 	require.EqualValues(t, 1, served.Load())
 
-	c.onInvalidation(&nats.Msg{Subject: "invalidate.modules", Data: []byte(`{"broadcaster_id":"7"}`)})
+	h.Publish(invalidate.ScopeModules, 7)
 	mods, err := c.Modules(ctx, 7)
 	require.NoError(t, err, "an invalidation clears the backoff")
 	require.True(t, mods["automod"].IsEnabled)

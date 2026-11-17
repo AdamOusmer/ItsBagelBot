@@ -6,14 +6,13 @@ package worker
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/invalidate"
-	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/cache"
 
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -22,17 +21,9 @@ const (
 	tokenWarmTimeout = 10 * time.Second
 )
 
-func (w *Worker) SubscribeTokenWarm(nc *nats.Conn, prefix string) (*nats.Subscription, error) {
-	return nc.Subscribe(prefix+"."+outgress.TokenWarmScope, func(msg *nats.Msg) {
-		var dto invalidate.DTO
-		if err := codec.Unmarshal(msg.Data, &dto); err != nil {
-			w.log.Debug("token-warm: bad payload", zap.Error(err))
-			return
-		}
-		if dto.BroadcasterID == "" {
-			return
-		}
-		w.scheduleTokenWarm(dto.BroadcasterID)
+func (w *Worker) WatchTokenWarm(h cache.Feed) {
+	h.Watch(invalidate.ScopeTokenWarm, func(e cache.Event) {
+		w.scheduleTokenWarm(strconv.FormatUint(e.ID, 10))
 	})
 }
 

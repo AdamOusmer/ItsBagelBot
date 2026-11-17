@@ -4,6 +4,7 @@
 package repository_test
 
 import (
+	"ItsBagelBot/app/db/users/repository"
 	"context"
 	"errors"
 	"sync/atomic"
@@ -19,7 +20,7 @@ import (
 func TestTestAccountAuditSurvivesAdminOutageAndLostAcknowledgment(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := t.Context()
-	require.NoError(t, repo.Register(ctx, 10, "target", "Target", "target@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 10, Username: "target", DisplayName: "Target", Email: "target@example.com"}))
 	service := staffService(t, repo, []usersrpc.AdminAcctView{{ID: 12, Active: true, Role: "admin", Login: "admin"}})
 	service.unavailable.Store(true)
 	require.NoError(t, repo.SetTestAccount(ctx, 10, true, 12))
@@ -51,7 +52,7 @@ func TestTestAccountAuditSurvivesAdminOutageAndLostAcknowledgment(t *testing.T) 
 func TestTestAccountAndAuditIntentCommitTogether(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := t.Context()
-	require.NoError(t, repo.Register(ctx, 10, "target", "Target", "target@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 10, Username: "target", DisplayName: "Target", Email: "target@example.com"}))
 	service := staffService(t, repo, []usersrpc.AdminAcctView{{ID: 12, Active: true, Role: "admin", Login: "admin"}})
 	client.AdminAuditDelivery.Use(func(entcore.Mutator) entcore.Mutator {
 		return entcore.MutateFunc(func(context.Context, entcore.Mutation) (entcore.Value, error) {

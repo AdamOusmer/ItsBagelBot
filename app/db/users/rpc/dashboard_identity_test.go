@@ -28,16 +28,17 @@ import (
 
 func TestIdentitySyncPublishesRenameOnlyWhenLoginChanged(t *testing.T) {
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), bustest.NewPublisher(), nil, zap.NewNop())
-	t.Cleanup(func() { repo.Close(context.Background()) })
 	nc := testnats.Connect(t)
-	require.NoError(t, repo.Register(context.Background(), 1001, "oldname", "OldName", "old@example.com"))
+	h := bus.NewInvalidations(nc, "test.invalidate", nil)
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: h.Publisher(bustest.NewPublisher()), Log: zap.NewNop()})
+	t.Cleanup(func() { repo.Close(context.Background()) })
+	require.NoError(t, repo.Register(context.Background(), repository.Registration{ID: 1001, Username: "oldname", DisplayName: "OldName", Email: "old@example.com"}))
 
 	const prefix, invalidation = "test.dashboard", "test.invalidate"
 	require.NoError(t, rpc.SubscribeDashboard(rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()},
 		Repo:      repo,
-	}, prefix, invalidation))
+	}, prefix))
 
 	renames := make(chan invalidate.DTO, 4)
 	sub, err := nc.Subscribe(invalidation+".rename", func(m *nats.Msg) {

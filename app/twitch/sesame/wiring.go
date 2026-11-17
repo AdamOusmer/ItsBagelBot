@@ -32,11 +32,12 @@ type infra struct {
 }
 
 type wireCtx struct {
-	ctx    context.Context
-	in     infra
-	cfg    *config.Config
-	log    *zap.Logger
-	expiry *pkgvalkey.ExpiryHub
+	invalidations *bus.Invalidations
+	ctx           context.Context
+	in            infra
+	cfg           *config.Config
+	log           *zap.Logger
+	expiry        *pkgvalkey.ExpiryHub
 }
 
 func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
@@ -158,8 +159,9 @@ func newDedup(w wireCtx) *engine.EventDedup {
 
 func newProjection(w wireCtx) *projection.Client {
 	proj := projection.NewClient(projection.Config{
-		Store: projection.NewStore(w.in.vc),
-		NC:    w.in.nc,
+		Store:         projection.NewStore(w.in.vc),
+		NC:            w.in.nc,
+		Invalidations: w.invalidations,
 		Subjects: projection.Subjects{
 			Users:    w.cfg.ProjectionUsersSubject,
 			Modules:  w.cfg.ProjectionModulesSubject,
@@ -168,7 +170,6 @@ func newProjection(w wireCtx) *projection.Client {
 		TTL: projectionCacheTTL,
 		Log: w.log,
 	})
-	proj.StartInvalidationListener(w.cfg.CacheInvalidationPrefix)
 	proj.StartOccupancyLogger(w.ctx, cacheOccupancyInterval)
 	return proj
 }
@@ -180,12 +181,11 @@ func newLive(w wireCtx) *engine.ValkeyLiveStore {
 		CacheTTL:              projectionCacheTTL,
 		ProjectorLiveSubject:  w.cfg.ProjectionLiveSubject,
 		OutgressSystemSubject: w.cfg.OutgressSystemSubject,
-		CacheInvalidatePrefix: w.cfg.CacheInvalidationPrefix,
+		Invalidations:         w.invalidations,
 		KeyspaceDB:            0,
 		Expiry:                w.expiry,
 		Log:                   w.log,
 	})
-	live.StartInvalidationListener()
 	go live.StartExpiryWatcher(w.ctx)
 	return live
 }
@@ -196,22 +196,20 @@ func newRuntime(w wireCtx) *channelruntime.Client {
 
 func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore) *engine.ValkeyTimerStore {
 	return engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, engine.TimersConfig{
-		Live:                     live,
-		Runtime:                  newRuntime(w),
-		OutgressPremiumSubject:   w.cfg.OutgressPremiumSubject,
-		OutgressStandardSubject:  w.cfg.OutgressStandardSubject,
-		KeyspaceDB:               0,
-		Expiry:                   w.expiry,
-		NC:                       w.in.nc,
-		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
-		AutomationsInvalidate:    w.cfg.CacheInvalidationPrefix + ".automations",
-		Log:                      w.log,
+		Live:                    live,
+		Runtime:                 newRuntime(w),
+		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
+		OutgressStandardSubject: w.cfg.OutgressStandardSubject,
+		KeyspaceDB:              0,
+		Expiry:                  w.expiry,
+		Invalidations:           w.invalidations,
+		Log:                     w.log,
 	})
 }
 
 func startTimerWatchers(w wireCtx, timers *engine.ValkeyTimerStore) {
 	go timers.StartExpiryWatcher(w.ctx)
-	go timers.StartRearmWatcher(w.ctx)
+	timers.StartRearmWatcher(w.ctx)
 	go timers.StartReconciler(w.ctx)
 }
 
@@ -261,25 +259,25 @@ type loyaltyDeps struct {
 
 func newLoyalty(w wireCtx, deps loyaltyDeps) (*engine.ValkeyLoyaltyStore, *engine.ValkeyLoyaltyClock) {
 	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, engine.LoyaltyRPCPrefix(w.cfg.LoyaltyRPCPrefix)), deps.reporter, w.log)
-	store.StartInvalidationListener(w.in.nc, w.cfg.CacheInvalidationPrefix)
+	store.BindInvalidations(w.invalidations)
 	tick := newLoyaltyClock(w, deps)
 	return store, tick
 }
 
 func newLoyaltyClock(w wireCtx, deps loyaltyDeps) *engine.ValkeyLoyaltyClock {
-	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, deps.proj, deps.live, deps.reporter, engine.LoyaltyClockConfig{
-		OutgressRPCPrefix:        w.cfg.OutgressRPCPrefix,
-		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
-		BotUserID:                w.cfg.BotUserID,
-		KeyspaceDB:               0,
-		Expiry:                   w.expiry,
-		Publisher:                w.in.pub,
-		OutgressSystemSubject:    w.cfg.OutgressSystemSubject,
-		ViewerSnapshots:          deps.chatters,
-		Log:                      w.log,
+	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, engine.LoyaltyClockConfig{Proj: deps.proj, Live: deps.live, Reporter: deps.reporter,
+		OutgressRPCPrefix:     w.cfg.OutgressRPCPrefix,
+		Invalidations:         w.invalidations,
+		BotUserID:             w.cfg.BotUserID,
+		KeyspaceDB:            0,
+		Expiry:                w.expiry,
+		Publisher:             w.in.pub,
+		OutgressSystemSubject: w.cfg.OutgressSystemSubject,
+		ViewerSnapshots:       deps.chatters,
+		Log:                   w.log,
 	})
 	go clock.StartExpiryWatcher(w.ctx)
-	go clock.StartRearmWatcher(w.ctx)
+	clock.StartRearmWatcher(w.ctx)
 	go clock.StartReconciler(w.ctx)
 	return clock
 }

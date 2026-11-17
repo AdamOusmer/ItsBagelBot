@@ -14,14 +14,6 @@ type DTO struct {
 	Keys          []string `json:"keys,omitempty"`
 }
 
-func Publish(nc *nats.Conn, prefix, scope, broadcasterID string) error {
-	return PublishKeys(nc, prefix, scope, broadcasterID)
-}
-
-func PublishKeys(nc *nats.Conn, prefix, scope, broadcasterID string, keys ...string) error {
-	return PublishEvent(nc, prefix+"."+scope, DTO{BroadcasterID: broadcasterID, Keys: keys})
-}
-
 func PublishEvent(nc *nats.Conn, subject string, payload any) error {
 	body, err := codec.Marshal(payload)
 	if err != nil {

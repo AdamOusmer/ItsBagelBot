@@ -179,7 +179,7 @@ func TestProjectorKeepsServingAndFoldingWithUsersUnavailable(t *testing.T) {
 	set := projectorHealth(t, nc, true)
 	store := projection.NewStore(testValkey(t))
 	require.NoError(t, store.SetUser(t.Context(), 7, projection.UserProjection{Status: "premium", IsActive: true}))
-	require.NoError(t, rpc.SubscribeStatus(nc, store, "test.projector.status", "test.absent.users", "", queueGroup, nil, zap.NewNop()))
+	require.NoError(t, rpc.SubscribeStatus(bus.RPCWiring{NC: nc, Queue: queueGroup, Log: zap.NewNop()}, rpc.StatusConfig{Store: store, Subject: "test.projector.status", UsersTopic: "test.absent.users"}))
 	require.NoError(t, nc.Flush())
 	require.Equal(t, http.StatusOK, healthGET(set, "/readyz").Code)
 

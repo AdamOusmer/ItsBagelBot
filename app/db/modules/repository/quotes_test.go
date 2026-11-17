@@ -59,7 +59,10 @@ func announcedUsers(t *testing.T, pub *bustest.Publisher) []uint64 {
 }
 
 func TestQuoteWarmReadsSkipTheDatabase(t *testing.T) {
-	client, _, repo := setupQuotesWithStore(t)
+	client, pub, _ := setupQuotesWithStore(t)
+	h := bus.NewInvalidations(nil, "", nil)
+	repo := repository.NewQuotes(client, h.Publisher(pub), zap.NewNop())
+	t.Cleanup(repo.Close)
 	ctx := context.Background()
 	addQuotes(t, repo, 1001, "never trust a ferret")
 	_, found, err := repo.Get(ctx, 1001, 1)
@@ -78,9 +81,7 @@ func TestQuoteWarmReadsSkipTheDatabase(t *testing.T) {
 	require.True(t, found, "a warm random must not query the database")
 	assert.Equal(t, uint64(1), random.Number)
 
-	payload, err := codec.Marshal(data.QuoteChangedDTO{UserID: 1001})
-	require.NoError(t, err)
-	require.NoError(t, repo.OnChanged()(&bus.Message{Payload: payload}))
+	h.Publish(data.SubjectQuoteChanged, 1001)
 
 	_, found, err = repo.Get(ctx, 1001, 1)
 	require.NoError(t, err)

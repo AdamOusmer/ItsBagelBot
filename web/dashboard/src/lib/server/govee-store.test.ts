@@ -3,9 +3,11 @@
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { GoveeScene } from '@bagel/kit';
+import { registerServerConfig } from '@bagel/kit/server/config';
 import { stubSvelteKit } from '../../../test/sveltekit';
 
 stubSvelteKit();
+registerServerConfig({ cacheInvalidationPrefix: 'inv' });
 
 let reply: Record<string, unknown> | Error = {};
 const savedReward = { reward: { id: 'rw-g', title: 'Whole room', cost: 900 } };
@@ -14,10 +16,12 @@ const calls: { subject: string; payload: unknown }[] = [];
 let moduleRows: unknown[] = [];
 const moduleReads = mock(async () => moduleRows);
 const moduleWrites: unknown[] = [];
+const published: unknown[] = [];
 
 const realNats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
   ...realNats,
+  publish: async (subject: string, payload: unknown) => { published.push({ subject, payload }); },
   rpcReply: async (subject: string, payload: unknown) => {
     if (subject.includes('.channelpoints.')) return rewardReply;
     calls.push({ subject, payload });
@@ -101,6 +105,30 @@ describe('listScenes', () => {
     await store.listScenes({ device: 'AB:CD', sku: 'H6159' });
     expect(calls.filter((c) => c.subject.endsWith('.govee.scenes'))).toHaveLength(2);
   });
+});
+
+test.each([
+  { method: 'setKey' as const, failed: false },
+  { method: 'setKey' as const, failed: true },
+  { method: 'clearKey' as const, failed: false },
+  { method: 'clearKey' as const, failed: true }
+])('$method broadcasts device and scene eviction only after success, failure=$failed', async ({ method, failed }) => {
+  invalidate('govee-devices:', 'govee-scenes:');
+  published.length = 0;
+  reply = { devices: [], scenes: [sunrise] };
+  const store = goveeStore('42');
+  const target = { device: 'AA', sku: 'H1' };
+  await store.listDevices();
+  await store.listScenes(target);
+  if (failed) reply = { error: 'write failed' };
+  await store[method]('key');
+  reply = { devices: [], scenes: [sunrise] };
+  calls.length = 0;
+  await store.listDevices();
+  await store.listScenes(target);
+  expect([published, calls.length]).toEqual(failed ? [[], 0] : [
+    [{ subject: 'inv.modules', payload: { broadcaster_id: '42' } }], 2
+  ]);
 });
 
 describe('light groups', () => {

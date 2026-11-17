@@ -46,21 +46,22 @@ func (r *Loyalty) Top(ctx context.Context, userID uint64, limit int) ([]*ent.Bal
 	})
 }
 
-func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin string, value int64, absolute bool) (*ent.Balance, bool, error) {
-	login := validate.NormalizeLogin(viewerLogin)
+func (r *Loyalty) BalanceAdjust(ctx context.Context, target BalanceAdjustment) (*ent.Balance, bool, error) {
+	login := validate.NormalizeLogin(target.ViewerLogin)
 	if login == "" {
 		return nil, false, fmt.Errorf("%w: viewer_login", ErrInvalidInput)
 	}
 	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
 		return r.client.Balance.Query().
-			Where(balance.UserIDEQ(userID), balance.ViewerLoginEQ(login)).
+			Where(balance.UserIDEQ(target.UserID), balance.ViewerLoginEQ(login)).
 			Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
 			First(ctx)
 	})
 	if err != nil || !found {
 		return nil, found, err
 	}
-	return r.BalanceAdjustViewer(ctx, BalanceAdjustment{UserID: userID, ViewerID: row.ViewerID, ViewerLogin: login, Value: value, Absolute: absolute})
+	target.ViewerID, target.ViewerLogin = row.ViewerID, login
+	return r.BalanceAdjustViewer(ctx, target)
 }
 
 type Spend struct {
@@ -86,15 +87,20 @@ func (r *Loyalty) BalanceSpendViewer(ctx context.Context, spend Spend) (*ent.Bal
 	if err != nil || !found {
 		return nil, false, found, err
 	}
-	return r.spendRow(ctx, row.ID, spend.Amount, normalizeLogin(spend.ViewerLogin))
+	spend.ViewerLogin = normalizeLogin(spend.ViewerLogin)
+	fresh, exists, spent, err := r.spendRow(ctx, row.ID, spend)
+	if spent {
+		r.publishBalanceChange(spend.UserID, spend.ViewerID)
+	}
+	return fresh, exists, spent, err
 }
 
-func (r *Loyalty) spendRow(ctx context.Context, rowID int, amount int64, login string) (*ent.Balance, bool, bool, error) {
+func (r *Loyalty) spendRow(ctx context.Context, rowID int, spend Spend) (*ent.Balance, bool, bool, error) {
 	update := r.client.Balance.Update().
-		Where(balance.IDEQ(rowID), balance.PointsGTE(amount)).
-		AddPoints(-amount)
-	if login != "" {
-		update.SetViewerLogin(login)
+		Where(balance.IDEQ(rowID), balance.PointsGTE(spend.Amount)).
+		AddPoints(-spend.Amount)
+	if spend.ViewerLogin != "" {
+		update.SetViewerLogin(spend.ViewerLogin)
 	}
 	n, err := update.Save(ctx)
 	if err != nil {
@@ -104,14 +110,6 @@ func (r *Loyalty) spendRow(ctx context.Context, rowID int, amount int64, login s
 	return fresh, true, n > 0, err
 }
 
-func normalizeSpendTarget(viewerLogin string, amount int64) (string, error) {
-	login := validate.NormalizeLogin(viewerLogin)
-	if login == "" || amount <= 0 {
-		return "", fmt.Errorf("%w: viewer_login/amount", ErrInvalidInput)
-	}
-	return login, nil
-}
-
 func clampLimit(limit int) int {
 	if limit <= 0 {
 		return defaultTopLimit
@@ -119,7 +117,13 @@ func clampLimit(limit int) int {
 	return min(limit, maxTopLimit)
 }
 
-func (r *Loyalty) CounterEntries(ctx context.Context, userID uint64, name string, limit int) ([]*ent.CounterEntry, map[uint64]string, error) {
+type CounterRef struct {
+	UserID uint64
+	Name   string
+}
+
+func (r *Loyalty) CounterEntries(ctx context.Context, ref CounterRef, limit int) ([]*ent.CounterEntry, map[uint64]string, error) {
+	userID, name := ref.UserID, ref.Name
 	n, err := ValidCounterName(name)
 	if err != nil {
 		return nil, nil, err
@@ -174,7 +178,8 @@ func legacyViewerIDs(rows []*ent.CounterEntry) []uint64 {
 	return ids
 }
 
-func entryTarget(row *ent.Counter, viewerID uint64, command string) (uint64, string, bool) {
+func entryTarget(row *ent.Counter, target SetTarget) (uint64, string, bool) {
+	viewerID, command := target.ViewerID, target.Command
 	switch row.Scope {
 	case data.CounterScopeCommand:
 		cmd := normalizeCommand(command)
@@ -188,7 +193,8 @@ func entryTarget(row *ent.Counter, viewerID uint64, command string) (uint64, str
 	}
 }
 
-func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, viewerID uint64, command string) (*ent.Counter, int64, bool, error) {
+func (r *Loyalty) CounterGet(ctx context.Context, ref CounterRef, target SetTarget) (*ent.Counter, int64, bool, error) {
+	userID, name := ref.UserID, ref.Name
 	n, err := ValidCounterName(name)
 	if err != nil {
 		return nil, 0, false, err
@@ -201,7 +207,7 @@ func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, vi
 	if err != nil || !found {
 		return nil, 0, found, err
 	}
-	entryViewer, cmd, useEntry := entryTarget(row, viewerID, command)
+	entryViewer, cmd, useEntry := entryTarget(row, target)
 	if !useEntry {
 		return row, row.Value, true, nil
 	}
@@ -261,7 +267,8 @@ func (r *Loyalty) CounterBoard(ctx context.Context, name string, limit int) ([]*
 	})
 }
 
-func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope string) (*ent.Counter, error) {
+func (r *Loyalty) CounterCreate(ctx context.Context, ref CounterRef, scope string) (*ent.Counter, error) {
+	userID, name := ref.UserID, ref.Name
 	n, err := writableCounterName(userID, name)
 	if err != nil {
 		return nil, err
@@ -294,16 +301,19 @@ type SetTarget struct {
 	ViewerID    uint64
 	Command     string
 	ViewerLogin string
+	Value       int64
 }
 
-func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, target SetTarget, value int64) (bool, error) {
+func (r *Loyalty) CounterSet(ctx context.Context, ref CounterRef, target SetTarget) (bool, error) {
+	userID, name := ref.UserID, ref.Name
+	value := target.Value
 	if value < 0 || value > data.MaxCounter {
 		return false, fmt.Errorf("%w: counter value", ErrInvalidInput)
 	}
 	if _, err := writableCounterName(userID, name); err != nil {
 		return false, err
 	}
-	row, _, found, err := r.CounterGet(ctx, userID, name, 0, "")
+	row, _, found, err := r.CounterGet(ctx, ref, SetTarget{})
 	if err != nil || !found {
 		return found, err
 	}
@@ -319,7 +329,7 @@ func (r *Loyalty) setCounterValue(ctx context.Context, row *ent.Counter, target 
 			SetValue(value).
 			Exec(ctx)
 	}
-	entryViewer, cmd, targeted := entryTarget(row, target.ViewerID, target.Command)
+	entryViewer, cmd, targeted := entryTarget(row, target)
 	if !targeted {
 		_, err := r.client.CounterEntry.Delete().
 			Where(counterentry.UserIDEQ(row.UserID), counterentry.NameEQ(row.Name)).
@@ -351,18 +361,19 @@ func (r *Loyalty) setCounterEntry(ctx context.Context, row *ent.Counter, target 
 }
 
 // Must refuse an untargeted call, or it resets the whole counter.
-func (r *Loyalty) CounterEntryDelete(ctx context.Context, userID uint64, name string, target SetTarget) (bool, error) {
+func (r *Loyalty) CounterEntryDelete(ctx context.Context, ref CounterRef, target SetTarget) (bool, error) {
+	userID, name := ref.UserID, ref.Name
 	if _, err := writableCounterName(userID, name); err != nil {
 		return false, err
 	}
-	row, _, found, err := r.CounterGet(ctx, userID, name, 0, "")
+	row, _, found, err := r.CounterGet(ctx, ref, SetTarget{})
 	if err != nil || !found {
 		return found, err
 	}
 	if !entryScoped(row.Scope) {
 		return false, nil
 	}
-	entryViewer, cmd, targeted := entryTarget(row, target.ViewerID, target.Command)
+	entryViewer, cmd, targeted := entryTarget(row, target)
 	if !targeted {
 		return false, nil
 	}
@@ -387,7 +398,8 @@ func normalizeLogin(login string) string {
 	return l
 }
 
-func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newName string) (bool, error) {
+func (r *Loyalty) CounterRename(ctx context.Context, ref CounterRef, newName string) (bool, error) {
+	userID, name := ref.UserID, ref.Name
 	n, err := writableCounterName(userID, name)
 	if err != nil {
 		return false, err
@@ -422,7 +434,8 @@ func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newNam
 	return renamed, err
 }
 
-func (r *Loyalty) CounterDelete(ctx context.Context, userID uint64, name string) error {
+func (r *Loyalty) CounterDelete(ctx context.Context, ref CounterRef) error {
+	userID, name := ref.UserID, ref.Name
 	n, err := writableCounterName(userID, name)
 	if err != nil {
 		return err

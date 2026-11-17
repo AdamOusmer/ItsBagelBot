@@ -4,6 +4,7 @@
 package outgress
 
 import (
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/pkg/codec"
 	"time"
 )
@@ -51,7 +52,7 @@ type StreamStatusJob struct {
 	BroadcasterID string `json:"broadcaster_id"`
 }
 
-const TokenWarmScope = "token-warm"
+const TokenWarmScope = invalidate.ScopeTokenWarm
 
 type EventSubJob struct {
 	Enabled bool   `json:"enabled"`

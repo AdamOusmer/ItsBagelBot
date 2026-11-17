@@ -48,7 +48,7 @@ func (d *dashboardRPC) handleList(ctx context.Context, _ modulesrpc.DashboardReq
 }
 
 func (d *dashboardRPC) handleUpsert(ctx context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
-	views, err := d.repo.SetNow(ctx, id, req.Name, req.IsEnabled, req.Configs)
+	views, err := d.repo.SetNow(ctx, repository.ModuleWrite{UserID: id, Name: req.Name, Enabled: req.IsEnabled, Configs: req.Configs})
 	return modulesrpc.DashboardReply{Modules: views}, err
 }
 

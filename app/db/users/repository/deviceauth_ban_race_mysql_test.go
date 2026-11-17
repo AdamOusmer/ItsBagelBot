@@ -4,6 +4,7 @@
 package repository_test
 
 import (
+	"ItsBagelBot/app/db/users/repository"
 	"context"
 	"testing"
 	"time"
@@ -17,12 +18,10 @@ import (
 
 const banRaceVerifier = "banrace0123456789abcdefghijklmnopqrstuvwxyz"
 
-// A redemption already past its ban check must not leave a live grant behind
-// the ban: the ban waits on the owner row, then its revoke sweep catches it.
 func TestDeviceAuthMySQLBanDuringRedemptionRevokesNewGrant(t *testing.T) {
 	client, repo := newMySQLDeviceHarness(t, "users_device_ban_race_")
 	ctx := t.Context()
-	require.NoError(t, repo.Register(ctx, 6101, "banrace", "BanRace", "banrace@example.invalid"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 6101, Username: "banrace", DisplayName: "BanRace", Email: "banrace@example.invalid"}))
 
 	code, err := repo.CreateDeviceAuthorizationCode(ctx, 6101, codeRequest(banRaceVerifier))
 	require.NoError(t, err)

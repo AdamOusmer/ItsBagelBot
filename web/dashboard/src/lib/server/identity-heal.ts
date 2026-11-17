@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { rpc, RpcError } from '@bagel/kit/server/nats';
-import { SUB, syncIdentity, type ResolvedChannel } from './services';
+import { onRename, SUB, syncIdentity, type ResolvedChannel } from './services';
 import { createCachedResolver, MISSING_TTL_MS } from './viewer-resolver';
 
 const DEFINITIVE_MISS: ReadonlySet<string> = new Set(['not_found', 'invalid']);
@@ -11,7 +11,6 @@ type TwitchIdentity = { id: string; login: string; displayName: string };
 
 type AccountAgeReply = { target_id?: string; login?: string; display_name?: string; user_found?: boolean; error?: string };
 
-// The reply must name the asked login: an id alone could belong to someone who has since renamed away.
 function matchingIdentity(reply: AccountAgeReply, login: string): TwitchIdentity | null {
   const id = (reply.target_id ?? '').trim();
   const found = !reply.error && reply.user_found === true;
@@ -40,11 +39,13 @@ async function heal(login: string): Promise<ResolvedChannel | null> {
   return twitch ? registered(twitch) : null;
 }
 
-// A rename the users DB has not seen yet: Twitch names the id, identity_sync moves our row onto the new login.
-// Rate-limited and cached like viewer lookups, and a hit lives no longer than a miss so a later rename cannot be masked.
 export const healLogin = createCachedResolver<ResolvedChannel>({ lookup: heal, foundTtlMs: MISSING_TTL_MS });
 
 export type { TwitchIdentity };
 
-// Any Twitch account, registered here or not: a recipe can name an ordinary viewer. Never writes to the users DB.
 export const lookupTwitchUser = createCachedResolver<TwitchIdentity>({ lookup: twitchIdentity });
+
+onRename((_id, logins) => {
+  healLogin.invalidate(logins);
+  lookupTwitchUser.invalidate(logins);
+});

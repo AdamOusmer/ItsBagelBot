@@ -331,23 +331,72 @@ func (r *Notifications) insertLegacyPeeksIndividually(ctx context.Context, recip
 const CleanupBatchSize = 500
 
 func (r *Notifications) DeleteExpired(ctx context.Context, now time.Time) (int, bool, error) {
-	var deleted int
-	var more bool
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		var err error
-		deleted, more, err = deleteNotificationBatch(ctx, r.client, notification.ExpiresAtLTE(now))
-		return err
-	})
-	return deleted, more, err
+	deleted, err := r.DeleteExpiredWithAudience(ctx, now)
+	return deleted.Count, deleted.HasMore, err
 }
 
 func (r *Notifications) Delete(ctx context.Context, id int) error {
-	return db.WithExec(ctx, func(ctx context.Context) error {
+	_, err := r.DeleteWithAudience(ctx, id)
+	return err
+}
+
+type DeletedNotifications struct {
+	Count         int
+	TargetUserIDs []*uint64
+	HasMore       bool
+}
+
+func (r *Notifications) DeleteExpiredWithAudience(ctx context.Context, now time.Time) (DeletedNotifications, error) {
+	var deleted DeletedNotifications
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		rows, err := r.client.Notification.Query().Where(notification.ExpiresAtLTE(now)).
+			Order(ent.Asc(notification.FieldExpiresAt), ent.Asc(notification.FieldID)).Limit(CleanupBatchSize).All(ctx)
+		if err != nil || len(rows) == 0 {
+			return err
+		}
+		ids := make([]int, len(rows))
+		deleted.TargetUserIDs = make([]*uint64, len(rows))
+		deleted.HasMore = len(rows) == CleanupBatchSize
+		for i, row := range rows {
+			ids[i] = row.ID
+			deleted.TargetUserIDs[i] = row.TargetUserID
+		}
+		deleted.Count, err = deleteSelectedNotifications(ctx, r.client, notification.And(notification.IDIn(ids...), notification.ExpiresAtLTE(now)))
+		return err
+	})
+	return deleted, err
+}
+
+func (r *Notifications) DeleteWithAudience(ctx context.Context, id int) (DeletedNotifications, error) {
+	var deleted DeletedNotifications
+	err := db.WithExec(ctx, func(ctx context.Context) error {
 		deletion := notificationDeletion{id: id}
 		return db.RetryTx(ctx, func(ctx context.Context) error {
 			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				targets, err := notificationAudience(ctx, tx, deletion)
+				if err != nil {
+					return err
+				}
+				if targets != nil {
+					deleted.TargetUserIDs = targets
+				}
 				return deletion.apply(ctx, tx.Client())
 			})
 		})
 	})
+	if err == nil {
+		deleted.Count = 1
+	}
+	return deleted, err
+}
+
+func notificationAudience(ctx context.Context, tx *ent.Tx, deletion notificationDeletion) ([]*uint64, error) {
+	if deletion.found {
+		return nil, nil
+	}
+	row, err := tx.Notification.Query().Where(notification.IDEQ(deletion.id), lockNotification).Only(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return []*uint64{row.TargetUserID}, nil
 }

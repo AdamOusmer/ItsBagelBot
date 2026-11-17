@@ -5,30 +5,37 @@ package worker
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/nats-io/nats.go"
+	"ItsBagelBot/pkg/bus"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
 type LiveWriter struct {
-	client          valkey.Client
-	nc              *nats.Conn
-	cacheInvalidate string
-	ttl             time.Duration
-	log             *zap.Logger
+	client        valkey.Client
+	invalidations *bus.Invalidations
+	log           *zap.Logger
+	ttl           time.Duration
 }
 
-func NewLiveWriter(client valkey.Client, nc *nats.Conn, cacheInvalidatePrefix string, ttl time.Duration, log *zap.Logger) *LiveWriter {
+func NewLiveWriter(client valkey.Client, h *bus.Invalidations, ttl time.Duration, logs ...*zap.Logger) *LiveWriter {
+	if h == nil {
+		h = bus.NewInvalidations(nil, "", nil)
+	}
 	if ttl <= 0 {
 		ttl = 12 * time.Hour
 	}
-	return &LiveWriter{client: client, nc: nc, cacheInvalidate: cacheInvalidatePrefix, ttl: ttl, log: log}
+	log := zap.NewNop()
+	if len(logs) > 0 {
+		log = logs[0]
+	}
+	return &LiveWriter{client: client, invalidations: h, log: log, ttl: ttl}
 }
 
 func (w *LiveWriter) Write(ctx context.Context, broadcasterID string, isLive bool) error {
@@ -46,10 +53,11 @@ func (w *LiveWriter) Write(ctx context.Context, broadcasterID string, isLive boo
 		return err
 	}
 
-	if w.nc != nil && w.cacheInvalidate != "" {
-		if perr := invalidate.Publish(w.nc, w.cacheInvalidate, livekey.InvalidateScope, broadcasterID); perr != nil {
-			w.log.Warn("live writer: failed to broadcast invalidation", zap.String("broadcaster_id", broadcasterID), zap.Error(perr))
-		}
+	id, err := strconv.ParseUint(broadcasterID, 10, 64)
+	if err != nil {
+		w.log.Warn("skipping live cache invalidation: invalid broadcaster id", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return nil
 	}
+	w.invalidations.Publish(invalidate.ScopeLive, id)
 	return nil
 }

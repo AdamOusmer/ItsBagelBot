@@ -52,7 +52,6 @@ func newCompletionReceipts(t *testing.T, dialect string) completionReceipts {
 	require.NoError(t, loyaltyClient.Schema.Create(t.Context()))
 	loyalty := loyaltyrepo.NewLoyalty(loyaltyClient, loyaltyDriver, nil, zap.NewNop())
 	require.NoError(t, loyalty.EnsureWatchSchema(t.Context()))
-	t.Cleanup(func() { loyalty.Close(t.Context()) })
 	commandClient := commandsent.NewClient(commandsent.Driver(entsql.OpenDB(dialect, completionSQL(t, dialect, "commands"))))
 	require.NoError(t, commandClient.Schema.Create(t.Context()))
 	_, err := commandClient.Commands.Create().SetUserID(123).SetName("hello").SetResponse("hello").Save(t.Context())

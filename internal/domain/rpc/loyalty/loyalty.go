@@ -3,9 +3,12 @@
 
 package loyaltyrpc
 
-import "ItsBagelBot/internal/domain/rpc"
+import (
+	"ItsBagelBot/internal/domain/invalidate"
+	"ItsBagelBot/internal/domain/rpc"
+)
 
-const InvalidateScope = "loyalty"
+const InvalidateScope = invalidate.ScopeLoyalty
 
 type Request struct {
 	UserID         string `json:"user_id"`

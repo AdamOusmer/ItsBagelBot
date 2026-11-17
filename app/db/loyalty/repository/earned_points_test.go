@@ -6,6 +6,7 @@ package repository_test
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
@@ -64,13 +65,12 @@ func checkLegacyEarnPointsCap(t *testing.T, repo *loyaltyrepo.Loyalty) {
 	require.NoError(t, repo.RestoreUser(t.Context(), 17, 100))
 	_, _, err := repo.BalanceAdjustViewer(t.Context(), loyaltyrepo.BalanceAdjustment{UserID: 17, ViewerID: 77, ViewerLogin: "viewer", Value: math.MaxInt64 - 5, Absolute: true})
 	require.NoError(t, err)
-	repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 17, Entries: []data.LoyaltyEarnEntry{
+	require.NoError(t, repo.ApplyEarned(t.Context(), data.LoyaltyEarnedDTO{BatchID: "points-cap", UserID: 17, Entries: []data.LoyaltyEarnEntry{
 		{ViewerID: 77, Points: 10, WatchSeconds: 300},
 		{ViewerID: 78, Points: 20, WatchSeconds: 300},
 		{ViewerID: 79, Points: math.MaxInt64 - 1},
 		{ViewerID: 79, Points: 10},
-	}})
-	repo.Flush(t.Context())
+	}}))
 	capped, _, err := repo.BalanceGet(t.Context(), 17, 77)
 	require.NoError(t, err)
 	require.EqualValues(t, math.MaxInt64, capped.Points)
@@ -139,23 +139,25 @@ type earnedRow struct {
 	watchSeconds uint64
 }
 
-func TestRecordEarnedFlushFoldsPerViewerAndDropsEmptyEntries(t *testing.T) {
+func TestApplyEarnedFoldsPerViewerAndDropsEmptyEntries(t *testing.T) {
 	repo, _ := sqliteRetentionRepo(t)
 	require.NoError(t, repo.RestoreUser(t.Context(), 1, 100))
-	repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 1, Entries: []data.LoyaltyEarnEntry{
+	dto := data.LoyaltyEarnedDTO{BatchID: "folded", UserID: 1, Entries: []data.LoyaltyEarnEntry{
 		{ViewerID: 7, ViewerLogin: "cool", Points: 100, WatchSeconds: 300},
 		{ViewerID: 7, ViewerName: "Cool", Points: 50},
+		{ViewerID: 7, ViewerLogin: strings.Repeat("x", 65), ViewerName: "invalid\xff", WatchSeconds: 1},
 		{ViewerID: 8, WatchSeconds: 300},
+		{ViewerID: 8, ViewerName: strings.Repeat("é", 65), Points: 1},
 		{ViewerID: 0, Points: 10},
 		{ViewerID: 9},
-	}})
+	}}
 
-	repo.Flush(t.Context())
-	repo.Flush(t.Context())
+	require.NoError(t, repo.ApplyEarned(t.Context(), dto))
+	require.NoError(t, repo.ApplyEarned(t.Context(), dto))
 
 	for viewerID, want := range map[uint64]*earnedRow{
-		7: {login: "cool", name: "Cool", points: 150, watchSeconds: 300},
-		8: {watchSeconds: 300},
+		7: {login: "cool", name: "Cool", points: 150, watchSeconds: 301},
+		8: {points: 1, watchSeconds: 300},
 		9: nil,
 		0: nil,
 	} {

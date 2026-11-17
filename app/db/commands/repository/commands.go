@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/batch"
@@ -85,27 +86,30 @@ type commandKey struct {
 }
 
 type Commands struct {
-	client       *ent.Client
-	views        *cache.Cache[[]CommandView]
-	pub          bus.Publisher
-	edits        *batch.Group[data.CommandChangedDTO]
-	editOrder    editOrders
-	uses         *batch.Group[commandUseBatch]
-	publications *batch.Dirty[commandKey]
-	app          *newrelic.Application
-	log          *zap.Logger
+	client        *ent.Client
+	views         *cache.Cache[[]CommandView]
+	pub           bus.Publisher
+	invalidations *bus.Invalidations
+	edits         *batch.Group[data.CommandChangedDTO]
+	editOrder     editOrders
+	uses          *batch.Group[commandUseBatch]
+	publications  *batch.Dirty[commandKey]
+	app           *newrelic.Application
+	log           *zap.Logger
 
 	analytics *analytics.Recorder
 }
 
 func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Commands {
+	pub, h := bus.WithInvalidations(pub)
 
 	r := &Commands{
-		client: client,
-		views:  cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL, cache.StaleOnError(commandsCacheTTL)),
-		pub:    pub,
-		app:    app,
-		log:    log,
+		client:        client,
+		views:         cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL, cache.StaleOnError(commandsCacheTTL)).InvalidateOn(h, cache.UserKeys(commandsKeyPrefix), data.SubjectCommandChanged, invalidate.ScopeCommands),
+		invalidations: h,
+		pub:           pub,
+		app:           app,
+		log:           log,
 	}
 
 	r.edits = batch.NewGroup(batch.GroupConfig[data.CommandChangedDTO]{
@@ -259,11 +263,10 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 
 	r.analytics.Count(catalog.CustomCommands, "created")
 
-	r.Invalidate(userID)
-
 	key := commandKey{userID: userID, name: spec.Name}
 	states, serr := r.rowStates(ctx, []commandKey{key})
 	if serr != nil {
+		r.Invalidate(userID)
 		return true, nil
 	}
 	return true, bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, states[key])
@@ -335,7 +338,6 @@ func (r *Commands) renameAndPublish(ctx context.Context, userID uint64, oldName 
 	if err != nil || updated == 0 {
 		return updated, err
 	}
-	r.Invalidate(userID)
 	if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
 		UserID: userID, Name: oldName, Deleted: true,
 	}); err != nil {
@@ -408,8 +410,6 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 
 	r.analytics.Add(catalog.CustomCommands, int64(n), "deleted")
 
-	r.Invalidate(userID)
-
 	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, data.CommandChangedDTO{
 		UserID:  userID,
 		Name:    name,
@@ -435,8 +435,7 @@ func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff t
 
 	r.analytics.Add(catalog.CustomCommands, int64(n), "deleted")
 
-	r.Invalidate(userID)
-	return nil
+	return r.invalidations.Publish(invalidate.ScopeCommands, userID)
 }
 
 func (r *Commands) Invalidate(userID uint64) {
@@ -537,7 +536,6 @@ func (r *Commands) afterEdits(ctx context.Context, landed []data.CommandChangedD
 	}
 
 	for _, item := range landed {
-		r.Invalidate(item.UserID)
 		dto := item
 		if s, ok := states[commandKey{userID: item.UserID, name: item.Name}]; ok {
 			dto = s

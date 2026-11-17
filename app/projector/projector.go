@@ -8,7 +8,6 @@ import (
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"cmp"
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	"ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
-	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -30,46 +28,49 @@ import (
 )
 
 type Projector struct {
-	runtime               *channelruntime.Client
-	store                 *projection.Store
-	nc                    *nats.Conn
-	invalidateSubject     string
-	cacheInvalidatePrefix string
-	hydrator              *hydration.Hydrator
-	loyalty               loyaltyCounterReader
-	live                  liveCounterStore
-	owner                 automationOwner
-	log                   *zap.Logger
-	analytics             *analytics.Recorder
+	runtime           *channelruntime.Client
+	store             *projection.Store
+	nc                *nats.Conn
+	invalidateSubject string
+	invalidations     *bus.Invalidations
+	hydrator          *hydration.Hydrator
+	loyalty           loyaltyCounterReader
+	live              liveCounterStore
+	owner             automationOwner
+	log               *zap.Logger
+	analytics         *analytics.Recorder
 }
 
 type Deps struct {
-	Runtime               *channelruntime.Client
-	Store                 *projection.Store
-	NC                    *nats.Conn
-	InvalidateSubject     string
-	CacheInvalidatePrefix string
-	Hydrator              *hydration.Hydrator
-	Loyalty               loyaltyCounterReader
-	Live                  liveCounterStore
-	Owner                 automationOwner
-	Analytics             *analytics.Recorder
-	Log                   *zap.Logger
+	Runtime           *channelruntime.Client
+	Store             *projection.Store
+	NC                *nats.Conn
+	InvalidateSubject string
+	Invalidations     *bus.Invalidations
+	Hydrator          *hydration.Hydrator
+	Loyalty           loyaltyCounterReader
+	Live              liveCounterStore
+	Owner             automationOwner
+	Analytics         *analytics.Recorder
+	Log               *zap.Logger
 }
 
 func NewProjector(d Deps) *Projector {
+	if d.Invalidations == nil {
+		d.Invalidations = bus.NewInvalidations(nil, "", d.Log)
+	}
 	return &Projector{
-		runtime:               d.Runtime,
-		store:                 d.Store,
-		nc:                    d.NC,
-		invalidateSubject:     d.InvalidateSubject,
-		cacheInvalidatePrefix: d.CacheInvalidatePrefix,
-		hydrator:              d.Hydrator,
-		loyalty:               d.Loyalty,
-		live:                  d.Live,
-		owner:                 d.Owner,
-		log:                   d.Log,
-		analytics:             d.Analytics,
+		runtime:           d.Runtime,
+		store:             d.Store,
+		nc:                d.NC,
+		invalidateSubject: d.InvalidateSubject,
+		invalidations:     d.Invalidations,
+		hydrator:          d.Hydrator,
+		loyalty:           d.Loyalty,
+		live:              d.Live,
+		owner:             d.Owner,
+		log:               d.Log,
+		analytics:         d.Analytics,
 	}
 }
 
@@ -121,8 +122,7 @@ func (p *Projector) applyUserChanged(ctx context.Context, dto data.UserChangedDT
 		return err
 	}
 	p.broadcastInvalidate(dto.UserID)
-	// After the Valkey write, so sesame's re-read after eviction sees the new state.
-	p.broadcastCacheInvalidate(dto.UserID, "status")
+	p.invalidations.Publish(invalidate.ScopeUserProjection, dto.UserID)
 	return nil
 }
 
@@ -146,12 +146,15 @@ func (p *Projector) applyUserDeleted(ctx context.Context, dto data.UserDeletedDT
 	if !applied {
 		return nil
 	}
+	p.invalidations.Publish(invalidate.ScopeUserProjection, dto.UserID)
 	if err := p.clearDeletedUserCounters(ctx, dto.UserID); err != nil {
 		return err
 	}
 	p.broadcastInvalidate(dto.UserID)
-	p.broadcastCacheInvalidate(dto.UserID, "status")
-	p.broadcastCacheInvalidate(dto.UserID, "modules")
+	p.invalidations.Publish(invalidate.ScopeModules, dto.UserID)
+	p.invalidations.Publish(invalidate.ScopeCommands, dto.UserID)
+	p.invalidations.Publish(invalidate.ScopeFetches, dto.UserID)
+	p.invalidations.Publish(invalidate.ScopeAutomations, dto.UserID)
 	return nil
 }
 
@@ -167,15 +170,6 @@ func (p *Projector) clearDeletedUserCounters(ctx context.Context, id uint64) err
 		return nil
 	}
 	return p.live.DeleteLiveCounters(ctx, id, boardCounters)
-}
-
-func (p *Projector) broadcastCacheInvalidate(userID uint64, scope string, keys ...string) {
-	if p.nc == nil || p.cacheInvalidatePrefix == "" {
-		return
-	}
-	if err := invalidate.PublishKeys(p.nc, p.cacheInvalidatePrefix, scope, fmt.Sprint(userID), keys...); err != nil {
-		p.log.Warn("failed to broadcast cache invalidation", zap.Uint64("user_id", userID), zap.String("scope", scope), zap.Error(err))
-	}
 }
 
 func (p *Projector) broadcastInvalidate(userID uint64) {
@@ -215,7 +209,7 @@ func (p *Projector) applyModuleChanged(ctx context.Context, dto data.ModuleChang
 	}); err != nil {
 		return err
 	}
-	p.broadcastCacheInvalidate(dto.UserID, "modules")
+	p.invalidations.Publish(invalidate.ScopeModules, dto.UserID)
 	return nil
 }
 
@@ -232,7 +226,7 @@ func (p *Projector) applyCommandChanged(ctx context.Context, dto data.CommandCha
 		return err
 	}
 	keys := append([]string{dto.Name}, dto.Aliases...)
-	p.broadcastCacheInvalidate(dto.UserID, "commands", keys...)
+	p.invalidations.Publish(invalidate.ScopeCommands, dto.UserID, keys...)
 	return nil
 }
 
@@ -298,7 +292,7 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 		return nil
 	}
 
-	p.broadcastLiveInvalidate(st.BroadcasterID)
+	p.invalidations.Publish(invalidate.ScopeLive, st.BroadcasterID)
 
 	if !st.Live {
 		return nil
@@ -320,8 +314,6 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 
 func (p *Projector) refreshStream(ctx context.Context, id uint64, streamVersion int64) error {
 	log := monitor.TxnLogger(ctx, p.log)
-	// Launch the independent settings fill before the synchronous loyalty reads.
-	// The durable live write and invalidation stay ahead of both operations.
 	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", id))
 	p.hydrator.RefreshAsync(id)
 
@@ -332,7 +324,7 @@ func (p *Projector) refreshStream(ctx context.Context, id uint64, streamVersion 
 	if pending {
 		p.snapshotCounterBaseline(ctx, id, streamVersion, log)
 	}
-	p.warmBroadcasterToken(id)
+	p.invalidations.Publish(invalidate.ScopeTokenWarm, id)
 	return nil
 }
 
@@ -364,24 +356,5 @@ func (p *Projector) snapshotCounterBaseline(ctx context.Context, broadcasterID u
 	}
 	if err := p.store.SetStreamCounterBaselineForVersion(ctx, broadcasterID, version, b); err != nil {
 		log.Warn("failed to write stream counter baseline", zap.Uint64("user_id", broadcasterID), zap.Error(err))
-	}
-}
-
-func (p *Projector) broadcastLiveInvalidate(userID uint64) {
-	if p.nc == nil || p.cacheInvalidatePrefix == "" {
-		return
-	}
-	if err := invalidate.Publish(p.nc, p.cacheInvalidatePrefix, livekey.InvalidateScope, strconv.FormatUint(userID, 10)); err != nil {
-		p.log.Warn("failed to broadcast live invalidation", zap.Uint64("user_id", userID), zap.Error(err))
-	}
-}
-
-func (p *Projector) warmBroadcasterToken(broadcasterID uint64) {
-	if p.nc == nil || p.cacheInvalidatePrefix == "" {
-		return
-	}
-	id := strconv.FormatUint(broadcasterID, 10)
-	if err := invalidate.Publish(p.nc, p.cacheInvalidatePrefix, outgress.TokenWarmScope, id); err != nil {
-		p.log.Warn("failed to publish token-warm fan-out", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
 }

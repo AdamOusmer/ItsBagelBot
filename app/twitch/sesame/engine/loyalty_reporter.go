@@ -117,10 +117,7 @@ func (r *LoyaltyReporter) Earn(e PointEarning) {
 }
 
 func (r *LoyaltyReporter) EarnContext(ctx context.Context, e PointEarning) {
-	if e.BroadcasterID == 0 || e.ViewerID == 0 {
-		return
-	}
-	if e.Points == 0 && e.WatchSeconds == 0 {
+	if !e.validEarn() {
 		return
 	}
 	key := earnKey{broadcasterID: e.BroadcasterID, viewerID: e.ViewerID}
@@ -140,6 +137,10 @@ func (r *LoyaltyReporter) EarnContext(ctx context.Context, e PointEarning) {
 	if overflow {
 		r.earnWakeup.nudge(r.earnWake)
 	}
+}
+
+func (e PointEarning) validEarn() bool {
+	return e.BroadcasterID != 0 && e.ViewerID != 0 && (e.Points != 0 || e.WatchSeconds != 0)
 }
 
 // Saturate before serialization so a producer window cannot wrap earned points.

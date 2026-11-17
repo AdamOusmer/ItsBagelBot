@@ -33,7 +33,6 @@ func newLoyaltyRepo(t *testing.T) (*loyaltyrepo.Loyalty, *ent.Client) {
 	client := ent.NewClient(ent.Driver(drv))
 	require.NoError(t, client.Schema.Create(context.Background()))
 	repo := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
-	t.Cleanup(func() { repo.Close(context.Background()) })
 	return repo, client
 }
 
@@ -61,7 +60,6 @@ func watchRetentionRepo(t *testing.T, raw *sql.DB, dialect string) *loyaltyrepo.
 	require.NoError(t, loyaltyrepo.MigrateSchema(t.Context(), client, dialect))
 	r := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
 	require.NoError(t, r.EnsureWatchSchema(t.Context()))
-	t.Cleanup(func() { r.Close(context.Background()) })
 	return r
 }
 

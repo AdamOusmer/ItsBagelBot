@@ -4,6 +4,7 @@
 package rpc
 
 import (
+	"ItsBagelBot/internal/domain/invalidate"
 	"context"
 	"fmt"
 	"strconv"
@@ -22,24 +23,21 @@ import (
 
 type adminRPC struct {
 	Wiring
-	invalidationPrefix string
-	userGetSubject     string
-	defaultTTL         time.Duration
+	userGetSubject string
+	defaultTTL     time.Duration
 }
 
 type AdminConfig struct {
-	Prefix             string
-	InvalidationPrefix string
-	UserGetSubject     string
-	DefaultTTL         time.Duration
+	Prefix         string
+	UserGetSubject string
+	DefaultTTL     time.Duration
 }
 
 func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 	a := &adminRPC{
-		Wiring:             w,
-		invalidationPrefix: cfg.InvalidationPrefix,
-		userGetSubject:     cfg.UserGetSubject,
-		defaultTTL:         cfg.DefaultTTL,
+		Wiring:         w,
+		userGetSubject: cfg.UserGetSubject,
+		defaultTTL:     cfg.DefaultTTL,
 	}
 
 	read := w.Within(readBudget)
@@ -85,20 +83,28 @@ func parseSendRequest(req notificationsrpc.SendRequest) (repository.CreateParams
 	}, nil
 }
 
-func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) notificationsrpc.SendReply {
-	log := monitor.TxnLogger(ctx, a.Log)
+func (a *adminRPC) sendParams(ctx context.Context, req notificationsrpc.SendRequest) (repository.CreateParams, error) {
 	params, err := parseSendRequest(req)
 	if err != nil {
-		return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
+		return params, err
 	}
+	if params.Scope != notification.ScopeDirect {
+		return params, nil
+	}
+	recipient, err := notificationAccount(ctx, a.NC, a.userGetSubject, usersrpc.AdminRequest{UserID: req.TargetUserID, Username: req.TargetUsername})
+	if err != nil {
+		return params, err
+	}
+	params.TargetUserID = &recipient.UserID
+	params.Incarnation = recipient.Incarnation
+	return params, nil
+}
 
-	if params.Scope == notification.ScopeDirect {
-		recipient, err := notificationAccount(ctx, a.NC, a.userGetSubject, usersrpc.AdminRequest{UserID: req.TargetUserID, Username: req.TargetUsername})
-		if err != nil {
-			return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
-		}
-		params.TargetUserID = &recipient.UserID
-		params.Incarnation = recipient.Incarnation
+func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) notificationsrpc.SendReply {
+	log := monitor.TxnLogger(ctx, a.Log)
+	params, err := a.sendParams(ctx, req)
+	if err != nil {
+		return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
 	}
 
 	if params.ExpiresAt == nil && a.defaultTTL > 0 {
@@ -154,17 +160,18 @@ func (a *adminRPC) delete(ctx context.Context, req notificationsrpc.DeleteReques
 	if req.ID <= 0 {
 		return notificationsrpc.DeleteReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "id required")}
 	}
-	if err := a.Repo.Delete(ctx, int(req.ID)); err != nil {
+	deleted, err := a.Repo.DeleteWithAudience(ctx, int(req.ID))
+	if err != nil {
 		return notificationsrpc.DeleteReply{Refusal: bus.Classify(err)}
 	}
-	a.invalidate(nil)
+	a.invalidateDeleted(deleted)
 	return notificationsrpc.DeleteReply{}
 }
 
 func (a *adminRPC) invalidate(targetUserID *uint64) {
-	id := "*"
-	if targetUserID != nil {
-		id = accountKey(*targetUserID)
+	if targetUserID == nil {
+		a.Invalidations.PublishAll(invalidate.ScopeNotifications)
+		return
 	}
-	a.invalidateNotifications(a.invalidationPrefix, id)
+	a.Invalidations.Publish(invalidate.ScopeNotifications, *targetUserID)
 }

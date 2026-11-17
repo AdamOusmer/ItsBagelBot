@@ -59,22 +59,22 @@ func watchChunkSize(viewers []watchViewer) int {
 	return min(watchStatementRows, len(viewers))
 }
 
-func (r *Loyalty) postWatchChunk(ctx context.Context, tx *sql.Tx, posting watchPosting, viewers []watchViewer) error {
+func (r *Loyalty) postWatchChunk(ctx context.Context, tx *sql.Tx, posting watchPosting, viewers []watchViewer) ([]watchViewer, error) {
 	// Lock the account fence before the transaction's first plain read and hold it until commit or the plain receipt INSERT can race another award.
 	admitted, err := newWatchViewers(ctx, tx, viewers)
 	if err != nil || len(admitted) == 0 {
-		return err
+		return nil, err
 	}
 	receipts := posting.receipts(admitted)
 	if _, err := tx.ExecContext(ctx, receipts.sql, receipts.args...); err != nil {
-		return err
+		return nil, err
 	}
 	if err := r.checkWatchBalances(ctx, tx, posting, admitted); err != nil {
-		return err
+		return nil, err
 	}
 	balances := posting.balances(admitted, r.earnedBalanceConflict())
 	_, err = tx.ExecContext(ctx, balances.sql, balances.args...)
-	return err
+	return admitted, err
 }
 
 func newWatchViewers(ctx context.Context, tx *sql.Tx, viewers []watchViewer) ([]watchViewer, error) {

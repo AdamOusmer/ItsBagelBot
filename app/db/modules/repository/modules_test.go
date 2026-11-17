@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/enttest"
 	"ItsBagelBot/app/db/modules/repository"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 
@@ -34,7 +35,10 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Modules) 
 }
 
 func TestListServedFromCacheUntilInvalidated(t *testing.T) {
-	client, _, repo := setup(t)
+	client, pub, _ := setup(t)
+	h := bus.NewInvalidations(nil, "", nil)
+	repo := repository.NewModules(client, h.Publisher(pub), nil, zap.NewNop())
+	t.Cleanup(func() { repo.Close(context.Background()) })
 	ctx := context.Background()
 
 	client.Modules.Create().
@@ -53,7 +57,7 @@ func TestListServedFromCacheUntilInvalidated(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, views[0].IsEnabled, "read must come from the in-process cache")
 
-	repo.Invalidate(1001)
+	h.Publish(data.SubjectModuleChanged, 1001)
 
 	views, err = repo.List(ctx, 1001)
 	require.NoError(t, err)
@@ -126,7 +130,7 @@ func TestSetNowReturnsCommittedRevisionAndRefreshesCachedList(t *testing.T) {
 	client.Modules.Create().SetUserID(1001).SetName("queue").SetIsEnabled(false).SetConfigs([]byte(`{"message":"old"}`)).SetRevision(7).ExecX(ctx)
 	_, err := repo.List(ctx, 1001)
 	require.NoError(t, err)
-	views, err := repo.SetNow(ctx, 1001, "queue", true, codec.RawMessage(`{"message":"new"}`))
+	views, err := repo.SetNow(ctx, repository.ModuleWrite{UserID: 1001, Name: "queue", Enabled: true, Configs: codec.RawMessage(`{"message":"new"}`)})
 	require.NoError(t, err)
 	require.Len(t, views, 1)
 	require.True(t, views[0].IsEnabled)
@@ -147,11 +151,11 @@ func TestSetNowReturnsServerOwnedLoyaltyMetadata(t *testing.T) {
 	_, _, repo := setup(t)
 	defer repo.Close(t.Context())
 	repo.SetAccountInstanceResolver(func(context.Context, uint64) (int64, error) { return 100, nil })
-	views, err := repo.SetNow(t.Context(), 1001, "loyalty", true, codec.RawMessage(`{"__account_created_at":999}`))
+	views, err := repo.SetNow(t.Context(), repository.ModuleWrite{UserID: 1001, Name: "loyalty", Enabled: true, Configs: codec.RawMessage(`{"__account_created_at":999}`)})
 	require.NoError(t, err)
 	require.Len(t, views, 1)
 	require.Equal(t, int64(100), views[0].AccountCreatedAt)
 	require.Equal(t, 1, views[0].Revision)
-	_, err = repo.SetNow(t.Context(), 1001, "invalid.module", true, codec.RawMessage(`{}`))
+	_, err = repo.SetNow(t.Context(), repository.ModuleWrite{UserID: 1001, Name: "invalid.module", Enabled: true, Configs: codec.RawMessage(`{}`)})
 	require.Error(t, err)
 }

@@ -39,7 +39,7 @@ type deviceHarness struct {
 func setupDeviceAuth(t *testing.T) deviceHarness {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
 	nc := testnats.Connect(t)
@@ -66,7 +66,7 @@ const (
 
 func createTestUser(t *testing.T, h deviceHarness, id uint64) {
 	t.Helper()
-	require.NoError(t, h.repo.Register(context.Background(), id, "user", "User", fmt.Sprintf("user-%d@example.invalid", id)))
+	require.NoError(t, h.repo.Register(context.Background(), repository.Registration{ID: id, Username: "user", DisplayName: "User", Email: fmt.Sprintf("user-%d@example.invalid", id)}))
 }
 
 func codeRequest(verifier string) repository.DeviceCodeRequest {
@@ -302,11 +302,11 @@ func TestDeviceAuthErasureDeletesGrantsAndCodes(t *testing.T) {
 
 func TestDeviceAuthMissingSigningKeyFailsClosedButRestWorks(t *testing.T) {
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 5012, "nosign", "No Sign", "nosign@example.invalid"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 5012, Username: "nosign", DisplayName: "No Sign", Email: "nosign@example.invalid"}))
 
 	code, err := repo.CreateDeviceAuthorizationCode(ctx, 5012, codeRequest(testVerifier))
 	require.NoError(t, err, "code creation does not need the signing key")

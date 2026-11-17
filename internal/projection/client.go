@@ -13,7 +13,6 @@ import (
 	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
-	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -64,7 +63,6 @@ type fetchEntry struct {
 	found bool
 }
 
-// Named replies let startup prepare the exact codecs used by cold RPC loads.
 type modulesReply struct {
 	Modules []ModuleView `json:"modules"`
 }
@@ -123,16 +121,16 @@ type Client struct {
 	commandLookup perName[CommandView, commandEntry]
 	fetchLookup   perName[FetchView, fetchEntry]
 
-	rpcTimeout      time.Duration
-	invalidationSub *nats.Subscription
+	rpcTimeout time.Duration
 }
 
 type Config struct {
-	Store    *Store
-	NC       *nats.Conn
-	Subjects Subjects
-	TTL      time.Duration
-	Log      *zap.Logger
+	Store         *Store
+	NC            *nats.Conn
+	Subjects      Subjects
+	TTL           time.Duration
+	Log           *zap.Logger
+	Invalidations cache.Feed
 }
 
 func NewClient(cfg Config) *Client {
@@ -141,15 +139,15 @@ func NewClient(cfg Config) *Client {
 		nc:         cfg.NC,
 		subjects:   cfg.Subjects,
 		log:        cfg.Log,
-		users:      cache.New[User](usersCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
-		modules:    cache.New[map[string]ModuleView](modulesCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
-		commands:   cache.New[commandEntry](commandsCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
-		fetches:    cache.New[fetchEntry](fetchesCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
+		users:      cache.New[User](usersCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)).InvalidateOn(cfg.Invalidations, cache.UserKeys("user:"), invalidate.ScopeUserProjection, invalidate.ScopeLive),
+		modules:    cache.New[map[string]ModuleView](modulesCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)).InvalidateOn(cfg.Invalidations, cache.UserKeys("modules:"), invalidate.ScopeModules),
+		commands:   bindNamedEntries(cache.New[commandEntry](commandsCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)), cfg.Invalidations, invalidate.ScopeCommands, "command:"),
+		fetches:    bindNamedEntries(cache.New[fetchEntry](fetchesCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)), cfg.Invalidations, invalidate.ScopeFetches, "fetch:"),
 		rpcTimeout: 1500 * time.Millisecond,
 
-		moduleOutages: cache.New[error](modulesCacheCapacity, moduleOutageBackoff),
+		moduleOutages: cache.New[error](modulesCacheCapacity, moduleOutageBackoff).InvalidateOn(cfg.Invalidations, cache.UserKeys("modules:"), invalidate.ScopeModules),
 	}
-	c.automations = newAutomationCache(cfg.TTL)
+	c.automations = newAutomationCache(cfg.TTL).InvalidateOn(cfg.Invalidations, cache.UserKeys("automations:"), invalidate.ScopeAutomations)
 	c.commandLookup = perName[CommandView, commandEntry]{
 		entries: c.commands,
 		key:     cmdKey,
@@ -168,9 +166,6 @@ func NewClient(cfg Config) *Client {
 }
 
 func (c *Client) Close() {
-	if c.invalidationSub != nil {
-		_ = c.invalidationSub.Unsubscribe()
-	}
 	c.users.Close()
 	c.modules.Close()
 	c.moduleOutages.Close()
@@ -188,71 +183,22 @@ func (c *Client) StartOccupancyLogger(ctx context.Context, interval time.Duratio
 	})
 }
 
-func (c *Client) StartInvalidationListener(prefix string) {
-	subject := prefix + ".>"
-	sub, err := c.nc.Subscribe(subject, c.onInvalidation)
-	if err != nil {
-		c.log.Error("projection: failed to subscribe to cache invalidation", zap.String("subject", subject), zap.Error(err))
-		return
+func bindNamedEntries[V any](entries *cache.Cache[V], feed cache.Feed, scope, prefix string) *cache.Cache[V] {
+	if feed == nil {
+		return entries
 	}
-	c.invalidationSub = sub
-	c.log.Info("projection: cache invalidation listener started", zap.String("subject", subject))
-}
-
-func (c *Client) onInvalidation(msg *nats.Msg) {
-	var payload invalidate.DTO
-	if err := codec.Unmarshal(msg.Data, &payload); err != nil {
-		c.log.Debug("projection: cache invalidation: bad payload", zap.Error(err), zap.String("subject", msg.Subject))
-		return
-	}
-	id, err := strconv.ParseUint(payload.BroadcasterID, 10, 64)
-	if err != nil || id == 0 {
-		c.log.Warn("projection: cache invalidation: bad broadcaster_id", zap.String("raw", payload.BroadcasterID))
-		return
-	}
-
-	parts := strings.Split(msg.Subject, ".")
-	c.evictScope(invalidation{scope: parts[len(parts)-1], id: id, keys: payload.Keys})
-}
-
-type invalidation struct {
-	scope string
-	id    uint64
-	keys  []string
-}
-
-func (c *Client) evictScope(inv invalidation) {
-	switch inv.scope {
-	case "commands":
-		for _, name := range inv.keys {
-			c.commands.Invalidate(cmdKey(inv.id, strings.ToLower(name)))
+	feed.Watch(scope, func(e cache.Event) {
+		userPrefix := cache.UserKey(prefix, e.ID) + ":"
+		if len(e.Keys) == 0 {
+			entries.InvalidateWhere(func(key string) bool { return strings.HasPrefix(key, userPrefix) })
+			return
 		}
-	case "fetches":
-		for _, name := range inv.keys {
-			c.fetches.Invalidate(fetchKey(inv.id, strings.ToLower(name)))
+		for _, name := range e.Keys {
+			entries.Invalidate(userPrefix + strings.ToLower(name))
 		}
-	case "delegation":
-	default:
-		if !c.evictChannel(inv) {
-			c.log.Debug("projection: cache invalidation: unknown scope", zap.String("scope", inv.scope))
-		}
-	}
-}
-
-func (c *Client) evictChannel(inv invalidation) bool {
-	id := inv.id
-	switch inv.scope {
-	case "modules":
-		c.modules.Invalidate(key("modules", id))
-		c.moduleOutages.Invalidate(key("modules", id))
-	case "automations":
-		c.automations.Invalidate(key("automations", id))
-	case "status", "grant", "live", "locale", "commands_page", "leaderboard_page", "songqueue_page":
-		c.users.Invalidate(key("user", id))
-	default:
-		return false
-	}
-	return true
+	})
+	feed.WatchGap(entries.Clear)
+	return entries
 }
 
 func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
@@ -314,12 +260,16 @@ func (c *Client) Module(ctx context.Context, userID uint64, name string) (Module
 	return view, ok, nil
 }
 
+type lookupName string
+
+type cacheKind string
+
 type perName[V, E any] struct {
 	entries *cache.Cache[E]
-	key     func(uint64, string) string
+	key     func(uint64, lookupName) string
 	local   func(context.Context, uint64, string) (V, bool, bool, error)
 	entry   func(V, bool) E
-	remote  func(context.Context, uint64, string) (E, error)
+	remote  func(context.Context, uint64, lookupName) (E, error)
 }
 
 func (l perName[V, E]) get(ctx context.Context, userID uint64, name string) (E, error) {
@@ -327,9 +277,13 @@ func (l perName[V, E]) get(ctx context.Context, userID uint64, name string) (E, 
 	if name == "" {
 		return zero, nil
 	}
-	lname := strings.ToLower(name)
+	lname := lookupName(strings.ToLower(name))
 	return l.entries.GetOrLoad(ctx, l.key(userID, lname), func(ctx context.Context) (E, error) {
-		if view, found, projected, err := l.local(ctx, userID, lname); err == nil && projected {
+		view, found, projected, err := l.local(ctx, userID, string(lname))
+		if err != nil {
+			return l.remote(ctx, userID, lname)
+		}
+		if found || projected {
 			return l.entry(view, found), nil
 		}
 		return l.remote(ctx, userID, lname)
@@ -351,7 +305,7 @@ func commandEntryOf(view CommandView, found bool) commandEntry {
 	return commandEntry{cmd: commandFromView(view), found: true}
 }
 
-func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname string) (commandEntry, error) {
+func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname lookupName) (commandEntry, error) {
 	reply, err := bus.RequestJSONTimeout[commandsReply](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
 	if err != nil {
 		return commandEntry{}, err
@@ -359,7 +313,7 @@ func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname string) (
 	return findCommand(reply.Commands, lname), nil
 }
 
-func findCommand(commands []Command, lname string) commandEntry {
+func findCommand(commands []Command, lname lookupName) commandEntry {
 	for _, cmd := range commands {
 		if commandMatches(cmd, lname) {
 			return commandEntry{cmd: cmd, found: true}
@@ -368,12 +322,12 @@ func findCommand(commands []Command, lname string) commandEntry {
 	return commandEntry{found: false}
 }
 
-func commandMatches(cmd Command, lname string) bool {
-	if strings.ToLower(cmd.Name) == lname {
+func commandMatches(cmd Command, lname lookupName) bool {
+	if strings.ToLower(cmd.Name) == string(lname) {
 		return true
 	}
 	for _, alias := range cmd.Aliases {
-		if strings.ToLower(alias) == lname {
+		if strings.ToLower(alias) == string(lname) {
 			return true
 		}
 	}
@@ -412,7 +366,7 @@ func fetchEntryOf(view FetchView, found bool) fetchEntry {
 	return fetchEntry{fetch: view, found: found}
 }
 
-func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname string) (fetchEntry, error) {
+func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname lookupName) (fetchEntry, error) {
 	reply, err := bus.RequestJSONTimeout[fetchesReply](ctx, c.nc, c.subjects.Fetches, projectionRequest(userID), c.rpcTimeout)
 	if err != nil {
 		return fetchEntry{}, err
@@ -420,23 +374,23 @@ func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname string) (f
 	return findFetch(reply.Fetches, lname), nil
 }
 
-func findFetch(fetches []FetchView, lname string) fetchEntry {
+func findFetch(fetches []FetchView, lname lookupName) fetchEntry {
 	for _, f := range fetches {
-		if strings.ToLower(f.Name) == lname {
+		if strings.ToLower(f.Name) == string(lname) {
 			return fetchEntry{fetch: f, found: true}
 		}
 	}
 	return fetchEntry{found: false}
 }
 
-func key(kind string, userID uint64) string {
-	return cache.UserKey(kind+":", userID)
+func key(kind cacheKind, userID uint64) string {
+	return cache.UserKey(string(kind)+":", userID)
 }
 
-func cmdKey(userID uint64, name string) string {
-	return cache.PairKey("command:", userID, name)
+func cmdKey(userID uint64, name lookupName) string {
+	return cache.PairKey("command:", userID, string(name))
 }
 
-func fetchKey(userID uint64, name string) string {
-	return cache.PairKey("fetch:", userID, name)
+func fetchKey(userID uint64, name lookupName) string {
+	return cache.PairKey("fetch:", userID, string(name))
 }

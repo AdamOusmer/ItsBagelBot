@@ -6,7 +6,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"fmt"
 	"strings"
 	"testing"
@@ -35,7 +34,7 @@ func counterTestRepo(t *testing.T) (*Loyalty, *sql.DB) {
 	repo := NewLoyalty(client, drv, nil, zap.NewNop())
 	require.NoError(t, repo.EnsureWatchSchema(context.Background()))
 	require.NoError(t, repo.EnsureCounterSchema(context.Background()))
-	t.Cleanup(func() { repo.Close(context.Background()); _ = raw.Close() })
+	t.Cleanup(func() { _ = raw.Close() })
 	return repo, raw
 }
 
@@ -295,7 +294,6 @@ func TestCounterProcessorUnicodeAndInvalidDisplayFollowUpstream(t *testing.T) {
 	assert.Equal(t, []string{strings.Repeat("€", maxCounterName), "viewer", display}, []string{gotCommand, login, gotDisplay})
 	assert.EqualValues(t, 4, value)
 
-	// Process must not re-normalize: upstream already stripped one leading '!'.
 	event = data.CounterBumpedDTO{BatchID: "one-normalization", UserID: 1, Bumps: []data.CounterBumpEntry{{Name: "!!Hug", Scope: data.CounterScopeCommand, Command: "!!Hello", Delta: 1}}}
 	require.NoError(t, p.Process(t.Context(), event))
 	require.NoError(t, raw.QueryRow("SELECT command,value FROM counter_entries WHERE name='!hug'").Scan(&gotCommand, &value))
@@ -368,36 +366,15 @@ func TestCounterProcessorRerunsCoalescedTransactionAfterPromotionRace(t *testing
 	assert.EqualValues(t, 105, store.values[data.CounterEventsProcessed])
 }
 
-type stalledFlushConn struct {
-	*coalescingConn
-	entered chan<- struct{}
-	release <-chan struct{}
-}
-
-func (c *stalledFlushConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if strings.HasPrefix(query, "INSERT INTO balances ") {
-		c.entered <- struct{}{}
-		<-c.release
-	}
-	return c.coalescingConn.ExecContext(ctx, query, args)
-}
-
-func TestCounterProcessorCommitsWhileEarnedFlushIsInFlight(t *testing.T) {
+func TestCounterProcessorCommitsWhileEarnedPersistenceIsLocked(t *testing.T) {
 	store := newBatchStore(nil)
-	entered, release := make(chan struct{}), make(chan struct{})
-	repo := fakeLoyalty(t, func() driver.Conn {
-		return &stalledFlushConn{coalescingConn: &coalescingConn{&batchConn{store: store}}, entered: entered, release: release}
-	})
+	repo := coalescingRepo(t, store)
 	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
-	repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 42, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 5}}})
-	flushed := make(chan struct{})
-	go func() { defer close(flushed); repo.Flush(context.Background()) }()
-	<-entered
+	repo.persistMu.Lock()
+	defer repo.persistMu.Unlock()
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	err := p.Process(ctx, trialBatch("during-flush", data.CounterBumpEntry{Name: "deaths", Delta: 3}))
-	close(release)
-	<-flushed
 	require.NoError(t, err)
 	assert.EqualValues(t, 3, store.values["deaths"])
 }

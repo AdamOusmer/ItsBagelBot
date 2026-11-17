@@ -53,7 +53,7 @@ func entryBody(b []byte) ([]byte, bool) {
 
 func scanStamp(b []byte) (stamp int64, rest []byte, ok bool) {
 	i := 0
-	for i < len(b) && b[i] >= '0' && b[i] <= '9' {
+	for entryDigit(b, i) {
 		stamp = stamp*10 + int64(b[i]-'0')
 		i++
 	}
@@ -61,6 +61,10 @@ func scanStamp(b []byte) (stamp int64, rest []byte, ok bool) {
 		return 0, nil, false
 	}
 	return stamp, b[i:], true
+}
+
+func entryDigit(b []byte, i int) bool {
+	return i < len(b) && b[i] >= '0' && b[i] <= '9'
 }
 
 func cutPrefix(b, sep []byte) ([]byte, bool) {
@@ -82,7 +86,7 @@ func (c *Cache) storeEntry(ctx context.Context, key string, payload []byte, ttl 
 	buf = append(buf, entryMid...)
 	buf = append(buf, payload...)
 	buf = append(buf, entrySuffix)
-	RecordCacheError(ctx, "write", c.store.Set(ctx, key, buf, storedTTL(ttl)))
+	RecordCacheError(ctx, "write", c.set(ctx, key, buf, storedTTL(ttl)))
 	*bufp = buf[:0]
 	entryBufPool.Put(bufp)
 }

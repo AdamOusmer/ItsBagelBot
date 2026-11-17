@@ -19,46 +19,45 @@ import (
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 )
 
 type Dashboard struct {
-	nc                    *nats.Conn
-	store                 *projection.Store
-	cacheInvalidatePrefix string
-	hydrator              *hydration.Hydrator
-	log                   *zap.Logger
-	writeGate             chan struct{}
-	commandsRead          sectionRead[[]projection.CommandView]
-	modulesRead           sectionRead[[]projection.ModuleView]
+	nc            *nats.Conn
+	store         *projection.Store
+	invalidations *bus.Invalidations
+	hydrator      *hydration.Hydrator
+	log           *zap.Logger
+	writeGate     chan struct{}
+	commandsRead  sectionRead[[]projection.CommandView]
+	modulesRead   sectionRead[[]projection.ModuleView]
 }
 
-func SubscribeDashboard(
-	nc *nats.Conn,
-	store *projection.Store,
-	prefix string,
-	commandsTopic string,
-	modulesTopic string,
-	cacheInvalidatePrefix string,
-	hydrator *hydration.Hydrator,
-	queueGroup string,
-	app *newrelic.Application,
-	log *zap.Logger,
-) error {
+type DashboardConfig struct {
+	Store         *projection.Store
+	Prefix        string
+	CommandsTopic string
+	ModulesTopic  string
+	Invalidations *bus.Invalidations
+	Hydrator      *hydration.Hydrator
+}
+
+func SubscribeDashboard(w bus.RPCWiring, cfg DashboardConfig) error {
+	nc, store, prefix, commandsTopic, modulesTopic := w.NC, cfg.Store, cfg.Prefix, cfg.CommandsTopic, cfg.ModulesTopic
+	invalidations, hydrator, queueGroup, app, log := cfg.Invalidations, cfg.Hydrator, w.Queue, w.App, w.Log
 	writeConcurrency := env.GetInt("PROJECTOR_WRITE_CONCURRENCY", 8)
 	if writeConcurrency <= 0 {
 		writeConcurrency = 8
 	}
 
 	d := &Dashboard{
-		nc:                    nc,
-		store:                 store,
-		cacheInvalidatePrefix: cacheInvalidatePrefix,
-		hydrator:              hydrator,
-		log:                   log,
-		writeGate:             make(chan struct{}, writeConcurrency),
+		nc:            nc,
+		store:         store,
+		invalidations: invalidations,
+		hydrator:      hydrator,
+		log:           log,
+		writeGate:     make(chan struct{}, writeConcurrency),
 	}
 	commandsFlight := &sectionFlight[rpcprojection.CommandsReply, []projection.CommandView]{
 		nc:    nc,
@@ -210,15 +209,12 @@ func (d *Dashboard) handleModulesReplace(ctx context.Context, req projectorrpc.D
 	if err := d.store.SetModules(ctx, userID, req.Modules); err != nil {
 		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
 	}
-	// Revision and account fences may reject stale rows. Echo the state that
-	// actually landed, and only invalidate after the primary write completes.
+	// Invalidate only after the primary write and echo the accepted state.
 	byName, _, err := d.store.GetModulesPrimary(ctx, userID)
 	if err != nil {
 		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
 	}
-	if d.cacheInvalidatePrefix != "" {
-		_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "modules", req.UserID)
-	}
+	d.invalidations.Publish(invalidate.ScopeModules, userID)
 	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: projection.ModuleList(byName)}
 }
 
@@ -256,11 +252,16 @@ func (d *Dashboard) writeAsync(userID uint64, w projectionWrite) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 		defer cancel()
 
-		if err := w.set(ctx); err != nil && d.log != nil {
-			d.log.Warn(w.failure, zap.Uint64("user_id", userID), zap.Error(err))
+		if err := w.set(ctx); err != nil {
+			d.writeFailed(userID, w, err)
+			return
 		}
-		if d.cacheInvalidatePrefix != "" {
-			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, w.section, strconv.FormatUint(userID, 10), w.keys...)
-		}
+		d.invalidations.Publish(w.section, userID, w.keys...)
 	}()
+}
+
+func (d *Dashboard) writeFailed(userID uint64, w projectionWrite, err error) {
+	if d.log != nil {
+		d.log.Warn(w.failure, zap.Uint64("user_id", userID), zap.Error(err))
+	}
 }

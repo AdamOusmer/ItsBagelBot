@@ -186,7 +186,7 @@ func counterReceiptPruning(t *testing.T, repo *Loyalty, raw *sql.DB) {
 	p := uncachedCounterProcessor(t, repo)
 	require.NoError(t, p.Process(t.Context(), counterTestEvent("retained", 2)))
 	require.Equal(t, 24*time.Hour, data.CounterReceiptRetention)
-	require.GreaterOrEqual(t, watchHistoryPruneBatch*watchHistoryPrunePasses, 200*int(flushInterval/time.Second))
+	require.GreaterOrEqual(t, watchHistoryPruneBatch*watchHistoryPrunePasses, 200*int(CounterReceiptMaintenanceInterval/time.Second))
 	cutoff := time.Now().Add(-data.CounterReceiptRetention).Unix()
 	seedExpiredCounterReceipts(t, raw, cutoff-60)
 	_, err := raw.Exec("UPDATE loyalty_counter_receipts SET created_at=? WHERE batch_id=?", cutoff+60, []byte(counterIdentity(counterTestEvent("retained", 2)).batch))
@@ -194,13 +194,12 @@ func counterReceiptPruning(t *testing.T, repo *Loyalty, raw *sql.DB) {
 	require.NoError(t, repo.PruneCounterReceipts(t.Context()))
 	assertCounterReceipts(t, raw, 1)
 	seedExpiredCounterReceipts(t, raw, cutoff-60)
-	repo.ticker.Reset(10 * time.Millisecond)
+	go repo.MaintainCounterReceipts(t.Context())
 	require.Eventually(t, func() bool {
 		var count int
 		err := raw.QueryRow("SELECT COUNT(*) FROM loyalty_counter_receipts").Scan(&count)
 		return err == nil && count == 1
-	}, time.Second, 10*time.Millisecond)
-	repo.ticker.Reset(flushInterval)
+	}, 2*CounterReceiptMaintenanceInterval, 10*time.Millisecond)
 	require.NoError(t, p.Process(t.Context(), counterTestEvent("retained", 2)))
 	require.EqualValues(t, 2, counterTestValue(t, raw, "deaths"))
 	var batch, digest, owner []byte
@@ -213,7 +212,7 @@ func seedExpiredCounterReceipts(t *testing.T, raw *sql.DB, createdAt int64) {
 	tx, err := raw.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
 	defer tx.Rollback()
-	for i := range 200*int(flushInterval/time.Second) + 1 {
+	for i := range 200*int(CounterReceiptMaintenanceInterval/time.Second) + 1 {
 		_, err := tx.ExecContext(t.Context(), "INSERT INTO loyalty_counter_receipts (user_id,batch_id,payload_hash,admission_id,created_at) VALUES (1,?,?,?,?)", []byte(fmt.Sprint(i)), make([]byte, 32), make([]byte, 16), createdAt)
 		require.NoError(t, err)
 	}
@@ -259,4 +258,29 @@ func assertCounterReceipts(t *testing.T, raw *sql.DB, expected int) {
 	var count int
 	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM loyalty_counter_receipts").Scan(&count))
 	require.Equal(t, expected, count)
+}
+
+func TestCounterReceiptMaintenanceLoopPrunesWithoutProcessor(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	cutoff := time.Now().Add(-data.CounterReceiptRetention).Unix()
+	seedExpiredCounterReceipts(t, raw, cutoff-60)
+	_, err := raw.Exec("INSERT INTO loyalty_counter_receipts (user_id,batch_id,payload_hash,admission_id,created_at) VALUES (1,?,?,?,?)", []byte("retained"), make([]byte, 32), make([]byte, 16), cutoff+60)
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		repo.MaintainCounterReceipts(ctx)
+	}()
+	require.Eventually(t, func() bool {
+		var count int
+		err := raw.QueryRow("SELECT COUNT(*) FROM loyalty_counter_receipts").Scan(&count)
+		return err == nil && count == 1
+	}, 2*CounterReceiptMaintenanceInterval, 10*time.Millisecond)
+	cancel()
+	<-done
+	var batch []byte
+	require.NoError(t, raw.QueryRow("SELECT batch_id FROM loyalty_counter_receipts").Scan(&batch))
+	require.Equal(t, []byte("retained"), batch)
 }

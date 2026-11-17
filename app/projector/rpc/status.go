@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
+	"ItsBagelBot/internal/domain/invalidate"
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
@@ -40,29 +40,41 @@ type statusRPC struct {
 	log        *zap.Logger
 }
 
-func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopic, invalidateSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+type StatusConfig struct {
+	Store             *projection.Store
+	Subject           string
+	UsersTopic        string
+	InvalidateSubject string
+	Invalidations     cache.Feed
+}
+
+func SubscribeStatus(w bus.RPCWiring, cfg StatusConfig) error {
 	s := &statusRPC{
-		valkey:     valkey,
-		views:      cache.New[statusEntry](statusCacheCapacity, statusCacheTTL),
-		nc:         nc,
-		usersTopic: usersTopic,
-		log:        log,
+		valkey:     cfg.Store,
+		views:      cache.New[statusEntry](statusCacheCapacity, statusCacheTTL).InvalidateOn(cfg.Invalidations, cache.UserKeys("tier:"), invalidate.ScopeUserProjection, invalidate.ScopeLive),
+		nc:         w.NC,
+		usersTopic: cfg.UsersTopic,
+		log:        w.Log,
 	}
 
-	// No queue group: every pod must drop its cached decision on a user change.
-	if invalidateSubject != "" {
-		if _, err := nc.Subscribe(invalidateSubject, func(msg *nats.Msg) {
-			id, err := strconv.ParseUint(string(msg.Data), 10, 64)
-			if err != nil {
-				return
-			}
+	if err := s.subscribeInvalidation(cfg.InvalidateSubject); err != nil {
+		return err
+	}
+
+	return bus.QueueSubscribeJSON[projectorrpc.StatusRequest, projectorrpc.StatusReply](w.NC, cfg.Subject, w.Queue, 1500*time.Millisecond, w.App, w.Log, s.handleGet)
+}
+
+func (s *statusRPC) subscribeInvalidation(subject string) error {
+	if subject == "" {
+		return nil
+	}
+	_, err := s.nc.Subscribe(subject, func(msg *nats.Msg) {
+		id, err := strconv.ParseUint(string(msg.Data), 10, 64)
+		if err == nil {
 			s.Invalidate(id)
-		}); err != nil {
-			return err
 		}
-	}
-
-	return bus.QueueSubscribeJSON[projectorrpc.StatusRequest, projectorrpc.StatusReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, s.handleGet)
+	})
+	return err
 }
 
 func tierKey(id uint64) string {

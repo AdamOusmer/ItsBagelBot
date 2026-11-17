@@ -4,6 +4,7 @@
 package main
 
 import (
+	"ItsBagelBot/internal/domain/invalidate"
 	"context"
 	"errors"
 	"strconv"
@@ -76,7 +77,7 @@ func (p *Projector) applyAutomationChanged(ctx context.Context, dto data.Automat
 	if err != nil {
 		return err
 	}
-	p.broadcastCacheInvalidate(dto.UserID, "automations")
+	p.invalidations.Publish(invalidate.ScopeAutomations, dto.UserID)
 	return nil
 }
 

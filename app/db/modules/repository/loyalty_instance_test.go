@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/db/modules/ent/modules"
+	"ItsBagelBot/app/db/modules/repository"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
 
@@ -27,7 +28,7 @@ func TestLoyaltyCapturedInstanceDoesNotReviveRecreatedAccount(t *testing.T) {
 		}
 		return epoch, nil
 	})
-	_, err := repo.SetNow(t.Context(), 1001, "loyalty", true, codec.RawMessage(`{"watchtime_points":10,"__account_created_at":999}`))
+	_, err := repo.SetNow(t.Context(), repository.ModuleWrite{UserID: 1001, Name: "loyalty", Enabled: true, Configs: codec.RawMessage(`{"watchtime_points":10,"__account_created_at":999}`)})
 	require.Error(t, err)
 	require.Zero(t, client.Modules.Query().CountX(t.Context()))
 }
@@ -35,7 +36,7 @@ func TestLoyaltyCapturedInstanceDoesNotReviveRecreatedAccount(t *testing.T) {
 func TestLoyaltyMetadataIsServerOwnedAndPublished(t *testing.T) {
 	client, pub, repo := setup(t)
 	repo.SetAccountInstanceResolver(func(context.Context, uint64) (int64, error) { return 100, nil })
-	_, err := repo.SetNow(t.Context(), 1001, "loyalty", true, codec.RawMessage(`{"__account_created_at":999}`))
+	_, err := repo.SetNow(t.Context(), repository.ModuleWrite{UserID: 1001, Name: "loyalty", Enabled: true, Configs: codec.RawMessage(`{"__account_created_at":999}`)})
 	require.NoError(t, err)
 	repo.Close(t.Context())
 	row := client.Modules.Query().OnlyX(t.Context())
@@ -71,7 +72,7 @@ func TestLoyaltyUnavailableSourceRejectsWritesAndLegacyReadIsClosed(t *testing.T
 	client.Modules.Create().SetUserID(1001).SetName("loyalty").SetConfigs([]byte(`{}`)).SaveX(t.Context())
 	client.Modules.Create().SetUserID(1001).SetName("welcome").SetConfigs([]byte(`{}`)).SaveX(t.Context())
 	repo.SetAccountInstanceResolver(func(context.Context, uint64) (int64, error) { return 0, errors.New("authority down") })
-	_, err := repo.SetNow(t.Context(), 1001, "loyalty", true, codec.RawMessage(`{}`))
+	_, err := repo.SetNow(t.Context(), repository.ModuleWrite{UserID: 1001, Name: "loyalty", Enabled: true, Configs: codec.RawMessage(`{}`)})
 	require.Error(t, err)
 	_, err = repo.Patch(t.Context(), 1001, "loyalty", true, nil, nil)
 	require.Error(t, err)

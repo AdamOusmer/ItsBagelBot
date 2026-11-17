@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 )
@@ -77,7 +78,6 @@ func (r *Modules) upsertLoyalty(ctx context.Context, item data.ModuleChangedDTO)
 	return errors.New("loyalty module concurrent update; retry")
 }
 
-// SetCooldownMarkers lets DeleteAccount clear the channel's Valkey markers; a moved cooldown exists nowhere else.
 func (r *Modules) SetCooldownMarkers(markers *cooldownmarker.Store) {
 	r.cooldownMarkers = markers
 }
@@ -89,9 +89,7 @@ func (r *Modules) eraseCooldownMarkers(ctx context.Context, id uint64) error {
 	return r.cooldownMarkers.Erase(ctx, id)
 }
 
-// DeleteAccount resolves the canonical incarnation before removing modules, quotes
-// or credentials. Captured row identities and versions fence concurrent updates;
-// rows inserted or replaced after the snapshot are left untouched.
+// Fence cleanup by incarnation and captured row versions so replacement accounts survive.
 func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) error {
 	if epoch <= 0 || r.instanceResolver == nil {
 		return nil
@@ -117,8 +115,7 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 	if !applied {
 		return nil
 	}
-	r.Invalidate(id)
-	return r.eraseCooldownMarkers(ctx, id)
+	return errors.Join(r.invalidations.Publish(invalidate.ScopeModules, id), r.invalidations.Publish(invalidate.ScopeSpotify, id), r.eraseCooldownMarkers(ctx, id))
 }
 
 func (r *Modules) validateCapturedAccount(ctx context.Context, id uint64, epoch int64) error {

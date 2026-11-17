@@ -86,33 +86,57 @@ func (r *Loyalty) commitWatchChunk(ctx context.Context, chunk watchChunk) (bool,
 	if !open {
 		return true, chunk.posting.refused(tx.QueryRowContext(ctx, watchOperationQuery, watchtime.OperationID(chunk.posting.award)))
 	}
-	allowed, err := r.admitWatchAward(ctx, tx, chunk.posting.award)
+	admission, err := r.admitWatchAward(ctx, tx, chunk.posting.award)
 	if err != nil {
 		return false, err
 	}
-	if !allowed {
+	if !admission.allowed {
 		return true, chunk.posting.commitRefused(ctx, tx)
 	}
-	done, err := r.applyWatchChunk(ctx, tx, chunk)
+	return r.commitAdmittedWatchChunk(ctx, tx, chunk, admission)
+}
+
+func (r *Loyalty) commitAdmittedWatchChunk(ctx context.Context, tx *sql.Tx, chunk watchChunk, admission watchAdmission) (bool, error) {
+	result, err := r.applyWatchChunk(ctx, tx, chunk)
 	if err != nil {
 		return false, err
 	}
-	return done, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	userID := chunk.posting.award.UserID
+	if admission.replaced {
+		r.publishAccountChange(userID)
+	}
+	if len(result.viewers) > 0 {
+		r.publishBalanceChange(userID, result.viewers...)
+	}
+	return result.done, nil
 }
 
-func (r *Loyalty) applyWatchChunk(ctx context.Context, tx *sql.Tx, chunk watchChunk) (bool, error) {
+type watchChunkResult struct {
+	done    bool
+	viewers []uint64
+}
+
+func (r *Loyalty) applyWatchChunk(ctx context.Context, tx *sql.Tx, chunk watchChunk) (watchChunkResult, error) {
 	posting := chunk.posting
 	completed, err := r.prepareWatchOperation(ctx, tx, posting)
 	if err != nil || completed {
-		return true, err
+		return watchChunkResult{done: true}, err
 	}
-	if err := r.postWatchChunk(ctx, tx, posting, chunk.viewers); err != nil {
-		return false, err
+	admitted, err := r.postWatchChunk(ctx, tx, posting, chunk.viewers)
+	if err != nil {
+		return watchChunkResult{}, err
+	}
+	result := watchChunkResult{done: chunk.final, viewers: make([]uint64, 0, len(admitted))}
+	for _, viewer := range admitted {
+		result.viewers = append(result.viewers, viewer.entry.ViewerID)
 	}
 	if !chunk.final {
-		return false, nil
+		return result, nil
 	}
-	return true, posting.complete(ctx, tx)
+	return result, posting.complete(ctx, tx)
 }
 
 func (p watchPosting) commitRefused(ctx context.Context, tx *sql.Tx) error {

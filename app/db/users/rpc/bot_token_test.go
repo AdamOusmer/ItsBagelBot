@@ -42,7 +42,7 @@ func botRequest() usersrpc.AdminRequest {
 func TestBotTokenSaveWithoutStaffAccount(t *testing.T) {
 	a, client := setupAdminRPCTest(t)
 	ctx := context.Background()
-	a.repo = repository.NewUsers(client, dbtest.NewPacker(t), nil, nil, zap.NewNop())
+	a.repo = repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Log: zap.NewNop()})
 	t.Cleanup(func() { a.repo.Close(ctx) })
 	a.botUserID = testBotID
 	var presented string
@@ -53,7 +53,6 @@ func TestBotTokenSaveWithoutStaffAccount(t *testing.T) {
 	client.User.Create().SetID(1061740761).SetUsername("itsbagelbot").SetEmail("bot@example.invalid").ExecX(ctx)
 	req := usersrpc.AdminRequest{ActorID: a.botUserID, UserID: a.botUserID, AccessToken: "test-access-token", RefreshToken: "test-refresh-token"}
 
-	// No staff row is created; ordinary admin token writes still refuse this actor.
 	regular := handlerFor(t, a, "token_set")(ctx, req)
 	require.Equal(t, domainrpc.CodeForbidden, regular.Code)
 	result := a.botTokenSet(ctx, req)

@@ -3,10 +3,11 @@
 
 import type { ChannelLifecycle } from '@bagel/kit/connection-state';
 import { POLICY } from '@bagel/kit/server/cache-keys';
-import { defineRead, defineWrite, READ_TIMEOUT_MS } from '@bagel/kit/server/service';
+import { rpc } from '@bagel/kit/server/nats';
+import { defineRead, defineWrite, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from '@bagel/kit/server/service';
 import { PUBLIC_PAGES, pageHiddenField, pageSetVerb, type PageHiddenField, type PublicPage } from '#lib/public-pages';
 import { SUB } from './subjects';
-import { fabric, invalidate } from './fabric';
+import { broadcastInvalidation, fabric, invalidate } from './fabric';
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
 export type AccountState = { lifecycleRevision?: number; accountCreatedAt?: number; lifecycle?: ChannelLifecycle; active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string; displayName: string };
@@ -35,7 +36,6 @@ export type StateReply = {
   custom_cursor?: unknown;
 } & { [K in PageHiddenField]?: unknown };
 
-// One state_get reply per board; every view below derives from it, so every state scope must evict `state:`.
 const boardState = defineRead({
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
@@ -83,7 +83,6 @@ export const setLocale = stateWrite<string>({ verb: 'locale_set', field: 'locale
 export const userCursor = stateView((r) => r.custom_cursor !== false);
 export const setCursor = stateWrite<boolean>({ verb: 'cursor_set', field: 'custom_cursor' });
 
-// A page is public unless the account explicitly hid it: an absent field keeps the pre-toggle behaviour.
 function publicPageToggle(page: PublicPage) {
   const field = pageHiddenField(page);
   return {
@@ -99,8 +98,8 @@ export const { read: userLeaderboardPage, write: setLeaderboardPage } = pageTogg
 export const { read: userSongQueuePage, write: setSongQueuePage } = pageToggles.songqueue;
 
 type LifecycleRetryRequest = { broadcaster_user_id: string };
-export const retryLifecycle = defineWrite({
-  subject: `${SUB.dashboard}.lifecycle_retry`,
-  request: (request: LifecycleRetryRequest) => request,
-  after: (_result: unknown, request: LifecycleRetryRequest) => invalidate(`state:${request.broadcaster_user_id}`)
-});
+export async function retryLifecycle(request: LifecycleRetryRequest): Promise<unknown> {
+  const result = await rpc(`${SUB.dashboard}.lifecycle_retry`, request, WRITE_TIMEOUT_MS);
+  await broadcastInvalidation({ scope: 'status', id: request.broadcaster_user_id });
+  return result;
+}

@@ -43,8 +43,5 @@ func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry 
 }
 
 func (w *LoyaltyWallet) credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (loyaltyrpc.Balance, bool, error) {
-	if entry.ViewerID == 0 {
-		return w.loyalty.BalanceAdjust(ctx, broadcasterID, entry.Login, entry.Stake, false)
-	}
 	return w.loyalty.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, ViewerLogin: entry.Login, Value: entry.Stake})
 }
