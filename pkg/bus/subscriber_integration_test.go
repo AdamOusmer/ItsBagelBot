@@ -24,6 +24,7 @@ type nativeSubscriberFixture struct {
 	durable  string
 	shutdown string
 	cancel   string
+	closing  string
 }
 
 type nativeSubscriberIntegration struct {
@@ -43,6 +44,39 @@ func TestNativeSubscriberIntegration(t *testing.T) {
 	t.Run("context cancellation rejects late callbacks", func(t *testing.T) {
 		testNativeContextCancellation(t, integration)
 	})
+	t.Run("concurrent close waits for the draining close", func(t *testing.T) {
+		testNativeConcurrentClose(t, integration)
+	})
+}
+
+func testNativeConcurrentClose(t *testing.T, integration nativeSubscriberIntegration) {
+	t.Helper()
+	fixture := integration.fixture
+	lane := openNativeLaneSubscription(t, integration, laneIntegrationConfig{
+		subject: fixture.closing, group: "native-concurrent-close-test", nakDelay: time.Millisecond,
+	})
+	publishIntegrationBurst(t, integration.js, fixture.closing, 1)
+	held := receiveIntegrationMessage(t, lane.messages)
+
+	closed := make(chan error, 2)
+	for range 2 {
+		go func() { closed <- lane.subscriber.Close() }()
+	}
+	select {
+	case err := <-closed:
+		t.Fatalf("close returned before the in-flight ack settled: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	held.Ack()
+	for range 2 {
+		select {
+		case err := <-closed:
+			require.NoError(t, err)
+		case <-time.After(nativeSubscriberTestTimeout):
+			t.Fatal("close did not finish after the in-flight ack settled")
+		}
+	}
 }
 
 func openNativeSubscriberIntegration(t *testing.T) nativeSubscriberIntegration {
@@ -54,6 +88,7 @@ func openNativeSubscriberIntegration(t *testing.T) nativeSubscriberIntegration {
 		durable:  "bus.native." + token + ".durable",
 		shutdown: "bus.native." + token + ".shutdown",
 		cancel:   "bus.native." + token + ".cancel",
+		closing:  "bus.native." + token + ".closing",
 	}
 	t.Setenv("NATS_JS_DOMAIN", "hub")
 	t.Setenv("NATS_LEAF_URL", "")
