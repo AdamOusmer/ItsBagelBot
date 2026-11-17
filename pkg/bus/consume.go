@@ -76,7 +76,7 @@ func (lane consumeLane) process(msg *Message) {
 	}
 	wait := msg.deliveryWait(time.Now())
 
-	if lane.stats.sample() {
+	if continuesTrace(msg.Metadata) || lane.stats.sample() {
 		lane.processSampled(msg, wait)
 		return
 	}
@@ -89,6 +89,12 @@ func (lane consumeLane) processSampled(msg *Message, wait time.Duration) {
 
 	msg.SetContext(newrelic.NewContext(msg.Context(), txn))
 
+	out := lane.handleTraced(txn, msg, wait)
+	lane.finish(msg, out, log)
+	txn.End()
+}
+
+func (lane consumeLane) handleTraced(txn *newrelic.Transaction, msg *Message, wait time.Duration) outcome {
 	processSegment := txn.StartSegment("message.process")
 	out := classify(lane.handle(msg), wait)
 	processSegment.AddAttribute(resultAttribute, out.result)
@@ -98,9 +104,7 @@ func (lane consumeLane) processSampled(msg *Message, wait time.Duration) {
 		monitor.NoticeError(txn, out.err)
 	}
 	txn.AddAttribute(resultAttribute, out.result)
-	txn.End()
-
-	lane.finish(msg, out, log)
+	return out
 }
 
 func (lane consumeLane) processUnsampled(msg *Message, wait time.Duration) {
@@ -132,6 +136,7 @@ func (lane consumeLane) startTransaction(msg *Message, wait time.Duration) *newr
 	acceptMetadataTraceHeaders(txn, msg.Metadata)
 	addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: lane.subject})
 	txn.AddAttribute(queueMillisAttribute, float64(wait.Microseconds())/1000)
+	txn.AddAttribute(messageIDAttribute, msg.UUID)
 	return txn
 }
 

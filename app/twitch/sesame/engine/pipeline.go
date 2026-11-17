@@ -195,6 +195,7 @@ const chatType = "channel.chat.message"
 func (p *Pipeline) Process(msg *bus.Message) (err error) {
 	ctx, cancel := messageContext(msg)
 	defer cancel()
+	ctx = withTrace(ctx)
 
 	env := GetEnvelope()
 	defer PutEnvelope(env)
@@ -355,11 +356,25 @@ func (p *Pipeline) tracedModuleViews(ctx context.Context, eventType string, broa
 func (p *Pipeline) runTracedStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emission *emitState) {
 	segment := startStage(ctx, "sesame.engine")
 	emit := p.newEmit(ctx, mctx.Env.BroadcasterUserID, emission)
-	p.runStages(ctx, mctx, views, emit)
+	consumed := p.runStages(ctx, mctx, views, emit)
 	if emission.err == nil {
 		emission.err = mctx.Failure
 	}
 	endStageForError(segment, emission.err, "error")
+	traceDecision(ctx, decisionOf(mctx, consumed), emission.accepted)
+}
+
+func decisionOf(mctx *module.Context, consumed bool) string {
+	switch {
+	case consumed:
+		return "moderated"
+	case mctx.Command != "":
+		return "command"
+	case mctx.Emitted > 0:
+		return "handled"
+	default:
+		return "ignored"
+	}
 }
 
 func (p *Pipeline) flushLegacyOutput(ctx context.Context, emission *emitState) {
@@ -406,24 +421,38 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 	return mctx
 }
 
-func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
+func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) bool {
 	env := &mctx.Env
 	soloChat := env.Type == chatType && len(env.Senders) == 0
 
 	consumed := false
 	if env.Origin != "trial" {
-		consumed = p.moderateChat(ctx, mctx, views, emit)
-		consumed = p.refundSpecialRedemption(mctx, emit) || consumed
+		consumed = p.moderate(ctx, mctx, views, emit)
 	}
 	if soloChat && !consumed {
+		stage := startStage(ctx, "sesame.dispatch")
 		p.dispatch(ctx, mctx, views, emit)
+		endStage(stage, "ok")
 	}
 	if !consumed && len(p.registry.For(env.Type)) > 0 {
+		stage := startStage(ctx, "sesame.handlers")
 		p.ensureHandlerLocale(ctx, mctx)
 		p.runHandlers(ctx, views, mctx, emit)
+		endStage(stage, "ok")
 	}
+	stage := startStage(ctx, "sesame.automations")
 	mctx.EffectScope, mctx.EffectOrdinal, mctx.EffectContext = "automation", 0, ctx
 	p.runAutomationStage(ctx, mctx, views, consumed, emit)
+	endStage(stage, "ok")
+	return consumed
+}
+
+func (p *Pipeline) moderate(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) bool {
+	stage := startStage(ctx, "sesame.moderation")
+	consumed := p.moderateChat(ctx, mctx, views, emit)
+	consumed = p.refundSpecialRedemption(mctx, emit) || consumed
+	endStage(stage, "ok")
+	return consumed
 }
 
 func (p *Pipeline) dropPoison(ctx context.Context, msgID string, err error) error {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -70,6 +71,35 @@ func TestConsumeLaneCarriesTheRequestedRetryDelayToTheNack(t *testing.T) {
 		assert.True(t, nacked, "%s must be nacked", id)
 		assert.Equal(t, delay, got, "%s retry delay", id)
 	}
+}
+
+func TestConsumeLaneContinuesEveryUpstreamTrace(t *testing.T) {
+	app := newLocalApplication(t)
+	upstream := app.StartTransaction("ingress")
+	defer upstream.End()
+	headers := http.Header{}
+	upstream.InsertDistributedTraceHeaders(headers)
+	var traces []string
+	lane := testLane(app, 1000, zap.NewNop(), func(msg *Message) error {
+		traces = append(traces, newrelic.FromContext(msg.Context()).GetTraceMetadata().TraceID)
+		return nil
+	})
+	lane.stats.sampleCursor.Store(1)
+
+	for _, id := range []string{"first", "second", "third"} {
+		msg := NewMessage(id, nil)
+		for key := range headers {
+			msg.Metadata.Set(key, headers.Get(key))
+		}
+		lane.process(msg)
+	}
+
+	unsampled := NewMessage("unsampled", nil)
+	unsampled.Metadata.Set("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00")
+	lane.process(unsampled)
+
+	want := upstream.GetTraceMetadata().TraceID
+	assert.Equal(t, []string{want, want, want, ""}, traces, "a sampled upstream trace is continued at every hop whatever the local rate; an unsampled one is not")
 }
 
 type outcomeCase struct {

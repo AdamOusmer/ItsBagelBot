@@ -27,6 +27,7 @@ func New(service string, log *zap.Logger) (*newrelic.Application, error) {
 	app, err := newrelic.NewApplication(
 		newrelic.ConfigAppName("ItsBagelBot-"+service),
 		newrelic.ConfigDistributedTracerEnabled(true),
+		newrelic.ConfigRemoteParentSampled(newrelic.AlwaysOn),
 		newrelic.ConfigAppLogForwardingEnabled(false),
 		newrelic.ConfigAppLogMetricsEnabled(true),
 		newrelic.ConfigFromEnvironment(),

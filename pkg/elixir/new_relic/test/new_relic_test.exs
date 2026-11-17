@@ -8,6 +8,7 @@ defmodule Platform.NewRelicTest do
     assert :ok = Platform.NewRelic.increment("Custom/Test", 1)
     assert :ok = Platform.NewRelic.event("Test", %{})
     assert [] = Platform.NewRelic.trace_headers()
+    assert :ok = Platform.NewRelic.sample_trace()
     assert :result = Platform.NewRelic.transaction("Test", "Test", [], fn -> :result end)
     assert :result = Platform.NewRelic.span("Test", [], fn -> :result end)
 

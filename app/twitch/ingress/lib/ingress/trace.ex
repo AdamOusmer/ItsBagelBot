@@ -9,6 +9,7 @@ defmodule Ingress.Trace do
   @active_key {__MODULE__, :active}
   @policy %{
     "dispatcher.wait_ms": :number,
+    "event.message_id": :id,
     "event.type": {:enum, ["chat", "other", "invalid"]},
     result: {:enum, ["ok", "timeout", "error", "filtered", "invalid", "dropped"]},
     dependency: {:enum, ["nats"]},
@@ -25,13 +26,13 @@ defmodule Ingress.Trace do
 
   def notification(enqueued_at, payload, meta, fun) when is_function(fun, 0) do
     if sampled?(meta) do
-      traced_notification(enqueued_at, payload, fun)
+      traced_notification(enqueued_at, payload, Map.get(meta, :msg_id), fun)
     else
       fun.()
     end
   end
 
-  defp traced_notification(enqueued_at, payload, fun) do
+  defp traced_notification(enqueued_at, payload, msg_id, fun) do
     wait_us =
       System.monotonic_time()
       |> Kernel.-(enqueued_at)
@@ -44,8 +45,15 @@ defmodule Ingress.Trace do
       Platform.NewRelic.transaction(
         "Ingress",
         "Notification",
-        ["dispatcher.wait_ms": wait_us / 1_000, "event.type": event_type(payload)],
-        fun,
+        [
+          "dispatcher.wait_ms": wait_us / 1_000,
+          "event.type": event_type(payload),
+          "event.message_id": msg_id
+        ],
+        fn ->
+          Platform.NewRelic.sample_trace()
+          fun.()
+        end,
         @policy
       )
     after

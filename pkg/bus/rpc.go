@@ -68,11 +68,11 @@ func RequestInto(ctx context.Context, nc *nats.Conn, request RPCRequest, reply a
 
 	requestMsg := nats.NewMsg(subject)
 	requestMsg.Data = body
-	insertTraceHeaders(ctx, requestMsg)
 
 	segment := startMessagingSegment(ctx, messagingSpan{
 		name: "nats.request", operation: "request", destination: subject,
 	})
+	insertTraceHeaders(ctx, requestMsg)
 	msg, err := RequestMsgWithContext(ctx, nc, requestMsg)
 	endMessagingSegment(segment, err)
 	if err != nil {

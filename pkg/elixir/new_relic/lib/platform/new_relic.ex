@@ -96,6 +96,22 @@ defmodule Platform.NewRelic do
       else: :ok
   end
 
+  def sample_trace do
+    if enabled?(), do: safe(&force_sampled/0), else: :ok
+  end
+
+  defp force_sampled do
+    case NewRelic.DistributedTrace.get_tracing_context() do
+      %{sampled: false, priority: priority} = context ->
+        context = %{context | sampled: true, priority: priority + 1}
+        NewRelic.Transaction.Sidecar.trace_context(context)
+        NewRelic.add_attributes(sampled: true, priority: context.priority)
+
+      _ ->
+        :ok
+    end
+  end
+
   def trace_headers do
     if enabled?() do
       try do
@@ -114,6 +130,7 @@ defmodule Platform.NewRelic do
     Enum.filter(attrs, fn {key, value} ->
       case Map.get(policy, key) do
         :number -> is_number(value)
+        :id -> is_binary(value) and Regex.match?(~r/\A[0-9A-Za-z_.:-]{1,64}\z/, value)
         {:enum, values} when is_list(values) -> value in values
         _ -> false
       end
