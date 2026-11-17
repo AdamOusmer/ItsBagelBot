@@ -290,6 +290,30 @@ func (p *CounterProcessor) processBatch(batch []*counterRequest) {
 	defer cancel()
 	owner := "pending:" + uuid.NewString()
 	tracked := p.claimCounterDeliveries(ctx, deliveries, owner)
+	trackedLanes := counterDeliveryLanes(tracked)
+	var workers sync.WaitGroup
+	for i, lane := range counterDeliveryLanes(deliveries) {
+		if len(lane) == 0 {
+			continue
+		}
+		workers.Go(func() { p.processCounterLane(ctx, lane, trackedLanes[i], owner) })
+	}
+	workers.Wait()
+}
+
+func counterDeliveryLanes(deliveries []*counterDelivery) [2][]*counterDelivery {
+	var bot, channels []*counterDelivery
+	for _, delivery := range deliveries {
+		if delivery.request.dto.UserID == 0 {
+			bot = append(bot, delivery)
+			continue
+		}
+		channels = append(channels, delivery)
+	}
+	return [2][]*counterDelivery{bot, channels}
+}
+
+func (p *CounterProcessor) processCounterLane(ctx context.Context, deliveries, tracked []*counterDelivery, owner string) {
 	p.persistDeliveries(ctx, activeCounterDeliveries(deliveries))
 	p.finalizeCounterClaims(tracked, owner)
 	p.finish(deliveries)
