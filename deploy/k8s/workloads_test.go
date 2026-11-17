@@ -98,7 +98,7 @@ func TestConsoleAdminExplicitlyExcludesWorkerPool(t *testing.T) {
 func TestConsolesServeThroughOnePodRestart(t *testing.T) {
 	for _, name := range []string{"console-admin", "console-dashboard"} {
 		console := findDeployment(t, name+".yaml", name)
-		assert.GreaterOrEqual(t, console.Spec.Replicas, 2, "%s on one replica answered 502 when its pod was OOMKilled on 2026-11-17", name)
+		assert.GreaterOrEqual(t, console.Spec.Replicas, 2, "%s needs a second replica to keep serving while one pod restarts", name)
 		assert.Contains(t, console.Spec.Template.Spec.Containers[0].Env, envVar{Name: "NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERROR_CODES", Value: "400-499"},
 			"%s must keep client 4xx out of the error rate and 5xx in it", name)
 	}
