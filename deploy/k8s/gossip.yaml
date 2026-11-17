@@ -173,7 +173,7 @@ spec:
               memory: 512Mi
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1794937570-4c6f16083c49@sha256:0711b199142f881f0a1d195d49417b46a49768091fcf5787da3fca7f1c10ba38
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1794953194-61b046579e99@sha256:3b383d463b2ec296d551cabc7e542e408aea5b725ca955873306f611c47bbc29
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_URL
