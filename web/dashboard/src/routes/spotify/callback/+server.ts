@@ -6,6 +6,7 @@ import { rpc } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { spotifyRedirectURI } from '#lib/server/oauth';
 import { SUB, auditDashboardImpersonation } from '#lib/server/services';
+import { setModuleEnabled } from '#lib/server/module-blob';
 import { SPOTIFY_STATE_COOKIE, requireSongqueueActor, songqueueFail } from '#lib/server/spotify-oauth';
 
 interface SpotifyGrantReply {
@@ -50,15 +51,17 @@ async function storeRefreshToken(uid: string, grant: SpotifyGrantReply): Promise
   }
 }
 
-async function requireStoredToken(uid: string): Promise<void> {
-  let present = false;
+async function tokenPresent(uid: string): Promise<boolean> {
   try {
     const status = await rpc<{ present?: boolean }>(`${SUB.spotifyKey}.status`, { user_id: uid }, 3000);
-    present = status.present === true;
+    return status.present === true;
   } catch {
     songqueueFail('store');
   }
-  if (!present) songqueueFail('notoken');
+}
+
+async function requireStoredToken(uid: string): Promise<void> {
+  if (!(await tokenPresent(uid))) songqueueFail('notoken');
 }
 
 function verifiedCode(
@@ -88,9 +91,11 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   const accepted = verifiedCode(code, state, storedState);
   if (!accepted) songqueueFail('state');
 
+  const firstConnect = !(await tokenPresent(uid));
   const grant = await exchangeCode(uid, accepted);
   if (grant.refreshToken) await storeRefreshToken(uid, grant);
   else await requireStoredToken(uid);
+  if (firstConnect) await setModuleEnabled(uid, 'songqueue', true);
 
   auditDashboardImpersonation(locals.session, 'spotify:connect', '');
   throw redirect(302, grant.warning ? `/songqueue?connected=1&w=${encodeURIComponent(grant.warning)}` : '/songqueue?connected=1');
