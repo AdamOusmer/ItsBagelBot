@@ -277,8 +277,6 @@ metadata:
 spec:
   scaleTargetRef:
     name: sesame
-  pollingInterval: 15
-  cooldownPeriod: 300
   minReplicaCount: 3
   maxReplicaCount: 12
   fallback:
