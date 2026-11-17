@@ -5,7 +5,11 @@ declare module 'newrelic' {
   type AttrValue = string | number | boolean;
 
   interface NewRelicApi {
-    getTransaction(): { ignore(): void };
+    getTransaction(): {
+      ignore(): void;
+      isSampled(): boolean;
+      insertDistributedTraceHeaders(headers: Record<string, string>): void;
+    };
     setTransactionName(name: string): void;
     addCustomAttributes(attributes: Record<string, AttrValue>): void;
     setUserID(userID: string): void;
