@@ -189,7 +189,10 @@ func drainInflight(weighted *bus.Weighted, pipe *engine.Pipeline, timeout time.D
 	log.Info("in-flight events drained")
 }
 
-const emoteRefreshInterval = time.Hour
+const (
+	emoteRefreshInterval = time.Hour
+	emoteRetryInterval   = 5 * time.Minute
+)
 
 const lexiconReloadInterval = 5 * time.Minute
 
@@ -218,24 +221,28 @@ func reloadLexicon(ctx context.Context, dir string, guard *automod.Gate, log *za
 }
 
 func refreshEmotes(ctx context.Context, fetcher *automod.EmoteFetcher, guard *automod.Gate, log *zap.Logger) {
-	load := func() {
-		n, err := fetcher.Refresh(ctx, guard)
-		if err != nil {
-			log.Warn("emote set refresh partial or failed", zap.Int("codes", n), zap.Error(err))
-			return
-		}
-		log.Info("emote set refreshed", zap.Int("codes", n))
-	}
-
-	load()
-	ticker := time.NewTicker(emoteRefreshInterval)
-	defer ticker.Stop()
 	for {
+		wait := emoteRefreshInterval
+		if !loadEmotes(ctx, fetcher, guard, log) {
+			wait = emoteRetryInterval
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			load()
+		case <-time.After(wait):
 		}
 	}
+}
+
+func loadEmotes(ctx context.Context, fetcher *automod.EmoteFetcher, guard *automod.Gate, log *zap.Logger) bool {
+	n, err := fetcher.Refresh(ctx, guard)
+	switch {
+	case err == nil:
+		log.Info("emote set refreshed", zap.Int("codes", n))
+	case n > 0:
+		log.Info("emote set refresh partial; previous codes kept", zap.Int("codes", n), zap.Error(err))
+	default:
+		log.Warn("emote set refresh partial or failed", zap.Int("codes", n), zap.Error(err))
+	}
+	return err == nil
 }

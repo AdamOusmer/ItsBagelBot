@@ -96,12 +96,28 @@ func (f *EmoteFetcher) Catalog() EmoteCatalog {
 
 func (f *EmoteFetcher) Refresh(ctx context.Context, gate *Gate) (int, error) {
 	cat, err := f.FetchCatalog(ctx)
+	cat = cat.orPrevious(f.Catalog())
 	codes := cat.Codes()
 	if len(codes) > 0 {
 		gate.SetEmotes(NewEmoteSet(codes))
 		f.catalog.Store(&cat)
 	}
 	return len(codes), err
+}
+
+func (c EmoteCatalog) orPrevious(prev EmoteCatalog) EmoteCatalog {
+	return EmoteCatalog{
+		SevenTV: codesOr(c.SevenTV, prev.SevenTV),
+		BTTV:    codesOr(c.BTTV, prev.BTTV),
+		FFZ:     codesOr(c.FFZ, prev.FFZ),
+	}
+}
+
+func codesOr(fresh, previous []string) []string {
+	if len(fresh) > 0 {
+		return fresh
+	}
+	return previous
 }
 
 func (f *EmoteFetcher) fetchBTTV(ctx context.Context) ([]string, error) {

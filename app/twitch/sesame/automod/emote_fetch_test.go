@@ -7,7 +7,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
+	"sync/atomic"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -81,17 +83,33 @@ func TestRefreshInstallsTheSetAndPublishesTheCatalog(t *testing.T) {
 	assert.Equal(t, verdictHeuristic, g.Inspect(module.RoleEveryone, unmatchedCapsLine), "the installed set no longer rescues everything")
 }
 
-func TestRefreshKeepsThePreviousSetOnTotalFailure(t *testing.T) {
-	srv := emoteServer(t)
-	g := New()
-	f := NewEmoteFetcher(srv.Client(), endpointsFor(srv.URL))
-	_, err := f.Refresh(context.Background(), g)
-	require.NoError(t, err)
-	srv.Close()
+func TestRefreshKeepsThePreviousCodesOfFailingProviders(t *testing.T) {
+	for name, failing := range map[string][]string{
+		"one provider":   {"/ffz"},
+		"every provider": {"/bttv", "/ffz", "/7tv"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var down atomic.Bool
+			healthy := emoteServer(t)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if down.Load() && slices.Contains(failing, r.URL.Path) {
+					http.Error(w, "stalled", http.StatusGatewayTimeout)
+					return
+				}
+				healthy.Config.Handler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(srv.Close)
+			g := New()
+			f := NewEmoteFetcher(srv.Client(), endpointsFor(srv.URL))
+			_, err := f.Refresh(context.Background(), g)
+			require.NoError(t, err)
+			down.Store(true)
 
-	n, err := f.Refresh(context.Background(), g)
+			n, err := f.Refresh(context.Background(), g)
 
-	require.Error(t, err)
-	assert.Zero(t, n)
-	assert.Equal(t, verdictHeuristic, g.Inspect(module.RoleEveryone, unmatchedCapsLine), "the previous set stays installed")
+			require.Error(t, err)
+			assert.Equal(t, 5, n, "the installed set keeps every provider")
+			assert.Equal(t, []string{"KEKW", "LUL"}, f.Catalog().FFZ)
+		})
+	}
 }
