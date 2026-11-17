@@ -58,7 +58,7 @@ func (w *Worker) processDecoded(ctx context.Context, payload *outgress.Message, 
 	if w.dropStale(ctx, payload) {
 		return nil
 	}
-	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
+	if allowed, err := w.admit(ctx, payload); err != nil || !allowed {
 		return err
 	}
 	if w.rejectTrialOutput(ctx, payload) {
@@ -80,7 +80,7 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 	}
 	ctx, cancel := w.actionContext(ctx, payload)
 	defer cancel()
-	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
+	if allowed, err := w.admit(ctx, payload); err != nil || !allowed {
 		return err
 	}
 	if w.rejectTrialOutput(ctx, payload) {
@@ -108,7 +108,24 @@ func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Messag
 		return false
 	}
 	w.logTrialBlocked(payload)
+	markDropped(ctx, "trial")
 	return true
+}
+
+func (w *Worker) admit(ctx context.Context, payload *outgress.Message) (bool, error) {
+	allowed, err := w.admitPayload(ctx, payload)
+	if err == nil && !allowed {
+		markDropped(ctx, "admission")
+	}
+	return allowed, err
+}
+
+const droppedAttribute = "outgress.dropped"
+
+func markDropped(ctx context.Context, reason string) {
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute(droppedAttribute, reason)
+	}
 }
 
 func (w *Worker) logTrialBlocked(payload *outgress.Message) {
@@ -275,6 +292,7 @@ func (w *Worker) dropStale(ctx context.Context, payload *outgress.Message) bool 
 	w.log.Warn("dropping stale chat action", zap.String("type", payload.Type), zap.Int64("event_at", payload.EventAt),
 		zap.Uint64("stale_drops", w.staleDrops.Add(1)))
 	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute(droppedAttribute, "stale")
 		txn.Application().RecordCustomMetric("Custom/Outgress/StaleDrops", 1)
 	}
 	return true

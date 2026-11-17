@@ -6,13 +6,34 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+let sampled = false;
 mock.module('newrelic', () => ({
   default: {
     startSegment: (_name: string, _record: boolean, run: () => unknown) => run(),
-    recordMetric: () => {}
+    recordMetric: () => {},
+    getTransaction: () => ({
+      isSampled: () => sampled,
+      insertDistributedTraceHeaders: (carrier: Record<string, string>) => {
+        carrier.traceparent = TRACEPARENT;
+      }
+    })
   }
 }));
-const { RpcError, credentialAuth, hubJetStreamOptions, localLeafReady, options, rpcRefusal } = await import('./nats');
+const { RpcError, credentialAuth, hubJetStreamOptions, localLeafReady, options, rpcRefusal, traceHeaders } =
+  await import('./nats');
+
+describe('traceHeaders', () => {
+  test('a sampled request carries its trace to the next service', () => {
+    sampled = true;
+    expect(traceHeaders()?.get('traceparent')).toBe(TRACEPARENT);
+  });
+
+  test('an unsampled request sends no trace headers', () => {
+    sampled = false;
+    expect(traceHeaders()).toBeUndefined();
+  });
+});
 
 // Throwaway user nkey seed generated for this test only; not a live credential.
 const SEED = 'SUAIVAGIKFP625PEBOON4MYTSXVJKY3TIGDMTGNYW47VW45MNW4EWO32KQ';

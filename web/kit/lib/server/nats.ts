@@ -5,9 +5,11 @@ import newrelic from 'newrelic';
 import { rpcCode, type CodedReply, type RpcCode } from './rpc-code';
 import {
   connect,
+  headers,
   jwtAuthenticator,
   type Authenticator,
   type ConnectionOptions,
+  type MsgHdrs,
   type NatsConnection
 } from '@nats-io/transport-node';
 import { jetstream, jetstreamManager } from '@nats-io/jetstream';
@@ -424,11 +426,22 @@ export async function rpcReply<T>(subject: string, payload: unknown = {}, timeou
     const nc = await get('rpc');
     const subjects = rpcSubjectsForNode(subject, process.env.NODE_NAME);
     const data = JSON.stringify(payload);
+    const traced = traceHeaders();
     const msg = await requestLocalFirst(subjects, (routedSubject) =>
-      nc.request(routedSubject, data, { timeout: timeoutMs })
+      nc.request(routedSubject, data, { timeout: timeoutMs, headers: traced })
     );
     return msg.json<T>();
   });
+}
+
+export function traceHeaders(): MsgHdrs | undefined {
+  const txn = newrelic.getTransaction();
+  if (!txn.isSampled()) return undefined;
+  const carrier: Record<string, string> = {};
+  txn.insertDistributedTraceHeaders(carrier);
+  const out = headers();
+  for (const [key, value] of Object.entries(carrier)) out.set(key, value);
+  return out;
 }
 
 export interface PublishOptions {
@@ -440,7 +453,7 @@ export async function publish(subject: string, payload: unknown = {}, opts: Publ
   return newrelic.startSegment(`NATS/publish/${rpcSegment(subject)}`, true, async () => {
     const role: Role = subject.startsWith('twitch.') || subject.startsWith('data.') ? 'bus' : 'rpc';
     const nc = await get(role);
-    nc.publish(subject, JSON.stringify(payload));
+    nc.publish(subject, JSON.stringify(payload), { headers: traceHeaders() });
     if (opts.flush) await nc.flush();
   });
 }
