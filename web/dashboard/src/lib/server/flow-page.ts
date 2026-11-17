@@ -54,10 +54,15 @@ function configOf(value: unknown): FlowConfig | null {
   return value as FlowConfig;
 }
 
+type NodeIdentity = Record<string, unknown> & { id: string; type: string };
+
+const hasNodeIdentity = (value: Record<string, unknown>): value is NodeIdentity => isText(value.id, 64) && isText(value.type, 64);
+
 function nodeOf(value: unknown): Flow['nodes'][number] | null {
   if (!isRecord(value)) return null;
   const config = configOf(value.config);
-  if (!isText(value.id, 64) || !isText(value.type, 64) || !config) return null;
+  if (!config) return null;
+  if (!hasNodeIdentity(value)) return null;
   return { id: value.id, type: value.type, x: Number(value.x) || 0, y: Number(value.y) || 0, config };
 }
 
