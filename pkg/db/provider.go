@@ -31,7 +31,8 @@ type Config struct {
 	Password string
 	Schema   string
 
-	MaxConns int
+	MaxConns        int
+	MultiStatements bool
 
 	Monitor *newrelic.Application
 }
@@ -87,6 +88,7 @@ func newMySQLConfig(cfg Config) *mysql.Config {
 	mc.Loc = time.UTC
 	mc.Collation = "utf8mb4_unicode_ci"
 	mc.InterpolateParams = true
+	mc.MultiStatements = cfg.MultiStatements
 	// Never enable: loyalty receipt admission trusts affected rows to count only inserted receipts.
 	mc.ClientFoundRows = false
 

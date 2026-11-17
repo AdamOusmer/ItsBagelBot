@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"maps"
@@ -17,25 +16,25 @@ import (
 	"github.com/go-sql-driver/mysql"
 )
 
-func writeCounterRows(ctx context.Context, tx *sql.Tx, spec upsertSpec, rows [][]any) (int64, error) {
+func counterUpsertStatements(spec upsertSpec, rows [][]any) ([]chunkStmt, error) {
 	chunks, err := db.StatementRowChunks(rows, len(spec.insert)+len(spec.suffix)+len(spec.placeholder)*db.StatementRows)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
-	var affected int64
+	stmts := make([]chunkStmt, 0, len(chunks))
 	for _, chunk := range chunks {
-		stmt := spec.render(chunk)
-		result, err := tx.ExecContext(ctx, stmt.sql, stmt.args...)
-		if err != nil {
-			return 0, counterWriteError(err)
-		}
-		count, err := result.RowsAffected()
-		if err != nil {
-			return 0, err
-		}
-		affected += count
+		stmts = append(stmts, spec.render(chunk))
 	}
-	return affected, nil
+	return stmts, nil
+}
+
+func writeCounterStatements(ctx context.Context, tx counterSQL, stmts []chunkStmt) error {
+	for _, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
+			return counterWriteError(err)
+		}
+	}
+	return nil
 }
 
 type counterMutationRows struct {
@@ -46,19 +45,69 @@ type counterMutationRows struct {
 	negativeEntries bool
 }
 
-func (r *Loyalty) writeCounterSums(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
-	rows := counterRowsForMutation(bumps, time.Now())
-	if _, err := writeCounterRows(ctx, tx, counterChannelWriteSpec(r.dialect), rows.counters); err != nil {
-		return err
-	}
-	negatives, err := r.lockNegativeBatchEntries(ctx, tx, rows)
+type counterEffects struct {
+	bumps      map[bumpKey]*bumpSum
+	unpromoted []uint64
+}
+
+type counterWrites struct {
+	rows     counterMutationRows
+	counters []chunkStmt
+	entries  []chunkStmt
+}
+
+func (r *Loyalty) writeCounterSums(ctx context.Context, tx counterTransaction, effects counterEffects) error {
+	writes, err := r.prepareCounterWrites(effects.bumps)
 	if err != nil {
 		return err
 	}
-	if _, err := writeCounterRows(ctx, tx, counterEntryWriteSpec(r.dialect), rows.entries); err != nil {
+	if tx.mysql && writes.canPipeline(effects) {
+		stmts := append(writes.counters, writes.entries...)
+		packet := counterPacket(append(stmts, chunkStmt{sql: "COMMIT"}))
+		return writeCounterStatements(ctx, tx, []chunkStmt{packet})
+	}
+	if err := r.writeCountersSequentially(ctx, tx, writes, effects.bumps); err != nil {
 		return err
 	}
-	return r.writeNegativeCounterRows(ctx, tx, negatives, bumps)
+	if err := verifyTrialPromotions(ctx, tx, effects.unpromoted); err != nil {
+		return err
+	}
+	if tx.mysql {
+		_, err := tx.ExecContext(ctx, "COMMIT")
+		return err
+	}
+	return nil
+}
+
+func (w counterWrites) canPipeline(effects counterEffects) bool {
+	singleChunk := len(w.counters) <= 1 && len(w.entries) <= 1
+	return singleChunk && len(w.rows.negatives) == 0 && len(effects.unpromoted) == 0
+}
+
+func (r *Loyalty) prepareCounterWrites(bumps map[bumpKey]*bumpSum) (counterWrites, error) {
+	rows := counterRowsForMutation(bumps, time.Now())
+	counters, err := counterUpsertStatements(counterChannelWriteSpec(r.dialect), rows.counters)
+	if err != nil {
+		return counterWrites{}, err
+	}
+	entries, err := counterUpsertStatements(counterEntryWriteSpec(r.dialect), rows.entries)
+	return counterWrites{rows: rows, counters: counters, entries: entries}, err
+}
+
+func (r *Loyalty) writeCountersSequentially(ctx context.Context, tx counterSQL, writes counterWrites, bumps map[bumpKey]*bumpSum) error {
+	if err := writeCounterStatements(ctx, tx, writes.counters); err != nil {
+		return err
+	}
+	negatives, err := r.lockNegativeBatchEntries(ctx, tx, writes.rows)
+	if err != nil {
+		return err
+	}
+	stmts := writes.entries
+	now := time.Now()
+	for _, key := range negatives {
+		stmts = append(stmts, counterNegativeStatement(r.dialect, key, bumps[key], now))
+	}
+	return writeCounterStatements(ctx, tx, stmts)
 }
 
 func counterRowsForMutation(bumps map[bumpKey]*bumpSum, now time.Time) counterMutationRows {
@@ -130,7 +179,7 @@ func counterEntryWriteSpec(dialect string) upsertSpec {
 
 const counterEntryLockPredicate = "(user_id=? AND name=? AND command=? AND viewer_id=?) OR "
 
-func (r *Loyalty) lockNegativeBatchEntries(ctx context.Context, tx *sql.Tx, rows counterMutationRows) ([]bumpKey, error) {
+func (r *Loyalty) lockNegativeBatchEntries(ctx context.Context, tx counterSQL, rows counterMutationRows) ([]bumpKey, error) {
 	if !rows.negativeEntries || r.dialect == "sqlite3" {
 		return rows.negatives, nil
 	}
@@ -178,7 +227,7 @@ func counterEntryLockStatement(keys [][]any) chunkStmt {
 	return chunkStmt{sql: query, args: args}
 }
 
-func lockCounterEntryChunk(ctx context.Context, tx *sql.Tx, stmt chunkStmt, present map[bumpKey]bool) error {
+func lockCounterEntryChunk(ctx context.Context, tx counterSQL, stmt chunkStmt, present map[bumpKey]bool) error {
 	rows, err := tx.QueryContext(ctx, stmt.sql, stmt.args...)
 	if err != nil {
 		return err
@@ -192,17 +241,6 @@ func lockCounterEntryChunk(ctx context.Context, tx *sql.Tx, stmt chunkStmt, pres
 		present[key] = true
 	}
 	return rows.Err()
-}
-
-func (r *Loyalty) writeNegativeCounterRows(ctx context.Context, tx *sql.Tx, keys []bumpKey, bumps map[bumpKey]*bumpSum) error {
-	now := time.Now()
-	for _, key := range keys {
-		stmt := counterNegativeStatement(r.dialect, key, bumps[key], now)
-		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
-			return counterWriteError(err)
-		}
-	}
-	return nil
 }
 
 func counterNegativeStatement(dialect string, key bumpKey, sum *bumpSum, now time.Time) chunkStmt {

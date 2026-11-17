@@ -114,31 +114,16 @@ func (b counterInbox) orderedRows() [][]any {
 	return rows
 }
 
-func (r *Loyalty) admitCounterEvents(ctx context.Context, tx *sql.Tx, events []data.CounterBumpedDTO) ([]data.CounterBumpedDTO, error) {
-	inbox, err := newCounterInbox(events)
-	if err != nil {
-		return nil, err
-	}
+func (r *Loyalty) counterReceiptInserts(rows [][]any) ([]chunkStmt, error) {
 	suffix := " ON DUPLICATE KEY UPDATE batch_id=batch_id"
 	if r.dialect == "sqlite3" {
 		suffix = " ON CONFLICT(user_id,batch_id) DO NOTHING"
 	}
 	spec := upsertSpec{insert: "INSERT INTO loyalty_counter_receipts (user_id,batch_id,payload_hash,admission_id,created_at) VALUES ", placeholder: "(?, ?, ?, ?, ?)", suffix: suffix}
-	rows := inbox.orderedRows()
-	inserted, err := writeCounterRows(ctx, tx, spec, rows)
-	if err != nil {
-		return nil, err
-	}
-	if inserted == int64(len(rows)) {
-		return inbox.admitted(events), nil
-	}
-	if err := r.classifyCounterReceipts(ctx, tx, inbox, rows); err != nil {
-		return nil, err
-	}
-	return inbox.admitted(events), nil
+	return counterUpsertStatements(spec, rows)
 }
 
-func (r *Loyalty) classifyCounterReceipts(ctx context.Context, tx *sql.Tx, inbox counterInbox, rows [][]any) error {
+func (r *Loyalty) classifyCounterReceipts(ctx context.Context, tx counterSQL, inbox counterInbox, rows [][]any) error {
 	chunks, err := db.StatementRowChunks(rows, 256)
 	if err != nil {
 		return err
@@ -165,7 +150,7 @@ func counterReceiptRead(chunk [][]any, lock bool) chunkStmt {
 	return chunkStmt{sql: query, args: args}
 }
 
-func (b counterInbox) read(ctx context.Context, tx *sql.Tx, stmt chunkStmt) error {
+func (b counterInbox) read(ctx context.Context, tx counterSQL, stmt chunkStmt) error {
 	rows, err := tx.QueryContext(ctx, stmt.sql, stmt.args...)
 	if err != nil {
 		return err

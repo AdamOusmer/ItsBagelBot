@@ -80,6 +80,11 @@ Generated Ent code is not the schema source.
 - Counter and earned receipt inserts use affected rows to admit fresh deliveries.
   Duplicate receipts trigger a payload hash read. `pkg/db` pins MySQL
   `ClientFoundRows` off so duplicate no-op updates report zero affected rows.
+- Loyalty enables MySQL multi-statements on its service pool. A normal counter
+  batch sends BEGIN, the fence read (for channels), and receipt admission in
+  one round trip, then writes counter effects and commits in a second. SQLite
+  runs the same statements sequentially. Missing fences restart admission in
+  fence-before-receipt order.
 - Sesame retries unconfirmed counter batches indefinitely with the same BatchID
   and immutable payload. Pending batches ignore early flush nudges and retry on
   the five-second ticker with exponential backoff capped at 30 seconds.

@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/internal/testdb"
 
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -35,6 +36,11 @@ func readInnodbLocks(t *testing.T, raw *sql.DB) innodbLocks {
 	err := raw.QueryRow("SELECT SUM(IF(NAME='lock_deadlocks',`COUNT`,0)), SUM(IF(NAME='lock_row_lock_waits',`COUNT`,0)) FROM information_schema.INNODB_METRICS WHERE NAME IN ('lock_deadlocks','lock_row_lock_waits')").Scan(&locks.deadlocks, &locks.waits)
 	require.NoError(t, err)
 	return locks
+}
+
+func loyaltyMySQL(t *testing.T, prefix string, options ...func(*mysql.Config)) *sql.DB {
+	t.Helper()
+	return testdb.MySQL(t, prefix, append(options, testdb.MultiStatements)...)
 }
 
 func mysqlReplica(t *testing.T, raw *sql.DB) *Loyalty {
@@ -81,7 +87,7 @@ func flushReplica(replica int, p *CounterProcessor, errs chan<- error) {
 }
 
 func TestCounterMySQLReplicasFlushOtherChannelsWithoutLockConflicts(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_counter_")
+	raw := loyaltyMySQL(t, "loyalty_counter_")
 	replicas := []*CounterProcessor{counterMySQLReplica(t, raw), counterMySQLReplica(t, raw)}
 	before := readInnodbLocks(t, raw)
 	errs := make(chan error, len(replicas)*replicaWriters*writerBatches)
@@ -106,7 +112,7 @@ func TestCounterMySQLReplicasFlushOtherChannelsWithoutLockConflicts(t *testing.T
 }
 
 func TestCounterMySQLReplicasApplyOppositeEntryDeltasWithoutDeadlocks(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_counter_signs_")
+	raw := loyaltyMySQL(t, "loyalty_counter_signs_")
 	replicas := []*CounterProcessor{counterMySQLReplica(t, raw), counterMySQLReplica(t, raw)}
 	seed := data.CounterBumpedDTO{BatchID: "seed", UserID: 7, Bumps: []data.CounterBumpEntry{
 		replicaEntryBump(1, 3), replicaEntryBump(2, 3), replicaEntryBump(3, 3),
@@ -131,7 +137,7 @@ func TestCounterMySQLReplicasApplyOppositeEntryDeltasWithoutDeadlocks(t *testing
 }
 
 func TestCounterMySQLNegativeBumpOnBucketAnotherReplicaCreatesDoesNotDeadlock(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_counter_absent_")
+	raw := loyaltyMySQL(t, "loyalty_counter_absent_")
 	p := counterMySQLReplica(t, raw)
 	seed := data.CounterBumpedDTO{BatchID: "seed", UserID: 7, Bumps: []data.CounterBumpEntry{replicaEntryBump(500, 1), replicaEntryBump(1000, 1)}}
 	require.NoError(t, p.Process(t.Context(), seed))

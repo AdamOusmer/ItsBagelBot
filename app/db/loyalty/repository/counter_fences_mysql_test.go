@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/testdb"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +22,7 @@ type counterSessionQuerier interface {
 
 func counterSessionStatements(t *testing.T, conn counterSessionQuerier) map[string]int {
 	t.Helper()
-	rows, err := conn.QueryContext(t.Context(), "SHOW SESSION STATUS WHERE Variable_name IN ('Com_insert','Com_select')")
+	rows, err := conn.QueryContext(t.Context(), "SHOW SESSION STATUS WHERE Variable_name IN ('Com_insert','Com_select','Com_rollback')")
 	require.NoError(t, err)
 	defer rows.Close()
 	counts := make(map[string]int)
@@ -37,7 +37,7 @@ func counterSessionStatements(t *testing.T, conn counterSessionQuerier) map[stri
 }
 
 func TestCounterMySQLBulkFenceStatementCount(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_counter_statements_")
+	raw := loyaltyMySQL(t, "loyalty_counter_statements_")
 	raw.SetMaxOpenConns(1)
 	repo := mysqlReplica(t, raw)
 	p := uncachedCounterProcessor(t, repo)
@@ -66,7 +66,7 @@ func TestCounterMySQLBulkFenceStatementCount(t *testing.T) {
 		require.NoError(t, <-errs)
 	}
 	after := counterSessionStatements(t, raw)
-	for name, expected := range map[string]int{"Com_insert": 6, "Com_select": 4} {
+	for name, expected := range map[string]int{"Com_insert": 7, "Com_select": 7} {
 		require.Equal(t, expected, after[name]-before[name], name)
 	}
 	assertCounterReceipts(t, raw, counterBatchMessages+1)
@@ -75,7 +75,7 @@ func TestCounterMySQLBulkFenceStatementCount(t *testing.T) {
 func counterMySQLFenceFixture(t *testing.T) (*CounterProcessor, *sql.DB, *sql.Tx) {
 	t.Helper()
 	ctx := t.Context()
-	raw := testdb.MySQL(t, "loyalty_counter_fence_")
+	raw := loyaltyMySQL(t, "loyalty_counter_fence_")
 	repo := mysqlReplica(t, raw)
 	p := uncachedCounterProcessor(t, repo)
 	require.NoError(t, repo.RestoreUser(ctx, 7, 1))

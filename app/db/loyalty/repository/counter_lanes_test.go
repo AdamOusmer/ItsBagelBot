@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/testdb"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +29,7 @@ func TestCounterProcessorCommitsBothLanesExactlyOnce(t *testing.T) {
 }
 
 func TestCounterMySQLChannelCommitsWhileBotRowIsLocked(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_counter_lanes_")
+	raw := loyaltyMySQL(t, "loyalty_counter_lanes_")
 	repo := mysqlReplica(t, raw)
 	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)

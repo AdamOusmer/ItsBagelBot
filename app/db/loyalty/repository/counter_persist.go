@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"maps"
 	"slices"
 	"strings"
@@ -28,39 +27,16 @@ func (r *Loyalty) persistCounterBatch(ctx context.Context, events []data.Counter
 	return err
 }
 
-func (r *Loyalty) commitCounterEvents(ctx context.Context, events []data.CounterBumpedDTO) error {
-	tx, err := r.sqldb.BeginTx(ctx, nil)
+func (r *Loyalty) applyAdmittedCounters(ctx context.Context, tx counterTransaction, batch admittedCounters) error {
+	windows, err := collectCounterWindows(batch.events, batch.fences)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-	fences, err := r.lockCounterUsers(ctx, tx, counterEventUserIDs(events))
+	bumps, unpromoted, err := prepareCounterWindows(windows, batch.fences)
 	if err != nil {
 		return err
 	}
-	events, err = r.admitCounterEvents(ctx, tx, events)
-	if err != nil {
-		return err
-	}
-	return r.commitAdmittedCounters(ctx, tx, events, fences)
-}
-
-func (r *Loyalty) commitAdmittedCounters(ctx context.Context, tx *sql.Tx, events []data.CounterBumpedDTO, fences map[uint64]counterFence) error {
-	windows, err := collectCounterWindows(events, fences)
-	if err != nil {
-		return err
-	}
-	bumps, unpromoted, err := prepareCounterWindows(windows, fences)
-	if err != nil {
-		return err
-	}
-	if err := r.writeCounterSums(ctx, tx, bumps); err != nil {
-		return err
-	}
-	if err := verifyTrialPromotions(ctx, tx, unpromoted); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return r.writeCounterSums(ctx, tx, counterEffects{bumps: bumps, unpromoted: unpromoted})
 }
 
 func counterEventUserIDs(events []data.CounterBumpedDTO) []uint64 {
@@ -140,7 +116,7 @@ func collectTrialCarry(window *Loyalty, id uint64, trial trialTotals) error {
 	return nil
 }
 
-func verifyTrialPromotions(ctx context.Context, tx *sql.Tx, ids []uint64) error {
+func verifyTrialPromotions(ctx context.Context, tx counterSQL, ids []uint64) error {
 	if len(ids) == 0 {
 		return nil
 	}

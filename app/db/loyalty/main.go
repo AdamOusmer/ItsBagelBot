@@ -179,7 +179,7 @@ func main() {
 	log := core.Log
 	shutdown := shutdownContext(core.Ctx, shutdownBudget)
 
-	driver := databoot.MustEntDriver(core)
+	driver := databoot.MustEntDriver(core, databoot.Options{MultiStatements: true})
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 

@@ -74,7 +74,7 @@ func sqliteRetentionRepo(t *testing.T) (*loyaltyrepo.Loyalty, *sql.DB) {
 
 func mysqlRetentionRepo(t *testing.T) (*loyaltyrepo.Loyalty, *sql.DB) {
 	t.Helper()
-	raw := testdb.MySQL(t, "loyalty_watch_")
+	raw := testdb.MySQL(t, "loyalty_watch_", testdb.MultiStatements)
 	return watchRetentionRepo(t, raw, "mysql"), raw
 }
 
