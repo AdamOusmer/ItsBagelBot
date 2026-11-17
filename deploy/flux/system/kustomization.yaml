@@ -41,3 +41,10 @@ patches:
         path: /spec/template/spec/tolerations
         value:
           - {key: role, operator: Equal, value: cp, effect: NoSchedule}
+  - target:
+      kind: Deployment
+      name: kustomize-controller
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --requeue-dependency=5s
