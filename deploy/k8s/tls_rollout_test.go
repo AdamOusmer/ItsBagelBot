@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const restartOnTLSSecret = "itsbagelbot.com/restart-on-tls-secret"
+const restartOnTLSSecret = "secret.reloader.stakater.com/reload"
 
 const (
 	shutdownTimeoutSeconds = 30
@@ -86,7 +86,8 @@ func TestTLSOptInNamesOnlyIssuedSecrets(t *testing.T) {
 	for _, filename := range manifestFilenames(t) {
 		for _, dep := range decodeFile[rolloutDeployment](t, filename) {
 			for _, name := range watchedSecretNames(dep) {
-				assert.Contains(t, issued, "secretName: "+name, "%s watches %s, which no app Certificate issues", dep.Metadata.Name, name)
+				assert.Contains(t, issued, "secretName: "+name+"\n  secretTemplate:\n    labels: {itsbagelbot.com/reloader: \"watch\"}",
+					"%s watches %s, which no app Certificate issues with the label Reloader selects on", dep.Metadata.Name, name)
 			}
 		}
 	}

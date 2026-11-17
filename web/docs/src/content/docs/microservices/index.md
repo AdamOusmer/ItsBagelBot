@@ -32,4 +32,4 @@ The diagram shows the main paths, not every event or RPC. For message types and 
 | Desktop | [Controls gateway](/microservices/controls-gateway/), [Desktop app](/microservices/desktop/) | `app/controls/gateway/`, `app/desktop/` |
 | Web | [Dashboard](/microservices/console/), [Admin](/microservices/admin/), [Marketing](/microservices/web/) | `web/` |
 
-The repository also contains the desktop app (`app/desktop/`), release tooling (`app/release/`) and cluster operations (`app/clusterops/`). `app/plain/` is an unfinished scaffold and `app/yt-ingress/` is a placeholder. See `CONTEXT-MAP.md` for the full source map.
+The repository also contains the desktop app (`app/desktop/`) and release tooling (`app/release/`). `app/plain/` is an unfinished scaffold and `app/yt-ingress/` is a placeholder. See `CONTEXT-MAP.md` for the full source map.

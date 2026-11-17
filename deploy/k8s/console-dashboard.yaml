@@ -23,7 +23,7 @@ metadata:
   namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
-    itsbagelbot.com/restart-on-tls-secret: "console-dashboard-tls,nats-client-tls,valkey-client-tls"
+    secret.reloader.stakater.com/reload: "console-dashboard-tls,nats-client-tls,valkey-client-tls"
 spec:
   replicas: 2
   revisionHistoryLimit: 3

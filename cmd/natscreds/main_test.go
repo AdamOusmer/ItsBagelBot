@@ -133,7 +133,7 @@ func TestFirstRunCreatesEveryKeyAndCredential(t *testing.T) {
 
 	h.apply(t)
 
-	assert.Equal(t, wantKeySeeds+wantRoleCreds*2+3, h.store.setCalls)
+	assert.Equal(t, wantKeySeeds+wantRoleCreds*2, h.store.setCalls)
 	keys := h.keys(t)
 	assert.Len(t, keys.Accounts, wantAccounts)
 	assert.Empty(t, keys.Activations, "no export is restricted to named accounts any more")
@@ -174,7 +174,7 @@ func TestRotatingAllReissuesEveryCredentialButNoKeySeed(t *testing.T) {
 	h.apply(t)
 
 	changed := changedSecrets(before, snapshotSecrets(h.store))
-	assert.Len(t, changed, wantRoleCreds*2+2)
+	assert.Len(t, changed, wantRoleCreds*2)
 	for _, key := range changed {
 		assert.False(t, strings.HasPrefix(key, operatorProject+"/"), "rotation must never rotate keys: %s", key)
 	}

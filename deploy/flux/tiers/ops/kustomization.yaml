@@ -4,11 +4,4 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../../k8s/clusterops.yaml
-
-configMapGenerator:
-  - name: nats-accounts-source
-    namespace: ops
-    files:
-      - ../../../messaging/accounts.yaml
-      - ../../../messaging/accounts.keys.yaml
+  - ../../../k8s/reloader.yaml

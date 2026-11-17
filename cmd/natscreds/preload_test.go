@@ -34,15 +34,6 @@ func TestGeneratedFilesBootAnOperatorModeServer(t *testing.T) {
 		assert.NoError(t, err, "users_bus must receive its own subject")
 	})
 
-	t.Run("DeployerSysUserLooksUpPreloadedClaims", func(t *testing.T) {
-		nc := connectCreds(t, url, h.secret(deployerProject, deploySysJWTKey), h.secret(deployerProject, deploySysSeedKey))
-		subject := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", h.keys(t).Accounts["BUS"])
-
-		msg, err := nc.Request(subject, nil, 2*time.Second)
-
-		require.NoError(t, err)
-		assert.NotEmpty(t, msg.Data)
-	})
 }
 
 var preloadAccountEntry = regexp.MustCompile(`(?m)^\s*(A[A-Z2-7]{55}):\s*"([^"]+)"`)
@@ -82,8 +73,8 @@ func TestPreloadRewritesOnlyWhenAnAccountChanges(t *testing.T) {
 func startOperatorServer(t *testing.T, cfg Config) string {
 	t.Helper()
 	dir := filepath.Dir(cfg.PreloadPath)
-	conf := fmt.Sprintf("listen: \"127.0.0.1:-1\"\noperator: %q\nresolver: {type: full, dir: %q}\ninclude %q\n",
-		cfg.OperatorJWTPath, filepath.Join(dir, "resolver"), filepath.Base(cfg.PreloadPath))
+	conf := fmt.Sprintf("listen: \"127.0.0.1:-1\"\noperator: %q\nresolver: MEMORY\ninclude %q\n",
+		cfg.OperatorJWTPath, filepath.Base(cfg.PreloadPath))
 	confPath := filepath.Join(dir, "server.conf")
 	require.NoError(t, os.WriteFile(confPath, []byte(conf), 0o600))
 	opts, err := server.ProcessConfigFile(confPath)
