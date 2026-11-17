@@ -80,11 +80,10 @@ func TestCounterProcessorAdmitsFreshAndMixedReceiptBatches(t *testing.T) {
 	second := counterTestEvent("second", 3)
 	third := counterTestEvent("third", 5)
 	for _, events := range [][]data.CounterBumpedDTO{{first, second}, {first, third}} {
-		errs := runCounterCopies(t.Context(), []*CounterProcessor{p}, events)
-		require.Equal(t, []error{nil, nil}, errs)
+		require.Equal(t, []error{nil, nil}, coalescedCounterRun(t, p, raw, events))
 	}
 	require.EqualValues(t, 10, counterTestValue(t, raw, "deaths"))
-	assertCounterReceipts(t, raw, 3)
+	assertCounterReceipts(t, raw, 4)
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	var claimSizes []int
@@ -93,7 +92,7 @@ func TestCounterProcessorAdmitsFreshAndMixedReceiptBatches(t *testing.T) {
 			claimSizes = append(claimSizes, len(batch))
 		}
 	}
-	require.Equal(t, []int{2, 2}, claimSizes)
+	require.Equal(t, []int{1, 2, 1, 2}, claimSizes)
 }
 
 func counterConcurrentReplay(t *testing.T, repo *Loyalty, raw *sql.DB) {

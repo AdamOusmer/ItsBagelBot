@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -60,6 +61,27 @@ func holdCounterSQL(t *testing.T, raw *sql.DB) *sql.Conn {
 	return held
 }
 
+func coalescedCounterRun(t *testing.T, p *CounterProcessor, raw *sql.DB, events []data.CounterBumpedDTO) []error {
+	t.Helper()
+	held := holdCounterSQL(t, raw)
+	barrier := make(chan error, 1)
+	go func() {
+		barrier <- p.Process(t.Context(), data.CounterBumpedDTO{BatchID: "barrier", UserID: 99, Bumps: []data.CounterBumpEntry{{Name: "barrier", Delta: 1}}})
+	}()
+	require.Eventually(t, func() bool { return len(p.slots) > 0 }, time.Second, time.Millisecond)
+	time.Sleep(40 * time.Millisecond)
+	errs := make([]error, len(events))
+	var wg sync.WaitGroup
+	for i, event := range events {
+		wg.Go(func() { errs[i] = p.Process(t.Context(), event) })
+	}
+	require.Eventually(t, func() bool { return len(p.queue) == len(events) }, time.Second, time.Millisecond)
+	require.NoError(t, held.Close())
+	require.NoError(t, <-barrier)
+	wg.Wait()
+	return errs
+}
+
 func counterTestProcessor(t *testing.T, repo *Loyalty, client valkey_go.Client) *CounterProcessor {
 	t.Helper()
 	p := NewCounterProcessor(repo, client)
@@ -76,7 +98,7 @@ func TestCounterProcessorBatchesSQLAndValkey(t *testing.T) {
 	first := make(chan error, 1)
 	go func() { first <- p.Process(context.Background(), counterTestEvent("first", 1)) }()
 	require.Eventually(t, func() bool { return len(p.slots) > 0 }, time.Second, time.Millisecond)
-	time.Sleep(counterBatchWindow * 2)
+	time.Sleep(40 * time.Millisecond)
 	const count = 16
 	errors := make(chan error, count)
 	for i := 0; i < count; i++ {
@@ -364,14 +386,7 @@ func TestCounterProcessorCoalescesPromotedAndUnpromotedTrials(t *testing.T) {
 				{BatchID: "trial-one", UserID: 1, Bumps: []data.CounterBumpEntry{{Name: data.CounterTrialDecoded, Delta: 5}, {Name: data.CounterTrialAnswered, Delta: 2}}},
 				{BatchID: "trial-two", UserID: 1, Bumps: []data.CounterBumpEntry{{Name: data.CounterTrialDecoded, Delta: 2}, {Name: data.CounterTrialAnswered, Delta: 1}}},
 			}
-			start := make(chan struct{})
-			results := make(chan error, 2)
-			for _, event := range events {
-				go func(event data.CounterBumpedDTO) { <-start; results <- p.Process(t.Context(), event) }(event)
-			}
-			close(start)
-			require.NoError(t, <-results)
-			require.NoError(t, <-results)
+			require.Equal(t, []error{nil, nil}, coalescedCounterRun(t, p, raw, events))
 			decoded, answered := int64(0), int64(0)
 			if promoted {
 				decoded, answered = 7, 3
@@ -389,8 +404,8 @@ func TestCounterProcessorCoalescesPromotedAndUnpromotedTrials(t *testing.T) {
 			}, got)
 			cache.mu.Lock()
 			defer cache.mu.Unlock()
-			require.Len(t, cache.batches, 2)
-			require.Len(t, cache.batches[0], 2, "both trial events share one claim pipeline")
+			require.Len(t, cache.batches, 4)
+			require.Len(t, cache.batches[2], 2, "both trial events share one claim pipeline")
 		})
 	}
 }

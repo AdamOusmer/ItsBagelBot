@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	counterBatchWindow   = 20 * time.Millisecond
 	counterBatchMessages = 128
 	counterQueueMessages = 256
 	counterMaxBumps      = 4096
@@ -188,8 +187,6 @@ func (c *counterQueueCollector) drainNext() (*counterRequest, bool) {
 func (c *counterQueueCollector) collect(first *counterRequest) []*counterRequest {
 	batch := []*counterRequest{first}
 	bumps := len(first.dto.Bumps)
-	timer := time.NewTimer(counterBatchWindow)
-	defer timer.Stop()
 	for len(batch) < counterBatchMessages && bumps < counterBatchBumps {
 		select {
 		case request := <-c.processor.queue:
@@ -199,10 +196,10 @@ func (c *counterQueueCollector) collect(first *counterRequest) []*counterRequest
 			}
 			batch = append(batch, request)
 			bumps += len(request.dto.Bumps)
-		case <-timer.C:
-			return batch
 		case <-c.processor.stop:
 			c.stopping = true
+			return batch
+		default:
 			return batch
 		}
 	}

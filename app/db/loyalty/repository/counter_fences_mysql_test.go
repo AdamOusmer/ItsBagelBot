@@ -48,7 +48,7 @@ func TestCounterMySQLBulkFenceStatementCount(t *testing.T) {
 	barrier.Bumps = append(barrier.Bumps, replicaEntryBump(7, 1))
 	go func() { first <- p.Process(t.Context(), barrier) }()
 	require.Eventually(t, func() bool { return len(p.slots) > 0 }, time.Second, time.Millisecond)
-	time.Sleep(2 * counterBatchWindow)
+	time.Sleep(40 * time.Millisecond)
 	errs := make(chan error, counterBatchMessages)
 	for i := range counterBatchMessages {
 		go func() {
