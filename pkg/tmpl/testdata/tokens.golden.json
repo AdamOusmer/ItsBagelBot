@@ -529,6 +529,166 @@
       "want": "4242 sam_login !hug"
     },
     {
+      "name": "an inner span renders first and names the outer payload",
+      "tmpl": "{game:{touser}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "VALORANT"
+    },
+    {
+      "name": "several inner spans resolve in one template",
+      "tmpl": "{game:{touser}} and {title:{touser}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "VALORANT and Ranked"
+    },
+    {
+      "name": "an inner span may sit in the fallback",
+      "tmpl": "{game:{1}|{user}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "bob"
+    },
+    {
+      "name": "an unknown inner span leaves the old literal",
+      "tmpl": "{game:{nope}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "{game:{nope}}"
+    },
+    {
+      "name": "an empty inner value is an empty payload",
+      "tmpl": "{game:{1}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": ""
+    },
+    {
+      "name": "close braces and pipes are dropped from inner values",
+      "tmpl": "{game:{odd}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "Go"
+    },
+    {
+      "name": "a conditional keeps its branches literal",
+      "tmpl": "{if:user:{user}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "{user}"
+    },
+    {
+      "name": "a span with no payload never nests",
+      "tmpl": "{{user}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "{{user}}"
+    },
+    {
+      "name": "deeper nesting resolves from the inside out",
+      "tmpl": "{game:{title:{touser}}}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "{game:Ranked}"
+    },
+    {
+      "name": "an unclosed outer span stays literal",
+      "tmpl": "{game:{touser}",
+      "values": {
+        "1": "",
+        "game:": "",
+        "game:abc": "Go",
+        "game:bob": "Chess",
+        "game:pokimane": "VALORANT",
+        "odd": "a}b|c",
+        "title:pokimane": "Ranked",
+        "touser": "pokimane",
+        "user": "bob"
+      },
+      "want": "{game:{touser}"
+    },
+    {
       "name": "a true test renders its then branch",
       "tmpl": "{if:user:hi}",
       "values": {

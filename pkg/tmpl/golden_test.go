@@ -44,7 +44,27 @@ func goldenRows() []goldenRow {
 	rows := append(braceRows(), nameRows()...)
 	rows = append(rows, fallbackRows()...)
 	rows = append(rows, argumentRows()...)
+	rows = append(rows, nestedRows()...)
 	return append(rows, condRows()...)
+}
+
+func nestedRows() []goldenRow {
+	nest := vals(
+		"touser", "pokimane", "user", "bob", "game:pokimane", "VALORANT", "game:bob", "Chess",
+		"title:pokimane", "Ranked", "1", "", "game:", "", "odd", "a}b|c", "game:abc", "Go",
+	)
+	return []goldenRow{
+		{"an inner span renders first and names the outer payload", "{game:{touser}}", nest, "VALORANT"},
+		{"several inner spans resolve in one template", "{game:{touser}} and {title:{touser}}", nest, "VALORANT and Ranked"},
+		{"an inner span may sit in the fallback", "{game:{1}|{user}}", nest, "bob"},
+		{"an unknown inner span leaves the old literal", "{game:{nope}}", nest, "{game:{nope}}"},
+		{"an empty inner value is an empty payload", "{game:{1}}", nest, ""},
+		{"close braces and pipes are dropped from inner values", "{game:{odd}}", nest, "Go"},
+		{"a conditional keeps its branches literal", "{if:user:{user}}", nest, "{user}"},
+		{"a span with no payload never nests", "{{user}}", nest, "{{user}}"},
+		{"deeper nesting resolves from the inside out", "{game:{title:{touser}}}", nest, "{game:Ranked}"},
+		{"an unclosed outer span stays literal", "{game:{touser}", nest, "{game:{touser}"},
+	}
 }
 
 func condRows() []goldenRow {
