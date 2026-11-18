@@ -30,5 +30,11 @@
   "delegating": "Accounts with delegates",
   "delegatingShare": "Share of accounts with delegates",
   "newSubscribers": "New Ko-fi members",
-  "lastDonation": "Latest Ko-fi payment"
+  "lastDonation": "Latest Ko-fi payment",
+  "stopped": "Bot stops",
+  "restarted": "Turned back on",
+  "netStops": "Net",
+  "inactiveNow": "Inactive now",
+  "inactiveShare": "Share of accounts",
+  "inactiveChange": "Change over the window"
 }

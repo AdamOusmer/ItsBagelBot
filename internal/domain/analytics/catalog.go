@@ -223,7 +223,7 @@ var catalog = map[Metric]Spec{
 }
 
 var enums = map[Kind][]string{
-	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted", "trial_promoted"},
+	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "dormant", "account_deleted", "trial_promoted"},
 	KindPreset:    {"start-new", "integrate", "quiet", "import", "songs"},
 	KindToggle:    {"on", "off"},
 	KindChange:    {"created", "deleted"},

@@ -52,5 +52,7 @@
   "delegating": "Konten mit Beauftragten",
   "donations": "Ko-fi-Zahlungen nach Währung",
   "donationMonths": "Ko-fi-Umsatz pro Monat",
-  "donationKinds": "Ko-fi-Zahlungen nach Art"
+  "donationKinds": "Ko-fi-Zahlungen nach Art",
+  "stops": "Bot-Stopps pro Tag",
+  "inactive": "Inaktive Konten pro Tag"
 }

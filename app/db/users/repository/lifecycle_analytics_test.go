@@ -9,6 +9,7 @@ import (
 
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/valkeytest"
 	"ItsBagelBot/pkg/bus/bustest"
@@ -106,4 +107,45 @@ func TestLifecycleAnalyticsCountsCommittedLossBeforePublication(t *testing.T) {
 	_, err = h.repo.Lifecycle(t.Context(), usersrpc.LifecycleRequest{Action: "due"})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, h.revoked(t))
+}
+
+func (h lifecycleAnalyticsHarness) lifecycleCounts(t *testing.T) map[string]int64 {
+	t.Helper()
+	h.rec.Flush(t.Context())
+	fields, err := pkgvalkey.HashAllInts(t.Context(), h.vc, catalog.CounterKey(h.now))
+	require.NoError(t, err)
+	return map[string]int64{"chat_banned": fields["lifecycle|chat_banned"], "dormant": fields["lifecycle|dormant"]}
+}
+
+func TestLifecycleAnalyticsCountsCommittedStops(t *testing.T) {
+	h := newLifecycleAnalyticsHarness(t)
+	idle := lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, AdmissionGeneration: 1, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, LastEngagedAt: h.now.Add(-lifecycle.DormancyPeriod)}
+	require.NoError(t, h.repo.client.User.UpdateOneID(1001).SetLifecycle(&idle).Exec(t.Context()))
+	for _, tc := range []struct {
+		name, action, event string
+		want                map[string]int64
+	}{
+		{name: "dormancy", action: "dormancy", want: map[string]int64{"chat_banned": 0, "dormant": 1}},
+		{name: "dormant again", action: "dormancy", want: map[string]int64{"chat_banned": 0, "dormant": 1}},
+		{name: "ban", action: "ban", event: "ban", want: map[string]int64{"chat_banned": 1, "dormant": 1}},
+		{name: "duplicate ban", action: "ban", event: "ban", want: map[string]int64{"chat_banned": 1, "dormant": 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := h.request(t, tc.action)
+			req.Reason, req.EventID, req.ObservedAt = "offline", tc.event, h.now
+			_, err := h.repo.Lifecycle(t.Context(), req)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, h.lifecycleCounts(t))
+		})
+	}
+}
+
+func TestLifecycleAnalyticsSkipsMigrationImports(t *testing.T) {
+	h := newLifecycleAnalyticsHarness(t)
+	req := h.request(t, "seed_blocked")
+	req.Reason = "bot_banned"
+	reply, err := h.repo.Lifecycle(t.Context(), req)
+	require.NoError(t, err)
+	require.Equal(t, lifecycle.RestrictionBanned, reply.State.ChatRestriction)
+	require.Zero(t, h.lifecycleCounts(t)["chat_banned"])
 }

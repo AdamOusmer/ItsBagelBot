@@ -52,5 +52,7 @@
   "delegating": "Cuentas con delegados",
   "donations": "Pagos de Ko-fi por moneda",
   "donationMonths": "Ingresos de Ko-fi por mes",
-  "donationKinds": "Pagos de Ko-fi por tipo"
+  "donationKinds": "Pagos de Ko-fi por tipo",
+  "stops": "Paradas del bot por día",
+  "inactive": "Cuentas inactivas por día"
 }

@@ -52,5 +52,7 @@
   "delegating": "Аккаунты с делегатами",
   "donations": "Платежи Ko-fi по валютам",
   "donationMonths": "Доход Ko-fi по месяцам",
-  "donationKinds": "Платежи Ko-fi по типам"
+  "donationKinds": "Платежи Ko-fi по типам",
+  "stops": "Остановки бота по дням",
+  "inactive": "Неактивные аккаунты по дням"
 }
