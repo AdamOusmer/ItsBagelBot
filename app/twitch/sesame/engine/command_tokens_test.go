@@ -366,7 +366,7 @@ func channelStreamCases() []tokenCase {
 			name: "a named channel resolves by login",
 			fix: tokenFixture{
 				response: "go watch {game:@Pokimane}",
-				stream:   &stubStreamInfo{byAddress: map[string]StreamInfoResult{"/pokimane": pokimane}},
+				stream:   &stubStreamInfo{byAddress: map[string]StreamInfoResult{"123/pokimane": pokimane}},
 			},
 			want: "go watch VALORANT",
 		},
@@ -383,7 +383,7 @@ func channelStreamCases() []tokenCase {
 
 func channelReadCostCases() []tokenCase {
 	pokimane := StreamInfoResult{UserFound: true, Live: true, GameName: "VALORANT"}
-	oneRead := &stubStreamInfo{byAddress: map[string]StreamInfoResult{"123/": liveNow(), "/pokimane": pokimane}}
+	oneRead := &stubStreamInfo{byAddress: map[string]StreamInfoResult{"123/": liveNow(), "123/pokimane": pokimane}}
 	noToken := &stubStreamInfo{}
 
 	return []tokenCase{
@@ -397,7 +397,7 @@ func channelReadCostCases() []tokenCase {
 			fix: tokenFixture{
 				response: "go watch {touser} playing {game:{touser}}",
 				line:     "!brag @Pokimane",
-				stream:   &stubStreamInfo{byAddress: map[string]StreamInfoResult{"/pokimane": pokimane}},
+				stream:   &stubStreamInfo{byAddress: map[string]StreamInfoResult{"123/pokimane": pokimane}},
 			},
 			want: "go watch Pokimane playing VALORANT",
 		},
@@ -409,7 +409,7 @@ func channelReadCostCases() []tokenCase {
 			},
 			want:      "bagel time Just Chatting 2 hours 42 VALORANT",
 			reads:     func() []any { return []any{oneRead.calls} },
-			wantReads: []any{[]string{"123/", "/pokimane"}},
+			wantReads: []any{[]string{"123/", "123/pokimane"}},
 		},
 		{
 			name:      "a template naming no channel token never reads",

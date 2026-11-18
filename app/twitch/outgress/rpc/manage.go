@@ -203,10 +203,14 @@ func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest
 }
 
 func (m *Manage) handleStreamInfo(ctx context.Context, req outgressrpc.StreamInfoRequest) outgressrpc.StreamInfoReply {
-	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+	caller := req.BroadcasterID
+	if req.TargetLogin != "" {
+		caller = req.CallerBroadcasterID
+	}
+	if !runtimeAdmitted(ctx, m.runtime, caller) {
 		return outgressrpc.StreamInfoReply{Error: "channel unavailable"}
 	}
-	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
+	ctx = runtimeContext(ctx, m.runtime, caller)
 	return readStreamInfo(ctx, m.twitch, m.log, req)
 }
 
