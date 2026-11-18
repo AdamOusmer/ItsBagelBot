@@ -512,6 +512,15 @@ type ValorantRankReply struct {
 	Error      string `json:"error,omitempty"`
 }
 
+type ValorantRecordReply struct {
+	Player string `json:"player"`
+	Region string `json:"region"`
+	Games  int    `json:"games"`
+	Wins   int    `json:"wins"`
+	Empty  bool   `json:"empty"`
+	Error  string `json:"error,omitempty"`
+}
+
 type ValorantMatchEntry struct {
 	Map        string  `json:"map"`
 	Agent      string  `json:"agent"`

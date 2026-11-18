@@ -203,7 +203,7 @@ func variableGameReplyFixtures() map[string]any {
 	// Session replies without has_snapshot read as the empty state.
 	replies := make(map[string]any)
 	endpoints := map[string][]string{
-		"valorant": {"rank", "matches", "account", "leaderboard", "shop"},
+		"valorant": {"rank", "record", "matches", "account", "leaderboard", "shop"},
 		"codm":     {"profile"}, "fortnite": {"stats", "session", "shop"},
 		"clashroyale": {"stats", "decks", "ranked", "trophy_road"},
 		"urchin":      {"daily", "weekly", "monthly", "sniper", "tags"}, "hypixel": {"stats"},

@@ -138,7 +138,7 @@
   "catalog.b1.props.modules.21.start": "Выключен по умолчанию",
   "catalog.b1.props.modules.21.tagline": "Профили Clash Royale, колоды и место в Path of Legends в чате.",
   "catalog.b1.props.modules.22.cat": "Статистика",
-  "catalog.b1.props.modules.22.commands": "!val [RiotID], !valrank, !valmatches, !valhistory, !valaccount, !valwho, !vallb, !valleaderboard, !valshop, !valrotation",
+  "catalog.b1.props.modules.22.commands": "!val [RiotID], !valrank, !valrecord, !valmatches, !valhistory, !valaccount, !valwho, !vallb, !valleaderboard, !valshop, !valrotation",
   "catalog.b1.props.modules.22.name": "Valorant Stats",
   "catalog.b1.props.modules.22.needs": "Ваш Riot ID, например Frosty#EUW1, и ваш регион.",
   "catalog.b1.props.modules.22.start": "Выключен по умолчанию",

@@ -1,7 +1,7 @@
 {
   "label": "Estadísticas de Valorant",
   "tagline": "Rangos, historial de partidas, clasificaciones y rotación diaria de la tienda de Valorant en el chat.",
-  "description": "Un comando, cinco vistas: !val muestra la clasificación competitiva de un jugador (rango, RR, variación de RR de la última partida, rango máximo); !val matches muestra sus partidas clasificatorias recientes con agente, resultado y K/D/A; !val account muestra a quién corresponde un Riot ID y el nivel de su cuenta; !val lb muestra los primeros 10 puestos de cualquier clasificación regional, de PC o consola; !val shop muestra la rotación global de aspectos de hoy con precios en VP y la cuenta atrás hasta el reinicio. También funcionan las formas abreviadas !valrank, !valmatches, !valaccount, !vallb y !valshop. Vincula tu Riot ID abajo (\"Name#Tag\"). Los espectadores también pueden indicar cualquier jugador, p. ej., \"!val Frosty#EUW1\", y añadir una región o plataforma en cualquier parte del mensaje para limitar esa consulta (\"!val eu Frosty#EUW1\", \"!val lb console ap\"). Deja la región vacía y el bot la detectará a partir de la propia cuenta.",
+  "description": "Un comando, seis vistas: !val muestra la clasificación competitiva de un jugador (rango, RR, variación de RR de la última partida, rango máximo); !val record suma las partidas clasificatorias y las victorias de su cuenta; !val matches muestra sus partidas clasificatorias recientes con agente, resultado y K/D/A; !val account muestra a quién corresponde un Riot ID y el nivel de su cuenta; !val lb muestra los primeros 10 puestos de cualquier clasificación regional, de PC o consola; !val shop muestra la rotación global de aspectos de hoy con precios en VP y la cuenta atrás hasta el reinicio. También funcionan las formas abreviadas !valrank, !valrecord, !valmatches, !valaccount, !vallb y !valshop. Vincula tu Riot ID abajo (\"Name#Tag\"). Los espectadores también pueden indicar cualquier jugador, p. ej., \"!val Frosty#EUW1\", y añadir una región o plataforma en cualquier parte del mensaje para limitar esa consulta (\"!val eu Frosty#EUW1\", \"!val lb console ap\"). Deja la región vacía y el bot la detectará a partir de la propia cuenta.",
   "settings": {
     "account": {
       "label": "Riot ID vinculado",
@@ -27,6 +27,11 @@
     "rank": {
       "tagline": "Clasificación competitiva: !val, !val rank o !valrank.",
       "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · máximo {peaktier}"
+    },
+    "record": {
+      "tagline": "Partidas clasificatorias y victorias de la cuenta (también !valrecord).",
+      "event": "!val record",
+      "defaultMessage": "{player} · {games} partidas clasificatorias · {wins} victorias ({winrate}%)"
     },
     "matches": {
       "tagline": "Partidas clasificatorias recientes (también !valmatches).",
