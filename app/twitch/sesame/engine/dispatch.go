@@ -347,26 +347,12 @@ func (p *Pipeline) expandCommandText(ctx context.Context, run commandRun, o *mod
 	if o.Text == "" {
 		return
 	}
-	chainOf := func(toks []tmpl.Token) scope.Chain { return p.commandChain(ctx, run, toks) }
-	toks := tmpl.Lex(unnestText(ctx, o.Text, chainOf, p.logScopeFailure(run.c)))
-	if !hasVarToken(toks) {
-		return
+	r := textRender{
+		lex:     tmpl.Lex,
+		chainOf: func(toks []tmpl.Token) scope.Chain { return p.commandChain(ctx, run, toks) },
+		onErr:   p.logScopeFailure(run.c),
 	}
-	chain := chainOf(tmpl.WithCondRefs(toks))
-	values := chain.Plan(ctx, toks, p.logScopeFailure(run.c))
-	buf := GetBuf()
-	buf = chain.Render(buf, toks, values)
-	o.Text = string(buf)
-	PutBuf(buf)
-}
-
-func hasVarToken(toks []tmpl.Token) bool {
-	for _, tok := range toks {
-		if tok.Kind == tmpl.KindVar {
-			return true
-		}
-	}
-	return false
+	o.Text = r.expand(ctx, o.Text)
 }
 
 func (p *Pipeline) chatLines(o *module.Output) []module.Output {

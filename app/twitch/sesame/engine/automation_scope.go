@@ -253,21 +253,19 @@ func (x *actionExec) expand(text string) string {
 		return text
 	}
 	run := commandRun{c: x.context(), command: x.run.Plan.Automation.ID, args: x.run.Args}
-	chainOf := func(toks []tmpl.Token) scope.Chain {
-		return append(scope.Chain{x.automationScope(), x.variableScope()}, x.p.commandChain(x.ctx, run, toks)...)
+	r := textRender{
+		lex: x.lex,
+		chainOf: func(toks []tmpl.Token) scope.Chain {
+			return append(scope.Chain{x.automationScope(), x.variableScope()}, x.p.commandChain(x.ctx, run, toks)...)
+		},
+		onErr: x.p.logScopeFailure(run.c),
 	}
-	toks := x.lex(unnestText(x.ctx, text, chainOf, x.p.logScopeFailure(run.c)))
-	if !hasVarToken(toks) {
-		return text
-	}
-	if x.resident(toks) {
+	flat, toks := r.tokens(x.ctx, text)
+	switch {
+	case !hasVarToken(toks):
+		return flat
+	case x.resident(toks):
 		return x.renderResident(toks)
 	}
-	chain := chainOf(tmpl.WithCondRefs(toks))
-	values := chain.Plan(x.ctx, toks, x.p.logScopeFailure(run.c))
-	buf := GetBuf()
-	buf = chain.Render(buf, toks, values)
-	out := string(buf)
-	PutBuf(buf)
-	return out
+	return r.render(x.ctx, toks)
 }
