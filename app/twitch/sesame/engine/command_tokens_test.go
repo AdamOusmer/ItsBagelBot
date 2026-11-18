@@ -393,6 +393,15 @@ func channelReadCostCases() []tokenCase {
 			want: "{title} {game} {uptime} {channel.viewers}",
 		},
 		{
+			name: "a nested target names the channel a shoutout reads",
+			fix: tokenFixture{
+				response: "go watch {touser} playing {game:{touser}}",
+				line:     "!brag @Pokimane",
+				stream:   &stubStreamInfo{byAddress: map[string]StreamInfoResult{"/pokimane": pokimane}},
+			},
+			want: "go watch Pokimane playing VALORANT",
+		},
+		{
 			name: "channel tokens cost one read per channel",
 			fix: tokenFixture{
 				response: "{title} {game} {uptime} {channel.viewers} {game:pokimane}",

@@ -6,7 +6,7 @@ import { MODULE_VARIABLES, MODULE_VARIABLE_SAMPLES } from '../variables/module-v
 
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
 import { queryEscape, resolveComputedUtil, UTIL_NAMES } from './pure';
-import { condText, type Cond, lex, parseCond, resolveToken, type VarToken } from './tmpl';
+import { condText, type Cond, lex, parseCond, resolveToken, unnest, type VarToken } from './tmpl';
 import {
   ACCOUNTAGE_SAMPLE,
   ARGS_SAMPLE,
@@ -162,7 +162,8 @@ function routeLine(segments: Seg[]): RehearsedLine {
 
 export function expandSegments(text: string, resolve: Resolve): Seg[] {
   const out: Seg[] = [];
-  for (const token of lex(text)) {
+  const flat = unnest(text, (inner) => inner.map((token) => segFor(token, resolve).text));
+  for (const token of lex(flat)) {
     if (token.kind === 'literal') {
       out.push({ text: token.text, kind: 'plain' });
       continue;

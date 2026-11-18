@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/outgress"
@@ -346,11 +347,12 @@ func (p *Pipeline) expandCommandText(ctx context.Context, run commandRun, o *mod
 	if o.Text == "" {
 		return
 	}
-	toks := tmpl.Lex(o.Text)
+	chainOf := func(toks []tmpl.Token) scope.Chain { return p.commandChain(ctx, run, toks) }
+	toks := tmpl.Lex(unnestText(ctx, o.Text, chainOf, p.logScopeFailure(run.c)))
 	if !hasVarToken(toks) {
 		return
 	}
-	chain := p.commandChain(ctx, run, tmpl.WithCondRefs(toks))
+	chain := chainOf(tmpl.WithCondRefs(toks))
 	values := chain.Plan(ctx, toks, p.logScopeFailure(run.c))
 	buf := GetBuf()
 	buf = chain.Render(buf, toks, values)
