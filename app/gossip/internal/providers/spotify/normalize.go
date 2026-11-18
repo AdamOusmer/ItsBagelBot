@@ -23,6 +23,14 @@ type smallNumber int
 func (p matchPhrase) text() string    { return strings.Join(p, " ") }
 func (p matchPhrase) compact() string { return strings.Join(p, "") }
 
+func (p matchPhrase) runeCount() int {
+	n := 0
+	for _, word := range p {
+		n += utf8.RuneCountInString(word)
+	}
+	return n
+}
+
 func (p matchPhrase) withoutArticle() matchPhrase {
 	if len(p) > 1 && p[0] == "the" {
 		return p[1:]

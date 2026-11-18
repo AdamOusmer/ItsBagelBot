@@ -7,21 +7,23 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 func phraseIdentity(query, metadata matchPhrase) (int, bool) {
 	query, metadata = query.withoutArticle(), metadata.withoutArticle()
-	compact := metadata.compact()
 	switch {
 	case len(query) == 0 || len(metadata) == 0:
 		return 0, false
-	case query.compact() == compact:
+	case sameCompact(query, metadata):
 		return 0, true
 	case len(query) != len(metadata):
 		return 0, false
 	}
-	return alignedEdits(query, metadata, 1+utf8.RuneCountInString(compact)/8)
+	return alignedEdits(query, metadata, 1+metadata.runeCount()/8)
+}
+
+func sameCompact(query, metadata matchPhrase) bool {
+	return query.runeCount() == metadata.runeCount() && query.compact() == metadata.compact()
 }
 
 func alignedEdits(query, metadata matchPhrase, limit int) (int, bool) {

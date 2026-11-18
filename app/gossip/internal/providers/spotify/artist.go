@@ -38,7 +38,7 @@ func creditWords(credits []string) []matchPhrase {
 
 func creditEvidence(query matchPhrase, credits []matchPhrase) (artistLevel, int) {
 	query = query.withoutArticle()
-	if len(query) == 0 {
+	if len(query) == 0 || len(query) > creditWordRoom(credits) {
 		return artistNone, 0
 	}
 	if edits, ok := singleCredit(query, credits); ok {
@@ -48,6 +48,14 @@ func creditEvidence(query matchPhrase, credits []matchPhrase) (artistLevel, int)
 		return artistFull, edits
 	}
 	return implicitCredits(query, credits)
+}
+
+func creditWordRoom(credits []matchPhrase) int {
+	room := 2 * len(credits)
+	for _, credit := range credits {
+		room += len(credit)
+	}
+	return room
 }
 
 func singleCredit(query matchPhrase, credits []matchPhrase) (int, bool) {
