@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/pkg/db"
 	pkgvalkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +52,7 @@ func seedLegacyCounterReceipt(t *testing.T, p *CounterProcessor, lease pkgvalkey
 func TestCounterMySQLTransientBatchDoesNotSplit(t *testing.T) {
 	for _, number := range []int{1205, 1213, 1644} {
 		t.Run(fmt.Sprint(number), func(t *testing.T) {
-			raw := testdb.MySQL(t, "loyalty_counter_outage_")
+			raw := loyaltyMySQL(t, "loyalty_counter_outage_")
 			raw.SetMaxOpenConns(1)
 			repo := mysqlReplica(t, raw)
 			trigger := fmt.Sprintf("CREATE TRIGGER counter_unavailable BEFORE INSERT ON counters FOR EACH ROW BEGIN SET @counter_attempts=COALESCE(@counter_attempts,0)+1; SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=%d, MESSAGE_TEXT='SQL unavailable'; END", number)

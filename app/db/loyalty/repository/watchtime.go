@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -28,11 +29,7 @@ func (r *Loyalty) EnsureWatchSchema(ctx context.Context) error {
 	if err := r.ensureWatchWindowStartColumns(ctx); err != nil {
 		return err
 	}
-	if err := r.ensureWatchRetentionSchema(ctx); err != nil {
-		return err
-	}
-	r.watchReady.Store(true)
-	return nil
+	return r.ensureWatchRetentionSchema(ctx)
 }
 func (r *Loyalty) insertIgnore() string {
 	if r.dialect == "sqlite3" {
@@ -40,18 +37,44 @@ func (r *Loyalty) insertIgnore() string {
 	}
 	return "INSERT IGNORE"
 }
-func (r *Loyalty) fence(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (int64, bool, error) {
-	stmt := r.insertIgnore() + " INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0)"
-	if r.dialect != "sqlite3" {
-		stmt = "INSERT INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE user_id=user_id"
+
+const accountFenceQuery = "SELECT account_created_at,deleted FROM loyalty_account_fences WHERE user_id=?"
+
+func (r *Loyalty) fence(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (loyaltyAccountState, error) {
+	if r.dialect == "sqlite3" {
+		return r.createAccountFence(ctx, tx, id, instance)
 	}
-	if _, err := tx.ExecContext(ctx, stmt, id, instance); err != nil {
-		return 0, false, err
+	account, err := readAccountFence(tx.QueryRowContext(ctx, accountFenceQuery+" FOR UPDATE", id))
+	if !errors.Is(err, sql.ErrNoRows) {
+		return account, err
 	}
-	var current int64
+	return r.createAccountFence(ctx, tx, id, 0)
+}
+
+func (r *Loyalty) createAccountFence(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (loyaltyAccountState, error) {
+	stmt, lock := "INSERT INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE user_id=user_id", " FOR UPDATE"
+	if r.dialect == "sqlite3" {
+		stmt, lock = "INSERT OR IGNORE INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES (?, ?, 0)", ""
+	}
+	result, err := tx.ExecContext(ctx, stmt, id, instance)
+	if err != nil {
+		return loyaltyAccountState{}, err
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return loyaltyAccountState{}, err
+	}
+	account, err := readAccountFence(tx.QueryRowContext(ctx, accountFenceQuery+lock, id))
+	account.created = inserted != 0
+	return account, err
+}
+
+func readAccountFence(row *sql.Row) (loyaltyAccountState, error) {
+	var account loyaltyAccountState
 	var deleted int
-	err := tx.QueryRowContext(ctx, "SELECT account_created_at,deleted FROM loyalty_account_fences WHERE user_id=?", id).Scan(&current, &deleted)
-	return current, deleted != 0, err
+	err := row.Scan(&account.instance, &deleted)
+	account.deleted = deleted != 0
+	return account, err
 }
 
 func (r *Loyalty) ApplyWatchAward(ctx context.Context, a data.WatchAwardDTO) error {
@@ -71,57 +94,52 @@ func (r *Loyalty) RestoreUser(ctx context.Context, id uint64, instance int64) er
 	if id == 0 || instance <= 0 {
 		return nil
 	}
-	changed, err := r.restoreUser(ctx, id, instance)
-	if err == nil && changed {
-		r.publishAccountChange(id)
-	}
-	return err
+	return r.changeAccount(ctx, id, func(ctx context.Context, tx *sql.Tx) (bool, error) {
+		return r.restoreUser(ctx, tx, id, instance)
+	})
 }
 
-func (r *Loyalty) restoreUser(ctx context.Context, id uint64, instance int64) (bool, error) {
-	r.persistMu.Lock()
-	defer r.persistMu.Unlock()
-	tx, err := r.sqldb.BeginTx(ctx, nil)
+func (r *Loyalty) restoreUser(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (bool, error) {
+	account, err := r.fence(ctx, tx, id, instance)
 	if err != nil {
 		return false, err
 	}
-	defer tx.Rollback()
-	current, _, err := r.fence(ctx, tx, id, instance)
-	if err != nil {
+	if instance <= account.instance {
+		return false, nil
+	}
+	if err := replaceLoyaltyAccount(ctx, tx, loyaltyAccountReplacement{userID: id, prior: account.instance, next: instance}); err != nil {
 		return false, err
 	}
-	if instance > current {
-		if err := replaceLoyaltyAccount(ctx, tx, loyaltyAccountReplacement{userID: id, prior: current, next: instance}); err != nil {
-			return false, err
-		}
-	}
-	return instance > current, tx.Commit()
+	return !account.created, nil
 }
 
 func (r *Loyalty) DeleteAccount(ctx context.Context, id uint64, instance int64) error {
 	if id == 0 {
 		return fmt.Errorf("%w: user_id", ErrInvalidInput)
 	}
-	retired, err := r.deleteAccount(ctx, id, instance)
-	if err == nil && retired {
+	return r.changeAccount(ctx, id, func(ctx context.Context, tx *sql.Tx) (bool, error) {
+		return r.retireLoyaltyAccount(ctx, tx, id, instance)
+	})
+}
+
+func (r *Loyalty) changeAccount(ctx context.Context, id uint64, change func(context.Context, *sql.Tx) (bool, error)) error {
+	var changed bool
+	err := retryTx(ctx, func(ctx context.Context) error {
+		tx, err := r.sqldb.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		changed, err = change(ctx, tx)
+		if err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
+	if err == nil && changed {
 		r.publishAccountChange(id)
 	}
 	return err
-}
-
-func (r *Loyalty) deleteAccount(ctx context.Context, id uint64, instance int64) (bool, error) {
-	r.persistMu.Lock()
-	defer r.persistMu.Unlock()
-	tx, err := r.sqldb.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	retired, err := r.retireLoyaltyAccount(ctx, tx, id, instance)
-	if err != nil {
-		return false, err
-	}
-	return retired, tx.Commit()
 }
 
 type watchHistoryTable struct {
@@ -163,12 +181,12 @@ type watchAdmission struct {
 }
 
 func (r *Loyalty) admitWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) (watchAdmission, error) {
-	current, deleted, err := r.fence(ctx, tx, a.UserID, a.AccountCreatedAt)
+	account, err := r.fence(ctx, tx, a.UserID, a.AccountCreatedAt)
 	if err != nil {
 		return watchAdmission{}, err
 	}
-	allowed, err := admitWatchAccount(ctx, tx, a, loyaltyAccountState{instance: current, deleted: deleted})
-	return watchAdmission{allowed: allowed, replaced: a.AccountCreatedAt > current}, err
+	allowed, err := admitWatchAccount(ctx, tx, a, account)
+	return watchAdmission{allowed: allowed, replaced: !account.created && a.AccountCreatedAt > account.instance}, err
 }
 
 func (r *Loyalty) watchWindowOpen(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) (bool, error) {
@@ -185,6 +203,7 @@ func (r *Loyalty) watchWindowOpen(ctx context.Context, tx *sql.Tx, a data.WatchA
 type loyaltyAccountState struct {
 	instance int64
 	deleted  bool
+	created  bool
 }
 
 type loyaltyAccountReplacement struct {
@@ -224,11 +243,11 @@ func deleteLoyaltyRows(ctx context.Context, tx *sql.Tx, id uint64) error {
 }
 
 func (r *Loyalty) retireLoyaltyAccount(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (bool, error) {
-	current, _, err := r.fence(ctx, tx, id, instance)
+	account, err := r.fence(ctx, tx, id, instance)
 	if err != nil {
 		return false, err
 	}
-	instance, allowed := retirementInstance(instance, current)
+	instance, allowed := retirementInstance(instance, account.instance)
 	if !allowed {
 		return false, nil
 	}
