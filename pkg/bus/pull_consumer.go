@@ -395,15 +395,9 @@ func (s *pullSubscriber) deliver(wire jsapi.Msg, shed <-chan struct{}) bool {
 
 func (s *pullSubscriber) beginDelivery() {
 	s.inflight.Add(1)
-	if s.push != nil {
-		s.push.active.Add(1)
-	}
 }
 
 func (s *pullSubscriber) finishDelivery() {
-	if s.push != nil {
-		s.push.active.Add(-1)
-	}
 	s.inflight.Done()
 }
 

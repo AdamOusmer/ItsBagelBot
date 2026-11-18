@@ -16,8 +16,7 @@ import (
 
 type pushLane struct {
 	*pullSubscriber
-	fault  atomic.Bool
-	active atomic.Int64
+	fault atomic.Bool
 
 	mu        sync.Mutex
 	ready     *sync.Cond
@@ -202,7 +201,7 @@ func (p *pushLane) resumeQueue() bool {
 	default:
 		return false
 	}
-	if p.head.wire.msg != nil || p.active.Load() != 0 {
+	if p.head.wire.msg != nil {
 		return false
 	}
 	p.sub, p.observed = nil, nil
@@ -223,9 +222,6 @@ func (p *pushLane) queueStalled() bool {
 }
 
 func (p *pushLane) inspect(info *jsapi.ConsumerInfo) error {
-	if err := p.inspectQueue(); err != nil {
-		return err
-	}
 	if info.Paused {
 		p.unbound, p.stalled = 0, 0
 		return nil

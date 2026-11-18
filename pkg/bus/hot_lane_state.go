@@ -19,6 +19,7 @@ type hotLaneState struct {
 	idle      int
 	idleSince time.Time
 	otherSeen laneProgress
+	queueErr  error
 }
 
 type lanePosition struct {
@@ -46,6 +47,7 @@ func (h *hotLaneBinding) tick() {
 	if h.closed.Load() {
 		return
 	}
+	h.inspectQueue()
 	ctx, cancel := context.WithTimeout(h.ctx, min(h.heartbeatInterval(), time.Second))
 	defer cancel()
 	info, err := h.info(ctx, hotDurable(h.name))
@@ -92,7 +94,18 @@ func (h *hotLaneBinding) reconcileState(stream *nats.StreamInfo, info *jsapi.Con
 	}
 }
 
+func (h *hotLaneBinding) inspectQueue() {
+	h.queueErr = nil
+	if h.push != nil {
+		h.queueErr = h.push.inspectQueue()
+	}
+}
+
 func (h *hotLaneBinding) inspectPush(info *jsapi.ConsumerInfo) {
+	if h.queueErr != nil {
+		h.markLaneError()
+		return
+	}
 	if err := h.push.inspect(info); err != nil {
 		h.markLaneError()
 		return
