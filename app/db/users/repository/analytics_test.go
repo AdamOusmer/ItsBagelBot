@@ -89,6 +89,7 @@ func TestAnalyticsSeedTalliesCountedAccounts(t *testing.T) {
 		"accounts.paid_source|tebex":           1,
 		"accounts.paid_source|vip":             1,
 		"accounts.cancel_pending":              1,
+		"accounts.inactive|banned":             1,
 		"accounts.payment_failed":              1,
 		"accounts.locale|en":                   2,
 		"accounts.locale|fr":                   1,

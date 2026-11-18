@@ -12,7 +12,7 @@ import (
 
 func TestRoadmapCatalogRejectsPrivateDimensions(t *testing.T) {
 	for _, metric := range []catalog.Metric{
-		catalog.TimersTicks, catalog.TimersTotal, catalog.AutomodFlags, catalog.AccountsRuntime,
+		catalog.TimersTicks, catalog.TimersTotal, catalog.AutomodFlags, catalog.AccountsRuntime, catalog.AccountsInactive,
 		catalog.GamesRounds, catalog.GamesEntrants, catalog.PointsFlows, catalog.RewardsRedeems,
 		catalog.AuthLogin, catalog.DesktopGrants, catalog.Lifecycle, catalog.SignupVia,
 	} {

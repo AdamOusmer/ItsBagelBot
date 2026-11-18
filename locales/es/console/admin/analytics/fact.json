@@ -35,6 +35,8 @@
   "restarted": "Reactivados",
   "netStops": "Neto",
   "inactiveNow": "Inactivas ahora",
-  "inactiveShare": "Parte de las cuentas",
-  "inactiveChange": "Cambio en el periodo"
+  "inactiveChange": "Cambio en el periodo",
+  "dormantNow": "Inactivos ahora",
+  "dormantShare": "Parte de las cuentas",
+  "wentDormant": "Pasaron a inactivos en el periodo"
 }

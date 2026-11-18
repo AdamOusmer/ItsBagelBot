@@ -35,6 +35,8 @@
   "restarted": "Снова включено",
   "netStops": "Итого",
   "inactiveNow": "Неактивны сейчас",
-  "inactiveShare": "Доля аккаунтов",
-  "inactiveChange": "Изменение за период"
+  "inactiveChange": "Изменение за период",
+  "dormantNow": "Спящие сейчас",
+  "dormantShare": "Доля аккаунтов",
+  "wentDormant": "Уснули за период"
 }

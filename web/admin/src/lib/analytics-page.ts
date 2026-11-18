@@ -83,7 +83,7 @@ export type AnalyticsView = {
   empty: boolean;
   period: { start: string; end: string };
   kpis: Kpi[];
-  growth: { signups: Series; gainLoss: GainLoss; stops: Flow; inactive: Flow; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; signupSources: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[] };
+  growth: { signups: Series; gainLoss: GainLoss; stops: Flow; inactive: Flow; dormant: Flow; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; signupSources: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[] };
   engagement: { active: Series; live: Series; messages: Series; answered: Series; facts: Fact[] };
   retention: { horizon: number; rows: CohortLine[] };
   revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable; checkout: DataTable; checkoutFacts: Fact[] };
@@ -129,9 +129,9 @@ const ENUMS = {
 const FUNNEL = ['signup', 'onboarded', 'bot_enabled'] as const;
 const CHURN = ['bot_disabled', 'revoked', 'chat_banned', 'dormant', 'account_deleted'] as const;
 const INACTIVE = [
-  { key: 'disabled', tone: 'accent' },
-  { key: 'dormant', tone: 'warm' },
-  { key: 'blocked', tone: 'danger' }
+  { key: 'banned', tone: 'danger' },
+  { key: 'revoked', tone: 'warm' },
+  { key: 'deleted', tone: 'accent' }
 ] as const;
 const STOP_LINES = [
   { key: 'stopped', tone: 'danger' },
@@ -369,21 +369,45 @@ function stopFlow(c: Ctx): Flow {
   };
 }
 
+function deletedSoFar(c: Ctx, days: Day[]): Map<Day, number> {
+  const deletions = withDim(pick(c.r.counters, 'lifecycle'), 'account_deleted');
+  return new Map(days.map((day) => [day, sum(deletions.filter((row) => row.start <= day))]));
+}
+
+function change(points: FlowPoint[], value: (point: FlowPoint) => number): string {
+  return points.length > 1 ? signed(value(points[points.length - 1]) - value(points[0])) : '-';
+}
+
 function inactiveFlow(c: Ctx): Flow {
-  const runtime = inRange(pick(c.r.levels, 'accounts.runtime'), c.cur);
-  const lines = new Map(INACTIVE.map(({ key }): [string, Map<Day, number>] => [key, byDay(withDim(runtime, key))]));
-  const days = [...byDay(runtime).keys()].sort();
+  const levels = inRange(pick(c.r.levels, 'accounts.inactive'), c.cur);
+  const days = [...byDay(levels).keys()].sort();
+  const lines = new Map([
+    ['banned', byDay(withDim(levels, 'banned'))],
+    ['revoked', byDay(withDim(levels, 'revoked'))],
+    ['deleted', deletedSoFar(c, days)]
+  ]);
   const points = flowPoints(days, lines);
-  const inactive = (point: FlowPoint | undefined) => INACTIVE.reduce((acc, { key }) => acc + (point?.[key] ?? 0), 0);
-  const [first, last] = [points[0], points[points.length - 1]];
-  const accounts = sum(latest(runtime));
+  const inactive = (point: FlowPoint) => INACTIVE.reduce((acc, { key }) => acc + point[key], 0);
+  const last = points[points.length - 1];
   return {
-    lines: INACTIVE.map(({ key, tone }) => ({ key, tone, name: { key: `admin.analytics.roadmap.runtime.${key}` } })),
+    lines: INACTIVE.map(({ key, tone }) => ({ key, tone, name: { key: `admin.analytics.chart.${key}` } })),
+    points,
+    facts: facts({ inactiveNow: last ? fmt(inactive(last)) : '-', inactiveChange: change(points, inactive) })
+  };
+}
+
+function dormantFlow(c: Ctx): Flow {
+  const runtime = inRange(pick(c.r.levels, 'accounts.runtime'), c.cur);
+  const days = [...byDay(runtime).keys()].sort();
+  const points = flowPoints(days, new Map([['dormant', byDay(withDim(runtime, 'dormant'))]]));
+  const last = points[points.length - 1];
+  return {
+    lines: [{ key: 'dormant', tone: 'warm', name: { key: 'admin.analytics.roadmap.runtime.dormant' } }],
     points,
     facts: facts({
-      inactiveNow: fmt(inactive(last)),
-      inactiveShare: pct(inactive(last), accounts),
-      inactiveChange: points.length > 1 ? signed(inactive(last) - inactive(first)) : '-'
+      dormantNow: last ? fmt(last.dormant) : '-',
+      dormantShare: last ? pct(last.dormant, sum(latest(runtime))) : '-',
+      wentDormant: fmt(sum(withDim(counter(c, 'lifecycle'), 'dormant')))
     })
   };
 }
@@ -398,6 +422,7 @@ function growth(c: Ctx): AnalyticsView['growth'] {
     gainLoss: gainLoss(c.r.counters, c.cur),
     stops: stopFlow(c),
     inactive: inactiveFlow(c),
+    dormant: dormantFlow(c),
     funnel: bars(life, { ids: FUNNEL, enum: 'lifecycle', order: 'keep', secondary: stepOf(FUNNEL.map(n)) }),
     churn: bars(life, { ids: CHURN, enum: 'lifecycle', order: 'keep' }),
     churnFacts: facts({

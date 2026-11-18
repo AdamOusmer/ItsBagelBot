@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -18,13 +19,30 @@ var accountColumns = []string{
 	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
 	user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldCreatedAt,
 	user.FieldTestAccount, user.FieldBanned,
-	user.FieldLifecycleState,
+	user.FieldLifecycleState, user.FieldLifecycle,
 }
 
 func tallyCounted(t analytics.Tally, u *ent.User) {
-	if !u.TestAccount && !u.Banned {
-		tallyAccount(t, u)
+	if u.TestAccount {
+		return
 	}
+	if u.Banned {
+		t.Add(catalog.AccountsInactive, "banned")
+		return
+	}
+	tallyAccount(t, u)
+}
+
+func inactiveReason(u *ent.User) string {
+	switch {
+	case u.Lifecycle == nil:
+		return ""
+	case u.Lifecycle.ChatRestriction == lifecycle.RestrictionBanned:
+		return "banned"
+	case u.Lifecycle.GrantHealth == lifecycle.GrantMissing:
+		return "revoked"
+	}
+	return ""
 }
 
 func (r *Users) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
@@ -58,6 +76,9 @@ func tallyAccount(t analytics.Tally, u *ent.User) {
 	t.Add(catalog.AccountsBySignupWeek, week)
 	t.Add(catalog.AccountsLocale, u.Locale)
 	t.Add(catalog.AccountsRuntime, u.LifecycleState)
+	if reason := inactiveReason(u); reason != "" {
+		t.Add(catalog.AccountsInactive, reason)
+	}
 	if u.IsActive {
 		t.Add(catalog.AccountsBotEnabled, tier)
 	}

@@ -5,5 +5,8 @@
   "lost": "Lost",
   "lossDays": "Days with more lost than gained: {days}",
   "stopped": "Stopped",
-  "restarted": "Turned back on"
+  "restarted": "Turned back on",
+  "banned": "Banned",
+  "revoked": "Revoked",
+  "deleted": "Deleted"
 }

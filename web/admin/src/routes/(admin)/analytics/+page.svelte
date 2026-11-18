@@ -388,9 +388,10 @@
     {@render heading('growth')}
     {@render seriesCard('signups', view?.growth.signups)}
     {@render gainLossCard(view?.growth.gainLoss)}
-    <Grid cols={2} stackAt="md">
+    <Grid cols={3} stackAt="md">
       {@render flowCard('stops', view?.growth.stops)}
       {@render flowCard('inactive', view?.growth.inactive)}
+      {@render flowCard('dormant', view?.growth.dormant)}
     </Grid>
     <Grid cols={3} stackAt="md">
       {@render barCard('funnel', view?.growth.funnel)}

@@ -43,7 +43,7 @@ func ownedAccountLevels() []string {
 		string(catalog.AccountsPaidSource), string(catalog.AccountsCancelPending), string(catalog.AccountsPaymentFailed),
 		string(catalog.AccountsLocale), string(catalog.AccountsPagesHidden), string(catalog.AccountsBySignupWeek),
 		string(catalog.PaidBySignupWeek), string(catalog.AccountsDelegating),
-		string(catalog.AccountsRuntime), string(catalog.DesktopGrants),
+		string(catalog.AccountsRuntime), string(catalog.AccountsInactive), string(catalog.DesktopGrants),
 	}
 }
 
