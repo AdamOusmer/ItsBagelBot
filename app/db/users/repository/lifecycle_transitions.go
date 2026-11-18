@@ -36,6 +36,7 @@ var lifecycleActions = map[string]func(*lifecycleTransition) (bool, error){
 	"dormancy":           (*lifecycleTransition).enterDormancy,
 	"retry":              (*lifecycleTransition).retryRecovery,
 	"enroll_retry":       (*lifecycleTransition).retryEnrollment,
+	"scope_missing":      (*lifecycleTransition).observeScopeMissing,
 	"degraded_retry":     (*lifecycleTransition).retryDegraded,
 	"claim":              (*lifecycleTransition).claimRecovery,
 	"recovery_success":   (*lifecycleTransition).completeRecovery,
@@ -62,6 +63,10 @@ func transitionLifecycle(s *lifecycle.State, r usersrpc.LifecycleRequest, now ti
 func (t *lifecycleTransition) bump() { t.state.AdmissionGeneration = t.beforeGeneration + 1 }
 func (t *lifecycleTransition) incident(reason string) {
 	s := t.state
+	if s.IncidentReason == lifecycle.ReasonScopeMissing && reason != lifecycle.ReasonScopeMissing {
+		t.retractIncident()
+		s.IncidentID = ""
+	}
 	if s.IncidentID == "" {
 		s.IncidentID = lifecycleIdentity()
 		s.IncidentAnnounced = false
