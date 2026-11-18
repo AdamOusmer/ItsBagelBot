@@ -93,13 +93,13 @@ func (f pushFixture) pushMember(member Subscriber) *pushLane {
 func TestPushLaneSteadyTrafficDoesNotCreateHandoverClaim(t *testing.T) {
 	forPushStreams(t, func(t *testing.T, f pushFixture) {
 		t.Setenv("NATS_PULL_ACK_WAIT", "3s")
-		_, inbox := f.open(t)
-		f.publishIDs(t, 0, 1)
-		ackIDs(t, inbox, 0, 1)
-		f.awaitEmpty(t)
+		group := uniqueGroup("push-traffic")
+		f.seedPushConsumer(t, group)
+		member := openSubscriber(t, f.busFixture, group)
+		inbox := subscribe(t, member, f.subject())
 		var seen sync.Map
 		go collectFailoverIDs(inbox, &seen)
-		subject := server.JSAdvisoryConsumerCreatedPre + "." + f.spec.Name + "." + durableName(pushTestGroup, f.subject()) + "_handover"
+		subject := server.JSAdvisoryConsumerCreatedPre + "." + f.spec.Name + "." + durableName(group, f.subject()) + "_handover"
 		claims, err := f.nc.SubscribeSync(subject)
 		require.NoError(t, err)
 		defer func() { _ = claims.Unsubscribe() }()
@@ -111,7 +111,16 @@ func TestPushLaneSteadyTrafficDoesNotCreateHandoverClaim(t *testing.T) {
 			t.Fatalf("unexpected handover claim: %s", claim.Data)
 		}
 		require.ErrorIs(t, err, nats.ErrTimeout)
+		f.awaitAcked(t, pushConsumerName(group, f.subject()))
 	})
+}
+
+func (f pushFixture) seedPushConsumer(t *testing.T, group string) {
+	t.Helper()
+	cfg := pushConsumerConfig(flowLaneConfig{group: group, subject: f.subject()})
+	_, err := f.modern.CreatePushConsumer(t.Context(), f.spec.Name, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { f.deleteTestDurable(t, cfg.Name) })
 }
 
 func (f pushFixture) publishFor(t *testing.T, duration time.Duration) int {

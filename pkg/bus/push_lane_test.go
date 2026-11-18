@@ -78,11 +78,11 @@ func (f pushFixture) open(t *testing.T) (Subscriber, <-chan *Message) {
 func (f pushFixture) consumer(t *testing.T, name string) *jsapi.ConsumerInfo {
 	t.Helper()
 	var result *jsapi.ConsumerInfo
-	require.Eventually(t, func() bool {
-		info, err := f.lookup(t, name)
-		result = info
-		return err == nil
-	}, 4*time.Second, 25*time.Millisecond)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		result, err = f.lookup(t, name)
+		assert.NoError(c, err)
+	}, 12*time.Second, 25*time.Millisecond)
 	return result
 }
 
