@@ -57,16 +57,6 @@ defmodule Platform.NewRelic do
     if enabled?(), do: safe(fn -> NewRelic.report_custom_event(type, clean) end), else: :ok
   end
 
-  def transaction(category, name, attrs, fun, policy \\ %{}) when is_function(fun, 0) do
-    if enabled?() do
-      safe(fn -> NewRelic.start_transaction(category, name) end)
-      safe(fn -> NewRelic.add_attributes(safe_attributes(attrs, policy)) end)
-      traced(fun)
-    else
-      fun.()
-    end
-  end
-
   def continue(category, name, headers, fun) when is_function(fun, 0) do
     case enabled?() && sampled_headers(headers) do
       %{} = inbound ->
@@ -101,46 +91,6 @@ defmodule Platform.NewRelic do
     do: String.ends_with?(traceparent, "-01")
 
   defp sampled_parent?(_traceparent), do: false
-
-  def span(name, attrs, fun, policy \\ %{}) when is_function(fun, 0) do
-    if enabled?() do
-      id = make_ref()
-
-      safe(fn ->
-        NewRelic.Tracer.Direct.start_span(id, name, attributes: safe_attributes(attrs, policy))
-      end)
-
-      try do
-        fun.()
-      after
-        safe(fn -> NewRelic.Tracer.Direct.stop_span(id) end)
-      end
-    else
-      fun.()
-    end
-  end
-
-  def add_span_attributes(attrs, policy \\ %{}) do
-    if enabled?(),
-      do: safe(fn -> NewRelic.add_span_attributes(safe_attributes(attrs, policy)) end),
-      else: :ok
-  end
-
-  def sample_trace do
-    if enabled?(), do: safe(&force_sampled/0), else: :ok
-  end
-
-  defp force_sampled do
-    case NewRelic.DistributedTrace.get_tracing_context() do
-      %{sampled: false, priority: priority} = context ->
-        context = %{context | sampled: true, priority: priority + 1}
-        NewRelic.Transaction.Sidecar.trace_context(context)
-        NewRelic.add_attributes(sampled: true, priority: context.priority)
-
-      _ ->
-        :ok
-    end
-  end
 
   def trace_headers do
     if enabled?() do

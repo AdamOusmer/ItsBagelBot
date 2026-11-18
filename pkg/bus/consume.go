@@ -88,11 +88,29 @@ func (lane consumeLane) processSampled(msg *Message, wait time.Duration) {
 	txn := lane.startTransaction(msg, wait)
 	log := monitor.TraceLogger(txn, lane.log)
 
-	msg.SetContext(newrelic.NewContext(msg.Context(), txn))
+	ctx := newrelic.NewContext(msg.Context(), txn)
+	upstream, deferred := parseIngressTrace(msg.Metadata)
+	var gate *monitor.Gate
+	if deferred {
+		ctx, gate = monitor.Defer(ctx)
+	}
+	msg.SetContext(ctx)
 
 	out := lane.handleTraced(txn, msg, wait)
+	lane.settleDeferred(txn, gate, upstream, out)
 	lane.finish(msg, out, log)
 	txn.End()
+}
+
+func (lane consumeLane) settleDeferred(txn *newrelic.Transaction, gate *monitor.Gate, upstream ingressTrace, out outcome) {
+	if gate == nil {
+		return
+	}
+	if !gate.Kept() && !out.loud() {
+		txn.Ignore()
+		return
+	}
+	upstream.export(lane.subject)
 }
 
 func (lane consumeLane) handleTraced(txn *newrelic.Transaction, msg *Message, wait time.Duration) outcome {

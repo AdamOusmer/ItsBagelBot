@@ -8,6 +8,8 @@ import (
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	valkey_go "github.com/valkey-io/valkey-go"
+
+	"ItsBagelBot/pkg/monitor"
 )
 
 func traceValkeyCall[T any](ctx context.Context, operation string, do func() T, classify func(T) string) T {
@@ -15,6 +17,7 @@ func traceValkeyCall[T any](ctx context.Context, operation string, do func() T, 
 	if txn == nil || !txn.IsSampled() {
 		return do()
 	}
+	monitor.Keep(ctx)
 	segment := txn.StartSegment(operation)
 	result := do()
 	segment.AddAttribute("result", classify(result))

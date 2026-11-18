@@ -120,7 +120,6 @@ config :ingress,
     String.to_integer(System.get_env("INGRESS_DISPATCHER_COMPLETION_BATCH_SIZE", "4")),
   dispatcher_completion_flush_ms:
     String.to_integer(System.get_env("INGRESS_DISPATCHER_COMPLETION_FLUSH_MS", "25")),
-  trace_sample_rate: String.to_integer(System.get_env("INGRESS_TRACE_SAMPLE_RATE", "1024")),
   squash_partitions:
     String.to_integer(
       System.get_env("INGRESS_SQUASH_PARTITIONS", Integer.to_string(System.schedulers_online()))
