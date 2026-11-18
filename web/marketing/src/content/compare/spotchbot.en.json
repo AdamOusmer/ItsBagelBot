@@ -11,7 +11,7 @@
   "reviewed": "2026-11-16",
   "suits": {
     "us": [
-      "You want a long request queue on a free plan: the queue holds 100 songs.",
+      "You want a long request queue on a free plan: the queue has no size limit.",
       "You want one bot for song requests, custom commands, timers, loyalty points, giveaways and game stats.",
       "Your channel is new or small. You sign in with Twitch and start; there is no follower minimum.",
       "You want careful matching: artist and title in either order, and a refusal when nothing matches."
@@ -44,7 +44,7 @@
     },
     {
       "feature": "Free queue size",
-      "us": "The queue holds 100 songs on the free plan.",
+      "us": "The queue has no size limit on the free plan.",
       "them": "The free plan holds up to 6 songs in the queue. Pro is listed as unlimited.",
       "source": "https://spotchbot.com/docs/pro"
     },
@@ -117,7 +117,7 @@
   "faq": [
     {
       "q": "Is ItsBagelBot a free SpotchBot alternative?",
-      "a": "Song requests are part of ItsBagelBot's free plan, with a queue of 100 songs. Spotify Premium is still required, as it is for any bot that controls a Spotify queue."
+      "a": "Song requests are part of ItsBagelBot's free plan, with an unlimited queue. Spotify Premium is still required, as it is for any bot that controls a Spotify queue."
     },
     {
       "q": "Do both bots need Spotify Premium?",
@@ -133,7 +133,7 @@
     },
     {
       "q": "How many songs can the free queue hold?",
-      "a": "ItsBagelBot's free plan queues 100 songs. SpotchBot's plan table lists up to 6 songs on Free and unlimited on Pro. Reference: https://spotchbot.com/docs/pro."
+      "a": "ItsBagelBot's free plan has no queue size limit. SpotchBot's plan table lists up to 6 songs on Free and unlimited on Pro. Reference: https://spotchbot.com/docs/pro."
     },
     {
       "q": "Can I run both bots at once?",

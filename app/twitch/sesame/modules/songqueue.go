@@ -27,11 +27,6 @@ const songqueueListLen = 3
 
 const srlistLen = 5
 
-const (
-	defaultSongQueueDepth = 100
-	hardSongQueueDepth    = 1000
-)
-
 const srAddCooldown = 5 * time.Second
 
 const currentCooldown = 5 * time.Second
@@ -136,12 +131,6 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger, warn *ca
 	qc = songQueueCmd{chatReplier: newChatReplier(c), deps: d, store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log, warn: warn}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
-	if qc.maxDepth <= 0 {
-		qc.maxDepth = defaultSongQueueDepth
-	}
-	if qc.maxDepth > hardSongQueueDepth {
-		qc.maxDepth = hardSongQueueDepth
-	}
 	return qc, true
 }
 

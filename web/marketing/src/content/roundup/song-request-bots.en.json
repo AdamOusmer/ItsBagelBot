@@ -25,7 +25,7 @@
         "id": "itsbagelbot",
         "music": "Spotify",
         "plays": "!sr adds the track to your own Spotify queue. Needs Spotify Premium and your own Spotify developer app.",
-        "price": "Free. The queue holds 100 songs.",
+        "price": "Free. The queue has no size limit.",
         "source": "https://itsbagelbot.com/song-requests/"
       },
       {
@@ -93,7 +93,7 @@
       },
       {
         "name": "Long free queue",
-        "desc": "ItsBagelBot's free plan queues 100 songs. SpotchBot's free plan holds up to 6."
+        "desc": "ItsBagelBot's free plan has no queue size limit. SpotchBot's free plan holds up to 6."
       },
       {
         "name": "One bot for chat",
@@ -125,7 +125,7 @@
     },
     {
       "q": "Is there a free Spotify song request bot for Twitch?",
-      "a": "ItsBagelBot includes Spotify song requests in its free plan, with a queue of 100 songs. SpotchBot has a free plan that holds up to 6 queued songs. Both need Spotify Premium, which Spotify requires for queue control."
+      "a": "ItsBagelBot includes Spotify song requests in its free plan, with an unlimited queue. SpotchBot has a free plan that holds up to 6 queued songs. Both need Spotify Premium, which Spotify requires for queue control."
     },
     {
       "q": "Do I need Spotify Premium for song requests?",
