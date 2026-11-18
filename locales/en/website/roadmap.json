@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Roadmap",
+  "title": "What's in the oven.",
+  "desc": "What we are building now, what comes next, and what just shipped. Plans move as we learn, so nothing here has a date.",
+  "metaTitle": "ItsBagelBot Roadmap | Upcoming Twitch Bot Features",
+  "metaDesc": "See what ItsBagelBot is building now, what comes next and what shipped recently, from bot health checks to OBS alerts and YouTube support.",
+  "now": "Now",
+  "nowHint": "Being built",
+  "next": "Next",
+  "nextHint": "Up after that",
+  "later": "Later",
+  "laterHint": "On the list",
+  "shipped": "Shipped",
+  "shippedHint": "Done in the last 90 days",
+  "emptyColumn": "Nothing here right now.",
+  "requestTitle": "Missing something?",
+  "requestDesc": "Tell us what your stream needs. Requests shape what moves up.",
+  "requestCta": "Send a request"
+}

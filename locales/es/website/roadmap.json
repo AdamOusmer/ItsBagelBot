@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Hoja de ruta",
+  "title": "En el horno.",
+  "desc": "Lo que estamos construyendo ahora, lo que vendrá después y lo que acabamos de lanzar. Los planes cambian según lo que aprendemos, así que nada aquí tiene fecha fija.",
+  "metaTitle": "Hoja de ruta de ItsBagelBot | Próximas funciones del bot de Twitch",
+  "metaDesc": "Mira lo que ItsBagelBot está construyendo ahora, lo que vendrá después y lo que se lanzó recientemente, desde el estado del bot hasta alertas de OBS y soporte para YouTube.",
+  "now": "Ahora",
+  "nowHint": "En desarrollo",
+  "next": "Siguiente",
+  "nextHint": "Lo que sigue después",
+  "later": "Más adelante",
+  "laterHint": "En la lista",
+  "shipped": "Lanzado",
+  "shippedHint": "Listo en los últimos 90 días",
+  "emptyColumn": "No hay nada por aquí ahora mismo.",
+  "requestTitle": "¿Falta algo?",
+  "requestDesc": "Cuéntanos qué necesita tu stream. Las sugerencias ayudan a definir qué sube de prioridad.",
+  "requestCta": "Enviar sugerencia"
+}

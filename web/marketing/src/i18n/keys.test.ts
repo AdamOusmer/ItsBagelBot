@@ -6,6 +6,7 @@ import { join, relative } from 'node:path';
 import { readFlatCatalogs } from '@bagel/kit/i18n/fs';
 import { SITE_FOOTER, SITE_LEGAL, SITE_NAV, resolveSiteColumns, resolveSiteLinks } from '@bagel/kit/site-links';
 import { GROUP_ORDER } from '../lib/variables';
+import { COLUMNS } from '../lib/roadmap/linear';
 
 const en = readFlatCatalogs('website').en;
 const SRC = join(import.meta.dir, '..');
@@ -48,6 +49,7 @@ const DYNAMIC: Record<string, string[]> = {
   'nav.': navLabels.map((k) => `nav.${k}`),
   'footer.': footerLabels.map((k) => `footer.${k}`),
   'guides.variables.group.': GROUP_ORDER.map((g) => `guides.variables.group.${g}`),
+  'roadmap.': COLUMNS.flatMap((c) => [`roadmap.${c}`, `roadmap.${c}Hint`]),
 };
 
 describe('website catalog keys used by the marketing site', () => {

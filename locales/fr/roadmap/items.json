@@ -1,0 +1,82 @@
+{
+  "209f337ab203": {
+    "title": "Santé du bot dans ton tableau de bord",
+    "summary": "Vérifie si le bot est connecté, pourquoi une action a échoué, et teste les alertes, récompenses et demandes musicales en un clic."
+  },
+  "e4683946cf01": {
+    "title": "Configuration dès le premier stream",
+    "summary": "Fais répondre le bot dans ton chat dès ton tout premier stream, avec les bonnes commandes déjà activées."
+  },
+  "686861f96b01": {
+    "title": "Prise en charge du Chat partagé",
+    "summary": "Les commandes, les points et la modération fonctionnent correctement quand tu partages ton chat avec d'autres streamers."
+  },
+  "b43662db4096": {
+    "title": "Import, export et sauvegarde",
+    "summary": "Transfère tes points depuis ton ancien bot, puis exporte ou restaure toute ta configuration à tout moment."
+  },
+  "8eddf0c4db2d": {
+    "title": "Bouclier anti-hate raid",
+    "summary": "Un seul bouton pour verrouiller le chat pendant un hate raid, et un autre pour tout remettre en ordre."
+  },
+  "e9caa97aa4a1": {
+    "title": "Shoutouts, anniversaires et pluie de points",
+    "summary": "Une file d'attente pour les shoutouts, des messages d'anniversaire, des pluies de points et les résultats de sondages masqués jusqu'à la fin."
+  },
+  "af3c50f5329f": {
+    "title": "Tableau de bord entièrement traduit",
+    "summary": "Chaque page du tableau de bord entièrement traduite en français, russe, espagnol, allemand et portugais."
+  },
+  "76f8f84a616c": {
+    "title": "Alertes et overlays dans OBS",
+    "summary": "Alertes de follow, sub, raid et récompenses sur ton stream via une seule source navigateur OBS, sans autre application."
+  },
+  "a401a63332af": {
+    "title": "Historique de modération et notes sur les viewers",
+    "summary": "Retrouve chaque action de modération avec son auteur et sa raison, et garde des notes privées sur les viewers."
+  },
+  "4d6b80a99056": {
+    "title": "Boutique de récompenses pour les viewers",
+    "summary": "Les viewers dépensent leurs points pour des sons, des messages dans le chat et d'autres récompenses que tu as configurées."
+  },
+  "142291a73c3c": {
+    "title": "Meilleures prédictions",
+    "summary": "Lance plusieurs prédictions de points en même temps, plafonne les mises et annule un résultat erroné."
+  },
+  "21179d46208b": {
+    "title": "Prise en charge de YouTube",
+    "summary": "Utilise le même bot, les mêmes commandes et les mêmes alertes sur YouTube quand tu multistreames."
+  },
+  "1e9b628b6d08": {
+    "title": "Recettes prêtes à l'emploi",
+    "summary": "Démarre avec des Recettes prêtes à l'emploi pour les sondages, les prédictions, les pauses BRB et plus encore, puis ajuste-les."
+  },
+  "496117e1999f": {
+    "title": "Règles d'inscription aux giveaways",
+    "summary": "Choisis qui peut participer à un giveaway: followers, subs, temps de visionnage ou points, avec des chances supplémentaires."
+  },
+  "8916f5441490": {
+    "title": "Récapitulatifs de stream",
+    "summary": "Un récapitulatif sauvegardé après chaque stream: nouveaux followers, viewers les plus actifs dans le chat, morceaux joués et récompenses utilisées."
+  },
+  "03d345d90793": {
+    "title": "Prise en charge de Kick",
+    "summary": "Fais tourner le même bot sur Kick, après YouTube."
+  },
+  "dc30a876c560": {
+    "title": "Traduction du chat en direct",
+    "summary": "Traduction optionnelle des messages du chat pour discuter avec tes viewers dans n'importe quelle langue."
+  },
+  "172af6d6bec0": {
+    "title": "Contrôle d'OBS avec Bagel Bridge",
+    "summary": "Laisse les Recettes changer les scènes et sources OBS via l'application de bureau ItsBagelBot."
+  },
+  "d74d64c50f7f": {
+    "title": "Alertes de contournement de ban",
+    "summary": "Signale les chatters que Twitch identifie comme contournant probablement un ban, pour que tes modérateurs puissent les examiner."
+  },
+  "3181a7822b6c": {
+    "title": "Suggestions de raids",
+    "summary": "Suggestions optionnelles de petits streamers ItsBagelBot à raider quand tu termines ton stream."
+  }
+}
