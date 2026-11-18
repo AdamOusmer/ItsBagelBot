@@ -89,7 +89,7 @@ func TestDashboardTokenRemoved(t *testing.T) {
 }
 
 func TestDashboardURLExpanded(t *testing.T) {
-	urlKeys := []string{KeyReauthRevokedBody, KeyReauthRevokedChat, KeyGrantDeadChat, KeyBotBannedBody}
+	urlKeys := []string{KeyReauthRevokedBody, KeyReauthRevokedChat, KeyGrantDeadChat, KeyBotBannedBody, KeyGrantScopeBody}
 	for _, locale := range Locales() {
 		for _, key := range urlKeys {
 			if !strings.Contains(T(locale, key), DashboardURL) {

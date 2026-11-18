@@ -102,3 +102,8 @@ func watchedSecretNames(dep rolloutDeployment) []string {
 	}
 	return out
 }
+
+func TestAppCertificatesSyncThroughFlux(t *testing.T) {
+	assert.Contains(t, readText(t, "../flux/tiers/app/kustomization.yaml"), "- ../../../app/certificates.yaml",
+		"a certificate change, such as the label Reloader selects on, must not wait for a hand apply")
+}

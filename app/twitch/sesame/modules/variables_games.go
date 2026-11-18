@@ -24,6 +24,7 @@ func valorantVariableReaders(d engine.Deps) map[string]variableRead {
 	}
 	return map[string]variableRead{
 		"rank":    gossipVariables(d, valRoute("rank"), request, tokenValues(valRankTokens())),
+		"record":  gossipVariables(d, valRoute("record"), request, tokenValues(valRecordTokens())),
 		"matches": gossipVariables(d, valRoute("matches"), request, tokenValues(valMatchTokens())),
 		"account": gossipVariables(d, valRoute("account"), request, tokenValues(valAccountTokens())),
 		"board":   gossipVariables(d, valRoute("leaderboard"), board, tokenValues(valBoardTokens())),

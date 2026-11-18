@@ -164,6 +164,7 @@ export type { AlertTone, AlertVariant, AlertPlacement, AlertCta } from '../lib/a
 export type {
   Tone, TagTone, BadgeTone, TextTone, StatusDotTone, ProgressTone, CodeTone, StatTone, SwitchRowTone, CardTone, SeriesTone,
 } from '../lib/tone';
+export { default as SwapStack } from './SwapStack.svelte';
 export { default as Well } from './Well.svelte';
 export { default as EditorStage } from './EditorStage.svelte';
 export { default as CanvasCard } from './CanvasCard.svelte';

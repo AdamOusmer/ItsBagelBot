@@ -21,6 +21,7 @@
     row,
     flush,
     stack,
+    strong,
     role = 'alert',
     cta,
     class: className,
@@ -30,7 +31,7 @@
   }: Props = $props();
 </script>
 
-<div class={[alertClass({ tone, variant, placement, row, flush, stack }), className]} {role} {...rest}><span class="bb-alert__msg"
+<div class={[alertClass({ tone, variant, placement, row, flush, stack, strong }), className]} {role} {...rest}><span class="bb-alert__msg"
     >{@render children?.()}</span
   >{@render actions?.()}{#if cta && 'formAction' in cta}<form method="POST" action={cta.formAction}
       ><button type="submit" class="bb-alert__action">{cta.label}</button></form
