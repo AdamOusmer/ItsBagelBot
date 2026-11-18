@@ -5,12 +5,12 @@ package bus
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +33,7 @@ func exportedTraceAPISpans(t *testing.T) (func() []map[string]any, func()) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		var body []map[string][]map[string]any
-		require.NoError(t, json.Unmarshal(raw, &body))
+		require.NoError(t, codec.Unmarshal(raw, &body))
 		spans = append(spans, body[0]["spans"]...)
 		w.WriteHeader(http.StatusAccepted)
 	}))

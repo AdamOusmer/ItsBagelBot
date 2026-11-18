@@ -8,10 +8,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -151,7 +152,7 @@ func (e *SpanExporter) post(batch []Span) error {
 	for i := range batch {
 		spans[i] = wireSpan(batch[i])
 	}
-	body, err := json.Marshal([]traceAPIBatch{{Spans: spans}})
+	body, err := codec.Marshal([]traceAPIBatch{{Spans: spans}})
 	if err != nil {
 		return err
 	}

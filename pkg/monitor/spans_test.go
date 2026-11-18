@@ -5,13 +5,13 @@ package monitor_test
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/stretchr/testify/assert"
@@ -31,7 +31,7 @@ func traceAPIStub(t *testing.T) (*httptest.Server, chan traceAPIRequest) {
 		raw, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 		var body []map[string][]map[string]any
-		require.NoError(t, json.Unmarshal(raw, &body))
+		require.NoError(t, codec.Unmarshal(raw, &body))
 		got <- traceAPIRequest{headers: r.Header.Clone(), body: body}
 		w.WriteHeader(http.StatusAccepted)
 	}))
