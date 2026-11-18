@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -200,14 +201,6 @@ func entry(id, title, requesterID, requester string) engine.SongEntry {
 	return engine.SongEntry{TrackID: id, Title: title, RequesterID: requesterID, RequesterName: requester}
 }
 
-func queuedEntries(n int) []engine.SongEntry {
-	out := make([]engine.SongEntry, n)
-	for i := range out {
-		out[i] = entry(fmt.Sprintf("q%d", i), "Queued", "7", "bob")
-	}
-	return out
-}
-
 func TestSongRequestAddsResolvedTrack(t *testing.T) {
 	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
 	store := &fakeSongQueue{}
@@ -312,7 +305,7 @@ func TestSongRequest(t *testing.T) {
 		{name: "allowOffline queues while offline", config: `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, live: liveOffline, queued: 1, contains: []string{"Mr. Brightside"}},
 		{name: "a legacy blob keeps queueing", config: `{"maxDepth":10}`, live: liveOffline, queued: 1, contains: []string{"Mr. Brightside"}},
 		{name: "the default queue has no size cap", queued: 1501, contains: []string{"Mr. Brightside"},
-			store: fakeSongQueue{up: queuedEntries(1500)}},
+			store: fakeSongQueue{up: slices.Repeat([]engine.SongEntry{entry("q", "Queued", "7", "bob")}, 1500)}},
 		{name: "a partial sr record keeps queueing", config: `{"sr":{"perm":"everyone"}}`, live: liveOnline, queued: 1, contains: []string{"Mr. Brightside"}},
 	}
 	for _, tc := range cases {
