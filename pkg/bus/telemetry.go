@@ -14,6 +14,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
+
+	"ItsBagelBot/pkg/monitor"
 )
 
 const (
@@ -118,6 +120,7 @@ func startMessagingSegment(ctx context.Context, span messagingSpan) *newrelic.Se
 	if txn == nil {
 		return nil
 	}
+	monitor.Keep(ctx)
 	segment := txn.StartSegment(span.name)
 	addMessagingAttributes(segment, span.attributes())
 	return segment

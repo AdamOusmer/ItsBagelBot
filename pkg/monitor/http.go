@@ -38,6 +38,7 @@ func (t externalTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if txn == nil {
 		return t.base.RoundTrip(req)
 	}
+	Keep(req.Context())
 	segment := newrelic.ExternalSegment{
 		StartTime: txn.StartSegmentNow(),
 		URL:       req.URL.Scheme + "://" + req.URL.Host + req.URL.Path,

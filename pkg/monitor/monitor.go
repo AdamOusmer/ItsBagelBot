@@ -32,11 +32,14 @@ func Resolve(app *newrelic.Application) *newrelic.Application {
 }
 
 func New(service string, log *zap.Logger) (*newrelic.Application, error) {
-
-	if env.Get("NEW_RELIC_LICENSE_KEY", "") == "" {
+	key := env.Get("NEW_RELIC_LICENSE_KEY", "")
+	if key == "" {
 		log.Info("new relic disabled: no license key configured")
 		return nil, nil
 	}
+	exporter := NewSpanExporter(TraceAPIEndpoint, key, log)
+	InstallExporter(exporter)
+	go exporter.Run(context.Background())
 
 	app, err := newrelic.NewApplication(
 		newrelic.ConfigAppName("ItsBagelBot-"+service),
