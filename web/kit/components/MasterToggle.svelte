@@ -5,6 +5,7 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import SwapStack from '@bagel/ui/svelte/SwapStack.svelte';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import { getI18n } from '../lib/i18n/context';
 
@@ -43,32 +44,17 @@
   };
 </script>
 
-<form method="POST" {action} use:enhance={submit} class="master">
+<form method="POST" {action} use:enhance={submit}>
   <input type="hidden" {name} value={enabled ? '' : 'on'} />
-  <div class="layer" class:shown={!enabled} inert={enabled}>
-    <AlertBanner tone="warning" role="status" flush strong>
-      {t('modules.offBanner')}
-      {#snippet actions()}<Button type="submit">{t('modules.turnOn')}</Button>{/snippet}
-    </AlertBanner>
-  </div>
-  <div class="layer" class:shown={enabled} inert={!enabled}>
-    <SwitchRow type="submit" checked={enabled} {label} {hint} {hintId} switchLabel={ariaLabel ?? label} />
-  </div>
+  <SwapStack alternate={enabled}>
+    {#snippet primary()}
+      <AlertBanner tone="warning" role="status" flush strong>
+        {t('modules.offBanner')}
+        {#snippet actions()}<Button type="submit">{t('modules.turnOn')}</Button>{/snippet}
+      </AlertBanner>
+    {/snippet}
+    {#snippet secondary()}
+      <SwitchRow type="submit" checked={enabled} {label} {hint} {hintId} switchLabel={ariaLabel ?? label} />
+    {/snippet}
+  </SwapStack>
 </form>
-
-<style>
-  .master { display: grid; min-width: 0; }
-  .layer {
-    grid-area: 1 / 1;
-    align-self: center;
-    min-width: 0;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo), visibility 0s linear var(--bb-dur-base);
-  }
-  .layer.shown {
-    opacity: 1;
-    visibility: visible;
-    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo), visibility 0s;
-  }
-</style>
