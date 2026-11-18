@@ -14,7 +14,7 @@
   "signups": "Novas contas criadas em cada dia do período.",
   "gainLoss": "Contas novas contra contas banidas do chat, com acesso revogado ou excluídas em cada dia.",
   "funnel": "Cadastros, configurações concluídas e ativações do bot no período. Cada etapa conta eventos do período, então as etapas posteriores podem incluir cadastros anteriores.",
-  "churn": "Bot desativado, acesso revogado, banimentos no chat, canais dormentes e contas excluídas, somados no período.",
+  "churn": "Bot desativado, acesso revogado, banimentos no chat e contas excluídas, somados no período. Canais dormentes mantêm o bot e não contam.",
   "presets": "Predefinições escolhidas durante a configuração, somadas no período.",
   "active": "Canais atendidos pelo bot em cada dia do período.",
   "live": "Canais que entraram ao vivo em cada dia do período.",
@@ -53,7 +53,7 @@
   "donations": "Pagamentos brutos do Ko-fi no período por moeda, com a proporção recorrente e o período anterior de mesma duração. Valores antes das taxas do Ko-fi e do processador de pagamento.",
   "donationMonths": "Pagamentos brutos do Ko-fi por mês do calendário nos últimos 12 meses, apenas dias UTC fechados.",
   "donationKinds": "Pagamentos do Ko-fi no período por tipo.",
-  "stops": "Paradas do bot contra contas que voltaram, contadas desde 18 de nov. de 2026, quando os retornos começaram a ser registrados.",
+  "stops": "Bots parados contra contas que voltaram, contados desde 18 de nov. de 2026, quando os retornos começaram a ser registrados. Canais dormentes mantêm o bot e não contam.",
   "inactive": "Contas sem bot rodando: banidas do chat, com acesso revogado, desligadas pelo streamer ou outras. Contas excluídas não contam. Hoje atualiza ao vivo.",
   "dormant": "Canais sem atividade há 30 dias. Hoje atualiza ao vivo."
 }

@@ -127,7 +127,7 @@ const ENUMS = {
 } as const;
 
 const FUNNEL = ['signup', 'onboarded', 'bot_enabled'] as const;
-const CHURN = ['bot_disabled', 'revoked', 'chat_banned', 'dormant', 'account_deleted'] as const;
+const CHURN = ['bot_disabled', 'revoked', 'chat_banned', 'account_deleted'] as const;
 const INACTIVE: { key: string; tone: FlowTone; dashed?: boolean }[] = [
   { key: 'banned', tone: 'danger' },
   { key: 'revoked', tone: 'warm' },
@@ -348,7 +348,7 @@ export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
   return { points, gained, lost, net: gained - lost, lossDays: points.filter((p) => p.lost > p.gained).length };
 }
 
-const COMEBACKS = ['bot_enabled', 'access_restored', 'unbanned', 'woke'];
+const COMEBACKS = ['bot_enabled', 'access_restored', 'unbanned'];
 const isStop = (row: AnalyticsRow): boolean => (CHURN as readonly string[]).includes(row.dims[0]);
 const isComeback = (row: AnalyticsRow): boolean => COMEBACKS.includes(row.dims[0]);
 
