@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { unnest } from './tmpl-nest';
+
 export interface LiteralToken {
   kind: 'literal';
   text: string;
@@ -75,91 +77,8 @@ export function intactSpan(name: string, payload: string | null): string | null 
   return token.fallback === null ? span : null;
 }
 
-const LITERAL_BRACE = '';
-const NEST_STOPS = /[:{}|]/g;
-const BRACES = /[{}]/g;
-
-interface Range {
-  start: number;
-  end: number;
-}
-
-interface Outer {
-  inner: Range[];
-  close: number;
-}
-
-function nextMatch(pattern: RegExp, text: string, from: number): number {
-  pattern.lastIndex = from;
-  const match = pattern.exec(text);
-  return match === null ? -1 : match.index;
-}
-
-function isNestable(template: string, open: number): boolean {
-  const stop = nextMatch(NEST_STOPS, template, open + 1);
-  if (stop <= open + 1 || template[stop] !== ':') return false;
-  return template.slice(open + 1, stop).toLowerCase() !== COND_NAME;
-}
-
-function scanOuter(template: string, open: number): Outer | null {
-  const inner: Range[] = [];
-  let at = open + 1;
-  for (;;) {
-    const next = nextMatch(BRACES, template, at);
-    if (next < 0) return null;
-    if (template[next] === '}') return { inner, close: next };
-    const end = nextMatch(BRACES, template, next + 1);
-    if (end < 0 || template[end] !== '}') return null;
-    inner.push({ start: next, end: end + 1 });
-    at = end + 1;
-  }
-}
-
-function innerRanges(template: string): Range[] {
-  const out: Range[] = [];
-  let open = template.indexOf('{');
-  while (open >= 0) {
-    const outer = isNestable(template, open) ? scanOuter(template, open) : null;
-    if (outer !== null) out.push(...outer.inner);
-    open = template.indexOf('{', outer === null ? open + 1 : outer.close + 1);
-  }
-  return out;
-}
-
-function cleanNested(value: string, raw: string): string {
-  return value === raw ? raw : value.replaceAll('{', LITERAL_BRACE).replace(/[}|]/g, '');
-}
-
-type RenderInner = (inner: VarToken[]) => string[];
-
-export function unnest(template: string, render: RenderInner): string {
-  let current = template;
-  for (;;) {
-    const next = unnestOnce(current, render);
-    if (next === null) return current;
-    current = next;
-  }
-}
-
-function unnestOnce(template: string, render: RenderInner): string | null {
-  const ranges = innerRanges(template);
-  if (ranges.length === 0) return null;
-  const values = render(ranges.map((range) => parseSpan(template.slice(range.start, range.end))));
-  let out = '';
-  let from = 0;
-  let changed = false;
-  ranges.forEach((range, i) => {
-    const raw = template.slice(range.start, range.end);
-    const value = cleanNested(values[i], raw);
-    changed = changed || value !== raw;
-    out += template.slice(from, range.start) + value;
-    from = range.end;
-  });
-  return changed ? out + template.slice(from) : null;
-}
-
 export function expand(template: string, resolve: (token: VarToken) => string | null): string {
-  const flat = unnest(template, (inner) => inner.map((token) => renderSpan(token, resolve)));
+  const flat = unnest(template, (raws) => raws.map((raw) => renderSpan(parseSpan(raw), resolve)));
   return lex(flat)
     .map((token) => (token.kind === 'literal' ? token.text : renderSpan(token, resolve)))
     .join('');
