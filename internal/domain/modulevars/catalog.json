@@ -667,6 +667,17 @@
         "message_key": "rankMessage"
       },
       {
+        "name": "record",
+        "fields": [
+          "player",
+          "region",
+          "games",
+          "wins",
+          "winrate"
+        ],
+        "message_key": "recordMessage"
+      },
+      {
         "name": "matches",
         "fields": [
           "player",

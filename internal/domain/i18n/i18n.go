@@ -28,6 +28,9 @@ const (
 	KeyGrantDeadBody  = "grant.dead.body"
 	KeyGrantDeadChat  = "grant.dead.chat"
 
+	KeyGrantScopeTitle = "grant.scope.title"
+	KeyGrantScopeBody  = "grant.scope.body"
+
 	KeyBotBannedTitle = "bot.banned.title"
 	KeyBotBannedBody  = "bot.banned.body"
 )

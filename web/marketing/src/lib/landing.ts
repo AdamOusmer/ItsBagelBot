@@ -60,6 +60,7 @@ export function catalogReplyText(lang: Lang, moduleId: string, reply: ModuleRepl
 
 const VALORANT_ALIASES: Record<string, string> = {
     val: '!valrank',
+    'val record': '!valrecord',
     'val matches': '!valmatches, !valhistory',
     'val account': '!valaccount, !valwho',
     'val lb': '!vallb, !valleaderboard',
@@ -154,7 +155,8 @@ export function goveeExampleLines(lang: Lang, t: Translate) {
 }
 
 export function valorantExampleLines(lang: Lang) {
-    const [rank, matches] = moduleOf('valorant').replies;
+    const replies = moduleOf('valorant').replies;
+    const [rank, matches] = ['rank', 'matches'].map((key) => replies.find((reply) => reply.key === key)!);
     return [
         { who: 'viewer' as const, name: VIEWER, text: '!valrank' },
         { who: 'bot' as const, text: catalogReplyText(lang, 'valorant', rank) },

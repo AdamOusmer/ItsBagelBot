@@ -5,6 +5,7 @@ package modules
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ const valCooldown = 10 * time.Second
 
 const (
 	defaultValRankTemplate    = "{valorant:player} · {valorant:tier} · {valorant:rr} RR ({valorant:lastchange}) · peak {valorant:peaktier}"
+	defaultValRecordTemplate  = "{valorant:player} · {valorant:games} ranked games · {valorant:wins} wins ({valorant:winrate}%)"
 	defaultValMatchesTemplate = "{valorant:player}'s last {valorant:count}: {valorant:matches}"
 	defaultValAccountTemplate = "{valorant:player} · account level {valorant:level}"
 	defaultValBoardTemplate   = "{valorant:board}: {valorant:entries}"
@@ -27,6 +29,7 @@ const (
 
 const (
 	valUnrankedText   = "has no competitive record this act"
+	valNoRecordText   = "has no ranked games on record"
 	valNoMatchesText  = "has no recent competitive games"
 	valEmptyBoardText = "leaderboard has no entries yet"
 	valEmptyShopText  = "the daily rotation is empty today"
@@ -40,6 +43,8 @@ type valorantConfig struct {
 
 	RankEnabled  string `json:"rankEnabled"`
 	RankMessage  string `json:"rankMessage"`
+	RecEnabled   string `json:"recordEnabled"`
+	RecMessage   string `json:"recordMessage"`
 	MatchEnabled string `json:"matchesEnabled"`
 	MatchMessage string `json:"matchesMessage"`
 	AcctEnabled  string `json:"accountEnabled"`
@@ -55,6 +60,13 @@ func valRankSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantRankReply)
 		return "", false
 	}
 	return r.Player + " " + valUnrankedText, true
+}
+
+func valRecordSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantRecordReply) (string, bool) {
+	if !r.Empty {
+		return "", false
+	}
+	return r.Player + " " + valNoRecordText, true
 }
 
 func valMatchSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantMatchesReply) (string, bool) {
@@ -91,6 +103,14 @@ func newValRuns(d engine.Deps) valRuns {
 			fallback: defaultValRankTemplate,
 			tokens:   valRankTokens(),
 			special:  valRankSpecial,
+		}),
+		record: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantRecordReply]{
+			route:    valRoute("record"),
+			enabled:  func(c valorantConfig) string { return c.RecEnabled },
+			message:  func(c valorantConfig) string { return c.RecMessage },
+			fallback: defaultValRecordTemplate,
+			tokens:   valRecordTokens(),
+			special:  valRecordSpecial,
 		}),
 		matches: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantMatchesReply]{
 			route:    valRoute("matches"),
@@ -137,9 +157,12 @@ func Valorant(d engine.Deps) module.Module {
 			"lb": runs.board, "leaderboard": runs.board, "top": runs.board,
 			"shop": runs.shop, "rotation": runs.shop,
 			"rank": runs.rank, "standing": runs.rank,
+			"record": runs.record,
 		}))
 	m.Command("valrank").Everyone().Cooldown(valCooldown).
 		Run(runs.rank)
+	m.Command("valrecord").Everyone().Cooldown(valCooldown).
+		Run(runs.record)
 	m.Command("valmatches").Everyone().Cooldown(valCooldown).Aliases("valhistory").
 		Run(runs.matches)
 	m.Command("valaccount").Everyone().Cooldown(valCooldown).Aliases("valwho").
@@ -152,7 +175,7 @@ func Valorant(d engine.Deps) module.Module {
 }
 
 type valRuns struct {
-	rank, matches, account, board, shop module.RunFunc
+	rank, record, matches, account, board, shop module.RunFunc
 }
 
 type valScope struct {
@@ -234,6 +257,24 @@ func valRankTokens() module.TokenExpander[gossiprpc.ValorantRankReply] {
 		"peaktier":   func(r *reply) string { return r.PeakTier },
 		"placement":  func(r *reply) string { return i64(int64(r.Placement)) },
 	}
+}
+
+func valRecordTokens() module.TokenExpander[gossiprpc.ValorantRecordReply] {
+	type reply = gossiprpc.ValorantRecordReply
+	return module.TokenExpander[reply]{
+		"player":  func(r *reply) string { return r.Player },
+		"region":  func(r *reply) string { return r.Region },
+		"games":   func(r *reply) string { return i64(int64(r.Games)) },
+		"wins":    func(r *reply) string { return i64(int64(r.Wins)) },
+		"winrate": func(r *reply) string { return i64(valWinRate(r.Wins, r.Games)) },
+	}
+}
+
+func valWinRate(wins, games int) int64 {
+	if games <= 0 {
+		return 0
+	}
+	return int64(math.Round(float64(wins) * 100 / float64(games)))
 }
 
 func valMatchTokens() module.TokenExpander[gossiprpc.ValorantMatchesReply] {

@@ -66,7 +66,16 @@ const mmrBody = `{
       "ranking_schema":"Competitive",
       "tier":{"id":21,"name":"Ascendant 2"},
       "rr":80
-    }
+    },
+    "seasonal":[
+      {"season":{"id":"22d1","short":"e8a2"},"wins":22,"games":42,"end_tier":{"id":18,"name":"Diamond 1"},
+       "ranking_schema":"ascendant","leaderboard_placement":null,"act_wins":[{"id":18,"name":"Diamond 1"}]},
+      {"season":{"id":"4539","short":"e8a3"},"wins":0,"games":0,"end_tier":{"id":0,"name":"Unrated"},
+       "ranking_schema":"ascendant","leaderboard_placement":null,"act_wins":[]},
+      {"season":{"id":"ab57","short":"e9a1"},"wins":51,"games":100,"end_tier":{"id":21,"name":"Ascendant 2"},
+       "ranking_schema":"ascendant","leaderboard_placement":{"rank":812,"updated_at":"2026-08-22T00:00:00Z"},
+       "act_wins":[{"id":21,"name":"Ascendant 2"}]}
+    ]
   }
 }`
 
@@ -171,6 +180,31 @@ func TestUnrankedAccountsHideTheirEloNoise(t *testing.T) {
 
 	assert.Equal(t, rankReply{Player: "Newbie#EUW", Region: "eu", Tier: "UNRANKED", Unranked: true}, reply,
 		"elo of an unranked account is noise; templates should never see it")
+}
+
+func TestRecordTotalsRankedGamesAcrossEveryAct(t *testing.T) {
+	const unplayed = `{"status":200,"data":{"current":{"tier":{"id":0,"name":"UNRANKED"}},"seasonal":[]}}`
+	for _, tc := range []struct {
+		name string
+		body string
+		want recordReply
+	}{
+		{"played acts are summed and unplayed ones add nothing", mmrBody,
+			recordReply{Player: "Frosty#EUW1", Region: "na", Games: 142, Wins: 73}},
+		{"an account with no ranked games is an answer, not an error", unplayed,
+			recordReply{Player: "Frosty#EUW1", Region: "na", Empty: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/valorant/v3/mmr/na/pc/Frosty/EUW1", r.URL.Path)
+				fmt.Fprint(w, tc.body)
+			}), providertest.Forbid(t))
+
+			reply := providertest.Call[recordReply](t, p, "record", gossiprpc.Request{Account: "Frosty#EUW1", Region: "NA"})
+
+			assert.Equal(t, tc.want, reply)
+		})
+	}
 }
 
 func TestRankRejectsMalformedRequestsBeforeAnyUpstreamCall(t *testing.T) {
@@ -411,10 +445,10 @@ func TestCacheKeysFoldPlayerRegionAndPlatform(t *testing.T) {
 func TestProviderDeclaresItsRPCEndpoints(t *testing.T) {
 	p := newTestProvider(t, providertest.Forbid(t), providertest.Forbid(t))
 
-	names := make([]string, 0, 5)
+	names := make([]string, 0, 6)
 	for _, ep := range p.Endpoints() {
 		names = append(names, ep.Name)
 	}
 	assert.Equal(t, "valorant", p.Name())
-	assert.ElementsMatch(t, []string{"rank", "matches", "account", "leaderboard", "shop"}, names)
+	assert.ElementsMatch(t, []string{"rank", "record", "matches", "account", "leaderboard", "shop"}, names)
 }
