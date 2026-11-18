@@ -18,6 +18,7 @@ const (
 	GrantUnknown        = "unknown"
 	DormancyPeriod      = 30 * 24 * time.Hour
 	MaxRecoveryAttempts = 3
+	ReasonScopeMissing  = "scope_missing"
 )
 
 // State is a compact current record, not an event history. Pending notification

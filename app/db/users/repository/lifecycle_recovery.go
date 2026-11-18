@@ -27,6 +27,14 @@ func (t *lifecycleTransition) retryEnrollment() (bool, error) {
 	return t.retryRecovery()
 }
 
+func (t *lifecycleTransition) observeScopeMissing() (bool, error) {
+	if !t.state.DesiredEnabled || t.state.IncidentID != "" {
+		return false, nil
+	}
+	t.incident(lifecycle.ReasonScopeMissing)
+	return true, nil
+}
+
 func (t *lifecycleTransition) claimRecovery() (bool, error) {
 	s := t.state
 

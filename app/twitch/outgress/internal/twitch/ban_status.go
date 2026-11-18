@@ -3,7 +3,9 @@ package twitch
 import (
 	"ItsBagelBot/pkg/codec"
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 	"net/url"
 	"time"
 )
@@ -45,6 +47,14 @@ func (c *Client) BotBan(ctx context.Context, broadcasterID, botID string) (BanSt
 		}
 	}
 	return BanStatus{}, nil
+}
+
+func MissingScope(err error) bool {
+	var se *StatusError
+	if !errors.As(err, &se) || se.Status != http.StatusUnauthorized {
+		return false
+	}
+	return strings.Contains(se.Body, "Missing scope")
 }
 
 func banEntry(expiresAt string) (BanStatus, error) {
