@@ -12,6 +12,8 @@ export const SHIPPED_WINDOW_DAYS = 90;
 
 const LINEAR_API = 'https://api.linear.app/graphql';
 const PAGE_SIZE = 100;
+// Linear rejects queries above complexity 10000; unbounded labels on 100 projects scores about 11480.
+const LABELS_PER_PROJECT = 25;
 const DAY_MS = 86_400_000;
 
 const QUERY = `query PublicRoadmap($after: String) {
@@ -24,7 +26,7 @@ const QUERY = `query PublicRoadmap($after: String) {
       sortOrder
       completedAt
       status { type }
-      labels { nodes { name parent { name } } }
+      labels(first: ${LABELS_PER_PROJECT}) { nodes { name parent { name } } }
     }
     pageInfo { hasNextPage endCursor }
   }
