@@ -3,8 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Layout from '../../layouts/Layout.astro';
-import PageHero from '@bagel/ui/astro/PageHero.astro';
-import RoadmapBoard from '../../components/roadmap/RoadmapBoard.astro';
+import RoadmapStage from '../../components/roadmap/RoadmapStage.astro';
 import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
 import { itemCatalogs } from '../../lib/roadmap/items';
 import { loadRoadmap } from '../../lib/roadmap/linear';
@@ -21,10 +20,5 @@ if (stale.length) console.warn(`[roadmap] Linear copy differs from locales/en/ro
 ---
 
 <Layout title={t('roadmap.metaTitle')} description={t('roadmap.metaDesc')}>
-    <PageHero
-        eyebrow={t('roadmap.eyebrow')}
-        title={t('roadmap.title')}
-        description={t('roadmap.desc')}
-    />
-    <RoadmapBoard roadmap={localizeRoadmap(roadmap, lang, itemCatalogs)} />
+    <RoadmapStage roadmap={localizeRoadmap(roadmap, lang, itemCatalogs)} />
 </Layout>
