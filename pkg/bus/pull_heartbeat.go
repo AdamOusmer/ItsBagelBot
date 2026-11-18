@@ -17,6 +17,7 @@ type DeliveryTicket struct {
 	reply      string
 	stored     int64
 	received   int32
+	brokerTime time.Duration
 	touched    int32
 	held       bool
 	executed   bool
@@ -101,8 +102,9 @@ func (s *pullSubscriber) trackDelivery(wire jsapi.Msg) {
 	if shard.deliveries == nil {
 		shard.deliveries = make(map[string]*DeliveryTicket)
 	}
-	age := int32(now.Sub(stored).Milliseconds())
-	shard.deliveries[reply] = &DeliveryTicket{reply: reply, stored: stored.UnixNano(), received: age, touched: age, retries: deliveryRetries(metadata)}
+	brokerTime := now.Sub(stored)
+	age := int32(brokerTime.Milliseconds())
+	shard.deliveries[reply] = &DeliveryTicket{reply: reply, stored: stored.UnixNano(), received: age, touched: age, brokerTime: brokerTime, retries: deliveryRetries(metadata)}
 }
 
 func (s *pullSubscriber) releaseDelivery(reply string) bool {
@@ -128,13 +130,19 @@ func (s *pullSubscriber) releaseDelivery(reply string) bool {
 
 func (s *pullSubscriber) heartbeat() {
 	defer close(s.heartbeatDone)
-	ticker := time.NewTicker(s.desired.AckWait / 6)
+	ticker := time.NewTicker(s.heartbeatInterval())
 	defer ticker.Stop()
+	var deleted <-chan struct{}
+	if s.push != nil {
+		deleted = s.push.deleted
+	}
 	for {
 		select {
 		case <-ticker.C:
-			s.refreshHorizon()
 			s.refreshPending()
+			s.refreshHorizon()
+		case <-deleted:
+			s.rebuildConsumer()
 		case <-s.heartbeatStop:
 			return
 		}
@@ -142,12 +150,16 @@ func (s *pullSubscriber) heartbeat() {
 }
 
 func (s *pullSubscriber) refreshHorizon() {
-	info, err := s.letters.js.StreamInfo(s.stream, nats.MaxWait(min(s.desired.AckWait/6, time.Second)))
+	info, err := s.letters.js.StreamInfo(s.stream, nats.MaxWait(min(s.heartbeatInterval(), time.Second)))
 	if err != nil {
+		s.markLaneError()
 		s.progressWarning(err)
 		return
 	}
 	s.horizon.Store(int64(info.Config.MaxAge))
+	if s.hot != nil {
+		s.hot.tick(info)
+	}
 }
 
 func (s *pullSubscriber) refreshPending() {
@@ -274,7 +286,7 @@ func (s *pullSubscriber) progressWarning(err error) {
 		return
 	}
 	s.lastProgressLog = time.Now()
-	s.log.Warn("pull progress acknowledgement failed", zap.Error(err))
+	s.log.Warn("lane operation failed", zap.String("consumer", s.name), zap.Error(err))
 }
 
 func minTime(a, b time.Time) time.Time {

@@ -42,18 +42,19 @@ func (g *streamGuardian) prepareHotStream(ctx context.Context, spec StreamSpec) 
 		return err
 	}
 	desired := stagedConsumer(spec, g.group)
-	active, err := pullConsumerInfo(ctx, js, spec.Name, strings.TrimSuffix(desired.Name, "_staging"))
+	name := hotDurable(strings.TrimSuffix(desired.Name, "_staging"))
+	active, err := pullConsumerInfo(ctx, js, spec.Name, string(name))
 	if err != nil {
 		return err
 	}
 	if active != nil {
-		return deletePullConsumer(ctx, js, spec.Name, desired.Name)
+		return deleteLaneStaging(ctx, js, spec.Name, name)
 	}
 	_, err = js.CreateConsumer(ctx, spec.Name, desired)
 	if err != nil && !errors.Is(err, jsapi.ErrConsumerExists) {
 		return err
 	}
-	return retireStagingIfActive(ctx, js, spec.Name, desired)
+	return retireStagingIfActive(ctx, js, spec.Name, name)
 }
 
 func prepareStagingStream(ctx context.Context, js streamProvisioner, spec StreamSpec) error {
@@ -71,20 +72,27 @@ func prepareStagingStream(ctx context.Context, js streamProvisioner, spec Stream
 }
 
 func stagedConsumer(spec StreamSpec, group string) jsapi.ConsumerConfig {
-	desired := PullLaneConsumerConfig(group, spec.Subjects[0])
-	desired.Name += "_staging"
-	desired.Durable = desired.Name
+	desired := pullConsumerConfig(spec.Subjects[0], HotLaneConsumerName(group, spec.Subjects[0])+"_staging")
 	desired.Replicas = spec.Replicas
 	desired.FilterSubject = ""
 	return desired
 }
 
-func retireStagingIfActive(ctx context.Context, js pullConsumerProvisioner, stream string, stage jsapi.ConsumerConfig) error {
-	active, err := pullConsumerInfo(ctx, js, stream, strings.TrimSuffix(stage.Name, "_staging"))
+func retireStagingIfActive(ctx context.Context, js pullConsumerProvisioner, stream string, name hotDurable) error {
+	active, err := pullConsumerInfo(ctx, js, stream, string(name))
 	if err != nil || active == nil {
 		return err
 	}
-	return deletePullConsumer(ctx, js, stream, stage.Name)
+	return deleteLaneStaging(ctx, js, stream, name)
+}
+
+func deleteLaneStaging(ctx context.Context, js pullConsumerProvisioner, stream string, name hotDurable) error {
+	for _, mode := range []hotDurable{name, otherModeDurable(name)} {
+		if err := deletePullConsumer(ctx, js, stream, string(mode)+"_staging"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *streamGuardian) splitsPremium(spec StreamSpec) bool {

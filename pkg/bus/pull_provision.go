@@ -57,8 +57,11 @@ func deletePullConsumer(ctx context.Context, js pullConsumerProvisioner, stream,
 
 func retirePullPredecessor(ctx context.Context, js pullConsumerProvisioner, stream string, desired jsapi.ConsumerConfig) error {
 	info, err := predecessorInfo(ctx, js, stream, strings.TrimSuffix(desired.Name, "_v2"))
-	if err != nil || info == nil {
+	if err != nil {
 		return err
+	}
+	if info == nil || info.Paused {
+		return nil
 	}
 	_, err = freezePredecessor(ctx, js, info)
 	return err
@@ -83,10 +86,13 @@ type leaderWatch struct {
 }
 
 func (w *leaderWatch) agrees(leader string) bool {
-	if leader != "" && leader == w.last {
-		w.agreed++
-	} else {
+	switch {
+	case leader == "":
 		w.agreed = 0
+	case leader == w.last:
+		w.agreed++
+	default:
+		w.agreed = 1
 	}
 	w.last = leader
 	return w.agreed >= 2
@@ -223,31 +229,33 @@ func predecessorInfo(ctx context.Context, js pullConsumerProvisioner, stream, le
 }
 
 func bindExistingPull(ctx context.Context, js pullConsumerProvisioner, desired jsapi.ConsumerConfig, info *jsapi.ConsumerInfo) (jsapi.Consumer, *jsapi.ConsumerInfo, error) {
-	if consumerContract(info.Config) > consumerContract(desired) {
-		return nil, info, fmt.Errorf("bus: consumer %q requires newer contract %d", desired.Name, consumerContract(info.Config))
+	if err := validateLaneShape(info.Config, desired); err != nil {
+		return nil, info, err
 	}
 	if pullConsumerConverged(info.Config, desired) {
 		consumer, err := js.Consumer(ctx, info.Stream, desired.Name)
 		return consumer, info, err
 	}
-	if !pullConsumerImmutableMatch(info.Config, desired) {
-		return nil, info, fmt.Errorf("bus: consumer %q contract drift requires a newer versioned durable", desired.Name)
-	}
 	desired.DeliverPolicy = info.Config.DeliverPolicy
 	desired.OptStartSeq = info.Config.OptStartSeq
+	desired.PauseUntil = info.Config.PauseUntil
 	consumer, err := js.CreateOrUpdateConsumer(ctx, info.Stream, desired)
 	return consumer, info, err
 }
 
 func pullConsumerImmutableMatch(live, desired jsapi.ConsumerConfig) bool {
 	type immutable struct {
-		ack    jsapi.AckPolicy
-		replay jsapi.ReplayPolicy
-		memory bool
-		push   string
+		ack       jsapi.AckPolicy
+		replay    jsapi.ReplayPolicy
+		memory    bool
+		push      string
+		group     string
+		flow      bool
+		heartbeat time.Duration
 	}
 	shape := func(cfg jsapi.ConsumerConfig) immutable {
-		return immutable{cfg.AckPolicy, cfg.ReplayPolicy, cfg.MemoryStorage, cfg.DeliverSubject}
+		return immutable{cfg.AckPolicy, cfg.ReplayPolicy, cfg.MemoryStorage, cfg.DeliverSubject,
+			cfg.DeliverGroup, cfg.FlowControl, cfg.IdleHeartbeat}
 	}
 	return shape(live) == shape(desired)
 }
@@ -264,6 +272,9 @@ type pullConsumerShape struct {
 	replayPolicy      jsapi.ReplayPolicy
 	managed           string
 	contract          int
+	deliverGroup      string
+	flowControl       bool
+	idleHeartbeat     time.Duration
 }
 
 func shapeOfPullConsumer(cfg jsapi.ConsumerConfig) pullConsumerShape {
@@ -279,6 +290,9 @@ func shapeOfPullConsumer(cfg jsapi.ConsumerConfig) pullConsumerShape {
 		replayPolicy:      cfg.ReplayPolicy,
 		managed:           cfg.Metadata[managedConsumerMetadata],
 		contract:          consumerContract(cfg),
+		deliverGroup:      cfg.DeliverGroup,
+		flowControl:       cfg.FlowControl,
+		idleHeartbeat:     cfg.IdleHeartbeat,
 	}
 }
 

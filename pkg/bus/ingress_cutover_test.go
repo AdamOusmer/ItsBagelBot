@@ -54,6 +54,27 @@ func TestIngressReconcilePreparesDurableBeforeSubjectMove(t *testing.T) {
 	assert.Equal(t, [2]any{nats.AckExplicitPolicy, nats.DeliverAllPolicy}, [2]any{info.Config.AckPolicy, info.Config.DeliverPolicy})
 }
 
+func TestPushLaneRetiresPullStagingWithOnlyPushDurable(t *testing.T) {
+	t.Setenv("NATS_HOT_LANE_MODE", "pull")
+	f := completionFixture(t)
+	stage := PullLaneConsumerConfig("worker", hotLane).Name + "_staging"
+	cfg, err := f.js.ConsumerInfo(TwitchIngressPremiumStream.Name, stage)
+	require.NoError(t, err)
+
+	t.Setenv("NATS_HOT_LANE_MODE", "push")
+	_ = subscribe(t, openSubscriber(t, f, "worker"), hotLane)
+	_, err = f.js.AddConsumer(TwitchIngressPremiumStream.Name, &cfg.Config)
+	require.NoError(t, err)
+	spec := TwitchIngressPremiumStream
+	spec.Replicas = 1
+	require.NoError(t, EnsureStreams(t.Context(), f.url, []StreamSpec{spec}, zap.NewNop()))
+
+	for _, name := range []string{stage, HotLaneConsumerName("worker", hotLane) + "_staging"} {
+		_, err := f.js.ConsumerInfo(spec.Name, name)
+		assert.ErrorIs(t, err, nats.ErrConsumerNotFound)
+	}
+}
+
 func cutoverRequests(trace *nats.Subscription) []string {
 	var subjects []string
 	for {

@@ -30,6 +30,8 @@ type Message struct {
 	reject         func(*Message) error
 	ctx            context.Context
 	receivedAt     time.Time
+	brokerTime     time.Duration
+	hasBrokerTime  bool
 	storedAt       time.Time
 	final          bool
 	quarantineOnce sync.Once

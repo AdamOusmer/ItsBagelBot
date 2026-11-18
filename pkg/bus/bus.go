@@ -291,7 +291,7 @@ func laneQualifiesForReceiptAcks(target subscriptionTarget) bool {
 
 func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode {
 	if isHotIngressLane(target.stream, target.topic) {
-		return laneModePull
+		return hotLaneMode()
 	}
 	mode := consumeMode()
 	declined := mode != laneModeExplicit && !laneQualifiesForReceiptAcks(target)
@@ -362,14 +362,14 @@ func (s *fleetSubscriber) acquireFlowLane(target subscriptionTarget, mode laneCo
 }
 
 func newSharedLaneSubscriber(cfg flowLaneConfig, mode laneConsumeMode) (Subscriber, error) {
-	if mode == laneModePull {
-		sub, err := newPullLaneSubscriber(cfg)
-		if err != nil {
-			return nil, err
-		}
-		return sub, nil
+	var sub Subscriber
+	var err error
+	switch mode {
+	case laneModePull, laneModePush:
+		sub, err = newExplicitLaneSubscriber(cfg, mode)
+	default:
+		sub, err = newFlowLaneSubscriber(cfg)
 	}
-	sub, err := newFlowLaneSubscriber(cfg)
 	if err != nil {
 		return nil, err
 	}
