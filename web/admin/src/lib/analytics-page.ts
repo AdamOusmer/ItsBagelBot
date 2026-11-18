@@ -106,7 +106,7 @@ const ENUMS = {
   feature: ['channelpoints', 'govee'],
   login: ['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned'],
   platform: ['macos', 'windows', 'linux'],
-  lifecycle: ['signup', 'onboarded', 'bot_enabled', 'bot_disabled', 'revoked', 'chat_banned', 'dormant', 'account_deleted'],
+  lifecycle: ['signup', 'onboarded', 'bot_enabled', 'bot_disabled', 'revoked', 'chat_banned', 'dormant', 'account_deleted', 'access_restored', 'unbanned', 'woke'],
   billing: ['activate', 'cancel_requested', 'cancel_aborted', 'revoke', 'payment_failed', 'expired'],
   tier: ['free', 'paid', 'vip'],
   source: ['tebex', 'admin', 'giveaway', 'vip'],
@@ -330,7 +330,8 @@ function stepOf(values: Count[]): (value: Count, index: Slot) => Phrase | null {
         };
 }
 
-const isLoss = (row: AnalyticsRow): boolean => row.dims[0] === 'account_deleted';
+const LOST = ['chat_banned', 'revoked', 'account_deleted'];
+const isLoss = (row: AnalyticsRow): boolean => LOST.includes(row.dims[0]);
 
 export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
   const inside = inRange(pick(counters, 'lifecycle'), range);
@@ -345,7 +346,9 @@ export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
   return { points, gained, lost, net: gained - lost, lossDays: points.filter((p) => p.lost > p.gained).length };
 }
 
+const COMEBACKS = ['bot_enabled', 'access_restored', 'unbanned', 'woke'];
 const isStop = (row: AnalyticsRow): boolean => (CHURN as readonly string[]).includes(row.dims[0]);
+const isComeback = (row: AnalyticsRow): boolean => COMEBACKS.includes(row.dims[0]);
 
 function flowPoints(days: Day[], lines: Map<string, Map<Day, number>>): FlowPoint[] {
   return days.map((day) => {
@@ -358,10 +361,11 @@ function flowPoints(days: Day[], lines: Map<string, Map<Day, number>>): FlowPoin
 function stopFlow(c: Ctx): Flow {
   const inside = counter(c, 'lifecycle');
   const stops = byDay(inside.filter(isStop));
-  const starts = byDay(withDim(inside, 'bot_enabled'));
+  const starts = byDay(inside.filter(isComeback));
   const lines = new Map([['stopped', stops], ['restarted', starts]]);
   const [stopped, restarted] = [total(stops), total(starts)];
-  const points = stopped + restarted === 0 ? [] : flowPoints(daysIn(c.cur), lines);
+  const tracked = { from: c.tracked > c.cur.from ? c.tracked : c.cur.from, to: c.cur.to };
+  const points = stopped + restarted === 0 ? [] : flowPoints(daysIn(tracked), lines);
   return {
     lines: STOP_LINES.map(({ key, tone }) => ({ key, tone, name: { key: `admin.analytics.chart.${key}` } })),
     points,

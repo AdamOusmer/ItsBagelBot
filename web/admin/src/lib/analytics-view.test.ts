@@ -420,7 +420,7 @@ describe('gained and lost accounts', () => {
       { points: [], totals: [0, 0, 0, 0] }
     ],
     [
-      'bot and access losses keep the account, deletions lose it',
+      'bans, revoked access and deletions lose the account, bot toggles do not',
       [
         life('2026-11-01', 'revoked', 3),
         life('2026-11-03', 'signup', 4),
@@ -432,12 +432,12 @@ describe('gained and lost accounts', () => {
       ],
       {
         points: [
-          [at('2026-11-01'), 0, 0],
+          [at('2026-11-01'), 0, 3],
           [at('2026-11-02'), 0, 0],
-          [at('2026-11-03'), 4, 0],
+          [at('2026-11-03'), 4, 1],
           [at('2026-11-04'), 2, 2]
         ],
-        totals: [6, 2, 4, 0]
+        totals: [6, 6, 0, 1]
       }
     ]
   ])('%s', (_name, rows, expected) => {
@@ -449,9 +449,9 @@ describe('gained and lost accounts', () => {
     expect({ length: points.length, gained, lost, net, lossDays }).toEqual({
       length: 30,
       gained: 30,
-      lost: 3,
-      net: 27,
-      lossDays: 1
+      lost: 4,
+      net: 26,
+      lossDays: 2
     });
   });
 });
@@ -474,17 +474,28 @@ describe('bot stops and inactive accounts', () => {
         life('2026-11-05', 'chat_banned', 1),
         life('2026-11-07', 'account_deleted', 1),
         life('2026-11-07', 'bot_enabled', 2),
+        life('2026-11-07', 'woke', 1),
+        life('2026-11-06', 'access_restored', 1),
         life('2026-11-07', 'signup', 9),
         life('2026-10-01', 'bot_disabled', 50)
       ]
     });
     expect({ points: stops.points.map(point), facts: facts(stops.facts) }).toEqual({
       points: daysIn({ from: '2026-11-03', to: END }).map((day) => {
-        const values: Record<string, string> = { '2026-11-03': '5:0', '2026-11-05': '3:0', '2026-11-07': '1:2' };
+        const values: Record<string, string> = { '2026-11-03': '5:0', '2026-11-05': '3:0', '2026-11-06': '0:1', '2026-11-07': '1:3' };
         return `${Date.parse(day)}:${values[day] ?? '0:0'}`;
       }),
-      facts: { stopped: '9', restarted: '2', netStops: '-7' }
+      facts: { stopped: '9', restarted: '4', netStops: '-5' }
     });
+  });
+
+  it('starts the stops chart on the first tracked day', () => {
+    const { stops } = flows({
+      counters: [row('2026-11-06', 'chat.messages', [], 10), life('2026-11-07', 'unbanned', 1), life('2026-11-08', 'revoked', 1)]
+    });
+    expect(stops.points.map(point)).toEqual(
+      daysIn({ from: '2026-11-06', to: END }).map((day) => `${Date.parse(day)}:${{ '2026-11-07': '0:1', '2026-11-08': '1:0' }[day] ?? '0:0'}`)
+    );
   });
 
   it('charts bans, revoked access and deletions so far on days with a snapshot', () => {

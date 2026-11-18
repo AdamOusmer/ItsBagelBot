@@ -12,7 +12,7 @@
   "runtime": "Aktueller Laufzeitstatus der gezählten Konten.",
   "desktop": "Nicht widerrufene Freigaben, deren beide Aktualisierungsfristen noch nicht abgelaufen sind.",
   "signups": "Neue Konten, die an jedem Tag des Zeitraums erstellt wurden.",
-  "gainLoss": "Neue Konten im Vergleich zu gelöschten Konten pro Tag.",
+  "gainLoss": "Neue Konten im Vergleich zu Konten, die an diesem Tag im Chat gebannt wurden, deren Zugriff widerrufen wurde oder die gelöscht wurden.",
   "funnel": "Registrierungen, abgeschlossene Einrichtungen und Bot-Aktivierungen im Zeitraum. Jeder Schritt zählt Ereignisse im Zeitraum, spätere Schritte können also frühere Registrierungen enthalten.",
   "churn": "Bot deaktiviert, Zugriff widerrufen, Chat-Banns, ruhende Kanäle und gelöschte Konten, summiert über den Zeitraum.",
   "presets": "Bei der Einrichtung gewählte Voreinstellungen, summiert über den Zeitraum.",
@@ -53,7 +53,7 @@
   "donations": "Ko-fi-Bruttozahlungen im Zeitraum nach Währung, mit wiederkehrendem Anteil und dem vorherigen gleich langen Zeitraum. Beträge vor Gebühren von Ko-fi und Zahlungsanbieter.",
   "donationMonths": "Ko-fi-Bruttozahlungen pro Kalendermonat in den letzten 12 Monaten, nur abgeschlossene UTC-Tage.",
   "donationKinds": "Ko-fi-Zahlungen im Zeitraum nach Art.",
-  "stops": "Konten, deren Bot an jedem Tag aus irgendeinem Grund gestoppt hat, gegenüber Konten, die ihn wieder eingeschaltet haben.",
+  "stops": "Konten, deren Bot an jedem Tag aus irgendeinem Grund gestoppt hat, gegenüber Konten, die zurückkamen: wieder eingeschaltet, Zugriff wiederhergestellt, entbannt oder aus dem Ruhezustand erwacht.",
   "inactive": "Konten, die im Chat gebannt sind oder deren Zugriff widerrufen wurde, plus alle bisher gelöschten Konten. Heute wird live aktualisiert.",
   "dormant": "Kanäle ohne Aktivität seit 30 Tagen. Heute wird live aktualisiert."
 }
