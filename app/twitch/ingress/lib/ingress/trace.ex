@@ -35,9 +35,26 @@ defmodule Ingress.Trace do
   def trace_headers do
     case Process.get(@context_key) do
       nil -> []
-      context -> [{"traceparent", traceparent(context)}, {@header, header_value(context)}]
+      context -> headers(context)
     end
   end
+
+  def hold do
+    case Process.get(@context_key) do
+      nil -> nil
+      context -> Map.put(context, :held_at, System.monotonic_time())
+    end
+  end
+
+  def held_headers(nil), do: []
+
+  def held_headers(%{held_at: held_at, started: started} = context) do
+    step = {"squash", micros(held_at - started), micros(System.monotonic_time() - held_at)}
+    headers(%{context | steps: [step | context.steps]})
+  end
+
+  defp headers(context),
+    do: [{"traceparent", traceparent(context)}, {@header, header_value(context)}]
 
   def headers_for(subject, headers) do
     if chat_lane?(subject), do: headers || trace_headers(), else: []

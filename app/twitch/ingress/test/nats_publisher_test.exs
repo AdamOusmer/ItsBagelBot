@@ -8,6 +8,7 @@ defmodule Ingress.Nats.PublisherTest do
   @idx_acked 3
   @idx_retried 4
   @idx_failed 5
+  @idx_cohorts 6
 
   describe "id_from_topic/2" do
     @prefix "_INBOX.ingresspub.abc123."
@@ -82,6 +83,29 @@ defmodule Ingress.Nats.PublisherTest do
       assert Publisher.enqueue("twitch.ingress.event.standard", "{}") == :ok
       assert_receive {:pub, "twitch.ingress.event.standard", "{}", _opts}, 500
       assert :atomics.get(ctx.counter, @idx_pending) == 2
+    end
+  end
+
+  describe "zero batch wait" do
+    setup do
+      conn = :gnat_bus_pub_zero_wait_test
+      put_env(publish_batch_size: 256, publish_batch_wait_ms: 0, publish_wire: :single)
+      start_fake_gnat(conn, mode: :coalesce)
+      start_publisher(conn)
+    end
+
+    test "enqueues already in the mailbox share one cohort and flush without a timer", %{
+      ctx: ctx,
+      publisher: publisher
+    } do
+      :sys.suspend(publisher)
+      assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1})) == :ok
+      assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2})) == :ok
+      :sys.resume(publisher)
+
+      assert_receive {:pub, _, ~s({"n":1}), _opts}, 500
+      assert_receive {:pub, _, ~s({"n":2}), _opts}, 500
+      assert :atomics.get(ctx.counter, @idx_cohorts) == 1
     end
   end
 
