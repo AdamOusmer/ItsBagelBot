@@ -19,6 +19,7 @@ type DeliveryTicket struct {
 	received   int32
 	brokerTime time.Duration
 	touched    int32
+	handed     bool
 	held       bool
 	executed   bool
 	retries    uint8
@@ -107,6 +108,16 @@ func (s *pullSubscriber) trackDelivery(wire jsapi.Msg) {
 	shard.deliveries[reply] = &DeliveryTicket{reply: reply, stored: stored.UnixNano(), received: age, touched: age, brokerTime: brokerTime, retries: deliveryRetries(metadata)}
 }
 
+func (s *pullSubscriber) markHanded(ticket *DeliveryTicket) {
+	if s.push == nil {
+		return
+	}
+	shard := s.pendingShard(ticket.reply)
+	shard.Lock()
+	ticket.handed = true
+	shard.Unlock()
+}
+
 func (s *pullSubscriber) releaseDelivery(reply string) bool {
 	reply = deliverySuffix(reply)
 	shard := s.pendingShard(reply)
@@ -132,17 +143,11 @@ func (s *pullSubscriber) heartbeat() {
 	defer close(s.heartbeatDone)
 	ticker := time.NewTicker(s.heartbeatInterval())
 	defer ticker.Stop()
-	var deleted <-chan struct{}
-	if s.push != nil {
-		deleted = s.push.deleted
-	}
 	for {
 		select {
 		case <-ticker.C:
 			s.refreshPending()
 			s.refreshHorizon()
-		case <-deleted:
-			s.rebuildConsumer()
 		case <-s.heartbeatStop:
 			return
 		}
@@ -150,16 +155,22 @@ func (s *pullSubscriber) heartbeat() {
 }
 
 func (s *pullSubscriber) refreshHorizon() {
+	if s.hot != nil {
+		s.hot.tick()
+		return
+	}
+	s.refreshStream()
+}
+
+func (s *pullSubscriber) refreshStream() *nats.StreamInfo {
 	info, err := s.letters.js.StreamInfo(s.stream, nats.MaxWait(min(s.heartbeatInterval(), time.Second)))
 	if err != nil {
 		s.markLaneError()
 		s.progressWarning(err)
-		return
+		return nil
 	}
 	s.horizon.Store(int64(info.Config.MaxAge))
-	if s.hot != nil {
-		s.hot.tick(info)
-	}
+	return info
 }
 
 func (s *pullSubscriber) refreshPending() {
@@ -224,16 +235,26 @@ func (s *pullSubscriber) progressReplies(shard *pullPendingShard, now time.Time)
 		if !delivery.locallyHeld() {
 			progress.oldest = minTime(progress.oldest, time.Unix(0, delivery.stored))
 		}
-		if now.Sub(time.Unix(0, delivery.stored))-time.Duration(delivery.touched)*time.Millisecond < s.progressInterval(delivery) {
-			continue
+		if s.renewProgress(delivery, now) {
+			progress.replies = append(progress.replies, reply)
 		}
-		delivery.touched = int32(now.Sub(time.Unix(0, delivery.stored)).Milliseconds())
-		progress.replies = append(progress.replies, reply)
 	}
 	if len(shard.deliveries) == 0 {
 		shard.deliveries = nil
 	}
 	return progress
+}
+
+func (s *pullSubscriber) renewProgress(delivery *DeliveryTicket, now time.Time) bool {
+	if s.push != nil && !delivery.handed {
+		return false
+	}
+	age := now.Sub(time.Unix(0, delivery.stored))
+	if age-time.Duration(delivery.touched)*time.Millisecond < s.progressInterval(delivery) {
+		return false
+	}
+	delivery.touched = int32(age.Milliseconds())
+	return true
 }
 
 func (s *pullSubscriber) progressInterval(delivery *DeliveryTicket) time.Duration {

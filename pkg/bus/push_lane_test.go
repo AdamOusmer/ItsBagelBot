@@ -28,14 +28,13 @@ func hotLaneTestEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("NATS_INTEGRATION_URL", "")
 	for name, value := range map[string]string{
-		"NATS_HOT_LANE_MODE":        "push",
-		"NATS_LANE_ALIGN":           "off",
-		"NATS_PULL_REPLICAS":        "3",
-		"NATS_PULL_CREATE_STAGGER":  "0",
-		"NATS_PULL_FETCH_BATCH":     "10",
-		"NATS_PULL_ACK_WAIT":        "6s",
-		"NATS_INGRESS_PARTITION":    "on",
-		"NATS_PUSH_MAX_ACK_PENDING": "20000",
+		"NATS_HOT_LANE_MODE":       "push",
+		"NATS_LANE_ALIGN":          "off",
+		"NATS_PULL_REPLICAS":       "3",
+		"NATS_PULL_CREATE_STAGGER": "0",
+		"NATS_PULL_FETCH_BATCH":    "10",
+		"NATS_PULL_ACK_WAIT":       "6s",
+		"NATS_INGRESS_PARTITION":   "on",
 	} {
 		t.Setenv(name, value)
 	}
@@ -134,10 +133,11 @@ func ackIDs(t *testing.T, inbox <-chan *Message, start, end int) {
 
 func TestPushLaneShape(t *testing.T) {
 	forPushStreams(t, func(t *testing.T, f pushFixture) {
+		t.Setenv("NATS_PULL_MAX_ACK_PENDING", "17")
 		_, _ = f.open(t)
 		info := f.consumer(t, HotLaneConsumerName(pushTestGroup, f.subject()))
 		cfg := info.Config
-		assert.Equal(t, [9]any{jsapi.AckExplicitPolicy, true, time.Second, pushTestGroup, 3, true, "3", 20000, time.Duration(0)},
+		assert.Equal(t, [9]any{jsapi.AckExplicitPolicy, true, time.Second, pushTestGroup, 3, true, "3", -1, time.Duration(0)},
 			[9]any{cfg.AckPolicy, cfg.FlowControl, cfg.IdleHeartbeat, cfg.DeliverGroup, cfg.Replicas, cfg.MemoryStorage,
 				cfg.Metadata[consumerContractMetadata], cfg.MaxAckPending, cfg.InactiveThreshold})
 		require.NotNil(t, info.Cluster)
@@ -150,10 +150,10 @@ func TestPushLaneConvergesMutableFieldsAndRejectsImmutableDrift(t *testing.T) {
 		first, _ := f.open(t)
 		created := f.consumer(t, f.pushName()).Created
 		require.NoError(t, first.Close())
-		t.Setenv("NATS_PUSH_MAX_ACK_PENDING", "711")
+		t.Setenv("NATS_PULL_ACK_WAIT", "7s")
 		second, _ := f.open(t)
 		current := f.consumer(t, f.pushName())
-		assert.Equal(t, [2]any{created, 711}, [2]any{current.Created, current.Config.MaxAckPending})
+		assert.Equal(t, [3]any{created, 7 * time.Second, -1}, [3]any{current.Created, current.Config.AckWait, current.Config.MaxAckPending})
 		require.NoError(t, second.Close())
 		f.rejectPushDrift(t, current.Config)
 	})
@@ -214,7 +214,8 @@ func (f pushFixture) awaitEmpty(t *testing.T) {
 	t.Helper()
 	require.Eventually(t, func() bool {
 		info, err := f.lookup(t, f.pushName())
-		return err == nil && info.NumPending == 0 && info.NumAckPending == 0
+		knownEmpty := err == nil && info.NumPending == 0
+		return knownEmpty && info.NumAckPending == 0
 	}, 6*time.Second, 25*time.Millisecond)
 }
 

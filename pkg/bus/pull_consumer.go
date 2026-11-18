@@ -310,7 +310,7 @@ func (s *pullSubscriber) pumpIterator(i int) bool {
 	s.noteFetchProgress()
 	for wire := range deliveries {
 		s.noteFetchProgress()
-		if !s.deliver(wire) {
+		if !s.deliver(wire, nil) {
 			s.returnBatch(deliveries)
 			return false
 		}
@@ -330,7 +330,8 @@ func (s *pullSubscriber) returnBatch(deliveries <-chan jsapi.Msg) {
 func (s *pullSubscriber) returnDelivery(wire jsapi.Msg) {
 	s.ackMu.Lock()
 	defer s.ackMu.Unlock()
-	if s.releaseDelivery(wire.Reply()) {
+	tracked := s.releaseDelivery(wire.Reply())
+	if tracked || s.push != nil {
 		_ = wire.Nak()
 	}
 }
@@ -350,7 +351,7 @@ func (s *pullSubscriber) boundConsumer() jsapi.Consumer {
 	return s.consumer
 }
 
-func (s *pullSubscriber) deliver(wire jsapi.Msg) bool {
+func (s *pullSubscriber) deliver(wire jsapi.Msg, shed <-chan struct{}) bool {
 	if s.closed.Load() {
 		s.returnDelivery(wire)
 		return false
@@ -361,14 +362,14 @@ func (s *pullSubscriber) deliver(wire jsapi.Msg) bool {
 	}
 	msg, err := s.decode(wire, ticket)
 	if err != nil {
-		s.inflight.Add(1)
+		s.beginDelivery()
 		go func() {
-			defer s.inflight.Done()
+			defer s.finishDelivery()
 			s.quarantineWire(wire)
 		}()
 		return true
 	}
-	s.inflight.Add(1)
+	s.beginDelivery()
 	c := msg.completionState()
 	reply := wire.Reply()
 	metadata, _ := wire.Metadata()
@@ -376,18 +377,34 @@ func (s *pullSubscriber) deliver(wire jsapi.Msg) bool {
 	c.ticket = ticket
 	retryDelay := deliveryRetryDelay(metadata)
 	msg.setResolveHandler(func(acked bool) {
-		defer s.inflight.Done()
+		defer s.finishDelivery()
 		s.resolveDelivery(reply, c, retryDelay, acked)
 	})
 	msg.reject = func(rejected *Message) error { return s.rejectDelivery(metadata, rejected) }
 	select {
 	case s.output <- msg:
+		s.markHanded(ticket)
 		return true
 	case <-s.closeCh:
-		s.returnDelivery(wire)
-		s.inflight.Done()
-		return false
+	case <-shed:
 	}
+	s.returnDelivery(wire)
+	s.finishDelivery()
+	return false
+}
+
+func (s *pullSubscriber) beginDelivery() {
+	s.inflight.Add(1)
+	if s.push != nil {
+		s.push.active.Add(1)
+	}
+}
+
+func (s *pullSubscriber) finishDelivery() {
+	if s.push != nil {
+		s.push.active.Add(-1)
+	}
+	s.inflight.Done()
 }
 
 func (s *pullSubscriber) decode(wire jsapi.Msg, ticket *DeliveryTicket) (*Message, error) {
@@ -510,7 +527,8 @@ func (s *pullSubscriber) Healthy() bool {
 		return false
 	}
 	since := s.errSince.Load()
-	return !s.lagged.Load() && (since == 0 || time.Since(time.Unix(0, since)) < laneUnhealthyAfter)
+	withinGrace := since == 0 || time.Since(time.Unix(0, since)) < laneUnhealthyAfter
+	return !s.lagged.Load() && withinGrace
 }
 
 func (s *pullSubscriber) pause(wait time.Duration) bool {

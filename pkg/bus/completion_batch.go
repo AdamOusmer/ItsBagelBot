@@ -95,7 +95,7 @@ func (b *CompletionBatch) remove(ticket *DeliveryTicket, outcome messageState) *
 	ticket.previous, ticket.next, ticket.completion = nil, nil, nil
 	empty := b.head == nil && !b.closed
 	b.mu.Unlock()
-	b.subscriber.inflight.Done()
+	b.subscriber.finishDelivery()
 	b.retire()
 	if empty {
 		b.empty()

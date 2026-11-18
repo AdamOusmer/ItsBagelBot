@@ -15,13 +15,17 @@ import (
 type hotLaneState struct {
 	alignment laneAlignment
 	paused    atomic.Bool
+	ahead     int
 	idle      int
+	idleSince time.Time
 	otherSeen laneProgress
 }
 
 type laneProgress struct {
+	created   time.Time
 	delivered uint64
 	acked     uint64
+	pending   int
 }
 
 func (s *pullSubscriber) heartbeatInterval() time.Duration {
@@ -32,7 +36,7 @@ func (s *pullSubscriber) markLaneError() {
 	s.errSince.CompareAndSwap(0, time.Now().UnixNano())
 }
 
-func (h *hotLaneBinding) tick(stream *nats.StreamInfo) {
+func (h *hotLaneBinding) tick() {
 	if h.closed.Load() {
 		return
 	}
@@ -50,17 +54,23 @@ func (h *hotLaneBinding) tick(stream *nats.StreamInfo) {
 		return
 	}
 	h.paused.Store(info.Paused)
-	h.reconcileState(ctx, stream, info)
+	if stream := h.refreshStream(); stream != nil {
+		h.reconcileState(stream, info)
+	}
 }
 
-func (h *hotLaneBinding) reconcileState(ctx context.Context, stream *nats.StreamInfo, info *jsapi.ConsumerInfo) {
+func (h *hotLaneBinding) reconcileState(stream *nats.StreamInfo, info *jsapi.ConsumerInfo) {
 	if info.Paused {
 		h.alignment.watch = leaderWatch{}
-		h.tryTakeover(ctx)
+		h.ahead = 0
+		h.tryTakeover()
 		return
 	}
 	h.idle = 0
-	if laneAhead(info, stream.State.LastSeq) {
+	h.idleSince = time.Time{}
+	h.ahead = nextStreak(h.ahead, laneAhead(info, stream.State.LastSeq))
+	if h.ahead >= 2 {
+		h.ahead = 0
 		h.changeLane(h.repairAhead)
 		return
 	}
@@ -80,10 +90,13 @@ func (h *hotLaneBinding) inspectPush(info *jsapi.ConsumerInfo) {
 	h.noteFetchProgress()
 }
 
-func (h *hotLaneBinding) tryTakeover(ctx context.Context) {
+func (h *hotLaneBinding) tryTakeover() {
+	ctx, cancel := context.WithTimeout(h.ctx, min(h.heartbeatInterval(), time.Second))
+	defer cancel()
 	other, err := h.info(ctx, h.other)
 	if err != nil {
 		h.idle = 0
+		h.idleSince = time.Time{}
 		h.markLaneError()
 		h.progressWarning(err)
 		return
@@ -99,10 +112,24 @@ func (h *hotLaneBinding) peerIdle(other *jsapi.ConsumerInfo) bool {
 	if other == nil {
 		return true
 	}
-	progress := laneProgress{other.Delivered.Stream, other.AckFloor.Stream}
+	if other.Config.DeliverSubject != "" {
+		return !other.PushBound
+	}
+	return h.pullPeerIdle(other)
+}
+
+func (h *hotLaneBinding) pullPeerIdle(other *jsapi.ConsumerInfo) bool {
+	progress := laneProgress{other.Created, other.Delivered.Consumer, other.AckFloor.Consumer, other.NumAckPending}
 	unchanged := progress == h.otherSeen
 	h.otherSeen = progress
-	return unchanged && !other.PushBound && other.NumWaiting == 0
+	if !unchanged || other.NumWaiting != 0 {
+		h.idleSince = time.Time{}
+		return false
+	}
+	if h.idleSince.IsZero() {
+		h.idleSince = time.Now()
+	}
+	return time.Since(h.idleSince) > other.Config.AckWait
 }
 
 func nextStreak(streak int, match bool) int {

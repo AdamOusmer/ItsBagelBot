@@ -147,12 +147,28 @@ func TestPushLaneLeaderServerShutdownKeepsEveryPublishedID(t *testing.T) {
 	assert.True(t, SubscriberHealthy(sub))
 }
 
+func TestPushLaneMemberCrashRedeliversEveryID(t *testing.T) {
+	forPushStreams(t, func(t *testing.T, f pushFixture) {
+		t.Setenv("NATS_PULL_ACK_WAIT", "3s")
+		crashed, _ := f.open(t)
+		f.publishIDs(t, 0, 120)
+		f.awaitPendingAcks(t, 120)
+		_, inbox := f.open(t)
+		f.pushMember(crashed).nc.Close()
+		var seen sync.Map
+		go collectFailoverIDs(inbox, &seen)
+		require.Eventually(t, func() bool { return publishedIDsSeen(&seen, 120) }, 10*time.Second, 25*time.Millisecond)
+		f.awaitEmpty(t)
+	})
+}
+
 func (c *pushTestCluster) cycle(t *testing.T, f pushFixture, name string) {
 	t.Helper()
 	c.stop(name)
 	require.Eventually(t, func() bool {
 		info, err := f.lookup(t, f.pushName())
-		return err == nil && consumerLeaderName(info) != "" && consumerLeaderName(info) != name
+		found := err == nil && consumerLeaderName(info) != ""
+		return found && consumerLeaderName(info) != name
 	}, 10*time.Second, 50*time.Millisecond)
 	c.start(t, name)
 	f.readyStream(t)

@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"ItsBagelBot/pkg/env"
-
 	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
 )
@@ -24,7 +22,7 @@ func pushConsumerConfig(cfg flowLaneConfig) jsapi.ConsumerConfig {
 	name := pushConsumerName(cfg.group, cfg.subject)
 	desired := pullConsumerConfig(cfg.subject, name)
 	desired.Description = "ItsBagelBot shared-durable push lane consumer"
-	desired.MaxAckPending = positiveInt(env.GetInt("NATS_PUSH_MAX_ACK_PENDING", flowMaxAckPending), flowMaxAckPending)
+	desired.MaxAckPending = defaultPullMaxAckPending
 	desired.DeliverSubject = "_INBOX.LANE." + subjectToken(name)
 	desired.DeliverGroup = cfg.group
 	desired.FlowControl = true
@@ -75,7 +73,7 @@ type hotConsumerResponse struct {
 
 func (h *hotLaneBinding) info(ctx context.Context, name hotDurable) (*jsapi.ConsumerInfo, error) {
 	var response hotConsumerResponse
-	subject := "$JS." + JSDomain() + ".API.CONSUMER.INFO." + h.stream + "." + string(name)
+	subject := h.consumerAPISubject("INFO", name)
 	if err := laneRequest(ctx, h.nc, laneRequestArgs{subject: subject}, &response); err != nil {
 		return nil, err
 	}
@@ -86,6 +84,10 @@ func (h *hotLaneBinding) info(ctx context.Context, name hotDurable) (*jsapi.Cons
 		return nil, nil
 	}
 	return nil, response.Error
+}
+
+func (h *hotLaneBinding) consumerAPISubject(operation string, name hotDurable) string {
+	return "$JS." + JSDomain() + ".API.CONSUMER." + operation + "." + h.stream + "." + string(name)
 }
 
 func (h *hotLaneBinding) ensure() (jsapi.Consumer, error) {

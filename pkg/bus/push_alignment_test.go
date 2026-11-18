@@ -5,6 +5,7 @@ package bus
 
 import (
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,30 @@ import (
 )
 
 type testServerName string
+
+func TestPushAlignmentStepdownKeepsEveryPublishedID(t *testing.T) {
+	forPushStreams(t, func(t *testing.T, f pushFixture) {
+		seed, _ := f.open(t)
+		require.NoError(t, seed.Close())
+		stream := f.readyStream(t)
+		name := hotDurable(f.pushName())
+		other := testServerName(stream.Cluster.Replicas[0].Name)
+		f.moveConsumerLeader(t, name, other)
+		f.waitConsumerLeader(t, name, other, 3*time.Second)
+		t.Setenv("NATS_LANE_ALIGN", "on")
+		_, inbox := f.open(t)
+		var seen sync.Map
+		go collectFailoverIDs(inbox, &seen)
+		stop, published := f.publishDuringFailover(t)
+		f.waitConsumerLeader(t, name, testServerName(stream.Cluster.Leader), 6*time.Second)
+		close(stop)
+		count := <-published
+		require.Positive(t, count)
+		f.publishIDs(t, count, count+20)
+		require.Eventually(t, func() bool { return publishedIDsSeen(&seen, count+20) }, 12*time.Second, 25*time.Millisecond)
+		f.awaitEmpty(t)
+	})
+}
 
 func TestLaneAlignmentFollowsStreamLeaderWithCooldown(t *testing.T) {
 	forPushStreams(t, func(t *testing.T, f pushFixture) {
@@ -83,7 +108,8 @@ func (f pushFixture) waitStreamLeader(t *testing.T, name testServerName) {
 	t.Helper()
 	require.Eventually(t, func() bool {
 		info, err := f.js.StreamInfo(f.spec.Name, nats.MaxWait(500*time.Millisecond))
-		return err == nil && info.Cluster != nil && info.Cluster.Leader == string(name)
+		known := err == nil && info.Cluster != nil
+		return known && info.Cluster.Leader == string(name)
 	}, 5*time.Second, 25*time.Millisecond)
 }
 

@@ -70,7 +70,10 @@ func (a *laneAlignment) reconcile(h *hotLaneBinding, streamLeader string, info *
 }
 
 func (a *laneAlignment) canStepDown(info *jsapi.ConsumerInfo, stable, aligned bool) bool {
-	return a.enabled && stable && !aligned && !info.Paused && !time.Now().Before(a.next)
+	enabled := a.enabled && !info.Paused
+	due := enabled && !time.Now().Before(a.next)
+	needsAlignment := stable && !aligned
+	return due && needsAlignment
 }
 
 func consumerLeaderName(info *jsapi.ConsumerInfo) string {
@@ -83,7 +86,7 @@ func consumerLeaderName(info *jsapi.ConsumerInfo) string {
 func (h *hotLaneBinding) stepDown(preferred string) (bool, error) {
 	ctx, cancel := context.WithTimeout(h.ctx, time.Second)
 	defer cancel()
-	subject := "$JS.API.CONSUMER.LEADER.STEPDOWN." + h.stream + "." + h.name
+	subject := h.consumerAPISubject("LEADER.STEPDOWN", hotDurable(h.name))
 	body, _ := json.Marshal(map[string]map[string]string{"placement": {"preferred": preferred}})
 	var response laneStepdownResponse
 	if err := laneRequest(ctx, h.nc, laneRequestArgs{subject, body}, &response); err != nil {
