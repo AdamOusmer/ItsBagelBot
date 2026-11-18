@@ -58,7 +58,7 @@ func streamInfoTargetTransport(t *testing.T) func(*http.Request) (*http.Response
 			body = `{"data":[{"id":"456"}]}`
 		case "/helix/streams":
 			require.Equal(t, "456", req.URL.Query().Get("user_id"))
-			body = `{"data":[{"game_name":"VALORANT"}]}`
+			body = `{"data":[{"type":"live","game_name":"VALORANT"}]}`
 		default:
 			t.Fatalf("unexpected Twitch API path %q", req.URL.Path)
 		}
