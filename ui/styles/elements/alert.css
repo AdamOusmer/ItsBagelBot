@@ -143,6 +143,16 @@
     margin: 0;
   }
 
+  .bb-alert--strong {
+    --alert-fg: color-mix(in srgb, var(--alert-accent), rgb(var(--bb-white-pure-rgb)) 55%);
+    --alert-bg: rgba(var(--alert-rgb), 0.16);
+
+    gap: 14px;
+    padding: 14px 18px;
+    font-size: 14.5px;
+    font-weight: 500;
+  }
+
   .bb-alert__msg {
     flex: 1;
     min-width: 0;

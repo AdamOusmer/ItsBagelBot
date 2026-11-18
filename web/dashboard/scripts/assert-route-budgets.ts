@@ -61,7 +61,9 @@ const BUDGETS: Record<string, Budget> = {
   // before and 101572 / 22597 after (+547 / +326 B) on macOS, ~2% room for CI's larger linux gzip.
   // js raised from 103600 (2026-11-08): the compact support card brings the shared animated Bolota
   // renderer onto the commands page for the first time. CI measured 111599 B gzip; ~2% room.
-  '/(public)/user/[channel]': { js: 114000, css: 23050, catalog: 2800, lazy: 0 }
+  // css raised from 23050 (2026-11-17) for the strong alert look in the shared alert stylesheet: measured 23090 on
+  // macOS, ~2% room.
+  '/(public)/user/[channel]': { js: 114000, css: 23550, catalog: 2800, lazy: 0 }
 };
 
 interface RouteEntry {
