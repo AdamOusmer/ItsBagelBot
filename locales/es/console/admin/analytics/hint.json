@@ -14,7 +14,7 @@
   "signups": "Cuentas nuevas creadas cada día del período.",
   "gainLoss": "Cuentas nuevas frente a cuentas eliminadas cada día.",
   "funnel": "Registros, configuraciones terminadas y activaciones del bot en el período. Cada paso cuenta eventos del período, así que los pasos posteriores pueden incluir registros anteriores.",
-  "churn": "Bot deshabilitado, acceso revocado, cuentas eliminadas y bloqueos de chat, sumados en el período.",
+  "churn": "Bot desactivado, acceso revocado, baneos del chat, canales inactivos y cuentas eliminadas, sumados en el periodo.",
   "presets": "Ajustes iniciales elegidos durante la configuración, sumados en el período.",
   "active": "Canales a los que el bot prestó servicio cada día del período.",
   "live": "Canales que iniciaron directo cada día del período.",
@@ -52,5 +52,7 @@
   "delegating": "Cuentas con al menos un delegado y su proporción del total en la última captura diaria.",
   "donations": "Pagos brutos de Ko-fi en el periodo por moneda, con la proporción recurrente y el periodo anterior de igual duración. Importes antes de las comisiones de Ko-fi y del procesador de pagos.",
   "donationMonths": "Pagos brutos de Ko-fi por mes natural en los últimos 12 meses, solo días UTC cerrados.",
-  "donationKinds": "Pagos de Ko-fi en el periodo por tipo."
+  "donationKinds": "Pagos de Ko-fi en el periodo por tipo.",
+  "stops": "Cuentas cuyo bot se detuvo cada día, por cualquier motivo, frente a cuentas que lo volvieron a activar.",
+  "inactive": "Cuentas en cada estado inactivo al final de cada día."
 }

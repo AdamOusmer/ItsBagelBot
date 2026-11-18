@@ -3,5 +3,7 @@
   "gainLossSummary": "Gewonnen {gained}, verloren {lost}, netto {net}",
   "gained": "Gewonnen",
   "lost": "Verloren",
-  "lossDays": "Tage mit mehr Verlusten als Zugängen: {days}"
+  "lossDays": "Tage mit mehr Verlusten als Zugängen: {days}",
+  "stopped": "Gestoppt",
+  "restarted": "Wieder eingeschaltet"
 }

@@ -19,6 +19,7 @@
     "bot_disabled": "Disabled the bot",
     "revoked": "Revoked access",
     "chat_banned": "Banned from chat",
+    "dormant": "Went dormant",
     "account_deleted": "Deleted account"
   },
   "billing": {

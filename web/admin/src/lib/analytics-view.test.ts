@@ -337,7 +337,7 @@ describe('kpis', () => {
 describe('growth and engagement', () => {
   it.each([
     ['funnel', view.growth.funnel, ['signup:30:-', 'onboarded:12:40%', 'bot_enabled:8:27%']],
-    ['churn', view.growth.churn, ['bot_disabled:2:-', 'revoked:1:-', 'account_deleted:3:-', 'chat_banned:0:-']],
+    ['churn', view.growth.churn, ['bot_disabled:2:-', 'revoked:1:-', 'chat_banned:0:-', 'dormant:0:-', 'account_deleted:3:-']],
     ['presets', view.growth.presets, ['start-new:6:60%', 'import:2:20%', 'mystery:2:20%']]
   ])('%s bars', (_name, bars, expected) => {
     expect(lines(bars)).toEqual(expected);
@@ -453,6 +453,56 @@ describe('gained and lost accounts', () => {
       net: 27,
       lossDays: 1
     });
+  });
+});
+
+describe('bot stops and inactive accounts', () => {
+  const life = (day: string, dim: string, value: number): AnalyticsRow => row(day, 'lifecycle', [dim], value);
+  const runtime = (day: string, pairs: [string, number][]) => snap(day, 'accounts.runtime', pairs);
+  const flows = (over: Partial<AnalyticsReads>) => {
+    const { stops, inactive } = buildAnalytics(reads({ days: 7, ...over })).growth;
+    return { stops, inactive };
+  };
+  const point = (rec: Record<string, number>) => Object.values(rec).join(':');
+
+  it('counts every stop reason per day against bots turned back on', () => {
+    const { stops } = flows({
+      counters: [
+        life('2026-11-03', 'bot_disabled', 1),
+        life('2026-11-03', 'dormant', 4),
+        life('2026-11-05', 'revoked', 2),
+        life('2026-11-05', 'chat_banned', 1),
+        life('2026-11-07', 'account_deleted', 1),
+        life('2026-11-07', 'bot_enabled', 2),
+        life('2026-11-07', 'signup', 9),
+        life('2026-10-01', 'bot_disabled', 50)
+      ]
+    });
+    expect({ points: stops.points.map(point), facts: facts(stops.facts) }).toEqual({
+      points: daysIn({ from: '2026-11-03', to: END }).map((day) => {
+        const values: Record<string, string> = { '2026-11-03': '5:0', '2026-11-05': '3:0', '2026-11-07': '1:2' };
+        return `${Date.parse(day)}:${values[day] ?? '0:0'}`;
+      }),
+      facts: { stopped: '9', restarted: '2', netStops: '-7' }
+    });
+  });
+
+  it('charts inactive states only on days with a snapshot', () => {
+    const { inactive } = flows({
+      levels: [
+        ...runtime('2026-11-04', [['active', 80], ['disabled', 5], ['blocked', 3]]),
+        ...runtime(END, [['active', 70], ['disabled', 6], ['dormant', 12], ['blocked', 4], ['degraded', 1]])
+      ]
+    });
+    expect({ points: inactive.points.map(point), facts: facts(inactive.facts) }).toEqual({
+      points: [`${Date.parse('2026-11-04')}:5:0:3`, `${Date.parse(END)}:6:12:4`],
+      facts: { inactiveNow: '22', inactiveShare: '24%', inactiveChange: '+14' }
+    });
+  });
+
+  it('leaves both charts empty without rows', () => {
+    const { stops, inactive } = flows({ counters: [], levels: [] });
+    expect([stops.points, inactive.points, facts(inactive.facts)]).toEqual([[], [], { inactiveNow: '0', inactiveShare: '-', inactiveChange: '-' }]);
   });
 });
 

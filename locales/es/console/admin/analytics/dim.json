@@ -19,6 +19,7 @@
     "bot_disabled": "Deshabilitó el bot",
     "revoked": "Revocó el acceso",
     "chat_banned": "Bloqueado en el chat",
+    "dormant": "Pasó a inactivo",
     "account_deleted": "Eliminó la cuenta"
   },
   "billing": {

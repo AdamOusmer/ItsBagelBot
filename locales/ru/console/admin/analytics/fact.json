@@ -30,5 +30,11 @@
   "delegating": "Аккаунты с делегатами",
   "delegatingShare": "Доля аккаунтов с делегатами",
   "newSubscribers": "Новые участники Ko-fi",
-  "lastDonation": "Последний платёж Ko-fi"
+  "lastDonation": "Последний платёж Ko-fi",
+  "stopped": "Остановки бота",
+  "restarted": "Снова включено",
+  "netStops": "Итого",
+  "inactiveNow": "Неактивны сейчас",
+  "inactiveShare": "Доля аккаунтов",
+  "inactiveChange": "Изменение за период"
 }

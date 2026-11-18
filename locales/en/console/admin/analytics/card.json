@@ -52,5 +52,7 @@
   "delegating": "Accounts with delegates",
   "donations": "Ko-fi payments by currency",
   "donationMonths": "Ko-fi revenue by month",
-  "donationKinds": "Ko-fi payments by type"
+  "donationKinds": "Ko-fi payments by type",
+  "stops": "Bot stops per day",
+  "inactive": "Inactive accounts per day"
 }

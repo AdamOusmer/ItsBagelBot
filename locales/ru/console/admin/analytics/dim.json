@@ -19,6 +19,7 @@
     "bot_disabled": "Отключил бота",
     "revoked": "Отозвал доступ",
     "chat_banned": "Забанен в чате",
+    "dormant": "Стал спящим",
     "account_deleted": "Удалил аккаунт"
   },
   "billing": {

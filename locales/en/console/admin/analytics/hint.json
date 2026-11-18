@@ -14,7 +14,7 @@
   "signups": "New accounts created on each day of the window.",
   "gainLoss": "New accounts against deleted accounts on each day.",
   "funnel": "Signups, finished setups and bot enables in the window. Each step counts events in the window, so later steps can include earlier signups.",
-  "churn": "Bot disabled, access revoked, accounts deleted and chat bans, summed over the window.",
+  "churn": "Bot disabled, access revoked, chat bans, dormant channels and deleted accounts, summed over the window.",
   "presets": "Setup presets picked during onboarding, summed over the window.",
   "active": "Channels the bot served on each day of the window.",
   "live": "Channels that went live on each day of the window.",
@@ -52,5 +52,7 @@
   "delegating": "Accounts with at least one delegate and their share of all accounts in the latest daily snapshot.",
   "donations": "Gross Ko-fi payments in the window by currency, with the recurring share and the previous window of equal length. Amounts are before Ko-fi and payment processor fees.",
   "donationMonths": "Gross Ko-fi payments per calendar month over the last 12 months, closed UTC days only.",
-  "donationKinds": "Ko-fi payments in the window by type."
+  "donationKinds": "Ko-fi payments in the window by type.",
+  "stops": "Accounts whose bot stopped on each day, for any reason, against accounts that turned it back on.",
+  "inactive": "Accounts in each inactive state at the end of each day."
 }
