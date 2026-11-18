@@ -121,6 +121,20 @@ func (f pushFixture) seedPushConsumer(t *testing.T, group string) {
 	_, err := f.modern.CreatePushConsumer(t.Context(), f.spec.Name, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() { f.deleteTestDurable(t, cfg.Name) })
+	f.separateLaneLeaders(t, hotDurable(cfg.Name))
+}
+
+func (f pushFixture) separateLaneLeaders(t *testing.T, name hotDurable) {
+	t.Helper()
+	stream := f.readyStream(t)
+	if consumerLeaderName(f.consumer(t, string(name))) == stream.Cluster.Leader {
+		f.moveConsumerLeader(t, name, testServerName(stream.Cluster.Replicas[0].Name))
+	}
+	require.Eventually(t, func() bool {
+		info, err := f.lookup(t, string(name))
+		elected := err == nil && consumerLeaderName(info) != ""
+		return elected && consumerLeaderName(info) != stream.Cluster.Leader
+	}, 6*time.Second, 25*time.Millisecond)
 }
 
 func (f pushFixture) publishFor(t *testing.T, duration time.Duration) int {
@@ -128,16 +142,24 @@ func (f pushFixture) publishFor(t *testing.T, duration time.Duration) int {
 	deadline := time.Now().Add(duration)
 	count := 0
 	for time.Now().Before(deadline) {
+		count += f.publishBatch(t)
+	}
+	return count
+}
+
+func (f pushFixture) publishBatch(t *testing.T) int {
+	t.Helper()
+	const batch = 128
+	for range batch {
 		_, err := f.js.PublishAsync(f.subject(), []byte("steady traffic"))
 		require.NoError(t, err)
-		count++
 	}
 	select {
 	case <-f.js.PublishAsyncComplete():
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for publish acknowledgements")
 	}
-	return count
+	return batch
 }
 
 func TestPushLaneStalledHeartbeatRecoversLostFlowControlReply(t *testing.T) {

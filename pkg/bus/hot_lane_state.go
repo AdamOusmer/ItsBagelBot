@@ -15,10 +15,16 @@ import (
 type hotLaneState struct {
 	alignment laneAlignment
 	paused    atomic.Bool
-	ahead     int
+	ahead     lanePosition
 	idle      int
 	idleSince time.Time
 	otherSeen laneProgress
+}
+
+type lanePosition struct {
+	created   time.Time
+	delivered uint64
+	sequence  uint64
 }
 
 type laneProgress struct {
@@ -44,34 +50,38 @@ func (h *hotLaneBinding) tick() {
 	defer cancel()
 	info, err := h.info(ctx, hotDurable(h.name))
 	if err != nil {
+		h.ahead = lanePosition{}
 		h.markLaneError()
 		h.progressWarning(err)
 		return
 	}
 	if info == nil {
+		h.ahead = lanePosition{}
 		h.markLaneError()
 		h.rebuildConsumer()
 		return
 	}
 	h.paused.Store(info.Paused)
-	if stream := h.refreshStream(); stream != nil {
-		h.reconcileState(stream, info)
+	stream := h.refreshStream()
+	if stream == nil {
+		h.ahead = lanePosition{}
+		return
 	}
+	h.reconcileState(stream, info)
 }
 
 func (h *hotLaneBinding) reconcileState(stream *nats.StreamInfo, info *jsapi.ConsumerInfo) {
 	if info.Paused {
 		h.alignment.watch = leaderWatch{}
-		h.ahead = 0
+		h.ahead = lanePosition{}
 		h.tryTakeover()
 		return
 	}
 	h.idle = 0
 	h.idleSince = time.Time{}
-	h.ahead = nextStreak(h.ahead, laneAhead(info, stream.State.LastSeq))
-	if h.ahead >= 2 {
-		h.ahead = 0
+	if h.confirmAhead(info, stream.State.LastSeq) {
 		h.changeLane(h.repairAhead)
+		h.ahead = lanePosition{}
 		return
 	}
 	if stream.Cluster != nil {
@@ -161,10 +171,28 @@ func laneAhead(info *jsapi.ConsumerInfo, last uint64) bool {
 	return info.Delivered.Stream > last || info.Config.OptStartSeq > last+1
 }
 
+func positionOfLane(info *jsapi.ConsumerInfo) lanePosition {
+	return lanePosition{info.Created, info.Delivered.Consumer, info.Delivered.Stream}
+}
+
+func (h *hotLaneBinding) confirmAhead(info *jsapi.ConsumerInfo, last uint64) bool {
+	if !laneAhead(info, last) {
+		h.ahead = lanePosition{}
+		return false
+	}
+	position := positionOfLane(info)
+	unchanged := h.ahead == position
+	h.ahead = position
+	return unchanged
+}
+
 func (h *hotLaneBinding) repairAhead(ctx context.Context) error {
 	info, err := h.info(ctx, hotDurable(h.name))
 	if err != nil || info == nil {
 		return err
+	}
+	if positionOfLane(info) != h.ahead {
+		return nil
 	}
 	stream, err := h.letters.js.StreamInfo(h.stream, nats.Context(ctx))
 	if err != nil {
