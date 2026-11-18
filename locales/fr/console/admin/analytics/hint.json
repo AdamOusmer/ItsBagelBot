@@ -12,7 +12,7 @@
   "runtime": "État de fonctionnement actuel des comptes comptabilisés.",
   "desktop": "Autorisations non révoquées dont les deux échéances de renouvellement sont encore à venir.",
   "signups": "Nouveaux comptes créés chaque jour de la fenêtre.",
-  "gainLoss": "Nouveaux comptes face aux comptes supprimés chaque jour.",
+  "gainLoss": "Nouveaux comptes face aux comptes bannis du chat, dont l’accès a été révoqué ou supprimés chaque jour.",
   "funnel": "Inscriptions, configurations terminées et activations du bot sur la fenêtre. Chaque étape compte les événements de la fenêtre, donc les étapes suivantes peuvent inclure des inscriptions antérieures.",
   "churn": "Bot désactivé, accès révoqué, bannissements du chat, chaînes en sommeil et comptes supprimés, cumulés sur la période.",
   "presets": "Préréglages choisis pendant l'accueil, additionnés sur la fenêtre.",

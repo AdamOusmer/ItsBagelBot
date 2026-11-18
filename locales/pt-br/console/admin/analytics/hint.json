@@ -12,7 +12,7 @@
   "runtime": "Estado de execução atual das contas contabilizadas.",
   "desktop": "Autorizações não revogadas com os dois prazos de renovação ainda no futuro.",
   "signups": "Novas contas criadas em cada dia do período.",
-  "gainLoss": "Contas novas contra contas excluídas em cada dia.",
+  "gainLoss": "Contas novas contra contas banidas do chat, com acesso revogado ou excluídas em cada dia.",
   "funnel": "Cadastros, configurações concluídas e ativações do bot no período. Cada etapa conta eventos do período, então as etapas posteriores podem incluir cadastros anteriores.",
   "churn": "Bot desativado, acesso revogado, banimentos no chat, canais dormentes e contas excluídas, somados no período.",
   "presets": "Predefinições escolhidas durante a configuração, somadas no período.",
