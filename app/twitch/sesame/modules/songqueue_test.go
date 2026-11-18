@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -303,6 +304,8 @@ func TestSongRequest(t *testing.T) {
 		{name: "live only says it is offline", config: `{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`, live: liveOffline, noCall: true, contains: []string{"while the stream is live"}},
 		{name: "allowOffline queues while offline", config: `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, live: liveOffline, queued: 1, contains: []string{"Mr. Brightside"}},
 		{name: "a legacy blob keeps queueing", config: `{"maxDepth":10}`, live: liveOffline, queued: 1, contains: []string{"Mr. Brightside"}},
+		{name: "the default queue has no size cap", queued: 1501, contains: []string{"Mr. Brightside"},
+			store: fakeSongQueue{up: slices.Repeat([]engine.SongEntry{entry("q", "Queued", "7", "bob")}, 1500)}},
 		{name: "a partial sr record keeps queueing", config: `{"sr":{"perm":"everyone"}}`, live: liveOnline, queued: 1, contains: []string{"Mr. Brightside"}},
 	}
 	for _, tc := range cases {

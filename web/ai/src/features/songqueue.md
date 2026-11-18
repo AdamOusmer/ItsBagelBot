@@ -44,7 +44,7 @@ Assistants answering feature questions, explaining chat commands, or helping str
 - "{{console:spotify.index.liveOnlyLabel}}" is on by default. The two request paths can allow offline requests independently.
 - "{{console:spotify.sr.permLabel}}" selects everyone, subscribers, VIPs, moderators, or the broadcaster.
 - "{{console:spotify.quota.title}}" has separate everyone, subscriber, VIP, and moderator limits. Blank means unlimited; the broadcaster is uncapped.
-- The queue holds 100 songs. The dashboard has no queue-size setting. This is distinct from per-viewer quotas.
+- The queue has no size limit. The dashboard has no queue-size setting. This is distinct from per-viewer quotas.
 - `!sr`, current-player queries, and `!srlist` have a 5-second cooldown.
 - Request input accepts song names, artist/song pairs, and supported Spotify track or album links.
 - Text search understands `song by artist` and `artist - song` in either order and checks the title and artist against Spotify's metadata before queueing.

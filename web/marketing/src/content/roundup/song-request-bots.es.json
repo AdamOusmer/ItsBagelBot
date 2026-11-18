@@ -25,7 +25,7 @@
         "id": "itsbagelbot",
         "music": "Spotify",
         "plays": "!sr añade la pista a tu propia cola de Spotify. Requiere Spotify Premium y tu propia aplicación de desarrollador de Spotify.",
-        "price": "Gratis. La cola admite 100 canciones.",
+        "price": "Gratis. La cola no tiene límite de tamaño.",
         "source": "https://itsbagelbot.com/song-requests/"
       },
       {
@@ -93,7 +93,7 @@
       },
       {
         "name": "Cola gratis larga",
-        "desc": "El plan gratuito de ItsBagelBot pone en cola 100 canciones. El plan gratuito de SpotchBot admite hasta 6."
+        "desc": "El plan gratuito de ItsBagelBot ofrece una cola sin límite de tamaño. El plan gratuito de SpotchBot admite hasta 6."
       },
       {
         "name": "Un bot para el chat",
@@ -125,7 +125,7 @@
     },
     {
       "q": "¿Hay un bot gratuito de peticiones de Spotify para Twitch?",
-      "a": "ItsBagelBot incluye las peticiones de Spotify en su plan gratuito, con una cola de 100 canciones. SpotchBot tiene un plan gratuito que admite hasta 6 canciones en cola. Ambos requieren Spotify Premium, que Spotify exige para controlar la cola."
+      "a": "ItsBagelBot incluye las peticiones de Spotify en su plan gratuito, con una cola sin límite de tamaño. SpotchBot tiene un plan gratuito que admite hasta 6 canciones en cola. Ambos requieren Spotify Premium, que Spotify exige para controlar la cola."
     },
     {
       "q": "¿Necesito Spotify Premium para las peticiones de canciones?",
