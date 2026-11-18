@@ -1,5 +1,7 @@
 {
   "dead.body": "Algumas conexões do seu canal expiraram. Vá às configurações e reconecte sua conta para resolver o problema.",
   "dead.chat": "Algumas conexões do seu canal expiraram. Entre no painel para resolver o problema: {dashboard_url}",
-  "dead.title": "Reconecte sua conta da Twitch"
+  "dead.title": "Reconecte sua conta da Twitch",
+  "scope.body": "O bot precisa de uma permissão mais recente da Twitch para ver banimentos e suspensões temporárias no seu canal. Entre em {dashboard_url} e aprove o pedido da Twitch para manter o chat e os alertas funcionando.",
+  "scope.title": "Aprove a nova permissão da Twitch"
 }
