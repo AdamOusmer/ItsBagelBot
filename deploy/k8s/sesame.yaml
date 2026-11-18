@@ -138,6 +138,8 @@ spec:
               value: 512MiB
             - name: NATS_HOT_LANE_MODE
               value: push
+            - name: NATS_LANE_ALIGN
+              value: "on"
             # The broker's MSG.NEXT grant must land first, or the lane silently drops to zero events.
             - name: NATS_CONSUME_FLOW
               value: "on"
