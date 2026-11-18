@@ -94,8 +94,8 @@ defmodule Ingress.Squash do
   end
 
   @impl true
-  def handle_cast({:dup, key, generation, {base, sender}, headers}, state) do
-    single = %{base: base, senders: [sender], count: 1, headers: headers}
+  def handle_cast({:dup, key, generation, {base, sender}, trace}, state) do
+    single = %{base: base, senders: [sender], count: 1, trace: trace}
 
     if current?(state.table, key, :any, generation) do
       collect_duplicate({key, generation}, single, state)
@@ -143,17 +143,14 @@ defmodule Ingress.Squash do
     end
   end
 
-  defp join(cohort, %{senders: [sender], headers: headers}) do
+  defp join(cohort, %{senders: [sender], trace: trace}) do
     %{
       cohort
       | senders: [sender | cohort.senders],
         count: cohort.count + 1,
-        headers: first_trace(cohort.headers, headers)
+        trace: cohort.trace || trace
     }
   end
-
-  defp first_trace([], headers), do: headers
-  defp first_trace(headers, _later), do: headers
 
   @impl true
   def handle_info(:sweep, state) do
@@ -182,7 +179,7 @@ defmodule Ingress.Squash do
     end
   end
 
-  defp emit(%{base: base, senders: senders, count: count, headers: headers}, state) do
+  defp emit(%{base: base, senders: senders, count: count, trace: trace}, state) do
     distinct = senders |> Enum.map(& &1.chatter_user_id) |> Enum.uniq() |> length()
     ordered = Enum.reverse(senders)
 
@@ -208,7 +205,7 @@ defmodule Ingress.Squash do
 
     Metrics.count("Cohorts/Emitted")
     Metrics.count("Cohorts/Senders", count)
-    state.publish.(Config.hot_lane_subject(base.lane), message, headers)
+    state.publish.(Config.hot_lane_subject(base.lane), message, Trace.held_headers(trace))
     true
   end
 
@@ -250,7 +247,7 @@ defmodule Ingress.Squash do
         [{^key, expires_at, current_generation}] when expires_at > now ->
           GenServer.cast(
             server,
-            {:dup, key, current_generation, duplicate_parts(duplicate), Trace.trace_headers()}
+            {:dup, key, current_generation, duplicate_parts(duplicate), Trace.hold()}
           )
 
           :buffered

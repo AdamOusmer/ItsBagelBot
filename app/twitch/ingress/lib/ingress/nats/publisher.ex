@@ -420,5 +420,6 @@ defmodule Ingress.Nats.Publisher do
     :ok
   end
 
+  defp schedule(msg, 0), do: send(self(), msg)
   defp schedule(msg, ms), do: Process.send_after(self(), msg, ms)
 end

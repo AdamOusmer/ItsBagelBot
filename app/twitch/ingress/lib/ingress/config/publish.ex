@@ -17,7 +17,7 @@ defmodule Ingress.Config.Publish do
     do: Application.get_env(:ingress, :publish_batch_size, 128)
 
   def batch_wait_ms,
-    do: Application.get_env(:ingress, :publish_batch_wait_ms, 1)
+    do: Application.get_env(:ingress, :publish_batch_wait_ms, 0)
 
   def send_concurrency,
     do: Application.get_env(:ingress, :publish_send_concurrency, 22) |> max(1) |> min(32)
