@@ -38,7 +38,7 @@ func (r resolvedInput) cacheKey() string {
 		return "share:" + r.text
 	default:
 		// A new matcher must not reuse an old cached first-result selection.
-		return "text:v3:" + r.text
+		return "text:v7:" + r.text
 	}
 }
 
@@ -228,7 +228,24 @@ type searchCandidate struct {
 	q            string
 	name         string
 	song, artist string
+	match        *searchFields
 	operators    bool
+	otherFilters bool
+	corrected    bool
+}
+
+func (c searchCandidate) hasFields() bool { return c.song != "" || c.artist != "" }
+
+func (c searchCandidate) fields() searchFields {
+	if c.match != nil {
+		return *c.match
+	}
+	return searchFields{song: matchWords(c.song), artist: matchWords(c.artist)}
+}
+
+func (c searchCandidate) plainFallback() searchCandidate {
+	q := strings.TrimSpace(c.song + " " + c.artist)
+	return searchCandidate{q: q, name: viaText, song: c.song, artist: c.artist, match: c.match}
 }
 
 // planTextSearch turns chat text into ordered search candidates. The FIRST
@@ -277,8 +294,8 @@ type textSplit struct {
 func (t *textSplit) swap() { t.left, t.right = t.right, t.left }
 
 func (t textSplit) candidate() (searchCandidate, bool) {
-	song := strings.TrimSpace(strings.ReplaceAll(t.left, `"`, ""))
-	artist := strings.TrimSpace(strings.ReplaceAll(t.right, `"`, ""))
+	song := queryField(t.left).unquoted()
+	artist := queryField(t.right).unquoted()
 	if song == "" || artist == "" {
 		return searchCandidate{}, false
 	}
@@ -333,6 +350,8 @@ func (q normalizedQuery) operatorCandidate() (searchCandidate, bool) {
 			candidate.song = value
 		case "artist":
 			candidate.artist = value
+		default:
+			candidate.otherFilters = true
 		}
 	}
 	return candidate, true
