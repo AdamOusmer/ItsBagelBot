@@ -43,15 +43,8 @@ func TestSesameDeliveryRolloutAndShutdownBudget(t *testing.T) {
 	roll := manifest.Spec.Strategy.RollingUpdate
 	assert.Equal(t, [2]any{"100%", 0}, [2]any{roll.MaxSurge, roll.MaxUnavailable})
 	pod := manifest.Spec.Template.Spec
-	require.Len(t, pod.Containers, 1)
-	drain := time.Duration(0)
-	for _, env := range pod.Containers[0].Env {
-		if env.Name == "SESAME_DRAIN_TIMEOUT" {
-			var err error
-			drain, err = time.ParseDuration(env.Value)
-			require.NoError(t, err)
-		}
-	}
+	drain, err := time.ParseDuration(sesameDeliveryEnv(t, manifest)["SESAME_DRAIN_TIMEOUT"])
+	require.NoError(t, err)
 	require.Positive(t, drain, "pin the handler drain explicitly")
 	assert.Greater(t, time.Duration(pod.Grace)*time.Second, drain+30*time.Second+2*time.Second)
 	for _, pin := range []struct{ file, code string }{
@@ -63,9 +56,13 @@ func TestSesameDeliveryRolloutAndShutdownBudget(t *testing.T) {
 }
 
 func TestSesameLagTracksActiveDurablesWithCompletionHeadroom(t *testing.T) {
+	env := sesameDeliveryEnv(t, sesameDeliveryResource(t, "Deployment"))
+	mode := env["NATS_HOT_LANE_MODE"]
+	require.Contains(t, []string{"pull", "push"}, mode)
+	t.Setenv("NATS_HOT_LANE_MODE", mode)
 	want := map[string]string{}
 	for _, spec := range []bus.StreamSpec{bus.TwitchIngressPremiumStream, bus.TwitchIngressStandardStream} {
-		want[spec.Name] = bus.PullLaneConsumerConfig("worker", spec.Subjects[0]).Name
+		want[spec.Name] = bus.HotLaneConsumerName(env["SESAME_CONSUMER_NAME"], spec.Subjects[0])
 	}
 	got := map[string]string{}
 	manifest := sesameDeliveryResource(t, "ScaledObject")
@@ -78,6 +75,17 @@ func TestSesameLagTracksActiveDurablesWithCompletionHeadroom(t *testing.T) {
 		assert.Greater(t, manifest.Spec.MinReplicas*5000, 20000/2)
 	}
 	assert.Equal(t, want, got)
+}
+
+func sesameDeliveryEnv(t *testing.T, manifest sesameDeliveryManifest) map[string]string {
+	t.Helper()
+	containers := manifest.Spec.Template.Spec.Containers
+	require.Len(t, containers, 1)
+	values := make(map[string]string, len(containers[0].Env))
+	for _, variable := range containers[0].Env {
+		values[variable.Name] = variable.Value
+	}
+	return values
 }
 
 func sesameDeliveryResource(t *testing.T, kind string) sesameDeliveryManifest {
