@@ -202,7 +202,7 @@
   {#if !flow}
     {@render loadingCard(id, SKELETON_HEIGHT.lines)}
   {:else}
-    {@const series = flow.lines.map((line) => ({ key: line.key, label: phrase(line.name), tone: line.tone }))}
+    {@const series = flow.lines.map((line) => ({ key: line.key, label: phrase(line.name), tone: line.tone, dashed: line.dashed }))}
     <Card as="section">
       {@render head(id)}
       {#if flow.points.length > 1}

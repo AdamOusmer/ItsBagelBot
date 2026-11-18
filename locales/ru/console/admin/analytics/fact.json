@@ -38,5 +38,7 @@
   "inactiveChange": "Изменение за период",
   "dormantNow": "Спящие сейчас",
   "dormantShare": "Доля аккаунтов",
-  "wentDormant": "Уснули за период"
+  "wentDormant": "Уснули за период",
+  "inactiveShare": "Доля аккаунтов",
+  "deletedWindow": "Удалено за период"
 }

@@ -53,7 +53,7 @@
   "donations": "Gross Ko-fi payments in the window by currency, with the recurring share and the previous window of equal length. Amounts are before Ko-fi and payment processor fees.",
   "donationMonths": "Gross Ko-fi payments per calendar month over the last 12 months, closed UTC days only.",
   "donationKinds": "Ko-fi payments in the window by type.",
-  "stops": "Accounts whose bot stopped on each day, for any reason, against accounts that came back: turned on again, access restored, unbanned or awake after dormancy.",
-  "inactive": "Accounts banned from chat or with revoked access at each moment, plus every deleted account so far. Today updates live.",
+  "stops": "Bot stops against accounts that came back, counted from Nov 18, 2026, when comebacks started being recorded.",
+  "inactive": "Accounts without a running bot at each moment: banned from chat, revoked access, turned off by the streamer, or other. Deleted accounts are not counted. Today updates live.",
   "dormant": "Channels with no activity for 30 days, at each moment. Today updates live."
 }

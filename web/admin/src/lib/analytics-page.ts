@@ -70,7 +70,7 @@ export type Series = { values: number[]; labels: string[]; ticks: number[]; aver
 export type GainLossPoint = { at: number; gained: number; lost: number };
 export type GainLoss = { points: GainLossPoint[]; gained: number; lost: number; net: number; lossDays: number };
 export type FlowTone = 'accent' | 'warm' | 'danger';
-export type FlowLine = { key: string; name: Phrase; tone: FlowTone };
+export type FlowLine = { key: string; name: Phrase; tone: FlowTone; dashed?: boolean };
 export type FlowPoint = { at: number; [key: string]: number };
 export type Flow = { lines: FlowLine[]; points: FlowPoint[]; facts: Fact[] };
 export type TableCell ={ text: string };
@@ -128,11 +128,13 @@ const ENUMS = {
 
 const FUNNEL = ['signup', 'onboarded', 'bot_enabled'] as const;
 const CHURN = ['bot_disabled', 'revoked', 'chat_banned', 'dormant', 'account_deleted'] as const;
-const INACTIVE = [
+const INACTIVE: { key: string; tone: FlowTone; dashed?: boolean }[] = [
   { key: 'banned', tone: 'danger' },
   { key: 'revoked', tone: 'warm' },
-  { key: 'deleted', tone: 'accent' }
-] as const;
+  { key: 'disabled', tone: 'accent' },
+  { key: 'other', tone: 'accent', dashed: true }
+];
+const COMEBACKS_RECORDED_FROM = '2026-11-18';
 const STOP_LINES = [
   { key: 'stopped', tone: 'danger' },
   { key: 'restarted', tone: 'accent' }
@@ -359,23 +361,18 @@ function flowPoints(days: Day[], lines: Map<string, Map<Day, number>>): FlowPoin
 }
 
 function stopFlow(c: Ctx): Flow {
-  const inside = counter(c, 'lifecycle');
+  const range = { from: [c.cur.from, c.tracked, COMEBACKS_RECORDED_FROM].sort()[2], to: c.cur.to };
+  const inside = inRange(pick(c.r.counters, 'lifecycle'), range);
   const stops = byDay(inside.filter(isStop));
   const starts = byDay(inside.filter(isComeback));
   const lines = new Map([['stopped', stops], ['restarted', starts]]);
   const [stopped, restarted] = [total(stops), total(starts)];
-  const tracked = { from: c.tracked > c.cur.from ? c.tracked : c.cur.from, to: c.cur.to };
-  const points = stopped + restarted === 0 ? [] : flowPoints(daysIn(tracked), lines);
+  const points = flowPoints(daysIn(range), lines);
   return {
     lines: STOP_LINES.map(({ key, tone }) => ({ key, tone, name: { key: `admin.analytics.chart.${key}` } })),
     points,
     facts: facts({ stopped: fmt(stopped), restarted: fmt(restarted), netStops: signed(restarted - stopped) })
   };
-}
-
-function deletedSoFar(c: Ctx, days: Day[]): Map<Day, number> {
-  const deletions = withDim(pick(c.r.counters, 'lifecycle'), 'account_deleted');
-  return new Map(days.map((day) => [day, sum(deletions.filter((row) => row.start <= day))]));
 }
 
 function change(points: FlowPoint[], value: (point: FlowPoint) => number): string {
@@ -385,18 +382,20 @@ function change(points: FlowPoint[], value: (point: FlowPoint) => number): strin
 function inactiveFlow(c: Ctx): Flow {
   const levels = inRange(pick(c.r.levels, 'accounts.inactive'), c.cur);
   const days = [...byDay(levels).keys()].sort();
-  const lines = new Map([
-    ['banned', byDay(withDim(levels, 'banned'))],
-    ['revoked', byDay(withDim(levels, 'revoked'))],
-    ['deleted', deletedSoFar(c, days)]
-  ]);
+  const lines = new Map(INACTIVE.map(({ key }): [string, Map<Day, number>] => [key, byDay(withDim(levels, key))]));
   const points = flowPoints(days, lines);
   const inactive = (point: FlowPoint) => INACTIVE.reduce((acc, { key }) => acc + point[key], 0);
   const last = points[points.length - 1];
+  const accounts = sum(latest(inRange(pick(c.r.levels, 'accounts.total'), c.cur)));
   return {
-    lines: INACTIVE.map(({ key, tone }) => ({ key, tone, name: { key: `admin.analytics.chart.${key}` } })),
+    lines: INACTIVE.map(({ key, tone, dashed }) => ({ key, tone, dashed, name: { key: `admin.analytics.chart.${key}` } })),
     points,
-    facts: facts({ inactiveNow: last ? fmt(inactive(last)) : '-', inactiveChange: change(points, inactive) })
+    facts: facts({
+      inactiveNow: last ? fmt(inactive(last)) : '-',
+      inactiveShare: last ? pct(inactive(last), accounts) : '-',
+      inactiveChange: change(points, inactive),
+      deletedWindow: fmt(sum(withDim(counter(c, 'lifecycle'), 'account_deleted')))
+    })
   };
 }
 

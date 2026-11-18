@@ -262,7 +262,7 @@ var enums = map[Kind][]string{
 	KindRule:     {"ip_logger", "scam", "phish", "heuristic", "block_term", "lex_hate", "lex_harassment", "lex_sexual", "lex_profanity", "council_campaign", "repeat", "campaign", "shield_mode", "other"},
 	KindMode:     {"shadow", "enforced"},
 	KindRuntime:  {"active", "dormant", "blocked", "disabled", "recovering", "degraded"},
-	KindInactive: {"banned", "revoked"},
+	KindInactive: {"banned", "revoked", "disabled", "other"},
 	KindGame:     {"raffle", "mraffle", "duel", "gamble"},
 	KindEnd:      {"drawn", "empty", "cancelled", "declined", "no_show", "won", "lost"},
 	KindBucket:   {"1", "2_4", "5_19", "20_99", "100p"},

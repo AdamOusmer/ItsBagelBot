@@ -38,5 +38,7 @@
   "inactiveChange": "Variação no período",
   "dormantNow": "Dormentes agora",
   "dormantShare": "Parcela das contas",
-  "wentDormant": "Ficaram dormentes no período"
+  "wentDormant": "Ficaram dormentes no período",
+  "inactiveShare": "Parcela das contas",
+  "deletedWindow": "Excluídas no período"
 }
