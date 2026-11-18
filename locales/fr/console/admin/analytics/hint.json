@@ -14,7 +14,7 @@
   "signups": "Nouveaux comptes créés chaque jour de la fenêtre.",
   "gainLoss": "Nouveaux comptes face aux comptes bannis du chat, dont l’accès a été révoqué ou supprimés chaque jour.",
   "funnel": "Inscriptions, configurations terminées et activations du bot sur la fenêtre. Chaque étape compte les événements de la fenêtre, donc les étapes suivantes peuvent inclure des inscriptions antérieures.",
-  "churn": "Bot désactivé, accès révoqué, bannissements du chat, chaînes en sommeil et comptes supprimés, cumulés sur la période.",
+  "churn": "Bot désactivé, accès révoqué, bannissements du chat et comptes supprimés, cumulés sur la période. Les chaînes en sommeil gardent leur bot et ne sont pas comptées.",
   "presets": "Préréglages choisis pendant l'accueil, additionnés sur la fenêtre.",
   "active": "Chaînes servies par le bot chaque jour de la fenêtre.",
   "live": "Chaînes passées en direct chaque jour de la fenêtre.",
@@ -53,7 +53,7 @@
   "donations": "Paiements Ko-fi bruts sur la période par devise, avec la part récurrente et la période précédente de même durée. Montants avant les frais de Ko-fi et du prestataire de paiement.",
   "donationMonths": "Paiements Ko-fi bruts par mois civil sur les 12 derniers mois, jours UTC clos uniquement.",
   "donationKinds": "Paiements Ko-fi sur la période par type.",
-  "stops": "Arrêts du bot face aux comptes revenus, comptés depuis le 18 nov. 2026, date à laquelle les retours ont commencé à être enregistrés.",
+  "stops": "Bots arrêtés face aux comptes revenus, comptés depuis le 18 nov. 2026, date à laquelle les retours ont commencé à être enregistrés. Les chaînes en sommeil gardent leur bot et ne sont pas comptées.",
   "inactive": "Comptes sans bot actif : bannis du chat, accès révoqué, désactivés par le streamer ou autres. Les comptes supprimés ne sont pas comptés. Aujourd’hui se met à jour en direct.",
   "dormant": "Chaînes sans activité depuis 30 jours. Aujourd’hui se met à jour en direct."
 }

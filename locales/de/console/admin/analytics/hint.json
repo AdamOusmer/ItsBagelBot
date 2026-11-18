@@ -14,7 +14,7 @@
   "signups": "Neue Konten, die an jedem Tag des Zeitraums erstellt wurden.",
   "gainLoss": "Neue Konten im Vergleich zu Konten, die an diesem Tag im Chat gebannt wurden, deren Zugriff widerrufen wurde oder die gelöscht wurden.",
   "funnel": "Registrierungen, abgeschlossene Einrichtungen und Bot-Aktivierungen im Zeitraum. Jeder Schritt zählt Ereignisse im Zeitraum, spätere Schritte können also frühere Registrierungen enthalten.",
-  "churn": "Bot deaktiviert, Zugriff widerrufen, Chat-Banns, ruhende Kanäle und gelöschte Konten, summiert über den Zeitraum.",
+  "churn": "Bot deaktiviert, Zugriff widerrufen, Chat-Banns und gelöschte Konten, summiert über den Zeitraum. Ruhende Kanäle behalten ihren Bot und zählen nicht.",
   "presets": "Bei der Einrichtung gewählte Voreinstellungen, summiert über den Zeitraum.",
   "active": "Kanäle, die der Bot an jedem Tag des Zeitraums bedient hat.",
   "live": "Kanäle, die an jedem Tag des Zeitraums live gegangen sind.",
@@ -53,7 +53,7 @@
   "donations": "Ko-fi-Bruttozahlungen im Zeitraum nach Währung, mit wiederkehrendem Anteil und dem vorherigen gleich langen Zeitraum. Beträge vor Gebühren von Ko-fi und Zahlungsanbieter.",
   "donationMonths": "Ko-fi-Bruttozahlungen pro Kalendermonat in den letzten 12 Monaten, nur abgeschlossene UTC-Tage.",
   "donationKinds": "Ko-fi-Zahlungen im Zeitraum nach Art.",
-  "stops": "Bot-Stopps gegenüber zurückgekehrten Konten, gezählt ab dem 18. Nov. 2026, seit Rückkehrer erfasst werden.",
+  "stops": "Gestoppte Bots gegenüber zurückgekehrten Konten, gezählt ab dem 18. Nov. 2026, seit Rückkehrer erfasst werden. Ruhende Kanäle behalten ihren Bot und zählen nicht.",
   "inactive": "Konten ohne laufenden Bot: im Chat gebannt, Zugriff widerrufen, vom Streamer ausgeschaltet oder sonstige. Gelöschte Konten zählen nicht. Heute wird live aktualisiert.",
   "dormant": "Kanäle ohne Aktivität seit 30 Tagen. Heute wird live aktualisiert."
 }

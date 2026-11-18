@@ -337,7 +337,7 @@ describe('kpis', () => {
 describe('growth and engagement', () => {
   it.each([
     ['funnel', view.growth.funnel, ['signup:30:-', 'onboarded:12:40%', 'bot_enabled:8:27%']],
-    ['churn', view.growth.churn, ['bot_disabled:2:-', 'revoked:1:-', 'chat_banned:0:-', 'dormant:0:-', 'account_deleted:3:-']],
+    ['churn', view.growth.churn, ['bot_disabled:2:-', 'revoked:1:-', 'chat_banned:0:-', 'account_deleted:3:-']],
     ['presets', view.growth.presets, ['start-new:6:60%', 'import:2:20%', 'mystery:2:20%']]
   ])('%s bars', (_name, bars, expected) => {
     expect(lines(bars)).toEqual(expected);
@@ -469,7 +469,7 @@ describe('bot stops and inactive accounts', () => {
   const stopPoints = (from: string, values: Record<string, string>) =>
     daysIn({ from, to: LATER }).map((day) => `${Date.parse(day)}:${values[day] ?? '0:0'}`);
 
-  it('counts stops against comebacks from the day comebacks were recorded', () => {
+  it('counts stops against comebacks from the day comebacks were recorded, leaving dormancy out', () => {
     const { stops } = flows({
       end: LATER,
       counters: [
@@ -484,8 +484,8 @@ describe('bot stops and inactive accounts', () => {
       ]
     });
     expect({ points: stops.points.map(point), facts: facts(stops.facts) }).toEqual({
-      points: stopPoints('2026-11-18', { '2026-11-18': '3:0', '2026-11-19': '0:1', '2026-11-20': '1:2' }),
-      facts: { stopped: '4', restarted: '3', netStops: '-1' }
+      points: stopPoints('2026-11-18', { '2026-11-18': '2:0', '2026-11-19': '0:1', '2026-11-20': '1:1' }),
+      facts: { stopped: '3', restarted: '2', netStops: '-1' }
     });
   });
 
