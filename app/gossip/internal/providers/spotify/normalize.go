@@ -10,8 +10,6 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	"golang.org/x/text/unicode/norm"
 )
 
 type matchPhrase []string
@@ -43,28 +41,10 @@ var letterFolds = strings.NewReplacer("ø", "o", "æ", "ae", "œ", "oe", "ß", "
 var chatWords = map[string]string{"u": "you", "ur": "your", "r": "are", "n": "and"}
 
 func matchWords(s string) matchPhrase {
-	return normalizeWords(matchText(s).tokenWords())
-}
-
-func (s matchText) tokenWords() matchPhrase {
-	letters := foldedLetters(s.fold())
-	if !letters.hasWord() {
-		return nil
-	}
-	var out strings.Builder
-	for i := range letters {
-		out.WriteString(letters.tokenAt(wordIndex(i)))
-	}
-	return strings.Fields(out.String())
+	return normalizeWords(strings.Fields(matchText(s).tokens(false, false).text))
 }
 
 func (letters foldedLetters) hasWord() bool { return slices.ContainsFunc(letters, wordRune) }
-
-func (s matchText) fold() string {
-	var fold letterFold
-	folded := strings.Map(fold.rune, keycap.ReplaceAllString(norm.NFKD.String(string(s)), " "))
-	return norm.NFC.String(letterFolds.Replace(folded))
-}
 
 type letterFold struct{ base rune }
 
@@ -89,11 +69,13 @@ func wordRune(r rune) bool {
 
 var stylizedLetters = map[rune]string{'!': "i", '$': "s", '@': "a"}
 
-func (letters foldedLetters) tokenAt(i wordIndex) string {
+func (letters foldedLetters) tokenAt(i wordIndex, lookup bool) string {
 	r := letters[i]
 	switch {
 	case wordRune(r), unicode.IsMark(r):
 		return string(r)
+	case lookup:
+		return " "
 	case r == '+', r == '&':
 		return " and "
 	case stylizedLetters[r] != "" && letters.betweenLetters(i):
@@ -147,15 +129,15 @@ func (words matchPhrase) normalizedToken(i wordIndex) matchPhrase {
 }
 
 func (words matchPhrase) inInitialism(i wordIndex) bool {
-	lo, hi := i, i
-	for lo > 0 && isInitial(words[lo-1]) {
-		lo--
+	for start := max(0, int(i)-2); start <= int(i); start++ {
+		if start+3 <= len(words) && !slices.ContainsFunc(words[start:start+3], nonInitial) {
+			return true
+		}
 	}
-	for int(hi)+1 < len(words) && isInitial(words[hi+1]) {
-		hi++
-	}
-	return hi-lo >= 2
+	return false
 }
+
+func nonInitial(word string) bool { return !isInitial(word) }
 
 func isInitial(word string) bool {
 	r, size := utf8.DecodeRuneInString(word)
@@ -224,19 +206,6 @@ func (p matchPhrase) leadingFillerLength() int {
 		}
 	}
 	return 0
-}
-
-func (raw matchText) queryVariants() []queryVariant {
-	words := raw.tokenWords()
-	variants := []queryVariant{{words: normalizeWords(words), titleOnly: true}}
-	content := words.contentRange()
-	if content.isTrimmed(len(words)) {
-		variants = append(variants, queryVariant{
-			words:     normalizeWords(content.words(words)),
-			titleOnly: fillerAllowsTitle(words[:content.start], words[content.end:]),
-		})
-	}
-	return variants
 }
 
 type wordRange struct{ start, end int }

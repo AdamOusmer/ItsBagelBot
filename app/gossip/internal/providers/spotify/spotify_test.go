@@ -16,6 +16,8 @@ import (
 	"ItsBagelBot/app/gossip/internal/provider"
 	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/valkeytest"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -395,25 +397,50 @@ func TestSpotifyRateLimitHonoredAndCached(t *testing.T) {
 	assert.EqualValues(t, 1, calls.Load(), "rate-limited failure must be pinned so upstream is not hammered")
 }
 
-func TestSpotifyFriendlyError(t *testing.T) {
-	tests := []struct {
-		err     error
-		wantMsg string
-		wantPin core.Pin
+type searchErrorOutcome struct {
+	message  string
+	searches int
+}
+
+func TestSearchUpstreamErrorsAndCache(t *testing.T) {
+	for _, tt := range []struct {
+		status int
+		want   searchErrorOutcome
 	}{
-		{&core.UpstreamError{Status: http.StatusBadRequest}, "invalid request", core.PinNegative},
-		{&core.UpstreamError{Status: http.StatusNotFound, Message: "non existing id"}, "not found on Spotify", core.PinNegative},
-		{&core.UpstreamError{Status: http.StatusForbidden}, "Spotify playback not permitted right now", core.PinNone},
-		{&core.UpstreamError{Status: http.StatusTooManyRequests, LocalDeny: true}, "Spotify is busy right now, try again in a few seconds", core.PinNone},
-		{&core.UpstreamError{Status: http.StatusTooManyRequests}, "Spotify is rate limiting requests right now, try again in a moment", core.PinThrottle},
-		{&core.UpstreamError{Status: http.StatusServiceUnavailable}, "Spotify is unavailable right now, try again in a moment", core.PinThrottle},
-		{&core.UpstreamError{Status: http.StatusInternalServerError}, "", core.PinNone},
+		{http.StatusBadRequest, searchErrorOutcome{"invalid request", 1}},
+		{http.StatusNotFound, searchErrorOutcome{"not found on Spotify", 1}},
+		{http.StatusForbidden, searchErrorOutcome{"Spotify playback not permitted right now", 2}},
+		{http.StatusTooManyRequests, searchErrorOutcome{"Spotify is rate limiting requests right now, try again in a moment", 1}},
+		{http.StatusServiceUnavailable, searchErrorOutcome{"Spotify is unavailable right now, try again in a moment", 1}},
+		{http.StatusInternalServerError, searchErrorOutcome{"track search failed", 2}},
+	} {
+		t.Run(http.StatusText(tt.status), func(t *testing.T) {
+			failure := providertest.Reply{Status: tt.status, Body: `{}`}
+			upstream := providertest.NewSequence(t, failure, failure)
+			p := newPlayerProvider(t, upstream)
+			req := gossiprpc.Request{ChannelID: "2", Query: "hello"}
+			for range 2 {
+				reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", req)
+				assert.Equal(t, tt.want.message, reply.Error)
+			}
+			assert.Equal(t, tt.want.searches, upstream.Hits())
+		})
 	}
-	for _, tt := range tests {
-		msg, pin := spotifyFriendlyError(tt.err)
-		assert.Equal(t, tt.wantMsg, msg)
-		assert.Equal(t, tt.wantPin, pin)
-	}
+}
+
+func TestSearchReportsExhaustedLocalBudget(t *testing.T) {
+	deps := providertest.Deps(providertest.NewMemStore())
+	deps.SpotifyKeys = fakeKeys{key: "rt-1"}
+	deps.Limiter = ratelimit.New(valkeytest.Spawn(t))
+	mint, _ := newMintServer(t, "tok-1")
+	upstream := providertest.NewSequence(t, providertest.Reply{Body: `{"tracks":{"items":[]}}`})
+	p := New(Config{
+		BaseURL: providertest.Upstream(t, upstream), AccountsURL: providertest.Upstream(t, mint), RateLimit: 1,
+	}, deps)
+	first := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{ChannelID: t.Name(), Query: "first"})
+	next := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{ChannelID: t.Name(), Query: "second"})
+	assert.Equal(t, []string{"", "Spotify is busy right now, try again in a few seconds"}, []string{first.Error, next.Error})
+	assert.Equal(t, 1, upstream.Hits())
 }
 
 func TestRefreshTokenCustody(t *testing.T) {

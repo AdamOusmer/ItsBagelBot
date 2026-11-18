@@ -96,6 +96,7 @@ func TestMalformedSpotifyLinksNeverSearchOrMint(t *testing.T) {
 	for _, query := range []string{
 		"spotify:track:short", "https://open.spotify.com/track/not-valid", "https://open.spotify.com/embed/track",
 		"https://open.spotify.com/track/%invalid", "https://spotify.link:8080/share",
+		"https:/open.spotify.com/track/3n3Ppam7vgaVa1aRUc9Lp", "ftp://open.spotify.com/track/3n3Ppam7vgaVa1aRUc9Lp",
 	} {
 		t.Run(query, func(t *testing.T) {
 			mint, mints := newMintServer(t, "unused")

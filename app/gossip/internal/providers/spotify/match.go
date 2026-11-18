@@ -23,7 +23,29 @@ func phraseIdentity(query, metadata matchPhrase) (int, bool) {
 }
 
 func sameCompact(query, metadata matchPhrase) bool {
-	return query.runeCount() == metadata.runeCount() && query.compact() == metadata.compact()
+	return compactIdentity{query, metadata}.equal()
+}
+
+type compactIdentity struct{ left, right matchPhrase }
+
+func (p compactIdentity) equal() bool {
+	left, right := "", ""
+	for {
+		if left == "" && len(p.left) > 0 {
+			left, p.left = p.left[0], p.left[1:]
+		}
+		if right == "" && len(p.right) > 0 {
+			right, p.right = p.right[0], p.right[1:]
+		}
+		size := min(len(left), len(right))
+		if size == 0 {
+			return left == right
+		}
+		if left[:size] != right[:size] {
+			return false
+		}
+		left, right = left[size:], right[size:]
+	}
 }
 
 func alignedEdits(query, metadata matchPhrase, limit int) (int, bool) {
@@ -40,7 +62,6 @@ func alignedEdits(query, metadata matchPhrase, limit int) (int, bool) {
 
 type wordPair struct {
 	query, metadata string
-	version         bool
 }
 
 func wordIdentity(pair wordPair) (int, bool) {
@@ -55,9 +76,6 @@ func wordIdentity(pair wordPair) (int, bool) {
 }
 
 func (p wordPair) allowsEdits(runes runePair) bool {
-	if p.version {
-		return runes.allowedStart() || strings.HasPrefix(p.query, p.metadata)
-	}
 	return !protectedWord(runes.b) && runes.allowsEdits()
 }
 
@@ -89,9 +107,6 @@ func (p runePair) allowedStart() bool {
 	if len(p.b) >= 6 {
 		return true
 	}
-	if len(p.a) > len(p.b) {
-		return false
-	}
 	return p.a[0] == p.b[0] || p.startsWithSwap()
 }
 
@@ -106,7 +121,7 @@ var romanNumeral = regexp.MustCompile(`^m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(i
 
 func protectedWord(word []rune) bool {
 	text := string(word)
-	return numberTokens[text] || recordingMarkers[text] || protectedSpelling(text)
+	return numberTokens[text] || protectedSpelling(text)
 }
 
 func protectedSpelling(word string) bool {

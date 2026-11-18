@@ -4,208 +4,310 @@
 package spotify
 
 import (
+	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
-var versionWords = map[string]bool{
-	"version": true, "audio": true, "stripped": true, "cappella": true, "capella": true,
-	"acapella": true, "recorded": true, "rerecorded": true, "8d": true, "tiktok": true,
-	"remixed": true, "slow": true, "speed": true, "covers": true, "daycore": true,
-	"rmx": true, "rendition": true, "loop": true, "vocals": true, "boosted": true,
-	"screwed": true, "vivo": true,
+type recordingRole uint32
+
+const (
+	differentRecording recordingRole = 1 << iota
+	sameRecording
+	fallbackEdition
+	derivativeCredit
+	naturalRerecord
+	creditVersion
+	albumDerivative
+	featureCredit
+	arrangerCredit
+	exactVersion
+	bareVersion
+	tempoChange
+	tempoQualifier
+	countedPart
+	countedDuration
+	guestRemix
+	albumLive
+	sourceRelease
+	derivativeRecording
+)
+
+type recordingTerm struct {
+	id    string
+	roles recordingRole
+	forms string
 }
 
-var alternateEditions = map[string]bool{
-	"radio edit": true, "single version": true, "album version": true,
+var recordingVocabulary = []recordingTerm{
+	{"live", differentRecording | albumLive, "live|en vivo|ao vivo|en directo|concierto|concert|konzert|концерт|ライブ|라이브"},
+	{"remix", differentRecording | guestRemix, "remix|remixed|rmx|remezcla|ремикс|リミックス|리믹스"},
+	{"mix", differentRecording, "mix"},
+	{"rework", differentRecording, "rework"},
+	{"refix", differentRecording, "refix"},
+	{"vip", differentRecording, "vip"},
+	{"flip", differentRecording, "flip"},
+	{"bootleg", differentRecording, "bootleg"},
+	{"dub", differentRecording, "dub"},
+	{"edit", differentRecording, "edit"},
+	{"sped up", differentRecording | creditVersion | tempoChange, "sped up|speed up"},
+	{"slowed", differentRecording | creditVersion | tempoChange, "slowed down|slowed"},
+	{"nightcore", differentRecording | creditVersion, "nightcore"},
+	{"daycore", differentRecording | creditVersion, "daycore"},
+	{"reverb", differentRecording | creditVersion | tempoQualifier, "reverb"},
+	{"chopped and screwed", differentRecording, "chopped and screwed"},
+	{"8d", differentRecording | creditVersion, "8d"},
+	{"bass boosted", differentRecording, "bass boosted"},
+	{"phonk", differentRecording, "phonk"},
+	{"lofi", differentRecording | arrangerCredit, "lofi|lo fi"},
+	{"acoustic", differentRecording, "acoustic|acustico|acoustique|akustik|акустика|アコースティック|어쿠스틱|unplugged"},
+	{"stripped", differentRecording, "stripped"},
+	{"piano", differentRecording | arrangerCredit, "piano"},
+	{"piano", differentRecording | derivativeCredit | albumDerivative, "piano versions|piano version"},
+	{"orchestral", differentRecording | arrangerCredit, "orchestral|symphonic|orchestra|strings|quartet|ensemble"},
+	{"instrumental", differentRecording, "instrumental|инструментал|インスト|playback|backing track|minus one"},
+	{"karaoke", differentRecording | derivativeCredit | albumDerivative, "karaoke|караоке|カラオケ|노래방"},
+	{"a cappella", differentRecording, "a cappella|a capella|acappella|acapella|vocals only|off vocal"},
+	{"cover", differentRecording | exactVersion | arrangerCredit | derivativeRecording, "cover|covers|кавер|커버|カバー"},
+	{"tribute", differentRecording | arrangerCredit | albumDerivative | derivativeRecording, "tribute|homenaje|homenagem|hommage"},
+	{"tribute", differentRecording | derivativeCredit | albumDerivative, "tribute to|tribute band"},
+	{"cover", differentRecording | derivativeCredit | albumDerivative, "cover version|cover versions|covers collection|cover band|cover artist"},
+	{"lullaby", differentRecording | arrangerCredit | albumDerivative | derivativeRecording, "lullaby|lullabies"},
+	{"rendition", differentRecording | arrangerCredit | albumDerivative | derivativeRecording, "rendition|renditions"},
+	{"parody", differentRecording | arrangerCredit | albumDerivative | derivativeRecording, "parody"},
+	{"derivative", differentRecording | derivativeCredit | albumDerivative, "in the style of|originally performed by|made famous by|music box|8 bit|soundalike"},
+	{"tiktok", differentRecording, "tiktok"},
+	{"re recorded", differentRecording, "re recorded|rerecorded|new recording"},
+	{"demo", differentRecording, "demo"},
+	{"rehearsal", differentRecording, "rehearsal"},
+	{"outtake", differentRecording, "outtake"},
+	{"session", differentRecording, "session"},
+	{"alternate take", differentRecording, "alternate take"},
+	{"work tape", differentRecording, "work tape"},
+	{"early version", differentRecording, "early version"},
+	{"extended", differentRecording, "extended"},
+	{"duration", differentRecording | countedDuration, "minute|minutes|hour|hours"},
+	{"loop", differentRecording, "loop"},
+	{"tv size", differentRecording, "tv size"},
+	{"mashup", differentRecording, "mashup"},
+	{"medley", differentRecording, "medley"},
+	{"megamix", differentRecording, "megamix"},
+	{"reprise", differentRecording, "reprise"},
+	{"interlude", differentRecording, "interlude"},
+	{"intro", differentRecording | exactVersion, "intro"},
+	{"outro", differentRecording | exactVersion, "outro"},
+	{"skit", differentRecording, "skit"},
+	{"part", differentRecording | countedPart | exactVersion, "part|pt"},
+	{"version", differentRecording | bareVersion, "version"},
+	{"remaster", sameRecording, "remaster|remastered|re master|re mastered"},
+	{"release", sameRecording, "explicit version|explicit|deluxe|bonus track|bonus|soundtrack|official audio|lyrics|original mix|original version"},
+	{"source", sameRecording | sourceRelease, "from|theme from"},
+	{"feature", sameRecording | featureCredit, "featuring|feat|ft|with"},
+	{"radio", fallbackEdition, "radio edit|radio|radio version"},
+	{"single", fallbackEdition, "single edit|single version"},
+	{"album edit", fallbackEdition, "album edit|album version"},
+	{"video edit", fallbackEdition, "video edit"},
+	{"mono", fallbackEdition, "mono version|mono"},
+	{"stereo", fallbackEdition, "stereo version|stereo"},
+	{"clean", fallbackEdition, "clean edit|clean version|clean"},
+	{"taylors version", naturalRerecord, "taylors version"},
 }
 
-func (p matchPhrase) wordAt(index int) string {
-	if index < 0 || index >= len(p) {
-		return ""
-	}
-	return p[index]
+type recordingForm struct {
+	term  recordingTerm
+	words matchPhrase
 }
 
-func (p matchPhrase) versionToken(index int) bool {
-	return recordingMarkers[p[index]] || versionWords[p[index]] || p.versionPhraseToken(index)
+type recordingIndex struct {
+	exact map[string][]recordingForm
+	cjk   []recordingForm
+	fuzzy map[int][]recordingForm
 }
 
-var versionPhrases = map[string]bool{
-	"a cappella": true, "a capella": true, "taylors version": true, "re recorded": true,
-}
+var recordingTerms = buildRecordingIndex()
 
-func (p matchPhrase) versionPhraseToken(index int) bool {
-	prev := p.wordAt(index - 1)
-	switch p[index] {
-	case "minute", "minutes":
-		return numberTokens[prev]
-	case "up", "down":
-		return prev == "sped" || prev == "slowed"
-	default:
-		phrase := p[index] + " " + p.wordAt(index+1)
-		return alternateEditions[phrase] || versionPhrases[phrase] || p.durationNumber(index)
-	}
-}
-
-func (p matchPhrase) durationNumber(index int) bool {
-	if !numberTokens[p[index]] {
-		return false
-	}
-	if durationUnit(p.wordAt(index + 1)) {
-		return true
-	}
-	if !slices.Contains(tens[2:], p[index]) {
-		return false
-	}
-	return slices.Contains(smallNumbers[1:10], p.wordAt(index+1)) && durationUnit(p.wordAt(index+2))
-}
-
-func durationUnit(word string) bool {
-	return word == "minute" || word == "minutes"
-}
-
-func (p matchPhrase) releaseLabel(index int) bool {
-	switch p[index] {
-	case "taylors":
-		return p.wordAt(index+1) == "version"
-	case "version":
-		return p.wordAt(index-1) == "taylors"
-	default:
-		return false
-	}
-}
-
-func (p matchPhrase) recordingVersion() matchPhrase {
-	var version matchPhrase
-	for i, word := range p {
-		if p.versionToken(i) && !p.releaseLabel(i) {
-			version = append(version, word)
+func buildRecordingIndex() recordingIndex {
+	index := recordingIndex{exact: make(map[string][]recordingForm), fuzzy: make(map[int][]recordingForm)}
+	for _, term := range recordingVocabulary {
+		for form := range strings.SplitSeq(term.forms, "|") {
+			index.add(recordingForm{term: term, words: matchWords(form)})
 		}
 	}
-	return version
+	return index
 }
 
-func (p matchPhrase) containsWords(words matchPhrase) bool {
-	return !slices.ContainsFunc(words, func(word string) bool { return !slices.Contains(p, word) })
-}
-
-func (p matchPhrase) versionQualifiers() matchPhrase {
-	return slices.DeleteFunc(slices.Clone(p), genericVersionWord)
-}
-
-func genericVersionWord(word string) bool {
-	return word == "version" || word == "audio"
-}
-
-func (p matchPhrase) requiredVersion() matchPhrase {
-	words := p.recordingVersion().versionQualifiers()
-	if slices.Contains(words, "slowed") || slices.Contains(words, "sped") {
-		return slices.DeleteFunc(words, func(word string) bool { return word == "reverb" })
+func (index *recordingIndex) add(form recordingForm) {
+	first := form.words[0]
+	if form.fuzzyEnabled() {
+		length := utf8.RuneCountInString(first)
+		index.fuzzy[length] = append(index.fuzzy[length], form)
 	}
-	return words
+	index.exact[first] = append(index.exact[first], form)
+	if strings.ContainsFunc(first, cjkRune) {
+		index.cjk = append(index.cjk, form)
+	}
 }
 
-func (t titleForms) requestedVersion(song matchPhrase) titleResult {
-	title, requested := t.versionRequest(song)
-	if !title.matched || !t.tail.containsWords(requested.versionQualifiers()) {
-		return titleResult{}
-	}
-	if !requested.containsWords(t.tail.requiredVersion()) || t.hasUnaskedTail(requested) {
-		return titleResult{}
-	}
-	return title
+func (f recordingForm) fuzzyEnabled() bool {
+	return f.term.roles&exactVersion == 0 && utf8.RuneCountInString(f.words[0]) >= 5
 }
 
-func (t titleForms) versionRequest(song matchPhrase) (titleResult, matchPhrase) {
-	cut := song.versionCut(t.base)
-	if cut == 0 || cut >= len(song) {
-		return titleResult{}, nil
-	}
-	base := scoreTitleForm(song[:cut], t.base, titleResult{points: 94, base: true})
-	if !base.matched {
-		return titleResult{}, nil
-	}
-	suffix := song[cut:].correctVersionWords()
-	if len(suffix.requiredVersion()) == 0 {
-		return titleResult{}, nil
-	}
-	return base, suffix
-}
-
-func (p matchPhrase) versionCut(base matchPhrase) int {
-	remaining := base.compact()
-	for i, word := range p {
-		if !strings.HasPrefix(remaining, word) {
-			break
+func recordingRolePattern(role recordingRole) string {
+	var forms []string
+	for _, term := range recordingVocabulary {
+		if term.roles&role == 0 {
+			continue
 		}
-		remaining = strings.TrimPrefix(remaining, word)
-		if remaining == "" {
-			return i + 1
+		for spelling := range strings.SplitSeq(term.forms, "|") {
+			forms = append(forms, regexp.QuoteMeta(spelling)+`\.?`)
 		}
 	}
-	return len(base)
+	return "(?:" + strings.Join(forms, "|") + ")"
 }
 
-func (p matchPhrase) correctVersionWords() matchPhrase {
-	words := slices.Clone(p)
-	for i := range words {
-		words[i] = words.correctedVersionWord(i)
-	}
-	return words
+func cjkRune(r rune) bool {
+	return unicode.In(r, unicode.Han, unicode.Hangul, unicode.Hiragana, unicode.Katakana)
 }
 
-func (p matchPhrase) correctedVersionWord(index int) string {
-	word := p[index]
-	if recordingMarkers[word] || versionWords[word] {
-		return word
-	}
-	if p.wordAt(index-1) == "sped" && resemblesSpedUp(word) {
-		return "up"
-	}
-	return closestVersionMarker(word)
-}
-
-func resemblesSpedUp(word string) bool {
-	_, ok := wordIdentity(wordPair{query: "sped" + word, metadata: "spedup"})
-	return ok
-}
-
-func closestVersionMarker(word string) string {
-	if word == "life" || protectedWord([]rune(word)) {
-		return word
-	}
-	best, distance := word, 3
-	for marker := range recordingMarkers {
-		edits, ok := wordIdentity(wordPair{query: word, metadata: marker, version: true})
-		switch {
-		case !ok || edits > distance:
-		case edits == distance:
-			best = word
-		default:
-			best, distance = marker, edits
+func (index recordingIndex) at(words matchPhrase) recordingForm {
+	var longest recordingForm
+	for _, form := range index.exact[words[0]] {
+		if form.prefixOf(words) && len(form.words) > len(longest.words) {
+			longest = form
 		}
 	}
-	return best
+	if longest.words != nil || !strings.ContainsFunc(words[0], cjkRune) {
+		return longest
+	}
+	return index.cjkForm(words[0])
 }
 
-func (t titleForms) remixOnly() bool {
-	if t.hasUnaskedTail(nil) {
-		return false
+func (index recordingIndex) cjkForm(word string) recordingForm {
+	for _, form := range index.cjk {
+		if strings.Contains(word, form.words[0]) {
+			return form
+		}
 	}
-	version := t.tail.recordingVersion()
-	return len(version) > 0 && !slices.ContainsFunc(version, func(word string) bool {
-		return !strings.HasPrefix(word, "remix")
+	return recordingForm{}
+}
+
+func (index recordingIndex) otherCJK(word string, first recordingForm) []recordingForm {
+	if !strings.ContainsFunc(first.words[0], cjkRune) {
+		return nil
+	}
+	var forms []recordingForm
+	for _, form := range index.cjk {
+		if form.term.id != first.term.id && strings.Contains(word, form.words[0]) {
+			forms = append(forms, form)
+		}
+	}
+	return forms
+}
+
+func (f recordingForm) prefixOf(words matchPhrase) bool {
+	return len(f.words) <= len(words) && slices.Equal(f.words, words[:len(f.words)])
+}
+
+type recordingTag struct {
+	form  recordingForm
+	at    int
+	count int
+}
+
+func recordingTags(words matchPhrase) []recordingTag {
+	var tags []recordingTag
+	for i := 0; i < len(words); {
+		form := recordingTerms.at(words[i:])
+		if form.words == nil {
+			i++
+			continue
+		}
+		tags = append(tags, recordingTag{form: form, at: i})
+		for _, extra := range recordingTerms.otherCJK(words[i], form) {
+			tags = append(tags, recordingTag{form: extra, at: i})
+		}
+		i += len(form.words)
+	}
+	return tags
+}
+
+func hasRecordingRole(words matchPhrase, role recordingRole) bool {
+	return slices.ContainsFunc(recordingTags(words), func(tag recordingTag) bool {
+		return tag.form.term.roles&role != 0
 	})
 }
 
-func (f searchFields) withTrailingVersion() (searchFields, bool) {
-	cut := len(f.artist)
-	for cut > 0 && f.artist.versionToken(cut-1) {
-		cut--
+func (f recordingForm) wordIdentity(query, metadata string) bool {
+	if query == metadata {
+		return true
 	}
-	if cut == 0 || cut == len(f.artist) {
-		return searchFields{}, false
+	if utf8.RuneCountInString(query) < 6 || utf8.RuneCountInString(metadata) < 5 {
+		return false
 	}
-	return searchFields{song: slices.Concat(f.song, f.artist[cut:]), artist: f.artist[:cut]}, true
+	pair := runePair{[]rune(query), []rune(metadata)}
+	if !pair.allowedStart() || f.disagreesOnTempoInitial(pair) {
+		return false
+	}
+	_, ok := pair.spellingIdentity()
+	return ok
+}
+
+func (f recordingForm) disagreesOnTempoInitial(pair runePair) bool {
+	return f.term.roles&tempoChange != 0 && pair.a[0] != pair.b[0]
+}
+
+func (f recordingForm) matches(words matchPhrase) bool {
+	if len(f.words) > len(words) {
+		return false
+	}
+	for i, word := range f.words {
+		if !f.wordIdentity(words[i], word) {
+			return false
+		}
+	}
+	return true
+}
+
+const requestedRecordingRoles = differentRecording | fallbackEdition | naturalRerecord
+
+func versionPositions(words matchPhrase) []int {
+	var positions []int
+	for i := range words {
+		if isVersionMarker(words[i:]) {
+			positions = append(positions, i)
+		}
+	}
+	return positions
+}
+
+func isVersionMarker(words matchPhrase) bool {
+	form := recordingTerms.at(words)
+	if form.words == nil {
+		form = requestedForm(words, requestedRecordingRoles)
+	}
+	return form.term.roles&requestedRecordingRoles != 0
+}
+
+func requestedForm(words matchPhrase, roles recordingRole) recordingForm {
+	length := utf8.RuneCountInString(words[0])
+	if length < 6 {
+		return recordingForm{}
+	}
+	for _, n := range []int{length, length - 1, length + 1, length - 2, length + 2} {
+		if form := fuzzyForm(words, roles, n); form.words != nil {
+			return form
+		}
+	}
+	return recordingForm{}
+}
+
+func fuzzyForm(words matchPhrase, roles recordingRole, length int) recordingForm {
+	for _, form := range recordingTerms.fuzzy[length] {
+		if form.term.roles&roles != 0 && form.matches(words) {
+			return form
+		}
+	}
+	return recordingForm{}
 }

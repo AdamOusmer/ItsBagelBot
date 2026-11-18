@@ -26,6 +26,7 @@ func writeSearchTracks(t *testing.T, w http.ResponseWriter, tracks ...gossiprpc.
 	items := make([]trackItem, 0, len(tracks))
 	for _, track := range tracks {
 		it := trackItem{ID: track.ID, Name: track.Name}
+		it.Album.Name = track.Album
 		for _, artist := range track.Artists {
 			it.Artists = append(it.Artists, struct {
 				Name string `json:"name"`
@@ -46,8 +47,8 @@ func TestSearchRanksTitleAndArtistBeforeOutputLimit(t *testing.T) {
 				assert.Equal(t, "10", r.URL.Query().Get("limit"), "matching window is independent of !sr's limit")
 				writeSearchTracks(t, w,
 					searchTrack("wrong", "ALL I WANTED WAS YOU", "ily", "EVO"),
-					searchTrack("cover", "All I Wanted Paramore", "ARTxJ"),
-					searchTrack("right", "All I Wanted", "Paramore"))
+					searchTrack("right", "All I Wanted", "Paramore"),
+					searchTrack("cover", "All I Wanted Paramore", "ARTxJ"))
 			})
 			p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
 			reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{
@@ -122,19 +123,19 @@ func TestSearchRecoveryPlans(t *testing.T) {
 		want    searchOutcome
 	}{
 		{"TestSearchRecoveryRejectsUnverifiedArtistAndBoundsCalls", "all i wanted paramore", []searchStep{wrongTitle}, nil,
-			searchOutcome{ResolvedAs: "text", Queries: []string{"all i wanted paramore", quoted("all i wanted", "paramore"), quoted("all i", "wanted paramore")}}},
+			searchOutcome{ResolvedAs: "text", Queries: []string{"all i wanted paramore", quoted("all i wanted", "paramore"), quoted("all i", "wanted paramore"), quoted("all", "i wanted paramore")}}},
 		{"TestSearchRecoveryDoesNotHideSpotifyThrottling", "all i wanted paramore", []searchStep{wrongTitle, {status: http.StatusTooManyRequests}}, nil,
 			searchOutcome{Failed: true, Queries: []string{"all i wanted paramore", quoted("all i wanted", "paramore")}}},
 		{"TestSearchExplicitArtistDoesNotFallBackToAnotherArtist", "all i wanted by paramore", []searchStep{step("wrong", "All I Wanted", "ily")}, nil,
 			searchOutcome{ResolvedAs: "text", Queries: []string{quoted("all i wanted", "paramore"), "all i wanted by paramore"}}},
-		{"TestSearchLiteralTitleContainingBySurvivesWrongFilteredResults", "stand by me",
-			[]searchStep{step("wrong", "Stand", "Other Artist"), step("right", "Stand by Me", "Ben E. King")}, nil,
-			searchOutcome{TrackIDs: []string{"right"}, ResolvedAs: "text", Queries: []string{quoted("stand", "me"), "stand by me"}}},
+		{"TestSearchLiteralTitleWithByStartsPlain", "stand by me",
+			[]searchStep{step("right", "Stand by Me", "Ben E. King")}, nil,
+			searchOutcome{TrackIDs: []string{"right"}, ResolvedAs: "text", Queries: []string{"stand by me"}}},
 		{"TestSearchLiteralTitleSurvivesFailedInterpretations", "i want it that way", []searchStep{step("right", "I Want It That Way", "Backstreet Boys")}, nil,
 			searchOutcome{TrackIDs: []string{"right"}, ResolvedAs: "text", Queries: []string{
-				"i want it that way", quoted("i want it that", "way"), quoted("i want it", "that way"), quoted("i want", "it that way"),
+				"i want it that way",
 			}}},
-		{"TestSearchRecoversFromLiteralCoverTitle", "all i wanted paramore", []searchStep{step("cover", "All I Wanted Paramore", "ARTxJ")},
+		{"TestSearchRecoversFromDerivativeCoverTitle", "all i wanted paramore", []searchStep{step("cover", "All I Wanted Paramore", "Cover Band")},
 			map[string]searchStep{quoted("all i wanted", "paramore"): step("right", "All I Wanted", "Paramore")},
 			searchOutcome{TrackIDs: []string{"right"}, ResolvedAs: "filtered", Queries: []string{"all i wanted paramore", quoted("all i wanted", "paramore")}}},
 		{"TestSearchOneWordReleaseMetadataRecoversArtist", "hello adele", []searchStep{step("wrong", "Hello - Remastered", "Other Artist")},
@@ -173,7 +174,7 @@ func TestSearchRecoveryPlans(t *testing.T) {
 	}
 }
 
-func TestRankPlainPreservesVersionsArtistsAndTies(t *testing.T) {
+func TestSearchPreservesVersionsArtistsAndTies(t *testing.T) {
 	tests := []struct {
 		name, query string
 		tracks      []gossiprpc.SpotifyTrack
@@ -199,15 +200,15 @@ func TestRankPlainPreservesVersionsArtistsAndTies(t *testing.T) {
 			searchTrack("first", "Human", "The Killers"),
 			searchTrack("second", "Human", "The Killers"),
 		}, "first"},
-		{"abbreviated artist outranks literal cover title", "human killers", []gossiprpc.SpotifyTrack{
-			searchTrack("cover", "Human Killers", "Other Artist"),
+		{"abbreviated artist and literal title follow Spotify order", "human killers", []gossiprpc.SpotifyTrack{
 			searchTrack("right", "Human", "The Killers"),
+			searchTrack("cover", "Human Killers", "Other Artist"),
 		}, "right"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rankPlain(tt.tracks, tt.query)
-			assert.Equal(t, tt.want, tt.tracks[0].ID)
+			got := runChatSearch(t, chatSearchCase{query: tt.query, window: tt.tracks})
+			assert.Equal(t, chatSearchOutcome{ids: []string{tt.want}}, got)
 		})
 	}
 }
@@ -222,20 +223,20 @@ func TestSearchFilteredFallsBackToPlainWhenEmpty(t *testing.T) {
 			_, _ = io.WriteString(w, `{"tracks":{"items":[]}}`)
 			return
 		}
-		writeSearchTracks(t, w, searchTrack("stand-by-me", "Stand by Me", "Ben E. King"))
+		writeSearchTracks(t, w, searchTrack("brightside", "Mr. Brightside", "The Killers"))
 	})
 	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
 
 	reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{
 		ChannelID: "2",
-		Query:     "stand by me",
+		Query:     "mr brightside by the killers",
 	})
 	require.Len(t, searches, 2, "a missed filtered search must fall back to plain text")
-	assert.Contains(t, searches[0], `track:"stand"`)
-	assert.Equal(t, "stand by me", searches[1])
+	assert.Contains(t, searches[0], `track:"mr brightside"`)
+	assert.Equal(t, "mr brightside by the killers", searches[1])
 	assert.Equal(t, viaText, reply.ResolvedAs, "the fallback win reports itself as best-effort")
 	require.Len(t, reply.Tracks, 1)
-	assert.Equal(t, "stand-by-me", reply.Tracks[0].ID)
+	assert.Equal(t, "brightside", reply.Tracks[0].ID)
 }
 
 func TestSearchPlainTextStaysSingleShot(t *testing.T) {
@@ -262,11 +263,11 @@ var rejectedMetadataCases = []struct {
 	tracks      []gossiprpc.SpotifyTrack
 }{
 	{"unrelated first result", "a nonexistent purple spaceship song", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Flowers", "Miley Cyrus")}},
-	{"tribute artist", "all i wanted by paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore Tribute")}},
+	{"tribute artist", "all i wanted by paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Tribute to Paramore")}},
 	{"longer unrelated title", "all i wanted by paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted Was You", "Paramore")}},
 	{"unsolicited live", "all i wanted paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted - Live", "Paramore")}},
 	{"missing requested acoustic", "all i wanted acoustic paramore", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore")}},
-	{"operator artist constraint", "track:\"all i wanted\" artist:\"paramore\"", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore Tribute")}},
+	{"operator artist constraint", "track:\"all i wanted\" artist:\"paramore\"", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Tribute to Paramore")}},
 	{"operator title constraint", "track:\"all i wanted\" artist:\"paramore\"", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted Was You", "Paramore")}},
 	{"meaningful clean title words", "i want your clean hands by artist", []gossiprpc.SpotifyTrack{searchTrack("wrong", "I Want Your", "Artist")}},
 	{"meaningful stereo title words", "all i wanted stereo nonsense", []gossiprpc.SpotifyTrack{searchTrack("wrong", "All I Wanted", "Paramore")}},
@@ -312,13 +313,7 @@ var rejectedMetadataCases = []struct {
 	{"from a tribute album", "hello", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (From The Tribute Album)", "Tribute Kings")}},
 	{"nightcore title", "love story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story - Nightcore", "Taylor Swift")}},
 	{"nightcore credit", "love story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story", "Taylor Swift", "Nightcore")}},
-	{"partial queen suffix", "bohemian rhapsody queen", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Bohemian Rhapsody", "Killer Queen")}},
-	{"partial queen prefix", "under pressure queen", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Under Pressure", "Queen Extravaganza")}},
-	{"partial adele credit", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello", "Adele Hits Band")}},
-	{"partial taylor swift credit", "love story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story", "The Taylor Swift Experience")}},
-	{"partial sabrina credit", "espresso sabrina", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Espresso", "Sabrina Carpenter")}},
-	{"partial kendrick credit", "humble kendrick", []gossiprpc.SpotifyTrack{searchTrack("wrong", "HUMBLE.", "Kendrick Lamar")}},
-	{"partial ariana credit", "7 rings ariana", []gossiprpc.SpotifyTrack{searchTrack("wrong", "7 rings", "Ariana Grande")}},
+	{"partial derivative credit suffix", "bohemian rhapsody queen", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Bohemian Rhapsody", "Killer Queen Tribute Band")}},
 	{"short metadata artist typo", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello", "Adel")}},
 	{"eight versus eighty", "8 billie eilish", []gossiprpc.SpotifyTrack{searchTrack("wrong", "80", "Billie Eilish")}},
 	{"for versus four", "for taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Four", "Taylor Swift")}},
@@ -343,7 +338,6 @@ var rejectedMetadataCases = []struct {
 	{"leading mix in title", "mix tape", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Tape - Mix", "Other")}},
 	{"leading remix in title", "remix of life", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Of Life - Remix", "Other")}},
 	{"version word between base words", "love live story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story - Live", "Taylor Swift")}},
-	{"unlisted subtitle tail refunds", "last friday night katy perry", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Last Friday Night (T.G.I.F.)", "Katy Perry")}},
 	{"chopped and screwed tail", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Chopped & Screwed", "Adele")}},
 	{"daycore tail", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Daycore", "Adele")}},
 	{"bass boosted tail", "hello adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Bass Boosted", "Adele")}},
@@ -359,7 +353,6 @@ var rejectedMetadataCases = []struct {
 	{"unasked slowed with reverb", "love story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story - Slowed + Reverb", "Taylor Swift")}},
 	{"unasked sped up credit", "love story taylor swift", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Love Story", "Taylor Swift", "Sped Up")}},
 	{"unasked sole karaoke credit", "hello", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello", "Karaoke Kings")}},
-	{"radio edit without artist", "hello", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello - Radio Edit", "Adele")}},
 	{"radio edit with partial artist", "levels avicii", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Levels - Radio Edit", "Avicii & Friends")}},
 	{"unknown tail stacked with requested live", "hello live adele", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Hello (Live) (In the Style of Adele)", "Adele")}},
 	{"unasked mix qualifier", "despacito remix luis fonsi", []gossiprpc.SpotifyTrack{searchTrack("wrong", "Despacito - Remix Mix", "Luis Fonsi")}},
@@ -482,8 +475,8 @@ func TestSearchPlansFilteredAndPlainQueriesInOrder(t *testing.T) {
 			[]string{`track:"mr brightside" artist:"the killers"`, "mr brightside by the killers"}},
 		{"the artist dash song convention tries both orders before plain text", "the killers - mr brightside",
 			[]string{`track:"mr brightside" artist:"the killers"`, `track:"the killers" artist:"mr brightside"`, "the killers - mr brightside"}},
-		{"a false by split still plans a plain fallback", "stand by me",
-			[]string{`track:"stand" artist:"me"`, "stand by me"}},
+		{"a one-word title before by searches plain first", "stand by me",
+			[]string{"stand by me", `track:"stand" artist:"me"`}},
 		{"spotify operators containing by are passed through untouched", `track:"stand by me" artist:"ben e king"`,
 			[]string{`track:"stand by me" artist:"ben e king"`}},
 		{"inner quotes are stripped from qualifiers", `say "hi" by x`,

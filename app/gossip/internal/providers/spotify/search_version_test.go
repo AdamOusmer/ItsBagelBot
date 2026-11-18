@@ -50,9 +50,9 @@ var recordingVersionCases = []struct {
 	{"unrequested extra version", "hello live adele", []gossiprpc.SpotifyTrack{
 		searchTrack("wrong", "Hello (Live) - Remix", "Adele"), helloLive,
 	}, nil, chatSearchOutcome{ids: []string{"live"}, queries: []string{"hello live adele"}}},
-	{"title-only version after recovery miss", "hello live", []gossiprpc.SpotifyTrack{
+	{"exact title-only version stops immediately", "hello live", []gossiprpc.SpotifyTrack{
 		searchTrack("live", "Hello - Live", "Adele"),
-	}, nil, chatSearchOutcome{ids: []string{"live"}, queries: []string{"hello live", `track:"hello" artist:"live"`}}},
+	}, nil, chatSearchOutcome{ids: []string{"live"}, queries: []string{"hello live"}}},
 	{"artist recovery beats title-only version", "hello live adele", []gossiprpc.SpotifyTrack{
 		searchTrack("fallback", "Hello Adele - Live", "Other"), helloOriginal,
 	}, map[string][]gossiprpc.SpotifyTrack{`track:"hello live" artist:"adele"`: {helloLive}},
@@ -105,9 +105,9 @@ var recordingVersionCases = []struct {
 	{"acoustic typo", "hello acustic adele", []gossiprpc.SpotifyTrack{
 		searchTrack("acoustic", "Hello - Acoustic", "Adele"),
 	}, nil, chatSearchOutcome{ids: []string{"acoustic"}}},
-	{"sped up typo", "love story sped uo taylor swift", []gossiprpc.SpotifyTrack{
+	{"short version word typo is rejected", "love story sped uo taylor swift", []gossiprpc.SpotifyTrack{
 		searchTrack("sped-up", "Love Story - Sped Up", "Taylor Swift"),
-	}, nil, chatSearchOutcome{ids: []string{"sped-up"}}},
+	}, nil, chatSearchOutcome{}},
 	{"reverb qualifies slowed", "love story slowed taylor swift", []gossiprpc.SpotifyTrack{
 		searchTrack("slowed", "Love Story - Slowed + Reverb", "Taylor Swift"),
 	}, nil, chatSearchOutcome{ids: []string{"slowed"}}},
@@ -133,11 +133,11 @@ var recordingVersionCases = []struct {
 		searchTrack("album", "Hello - Album Version", "Adele"),
 	}, map[string][]gossiprpc.SpotifyTrack{helloRetry: {helloOriginal}},
 		chatSearchOutcome{ids: []string{"hello"}, queries: []string{"hello adele", helloRetry}}},
-	{"unknown subtitle recovers plain title", "last friday night katy perry", []gossiprpc.SpotifyTrack{
+	{"exact subtitle follows first window", "last friday night katy perry", []gossiprpc.SpotifyTrack{
 		searchTrack("subtitle", "Last Friday Night (T.G.I.F.)", "Katy Perry"),
 	}, map[string][]gossiprpc.SpotifyTrack{
 		`track:"last friday night" artist:"katy perry"`: {searchTrack("plain", "Last Friday Night", "Katy Perry")},
-	}, chatSearchOutcome{ids: []string{"plain"}, queries: []string{"last friday night katy perry", `track:"last friday night" artist:"katy perry"`}}},
+	}, chatSearchOutcome{ids: []string{"subtitle"}, queries: []string{"last friday night katy perry"}}},
 	{"remix in an artist name", "hello adele", []gossiprpc.SpotifyTrack{
 		searchTrack("duet", "Hello", "Adele", "The Remix Boys"),
 	}, nil, chatSearchOutcome{ids: []string{"duet"}, queries: []string{"hello adele"}}},
