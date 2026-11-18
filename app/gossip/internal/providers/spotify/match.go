@@ -27,7 +27,7 @@ func phraseIdentity(query, metadata matchPhrase) (int, bool) {
 func alignedEdits(query, metadata matchPhrase, limit int) (int, bool) {
 	edits := 0
 	for i, word := range metadata {
-		distance, ok := wordIdentity(wordPair{query[i], word})
+		distance, ok := wordIdentity(wordPair{query: query[i], metadata: word})
 		edits += distance
 		if !ok || edits > limit {
 			return 0, false
@@ -36,24 +36,41 @@ func alignedEdits(query, metadata matchPhrase, limit int) (int, bool) {
 	return edits, true
 }
 
-type wordPair struct{ query, metadata string }
+type wordPair struct {
+	query, metadata string
+	version         bool
+}
 
 func wordIdentity(pair wordPair) (int, bool) {
 	if pair.query == pair.metadata {
 		return 0, true
 	}
 	runes := runePair{[]rune(pair.query), []rune(pair.metadata)}
-	limit := wordEditBudget(runes.b)
-	if limit == 0 || !runes.allowsEdits() {
+	if !pair.allowsEdits(runes) {
 		return 0, false
 	}
-	edits := osaDistance(runes.a, runes.b, limit)
+	return runes.spellingIdentity()
+}
+
+func (p wordPair) allowsEdits(runes runePair) bool {
+	if p.version {
+		return runes.allowedStart() || strings.HasPrefix(p.query, p.metadata)
+	}
+	return !protectedWord(runes.b) && runes.allowsEdits()
+}
+
+func (p runePair) spellingIdentity() (int, bool) {
+	limit := wordEditBudget(p.b)
+	if limit == 0 {
+		return 0, false
+	}
+	edits := osaDistance(p.a, p.b, limit)
 	return edits, edits <= limit
 }
 
 func wordEditBudget(word []rune) int {
 	switch {
-	case len(word) <= 3 || protectedWord(word):
+	case len(word) <= 3:
 		return 0
 	case len(word) < 10:
 		return 1
@@ -70,11 +87,17 @@ func (p runePair) allowedStart() bool {
 	if len(p.b) >= 6 {
 		return true
 	}
-	return len(p.a) <= len(p.b) && (p.a[0] == p.b[0] || p.startsWithSwap())
+	if len(p.a) > len(p.b) {
+		return false
+	}
+	return p.a[0] == p.b[0] || p.startsWithSwap()
 }
 
 func (p runePair) startsWithSwap() bool {
-	return len(p.a) == len(p.b) && p.a[0] == p.b[1] && p.a[1] == p.b[0]
+	if len(p.a) < 2 || len(p.a) != len(p.b) {
+		return false
+	}
+	return p.a[0] == p.b[1] && p.a[1] == p.b[0]
 }
 
 var romanNumeral = regexp.MustCompile(`^m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$`)

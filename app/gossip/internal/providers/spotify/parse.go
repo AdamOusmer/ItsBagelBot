@@ -38,7 +38,7 @@ func (r resolvedInput) cacheKey() string {
 		return "share:" + r.text
 	default:
 		// A new matcher must not reuse an old cached first-result selection.
-		return "text:v5:" + r.text
+		return "text:v7:" + r.text
 	}
 }
 

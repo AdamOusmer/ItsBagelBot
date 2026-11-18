@@ -85,26 +85,65 @@ func (s *textSearch) attempt(ctx context.Context, candidate searchCandidate, pla
 		return reply, false, err
 	}
 	s.observed = append(s.observed, reply.Tracks...)
-	reply, done := s.evaluate(reply, candidate, planFields)
-	return reply, done, nil
+	if !candidate.hasFields() && candidate.operators {
+		return reply, true, nil
+	}
+	ranked := s.rankReply(reply.Tracks, candidate, planFields)
+	reply.Tracks = ranked.tracks
+	if ranked.retry != nil {
+		confirmed, err := s.confirmRecording(ctx, reply, *ranked.retry)
+		return confirmed, true, err
+	}
+	return reply, s.acceptRanked(reply, candidate, ranked), nil
 }
 
-func (s *textSearch) evaluate(reply gossiprpc.SpotifySearchReply, candidate searchCandidate, planFields []searchFields) (gossiprpc.SpotifySearchReply, bool) {
+func (s *textSearch) rankReply(tracks []gossiprpc.SpotifyTrack, candidate searchCandidate, planFields []searchFields) rankedWindow {
 	if candidate.hasFields() {
-		ranked := rankWindow(reply.Tracks, []searchFields{candidate.fields()}).passing()
-		reply.Tracks = ranked.tracks
-		return reply, ranked.hasMatch()
+		return rankWindow(tracks, []searchFields{candidate.fields()}).passing()
 	}
-	if candidate.operators {
-		return reply, true
-	}
-	ranked := rankPlain(reply.Tracks, s.raw)
+	ranked := rankPlain(tracks, s.raw)
 	if !ranked.hasMatch() && len(planFields) > 0 {
-		ranked = rankWindow(reply.Tracks, planFields).passing()
+		return rankWindow(tracks, planFields).passing()
 	}
-	reply.Tracks = ranked.tracks
+	return ranked
+}
+
+func (s *textSearch) acceptRanked(reply gossiprpc.SpotifySearchReply, candidate searchCandidate, ranked rankedWindow) bool {
+	if candidate.hasFields() {
+		return ranked.hasMatch()
+	}
 	s.plain = reply
-	return reply, ranked.artist != artistNone || ranked.ambiguous
+	return ranked.artist != artistNone || ranked.ambiguous
+}
+
+func (s *textSearch) confirmRecording(ctx context.Context, fallback gossiprpc.SpotifySearchReply, fields searchFields) (gossiprpc.SpotifySearchReply, error) {
+	retry, _ := recoveryCandidate(textSplit{left: fields.song.text(), right: fields.artist.text()}, fields)
+	if s.sent[retry.q] {
+		return selectOriginal(fallback, gossiprpc.SpotifySearchReply{Tracks: s.observed, ResolvedAs: viaFiltered}, fields), nil
+	}
+	if s.budget.remaining == 0 {
+		fallback.Tracks = nil
+		return fallback, nil
+	}
+	s.sent[retry.q] = true
+	reply, err := s.budget.search(ctx, retry)
+	if err != nil {
+		return reply, err
+	}
+	return selectOriginal(fallback, reply, fields), nil
+}
+
+func selectOriginal(fallback, reply gossiprpc.SpotifySearchReply, fields searchFields) gossiprpc.SpotifySearchReply {
+	ranked := rankWindow(reply.Tracks, []searchFields{fields}).passing()
+	if ranked.ambiguous || ranked.hasVerifiedArtist() {
+		reply.Tracks = ranked.tracks
+		return reply
+	}
+	return fallback
+}
+
+func (w rankedWindow) hasVerifiedArtist() bool {
+	return w.artist == artistFull && w.retry == nil
 }
 
 func plannedFields(plan []searchCandidate) []searchFields {

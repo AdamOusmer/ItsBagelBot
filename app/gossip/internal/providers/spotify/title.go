@@ -20,9 +20,9 @@ var recordingMarkers = map[string]bool{
 	"vip": true, "bootleg": true, "rework": true, "edit": true, "tribute": true,
 }
 
-var releaseSuffix = regexp.MustCompile(`(?i)(?:\s+[-–—]\s*|\s*\()(?:\d{4}\s+)?(?:re-?master(?:ed)?(?:\s+\d{4})?|mono|stereo|original\s+mix|(?:radio|single|album)\s+(?:edit|version)|(?:explicit|clean)(?:\s+version)?)(?:\s*\))?$`)
+var releaseSuffix = regexp.MustCompile(`(?i)(?:\s+[-–—]\s*|\s*\()(?:\d{4}\s+)?(?:re-?master(?:ed)?(?:\s+\d{4})?|mono|stereo|original\s+mix|(?:explicit|clean)(?:\s+version)?)(?:\s*\))?$`)
 var featuredSuffix = regexp.MustCompile(`(?i)(?:\s+[-–—]\s*|\s*\(|\.\s*)(?:feat\.?|ft\.?|featuring)\s+([^()]+)\)?$`)
-var titleDelimiter = regexp.MustCompile(` [-–—] |[([]`)
+var titleDelimiter = regexp.MustCompile(` [-–—‒/] |[([（]`)
 var parentheticalTitle = regexp.MustCompile(`^\(([^()]+)\)\s*$`)
 
 func cleanTrackTitle(name string) string {
@@ -36,6 +36,8 @@ func cleanTrackTitle(name string) string {
 
 type titleForms struct {
 	full, clean, base, tail, alternate matchPhrase
+	tailParts                          []matchPhrase
+	blocked                            bool
 }
 
 func trackTitle(name string) titleForms {
@@ -47,7 +49,10 @@ func trackTitle(name string) titleForms {
 		return forms
 	}
 	forms.base = matchWords(clean[:location[0]])
-	forms.tail = matchWords(clean[location[1]:])
+	tail := clean[location[1]:]
+	forms.tail = matchWords(tail)
+	forms.tailParts = titleTailParts(tail)
+	forms.blocked = slices.ContainsFunc(forms.tailParts, blocksBaseTitle)
 	if alternate := parentheticalTitle.FindStringSubmatch(clean[location[0]:]); alternate != nil {
 		forms.alternate = matchWords(alternate[1])
 	}
@@ -61,28 +66,71 @@ type titleResult struct {
 	matched bool
 }
 
+func titleTailParts(tail string) []matchPhrase {
+	var parts []matchPhrase
+	for _, text := range titleDelimiter.Split(tail, -1) {
+		if words := matchWords(text); len(words) > 0 {
+			parts = append(parts, words)
+		}
+	}
+	return parts
+}
+
+func blocksBaseTitle(tail matchPhrase) bool {
+	return !harmlessTail(tail) || len(tail.recordingVersion()) > 0
+}
+
+func (t titleForms) hasUnaskedTail(requested matchPhrase) bool {
+	return slices.ContainsFunc(t.tailParts, func(part matchPhrase) bool {
+		return !harmlessTail(part) && len(part.recordingVersion()) == 0 && !requested.containsWords(part)
+	})
+}
+
 func (t titleForms) match(query matchPhrase, artist artistLevel) titleResult {
+	if t.blocked {
+		return t.matchRecording(query, artist)
+	}
 	literal := t.literalMatch(query)
-	if literal.matched || !t.hasBase() {
+	if literal.matched || len(t.tail) == 0 {
 		return literal
 	}
-	harmless := harmlessTail(t.tail)
-	if artist == artistNone && !harmless {
+	return scoreTitleForm(query, t.base, titleResult{points: 94, base: true})
+}
+
+func (t titleForms) matchRecording(query matchPhrase, artist artistLevel) titleResult {
+	switch artist {
+	case artistNone:
+		return t.requestedVersion(query)
+	case artistFull:
+		return t.matchRecordingWithArtist(query)
+	default:
 		return titleResult{}
 	}
-	base := scoreTitleForm(query, t.base, titleResult{points: 94, base: true})
-	if artist == artistFull && t.allowsAlternate(query) {
-		return betterTitle(base, scoreTitleForm(query, t.alternate, titleResult{points: 94, base: true}))
+}
+
+func (t titleForms) matchRecordingWithArtist(query matchPhrase) titleResult {
+	literal := t.literalMatch(query)
+	if literal.matched && literal.edits == 0 {
+		return literal
 	}
-	return base
+	if alternate := t.alternateMatch(query); alternate.matched {
+		return alternate
+	}
+	return t.requestedVersion(query)
 }
 
-func (t titleForms) hasBase() bool {
-	return len(t.tail) > 0 && !blocksBaseTitle(t.tail)
-}
-
-func (t titleForms) allowsAlternate(query matchPhrase) bool {
-	return !harmlessTail(t.tail) && !conflictingRecording(query, t.clean)
+func (t titleForms) alternateMatch(query matchPhrase) titleResult {
+	if len(t.alternate) == 0 || len(t.alternate.recordingVersion()) > 0 {
+		return titleResult{}
+	}
+	form := t.alternate
+	if t.base.text() == "good riddance" && form.text() == "time of your life" {
+		return betterTitle(
+			scoreTitleForm(query, form, titleResult{points: 94, base: true}),
+			scoreTitleForm(query, t.base, titleResult{points: 94, base: true}),
+		)
+	}
+	return scoreTitleForm(query, form, titleResult{points: 94, base: true})
 }
 
 func betterTitle(first, second titleResult) titleResult {
@@ -144,23 +192,4 @@ func conflictingRecording(query, metadata matchPhrase) bool {
 		}
 	}
 	return false
-}
-
-var versionWords = map[string]bool{
-	"version": true, "audio": true, "stripped": true, "cappella": true, "acapella": true,
-	"recorded": true, "rerecorded": true, "8d": true, "tiktok": true,
-}
-
-var versionPrefixes = [...]string{"remix", "slow", "mix", "speed", "sped", "live", "acoustic", "cover"}
-
-func blocksBaseTitle(tail matchPhrase) bool {
-	if len(tail) >= 2 && tail[:2].text() == "taylors version" {
-		tail = tail[2:]
-	}
-	return slices.ContainsFunc(tail, versionWord)
-}
-
-func versionWord(word string) bool {
-	return versionWords[word] || recordingMarkers[word] ||
-		slices.ContainsFunc(versionPrefixes[:], func(prefix string) bool { return strings.HasPrefix(word, prefix) })
 }

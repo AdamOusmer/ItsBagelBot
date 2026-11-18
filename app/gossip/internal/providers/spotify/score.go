@@ -20,7 +20,11 @@ var artistStopwords = map[string]bool{
 func (v queryVariant) interpretations() []searchFields {
 	var splits []searchFields
 	for _, split := range wordSplits(v.words) {
-		splits = append(splits, split.fields(v.words))
+		fields := split.fields(v.words)
+		splits = append(splits, fields)
+		if shifted, ok := fields.withTrailingVersion(); ok {
+			splits = append(splits, shifted)
+		}
 	}
 	if v.titleOnly {
 		return append([]searchFields{{song: v.words}}, splits...)
@@ -50,39 +54,94 @@ type matchScore struct {
 	artist artistLevel
 	fuzzy  bool
 	passed bool
+	retry  *searchFields
 }
 
 type catalogTrack struct {
 	track   gossiprpc.SpotifyTrack
 	title   titleForms
 	credits []matchPhrase
+	version matchPhrase
 	best    matchScore
 }
 
 func catalogWindow(tracks []gossiprpc.SpotifyTrack) []catalogTrack {
 	window := make([]catalogTrack, 0, len(tracks))
 	for _, track := range tracks {
-		window = append(window, catalogTrack{track: track, title: trackTitle(track.Name), credits: creditWords(track.Artists)})
+		credits := creditWords(track.Artists)
+		window = append(window, catalogTrack{track: track, title: trackTitle(track.Name), credits: credits, version: creditVersions(credits)})
 	}
 	return window
 }
 
 func (c catalogTrack) score(fields searchFields) matchScore {
-	if len(fields.artist) == 0 {
-		return combineScore(c.title.match(fields.song, artistNone), artistNone, 0)
-	}
-	title := c.title.match(fields.song, artistFull)
-	if !title.matched && len(fields.song) > 0 {
+	if c.recordingCreditConflict(fields) {
 		return matchScore{}
 	}
 	level, edits := creditEvidence(fields.artist, c.credits)
+	if len(fields.artist) == 0 {
+		return combineScore(c.matchTitle(fields.song, artistNone), artistNone, 0)
+	}
 	if level == artistFull && len(fields.song) == 0 {
 		return matchScore{points: 4 * (100 - 3*edits), artist: level, fuzzy: edits > 0, passed: true}
 	}
-	if level == artistNone {
+	title := c.matchTitle(fields.song, artistFull)
+	if !title.matched {
+		return c.provisionalScore(fields, level, edits)
+	}
+	if !c.allowsArtist(level) {
 		return matchScore{}
 	}
 	return combineScore(title, level, edits)
+}
+
+func (c catalogTrack) allowsArtist(level artistLevel) bool {
+	return level == artistFull || (level == artistPartial && !c.title.blocked)
+}
+
+func (c catalogTrack) matchTitle(song matchPhrase, artist artistLevel) titleResult {
+	title := c.title.match(song, artist)
+	if title.matched || len(c.version) == 0 {
+		return title
+	}
+	if c.title.blocked {
+		return titleResult{}
+	}
+	version := c.title
+	version.tail = c.version
+	return version.matchRecording(song, artist)
+}
+
+func (c catalogTrack) provisionalScore(fields searchFields, level artistLevel, edits int) matchScore {
+	if level != artistFull || !c.permitsFallback(fields.artist) {
+		return matchScore{}
+	}
+	title := scoreTitleForm(fields.song, c.title.base, titleResult{points: 94, base: true})
+	score := combineScore(title, level, edits)
+	if score.passed {
+		score.retry = &searchFields{song: c.title.base, artist: fields.artist}
+	}
+	return score
+}
+
+func (c catalogTrack) permitsFallback(artist matchPhrase) bool {
+	if alternateEditions[c.title.tail.text()] {
+		return true
+	}
+	return c.title.remixOnly() && c.hasRemixGuest(artist)
+}
+
+func (c catalogTrack) hasRemixGuest(artist matchPhrase) bool {
+	if len(c.credits) < 2 || exactCredit(artist, c.credits[0]) == artistFull {
+		return false
+	}
+	return hasExactCredit(artist, c.credits[1:])
+}
+
+func hasExactCredit(artist matchPhrase, credits []matchPhrase) bool {
+	return slices.ContainsFunc(credits, func(credit matchPhrase) bool {
+		return exactCredit(artist, credit) == artistFull
+	})
 }
 
 func combineScore(title titleResult, level artistLevel, edits int) matchScore {
@@ -115,44 +174,27 @@ func (t titleResult) qualifies(level artistLevel) bool {
 
 func scoreInterpretation(window []catalogTrack, fields searchFields) {
 	scores := make([]matchScore, len(window))
-	fullTitles := make(map[string]bool)
+	fullByTitle := make(map[string]bool)
 	for i, track := range window {
 		score := track.score(fields)
-		if track.recordingCreditConflict(fields) {
-			continue
-		}
 		scores[i] = score
-		if score.artist == artistFull {
-			fullTitles[track.title.base.compact()] = true
-		}
+		base := track.title.base.compact()
+		fullByTitle[base] = fullByTitle[base] || score.artist == artistFull
 	}
 	for i, score := range scores {
 		track := &window[i]
-		track.improve(score, fullTitles[track.title.base.compact()])
+		track.improve(score, fullByTitle[track.title.base.compact()])
 	}
 }
 
-func (c catalogTrack) recordingCreditConflict(fields searchFields) bool {
-	return len(c.credits) > 1 && slices.ContainsFunc(c.credits, func(credit matchPhrase) bool {
-		return unspecifiedRecordingCredit(fields, credit)
-	})
-}
-
-func unspecifiedRecordingCredit(fields searchFields, credit matchPhrase) bool {
-	if len(credit) != 1 || !recordingMarkers[credit[0]] {
-		return false
-	}
-	return !slices.Contains(fields.song, credit[0]) && !slices.Contains(fields.artist, credit[0])
-}
-
-func (c *catalogTrack) improve(score matchScore, fullTitle bool) {
-	if score.eligible(fullTitle) && score.compare(c.best) > 0 {
+func (c *catalogTrack) improve(score matchScore, fullCredit bool) {
+	if score.eligible(fullCredit) && score.compare(c.best) > 0 {
 		c.best = score
 	}
 }
 
-func (s matchScore) eligible(fullArtist bool) bool {
-	return s.artist != artistPartial || !fullArtist
+func (s matchScore) eligible(fullCredit bool) bool {
+	return s.artist != artistPartial || !fullCredit
 }
 
 func (s matchScore) compare(other matchScore) int {
@@ -168,8 +210,10 @@ func (s matchScore) priority() int {
 		return 0
 	case s.artist == artistNone:
 		return 1
-	default:
+	case s.retry != nil:
 		return 2
+	default:
+		return 3
 	}
 }
 
@@ -177,6 +221,7 @@ type rankedWindow struct {
 	tracks    []gossiprpc.SpotifyTrack
 	artist    artistLevel
 	ambiguous bool
+	retry     *searchFields
 }
 
 func (w rankedWindow) hasMatch() bool {
@@ -224,9 +269,9 @@ func (window windowScores) passing() rankedWindow {
 		return rankedWindow{}
 	}
 	top := window[0]
-	result := rankedWindow{artist: top.best.artist}
+	result := rankedWindow{artist: top.best.artist, retry: top.best.retry}
 	for _, track := range window {
-		if !track.best.passed {
+		if !track.best.passed || top.best.differentRecordingPriority(track.best) {
 			break
 		}
 		if top.nearDifferentSong(track) {
@@ -240,4 +285,8 @@ func (window windowScores) passing() rankedWindow {
 func (c catalogTrack) nearDifferentSong(other catalogTrack) bool {
 	gap := c.best.points - other.best.points
 	return c.best.fuzzy && max(gap, -gap) <= 30 && c.title.base.compact() != other.title.base.compact()
+}
+
+func (s matchScore) differentRecordingPriority(other matchScore) bool {
+	return (s.retry == nil) != (other.retry == nil)
 }

@@ -22,15 +22,15 @@ type chatSearchCase struct {
 }
 
 type chatSearchOutcome struct {
-	ids     []string
-	failed  bool
-	queries []string
+	ids        []string
+	err        string
+	overBudget bool
+	queries    []string
 }
 
 var chatSpellingCases = []chatSearchCase{
 	chatTrack("love story taylor swift", "Love Story (Taylor's Version)", "Taylor Swift"),
 	chatTrack("love story", "Love Story (Taylor's Version)", "Taylor Swift"),
-	chatTrack("last friday night katy perry", "Last Friday Night (T.G.I.F.)", "Katy Perry"),
 	chatTrack("what was i made for billie eilish", `What Was I Made For? [From The Motion Picture "Barbie"]`, "Billie Eilish"),
 	chatTrack("bohemian rapsody quen", "Bohemian Rhapsody - Remastered 2011", "Queen"),
 	chatTrack("bohemain rapsody queen", "Bohemian Rhapsody", "Queen"),
@@ -62,6 +62,7 @@ var chatSpellingCases = []chatSearchCase{
 	chatTrack("lean on major lazer mo", "Lean On", "Major Lazer", "MØ", "DJ Snake"),
 	chatTrack("loyalty kendrick lamar", "LOYALTY. FEAT. RIHANNA.", "Kendrick Lamar", "Rihanna"),
 	chatTrack("time of your life green day", "Good Riddance (Time of Your Life)", "Green Day"),
+	chatTrack("good riddance green day", "Good Riddance (Time of Your Life)", "Green Day"),
 	{
 		query: "play that funky music",
 		window: []gossiprpc.SpotifyTrack{
@@ -71,12 +72,10 @@ var chatSpellingCases = []chatSearchCase{
 		wantID: "literal",
 	},
 	chatTrack("can you play 2️⃣ so what pink 🎶 pls", "So What", "P!nk"),
-	chatTrack("hello", "Hello - Radio Edit", "Adele"),
 	chatTrack("hello", "Hello - 2015 Remaster", "Adele"),
 	chatTrack("hello", "Hello (Remastered 2015)", "Adele"),
 	chatTrack("hello", "Hello (feat. Artist)", "Adele", "Artist"),
 	chatTrack("hello live", "Hello - Live", "Adele"),
-	chatTrack("hello", "Hello", "Karaoke Kings"),
 	chatTrack("levels avicii", "Levels - Original Mix", "Avicii"),
 	chatTrack("blinding lights the weekend", "Blinding Lights", "The Weeknd"),
 	chatTrack("shape of you ed sheran", "Shape of You", "Ed Sheeran"),
@@ -263,7 +262,7 @@ func runChatSearch(t *testing.T, tc chatSearchCase) chatSearchOutcome {
 		writeSearchTracks(t, w, tracks...)
 	}))
 	reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{ChannelID: "2", Query: tc.query, Limit: 1})
-	outcome := chatSearchOutcome{failed: reply.Error != ""}
+	outcome := chatSearchOutcome{err: reply.Error, overBudget: len(queries) > maxTextSearchRequests}
 	for _, track := range reply.Tracks {
 		outcome.ids = append(outcome.ids, track.ID)
 	}

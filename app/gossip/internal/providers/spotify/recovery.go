@@ -20,9 +20,10 @@ func recoveryCandidates(raw string, tracks []gossiprpc.SpotifyTrack) []searchCan
 		return nil
 	}
 	window := catalogWindow(tracks)
-	var candidates []scoredCandidate
 	source := matchText(raw)
-	for _, variant := range source.sourceWords().variants() {
+	variants := source.sourceWords().variants()
+	candidates := originalTitleRecovery(source, variants[0], window)
+	for _, variant := range variants {
 		candidates = append(candidates, recoveryVariant(source, variant, window)...)
 	}
 	slices.SortStableFunc(candidates, func(a, b scoredCandidate) int { return cmp.Compare(b.score, a.score) })
@@ -32,24 +33,52 @@ func recoveryCandidates(raw string, tracks []gossiprpc.SpotifyTrack) []searchCan
 func recoveryVariant(raw matchText, words sourceWords, window []catalogTrack) []scoredCandidate {
 	var candidates []scoredCandidate
 	for _, split := range wordSplits(words.words) {
-		candidate, ok := split.candidate(raw, words)
-		if !ok {
-			continue
-		}
-		if scored, found := recoverySplit(candidate, window); found {
-			candidates = append(candidates, scored)
-		}
+		candidates = append(candidates, split.recoveryCandidates(raw, words, window)...)
 	}
 	return candidates
 }
 
-func (s fieldSplit) candidate(raw matchText, words sourceWords) (searchCandidate, bool) {
+func originalTitleRecovery(raw matchText, words sourceWords, window []catalogTrack) []scoredCandidate {
+	if len(words.words) == 0 {
+		return nil
+	}
+	if !slices.ContainsFunc(window, func(track catalogTrack) bool {
+		return track.title.base.compact() == words.words.compact() && track.title.blocked
+	}) {
+		return nil
+	}
+	song := raw.queryText(words.source(wordRange{0, len(words.words)}))
+	candidate := searchCandidate{q: `track:"` + song + `"`, name: viaFiltered, song: song, match: &searchFields{song: words.words}}
+	return []scoredCandidate{{candidate, 0.5}}
+}
+
+func (s fieldSplit) recoveryCandidates(raw matchText, words sourceWords, window []catalogTrack) []scoredCandidate {
 	song, artist := words.source(s.song), words.source(s.artist)
 	if song.start < artist.end && artist.start < song.end {
-		return searchCandidate{}, false
+		return nil
 	}
 	query := textSplit{left: raw.queryText(song), right: raw.queryText(artist)}
-	return recoveryCandidate(query, s.fields(words.words))
+	fields := s.fields(words.words)
+	var candidates []scoredCandidate
+	candidates = appendRecovery(candidates, query, fields, window)
+	if shifted, ok := fields.withTrailingVersion(); ok {
+		cut := s.artist.start + len(shifted.artist)
+		query.left += " " + raw.queryText(words.source(wordRange{cut, s.artist.end}))
+		query.right = raw.queryText(words.source(wordRange{s.artist.start, cut}))
+		candidates = appendRecovery(candidates, query, shifted, window)
+	}
+	return candidates
+}
+
+func appendRecovery(out []scoredCandidate, query textSplit, fields searchFields, window []catalogTrack) []scoredCandidate {
+	candidate, ok := recoveryCandidate(query, fields)
+	if !ok {
+		return out
+	}
+	if scored, found := recoverySplit(candidate, window); found {
+		return append(out, scored)
+	}
+	return out
 }
 
 func recoveryCandidate(text textSplit, fields searchFields) (searchCandidate, bool) {
@@ -62,7 +91,7 @@ func recoverySplit(candidate searchCandidate, window []catalogTrack) (scoredCand
 	fields := candidate.fields()
 	score := 0.0
 	for _, track := range window {
-		score = max(score, track.title.recoveryEvidence(fields.song))
+		score = max(score, track.recoveryEvidence(fields))
 	}
 	if score == 0 {
 		return scoredCandidate{}, false
@@ -72,6 +101,44 @@ func recoverySplit(candidate searchCandidate, window []catalogTrack) (scoredCand
 		candidate = corrected
 	}
 	return scoredCandidate{candidate, score}, true
+}
+
+func (c catalogTrack) recoveryEvidence(fields searchFields) float64 {
+	if c.verifiedVersionRecovery(fields) {
+		return 2
+	}
+	if c.title.originalRecoveryMatch(fields.song, artistNone) {
+		return 1
+	}
+	return c.title.recoveryEvidence(fields.song)
+}
+
+func (c catalogTrack) verifiedVersionRecovery(fields searchFields) bool {
+	level, _ := creditEvidence(fields.artist, c.credits)
+	if level != artistFull {
+		return false
+	}
+	request, _ := c.title.versionRequest(fields.song)
+	return request.matched || c.title.originalRecoveryMatch(fields.song, level)
+}
+
+func (t titleForms) originalRecoveryMatch(song matchPhrase, artist artistLevel) bool {
+	if !t.blocked || len(t.base) == 0 {
+		return false
+	}
+	if artist == artistFull {
+		_, ok := recoveryBaseIdentity(song, t.base)
+		return ok
+	}
+	_, ok := titleIdentity(song, t.base)
+	return ok
+}
+
+func recoveryBaseIdentity(song, base matchPhrase) (int, bool) {
+	if conflictingRecording(song, base) {
+		return 0, false
+	}
+	return phraseIdentity(song, base)
 }
 
 func (t titleForms) recoveryEvidence(song matchPhrase) float64 {
@@ -97,7 +164,7 @@ func properTitlePrefix(prefix, title matchPhrase) bool {
 
 func (t titleForms) recoveryMatch(song matchPhrase) titleResult {
 	result := t.literalMatch(song)
-	if result.matched || blocksBaseTitle(t.tail) {
+	if result.matched || t.blocked {
 		return result
 	}
 	return scoreTitleForm(song, t.base, titleResult{points: 94, base: true})
@@ -185,13 +252,23 @@ func (c catalogTrack) findSpelling(fields searchFields, song, artist *spellingMa
 	for _, form := range c.title.spellingForms() {
 		song.consider(fields.song, spellingForm{form, title}, titleIdentity)
 	}
+	c.findBaseSpelling(fields, song, queryField(title))
 	for i, credit := range c.credits {
 		artist.consider(fields.artist, spellingForm{credit, c.track.Artists[i]}, phraseIdentity)
 	}
 }
 
+func (c catalogTrack) findBaseSpelling(fields searchFields, song *spellingMatch, title queryField) {
+	level, _ := creditEvidence(fields.artist, c.credits)
+	if !c.title.originalRecoveryMatch(fields.song, level) {
+		return
+	}
+	base := titleDelimiter.Split(string(title), 2)[0]
+	song.consider(fields.song, spellingForm{c.title.base, base}, recoveryBaseIdentity)
+}
+
 func (t titleForms) spellingForms() []matchPhrase {
-	if blocksBaseTitle(t.tail) {
+	if t.blocked {
 		return []matchPhrase{t.full, t.clean}
 	}
 	return []matchPhrase{t.full, t.clean, t.base}
