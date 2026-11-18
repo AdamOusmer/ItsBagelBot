@@ -35,6 +35,7 @@ type reloadCluster struct {
 	exporter   reloadAccount
 	importer   reloadAccount
 	withImport bool
+	scope      *jwt.UserScope
 }
 
 func newReloadAccount(t *testing.T, name string) reloadAccount {
@@ -53,6 +54,9 @@ func (c *reloadCluster) sign(t *testing.T, a reloadAccount) string {
 	}
 	if c.withImport && a.pub == c.importer.pub {
 		claims.Imports.Add(&jwt.Import{Subject: "svc.ping", Account: c.exporter.pub, Type: jwt.Service})
+	}
+	if c.scope != nil && a.pub == c.importer.pub {
+		claims.SigningKeys.AddScopedSigner(c.scope)
 	}
 	token, err := claims.Encode(c.operator)
 	require.NoError(t, err)
@@ -138,4 +142,54 @@ func TestReloadedAccountChangesGoLiveWithoutARestart(t *testing.T) {
 			require.Equal(t, "pong", string(reply.Data))
 		})
 	}
+}
+
+func TestReloadedPushLaneGrantsReconnectScopedWorkers(t *testing.T) {
+	const subject = "$JS.FC.TWITCH_INGRESS_PREMIUM.test"
+	c := newReloadCluster(t, "MEMORY")
+	role := createKeyPair(t, nkeys.CreateAccount)
+	c.scope = jwt.NewUserScope()
+	c.scope.Key, c.scope.Role = publicKey(t, role), "worker_bus"
+	c.scope.Template.Pub.Allow.Add("svc.ping")
+	c.writeConfig(t)
+	s := c.start(t)
+	listener := connectAs(t, s, c.importer)
+	probe, err := listener.SubscribeSync(subject)
+	require.NoError(t, err)
+	require.NoError(t, listener.Flush())
+	worker, reconnected := connectReloadWorker(t, s, c.importer, role)
+	require.NoError(t, worker.Publish(subject, nil))
+	_, err = probe.NextMsg(100 * time.Millisecond)
+	require.ErrorIs(t, err, nats.ErrTimeout)
+
+	time.Sleep(1100 * time.Millisecond)
+	c.scope.Template.Pub.Allow.Add(subject)
+	c.writeConfig(t)
+	require.NoError(t, s.Reload())
+	select {
+	case <-reconnected:
+	case <-time.After(5 * time.Second):
+		t.Fatal("scoped worker did not reconnect after ACL reload")
+	}
+	require.NoError(t, worker.Publish(subject, nil))
+	_, err = probe.NextMsg(time.Second)
+	require.NoError(t, err)
+}
+
+func connectReloadWorker(t *testing.T, s *server.Server, a reloadAccount, role nkeys.KeyPair) (*nats.Conn, <-chan struct{}) {
+	t.Helper()
+	user := createKeyPair(t, nkeys.CreateUser)
+	claims := jwt.NewUserClaims(publicKey(t, user))
+	claims.SetScoped(true)
+	claims.IssuerAccount = a.pub
+	token, err := claims.Encode(role)
+	require.NoError(t, err)
+	reconnected := make(chan struct{}, 1)
+	nc, err := nats.Connect(s.ClientURL(), nats.UserJWT(
+		func() (string, error) { return token, nil }, user.Sign),
+		nats.ReconnectWait(25*time.Millisecond), nats.IgnoreAuthErrorAbort(),
+		nats.ReconnectHandler(func(*nats.Conn) { reconnected <- struct{}{} }))
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+	return nc, reconnected
 }
