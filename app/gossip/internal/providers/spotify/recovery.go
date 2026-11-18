@@ -4,174 +4,131 @@
 package spotify
 
 import (
-	"cmp"
+	"iter"
 	"slices"
-
-	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"strings"
 )
 
 type scoredCandidate struct {
 	candidate searchCandidate
-	score     float64
+	score     matchScore
 }
 
-func recoveryCandidates(raw string, tracks []gossiprpc.SpotifyTrack) []searchCandidate {
-	if len(tracks) == 0 {
-		return nil
+func (s *textSearch) evidenceCandidates() []searchCandidate {
+	var candidates []scoredCandidate
+	for _, variant := range s.query.sources {
+		candidates = append(candidates, s.recoveryVariant(variant)...)
 	}
-	window := catalogWindow(tracks)
-	source := matchText(raw)
-	variants := source.sourceWords().variants()
-	candidates := originalTitleRecovery(source, variants[0], window)
-	for _, variant := range variants {
-		candidates = append(candidates, recoveryVariant(source, variant, window)...)
-	}
-	slices.SortStableFunc(candidates, func(a, b scoredCandidate) int { return cmp.Compare(b.score, a.score) })
+	slices.SortStableFunc(candidates, func(a, b scoredCandidate) int { return b.score.compare(a.score) })
 	return uniqueRecoveryCandidates(candidates)
 }
 
-func recoveryVariant(raw matchText, words sourceWords, window []catalogTrack) []scoredCandidate {
+func (s *textSearch) recoveryVariant(words sourceWords) []scoredCandidate {
 	var candidates []scoredCandidate
+	positions := versionPositions(words.words)
 	for _, split := range wordSplits(words.words) {
-		candidates = append(candidates, split.recoveryCandidates(raw, words, window)...)
+		candidates = s.addRecovery(candidates, split.recovery(s, words))
+		candidates = s.addRecovery(candidates, split.shiftedRecovery(s, words, positions))
 	}
 	return candidates
 }
 
-func originalTitleRecovery(raw matchText, words sourceWords, window []catalogTrack) []scoredCandidate {
-	if len(words.words) == 0 {
-		return nil
+func (s *textSearch) addRecovery(plan []scoredCandidate, recovery scoredCandidate) []scoredCandidate {
+	if recovery.candidate.q == "" {
+		return plan
 	}
-	if !slices.ContainsFunc(window, func(track catalogTrack) bool {
-		return track.title.base.compact() == words.words.compact() && track.title.blocked
-	}) {
-		return nil
+	if corrected, changed := correctFields(recovery.candidate, s.observed); changed {
+		recovery.candidate = corrected
 	}
-	song := raw.queryText(words.source(wordRange{0, len(words.words)}))
-	candidate := searchCandidate{q: `track:"` + song + `"`, name: viaFiltered, song: song, match: &searchFields{song: words.words}}
-	return []scoredCandidate{{candidate, 0.5}}
+	return append(plan, recovery)
 }
 
-func (s fieldSplit) recoveryCandidates(raw matchText, words sourceWords, window []catalogTrack) []scoredCandidate {
-	song, artist := words.source(s.song), words.source(s.artist)
-	if song.start < artist.end && artist.start < song.end {
-		return nil
+func (split fieldSplit) recovery(search *textSearch, words sourceWords) scoredCandidate {
+	fields := split.fields(words.words)
+	score := search.recoveryScore(fields)
+	if score.quality == noMatch {
+		return scoredCandidate{}
 	}
-	query := textSplit{left: raw.queryText(song), right: raw.queryText(artist)}
-	fields := s.fields(words.words)
-	var candidates []scoredCandidate
-	candidates = appendRecovery(candidates, query, fields, window)
-	if shifted, ok := fields.withTrailingVersion(); ok {
-		cut := s.artist.start + len(shifted.artist)
-		query.left += " " + raw.queryText(words.source(wordRange{cut, s.artist.end}))
-		query.right = raw.queryText(words.source(wordRange{s.artist.start, cut}))
-		candidates = appendRecovery(candidates, query, shifted, window)
-	}
-	return candidates
+	return scoredCandidate{split.rawCandidate(search.query.raw, words), score}
 }
 
-func appendRecovery(out []scoredCandidate, query textSplit, fields searchFields, window []catalogTrack) []scoredCandidate {
-	candidate, ok := recoveryCandidate(query, fields)
+func (split fieldSplit) shiftedRecovery(search *textSearch, words sourceWords, positions []int) scoredCandidate {
+	fields, ok := split.shiftVersion(words.words, positions)
 	if !ok {
-		return out
+		return scoredCandidate{}
 	}
-	if scored, found := recoverySplit(candidate, window); found {
-		return append(out, scored)
+	score := search.recoveryScore(fields)
+	if score.quality == noMatch {
+		return scoredCandidate{}
 	}
-	return out
+	cut := split.artist.start + len(fields.artist)
+	raw := search.query.raw
+	base := raw.queryText(words.source(split.song))
+	suffix := raw.queryText(words.source(wordRange{cut, split.artist.end}))
+	artist := raw.queryText(words.source(wordRange{split.artist.start, cut}))
+	candidate, _ := recoveryCandidate(textSplit{left: base + " " + suffix, right: artist}, fields)
+	return scoredCandidate{candidate, score}
 }
 
 func recoveryCandidate(text textSplit, fields searchFields) (searchCandidate, bool) {
+	if text.right == "" && len(fields.song) > 0 {
+		return trackCandidate(queryField(text.left), fields), true
+	}
 	result, ok := text.candidate()
 	result.match = &fields
 	return result, ok
 }
 
-func recoverySplit(candidate searchCandidate, window []catalogTrack) (scoredCandidate, bool) {
-	fields := candidate.fields()
-	score := 0.0
-	for _, track := range window {
-		score = max(score, track.recoveryEvidence(fields))
-	}
-	if score == 0 {
-		return scoredCandidate{}, false
-	}
-	corrected, changed := correctFields(candidate, window)
-	if changed {
-		candidate = corrected
-	}
-	return scoredCandidate{candidate, score}, true
+func trackCandidate(title queryField, fields searchFields) searchCandidate {
+	song := title.unquoted()
+	return searchCandidate{q: `track:"` + song + `"`, name: viaFiltered, song: song, match: &fields}
 }
 
-func (c catalogTrack) recoveryEvidence(fields searchFields) float64 {
-	if c.verifiedVersionRecovery(fields) {
-		return 2
-	}
-	if c.title.originalRecoveryMatch(fields.song, artistNone) {
-		return 1
-	}
-	return c.title.recoveryEvidence(fields.song)
-}
-
-func (c catalogTrack) verifiedVersionRecovery(fields searchFields) bool {
-	level, _ := creditEvidence(fields.artist, c.credits)
-	if level != artistFull {
-		return false
-	}
-	request, _ := c.title.versionRequest(fields.song)
-	return request.matched || c.title.originalRecoveryMatch(fields.song, level)
-}
-
-func (t titleForms) originalRecoveryMatch(song matchPhrase, artist artistLevel) bool {
-	if !t.blocked || len(t.base) == 0 {
-		return false
-	}
-	if artist == artistFull {
-		_, ok := recoveryBaseIdentity(song, t.base)
-		return ok
-	}
-	_, ok := titleIdentity(song, t.base)
-	return ok
-}
-
-func recoveryBaseIdentity(song, base matchPhrase) (int, bool) {
-	if conflictingRecording(song, base) {
-		return 0, false
-	}
-	return phraseIdentity(song, base)
-}
-
-func (t titleForms) recoveryEvidence(song matchPhrase) float64 {
-	if t.recoveryMatch(song).matched {
-		return 1
-	}
-	title := t.full
-	if len(song) < 2 || !properTitlePrefix(song, title) {
-		return 0
-	}
-	matched := 0
-	for _, word := range title {
-		if slices.Contains(song, word) {
-			matched++
+func (s *textSearch) recoveryScore(fields searchFields) matchScore {
+	var best matchScore
+	for _, track := range s.observed {
+		score := s.scorer.recoveryScore(track, fields)
+		if score.compare(best) > 0 {
+			best = score
 		}
 	}
-	return float64(len(song)+matched) / float64(len(song)+len(title))
+	return best
+}
+
+func (scorer windowScorer) recoveryScore(track catalogTrack, fields searchFields) matchScore {
+	score := scorer.score(track, fields)
+	if score.quality != noMatch {
+		return score
+	}
+	switch {
+	case track.supportsVersionRetry(fields):
+		return matchScore{quality: versionIntent}
+	case track.title.match(fields.song).matched:
+		return matchScore{quality: titleOnly}
+	case properTitlePrefix(fields.song, track.title.full):
+		return matchScore{quality: titlePrefix}
+	case hasExactCredit(fields.artist, track.credits):
+		return matchScore{quality: creditOnly}
+	default:
+		return matchScore{}
+	}
+}
+
+func (c catalogTrack) supportsVersionRetry(fields searchFields) bool {
+	suffix := c.title.versionSuffix(fields.song)
+	return len(suffix) > 0 && c.matchesVersionIntent(fields.artist, suffix)
+}
+
+func (c catalogTrack) matchesVersionIntent(artist, suffix matchPhrase) bool {
+	return hasExactCredit(artist, c.credits) && len(versionPositions(suffix)) > 0
 }
 
 func properTitlePrefix(prefix, title matchPhrase) bool {
-	return len(prefix) < len(title) && slices.Equal(prefix, title[:len(prefix)])
-}
-
-func (t titleForms) recoveryMatch(song matchPhrase) titleResult {
-	result := t.literalMatch(song)
-	if result.matched || t.blocked {
-		return result
-	}
-	return scoreTitleForm(song, t.base, titleResult{points: 94, base: true})
+	return len(prefix) >= 2 && len(prefix) < len(title) && slices.Equal(prefix, title[:len(prefix)])
 }
 
 func uniqueRecoveryCandidates(candidates []scoredCandidate) []searchCandidate {
-	out := make([]searchCandidate, 0, maxRecoverySearches)
+	out := make([]searchCandidate, 0, len(candidates))
 	seen := make(map[string]bool)
 	for _, scored := range candidates {
 		if seen[scored.candidate.q] {
@@ -179,9 +136,6 @@ func uniqueRecoveryCandidates(candidates []scoredCandidate) []searchCandidate {
 		}
 		seen[scored.candidate.q] = true
 		out = append(out, scored.candidate)
-		if len(out) == maxRecoverySearches {
-			break
-		}
 	}
 	return out
 }
@@ -236,40 +190,249 @@ func correctFields(candidate searchCandidate, window []catalogTrack) (searchCand
 
 func (c searchCandidate) withCorrection(song, artist spellingMatch) (searchCandidate, bool) {
 	fields := c.fields()
-	originalSong := spellingForm{fields.song, searchableText(c.song)}
-	originalArtist := spellingForm{fields.artist, searchableText(c.artist)}
+	originalSong := spellingForm{fields.song, c.song}
+	originalArtist := spellingForm{fields.artist, c.artist}
 	title, credit := song.correction(originalSong), artist.correction(originalArtist)
 	if title.same(originalSong) && credit.same(originalArtist) {
 		return searchCandidate{}, false
 	}
-	result, ok := recoveryCandidate(textSplit{left: title.text, right: credit.text}, searchFields{title.words, credit.words})
+	result, ok := recoveryCandidate(textSplit{left: title.text, right: credit.text}, searchFields{title.words, fields.artist})
+	if !sameCompact(credit.words, fields.artist) {
+		result.confirmCredit = credit.words
+	}
 	result.corrected = ok
 	return result, ok
 }
 
 func (c catalogTrack) findSpelling(fields searchFields, song, artist *spellingMatch) {
-	title := cleanTrackTitle(queryField(c.track.Name).unquoted())
-	for _, form := range c.title.spellingForms() {
-		song.consider(fields.song, spellingForm{form, title}, titleIdentity)
+	if identity := c.title.recoveryIdentity(); identity != nil {
+		song.consider(fields.song, spellingForm{c.title.full, c.track.Name}, identity)
 	}
-	c.findBaseSpelling(fields, song, queryField(title))
+	song.consider(fields.song, spellingForm{c.title.base, c.title.baseText}, titleIdentity)
 	for i, credit := range c.credits {
-		artist.consider(fields.artist, spellingForm{credit, c.track.Artists[i]}, phraseIdentity)
+		artist.consider(fields.artist, spellingForm{credit, c.artistNames[i]}, artistIdentity)
 	}
 }
 
-func (c catalogTrack) findBaseSpelling(fields searchFields, song *spellingMatch, title queryField) {
-	level, _ := creditEvidence(fields.artist, c.credits)
-	if !c.title.originalRecoveryMatch(fields.song, level) {
-		return
+func (t titleForms) recoveryIdentity() func(matchPhrase, matchPhrase) (int, bool) {
+	switch {
+	case t.literalVersion:
+		return t.versionIdentity
+	case t.fallbackEdition():
+		return nil
+	default:
+		return titleIdentity
 	}
-	base := titleDelimiter.Split(string(title), 2)[0]
-	song.consider(fields.song, spellingForm{c.title.base, base}, recoveryBaseIdentity)
 }
 
-func (t titleForms) spellingForms() []matchPhrase {
-	if t.blocked {
-		return []matchPhrase{t.full, t.clean}
+func (t titleForms) versionIdentity(query, _ matchPhrase) (int, bool) {
+	version := t.requestedVersion(query)
+	return version.edits, version.matched
+}
+
+func (s *textSearch) recoveryPlan() []searchCandidate {
+	if s.remaining == 0 {
+		return nil
 	}
-	return []matchPhrase{t.full, t.clean, t.base}
+	top := s.best.top()
+	if top.score.quality != noMatch && !top.unqualifiedDerivative() {
+		return s.recoverMatch(top)
+	}
+	if len(s.query.explicit) > 0 {
+		return s.recoverExplicit()
+	}
+	evidence := s.evidenceCandidates()
+	if clean := s.query.raw.withoutEmotes(); clean != s.query.raw {
+		evidence = slices.Insert(evidence, 0, searchCandidate{q: normalizeText(string(clean)), name: viaText})
+	}
+	return s.withRawFallback(evidence, top.unqualifiedDerivative())
+}
+
+func (s *textSearch) recoverMatch(top windowMatch) []searchCandidate {
+	original := top.originalCandidate(s.query)
+	switch top.score.quality {
+	case partialMatch:
+		return s.recoverPartial(top, original)
+	case fuzzyMatch:
+		return s.fuzzyRecovery(original, top)
+	default:
+		return []searchCandidate{original}
+	}
+}
+
+func (m windowMatch) unqualifiedDerivative() bool {
+	if m.score.artist.level != artistNone || m.score.title.version {
+		return false
+	}
+	return m.track.derivative && len(m.score.fields.song) > 1
+}
+
+func (s *textSearch) recoverPartial(top windowMatch, original searchCandidate) []searchCandidate {
+	if s.best.ambiguous {
+		return []searchCandidate{original}
+	}
+	return partialRecovery(top, original)
+}
+
+func partialRecovery(top windowMatch, original searchCandidate) []searchCandidate {
+	if top.score.artist.index < 0 {
+		return []searchCandidate{original}
+	}
+	credit := normalizeText(top.track.artistNames[top.score.artist.index])
+	confirmed, _ := recoveryCandidate(textSplit{left: original.song, right: credit}, original.fields())
+	confirmed.confirmCredit = top.credit()
+	if top.score.artist.combination {
+		return []searchCandidate{original, confirmed}
+	}
+	return []searchCandidate{confirmed, original}
+}
+
+func (s *textSearch) fuzzyRecovery(original searchCandidate, top windowMatch) []searchCandidate {
+	if s.best.ambiguous {
+		return []searchCandidate{original}
+	}
+	corrected, ok := correctFields(original, s.observed)
+	if !ok {
+		return []searchCandidate{original}
+	}
+	if top.score.title.edits > 0 {
+		return []searchCandidate{original, corrected, corrected.plainFallback()}
+	}
+	return []searchCandidate{corrected, original, corrected.plainFallback()}
+}
+
+func (m windowMatch) originalCandidate(query textQuery) searchCandidate {
+	for _, explicit := range query.explicit {
+		if explicit.otherFilters {
+			return explicit
+		}
+	}
+	fields := m.score.fields
+	song := query.searchable(fields.song)
+	artist := query.searchable(fields.artist)
+	if song == "" {
+		song = normalizeText(m.track.title.baseText)
+	}
+	if artist == "" && len(fields.artist) > 0 {
+		artist = normalizeText(m.credit().text())
+	}
+	if artist == "" {
+		return trackCandidate(queryField(song), fields)
+	}
+	candidate, _ := recoveryCandidate(textSplit{left: song, right: artist}, fields)
+	return candidate
+}
+
+func (q textQuery) searchable(phrase matchPhrase) string {
+	for _, source := range q.sources {
+		if at := findPhrase(source.words, phrase); at >= 0 {
+			return q.raw.queryText(source.source(wordRange{at, at + len(phrase)}))
+		}
+	}
+	return ""
+}
+
+func findPhrase(words, phrase matchPhrase) int {
+	if len(phrase) == 0 {
+		return -1
+	}
+	for i := 0; i+len(phrase) <= len(words); i++ {
+		if slices.Equal(words[i:i+len(phrase)], phrase) {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *textSearch) recoverExplicit() []searchCandidate {
+	var candidates []searchCandidate
+	for _, candidate := range s.query.explicit {
+		if corrected, ok := correctFields(candidate, s.observed); ok {
+			candidates = append(candidates, corrected, corrected.plainFallback())
+		}
+	}
+	return candidates
+}
+
+func (s *textSearch) withRawFallback(evidence []searchCandidate, unqualifiedDerivative bool) []searchCandidate {
+	var plan []searchCandidate
+	for _, candidate := range evidence {
+		plan = appendRetry(plan, candidate)
+	}
+	if len(s.observed) == 0 || unqualifiedDerivative {
+		return s.appendRawRetries(plan)
+	}
+	if len(plan) >= s.remaining {
+		return plan
+	}
+	for candidate := range s.rawSplits() {
+		if !alreadyPlanned(candidate, plan) {
+			return append(plan, candidate)
+		}
+	}
+	return plan
+}
+
+func appendRetry(plan []searchCandidate, candidate searchCandidate) []searchCandidate {
+	plan = append(plan, candidate)
+	if candidate.corrected {
+		plan = append(plan, candidate.plainFallback())
+	}
+	return plan
+}
+
+func (s *textSearch) appendRawRetries(plan []searchCandidate) []searchCandidate {
+	for candidate := range s.rawSplits() {
+		if len(plan) >= s.remaining {
+			break
+		}
+		if !alreadyPlanned(candidate, plan) {
+			plan = append(plan, candidate)
+		}
+	}
+	return plan
+}
+
+func (s *textSearch) rawSplits() iter.Seq[searchCandidate] {
+	return func(yield func(searchCandidate) bool) {
+		if !s.query.raw.allowsRawSplit() {
+			return
+		}
+		source := s.query.sources[len(s.query.sources)-1]
+		splits := wordSplits(source.words)
+		slices.SortStableFunc(splits, func(a, b fieldSplit) int { return a.song.start - b.song.start })
+		for _, fields := range splits {
+			if !s.yieldRaw(fields.rawCandidate(s.query.raw, source), yield) {
+				return
+			}
+		}
+	}
+}
+
+func (s *textSearch) yieldRaw(candidate searchCandidate, yield func(searchCandidate) bool) bool {
+	if candidate.q == "" || s.used(candidate) {
+		return true
+	}
+	return yield(candidate)
+}
+
+func alreadyPlanned(candidate searchCandidate, plan []searchCandidate) bool {
+	return slices.ContainsFunc(plan, func(other searchCandidate) bool {
+		return candidate.q == other.q
+	})
+}
+
+func (s fieldSplit) rawCandidate(raw matchText, source sourceWords) searchCandidate {
+	song, artist := source.source(s.song), source.source(s.artist)
+	if song.start < artist.end && artist.start < song.end {
+		return searchCandidate{}
+	}
+	parts := textSplit{left: raw.queryText(song), right: raw.queryText(artist)}
+	candidate, _ := recoveryCandidate(parts, s.fields(source.words))
+	return candidate
+}
+
+func (raw matchText) allowsRawSplit() bool {
+	text := string(raw)
+	return !raw.webToken() && !strings.HasSuffix(text, "-")
 }

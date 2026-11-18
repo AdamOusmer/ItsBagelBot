@@ -5,6 +5,7 @@ package spotify
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/gossip/internal/providertest"
@@ -32,10 +33,10 @@ var chatSpellingCases = []chatSearchCase{
 	chatTrack("love story taylor swift", "Love Story (Taylor's Version)", "Taylor Swift"),
 	chatTrack("love story", "Love Story (Taylor's Version)", "Taylor Swift"),
 	chatTrack("what was i made for billie eilish", `What Was I Made For? [From The Motion Picture "Barbie"]`, "Billie Eilish"),
-	chatTrack("bohemian rapsody quen", "Bohemian Rhapsody - Remastered 2011", "Queen"),
+	confirmedChatTrack("bohemian rapsody quen", "Bohemian Rhapsody", "Queen"),
 	chatTrack("bohemain rapsody queen", "Bohemian Rhapsody", "Queen"),
 	chatTrack("suppersttion stevie wonder", "Superstition", "Stevie Wonder"),
-	chatTrack("hello adel", "Hello", "Adele"),
+	confirmedChatTrack("hello adel", "Hello", "Adele"),
 	{
 		query:       "play mr brightside pls",
 		window:      []gossiprpc.SpotifyTrack{searchTrack("right", "Mr. Brightside", "The Killers")},
@@ -52,7 +53,14 @@ var chatSpellingCases = []chatSearchCase{
 	chatTrack("rockstar post malone ft 21 savage", "rockstar (feat. 21 Savage)", "Post Malone", "21 Savage"),
 	chatTrack("under pressure queen x david bowie", "Under Pressure - Remastered 2011", "Queen", "David Bowie"),
 	chatTrack("die with a smile lady gaga & bruno mars", "Die With A Smile", "Lady Gaga", "Bruno Mars"),
-	chatTrack("die with a smile gaga bruno mars", "Die With A Smile", "Lady Gaga", "Bruno Mars"),
+	{
+		query:  "die with a smile gaga bruno mars",
+		window: []gossiprpc.SpotifyTrack{searchTrack("right", "Die With A Smile", "Lady Gaga", "Bruno Mars")},
+		byQuery: map[string][]gossiprpc.SpotifyTrack{
+			`track:"die with a smile" artist:"lady gaga"`: {searchTrack("right", "Die With A Smile", "Lady Gaga", "Bruno Mars")},
+		},
+		wantID: "right",
+	},
 	chatTrack("thunderstruck acdc", "Thunderstruck", "AC/DC"),
 	chatTrack("take on me aha", "Take on Me", "a-ha"),
 	chatTrack("so what pink", "So What", "P!nk"),
@@ -77,10 +85,10 @@ var chatSpellingCases = []chatSearchCase{
 	chatTrack("hello", "Hello (feat. Artist)", "Adele", "Artist"),
 	chatTrack("hello live", "Hello - Live", "Adele"),
 	chatTrack("levels avicii", "Levels - Original Mix", "Avicii"),
-	chatTrack("blinding lights the weekend", "Blinding Lights", "The Weeknd"),
-	chatTrack("shape of you ed sheran", "Shape of You", "Ed Sheeran"),
+	confirmedChatTrack("blinding lights the weekend", "Blinding Lights", "The Weeknd"),
+	confirmedChatTrack("shape of you ed sheran", "Shape of You", "Ed Sheeran"),
 	chatTrack("uptown funk bruno mars", "Uptown Funk (feat. Bruno Mars)", "Mark Ronson", "Bruno Mars"),
-	chatTrack("bad guy billie elish", "bad guy", "Billie Eilish"),
+	confirmedChatTrack("bad guy billie elish", "bad guy", "Billie Eilish"),
 	chatTrack("hey jude beatles", "Hey Jude - Remastered 2015", "The Beatles"),
 	chatTrack("dont stop me now queen", "Don't Stop Me Now - Remastered 2011", "Queen"),
 	chatTrack("sweet child o mine guns n roses", "Sweet Child O' Mine", "Guns N' Roses"),
@@ -89,8 +97,8 @@ var chatSpellingCases = []chatSearchCase{
 	chatTrack("x gon give it to ya dmx", "X Gon' Give It To Ya", "DMX"),
 	chatTrack("a-ha take on me", "Take on Me", "a-ha"),
 	chatTrack("tik tok ke$ha", "TiK ToK", "Kesha"),
-	chatTrack("sicko mode travis scot", "SICKO MODE", "Travis Scott"),
-	chatTrack("umbrella rihana", "Umbrella", "Rihanna", "JAY-Z"),
+	confirmedChatTrack("sicko mode travis scot", "SICKO MODE", "Travis Scott"),
+	confirmedChatTrack("umbrella rihana", "Umbrella", "Rihanna", "JAY-Z"),
 	chatTrack("7 rings", "7 rings", "Ariana Grande"),
 	chatTrack("7 rings ariana grande", "7 rings", "Ariana Grande"),
 	chatTrack("99 problems jay z", "99 Problems", "JAY-Z"),
@@ -203,6 +211,13 @@ func chatTrack(query, title string, artists ...string) chatSearchCase {
 	return chatSearchCase{query: query, window: []gossiprpc.SpotifyTrack{searchTrack("right", title, artists...)}, wantID: "right"}
 }
 
+func confirmedChatTrack(query matcherQuery, title queryField, artist matcherCredit, guests ...string) chatSearchCase {
+	tc := chatTrack(string(query), string(title), append([]string{string(artist)}, guests...)...)
+	lookup := filteredTrack(queryField(strings.ToLower(string(title))), queryField(strings.ToLower(string(artist))))
+	tc.byQuery = map[string][]gossiprpc.SpotifyTrack{string(lookup): tc.window}
+	return tc
+}
+
 func scriptedFiller(tc chatSearchCase, trimmed string, wrong gossiprpc.SpotifyTrack) chatSearchCase {
 	tc.byQuery = map[string][]gossiprpc.SpotifyTrack{tc.query: tc.window, trimmed: {wrong}}
 	tc.window = nil
@@ -211,13 +226,16 @@ func scriptedFiller(tc chatSearchCase, trimmed string, wrong gossiprpc.SpotifyTr
 
 func fastCarPlainFallback() chatSearchCase {
 	const query = "fast car by tracy chapmen"
+	track := searchTrack("right", "Fast Car", "Tracy Chapman")
 	return chatSearchCase{
 		query: query,
 		byQuery: map[string][]gossiprpc.SpotifyTrack{
-			query: {searchTrack("right", "Fast Car", "Tracy Chapman")},
+			query:                    {track},
+			"fast car tracy chapman": {track},
 		},
-		wantID:      "right",
-		wantQueries: []string{`track:"fast car" artist:"tracy chapmen"`, query},
+		wantID: "right",
+		wantQueries: []string{`track:"fast car" artist:"tracy chapmen"`, query,
+			`track:"fast car" artist:"tracy chapman"`, "fast car tracy chapman"},
 	}
 }
 
@@ -254,6 +272,9 @@ func runChatSearch(t *testing.T, tc chatSearchCase) chatSearchOutcome {
 	var queries []string
 	p := newPlayerProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
+		if offset := r.URL.Query().Get("offset"); offset != "" {
+			q += " offset:" + offset
+		}
 		tracks, scripted := tc.byQuery[q]
 		if !scripted && len(queries) == 0 {
 			tracks = tc.window

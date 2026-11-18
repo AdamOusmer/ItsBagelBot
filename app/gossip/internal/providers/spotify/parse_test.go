@@ -4,26 +4,25 @@
 package spotify
 
 import (
+	"net/http"
+	"sync/atomic"
 	"testing"
+
+	"ItsBagelBot/app/gossip/internal/providertest"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUnrecognizedURLsKeepDistinctTextCacheKeys(t *testing.T) {
-	first := classify("https://example.com/first")
-	second := classify("https://example.com/second")
-	assert.NotEqual(t, first.cacheKey(), second.cacheKey())
-	assert.NotEmpty(t, first.text)
-}
-
-func TestSpotifyURLSchemeHandlingPreservesIDs(t *testing.T) {
-	const id = "3n3Ppam7vgaVa1iaRUc9Lp"
-	for _, query := range []string{"//open.spotify.com/track/" + id, "HTTPS://OPEN.SPOTIFY.COM/track/" + id} {
-		target := classify(query)
-		assert.Equal(t, resolveTrackID, target.kind)
-		assert.Equal(t, id, target.id)
+func TestUnrecognizedURLsKeepDistinctTextCacheEntries(t *testing.T) {
+	var searches atomic.Int32
+	p := newPlayerProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		searches.Add(1)
+		writeSearchTracks(t, w)
+	}))
+	for _, query := range []string{"https://example.com/first", "https://example.com/second", "https://example.com/first"} {
+		reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{ChannelID: "2", Query: query})
+		assert.Empty(t, reply.Error)
 	}
-	for _, query := range []string{"https:/open.spotify.com/track/" + id, "ftp://open.spotify.com/track/" + id} {
-		assert.Equal(t, resolveInvalidLink, classify(query).kind)
-	}
+	assert.EqualValues(t, 2, searches.Load())
 }

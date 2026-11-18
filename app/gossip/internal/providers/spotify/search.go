@@ -10,204 +10,302 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 )
 
-const (
-	maxRecoverySearches   = 3
-	maxTextSearchRequests = 1 + maxRecoverySearches
-)
-
-type textSearchBudget struct {
-	p         *api
-	tok       accessToken
-	remaining int
-	admit     func(context.Context) error
-}
-
-func (b *textSearchBudget) search(ctx context.Context, candidate searchCandidate) (gossiprpc.SpotifySearchReply, error) {
-	b.remaining--
-	if err := b.admit(ctx); err != nil {
-		return gossiprpc.SpotifySearchReply{}, err
-	}
-	return b.p.runSearch(ctx, b.tok, candidate, maxSearchLimit)
-}
+const maxTextSearchRequests = 4
 
 type textSearchRequest struct {
-	raw         string
+	raw         matchText
 	limit       int
 	broadcaster string
 }
 
 type textSearch struct {
-	budget   textSearchBudget
-	raw      string
-	plain    gossiprpc.SpotifySearchReply
-	observed []gossiprpc.SpotifyTrack
-	sent     map[string]bool
+	api       *api
+	token     accessToken
+	admit     func(context.Context) error
+	remaining int
+	paginated bool
+	sent      map[searchLookup]bool
+	query     textQuery
+	observed  []catalogTrack
+	best      rankedWindow
+	scorer    windowScorer
+	name      string
+}
+
+type searchLookup struct {
+	text   string
+	offset int
+}
+
+type textQuery struct {
+	raw      matchText
+	sources  []sourceWords
+	fields   [][]searchFields
+	explicit []searchCandidate
+}
+
+func prepareTextQuery(raw matchText, plan []searchCandidate) textQuery {
+	q := textQuery{raw: raw}
+	source := raw.sourceWords()
+	q.sources = source.variants()
+	for i, words := range q.sources {
+		v := queryVariant{words: words.words, titleOnly: source.allowsTitleOnly(i)}
+		q.fields = append(q.fields, v.interpretations())
+	}
+	if alternate := raw.withoutEmotes(); alternate != raw {
+		words := alternate.sourceWords().variants()
+		v := queryVariant{words: words[len(words)-1].words, titleOnly: raw.emoteTitleOnly(alternate)}
+		q.fields = append(q.fields, v.interpretations())
+		q.sources = append(q.sources, words...)
+	}
+	for _, candidate := range plan {
+		if candidate.hasFields() {
+			q.explicit = append(q.explicit, candidate)
+		}
+	}
+	return q
+}
+
+func (s sourceWords) allowsTitleOnly(variant int) bool {
+	if variant == 0 {
+		return true
+	}
+	content := s.words.contentRange()
+	return fillerAllowsTitle(s.words[:content.start], s.words[content.end:])
 }
 
 func (p *api) searchText(ctx context.Context, tok accessToken, request textSearchRequest) (gossiprpc.SpotifySearchReply, error) {
-	search := textSearch{
-		budget: textSearchBudget{p: p, tok: tok, remaining: maxTextSearchRequests, admit: p.rateAdmit(request.broadcaster)},
-		raw:    request.raw,
-		plain:  gossiprpc.SpotifySearchReply{ResolvedAs: viaText},
-		sent:   make(map[string]bool),
+	plan := planTextSearch(request.raw)
+	s := textSearch{
+		api: p, token: tok, admit: p.rateAdmit(request.broadcaster), remaining: maxTextSearchRequests,
+		sent: make(map[searchLookup]bool), name: viaText,
+		scorer: windowScorer{credits: &creditMemo{matches: make(map[creditIdentity]artistMatch), queries: make(map[phraseSlice]artistQuery)}},
 	}
-	reply, err := search.resolve(ctx)
-	return truncateTracks(reply, request.limit), err
+	if len(plan) == 0 {
+		return s.reply(request.limit), nil
+	}
+	s.query = prepareTextQuery(request.raw, plan)
+	err := s.resolve(ctx, plan)
+	return s.reply(request.limit), err
 }
 
-func (s *textSearch) resolve(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
-	plan := planTextSearch(s.raw)
-	reply, done, err := s.runPlan(ctx, plan)
-	if err != nil || done {
-		return reply, err
+func (s *textSearch) resolve(ctx context.Context, plan []searchCandidate) error {
+	done, err := s.runPlan(ctx, plan)
+	if done || err != nil {
+		return err
 	}
-	return s.recover(ctx, plan)
+	_, err = s.runPlan(ctx, s.recoveryPlan())
+	return err
 }
 
-func (s *textSearch) runPlan(ctx context.Context, plan []searchCandidate) (gossiprpc.SpotifySearchReply, bool, error) {
-	fields := plannedFields(plan)
+func (s *textSearch) runPlan(ctx context.Context, plan []searchCandidate) (bool, error) {
 	for _, candidate := range plan {
-		if s.budget.remaining == 0 || s.sent[candidate.q] {
+		if candidate.q == "" || s.used(candidate) {
 			continue
 		}
-		reply, done, err := s.attempt(ctx, candidate, fields)
-		if err != nil || done {
-			return reply, done, err
+		done, err := s.attempt(ctx, candidate)
+		if shouldStop(done, err) || s.remaining == 0 {
+			return done, err
 		}
 	}
-	return s.plain, false, nil
+	return false, nil
 }
 
-func (s *textSearch) attempt(ctx context.Context, candidate searchCandidate, planFields []searchFields) (gossiprpc.SpotifySearchReply, bool, error) {
-	s.sent[candidate.q] = true
-	reply, err := s.budget.search(ctx, candidate)
+func shouldStop(done bool, err error) bool { return done || err != nil }
+
+func (s *textSearch) used(candidate searchCandidate) bool {
+	return s.sent[searchLookup{candidate.q, candidate.offset}]
+}
+
+func (s *textSearch) attempt(ctx context.Context, candidate searchCandidate) (bool, error) {
+	window, err := s.fetch(ctx, candidate)
 	if err != nil {
-		return reply, false, err
+		return false, err
 	}
-	s.observed = append(s.observed, reply.Tracks...)
-	if !candidate.hasFields() && candidate.operators {
-		return reply, true, nil
+	ranked := s.rank(window, candidate)
+	s.confirmArtists(ranked, candidate, window)
+	if s.canPaginate(candidate, window) && ranked.unaskedVersion() {
+		return s.nextPage(ctx, candidate, ranked)
 	}
-	ranked := s.rankReply(reply.Tracks, candidate, planFields)
-	reply.Tracks = ranked.tracks
-	if ranked.retry != nil {
-		confirmed, err := s.confirmRecording(ctx, reply, *ranked.retry)
-		return confirmed, true, err
-	}
-	return reply, s.acceptRanked(reply, candidate, ranked), nil
+	s.remember(ranked, candidate)
+	return !candidate.checkPlain && ranked.top().score.quality == exactMatch, nil
 }
 
-func (s *textSearch) rankReply(tracks []gossiprpc.SpotifyTrack, candidate searchCandidate, planFields []searchFields) rankedWindow {
-	if candidate.hasFields() {
-		return rankWindow(tracks, []searchFields{candidate.fields()}).passing()
+func (s *textSearch) canPaginate(candidate searchCandidate, window []catalogTrack) bool {
+	if s.paginated || s.remaining == 0 {
+		return false
 	}
-	ranked := rankPlain(tracks, s.raw)
-	if !ranked.hasMatch() && len(planFields) > 0 {
-		return rankWindow(tracks, planFields).passing()
-	}
-	return ranked
+	return len(window) == maxSearchLimit && candidate.startsPageSearch()
 }
 
-func (s *textSearch) acceptRanked(reply gossiprpc.SpotifySearchReply, candidate searchCandidate, ranked rankedWindow) bool {
-	if candidate.hasFields() {
-		return ranked.hasMatch()
-	}
-	s.plain = reply
-	return ranked.artist != artistNone || ranked.ambiguous
+func (c searchCandidate) startsPageSearch() bool {
+	return c.offset == 0 && !c.checkPlain
 }
 
-func (s *textSearch) confirmRecording(ctx context.Context, fallback gossiprpc.SpotifySearchReply, fields searchFields) (gossiprpc.SpotifySearchReply, error) {
-	retry, _ := recoveryCandidate(textSplit{left: fields.song.text(), right: fields.artist.text()}, fields)
-	if s.sent[retry.q] {
-		return selectOriginal(fallback, gossiprpc.SpotifySearchReply{Tracks: s.observed, ResolvedAs: viaFiltered}, fields), nil
+func (w rankedWindow) unaskedVersion() bool {
+	if w.top().score.quality == exactMatch {
+		return false
 	}
-	if s.budget.remaining == 0 {
-		fallback.Tracks = nil
-		return fallback, nil
-	}
-	s.sent[retry.q] = true
-	reply, err := s.budget.search(ctx, retry)
-	if err != nil {
-		return reply, err
-	}
-	return selectOriginal(fallback, reply, fields), nil
+	return slices.ContainsFunc(w.matches, func(m windowMatch) bool {
+		return m.score.unaskedVersion()
+	})
 }
 
-func selectOriginal(fallback, reply gossiprpc.SpotifySearchReply, fields searchFields) gossiprpc.SpotifySearchReply {
-	ranked := rankWindow(reply.Tracks, []searchFields{fields}).passing()
-	if ranked.ambiguous || ranked.hasVerifiedArtist() {
-		reply.Tracks = ranked.tracks
+func (s matchScore) unaskedVersion() bool {
+	if s.quality != blockedRecording && s.quality != fallbackMatch {
+		return false
+	}
+	return s.artist.level == artistNone || s.artist.exact()
+}
+
+func (s *textSearch) nextPage(ctx context.Context, candidate searchCandidate, first rankedWindow) (bool, error) {
+	s.remember(first, candidate)
+	s.paginated = true
+	candidate.offset = maxSearchLimit
+	return s.attempt(ctx, candidate)
+}
+
+func (s *textSearch) fetch(ctx context.Context, candidate searchCandidate) ([]catalogTrack, error) {
+	s.remaining--
+	s.sent[searchLookup{candidate.q, candidate.offset}] = true
+	if err := s.admit(ctx); err != nil {
+		return nil, err
+	}
+	window, err := s.api.runSearch(ctx, s.token, candidate)
+	s.observed = append(s.observed, window...)
+	s.scorer.parts = s.observed
+	return window, err
+}
+
+func (s *textSearch) rank(window []catalogTrack, candidate searchCandidate) rankedWindow {
+	if candidate.hasFields() || candidate.operators {
+		return s.scorer.rank(window, []searchFields{candidate.fields()})
+	}
+	return s.rankPlainWindow(window)
+}
+
+func (s *textSearch) rankPlainWindow(window []catalogTrack) rankedWindow {
+	best := rankedWindow{}
+	for _, fields := range s.query.fields {
+		ranked := s.scorer.rank(window, fields)
+		if ranked.top().score.quality == exactMatch {
+			return ranked
+		}
+		best = best.prefer(ranked)
+	}
+	for _, explicit := range s.query.explicit {
+		best = best.prefer(s.scorer.rank(window, []searchFields{explicit.fields()}))
+	}
+	return best
+}
+
+func (w rankedWindow) prefer(other rankedWindow) rankedWindow {
+	if other.top().score.compare(w.top().score) > 0 {
+		return other
+	}
+	return w
+}
+
+func (s *textSearch) confirmArtists(ranked rankedWindow, candidate searchCandidate, window []catalogTrack) {
+	if ranked.ambiguous || !candidate.hasFields() {
+		return
+	}
+	if ranked.top().score.quality == exactMatch {
+		return
+	}
+	prior := s.observed[:len(s.observed)-len(window)]
+	for i := range ranked.matches {
+		match := &ranked.matches[i]
+		if s.confirmsPartial(*match, candidate, window) || match.confirmsFuzzyArtist(candidate.confirmCredit, window, prior) {
+			match.score.quality = exactMatch
+		}
+	}
+	slices.SortStableFunc(ranked.matches, compareWindowMatches)
+}
+
+func (s *textSearch) confirmsPartial(match windowMatch, candidate searchCandidate, window []catalogTrack) bool {
+	if match.score.quality != partialMatch || len(candidate.confirmCredit) == 0 {
+		return false
+	}
+	top := s.best.top()
+	if top.score.quality != partialMatch || !sameCompact(match.credit(), top.credit()) {
+		return false
+	}
+	if !sameCompact(match.credit(), candidate.confirmCredit) || !match.sameTitleAndCorrections(top.track) {
+		return false
+	}
+	return !match.competingPartialCredit(s.observed) && !slices.ContainsFunc(window, match.matchesOtherFuzzyCredit)
+}
+
+func (m windowMatch) confirmsFuzzyArtist(credit matchPhrase, window, prior []catalogTrack) bool {
+	if m.score.quality != fuzzyMatch || m.score.artist.edits == 0 {
+		return false
+	}
+	if slices.ContainsFunc(window, m.matchesOtherFuzzyCredit) {
+		return false
+	}
+	if len(credit) == 0 {
+		return slices.ContainsFunc(prior, m.sameTitleAndCorrections)
+	}
+	return m.score.title.edits == 0 && sameCompact(m.credit(), credit)
+}
+
+func (s *textSearch) remember(ranked rankedWindow, candidate searchCandidate) {
+	old, next := s.best.top(), ranked.top()
+	comparison := next.score.compare(old.score)
+	if s.confirmedFuzzy(ranked, candidate, comparison) {
+		s.best, s.name = ranked, candidate.name
+		return
+	}
+	conflict := old.conflicts(next)
+	if comparison > 0 || next.score.quality == exactMatch {
+		s.best, s.name = ranked, candidate.name
+	}
+	s.best.ambiguous = s.best.ambiguous || conflict
+}
+
+func (s *textSearch) confirmedFuzzy(ranked rankedWindow, candidate searchCandidate, comparison int) bool {
+	if !candidate.hasFields() || !s.best.ambiguous {
+		return false
+	}
+	return ranked.top().score.quality == fuzzyMatch && comparison >= 0 && !ranked.ambiguous
+}
+
+func (s *textSearch) reply(limit int) gossiprpc.SpotifySearchReply {
+	reply := gossiprpc.SpotifySearchReply{ResolvedAs: viaText}
+	if !s.canReply() {
 		return reply
 	}
-	return fallback
+	reply.ResolvedAs = s.name
+	reply.Tracks = s.best.tracks()
+	return truncateTracks(reply, limit)
 }
 
-func (w rankedWindow) hasVerifiedArtist() bool {
-	return w.artist == artistFull && w.retry == nil
+func (s *textSearch) canReply() bool {
+	if s.best.ambiguous {
+		return false
+	}
+	top := s.best.top()
+	switch top.score.quality {
+	case fallbackMatch:
+		return !s.scorer.competingPart(top.track, top.score.title) && s.used(top.originalCandidate(s.query))
+	case fuzzyMatch:
+		return top.score.artist.edits == 0
+	default:
+		return top.score.quality == exactMatch
+	}
 }
 
-func plannedFields(plan []searchCandidate) []searchFields {
-	var fields []searchFields
-	for _, candidate := range plan {
-		if candidate.hasFields() {
-			fields = append(fields, candidate.fields())
+func (w rankedWindow) tracks() []gossiprpc.SpotifyTrack {
+	quality := w.top().score.quality
+	var tracks []gossiprpc.SpotifyTrack
+	for _, m := range w.matches {
+		if m.score.quality != quality {
+			break
+		}
+		if quality != fuzzyMatch || m.score.artist.edits == 0 {
+			tracks = append(tracks, m.track.track)
 		}
 	}
-	return fields
-}
-
-func (s *textSearch) recover(ctx context.Context, plan []searchCandidate) (gossiprpc.SpotifySearchReply, error) {
-	if s.budget.remaining == 0 {
-		return s.plain, nil
-	}
-	candidates := s.recoveryPlan(plan)
-	reply, done, err := s.runPlan(ctx, candidates)
-	if done || err != nil {
-		return reply, err
-	}
-	return s.plain, nil
-}
-
-func (s *textSearch) recoveryPlan(plan []searchCandidate) []searchCandidate {
-	if len(plannedFields(plan)) > 0 {
-		return s.explicitRecovery(plan)
-	}
-	candidates := recoveryCandidates(s.raw, s.observed)
-	return withPlainFallback(candidates, s.sent)
-}
-
-func (s *textSearch) explicitRecovery(plan []searchCandidate) []searchCandidate {
-	window := catalogWindow(s.observed)
-	var candidates []searchCandidate
-	for _, candidate := range plan {
-		corrected, ok := correctFields(candidate, window)
-		if ok && s.recoverableAfterPlan(corrected) {
-			candidates = append(candidates, corrected)
-		}
-	}
-	return withPlainFallback(candidates, s.sent)
-}
-
-func (s *textSearch) recoverableAfterPlan(candidate searchCandidate) bool {
-	return !s.sent[candidate.q] || !s.sent[candidate.plainFallback().q]
-}
-
-func withPlainFallback(candidates []searchCandidate, sent map[string]bool) []searchCandidate {
-	var fallback searchCandidate
-	for i, candidate := range candidates {
-		plain := candidate.plainFallback()
-		if sent[plain.q] {
-			continue
-		}
-		if candidate.corrected {
-			return slices.Insert(candidates, i+1, plain)
-		}
-		if fallback.q == "" {
-			fallback = plain
-		}
-	}
-	if fallback.q != "" {
-		return append(candidates, fallback)
-	}
-	return candidates
+	return tracks
 }

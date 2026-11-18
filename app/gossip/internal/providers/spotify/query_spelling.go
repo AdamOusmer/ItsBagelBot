@@ -5,7 +5,6 @@ package spotify
 
 import (
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
@@ -22,21 +21,30 @@ func (q queryField) unquoted() string {
 type mappedText struct {
 	text  string
 	spans []sourceSpan
+	track bool
 }
 
 type mappedBuilder struct {
 	text  strings.Builder
 	spans []sourceSpan
+	track bool
 }
 
 func (b *mappedBuilder) append(text string, span sourceSpan) {
 	b.text.WriteString(text)
-	for range len(text) {
+	for range spanBytes(b.track, text) {
 		b.spans = append(b.spans, span)
 	}
 }
 
-func (b *mappedBuilder) mapped() mappedText { return mappedText{b.text.String(), b.spans} }
+func spanBytes(track bool, text string) int {
+	if track {
+		return len(text)
+	}
+	return 0
+}
+
+func (b *mappedBuilder) mapped() mappedText { return mappedText{b.text.String(), b.spans, b.track} }
 
 func (s mappedText) source(start, end int) sourceSpan {
 	if s.spans == nil {
@@ -46,9 +54,12 @@ func (s mappedText) source(start, end int) sourceSpan {
 }
 
 func (s mappedText) normalize(form norm.Form) mappedText {
+	if !s.track {
+		return mappedText{text: form.String(s.text)}
+	}
 	var segments norm.Iter
 	segments.InitString(form, s.text)
-	var out mappedBuilder
+	out := mappedBuilder{track: s.track}
 	var pending []byte
 	for !segments.Done() {
 		start := segments.Pos()
@@ -64,7 +75,7 @@ func (s mappedText) normalize(form norm.Form) mappedText {
 }
 
 func (s mappedText) fold() mappedText {
-	var out mappedBuilder
+	out := mappedBuilder{track: s.track}
 	start := 0
 	for _, cap := range keycap.FindAllStringIndex(s.text, -1) {
 		s.foldRun(sourceSpan{start, cap[0]}, &out)
@@ -87,16 +98,16 @@ func (s mappedText) foldRun(run sourceSpan, out *mappedBuilder) {
 	}
 }
 
-func (s mappedText) tokenize() mappedText {
+func (s mappedText) tokenize(lookup bool) mappedText {
 	letters := foldedLetters(s.text)
 	if !letters.hasWord() {
 		return mappedText{}
 	}
-	var out mappedBuilder
+	out := mappedBuilder{track: s.track}
 	start := 0
 	for i, r := range letters {
 		end := start + utf8.RuneLen(r)
-		out.append(letters.tokenAt(wordIndex(i)), s.source(start, end))
+		out.append(letters.tokenAt(wordIndex(i), lookup), s.source(start, end))
 		start = end
 	}
 	return out.mapped()
@@ -108,8 +119,7 @@ type sourceWords struct {
 }
 
 func (raw matchText) sourceWords() sourceWords {
-	source := mappedText{text: string(raw)}
-	tokens := source.normalize(norm.NFKD).fold().normalize(norm.NFC).tokenize()
+	tokens := raw.tokens(true, false)
 	var words sourceWords
 	end := 0
 	for word := range strings.FieldsSeq(tokens.text) {
@@ -154,21 +164,10 @@ func (s sourceWords) source(words wordRange) sourceSpan {
 }
 
 func (raw matchText) queryText(span sourceSpan) string {
-	return searchableText(string(raw[span.start:span.end]))
+	return strings.Join(strings.Fields(raw[span.start:span.end].tokens(false, true).text), " ")
 }
 
-func searchableText(raw string) string {
-	text := strings.Map(searchRune, norm.NFD.String(raw))
-	return strings.Join(strings.Fields(text), " ")
-}
-
-func searchRune(r rune) rune {
-	switch {
-	case unicode.Is(unicode.Mn, r), r == '\'', r == '’':
-		return -1
-	case wordRune(r):
-		return unicode.ToLower(r)
-	default:
-		return ' '
-	}
+func (raw matchText) tokens(trackSource, lookup bool) mappedText {
+	source := mappedText{text: string(raw), track: trackSource}
+	return source.normalize(norm.NFKD).fold().normalize(norm.NFC).tokenize(lookup)
 }
