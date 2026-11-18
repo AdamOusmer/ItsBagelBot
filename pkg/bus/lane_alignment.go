@@ -5,12 +5,12 @@ package bus
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math/rand/v2"
 	"strings"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 
 	"github.com/nats-io/nats.go"
@@ -45,7 +45,7 @@ func laneRequest(ctx context.Context, nc *nats.Conn, request laneRequestArgs, re
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(msg.Data, response)
+	return codec.Unmarshal(msg.Data, response)
 }
 
 type laneStepdownResponse struct {
@@ -87,7 +87,7 @@ func (h *hotLaneBinding) stepDown(preferred string) (bool, error) {
 	ctx, cancel := context.WithTimeout(h.ctx, time.Second)
 	defer cancel()
 	subject := h.consumerAPISubject("LEADER.STEPDOWN", hotDurable(h.name))
-	body, _ := json.Marshal(map[string]map[string]string{"placement": {"preferred": preferred}})
+	body, _ := codec.Marshal(map[string]map[string]string{"placement": {"preferred": preferred}})
 	var response laneStepdownResponse
 	if err := laneRequest(ctx, h.nc, laneRequestArgs{subject, body}, &response); err != nil {
 		return false, err

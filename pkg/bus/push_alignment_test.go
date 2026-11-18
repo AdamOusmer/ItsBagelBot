@@ -4,10 +4,11 @@
 package bus
 
 import (
-	"encoding/json"
 	"sync"
 	"testing"
 	"time"
+
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap/zaptest"
 
@@ -130,7 +131,7 @@ func (f pushFixture) moveConsumerLeader(t *testing.T, durable hotDurable, prefer
 
 func (f pushFixture) forceStepDown(t *testing.T, subject string, preferred testServerName) {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{"placement": map[string]testServerName{"preferred": preferred}})
+	body, err := codec.Marshal(map[string]any{"placement": map[string]testServerName{"preferred": preferred}})
 	require.NoError(t, err)
 	reply, err := f.nc.Request(subject, body, time.Second)
 	require.NoError(t, err)
