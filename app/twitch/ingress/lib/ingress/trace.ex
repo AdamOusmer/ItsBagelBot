@@ -6,110 +6,90 @@ defmodule Ingress.Trace do
 
   alias Ingress.Config
 
-  @active_key {__MODULE__, :active}
-  @policy %{
-    "dispatcher.wait_ms": :number,
-    "event.message_id": :id,
-    "event.type": {:enum, ["chat", "other", "invalid"]},
-    result: {:enum, ["ok", "timeout", "error", "filtered", "invalid", "dropped"]},
-    dependency: {:enum, ["nats"]},
-    "event.lane": {:enum, ["premium", "standard", "stream", "other", "none"]},
-    "messaging.destination":
-      {:enum,
-       [
-         "twitch.ingress.event.premium",
-         "twitch.ingress.event.standard",
-         "twitch.ingress.event.stream",
-         "twitch.ingress.event.other"
-       ]}
-  }
+  # Wire contract with pkg/bus/ingress_trace.go; both sides change together.
+  @header "bagel-ingress"
+  @version "v1"
+  @context_key {__MODULE__, :context}
+  @message_id ~r/\A[0-9A-Za-z_.:+\/=-]{1,96}\z/
 
-  def notification(enqueued_at, payload, meta, fun) when is_function(fun, 0) do
-    if sampled?(meta) do
-      traced_notification(enqueued_at, payload, Map.get(meta, :msg_id), fun)
-    else
-      fun.()
-    end
-  end
+  def notification(enqueued_at, _payload, meta, fun) when is_function(fun, 0) do
+    now = System.monotonic_time()
 
-  defp traced_notification(enqueued_at, payload, msg_id, fun) do
-    wait_us =
-      System.monotonic_time()
-      |> Kernel.-(enqueued_at)
-      |> max(0)
-      |> System.convert_time_unit(:native, :microsecond)
-
-    Process.put(@active_key, true)
+    Process.put(@context_key, %{
+      trace_id: random_hex(16),
+      span_id: random_hex(8),
+      started: now,
+      started_us: System.os_time(:microsecond),
+      wait_us: micros(max(now - enqueued_at, 0)),
+      message_id: message_id(Map.get(meta, :msg_id)),
+      steps: []
+    })
 
     try do
-      Platform.NewRelic.transaction(
-        "Ingress",
-        "Notification",
-        [
-          "dispatcher.wait_ms": wait_us / 1_000,
-          "event.type": event_type(payload),
-          "event.message_id": msg_id
-        ],
-        fn ->
-          Platform.NewRelic.sample_trace()
-          fun.()
-        end,
-        @policy
-      )
+      fun.()
     after
-      Process.delete(@active_key)
+      Process.delete(@context_key)
     end
   end
-
-  defp sampled?(meta) do
-    case Config.trace_sample_rate() do
-      rate when rate <= 0 -> false
-      1 -> true
-      rate -> :erlang.phash2({Map.get(meta, :msg_id), Map.get(meta, :shard_id)}, rate) == 0
-    end
-  end
-
-  defp event_type(%{"subscription" => %{"type" => "channel.chat.message"}}), do: "chat"
-  defp event_type(%{"subscription" => %{"type" => type}}) when is_binary(type), do: "other"
-  defp event_type(_payload), do: "invalid"
 
   def trace_headers do
-    if active?() do
-      Platform.NewRelic.trace_headers()
-    else
-      []
+    case Process.get(@context_key) do
+      nil -> []
+      context -> [{"traceparent", traceparent(context)}, {@header, header_value(context)}]
     end
   end
 
-  def span(name, attributes \\ [], fun) when is_function(fun, 0) do
-    if active?() do
-      Platform.NewRelic.span(name, attributes, fun, @policy)
-    else
+  def headers_for(subject, headers) do
+    if chat_lane?(subject), do: headers || trace_headers(), else: []
+  end
+
+  def span(name, fun) when is_function(fun, 0) do
+    case Process.get(@context_key) do
+      nil -> fun.()
+      context -> record_step(name, context.started, fun)
+    end
+  end
+
+  defp record_step(name, started, fun) do
+    step_start = System.monotonic_time()
+
+    try do
       fun.()
+    after
+      step = {name, micros(step_start - started), micros(System.monotonic_time() - step_start)}
+
+      with %{steps: steps} = context <- Process.get(@context_key) do
+        Process.put(@context_key, %{context | steps: [step | steps]})
+      end
     end
   end
 
-  def add_span_attributes(attributes) do
-    if active?(), do: Platform.NewRelic.add_span_attributes(attributes, @policy)
-    :ok
+  defp chat_lane?(subject),
+    do: subject in [Config.lane_subject(:premium), Config.lane_subject(:standard)]
+
+  defp traceparent(context), do: "00-#{context.trace_id}-#{context.span_id}-01"
+
+  defp header_value(context) do
+    ended_us = context.started_us + micros(System.monotonic_time() - context.started)
+
+    steps =
+      context.steps
+      |> Enum.reverse()
+      |> Enum.map_join("|", fn {name, offset, duration} -> "#{name},#{offset},#{duration}" end)
+
+    Enum.join(
+      [@version, context.started_us, ended_us, context.wait_us, context.message_id, steps],
+      ";"
+    )
   end
 
-  defp active?, do: Process.get(@active_key, false)
-
-  def destination(subject) do
-    case subject do
-      "twitch.ingress.event.premium" -> subject
-      "twitch.ingress.event.standard" -> subject
-      "twitch.ingress.event.stream" -> subject
-      _other -> "twitch.ingress.event.other"
-    end
+  defp message_id(id) when is_binary(id) do
+    if Regex.match?(@message_id, id), do: id, else: ""
   end
 
-  def result(:ok), do: "ok"
-  def result({:error, :timeout}), do: "timeout"
-  def result({:error, _reason}), do: "error"
-  def result(:squash), do: "filtered"
-  def result(:oversized), do: "invalid"
-  def result(:drop), do: "dropped"
-  def result(_other), do: "ok"
+  defp message_id(_id), do: ""
+
+  defp micros(native), do: System.convert_time_unit(native, :native, :microsecond)
+
+  defp random_hex(bytes), do: bytes |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
 end

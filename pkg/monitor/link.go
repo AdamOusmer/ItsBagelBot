@@ -20,6 +20,7 @@ func LinkFrom(ctx context.Context) Link {
 	if txn == nil || !txn.IsSampled() {
 		return Link{}
 	}
+	Keep(ctx)
 	headers := http.Header{}
 	txn.InsertDistributedTraceHeaders(headers)
 	return Link{app: txn.Application(), headers: headers}

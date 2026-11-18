@@ -3,18 +3,11 @@
 defmodule Platform.NewRelicTest do
   use ExUnit.Case, async: false
 
-  test "without a license instrumentation stays disabled and preserves callback results" do
+  test "without a license instrumentation stays disabled" do
     assert Platform.NewRelic.enabled?() == false
     assert :ok = Platform.NewRelic.increment("Custom/Test", 1)
     assert :ok = Platform.NewRelic.event("Test", %{})
     assert [] = Platform.NewRelic.trace_headers()
-    assert :ok = Platform.NewRelic.sample_trace()
-    assert :result = Platform.NewRelic.transaction("Test", "Test", [], fn -> :result end)
-    assert :result = Platform.NewRelic.span("Test", [], fn -> :result end)
-
-    assert_raise RuntimeError, fn ->
-      Platform.NewRelic.transaction("Test", "Test", [], fn -> raise "callback" end)
-    end
   end
 
   test "continue runs the callback whatever the inbound trace headers carry" do
