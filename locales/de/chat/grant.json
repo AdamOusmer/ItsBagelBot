@@ -1,5 +1,7 @@
 {
   "dead.body": "Einige Verbindungen für deinen Kanal sind abgelaufen. Verbinde dein Konto in den Einstellungen erneut, um das Problem zu beheben.",
   "dead.chat": "Einige Verbindungen für deinen Kanal sind abgelaufen. Melde dich im Dashboard an, um das Problem zu beheben: {dashboard_url}",
-  "dead.title": "Verbinde dein Twitch-Konto erneut"
+  "dead.title": "Verbinde dein Twitch-Konto erneut",
+  "scope.body": "Der Bot braucht eine neuere Twitch-Berechtigung, um Banns und Timeouts in deinem Kanal zu sehen. Melde dich unter {dashboard_url} an und bestätige die Twitch-Abfrage, damit Chat und Alerts weiterlaufen.",
+  "scope.title": "Bestätige die neue Twitch-Berechtigung"
 }
