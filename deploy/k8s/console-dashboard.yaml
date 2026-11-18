@@ -78,7 +78,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1794960856-ff8e0c24deef@sha256:6c3d70d28dd8de00af2d02ec37321862db7d0a4b76fdd440c71ef315beea0215
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1794961808-33223cc667eb@sha256:b48f22c3c9404120e4a9f8e08f0322c95ed2420e8e2e1419101cfb27713d6276
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
