@@ -38,6 +38,11 @@ var (
 		chat:    i18n.KeyGrantDeadChat,
 		request: "grant-dead-",
 	}
+	noticeScope = notice{
+		title:   i18n.KeyGrantScopeTitle,
+		body:    i18n.KeyGrantScopeBody,
+		request: "grant-scope-",
+	}
 	noticeBanned = notice{
 		title:   i18n.KeyBotBannedTitle,
 		body:    i18n.KeyBotBannedBody,

@@ -68,10 +68,7 @@ func (w *Worker) sendNotice(ctx context.Context, uid uint64, current usersrpc.Li
 		return false
 	}
 	s := current.State
-	n := noticeRevoked
-	if s.ChatRestriction == lifecycle.RestrictionBanned {
-		n = noticeBanned
-	}
+	n := incidentNotice(s)
 	request := notificationsrpc.ConnectionRequest{AccountID: uid, AccountCreatedAt: current.AccountCreatedAt, IncidentID: s.IncidentID, DeliveryDeadline: s.NoticeDeadline, ExpiresAt: s.NoticeDeadline.Add(90 * 24 * time.Hour), Title: i18n.T(locale, n.title), Body: i18n.T(locale, n.body), Level: "warning"}
 	result, err := bus.RequestJSONTimeout[notificationsrpc.ConnectionReply](ctx, w.lifecycleNC, notificationsrpc.ConnectionSubject+".send", request, 3*time.Second)
 	if err != nil {
@@ -79,6 +76,17 @@ func (w *Worker) sendNotice(ctx context.Context, uid uint64, current usersrpc.Li
 	}
 	return terminalNoticeOutcome(result.Outcome)
 }
+func incidentNotice(s lifecycle.State) notice {
+	switch {
+	case s.ChatRestriction == lifecycle.RestrictionBanned:
+		return noticeBanned
+	case s.IncidentReason == lifecycle.ReasonScopeMissing:
+		return noticeScope
+	default:
+		return noticeRevoked
+	}
+}
+
 func terminalNoticeOutcome(outcome string) bool {
 	switch outcome {
 	case "accepted", "suppressed", "expired":

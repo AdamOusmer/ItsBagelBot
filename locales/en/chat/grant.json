@@ -1,5 +1,7 @@
 {
   "dead.body": "Some connections for your channel have expired. Just head to settings and reconnect your account to fix the problem.",
   "dead.chat": "Some connections for your channel have expired. Just log in to the dashboard to fix the problem: {dashboard_url}",
-  "dead.title": "Reconnect your Twitch account"
+  "dead.title": "Reconnect your Twitch account",
+  "scope.body": "The bot needs a newer Twitch permission to see bans and timeouts in your channel. Log in at {dashboard_url} and approve the Twitch prompt to keep chat and alerts running.",
+  "scope.title": "Approve the new Twitch permission"
 }
