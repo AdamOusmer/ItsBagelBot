@@ -40,19 +40,8 @@ func TestBotIdentityComesFromTheRightSecret(t *testing.T) {
 	}
 }
 
-func TestClusterOpsSecretsAreWiredOneByOne(t *testing.T) {
-	want := secretEnv{Refs: map[string]string{
-		"APP_ENV":            "clusterops-env/APP_ENV",
-		"NATS_SIGNING_SEED":  "clusterops-env/DEPLOY_NATS_SIGNING_SEED",
-		"NATS_SYS_JWT":       "clusterops-env/DEPLOY_NATS_SYS_JWT",
-		"NATS_SYS_NKEY_SEED": "clusterops-env/DEPLOY_NATS_SYS_NKEY_SEED",
-	}}
-
-	assert.Equal(t, want, findDeployment(t, clusterOpsManifest, "clusterops").secretEnv())
-}
-
-func TestClusterOpsRunsOneRoller(t *testing.T) {
-	ops := findDeployment(t, clusterOpsManifest, "clusterops")
+func TestReloaderRunsOneRoller(t *testing.T) {
+	ops := findDeployment(t, reloaderManifest, "reloader")
 
 	assert.Equal(t, [2]any{1, "Recreate"}, [2]any{ops.Spec.Replicas, ops.Spec.Strategy.Type},
 		"two rollers would stamp the same console rollout twice")

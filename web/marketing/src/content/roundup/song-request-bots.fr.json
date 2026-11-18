@@ -25,7 +25,7 @@
         "id": "itsbagelbot",
         "music": "Spotify",
         "plays": "!sr ajoute le titre à votre propre file Spotify. Exige Spotify Premium et votre propre application de développeur Spotify.",
-        "price": "Gratuit. La file contient 100 titres.",
+        "price": "Gratuit. La file n'a pas de limite de taille.",
         "source": "https://itsbagelbot.com/song-requests/"
       },
       {
@@ -93,7 +93,7 @@
       },
       {
         "name": "Longue file gratuite",
-        "desc": "Le forfait gratuit d'ItsBagelBot accepte 100 titres. Celui de SpotchBot en contient jusqu'à 6."
+        "desc": "Le forfait gratuit d'ItsBagelBot offre une file sans limite de taille. Celui de SpotchBot en contient jusqu'à 6."
       },
       {
         "name": "Un bot pour le chat",
@@ -125,7 +125,7 @@
     },
     {
       "q": "Existe-t-il un bot gratuit de demandes Spotify pour Twitch ?",
-      "a": "ItsBagelBot inclut les demandes Spotify dans son forfait gratuit, avec une file de 100 titres. SpotchBot propose un forfait gratuit qui contient jusqu'à 6 titres en file. Les deux exigent Spotify Premium, que Spotify impose pour contrôler la file."
+      "a": "ItsBagelBot inclut les demandes Spotify dans son forfait gratuit, avec une file sans limite de taille. SpotchBot propose un forfait gratuit qui contient jusqu'à 6 titres en file. Les deux exigent Spotify Premium, que Spotify impose pour contrôler la file."
     },
     {
       "q": "Faut-il Spotify Premium pour les demandes de musique ?",

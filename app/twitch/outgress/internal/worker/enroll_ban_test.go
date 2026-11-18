@@ -15,7 +15,9 @@ import (
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/channelruntime"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/lifecycle"
+	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/internal/valkeytest"
@@ -28,7 +30,9 @@ import (
 	"go.uber.org/zap"
 )
 
-const missingAuthorizationBody = `{"error":"Forbidden","status":403,"message":"subscription missing proper authorization"}`
+const missingScopeBody = `{"error":"Unauthorized","status":401,"message":"Missing scope: moderation:read or moderator:manage:banned_users"}`
+
+const missingAuthorizationBody =`{"error":"Forbidden","status":403,"message":"subscription missing proper authorization"}`
 
 type forbiddenEnroll struct {
 	forbidType string
@@ -87,7 +91,7 @@ type statefulAuthority struct {
 	incarnation int64
 	state       lifecycle.State
 	refuseBan   bool
-	moderation  string
+	actions     []string
 }
 
 func (a *statefulAuthority) recreate() {
@@ -109,6 +113,19 @@ func (a *statefulAuthority) handle(_ context.Context, r usersrpc.LifecycleReques
 }
 
 func (a *statefulAuthority) apply(r usersrpc.LifecycleRequest) bool {
+	switch r.Action {
+	case "enroll_retry":
+		return a.backOff(r)
+	case "scope_missing":
+		a.state.IncidentID, a.state.IncidentReason = "incident-1", lifecycle.ReasonScopeMissing
+		a.actions = append(a.actions, r.Action)
+		return true
+	case "notice_claim":
+		return !a.state.IncidentAnnounced
+	case "notice_ack":
+		a.state.IncidentAnnounced = true
+		return true
+	}
 	restriction, moderation := map[string]string{"ban": lifecycle.RestrictionBanned, "timeout": lifecycle.RestrictionTimeout}[r.Action]
 	if !moderation {
 		return r.Action == "grant_restored"
@@ -118,7 +135,17 @@ func (a *statefulAuthority) apply(r usersrpc.LifecycleRequest) bool {
 	}
 	a.state.ChatRestriction = restriction
 	a.state.AdmissionGeneration++
-	a.moderation = r.Action
+	a.actions = append(a.actions, r.Action)
+	return true
+}
+
+func (a *statefulAuthority) backOff(r usersrpc.LifecycleRequest) bool {
+	if r.AdmissionGeneration != a.state.AdmissionGeneration {
+		return false
+	}
+	a.state.RuntimeState = lifecycle.Recovering
+	a.state.AdmissionGeneration++
+	a.actions = append(a.actions, r.Action)
 	return true
 }
 
@@ -133,7 +160,7 @@ func (a *statefulAuthority) serve(t *testing.T) *nats.Conn {
 func (a *statefulAuthority) applied() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.moderation
+	return strings.Join(a.actions, ",")
 }
 
 type enrollBanOutcome struct {
@@ -146,6 +173,7 @@ func TestChatEnrollForbiddenRecordsOnlyAConfirmedRestriction(t *testing.T) {
 	permanent := `{"data":[{"user_id":"` + testBot + `","expires_at":""}]}`
 	timedOut := `{"data":[{"user_id":"` + testBot + `","expires_at":"` + time.Now().Add(time.Hour).UTC().Format(time.RFC3339) + `"}]}`
 	stillFailing := enrollBanOutcome{state: subStateFailing, admitted: true}
+	backedOff := enrollBanOutcome{state: subStateFailing, moderation: "enroll_retry"}
 	cases := []struct {
 		name      string
 		enroll    forbiddenEnroll
@@ -157,11 +185,14 @@ func TestChatEnrollForbiddenRecordsOnlyAConfirmedRestriction(t *testing.T) {
 			want: enrollBanOutcome{state: subStateBanned, moderation: "ban"}},
 		{name: "timeout takes the expiring timeout path", enroll: forbiddenEnroll{banList: timedOut},
 			want: enrollBanOutcome{state: subStateBanned, moderation: "timeout"}},
-		{name: "bot absent from the ban list stays failing", enroll: forbiddenEnroll{banList: `{"data":[]}`}, want: stillFailing},
+		{name: "bot absent from the ban list backs off into recovery", enroll: forbiddenEnroll{banList: `{"data":[]}`}, want: backedOff},
+		{name: "ban list refused for a missing scope backs off and asks for the scope", enroll: forbiddenEnroll{banStatus: http.StatusUnauthorized, banList: missingScopeBody},
+			want: enrollBanOutcome{state: subStateFailing, moderation: "enroll_retry,scope_missing"}},
+		{name: "ban list refused without a scope message only backs off", enroll: forbiddenEnroll{banStatus: http.StatusUnauthorized, banList: `{"message":"Invalid OAuth token"}`}, want: backedOff},
 		{name: "authorization 403 on a non-chat type stays failing", enroll: forbiddenEnroll{forbidType: "channel.follow", banList: permanent}, want: stillFailing},
 		{name: "generic 403 on chat stays failing", enroll: forbiddenEnroll{body: `{"error":"Forbidden","status":403,"message":"Forbidden"}`, banList: permanent}, want: stillFailing},
-		{name: "ban list outage stays failing", enroll: forbiddenEnroll{banStatus: http.StatusServiceUnavailable, banList: `{"message":"outage"}`}, want: stillFailing},
-		{name: "authority refusing the ban stays failing", enroll: forbiddenEnroll{banList: permanent}, refuseBan: true, want: stillFailing},
+		{name: "ban list outage backs off into recovery", enroll: forbiddenEnroll{banStatus: http.StatusServiceUnavailable, banList: `{"message":"outage"}`}, want: backedOff},
+		{name: "authority refusing the ban backs off into recovery", enroll: forbiddenEnroll{banList: permanent}, refuseBan: true, want: backedOff},
 		{name: "account recreated during the ban check is not restricted", enroll: forbiddenEnroll{banList: permanent}, recreate: true, want: stillFailing},
 	}
 	for _, tc := range cases {
@@ -187,4 +218,70 @@ func TestChatEnrollForbiddenRecordsOnlyAConfirmedRestriction(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func chatBanRevocation(t *testing.T) *bus.Message {
+	t.Helper()
+	body, err := codec.Marshal(authzSubRevoked{
+		BroadcasterID: testBroadcaster, Type: twitch.ChatMessageType, Status: statusChatUserBanned,
+		SubscriptionID: "legacy-chat-sub", UserID: testBot, EventID: "revoke-1", ObservedAt: time.Now().UTC(),
+	})
+	require.NoError(t, err)
+	return &bus.Message{Payload: body}
+}
+
+func TestChatBanRevocationOnAChannelWithoutRecordedOwnership(t *testing.T) {
+	permanent := `{"data":[{"user_id":"` + testBot + `","expires_at":""}]}`
+	cases := []struct {
+		name      string
+		chatSubID string
+		banStatus int
+		banList   string
+		want      string
+	}{
+		{name: "readable ban is recorded", banStatus: http.StatusOK, banList: permanent, want: "ban"},
+		{name: "ban list unreadable for a missing scope backs off and asks for the scope", banStatus: http.StatusUnauthorized, banList: missingScopeBody, want: "enroll_retry,scope_missing"},
+		{name: "revocation of a subscription the channel no longer owns is ignored", chatSubID: "current-chat-sub", banStatus: http.StatusOK, banList: permanent},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			serving := servingSnapshot()
+			serving.State.ChatSubscriptionID = tc.chatSubID
+			authority := &statefulAuthority{incarnation: serving.AccountCreatedAt, state: serving.State}
+			enroll := forbiddenEnroll{body: missingAuthorizationBody, banStatus: tc.banStatus, banList: tc.banList, onBanCheck: func() {}}
+			w := verifyWorker(t, enroll.transport(t), valkeytest.Spawn(t))
+			w.runtime = &statefulRuntime{snap: serving}
+			w.lifecycleNC = authority.serve(t)
+
+			require.NoError(t, w.HandleAuthzSubRevoked(chatBanRevocation(t)))
+
+			assert.Equal(t, tc.want, authority.applied())
+		})
+	}
+}
+
+func TestMissingScopeAsksTheOwnerToApproveTheNewPermission(t *testing.T) {
+	serving := servingSnapshot()
+	authority := &statefulAuthority{incarnation: serving.AccountCreatedAt, state: serving.State}
+	enroll := forbiddenEnroll{body: missingAuthorizationBody, banStatus: http.StatusUnauthorized, banList: missingScopeBody, onBanCheck: func() {}}
+	w := verifyWorker(t, enroll.transport(t), valkeytest.Spawn(t))
+	w.runtime = &statefulRuntime{snap: serving}
+	nc := authority.serve(t)
+	w.lifecycleNC = nc
+	w.reauth = NewReauthNotifier(nc, ReauthConfig{StateSubject: "test.users.state"}, zap.NewNop())
+	require.NoError(t, bus.Serve(bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "users"}, "test.users.state",
+		func(context.Context, usersrpc.StateGetRequest) usersrpc.StateGetReply { return usersrpc.StateGetReply{Locale: "en"} }))
+	sent := make(chan notificationsrpc.ConnectionRequest, 1)
+	require.NoError(t, bus.Serve(bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "notifications"}, notificationsrpc.ConnectionSubject+".send",
+		func(_ context.Context, r notificationsrpc.ConnectionRequest) notificationsrpc.ConnectionReply {
+			sent <- r
+			return notificationsrpc.ConnectionReply{Outcome: "accepted"}
+		}))
+	require.NoError(t, nc.Flush())
+
+	require.NoError(t, w.HandleAuthzGranted(grantEvent(t)))
+
+	notice := <-sent
+	assert.Equal(t, i18n.T("en", i18n.KeyGrantScopeTitle), notice.Title)
+	assert.Contains(t, notice.Body, i18n.DashboardURL)
 }

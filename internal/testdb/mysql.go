@@ -15,8 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MySQL needs MYSQL_TEST_DSN with CREATE DATABASE rights: each test creates and drops its own database.
-func MySQL(t *testing.T, prefix string) *sql.DB {
+func MySQL(t *testing.T, prefix string, options ...func(*mysql.Config)) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("MYSQL_TEST_DSN")
 	if dsn == "" {
@@ -26,6 +25,7 @@ func MySQL(t *testing.T, prefix string) *sql.DB {
 	require.NoError(t, err)
 	cfg.DBName = ""
 	cfg.ParseTime = true
+	cfg.ClientFoundRows = false
 	if cfg.Params == nil {
 		cfg.Params = make(map[string]string)
 	}
@@ -42,15 +42,22 @@ func MySQL(t *testing.T, prefix string) *sql.DB {
 	require.NoError(t, err)
 	t.Cleanup(func() { dropMySQL(t, admin, name) })
 	cfg.DBName = name
+	cfg.InterpolateParams = true
+	for _, option := range options {
+		option(cfg)
+	}
 	raw := openMySQL(t, cfg)
 	raw.SetMaxOpenConns(24)
 	return raw
 }
 
+func MultiStatements(cfg *mysql.Config) { cfg.MultiStatements = true }
+
 func openMySQL(t *testing.T, cfg *mysql.Config) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("mysql", cfg.FormatDSN())
+	connector, err := mysql.NewConnector(cfg)
 	require.NoError(t, err)
+	db := sql.OpenDB(connector)
 	t.Cleanup(func() { _ = db.Close() })
 	return db
 }

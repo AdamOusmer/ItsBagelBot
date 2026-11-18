@@ -133,9 +133,9 @@ var shippedContract = map[string]moduleSpec{
 		command("crranked", roleEveryone, "crpol"), command("crroad", roleEveryone, "crtrophy"),
 	}},
 	"valorant": {module.KindOptIn, []commandSpec{
-		command("val", roleEveryone), command("valrank", roleEveryone), command("valmatches", roleEveryone, "valhistory"),
-		command("valaccount", roleEveryone, "valwho"), command("vallb", roleEveryone, "valleaderboard"),
-		command("valshop", roleEveryone, "valrotation"),
+		command("val", roleEveryone), command("valrank", roleEveryone), command("valrecord", roleEveryone),
+		command("valmatches", roleEveryone, "valhistory"), command("valaccount", roleEveryone, "valwho"),
+		command("vallb", roleEveryone, "valleaderboard"), command("valshop", roleEveryone, "valrotation"),
 	}},
 	"raffle": {module.KindOptIn, []commandSpec{
 		command("raffle", roleEveryone), command("sraffle", roleEveryone, "singleraffle"), command("mraffle", roleEveryone, "multiraffle"),

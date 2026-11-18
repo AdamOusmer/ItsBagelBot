@@ -11,7 +11,7 @@
   "reviewed": "2026-11-16",
   "suits": {
     "us": [
-      "Quieres una cola de peticiones larga en un plan gratuito: la cola admite 100 canciones.",
+      "Quieres una cola de peticiones larga en un plan gratuito: la cola no tiene límite de tamaño.",
       "Quieres un solo bot para peticiones de canciones, comandos personalizados, temporizadores, puntos de fidelidad, sorteos y estadísticas de juego.",
       "Tu canal es nuevo o pequeño. Inicias sesión con Twitch y empiezas; no hay un mínimo de seguidores.",
       "Quieres una búsqueda cuidadosa: artista y título en cualquier orden, y un rechazo cuando nada coincide."
@@ -44,7 +44,7 @@
     },
     {
       "feature": "Tamaño de la cola gratis",
-      "us": "La cola admite 100 canciones en el plan gratuito.",
+      "us": "La cola no tiene límite de tamaño en el plan gratuito.",
       "them": "El plan gratuito admite hasta 6 canciones en la cola. Pro figura como ilimitado.",
       "source": "https://spotchbot.com/docs/pro"
     },
@@ -117,7 +117,7 @@
   "faq": [
     {
       "q": "¿Es ItsBagelBot una alternativa gratuita a SpotchBot?",
-      "a": "Las peticiones de canciones forman parte del plan gratuito de ItsBagelBot, con una cola de 100 canciones. Spotify Premium sigue siendo necesario, como en cualquier bot que controle una cola de Spotify."
+      "a": "Las peticiones de canciones forman parte del plan gratuito de ItsBagelBot, con una cola sin límite de tamaño. Spotify Premium sigue siendo necesario, como en cualquier bot que controle una cola de Spotify."
     },
     {
       "q": "¿Ambos bots necesitan Spotify Premium?",
@@ -133,7 +133,7 @@
     },
     {
       "q": "¿Cuántas canciones caben en la cola gratis?",
-      "a": "El plan gratuito de ItsBagelBot pone en cola 100 canciones. La tabla de planes de SpotchBot indica hasta 6 canciones en Free e ilimitadas en Pro. Referencia: https://spotchbot.com/docs/pro."
+      "a": "El plan gratuito de ItsBagelBot ofrece una cola sin límite de tamaño. La tabla de planes de SpotchBot indica hasta 6 canciones en Free e ilimitadas en Pro. Referencia: https://spotchbot.com/docs/pro."
     },
     {
       "q": "¿Puedo usar ambos bots a la vez?",

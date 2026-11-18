@@ -23,6 +23,7 @@ type counterStore struct {
 	locks     []string
 	onLock    func(name string)
 	deadlocks int
+	retired   bool
 }
 
 func (s *counterStore) takeLocks() []string {
@@ -111,6 +112,12 @@ func (c *counterConn) QueryContext(_ context.Context, query string, args []drive
 		return rows, nil
 	case lockTrialRow:
 		return c.lockRow(args[1].Value.(string)), nil
+	case accountFenceQuery + " FOR UPDATE":
+		deleted := int64(0)
+		if c.s.retired {
+			deleted = 1
+		}
+		return &counterRows{cols: []string{"account_created_at", "deleted"}, rows: [][]driver.Value{{int64(0), deleted}}}, nil
 	}
 	return nil, fmt.Errorf("unexpected query %q", query)
 }
@@ -180,6 +187,7 @@ type promoteTrialCase struct {
 	values       map[string]int64
 	onLock       func(values map[string]int64, name string)
 	deadlocks    int
+	retired      bool
 	wantErr      error
 	wantPromoted bool
 	wantValues   map[string]int64
@@ -201,6 +209,12 @@ func promoteTrialCases() []promoteTrialCase {
 				data.CounterTrialDecoded,
 				data.CounterTrialPromoted,
 			},
+		},
+		{
+			name:       "TestPromoteTrialSkipsRetiredAccount",
+			values:     map[string]int64{data.CounterTrialDecoded: 3, data.CounterTrialAnswered: 1},
+			retired:    true,
+			wantAbsent: []string{data.CounterEventsProcessed, data.CounterCommandsAnswered, data.CounterTrialPromoted},
 		},
 		{
 			name:         "TestPromoteTrialSkipsEmptyTotals",
@@ -270,6 +284,7 @@ func TestPromoteTrial(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r, store := promoteRepo(t, tc.values)
 			store.deadlocks = tc.deadlocks
+			store.retired = tc.retired
 			if tc.onLock != nil {
 				store.onLock = func(name string) { tc.onLock(store.values, name) }
 			}

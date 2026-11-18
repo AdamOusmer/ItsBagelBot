@@ -11,7 +11,7 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'role'>, AlertLook {
     cta?: AlertCta;
 }
 
-const { tone, variant, placement, row, flush, stack, role = 'alert', cta, class: className, ...rest } = Astro.props;
+const { tone, variant, placement, row, flush, stack, strong, role = 'alert', cta, class: className, ...rest } = Astro.props;
 ---
 
-<div class:list={[alertClass({ tone, variant, placement, row, flush, stack }), className]} role={role} {...rest}><span class="bb-alert__msg"><slot /></span><slot name="actions" />{cta && 'formAction' in cta ? (<form method="POST" action={cta.formAction}><button type="submit" class="bb-alert__action">{cta.label}</button></form>) : cta && (<a class="bb-alert__action" href={cta.href}>{cta.label}</a>)}</div>
+<div class:list={[alertClass({ tone, variant, placement, row, flush, stack, strong }), className]} role={role} {...rest}><span class="bb-alert__msg"><slot /></span><slot name="actions" />{cta && 'formAction' in cta ? (<form method="POST" action={cta.formAction}><button type="submit" class="bb-alert__action">{cta.label}</button></form>) : cta && (<a class="bb-alert__action" href={cta.href}>{cta.label}</a>)}</div>

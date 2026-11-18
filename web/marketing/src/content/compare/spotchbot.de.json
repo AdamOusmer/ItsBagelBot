@@ -11,7 +11,7 @@
   "reviewed": "2026-11-16",
   "suits": {
     "us": [
-      "Du willst eine lange Warteschlange im kostenlosen Tarif: Die Warteschlange fasst 100 Songs.",
+      "Du willst eine lange Warteschlange im kostenlosen Tarif: Die Warteschlange ist unbegrenzt.",
       "Du willst einen Bot für Song-Anfragen, eigene Befehle, Timer, Treuepunkte, Verlosungen und Spielstatistiken.",
       "Dein Kanal ist neu oder klein. Du meldest dich mit Twitch an und legst los, ohne Mindestzahl an Followern.",
       "Du willst genaue Treffer: Künstler und Titel in beliebiger Reihenfolge, und ohne Treffer wird abgelehnt."
@@ -44,7 +44,7 @@
     },
     {
       "feature": "Kostenlose Warteschlange",
-      "us": "Die Warteschlange fasst im kostenlosen Tarif 100 Songs.",
+      "us": "Die Warteschlange ist im kostenlosen Tarif unbegrenzt.",
       "them": "Der kostenlose Tarif fasst bis zu 6 Songs in der Warteschlange. Pro ist als unbegrenzt angegeben.",
       "source": "https://spotchbot.com/docs/pro"
     },
@@ -117,7 +117,7 @@
   "faq": [
     {
       "q": "Ist ItsBagelBot eine kostenlose Alternative zu SpotchBot?",
-      "a": "Song-Anfragen gehören zum kostenlosen Tarif von ItsBagelBot, mit einer Warteschlange von 100 Songs. Spotify Premium ist trotzdem nötig, wie bei jedem Bot, der eine Spotify-Warteschlange steuert."
+      "a": "Song-Anfragen gehören zum kostenlosen Tarif von ItsBagelBot, mit einer unbegrenzten Warteschlange. Spotify Premium ist trotzdem nötig, wie bei jedem Bot, der eine Spotify-Warteschlange steuert."
     },
     {
       "q": "Brauchen beide Bots Spotify Premium?",
@@ -133,7 +133,7 @@
     },
     {
       "q": "Wie viele Songs fasst die kostenlose Warteschlange?",
-      "a": "Der kostenlose Tarif von ItsBagelBot reiht 100 Songs ein. Die Tariftabelle von SpotchBot nennt bis zu 6 Songs bei Free und unbegrenzt bei Pro. Referenz: https://spotchbot.com/docs/pro."
+      "a": "Der kostenlose Tarif von ItsBagelBot bietet eine unbegrenzte Warteschlange. Die Tariftabelle von SpotchBot nennt bis zu 6 Songs bei Free und unbegrenzt bei Pro. Referenz: https://spotchbot.com/docs/pro."
     },
     {
       "q": "Kann ich beide Bots gleichzeitig nutzen?",

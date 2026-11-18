@@ -9,7 +9,7 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
   label: 'Valorant Stats',
   tagline: 'Valorant ranks, match history, leaderboards and the daily shop rotation in chat.',
   description:
-    'One command, five looks: !val shows a player\'s competitive standing (tier, RR, last game\'s RR change, peak tier); !val matches lists their recent ranked games as agent K/D/A results; !val account shows who a Riot ID resolves to, with their account level; !val lb prints the top 10 of any regional leaderboard, PC or console; !val shop shows today\'s global skin rotation with VP prices and the reset countdown. The squashed forms !valrank, !valmatches, !valaccount, !vallb and !valshop work too. Link your Riot ID below ("Name#Tag"). Viewers can also name any player, e.g. "!val Frosty#EUW1", and add a shard or ladder anywhere in the line to scope that one lookup ("!val eu Frosty#EUW1", "!val lb console ap"). Leave the region blank and the bot detects the shard from the account itself.',
+    'One command, six looks: !val shows a player\'s competitive standing (tier, RR, last game\'s RR change, peak tier); !val record totals the ranked games and wins on their account; !val matches lists their recent ranked games as agent K/D/A results; !val account shows who a Riot ID resolves to, with their account level; !val lb prints the top 10 of any regional leaderboard, PC or console; !val shop shows today\'s global skin rotation with VP prices and the reset countdown. The squashed forms !valrank, !valrecord, !valmatches, !valaccount, !vallb and !valshop work too. Link your Riot ID below ("Name#Tag"). Viewers can also name any player, e.g. "!val Frosty#EUW1", and add a shard or ladder anywhere in the line to scope that one lookup ("!val eu Frosty#EUW1", "!val lb console ap"). Leave the region blank and the bot detects the shard from the account itself.',
   category: 'Stats',
   defaultEnabled: false,
   replies: [
@@ -25,6 +25,19 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
       tokens: replyTokens(['player', 'region', 'tier', 'elo', 'rr', 'lastchange', 'peaktier', 'placement'], {
         player: 'Frosty#EUW1', region: 'eu', tier: 'Immortal 2', elo: '1832', rr: '67',
         lastchange: '-12', peaktier: 'Immortal 1', placement: '513'
+      })
+    },
+    {
+      key: 'record',
+      label: '!val record',
+      tagline: 'Ranked games and wins on the account (also !valrecord).',
+      event: '!val record',
+      command: 'val record',
+      enableKey: 'recordEnabled',
+      messageKey: 'recordMessage',
+      defaultMessage: '{player} · {games} ranked games · {wins} wins ({winrate}%)',
+      tokens: replyTokens(['player', 'region', 'games', 'wins', 'winrate'], {
+        player: 'Frosty#EUW1', region: 'eu', games: '412', wins: '231', winrate: '56'
       })
     },
     {

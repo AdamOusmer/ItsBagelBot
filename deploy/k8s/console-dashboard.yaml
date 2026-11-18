@@ -23,7 +23,7 @@ metadata:
   namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
-    itsbagelbot.com/restart-on-tls-secret: "console-dashboard-tls,nats-client-tls,valkey-client-tls"
+    secret.reloader.stakater.com/reload: "console-dashboard-tls,nats-client-tls,valkey-client-tls"
 spec:
   replicas: 2
   revisionHistoryLimit: 3
@@ -78,7 +78,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1794954246-47e1e27a1650@sha256:ae84b9af38f14f50c9292ff1b4b69366bc4f37c913a629279bdaf999cafe069f
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1794961808-33223cc667eb@sha256:b48f22c3c9404120e4a9f8e08f0322c95ed2420e8e2e1419101cfb27713d6276
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT

@@ -25,7 +25,7 @@
         "id": "itsbagelbot",
         "music": "Spotify",
         "plays": "O !sr adiciona a faixa à sua própria fila do Spotify. Exige Spotify Premium e seu próprio app de desenvolvedor do Spotify.",
-        "price": "Grátis. A fila comporta 100 músicas.",
+        "price": "Grátis. A fila não tem limite de tamanho.",
         "source": "https://itsbagelbot.com/song-requests/"
       },
       {
@@ -93,7 +93,7 @@
       },
       {
         "name": "Fila grátis longa",
-        "desc": "O plano gratuito do ItsBagelBot coloca 100 músicas na fila. O plano gratuito do SpotchBot comporta até 6."
+        "desc": "O plano gratuito do ItsBagelBot oferece uma fila sem limite de tamanho. O plano gratuito do SpotchBot comporta até 6."
       },
       {
         "name": "Um bot para o chat",
@@ -125,7 +125,7 @@
     },
     {
       "q": "Existe um bot gratuito de pedidos do Spotify para a Twitch?",
-      "a": "O ItsBagelBot inclui pedidos de música do Spotify no plano gratuito, com uma fila de 100 músicas. O SpotchBot tem um plano gratuito que comporta até 6 músicas na fila. Os dois exigem Spotify Premium, que o Spotify requer para controlar a fila."
+      "a": "O ItsBagelBot inclui pedidos de música do Spotify no plano gratuito, com uma fila sem limite de tamanho. O SpotchBot tem um plano gratuito que comporta até 6 músicas na fila. Os dois exigem Spotify Premium, que o Spotify requer para controlar a fila."
     },
     {
       "q": "Preciso de Spotify Premium para pedidos de música?",

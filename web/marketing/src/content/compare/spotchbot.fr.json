@@ -11,7 +11,7 @@
   "reviewed": "2026-11-16",
   "suits": {
     "us": [
-      "Vous voulez une longue file de demandes avec un forfait gratuit : la file contient 100 titres.",
+      "Vous voulez une longue file de demandes avec un forfait gratuit : la file n'a pas de limite de taille.",
       "Un seul bot pour les demandes de musique, commandes personnalisées, messages programmés, points de fidélité, tirages et stats de jeu.",
       "Votre chaîne est nouvelle ou petite. Connectez-vous avec Twitch et commencez ; aucun minimum de followers n'est exigé.",
       "Vous voulez une recherche rigoureuse : artiste et titre dans n'importe quel ordre, et un refus quand rien ne correspond."
@@ -44,7 +44,7 @@
     },
     {
       "feature": "File gratuite",
-      "us": "La file contient 100 titres avec le forfait gratuit.",
+      "us": "La file n'a pas de limite de taille avec le forfait gratuit.",
       "them": "Le forfait gratuit contient jusqu'à 6 titres dans la file. Pro est indiqué comme illimité.",
       "source": "https://spotchbot.com/docs/pro"
     },
@@ -117,7 +117,7 @@
   "faq": [
     {
       "q": "ItsBagelBot est-il une alternative gratuite à SpotchBot ?",
-      "a": "Les demandes de musique font partie du forfait gratuit d'ItsBagelBot, avec une file de 100 titres. Spotify Premium reste requis, comme pour tout bot qui contrôle une file Spotify."
+      "a": "Les demandes de musique font partie du forfait gratuit d'ItsBagelBot, avec une file sans limite de taille. Spotify Premium reste requis, comme pour tout bot qui contrôle une file Spotify."
     },
     {
       "q": "Les deux bots exigent-ils Spotify Premium ?",
@@ -133,7 +133,7 @@
     },
     {
       "q": "Combien de titres tient la file gratuite ?",
-      "a": "Le forfait gratuit d'ItsBagelBot accepte 100 titres dans la file. Le tableau des forfaits de SpotchBot indique jusqu'à 6 titres en Free et illimité en Pro. Référence : https://spotchbot.com/docs/pro."
+      "a": "Le forfait gratuit d'ItsBagelBot offre une file sans limite de taille. Le tableau des forfaits de SpotchBot indique jusqu'à 6 titres en Free et illimité en Pro. Référence : https://spotchbot.com/docs/pro."
     },
     {
       "q": "Pouvez-vous lancer les deux bots ensemble ?",

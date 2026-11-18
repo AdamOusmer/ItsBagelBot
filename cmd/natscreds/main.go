@@ -139,13 +139,6 @@ func mintAllCredentials(store Doppler, acl *natsacl.ACL, mat *material, rotate *
 			minted = append(minted, target.project+"/"+target.jwtKey)
 		}
 	}
-	deployCreated, err := mintDeployIdentity(store, mat, rotate)
-	if err != nil {
-		return nil, err
-	}
-	if deployCreated {
-		minted = append(minted, deployerProject+"/"+deploySysJWTKey)
-	}
 	return minted, nil
 }
 
@@ -187,10 +180,5 @@ func planAll(acl *natsacl.ACL, store Doppler, rotate *rotateScope) ([]string, er
 	if err != nil {
 		return nil, err
 	}
-	deployLines, err := planDeployIdentity(store, rotate)
-	if err != nil {
-		return nil, err
-	}
-	lines := append(keyLines, credLines...)
-	return append(lines, deployLines...), nil
+	return append(keyLines, credLines...), nil
 }

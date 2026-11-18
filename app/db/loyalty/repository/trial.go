@@ -62,8 +62,8 @@ func (r *Loyalty) promoteTrialTx(ctx context.Context, userID uint64) (bool, erro
 		return false, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	seen, promoted, err := readTrialTotals(ctx, tx, userID)
-	if err != nil || promoted {
+	seen, skip, err := r.readPromotableTotals(ctx, tx, userID)
+	if err != nil || skip {
 		return false, err
 	}
 	p := trialPromotion{tx: tx, userID: userID, now: time.Now()}
@@ -78,6 +78,14 @@ func (r *Loyalty) promoteTrialTx(ctx context.Context, userID uint64) (bool, erro
 		return false, err
 	}
 	return true, tx.Commit()
+}
+
+func (r *Loyalty) readPromotableTotals(ctx context.Context, tx *sql.Tx, userID uint64) (trialTotals, bool, error) {
+	account, err := r.fence(ctx, tx, userID, 0)
+	if err != nil || account.deleted {
+		return trialTotals{}, true, err
+	}
+	return readTrialTotals(ctx, tx, userID)
 }
 
 type trialPromotion struct {

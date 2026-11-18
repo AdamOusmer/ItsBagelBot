@@ -11,7 +11,7 @@
   "reviewed": "2026-11-16",
   "suits": {
     "us": [
-      "Você quer uma fila de pedidos longa no plano gratuito: a fila comporta 100 músicas.",
+      "Você quer uma fila de pedidos longa no plano gratuito: a fila não tem limite de tamanho.",
       "Você quer um só bot para pedidos de música, comandos personalizados, timers, pontos de fidelidade, sorteios e estatísticas de jogos.",
       "Seu canal é novo ou pequeno. Você entra com a Twitch e começa; não há mínimo de seguidores.",
       "Você quer uma busca cuidadosa: artista e título em qualquer ordem, e uma recusa quando nada bate."
@@ -44,7 +44,7 @@
     },
     {
       "feature": "Tamanho da fila grátis",
-      "us": "A fila comporta 100 músicas no plano gratuito.",
+      "us": "A fila não tem limite de tamanho no plano gratuito.",
       "them": "O plano gratuito comporta até 6 músicas na fila. O Pro é listado como ilimitado.",
       "source": "https://spotchbot.com/docs/pro"
     },
@@ -117,7 +117,7 @@
   "faq": [
     {
       "q": "O ItsBagelBot é uma alternativa gratuita ao SpotchBot?",
-      "a": "Os pedidos de música fazem parte do plano gratuito do ItsBagelBot, com uma fila de 100 músicas. O Spotify Premium continua necessário, como em qualquer bot que controla uma fila do Spotify."
+      "a": "Os pedidos de música fazem parte do plano gratuito do ItsBagelBot, com uma fila sem limite de tamanho. O Spotify Premium continua necessário, como em qualquer bot que controla uma fila do Spotify."
     },
     {
       "q": "Os dois bots exigem Spotify Premium?",
@@ -133,7 +133,7 @@
     },
     {
       "q": "Quantas músicas cabem na fila grátis?",
-      "a": "O plano gratuito do ItsBagelBot coloca 100 músicas na fila. A tabela de planos do SpotchBot lista até 6 músicas no Free e ilimitado no Pro. Referência: https://spotchbot.com/docs/pro."
+      "a": "O plano gratuito do ItsBagelBot oferece uma fila sem limite de tamanho. A tabela de planos do SpotchBot lista até 6 músicas no Free e ilimitado no Pro. Referência: https://spotchbot.com/docs/pro."
     },
     {
       "q": "Posso usar os dois bots ao mesmo tempo?",

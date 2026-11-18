@@ -36,14 +36,13 @@ func (r *Loyalty) ensureWatchRetentionSchema(ctx context.Context) error {
 	return err
 }
 
-// Lock retention before account fences or pruning can erase live receipts.
+const watchRetentionQuery = `SELECT finalized_window_ms FROM loyalty_watch_retention WHERE id=1`
+
 func (r *Loyalty) lockWatchRetention(ctx context.Context, tx *sql.Tx) (int64, error) {
 	if _, err := tx.ExecContext(ctx, `UPDATE loyalty_watch_retention SET finalized_window_ms=finalized_window_ms WHERE id=1`); err != nil {
 		return 0, err
 	}
-	var finalized int64
-	err := tx.QueryRowContext(ctx, `SELECT finalized_window_ms FROM loyalty_watch_retention WHERE id=1`).Scan(&finalized)
-	return finalized, err
+	return scanWatchRetention(tx.QueryRowContext(ctx, watchRetentionQuery))
 }
 
 func (r *Loyalty) readWatchRetention(ctx context.Context, tx *sql.Tx) (int64, error) {
@@ -51,8 +50,12 @@ func (r *Loyalty) readWatchRetention(ctx context.Context, tx *sql.Tx) (int64, er
 		return r.lockWatchRetention(ctx, tx)
 	}
 	// Do not treat this chunk lock as whole-award protection or finalization can strand unpaid viewers.
+	return scanWatchRetention(tx.QueryRowContext(ctx, watchRetentionQuery+" LOCK IN SHARE MODE"))
+}
+
+func scanWatchRetention(row *sql.Row) (int64, error) {
 	var finalized int64
-	err := tx.QueryRowContext(ctx, `SELECT finalized_window_ms FROM loyalty_watch_retention WHERE id=1 LOCK IN SHARE MODE`).Scan(&finalized)
+	err := row.Scan(&finalized)
 	return finalized, err
 }
 
@@ -152,23 +155,10 @@ func ignoreMySQLSchemaRace(err error, number uint16) error {
 }
 
 func (r *Loyalty) advanceWatchRetention(ctx context.Context, cutoff int64) (int64, error) {
-	tx, err := r.sqldb.BeginTx(ctx, nil)
-	if err != nil {
+	if _, err := r.sqldb.ExecContext(ctx, `UPDATE loyalty_watch_retention SET finalized_window_ms=? WHERE id=1 AND finalized_window_ms<?`, cutoff, cutoff); err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
-	finalized, err := r.lockWatchRetention(ctx, tx)
-	if err != nil {
-		return 0, err
-	}
-	if cutoff > finalized {
-		finalized = cutoff
-		if _, err := tx.ExecContext(ctx, `UPDATE loyalty_watch_retention SET finalized_window_ms=? WHERE id=1`, finalized); err != nil {
-			return 0, err
-		}
-	}
-	err = tx.Commit()
-	return finalized, err
+	return scanWatchRetention(r.sqldb.QueryRowContext(ctx, watchRetentionQuery))
 }
 
 func (r *Loyalty) pruneRetiredWatchHistory(ctx context.Context, finalized int64) error {
