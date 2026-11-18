@@ -945,6 +945,14 @@ accounts:
               from: OUTGRESS_RPC
             - service: rpc.outgress.uptime.get.node.*
               from: OUTGRESS_RPC
+            - service: rpc.outgress.streaminfo.get
+              from: OUTGRESS_RPC
+            - service: rpc.outgress.streaminfo.get.node.*
+              from: OUTGRESS_RPC
+            - service: rpc.outgress.channelcounts.get
+              from: OUTGRESS_RPC
+            - service: rpc.outgress.channelcounts.get.node.*
+              from: OUTGRESS_RPC
             - stream: cache.invalidate.commands
               from: PROJECTOR_RPC
             - stream: cache.invalidate.modules

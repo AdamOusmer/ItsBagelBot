@@ -114,6 +114,8 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.outgress.followage.get", "app/twitch/sesame followage lookup"},
 		{"rpc.outgress.accountage.get", "app/twitch/sesame accountage lookup"},
 		{"rpc.outgress.uptime.get", "app/twitch/sesame uptime lookup"},
+		{"rpc.outgress.streaminfo.get", "app/twitch/sesame/engine/streaminfo_rpc.go"},
+		{"rpc.outgress.channelcounts.get", "app/twitch/sesame/engine/channelcounts_rpc.go"},
 		{"rpc.health.ingress", "app/twitch/sesame/main.go"},
 		{"rpc.health.outgress", "app/twitch/sesame/main.go"},
 	},
