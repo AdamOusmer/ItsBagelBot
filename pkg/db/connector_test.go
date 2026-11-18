@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -19,6 +20,26 @@ import (
 type fakeConnector struct {
 	calls int
 	err   error
+}
+
+func TestDatastoreSegmentBuilderNamesMySQLPackets(t *testing.T) {
+	require.False(t, newMySQLConfig(Config{}).MultiStatements)
+	config := newMySQLConfig(Config{MultiStatements: true})
+	require.Equal(t, [2]bool{true, true}, [2]bool{config.MultiStatements, config.InterpolateParams})
+	builder := datastoreSegmentBuilder(config)
+	for _, tc := range []struct {
+		query      string
+		operation  string
+		collection string
+	}{
+		{"START TRANSACTION; SELECT f.user_id FROM loyalty_account_fences f FOR SHARE OF f; INSERT INTO loyalty_counter_receipts VALUES (?); SELECT ROW_COUNT()", "select", "loyalty_account_fences"},
+		{"START TRANSACTION; INSERT INTO loyalty_counter_receipts VALUES (?); SELECT ROW_COUNT()", "insert", "loyalty_counter_receipts"},
+		{"INSERT INTO counters VALUES (?); INSERT INTO counter_entries VALUES (?); COMMIT", "insert", "counters"},
+	} {
+		var segment newrelic.DatastoreSegment
+		builder.ParseQuery(&segment, tc.query)
+		require.Equal(t, [3]string{tc.operation, tc.collection, tc.query}, [3]string{segment.Operation, segment.Collection, segment.RawQuery})
+	}
 }
 
 func (c *fakeConnector) Connect(context.Context) (driver.Conn, error) {

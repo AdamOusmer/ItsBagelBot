@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
+	"github.com/go-sql-driver/mysql"
 )
 
 type earnedOperation struct {
@@ -47,8 +48,6 @@ func (r *Loyalty) ApplyEarned(ctx context.Context, dto data.LoyaltyEarnedDTO) er
 }
 
 func (r *Loyalty) persistEarned(ctx context.Context, operation earnedOperation) error {
-	r.persistMu.Lock()
-	defer r.persistMu.Unlock()
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		return retryTx(ctx, func(ctx context.Context) error { return r.commitEarned(ctx, operation) })
 	})
@@ -67,11 +66,11 @@ func (r *Loyalty) commitEarned(ctx context.Context, operation earnedOperation) e
 }
 
 func (r *Loyalty) applyEarnedDelivery(ctx context.Context, tx *sql.Tx, operation earnedOperation) error {
-	_, deleted, err := r.fence(ctx, tx, operation.event.UserID, 0)
+	deleted, err := r.earnedFence(ctx, tx, operation.event.UserID)
 	if err != nil {
 		return err
 	}
-	added, err := operation.recordReceipt(ctx, tx)
+	added, err := r.recordEarnedReceipt(ctx, tx, operation)
 	if err != nil {
 		return err
 	}
@@ -81,21 +80,45 @@ func (r *Loyalty) applyEarnedDelivery(ctx context.Context, tx *sql.Tx, operation
 	return r.writeEarnedTransaction(ctx, tx, operation.event)
 }
 
-func (operation earnedOperation) recordReceipt(ctx context.Context, tx *sql.Tx) (bool, error) {
-	var previous string
-	err := tx.QueryRowContext(ctx, "SELECT payload_hash FROM loyalty_earned_receipts WHERE batch_id=?", operation.identity).Scan(&previous)
-	if err == nil {
-		return false, verifyEarnedDigest(previous, operation.digest)
+func (r *Loyalty) earnedFence(ctx context.Context, tx *sql.Tx, id uint64) (bool, error) {
+	if r.dialect == "sqlite3" {
+		account, err := r.fence(ctx, tx, id, 0)
+		return account.deleted, err
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	fences, err := r.lockCounterUsers(ctx, tx, []uint64{id})
+	if err != nil {
 		return false, err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO loyalty_earned_receipts (batch_id,payload_hash) VALUES (?, ?)", operation.identity, operation.digest)
-	return err == nil, err
+	fence, found := fences[id]
+	if !found {
+		return false, sql.ErrNoRows
+	}
+	return fence.retired, nil
 }
 
-func verifyEarnedDigest(previous, digest string) error {
-	if previous != digest {
+func (r *Loyalty) recordEarnedReceipt(ctx context.Context, tx *sql.Tx, operation earnedOperation) (bool, error) {
+	suffix := " ON DUPLICATE KEY UPDATE batch_id=batch_id"
+	if r.dialect == "sqlite3" {
+		suffix = " ON CONFLICT(batch_id) DO NOTHING"
+	}
+	stmt := "INSERT INTO loyalty_earned_receipts (batch_id,payload_hash) VALUES (?, ?)" + suffix
+	result, err := tx.ExecContext(ctx, stmt, operation.identity, operation.digest)
+	if err != nil {
+		return false, err
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil || inserted != 0 {
+		return inserted != 0, err
+	}
+	return false, operation.checkReceipt(ctx, tx)
+}
+
+func (operation earnedOperation) checkReceipt(ctx context.Context, tx *sql.Tx) error {
+	var previous string
+	if err := tx.QueryRowContext(ctx, "SELECT payload_hash FROM loyalty_earned_receipts WHERE batch_id=?", operation.identity).Scan(&previous); err != nil {
+		return err
+	}
+	if previous != operation.digest {
 		return fmt.Errorf("%w: earned batch payload mismatch", ErrInvalidInput)
 	}
 	return nil
@@ -119,15 +142,24 @@ func (r *Loyalty) writeEarnedTransaction(ctx context.Context, tx *sql.Tx, dto da
 	slices.Sort(ids)
 	for start := 0; start < len(ids); start += upsertChunk {
 		chunk := ids[start:min(start+upsertChunk, len(ids))]
-		if err := window.checkChunk(ctx, tx, chunk); err != nil {
-			return err
-		}
-		stmt := r.earnedChunk(window, chunk)
-		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
+		if err := r.writeEarnedChunk(ctx, tx, window, chunk); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (r *Loyalty) writeEarnedChunk(ctx context.Context, tx *sql.Tx, window earnedWindow, ids []uint64) error {
+	if err := window.checkChunk(ctx, tx, ids); err != nil {
+		return err
+	}
+	stmt := r.earnedChunk(window, ids)
+	_, err := tx.ExecContext(ctx, stmt.sql, stmt.args...)
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1690 {
+		return fmt.Errorf("%w: watch balance overflow", ErrInvalidInput)
+	}
+	return err
 }
 
 func collectEarned(dto data.LoyaltyEarnedDTO) (map[balKey]*earnSum, error) {

@@ -68,6 +68,8 @@ Generated Ent code is not the schema source.
   Ent directly; a just-accepted legacy delta may not yet appear in an RPC read.
 - Grouped counter events wait for `CounterProcessor.Process` before acknowledgment.
   Missing DTO BatchID falls back to transport UUID during rolling upgrades.
+  Owner 0 commits in its own bot transaction alongside channel work. Each
+  delivery's receipt and effect stay in the same transaction.
 - Counter receipts and their counter effects commit in one SQL transaction, then
   complete a 70-minute Valkey receipt (`CounterReceiptTTL` in shared events).
   SQL→Valkey crash gaps and cache outages cannot recount a retained SQL receipt.
@@ -75,6 +77,16 @@ Generated Ent code is not the schema source.
   accepted IDs up to 256 bytes fit `VARBINARY(64)` without truncation. Payload
   hashes use `BINARY(32)`, admission owners `BINARY(16)`, and `created_at` indexed
   Unix seconds. SQLite uses BLOB columns and binary bindings.
+- Counter and earned receipt inserts use affected rows to admit fresh deliveries.
+  Duplicate receipts trigger a payload hash read. `pkg/db` pins MySQL
+  `ClientFoundRows` off so duplicate no-op updates report zero affected rows.
+- Loyalty enables MySQL multi-statements on its service pool. A normal counter
+  batch sends BEGIN, the fence read (for channels), and receipt admission in
+  one round trip, then writes counter effects and commits in a second. SQLite
+  runs the same statements sequentially. Missing fences restart admission in
+  fence-before-receipt order. The server runs the rest of a sent packet even
+  after the client times out, so a batch reported as failed may still have
+  committed; its receipt makes the retry a no-op.
 - Sesame retries unconfirmed counter batches indefinitely with the same BatchID
   and immutable payload. Pending batches ignore early flush nudges and retry on
   the five-second ticker with exponential backoff capped at 30 seconds.
@@ -135,16 +147,25 @@ Generated Ent code is not the schema source.
   scope wins on implicit creation; bucket shape must follow that scope.
 - Counter values stay within nonnegative signed-int64 range. Counter wire values
   are decimal JSON strings; balance replies also carry points_exact. Do not narrow
-  these to JavaScript Number or the former 2^53 ceiling. Saturated rows can be
-  rejected separately; transient/uncertain commits retry.
+  these to JavaScript Number or the former 2^53 ceiling. Guarded upserts leave
+  saturated counter values unchanged without logging a warning and apply the
+  other rows in the batch. Transient/uncertain commits retry.
 - Migrate through `MigrateSchema`, never `client.Schema.Create` alone: on MySQL the
   balance and counter tables' primary key is the natural key and Ent's `id` is only
-  a unique auto-increment column. An auto-increment primary key, or a locking read
-  of an absent balance, counter or fence row, makes replicas writing different
-  channels deadlock or wait: create the row, then lock it.
-- Watch awards lock the retention barrier before account fences, then other
-  posting rows. Counter persistence locks fences, receipts, then counters, with
-  owners and receipt identities in ascending order; preserve shared lock order.
+  a unique auto-increment column. An auto-increment primary key makes replicas
+  writing different channels deadlock or wait. MySQL fence reads rely on READ COMMITTED, where
+  an exact-key miss takes no gap lock. Insert the missing fence and read it again
+  under lock before applying effects.
+- Preserve the global lock order: retention barrier, account fence, receipts and
+  operations, `counters`, `counter_entries`, then `balances`. Use ascending owner
+  and natural key order for multi-row writes. Lifecycle cleanup holds the exclusive
+  fence across its deletes.
+- Watch chunks take a shared retention barrier lock. Pruning advances the barrier
+  with one guarded autocommit update. Counter and earned transactions take shared
+  account fences. Watch, lifecycle and trial promotion transactions take exclusive
+  account fences; promotion skips a retired account. A batch's negative entry
+  bumps apply only to buckets its ascending lock read found, so a bucket created
+  after that read is never updated out of lock order.
 - Prune watch replay markers only after the same source-window barrier rejects
   replay and is capped below retained unpaid outbox work. Counter receipts use
   the separate bounded delivery horizon above. Plain age-based deletion of watch
@@ -169,6 +190,6 @@ go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock ./ap
 Use watchtime/retention tests for durable awards, transfer tests for ledger moves,
 and counter processor/range tests for batching; wager, balance-adjustment and
 trial tests cover their own concurrency invariants. SQLite range coverage uses CGO.
-Real MySQL watchtime tests opt in through `MYSQL_TEST_DSN`; Valkey integration
+MySQL lock tests run only with `MYSQL_TEST_DSN`; Valkey integration
 tests skip without `valkey-server`. See each test before selecting infrastructure.
 CI regeneration and race checks: [main.yml](../../../.github/workflows/main.yml).

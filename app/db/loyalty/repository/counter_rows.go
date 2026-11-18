@@ -4,59 +4,32 @@
 package repository
 
 import (
-	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/pkg/db"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/go-sql-driver/mysql"
-	"go.uber.org/zap"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"time"
+
+	"ItsBagelBot/pkg/db"
+	"github.com/go-sql-driver/mysql"
 )
 
-func bumpKeyLess(a, b bumpKey) bool { return compareBumpKeys(a, b) < 0 }
-
-func (r *Loyalty) ensureCounterBatchDefinitions(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
-	channel, entries := splitBumps(bumps)
-	now := time.Now()
-	ordered := orderedCounterRows(channel, entries, bumps, now)
-	rows := make([][]any, 0, len(ordered))
-	for _, row := range ordered {
-		rows = append(rows, []any{row.userID, row.name, row.args[2], now, now})
-	}
-	suffix := " ON DUPLICATE KEY UPDATE name=name"
-	if r.dialect == "sqlite3" {
-		suffix = " ON CONFLICT(user_id,name) DO NOTHING"
-	}
-	return writeCounterRows(ctx, tx, upsertSpec{label: "counter definitions", insert: "INSERT INTO counters (user_id,name,scope,value,created_at,updated_at) VALUES ", placeholder: "(?, ?, ?, 0, ?, ?)", suffix: suffix}, rows)
-}
-
-// Locking reads of absent entry keys take gap locks that deadlock other channels' inserts, so rows exist before the saturation read.
-func (r *Loyalty) ensureCounterEntryRows(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
-	now := time.Now()
-	var rows [][]any
-	for _, key := range sortedCounterKeys(bumps) {
-		if sum := bumps[key]; entryScoped(sum.scope) && sum.delta > 0 {
-			rows = append(rows, []any{key.userID, key.name, key.command, key.viewerID, sum.login, sum.name, now})
-		}
-	}
-	suffix := " ON DUPLICATE KEY UPDATE value=value"
-	if r.dialect == "sqlite3" {
-		suffix = " ON CONFLICT(user_id,name,command,viewer_id) DO NOTHING"
-	}
-	return writeCounterRows(ctx, tx, upsertSpec{label: "counter entry rows", insert: "INSERT INTO counter_entries (user_id,name,command,viewer_id,viewer_login,viewer_name,value,updated_at) VALUES ", placeholder: "(?, ?, ?, ?, ?, ?, 0, ?)", suffix: suffix}, rows)
-}
-
-func writeCounterRows(ctx context.Context, tx *sql.Tx, spec upsertSpec, rows [][]any) error {
+func counterUpsertStatements(spec upsertSpec, rows [][]any) ([]chunkStmt, error) {
 	chunks, err := db.StatementRowChunks(rows, len(spec.insert)+len(spec.suffix)+len(spec.placeholder)*db.StatementRows)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
+	stmts := make([]chunkStmt, 0, len(chunks))
 	for _, chunk := range chunks {
-		stmt := spec.render(chunk)
+		stmts = append(stmts, spec.render(chunk))
+	}
+	return stmts, nil
+}
+
+func writeCounterStatements(ctx context.Context, tx counterSQL, stmts []chunkStmt) error {
+	for _, stmt := range stmts {
 		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
 			return counterWriteError(err)
 		}
@@ -65,77 +38,209 @@ func writeCounterRows(ctx context.Context, tx *sql.Tx, spec upsertSpec, rows [][
 }
 
 type counterMutationRows struct {
-	channel   [][]any
-	entries   [][]any
-	negatives []bumpKey
+	counters        [][]any
+	entries         [][]any
+	entryKeys       []bumpKey
+	negatives       []bumpKey
+	negativeEntries bool
 }
 
-func (r *Loyalty) writeCounterSums(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
+type counterEffects struct {
+	bumps      map[bumpKey]*bumpSum
+	unpromoted []uint64
+}
+
+type counterWrites struct {
+	rows     counterMutationRows
+	counters []chunkStmt
+	entries  []chunkStmt
+}
+
+func (r *Loyalty) writeCounterSums(ctx context.Context, tx counterTransaction, effects counterEffects) error {
+	writes, err := r.prepareCounterWrites(effects.bumps)
+	if err != nil {
+		return err
+	}
+	if tx.mysql && writes.canPipeline(effects) {
+		stmts := append(writes.counters, writes.entries...)
+		packet := counterPacket(append(stmts, chunkStmt{sql: "COMMIT"}))
+		return writeCounterStatements(ctx, tx, []chunkStmt{packet})
+	}
+	if err := r.writeCountersSequentially(ctx, tx, writes, effects.bumps); err != nil {
+		return err
+	}
+	if err := verifyTrialPromotions(ctx, tx, effects.unpromoted); err != nil {
+		return err
+	}
+	if tx.mysql {
+		_, err := tx.ExecContext(ctx, "COMMIT")
+		return err
+	}
+	return nil
+}
+
+func (w counterWrites) canPipeline(effects counterEffects) bool {
+	singleChunk := len(w.counters) <= 1 && len(w.entries) <= 1
+	return singleChunk && len(w.rows.negatives) == 0 && len(effects.unpromoted) == 0
+}
+
+func (r *Loyalty) prepareCounterWrites(bumps map[bumpKey]*bumpSum) (counterWrites, error) {
+	rows := counterRowsForMutation(bumps, time.Now())
+	counters, err := counterUpsertStatements(counterChannelWriteSpec(r.dialect), rows.counters)
+	if err != nil {
+		return counterWrites{}, err
+	}
+	entries, err := counterUpsertStatements(counterEntryWriteSpec(r.dialect), rows.entries)
+	return counterWrites{rows: rows, counters: counters, entries: entries}, err
+}
+
+func (r *Loyalty) writeCountersSequentially(ctx context.Context, tx counterSQL, writes counterWrites, bumps map[bumpKey]*bumpSum) error {
+	if err := writeCounterStatements(ctx, tx, writes.counters); err != nil {
+		return err
+	}
+	negatives, err := r.lockNegativeBatchEntries(ctx, tx, writes.rows)
+	if err != nil {
+		return err
+	}
+	stmts := writes.entries
 	now := time.Now()
-	rows := counterRowsForMutation(bumps, now)
-	if err := writeCounterRows(ctx, tx, counterChannelWriteSpec(r.dialect), rows.channel); err != nil {
-		return err
+	for _, key := range negatives {
+		stmts = append(stmts, counterNegativeStatement(r.dialect, key, bumps[key], now))
 	}
-	if err := writeCounterRows(ctx, tx, counterEntryWriteSpec(r.dialect), rows.entries); err != nil {
-		return err
-	}
-	return r.writeNegativeCounterRows(ctx, tx, rows.negatives, bumps)
+	return writeCounterStatements(ctx, tx, stmts)
 }
 
 func counterRowsForMutation(bumps map[bumpKey]*bumpSum, now time.Time) counterMutationRows {
-	rows := counterMutationRows{}
-	for _, key := range sortedCounterKeys(bumps) {
-		rows.add(key, bumps[key], now)
+	var rows counterMutationRows
+	var previous bumpKey
+	for _, key := range slices.SortedFunc(maps.Keys(bumps), compareBumpKeys) {
+		sum := bumps[key]
+		if key.userID != previous.userID || key.name != previous.name {
+			rows.counters = append(rows.counters, counterDefinitionRow(key, sum, now))
+		}
+		rows.add(key, sum, now)
+		previous = key
 	}
 	return rows
 }
 
-func sortedCounterKeys(bumps map[bumpKey]*bumpSum) []bumpKey {
-	keys := make([]bumpKey, 0, len(bumps))
-	for key := range bumps {
-		keys = append(keys, key)
+func counterDefinitionRow(key bumpKey, sum *bumpSum, now time.Time) []any {
+	delta := int64(0)
+	if !entryScoped(sum.scope) {
+		delta = max(sum.delta, 0)
 	}
-	sort.Slice(keys, func(i, j int) bool { return bumpKeyLess(keys[i], keys[j]) })
-	return keys
+	return []any{key.userID, key.name, sum.scope, delta, now, now}
 }
 
 func (r *counterMutationRows) add(key bumpKey, sum *bumpSum, now time.Time) {
 	if sum.delta < 0 {
 		r.negatives = append(r.negatives, key)
+	}
+	if !entryScoped(sum.scope) {
 		return
 	}
-	if entryScoped(sum.scope) {
-		r.entries = append(r.entries, []any{key.userID, key.name, key.command, key.viewerID, sum.login, sum.name, sum.delta, now})
+	r.entryKeys = append(r.entryKeys, key)
+	if sum.delta < 0 {
+		r.negativeEntries = true
 		return
 	}
-	r.channel = append(r.channel, []any{key.userID, key.name, sum.scope, sum.delta, now, now})
+	r.entries = append(r.entries, []any{key.userID, key.name, key.command, key.viewerID, sum.login, sum.name, sum.delta, now})
 }
 
 func counterChannelWriteSpec(dialect string) upsertSpec {
-	suffix := " ON DUPLICATE KEY UPDATE value=value+VALUES(value), updated_at=VALUES(updated_at)"
+	const saturated = "counters.value > 9223372036854775807 - n.value"
+	suffix := " AS n ON DUPLICATE KEY UPDATE " +
+		"updated_at=IF(n.value=0 OR " + saturated + ",counters.updated_at,n.updated_at)," +
+		"value=IF(" + saturated + ",counters.value,counters.value+n.value)"
 	if dialect == "sqlite3" {
-		suffix = " ON CONFLICT(user_id,name) DO UPDATE SET value=value+excluded.value,updated_at=excluded.updated_at"
+		const saturated = "value > 9223372036854775807 - excluded.value"
+		suffix = " ON CONFLICT(user_id,name) DO UPDATE SET " +
+			"updated_at=CASE WHEN excluded.value=0 OR " + saturated + " THEN updated_at ELSE excluded.updated_at END," +
+			"value=CASE WHEN " + saturated + " THEN value ELSE value+excluded.value END"
 	}
 	return upsertSpec{label: "counters", insert: "INSERT INTO counters (user_id,name,scope,value,created_at,updated_at) VALUES ", placeholder: "(?, ?, ?, ?, ?, ?)", suffix: suffix}
 }
 
 func counterEntryWriteSpec(dialect string) upsertSpec {
-	suffix := " ON DUPLICATE KEY UPDATE value=value+VALUES(value), viewer_login=IF(VALUES(viewer_login)='',viewer_login,VALUES(viewer_login)), viewer_name=IF(VALUES(viewer_name)='',viewer_name,VALUES(viewer_name)), updated_at=VALUES(updated_at)"
+	const saturated = "counter_entries.value > 9223372036854775807 - n.value"
+	suffix := " AS n ON DUPLICATE KEY UPDATE " +
+		"viewer_login=IF(n.viewer_login='' OR " + saturated + ",counter_entries.viewer_login,n.viewer_login)," +
+		"viewer_name=IF(n.viewer_name='' OR " + saturated + ",counter_entries.viewer_name,n.viewer_name)," +
+		"updated_at=IF(" + saturated + ",counter_entries.updated_at,n.updated_at)," +
+		"value=IF(" + saturated + ",counter_entries.value,counter_entries.value+n.value)"
 	if dialect == "sqlite3" {
-		suffix = " ON CONFLICT(user_id,name,command,viewer_id) DO UPDATE SET value=value+excluded.value, viewer_login=CASE WHEN excluded.viewer_login='' THEN viewer_login ELSE excluded.viewer_login END, viewer_name=CASE WHEN excluded.viewer_name='' THEN viewer_name ELSE excluded.viewer_name END, updated_at=excluded.updated_at"
+		suffix = " ON CONFLICT(user_id,name,command,viewer_id) DO UPDATE SET " +
+			"viewer_login=CASE WHEN excluded.viewer_login='' THEN viewer_login ELSE excluded.viewer_login END," +
+			"viewer_name=CASE WHEN excluded.viewer_name='' THEN viewer_name ELSE excluded.viewer_name END," +
+			"updated_at=excluded.updated_at,value=value+excluded.value WHERE value <= 9223372036854775807 - excluded.value"
 	}
 	return upsertSpec{label: "counter entries", insert: "INSERT INTO counter_entries (user_id,name,command,viewer_id,viewer_login,viewer_name,value,updated_at) VALUES ", placeholder: "(?, ?, ?, ?, ?, ?, ?, ?)", suffix: suffix}
 }
 
-func (r *Loyalty) writeNegativeCounterRows(ctx context.Context, tx *sql.Tx, keys []bumpKey, bumps map[bumpKey]*bumpSum) error {
-	now := time.Now()
-	for _, key := range keys {
-		stmt := counterNegativeStatement(r.dialect, key, bumps[key], now)
-		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
-			return counterWriteError(err)
+const counterEntryLockPredicate = "(user_id=? AND name=? AND command=? AND viewer_id=?) OR "
+
+func (r *Loyalty) lockNegativeBatchEntries(ctx context.Context, tx counterSQL, rows counterMutationRows) ([]bumpKey, error) {
+	if !rows.negativeEntries || r.dialect == "sqlite3" {
+		return rows.negatives, nil
+	}
+	keys := make([][]any, 0, len(rows.entryKeys))
+	for _, key := range rows.entryKeys {
+		keys = append(keys, []any{key.userID, key.name, key.command, key.viewerID})
+	}
+	chunks, err := db.StatementRowChunks(keys, len(counterEntryLockPredicate)*db.StatementRows+256)
+	if err != nil {
+		return nil, err
+	}
+	present := make(map[bumpKey]bool, len(keys))
+	for _, chunk := range chunks {
+		stmt := counterEntryLockStatement(chunk)
+		if err := lockCounterEntryChunk(ctx, tx, stmt, present); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	return rows.lockedNegatives(present), nil
+}
+
+// An absent negative bucket takes no lock, so updating it after the positive upserts would break ascending lock order.
+func (r counterMutationRows) lockedNegatives(present map[bumpKey]bool) []bumpKey {
+	entries := make(map[bumpKey]bool, len(r.entryKeys))
+	for _, key := range r.entryKeys {
+		entries[key] = true
+	}
+	kept := make([]bumpKey, 0, len(r.negatives))
+	for _, key := range r.negatives {
+		if present[key] || !entries[key] {
+			kept = append(kept, key)
+		}
+	}
+	return kept
+}
+
+func counterEntryLockStatement(keys [][]any) chunkStmt {
+	args := make([]any, 0, len(keys)*4)
+	for _, key := range keys {
+		args = append(args, key...)
+	}
+	where := strings.TrimSuffix(strings.Repeat(counterEntryLockPredicate, len(keys)), " OR ")
+	query := "SELECT user_id,name,command,viewer_id FROM counter_entries FORCE INDEX (PRIMARY) WHERE " + where +
+		" ORDER BY user_id,name,command,viewer_id FOR UPDATE"
+	return chunkStmt{sql: query, args: args}
+}
+
+func lockCounterEntryChunk(ctx context.Context, tx counterSQL, stmt chunkStmt, present map[bumpKey]bool) error {
+	rows, err := tx.QueryContext(ctx, stmt.sql, stmt.args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key bumpKey
+		if err := rows.Scan(&key.userID, &key.name, &key.command, &key.viewerID); err != nil {
+			return err
+		}
+		present[key] = true
+	}
+	return rows.Err()
 }
 
 func counterNegativeStatement(dialect string, key bumpKey, sum *bumpSum, now time.Time) chunkStmt {
@@ -177,133 +282,4 @@ func mysqlCounterRangeError(err error) bool {
 	default:
 		return false
 	}
-}
-
-func (r *Loyalty) excludeSaturatedCounterRows(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
-	channel, entries := splitBumps(bumps)
-	shape := counterInspectionShape(false)
-	shape.bumps = bumps
-	if err := r.inspectCounterChunks(ctx, tx, channel, shape); err != nil {
-		return err
-	}
-	shape = counterInspectionShape(true)
-	shape.bumps = bumps
-	return r.inspectCounterChunks(ctx, tx, entries, shape)
-}
-
-func (r *Loyalty) inspectCounterChunks(ctx context.Context, tx *sql.Tx, keys []bumpKey, shape counterInspection) error {
-	rows := make([][]any, 0, len(keys))
-	for _, key := range keys {
-		rows = append(rows, []any{key.userID, key.name, key.command, key.viewerID})
-	}
-	chunks, err := db.StatementRowChunks(rows, 32*db.StatementRows+256)
-	if err != nil {
-		return err
-	}
-	start := 0
-	for _, chunk := range chunks {
-		rejected, err := r.inspectCounterChunk(ctx, tx, shape, keys[start:start+len(chunk)])
-		if err != nil {
-			return err
-		}
-		r.noticeSaturatedCounters(shape.table, rejected)
-		start += len(chunk)
-	}
-	return nil
-}
-
-type counterInspection struct {
-	table     string
-	columns   string
-	predicate string
-	ordering  string
-	entry     bool
-	bumps     map[bumpKey]*bumpSum
-}
-
-func counterInspectionShape(entry bool) counterInspection {
-	if entry {
-		return counterInspection{table: "counter_entries", columns: "user_id,name,command,viewer_id,value", predicate: "(user_id=? AND name=? AND command=? AND viewer_id=?)", ordering: "user_id,name,command,viewer_id", entry: true}
-	}
-	return counterInspection{table: "counters", columns: "user_id,name,value", predicate: "(user_id=? AND name=?)", ordering: "user_id,name"}
-}
-
-func (s counterInspection) statement(dialect string, keys []bumpKey) chunkStmt {
-	predicates := make([]string, len(keys))
-	args := make([]any, 0, len(keys)*4)
-	for i, key := range keys {
-		predicates[i] = s.predicate
-		args = append(args, key.userID, key.name)
-		if s.entry {
-			args = append(args, key.command, key.viewerID)
-		}
-	}
-	from, lock := s.table, ""
-	// The (name,value) index covers this read once the natural key is primary; scanning it locks other channels' rows.
-	if dialect != "sqlite3" {
-		from, lock = s.table+" FORCE INDEX (PRIMARY)", " FOR UPDATE"
-	}
-	query := "SELECT " + s.columns + " FROM " + from + " WHERE " + strings.Join(predicates, " OR ") + " ORDER BY " + s.ordering + lock
-	return chunkStmt{sql: query, args: args}
-}
-
-func (r *Loyalty) inspectCounterChunk(ctx context.Context, tx *sql.Tx, shape counterInspection, keys []bumpKey) (int, error) {
-	stmt := shape.statement(r.dialect, keys)
-	rows, err := tx.QueryContext(ctx, stmt.sql, stmt.args...)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-	rejected, err := shape.excludeSaturated(rows, shape.bumps)
-	if err != nil {
-		return 0, err
-	}
-	return rejected, rows.Close()
-}
-
-func (s counterInspection) excludeSaturated(rows *sql.Rows, bumps map[bumpKey]*bumpSum) (int, error) {
-	rejected := 0
-	for rows.Next() {
-		key, value, err := s.decode(rows)
-		if err != nil {
-			return 0, err
-		}
-		if counterSumSaturated(bumps[key], value) {
-			delete(bumps, key)
-			rejected++
-		}
-	}
-	return rejected, rows.Err()
-}
-
-func (s counterInspection) decode(rows *sql.Rows) (bumpKey, int64, error) {
-	var key bumpKey
-	var value int64
-	var err error
-	if s.entry {
-		err = rows.Scan(&key.userID, &key.name, &key.command, &key.viewerID, &value)
-	} else {
-		err = rows.Scan(&key.userID, &key.name, &value)
-	}
-	return key, value, err
-}
-
-func counterSumSaturated(sum *bumpSum, value int64) bool {
-	if sum == nil {
-		return false
-	}
-	if sum.delta <= 0 {
-		return false
-	}
-	return value > data.MaxCounter-sum.delta
-}
-
-func (r *Loyalty) noticeSaturatedCounters(table string, rejected int) {
-	if rejected == 0 {
-		return
-	}
-	if r.log == nil {
-		return
-	}
-	r.log.Warn("loyalty: saturated counter rows rejected", zap.String("table", table), zap.Int("rows", rejected))
 }

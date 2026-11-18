@@ -16,13 +16,22 @@ import (
 	"ItsBagelBot/pkg/svcboot"
 )
 
+type Options struct {
+	MultiStatements bool
+}
+
 func MustEntDriver(core svcboot.Core) *entsql.Driver {
+	return MustEntDriverWith(core, Options{})
+}
+
+func MustEntDriverWith(core svcboot.Core, opts Options) *entsql.Driver {
 	driver, err := db.NewDriver(db.Config{
-		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
-		Username: env.MustGet("DB_USER"),
-		Password: env.MustGet("DB_PASS"),
-		Schema:   env.MustGet("DB_SCHEMA"),
-		Monitor:  core.NR,
+		Address:         env.Get("DB_ADDR", "127.0.0.1:3306"),
+		Username:        env.MustGet("DB_USER"),
+		Password:        env.MustGet("DB_PASS"),
+		Schema:          env.MustGet("DB_SCHEMA"),
+		Monitor:         core.NR,
+		MultiStatements: opts.MultiStatements,
 	})
 	svcboot.FatalIf(core.Log, err, "failed to open database")
 	return driver

@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/testdb"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +67,7 @@ func (w balanceWriter) run(errs chan<- error) {
 }
 
 func TestBalanceMySQLReplicasPostOtherChannelsWithoutLockConflicts(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_balance_")
+	raw := loyaltyMySQL(t, "loyalty_balance_")
 	replicas := make([]*Loyalty, balanceReplicas)
 	for i := range replicas {
 		replicas[i] = mysqlReplica(t, raw)
@@ -114,7 +113,7 @@ func (w sharedChannelWriter) round(ctx context.Context, round int) error {
 }
 
 func TestBalanceMySQLReplicasPostSameChannelExactly(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_shared_")
+	raw := loyaltyMySQL(t, "loyalty_shared_")
 	errs := make(chan error, balanceReplicas*balanceRounds)
 	var writers sync.WaitGroup
 	for replica := range balanceReplicas {
