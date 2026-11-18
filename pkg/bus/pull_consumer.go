@@ -127,6 +127,8 @@ type pullSubscriber struct {
 	consumer      jsapi.Consumer
 	desired       jsapi.ConsumerConfig
 	rebind        func() (jsapi.Consumer, error)
+	hot           *hotLaneBinding
+	push          *pushLane
 	extra         []*nats.Conn
 	handles       []jsapi.Consumer
 	handleMu      sync.Mutex
@@ -175,37 +177,42 @@ type pullSubscriber struct {
 	closeErr error
 }
 
-func newPullLaneSubscriber(cfg flowLaneConfig) (*pullSubscriber, error) {
-	name := pullConsumerName(cfg.group, cfg.subject)
-
-	nc, err := nats.Connect(busURL(endpoint(cfg.url)), busOptions(clientName(cfg.group)+"-pull")...)
+func newExplicitLaneSubscriber(cfg flowLaneConfig, mode laneConsumeMode) (*pullSubscriber, error) {
+	nc, err := nats.Connect(busURL(endpoint(cfg.url)), busOptions(clientName(cfg.group+"-"+string(mode)))...)
 	if err != nil {
 		return nil, err
 	}
-	s, err := openPullLane(cfg, nc, name)
+	s, err := openExplicitLane(cfg, nc, mode)
 	if err != nil {
 		nc.Close()
 	}
 	return s, err
 }
 
-func openPullLane(cfg flowLaneConfig, nc *nats.Conn, name string) (*pullSubscriber, error) {
-	consumer, err := ensurePullConsumer(nc, cfg.stream, pullConsumerConfig(cfg.subject, name))
+func openExplicitLane(cfg flowLaneConfig, nc *nats.Conn, mode laneConsumeMode) (*pullSubscriber, error) {
+	desired := PullLaneConsumerConfig(cfg.group, cfg.subject)
+	if mode == laneModePush {
+		desired = pushConsumerConfig(cfg)
+	}
+	s, err := newPullSubscriber(cfg, nc, desired)
 	if err != nil {
 		return nil, err
 	}
-	s, err := newPullSubscriber(cfg, nc, consumer, name)
+	if err := s.configureLane(cfg, mode); err != nil {
+		return nil, err
+	}
+	s.consumer, err = s.rebind()
 	if err != nil {
 		return nil, err
 	}
-	if err := s.openExtraConnections(cfg); err != nil {
+	if err := s.startSource(cfg); err != nil {
 		return nil, err
 	}
 	s.start()
 	return s, nil
 }
 
-func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consumer, name string) (*pullSubscriber, error) {
+func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, desired jsapi.ConsumerConfig) (*pullSubscriber, error) {
 	js, err := nc.JetStream(jsDomainOption()...)
 	if err != nil {
 		return nil, err
@@ -219,12 +226,10 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 		log = zap.NewNop()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	loops, batch := pullFetchLoops(), pullFetchBatch()
 	s := &pullSubscriber{
-		nc: nc, consumer: consumer, desired: pullConsumerConfig(cfg.subject, name),
+		nc: nc, desired: desired,
 		stream: cfg.stream, subject: cfg.subject,
-		name: name, log: log,
-		batch: batch, loops: loops, maxWait: pullFetchMaxWait(),
+		name: desired.Name, log: log,
 		output:        make(chan *Message),
 		closeCh:       make(chan struct{}),
 		ctx:           ctx,
@@ -234,8 +239,36 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 	}
 	s.horizon.Store(int64(info.Config.MaxAge))
 	s.letters = &concurrentDurableSubscriber{nc: nc, js: js, stream: s.stream, consumer: s.name, log: log}
-	s.rebind = func() (jsapi.Consumer, error) { return ensurePullConsumer(s.nc, s.stream, s.desired) }
 	return s, nil
+}
+
+func (s *pullSubscriber) configureLane(cfg flowLaneConfig, mode laneConsumeMode) error {
+	if isHotIngressLane(cfg.stream, cfg.subject) {
+		hot, err := newHotLane(s, cfg)
+		if err != nil {
+			return err
+		}
+		s.hot = hot
+		s.rebind = hot.ensure
+	} else {
+		s.rebind = func() (jsapi.Consumer, error) { return ensurePullConsumer(s.nc, s.stream, s.desired) }
+	}
+	if mode == laneModePush {
+		s.push = newPushLane(s)
+		s.nc.SetErrorHandler(s.push.subscriptionError)
+		return s.push.bind()
+	}
+	return nil
+}
+
+func (s *pullSubscriber) startSource(cfg flowLaneConfig) error {
+	if s.push != nil {
+		s.workers.Add(1)
+		go s.push.pump()
+		return nil
+	}
+	s.loops, s.batch, s.maxWait = pullFetchLoops(), pullFetchBatch(), pullFetchMaxWait()
+	return s.openExtraConnections(cfg)
 }
 
 func (s *pullSubscriber) start() {
@@ -248,7 +281,7 @@ func (s *pullSubscriber) start() {
 
 func (s *pullSubscriber) Subscribe(_ context.Context, subject string) (<-chan *Message, error) {
 	if subject != s.subject {
-		return nil, fmt.Errorf("bus: pull subscriber is bound to %q, not %q", s.subject, subject)
+		return nil, fmt.Errorf("bus: lane subscriber is bound to %q, not %q", s.subject, subject)
 	}
 	if s.closed.Load() {
 		return nil, errors.New("bus: subscriber is closed")
@@ -263,6 +296,9 @@ func (s *pullSubscriber) pump(i int) {
 }
 
 func (s *pullSubscriber) pumpIterator(i int) bool {
+	if s.hot != nil && s.hot.paused.Load() {
+		return s.pause(s.maxWait)
+	}
 	batch, err := s.handleFor(i).Fetch(s.batch, jsapi.FetchMaxWait(s.maxWait))
 	if err != nil {
 		return s.noteFetchError(err)
@@ -274,7 +310,7 @@ func (s *pullSubscriber) pumpIterator(i int) bool {
 	s.noteFetchProgress()
 	for wire := range deliveries {
 		s.noteFetchProgress()
-		if !s.deliver(wire) {
+		if !s.deliver(wire, nil) {
 			s.returnBatch(deliveries)
 			return false
 		}
@@ -294,7 +330,8 @@ func (s *pullSubscriber) returnBatch(deliveries <-chan jsapi.Msg) {
 func (s *pullSubscriber) returnDelivery(wire jsapi.Msg) {
 	s.ackMu.Lock()
 	defer s.ackMu.Unlock()
-	if s.releaseDelivery(wire.Reply()) {
+	tracked := s.releaseDelivery(wire.Reply())
+	if tracked || s.push != nil {
 		_ = wire.Nak()
 	}
 }
@@ -314,21 +351,25 @@ func (s *pullSubscriber) boundConsumer() jsapi.Consumer {
 	return s.consumer
 }
 
-func (s *pullSubscriber) deliver(wire jsapi.Msg) bool {
+func (s *pullSubscriber) deliver(wire jsapi.Msg, shed <-chan struct{}) bool {
+	if s.closed.Load() {
+		s.returnDelivery(wire)
+		return false
+	}
 	ticket := s.deliveryTicket(wire.Reply())
 	if ticket == nil {
 		return true
 	}
 	msg, err := s.decode(wire, ticket)
 	if err != nil {
-		s.inflight.Add(1)
+		s.beginDelivery()
 		go func() {
-			defer s.inflight.Done()
+			defer s.finishDelivery()
 			s.quarantineWire(wire)
 		}()
 		return true
 	}
-	s.inflight.Add(1)
+	s.beginDelivery()
 	c := msg.completionState()
 	reply := wire.Reply()
 	metadata, _ := wire.Metadata()
@@ -336,18 +377,28 @@ func (s *pullSubscriber) deliver(wire jsapi.Msg) bool {
 	c.ticket = ticket
 	retryDelay := deliveryRetryDelay(metadata)
 	msg.setResolveHandler(func(acked bool) {
-		defer s.inflight.Done()
+		defer s.finishDelivery()
 		s.resolveDelivery(reply, c, retryDelay, acked)
 	})
 	msg.reject = func(rejected *Message) error { return s.rejectDelivery(metadata, rejected) }
 	select {
 	case s.output <- msg:
+		s.markHanded(ticket)
 		return true
 	case <-s.closeCh:
-		s.returnDelivery(wire)
-		s.inflight.Done()
-		return false
+	case <-shed:
 	}
+	s.returnDelivery(wire)
+	s.finishDelivery()
+	return false
+}
+
+func (s *pullSubscriber) beginDelivery() {
+	s.inflight.Add(1)
+}
+
+func (s *pullSubscriber) finishDelivery() {
+	s.inflight.Done()
 }
 
 func (s *pullSubscriber) decode(wire jsapi.Msg, ticket *DeliveryTicket) (*Message, error) {
@@ -359,6 +410,8 @@ func (s *pullSubscriber) decode(wire jsapi.Msg, ticket *DeliveryTicket) (*Messag
 	}
 	msg.SetContext(s.deliveryContext(ticket))
 	msg.receivedAt = time.Unix(0, ticket.stored).Add(time.Duration(ticket.received) * time.Millisecond)
+	msg.brokerTime = ticket.brokerTime
+	msg.hasBrokerTime = true
 	return msg, nil
 }
 
@@ -400,7 +453,7 @@ func (s *pullSubscriber) noteFetchError(err error) bool {
 	if s.closed.Load() {
 		return false
 	}
-	s.errSince.CompareAndSwap(0, time.Now().UnixNano())
+	s.markLaneError()
 	count := s.fetchErrs.Add(1)
 	if s.shouldLogFetchError(err) {
 		s.log.Warn("lane fetch failed",
@@ -438,21 +491,10 @@ func consumerGone(err error) bool {
 }
 
 func (s *pullSubscriber) rebuildConsumer() {
-	s.consumerMu.Lock()
-	consumer, err := s.rebind()
-	if err != nil {
-		s.consumerMu.Unlock()
-		s.log.Warn("lane consumer rebuild failed",
-			zap.String("stream", s.stream),
-			zap.String("subject", s.subject),
-			zap.String("consumer", s.name),
-			zap.Error(err))
+	if err := s.rebindConsumer(); err != nil {
+		s.log.Warn("lane consumer rebuild failed", zap.String("consumer", s.name), zap.Error(err))
 		return
 	}
-	s.consumer = consumer
-	s.consumerMu.Unlock()
-	// Only after releasing consumerMu: handleFor takes handleMu then consumerMu.
-	s.relookupHandles()
 	s.log.Warn("lane consumer was missing and has been rebuilt",
 		zap.String("stream", s.stream),
 		zap.String("subject", s.subject),
@@ -460,12 +502,27 @@ func (s *pullSubscriber) rebuildConsumer() {
 		zap.Int64("rebuilds", s.rebuilt.Add(1)))
 }
 
+func (s *pullSubscriber) rebindConsumer() error {
+	s.consumerMu.Lock()
+	consumer, err := s.rebind()
+	if err != nil {
+		s.consumerMu.Unlock()
+		return err
+	}
+	s.consumer = consumer
+	s.consumerMu.Unlock()
+	// Only after releasing consumerMu: handleFor takes handleMu then consumerMu.
+	s.relookupHandles()
+	return nil
+}
+
 func (s *pullSubscriber) Healthy() bool {
 	if time.Now().UnixNano() < s.expiredUntil.Load() {
 		return false
 	}
 	since := s.errSince.Load()
-	return !s.lagged.Load() && (since == 0 || time.Since(time.Unix(0, since)) < laneUnhealthyAfter)
+	withinGrace := since == 0 || time.Since(time.Unix(0, since)) < laneUnhealthyAfter
+	return !s.lagged.Load() && withinGrace
 }
 
 func (s *pullSubscriber) pause(wait time.Duration) bool {
@@ -490,10 +547,12 @@ func (s *pullSubscriber) shutdown() error {
 		s.cancel()
 	}
 	close(s.closeCh)
-	s.workers.Wait()
-
 	deadline := time.NewTimer(subscriberDrainTimeout)
 	defer deadline.Stop()
+	if s.push != nil {
+		s.push.drain()
+	}
+	s.workers.Wait()
 	drained := waitGroupBefore(&s.inflight, deadline.C)
 	close(s.heartbeatStop)
 	<-s.heartbeatDone
@@ -508,10 +567,10 @@ func (s *pullSubscriber) flushAndClose(drained bool) error {
 	s.nc.Close()
 	s.closeExtra()
 	if !drained {
-		return errors.New("bus: timed out draining pull lane deliveries")
+		return errors.New("bus: timed out draining lane deliveries")
 	}
 	if flushErr != nil {
-		return fmt.Errorf("bus: flush pull lane acknowledgements: %w", flushErr)
+		return fmt.Errorf("bus: flush lane acknowledgements: %w", flushErr)
 	}
 	return nil
 }

@@ -259,6 +259,61 @@ type laneStats struct {
 
 	queueMicros    atomic.Uint64
 	queueMaxMicros atomic.Uint64
+
+	brokerMu       sync.Mutex
+	broker         laneBrokerSample
+	aligned        atomic.Uint32
+	alignStepdowns atomic.Uint64
+}
+
+type laneBrokerSample struct {
+	count uint64
+	total time.Duration
+	peak  time.Duration
+}
+
+func brokerMillis(duration time.Duration) float64 {
+	return float64(duration) / float64(time.Millisecond)
+}
+
+func (s *laneStats) recordBroker(msg *Message) {
+	if !msg.hasBrokerTime {
+		return
+	}
+	s.brokerMu.Lock()
+	defer s.brokerMu.Unlock()
+	if s.broker.count == 0 || msg.brokerTime > s.broker.peak {
+		s.broker.peak = msg.brokerTime
+	}
+	s.broker.count++
+	s.broker.total += msg.brokerTime
+}
+
+func (s *laneStats) takeBrokerSample() laneBrokerSample {
+	s.brokerMu.Lock()
+	defer s.brokerMu.Unlock()
+	sample := s.broker
+	s.broker = laneBrokerSample{}
+	return sample
+}
+
+func (s *laneStats) setAlignment(aligned bool) {
+	if aligned {
+		s.aligned.Store(2)
+		return
+	}
+	s.aligned.Store(1)
+}
+
+func (s *laneStats) addLaneAttributes(params map[string]any, stepdowns uint64, broker laneBrokerSample) {
+	if broker.count != 0 {
+		params["broker_ms.avg"] = brokerMillis(broker.total) / float64(broker.count)
+		params["broker_ms.max"] = brokerMillis(broker.peak)
+	}
+	if aligned := s.aligned.Load(); aligned != 0 {
+		params["leaders_aligned"] = float64(aligned - 1)
+		params["lane_align_stepdowns"] = float64(stepdowns)
+	}
 }
 
 func (s *laneStats) sample() bool {
@@ -304,14 +359,16 @@ func (s *laneStats) drain() (map[string]any, bool) {
 
 	processed := ok + deferred + failed
 	expired := s.expired.Swap(0)
-	if processed+expired == 0 {
+	stepdowns := s.alignStepdowns.Swap(0)
+	broker := s.takeBrokerSample()
+	if processed+expired+stepdowns+broker.count == 0 {
 		return nil, false
 	}
 
 	micros := s.queueMicros.Swap(0)
 	peak := s.queueMaxMicros.Swap(0)
 
-	return map[string]any{
+	params := map[string]any{
 		messagingSystemAttribute:      "nats",
 		messagingOperationAttribute:   "process",
 		messagingDestinationAttribute: s.destination,
@@ -323,7 +380,9 @@ func (s *laneStats) drain() (map[string]any, bool) {
 		"failed":                      float64(failed),
 		"queue_ms.avg":                float64(micros) / float64(max(processed, 1)) / 1000,
 		"queue_ms.max":                float64(peak) / 1000,
-	}, true
+	}
+	s.addLaneAttributes(params, stepdowns, broker)
+	return params, true
 }
 
 type laneTelemetry struct {

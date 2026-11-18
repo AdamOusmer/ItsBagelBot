@@ -85,6 +85,7 @@ func (lane consumeLane) process(msg *Message) {
 }
 
 func (lane consumeLane) processSampled(msg *Message, wait time.Duration) {
+	lane.stats.recordBroker(msg)
 	txn := lane.startTransaction(msg, wait)
 	log := monitor.TraceLogger(txn, lane.log)
 
@@ -115,6 +116,9 @@ func (lane consumeLane) settleDeferred(txn *newrelic.Transaction, gate *monitor.
 
 func (lane consumeLane) handleTraced(txn *newrelic.Transaction, msg *Message, wait time.Duration) outcome {
 	processSegment := txn.StartSegment("message.process")
+	if msg.hasBrokerTime {
+		processSegment.AddAttribute("broker_ms", brokerMillis(msg.brokerTime))
+	}
 	out := classify(lane.handle(msg), wait)
 	processSegment.AddAttribute(resultAttribute, out.result)
 	processSegment.End()

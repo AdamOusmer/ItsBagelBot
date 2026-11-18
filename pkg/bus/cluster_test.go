@@ -78,18 +78,23 @@ func launchCluster() error {
 }
 
 func startNodes(ports []int) error {
-	var routes []*url.URL
+	routes := clusterRoutes(ports)
 	for _, port := range ports {
-		routes = append(routes, &url.URL{Scheme: "nats-route", Host: fmt.Sprintf("127.0.0.1:%d", port)})
-	}
-	for _, port := range ports {
-		node, err := startClusterNode(port, routes)
+		node, err := startClusterNode(clusterNodeConfig{routePort: port, clientPort: -1, routes: routes, store: embedded.dir})
 		if err != nil {
 			return err
 		}
 		embedded.servers = append(embedded.servers, node)
 	}
 	return nil
+}
+
+func clusterRoutes(ports []int) []*url.URL {
+	routes := make([]*url.URL, 0, len(ports))
+	for _, port := range ports {
+		routes = append(routes, &url.URL{Scheme: "nats-route", Host: fmt.Sprintf("127.0.0.1:%d", port)})
+	}
+	return routes
 }
 
 func freePorts(n int) ([]int, error) {
@@ -109,13 +114,20 @@ func freePorts(n int) ([]int, error) {
 	return ports, nil
 }
 
-func startClusterNode(clusterPort int, routes []*url.URL) (*server.Server, error) {
+type clusterNodeConfig struct {
+	routePort  int
+	clientPort int
+	routes     []*url.URL
+	store      string
+}
+
+func startClusterNode(cfg clusterNodeConfig) (*server.Server, error) {
 	node, err := server.NewServer(&server.Options{
-		ServerName: fmt.Sprintf("n%d", clusterPort), Host: "127.0.0.1", Port: -1, NoLog: true, NoSigs: true,
-		JetStream: true, JetStreamDomain: "hub", StoreDir: filepath.Join(embedded.dir, fmt.Sprint(clusterPort)),
+		ServerName: fmt.Sprintf("n%d", cfg.routePort), Host: "127.0.0.1", Port: cfg.clientPort, NoLog: true, NoSigs: true,
+		JetStream: true, JetStreamDomain: "hub", StoreDir: filepath.Join(cfg.store, fmt.Sprint(cfg.routePort)),
 		JetStreamMaxMemory: 3_000_000_000, JetStreamMaxStore: 1 << 30,
-		Cluster: server.ClusterOpts{Name: "test-cluster", Host: "127.0.0.1", Port: clusterPort},
-		Routes:  routes,
+		Cluster: server.ClusterOpts{Name: "test-cluster", Host: "127.0.0.1", Port: cfg.routePort},
+		Routes:  cfg.routes,
 	})
 	if err != nil {
 		return nil, err

@@ -36,8 +36,23 @@ type laneConsumeMode string
 const (
 	laneModeFlow     laneConsumeMode = "flow"
 	laneModePull     laneConsumeMode = "pull"
+	laneModePush     laneConsumeMode = "push"
 	laneModeExplicit laneConsumeMode = "explicit"
 )
+
+func hotLaneMode() laneConsumeMode {
+	if env.Get("NATS_HOT_LANE_MODE", string(laneModePull)) == string(laneModePush) {
+		return laneModePush
+	}
+	return laneModePull
+}
+
+func HotLaneConsumerName(group, subject string) string {
+	if hotLaneMode() == laneModePush {
+		return pushConsumerName(group, subject)
+	}
+	return pullConsumerName(group, subject)
+}
 
 func consumeMode() laneConsumeMode {
 	if !FlowConsumeEnabled() {

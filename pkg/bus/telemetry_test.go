@@ -59,18 +59,19 @@ func TestThirdPartyHTTPCarriesNoTraceHeaders(t *testing.T) {
 
 func TestNormalizedDestinationNamesLanes(t *testing.T) {
 	cases := map[string]string{
-		"data.twitch.clip.created":     "data.twitch.clip.created",
-		"data.twitch.clip.deleted":     "data.twitch.clip.other",
-		"data.users.changed":           "data.users.changed",
-		"data.users.removed":           "data.users.other",
-		"twitch.ingress.event.premium": "twitch.ingress.event.premium",
-		"twitch.ingress.event.nope":    "twitch.ingress.event.other",
-		"twitch.outgress.system":       "twitch.outgress.system",
-		"twitch.outgress.nope":         "twitch.outgress.other",
-		"rpc.users.get":                "rpc.users",
-		"rpc.bogus.x":                  "rpc.other",
-		"cache.invalidate.users":       "cache.invalidate",
-		"something.else":               "other",
+		"data.twitch.clip.created":      "data.twitch.clip.created",
+		"data.twitch.clip.deleted":      "data.twitch.clip.other",
+		"data.users.changed":            "data.users.changed",
+		"data.users.removed":            "data.users.other",
+		"twitch.ingress.event.premium":  "twitch.ingress.event.premium",
+		"twitch.ingress.event.standard": "twitch.ingress.event.standard",
+		"twitch.ingress.event.nope":     "twitch.ingress.event.other",
+		"twitch.outgress.system":        "twitch.outgress.system",
+		"twitch.outgress.nope":          "twitch.outgress.other",
+		"rpc.users.get":                 "rpc.users",
+		"rpc.bogus.x":                   "rpc.other",
+		"cache.invalidate.users":        "cache.invalidate",
+		"something.else":                "other",
 	}
 	for subject, want := range cases {
 		assert.Equal(t, want, normalizedDestination(subject), subject)

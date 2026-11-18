@@ -136,6 +136,10 @@ spec:
               value: valkey-local.cache.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
+            - name: NATS_HOT_LANE_MODE
+              value: push
+            - name: NATS_LANE_ALIGN
+              value: "on"
             # The broker's MSG.NEXT grant must land first, or the lane silently drops to zero events.
             - name: NATS_CONSUME_FLOW
               value: "on"
@@ -307,7 +311,7 @@ spec:
         account: BUS
         accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS_PREMIUM
-        consumer: worker_twitch_ingress_event_premium_v2
+        consumer: worker_twitch_ingress_event_premium_v3
         lagThreshold: "5000"
         activationLagThreshold: "10000"
     - type: nats-jetstream
@@ -317,6 +321,6 @@ spec:
         account: BUS
         accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS_STANDARD
-        consumer: worker_twitch_ingress_event_standard_v2
+        consumer: worker_twitch_ingress_event_standard_v3
         lagThreshold: "5000"
         activationLagThreshold: "10000"
