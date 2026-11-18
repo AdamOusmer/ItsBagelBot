@@ -38,5 +38,7 @@
   "inactiveChange": "Évolution sur la période",
   "dormantNow": "En sommeil maintenant",
   "dormantShare": "Part des comptes",
-  "wentDormant": "Mises en sommeil sur la période"
+  "wentDormant": "Mises en sommeil sur la période",
+  "inactiveShare": "Part des comptes",
+  "deletedWindow": "Supprimés sur la période"
 }

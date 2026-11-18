@@ -8,5 +8,6 @@
   "restarted": "Revenus",
   "banned": "Bannis",
   "revoked": "Révoqués",
-  "deleted": "Supprimés"
+  "disabled": "Désactivés",
+  "other": "Autres"
 }

@@ -465,50 +465,50 @@ describe('bot stops and inactive accounts', () => {
   };
   const point = (rec: Record<string, number>) => Object.values(rec).join(':');
 
-  it('counts every stop reason per day against bots turned back on', () => {
+  const LATER = '2026-11-21';
+  const stopPoints = (from: string, values: Record<string, string>) =>
+    daysIn({ from, to: LATER }).map((day) => `${Date.parse(day)}:${values[day] ?? '0:0'}`);
+
+  it('counts stops against comebacks from the day comebacks were recorded', () => {
     const { stops } = flows({
+      end: LATER,
       counters: [
-        life('2026-11-03', 'bot_disabled', 1),
-        life('2026-11-03', 'dormant', 4),
-        life('2026-11-05', 'revoked', 2),
-        life('2026-11-05', 'chat_banned', 1),
-        life('2026-11-07', 'account_deleted', 1),
-        life('2026-11-07', 'bot_enabled', 2),
-        life('2026-11-07', 'woke', 1),
-        life('2026-11-06', 'access_restored', 1),
-        life('2026-11-07', 'signup', 9),
-        life('2026-10-01', 'bot_disabled', 50)
+        life('2026-11-17', 'bot_disabled', 5),
+        life('2026-11-18', 'revoked', 2),
+        life('2026-11-18', 'dormant', 1),
+        life('2026-11-19', 'unbanned', 1),
+        life('2026-11-20', 'bot_enabled', 1),
+        life('2026-11-20', 'woke', 1),
+        life('2026-11-20', 'account_deleted', 1),
+        life('2026-11-20', 'signup', 9)
       ]
     });
     expect({ points: stops.points.map(point), facts: facts(stops.facts) }).toEqual({
-      points: daysIn({ from: '2026-11-03', to: END }).map((day) => {
-        const values: Record<string, string> = { '2026-11-03': '5:0', '2026-11-05': '3:0', '2026-11-06': '0:1', '2026-11-07': '1:3' };
-        return `${Date.parse(day)}:${values[day] ?? '0:0'}`;
-      }),
-      facts: { stopped: '9', restarted: '4', netStops: '-5' }
+      points: stopPoints('2026-11-18', { '2026-11-18': '3:0', '2026-11-19': '0:1', '2026-11-20': '1:2' }),
+      facts: { stopped: '4', restarted: '3', netStops: '-1' }
     });
   });
 
   it('starts the stops chart on the first tracked day', () => {
     const { stops } = flows({
-      counters: [row('2026-11-06', 'chat.messages', [], 10), life('2026-11-07', 'unbanned', 1), life('2026-11-08', 'revoked', 1)]
+      end: LATER,
+      counters: [row('2026-11-19', 'chat.messages', [], 10), life('2026-11-20', 'revoked', 1)]
     });
-    expect(stops.points.map(point)).toEqual(
-      daysIn({ from: '2026-11-06', to: END }).map((day) => `${Date.parse(day)}:${{ '2026-11-07': '0:1', '2026-11-08': '1:0' }[day] ?? '0:0'}`)
-    );
+    expect(stops.points.map(point)).toEqual(stopPoints('2026-11-19', { '2026-11-20': '1:0' }));
   });
 
-  it('charts bans, revoked access and deletions so far on days with a snapshot', () => {
+  it('splits accounts without a running bot on days with a snapshot', () => {
     const { inactive } = flows({
-      counters: [life('2026-10-01', 'account_deleted', 2), life('2026-11-05', 'account_deleted', 3), life(END, 'account_deleted', 1)],
+      counters: [life('2026-11-05', 'account_deleted', 3)],
       levels: [
-        ...snap('2026-11-04', 'accounts.inactive', [['banned', 4], ['revoked', 3]]),
-        ...snap(END, 'accounts.inactive', [['banned', 6], ['revoked', 2]])
+        ...snap('2026-11-04', 'accounts.inactive', [['banned', 4], ['revoked', 3], ['disabled', 2]]),
+        ...snap(END, 'accounts.inactive', [['banned', 6], ['revoked', 2], ['disabled', 5], ['other', 1]]),
+        ...snap(END, 'accounts.total', [['free', 100], ['paid', 16]])
       ]
     });
     expect({ points: inactive.points.map(point), facts: facts(inactive.facts) }).toEqual({
-      points: [`${Date.parse('2026-11-04')}:4:3:2`, `${Date.parse(END)}:6:2:6`],
-      facts: { inactiveNow: '14', inactiveChange: '+5' }
+      points: [`${Date.parse('2026-11-04')}:4:3:2:0`, `${Date.parse(END)}:6:2:5:1`],
+      facts: { inactiveNow: '14', inactiveShare: '12%', inactiveChange: '+5', deletedWindow: '3' }
     });
   });
 
@@ -530,7 +530,7 @@ describe('bot stops and inactive accounts', () => {
   it('leaves every chart empty without rows', () => {
     const { stops, inactive, dormant } = flows({ counters: [], levels: [] });
     expect([stops.points, inactive.points, dormant.points, facts(inactive.facts), facts(dormant.facts)]).toEqual([
-      [], [], [], { inactiveNow: '-', inactiveChange: '-' }, { dormantNow: '-', dormantShare: '-', wentDormant: '0' }
+      [], [], [], { inactiveNow: '-', inactiveShare: '-', inactiveChange: '-', deletedWindow: '0' }, { dormantNow: '-', dormantShare: '-', wentDormant: '0' }
     ]);
   });
 });

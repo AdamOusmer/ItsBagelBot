@@ -8,5 +8,6 @@
   "restarted": "Volvieron",
   "banned": "Baneadas",
   "revoked": "Revocadas",
-  "deleted": "Eliminadas"
+  "disabled": "Apagados",
+  "other": "Otros"
 }

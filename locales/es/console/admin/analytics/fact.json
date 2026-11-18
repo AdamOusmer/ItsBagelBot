@@ -38,5 +38,7 @@
   "inactiveChange": "Cambio en el periodo",
   "dormantNow": "Inactivos ahora",
   "dormantShare": "Parte de las cuentas",
-  "wentDormant": "Pasaron a inactivos en el periodo"
+  "wentDormant": "Pasaron a inactivos en el periodo",
+  "inactiveShare": "Parte de las cuentas",
+  "deletedWindow": "Eliminadas en el periodo"
 }

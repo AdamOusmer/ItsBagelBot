@@ -38,5 +38,7 @@
   "inactiveChange": "Veränderung im Zeitraum",
   "dormantNow": "Jetzt ruhend",
   "dormantShare": "Anteil der Konten",
-  "wentDormant": "Im Zeitraum ruhend geworden"
+  "wentDormant": "Im Zeitraum ruhend geworden",
+  "inactiveShare": "Anteil der Konten",
+  "deletedWindow": "Im Zeitraum gelöscht"
 }

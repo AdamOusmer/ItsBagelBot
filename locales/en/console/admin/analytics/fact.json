@@ -38,5 +38,7 @@
   "inactiveChange": "Change over the window",
   "dormantNow": "Dormant now",
   "dormantShare": "Share of accounts",
-  "wentDormant": "Went dormant in the window"
+  "wentDormant": "Went dormant in the window",
+  "inactiveShare": "Share of accounts",
+  "deletedWindow": "Deleted in the window"
 }

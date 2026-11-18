@@ -53,7 +53,7 @@
   "donations": "Pagamentos brutos do Ko-fi no período por moeda, com a proporção recorrente e o período anterior de mesma duração. Valores antes das taxas do Ko-fi e do processador de pagamento.",
   "donationMonths": "Pagamentos brutos do Ko-fi por mês do calendário nos últimos 12 meses, apenas dias UTC fechados.",
   "donationKinds": "Pagamentos do Ko-fi no período por tipo.",
-  "stops": "Contas cujo bot parou em cada dia, por qualquer motivo, contra contas que voltaram: religadas, com acesso restaurado, desbanidas ou ativas depois de dormentes.",
-  "inactive": "Contas banidas do chat ou com acesso revogado, mais todas as contas excluídas até agora. Hoje atualiza ao vivo.",
+  "stops": "Paradas do bot contra contas que voltaram, contadas desde 18 de nov. de 2026, quando os retornos começaram a ser registrados.",
+  "inactive": "Contas sem bot rodando: banidas do chat, com acesso revogado, desligadas pelo streamer ou outras. Contas excluídas não contam. Hoje atualiza ao vivo.",
   "dormant": "Canais sem atividade há 30 dias. Hoje atualiza ao vivo."
 }
