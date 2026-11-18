@@ -330,7 +330,8 @@ function stepOf(values: Count[]): (value: Count, index: Slot) => Phrase | null {
         };
 }
 
-const isLoss = (row: AnalyticsRow): boolean => row.dims[0] === 'account_deleted';
+const LOST = ['chat_banned', 'revoked', 'account_deleted'];
+const isLoss = (row: AnalyticsRow): boolean => LOST.includes(row.dims[0]);
 
 export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
   const inside = inRange(pick(counters, 'lifecycle'), range);

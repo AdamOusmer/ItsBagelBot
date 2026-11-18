@@ -12,7 +12,7 @@
   "runtime": "Current runtime state of counted accounts.",
   "desktop": "Unrevoked grants with both refresh deadlines still in the future.",
   "signups": "New accounts created on each day of the window.",
-  "gainLoss": "New accounts against deleted accounts on each day.",
+  "gainLoss": "New accounts against accounts banned from chat, with revoked access or deleted on each day.",
   "funnel": "Signups, finished setups and bot enables in the window. Each step counts events in the window, so later steps can include earlier signups.",
   "churn": "Bot disabled, access revoked, chat bans, dormant channels and deleted accounts, summed over the window.",
   "presets": "Setup presets picked during onboarding, summed over the window.",
