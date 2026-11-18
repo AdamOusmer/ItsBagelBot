@@ -20,7 +20,10 @@
     "revoked": "Revoked access",
     "chat_banned": "Banned from chat",
     "dormant": "Went dormant",
-    "account_deleted": "Deleted account"
+    "account_deleted": "Deleted account",
+    "access_restored": "Access restored",
+    "unbanned": "Unbanned",
+    "woke": "Woke from dormancy"
   },
   "billing": {
     "activate": "Plan activated",

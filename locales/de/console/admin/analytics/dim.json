@@ -20,7 +20,10 @@
     "revoked": "Zugriff widerrufen",
     "chat_banned": "Im Chat gebannt",
     "dormant": "Ruhend geworden",
-    "account_deleted": "Konto gelöscht"
+    "account_deleted": "Konto gelöscht",
+    "access_restored": "Zugriff wiederhergestellt",
+    "unbanned": "Entbannt",
+    "woke": "Aus dem Ruhezustand erwacht"
   },
   "billing": {
     "activate": "Tarif aktiviert",

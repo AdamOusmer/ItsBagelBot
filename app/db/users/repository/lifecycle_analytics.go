@@ -23,6 +23,15 @@ var lifecycleEdges = []lifecycleEdge{
 	{event: "dormant", crossed: func(before, after lifecycle.State) bool {
 		return before.RuntimeState != lifecycle.Dormant && after.RuntimeState == lifecycle.Dormant
 	}},
+	{event: "access_restored", crossed: func(before, after lifecycle.State) bool {
+		return before.GrantHealth == lifecycle.GrantMissing && after.GrantHealth == lifecycle.GrantHealthy
+	}},
+	{event: "unbanned", crossed: func(before, after lifecycle.State) bool {
+		return before.ChatRestriction == lifecycle.RestrictionBanned && after.ChatRestriction != lifecycle.RestrictionBanned
+	}},
+	{event: "woke", crossed: func(before, after lifecycle.State) bool {
+		return before.RuntimeState == lifecycle.Dormant && after.RuntimeState != lifecycle.Dormant
+	}},
 }
 
 var migrationActions = map[string]bool{"seed": true, "seed_ack": true, "seed_blocked": true}

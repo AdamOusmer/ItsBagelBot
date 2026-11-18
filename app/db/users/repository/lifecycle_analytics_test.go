@@ -114,25 +114,34 @@ func (h lifecycleAnalyticsHarness) lifecycleCounts(t *testing.T) map[string]int6
 	h.rec.Flush(t.Context())
 	fields, err := pkgvalkey.HashAllInts(t.Context(), h.vc, catalog.CounterKey(h.now))
 	require.NoError(t, err)
-	return map[string]int64{"chat_banned": fields["lifecycle|chat_banned"], "dormant": fields["lifecycle|dormant"]}
+	counts := map[string]int64{}
+	for _, event := range []string{"chat_banned", "dormant", "unbanned", "woke", "access_restored"} {
+		counts[event] = fields["lifecycle|"+event]
+	}
+	return counts
 }
 
-func TestLifecycleAnalyticsCountsCommittedStops(t *testing.T) {
+func TestLifecycleAnalyticsCountsCommittedStopsAndComebacks(t *testing.T) {
 	h := newLifecycleAnalyticsHarness(t)
 	idle := lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, AdmissionGeneration: 1, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, LastEngagedAt: h.now.Add(-lifecycle.DormancyPeriod)}
 	require.NoError(t, h.repo.client.User.UpdateOneID(1001).SetLifecycle(&idle).Exec(t.Context()))
 	for _, tc := range []struct {
 		name, action, event string
+		offset              time.Duration
 		want                map[string]int64
 	}{
-		{name: "dormancy", action: "dormancy", want: map[string]int64{"chat_banned": 0, "dormant": 1}},
-		{name: "dormant again", action: "dormancy", want: map[string]int64{"chat_banned": 0, "dormant": 1}},
-		{name: "ban", action: "ban", event: "ban", want: map[string]int64{"chat_banned": 1, "dormant": 1}},
-		{name: "duplicate ban", action: "ban", event: "ban", want: map[string]int64{"chat_banned": 1, "dormant": 1}},
+		{name: "dormancy", action: "dormancy", want: map[string]int64{"chat_banned": 0, "dormant": 1, "unbanned": 0, "woke": 0, "access_restored": 0}},
+		{name: "dormant again", action: "dormancy", want: map[string]int64{"chat_banned": 0, "dormant": 1, "unbanned": 0, "woke": 0, "access_restored": 0}},
+		{name: "wake", action: "engage", event: "command", want: map[string]int64{"chat_banned": 0, "dormant": 1, "unbanned": 0, "woke": 1, "access_restored": 0}},
+		{name: "ban", action: "ban", event: "ban", offset: time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 0, "woke": 1, "access_restored": 0}},
+		{name: "duplicate ban", action: "ban", event: "ban", offset: time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 0, "woke": 1, "access_restored": 0}},
+		{name: "unban", action: "unban", event: "unban", offset: 2 * time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 1, "woke": 1, "access_restored": 0}},
+		{name: "grant lost", action: "grant_missing", event: "lost", offset: 3 * time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 1, "woke": 1, "access_restored": 0}},
+		{name: "grant restored", action: "grant_restored", event: "restored", offset: 4 * time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 1, "woke": 1, "access_restored": 1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := h.request(t, tc.action)
-			req.Reason, req.EventID, req.ObservedAt = "offline", tc.event, h.now
+			req.Reason, req.EventID, req.ObservedAt = "offline", tc.event, h.now.Add(tc.offset)
 			_, err := h.repo.Lifecycle(t.Context(), req)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, h.lifecycleCounts(t))

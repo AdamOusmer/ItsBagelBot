@@ -20,7 +20,10 @@
     "revoked": "Отозвал доступ",
     "chat_banned": "Забанен в чате",
     "dormant": "Стал спящим",
-    "account_deleted": "Удалил аккаунт"
+    "account_deleted": "Удалил аккаунт",
+    "access_restored": "Доступ восстановлен",
+    "unbanned": "Разбанен",
+    "woke": "Вышел из спячки"
   },
   "billing": {
     "activate": "Тариф активирован",
