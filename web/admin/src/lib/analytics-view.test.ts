@@ -460,8 +460,8 @@ describe('bot stops and inactive accounts', () => {
   const life = (day: string, dim: string, value: number): AnalyticsRow => row(day, 'lifecycle', [dim], value);
   const runtime = (day: string, pairs: [string, number][]) => snap(day, 'accounts.runtime', pairs);
   const flows = (over: Partial<AnalyticsReads>) => {
-    const { stops, inactive } = buildAnalytics(reads({ days: 7, ...over })).growth;
-    return { stops, inactive };
+    const { stops, inactive, dormant } = buildAnalytics(reads({ days: 7, ...over })).growth;
+    return { stops, inactive, dormant };
   };
   const point = (rec: Record<string, number>) => Object.values(rec).join(':');
 
@@ -487,22 +487,40 @@ describe('bot stops and inactive accounts', () => {
     });
   });
 
-  it('charts inactive states only on days with a snapshot', () => {
+  it('charts bans, revoked access and deletions so far on days with a snapshot', () => {
     const { inactive } = flows({
+      counters: [life('2026-10-01', 'account_deleted', 2), life('2026-11-05', 'account_deleted', 3), life(END, 'account_deleted', 1)],
       levels: [
-        ...runtime('2026-11-04', [['active', 80], ['disabled', 5], ['blocked', 3]]),
-        ...runtime(END, [['active', 70], ['disabled', 6], ['dormant', 12], ['blocked', 4], ['degraded', 1]])
+        ...snap('2026-11-04', 'accounts.inactive', [['banned', 4], ['revoked', 3]]),
+        ...snap(END, 'accounts.inactive', [['banned', 6], ['revoked', 2]])
       ]
     });
     expect({ points: inactive.points.map(point), facts: facts(inactive.facts) }).toEqual({
-      points: [`${Date.parse('2026-11-04')}:5:0:3`, `${Date.parse(END)}:6:12:4`],
-      facts: { inactiveNow: '22', inactiveShare: '24%', inactiveChange: '+14' }
+      points: [`${Date.parse('2026-11-04')}:4:3:2`, `${Date.parse(END)}:6:2:6`],
+      facts: { inactiveNow: '14', inactiveChange: '+5' }
     });
   });
 
-  it('leaves both charts empty without rows', () => {
-    const { stops, inactive } = flows({ counters: [], levels: [] });
-    expect([stops.points, inactive.points, facts(inactive.facts)]).toEqual([[], [], { inactiveNow: '0', inactiveShare: '-', inactiveChange: '-' }]);
+  it('keeps dormant channels apart from inactive accounts', () => {
+    const { dormant, inactive } = flows({
+      counters: [life('2026-11-06', 'dormant', 4), life('2026-10-01', 'dormant', 9)],
+      levels: [
+        ...runtime('2026-11-04', [['active', 80], ['dormant', 2]]),
+        ...runtime(END, [['active', 70], ['dormant', 6], ['blocked', 4]])
+      ]
+    });
+    expect({ points: dormant.points.map(point), facts: facts(dormant.facts), inactive: inactive.points }).toEqual({
+      points: [`${Date.parse('2026-11-04')}:2`, `${Date.parse(END)}:6`],
+      facts: { dormantNow: '6', dormantShare: '7.5%', wentDormant: '4' },
+      inactive: []
+    });
+  });
+
+  it('leaves every chart empty without rows', () => {
+    const { stops, inactive, dormant } = flows({ counters: [], levels: [] });
+    expect([stops.points, inactive.points, dormant.points, facts(inactive.facts), facts(dormant.facts)]).toEqual([
+      [], [], [], { inactiveNow: '-', inactiveChange: '-' }, { dormantNow: '-', dormantShare: '-', wentDormant: '0' }
+    ]);
   });
 });
 

@@ -35,6 +35,8 @@
   "restarted": "Turned back on",
   "netStops": "Net",
   "inactiveNow": "Inactive now",
-  "inactiveShare": "Share of accounts",
-  "inactiveChange": "Change over the window"
+  "inactiveChange": "Change over the window",
+  "dormantNow": "Dormant now",
+  "dormantShare": "Share of accounts",
+  "wentDormant": "Went dormant in the window"
 }

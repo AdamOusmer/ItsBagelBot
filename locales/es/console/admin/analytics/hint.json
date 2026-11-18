@@ -54,5 +54,6 @@
   "donationMonths": "Pagos brutos de Ko-fi por mes natural en los últimos 12 meses, solo días UTC cerrados.",
   "donationKinds": "Pagos de Ko-fi en el periodo por tipo.",
   "stops": "Cuentas cuyo bot se detuvo cada día, por cualquier motivo, frente a cuentas que lo volvieron a activar.",
-  "inactive": "Cuentas en cada estado inactivo al final de cada día."
+  "inactive": "Cuentas baneadas del chat o con acceso revocado, más todas las cuentas eliminadas hasta ahora. Hoy se actualiza en vivo.",
+  "dormant": "Canales sin actividad durante 30 días. Hoy se actualiza en vivo."
 }

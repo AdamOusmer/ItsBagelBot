@@ -54,5 +54,6 @@
   "donationMonths": "Ko-fi revenue by month",
   "donationKinds": "Ko-fi payments by type",
   "stops": "Bot stops per day",
-  "inactive": "Inactive accounts per day"
+  "inactive": "Inactive accounts per day",
+  "dormant": "Dormant channels per day"
 }

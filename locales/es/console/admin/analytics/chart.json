@@ -5,5 +5,8 @@
   "lost": "Perdidas",
   "lossDays": "Días con más pérdidas que altas: {days}",
   "stopped": "Detenidos",
-  "restarted": "Reactivados"
+  "restarted": "Reactivados",
+  "banned": "Baneadas",
+  "revoked": "Revocadas",
+  "deleted": "Eliminadas"
 }

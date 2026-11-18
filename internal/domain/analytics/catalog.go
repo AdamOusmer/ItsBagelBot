@@ -92,6 +92,7 @@ const (
 	TimersTotal        Metric = "timers.total"
 	AutomodFlags       Metric = "automod.flags"
 	AccountsRuntime    Metric = "accounts.runtime"
+	AccountsInactive   Metric = "accounts.inactive"
 	GamesRounds        Metric = "games.rounds"
 	GamesEntrants      Metric = "games.entrants"
 	PointsFlows        Metric = "points.flows"
@@ -141,6 +142,7 @@ const (
 	KindRule      Kind = "rule"
 	KindMode      Kind = "mode"
 	KindRuntime   Kind = "runtime"
+	KindInactive  Kind = "inactive"
 	KindGame      Kind = "game"
 	KindEnd       Kind = "end"
 	KindBucket    Kind = "bucket"
@@ -213,6 +215,7 @@ var catalog = map[Metric]Spec{
 	TimersTotal:        {Type: Level, Dims: []Kind{KindOpt}},
 	AutomodFlags:       {Type: Counter, Dims: []Kind{KindRule, KindMode}},
 	AccountsRuntime:    {Type: Level, Dims: []Kind{KindRuntime}},
+	AccountsInactive:   {Type: Level, Dims: []Kind{KindInactive}},
 	GamesRounds:        {Type: Counter, Dims: []Kind{KindGame, KindEnd}},
 	GamesEntrants:      {Type: Counter, Dims: []Kind{KindGame, KindBucket}},
 	PointsFlows:        {Type: Counter, Dims: []Kind{KindFlow}},
@@ -259,6 +262,7 @@ var enums = map[Kind][]string{
 	KindRule:     {"ip_logger", "scam", "phish", "heuristic", "block_term", "lex_hate", "lex_harassment", "lex_sexual", "lex_profanity", "council_campaign", "repeat", "campaign", "shield_mode", "other"},
 	KindMode:     {"shadow", "enforced"},
 	KindRuntime:  {"active", "dormant", "blocked", "disabled", "recovering", "degraded"},
+	KindInactive: {"banned", "revoked"},
 	KindGame:     {"raffle", "mraffle", "duel", "gamble"},
 	KindEnd:      {"drawn", "empty", "cancelled", "declined", "no_show", "won", "lost"},
 	KindBucket:   {"1", "2_4", "5_19", "20_99", "100p"},

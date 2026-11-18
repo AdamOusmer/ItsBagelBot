@@ -54,5 +54,6 @@
   "donationMonths": "Ingresos de Ko-fi por mes",
   "donationKinds": "Pagos de Ko-fi por tipo",
   "stops": "Paradas del bot por día",
-  "inactive": "Cuentas inactivas por día"
+  "inactive": "Cuentas inactivas por día",
+  "dormant": "Canales inactivos por día"
 }

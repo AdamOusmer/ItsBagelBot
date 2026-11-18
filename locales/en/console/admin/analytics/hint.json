@@ -54,5 +54,6 @@
   "donationMonths": "Gross Ko-fi payments per calendar month over the last 12 months, closed UTC days only.",
   "donationKinds": "Ko-fi payments in the window by type.",
   "stops": "Accounts whose bot stopped on each day, for any reason, against accounts that turned it back on.",
-  "inactive": "Accounts in each inactive state at the end of each day."
+  "inactive": "Accounts banned from chat or with revoked access at each moment, plus every deleted account so far. Today updates live.",
+  "dormant": "Channels with no activity for 30 days, at each moment. Today updates live."
 }

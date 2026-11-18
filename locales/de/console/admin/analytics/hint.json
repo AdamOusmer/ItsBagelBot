@@ -54,5 +54,6 @@
   "donationMonths": "Ko-fi-Bruttozahlungen pro Kalendermonat in den letzten 12 Monaten, nur abgeschlossene UTC-Tage.",
   "donationKinds": "Ko-fi-Zahlungen im Zeitraum nach Art.",
   "stops": "Konten, deren Bot an jedem Tag aus irgendeinem Grund gestoppt hat, gegenüber Konten, die ihn wieder eingeschaltet haben.",
-  "inactive": "Konten in jedem inaktiven Zustand am Ende jedes Tages."
+  "inactive": "Konten, die im Chat gebannt sind oder deren Zugriff widerrufen wurde, plus alle bisher gelöschten Konten. Heute wird live aktualisiert.",
+  "dormant": "Kanäle ohne Aktivität seit 30 Tagen. Heute wird live aktualisiert."
 }

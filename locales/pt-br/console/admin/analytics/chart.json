@@ -5,5 +5,8 @@
   "lost": "Perdidas",
   "lossDays": "Dias com mais perdas do que ganhos: {days}",
   "stopped": "Parados",
-  "restarted": "Religados"
+  "restarted": "Religados",
+  "banned": "Banidas",
+  "revoked": "Revogadas",
+  "deleted": "Excluídas"
 }
