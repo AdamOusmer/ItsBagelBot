@@ -41,14 +41,11 @@ func NewStreamInfoRPC(nc *nats.Conn, prefix string) *StreamInfoRPC {
 }
 
 func (s *StreamInfoRPC) Lookup(ctx context.Context, broadcasterID, login string) (StreamInfoResult, error) {
-	return s.rpc.lookup(ctx, streamInfoKey(broadcasterID, login), outgressrpc.StreamInfoRequest{BroadcasterID: broadcasterID, TargetLogin: login})
-}
-
-func streamInfoKey(broadcasterID, login string) string {
-	if broadcasterID != "" {
-		return broadcasterID
+	if login == "" {
+		return s.rpc.lookup(ctx, broadcasterID, outgressrpc.StreamInfoRequest{BroadcasterID: broadcasterID})
 	}
-	return "login:" + login
+	req := outgressrpc.StreamInfoRequest{CallerBroadcasterID: broadcasterID, TargetLogin: login}
+	return s.rpc.lookup(ctx, broadcasterID+"/"+login, req)
 }
 
 func decodeStreamInfo(reply outgressrpc.StreamInfoReply) (StreamInfoResult, time.Duration, string) {
