@@ -425,7 +425,10 @@ accounts:
                         - $JS.ACK.*.*.TWITCH_INGRESS_RETRY.>
                         - $JS.API.CONSUMER.MSG.NEXT.TWITCH_INGRESS_RETRY.>
                         - $JS.FC.TWITCH_INGRESS.>
+                        - $JS.FC.TWITCH_INGRESS_PREMIUM.>
                         - $JS.FC.TWITCH_INGRESS_STANDARD.>
+                        - $JS.API.CONSUMER.LEADER.STEPDOWN.TWITCH_INGRESS_PREMIUM.>
+                        - $JS.API.CONSUMER.LEADER.STEPDOWN.TWITCH_INGRESS_STANDARD.>
                 subscribe:
                     allow:
                         - twitch.ingress.event.premium

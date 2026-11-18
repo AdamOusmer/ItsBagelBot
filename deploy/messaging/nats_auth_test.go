@@ -19,7 +19,11 @@ const jetStreamAPI = "$JS.API."
 var streamMutationPattern = regexp.MustCompile(`^\$JS\.API\.STREAM\.(CREATE|UPDATE|DELETE|LEADER\.STEPDOWN)\.`)
 
 var flowControlStreams = map[string][]string{
-	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_STANDARD"},
+}
+
+var stepdownStreams = map[string][]string{
+	"worker_bus": {"TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_STANDARD"},
 }
 
 var pullFetchStreams = map[string][]string{
@@ -41,18 +45,20 @@ type streamGrants struct {
 	flowControl     []string
 	pullFetch       []string
 	paused          []string
+	stepdown        []string
 }
 
 func expectedJetStreamSubjects(grants streamGrants) []string {
 	set := make(map[string]struct{})
-	for _, stream := range grants.flowControl {
-		set["$JS.FC."+stream+".>"] = struct{}{}
-	}
-	for _, stream := range grants.pullFetch {
-		set[jetStreamAPI+"CONSUMER.MSG.NEXT."+stream+".>"] = struct{}{}
-	}
-	for _, stream := range grants.paused {
-		set[jetStreamAPI+"CONSUMER.PAUSE."+stream+".>"] = struct{}{}
+	for prefix, streams := range map[string][]string{
+		"$JS.FC.":                                  grants.flowControl,
+		jetStreamAPI + "CONSUMER.MSG.NEXT.":        grants.pullFetch,
+		jetStreamAPI + "CONSUMER.PAUSE.":           grants.paused,
+		jetStreamAPI + "CONSUMER.LEADER.STEPDOWN.": grants.stepdown,
+	} {
+		for _, stream := range streams {
+			set[prefix+stream+".>"] = struct{}{}
+		}
 	}
 	for _, stream := range grants.consumerStreams {
 		for _, subject := range []string{
@@ -135,6 +141,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				flowControl:     flowControlStreams[user],
 				pullFetch:       pullFetchStreams[user],
 				paused:          pausedConsumerStreams[user],
+				stepdown:        stepdownStreams[user],
 			}), coordinationSubjects(user)...)
 			slices.Sort(want)
 
