@@ -180,7 +180,7 @@ spec:
             - name: INGRESS_PUBLISH_BATCH_SIZE
               value: "256"
             - name: INGRESS_PUBLISH_BATCH_WAIT_MS
-              value: "4"
+              value: "0"
             - name: INGRESS_PUBLISH_WIRE
               value: "atomic"
             - name: INGRESS_PUBLISH_BATCH_INFLIGHT
