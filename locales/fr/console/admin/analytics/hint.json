@@ -53,7 +53,7 @@
   "donations": "Paiements Ko-fi bruts sur la période par devise, avec la part récurrente et la période précédente de même durée. Montants avant les frais de Ko-fi et du prestataire de paiement.",
   "donationMonths": "Paiements Ko-fi bruts par mois civil sur les 12 derniers mois, jours UTC clos uniquement.",
   "donationKinds": "Paiements Ko-fi sur la période par type.",
-  "stops": "Comptes dont le bot s’est arrêté chaque jour, pour toute raison, face aux comptes qui l’ont réactivé.",
+  "stops": "Comptes dont le bot s’est arrêté chaque jour, pour toute raison, face aux comptes revenus : réactivés, accès rétabli, débannis ou sortis du sommeil.",
   "inactive": "Comptes bannis du chat ou dont l’accès a été révoqué, plus tous les comptes supprimés à ce jour. Aujourd’hui se met à jour en direct.",
   "dormant": "Chaînes sans activité depuis 30 jours. Aujourd’hui se met à jour en direct."
 }

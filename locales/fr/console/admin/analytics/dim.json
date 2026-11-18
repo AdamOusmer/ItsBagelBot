@@ -20,7 +20,10 @@
     "revoked": "Accès révoqué",
     "chat_banned": "Banni du chat",
     "dormant": "Mis en sommeil",
-    "account_deleted": "Compte supprimé"
+    "account_deleted": "Compte supprimé",
+    "access_restored": "Accès rétabli",
+    "unbanned": "Débanni",
+    "woke": "Sorti du sommeil"
   },
   "billing": {
     "activate": "Offre activée",

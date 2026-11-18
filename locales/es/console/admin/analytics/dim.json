@@ -20,7 +20,10 @@
     "revoked": "Revocó el acceso",
     "chat_banned": "Bloqueado en el chat",
     "dormant": "Pasó a inactivo",
-    "account_deleted": "Eliminó la cuenta"
+    "account_deleted": "Eliminó la cuenta",
+    "access_restored": "Acceso restaurado",
+    "unbanned": "Desbaneado",
+    "woke": "Volvió de la inactividad"
   },
   "billing": {
     "activate": "Plan activado",
