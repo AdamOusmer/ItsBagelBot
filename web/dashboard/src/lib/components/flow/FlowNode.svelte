@@ -101,7 +101,11 @@
         <div class="title-row">
           <span class="title">{title}</span>
         </div>
-        <span class="line">{line}</span>
+        {#if isTrigger}
+          <span class="line trigger-line bb-fit-box"><bb-fit mode="block" data-fit>{line}</bb-fit></span>
+        {:else}
+          <span class="line">{line}</span>
+        {/if}
       </div>
     </div>
 
@@ -192,6 +196,10 @@
     font-size: 14px;
     line-height: 18px;
     color: rgba(var(--bb-white-rgb), 0.92);
+  }
+  .trigger-line {
+    display: block;
+    height: 36px;
   }
   .off-tag {
     position: absolute;

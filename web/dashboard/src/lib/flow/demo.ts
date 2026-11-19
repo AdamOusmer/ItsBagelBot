@@ -304,6 +304,8 @@ const DEMO_RUNS: RunRecord[] = [
   }
 ];
 
+export const demoRun = () => ({ ok: true });
+
 export function demoRuns(automationId?: string): RunRecord[] {
   return DEMO_RUNS.filter((run) => !automationId || run.automation_id === automationId);
 }

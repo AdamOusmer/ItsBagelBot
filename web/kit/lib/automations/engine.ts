@@ -43,7 +43,9 @@ const REQUIRED_TRIGGER: Partial<Record<StepType, RequiredTrigger>> = {
   unban_resolve: 'unban_request',
 };
 
-const VIEWERLESS_TRIGGERS = new Set(['countdown:', 'timer:', 'event:stream.online', 'event:stream.offline']);
+const VIEWERLESS_TRIGGERS = new Set([
+  'countdown:', 'timer:', 'event:stream.online', 'event:stream.offline', 'event:channel.ad_break.begin', 'event:channel.update'
+]);
 const POINTS_ACTIONS: ReadonlySet<StepType> = new Set(['points_add', 'points_set']);
 export const POINTS_ACTION_SCHEMA: Schema = { ...TARGET_SCHEMA, amount: 'int' };
 

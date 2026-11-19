@@ -11,6 +11,7 @@ import type { ChoiceList } from '#lib/flow/choices';
 import { effectiveId } from '#lib/server/board';
 import { lookupTwitchUser } from '#lib/server/identity-heal';
 import { counterChoices, manageableRewardChoices, namedCooldownChoices, namedCountdownChoices, recipeChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
+import { runAutomation } from '#lib/server/automations-actions';
 import { listRuns } from '#lib/server/automations-store';
 import { parseFlowRouteId, type FlowRef } from '#lib/flow/ref';
 import { signedInAction } from '#lib/server/action-context';
@@ -23,6 +24,7 @@ import { broadcasterPremium, gateModulePage } from '#lib/server/module-gate';
 
 const DEMO = dev && env.DEMO === '1';
 const recipeAction = signedInAction((session) => gateModulePage(session, MOD.automations), DEMO);
+const RUN_REFUSAL_STATUS = new Map([['invalid', 400], ['forbidden', 403], ['not_found', 404]]);
 
 export type GoveeLights = { keyPresent: boolean; devices: GoveeDevice[]; code?: 'key_rejected' | 'unreachable' };
 
@@ -105,6 +107,13 @@ async function runsFor(locals: App.Locals, id: string) {
   return listRuns(effectiveId(locals.session), id);
 }
 
+async function runSavedRecipe(locals: App.Locals, form: FormData) {
+  const result = await runAutomation(effectiveId(locals.session), form, locals).catch(() => null);
+  if (typeof result === 'string') return { ok: true };
+  const code = result && 'code' in result.data ? String(result.data.code ?? 'failed') : 'failed';
+  return fail(RUN_REFUSAL_STATUS.get(code) ?? 502, { ok: false, code });
+}
+
 export const actions: Actions = {
   runs: async ({ request, locals }) => {
     if (!(await broadcasterPremium(locals))) return fail(403, { ok: false });
@@ -122,6 +131,14 @@ export const actions: Actions = {
     const lowered = lowerSaveRequest(String((await request.formData()).get('payload') ?? ''));
     if (!lowered.ok) return lowered.reply;
     return DEMO ? (await import('#lib/flow/demo')).demoSave(lowered.lowered) : liveSave(locals, lowered.lowered);
+  },
+  run: async ({ request, locals }) => {
+    const denied = await flowDenial(locals);
+    if (denied) return fail(403, { ok: false, code: 'forbidden', error: denied.error });
+    const form = await request.formData();
+    const name = form.get('name');
+    if (typeof name !== 'string' || !name.trim()) return fail(400, { ok: false, code: 'invalid' });
+    return DEMO ? (await import('#lib/flow/demo')).demoRun() : runSavedRecipe(locals, form);
   },
   reward: async ({ request, locals }) => {
     const denied = await flowDenial(locals);

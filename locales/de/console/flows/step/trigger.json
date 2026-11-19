@@ -1,22 +1,42 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Jemand tippt {trigger} im Chat",
+      "aliasOne": "Jemand tippt {trigger} oder 1 anderen Befehlsnamen im Chat",
+      "aliasMany": "Jemand tippt {trigger} oder {count} andere Befehlsnamen im Chat"
+    },
     "label": "Chat-Befehl",
     "summary": "Jemand gibt einen Befehl im Chat ein",
     "field": {
       "trigger": {
         "label": "Befehl",
         "placeholder": "!hug"
-      }
+      },
+      "aliases": { "label": "Weitere Namen", "placeholder": "!cuddle, !squeeze" },
+      "match": {
+        "label": "Übereinstimmung",
+        "option": { "start": "Am Nachrichtenanfang", "exact": "Ganze Nachricht" }
+      },
+      "caseSensitive": { "label": "Groß- und Kleinschreibung beachten" },
+      "subMessages": { "label": "Auch in Resub-Nachrichten" }
     }
   },
   "chatWord": {
+    "line": "Jemand sagt {word} im Chat",
     "label": "Chat-Wort",
     "summary": "Jemand schreibt ein Wort im Chat",
     "field": {
       "word": {
         "label": "Wort",
-        "placeholder": "bagel"
-      }
+        "placeholder": "bagel",
+        "pattern": { "label": "Muster", "placeholder": "\\bbagel(s)?\\b" }
+      },
+      "match": {
+        "label": "Übereinstimmung",
+        "option": { "word": "Ganzes Wort", "anywhere": "An beliebiger Stelle", "pattern": "Muster" }
+      },
+      "caseSensitive": { "label": "Groß- und Kleinschreibung beachten" },
+      "subMessages": { "label": "Auch in Resub-Nachrichten" }
     }
   },
   "follow": {
@@ -25,30 +45,66 @@
   },
   "sub": {
     "label": "Abo",
-    "summary": "Neues Abo, Resub oder Gift",
+    "summary": "Jemand schließt ein Abo ab oder verlängert es",
+    "line": {
+      "any": "Jemand erhält ein neues oder geschenktes Abo",
+      "new": "Jemand schließt zum ersten Mal ein Abo ab",
+      "gifted": "Jemand erhält ein Abo als Geschenk",
+      "resub": "Jemand verlängert ein Abo",
+      "gift": "Jemand verschenkt ein Abo"
+    },
+    "withTier": "{line} ({tier})",
     "field": {
       "variant": {
         "label": "Art",
         "option": {
-          "any": "Neues oder geschenktes Abo",
-          "new": "Neu",
+          "any": "Neu oder geschenkt",
+          "new": "Neu, bezahlt",
           "resub": "Resub",
-          "gift": "Gift"
+          "gifted": "Als Geschenk erhalten"
         }
+      },
+      "tier": {
+        "label": "Abo-Stufe",
+        "option": { "1000": "Stufe 1", "2000": "Stufe 2", "3000": "Stufe 3", "any": "Beliebige Stufe" }
+      },
+      "minMonths": { "label": "Mindestanzahl Monate", "unit": "Monate" },
+      "minStreak": { "label": "Aufeinanderfolgende Monate, mindestens", "unit": "Monate" }
+    }
+  },
+  "subGift": {
+    "line": "Jemand verschenkt {minGifts}+ Abos",
+    "label": "Geschenk-Abos",
+    "summary": "Jemand verschenkt Abos an die Community",
+    "field": {
+      "minGifts": { "label": "Mindestanzahl Geschenk-Abos", "unit": "Abos" },
+      "tier": {
+        "label": "Abo-Stufe",
+        "option": { "1000": "Stufe 1", "2000": "Stufe 2", "3000": "Stufe 3", "any": "Beliebige Stufe" }
+      },
+      "gifter": {
+        "label": "Schenkende Person",
+        "option": { "anyone": "Alle", "named": "Nur mit Namen", "anonymous": "Nur anonym" }
       }
     }
   },
   "cheer": {
+    "line": "Jemand cheert {minBits} Bits oder mehr",
     "label": "Cheer",
     "summary": "Bits werden gecheert",
     "field": {
       "minBits": {
         "label": "Mindest-Bits",
         "unit": "Bits"
+      },
+      "cheerer": {
+        "label": "Cheerende Person",
+        "option": { "anyone": "Alle", "named": "Nur mit Namen", "anonymous": "Nur anonym" }
       }
     }
   },
   "raid": {
+    "line": "Raid mit {minViewers}+ Zuschauern",
     "label": "Raid",
     "summary": "Ein anderer Kanal raidet dich",
     "field": {
@@ -80,6 +136,44 @@
         "label": "Countdown"
       }
     }
+  },
+  "adBreak": {
+    "line": {
+      "start": "Ein Werbeblock beginnt",
+      "minimum": "Ein Werbeblock von mindestens {length} beginnt"
+    },
+    "label": "Werbepause beginnt",
+    "summary": "In deinem Stream beginnt eine Werbepause",
+    "field": {
+      "startedBy": {
+        "label": "Ausgelöst durch",
+        "option": { "any": "Beliebig", "automatic": "Automatisch", "manual": "Manuell" }
+      },
+      "minLength": { "label": "Mindestdauer", "range": "Wähle eine Dauer von 30 Sekunden bis 3 Minuten." }
+    }
+  },
+  "channelUpdate": {
+    "line": "Die Kategorie wechselt zu {category}",
+    "label": "Titel oder Kategorie ändert sich",
+    "summary": "Der Titel oder die Kategorie deines Streams ändert sich",
+    "field": {
+      "category": { "label": "Kategorie", "placeholder": "Just Chatting", "hint": "Leer lassen, um jede Kategorie zu berücksichtigen." }
+    }
+  },
+  "timer": {
+    "line": "Alle {amount}",
+    "label": "Alle paar Minuten",
+    "summary": "Wird in regelmäßigen Abständen ausgeführt",
+    "field": {
+      "every": { "label": "Alle", "range": "Wähle einen Abstand von 1 Minute bis 24 Stunden." },
+      "jitter": { "label": "Zufällige Zusatzzeit", "range": "Wähle eine Dauer von 0 Sekunden bis 1 Stunde." },
+      "chatLines": { "label": "Chatnachrichten seit der letzten Ausführung", "hint": "Bei 0 läuft das Rezept unabhängig von der Chataktivität." },
+      "offline": { "label": "Auch offline ausführen" }
+    }
+  },
+  "manual": {
+    "label": "Manuell ausführen",
+    "summary": "Startet über „Jetzt ausführen“ oder über ein anderes Tool mit dem Namen dieses Rezepts"
   },
   "unbanRequest": {
     "label": "Entbannungsantrag",

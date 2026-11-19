@@ -88,9 +88,18 @@ test.each([
   expect([result.issue?.text.toLowerCase().includes(text.toLowerCase()), result.issue?.node, result.steps]).toEqual([true, node, []]);
 });
 
-test.each<{ type: Kind; config: FlowNode['config']; field: string; initial: string | number; expected: string | number; text: string }>([
+type InputValue = string | number | boolean;
+
+test.each<{ type: Kind; config: FlowNode['config']; field: string; initial: InputValue; expected: InputValue; text: string }>([
   { type: 'twitch.cheer', config: { minBits: 1000 }, field: 'bits', initial: 500, expected: 1000, text: '500 is below 1000 bits' },
   { type: 'twitch.raid', config: { minViewers: 100 }, field: 'viewers', initial: 42, expected: 100, text: '42 is below 100 viewers' },
+  { type: 'twitch.sub', config: { variant: 'resub', minMonths: 12 }, field: 'months', initial: 6, expected: 12, text: '6 is below 12 Months' },
+  { type: 'twitch.sub', config: { variant: 'resub', minStreak: 4 }, field: 'streak', initial: 2, expected: 4, text: '2 is below 4 Streak' },
+  { type: 'twitch.sub_gift', config: { minGifts: 10, tier: '2000', gifter: 'anonymous' }, field: 'giftCount', initial: 3, expected: 10, text: '3 is below 10 Gifted subs' },
+  { type: 'twitch.ad_break', config: { minLength: 120 }, field: 'seconds', initial: 90, expected: 120, text: '90 is below 120 seconds' },
+  { type: 'twitch.ad_break', config: { startedBy: 'automatic' }, field: 'automatic', initial: false, expected: true, text: 'Automatic is false, needs true' },
+  { type: 'twitch.channel_update', config: { category: 'Chess' }, field: 'category', initial: 'Music', expected: 'Chess', text: 'Category is Music, needs Chess' },
+  { type: 'schedule.timer', config: { every: 900 }, field: 'live', initial: false, expected: true, text: 'Skipped while the stream is offline' },
   { type: 'twitch.chat.command', config: { trigger: '!test' }, field: 'message', initial: 'hello', expected: '!test @Lotti good luck', text: 'does not match !test' }
 ])('would not start: $type, then accepts the explicit repair', ({ type, config, field, initial, expected, text }) => {
   const flow = flowOf([n('t', type, config), say], [e('t', 'next', 's')]);
@@ -99,17 +108,28 @@ test.each<{ type: Kind; config: FlowNode['config']; field: string; initial: stri
   expect([before.starts, before.blocked?.includes(text), before.startPatch, after.steps.at(-1)?.id]).toEqual([false, true, { [field]: expected }, 's']);
 });
 
+test('gift subs starts with a matching scenario and resolves the gift tokens', () => {
+  const root = n('t', 'twitch.sub_gift', { minGifts: 10, tier: '2000', gifter: 'named' });
+  const reply = n('s', 'reply.chat', { message: '{user} gave {count} Tier {tier} subs ({total} total)' });
+  const result = run(flowOf([root, reply], [e('t', 'next', 's')]));
+  expect({ starts: result.starts, lines: result.steps.at(-1)?.lines, fields: result.fields.map(({ key }) => key) }).toEqual({
+    starts: true, lines: ['PrincessBarney gave 10 Tier 2000 subs (20 total)'], fields: ['user', 'userId', 'tier', 'giftCount', 'total', 'anonymous', 'live']
+  });
+});
+
 test.each([
   { name: 'role', config: n('c', 'cond.role', { level: 'mod' }), patch: { role: 'mod' } },
   { name: 'viewer ID', config: n('c', 'cond.user', { userId: '42', login: 'Lotti' }), patch: { userId: '42', user: 'Lotti' } },
-  { name: 'compare input', config: n('c', 'cond.compare', { left: '{user.id}', op: 'eq', right: '42' }), patch: { userId: '42' } }
-])('make it pass changes the $name input', ({ config, patch }) => {
-  const flow = flowOf([trigger, config, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
+  { name: 'compare input', config: n('c', 'cond.compare', { left: '{user.id}', op: 'eq', right: '42' }), patch: { userId: '42' } },
+  { name: 'gift amount', root: n('t', 'twitch.sub_gift', { minGifts: 3 }),
+    config: n('c', 'cond.compare', { left: '{event.amount}', op: 'gte', right: '8' }), patch: { giftCount: 8 } }
+])('make it pass changes the $name input', ({ root = trigger, config, patch }) => {
+  const flow = flowOf([root, config, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const before = run(flow);
-  expect([before.starts, before.state, before.stoppedAt]).toEqual([true, 'stopped', 'c']);
   const repair = before.steps.find((step) => step.id === 'c')?.repair;
   const after = run(flow, { scenario: repair });
-  expect([repair, before.steps.some((step) => step.id === 's'), after.steps.at(-1)?.id]).toEqual([patch, false, 's']);
+  expect([before.starts, before.state, before.stoppedAt, repair, before.steps.some((step) => step.id === 's'), after.steps.at(-1)?.id])
+    .toEqual([true, 'stopped', 'c', patch, false, 's']);
 });
 
 test.each([
@@ -155,8 +175,11 @@ test('stored input is shared with checks and chat in the executor', () => {
 test.each([
   { type: 'twitch.raid', scenario: { user: 'Ana', viewers: 1 }, summary: 'Ana raids with 1 viewer' },
   { type: 'twitch.raid', scenario: { user: 'Ana', viewers: 42 }, summary: 'Ana raids with 42 viewers' },
-  { type: 'twitch.cheer', scenario: { user: 'Ana', bits: 1 }, summary: 'Ana cheers 1 bit' },
-  { type: 'twitch.cheer', scenario: { user: 'Ana', bits: 0 }, summary: 'Ana cheers 0 bits' }
+  { type: 'twitch.cheer', scenario: { user: 'Ana', bits: 1, message: '' }, summary: 'Ana cheers 1 bit' },
+  { type: 'twitch.cheer', scenario: { user: 'Ana', bits: 0 }, summary: 'Ana cheers 0 bits: GG!' },
+  { type: 'twitch.ad_break', scenario: { automatic: true, seconds: 120 }, summary: 'An automatic ad break starts (2m)' },
+  { type: 'twitch.channel_update', scenario: { title: 'Speedrun', category: 'Minecraft' }, summary: 'Stream updated to Speedrun in Minecraft' },
+  { type: 'schedule.manual', scenario: { args: 'one two' }, summary: 'You run the recipe by hand: one two' }
 ])('scenario summary counts in words: $summary', ({ type, scenario, summary }) => {
   expect(run(flowOf([n('t', type)], []), { scenario }).summary).toBe(summary);
 });
@@ -176,7 +199,7 @@ test('loop events have unique keys for repeated canvas nodes', () => {
 
 test.each([
   { name: 'an event cannot acquire a moderator role', trigger: n('t', 'twitch.follow'), check: n('c', 'cond.role', { level: 'mod' }) },
-  { name: 'a compare cannot replace the command itself', trigger, check: n('c', 'cond.compare', { left: '{message}', op: 'eq', right: 'different' }) }
+  { name: 'a compare cannot replace the command itself', trigger, check: n('c', 'cond.compare', { left: '{args}', op: 'eq', right: 'different' }) }
 ])('repairs remain truthful: $name', ({ trigger, check }) => {
   const flow = flowOf([trigger, check, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const result = run(flow);
@@ -195,7 +218,7 @@ test.each([
   expect([step?.status, step?.missing, step?.note]).toEqual(['no', [...missing], `5 ${reason} ${right || 'an empty value'}.`]);
 });
 
-test.each(['twitch.chat.command', 'twitch.chat.word', 'twitch.follow', 'twitch.sub', 'twitch.cheer', 'twitch.raid', 'twitch.reward', 'twitch.stream.online'])(
+test.each(['twitch.chat.command', 'twitch.chat.word', 'twitch.follow', 'twitch.sub', 'twitch.sub_gift', 'twitch.cheer', 'twitch.raid', 'twitch.reward', 'twitch.stream.online'])(
   '%s explains when viewer roles are unavailable', (type) => {
     const check = n('c', 'cond.role', { level: 'mod' });
     const root = n('t', type, { trigger: '!test', word: 'hello', reward: 'reward' });

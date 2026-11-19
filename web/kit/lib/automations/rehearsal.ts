@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { MAX_RESPONSE_LINES } from '../importer/validate';
+import { eventTokensToBuilder } from './flow-graph';
 import { MAX_ACTIONS, MAX_DELAY_MS, MAX_LOOP_TIMES } from './limits';
 import { applyAction, createState, evaluateCondition, expandTemplate, messageTarget } from './rehearsal-state';
 import { matchTrigger, scenarioArgs, scenarioEvent, scenarioIdentity } from './rehearsal-scenario';
@@ -33,10 +34,9 @@ function contextFor(definition: Definition, scenario: RehearsalScenario, overrid
   const args = scenarioArgs(definition, scenario);
   const kinds: Record<string, string> = { reward: 'channel.channel_points_custom_reward_redemption.add', countdown: 'countdown.finished' };
   const kind = kinds[definition.trigger.type] ?? String(definition.trigger.params?.kind ?? '');
-  const event = scenarioEvent(scenario, kind);
   const values: Record<string, string> = {
     args, command: String(definition.trigger.params?.name ?? ''),
-    ...Object.fromEntries(Object.entries(event).map(([key, value]) => [`event.${key}`, value])),
+    ...eventValues(scenario, kind),
     ...scenario.values
   };
   addViewerValues(values, scenario, args);
@@ -44,6 +44,19 @@ function contextFor(definition: Definition, scenario: RehearsalScenario, overrid
     scenario: { ...scenario, args, values }, hasChatMessage: definition.trigger.type === 'command',
     state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0, formatDuration
   };
+}
+
+const STREAM_ONLINE_TOKENS: Readonly<Record<string, string>> = { title: 'title', category: 'game' };
+
+function eventValues(scenario: RehearsalScenario, kind: Path): Record<string, string> {
+  const event = scenarioEvent(scenario, kind);
+  const entries = Object.entries(event).flatMap(([key, value]) => {
+    const token = `event.${key}`;
+    const bare = kind === 'stream.online' ? STREAM_ONLINE_TOKENS[key] ?? token : eventTokensToBuilder(kind, `{${token}}`).slice(1, -1);
+    const pair = [token, value] as const;
+    return bare === token ? [pair] : [pair, [bare, value] as const];
+  });
+  return Object.fromEntries(entries);
 }
 
 function addViewerValues(values: Record<string, string>, scenario: RehearsalScenario, args: Path): void {

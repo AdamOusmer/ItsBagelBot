@@ -1,22 +1,42 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Alguien escribe {trigger} en el chat",
+      "aliasOne": "Alguien escribe {trigger} u otro nombre en el chat",
+      "aliasMany": "Alguien escribe {trigger} u otros {count} nombres en el chat"
+    },
     "label": "Comando de chat",
     "summary": "Alguien escribe un comando en el chat",
     "field": {
       "trigger": {
         "label": "Comando",
         "placeholder": "!hug"
-      }
+      },
+      "aliases": { "label": "Otros nombres", "placeholder": "!cuddle, !squeeze" },
+      "match": {
+        "label": "Coincidencia",
+        "option": { "start": "Al inicio del mensaje", "exact": "Mensaje completo" }
+      },
+      "caseSensitive": { "label": "Distinguir mayúsculas y minúsculas" },
+      "subMessages": { "label": "También en mensajes de renovación" }
     }
   },
   "chatWord": {
+    "line": "Alguien dice {word} en el chat",
     "label": "Palabra de chat",
     "summary": "Alguien dice una palabra en el chat",
     "field": {
       "word": {
         "label": "Palabra",
-        "placeholder": "bagel"
-      }
+        "placeholder": "bagel",
+        "pattern": { "label": "Patrón", "placeholder": "\\bbagel(s)?\\b" }
+      },
+      "match": {
+        "label": "Coincidencia",
+        "option": { "word": "Palabra completa", "anywhere": "En cualquier parte", "pattern": "Patrón" }
+      },
+      "caseSensitive": { "label": "Distinguir mayúsculas y minúsculas" },
+      "subMessages": { "label": "También en mensajes de renovación" }
     }
   },
   "follow": {
@@ -25,30 +45,66 @@
   },
   "sub": {
     "label": "Suscripción",
-    "summary": "Nueva suscripción, resub o regalo",
+    "summary": "Alguien se suscribe o renueva su suscripción",
+    "line": {
+      "any": "Alguien obtiene una suscripción nueva o regalada",
+      "new": "Alguien se suscribe por primera vez",
+      "gifted": "Alguien recibe una suscripción de regalo",
+      "resub": "Alguien renueva su suscripción",
+      "gift": "Alguien regala una suscripción"
+    },
+    "withTier": "{line} ({tier})",
     "field": {
       "variant": {
         "label": "Tipo",
         "option": {
-          "any": "Sub nueva o regalada",
-          "new": "Nueva",
-          "resub": "Resub",
-          "gift": "Regalo"
+          "any": "Nueva o regalada",
+          "new": "Nueva, de pago",
+          "resub": "Renovación",
+          "gifted": "Recibida como regalo"
         }
+      },
+      "tier": {
+        "label": "Nivel",
+        "option": { "1000": "Nivel 1", "2000": "Nivel 2", "3000": "Nivel 3", "any": "Cualquier nivel" }
+      },
+      "minMonths": { "label": "Mínimo de meses", "unit": "meses" },
+      "minStreak": { "label": "Mínimo de meses consecutivos", "unit": "meses" }
+    }
+  },
+  "subGift": {
+    "line": "Alguien regala {minGifts}+ suscripciones",
+    "label": "Regalos de suscripciones",
+    "summary": "Alguien regala suscripciones a la comunidad",
+    "field": {
+      "minGifts": { "label": "Mínimo de suscripciones regaladas", "unit": "subs" },
+      "tier": {
+        "label": "Nivel",
+        "option": { "1000": "Nivel 1", "2000": "Nivel 2", "3000": "Nivel 3", "any": "Cualquier nivel" }
+      },
+      "gifter": {
+        "label": "Quién regala",
+        "option": { "anyone": "Cualquiera", "named": "Solo con nombre", "anonymous": "Solo de forma anónima" }
       }
     }
   },
   "cheer": {
+    "line": "Alguien envía un cheer de {minBits} bits o más",
     "label": "Cheer",
     "summary": "Se hace un cheer con bits",
     "field": {
       "minBits": {
         "label": "Mínimo de bits",
         "unit": "bits"
+      },
+      "cheerer": {
+        "label": "Quién envía bits",
+        "option": { "anyone": "Cualquiera", "named": "Solo con nombre", "anonymous": "Solo de forma anónima" }
       }
     }
   },
   "raid": {
+    "line": "Raid con {minViewers}+ espectadores",
     "label": "Raid",
     "summary": "Otro canal te hace raid",
     "field": {
@@ -80,6 +136,44 @@
         "label": "Cuenta atrás"
       }
     }
+  },
+  "adBreak": {
+    "line": {
+      "start": "Empieza una pausa publicitaria",
+      "minimum": "Empieza una pausa publicitaria de al menos {length}"
+    },
+    "label": "Empieza una pausa publicitaria",
+    "summary": "Comienza una pausa publicitaria en tu directo",
+    "field": {
+      "startedBy": {
+        "label": "Iniciada por",
+        "option": { "any": "Cualquiera", "automatic": "Automática", "manual": "Manual" }
+      },
+      "minLength": { "label": "Duración mínima", "range": "Usa un valor entre 30 segundos y 3 minutos." }
+    }
+  },
+  "channelUpdate": {
+    "line": "La categoría cambia a {category}",
+    "label": "Cambia el título o la categoría",
+    "summary": "Cambia el título o la categoría de tu directo",
+    "field": {
+      "category": { "label": "Categoría", "placeholder": "Just Chatting", "hint": "Déjalo en blanco para aceptar cualquier categoría." }
+    }
+  },
+  "timer": {
+    "line": "Cada {amount}",
+    "label": "Cada pocos minutos",
+    "summary": "Se ejecuta a intervalos regulares",
+    "field": {
+      "every": { "label": "Cada", "range": "Usa un valor entre 1 minuto y 24 horas." },
+      "jitter": { "label": "Tiempo extra aleatorio", "range": "Usa un valor entre 0 segundos y 1 hora." },
+      "chatLines": { "label": "Mensajes de chat desde la última ejecución", "hint": "Usa 0 para ejecutar la receta con cualquier nivel de actividad en el chat." },
+      "offline": { "label": "También sin directo" }
+    }
+  },
+  "manual": {
+    "label": "Ejecutar a mano",
+    "summary": "Se ejecuta desde el botón Ejecutar ahora o desde otra herramienta con el nombre de esta receta"
   },
   "unbanRequest": {
     "label": "Solicitud de desbloqueo",

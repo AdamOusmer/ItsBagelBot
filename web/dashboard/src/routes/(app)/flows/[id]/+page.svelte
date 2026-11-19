@@ -83,6 +83,8 @@
   let ref = $state(untrack(() => data.ref));
   let revision = $state(untrack(() => data.revision));
   let saving = $state(false);
+  let running = $state(false);
+  let runsRevision = $state(0);
   let staleLatest = $state<string | null>(null);
   let upgrade = $state<UpgradeReport | null>(null);
   let leaving = false;
@@ -156,10 +158,10 @@
     overrides = { ...overrides, [key]: value };
   }
 
-  const triggerKind = $derived.by(() => {
-    const trigger = rehearsalDraft.flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
-    return `${trigger?.type}:${trigger?.config.variant ?? ''}`;
-  });
+  const trigger = $derived(rehearsalDraft.flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger'));
+  const triggerKind = $derived(`${trigger?.type}:${trigger?.config.variant ?? ''}`);
+  const isManual = $derived(trigger?.type === 'schedule.manual');
+  const canRun = $derived(isManual && ref?.layer === 'automation' && !dirty && !saving);
 
   $effect(() => {
     if (triggerKind) untrack(() => { scenario = scenarioPatches(rehearsal.fields, scenario); });
@@ -616,6 +618,30 @@
     else refused(reply);
   }
 
+  type RunFailure = { ok: false; code: string; error?: string };
+
+  function runError(reply: RunFailure | null) {
+    if (reply?.error) return reply.error;
+    if (reply?.code === 'not_found') return t('flows.board.runMissing');
+    if (reply?.code === 'forbidden') return t('flows.board.runForbidden');
+    return t('flows.board.runFailed');
+  }
+
+  async function runNow() {
+    if (!canRun || running) return;
+    running = true;
+    const body = new FormData();
+    body.set('name', flow.name);
+    const reply = await postAction<{ ok: true } | RunFailure>('run', body);
+    running = false;
+    if (!reply?.ok) {
+      toast('danger', runError(reply), { ttlMs: 9000 });
+      return;
+    }
+    toast('success', t('flows.board.runStarted'), { ttlMs: sheetMode ? 2000 : undefined });
+    if (recipeOpen) runsRevision++;
+  }
+
   async function refuseUntilSetUp(step: string) {
     flow.enabled = true;
     await tick();
@@ -721,6 +747,11 @@
   <span class="live-hint bb-fit-box" class:invisible={Boolean(ref)} aria-hidden={Boolean(ref)}><bb-fit>{t(flow.enabled ? 'flows.clarity.liveOnSave' : 'flows.clarity.staysOff')}</bb-fit></span>
   </div>
   <Button class="run-button" variant="ghost" aria-label={t('flows.board.testRun')} onclick={testRun}><Icon name="play" size={14} /> <span class="run-text bb-fit-box"><bb-fit>{t('flows.board.testRun')}</bb-fit></span></Button>
+  <div class="manual-run" class:invisible={!isManual} inert={!isManual}>
+    <Button class="run-button" variant="ghost" aria-label={t('flows.board.runNow')} disabled={!canRun} busy={running} onclick={runNow}>
+      <Icon name="send" size={14} /> <span class="run-text bb-fit-box"><bb-fit data-fit>{t('flows.board.runNow')}</bb-fit></span>
+    </Button>
+  </div>
   <Button class="save-button" variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}><bb-fit>{t('flows.page.save')}</bb-fit></Button>
 {/snippet}
 
@@ -770,7 +801,9 @@
     </div>
   {:else if recipeOpen}
     {#await loadRecipe() then { default: RecipePanel }}
-      <RecipePanel bind:flow {ref} onclose={() => closeRecipe(true)} />
+      {#key runsRevision}
+        <RecipePanel bind:flow {ref} onclose={() => closeRecipe(true)} />
+      {/key}
     {/await}
   {/if}
   </div>
@@ -931,6 +964,7 @@
   }
   .live-control { position: relative; display: flex; align-items: center; flex: none; }
   .live-hint { position: absolute; top: calc(100% + 8px); right: -8px; box-sizing: border-box; width: 144px; height: 22px; padding: 4px 8px; border-radius: var(--bb-radius-xs); background: var(--bb-bg-1); font-size: 11px; line-height: 14px; white-space: nowrap; color: var(--bb-muted-light); pointer-events: none; transition: opacity var(--bb-dur-fast); }
+  .manual-run { display: flex; flex: none; transition: opacity var(--bb-dur-fast), visibility var(--bb-dur-fast); }
   .invisible { visibility: hidden; opacity: 0; }
   .run-text { display: block; width: 72px; white-space: nowrap; }
   :global(.run-button) { width: 124px; --btn-pad: 0 10px; }

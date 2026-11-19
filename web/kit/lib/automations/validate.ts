@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { Chk } from './check';
-import { decodeStrict, type Schema } from './decode';
+import { decodeStrict, parseJSONForDecode, type Schema } from './decode';
 import {
   actionRegistry,
   actions,
@@ -174,15 +174,15 @@ export function validateDefinition(def: unknown): Issue[] {
 
 export function parseDefinition(raw: string): { definition?: Definition; issues: Issue[] } {
   if (byteLength(raw) > MAX_DEFINITION_BYTES) return { issues: [{ path: '', code: CODE.tooLong }] };
-  let parsed: unknown;
+  let parsed: ReturnType<typeof parseJSONForDecode>;
   try {
-    parsed = JSON.parse(raw);
+    parsed = parseJSONForDecode(raw);
   } catch {
     return { issues: [{ path: '', code: CODE.invalidJson }] };
   }
-  const issues = validateDefinition(parsed);
+  const issues = validateDefinition(parsed.value);
   const decodeFailed = issues.length === 1 && issues[0].path === '' && isDecodeCode(issues[0].code);
-  return decodeFailed ? { issues } : { definition: parsed as Definition, issues };
+  return decodeFailed ? { issues } : { definition: parsed.original() as Definition, issues };
 }
 
 function isDecodeCode(code: string): boolean {

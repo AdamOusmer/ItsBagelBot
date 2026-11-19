@@ -32,5 +32,20 @@
   { "pattern": "(?=a)b", "want": false },
   { "pattern": "(a)\\1", "want": false },
   { "pattern": "(unclosed", "want": false },
-  { "pattern": "(?i)^!hi (?P<who>\\w+)$", "want": true }
+  { "pattern": "(?i)^!hi (?P<who>\\w+)$", "want": true },
+  { "pattern": "a\\p{bogus}", "want": false },
+  { "pattern": "[\\P{MadeUp}]", "want": false },
+  { "pattern": "\\pX", "want": false },
+  { "pattern": "\\p{}", "want": false },
+  { "pattern": "\\p{L", "want": false },
+  { "pattern": "\\p", "want": false },
+  { "pattern": "\\p{White_Space}", "want": false },
+  { "pattern": "\\p{Grek}", "want": false },
+  { "pattern": "\\pL\\p{Lu}\\P{Any}", "want": true },
+  { "pattern": "[\\p{Greek}\\p{Latin}\\p{^Han}]", "want": true },
+  { "pattern": "[\\p{Old-Italic}\\p{lowercase letter}\\p{ASCII}\\p{Assigned}]", "want": true },
+  { "pattern": "\\p{L}{1000}", "want": true },
+  { "pattern": "\\p{L}{1001}", "want": false },
+  { "pattern": "\\\\p{bogus}", "want": true },
+  { "pattern": "\\Q\\p{bogus}\\E", "want": true }
 ]

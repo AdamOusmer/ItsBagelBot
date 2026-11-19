@@ -275,6 +275,26 @@
     ]
   },
   {
+    "kind": "channel.update",
+    "fields": [
+      {
+        "name": "title",
+        "path": "title",
+        "numeric": false
+      },
+      {
+        "name": "category",
+        "path": "category_name",
+        "numeric": false
+      },
+      {
+        "name": "category_id",
+        "path": "category_id",
+        "numeric": false
+      }
+    ]
+  },
+  {
     "kind": "stream.offline",
     "fields": []
   },

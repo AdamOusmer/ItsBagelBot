@@ -18,16 +18,20 @@ const PARAM_FIELDS: Record<string, string> = {
   scene_id: 'scene', scene_name: 'scene', scene_type: 'scene', scene_instance: 'scene', scene_value: 'scene',
   global_s: 'seconds', user_s: 'seconds', ms: 'seconds', allow: 'login', allow_ids: 'login', userId: 'login', user_id: 'login',
   enabled: 'setEnabled', reset_on_stream_end: 'reset', automation_id: 'automationId',
-  kelvin: 'kelvin', brightness: 'brightness', hold_s: 'holdS'
+  kelvin: 'kelvin', brightness: 'brightness', hold_s: 'holdS', case_sensitive: 'caseSensitive', sources: 'subMessages'
 };
 
 const NODE_FIELDS: Record<string, Record<string, string>> = {
-  'twitch.chat.command': { name: 'trigger', aliases: 'trigger' },
+  'twitch.chat.command': { name: 'trigger' },
   'twitch.chat.word': { name: 'word' },
-  'twitch.sub': { kind: 'variant', filters: 'variant' },
-  'twitch.cheer': { filters: 'minBits' },
+  'twitch.sub': { kind: 'variant', filters: 'variant', 'filters.tier': 'tier', 'filters.months': 'minMonths', 'filters.streak': 'minStreak' },
+  'twitch.sub_gift': { filters: 'minGifts', 'filters.tier': 'tier', 'filters.anonymous': 'gifter' },
+  'twitch.cheer': { filters: 'minBits', 'filters.anonymous': 'cheerer' },
   'twitch.raid': { filters: 'minViewers' },
   'twitch.reward': { title: 'reward', cost: 'reward', color: 'reward', cooldown_s: 'reward', on_redeem: 'reward', input_required: 'reward' },
+  'twitch.ad_break': { filters: 'minLength', 'filters.automatic': 'startedBy', 'filters.seconds': 'minLength' },
+  'twitch.channel_update': { filters: 'category', 'filters.category': 'category' },
+  'schedule.timer': { interval_s: 'every', random_jitter_s: 'jitter', min_chat_lines: 'chatLines', offline_ok: 'offline' },
   'reply.chat': { text: 'message', thread: 'reply' },
   'reply.poll': { points_per_vote: 'pointsPerVote' },
   'reply.prediction_end': { winner: 'outcome' },
@@ -39,8 +43,9 @@ const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'seconds', 
 function fieldKeyFor(node: FlowNode, path: IssuePath): FieldKey | undefined {
   const configPath = path.replace(/^(?:params|config)(?:\.|$)/, '');
   if (node.type === 'reply.random') return randomField(configPath);
-  const param = configPath.split(/[.\[]/)[0];
-  const key = param ? parameterField(node, param) : WHOLE_NODE_FIELDS[node.type];
+  const [param, child] = configPath.split(/[.\[]/);
+  const filterKey = param === 'filters' ? NODE_FIELDS[node.type]?.[`filters.${child}`] : undefined;
+  const key = filterKey ?? (param ? parameterField(node, param) : WHOLE_NODE_FIELDS[node.type]);
   return specFor(node.type)?.fields.some((field) => field.key === key) ? key : undefined;
 }
 
@@ -89,6 +94,7 @@ function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: Flo
 
 const TYPES: Record<string, string> = {
   'twitch.chat.command': 'command', 'twitch.chat.word': 'command', 'twitch.reward': 'reward', 'countdown.finished': 'countdown',
+  'schedule.timer': 'timer', 'schedule.manual': 'manual',
   'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.counter': 'counter_add', 'reply.wait': 'delay'
 };
 

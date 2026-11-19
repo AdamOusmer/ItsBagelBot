@@ -26,6 +26,10 @@ const missing = (text: string | undefined) => text === undefined || text.startsW
 test.each([
   ['twitch.chat.command', false],
   ['countdown.finished', false],
+  ['schedule.timer', false],
+  ['schedule.manual', false],
+  ['twitch.ad_break', true],
+  ['twitch.channel_update', true],
   ['twitch.reward', true],
   ['twitch.raid', true]
 ])('%s warns only when the trigger has no role', (type, warns) => {
@@ -92,6 +96,17 @@ describe('step copy', () => {
   });
 
   test.each([
+    { match: 'word', label: 'Word', placeholder: 'bagel' },
+    { match: 'anywhere', label: 'Word', placeholder: 'bagel' },
+    { match: 'pattern', label: 'Pattern', placeholder: '\\bbagel(s)?\\b' }
+  ])('chat word shows the field copy for $match', ({ match, label, placeholder }) => {
+    const spec = specFor('twitch.chat.word')!;
+    const field = spec.fields[0]!;
+    const node = { config: { match } };
+    expect([fieldLabel(english, spec, field, node), fieldPlaceholder(english, spec, field, node)]).toEqual([label, placeholder]);
+  });
+
+  test.each([
     { type: 'reply.chat', fieldKey: 'message', code: 'required', expected: 'Message is missing.' },
     { type: 'twitch.chat.command', fieldKey: 'trigger', code: 'required', expected: 'Command is missing.' },
     { type: 'reply.chat', fieldKey: 'unknown', code: 'required', expected: 'A value is missing.' },
@@ -111,6 +126,7 @@ describe('step copy', () => {
       groupLabel(english, spec.group),
       ...spec.fields.flatMap((field) => [
         fieldLabel(english, spec, field),
+        ...(field.type === 'duration' ? [durationRange(english, spec, field)] : []),
         fieldPlaceholder(english, spec, field),
         fieldUnit(english, spec, field),
         ...fieldOptions(english, spec, field).map((option) => option.label)

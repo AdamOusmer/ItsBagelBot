@@ -150,6 +150,32 @@ test.each([
   expect(searchSteps((key) => staticText(locale, key), query)[0]?.type).toBe(type);
 });
 
+test.each([
+  ['en', 'prefix', 'twitch.chat.command'],
+  ['en', 'keyword', 'twitch.chat.word'],
+  ['en', 'follower', 'twitch.follow'],
+  ['en', 'subscriber', 'twitch.sub'],
+  ['en', 'bundle', 'twitch.sub_gift'],
+  ['en', 'donation', 'twitch.cheer'],
+  ['en', 'incoming', 'twitch.raid'],
+  ['en', 'redemption', 'twitch.reward'],
+  ['en', 'broadcast', 'twitch.stream.online'],
+  ['en', 'offline', 'twitch.stream.offline'],
+  ['en', 'appeal', 'twitch.unban_request'],
+  ['en', 'zero', 'countdown.finished'],
+  ['en', 'minutes', 'schedule.timer'],
+  ['en', 'invoke', 'schedule.manual'],
+  ['en', 'commercial', 'twitch.ad_break'],
+  ['en', 'rename', 'twitch.channel_update'],
+  ['de', 'werbespot', 'twitch.ad_break'],
+  ['es', 'renombrar', 'twitch.channel_update'],
+  ['fr', 'minutes', 'schedule.timer'],
+  ['pt-br', 'renomear', 'twitch.channel_update'],
+  ['ru', 'расписание', 'schedule.timer']
+])('%s trigger search finds %s for %s', (locale, query, type) => {
+  expect(searchSteps((key) => staticText(locale, key), query, ['trigger']).map((spec) => spec.type)).toContain(type);
+});
+
 test('missing keywords and field labels become empty instead of searchable raw keys', () => {
   const translate: Translate = (key) => key;
   expect(stepKeywords(translate, specFor('reply.chat')!)).toBe('');
@@ -159,9 +185,7 @@ test('missing keywords and field labels become empty instead of searchable raw k
 
 test.each([
   ['cond.compare', { left: '42', right: '10' }, '42 is at least 10'],
-  ['cond.compare', { left: '42', right: '10', op: 'lt' }, '42 is less than 10'],
-  ['twitch.sub', { variant: 'any' }, 'Someone gets a new or gifted sub'],
-  ['twitch.sub', {}, 'Someone gets a new or gifted sub']
+  ['cond.compare', { left: '42', right: '10', op: 'lt' }, '42 is less than 10']
 ] satisfies [string, FlowNode['config'], string][])('%s describes displayed defaults truthfully: %j', (type, config, expected) => {
   expect(describe(english, { id: 'step', type, config, x: 0, y: 0 })).toBe(expected);
 });

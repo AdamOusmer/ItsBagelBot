@@ -25,6 +25,7 @@ const LIGHT: Config = { device: 'AA:BB:CC:DD:EE:FF:00:11', sku: 'H6008', deviceN
 
 const TEXT: Record<string, string> = {
   trigger: '!hug',
+  aliases: '!cuddle',
   choices: 'One\nTwo',
   outcomes: 'Yes\nNo',
   word: 'bagel',

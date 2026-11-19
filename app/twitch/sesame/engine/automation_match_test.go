@@ -296,32 +296,40 @@ func TestProcessAutomationSubMessageSource(t *testing.T) {
 func TestProcessAutomationEventTriggers(t *testing.T) {
 	cheer := `{"user_id":"7","user_login":"bob","user_name":"Bob","bits":150,"message":"hello"}`
 	redeem := `{"user_id":"7","user_login":"bob","user_name":"Bob","reward":{"id":"r-1","title":"Hydrate","cost":100}}`
+	update := `{"broadcaster_user_id":"123","title":"Cozy stream","category_name":"Just Chatting","category_id":"509658","language":"en"}`
 	cases := []struct {
-		name  string
-		typ   string
-		event string
-		trig  string
-		param map[string]any
-		want  []string
+		name    string
+		typ     string
+		event   string
+		trig    string
+		param   map[string]any
+		actions []automation.Action
+		want    []string
 	}{
-		{"kind match", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer"}, []string{"t:ok"}},
-		{"other kind", "channel.follow", cheer, "event", map[string]any{"kind": "channel.cheer"}, nil},
-		{"numeric filter met", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "100"}}, []string{"t:ok"}},
-		{"numeric filter exact", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "150"}}, []string{"t:ok"}},
-		{"numeric filter unmet", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "151"}}, nil},
-		{"string filter folds case", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"login": "BOB"}}, []string{"t:ok"}},
-		{"string filter unmet", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"login": "alice"}}, nil},
-		{"reward id", "channel.channel_points_custom_reward_redemption.add", redeem, "reward", map[string]any{"reward_id": "r-1"}, []string{"t:ok"}},
-		{"reward other id", "channel.channel_points_custom_reward_redemption.add", redeem, "reward", map[string]any{"reward_id": "r-2"}, nil},
-		{"reward ignores other events", "channel.cheer", cheer, "reward", map[string]any{"reward_id": "r-1"}, nil},
-		{"timer never matches", "channel.cheer", cheer, "timer", map[string]any{"interval_s": 60}, nil},
-		{"manual never matches", "channel.cheer", cheer, "manual", map[string]any{}, nil},
+		{"kind match", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer"}, nil, []string{"t:ok"}},
+		{"other kind", "channel.follow", cheer, "event", map[string]any{"kind": "channel.cheer"}, nil, nil},
+		{"numeric filter met", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "100"}}, nil, []string{"t:ok"}},
+		{"numeric filter exact", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "150"}}, nil, []string{"t:ok"}},
+		{"numeric filter unmet", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "151"}}, nil, nil},
+		{"string filter folds case", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"login": "BOB"}}, nil, []string{"t:ok"}},
+		{"string filter unmet", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"login": "alice"}}, nil, nil},
+		{"channel update fields", "channel.update", update, "event", map[string]any{"kind": "channel.update", "filters": map[string]string{"category": "Just Chatting"}},
+			[]automation.Action{act("chat", obj{"text": "{event.title} in {event.category}"})},
+			[]string{"t:ok", `chat {"broadcaster_id":"123","message":"Cozy stream in Just Chatting"}`}},
+		{"reward id", "channel.channel_points_custom_reward_redemption.add", redeem, "reward", map[string]any{"reward_id": "r-1"}, nil, []string{"t:ok"}},
+		{"reward other id", "channel.channel_points_custom_reward_redemption.add", redeem, "reward", map[string]any{"reward_id": "r-2"}, nil, nil},
+		{"reward ignores other events", "channel.cheer", cheer, "reward", map[string]any{"reward_id": "r-1"}, nil, nil},
+		{"timer never matches", "channel.cheer", cheer, "timer", map[string]any{"interval_s": 60}, nil, nil},
+		{"manual never matches", "channel.cheer", cheer, "manual", map[string]any{}, nil, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p, runs := autoRig{automations: []automation.Automation{testAutomation("t", tc.trig, tc.param)}}.pipeline()
+			a := testAutomation("t", tc.trig, tc.param)
+			a.Definition.Actions = tc.actions
+			fx := &autoFixture{pub: &fakePublisher{}}
+			p, runs := autoRig{automations: []automation.Automation{a}, pub: fx.pub}.pipeline()
 			process(t, p, eventEnv(tc.typ, tc.event))
-			assert.Equal(t, tc.want, runs.summary())
+			assert.Equal(t, tc.want, append(runs.summary(), fx.described(t)...))
 		})
 	}
 }

@@ -33,22 +33,57 @@ const subscriptions = [
   { variant: undefined, tokens: ['{user}', '{user.id}', '{tier}'], event: 'channel.subscribe', text: '{user} {user.id} {event.tier}' },
   { variant: 'any', tokens: ['{user}', '{user.id}', '{tier}'], event: 'channel.subscribe', text: '{user} {user.id} {event.tier}' },
   { variant: 'new', tokens: ['{user}', '{user.id}', '{tier}'], event: 'channel.subscribe', text: '{user} {user.id} {event.tier}' },
-  { variant: 'resub', tokens: ['{user}', '{user.id}', '{tier}', '{months}'], event: 'channel.subscription.message', text: '{user} {user.id} {event.tier} {event.months}' },
-  { variant: 'gift', tokens: ['{user}', '{user.id}', '{tier}', '{count}'], event: 'channel.subscription.gift', text: '{user} {user.id} {event.tier} {event.amount}' }
+  { variant: 'resub', tokens: ['{user}', '{user.id}', '{tier}', '{months}', '{streak}', '{message}'], event: 'channel.subscription.message', text: '{user} {user.id} {event.tier} {event.months} {event.streak} {event.message}' },
+  { variant: 'gift', tokens: ['{user}', '{user.id}', '{tier}', '{count}', '{total}'], event: 'channel.subscription.gift', text: '{user} {user.id} {event.tier} {event.amount} {event.total}' }
 ];
 
-test.each(subscriptions)('subscription $variant offers only tokens that save', ({ variant, tokens, event, text }) => {
-  const flow = newFlow('Subscriptions');
-  const root = addNode(flow, 'twitch.sub', { x: 0, y: 0 });
-  root.config = variant === undefined ? {} : { variant };
+type TriggerVariables = { type: FlowNode['type']; config?: FlowNode['config']; tokens: string[]; tier?: string; event?: string; text: string };
+
+const triggerVariables: TriggerVariables[] = [
+  ...subscriptions.map(({ variant, ...entry }) => {
+    const config: FlowNode['config'] = variant === undefined ? {} : { variant };
+    return { ...entry, type: 'twitch.sub', config, tier: '1000' };
+  }),
+  {
+    type: 'twitch.sub_gift', event: 'channel.subscription.gift', tier: '1000',
+    tokens: ['{user}', '{user.id}', '{tier}', '{count}', '{total}'], text: '{user} {user.id} {event.tier} {event.amount} {event.total}'
+  },
+  {
+    type: 'twitch.cheer', event: 'channel.cheer',
+    tokens: ['{user}', '{user.id}', '{bits}', '{message}'], text: '{user} {user.id} {event.amount} {event.message}'
+  },
+  {
+    type: 'twitch.reward', config: { reward: 'reward-1' },
+    tokens: ['{user}', '{user.id}', '{input}', '{reward}', '{cost}'], text: '{user} {user.id} {event.input} {event.reward} {event.cost}'
+  },
+  {
+    type: 'twitch.unban_request', event: 'channel.unban_request.create',
+    tokens: ['{user}', '{user.id}', '{text}', '{event.id}'], text: '{user} {user.id} {event.text} {event.id}'
+  },
+  { type: 'twitch.channel_update', event: 'channel.update', tokens: ['{title}', '{game}'], text: '{event.title} {event.category}' },
+  { type: 'twitch.ad_break', event: 'channel.ad_break.begin', tokens: ['{seconds}'], text: '{event.seconds}' },
+  { type: 'schedule.manual', tokens: ['{args}'], text: '{args}' },
+  { type: 'schedule.timer', tokens: [], text: 'Hello' },
+  { type: 'twitch.chat.word', config: { word: 'bagel' }, tokens: ['{user}', '{user.id}', '{args}'], text: '{user} {user.id} {args}' }
+];
+
+test.each(triggerVariables)('$type $config offers tokens that save', ({ type, config, tokens, tier, event, text }) => {
+  const flow = newFlow('Trigger variables');
+  const root = addNode(flow, type, { x: 0, y: 0 });
+  if (config) root.config = config;
   const wait = addNode(flow, 'reply.wait', { x: 0, y: 0 }, { from: root.id, port: 'next' });
   const chat = addNode(flow, 'reply.chat', { x: 0, y: 0 }, { from: wait.id, port: 'next' });
-  expect(variablesFor(flow, chat.id).map((variable) => variable.token)).toEqual(tokens);
-  chat.config.message = tokens.join(' ');
+  const variables = variablesFor(flow, chat.id);
+  chat.config.message = tokens.join(' ') || 'Hello';
   const result = flowToDefinition(flow);
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
-  expect({ trigger: result.value.trigger.params?.kind, chat: result.value.actions?.[1].params?.text }).toEqual({ trigger: event, chat: text });
-  expect(validateDefinition(result.value)).toEqual([]);
+  expect({
+    tokens: variables.map((variable) => variable.token),
+    tier: variables.find((variable) => variable.token === '{tier}')?.sample,
+    trigger: result.value.trigger.params?.kind,
+    chat: result.value.actions![1]!.params!.text,
+    issues: validateDefinition(result.value)
+  }).toEqual({ tokens, tier, trigger: event, chat: text, issues: [] });
 });
 
 test('changing subscription variant refreshes the available tokens', () => {

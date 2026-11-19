@@ -23,13 +23,6 @@ const ROLES: Readonly<Record<string, MessageKey>> = Object.freeze({
   broadcaster: 'flows.line.roleBroadcaster'
 });
 
-const SUBS: Readonly<Record<string, MessageKey>> = Object.freeze({
-  any: 'flows.line.subAny',
-  new: 'flows.line.subNew',
-  resub: 'flows.line.subResub',
-  gift: 'flows.line.subGift'
-});
-
 const text = (node: FlowNode, key: string) => {
   const v = node.config[key];
   return v === false ? '' : configText(node, key).trim();
@@ -47,8 +40,6 @@ const points = (t: Translate, count: number) => (count === 1 ? t('flows.line.poi
 const given = <T>(value: T, make: (value: T) => string): string => (value ? make(value) : '');
 
 const roleLine = (t: Translate, level: string): string => (Object.hasOwn(ROLES, level) ? t(ROLES[level]!) : '');
-
-const subLine = (t: Translate, variant: string): string => (Object.hasOwn(SUBS, variant) ? t(SUBS[variant]!) : '');
 
 type SelectField = Extract<FieldSpec, { type: 'select' }>;
 
@@ -71,23 +62,38 @@ export function optionLabel(t: Translate, spec: NodeSpec, node: FlowNode, key: s
   return namedLabel(node, field, value) ?? (field.type === 'select' ? selectLabel(t, spec, field, value) : value);
 }
 
-function triggerLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
-  switch (n.type) {
-    case 'twitch.chat.command':
-      return given(text(n, 'trigger'), (trigger) => t('flows.line.command', { trigger }));
-    case 'twitch.chat.word':
-      return given(text(n, 'word'), (word) => t('flows.line.word', { word }));
-    case 'twitch.sub':
-      return subLine(t, text(n, 'variant') || 'any');
-    case 'twitch.cheer':
-      return given(num(n, 'minBits'), (bits) => t('flows.line.cheer', { bits }));
-    case 'twitch.raid':
-      return given(num(n, 'minViewers'), (viewers) => t('flows.line.raid', { viewers }));
-    case 'twitch.reward':
-      return given(optionLabel(t, spec, n, 'reward'), (reward) => t('flows.line.reward', { reward }));
-    default:
-      return '';
-  }
+function commandLine(t: Translate, node: FlowNode): string {
+  const trigger = text(node, 'trigger');
+  if (!trigger) return '';
+  const aliases = text(node, 'aliases');
+  const imported = text(node, 'importedAliases').split('\n');
+  const count = (aliases === imported.join(', ') ? imported : aliases.split(',')).filter((alias) => alias.trim()).length;
+  if (count === 1) return t('flows.step.trigger.chatCommand.line.aliasOne', { trigger });
+  if (count > 1) return t('flows.step.trigger.chatCommand.line.aliasMany', { trigger, count });
+  return t('flows.step.trigger.chatCommand.line.start', { trigger });
+}
+
+function subLine(t: Translate, node: FlowNode, spec: NodeSpec): string {
+  const variant = text(node, 'variant') || 'any';
+  const line = t(`flows.step.trigger.sub.line.${variant}` as MessageKey);
+  if (line === `flows.step.trigger.sub.line.${variant}`) return '';
+  const tier = text(node, 'tier');
+  if (!tier || tier === 'any') return line;
+  return t('flows.step.trigger.sub.withTier', { line, tier: optionLabel(t, spec, node, 'tier') });
+}
+
+function triggerLine(t: Translate, node: FlowNode, spec: NodeSpec): string {
+  const lines: Readonly<Record<string, () => string>> = {
+    'twitch.chat.command': () => commandLine(t, node),
+    'twitch.sub': () => subLine(t, node, spec),
+    'twitch.reward': () => given(optionLabel(t, spec, node, 'reward'), (reward) => t('flows.line.reward', { reward })),
+    'twitch.ad_break': () => {
+      const length = num(node, 'minLength');
+      return length ? t('flows.step.trigger.adBreak.line.minimum', { length: durationFormatter(t)(length) }) : t('flows.step.trigger.adBreak.line.start');
+    },
+    'schedule.timer': () => given(num(node, 'every'), (count) => t('flows.step.trigger.timer.line', { amount: cooldownAmount(t, count) }))
+  };
+  return lines[node.type]?.() ?? specLine(t, node, spec) ?? '';
 }
 
 function compareLine(t: Translate, n: FlowNode): string {
@@ -256,7 +262,7 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
 
 function lineFor(t: Translate, node: FlowNode, spec: NodeSpec): string {
   if (spec.kind === 'trigger') return triggerLine(t, node, spec);
-  return spec.kind === 'condition' ? conditionLine(t, node) : replyLine(t, node, spec);
+  return specLine(t, node, spec) ?? (spec.kind === 'condition' ? conditionLine(t, node) : replyLine(t, node, spec));
 }
 
 type ConfigValue = FlowNode['config'][string] | undefined;
@@ -290,6 +296,7 @@ function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): s
   if (!text(node, configKey)) return '';
   if (node.type === 'reply.chat_mode' && key === 'wait') return `${num(node, key)} ${t('flows.test.duration.second')}`;
   if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
+  if (spec.kind === 'trigger' && field?.type === 'number') return given(num(node, key), String);
   return optionLabel(t, spec, node, configKey);
 }
 
@@ -337,5 +344,5 @@ export function describe(t: Translate, node: FlowNode): string {
   const spec = specFor(node.type);
   if (!spec) return '';
   if (awaitingSetup(node)) return t('flows.setup.line');
-  return (specLine(t, node, spec) ?? lineFor(t, node, spec)) || stepSummary(t, spec);
+  return lineFor(t, node, spec) || stepSummary(t, spec);
 }
