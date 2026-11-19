@@ -16,13 +16,15 @@ export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined
   return knowsRole ? undefined : t('flows.step.condition.role.warning');
 }
 
-export function stepKeywords(t: Translate, spec: NodeSpec): string {
-  const key = `flows.step.${spec.kind}.${spec.slug}.keywords` as MessageKey;
+function searchLabel(t: Translate, key: MessageKey): string {
   const translated = t(key);
   return translated === key ? '' : translated;
 }
 
-export const groupLabel = (t: Translate, group: StepGroup): string => t(`flows.board.group.${group}` as MessageKey);
+export const stepKeywords = (t: Translate, spec: NodeSpec): string =>
+  searchLabel(t, `flows.step.${spec.kind}.${spec.slug}.keywords` as MessageKey);
+
+export const groupLabel = (t: Translate, group: StepGroup): string => t(`flows.board.group.${group}`);
 
 export const fieldLabel = (t: Translate, spec: NodeSpec, field: FieldSpec): string =>
   t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.label` as MessageKey);
@@ -61,6 +63,14 @@ export const optionText = (t: Translate, spec: NodeSpec, field: FieldSpec, value
 export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { value: string; label: string }[] {
   if (field.type !== 'select') return [];
   return field.options.map((value) => ({ value, label: optionText(t, spec, field, value) }));
+}
+
+export function fieldSearchText(t: Translate, spec: NodeSpec): string {
+  const translate: Translate = (key) => searchLabel(t, key);
+  return spec.fields.flatMap((field) => [
+    fieldLabel(translate, spec, field),
+    ...fieldOptions(translate, spec, field).map(({ label }) => label)
+  ]).filter(Boolean).join(' ');
 }
 
 export const outputLabel = (t: Translate, spec: NodeSpec, id: string): string =>

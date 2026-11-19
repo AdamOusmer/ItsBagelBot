@@ -10,10 +10,10 @@
         "trim": "Leerzeichen entfernen",
         "length": "Zeichen zählen",
         "replace": "Ersetzen",
-        "substring": "Teil herausschneiden",
+        "substring": "Teilzeichenfolge extrahieren",
         "split_pick": "Trennen und eins auswählen",
         "contains": "Prüfen, ob es enthalten ist",
-        "url_encode": "Für Links sicher machen"
+        "url_encode": "Für URLs kodieren"
       }
     },
     "input": {

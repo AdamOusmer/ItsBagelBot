@@ -38,9 +38,14 @@
   "closeLibrary": "Fechar biblioteca",
   "noStepsMatchSearch": "Nenhuma etapa corresponde a essa busca.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Módulos",
-    "basics": "Básicos"
+    "chat": "Chat",
+    "community": "Comunidade",
+    "moderation": "Moderação",
+    "stream": "Transmissão",
+    "loyalty": "Fidelidade",
+    "timers": "Temporizadores",
+    "lights": "Luzes",
+    "logic": "Fluxo e dados"
   },
   "kind": {
     "trigger": "Gatilho",

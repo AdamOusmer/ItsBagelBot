@@ -38,9 +38,14 @@
   "closeLibrary": "Close library",
   "noStepsMatchSearch": "No steps match that search.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Modules",
-    "basics": "Basics"
+    "chat": "Chat",
+    "community": "Community",
+    "moderation": "Moderation",
+    "stream": "Stream",
+    "loyalty": "Loyalty",
+    "timers": "Timers",
+    "lights": "Lights",
+    "logic": "Flow and data"
   },
   "kind": {
     "trigger": "Trigger",

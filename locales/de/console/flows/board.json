@@ -38,9 +38,14 @@
   "closeLibrary": "Bibliothek schließen",
   "noStepsMatchSearch": "Keine Schritte passen zu dieser Suche.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Module",
-    "basics": "Grundlagen"
+    "chat": "Chat",
+    "community": "Community",
+    "moderation": "Moderation",
+    "stream": "Stream",
+    "loyalty": "Treueprogramm",
+    "timers": "Timer",
+    "lights": "Beleuchtung",
+    "logic": "Ablauf und Daten"
   },
   "kind": {
     "trigger": "Auslöser",

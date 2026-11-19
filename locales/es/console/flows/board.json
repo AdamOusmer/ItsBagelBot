@@ -38,9 +38,14 @@
   "closeLibrary": "Cerrar biblioteca",
   "noStepsMatchSearch": "Ningún paso coincide con esa búsqueda.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Módulos",
-    "basics": "Básicos"
+    "chat": "Chat",
+    "community": "Comunidad",
+    "moderation": "Moderación",
+    "stream": "Directo",
+    "loyalty": "Fidelidad",
+    "timers": "Temporizadores",
+    "lights": "Luces",
+    "logic": "Flujo y datos"
   },
   "kind": {
     "trigger": "Disparador",

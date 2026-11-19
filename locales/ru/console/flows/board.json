@@ -38,9 +38,14 @@
   "closeLibrary": "Закрыть библиотеку",
   "noStepsMatchSearch": "По этому запросу шагов не найдено.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Модули",
-    "basics": "Базовые"
+    "chat": "Чат",
+    "community": "Сообщество",
+    "moderation": "Модерация",
+    "stream": "Трансляция",
+    "loyalty": "Лояльность",
+    "timers": "Таймеры",
+    "lights": "Освещение",
+    "logic": "Логика и данные"
   },
   "kind": {
     "trigger": "Триггер",
