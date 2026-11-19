@@ -43,12 +43,22 @@ test.each([
 test.each<{ type: Kind; config: FlowNode['config']; field: string; initial: string | number; expected: string | number; text: string }>([
   { type: 'twitch.cheer', config: { minBits: 1000 }, field: 'bits', initial: 500, expected: 1000, text: '500 is below 1000 bits' },
   { type: 'twitch.raid', config: { minViewers: 100 }, field: 'viewers', initial: 42, expected: 100, text: '42 is below 100 viewers' },
+  { type: 'twitch.sub_gift', config: { minGifts: 10, tier: '2000', gifter: 'anonymous' }, field: 'giftCount', initial: 3, expected: 10, text: '3 is below 10 Gifted subs' },
   { type: 'twitch.chat.command', config: { trigger: '!test' }, field: 'message', initial: 'hello', expected: '!test @Lotti good luck', text: 'does not match !test' }
 ])('would not start: $type, then accepts the explicit repair', ({ type, config, field, initial, expected, text }) => {
   const flow = flowOf([n('t', type, config), say], [e('t', 'next', 's')]);
   const before = run(flow, { scenario: { [field]: initial } });
   const after = run(flow, { scenario: before.startPatch });
   expect([before.starts, before.blocked?.includes(text), before.startPatch, after.steps.at(-1)?.id]).toEqual([false, true, { [field]: expected }, 's']);
+});
+
+test('gift subs starts with a matching scenario and resolves the gift tokens', () => {
+  const root = n('t', 'twitch.sub_gift', { minGifts: 10, tier: '2000', gifter: 'named' });
+  const reply = n('s', 'reply.chat', { message: '{user} gave {count} Tier {tier} subs' });
+  const result = run(flowOf([root, reply], [e('t', 'next', 's')]));
+  expect({ starts: result.starts, lines: result.steps.at(-1)?.lines, fields: result.fields.map(({ key }) => key) }).toEqual({
+    starts: true, lines: ['PrincessBarney gave 10 Tier 2000 subs'], fields: ['user', 'userId', 'tier', 'giftCount', 'anonymous', 'live']
+  });
 });
 
 test.each([
@@ -147,7 +157,7 @@ test.each([
   expect([step?.status, step?.missing, step?.note]).toEqual(['no', [...missing], `5 ${reason} ${right || 'an empty value'}.`]);
 });
 
-test.each(['twitch.chat.command', 'twitch.chat.word', 'twitch.follow', 'twitch.sub', 'twitch.cheer', 'twitch.raid', 'twitch.reward', 'twitch.stream.online'])(
+test.each(['twitch.chat.command', 'twitch.chat.word', 'twitch.follow', 'twitch.sub', 'twitch.sub_gift', 'twitch.cheer', 'twitch.raid', 'twitch.reward', 'twitch.stream.online'])(
   '%s explains when viewer roles are unavailable', (type) => {
     const check = n('c', 'cond.role', { level: 'mod' });
     const root = n('t', type, { trigger: '!test', word: 'hello', reward: 'reward' });

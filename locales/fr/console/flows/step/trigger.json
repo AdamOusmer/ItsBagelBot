@@ -6,7 +6,14 @@
       "trigger": {
         "label": "Commande",
         "placeholder": "!hug"
-      }
+      },
+      "aliases": { "label": "Autres noms", "placeholder": "!cuddle, !squeeze" },
+      "match": {
+        "label": "Correspondance",
+        "option": { "start": "Au début du message", "exact": "Message entier" }
+      },
+      "caseSensitive": { "label": "Respecter la casse" },
+      "subMessages": { "label": "Aussi dans les messages de réabonnement" }
     }
   },
   "chatWord": {
@@ -15,8 +22,15 @@
     "field": {
       "word": {
         "label": "Mot",
-        "placeholder": "bagel"
-      }
+        "placeholder": "bagel",
+        "pattern": { "label": "Motif", "placeholder": "\\bbagel(s)?\\b" }
+      },
+      "match": {
+        "label": "Correspondance",
+        "option": { "word": "Mot entier", "anywhere": "N’importe où", "pattern": "Motif" }
+      },
+      "caseSensitive": { "label": "Respecter la casse" },
+      "subMessages": { "label": "Aussi dans les messages de réabonnement" }
     }
   },
   "follow": {
@@ -30,11 +44,32 @@
       "variant": {
         "label": "Type",
         "option": {
-          "any": "Sub nouveau ou offert",
-          "new": "Nouveau",
-          "resub": "Resub",
-          "gift": "Offert"
+          "any": "Nouveau ou offert",
+          "new": "Nouveau, payé",
+          "resub": "Réabonnement",
+          "gifted": "Reçu en cadeau"
         }
+      },
+      "tier": {
+        "label": "Niveau",
+        "option": { "1000": "Niveau 1", "2000": "Niveau 2", "3000": "Niveau 3", "any": "Tous les niveaux" }
+      },
+      "minMonths": { "label": "Nombre minimum de mois", "unit": "mois" },
+      "minStreak": { "label": "Minimum de mois consécutifs", "unit": "mois" }
+    }
+  },
+  "subGift": {
+    "label": "Cadeaux d’abonnements",
+    "summary": "Quelqu’un offre des abonnements à la communauté",
+    "field": {
+      "minGifts": { "label": "Nombre minimum d’abonnements offerts", "unit": "abonnements" },
+      "tier": {
+        "label": "Niveau",
+        "option": { "1000": "Niveau 1", "2000": "Niveau 2", "3000": "Niveau 3", "any": "Tous les niveaux" }
+      },
+      "gifter": {
+        "label": "Qui offre",
+        "option": { "anyone": "Tout le monde", "named": "Identifiés uniquement", "anonymous": "Anonymes uniquement" }
       }
     }
   },
@@ -45,6 +80,10 @@
       "minBits": {
         "label": "Bits minimum",
         "unit": "bits"
+      },
+      "cheerer": {
+        "label": "Qui envoie des bits",
+        "option": { "anyone": "Tout le monde", "named": "Identifiés uniquement", "anonymous": "Anonymes uniquement" }
       }
     }
   },

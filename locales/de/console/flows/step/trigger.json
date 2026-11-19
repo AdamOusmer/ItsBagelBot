@@ -6,7 +6,14 @@
       "trigger": {
         "label": "Befehl",
         "placeholder": "!hug"
-      }
+      },
+      "aliases": { "label": "Weitere Namen", "placeholder": "!cuddle, !squeeze" },
+      "match": {
+        "label": "Übereinstimmung",
+        "option": { "start": "Am Nachrichtenanfang", "exact": "Ganze Nachricht" }
+      },
+      "caseSensitive": { "label": "Groß- und Kleinschreibung beachten" },
+      "subMessages": { "label": "Auch in Resub-Nachrichten" }
     }
   },
   "chatWord": {
@@ -15,8 +22,15 @@
     "field": {
       "word": {
         "label": "Wort",
-        "placeholder": "bagel"
-      }
+        "placeholder": "bagel",
+        "pattern": { "label": "Muster", "placeholder": "\\bbagel(s)?\\b" }
+      },
+      "match": {
+        "label": "Übereinstimmung",
+        "option": { "word": "Ganzes Wort", "anywhere": "An beliebiger Stelle", "pattern": "Muster" }
+      },
+      "caseSensitive": { "label": "Groß- und Kleinschreibung beachten" },
+      "subMessages": { "label": "Auch in Resub-Nachrichten" }
     }
   },
   "follow": {
@@ -30,11 +44,32 @@
       "variant": {
         "label": "Art",
         "option": {
-          "any": "Neues oder geschenktes Abo",
-          "new": "Neu",
+          "any": "Neu oder geschenkt",
+          "new": "Neu, bezahlt",
           "resub": "Resub",
-          "gift": "Gift"
+          "gifted": "Als Geschenk erhalten"
         }
+      },
+      "tier": {
+        "label": "Abo-Stufe",
+        "option": { "1000": "Stufe 1", "2000": "Stufe 2", "3000": "Stufe 3", "any": "Beliebige Stufe" }
+      },
+      "minMonths": { "label": "Mindestanzahl Monate", "unit": "Monate" },
+      "minStreak": { "label": "Aufeinanderfolgende Monate, mindestens", "unit": "Monate" }
+    }
+  },
+  "subGift": {
+    "label": "Geschenk-Abos",
+    "summary": "Jemand verschenkt Abos an die Community",
+    "field": {
+      "minGifts": { "label": "Mindestanzahl Geschenk-Abos", "unit": "Abos" },
+      "tier": {
+        "label": "Abo-Stufe",
+        "option": { "1000": "Stufe 1", "2000": "Stufe 2", "3000": "Stufe 3", "any": "Beliebige Stufe" }
+      },
+      "gifter": {
+        "label": "Schenkende Person",
+        "option": { "anyone": "Alle", "named": "Nur mit Namen", "anonymous": "Nur anonym" }
       }
     }
   },
@@ -45,6 +80,10 @@
       "minBits": {
         "label": "Mindest-Bits",
         "unit": "Bits"
+      },
+      "cheerer": {
+        "label": "Cheerende Person",
+        "option": { "anyone": "Alle", "named": "Nur mit Namen", "anonymous": "Nur anonym" }
       }
     }
   },

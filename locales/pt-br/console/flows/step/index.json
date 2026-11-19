@@ -11,6 +11,7 @@
   "trigger.chatWord.keywords": "palavra chat contém corresponde texto chave",
   "trigger.follow.keywords": "seguir seguidor alerta novo follow",
   "trigger.sub.keywords": "sub inscrição inscrito resub presente alerta",
+  "trigger.subGift.keywords": "presente sub inscrição presentear comunidade pacote anônimo alerta",
   "trigger.cheer.keywords": "cheer bits doação alerta",
   "trigger.raid.keywords": "raid recebida espectadores alerta",
   "trigger.reward.keywords": "recompensa resgatar resgate pontos canal entrada reward",

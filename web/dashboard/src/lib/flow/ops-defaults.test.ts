@@ -15,11 +15,12 @@ import ru from '../../../../../locales/ru/console/flows/board.json';
 const at = { x: 0, y: 0 };
 const placement = { kind: 'canvas' } as const;
 const defaults = {
-  'twitch.chat.command': {},
-  'twitch.chat.word': {},
+  'twitch.chat.command': { match: 'start', caseSensitive: false, subMessages: false },
+  'twitch.chat.word': { match: 'word', caseSensitive: false, subMessages: false },
   'twitch.follow': {},
-  'twitch.sub': { variant: 'any' },
-  'twitch.cheer': {},
+  'twitch.sub': { variant: 'any', tier: 'any' },
+  'twitch.sub_gift': { tier: 'any', gifter: 'anyone' },
+  'twitch.cheer': { cheerer: 'anyone' },
   'twitch.raid': {},
   'twitch.unban_request': {},
   'twitch.stream.online': {},
@@ -107,6 +108,7 @@ test.each([
   { trigger: 'twitch.raid', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
   { trigger: 'twitch.follow', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
   { trigger: 'twitch.sub', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.sub_gift', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
   { trigger: 'twitch.cheer', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
   { trigger: 'twitch.reward', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
   { trigger: 'twitch.unban_request', who: 'viewer', target: '', message: en.defaultPlainMessage },

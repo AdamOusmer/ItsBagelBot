@@ -6,7 +6,14 @@
       "trigger": {
         "label": "Comando",
         "placeholder": "!hug"
-      }
+      },
+      "aliases": { "label": "Otros nombres", "placeholder": "!cuddle, !squeeze" },
+      "match": {
+        "label": "Coincidencia",
+        "option": { "start": "Al inicio del mensaje", "exact": "Mensaje completo" }
+      },
+      "caseSensitive": { "label": "Distinguir mayúsculas y minúsculas" },
+      "subMessages": { "label": "También en mensajes de renovación" }
     }
   },
   "chatWord": {
@@ -15,8 +22,15 @@
     "field": {
       "word": {
         "label": "Palabra",
-        "placeholder": "bagel"
-      }
+        "placeholder": "bagel",
+        "pattern": { "label": "Patrón", "placeholder": "\\bbagel(s)?\\b" }
+      },
+      "match": {
+        "label": "Coincidencia",
+        "option": { "word": "Palabra completa", "anywhere": "En cualquier parte", "pattern": "Patrón" }
+      },
+      "caseSensitive": { "label": "Distinguir mayúsculas y minúsculas" },
+      "subMessages": { "label": "También en mensajes de renovación" }
     }
   },
   "follow": {
@@ -30,11 +44,32 @@
       "variant": {
         "label": "Tipo",
         "option": {
-          "any": "Sub nueva o regalada",
-          "new": "Nueva",
-          "resub": "Resub",
-          "gift": "Regalo"
+          "any": "Nueva o regalada",
+          "new": "Nueva, de pago",
+          "resub": "Renovación",
+          "gifted": "Recibida como regalo"
         }
+      },
+      "tier": {
+        "label": "Nivel",
+        "option": { "1000": "Nivel 1", "2000": "Nivel 2", "3000": "Nivel 3", "any": "Cualquier nivel" }
+      },
+      "minMonths": { "label": "Mínimo de meses", "unit": "meses" },
+      "minStreak": { "label": "Mínimo de meses consecutivos", "unit": "meses" }
+    }
+  },
+  "subGift": {
+    "label": "Regalos de suscripciones",
+    "summary": "Alguien regala suscripciones a la comunidad",
+    "field": {
+      "minGifts": { "label": "Mínimo de suscripciones regaladas", "unit": "subs" },
+      "tier": {
+        "label": "Nivel",
+        "option": { "1000": "Nivel 1", "2000": "Nivel 2", "3000": "Nivel 3", "any": "Cualquier nivel" }
+      },
+      "gifter": {
+        "label": "Quién regala",
+        "option": { "anyone": "Cualquiera", "named": "Solo con nombre", "anonymous": "Solo de forma anónima" }
       }
     }
   },
@@ -45,6 +80,10 @@
       "minBits": {
         "label": "Mínimo de bits",
         "unit": "bits"
+      },
+      "cheerer": {
+        "label": "Quién envía bits",
+        "option": { "anyone": "Cualquiera", "named": "Solo con nombre", "anonymous": "Solo de forma anónima" }
       }
     }
   },

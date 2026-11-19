@@ -102,14 +102,18 @@ function executorOverrides(compiled: Compiled, overrides: RehearsalOverrides): R
   return Object.fromEntries(entries);
 }
 
-const FILTER_FIELDS: Readonly<Record<Text, keyof RehearsalScenario>> = { amount: 'bits', viewers: 'viewers', reward_id: 'rewardId', name: 'name', is_gift: 'isGift', tier: 'tier', anonymous: 'anonymous' };
+const FILTER_FIELDS: Readonly<Record<Text, keyof RehearsalScenario>> = { amount: 'bits', giftCount: 'giftCount', viewers: 'viewers', reward_id: 'rewardId', name: 'name', is_gift: 'isGift', tier: 'tier', anonymous: 'anonymous' };
+
+function eventFilterField(field: Text, definition: Definition): Text {
+  return field === 'amount' && scenarioKind(definition) === 'twitch.sub.gift' ? 'giftCount' : field;
+}
 
 function startPatch(reason: { reason: Text; values: Record<Text, Text> }, definition: Definition): ScenarioPatch | undefined {
   if (reason.reason === 'trigger_message') return { message: defaultScenario(definition).message };
   if (reason.reason !== 'trigger_filter') return undefined;
-  const field = FILTER_FIELDS[reason.values.field!];
+  const field = FILTER_FIELDS[eventFilterField(reason.values.field!, definition)];
   if (!field) return undefined;
-  const numeric = field === 'bits' || field === 'viewers';
+  const numeric = ['bits', 'viewers', 'giftCount'].includes(field);
   const value = numeric ? Number(reason.values.expected) : reason.values.expected;
   return { [field]: field === 'isGift' || field === 'anonymous' ? value === 'true' : value };
 }
@@ -120,11 +124,11 @@ const BLOCKED_LABELS: Readonly<Record<Text, MessageKey>> = {
   no_name: 'flows.test.noName'
 };
 
-function blockedText(t: Translate, reason: { reason: Text; values: Record<Text, Text> }): Text {
+function blockedText(t: Translate, reason: { reason: Text; values: Record<Text, Text> }, definition: Definition): Text {
   const label = BLOCKED_LABELS[reason.reason];
   if (label) return t(label, reason.values);
-  const field = reason.values.field ?? '';
-  const numeric = ['amount', 'viewers'].includes(field);
+  const field = eventFilterField(reason.values.field ?? '', definition);
+  const numeric = ['amount', 'viewers', 'giftCount'].includes(field);
   return t(numeric ? 'flows.test.below' : 'flows.test.filterMismatch', { ...reason.values, field: scenarioFieldLabel(t, field) });
 }
 
@@ -369,7 +373,7 @@ function rehearsalSteps(t: Translate, result: ReturnType<typeof rehearseDefiniti
   if (!warnings?.byNode.size) return steps;
   if (!steps.length && result.reason) {
     const trigger: RehearsalEvent = { key: 'trigger:blocked', path: 'trigger', lane: [], iteration: [], atMs: 0, kind: 'trigger', status: 'skipped' };
-    steps.push({ ...mappedStep(t, trigger, context), text: blockedText(t, result.reason) });
+    steps.push({ ...mappedStep(t, trigger, context), text: blockedText(t, result.reason, context.compiled.definition) });
   }
   const insertions = missingWarnings(steps, context, warnings);
   const fallback = (index: number) => (insertions.get(index) ?? []).map((event) => mappedStep(t, event, context));
@@ -408,7 +412,7 @@ function runOutcome(result: ReturnType<typeof rehearseDefinition>, context: RunC
   return { starts: result.starts || stopped,
     state: stopped ? 'stopped' : result.starts ? 'started' : 'not_started',
     stoppedAt: stopped ? context.compiled.nodeByPath.get(result.reason!.values.path!) : undefined,
-    blocked: result.reason ? blockedText(t, result.reason) : undefined,
+    blocked: result.reason ? blockedText(t, result.reason, context.compiled.definition) : undefined,
     startPatch: result.reason ? startPatch(result.reason, context.compiled.definition) : undefined };
 }
 

@@ -6,7 +6,14 @@
       "trigger": {
         "label": "Comando",
         "placeholder": "!hug"
-      }
+      },
+      "aliases": { "label": "Outros nomes", "placeholder": "!cuddle, !squeeze" },
+      "match": {
+        "label": "Correspondência",
+        "option": { "start": "No início da mensagem", "exact": "Mensagem inteira" }
+      },
+      "caseSensitive": { "label": "Diferenciar maiúsculas de minúsculas" },
+      "subMessages": { "label": "Também em mensagens de renovação" }
     }
   },
   "chatWord": {
@@ -15,8 +22,15 @@
     "field": {
       "word": {
         "label": "Palavra",
-        "placeholder": "bagel"
-      }
+        "placeholder": "bagel",
+        "pattern": { "label": "Padrão", "placeholder": "\\bbagel(s)?\\b" }
+      },
+      "match": {
+        "label": "Correspondência",
+        "option": { "word": "Palavra inteira", "anywhere": "Em qualquer parte", "pattern": "Padrão" }
+      },
+      "caseSensitive": { "label": "Diferenciar maiúsculas de minúsculas" },
+      "subMessages": { "label": "Também em mensagens de renovação" }
     }
   },
   "follow": {
@@ -30,11 +44,32 @@
       "variant": {
         "label": "Tipo",
         "option": {
-          "any": "Sub nova ou de presente",
-          "new": "Novo",
-          "resub": "Resub",
-          "gift": "Presente"
+          "any": "Nova ou de presente",
+          "new": "Nova, paga",
+          "resub": "Renovação",
+          "gifted": "Recebida de presente"
         }
+      },
+      "tier": {
+        "label": "Nível",
+        "option": { "1000": "Nível 1", "2000": "Nível 2", "3000": "Nível 3", "any": "Qualquer nível" }
+      },
+      "minMonths": { "label": "Mínimo de meses", "unit": "meses" },
+      "minStreak": { "label": "Mínimo de meses consecutivos", "unit": "meses" }
+    }
+  },
+  "subGift": {
+    "label": "Presentes de inscrições",
+    "summary": "Alguém presenteia a comunidade com inscrições",
+    "field": {
+      "minGifts": { "label": "Mínimo de inscrições presenteadas", "unit": "inscrições" },
+      "tier": {
+        "label": "Nível",
+        "option": { "1000": "Nível 1", "2000": "Nível 2", "3000": "Nível 3", "any": "Qualquer nível" }
+      },
+      "gifter": {
+        "label": "Quem presenteia",
+        "option": { "anyone": "Qualquer pessoa", "named": "Só com nome", "anonymous": "Só anônimos" }
       }
     }
   },
@@ -45,6 +80,10 @@
       "minBits": {
         "label": "Mínimo de bits",
         "unit": "bits"
+      },
+      "cheerer": {
+        "label": "Quem envia bits",
+        "option": { "anyone": "Qualquer pessoa", "named": "Só com nome", "anonymous": "Só anônimos" }
       }
     }
   },

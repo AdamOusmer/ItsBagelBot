@@ -149,7 +149,8 @@ test.each([
   ['cond.compare', { left: '42', right: '10' }, '42 is at least 10'],
   ['cond.compare', { left: '42', right: '10', op: 'lt' }, '42 is less than 10'],
   ['twitch.sub', { variant: 'any' }, 'Someone gets a new or gifted sub'],
-  ['twitch.sub', {}, 'Someone gets a new or gifted sub']
+  ['twitch.sub', {}, 'Someone gets a new or gifted sub'],
+  ['twitch.sub_gift', {}, 'Someone gifts subs to the community']
 ] satisfies [string, FlowNode['config'], string][])('%s describes displayed defaults truthfully: %j', (type, config, expected) => {
   expect(describe(english, { id: 'step', type, config, x: 0, y: 0 })).toBe(expected);
 });

@@ -18,8 +18,10 @@ function lowered(type: Text, config: FlowNode['config']): Definition {
 type DefaultCase = { type: Text; config: FlowNode['config']; values: Partial<RehearsalScenario> };
 test.each<DefaultCase>([
   { type: 'twitch.chat.command', config: { trigger: '!hello' }, values: { message: '!hello @Lotti good luck', args: '@Lotti good luck' } },
+  { type: 'twitch.chat.command', config: { trigger: '!Hello', match: 'exact', caseSensitive: true }, values: { message: '!Hello', args: '' } },
   { type: 'twitch.chat.word', config: { word: 'café' }, values: { message: 'I love café', args: 'I love café' } },
   { type: 'twitch.chat.word', config: { word: 'a.b!' }, values: { message: 'I love a.b!', args: 'I love a.b!' } },
+  { type: 'twitch.chat.word', config: { word: 'a\\1', match: 'anywhere' }, values: { message: 'I love a\\1', args: '' } },
   { type: 'twitch.follow', config: {}, values: { user: 'PrincessBarney', userId: '40000001' } },
   { type: 'twitch.sub', config: { variant: 'new' }, values: { tier: '1000', isGift: false } },
   { type: 'twitch.sub', config: { variant: 'resub' }, values: { tier: '1000', months: 14 } },
@@ -84,6 +86,7 @@ test.each<MatchCase>([
   { trigger: { type: 'command', params: { name: '!hello' } }, scenario: { message: '!other' }, reason: 'trigger_message' },
   { trigger: { type: 'command', params: { name: '' } }, scenario: { message: '' }, reason: 'no_name' },
   { trigger: { type: 'command', params: { name: '', match: 'regex' } }, scenario: { message: 'anything' }, reason: 'no_name' },
+  { trigger: { type: 'command', params: { name: '(?P<word>bagel)', match: 'regex' } }, scenario: { message: 'bagel' }, reason: 'trigger_message' },
   { trigger: { type: 'reward', params: { reward_id: 'r' } }, scenario: { rewardId: 'other' }, reason: 'trigger_filter' },
   { trigger: { type: 'countdown', params: { name: 'timer' } }, scenario: { name: 'other' }, reason: 'trigger_filter' }
 ])('failed trigger $trigger', ({ trigger, scenario, reason }) => {

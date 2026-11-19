@@ -11,6 +11,7 @@
   "trigger.chatWord.keywords": "wort chat enthält text schlüsselwort",
   "trigger.follow.keywords": "follow follower folgen alarm neu",
   "trigger.sub.keywords": "sub abo abonnement abonnent resub geschenk alarm",
+  "trigger.subGift.keywords": "geschenk abo abonnements verschenken community paket anonym alarm",
   "trigger.cheer.keywords": "cheer bits spende alarm",
   "trigger.raid.keywords": "raid eingehend zuschauer alarm",
   "trigger.reward.keywords": "belohnung einlösen kanalpunkte eingabe reward",

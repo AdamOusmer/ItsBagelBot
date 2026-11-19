@@ -141,7 +141,7 @@ test.each([
   if (original) Object.assign(original, { x: 72, y: 96, config: { trigger: '!old', variant: 'gift', disabled: true } });
   const beforeEdges = structuredClone(flow.edges);
   const node = replaceTrigger(flow, 'twitch.sub');
-  expect({ config: node.config, type: node.type, edges: flow.edges, count: flow.nodes.length }).toEqual({ config: { variant: 'any' }, type: 'twitch.sub', edges: beforeEdges, count: 3 });
+  expect({ config: node.config, type: node.type, edges: flow.edges, count: flow.nodes.length }).toEqual({ config: { variant: 'any', tier: 'any' }, type: 'twitch.sub', edges: beforeEdges, count: 3 });
   expect(original ? node === original : flow.nodes.includes(node)).toBe(true);
   expect({ id: node.id, x: node.x, y: node.y }).toEqual(original ? { id: 'root', ...at } : { id: node.id, x: 0, y: 0 });
 });

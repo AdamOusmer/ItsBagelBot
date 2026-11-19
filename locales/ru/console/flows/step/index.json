@@ -11,6 +11,7 @@
   "trigger.chatWord.keywords": "слово чат содержит совпадение текст ключ",
   "trigger.follow.keywords": "фоллоу фолловер отслеживание уведомление новый follow",
   "trigger.sub.keywords": "саб подписка подписчик ресаб подарок уведомление sub",
+  "trigger.subGift.keywords": "подарок саб подписка даритель сообщество пакет анонимно уведомление",
   "trigger.cheer.keywords": "cheer bits битсы донат уведомление",
   "trigger.raid.keywords": "рейд входящий зрители уведомление raid",
   "trigger.reward.keywords": "награда получить обмен баллы канала ввод reward",

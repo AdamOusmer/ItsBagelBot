@@ -31,6 +31,7 @@ export const STEP_PLACEMENT = {
   'reply.whisper': { kind: 'reply', group: 'chat' },
   'twitch.follow': { kind: 'trigger', group: 'community' },
   'twitch.sub': { kind: 'trigger', group: 'community' },
+  'twitch.sub_gift': { kind: 'trigger', group: 'community' },
   'twitch.cheer': { kind: 'trigger', group: 'community' },
   'twitch.raid': { kind: 'trigger', group: 'community' },
   'twitch.unban_request': { kind: 'trigger', group: 'moderation' },
@@ -141,6 +142,12 @@ const subVariables: Record<string, readonly VariableSpec[]> = {
 
 const subViewer: readonly VariableSpec[] = [...user, { token: '{tier}', name: 'tier', sample: '1' }];
 
+const matchCase: FieldSpec = { key: 'caseSensitive', type: 'toggle', initial: false };
+const subMessages: FieldSpec = { key: 'subMessages', type: 'toggle', initial: false };
+const subTier: FieldSpec = { key: 'tier', type: 'select', options: ['any', '1000', '2000', '3000'], initial: 'any' };
+const resubOnly: FieldGate = { key: 'variant', value: 'resub' };
+const eventActors = ['anyone', 'named', 'anonymous'] as const;
+
 const yesNo: OutputSpec[] = [{ id: 'yes' }, { id: 'no' }];
 
 const apiPorts: OutputSpec[] = [
@@ -191,14 +198,25 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'twitch.chat.command',
     slug: 'chatCommand',
     icon: 'commands',
-    fields: [{ key: 'trigger', type: 'text', placeholder: true }],
+    fields: [
+      { key: 'trigger', type: 'text', placeholder: true, required: true },
+      { key: 'aliases', type: 'text', placeholder: true },
+      { key: 'match', type: 'select', options: ['start', 'exact'], initial: 'start' },
+      matchCase,
+      subMessages
+    ],
     provides: [...user, { token: '{args}', name: 'args', sample: ARGS_SAMPLE }, { token: '{touser}', name: 'touser', sample: TOUSER_SAMPLE }]
   },
   {
     type: 'twitch.chat.word',
     slug: 'chatWord',
     icon: 'messageSquare',
-    fields: [{ key: 'word', type: 'text', placeholder: true }],
+    fields: [
+      { key: 'word', type: 'text', placeholder: true, required: true, labelBy: 'match' },
+      { key: 'match', type: 'select', options: ['word', 'anywhere', 'pattern'], initial: 'word' },
+      matchCase,
+      subMessages
+    ],
     provides: user
   },
   {
@@ -212,15 +230,34 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'twitch.sub',
     slug: 'sub',
     icon: 'star',
-    fields: [{ key: 'variant', type: 'select', options: ['any', 'new', 'resub', 'gift'] }],
+    fields: [
+      { key: 'variant', type: 'select', options: ['any', 'new', 'gifted', 'resub'], initial: 'any' },
+      subTier,
+      { key: 'minMonths', type: 'number', min: 1, unit: true, when: resubOnly },
+      { key: 'minStreak', type: 'number', min: 1, unit: true, when: resubOnly }
+    ],
     provides: [...subViewer, ...subVariables.resub],
     providesFor: (config) => [...subViewer, ...(subVariables[String(config.variant)] ?? [])]
+  },
+  {
+    type: 'twitch.sub_gift',
+    slug: 'subGift',
+    icon: 'star',
+    fields: [
+      { key: 'minGifts', type: 'number', min: 1, unit: true },
+      subTier,
+      { key: 'gifter', type: 'select', options: eventActors, initial: 'anyone' }
+    ],
+    provides: [...subViewer, ...subVariables.gift]
   },
   {
     type: 'twitch.cheer',
     slug: 'cheer',
     icon: 'gem',
-    fields: [{ key: 'minBits', type: 'number', min: 1, unit: true }],
+    fields: [
+      { key: 'minBits', type: 'number', min: 1, unit: true },
+      { key: 'cheerer', type: 'select', options: eventActors, initial: 'anyone' }
+    ],
     provides: [...user, { token: '{bits}', name: 'bits', sample: '500' }]
   },
   {

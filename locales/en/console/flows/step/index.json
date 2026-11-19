@@ -11,6 +11,7 @@
   "trigger.chatWord.keywords": "word chat contains match text keyword",
   "trigger.follow.keywords": "follow follower alert new",
   "trigger.sub.keywords": "sub subscription subscriber resub gift alert",
+  "trigger.subGift.keywords": "gift sub subscription gifter community bundle anonymous alert",
   "trigger.cheer.keywords": "cheer bits donation alert",
   "trigger.raid.keywords": "raid incoming viewers alert",
   "trigger.reward.keywords": "reward redeem redemption channel points input",

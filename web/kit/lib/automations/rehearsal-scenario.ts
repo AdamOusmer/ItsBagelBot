@@ -49,12 +49,13 @@ const EVENT_SCENARIOS: Readonly<Record<string, string>> = {
 
 export function scenarioKind(definition: Definition): string {
   const { type, params = {} } = definition.trigger;
-  if (type === 'command') return params.match === 'regex' ? 'twitch.chat.word' : 'twitch.chat.command';
+  if (type === 'command') return params.match === 'regex' || params.match === 'anywhere' ? 'twitch.chat.word' : 'twitch.chat.command';
   const direct: Record<string, string> = { reward: 'twitch.reward', countdown: 'countdown.finished' };
   return direct[type] ?? EVENT_SCENARIOS[String(params.kind)] ?? '';
 }
 
 function sampleWord(params: Params): string {
+  if (params.match === 'anywhere') return String(params.name ?? '');
   const body = String(params.name ?? '').replace(/^\(\?:\^\|\[\^\\p\{L\}\\p\{N\}_\]\)/, '').replace(/\(\?:\$\|\[\^\\p\{L\}\\p\{N\}_\]\)$/, '');
   return unescapeWord(body);
 }
@@ -75,8 +76,12 @@ function thresholdDefault(params: Params, field: string, fallback: number): numb
 }
 
 const DYNAMIC_DEFAULTS: Readonly<Record<string, (params: Params) => Partial<RehearsalScenario>>> = {
-  'twitch.chat.command': (params) => ({ message: `${params.name ?? ''} @Lotti good luck` }),
+  'twitch.chat.command': (params) => ({ message: params.match === 'exact' ? String(params.name ?? '') : `${params.name ?? ''} @Lotti good luck` }),
   'twitch.chat.word': (params) => ({ message: `I love ${sampleWord(params)}` }),
+  'twitch.sub.gift': (params) => {
+    const filters = (params.filters ?? {}) as Record<string, string>;
+    return { giftCount: thresholdDefault(params, 'amount', 5), tier: filters.tier ?? '1000', anonymous: filters.anonymous === 'true' };
+  },
   'twitch.cheer': (params) => ({ bits: thresholdDefault(params, 'amount', 500) }),
   'twitch.raid': (params) => ({ viewers: thresholdDefault(params, 'viewers', 42) }),
   'twitch.reward': (params) => ({ rewardId: String(params.reward_id ?? '') }),
@@ -87,7 +92,12 @@ function commandMatch(params: Params, message: string): RegExpExecArray | null {
   const flags = params.case_sensitive === true ? 'u' : 'iu';
   const pattern = commandPattern(params);
   const raw = params.match === 'anywhere' || params.match === 'regex';
-  return new RegExp(pattern, flags).exec(raw ? message : message.trim());
+  try {
+    return new RegExp(pattern, flags).exec(raw ? message : message.trim());
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    return null;
+  }
 }
 
 function commandPattern(params: Params): string {
