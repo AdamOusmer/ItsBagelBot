@@ -3,6 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
+import { MOD } from '@bagel/kit';
 import { env } from '@bagel/kit/server/env';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { NEW_FLOW_ID } from '#lib/flow/ref';
@@ -12,13 +13,16 @@ import { lookupTwitchUser } from '#lib/server/identity-heal';
 import { counterChoices, manageableRewardChoices, namedCooldownChoices, namedCountdownChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
 import { listRuns } from '#lib/server/automations-store';
 import { parseFlowRouteId } from '#lib/flow/ref';
-import { actionError } from '#lib/server/action-errors';
+import { signedInAction } from '#lib/server/action-context';
+import { actionError, actionErrorBody } from '#lib/server/action-errors';
+import { rehearseFetchDef } from '#lib/server/fetch-def-actions';
 import { parseRewardDraft } from '#lib/server/flow-reward';
 import { flowDenial, liveEditor, liveRewardSave, liveSave, lowerSaveRequest, newEditor, type EditorData } from '#lib/server/flow-page';
 import { goveeStore, type GoveeDevice } from '#lib/server/govee-store';
-import { broadcasterPremium } from '#lib/server/module-gate';
+import { broadcasterPremium, gateModulePage } from '#lib/server/module-gate';
 
 const DEMO = dev && env.DEMO === '1';
+const recipeAction = signedInAction((session) => gateModulePage(session, MOD.automations), DEMO);
 
 export type GoveeLights = { keyPresent: boolean; devices: GoveeDevice[]; code?: 'key_rejected' | 'unreachable' };
 
@@ -137,5 +141,10 @@ export const actions: Actions = {
     const login = String((await request.formData()).get('login') ?? '');
     if (!LOGIN_PATTERN.test(login)) return fail(400, { ok: false, code: 'missing' });
     return DEMO ? demoResolve(login) : twitchResolve(login);
-  }
+  },
+  testfetch: recipeAction(async ({ uid, form, locale }, { locals }) => {
+    if (!(await broadcasterPremium(locals))) return fail(403, { ok: false, error: actionError(locale, 'Premium only while in beta.') });
+    const reply = await rehearseFetchDef(uid, form);
+    return reply.ok ? reply.data : fail(reply.status, actionErrorBody(locale, reply.body));
+  })
 };

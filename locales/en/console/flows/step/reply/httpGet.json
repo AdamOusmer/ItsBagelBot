@@ -19,5 +19,11 @@
   "out": {
     "ok": "Worked",
     "failure": "Failed"
+  },
+  "tryIt": {
+    "label": "Try it",
+    "fixedAddress": "Try it works on a fixed address.",
+    "loading": "Fetching a sample…",
+    "error": "Could not fetch a JSON sample. Check the address and try again."
   }
 }

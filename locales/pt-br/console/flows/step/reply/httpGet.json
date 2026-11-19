@@ -19,5 +19,11 @@
   "out": {
     "ok": "Funcionou",
     "failure": "Falhou"
+  },
+  "tryIt": {
+    "label": "Testar",
+    "fixedAddress": "O teste funciona com um endereço fixo.",
+    "loading": "Buscando uma amostra…",
+    "error": "Não foi possível buscar uma amostra JSON. Confira o endereço e tente novamente."
   }
 }

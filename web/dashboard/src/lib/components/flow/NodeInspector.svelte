@@ -33,6 +33,7 @@
   import RewardField from './RewardField.svelte';
   import UserField from './UserField.svelte';
   import TokenSuggestions from './TokenSuggestions.svelte';
+  import WebReadTryIt from './WebReadTryIt.svelte';
 
   let {
     flow = $bindable(),
@@ -46,8 +47,9 @@
     permissionRank = -1,
     onclose,
     onremove,
-    oncheck
-  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void } = $props();
+    oncheck,
+    onResponseSample
+  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void; onResponseSample?: (nodeId: FlowNode['id'], sample: string) => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -455,6 +457,15 @@
             {/if}
             {#if hint}
               <small class="bb-field__hint bb-fit-box field-hint"><bb-fit mode="block">{hint}</bb-fit></small>
+            {/if}
+            {#if node.type === 'reply.http_get' && field.key === 'url'}
+              {@const url = textOf(field.key).trim()}
+              {#key JSON.stringify([node.id, url])}
+                <WebReadTryIt {url} onPick={({ path, sample }) => {
+                  node.config.jsonPath = path;
+                  onResponseSample?.(node.id, sample);
+                }} />
+              {/key}
             {/if}
             {#if node.type === 'reply.var' && field.key === 'name'}
               <div class="variable-preview" class:faded={!variableToken} aria-hidden={!variableToken}>

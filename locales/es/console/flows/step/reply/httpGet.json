@@ -19,5 +19,11 @@
   "out": {
     "ok": "Funcionó",
     "failure": "Falló"
+  },
+  "tryIt": {
+    "label": "Probar",
+    "fixedAddress": "Esta prueba solo funciona con una dirección fija.",
+    "loading": "Obteniendo una muestra…",
+    "error": "No se pudo obtener una muestra JSON. Comprueba la dirección y vuelve a intentarlo."
   }
 }

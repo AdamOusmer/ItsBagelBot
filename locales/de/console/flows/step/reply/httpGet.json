@@ -19,5 +19,11 @@
   "out": {
     "ok": "Geklappt",
     "failure": "Fehlgeschlagen"
+  },
+  "tryIt": {
+    "label": "Ausprobieren",
+    "fixedAddress": "Ausprobieren ist nur mit einer festen Adresse möglich.",
+    "loading": "Beispiel wird abgerufen…",
+    "error": "Kein JSON-Beispiel abrufbar. Prüfe die Adresse und versuche es erneut."
   }
 }

@@ -19,5 +19,11 @@
   "out": {
     "ok": "Succès",
     "failure": "Échec"
+  },
+  "tryIt": {
+    "label": "Essayer",
+    "fixedAddress": "L’essai fonctionne avec une adresse fixe.",
+    "loading": "Récupération d’un exemple…",
+    "error": "Impossible de récupérer un exemple JSON. Vérifiez l’adresse, puis réessayez."
   }
 }
