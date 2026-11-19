@@ -663,10 +663,27 @@ describe('compare value step', () => {
     const stored: Definition = {
       version: 1,
       trigger: { type: 'event', params: { kind: 'channel.follow' } },
-      conditions: [{ type: 'compare', params: { left: '{user}', op: 'gt', right: 'a' } }],
+      conditions: [{ type: 'compare', params: { left: '{user}', op: 'unknown', right: 'a' } }],
       actions: [chat('a')]
     };
     expect(definitionToFlow(stored, meta)).toEqual({ ok: false, issues: [{ path: 'conditions[0]', code: 'unsupported_condition' }] });
+  });
+
+  test.each([
+    { flag: {}, emitted: {}, matchCase: true },
+    { flag: { ignore_case: false }, emitted: {}, matchCase: true },
+    { flag: { ignore_case: true }, emitted: { ignore_case: true }, matchCase: false }
+  ])('a saved comparison round-trips case matching: $flag', ({ flag, emitted, matchCase }) => {
+    const params = { left: 'Bagel', op: 'starts', right: 'bagel' };
+    const stored: Definition = {
+      version: 1, trigger: { type: 'event', params: { kind: 'channel.follow' } },
+      conditions: [{ type: 'compare', params: { ...params, ...flag } }], actions: [chat('a')]
+    };
+    const restored = rebuilt(stored);
+    expect({
+      matchCase: restored.nodes[1]?.config.matchCase,
+      conditions: lowered(restored).conditions
+    }).toEqual({ matchCase, conditions: [{ type: 'compare', params: { ...params, ...emitted } }] });
   });
 });
 
@@ -919,11 +936,15 @@ describe('containers keep their drawn shape through save and reload', () => {
     }
   });
 
-  test.each(['', '{bits}'])('a var exists gate ignores its inactive value %s and reopens', (value) => {
+  test.each([
+    { op: 'exists', value: '' },
+    { op: 'exists', value: '{bits}' },
+    { op: 'not_exists', value: '{bits}' }
+  ])('a var $op gate ignores its inactive value $value and reopens', ({ op, value }) => {
     const saved = expectStable(
-      flow([trigger(), node('v', 'cond.var', { scope: 'channel', name: 'mode', op: 'exists', value }), say('a')], [edge('t', 'next', 'v'), edge('v', 'yes', 'a')])
+      flow([trigger(), node('v', 'cond.var', { scope: 'channel', name: 'mode', op, value }), say('a')], [edge('t', 'next', 'v'), edge('v', 'yes', 'a')])
     );
-    expect(saved.conditions).toEqual([{ type: 'var', params: { scope: 'channel', name: 'mode', op: 'exists', value: '' } }]);
+    expect(saved.conditions).toEqual([{ type: 'var', params: { scope: 'channel', name: 'mode', op } }]);
   });
 
   test.each([

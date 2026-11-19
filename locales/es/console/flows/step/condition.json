@@ -1,4 +1,16 @@
 {
+  "op": {
+    "eq": "es igual a",
+    "ne": "no es igual a",
+    "gt": "es mayor que",
+    "gte": "es como mínimo",
+    "lt": "es menor que",
+    "lte": "es como máximo",
+    "contains": "contiene",
+    "starts": "empieza por",
+    "exists": "tiene algún valor",
+    "not_exists": "no está definida"
+  },
   "role": {
     "label": "Nivel de usuario",
     "summary": "Comprobar el rol del espectador",
@@ -90,7 +102,8 @@
       "right": {
         "label": "Este valor",
         "placeholder": "1000"
-      }
+      },
+      "matchCase": { "label": "Distinguir mayúsculas y minúsculas" }
     },
     "out": {
       "yes": "Sí",

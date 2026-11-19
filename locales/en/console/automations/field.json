@@ -1,4 +1,6 @@
 {
+  "ignore_case": "Ignore case",
+  "min_days": "Minimum days",
   "who": "Who",
   "user_id": "Twitch user ID",
   "aliases": "Aliases",

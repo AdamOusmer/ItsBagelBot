@@ -58,10 +58,10 @@ describe('stream action roles', () => {
 });
 
 describe('comparePasses', () => {
-  const cases: { left: string; op: string; right: string; want: boolean }[] = JSON.parse(read('compare_cases.json'));
-  for (const { left, op, right, want } of cases) {
-    test(`${JSON.stringify(left)} ${op} ${JSON.stringify(right)}`, () => {
-      expect(comparePasses(op, left, right)).toBe(want);
+  const cases: { left: string; op: string; right: string; ignore_case?: boolean; want: boolean }[] = JSON.parse(read('compare_cases.json'));
+  for (const { left, op, right, ignore_case, want } of cases) {
+    test(`${JSON.stringify(left)} ${op} ${JSON.stringify(right)} ignore_case=${ignore_case ?? false}`, () => {
+      expect(comparePasses(op, left, right, ignore_case)).toBe(want);
     });
   }
 });

@@ -16,6 +16,7 @@ export const RUNS_KEPT = 50;
 
 export const MAX_COOLDOWN_SECONDS = 2_592_000;
 export const MAX_VALKEY_COOLDOWN_SECONDS = 86_400;
+export const MAX_AGE_DAYS = 3650;
 export const MAX_COOLDOWN_ADD_PER = 1_000_000;
 
 export const MAX_TEMPLATE_LENGTH = 500;

@@ -6,7 +6,7 @@ import { MAX_ACTIONS, MAX_DELAY_MS, MAX_LOOP_TIMES } from './limits';
 import { applyAction, createState, evaluateCondition, expandTemplate, messageTarget } from './rehearsal-state';
 import { matchTrigger, scenarioArgs, scenarioEvent, scenarioIdentity } from './rehearsal-scenario';
 import { trimSpace } from './text';
-import type { Action, Condition, Definition } from './types';
+import type { Action, Condition, Definition, Params } from './types';
 import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalResult, RehearsalScenario } from './rehearsal-types';
 
 export type * from './rehearsal-types';
@@ -20,6 +20,53 @@ type EventBody = Omit<RehearsalEvent, 'key' | 'path' | 'atMs' | 'lane' | 'iterat
 type Pending = { frame: Frame; work: Generator<number, void> };
 type Execution = { events: RehearsalEvent[]; pending: Pending[]; effects: number; visits: number };
 type Step = { action: Action; path: Path };
+type Check = { condition: Condition; path: Path };
+
+function rootChecks(definition: Definition): Check[] {
+  return (definition.conditions ?? []).map((condition, index) => ({ condition, path: `conditions[${index}]` }))
+    .sort((a, b) => Number(a.condition.type === 'cooldown') - Number(b.condition.type === 'cooldown'));
+}
+
+const BRANCH_FIELDS: Readonly<Record<Path, readonly Path[]>> = {
+  if: ['then', 'else'], loop: ['actions'], http_get: ['on_ok', 'on_failure'], http_post: ['on_ok', 'on_failure']
+};
+
+function* branchChecks(actions: Action[], base: Path): Generator<Check> {
+  for (const [index, action] of actions.entries()) {
+    const path = `${base}[${index}]`;
+    const condition = action.params?.condition as Condition | undefined;
+    if (action.type === 'if' && condition) yield { condition, path };
+    yield* nestedChecks({ action, path });
+  }
+}
+
+function* nestedChecks({ action, path }: Step): Generator<Check> {
+  const params = action.params ?? {};
+  if (action.type === 'parallel' || action.type === 'random_pick') {
+    yield* forkChecks(params, path);
+    return;
+  }
+  const fields = Object.hasOwn(BRANCH_FIELDS, action.type) ? BRANCH_FIELDS[action.type]! : [];
+  for (const field of fields) {
+    yield* branchChecks((params[field] ?? []) as Action[], `${path}.params.${field}`);
+  }
+}
+
+function* forkChecks(params: Params, path: Path): Generator<Check> {
+  const branches = (params.branches ?? []) as { actions?: Action[] }[];
+  for (const [index, branch] of branches.entries()) {
+    yield* branchChecks(branch.actions ?? [], `${path}.params.branches[${index}].actions`);
+  }
+}
+
+function assignCooldownOrdinals(definition: Definition): ReadonlyMap<Path, number> {
+  const ordinals = new Map<Path, number>();
+  const checks = [...rootChecks(definition), ...branchChecks(definition.actions ?? [], 'actions')];
+  for (const { condition, path } of checks) {
+    if (condition.type === 'cooldown' && !condition.params?.name) ordinals.set(path, ordinals.size);
+  }
+  return ordinals;
+}
 
 function emit(run: Execution, frame: Frame, body: EventBody): void {
   const { path, atMs } = frame.context;
@@ -40,7 +87,7 @@ function contextFor(definition: Definition, scenario: RehearsalScenario, overrid
     ...scenario.values
   };
   addViewerValues(values, scenario, args);
-  return { scenario: { ...scenario, args, values }, state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0, formatDuration };
+  return { scenario: { ...scenario, args, values }, state: createState(scenario), cooldownOrdinals: assignCooldownOrdinals(definition), overrides, locals: {}, path: 'trigger', atMs: 0, formatDuration };
 }
 
 function addViewerValues(values: Record<string, string>, scenario: RehearsalScenario, args: Path): void {
@@ -51,8 +98,11 @@ function addViewerValues(values: Record<string, string>, scenario: RehearsalScen
 }
 
 function check(condition: Condition, run: Execution, frame: Frame): boolean {
-  const passes = evaluateCondition(condition, frame.context);
-  emit(run, frame, { kind: 'check', status: passes ? 'yes' : 'no', port: passes ? 'yes' : 'no', detail: { type: condition.type } });
+  const { passes, code } = evaluateCondition(condition, frame.context);
+  const port = passes ? 'yes' : 'no';
+  const detail: Record<Path, Path> = { type: condition.type };
+  if (code) detail.code = code;
+  emit(run, frame, { kind: 'check', status: port, port, detail });
   return passes;
 }
 
@@ -193,8 +243,8 @@ function* execute(step: Step, run: Execution, frame: Frame): Generator<number, v
 }
 
 function gates(definition: Definition, run: Execution, frame: Frame): boolean {
-  return (definition.conditions ?? []).every((condition, index) => {
-    frame.context.path = `conditions[${index}]`;
+  return rootChecks(definition).every(({ condition, path }) => {
+    frame.context.path = path;
     return check(condition, run, frame);
   });
 }

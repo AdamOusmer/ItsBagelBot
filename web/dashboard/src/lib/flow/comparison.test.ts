@@ -13,6 +13,8 @@ test.each([
   { trigger: 'twitch.reward', left: '{input}', right: '42', op: 'eq' },
   { trigger: 'twitch.follow', left: '42', right: 'hello', op: 'eq' },
   { trigger: 'twitch.follow', left: '5', right: '10', op: 'gte' },
+  { trigger: 'twitch.follow', left: '0x10', right: '10', op: 'eq' },
+  { trigger: 'twitch.follow', left: '\u00a05', right: '10', op: 'eq' },
   { trigger: 'twitch.follow', left: '', right: '', op: 'gte' }
 ])('$left compared with $right defaults to $op', ({ trigger, left, right, op }) => {
   const flow = newFlow('Compare');

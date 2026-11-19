@@ -54,7 +54,9 @@ test.each<{ type: Kind; config: FlowNode['config']; field: string; initial: stri
 test.each([
   { name: 'role', config: n('c', 'cond.role', { level: 'mod' }), patch: { role: 'mod' } },
   { name: 'viewer ID', config: n('c', 'cond.user', { userId: '42', login: 'Lotti' }), patch: { userId: '42', user: 'Lotti' } },
-  { name: 'compare input', config: n('c', 'cond.compare', { left: '{user.id}', op: 'eq', right: '42' }), patch: { userId: '42' } }
+  { name: 'compare input', config: n('c', 'cond.compare', { left: '{user.id}', op: 'eq', right: '42' }), patch: { userId: '42' } },
+  { name: 'input must be greater', config: n('c', 'cond.compare', { left: '{user.id}', op: 'gt', right: '40000001' }), patch: { userId: '40000002' } },
+  { name: 'input must differ', config: n('c', 'cond.compare', { left: '{user.id}', op: 'ne', right: '40000001' }), patch: { userId: '1' } }
 ])('make it pass changes the $name input', ({ config, patch }) => {
   const flow = flowOf([trigger, config, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const before = run(flow);
@@ -140,7 +142,11 @@ test.each([
   { op: 'eq', right: '', missing: [], reason: 'does not match' }, { op: 'gte', right: '', missing: [], reason: 'is not at least' },
   { op: 'lt', right: '', missing: [], reason: 'is not less than' },
   { op: 'eq', right: '6', missing: [], reason: 'does not match' }, { op: 'gte', right: '10', missing: [], reason: 'is not at least' },
-  { op: 'lt', right: '3', missing: [], reason: 'is not less than' }, { op: 'contains', right: '6', missing: [], reason: 'does not contain' }
+  { op: 'lt', right: '3', missing: [], reason: 'is not less than' }, { op: 'contains', right: '6', missing: [], reason: 'does not contain' },
+  { op: 'ne', right: '5', missing: [], reason: 'is equal to' },
+  { op: 'gt', right: '5', missing: [], reason: 'is not more than' },
+  { op: 'lte', right: '3', missing: [], reason: 'is not at most' },
+  { op: 'starts', right: '6', missing: [], reason: 'does not start with' }
 ])('a failed $op check explains comparing with "$right"', ({ op, right, missing, reason }) => {
   const check = n('c', 'cond.compare', { left: '5', op, right });
   const step = run(flowOf([trigger, check], [e('t', 'next', 'c')])).steps.find((entry) => entry.id === 'c');

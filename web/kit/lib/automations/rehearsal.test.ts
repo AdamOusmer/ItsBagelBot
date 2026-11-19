@@ -7,7 +7,7 @@ import mathCases from './testdata/math_cases.json';
 import textCases from './testdata/text_cases.json';
 import { compileFlow, flowToDefinition, type Flow, type FlowNode } from './flow-graph';
 import { compactDuration, defaultScenario, rehearseDefinition } from './rehearsal';
-import { MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_LOOP_TIMES } from './limits';
+import { MAX_ACTIONS, MAX_AGE_DAYS, MAX_DEFINITION_BYTES, MAX_LOOP_TIMES } from './limits';
 import type { Action, Condition, Definition, Params } from './types';
 import type { RehearsalOverrides, RehearsalScenario } from './rehearsal-types';
 
@@ -19,9 +19,9 @@ const choose = (condition: Condition): Action => action('if', { condition, then:
 const definition = (actions: Action[]): Definition => ({ version: 1, trigger: { type: 'command', params: { name: '!hello' } }, actions });
 const parallel = (branches: Action[][]): Action => action('parallel', { branches: branches.map((actions) => ({ weight: 1, actions })) });
 
-type Options = { scenario?: Partial<RehearsalScenario>; overrides?: RehearsalOverrides };
+type Options = { conditions?: Condition[]; scenario?: Partial<RehearsalScenario>; overrides?: RehearsalOverrides };
 function execute(actions: Action[], options: Options = {}) {
-  const def = definition(actions);
+  const def = { ...definition(actions), conditions: options.conditions };
   return rehearseDefinition(def, { ...defaultScenario(def), ...options.scenario }, options.overrides);
 }
 
@@ -51,8 +51,10 @@ const runs: RunCase[] = [
   { name: 'stored variables mutate independently by scope', actions: [action('var_set', { scope: 'channel', name: 'score', value: '2' }), action('var_add', { scope: 'channel', name: 'score', amount: 3 }), action('var_set', { scope: 'viewer', name: 'score', value: '8' }), chat('{var:score}/{viewervar:score}'), action('var_delete', { scope: 'channel', name: 'score' }), chat('{var:score}/{viewervar:score}')], lines: ['5/8', '/8'] },
   { name: 'counters and points reflect seeded state', actions: [action('counter_add', { name: 'wins', amount: 2 }), action('points_add', { amount: 5 }), chat('{counter:wins}/{points}')], options: { scenario: { state: { counters: { wins: 3 }, points: 10 } } }, lines: ['5/15'] },
   { name: 'stored template text is never expanded twice', actions: [chat('{var:literal}')], options: { scenario: { state: { channelVars: { literal: '{user}' } } } }, lines: ['{user}'] },
+  { name: 'variable tokens ignore inherited names', actions: [chat('{var:constructor}/{viewervar:constructor}')], lines: ['/'] },
   { name: 'countdown starts and extends with time left', actions: [action('countdown_start', { name: 'timer', seconds: 60 }), action('delay', { ms: 5000 }), action('countdown_add', { name: 'timer', seconds: 10 }), chat('{countdown:left}')], lines: ['1m 5s'] },
   { name: 'named cooldown extends only a running window', actions: [choose(condition('cooldown', { name: 'timer', global_s: 60 })), action('cooldown_add', { name: 'timer', seconds: 30 }), chat('{cooldown:left}')], lines: ['yes', '1m 30s'] },
+  { name: 'cooldown add cannot extend an unnamed window', actions: [choose(condition('cooldown', { global_s: 60 })), action('cooldown_add', { name: 'global', seconds: 30 }), chat('{cooldown:left}')], lines: ['yes'] },
   { name: 'cooling branch reports current time left', actions: [choose(condition('cooldown', { name: 'timer', global_s: 60 })), action('delay', { ms: 5000 }), action('if', { condition: condition('cooldown', { name: 'timer', global_s: 60 }), else: [chat('{cooldown:left}')] })], lines: ['yes', '55s'] }
 ];
 
@@ -77,7 +79,11 @@ test.each([
   expect(result.events.find((event) => event.kind === 'say')?.lines).toEqual([expected]);
 });
 
-test.each([
+type ConditionCase = Options & { name?: Text; expected: Text | Text[]; code?: Text; starts?: boolean; blockedAt?: Text } & (
+  { type: Text; params: Params } | { actions?: Action[] }
+);
+const unnamedCooldown = (seconds: number) => condition('cooldown', { global_s: seconds });
+const conditionCases: ConditionCase[] = [
   { type: 'users', params: { allow_ids: ['40000001'] }, expected: 'yes' },
   { type: 'users', params: { allow_ids: ['40000002'] }, expected: 'no' },
   { type: 'users', params: { deny_ids: ['40000001'] }, expected: 'no' },
@@ -92,10 +98,49 @@ test.each([
   { type: 'chance', params: { percent: 150 }, expected: 'yes', overrides: { 'actions[0]': 'no' } },
   { type: 'chance', params: { percent: 0 }, expected: 'no', overrides: { 'actions[0]': 'yes' } },
   { type: 'chance', params: { percent: -1 }, expected: 'no', overrides: { 'actions[0]': 'yes' } },
-  { type: 'compare', params: { left: '{local:missing}', op: 'eq', right: '' }, expected: 'yes' }
-])('$type $params', ({ type, params, expected, ...options }) => {
-  const result = execute([choose(condition(type, params))], { ...options, scenario: { state: { channelVars: { score: '1', word: 'a' } } } });
-  expect(result.events.find((event) => event.kind === 'say')?.lines).toEqual([expected]);
+  { type: 'compare', params: { left: '{local:missing}', op: 'eq', right: '' }, expected: 'yes' },
+  { type: 'users', params: { allow: ['alice'] }, scenario: { user: 'Alice' }, expected: 'yes' },
+  { type: 'users', params: { allow: ['alice'] }, scenario: { user: 'Bob' }, expected: 'no' },
+  { type: 'users', params: { deny: ['alice'], allow_ids: ['42'] }, scenario: { user: 'Alice', userId: '42' }, expected: 'no' },
+  { type: 'users', params: { allow_ids: ['00042'] }, scenario: { userId: '42' }, expected: 'yes' },
+  { type: 'users', params: { allow_ids: ['000'] }, scenario: { userId: '0' }, expected: 'no' },
+  { type: 'users', params: { allow_ids: ['0x2a'] }, scenario: { userId: '0x2a' }, expected: 'no' },
+  { type: 'users', params: { allow: ['_setup_required'] }, scenario: { user: '_setup_required' }, expected: 'no', code: 'setup_required' },
+  { type: 'var', params: { name: 'constructor', op: 'exists' }, expected: 'no' },
+  { type: 'var', params: { name: 'constructor', op: 'eq', value: '1' }, expected: 'no' },
+  { type: 'var', params: { name: 'constructor', op: 'not_exists', value: '{var:constructor}' }, expected: 'yes' },
+  { type: 'var', params: { name: 'score', op: 'not_exists' }, expected: 'no' },
+  { type: 'var', params: { name: 'score', op: 'starts', value: '1' }, expected: 'yes' },
+  { type: 'compare', params: { left: 'HYPE train', op: 'starts', right: 'hype', ignore_case: true }, expected: 'yes' },
+  { type: 'compare', params: { left: 'HYPE train', op: 'starts', right: 'hype' }, expected: 'no' },
+  { name: 'root chance refuses before cooldown is armed', conditions: [unnamedCooldown(30), condition('chance', { percent: 50 })], overrides: { 'conditions[1]': 'no' }, expected: ['no'], starts: false, blockedAt: 'conditions[1]' },
+  { name: 'named global and unnamed cooldowns have separate windows', conditions: [condition('cooldown', { name: 'global', global_s: 30 }), unnamedCooldown(5)], expected: ['yes', 'yes'] },
+  { name: 'legacy named seed still applies', type: 'cooldown', params: { name: 'test', global_s: 30 }, scenario: { state: { cooldowns: { test: 30000 } } }, expected: 'no' },
+  { name: 'global seed covers only the unnamed window', type: 'cooldown', params: { name: 'global', global_s: 30 }, scenario: { state: { cooldowns: { global: 30000 } } }, expected: 'yes' },
+  { name: 'namespaced seed can target a cooldown named global', type: 'cooldown', params: { name: 'global', global_s: 30 }, scenario: { state: { cooldowns: { 'named:global': 30000 } } }, expected: 'no' },
+  { name: 'two unnamed cooldowns', actions: [action('loop', { times: '2', actions: [choose(unnamedCooldown(30)), choose(unnamedCooldown(5))] })], expected: ['yes', 'yes', 'no', 'no'] },
+  { name: 'ordinals include unvisited branches and follow root and parent checks', conditions: [unnamedCooldown(30)], actions: [action('if', { condition: unnamedCooldown(5), then: [choose(unnamedCooldown(5))], else: [choose(unnamedCooldown(5))] }), choose(unnamedCooldown(5))], scenario: { state: { cooldowns: { 'global:2': 30000, 'global:4': 30000 } } }, expected: ['yes', 'yes', 'no', 'no'] },
+  { type: 'arg_regex', params: { pattern: '^[0-9]+$' }, scenario: { message: '!hello 42' }, expected: 'yes' },
+  { type: 'arg_regex', params: { pattern: '^[0-9]+$' }, scenario: { message: '!hello x' }, expected: 'no' },
+  { type: 'arg_regex', params: { pattern: '(?i)^(?P<name>alice)$' }, scenario: { message: '!hello Alice' }, expected: 'yes' },
+  { type: 'arg_regex', params: { pattern: '(?=42)' }, scenario: { message: '!hello 42' }, expected: 'no' },
+  { type: 'arg_regex', params: { pattern: '[' }, expected: 'no' },
+  { type: 'category', params: { allow: ['minecraft'] }, scenario: { game: 'Minecraft' }, expected: 'yes' },
+  { type: 'category', params: { deny: ['minecraft'], allow: ['Minecraft'] }, scenario: { game: 'Minecraft' }, expected: 'no' },
+  { type: 'category', params: { allow: ['minecraft'] }, expected: 'yes' },
+  { type: 'category', params: { allow: ['minecraft'] }, overrides: { 'actions[0]': 'no' }, expected: 'no' }
+];
+
+test.each(conditionCases)('$name $type $params', (row) => {
+  const actions = 'type' in row ? [choose(condition(row.type, row.params))] : row.actions ?? [];
+  const scenario = { state: { channelVars: { score: '1', word: 'a' } }, ...row.scenario };
+  const result = execute(actions, { ...row, scenario });
+  const checks = result.events.filter((event) => event.kind === 'check');
+  const lines = result.events.find((event) => event.kind === 'say')?.lines;
+  const expected = [row.expected].flat();
+  expect({ starts: result.starts, states: checks.map((event) => event.status), code: checks[0]?.detail?.code, blockedAt: result.reason?.values.path, lines: 'type' in row ? lines : undefined }).toEqual({
+    starts: row.starts ?? true, states: expected, code: row.code, blockedAt: row.blockedAt, lines: 'type' in row ? expected : undefined
+  });
 });
 
 test.each(mathCases)('shared math $expression', ({ expression, want, error }) => {
@@ -246,7 +291,8 @@ test.each([
 test.each([
   { name: 'MaxLoopTimes', value: MAX_LOOP_TIMES, want: 100 },
   { name: 'MaxActions', value: MAX_ACTIONS, want: 1000 },
-  { name: 'MaxDefinitionBytes', value: MAX_DEFINITION_BYTES, want: 262144 }
+  { name: 'MaxDefinitionBytes', value: MAX_DEFINITION_BYTES, want: 262144 },
+  { name: 'MaxAgeDays', value: MAX_AGE_DAYS, want: 3650 }
 ])('mirrored Go limit $name', ({ name, value, want }) => {
   const source = readFileSync(new URL('../../../../internal/domain/automation/limits.go', import.meta.url), 'utf8');
   const declared = Number(new RegExp(`${name}\\s*=\\s*(\\d+)`).exec(source)?.[1]);

@@ -11,7 +11,16 @@ const COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
   gte: 'flows.line.compareGte',
   lt: 'flows.line.compareLt',
   eq: 'flows.line.compareEq',
-  contains: 'flows.line.compareContains'
+  contains: 'flows.line.compareContains',
+  ne: 'flows.line.compareNe',
+  gt: 'flows.line.compareGt',
+  lte: 'flows.line.compareLte',
+  starts: 'flows.line.compareStarts'
+});
+
+const EMPTY_COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
+  eq: 'flows.line.compareEmpty',
+  ne: 'flows.line.compareNotEmpty'
 });
 
 const ROLES: Readonly<Record<string, MessageKey>> = Object.freeze({
@@ -92,9 +101,10 @@ function triggerLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
 
 function compareLine(t: Translate, n: FlowNode): string {
   const left = text(n, 'left');
-  const right = text(n, 'right');
-  if (!left || !right) return '';
+  const right = configText(n, 'right');
+  if (!left) return '';
   const op = text(n, 'op') || 'gte';
+  if (right === '') return Object.hasOwn(EMPTY_COMPARISONS, op) ? t(EMPTY_COMPARISONS[op]!, { left, right }) : '';
   return Object.hasOwn(COMPARISONS, op) ? t(COMPARISONS[op]!, { left, right }) : t('flows.line.compareIs', { left, right });
 }
 
@@ -119,9 +129,12 @@ function cooldownLine(t: Translate, n: FlowNode): string {
 
 function varCheckLine(t: Translate, n: FlowNode): string {
   const spec = specFor(n.type)!;
-  const name = text(n, 'name');
-  if (!name) return '';
-  if (text(n, 'op') === 'exists') return t('flows.line.varExists', { name });
+  const key = text(n, 'name');
+  if (!key) return '';
+  const name = t(n.config.scope === 'viewer' ? 'flows.line.varViewer' : 'flows.line.varChannel', { name: key });
+  const op = text(n, 'op');
+  if (op === 'exists') return t('flows.line.varExists', { name });
+  if (op === 'not_exists') return t('flows.line.varNotExists', { name });
   return t('flows.line.varCheck', { name, op: optionLabel(t, spec, n, 'op'), value: text(n, 'value') });
 }
 

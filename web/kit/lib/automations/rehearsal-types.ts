@@ -17,6 +17,7 @@ export type RehearsalScenario = {
   userId?: string;
   role?: RehearsalRole;
   live: boolean;
+  game?: string;
   message?: string;
   args?: string;
   bits?: number;
@@ -44,6 +45,7 @@ export type ScenarioField = {
 export type RehearsalOverrides = Readonly<Record<string, string>>;
 export type RehearsalReason = { reason: string; values: Record<string, string> };
 export type TriggerMatch = { starts: true } | ({ starts: false } & RehearsalReason);
+export type ConditionOutcome = { passes: boolean; code?: string };
 
 export type RehearsalEvent = {
   key: string;
@@ -67,6 +69,7 @@ export type RehearsalResult = {
 export type RehearsalContext = {
   scenario: RehearsalScenario;
   state: RehearsalState;
+  cooldownOrdinals: ReadonlyMap<string, number>;
   overrides: RehearsalOverrides;
   locals: Record<string, string>;
   path: string;

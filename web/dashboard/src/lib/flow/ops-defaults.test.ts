@@ -29,7 +29,7 @@ const defaults = {
   'cond.role': { level: 'mod' },
   'cond.user': {},
   'cond.cooldown': { seconds: 30 },
-  'cond.compare': { op: 'gte' },
+  'cond.compare': { op: 'gte', matchCase: false },
   'cond.chance': { percent: 50 },
   'cond.var': { scope: 'channel', op: 'exists' },
   'reply.chat': { message: 'Thanks {user}!' },

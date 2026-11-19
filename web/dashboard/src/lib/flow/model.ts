@@ -4,7 +4,7 @@ import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
+import { COMPARE_OPS, TEXT_ARG_FIELDS, TEXT_COMPARE_OPS, VAR_OPS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
 import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
@@ -81,7 +81,7 @@ export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: str
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
-  | { key: string; type: 'select'; options: readonly string[] }
+  | { key: string; type: 'select'; options: readonly string[]; optionGroup?: 'checkOps' }
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
@@ -278,8 +278,9 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     icon: 'scale',
     fields: [
       { key: 'left', type: 'template', placeholder: true, singleLine: true },
-      { key: 'op', type: 'select', options: ['gte', 'lt', 'eq', 'contains'] },
-      { key: 'right', type: 'template', placeholder: true, singleLine: true }
+      { key: 'op', type: 'select', options: COMPARE_OPS, optionGroup: 'checkOps', initial: 'gte' },
+      { key: 'right', type: 'template', placeholder: true, singleLine: true },
+      { key: 'matchCase', type: 'toggle', initial: false, when: { key: 'op', value: TEXT_COMPARE_OPS } }
     ],
     outputs: yesNo
   },
@@ -297,7 +298,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [
       varScope,
       varName,
-      { key: 'op', type: 'select', options: [...VAR_OPS_WITH_VALUE, 'exists'], initial: 'exists' },
+      { key: 'op', type: 'select', options: VAR_OPS, optionGroup: 'checkOps', initial: 'exists' },
       { key: 'value', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: VAR_OPS_WITH_VALUE } }
     ],
     outputs: yesNo

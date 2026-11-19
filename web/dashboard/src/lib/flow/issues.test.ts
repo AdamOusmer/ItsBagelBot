@@ -98,7 +98,11 @@ test.each(['reply.timeout', 'reply.ban', 'reply.mod', 'reply.vip', 'reply.points
 
 test.each<{ type: FlowNode['type']; key: string; config: FlowNode['config']; expected: boolean }>([
   { type: 'cond.compare', key: 'right', config: { op: 'contains' }, expected: true },
+  { type: 'cond.compare', key: 'right', config: { op: 'starts' }, expected: true },
   { type: 'cond.compare', key: 'right', config: { op: 'eq' }, expected: false },
+  { type: 'cond.var', key: 'value', config: { op: 'contains' }, expected: true },
+  { type: 'cond.var', key: 'value', config: { op: 'starts' }, expected: true },
+  { type: 'cond.var', key: 'value', config: { op: 'not_exists' }, expected: false },
   { type: 'reply.prediction_end', key: 'winner', config: { status: 'resolve' }, expected: true },
   { type: 'reply.prediction_end', key: 'winner', config: { status: 'cancel' }, expected: false },
   { type: 'reply.lights', key: 'scene', config: { mode: 'scene' }, expected: true },

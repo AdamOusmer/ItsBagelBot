@@ -1,4 +1,16 @@
 {
+  "op": {
+    "eq": "est identique à",
+    "ne": "diffère de",
+    "gt": "dépasse",
+    "gte": "atteint au moins",
+    "lt": "est en dessous de",
+    "lte": "vaut au plus",
+    "contains": "contient",
+    "starts": "commence par",
+    "exists": "a une valeur",
+    "not_exists": "n’est pas défini"
+  },
   "role": {
     "label": "Niveau utilisateur",
     "summary": "Vérifier le rôle du viewer",
@@ -90,7 +102,8 @@
       "right": {
         "label": "Cette valeur",
         "placeholder": "1000"
-      }
+      },
+      "matchCase": { "label": "Respecter la casse" }
     },
     "out": {
       "yes": "Oui",

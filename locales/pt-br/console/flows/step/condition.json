@@ -1,4 +1,16 @@
 {
+  "op": {
+    "eq": "é igual a",
+    "ne": "é diferente de",
+    "gt": "é maior que",
+    "gte": "é no mínimo",
+    "lt": "é menor que",
+    "lte": "é no máximo",
+    "contains": "contém",
+    "starts": "começa com",
+    "exists": "tem algum valor",
+    "not_exists": "não está definida"
+  },
   "role": {
     "label": "Nível de usuário",
     "summary": "Verificar o cargo do espectador",
@@ -90,7 +102,8 @@
       "right": {
         "label": "Este valor",
         "placeholder": "1000"
-      }
+      },
+      "matchCase": { "label": "Diferenciar maiúsculas e minúsculas" }
     },
     "out": {
       "yes": "Sim",

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
+import { comparePasses, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
@@ -155,14 +155,25 @@ function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind: Text):
 const INPUT_TOKENS: Readonly<Record<Text, keyof RehearsalScenario>> = { user: 'user', 'user.id': 'userId', userid: 'userId', bits: 'bits', 'event.amount': 'bits', viewers: 'viewers', 'event.viewers': 'viewers', 'event.months': 'months', months: 'months', 'event.input': 'input', input: 'input' };
 const TOKEN_LABELS = new Map(NODE_SPECS.flatMap((spec) => [...(spec.provides ?? []), ...(spec.outputs ?? []).flatMap((port) => port.provides ?? [])]).map((variable) => [variable.token, variable]));
 
+function passingValue(op: Text, right: Text): Text {
+  switch (op) {
+    case 'gt': return String(Math.floor(Number(right)) + 1);
+    case 'lt': return String(Math.ceil(Number(right)) - 1);
+    case 'ne': return right === '1' ? '2' : '1';
+    default: return right;
+  }
+}
+
 function compareRepair(node: FlowNode): ScenarioPatch | undefined {
   const token = /^\{([^}]+)\}$/.exec(String(node.config.left));
   const field = INPUT_TOKENS[token?.[1] ?? ''];
   if (!field) return undefined;
   const right = String(node.config.right ?? '');
   if (right.includes('{')) return undefined;
-  const value = node.config.op === 'lt' ? String(Number(right) - 1) : right;
-  return { [field]: ['bits', 'viewers', 'months'].includes(field) ? Number(value) : value };
+  const op = String(node.config.op ?? 'gte');
+  const candidate = passingValue(op, right);
+  const value = ['bits', 'viewers', 'months'].includes(field) ? Number(candidate) : candidate;
+  return comparePasses(op, String(value), right, node.config.matchCase === false) ? { [field]: value } : undefined;
 }
 
 function checkRepair(node: FlowNode, event: RehearsalEvent, context: RunContext): ScenarioPatch | undefined {
@@ -184,7 +195,7 @@ function possiblePatch(context: RunContext, fields: readonly ScenarioField[], pa
 function checkText(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
   if (node.type === 'cond.role') return t('flows.test.roleCheck', { actual: scenarioRoleLabel(t, scenario.role ?? 'viewer'), expected: scenarioRoleLabel(t, String(node.config.level ?? 'viewer')) });
   if (node.type === 'cond.user') return t('flows.test.userCheck', { actual: scenario.userId ?? t('flows.test.notSet'), expected: String(node.config.userId || t('flows.test.notSet')) });
-  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, scenario) || t('flows.test.emptyValue'), right: displayInput(node.config.right, scenario) || t('flows.test.emptyValue') } });
+  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, scenario) || t('flows.test.emptyValue'), right: displayInput(node.config.right, scenario) } });
 }
 
 function displayInput(value: FlowNode['config'][Text] | undefined, scenario: RehearsalScenario): Text {
@@ -285,12 +296,23 @@ function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boole
   return Boolean(node?.type.startsWith('reply.http_') && event.detail?.response === '');
 }
 
+const FAILED_COMPARISONS: Readonly<Record<Text, MessageKey>> = Object.freeze({
+  eq: 'flows.test.compareNotEq',
+  ne: 'flows.test.compareNotNe',
+  gt: 'flows.test.compareNotGt',
+  gte: 'flows.test.compareNotGte',
+  lt: 'flows.test.compareNotLt',
+  lte: 'flows.test.compareNotLte',
+  contains: 'flows.test.compareNotContains',
+  starts: 'flows.test.compareNotStarts'
+});
+
 function stepNote(t: Translate, node: FlowNode | undefined, context: { event: RehearsalEvent; scenario: RehearsalScenario }): Text | undefined {
   if (emptyResponse(node, context.event)) return t('flows.test.emptyResponse');
   if (node?.type !== 'cond.compare') return undefined;
   if (context.event.status !== 'no') return undefined;
-  const keys: Record<Text, MessageKey> = { gte: 'flows.test.compareNotGte', lt: 'flows.test.compareNotLt', eq: 'flows.test.compareNotEq', contains: 'flows.test.compareNotContains' };
-  return t(keys[String(node.config.op ?? 'gte')] ?? 'flows.test.compareNotEq', {
+  const op = String(node.config.op ?? 'gte');
+  return t(Object.hasOwn(FAILED_COMPARISONS, op) ? FAILED_COMPARISONS[op]! : 'flows.test.compareNotEq', {
     left: displayInput(node.config.left, context.scenario) || t('flows.test.emptyValue'),
     right: displayInput(node.config.right, context.scenario) || t('flows.test.emptyValue')
   });

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, type Issue } from '@bagel/kit/automations';
+import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, needsSearchValue, type Issue } from '@bagel/kit/automations';
 import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
 import { configText } from './setup';
 
@@ -86,8 +86,11 @@ const TYPES: Record<string, string> = {
 };
 
 const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['login'], 'cond.cooldown': ['seconds'] };
+const searchValueRequired = (config: FlowNode['config']) => needsSearchValue(config.op);
+
 const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
-  'cond.compare:right': (config) => config.op === 'contains',
+  'cond.compare:right': searchValueRequired,
+  'cond.var:value': searchValueRequired,
   'reply.prediction_end:winner': (config) => config.status === 'resolve',
   'reply.lights:scene': (config) => config.mode === 'scene'
 };

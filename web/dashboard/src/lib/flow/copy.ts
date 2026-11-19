@@ -123,8 +123,13 @@ export function durationOutside(field: DurationSpec, seconds: string | number | 
   return Number(seconds) < field.min || Number(seconds) > field.max;
 }
 
+const sharesCheckOps = (field: FieldSpec): boolean => field.type === 'select' && field.optionGroup === 'checkOps';
+
+const optionKey = (spec: NodeSpec, field: FieldSpec, value: string): string =>
+  sharesCheckOps(field) ? `flows.step.condition.op.${value}` : `${fieldCopyPrefix(spec, field)}.option.${value}`;
+
 export const optionText = (t: Translate, spec: NodeSpec, field: FieldSpec, value: string): string =>
-  t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.option.${value}` as MessageKey);
+  sharesCheckOps(field) ? t(`flows.step.condition.op.${value}` as MessageKey) : t(`${fieldCopyPrefix(spec, field)}.option.${value}` as MessageKey);
 
 export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { value: string; label: string }[] {
   if (field.type !== 'select') return [];
@@ -137,7 +142,7 @@ export function fieldSearchText(t: Translate, spec: NodeSpec): string {
     const options = field.type === 'select' ? field.options : [];
     return [
       known(`${prefix}.label`, t(`${prefix}.label` as MessageKey)),
-      ...options.map((value) => known(`${prefix}.option.${value}`, t(`${prefix}.option.${value}` as MessageKey)))
+      ...options.map((value) => known(optionKey(spec, field, value), optionText(t, spec, field, value)))
     ];
   }).filter(Boolean).join(' ');
 }

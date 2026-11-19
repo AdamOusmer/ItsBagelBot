@@ -138,8 +138,17 @@ export interface PointsCondition {
 
 export interface CompareCondition {
   left: string;
-  op: 'gte' | 'lt' | 'eq' | 'contains';
+  op: CompareOp | 'contains' | 'starts';
   right?: string;
+  ignore_case?: boolean;
+}
+
+export interface FollowCondition {
+  min_days: number;
+}
+
+export interface AccountAgeCondition {
+  min_days: number;
 }
 
 export interface ArgRegexCondition {
@@ -276,7 +285,7 @@ export interface HTTPGetAction {
 }
 
 export type VarScope = 'channel' | 'viewer';
-export type VarOp = CompareOp | 'contains' | 'exists';
+export type VarOp = CompareCondition['op'] | 'exists' | 'not_exists';
 
 export interface VarCondition {
   scope: VarScope;

@@ -1,4 +1,16 @@
 {
+  "op": {
+    "eq": "is equal to",
+    "ne": "is not equal to",
+    "gt": "is more than",
+    "gte": "is at least",
+    "lt": "is less than",
+    "lte": "is at most",
+    "contains": "contains",
+    "starts": "starts with",
+    "exists": "is set to anything",
+    "not_exists": "is not set"
+  },
   "role": {
     "label": "User level",
     "summary": "Check the viewer's role",
@@ -49,7 +61,8 @@
         "label": "Is",
         "option": { "gte": "at least", "lt": "less than", "eq": "equal to", "contains": "contains" }
       },
-      "right": { "label": "This value", "placeholder": "1000" }
+      "right": { "label": "This value", "placeholder": "1000" },
+      "matchCase": { "label": "Match case" }
     },
     "out": { "yes": "Yes", "no": "No" }
   },

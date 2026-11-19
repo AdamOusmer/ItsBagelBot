@@ -41,7 +41,7 @@ test.each([
   ['zzzz', []],
   ['send zzzz', []],
   ['wa', ['reply.wait', 'cond.cooldown']],
-  ['wi', ['reply.counter', 'reply.prediction_end', 'reply.text']],
+  ['wi', ['reply.counter', 'reply.prediction_end', 'cond.compare', 'cond.var', 'reply.text']],
   ['waaitt', []],
   ['?!', []]
 ])('%s returns only the matching steps in relevance order', (query, expected) => {
@@ -148,6 +148,12 @@ test('missing keywords and field labels become empty instead of searchable raw k
 test.each([
   ['cond.compare', { left: '42', right: '10' }, '42 is at least 10'],
   ['cond.compare', { left: '42', right: '10', op: 'lt' }, '42 is less than 10'],
+  ['cond.compare', { left: '{message}', op: 'eq', right: '' }, '{message} is empty'],
+  ['cond.compare', { left: '{message}', op: 'ne', right: '' }, '{message} is not empty'],
+  ['cond.compare', { left: 'Bagel', op: 'starts', right: 'Ba' }, 'Bagel starts with Ba'],
+  ['cond.var', { scope: 'channel', name: 'deaths', op: 'gte', value: '10' }, 'Channel deaths is at least 10'],
+  ['cond.var', { scope: 'viewer', name: 'score', op: 'exists' }, 'Viewer’s score is set'],
+  ['cond.var', { scope: 'viewer', name: 'score', op: 'not_exists' }, 'Viewer’s score is not set'],
   ['twitch.sub', { variant: 'any' }, 'Someone gets a new or gifted sub'],
   ['twitch.sub', {}, 'Someone gets a new or gifted sub']
 ] satisfies [string, FlowNode['config'], string][])('%s describes displayed defaults truthfully: %j', (type, config, expected) => {

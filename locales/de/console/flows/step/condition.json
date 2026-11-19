@@ -1,4 +1,16 @@
 {
+  "op": {
+    "eq": "ist gleich",
+    "ne": "ist ungleich",
+    "gt": "ist größer als",
+    "gte": "ist mindestens",
+    "lt": "ist kleiner als",
+    "lte": "ist höchstens",
+    "contains": "enthält",
+    "starts": "beginnt mit",
+    "exists": "ist auf einen beliebigen Wert gesetzt",
+    "not_exists": "ist nicht gesetzt"
+  },
   "role": {
     "label": "Nutzerlevel",
     "summary": "Rolle des Zuschauers prüfen",
@@ -90,7 +102,8 @@
       "right": {
         "label": "Dieser Wert",
         "placeholder": "1000"
-      }
+      },
+      "matchCase": { "label": "Groß-/Kleinschreibung beachten" }
     },
     "out": {
       "yes": "Ja",

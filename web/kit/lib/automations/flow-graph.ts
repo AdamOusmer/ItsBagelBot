@@ -6,6 +6,9 @@ import { COMPARE_OPS } from './compare';
 import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
+import { VAR_OPS_WITH_VALUE } from './values';
+
+export { VAR_OPS_WITH_VALUE } from './values';
 
 export type FlowConfig = Record<string, string | number | boolean>;
 export type FlowNode = { id: string; type: string; x: number; y: number; config: FlowConfig };
@@ -188,8 +191,6 @@ export const TEXT_ARG_FIELDS = new Map<string, readonly string[]>([
   ['contains', ['needle']]
 ]);
 
-export const VAR_OPS_WITH_VALUE: readonly string[] = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'];
-
 const textOp = (config: FlowConfig) => str(config.op) || 'upper';
 const varConditionOp = (config: FlowConfig) => str(config.op) || 'eq';
 
@@ -292,12 +293,20 @@ function timeLeftConfig(params: Params): FlowConfig {
 }
 
 const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
-  'cond.compare': (config) => ({ type: 'compare', params: { left: str(config.left), op: str(config.op) || 'gte', right: str(config.right) } }),
+  'cond.compare': (config) => ({
+    type: 'compare',
+    params: {
+      left: str(config.left), op: str(config.op) || 'gte', right: str(config.right),
+      ...(config.matchCase === false ? { ignore_case: true } : {})
+    }
+  }),
   'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) } }),
   'cond.chance': (config) => ({ type: 'chance', params: { percent: num(config.percent) } }),
   'cond.var': (config) => {
     const op = varConditionOp(config);
-    return { type: 'var', params: { ...varIdentity(config), op, value: VAR_OPS_WITH_VALUE.includes(op) ? str(config.value) : '' } };
+    const params: Params = { ...varIdentity(config), op };
+    if (VAR_OPS_WITH_VALUE.includes(op)) params.value = str(config.value);
+    return { type: 'var', params };
   },
   'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
   'cond.cooldown': cooldownConditionAction
@@ -870,8 +879,9 @@ function userNode(params: Params): { type: string; config: FlowConfig } | null {
 }
 
 function compareNode(params: Params): { type: string; config: FlowConfig } | null {
-  if (!COMPARE_OPS.includes(str(params.op))) return null;
-  return { type: 'cond.compare', config: { left: str(params.left), op: str(params.op), right: str(params.right) } };
+  const op = str(params.op);
+  if (!COMPARE_OPS.includes(op)) return null;
+  return { type: 'cond.compare', config: { left: str(params.left), op, right: str(params.right), matchCase: params.ignore_case !== true } };
 }
 
 const varConfig = (params: Params): FlowConfig => ({ scope: str(params.scope), name: str(params.name) });
@@ -879,7 +889,8 @@ const varConfig = (params: Params): FlowConfig => ({ scope: str(params.scope), n
 function varConditionNode(params: Params): { type: string; config: FlowConfig } {
   const op = str(params.op);
   const config: FlowConfig = { ...varConfig(params), op };
-  return { type: 'cond.var', config: op === 'exists' ? config : { ...config, value: str(params.value) } };
+  if (VAR_OPS_WITH_VALUE.includes(op)) config.value = str(params.value);
+  return { type: 'cond.var', config };
 }
 
 function conditionToNode(condition: Condition): { type: string; config: FlowConfig } | null {
