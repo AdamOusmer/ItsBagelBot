@@ -32,13 +32,13 @@ type AnnounceAction struct {
 }
 
 type TimeoutAction struct {
-	Login   string `json:"login"`
+	TargetAction
 	Seconds int    `json:"seconds"`
 	Reason  string `json:"reason"`
 }
 
 type BanAction struct {
-	Login  string `json:"login"`
+	TargetAction
 	Reason string `json:"reason"`
 }
 
@@ -76,13 +76,13 @@ type CommercialAction struct {
 }
 
 type PointsAddAction struct {
-	Login  string `json:"login"`
-	Amount int64  `json:"amount"`
+	TargetAction
+	Amount int64 `json:"amount"`
 }
 
 type PointsSetAction struct {
-	Login  string `json:"login"`
-	Amount int64  `json:"amount"`
+	TargetAction
+	Amount int64 `json:"amount"`
 }
 
 type CounterAddAction struct {
@@ -180,13 +180,13 @@ func checkAnnounce(c chk, p AnnounceAction) {
 }
 
 func checkTimeout(c chk, p TimeoutAction) {
-	c.text("login", p.Login, loginRequired)
+	c.target(p.TargetAction, loginRequired)
 	inRange(c, "seconds", p.Seconds, between(1, 1209600))
 	c.text("reason", p.Reason, reasonOptions)
 }
 
 func checkBan(c chk, p BanAction) {
-	c.text("login", p.Login, loginRequired)
+	c.target(p.TargetAction, loginRequired)
 	c.text("reason", p.Reason, reasonOptions)
 }
 
@@ -214,13 +214,13 @@ func checkCommercial(c chk, p CommercialAction) {
 }
 
 func checkPointsAdd(c chk, p PointsAddAction) {
-	c.text("login", p.Login, loginOptional)
+	c.target(p.TargetAction, loginOptional)
 	inRange(c, "amount", p.Amount, between(-1000000, 1000000))
 	nonZero(c, "amount", p.Amount)
 }
 
 func checkPointsSet(c chk, p PointsSetAction) {
-	c.text("login", p.Login, loginOptional)
+	c.target(p.TargetAction, loginOptional)
 	inRange(c, "amount", p.Amount, between(0, 1000000000))
 }
 

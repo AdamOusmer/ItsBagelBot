@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { TargetAction } from './types';
+
 export interface PollAction {
   title: string;
   choices: string[];
@@ -22,8 +24,7 @@ export interface PredictionEndAction {
   winner?: number;
 }
 
-export interface LoginToggleAction {
-  login: string;
+export interface LoginToggleAction extends TargetAction {
   on?: boolean;
 }
 

@@ -23,7 +23,8 @@ const read = (...parts: string[]) => readFileSync(join(TESTDATA, ...parts), 'utf
 describe('valid fixtures', () => {
   for (const file of fixtures('valid')) {
     test(file, () => {
-      expect(parseDefinition(read('valid', file)).issues).toEqual([]);
+      const raw = read('valid', file);
+      expect(parseDefinition(raw)).toEqual({ definition: JSON.parse(raw), issues: [] });
     });
   }
 });

@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { STREAM_ACTIONS } from './stream-actions';
-import type { Chk } from './check';
+import { TARGET_DEFAULTS, TARGET_SCHEMA, type Chk } from './check';
 import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE, validateFetchDef } from '../engine/fetch-validate';
 import { checkVarIdentity, counterName } from './conditions';
 import { register, type Table, type Wide } from './engine';
@@ -38,13 +38,13 @@ function checkAnnounce(c: Chk, p: Wide<T.AnnounceAction>): void {
 }
 
 function checkTimeout(c: Chk, p: Wide<T.TimeoutAction>): void {
-  c.login('login', p.login, 1);
+  c.target(p, 1);
   c.inRange('seconds', p.seconds, 1, MAX_TIMEOUT_SECONDS);
   c.reason('reason', p.reason, 0);
 }
 
 function checkBan(c: Chk, p: Wide<T.BanAction>): void {
-  c.login('login', p.login, 1);
+  c.target(p, 1);
   c.reason('reason', p.reason, 0);
 }
 
@@ -58,13 +58,13 @@ function checkCommercial(c: Chk, p: Wide<T.CommercialAction>): void {
 }
 
 function checkPointsAdd(c: Chk, p: Wide<T.PointsAddAction>): void {
-  c.login('login', p.login, 0);
+  c.target(p, 0);
   c.inRange('amount', p.amount, -MAX_AMOUNT, MAX_AMOUNT);
   c.nonZero('amount', p.amount);
 }
 
 function checkPointsSet(c: Chk, p: Wide<T.PointsSetAction>): void {
-  c.login('login', p.login, 0);
+  c.target(p, 0);
   c.inRange('amount', p.amount, 0, MAX_SET_AMOUNT);
 }
 
@@ -175,8 +175,8 @@ export const SIMPLE_ACTIONS: Table = {
   chat: text,
   announce: register<Wide<T.AnnounceAction>>({ text: 'string', color: 'string' }, checkAnnounce),
   reply: text,
-  timeout: register<Wide<T.TimeoutAction>>({ login: 'string', seconds: 'int', reason: 'string' }, checkTimeout),
-  ban: register<Wide<T.BanAction>>({ login: 'string', reason: 'string' }, checkBan),
+  timeout: register<Wide<T.TimeoutAction>>({ ...TARGET_SCHEMA, seconds: 'int', reason: 'string' }, checkTimeout, TARGET_DEFAULTS),
+  ban: register<Wide<T.BanAction>>({ ...TARGET_SCHEMA, reason: 'string' }, checkBan, TARGET_DEFAULTS),
   delete_message: empty,
   warn: register<Wide<T.WarnAction>>({ login: 'string', reason: 'string' }, checkWarn),
   shield: register<Wide<T.ShieldAction>>({ on: 'bool' }, noop),
@@ -187,8 +187,8 @@ export const SIMPLE_ACTIONS: Table = {
   set_game: register<Wide<T.SetGameAction>>({ game: 'string' }, (c, p) => void c.text('game', p.game, 1, 100)),
   set_tags: register<Wide<T.SetTagsAction>>({ tags: 'string' }, (c, p) => void c.template('tags', p.tags)),
   commercial: register<Wide<T.CommercialAction>>({ seconds: 'int' }, checkCommercial),
-  points_add: register<Wide<T.PointsAddAction>>({ login: 'string', amount: 'int' }, checkPointsAdd),
-  points_set: register<Wide<T.PointsSetAction>>({ login: 'string', amount: 'int' }, checkPointsSet),
+  points_add: register<Wide<T.PointsAddAction>>({ ...TARGET_SCHEMA, amount: 'int' }, checkPointsAdd, TARGET_DEFAULTS),
+  points_set: register<Wide<T.PointsSetAction>>({ ...TARGET_SCHEMA, amount: 'int' }, checkPointsSet, TARGET_DEFAULTS),
   counter_add: register<Wide<T.CounterAddAction>>({ name: 'string', amount: 'int' }, checkCounterAdd),
   counter_set: register<Wide<T.CounterSetAction>>({ name: 'string', value: 'int' }, (c, p) => counterName(c, 'name', p.name)),
   redemption: register<Wide<T.RedemptionAction>>({ status: 'string' }, (c, p) => c.oneOf('status', p.status, ['fulfill', 'cancel'])),

@@ -160,14 +160,20 @@ export interface AnnounceAction {
   color?: AnnounceColor;
 }
 
-export interface TimeoutAction {
-  login: string;
+export const TARGET_MODES = ['login', 'viewer', 'mention', 'user'] as const;
+
+export interface TargetAction {
+  who?: (typeof TARGET_MODES)[number];
+  user_id?: string;
+  login?: string;
+}
+
+export interface TimeoutAction extends TargetAction {
   seconds: number;
   reason?: string;
 }
 
-export interface BanAction {
-  login: string;
+export interface BanAction extends TargetAction {
   reason?: string;
 }
 
@@ -204,13 +210,11 @@ export interface CommercialAction {
   seconds: 30 | 60 | 90 | 120 | 150 | 180;
 }
 
-export interface PointsAddAction {
-  login?: string;
+export interface PointsAddAction extends TargetAction {
   amount: number;
 }
 
-export interface PointsSetAction {
-  login?: string;
+export interface PointsSetAction extends TargetAction {
   amount: number;
 }
 
