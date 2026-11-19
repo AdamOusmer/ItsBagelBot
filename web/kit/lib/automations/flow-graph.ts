@@ -261,6 +261,11 @@ const LOOP_TYPE = 'reply.loop';
 const LOOP_PORTS = ['body', 'done'] as const;
 
 const DEFAULT_LIGHT_COLOR = '#ffffff';
+const DEFAULT_LIGHT_KELVIN = 4000;
+const LIGHT_OPTION_FIELDS = [
+  ['brightness', 'brightness'],
+  ['hold_s', 'holdS']
+] as const;
 
 function lightParams(config: FlowConfig): Params {
   const params: Params = { device: str(config.device), sku: str(config.sku) };
@@ -279,10 +284,21 @@ function sceneParams(config: FlowConfig): Params {
   return scene;
 }
 
+const LIGHT_MODE_WRITERS = new Map<string, (config: FlowConfig) => Params>([
+  ['color', (config) => ({ color: str(config.color) || DEFAULT_LIGHT_COLOR })],
+  ['scene', sceneParams],
+  ['white', ({ kelvin }) => ({ kelvin: String(kelvin ?? '').trim() === '' ? DEFAULT_LIGHT_KELVIN : num(kelvin) })],
+  ['on', () => ({})],
+  ['off', () => ({})]
+]);
+
 function lightsAction(config: FlowConfig): Action {
-  const params = lightParams(config);
-  if (config.mode === 'scene') return { type: 'lights', params: { ...params, mode: 'scene', ...sceneParams(config) } };
-  return { type: 'lights', params: { ...params, mode: 'color', color: str(config.color) || DEFAULT_LIGHT_COLOR } };
+  const mode = typeof config.mode === 'string' ? config.mode : 'color';
+  const params = { ...lightParams(config), mode, ...LIGHT_MODE_WRITERS.get(mode)?.(config) };
+  const brightness = num(config.brightness);
+  const hold = num(config.holdS);
+  const useBrightness = mode !== 'off' && Number.isFinite(brightness) && brightness !== 0;
+  return { type: 'lights', params: withOptional(params, { brightness: useBrightness && brightness, hold_s: hold > 0 && hold }) };
 }
 
 const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
@@ -921,23 +937,57 @@ function conditionToNode(condition: Condition): { type: string; config: FlowConf
   return null;
 }
 
-function lightsNode(params: Params): { type: string; config: FlowConfig } | null {
+function lightConfig(params: Params): FlowConfig {
   const config: FlowConfig = { device: str(params.device), sku: str(params.sku) };
   if (str(params.device_name)) config.deviceName = str(params.device_name);
   const extra = (params.extra_lights ?? []) as string[];
   if (extra.length) config.extraLights = extra.join(',');
   config.liveOnly = params.any_time !== true;
-  const mode = str(params.mode) || 'color';
-  if (mode === 'color') return { type: 'reply.lights', config: { ...config, mode, color: str(params.color) } };
-  if (mode !== 'scene') return null;
+  return config;
+}
+
+function derivedSceneId(instance: string, value: string): string {
+  if (!instance || !value) return '';
+  try {
+    const parsed = JSON.parse(value) as number | { paramId?: number; id?: number } | null;
+    const ids = typeof parsed === 'number' ? [parsed] : [parsed?.paramId, parsed?.id];
+    return ids.every((id) => Number.isSafeInteger(id) && Number(id) >= 0) ? [instance, ...ids].join(':') : '';
+  } catch {
+    return '';
+  }
+}
+
+function sceneConfig(params: Params): FlowConfig {
+  const instance = str(params.scene_instance);
+  const value = str(params.scene_value);
   const scene: FlowConfig = {
-    scene: str(params.scene_id),
+    scene: str(params.scene_id) || derivedSceneId(instance, value),
     sceneType: str(params.scene_type),
-    sceneInstance: str(params.scene_instance),
-    sceneValue: str(params.scene_value)
+    sceneInstance: instance,
+    sceneValue: value
   };
   if (str(params.scene_name)) scene.sceneName = str(params.scene_name);
-  return { type: 'reply.lights', config: { ...config, mode, ...scene } };
+  return scene;
+}
+
+const LIGHT_MODE_READERS = new Map<string, (params: Params) => FlowConfig>([
+  ['color', (params) => ({ color: str(params.color) })],
+  ['scene', sceneConfig],
+  ['white', ({ kelvin }): FlowConfig => typeof kelvin === 'number' ? { kelvin } : {}],
+  ['on', () => ({})],
+  ['off', () => ({})]
+]);
+
+function lightsNode(params: Params): { type: string; config: FlowConfig } | null {
+  const mode = str(params.mode) || 'color';
+  const readMode = LIGHT_MODE_READERS.get(mode);
+  if (!readMode) return null;
+  const config: FlowConfig = { ...lightConfig(params), mode, ...readMode(params) };
+  for (const [param, key] of LIGHT_OPTION_FIELDS) {
+    const value = params[param];
+    if (typeof value === 'number') config[key] = value;
+  }
+  return { type: 'reply.lights', config };
 }
 
 function textNode(params: Params): { type: string; config: FlowConfig } {

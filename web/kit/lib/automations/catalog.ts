@@ -3,9 +3,18 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
-import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_TEMPLATE_LENGTH } from './limits';
+import {
+  MAX_COOLDOWN_SECONDS,
+  MAX_LIGHTS_BRIGHTNESS,
+  MAX_LIGHTS_HOLD_S,
+  MAX_LIGHTS_KELVIN,
+  MAX_LOGIN_TEMPLATE,
+  MAX_TEMPLATE_LENGTH,
+  MIN_LIGHTS_BRIGHTNESS,
+  MIN_LIGHTS_KELVIN,
+} from './limits';
 import { CHAT_MODE_NAMES } from './stream-types';
-import { TARGET_MODES } from './types';
+import { LIGHTS_MODES, TARGET_MODES } from './types';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
 export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'number' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
@@ -234,7 +243,7 @@ export const ACTION_TYPES: TypeDef[] = [
     f('sku', 'text', { required: true, min: 1, max: 32 }),
     f('device_name', 'text', { max: 100 }),
     f('extra_lights', 'list', { max: 31 }),
-    f('mode', 'enum', { values: ['color', 'scene'] }),
+    f('mode', 'enum', { values: LIGHTS_MODES }),
     f('color', 'text', { min: 7, max: 7 }),
     f('scene_id', 'text', { max: 100 }),
     f('scene_name', 'text', { max: 100 }),
@@ -242,6 +251,9 @@ export const ACTION_TYPES: TypeDef[] = [
     f('scene_instance', 'text', { min: 1, max: 64 }),
     f('scene_value', 'text', { min: 1, max: 200 }),
     f('any_time', 'bool'),
+    f('kelvin', 'int', { min: MIN_LIGHTS_KELVIN, max: MAX_LIGHTS_KELVIN }),
+    f('brightness', 'int', { min: MIN_LIGHTS_BRIGHTNESS, max: MAX_LIGHTS_BRIGHTNESS }),
+    f('hold_s', 'int', { min: 0, max: MAX_LIGHTS_HOLD_S }),
   ]),
   action('stop'),
   action('countdown_start', [varName, f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }), f('left_command', 'text', { max: 64 }), f('left_reply', 'text', { max: MAX_TEMPLATE_LENGTH }), f('ready_reply', 'text', { max: MAX_TEMPLATE_LENGTH })]),

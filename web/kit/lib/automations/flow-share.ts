@@ -5,7 +5,7 @@ import { lex } from '../engine/tmpl';
 import { classifyFlow, type AlertKey, type SimpleCommand } from './flow-layer';
 import { CODE, MAX_AUTOMATIONS_PER_CHANNEL, MAX_DEFINITION_BYTES, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
 import { byteLength, trimSpace } from './text';
-import { isSetupValue, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
+import { isSetupValue, LEGACY_SETUP_SCENE_VALUE, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
 import { scrubSecrets, type ScrubKind } from './flow-share-scrub';
 import type { Action, Condition, Definition, Issue, Params } from './types';
 import { leftCommandNames, normalizeCommandName, ownedCooldownNames, ownedCountdownNames, triggerCommandNames, validateDefinition, validateName } from './validate';
@@ -678,12 +678,24 @@ function keyIssue(value: unknown): Issue | null {
   return null;
 }
 
+const isLightsStep = (value: unknown): value is Record<string, unknown> => isObject(value) && value.type === 'lights';
+
+const holdsLegacySetupScene = (params: unknown): params is Record<string, unknown> =>
+  isObject(params) && params.scene_value === LEGACY_SETUP_SCENE_VALUE;
+
+function upgradeLegacyLightsScenes(value: unknown): void {
+  for (const child of childrenOf(value)) upgradeLegacyLightsScenes(child);
+  if (isLightsStep(value) && holdsLegacySetupScene(value.params)) value.params.scene_value = SETUP_SCENE_VALUE;
+}
+
 function definitionIssues(definition: unknown): Issue[] {
   if (!isObject(definition)) return [{ path: 'definition', code: CODE.required }];
   // Size comes first: it bounds how deep the walks below can recurse on a hostile file.
-  if (byteLength(JSON.stringify(definition) ?? '') > MAX_DEFINITION_BYTES) return [{ path: 'definition', code: CODE.tooLong }];
+  const encoded = JSON.stringify(definition) ?? '';
+  if (byteLength(encoded) > MAX_DEFINITION_BYTES) return [{ path: 'definition', code: CODE.tooLong }];
   const key = keyIssue(definition);
   if (key) return [key];
+  if (encoded.includes(JSON.stringify(LEGACY_SETUP_SCENE_VALUE))) upgradeLegacyLightsScenes(definition);
   return validateDefinition(definition).map((issue) => ({ ...issue, path: issue.path ? `definition.${issue.path}` : 'definition' }));
 }
 

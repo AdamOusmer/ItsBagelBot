@@ -87,5 +87,8 @@
   "quiet": "Skip chat message",
   "points_per_vote": "Channel Points per vote",
   "outcome": "Winning outcome",
-  "thread": "Reply in thread"
+  "thread": "Reply in thread",
+  "kelvin": "Warmth",
+  "brightness": "Brightness",
+  "hold_s": "Go back after"
 }

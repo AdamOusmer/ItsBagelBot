@@ -32,7 +32,8 @@ test.each([
   ['title', 'reply.stream_info'],
   ['clip', 'reply.clip'],
   ['marker', 'reply.marker'],
-  ['commercial', 'reply.commercial']
+  ['commercial', 'reply.commercial'],
+  ['warmth', 'reply.lights']
 ])('%s ranks %s first', (query, type) => {
   expect(types(query)[0]).toBe(type);
 });
@@ -44,7 +45,7 @@ test.each([
   ['modules', []],
   ['zzzz', []],
   ['send zzzz', []],
-  ['wa', ['reply.wait', 'cond.cooldown']],
+  ['wa', ['reply.wait', 'reply.lights', 'cond.cooldown']],
   ['wi', ['reply.counter', 'reply.prediction_end', 'reply.text', 'reply.poll']],
   ['waaitt', []],
   ['?!', []]

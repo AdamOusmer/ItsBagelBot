@@ -113,5 +113,8 @@
     "rewardId": "ID da recompensa",
     "name": "Nome da contagem",
     "amount": "bits"
-  }
+  },
+  "lightsRestore": "{light} volta ao estado anterior",
+  "lightsRestoreMany": "{light} voltam ao estado anterior",
+  "lightsRestoreFallback": "As luzes"
 }

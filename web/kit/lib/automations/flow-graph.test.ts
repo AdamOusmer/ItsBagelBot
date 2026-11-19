@@ -6,7 +6,7 @@ import { definitionToFlow, flowStepRefs, flowToDefinition, locateIssues, type Fl
 import { classifyFlow } from './flow-layer';
 import { SETUP_REWARD_ID } from './flow-setup';
 import { validateDefinition } from './validate';
-import type { Action, Definition } from './types';
+import type { Action, Definition, Params } from './types';
 
 const node = (id: FlowNode['id'], type: FlowNode['type'], config: FlowConfig = {}): FlowNode => ({ id, type, x: 0, y: 0, config });
 const edge = (from: FlowEdge['from'], port: FlowEdge['port'], to: FlowEdge['to']): FlowEdge => ({ id: `${from}-${port}-${to}`, from, port, to });
@@ -505,70 +505,69 @@ describe('specific user condition', () => {
 describe('set lights step', () => {
   const trigger = node('t', 'twitch.follow');
   const withStep = (step: FlowNode) => flow([trigger, step], [edge('t', 'next', step.id)]);
-  const color = node('l', 'reply.lights', { device: 'AA:BB', sku: 'H6008', deviceName: 'Desk', mode: 'color', color: '#f5a524' });
-  const scene = node('l', 'reply.lights', {
-    device: 'AA:BB',
-    sku: 'H6008',
-    deviceName: 'Desk',
+  const target = { device: 'AA:BB', sku: 'H6008', deviceName: 'Desk' };
+  const wireTarget = { device: target.device, sku: target.sku, device_name: target.deviceName };
+  const color = { mode: 'color', color: '#f5a524' };
+  const scene = {
     mode: 'scene',
-    scene: 'snapshot:4:9',
     sceneName: 'Sunset',
     sceneType: 'devices.capabilities.dynamic_scene',
     sceneInstance: 'snapshot',
     sceneValue: '{"paramId":4,"id":9}'
+  };
+  const scenePayload = {
+    mode: 'scene',
+    scene_type: scene.sceneType,
+    scene_instance: scene.sceneInstance,
+    scene_value: scene.sceneValue,
+    scene_name: scene.sceneName
+  };
+  const numericScenePayload = { ...scenePayload, scene_instance: 'lightScene', scene_value: '0' };
+
+  type LightCase = { name: Label; config: FlowConfig; params: Params; draft?: FlowConfig; savedParams?: Params };
+  const cases: LightCase[] = [
+    { name: 'legacy color without new keys', config: color, params: color },
+    { name: 'default color', config: { ...color, color: '#ffffff' }, params: { ...color, color: '#ffffff' }, draft: { color: '', brightness: '' } },
+    { name: 'color with extra lights', config: { ...color, extraLights: 'CC:DD/H6159,EE:FF/H6008' }, params: { ...color, extra_lights: ['CC:DD/H6159', 'EE:FF/H6008'] } },
+    { name: 'color any time', config: { ...color, liveOnly: false }, params: { ...color, any_time: true } },
+    { name: 'scene', config: { ...scene, scene: 'snapshot:4:9' }, params: { ...scenePayload, scene_id: 'snapshot:4:9' } },
+    {
+      name: 'scene with a saved pair and no ID', config: { ...scene, scene: 'snapshot:4:9' },
+      params: { ...scenePayload, scene_id: 'snapshot:4:9' }, savedParams: scenePayload
+    },
+    {
+      name: 'scene with a saved number and no ID', config: { ...scene, scene: 'lightScene:0', sceneInstance: 'lightScene', sceneValue: '0' },
+      params: { ...numericScenePayload, scene_id: 'lightScene:0' }, savedParams: numericScenePayload
+    },
+    { name: 'default white', config: { mode: 'white', kelvin: 4000 }, params: { mode: 'white', kelvin: 4000 }, draft: { kelvin: '', brightness: 0 } },
+    { name: 'white with brightness and hold', config: { mode: 'white', kelvin: 5200, brightness: 72, holdS: 5 }, params: { mode: 'white', kelvin: 5200, brightness: 72, hold_s: 5 }, draft: { kelvin: '5200', brightness: '72', holdS: '5' } },
+    { name: 'on with brightness', config: { mode: 'on', brightness: 40 }, params: { mode: 'on', brightness: 40 } },
+    { name: 'off discards the draft brightness and color', config: { mode: 'off' }, params: { mode: 'off' }, draft: { brightness: 70, color: '#f5a524', holdS: 0 } }
+  ];
+
+  test.each(cases)('$name lowers and reopens', ({ config, params, draft, savedParams }) => {
+    const definition = lowered(withStep(node('l', 'reply.lights', { ...target, ...config, ...draft })));
+    const actions = [{ type: 'lights', params: { ...wireTarget, ...params } }];
+    const saved = { ...definition, actions: [{ type: 'lights', params: { ...wireTarget, ...(savedParams ?? params) } }] };
+    const reopened = rebuilt(saved);
+    expect({ actions: definition.actions, issues: validateDefinition(definition), config: reopened.nodes[1]?.config, resaved: lowered(reopened).actions }).toEqual({
+      actions, issues: [], config: { ...target, liveOnly: true, ...config }, resaved: actions
+    });
   });
 
-  test('a colour is carried with the device, model and name', () => {
-    expect(lowered(withStep(color)).actions).toEqual([
-      { type: 'lights', params: { device: 'AA:BB', sku: 'H6008', device_name: 'Desk', mode: 'color', color: '#f5a524' } }
-    ]);
+  test('an unknown mode is validated on mode', () => {
+    const step = node('l', 'reply.lights', { ...target, mode: 'blink', color: 'invalid' });
+    const definition = lowered(withStep(step));
+    expect({ params: definition.actions?.[0]?.params, issues: validateDefinition(definition), reopened: definitionToFlow(definition, meta) }).toEqual({
+      params: { ...wireTarget, mode: 'blink' },
+      issues: [{ path: 'actions[0].params.mode', code: 'invalid_enum' }],
+      reopened: { ok: false, issues: [{ path: 'actions[0]', code: 'unsupported_action' }] }
+    });
   });
 
-  test('extra lights in a group round-trip with the first light', () => {
-    const group = node('l', 'reply.lights', { ...color.config, extraLights: 'CC:DD/H6159,EE:FF/H6008' });
-    expect(lowered(withStep(group)).actions).toEqual([
-      { type: 'lights', params: { device: 'AA:BB', sku: 'H6008', device_name: 'Desk', extra_lights: ['CC:DD/H6159', 'EE:FF/H6008'], mode: 'color', color: '#f5a524' } }
-    ]);
-    expect(rebuilt(lowered(withStep(group))).nodes[1]).toMatchObject({ type: 'reply.lights', config: group.config });
-  });
-
-  test('a scene carries what the lights service needs to set it', () => {
-    const definition = lowered(withStep(scene));
-    expect(definition.actions).toEqual([
-      {
-        type: 'lights',
-        params: {
-          device: 'AA:BB',
-          sku: 'H6008',
-          device_name: 'Desk',
-          mode: 'scene',
-          scene_id: 'snapshot:4:9',
-          scene_type: 'devices.capabilities.dynamic_scene',
-          scene_instance: 'snapshot',
-          scene_value: '{"paramId":4,"id":9}',
-          scene_name: 'Sunset'
-        }
-      }
-    ]);
-    expect(validateDefinition(definition)).toEqual([]);
-  });
-
-  test.each([color, scene])('$config.mode reopens as it was saved', (step) => {
-    expect(rebuilt(lowered(withStep(step))).nodes[1]).toMatchObject({ type: 'reply.lights', config: step.config });
-  });
-
-  test.each([
-    ['missing', color.config, false],
-    ['on', { ...color.config, liveOnly: true }, false],
-    ['off', { ...color.config, liveOnly: false }, true]
-  ])('live only %s lowers any_time %s and reopens stable', (_label, config, anyTime) => {
-    const step = node('l', 'reply.lights', config);
-    const action = lowered(withStep(step)).actions?.[0];
-    expect(action?.params?.any_time).toBe(anyTime ? true : undefined);
-    expect(validateDefinition(lowered(withStep(step)))).toEqual([]);
-    const reopened = rebuilt(lowered(withStep(step))).nodes[1];
-    expect(reopened?.config.liveOnly).toBe(!anyTime);
-    expect(lowered(rebuilt(lowered(withStep(step))))).toEqual(lowered(withStep(step)));
+  test('out-of-range brightness is validated', () => {
+    const step = node('l', 'reply.lights', { ...target, mode: 'on', brightness: 101 });
+    expect(validateDefinition(lowered(withStep(step))).map((issue) => issue.path)).toEqual(['actions[0].params.brightness']);
   });
 
   test('a colour left on the picker default saves white', () => {

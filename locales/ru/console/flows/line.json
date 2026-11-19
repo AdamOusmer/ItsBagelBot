@@ -48,8 +48,6 @@
   "daysMany": "Дни: {count}",
   "pointsOne": "Баллы канала: {count}",
   "pointsMany": "Баллы канала: {count}",
-  "lightsLiveOnly": "только пока вы в эфире",
-  "lightsAnyTime": "в любое время, в эфире или нет",
   "varSet": "Задать {name} значение {value}",
   "varAdd": "Прибавить {amount} к {name}",
   "varTake": "Вычесть {amount} из {name}",
@@ -59,5 +57,11 @@
   "textSaved": "{op}, сохранить как {name}",
   "loop": "Повторить {times} раз",
   "rewardUpdate": "Изменить {reward}",
-  "rewardUpdateBack": "Изменить {reward} до конца стрима"
+  "rewardUpdateBack": "Изменить {reward} до конца стрима",
+  "lightsWhite": "Переключить {light} на белый свет {kelvin} К",
+  "lightsOn": "Включить {light}",
+  "lightsOff": "Выключить {light}",
+  "lightsMore": "{light} и ещё {count}",
+  "lightsBrightness": "{line} с яркостью {percent} %",
+  "lightsHold": "{line}, затем вернуть прежнее состояние через {seconds} с"
 }

@@ -113,5 +113,8 @@
     "rewardId": "Reward ID",
     "name": "Countdown name",
     "amount": "bits"
-  }
+  },
+  "lightsRestore": "{light} goes back",
+  "lightsRestoreMany": "{light} go back",
+  "lightsRestoreFallback": "The lights"
 }

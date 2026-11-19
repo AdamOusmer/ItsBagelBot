@@ -21,6 +21,7 @@ type nesting struct {
 	lists     [][]Action
 	labels    []string
 	condition *Condition
+	internal  bool
 }
 
 var (
@@ -99,8 +100,14 @@ func register[T any](check func(chk, T)) entry {
 	}
 }
 
-func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
+func registerPlan[T any](check func(chk, T), nested func(T) nesting) entry {
 	e := register(check)
+	e.plan = func(params any) nesting { return nested(params.(T)) }
+	return e
+}
+
+func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
+	e := registerPlan(check, nested)
 	e.nested = func(raw codec.RawMessage) [][]Action {
 		p, err := DecodeParams[T](raw)
 		if err != nil {
@@ -108,8 +115,13 @@ func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
 		}
 		return nested(p).lists
 	}
-	e.plan = func(params any) nesting { return nested(params.(T)) }
 	return e
+}
+
+var internalActionRegistry = map[string]entry{
+	LightsRestoreType: {
+		decode: func(raw codec.RawMessage) (any, error) { return DecodeParams[LightsRestoreAction](raw) },
+	},
 }
 
 func registerNestedEffect[T any](check func(chk, T), nested func(T) nesting) entry {
@@ -302,7 +314,7 @@ func init() {
 		"loop":            registerNested(checkLoop, loopBranches),
 		"http_post":       registerNestedEffect(checkHTTPPost, httpPostBranches),
 		"http_get":        registerNestedEffect(checkHTTPGet, httpGetBranches),
-		"lights":          register(checkLights),
+		"lights":          registerPlan(checkLights, lightsHoldBranch),
 		"stop":            register(checkEmpty),
 		"var_set":         register(checkVarSet),
 		"var_add":         register(checkVarAdd),

@@ -10,10 +10,12 @@ import {
   flowImportView,
   FLOW_FILE_FORMAT,
   FLOW_FILE_VERSION,
+  LEGACY_SETUP_SCENE_VALUE,
   planFlowImport,
   serializeFlowFile,
   SETUP_LOGIN,
   SETUP_REWARD_ID,
+  SETUP_SCENE_VALUE,
   type FlowCommitDeps,
   type FlowExportRow,
   type FlowImportContext,
@@ -237,6 +239,11 @@ describe('planFlowImport round trip', () => {
   test('previews to the committed report', () => {
     const view = `${JSON.stringify(planned(text).map(flowImportView), null, 2)}\n`;
     expect(view).toBe(golden({ file: 'import-preview.golden.json', actual: view }));
+  });
+
+  test('upgrades the scene placeholder from older flow exports', () => {
+    const legacy = text.text.replaceAll(JSON.stringify(SETUP_SCENE_VALUE), JSON.stringify(LEGACY_SETUP_SCENE_VALUE));
+    expect(planned({ text: legacy })).toEqual(planned(text));
   });
 
   async function imported(file: FileText): Promise<FlowExportRow[]> {

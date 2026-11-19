@@ -139,8 +139,21 @@ describe('describe', () => {
     expect(describeNode(english, node('reply.points', { amount: -1 }))).toBe('Take 1 point');
   });
 
-  test('lights without a name fall back to the generic phrase', () => {
-    expect(describeNode(english, node('reply.lights', { mode: 'color', color: '#fff' }))).toBe('Set the lights to #fff');
+  test.each<{ config: FlowNode['config']; line: string }>([
+    { config: { mode: 'color', color: '#fff' }, line: 'Set the lights to #fff' },
+    { config: { mode: 'scene', deviceName: 'Desk', sceneName: 'Sunset' }, line: 'Play the Sunset scene on Desk' },
+    { config: { mode: 'white', deviceName: 'Desk', kelvin: 5200 }, line: 'Set Desk to white 5200 K' },
+    { config: { mode: 'white', deviceName: 'Desk' }, line: 'Set Desk to white 4000 K' },
+    { config: { mode: 'on', deviceName: 'Desk' }, line: 'Turn on Desk' },
+    { config: { mode: 'off', deviceName: 'Desk', brightness: 45, holdS: 0 }, line: 'Turn off Desk' },
+    { config: { mode: 'on', deviceName: 'Desk', brightness: 45 }, line: 'Turn on Desk at 45%' },
+    { config: { mode: 'off', deviceName: 'Desk', holdS: 10 }, line: 'Turn off Desk, then back after 10 s' },
+    {
+      config: { mode: 'white', deviceName: 'Desk', kelvin: 5200, brightness: 45, holdS: 10, extraLights: 'wall/H6159,side/H6008' },
+      line: 'Set Desk and 2 more to white 5200 K at 45%, then back after 10 s'
+    }
+  ])('lights card reads "$line"', ({ config, line }) => {
+    expect(describeNode(english, node('reply.lights', config))).toBe(line);
   });
 
   test('a compare with an unknown operator still reads', () => {

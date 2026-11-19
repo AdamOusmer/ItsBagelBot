@@ -87,5 +87,8 @@
   "quiet": "Ignorer le message dans le chat",
   "points_per_vote": "Points de chaîne par vote",
   "outcome": "Résultat gagnant",
-  "thread": "Répondre dans le fil"
+  "thread": "Répondre dans le fil",
+  "kelvin": "Température du blanc",
+  "brightness": "Luminosité",
+  "hold_s": "Rétablir après"
 }

@@ -5,7 +5,7 @@ import { chatModeValueField, compileFlow, configKey, defaultScenario, locateIssu
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
-import { describe, durationFormatter } from './describe';
+import { describe, durationFormatter, lightGroupLabel } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { NODE_SPECS, specFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
@@ -229,9 +229,18 @@ function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | u
   return describe(t, { ...node, config });
 }
 
+function lightsRestoreText(t: Translate, detail: Record<Text, Text>): Text {
+  const count = Number(detail.count) - 1;
+  const name = detail.device_name?.trim();
+  const light = lightGroupLabel(t, name || t('flows.test.lightsRestoreFallback'), count);
+  const single = name && !(count > 0);
+  return t(single ? 'flows.test.lightsRestore' : 'flows.test.lightsRestoreMany', { light });
+}
+
 function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined, scenario: RehearsalScenario): Text {
   const detail = event.detail ?? {};
   if (detail.code) return reasonText(t, detail.code);
+  if (event.kind === 'lights_restore') return lightsRestoreText(t, detail);
   const line = effectText(t, detail, node);
   const texts = {
     trigger: triggerText(node, scenario, line, t), parallel: '', loop: loopText(t, event),

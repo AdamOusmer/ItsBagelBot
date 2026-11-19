@@ -3,6 +3,8 @@
 
 package engine
 
+import "ItsBagelBot/internal/domain/automation"
+
 type actionHandler func(x *actionExec, s step) error
 
 type actionGroup func(*actionTableBuilder) *actionTableBuilder
@@ -53,6 +55,15 @@ func typed[T any](h func(*actionExec, step, T) error) actionHandler {
 	}
 }
 
+func internalAction(handler actionHandler) actionHandler {
+	return func(x *actionExec, s step) error {
+		if !s.Internal {
+			return failure("unknown_type")
+		}
+		return handler(x, s)
+	}
+}
+
 func outputActions(b *actionTableBuilder) *actionTableBuilder {
 	return b.
 		Step("chat", typed((*actionExec).chat)).
@@ -85,6 +96,7 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("http_post", typed((*actionExec).httpPost)).
 		Step("http_get", typed((*actionExec).httpGet)).
 		Step("lights", typed((*actionExec).lights)).
+		Step(automation.LightsRestoreType, internalAction(typed((*actionExec).lightsRestore))).
 		Step("var_set", typed((*actionExec).varSet)).
 		Step("var_add", typed((*actionExec).varAdd)).
 		Step("var_delete", typed((*actionExec).varDelete)).

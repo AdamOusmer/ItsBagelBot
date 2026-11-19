@@ -496,6 +496,17 @@ function liveGated(canRunOffline: (params: Params) => boolean = () => false): Sc
     ? ok() : { status: 'skipped', detail: { code: 'offline' } };
 }
 
+const lightsLive = liveGated((params) => params.any_time === true);
+
+function lightsStep(params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
+  const outcome = lightsLive(params, context, expanded);
+  const refs: unknown[] = Array.isArray(params.extra_lights) ? params.extra_lights : [];
+  const extras = refs.filter((ref): ref is Text => typeof ref === 'string' && ref.includes('/'));
+  const devices = extras.map((ref) => trimSpace(ref.slice(0, ref.indexOf('/'))));
+  const count = new Set([trimSpace(expanded.device!), ...devices]).size;
+  return { ...outcome, detail: { ...outcome.detail, count: String(count) } };
+}
+
 const resolvedTarget = (login: Text): ActionOutcome => ({ status: 'ok', detail: { login } });
 const loginText = (value: Text = ''): Text => trimSpace(trimSpace(value).replace(/^@/, ''));
 
@@ -595,7 +606,7 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   countdown_start: (params, context) => timerStep(params, context, 'countdown_start'),
   countdown_add: (params, context) => timerStep(params, context, 'countdown_add'),
   cooldown_add: (params, context) => timerStep(params, context, 'cooldown_add'),
-  lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true)),
+  lights: requiredParams(['device', 'sku'], 'no_device', lightsStep),
   raid: targetStep(),
   commercial: liveGated(),
   marker: liveGated(),

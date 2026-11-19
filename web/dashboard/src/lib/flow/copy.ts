@@ -123,7 +123,7 @@ export function fieldUnit(t: Translate, spec: NodeSpec, field: FieldSpec): strin
 export type DurationSpec = Extract<FieldSpec, { type: 'duration' }>;
 
 export const durationRange = (t: Translate, spec: NodeSpec, field: DurationSpec): string =>
-  t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.range` as MessageKey, { days: field.max / 86_400 });
+  t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.range` as MessageKey, { days: field.max / 86_400, max: field.max });
 
 export function durationOutside(field: DurationSpec, seconds: string | number | boolean | undefined): boolean {
   if (seconds === undefined) return false;

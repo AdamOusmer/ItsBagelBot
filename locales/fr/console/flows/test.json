@@ -113,5 +113,8 @@
     "rewardId": "ID de la récompense",
     "name": "Nom du compte à rebours",
     "amount": "bits"
-  }
+  },
+  "lightsRestore": "{light} retrouve son état précédent",
+  "lightsRestoreMany": "{light} retrouvent leur état précédent",
+  "lightsRestoreFallback": "Les lumières"
 }

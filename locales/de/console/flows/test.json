@@ -113,5 +113,8 @@
     "rewardId": "Belohnungs-ID",
     "name": "Countdown-Name",
     "amount": "Bits"
-  }
+  },
+  "lightsRestore": "{light} kehrt zum vorherigen Zustand zurück",
+  "lightsRestoreMany": "{light} kehren zum vorherigen Zustand zurück",
+  "lightsRestoreFallback": "Die Lichter"
 }

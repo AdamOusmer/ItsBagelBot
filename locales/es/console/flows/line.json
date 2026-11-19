@@ -48,8 +48,6 @@
   "daysMany": "{count} días",
   "pointsOne": "{count} punto",
   "pointsMany": "{count} puntos",
-  "lightsLiveOnly": "solo mientras estás en directo",
-  "lightsAnyTime": "en cualquier momento, en directo o no",
   "varSet": "Fijar {name} en {value}",
   "varAdd": "Sumar {amount} a {name}",
   "varTake": "Quitar {amount} a {name}",
@@ -59,5 +57,11 @@
   "textSaved": "{op}, guardar como {name}",
   "loop": "Repetir {times} veces",
   "rewardUpdate": "Cambiar {reward}",
-  "rewardUpdateBack": "Cambiar {reward} hasta que termine el stream"
+  "rewardUpdateBack": "Cambiar {reward} hasta que termine el stream",
+  "lightsWhite": "Poner {light} en blanco a {kelvin} K",
+  "lightsOn": "Encender {light}",
+  "lightsOff": "Apagar {light}",
+  "lightsMore": "{light} y {count} más",
+  "lightsBrightness": "{line} al {percent} %",
+  "lightsHold": "{line} y volver al estado anterior tras {seconds} s"
 }

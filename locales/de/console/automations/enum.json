@@ -80,7 +80,10 @@
     "slow": "Langsamer Modus",
     "subscribers": "Nur Abonnenten",
     "unique": "Einzigartige Nachrichten",
-    "chat_delay": "Chatverzögerung"
+    "chat_delay": "Chatverzögerung",
+    "white": "Weiß",
+    "on": "Ein",
+    "off": "Aus"
   },
   "kind": {
     "text": "Text",

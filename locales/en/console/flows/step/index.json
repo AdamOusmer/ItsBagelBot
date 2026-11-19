@@ -27,7 +27,7 @@
   "reply.chat.keywords": "say send message reply post talk text",
   "reply.points.keywords": "points currency coins loyalty add give remove",
   "reply.counter.keywords": "counter count bump increase increment deaths wins",
-  "reply.lights.keywords": "light lights govee color scene lamp led",
+  "reply.lights.keywords": "light lights govee color scene lamp led off on power brightness dim white warm warmth kelvin flash blink restore back",
   "reply.wait.keywords": "wait delay pause sleep later timer",
   "reply.loop.keywords": "loop repeat times for each",
   "reply.varSet.keywords": "variable store save remember value set",

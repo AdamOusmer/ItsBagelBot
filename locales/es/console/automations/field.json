@@ -87,5 +87,8 @@
   "quiet": "Omitir mensaje en el chat",
   "points_per_vote": "Puntos del canal por voto",
   "outcome": "Resultado ganador",
-  "thread": "Responder en hilo"
+  "thread": "Responder en hilo",
+  "kelvin": "Temperatura de color",
+  "brightness": "Brillo",
+  "hold_s": "Volver después de"
 }

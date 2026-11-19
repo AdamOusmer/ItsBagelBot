@@ -5,10 +5,11 @@ import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
 import { TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
-import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
+import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_LIGHTS_BRIGHTNESS, MAX_LIGHTS_HOLD_S, MAX_LIGHTS_KELVIN, MAX_REWARD_COST, MIN_LIGHTS_BRIGHTNESS, MIN_LIGHTS_KELVIN } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
+export const INITIAL_LIGHT_KELVIN = 4000;
 
 export type FlowKind = 'trigger' | 'condition' | 'reply';
 
@@ -85,7 +86,8 @@ type FieldGate = { key: string; value: string | readonly string[] | boolean };
 export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string; initial?: string | number | boolean; required?: true } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean; max?: number })
-  | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
+  | (Typed & { type: 'number'; min?: number; max?: number; unit?: true })
+  | { key: string; type: 'slider'; min: number; max: number; step: number; unit?: string }
   | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[]; fallback?: string }
   | { key: string; type: 'toggle' }
@@ -343,9 +345,12 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     icon: 'bulb',
     fields: [
       { key: 'device', type: 'goveeLight' },
-      { key: 'mode', type: 'select', options: ['color', 'scene'] },
+      { key: 'mode', type: 'select', options: ['color', 'scene', 'white', 'on', 'off'] },
       { key: 'color', type: 'color', when: { key: 'mode', value: 'color' } },
       { key: 'scene', type: 'choice', source: 'scenes', nameKey: 'sceneName', when: { key: 'mode', value: 'scene' } },
+      { key: 'kelvin', type: 'slider', min: MIN_LIGHTS_KELVIN, max: MAX_LIGHTS_KELVIN, step: 100, unit: 'K', initial: INITIAL_LIGHT_KELVIN, when: { key: 'mode', value: 'white' } },
+      { key: 'brightness', type: 'number', min: MIN_LIGHTS_BRIGHTNESS, max: MAX_LIGHTS_BRIGHTNESS, unit: true, placeholder: true, when: { key: 'mode', value: ['color', 'scene', 'white', 'on'] } },
+      { key: 'holdS', type: 'duration', min: 0, max: MAX_LIGHTS_HOLD_S },
       { key: 'liveOnly', type: 'toggle', initial: true }
     ]
   },

@@ -27,7 +27,7 @@
   "reply.chat.keywords": "dire envoyer message répondre publier parler texte say",
   "reply.points.keywords": "points monnaie pièces fidélité ajouter donner retirer",
   "reply.counter.keywords": "compteur compter augmenter incrémenter morts victoires counter",
-  "reply.lights.keywords": "lumière lumières govee couleur scène lampe led lights",
+  "reply.lights.keywords": "lumière lumières govee couleur scène lampe led lights allumer éteindre marche arrêt luminosité variateur blanc chaud température kelvin flash clignoter rétablir retour",
   "reply.wait.keywords": "attendre délai pause dormir plus tard minuteur wait delay",
   "reply.loop.keywords": "boucle répéter fois pour chaque loop repeat",
   "reply.varSet.keywords": "variable stocker sauvegarder retenir valeur définir",

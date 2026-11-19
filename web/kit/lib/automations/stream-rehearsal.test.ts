@@ -16,7 +16,7 @@ type OutcomeCase = {
   scenario?: Partial<RehearsalScenario>;
   expected: Partial<Pick<RehearsalEvent, 'kind' | 'status' | 'lines' | 'lineStyles' | 'detail'>>;
 };
-type ActionCase = OutcomeCase & { type: Action['type']; trigger?: Definition['trigger']; before?: Action[] };
+type ActionCase = OutcomeCase & { type: Action['type']; trigger?: Definition['trigger']; before?: Action[]; after?: Partial<RehearsalEvent>[] };
 
 const targetCases: OutcomeCase[] = [
   { name: 'viewer', params: { who: 'viewer', login: 'unused' }, expected: { status: 'ok', detail: { login: 'PrincessBarney' } } },
@@ -45,11 +45,12 @@ const liveSteps: Record<string, Params> = {
 const followTrigger: Definition['trigger'] = { type: 'event', params: { kind: 'channel.follow' } };
 const poll: Action = { type: 'poll', params: { title: 'Pick', choices: ['Red', 'Blue'], seconds: 60 } };
 const prediction: Action = { type: 'prediction', params: { title: 'Pick', outcomes: ['Red', 'Blue'], seconds: 1 } };
-const actions: ActionCase[] = [
+const followingChat = { kind: 'say', atMs: 0, lines: ['Still here'] } satisfies Partial<RehearsalEvent>;
+const actionCases: ActionCase[] = [
   ...['shoutout', 'timeout', 'ban', 'unban', 'mod', 'vip'].flatMap((type) => targetCases.map((row) => ({ ...row, type, params: { ...(type === 'timeout' ? { seconds: 60 } : {}), ...row.params } }))),
   { name: 'offline trigger defaults to offline', type: 'lights', params: lights, trigger: { type: 'event', params: { kind: 'stream.offline' } }, expected: { status: 'skipped', detail: { code: 'offline', ...lights } } },
-  { name: 'any time', type: 'lights', params: { ...lights, any_time: true }, scenario: { live: false }, expected: { status: 'ok', detail: lights } },
-  { name: 'missing device before live gate', type: 'lights', params: { sku: lights.sku }, scenario: { live: false }, expected: { status: 'failed', detail: { code: 'no_device' } } },
+  { name: 'any time', type: 'lights', params: { ...lights, any_time: true }, scenario: { live: false }, expected: { status: 'ok', detail: { ...lights, count: '1' } } },
+  { name: 'missing device before live gate', type: 'lights', params: { sku: lights.sku, hold_s: 5 }, scenario: { live: false }, expected: { status: 'failed', detail: { code: 'no_device' } } },
   { name: 'SKU expands empty', type: 'lights', params: { ...lights, sku: '{var:absent}' }, expected: { status: 'failed', detail: { code: 'no_device', sku: '', missing: 'var:absent' } } },
   { name: 'target tokens use the sender', type: 'chat', params: { text: '{touser}/{target}' }, scenario: { message: '!hello', user: '@/Sender' }, expected: { status: 'ok', lines: ['/Sender//Sender'], detail: { missing: '' } } },
   { name: 'present argument does not use the sender', type: 'chat', params: { text: 'To {touser|nobody}' }, scenario: { message: '!hello @' }, expected: { status: 'ok', lines: ['To nobody'] } },
@@ -92,14 +93,27 @@ const actions: ActionCase[] = [
     { name: 'while live', type, params, scenario: { live: true }, expected: { status: 'ok' } }
   ] satisfies ActionCase[]),
   { name: 'defers result tokens in the reply', type: 'clip', params: { reply: '{clip:title}: {clip:url}' }, expected: { status: 'ok', detail: { reply: '{clip:title}: {clip:url}', missing: '' } } },
-  { name: 'cannot read its result in the title', type: 'clip', params: { title: '{clip:title}', reply: '{clip:url}' }, expected: { status: 'ok', detail: { reply: '{clip:url}', missing: 'clip:title' } } }
+  { name: 'cannot read its result in the title', type: 'clip', params: { title: '{clip:title}', reply: '{clip:url}' }, expected: { status: 'ok', detail: { reply: '{clip:url}', missing: 'clip:title' } } },
+  {
+    name: 'held lights restore the distinct devices after the next step', type: 'lights',
+    params: { ...lights, device_name: 'Desk', extra_lights: ['desk/H6008', 'shelf/H6008', 'shelf/H6159', 'wall/H6159'], hold_s: 5 },
+    expected: { status: 'ok', detail: { count: '3', device_name: 'Desk' } },
+    after: [followingChat, { kind: 'lights_restore', path: 'actions[0]', status: 'ok', atMs: 5000, detail: { count: '3', device_name: 'Desk' } }]
+  },
+  {
+    name: 'offline live-only lights with a hold skip without a restore', type: 'lights',
+    params: { ...lights, hold_s: 5 }, scenario: { live: false },
+    expected: { status: 'skipped', detail: { code: 'offline', count: '1' } }, after: [followingChat]
+  }
 ];
 
-test.each(actions)('$type rehearses $name', (row) => {
-  const def = definition([...(row.before ?? []), { type: row.type, params: row.params }]);
+test.each(actionCases)('$type rehearses $name', (row) => {
+  const actions = [...(row.before ?? []), { type: row.type, params: row.params }];
+  if (row.after) actions.push({ type: 'chat', params: { text: followingChat.lines[0] } });
+  const def = definition(actions);
   if (row.trigger) def.trigger = row.trigger;
   const result = rehearseDefinition(def, { ...defaultScenario(def), ...row.scenario });
-  expect(result.events.at(-1)).toMatchObject(row.expected);
+  expect(result.events.slice(1 + (row.before?.length ?? 0))).toMatchObject([row.expected, ...(row.after ?? [])]);
 });
 
 test.each([

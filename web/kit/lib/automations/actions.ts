@@ -13,17 +13,22 @@ import {
   MAX_DELAY_MS,
   MAX_EXTRA_LIGHTS,
   MAX_FETCH_URL_LENGTH,
+  MAX_LIGHTS_BRIGHTNESS,
+  MAX_LIGHTS_HOLD_S,
+  MAX_LIGHTS_KELVIN,
   MAX_REWARD_COST,
   MAX_TEMPLATE_LENGTH,
   MAX_VARIABLE_AMOUNT,
+  MIN_LIGHTS_BRIGHTNESS,
+  MIN_LIGHTS_KELVIN,
   RECIPE_NAME_PATTERN,
 } from './limits';
+import { LIGHTS_MODES } from './types';
 import type * as T from './types';
 import { commandName } from './triggers';
 
 const ANNOUNCE_COLORS = ['', 'primary', 'blue', 'green', 'orange', 'purple'];
 const COMMERCIAL_LENGTHS = [30, 60, 90, 120, 150, 180];
-const LIGHTS_MODES = ['color', 'scene'];
 const LIGHTS_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const LIGHT_REF_PATTERN = /^[^/]{1,64}\/[^/]{1,32}$/;
 const MAX_AMOUNT =1000000;
@@ -141,22 +146,53 @@ function checkRewardUpdate(c: Chk, p: RewardUpdateFields): void {
   if (p.cost !== null) c.inRange('cost', p.cost, 1, MAX_REWARD_COST);
 }
 
-function jsonParses(text: string): boolean {
+type LightsParams = Wide<T.LightsAction>;
+
+const SCENE_INTEGER = /^(?:0|[1-9][0-9]*)$/;
+
+function validSceneID(value: unknown): boolean {
+  return typeof value === 'number' && value >= 0 && Number.isSafeInteger(value);
+}
+
+function parsedScene(text: string): unknown {
   try {
-    JSON.parse(text);
-    return true;
+    return JSON.parse(text);
   } catch {
-    return false;
+    return undefined;
   }
 }
 
-function checkLightsScene(c: Chk, p: Wide<T.LightsAction>): void {
+function validScenePair(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const pair = value as { paramId?: unknown; id?: unknown };
+  return validSceneID(pair.paramId) && validSceneID(pair.id);
+}
+
+function validSceneValue(text: string): boolean {
+  const raw = text.trim();
+  if (SCENE_INTEGER.test(raw)) return validSceneID(Number(raw));
+  return validScenePair(parsedScene(raw));
+}
+
+function checkLightsScene(c: Chk, p: LightsParams): void {
   c.text('scene_id', p.scene_id, 0, 100);
   c.text('scene_name', p.scene_name, 0, 100);
   c.text('scene_type', p.scene_type, 1, 64);
   c.text('scene_instance', p.scene_instance, 1, 64);
-  if (c.text('scene_value', p.scene_value, 1, 200) && !jsonParses(p.scene_value)) c.add('scene_value', CODE.invalidFormat);
+  if (c.text('scene_value', p.scene_value, 1, 200) && !validSceneValue(p.scene_value)) c.add('scene_value', CODE.invalidFormat);
 }
+
+function checkLightsWhite(c: Chk, p: LightsParams): void {
+  if (p.kelvin === 0) c.add('kelvin', CODE.required);
+  else c.inRange('kelvin', p.kelvin, MIN_LIGHTS_KELVIN, MAX_LIGHTS_KELVIN);
+}
+
+const lightsModeChecks = new Map<string, (c: Chk, p: LightsParams) => void>([
+  ['color', (c, p) => c.format('color', p.color, LIGHTS_COLOR_PATTERN)],
+  ['scene', checkLightsScene],
+  ['white', checkLightsWhite],
+  ['off', (c, p) => c.inRange('brightness', p.brightness, 0, 0)],
+]);
 
 function checkCooldownAdd(c: Chk, p: Wide<T.CooldownAddAction>): void {
   c.simpleWord('name', p.name, RECIPE_NAME_PATTERN);
@@ -165,14 +201,17 @@ function checkCooldownAdd(c: Chk, p: Wide<T.CooldownAddAction>): void {
   if (p.per > 0 && !c.eventAmount) c.add('per', CODE.triggerMismatch);
 }
 
-function checkLights(c: Chk, p: Wide<T.LightsAction>): void {
+function checkLights(c: Chk, p: LightsParams): void {
   c.text('device', p.device, 1, 64);
   c.text('sku', p.sku, 1, 32);
   c.text('device_name', p.device_name, 0, 100);
   c.stringList('extra_lights', p.extra_lights, MAX_EXTRA_LIGHTS, (f, s) => c.format(f, s, LIGHT_REF_PATTERN));
   c.oneOf('mode', p.mode, LIGHTS_MODES);
-  if (p.mode === 'scene') checkLightsScene(c, p);
-  else c.format('color', p.color, LIGHTS_COLOR_PATTERN);
+  if (p.mode !== 'off' && p.brightness !== 0) {
+    c.inRange('brightness', p.brightness, MIN_LIGHTS_BRIGHTNESS, MAX_LIGHTS_BRIGHTNESS);
+  }
+  c.inRange('hold_s', p.hold_s, 0, MAX_LIGHTS_HOLD_S);
+  lightsModeChecks.get(p.mode)?.(c, p);
 }
 
 const noop = () => {};
@@ -236,6 +275,9 @@ export const SIMPLE_ACTIONS: Table = {
       scene_instance: 'string',
       scene_value: 'string',
       any_time: 'bool',
+      kelvin: 'int',
+      brightness: 'int',
+      hold_s: 'int',
     },
     checkLights,
     { mode: 'color' },

@@ -80,7 +80,10 @@
     "slow": "Mode lent",
     "subscribers": "Abonnés uniquement",
     "unique": "Messages uniques",
-    "chat_delay": "Délai du chat"
+    "chat_delay": "Délai du chat",
+    "white": "Blanc",
+    "on": "Allumer",
+    "off": "Éteindre"
   },
   "kind": {
     "text": "Texte",

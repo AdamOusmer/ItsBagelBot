@@ -87,5 +87,8 @@
   "quiet": "Ohne Chatnachricht",
   "points_per_vote": "Kanalpunkte pro Stimme",
   "outcome": "Gewinnergebnis",
-  "thread": "Im Thread antworten"
+  "thread": "Im Thread antworten",
+  "kelvin": "Farbtemperatur",
+  "brightness": "Helligkeit",
+  "hold_s": "Zurück nach"
 }

@@ -27,7 +27,7 @@
   "reply.chat.keywords": "sagen senden nachricht antwort posten reden text say",
   "reply.points.keywords": "punkte währung münzen treue hinzufügen geben entfernen",
   "reply.counter.keywords": "zähler zählen erhöhen tode siege counter",
-  "reply.lights.keywords": "licht lichter govee farbe szene lampe led lights",
+  "reply.lights.keywords": "licht lichter govee farbe szene lampe led lights aus ein einschalten ausschalten dimmen helligkeit weiß warm farbtemperatur kelvin blinken blitz wiederherstellen zurück",
   "reply.wait.keywords": "warten verzögern pause später timer wait delay",
   "reply.loop.keywords": "schleife wiederholen mal für jede loop repeat",
   "reply.varSet.keywords": "variable speichern merken wert setzen",

@@ -205,6 +205,23 @@ function hasBubbleContent({ style, text }: Bubble): boolean {
   return style.mode === 'shoutout' ? Boolean(style.target) : trimSpace(text) !== '';
 }
 
+function* lightsRestore(ms: number, run: Execution, frame: Frame, detail: EventBody['detail']): Generator<number, void> {
+  yield ms;
+  emit(run, frame, { kind: 'lights_restore', status: 'ok', detail });
+}
+
+function effect(step: Step, run: Execution, frame: Frame): void {
+  const outcome = applyAction(step.action, frame.context);
+  emit(run, frame, { kind: 'effect', ...outcome });
+  if (step.action.type !== 'lights' || outcome.status !== 'ok') return;
+  const holdMs = Number(step.action.params?.hold_s) * 1000;
+  if (!(holdMs > 0)) return;
+  const { count, device_name } = outcome.detail;
+  const detail = { count: count!, ...(device_name === undefined ? {} : { device_name }) };
+  const child: Frame = { ...frame, context: { ...frame.context } };
+  runUntilPause(run, { frame: child, work: lightsRestore(holdMs, run, child, detail) });
+}
+
 function say(step: Step, run: Execution, frame: Frame): void {
   const { status, detail: outcome } = applyAction(step.action, frame.context);
   const bubbles = status === 'ok' ? messageBubbles(step.action, outcome.text ?? '').filter(hasBubbleContent) : [];
@@ -230,7 +247,7 @@ function* execute(step: Step, run: Execution, frame: Frame): Generator<number, v
   const handler = EFFECTS[step.action.type];
   if (handler) return yield* handler(step, run, frame);
   if (['chat', 'announce', 'reply', 'pin'].includes(step.action.type)) return say(step, run, frame);
-  emit(run, frame, { kind: 'effect', ...applyAction(step.action, frame.context) });
+  effect(step, run, frame);
 }
 
 function gates(definition: Definition, run: Execution, frame: Frame): boolean {
