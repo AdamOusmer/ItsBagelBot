@@ -60,10 +60,10 @@ const defaults = {
   'reply.poll_end': { status: 'terminate' },
   'reply.prediction': { seconds: 120 },
   'reply.prediction_end': { status: 'lock' },
-  'reply.points': { amount: 10, who: 'viewer' },
+  'reply.points': { change: 'add', amount: 10, who: 'viewer' },
   'reply.points_set': { amount: 10, who: 'viewer' },
-  'reply.counter': {},
-  'reply.reward_update': { setEnabled: 'on' },
+  'reply.counter': { change: 'add', amount: 1, value: 0 },
+  'reply.reward_update': { setEnabled: 'on', paused: 'keep' },
   'reply.countdown_start': { seconds: 3_600 },
   'reply.countdown_add': { seconds: 60 },
   'reply.cooldown_add': { seconds: 60 },
@@ -85,7 +85,13 @@ const defaults = {
   'cond.category': { mode: 'allow' },
   'cond.pattern': {},
   'cond.follow': { minDays: 0 },
-  'cond.accountAge': { minDays: 7 }
+  'cond.accountAge': { minDays: 7 },
+  'cond.points': { op: 'gte', value: 100 },
+  'cond.counter': { op: 'gte', value: 1 },
+  'reply.redemption': { result: 'fulfill' },
+  'reply.points_spend': { amount: 100 },
+  'reply.countdown_stop': {},
+  'reply.cooldown_reset': {}
 } satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
 
 test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {

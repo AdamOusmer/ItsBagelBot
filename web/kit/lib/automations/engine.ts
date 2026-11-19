@@ -47,8 +47,9 @@ const REQUIRED_TRIGGER: Partial<Record<StepType, RequiredTrigger>> = {
 const VIEWERLESS_TRIGGERS = new Set([
   'countdown:', 'timer:', 'event:stream.online', 'event:stream.offline', 'event:channel.ad_break.begin', 'event:channel.update'
 ]);
-const POINTS_ACTIONS: ReadonlySet<StepType> = new Set(['points_add', 'points_set']);
+const POINTS_ACTIONS: ReadonlySet<StepType> = new Set(['points_add', 'points_set', 'points_spend']);
 export const POINTS_ACTION_SCHEMA: Schema = { ...TARGET_SCHEMA, amount: 'int' };
+export const POINTS_SPEND_SCHEMA: Schema = { amount: 'int', on_ok: 'actions', on_failure: 'actions' };
 
 const ACTION_ROLE: Partial<Record<StepType, StepRole>> = {
   poll: 'mod',
@@ -80,6 +81,8 @@ const ACTION_ROLE: Partial<Record<StepType, StepRole>> = {
   cooldown_add: 'mod',
   countdown_start: 'mod',
   countdown_add: 'mod',
+  countdown_stop: 'mod',
+  cooldown_reset: 'mod',
 };
 
 const SELF_TARGET_EXEMPT = new Map<StepType, (params: unknown) => boolean>([
@@ -153,6 +156,7 @@ function targetsViewer({ who, login }: TargetParams): boolean {
 
 function viewerlessPoints(a: ActionNode, trigger: RequirementTrigger): boolean {
   if (!POINTS_ACTIONS.has(a.type) || !VIEWERLESS_TRIGGERS.has(`${trigger.type}:${trigger.kind}`)) return false;
+  if (a.type === 'points_spend') return !decodeStrict(a.params, POINTS_SPEND_SCHEMA, {}).err;
   const { value, err } = decodeParams<TargetParams>(POINTS_ACTION_SCHEMA, TARGET_DEFAULTS, a.params);
   return !err && targetsViewer(value);
 }

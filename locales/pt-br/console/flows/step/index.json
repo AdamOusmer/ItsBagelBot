@@ -47,7 +47,7 @@
   "reply.math.keywords": "matemática calcular fórmula expressão número soma multiplicar dividir",
   "reply.httpGet.keywords": "api web url requisição buscar webhook json get fetch",
   "reply.httpPost.keywords": "api web url requisição enviar webhook json post fetch",
-  "reply.rewardUpdate.keywords": "recompensa resgate custo preço ativar desativar redefinir pontos",
+  "reply.rewardUpdate.keywords": "recompensa resgate custo preço ativar desativar redefinir pontos pausar retomar intervalo",
   "reply.cooldownAdd.keywords": "cooldown intervalo temporizador adicionar estender tempo segundos",
   "reply.poll.keywords": "enquete votar votação opções pergunta iniciar poll",
   "reply.pollEnd.keywords": "enquete votação parar terminar arquivar fechar poll",
@@ -88,10 +88,17 @@
     "loopIndex": "Qual repetição é esta",
     "apiError": "Por que falhou",
     "cooldownLeft": "Intervalo restante",
-    "countdownLeft": "Tempo restante da contagem regressiva"
+    "countdownLeft": "Tempo restante da contagem regressiva",
+    "points": "Saldo de pontos"
   },
   "reply.streamInfo.keywords": "título jogo categoria tags marca patrocínio conteúdo renomear",
   "reply.commercial.keywords": "anúncio anúncios publicidade comercial intervalo",
   "reply.marker.keywords": "marcador destaque gravação vod marca tempo",
-  "reply.clip.keywords": "clipe destaque captura"
+  "reply.clip.keywords": "clipe destaque captura",
+  "condition.points.keywords": "se pontos saldo fidelidade espectador verificar comparar",
+  "condition.counter.keywords": "se contador valor vitórias mortes verificar comparar",
+  "reply.redemption.keywords": "resgate recompensa atender devolver cancelar pontos",
+  "reply.pointsSpend.keywords": "gastar comprar custo pontos saldo pagar preço",
+  "reply.countdownStop.keywords": "parar interromper cancelar contagem regressiva cronômetro",
+  "reply.cooldownReset.keywords": "zerar redefinir limpar intervalo espera cooldown"
 }

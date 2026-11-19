@@ -19,8 +19,8 @@ import {
   MIN_LIGHTS_BRIGHTNESS,
   MIN_LIGHTS_KELVIN,
 } from './limits';
-import type { Action, Condition, Definition, Params } from './types';
-import type { RehearsalOverrides, RehearsalScenario } from './rehearsal-types';
+import type { Action, Condition, Definition, Params, Trigger } from './types';
+import type { RehearsalEvent, RehearsalOverrides, RehearsalScenario } from './rehearsal-types';
 
 type Text = string;
 const action = (type: Text, params: Params = {}): Action => ({ type, params });
@@ -30,14 +30,16 @@ const choose = (condition: Condition): Action => action('if', { condition, then:
 const definition = (actions: Action[]): Definition => ({ version: 1, trigger: { type: 'command', params: { name: '!hello' } }, actions });
 const parallel = (branches: Action[][]): Action => action('parallel', { branches: branches.map((actions) => ({ weight: 1, actions })) });
 const apiUrl = 'https://example.com';
+const spend = action('points_spend', { amount: 100, on_ok: [chat('Enough: {points}')], on_failure: [chat('Not enough: {points}')] });
 
-type Options = { conditions?: Condition[]; scenario?: Partial<RehearsalScenario>; overrides?: RehearsalOverrides };
+type Options = { conditions?: Condition[]; scenario?: Partial<RehearsalScenario>; overrides?: RehearsalOverrides; trigger?: Trigger };
 function execute(actions: Action[], options: Options = {}) {
   const def = { ...definition(actions), conditions: options.conditions };
+  if (options.trigger) def.trigger = options.trigger;
   return rehearseDefinition(def, { ...defaultScenario(def), ...options.scenario }, options.overrides);
 }
 
-type RunCase = { name: Text; actions: Action[]; options?: Options; lines: Text[]; times?: number[] };
+type RunCase = { name: Text; actions: Action[]; options?: Options; lines: Text[]; times?: number[]; effects?: Pick<RehearsalEvent, 'status' | 'detail' | 'port'>[] };
 const runs: RunCase[] = [
   { name: 'parallel pause starts the sibling and continuation immediately', actions: [parallel([[action('delay', { ms: 5000 }), chat('A')], [chat('B')]]), chat('join')], lines: ['B', 'join', 'A'], times: [0, 0, 5000] },
   { name: 'resumed branches update shared state in time order', actions: [parallel([[action('delay', { ms: 5000 }), chat('{var:score}')], [action('var_set', { scope: 'channel', name: 'score', value: '9' })]])], lines: ['9'] },
@@ -66,14 +68,126 @@ const runs: RunCase[] = [
   { name: 'countdown starts and extends with time left', actions: [action('countdown_start', { name: 'timer', seconds: 60 }), action('delay', { ms: 5000 }), action('countdown_add', { name: 'timer', seconds: 10 }), chat('{countdown:left}')], lines: ['1m 5s'] },
   { name: 'named cooldown extends only a running window', actions: [choose(condition('cooldown', { name: 'timer', global_s: 60 })), action('cooldown_add', { name: 'timer', seconds: 30 }), chat('{cooldown:left}')], lines: ['yes', '1m 30s'] },
   { name: 'cooldown add cannot extend an unnamed window', actions: [choose(condition('cooldown', { global_s: 60 })), action('cooldown_add', { name: 'global', seconds: 30 }), chat('{cooldown:left}')], lines: ['yes'] },
-  { name: 'cooling branch reports current time left', actions: [choose(condition('cooldown', { name: 'timer', global_s: 60 })), action('delay', { ms: 5000 }), action('if', { condition: condition('cooldown', { name: 'timer', global_s: 60 }), else: [chat('{cooldown:left}')] })], lines: ['yes', '55s'] }
+  { name: 'cooling branch reports current time left', actions: [choose(condition('cooldown', { name: 'timer', global_s: 60 })), action('delay', { ms: 5000 }), action('if', { condition: condition('cooldown', { name: 'timer', global_s: 60 }), else: [chat('{cooldown:left}')] })], lines: ['yes', '55s'] },
+  {
+    name: 'taking points floors the viewer balance at zero',
+    actions: [action('points_add', { amount: -10 }), chat('{points}')],
+    options: { scenario: { state: { points: 3 } } }, lines: ['0'],
+    effects: [{ status: 'ok', detail: { value: '0' } }]
+  },
+  {
+    name: 'targeting another viewer preserves the seed and reports each target',
+    actions: [action('points_add', { amount: 5, who: 'user', user_id: '42' }),
+      action('points_set', { amount: 50, who: 'login', login: '@Ana' }), action('points_add', { amount: 5, who: 'mention' }), chat('{points}')],
+    options: { scenario: { state: { points: 3 } } }, lines: ['3'],
+    effects: [{ status: 'ok', detail: { target: '42' } }, { status: 'ok', detail: { target: 'Ana' } }, { status: 'ok', detail: { target: 'Lotti' } }]
+  },
+  {
+    name: 'setting points through the viewer login replaces the balance',
+    actions: [action('points_set', { amount: 50, login: '@princessbarney' }), chat('{points}')],
+    options: { scenario: { state: { points: 3 } } }, lines: ['50'],
+    effects: [{ status: 'ok', detail: { value: '50' } }]
+  },
+  {
+    name: 'setting points uses the allowed bounds',
+    actions: [action('points_set', { amount: -1, who: 'viewer' }), chat('{points}'),
+      action('points_set', { amount: 1_000_000_001, who: 'viewer' }), chat('{points}')],
+    lines: ['0', '1000000000']
+  },
+  {
+    name: 'counter writes, seeds and token lookups use the same name',
+    actions: [action('counter_add', { name: 'Deaths', amount: 1 }), chat('{counter:DEATHS}'),
+      action('counter_set', { name: 'Deaths', value: 0 }), chat('{counter:deaths}/{counter:WINS}')],
+    options: { scenario: { state: { counters: { deaths: 3, Wins: 8 } } } }, lines: ['4', '0/8'],
+    effects: [{ status: 'ok', detail: { value: '4' } }, { status: 'ok', detail: { value: '0' } }]
+  },
+  {
+    name: 'redemption steps report the status for the reward trigger',
+    actions: [action('redemption', { status: 'fulfill' }), action('redemption', { status: 'cancel' })],
+    options: { trigger: { type: 'reward', params: { reward_id: 'hydrate' } } }, lines: [],
+    effects: [{ status: 'ok', detail: { value: 'fulfill' } }, { status: 'ok', detail: { value: 'cancel' } }]
+  },
+  {
+    name: 'a command cannot settle a redemption', actions: [action('redemption', { status: 'cancel' })],
+    lines: [], effects: [{ status: 'failed', detail: { code: 'no_redemption' } }]
+  },
+  {
+    name: 'reward updates report changes and reject reset without a change',
+    actions: [action('reward_update', { reward_id: 'hydrate', enabled: false, cost: 500, reset_on_stream_end: true }),
+      action('reward_update', { reward_id: 'hydrate', enabled: null, cost: null, reset_on_stream_end: true })],
+    lines: [], effects: [{ status: 'ok', detail: { enabled: 'false', cost: '500', reset_on_stream_end: 'true' } },
+      { status: 'failed', detail: { code: 'nothing_to_change' } }]
+  },
+  {
+    name: 'points and counter conditions compare the seeded values',
+    actions: [choose(condition('points', { op: 'eq', value: 10 })), choose(condition('points', { op: 'ne', value: 10 })),
+      choose(condition('points', { op: 'gt', value: 9 })), choose(condition('counter', { name: 'WINS', op: 'gte', value: 4 })),
+      choose(condition('counter', { name: 'wins', op: 'lt', value: 4 })), choose(condition('counter', { name: 'Wins', op: 'lte', value: 4 }))],
+    options: { scenario: { state: { points: 10, counters: { wins: 4 } } } }, lines: ['yes', 'no', 'yes', 'yes', 'no', 'yes']
+  },
+  {
+    name: 'timer adds check the rate before looking for a running timer',
+    actions: [action('countdown_add', { name: 'timer', seconds: 10, per: 100 }), action('cooldown_add', { name: 'timer', seconds: 10, per: 100 })],
+    options: { trigger: { type: 'event', params: { kind: 'channel.cheer' } }, scenario: { bits: 5 } },
+    lines: [], effects: [{ status: 'skipped', detail: { code: 'below_rate' } }, { status: 'skipped', detail: { code: 'below_rate' } }]
+  },
+  {
+    name: 'spend points deducts the amount before taking Enough', actions: [spend],
+    options: { scenario: { state: { points: 250 } } }, lines: ['Enough: 150'],
+    effects: [{ status: 'ok', port: 'enough', detail: { value: '150' } }]
+  },
+  {
+    name: 'spend points can spend the entire balance', actions: [spend],
+    options: { scenario: { state: { points: 100 } } }, lines: ['Enough: 0'],
+    effects: [{ status: 'ok', port: 'enough', detail: { value: '0' } }]
+  },
+  {
+    name: 'spend points preserves the balance on Not enough', actions: [spend],
+    options: { scenario: { state: { points: 75 } } }, lines: ['Not enough: 75'],
+    effects: [{ status: 'failed', port: 'notEnough', detail: { code: 'insufficient_points', value: '75' } }]
+  },
+  {
+    name: 'spend points fails before branching when no viewer is present', actions: [spend, chat('Balance: {points}')],
+    options: { scenario: { userId: '', state: { points: 250 } } }, lines: ['Balance: 250'],
+    effects: [{ status: 'failed', detail: { code: 'no_viewer' } }]
+  },
+  {
+    name: 'reward changes include pause, resume and zero cooldown',
+    actions: [action('reward_update', { reward_id: 'hydrate', paused: true }),
+      action('reward_update', { reward_id: 'hydrate', paused: false, cooldown_s: 300 }),
+      action('reward_update', { reward_id: 'hydrate', cooldown_s: 0 })],
+    lines: [], effects: [{ status: 'ok', detail: { paused: 'true' } },
+      { status: 'ok', detail: { paused: 'false', cooldown_s: '300' } }, { status: 'ok', detail: { cooldown_s: '0' } }]
+  },
+  {
+    name: 'stop countdown removes a running timer and fails when repeated',
+    actions: [action('countdown_stop', { name: 'subathon' }), action('countdown_stop', { name: 'subathon' })],
+    options: { scenario: { state: { countdowns: { subathon: 60_000 } } } }, lines: [],
+    effects: [{ status: 'ok', detail: { value: 'subathon' } }, { status: 'failed', detail: { code: 'not_running' } }]
+  },
+  {
+    name: 'reset cooldown clears the seeded window and succeeds when repeated',
+    actions: [choose(condition('cooldown', { name: 'raffle', global_s: 60 })),
+      action('cooldown_reset', { name: 'raffle' }), action('cooldown_reset', { name: 'raffle' }),
+      choose(condition('cooldown', { name: 'raffle', global_s: 60 })), choose(condition('cooldown', { user_s: 60 }))],
+    options: { scenario: { state: { cooldowns: { raffle: 60_000, 'viewer:40000001': 60_000 } } } }, lines: ['no', 'yes', 'no'],
+    effects: [{ status: 'ok', detail: { value: 'raffle' } }, { status: 'ok', detail: { value: 'raffle' } }]
+  },
+  {
+    name: 'reset preserves unnamed cooldowns with names that could collide',
+    actions: [choose(condition('cooldown', { global_s: 60, user_s: 60 })),
+      action('cooldown_reset', { name: 'global' }), action('cooldown_reset', { name: 'viewer' }),
+      choose(condition('cooldown', { global_s: 60 })), choose(condition('cooldown', { user_s: 60 }))],
+    lines: ['yes', 'no', 'no']
+  }
 ];
 
-test.each(runs)('$name', ({ actions, options, lines, times }) => {
+test.each(runs)('$name', ({ actions, options, lines, times, effects }) => {
   const result = execute(actions, options);
   const said = result.events.filter((event) => event.kind === 'say');
-  expect(said.flatMap((event) => event.lines ?? [])).toEqual(lines);
-  if (times) expect(said.map((event) => event.atMs)).toEqual(times);
+  const rendered = { lines: said.flatMap((event) => event.lines ?? []), times: said.map((event) => event.atMs) };
+  expect(rendered).toMatchObject({ lines, ...(times ? { times } : {}) });
+  if (effects) expect(result.events.filter((event) => event.kind === 'effect')).toMatchObject(effects);
   expect(new Set(result.events.map((event) => event.key)).size).toBe(result.events.length);
 });
 

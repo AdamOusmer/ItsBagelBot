@@ -18,6 +18,7 @@ const (
 	MaxCooldownSeconds       = 2_592_000
 	MaxValkeyCooldownSeconds = 86_400
 	MaxAgeDays               = 3650
+	MaxRewardCooldown        = 604800
 )
 
 const (
@@ -29,6 +30,7 @@ const (
 	MaxListEntries    = 100
 	MaxExtraLights    = 31
 	MaxPatternLength  = 200
+	MaxPointsAmount   = 1000000
 )
 
 const (

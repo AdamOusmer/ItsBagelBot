@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!spend" } },
+  "actions": [
+    { "type": "points_spend", "params": { "amount": 0 } },
+    { "type": "points_spend", "params": { "amount": 1000001 } },
+    { "type": "points_spend", "params": { "amount": 1, "who": "viewer" } },
+    { "type": "points_spend", "params": { "amount": 1, "on_ok": [{ "type": "countdown_stop", "params": { "name": "clock" } }] } }
+  ]
+}

@@ -71,6 +71,34 @@ func (s *scriptedLongStore) ExtendLongCooldown(_ context.Context, _ uint64, _ st
 	return s.expiry, true, false, nil
 }
 
+func (s *scriptedLongStore) ResetLongCooldown(context.Context, NamedCooldownRef) error {
+	return s.claimErr
+}
+
+func TestResetClearsGlobalAndViewerMarkersForTheName(t *testing.T) {
+	client, channel := markerRig(t)
+	store := &scriptedLongStore{expiry: time.Now().Add(time.Hour).UnixMilli()}
+	marked := NewMarkedLongCooldowns(client, store, zap.NewNop())
+	ctx := t.Context()
+	key := automation.LongCooldownNamedKey(channel, "raffle")
+	keys := []string{key, key + ":42", key + ":99", key + "2"}
+	markers := cooldownmarker.New(client)
+	for _, window := range keys {
+		armed, err := markers.Arm(ctx, cooldownmarker.Marker{Channel: channel, Window: window, ExpiresAtMS: store.expiry})
+		require.NoError(t, err)
+		require.True(t, armed)
+	}
+	require.NoError(t, marked.ResetLongCooldown(ctx, NamedCooldownRef{BroadcasterID: channel, Name: "raffle"}))
+
+	var live []bool
+	for _, window := range keys {
+		_, found, err := markers.Expiry(ctx, channel, window)
+		require.NoError(t, err)
+		live = append(live, found)
+	}
+	assert.Equal(t, []bool{false, false, false, true}, live)
+}
+
 func TestPeekReadsTheExactExpiryFromAMarkerAndMarksOnAMiss(t *testing.T) {
 	client, channel := markerRig(t)
 	store := &scriptedLongStore{expiry: time.Now().Add(72 * time.Hour).UnixMilli()}

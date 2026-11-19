@@ -77,5 +77,18 @@
   "lightsOff": "Turn off {light}",
   "lightsMore": "{light} and {count} more",
   "lightsBrightness": "{line} at {percent}%",
-  "lightsHold": "{line}, then back after {seconds} s"
+  "lightsHold": "{line}, then back after {seconds} s",
+  "timerPer": "Add {seconds} to {name} for every {amount}",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} bit",
+      "many": "{count} bits",
+      "unit": "bits"
+    },
+    "gifts": {
+      "one": "{count} gifted sub",
+      "many": "{count} gifted subs",
+      "unit": "gifted subs"
+    }
+  }
 }

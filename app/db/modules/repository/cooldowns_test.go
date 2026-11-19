@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/modules/repository"
+	"ItsBagelBot/internal/domain/automation"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,6 +89,24 @@ func TestCooldownWindowRefusesUntilExpiry(t *testing.T) {
 		assert.True(t, won, "an expired window is free")
 		assert.Greater(t, again[0].ExpiresAtMS, time.Now().UnixMilli())
 	})
+}
+
+func TestCooldownResetFreesAllWindowsOfThatName(t *testing.T) {
+	repo, _ := sqliteStateRepo(t)
+	key := automation.LongCooldownNamedKey(cooldownChannel, "raffle")
+	windows := []repository.CooldownWindow{window(key), window(key + ":42"), window(key + ":99")}
+	neighbor := window(key + "2")
+	for _, initial := range append(windows, neighbor) {
+		_, won := claimCooldowns(t, repo, initial)
+		require.True(t, won)
+	}
+	require.NoError(t, repo.CooldownReset(t.Context(), cooldownChannel, "Raffle"))
+	var results []bool
+	for _, next := range append(windows, neighbor) {
+		_, won := claimCooldowns(t, repo, next)
+		results = append(results, won)
+	}
+	require.Equal(t, []bool{true, true, true, false}, results)
 }
 
 func oneWinnerAmong(t *testing.T, repo *repository.RecipeState, windows func(i int) []repository.CooldownWindow) int64 {

@@ -141,7 +141,11 @@
     "isGift": "Suscripción regalada",
     "rewardId": "ID de recompensa",
     "name": "Nombre de cuenta atrás",
-    "amount": "bits"
+    "amount": "bits",
+    "points": "Puntos del espectador",
+    "counter": "Contador: {name}",
+    "timerRunning": "{name} en marcha",
+    "timerLeft": "Tiempo restante"
   },
   "lightsRestore": "{light} vuelve a su estado anterior",
   "lightsRestoreMany": "{light} vuelven a su estado anterior",
@@ -149,5 +153,21 @@
   "stoppedHere": "Se detuvo aquí",
   "runsRecipe": "Ejecuta {name}",
   "recipeSimulation": "La prueba no abre la otra receta",
-  "recipeFailed": "Falló"
+  "recipeFailed": "Falló",
+  "pointsResult": "{action} (ahora {value})",
+  "pointsSetResult": "El saldo de puntos es ahora {value}",
+  "counterResult": "{name} tiene ahora un valor de {value}",
+  "timerResult": "{name}: quedan {left}",
+  "rewardOn": "activada",
+  "rewardOff": "desactivada",
+  "rewardCost": "coste fijado en {cost}",
+  "rewardUntilEnd": "{changes} hasta que termine el directo",
+  "rewardResult": "{name}: {changes}",
+  "noRedemption": "Este paso requiere que se canjee una recompensa.",
+  "noRewardChanges": "Elige primero qué cambiar en la recompensa.",
+  "pointsInsufficient": "Puntos insuficientes (saldo: {value})",
+  "rewardPaused": "en pausa",
+  "rewardResumed": "reanudada",
+  "rewardCooldown": "espera de {cooldown}",
+  "rewardCooldownOff": "espera desactivada"
 }

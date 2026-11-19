@@ -299,6 +299,16 @@ export interface HTTPGetAction {
   on_failure?: Action[];
 }
 
+export interface PointsSpendAction {
+  amount: number;
+  on_ok?: Action[];
+  on_failure?: Action[];
+}
+
+export interface NamedTimerAction {
+  name: string;
+}
+
 export type VarScope = 'channel' | 'viewer';
 export type VarOp = CompareCondition['op'] | 'exists' | 'not_exists';
 
@@ -363,9 +373,11 @@ export interface LoopAction {
 
 export interface RewardUpdateAction {
   reward_id: string;
-  enabled: boolean | null;
-  cost: number | null;
+  enabled?: boolean | null;
+  cost?: number | null;
   reset_on_stream_end?: boolean;
+  paused?: boolean | null;
+  cooldown_s?: number | null;
 }
 
 export const LIGHTS_MODES = ['color', 'scene', 'white', 'on', 'off'] as const;

@@ -92,5 +92,7 @@
   "thread": "Responder en hilo",
   "kelvin": "Temperatura de color",
   "brightness": "Brillo",
-  "hold_s": "Volver después de"
+  "hold_s": "Volver después de",
+  "paused": "En pausa",
+  "cooldown_s": "Enfriamiento global (s)"
 }

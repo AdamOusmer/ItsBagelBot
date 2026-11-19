@@ -77,5 +77,18 @@
   "lightsOff": "Apagar {light}",
   "lightsMore": "{light} y {count} más",
   "lightsBrightness": "{line} al {percent} %",
-  "lightsHold": "{line} y volver al estado anterior tras {seconds} s"
+  "lightsHold": "{line} y volver al estado anterior tras {seconds} s",
+  "timerPer": "Añadir {seconds} a {name} por cada {amount}",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} bit",
+      "many": "{count} bits",
+      "unit": "bits"
+    },
+    "gifts": {
+      "one": "{count} suscripción regalada",
+      "many": "{count} suscripciones regaladas",
+      "unit": "suscripciones regaladas"
+    }
+  }
 }

@@ -103,6 +103,24 @@ type PointsAddAction struct {
 
 type PointsSetAction PointsAddAction
 
+type PointsSpendAction struct {
+	Amount    int64    `json:"amount"`
+	OnOK      []Action `json:"on_ok,omitempty"`
+	OnFailure []Action `json:"on_failure,omitempty"`
+}
+
+type NamedTimerAction struct {
+	Name string `json:"name"`
+}
+
+func loyaltyActions() map[string]entry {
+	return map[string]entry{
+		"points_spend":   registerNestedEffect(checkPointsSpend, pointsSpendBranches),
+		"countdown_stop": register(checkNamedTimer),
+		"cooldown_reset": register(checkNamedTimer),
+	}
+}
+
 type CounterAddAction struct {
 	Name   string `json:"name"`
 	Amount int64  `json:"amount"`
@@ -285,9 +303,18 @@ func checkCommercial(c chk, p CommercialAction) {
 
 func checkPointsAdd(c chk, p PointsAddAction) {
 	c.target(p.TargetAction, loginOptional)
-	inRange(c, "amount", p.Amount, between(-1000000, 1000000))
+	inRange(c, "amount", p.Amount, between(-MaxPointsAmount, MaxPointsAmount))
 	nonZero(c, "amount", p.Amount)
 }
+
+func checkPointsSpend(c chk, p PointsSpendAction) {
+	inRange(c, "amount", p.Amount, between(1, MaxPointsAmount))
+	c.fetchPaths(p.OnOK, p.OnFailure)
+}
+
+func pointsSpendBranches(p PointsSpendAction) nesting { return fetchNesting(p.OnOK, p.OnFailure) }
+
+func checkNamedTimer(c chk, p NamedTimerAction) { c.variableName("name", p.Name) }
 
 func checkPointsSet(c chk, p PointsSetAction) {
 	c.target(p.TargetAction, loginOptional)

@@ -92,5 +92,7 @@
   "thread": "Responder em thread",
   "kelvin": "Temperatura de cor",
   "brightness": "Brilho",
-  "hold_s": "Voltar após"
+  "hold_s": "Voltar após",
+  "paused": "Pausada",
+  "cooldown_s": "Intervalo global (s)"
 }

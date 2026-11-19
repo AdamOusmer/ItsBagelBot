@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { definitionToFlow, flowToDefinition, validateDefinition, type FlowConfig, type FlowResult } from '@bagel/kit/automations';
+import { DEFAULT_REWARD_OUTCOME, definitionToFlow, flowToDefinition, validateDefinition, type FlowConfig, type FlowResult } from '@bagel/kit/automations';
 import type { ChoiceSource } from './choices';
 import { NODE_SPECS, fieldVisible, outputsFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec } from './model';
 
@@ -74,6 +74,9 @@ function fill(config: Config, field: FieldSpec): void {
     case 'login':
       Object.assign(config, { login: 'bagel', userId: '1234567' });
       break;
+    case 'reward':
+      Object.assign(config, { [field.key]: 'sample', onRedeem: DEFAULT_REWARD_OUTCOME });
+      break;
     default:
       config[field.key] = TEXT[field.key] ?? 'sample';
   }
@@ -91,14 +94,21 @@ function variations(spec: NodeSpec): Config[] {
 }
 
 function configsFor(spec: NodeSpec): Config[] {
+  const trigger = triggerFor(spec);
   return variations(spec).map((row) => {
     const config: Config = { ...row };
-    for (const field of spec.fields) if (fieldVisible(spec, { config }, field)) fill(config, field);
+    for (const field of spec.fields) if (fieldVisible(spec, { config }, field, trigger)) fill(config, field);
     return config;
   });
 }
 
 const node = (id: string, type: string, config: Config): FlowNode => ({ id, type, x: 0, y: 0, config });
+
+function triggerFor(spec: NodeSpec): FlowNode {
+  if (spec.type === 'reply.unban_resolve') return node('t', 'twitch.unban_request', {});
+  if (spec.type === 'reply.redemption') return node('t', 'twitch.reward', { reward: 'reward-1' });
+  return node('t', 'twitch.cheer', { minBits: 100 });
+}
 
 function drawn(spec: NodeSpec, config: Config): Flow {
   const step = node('a', spec.type, config);
@@ -107,9 +117,7 @@ function drawn(spec: NodeSpec, config: Config): Flow {
   if (spec.kind === 'trigger') {
     return { id: 'f', name: 'f', enabled: true, nodes: [step, chat], edges: [{ id: 'e1', from: 'a', port: port!, to: 'z' }] };
   }
-  const trigger = spec.type === 'reply.unban_resolve'
-    ? node('t', 'twitch.unban_request', {})
-    : node('t', 'twitch.cheer', { minBits: 100 });
+  const trigger = triggerFor(spec);
   return {
     id: 'f',
     name: 'f',

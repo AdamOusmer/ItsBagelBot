@@ -7,5 +7,6 @@
       "label": "Quantité",
       "unit": "points"
     }
-  }
+  },
+  "line": "Fixer le solde à {amount} points"
 }

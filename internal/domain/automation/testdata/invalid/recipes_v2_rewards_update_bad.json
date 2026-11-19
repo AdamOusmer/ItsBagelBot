@@ -50,6 +50,27 @@
         "cost": 10000001,
         "reset_on_stream_end": false
       }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "rw-1",
+        "cooldown_s": -1
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "rw-1",
+        "cooldown_s": 604801
+      }
+    },
+    {
+      "type": "reward_update",
+      "params": {
+        "reward_id": "rw-1",
+        "cooldown_s": 1.5
+      }
     }
   ]
 }

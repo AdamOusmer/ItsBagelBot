@@ -10,23 +10,29 @@
     }
   },
   "points": {
-    "label": "Treuepunkte vergeben",
+    "label": "Punkte ändern",
     "summary": "Punkte hinzufügen oder abziehen",
     "field": {
       "amount": {
         "label": "Menge",
         "unit": "Punkte"
-      }
-    }
+      },
+      "change": { "label": "Änderung", "option": { "add": "Hinzufügen", "take": "Abziehen" } }
+    },
+    "line": { "add": "Gib {amount}", "take": "Ziehe {amount} ab" }
   },
   "counter": {
-    "label": "Zähler erhöhen",
-    "summary": "Einen Zähler erhöhen",
+    "label": "Zähler ändern",
+    "summary": "Einen benannten Zähler erhöhen, verringern oder setzen",
     "field": {
       "counter": {
         "label": "Zähler"
-      }
-    }
+      },
+      "change": { "label": "Änderung", "option": { "add": "Hinzufügen", "set": "Setzen" } },
+      "amount": { "label": "Menge", "hint": "Gib zum Abziehen eine negative Zahl ein" },
+      "value": { "label": "Wert" }
+    },
+    "line": { "add": "{counter} um {amount} erhöhen", "take": "{counter} um {amount} verringern", "set": "{counter} auf {value} setzen" }
   },
   "lights": {
     "label": "Lichter einstellen",
@@ -186,8 +192,8 @@
         "range": "Verwende 1 Sekunde bis {days} Tage."
       },
       "per": {
-        "label": "Pro",
-        "hint": "Fügt die Zeit oben für jeden vollen Betrag hinzu. Trage in einem Bits-Rezept 100 ein, um je 100 Bits zu zählen. Leer lassen, um sie einmal pro Ereignis hinzuzufügen."
+        "label": "Für je",
+        "hint": "Nur bei Cheers und geschenkten Abos. Leer lassen, um einmal Zeit hinzuzufügen."
       }
     }
   },
@@ -204,8 +210,8 @@
         "range": "1 Sekunde bis {days} Tage eingeben."
       },
       "per": {
-        "label": "Pro",
-        "hint": "Diese Zeit für jeden vollen Betrag hinzufügen. Leer lassen, um sie einmal pro Ereignis hinzuzufügen."
+        "label": "Für je",
+        "hint": "Nur bei Cheers und geschenkten Abos. Leer lassen, um einmal Zeit hinzuzufügen."
       }
     }
   },
@@ -428,6 +434,54 @@
       "automationId": {
         "label": "Rezept",
         "hint": "Die eigenen Prüfungen gelten weiterhin. Das andere Rezept startet mit den Werten dieses Rezepts. Seine Änderungen bleiben auf dieses Rezept beschränkt."
+      }
+    }
+  },
+  "redemption": {
+    "label": "Einlösung abschließen",
+    "summary": "Eine Prämieneinlösung erfüllen oder die Punkte erstatten",
+    "field": {
+      "result": {
+        "label": "Ergebnis"
+      }
+    },
+    "line": {
+      "fulfill": "Als erfüllt markieren",
+      "cancel": "Punkte zurückgeben"
+    }
+  },
+  "pointsSpend": {
+    "label": "Punkte ausgeben",
+    "summary": "Ziehe Punkte ab, wenn der Zuschauer genug hat",
+    "line": "{amount} ausgeben",
+    "field": {
+      "amount": {
+        "label": "Menge",
+        "unit": "Punkte"
+      }
+    },
+    "out": {
+      "enough": "Genug",
+      "notEnough": "Nicht genug"
+    }
+  },
+  "countdownStop": {
+    "label": "Countdown stoppen",
+    "summary": "Beende einen laufenden Countdown vorzeitig",
+    "line": "{name} stoppen",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Cooldown zurücksetzen",
+    "summary": "Hebe die Wartezeit für einen benannten Cooldown auf",
+    "line": "{name} zurücksetzen",
+    "field": {
+      "name": {
+        "label": "Cooldown"
       }
     }
   }

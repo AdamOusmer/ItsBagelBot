@@ -8,22 +8,26 @@ import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, type TypeDef } from './ca
 
 const GO_DIR = join(import.meta.dir, '../../../../internal/domain/automation');
 const registry = readFileSync(join(GO_DIR, 'registry.go'), 'utf8');
+const actions = readFileSync(join(GO_DIR, 'actions.go'), 'utf8');
 
-function goTypes(table: string): string[] {
-  const body = registry.match(new RegExp(`${table} = map\\[string\\]entry\\{([\\s\\S]*?)\\n\\t\\}`));
+function goTypes(source: string, prefix: string): string[] {
+  const body = source.match(new RegExp(`${prefix} map\\[string\\]entry\\{([\\s\\S]*?)\\n\\t\\}`));
   return [...(body?.[1] ?? '').matchAll(/"([a-z_]+)":/g)].map((m) => m[1]);
 }
 
-const groups: [string, string, TypeDef[]][] = [
-  ['triggerRegistry', 'trigger', TRIGGER_TYPES],
-  ['conditionRegistry', 'condition', CONDITION_TYPES],
-  ['actionRegistry', 'action', ACTION_TYPES],
+const loyaltyTypes = registry.includes('maps.Copy(actionRegistry, loyaltyActions())')
+  ? goTypes(actions, 'func loyaltyActions\\(\\) map\\[string\\]entry \\{\\n\\treturn')
+  : [];
+
+const groups: [string[], string, TypeDef[]][] = [
+  [goTypes(registry, 'triggerRegistry ='), 'trigger', TRIGGER_TYPES],
+  [goTypes(registry, 'conditionRegistry ='), 'condition', CONDITION_TYPES],
+  [[...goTypes(registry, 'actionRegistry ='), ...loyaltyTypes], 'action', ACTION_TYPES],
 ];
 
 describe('catalog', () => {
-  for (const [table, group, defs] of groups) {
+  for (const [go, group, defs] of groups) {
     test(`${group} entries match the Go registry one to one`, () => {
-      const go = goTypes(table);
       expect(go.length).toBeGreaterThan(0);
       expect(defs.map((d) => d.type).sort()).toEqual([...go].sort());
     });

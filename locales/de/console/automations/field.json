@@ -92,5 +92,7 @@
   "thread": "Im Thread antworten",
   "kelvin": "Farbtemperatur",
   "brightness": "Helligkeit",
-  "hold_s": "Zurück nach"
+  "hold_s": "Zurück nach",
+  "paused": "Pausiert",
+  "cooldown_s": "Globaler Cooldown (s)"
 }

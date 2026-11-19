@@ -77,5 +77,18 @@
   "lightsOff": "Выключить {light}",
   "lightsMore": "{light} и ещё {count}",
   "lightsBrightness": "{line} с яркостью {percent} %",
-  "lightsHold": "{line}, затем вернуть прежнее состояние через {seconds} с"
+  "lightsHold": "{line}, затем вернуть прежнее состояние через {seconds} с",
+  "timerPer": "Продлить {name} на {seconds} за {amount}",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} битс",
+      "many": "{count} битсов",
+      "unit": "битсы"
+    },
+    "gifts": {
+      "one": "{count} подаренную подписку",
+      "many": "{count} подаренных подписок",
+      "unit": "подаренные подписки"
+    }
+  }
 }

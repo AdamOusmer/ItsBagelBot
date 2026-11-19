@@ -306,6 +306,21 @@ func (r *RecipeState) cooldownExtendQuery() string {
 	return "UPDATE cooldown_claims SET " + set + " WHERE user_id=? AND cooldown_key=? AND expires_at_ms>?"
 }
 
+func (r *RecipeState) CooldownReset(ctx context.Context, userID uint64, name string) error {
+	normalized, ok := automation.VariableName(name)
+	if userID == 0 || !ok {
+		return fmt.Errorf("%w: cooldown identity", ErrInvalidInput)
+	}
+	key := automation.LongCooldownNamedKey(userID, normalized)
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := r.client.CooldownClaim.Delete().Where(
+			cooldownclaim.UserID(userID),
+			cooldownclaim.Or(cooldownclaim.CooldownKey(key), cooldownclaim.CooldownKeyHasPrefix(key+":")),
+		).Exec(ctx)
+		return err
+	})
+}
+
 // PruneExpiredCooldowns walks the expiry index in bounded batches; it only removes rows a claim would overwrite anyway.
 func (r *RecipeState) PruneExpiredCooldowns(ctx context.Context) error {
 	return r.pruneBefore(ctx, pruneTarget{table: "cooldown_claims", column: "expires_at_ms"}, time.Now().UnixMilli()+1)

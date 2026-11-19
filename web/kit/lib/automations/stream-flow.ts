@@ -59,6 +59,10 @@ type Adapter = {
 
 const STREAM_ADAPTERS: Record<string, Adapter> = {
   announce: { read: (params) => ({ color: text(params.color) || 'primary' }) },
+  points_add: {
+    write: (config) => config.amount === undefined ? {} : { amount: pointsAmount(config) },
+    read: (params) => ({ change: Number(params.amount) < 0 ? 'take' : 'add', amount: Math.abs(Number(params.amount)) || 0 })
+  },
   poll: {
     write: (config) => config.extraVotes === true ? { points_per_vote: Number(config.pointsPerVote ?? 100) } : {},
     read: (params): FlowConfig => {
@@ -120,6 +124,16 @@ function fieldConfigKey(param: string, kind: ValueKind, who: unknown): string {
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 const number = (value: unknown): number => Number(value) || 0;
 const toggle = (value: unknown): boolean => value === true;
+
+export function pointsChange(config: FlowConfig): 'add' | 'take' {
+  if (config.change === 'take') return 'take';
+  return config.change === undefined && Number(config.amount) < 0 ? 'take' : 'add';
+}
+
+function pointsAmount(config: FlowConfig): number {
+  const amount = Math.abs(Number(config.amount)) || 0;
+  return pointsChange(config) === 'take' ? -amount : amount;
+}
 
 const VALUE_CODECS: Record<ValueKind, ValueCodec> = {
   text: { write: text, read: text },

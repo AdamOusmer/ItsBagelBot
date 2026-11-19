@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { flowToDefinition, locateIssues, validateDefinition } from '@bagel/kit/automations';
-import { fieldIssues, fieldRequired, missingField } from './issues';
-import { newFlow, type FlowNode } from './model';
+import { fieldIssues, fieldRequired, inlineFieldIssue, missingField } from './issues';
+import { newFlow, specFor, type FlowNode } from './model';
 
 const nodeOf = (type: FlowNode['type'], config: FlowNode['config'] = {}): FlowNode => ({ id: 'step', type, config, x: 0, y: 0 });
 
@@ -49,7 +49,9 @@ const mappings = [
   ['reply.chat', 'message.bits', 'message'], ['reply.math', 'config.expression', 'expression'],
   ['reply.text', 'params.arg1', 'arg1'], ['reply.text', 'params.arg2', 'arg2'],
   ['reply.var', 'params.name', 'name'], ['reply.var', 'params.amount', 'amount'],
-  ['reply.var', 'params.scope', 'scope'], ['reply.var', 'params.value', 'value']
+  ['reply.var', 'params.scope', 'scope'], ['reply.var', 'params.value', 'value'],
+  ['cond.counter', 'params.name', 'counter'], ['reply.redemption', 'params.status', 'result'],
+  ['reply.countdown_add', 'config.per', 'per']
 ];
 
 test.each(mappings)('%s maps %s to %s', (type, path, fieldKey) => {
@@ -82,7 +84,8 @@ test.each([
   ['twitch.chat.command', 'trigger', true], ['twitch.reward', 'reward', true], ['reply.shoutout', 'target', true],
   ['reply.raid', 'target', true], ['reply.mod', 'target', false], ['reply.vip', 'target', false],
   ['reply.whisper', 'target', true], ['reply.timeout', 'target', false],
-  ['reply.countdown_start', 'name', true], ['reply.countdown_start', 'seconds', true], ['reply.countdown_start', 'leftReply', false]
+  ['reply.countdown_start', 'name', true], ['reply.countdown_start', 'seconds', true], ['reply.countdown_start', 'leftReply', false],
+  ['reply.points', 'amount', true]
 ] as const)('%s marks %s required: %s', (type, key, expected) => {
   expect(fieldRequired(nodeOf(type), key)).toBe(expected);
 });
@@ -123,7 +126,9 @@ test.each<{ type: FlowNode['type']; key: string; config: FlowNode['config']; exp
   { type: 'reply.prediction_end', key: 'outcome', config: { status: 'resolve' }, expected: true },
   { type: 'reply.prediction_end', key: 'outcome', config: { status: 'cancel' }, expected: false },
   { type: 'reply.lights', key: 'scene', config: { mode: 'scene' }, expected: true },
-  { type: 'reply.lights', key: 'scene', config: { mode: 'color' }, expected: false }
+  { type: 'reply.lights', key: 'scene', config: { mode: 'color' }, expected: false },
+  { type: 'reply.counter', key: 'amount', config: { change: 'set' }, expected: false },
+  { type: 'reply.counter', key: 'value', config: { change: 'set' }, expected: true }
 ])('$type requires $key for $config', ({ type, key, config, expected }) => {
   expect(fieldRequired(nodeOf(type, config), key)).toBe(expected);
 });
@@ -139,6 +144,22 @@ test.each([
   if (!lowered.ok) throw new Error(JSON.stringify(lowered.issues));
   const issues = fieldIssues(locateIssues(flow, validateDefinition(lowered.value)), flow.nodes);
   expect(issues.map(({ fieldKey, code }) => ({ fieldKey, code }))).toEqual(fields);
+});
+
+test.each([
+  { node: nodeOf('reply.countdown_start', { name: 'tea_time' }), key: 'name', code: 'simple_word' },
+  { node: nodeOf('reply.countdown_start', { name: 'clock2' }), key: 'name', code: undefined },
+  { node: nodeOf('reply.points', { change: 'add' }), key: 'amount', code: 'required' },
+  { node: nodeOf('reply.points', { change: 'take', amount: 0 }), key: 'amount', code: 'out_of_range' },
+  { node: nodeOf('reply.points', { amount: -10 }), key: 'amount', code: undefined },
+  { node: nodeOf('reply.counter', { change: 'add', amount: 0 }), key: 'amount', code: 'out_of_range' },
+  { node: nodeOf('reply.countdown_add', { per: 0 }), key: 'per', code: 'out_of_range' },
+  { node: nodeOf('reply.reward_update', { setEnabled: 'keep', paused: 'keep', cooldown: '', reset: true }), key: 'setEnabled', code: 'required' },
+  { node: nodeOf('reply.reward_update', { setEnabled: 'keep', paused: 'resume' }), key: 'setEnabled', code: undefined },
+  { node: nodeOf('reply.reward_update', { setEnabled: 'keep', paused: 'keep', cooldown: 0 }), key: 'setEnabled', code: undefined }
+])('reports $code on $node.type $key while editing', ({ node, key, code }) => {
+  const field = specFor(node.type)!.fields.find((field) => field.key === key)!;
+  expect(inlineFieldIssue(node, field)?.code).toBe(code);
 });
 
 test.each([

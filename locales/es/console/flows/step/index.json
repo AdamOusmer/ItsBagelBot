@@ -47,7 +47,7 @@
   "reply.math.keywords": "matemáticas calcular fórmula expresión número sumar multiplicar dividir",
   "reply.httpGet.keywords": "api web url solicitud obtener webhook json get fetch",
   "reply.httpPost.keywords": "api web url solicitud enviar webhook json post fetch",
-  "reply.rewardUpdate.keywords": "recompensa canje coste precio activar desactivar reiniciar puntos",
+  "reply.rewardUpdate.keywords": "recompensa canje coste precio activar desactivar reiniciar puntos pausar reanudar espera enfriamiento",
   "reply.cooldownAdd.keywords": "cooldown enfriamiento temporizador añadir ampliar tiempo segundos",
   "reply.poll.keywords": "encuesta votar votación opciones pregunta iniciar poll",
   "reply.pollEnd.keywords": "encuesta votación detener terminar archivar cerrar poll",
@@ -88,10 +88,17 @@
     "loopIndex": "Qué repetición es",
     "apiError": "Por qué falló",
     "cooldownLeft": "Tiempo restante de enfriamiento",
-    "countdownLeft": "Tiempo restante de la cuenta atrás"
+    "countdownLeft": "Tiempo restante de la cuenta atrás",
+    "points": "Saldo de puntos"
   },
   "reply.streamInfo.keywords": "título juego categoría etiquetas marca patrocinio contenido renombrar",
   "reply.commercial.keywords": "anuncio anuncios publicidad pausa publicitaria",
   "reply.marker.keywords": "marcador destacado grabación vod marca tiempo",
-  "reply.clip.keywords": "clip destacado captura"
+  "reply.clip.keywords": "clip destacado captura",
+  "condition.points.keywords": "si puntos saldo lealtad espectador comprobar comparar",
+  "condition.counter.keywords": "si contador valor victorias muertes comprobar comparar",
+  "reply.redemption.keywords": "canje recompensa completar reembolsar cancelar puntos",
+  "reply.pointsSpend.keywords": "gastar comprar coste costo puntos saldo pagar",
+  "reply.countdownStop.keywords": "detener parar cancelar cuenta atrás temporizador",
+  "reply.cooldownReset.keywords": "restablecer reiniciar borrar espera enfriamiento cooldown"
 }

@@ -29,6 +29,10 @@ test.each([
   ['live', 'cond.live'],
   ['game', 'cond.category'],
   ['add points', 'reply.points'],
+  ['spend', 'reply.points_spend'],
+  ['buy', 'reply.points_spend'],
+  ['stop countdown', 'reply.countdown_stop'],
+  ['reset cooldown', 'reply.cooldown_reset'],
   ['ligth', 'reply.lights'],
   ['  SEND, méssage! ', 'reply.chat'],
   ['title', 'reply.stream_info'],
@@ -48,7 +52,7 @@ test.each([
   ['zzzz', []],
   ['send zzzz', []],
   ['wa', ['reply.wait', 'reply.lights', 'cond.cooldown']],
-  ['wi', ['reply.counter', 'reply.prediction_end', 'cond.compare', 'cond.var', 'reply.text', 'reply.poll']],
+  ['wi', ['reply.counter', 'reply.prediction_end', 'cond.compare', 'cond.var', 'cond.counter', 'reply.text', 'reply.poll']],
   ['waaitt', []],
   ['?!', []]
 ])('%s returns only the matching steps in relevance order', (query, expected) => {

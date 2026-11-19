@@ -77,5 +77,18 @@
   "lightsOff": "Schalte {light} aus",
   "lightsMore": "{light} und {count} weitere",
   "lightsBrightness": "{line} mit {percent} % Helligkeit",
-  "lightsHold": "{line}, nach {seconds} s zurück"
+  "lightsHold": "{line}, nach {seconds} s zurück",
+  "timerPer": "{name} pro {amount} um {seconds} verlängern",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} Bit",
+      "many": "{count} Bits",
+      "unit": "Bits"
+    },
+    "gifts": {
+      "one": "{count} verschenktes Abo",
+      "many": "{count} verschenkte Abos",
+      "unit": "verschenkte Abos"
+    }
+  }
 }

@@ -92,5 +92,7 @@
   "thread": "Reply in thread",
   "kelvin": "Warmth",
   "brightness": "Brightness",
-  "hold_s": "Go back after"
+  "hold_s": "Go back after",
+  "paused": "Paused",
+  "cooldown_s": "Global cooldown (s)"
 }

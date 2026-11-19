@@ -10,23 +10,29 @@
     }
   },
   "points": {
-    "label": "Donner des points de fidélité",
+    "label": "Modifier les points",
     "summary": "Ajouter ou retirer des points",
     "field": {
       "amount": {
         "label": "Montant",
         "unit": "points"
-      }
-    }
+      },
+      "change": { "label": "Modification", "option": { "add": "Ajouter", "take": "Retirer" } }
+    },
+    "line": { "add": "Donner {amount}", "take": "Retirer {amount}" }
   },
   "counter": {
-    "label": "Incrémenter le compteur",
-    "summary": "Augmenter un compteur",
+    "label": "Modifier un compteur",
+    "summary": "Augmenter, diminuer ou fixer un compteur nommé",
     "field": {
       "counter": {
         "label": "Compteur"
-      }
-    }
+      },
+      "change": { "label": "Modification", "option": { "add": "Ajouter", "set": "Fixer" } },
+      "amount": { "label": "Montant", "hint": "Saisissez un nombre négatif pour soustraire" },
+      "value": { "label": "Valeur" }
+    },
+    "line": { "add": "Ajouter {amount} à {counter}", "take": "Retirer {amount} de {counter}", "set": "Fixer {counter} à {value}" }
   },
   "lights": {
     "label": "Régler les lumières",
@@ -186,8 +192,8 @@
         "range": "Utilisez de 1 seconde à {days} jours."
       },
       "per": {
-        "label": "Par",
-        "hint": "Ajoute le temps ci-dessus pour chaque montant complet. Mettez 100 dans une recette de bits pour compter tous les 100 bits. Laissez vide pour l’ajouter une fois par événement."
+        "label": "Par tranche de",
+        "hint": "Uniquement pour les Cheers et les abonnements offerts. Laissez vide pour ajouter du temps une seule fois."
       }
     }
   },
@@ -205,7 +211,7 @@
       },
       "per": {
         "label": "Par tranche de",
-        "hint": "Ajoute cette durée pour chaque tranche complète. Laissez vide pour l’ajouter une fois par événement."
+        "hint": "Uniquement pour les Cheers et les abonnements offerts. Laissez vide pour ajouter du temps une seule fois."
       }
     }
   },
@@ -428,6 +434,54 @@
       "automationId": {
         "label": "Recette",
         "hint": "Ses propres vérifications s’appliquent toujours. Elle démarre avec les valeurs de cette recette et conserve ses modifications pour elle-même."
+      }
+    }
+  },
+  "redemption": {
+    "label": "Finaliser un échange",
+    "summary": "Honorer un échange de récompense ou rembourser les points",
+    "field": {
+      "result": {
+        "label": "Résultat"
+      }
+    },
+    "line": {
+      "fulfill": "Marquer comme honorée",
+      "cancel": "Rembourser les points"
+    }
+  },
+  "pointsSpend": {
+    "label": "Dépenser des points",
+    "summary": "Déduis des points si le spectateur en a assez",
+    "line": "Dépenser {amount}",
+    "field": {
+      "amount": {
+        "label": "Montant",
+        "unit": "points"
+      }
+    },
+    "out": {
+      "enough": "Assez",
+      "notEnough": "Pas assez"
+    }
+  },
+  "countdownStop": {
+    "label": "Arrêter le compte à rebours",
+    "summary": "Mets fin plus tôt à un compte à rebours en cours",
+    "line": "Arrêter {name}",
+    "field": {
+      "name": {
+        "label": "Compte à rebours"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Réinitialiser le délai",
+    "summary": "Annule l’attente pour un délai nommé",
+    "line": "Réinitialiser {name}",
+    "field": {
+      "name": {
+        "label": "Délai"
       }
     }
   }

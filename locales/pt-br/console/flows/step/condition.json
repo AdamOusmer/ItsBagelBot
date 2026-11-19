@@ -186,5 +186,49 @@
     "field": { "minDays": { "label": "Pelo menos", "unit": "dias" } },
     "line": "A conta tem {minDays} dias ou mais",
     "out": { "yes": "Atende à idade mínima", "no": "Recente demais" }
+  },
+  "points": {
+    "label": "Pontos do espectador",
+    "summary": "Verifique o saldo de pontos de quem acionou a receita",
+    "field": {
+      "op": {
+        "label": "É"
+      },
+      "value": {
+        "label": "Pontos",
+        "unit": "pontos"
+      }
+    },
+    "out": {
+      "yes": "Sim",
+      "no": "Não"
+    },
+    "line": {
+      "eq": "O espectador tem exatamente {value} pontos",
+      "ne": "O saldo do espectador é diferente de {value} pontos",
+      "gt": "O espectador tem mais de {value} pontos",
+      "gte": "O espectador tem pelo menos {value} pontos",
+      "lt": "O espectador tem menos de {value} pontos",
+      "lte": "O espectador tem no máximo {value} pontos"
+    }
+  },
+  "counter": {
+    "label": "Valor do contador",
+    "summary": "Verifique o valor atual de um contador com nome",
+    "field": {
+      "counter": {
+        "label": "Contador"
+      },
+      "op": {
+        "label": "É"
+      },
+      "value": {
+        "label": "Valor"
+      }
+    },
+    "out": {
+      "yes": "Sim",
+      "no": "Não"
+    }
   }
 }

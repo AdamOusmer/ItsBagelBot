@@ -42,13 +42,14 @@ test.each([
 describe('step copy', () => {
   test.each([
     { type: 'cond.cooldown', key: 'name', hint: 'A named cooldown can be extended by Add time steps in any recipe. Channel wait only.' },
-    { type: 'reply.cooldown_add', key: 'per', hint: 'Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event.' },
-    { type: 'reply.countdown_add', key: 'per', hint: 'Add this time for each full amount. Leave empty to add it once per event.' },
+    { type: 'reply.cooldown_add', key: 'per', hint: 'Only on cheer and gift sub triggers. Leave empty to add time once.' },
+    { type: 'reply.countdown_add', key: 'per', hint: 'Only on cheer and gift sub triggers. Leave empty to add time once.' },
     { type: 'reply.countdown_add', key: 'name', hint: undefined },
     { type: 'reply.wait', key: 'seconds', hint: 'All waits in one run add up to 60 seconds at most.' },
     { type: 'reply.loop', key: 'times', hint: '1 to 100. A variable works too, like {args}.' },
     { type: 'reply.math', key: 'expression', hint: 'Use + - * / % ^ and round, floor, ceil, abs, min, max, random(a, b).' },
-    { type: 'reply.http_get', key: 'jsonPath', hint: 'Dots between keys; brackets work too.' }
+    { type: 'reply.http_get', key: 'jsonPath', hint: 'Dots between keys; brackets work too.' },
+    { type: 'reply.counter', key: 'amount', hint: 'Use a minus number to take away' }
   ])('$type $key shows a hint only when translated', ({ type, key, hint }) => {
     const spec = specFor(type)!;
     const field = spec.fields.find((field) => field.key === key)!;
@@ -110,7 +111,8 @@ describe('step copy', () => {
     { type: 'reply.chat', fieldKey: 'message', code: 'required', expected: 'Message is missing.' },
     { type: 'twitch.chat.command', fieldKey: 'trigger', code: 'required', expected: 'Command is missing.' },
     { type: 'reply.chat', fieldKey: 'unknown', code: 'required', expected: 'A value is missing.' },
-    { type: 'reply.chat', fieldKey: 'message', code: 'too_long', expected: 'A value is too long.' }
+    { type: 'reply.chat', fieldKey: 'message', code: 'too_long', expected: 'A value is too long.' },
+    { type: 'reply.reward_update', fieldKey: 'setEnabled', code: 'required', expected: 'Pick at least one change' }
   ])('$type $fieldKey $code names the missing field when mapped', ({ type, fieldKey, code, expected }) => {
     const node: FlowNode = { id: 'n', type, x: 0, y: 0, config: {} };
     expect(fieldIssueMessage(english, { nodeId: node.id, fieldKey, code, path: 'nodes.n.config' }, node)).toBe(expected);
@@ -198,6 +200,17 @@ describe('step copy', () => {
     const wait = NODE_SPECS.find((spec) => spec.type === 'reply.wait')!;
     expect(fieldUnit(english, wait, wait.fields[0])).toMatch(/^seconds, max \d+$/);
   });
+});
+
+test.each([
+  { type: 'reply.redemption', trigger: 'command', requirement: { kind: 'trigger', trigger: 'reward' } },
+  { type: 'reply.redemption', trigger: 'reward', requirement: null },
+  { type: 'reply.countdown_stop', trigger: 'command', requirement: { kind: 'role', level: 'mod' } },
+  { type: 'reply.countdown_stop', trigger: 'event', requirement: null },
+  { type: 'reply.cooldown_reset', trigger: 'command', requirement: { kind: 'role', level: 'mod' } },
+  { type: 'reply.cooldown_reset', trigger: 'event', requirement: null }
+])('$type uses the engine requirement on $trigger', ({ type, trigger, requirement }) => {
+  expect(stepRequirementFor(specFor(type)!, { type: trigger })).toEqual(requirement);
 });
 
 describe('describe', () => {

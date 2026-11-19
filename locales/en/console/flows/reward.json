@@ -19,5 +19,7 @@
   "update": "Update reward",
   "created": "Reward created on Twitch.",
   "updated": "Reward updated on Twitch.",
-  "requestFailed": "Could not reach Twitch. Try again in a moment."
+  "requestFailed": "Could not reach Twitch. Try again in a moment.",
+  "afterSettledByStep": "A Complete redemption step settles it.",
+  "afterRefundSkipped": "The viewer gets their points back if the recipe’s checks fail."
 }

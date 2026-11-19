@@ -6,7 +6,7 @@ import { TARGET_DEFAULTS, TARGET_SCHEMA, type Chk } from './check';
 import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE, validateFetchDef } from '../engine/fetch-validate';
 import { lex } from '../engine/tmpl';
 import { checkVarIdentity, counterName } from './conditions';
-import { POINTS_ACTION_SCHEMA, register, type Table, type Wide } from './engine';
+import { actions, POINTS_ACTION_SCHEMA, POINTS_SPEND_SCHEMA, register, registerNested, type ActionNode, type Table, type Wide } from './engine';
 import {
   CODE,
   MAX_COOLDOWN_SECONDS,
@@ -17,6 +17,8 @@ import {
   MAX_LIGHTS_BRIGHTNESS,
   MAX_LIGHTS_HOLD_S,
   MAX_LIGHTS_KELVIN,
+  MAX_POINTS_AMOUNT,
+  MAX_REWARD_COOLDOWN,
   MAX_REWARD_COST,
   MAX_TEMPLATE_LENGTH,
   MAX_MATH_EXPRESSION_RUNES,
@@ -76,8 +78,16 @@ function checkClip(c: Chk, p: Wide<T.ClipAction>): void {
 
 function checkPointsAdd(c: Chk, p: Wide<T.PointsAddAction>): void {
   c.target(p, 0);
-  c.inRange('amount', p.amount, -MAX_AMOUNT, MAX_AMOUNT);
+  c.inRange('amount', p.amount, -MAX_POINTS_AMOUNT, MAX_POINTS_AMOUNT);
   c.nonZero('amount', p.amount);
+}
+
+type PointsSpendParams = Pick<T.PointsSpendAction, 'amount'> & { on_ok: ActionNode[]; on_failure: ActionNode[] };
+
+function checkPointsSpend(c: Chk, p: PointsSpendParams): void {
+  c.inRange('amount', p.amount, 1, MAX_POINTS_AMOUNT);
+  actions(c.sub('on_ok').nest(), p.on_ok);
+  actions(c.sub('on_failure').nest(), p.on_failure);
 }
 
 function checkPointsSet(c: Chk, p: Wide<T.PointsSetAction>): void {
@@ -137,12 +147,11 @@ function checkMath(c: Chk, p: Wide<T.MathAction>): void {
 
 const REWARD_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
-type RewardUpdateFields = { reward_id: string; enabled: boolean | null; cost: number | null };
-
-function checkRewardUpdate(c: Chk, p: RewardUpdateFields): void {
+function checkRewardUpdate(c: Chk, p: Wide<T.RewardUpdateAction>): void {
   if (c.text('reward_id', p.reward_id, 1, 64) && !REWARD_ID_PATTERN.test(p.reward_id)) c.add('reward_id', CODE.invalidFormat);
-  if (p.enabled === null && p.cost === null) c.add('enabled', CODE.required);
+  if ([p.enabled, p.cost, p.paused, p.cooldown_s].every((change) => change === null)) c.add('enabled', CODE.required);
   if (p.cost !== null) c.inRange('cost', p.cost, 1, MAX_REWARD_COST);
+  if (p.cooldown_s !== null) c.inRange('cooldown_s', p.cooldown_s, 0, MAX_REWARD_COOLDOWN);
 }
 
 type LightsParams = Wide<T.LightsAction>;
@@ -218,6 +227,8 @@ const login = register<Wide<T.LoginAction>>({ login: 'string' }, (c, p) => void 
 const empty = register<Record<string, never>>({}, noop);
 const text = register<Wide<T.TextAction>>({ text: 'string' }, checkText);
 
+const namedTimer = register<T.NamedTimerAction>({ name: 'string' }, (c, p) => c.simpleWord('name', p.name, RECIPE_NAME_PATTERN));
+
 export const SIMPLE_ACTIONS: Table = {
   ...STREAM_ACTIONS,
   chat: text,
@@ -256,8 +267,8 @@ export const SIMPLE_ACTIONS: Table = {
   var_delete: register<Wide<T.VarDeleteAction>>({ scope: 'string', name: 'string' }, checkVarIdentity),
   text: register<Wide<T.TextStepAction>>({ op: 'string', input: 'string', arg1: 'string', arg2: 'string', save_as: 'string' }, checkTextStep),
   math: register<Wide<T.MathAction>>({ expression: 'string', save_as: 'string' }, checkMath),
-  reward_update: register<RewardUpdateFields>(
-    { reward_id: 'string', enabled: 'ptrbool', cost: 'ptrint', reset_on_stream_end: 'bool' },
+  reward_update: register<Wide<T.RewardUpdateAction>>(
+    { reward_id: 'string', enabled: 'ptrbool', cost: 'ptrint', reset_on_stream_end: 'bool', paused: 'ptrbool', cooldown_s: 'ptrint' },
     checkRewardUpdate,
   ),
   lights: register<Wide<T.LightsAction>>(
@@ -291,5 +302,11 @@ export const SIMPLE_ACTIONS: Table = {
   }),
   countdown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
   cooldown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
+  points_spend: {
+    ...registerNested<PointsSpendParams>(POINTS_SPEND_SCHEMA, checkPointsSpend, (p) => [p.on_ok, p.on_failure]),
+    effect: true,
+  },
+  countdown_stop: namedTimer,
+  cooldown_reset: namedTimer,
 };
 

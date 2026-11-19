@@ -141,7 +141,11 @@
     "isGift": "Gifted sub",
     "rewardId": "Reward ID",
     "name": "Countdown name",
-    "amount": "bits"
+    "amount": "bits",
+    "points": "Viewer points",
+    "counter": "Counter: {name}",
+    "timerRunning": "{name} running",
+    "timerLeft": "Time left"
   },
   "lightsRestore": "{light} goes back",
   "lightsRestoreMany": "{light} go back",
@@ -149,5 +153,21 @@
   "stoppedHere": "Stopped here",
   "runsRecipe": "Runs {name}",
   "recipeSimulation": "Test run does not open the other recipe",
-  "recipeFailed": "Failed"
+  "recipeFailed": "Failed",
+  "pointsResult": "{action} (now {value})",
+  "pointsSetResult": "Points are now {value}",
+  "counterResult": "{name} is now {value}",
+  "timerResult": "{name}: {left} left",
+  "rewardOn": "turned on",
+  "rewardOff": "turned off",
+  "rewardCost": "cost set to {cost}",
+  "rewardUntilEnd": "{changes} until the stream ends",
+  "rewardResult": "{name}: {changes}",
+  "noRedemption": "This step requires a reward redemption.",
+  "noRewardChanges": "Choose a reward change first.",
+  "pointsInsufficient": "Not enough points (balance: {value})",
+  "rewardPaused": "paused",
+  "rewardResumed": "resumed",
+  "rewardCooldown": "cooldown {cooldown}",
+  "rewardCooldownOff": "cooldown off"
 }

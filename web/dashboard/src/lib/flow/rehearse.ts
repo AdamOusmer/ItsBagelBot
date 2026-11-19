@@ -1,18 +1,18 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { chatModeValueField, comparePasses, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, SETUP_LOGIN, scenarioArgs, scenarioIdentity, scenarioKind, scenarioPatches, streamTargetNodes, validateDefinition, viewerIdKey, viewerList } from '@bagel/kit/automations';
-import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
-export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
+import { comparePasses, compileFlow, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, SETUP_LOGIN, scenarioArgs, scenarioIdentity, scenarioKind, validateDefinition, viewerIdKey, viewerList } from '@bagel/kit/automations';
+import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioInputField } from '@bagel/kit/automations';
+export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioInputField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, randomPathLabel, roleWarning, stepLabel, variableLabel } from './copy';
 import { describe, durationFormatter, lightGroupLabel, optionLabel, viewerNames } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { NODE_SPECS, outputsFor, specFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
+import { inputLabel, rehearsalInputs, resultText, scenarioFieldLabel, STREAM_INFO_SCENARIOS } from './rehearse-effects';
 
 type Text = string;
 type ScenarioPatch = Partial<RehearsalScenario>;
-const STREAM_INFO_SCENARIOS = new Set(['twitch.stream.online', 'twitch.channel_update']);
 type Compiled = Extract<ReturnType<typeof compileFlow>, { ok: true }>['value'];
 export type RehearsalStep = RehearsalEvent & {
   id: Text | null;
@@ -30,7 +30,7 @@ export type RehearsalStep = RehearsalEvent & {
 export type RehearsalView = {
   steps: RehearsalStep[];
   scenario: RehearsalScenario;
-  fields: readonly ScenarioField[];
+  fields: readonly ScenarioInputField[];
   summary: Text;
   starts: boolean;
   state: 'not_started' | 'started' | 'stopped';
@@ -47,22 +47,7 @@ const ROLE_LABELS: Readonly<Record<Text, MessageKey>> = {
   viewer: 'flows.test.role.viewer', everyone: 'flows.test.role.viewer', sub: 'flows.test.role.sub', vip: 'flows.test.role.vip',
   mod: 'flows.test.role.mod', lead_mod: 'flows.test.role.lead_mod', broadcaster: 'flows.test.role.broadcaster'
 };
-const FIELD_LABELS: Readonly<Record<Text, MessageKey>> = {
-  user: 'flows.test.field.user', userId: 'flows.test.field.userId', role: 'flows.test.field.role', live: 'flows.test.field.live',
-  message: 'flows.test.field.message', bits: 'flows.test.field.bits', amount: 'flows.test.field.amount', viewers: 'flows.test.field.viewers',
-  tier: 'flows.test.field.tier', months: 'flows.test.field.months', giftCount: 'flows.test.field.giftCount', anonymous: 'flows.test.field.anonymous',
-  input: 'flows.test.field.input', requestText: 'flows.test.field.requestText', isGift: 'flows.test.field.isGift',
-  rewardId: 'flows.test.field.rewardId', name: 'flows.test.field.name',
-  streak: 'flows.test.field.streak', total: 'flows.test.field.total', reward: 'flows.test.field.reward', cost: 'flows.test.field.cost',
-  title: 'flows.test.field.title', category: 'flows.test.field.category', seconds: 'flows.test.field.seconds',
-  automatic: 'flows.test.field.automatic', args: 'flows.test.field.args'
-};
-
-const scenarioFieldLabel = (t: Translate, key: Text): Text => t(FIELD_LABELS[key] ?? 'flows.test.notSet');
-export const scenarioInputLabel = (t: Translate, key: Text): Text => {
-  const labels: Readonly<Record<Text, MessageKey>> = { bits: 'flows.test.inputBits', amount: 'flows.test.inputBits', viewers: 'flows.test.inputViewers', seconds: 'flows.test.inputLength' };
-  return labels[key] ? t(labels[key]) : scenarioFieldLabel(t, key);
-};
+export const scenarioInputLabel = (t: Translate, field: ScenarioInputField): Text => inputLabel(t, field);
 export const scenarioRoleLabel = (t: Translate, key: Text): Text => t(ROLE_LABELS[key] ?? 'flows.test.role.viewer');
 
 function repairDraft(flow: Flow, issues: Issue[]): Flow {
@@ -91,16 +76,6 @@ function compileDraft(flow: Flow): { compiled: ReturnType<typeof compileFlow>; w
   const tolerated = new Set(['unconnected_node', 'user_not_resolved', 'unmappable_token']);
   if (!compiled.issues.every((issue) => tolerated.has(issue.code))) return { compiled };
   return compileDraft(repairDraft(flow, compiled.issues));
-}
-
-function initialScenario(definition: Definition, t: Translate): RehearsalScenario {
-  const scenario = defaultScenario(definition);
-  const kind = scenarioKind(definition);
-  const fields = SCENARIO_FIELDS[kind] ?? [];
-  for (const field of fields.filter((field) => field.key === 'bits' || field.key === 'viewers')) Object.assign(scenario, { [field.key]: field.default });
-  if (kind === 'twitch.sub.resub') scenario.message = t('flows.test.sampleResubMessage');
-  if (STREAM_INFO_SCENARIOS.has(kind)) scenario.title = t('flows.test.sampleStreamTitle');
-  return scenario;
 }
 
 function executorOverrides(compiled: Compiled, overrides: RehearsalOverrides): RehearsalOverrides {
@@ -311,30 +286,9 @@ function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, li
   return node?.type.startsWith('twitch.chat.') ? scenario.message ?? line : line;
 }
 
-const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text', 'reply.var']);
-
-function rehearsedTarget(node: FlowNode, login: Text | undefined): FlowNode['config'] {
-  if (!login || !streamTargetNodes.has(node.type)) return {};
-  const pickedLogin = node.config.who === 'user' ? node.config.login : undefined;
-  return { who: 'login', target: pickedLogin || login };
-}
-
-function effectValue(node: FlowNode, param: Text, value: Text): [Text, FlowNode['config'][string]][] {
-  if (node.type === 'reply.chat_mode' && param === 'value') {
-    const key = chatModeValueField(node.config.mode);
-    return key ? [[key, key === 'delay' ? value : Number(value)]] : [];
-  }
-  const key = configKey(param);
-  const displayExpanded = typeof node.config[key] === 'string' || param === 'login';
-  return displayExpanded ? [[key, value]] : [];
-}
-
 function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
   if (!node) return t('flows.test.effect');
-  if (COMPUTED_VALUE_NODES.has(node.type) && detail.value !== undefined) return detail.value;
-  const expanded = Object.entries(detail).flatMap(([param, value]) => effectValue(node, param, value));
-  const config = { ...node.config, ...Object.fromEntries(expanded), ...rehearsedTarget(node, detail.login) };
-  return describe(t, { ...node, config });
+  return resultText(t, detail, node);
 }
 
 function lightsRestoreText(t: Translate, detail: Record<Text, Text>): Text {
@@ -365,7 +319,12 @@ function rehearsalEffectText(t: Translate, detail: Record<Text, Text>, node: Flo
     const name = optionLabel(t, specFor(node.type)!, node, 'automationId');
     return t('flows.test.runsRecipe', { name });
   }
-  return detail.code ? reasonText(t, detail.code) : effectText(t, detail, node);
+  const reason = failureReason(detail);
+  return reason ? reasonText(t, reason) : effectText(t, detail, node);
+}
+
+function failureReason(detail: Record<Text, Text>): Text | undefined {
+  return detail.code === 'insufficient_points' ? undefined : detail.code;
 }
 
 function chatLines(event: RehearsalEvent): RehearsedLine[] {
@@ -384,7 +343,7 @@ function reasonText(t: Translate, code: Text): Text {
     empty_login: t('flows.test.emptyLogin'), no_target: t('flows.test.noMention'),
     no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired'),
     too_few_choices: t('flows.test.tooFewChoices'), nothing_running: t('flows.test.nothingRunning'), no_message: t('flows.test.noMessage'),
-    stopped: t('flows.test.stoppedHere')
+    stopped: t('flows.test.stoppedHere'), no_redemption: t('flows.test.noRedemption'), nothing_to_change: t('flows.test.noRewardChanges')
   };
   return reasons[code] ?? t('flows.test.failed');
 }
@@ -557,9 +516,7 @@ export function rehearseDraft(draft: ReturnType<typeof prepareRehearsal>, t: Tra
   const empty: RehearsalView = { steps: [], fields: [], scenario: { live: true, ...options.scenario }, summary: '', starts: false, state: 'not_started' };
   if (!compiled.ok) return { ...empty, issue: rehearsalIssue(t, compiled.issues, flow) };
   const { definition } = compiled.value;
-  const kind = scenarioKind(definition);
-  const fields = SCENARIO_FIELDS[kind] ?? [];
-  const scenario = { ...initialScenario(definition, t), ...scenarioPatches(fields, options.scenario ?? {}) };
+  const { kind, fields, scenario } = rehearsalInputs(definition, options.scenario, t);
   scenario.args = scenarioArgs(definition, scenario);
   const overrides = executorOverrides(compiled.value, options.overrides ?? {});
   const formatDuration = durationFormatter(t);

@@ -5,18 +5,20 @@ package worker
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/valkeytest"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,11 +28,36 @@ import (
 )
 
 type apiReward struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Prompt    string `json:"prompt"`
-	Cost      int    `json:"cost"`
-	IsEnabled bool   `json:"is_enabled"`
+	ID             string      `json:"id"`
+	Title          string      `json:"title"`
+	Prompt         string      `json:"prompt"`
+	Cost           int         `json:"cost"`
+	IsEnabled      bool        `json:"is_enabled"`
+	IsPaused       bool        `json:"is_paused"`
+	GlobalCooldown apiCooldown `json:"global_cooldown_setting"`
+}
+
+type apiCooldown struct {
+	Enabled bool `json:"is_enabled"`
+	Seconds int  `json:"global_cooldown_seconds"`
+}
+
+func (r *apiReward) applyPatch(patch twitch.RewardPatch) {
+	if patch.IsEnabled != nil {
+		r.IsEnabled = *patch.IsEnabled
+	}
+	if patch.Cost != nil {
+		r.Cost = *patch.Cost
+	}
+	if patch.IsPaused != nil {
+		r.IsPaused = *patch.IsPaused
+	}
+	if patch.IsGlobalCooldownEnabled != nil {
+		r.GlobalCooldown = apiCooldown{Enabled: *patch.IsGlobalCooldownEnabled}
+	}
+	if patch.GlobalCooldownSeconds != nil {
+		r.GlobalCooldown.Seconds = *patch.GlobalCooldownSeconds
+	}
 }
 
 type rewardsAPI struct {
@@ -89,12 +116,9 @@ func (a *rewardsAPI) get(w http.ResponseWriter, r *http.Request) {
 
 func (a *rewardsAPI) patch(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
-	var body strings.Builder
-	buf := make([]byte, 512)
-	n, _ := r.Body.Read(buf)
-	body.Write(buf[:n])
+	body, _ := io.ReadAll(r.Body)
 	a.mu.Lock()
-	a.patches = append(a.patches, id+" "+body.String())
+	a.patches = append(a.patches, id+" "+string(body))
 	hook := a.onPatch
 	a.mu.Unlock()
 	if hook != nil {
@@ -111,7 +135,9 @@ func (a *rewardsAPI) patch(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	_ = codec.Unmarshal([]byte(body.String()), reward)
+	var patch twitch.RewardPatch
+	_ = codec.Unmarshal(body, &patch)
+	reward.applyPatch(patch)
 	if a.failApplied != 0 {
 		w.WriteHeader(a.failApplied)
 		a.failApplied = 0
@@ -189,8 +215,8 @@ func TestRewardUpdateSnapshotsFirstChangeOnly(t *testing.T) {
 	api, vc := newRewardsAPI(hydrate()), valkeytest.Spawn(t)
 	w := rewardsWorker(t, api, vc)
 
-	require.NoError(t, sendRewardUpdate(w, "rw-1", `{"cost":50,"reset_on_stream_end":true}`))
-	require.NoError(t, sendRewardUpdate(w, "rw-1", `{"enabled":false,"cost":25,"reset_on_stream_end":true}`))
+	require.NoError(t, sendRewardUpdate(w, "rw-1", `{"cost":50,"paused":true,"reset_on_stream_end":true}`))
+	require.NoError(t, sendRewardUpdate(w, "rw-1", `{"enabled":false,"cost":25,"global_cooldown_seconds":60,"reset_on_stream_end":true}`))
 
 	_, gets := api.calls()
 	assert.Equal(t, 1, gets, "later changes must not read the already changed state")
@@ -238,6 +264,10 @@ func TestRewardUpdatePatchesOnlyTheChangedFields(t *testing.T) {
 	}{
 		"cost leaves enabled alone": {`{"cost":50,"reset_on_stream_end":true}`, `rw-1 {"cost":50}`},
 		"enabled leaves cost alone": {`{"enabled":false}`, `rw-1 {"is_enabled":false}`},
+		"pause alone":               {`{"paused":true}`, `rw-1 {"is_paused":true}`},
+		"resume alone":              {`{"paused":false}`, `rw-1 {"is_paused":false}`},
+		"positive cooldown enables": {`{"global_cooldown_seconds":60}`, `rw-1 {"is_global_cooldown_enabled":true,"global_cooldown_seconds":60}`},
+		"zero cooldown disables":    {`{"global_cooldown_seconds":0}`, `rw-1 {"is_global_cooldown_enabled":false}`},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -254,16 +284,31 @@ func TestRewardUpdatePatchesOnlyTheChangedFields(t *testing.T) {
 }
 
 func TestRewardRestoreAppliesSnapshotOnce(t *testing.T) {
-	api, vc := newRewardsAPI(hydrate()), valkeytest.Spawn(t)
+	prior := hydrate()
+	prior.IsPaused = true
+	prior.GlobalCooldown = apiCooldown{Enabled: true, Seconds: 45}
+	api, vc := newRewardsAPI(prior), valkeytest.Spawn(t)
 	w := rewardsWorker(t, api, vc)
-	require.NoError(t, sendRewardUpdate(w, "rw-1", `{"enabled":false,"reset_on_stream_end":true}`))
+	require.NoError(t, sendRewardUpdate(w, "rw-1", `{"enabled":false,"paused":false,"global_cooldown_seconds":0,"reset_on_stream_end":true}`))
 	api.resetCalls()
 
 	require.NoError(t, sendRewardRestore(w))
 	require.NoError(t, sendRewardRestore(w))
 
 	patches, _ := api.calls()
-	assert.Equal(t, []string{`rw-1 {"is_enabled":true,"cost":100}`}, patches)
+	assert.Equal(t, []string{`rw-1 {"is_enabled":true,"cost":100,"is_paused":true,"is_global_cooldown_enabled":true,"global_cooldown_seconds":45}`}, patches)
+}
+
+func TestRewardRestoreOnlyPatchesFieldsInLegacySnapshot(t *testing.T) {
+	api, vc := newRewardsAPI(hydrate()), valkeytest.Spawn(t)
+	w := rewardsWorker(t, api, vc)
+	field := pkg_valkey.HashField{Key: outgress.RewardSnapshotKey(testBroadcaster), Field: "rw-1"}
+	require.NoError(t, field.Write(context.Background(), vc, pkg_valkey.HashWrite{Value: `{"enabled":false,"cost":25}`, TTL: rewardSnapshotTTL}))
+
+	require.NoError(t, sendRewardRestore(w))
+
+	patches, _ := api.calls()
+	assert.Equal(t, []string{`rw-1 {"is_enabled":false,"cost":25}`}, patches)
 }
 
 func TestRewardRestoreRunsOnceAcrossConcurrentReplicas(t *testing.T) {

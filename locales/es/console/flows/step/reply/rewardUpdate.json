@@ -1,6 +1,6 @@
 {
   "label": "Cambiar una recompensa",
-  "summary": "Activar o desactivar una recompensa, o fijar su coste",
+  "summary": "Cambia la disponibilidad, el coste o el tiempo de espera de una recompensa",
   "field": {
     "reward": {
       "label": "Recompensa"
@@ -19,6 +19,29 @@
     },
     "reset": {
       "label": "Restablecer al terminar el stream"
+    },
+    "paused": {
+      "label": "En pausa",
+      "option": {
+        "keep": "Dejar como está",
+        "pause": "Pausar",
+        "resume": "Reanudar"
+      }
+    },
+    "cooldown": {
+      "label": "Tiempo de espera",
+      "range": "Déjalo en blanco para conservar la espera. Usa 0 para desactivarla. Máximo: {days} días."
     }
+  },
+  "pickChange": "Elige al menos un cambio",
+  "line": {
+    "on": "Activar {reward}",
+    "off": "Desactivar {reward}",
+    "pause": "Pausar {reward}",
+    "resume": "Reanudar {reward}",
+    "cost": "Cambiar el coste de {reward} a {cost}",
+    "cooldown": "Fijar la espera de {reward} en {cooldown}",
+    "cooldownOff": "Desactivar la espera de {reward}",
+    "untilEnd": "{changes} hasta que termine el directo"
   }
 }

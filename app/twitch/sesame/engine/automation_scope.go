@@ -28,15 +28,18 @@ type automationScope struct {
 	locals map[string]string
 	args   string
 	locale string
+	points string
 
 	cooldownEndMS  int64
 	countdownEndMS int64
 }
 
-func (automationScope) Owns(v scope.Var) bool {
+func (s automationScope) Owns(v scope.Var) bool {
 	switch {
 	case v.Name == "args":
 		return !v.HasPayload
+	case v.Name == scope.PointsToken:
+		return s.points != "" && !v.HasPayload
 	case v.Name == "arg", v.Name == localTokenName:
 		return v.HasPayload
 	case automation.IsCountdownLeftToken(v):
@@ -54,6 +57,8 @@ func (s automationScope) Get(v scope.Var) (string, bool) {
 	switch v.Name {
 	case "args":
 		return sanitizeVar(s.args), true
+	case scope.PointsToken:
+		return s.points, true
 	case "arg":
 		return sanitizeVar(s.argMap[v.Payload]), true
 	case localTokenName:
@@ -138,7 +143,7 @@ func (x *actionExec) variableScope() variableScope {
 }
 
 func (x *actionExec) automationScope() automationScope {
-	return automationScope{event: x.run.Event, argMap: x.run.ArgMap, locals: x.run.Locals, args: x.run.Args, locale: x.context().Locale, cooldownEndMS: x.run.CooldownEndMS, countdownEndMS: x.run.CountdownEndMS}
+	return automationScope{event: x.run.Event, argMap: x.run.ArgMap, locals: x.run.Locals, args: x.run.Args, locale: x.context().Locale, points: x.run.points, cooldownEndMS: x.run.CooldownEndMS, countdownEndMS: x.run.CountdownEndMS}
 }
 
 func (p *Pipeline) automationContext(ctx context.Context, run *AutomationRun) *module.Context {
@@ -217,7 +222,7 @@ func (x *actionExec) residentVar(tok tmpl.Token) bool {
 	if _, conditional := tok.Cond(); conditional {
 		return false
 	}
-	if (automationScope{}).Owns(tok) {
+	if (automationScope{points: x.run.points}).Owns(tok) {
 		return true
 	}
 	if _, namespaced := x.p.namespaceModule(tok); namespaced {
@@ -231,6 +236,7 @@ func (x *actionExec) renderResident(toks []tmpl.Token) string {
 		x.vars = x.newRunVars()
 	}
 	x.vars.auto.locals = x.run.Locals
+	x.vars.auto.points = x.run.points
 	x.vars.auto.cooldownEndMS = x.run.CooldownEndMS
 	x.vars.auto.countdownEndMS = x.run.CountdownEndMS
 	x.buf = scope.Chain(nil).Render(x.buf[:0], toks, &x.vars)

@@ -92,5 +92,7 @@
   "thread": "Répondre dans le fil",
   "kelvin": "Température du blanc",
   "brightness": "Luminosité",
-  "hold_s": "Rétablir après"
+  "hold_s": "Rétablir après",
+  "paused": "En pause",
+  "cooldown_s": "Délai global (s)"
 }

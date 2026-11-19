@@ -38,6 +38,7 @@ export const MAX_REWARD_COST = 10000000;
 export const MAX_REWARD_TITLE = 45;
 export const MAX_REWARD_COOLDOWN = 604800;
 export const MAX_VARIABLE_AMOUNT = 1_000_000_000_000_000;
+export const MAX_POINTS_AMOUNT = 1000000;
 export const RECIPE_NAME_PATTERN = /^[A-Za-z0-9]{1,32}$/;
 export const QUEUE_NAME_PATTERN = /^[a-z0-9]{1,32}$/;
 

@@ -31,6 +31,12 @@ type LongCooldownStore interface {
 	PeekLongCooldowns(ctx context.Context, claim LongCooldownClaim) ([]modulesrpc.CooldownWindow, error)
 	// ExtendLongCooldown adds addSeconds to a named window's expiry. found is false when the window is not running; capped marks a result the system ceiling shortened.
 	ExtendLongCooldown(ctx context.Context, broadcasterID uint64, key string, addSeconds int64) (expiresAtMS int64, found bool, capped bool, err error)
+	ResetLongCooldown(ctx context.Context, ref NamedCooldownRef) error
+}
+
+type NamedCooldownRef struct {
+	BroadcasterID uint64
+	Name          string
 }
 
 func (c *RecipeStateRPC) cooldownCall(ctx context.Context, verb string, req modulesrpc.CooldownRequest) (modulesrpc.CooldownReply, error) {
@@ -51,6 +57,11 @@ func (c *RecipeStateRPC) ClaimLongCooldowns(ctx context.Context, claim LongCoold
 
 func (c *RecipeStateRPC) ReleaseLongCooldowns(ctx context.Context, hold LongCooldownHold) error {
 	_, err := c.cooldownCall(ctx, "release", modulesrpc.CooldownRequest{UserID: fmtID(hold.BroadcasterID), Windows: hold.Windows})
+	return err
+}
+
+func (c *RecipeStateRPC) ResetLongCooldown(ctx context.Context, ref NamedCooldownRef) error {
+	_, err := c.cooldownCall(ctx, "reset", modulesrpc.CooldownRequest{UserID: fmtID(ref.BroadcasterID), Name: ref.Name})
 	return err
 }
 

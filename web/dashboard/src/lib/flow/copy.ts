@@ -153,6 +153,7 @@ export const fieldHint = (t: Translate, spec: NodeSpec, field: FieldSpec): strin
 
 export function fieldIssueMessage(t: Translate, issue: FieldIssue, node: FlowNode | undefined): string {
   if (issue.code !== 'required') return issueMessage(t, issue);
+  if (node?.type === 'reply.reward_update' && issue.fieldKey === 'setEnabled') return t('flows.step.reply.rewardUpdate.pickChange');
   const spec = node ? specFor(node.type) : undefined;
   const field = spec?.fields.find((field) => field.key === issue.fieldKey);
   if (!spec || !field) return issueMessage(t, issue);
@@ -181,13 +182,14 @@ export function durationOutside(field: DurationSpec, seconds: string | number | 
   return Number(seconds) < field.min || Number(seconds) > field.max;
 }
 
-const sharesCheckOps = (field: FieldSpec): boolean => field.type === 'select' && field.optionGroup === 'checkOps';
-
-const optionKey = (spec: NodeSpec, field: FieldSpec, value: string): string =>
-  sharesCheckOps(field) ? `flows.step.condition.op.${value}` : `${fieldCopyPrefix(spec, field)}.option.${value}`;
+function optionKey(spec: NodeSpec, field: FieldSpec, value: string): MessageKey {
+  const shared = field.type === 'select' ? field.optionKey : undefined;
+  if (typeof shared === 'string') return `${shared}.${value}`;
+  return shared?.[value] ?? `${fieldCopyPrefix(spec, field)}.option.${value}`;
+}
 
 export const optionText = (t: Translate, spec: NodeSpec, field: FieldSpec, value: string): string =>
-  sharesCheckOps(field) ? t(`flows.step.condition.op.${value}` as MessageKey) : t(`${fieldCopyPrefix(spec, field)}.option.${value}` as MessageKey);
+  t(optionKey(spec, field, value));
 
 export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { value: string; label: string }[] {
   if (field.type !== 'select') return [];
@@ -207,7 +209,10 @@ export function fieldSearchText(t: Translate, spec: NodeSpec): string {
     return [
       known(`${prefix}.label`, t(`${prefix}.label` as MessageKey)),
       ...variantLabels(t, spec, field),
-      ...options.map((value) => known(optionKey(spec, field, value), optionText(t, spec, field, value)))
+      ...options.map((value) => {
+        const key = optionKey(spec, field, value);
+        return known(key, t(key));
+      })
     ];
   }).filter(Boolean).join(' ');
 }

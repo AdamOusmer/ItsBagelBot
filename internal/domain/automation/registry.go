@@ -4,6 +4,7 @@
 package automation
 
 import (
+	"maps"
 	"slices"
 
 	"ItsBagelBot/pkg/codec"
@@ -75,6 +76,7 @@ var actionRole = map[string]int{
 	"timeout": roleModerator, "ban": roleModerator, "unban": roleModerator, "warn": roleModerator, "shield": roleModerator,
 	"delete_message": roleModerator, "cooldown_add": roleModerator,
 	"countdown_start": roleModerator, "countdown_add": roleModerator,
+	"countdown_stop": roleModerator, "cooldown_reset": roleModerator,
 }
 
 var selfTargetExempt = map[string]func(codec.RawMessage) bool{
@@ -190,20 +192,21 @@ func (c chk) triggerMismatch(a Action) bool {
 	switch a.Type {
 	case "unban_resolve":
 		return c.trigger != "event" || c.kind != "channel.unban_request.create"
-	case "points_add", "points_set":
+	case "points_add", "points_set", "points_spend":
 		_, viewerless := viewerlessTriggers[triggerShape{typ: c.trigger, kind: c.kind}]
-		return viewerless && pointsTargetViewer(a.Params)
+		return viewerless && pointsTargetViewer(a)
 	}
 	want, ok := requiredTrigger[a.Type]
 	return ok && c.trigger != want
 }
 
-func pointsTargetViewer(raw codec.RawMessage) bool {
-	p, err := DecodeParams[PointsAddAction](raw)
-	if err != nil {
-		return false
+func pointsTargetViewer(a Action) bool {
+	if a.Type == "points_spend" {
+		_, err := DecodeParams[PointsSpendAction](a.Params)
+		return err == nil
 	}
-	return p.targetsViewer()
+	p, err := DecodeParams[PointsAddAction](a.Params)
+	return err == nil && p.targetsViewer()
 }
 
 func whoIsViewer(raw codec.RawMessage) bool {
@@ -316,6 +319,7 @@ func init() {
 		"countdown_start": register(checkCountdownStart),
 		"countdown_add":   register(checkCountdownAdd),
 	}
+	maps.Copy(actionRegistry, loyaltyActions())
 }
 
 func registerConditions() {

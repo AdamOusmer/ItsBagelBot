@@ -47,7 +47,7 @@
   "reply.math.keywords": "mathe berechnen formel ausdruck zahl summe multiplizieren teilen",
   "reply.httpGet.keywords": "api web url anfrage abrufen webhook json get fetch",
   "reply.httpPost.keywords": "api web url anfrage senden webhook json post fetch",
-  "reply.rewardUpdate.keywords": "belohnung einlösen kosten preis aktivieren deaktivieren zurücksetzen punkte",
+  "reply.rewardUpdate.keywords": "belohnung einlösen kosten preis aktivieren deaktivieren zurücksetzen punkte pausieren fortsetzen cooldown wartezeit",
   "reply.cooldownAdd.keywords": "cooldown abklingzeit timer hinzufügen verlängern zeit sekunden",
   "reply.poll.keywords": "umfrage abstimmen abstimmung auswahl frage starten poll",
   "reply.pollEnd.keywords": "umfrage abstimmung stoppen beenden archivieren schließen poll",
@@ -88,10 +88,17 @@
     "loopIndex": "Welcher Durchlauf dies ist",
     "apiError": "Warum es fehlgeschlagen ist",
     "cooldownLeft": "Verbleibender Cooldown",
-    "countdownLeft": "Verbleibende Zeit des Countdowns"
+    "countdownLeft": "Verbleibende Zeit des Countdowns",
+    "points": "Punktestand"
   },
   "reply.streamInfo.keywords": "titel spiel kategorie tags werbehinweis werbung sponsor gesponsert umbenennen",
   "reply.commercial.keywords": "werbung werbespot werbepause anzeige midroll",
   "reply.marker.keywords": "markierung highlight lesezeichen aufzeichnung zeitstempel",
-  "reply.clip.keywords": "clip highlight mitschneiden"
+  "reply.clip.keywords": "clip highlight mitschneiden",
+  "condition.points.keywords": "wenn punkte punktestand treuepunkte zuschauer prüfen vergleichen",
+  "condition.counter.keywords": "wenn zähler zählerwert siege tode prüfen vergleichen",
+  "reply.redemption.keywords": "einlösung prämie erfüllen rückerstattung abbrechen punkte",
+  "reply.pointsSpend.keywords": "punkte ausgeben kaufen kosten bezahlen guthaben",
+  "reply.countdownStop.keywords": "stoppen abbrechen countdown timer uhr",
+  "reply.cooldownReset.keywords": "zurücksetzen löschen cooldown wartezeit timer"
 }

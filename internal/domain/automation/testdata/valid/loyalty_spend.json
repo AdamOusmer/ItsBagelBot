@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!spend" } },
+  "actions": [
+    {
+      "type": "points_spend",
+      "params": {
+        "amount": 1000000,
+        "on_ok": [{ "type": "chat", "params": { "text": "Spent. Balance: {points}" } }],
+        "on_failure": [{ "type": "chat", "params": { "text": "Balance: {points}" } }]
+      }
+    }
+  ]
+}

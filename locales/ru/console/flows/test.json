@@ -141,7 +141,11 @@
     "isGift": "Подарочная подписка",
     "rewardId": "ID награды",
     "name": "Имя отсчёта",
-    "amount": "bits"
+    "amount": "bits",
+    "points": "Баллы зрителя",
+    "counter": "Счётчик: {name}",
+    "timerRunning": "Таймер {name} запущен",
+    "timerLeft": "Оставшееся время"
   },
   "lightsRestore": "{light} возвращается в прежнее состояние",
   "lightsRestoreMany": "{light} возвращаются в прежнее состояние",
@@ -149,5 +153,21 @@
   "stoppedHere": "Остановлено здесь",
   "runsRecipe": "Запускает {name}",
   "recipeSimulation": "Пробный запуск не открывает другой рецепт",
-  "recipeFailed": "Ошибка"
+  "recipeFailed": "Ошибка",
+  "pointsResult": "{action} (теперь {value})",
+  "pointsSetResult": "Новый баланс баллов: {value}",
+  "counterResult": "Новое значение {name}: {value}",
+  "timerResult": "{name}: осталось {left}",
+  "rewardOn": "включена",
+  "rewardOff": "отключена",
+  "rewardCost": "новая стоимость: {cost}",
+  "rewardUntilEnd": "{changes} до конца трансляции",
+  "rewardResult": "{name}: {changes}",
+  "noRedemption": "Для этого шага нужно получить награду за баллы.",
+  "noRewardChanges": "Сначала выберите, что изменить в награде.",
+  "pointsInsufficient": "Недостаточно баллов (баланс: {value})",
+  "rewardPaused": "приостановлена",
+  "rewardResumed": "возобновлена",
+  "rewardCooldown": "время ожидания: {cooldown}",
+  "rewardCooldownOff": "время ожидания отключено"
 }

@@ -86,16 +86,28 @@ func (s *Store) Clear(ctx context.Context, marker Marker) error {
 	return pkg_valkey.NewOwnerLock(s.client, marker.key(), marker.value()).Release(ctx)
 }
 
+func (s *Store) ClearNamed(ctx context.Context, channel uint64, name string) error {
+	window := automation.LongCooldownNamedKey(channel, name)
+	index := markerIndex(channel)
+	if err := pkg_valkey.UnlinkAll(ctx, s.client, []string{index.KeyOf(window)}); err != nil {
+		return err
+	}
+	return index.UnlinkMatching(ctx, s.client, window+":*")
+}
+
 // Erase walks one channel's index in batches, so it never scans the keyspace. Out of budget it returns the error and a redelivered event carries on.
 func (s *Store) Erase(ctx context.Context, channel uint64) error {
 	ctx, cancel := context.WithTimeout(ctx, eraseBudget)
 	defer cancel()
-	erase := pkg_valkey.IndexErase{
+	return markerIndex(channel).Run(ctx, s.client)
+}
+
+func markerIndex(channel uint64) pkg_valkey.IndexErase {
+	return pkg_valkey.IndexErase{
 		Index: automation.LongCooldownMarkerIndexKey(channel),
 		Batch: eraseBatch,
 		KeyOf: func(window string) string { return automation.LongCooldownMarkerKey(channel, window) },
 	}
-	return erase.Run(ctx, s.client)
 }
 
 // AnyLive reports whether any of the channel's windows has a marker.

@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { ACTION_TYPES, CONDITION_TYPES, FLOW_ISSUE, RANDOM_PATHS, TRIGGER_TYPES, chatModeValueField, cooldownWindows, needsSearchValue, variableActionType, viewerList, type Issue } from '@bagel/kit/automations';
-import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
+import { CODE, RECIPE_NAME_PATTERN } from '@bagel/kit/automations/limits';
+import { specFor, targetFieldFor, targetMode, type FieldSpec, type FlowNode } from './model';
 import { configText } from './setup';
 
 type FieldKey = string;
@@ -39,7 +40,9 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'cond.user': { allow: 'users', deny: 'users', allow_ids: 'users', deny_ids: 'users', userId: 'users', user_id: 'users', login: 'users' },
   'cond.category': { allow: 'games', deny: 'games' },
   'cond.follow': { min_days: 'minDays' },
-  'cond.accountAge': { min_days: 'minDays' }
+  'cond.accountAge': { min_days: 'minDays' },
+  'cond.counter': { name: 'counter' },
+  'reply.redemption': { status: 'result' }
 };
 
 const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'channelSeconds', 'cond.user': 'users', 'cond.chance': 'percent', 'cond.category': 'games' };
@@ -100,7 +103,7 @@ function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: Flo
 const TYPES: Record<string, string> = {
   'twitch.chat.command': 'command', 'twitch.chat.word': 'command', 'twitch.reward': 'reward', 'countdown.finished': 'countdown',
   'schedule.timer': 'timer', 'schedule.manual': 'manual',
-  'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.counter': 'counter_add', 'reply.wait': 'delay'
+  'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.wait': 'delay'
 };
 
 const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['users'], 'cond.cooldown': ['channelSeconds'] };
@@ -114,6 +117,7 @@ const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
 };
 
 const POINTS_NODES = new Set(['reply.points', 'reply.points_set']);
+const INLINE_NUMBER_NODES = new Set(['reply.points', 'reply.counter']);
 const TARGET_REQUIRED = new Map<FieldKey, (node: FlowNode) => boolean>([
   ['login', (node) => targetMode(node.config) === 'user'],
   ['target', (node) => targetMode(node.config) === 'login' && !POINTS_NODES.has(node.type)]
@@ -129,8 +133,13 @@ function builderRule(node: FlowNode, key: FieldKey): boolean | undefined {
   return required ? required.includes(key) : REQUIRED_IF[`${node.type}:${key}`]?.(node.config);
 }
 
+const DYNAMIC_TYPES: Record<string, (config: FlowNode['config']) => string> = {
+  'reply.var': variableActionType,
+  'reply.counter': (config) => config.change === 'set' ? 'counter_set' : 'counter_add'
+};
+
 function catalogRequires(node: FlowNode, key: FieldKey): boolean {
-  const type = node.type === 'reply.var' ? variableActionType(node.config) : TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
+  const type = DYNAMIC_TYPES[node.type]?.(node.config) ?? TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
   const catalog = [...TRIGGER_TYPES, ...CONDITION_TYPES, ...ACTION_TYPES].find((item) => item.type === type);
   return catalog?.fields.some((field) => field.required && fieldKeyFor(node, field.name) === key) ?? false;
 }
@@ -138,6 +147,38 @@ function catalogRequires(node: FlowNode, key: FieldKey): boolean {
 export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
   const field = specFor(node.type)?.fields.find((entry) => entry.key === key);
   return field?.required ?? targetRequired(node, key) ?? builderRule(node, key) ?? catalogRequires(node, key);
+}
+
+function inlineNumberCode(node: FlowNode, field: Extract<FieldSpec, { type: 'number' }>): Issue['code'] | undefined {
+  if (field.whenTrigger !== 'amount' && !INLINE_NUMBER_NODES.has(node.type)) return undefined;
+  const raw = configText(node, field.key).trim();
+  if (!raw) return field.required ? CODE.required : undefined;
+  const value = Number(raw);
+  const legacyPoints = node.type === 'reply.points' && node.config.change === undefined;
+  const amount = legacyPoints ? Math.abs(value) : value;
+  const counterDelta = node.type === 'reply.counter' && field.key === 'amount';
+  if (counterDelta && amount === 0) return CODE.outOfRange;
+  if (amount < (field.min ?? -Infinity) || amount > (field.max ?? Infinity)) return CODE.outOfRange;
+}
+
+function missingRewardChange(node: FlowNode, field: FieldKey): boolean {
+  if (node.type !== 'reply.reward_update' || field !== 'setEnabled') return false;
+  const { setEnabled, paused } = node.config;
+  const togglesKept = !['on', 'off'].includes(String(setEnabled)) && !['pause', 'resume'].includes(String(paused));
+  return togglesKept && !['cost', 'cooldown'].some((key) => configText(node, key).trim());
+}
+
+function inlineCode(node: FlowNode, field: FieldSpec): Issue['code'] | undefined {
+  if (field.type === 'number') return inlineNumberCode(node, field);
+  if (missingRewardChange(node, field.key)) return CODE.required;
+  if (node.type !== 'reply.countdown_start' || field.key !== 'name') return undefined;
+  const value = configText(node, field.key).trim();
+  if (value && !RECIPE_NAME_PATTERN.test(value)) return CODE.simpleWord;
+}
+
+export function inlineFieldIssue(node: FlowNode, field: FieldSpec): FieldIssue | undefined {
+  const code = inlineCode(node, field);
+  return code ? { nodeId: node.id, fieldKey: field.key, path: `nodes.${node.id}.config.${field.key}`, code } : undefined;
 }
 
 export function missingField(node: FlowNode): string | undefined {

@@ -5,7 +5,7 @@ import { describe } from './describe';
 import { english } from './english.testing';
 import type { FlowNode } from './model';
 
-test.each<{ type: FlowNode['type']; config: FlowNode['config']; line: string }>([
+test.each<{ type: FlowNode['type']; config: FlowNode['config']; line: string; trigger?: Pick<FlowNode, 'type' | 'config'> }>([
   { type: 'countdown.finished', config: { name: 'subathon' }, line: 'When subathon reaches zero' },
   { type: 'reply.chat', config: { message: 'Hello {user}', reply: 'thread' }, line: 'Hello {user}' },
   { type: 'countdown.finished', config: {}, line: 'A named countdown reaches zero' },
@@ -92,7 +92,28 @@ test.each<{ type: FlowNode['type']; config: FlowNode['config']; line: string }>(
   { type: 'cond.pattern', config: { pattern: '^[0-9]+$' }, line: 'Command text matches ^[0-9]+$' },
   { type: 'cond.follow', config: { minDays: 0 }, line: 'Follows you' },
   { type: 'cond.follow', config: { minDays: 30 }, line: 'Follows you for 30 days or more' },
-  { type: 'cond.accountAge', config: { minDays: 7 }, line: 'Account is 7 days old or more' }
-])('$type renders "$line" from $config', ({ type, config, line }) => {
-  expect(describe(english, { id: 'step', type, x: 0, y: 0, config })).toBe(line);
+  { type: 'cond.accountAge', config: { minDays: 7 }, line: 'Account is 7 days old or more' },
+  { type: 'reply.points', config: { change: 'add', amount: 10 }, line: 'Give 10 points' },
+  { type: 'reply.points', config: { change: 'take', amount: 10 }, line: 'Take 10 points' },
+  { type: 'reply.points_set', config: { amount: 0 }, line: 'Set points to 0' },
+  { type: 'reply.counter', config: { counter: 'wins', change: 'add', amount: 1 }, line: 'Add 1 to wins' },
+  { type: 'reply.counter', config: { counter: 'wins', change: 'add', amount: -2 }, line: 'Take 2 from wins' },
+  { type: 'reply.counter', config: { counter: 'wins', change: 'set', value: 0 }, line: 'Set wins to 0' },
+  { type: 'cond.points', config: { op: 'gte', value: 100 }, line: 'Viewer has at least 100 points' },
+  { type: 'cond.counter', config: { counter: 'wins', op: 'gte', value: 1 }, line: 'wins is at least 1' },
+  { type: 'reply.redemption', config: { result: 'fulfill' }, line: 'Mark fulfilled' },
+  { type: 'reply.redemption', config: { result: 'cancel' }, line: 'Refund the points' },
+  { type: 'reply.countdown_start', config: { name: 'subathon', seconds: 3600 }, line: 'Start subathon for 1h' },
+  { type: 'reply.countdown_add', config: { name: 'subathon', seconds: 60 }, line: 'Add 1m to subathon' },
+  { type: 'reply.countdown_add', config: { name: 'subathon', seconds: 60, per: 100 }, trigger: { type: 'twitch.cheer', config: {} }, line: 'Add 1m to subathon for every 100 bits' },
+  { type: 'reply.cooldown_add', config: { name: 'break2', seconds: 60, per: 2 }, trigger: { type: 'twitch.sub', config: { variant: 'gift' } }, line: 'Add 1m to break2 for every 2 gifted subs' },
+  { type: 'reply.points_spend', config: { amount: 100 }, line: 'Spend 100 points' },
+  { type: 'reply.points_spend', config: { amount: 1 }, line: 'Spend 1 point' },
+  { type: 'reply.reward_update', config: { rewardTitle: 'Hydrate', setEnabled: 'off', paused: 'pause', cost: 500, cooldown: 300, reset: true }, line: 'Turn off Hydrate, Pause Hydrate, Set Hydrate to 500 points, Set Hydrate cooldown to 5m until the stream ends' },
+  { type: 'reply.reward_update', config: { rewardTitle: 'Hydrate', paused: 'resume' }, line: 'Resume Hydrate' },
+  { type: 'reply.reward_update', config: { rewardTitle: 'Hydrate', paused: 'keep', cooldown: 0 }, line: 'Turn off Hydrate cooldown' },
+  { type: 'reply.countdown_stop', config: { name: 'subathon' }, line: 'Stop subathon' },
+  { type: 'reply.cooldown_reset', config: { name: 'raffle' }, line: 'Reset raffle' }
+])('$type renders "$line" from $config', ({ type, config, line, trigger }) => {
+  expect(describe(english, { id: 'step', type, x: 0, y: 0, config }, trigger)).toBe(line);
 });

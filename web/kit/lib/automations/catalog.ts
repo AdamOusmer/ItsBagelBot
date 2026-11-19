@@ -11,6 +11,8 @@ import {
   MAX_LIGHTS_KELVIN,
   MAX_LOGIN_TEMPLATE,
   MAX_MATH_EXPRESSION_RUNES,
+  MAX_POINTS_AMOUNT,
+  MAX_REWARD_COOLDOWN,
   MAX_TEMPLATE_LENGTH,
   MIN_LIGHTS_BRIGHTNESS,
   MIN_LIGHTS_KELVIN,
@@ -197,7 +199,7 @@ export const ACTION_TYPES: TypeDef[] = [
   action('set_game', [f('game', 'template', { required: true, min: 1, max: 100 })]),
   action('set_tags', [f('tags', 'template', { required: true, min: 1, max: 500 })]),
   action('commercial', [f('seconds', 'enum', { required: true, values: ['30', '60', '90', '120', '150', '180'] }), f('quiet', 'bool')]),
-  action('points_add', [...targetFields, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
+  action('points_add', [...targetFields, f('amount', 'int', { required: true, min: -MAX_POINTS_AMOUNT, max: MAX_POINTS_AMOUNT })]),
   action('points_set', [...targetFields, f('amount', 'int', { required: true, min: 0, max: 1000000000 })]),
   action('counter_add', [counterName, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
   action('counter_set', [counterName, f('value', 'int', { required: true })]),
@@ -242,6 +244,8 @@ export const ACTION_TYPES: TypeDef[] = [
     f('enabled', 'bool'),
     f('cost', 'int', { min: 1, max: 10000000 }),
     f('reset_on_stream_end', 'bool'),
+    f('paused', 'bool'),
+    f('cooldown_s', 'int', { min: 0, max: MAX_REWARD_COOLDOWN }),
   ]),
   action('lights', [
     f('device', 'text', { required: true, min: 1, max: 64 }),
@@ -268,4 +272,11 @@ export const ACTION_TYPES: TypeDef[] = [
     f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }),
     f('per', 'int', { min: 0 }),
   ]),
+  action('points_spend', [
+    f('amount', 'int', { required: true, min: 1, max: MAX_POINTS_AMOUNT }),
+    f('on_ok', 'actions'),
+    f('on_failure', 'actions'),
+  ]),
+  action('countdown_stop', [varName]),
+  action('cooldown_reset', [varName]),
 ];

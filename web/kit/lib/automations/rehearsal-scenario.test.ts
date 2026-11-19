@@ -3,7 +3,7 @@
 
 import { expect, test } from 'bun:test';
 import { compileFlow, type FlowNode } from './flow-graph';
-import { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioKind, scenarioPatches } from './rehearsal-scenario';
+import { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioKind, scenarioPatches, scenarioStateFields } from './rehearsal-scenario';
 import { rehearseDefinition } from './rehearsal';
 import type { Definition, Trigger } from './types';
 import type { RehearsalScenario } from './rehearsal-types';
@@ -50,7 +50,9 @@ test.each<DefaultCase>([
   });
 });
 
-test.each([
+type InputCase = { kind: Text; definition?: Pick<Definition, 'actions' | 'conditions'>; keys: Text[] };
+const commandKeys = ['user', 'userId', 'role', 'message', 'live'];
+test.each<InputCase>([
   { kind: 'twitch.chat.command', keys: ['user', 'userId', 'role', 'message', 'live'] },
   { kind: 'twitch.sub.new', keys: ['user', 'userId', 'tier', 'isGift', 'live'] },
   { kind: 'twitch.sub.resub', keys: ['user', 'userId', 'tier', 'months', 'streak', 'message', 'live'] },
@@ -61,9 +63,38 @@ test.each([
   { kind: 'twitch.channel_update', keys: ['title', 'category', 'live'] },
   { kind: 'twitch.ad_break', keys: ['seconds', 'automatic', 'live'] },
   { kind: 'schedule.timer', keys: ['live'] },
-  { kind: 'schedule.manual', keys: ['args', 'live'] }
-])('scenario inputs for $kind are in grid order', ({ kind, keys }) => {
-  expect(SCENARIO_FIELDS[kind]?.map((field) => field.key)).toEqual(keys);
+  { kind: 'schedule.manual', keys: ['args', 'live'] },
+  {
+    kind: 'twitch.chat.command', definition: { actions: [{ type: 'chat', params: { text: '{points}' } }] },
+    keys: commandKeys
+  },
+  {
+    kind: 'twitch.chat.command', definition: { actions: [{ type: 'points_set', params: { amount: 10 } }] },
+    keys: [...commandKeys, 'state:points']
+  },
+  {
+    kind: 'twitch.chat.command', definition: { conditions: [{ type: 'points', params: { op: 'gte', value: 10 } }] },
+    keys: [...commandKeys, 'state:points']
+  },
+  {
+    kind: 'twitch.chat.command',
+    definition: { actions: [{ type: 'if', params: { condition: { type: 'counter', params: { name: 'Wins' } }, then: [
+      { type: 'counter_add', params: { name: 'wins', amount: 1 } }, { type: 'counter_set', params: { name: 'score', value: 4 } },
+      { type: 'chat', params: { text: '{counter:WINS} {counter:Losses|0}' } }
+    ] } }] }, keys: [...commandKeys, 'state:counters:wins', 'state:counters:score', 'state:counters:losses']
+  },
+  {
+    kind: 'twitch.chat.command',
+    definition: { conditions: [{ type: 'cooldown', params: { name: 'break' } }], actions: [
+      { type: 'countdown_start', params: { name: 'unseeded' } }, { type: 'countdown_add', params: { name: 'subathon' } },
+      { type: 'countdown_stop', params: { name: 'clock' } }, { type: 'cooldown_reset', params: { name: 'rest' } },
+      { type: 'points_spend', params: { amount: 100 } }
+    ] }, keys: [...commandKeys, 'state:points', 'state:countdowns:subathon', 'state:countdowns:subathon:left', 'state:countdowns:clock', 'state:countdowns:clock:left',
+      'state:cooldowns:break', 'state:cooldowns:break:left', 'state:cooldowns:rest', 'state:cooldowns:rest:left']
+  }
+])('scenario inputs for $kind $definition are in grid order', ({ kind, definition, keys }) => {
+  const state = scenarioStateFields({ version: 1, trigger: { type: 'command' }, ...definition });
+  expect([...(SCENARIO_FIELDS[kind] ?? []), ...state].map((field) => field.key)).toEqual(keys);
 });
 
 test.each(['twitch.stream.offline', 'twitch.stream.online', 'countdown.finished'])('changing trigger removes unavailable patches for %s', (kind) => {

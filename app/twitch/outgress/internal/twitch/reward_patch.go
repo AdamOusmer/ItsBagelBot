@@ -18,8 +18,11 @@ var (
 
 // Fields left nil stay untouched on Twitch; CustomReward's full body would overwrite title, prompt and limits.
 type RewardPatch struct {
-	IsEnabled *bool `json:"is_enabled,omitempty"`
-	Cost      *int  `json:"cost,omitempty"`
+	IsEnabled               *bool `json:"is_enabled,omitempty"`
+	Cost                    *int  `json:"cost,omitempty"`
+	IsPaused                *bool `json:"is_paused,omitempty"`
+	IsGlobalCooldownEnabled *bool `json:"is_global_cooldown_enabled,omitempty"`
+	GlobalCooldownSeconds   *int  `json:"global_cooldown_seconds,omitempty"`
 }
 
 func (c *Client) GetManageableReward(ctx context.Context, broadcasterID, rewardID string) (CustomReward, error) {

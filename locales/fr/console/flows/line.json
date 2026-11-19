@@ -77,5 +77,18 @@
   "lightsOff": "Éteindre {light}",
   "lightsMore": "{light} et {count} autres",
   "lightsBrightness": "{line} à {percent} %",
-  "lightsHold": "{line}, puis rétablir après {seconds} s"
+  "lightsHold": "{line}, puis rétablir après {seconds} s",
+  "timerPer": "Ajouter {seconds} à {name} par tranche de {amount}",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} bit",
+      "many": "{count} bits",
+      "unit": "bits"
+    },
+    "gifts": {
+      "one": "{count} abonnement offert",
+      "many": "{count} abonnements offerts",
+      "unit": "abonnements offerts"
+    }
+  }
 }

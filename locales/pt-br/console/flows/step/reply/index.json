@@ -10,23 +10,29 @@
     }
   },
   "points": {
-    "label": "Dar pontos de fidelidade",
+    "label": "Alterar pontos",
     "summary": "Adicionar ou remover pontos",
     "field": {
       "amount": {
         "label": "Quantidade",
         "unit": "pontos"
-      }
-    }
+      },
+      "change": { "label": "Alteração", "option": { "add": "Adicionar", "take": "Retirar" } }
+    },
+    "line": { "add": "Dar {amount}", "take": "Tirar {amount}" }
   },
   "counter": {
-    "label": "Aumentar contador",
-    "summary": "Aumentar um contador",
+    "label": "Alterar contador",
+    "summary": "Aumente, diminua ou defina um contador com nome",
     "field": {
       "counter": {
         "label": "Contador"
-      }
-    }
+      },
+      "change": { "label": "Alteração", "option": { "add": "Adicionar", "set": "Definir" } },
+      "amount": { "label": "Quantidade", "hint": "Use um número negativo para subtrair" },
+      "value": { "label": "Valor" }
+    },
+    "line": { "add": "Adicionar {amount} a {counter}", "take": "Tirar {amount} de {counter}", "set": "Definir {counter} como {value}" }
   },
   "lights": {
     "label": "Ajustar luzes",
@@ -186,8 +192,8 @@
         "range": "Use de 1 segundo a {days} dias."
       },
       "per": {
-        "label": "Por",
-        "hint": "Adiciona o tempo acima para cada quantidade completa. Coloque 100 em uma receita de bits para contar a cada 100 bits. Deixe vazio para adicionar uma vez por evento."
+        "label": "A cada",
+        "hint": "Apenas para Cheers e inscrições presenteadas. Deixe em branco para adicionar tempo uma vez."
       }
     }
   },
@@ -205,7 +211,7 @@
       },
       "per": {
         "label": "A cada",
-        "hint": "Adiciona este tempo para cada valor completo. Deixe vazio para adicionar uma vez por evento."
+        "hint": "Apenas para Cheers e inscrições presenteadas. Deixe em branco para adicionar tempo uma vez."
       }
     }
   },
@@ -428,6 +434,54 @@
       "automationId": {
         "label": "Receita",
         "hint": "As verificações da outra receita continuam valendo. Ela começa com os valores desta receita e mantém as próprias alterações."
+      }
+    }
+  },
+  "redemption": {
+    "label": "Concluir resgate",
+    "summary": "Atenda a um resgate de recompensa ou devolva os pontos",
+    "field": {
+      "result": {
+        "label": "Resultado"
+      }
+    },
+    "line": {
+      "fulfill": "Marcar como atendida",
+      "cancel": "Devolver os pontos"
+    }
+  },
+  "pointsSpend": {
+    "label": "Gastar pontos",
+    "summary": "Desconte pontos quando o espectador tiver saldo suficiente",
+    "line": "Gastar {amount}",
+    "field": {
+      "amount": {
+        "label": "Quantidade",
+        "unit": "pontos"
+      }
+    },
+    "out": {
+      "enough": "Suficientes",
+      "notEnough": "Insuficientes"
+    }
+  },
+  "countdownStop": {
+    "label": "Parar a contagem regressiva",
+    "summary": "Encerre antes da hora uma contagem regressiva em andamento",
+    "line": "Parar {name}",
+    "field": {
+      "name": {
+        "label": "Contagem regressiva"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Zerar o intervalo",
+    "summary": "Encerre a espera de um intervalo com nome",
+    "line": "Zerar {name}",
+    "field": {
+      "name": {
+        "label": "Intervalo"
       }
     }
   }

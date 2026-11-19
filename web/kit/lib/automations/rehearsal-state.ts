@@ -5,6 +5,7 @@ import { expandSegments } from '../engine/rehearsal';
 import { validateFetchDef } from '../engine/fetch-validate';
 import { queryEscape, resolveComputedUtil } from '../engine/pure';
 import type { VarToken } from '../engine/tmpl';
+import { ACTION_TYPES } from './catalog';
 import { comparePasses, needsSearchValue } from './compare';
 import { SETUP_LOGIN } from './flow-setup';
 import { MAX_COOLDOWN_SECONDS, MAX_MATH_EXPRESSION_RUNES, MAX_TEMPLATE_LENGTH } from './limits';
@@ -26,6 +27,7 @@ type ConditionHandler = (params: Params, context: Context) => boolean | Conditio
 
 const text = (value: unknown): Text => String(value ?? '');
 const number = (value: unknown): number => Number(value) || 0;
+const stateName = (value: unknown): Text => trimSpace(text(value)).toLowerCase();
 const nameOf = (params: Params): Text => text(params.name).toLowerCase();
 const capped = (value: Text): Text => [...value].slice(0, MAX_TEMPLATE_LENGTH).join('');
 const failed = (code: Text): ActionOutcome => ({ status: 'failed', detail: { code } });
@@ -48,13 +50,19 @@ export function createState(scenario: RehearsalScenario): RehearsalState {
   return {
     channelVars: Object.assign(Object.create(null), seed?.channelVars),
     viewerVars: Object.assign(Object.create(null), seed?.viewerVars),
-    counters: { ...seed?.counters }, points: seed?.points ?? 0,
+    counters: Object.fromEntries(Object.entries(seed?.counters ?? {}).map(([name, value]) => [stateName(name), value])),
+    points: Math.max(0, seed?.points ?? 0),
     cooldowns: {}, countdowns: { ...seed?.countdowns }, running: { poll: false, prediction: false }
   };
 }
 
 function variableStore(params: Params, context: Context): Record<string, string> {
   return params.scope === 'viewer' ? context.state.viewerVars : context.state.channelVars;
+}
+
+function counterValue(context: Context, name: Text): number | undefined {
+  const counters = context.state.counters;
+  return Object.hasOwn(counters, name) ? counters[name] : undefined;
 }
 
 function timerLeft(until: number | undefined, context: Context): Text | null {
@@ -89,7 +97,7 @@ const TOKEN_READERS: Readonly<Record<string, (token: VarToken, context: Context)
   local: (token, context) => context.locals[text(token.payload).toLowerCase()] ?? null,
   var: (token, context) => context.state.channelVars[text(token.payload).toLowerCase()] ?? null,
   viewervar: (token, context) => context.state.viewerVars[text(token.payload).toLowerCase()] ?? null,
-  counter: (token, context) => context.state.counters[text(token.payload)]?.toString() ?? null,
+  counter: (token, context) => counterValue(context, stateName(token.payload))?.toString() ?? null,
   points: (_, context) => String(context.state.points),
   cooldown: (token, context) => token.payload === 'left' ? durationLeft(context.locals['cooldown:end'], context) : null,
   countdown: (token, context) => token.payload === 'left' ? durationLeft(context.locals['countdown:end'], context) : null
@@ -142,6 +150,8 @@ const ORDER: Readonly<Record<string, (order: number) => boolean>> = {
   eq: (order) => order === 0, ne: (order) => order !== 0, gt: (order) => order > 0,
   gte: (order) => order >= 0, lt: (order) => order < 0, lte: (order) => order <= 0
 };
+const compareOrder = (op: unknown, order: number): boolean => ORDER[text(op)]?.(order) ?? false;
+const compareNumber = (params: Params, value: number): boolean => compareOrder(params.op, Math.sign(value - number(params.value)));
 const DECIMAL = /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
 
 function trimDecimal(value: Text): Text {
@@ -171,8 +181,8 @@ function variableValueComparison(op: Text, current: Text, right: Text): boolean 
   const leftNumber = decimal(current);
   const rightNumber = decimal(right);
   const numeric = leftNumber !== null && rightNumber !== null;
-  const order = numeric ? Math.sign(leftNumber! - rightNumber!) : compareBytes(current, right);
-  return ORDER[op]?.(order) ?? false;
+  const order = numeric ? Math.sign(leftNumber! - rightNumber!) : compareBytes(current ?? '', right);
+  return compareOrder(op, order);
 }
 
 type UserList = { logins: Text[]; ids: Text[] };
@@ -275,7 +285,7 @@ function noteCooldown(windows: number[], context: Context): void {
 }
 
 function armCooldown(key: Text, params: Params, context: Context): void {
-  const seconds = key.startsWith('viewer:') ? number(params.user_s) : number(params.global_s);
+  const seconds = key.startsWith(VIEWER_COOLDOWN_PREFIX) ? number(params.user_s) : number(params.global_s);
   context.state.cooldowns[key] = context.atMs + seconds * 1000;
 }
 
@@ -300,7 +310,9 @@ const CONDITIONS: Readonly<Record<string, ConditionHandler>> = {
   category: categoryComparison,
   arg_regex: argRegexComparison,
   follow: viewerComparison,
-  account_age: viewerComparison
+  account_age: viewerComparison,
+  points: (params, context) => hasViewer(context) && compareNumber(params, context.state.points),
+  counter: (params, context) => compareNumber(params, counterValue(context, stateName(params.name)) ?? 0)
 };
 
 export function evaluateCondition(condition: Condition, context: Context): ConditionOutcome {
@@ -566,16 +578,32 @@ function timerSlot(name: Text, context: Context, mode: Text) {
 }
 
 function timerStep(params: Params, context: Context, mode: Text): ActionOutcome {
+  const added = timerAdded(params, context);
+  if (added <= 0) return { status: 'skipped', detail: { code: 'below_rate' } };
   const name = nameOf(params);
   const { key, store, until, token } = timerSlot(name, context, mode);
   const running = until > context.atMs;
   if (mode !== 'countdown_start' && !running) return { status: 'skipped', detail: { code: 'not_running' } };
-  const added = timerAdded(params, context);
-  if (added <= 0) return { status: 'skipped', detail: { code: 'below_rate' } };
   const base = mode === 'countdown_start' ? context.atMs : Math.max(context.atMs, until);
   store[key] = Math.min(context.atMs + MAX_COOLDOWN_SECONDS * 1000, base + added);
   context.locals[token] = String(store[key]);
   return { status: 'ok', detail: { name, left: timerLeft(store[key], context)! } };
+}
+
+function countdownStopStep(params: Params, context: Context): ActionOutcome {
+  const name = nameOf(params);
+  const countdowns = context.state.countdowns;
+  const until = countdowns[name];
+  if (!(until > context.atMs)) return failed('not_running');
+  delete countdowns[name];
+  if (context.locals['countdown:end'] === text(until)) delete context.locals['countdown:end'];
+  return { status: 'ok', detail: { value: name } };
+}
+
+function cooldownResetStep(params: Params, context: Context): ActionOutcome {
+  const name = nameOf(params);
+  context.state.cooldowns[namedCooldownKey(name)] = 0;
+  return { status: 'ok', detail: { value: name } };
 }
 
 function replyStep(params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
@@ -678,6 +706,68 @@ function chatModeStep(params: Params): ActionOutcome {
   return { status: 'ok', detail: { value: String(value ?? 0) } };
 }
 
+const targetedAction = targetStep();
+const MAX_SET_POINTS = ACTION_TYPES.find((action) => action.type === 'points_set')!.fields.find((field) => field.name === 'amount')!.max!;
+
+function pointsMode(params: Params, expanded: ExpandedParams): unknown {
+  const mode = params.who || 'login';
+  return mode === 'login' && !loginText(expanded.login) ? 'viewer' : mode;
+}
+
+function targetsViewer(mode: Params['who'], target: Text, context: Context): boolean {
+  if (mode === 'viewer') return true;
+  if (!hasViewer(context)) return false;
+  if (mode === 'user') return target.replace(/^0+/, '') === context.scenario.userId?.replace(/^0+/, '');
+  return target.toLowerCase() === loginText(context.scenario.user).toLowerCase();
+}
+
+function pointsStep(set: boolean): ActionHandler {
+  return (params, context, expanded) => {
+    const who = pointsMode(params, expanded);
+    if (who === 'viewer' && !loginText(context.scenario.user)) return failed('no_viewer');
+    const outcome = targetedAction({ ...params, who }, context, expanded);
+    if (outcome.status !== 'ok') return outcome;
+    const target = outcome.detail!.login!;
+    if (!targetsViewer(who, target, context)) return { ...outcome, detail: { ...outcome.detail, target } };
+    const amount = number(params.amount);
+    context.state.points = Math.max(0, set ? Math.min(MAX_SET_POINTS, amount) : context.state.points + amount);
+    return { ...outcome, detail: { ...outcome.detail, target, value: text(context.state.points) } };
+  };
+}
+
+function pointsSpendStep(params: Params, context: Context): ActionOutcome {
+  if (!hasViewer(context) || !loginText(context.scenario.user)) return failed('no_viewer');
+  const amount = number(params.amount);
+  const balance = context.state.points;
+  if (balance < amount) return { status: 'failed', detail: { code: 'insufficient_points', value: text(balance) } };
+  context.state.points -= amount;
+  return { status: 'ok', detail: { value: text(context.state.points) } };
+}
+
+function counterStep(set: boolean): ActionHandler {
+  return (params, context) => {
+    const name = stateName(params.name);
+    const value = set ? number(params.value) : (counterValue(context, name) ?? 0) + number(params.amount);
+    context.state.counters[name] = value;
+    return { status: 'ok', detail: { name, value: text(value) } };
+  };
+}
+
+function redemptionStep(params: Params, context: Context): ActionOutcome {
+  if (context.triggerType !== 'reward') return failed('no_redemption');
+  const value = text(params.status);
+  return ['fulfill', 'cancel'].includes(value) ? { status: 'ok', detail: { value } } : failed('no_redemption');
+}
+
+const REWARD_CHANGE_TYPES = { enabled: 'boolean', cost: 'number', paused: 'boolean', cooldown_s: 'number' } as const;
+
+function rewardUpdateStep(params: Params): ActionOutcome {
+  const changes = Object.entries(REWARD_CHANGE_TYPES).flatMap(([key, type]) =>
+    typeof params[key] === type ? [[key, text(params[key])] as const] : []);
+  if (!changes.length) return failed('nothing_to_change');
+  return { status: 'ok', detail: { ...Object.fromEntries(changes), reset_on_stream_end: text(params.reset_on_stream_end === true) } };
+}
+
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   reply: replyStep,
   shoutout: targetStep(), timeout: targetStep(),
@@ -693,16 +783,8 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   var_add: addVariableStep,
   var_delete: (params, context, expanded) => writeVariable(params, context, 'delete', expanded),
   text: textStep, math: mathStep, http_get: httpStep, http_post: httpStep,
-  counter_add: (params, context) => {
-    const name = text(params.name);
-    context.state.counters[name] = (context.state.counters[name] ?? 0) + number(params.amount);
-    return { status: 'ok', detail: { value: String(context.state.counters[name]) } };
-  },
-  points_add: (params, context) => {
-    if (!hasViewer(context)) return failed('no_viewer');
-    context.state.points += number(params.amount);
-    return { status: 'ok', detail: { value: String(context.state.points) } };
-  },
+  counter_add: counterStep(false),
+  points_add: pointsStep(false),
   countdown_start: (params, context) => timerStep(params, context, 'countdown_start'),
   countdown_add: (params, context) => timerStep(params, context, 'countdown_add'),
   cooldown_add: (params, context) => timerStep(params, context, 'cooldown_add'),
@@ -713,7 +795,14 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   clip: liveGated(),
   ad_snooze: liveGated(),
   run: requiredParams(['automation_id'], 'not_found', (_params, context) =>
-    context.overrides[context.path] === 'failure' ? failed('child_failed') : ok())
+    context.overrides[context.path] === 'failure' ? failed('child_failed') : ok()),
+  counter_set: counterStep(true),
+  points_set: pointsStep(true),
+  redemption: redemptionStep,
+  reward_update: rewardUpdateStep,
+  points_spend: pointsSpendStep,
+  countdown_stop: countdownStopStep,
+  cooldown_reset: cooldownResetStep
 };
 
 function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> & { items?: Text[] } {

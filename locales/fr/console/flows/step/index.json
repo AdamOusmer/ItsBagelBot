@@ -47,7 +47,7 @@
   "reply.math.keywords": "maths calculer formule expression nombre somme multiplier diviser",
   "reply.httpGet.keywords": "api web url requête récupérer webhook json get fetch",
   "reply.httpPost.keywords": "api web url requête envoyer webhook json post fetch",
-  "reply.rewardUpdate.keywords": "récompense échange coût prix activer désactiver réinitialiser points",
+  "reply.rewardUpdate.keywords": "récompense échange coût prix activer désactiver réinitialiser points pause reprendre délai attente",
   "reply.cooldownAdd.keywords": "cooldown délai minuteur ajouter prolonger temps secondes",
   "reply.poll.keywords": "sondage voter vote choix question démarrer poll",
   "reply.pollEnd.keywords": "sondage vote arrêter terminer archiver fermer poll",
@@ -88,10 +88,17 @@
     "loopIndex": "Numéro de la répétition",
     "apiError": "Raison de l’échec",
     "cooldownLeft": "Délai restant",
-    "countdownLeft": "Temps restant du compte à rebours"
+    "countdownLeft": "Temps restant du compte à rebours",
+    "points": "Solde de points"
   },
   "reply.streamInfo.keywords": "titre jeu catégorie tags marque sponsorisé contenu renommer",
   "reply.commercial.keywords": "pub publicité annonce coupure publicitaire",
   "reply.marker.keywords": "marqueur repère temps moment rediffusion vod",
-  "reply.clip.keywords": "clip extrait capture moment fort"
+  "reply.clip.keywords": "clip extrait capture moment fort",
+  "condition.points.keywords": "si points solde fidélité spectateur vérifier comparer",
+  "condition.counter.keywords": "si compteur valeur victoires morts vérifier comparer",
+  "reply.redemption.keywords": "échange récompense honorer rembourser annuler points",
+  "reply.pointsSpend.keywords": "dépenser acheter coût points achat solde payer",
+  "reply.countdownStop.keywords": "arrêter annuler compte rebours minuteur chrono",
+  "reply.cooldownReset.keywords": "réinitialiser effacer délai attente temporisation"
 }

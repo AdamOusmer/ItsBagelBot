@@ -26,6 +26,9 @@ func (c *RecipeStateRPC) StartCountdown(ctx context.Context, mutation CountdownM
 func (c *RecipeStateRPC) AddCountdown(ctx context.Context, mutation CountdownMutation) (CountdownResult, error) {
 	return c.countdownWrite(ctx, "add", mutation)
 }
+func (c *RecipeStateRPC) StopCountdown(ctx context.Context, mutation CountdownMutation) (CountdownResult, error) {
+	return c.countdownWrite(ctx, "stop", mutation)
+}
 func (c *RecipeStateRPC) PeekCountdown(ctx context.Context, ref CountdownRef) (CountdownResult, error) {
 	return c.countdownWrite(ctx, "peek", CountdownMutation{Ref: ref})
 }

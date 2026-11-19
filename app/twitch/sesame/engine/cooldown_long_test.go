@@ -32,6 +32,7 @@ type fakeLongCooldowns struct {
 	releaseErr error
 	claimed    []string
 	released   []string
+	reset      NamedCooldownRef
 }
 
 func (s *fakeLongCooldowns) ClaimLongCooldowns(_ context.Context, claim LongCooldownClaim) (LongCooldownHold, bool, error) {
@@ -62,6 +63,11 @@ func (s *fakeLongCooldowns) PeekLongCooldowns(context.Context, LongCooldownClaim
 
 func (s *fakeLongCooldowns) ExtendLongCooldown(context.Context, uint64, string, int64) (int64, bool, bool, error) {
 	return 0, false, false, nil
+}
+
+func (s *fakeLongCooldowns) ResetLongCooldown(_ context.Context, ref NamedCooldownRef) error {
+	s.reset = ref
+	return s.claimErr
 }
 
 type valkeyOutcome struct {

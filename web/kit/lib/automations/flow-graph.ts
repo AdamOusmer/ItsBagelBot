@@ -6,10 +6,14 @@ import { COMPARE_OPS } from './compare';
 import { ACTION_TYPES } from './catalog';
 import { SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
+import { CMP_OPS } from './values';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
 import { VAR_OPS_WITH_VALUE } from './values';
 
 export { VAR_OPS_WITH_VALUE } from './values';
+
+export { pointsChange } from './stream-flow';
+export { CMP_OPS } from './values';
 
 export type FlowConfig = Record<string, string | number | boolean>;
 export type FlowNode = { id: string; type: string; x: number; y: number; config: FlowConfig };
@@ -129,16 +133,23 @@ function eventTrigger(kind: string, filters?: Record<string, string>): Trigger {
   return { type: 'event', params: filters ? { kind, filters } : { kind } };
 }
 
+export const DEFAULT_REWARD_OUTCOME = 'leave';
+export const CREATED_REWARD_OUTCOME = 'fulfill';
+
+export const hasRedemptionStep = (nodes: readonly FlowNode[]): boolean =>
+  nodes.some((node) => node.type === 'reply.redemption' && node.config.disabled !== true);
+
 function rewardTrigger(config: FlowConfig): Trigger {
   const title = str(config.title).trim();
-  if (title === '') return { type: 'reward', params: { reward_id: str(config.reward) } };
+  const chosen = str(config.onRedeem);
+  if (title === '') return { type: 'reward', params: chosen ? { reward_id: str(config.reward), on_redeem: chosen } : { reward_id: str(config.reward) } };
   const params = {
     reward_id: str(config.reward) || SETUP_REWARD_ID,
     title,
     cost: num(config.cost),
     color: str(config.color),
     cooldown_s: num(config.cooldown),
-    on_redeem: str(config.onRedeem) || 'fulfill',
+    on_redeem: chosen || CREATED_REWARD_OUTCOME,
     input_required: config.userInput === true
   };
   return { type: 'reward', params };
@@ -367,10 +378,16 @@ const REWARD_ENABLED = new Map<string, boolean | null>([
   ['off', false]
 ]);
 
+const REWARD_PAUSED = new Map<string, boolean>([['pause', true], ['resume', false]]);
+
 function rewardUpdateAction(config: FlowConfig): Action {
-  const cost = config.cost === undefined || config.cost === '' ? null : num(config.cost);
+  const cost = String(config.cost ?? '').trim() === '' ? null : num(config.cost);
   const enabled = REWARD_ENABLED.get(str(config.setEnabled)) ?? null;
-  return { type: 'reward_update', params: { reward_id: str(config.reward), enabled, cost, reset_on_stream_end: config.reset === true } };
+  const params: Params = { reward_id: str(config.reward), enabled, cost, reset_on_stream_end: config.reset === true };
+  const paused = REWARD_PAUSED.get(str(config.paused));
+  if (paused !== undefined) params.paused = paused;
+  if (String(config.cooldown ?? '').trim() !== '') params.cooldown_s = num(config.cooldown);
+  return { type: 'reward_update', params };
 }
 
 function withOptional(params: Params, optional: Params): Params {
@@ -396,10 +413,18 @@ const API_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.http_post': (config) => ({
     type: 'http_post',
     params: withOptional({ url: str(config.url) }, { body: str(config.body), save_as: recipeName(config.saveAs) })
-  })
+  }),
+  'reply.points_spend': (config) => ({ type: 'points_spend', params: { amount: num(config.amount) } })
 };
 
-const API_PORTS = ['ok', 'failure'] as const;
+const API_PORTS: Readonly<Record<string, readonly [string, string]>> = {
+  http_get: ['ok', 'failure'],
+  http_post: ['ok', 'failure'],
+  points_spend: ['enough', 'notEnough']
+};
+
+export const apiPorts = (type: Action['type']): readonly [string, string] => API_PORTS[type]!;
+
 const LOOP_TYPE = 'reply.loop';
 const LOOP_PORTS = ['body', 'done'] as const;
 const RANDOM_TYPE = 'reply.random';
@@ -529,8 +554,14 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
   'cond.category': (config) => ({ type: 'category', params: { [config.mode === 'deny' ? 'deny' : 'allow']: flowList(config.games) } }),
   'cond.pattern': (config) => ({ type: 'arg_regex', params: { pattern: str(config.pattern) } }),
   'cond.follow': (config) => ({ type: 'follow', params: { min_days: num(config.minDays) } }),
-  'cond.accountAge': (config) => ({ type: 'account_age', params: { min_days: num(config.minDays ?? 7) } })
+  'cond.accountAge': (config) => ({ type: 'account_age', params: { min_days: num(config.minDays ?? 7) } }),
+  'cond.points': (config) => ({ type: 'points', params: loyaltyComparison(config) }),
+  'cond.counter': (config) => ({ type: 'counter', params: { name: str(config.counter), ...loyaltyComparison(config) } })
 };
+
+function loyaltyComparison(config: FlowConfig): Params {
+  return { op: str(config.op) || 'gte', value: num(config.value) };
+}
 
 function cooldownConditionAction(config: FlowConfig): Condition {
   const windows = cooldownWindows(config);
@@ -551,7 +582,7 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action | Action[]> 
   'reply.chat': chatAction,
   'reply.reply': (config) => ({ type: 'reply', params: { text: str(config.text) } }),
   'reply.lights': lightsAction,
-  'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
+  'reply.counter': counterAction,
   'reply.wait': (config) => ({ type: 'delay', params: { ms: Math.round(num(config.seconds) * 1000) } }),
   'reply.var': variableAction,
   'reply.text': textAction,
@@ -562,8 +593,24 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action | Action[]> 
   'reply.cooldown_add': cooldownAddAction,
   'reply.stream_info': streamInfoActions,
   'reply.stop': () => ({ type: 'stop' }),
-  'reply.run': runAction
+  'reply.run': runAction,
+  'reply.redemption': (config) => ({ type: 'redemption', params: { status: str(config.result) || 'fulfill' } }),
+  'reply.countdown_stop': (config) => namedTimerAction('countdown_stop', config),
+  'reply.cooldown_reset': (config) => namedTimerAction('cooldown_reset', config)
 };
+
+type NamedTimerActionType = 'countdown_stop' | 'cooldown_reset';
+
+function namedTimerAction(type: NamedTimerActionType, config: FlowConfig): Action {
+  return { type, params: { name: recipeName(config.name) } };
+}
+
+function counterAction(config: FlowConfig): Action {
+  const name = str(config.counter);
+  if (config.change === 'set') return { type: 'counter_set', params: { name, value: num(config.value) } };
+  const amount = config.change === undefined ? num(config.amount ?? 1) : num(config.amount);
+  return { type: 'counter_add', params: { name, amount } };
+}
 
 function cooldownAddAction(config: FlowConfig): Action {
   const params: Params = { name: recipeName(str(config.name)), seconds: num(config.seconds) };
@@ -650,6 +697,17 @@ function propagateCounters(state: { prior: Map<string, string[]>; counts: Map<st
 function triggerKind(trigger: Trigger): string {
   if (trigger.type === 'reward') return REWARD_KIND;
   return trigger.type === 'event' ? str(trigger.params?.kind) : '';
+}
+
+function amountUnit(trigger: Trigger): 'bits' | 'gifts' | undefined {
+  const tokens = EVENT_TOKENS[triggerKind(trigger)];
+  if (tokens?.bits === 'amount') return 'bits';
+  if (tokens?.count === 'amount') return 'gifts';
+}
+
+export function triggerAmountUnit(node?: Pick<FlowNode, 'type' | 'config'>): ReturnType<typeof amountUnit> {
+  const trigger = node && TRIGGER_WRITERS[node.type]?.(node.config);
+  return trigger ? amountUnit(trigger) : undefined;
 }
 
 function lowerCountToken(ctx: Lowering, counters: string[]): string | null {
@@ -775,13 +833,36 @@ function owned<T extends object>(ctx: Lowering, node: FlowNode, written: T): T {
   return written;
 }
 
+function rangeIssue(ctx: Lowering, node: FlowNode, field: 'amount' | 'per'): void {
+  ctx.issues.push({ path: `${nodePath(node.id)}.config.${field}`, code: CODE.outOfRange });
+}
+
+function perBelowMinimum(config: FlowConfig): boolean {
+  return String(config.per ?? '').trim() !== '' && num(config.per) < 1;
+}
+
+function actionConfig(ctx: Lowering, node: FlowNode): FlowConfig {
+  const config = loweredConfig(ctx, node);
+  switch (node.type) {
+    case 'reply.points':
+      if (config.change && num(config.amount) < 0) rangeIssue(ctx, node, 'amount');
+      return config;
+    case 'reply.countdown_add':
+    case 'reply.cooldown_add':
+      if (perBelowMinimum(config)) rangeIssue(ctx, node, 'per');
+      return amountUnit(ctx.trigger) ? config : { ...config, per: '' };
+    default:
+      return config;
+  }
+}
+
 function writeAction(ctx: Lowering, node: FlowNode): Action[] {
   const write = ACTION_WRITERS[node.type];
   if (!write) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.unsupportedNode });
     return [{ type: node.type }];
   }
-  const written = write(loweredConfig(ctx, node));
+  const written = write(actionConfig(ctx, node));
   const actions = Array.isArray(written) ? written : [written];
   if (actions.length === 0) ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.nothingToChange });
   if (node.type === 'reply.stream_info' && invalidLiteralTags(node.config.tags)) {
@@ -911,7 +992,7 @@ function lowerLoop(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
 
 function lowerApi(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
   const action = API_WRITERS[node.type]!(loweredConfig(ctx, node));
-  const { first, second, rest } = lowerArms(ctx, node, API_PORTS, stop);
+  const { first, second, rest } = lowerArms(ctx, node, apiPorts(action.type), stop);
   const params = { ...action.params };
   if (first.length > 0) params.on_ok = first;
   if (second.length > 0) params.on_failure = second;
@@ -954,7 +1035,9 @@ function lowerFlow(flow: Flow): Lowered {
   const found = triggerNode(flow);
   if (!found.ok) return { result: found, owners };
   const trigger = found.value;
-  const written = TRIGGER_WRITERS[trigger.type]?.(trigger.config);
+  const settles = trigger.type === 'twitch.reward' && hasRedemptionStep(flow.nodes);
+  const config = settles ? { ...trigger.config, onRedeem: 'leave' } : trigger.config;
+  const written = TRIGGER_WRITERS[trigger.type]?.(config);
   const ctx: Lowering = {
     trigger: written ?? { type: '' },
     byId: new Map(flow.nodes.map((n) => [n.id, n])),
@@ -1194,7 +1277,8 @@ function commandNode(params: Params): { type: string; config: FlowConfig } | nul
 function rewardNode(params: Params): { type: string; config: FlowConfig } {
   const id = str(params.reward_id);
   const title = str(params.title);
-  if (title === '') return { type: 'twitch.reward', config: { reward: id } };
+  const onRedeem = str(params.on_redeem) || DEFAULT_REWARD_OUTCOME;
+  if (title === '') return { type: 'twitch.reward', config: params.on_redeem ? { reward: id, onRedeem } : { reward: id } };
   const reward = id === SETUP_REWARD_ID ? '' : id;
   const config: FlowConfig = {
     reward,
@@ -1202,7 +1286,7 @@ function rewardNode(params: Params): { type: string; config: FlowConfig } {
     cost: num(params.cost),
     color: str(params.color),
     cooldown: num(params.cooldown_s),
-    onRedeem: str(params.on_redeem) || 'leave',
+    onRedeem,
     userInput: params.input_required === true
   };
   return { type: 'twitch.reward', config };
@@ -1291,7 +1375,17 @@ function conditionToNode(condition: Condition): ConditionNode | null {
   if (condition.type === 'perm') return { type: 'cond.role', config: { level: str(params.level) } };
   if (condition.type === 'chance') return { type: 'cond.chance', config: { percent: num(params.percent) } };
   if (condition.type === 'cooldown') return cooldownNode(params);
-  return Object.hasOwn(CONDITION_READERS, condition.type) ? CONDITION_READERS[condition.type]!(params) : null;
+  if (Object.hasOwn(CONDITION_READERS, condition.type)) return CONDITION_READERS[condition.type]!(params);
+  return loyaltyConditionNode(condition);
+}
+
+function loyaltyConditionNode({ type, params = {} }: Condition): { type: string; config: FlowConfig } | null {
+  if (type !== 'points' && type !== 'counter') return null;
+  const op = str(params.op);
+  if (!CMP_OPS.includes(op)) return null;
+  const config: FlowConfig = { op, value: num(params.value) };
+  if (type === 'counter') config.counter = str(params.name);
+  return { type: `cond.${type}`, config };
 }
 
 function lightConfig(params: Params): FlowConfig {
@@ -1361,14 +1455,19 @@ function variableNode(params: Params, change: 'set' | 'add' | 'forget'): { type:
   return { type: 'reply.var', config: { ...config, do: amount < 0 ? 'subtract' : 'add', amount: Math.abs(amount) } };
 }
 
-function rewardEnabledChoice(enabled: unknown): string {
-  if (enabled === true) return 'on';
-  return enabled === false ? 'off' : 'keep';
+function rewardChoice(value: unknown, choices: ReadonlyMap<string, boolean | null>): string {
+  if (typeof value !== 'boolean') return 'keep';
+  return [...choices].find(([, option]) => option === value)?.[0] ?? 'keep';
 }
 
 function rewardUpdateNode(params: Params): { type: string; config: FlowConfig } {
-  const config: FlowConfig = { reward: str(params.reward_id), setEnabled: rewardEnabledChoice(params.enabled), reset: params.reset_on_stream_end === true };
-  return { type: 'reply.reward_update', config: typeof params.cost === 'number' ? { ...config, cost: params.cost } : config };
+  const config: FlowConfig = {
+    reward: str(params.reward_id), setEnabled: rewardChoice(params.enabled, REWARD_ENABLED), reset: params.reset_on_stream_end === true,
+    paused: rewardChoice(params.paused, REWARD_PAUSED)
+  };
+  if (typeof params.cost === 'number') config.cost = params.cost;
+  if (typeof params.cooldown_s === 'number') config.cooldown = params.cooldown_s;
+  return { type: 'reply.reward_update', config };
 }
 
 const API_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig }> = {
@@ -1376,7 +1475,8 @@ const API_READERS: Record<string, (params: Params) => { type: string; config: Fl
     type: 'reply.http_get',
     config: { url: str(params.url), jsonPath: ((params.json_path ?? []) as string[]).join(JSON_PATH_SEPARATOR), saveAs: str(params.save_as) }
   }),
-  http_post: (params) => ({ type: 'reply.http_post', config: { url: str(params.url), body: str(params.body), saveAs: str(params.save_as) } })
+  http_post: (params) => ({ type: 'reply.http_post', config: { url: str(params.url), body: str(params.body), saveAs: str(params.save_as) } }),
+  points_spend: (params) => ({ type: 'reply.points_spend', config: { amount: num(params.amount) } })
 };
 
 const ACTION_READERS: Record<string, (params: Params, action: Action) => { type: string; config: FlowConfig } | null> = {
@@ -1386,7 +1486,7 @@ const ACTION_READERS: Record<string, (params: Params, action: Action) => { type:
     : { type: 'reply.chat', config: { message: str(params.text), reply: 'off' } },
   reply: (params) => ({ type: 'reply.chat', config: { message: str(params.text), reply: params.thread === true ? 'thread' : 'mention' } }),
   lights: lightsNode,
-  counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
+  counter_add: (params) => counterNode(params, 'add'),
   delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),
   var_set: (params) => variableNode(params, 'set'),
   var_add: (params) => variableNode(params, 'add'),
@@ -1398,8 +1498,23 @@ const ACTION_READERS: Record<string, (params: Params, action: Action) => { type:
   countdown_add: (params) => ({ ...cooldownAddNode(params), type: 'reply.countdown_add' }),
   cooldown_add: cooldownAddNode,
   stop: () => ({ type: 'reply.stop', config: {} }),
-  run: (params) => ({ type: 'reply.run', config: { automationId: str(params.automation_id) } })
+  run: (params) => ({ type: 'reply.run', config: { automationId: str(params.automation_id) } }),
+  counter_set: (params) => counterNode(params, 'set'),
+  redemption: (params) => ({ type: 'reply.redemption', config: { result: str(params.status) } }),
+  countdown_stop: (params) => namedTimerNode('countdown_stop', params),
+  cooldown_reset: (params) => namedTimerNode('cooldown_reset', params)
 };
+
+function namedTimerNode(type: NamedTimerActionType, params: Params): { type: string; config: FlowConfig } {
+  return { type: `reply.${type}`, config: { name: str(params.name) } };
+}
+
+function counterNode(params: Params, change: 'add' | 'set'): { type: string; config: FlowConfig } | null {
+  const field = change === 'add' ? 'amount' : 'value';
+  const value = num(params[field]);
+  if (field === 'amount' && value === 0) return null;
+  return { type: 'reply.counter', config: { counter: str(params.name), change, [field]: value } };
+}
 
 function cooldownAddNode(params: Params): { type: string; config: FlowConfig } {
   const config: FlowConfig = { name: str(params.name), seconds: num(params.seconds) };
@@ -1441,8 +1556,9 @@ function placeApi(b: Building, action: Action, path: string, tails: Tail[]): Tai
   const params = action.params ?? {};
   const node = API_READERS[action.type]!(params);
   const id = addNode(b, node.type, placedConfig(action, node.config), tails);
-  const worked = placeActions(b, (params.on_ok ?? []) as Action[], `${path}.params.on_ok`, [{ from: id, port: 'ok' }]);
-  const failed = placeActions(b, (params.on_failure ?? []) as Action[], `${path}.params.on_failure`, [{ from: id, port: 'failure' }]);
+  const [okPort, failurePort] = apiPorts(action.type);
+  const worked = placeActions(b, (params.on_ok ?? []) as Action[], `${path}.params.on_ok`, [{ from: id, port: okPort }]);
+  const failed = placeActions(b, (params.on_failure ?? []) as Action[], `${path}.params.on_failure`, [{ from: id, port: failurePort }]);
   return [...worked, ...failed];
 }
 
@@ -1499,9 +1615,7 @@ type CounterScan = { kind: string; counters: Map<string, string[]> };
 
 function raiseTemplate(scan: CounterScan, node: FlowNode, field: string): string {
   const counters = scan.counters.get(node.id) ?? [];
-  const text = eventTokensToBuilder(scan.kind, str(node.config[field]), counters.length > 0);
-  if (counters.length === 1 && !EVENT_TOKENS[scan.kind]?.count) return text.replaceAll(`{counter:${counters[0]}}`, '{count}');
-  return text;
+  return eventTokensToBuilder(scan.kind, str(node.config[field]), counters.length > 0);
 }
 
 function raiseMessages(b: Building, kind: string): void {

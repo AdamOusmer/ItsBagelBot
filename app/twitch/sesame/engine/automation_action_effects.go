@@ -188,6 +188,36 @@ func (x *actionExec) pointsSet(s step, p automation.PointsSetAction) error {
 	return x.adjustPoints(s, p.TargetAction, p.Amount, true)
 }
 
+func (x *actionExec) pointsSpend(s step, p automation.PointsSpendAction) error {
+	viewer, err := x.viewerTarget()
+	if err != nil {
+		return err
+	}
+	if x.p.loyalty == nil {
+		return failure("no_loyalty")
+	}
+	spend := PointSpend{BroadcasterID: x.run.BroadcasterID, ViewerID: viewer.id, Login: viewer.login, Amount: p.Amount}
+	var balance loyaltyrpc.Balance
+	var spent bool
+	err = x.once(s, func() error {
+		var err error
+		balance, _, spent, err = x.p.loyalty.BalanceSpend(x.ctx, spend)
+		if err != nil {
+			return loyaltyStoreFailure(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	x.run.points = strconv.FormatInt(balance.Points, 10)
+	if !spent {
+		return x.failBranch(s, "insufficient_points")
+	}
+	x.execList(s.Branches[0])
+	return nil
+}
+
 func (x *actionExec) adjustPoints(s step, target automation.TargetAction, amount int64, absolute bool) error {
 	if x.p.loyalty == nil {
 		return failure("no_loyalty")

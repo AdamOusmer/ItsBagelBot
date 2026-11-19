@@ -286,16 +286,30 @@ test.each<{ node: FlowNode; text: string; message?: string; secondary?: string }
   expect([step?.text, step?.secondary]).toEqual([text, secondary]);
 });
 
-test.each([
+test.each<{ node: FlowNode; text: string; state?: NonNullable<RehearsalOptions['scenario']>['state']; status?: 'ok' | 'failed' }>([
   { node: n('s', 'reply.poll', { title: 'What should {user} play?', choices: 'Chess\nCheckers', seconds: 60 }), text: 'Poll: What should Sender play?' },
   { node: n('s', 'reply.whisper', { target: '{user}', text: 'Thanks, {user}!' }), text: 'Whisper Sender: Thanks, Sender!' },
   { node: n('s', 'reply.chat_mode', { mode: 'followers', on: false }), text: 'Followers only off' },
-  { node: n('s', 'reply.countdown_start', { name: 'subathon', seconds: 3600 }), text: 'Start subathon for 1h' }
-])('reuses the card template for the $node.type effect', ({ node, text }) => {
+  { node: n('s', 'reply.countdown_start', { name: 'subathon', seconds: 3600 }), text: 'Start subathon for 1h' },
+  { node: n('s', 'reply.points', { amount: 10 }), state: { points: 15 }, text: 'Give 10 points (now 25)' },
+  { node: n('s', 'reply.points_set', { amount: 10 }), state: { points: 15 }, text: 'Points are now 10' },
+  { node: n('s', 'reply.counter', { counter: 'wins' }), state: { counters: { Wins: 3 } }, text: 'wins is now 4' },
+  { node: n('s', 'reply.countdown_add', { name: 'subathon', seconds: 300 }), state: { countdowns: { subathon: 3_600_000 } }, text: 'subathon: 1h 5m left' },
+  { node: n('s', 'reply.cooldown_add', { name: 'break', seconds: 30 }), state: { cooldowns: { break: 60_000 } }, text: 'break: 1m 30s left' },
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', setEnabled: 'off', reset: true }), text: 'Hydrate: turned off until the stream ends' },
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', setEnabled: 'on', cost: 500 }), text: 'Hydrate: turned on, cost set to 500' },
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', paused: 'pause', cooldown: 300 }), text: 'Hydrate: paused, cooldown 5m' },
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', paused: 'resume', cooldown: 0 }), text: 'Hydrate: resumed, cooldown off' },
+  { node: n('s', 'reply.points_spend', { amount: 100 }), state: { points: 250 }, text: 'Spend 100 points (now 150)' },
+  { node: n('s', 'reply.points_spend', { amount: 100 }), state: { points: 40 }, status: 'failed', text: 'Not enough points (balance: 40)' },
+  { node: n('s', 'reply.countdown_stop', { name: 'subathon' }), state: { countdowns: { subathon: 60_000 } }, text: 'Stop subathon' },
+  { node: n('s', 'reply.countdown_stop', { name: 'subathon' }), status: 'failed', text: 'Timer is not running' },
+  { node: n('s', 'reply.cooldown_reset', { name: 'raffle' }), text: 'Reset raffle' }
+])('renders the $node.type effect', ({ node, text, state, status = 'ok' }) => {
   const gate = n('c', 'cond.role', { level: 'broadcaster' });
   const flow = flowOf([trigger, gate, node], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
-  const step = run(flow, { scenario: { user: 'Sender', role: 'broadcaster' } }).steps.at(-1);
-  expect([step?.id, step?.kind, step?.status, step?.text]).toEqual(['s', 'effect', 'ok', text]);
+  const step = run(flow, { scenario: { user: 'Sender', role: 'broadcaster', state } }).steps.at(-1);
+  expect([step?.id, step?.kind, step?.status, step?.text]).toEqual(['s', 'effect', status, text]);
 });
 
 test.each<{ config: FlowNode['config']; text: string }>([
@@ -314,6 +328,25 @@ test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'
     scenario: { user: 'Old', userId: '42', message: '!old', bits: 50 }
   });
   expect([result.scenario.user, result.scenario.message, result.scenario.bits]).toEqual([undefined, undefined, undefined]);
+});
+
+test.each<{ check: FlowNode; state: NonNullable<RehearsalOptions['scenario']>['state']; port: 'yes' | 'no'; text: string }>([
+  { check: n('c', 'cond.points', { op: 'gte', value: 100 }), state: { points: 100 }, port: 'yes', text: 'Viewer has at least 100 points' },
+  { check: n('c', 'cond.points', { op: 'gte', value: 100 }), state: { points: 99 }, port: 'no', text: 'Viewer has at least 100 points' },
+  { check: n('c', 'cond.counter', { counter: 'wins', op: 'gte', value: 1 }), state: { counters: { Wins: 1 } }, port: 'yes', text: 'wins is at least 1' },
+  { check: n('c', 'cond.counter', { counter: 'wins', op: 'gte', value: 1 }), state: { counters: { wins: 0 } }, port: 'no', text: 'wins is at least 1' }
+])('routes $check.type through $port from the seeded state', ({ check, state, port, text }) => {
+  const flow = flowOf([trigger, check, left, right], [e('t', 'next', 'c'), e('c', 'yes', 'a'), e('c', 'no', 'b')]);
+  const result = run(flow, { scenario: { state } });
+  const step = result.steps.find((event) => event.id === check.id);
+  expect({ port: step?.port, text: step?.text, branch: result.steps.at(-1)?.id }).toEqual({ port, text, branch: port === 'yes' ? 'a' : 'b' });
+});
+
+test('completes a redemption in a reward Test run', () => {
+  const reward = n('t', 'twitch.reward', { reward: 'hydrate' });
+  const redemption = n('s', 'reply.redemption', { result: 'cancel' });
+  const step = run(flowOf([reward, redemption], [e('t', 'next', 's')])).steps.at(-1);
+  expect({ id: step?.id, status: step?.status, text: step?.text }).toEqual({ id: 's', status: 'ok', text: 'Refund the points' });
 });
 
 const modCheck = n('c', 'cond.role', { level: 'mod' });
@@ -351,6 +384,8 @@ test.each([
     ids: ['t', 's'], found: ['s', 'failed', 'Message is missing.', [['required', 'text']]] },
   { name: 'reply requires a message', flow: afterTrigger(trigger, n('s', 'reply.reply', { text: '' })),
     ids: ['t', 's'], found: ['s', 'failed', 'Message is missing.', [['required', 'text']]] },
+  { name: 'reward update requires a change', flow: afterTrigger(follow, n('s', 'reply.reward_update', { reward: 'hydrate', setEnabled: 'keep', paused: 'keep', cooldown: '', reset: true })),
+    ids: ['t', 's'], found: ['s', 'failed', 'Pick at least one change', [['required', 'setEnabled']]] },
   { name: 'empty command', flow: afterTrigger(n('t', 'twitch.chat.command'), say), ids: ['t'], blocked: 'Set a command name first',
     found: ['t', 'failed', 'Command is missing.', [['required', 'trigger']]] },
   { name: 'empty chat word', flow: afterTrigger(n('t', 'twitch.chat.word'), say), ids: ['t'], blocked: 'Set a command name first',

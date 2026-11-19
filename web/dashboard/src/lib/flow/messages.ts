@@ -49,6 +49,7 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
 
 export function issueMessage(t: Translate, issue: Issue): string {
   if (issue.path === 'name') return t('flows.issue.name');
+  if (issue.code === 'required' && issue.path.endsWith('.params.enabled')) return t('flows.step.reply.rewardUpdate.pickChange');
   const texts = issueTexts(t, issue);
   return Object.hasOwn(texts, issue.code) ? texts[issue.code]! : t('flows.issue.generic');
 }

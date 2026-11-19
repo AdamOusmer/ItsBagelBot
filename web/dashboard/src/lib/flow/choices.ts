@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { RECIPE_NAME_PATTERN } from '@bagel/kit/automations/limits';
 import type { FlowNode } from './model';
 
 export const CHOICE_SOURCES = ['rewards', 'manageableRewards', 'counters', 'scenes', 'namedCooldowns', 'namedCountdowns', 'recipes'] as const;
@@ -30,7 +31,7 @@ export function withSaved(list: ChoiceList, value: string, name: string): Choice
 export function withDraftNames(list: ChoiceList, source: ChoiceSource, nodes: readonly FlowNode[]): ChoiceList {
   const type = { namedCooldowns: 'cond.cooldown', namedCountdowns: 'reply.countdown_start' }[source as 'namedCooldowns' | 'namedCountdowns'];
   const names = nodes.filter((node) => node.type === type && !node.config.disabled && !node.config.perUser)
-    .map((node) => String(node.config.name ?? '').trim().toLowerCase()).filter((name) => /^[a-z]+$/.test(name));
+    .map((node) => String(node.config.name ?? '').trim().toLowerCase()).filter((name) => RECIPE_NAME_PATTERN.test(name));
   const options = new Map(list.options.map((option) => [option.value, option]));
   for (const name of names) options.set(name, { value: name, label: name });
   return { ...list, options: [...options.values()] };
