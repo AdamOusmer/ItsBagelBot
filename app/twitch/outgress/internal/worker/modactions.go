@@ -18,15 +18,16 @@ import (
 )
 
 type modAction struct {
-	name   string
-	method string
-	path   string
+	name        string
+	method      string
+	path        string
+	activityKey string
 }
 
 var (
-	banAction    = modAction{"ban/timeout", http.MethodPost, "/helix/moderation/bans"}
-	shieldAction = modAction{"shield_mode", http.MethodPut, "/helix/moderation/shield_mode"}
-	warnAction   = modAction{"warn", http.MethodPost, "/helix/moderation/warnings"}
+	banAction    = modAction{"ban/timeout", http.MethodPost, "/helix/moderation/bans", "activity.automod.ban_timeout"}
+	shieldAction = modAction{"shield_mode", http.MethodPut, "/helix/moderation/shield_mode", ""}
+	warnAction   = modAction{"warn", http.MethodPost, "/helix/moderation/warnings", ""}
 )
 
 func (w *Worker) processModAction(ctx context.Context, payload *outgress.Message, action modAction) error {
@@ -43,19 +44,23 @@ func (w *Worker) processModAction(ctx context.Context, payload *outgress.Message
 	payload.Method = action.method
 	payload.Endpoint = modEndpoint(action.path, payload.BroadcasterID, mod)
 
-	return w.execute(ctx, payload)
+	return w.executeModAction(ctx, payload, action.activityKey)
 }
 
-func (w *Worker) processBan(ctx context.Context, payload *outgress.Message) error {
-	err := w.processModAction(ctx, payload, banAction)
-	if err == nil {
+func (w *Worker) executeModAction(ctx context.Context, payload *outgress.Message, activityKey string) error {
+	outcome, err := w.executeHelix(ctx, payload)
+	if outcome == helixSucceeded && activityKey != "" {
 		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
 			Kind: activity.KindAutomod,
-			Text: i18n.T(payload.Locale, "activity.automod.ban_timeout"),
+			Text: i18n.T(payload.Locale, activityKey),
 			At:   time.Now(),
 		})
 	}
 	return err
+}
+
+func (w *Worker) processBan(ctx context.Context, payload *outgress.Message) error {
+	return w.processModAction(ctx, payload, banAction)
 }
 
 func (w *Worker) processShieldMode(ctx context.Context, payload *outgress.Message) error {
@@ -114,15 +119,7 @@ func (w *Worker) processDelete(ctx context.Context, payload *outgress.Message) e
 	payload.Endpoint = deleteEndpoint(payload.BroadcasterID, mod, payload.MsgID)
 	payload.Payload = nil
 
-	err := w.execute(ctx, payload)
-	if err == nil {
-		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
-			Kind: activity.KindAutomod,
-			Text: i18n.T(payload.Locale, "activity.automod.deleted"),
-			At:   time.Now(),
-		})
-	}
-	return err
+	return w.executeModAction(ctx, payload, "activity.automod.deleted")
 }
 
 func deleteEndpoint(broadcasterID, moderatorID, msgID string) string {

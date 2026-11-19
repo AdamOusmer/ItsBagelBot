@@ -81,7 +81,7 @@ test.each([
   { trigger: 'command', level: 'mod', nested: false, codes: [] },
   { trigger: 'command', level: 'lead_mod', nested: false, codes: [] },
   { trigger: 'command', level: 'broadcaster', nested: false, codes: [] },
-  { trigger: 'command', level: 'mod', nested: true, codes: ['perm_required'] },
+  { trigger: 'command', level: 'mod', nested: true, codes: [] },
   { trigger: 'event', level: 'everyone', nested: false, codes: [] }
 ])('timeout permission: $trigger $level nested=$nested', ({ trigger, level, nested, codes }) => {
   const action: Action = { type: 'timeout', params: { login: '{user}', seconds: 60 } };

@@ -170,11 +170,7 @@ func (x *actionExec) rewardUpdate(s step, p automation.RewardUpdateAction) error
 	o.Reward = &outgress.RewardUpdate{Enabled: p.Enabled, Cost: p.Cost, ResetOnStreamEnd: p.ResetOnStreamEnd}
 	// Not the record's position: parallel paths and trimming both reuse positions.
 	o.RunID, o.ActionSlot = x.run.ID, s.EffectKey+x.iter
-	if err := x.queue(o); err != nil {
-		return err
-	}
-	x.run.Record.Actions[len(x.run.Record.Actions)-1].Slot = o.ActionSlot
-	return succeeded(rewardQueued)
+	return x.queue(o)
 }
 
 func (x *actionExec) redemptionIDs() (rewardID, redemptionID string) {

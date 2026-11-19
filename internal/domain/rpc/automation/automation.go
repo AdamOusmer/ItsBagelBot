@@ -39,6 +39,7 @@ const (
 
 const (
 	StatusOK          = "ok"
+	StatusSent        = "sent"
 	StatusSkipped     = "skipped"
 	StatusUnsupported = "unsupported"
 	StatusFailed      = "failed"

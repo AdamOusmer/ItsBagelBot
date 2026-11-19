@@ -5,7 +5,7 @@ import { STREAM_ACTIONS } from './stream-actions';
 import { TARGET_DEFAULTS, TARGET_SCHEMA, type Chk } from './check';
 import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE, validateFetchDef } from '../engine/fetch-validate';
 import { checkVarIdentity, counterName } from './conditions';
-import { register, type Table, type Wide } from './engine';
+import { POINTS_ACTION_SCHEMA, register, type Table, type Wide } from './engine';
 import {
   CODE,
   MAX_COOLDOWN_SECONDS,
@@ -187,8 +187,8 @@ export const SIMPLE_ACTIONS: Table = {
   set_game: register<Wide<T.SetGameAction>>({ game: 'string' }, (c, p) => void c.text('game', p.game, 1, 100)),
   set_tags: register<Wide<T.SetTagsAction>>({ tags: 'string' }, (c, p) => void c.template('tags', p.tags)),
   commercial: register<Wide<T.CommercialAction>>({ seconds: 'int' }, checkCommercial),
-  points_add: register<Wide<T.PointsAddAction>>({ ...TARGET_SCHEMA, amount: 'int' }, checkPointsAdd, TARGET_DEFAULTS),
-  points_set: register<Wide<T.PointsSetAction>>({ ...TARGET_SCHEMA, amount: 'int' }, checkPointsSet, TARGET_DEFAULTS),
+  points_add: register<Wide<T.PointsAddAction>>(POINTS_ACTION_SCHEMA, checkPointsAdd, TARGET_DEFAULTS),
+  points_set: register<Wide<T.PointsSetAction>>(POINTS_ACTION_SCHEMA, checkPointsSet, TARGET_DEFAULTS),
   counter_add: register<Wide<T.CounterAddAction>>({ name: 'string', amount: 'int' }, checkCounterAdd),
   counter_set: register<Wide<T.CounterSetAction>>({ name: 'string', value: 'int' }, (c, p) => counterName(c, 'name', p.name)),
   redemption: register<Wide<T.RedemptionAction>>({ status: 'string' }, (c, p) => c.oneOf('status', p.status, ['fulfill', 'cancel'])),

@@ -17,6 +17,14 @@ import (
 	"go.uber.org/zap"
 )
 
+type helixOutcome uint8
+
+const (
+	helixUnconfirmed helixOutcome = iota
+	helixSucceeded
+	helixRejected
+)
+
 func (w *Worker) processAPI(ctx context.Context, payload *outgress.Message) error {
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
@@ -26,17 +34,23 @@ func (w *Worker) processAPI(ctx context.Context, payload *outgress.Message) erro
 }
 
 func (w *Worker) execute(ctx context.Context, payload *outgress.Message) error {
+	_, err := w.executeHelix(ctx, payload)
+	return err
+}
+
+func (w *Worker) executeHelix(ctx context.Context, payload *outgress.Message) (helixOutcome, error) {
 	res, err := w.executeRequest(ctx, payload)
 	if err != nil {
-		return err
+		return helixUnconfirmed, err
 	}
 	defer drainResponse(res)
 
-	if err := w.helixResult(ctx, payload, res); err != nil {
-		return err
+	outcome, err := w.helixResult(ctx, payload, res)
+	if err != nil {
+		return outcome, err
 	}
 	w.recordChatResult(payload, res)
-	return nil
+	return outcome, nil
 }
 
 func (w *Worker) executeRequest(ctx context.Context, payload *outgress.Message) (*http.Response, error) {
@@ -52,27 +66,30 @@ func (w *Worker) executeRequest(ctx context.Context, payload *outgress.Message) 
 	return res, nil
 }
 
-func (w *Worker) helixResult(ctx context.Context, payload *outgress.Message, res *http.Response) error {
+func (w *Worker) helixResult(ctx context.Context, payload *outgress.Message, res *http.Response) (helixOutcome, error) {
 	switch {
 	case res.StatusCode == http.StatusTooManyRequests:
 		w.log.Warn("twitch rate limited the app",
 			zap.String("endpoint", payload.Endpoint),
 			zap.Duration("retry_after", twitch.RetryAfter(res)))
-		return fmt.Errorf("twitch 429 on %s", payload.Endpoint)
+		return helixUnconfirmed, fmt.Errorf("twitch 429 on %s", payload.Endpoint)
 
 	case res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden:
 		w.dropAuthFailure(ctx, payload, res)
-		return nil
+		return helixRejected, nil
 
 	case res.StatusCode >= 500:
-		return fmt.Errorf("twitch server error: %d", res.StatusCode)
+		return helixUnconfirmed, fmt.Errorf("twitch server error: %d", res.StatusCode)
 
 	case res.StatusCode >= 400:
 		w.dropRejected(ctx, payload, res)
-		return nil
+		return helixRejected, nil
+
+	case res.StatusCode >= 200 && res.StatusCode < 300:
+		return helixSucceeded, nil
 	}
 
-	return nil
+	return helixUnconfirmed, nil
 }
 
 func (w *Worker) dropAuthFailure(ctx context.Context, payload *outgress.Message, res *http.Response) {

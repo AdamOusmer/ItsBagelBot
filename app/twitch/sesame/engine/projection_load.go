@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/projection"
 	"context"
+	"strings"
 )
 
 func traceEnvelope(ctx context.Context, env *lane.Envelope) {
@@ -53,11 +54,11 @@ func (p *Pipeline) needsMessageLocale(c *module.Context) bool {
 	if len(c.Env.Senders) > 0 {
 		return false
 	}
-	name, _, ok := parseCommand(c.Env.Text)
+	input, ok := parseCommand(c.Env.Text)
 	if !ok {
 		return false
 	}
-	bc, _, baked := p.registry.ResolveCommand(name)
+	bc, _, baked := p.registry.ResolveCommand(strings.ToLower(input.name))
 	return baked && !bc.Owner.Trial && permits(c, bc.Cmd.AllowedUserID, bc.Cmd.Perm) && (!bc.Owner.Beta || c.Regress.IsPremium())
 }
 

@@ -366,7 +366,7 @@ export interface Refusal {
 }
 
 export type RunOutcome = 'ok' | 'skipped' | 'partial' | 'failed' | 'limited';
-export type ActionStatus = 'ok' | 'skipped' | 'unsupported' | 'failed' | 'limited';
+export type ActionStatus = 'ok' | 'sent' | 'skipped' | 'unsupported' | 'failed' | 'limited';
 
 export interface ActionRecord {
   index: number;

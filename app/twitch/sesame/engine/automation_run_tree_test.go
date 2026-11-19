@@ -202,6 +202,6 @@ func TestRunCalledTwiceInsideALoopAppliesPerCallPerIteration(t *testing.T) {
 func TestRewardUpdateRecordsItWasQueuedNotConfirmed(t *testing.T) {
 	fx := newAutoFixture(manual("main", act("reward_update", obj{"reward_id": "rw-1", "cost": 50})))
 	rec := fx.run(t, "main", "req-reward-queued", nil)
-	assert.Equal(t, []string{"0:reward_update:ok:queued"}, statuses(rec))
+	assert.Equal(t, []string{"0:reward_update:sent:queued"}, statuses(rec))
 	assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome)
 }

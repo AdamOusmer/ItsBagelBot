@@ -2,8 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { decodeStrict, type DecodeError, type Schema } from './decode';
-import { Chk } from './check';
+import { Chk, TARGET_DEFAULTS, TARGET_SCHEMA, type TargetParams } from './check';
 import { CODE } from './limits';
+import { trimSpace } from './text';
 import { PERM_LEVELS } from './values';
 
 export type Widen<V> = V extends string ? string : V extends (infer U)[] ? Widen<U>[] : V;
@@ -42,6 +43,10 @@ const REQUIRED_TRIGGER: Partial<Record<StepType, RequiredTrigger>> = {
   unban_resolve: 'unban_request',
 };
 
+const VIEWERLESS_TRIGGERS = new Set(['countdown:', 'timer:', 'event:stream.online', 'event:stream.offline']);
+const POINTS_ACTIONS: ReadonlySet<StepType> = new Set(['points_add', 'points_set']);
+export const POINTS_ACTION_SCHEMA: Schema = { ...TARGET_SCHEMA, amount: 'int' };
+
 const ACTION_ROLE: Partial<Record<StepType, StepRole>> = {
   poll: 'mod',
   poll_end: 'mod',
@@ -56,7 +61,13 @@ const ACTION_ROLE: Partial<Record<StepType, StepRole>> = {
   ad_snooze: 'lead_mod',
   whisper: 'mod',
   unban_resolve: 'mod',
-  branded_content: 'mod',
+  branded_content: 'lead_mod',
+  set_title: 'lead_mod',
+  set_game: 'lead_mod',
+  set_tags: 'lead_mod',
+  commercial: 'lead_mod',
+  marker: 'lead_mod',
+  clip: 'lead_mod',
   timeout: 'mod',
   ban: 'mod',
   warn: 'mod',
@@ -124,6 +135,17 @@ function missingTrigger(type: StepType, trigger: RequirementTrigger): RequiredTr
   return required === trigger.type ? undefined : required;
 }
 
+function targetsViewer({ who, login }: TargetParams): boolean {
+  if (who === 'login') return trimSpace(login) === '';
+  return who === 'viewer';
+}
+
+function viewerlessPoints(a: ActionNode, trigger: RequirementTrigger): boolean {
+  if (!POINTS_ACTIONS.has(a.type) || !VIEWERLESS_TRIGGERS.has(`${trigger.type}:${trigger.kind}`)) return false;
+  const { value, err } = decodeParams<TargetParams>(POINTS_ACTION_SCHEMA, TARGET_DEFAULTS, a.params);
+  return !err && targetsViewer(value);
+}
+
 function missingRole(type: StepType, trigger: RequirementTrigger): StepRole | undefined {
   if (trigger.type !== 'command' || !Object.hasOwn(ACTION_ROLE, type)) return undefined;
   const level = ACTION_ROLE[type]!;
@@ -149,7 +171,7 @@ export function permRank(list: readonly { type: StepType; params?: unknown }[]):
 
 function action(at: Chk, a: ActionNode): void {
   const trigger = { type: at.trigger, kind: at.kind, perm: at.perm };
-  if (missingTrigger(a.type, trigger)) at.add('type', CODE.triggerMismatch);
+  if (missingTrigger(a.type, trigger) || viewerlessPoints(a, trigger)) at.add('type', CODE.triggerMismatch);
   if (missingRole(a.type, trigger)) at.add('type', CODE.permRequired);
   typed(at, actionRegistry, a);
 }

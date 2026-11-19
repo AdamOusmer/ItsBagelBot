@@ -9,6 +9,7 @@ import {
   type ActionNode,
   conditionRegistry,
   type Entry,
+  permRank,
   registerNested,
   type Table,
   triggerRegistry,
@@ -37,7 +38,7 @@ interface RandomPickParams {
 
 function checkIf(c: Chk, p: IfParams): void {
   typed(c.sub('condition'), conditionRegistry, p.condition);
-  actions(c.sub('then').nest(), p.then);
+  actions(c.sub('then').nest(Math.max(c.perm, permRank([p.condition]))), p.then);
   actions(c.sub('else').nest(), p.else);
 }
 

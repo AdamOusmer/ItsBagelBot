@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/internal/domain/automation"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -22,6 +23,7 @@ const (
 	customPostEndpoint   = "post"
 	goveeProvider        = "govee"
 	goveeControlEndpoint = "control"
+	noViewer             = "no_viewer"
 )
 
 type actionTarget struct {
@@ -54,10 +56,11 @@ func (x *actionExec) target(p automation.TargetAction, selfWhenEmpty bool) (acti
 
 func (x *actionExec) viewerTarget() (actionTarget, error) {
 	viewer := x.run.Viewer
-	if viewer.ID == 0 {
-		return actionTarget{}, failure("no_viewer")
+	login := scope.NormalizeLogin(viewer.Login)
+	if viewer.ID == 0 || login == "" {
+		return actionTarget{}, failure(noViewer)
 	}
-	return actionTarget{id: viewer.ID, login: scope.NormalizeLogin(viewer.Login)}, nil
+	return actionTarget{id: viewer.ID, login: login}, nil
 }
 
 func (x *actionExec) mentionTarget() (actionTarget, error) {
@@ -131,7 +134,9 @@ func (x *actionExec) once(s step, do func() error) error {
 func effectOutcome(err error) error {
 	status, detail := classify(err)
 	switch {
-	case status == automationrpc.StatusOK, status == automationrpc.StatusSkipped, detail == "store_error":
+	case status == automationrpc.StatusOK, status == automationrpc.StatusSent, status == automationrpc.StatusSkipped:
+		return nil
+	case detail == "store_error", detail == noViewer:
 		return nil
 	default:
 		return err
@@ -140,12 +145,20 @@ func effectOutcome(err error) error {
 
 func storeResult(err error, found bool) error {
 	if err != nil {
-		return failure("store_error")
+		return loyaltyStoreFailure(err)
 	}
 	if !found {
 		return failure("not_found")
 	}
 	return nil
+}
+
+func loyaltyStoreFailure(err error) error {
+	var reply bus.RPCReplyError
+	if errors.As(err, &reply) && reply.Message == loyaltyrpc.CounterTargetRequired {
+		return failure(noViewer)
+	}
+	return failure("store_error")
 }
 
 func (x *actionExec) pointsAdd(s step, p automation.PointsAddAction) error {
@@ -190,7 +203,9 @@ func (x *actionExec) loyaltyOnce(s step, apply func(LoyaltyStore) (found bool, e
 }
 
 func (x *actionExec) counterAdd(s step, p automation.CounterAddAction) error {
-	bump := CounterBump{BroadcasterID: x.run.BroadcasterID, Name: p.Name, Viewer: x.run.Viewer, Delta: p.Amount}
+	bump := CounterBump{
+		BroadcasterID: x.run.BroadcasterID, Name: p.Name, Viewer: x.run.Viewer, Command: x.run.Plan.Automation.ID, Delta: p.Amount,
+	}
 	return x.loyaltyOnce(s, func(l LoyaltyStore) (bool, error) {
 		_, err := l.CounterBump(x.ctx, bump)
 		return true, err
@@ -198,7 +213,10 @@ func (x *actionExec) counterAdd(s step, p automation.CounterAddAction) error {
 }
 
 func (x *actionExec) counterSet(s step, p automation.CounterSetAction) error {
-	set := CounterAssignment{BroadcasterID: x.run.BroadcasterID, Name: p.Name, ViewerID: x.run.Viewer.ID, Value: p.Value}
+	set := CounterAssignment{
+		BroadcasterID: x.run.BroadcasterID, Name: p.Name, ViewerID: x.run.Viewer.ID,
+		Command: x.run.Plan.Automation.ID, Value: p.Value, RequireTarget: true,
+	}
 	return x.loyaltyOnce(s, func(l LoyaltyStore) (bool, error) {
 		return l.CounterSet(x.ctx, set)
 	})

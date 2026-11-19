@@ -235,7 +235,7 @@ test.each([
     ids: ['t', 'c'], blocked: 'a check did not pass' },
   { name: 'unreached invalid step follows the failed check and precedes the other branch',
     flow: flowOf([trigger, modCheck, blankChoice, right], [e('t', 'next', 'c'), e('c', 'yes', 's'), e('c', 'no', 'b')]),
-    ids: ['t', 'c', 's', 'b'], found: ['s', 'failed', `${choiceIssue} ${permissionIssue}`, [['required', 'choices'], ['perm_required', undefined]]] },
+    ids: ['t', 'c', 's', 'b'], found: ['s', 'failed', choiceIssue, [['required', 'choices']]] },
   { name: 'comparison requires a search value', flow: afterTrigger(trigger, n('s', 'cond.compare', { left: '5', op: 'contains', right: '' })),
     ids: ['t', 's'], found: ['s', 'failed', 'This value is missing.', [['required', 'right']]], blocked: 'a check did not pass' },
   { name: 'announcement requires a message', flow: afterTrigger(trigger, n('s', 'reply.announce', { text: '' })),

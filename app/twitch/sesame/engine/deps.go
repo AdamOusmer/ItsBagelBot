@@ -168,6 +168,7 @@ type CounterAssignment struct {
 	ViewerID      uint64
 	Command       string
 	Value         int64
+	RequireTarget bool
 }
 
 type BalanceAdjustment struct {

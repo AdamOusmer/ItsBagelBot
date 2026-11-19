@@ -178,7 +178,7 @@ func (x *actionExec) noteHandled(path []automationrpc.ActionRecord) {
 func tallyRecords(records []automationrpc.ActionRecord) (good, bad int) {
 	for _, r := range records {
 		switch r.Status {
-		case automationrpc.StatusOK:
+		case automationrpc.StatusOK, automationrpc.StatusSent:
 			good++
 		case automationrpc.StatusFailed, automationrpc.StatusLimited, automationrpc.StatusUnsupported:
 			bad++

@@ -27,6 +27,7 @@ const (
 )
 
 var ErrInvalidInput = errors.New("invalid input")
+var ErrCounterTargetRequired = errors.New("counter target required")
 
 func (r *Loyalty) BalanceGet(ctx context.Context, userID, viewerID uint64) (*ent.Balance, bool, error) {
 	return readOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
@@ -298,10 +299,11 @@ func (r *Loyalty) CounterCreate(ctx context.Context, ref CounterRef, scope strin
 }
 
 type SetTarget struct {
-	ViewerID    uint64
-	Command     string
-	ViewerLogin string
-	Value       int64
+	ViewerID      uint64
+	Command       string
+	ViewerLogin   string
+	Value         int64
+	RequireTarget bool
 }
 
 func (r *Loyalty) CounterSet(ctx context.Context, ref CounterRef, target SetTarget) (bool, error) {
@@ -330,15 +332,18 @@ func (r *Loyalty) setCounterValue(ctx context.Context, row *ent.Counter, target 
 			Exec(ctx)
 	}
 	entryViewer, cmd, targeted := entryTarget(row, target)
-	if !targeted {
-		_, err := r.client.CounterEntry.Delete().
-			Where(counterentry.UserIDEQ(row.UserID), counterentry.NameEQ(row.Name)).
-			Exec(ctx)
-		return err
+	if targeted {
+		target.ViewerID = entryViewer
+		target.Command = cmd
+		return r.setCounterEntry(ctx, row, target, value)
 	}
-	target.ViewerID = entryViewer
-	target.Command = cmd
-	return r.setCounterEntry(ctx, row, target, value)
+	if target.RequireTarget {
+		return ErrCounterTargetRequired
+	}
+	_, err := r.client.CounterEntry.Delete().
+		Where(counterentry.UserIDEQ(row.UserID), counterentry.NameEQ(row.Name)).
+		Exec(ctx)
+	return err
 }
 
 func (r *Loyalty) setCounterEntry(ctx context.Context, row *ent.Counter, target SetTarget, value int64) error {

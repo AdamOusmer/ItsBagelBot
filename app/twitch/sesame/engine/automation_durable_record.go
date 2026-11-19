@@ -77,6 +77,7 @@ type durableRecord struct {
 	Args         string                  `json:"args,omitempty"`
 	ArgMap       map[string]string       `json:"arg_map,omitempty"`
 	Event        map[string]string       `json:"event,omitempty"`
+	Redemption   *redemptionSettlement   `json:"redemption,omitempty"`
 	Locals       map[string]string       `json:"locals,omitempty"`
 	CountdownEnd int64                   `json:"countdown_end_ms,omitempty"`
 	CooldownEnd  int64                   `json:"cooldown_end_ms,omitempty"`
@@ -138,6 +139,7 @@ func newDurableRecord(c continuation) (durableRecord, bool) {
 func newDurableWaiter(run *AutomationRun, turn queueTurn) durableRecord {
 	rec := baseDurableRecord(run)
 	rec.Waiting = true
+	rec.Redemption = run.redemption
 	rec.WaitUntil = turn.until.UnixMilli()
 	seat := turn.seat
 	rec.Seat = &seat
@@ -190,6 +192,7 @@ func (r *durableRecord) run(ref DurableRef) *AutomationRun {
 		Args:           r.Args,
 		ArgMap:         r.ArgMap,
 		Event:          r.Event,
+		redemption:     r.Redemption,
 		Source:         r.Source,
 		ID:             r.RunID,
 		Identity:       r.Identity,

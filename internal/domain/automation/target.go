@@ -3,7 +3,10 @@
 
 package automation
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 type TargetAction struct {
 	Login  string `json:"login"`
@@ -14,6 +17,16 @@ type TargetAction struct {
 var targetUserIDPattern = regexp.MustCompile(`^[0-9]+$`)
 
 func (p *TargetAction) setDefaults() { p.Who = "login" }
+
+func (p TargetAction) targetsViewer() bool {
+	switch p.Who {
+	case "viewer":
+		return true
+	case "login":
+		return strings.TrimSpace(p.Login) == ""
+	}
+	return false
+}
 
 func (c chk) target(p TargetAction, legacyLogin span) {
 	switch p.Who {
