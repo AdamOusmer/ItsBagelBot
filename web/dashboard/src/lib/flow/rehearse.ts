@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { compactDuration, compileFlow, defaultScenario, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
+import { compactDuration, compileFlow, configKey, defaultScenario, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
@@ -143,7 +143,7 @@ function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind: Text):
   return summaries[key] ?? t('flows.test.summaryEvent', { user });
 }
 
-const INPUT_TOKENS: Readonly<Record<Text, keyof RehearsalScenario>> = { user: 'user', 'user.id': 'userId', userid: 'userId', message: 'message', bits: 'bits', 'event.amount': 'bits', viewers: 'viewers', 'event.viewers': 'viewers', 'event.months': 'months', months: 'months', 'event.input': 'input', input: 'input' };
+const INPUT_TOKENS: Readonly<Record<Text, keyof RehearsalScenario>> = { user: 'user', 'user.id': 'userId', userid: 'userId', bits: 'bits', 'event.amount': 'bits', viewers: 'viewers', 'event.viewers': 'viewers', 'event.months': 'months', months: 'months', 'event.input': 'input', input: 'input' };
 const TOKEN_LABELS = new Map(NODE_SPECS.flatMap((spec) => [...(spec.provides ?? []), ...(spec.outputs ?? []).flatMap((port) => port.provides ?? [])]).map((variable) => [variable.token, variable]));
 
 function compareRepair(node: FlowNode): ScenarioPatch | undefined {
@@ -194,22 +194,29 @@ function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, li
   return node?.type.startsWith('twitch.chat.') ? scenario.message ?? line : line;
 }
 
-function effectText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Text {
+const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text']);
+
+function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
   if (!node) return t('flows.test.effect');
-  if (node.type === 'reply.math' && event.detail?.value !== undefined) return event.detail.value;
-  const config = { ...node.config, target: event.detail?.login ?? node.config.target };
+  if (COMPUTED_VALUE_NODES.has(node.type) && detail.value !== undefined) return detail.value;
+  const config = { ...node.config };
+  for (const [param, value] of Object.entries(detail)) {
+    const key = configKey(param);
+    if (typeof node.config[key] === 'string' || param === 'login') config[key] = value;
+  }
   return describe(t, { ...node, config });
 }
 
 function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined, scenario: RehearsalScenario): Text {
-  const line = effectText(t, event, node);
   const detail = event.detail ?? {};
+  if (detail.code) return reasonText(t, detail.code);
+  const line = effectText(t, detail, node);
   const texts = {
     trigger: triggerText(node, scenario, line, t), parallel: '', loop: loopText(t, event),
     wait: t('flows.test.wait', { seconds: Number(detail.ms) / 1000 }),
     check: node ? checkText(t, node, scenario) : line, effect: line, say: '', skip: line
   };
-  return detail.code ? reasonText(t, detail.code) : texts[event.kind];
+  return texts[event.kind];
 }
 
 function chatLines(event: RehearsalEvent): RehearsedLine[] {
@@ -224,7 +231,7 @@ function reasonText(t: Translate, code: Text): Text {
     max_steps: t('flows.test.limit'), max_actions: t('flows.test.limit'), upstream_error: t('flows.test.apiFailed'),
     not_running: t('flows.test.notRunning'), below_rate: t('flows.test.belowRate'), var_limit: t('flows.test.varLimit'),
     text_error: t('flows.test.textError'), math_error: t('flows.test.mathError'), bad_def: t('flows.test.badDef'),
-    empty_login: t('flows.test.noTarget'), perm_required: t('flows.issue.permRequired')
+    empty_login: t('flows.test.noTarget'), no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired')
   };
   return reasons[code] ?? t('flows.test.failed');
 }

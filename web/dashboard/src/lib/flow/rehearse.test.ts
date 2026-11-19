@@ -177,6 +177,17 @@ test.each([
   expect<unknown>([step?.sample, step?.text, step?.lines, step?.secondary, step?.missing]).toEqual([true, text, lines, secondary, []]);
 });
 
+test.each([
+  { node: n('s', 'reply.shoutout', { target: '{touser}' }), text: 'Shoutout to Sender' },
+  { node: n('s', 'reply.text', { op: 'upper', input: '{user}', saveAs: 'result' }), text: 'SENDER' },
+  { node: n('s', 'reply.var_set', { name: 'name', scope: 'channel', value: 'Hi {user}' }), text: 'Set name to Hi Sender' },
+  { node: n('s', 'reply.http_get', { url: 'https://example.com/{user}', saveAs: 'result' }), text: 'https://example.com/Sender' }
+])('effect descriptions show rehearsal values for $node.type', ({ node, text }) => {
+  const flow = flowOf([trigger, node], [e('t', 'next', 's')]);
+  const step = run(flow, { scenario: { message: '!test', user: 'Sender' } }).steps.at(-1);
+  expect(step?.text).toBe(text);
+});
+
 test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'])('stale viewer patches cannot affect %s', (type) => {
   const result = run(flowOf([n('t', type, { name: 'timer' }), n('s', 'reply.points', { amount: 10 })], [e('t', 'next', 's')]), {
     scenario: { user: 'Old', userId: '42', message: '!old', bits: 50 }

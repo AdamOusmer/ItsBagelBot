@@ -3,7 +3,7 @@
 
 import { MAX_RESPONSE_LINES } from '../importer/validate';
 import { MAX_ACTIONS, MAX_DELAY_MS, MAX_LOOP_TIMES } from './limits';
-import { applyAction, createState, evaluateCondition, expandTemplate } from './rehearsal-state';
+import { applyAction, createState, evaluateCondition, expandTemplate, messageTarget } from './rehearsal-state';
 import { matchTrigger, scenarioArgs, scenarioEvent, scenarioIdentity } from './rehearsal-scenario';
 import { trimSpace } from './text';
 import type { Action, Condition, Definition } from './types';
@@ -12,6 +12,7 @@ import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalRes
 export type * from './rehearsal-types';
 export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind, scenarioPatches } from './rehearsal-scenario';
 export { compactDuration } from './rehearsal-state';
+export { configKey } from './stream-flow';
 
 type Path = string;
 type Frame = { context: RehearsalContext; lane: number[]; iteration: number[]; delayMs: number; stopped: boolean };
@@ -34,7 +35,7 @@ function contextFor(definition: Definition, scenario: RehearsalScenario, overrid
   const kind = kinds[definition.trigger.type] ?? String(definition.trigger.params?.kind ?? '');
   const event = scenarioEvent(scenario, kind);
   const values: Record<string, string> = {
-    args, message: scenario.message ?? '', command: String(definition.trigger.params?.name ?? ''),
+    args, command: String(definition.trigger.params?.name ?? ''),
     ...Object.fromEntries(Object.entries(event).map(([key, value]) => [`event.${key}`, value])),
     ...scenario.values
   };
@@ -46,8 +47,7 @@ function addViewerValues(values: Record<string, string>, scenario: RehearsalScen
   if (scenario.user !== undefined) values.user = values.sender = scenario.user;
   if (scenario.userId !== undefined) values['user.id'] = values.userid = scenario.userId;
   if (scenario.user !== undefined) values['user.login'] = scenario.user.toLowerCase();
-  const target = args.split(/\s+/)[0]?.replace(/^@/, '');
-  if (target) values.touser = values.target = target;
+  values.touser = values.target = messageTarget(args, scenario.user ?? '');
 }
 
 function check(condition: Condition, run: Execution, frame: Frame): boolean {
@@ -164,22 +164,12 @@ function* wait(step: Step, run: Execution, frame: Frame): Generator<number, void
   yield ms;
 }
 
-function effect(step: Step, run: Execution, frame: Frame): void {
-  const params = step.action.params ?? {};
-  const expanded = Object.entries(params).map(([key, value]) => [key, expandTemplate(String(value), frame.context)] as const);
-  const detail = Object.fromEntries(expanded.map(([key, value]) => [key, value.text]));
-  const missing = [...new Set(expanded.flatMap(([, value]) => value.missing))].join(',');
-  const outcome = applyAction(step.action, frame.context);
-  emit(run, frame, { kind: 'effect', ...outcome, detail: { type: step.action.type, ...detail, missing, ...outcome.detail } });
-}
-
 function say(step: Step, run: Execution, frame: Frame): void {
-  const expanded = expandTemplate(String(step.action.params?.text ?? ''), frame.context);
-  const outcome = applyAction(step.action, frame.context);
-  const message = outcome.detail?.text ?? expanded.text;
+  const { detail: outcome } = applyAction(step.action, frame.context);
+  const message = outcome.text ?? '';
   const lines = message.split('\n').filter((line) => trimSpace(line) !== '').slice(0, MAX_RESPONSE_LINES);
   const style: Record<string, string> = step.action.type === 'announce' ? { mode: 'announce', color: String(step.action.params?.color || 'primary') } : {};
-  const detail = { ...style, missing: expanded.missing.join(','), ...(lines.length === 0 ? { code: 'empty' } : {}) };
+  const detail = { ...style, missing: outcome.missing, ...(lines.length === 0 ? { code: 'empty' } : {}) };
   emit(run, frame, { kind: 'say', status: lines.length > 0 ? 'ok' : 'skipped', lines, detail });
 }
 
@@ -199,7 +189,7 @@ function* execute(step: Step, run: Execution, frame: Frame): Generator<number, v
   const handler = EFFECTS[step.action.type];
   if (handler) return yield* handler(step, run, frame);
   if (['chat', 'announce', 'reply'].includes(step.action.type)) return say(step, run, frame);
-  effect(step, run, frame);
+  emit(run, frame, { kind: 'effect', ...applyAction(step.action, frame.context) });
 }
 
 function gates(definition: Definition, run: Execution, frame: Frame): boolean {

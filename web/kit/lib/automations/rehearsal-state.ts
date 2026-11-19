@@ -13,8 +13,9 @@ import type { RehearsalContext, RehearsalScenario, RehearsalState } from './rehe
 
 type Text = string;
 type Context = RehearsalContext;
-type ActionOutcome = { status: 'ok' | 'failed' | 'skipped'; detail?: Record<string, string> };
-type ActionHandler = (params: Params, context: Context) => ActionOutcome;
+type ExpandedParams = Record<Text, Text>;
+type ActionOutcome = { status: 'ok' | 'failed' | 'skipped'; detail?: ExpandedParams };
+type ActionHandler = (params: Params, context: Context, expanded: ExpandedParams) => ActionOutcome;
 type ConditionHandler = (params: Params, context: Context) => boolean;
 
 const text = (value: unknown): Text => String(value ?? '');
@@ -27,6 +28,12 @@ const hasViewer = (context: Context): boolean => Number(context.scenario.userId)
 
 function sanitized(value: Text | null): Text | null {
   return value === null ? null : value.replace(/[\x00-\x1f\x7f]/g, '').replace(/^[ /]+/, '');
+}
+
+export function messageTarget(args: Text, sender: Text): Text {
+  const first = args.match(/[^\p{White_Space}]+/u)?.[0] ?? '';
+  const target = args === '' ? sender : first.replace(/^@/, '');
+  return sanitized(target)!.replace(/^@/, '');
 }
 
 export function createState(scenario: RehearsalScenario): RehearsalState {
@@ -86,9 +93,10 @@ function randomSample(token: VarToken): Text | null {
 }
 
 function resolveValue(token: VarToken, context: Context): Text | null {
+  const value = context.scenario.values?.[token.key];
+  if (token.key === 'touser' || token.key === 'target') return value ?? '';
   const reader = TOKEN_READERS[token.name];
   if (reader) return sanitized(reader(token, context));
-  const value = context.scenario.values?.[token.key];
   if (value !== undefined) return sanitized(value);
   if (/^[1-9][0-9]*$/.test(token.name)) return positional(token, context);
   if (token.name === 'querystring') return queryEscape(context.scenario.args ?? '');
@@ -298,21 +306,21 @@ function splitPick({ input, arg1, arg2 }: Operands): Text | null {
   return parts[position - 1] ?? '';
 }
 
-function textStep(params: Params, context: Context): ActionOutcome {
-  const input = expand(params.input, context);
-  if (params.op === 'length') {
-    saveLocal(params, String([...input].length), context);
-    return ok();
-  }
-  const capOperand = (value: Text) => [...value].slice(0, 2 * MAX_TEMPLATE_LENGTH).join('');
-  const operands = { input: capOperand(input), arg1: capOperand(expand(params.arg1, context)), arg2: capOperand(expand(params.arg2, context)) };
-  const complex: Readonly<Record<string, (operands: Operands) => Text | null>> = { substring, split_pick: splitPick };
-  const handler = TEXT_OPS[text(params.op)] ?? complex[text(params.op)];
-  const result = handler?.(operands);
-  if (result === null || result === undefined) return failed('text_error');
+const COMPLEX_TEXT_OPS: Readonly<Record<Text, (operands: Operands) => Text | null>> = { substring, split_pick: splitPick };
+const capOperand = (value: Text = '') => [...value].slice(0, 2 * MAX_TEMPLATE_LENGTH).join('');
+
+function textResult(op: Text, expanded: ExpandedParams): Text | null | undefined {
+  if (op === 'length') return String([...(expanded.input ?? '')].length);
+  const handler = TEXT_OPS[op] ?? COMPLEX_TEXT_OPS[op];
+  return handler?.({ input: capOperand(expanded.input), arg1: capOperand(expanded.arg1), arg2: capOperand(expanded.arg2) });
+}
+
+function textStep(params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
+  const result = textResult(text(params.op), expanded);
+  if (result == null) return failed('text_error');
   saveLocal(params, result, context);
-  return params.op === 'split_pick' && trimSpace(operands.arg2).toLowerCase() === 'random'
-    ? { status: 'ok', detail: { random: '1' } } : ok();
+  const random = params.op === 'split_pick' && trimSpace(capOperand(expanded.arg2)).toLowerCase() === 'random';
+  return { status: 'ok', detail: { value: capped(result), ...(random ? { random: '1' } : {}) } };
 }
 
 type MathFunction = { min: number; max: number; apply: (values: number[]) => number };
@@ -466,21 +474,56 @@ function timerStep(params: Params, context: Context, mode: Text): ActionOutcome 
   return { status: 'ok', detail: { name, left: timerLeft(store[name], context)! } };
 }
 
-function replyStep(params: Params, context: Context): ActionOutcome {
-  const message = expand(params.text, context);
+function replyStep(_params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
+  const message = expanded.text ?? '';
   const viewer = context.scenario.user?.replace(/^@/, '') ?? '';
   const prefix = viewer && trimSpace(message) !== '' ? `@${viewer} ` : '';
   return { status: 'ok', detail: { text: prefix + message } };
 }
 
-function targetStep(params: Params, context: Context): ActionOutcome {
-  const login = expand(params.login, context).trim().replace(/^@/, '').trim();
-  return login === '' ? failed('empty_login') : { status: 'ok', detail: { login } };
+function requiredParams(fields: readonly Text[], code: Text, next: ActionHandler = ok): ActionHandler {
+  return (params, context, expanded) => fields.some((field) => !trimSpace(expanded[field] ?? ''))
+    ? failed(code) : next(params, context, expanded);
+}
+
+function liveGated(canRunOffline: (params: Params) => boolean = () => false): ActionHandler {
+  return (params, context) => context.scenario.live || canRunOffline(params)
+    ? ok() : { status: 'skipped', detail: { code: 'offline' } };
+}
+
+const resolvedTarget = (login: Text): ActionOutcome => ({ status: 'ok', detail: { login } });
+const loginText = (value: Text = ''): Text => trimSpace(trimSpace(value).replace(/^@/, ''));
+
+function scenarioViewer(context: Context): ActionOutcome {
+  if (!hasViewer(context)) return failed('no_viewer');
+  return resolvedTarget(loginText(context.scenario.user) || context.scenario.userId!);
+}
+
+function mentionedTarget(scenario: RehearsalScenario): ActionOutcome {
+  const mention = scenario.message?.match(/(?<![\w@])@(\w+)/)?.[1];
+  return mention ? resolvedTarget(mention) : failed('no_target');
+}
+
+function pickedTarget(params: Params): ActionOutcome {
+  const id = text(params.user_id);
+  return /^0*[1-9]\d*$/.test(id) ? resolvedTarget(id) : failed('no_target');
+}
+
+function targetStep(): ActionHandler {
+  const loginStep = requiredParams(['login'], 'empty_login', (_params, _context, expanded) => resolvedTarget(expanded.login!));
+  return (params, context, expanded) => {
+    switch (params.who) {
+      case 'viewer': return scenarioViewer(context);
+      case 'mention': return mentionedTarget(context.scenario);
+      case 'user': return pickedTarget(params);
+      default: return loginStep(params, context, { ...expanded, login: loginText(expanded.login) });
+    }
+  };
 }
 
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   reply: replyStep,
-  shoutout: targetStep, timeout: targetStep,
+  shoutout: targetStep(), timeout: targetStep(),
   var_set: (params, context) => writeVariable(params, context, 'set'),
   var_add: (params, context) => writeVariable(params, context, 'add'),
   var_delete: (params, context) => writeVariable(params, context, 'delete'),
@@ -498,9 +541,20 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   countdown_start: (params, context) => timerStep(params, context, 'countdown_start'),
   countdown_add: (params, context) => timerStep(params, context, 'countdown_add'),
   cooldown_add: (params, context) => timerStep(params, context, 'cooldown_add'),
-  lights: (params, context) => params.any_time === true || context.scenario.live ? ok() : { status: 'skipped', detail: { code: 'offline' } }
+  lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true))
 };
 
-export function applyAction(action: Action, context: Context): ActionOutcome {
-  return ACTIONS[action.type]?.(action.params ?? {}, context) ?? ok();
+function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> {
+  if (!Array.isArray(value)) return expandTemplate(text(value), context);
+  const items = value.map((item) => expandTemplate(text(item), context));
+  return { text: items.map((item) => item.text).join('\n'), missing: items.flatMap((item) => item.missing) };
+}
+
+export function applyAction(action: Action, context: Context): ActionOutcome & { detail: ExpandedParams } {
+  const params = action.params ?? {};
+  const values = Object.entries(params).map(([key, value]) => [key, expandParam(value, context)] as const);
+  const expanded = Object.fromEntries(values.map(([key, value]) => [key, value.text]));
+  const missing = [...new Set(values.flatMap(([, value]) => value.missing))].join(',');
+  const outcome = ACTIONS[action.type]?.(params, context, expanded) ?? ok();
+  return { ...outcome, detail: { type: action.type, ...expanded, missing, ...outcome.detail } };
 }

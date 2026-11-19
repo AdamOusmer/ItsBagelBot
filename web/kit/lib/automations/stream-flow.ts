@@ -29,7 +29,7 @@ const STREAM_FIELDS: Record<string, Fields> = {
   branded_content: { on: 'toggle' }
 };
 
-const configKey = (param: string): string => (param === 'login' ? 'target' : param);
+export const configKey = (param: string): string => (param === 'login' ? 'target' : param);
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 function parameter(kind: ValueKind, value: unknown): string | number | boolean | string[] {
