@@ -76,6 +76,9 @@ func (l *autoLoyalty) BalanceAdjustViewer(_ context.Context, a BalanceAdjustment
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.adjusts = append(l.adjusts, a)
+	if a.ViewerLogin == "" {
+		return loyaltyrpc.Balance{}, false, fmt.Errorf("missing viewer login")
+	}
 	return loyaltyrpc.Balance{}, true, nil
 }
 

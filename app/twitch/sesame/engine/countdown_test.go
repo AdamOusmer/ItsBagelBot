@@ -28,6 +28,7 @@ type fakeCountdown struct {
 	name, operation string
 	seconds         int64
 	calls           int
+	acks            int
 	progress        map[string]string
 	progressErr     error
 	writeErr        error
@@ -47,7 +48,10 @@ func (s *fakeCountdown) PeekCountdown(context.Context, CountdownRef) (CountdownR
 func (s *fakeCountdown) ClaimCountdown(context.Context) (CountdownDue, bool, error) {
 	return CountdownDue{}, false, nil
 }
-func (s *fakeCountdown) AckCountdown(context.Context, CountdownDue) error { return nil }
+func (s *fakeCountdown) AckCountdown(context.Context, CountdownDue) error {
+	s.acks++
+	return nil
+}
 func (s *fakeCountdown) ProgressCountdown(_ context.Context, _ CountdownDue, checkpoint CountdownCheckpoint) error {
 	if s.progressErr != nil {
 		return s.progressErr
@@ -100,6 +104,22 @@ func TestCountdownCompletionMatchesNameAndModule(t *testing.T) {
 	off := newCountdownFixture(t, nil, chatAutomation("a", "finish", "countdown", `{"name":"subathon"}`))
 	require.NoError(t, off.p.fireCountdown(ctx, CountdownDue{BroadcasterID: off.bid, Name: "subathon", Generation: "g1"}))
 	assert.Zero(t, off.chatCount())
+}
+
+func TestCountdownDeliveryAcknowledgesViewerlessPoints(t *testing.T) {
+	a := testAutomation("finish", "countdown", obj{"name": "subathon"})
+	a.Definition.Actions = []automation.Action{act("points_add", obj{"amount": 5})}
+	fx := newAutoFixture(a)
+	fx.p.proj = fakeReader{user: projection.User{IsActive: true}, modules: automationOn()}
+	store := &fakeCountdown{}
+	fx.p.automations.Countdowns = store
+
+	err := fx.p.deliverCountdown(t.Context(), CountdownDue{BroadcasterID: 1, Name: "subathon", Generation: "g1"})
+	require.NoError(t, err)
+	records := fx.runs.records()
+	require.Len(t, records, 1)
+	assert.Equal(t, []string{"0:points_add:failed:no_viewer"}, statuses(records[0]))
+	assert.Equal(t, [2]int{1, 0}, [2]int{store.acks, fx.loyalty.adjustCount()})
 }
 
 func TestCountdownAndCooldownTemplateStateAreIndependent(t *testing.T) {

@@ -233,16 +233,22 @@ func (x *actionExec) queue(o module.Output) error {
 		return skipped("empty")
 	}
 	x.pending = append(x.pending, o)
-	return nil
+	if o.Type == outgress.TypeChat {
+		return nil
+	}
+	if o.ActionSlot != "" {
+		x.run.Record.Actions[len(x.run.Record.Actions)-1].Slot = o.ActionSlot
+		return statusError{automationrpc.StatusSent, rewardQueued}
+	}
+	return statusError{status: automationrpc.StatusSent}
 }
 
 func (x *actionExec) queueText(o module.Output) error {
-	start := len(x.pending)
-	if o.Type == outgress.TypeChat {
-		x.pending = x.p.appendChatLines(x.pending, &o)
-	} else if x.p.prepareCommand(&o) {
-		x.pending = append(x.pending, o)
+	if o.Type != outgress.TypeChat {
+		return x.queue(o)
 	}
+	start := len(x.pending)
+	x.pending = x.p.appendChatLines(x.pending, &o)
 	if len(x.pending) == start {
 		return skipped("empty")
 	}

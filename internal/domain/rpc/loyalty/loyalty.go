@@ -10,6 +10,8 @@ import (
 
 const InvalidateScope = invalidate.ScopeLoyalty
 
+const CounterTargetRequired = "counter_target_required"
+
 type Request struct {
 	UserID         string `json:"user_id"`
 	ViewerID       string `json:"viewer_id,omitempty"`
@@ -19,6 +21,7 @@ type Request struct {
 	NewName        string `json:"new_name,omitempty"`
 	Scope          string `json:"scope,omitempty"`
 	Command        string `json:"command,omitempty"`
+	RequireTarget  bool   `json:"require_target,omitempty"`
 	Value          int64  `json:"value,omitempty"`
 	Won            bool   `json:"won,omitempty"`
 	CounterValue   string `json:"counter_value,omitempty"`

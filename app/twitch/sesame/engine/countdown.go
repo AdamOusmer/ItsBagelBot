@@ -271,7 +271,22 @@ func countdownRunError(ctx context.Context, run *AutomationRun) error {
 }
 
 func countdownRunFailed(run *AutomationRun) bool {
-	return run.Record.Outcome == automationrpc.OutcomeFailed || run.Record.Reason == queueReasonFull || run.Record.Reason == queueReasonTimeout
+	switch run.Record.Reason {
+	case queueReasonFull, queueReasonTimeout:
+		return true
+	}
+	return run.Record.Outcome == automationrpc.OutcomeFailed && !countdownOnlyMissingViewer(run.Record.Actions)
+}
+
+func countdownOnlyMissingViewer(actions []automationrpc.ActionRecord) bool {
+	_, bad := tallyRecords(actions)
+	missingViewer := 0
+	for _, action := range actions {
+		if action.Status == automationrpc.StatusFailed && action.Detail == noViewer {
+			missingViewer++
+		}
+	}
+	return missingViewer > 0 && missingViewer == bad
 }
 
 func countdownStoreFailed(run *AutomationRun) bool {

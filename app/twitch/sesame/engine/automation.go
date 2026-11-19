@@ -54,6 +54,7 @@ type AutomationRun struct {
 	Args                      string
 	ArgMap                    map[string]string
 	Event                     map[string]string
+	redemption                *redemptionSettlement
 	Source                    string
 	ID                        string
 	Identity                  string
@@ -113,11 +114,15 @@ func (p *Pipeline) runAutomation(ctx context.Context, run *AutomationRun, emit m
 	x := p.newActionExec(ctx, run, emit)
 	defer releaseActionExec(x)
 	if !x.countdownConditions() {
+		run.settleRedemption(false, emit)
 		return
 	}
-	if p.admitToQueue(ctx, run) {
-		x.execute()
+	if !p.admitToQueue(ctx, run) {
+		run.refundIfRefused(emit)
+		return
 	}
+	run.settleRedemption(true, emit)
+	x.execute()
 }
 
 func (x *actionExec) countdownConditions() bool {

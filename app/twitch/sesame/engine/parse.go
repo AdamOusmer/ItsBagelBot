@@ -5,17 +5,22 @@ package engine
 
 import "strings"
 
-func parseCommand(text string) (name, args string, ok bool) {
+type commandInput struct {
+	name string
+	args string
+}
+
+func parseCommand(text string) (commandInput, bool) {
 	trimmed := strings.TrimLeft(text, " ")
 	if !strings.HasPrefix(trimmed, "!") {
-		return "", "", false
+		return commandInput{}, false
 	}
 	body := strings.TrimPrefix(trimmed, "!")
-	name, args, _ = strings.Cut(body, " ")
+	name, args, _ := strings.Cut(body, " ")
 	if name == "" {
-		return "", "", false
+		return commandInput{}, false
 	}
-	return strings.ToLower(name), strings.TrimSpace(args), true
+	return commandInput{name: name, args: strings.TrimSpace(args)}, true
 }
 
 func splitTrailingDigits(s string) (base, digits string) {

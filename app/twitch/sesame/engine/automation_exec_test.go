@@ -30,6 +30,7 @@ func TestAutomationOutputActions(t *testing.T) {
 		{"chat expands args", act("chat", obj{"text": "hi {args} {arg:k}"}), []string{`chat {"broadcaster_id":"1","message":"hi hello v v"}`}},
 		{"chat multi-line is a batch", act("chat", obj{"text": "one\n\ntwo"}), []string{`chat {"broadcaster_id":"1","message":"one"}`, `chat {"broadcaster_id":"1","message":"two"}`}},
 		{"announce color", act("announce", obj{"text": "big news", "color": "green"}), []string{`announce color=green {"message":"big news"}`}},
+		{"raid", act("raid", obj{"login": "target"}), []string{`raid_start to=target {}`}},
 		{"timeout", act("timeout", obj{"login": "@Target", "seconds": 60, "reason": "spam {args}"}), []string{`timeout {"data":{"user_id":"99","duration":60,"reason":"spam hello v"}}`}},
 		{"ban", act("ban", obj{"login": "target", "reason": "bye"}), []string{`ban {"data":{"user_id":"99","reason":"bye"}}`}},
 		{"warn", act("warn", obj{"login": "target", "reason": "careful"}), []string{`warn {"data":{"user_id":"99","reason":"careful"}}`}},
@@ -49,6 +50,11 @@ func TestAutomationOutputActions(t *testing.T) {
 			rec := fx.run(t, "main", "req-"+tc.name, args)
 			assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome, statuses(rec))
 			assert.Equal(t, tc.want, fx.described(t))
+			status := automationrpc.StatusSent
+			if tc.action.Type == "chat" {
+				status = automationrpc.StatusOK
+			}
+			assert.Equal(t, []automationrpc.ActionRecord{{Type: tc.action.Type, Status: status}}, rec.Actions)
 		})
 	}
 }
@@ -61,6 +67,12 @@ func TestAModerationTargetWithControlCharactersIsRefused(t *testing.T) {
 	assert.Equal(t, "failed", rec.Actions[0].Status, statuses(rec))
 	assert.Equal(t, "empty_login", rec.Actions[0].Detail)
 	assert.Empty(t, fx.described(t))
+}
+
+func TestAutomationQueuedStepCountsAsSuccess(t *testing.T) {
+	fx := newAutoFixture(manual("main", act("raid", obj{"login": "target"}), act("delete_message", obj{})))
+	rec := fx.run(t, "main", "mixed-output-result", nil)
+	assert.Equal(t, automationrpc.OutcomePartial, rec.Outcome, statuses(rec))
 }
 
 func TestGossipCallsKeepTheRefusalCode(t *testing.T) {

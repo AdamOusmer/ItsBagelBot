@@ -19,7 +19,7 @@ import (
 )
 
 func TestLoopEffectRunsEveryIterationAndRedeliveryRepeatsNone(t *testing.T) {
-	fx := newAutoFixture(manual("main", loopOf("3", act("points_add", obj{"login": "", "amount": 5}))))
+	fx := newAutoFixture(manual("main", loopOf("3", act("points_add", obj{"login": "target", "amount": 5}))))
 	first := fx.run(t, "main", "req-loop", nil)
 	assert.Equal(t, 3, fx.loyalty.adjustCount(), statuses(first))
 	assert.Equal(t, automationrpc.OutcomeOK, first.Outcome)
@@ -34,7 +34,7 @@ func TestLoopEffectRunsEveryIterationAndRedeliveryRepeatsNone(t *testing.T) {
 }
 
 func TestNestedLoopEffectKeysStayDistinctAndStable(t *testing.T) {
-	fx := newAutoFixture(manual("main", loopOf("2", loopOf("3", act("points_add", obj{"login": "", "amount": 1})))))
+	fx := newAutoFixture(manual("main", loopOf("2", loopOf("3", act("points_add", obj{"login": "target", "amount": 1})))))
 	fx.run(t, "main", "req-nested", nil)
 	assert.Equal(t, 6, fx.loyalty.adjustCount())
 	fx.run(t, "main", "req-nested", nil)

@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	automationsrpc "ItsBagelBot/internal/domain/rpc/automations"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
@@ -95,6 +94,7 @@ type autoRig struct {
 	cooldown    CooldownStore
 	long        LongCooldownStore
 	loyalty     LoyaltyStore
+	dedup       *EventDedup
 	stream      StreamInfoLookup
 	intN        int
 	pub         *fakePublisher
@@ -137,6 +137,7 @@ func (r autoRig) pipeline() (*Pipeline, *recordingRunLog) {
 		Cooldown:   cooldown,
 		Pub:        pub,
 		Loyalty:    r.loyalty,
+		Dedup:      r.dedup,
 		StreamInfo: r.stream,
 		Log:        zap.NewNop(),
 		Automations: AutomationDeps{
@@ -214,6 +215,11 @@ func TestProcessAutomationCommandRouting(t *testing.T) {
 		{"exact accepts bare name", autoRig{automations: []automation.Automation{hi(map[string]any{"match": "exact"})}}, "!hi", []string{"!hi:ok"}},
 		{"alias", autoRig{automations: []automation.Automation{hi(map[string]any{"aliases": []string{"!hello"}})}}, "!hello", []string{"!hi:ok"}},
 		{"case insensitive", autoRig{automations: []automation.Automation{hi(map[string]any{})}}, "!HI", []string{"!hi:ok"}},
+		{"case sensitive matches typed name", autoRig{automations: []automation.Automation{command("!Hug", obj{"case_sensitive": true})}}, "!Hug", []string{"!Hug:ok"}},
+		{"case sensitive rejects different case", autoRig{automations: []automation.Automation{command("!Hug", obj{"case_sensitive": true})}}, "!hug", nil},
+		{"case insensitive accepts different case", autoRig{automations: []automation.Automation{command("!Hug", obj{})}}, "!hug", []string{"!Hug:ok"}},
+		{"case sensitive alias matches", autoRig{automations: []automation.Automation{command("!Hug", obj{"case_sensitive": true, "aliases": []string{"!Embrace"}})}}, "!Embrace", []string{"!Hug:ok"}},
+		{"case sensitive alias rejects different case", autoRig{automations: []automation.Automation{command("!Hug", obj{"case_sensitive": true, "aliases": []string{"!Embrace"}})}}, "!embrace", nil},
 		{"other name", autoRig{automations: []automation.Automation{hi(map[string]any{})}}, "!bye", nil},
 		{"args reach conditions", autoRig{automations: []automation.Automation{hi(map[string]any{}, cond("arg_regex", map[string]any{"pattern": "^abc$"}))}}, "!hi abc", []string{"!hi:ok"}},
 		{"args fail conditions", autoRig{automations: []automation.Automation{hi(map[string]any{}, cond("arg_regex", map[string]any{"pattern": "^abc$"}))}}, "!hi xyz", []string{"!hi:skipped:condition:0:arg_regex"}},
@@ -478,38 +484,6 @@ func TestRunNamedCountsRPCViewerAsBroadcaster(t *testing.T) {
 			reply := p.RunNamed(context.Background(), automationsrpc.RunRequest{BroadcasterID: "123", Name: "t", Source: "api", RequestID: "req-1"})
 			require.True(t, reply.Accepted)
 			assert.Equal(t, []string{tc.want}, runs.summary())
-		})
-	}
-}
-
-func TestProcessRewardRedemptionOutcome(t *testing.T) {
-	redeem := `{"id":"red-1","user_id":"7","user_login":"bob","user_name":"Bob","reward":{"id":"r-1","title":"Hydrate","cost":100}}`
-	cases := []struct {
-		name     string
-		onRedeem string
-		other    string
-		want     []string
-	}{
-		{"fulfill", "fulfill", "r-1", []string{outgress.RedemptionFulfilled}},
-		{"cancel", "cancel", "r-1", []string{outgress.RedemptionCanceled}},
-		{"leave in queue", "leave", "r-1", nil},
-		{"unset keeps the old behaviour", "", "r-1", nil},
-		{"another reward is never resolved", "fulfill", "r-2", nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			pub := &fakePublisher{}
-			a := testAutomation("t", "reward", map[string]any{"reward_id": tc.other, "on_redeem": tc.onRedeem})
-			p, _ := autoRig{automations: []automation.Automation{a}, pub: pub}.pipeline()
-			process(t, p, eventEnv("channel.channel_points_custom_reward_redemption.add", redeem))
-			var got []string
-			for _, c := range pub.snapshot() {
-				if c.msg.Type == outgress.TypeRedemptionUpdate {
-					assert.Equal(t, "red-1", c.msg.RedemptionID)
-					got = append(got, c.msg.Status)
-				}
-			}
-			assert.Equal(t, tc.want, got)
 		})
 	}
 }

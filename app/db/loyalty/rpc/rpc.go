@@ -313,8 +313,13 @@ func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Reques
 	if err != nil {
 		return l.fail("loyalty counter.set", err)
 	}
-	target := repository.SetTarget{ViewerID: viewerID, Command: req.Command, ViewerLogin: req.ViewerLogin, Value: value}
+	target := repository.SetTarget{
+		ViewerID: viewerID, Command: req.Command, ViewerLogin: req.ViewerLogin, Value: value, RequireTarget: req.RequireTarget,
+	}
 	found, err := l.repo.CounterSet(ctx, repository.CounterRef{UserID: userID, Name: req.Name}, target)
+	if errors.Is(err, repository.ErrCounterTargetRequired) {
+		return refuse(domainrpc.CodeInvalid, loyaltyrpc.CounterTargetRequired)
+	}
 	if err == nil && found {
 		l.counterChanged(userID, req.Name)
 	}
