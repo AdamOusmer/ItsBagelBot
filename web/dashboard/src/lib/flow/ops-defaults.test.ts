@@ -59,7 +59,7 @@ const defaults = {
   'reply.countdown_start': { seconds: 3_600 },
   'reply.countdown_add': { seconds: 60 },
   'reply.cooldown_add': { seconds: 60 },
-  'reply.lights': { mode: 'color', liveOnly: true },
+  'reply.lights': { mode: 'color', kelvin: 4000, liveOnly: true },
   'reply.wait': { seconds: 5 },
   'reply.loop': { times: '3' },
   'reply.var_set': { scope: 'channel' },

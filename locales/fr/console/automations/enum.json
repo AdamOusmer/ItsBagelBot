@@ -79,7 +79,10 @@
     "followers": "Personnes qui suivent la chaîne",
     "slow": "Mode lent",
     "subscribers": "Abonnés uniquement",
-    "unique": "Messages uniques"
+    "unique": "Messages uniques",
+    "white": "Blanc",
+    "on": "Allumer",
+    "off": "Éteindre"
   },
   "kind": {
     "text": "Texte",

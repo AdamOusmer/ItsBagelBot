@@ -28,6 +28,7 @@ test.each([
   ['loop', 'reply.loop'],
   ['add points', 'reply.points'],
   ['ligth', 'reply.lights'],
+  ['warmth', 'reply.lights'],
   ['  SEND, méssage! ', 'reply.chat']
 ])('%s ranks %s first', (query, type) => {
   expect(types(query)[0]).toBe(type);
@@ -40,7 +41,7 @@ test.each([
   ['modules', []],
   ['zzzz', []],
   ['send zzzz', []],
-  ['wa', ['reply.wait', 'cond.cooldown']],
+  ['wa', ['reply.wait', 'reply.lights', 'cond.cooldown']],
   ['wi', ['reply.counter', 'reply.prediction_end', 'reply.text']],
   ['waaitt', []],
   ['?!', []]

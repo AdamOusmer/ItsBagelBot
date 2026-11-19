@@ -10,6 +10,7 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
+  import Slider from '@bagel/ui/svelte/Slider.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import VarCard from '@bagel/ui/svelte/VarCard.svelte';
@@ -346,6 +347,25 @@
                   onchange={(e) => setSelect(field.key, e.currentTarget.value)}
                 />
               </Field>
+            {:else if field.type === 'slider'}
+              {@const value = Number(node.config[field.key] ?? field.initial ?? field.min)}
+              {@const valueText = field.unit ? `${value} ${field.unit}` : String(value)}
+              <Field {label} {tag} {error} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
+                <div class="slider-row">
+                  <Slider
+                    id="{uid}-{field.key}"
+                    min={field.min}
+                    max={field.max}
+                    step={field.step}
+                    {value}
+                    aria-valuetext={valueText}
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? `${uid}-${field.key}-error` : undefined}
+                    oninput={(e) => (node.config[field.key] = e.currentTarget.valueAsNumber)}
+                  />
+                  <span class="unit slider-value bb-fit-box" aria-hidden="true"><bb-fit data-fit>{valueText}</bb-fit></span>
+                </div>
+              </Field>
             {:else if field.type === 'number'}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <Input
@@ -353,6 +373,7 @@
                   type="number"
                   min={field.min}
                   max={field.max}
+                  {placeholder}
                   value={node.config[field.key] === undefined ? '' : Number(node.config[field.key])}
                   oninput={(e) => {
                     const raw = e.currentTarget.value;
@@ -617,6 +638,17 @@
   .unit {
     font-size: 14px;
     color: rgba(var(--bb-white-rgb), 0.92);
+  }
+  .slider-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 64px;
+    align-items: center;
+    gap: 12px;
+  }
+  .slider-value {
+    text-align: end;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
   .toggle {
     display: flex;

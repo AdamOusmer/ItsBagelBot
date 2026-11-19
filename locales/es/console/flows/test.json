@@ -108,5 +108,8 @@
     "rewardId": "ID de recompensa",
     "name": "Nombre de cuenta atrás",
     "amount": "bits"
-  }
+  },
+  "lightsRestore": "{light} vuelve a su estado anterior",
+  "lightsRestoreMany": "{light} vuelven a su estado anterior",
+  "lightsRestoreFallback": "Las luces"
 }

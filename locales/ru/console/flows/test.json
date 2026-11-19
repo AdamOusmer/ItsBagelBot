@@ -108,5 +108,8 @@
     "rewardId": "ID награды",
     "name": "Имя отсчёта",
     "amount": "bits"
-  }
+  },
+  "lightsRestore": "{light} возвращается в прежнее состояние",
+  "lightsRestoreMany": "{light} возвращаются в прежнее состояние",
+  "lightsRestoreFallback": "Светильники"
 }

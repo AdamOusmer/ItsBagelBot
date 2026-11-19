@@ -79,7 +79,10 @@
     "followers": "Followers only",
     "slow": "Slow mode",
     "subscribers": "Subscribers only",
-    "unique": "Unique messages"
+    "unique": "Unique messages",
+    "white": "White",
+    "on": "On",
+    "off": "Off"
   },
   "kind": {
     "text": "Text",

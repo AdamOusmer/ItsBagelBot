@@ -4,7 +4,7 @@ import type { MessageKey } from '@bagel/kit';
 import { compactDuration } from '@bagel/kit/automations';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
-import { LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
+import { INITIAL_LIGHT_KELVIN, LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
 import { awaitingSetup, configText } from './setup';
 
 const COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
@@ -150,10 +150,39 @@ function pointsLine(t: Translate, n: FlowNode): string {
   return amount > 0 ? t('flows.line.pointsGive', { amount: points(t, amount) }) : t('flows.line.pointsTake', { amount: points(t, -amount) });
 }
 
-function lightsLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
-  const light = text(n, 'deviceName') || t('flows.line.lightsFallback');
-  if (text(n, 'mode') !== 'scene') return given(text(n, 'color'), (color) => t('flows.line.lightsColor', { light, color }));
-  return given(optionLabel(t, spec, n, 'scene'), (scene) => t('flows.line.lightsScene', { light, scene }));
+const LIGHT_LINES: Readonly<Record<string, MessageKey>> = Object.freeze({
+  color: 'flows.line.lightsColor',
+  scene: 'flows.line.lightsScene',
+  white: 'flows.line.lightsWhite',
+  on: 'flows.line.lightsOn',
+  off: 'flows.line.lightsOff'
+});
+
+export function lightGroupLabel(t: Translate, name: string, count: number): string {
+  const light = name || t('flows.line.lightsFallback');
+  return count > 0 ? t('flows.line.lightsMore', { light, count }) : light;
+}
+
+function lightsLine(t: Translate, node: FlowNode, spec: NodeSpec): string {
+  const selected = text(node, 'mode');
+  const mode = Object.hasOwn(LIGHT_LINES, selected) ? selected : 'color';
+  const color = text(node, 'color');
+  const scene = optionLabel(t, spec, node, 'scene');
+  if (mode === 'color' && !color) return '';
+  if (mode === 'scene' && !scene) return '';
+
+  const count = text(node, 'extraLights').split(',').filter(Boolean).length;
+  const light = lightGroupLabel(t, text(node, 'deviceName'), count);
+  const kelvin = num(node, 'kelvin') || INITIAL_LIGHT_KELVIN;
+  const line = t(LIGHT_LINES[mode]!, { light, color, scene, kelvin });
+  return lightsSuffix(t, node, { line, mode });
+}
+
+function lightsSuffix(t: Translate, n: FlowNode, { line, mode }: { line: string; mode: string }): string {
+  const percent = mode === 'off' ? 0 : num(n, 'brightness');
+  const seconds = num(n, 'holdS');
+  const bright = percent ? t('flows.line.lightsBrightness', { line, percent }) : line;
+  return seconds ? t('flows.line.lightsHold', { line: bright, seconds }) : bright;
 }
 
 function varAddLine(t: Translate, n: FlowNode): string {

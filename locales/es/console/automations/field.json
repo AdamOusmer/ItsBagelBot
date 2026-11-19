@@ -82,5 +82,8 @@
   "choices": "Opciones (una por línea)",
   "outcomes": "Resultados (uno por línea)",
   "winner": "Número del resultado ganador",
-  "resolution": "Mensaje de resolución (opcional)"
+  "resolution": "Mensaje de resolución (opcional)",
+  "kelvin": "Temperatura de color",
+  "brightness": "Brillo",
+  "hold_s": "Volver después de"
 }

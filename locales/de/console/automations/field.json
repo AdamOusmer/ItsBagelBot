@@ -82,5 +82,8 @@
   "choices": "Antworten (eine pro Zeile)",
   "outcomes": "Ergebnisse (eines pro Zeile)",
   "winner": "Nummer des Gewinnergebnisses",
-  "resolution": "Entscheidungsnachricht (optional)"
+  "resolution": "Entscheidungsnachricht (optional)",
+  "kelvin": "Farbtemperatur",
+  "brightness": "Helligkeit",
+  "hold_s": "Zurück nach"
 }

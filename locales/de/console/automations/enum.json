@@ -79,7 +79,10 @@
     "followers": "Nur Follower",
     "slow": "Langsamer Modus",
     "subscribers": "Nur Abonnenten",
-    "unique": "Einzigartige Nachrichten"
+    "unique": "Einzigartige Nachrichten",
+    "white": "Weiß",
+    "on": "Ein",
+    "off": "Aus"
   },
   "kind": {
     "text": "Text",

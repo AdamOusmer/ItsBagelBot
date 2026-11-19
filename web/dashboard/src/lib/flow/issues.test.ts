@@ -27,6 +27,8 @@ const mappings = [
   ['reply.lights', 'params.scene_type', 'scene'], ['reply.lights', 'params.scene_instance', 'scene'],
   ['reply.lights', 'params.scene_id', 'scene'], ['reply.lights', 'params.scene_name', 'scene'],
   ['reply.lights', 'params.any_time', 'liveOnly'],
+  ['reply.lights', 'params.kelvin', 'kelvin'], ['reply.lights', 'params.brightness', 'brightness'],
+  ['reply.lights', 'params.hold_s', 'holdS'],
   ['reply.reward_update', 'params.reward_id', 'reward'], ['reply.reward_update', 'params.enabled', 'setEnabled'],
   ['reply.reward_update', 'params.reset_on_stream_end', 'reset'],
   ['reply.shoutout', 'params.login', 'target'], ['reply.timeout', 'params.login', 'target'],

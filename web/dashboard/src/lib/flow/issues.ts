@@ -17,7 +17,8 @@ const PARAM_FIELDS: Record<string, string> = {
   device_name: 'device', sku: 'device', extra_lights: 'device', any_time: 'liveOnly',
   scene_id: 'scene', scene_name: 'scene', scene_type: 'scene', scene_instance: 'scene', scene_value: 'scene',
   global_s: 'seconds', user_s: 'seconds', ms: 'seconds', allow: 'login', allow_ids: 'login', userId: 'login', user_id: 'login',
-  enabled: 'setEnabled', reset_on_stream_end: 'reset'
+  enabled: 'setEnabled', reset_on_stream_end: 'reset',
+  kelvin: 'kelvin', brightness: 'brightness', hold_s: 'holdS'
 };
 
 const NODE_FIELDS: Record<string, Record<string, string>> = {

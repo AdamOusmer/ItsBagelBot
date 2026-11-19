@@ -79,7 +79,10 @@
     "followers": "Somente seguidores",
     "slow": "Modo lento",
     "subscribers": "Somente inscritos",
-    "unique": "Mensagens únicas"
+    "unique": "Mensagens únicas",
+    "white": "Branco",
+    "on": "Ligar",
+    "off": "Desligar"
   },
   "kind": {
     "text": "Texto",

@@ -200,6 +200,17 @@ test.each([
   expect([step?.id, step?.kind, step?.status, step?.text]).toEqual(['s', 'effect', 'ok', text]);
 });
 
+test.each<{ config: FlowNode['config']; text: string }>([
+  { config: { deviceName: 'Desk' }, text: 'Desk goes back' },
+  { config: { deviceName: 'Desk', extraLights: 'wall/H6159,side/H6008' }, text: 'Desk and 2 more go back' },
+  { config: {}, text: 'The lights go back' }
+])('shows "$text" when the lights restore', ({ config, text }) => {
+  const lights = n('s', 'reply.lights', { device: 'desk', sku: 'H6159', mode: 'on', holdS: 5, ...config });
+  const flow = flowOf([trigger, lights], [e('t', 'next', 's')]);
+  const step = run(flow, { scenario: { live: true } }).steps.at(-1);
+  expect([step?.id, step?.kind, step?.atMs, step?.text]).toEqual(['s', 'lights_restore', 5000, text]);
+});
+
 test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'])('stale viewer patches cannot affect %s', (type) => {
   const result = run(flowOf([n('t', type, { name: 'timer' }), n('s', 'reply.points', { amount: 10 })], [e('t', 'next', 's')]), {
     scenario: { user: 'Old', userId: '42', message: '!old', bits: 50 }

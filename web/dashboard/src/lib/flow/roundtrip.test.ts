@@ -57,6 +57,9 @@ function fill(config: Config, field: FieldSpec): void {
     case 'duration':
       config[field.key] = field.max;
       break;
+    case 'slider':
+      config[field.key] = field.max - field.step;
+      break;
     case 'toggle':
     case 'select':
       break;
