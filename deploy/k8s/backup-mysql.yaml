@@ -27,16 +27,18 @@ data:
     #!/bin/sh
     set -eu
     umask 077
+    # A retried container reuses the pod's volumes, so start from empty ones.
+    rm -f /work/* /keys/*
     cd /work
 
-    printf '%s\n' "$DB_CA_CERT" > ca.pem
-    printf '%s\n' "$BACKUP_CERT_PEM" > pub.pem
+    printf '%s\n' "$DB_CA_CERT" > /keys/ca.pem
+    printf '%s\n' "$BACKUP_CERT_PEM" > /keys/pub.pem
 
     export MYSQL_PWD="$DB_PASS"
     # VERIFY_IDENTITY works since the 2026-08-27 BYOC cert: the leaf carries an
     # IP SAN for the NLB address in DB_HOST. VERIFY_CA before that (the
     # service-defined cert had no SAN at all, identity was uncheckable).
-    MY="--host=$DB_HOST --port=$DB_PORT --user=$DB_USER --ssl-ca=ca.pem --ssl-mode=VERIFY_IDENTITY"
+    MY="--host=$DB_HOST --port=$DB_PORT --user=$DB_USER --ssl-ca=/keys/ca.pem --ssl-mode=VERIFY_IDENTITY"
 
     # mTLS identity for the REQUIRE X509 account flip (client cert issued by
     # the ItsBagelBot HeatWave Root CA). Optional as a pair so this deploys
@@ -44,9 +46,9 @@ data:
     if [ -n "${DB_CLIENT_CERT:-}" ] || [ -n "${DB_CLIENT_KEY:-}" ]; then
       [ -n "${DB_CLIENT_CERT:-}" ] && [ -n "${DB_CLIENT_KEY:-}" ] || {
         echo "DB_CLIENT_CERT and DB_CLIENT_KEY must be set together" >&2; exit 1; }
-      printf '%s\n' "$DB_CLIENT_CERT" > client-cert.pem
-      printf '%s\n' "$DB_CLIENT_KEY" > client-key.pem
-      MY="$MY --ssl-cert=client-cert.pem --ssl-key=client-key.pem"
+      printf '%s\n' "$DB_CLIENT_CERT" > /keys/client-cert.pem
+      printf '%s\n' "$DB_CLIENT_KEY" > /keys/client-key.pem
+      MY="$MY --ssl-cert=/keys/client-cert.pem --ssl-key=/keys/client-key.pem"
     fi
 
     # Enumerate schemas instead of hardcoding them: services onboard new
@@ -68,6 +70,14 @@ data:
 
     STAMP=$(date -u +%Y%m%dT%H%M%SZ)
     OUT="mysql-${STAMP}.sql.gz.enc"
+
+    # Plaintext only ever streams through pipes: the dump is compressed and
+    # encrypted in one pass, and only ciphertext lands on the node disk.
+    # A second reader of the compressed stream checks the trailer mysqldump
+    # always writes and that the gzip stream is whole (sh has no pipefail).
+    mkfifo /keys/check.fifo
+    { gzip -dc; echo "gzip-exit=$?"; } < /keys/check.fifo | tail -6 > /keys/tail.txt &
+    CHECK=$!
 
     {
       echo "-- itsbagelbot mysql logical backup ${STAMP}"
@@ -92,20 +102,17 @@ data:
         --hex-blob \
         --no-tablespaces \
         --set-gtid-purged=COMMENTED
-    } | gzip -9 > dump.sql.gz
+    } | gzip -9 | tee /keys/check.fifo \
+      | openssl cms -encrypt -binary -stream -aes-256-cbc -outform DER -out "$OUT" /keys/pub.pem
+    wait "$CHECK"
 
-    # Sanity gate before encryption: a truncated dump still gzips fine, so
-    # check the trailer mysqldump always writes rather than trusting exit codes
-    # through the pipe (sh has no pipefail).
-    if ! gzip -dc dump.sql.gz | tail -5 | grep -q "Dump completed"; then
+    if ! grep -q "Dump completed" /keys/tail.txt || ! grep -qx "gzip-exit=0" /keys/tail.txt; then
       echo "FATAL: dump has no completion marker -- truncated, not uploading" >&2
       exit 1
     fi
 
-    openssl smime -encrypt -binary -aes-256-cbc -outform DER \
-      -in dump.sql.gz -out "$OUT" pub.pem
     sha256sum "$OUT" > "${OUT}.sha256"
-    rm -f dump.sql.gz ca.pem pub.pem
+    rm -f /keys/*
     ls -l "$OUT"
   upload.sh: |
     #!/bin/sh
@@ -122,7 +129,7 @@ data:
     # this rclone fails the bucket-exists preflight before it ever uploads.
     export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 
-    rclone copy /work "r2:${R2_BUCKET}/mysql/daily/" \
+    rclone move /work "r2:${R2_BUCKET}/mysql/daily/" \
       --include "*.enc" --include "*.sha256" --stats-one-line
 
     # Retention is NOT done here: the 30d expiry is an R2 lifecycle rule on
@@ -218,9 +225,11 @@ spec:
             fsGroup: 65534
             seccompProfile: {type: RuntimeDefault}
           volumes:
-            # Memory-backed: the plaintext dump must never land on a node disk.
+            # Node disk, ciphertext only: plaintext must never land on a node disk.
             - name: work
-              emptyDir: {medium: Memory, sizeLimit: 512Mi}
+              emptyDir: {sizeLimit: 8Gi}
+            - name: keys
+              emptyDir: {medium: Memory, sizeLimit: 1Mi}
             - name: scripts
               configMap:
                 name: backup-mysql-scripts
@@ -236,6 +245,7 @@ spec:
                 - secretRef: {name: backup-env}
               volumeMounts:
                 - {name: work, mountPath: /work}
+                - {name: keys, mountPath: /keys}
                 - {name: scripts, mountPath: /scripts, readOnly: true}
               securityContext:
                 allowPrivilegeEscalation: false
