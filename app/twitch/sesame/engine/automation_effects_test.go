@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -161,29 +162,42 @@ func lightsParams() obj {
 	return obj{"device": "AA:BB", "sku": "H6008", "color": "#f5a524"}
 }
 
-func TestAutomationLightsWithoutGoveeModule(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("lights", lightsParams())))
-	rec := fx.run(t, "main", "req-lights", nil)
-	assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
-	assert.Equal(t, GossipRoute{Provider: "govee", Endpoint: "control"}, fx.gossip.route)
-	assert.Equal(t, gossiprpc.Request{ChannelID: "1", Device: "AA:BB", SKU: "H6008", ColorRGB: 0xf5a524}, fx.gossip.req)
-}
-
-func TestAutomationLightsGroupSendsEveryLight(t *testing.T) {
-	params := lightsParams()
-	params["extra_lights"] = []string{"CC:DD/H6159", "EE:FF/H6008"}
-	fx := newAutoFixture(manual("main", act("lights", params)))
-	rec := fx.run(t, "main", "req-lights-group", nil)
-	assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
-	assert.Equal(t, []gossiprpc.GoveeLight{{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}, {Device: "EE:FF", SKU: "H6008"}}, fx.gossip.req.Lights)
-}
-
-func TestAutomationLightsGroupSkipsMalformedRefs(t *testing.T) {
-	params := lightsParams()
-	params["extra_lights"] = []string{"no-sku", "CC:DD/H6159"}
-	fx := newAutoFixture(manual("main", act("lights", params)))
-	fx.run(t, "main", "req-lights-malformed", nil)
-	assert.Equal(t, []gossiprpc.GoveeLight{{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}}, fx.gossip.req.Lights)
+func TestAutomationLightsRequests(t *testing.T) {
+	cases := []struct {
+		name   string
+		params obj
+		want   gossiprpc.Request
+	}{
+		{"default color", nil, gossiprpc.Request{ColorRGB: 0xf5a524}},
+		{"color and brightness", obj{"mode": "color", "brightness": 35}, gossiprpc.Request{ColorRGB: 0xf5a524, Brightness: 35}},
+		{"scene", obj{
+			"mode": "scene", "brightness": 80, "scene_id": "snapshot:4:9", "scene_name": "Sunset",
+			"scene_type": "devices.capabilities.dynamic_scene", "scene_instance": "snapshot", "scene_value": `{"paramId":4,"id":9}`,
+		}, gossiprpc.Request{Brightness: 80, Scene: &gossiprpc.GoveeScene{
+			ID: "snapshot:4:9", Name: "Sunset", Type: "devices.capabilities.dynamic_scene",
+			Instance: "snapshot", Value: codec.RawMessage(`{"paramId":4,"id":9}`),
+		}}},
+		{"white", obj{"mode": "white", "kelvin": 3200, "brightness": 20}, gossiprpc.Request{Kelvin: 3200, Brightness: 20}},
+		{"on", obj{"mode": "on", "brightness": 45}, gossiprpc.Request{KeepLook: true, Brightness: 45}},
+		{"off", obj{"mode": "off", "brightness": 90}, gossiprpc.Request{PowerOff: true}},
+		{"groups in order", obj{"extra_lights": []string{"AA:BB/H0000", "no-sku", "CC:DD/H6159", "CC:DD/H0000", "EE:FF/H6008"}},
+			gossiprpc.Request{ColorRGB: 0xf5a524, Lights: []gossiprpc.GoveeLight{
+				{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}, {Device: "EE:FF", SKU: "H6008"},
+			}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			params := lightsParams()
+			maps.Copy(params, tc.params)
+			fx := newAutoFixture(manual("main", act("lights", params)))
+			rec := fx.run(t, "main", "req-lights", nil)
+			want := tc.want
+			want.ChannelID, want.Device, want.SKU = "1", "AA:BB", "H6008"
+			assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
+			assert.Equal(t, GossipRoute{Provider: "govee", Endpoint: "control"}, fx.gossip.route)
+			assert.Equal(t, want, fx.gossip.req)
+		})
+	}
 }
 
 func TestAutomationLightsSceneFailsAgainstAnOutdatedGossip(t *testing.T) {
@@ -204,23 +218,6 @@ func TestAutomationLightsSceneFailsAgainstAnOutdatedGossip(t *testing.T) {
 			assert.Equal(t, []string{tc.want}, statuses(rec))
 		})
 	}
-}
-
-func TestAutomationLightsSceneCarriesTheStoredScene(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("lights", obj{
-		"device": "AA:BB", "sku": "H6008", "mode": "scene", "scene_id": "snapshot:4:9", "scene_name": "Sunset",
-		"scene_type": "devices.capabilities.dynamic_scene", "scene_instance": "snapshot", "scene_value": `{"paramId":4,"id":9}`,
-	})))
-	rec := fx.run(t, "main", "req-lights-scene-ok", nil)
-	assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
-	assert.Equal(t, GossipRoute{Provider: "govee", Endpoint: "control"}, fx.gossip.route)
-	assert.Equal(t, gossiprpc.Request{
-		ChannelID: "1", Device: "AA:BB", SKU: "H6008",
-		Scene: &gossiprpc.GoveeScene{
-			ID: "snapshot:4:9", Name: "Sunset", Type: "devices.capabilities.dynamic_scene",
-			Instance: "snapshot", Value: codec.RawMessage(`{"paramId":4,"id":9}`),
-		},
-	}, fx.gossip.req)
 }
 
 func TestAutomationLightsFailuresDoNotStopFlow(t *testing.T) {

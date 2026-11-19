@@ -63,15 +63,18 @@ func (x *actionExec) randomPick(s step, p automation.RandomPickAction) error {
 // Each path pauses alone: its remaining steps move to their own continuation, so the next path starts right away.
 // Each path also owns a copy of the locals: a path that pauses could not hand its writes back in order.
 func (x *actionExec) parallel(s step, _ automation.ParallelAction) error {
-	spent, locals := x.budget.delayMS, x.run.Locals
 	for i := range s.Branches {
-		x.budget.delayMS = spent
-		x.run.Locals = maps.Clone(locals)
-		x.execList(s.Branches[i])
-		x.settlePath(s, i)
+		x.execPath(s, i, x.budget.delayMS)
 	}
-	x.budget.delayMS, x.run.Locals = spent, locals
 	return nil
+}
+
+func (x *actionExec) execPath(s step, path, delaySpent int) {
+	spent, locals := x.budget.delayMS, x.run.Locals
+	x.budget.delayMS, x.run.Locals = delaySpent, maps.Clone(locals)
+	x.execList(s.Branches[path])
+	x.settlePath(s, path)
+	x.budget.delayMS, x.run.Locals = spent, locals
 }
 
 func (x *actionExec) loop(s step, p automation.LoopAction) error {
@@ -245,12 +248,18 @@ func (x *actionExec) startContinuation(cont *AutomationRun) {
 	x.p.autoExec.running.Add(1)
 	p := x.p
 	link := monitor.LinkFrom(x.ctx)
-	go idempotency.Async(x.ctx, func(ctx context.Context) error {
+	task := func(ctx context.Context) error {
 		ctx, txn := continueTrace(ctx, link, "automation continue")
 		defer txn.End()
 		p.continueRun(ctx, c)
 		return nil
-	})()
+	}
+	// A restore can outlive its Twitch delivery, whose expired lease would reject the effect.
+	if c.startsWithInternalStep() {
+		go task(context.Background())
+		return
+	}
+	go idempotency.Async(x.ctx, task)()
 }
 
 type continuation struct {
@@ -258,6 +267,11 @@ type continuation struct {
 	budget runBudget
 	rest   []resume
 	wait   time.Duration
+}
+
+func (c continuation) startsWithInternalStep() bool {
+	first := c.rest[0].steps
+	return len(first) > 0 && first[0].Internal
 }
 
 func (p *Pipeline) continueRun(ctx context.Context, c continuation) {
@@ -359,10 +373,19 @@ func (run *AutomationRun) replayKey() string {
 		return run.Replay
 	}
 	identity := run.identity()
-	if identity == "" || strings.HasPrefix(identity, ":") {
+	if anonymousRun(identity) {
 		return run.ID
 	}
 	return identity + ">" + run.Plan.Automation.ID
+}
+
+func anonymousRun(identity string) bool {
+	switch {
+	case identity == "", identity == "rpc:", strings.HasPrefix(identity, ":"):
+		return true
+	default:
+		return false
+	}
 }
 
 func nestedReplayKey(parent, site string) string {

@@ -140,6 +140,14 @@ const (
 	maxSafeSceneID  = 1<<53 - 1
 )
 
+const LightsRestoreType = "lights_restore"
+
+type LightsRestoreAction struct {
+	Device      string   `json:"device"`
+	SKU         string   `json:"sku"`
+	ExtraLights []string `json:"extra_lights,omitempty"`
+}
+
 type LightsAction struct {
 	Device        string   `json:"device"`
 	SKU           string   `json:"sku"`
@@ -164,6 +172,19 @@ func (a *LightsAction) setDefaults() { a.Mode = LightsModeColor }
 func (a *LightsAction) prepare() {
 	if v, err := strconv.ParseUint(strings.TrimPrefix(a.Color, "#"), 16, 24); err == nil {
 		a.RGB = int(v)
+	}
+}
+
+func lightsHoldBranch(p LightsAction) nesting {
+	if p.HoldS <= 0 || p.HoldS > MaxLightsHoldS {
+		return nesting{}
+	}
+	delay, _ := codec.Marshal(DelayAction{Ms: p.HoldS * 1000})
+	restore, _ := codec.Marshal(LightsRestoreAction{Device: p.Device, SKU: p.SKU, ExtraLights: p.ExtraLights})
+	return nesting{
+		lists:    [][]Action{{{Type: "delay", Params: delay}, {Type: LightsRestoreType, Params: restore}}},
+		labels:   []string{"hold"},
+		internal: true,
 	}
 }
 

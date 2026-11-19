@@ -23,6 +23,8 @@ const (
 	customPostEndpoint   = "post"
 	goveeProvider        = "govee"
 	goveeControlEndpoint = "control"
+	goveeRestoreEndpoint = "restore"
+	restoreRetryMS       = 1000
 	noViewer             = "no_viewer"
 )
 
@@ -108,13 +110,30 @@ func (x *actionExec) lookupLogin(login string) (actionTarget, error) {
 	return actionTarget{id: id, login: login}, nil
 }
 
+func (x *actionExec) effectRef(s step) EffectRef {
+	identity := x.identity()
+	if usesHoldIdentity(s) {
+		identity = x.holdIdentity()
+	}
+	return EffectRef{Identity: identity, Effect: s.EffectKey + x.iter}
+}
+
+func hasLightsHold(s step) bool { return s.Type == "lights" && len(s.Branches) > 0 }
+
+func usesHoldIdentity(s step) bool { return s.Internal || hasLightsHold(s) }
+
+func (x *actionExec) holdIdentity() string {
+	identity := x.identity()
+	if anonymousRun(identity) {
+		return x.run.ID
+	}
+	return identity
+}
+
 func (x *actionExec) once(s step, do func() error) error {
 	ran := false
 	var detail error
-	err := x.p.dedup.Effect(x.ctx, EffectRef{
-		Identity: x.identity(),
-		Effect:   s.EffectKey + x.iter,
-	}, func(ctx context.Context) error {
+	err := x.p.dedup.Effect(x.ctx, x.effectRef(s), func(ctx context.Context) error {
 		ran = true
 		previous := x.ctx
 		x.ctx = ctx
@@ -226,13 +245,58 @@ func (x *actionExec) lights(s step, p automation.LightsAction) error {
 	if refusal := x.lightsRefusal(p); refusal != nil {
 		return refusal
 	}
-	if !p.AnyTime {
-		if err := x.requireLive(); err != nil {
-			return err
+	req := lightsRequest(x.bid, p)
+	if len(s.Branches) > 0 {
+		req.HoldS, req.HoldID = p.HoldS, x.lightHoldID(&s.Branches[0][1])
+	}
+	return x.once(s, func() error { return x.controlLights(s, req) })
+}
+
+func (x *actionExec) controlLights(s step, req gossiprpc.Request) error {
+	if err := x.sendLights(req); err != nil {
+		return err
+	}
+	if req.HoldS > 0 {
+		x.execPath(s, 0, 0)
+	}
+	return nil
+}
+
+func (x *actionExec) lightHoldID(restore step) string {
+	ref := x.effectRef(restore)
+	return nestedReplayKey(ref.Identity, ref.Effect)
+}
+
+func (x *actionExec) lightsRestore(s step, p automation.LightsRestoreAction) error {
+	if x.p.gossip == nil {
+		return failure("no_gossip")
+	}
+	req := lightsTargetRequest(x.bid, p)
+	req.HoldID = x.lightHoldID(s)
+	var reply gossiprpc.GoveeRestoreReply
+	err := x.once(s, func() error { return x.sendLightsRestore(req, &reply) })
+	if reply.RateLimited {
+		x.signal, x.delayMS = signalRetry, int(reply.RetryAfterMS)
+		if x.delayMS <= 0 {
+			x.delayMS = restoreRetryMS
 		}
 	}
-	req := lightsRequest(x.bid, p)
-	return x.once(s, func() error { return x.sendLights(req) })
+	return err
+}
+
+func (x *actionExec) sendLightsRestore(req gossiprpc.Request, reply *gossiprpc.GoveeRestoreReply) error {
+	err := x.p.gossip.Call(x.ctx, GossipRoute{Provider: goveeProvider, Endpoint: goveeRestoreEndpoint}, req, reply)
+	switch {
+	case err != nil:
+		return gossipFailure(err)
+	case reply.RateLimited:
+		return limited("rate_limited")
+	case reply.Error != "":
+		return failure(reply.Error)
+	case !reply.OK:
+		return failure("gossip_error")
+	}
+	return nil
 }
 
 func (x *actionExec) requireLive() error {
@@ -257,6 +321,8 @@ func (x *actionExec) lightsRefusal(p automation.LightsAction) error {
 		return failure("no_gossip")
 	case !hasLightTarget(p):
 		return failure("no_device")
+	case !p.AnyTime:
+		return x.requireLive()
 	}
 	return nil
 }
@@ -266,32 +332,58 @@ func (x *actionExec) sendLights(req gossiprpc.Request) error {
 	if err := x.p.gossip.Call(x.ctx, GossipRoute{Provider: goveeProvider, Endpoint: goveeControlEndpoint}, req, &reply); err != nil {
 		return gossipFailure(err)
 	}
-	if req.Scene != nil && !reply.SceneApplied {
+	switch {
+	case reply.Error != "":
+		return failure(reply.Error)
+	case req.Scene != nil && !reply.SceneApplied:
 		return failure("gossip_outdated")
+	case !reply.OK:
+		return failure("gossip_error")
 	}
 	return nil
 }
 
-func lightsRequest(channelID string, p automation.LightsAction) gossiprpc.Request {
-	req := gossiprpc.Request{ChannelID: channelID, Device: p.Device, SKU: p.SKU, ColorRGB: p.RGB, Lights: lightGroup(p)}
-	if p.Mode == automation.LightsModeScene {
+var lightsRequests = map[string]func(*gossiprpc.Request, automation.LightsAction){
+	automation.LightsModeColor: func(req *gossiprpc.Request, p automation.LightsAction) { req.ColorRGB = p.RGB },
+	automation.LightsModeScene: func(req *gossiprpc.Request, p automation.LightsAction) {
 		req.Scene = &gossiprpc.GoveeScene{
 			ID: p.SceneID, Name: p.SceneName, Type: p.SceneType, Instance: p.SceneInstance, Value: codec.RawMessage(p.SceneValue),
 		}
+	},
+	automation.LightsModeWhite: func(req *gossiprpc.Request, p automation.LightsAction) { req.Kelvin = p.Kelvin },
+	automation.LightsModeOn:    func(req *gossiprpc.Request, _ automation.LightsAction) { req.KeepLook = true },
+	automation.LightsModeOff:   func(req *gossiprpc.Request, _ automation.LightsAction) { req.PowerOff = true },
+}
+
+func lightsRequest(channelID string, p automation.LightsAction) gossiprpc.Request {
+	req := lightsTargetRequest(channelID, automation.LightsRestoreAction{Device: p.Device, SKU: p.SKU, ExtraLights: p.ExtraLights})
+	if apply := lightsRequests[p.Mode]; apply != nil {
+		apply(&req, p)
+	}
+	if !req.PowerOff {
+		req.Brightness = p.Brightness
 	}
 	return req
 }
 
-func lightGroup(p automation.LightsAction) []gossiprpc.GoveeLight {
+func lightsTargetRequest(channelID string, p automation.LightsRestoreAction) gossiprpc.Request {
+	return gossiprpc.Request{ChannelID: channelID, Device: p.Device, SKU: p.SKU, Lights: lightGroup(p)}
+}
+
+func lightGroup(p automation.LightsRestoreAction) []gossiprpc.GoveeLight {
 	if len(p.ExtraLights) == 0 {
 		return nil
 	}
 	lights := make([]gossiprpc.GoveeLight, 0, len(p.ExtraLights)+1)
 	lights = append(lights, gossiprpc.GoveeLight{Device: p.Device, SKU: p.SKU})
+	seen := map[string]bool{p.Device: true}
 	for _, ref := range p.ExtraLights {
-		if device, sku, ok := strings.Cut(ref, "/"); ok {
-			lights = append(lights, gossiprpc.GoveeLight{Device: device, SKU: sku})
+		device, sku, ok := strings.Cut(ref, "/")
+		if !ok || seen[device] {
+			continue
 		}
+		seen[device] = true
+		lights = append(lights, gossiprpc.GoveeLight{Device: device, SKU: sku})
 	}
 	return lights
 }
