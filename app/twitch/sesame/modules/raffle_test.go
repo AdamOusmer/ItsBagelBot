@@ -315,6 +315,9 @@ func TestRaffleStartArgs(t *testing.T) {
 		{"!raffle 1.5k 90", "", spec(1500, 90, false)},
 		{"!raffle 2M", "", spec(1_000_000, 60, false)},
 		{"!raffle 99999999m", "", spec(1_000_000, 60, false)},
+		{"!raffle 9223372036854775808", "", spec(1_000_000, 60, false)},
+		{"!raffle Half 90", "", spec(617, 90, false)},
+		{"!mraffle ALL", "", spec(1235, 60, true)},
 		{"!raffle 0", "", spec(0, 60, false)},
 		{"!raffle 100 2", "", spec(100, 5, false)},
 		{"!raffle 100 0", "", spec(100, 5, false)},
@@ -333,6 +336,7 @@ func TestRaffleStartArgs(t *testing.T) {
 			r := &fakeRaffle{}
 			d := raffleDeps(r)
 			d.Proj = &fakeProj{modules: []projection.ModuleView{{Name: engine.LoyaltyModuleName, IsEnabled: true}}}
+			d.Loyalty = &fakeLoyalty{viewerPts: map[uint64]int64{42: 1235}}
 			runChat(t, Raffle(d), withConfig(chatCtx("42", "mod", "moderator"), tc.config), tc.text)
 			assert.True(t, r.open)
 			assert.Equal(t, tc.want, r.lastSpec)
@@ -341,7 +345,7 @@ func TestRaffleStartArgs(t *testing.T) {
 }
 
 func TestRaffleRejectsMalformedArgs(t *testing.T) {
-	for _, text := range []string{"!raffle k", "!raffle 1.5", "!raffle -5", "!raffle 5%", "!raffle all", "!raffle 1e3", "!raffle 100 -1", "!raffle 100 1.5", "!mraffle abc"} {
+	for _, text := range []string{"!raffle k", "!raffle 1.5", "!raffle -5", "!raffle +5", "!raffle 5%", "!raffle 1e3", "!raffle 100 -1", "!raffle 100 1.5", "!mraffle abc"} {
 		t.Run(text, func(t *testing.T) {
 			r := &fakeRaffle{}
 			out := runChat(t, Raffle(raffleDeps(r)), chatCtx("42", "mod", "moderator"), text)

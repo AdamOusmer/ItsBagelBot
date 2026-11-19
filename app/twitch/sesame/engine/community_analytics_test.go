@@ -83,7 +83,8 @@ func TestLoyaltyWalletCountsSuccessfulDebits(t *testing.T) {
 	wallet.SetAnalytics(capture.Recorder)
 	_, _, err := wallet.Debit(t.Context(), 1, DuelStake{ViewerID: 2, Login: "private", Stake: 100})
 	require.NoError(t, err)
-	require.NoError(t, wallet.Credit(t.Context(), 1, DuelStake{ViewerID: 2, Login: "private", Stake: 100}))
+	_, err = wallet.Credit(t.Context(), 1, DuelStake{ViewerID: 2, Login: "private", Stake: 100})
+	require.NoError(t, err)
 	require.Equal(t, map[string]int64{"points.flows|duel_stake": 1}, capture.Counters())
 }
 

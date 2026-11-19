@@ -106,7 +106,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: 'accept',
         messageKey: 'wonMessage',
         defaultMessage: 'The blades fall: @{winner} defeats @{loser} and takes {pot} {points}!',
-        tokens: replyTokens(['winner', 'loser', 'pot', 'points'], { winner: 'SnackPackPanda', loser: 'PrincessBarney', pot: '1000', points: 'points' })
+        tokens: replyTokens(['winner', 'loser', 'pot', 'points', 'balance'], { winner: 'SnackPackPanda', loser: 'PrincessBarney', pot: '1000', points: 'points', balance: '1500' })
       }
     ],
     commands: [

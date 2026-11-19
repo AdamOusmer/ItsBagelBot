@@ -64,6 +64,13 @@ func TestGamble(t *testing.T) {
 	}{
 		{name: "a win credits the stake", roll: 23, who: "alice", text: "!gamble 300",
 			contains: []string{"@alice gambled 300 and won 300", "1534"}, excludes: []string{"23"}, wagers: []engine.PointWager{wagerOf("alice", 300, true)}},
+		{name: "a decimal suffix resolves before wagering", roll: 23, who: "alice", config: `{"maxBet":2000}`, text: "!gamble 1.2K",
+			contains: []string{"won 1200"}, wagers: []engine.PointWager{wagerOf("alice", 1200, true)}},
+		{name: "a legacy prefixed integer remains a bet", roll: 23, who: "alice", text: "!gamble @+300",
+			contains: []string{"won 300"}, wagers: []engine.PointWager{wagerOf("alice", 300, true)}},
+		{name: "zero is not a bet", who: "alice", text: "!gamble 0", contains: []string{"try !gamble"}},
+		{name: "a negative integer is not a bet", who: "alice", text: "!gamble -5", contains: []string{"try !gamble"}},
+		{name: "an overflowing integer is not a bet", who: "alice", text: "!gamble 9223372036854775808", contains: []string{"try !gamble"}},
 		{name: "staking the whole balance and winning reads as all in", roll: 50, who: "bob", text: "!gamble all",
 			fake: fakeLoyalty{getPoints: 500}, contains: []string{"@bob went all in and won 500"}, wagers: []engine.PointWager{wagerOf("bob", 500, true)}},
 		{name: "staking the whole balance and losing loses everything", roll: 87, who: "bob", text: "!gamble 500",
@@ -137,15 +144,13 @@ func TestGamblePerUserCooldown(t *testing.T) {
 
 	carol := withConfig(chatCtx("42", "carol"), config)
 	require.Len(t, runChat(t, m, carol, "!gamble 10"), 1)
-	require.Len(t, cd.keys, 1)
-	assert.Contains(t, cd.keys[0], "carol", "cooldown keys per user, not per channel")
-	assert.Contains(t, cd.keys[0], "games:gamble:100")
 
-	assert.Contains(t, runChat(t, m, carol, "!gamble 10")[0].Text, "try again in 8s", "a cooled wager reports the time actually left, not the full window")
+	renamed := withConfig(chatCtx("42", "dave"), config)
+	assert.Contains(t, runChat(t, m, renamed, "!gamble 10")[0].Text, "try again in 8s")
 
-	cd.allow = append(cd.allow, true)
-	dave := withConfig(chatCtx("42", "dave"), config)
-	assert.NotContains(t, runChat(t, m, dave, "!gamble 10")[0].Text, "slow down")
+	reusedLogin := withConfig(chatCtx("43", "carol"), config)
+	assert.Contains(t, runChat(t, m, reusedLogin, "!gamble 10")[0].Text, "won 10")
+	assert.Equal(t, []string{"games:gamble:100:42", "games:gamble:100:42", "games:gamble:100:43"}, cd.keys)
 }
 
 func TestGambleRollFailureDoesNotMovePoints(t *testing.T) {

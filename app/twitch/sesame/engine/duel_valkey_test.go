@@ -50,11 +50,12 @@ func (w *fakeWallet) Debit(_ context.Context, _ uint64, entry DuelStake) (found,
 	return true, true, nil
 }
 
-func (w *fakeWallet) Credit(_ context.Context, _ uint64, entry DuelStake) error {
+func (w *fakeWallet) Credit(_ context.Context, _ uint64, entry DuelStake) (int64, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.balances[accountOf(entry)] += entry.Stake
-	return nil
+	name := accountOf(entry)
+	w.balances[name] += entry.Stake
+	return w.balances[name], nil
 }
 
 func (w *fakeWallet) snapshot() map[string]int64 {
@@ -194,11 +195,9 @@ func TestValkeyDuelChallengeSettlement(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, DuelAcceptResult{Found: true, WrongUser: true}, stranger, "only the challenged party may accept")
-			assert.True(t, accepted.Accepted)
-			assert.EqualValues(t, 100, accepted.Pot)
-			assert.EqualValues(t, 50, accepted.Stake)
-			assert.Equal(t, tc.want, map[string]int64{"alice": wallet.snapshot()["alice"], "bob": wallet.snapshot()["bob"]})
-			assert.EqualValues(t, 100, wallet.snapshot()["carol"], "a refused accept moves nothing")
+			assert.Equal(t, [3]int64{100, 50, 150}, [3]int64{accepted.Pot, accepted.Stake, accepted.Balance})
+			wantBalances := map[string]int64{"alice": tc.want["alice"], "bob": tc.want["bob"], "carol": 100}
+			assert.Equal(t, wantBalances, wallet.snapshot())
 		})
 	}
 }

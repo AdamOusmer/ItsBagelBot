@@ -18,10 +18,6 @@ import (
 
 const gambleModuleName = "gamble"
 
-func gambleCooldownKey(broadcasterID uint64, login string) string {
-	return "games:gamble:" + strconv.FormatUint(broadcasterID, 10) + ":" + login
-}
-
 func Gamble(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -45,12 +41,13 @@ type gambleConfig struct {
 
 type gambleCmd struct {
 	chatReplier
-	d       engine.Deps
-	c       *module.Context
-	cfg     engine.GambleSettings
-	tmpl    gambleConfig
-	balance int64
-	log     *zap.Logger
+	d        engine.Deps
+	c        *module.Context
+	cfg      engine.GambleSettings
+	tmpl     gambleConfig
+	balance  int64
+	viewerID uint64
+	log      *zap.Logger
 }
 
 func newGambleCmd(ctx context.Context, d engine.Deps, c *module.Context, log *zap.Logger) (gc gambleCmd, ok bool) {
@@ -88,11 +85,16 @@ func gambleRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 
 func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error {
 	login := strings.ToLower(gc.c.Env.ChatterUserLogin)
-	if login == "" {
+	viewerID, err := strconv.ParseUint(gc.c.Env.ChatterUserID, 10, 64)
+	if err != nil {
 		return nil
 	}
+	if login == "" || viewerID == 0 {
+		return nil
+	}
+	gc.viewerID = viewerID
 
-	bal, err := gc.d.Loyalty.BalanceGet(ctx, gc.c.BroadcasterID, gc.viewerID())
+	bal, err := gc.d.Loyalty.BalanceGet(ctx, gc.c.BroadcasterID, gc.viewerID)
 	if err != nil {
 		gc.log.Warn("gamble: balance read failed", gc.c.BID(), zap.Error(err))
 		return err
@@ -105,19 +107,19 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 		return nil
 	}
 
-	allowed, err := gc.claimCooldown(ctx, login)
+	allowed, err := gc.claimCooldown(ctx)
 	if err != nil {
 		return err
 	}
 	if !allowed {
-		return gc.replyCooling(ctx, login, emit)
+		return gc.replyCooling(ctx, emit)
 	}
 
 	return gc.settle(ctx, login, wagerOutcome{bet: bet}, emit)
 }
 
-func (gc gambleCmd) replyCooling(ctx context.Context, login string, emit module.Emit) error {
-	left, err := gc.d.Cooldown.TimeLeft(ctx, gambleCooldownKey(gc.c.BroadcasterID, login))
+func (gc gambleCmd) replyCooling(ctx context.Context, emit module.Emit) error {
+	left, err := gc.d.Cooldown.TimeLeft(ctx, gc.gambleCooldownKey())
 	if err != nil {
 		return err
 	}
@@ -134,7 +136,7 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 	}
 	wager.roll = roll
 	wager.won = engine.GambleWins(roll, gc.cfg.WinPercent)
-	out, err := gc.d.Loyalty.BalanceWager(ctx, engine.PointWager{BroadcasterID: gc.c.BroadcasterID, ViewerID: gc.viewerID(), Login: login, Amount: wager.bet, Won: wager.won})
+	out, err := gc.d.Loyalty.BalanceWager(ctx, engine.PointWager{BroadcasterID: gc.c.BroadcasterID, ViewerID: gc.viewerID, Login: login, Amount: wager.bet, Won: wager.won})
 	if err != nil {
 		gc.log.Warn("gamble: settlement failed", gc.c.BID(), zap.Error(err))
 		return err
@@ -175,15 +177,15 @@ type refusal struct {
 }
 
 func (gc gambleCmd) refuse(arg string) (int64, refusal) {
-	bet, outcome := engine.ResolveGambleBet(arg, gc.balance, gc.cfg.MinBet, gc.cfg.MaxBet)
+	bet, outcome := parseWagerAmount(arg).wager(gc.balance, gc.cfg.MinBet, gc.cfg.MaxBet)
 	switch outcome {
-	case engine.BetOK:
+	case wagerOK:
 		return gc.acceptBet(bet)
-	case engine.BetEmpty, engine.BetInvalid:
+	case wagerInvalid:
 		return 0, refusal{key: "gamble.usage"}
-	case engine.BetBelowMin:
+	case wagerBelowMin:
 		return 0, gc.belowMin()
-	case engine.BetAboveMax:
+	case wagerAboveMax:
 		return 0, refusal{key: "gamble.max", tokens: boundKV("max", gc.cfg.MaxBet)}
 	default:
 		return 0, gc.broke()
@@ -213,12 +215,12 @@ func boundKV(name string, limit int64) []string {
 	return []string{name, strconv.FormatInt(limit, 10)}
 }
 
-func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, error) {
+func (gc gambleCmd) claimCooldown(ctx context.Context) (bool, error) {
 	if gc.d.Cooldown == nil || gc.cfg.CooldownSeconds <= 0 {
 		return true, nil
 	}
 	allowed, err := gc.d.Cooldown.Allow(ctx,
-		gambleCooldownKey(gc.c.BroadcasterID, login),
+		gc.gambleCooldownKey(),
 		engine.GambleCooldown(gc.cfg.CooldownSeconds))
 	if err != nil {
 		gc.log.Warn("gamble: cooldown check failed", gc.c.BID(), zap.Error(err))
@@ -242,9 +244,8 @@ func (gc gambleCmd) announce(emit module.Emit, wager wagerOutcome) {
 		"balance", strconv.FormatInt(wager.balance, 10))
 }
 
-func (gc gambleCmd) viewerID() uint64 {
-	id, _ := strconv.ParseUint(gc.c.Env.ChatterUserID, 10, 64)
-	return id
+func (gc gambleCmd) gambleCooldownKey() string {
+	return "games:gamble:" + strconv.FormatUint(gc.c.BroadcasterID, 10) + ":" + strconv.FormatUint(gc.viewerID, 10)
 }
 
 func (gc gambleCmd) recordRound(ctx context.Context, wager wagerOutcome) {

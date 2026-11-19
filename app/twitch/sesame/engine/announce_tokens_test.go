@@ -14,7 +14,7 @@ func TestAnnouncementsExpandEveryNamespacedToken(t *testing.T) {
 	for _, locale := range []string{"en", "fr"} {
 		v := duelVoice{locale: locale, points: "bagels"}
 		rendered := map[string]string{
-			"duel.auto_won":    duelAutoWonText(v, "alice", 40),
+			"duel.auto_won":    duelAutoWonText(v, DuelStake{Login: "alice", Stake: 40}, "140"),
 			"duel.auto_noshow": duelNoShowText(v, &DuelState{Opener: "alice", Challenged: "bob", OpenerStake: 20}),
 			"raffle.remind":    RaffleAnnouncement{Locale: locale}.RemindText(90, 7),
 			"raffle.remind.cl": RaffleAnnouncement{Locale: locale, Config: RaffleModuleConfig{ClaimEnabled: "on"}}.RemindText(90, 7),
