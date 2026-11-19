@@ -4,6 +4,6 @@
   "keywords": "ankündigung announce announcement nachricht farbe",
   "field": {
     "text": { "label": "Nachricht" },
-    "color": { "label": "Farbe", "option": { "primary": "Kanalfarbe", "blue": "Blau", "green": "Grün", "orange": "Orange", "purple": "Lila", "": "Standard" } }
+    "color": { "label": "Farbe", "option": { "primary": "Kanalfarbe", "blue": "Blau", "green": "Grün", "orange": "Orange", "purple": "Lila" } }
   }
 }

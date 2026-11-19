@@ -1,0 +1,11 @@
+{
+  "label": "Nachricht anheften",
+  "summary": "Eine Nachricht posten und anheften",
+  "line": "Anheften: {text}",
+  "keywords": "anheften pin markieren chat nachricht",
+  "field": {
+    "text": {
+      "label": "Nachricht"
+    }
+  }
+}

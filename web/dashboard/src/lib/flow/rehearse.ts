@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
+import { chatModeValueField, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
@@ -205,14 +205,20 @@ function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, li
 
 const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text']);
 
+function effectValue(node: FlowNode, param: Text, value: Text): [Text, FlowNode['config'][string]][] {
+  if (node.type === 'reply.chat_mode' && param === 'value') {
+    const key = chatModeValueField(node.config.mode);
+    return key ? [[key, key === 'delay' ? value : Number(value)]] : [];
+  }
+  const key = configKey(param);
+  const displayExpanded = typeof node.config[key] === 'string' || param === 'login';
+  return displayExpanded ? [[key, value]] : [];
+}
+
 function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
   if (!node) return t('flows.test.effect');
   if (COMPUTED_VALUE_NODES.has(node.type) && detail.value !== undefined) return detail.value;
-  const expanded = Object.entries(detail).flatMap(([param, value]) => {
-    const key = configKey(param);
-    const displayExpanded = typeof node.config[key] === 'string' || param === 'login';
-    return displayExpanded ? [[key, value] as const] : [];
-  });
+  const expanded = Object.entries(detail).flatMap(([param, value]) => effectValue(node, param, value));
   const config = { ...node.config, ...Object.fromEntries(expanded) };
   return describe(t, { ...node, config });
 }
@@ -230,8 +236,9 @@ function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefin
 }
 
 function chatLines(event: RehearsalEvent): RehearsedLine[] {
-  const mode = event.detail?.mode === 'announce' ? 'announce' : 'chat';
-  return (event.lines ?? []).map((text) => ({ mode, color: event.detail?.color, segments: [{ text, kind: 'plain' }] }));
+  return (event.lines ?? []).map((text, index) => ({
+    mode: 'chat', ...event.lineStyles?.[index], segments: [{ text, kind: 'plain' }]
+  }));
 }
 
 function reasonText(t: Translate, code: Text): Text {
@@ -241,7 +248,8 @@ function reasonText(t: Translate, code: Text): Text {
     max_steps: t('flows.test.limit'), max_actions: t('flows.test.limit'), upstream_error: t('flows.test.apiFailed'),
     not_running: t('flows.test.notRunning'), below_rate: t('flows.test.belowRate'), var_limit: t('flows.test.varLimit'),
     text_error: t('flows.test.textError'), math_error: t('flows.test.mathError'), bad_def: t('flows.test.badDef'),
-    empty_login: t('flows.test.noTarget'), no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired')
+    empty_login: t('flows.test.noTarget'), no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired'),
+    too_few_choices: t('flows.test.tooFewChoices'), nothing_running: t('flows.test.nothingRunning'), no_message: t('flows.test.noMessage')
   };
   return reasons[code] ?? t('flows.test.failed');
 }
@@ -268,16 +276,17 @@ function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): R
   const id = compiled.nodeByPath.get(`${event.path}.params.condition`) ?? compiled.nodeByPath.get(event.path) ?? null;
   const node = nodes.get(id ?? '');
   return { ...event, ...stepValues(t, event, node), id, node, chatLines: chatLines(event),
-    ...stepDetails(t, node), repair: node ? checkRepair(node, event, context) : undefined,
+    ...stepDetails(t, node, event.detail), repair: node ? checkRepair(node, event, context) : undefined,
     note: roleWarning(t, context.flow, node) ?? stepNote(t, node, { event, scenario }),
     text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)) };
 }
 
-function stepDetails(t: Translate, node: FlowNode | undefined): Pick<RehearsalStep, 'label' | 'secondary'> {
+function stepDetails(t: Translate, node: FlowNode | undefined, detail?: RehearsalEvent['detail']): Pick<RehearsalStep, 'label' | 'secondary'> {
   const spec = node ? specFor(node.type) : undefined;
+  const choices = detail?.choices ?? detail?.outcomes;
   return {
     label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
-    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : undefined,
+    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : choices?.split('\n').join(', '),
   };
 }
 
@@ -326,6 +335,7 @@ function definitionWarnings(flow: Flow, definition: Definition): DefinitionWarni
 
 const WARNING_LABELS: Readonly<Record<Text, MessageKey>> = {
   'trigger_mismatch:reply.unban_resolve:type': 'flows.test.requiresUnbanRequest',
+  'trigger_mismatch:reply.delete_message:type': 'flows.test.noMessage',
   trigger_mismatch: 'automations.issue.trigger_mismatch',
   'too_short:reply.poll:choices': 'flows.test.pollChoices',
   'required:reply.poll:choices': 'flows.test.pollChoices'

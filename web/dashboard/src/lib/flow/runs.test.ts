@@ -41,13 +41,13 @@ describe('run step rows', () => {
     );
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ type: 'http_get', count: 3, status: 'failed', detail: 'timeout', name: 'Read from a web address', line: 'https://api.example.com/a' });
-    expect(rows[1]).toMatchObject({ type: 'chat', count: 1, status: 'ok', name: 'Send chat message', line: 'after' });
+    expect(rows[1]).toMatchObject({ type: 'chat', count: 1, status: 'ok', name: 'Send message', line: 'after' });
   });
 
   test('same-type steps on different paths list every step they could be, not a guess', () => {
     const rows = runStepRows(english, [{ index: 0, type: 'chat', status: 'ok' }], flow);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ name: 'Send chat message', line: 'One of: worked, failed', count: 1 });
+    expect(rows[0]).toMatchObject({ name: 'Send message', line: 'One of: worked, failed', count: 1 });
   });
 
   test('same-type steps on one path each get their own row, in order, repeating under a loop', () => {

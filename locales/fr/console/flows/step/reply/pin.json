@@ -1,0 +1,11 @@
+{
+  "label": "Épingler un message",
+  "summary": "Publier et épingler un message",
+  "line": "Épingler : {text}",
+  "keywords": "épingler fixer mettre en avant chat message",
+  "field": {
+    "text": {
+      "label": "Message"
+    }
+  }
+}

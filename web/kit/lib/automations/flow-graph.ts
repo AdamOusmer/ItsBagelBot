@@ -169,6 +169,7 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.whisper': ['target', 'text'],
   'reply.unban_resolve': ['resolution'],
   'reply.chat': ['message'],
+  'reply.pin': ['text'],
   'cond.compare': ['left', 'right'],
   'reply.var_set': ['value'],
   'reply.math': ['expression'],
@@ -193,10 +194,14 @@ export const VAR_OPS_WITH_VALUE: readonly string[] = ['eq', 'ne', 'gt', 'gte', '
 const textOp = (config: FlowConfig) => str(config.op) || 'upper';
 const varConditionOp = (config: FlowConfig) => str(config.op) || 'eq';
 
+const TEMPLATE_FIELD_OVERRIDES = new Map<string, (config: FlowConfig) => readonly string[]>([
+  ['reply.text', (config) => ['input', ...TEXT_ARG_FIELDS.get(textOp(config)) ?? []]],
+  ['cond.var', (config) => VAR_OPS_WITH_VALUE.includes(varConditionOp(config)) ? ['value'] : []],
+  ['reply.prediction_end', (config) => config.status === 'resolve' ? ['outcome'] : []]
+]);
+
 function templateFields(node: FlowNode): readonly string[] {
-  if (node.type === 'reply.text') return ['input', ...TEXT_ARG_FIELDS.get(textOp(node.config)) ?? []];
-  if (node.type === 'cond.var') return VAR_OPS_WITH_VALUE.includes(varConditionOp(node.config)) ? ['value'] : [];
-  const fields = TEMPLATE_FIELDS[node.type] ?? [];
+  const fields = TEMPLATE_FIELD_OVERRIDES.get(node.type)?.(node.config) ?? TEMPLATE_FIELDS[node.type] ?? [];
   if (!streamTargetNodes.has(node.type)) return fields;
   const legacy = usesLegacyTarget(node.config.who);
   const active = (field: string): boolean => field !== 'target' || legacy;
@@ -310,9 +315,16 @@ function cooldownConditionAction(config: FlowConfig): Condition {
   return { type: 'cooldown', params };
 }
 
+function chatAction(config: FlowConfig): Action {
+  const text = str(config.message);
+  if (config.reply === 'thread') return { type: 'reply', params: { text, thread: true } };
+  return { type: config.reply === 'mention' ? 'reply' : 'chat', params: { text } };
+}
+
 const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   ...streamActionWriters,
-  'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
+  'reply.chat': chatAction,
+  'reply.reply': (config) => ({ type: 'reply', params: { text: str(config.text) } }),
   'reply.lights': lightsAction,
   'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
   'reply.wait': (config) => ({ type: 'delay', params: { ms: num(config.seconds) * 1000 } }),
@@ -941,7 +953,8 @@ const API_READERS: Record<string, (params: Params) => { type: string; config: Fl
 
 const ACTION_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig } | null> = {
   ...streamActionReaders,
-  chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text) } }),
+  chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text), reply: 'off' } }),
+  reply: (params) => ({ type: 'reply.chat', config: { message: str(params.text), reply: params.thread === true ? 'thread' : 'mention' } }),
   lights: lightsNode,
   counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
   delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),

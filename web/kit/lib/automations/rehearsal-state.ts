@@ -8,14 +8,17 @@ import { comparePasses } from './compare';
 import { MAX_COOLDOWN_SECONDS, MAX_TEMPLATE_LENGTH } from './limits';
 import { compareBytes, trimSpace } from './text';
 import { extractJson } from './rehearsal-json';
+import { CHAT_MODE_VALUES, type ChatModeValueRange } from './stream-types';
 import type { Action, Condition, Params } from './types';
 import type { RehearsalContext, RehearsalScenario, RehearsalState } from './rehearsal-types';
 
 type Text = string;
 type Context = RehearsalContext;
 type ExpandedParams = Record<Text, Text>;
+type ExpandedLists = Record<Text, Text[]>;
 type ActionOutcome = { status: 'ok' | 'failed' | 'skipped'; detail?: ExpandedParams };
-type ActionHandler = (params: Params, context: Context, expanded: ExpandedParams) => ActionOutcome;
+type ScalarHandler = (params: Params, context: Context, expanded: ExpandedParams) => ActionOutcome;
+type ActionHandler = (params: Params, context: Context, expanded: ExpandedParams, lists: ExpandedLists) => ActionOutcome;
 type ConditionHandler = (params: Params, context: Context) => boolean;
 
 const text = (value: unknown): Text => String(value ?? '');
@@ -23,6 +26,7 @@ const number = (value: unknown): number => Number(value) || 0;
 const nameOf = (params: Params): Text => text(params.name).toLowerCase();
 const capped = (value: Text): Text => [...value].slice(0, MAX_TEMPLATE_LENGTH).join('');
 const failed = (code: Text): ActionOutcome => ({ status: 'failed', detail: { code } });
+const skipped = (code: Text): ActionOutcome => ({ status: 'skipped', detail: { code } });
 const ok = (): ActionOutcome => ({ status: 'ok' });
 const hasViewer = (context: Context): boolean => Number(context.scenario.userId) > 0;
 
@@ -41,7 +45,7 @@ export function createState(scenario: RehearsalScenario): RehearsalState {
   return {
     channelVars: { ...seed?.channelVars }, viewerVars: { ...seed?.viewerVars },
     counters: { ...seed?.counters }, points: seed?.points ?? 0,
-    cooldowns: {}, countdowns: { ...seed?.countdowns }
+    cooldowns: {}, countdowns: { ...seed?.countdowns }, running: { poll: false, prediction: false }
   };
 }
 
@@ -474,19 +478,20 @@ function timerStep(params: Params, context: Context, mode: Text): ActionOutcome 
   return { status: 'ok', detail: { name, left: timerLeft(store[name], context)! } };
 }
 
-function replyStep(_params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
+function replyStep(params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
   const message = expanded.text ?? '';
+  if (params.thread === true && context.hasChatMessage) return ok();
   const viewer = context.scenario.user?.replace(/^@/, '') ?? '';
   const prefix = viewer && trimSpace(message) !== '' ? `@${viewer} ` : '';
   return { status: 'ok', detail: { text: prefix + message } };
 }
 
-function requiredParams(fields: readonly Text[], code: Text, next: ActionHandler = ok): ActionHandler {
+function requiredParams(fields: readonly Text[], code: Text, next: ScalarHandler = ok): ScalarHandler {
   return (params, context, expanded) => fields.some((field) => !trimSpace(expanded[field] ?? ''))
     ? failed(code) : next(params, context, expanded);
 }
 
-function liveGated(canRunOffline: (params: Params) => boolean = () => false): ActionHandler {
+function liveGated(canRunOffline: (params: Params) => boolean = () => false): ScalarHandler {
   return (params, context) => context.scenario.live || canRunOffline(params)
     ? ok() : { status: 'skipped', detail: { code: 'offline' } };
 }
@@ -509,7 +514,7 @@ function pickedTarget(params: Params): ActionOutcome {
   return /^0*[1-9]\d*$/.test(id) ? resolvedTarget(id) : failed('no_target');
 }
 
-function targetStep(): ActionHandler {
+function targetStep(): ScalarHandler {
   const loginStep = requiredParams(['login'], 'empty_login', (_params, _context, expanded) => resolvedTarget(expanded.login!));
   return (params, context, expanded) => {
     switch (params.who) {
@@ -521,9 +526,57 @@ function targetStep(): ActionHandler {
   };
 }
 
+const resolveWhisperTarget = targetStep();
+
+function whisperStep(params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
+  const target = resolveWhisperTarget(params, context, expanded);
+  if (target.status !== 'ok') return target;
+  return trimSpace(expanded.text ?? '') === '' ? failed('empty') : target;
+}
+
+type Contest = keyof RehearsalState['running'];
+
+function startContest(type: Contest, field: 'choices' | 'outcomes'): ActionHandler {
+  return (_params, context, _expanded, lists) => {
+    const items = (lists[field] ?? []).map(trimSpace).filter(Boolean);
+    const detail = { [field]: items.join('\n') };
+    if (items.length < 2) return { status: 'failed', detail: { ...detail, code: 'too_few_choices' } };
+    context.state.running[type] = true;
+    return { status: 'ok', detail };
+  };
+}
+
+function endContest(type: Contest): ActionHandler {
+  return (params, context) => {
+    if (!context.state.running[type]) return skipped('nothing_running');
+    context.state.running[type] = params.status === 'lock';
+    return ok();
+  };
+}
+
+const clamp = (value: number, [min, max]: ChatModeValueRange): number => Math.max(min, Math.min(max, value));
+
+const EFFECTIVE_CHAT_MODE: ReadonlyMap<Text, (value: number) => number> = new Map([
+  ['slow', (value) => clamp(value || 30, CHAT_MODE_VALUES.slow[1])],
+  ['followers', (value) => clamp(value, CHAT_MODE_VALUES.followers[0])],
+  ['chat_delay', (value) => CHAT_MODE_VALUES.chat_delay.find(([seconds]) => seconds === value)?.[0] ?? CHAT_MODE_VALUES.chat_delay[0][0]]
+]);
+
+function chatModeStep(params: Params): ActionOutcome {
+  const value = params.on === true ? EFFECTIVE_CHAT_MODE.get(text(params.mode))?.(number(params.value)) : 0;
+  return { status: 'ok', detail: { value: String(value ?? 0) } };
+}
+
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   reply: replyStep,
   shoutout: targetStep(), timeout: targetStep(),
+  whisper: whisperStep,
+  poll: startContest('poll', 'choices'),
+  prediction: startContest('prediction', 'outcomes'),
+  poll_end: endContest('poll'),
+  prediction_end: endContest('prediction'),
+  chat_mode: chatModeStep,
+  delete_message: (_params, context) => context.hasChatMessage ? ok() : failed('no_message'),
   var_set: (params, context) => writeVariable(params, context, 'set'),
   var_add: (params, context) => writeVariable(params, context, 'add'),
   var_delete: (params, context) => writeVariable(params, context, 'delete'),
@@ -544,17 +597,19 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true))
 };
 
-function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> {
+function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> & { items?: Text[] } {
   if (!Array.isArray(value)) return expandTemplate(text(value), context);
   const items = value.map((item) => expandTemplate(text(item), context));
-  return { text: items.map((item) => item.text).join('\n'), missing: items.flatMap((item) => item.missing) };
+  const rendered = items.map((item) => item.text);
+  return { text: rendered.join('\n'), missing: items.flatMap((item) => item.missing), items: rendered };
 }
 
 export function applyAction(action: Action, context: Context): ActionOutcome & { detail: ExpandedParams } {
   const params = action.params ?? {};
   const values = Object.entries(params).map(([key, value]) => [key, expandParam(value, context)] as const);
   const expanded = Object.fromEntries(values.map(([key, value]) => [key, value.text]));
+  const lists = Object.fromEntries(values.flatMap(([key, value]) => value.items ? [[key, value.items]] : []));
   const missing = [...new Set(values.flatMap(([, value]) => value.missing))].join(',');
-  const outcome = ACTIONS[action.type]?.(params, context, expanded) ?? ok();
+  const outcome = ACTIONS[action.type]?.(params, context, expanded, lists) ?? ok();
   return { ...outcome, detail: { type: action.type, ...expanded, missing, ...outcome.detail } };
 }

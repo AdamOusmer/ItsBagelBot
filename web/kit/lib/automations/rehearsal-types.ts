@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { RehearsalMode } from '../engine/rehearsal';
+
 export type ScenarioValue = string | number | boolean;
 export type RehearsalRole = 'viewer' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type RehearsalState = {
@@ -10,6 +12,7 @@ export type RehearsalState = {
   points: number;
   cooldowns: Record<string, number>;
   countdowns: Record<string, number>;
+  running: Record<'poll' | 'prediction', boolean>;
 };
 
 export type RehearsalScenario = {
@@ -31,7 +34,7 @@ export type RehearsalScenario = {
   rewardId?: string;
   name?: string;
   values?: Record<string, string>;
-  state?: Partial<RehearsalState>;
+  state?: Partial<Omit<RehearsalState, 'running'>>;
 };
 
 export type ScenarioField = {
@@ -45,6 +48,8 @@ export type RehearsalOverrides = Readonly<Record<string, string>>;
 export type RehearsalReason = { reason: string; values: Record<string, string> };
 export type TriggerMatch = { starts: true } | ({ starts: false } & RehearsalReason);
 
+export type RehearsalLineStyle = { mode: RehearsalMode; color?: string; target?: string };
+
 export type RehearsalEvent = {
   key: string;
   path: string;
@@ -55,6 +60,7 @@ export type RehearsalEvent = {
   status: 'ok' | 'failed' | 'skipped' | 'yes' | 'no';
   port?: string;
   lines?: string[];
+  lineStyles?: RehearsalLineStyle[];
   detail?: Record<string, string>;
 };
 
@@ -66,6 +72,7 @@ export type RehearsalResult = {
 
 export type RehearsalContext = {
   scenario: RehearsalScenario;
+  hasChatMessage: boolean;
   state: RehearsalState;
   overrides: RehearsalOverrides;
   locals: Record<string, string>;

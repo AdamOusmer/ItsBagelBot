@@ -1,0 +1,13 @@
+{
+  "field": {
+    "reply": {
+      "label": "Resposta",
+      "option": {
+        "off": "Desativada",
+        "mention": "Mencionar o espectador",
+        "thread": "Responder na conversa"
+      },
+      "hint": "Para responder na conversa, é preciso um gatilho de chat."
+    }
+  }
+}

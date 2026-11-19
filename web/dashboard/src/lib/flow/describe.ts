@@ -254,12 +254,20 @@ function lineVariant(value: ConfigValue): string {
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
   if (!text(node, key)) return '';
   const field = spec.fields.find((entry) => entry.key === key);
+  if (node.type === 'reply.chat_mode' && key === 'wait') return `${num(node, key)} ${t('flows.test.duration.second')}`;
   if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
   return optionLabel(t, spec, node, key);
 }
 
+function lineSuffix(node: FlowNode, spec: NodeSpec): string {
+  if (!spec.lineBy) return '';
+  const variant = lineVariant(node.config[spec.lineBy]);
+  const showWait = node.type === 'reply.chat_mode' && node.config.mode === 'slow' && Boolean(node.config.wait);
+  return variant === 'on' && showWait ? '.slow' : `.${variant}`;
+}
+
 function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefined {
-  const suffix = spec.lineBy ? `.${lineVariant(node.config[spec.lineBy])}` : '';
+  const suffix = lineSuffix(node, spec);
   const template = t(`flows.step.${spec.kind}.${spec.slug}.line${suffix}` as MessageKey);
   if (template === `flows.step.${spec.kind}.${spec.slug}.line${suffix}`) return undefined;
   let missing = false;

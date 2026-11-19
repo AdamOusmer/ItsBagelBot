@@ -1,0 +1,7 @@
+{
+  "label": "Delete message",
+  "summary": "Remove the message that started this recipe",
+  "line": "Delete the trigger message",
+  "note": "Only works on chat command triggers",
+  "keywords": "delete remove chat trigger message"
+}

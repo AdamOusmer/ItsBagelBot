@@ -1,7 +1,7 @@
 {
   "chat": {
-    "label": "Enviar mensagem no chat",
-    "summary": "Bot responde no chat",
+    "label": "Enviar mensagem",
+    "summary": "Publique uma mensagem no chat",
     "field": {
       "message": {
         "label": "Mensagem",
@@ -198,6 +198,12 @@
       },
       "seconds": {
         "label": "Duração (segundos)"
+      },
+      "extraVotes": {
+        "label": "Votos extras com Pontos do Canal"
+      },
+      "pointsPerVote": {
+        "label": "Pontos por voto"
       }
     }
   },
@@ -205,15 +211,15 @@
     "label": "Encerrar uma enquete",
     "summary": "Pare a votação ou arquive os resultados",
     "line": {
-      "terminate": "Encerrar a enquete e mostrar os resultados",
-      "archive": "Arquivar a enquete"
+      "terminate": "Encerrar enquete e mostrar resultados",
+      "archive": "Encerrar enquete e ocultar resultados"
     },
     "field": {
       "status": {
         "label": "Ação",
         "option": {
-          "terminate": "Parar a votação",
-          "archive": "Arquivar"
+          "terminate": "Encerrar e mostrar resultados",
+          "archive": "Encerrar e ocultar resultados"
         }
       }
     }
@@ -238,21 +244,22 @@
     "label": "Encerrar uma previsão",
     "summary": "Feche apostas, devolva pontos ou escolha um vencedor",
     "line": {
-      "lock": "Fechar as apostas",
-      "cancel": "Cancelar e devolver os pontos",
-      "resolve": "Resultado vencedor: {winner}"
+      "lock": "Fechar apostas",
+      "cancel": "Cancelar e reembolsar",
+      "resolve": "Vencedor: {outcome}"
     },
     "field": {
       "status": {
         "label": "Ação",
         "option": {
-          "lock": "Bloquear a votação",
+          "lock": "Fechar apostas",
           "cancel": "Cancelar e reembolsar",
-          "resolve": "Escolher vencedor"
+          "resolve": "Escolher um vencedor"
         }
       },
-      "winner": {
-        "label": "Número do resultado vencedor"
+      "outcome": {
+        "label": "Resultado vencedor",
+        "hint": "Um número ou o nome do resultado"
       }
     }
   },
@@ -304,7 +311,8 @@
   },
   "clearChat": {
     "label": "Limpar o chat",
-    "summary": "Remova todas as mensagens do chat"
+    "summary": "Remova todas as mensagens do chat",
+    "line": "Limpar todo o chat"
   },
   "adSnooze": {
     "label": "Adiar o próximo anúncio",
@@ -313,13 +321,14 @@
   "whisper": {
     "label": "Enviar um sussurro",
     "summary": "Envie uma mensagem privada para um espectador",
-    "line": "Sussurro para {target}: {text}",
+    "line": "Sussurrar para {target}: {text}",
     "field": {
       "target": {
         "label": "Nome do canal ou espectador"
       },
       "text": {
-        "label": "Mensagem"
+        "label": "Mensagem",
+        "hint": "A mensagem é enviada pela conta do bot."
       }
     }
   },

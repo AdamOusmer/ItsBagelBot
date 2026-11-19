@@ -4,6 +4,6 @@
   "keywords": "annonce announce announcement message couleur",
   "field": {
     "text": { "label": "Message" },
-    "color": { "label": "Couleur", "option": { "primary": "Couleur de la chaîne", "blue": "Bleu", "green": "Vert", "orange": "Orange", "purple": "Violet", "": "Par défaut" } }
+    "color": { "label": "Couleur", "option": { "primary": "Couleur de la chaîne", "blue": "Bleu", "green": "Vert", "orange": "Orange", "purple": "Violet" } }
   }
 }

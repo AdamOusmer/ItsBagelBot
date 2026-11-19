@@ -14,9 +14,9 @@ type OutcomeCase = {
   name: Text;
   params: Params;
   scenario?: Partial<RehearsalScenario>;
-  expected: Partial<Pick<RehearsalEvent, 'status' | 'lines' | 'detail'>>;
+  expected: Partial<Pick<RehearsalEvent, 'kind' | 'status' | 'lines' | 'lineStyles' | 'detail'>>;
 };
-type ActionCase = OutcomeCase & { type: Action['type']; trigger?: Definition['trigger'] };
+type ActionCase = OutcomeCase & { type: Action['type']; trigger?: Definition['trigger']; before?: Action[] };
 
 const targetCases: OutcomeCase[] = [
   { name: 'viewer', params: { who: 'viewer', login: 'unused' }, expected: { status: 'ok', detail: { login: 'PrincessBarney' } } },
@@ -36,7 +36,10 @@ const targetCases: OutcomeCase[] = [
 ];
 
 const lights = { device: 'desk', sku: 'H6008' };
-test.each([
+const followTrigger: Definition['trigger'] = { type: 'event', params: { kind: 'channel.follow' } };
+const poll: Action = { type: 'poll', params: { title: 'Pick', choices: ['Red', 'Blue'], seconds: 60 } };
+const prediction: Action = { type: 'prediction', params: { title: 'Pick', outcomes: ['Red', 'Blue'], seconds: 1 } };
+const actions: ActionCase[] = [
   ...['shoutout', 'timeout'].flatMap((type) => targetCases.map((row) => ({ ...row, type, params: { seconds: 60, ...row.params } }))),
   { name: 'offline trigger defaults to offline', type: 'lights', params: lights, trigger: { type: 'event', params: { kind: 'stream.offline' } }, expected: { status: 'skipped', detail: { code: 'offline', ...lights } } },
   { name: 'any time', type: 'lights', params: { ...lights, any_time: true }, scenario: { live: false }, expected: { status: 'ok', detail: lights } },
@@ -46,27 +49,58 @@ test.each([
   { name: 'present argument does not use the sender', type: 'chat', params: { text: 'To {touser|nobody}' }, scenario: { message: '!hello @' }, expected: { status: 'ok', lines: ['To nobody'] } },
   { name: 'chat leaves bare message unset', type: 'chat', params: { text: 'Args=[{args}] Message=[{message}]' }, expected: { status: 'ok', lines: ['Args=[@Lotti good luck] Message=[]'], detail: { missing: 'message' } } },
   { name: 'expanded title and choices', type: 'poll', params: { title: 'Hi {user}', choices: ['To {touser}', 'Everyone'] }, expected: { status: 'ok', detail: { title: 'Hi PrincessBarney', choices: 'To Lotti\nEveryone' } } },
+  { name: 'trimmed and nonblank choices', type: 'poll', params: { choices: [' One ', '{var:absent}', ' Two'] }, expected: { status: 'ok', detail: { choices: 'One\nTwo' } } },
+  { name: 'too few choices after expansion', type: 'poll', params: { choices: [' One ', '{var:absent}'] }, expected: { status: 'failed', detail: { choices: 'One', code: 'too_few_choices' } } },
+  { name: 'trimmed and nonblank outcomes', type: 'prediction', params: { outcomes: [' Red ', ' ', ' {user} '] }, expected: { status: 'ok', detail: { outcomes: 'Red\nPrincessBarney' } } },
+  { name: 'too few outcomes after expansion', type: 'prediction', params: { outcomes: [' Yes ', '{var:absent}'] }, expected: { status: 'failed', detail: { outcomes: 'Yes', code: 'too_few_choices' } } },
+  { name: 'newline inside an outcome stays one entry', type: 'prediction', params: { outcomes: ['Red\nBlue', '{var:absent}'] }, expected: { status: 'failed', detail: { outcomes: 'Red\nBlue', code: 'too_few_choices' } } },
+  { name: 'no poll in this test', type: 'poll_end', params: { status: 'terminate' }, before: [prediction], expected: { status: 'skipped', detail: { code: 'nothing_running' } } },
+  { name: 'earlier poll in this test', type: 'poll_end', params: { status: 'archive' }, before: [poll], expected: { status: 'ok' } },
+  { name: 'earlier poll already ended', type: 'poll_end', params: { status: 'terminate' }, before: [poll, { type: 'poll_end', params: { status: 'terminate' } }], expected: { status: 'skipped', detail: { code: 'nothing_running' } } },
+  { name: 'no prediction in this test', type: 'prediction_end', params: { status: 'cancel' }, before: [poll], expected: { status: 'skipped', detail: { code: 'nothing_running' } } },
+  { name: 'lock an earlier prediction', type: 'prediction_end', params: { status: 'lock' }, before: [prediction], expected: { status: 'ok' } },
+  { name: 'resolve a locked prediction', type: 'prediction_end', params: { status: 'resolve', outcome: '{choice:Blue;Red}' }, before: [prediction, { type: 'prediction_end', params: { status: 'lock' } }], expected: { status: 'ok', detail: { outcome: 'Blue' } } },
+  { name: 'no prediction after failed start', type: 'prediction_end', params: { status: 'cancel' }, before: [{ type: 'prediction', params: { outcomes: ['One', '{var:absent}'] } }], expected: { status: 'skipped', detail: { code: 'nothing_running' } } },
+  { name: 'normalized target and expanded message', type: 'whisper', params: { login: ' @{touser} ', text: 'Hi {user}' }, expected: { status: 'ok', detail: { login: 'Lotti', text: 'Hi PrincessBarney' } } },
+  { name: 'empty expanded message', type: 'whisper', params: { login: 'lotti', text: '{var:absent}' }, expected: { status: 'failed', detail: { code: 'empty' } } },
+  { name: 'target is checked first', type: 'whisper', params: { login: ' @ ', text: '' }, expected: { status: 'failed', detail: { code: 'empty_login' } } },
+  { name: 'legacy slow default', type: 'chat_mode', params: { mode: 'slow', on: true, value: 0 }, expected: { status: 'ok', detail: { value: '30' } } },
+  { name: 'slow minimum', type: 'chat_mode', params: { mode: 'slow', on: true, value: 2 }, expected: { status: 'ok', detail: { value: '3' } } },
+  { name: 'slow maximum', type: 'chat_mode', params: { mode: 'slow', on: true, value: 150 }, expected: { status: 'ok', detail: { value: '120' } } },
+  { name: 'followers in minutes', type: 'chat_mode', params: { mode: 'followers', on: true, value: 20 }, expected: { status: 'ok', detail: { value: '20' } } },
+  { name: 'chat delay seconds', type: 'chat_mode', params: { mode: 'chat_delay', on: true, value: 6 }, expected: { status: 'ok', detail: { value: '6' } } },
+  { name: 'delay off', type: 'chat_mode', params: { mode: 'chat_delay', on: false, value: 4 }, expected: { status: 'ok', detail: { value: '0' } } },
+  { name: 'there is a trigger message', type: 'delete_message', params: {}, expected: { status: 'ok' } },
+  { name: 'there is no trigger message', type: 'delete_message', trigger: followTrigger, params: {}, expected: { status: 'failed', detail: { code: 'no_message' } } },
+  { name: 'reply inside the thread', type: 'reply', params: { text: 'Hi {user}', thread: true }, expected: { status: 'ok', lines: ['Hi PrincessBarney'] } },
+  { name: 'thread falls back to mention', type: 'reply', trigger: followTrigger, params: { text: 'Hi', thread: true }, expected: { status: 'ok', lines: ['@PrincessBarney Hi'] } },
   { name: 'expanded reason and duration', type: 'timeout', params: { login: '{user}', reason: 'Stop {user}', seconds: 60 }, expected: { status: 'ok', detail: { login: 'PrincessBarney', seconds: '60', reason: 'Stop PrincessBarney' } } },
   { name: 'transformed text', type: 'text', params: { op: 'upper', input: '{user}', save_as: 'result' }, expected: { status: 'ok', detail: { input: 'PrincessBarney', value: 'PRINCESSBARNEY' } } },
   { name: 'text length', type: 'text', params: { op: 'length', input: '{touser}', save_as: 'result' }, expected: { status: 'ok', detail: { value: '5' } } },
   { name: 'expanded variable value', type: 'var_set', params: { name: 'name', value: '{user}' }, expected: { status: 'ok', detail: { value: 'PrincessBarney' } } }
-] satisfies ActionCase[])('$type rehearses $name', (row: ActionCase) => {
-  const def = definition([{ type: row.type, params: row.params }]);
+];
+
+test.each(actions)('$type rehearses $name', (row) => {
+  const def = definition([...(row.before ?? []), { type: row.type, params: row.params }]);
   if (row.trigger) def.trigger = row.trigger;
   const result = rehearseDefinition(def, { ...defaultScenario(def), ...row.scenario });
   expect(result.events.at(-1)).toMatchObject(row.expected);
 });
 
 test.each([
-  { type: 'announce', params: { text: 'Hi {user}!', color: 'green' }, kind: 'say', lines: ['Hi PrincessBarney!'], detail: { mode: 'announce', color: 'green' } },
-  { type: 'reply', params: { text: 'Hi {user}!' }, kind: 'say', lines: ['@PrincessBarney Hi PrincessBarney!'], detail: {} }
-] satisfies { type: Text; params: Params; kind: Text; lines?: Text[]; detail: Record<Text, Text> }[])('$type emits its rehearsal event', ({ type, params, kind, lines, detail }) => {
+  { type: 'announce', params: { text: 'Hi {user}!\nWelcome!', color: 'green' }, lines: ['Hi PrincessBarney!\nWelcome!'], styles: [{ mode: 'announce', color: 'green' }] },
+  { type: 'reply', params: { text: 'Hi {user}!' }, lines: ['@PrincessBarney Hi PrincessBarney!'], styles: [{ mode: 'chat' }] },
+  { type: 'pin', params: { text: 'Hi {user}!\nWelcome!' }, lines: ['Hi PrincessBarney!\nWelcome!'], styles: [{ mode: 'pin' }] },
+  { type: 'chat', params: { text: 'Hi\n/announce {user}\n/announceblue Blue\n/shoutout  @Lotti Good luck\n/pin Rules\nUnused' },
+    lines: ['Hi', 'PrincessBarney', 'Blue', 'Good luck', 'Rules'],
+    styles: [{ mode: 'chat' }, { mode: 'announce', color: 'primary' }, { mode: 'announce', color: 'blue' }, { mode: 'shoutout', target: 'Lotti' }, { mode: 'pin' }] },
+  { type: 'chat', params: { text: '/announcement hi\n/announce\n/shoutout @\n/pin' }, lines: ['/announcement hi'], styles: [{ mode: 'chat' }] }
+] satisfies { type: Text; params: Params; lines: Text[]; styles: RehearsalEvent['lineStyles'] }[])('$type emits its rehearsal bubbles', ({ type, params, lines, styles }) => {
   const def = definition([{ type, params }]);
   def.conditions = [{ type: 'perm', params: { level: 'mod' } }];
   const result = rehearseDefinition(def, { ...defaultScenario(def), role: 'mod' });
   const event = result.events.at(-1)!;
-  expect({ kind: event.kind, status: event.status, lines: event.lines }).toEqual({ kind, status: 'ok', lines });
-  expect(event.detail).toMatchObject(detail);
+  expect({ kind: event.kind, status: event.status, lines: event.lines, styles: event.lineStyles }).toEqual({ kind: 'say', status: 'ok', lines, styles });
 });
 
 test.each(['', 'primary', 'blue', 'green', 'orange', 'purple'])('announcement accepts and rehearses color %s', (color) => {
@@ -100,5 +134,5 @@ test.each([
 ])('reply mirrors Go mention behavior for $user: $text', ({ text, user, lines }) => {
   const def = definition([{ type: 'reply', params: { text } }]);
   const result = rehearseDefinition(def, { ...defaultScenario(def), user });
-  expect(result.events.at(-1)?.lines).toEqual(lines);
+  expect(result.events.at(-1)?.lines).toEqual([...lines]);
 });

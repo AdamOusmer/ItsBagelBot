@@ -3,7 +3,8 @@
   "summary": "Festlegen, wer wie oft chatten darf",
   "line": {
     "on": "Chatmodus aktivieren: {mode}",
-    "off": "Chatmodus deaktivieren: {mode}"
+    "off": "Chatmodus deaktivieren: {mode}",
+    "slow": "Chatmodus aktivieren: {mode}, {wait}"
   },
   "field": {
     "mode": {
@@ -13,14 +14,28 @@
         "followers": "Nur Follower",
         "slow": "Langsamer Modus",
         "subscribers": "Nur Abonnenten",
-        "unique": "Einzigartige Nachrichten"
+        "unique": "Einzigartige Nachrichten",
+        "chat_delay": "Chat-Verzögerung"
       }
     },
     "on": {
       "label": "Aktiviert"
     },
-    "value": {
-      "label": "Sekunden im langsamen Modus; Minuten im Follower-Modus"
+    "wait": {
+      "label": "Zeit zwischen Nachrichten",
+      "range": "3 bis 120 Sekunden eingeben."
+    },
+    "followAge": {
+      "label": "Mindestdauer als Follower",
+      "unit": "Minuten"
+    },
+    "delay": {
+      "label": "Verzögerung",
+      "option": {
+        "2": "2 Sekunden",
+        "4": "4 Sekunden",
+        "6": "6 Sekunden"
+      }
     }
   }
 }
