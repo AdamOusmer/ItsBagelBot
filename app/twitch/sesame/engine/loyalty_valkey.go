@@ -313,6 +313,22 @@ func decodeBalance(raw string) (points int64, watch uint64, ok bool) {
 	return points, watch, true
 }
 
+func (s *ValkeyLoyaltyStore) BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error) {
+	out, err := s.rpc.BalanceCredit(ctx, credit)
+	if err == nil && !out.Replayed {
+		s.invalidateTop(cache.Event{ID: credit.BroadcasterID})
+	}
+	return out, err
+}
+
+func (s *ValkeyLoyaltyStore) BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error) {
+	return s.rpc.BalanceSnapshot(ctx, broadcasterID, viewerID)
+}
+
+func (s *ValkeyLoyaltyStore) WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error) {
+	return s.rpc.WatchStatus(ctx)
+}
+
 func (s *ValkeyLoyaltyStore) BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
 	bal, found, err := s.rpc.BalanceAdjustViewer(ctx, adjustment)
 	if err != nil || !found {

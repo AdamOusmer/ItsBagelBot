@@ -157,14 +157,27 @@ func TestConsumerRecoversStrandedDeliveriesInBoundedBatches(t *testing.T) {
 	assert.Zero(t, outboxLen(client))
 }
 
-func TestConsumerCheckReportsStalledAward(t *testing.T) {
-	client := outboxClient(t)
-	consumer := watchtime.NewConsumer(client, nil, zap.NewNop())
-	require.NoError(t, consumer.Check(t.Context()))
-	stale := strconv.FormatInt(time.Now().Add(-6*time.Minute).UnixMilli(), 10) + "-0"
-	require.NoError(t, client.Do(t.Context(), client.B().Xadd().Key(watchtime.Stream).Id(stale).FieldValue().FieldValue("payload", "{}").Build()).Error())
-
-	assert.ErrorContains(t, consumer.Check(t.Context()), "pending")
+func TestConsumerBacklogHealth(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		age     time.Duration
+		healthy bool
+	}{{"empty", 0, true}, {"fresh", time.Minute, true}, {"stalled", 6 * time.Minute, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := outboxClient(t)
+			consumer := watchtime.NewConsumer(client, nil, zap.NewNop())
+			if tc.age > 0 {
+				oldest := strconv.FormatInt(time.Now().Add(-tc.age).UnixMilli(), 10) + "-0"
+				require.NoError(t, client.Do(t.Context(), client.B().Xadd().Key(watchtime.Stream).Id(oldest).FieldValue().FieldValue("payload", "{}").Build()).Error())
+				appendAward(t, client, testAward(), "fresh-award")
+			}
+			status, err := consumer.Status(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tc.healthy, status.Healthy)
+			assert.WithinDuration(t, time.Time{}.Add(tc.age), time.Time{}.Add(status.OldestPendingAge), time.Second)
+			assert.Equal(t, tc.healthy, consumer.Check(t.Context()) == nil)
+		})
+	}
 }
 
 func retentionAward(t *testing.T, client valkey.Client) data.WatchAwardDTO {

@@ -31,12 +31,36 @@ func NewLoyaltyRPC(nc *nats.Conn, prefix LoyaltyRPCPrefix) *LoyaltyRPC {
 type loyaltyVerb string
 
 func (l *LoyaltyRPC) call(ctx context.Context, verb loyaltyVerb, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
-	subject := string(l.prefix) + "." + string(verb)
+	return requestLoyalty[loyaltyrpc.Reply](ctx, l, verb, req)
+}
 
-	return bus.RequestJSONTimeout[loyaltyrpc.Reply](ctx, l.nc, subject, req, loyaltyRPCTimeout)
+func requestLoyalty[Reply any](ctx context.Context, l *LoyaltyRPC, verb loyaltyVerb, req any) (Reply, error) {
+	subject := string(l.prefix) + "." + string(verb)
+	return bus.RequestJSONTimeout[Reply](ctx, l.nc, subject, req, loyaltyRPCTimeout)
 }
 
 func fmtID(id uint64) string { return strconv.FormatUint(id, 10) }
+
+func (l *LoyaltyRPC) BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error) {
+	req := loyaltyrpc.Request{UserID: fmtID(credit.BroadcasterID), ViewerID: fmtID(credit.ViewerID),
+		ViewerLogin: credit.ViewerLogin, Value: credit.Value, Key: credit.Key, AccountCreatedAt: credit.AccountCreatedAt}
+	reply, err := l.call(ctx, loyaltyrpc.VerbBalanceCredit, req)
+	if err != nil {
+		return CreditOutcome{}, err
+	}
+	if reply.Balance == nil {
+		return CreditOutcome{}, fmt.Errorf("rpc %s.balance.credit: empty reply", l.prefix)
+	}
+	return CreditOutcome{Balance: *reply.Balance, Replayed: reply.Replayed}, nil
+}
+
+func (l *LoyaltyRPC) BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error) {
+	return requestLoyalty[loyaltyrpc.BalanceSnapshot](ctx, l, loyaltyrpc.VerbBalanceSnapshot, loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerID: fmtID(viewerID)})
+}
+
+func (l *LoyaltyRPC) WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error) {
+	return requestLoyalty[loyaltyrpc.WatchStatus](ctx, l, loyaltyrpc.VerbWatchStatus, struct{}{})
+}
 
 func (l *LoyaltyRPC) BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error) {
 	reply, err := l.call(ctx, "balance.get", loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerID: fmtID(viewerID)})

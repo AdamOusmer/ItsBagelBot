@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -22,13 +23,21 @@ type loyaltyRPC struct {
 	repo          *repository.Loyalty
 	log           *zap.Logger
 	invalidations *bus.Invalidations
+	watchStatus   func(context.Context) (watchtime.BacklogStatus, error)
 }
 
 func Subscribe(w Wiring, prefix string) error {
-	l := &loyaltyRPC{repo: w.Repo, log: w.Log, invalidations: w.Invalidations}
+	l := &loyaltyRPC{repo: w.Repo, log: w.Log, invalidations: w.Invalidations, watchStatus: w.WatchStatus}
+	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbBalanceSnapshot, l.handleBalanceSnapshot); err != nil {
+		return err
+	}
+	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbWatchStatus, l.handleWatchStatus); err != nil {
+		return err
+	}
 
 	return bus.ServeVerbs(w.RPCWiring, prefix,
 		bus.At("balance.get", l.handleBalanceGet),
+		bus.At(loyaltyrpc.VerbBalanceCredit, l.handleBalanceCredit),
 		bus.At("balance.set", l.handleBalanceSet),
 		bus.At("balance.add", l.handleBalanceAdd),
 		bus.At("balance.spend", l.handleBalanceSpend),
@@ -54,6 +63,7 @@ type Wiring struct {
 	bus.RPCWiring
 	Repo          *repository.Loyalty
 	Invalidations *bus.Invalidations
+	WatchStatus   func(context.Context) (watchtime.BacklogStatus, error)
 }
 
 func refuse(code domainrpc.Code, message string) loyaltyrpc.Reply {
@@ -95,14 +105,7 @@ func (l *loyaltyRPC) fail(op string, err error) loyaltyrpc.Reply {
 }
 
 func balanceView(row *ent.Balance) *loyaltyrpc.Balance {
-	return &loyaltyrpc.Balance{
-		ViewerID:     strconv.FormatUint(row.ViewerID, 10),
-		ViewerLogin:  row.ViewerLogin,
-		ViewerName:   row.ViewerName,
-		Points:       row.Points,
-		PointsExact:  strconv.FormatInt(row.Points, 10),
-		WatchSeconds: row.WatchSeconds,
-	}
+	return repository.BalanceView(row)
 }
 
 func (l *loyaltyRPC) handleBalanceGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {

@@ -7,9 +7,11 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
 )
@@ -19,6 +21,17 @@ type BalanceAdjustment struct {
 	ViewerLogin      string
 	Value            int64
 	Absolute         bool
+}
+
+func BalanceView(row *ent.Balance) *loyaltyrpc.Balance {
+	return &loyaltyrpc.Balance{
+		ViewerID:     strconv.FormatUint(row.ViewerID, 10),
+		ViewerLogin:  row.ViewerLogin,
+		ViewerName:   row.ViewerName,
+		Points:       row.Points,
+		PointsExact:  strconv.FormatInt(row.Points, 10),
+		WatchSeconds: row.WatchSeconds,
+	}
 }
 
 func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustment) (*ent.Balance, bool, error) {
@@ -33,7 +46,7 @@ func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustm
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
 			var err error
-			row, err = r.applyBalanceAdjustment(ctx, tx, target)
+			row, err = r.applyBalanceAdjustment(ctx, tx.Client(), target)
 			return err
 		})
 	})
@@ -44,13 +57,13 @@ func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustm
 	return row.Unwrap(), true, nil
 }
 
-func (r *Loyalty) applyBalanceAdjustment(ctx context.Context, tx *ent.Tx, target BalanceAdjustment) (*ent.Balance, error) {
-	if err := tx.Balance.Create().SetUserID(target.UserID).SetViewerID(target.ViewerID).
+func (r *Loyalty) applyBalanceAdjustment(ctx context.Context, client *ent.Client, target BalanceAdjustment) (*ent.Balance, error) {
+	if err := client.Balance.Create().SetUserID(target.UserID).SetViewerID(target.ViewerID).
 		SetViewerLogin(target.ViewerLogin).OnConflictColumns(balance.FieldUserID, balance.FieldViewerID).
 		Ignore().Exec(ctx); err != nil {
 		return nil, err
 	}
-	row, err := r.lockedAdjustmentBalance(ctx, tx, target)
+	row, err := r.lockedAdjustmentBalance(ctx, client, target)
 	if err != nil {
 		return nil, err
 	}
@@ -58,11 +71,11 @@ func (r *Loyalty) applyBalanceAdjustment(ctx context.Context, tx *ent.Tx, target
 	if err != nil {
 		return nil, err
 	}
-	return tx.Balance.UpdateOneID(row.ID).SetPoints(points).SetViewerLogin(target.ViewerLogin).Save(ctx)
+	return client.Balance.UpdateOneID(row.ID).SetPoints(points).SetViewerLogin(displayUpdate(row.ViewerLogin, target.ViewerLogin)).Save(ctx)
 }
 
-func (r *Loyalty) lockedAdjustmentBalance(ctx context.Context, tx *ent.Tx, target BalanceAdjustment) (*ent.Balance, error) {
-	query := tx.Balance.Query().Where(balance.UserIDEQ(target.UserID), balance.ViewerIDEQ(target.ViewerID))
+func (r *Loyalty) lockedAdjustmentBalance(ctx context.Context, client *ent.Client, target BalanceAdjustment) (*ent.Balance, error) {
+	query := client.Balance.Query().Where(balance.UserIDEQ(target.UserID), balance.ViewerIDEQ(target.ViewerID))
 	if r.dialect != "sqlite3" {
 		query.ForUpdate()
 	}
