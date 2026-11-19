@@ -74,6 +74,7 @@
     "countdownFinished": {
     "label": "Cuenta atrás terminada",
     "summary": "Una cuenta atrás llega a cero",
+    "line": "Cuando {name} llegue a cero",
     "field": {
       "name": {
         "label": "Cuenta atrás"

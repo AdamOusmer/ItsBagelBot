@@ -152,6 +152,7 @@
   "cooldownAdd": {
     "label": "Ajouter du temps à un délai de récupération",
     "summary": "Prolonger un minuteur nommé pendant qu’il est en cours",
+    "line": "Ajouter {seconds} à {name}",
     "field": {
       "name": {
         "label": "Minuteur"
@@ -169,6 +170,7 @@
   "countdownAdd": {
     "label": "Ajouter du temps au compte à rebours",
     "summary": "Prolonger un compte à rebours en cours",
+    "line": "Ajouter {seconds} à {name}",
     "field": {
       "name": {
         "label": "Compte à rebours"
@@ -186,6 +188,7 @@
   "poll": {
     "label": "Lancer un sondage",
     "summary": "Laisser les spectateurs voter sur une question",
+    "line": "Sondage : {title}",
     "field": {
       "title": {
         "label": "Titre"
@@ -201,6 +204,10 @@
   "pollEnd": {
     "label": "Terminer un sondage",
     "summary": "Arrêter le vote ou archiver les résultats",
+    "line": {
+      "terminate": "Clore le sondage et afficher les résultats",
+      "archive": "Archiver le sondage"
+    },
     "field": {
       "status": {
         "label": "Action",
@@ -214,6 +221,7 @@
   "prediction": {
     "label": "Lancer une prédiction",
     "summary": "Laisser les spectateurs miser des points sur un résultat",
+    "line": "Prédiction : {title}",
     "field": {
       "title": {
         "label": "Titre"
@@ -229,6 +237,11 @@
   "predictionEnd": {
     "label": "Terminer une prédiction",
     "summary": "Fermer les paris, rembourser ou choisir un gagnant",
+    "line": {
+      "lock": "Clore les paris",
+      "cancel": "Annuler et rendre les points",
+      "resolve": "Résultat gagnant : {winner}"
+    },
     "field": {
       "status": {
         "label": "Action",
@@ -246,6 +259,7 @@
   "raidStart": {
     "label": "Lancer un raid",
     "summary": "Envoyer tes spectateurs sur une autre chaîne",
+    "line": "Lancer un raid vers {target}",
     "field": {
       "target": {
         "label": "Identifiant de chaîne ou de spectateur"
@@ -259,6 +273,10 @@
   "mod": {
     "label": "Modifier le rôle de modérateur",
     "summary": "Donner ou retirer les droits de modération",
+    "line": {
+      "on": "Donner les droits de modération à {target}",
+      "off": "Retirer les droits de modération à {target}"
+    },
     "field": {
       "target": {
         "label": "Identifiant de chaîne ou de spectateur"
@@ -271,6 +289,10 @@
   "vip": {
     "label": "Modifier le rôle VIP",
     "summary": "Donner ou retirer le badge VIP d'un spectateur",
+    "line": {
+      "on": "Donner le statut VIP à {target}",
+      "off": "Retirer le statut VIP à {target}"
+    },
     "field": {
       "target": {
         "label": "Identifiant de chaîne ou de spectateur"
@@ -291,6 +313,7 @@
   "whisper": {
     "label": "Envoyer un message privé",
     "summary": "Écrire en privé à un seul spectateur",
+    "line": "Message privé à {target} : {text}",
     "field": {
       "target": {
         "label": "Identifiant de chaîne ou de spectateur"

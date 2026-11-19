@@ -74,6 +74,7 @@
     "countdownFinished": {
     "label": "Countdown beendet",
     "summary": "Ein benannter Countdown erreicht null",
+    "line": "Wenn {name} null erreicht",
     "field": {
       "name": {
         "label": "Countdown"

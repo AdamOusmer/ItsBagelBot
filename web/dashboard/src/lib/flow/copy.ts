@@ -83,6 +83,9 @@ function variantCopy(t: Translate, source: FieldCopy, part: 'label' | 'placehold
 export const fieldLabel = (t: Translate, spec: NodeSpec, field: FieldSpec, node?: FieldCopy['node']): string =>
   variantCopy(t, { spec, field, node }, 'label') ?? t(`${fieldCopyPrefix(spec, field)}.label` as MessageKey);
 
+export const fieldHint = (t: Translate, spec: NodeSpec, field: FieldSpec): string | undefined =>
+  known(`${fieldCopyPrefix(spec, field)}.hint`, t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.hint` as MessageKey)) || undefined;
+
 export function fieldIssueMessage(t: Translate, issue: FieldIssue, node: FlowNode | undefined): string {
   if (issue.code !== 'required') return issueMessage(t, issue);
   const spec = node ? specFor(node.type) : undefined;

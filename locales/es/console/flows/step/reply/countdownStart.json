@@ -1,6 +1,7 @@
 {
   "label": "Iniciar cuenta atrás",
   "summary": "Iniciar o reiniciar una cuenta atrás",
+  "line": "Iniciar {name} durante {seconds}",
   "field": {
     "name": {
       "label": "Nombre",

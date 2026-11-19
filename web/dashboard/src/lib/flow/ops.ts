@@ -16,13 +16,6 @@ export type InsertRequest = { type: string; at: { x: number; y: number }; placem
 type NodeType = FlowNode['type'];
 type NodeId = FlowNode['id'];
 
-const NODE_PREFILLS: Record<NodeType, FlowNode['config']> = {
-  'reply.timeout': { seconds: 60 },
-  'reply.wait': { seconds: 5 },
-  'cond.cooldown': { seconds: 30 },
-  'cond.chance': { percent: 50 }
-};
-
 function uniqueId(prefix: 'n' | 'e', existing: { id: string }[]): string {
   const tail = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
   const base = `${prefix}${tail}`;
@@ -33,10 +26,9 @@ function uniqueId(prefix: 'n' | 'e', existing: { id: string }[]): string {
   return id;
 }
 
-function fieldDefaults(field: FieldSpec): [string, string | boolean][] {
-  if (field.type === 'select') return [[field.key, field.options[0]]];
-  if (field.type === 'toggle' && field.defaultOn) return [[field.key, true]];
-  return [];
+function fieldDefaults(field: FieldSpec): [FieldSpec['key'], FlowNode['config'][string]][] {
+  const value = field.initial ?? (field.type === 'select' ? field.options[0] : undefined);
+  return value === undefined ? [] : [[field.key, value]];
 }
 
 function hasViewer(trigger: NodeType | undefined): boolean {
@@ -48,11 +40,11 @@ function triggerDefaults(trigger: NodeType | undefined, request: Pick<InsertRequ
   const viewer = hasViewer(trigger);
   const target = trigger === 'twitch.chat.command' ? '{touser}' : viewer ? '{user}' : '';
   const plain = request.plainMessage ?? 'Thanks!';
-  const message = viewer ? request.chatMessage ?? '{user}' : plain;
+  const message = viewer ? request.chatMessage : plain;
   return {
     'reply.shoutout': { target }, 'reply.timeout': { target },
-    'reply.announce': { text: message }, 'reply.reply': { text: plain },
-    'reply.chat': { message: viewer ? request.chatMessage ?? '' : '' }
+    'reply.announce': { text: message ?? '{user}' }, 'reply.reply': { text: plain },
+    'reply.chat': { message: trigger ? message ?? '' : '' }
   };
 }
 
@@ -60,7 +52,7 @@ function defaultConfig(flow: Flow, request: Pick<InsertRequest, 'type' | 'chatMe
   const { type } = request;
   const defaults = specFor(type)?.fields.flatMap(fieldDefaults) ?? [];
   const trigger = flow.nodes.find(isTrigger)?.type;
-  return { ...Object.fromEntries(defaults), ...NODE_PREFILLS[type], ...triggerDefaults(trigger, request)[type] };
+  return { ...Object.fromEntries(defaults), ...triggerDefaults(trigger, request)[type] };
 }
 
 function createNode(flow: Flow, request: Pick<InsertRequest, 'type' | 'at' | 'chatMessage' | 'plainMessage'>): FlowNode {

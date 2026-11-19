@@ -74,6 +74,7 @@
     "countdownFinished": {
     "label": "Contagem regressiva encerrada",
     "summary": "Uma contagem regressiva chega a zero",
+    "line": "Quando {name} chegar a zero",
     "field": {
       "name": {
         "label": "Contagem regressiva"

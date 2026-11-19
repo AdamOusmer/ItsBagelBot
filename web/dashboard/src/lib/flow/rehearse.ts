@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { compactDuration, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
+import { compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
-import { describe } from './describe';
+import { describe, durationFormatter } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { NODE_SPECS, specFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
@@ -208,11 +208,12 @@ const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text']);
 function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
   if (!node) return t('flows.test.effect');
   if (COMPUTED_VALUE_NODES.has(node.type) && detail.value !== undefined) return detail.value;
-  const config = { ...node.config };
-  for (const [param, value] of Object.entries(detail)) {
+  const expanded = Object.entries(detail).flatMap(([param, value]) => {
     const key = configKey(param);
-    if (typeof node.config[key] === 'string' || param === 'login') config[key] = value;
-  }
+    const displayExpanded = typeof node.config[key] === 'string' || param === 'login';
+    return displayExpanded ? [[key, value] as const] : [];
+  });
+  const config = { ...node.config, ...Object.fromEntries(expanded) };
   return describe(t, { ...node, config });
 }
 
@@ -374,11 +375,6 @@ function rehearsalSteps(t: Translate, result: ReturnType<typeof rehearseDefiniti
   const fallback = (index: number) => (insertions.get(index) ?? []).map((event) => mappedStep(t, event, context));
   return [...steps.flatMap((step, index) => [...fallback(index), step]), ...fallback(steps.length)]
     .map((step) => markInvalid(t, step, warnings.byNode.get(step.id ?? '')));
-}
-
-function durationFormatter(t: Translate): (seconds: number) => Text {
-  const units = [t('flows.test.duration.day'), t('flows.test.duration.hour'), t('flows.test.duration.minute'), t('flows.test.duration.second')];
-  return (seconds) => compactDuration(seconds, units);
 }
 
 export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalView {

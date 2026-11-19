@@ -63,6 +63,8 @@ test.each([
   ['reply.http_get', 'saveAs', false], ['reply.text', 'input', false], ['reply.text', 'saveAs', true],
   ['cond.user', 'login', true], ['cond.cooldown', 'seconds', true], ['cond.cooldown', 'name', false],
   ['twitch.chat.command', 'trigger', true], ['twitch.reward', 'reward', true], ['reply.shoutout', 'target', true],
+  ['reply.raid', 'target', true], ['reply.mod', 'target', true], ['reply.vip', 'target', true],
+  ['reply.whisper', 'target', true], ['reply.timeout', 'target', true],
   ['reply.countdown_start', 'name', true], ['reply.countdown_start', 'seconds', true], ['reply.countdown_start', 'leftReply', false]
 ] as const)('%s marks %s required: %s', (type, key, expected) => {
   expect(fieldRequired(nodeOf(type), key)).toBe(expected);

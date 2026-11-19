@@ -152,6 +152,7 @@
   "cooldownAdd": {
     "label": "Zeit zu einem Cooldown hinzufügen",
     "summary": "Einen benannten Timer verlängern, während er läuft",
+    "line": "{name} um {seconds} verlängern",
     "field": {
       "name": {
         "label": "Timer"
@@ -169,6 +170,7 @@
   "countdownAdd": {
     "label": "Zeit zum Countdown hinzufügen",
     "summary": "Einen laufenden Countdown verlängern",
+    "line": "{name} um {seconds} verlängern",
     "field": {
       "name": {
         "label": "Countdown"
@@ -186,6 +188,7 @@
   "poll": {
     "label": "Umfrage starten",
     "summary": "Zuschauer über eine Frage abstimmen lassen",
+    "line": "Umfrage: {title}",
     "field": {
       "title": {
         "label": "Titel"
@@ -201,6 +204,10 @@
   "pollEnd": {
     "label": "Umfrage beenden",
     "summary": "Abstimmung stoppen oder Ergebnisse archivieren",
+    "line": {
+      "terminate": "Umfrage beenden und Ergebnisse anzeigen",
+      "archive": "Umfrage archivieren"
+    },
     "field": {
       "status": {
         "label": "Aktion",
@@ -214,6 +221,7 @@
   "prediction": {
     "label": "Vorhersage starten",
     "summary": "Zuschauer mit Punkten auf ein Ergebnis wetten lassen",
+    "line": "Vorhersage: {title}",
     "field": {
       "title": {
         "label": "Titel"
@@ -229,6 +237,11 @@
   "predictionEnd": {
     "label": "Vorhersage beenden",
     "summary": "Wetten sperren, Punkte erstatten oder Gewinner wählen",
+    "line": {
+      "lock": "Wetten sperren",
+      "cancel": "Abbrechen und Punkte erstatten",
+      "resolve": "Gewinnergebnis: {winner}"
+    },
     "field": {
       "status": {
         "label": "Aktion",
@@ -246,6 +259,7 @@
   "raidStart": {
     "label": "Raid starten",
     "summary": "Deine Zuschauer zu einem anderen Kanal schicken",
+    "line": "Raid zu {target} starten",
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
@@ -259,6 +273,10 @@
   "mod": {
     "label": "Moderatorrolle ändern",
     "summary": "Moderatorrechte geben oder entziehen",
+    "line": {
+      "on": "{target} zum Mod machen",
+      "off": "{target} die Mod-Rechte entziehen"
+    },
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
@@ -271,6 +289,10 @@
   "vip": {
     "label": "VIP-Rolle ändern",
     "summary": "Einem Zuschauer das VIP-Abzeichen geben oder nehmen",
+    "line": {
+      "on": "{target} zum VIP machen",
+      "off": "{target} den VIP-Status entziehen"
+    },
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
@@ -291,6 +313,7 @@
   "whisper": {
     "label": "Flüsternachricht senden",
     "summary": "Einem Zuschauer eine private Nachricht schicken",
+    "line": "An {target} flüstern: {text}",
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"

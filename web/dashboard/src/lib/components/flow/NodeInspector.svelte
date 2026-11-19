@@ -20,7 +20,7 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
   import { fieldVisible, NODE_SPECS, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
@@ -79,7 +79,6 @@
 
   const node = $derived(flow.nodes.find((n) => n.id === (selectedId ?? fallbackId)));
   const spec = $derived(node ? specFor(node.type) : undefined);
-  const targetMissing = $derived(['reply.shoutout', 'reply.timeout'].includes(node?.type ?? '') && !String(node?.config.target ?? '').trim());
 
   const compareExample = $derived.by(() => {
     if (node?.type !== 'cond.compare') return null;
@@ -309,16 +308,14 @@
           {#each spec.fields as field (field.key)}
             {@const disabled = !fieldVisible(spec, node, field)}
             {@const label = fieldLabel(t, spec, field, node)}
+            {@const hint = fieldHint(t, spec, field)}
             {@const issue = issues.find((issue) => issue.nodeId === node.id && issue.fieldKey === field.key)}
             {@const error = issue ? fieldIssueMessage(t, issue, node) : undefined}
-            {@const tag = fieldRequired(node, field.key) ? t('flows.clarity.required') : undefined}
+            {@const required = fieldRequired(node, field.key)}
+            {@const tag = required ? t('flows.clarity.required') : undefined}
             {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field, node)}
             <fieldset class="field" class:inactive={disabled} {disabled} inert={disabled} data-field={field.key} bind:this={fieldElements[field.key]} aria-label={label} tabindex="-1">
-            {#if spec.type === 'cond.cooldown' && field.key === 'name'}
-              <Field {label} {tag} {error} for="{uid}-{field.key}" hint={t('flows.step.condition.cooldown.field.name.hint')}>
-                <Input id="{uid}-{field.key}" {placeholder} value={textOf(field.key)} oninput={(e) => (node.config[field.key] = e.currentTarget.value)} />
-              </Field>
-            {:else if field.type === 'color'}
+            {#if field.type === 'color'}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <ColorPicker
                   id="{uid}-{field.key}"
@@ -331,7 +328,7 @@
                 <span class="toggle-label">{label}</span>
                 <Switch
                   {label}
-                  checked={node.config[field.key] === undefined ? field.defaultOn === true : Boolean(node.config[field.key])}
+                  checked={Boolean(node.config[field.key] ?? (field.key === 'liveOnly' && field.initial))}
                   onCheckedChange={(v) => (node.config[field.key] = v)}
                 />
               </div>
@@ -345,7 +342,7 @@
                 />
               </Field>
             {:else if field.type === 'number'}
-              <Field {label} {tag} {error} for="{uid}-{field.key}" hint={spec.type === 'reply.cooldown_add' && field.key === 'per' ? t('flows.step.reply.cooldownAdd.field.per.hint') : spec.type === 'reply.countdown_add' && field.key === 'per' ? t('flows.step.reply.countdownAdd.field.per.hint') : undefined}>
+              <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
                   type="number"
@@ -384,12 +381,12 @@
                 {/key}
               </Field>
             {:else if field.type === 'template' && field.singleLine}
-              {@const needsTarget = targetMissing && field.key === 'target'}
-              {@const shown = error ?? (needsTarget ? t('flows.test.noTarget') : undefined)}
-              <Field {label} {tag} error={shown} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
+              {@const requiredTarget = field.key === 'target' && required}
+              {@const shown = error ?? (requiredTarget && !textOf(field.key).trim() ? t('flows.test.noTarget') : undefined)}
+              <Field {label} {tag} error={requiredTarget ? undefined : shown} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
                 <Input
                   id="{uid}-{field.key}"
-                  required={field.key === 'target'}
+                  required={requiredTarget}
                   aria-invalid={shown ? true : undefined}
                   aria-describedby={shown ? `${uid}-${field.key}-error` : undefined}
                   {placeholder}
@@ -404,6 +401,9 @@
                   aria-controls={completion?.key === field.key ? `${uid}-suggestions` : undefined}
                   aria-activedescendant={completion?.key === field.key ? `${uid}-suggestion-${activeSuggestion}` : undefined}
                 />
+                {#if requiredTarget}
+                  <small class="bb-field__error bb-fit-box target-error" class:faded={!shown} id="{uid}-{field.key}-error" role="alert"><bb-fit mode="block">{shown ?? ''}</bb-fit></small>
+                {/if}
               </Field>
             {:else if field.type === 'template'}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
@@ -442,6 +442,9 @@
                   oninput={(e) => (node.config[field.key] = e.currentTarget.value)}
                 />
               </Field>
+            {/if}
+            {#if hint}
+              <small class="bb-field__hint bb-fit-box field-hint"><bb-fit mode="block">{hint}</bb-fit></small>
             {/if}
             </fieldset>
           {/each}
@@ -577,12 +580,16 @@
     border: 0;
   }
   .field,
-  .variable-group { transition: opacity 0.15s ease; }
+  .variable-group,
+  .target-error { transition: opacity 0.15s ease; }
   .inactive { opacity: 0.45; }
   @media (prefers-reduced-motion: reduce) {
     .field,
-    .variable-group { transition: none; }
+    .variable-group,
+    .target-error { transition: none; }
   }
+  .target-error { height: 28px; }
+  .field-hint { height: 52px; margin-top: var(--field-gap); }
   .unit {
     font-size: 14px;
     color: rgba(var(--bb-white-rgb), 0.92);

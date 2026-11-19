@@ -179,6 +179,18 @@ test.each([
   expect(step?.text).toBe(text);
 });
 
+test.each([
+  { node: n('s', 'reply.poll', { title: 'What should {user} play?', choices: 'Chess\nCheckers', seconds: 60 }), text: 'Poll: What should Sender play?' },
+  { node: n('s', 'reply.whisper', { target: '{user}', text: 'Thanks, {user}!' }), text: 'Whisper to Sender: Thanks, Sender!' },
+  { node: n('s', 'reply.chat_mode', { mode: 'followers', on: false }), text: 'Followers only off' },
+  { node: n('s', 'reply.countdown_start', { name: 'subathon', seconds: 3600 }), text: 'Start subathon for 1h' }
+])('reuses the card template for the $node.type effect', ({ node, text }) => {
+  const gate = n('c', 'cond.role', { level: 'broadcaster' });
+  const flow = flowOf([trigger, gate, node], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
+  const step = run(flow, { scenario: { user: 'Sender', role: 'broadcaster' } }).steps.at(-1);
+  expect([step?.id, step?.kind, step?.status, step?.text]).toEqual(['s', 'effect', 'ok', text]);
+});
+
 test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'])('stale viewer patches cannot affect %s', (type) => {
   const result = run(flowOf([n('t', type, { name: 'timer' }), n('s', 'reply.points', { amount: 10 })], [e('t', 'next', 's')]), {
     scenario: { user: 'Old', userId: '42', message: '!old', bits: 50 }

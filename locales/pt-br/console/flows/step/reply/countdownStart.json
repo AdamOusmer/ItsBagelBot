@@ -1,6 +1,7 @@
 {
   "label": "Iniciar contagem regressiva",
   "summary": "Iniciar ou reiniciar uma contagem regressiva",
+  "line": "Iniciar {name} por {seconds}",
   "field": {
     "name": {
       "label": "Nome",

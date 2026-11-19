@@ -1,6 +1,10 @@
 {
   "label": "Chatmodus ändern",
   "summary": "Festlegen, wer wie oft chatten darf",
+  "line": {
+    "on": "Chatmodus aktivieren: {mode}",
+    "off": "Chatmodus deaktivieren: {mode}"
+  },
   "field": {
     "mode": {
       "label": "Chatmodus",

@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepSummary, variableLabel } from './copy';
+import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepSummary, variableLabel } from './copy';
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
-import { newFlow, NODE_SPECS, type FlowNode } from './model';
+import { newFlow, NODE_SPECS, specFor, type FlowNode } from './model';
 import type { Translate } from './messages';
 
 const missing = (text: string | undefined) => text === undefined || text.startsWith('flows.');
@@ -22,6 +22,17 @@ test.each([
 });
 
 describe('step copy', () => {
+  test.each([
+    { type: 'cond.cooldown', key: 'name', hint: 'Naming this restarts it if it is running. Add time steps in any recipe can then extend it. Not available per viewer.' },
+    { type: 'reply.cooldown_add', key: 'per', hint: 'Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event.' },
+    { type: 'reply.countdown_add', key: 'per', hint: 'Add this time for each full amount. Leave empty to add it once per event.' },
+    { type: 'reply.countdown_add', key: 'name', hint: undefined }
+  ])('$type $key shows a hint only when translated', ({ type, key, hint }) => {
+    const spec = specFor(type)!;
+    const field = spec.fields.find((field) => field.key === key)!;
+    expect(fieldHint(english, spec, field)).toBe(hint);
+  });
+
   test.each([
     { op: undefined, label: 'Uppercase input', placeholder: '{args}', variantOnly: undefined },
     { op: 'replace', label: 'Text to change', placeholder: 'Search text', variantOnly: 'Search text' },

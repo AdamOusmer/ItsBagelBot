@@ -99,7 +99,8 @@ function catalogRequires(node: FlowNode, key: FieldKey): boolean {
 }
 
 export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
-  return builderRule(node, key) ?? catalogRequires(node, key);
+  const field = specFor(node.type)?.fields.find((entry) => entry.key === key);
+  return field?.required ?? builderRule(node, key) ?? catalogRequires(node, key);
 }
 
 export function missingField(node: FlowNode): string | undefined {

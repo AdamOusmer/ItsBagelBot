@@ -13,7 +13,7 @@ const gateSpec: NodeSpec = {
   type: 'reply.chat_mode', kind: 'reply', group: 'chat', slug: 'chatMode', icon: 'clock',
   fields: [
     { key: 'mode', type: 'select', options: ['slow', 'followers', 'emote'] },
-    { key: 'on', type: 'toggle', defaultOn: true },
+    { key: 'on', type: 'toggle', initial: true },
     gatedField
   ]
 };

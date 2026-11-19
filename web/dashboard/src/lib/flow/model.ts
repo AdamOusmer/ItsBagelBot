@@ -74,13 +74,13 @@ type Typed = { key: string; placeholder?: true };
 
 type FieldGate = { key: string; value: string | readonly string[] | boolean };
 
-export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string } & (
+export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string; initial?: string | number | boolean; required?: true } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[] }
-  | { key: string; type: 'toggle'; defaultOn?: true }
+  | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
   | { key: string; type: 'goveeLight' }
@@ -101,6 +101,7 @@ export type NodeSpec = {
   group: StepGroup;
   icon: IconName;
   fields: readonly FieldSpec[];
+  lineBy?: string;
   provides?: readonly VariableSpec[];
   providesFor?(config: FlowNode['config']): readonly VariableSpec[];
   outputs?: readonly OutputSpec[];
@@ -167,7 +168,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.countdown_start', slug: 'countdownStart', icon: 'timer',
     fields: [
       { key: 'name', type: 'text', placeholder: true },
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 3_600 },
       { key: 'leftCommand', type: 'text', placeholder: true },
       { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
       { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
@@ -178,7 +179,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.countdown_add', slug: 'countdownAdd', icon: 'timer',
     fields: [
       { key: 'name', type: 'choice', source: 'namedCountdowns' },
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 60 },
       { key: 'per', type: 'number', min: 0 }
     ],
     provides: [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }]
@@ -244,7 +245,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'cond.role',
     slug: 'role',
     icon: 'moderation',
-    fields: [{ key: 'level', type: 'select', options: ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'] }],
+    fields: [{ key: 'level', type: 'select', options: ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'], initial: 'mod' }],
     outputs: yesNo
   },
   {
@@ -259,7 +260,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     slug: 'cooldown',
     icon: 'hourglass',
     fields: [
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 30 },
       { key: 'perUser', type: 'toggle' },
       { key: 'name', type: 'text', placeholder: true, when: { key: 'perUser', value: false } },
       { key: 'leftCommand', type: 'text', placeholder: true },
@@ -283,7 +284,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'cond.chance',
     slug: 'chance',
     icon: 'dice',
-    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, unit: true }],
+    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, unit: true, initial: 50 }],
     outputs: yesNo
   },
   {
@@ -293,7 +294,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [
       varScope,
       varName,
-      { key: 'op', type: 'select', options: [...VAR_OPS_WITH_VALUE, 'exists'] },
+      { key: 'op', type: 'select', options: [...VAR_OPS_WITH_VALUE, 'exists'], initial: 'exists' },
       { key: 'value', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: VAR_OPS_WITH_VALUE } }
     ],
     outputs: yesNo
@@ -308,7 +309,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.points',
     slug: 'points',
     icon: 'coins',
-    fields: [{ key: 'amount', type: 'number', unit: true }]
+    fields: [{ key: 'amount', type: 'number', unit: true, initial: 10 }]
   },
   {
     type: 'reply.counter',
@@ -326,20 +327,20 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       { key: 'mode', type: 'select', options: ['color', 'scene'] },
       { key: 'color', type: 'color', when: { key: 'mode', value: 'color' } },
       { key: 'scene', type: 'choice', source: 'scenes', nameKey: 'sceneName', when: { key: 'mode', value: 'scene' } },
-      { key: 'liveOnly', type: 'toggle', defaultOn: true }
+      { key: 'liveOnly', type: 'toggle', initial: true }
     ]
   },
   {
     type: 'reply.wait',
     slug: 'wait',
     icon: 'timer',
-    fields: [{ key: 'seconds', type: 'number', min: 1, max: MAX_WAIT_SECONDS, unit: true }]
+    fields: [{ key: 'seconds', type: 'number', min: 1, max: MAX_WAIT_SECONDS, unit: true, initial: 5 }]
   },
   {
     type: 'reply.loop',
     slug: 'loop',
     icon: 'repeat',
-    fields: [{ key: 'times', type: 'template', placeholder: true, singleLine: true }],
+    fields: [{ key: 'times', type: 'template', placeholder: true, singleLine: true, initial: '3' }],
     outputs: loopPorts
   },
   {
@@ -353,7 +354,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.var_add',
     slug: 'varAdd',
     icon: 'braces',
-    fields: [varScope, varName, { key: 'amount', type: 'number' }],
+    fields: [varScope, varName, { key: 'amount', type: 'number', initial: 1 }],
     providesFor: storedVariable
   },
   {
@@ -403,7 +404,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     icon: 'ticket',
     fields: [
       { key: 'reward', type: 'choice', source: 'manageableRewards', nameKey: 'rewardTitle' },
-      { key: 'setEnabled', type: 'select', options: ['keep', 'on', 'off'] },
+      { key: 'setEnabled', type: 'select', options: ['keep', 'on', 'off'], initial: 'on' },
       { key: 'cost', type: 'number', min: 1, max: MAX_REWARD_COST, unit: true },
       { key: 'reset', type: 'toggle' }
     ]
@@ -414,7 +415,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     icon: 'timer',
     fields: [
       { key: 'name', type: 'choice', source: 'namedCooldowns' },
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 60 },
       { key: 'per', type: 'number', min: 0 }
     ]
   },
@@ -430,7 +431,7 @@ function matchesValue(wanted: FieldGate['value'], value: unknown): boolean {
 
 function gateMatches(spec: NodeSpec, config: FlowNode['config'], { key, value }: FieldGate): boolean {
   const gate = spec.fields.find((field) => field.key === key);
-  const fallback = gate?.type === 'select' ? gate.options[0] : gate?.type === 'toggle' ? gate.defaultOn : undefined;
+  const fallback = gate?.type === 'select' ? gate.options[0] : gate?.initial;
   return matchesValue(value, config[key] ?? fallback);
 }
 
