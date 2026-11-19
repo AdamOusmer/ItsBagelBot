@@ -27,6 +27,9 @@ type loyaltyRPC struct {
 }
 
 func Subscribe(w Wiring, prefix string) error {
+	if w.WatchStatus == nil {
+		return errors.New("loyalty RPC requires WatchStatus")
+	}
 	l := &loyaltyRPC{repo: w.Repo, log: w.Log, invalidations: w.Invalidations, watchStatus: w.WatchStatus}
 	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbBalanceSnapshot, l.handleBalanceSnapshot); err != nil {
 		return err

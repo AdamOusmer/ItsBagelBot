@@ -18,8 +18,11 @@ func (l *loyaltyRPC) handleBalanceCredit(ctx context.Context, req loyaltyrpc.Req
 	if !ok {
 		return reply
 	}
+	if req.AccountCreatedAt == nil {
+		return refuse(domainrpc.CodeInvalid, "account_created_at is required")
+	}
 	result, err := l.repo.BalanceCredit(ctx, repository.BalanceCredit{UserID: userID, ViewerID: viewerID,
-		ViewerLogin: req.ViewerLogin, Value: req.Value, Key: req.Key, AccountCreatedAt: req.AccountCreatedAt})
+		ViewerLogin: req.ViewerLogin, Value: req.Value, Key: req.Key, AccountCreatedAt: *req.AccountCreatedAt})
 	if err != nil {
 		return l.creditFailure(err)
 	}
@@ -53,7 +56,8 @@ func (l *loyaltyRPC) handleBalanceSnapshot(ctx context.Context, req loyaltyrpc.R
 	}
 	row, found, err := route.balance(ctx, viewerID)
 	if err != nil {
-		return loyaltyrpc.BalanceSnapshot{Refusal: l.fail(loyaltyrpc.VerbBalanceSnapshot, err).Refusal}
+		l.log.Warn("balance.snapshot failed", zap.Error(err))
+		return loyaltyrpc.BalanceSnapshot{Refusal: domainrpc.Refused(domainrpc.CodeUnavailable, "loyalty snapshot unavailable")}
 	}
 	if !found {
 		return loyaltyrpc.BalanceSnapshot{FreezeStamp: route.activeStamp()}

@@ -43,7 +43,7 @@ func fmtID(id uint64) string { return strconv.FormatUint(id, 10) }
 
 func (l *LoyaltyRPC) BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error) {
 	req := loyaltyrpc.Request{UserID: fmtID(credit.BroadcasterID), ViewerID: fmtID(credit.ViewerID),
-		ViewerLogin: credit.ViewerLogin, Value: credit.Value, Key: credit.Key, AccountCreatedAt: credit.AccountCreatedAt}
+		ViewerLogin: credit.ViewerLogin, Value: credit.Value, Key: credit.Key, AccountCreatedAt: &credit.AccountCreatedAt}
 	reply, err := l.call(ctx, loyaltyrpc.VerbBalanceCredit, req)
 	if err != nil {
 		return CreditOutcome{}, err
@@ -71,10 +71,6 @@ func (l *LoyaltyRPC) BalanceGet(ctx context.Context, broadcasterID, viewerID uin
 		return loyaltyrpc.Balance{}, nil
 	}
 	return *reply.Balance, nil
-}
-
-func (l *LoyaltyRPC) BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
-	return l.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerLogin: viewerLogin, Value: value, Absolute: absolute})
 }
 
 func (l *LoyaltyRPC) BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
@@ -107,13 +103,13 @@ func (l *LoyaltyRPC) BalanceSpend(ctx context.Context, spend PointSpend) (bal lo
 	return *reply.Balance, true, reply.Spent, nil
 }
 
-func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, target *loyaltyrpc.Balance, found, moved bool, err error) {
+func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, target *loyaltyrpc.Balance, found, moved bool, err error) {
 	reply, err := l.call(ctx, "balance.transfer", loyaltyrpc.Request{
-		UserID:         fmtID(broadcasterID),
-		ViewerID:       fmtID(fromViewerID),
-		ViewerLogin:    targetLogin,
-		TargetViewerID: fmtID(targetViewerID),
-		Value:          amount,
+		UserID:         fmtID(transfer.BroadcasterID),
+		ViewerID:       fmtID(transfer.FromViewerID),
+		ViewerLogin:    transfer.TargetLogin,
+		TargetViewerID: fmtID(transfer.TargetViewerID),
+		Value:          transfer.Amount,
 	})
 	if err != nil {
 		return loyaltyrpc.Balance{}, nil, false, false, err
@@ -133,10 +129,10 @@ func (l *LoyaltyRPC) topReply(ctx context.Context, broadcasterID uint64, limit i
 	return l.call(ctx, "top.get", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Limit: limit})
 }
 
-func (l *LoyaltyRPC) CounterGet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error) {
-	req := loyaltyrpc.Request{UserID: fmtID(broadcasterID), Name: name, Command: command}
-	if viewerID != 0 {
-		req.ViewerID = fmtID(viewerID)
+func (l *LoyaltyRPC) CounterGet(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error) {
+	req := loyaltyrpc.Request{UserID: fmtID(target.BroadcasterID), Name: target.Name, Command: target.Command}
+	if target.ViewerID != 0 {
+		req.ViewerID = fmtID(target.ViewerID)
 	}
 	reply, err := l.call(ctx, "counter.get", req)
 	if err != nil {
@@ -148,8 +144,8 @@ func (l *LoyaltyRPC) CounterGet(ctx context.Context, broadcasterID uint64, name 
 	return *reply.Counter, true, nil
 }
 
-func (l *LoyaltyRPC) CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error) {
-	reply, err := l.call(ctx, "counter.create", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Name: name, Scope: scope})
+func (l *LoyaltyRPC) CounterCreate(ctx context.Context, ref counterRef, scope counterScope) (loyaltyrpc.Counter, error) {
+	reply, err := l.call(ctx, "counter.create", loyaltyrpc.Request{UserID: fmtID(ref.broadcasterID), Name: ref.name, Scope: string(scope)})
 	if err != nil {
 		return loyaltyrpc.Counter{}, err
 	}
@@ -176,8 +172,8 @@ func (l *LoyaltyRPC) PromoteTrial(ctx context.Context, broadcasterID uint64) err
 	return err
 }
 
-func (l *LoyaltyRPC) CounterDelete(ctx context.Context, broadcasterID uint64, name string) error {
-	_, err := l.call(ctx, "counter.delete", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Name: name})
+func (l *LoyaltyRPC) CounterDelete(ctx context.Context, ref counterRef) error {
+	_, err := l.call(ctx, "counter.delete", loyaltyrpc.Request{UserID: fmtID(ref.broadcasterID), Name: ref.name})
 	return err
 }
 
