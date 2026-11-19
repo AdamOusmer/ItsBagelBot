@@ -5,6 +5,6 @@
   "actions": [
     { "type": "unban", "params": { "who": "mention" } },
     { "type": "unban", "params": { "who": "user", "user_id": "42" } },
-    { "type": "unban", "params": { "login": "bob" } }
+    { "type": "unban", "params": { "login": "bobby" } }
   ]
 }

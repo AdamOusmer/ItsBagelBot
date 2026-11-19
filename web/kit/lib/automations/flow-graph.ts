@@ -439,10 +439,16 @@ export const activeRandomPaths = (config: FlowConfig) =>
 export const randomPathWeight = (config: FlowConfig, key: keyof FlowConfig) => num(config[key] ?? RANDOM_PATH_DEFAULT_WEIGHT);
 const CHECK_PORTS = ['yes', 'no'] as const;
 
+const NODE_PORTS: Readonly<Record<string, (node: FlowNode) => readonly string[]>> = {
+  [LOOP_TYPE]: () => LOOP_PORTS,
+  [RANDOM_TYPE]: (node) => activeRandomPaths(node.config).map(({ id }) => id)
+};
+
 function outputPorts(node: FlowNode): readonly string[] {
   if (isConditionType(node.type)) return CHECK_PORTS;
-  if (node.type === LOOP_TYPE) return LOOP_PORTS;
-  return Object.hasOwn(API_WRITERS, node.type) ? API_PORTS : ['next'];
+  const ports = NODE_PORTS[node.type];
+  if (ports) return ports(node);
+  return Object.hasOwn(API_WRITERS, node.type) ? apiPorts(API_WRITERS[node.type]!({}).type) : ['next'];
 }
 
 const DEFAULT_LIGHT_COLOR = '#ffffff';
