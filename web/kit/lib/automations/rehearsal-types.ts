@@ -51,7 +51,7 @@ export type RehearsalEvent = {
   lane: number[];
   iteration: number[];
   atMs: number;
-  kind: 'trigger' | 'check' | 'say' | 'effect' | 'wait' | 'parallel' | 'loop' | 'skip';
+  kind: 'trigger' | 'check' | 'say' | 'effect' | 'wait' | 'parallel' | 'loop' | 'skip' | 'lights_restore';
   status: 'ok' | 'failed' | 'skipped' | 'yes' | 'no';
   port?: string;
   lines?: string[];
