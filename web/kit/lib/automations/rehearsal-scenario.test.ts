@@ -74,6 +74,8 @@ test.each<MatchCase>([
   { trigger: { type: 'event', params: { kind: 'channel.raid', filters: { viewers: '100' } } }, scenario: { viewers: 42 }, reason: 'trigger_filter' },
   { trigger: { type: 'event', params: { kind: 'channel.subscribe', filters: { is_gift: 'false' } } }, scenario: { isGift: true }, reason: 'trigger_filter' },
   { trigger: { type: 'command', params: { name: '!hello' } }, scenario: { message: '!other' }, reason: 'trigger_message' },
+  { trigger: { type: 'command', params: { name: '' } }, scenario: { message: '' }, reason: 'no_name' },
+  { trigger: { type: 'command', params: { name: '', match: 'regex' } }, scenario: { message: 'anything' }, reason: 'no_name' },
   { trigger: { type: 'reward', params: { reward_id: 'r' } }, scenario: { rewardId: 'other' }, reason: 'trigger_filter' },
   { trigger: { type: 'countdown', params: { name: 'timer' } }, scenario: { name: 'other' }, reason: 'trigger_filter' }
 ])('failed trigger $trigger', ({ trigger, scenario, reason }) => {

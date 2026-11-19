@@ -1,14 +1,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { compactDuration, compileFlow, configKey, defaultScenario, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
+import { compactDuration, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
 import { describe } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { NODE_SPECS, specFor, type Flow, type FlowNode } from './model';
-import { fieldIssues, fieldRequired } from './issues';
+import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
 
 type Text = string;
 type ScenarioPatch = Partial<RehearsalScenario>;
@@ -24,6 +24,7 @@ export type RehearsalStep = RehearsalEvent & {
   secondary?: Text;
   node?: FlowNode;
   repair?: ScenarioPatch;
+  issues?: readonly FieldIssue[];
 };
 export type RehearsalView = {
   steps: RehearsalStep[];
@@ -37,6 +38,7 @@ export type RehearsalView = {
   startPatch?: ScenarioPatch;
   verifyRepair?: (patch: ScenarioPatch, path?: Text) => boolean;
   issue?: { text: Text; node: Text | null; fieldKey?: Text };
+  definitionNotice?: Text;
 };
 export type RehearsalOptions = { scenario?: ScenarioPatch; overrides?: RehearsalOverrides };
 
@@ -76,11 +78,11 @@ function repairField(nodes: FlowNode[], issue: Issue): void {
   node.config[field!] = String(node.config[field!] ?? '').replaceAll(`{${token}}`, `{unset:${token}}`);
 }
 
-function compileDraft(flow: Flow): ReturnType<typeof compileFlow> {
+function compileDraft(flow: Flow): { compiled: ReturnType<typeof compileFlow>; warnings?: DefinitionWarnings } {
   const compiled = compileFlow(flow);
-  if (compiled.ok) return compiled;
+  if (compiled.ok) return { compiled, warnings: definitionWarnings(flow, compiled.value.definition) };
   const tolerated = new Set(['unconnected_node', 'user_not_resolved', 'unmappable_token']);
-  if (!compiled.issues.every((issue) => tolerated.has(issue.code))) return compiled;
+  if (!compiled.issues.every((issue) => tolerated.has(issue.code))) return { compiled };
   return compileDraft(repairDraft(flow, compiled.issues));
 }
 
@@ -112,11 +114,18 @@ function startPatch(reason: { reason: Text; values: Record<Text, Text> }, defini
   return { [field]: field === 'isGift' || field === 'anonymous' ? value === 'true' : value };
 }
 
+const BLOCKED_LABELS: Readonly<Record<Text, MessageKey>> = {
+  condition_failed: 'flows.test.checkStopped',
+  trigger_message: 'flows.test.messageMismatch',
+  no_name: 'flows.test.noName'
+};
+
 function blockedText(t: Translate, reason: { reason: Text; values: Record<Text, Text> }): Text {
-  if (reason.reason === 'condition_failed') return t('flows.test.checkStopped');
-  if (reason.reason === 'trigger_message') return t('flows.test.messageMismatch', reason.values);
-  const numeric = reason.values.field === 'amount' || reason.values.field === 'viewers';
-  return t(numeric ? 'flows.test.below' : 'flows.test.filterMismatch', { ...reason.values, field: scenarioFieldLabel(t, reason.values.field ?? '') });
+  const label = BLOCKED_LABELS[reason.reason];
+  if (label) return t(label, reason.values);
+  const field = reason.values.field ?? '';
+  const numeric = ['amount', 'viewers'].includes(field);
+  return t(numeric ? 'flows.test.below' : 'flows.test.filterMismatch', { ...reason.values, field: scenarioFieldLabel(t, field) });
 }
 
 function counted(t: Translate, one: MessageKey, many: MessageKey, params: Record<Text, Text | number> & { count: Text | number }): Text {
@@ -300,11 +309,71 @@ function missingLabel(t: Translate, token: Text): Text {
   return scenarioFieldLabel(t, token) !== t('flows.test.notSet') ? scenarioFieldLabel(t, token) : name;
 }
 
-function permissionWarnings(definition: Definition): RehearsalEvent[] {
-  return validateDefinition(definition).filter((issue) => issue.code === 'perm_required').map((issue) => ({
-    key: `warning:${issue.path}`, path: issue.path.replace(/\.type$/, ''), lane: [], iteration: [], atMs: 0,
-    kind: 'effect', status: 'failed', detail: { code: issue.code }
-  }));
+type DefinitionWarnings = { byNode: Map<Text, FieldIssue[]>; recipe: Issue[] };
+
+function definitionWarnings(flow: Flow, definition: Definition): DefinitionWarnings {
+  const byNode = new Map<Text, FieldIssue[]>();
+  const issues = validateDefinition(definition);
+  const located = issues.length ? locateIssues(flow, issues) : [];
+  const fields = fieldIssues(located, flow.nodes);
+  for (const field of fields) {
+    byNode.set(field.nodeId, [...(byNode.get(field.nodeId) ?? []), field]);
+  }
+  const owned = new Set(fields.map((field) => field.path));
+  return { byNode, recipe: located.filter((issue) => !owned.has(issue.path)) };
+}
+
+const WARNING_LABELS: Readonly<Record<Text, MessageKey>> = {
+  'trigger_mismatch:reply.unban_resolve:type': 'flows.test.requiresUnbanRequest',
+  trigger_mismatch: 'automations.issue.trigger_mismatch',
+  'too_short:reply.poll:choices': 'flows.test.pollChoices',
+  'required:reply.poll:choices': 'flows.test.pollChoices'
+};
+
+function warningText(t: Translate, issue: FieldIssue, node: FlowNode | undefined): Text {
+  const place = issue.path.split('.').at(-1);
+  const key = WARNING_LABELS[`${issue.code}:${node?.type}:${place}`] ?? WARNING_LABELS[issue.code];
+  return key ? t(key) : fieldIssueMessage(t, issue, node);
+}
+
+function markInvalid(t: Translate, step: RehearsalStep, issues: FieldIssue[] | undefined): RehearsalStep {
+  if (!issues) return step;
+  const text = [...new Set(issues.map((issue) => warningText(t, issue, step.node)))].join(' ');
+  return { ...step, issues, text, status: 'failed', detail: { ...step.detail, code: issues[0]!.code },
+    chatLines: [], lines: undefined, missing: [], sample: false, note: undefined, secondary: undefined, repair: undefined };
+}
+
+function missingWarnings(steps: RehearsalStep[], context: RunContext, warnings: DefinitionWarnings): Map<number, RehearsalEvent[]> {
+  const { nodeByPath } = context.compiled;
+  const seen = new Set(steps.map((step) => step.id));
+  const paths = [...nodeByPath].filter(([path]) => path !== 'trigger');
+  const order = new Map(paths.map(([path], rank) => [path, rank]));
+  const positions = steps.map((step) => order.get(`${step.path}.params.condition`) ?? order.get(step.path) ?? -1);
+  const insertions = new Map<number, RehearsalEvent[]>();
+  for (const [rank, [path, id]] of paths.entries()) {
+    if (seen.has(id) || !warnings.byNode.has(id)) continue;
+    seen.add(id);
+    const next = positions.findIndex((position) => position > rank);
+    const index = next < 0 ? steps.length : next;
+    const atMs = steps[Math.min(index, steps.length - 1)]?.atMs ?? 0;
+    const rows = insertions.get(index) ?? [];
+    rows.push({ key: `warning:${path}`, path, lane: [], iteration: [], atMs, kind: 'skip', status: 'failed' });
+    insertions.set(index, rows);
+  }
+  return insertions;
+}
+
+function rehearsalSteps(t: Translate, result: ReturnType<typeof rehearseDefinition>, context: RunContext, warnings: DefinitionWarnings | undefined): RehearsalStep[] {
+  const steps = result.events.map((event) => mappedStep(t, event, context));
+  if (!warnings?.byNode.size) return steps;
+  if (!steps.length && result.reason) {
+    const trigger: RehearsalEvent = { key: 'trigger:blocked', path: 'trigger', lane: [], iteration: [], atMs: 0, kind: 'trigger', status: 'skipped' };
+    steps.push({ ...mappedStep(t, trigger, context), text: blockedText(t, result.reason) });
+  }
+  const insertions = missingWarnings(steps, context, warnings);
+  const fallback = (index: number) => (insertions.get(index) ?? []).map((event) => mappedStep(t, event, context));
+  return [...steps.flatMap((step, index) => [...fallback(index), step]), ...fallback(steps.length)]
+    .map((step) => markInvalid(t, step, warnings.byNode.get(step.id ?? '')));
 }
 
 function durationFormatter(t: Translate): (seconds: number) => Text {
@@ -316,12 +385,12 @@ export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions
   return rehearseDraft(prepareRehearsal(flow), t, options);
 }
 
-export function prepareRehearsal(flow: Flow): { flow: Flow; compiled: ReturnType<typeof compileFlow> } {
-  return { flow, compiled: compileDraft(flow) };
+export function prepareRehearsal(flow: Flow) {
+  return { flow, ...compileDraft(flow) };
 }
 
 export function rehearseDraft(draft: ReturnType<typeof prepareRehearsal>, t: Translate, options: RehearsalOptions = {}): RehearsalView {
-  const { flow, compiled } = draft;
+  const { flow, compiled, warnings } = draft;
   const empty: RehearsalView = { steps: [], fields: [], scenario: { live: true, ...options.scenario }, summary: '', starts: false, state: 'not_started' };
   if (!compiled.ok) return { ...empty, issue: rehearsalIssue(t, compiled.issues, flow) };
   const { definition } = compiled.value;
@@ -333,7 +402,8 @@ export function rehearseDraft(draft: ReturnType<typeof prepareRehearsal>, t: Tra
   const result = rehearseDefinition(definition, scenario, overrides, formatDuration);
   const context: RunContext = { flow, compiled: compiled.value, nodes: new Map(flow.nodes.map((node) => [node.id, node])), scenario, overrides, formatDuration };
   return { scenario, fields, summary: scenarioSummary(t, scenario, kind), ...runOutcome(result, context, t),
-    steps: [...permissionWarnings(definition), ...result.events].map((event) => mappedStep(t, event, context)),
+    steps: rehearsalSteps(t, result, context, warnings),
+    definitionNotice: warnings?.recipe.map((issue) => issueMessage(t, issue)).join(' ') || undefined,
     verifyRepair: (patch, path) => verifyRepair(context, patch, path) };
 }
 

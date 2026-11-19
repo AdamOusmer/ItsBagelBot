@@ -64,15 +64,6 @@ test.each([
   expect([repair, before.steps.some((step) => step.id === 's'), after.steps.at(-1)?.id]).toEqual([patch, false, 's']);
 });
 
-test.each<{ type: Kind; config: FlowNode['config']; missing: string[] }>([
-  { type: 'cond.compare', config: { left: '5', op: 'gte', right: '' }, missing: [] },
-  { type: 'reply.announce', config: { text: '' }, missing: ['Message'] },
-  { type: 'reply.reply', config: { text: '' }, missing: ['Message'] }
-])('required fields use the save policy for $type', ({ type, config, missing }) => {
-  const result = run(flowOf([trigger, n('c', type, config)], [e('t', 'next', 'c')]));
-  expect(result.steps.find((step) => step.id === 'c')?.missing).toEqual(missing);
-});
-
 test.each([
   { name: 'chance', node: n('c', 'cond.chance', { percent: 50 }), overrides: { c: 'no' }, port: 'no' },
   { name: 'cooldown', node: n('c', 'cond.cooldown', { seconds: 30 }), overrides: { c: 'cooling' }, port: 'no' },
@@ -138,7 +129,7 @@ test.each([
 
 test.each([
   { op: 'eq', right: '', missing: [], reason: 'does not match' }, { op: 'gte', right: '', missing: [], reason: 'is not at least' },
-  { op: 'lt', right: '', missing: [], reason: 'is not less than' }, { op: 'contains', right: '', missing: ['This value'], reason: 'does not contain' },
+  { op: 'lt', right: '', missing: [], reason: 'is not less than' },
   { op: 'eq', right: '6', missing: [], reason: 'does not match' }, { op: 'gte', right: '10', missing: [], reason: 'is not at least' },
   { op: 'lt', right: '3', missing: [], reason: 'is not less than' }, { op: 'contains', right: '6', missing: [], reason: 'does not contain' }
 ])('a failed $op check explains comparing with "$right"', ({ op, right, missing, reason }) => {
@@ -195,15 +186,53 @@ test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'
   expect([result.scenario.user, result.scenario.message, result.scenario.bits]).toEqual([undefined, undefined, undefined]);
 });
 
-test.each([false, true])('permission warnings match Save with moderator check %s', (checked) => {
-  const check = n('c', 'cond.role', { level: 'mod' });
-  const timeout = n('s', 'reply.timeout', { target: '{touser}', seconds: 60 });
-  const flow = checked ? flowOf([trigger, check, timeout], [e('t', 'next', 'c'), e('c', 'yes', 's')]) : flowOf([trigger, timeout], [e('t', 'next', 's')]);
-  const compiled = automations.compileFlow(flow);
-  if (!compiled.ok) throw new Error(JSON.stringify(compiled.issues));
-  const warnings = run(flow).steps.filter((step) => step.detail?.code === 'perm_required');
-  const issues = automations.validateDefinition(compiled.value.definition).filter((issue) => issue.code === 'perm_required');
-  expect([warnings.length, warnings.map((step) => step.id)]).toEqual([issues.length, checked ? [] : ['s']]);
+const modCheck = n('c', 'cond.role', { level: 'mod' });
+const timeout = n('s', 'reply.timeout', { target: '{touser}', seconds: 60 });
+const blankChoice = n('s', 'reply.poll', { title: 'Play?', choices: 'Yes\nNo\n', seconds: 60 });
+const choiceIssue = 'Choices (one per line) is missing.';
+const permissionIssue = 'This command needs a higher user level for this step. Add a User level check before it.';
+const follow = n('t', 'twitch.follow');
+const afterTrigger = (root: FlowNode, step: FlowNode) => flowOf([root, step], [e(root.id, 'next', step.id)]);
+
+test.each([
+  { name: 'unban step after Follow', flow: afterTrigger(follow, n('s', 'reply.unban_resolve', { status: 'deny' })),
+    ids: ['t', 's'], found: ['s', 'failed', 'This step requires an Unban request trigger.', [['trigger_mismatch', undefined]]] },
+  { name: 'poll with a blank choice', flow: afterTrigger(follow, blankChoice),
+    ids: ['t', 's'], found: ['s', 'failed', choiceIssue, [['required', 'choices']]] },
+  { name: 'poll with only one choice', flow: afterTrigger(follow, n('s', 'reply.poll', { title: 'Play?', choices: 'Yes', seconds: 60 })),
+    ids: ['t', 's'], found: ['s', 'failed', 'Add at least two poll choices.', [['too_short', 'choices']]] },
+  { name: 'lights without a device', flow: afterTrigger(trigger, n('s', 'reply.lights', { mode: 'color' })),
+    ids: ['t', 's'], found: ['s', 'failed', 'Light is missing.', [['required', 'device'], ['required', 'device']]] },
+  { name: 'variable with a blank amount', flow: afterTrigger(trigger, n('s', 'reply.var_add', { name: 'score', scope: 'channel', amount: '' })),
+    ids: ['t', 's'], found: ['s', 'failed', 'A number is outside the allowed range.', [['out_of_range', 'amount']]] },
+  { name: 'total delay exceeds the save limit',
+    flow: flowOf([trigger, n('w', 'reply.wait', { seconds: 40 }), n('s', 'reply.wait', { seconds: 40 })], [e('t', 'next', 'w'), e('w', 'next', 's')]),
+    ids: ['t', 'w', 's'], found: ['s', 'failed', 'The waits add up to more than a recipe can pause.', [['delay_budget', 'seconds']]] },
+  { name: 'permission issue follows the trigger', flow: afterTrigger(trigger, timeout),
+    ids: ['t', 's'], found: ['s', 'failed', permissionIssue, [['perm_required', undefined]]] },
+  { name: 'permission check satisfies Save', flow: flowOf([trigger, modCheck, timeout], [e('t', 'next', 'c'), e('c', 'yes', 's')]),
+    ids: ['t', 'c'], blocked: 'a check did not pass' },
+  { name: 'unreached invalid step follows the failed check and precedes the other branch',
+    flow: flowOf([trigger, modCheck, blankChoice, right], [e('t', 'next', 'c'), e('c', 'yes', 's'), e('c', 'no', 'b')]),
+    ids: ['t', 'c', 's', 'b'], found: ['s', 'failed', `${choiceIssue} ${permissionIssue}`, [['required', 'choices'], ['perm_required', undefined]]] },
+  { name: 'comparison requires a search value', flow: afterTrigger(trigger, n('s', 'cond.compare', { left: '5', op: 'contains', right: '' })),
+    ids: ['t', 's'], found: ['s', 'failed', 'This value is missing.', [['required', 'right']]], blocked: 'a check did not pass' },
+  { name: 'announcement requires a message', flow: afterTrigger(trigger, n('s', 'reply.announce', { text: '' })),
+    ids: ['t', 's'], found: ['s', 'failed', 'Message is missing.', [['required', 'text']]] },
+  { name: 'reply requires a message', flow: afterTrigger(trigger, n('s', 'reply.reply', { text: '' })),
+    ids: ['t', 's'], found: ['s', 'failed', 'Message is missing.', [['required', 'text']]] },
+  { name: 'empty command', flow: afterTrigger(n('t', 'twitch.chat.command'), say), ids: ['t'], blocked: 'Set a command name first',
+    found: ['t', 'failed', 'Command is missing.', [['required', 'trigger']]] },
+  { name: 'empty chat word', flow: afterTrigger(n('t', 'twitch.chat.word'), say), ids: ['t'], blocked: 'Set a command name first',
+    found: ['t', 'failed', 'Word is missing.', [['required', 'word']]] },
+  { name: 'recipe-wide issue has its own notice', flow: { ...afterTrigger(trigger, say), queue: 'two words' }, ids: ['t', 's'],
+    notice: 'Use one simple word for this name: lowercase letters and numbers only, like points or wins.' }
+])('rehearsal shows save issues for $name', ({ flow, ids, blocked, found, notice }) => {
+  const view = run(flow);
+  const invalid = view.steps.find((step) => step.issues);
+  const issueRow = invalid && [invalid.id, invalid.status, invalid.text, invalid.issues?.map((issue) => [issue.code, issue.fieldKey])];
+  expect<unknown>({ ids: view.steps.map((step) => step.id), blocked: view.blocked, found: issueRow, invalidChat: invalid?.chatLines, notice: view.definitionNotice })
+    .toEqual({ ids, blocked, found, invalidChat: found ? [] : undefined, notice });
 });
 
 test('repeated failed checks verify a repair only on request', () => {

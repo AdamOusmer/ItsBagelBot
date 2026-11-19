@@ -19,7 +19,7 @@
     verifyRepair?: (patch: Partial<RehearsalScenario>, path?: string) => boolean;
     onScenario: (patch: Partial<RehearsalScenario>) => void;
     onOverride: (key: string, value: string) => void;
-    onSelect: (id: string) => void;
+    onSelect: (id: string, fieldKey?: string) => void;
   } = $props();
   const { t } = getI18n();
   const uid = $props.id();
@@ -86,11 +86,18 @@
               <span class="context">{t('flows.test.lane', { lane: step.lane.map((value) => value + 1).join('.') })}</span>
             {/if}
             {#if row.pass}<span class="context">{t('flows.test.pass', { pass: row.pass, total: row.total })}</span>{/if}
-            <button class="select" type="button" disabled={!step.id} onclick={() => step.id && onSelect(step.id)}>
-              <span class="label bb-fit-box"><bb-fit>{step.label}</bb-fit></span>
-              {#if step.text}<span class="detail bb-fit-box"><bb-fit mode="block">{step.text}</bb-fit></span>{/if}
-              {#if step.secondary}<span class="context">{step.secondary}</span>{/if}
-            </button>
+            <div class="heading">
+              <button class="select" type="button" disabled={!step.id} onclick={() => step.id && onSelect(step.id)}>
+                <span class="label bb-fit-box"><bb-fit>{step.label}</bb-fit></span>
+                {#if step.text}<span class="detail bb-fit-box"><bb-fit mode="block">{step.text}</bb-fit></span>{/if}
+                {#if step.secondary}<span class="context">{step.secondary}</span>{/if}
+              </button>
+              <div class="fix" class:fix-hidden={!step.issues} inert={!step.issues}>
+                <Button variant="ghost" size="sm" block onclick={() => step.id && onSelect(step.id, step.issues?.find((issue) => issue.fieldKey)?.fieldKey)}>
+                  <bb-fit>{t('flows.test.fixStep')}</bb-fit>
+                </Button>
+              </div>
+            </div>
             {#if step.kind === 'say'}
               <div class="bubble">
                 {#each step.chatLines as line, index (index)}
@@ -98,7 +105,7 @@
                 {/each}
               </div>
             {/if}
-            {#if step.kind === 'check'}<span class="result">{status(step)}</span>{/if}
+            {#if step.kind === 'check' || step.issues}<span class="result">{status(step)}</span>{/if}
             {#if step.sample}<span class="context">{t('flows.test.sample')}</span>{/if}
             {#if roleNote}<span class="missing role-note bb-fit-box"><bb-fit mode="block">{roleNote}</bb-fit></span>{/if}
             {#if step.note && !roleNote}<span class="missing">{step.note}</span>{/if}
@@ -110,7 +117,7 @@
               </div>
             {/if}
             {#if api && step.id}
-              {@const failed = step.status === 'failed'}
+              {@const failed = step.status === 'failed' && !step.issues}
               {@const key = `${step.id}.${failed ? 'error' : 'response'}`}
               <Field label={t(failed ? 'flows.test.errorCode' : 'flows.test.response')} for="{uid}-{step.key}-response">
                 <Input id="{uid}-{step.key}-response" fill placeholder={t('flows.test.notSet')} value={overrides[key] ?? (failed ? 'upstream_error' : '')} oninput={(event) => onOverride(key, event.currentTarget.value)} />
@@ -145,11 +152,15 @@
   .time { flex: 0 0 36px; padding-top: 8px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--bb-muted-light); }
   .rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
   .row { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .select { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 6px 0; border: 0; background: transparent; color: inherit; text-align: start; cursor: pointer; font: inherit; }
+  .heading { --fix-width: min(116px, 50%); display: grid; grid-template-areas: "heading"; grid-template-columns: minmax(0, 1fr); }
+  .select, .fix { grid-area: heading; }
+  .fix { z-index: 1; align-self: start; justify-self: end; width: var(--fix-width); transition: opacity 140ms ease; }
+  .fix-hidden { opacity: 0; }
+  .select { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 6px 0; border: 0; background: transparent; color: inherit; text-align: start; cursor: pointer; font: inherit; }
   .select:disabled { cursor: default; }
   .select:hover { color: var(--bb-green-glow); }
   .select:focus-visible { outline: 2px solid var(--bb-green-glow); outline-offset: 3px; border-radius: var(--bb-radius-xs); }
-  .label { width: 100%; height: 22px; font-size: 15px; font-weight: 600; }
+  .label { width: calc(100% - var(--fix-width) - 4px); height: 22px; font-size: 15px; font-weight: 600; }
   .detail, .result, .missing { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
   .detail { width: 100%; height: 42px; }
   .context { font-size: 12px; line-height: 1.4; color: var(--bb-muted-light); }
@@ -161,4 +172,5 @@
   .pretend { display: flex; flex-direction: column; gap: 4px; }
   .repair { min-height: 32px; }
   .invisible { visibility: hidden; opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .fix { transition: none; } }
 </style>

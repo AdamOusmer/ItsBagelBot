@@ -48,6 +48,7 @@
         {#if view.issue.node}<Button variant="ghost" size="sm" onclick={() => view.issue?.node && onSelect(view.issue.node, view.issue.fieldKey)}><bb-fit>{t('flows.test.fixStep')}</bb-fit></Button>{/if}
       </div>
     {/if}
+    <p class="sentence definition-notice bb-fit-box" class:invisible={!view.definitionNotice} role="status"><bb-fit mode="block">{view.definitionNotice ?? ''}</bb-fit></p>
     <div class="notice start" class:invisible={Boolean(view.issue)} inert={Boolean(view.issue)}>
       <p class="sentence bb-fit-box" role="status"><bb-fit mode="block">{headline}</bb-fit></p>
       <div class="actions">
@@ -73,6 +74,7 @@
   .note { flex: none; height: 40px; margin: 0; font-size: 13px; line-height: 20px; color: var(--bb-muted-light); }
   .notice { flex: none; min-height: 64px; font-size: 14px; line-height: 1.4; }
   .sentence { height: 42px; margin: 0 0 6px; }
+  .definition-notice { flex: none; }
   .actions { display: grid; }
   .repair { min-height: 32px; grid-area: 1 / 1; }
   .invisible { visibility: hidden; opacity: 0; }

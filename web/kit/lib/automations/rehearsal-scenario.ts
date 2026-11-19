@@ -146,6 +146,7 @@ function matchEvent(params: Params, scenario: RehearsalScenario): TriggerMatch {
 }
 
 function matchCommand(params: Params, scenario: RehearsalScenario): TriggerMatch {
+  if (!String(params.name ?? '').trim()) return { starts: false, reason: 'no_name', values: {} };
   if (commandMatch(params, scenario.message ?? '')) return { starts: true };
   return { starts: false, reason: 'trigger_message', values: { expected: String(params.name), actual: scenario.message ?? '' } };
 }
