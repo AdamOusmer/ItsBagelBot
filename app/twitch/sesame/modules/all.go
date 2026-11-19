@@ -26,6 +26,7 @@ func All(d engine.Deps) []module.Module {
 		CODM(d),
 		ClashRoyale(d),
 		Valorant(d),
+		Draw(d),
 		Raffle(d),
 		Queue(d),
 		Quotes(d),

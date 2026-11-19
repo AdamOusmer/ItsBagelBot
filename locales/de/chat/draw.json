@@ -1,0 +1,17 @@
+{
+  "claim.late": "@{draw:user} die Abholfrist ist abgelaufen.",
+  "claim.ok": "@{draw:user} dein Gewinn ist bestätigt!",
+  "empty": "Niemand hat an der Auslosung teilgenommen.",
+  "join.closed": "Die Auslosung ist geschlossen.",
+  "no_show": "Die Abholfrist ist verstrichen für {draw:targets}.",
+  "status.no_show": "Abholfrist verpasst: {draw:targets}.",
+  "status.none": "Es stehen noch keine Gewinner fest.",
+  "status.paying": "Auszahlung ausstehend: {draw:targets}.",
+  "status.unpaid": "Auszahlung fehlgeschlagen: {draw:targets}.",
+  "status.winners": "Gewonnen hat: {draw:targets}.",
+  "unfilled": "Es sind keine berechtigten Teilnehmenden mehr übrig.",
+  "verifying": "Die Gewinner werden überprüft. Das Ergebnis folgt.",
+  "winners": "Gewonnen hat: {draw:targets}!",
+  "winners.claim": "Gewonnen hat: {draw:targets}! Hol dir deinen Preis mit !claim.",
+  "winners.raffle": "Je {draw:points} Punkte gehen an {draw:targets}!"
+}

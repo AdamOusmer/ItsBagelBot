@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/automod"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
@@ -65,6 +66,7 @@ type Deps struct {
 	Queue          QueueStore
 	SongQueue      SongQueueStore
 	Raffle         RaffleStore
+	Draw           DrawStore
 	Duel           DuelStore
 	Quotes         QuotesStore
 	Loyalty        LoyaltyStore
@@ -284,3 +286,17 @@ func (NoopCooldown) Allow(context.Context, string, time.Duration) (bool, error) 
 func (NoopCooldown) AllowAll(context.Context, []CooldownWindow) (bool, error) { return true, nil }
 
 func (NoopCooldown) TimeLeft(context.Context, string) (time.Duration, error) { return 0, nil }
+
+type DrawStore interface {
+	Open(context.Context, draw.OpenRequest) (draw.Round, draw.OpenOutcome, error)
+	Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error)
+	Join(context.Context, draw.JoinRequest) (draw.JoinOutcome, error)
+	Close(context.Context, draw.CloseRequest) (bool, error)
+	Extend(context.Context, draw.ExtendRequest) (bool, error)
+	Cancel(context.Context, draw.ModAction) (bool, error)
+	EndSlots(context.Context, draw.SlotAction) (int, error)
+	Reroll(context.Context, draw.SlotAction) (int, error)
+	CanClaim(context.Context, draw.ChannelID, draw.ViewerID) (bool, error)
+	Claim(context.Context, draw.ChannelID, draw.ViewerID) (draw.ClaimOutcome, error)
+	Settling(context.Context, draw.ChannelID, draw.Kind) (draw.Round, []draw.Slot, bool, error)
+}

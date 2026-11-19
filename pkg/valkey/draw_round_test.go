@@ -66,6 +66,9 @@ func TestDrawRoundOpen(t *testing.T) {
 		{"legacy", func(t *testing.T, keys RoundKeys) {
 			require.NoError(t, NewKV(client).Set(t.Context(), Key{Name: keys.Joinable + ":legacy", TTL: testDrawTTL}, "1"))
 		}, RoundLegacyBusy},
+		{"legacy deadline reserved", func(t *testing.T, keys RoundKeys) {
+			require.NoError(t, NewKV(client).Set(t.Context(), Key{Name: keys.Joinable + ":deadline", TTL: testDrawTTL}, "1"))
+		}, RoundLegacyBusy},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,10 +76,11 @@ func TestDrawRoundOpen(t *testing.T) {
 			keys, peer := testDrawKeys(t, testRoundID), testDrawKeys(t, testPeerID)
 			cleanDrawKeys(t, client, keys)
 			legacy := keys.Joinable + ":legacy"
-			cleanKeys(t, client, peer.Round, legacy)
+			deadline := keys.Joinable + ":deadline"
+			cleanKeys(t, client, peer.Round, legacy, deadline)
 			tc.seed(t, peer)
 			code, err := keys.Open(ctx, client, RoundOpen{
-				RoundID: testRoundID, Legacy: legacy, Fields: []FieldValue{{Field: "phase", Value: testOpenPhase}},
+				RoundID: testRoundID, Legacy: legacy, LegacyDeadline: deadline, Fields: []FieldValue{{Field: "phase", Value: testOpenPhase}},
 				TTL: testDrawTTL, DueAt: -time.Second,
 			})
 			require.NoError(t, err)
@@ -149,6 +153,8 @@ func TestDrawRoundShift(t *testing.T) {
 			snapshot{false, testOpenPhase, testRoundID, "", "", ""}},
 		{"amend", testRoundID, PhaseShift{From: testOpenPhase, To: testOpenPhase, Action: `"extend"`, Fields: []FieldValue{{"closes_at", "42"}}},
 			snapshot{true, testOpenPhase, testRoundID, `["extend"]`, "42", ""}},
+		{"stale deadline", testRoundID, PhaseShift{From: testOpenPhase, To: "closing", Release: true, Match: FieldValue{"closes_at", "43"}},
+			snapshot{false, testOpenPhase, testRoundID, `["extend"]`, "42", ""}},
 		{"other owner", testPeerID, PhaseShift{From: testOpenPhase, To: "closing", Release: true, Action: `"close"`},
 			snapshot{true, "closing", testPeerID, `["extend","close"]`, "42", ""}},
 		{"seed and release", testRoundID, PhaseShift{From: "closing", To: "settling", Release: true, Seed: []FieldValue{{"1", `"original"`}}},
@@ -229,4 +235,28 @@ func assertDrawTeardown(t *testing.T, client valkey_go.Client, keys RoundKeys) {
 	}
 	require.Equal(t, snapshot{0, map[string]string{testViewer: `["round-ab:1:1"]`}, testPeerID, []string{testPeerID}, []string{testPeerID}},
 		snapshot{remaining, claimable, pointer, active, due})
+}
+
+func TestDrawSchedulePreservesNewWake(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	keys := testDrawKeys(t, testRoundID)
+	cleanDrawKeys(t, client, keys)
+	openTestDraw(t, client, keys)
+	applied, err := keys.Shift(ctx, client, PhaseShift{From: testOpenPhase, To: "closing",
+		RoundID: testRoundID, TTL: testDrawTTL, Wake: DrawWake{At: time.UnixMilli(0), Channel: "draw:test:wake"}})
+	require.NoError(t, err)
+	require.True(t, applied)
+	index := DueIndex{Key: keys.Due}
+	cases := []struct {
+		revision string
+		want     []string
+	}{{"", []string{testRoundID}}, {"1", nil}}
+	for _, tc := range cases {
+		require.NoError(t, keys.Schedule(ctx, client, DrawSchedule{RoundID: testRoundID,
+			Revision: tc.revision, After: time.Hour}))
+		due, _, err := index.Lapsed(ctx, client, 10)
+		require.NoError(t, err)
+		require.ElementsMatch(t, tc.want, due)
+	}
 }

@@ -137,3 +137,34 @@ func TestDrawClaimSlots(t *testing.T) {
 		require.Equal(t, drawClaimTestSlot{State: "claimed", Generation: 1, Deadline: future, ClaimedAt: claimed.ClaimedAt}, claimed)
 	}
 }
+
+func TestDrawShiftSlotBatchIsAtomic(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	keys := testDrawKeys(t, testRoundID)
+	cleanDrawKeys(t, client, keys)
+	openTestDraw(t, client, keys)
+	const won = `{"state":"won","generation":1}`
+	const expired = `{"state":"no_show","generation":1}`
+	applied, err := keys.Shift(ctx, client, PhaseShift{
+		From: testOpenPhase, To: "settling", TTL: testDrawTTL,
+		Seed: []FieldValue{{Field: "1", Value: won}, {Field: "2", Value: won}},
+	})
+	require.NoError(t, err)
+	require.True(t, applied)
+	for _, tc := range []struct {
+		prior, stored, revision string
+		applied                 bool
+	}{{expired, won, "", false}, {won, won, "7", false}, {won, expired, "", true}} {
+		batch := SlotBatch{Revision: &tc.revision, RoundID: testRoundID, Phase: "settling", Shifts: []SlotShift{
+			{Slot: "1", Prior: won, Next: expired},
+			{Slot: "2", Prior: tc.prior, Next: expired},
+		}}
+		applied, err := keys.ShiftSlotBatch(ctx, client, batch)
+		require.NoError(t, err)
+		read, err := keys.View(ctx, client)
+		require.NoError(t, err)
+		require.Equal(t, tc.applied, applied)
+		require.Equal(t, map[string]string{"1": tc.stored, "2": tc.stored}, read.Slots)
+	}
+}

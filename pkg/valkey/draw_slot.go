@@ -33,6 +33,7 @@ type SlotShift struct {
 	Index  ClaimIndex
 	Viewer string
 	Ref    string
+	Prior  string
 }
 
 const drawClaimIndexLua = `
@@ -64,29 +65,88 @@ local function stamped_slot(key, field, state, generation)
 end
 `
 
-var drawSlotShiftScript = NewScript(drawClaimIndexLua + drawStampedSlotLua + `
-local round, slots, claimable = unpack(KEYS)
-local phase, field, state, generation, next, index, viewer, ref = unpack(ARGV)
-if redis.call('HGET', round, 'phase') ~= phase then return 0 end
-if not stamped_slot(slots, field, state, generation) then return 0 end
-
-if index ~= '0' then
-  local refs = read_claim_refs(claimable, viewer)
-  if index == '1' then
-    refs[#refs + 1] = ref
-    redis.call('HSET', claimable, viewer, cjson.encode(refs))
-  else
-    drop_claim_refs(claimable, viewer, refs, function(candidate) return candidate == ref end)
-  end
-  local ttl = redis.call('PTTL', round)
-  if ttl >= 0 then
-    redis.call('PEXPIRE', claimable, ttl, 'NX')
-    redis.call('PEXPIRE', claimable, ttl, 'GT')
-  end
+const drawSlotUpdateLua = `
+local function matches_slot(slots, args)
+  local field, state, generation, prior = unpack(args, 1, 4)
+  if prior ~= '' then return redis.call('HGET', slots, field) == prior end
+  return stamped_slot(slots, field, state, generation) ~= nil
 end
-redis.call('HSET', slots, field, next)
+
+local function update_slot(round, slots, claimable, args)
+  local field, _, _, _, next_slot, index, viewer, ref = unpack(args)
+  if index ~= '0' then
+    local refs = read_claim_refs(claimable, viewer)
+    if index == '1' then
+      refs[#refs + 1] = ref
+      redis.call('HSET', claimable, viewer, cjson.encode(refs))
+    else
+      drop_claim_refs(claimable, viewer, refs, function(candidate) return candidate == ref end)
+    end
+    local ttl = redis.call('PTTL', round)
+    if ttl >= 0 then
+      redis.call('PEXPIRE', claimable, ttl, 'NX')
+      redis.call('PEXPIRE', claimable, ttl, 'GT')
+    end
+  end
+  redis.call('HSET', slots, field, next_slot)
+end
+`
+
+const drawSlotLua = drawClaimIndexLua + drawStampedSlotLua + drawSlotUpdateLua
+
+var drawSlotShiftScript = NewScript(drawSlotLua + `
+local round, slots, claimable = unpack(KEYS)
+local phase = ARGV[1]
+if redis.call('HGET', round, 'phase') ~= phase then return 0 end
+local args = {unpack(ARGV, 2)}
+if not matches_slot(slots, args) then return 0 end
+update_slot(round, slots, claimable, args)
 return 1
 `)
+
+func (s SlotShift) args() []string {
+	return []string{s.Slot, s.Expect.State, strconv.FormatInt(s.Expect.Generation, 10), s.Prior,
+		s.Next, strconv.Itoa(int(s.Index)), s.Viewer, s.Ref}
+}
+
+type SlotBatch struct {
+	RoundID, Phase, Action string
+	Revision               *string
+	Wake                   DrawWake
+	Shifts                 []SlotShift
+}
+
+var drawSlotBatchScript = NewScript(drawSlotLua + drawActionLua + drawWakeLua + `
+local round, slots, claimable, due = unpack(KEYS)
+local id, phase, action, wake, at, check_revision, revision = unpack(ARGV, 1, 7)
+if redis.call('HGET', round, 'phase') ~= phase then return 0 end
+if check_revision == 'true' and (redis.call('HGET', round, 'revision') or '') ~= revision then return 0 end
+local changes = {}
+for i = 8, #ARGV, 8 do
+  local args = {unpack(ARGV, i, i + 7)}
+  if not matches_slot(slots, args) then return 0 end
+  changes[#changes + 1] = args
+end
+for _, args in ipairs(changes) do update_slot(round, slots, claimable, args) end
+add_action(round, action)
+wake_draw(round, due, id, wake, at)
+return 1
+`)
+
+func (k RoundKeys) ShiftSlotBatch(ctx context.Context, client valkey_go.Client, b SlotBatch) (bool, error) {
+	keys := []string{k.Round, k.Slots, k.Claimable, k.Due}
+	var revision string
+	if b.Revision != nil {
+		revision = *b.Revision
+	}
+	args := []string{b.RoundID, b.Phase, b.Action, b.Wake.Channel, strconv.FormatInt(b.Wake.At.UnixMilli(), 10),
+		strconv.FormatBool(b.Revision != nil), revision}
+	for _, shift := range b.Shifts {
+		args = append(args, shift.args()...)
+	}
+	n, err := drawSlotBatchScript.Exec(ctx, client, keys, args).AsInt64()
+	return n == 1, err
+}
 
 func (k RoundKeys) ShiftSlots(ctx context.Context, client valkey_go.Client, shifts []SlotShift) ([]bool, error) {
 	calls := make([]ScriptCall, 0, len(shifts))
@@ -95,10 +155,7 @@ func (k RoundKeys) ShiftSlots(ctx context.Context, client valkey_go.Client, shif
 			Script: drawSlotShiftScript,
 			Key:    k.Round,
 			Also:   []string{k.Slots, k.Claimable},
-			Args: []string{
-				s.Phase, s.Slot, s.Expect.State, strconv.FormatInt(s.Expect.Generation, 10),
-				s.Next, strconv.Itoa(int(s.Index)), s.Viewer, s.Ref,
-			},
+			Args:   append([]string{s.Phase}, s.args()...),
 		})
 	}
 	applied := make([]bool, 0, len(shifts))
@@ -114,6 +171,7 @@ func (k RoundKeys) ShiftSlots(ctx context.Context, client valkey_go.Client, shif
 
 type ClaimRef struct {
 	Slots, Ref, Slot string
+	Round, RoundID   string
 	Generation       int64
 }
 
@@ -121,6 +179,7 @@ type SlotClaim struct {
 	Claimable, Viewer string
 	Refs              []ClaimRef
 	Now               time.Time
+	Due, Wake         string
 }
 
 const (
@@ -129,18 +188,21 @@ const (
 	SlotClaimGone
 )
 
-var drawClaimSlotsScript = NewScript(drawTimeLua + drawClaimIndexLua + drawStampedSlotLua + `
+var drawClaimSlotsScript = NewScript(drawTimeLua + drawClaimIndexLua + drawStampedSlotLua + drawWakeLua + `
 local claimable = KEYS[1]
 local viewer = ARGV[1]
 local now = now_ms()
+local wake = ARGV[2]
 local refs = read_claim_refs(claimable, viewer)
 local indexed = {}
 for _, ref in ipairs(refs) do indexed[ref] = true end
 
-local function claim(slots, ref, field, generation)
+local function claim(slots, round, ref, field, generation)
   if not indexed[ref] then return 3 end
+  if wake ~= '' and redis.call('HGET', round, 'phase') ~= 'settling' then return 3 end
   local slot = stamped_slot(slots, field, 'won', generation)
   if not slot then return 3 end
+  if slot.viewer_id and slot.viewer_id ~= viewer then return 3 end
   if (tonumber(slot.deadline) or 0) < now then return 2 end
 
   slot.state = 'claimed'
@@ -151,21 +213,22 @@ local function claim(slots, ref, field, generation)
 end
 
 local result = {}
-for i = 2, #KEYS do
-  local arg = 2 + (i - 2) * 3
-  result[#result + 1] = claim(KEYS[i], ARGV[arg], ARGV[arg + 1], ARGV[arg + 2])
+for i = 3, #KEYS, 2 do
+  local arg = 3 + ((i - 3) / 2) * 4
+  local code = claim(KEYS[i], KEYS[i + 1], ARGV[arg], ARGV[arg + 1], ARGV[arg + 2])
+  result[#result + 1] = code
+  if code == 1 then wake_draw(KEYS[i + 1], KEYS[2], ARGV[arg + 3], wake, now) end
 end
 drop_claim_refs(claimable, viewer, refs, function(ref) return not indexed[ref] end)
 return result
 `)
 
 func ClaimSlots(ctx context.Context, client valkey_go.Client, c SlotClaim) ([]int64, error) {
-	keys := make([]string, 1, 1+len(c.Refs))
-	args := make([]string, 1, 1+3*len(c.Refs))
-	keys[0], args[0] = c.Claimable, c.Viewer
+	keys := []string{c.Claimable, drawOptionalKey(c.Due, c.Claimable)}
+	args := []string{c.Viewer, c.Wake}
 	for _, ref := range c.Refs {
-		keys = append(keys, ref.Slots)
-		args = append(args, ref.Ref, ref.Slot, strconv.FormatInt(ref.Generation, 10))
+		keys = append(keys, ref.Slots, drawOptionalKey(ref.Round, ref.Slots))
+		args = append(args, ref.Ref, ref.Slot, strconv.FormatInt(ref.Generation, 10), ref.RoundID)
 	}
 	return drawClaimSlotsScript.Exec(ctx, client, keys, args).AsIntSlice()
 }

@@ -10,10 +10,13 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/tmpl"
+
+	"go.uber.org/zap"
 )
 
 type AnnouncementConfig struct {
@@ -249,4 +252,28 @@ func streamActionOutgress(o *module.Output) (outgress.Message, error) {
 	msg, err := payloadMessage(o.Type, o.BroadcasterID, payload)
 	msg.To = o.To
 	return msg, err
+}
+
+func (c AnnouncementConfig) Post(ctx context.Context, broadcasterID uint64, text string, log *zap.Logger) {
+	if text == "" {
+		return
+	}
+	if term, hit := moderation.CheckFloor(text); hit {
+		log.Warn("announcement: suppressed announcement carrying floor content",
+			module.BIDField(broadcasterID), zap.String("term", term))
+		return
+	}
+
+	subject := c.OutgressStandardSubject
+	if u, err := c.Proj.User(ctx, broadcasterID); err == nil && u.Premium() {
+		subject = c.OutgressPremiumSubject
+	}
+	body, err := buildOutgress(ctx, c.Runtime, &module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: text})
+	if err != nil {
+		log.Warn("announcement: failed to build outgress message", module.BIDField(broadcasterID), zap.Error(err))
+		return
+	}
+	if err := bus.PublishRaw(ctx, c.Pub, subject, body); err != nil {
+		log.Warn("announcement: failed to publish", module.BIDField(broadcasterID), zap.Error(err))
+	}
 }

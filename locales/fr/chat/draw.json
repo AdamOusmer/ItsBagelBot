@@ -1,0 +1,17 @@
+{
+  "claim.late": "@{draw:user} le délai pour réclamer ton prix est écoulé.",
+  "claim.ok": "@{draw:user} ton prix est confirmé !",
+  "empty": "Personne n’a participé au tirage.",
+  "join.closed": "Le tirage est terminé.",
+  "no_show": "{draw:targets} n’a pas réclamé son prix à temps.",
+  "status.no_show": "Délai de réclamation dépassé : {draw:targets}.",
+  "status.none": "Aucun gagnant pour le moment.",
+  "status.paying": "Versement en attente : {draw:targets}.",
+  "status.unpaid": "Versement impossible : {draw:targets}.",
+  "status.winners": "Gagnants : {draw:targets}.",
+  "unfilled": "Il ne reste plus de participants admissibles.",
+  "verifying": "Vérification des gagnants en cours. Les résultats arrivent.",
+  "winners": "{draw:targets} a gagné !",
+  "winners.claim": "{draw:targets} a gagné ! Tapez !claim pour réclamer votre prix.",
+  "winners.raffle": "{draw:targets} a remporté {draw:points} points par personne !"
+}

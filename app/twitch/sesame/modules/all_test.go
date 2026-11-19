@@ -139,7 +139,10 @@ var shippedContract = map[string]moduleSpec{
 	}},
 	"raffle": {module.KindOptIn, []commandSpec{
 		command("raffle", roleEveryone), command("sraffle", roleEveryone, "singleraffle"), command("mraffle", roleEveryone, "multiraffle"),
-		command("cancelraffle", roleEveryone), command("join", roleEveryone), command("claim", roleEveryone), command("winner", roleEveryone),
+		command("cancelraffle", roleEveryone),
+	}},
+	"draw": {module.KindCore, []commandSpec{
+		command("join", roleEveryone), command("claim", roleEveryone), command("winner", roleEveryone),
 	}},
 	"queue": {module.KindOptIn, []commandSpec{
 		command("queue", roleEveryone), command("join", roleEveryone), command("leave", roleEveryone), command("list", roleEveryone, "queuelist"),
@@ -182,12 +185,12 @@ func TestShippedModuleContract(t *testing.T) {
 	assert.Equal(t, want, shippedModules(mods))
 }
 
-func TestRaffleClaimsStandaloneJoinBeforeQueue(t *testing.T) {
+func TestDrawClaimsStandaloneJoinBeforeQueue(t *testing.T) {
 	reg, _ := allRegistry(t)
 	bound, ok := reg.Command("join")
 	require.True(t, ok)
-	assert.Equal(t, raffleModuleName, bound.Owner.Name, "raffle must register before queue to claim !join while a raffle runs")
-	assert.NotNil(t, bound.Cmd.When, "raffle must yield !join to the queue when no raffle runs")
+	assert.Equal(t, drawModuleName, bound.Owner.Name)
+	assert.True(t, bound.Cmd.Yield)
 }
 
 func TestLoyaltyAloneOwnsLeaderboard(t *testing.T) {

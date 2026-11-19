@@ -71,6 +71,7 @@ type Command struct {
 	LiveOnly      bool
 	AllowedUserID string
 	NumericSuffix bool
+	Yield         bool
 	When          ClaimFunc
 	Run           RunFunc
 }

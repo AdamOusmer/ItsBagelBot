@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/internal/config"
 	"ItsBagelBot/app/twitch/sesame/internal/consumer"
 	"ItsBagelBot/internal/analytics"
@@ -65,6 +66,7 @@ type engineRuntime struct {
 	tick      *engine.ValkeyLoyaltyClock
 	stats     *engine.LoyaltyReporter
 	raffle    *engine.ValkeyRaffleStore
+	draw      *draw.Store
 	duel      *engine.ValkeyDuelStore
 	seq       *engine.Sequencer
 	emotes    *automod.EmoteFetcher
@@ -118,6 +120,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Queue:          engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
 		SongQueue:      engine.NewValkeySongQueueStore(in.vc, 24*time.Hour, log),
 		Raffle:         rt.raffle,
+		Draw:           rt.draw,
 		Duel:           rt.duel,
 		Timers:         rt.timers,
 		ChatLines:      rt.timers,
@@ -225,6 +228,16 @@ func announcementConfig(w wireCtx, proj *projection.Client) engine.AnnouncementC
 
 func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, store T) T {
 	go store.StartExpiryWatcher(w.ctx)
+	return store
+}
+
+func newDraw(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *draw.Store {
+	log := w.log.Named("draw")
+	announce := announcementConfig(w, proj)
+	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
+		LegacyDeadlineKey: engine.RaffleDeadlineKey, Payer: engine.NewDrawPayer(loyalty, announce.Runtime),
+		Announcer: engine.NewDrawAnnouncer(announce, log)})
+	go store.Run(w.ctx)
 	return store
 }
 

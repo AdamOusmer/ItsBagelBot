@@ -11,11 +11,9 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 
-	"ItsBagelBot/pkg/bus"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
@@ -142,7 +140,7 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 		return
 	}
 	for _, line := range s.announcement(dctx, broadcasterID).ResultLines(res) {
-		s.post(dctx, broadcasterID, line)
+		s.cfg.Post(dctx, broadcasterID, line, s.log)
 	}
 }
 
@@ -166,7 +164,7 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	}
 
 	if a := s.announcement(dctx, broadcasterID); a.Config.RemindOn() {
-		s.post(dctx, broadcasterID, a.RemindText(left, entrants))
+		s.cfg.Post(dctx, broadcasterID, a.RemindText(left, entrants), s.log)
 	}
 
 	next := min(raffleDefaultRemind, left)
@@ -178,28 +176,4 @@ func (s *ValkeyRaffleStore) localeOf(ctx context.Context, broadcasterID uint64) 
 		return u.Locale
 	}
 	return ""
-}
-
-func (s *ValkeyRaffleStore) post(ctx context.Context, broadcasterID uint64, text string) {
-	if text == "" {
-		return
-	}
-	if term, hit := moderation.CheckFloor(text); hit {
-		s.log.Warn("raffle: suppressed announcement carrying floor content",
-			module.BIDField(broadcasterID), zap.String("term", term))
-		return
-	}
-
-	subject := s.cfg.OutgressStandardSubject
-	if u, err := s.cfg.Proj.User(ctx, broadcasterID); err == nil && u.Premium() {
-		subject = s.cfg.OutgressPremiumSubject
-	}
-	body, err := buildOutgress(ctx, s.cfg.Runtime, &module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: text})
-	if err != nil {
-		s.log.Warn("raffle: failed to build outgress message", module.BIDField(broadcasterID), zap.Error(err))
-		return
-	}
-	if err := bus.PublishRaw(ctx, s.cfg.Pub, subject, body); err != nil {
-		s.log.Warn("raffle: failed to publish", module.BIDField(broadcasterID), zap.Error(err))
-	}
 }

@@ -183,6 +183,8 @@ func (c *CmdBuilder) LiveOnly() *CmdBuilder { c.cmd.LiveOnly = true; return c }
 
 func (c *CmdBuilder) NumericSuffix() *CmdBuilder { c.cmd.NumericSuffix = true; return c }
 
+func (c *CmdBuilder) Yields() *CmdBuilder { c.cmd.Yield = true; return c }
+
 func (c *CmdBuilder) When(fn ClaimFunc) *CmdBuilder { c.cmd.When = fn; return c }
 
 func (c *CmdBuilder) AllowUser(id string) *CmdBuilder { c.cmd.AllowedUserID = id; return c }

@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	raffleDeadlinePrefix = "raffle:deadline:"
-	raffleStatePrefix    = "raffle:state:"
+	raffleDeadlinePrefix = draw.LegacyRaffleDeadlinePrefix
+	raffleStatePrefix    = draw.LegacyRaffleStatePrefix
 	raffleEntriesPrefix  = "raffle:entries:"
 	raffleClaimPrefix    = "raffle:claim:"
 	raffleDrawPrefix     = "raffle:draw:"
@@ -127,6 +127,10 @@ func (s *ValkeyRaffleStore) armDeadline(ctx context.Context, broadcasterID uint6
 
 func RaffleStateKey(channel draw.ChannelID) string {
 	return raffleKey(raffleStatePrefix, uint64(channel))
+}
+
+func RaffleDeadlineKey(channel draw.ChannelID) string {
+	return raffleKey(raffleDeadlinePrefix, uint64(channel))
 }
 
 type raffleInstall struct {

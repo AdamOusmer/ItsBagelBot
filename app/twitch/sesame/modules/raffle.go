@@ -19,8 +19,6 @@ import (
 
 const raffleModuleName = "raffle"
 
-const raffleWinnerCooldown = 5 * time.Second
-
 func Raffle(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -32,20 +30,7 @@ func Raffle(d engine.Deps) module.Module {
 	m.Command("sraffle").Aliases("singleraffle").Everyone().Run(raffleModOnly(d, log, raffleCmd.startSingle))
 	m.Command("mraffle").Aliases("multiraffle").Everyone().Run(raffleModOnly(d, log, raffleCmd.startMulti))
 	m.Command("cancelraffle").Everyone().Run(raffleModOnly(d, log, raffleCmd.cancel))
-	m.Command("join").Everyone().When(raffleRunning(d)).Run(raffleStandalone(d, log, raffleCmd.join))
-	m.Command("claim").Everyone().Run(raffleStandalone(d, log, raffleCmd.claimConfirm))
-	m.Command("winner").Everyone().Cooldown(raffleWinnerCooldown).Run(raffleStandalone(d, log, raffleCmd.last))
 	return m.Build()
-}
-
-func raffleRunning(d engine.Deps) module.ClaimFunc {
-	return func(ctx context.Context, c *module.Context) bool {
-		if d.Raffle == nil {
-			return false
-		}
-		st, err := d.Raffle.Status(ctx, c.BroadcasterID)
-		return err != nil || st.Open
-	}
 }
 
 type raffleCmd struct {
@@ -73,16 +58,6 @@ func (rc raffleCmd) entrant() engine.RaffleEntrant {
 }
 
 type raffleRunner func(rc raffleCmd, ctx context.Context, args string, emit module.Emit) error
-
-func raffleStandalone(d engine.Deps, log *zap.Logger, fn raffleRunner) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		rc, ok := newRaffleCmd(d, c, log)
-		if !ok {
-			return nil
-		}
-		return fn(rc, ctx, args, emit)
-	}
-}
 
 func raffleModOnly(d engine.Deps, log *zap.Logger, fn raffleRunner) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
@@ -302,62 +277,4 @@ func (rc raffleCmd) cancel(ctx context.Context, _ string, emit module.Emit) erro
 		rc.reply(emit, "", "raffle.status.closed")
 	}
 	return nil
-}
-
-func (rc raffleCmd) last(ctx context.Context, _ string, emit module.Emit) error {
-	res, found, err := rc.r.LastResult(ctx, rc.c.BroadcasterID)
-	if err != nil {
-		rc.log.Warn("raffle: last failed", rc.c.BID(), zap.Error(err))
-		return err
-	}
-	switch {
-	case !found:
-		rc.reply(emit, "", "raffle.last.none")
-	case len(res.Winners) == 0:
-		rc.reply(emit, "", "raffle.last.empty")
-	case len(res.Claims) > 0:
-		rc.reply(emit, "", "raffle.last.confirmed",
-			"targets", mentionTargets(res.Winners),
-			"entrants", strconv.FormatInt(res.Entrants, 10),
-			"confirmed", strconv.Itoa(len(res.Claims)),
-			"total", strconv.Itoa(len(res.Winners)))
-	default:
-		rc.reply(emit, "", "raffle.last",
-			"targets", mentionTargets(res.Winners),
-			"entrants", strconv.FormatInt(res.Entrants, 10))
-	}
-	return nil
-}
-
-func (rc raffleCmd) claimConfirm(ctx context.Context, _ string, emit module.Emit) error {
-	viewerID := rc.c.Env.ChatterUserID
-	if viewerID == "" || !rc.cfg.ClaimOn() {
-		return nil
-	}
-	outcome, err := rc.r.Claim(ctx, rc.c.BroadcasterID, viewerID)
-	if err != nil {
-		rc.log.Warn("raffle: claim failed", rc.c.BID(), zap.Error(err))
-		return err
-	}
-	switch outcome {
-	case engine.ClaimOk:
-		if rc.cfg.ClaimOkOn() {
-			rc.reply(emit, rc.cfg.ClaimOkMessage, "raffle.claim.ok")
-		}
-	case engine.ClaimAlready:
-		rc.reply(emit, "", "raffle.claim.already")
-	case engine.ClaimLate:
-		rc.reply(emit, "", "raffle.claim.late")
-	default:
-		rc.reply(emit, "", "raffle.claim.none")
-	}
-	return nil
-}
-
-func mentionTargets(winners []engine.RaffleWinner) string {
-	prefixed := make([]string, len(winners))
-	for i, w := range winners {
-		prefixed[i] = "@" + w.Login
-	}
-	return strings.Join(prefixed, ", ")
 }
