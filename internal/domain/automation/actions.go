@@ -17,7 +17,7 @@ var (
 	announceColors   = []string{"", "primary", "blue", "green", "orange", "purple"}
 	commercialLength = []int{30, 60, 90, 120, 150, 180}
 
-	lightsModes        = enum{LightsModeColor, LightsModeScene}
+	lightsModes        = enum{LightsModeColor, LightsModeScene, LightsModeWhite, LightsModeOn, LightsModeOff}
 	lightsColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 	lightRefPattern    = regexp.MustCompile(`^[^/]{1,64}/[^/]{1,32}$`)
 )
@@ -134,6 +134,10 @@ type HTTPPostAction struct {
 const (
 	LightsModeColor = "color"
 	LightsModeScene = "scene"
+	LightsModeWhite = "white"
+	LightsModeOn    = "on"
+	LightsModeOff   = "off"
+	maxSafeSceneID  = 1<<53 - 1
 )
 
 type LightsAction struct {
@@ -149,6 +153,9 @@ type LightsAction struct {
 	SceneInstance string   `json:"scene_instance"`
 	SceneValue    string   `json:"scene_value"`
 	AnyTime       bool     `json:"any_time,omitempty"`
+	Kelvin        int      `json:"kelvin,omitempty"`
+	Brightness    int      `json:"brightness,omitempty"`
+	HoldS         int      `json:"hold_s,omitempty"`
 	RGB           int      `json:"-"`
 }
 
@@ -246,17 +253,26 @@ func checkHTTPPost(c chk, p HTTPPostAction) {
 	c.fetchPaths(p.OnOK, p.OnFailure)
 }
 
+var lightsModeChecks = map[string]func(chk, LightsAction){
+	LightsModeColor: func(c chk, p LightsAction) { c.format("color", p.Color, lightsColorPattern) },
+	LightsModeScene: checkLightsScene,
+	LightsModeWhite: checkLightsWhite,
+	LightsModeOff:   func(c chk, p LightsAction) { inRange(c, "brightness", p.Brightness, between(0, 0)) },
+}
+
 func checkLights(c chk, p LightsAction) {
 	c.text("device", p.Device, nonEmpty(64))
 	c.text("sku", p.SKU, nonEmpty(32))
 	c.text("device_name", p.DeviceName, upTo(100))
 	c.stringList("extra_lights", p.ExtraLights, MaxExtraLights, c.eachFormat(lightRefPattern))
 	c.oneOf("mode", p.Mode, lightsModes)
-	if p.Mode == LightsModeScene {
-		checkLightsScene(c, p)
-		return
+	if p.Mode != LightsModeOff && p.Brightness != 0 {
+		inRange(c, "brightness", p.Brightness, between(MinLightsBrightness, MaxLightsBrightness))
 	}
-	c.format("color", p.Color, lightsColorPattern)
+	inRange(c, "hold_s", p.HoldS, upTo(MaxLightsHoldS))
+	if check := lightsModeChecks[p.Mode]; check != nil {
+		check(c, p)
+	}
 }
 
 func checkLightsScene(c chk, p LightsAction) {
@@ -264,9 +280,34 @@ func checkLightsScene(c chk, p LightsAction) {
 	c.text("scene_name", p.SceneName, upTo(100))
 	c.text("scene_type", p.SceneType, nonEmpty(64))
 	c.text("scene_instance", p.SceneInstance, nonEmpty(64))
-	if c.text("scene_value", p.SceneValue, nonEmpty(200)) && !codec.Valid([]byte(p.SceneValue)) {
+	if c.text("scene_value", p.SceneValue, nonEmpty(200)) && !p.validSceneValue() {
 		c.add("scene_value", CodeInvalidFormat)
 	}
+}
+
+func (p LightsAction) validSceneValue() bool {
+	var number *int64
+	if err := codec.UnmarshalFromString(p.SceneValue, &number); err == nil {
+		return validSceneID(number)
+	}
+	var pair struct {
+		ParamID *int64 `json:"paramId"`
+		ID      *int64 `json:"id"`
+	}
+	err := codec.UnmarshalFromString(p.SceneValue, &pair)
+	return err == nil && validSceneID(pair.ParamID) && validSceneID(pair.ID)
+}
+
+func validSceneID(id *int64) bool {
+	return id != nil && *id >= 0 && *id <= maxSafeSceneID
+}
+
+func checkLightsWhite(c chk, p LightsAction) {
+	if p.Kelvin == 0 {
+		c.add("kelvin", CodeRequired)
+		return
+	}
+	inRange(c, "kelvin", p.Kelvin, between(MinLightsKelvin, MaxLightsKelvin))
 }
 
 func checkRandomPick(c chk, p RandomPickAction) {

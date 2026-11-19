@@ -343,12 +343,14 @@ export interface RewardUpdateAction {
   reset_on_stream_end?: boolean;
 }
 
+export const LIGHTS_MODES = ['color', 'scene', 'white', 'on', 'off'] as const;
+
 export interface LightsAction {
   device: string;
   sku: string;
   device_name?: string;
   extra_lights?: string[];
-  mode?: 'color' | 'scene';
+  mode?: (typeof LIGHTS_MODES)[number];
   color?: string;
   scene_id?: string;
   scene_name?: string;
@@ -356,6 +358,9 @@ export interface LightsAction {
   scene_instance?: string;
   scene_value?: string;
   any_time?: boolean;
+  kelvin?: number;
+  brightness?: number;
+  hold_s?: number;
 }
 
 export type RefusalCode = 'invalid' | 'not_found' | 'forbidden' | 'conflict' | 'unavailable' | 'internal';

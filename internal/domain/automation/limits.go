@@ -31,6 +31,14 @@ const (
 )
 
 const (
+	MaxLightsHoldS      = 60
+	MinLightsKelvin     = 2000
+	MaxLightsKelvin     = 9000
+	MinLightsBrightness = 1
+	MaxLightsBrightness = 100
+)
+
+const (
 	MaxVariableValueRunes  = 500
 	MaxChannelVariables    = 200
 	MaxViewerVariableNames = 200

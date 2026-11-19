@@ -7,7 +7,16 @@ import mathCases from './testdata/math_cases.json';
 import textCases from './testdata/text_cases.json';
 import { compileFlow, flowToDefinition, type Flow, type FlowNode } from './flow-graph';
 import { compactDuration, defaultScenario, rehearseDefinition } from './rehearsal';
-import { MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_LOOP_TIMES } from './limits';
+import {
+  MAX_ACTIONS,
+  MAX_DEFINITION_BYTES,
+  MAX_LIGHTS_BRIGHTNESS,
+  MAX_LIGHTS_HOLD_S,
+  MAX_LIGHTS_KELVIN,
+  MAX_LOOP_TIMES,
+  MIN_LIGHTS_BRIGHTNESS,
+  MIN_LIGHTS_KELVIN,
+} from './limits';
 import type { Action, Condition, Definition, Params } from './types';
 import type { RehearsalOverrides, RehearsalScenario } from './rehearsal-types';
 
@@ -246,7 +255,12 @@ test.each([
 test.each([
   { name: 'MaxLoopTimes', value: MAX_LOOP_TIMES, want: 100 },
   { name: 'MaxActions', value: MAX_ACTIONS, want: 1000 },
-  { name: 'MaxDefinitionBytes', value: MAX_DEFINITION_BYTES, want: 262144 }
+  { name: 'MaxDefinitionBytes', value: MAX_DEFINITION_BYTES, want: 262144 },
+  { name: 'MaxLightsHoldS', value: MAX_LIGHTS_HOLD_S, want: 60 },
+  { name: 'MinLightsKelvin', value: MIN_LIGHTS_KELVIN, want: 2000 },
+  { name: 'MaxLightsKelvin', value: MAX_LIGHTS_KELVIN, want: 9000 },
+  { name: 'MinLightsBrightness', value: MIN_LIGHTS_BRIGHTNESS, want: 1 },
+  { name: 'MaxLightsBrightness', value: MAX_LIGHTS_BRIGHTNESS, want: 100 }
 ])('mirrored Go limit $name', ({ name, value, want }) => {
   const source = readFileSync(new URL('../../../../internal/domain/automation/limits.go', import.meta.url), 'utf8');
   const declared = Number(new RegExp(`${name}\\s*=\\s*(\\d+)`).exec(source)?.[1]);

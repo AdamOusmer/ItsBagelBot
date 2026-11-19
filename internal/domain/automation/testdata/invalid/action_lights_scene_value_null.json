@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "command",
+    "params": {
+      "name": "!scene"
+    }
+  },
+  "conditions": [],
+  "actions": [
+    {
+      "type": "lights",
+      "params": {
+        "device": "AA:BB:CC:DD:EE:FF:00:11",
+        "sku": "H6008",
+        "mode": "scene",
+        "scene_type": "devices.capabilities.dynamic_scene",
+        "scene_instance": "snapshot",
+        "scene_value": "null"
+      }
+    }
+  ]
+}

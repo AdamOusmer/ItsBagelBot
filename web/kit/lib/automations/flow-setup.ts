@@ -8,8 +8,9 @@ export const SETUP_RUN_TARGET = 'setup-required';
 export const SETUP_LOGIN = '_setup_required';
 export const SETUP_URL = 'https://example.com/setup-required';
 export const SETUP_TEXT = 'setup-required';
-export const SETUP_SCENE_VALUE = '"setup-required"';
+export const LEGACY_SETUP_SCENE_VALUE = '"setup-required"';
+export const SETUP_SCENE_VALUE = '{"paramId":0,"id":0,"setup":"setup-required"}';
 
-const SETUP_VALUES: ReadonlySet<unknown> = new Set([SETUP_REWARD_ID, SETUP_LOGIN, SETUP_URL, SETUP_SCENE_VALUE]);
+const SETUP_VALUES: ReadonlySet<unknown> = new Set([SETUP_REWARD_ID, SETUP_LOGIN, SETUP_URL, LEGACY_SETUP_SCENE_VALUE, SETUP_SCENE_VALUE]);
 
 export const isSetupValue = (value: unknown): boolean => SETUP_VALUES.has(value);
