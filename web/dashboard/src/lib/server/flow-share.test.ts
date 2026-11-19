@@ -8,11 +8,22 @@ import { stubSvelteKit } from '../../../test/sveltekit';
 
 stubSvelteKit();
 
+type LimiterKey = `automations:${string}`;
+type UserId = `${number}`;
+type Message = string;
+type UploadText = string;
+type FlowKey = `${'automation' | 'command'}:${string}`;
+type Section = 'commands' | 'modules';
+type AccountStatus = 'free' | 'paid';
+type EventKind = `channel.${string}`;
+type CommandName = `!${string}`;
+type Row = { status: string; name: string };
+
 let allowed = true;
 const limiterKeys: string[] = [];
 mock.module('@bagel/kit/server/rate-limit', () => ({
   ValkeyRateLimiter: class {
-    async check(key: string) {
+    async check(key: LimiterKey) {
       limiterKeys.push(key);
       return { allowed, retryAfterSec: 1 };
     }
@@ -23,11 +34,11 @@ const saves: { locals: unknown; input: any }[] = [];
 const created = (input: any) => ({ ok: true, flow: { ref: input.ref ?? { layer: 'automation', id: 'new' }, name: input.name, enabled: false, revision: '1', definition: input.definition }, warnings: [] });
 let saveReply: (input: any) => unknown = created;
 const listFlowsCalls: string[] = [];
-const chat = (text: string) => ({ type: 'chat', params: { text } });
+const chat = (text: Message) => ({ type: 'chat', params: { text } });
 const manual = { version: 1, trigger: { type: 'manual', params: {} }, actions: [chat('hi')] };
 const drawable = { version: 1, trigger: { type: 'command', params: { name: '!fresh' } }, actions: [chat('hi'), chat('there')] };
 mock.module('./flow-store', () => ({
-  listFlows: async (uid: string) => {
+  listFlows: async (uid: UserId) => {
     listFlowsCalls.push(uid);
     return [
       { ref: { layer: 'automation', id: 'a1' }, name: 'First', enabled: true, revision: '1', definition: { ...manual, actions: [chat('one'), { type: 'run', params: { automation_id: 'a2' } }] } },
@@ -52,20 +63,20 @@ const flowPreview = (flow: Flow) => ({ steps: flow.nodes.length });
 const actions = flowShareActions({ flowPreview });
 const owner = { user_id: '7' };
 
-function post(name: keyof typeof actions, form: FormData, session: unknown = owner, status = 'paid') {
+function post(name: keyof typeof actions, form: FormData, session: unknown = owner, status: AccountStatus = 'paid') {
   const request = new Request('https://dashboard.itsbagelbot.com/flows', { method: 'POST', body: form });
   const locals = { session, locale: 'en', accountState: { value: { status } } };
   return actions[name]({ request, locals } as never) as Promise<any>;
 }
 
-const fileForm = (text: string, indexes: number[] = []) => {
+const fileForm = (text: UploadText, indexes: number[] = []) => {
   const form = new FormData();
   form.set('file', new File([text], 'recipes.json', { type: 'application/json' }));
   for (const index of indexes) form.append('index', String(index));
   return form;
 };
 
-const exportForm = (...keys: string[]) => {
+const exportForm = (...keys: FlowKey[]) => {
   const form = new FormData();
   for (const key of keys) form.append('flow', key);
   return form;
@@ -84,7 +95,7 @@ beforeEach(() => {
 });
 
 describe('gates', () => {
-  const delegate = (sections: string[]) => ({ user_id: '9', delegate_of: '7', sections });
+  const delegate = (sections: Section[]) => ({ user_id: '9', delegate_of: '7', sections });
 
   test('a free account is refused on every seam', async () => {
     for (const name of ['flowExport', 'flowImportPreview', 'flowImportCommit'] as const) {
@@ -122,7 +133,7 @@ describe('flowExport', () => {
   test('only picked recipes from this broadcaster reach the file, foreign keys count as missing', async () => {
     const result = await post('flowExport', exportForm('automation:a1', 'automation:a2', 'command:hug', 'automation:someone-elses'));
     const parsed = JSON.parse(result.file);
-    expect(parsed.flows.map((f: { name: string }) => f.name)).toEqual(['First', 'Second', '!hug']);
+    expect(parsed.flows.map((f: Row) => f.name)).toEqual(['First', 'Second', '!hug']);
     expect(result.file).not.toContain('Taken');
     expect(result.missing).toBe(1);
     expect(parsed.flows[0].definition.actions[1].params.automation_id).toBe('f2');
@@ -137,7 +148,7 @@ describe('flowExport', () => {
 describe('flowImportPreview', () => {
   test('reports without writing and without leaking definitions', async () => {
     const result = await post('flowImportPreview', fileForm(file([{ ref: 'f1', name: 'Taken', definition: manual }, { ref: 'f2', name: 'x', definition: { version: 9 } }])));
-    expect(result.entries.map((e: { status: string; name: string }) => [e.status, e.name])).toEqual([
+    expect(result.entries.map((e: Row) => [e.status, e.name])).toEqual([
       ['ready', 'Taken (2)'],
       ['invalid', 'x']
     ]);
@@ -147,8 +158,8 @@ describe('flowImportPreview', () => {
   });
 
   test('says where each lands, and treats taken alerts and aliased commands as conflicts', async () => {
-    const event = (kind: string) => ({ version: 1, trigger: { type: 'event', params: { kind } }, actions: [chat('hi')] });
-    const command = (name: string) => ({ version: 1, trigger: { type: 'command', params: { name } }, actions: [chat('hi')] });
+    const event = (kind: EventKind) => ({ version: 1, trigger: { type: 'event', params: { kind } }, actions: [chat('hi')] });
+    const command = (name: CommandName) => ({ version: 1, trigger: { type: 'command', params: { name } }, actions: [chat('hi')] });
     const result = await post(
       'flowImportPreview',
       fileForm(
@@ -236,7 +247,7 @@ describe('flowImportCommit', () => {
 
   test('the plan is recomputed: only selected indexes are written', async () => {
     const result = await post('flowImportCommit', fileForm(file([{ ref: 'f1', name: 'a', definition: manual }, { ref: 'f2', name: 'b', definition: manual }]), [1]));
-    expect(result.results.map((r: { status: string }) => r.status)).toEqual(['skipped', 'created']);
+    expect(result.results.map((r: Row) => r.status)).toEqual(['skipped', 'created']);
     expect(saved().map((input) => input.name)).toEqual(['b']);
   });
 });
