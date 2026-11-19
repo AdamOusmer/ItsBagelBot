@@ -147,7 +147,8 @@
           "winner",
           "loser",
           "pot",
-          "points"
+          "points",
+          "balance"
         ],
         "message_key": "wonMessage"
       }

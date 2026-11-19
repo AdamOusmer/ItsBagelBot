@@ -18,7 +18,6 @@ func TestParsePointsAmount(t *testing.T) {
 		valid   bool
 	}{
 		{"100", 0, 100, true},
-		{"+100", 0, 100, true},
 		{"0", 0, 0, true},
 		{"9223372036854775807", 0, math.MaxInt64, true},
 		{"9223372036854775808", 0, math.MaxInt64, true},
@@ -28,6 +27,7 @@ func TestParsePointsAmount(t *testing.T) {
 		{"2.M", 0, 2000000, true},
 		{"1.0005k", 0, 1001, true},
 		{"1.0004k", 0, 1000, true},
+		{"0.0004k", 0, 0, true},
 		{"9007199254740.993k", 0, 9007199254740993, true},
 		{"9223372036854775.806k", 0, math.MaxInt64 - 1, true},
 		{"9223372036854.775808m", 0, math.MaxInt64, true},
@@ -36,6 +36,10 @@ func TestParsePointsAmount(t *testing.T) {
 		{"all", 0, 0, true},
 		{"", 0, 0, false},
 		{"lots", 0, 0, false},
+		{"+100", 0, 0, false},
+		{"-100", 0, 0, false},
+		{"+1k", 0, 0, false},
+		{"-1m", 0, 0, false},
 		{"k", 0, 0, false},
 		{".m", 0, 0, false},
 		{"1.5", 0, 0, false},

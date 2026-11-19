@@ -76,11 +76,11 @@ func (s pointDigits) largeAmount(multiplier int64, kind pointsAmountKind) Points
 }
 
 func (s pointDigits) integer() PointsAmount {
-	value, err := strconv.ParseInt(string(s), 10, 64)
+	value, err := strconv.ParseUint(string(s), 10, 63)
 	if err != nil {
 		return PointsAmount{}
 	}
-	return PointsAmount{kind: pointsInteger, value: value}
+	return PointsAmount{kind: pointsInteger, value: int64(value)}
 }
 
 func (s pointDigits) isDecimal(allowDot bool) bool {

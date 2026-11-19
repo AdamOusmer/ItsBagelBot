@@ -45,32 +45,37 @@ func wagerOf(login string, amount int64, won bool) engine.PointWager {
 	return engine.PointWager{BroadcasterID: 100, ViewerID: 42, Login: login, Amount: amount, Won: won}
 }
 
+type gambleCase struct {
+	name     string
+	roll     int64
+	who      string
+	config   string
+	text     string
+	fake     fakeLoyalty
+	view     []projection.ModuleView
+	silent   bool
+	exact    string
+	contains []string
+	excludes []string
+	wagers   []engine.PointWager
+}
+
 func TestGamble(t *testing.T) {
 	const maxBet = `{"maxBet":9223372036854775807}`
 	const crumbs = `{"loseMessage":"@{user} busted {amount} {points}, {balance} left","pointsName":"crumbs"}`
-	cases := []struct {
-		name     string
-		roll     int64
-		who      string
-		config   string
-		text     string
-		fake     fakeLoyalty
-		view     []projection.ModuleView
-		silent   bool
-		exact    string
-		contains []string
-		excludes []string
-		wagers   []engine.PointWager
-	}{
+	cases := []gambleCase{
 		{name: "a win credits the stake", roll: 23, who: "alice", text: "!gamble 300",
 			contains: []string{"@alice gambled 300 and won 300", "1534"}, excludes: []string{"23"}, wagers: []engine.PointWager{wagerOf("alice", 300, true)}},
 		{name: "a decimal suffix resolves before wagering", roll: 23, who: "alice", config: `{"maxBet":2000}`, text: "!gamble 1.2K",
 			contains: []string{"won 1200"}, wagers: []engine.PointWager{wagerOf("alice", 1200, true)}},
-		{name: "a legacy prefixed integer remains a bet", roll: 23, who: "alice", text: "!gamble @+300",
+		{name: "a legacy prefixed integer remains a bet", roll: 23, who: "alice", text: "!gamble @300",
 			contains: []string{"won 300"}, wagers: []engine.PointWager{wagerOf("alice", 300, true)}},
 		{name: "zero is not a bet", who: "alice", text: "!gamble 0", contains: []string{"try !gamble"}},
+		{name: "a suffixed amount that rounds to zero is invalid", who: "alice", text: "!gamble 0.0004k", contains: []string{"try !gamble"}},
 		{name: "a negative integer is not a bet", who: "alice", text: "!gamble -5", contains: []string{"try !gamble"}},
+		{name: "an at-prefixed signed integer is not a bet", who: "alice", text: "!gamble @+300", contains: []string{"try !gamble"}},
 		{name: "an overflowing integer is not a bet", who: "alice", text: "!gamble 9223372036854775808", contains: []string{"try !gamble"}},
+		{name: "an overflowing suffixed amount is not a bet", who: "alice", text: "!gamble 9223372036854.775808m", contains: []string{"try !gamble"}},
 		{name: "staking the whole balance and winning reads as all in", roll: 50, who: "bob", text: "!gamble all",
 			fake: fakeLoyalty{getPoints: 500}, contains: []string{"@bob went all in and won 500"}, wagers: []engine.PointWager{wagerOf("bob", 500, true)}},
 		{name: "staking the whole balance and losing loses everything", roll: 87, who: "bob", text: "!gamble 500",
@@ -79,14 +84,14 @@ func TestGamble(t *testing.T) {
 			contains: []string{"lost 300", "934"}, wagers: []engine.PointWager{wagerOf("alice", 300, false)}},
 		{name: "all stakes the whole balance up to the cap", roll: 50, who: "bob", text: "!gamble all",
 			contains: []string{"won 1000"}, wagers: []engine.PointWager{wagerOf("bob", 1000, true)}},
-		{name: "a bet the balance cannot cover moves nothing", who: "bob", config: `{"maxBet":5000}`, text: "!gamble 2000",
+		{name: "a suffixed bet the balance cannot cover moves nothing", who: "bob", config: `{"maxBet":5000}`, text: "!gamble 2k",
 			contains: []string{"you only have 1234"}},
 		{name: "no amount prints usage", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble", contains: []string{"!gamble"}},
-		{name: "a bet under the minimum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble 5",
+		{name: "a suffixed bet under the minimum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble .005k",
 			contains: []string{"min bet is 10"}},
 		{name: "all from a balance under the minimum says the chatter is short", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble all",
 			fake: fakeLoyalty{getPoints: 5}, contains: []string{"you only have 5"}, excludes: []string{"min bet"}},
-		{name: "a bet over the maximum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble 900",
+		{name: "a suffixed bet over the maximum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble .9k",
 			contains: []string{"max bet is 500"}},
 		{name: "bet limits saved as text by the dashboard are honored", who: "alice", config: `{"minBet":"10","maxBet":"500"}`, text: "!gamble 900",
 			contains: []string{"max bet is 500"}},

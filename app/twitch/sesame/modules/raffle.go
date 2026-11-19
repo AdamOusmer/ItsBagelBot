@@ -5,7 +5,6 @@ package modules
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -56,7 +55,6 @@ type raffleCmd struct {
 	q       engine.QueueStore
 	cfg     engine.RaffleModuleConfig
 	loyalty func(context.Context) (points string, on bool)
-	wallet  engine.LoyaltyStore
 	log     *zap.Logger
 }
 
@@ -64,7 +62,7 @@ func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleC
 	if d.Raffle == nil {
 		return raffleCmd{}, false
 	}
-	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log, analytics: d.Analytics, wallet: d.Loyalty,
+	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log, analytics: d.Analytics,
 		loyalty: func(ctx context.Context) (string, bool) { return loyaltyVoice(ctx, d, c, "") }}
 	_ = c.Decode(&rc.cfg)
 	return rc, true
@@ -183,9 +181,9 @@ func (rc raffleCmd) start(ctx context.Context, launch raffleLaunch, emit module.
 		rc.reply(emit, "", "raffle.err.usage")
 		return nil
 	}
-	prize, err := rc.resolvePrize(ctx, req.prize)
-	if err != nil {
-		return err
+	prize := req.prize
+	if _, on := rc.loyalty(ctx); !on {
+		prize = 0
 	}
 
 	opened, err := rc.r.Open(ctx, rc.c.BroadcasterID, engine.RaffleOpenSpec{
@@ -206,29 +204,6 @@ func (rc raffleCmd) start(ctx context.Context, launch raffleLaunch, emit module.
 		rc.reply(emit, "", "raffle.open.already")
 	}
 	return nil
-}
-
-func (rc raffleCmd) resolvePrize(ctx context.Context, amount PointsAmount) (int64, error) {
-	if _, on := rc.loyalty(ctx); !on {
-		return 0, nil
-	}
-	balance, err := rc.prizeBalance(ctx, amount)
-	return min(max(amount.Resolve(balance), 0), engine.MaxRafflePrize), err
-}
-
-func (rc raffleCmd) prizeBalance(ctx context.Context, amount PointsAmount) (int64, error) {
-	if !amount.relative() {
-		return 0, nil
-	}
-	id, err := strconv.ParseUint(rc.c.Env.ChatterUserID, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	if id == 0 || rc.wallet == nil {
-		return 0, errors.New("raffle: opener balance unavailable")
-	}
-	balance, err := rc.wallet.BalanceGet(ctx, rc.c.BroadcasterID, id)
-	return balance.Points, err
 }
 
 func (rc raffleCmd) replyOpened(emit module.Emit, duration time.Duration) {
