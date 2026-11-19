@@ -95,6 +95,7 @@
   },
   "status": {
     "ok": "erledigt",
+    "sent": "gesendet",
     "skipped": "übersprungen",
     "unsupported": "nicht unterstützt",
     "failed": "fehlgeschlagen",

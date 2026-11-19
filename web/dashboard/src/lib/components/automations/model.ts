@@ -184,6 +184,7 @@ export const OUTCOME_TONE: Record<string, RunTone> = {
 
 export const STATUS_TONE: Record<string, RunTone> = {
   ok: 'live',
+  sent: 'neutral',
   skipped: 'quiet',
   unsupported: 'neutral',
   failed: 'danger',

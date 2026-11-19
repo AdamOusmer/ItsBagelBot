@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
+import { STATUS_TONE } from '../components/automations/model';
 import { english } from './english.testing';
 import type { Flow } from './model';
 import { explainRun, explainStep, runStepRows } from './runs';
@@ -86,6 +87,17 @@ describe('run step rows', () => {
       { index: 2, type: 'math', status: 'ok' }
     ]);
     expect(rows).toMatchObject([{ count: 2, name: null }]);
+  });
+
+  test('sent remains visible on grouped steps and has a neutral label', () => {
+    const rows = runStepRows(english, [
+      { index: 0, type: 'raid', status: 'ok' },
+      { index: 0, type: 'raid', status: 'sent' },
+      { index: 1, type: 'raid', status: 'sent' },
+      { index: 1, type: 'raid', status: 'failed' }
+    ]);
+    expect(rows).toMatchObject([{ status: 'sent', count: 2 }, { status: 'failed', count: 2 }]);
+    expect([english('automations.status.sent'), STATUS_TONE.sent, explainStep(english, 'sent', '')]).toEqual(['sent', 'neutral', '']);
   });
 });
 
