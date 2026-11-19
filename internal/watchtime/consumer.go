@@ -21,12 +21,13 @@ import (
 )
 
 const (
-	ConsumerGroup    = "loyalty-watchtime"
-	QuarantineStream = "watchtime:quarantine"
-	awardTimeout     = 10 * time.Second
-	claimIdle        = 30 * time.Second
-	deliveryBatch    = 16
-	channelWorkers   = 4
+	ConsumerGroup     = "loyalty-watchtime"
+	QuarantineStream  = "watchtime:quarantine"
+	awardTimeout      = 10 * time.Second
+	claimIdle         = 30 * time.Second
+	deliveryBatch     = 16
+	channelWorkers    = 4
+	watchBacklogLimit = 5 * time.Minute
 )
 
 type Consumer struct {
@@ -178,21 +179,35 @@ func (c *Consumer) pruneHistory(parent context.Context) (err error) {
 }
 
 func (c *Consumer) Check(ctx context.Context) error {
-	entries, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XRangeCmd(c.client, Stream, 1)).AsXRange()
+	status, err := c.Status(ctx)
 	if err != nil {
 		return err
 	}
+	if !status.Healthy {
+		return errors.New("watch awards have been pending for at least five minutes")
+	}
+	return nil
+}
+
+type BacklogStatus struct {
+	OldestPendingAge time.Duration
+	Healthy          bool
+}
+
+func (c *Consumer) Status(ctx context.Context) (BacklogStatus, error) {
+	entries, err := pkgvalkey.Exec1(ctx, c.client, pkgvalkey.XRangeCmd(c.client, Stream, 1)).AsXRange()
+	if err != nil {
+		return BacklogStatus{}, err
+	}
 	if len(entries) == 0 {
-		return nil
+		return BacklogStatus{Healthy: true}, nil
 	}
 	ms, err := strconv.ParseInt(strings.SplitN(entries[0].ID, "-", 2)[0], 10, 64)
 	if err != nil {
-		return errors.New("invalid watch outbox entry ID")
+		return BacklogStatus{}, errors.New("invalid watch outbox entry ID")
 	}
-	if time.Since(time.UnixMilli(ms)) > 5*time.Minute {
-		return errors.New("watch awards have been pending for more than five minutes")
-	}
-	return nil
+	age := max(time.Since(time.UnixMilli(ms)), 0)
+	return BacklogStatus{OldestPendingAge: age, Healthy: age < watchBacklogLimit}, nil
 }
 
 func consumerPause(ctx context.Context, delay time.Duration) bool {

@@ -79,6 +79,7 @@ type bumpSum struct {
 type Loyalty struct {
 	dialect      string
 	counterReady atomic.Bool
+	creditReady  atomic.Bool
 	client       *ent.Client
 	sqldb        *sql.DB
 	app          *newrelic.Application
@@ -109,7 +110,7 @@ func (r *Loyalty) MaintainCounterReceipts(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			r.maintainCounterReceipts(ctx)
+			r.maintainReceipts(ctx)
 		}
 	}
 }

@@ -233,6 +233,10 @@ func (f *versionedWatchTicker) Disarm(context.Context, uint64) {
 	panic("versioned ticker called through legacy Disarm")
 }
 
+func (f *versionedWatchTicker) AccrualHealth(context.Context, uint64) engine.AccrualState {
+	return engine.AccrualHealthy
+}
+
 func (f *versionedWatchTicker) ArmVersioned(_ context.Context, _ uint64, version int64) {
 	if version >= f.version {
 		f.version = version

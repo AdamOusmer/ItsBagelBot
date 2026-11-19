@@ -19,6 +19,7 @@ import (
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
@@ -40,6 +41,11 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	return newHarnessWithWatchStatus(t, nil)
+}
+
+func newHarnessWithWatchStatus(t *testing.T, status func(context.Context) (watchtime.BacklogStatus, error)) *harness {
+	t.Helper()
 	db, err := sql.Open(testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
@@ -55,7 +61,8 @@ func newHarness(t *testing.T) *harness {
 	}
 	repo := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
 	nc := testnats.Connect(t)
-	require.NoError(t, Subscribe(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo, Invalidations: bus.NewInvalidations(nc, invalidationPrefix, nil)}, "loyalty"))
+	require.NoError(t, Subscribe(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo,
+		Invalidations: bus.NewInvalidations(nc, invalidationPrefix, nil), WatchStatus: status}, "loyalty"))
 	return &harness{nc: nc, repo: repo, client: client}
 }
 

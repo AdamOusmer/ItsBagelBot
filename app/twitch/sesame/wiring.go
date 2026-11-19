@@ -260,11 +260,11 @@ type loyaltyDeps struct {
 func newLoyalty(w wireCtx, deps loyaltyDeps) (*engine.ValkeyLoyaltyStore, *engine.ValkeyLoyaltyClock) {
 	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, engine.LoyaltyRPCPrefix(w.cfg.LoyaltyRPCPrefix)), deps.reporter, w.log)
 	store.BindInvalidations(w.invalidations)
-	tick := newLoyaltyClock(w, deps)
+	tick := newLoyaltyClock(w, deps, store)
 	return store, tick
 }
 
-func newLoyaltyClock(w wireCtx, deps loyaltyDeps) *engine.ValkeyLoyaltyClock {
+func newLoyaltyClock(w wireCtx, deps loyaltyDeps, store *engine.ValkeyLoyaltyStore) *engine.ValkeyLoyaltyClock {
 	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, engine.LoyaltyClockConfig{Proj: deps.proj, Live: deps.live, Reporter: deps.reporter,
 		OutgressRPCPrefix:     w.cfg.OutgressRPCPrefix,
 		Invalidations:         w.invalidations,
@@ -274,6 +274,7 @@ func newLoyaltyClock(w wireCtx, deps loyaltyDeps) *engine.ValkeyLoyaltyClock {
 		Publisher:             w.in.pub,
 		OutgressSystemSubject: w.cfg.OutgressSystemSubject,
 		ViewerSnapshots:       deps.chatters,
+		WatchStatus:           store.WatchStatus,
 		Log:                   w.log,
 	})
 	go clock.StartExpiryWatcher(w.ctx)

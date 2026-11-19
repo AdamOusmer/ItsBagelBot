@@ -203,6 +203,20 @@ type PointSpend struct {
 	Amount        int64
 }
 
+type PointCredit struct {
+	BroadcasterID    uint64
+	ViewerID         uint64
+	ViewerLogin      string
+	Value            int64
+	Key              string
+	AccountCreatedAt int64
+}
+
+type CreditOutcome struct {
+	Balance  loyaltyrpc.Balance
+	Replayed bool
+}
+
 type PointWager struct {
 	BroadcasterID uint64
 	ViewerID      uint64
@@ -224,6 +238,9 @@ type LoyaltyStore interface {
 	CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error)
 	BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error)
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
+	BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error)
+	BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error)
+	WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
 	BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
@@ -242,6 +259,7 @@ type CounterBumper interface {
 type LoyaltyTicker interface {
 	Arm(ctx context.Context, broadcasterID uint64)
 	Disarm(ctx context.Context, broadcasterID uint64)
+	AccrualHealth(ctx context.Context, broadcasterID uint64) AccrualState
 }
 
 type VersionedLoyaltyTicker interface {

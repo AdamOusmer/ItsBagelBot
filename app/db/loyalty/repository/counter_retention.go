@@ -11,15 +11,32 @@ import (
 	"go.uber.org/zap"
 )
 
+const balanceCreditRetention = 24 * time.Hour
+
 func (r *Loyalty) PruneCounterReceipts(ctx context.Context) error {
 	if !r.counterReady.Load() {
 		return nil
 	}
+	return r.pruneReceipts(ctx, receiptPrune{table: "loyalty_counter_receipts", cutoff: time.Now().Add(-data.CounterReceiptRetention).Unix()})
+}
+
+func (r *Loyalty) PruneBalanceCredits(ctx context.Context) error {
+	if !r.creditReady.Load() {
+		return nil
+	}
+	return r.pruneReceipts(ctx, receiptPrune{table: balanceCreditTable, cutoff: time.Now().Add(-balanceCreditRetention).UnixMilli()})
+}
+
+type receiptPrune struct {
+	table  string
+	cutoff int64
+}
+
+func (r *Loyalty) pruneReceipts(ctx context.Context, prune receiptPrune) error {
 	ctx, cancel := context.WithTimeout(ctx, watchHistoryPruneBudget)
 	defer cancel()
-	cutoff := time.Now().Add(-data.CounterReceiptRetention).Unix()
 	for range watchHistoryPrunePasses {
-		more, err := r.pruneCounterReceiptChunk(ctx, cutoff)
+		more, err := r.pruneReceiptChunk(ctx, prune)
 		if err != nil || !more {
 			return err
 		}
@@ -27,12 +44,12 @@ func (r *Loyalty) PruneCounterReceipts(ctx context.Context) error {
 	return nil
 }
 
-func (r *Loyalty) pruneCounterReceiptChunk(ctx context.Context, cutoff int64) (bool, error) {
-	query := "DELETE FROM loyalty_counter_receipts WHERE created_at < ? ORDER BY created_at LIMIT ?"
+func (r *Loyalty) pruneReceiptChunk(ctx context.Context, prune receiptPrune) (bool, error) {
+	query := "DELETE FROM " + prune.table + " WHERE created_at < ? ORDER BY created_at LIMIT ?"
 	if r.dialect == "sqlite3" {
-		query = "DELETE FROM loyalty_counter_receipts WHERE rowid IN (SELECT rowid FROM loyalty_counter_receipts WHERE created_at < ? ORDER BY created_at LIMIT ?)"
+		query = "DELETE FROM " + prune.table + " WHERE rowid IN (SELECT rowid FROM " + prune.table + " WHERE created_at < ? ORDER BY created_at LIMIT ?)"
 	}
-	result, err := r.sqldb.ExecContext(ctx, query, cutoff, watchHistoryPruneBatch)
+	result, err := r.sqldb.ExecContext(ctx, query, prune.cutoff, watchHistoryPruneBatch)
 	if err != nil {
 		return false, err
 	}
@@ -40,10 +57,16 @@ func (r *Loyalty) pruneCounterReceiptChunk(ctx context.Context, cutoff int64) (b
 	return n == watchHistoryPruneBatch, err
 }
 
-func (r *Loyalty) maintainCounterReceipts(ctx context.Context) {
-	err := r.PruneCounterReceipts(ctx)
+func (r *Loyalty) maintainReceipts(ctx context.Context) {
+	r.reportReceiptPruning(r.PruneCounterReceipts(ctx), "counter")
+	r.reportReceiptPruning(r.PruneBalanceCredits(ctx), "balance credit")
+}
+
+func (r *Loyalty) reportReceiptPruning(err error, kind receiptKind) {
 	if err == nil || r.log == nil {
 		return
 	}
-	r.log.Warn("loyalty: counter receipt pruning failed", zap.Error(err))
+	r.log.Warn("loyalty: receipt pruning failed", zap.String("kind", string(kind)), zap.Error(err))
 }
+
+type receiptKind string

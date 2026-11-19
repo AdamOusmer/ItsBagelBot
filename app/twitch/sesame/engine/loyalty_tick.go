@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	livekey "ItsBagelBot/internal/domain/live"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
@@ -70,6 +71,8 @@ type ValkeyLoyaltyClock struct {
 	wake            chan struct{}
 	rearms          chan uint64
 	now             func() time.Time
+	windowHealth    func(context.Context, uint64) (pkg_valkey.WindowHealth, error)
+	watchStatus     func(context.Context) (loyaltyrpc.WatchStatus, error)
 }
 
 type LoyaltyClockConfig struct {
@@ -85,6 +88,7 @@ type LoyaltyClockConfig struct {
 	OutgressSystemSubject string
 	Log                   *zap.Logger
 	ViewerSnapshots       *ValkeyChatters
+	WatchStatus           func(context.Context) (loyaltyrpc.WatchStatus, error)
 }
 
 func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, cfg LoyaltyClockConfig) *ValkeyLoyaltyClock {
@@ -102,7 +106,10 @@ func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, cfg LoyaltyClock
 			return bus.RequestWithContext(ctx, nc, subject, body)
 		},
 		chattersSubject: cfg.OutgressRPCPrefix + ".chatters.get", invalidations: cfg.Invalidations, botID: cfg.BotUserID, keyspaceDB: cfg.KeyspaceDB, expiry: cfg.Expiry,
-		log: log, wake: make(chan struct{}, 1), rearms: make(chan uint64, loyaltyQueueSize), now: time.Now}
+		log: log, wake: make(chan struct{}, 1), rearms: make(chan uint64, loyaltyQueueSize), now: time.Now,
+		watchStatus: cfg.WatchStatus, windowHealth: func(ctx context.Context, id uint64) (pkg_valkey.WindowHealth, error) {
+			return pkg_valkey.ReadWindowHealth(ctx, primary, loyaltyScheduleKey(id))
+		}}
 }
 
 func loyaltyTickKey(id uint64) string { return cache.UserKey(loyaltyTickKeyPrefix, id) }

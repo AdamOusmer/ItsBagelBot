@@ -10,21 +10,29 @@ import (
 
 const InvalidateScope = invalidate.ScopeLoyalty
 
+const (
+	VerbBalanceCredit   = "balance.credit"
+	VerbBalanceSnapshot = "balance.snapshot"
+	VerbWatchStatus     = "watch.status"
+)
+
 type Request struct {
-	UserID         string `json:"user_id"`
-	ViewerID       string `json:"viewer_id,omitempty"`
-	ViewerLogin    string `json:"viewer_login,omitempty"`
-	TargetViewerID string `json:"target_viewer_id,omitempty"`
-	Name           string `json:"name,omitempty"`
-	NewName        string `json:"new_name,omitempty"`
-	Scope          string `json:"scope,omitempty"`
-	Command        string `json:"command,omitempty"`
-	Value          int64  `json:"value,omitempty"`
-	Won            bool   `json:"won,omitempty"`
-	CounterValue   string `json:"counter_value,omitempty"`
-	Limit          int    `json:"limit,omitempty"`
-	Offset         int    `json:"offset,omitempty"`
-	Query          string `json:"query,omitempty"`
+	UserID           string `json:"user_id"`
+	ViewerID         string `json:"viewer_id,omitempty"`
+	ViewerLogin      string `json:"viewer_login,omitempty"`
+	TargetViewerID   string `json:"target_viewer_id,omitempty"`
+	Name             string `json:"name,omitempty"`
+	NewName          string `json:"new_name,omitempty"`
+	Scope            string `json:"scope,omitempty"`
+	Command          string `json:"command,omitempty"`
+	Value            int64  `json:"value,omitempty"`
+	Key              string `json:"key,omitempty"`
+	AccountCreatedAt int64  `json:"account_created_at,omitempty"`
+	Won              bool   `json:"won,omitempty"`
+	CounterValue     string `json:"counter_value,omitempty"`
+	Limit            int    `json:"limit,omitempty"`
+	Offset           int    `json:"offset,omitempty"`
+	Query            string `json:"query,omitempty"`
 }
 
 type Balance struct {
@@ -67,6 +75,23 @@ type Reply struct {
 	Board         []CounterRank  `json:"board,omitempty"`
 	Found         bool           `json:"found,omitempty"`
 	Spent         bool           `json:"spent,omitempty"`
+	Replayed      bool           `json:"replayed,omitempty"`
 	LimitExceeded bool           `json:"limit_exceeded,omitempty"`
+	rpc.Refusal
+}
+
+type BalanceSnapshot struct {
+	Points       int64  `json:"points"`
+	WatchSeconds uint64 `json:"watch_seconds"`
+	Found        bool   `json:"found"`
+	FreezeID     string `json:"freeze_id"`
+	FrozenAsOf   int64  `json:"frozen_as_of"`
+	ExpiresAt    int64  `json:"expires_at"`
+	rpc.Refusal
+}
+
+type WatchStatus struct {
+	OldestPendingAgeMS int64 `json:"oldest_pending_age_ms"`
+	Healthy            bool  `json:"healthy"`
 	rpc.Refusal
 }
