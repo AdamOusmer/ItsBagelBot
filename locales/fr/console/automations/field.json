@@ -82,5 +82,8 @@
   "choices": "Choix (un par ligne)",
   "outcomes": "Résultats (un par ligne)",
   "winner": "Numéro du résultat gagnant",
+  "points_per_vote": "Points de chaîne par vote",
+  "outcome": "Résultat gagnant",
+  "thread": "Répondre dans le fil",
   "resolution": "Message de décision (facultatif)"
 }

@@ -1,5 +1,6 @@
 {
   "chat": "Send chat message",
+  "pin": "Pin message",
   "announce": "Send announcement",
   "reply": "Reply to the viewer",
   "timeout": "Time out a viewer",

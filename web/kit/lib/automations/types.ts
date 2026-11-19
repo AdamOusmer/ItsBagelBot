@@ -155,6 +155,10 @@ export interface TextAction {
   text: string;
 }
 
+export interface ReplyAction extends TextAction {
+  thread?: boolean;
+}
+
 export interface AnnounceAction {
   text: string;
   color?: AnnounceColor;

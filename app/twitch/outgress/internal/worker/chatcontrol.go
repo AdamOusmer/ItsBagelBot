@@ -5,6 +5,7 @@ package worker
 
 import (
 	"context"
+	"slices"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
@@ -19,6 +20,7 @@ type chatMode struct {
 	durationKey string
 	fallback    int
 	min, max    int
+	allowed     []int
 }
 
 var chatModes = map[string]chatMode{
@@ -27,6 +29,7 @@ var chatModes = map[string]chatMode{
 	outgress.ChatModeEmote:      {flag: "emote_mode"},
 	outgress.ChatModeSubscriber: {flag: "subscriber_mode"},
 	outgress.ChatModeUnique:     {flag: "unique_chat_mode"},
+	outgress.ChatModeDelay:      {flag: "non_moderator_chat_delay", durationKey: "non_moderator_chat_delay_duration", fallback: 2, allowed: []int{2, 4, 6}},
 }
 
 func (m chatMode) settings(req outgress.ChatSettings) map[string]any {
@@ -38,10 +41,14 @@ func (m chatMode) settings(req outgress.ChatSettings) map[string]any {
 }
 
 func (m chatMode) duration(requested int) int {
-	if requested == 0 && m.fallback != 0 {
+	switch {
+	case slices.Contains(m.allowed, requested):
+		return requested
+	case len(m.allowed) > 0, requested == 0 && m.fallback != 0:
 		return m.fallback
+	default:
+		return min(max(requested, m.min), m.max)
 	}
-	return min(max(requested, m.min), m.max)
 }
 
 func (w *Worker) processChatSettings(ctx context.Context, payload *outgress.Message) error {

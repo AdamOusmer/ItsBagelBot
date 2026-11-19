@@ -23,7 +23,8 @@
           "a",
           "b"
         ],
-        "seconds": 60
+        "seconds": 60,
+        "points_per_vote": 100
       }
     },
     {
@@ -40,7 +41,7 @@
           "yes",
           "no"
         ],
-        "seconds": 120
+        "seconds": 1
       }
     },
     {
@@ -108,6 +109,30 @@
       "params": {
         "on": true
       }
+    },
+    {
+      "type": "chat_mode",
+      "params": { "mode": "slow", "on": true, "value": 0 }
+    },
+    {
+      "type": "chat_mode",
+      "params": { "mode": "followers", "on": true, "value": 129600 }
+    },
+    {
+      "type": "chat_mode",
+      "params": { "mode": "chat_delay", "on": true, "value": 4 }
+    },
+    {
+      "type": "chat_mode",
+      "params": { "mode": "chat_delay", "on": false, "value": -90000 }
+    },
+    {
+      "type": "chat_mode",
+      "params": { "mode": "unique", "on": true, "value": 200000 }
+    },
+    {
+      "type": "prediction_end",
+      "params": { "status": "resolve", "outcome": "{args}" }
     }
   ]
 }

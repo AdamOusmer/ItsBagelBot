@@ -4,6 +4,7 @@
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
 import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_TEMPLATE_LENGTH } from './limits';
+import { CHAT_MODE_NAMES } from './stream-types';
 import { TARGET_MODES } from './types';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
@@ -128,25 +129,27 @@ export const ACTION_TYPES: TypeDef[] = [
     f('title', 'text', { required: true, min: 1, max: 60 }),
     f('choices', 'list', { required: true, min: 2, max: 5 }),
     f('seconds', 'int', { required: true, min: 15, max: 1800 }),
+    f('points_per_vote', 'int', { min: 0, max: 1000000 }),
   ]),
   action('poll_end', [f('status', 'enum', { required: true, values: ['terminate', 'archive'] })]),
   action('prediction', [
     f('title', 'text', { required: true, min: 1, max: 45 }),
     f('outcomes', 'list', { required: true, min: 2, max: 10 }),
-    f('seconds', 'int', { required: true, min: 30, max: 1800 }),
+    f('seconds', 'int', { required: true, min: 1, max: 1800 }),
   ]),
   action('prediction_end', [
     f('status', 'enum', { required: true, values: ['lock', 'cancel', 'resolve'] }),
     f('winner', 'int', { min: 1, max: 10 }),
+    f('outcome', 'template', { max: 100 }),
   ]),
   action('raid', [loginReq]),
   action('raid_cancel'),
   action('mod', [...targetFields, f('on', 'bool')]),
   action('vip', [...targetFields, f('on', 'bool')]),
   action('chat_mode', [
-    f('mode', 'enum', { required: true, values: ['emote_only', 'followers', 'slow', 'subscribers', 'unique'] }),
+    f('mode', 'enum', { required: true, values: CHAT_MODE_NAMES }),
     f('on', 'bool'),
-    f('value', 'int', { min: 0, max: 86400 }),
+    f('value', 'int'),
   ]),
   action('clear_chat'),
   action('ad_snooze'),
@@ -158,8 +161,9 @@ export const ACTION_TYPES: TypeDef[] = [
   action('branded_content', [f('on', 'bool')]),
 
   action('chat', [textReq]),
+  action('pin', [textReq]),
   action('announce', [textReq, f('color', 'enum', { values: ['', 'primary', 'blue', 'green', 'orange', 'purple'] })]),
-  action('reply', [textReq]),
+  action('reply', [textReq, f('thread', 'bool')]),
   action('timeout', [...targetFields, f('seconds', 'int', { required: true, min: 1, max: 1209600 }), reasonOpt]),
   action('ban', [...targetFields, reasonOpt]),
   action('delete_message'),

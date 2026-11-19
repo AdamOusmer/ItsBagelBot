@@ -32,6 +32,7 @@ func TestAutomationOutputActions(t *testing.T) {
 	}{
 		{"chat expands args", act("chat", obj{"text": "hi {args} {arg:k}"}), []string{`chat {"broadcaster_id":"1","message":"hi hello v v"}`}},
 		{"chat multi-line is a batch", act("chat", obj{"text": "one\n\ntwo"}), []string{`chat {"broadcaster_id":"1","message":"one"}`, `chat {"broadcaster_id":"1","message":"two"}`}},
+		{"pin expands text", act("pin", obj{"text": "rules {arg:a}"}), []string{`pin {"broadcaster_id":"1","message":"rules hello"}`}},
 		{"announce color", act("announce", obj{"text": "big news", "color": "green"}), []string{`announce color=green {"message":"big news"}`}},
 		{"raid", act("raid", obj{"login": "target"}), []string{`raid_start to=target {}`}},
 		{"timeout", act("timeout", obj{"login": "@Target", "seconds": 60, "reason": "spam {args}"}), []string{`timeout {"data":{"user_id":"99","duration":60,"reason":"spam hello v"}}`}},
@@ -59,6 +60,57 @@ func TestAutomationOutputActions(t *testing.T) {
 				status = automationrpc.StatusOK
 			}
 			assert.Equal(t, []automationrpc.ActionRecord{{Type: tc.action.Type, Status: status}}, rec.Actions)
+		})
+	}
+}
+
+func TestAutomationCommandMessageTargets(t *testing.T) {
+	cases := []struct {
+		name          string
+		msgID         string
+		chatMessageID string
+		action        automation.Action
+		want          []string
+	}{
+		{
+			"threaded with a message ID", "parent", "", act("reply", obj{"text": "hi", "thread": true}),
+			[]string{`chat {"broadcaster_id":"123","message":"hi","reply_parent_message_id":"parent"}`},
+		},
+		{
+			"threaded with both ingress IDs", "notification", "parent", act("reply", obj{"text": "hi", "thread": true}),
+			[]string{`chat {"broadcaster_id":"123","message":"hi","reply_parent_message_id":"parent"}`},
+		},
+		{
+			"threaded without a message ID", "", "", act("reply", obj{"text": "hi", "thread": true}),
+			[]string{`chat {"broadcaster_id":"123","message":"@alice hi"}`},
+		},
+		{
+			"mention with a message ID", "parent", "", act("reply", obj{"text": "hi", "thread": false}),
+			[]string{`chat {"broadcaster_id":"123","message":"@alice hi"}`},
+		},
+		{
+			"only the first emitted line is threaded", "parent", "", act("reply", obj{"text": "\nhi\nagain", "thread": true}),
+			[]string{
+				`chat {"broadcaster_id":"123","message":"hi","reply_parent_message_id":"parent"}`,
+				`chat {"broadcaster_id":"123","message":"again"}`,
+			},
+		},
+		{
+			"delete uses the chat message ID", "notification", "parent", act("delete_message", obj{}),
+			[]string{"delete msg=parent"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := command("!hi", obj{})
+			a.Definition.Actions = []automation.Action{tc.action}
+			fx := autoFixture{pub: &fakePublisher{}}
+			p, runs := autoRig{automations: []automation.Automation{a}, pub: fx.pub}.pipeline()
+			env := chatEnv("!hi", "")
+			env.MsgID, env.ChatMessageID = tc.msgID, tc.chatMessageID
+			process(t, p, env)
+			assert.Equal(t, []string{"!hi:ok"}, runs.summary())
+			assert.Equal(t, tc.want, fx.described(t))
 		})
 	}
 }

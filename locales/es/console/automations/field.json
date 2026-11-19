@@ -82,5 +82,8 @@
   "choices": "Opciones (una por línea)",
   "outcomes": "Resultados (uno por línea)",
   "winner": "Número del resultado ganador",
+  "points_per_vote": "Puntos del canal por voto",
+  "outcome": "Resultado ganador",
+  "thread": "Responder en hilo",
   "resolution": "Mensaje de resolución (opcional)"
 }

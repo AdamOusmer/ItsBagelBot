@@ -56,6 +56,7 @@ func typed[T any](h func(*actionExec, step, T) error) actionHandler {
 func outputActions(b *actionTableBuilder) *actionTableBuilder {
 	return b.
 		Step("chat", typed((*actionExec).chat)).
+		Step("pin", typed((*actionExec).pin)).
 		Step("announce", typed((*actionExec).announce)).
 		Step("reply", typed((*actionExec).reply)).
 		Step("timeout", typed((*actionExec).timeout)).

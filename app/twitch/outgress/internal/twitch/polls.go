@@ -49,9 +49,10 @@ func titles(options CreateOptions) []titled {
 }
 
 type CreateOptions struct {
-	Title   string
-	Items   []string
-	Seconds int
+	Title                string
+	Items                []string
+	Seconds              int
+	ChannelPointsPerVote int
 }
 type PollResolution struct{ ID, Status string }
 type PredictionResolution struct{ ID, Status, WinningOutcomeID string }
@@ -72,12 +73,17 @@ type PredictionUpdate struct {
 
 func (c *Client) CreatePoll(ctx context.Context, request ContestCreation) error {
 	broadcasterID, options := request.Channel.BroadcasterID, request.Options
-	return c.sendJSON(ctx, broadcasterTarget(broadcasterID), HelixCall{Method: http.MethodPost, Endpoint: "/helix/polls"}, map[string]any{
+	body := map[string]any{
 		"broadcaster_id": broadcasterID,
 		"title":          options.Title,
 		"choices":        titles(options),
 		"duration":       options.Seconds,
-	})
+	}
+	if options.ChannelPointsPerVote > 0 {
+		body["channel_points_voting_enabled"] = true
+		body["channel_points_per_vote"] = options.ChannelPointsPerVote
+	}
+	return c.sendJSON(ctx, broadcasterTarget(broadcasterID), HelixCall{Method: http.MethodPost, Endpoint: "/helix/polls"}, body)
 }
 
 func (c *Client) LatestPoll(ctx context.Context, channel ContestChannel) (Poll, bool, error) {

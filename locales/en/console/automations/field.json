@@ -82,5 +82,8 @@
   "choices": "Choices (one per line)",
   "outcomes": "Outcomes (one per line)",
   "winner": "Winning outcome number",
+  "points_per_vote": "Channel Points per vote",
+  "outcome": "Winning outcome",
+  "thread": "Reply in thread",
   "resolution": "Resolution message (optional)"
 }

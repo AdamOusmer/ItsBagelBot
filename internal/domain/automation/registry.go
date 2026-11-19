@@ -251,8 +251,9 @@ func init() {
 		"branded_content": register(checkBrandedContent),
 
 		"chat":            register(checkText),
+		"pin":             register(checkText),
 		"announce":        register(checkAnnounce),
-		"reply":           register(checkText),
+		"reply":           register(checkReply),
 		"timeout":         register(checkTimeout),
 		"ban":             register(checkBan),
 		"delete_message":  register(checkEmpty),

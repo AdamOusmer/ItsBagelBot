@@ -1,5 +1,6 @@
 {
   "chat": "Chatnachricht senden",
+  "pin": "Nachricht anheften",
   "announce": "Ankündigung senden",
   "reply": "Zuschauer antworten",
   "timeout": "Zuschauer Timeout geben",
