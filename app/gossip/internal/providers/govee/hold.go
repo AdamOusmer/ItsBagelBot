@@ -184,17 +184,23 @@ func (p *api) applyRestore(ctx context.Context, broadcaster string, lights []res
 
 func (p *api) driveRestore(ctx context.Context, broadcaster string, headers map[string]string, lights []restoreLight) error {
 	var wg sync.WaitGroup
-	for i, light := range lights {
-		snapshot := light.lease.Snapshot
-		if !snapshot.Online {
-			continue
-		}
-		wg.Go(func() {
-			steps := controlSteps(gossiprpc.Request{PowerOff: !snapshot.Power, Kelvin: snapshot.Kelvin, ColorRGB: snapshot.ColorRGB, Brightness: snapshot.Brightness})
-			lights[i].err = p.driveLight(ctx, broadcaster, p.target(light.light, headers), steps)
-		})
+	for i := range lights {
+		wg.Go(func() { lights[i].err = p.restoreLight(ctx, broadcaster, headers, lights[i]) })
 	}
 	wg.Wait()
+	return firstRateLimit(lights)
+}
+
+func (p *api) restoreLight(ctx context.Context, broadcaster string, headers map[string]string, light restoreLight) error {
+	snapshot := light.lease.Snapshot
+	if !snapshot.Online {
+		return nil
+	}
+	steps := controlSteps(gossiprpc.Request{PowerOff: !snapshot.Power, Kelvin: snapshot.Kelvin, ColorRGB: snapshot.ColorRGB, Brightness: snapshot.Brightness})
+	return p.driveLight(ctx, broadcaster, p.target(light.light, headers), steps)
+}
+
+func firstRateLimit(lights []restoreLight) error {
 	for _, light := range lights {
 		if rateLimited(light.err) {
 			return light.err
