@@ -22,6 +22,11 @@ type Counted = SetupPreset | 'import';
 
 const consented = (form: FormData) => form.get('consent') === 'yes';
 
+function termsAccepted(locals: App.Locals): boolean {
+  const state = locals.accountState;
+  return !!state && 'value' in state && state.value.onboarded;
+}
+
 async function tourSession(locals: App.Locals): Promise<Session | null> {
   if (locals.session) return locals.session;
   return DEMO ? (await import('#lib/server/demo-data')).demoSession() : null;
@@ -84,10 +89,17 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
   if (!s) throw redirect(302, `/login?next=${encodeURIComponent('/welcome')}`);
   if (!isOwnerSession(s)) throw redirect(303, '/');
   count('onboarding.steps', 'viewed');
-  return { name: s.display_name || s.login, connected: connectedSources(cookies) };
+  return { name: s.display_name || s.login, connected: connectedSources(cookies), accepted: termsAccepted(locals) };
 };
 
 export const actions: Actions = {
+  consent: async ({ locals, request }) => {
+    if (!consented(await request.formData())) return consentMissing(locals);
+    if (DEMO) return { ok: true };
+    const who = owner(locals);
+    if ('failure' in who) return who.failure;
+    return (await markOnboarded(() => setOnboarded(who.uid, true))) ?? { ok: true };
+  },
   done: async ({ locals, request }) => {
     const form = await request.formData();
     if (!consented(form)) return consentMissing(locals);

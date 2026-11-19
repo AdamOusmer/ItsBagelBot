@@ -6,7 +6,7 @@
   import { MediaQuery } from 'svelte/reactivity';
   import { page } from '$app/state';
   import { goto, onNavigate, pushState, replaceState } from '$app/navigation';
-  import { enhance, type SubmitFunction } from '$app/forms';
+  import { deserialize, enhance, type ActionResult, type SubmitFunction } from '$app/forms';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import { decode } from '@bagel/ui/svelte/actions';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -141,10 +141,14 @@
   const importRequested = page.url.searchParams.get('import') === '1';
   let importLink = $state(importRequested);
   const importActive = $derived(page.state.importing ?? importLink);
-  let step = $state(importRequested ? choiceStep : 0);
-  let furthest = $state(importRequested ? choiceStep : 0);
+  const acceptedAtLoad = untrack(() => data.accepted);
+  const firstStep = importRequested ? choiceStep : acceptedAtLoad ? consentStep + 1 : 0;
+  let step = $state(firstStep);
+  let furthest = $state(firstStep);
   let dir = $state(1);
-  let consentAccepted = $state(false);
+  let consentAccepted = $state(acceptedAtLoad);
+  let consentSaved = $state(acceptedAtLoad);
+  let consentSaving = $state(false);
   type Phase = 'idle' | 'leaving';
   let phase = $state<Phase>('idle');
   const leaving = $derived(phase === 'leaving');
@@ -156,10 +160,11 @@
   const current = $derived(steps[step]);
   const last = $derived(step === steps.length - 1);
   const consentBlocked = $derived(!consentAccepted);
-  const maxStep = $derived(consentBlocked ? consentStep : Math.min(furthest + 1, steps.length - 1));
-  const nextDisabled = $derived(step + 1 > maxStep);
+  const floor = $derived(consentSaved ? consentStep + 1 : 0);
+  const maxStep = $derived(consentSaved ? Math.min(furthest + 1, steps.length - 1) : consentStep);
+  const nextDisabled = $derived(current.kind === 'consent' ? consentBlocked : step + 1 > maxStep);
   const canAdvance = $derived(!nextDisabled && !last);
-  const pastChoice = $derived(consentAccepted && step >= choiceStep);
+  const pastChoice = $derived(consentSaved && step >= choiceStep);
   const canImport = $derived(!leaving && pastChoice);
   const canFinish = $derived(!locked && pastChoice && last && setup !== 'import');
   let instant = $state(false);
@@ -192,7 +197,7 @@
   }
 
   function go(i: number) {
-    const target = Math.max(0, Math.min(i, maxStep));
+    const target = Math.max(floor, Math.min(i, maxStep));
     if (target === step || locked) return;
     dir = target > step ? 1 : -1;
     hover = null;
@@ -200,11 +205,10 @@
     furthest = Math.max(furthest, target);
     play('entrance');
   }
-  const goNext = () => go(step + 1);
+  const goNext = () => (current.kind === 'consent' && !consentSaved ? saveConsent() : go(step + 1));
   const goBack = () => go(step - 1);
   const goTo = (i: number) => go(i + 1);
 
-  const CONSENT_KEY = 'bb-welcome-consent';
   const TOUR_KEY = 'bb-welcome-tour';
   const SETUPS: readonly Setup[] = CHOICES.map((c) => c.id);
   let tourReady = false;
@@ -226,8 +230,8 @@
   function restoreTour(saved: SavedTour) {
     setup = saved.setup;
     const top = INTRO.length + (saved.setup === 'start-new' ? NEW_STREAMER.length : 0);
-    const cap = consentAccepted ? top : Math.min(consentStep, top);
-    step = Math.max(0, Math.min(saved.step, cap));
+    const cap = consentSaved ? top : Math.min(consentStep, top);
+    step = Math.max(floor, Math.min(saved.step, cap));
     furthest = Math.max(step, Math.min(saved.furthest, cap));
     if (saved.locale !== locale) void applyLocale(saved.locale);
   }
@@ -263,8 +267,7 @@
 
   onMount(() => {
     try {
-      consentAccepted = sessionStorage.getItem(CONSENT_KEY) === '1';
-      if (importRequested && !consentAccepted) {
+      if (importRequested && !consentSaved) {
         importLink = false;
         replaceState('/welcome', {});
         step = consentStep;
@@ -291,7 +294,7 @@
     importLink = false;
     replaceState('/welcome', {});
     setup = 'import';
-    step = Math.max(consentStep, Math.min(welcomeStep, choiceStep));
+    step = Math.max(floor, Math.min(welcomeStep, choiceStep));
     furthest = Math.max(furthest, step);
     dir = -1;
     play('entrance');
@@ -308,12 +311,35 @@
   }
 
   function onConsent(on: boolean) {
-    try {
-      if (on) sessionStorage.setItem(CONSENT_KEY, '1');
-      else sessionStorage.removeItem(CONSENT_KEY);
-    } catch {
-    }
     if (on) react('excited', 1600);
+  }
+
+  async function postConsent(): Promise<ActionResult> {
+    const body = new FormData();
+    body.set('consent', consentAccepted ? 'yes' : 'no');
+    try {
+      return deserialize(await (await fetch('/welcome?/consent', { method: 'POST', body })).text());
+    } catch {
+      return { type: 'failure', status: 502, location: '/welcome' };
+    }
+  }
+
+  async function saveConsent() {
+    if (consentSaving) return;
+    consentSaving = true;
+    saveError = false;
+    saveErrorServer = '';
+    const result = await postConsent();
+    consentSaving = false;
+    if (result.type !== 'success') return showSaveError(result);
+    consentSaved = true;
+    go(step + 1);
+  }
+
+  function showSaveError(result: ActionResult) {
+    saveErrorServer = result.type === 'failure' && result.status < 500 && typeof result.data?.error === 'string' ? result.data.error : '';
+    saveError = true;
+    react('attentive', 2400);
   }
 
   function celebrateCopy(ok: boolean) {
@@ -365,9 +391,7 @@
       return;
     }
     phase = 'idle';
-    saveErrorServer = result.type === 'failure' && result.status < 500 && typeof result.data?.error === 'string' ? result.data.error : '';
-    saveError = true;
-    react('attentive', 2400);
+    showSaveError(result);
   };
 
   const ARROW_BLOCKERS =
@@ -414,7 +438,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if importActive}
-  <ImportWizard onback={returnFromImport} onexit={exitTo} {consentAccepted} {locale} />
+  <ImportWizard onback={returnFromImport} onexit={exitTo} consentAccepted={consentSaved} {locale} />
 {:else}
 <SetupStage
   label={tr('onboarding.title')}
@@ -445,7 +469,7 @@
     >
       {#if current.kind === 'consent'}
         <div class="consent">
-          <Switch bind:checked={consentAccepted} label={current.title} onCheckedChange={onConsent} />
+          <Switch bind:checked={consentAccepted} label={current.title} onCheckedChange={onConsent} disabled={consentSaved} busy={consentSaving} />
           <Text as="span" size="sm" tone="muted"><span class="bb-prose bb-prose-inline">{@html tr('onboarding.consentLabel')}</span></Text>
         </div>
         <div class="consent-hint" class:shown={consentBlocked}>
@@ -521,7 +545,7 @@
         {#if current.kind === 'hero'}
           <Button onpointerover={() => (hover = 'excited')} onclick={goNext}>{tr('onboarding.heroCta')}</Button>
         {:else}
-          <Button variant="ghost" onpointerover={() => (hover = 'curious')} onclick={goBack}>{tr('onboarding.back')}</Button>
+          <Button variant="ghost" onpointerover={() => (hover = 'curious')} onclick={goBack} disabled={step - 1 < floor}>{tr('onboarding.back')}</Button>
           {#if last}
             {#if setup === 'import'}
               <Button onpointerover={() => (hover = 'excited')} onclick={startImport} tone="success">{tr('onboarding.choiceImportCta')}</Button>

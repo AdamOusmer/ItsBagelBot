@@ -30,6 +30,19 @@ test('counts the welcome view once', async () => {
 });
 
 test.each([
+  { accountState: undefined, accepted: false },
+  { accountState: { value: { onboarded: false } }, accepted: false },
+  { accountState: { value: { onboarded: true } }, accepted: true }
+])('load reports accepted=$accepted', async ({ accountState, accepted }) => {
+  const event = actionEvent() as { locals: Record<string, unknown> };
+  event.locals.accountState = accountState;
+  expect(((await load(event as never)) as { accepted: boolean }).accepted).toBe(accepted);
+});
+
+test.each([
+  { action: 'consent', consent: '', failed: false, status: 400, counts: [['onboarding.steps|consent_missing', 1]] },
+  { action: 'consent', consent: 'yes', failed: true, status: 502, counts: [['onboarding.steps|save_failed', 1]] },
+  { action: 'consent', consent: 'yes', failed: false, status: undefined, counts: [] },
   { action: 'done', consent: '', failed: false, status: 400, counts: [['onboarding.steps|consent_missing', 1]] },
   { action: 'finishImport', consent: '', failed: false, status: 400, counts: [['onboarding.steps|consent_missing', 1]] },
   { action: 'done', consent: 'yes', failed: true, status: 502, counts: [['onboarding.steps|save_failed', 1]] },
