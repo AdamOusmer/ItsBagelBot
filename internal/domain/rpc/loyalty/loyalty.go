@@ -27,7 +27,7 @@ type Request struct {
 	Command          string `json:"command,omitempty"`
 	Value            int64  `json:"value,omitempty"`
 	Key              string `json:"key,omitempty"`
-	AccountCreatedAt int64  `json:"account_created_at,omitempty"`
+	AccountCreatedAt *int64 `json:"account_created_at,omitempty"`
 	Won              bool   `json:"won,omitempty"`
 	CounterValue     string `json:"counter_value,omitempty"`
 	Limit            int    `json:"limit,omitempty"`

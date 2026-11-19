@@ -16,7 +16,6 @@ import (
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
-	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +24,7 @@ func TestBalanceCreditRPC(t *testing.T) {
 	ctx := t.Context()
 	require.NoError(t, h.repo.EnsureWatchSchema(ctx))
 	require.NoError(t, h.repo.EnsureBalanceCreditSchema(ctx))
-	require.NoError(t, h.repo.RestoreUser(ctx, 2, 10))
+	require.NoError(t, h.repo.RestoreUser(ctx, 2, 11))
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
 	for _, tc := range []struct {
 		name            string
@@ -35,10 +34,11 @@ func TestBalanceCreditRPC(t *testing.T) {
 		replayed        bool
 		code            domainrpc.Code
 	}{
-		{name: "first credit", viewer: 9, key: "raffle:r:1", value: 8, instance: 10},
-		{name: "replay", viewer: 9, key: "raffle:r:1", value: 8, instance: 10, replayed: true},
-		{name: "conflict", viewer: 9, key: "raffle:r:1", value: 3, instance: 10, code: domainrpc.CodeConflict},
-		{name: "different account", viewer: 9, key: "raffle:r:2", value: 8, instance: 11, code: domainrpc.CodeForbidden},
+		{name: "first credit", viewer: 9, key: "raffle:r:1", value: 8, instance: 11},
+		{name: "replay", viewer: 9, key: "raffle:r:1", value: 8, instance: 11, replayed: true},
+		{name: "conflict", viewer: 9, key: "raffle:r:1", value: 3, instance: 11, code: domainrpc.CodeConflict},
+		{name: "different account", viewer: 9, key: "raffle:r:2", value: 8, instance: 10, code: domainrpc.CodeForbidden},
+		{name: "zero instance with unused key", viewer: 9, key: "raffle:r:3", value: 8, code: domainrpc.CodeForbidden},
 		{name: "missing viewer", key: "raffle:r:3", value: 8, code: domainrpc.CodeInvalid},
 		{name: "missing key", viewer: 9, value: 8, code: domainrpc.CodeInvalid},
 		{name: "unprefixed key", viewer: 9, key: "key", value: 8, code: domainrpc.CodeInvalid},
@@ -72,7 +72,13 @@ func TestBalanceCreditRPCStorageUnavailable(t *testing.T) {
 	requireRPCCode(t, err, domainrpc.CodeUnavailable)
 }
 
-func TestBalanceCreditRPCPublishesOnce(t *testing.T) {
+func TestBalanceCreditRPCRequiresAccountInstance(t *testing.T) {
+	h := newHarness(t)
+	reply := h.call(t, loyaltyrpc.VerbBalanceCredit, loyaltyrpc.Request{UserID: "2", ViewerID: "9", Value: 8, Key: "raffle:r:1"})
+	require.Equal(t, domainrpc.Refused(domainrpc.CodeInvalid, "account_created_at is required"), reply.Refusal)
+}
+
+func TestBalanceCreditRPCPublishesOnReplay(t *testing.T) {
 	h := newHarness(t)
 	ctx := t.Context()
 	require.NoError(t, h.repo.EnsureWatchSchema(ctx))
@@ -80,19 +86,18 @@ func TestBalanceCreditRPCPublishesOnce(t *testing.T) {
 	h.repo.SetInvalidations(bus.NewInvalidations(h.nc, invalidationPrefix, nil))
 	sub, err := h.nc.SubscribeSync(invalidationPrefix + "." + loyaltyrpc.InvalidateScope)
 	require.NoError(t, err)
-	request := loyaltyrpc.Request{UserID: "2", ViewerID: "9", Value: 8, Key: "raffle:r:1"}
+	request := loyaltyrpc.Request{UserID: "2", ViewerID: "9", Value: 8, Key: "raffle:r:1", AccountCreatedAt: new(int64)}
 	for _, replay := range []bool{false, true} {
 		reply := h.call(t, loyaltyrpc.VerbBalanceCredit, request)
-		require.Empty(t, reply.Error)
+		require.Equal(t, domainrpc.Refusal{}, reply.Refusal)
 		require.Equal(t, replay, reply.Replayed)
+
+		msg, err := sub.NextMsg(time.Second)
+		require.NoError(t, err)
+		var event invalidate.DTO
+		require.NoError(t, codec.Unmarshal(msg.Data, &event))
+		require.Equal(t, invalidate.DTO{BroadcasterID: "2", Keys: []string{"9"}}, event)
 	}
-	msg, err := sub.NextMsg(time.Second)
-	require.NoError(t, err)
-	var event invalidate.DTO
-	require.NoError(t, codec.Unmarshal(msg.Data, &event))
-	require.Equal(t, invalidate.DTO{BroadcasterID: "2", Keys: []string{"9"}}, event)
-	_, err = sub.NextMsg(100 * time.Millisecond)
-	require.ErrorIs(t, err, nats.ErrTimeout)
 }
 
 func TestBalanceSnapshotRPC(t *testing.T) {
@@ -107,6 +112,17 @@ func TestBalanceSnapshotRPC(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, tc.want, got)
 	}
+}
+
+func TestBalanceSnapshotRPCStorageUnavailable(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, h.client.Close())
+	_, err := engine.NewLoyaltyRPC(h.nc, "loyalty").BalanceSnapshot(t.Context(), 2, 7)
+	requireRPCCode(t, err, domainrpc.CodeUnavailable)
+}
+
+func TestSubscribeRequiresWatchStatus(t *testing.T) {
+	require.ErrorContains(t, Subscribe(Wiring{}, "loyalty"), "WatchStatus")
 }
 
 func TestWatchStatusRPC(t *testing.T) {

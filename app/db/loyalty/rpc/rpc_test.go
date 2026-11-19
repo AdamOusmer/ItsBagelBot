@@ -41,7 +41,9 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	return newHarnessWithWatchStatus(t, nil)
+	return newHarnessWithWatchStatus(t, func(context.Context) (watchtime.BacklogStatus, error) {
+		return watchtime.BacklogStatus{Healthy: true}, nil
+	})
 }
 
 func newHarnessWithWatchStatus(t *testing.T, status func(context.Context) (watchtime.BacklogStatus, error)) *harness {
@@ -106,8 +108,7 @@ func requireRefused(t *testing.T, reply loyaltyrpc.Reply) {
 	t.Helper()
 	assert.Equal(t, domainrpc.CodeInvalid, reply.Code)
 	assert.NotEmpty(t, reply.Error)
-	assert.False(t, reply.Found)
-	assert.False(t, reply.Spent)
+	assert.False(t, reply.Found || reply.Spent, "found=%t spent=%t", reply.Found, reply.Spent)
 }
 
 func TestHandleBalanceResetZeroesChannel(t *testing.T) {

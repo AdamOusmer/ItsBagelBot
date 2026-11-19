@@ -45,8 +45,11 @@ func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustm
 	var row *ent.Balance
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-			var err error
-			row, err = r.applyBalanceAdjustment(ctx, tx.Client(), target)
+			_, update, err := r.prepareBalanceAdjustment(ctx, tx.Client(), target)
+			if err != nil {
+				return err
+			}
+			row, err = update.SetViewerLogin(target.ViewerLogin).Save(ctx)
 			return err
 		})
 	})
@@ -57,21 +60,21 @@ func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustm
 	return row.Unwrap(), true, nil
 }
 
-func (r *Loyalty) applyBalanceAdjustment(ctx context.Context, client *ent.Client, target BalanceAdjustment) (*ent.Balance, error) {
+func (r *Loyalty) prepareBalanceAdjustment(ctx context.Context, client *ent.Client, target BalanceAdjustment) (*ent.Balance, *ent.BalanceUpdateOne, error) {
 	if err := client.Balance.Create().SetUserID(target.UserID).SetViewerID(target.ViewerID).
 		SetViewerLogin(target.ViewerLogin).OnConflictColumns(balance.FieldUserID, balance.FieldViewerID).
 		Ignore().Exec(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	row, err := r.lockedAdjustmentBalance(ctx, client, target)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	points, err := adjustedPoints(row.Points, target)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return client.Balance.UpdateOneID(row.ID).SetPoints(points).SetViewerLogin(displayUpdate(row.ViewerLogin, target.ViewerLogin)).Save(ctx)
+	return row, client.Balance.UpdateOneID(row.ID).SetPoints(points), nil
 }
 
 func (r *Loyalty) lockedAdjustmentBalance(ctx context.Context, client *ent.Client, target BalanceAdjustment) (*ent.Balance, error) {
