@@ -28,6 +28,9 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'twitch.cheer': { filters: 'minBits', 'filters.anonymous': 'cheerer' },
   'twitch.raid': { filters: 'minViewers' },
   'twitch.reward': { title: 'reward', cost: 'reward', color: 'reward', cooldown_s: 'reward', on_redeem: 'reward', input_required: 'reward' },
+  'twitch.ad_break': { filters: 'minLength', 'filters.automatic': 'startedBy', 'filters.seconds': 'minLength' },
+  'twitch.channel_update': { filters: 'category', 'filters.category': 'category' },
+  'schedule.timer': { interval_s: 'every', random_jitter_s: 'jitter', min_chat_lines: 'chatLines', offline_ok: 'offline' },
   'reply.chat': { text: 'message' },
   'reply.counter': { name: 'counter' }
 };
@@ -84,6 +87,7 @@ function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: Flo
 
 const TYPES: Record<string, string> = {
   'twitch.chat.command': 'command', 'twitch.chat.word': 'command', 'twitch.reward': 'reward', 'countdown.finished': 'countdown',
+  'schedule.timer': 'timer', 'schedule.manual': 'manual',
   'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.counter': 'counter_add', 'reply.wait': 'delay'
 };
 

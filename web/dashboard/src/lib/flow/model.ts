@@ -44,6 +44,8 @@ export const STEP_PLACEMENT = {
   'reply.unban_resolve': { kind: 'reply', group: 'moderation' },
   'twitch.stream.online': { kind: 'trigger', group: 'stream' },
   'twitch.stream.offline': { kind: 'trigger', group: 'stream' },
+  'twitch.ad_break': { kind: 'trigger', group: 'stream' },
+  'twitch.channel_update': { kind: 'trigger', group: 'stream' },
   'reply.raid': { kind: 'reply', group: 'stream' },
   'reply.raid_cancel': { kind: 'reply', group: 'stream' },
   'reply.ad_snooze': { kind: 'reply', group: 'stream' },
@@ -54,11 +56,13 @@ export const STEP_PLACEMENT = {
   'reply.counter': { kind: 'reply', group: 'loyalty' },
   'reply.reward_update': { kind: 'reply', group: 'loyalty' },
   'countdown.finished': { kind: 'trigger', group: 'timers' },
+  'schedule.timer': { kind: 'trigger', group: 'timers' },
   'cond.cooldown': { kind: 'condition', group: 'timers' },
   'reply.countdown_start': { kind: 'reply', group: 'timers' },
   'reply.countdown_add': { kind: 'reply', group: 'timers' },
   'reply.cooldown_add': { kind: 'reply', group: 'timers' },
   'reply.lights': { kind: 'reply', group: 'lights' },
+  'schedule.manual': { kind: 'trigger', group: 'logic' },
   'cond.compare': { kind: 'condition', group: 'logic' },
   'cond.chance': { kind: 'condition', group: 'logic' },
   'cond.var': { kind: 'condition', group: 'logic' },
@@ -136,11 +140,23 @@ const user: VariableSpec[] = [
 ];
 
 const subVariables: Record<string, readonly VariableSpec[]> = {
-  resub: [{ token: '{months}', name: 'months', sample: '14' }],
-  gift: [{ token: '{count}', name: 'count', sample: '5' }]
+  resub: [
+    { token: '{months}', name: 'months', sample: '14' },
+    { token: '{streak}', name: 'streak', sample: '6' },
+    { token: '{message}', name: 'message', sample: 'GG!' }
+  ],
+  gift: [
+    { token: '{count}', name: 'count', sample: '5' },
+    { token: '{total}', name: 'total', sample: '20' }
+  ]
 };
 
-const subViewer: readonly VariableSpec[] = [...user, { token: '{tier}', name: 'tier', sample: '1' }];
+const subViewer: readonly VariableSpec[] = [...user, { token: '{tier}', name: 'tier', sample: '1000' }];
+const args: VariableSpec = { token: '{args}', name: 'args', sample: ARGS_SAMPLE };
+const streamInfo: readonly VariableSpec[] = [
+  { token: '{title}', name: 'title', sample: TITLE_SAMPLE },
+  { token: '{game}', name: 'game', sample: GAME_SAMPLE }
+];
 
 const matchCase: FieldSpec = { key: 'caseSensitive', type: 'toggle', initial: false };
 const subMessages: FieldSpec = { key: 'subMessages', type: 'toggle', initial: false };
@@ -175,6 +191,20 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [{ key: 'name', type: 'choice', source: 'namedCountdowns' }]
   },
   {
+    type: 'schedule.timer', slug: 'timer', icon: 'repeat',
+    fields: [
+      { key: 'every', type: 'duration', min: 60, max: 86_400, initial: 900, required: true },
+      { key: 'jitter', type: 'duration', min: 0, max: 3600, initial: 0 },
+      { key: 'chatLines', type: 'number', min: 0, max: 100, initial: 5 },
+      { key: 'offline', type: 'toggle', initial: false }
+    ]
+  },
+  {
+    type: 'schedule.manual', slug: 'manual', icon: 'send',
+    fields: [],
+    provides: [args]
+  },
+  {
     type: 'reply.countdown_start', slug: 'countdownStart', icon: 'timer',
     fields: [
       { key: 'name', type: 'text', placeholder: true },
@@ -205,7 +235,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       matchCase,
       subMessages
     ],
-    provides: [...user, { token: '{args}', name: 'args', sample: ARGS_SAMPLE }, { token: '{touser}', name: 'touser', sample: TOUSER_SAMPLE }]
+    provides: [...user, args, { token: '{touser}', name: 'touser', sample: TOUSER_SAMPLE }]
   },
   {
     type: 'twitch.chat.word',
@@ -217,7 +247,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       matchCase,
       subMessages
     ],
-    provides: user
+    provides: [...user, { ...args, name: 'wholeMessage' }]
   },
   {
     type: 'twitch.follow',
@@ -258,7 +288,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       { key: 'minBits', type: 'number', min: 1, unit: true },
       { key: 'cheerer', type: 'select', options: eventActors, initial: 'anyone' }
     ],
-    provides: [...user, { token: '{bits}', name: 'bits', sample: '500' }]
+    provides: [...user, { token: '{bits}', name: 'bits', sample: '500' }, { token: '{message}', name: 'message', sample: 'GG!' }]
   },
   {
     type: 'twitch.raid',
@@ -272,14 +302,32 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     slug: 'reward',
     icon: 'ticket',
     fields: [{ key: 'reward', type: 'reward' }],
-    provides: [...user, { token: '{input}', name: 'input', sample: 'lofi beats' }]
+    provides: [
+      ...user,
+      { token: '{input}', name: 'input', sample: 'lofi beats' },
+      { token: '{reward}', name: 'reward', sample: 'VIP' },
+      { token: '{cost}', name: 'cost', sample: '500' }
+    ]
   },
   {
     type: 'twitch.stream.online',
     slug: 'streamOnline',
     icon: 'radio',
     fields: [],
-    provides: [{ token: '{title}', name: 'title', sample: TITLE_SAMPLE }, { token: '{game}', name: 'game', sample: GAME_SAMPLE }]
+    provides: streamInfo
+  },
+  {
+    type: 'twitch.ad_break', slug: 'adBreak', icon: 'timer',
+    fields: [
+      { key: 'startedBy', type: 'select', options: ['any', 'automatic', 'manual'], initial: 'any' },
+      { key: 'minLength', type: 'duration', min: 30, max: 180 }
+    ],
+    provides: [{ token: '{seconds}', name: 'seconds', sample: '90' }]
+  },
+  {
+    type: 'twitch.channel_update', slug: 'channelUpdate', icon: 'radio',
+    fields: [{ key: 'category', type: 'text', placeholder: true }],
+    provides: streamInfo
   },
   {
     type: 'cond.role',

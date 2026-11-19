@@ -120,6 +120,38 @@
       }
     }
   },
+  "adBreak": {
+    "label": "Werbepause beginnt",
+    "summary": "In deinem Stream beginnt eine Werbepause",
+    "field": {
+      "startedBy": {
+        "label": "Ausgelöst durch",
+        "option": { "any": "Beliebig", "automatic": "Automatisch", "manual": "Manuell" }
+      },
+      "minLength": { "label": "Mindestdauer", "range": "Wähle eine Dauer von 30 Sekunden bis 3 Minuten." }
+    }
+  },
+  "channelUpdate": {
+    "label": "Titel oder Kategorie ändert sich",
+    "summary": "Der Titel oder die Kategorie deines Streams ändert sich",
+    "field": {
+      "category": { "label": "Kategorie", "placeholder": "Just Chatting", "hint": "Leer lassen, um jede Kategorie zu berücksichtigen." }
+    }
+  },
+  "timer": {
+    "label": "Alle paar Minuten",
+    "summary": "Wird in regelmäßigen Abständen ausgeführt",
+    "field": {
+      "every": { "label": "Alle", "range": "Wähle einen Abstand von 1 Minute bis 24 Stunden." },
+      "jitter": { "label": "Zufällige Zusatzzeit", "range": "Wähle eine Dauer von 0 Sekunden bis 1 Stunde." },
+      "chatLines": { "label": "Chatnachrichten seit der letzten Ausführung", "hint": "Bei 0 läuft das Rezept unabhängig von der Chataktivität." },
+      "offline": { "label": "Auch offline ausführen" }
+    }
+  },
+  "manual": {
+    "label": "Manuell ausführen",
+    "summary": "Startet über „Jetzt ausführen“ oder über ein anderes Tool mit dem Namen dieses Rezepts"
+  },
   "unbanRequest": {
     "label": "Entbannungsantrag",
     "summary": "Ein Zuschauer bittet um Entbannung"

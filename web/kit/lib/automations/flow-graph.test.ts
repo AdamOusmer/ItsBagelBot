@@ -507,13 +507,65 @@ const thresholdCases: TriggerCase[] = [
   }
 ];
 
+const newTriggerCases: TriggerCase[] = [
+  {
+    name: 'timer with offline runs and jitter',
+    type: 'schedule.timer',
+    config: { every: 900, jitter: 60, chatLines: 5, offline: true },
+    trigger: { type: 'timer', params: { interval_s: 900, random_jitter_s: 60, min_chat_lines: 5, offline_ok: true } }
+  },
+  {
+    name: 'timer with an explicit zero chat minimum',
+    type: 'schedule.timer',
+    config: { every: 60, jitter: 0, chatLines: 0, offline: false },
+    trigger: { type: 'timer', params: { interval_s: 60, min_chat_lines: 0 } }
+  },
+  {
+    name: 'manual recipe',
+    type: 'schedule.manual',
+    config: {},
+    trigger: { type: 'manual' }
+  },
+  {
+    name: 'any ad break',
+    type: 'twitch.ad_break',
+    config: { startedBy: 'any' },
+    trigger: { type: 'event', params: { kind: 'channel.ad_break.begin' } }
+  },
+  {
+    name: 'automatic ad break with minimum length',
+    type: 'twitch.ad_break',
+    config: { startedBy: 'automatic', minLength: 90 },
+    trigger: { type: 'event', params: { kind: 'channel.ad_break.begin', filters: { automatic: 'true', seconds: '90' } } }
+  },
+  {
+    name: 'manual ad break',
+    type: 'twitch.ad_break',
+    config: { startedBy: 'manual' },
+    trigger: { type: 'event', params: { kind: 'channel.ad_break.begin', filters: { automatic: 'false' } } }
+  },
+  {
+    name: 'channel update in any category',
+    type: 'twitch.channel_update',
+    config: {},
+    trigger: { type: 'event', params: { kind: 'channel.update' } }
+  },
+  {
+    name: 'channel update filtered by category',
+    type: 'twitch.channel_update',
+    config: { category: 'Just Chatting' },
+    trigger: { type: 'event', params: { kind: 'channel.update', filters: { category: 'Just Chatting' } } }
+  }
+];
+
 test.each([
   ...commandCases(),
   ...wordCases,
   ...subscriptionCases(),
   ...actorCases,
   ...importedCommandCases,
-  ...thresholdCases
+  ...thresholdCases,
+  ...newTriggerCases
 ])('trigger round trip: $name', ({ type, config, trigger, raised }) => {
   const definition = { version: 1, trigger, actions: [chat('Hello')] };
   const authored = flow([node('t', type, config), node('a', 'reply.chat', { message: 'Hello' })], [edge('t', 'next', 'a')]);
@@ -525,10 +577,19 @@ test.each([
   }).toEqual({ authored: definition, saved: definition, raised: raised ?? { type, config }, issues: [] });
 });
 
+test('an existing timer without a stored chat minimum opens and saves as zero', () => {
+  const flow = rebuilt({ version: 1, trigger: { type: 'timer', params: { interval_s: 300 } }, actions: [chat('Hello')] });
+  expect({ config: flow.nodes[0]!.config, trigger: lowered(flow).trigger }).toEqual({
+    config: { every: 300, jitter: 0, chatLines: 0, offline: false },
+    trigger: { type: 'timer', params: { interval_s: 300, min_chat_lines: 0 } }
+  });
+});
+
 test.each<Trigger>([
   { type: 'command', params: { name: '!hug', future: true } },
   { type: 'event', params: { kind: 'channel.subscribe', filters: { months: '1' } } },
-  { type: 'event', params: { kind: 'channel.subscription.gift', filters: { total: '12' } } }
+  { type: 'event', params: { kind: 'channel.subscription.gift', filters: { total: '12' } } },
+  { type: 'event', params: { kind: 'channel.update', filters: { category_id: '10' } } }
 ])('unsupported trigger with extra filters or parameters: $params', (trigger) => {
   expect(definitionToFlow({ version: 1, trigger }, meta))
     .toEqual({ ok: false, issues: [{ path: 'trigger', code: 'unsupported_trigger' }] });
@@ -540,20 +601,24 @@ describe('reply tokens', () => {
   const text = (definition: Definition) => definition.actions?.[0]?.params?.text;
 
   test.each([
-    ['twitch.cheer', {}, '{bits} from {user}', '{event.amount} from {user}'],
+    ['twitch.cheer', {}, '{bits} from {user}: {message}', '{event.amount} from {user}: {event.message}'],
     ['twitch.raid', {}, '{viewers} with {user.id}', '{event.viewers} with {user.id}'],
     ['twitch.sub', { variant: 'any' }, 'tier {tier}', 'tier {event.tier}'],
-    ['twitch.sub', { variant: 'resub' }, '{months} at {tier}', '{event.months} at {event.tier}'],
-    ['twitch.sub', { variant: 'gift' }, '{count} at {tier}', '{event.amount} at {event.tier}'],
-    ['twitch.reward', { reward: 'r' }, 'said {input}', 'said {event.input}'],
+    ['twitch.sub', { variant: 'resub' }, '{months} at {tier} ({streak}): {message}', '{event.months} at {event.tier} ({event.streak}): {event.message}'],
+    ['twitch.sub_gift', {}, '{count} at {tier} ({total})', '{event.amount} at {event.tier} ({event.total})'],
+    ['twitch.reward', { reward: 'r' }, '{reward} for {cost}: {input}', '{event.reward} for {event.cost}: {event.input}'],
+    ['twitch.unban_request', {}, '{text} ({event.id})', '{event.text} ({event.id})'],
+    ['twitch.ad_break', {}, '{seconds}', '{event.seconds}'],
+    ['twitch.channel_update', {}, '{title} in {game}', '{event.title} in {event.category}'],
     ['twitch.stream.online', {}, '{title} in {game}', '{title} in {game}'],
-    ['twitch.chat.command', { trigger: '!hug' }, '{user} hugs {touser} {args}', '{user} hugs {touser} {args}']
+    ['twitch.chat.command', { trigger: '!hug' }, '{user} hugs {touser} {args}', '{user} hugs {touser} {args}'],
+    ['twitch.chat.word', { word: 'bagel' }, '{args}', '{args}'],
+    ['schedule.manual', {}, '{args}', '{args}']
   ] as [string, FlowConfig, string, string][])('%s %j writes %s as %s and reads it back', (type, config, drawn, stored) => {
     const definition = lowered(after(node('t', type, config), drawn));
-    expect(text(definition)).toBe(stored);
     const again = rebuilt(definition);
-    expect(again.nodes[1]!.config.message).toBe(drawn);
-    expect(lowered(again)).toEqual(definition);
+    expect({ stored: text(definition), drawn: again.nodes[1]!.config.message, resaved: lowered(again) })
+      .toEqual({ stored, drawn, resaved: definition });
   });
 
   test.each([
@@ -562,7 +627,14 @@ describe('reply tokens', () => {
     ['twitch.sub', { variant: 'gift' }, '{months}'],
     ['twitch.follow', {}, '{bits}'],
     ['twitch.follow', {}, '{count}'],
-    ['twitch.raid', {}, '{count}']
+    ['twitch.raid', {}, '{count}'],
+    ['twitch.chat.command', { trigger: '!hug' }, '{message}'],
+    ['twitch.sub', { variant: 'new' }, '{streak}'],
+    ['twitch.sub', { variant: 'resub' }, '{total}'],
+    ['twitch.follow', {}, '{reward}'],
+    ['twitch.follow', {}, '{cost}'],
+    ['twitch.follow', {}, '{text}'],
+    ['twitch.follow', {}, '{seconds}']
   ] as [string, FlowConfig, string][])('%s %j cannot carry %s', (type, config, token) => {
     const result = flowToDefinition(after(node('t', type, config), `x ${token}`));
     expect(result).toEqual({
@@ -611,9 +683,9 @@ describe('reply tokens', () => {
   });
 
   test('catalog tokens and unknown event fields pass through', () => {
-    const definition = lowered(after(node('t', 'twitch.cheer'), '{uptime} {event.message}'));
-    expect(text(definition)).toBe('{uptime} {event.message}');
-    expect(rebuilt(definition).nodes[1]!.config.message).toBe('{uptime} {event.message}');
+    const definition = lowered(after(node('t', 'twitch.follow'), '{uptime} {event.message}'));
+    expect([text(definition), rebuilt(definition).nodes[1]!.config.message])
+      .toEqual(['{uptime} {event.message}', '{uptime} {event.message}']);
   });
 });
 
@@ -995,7 +1067,7 @@ describe('reading stored definitions', () => {
 
   test('a definition the builder cannot draw reports where', () => {
     const result = definitionToFlow(
-      { version: 1, trigger: { type: 'manual', params: {} }, actions: [] },
+      { version: 1, trigger: { type: 'event', params: { kind: 'channel.follow', filters: { login: 'lotti' } } }, actions: [] },
       meta
     );
     expect(result).toEqual({ ok: false, issues: [{ path: 'trigger', code: 'unsupported_trigger' }] });

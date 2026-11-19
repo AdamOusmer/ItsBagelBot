@@ -120,6 +120,38 @@
       }
     }
   },
+  "adBreak": {
+    "label": "O intervalo comercial começa",
+    "summary": "Um intervalo comercial começa na sua transmissão",
+    "field": {
+      "startedBy": {
+        "label": "Iniciado por",
+        "option": { "any": "Qualquer um", "automatic": "Automático", "manual": "Manual" }
+      },
+      "minLength": { "label": "Duração mínima", "range": "Use um valor entre 30 segundos e 3 minutos." }
+    }
+  },
+  "channelUpdate": {
+    "label": "O título ou a categoria muda",
+    "summary": "O título ou a categoria da sua transmissão muda",
+    "field": {
+      "category": { "label": "Categoria", "placeholder": "Just Chatting", "hint": "Deixe em branco para aceitar qualquer categoria." }
+    }
+  },
+  "timer": {
+    "label": "A cada poucos minutos",
+    "summary": "É executada em intervalos regulares",
+    "field": {
+      "every": { "label": "A cada", "range": "Use um valor entre 1 minuto e 24 horas." },
+      "jitter": { "label": "Tempo extra aleatório", "range": "Use um valor entre 0 segundo e 1 hora." },
+      "chatLines": { "label": "Mensagens no chat desde a última execução", "hint": "Use 0 para executar a receita independentemente da atividade no chat." },
+      "offline": { "label": "Também fora do ar" }
+    }
+  },
+  "manual": {
+    "label": "Executar manualmente",
+    "summary": "É executada pelo botão Executar agora ou por outra ferramenta usando o nome desta receita"
+  },
   "unbanRequest": {
     "label": "Pedido de desbanimento",
     "summary": "Um espectador pede para ser desbanido"

@@ -242,9 +242,12 @@ describe('flowImportCommit', () => {
 });
 
 describe('regeneratedPreview', () => {
-  test('a definition the board cannot draw has no preview', () => {
-    const definition = { version: 1, trigger: { type: 'timer', params: { interval_s: 60 } } };
-    expect(regeneratedPreview(flowPreview, definition, 'x')).toBeUndefined();
+  test.each([
+    { trigger: { type: 'timer', params: { interval_s: 60 } }, preview: '{"steps":1}' },
+    { trigger: { type: 'manual' }, preview: '{"steps":1}' },
+    { trigger: { type: 'event', params: { kind: 'channel.follow', filters: { login: 'lotti' } } }, preview: undefined }
+  ])('regenerates a preview for drawable $trigger.type definitions', ({ trigger, preview }) => {
+    expect(regeneratedPreview(flowPreview, { version: 1, trigger }, 'x')).toBe(preview);
   });
 
   test('a preview over the stored limit is dropped', () => {

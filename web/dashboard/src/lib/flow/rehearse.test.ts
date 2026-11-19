@@ -138,7 +138,7 @@ test('loop events have unique keys for repeated canvas nodes', () => {
 
 test.each([
   { name: 'an event cannot acquire a moderator role', trigger: n('t', 'twitch.follow'), check: n('c', 'cond.role', { level: 'mod' }) },
-  { name: 'a compare cannot replace the command itself', trigger, check: n('c', 'cond.compare', { left: '{message}', op: 'eq', right: 'different' }) }
+  { name: 'a compare cannot replace the command itself', trigger, check: n('c', 'cond.compare', { left: '{args}', op: 'eq', right: 'different' }) }
 ])('repairs remain truthful: $name', ({ trigger, check }) => {
   const flow = flowOf([trigger, check, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const result = run(flow);

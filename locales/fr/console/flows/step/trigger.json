@@ -120,6 +120,38 @@
       }
     }
   },
+  "adBreak": {
+    "label": "Une coupure publicitaire commence",
+    "summary": "Une coupure publicitaire commence sur ton stream",
+    "field": {
+      "startedBy": {
+        "label": "Déclenchement",
+        "option": { "any": "Tous", "automatic": "Automatique", "manual": "Manuel" }
+      },
+      "minLength": { "label": "Durée minimale", "range": "Choisis une durée de 30 secondes à 3 minutes." }
+    }
+  },
+  "channelUpdate": {
+    "label": "Le titre ou la catégorie change",
+    "summary": "Le titre ou la catégorie de ton stream change",
+    "field": {
+      "category": { "label": "Catégorie", "placeholder": "Just Chatting", "hint": "Laisse vide pour accepter toutes les catégories." }
+    }
+  },
+  "timer": {
+    "label": "Toutes les quelques minutes",
+    "summary": "S’exécute à intervalles réguliers",
+    "field": {
+      "every": { "label": "Toutes les", "range": "Choisis un intervalle de 1 minute à 24 heures." },
+      "jitter": { "label": "Délai aléatoire supplémentaire", "range": "Choisis une durée de 0 seconde à 1 heure." },
+      "chatLines": { "label": "Messages du chat depuis la dernière exécution", "hint": "Indique 0 pour exécuter la recette quelle que soit l’activité du chat." },
+      "offline": { "label": "Aussi hors ligne" }
+    }
+  },
+  "manual": {
+    "label": "Lancer à la main",
+    "summary": "Se lance avec le bouton Exécuter maintenant ou depuis un autre outil en utilisant le nom de cette recette"
+  },
   "unbanRequest": {
     "label": "Demande de déban",
     "summary": "Un spectateur demande à être débanni"

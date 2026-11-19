@@ -32,7 +32,7 @@ function fieldDefaults(field: FieldSpec): [FieldSpec['key'], FlowNode['config'][
 }
 
 function triggerDefaults(trigger: NodeType | undefined, request: Pick<InsertRequest, 'chatMessage' | 'plainMessage'>): Record<NodeType, FlowNode['config']> {
-  const viewer = triggerProvidesViewer(trigger);
+  const viewer = trigger !== 'twitch.unban_request' && triggerProvidesViewer(trigger);
   const target = trigger === 'twitch.chat.command' ? '{touser}' : viewer ? '{user}' : '';
   const plain = request.plainMessage ?? 'Thanks!';
   const message = viewer ? request.chatMessage : plain;

@@ -12,6 +12,10 @@ const missing = (text: string | undefined) => text === undefined || text.startsW
 test.each([
   ['twitch.chat.command', false],
   ['countdown.finished', false],
+  ['schedule.timer', false],
+  ['schedule.manual', false],
+  ['twitch.ad_break', true],
+  ['twitch.channel_update', true],
   ['twitch.reward', true],
   ['twitch.raid', true]
 ])('%s warns only when the trigger has no role', (type, warns) => {
@@ -82,6 +86,7 @@ describe('step copy', () => {
       groupLabel(english, spec.group),
       ...spec.fields.flatMap((field) => [
         fieldLabel(english, spec, field),
+        ...(field.type === 'duration' ? [durationRange(english, spec, field)] : []),
         fieldPlaceholder(english, spec, field),
         fieldUnit(english, spec, field),
         ...fieldOptions(english, spec, field).map((option) => option.label)

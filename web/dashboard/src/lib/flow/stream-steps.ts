@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { FieldSpec, StepDefinition } from './model';
+import { USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 const target: FieldSpec = { key: 'target', type: 'template', singleLine: true, required: true };
 export const TARGET_FIELDS = [
@@ -37,7 +38,13 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [...TARGET_FIELDS, { key: 'reason', type: 'template' }]
   },
   {
-    type: 'twitch.unban_request', slug: 'unbanRequest', icon: 'moderation', fields: []
+    type: 'twitch.unban_request', slug: 'unbanRequest', icon: 'moderation', fields: [],
+    provides: [
+      { token: '{user}', name: 'user', sample: USER_SAMPLE },
+      { token: '{user.id}', name: 'userId', sample: USERID_SAMPLE },
+      { token: '{text}', name: 'requestMessage', sample: 'Please unban me' },
+      { token: '{event.id}', name: 'requestId', sample: '6c5ad59e' }
+    ]
   },
   {
     type: 'reply.poll', slug: 'poll', icon: 'messageSquare',

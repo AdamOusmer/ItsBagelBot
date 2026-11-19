@@ -25,8 +25,12 @@ const defaults = {
   'twitch.unban_request': {},
   'twitch.stream.online': {},
   'twitch.stream.offline': {},
+  'twitch.ad_break': { startedBy: 'any' },
+  'twitch.channel_update': {},
   'twitch.reward': {},
   'countdown.finished': {},
+  'schedule.timer': { every: 900, jitter: 0, chatLines: 5, offline: false },
+  'schedule.manual': {},
   'cond.role': { level: 'mod' },
   'cond.user': {},
   'cond.cooldown': { seconds: 30 },
@@ -114,7 +118,11 @@ test.each([
   { trigger: 'twitch.unban_request', who: 'viewer', target: '', message: en.defaultPlainMessage },
   { trigger: 'twitch.stream.online', who: 'user', target: '', message: en.defaultPlainMessage },
   { trigger: 'twitch.stream.offline', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: 'twitch.ad_break', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: 'twitch.channel_update', who: 'user', target: '', message: en.defaultPlainMessage },
   { trigger: 'countdown.finished', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: 'schedule.timer', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: 'schedule.manual', who: 'user', target: '', message: en.defaultPlainMessage },
   { trigger: null, who: 'user', target: '', message: '' }
 ])('contextual defaults follow $trigger', ({ trigger, who, target, message }) => {
   const flow = newFlow('Contextual defaults');

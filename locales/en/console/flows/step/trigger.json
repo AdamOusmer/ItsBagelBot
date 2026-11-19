@@ -104,6 +104,38 @@
       }
     }
   },
+  "adBreak": {
+    "label": "Ad break starts",
+    "summary": "An ad break begins on your stream",
+    "field": {
+      "startedBy": {
+        "label": "Started by",
+        "option": { "any": "Any", "automatic": "Automatic", "manual": "Manual" }
+      },
+      "minLength": { "label": "Minimum length", "range": "Use 30 seconds to 3 minutes." }
+    }
+  },
+  "channelUpdate": {
+    "label": "Title or category changes",
+    "summary": "Your stream title or category changes",
+    "field": {
+      "category": { "label": "Category", "placeholder": "Just Chatting", "hint": "Leave blank to match any category." }
+    }
+  },
+  "timer": {
+    "label": "Every few minutes",
+    "summary": "Runs on a repeating timer",
+    "field": {
+      "every": { "label": "Every", "range": "Use 1 minute to 24 hours." },
+      "jitter": { "label": "Random extra", "range": "Use 0 seconds to 1 hour." },
+      "chatLines": { "label": "Chat lines since last run", "hint": "Use 0 to run regardless of chat activity." },
+      "offline": { "label": "Also while offline" }
+    }
+  },
+  "manual": {
+    "label": "Run by hand",
+    "summary": "Runs from the Run now button or another tool by this recipe's name"
+  },
   "unbanRequest": {
     "label": "Unban request",
     "summary": "A viewer asks to be unbanned"

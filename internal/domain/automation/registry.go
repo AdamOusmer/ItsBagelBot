@@ -44,6 +44,9 @@ var viewerlessTriggers = map[triggerShape]struct{}{
 	{typ: "timer"}:                         {},
 	{typ: "event", kind: "stream.online"}:  {},
 	{typ: "event", kind: "stream.offline"}: {},
+
+	{typ: "event", kind: "channel.ad_break.begin"}: {},
+	{typ: "event", kind: "channel.update"}:         {},
 }
 
 var actionRole = map[string]int{

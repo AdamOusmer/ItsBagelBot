@@ -14,8 +14,14 @@ const REQUIREMENT_TRIGGERS: Record<string, RequirementTrigger> = {
   'twitch.chat.command': { type: 'command' },
   'twitch.chat.word': { type: 'command' },
   'twitch.reward': { type: 'reward' },
-  'twitch.unban_request': { type: 'event', kind: 'channel.unban_request.create' }
+  'twitch.unban_request': { type: 'event', kind: 'channel.unban_request.create' },
+  'twitch.ad_break': { type: 'event', kind: 'channel.ad_break.begin' },
+  'twitch.channel_update': { type: 'event', kind: 'channel.update' },
+  'schedule.timer': { type: 'timer' },
+  'schedule.manual': { type: 'manual' }
 };
+
+const ROLE_KNOWN_TRIGGERS = new Set(['twitch.chat.command', 'twitch.chat.word', 'countdown.finished', 'schedule.timer', 'schedule.manual']);
 
 const TRIGGER_LABELS: Record<Extract<StepRequirement, { kind: 'trigger' }>['trigger'], MessageKey> = {
   command: 'flows.step.trigger.chatCommand.label',
@@ -51,7 +57,7 @@ export function requirementText(t: Translate, requirement: StepRequirement, vari
 export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined): string | undefined {
   if (node?.type !== 'cond.role') return undefined;
   const trigger = flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger');
-  const knowsRole = trigger?.type.startsWith('twitch.chat.') || trigger?.type === 'countdown.finished';
+  const knowsRole = ROLE_KNOWN_TRIGGERS.has(trigger?.type ?? '');
   return knowsRole ? undefined : t('flows.step.condition.role.warning');
 }
 

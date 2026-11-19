@@ -3,6 +3,7 @@
 import type { MessageKey } from '@bagel/kit';
 import type { Issue } from '@bagel/kit/automations';
 import type { FlowWarning, UpgradeReport } from '#lib/server/flow-store';
+import { specFor } from './model';
 import type { DeleteReply, SaveReply, ToggleReply } from './replies';
 
 export type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
@@ -53,7 +54,7 @@ const nodeIdIn = (path: string) => /^nodes\.([^.]+)/.exec(path)?.[1];
 
 export function stepOf(issues: readonly Issue[], nodes: readonly { id: string; type: string }[]): string | null {
   const known = new Set(nodes.map((node) => node.id));
-  const trigger = nodes.find((node) => (node.type.startsWith('twitch.') || node.type === 'countdown.finished'))?.id;
+  const trigger = nodes.find((node) => specFor(node.type)?.kind === 'trigger')?.id;
   for (const issue of issues) {
     const id = nodeIdIn(issue.path) ?? (issue.path.startsWith('trigger') ? trigger : undefined);
     if (id && known.has(id)) return id;

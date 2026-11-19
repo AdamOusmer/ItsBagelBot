@@ -120,6 +120,38 @@
       }
     }
   },
+  "adBreak": {
+    "label": "Empieza una pausa publicitaria",
+    "summary": "Comienza una pausa publicitaria en tu directo",
+    "field": {
+      "startedBy": {
+        "label": "Iniciada por",
+        "option": { "any": "Cualquiera", "automatic": "Automática", "manual": "Manual" }
+      },
+      "minLength": { "label": "Duración mínima", "range": "Usa un valor entre 30 segundos y 3 minutos." }
+    }
+  },
+  "channelUpdate": {
+    "label": "Cambia el título o la categoría",
+    "summary": "Cambia el título o la categoría de tu directo",
+    "field": {
+      "category": { "label": "Categoría", "placeholder": "Just Chatting", "hint": "Déjalo en blanco para aceptar cualquier categoría." }
+    }
+  },
+  "timer": {
+    "label": "Cada pocos minutos",
+    "summary": "Se ejecuta a intervalos regulares",
+    "field": {
+      "every": { "label": "Cada", "range": "Usa un valor entre 1 minuto y 24 horas." },
+      "jitter": { "label": "Tiempo extra aleatorio", "range": "Usa un valor entre 0 segundos y 1 hora." },
+      "chatLines": { "label": "Mensajes de chat desde la última ejecución", "hint": "Usa 0 para ejecutar la receta con cualquier nivel de actividad en el chat." },
+      "offline": { "label": "También sin directo" }
+    }
+  },
+  "manual": {
+    "label": "Ejecutar a mano",
+    "summary": "Se ejecuta desde el botón Ejecutar ahora o desde otra herramienta con el nombre de esta receta"
+  },
   "unbanRequest": {
     "label": "Solicitud de desbloqueo",
     "summary": "Un espectador solicita que se retire su bloqueo"

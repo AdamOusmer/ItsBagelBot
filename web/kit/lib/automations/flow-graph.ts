@@ -34,15 +34,18 @@ export const FLOW_ISSUE = {
 const REWARD_KIND = 'channel.channel_points_custom_reward_redemption.add';
 
 const EVENT_TOKENS: Record<string, Record<string, string>> = {
-  'channel.cheer': { bits: 'amount' },
+  'channel.cheer': { bits: 'amount', message: 'message' },
   'channel.raid': { viewers: 'viewers' },
   'channel.subscribe': { tier: 'tier' },
-  'channel.subscription.message': { tier: 'tier', months: 'months' },
-  'channel.subscription.gift': { tier: 'tier', count: 'amount' },
-  [REWARD_KIND]: { input: 'input' }
+  'channel.subscription.message': { tier: 'tier', months: 'months', streak: 'streak', message: 'message' },
+  'channel.subscription.gift': { tier: 'tier', count: 'amount', total: 'total' },
+  [REWARD_KIND]: { input: 'input', reward: 'reward', cost: 'cost' },
+  'channel.unban_request.create': { text: 'text' },
+  'channel.ad_break.begin': { seconds: 'seconds' },
+  'channel.update': { title: 'title', game: 'category' }
 };
 
-const EVENT_ONLY_TOKENS = new Set(['bits', 'viewers', 'tier', 'months', 'input']);
+const EVENT_ONLY_TOKENS = new Set(['bits', 'viewers', 'tier', 'months', 'input', 'message', 'streak', 'total', 'reward', 'cost', 'text', 'seconds']);
 
 const BARE_TOKEN = /\{([a-z]+)\}/g;
 const EVENT_TOKEN = /\{event\.([a-z_]+)\}/g;
@@ -80,6 +83,11 @@ const SUB_MONTHS = { months: 'minMonths', streak: 'minStreak' } as const;
 const SUB_VARIANTS = new Map<string | undefined, string>([[undefined, 'any'], ['false', 'new'], ['true', 'gifted']]);
 const ANONYMOUS = new Map<string, string>([['named', 'false'], ['anonymous', 'true']]);
 const ANONYMOUS_OPTIONS = new Map<string | undefined, string>([[undefined, 'anyone'], ['false', 'named'], ['true', 'anonymous']]);
+const AD_BREAK_KIND = 'channel.ad_break.begin';
+const CHANNEL_UPDATE_KIND = 'channel.update';
+const AD_STARTED_BY = new Map<string, string>([['automatic', 'true'], ['manual', 'false']]);
+const AD_STARTED_BY_OPTIONS = new Map<string | undefined, string>([[undefined, 'any'], ['true', 'automatic'], ['false', 'manual']]);
+const AD_MINIMUMS = { seconds: 'minLength' } as const;
 const CHAT_SOURCES = 'chat,sub_message';
 const COMMAND_KEYS = new Set(['name', 'aliases', 'match', 'case_sensitive', 'sources']);
 
@@ -87,10 +95,12 @@ const FIXED_EVENT_NODES: Record<string, string> = {
   'twitch.follow': 'channel.follow',
   'twitch.unban_request': 'channel.unban_request.create',
   'twitch.stream.online': 'stream.online',
-  'twitch.stream.offline': 'stream.offline'
+  'twitch.stream.offline': 'stream.offline',
+  'twitch.ad_break': AD_BREAK_KIND,
+  'twitch.channel_update': CHANNEL_UPDATE_KIND
 };
 
-const isTriggerType = (type: string) => (type.startsWith('twitch.') || type === 'countdown.finished');
+const isTriggerType = (type: string) => type.startsWith('twitch.') || type.startsWith('schedule.') || type === 'countdown.finished';
 const isConditionType = (type: string) => type.startsWith('cond.');
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -202,6 +212,27 @@ function subTrigger(config: FlowConfig): Trigger | null {
   return filteredEvent(kind!, filters);
 }
 
+function timerTrigger(config: FlowConfig): Trigger {
+  const params: Params = { interval_s: num(config.every), min_chat_lines: num(config.chatLines) };
+  const jitter = num(config.jitter);
+  if (jitter !== 0) params.random_jitter_s = jitter;
+  if (config.offline === true) params.offline_ok = true;
+  return { type: 'timer', params };
+}
+
+function adBreakTrigger(config: FlowConfig): Trigger {
+  const filters: Record<string, string> = {};
+  const automatic = AD_STARTED_BY.get(str(config.startedBy));
+  if (automatic) filters.automatic = automatic;
+  writeMinimums(filters, config, AD_MINIMUMS);
+  return filteredEvent(AD_BREAK_KIND, filters);
+}
+
+function channelUpdateTrigger(config: FlowConfig): Trigger {
+  const category = str(config.category);
+  return filteredEvent(CHANNEL_UPDATE_KIND, category ? { category } : {});
+}
+
 const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = {
   'countdown.finished': (config) => ({ type: 'countdown', params: { name: recipeName(config.name) } }),
   'twitch.chat.command': commandTrigger,
@@ -214,7 +245,11 @@ const TRIGGER_WRITERS: Record<string, (config: FlowConfig) => Trigger | null> = 
   'twitch.sub_gift': (config) => thresholdTrigger(SUB_KINDS.gift!, config),
   'twitch.cheer': (config) => thresholdTrigger('channel.cheer', config),
   'twitch.raid': (config) => thresholdTrigger('channel.raid', config),
-  'twitch.reward': rewardTrigger
+  'twitch.reward': rewardTrigger,
+  'twitch.ad_break': adBreakTrigger,
+  'twitch.channel_update': channelUpdateTrigger,
+  'schedule.timer': timerTrigger,
+  'schedule.manual': () => ({ type: 'manual' })
 };
 
 const TEMPLATE_FIELDS: Record<string, string[]> = {
@@ -838,12 +873,34 @@ function addNode(b: Building, type: string, config: FlowConfig, tails: Tail[]): 
 function eventNode(params: Params): { type: string; config: FlowConfig } | null {
   const kind = str(params.kind);
   const filters = (params.filters ?? {}) as Record<string, string>;
-  const filterKeys = Object.keys(filters);
   const fixed = Object.keys(FIXED_EVENT_NODES).find((type) => FIXED_EVENT_NODES[type] === kind);
-  if (fixed) return filterKeys.length === 0 ? { type: fixed, config: {} } : null;
+  if (fixed) return fixedEventNode(fixed, filters);
   const threshold = THRESHOLD_FILTERS[kind];
   if (threshold) return thresholdNode(threshold, filters);
   return subNode(kind, filters);
+}
+
+function adBreakConfig(filters: Record<string, string>): FlowConfig | null {
+  if (!onlyFilters(filters, ['automatic', 'seconds'])) return null;
+  const startedBy = AD_STARTED_BY_OPTIONS.get(filters.automatic?.toLowerCase());
+  if (!startedBy) return null;
+  return { startedBy, ...readMinimums(filters, AD_MINIMUMS) };
+}
+
+function channelUpdateConfig(filters: Record<string, string>): FlowConfig | null {
+  if (!onlyFilters(filters, ['category'])) return null;
+  return filters.category === undefined ? {} : { category: filters.category };
+}
+
+const FIXED_EVENT_CONFIGS: Record<string, (filters: Record<string, string>) => FlowConfig | null> = {
+  'twitch.ad_break': adBreakConfig,
+  'twitch.channel_update': channelUpdateConfig
+};
+
+function fixedEventNode(type: FlowNode['type'], filters: Record<string, string>) {
+  const read = FIXED_EVENT_CONFIGS[type];
+  const config = read ? read(filters) : onlyFilters(filters, []) ? {} : null;
+  return config === null ? null : { type, config };
 }
 
 function readMinimums(filters: Record<string, string>, fields: Record<string, string>): FlowConfig {
@@ -945,13 +1002,24 @@ function rewardNode(params: Params): { type: string; config: FlowConfig } {
   return { type: 'twitch.reward', config };
 }
 
-function triggerToNode(trigger: Trigger): { type: string; config: FlowConfig } | null {
-  const params = trigger.params ?? {};
-  if (trigger.type === 'countdown') return { type: 'countdown.finished', config: { name: str(params.name) } };
-  if (trigger.type === 'command') return commandNode(params);
-  if (trigger.type === 'event') return eventNode(params);
-  if (trigger.type === 'reward') return rewardNode(params);
-  return null;
+function timerNode(params: Params): { type: string; config: FlowConfig } {
+  return {
+    type: 'schedule.timer',
+    config: { every: num(params.interval_s), jitter: num(params.random_jitter_s), chatLines: num(params.min_chat_lines), offline: params.offline_ok === true }
+  };
+}
+
+const TRIGGER_READERS = new Map<Trigger['type'], (params: Params) => Pick<FlowNode, 'type' | 'config'> | null>([
+  ['countdown', (params) => ({ type: 'countdown.finished', config: { name: str(params.name) } })],
+  ['command', commandNode],
+  ['event', eventNode],
+  ['reward', rewardNode],
+  ['timer', timerNode],
+  ['manual', () => ({ type: 'schedule.manual', config: {} })]
+]);
+
+function triggerToNode(trigger: Trigger): Pick<FlowNode, 'type' | 'config'> | null {
+  return TRIGGER_READERS.get(trigger.type)?.(trigger.params ?? {}) ?? null;
 }
 
 function cooldownNode(params: Params): { type: string; config: FlowConfig } | null {
