@@ -34,10 +34,10 @@ export function requirementTrigger(flow: Flow): RequirementTrigger {
   return REQUIREMENT_TRIGGERS[trigger?.type ?? ''] ?? { type: '' };
 }
 
-export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger): StepRequirement | null {
+export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger, params?: Pick<FlowNode['config'], 'who'>): StepRequirement | null {
   if (spec.kind !== 'reply') return null;
   const action = spec.type === 'reply.stream_info' ? 'set_title' : spec.type.slice('reply.'.length);
-  return stepRequirement(action, trigger);
+  return stepRequirement(action, trigger, params);
 }
 
 export function requirementText(t: Translate, requirement: StepRequirement, variant: 'tag' | 'note' | 'start' = 'tag'): string {

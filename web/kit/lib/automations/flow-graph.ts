@@ -161,6 +161,7 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.reply': ['text'],
   'reply.timeout': ['target', 'reason'],
   'reply.ban': ['target', 'reason'],
+  'reply.unban': ['target'],
   'reply.poll': ['title', 'choices'],
   'reply.prediction': ['title', 'outcomes'],
   'reply.raid': ['target'],

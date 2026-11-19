@@ -60,6 +60,10 @@ func (x *actionExec) ban(_ step, p automation.BanAction) error {
 	return x.moderate(outgress.TypeBan, p.TargetAction, p.Reason, 0)
 }
 
+func (x *actionExec) unban(_ step, p automation.UnbanAction) error {
+	return x.moderate(outgress.TypeUnban, p.TargetAction, "", 0)
+}
+
 func (x *actionExec) warn(_ step, p automation.WarnAction) error {
 	return x.moderate(outgress.TypeWarn, automation.TargetAction{Login: p.Login}, p.Reason, 0)
 }

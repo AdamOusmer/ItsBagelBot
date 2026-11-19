@@ -12,7 +12,7 @@ import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalRes
 export type * from './rehearsal-types';
 export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind, scenarioPatches } from './rehearsal-scenario';
 export { compactDuration } from './rehearsal-state';
-export { configKey } from './stream-flow';
+export { configKey, streamTargetNodes } from './stream-flow';
 
 type Path = string;
 type Frame = { context: RehearsalContext; lane: number[]; iteration: number[]; delayMs: number; stopped: boolean };

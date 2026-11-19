@@ -4,6 +4,7 @@
   "reply": "Zuschauer antworten",
   "timeout": "Zuschauer Timeout geben",
   "ban": "Zuschauer bannen",
+  "unban": "Timeout oder Sperre aufheben",
   "delete_message": "Auslösende Nachricht löschen",
   "warn": "Zuschauer verwarnen",
   "shield": "Shield-Modus setzen",

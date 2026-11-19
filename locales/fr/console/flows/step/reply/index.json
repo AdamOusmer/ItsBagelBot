@@ -272,34 +272,30 @@
     "summary": "Arrêter le raid avant le départ des spectateurs"
   },
   "mod": {
-    "label": "Modifier le rôle de modérateur",
-    "summary": "Donner ou retirer les droits de modération",
+    "label": "Rôle de modérateur",
+    "summary": "Ajouter ou retirer un modérateur",
     "line": {
-      "on": "Donner les droits de modération à {target}",
-      "off": "Retirer les droits de modération à {target}"
+      "add": "Nommer {who} modérateur",
+      "remove": "Retirer les droits de modération : {who}"
     },
     "field": {
-      "target": {
-        "label": "Identifiant de chaîne ou de spectateur"
-      },
-      "on": {
-        "label": "Activé"
+      "change": {
+        "label": "Changement",
+        "option": { "add": "Ajouter", "remove": "Retirer" }
       }
     }
   },
   "vip": {
-    "label": "Modifier le rôle VIP",
-    "summary": "Donner ou retirer le badge VIP d'un spectateur",
+    "label": "Rôle VIP",
+    "summary": "Ajouter ou retirer un VIP",
     "line": {
-      "on": "Donner le statut VIP à {target}",
-      "off": "Retirer le statut VIP à {target}"
+      "add": "Donner le statut VIP : {who}",
+      "remove": "Retirer le statut VIP : {who}"
     },
     "field": {
-      "target": {
-        "label": "Identifiant de chaîne ou de spectateur"
-      },
-      "on": {
-        "label": "Activé"
+      "change": {
+        "label": "Changement",
+        "option": { "add": "Ajouter", "remove": "Retirer" }
       }
     }
   },
@@ -325,18 +321,22 @@
     }
   },
   "unbanResolve": {
-    "label": "Traiter la demande de déban",
-    "summary": "Accepter ou refuser l'appel d'un spectateur",
+    "label": "Répondre à une demande de déban",
+    "summary": "Accepter ou refuser un recours",
+    "line": {
+      "approve": "Accepter la demande de déban",
+      "deny": "Refuser la demande de déban"
+    },
     "field": {
       "status": {
-        "label": "Action",
+        "label": "Réponse",
         "option": {
           "approve": "Accepter",
           "deny": "Refuser"
         }
       },
       "resolution": {
-        "label": "Message de décision (facultatif)"
+        "label": "Message au spectateur (facultatif)"
       }
     }
   }

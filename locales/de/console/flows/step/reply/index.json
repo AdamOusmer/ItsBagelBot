@@ -272,34 +272,30 @@
     "summary": "Den Raid vor dem Kanalwechsel stoppen"
   },
   "mod": {
-    "label": "Moderatorrolle ändern",
-    "summary": "Moderatorrechte geben oder entziehen",
+    "label": "Moderatorrolle",
+    "summary": "Einen Moderator hinzufügen oder entfernen",
     "line": {
-      "on": "{target} zum Mod machen",
-      "off": "{target} die Mod-Rechte entziehen"
+      "add": "{who} zum Moderator machen",
+      "remove": "{who} aus dem Moderatorenteam entfernen"
     },
     "field": {
-      "target": {
-        "label": "Kanal- oder Zuschauername"
-      },
-      "on": {
-        "label": "Aktiviert"
+      "change": {
+        "label": "Änderung",
+        "option": { "add": "Hinzufügen", "remove": "Entfernen" }
       }
     }
   },
   "vip": {
-    "label": "VIP-Rolle ändern",
-    "summary": "Einem Zuschauer das VIP-Abzeichen geben oder nehmen",
+    "label": "VIP-Rolle",
+    "summary": "Einen VIP hinzufügen oder entfernen",
     "line": {
-      "on": "{target} zum VIP machen",
-      "off": "{target} den VIP-Status entziehen"
+      "add": "{who} zum VIP machen",
+      "remove": "{who} aus der VIP-Liste entfernen"
     },
     "field": {
-      "target": {
-        "label": "Kanal- oder Zuschauername"
-      },
-      "on": {
-        "label": "Aktiviert"
+      "change": {
+        "label": "Änderung",
+        "option": { "add": "Hinzufügen", "remove": "Entfernen" }
       }
     }
   },
@@ -325,18 +321,22 @@
     }
   },
   "unbanResolve": {
-    "label": "Entbannungsantrag bearbeiten",
-    "summary": "Den Einspruch eines Zuschauers annehmen oder ablehnen",
+    "label": "Entsperrantrag beantworten",
+    "summary": "Einen Einspruch annehmen oder ablehnen",
+    "line": {
+      "approve": "Den Entsperrantrag genehmigen",
+      "deny": "Den Entsperrantrag ablehnen"
+    },
     "field": {
       "status": {
-        "label": "Aktion",
+        "label": "Antwort",
         "option": {
           "approve": "Genehmigen",
           "deny": "Ablehnen"
         }
       },
       "resolution": {
-        "label": "Entscheidungsnachricht (optional)"
+        "label": "Nachricht an den Zuschauer (optional)"
       }
     }
   }

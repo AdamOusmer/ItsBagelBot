@@ -42,6 +42,29 @@ func TestStreamCommandsRequireTheAppropriateRole(t *testing.T) {
 	}
 }
 
+func TestSelfTargetRoles(t *testing.T) {
+	var cases []struct {
+		Trigger          automation.Trigger
+		Action           automation.Action
+		WantPermRequired bool
+	}
+	require.NoError(t, codec.Unmarshal(readFile(t, "testdata/self_target_roles.json"), &cases))
+	for _, tc := range cases {
+		t.Run(tc.Action.Type+"/"+string(tc.Action.Params), func(t *testing.T) {
+			var want []automation.Issue
+			if tc.WantPermRequired {
+				want = []automation.Issue{{Path: "actions[0].type", Code: "perm_required"}}
+			}
+			def := automation.Definition{
+				Version: 1,
+				Trigger: tc.Trigger,
+				Actions: []automation.Action{tc.Action},
+			}
+			require.Equal(t, want, automation.Validate(def))
+		})
+	}
+}
+
 func TestUnbanResolutionCannotAttachToAnUnrelatedEvent(t *testing.T) {
 	var def automation.Definition
 	require.NoError(t, codec.Unmarshal(readFile(t, "testdata/valid/unban_resolve_event.json"), &def))

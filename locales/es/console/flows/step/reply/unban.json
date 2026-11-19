@@ -1,0 +1,6 @@
+{
+  "label": "Levantar suspensión o veto",
+  "summary": "Permite que un espectador vuelva al chat",
+  "keywords": "desbanear desbloquear levantar suspensión veto moderación",
+  "line": "Levantar suspensión o veto: {who}"
+}

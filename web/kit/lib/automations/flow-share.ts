@@ -160,10 +160,11 @@ const FILE_KEYS = new Set(['format', 'version', 'flows']);
 const SAFE_KEY = /^[a-z0-9_]+$/;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const FILTERS_WITH_CHANNEL_VALUES = new Set(['user', 'login', 'user_id', 'reward', 'reward_id']);
-const LOGIN_TARGET_ACTIONS = new Set(['timeout', 'ban', 'warn', 'shoutout', 'points_add', 'points_set', 'raid', 'mod', 'vip', 'whisper']);
+const LOGIN_TARGET_ACTIONS = new Set(['timeout', 'ban', 'unban', 'warn', 'shoutout', 'points_add', 'points_set', 'raid', 'mod', 'vip', 'whisper']);
 const CHAT_TEXT_ACTIONS = new Set(['chat', 'reply', 'announce']);
 const PRIVILEGED_ACTIONS = new Set([
   'ban',
+  'unban',
   'timeout',
   'warn',
   'commercial',
@@ -205,6 +206,7 @@ export const SHARE_REVIEWED = {
     'reply',
     'timeout',
     'ban',
+    'unban',
     'delete_message',
     'warn',
     'shield',

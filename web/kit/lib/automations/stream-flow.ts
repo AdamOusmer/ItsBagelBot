@@ -4,7 +4,7 @@
 import type { FlowConfig } from './flow-graph';
 import type { Action, Params } from './types';
 
-type ValueKind = 'text' | 'number' | 'toggle' | 'lines' | 'numberOption' | 'confirmation';
+type ValueKind = 'text' | 'number' | 'toggle' | 'lines' | 'numberOption' | 'confirmation' | 'change';
 type Scalar = string | number | boolean;
 type ValueCodec = { write(value: unknown): Scalar | string[]; read(value: unknown): Scalar };
 type Fields = Record<string, ValueKind>;
@@ -18,14 +18,15 @@ const STREAM_FIELDS: Record<string, Fields> = {
   reply: { text: 'text' },
   timeout: { ...TARGET_FIELDS, seconds: 'number', reason: 'text' },
   ban: { ...TARGET_FIELDS, reason: 'text' },
+  unban: { ...TARGET_FIELDS },
   poll: { title: 'text', choices: 'lines', seconds: 'number' },
   poll_end: { status: 'text' },
   prediction: { title: 'text', outcomes: 'lines', seconds: 'number' },
   prediction_end: { status: 'text', winner: 'number' },
   raid: { login: 'text' },
   raid_cancel: {},
-  mod: { ...TARGET_FIELDS, on: 'toggle' },
-  vip: { ...TARGET_FIELDS, on: 'toggle' },
+  mod: { ...TARGET_FIELDS, on: 'change' },
+  vip: { ...TARGET_FIELDS, on: 'change' },
   points_add: { ...TARGET_FIELDS, amount: 'number' },
   points_set: { ...TARGET_FIELDS, amount: 'number' },
   chat_mode: { mode: 'text', on: 'toggle', value: 'number' },
@@ -61,7 +62,8 @@ function activeFields(fields: Fields, who: unknown): [string, ValueKind][] {
   return entries.filter(([key]) => key !== 'user_id' && active(key));
 }
 
-function targetConfigKey(param: string, who: unknown): string {
+function fieldConfigKey(param: string, kind: ValueKind, who: unknown): string {
+  if (kind === 'change') return 'change';
   return param === 'login' && who === 'user' ? 'login' : configKey(param);
 }
 
@@ -75,12 +77,13 @@ const VALUE_CODECS: Record<ValueKind, ValueCodec> = {
   toggle: { write: toggle, read: toggle },
   lines: { write: (value) => text(value).split(/\r?\n/), read: (value) => Array.isArray(value) ? value.join('\n') : '' },
   numberOption: { write: number, read: (value) => String(number(value)) },
-  confirmation: { write: (value) => value === false, read: (value) => value !== true }
+  confirmation: { write: (value) => value === false, read: (value) => value !== true },
+  change: { write: (value) => value === 'add', read: (value) => value === true ? 'add' : 'remove' }
 };
 
 function streamAction(type: string, config: FlowConfig): Action {
   const fields = activeFields(STREAM_FIELDS[type]!, config.who);
-  const values = fields.map(([key, kind]) => ({ key, kind, value: config[targetConfigKey(key, config.who)] }));
+  const values = fields.map(([key, kind]) => ({ key, kind, value: config[fieldConfigKey(key, kind, config.who)] }));
   const params = Object.fromEntries(values.filter(({ value }) => value !== undefined).map(({ key, kind, value }) => [key, VALUE_CODECS[kind].write(value)]));
   return { type, params };
 }
@@ -90,7 +93,7 @@ function streamNode(type: string, params: Params): StreamNode | null {
   const lists = Object.entries(fields).filter(([, kind]) => kind === 'lines');
   if (lists.some(([key]) => hasMultilineOption(params[key]))) return null;
   const supplied = activeFields(fields, params.who).filter(([key, kind]) => params[key] !== undefined || kind === 'confirmation');
-  const config = Object.fromEntries(supplied.map(([key, kind]) => [targetConfigKey(key, params.who), VALUE_CODECS[kind].read(params[key])]));
+  const config = Object.fromEntries(supplied.map(([key, kind]) => [fieldConfigKey(key, kind, params.who), VALUE_CODECS[kind].read(params[key])]));
   return { type: nodeType(type), config };
 }
 

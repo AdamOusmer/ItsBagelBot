@@ -37,6 +37,7 @@ export const STEP_PLACEMENT = {
   'cond.role': { kind: 'condition', group: 'moderation' },
   'cond.user': { kind: 'condition', group: 'moderation' },
   'reply.timeout': { kind: 'reply', group: 'moderation' },
+  'reply.unban': { kind: 'reply', group: 'moderation' },
   'reply.ban': { kind: 'reply', group: 'moderation' },
   'reply.mod': { kind: 'reply', group: 'moderation' },
   'reply.vip': { kind: 'reply', group: 'moderation' },
@@ -84,7 +85,7 @@ export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: str
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
-  | { key: string; type: 'select'; options: readonly string[] }
+  | { key: string; type: 'select'; options: readonly string[]; fallback?: string }
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })

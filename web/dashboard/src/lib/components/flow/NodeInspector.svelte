@@ -90,7 +90,9 @@
   const caret = new Map<string, number>();
   const textOf = (key: FieldKey) => (node ? configText(node, key) : '');
   const awaiting = $derived(node ? awaitingSetup(node) : false);
-  const requirement = $derived(spec && stepRequirementFor(spec, { ...requirementTrigger(flow), perm: permissionRank }));
+  const requirement = $derived(node && spec && stepRequirementFor(
+    spec, { ...requirementTrigger(flow), perm: permissionRank }, { who: node.config.who }
+  ));
   const roleLevel = $derived(requirement?.kind === 'role' ? requirement.level : undefined);
   const incoming = $derived(node ? graphIndex(flow).incoming.get(node.id) ?? [] : []);
   const addedCheck = $derived(roleLevel ? hasCheckBefore(flow, node?.id ?? '', roleLevel) : false);
@@ -342,7 +344,7 @@
                 <Select
                   id="{uid}-{field.key}"
                   options={fieldOptions(t, spec, field)}
-                  value={String(node.config[field.key] ?? field.options[0] ?? '')}
+                  value={String(node.config[field.key] ?? field.fallback ?? field.options[0] ?? '')}
                   onchange={(e) => setSelect(field.key, e.currentTarget.value)}
                 />
               </Field>

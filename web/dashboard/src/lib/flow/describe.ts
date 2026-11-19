@@ -222,8 +222,6 @@ function streamLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
       return given(text(n, 'text'), (message) => t('flows.line.announce', { message }));
     case 'reply.reply':
       return given(text(n, 'text'), (message) => t('flows.line.reply', { message }));
-    case 'reply.timeout':
-      return given(text(n, 'target'), (target) => t('flows.line.timeout', { target, amount: cooldownAmount(t, num(n, 'seconds')) }));
     case 'reply.stream_info':
       return streamInfoLine(t, n);
     default:
@@ -265,7 +263,20 @@ function lineVariant(value: ConfigValue): string {
   return String(value ?? '').trim();
 }
 
+const WHO_LABELS: Readonly<Record<string, MessageKey>> = Object.freeze({
+  viewer: 'flows.line.whoViewer',
+  mention: 'flows.line.whoMention'
+});
+
+function whoLabel(t: Translate, node: FlowNode): string {
+  const who = text(node, 'who');
+  if (Object.hasOwn(WHO_LABELS, who)) return t(WHO_LABELS[who]!);
+  if (who === 'user') return text(node, 'login') || text(node, 'userId');
+  return text(node, 'target');
+}
+
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
+  if (key === 'who') return whoLabel(t, node);
   if (!text(node, key)) return '';
   const field = spec.fields.find((entry) => entry.key === key);
   if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
@@ -273,7 +284,9 @@ function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): s
 }
 
 function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefined {
-  const suffix = spec.lineBy ? `.${lineVariant(node.config[spec.lineBy])}` : '';
+  const variant = spec.fields.find((field) => field.key === spec.lineBy);
+  const fallback = variant?.type === 'select' ? variant.fallback : undefined;
+  const suffix = spec.lineBy ? `.${lineVariant(node.config[spec.lineBy] ?? fallback)}` : '';
   const template = t(`flows.step.${spec.kind}.${spec.slug}.line${suffix}` as MessageKey);
   if (template === `flows.step.${spec.kind}.${spec.slug}.line${suffix}`) return undefined;
   let missing = false;

@@ -19,15 +19,18 @@ test.each([
   { type: 'clear_chat', trigger: follow, expected: null },
   { type: 'raid', trigger: mod, expected: { kind: 'role', level: 'lead_mod' } },
   { type: 'raid', trigger: leadMod, expected: null },
+  { type: 'timeout', trigger: command, params: { who: 'viewer' }, expected: null },
+  { type: 'timeout', trigger: command, expected: { kind: 'role', level: 'mod' } },
   { type: 'unban_resolve', trigger: command, expected: { kind: 'trigger', trigger: 'unban_request' } },
   { type: 'unban_resolve', trigger: follow, expected: { kind: 'trigger', trigger: 'unban_request' } },
   { type: 'unban_resolve', trigger: unbanRequest, expected: null },
   { type: 'delete_message', trigger: follow, expected: { kind: 'trigger', trigger: 'command' } },
   { type: 'delete_message', trigger: command, expected: { kind: 'role', level: 'mod' } },
+  { type: 'delete_message', trigger: command, params: {}, expected: null },
   { type: 'redemption', trigger: command, expected: { kind: 'trigger', trigger: 'reward' } },
   { type: 'redemption', trigger: reward, expected: null }
-] satisfies Array<{ type: string; trigger: RequirementTrigger; expected: StepRequirement | null }>)(
-  '$type with $trigger needs $expected', ({ type, trigger, expected }) => {
-    expect(stepRequirement(type, trigger)).toEqual(expected);
+] satisfies Array<{ type: string; trigger: RequirementTrigger; params?: unknown; expected: StepRequirement | null }>)(
+  '$type with $trigger needs $expected', ({ type, trigger, params, expected }) => {
+    expect(stepRequirement(type, trigger, params)).toEqual(expected);
   }
 );

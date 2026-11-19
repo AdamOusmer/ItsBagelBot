@@ -47,6 +47,8 @@
   "offline": "Ignorado enquanto a live está offline",
   "noViewer": "Nenhum espectador definido",
   "noTarget": "Defina primeiro um nome de canal",
+  "noMention": "Nenhum espectador foi marcado com @",
+  "emptyLogin": "O nome ficou vazio",
   "inputBits": "Bits",
   "inputViewers": "Espectadores",
   "duration": { "day": "d", "hour": "h", "minute": "min", "second": "s" },

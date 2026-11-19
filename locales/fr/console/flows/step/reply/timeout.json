@@ -1,7 +1,8 @@
 {
   "label": "Exclusion temporaire",
-  "summary": "Rendre muet ; un départ par chat exige d'abord un filtre Modérateur",
+  "summary": "Exclure un spectateur temporairement",
   "keywords": "timeout muet exclusion modération mod durée raison",
+  "line": "Exclure {who} pendant {seconds}",
   "field": {
     "target": { "label": "Identifiant du viewer" },
     "seconds": { "label": "Durée", "range": "De 1 seconde à {days} jours." },

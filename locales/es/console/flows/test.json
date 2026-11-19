@@ -47,6 +47,8 @@
   "offline": "Se omite mientras no estás en directo",
   "noViewer": "No hay espectador definido",
   "noTarget": "Indica primero un nombre de canal",
+  "noMention": "No se mencionó a ningún espectador con @",
+  "emptyLogin": "El nombre quedó vacío",
   "inputBits": "Bits",
   "inputViewers": "Espectadores",
   "duration": { "day": "d", "hour": "h", "minute": "m", "second": "s" },

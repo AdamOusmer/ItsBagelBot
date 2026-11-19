@@ -47,6 +47,8 @@
   "offline": "Ignoré lorsque le stream est hors ligne",
   "noViewer": "Aucun spectateur défini",
   "noTarget": "Indiquez d’abord un nom de chaîne",
+  "noMention": "Aucun spectateur mentionné avec @",
+  "emptyLogin": "Le nom est resté vide",
   "inputBits": "Bits",
   "inputViewers": "Spectateurs",
   "duration": { "day": "j", "hour": "h", "minute": "min", "second": "s" },

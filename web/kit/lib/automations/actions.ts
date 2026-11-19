@@ -48,6 +48,10 @@ function checkBan(c: Chk, p: Wide<T.BanAction>): void {
   c.reason('reason', p.reason, 0);
 }
 
+function checkUnban(c: Chk, p: Wide<T.UnbanAction>): void {
+  c.target(p, 1);
+}
+
 function checkWarn(c: Chk, p: Wide<T.WarnAction>): void {
   c.login('login', p.login, 1);
   c.reason('reason', p.reason, 1);
@@ -183,6 +187,7 @@ export const SIMPLE_ACTIONS: Table = {
   reply: text,
   timeout: register<Wide<T.TimeoutAction>>({ ...TARGET_SCHEMA, seconds: 'int', reason: 'string' }, checkTimeout, TARGET_DEFAULTS),
   ban: register<Wide<T.BanAction>>({ ...TARGET_SCHEMA, reason: 'string' }, checkBan, TARGET_DEFAULTS),
+  unban: register<Wide<T.UnbanAction>>(TARGET_SCHEMA, checkUnban, TARGET_DEFAULTS),
   delete_message: empty,
   warn: register<Wide<T.WarnAction>>({ login: 'string', reason: 'string' }, checkWarn),
   shield: register<Wide<T.ShieldAction>>({ on: 'bool' }, noop),

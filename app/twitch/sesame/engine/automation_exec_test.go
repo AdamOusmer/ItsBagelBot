@@ -36,6 +36,7 @@ func TestAutomationOutputActions(t *testing.T) {
 		{"raid", act("raid", obj{"login": "target"}), []string{`raid_start to=target target_user_id=99 {}`}},
 		{"timeout", act("timeout", obj{"login": "@Target", "seconds": 60, "reason": "spam {args}"}), []string{`timeout {"data":{"user_id":"99","duration":60,"reason":"spam hello v"}}`}},
 		{"ban", act("ban", obj{"login": "target", "reason": "bye"}), []string{`ban {"data":{"user_id":"99","reason":"bye"}}`}},
+		{"unban", act("unban", obj{"login": "target"}), []string{`unban target_user_id=99`}},
 		{"ban truncates expanded Unicode reason", act("ban", obj{"login": "target", "reason": strings.Repeat("界", 494) + "{args}"}), []string{`ban {"data":{"user_id":"99","reason":"` + strings.Repeat("界", 494) + `hello "}}`}},
 		{"warn", act("warn", obj{"login": "target", "reason": "careful"}), []string{`warn {"data":{"user_id":"99","reason":"careful"}}`}},
 		{"shield on", act("shield", obj{"on": true}), []string{`shield_mode {"is_active":true}`}},
@@ -83,6 +84,7 @@ func TestAutomationTargetModes(t *testing.T) {
 			a := targetCommand(
 				act("timeout", automation.TimeoutAction{TargetAction: tc.target, Seconds: 60}),
 				act("ban", automation.BanAction{TargetAction: tc.target}),
+				act("unban", automation.UnbanAction{TargetAction: tc.target}),
 				act("mod", automation.LoginToggleAction{TargetAction: tc.target, On: true}),
 				act("vip", automation.LoginToggleAction{TargetAction: tc.target, On: false}),
 				act("points_add", automation.PointsAddAction{TargetAction: tc.target, Amount: 5}),
@@ -99,11 +101,12 @@ func TestAutomationTargetModes(t *testing.T) {
 			assert.Equal(t, []string{
 				fmt.Sprintf(`timeout {"data":{"user_id":"%d","duration":60}}`, tc.id),
 				fmt.Sprintf(`ban {"data":{"user_id":"%d"}}`, tc.id),
+				fmt.Sprintf("unban target_user_id=%d", tc.id),
 				"mod_add " + tc.roleTarget + " {}", "vip_remove " + tc.roleTarget + " {}",
 			}, fx.described(t))
 			if tc.login == "" {
 				require.Len(t, runs.recs, 1)
-				assert.Subset(t, statuses(runs.recs[0]), []string{"4:points_add:failed:empty_login", "5:points_set:failed:empty_login"})
+				assert.Subset(t, statuses(runs.recs[0]), []string{"5:points_add:failed:empty_login", "6:points_set:failed:empty_login"})
 				assert.Empty(t, fx.loyalty.adjusts)
 				return
 			}

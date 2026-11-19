@@ -272,34 +272,30 @@
     "summary": "Detén la raid antes de que salgan los espectadores"
   },
   "mod": {
-    "label": "Cambiar el rol de moderador",
-    "summary": "Da o quita permisos de moderador",
+    "label": "Rol de moderador",
+    "summary": "Añade o quita a un moderador",
     "line": {
-      "on": "Dar el rol de moderador a {target}",
-      "off": "Quitar el rol de moderador a {target}"
+      "add": "Dar el rol de moderador: {who}",
+      "remove": "Quitar el rol de moderador: {who}"
     },
     "field": {
-      "target": {
-        "label": "Nombre de canal o espectador"
-      },
-      "on": {
-        "label": "Activado"
+      "change": {
+        "label": "Cambio",
+        "option": { "add": "Añadir", "remove": "Quitar" }
       }
     }
   },
   "vip": {
-    "label": "Cambiar el rol VIP",
-    "summary": "Da o quita la insignia VIP de un espectador",
+    "label": "Rol VIP",
+    "summary": "Añade o quita a un VIP",
     "line": {
-      "on": "Dar el rol VIP a {target}",
-      "off": "Quitar el rol VIP a {target}"
+      "add": "Dar el rol VIP: {who}",
+      "remove": "Quitar el rol VIP: {who}"
     },
     "field": {
-      "target": {
-        "label": "Nombre de canal o espectador"
-      },
-      "on": {
-        "label": "Activado"
+      "change": {
+        "label": "Cambio",
+        "option": { "add": "Añadir", "remove": "Quitar" }
       }
     }
   },
@@ -325,18 +321,22 @@
     }
   },
   "unbanResolve": {
-    "label": "Resolver la solicitud de desbloqueo",
-    "summary": "Aprueba o rechaza la apelación de un espectador",
+    "label": "Responder a la solicitud de desbloqueo",
+    "summary": "Aprueba o rechaza una apelación",
+    "line": {
+      "approve": "Aprobar la solicitud de desbloqueo",
+      "deny": "Rechazar la solicitud de desbloqueo"
+    },
     "field": {
       "status": {
-        "label": "Acción",
+        "label": "Respuesta",
         "option": {
           "approve": "Aprobar",
           "deny": "Rechazar"
         }
       },
       "resolution": {
-        "label": "Mensaje de resolución (opcional)"
+        "label": "Mensaje al espectador (opcional)"
       }
     }
   }

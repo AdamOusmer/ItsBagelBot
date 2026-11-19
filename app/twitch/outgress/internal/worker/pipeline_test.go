@@ -141,6 +141,15 @@ func TestModerationActionsCallTwitchAsTheBot(t *testing.T) {
 			want: []recordedRequest{call("POST", "/helix/moderation/bans?broadcaster_id=44322889&"+mod, botAuth, `{"data":{"user_id":"1"}}`)},
 		},
 		{
+			name: "unban deletes the ban as the bot",
+			msg:  testMessage{Type: "unban", TargetUserID: "1"},
+			want: []recordedRequest{call("DELETE", "/helix/moderation/bans?broadcaster_id=44322889&"+mod+"&user_id=1", botAuth, "")},
+		},
+		{
+			name: "unban without a target is dropped",
+			msg:  testMessage{Type: "unban"},
+		},
+		{
 			name: "timeout shares the ban route",
 			msg:  testMessage{Type: "timeout", Payload: `{"data":{"user_id":"1","duration":60}}`},
 			want: []recordedRequest{call("POST", "/helix/moderation/bans?broadcaster_id=44322889&"+mod, botAuth, `{"data":{"user_id":"1","duration":60}}`)},

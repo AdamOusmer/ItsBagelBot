@@ -40,7 +40,7 @@ test.each([
 test.each([
   ['api', ['reply.http_get', 'reply.http_post']],
   ['if', [...NODE_SPECS.filter((spec) => spec.kind === 'condition').map((spec) => spec.type), 'reply.text']],
-  ['mod', ['reply.mod', 'reply.chat_mode', 'cond.role', 'reply.timeout', 'reply.ban', 'twitch.unban_request', 'reply.unban_resolve']],
+  ['mod', ['reply.mod', 'reply.chat_mode', 'cond.role', 'reply.timeout', 'reply.unban', 'reply.ban', 'twitch.unban_request', 'reply.unban_resolve']],
   ['modules', []],
   ['zzzz', []],
   ['send zzzz', []],

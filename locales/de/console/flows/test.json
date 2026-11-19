@@ -47,6 +47,8 @@
   "offline": "Übersprungen, während der Stream offline ist",
   "noViewer": "Kein Zuschauer festgelegt",
   "noTarget": "Lege zuerst einen Kanalnamen fest",
+  "noMention": "Kein Zuschauer wurde per @ erwähnt",
+  "emptyLogin": "Der Name blieb leer",
   "inputBits": "Bits",
   "inputViewers": "Zuschauer",
   "duration": { "day": "T", "hour": "Std", "minute": "Min", "second": "Sek" },

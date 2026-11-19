@@ -68,9 +68,15 @@ var actionRole = map[string]int{
 	"marker":          roleLeadModerator,
 	"clip":            roleLeadModerator,
 
-	"timeout": roleModerator, "ban": roleModerator, "warn": roleModerator, "shield": roleModerator,
+	"timeout": roleModerator, "ban": roleModerator, "unban": roleModerator, "warn": roleModerator, "shield": roleModerator,
 	"delete_message": roleModerator, "cooldown_add": roleModerator,
 	"countdown_start": roleModerator, "countdown_add": roleModerator,
+}
+
+var selfTargetExempt = map[string]func(codec.RawMessage) bool{
+	"timeout":        whoIsViewer,
+	"ban":            whoIsViewer,
+	"delete_message": func(codec.RawMessage) bool { return true },
 }
 
 func register[T any](check func(chk, T)) entry {
@@ -153,7 +159,7 @@ func (c chk) action(i index, a Action) {
 	if c.triggerMismatch(a) {
 		at.add("type", CodeTriggerMismatch)
 	}
-	if c.permMissing(a.Type) {
+	if c.permMissing(a) {
 		at.add("type", CodePermRequired)
 	}
 	at.typed(actionRegistry, typedParams{Type: a.Type, Params: a.Params})
@@ -185,9 +191,24 @@ func pointsTargetViewer(raw codec.RawMessage) bool {
 	return p.targetsViewer()
 }
 
-func (c chk) permMissing(typ string) bool {
-	role, ok := actionRole[typ]
-	return ok && c.trigger == "command" && c.perm < role
+func whoIsViewer(raw codec.RawMessage) bool {
+	var p struct {
+		Who string `json:"who"`
+	}
+	return codec.Unmarshal(raw, &p) == nil && p.Who == "viewer"
+}
+
+func (c chk) permMissing(a Action) bool {
+	role, ok := actionRole[a.Type]
+	if !ok || c.trigger != "command" {
+		return false
+	}
+	return c.perm < role && !selfTargeted(a)
+}
+
+func selfTargeted(a Action) bool {
+	exempt, ok := selfTargetExempt[a.Type]
+	return ok && exempt(a.Params)
 }
 
 func permRank(conditions []Condition) int {
@@ -255,6 +276,7 @@ func init() {
 		"reply":           register(checkText),
 		"timeout":         register(checkTimeout),
 		"ban":             register(checkBan),
+		"unban":           register(checkUnban),
 		"delete_message":  register(checkEmpty),
 		"warn":            register(checkWarn),
 		"shield":          register(checkShield),

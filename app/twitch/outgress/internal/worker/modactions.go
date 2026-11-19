@@ -99,14 +99,37 @@ func (w *Worker) processAnnounce(ctx context.Context, payload *outgress.Message)
 	return w.execute(ctx, payload)
 }
 
+type modDeleteAction struct {
+	path        string
+	queryKey    string
+	missingID   string
+	activityKey string
+}
+
 func (w *Worker) processDelete(ctx context.Context, payload *outgress.Message) error {
-	mod, ok := w.botIdentity("delete", payload)
+	return w.processModDelete(ctx, payload, payload.MsgID, modDeleteAction{
+		path:        "/helix/moderation/chat",
+		queryKey:    "message_id",
+		missingID:   "dropping delete: no message id",
+		activityKey: "activity.automod.deleted",
+	})
+}
+
+func (w *Worker) processUnban(ctx context.Context, payload *outgress.Message) error {
+	return w.processModDelete(ctx, payload, payload.TargetUserID, modDeleteAction{
+		path:      "/helix/moderation/bans",
+		queryKey:  "user_id",
+		missingID: "dropping unban: no target user id",
+	})
+}
+
+func (w *Worker) processModDelete(ctx context.Context, payload *outgress.Message, id string, action modDeleteAction) error {
+	mod, ok := w.botIdentity(payload.Type, payload)
 	if !ok {
 		return nil
 	}
-	if payload.MsgID == "" {
-		w.log.Error("dropping delete: no message id",
-			zap.String("broadcaster_id", payload.BroadcasterID))
+	if id == "" {
+		w.log.Error(action.missingID, zap.String("broadcaster_id", payload.BroadcasterID))
 		return nil
 	}
 
@@ -116,16 +139,10 @@ func (w *Worker) processDelete(ctx context.Context, payload *outgress.Message) e
 
 	payload.As = outgress.AsBot
 	payload.Method = http.MethodDelete
-	payload.Endpoint = deleteEndpoint(payload.BroadcasterID, mod, payload.MsgID)
+	payload.Endpoint = modEndpoint(action.path, payload.BroadcasterID, mod) + "&" + action.queryKey + "=" + url.QueryEscape(id)
 	payload.Payload = nil
 
-	return w.executeModAction(ctx, payload, "activity.automod.deleted")
-}
-
-func deleteEndpoint(broadcasterID, moderatorID, msgID string) string {
-	return "/helix/moderation/chat?broadcaster_id=" + url.QueryEscape(broadcasterID) +
-		"&moderator_id=" + url.QueryEscape(moderatorID) +
-		"&message_id=" + url.QueryEscape(msgID)
+	return w.executeModAction(ctx, payload, action.activityKey)
 }
 
 func (w *Worker) processShoutout(ctx context.Context, payload *outgress.Message) error {

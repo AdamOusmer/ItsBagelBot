@@ -1,0 +1,6 @@
+{
+  "label": "Timeout oder Sperre aufheben",
+  "summary": "Einen Zuschauer wieder chatten lassen",
+  "keywords": "entsperren entbannen aufheben timeout sperre moderation",
+  "line": "Timeout oder Sperre aufheben: {who}"
+}

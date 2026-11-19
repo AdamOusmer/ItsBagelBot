@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
+import { compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, streamTargetNodes, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
@@ -205,6 +205,12 @@ function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, li
 
 const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text']);
 
+function rehearsedTarget(node: FlowNode, login: Text | undefined): FlowNode['config'] {
+  if (!login || !streamTargetNodes.has(node.type)) return {};
+  const pickedLogin = node.config.who === 'user' ? node.config.login : undefined;
+  return { who: 'login', target: pickedLogin || login };
+}
+
 function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
   if (!node) return t('flows.test.effect');
   if (COMPUTED_VALUE_NODES.has(node.type) && detail.value !== undefined) return detail.value;
@@ -213,7 +219,7 @@ function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | u
     const displayExpanded = typeof node.config[key] === 'string' || param === 'login';
     return displayExpanded ? [[key, value] as const] : [];
   });
-  const config = { ...node.config, ...Object.fromEntries(expanded) };
+  const config = { ...node.config, ...Object.fromEntries(expanded), ...rehearsedTarget(node, detail.login) };
   return describe(t, { ...node, config });
 }
 
@@ -241,7 +247,8 @@ function reasonText(t: Translate, code: Text): Text {
     max_steps: t('flows.test.limit'), max_actions: t('flows.test.limit'), upstream_error: t('flows.test.apiFailed'),
     not_running: t('flows.test.notRunning'), below_rate: t('flows.test.belowRate'), var_limit: t('flows.test.varLimit'),
     text_error: t('flows.test.textError'), math_error: t('flows.test.mathError'), bad_def: t('flows.test.badDef'),
-    empty_login: t('flows.test.noTarget'), no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired')
+    empty_login: t('flows.test.emptyLogin'), no_target: t('flows.test.noMention'),
+    no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired')
   };
   return reasons[code] ?? t('flows.test.failed');
 }

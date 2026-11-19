@@ -177,6 +177,8 @@ export interface BanAction extends TargetAction {
   reason?: string;
 }
 
+export type UnbanAction = TargetAction;
+
 export interface LoginAction {
   login: string;
 }

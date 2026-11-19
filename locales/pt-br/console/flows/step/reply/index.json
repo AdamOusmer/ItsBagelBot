@@ -272,34 +272,30 @@
     "summary": "Pare a raid antes que os espectadores saiam"
   },
   "mod": {
-    "label": "Alterar cargo de moderador",
-    "summary": "Dê ou remova permissões de moderador",
+    "label": "Cargo de moderador",
+    "summary": "Adicione ou remova um moderador",
     "line": {
-      "on": "Dar cargo de moderador a {target}",
-      "off": "Remover cargo de moderador de {target}"
+      "add": "Dar cargo de moderador: {who}",
+      "remove": "Remover cargo de moderador: {who}"
     },
     "field": {
-      "target": {
-        "label": "Nome do canal ou espectador"
-      },
-      "on": {
-        "label": "Ativado"
+      "change": {
+        "label": "Alteração",
+        "option": { "add": "Adicionar", "remove": "Remover" }
       }
     }
   },
   "vip": {
-    "label": "Alterar cargo VIP",
-    "summary": "Dê ou remova o distintivo VIP de um espectador",
+    "label": "Cargo VIP",
+    "summary": "Adicione ou remova um VIP",
     "line": {
-      "on": "Dar cargo VIP a {target}",
-      "off": "Remover cargo VIP de {target}"
+      "add": "Dar cargo VIP: {who}",
+      "remove": "Remover cargo VIP: {who}"
     },
     "field": {
-      "target": {
-        "label": "Nome do canal ou espectador"
-      },
-      "on": {
-        "label": "Ativado"
+      "change": {
+        "label": "Alteração",
+        "option": { "add": "Adicionar", "remove": "Remover" }
       }
     }
   },
@@ -325,18 +321,22 @@
     }
   },
   "unbanResolve": {
-    "label": "Resolver pedido de desbanimento",
-    "summary": "Aprove ou negue o recurso de um espectador",
+    "label": "Responder ao pedido de desbanimento",
+    "summary": "Aprove ou negue um recurso",
+    "line": {
+      "approve": "Aprovar o pedido de desbanimento",
+      "deny": "Negar o pedido de desbanimento"
+    },
     "field": {
       "status": {
-        "label": "Ação",
+        "label": "Resposta",
         "option": {
           "approve": "Aprovar",
           "deny": "Negar"
         }
       },
       "resolution": {
-        "label": "Mensagem da decisão (opcional)"
+        "label": "Mensagem ao espectador (opcional)"
       }
     }
   }

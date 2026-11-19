@@ -4,6 +4,7 @@
   "reply": "Répondre au spectateur",
   "timeout": "Exclure temporairement un spectateur",
   "ban": "Bannir un spectateur",
+  "unban": "Lever une exclusion ou un ban",
   "delete_message": "Supprimer le message déclencheur",
   "warn": "Avertir un spectateur",
   "shield": "Régler le mode bouclier",

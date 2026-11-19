@@ -47,6 +47,8 @@
   "offline": "Пропущено, пока стрим не в эфире",
   "noViewer": "Зритель не задан",
   "noTarget": "Сначала укажите имя канала",
+  "noMention": "Зритель не упомянут через @",
+  "emptyLogin": "Имя оказалось пустым",
   "inputBits": "Биты",
   "inputViewers": "Зрители",
   "duration": { "day": "д", "hour": "ч", "minute": "м", "second": "с" },

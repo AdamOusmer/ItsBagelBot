@@ -163,6 +163,7 @@ export const ACTION_TYPES: TypeDef[] = [
   action('reply', [textReq]),
   action('timeout', [...targetFields, f('seconds', 'int', { required: true, min: 1, max: 1209600 }), reasonOpt]),
   action('ban', [...targetFields, reasonOpt]),
+  action('unban', [...targetFields]),
   action('delete_message'),
   action('warn', [loginReq, f('reason', 'template', { required: true, min: 1, max: 500 })]),
   action('shield', [f('on', 'bool')]),
