@@ -3,7 +3,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import { SPOTIFY_SR_PERMS, SPOTIFY_QUOTA_TIERS, blankSpotifySr, blankSpotifyRedeem, blankSpotifyQuotas } from '@bagel/kit';
 import type { SpotifySrPerm } from '#lib/server/spotify-store';
-import { spotifyStore } from '#lib/server/spotify-store';
+import { positiveCount, spotifyStore } from '#lib/server/spotify-store';
 import { done, storeMutator } from '#lib/server/reward-action';
 import { oneOf, parseRewardCore } from '#lib/server/reward-form';
 import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '#lib/server/oauth';
@@ -34,6 +34,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
           return {
             ...demoSpotifyView(),
             quotas: blankSpotifyQuotas(),
+            maxDepth: null,
             queue: {
               current: { tid: 'demo-1', title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
               up: [
@@ -80,6 +81,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
       sr: blankSpotifySr(),
       redeem: blankSpotifyRedeem(),
       quotas: blankSpotifyQuotas(),
+      maxDepth: null,
       queue: { current: null, up: [] } as QueueView,
       connected: false,
       scopeGap: [] as string[],
@@ -124,11 +126,11 @@ export const actions: Actions = {
   quotas: mutate('quotas', 'Invalid request.', async (store, f) => {
     const quotas = blankSpotifyQuotas();
     for (const tier of SPOTIFY_QUOTA_TIERS) {
-      const n = Number(f.get(`quota_${tier}`));
-      quotas[tier] = Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+      quotas[tier] = positiveCount(f.get(`quota_${tier}`));
     }
+    const maxDepth = positiveCount(f.get('max_depth'));
     const detail = SPOTIFY_QUOTA_TIERS.map((t) => `${t}=${quotas[t] ?? 'inf'}`).join('/');
-    return done(await store.saveQuotas(quotas), detail);
+    return done(await store.saveLimits({ quotas, maxDepth }), `${detail}/queue=${maxDepth ?? 'inf'}`);
   }),
 
   redeemToggle: mutate('redeem_toggle', 'Invalid request.', async (store, f) => {
