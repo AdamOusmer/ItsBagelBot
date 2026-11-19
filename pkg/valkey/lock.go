@@ -63,6 +63,17 @@ type Claim struct {
 	TTL time.Duration
 }
 
+var claimUnlessPresentScript = NewScript(`
+if redis.call('EXISTS', KEYS[2]) == 1 then return false end
+return redis.call('SET', KEYS[1], ARGV[1], 'NX', 'PX', ARGV[2])
+`)
+
+func ClaimUnlessPresent(ctx context.Context, client valkey_go.Client, c Claim, blocker string) (bool, error) {
+	keys := []string{c.Key, blocker}
+	args := []string{ClaimValue, strconv.FormatInt(c.TTL.Milliseconds(), 10)}
+	return wonClaim(claimUnlessPresentScript.Exec(ctx, client, keys, args))
+}
+
 var claimAllScript = valkey_go.NewLuaScript(`
 if redis.call('EXISTS', unpack(KEYS)) > 0 then return 0 end
 for i, key in ipairs(KEYS) do

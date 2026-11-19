@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/analytics"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
@@ -120,7 +121,12 @@ func NewValkeyRaffleStore(client valkey.Client, cfg RaffleConfig, log *zap.Logge
 }
 
 func (s *ValkeyRaffleStore) armDeadline(ctx context.Context, broadcasterID uint64, duration time.Duration) (bool, error) {
-	return pkg_valkey.ClaimOnce(ctx, s.client, raffleKey(raffleDeadlinePrefix, broadcasterID), duration.Truncate(time.Second))
+	claim := pkg_valkey.Claim{Key: raffleKey(raffleDeadlinePrefix, broadcasterID), TTL: duration.Truncate(time.Second)}
+	return pkg_valkey.ClaimUnlessPresent(ctx, s.client, claim, draw.JoinableKey(draw.ChannelID(broadcasterID)))
+}
+
+func RaffleStateKey(channel draw.ChannelID) string {
+	return raffleKey(raffleStatePrefix, uint64(channel))
 }
 
 type raffleInstall struct {
