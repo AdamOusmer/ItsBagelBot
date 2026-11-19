@@ -9,7 +9,6 @@ const FLAG_SCOPE = /\(\?[imsU-]+:/g;
 const NAMED_GROUP = /\(\?P</g;
 const REPEAT_COUNT = /\{(\d+)(?:,(\d*))?\}/y;
 const MAX_REPEAT = 1000;
-const ESCAPED_TOKEN = /\\(?:Q[\s\S]*?(?:\\E|$)|[pP](?:\{([^}]*)\}|([^{]))?|[\s\S])/gu;
 
 const GO_UNICODE_CLASSES = new Set([
   'Adlam', 'Ahom', 'Anatolian_Hieroglyphs', 'Any', 'Arabic', 'Armenian', 'ASCII', 'Assigned',
@@ -51,6 +50,10 @@ const UNSUPPORTED = [LOOKAROUND, BACKREFERENCE];
 type RegexSource = string;
 
 type Cursor = { source: RegexSource; at: number };
+
+type EscapeScanner = { source: RegexSource; closeAt: number };
+
+type EscapeScan = { end: number; className?: RegexSource };
 
 type ScanKind = 'open' | 'close' | 'atom' | 'modifier' | 'repeat';
 
@@ -134,15 +137,54 @@ function canonicalUnicodeClass(name: RegexSource): RegexSource {
   return name.replace(/[ _-]/g, '').replace(/[A-Z]/g, (c) => c.toLowerCase());
 }
 
+function codePointEnd(source: RegexSource, at: number): number {
+  return at + ((source.codePointAt(at) ?? 0) > 0xffff ? 2 : 1);
+}
+
+function nextClose(scanner: EscapeScanner, from: number): number {
+  if (scanner.closeAt >= 0 && scanner.closeAt < from) scanner.closeAt = scanner.source.indexOf('}', from);
+  return scanner.closeAt;
+}
+
+function quotedEnd(source: RegexSource, from: number): number {
+  const close = source.indexOf('\\E', from);
+  return close < 0 ? source.length : close + 2;
+}
+
+function bracedClass(scanner: EscapeScanner, open: number): EscapeScan {
+  const close = nextClose(scanner, open + 1);
+  if (close < 0) return { end: open, className: '' };
+  return { end: close + 1, className: scanner.source.slice(open + 1, close).replace(/^\^/, '') };
+}
+
+function unicodeClass(scanner: EscapeScanner, from: number): EscapeScan {
+  const { source } = scanner;
+  if (source[from] === '{') return bracedClass(scanner, from);
+  if (from >= source.length) return { end: from, className: '' };
+  const end = codePointEnd(source, from);
+  return { end, className: source.slice(from, end) };
+}
+
+function scanEscape(scanner: EscapeScanner, at: number): EscapeScan {
+  const kind = scanner.source[at + 1];
+  if (kind === 'Q') return { end: quotedEnd(scanner.source, at + 2) };
+  if (kind === 'p' || kind === 'P') return unicodeClass(scanner, at + 2);
+  return { end: codePointEnd(scanner.source, at + 1) };
+}
+
+const isGoUnicodeClass = (name: RegexSource): boolean => GO_UNICODE_CLASSES.has(canonicalUnicodeClass(name));
+
 function normalizeUnicodeClasses(source: RegexSource): RegexSource | null {
-  let valid = true;
-  const normalized = source.replace(ESCAPED_TOKEN, (token: RegexSource, braced?: RegexSource, single?: RegexSource) => {
-    if (token[1] !== 'p' && token[1] !== 'P') return token;
-    const name = braced?.replace(/^\^/, '') ?? single ?? '';
-    if (!GO_UNICODE_CLASSES.has(canonicalUnicodeClass(name))) valid = false;
-    return '\\w';
-  });
-  return valid ? normalized : null;
+  const scanner: EscapeScanner = { source, closeAt: source.indexOf('}') };
+  let normalized = '';
+  let copied = 0;
+  for (let at = source.indexOf('\\'); at >= 0 && at + 1 < source.length; at = source.indexOf('\\', copied)) {
+    const scan = scanEscape(scanner, at);
+    if (scan.className !== undefined && !isGoUnicodeClass(scan.className)) return null;
+    normalized += scan.className === undefined ? source.slice(copied, scan.end) : source.slice(copied, at) + '\\w';
+    copied = scan.end;
+  }
+  return normalized + source.slice(copied);
 }
 
 function toJsSyntax(source: RegexSource): RegexSource {

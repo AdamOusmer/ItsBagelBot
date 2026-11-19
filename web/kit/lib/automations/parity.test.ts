@@ -95,6 +95,12 @@ describe('compilesAsRe2', () => {
       expect(compilesAsRe2(pattern)).toBe(want);
     });
   }
+
+  test('scans unclosed unicode classes in linear time', () => {
+    const started = performance.now();
+    expect(compilesAsRe2('\\P{{' + '\\P{{|'.repeat(50_000))).toBe(false);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
 });
 
 describe('parseDefinition', () => {
