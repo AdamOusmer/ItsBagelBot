@@ -9,77 +9,6 @@
       }
     }
   },
-  "points": {
-    "label": "Cambiar puntos",
-    "summary": "Añadir o quitar puntos",
-    "field": {
-      "amount": {
-        "label": "Cantidad",
-        "unit": "puntos"
-      },
-      "change": { "label": "Cambio", "option": { "add": "Añadir", "take": "Quitar" } }
-    },
-    "line": { "add": "Dar {amount}", "take": "Quitar {amount}" }
-  },
-  "counter": {
-    "label": "Cambiar contador",
-    "summary": "Aumentar, reducir o fijar un contador con nombre",
-    "field": {
-      "counter": {
-        "label": "Contador"
-      },
-      "change": { "label": "Cambio", "option": { "add": "Añadir", "set": "Fijar" } },
-      "amount": { "label": "Cantidad", "hint": "Usa un número negativo para restar" },
-      "value": { "label": "Valor" }
-    },
-    "line": { "add": "Añadir {amount} a {counter}", "take": "Quitar {amount} de {counter}", "set": "Fijar {counter} en {value}" }
-  },
-  "lights": {
-    "label": "Ajustar luces",
-    "summary": "Color, escena, blanco, encendido o apagado de luces Govee",
-    "field": {
-      "device": {
-        "label": "Luz"
-      },
-      "mode": {
-        "label": "Ajustar",
-        "option": {
-          "color": "Color",
-          "scene": "Escena",
-          "white": "Blanco",
-          "on": "Encender",
-          "off": "Apagar"
-        }
-      },
-      "color": {
-        "label": "Color"
-      },
-      "scene": {
-        "label": "Escena",
-        "hint": "Usa la lista de escenas de la primera luz."
-      },
-      "liveOnly": {
-        "label": "Solo en directo"
-      },
-      "kelvin": {
-        "label": "Temperatura de color"
-      },
-      "brightness": {
-        "label": "Brillo",
-        "placeholder": "Mantener",
-        "unit": "%"
-      },
-      "holdS": {
-        "label": "Volver después de",
-        "hint": "Las luces vuelven a su estado anterior. Si había una escena, se recupera su último color.",
-        "range": "Usa de 0 a {max} segundos."
-      }
-    },
-    "noColors": "Esta luz no admite colores",
-    "noWarmth": "Esta luz no permite ajustar el blanco",
-    "noLights": "No se encontraron luces Govee que puedas controlar.",
-    "noLightsBody": "Añade una luz a tu cuenta de Govee desde la aplicación."
-  },
   "wait": {
     "label": "Esperar",
     "summary": "Pausar antes del siguiente paso",
@@ -104,47 +33,6 @@
     "out": {
       "body": "Cada vez",
       "done": "Al terminar"
-    }
-  },
-  "varSet": {
-    "label": "Fijar una variable",
-    "summary": "Guardar un valor para después",
-    "field": {
-      "scope": {
-        "label": "Guardado para",
-        "option": {
-          "channel": "El canal",
-          "viewer": "Este espectador"
-        }
-      },
-      "name": {
-        "label": "Nombre",
-        "placeholder": "muertes"
-      },
-      "value": {
-        "label": "Valor",
-        "placeholder": "{user}"
-      }
-    }
-  },
-  "varAdd": {
-    "label": "Sumar a una variable",
-    "summary": "Sumar o restar",
-    "field": {
-      "scope": {
-        "label": "Guardado para",
-        "option": {
-          "channel": "El canal",
-          "viewer": "Este espectador"
-        }
-      },
-      "name": {
-        "label": "Nombre",
-        "placeholder": "muertes"
-      },
-      "amount": {
-        "label": "Cantidad"
-      }
     }
   },
   "varDelete": {
@@ -176,64 +64,6 @@
       "saveAs": {
         "label": "Guardar como",
         "placeholder": "total"
-      }
-    }
-  },
-  "cooldownAdd": {
-    "label": "Añadir tiempo a un enfriamiento",
-    "summary": "Extender un temporizador con nombre mientras se ejecuta",
-    "line": "Añadir {seconds} a {name}",
-    "field": {
-      "name": {
-        "label": "Temporizador"
-      },
-      "seconds": {
-        "label": "Añadir",
-        "range": "Usa de 1 segundo a {days} días."
-      },
-      "per": {
-        "label": "Por cada",
-        "hint": "Solo con Cheers y suscripciones regaladas. Déjalo vacío para añadir tiempo una vez."
-      }
-    }
-  },
-  "countdownAdd": {
-    "label": "Añadir tiempo a la cuenta atrás",
-    "summary": "Ampliar una cuenta atrás activa",
-    "line": "Añadir {seconds} a {name}",
-    "field": {
-      "name": {
-        "label": "Cuenta atrás"
-      },
-      "seconds": {
-        "label": "Añadir",
-        "range": "Usa entre 1 segundo y {days} días."
-      },
-      "per": {
-        "label": "Por cada",
-        "hint": "Solo con Cheers y suscripciones regaladas. Déjalo vacío para añadir tiempo una vez."
-      }
-    }
-  },
-  "poll": {
-    "label": "Iniciar una encuesta",
-    "summary": "Deja que los espectadores voten una pregunta",
-    "line": "Encuesta: {title}",
-    "field": {
-      "title": {
-        "label": "Título"
-      },
-      "choices": {
-        "label": "Opciones (una por línea)"
-      },
-      "seconds": {
-        "label": "Duración (segundos)"
-      },
-      "extraVotes": {
-        "label": "Votos extra con Puntos del canal"
-      },
-      "pointsPerVote": {
-        "label": "Puntos por voto"
       }
     }
   },
@@ -270,29 +100,6 @@
       }
     }
   },
-  "predictionEnd": {
-    "label": "Finalizar una predicción",
-    "summary": "Cierra apuestas, devuelve puntos o elige ganador",
-    "line": {
-      "lock": "Cerrar las apuestas",
-      "cancel": "Cancelar y devolver los puntos",
-      "resolve": "Ganador: {outcome}"
-    },
-    "field": {
-      "status": {
-        "label": "Acción",
-        "option": {
-          "lock": "Cerrar las apuestas",
-          "cancel": "Cancelar y devolver los puntos",
-          "resolve": "Elegir un ganador"
-        }
-      },
-      "outcome": {
-        "label": "Resultado ganador",
-        "hint": "Un número o el nombre del resultado"
-      }
-    }
-  },
   "raidStart": {
     "label": "Iniciar una incursión",
     "summary": "Envía a tus espectadores a otro canal",
@@ -318,7 +125,10 @@
     "field": {
       "change": {
         "label": "Cambio",
-        "option": { "add": "Añadir", "remove": "Quitar" }
+        "option": {
+          "add": "Añadir",
+          "remove": "Quitar"
+        }
       }
     }
   },
@@ -332,7 +142,10 @@
     "field": {
       "change": {
         "label": "Cambio",
-        "option": { "add": "Añadir", "remove": "Quitar" }
+        "option": {
+          "add": "Añadir",
+          "remove": "Quitar"
+        }
       }
     }
   },
@@ -359,70 +172,12 @@
       }
     }
   },
-  "unbanResolve": {
-    "label": "Responder a la solicitud de desbloqueo",
-    "summary": "Aprueba o rechaza una apelación",
-    "line": {
-      "approve": "Aprobar la solicitud de desbloqueo",
-      "deny": "Rechazar la solicitud de desbloqueo"
-    },
-    "field": {
-      "status": {
-        "label": "Respuesta",
-        "option": {
-          "approve": "Aprobar",
-          "deny": "Rechazar"
-        }
-      },
-      "resolution": {
-        "label": "Mensaje al espectador (opcional)"
-      }
-    }
-  },
   "stop": {
     "label": "Detener aquí",
     "summary": "Termina la ejecución aquí",
     "keywords": "fin terminar salir detener",
     "line": "Termina la ejecución aquí",
     "note": "En rutas paralelas, solo termina esa ruta."
-  },
-  "random": {
-    "label": "Elegir una ruta al azar",
-    "summary": "Elige una ruta según las probabilidades configuradas",
-    "keywords": "dados azar mezclar ponderado",
-    "path": "Ruta {path}",
-    "pathPercent": "{label} ({percent} %)",
-    "field": {
-      "paths": {
-        "label": "Rutas",
-        "option": {
-          "2": "2",
-          "3": "3",
-          "4": "4",
-          "5": "5"
-        }
-      },
-      "weight1": {
-        "label": "Probabilidad de la ruta 1",
-        "unit": "partes"
-      },
-      "weight2": {
-        "label": "Probabilidad de la ruta 2",
-        "unit": "partes"
-      },
-      "weight3": {
-        "label": "Probabilidad de la ruta 3",
-        "unit": "partes"
-      },
-      "weight4": {
-        "label": "Probabilidad de la ruta 4",
-        "unit": "partes"
-      },
-      "weight5": {
-        "label": "Probabilidad de la ruta 5",
-        "unit": "partes"
-      }
-    }
   },
   "run": {
     "label": "Ejecutar otra receta",

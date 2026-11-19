@@ -1,0 +1,18 @@
+{
+  "label": "Añadir tiempo a un enfriamiento",
+  "summary": "Extender un temporizador con nombre mientras se ejecuta",
+  "line": "Añadir {seconds} a {name}",
+  "field": {
+    "name": {
+      "label": "Temporizador"
+    },
+    "seconds": {
+      "label": "Añadir",
+      "range": "Usa de 1 segundo a {days} días."
+    },
+    "per": {
+      "label": "Por cada",
+      "hint": "Solo con Cheers y suscripciones regaladas. Déjalo vacío para añadir tiempo una vez."
+    }
+  }
+}

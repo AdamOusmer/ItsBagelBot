@@ -9,77 +9,6 @@
       }
     }
   },
-  "points": {
-    "label": "Change points",
-    "summary": "Add or remove points",
-    "field": {
-      "amount": {
-        "label": "Amount",
-        "unit": "points"
-      },
-      "change": { "label": "Change", "option": { "add": "Add", "take": "Take" } }
-    },
-    "line": { "add": "Give {amount}", "take": "Take {amount}" }
-  },
-  "counter": {
-    "label": "Change counter",
-    "summary": "Add to, subtract from or set a named counter",
-    "field": {
-      "counter": {
-        "label": "Counter"
-      },
-      "change": { "label": "Change", "option": { "add": "Add", "set": "Set" } },
-      "amount": { "label": "Amount", "hint": "Use a minus number to take away" },
-      "value": { "label": "Value" }
-    },
-    "line": { "add": "Add {amount} to {counter}", "take": "Take {amount} from {counter}", "set": "Set {counter} to {value}" }
-  },
-  "lights": {
-    "label": "Set lights",
-    "summary": "Color, scene, white, on or off on Govee lights",
-    "field": {
-      "device": {
-        "label": "Light"
-      },
-      "mode": {
-        "label": "Set",
-        "option": {
-          "color": "Color",
-          "scene": "Scene",
-          "white": "White",
-          "on": "On",
-          "off": "Off"
-        }
-      },
-      "color": {
-        "label": "Color"
-      },
-      "scene": {
-        "label": "Scene",
-        "hint": "Plays on the first light's scene list."
-      },
-      "liveOnly": {
-        "label": "Only while live"
-      },
-      "kelvin": {
-        "label": "Warmth"
-      },
-      "brightness": {
-        "label": "Brightness",
-        "placeholder": "Keep",
-        "unit": "%"
-      },
-      "holdS": {
-        "label": "Go back after",
-        "hint": "Lights return to how they were. Scenes come back as their last color.",
-        "range": "Use 0 to {max} seconds."
-      }
-    },
-    "noColors": "This light has no colors",
-    "noWarmth": "This light has no white warmth",
-    "noLights": "No controllable Govee lights found.",
-    "noLightsBody": "Add a light to your Govee account in the Govee app."
-  },
   "wait": {
     "label": "Wait",
     "summary": "Pause before the next step",
@@ -104,47 +33,6 @@
     "out": {
       "body": "Each time",
       "done": "When done"
-    }
-  },
-  "varSet": {
-    "label": "Set a variable",
-    "summary": "Keep a value for later",
-    "field": {
-      "scope": {
-        "label": "Kept for",
-        "option": {
-          "channel": "The channel",
-          "viewer": "This viewer"
-        }
-      },
-      "name": {
-        "label": "Name",
-        "placeholder": "deaths"
-      },
-      "value": {
-        "label": "Value",
-        "placeholder": "{user}"
-      }
-    }
-  },
-  "varAdd": {
-    "label": "Add to a variable",
-    "summary": "Count up or down",
-    "field": {
-      "scope": {
-        "label": "Kept for",
-        "option": {
-          "channel": "The channel",
-          "viewer": "This viewer"
-        }
-      },
-      "name": {
-        "label": "Name",
-        "placeholder": "deaths"
-      },
-      "amount": {
-        "label": "Amount"
-      }
     }
   },
   "varDelete": {
@@ -176,64 +64,6 @@
       "saveAs": {
         "label": "Save as",
         "placeholder": "total"
-      }
-    }
-  },
-  "cooldownAdd": {
-    "label": "Add time to a cooldown",
-    "summary": "Extend a named timer while it runs",
-    "line": "Add {seconds} to {name}",
-    "field": {
-      "name": {
-        "label": "Timer"
-      },
-      "seconds": {
-        "label": "Add",
-        "range": "Use 1 second to {days} days."
-      },
-      "per": {
-        "label": "For every",
-        "hint": "Only on cheer and gift sub triggers. Leave empty to add time once."
-      }
-    }
-  },
-  "countdownAdd": {
-    "label": "Add time to countdown",
-    "summary": "Extend a running countdown",
-    "line": "Add {seconds} to {name}",
-    "field": {
-      "name": {
-        "label": "Countdown"
-      },
-      "seconds": {
-        "label": "Add",
-        "range": "Use 1 second to {days} days."
-      },
-      "per": {
-        "label": "For every",
-        "hint": "Only on cheer and gift sub triggers. Leave empty to add time once."
-      }
-    }
-  },
-  "poll": {
-    "label": "Start a poll",
-    "summary": "Let viewers vote on a question",
-    "line": "Poll: {title}",
-    "field": {
-      "title": {
-        "label": "Title"
-      },
-      "choices": {
-        "label": "Choices (one per line)"
-      },
-      "seconds": {
-        "label": "Duration (seconds)"
-      },
-      "extraVotes": {
-        "label": "Extra votes with Channel Points"
-      },
-      "pointsPerVote": {
-        "label": "Points per vote"
       }
     }
   },
@@ -270,29 +100,6 @@
       }
     }
   },
-  "predictionEnd": {
-    "label": "End a prediction",
-    "summary": "Lock bets, refund points or pick a winner",
-    "line": {
-      "lock": "Lock bets",
-      "cancel": "Cancel and refund",
-      "resolve": "Winner: {outcome}"
-    },
-    "field": {
-      "status": {
-        "label": "Action",
-        "option": {
-          "lock": "Lock bets",
-          "cancel": "Cancel and refund",
-          "resolve": "Pick a winner"
-        }
-      },
-      "outcome": {
-        "label": "Winning outcome",
-        "hint": "A number or the outcome name"
-      }
-    }
-  },
   "raidStart": {
     "label": "Start a raid",
     "summary": "Send your viewers to another channel",
@@ -318,7 +125,10 @@
     "field": {
       "change": {
         "label": "Change",
-        "option": { "add": "Add", "remove": "Remove" }
+        "option": {
+          "add": "Add",
+          "remove": "Remove"
+        }
       }
     }
   },
@@ -332,7 +142,10 @@
     "field": {
       "change": {
         "label": "Change",
-        "option": { "add": "Add", "remove": "Remove" }
+        "option": {
+          "add": "Add",
+          "remove": "Remove"
+        }
       }
     }
   },
@@ -359,70 +172,12 @@
       }
     }
   },
-  "unbanResolve": {
-    "label": "Answer unban request",
-    "summary": "Approve or deny an appeal",
-    "line": {
-      "approve": "Approve the unban request",
-      "deny": "Deny the unban request"
-    },
-    "field": {
-      "status": {
-        "label": "Answer",
-        "option": {
-          "approve": "Approve",
-          "deny": "Deny"
-        }
-      },
-      "resolution": {
-        "label": "Message to the viewer (optional)"
-      }
-    }
-  },
   "stop": {
     "label": "Stop here",
     "summary": "End the run here",
     "keywords": "end exit quit",
     "line": "End the run here",
     "note": "Inside parallel paths it ends only that path."
-  },
-  "random": {
-    "label": "Pick a random path",
-    "summary": "Choose a path using the chances you set",
-    "keywords": "dice chance shuffle weighted",
-    "path": "Path {path}",
-    "pathPercent": "{label} ({percent}%)",
-    "field": {
-      "paths": {
-        "label": "Paths",
-        "option": {
-          "2": "2",
-          "3": "3",
-          "4": "4",
-          "5": "5"
-        }
-      },
-      "weight1": {
-        "label": "Path 1 chance",
-        "unit": "parts"
-      },
-      "weight2": {
-        "label": "Path 2 chance",
-        "unit": "parts"
-      },
-      "weight3": {
-        "label": "Path 3 chance",
-        "unit": "parts"
-      },
-      "weight4": {
-        "label": "Path 4 chance",
-        "unit": "parts"
-      },
-      "weight5": {
-        "label": "Path 5 chance",
-        "unit": "parts"
-      }
-    }
   },
   "run": {
     "label": "Run another recipe",

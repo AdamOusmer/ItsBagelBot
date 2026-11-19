@@ -1,0 +1,7 @@
+{
+  "passed": "Superado",
+  "skipped": "Omitido",
+  "issue": "Por corregir",
+  "failed": "Fallido",
+  "untested": "Sin probar"
+}

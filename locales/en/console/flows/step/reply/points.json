@@ -1,0 +1,21 @@
+{
+  "label": "Change points",
+  "summary": "Add or remove points",
+  "field": {
+    "amount": {
+      "label": "Amount",
+      "unit": "points"
+    },
+    "change": {
+      "label": "Change",
+      "option": {
+        "add": "Add",
+        "take": "Take"
+      }
+    }
+  },
+  "line": {
+    "add": "Give {amount}",
+    "take": "Take {amount}"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "label": "Abklingzeit",
+  "summary": "Nur alle paar Sekunden ausführen",
+  "field": {
+    "channelSeconds": {
+      "label": "Wartezeit für den Kanal",
+      "range": "Verwende 0 Sekunden bis {days} Tage."
+    },
+    "viewerSeconds": {
+      "label": "Wartezeit pro Zuschauer",
+      "range": "Verwende 0 Sekunden bis {days} Tage."
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "subathon",
+      "hint": "Schritte zum Hinzufügen von Zeit in jedem Rezept können eine benannte Abklingzeit verlängern. Gilt nur für die Kanalwartezeit."
+    },
+    "leftCommand": {
+      "label": "Befehl für verbleibende Zeit",
+      "placeholder": "!restzeit"
+    },
+    "leftReply": {
+      "label": "Antwort während der Wartezeit",
+      "placeholder": "{user}, noch {cooldown:left}, bevor du das wieder nutzen kannst."
+    },
+    "readyReply": {
+      "label": "Antwort, wenn bereit",
+      "placeholder": "{user}, das ist einsatzbereit."
+    }
+  },
+  "out": {
+    "yes": "Bereit",
+    "no": "In Abklingzeit"
+  }
+}

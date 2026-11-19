@@ -9,77 +9,6 @@
       }
     }
   },
-  "points": {
-    "label": "Modifier les points",
-    "summary": "Ajouter ou retirer des points",
-    "field": {
-      "amount": {
-        "label": "Montant",
-        "unit": "points"
-      },
-      "change": { "label": "Modification", "option": { "add": "Ajouter", "take": "Retirer" } }
-    },
-    "line": { "add": "Donner {amount}", "take": "Retirer {amount}" }
-  },
-  "counter": {
-    "label": "Modifier un compteur",
-    "summary": "Augmenter, diminuer ou fixer un compteur nommé",
-    "field": {
-      "counter": {
-        "label": "Compteur"
-      },
-      "change": { "label": "Modification", "option": { "add": "Ajouter", "set": "Fixer" } },
-      "amount": { "label": "Montant", "hint": "Saisissez un nombre négatif pour soustraire" },
-      "value": { "label": "Valeur" }
-    },
-    "line": { "add": "Ajouter {amount} à {counter}", "take": "Retirer {amount} de {counter}", "set": "Fixer {counter} à {value}" }
-  },
-  "lights": {
-    "label": "Régler les lumières",
-    "summary": "Couleur, scène, blanc, allumage ou extinction des lumières Govee",
-    "field": {
-      "device": {
-        "label": "Lumière"
-      },
-      "mode": {
-        "label": "Définir",
-        "option": {
-          "color": "Couleur",
-          "scene": "Scène",
-          "white": "Blanc",
-          "on": "Allumer",
-          "off": "Éteindre"
-        }
-      },
-      "color": {
-        "label": "Couleur"
-      },
-      "scene": {
-        "label": "Scène",
-        "hint": "Utilise la liste de scènes de la première lumière."
-      },
-      "liveOnly": {
-        "label": "Seulement en direct"
-      },
-      "kelvin": {
-        "label": "Température du blanc"
-      },
-      "brightness": {
-        "label": "Luminosité",
-        "placeholder": "Conserver",
-        "unit": "%"
-      },
-      "holdS": {
-        "label": "Rétablir après",
-        "hint": "Les lumières retrouvent leur état précédent. Si une scène était active, sa dernière couleur est rétablie.",
-        "range": "Utilisez une durée de 0 à {max} secondes."
-      }
-    },
-    "noColors": "Cette lumière ne propose pas de couleurs",
-    "noWarmth": "Le blanc de cette lumière n’est pas réglable",
-    "noLights": "Aucune lumière Govee contrôlable n’a été trouvée.",
-    "noLightsBody": "Ajoutez une lumière à votre compte depuis l’application Govee."
-  },
   "wait": {
     "label": "Attendre",
     "summary": "Pause avant l’étape suivante",
@@ -104,47 +33,6 @@
     "out": {
       "body": "À chaque fois",
       "done": "Une fois terminé"
-    }
-  },
-  "varSet": {
-    "label": "Définir une variable",
-    "summary": "Conserver une valeur pour plus tard",
-    "field": {
-      "scope": {
-        "label": "Conservé pour",
-        "option": {
-          "channel": "La chaîne",
-          "viewer": "Ce viewer"
-        }
-      },
-      "name": {
-        "label": "Nom",
-        "placeholder": "morts"
-      },
-      "value": {
-        "label": "Valeur",
-        "placeholder": "{user}"
-      }
-    }
-  },
-  "varAdd": {
-    "label": "Ajouter à une variable",
-    "summary": "Augmenter ou diminuer",
-    "field": {
-      "scope": {
-        "label": "Conservé pour",
-        "option": {
-          "channel": "La chaîne",
-          "viewer": "Ce viewer"
-        }
-      },
-      "name": {
-        "label": "Nom",
-        "placeholder": "morts"
-      },
-      "amount": {
-        "label": "Montant"
-      }
     }
   },
   "varDelete": {
@@ -176,64 +64,6 @@
       "saveAs": {
         "label": "Enregistrer sous",
         "placeholder": "total"
-      }
-    }
-  },
-  "cooldownAdd": {
-    "label": "Ajouter du temps à un délai de récupération",
-    "summary": "Prolonger un minuteur nommé pendant qu’il est en cours",
-    "line": "Ajouter {seconds} à {name}",
-    "field": {
-      "name": {
-        "label": "Minuteur"
-      },
-      "seconds": {
-        "label": "Ajouter",
-        "range": "Utilisez de 1 seconde à {days} jours."
-      },
-      "per": {
-        "label": "Par tranche de",
-        "hint": "Uniquement pour les Cheers et les abonnements offerts. Laissez vide pour ajouter du temps une seule fois."
-      }
-    }
-  },
-  "countdownAdd": {
-    "label": "Ajouter du temps au compte à rebours",
-    "summary": "Prolonger un compte à rebours en cours",
-    "line": "Ajouter {seconds} à {name}",
-    "field": {
-      "name": {
-        "label": "Compte à rebours"
-      },
-      "seconds": {
-        "label": "Ajouter",
-        "range": "Utilisez de 1 seconde à {days} jours."
-      },
-      "per": {
-        "label": "Par tranche de",
-        "hint": "Uniquement pour les Cheers et les abonnements offerts. Laissez vide pour ajouter du temps une seule fois."
-      }
-    }
-  },
-  "poll": {
-    "label": "Lancer un sondage",
-    "summary": "Laisser les spectateurs voter sur une question",
-    "line": "Sondage : {title}",
-    "field": {
-      "title": {
-        "label": "Titre"
-      },
-      "choices": {
-        "label": "Choix (un par ligne)"
-      },
-      "seconds": {
-        "label": "Durée (secondes)"
-      },
-      "extraVotes": {
-        "label": "Votes supplémentaires avec les points de chaîne"
-      },
-      "pointsPerVote": {
-        "label": "Points par vote"
       }
     }
   },
@@ -270,29 +100,6 @@
       }
     }
   },
-  "predictionEnd": {
-    "label": "Terminer une prédiction",
-    "summary": "Fermer les paris, rembourser ou choisir un gagnant",
-    "line": {
-      "lock": "Fermer les paris",
-      "cancel": "Annuler et rembourser",
-      "resolve": "Gagnant : {outcome}"
-    },
-    "field": {
-      "status": {
-        "label": "Action",
-        "option": {
-          "lock": "Fermer les paris",
-          "cancel": "Annuler et rembourser",
-          "resolve": "Choisir un gagnant"
-        }
-      },
-      "outcome": {
-        "label": "Résultat gagnant",
-        "hint": "Un numéro ou le nom du résultat"
-      }
-    }
-  },
   "raidStart": {
     "label": "Lancer un raid",
     "summary": "Envoyer tes spectateurs sur une autre chaîne",
@@ -318,7 +125,10 @@
     "field": {
       "change": {
         "label": "Changement",
-        "option": { "add": "Ajouter", "remove": "Retirer" }
+        "option": {
+          "add": "Ajouter",
+          "remove": "Retirer"
+        }
       }
     }
   },
@@ -332,7 +142,10 @@
     "field": {
       "change": {
         "label": "Changement",
-        "option": { "add": "Ajouter", "remove": "Retirer" }
+        "option": {
+          "add": "Ajouter",
+          "remove": "Retirer"
+        }
       }
     }
   },
@@ -359,70 +172,12 @@
       }
     }
   },
-  "unbanResolve": {
-    "label": "Répondre à une demande de déban",
-    "summary": "Accepter ou refuser un recours",
-    "line": {
-      "approve": "Accepter la demande de déban",
-      "deny": "Refuser la demande de déban"
-    },
-    "field": {
-      "status": {
-        "label": "Réponse",
-        "option": {
-          "approve": "Accepter",
-          "deny": "Refuser"
-        }
-      },
-      "resolution": {
-        "label": "Message au spectateur (facultatif)"
-      }
-    }
-  },
   "stop": {
     "label": "Arrêter ici",
     "summary": "Terminer l’exécution ici",
     "keywords": "fin terminer quitter arrêter",
     "line": "Terminer l’exécution ici",
     "note": "Dans des chemins parallèles, seul ce chemin s’arrête."
-  },
-  "random": {
-    "label": "Choisir un chemin au hasard",
-    "summary": "Choisir un chemin selon les chances indiquées",
-    "keywords": "dés hasard mélanger pondéré",
-    "path": "Chemin {path}",
-    "pathPercent": "{label} ({percent} %)",
-    "field": {
-      "paths": {
-        "label": "Chemins",
-        "option": {
-          "2": "2",
-          "3": "3",
-          "4": "4",
-          "5": "5"
-        }
-      },
-      "weight1": {
-        "label": "Chance du chemin 1",
-        "unit": "parts"
-      },
-      "weight2": {
-        "label": "Chance du chemin 2",
-        "unit": "parts"
-      },
-      "weight3": {
-        "label": "Chance du chemin 3",
-        "unit": "parts"
-      },
-      "weight4": {
-        "label": "Chance du chemin 4",
-        "unit": "parts"
-      },
-      "weight5": {
-        "label": "Chance du chemin 5",
-        "unit": "parts"
-      }
-    }
   },
   "run": {
     "label": "Exécuter une autre recette",

@@ -1,0 +1,22 @@
+{
+  "label": "Umfrage starten",
+  "summary": "Zuschauer über eine Frage abstimmen lassen",
+  "line": "Umfrage: {title}",
+  "field": {
+    "title": {
+      "label": "Titel"
+    },
+    "choices": {
+      "label": "Antworten (eine pro Zeile)"
+    },
+    "seconds": {
+      "label": "Dauer (Sekunden)"
+    },
+    "extraVotes": {
+      "label": "Zusatzstimmen mit Kanalpunkten"
+    },
+    "pointsPerVote": {
+      "label": "Punkte pro Stimme"
+    }
+  }
+}

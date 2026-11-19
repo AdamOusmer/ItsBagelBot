@@ -1,0 +1,20 @@
+{
+  "label": "Responder a la solicitud de desbloqueo",
+  "summary": "Aprueba o rechaza una apelación",
+  "line": {
+    "approve": "Aprobar la solicitud de desbloqueo",
+    "deny": "Rechazar la solicitud de desbloqueo"
+  },
+  "field": {
+    "status": {
+      "label": "Respuesta",
+      "option": {
+        "approve": "Aprobar",
+        "deny": "Rechazar"
+      }
+    },
+    "resolution": {
+      "label": "Mensaje al espectador (opcional)"
+    }
+  }
+}

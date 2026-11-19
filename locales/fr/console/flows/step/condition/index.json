@@ -1,0 +1,218 @@
+{
+  "op": {
+    "eq": "est identique à",
+    "ne": "diffère de",
+    "gt": "dépasse",
+    "gte": "atteint au moins",
+    "lt": "est en dessous de",
+    "lte": "vaut au plus",
+    "contains": "contient",
+    "starts": "commence par",
+    "exists": "a une valeur",
+    "not_exists": "n’est pas défini"
+  },
+  "role": {
+    "label": "Niveau utilisateur",
+    "summary": "Vérifier le rôle du viewer",
+    "warning": "Les rôles sont connus seulement pour le chat et les comptes à rebours. Ici, tout le monde compte comme viewer.",
+    "remove": "Retirer la condition et garder les étapes autorisées",
+    "everyoneNote": "Tout le monde satisfait à cette condition, donc elle ne bloque jamais l’exécution.",
+    "field": {
+      "level": {
+        "label": "Au moins",
+        "option": {
+          "everyone": "Tout le monde",
+          "sub": "Abonné",
+          "vip": "VIP",
+          "mod": "Modérateur",
+          "lead_mod": "Modérateur principal",
+          "broadcaster": "Diffuseur"
+        }
+      }
+    },
+    "out": {
+      "yes": "Autorisé",
+      "no": "Bloqué"
+    }
+  },
+  "user": {
+    "label": "Liste de spectateurs",
+    "summary": "Autoriser ou bloquer les spectateurs sélectionnés",
+    "repick": "Resélectionner pour enregistrer l’identifiant",
+    "removeViewer": "Retirer {name}",
+    "field": {
+      "mode": {
+        "label": "Mode",
+        "option": {
+          "only": "Seulement ces spectateurs",
+          "except": "Tous sauf ceux-ci"
+        }
+      },
+      "users": {
+        "label": "Spectateurs",
+        "placeholder": "itsbagelbot"
+      }
+    },
+    "out": {
+      "yes": "Autorisé",
+      "no": "Bloqué"
+    }
+  },
+  "compare": {
+    "label": "Comparer une valeur",
+    "summary": "Comparer deux nombres ou textes",
+    "field": {
+      "left": {
+        "label": "Valeur",
+        "placeholder": "{bits}"
+      },
+      "op": {
+        "label": "Est",
+        "option": {
+          "gte": "au moins",
+          "lt": "inférieur à",
+          "eq": "égal à",
+          "contains": "contient"
+        }
+      },
+      "right": {
+        "label": "Cette valeur",
+        "placeholder": "1000"
+      },
+      "matchCase": {
+        "label": "Respecter la casse"
+      }
+    },
+    "out": {
+      "yes": "Oui",
+      "no": "Non"
+    }
+  },
+  "chance": {
+    "alwaysNote": "La condition est toujours remplie.",
+    "label": "Chance aléatoire",
+    "summary": "Passe une partie du temps",
+    "field": {
+      "percent": {
+        "label": "Chance",
+        "unit": "%"
+      }
+    },
+    "out": {
+      "yes": "Succès",
+      "no": "Échec"
+    }
+  },
+  "live": {
+    "label": "En direct ou hors ligne",
+    "summary": "Vérifier si le stream est en direct",
+    "field": {
+      "state": {
+        "label": "Le stream est",
+        "option": {
+          "live": "En direct",
+          "offline": "Hors ligne"
+        }
+      }
+    },
+    "line": {
+      "live": "Le stream est en direct",
+      "offline": "Le stream est hors ligne"
+    },
+    "out": {
+      "yes": "En direct",
+      "no": "Hors ligne"
+    }
+  },
+  "category": {
+    "label": "Catégorie de jeu",
+    "summary": "Vérifier la catégorie choisie sur ta chaîne",
+    "field": {
+      "mode": {
+        "label": "Mode",
+        "option": {
+          "allow": "Fait partie de la liste",
+          "deny": "Ne fait pas partie de la liste"
+        }
+      },
+      "games": {
+        "label": "Jeux",
+        "hint": "Utilise la catégorie choisie sur ta chaîne, même quand elle est hors ligne."
+      }
+    },
+    "line": {
+      "allow": "Le jeu est {games}",
+      "deny": "Le jeu est différent de {games}"
+    },
+    "out": {
+      "yes": "Correspond",
+      "no": "Autre jeu"
+    }
+  },
+  "pattern": {
+    "label": "Le texte de la commande correspond",
+    "summary": "Vérifier les mots qui suivent une commande du chat",
+    "field": {
+      "pattern": {
+        "label": "Motif",
+        "hint": "Un motif pour les mots qui suivent la commande, par exemple ^[0-9]+$."
+      }
+    },
+    "line": "Le texte de la commande correspond à {pattern}",
+    "out": {
+      "yes": "Correspond",
+      "no": "Ne correspond pas"
+    }
+  },
+  "follow": {
+    "label": "Te suit",
+    "summary": "Vérifier depuis quand le spectateur te suit",
+    "field": {
+      "minDays": {
+        "label": "Depuis au moins",
+        "unit": "jours"
+      }
+    },
+    "line": "Te suit depuis au moins {minDays} jours",
+    "lineAny": "Te suit",
+    "viewerNote": "Reconnaît uniquement les spectateurs qui lancent cette recette.",
+    "out": {
+      "yes": "Te suit",
+      "no": "Ne te suit pas"
+    }
+  },
+  "accountAge": {
+    "label": "Âge du compte",
+    "summary": "Vérifier l’âge du compte Twitch du spectateur",
+    "field": {
+      "minDays": {
+        "label": "Au moins",
+        "unit": "jours"
+      }
+    },
+    "line": "Le compte a au moins {minDays} jours",
+    "out": {
+      "yes": "Assez ancien",
+      "no": "Trop récent"
+    }
+  },
+  "counter": {
+    "label": "Valeur du compteur",
+    "summary": "Vérifier la valeur actuelle d’un compteur nommé",
+    "field": {
+      "counter": {
+        "label": "Compteur"
+      },
+      "op": {
+        "label": "Est"
+      },
+      "value": {
+        "label": "Valeur"
+      }
+    },
+    "out": {
+      "yes": "Oui",
+      "no": "Non"
+    }
+  }
+}

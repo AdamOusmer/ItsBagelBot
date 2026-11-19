@@ -1,0 +1,18 @@
+{
+  "label": "Ajouter du temps au compte à rebours",
+  "summary": "Prolonger un compte à rebours en cours",
+  "line": "Ajouter {seconds} à {name}",
+  "field": {
+    "name": {
+      "label": "Compte à rebours"
+    },
+    "seconds": {
+      "label": "Ajouter",
+      "range": "Utilisez de 1 seconde à {days} jours."
+    },
+    "per": {
+      "label": "Par tranche de",
+      "hint": "Uniquement pour les Cheers et les abonnements offerts. Laissez vide pour ajouter du temps une seule fois."
+    }
+  }
+}

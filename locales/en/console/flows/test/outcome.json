@@ -1,0 +1,7 @@
+{
+  "passed": "Passed",
+  "skipped": "Skipped",
+  "issue": "To fix",
+  "failed": "Failed",
+  "untested": "Untested"
+}

@@ -1,0 +1,20 @@
+{
+  "label": "Zu Variable hinzufügen",
+  "summary": "Hoch- oder herunterzählen",
+  "field": {
+    "scope": {
+      "label": "Gespeichert für",
+      "option": {
+        "channel": "Der Kanal",
+        "viewer": "Dieser Zuschauer"
+      }
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "tode"
+    },
+    "amount": {
+      "label": "Menge"
+    }
+  }
+}

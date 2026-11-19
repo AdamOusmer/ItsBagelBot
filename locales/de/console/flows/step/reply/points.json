@@ -1,0 +1,21 @@
+{
+  "label": "Punkte ändern",
+  "summary": "Punkte hinzufügen oder abziehen",
+  "field": {
+    "amount": {
+      "label": "Menge",
+      "unit": "Punkte"
+    },
+    "change": {
+      "label": "Änderung",
+      "option": {
+        "add": "Hinzufügen",
+        "take": "Abziehen"
+      }
+    }
+  },
+  "line": {
+    "add": "Gib {amount}",
+    "take": "Ziehe {amount} ab"
+  }
+}

@@ -1,0 +1,218 @@
+{
+  "op": {
+    "eq": "ist gleich",
+    "ne": "ist ungleich",
+    "gt": "ist größer als",
+    "gte": "ist mindestens",
+    "lt": "ist kleiner als",
+    "lte": "ist höchstens",
+    "contains": "enthält",
+    "starts": "beginnt mit",
+    "exists": "ist auf einen beliebigen Wert gesetzt",
+    "not_exists": "ist nicht gesetzt"
+  },
+  "role": {
+    "label": "Nutzerlevel",
+    "summary": "Rolle des Zuschauers prüfen",
+    "warning": "Rollen sind nur bei Chat-Auslösern und Countdowns bekannt. Bei diesem Auslöser zählt jeder als Zuschauer.",
+    "remove": "Prüfung entfernen, erlaubte Schritte behalten",
+    "everyoneNote": "Alle bestehen diese Prüfung, deshalb blockiert sie nie.",
+    "field": {
+      "level": {
+        "label": "Mindestens",
+        "option": {
+          "everyone": "Jeder",
+          "sub": "Abonnent",
+          "vip": "VIP",
+          "mod": "Moderator",
+          "lead_mod": "Hauptmoderator",
+          "broadcaster": "Kanalinhaber"
+        }
+      }
+    },
+    "out": {
+      "yes": "Erlaubt",
+      "no": "Blockiert"
+    }
+  },
+  "user": {
+    "label": "Zuschauerliste",
+    "summary": "Ausgewählte Zuschauer zulassen oder blockieren",
+    "repick": "Erneut auswählen, um die ID zu speichern",
+    "removeViewer": "{name} entfernen",
+    "field": {
+      "mode": {
+        "label": "Modus",
+        "option": {
+          "only": "Nur diese Zuschauer",
+          "except": "Alle außer diesen"
+        }
+      },
+      "users": {
+        "label": "Zuschauer",
+        "placeholder": "itsbagelbot"
+      }
+    },
+    "out": {
+      "yes": "Zugelassen",
+      "no": "Blockiert"
+    }
+  },
+  "compare": {
+    "label": "Wert vergleichen",
+    "summary": "Zwei Zahlen oder Texte vergleichen",
+    "field": {
+      "left": {
+        "label": "Wert",
+        "placeholder": "{bits}"
+      },
+      "op": {
+        "label": "Ist",
+        "option": {
+          "gte": "mindestens",
+          "lt": "kleiner als",
+          "eq": "gleich",
+          "contains": "enthält"
+        }
+      },
+      "right": {
+        "label": "Dieser Wert",
+        "placeholder": "1000"
+      },
+      "matchCase": {
+        "label": "Groß-/Kleinschreibung beachten"
+      }
+    },
+    "out": {
+      "yes": "Ja",
+      "no": "Nein"
+    }
+  },
+  "chance": {
+    "alwaysNote": "Besteht immer.",
+    "label": "Zufallschance",
+    "summary": "Nur manchmal durchlassen",
+    "field": {
+      "percent": {
+        "label": "Chance",
+        "unit": "%"
+      }
+    },
+    "out": {
+      "yes": "Treffer",
+      "no": "Verfehlt"
+    }
+  },
+  "live": {
+    "label": "Live oder offline",
+    "summary": "Prüfen, ob dein Stream live ist",
+    "field": {
+      "state": {
+        "label": "Stream ist",
+        "option": {
+          "live": "Live",
+          "offline": "Offline"
+        }
+      }
+    },
+    "line": {
+      "live": "Stream ist live",
+      "offline": "Stream ist offline"
+    },
+    "out": {
+      "yes": "Live",
+      "no": "Offline"
+    }
+  },
+  "category": {
+    "label": "Spielkategorie",
+    "summary": "Die auf deinem Kanal eingestellte Kategorie prüfen",
+    "field": {
+      "mode": {
+        "label": "Modus",
+        "option": {
+          "allow": "Ist eine davon",
+          "deny": "Ist keine davon"
+        }
+      },
+      "games": {
+        "label": "Spiele",
+        "hint": "Verwendet die auf deinem Kanal eingestellte Kategorie, auch wenn du offline bist."
+      }
+    },
+    "line": {
+      "allow": "Spiel ist {games}",
+      "deny": "Spiel ist nicht {games}"
+    },
+    "out": {
+      "yes": "Passt",
+      "no": "Anderes Spiel"
+    }
+  },
+  "pattern": {
+    "label": "Befehlstext passt",
+    "summary": "Die Wörter nach einem Chatbefehl prüfen",
+    "field": {
+      "pattern": {
+        "label": "Muster",
+        "hint": "Ein Muster für die Wörter nach dem Befehl, zum Beispiel ^[0-9]+$."
+      }
+    },
+    "line": "Befehlstext passt zu {pattern}",
+    "out": {
+      "yes": "Passt",
+      "no": "Passt nicht"
+    }
+  },
+  "follow": {
+    "label": "Folgt dir",
+    "summary": "Prüfen, wie lange dir der Zuschauer schon folgt",
+    "field": {
+      "minDays": {
+        "label": "Seit mindestens",
+        "unit": "Tagen"
+      }
+    },
+    "line": "Folgt dir seit mindestens {minDays} Tagen",
+    "lineAny": "Folgt dir",
+    "viewerNote": "Erkennt nur Zuschauer, die dieses Rezept starten.",
+    "out": {
+      "yes": "Folgt dir",
+      "no": "Folgt dir nicht"
+    }
+  },
+  "accountAge": {
+    "label": "Kontoalter",
+    "summary": "Das Alter des Twitch-Kontos des Zuschauers prüfen",
+    "field": {
+      "minDays": {
+        "label": "Mindestens",
+        "unit": "Tage"
+      }
+    },
+    "line": "Konto ist mindestens {minDays} Tage alt",
+    "out": {
+      "yes": "Alt genug",
+      "no": "Zu neu"
+    }
+  },
+  "counter": {
+    "label": "Zählerwert",
+    "summary": "Den aktuellen Wert eines benannten Zählers prüfen",
+    "field": {
+      "counter": {
+        "label": "Zähler"
+      },
+      "op": {
+        "label": "Ist"
+      },
+      "value": {
+        "label": "Wert"
+      }
+    },
+    "out": {
+      "yes": "Ja",
+      "no": "Nein"
+    }
+  }
+}

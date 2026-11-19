@@ -1,0 +1,38 @@
+{
+  "label": "Choisir un chemin au hasard",
+  "summary": "Choisir un chemin selon les chances indiquées",
+  "keywords": "dés hasard mélanger pondéré",
+  "path": "Chemin {path}",
+  "pathPercent": "{label} ({percent} %)",
+  "field": {
+    "paths": {
+      "label": "Chemins",
+      "option": {
+        "2": "2",
+        "3": "3",
+        "4": "4",
+        "5": "5"
+      }
+    },
+    "weight1": {
+      "label": "Chance du chemin 1",
+      "unit": "parts"
+    },
+    "weight2": {
+      "label": "Chance du chemin 2",
+      "unit": "parts"
+    },
+    "weight3": {
+      "label": "Chance du chemin 3",
+      "unit": "parts"
+    },
+    "weight4": {
+      "label": "Chance du chemin 4",
+      "unit": "parts"
+    },
+    "weight5": {
+      "label": "Chance du chemin 5",
+      "unit": "parts"
+    }
+  }
+}

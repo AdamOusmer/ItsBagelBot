@@ -1,0 +1,28 @@
+{
+  "label": "Change counter",
+  "summary": "Add to, subtract from or set a named counter",
+  "field": {
+    "counter": {
+      "label": "Counter"
+    },
+    "change": {
+      "label": "Change",
+      "option": {
+        "add": "Add",
+        "set": "Set"
+      }
+    },
+    "amount": {
+      "label": "Amount",
+      "hint": "Use a minus number to take away"
+    },
+    "value": {
+      "label": "Value"
+    }
+  },
+  "line": {
+    "add": "Add {amount} to {counter}",
+    "take": "Take {amount} from {counter}",
+    "set": "Set {counter} to {value}"
+  }
+}

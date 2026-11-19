@@ -1,0 +1,18 @@
+{
+  "label": "Adicionar tempo à contagem regressiva",
+  "summary": "Estender uma contagem regressiva ativa",
+  "line": "Adicionar {seconds} a {name}",
+  "field": {
+    "name": {
+      "label": "Contagem regressiva"
+    },
+    "seconds": {
+      "label": "Adicionar",
+      "range": "Use de 1 segundo a {days} dias."
+    },
+    "per": {
+      "label": "A cada",
+      "hint": "Apenas para Cheers e inscrições presenteadas. Deixe em branco para adicionar tempo uma vez."
+    }
+  }
+}

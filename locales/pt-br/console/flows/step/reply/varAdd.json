@@ -1,0 +1,20 @@
+{
+  "label": "Somar a uma variável",
+  "summary": "Contar para cima ou para baixo",
+  "field": {
+    "scope": {
+      "label": "Guardada para",
+      "option": {
+        "channel": "O canal",
+        "viewer": "Este espectador"
+      }
+    },
+    "name": {
+      "label": "Nome",
+      "placeholder": "mortes"
+    },
+    "amount": {
+      "label": "Quantidade"
+    }
+  }
+}

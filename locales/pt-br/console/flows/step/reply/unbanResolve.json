@@ -1,0 +1,20 @@
+{
+  "label": "Responder ao pedido de desbanimento",
+  "summary": "Aprove ou negue um recurso",
+  "line": {
+    "approve": "Aprovar o pedido de desbanimento",
+    "deny": "Negar o pedido de desbanimento"
+  },
+  "field": {
+    "status": {
+      "label": "Resposta",
+      "option": {
+        "approve": "Aprovar",
+        "deny": "Negar"
+      }
+    },
+    "resolution": {
+      "label": "Mensagem ao espectador (opcional)"
+    }
+  }
+}

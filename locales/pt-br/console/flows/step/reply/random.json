@@ -1,0 +1,38 @@
+{
+  "label": "Escolher um caminho aleatório",
+  "summary": "Escolhe um caminho com as chances que você definir",
+  "keywords": "dados sorteio embaralhar ponderado",
+  "path": "Caminho {path}",
+  "pathPercent": "{label} ({percent}%)",
+  "field": {
+    "paths": {
+      "label": "Caminhos",
+      "option": {
+        "2": "2",
+        "3": "3",
+        "4": "4",
+        "5": "5"
+      }
+    },
+    "weight1": {
+      "label": "Chance do caminho 1",
+      "unit": "partes"
+    },
+    "weight2": {
+      "label": "Chance do caminho 2",
+      "unit": "partes"
+    },
+    "weight3": {
+      "label": "Chance do caminho 3",
+      "unit": "partes"
+    },
+    "weight4": {
+      "label": "Chance do caminho 4",
+      "unit": "partes"
+    },
+    "weight5": {
+      "label": "Chance do caminho 5",
+      "unit": "partes"
+    }
+  }
+}

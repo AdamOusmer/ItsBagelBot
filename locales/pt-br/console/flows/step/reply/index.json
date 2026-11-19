@@ -9,77 +9,6 @@
       }
     }
   },
-  "points": {
-    "label": "Alterar pontos",
-    "summary": "Adicionar ou remover pontos",
-    "field": {
-      "amount": {
-        "label": "Quantidade",
-        "unit": "pontos"
-      },
-      "change": { "label": "Alteração", "option": { "add": "Adicionar", "take": "Retirar" } }
-    },
-    "line": { "add": "Dar {amount}", "take": "Tirar {amount}" }
-  },
-  "counter": {
-    "label": "Alterar contador",
-    "summary": "Aumente, diminua ou defina um contador com nome",
-    "field": {
-      "counter": {
-        "label": "Contador"
-      },
-      "change": { "label": "Alteração", "option": { "add": "Adicionar", "set": "Definir" } },
-      "amount": { "label": "Quantidade", "hint": "Use um número negativo para subtrair" },
-      "value": { "label": "Valor" }
-    },
-    "line": { "add": "Adicionar {amount} a {counter}", "take": "Tirar {amount} de {counter}", "set": "Definir {counter} como {value}" }
-  },
-  "lights": {
-    "label": "Ajustar luzes",
-    "summary": "Cor, cena, branco, ligar ou desligar luzes Govee",
-    "field": {
-      "device": {
-        "label": "Luz"
-      },
-      "mode": {
-        "label": "Definir",
-        "option": {
-          "color": "Cor",
-          "scene": "Cena",
-          "white": "Branco",
-          "on": "Ligar",
-          "off": "Desligar"
-        }
-      },
-      "color": {
-        "label": "Cor"
-      },
-      "scene": {
-        "label": "Cena",
-        "hint": "Usa a lista de cenas da primeira luz."
-      },
-      "liveOnly": {
-        "label": "Só durante a live"
-      },
-      "kelvin": {
-        "label": "Temperatura de cor"
-      },
-      "brightness": {
-        "label": "Brilho",
-        "placeholder": "Manter",
-        "unit": "%"
-      },
-      "holdS": {
-        "label": "Voltar após",
-        "hint": "As luzes voltam ao estado anterior. Se havia uma cena, sua última cor é restaurada.",
-        "range": "Use de 0 a {max} segundos."
-      }
-    },
-    "noColors": "Esta luz não tem cores",
-    "noWarmth": "Esta luz não tem branco ajustável",
-    "noLights": "Nenhuma luz Govee controlável foi encontrada.",
-    "noLightsBody": "Adicione uma luz à sua conta pelo app da Govee."
-  },
   "wait": {
     "label": "Aguardar",
     "summary": "Pausar antes da próxima etapa",
@@ -104,47 +33,6 @@
     "out": {
       "body": "A cada repetição",
       "done": "Ao terminar"
-    }
-  },
-  "varSet": {
-    "label": "Definir uma variável",
-    "summary": "Guardar um valor para depois",
-    "field": {
-      "scope": {
-        "label": "Guardada para",
-        "option": {
-          "channel": "O canal",
-          "viewer": "Este espectador"
-        }
-      },
-      "name": {
-        "label": "Nome",
-        "placeholder": "mortes"
-      },
-      "value": {
-        "label": "Valor",
-        "placeholder": "{user}"
-      }
-    }
-  },
-  "varAdd": {
-    "label": "Somar a uma variável",
-    "summary": "Contar para cima ou para baixo",
-    "field": {
-      "scope": {
-        "label": "Guardada para",
-        "option": {
-          "channel": "O canal",
-          "viewer": "Este espectador"
-        }
-      },
-      "name": {
-        "label": "Nome",
-        "placeholder": "mortes"
-      },
-      "amount": {
-        "label": "Quantidade"
-      }
     }
   },
   "varDelete": {
@@ -176,64 +64,6 @@
       "saveAs": {
         "label": "Salvar como",
         "placeholder": "total"
-      }
-    }
-  },
-  "cooldownAdd": {
-    "label": "Adicionar tempo a um intervalo de uso",
-    "summary": "Estender um temporizador nomeado enquanto ele está em andamento",
-    "line": "Adicionar {seconds} a {name}",
-    "field": {
-      "name": {
-        "label": "Temporizador"
-      },
-      "seconds": {
-        "label": "Adicionar",
-        "range": "Use de 1 segundo a {days} dias."
-      },
-      "per": {
-        "label": "A cada",
-        "hint": "Apenas para Cheers e inscrições presenteadas. Deixe em branco para adicionar tempo uma vez."
-      }
-    }
-  },
-  "countdownAdd": {
-    "label": "Adicionar tempo à contagem regressiva",
-    "summary": "Estender uma contagem regressiva ativa",
-    "line": "Adicionar {seconds} a {name}",
-    "field": {
-      "name": {
-        "label": "Contagem regressiva"
-      },
-      "seconds": {
-        "label": "Adicionar",
-        "range": "Use de 1 segundo a {days} dias."
-      },
-      "per": {
-        "label": "A cada",
-        "hint": "Apenas para Cheers e inscrições presenteadas. Deixe em branco para adicionar tempo uma vez."
-      }
-    }
-  },
-  "poll": {
-    "label": "Iniciar uma enquete",
-    "summary": "Deixe os espectadores votarem em uma pergunta",
-    "line": "Enquete: {title}",
-    "field": {
-      "title": {
-        "label": "Título"
-      },
-      "choices": {
-        "label": "Opções (uma por linha)"
-      },
-      "seconds": {
-        "label": "Duração (segundos)"
-      },
-      "extraVotes": {
-        "label": "Votos extras com Pontos do Canal"
-      },
-      "pointsPerVote": {
-        "label": "Pontos por voto"
       }
     }
   },
@@ -270,29 +100,6 @@
       }
     }
   },
-  "predictionEnd": {
-    "label": "Encerrar uma previsão",
-    "summary": "Feche apostas, devolva pontos ou escolha um vencedor",
-    "line": {
-      "lock": "Fechar apostas",
-      "cancel": "Cancelar e reembolsar",
-      "resolve": "Vencedor: {outcome}"
-    },
-    "field": {
-      "status": {
-        "label": "Ação",
-        "option": {
-          "lock": "Fechar apostas",
-          "cancel": "Cancelar e reembolsar",
-          "resolve": "Escolher um vencedor"
-        }
-      },
-      "outcome": {
-        "label": "Resultado vencedor",
-        "hint": "Um número ou o nome do resultado"
-      }
-    }
-  },
   "raidStart": {
     "label": "Iniciar uma raid",
     "summary": "Envie seus espectadores para outro canal",
@@ -318,7 +125,10 @@
     "field": {
       "change": {
         "label": "Alteração",
-        "option": { "add": "Adicionar", "remove": "Remover" }
+        "option": {
+          "add": "Adicionar",
+          "remove": "Remover"
+        }
       }
     }
   },
@@ -332,7 +142,10 @@
     "field": {
       "change": {
         "label": "Alteração",
-        "option": { "add": "Adicionar", "remove": "Remover" }
+        "option": {
+          "add": "Adicionar",
+          "remove": "Remover"
+        }
       }
     }
   },
@@ -359,70 +172,12 @@
       }
     }
   },
-  "unbanResolve": {
-    "label": "Responder ao pedido de desbanimento",
-    "summary": "Aprove ou negue um recurso",
-    "line": {
-      "approve": "Aprovar o pedido de desbanimento",
-      "deny": "Negar o pedido de desbanimento"
-    },
-    "field": {
-      "status": {
-        "label": "Resposta",
-        "option": {
-          "approve": "Aprovar",
-          "deny": "Negar"
-        }
-      },
-      "resolution": {
-        "label": "Mensagem ao espectador (opcional)"
-      }
-    }
-  },
   "stop": {
     "label": "Parar aqui",
     "summary": "Encerra a execução aqui",
     "keywords": "fim encerrar sair parar",
     "line": "Encerra a execução aqui",
     "note": "Em caminhos paralelos, encerra apenas esse caminho."
-  },
-  "random": {
-    "label": "Escolher um caminho aleatório",
-    "summary": "Escolhe um caminho com as chances que você definir",
-    "keywords": "dados sorteio embaralhar ponderado",
-    "path": "Caminho {path}",
-    "pathPercent": "{label} ({percent}%)",
-    "field": {
-      "paths": {
-        "label": "Caminhos",
-        "option": {
-          "2": "2",
-          "3": "3",
-          "4": "4",
-          "5": "5"
-        }
-      },
-      "weight1": {
-        "label": "Chance do caminho 1",
-        "unit": "partes"
-      },
-      "weight2": {
-        "label": "Chance do caminho 2",
-        "unit": "partes"
-      },
-      "weight3": {
-        "label": "Chance do caminho 3",
-        "unit": "partes"
-      },
-      "weight4": {
-        "label": "Chance do caminho 4",
-        "unit": "partes"
-      },
-      "weight5": {
-        "label": "Chance do caminho 5",
-        "unit": "partes"
-      }
-    }
   },
   "run": {
     "label": "Executar outra receita",
